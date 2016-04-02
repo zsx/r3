@@ -256,7 +256,9 @@ inline static void QUEUE_EXTRA_MEM(REBRIN *r, void *p) {
     EXPAND_SERIES_TAIL(r->extra_mem, 1);
 }
 
-static ffi_type * struct_type_to_ffi [STRUCT_TYPE_MAX];
+
+static ffi_type *struct_type_to_ffi[STRUCT_TYPE_MAX];
+
 
 static void process_type_block(
     REBRIN *r,
@@ -265,6 +267,7 @@ static void process_type_block(
     REBCNT n,
     REBOOL make
 );
+
 
 static void init_type_map()
 {
@@ -284,41 +287,44 @@ static void init_type_map()
     struct_type_to_ffi[STRUCT_TYPE_POINTER] = &ffi_type_pointer;
 }
 
+
 //
 //  CT_Routine: C
 //
 REBINT CT_Routine(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
-    //RL_Print("%s, %d\n", __func__, __LINE__);
-    if (mode >= 0) {
+    if (mode >= 0)
         return VAL_FUNC_ROUTINE(a) == VAL_FUNC_ROUTINE(b);
-    }
+
     return -1;
 }
+
 
 //
 //  CT_Callback: C
 //
 REBINT CT_Callback(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
-    //RL_Print("%s, %d\n", __func__, __LINE__);
     return -1;
 }
+
 
 static REBCNT n_struct_fields (REBSER *fields)
 {
     REBCNT n_fields = 0;
-    REBCNT i = 0;
-    for (i = 0; i < SER_LEN(fields); i ++) {
+
+    REBCNT i;
+    for (i = 0; i < SER_LEN(fields); ++i) {
         struct Struct_Field *field = SER_AT(struct Struct_Field, fields, i);
-        if (field->type != STRUCT_TYPE_STRUCT) {
+
+        if (field->type != STRUCT_TYPE_STRUCT)
             n_fields += field->dimension;
-        } else {
+        else
             n_fields += n_struct_fields(field->fields);
-        }
     }
     return n_fields;
 }
+
 
 static ffi_type* struct_to_ffi(
     REBRIN *r,
@@ -328,40 +334,39 @@ static ffi_type* struct_to_ffi(
 ){
     assert(IS_TYPESET(param));
 
-    REBCNT i = 0, j = 0;
-    REBCNT n_basic_type = 0;
-
     ffi_type *stype = NULL;
-    //printf("allocated stype at: %p\n", stype);
-    if (make) {//called by Routine constructor
+    if (make) {
         stype = OS_ALLOC(ffi_type);
         QUEUE_EXTRA_MEM(r, stype);
-    } else {
+    }
+    else {
         REBSER *ser = Make_Series(2, sizeof(ffi_type), MKS_NONE);
         SET_SER_FLAG(ser, SERIES_FLAG_FIXED_SIZE);
         stype = SER_HEAD(ffi_type, ser);
         PUSH_GUARD_SERIES(ser);
     }
 
-    stype->size = stype->alignment = 0;
+    stype->size = 0;
+    stype->alignment = 0;
     stype->type = FFI_TYPE_STRUCT;
 
     /* one extra for NULL */
     if (make) {
-        stype->elements = OS_ALLOC_N(ffi_type *, 1 + n_struct_fields(fields));
-        //printf("allocated stype elements at: %p\n", stype->elements);
+        stype->elements = OS_ALLOC_N(ffi_type*, 1 + n_struct_fields(fields));
         QUEUE_EXTRA_MEM(r, stype->elements);
     }
     else {
         REBSER *ser = Make_Series(
-            2 + n_struct_fields(fields), sizeof(ffi_type *), MKS_NONE
+            2 + n_struct_fields(fields), sizeof(ffi_type*), MKS_NONE
         );
         SET_SER_FLAG(ser, SERIES_FLAG_FIXED_SIZE);
         stype->elements = SER_HEAD(ffi_type*, ser);
         PUSH_GUARD_SERIES(ser);
     }
 
-    for (i = 0; i < SER_LEN(fields); i ++) {
+    REBCNT j = 0;
+    REBCNT i;
+    for (i = 0; i < SER_LEN(fields); ++i) {
         struct Struct_Field *field = SER_AT(struct Struct_Field, fields, i);
         if (field->type == STRUCT_TYPE_REBVAL) {
             //
@@ -373,21 +378,21 @@ static ffi_type* struct_to_ffi(
             fail (Error(RE_MISC));
         }
         else if (field->type != STRUCT_TYPE_STRUCT) {
-            if (struct_type_to_ffi[field->type]) {
-                REBCNT n = 0;
-                for (n = 0; n < field->dimension; n ++) {
-                    stype->elements[j++] = struct_type_to_ffi[field->type];
-                }
-            } else {
+            if (!struct_type_to_ffi[field->type])
                 return NULL;
+
+            REBCNT n;
+            for (n = 0; n < field->dimension; ++n) {
+                stype->elements[j++] = struct_type_to_ffi[field->type];
             }
-        } else {
+        }
+        else {
             ffi_type *subtype = struct_to_ffi(r, param, field->fields, make);
             if (!subtype)
                 return NULL;
 
             REBCNT n = 0;
-            for (n = 0; n < field->dimension; n ++) {
+            for (n = 0; n < field->dimension; ++n) {
                 stype->elements[j++] = subtype;
             }
         }
@@ -396,6 +401,7 @@ static ffi_type* struct_to_ffi(
 
     return stype;
 }
+
 
 /* convert the type of "elem", and store it in "out" with index of "idx"
  */
@@ -412,86 +418,102 @@ static REBOOL rebol_type_to_ffi(
 
     if (IS_WORD(elem)) {
         REBVAL *temp;
+
         switch (VAL_WORD_CANON(elem)) {
-            case SYM_VOID:
-                args[idx] = &ffi_type_void;
-                break;
-            case SYM_UINT8:
-                args[idx] = &ffi_type_uint8;
-                TYPE_SET(param, REB_INTEGER);
-                break;
-            case SYM_INT8:
-                args[idx] = &ffi_type_sint8;
-                TYPE_SET(param, REB_INTEGER);
-                break;
-            case SYM_UINT16:
-                args[idx] = &ffi_type_uint16;
-                TYPE_SET(param, REB_INTEGER);
-                break;
-            case SYM_INT16:
-                args[idx] = &ffi_type_sint16;
-                TYPE_SET(param, REB_INTEGER);
-                break;
-            case SYM_UINT32:
-                args[idx] = &ffi_type_uint32;
-                TYPE_SET(param, REB_INTEGER);
-                break;
-            case SYM_INT32:
-                args[idx] = &ffi_type_sint32;
-                TYPE_SET(param, REB_INTEGER);
-                break;
-            case SYM_UINT64:
-                args[idx] = &ffi_type_uint64;
-                TYPE_SET(param, REB_INTEGER);
-                break;
-            case SYM_INT64:
-                args[idx] = &ffi_type_sint64;
-                TYPE_SET(param, REB_INTEGER);
-                break;
-            case SYM_FLOAT:
-                args[idx] = &ffi_type_float;
-                TYPE_SET(param, REB_DECIMAL);
-                break;
-            case SYM_DOUBLE:
-                args[idx] = &ffi_type_double;
-                TYPE_SET(param, REB_DECIMAL);
-                break;
-            case SYM_POINTER:
-                args[idx] = &ffi_type_pointer;
-                TYPE_SET(param, REB_INTEGER);
-                TYPE_SET(param, REB_STRING);
-                TYPE_SET(param, REB_BINARY);
-                TYPE_SET(param, REB_VECTOR);
-                TYPE_SET(param, REB_FUNCTION); // callback
-                break;
-            default:
-                return FALSE;
+        case SYM_VOID:
+            args[idx] = &ffi_type_void;
+            break;
+
+        case SYM_UINT8:
+            args[idx] = &ffi_type_uint8;
+            TYPE_SET(param, REB_INTEGER);
+            break;
+
+        case SYM_INT8:
+            args[idx] = &ffi_type_sint8;
+            TYPE_SET(param, REB_INTEGER);
+            break;
+
+        case SYM_UINT16:
+            args[idx] = &ffi_type_uint16;
+            TYPE_SET(param, REB_INTEGER);
+            break;
+
+        case SYM_INT16:
+            args[idx] = &ffi_type_sint16;
+            TYPE_SET(param, REB_INTEGER);
+            break;
+
+        case SYM_UINT32:
+            args[idx] = &ffi_type_uint32;
+            TYPE_SET(param, REB_INTEGER);
+            break;
+
+        case SYM_INT32:
+            args[idx] = &ffi_type_sint32;
+            TYPE_SET(param, REB_INTEGER);
+            break;
+
+        case SYM_UINT64:
+            args[idx] = &ffi_type_uint64;
+            TYPE_SET(param, REB_INTEGER);
+            break;
+
+        case SYM_INT64:
+            args[idx] = &ffi_type_sint64;
+            TYPE_SET(param, REB_INTEGER);
+            break;
+
+        case SYM_FLOAT:
+            args[idx] = &ffi_type_float;
+            TYPE_SET(param, REB_DECIMAL);
+            break;
+
+        case SYM_DOUBLE:
+            args[idx] = &ffi_type_double;
+            TYPE_SET(param, REB_DECIMAL);
+            break;
+
+        case SYM_POINTER:
+            args[idx] = &ffi_type_pointer;
+            TYPE_SET(param, REB_INTEGER);
+            TYPE_SET(param, REB_STRING);
+            TYPE_SET(param, REB_BINARY);
+            TYPE_SET(param, REB_VECTOR);
+            TYPE_SET(param, REB_FUNCTION); // callback
+            break;
+
+        default:
+            return FALSE;
         }
         temp = Alloc_Tail_Array(RIN_FFI_ARG_STRUCTS(r));
         SET_BLANK(temp);
+        return TRUE;
     }
-    else if (IS_STRUCT(elem)) {
+
+    if (IS_STRUCT(elem)) {
         ffi_type *ftype = struct_to_ffi(
             r, param, VAL_STRUCT_FIELDS(elem), make
         );
-        REBVAL *to = NULL;
-        if (ftype) {
-            args[idx] = ftype;
-            TYPE_SET(param, REB_STRUCT);
-        } else {
+        if (!ftype)
             return FALSE;
-        }
-        if (idx == 0) {
-            to = KNOWN(ARR_HEAD(RIN_FFI_ARG_STRUCTS(r)));
-        } else {
-            to = Alloc_Tail_Array(RIN_FFI_ARG_STRUCTS(r));
-        }
-        Copy_Struct_Val(elem, to); //for callback and return value
-    } else {
-        return FALSE;
+
+        args[idx] = ftype;
+        TYPE_SET(param, REB_STRUCT);
+
+        // !!! Comment said "for callback and return value"
+        //
+        if (idx == 0)
+            Copy_Struct_Val(elem, KNOWN(ARR_HEAD(RIN_FFI_ARG_STRUCTS(r))));
+        else
+            Copy_Struct_Val(elem, Alloc_Tail_Array(RIN_FFI_ARG_STRUCTS(r)));
+
+        return TRUE;
     }
-    return TRUE;
+
+    return FALSE;
 }
+
 
 /* make a copy of the argument
  * arg referes to return value when idx = 0
@@ -515,181 +537,174 @@ static void *arg_to_ffi(
     struct Reb_Frame *frame_ = FS_TOP; // So you can use the D_xxx macros
 
     switch (arg_ffi_type->type) {
-        case FFI_TYPE_UINT8:
-            if (!IS_INTEGER(arg)) {
-                fail (Error_Arg_Type(
-                    D_LABEL_SYM, param, VAL_TYPE(arg)
-                ));
-            } else {
-#ifdef BIG_ENDIAN
-                u8 i = (u8) VAL_INT64(arg);
-                memcpy(&VAL_INT64(arg), &i, sizeof(u8));
-#endif
-                return &VAL_INT64(arg);
-            }
+    case FFI_TYPE_UINT8:
+        if (!IS_INTEGER(arg)) {
+            fail (Error_Arg_Type(
+                D_LABEL_SYM, param, VAL_TYPE(arg)
+            ));
+        }
+        else {
+        #ifdef BIG_ENDIAN
+            u8 i = (u8) VAL_INT64(arg);
+            memcpy(&VAL_INT64(arg), &i, sizeof(u8));
+        #endif
+            return &VAL_INT64(arg);
+        }
 
-        case FFI_TYPE_SINT8:
-            if (!IS_INTEGER(arg)) {
-                fail (Error_Arg_Type(
-                    D_LABEL_SYM, param, VAL_TYPE(arg)
-                ));
-            } else {
-#ifdef BIG_ENDIAN
-                i8 i = (i8) VAL_INT64(arg);
-                memcpy(&VAL_INT64(arg), &i, sizeof(i8));
-#endif
-                return &VAL_INT64(arg);
-            }
+    case FFI_TYPE_SINT8:
+        if (!IS_INTEGER(arg)) {
+            fail (Error_Arg_Type(
+                D_LABEL_SYM, param, VAL_TYPE(arg)
+            ));
+        }
+        else {
+        #ifdef BIG_ENDIAN
+            i8 i = (i8) VAL_INT64(arg);
+            memcpy(&VAL_INT64(arg), &i, sizeof(i8));
+        #endif
+            return &VAL_INT64(arg);
+        }
 
-        case FFI_TYPE_UINT16:
-            if (!IS_INTEGER(arg)) {
-                fail (Error_Arg_Type(
-                    D_LABEL_SYM, param, VAL_TYPE(arg)
-                ));
-            } else {
-#ifdef BIG_ENDIAN
-                u16 i = (u16) VAL_INT64(arg);
-                memcpy(&VAL_INT64(arg), &i, sizeof(u16));
-#endif
-                return &VAL_INT64(arg);
-            }
+    case FFI_TYPE_UINT16:
+        if (!IS_INTEGER(arg)) {
+            fail (Error_Arg_Type(
+                D_LABEL_SYM, param, VAL_TYPE(arg)
+            ));
+        }
+        else {
+        #ifdef BIG_ENDIAN
+            u16 i = (u16) VAL_INT64(arg);
+            memcpy(&VAL_INT64(arg), &i, sizeof(u16));
+        #endif
+            return &VAL_INT64(arg);
+        }
 
-        case FFI_TYPE_SINT16:
-            if (!IS_INTEGER(arg)) {
-                fail (Error_Arg_Type(
-                    D_LABEL_SYM, param, VAL_TYPE(arg)
-                ));
-            } else {
-#ifdef BIG_ENDIAN
-                i16 i = (i16) VAL_INT64(arg);
-                memcpy(&VAL_INT64(arg), &i, sizeof(i16));
-#endif
-                return &VAL_INT64(arg);
-            }
+    case FFI_TYPE_SINT16:
+        if (!IS_INTEGER(arg)) {
+            fail (Error_Arg_Type(
+                D_LABEL_SYM, param, VAL_TYPE(arg)
+            ));
+        }
+        else {
+        #ifdef BIG_ENDIAN
+            i16 i = (i16) VAL_INT64(arg);
+            memcpy(&VAL_INT64(arg), &i, sizeof(i16));
+        #endif
+            return &VAL_INT64(arg);
+        }
 
-        case FFI_TYPE_UINT32:
-            if (!IS_INTEGER(arg)) {
-                fail (Error_Arg_Type(
-                    D_LABEL_SYM, param, VAL_TYPE(arg)
-                ));
-            } else {
-#ifdef BIG_ENDIAN
-                u32 i = (u32) VAL_INT64(arg);
-                memcpy(&VAL_INT64(arg), &i, sizeof(u32));
-#endif
-                return &VAL_INT64(arg);
-            }
+    case FFI_TYPE_UINT32:
+        if (!IS_INTEGER(arg)) {
+            fail (Error_Arg_Type(
+                D_LABEL_SYM, param, VAL_TYPE(arg)
+            ));
+        }
+        else {
+        #ifdef BIG_ENDIAN
+            u32 i = (u32) VAL_INT64(arg);
+            memcpy(&VAL_INT64(arg), &i, sizeof(u32));
+        #endif
+            return &VAL_INT64(arg);
+        }
 
-        case FFI_TYPE_SINT32:
-            if (!IS_INTEGER(arg)) {
-                fail (Error_Arg_Type(
-                    D_LABEL_SYM, param, VAL_TYPE(arg)
-                ));
-            } else {
-#ifdef BIG_ENDIAN
-                i32 i = (i32) VAL_INT64(arg);
-                memcpy(&VAL_INT64(arg), &i, sizeof(i32));
-#endif
-                return &VAL_INT64(arg);
-            }
+    case FFI_TYPE_SINT32:
+        if (!IS_INTEGER(arg)) {
+            fail (Error_Arg_Type(
+                D_LABEL_SYM, param, VAL_TYPE(arg)
+            ));
+        }
+        else {
+        #ifdef BIG_ENDIAN
+            i32 i = (i32) VAL_INT64(arg);
+            memcpy(&VAL_INT64(arg), &i, sizeof(i32));
+        #endif
+            return &VAL_INT64(arg);
+        }
 
-        case FFI_TYPE_UINT64:
-        case FFI_TYPE_SINT64:
-            if (!IS_INTEGER(arg))
-                fail (Error_Arg_Type(
-                    D_LABEL_SYM, param, VAL_TYPE(arg)
-                ));
+    case FFI_TYPE_UINT64:
+    case FFI_TYPE_SINT64:
+        if (!IS_INTEGER(arg))
+            fail (Error_Arg_Type(
+                D_LABEL_SYM, param, VAL_TYPE(arg)
+            ));
+        return &VAL_INT64(arg);
+
+    case FFI_TYPE_POINTER:
+        switch (VAL_TYPE(arg)) {
+        case REB_INTEGER:
             return &VAL_INT64(arg);
 
-        case FFI_TYPE_POINTER:
-            switch (VAL_TYPE(arg)) {
-                case REB_INTEGER:
-                    return &VAL_INT64(arg);
-                case REB_STRING:
-                case REB_BINARY:
-                case REB_VECTOR:
-                    *ptr = VAL_RAW_DATA_AT(arg);
-                    return ptr;
-                case REB_FUNCTION:
-                    if (
-                        !IS_FUNCTION_RIN(arg)
-                        || !GET_RIN_FLAG(
-                            VAL_FUNC_ROUTINE(arg), ROUTINE_FLAG_CALLBACK
-                        )
-                    ) {
-                        fail (Error(RE_ONLY_CALLBACK_PTR));
-                    }
+        case REB_STRING:
+        case REB_BINARY:
+        case REB_VECTOR:
+            *ptr = VAL_RAW_DATA_AT(arg);
+            return ptr;
 
-                    *ptr = RIN_DISPATCHER(VAL_FUNC_ROUTINE(arg));
-                    return ptr;
-                default:
-                    fail (Error_Arg_Type(
-                        D_LABEL_SYM, param, VAL_TYPE(arg)
-                    ));
-            }
-
-        case FFI_TYPE_FLOAT:
-            //
-            // !!! hackish, store the single precision floating point number
-            // in a double precision variable
-            //
-            if (!IS_DECIMAL(arg)) {
-                fail (Error_Arg_Type(
-                    D_LABEL_SYM, param, VAL_TYPE(arg)
-                ));
-            } else {
-                float a = (float)VAL_DECIMAL(arg);
-                memcpy(&VAL_DECIMAL(arg), &a, sizeof(a));
-                return &VAL_DECIMAL(arg);
-            }
-
-        case FFI_TYPE_DOUBLE:
-            if (!IS_DECIMAL(arg))
-                fail (Error_Arg_Type(
-                    D_LABEL_SYM, param, VAL_TYPE(arg)
-                ));
-            return &VAL_DECIMAL(arg);
-
-        case FFI_TYPE_STRUCT:
-            if (returning) {/* returning a struct */
-                Copy_Struct(&RIN_RVALUE(r), &VAL_STRUCT(arg));
-            } else {
-                if (!IS_STRUCT(arg))
-                    fail (Error_Arg_Type(
-                        D_LABEL_SYM,
-                        param,
-                        VAL_TYPE(arg)
-                    ));
-            }
-            return SER_AT(
-                REBYTE,
-                VAL_STRUCT_DATA_BIN(arg),
-                VAL_STRUCT_OFFSET(arg)
-            );
-
-        case FFI_TYPE_VOID:
-            if (returning) {
-                return NULL;
-            } else {
-                fail (Error_Arg_Type(
-                    D_LABEL_SYM, param, VAL_TYPE(arg)
-                ));
-            }
+        case REB_FUNCTION:
+            if (!GET_RIN_FLAG(VAL_FUNC_ROUTINE(arg), ROUTINE_FLAG_CALLBACK))
+                fail (Error(RE_ONLY_CALLBACK_PTR));
+            *ptr = RIN_DISPATCHER(VAL_FUNC_ROUTINE(arg));
+            return ptr;
 
         default:
-            fail (Error_Invalid_Arg(arg));
+            fail (Error_Arg_Type(
+                D_LABEL_SYM, param, VAL_TYPE(arg)
+            ));
+        }
+
+    case FFI_TYPE_FLOAT:
+        {
+        if (!IS_DECIMAL(arg))
+            fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
+
+        // !!! hackish, store the single precision floating point number
+        // in a double precision variable
+        //
+        float a = cast(float, VAL_DECIMAL(arg));
+        memcpy(&VAL_DECIMAL(arg), &a, sizeof(a));
+        return &VAL_DECIMAL(arg);
+        }
+
+    case FFI_TYPE_DOUBLE:
+        if (!IS_DECIMAL(arg))
+            fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
+        return &VAL_DECIMAL(arg);
+
+    case FFI_TYPE_STRUCT:
+        if (returning) {
+            Copy_Struct(&RIN_RVALUE(r), &VAL_STRUCT(arg));
+        }
+        else {
+            if (!IS_STRUCT(arg))
+                fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
+        }
+        return SER_AT(
+            REBYTE,
+            VAL_STRUCT_DATA_BIN(arg),
+            VAL_STRUCT_OFFSET(arg)
+        );
+
+    case FFI_TYPE_VOID:
+        if (!returning)
+            fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
+        return NULL;
+
+    default:
+        fail (Error_Invalid_Arg(arg));
     }
 
     return NULL;
 }
 
+
 /* convert the return value to rebol
  */
-static void ffi_to_rebol(REBRIN *rin,
-                         ffi_type *ffi_rtype,
-                         void *ffi_rvalue,
-                         REBVAL *rebol_ret)
-{
+static void ffi_to_rebol(
+    REBRIN *rin,
+    ffi_type *ffi_rtype,
+    void *ffi_rvalue,
+    REBVAL *rebol_ret
+){
     switch (ffi_rtype->type) {
     case FFI_TYPE_UINT8:
         SET_INTEGER(rebol_ret, *cast(u8*, ffi_rvalue));
@@ -765,10 +780,6 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
 {
     REBRIN *r = FUNC_ROUTINE(f->func);
 
-    // `is_va_list_routine` is optimized out, but hints static analyzer
-    //
-    const REBOOL is_va_list_routine = GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC);
-
     // !!! This code calls GUARD_SERIES, but doesn't remember what series
     // it guarded.  It remembers the initial pointer and restores it...which
     // is a bit hacky for reaching beneath the abstraction layer.  It also
@@ -801,7 +812,7 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
     //
     REBSER *ser_ffi_args;
     ffi_cif *cif;
-    if (is_va_list_routine) {
+    if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC)) {
         //
         // !!! In the Atronix branch FFI, a variadic routine's parameter
         // list is a single element long--a BLOCK!.  This block is unpacked
@@ -840,7 +851,7 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
 
         REBCNT i = 1;
         REBCNT j = 1;
-        for (; i < VAL_LEN_HEAD(va_values) + 1; i ++, j ++) {
+        for (; i < VAL_LEN_HEAD(va_values) + 1; ++i, ++j) {
             REBVAL *reb_arg = KNOWN(VAL_ARRAY_AT_HEAD(va_values, i - 1));
 
             REBVAL temp;
@@ -876,7 +887,7 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
 
                 EXPAND_SERIES_TAIL(RIN_FFI_ARG_TYPES(r), 1);
                 process_type_block(r, param, reb_type, j, FALSE);
-                i ++;
+                ++i;
             }
             *SER_AT(void*, ser_ffi_args, j - 1) = arg_to_ffi(
                 r,
@@ -935,7 +946,7 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
         );
 
         REBCNT i;
-        for (i = 1; i < SER_LEN(RIN_FFI_ARG_TYPES(r)); i ++) {
+        for (i = 1; i < SER_LEN(RIN_FFI_ARG_TYPES(r)); ++i) {
             *SER_AT(void*, ser_ffi_args, i - 1) = arg_to_ffi(
                 r,
                 FUNC_PARAM(FRM_FUNC(f), i),
@@ -954,31 +965,36 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
     // after the call is finished?
     //
     ffi_type *rtype = *SER_HEAD(ffi_type*, RIN_FFI_ARG_TYPES(r));
+
     switch (rtype->type) {
-        case FFI_TYPE_UINT8:
-        case FFI_TYPE_SINT8:
-        case FFI_TYPE_UINT16:
-        case FFI_TYPE_SINT16:
-        case FFI_TYPE_UINT32:
-        case FFI_TYPE_SINT32:
-        case FFI_TYPE_UINT64:
-        case FFI_TYPE_SINT64:
-        case FFI_TYPE_POINTER:
-            SET_INTEGER(f->out, 0);
-            break;
-        case FFI_TYPE_FLOAT:
-        case FFI_TYPE_DOUBLE:
-            SET_DECIMAL(f->out, 0);
-            break;
-        case FFI_TYPE_STRUCT:
-            VAL_RESET_HEADER(f->out, REB_STRUCT);
-            break;
-        case FFI_TYPE_VOID:
-            SET_VOID(f->out);
-            break;
-        default:
-            // !!! Was passing uninitialized f->out to Error_Invalid_Arg
-            fail (Error(RE_MISC));
+    case FFI_TYPE_UINT8:
+    case FFI_TYPE_SINT8:
+    case FFI_TYPE_UINT16:
+    case FFI_TYPE_SINT16:
+    case FFI_TYPE_UINT32:
+    case FFI_TYPE_SINT32:
+    case FFI_TYPE_UINT64:
+    case FFI_TYPE_SINT64:
+    case FFI_TYPE_POINTER:
+        SET_INTEGER(f->out, 0);
+        break;
+
+    case FFI_TYPE_FLOAT:
+    case FFI_TYPE_DOUBLE:
+        SET_DECIMAL(f->out, 0);
+        break;
+
+    case FFI_TYPE_STRUCT:
+        VAL_RESET_HEADER(f->out, REB_STRUCT);
+        break;
+
+    case FFI_TYPE_VOID:
+        SET_VOID(f->out);
+        break;
+
+    default:
+        // !!! Was passing uninitialized f->out to Error_Invalid_Arg
+        fail (Error(RE_MISC));
     }
 
     REBVAL dummy_param;
@@ -1014,9 +1030,11 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
 
     Free_Series(ffi_args_ptrs);
 
-    if (ser_ffi_args) Free_Series(ser_ffi_args);
+    if (ser_ffi_args)
+        Free_Series(ser_ffi_args);
 
-    if (is_va_list_routine) OS_FREE(cif);
+    if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC))
+        OS_FREE(cif);
 
     //restore the saved series stack pointer
     SET_SERIES_LEN(GC_Series_Guard, series_guard_tail);
@@ -1034,7 +1052,7 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
 void Free_Routine(REBRIN *rin)
 {
     REBCNT n = 0;
-    for (n = 0; n < SER_LEN(rin->extra_mem); n ++) {
+    for (n = 0; n < SER_LEN(rin->extra_mem); ++n) {
         void *addr = *SER_AT(void*, rin->extra_mem, n);
         //printf("freeing %p\n", addr);
         OS_FREE(addr);
@@ -1052,6 +1070,7 @@ void Free_Routine(REBRIN *rin)
     Free_Node(RIN_POOL, (REBNOD*)rin);
 }
 
+
 static void process_type_block(
     REBRIN *r,
     REBVAL *param,
@@ -1059,36 +1078,35 @@ static void process_type_block(
     REBCNT n,
     REBOOL make
 ){
-    if (IS_BLOCK(blk)) {
-        REBVAL *t = KNOWN(VAL_ARRAY_AT(blk));
-        if (IS_WORD(t) && VAL_WORD_CANON(t) == SYM_STRUCT_TYPE) {
-            /* followed by struct definition */
-            REBVAL tmp;
-            SET_BLANK(&tmp); // GC should not reach uninitialized values
-            PUSH_GUARD_VALUE(&tmp);
-
-            ++ t;
-            if (!IS_BLOCK(t) || VAL_LEN_AT(blk) != 2)
-                fail (Error_Invalid_Arg(blk));
-
-            if (!MT_Struct(&tmp, t, SPECIFIED, REB_STRUCT))
-                fail (Error_Invalid_Arg(blk));
-
-            if (!rebol_type_to_ffi(r, param, &tmp, n, make))
-                fail (Error_Invalid_Arg(blk));
-
-            DROP_GUARD_VALUE(&tmp);
-        }
-        else {
-            if (VAL_LEN_AT(blk) != 1)
-                fail (Error_Invalid_Arg(blk));
-
-            if (!rebol_type_to_ffi(r, param, t, n, make))
-                fail (Error_Invalid_Arg(t));
-        }
-    }
-    else
+    if (!IS_BLOCK(blk))
         fail (Error_Invalid_Arg(blk));
+
+    REBVAL *t = KNOWN(VAL_ARRAY_AT(blk));
+    if (IS_WORD(t) && VAL_WORD_CANON(t) == SYM_STRUCT_TYPE) {
+        /* followed by struct definition */
+        REBVAL tmp;
+        SET_BLANK(&tmp); // GC should not reach uninitialized values
+        PUSH_GUARD_VALUE(&tmp);
+
+        ++t;
+        if (!IS_BLOCK(t) || VAL_LEN_AT(blk) != 2)
+            fail (Error_Invalid_Arg(blk));
+
+        if (!MT_Struct(&tmp, t, SPECIFIED, REB_STRUCT))
+            fail (Error_Invalid_Arg(blk));
+
+        if (!rebol_type_to_ffi(r, param, &tmp, n, make))
+            fail (Error_Invalid_Arg(blk));
+
+        DROP_GUARD_VALUE(&tmp);
+    }
+    else {
+        if (VAL_LEN_AT(blk) != 1)
+            fail (Error_Invalid_Arg(blk));
+
+        if (!rebol_type_to_ffi(r, param, t, n, make))
+            fail (Error_Invalid_Arg(t));
+    }
 }
 
 
@@ -1097,16 +1115,18 @@ static void callback_dispatcher(
     void *ret,
     void **args,
     void *user_data
-) {
-    REBRIN *rin = (REBRIN*)user_data;
-    REBCNT i = 0;
-    REBARR *array;
-    REBVAL *elem;
+){
+    if (!IS_VOID(&Callback_Error)) // !!!is this possible?
+        return;
 
+    REBRIN *rin = cast(REBRIN*, user_data);
+
+    // We do not want to longjmp() out of the callback if there is an error.
+    // It needs to allow the FFI processing to unwind the stack normally so
+    // that it's in a good state.  Therefore this must trap any fail()s.
+    //
     struct Reb_State state;
     REBCTX *error;
-
-    if (IS_ERROR(&Callback_Error)) return;
 
     PUSH_TRAP(&error, &state);
 
@@ -1118,125 +1138,144 @@ static void callback_dispatcher(
         return;
     }
 
-    array = Make_Array(1 + cif->nargs);
+    REBARR *array = Make_Array(1 + cif->nargs);
 
-    // !!! Currently an array must be managed in order to use it with DO,
-    // because the series could be put into a block of a backtrace.  That
-    // constraint may need to change (for Ren/C++) so this code is set up
-    // so these lines (and the DROP_GUARD) can be deleted if that happens.
-    //
-    MANAGE_ARRAY(array);
-    PUSH_GUARD_ARRAY(array);
-
-    elem = Alloc_Tail_Array(array);
+    REBVAL *elem = Alloc_Tail_Array(array);
     *elem = *FUNC_VALUE(RIN_CALLBACK_FUNC(rin));
 
-    for (i = 0; i < cif->nargs; i ++) {
+    REBCNT i;
+    for (i = 0; i < cif->nargs; ++i) {
         elem = Alloc_Tail_Array(array);
+
         switch (cif->arg_types[i]->type) {
-            case FFI_TYPE_UINT8:
-                SET_INTEGER(elem, *(u8*)args[i]);
-                break;
-            case FFI_TYPE_SINT8:
-                SET_INTEGER(elem, *(i8*)args[i]);
-                break;
-            case FFI_TYPE_UINT16:
-                SET_INTEGER(elem, *(u16*)args[i]);
-                break;
-            case FFI_TYPE_SINT16:
-                SET_INTEGER(elem, *(i16*)args[i]);
-                break;
-            case FFI_TYPE_UINT32:
-                SET_INTEGER(elem, *(u32*)args[i]);
-                break;
-            case FFI_TYPE_SINT32:
-                SET_INTEGER(elem, *(i32*)args[i]);
-                break;
-            case FFI_TYPE_UINT64:
-            case FFI_TYPE_POINTER:
-                SET_INTEGER(elem, *(u64*)args[i]);
-                break;
-            case FFI_TYPE_SINT64:
-                SET_INTEGER(elem, *(i64*)args[i]);
-                break;
-            case FFI_TYPE_STRUCT:
-                if (!IS_STRUCT(ARR_AT(RIN_FFI_ARG_STRUCTS(rin), i + 1)))
-                    fail (Error_Invalid_Arg(
-                        KNOWN(ARR_AT(RIN_FFI_ARG_STRUCTS(rin), i + 1))
-                    ));
-
-                Copy_Struct_Val(
-                    KNOWN(ARR_AT(RIN_FFI_ARG_STRUCTS(rin), i + 1)), elem
-                );
-                memcpy(
-                    SER_AT(
-                        REBYTE,
-                        VAL_STRUCT_DATA_BIN(elem),
-                        VAL_STRUCT_OFFSET(elem)
-                    ),
-                    args[i],
-                    VAL_STRUCT_LEN(elem)
-                );
-                break;
-            default:
-                // !!! was fail (Error_Invalid_Arg(elem)), but elem is uninitizalized here
-                fail (Error(RE_MISC));
-        }
-    }
-
-    REBVAL safe;
-    if (Do_At_Throws(&safe, array, 0, SPECIFIED)) {
-        // !!! Does not check for thrown cases...what should this
-        // do in case of THROW, BREAK, QUIT?
-        fail (Error_No_Catch_For_Throw(&safe));
-    }
-
-    elem = &safe;
-    switch (cif->rtype->type) {
-        case FFI_TYPE_VOID:
-            break;
         case FFI_TYPE_UINT8:
-            *((u8*)ret) = (u8)VAL_INT64(elem);
+            SET_INTEGER(elem, *(u8*)args[i]);
             break;
+
         case FFI_TYPE_SINT8:
-            *((i8*)ret) = (i8)VAL_INT64(elem);
+            SET_INTEGER(elem, *(i8*)args[i]);
             break;
+
         case FFI_TYPE_UINT16:
-            *((u16*)ret) = (u16)VAL_INT64(elem);
+            SET_INTEGER(elem, *(u16*)args[i]);
             break;
+
         case FFI_TYPE_SINT16:
-            *((i16*)ret) = (i16)VAL_INT64(elem);
+            SET_INTEGER(elem, *(i16*)args[i]);
             break;
+
         case FFI_TYPE_UINT32:
-            *((u32*)ret) = (u32)VAL_INT64(elem);
+            SET_INTEGER(elem, *(u32*)args[i]);
             break;
+
         case FFI_TYPE_SINT32:
-            *((i32*)ret) = (i32)VAL_INT64(elem);
+            SET_INTEGER(elem, *(i32*)args[i]);
             break;
+
         case FFI_TYPE_UINT64:
         case FFI_TYPE_POINTER:
-            *((u64*)ret) = (u64)VAL_INT64(elem);
+            SET_INTEGER(elem, *(u64*)args[i]);
             break;
+
         case FFI_TYPE_SINT64:
-            *((i64*)ret) = (i64)VAL_INT64(elem);
+            SET_INTEGER(elem, *(i64*)args[i]);
             break;
+
         case FFI_TYPE_STRUCT:
+            if (!IS_STRUCT(ARR_AT(RIN_FFI_ARG_STRUCTS(rin), i + 1)))
+                fail (Error_Invalid_Arg(
+                    KNOWN(ARR_AT(RIN_FFI_ARG_STRUCTS(rin), i + 1))
+                ));
+
+            Copy_Struct_Val(
+                KNOWN(ARR_AT(RIN_FFI_ARG_STRUCTS(rin), i + 1)), elem
+            );
             memcpy(
-                ret,
                 SER_AT(
                     REBYTE,
                     VAL_STRUCT_DATA_BIN(elem),
                     VAL_STRUCT_OFFSET(elem)
                 ),
+                args[i],
                 VAL_STRUCT_LEN(elem)
             );
             break;
+
         default:
-            fail (Error_Invalid_Arg(elem));
+            // !!! was fail (Error_Invalid_Arg(elem)) w/uninitizalized elem
+            fail (Error(RE_MISC));
+        }
     }
 
-    // !!! Could be a Free_Series if not managed/saved to use with DO
-    DROP_GUARD_ARRAY(array);
+    // !!! Currently an array must be managed in order to use it with DO,
+    // because the series could be put into a block of a backtrace.  It will
+    // be guarded implicitly during the Do_At_Throws(), however.
+    //
+    MANAGE_ARRAY(array);
+
+    REBVAL result;
+    if (Do_At_Throws(&result, array, 0, SPECIFIED)) {
+        //
+        // !!! Does not check for thrown cases...what should this
+        // do in case of THROW, BREAK, QUIT?
+        //
+        fail (Error_No_Catch_For_Throw(&result));
+    }
+
+    // !!! Could Free_Array(array) if not managed to use with DO
+
+    switch (cif->rtype->type) {
+    case FFI_TYPE_VOID:
+        break;
+
+    case FFI_TYPE_UINT8:
+        *((u8*)ret) = (u8)VAL_INT64(&result);
+        break;
+
+    case FFI_TYPE_SINT8:
+        *((i8*)ret) = (i8)VAL_INT64(&result);
+        break;
+
+    case FFI_TYPE_UINT16:
+        *((u16*)ret) = (u16)VAL_INT64(&result);
+        break;
+
+    case FFI_TYPE_SINT16:
+        *((i16*)ret) = (i16)VAL_INT64(&result);
+        break;
+
+    case FFI_TYPE_UINT32:
+        *((u32*)ret) = (u32)VAL_INT64(&result);
+        break;
+
+    case FFI_TYPE_SINT32:
+        *((i32*)ret) = (i32)VAL_INT64(&result);
+        break;
+
+    case FFI_TYPE_UINT64:
+    case FFI_TYPE_POINTER:
+        *((u64*)ret) = (u64)VAL_INT64(&result);
+        break;
+
+    case FFI_TYPE_SINT64:
+        *((i64*)ret) = (i64)VAL_INT64(&result);
+        break;
+
+    case FFI_TYPE_STRUCT:
+        memcpy(
+            ret,
+            SER_AT(
+                REBYTE,
+                VAL_STRUCT_DATA_BIN(&result),
+                VAL_STRUCT_OFFSET(&result)
+            ),
+            VAL_STRUCT_LEN(&result)
+        );
+        break;
+
+    default:
+        fail (Error_Invalid_Arg(&result));
+    }
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 }
@@ -1258,11 +1297,10 @@ static void callback_dispatcher(
 //
 REBOOL MT_Routine(
     REBVAL *out,
-    REBVAL *data,
+    RELVAL *data,
     REBCTX *specifier,
     REBOOL is_callback
 ) {
-    //RL_Print("%s, %d\n", __func__, __LINE__);
     ffi_type ** args = NULL;
     RELVAL *blk = NULL;
     REBCNT eval_idx = 0; /* for spec block evaluation */
@@ -1446,153 +1484,180 @@ REBOOL MT_Routine(
 
         if (indexor != END_FLAG)
             fail (Error_Invalid_Arg(KNOWN(&blk[cast(REBCNT, indexor)])));
-
-        //printf("RIN: %p, func: %p\n", r, &blk[1]);
     }
 
+
+
     blk = VAL_ARRAY_AT(&blk[0]);
-    for (; NOT_END(blk); blk++) {
+    for (; NOT_END(blk); ++blk) {
         if (IS_STRING(blk)) {
             // Notes in the spec, ignore them
             continue;
         }
 
         switch (VAL_TYPE(blk)) {
-            case REB_WORD:
-                {
-                    REBVAL *v = NULL;
-                    if (VAL_WORD_CANON(blk) == SYM_ELLIPSIS) {
-                        if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC)) {
-                            // duplicate ellipsis
-                            fail (Error_Invalid_Arg(KNOWN(blk)));
-                        }
-
-                        SET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC);
-
-                        // Change the argument list to be a block
-                        RIN_FIXED_ARGS(r) = Copy_Array_Shallow(
-                            VAL_FUNC_PARAMLIST(out), SPECIFIED
-                        );
-                        MANAGE_ARRAY(RIN_FIXED_ARGS(r));
-                        Remove_Series(
-                            ARR_SERIES(VAL_FUNC_PARAMLIST(out)),
-                            1,
-                            ARR_LEN(VAL_FUNC_PARAMLIST(out))
-                        );
-                        v = Alloc_Tail_Array(VAL_FUNC_PARAMLIST(out));
-                        Val_Init_Typeset(
-                            v, FLAGIT_KIND(REB_BLOCK), SYM_VARARGS
-                        );
-                    }
-                    else {
-                        if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC)) {
-                            //... has to be the last argument
-                            fail (Error_Invalid_Arg(KNOWN(blk)));
-                        }
-                        v = Alloc_Tail_Array(VAL_FUNC_PARAMLIST(out));
-                        Val_Init_Typeset(v, 0, VAL_WORD_SYM(blk));
-                        EXPAND_SERIES_TAIL(RIN_FFI_ARG_TYPES(r), 1);
-
-                        ++ blk;
-                        process_type_block(
-                            r, VAL_FUNC_PARAM(out, n), KNOWN(blk), n, TRUE
-                        );
-                    }
-
-                    // Function dispatch needs to know whether parameters are
-                    // to be hard quoted, soft quoted, refinements, or
-                    // evaluated.  This is signaled with bits on the typeset.
-                    //
-                    INIT_VAL_PARAM_CLASS(v, PARAM_CLASS_NORMAL);
+        case REB_WORD:
+            {
+            REBVAL *v = NULL;
+            if (VAL_WORD_CANON(blk) == SYM_ELLIPSIS) {
+                if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC)) {
+                    // duplicate ellipsis
+                    fail (Error_Invalid_Arg(KNOWN(blk)));
                 }
-                n ++;
-                break;
-            case REB_SET_WORD:
+
+                SET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC);
+
+                // Change the argument list to be a block
+                RIN_FIXED_ARGS(r) = Copy_Array_Shallow(
+                    VAL_FUNC_PARAMLIST(out), SPECIFIED
+                );
+                MANAGE_ARRAY(RIN_FIXED_ARGS(r));
+                Remove_Series(
+                    ARR_SERIES(VAL_FUNC_PARAMLIST(out)),
+                    1,
+                    ARR_LEN(VAL_FUNC_PARAMLIST(out))
+                );
+                v = Alloc_Tail_Array(VAL_FUNC_PARAMLIST(out));
+                Val_Init_Typeset(
+                    v, FLAGIT_KIND(REB_BLOCK), SYM_VARARGS
+                );
+            }
+            else {
+                if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC)) {
+                    //... has to be the last argument
+                    fail (Error_Invalid_Arg(KNOWN(blk)));
+                }
+                v = Alloc_Tail_Array(VAL_FUNC_PARAMLIST(out));
+                Val_Init_Typeset(v, 0, VAL_WORD_SYM(blk));
+                EXPAND_SERIES_TAIL(RIN_FFI_ARG_TYPES(r), 1);
+
+                ++blk;
+                process_type_block(
+                    r, VAL_FUNC_PARAM(out, n), KNOWN(blk), n, TRUE
+                );
+            }
+
+            // Function dispatch needs to know whether parameters are
+            // to be hard quoted, soft quoted, refinements, or
+            // evaluated.  This is signaled with bits on the typeset.
+            //
+            INIT_VAL_PARAM_CLASS(v, PARAM_CLASS_NORMAL);
+
+            ++n;
+            }
+            break;
+
+        case REB_SET_WORD:
+            switch (VAL_WORD_CANON(blk)) {
+            case SYM_ABI:
+                ++blk;
+                if (!IS_WORD(blk) || has_abi > 1)
+                    fail (Error_Invalid_Arg(KNOWN(blk)));
+
                 switch (VAL_WORD_CANON(blk)) {
-                    case SYM_ABI:
-                        ++ blk;
-                        if (!IS_WORD(blk) || has_abi > 1)
-                            fail (Error_Invalid_Arg(KNOWN(blk)));
+                case SYM_DEFAULT:
+                    INIT_RIN_ABI(r, FFI_DEFAULT_ABI);
+                    break;
 
-                        switch (VAL_WORD_CANON(blk)) {
-                            case SYM_DEFAULT:
-                                INIT_RIN_ABI(r, FFI_DEFAULT_ABI);
-                                break;
-#ifdef X86_WIN64
-                            case SYM_WIN64:
-                                INIT_RIN_ABI(r, FFI_WIN64);
-                                break;
-#elif defined(X86_WIN32) || defined(TO_LINUX_X86) || defined(TO_LINUX_X64)
-                            case SYM_STDCALL:
-                                INIT_RIN_ABI(r, FFI_STDCALL);
-                                break;
-                            case SYM_SYSV:
-                                INIT_RIN_ABI(r, FFI_SYSV);
-                                break;
-                            case SYM_THISCALL:
-                                INIT_RIN_ABI(r, FFI_THISCALL);
-                                break;
-                            case SYM_FASTCALL:
-                                INIT_RIN_ABI(r, FFI_FASTCALL);
-                                break;
-#ifdef X86_WIN32
-                            case SYM_MS_CDECL:
-                                INIT_RIN_ABI(r, FFI_MS_CDECL);
-                                break;
-#else
-                            case SYM_UNIX64:
-                                INIT_RIN_ABI(r, FFI_UNIX64);
-                                break;
-#endif //X86_WIN32
-#elif defined (TO_LINUX_ARM)
-                            case SYM_VFP:
-                                INIT_RIN_ABI(r, FFI_VFP);
-                            case SYM_SYSV:
-                                INIT_RIN_ABI(r, FFI_SYSV);
-                                break;
-#elif defined (TO_LINUX_MIPS)
-                            case SYM_O32:
-                                INIT_RIN_ABI(r, FFI_O32);
-                                break;
-                            case SYM_N32:
-                                INIT_RIN_ABI(r, FFI_N32);
-                                break;
-                            case SYM_N64:
-                                INIT_RIN_ABI(r, FFI_N64);
-                                break;
-                            case SYM_O32_SOFT_FLOAT:
-                                INIT_RIN_ABI(r, FFI_O32_SOFT_FLOAT);
-                                break;
-                            case SYM_N32_SOFT_FLOAT:
-                                INIT_RIN_ABI(r, FFI_N32_SOFT_FLOAT);
-                                break;
-                            case SYM_N64_SOFT_FLOAT:
-                                INIT_RIN_ABI(r, FFI_N64_SOFT_FLOAT);
-                                break;
-#endif //X86_WIN64
-                            default:
-                                fail (Error_Invalid_Arg(KNOWN(blk)));
-                        }
-                        has_abi ++;
-                        break;
-                    case SYM_RETURN: {
-                        if (has_return > 1)
-                            fail (Error_Invalid_Arg(KNOWN(blk)));
+    #ifdef X86_WIN64
 
-                        has_return ++;
-                        ++ blk;
+                case SYM_WIN64:
+                    INIT_RIN_ABI(r, FFI_WIN64);
+                    break;
 
-                        REBVAL dummy;
-                        Val_Init_Typeset(&dummy, 0, SYM_RETURN);
-                        process_type_block(r, &dummy, KNOWN(blk), 0, TRUE);
-                        break;
-                    }
-                    default:
-                        fail (Error_Invalid_Arg(KNOWN(blk)));
+    #elif defined(X86_WIN32) || defined(TO_LINUX_X86) || defined(TO_LINUX_X64)
+
+                case SYM_STDCALL:
+                    INIT_RIN_ABI(r, FFI_STDCALL);
+                    break;
+
+                case SYM_SYSV:
+                    INIT_RIN_ABI(r, FFI_SYSV);
+                    break;
+
+                case SYM_THISCALL:
+                    INIT_RIN_ABI(r, FFI_THISCALL);
+                    break;
+
+                case SYM_FASTCALL:
+                    INIT_RIN_ABI(r, FFI_FASTCALL);
+                    break;
+
+            #ifdef X86_WIN32
+                case SYM_MS_CDECL:
+                    INIT_RIN_ABI(r, FFI_MS_CDECL);
+                    break;
+            #else
+                case SYM_UNIX64:
+                    INIT_RIN_ABI(r, FFI_UNIX64);
+                    break;
+            #endif //X86_WIN32
+
+    #elif defined (TO_LINUX_ARM)
+
+                case SYM_VFP:
+                    INIT_RIN_ABI(r, FFI_VFP);
+                    break;
+
+                case SYM_SYSV:
+                    INIT_RIN_ABI(r, FFI_SYSV);
+                    break;
+
+    #elif defined (TO_LINUX_MIPS)
+
+                case SYM_O32:
+                    INIT_RIN_ABI(r, FFI_O32);
+                    break;
+
+                case SYM_N32:
+                    INIT_RIN_ABI(r, FFI_N32);
+                    break;
+
+                case SYM_N64:
+                    INIT_RIN_ABI(r, FFI_N64);
+                    break;
+
+                case SYM_O32_SOFT_FLOAT:
+                    INIT_RIN_ABI(r, FFI_O32_SOFT_FLOAT);
+                    break;
+
+                case SYM_N32_SOFT_FLOAT:
+                    INIT_RIN_ABI(r, FFI_N32_SOFT_FLOAT);
+                    break;
+
+                case SYM_N64_SOFT_FLOAT:
+                    INIT_RIN_ABI(r, FFI_N64_SOFT_FLOAT);
+                    break;
+
+    #endif //X86_WIN64
+
+                default:
+                    fail (Error_Invalid_Arg(KNOWN(blk)));
+                }
+                ++has_abi;
+                break; // case SYM_ABI
+
+            case SYM_RETURN:
+                {
+                if (has_return > 1)
+                    fail (Error_Invalid_Arg(KNOWN(blk)));
+
+                ++has_return;
+                ++blk;
+
+                REBVAL dummy;
+                Val_Init_Typeset(&dummy, 0, SYM_RETURN);
+                process_type_block(r, &dummy, KNOWN(blk), 0, TRUE);
                 }
                 break;
+
             default:
                 fail (Error_Invalid_Arg(KNOWN(blk)));
+            }
+            break;
+
+        default:
+            fail (Error_Invalid_Arg(KNOWN(blk)));
         }
     }
 
@@ -1608,7 +1673,6 @@ REBOOL MT_Routine(
         // not variadic.
         //
         INIT_RIN_CIF(r, OS_ALLOC(ffi_cif));
-        //printf("allocated cif at: %p\n", RIN_CIF(r));
 
         /* series data could have moved */
         args = SER_HEAD(ffi_type*, RIN_FFI_ARG_TYPES(r));
@@ -1621,9 +1685,8 @@ REBOOL MT_Routine(
                 &args[1]
             )
         ) {
-            // !!! How is the freeing of the CIF managed??
+            // !!! Couldn't prep cif...how is the freeing of the CIF managed??
             //
-            //RL_Print("Couldn't prep CIF\n");
             ret = FALSE;
         }
     }
@@ -1633,7 +1696,6 @@ REBOOL MT_Routine(
             sizeof(ffi_closure), &RIN_DISPATCHER(r)
         ));
         if (RIN_CLOSURE(r) == NULL) {
-            //printf("No memory\n");
             ret = FALSE;
         }
         else {
@@ -1648,13 +1710,11 @@ REBOOL MT_Routine(
             );
 
             if (status != FFI_OK) {
-                //RL_Print("Couldn't prep closure\n");
                 ret = FALSE;
             }
         }
     }
 
-    //RL_Print("%s, %d, ret = %d\n", __func__, __LINE__, ret);
     return ret;
 }
 
