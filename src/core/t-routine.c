@@ -860,7 +860,9 @@ static void ffi_to_rebol(
         break;
 
     default:
-        fail (Error_Invalid_Arg(rebol_ret));
+        // !!! Was reporting Error_Invalid_Arg on uninitialized `out`
+        //
+        fail (Error(RE_MISC));
     }
 }
 
@@ -1010,8 +1012,16 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
     else {
         assert(RIN_CIF(r) == NULL);
 
-        // reset length
-        SET_SERIES_LEN(RIN_ARG_FFTYPES(r), num_fixed);
+        // The CIF requires a contiguous array of argument descriptions, for
+        // both the fixed and the variadic.  This adjusts the arg length
+        // inside of the RIN structure of the existing argument types, for
+        // the purposes of making a new CIF.
+        //
+        // !!! This would have implications if the RIN were to be reused on
+        // more than one thread.
+        //
+        assert(SER_LEN(RIN_ARG_FFTYPES(r)) == num_fixed);
+        EXPAND_SERIES_TAIL(RIN_ARG_FFTYPES(r), num_variable);
 
         REBDSP dsp;
         for (dsp = dsp_orig + 1; i < num_args; dsp += 2, ++i) {
@@ -1024,9 +1034,6 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
             //
             REBVAL param;
             Val_Init_Typeset(&param, 0, SYM_ELLIPSIS);
-
-            EXPAND_SERIES_TAIL(RIN_ARG_FFTYPES(r), 1);
-
             *SER_AT(ffi_type*, RIN_ARG_FFTYPES(r), i)
                 = process_type_block(
                     r,
@@ -1049,18 +1056,22 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
         assert(i == SER_LEN(RIN_ARG_FFTYPES(r)));
 
         cif = OS_ALLOC(ffi_cif);
-        if (
-            FFI_OK != ffi_prep_cif_var( // "_var"-iadic version of prep_cif
-                cif,
-                RIN_ABI(r),
-                num_fixed, // just fixed
-                num_args, // fixed plus variable
-                RIN_RET_FFTYPE(r), // return type
-                (num_args == 0)
-                    ? NULL
-                    : SER_HEAD(ffi_type*, RIN_ARG_FFTYPES(r))
-            )
-        ){
+
+        ffi_status status = ffi_prep_cif_var( // "_var"-iadic prep_cif version
+            cif,
+            RIN_ABI(r),
+            num_fixed, // just fixed
+            num_args, // fixed plus variable
+            RIN_RET_FFTYPE(r), // return FFI type
+            SER_HEAD(ffi_type*, RIN_ARG_FFTYPES(r)) // arguments FFI types
+        );
+
+        // Put the RIN arg fftypes array back to just the fixed arguments so
+        // that it can be used again by the next variadic call.
+        //
+        SET_SERIES_LEN(RIN_ARG_FFTYPES(r), num_fixed);
+
+        if (status != FFI_OK) {
             OS_FREE(cif);
             //RL_Print("Couldn't prep CIF_VAR\n");
             fail (Error(RE_MISC));
@@ -1068,7 +1079,8 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
     }
 
     // Now that all the additions to store have been made, we want to change
-    // the offsets of each FFI argument into actual pointers.
+    // the offsets of each FFI argument into actual pointers (since the
+    // data won't be relocated)
     {
         if (RIN_RET_FFTYPE(r)->type == FFI_TYPE_VOID)
             ret_offset = NULL;
