@@ -725,28 +725,6 @@ typedef struct Reb_Struct {
     REBSER *data;
 } REBSTU;
 
-struct Reb_Routine_Info {
-    union {
-        struct {
-            REBLHL *lib;
-            CFUNC *funcptr;
-        } rot;
-        struct {
-            void *closure; // actually `ffi_closure*` (see RIN_CLOSURE)
-            REBFUN *func;
-            void *dispatcher;
-        } cb;
-    } info;
-    void *cif; // actually `ffi_cif*` (see RIN_CIF)
-    REBSER *arg_types; // index 0 is the return type
-    REBARR *arg_structs; // for struct arguments
-    REBSER *extra_mem; // extra memory that needs to be freed
-    REBCNT flags; // !!! 32-bit...should it use REBFLGS for 64-bit on 64-bit?
-    REBINT abi; // actually `ffi_abi` (see RIN_ABI)
-
-    //REBUPT padding; // sizeof(Reb_Routine_Info) % 8 must be 0 for Make_Node()
-};
-
 #pragma pack() // set back to default (was set to 4 at start of file)
     #include "reb-gob.h"
 #pragma pack(4) // resume packing with 4

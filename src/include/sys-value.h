@@ -2159,17 +2159,20 @@ enum {
 #define RIN_LIB(r) \
     ((r)->info.rot.lib)
 
-#define RIN_FFI_ARG_TYPES(r) \
-    ((r)->arg_types)
+#define RIN_ARG_FFTYPES(r) \
+    ((r)->arg_fftypes)
 
-#define RIN_FFI_ARG_STRUCTS(r) \
+#define RIN_ARG_STRUCTS(r) \
     ((r)->arg_structs)
 
 #define RIN_EXTRA_MEM(r) \
     ((r)->extra_mem)
 
-#define RIN_RVALUE(r) \
-    VAL_STRUCT(ARR_HEAD(RIN_FFI_ARG_STRUCTS(r)))
+#define RIN_RET_STRUCT_VAL(r) \
+    (&(r)->ret_struct)
+
+#define RIN_RET_STRUCT(r) \
+    VAL_STRUCT(RIN_RET_STRUCT_VAL(r))
 
 #define RIN_DISPATCHER(r) \
     ((r)->info.cb.dispatcher)
@@ -2182,6 +2185,12 @@ enum {
 // so it uses void* instead of `ffi_cif*` or `ffi_closure*`.  Hence these
 // are macros and can't be inline functions.
 //
+
+#define RIN_RET_FFTYPE(r) \
+    cast(ffi_type*, (r)->ret_fftype)
+
+#define INIT_RIN_RET_FFTYPE(r, fftype_) \
+    ((r)->ret_fftype = (fftype_), NOOP)
 
 #define RIN_CIF(r) \
     cast(ffi_cif*, (r)->cif)

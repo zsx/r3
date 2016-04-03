@@ -964,6 +964,35 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
 }
 
 
+// !!! The Routine_Info is defined here as a practical matter, to allow it
+// to embed a REBVAL.
+
+struct Reb_Routine_Info {
+    union {
+        struct {
+            REBLHL *lib;
+            CFUNC *funcptr;
+        } rot;
+        struct {
+            void *closure; // actually `ffi_closure*` (see RIN_CLOSURE)
+            REBFUN *func;
+            void *dispatcher;
+        } cb;
+    } info;
+    void *cif; // actually `ffi_cif*` (see RIN_CIF)
+
+    void *ret_fftype; // FFI return type (actually ffi_type*)
+    REBSER *arg_fftypes; // series of ffi_type* for the arguments
+
+    REBVAL ret_struct; // value describing return structure if struct (or none)
+    REBARR *arg_structs; // values for struct arguments (or none)
+
+    REBSER *extra_mem; // extra memory that needs to be freed
+    REBCNT flags; // !!! 32-bit...should it use REBFLGS for 64-bit on 64-bit?
+    REBINT abi; // actually `ffi_abi` (see RIN_ABI)
+
+    //REBUPT padding; // sizeof(Reb_Routine_Info) % 8 must be 0 for Make_Node()
+};
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
