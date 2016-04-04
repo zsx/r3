@@ -2142,6 +2142,9 @@ inline static REBCNT STU_OFFSET(REBSTU *stu) {
     return STU_VALUE(stu)->payload.structure.offset;
 }
 
+#define STU_FFTYPE(stu) \
+    SER_HEAD(ffi_type, STU_SCHEMA(stu)->fftype_ser)
+
 #define VAL_STRUCT(v) \
     ((v)->payload.structure.stu)
 
@@ -2165,6 +2168,9 @@ inline static REBCNT STU_OFFSET(REBSTU *stu) {
 
 #define VAL_STRUCT_FIELDLIST(v) \
     STU_FIELDLIST(VAL_STRUCT(v))
+
+#define VAL_STRUCT_FFTYPE(v) \
+    STU_FFTYPE(VAL_STRUCT(v))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -2217,9 +2223,6 @@ enum {
 
 #define RIN_ARG_STRUCTS(r) \
     ((r)->arg_structs)
-
-#define RIN_EXTRA_MEM(r) \
-    ((r)->extra_mem)
 
 #define RIN_RET_STRUCT_VAL(r) \
     (&(r)->ret_struct)

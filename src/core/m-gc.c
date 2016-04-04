@@ -405,7 +405,6 @@ static void Queue_Mark_Routine_Deep(REBRIN *r)
     MARK_SERIES_ONLY(RIN_ARG_FFTYPES(r));
     Queue_Mark_Value_Deep(RIN_RET_STRUCT_VAL(r));
     QUEUE_MARK_ARRAY_DEEP(RIN_ARG_STRUCTS(r));
-    MARK_SERIES_ONLY(RIN_EXTRA_MEM(r));
 
     if (GET_RIN_FLAG(r, ROUTINE_FLAG_CALLBACK)) {
         REBFUN *cb_func = RIN_CALLBACK_FUNC(r);
@@ -965,6 +964,12 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             // a "slice" out of.
             //
             MARK_SERIES_ONLY(VAL_STRUCT_DATA_BIN(val));
+
+            // These series are backing stores for the `ffi_type` data that
+            // is needed to use the struct with the FFI api.
+            //
+            MARK_SERIES_ONLY(VAL_STRUCT_SCHEMA(val)->fftype_ser);
+            MARK_SERIES_ONLY(VAL_STRUCT_SCHEMA(val)->fields_fftypes_ser);
 
             // Recursively mark the schema and any nested structures (or
             // REBVAL-typed fields, specially recognized by the interface)

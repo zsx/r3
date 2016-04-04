@@ -828,6 +828,54 @@ static void Parse_Field_Type_May_Fail(
 
 
 //
+//  Total_Struct_Dimensionality: C
+//
+// This recursively counts the total number of data elements inside of a
+// struct.  This includes for instance every array element inside a
+// nested struct's field, along with its fields.
+//
+// !!! Is this really how char[1000] would be handled in the FFI?  By
+// creating 1000 ffi_types?  :-/
+//
+static REBCNT Total_Struct_Dimensionality(REBSER *fields)
+{
+    REBCNT n_fields = 0;
+
+    REBCNT i;
+    for (i = 0; i < SER_LEN(fields); ++i) {
+        struct Struct_Field *field = SER_AT(struct Struct_Field, fields, i);
+
+        if (field->type != STRUCT_TYPE_STRUCT)
+            n_fields += field->dimension;
+        else
+            n_fields += Total_Struct_Dimensionality(field->fields);
+    }
+    return n_fields;
+}
+
+
+static ffi_type *struct_type_to_ffi[STRUCT_TYPE_MAX];
+
+static void init_type_map()
+{
+    if (struct_type_to_ffi[0]) return;
+    struct_type_to_ffi[STRUCT_TYPE_UINT8] = &ffi_type_uint8;
+    struct_type_to_ffi[STRUCT_TYPE_INT8] = &ffi_type_sint8;
+    struct_type_to_ffi[STRUCT_TYPE_UINT16] = &ffi_type_uint16;
+    struct_type_to_ffi[STRUCT_TYPE_INT16] = &ffi_type_sint16;
+    struct_type_to_ffi[STRUCT_TYPE_UINT32] = &ffi_type_uint32;
+    struct_type_to_ffi[STRUCT_TYPE_INT32] = &ffi_type_sint32;
+    struct_type_to_ffi[STRUCT_TYPE_UINT64] = &ffi_type_uint64;
+    struct_type_to_ffi[STRUCT_TYPE_INT64] = &ffi_type_sint64;
+
+    struct_type_to_ffi[STRUCT_TYPE_FLOAT] = &ffi_type_float;
+    struct_type_to_ffi[STRUCT_TYPE_DOUBLE] = &ffi_type_double;
+
+    struct_type_to_ffi[STRUCT_TYPE_POINTER] = &ffi_type_pointer;
+}
+
+
+//
 //  MT_Struct: C
 //
 // Format:
@@ -842,6 +890,7 @@ static void Parse_Field_Type_May_Fail(
 REBOOL MT_Struct(
     REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
 ) {
+
     if (!IS_BLOCK(data))
         fail (Error_Invalid_Arg_Core(data, specifier));
 
@@ -869,6 +918,7 @@ REBOOL MT_Struct(
     );
 
     // `schema->size =` ...don't know until after the fields are made
+
 
 //
 // PROCESS FIELDS
@@ -1091,13 +1141,77 @@ REBOOL MT_Struct(
         DROP_GUARD_VALUE(&inner);
     }
 
+    schema->size = offset; // now we know the total size so save it
+
+
+//
+// SET UP FOR FFI
+//
+
+    init_type_map();
+
+    // The reason structs exist at all is so that they can be used with the
+    // FFI, and the FFI requires you to set up a "ffi_type" C struct describing
+    // each datatype.  There are stock types for the primitives, but each
+    // structure needs its own.  We build the ffi_type at the same time as
+    // the structure.
+    //
+    schema->fftype_ser = Make_Series(2, sizeof(ffi_type), MKS_NONE); // !!! 2?
+    SET_SER_FLAG(schema->fftype_ser, SERIES_FLAG_FIXED_SIZE);
+    ffi_type *stype = SER_HEAD(ffi_type, schema->fftype_ser);
+
+    stype->size = 0;
+    stype->alignment = 0;
+    stype->type = FFI_TYPE_STRUCT;
+
+    schema->fields_fftypes_ser = Make_Series( // !!! comment "1 for null"...2?
+        2 + Total_Struct_Dimensionality(schema->fields),
+        sizeof(ffi_type*),
+        MKS_NONE
+    );
+    SET_SER_FLAG(schema->fields_fftypes_ser, SERIES_FLAG_FIXED_SIZE);
+    stype->elements = SER_HEAD(ffi_type*, schema->fields_fftypes_ser);
+
+    REBCNT j = 0;
+    REBCNT i;
+    for (i = 0; i < SER_LEN(schema->fields); ++i) {
+        struct Struct_Field *field
+            = SER_AT(struct Struct_Field, schema->fields, i);
+
+        if (field->type == STRUCT_TYPE_REBVAL) {
+            //
+            // "don't see a point to pass a rebol value to external functions"
+            //
+            // !!! ^-- What if the value is being passed through and will
+            // come back via a callback?
+            //
+            fail (Error(RE_MISC));
+        }
+        else if (field->type == STRUCT_TYPE_STRUCT) {
+            REBCNT n = 0;
+            for (n = 0; n < field->dimension; ++n) {
+                stype->elements[j++] = SER_HEAD(ffi_type, field->fftype_ser);
+            }
+        }
+        else {
+            assert(struct_type_to_ffi[field->type]);
+
+            REBCNT n;
+            for (n = 0; n < field->dimension; ++n) {
+                stype->elements[j++] = struct_type_to_ffi[field->type];
+            }
+        }
+    }
+    stype->elements[j] = NULL;
+
 
 //
 // FINALIZE VALUE
 //
 
-    schema->size = offset; // now we know the total size so save it
-    ENSURE_ARRAY_MANAGED(schema->spec);
+    MANAGE_SERIES(schema->fields_fftypes_ser);
+    MANAGE_SERIES(schema->fftype_ser);
+    MANAGE_ARRAY(schema->spec);
     MANAGE_SERIES(schema->fields);
 
     REBSTU *stu = Make_Singular_Array(VOID_CELL);
@@ -1263,24 +1377,25 @@ REBSTU *Copy_Struct_Managed(REBSTU *src)
     // !!! Whatever this is it will need to be done another way now.  Note:
     // review what an "external struct" was supposed to be.
     //
-    //fail_if_non_accessible(STU_TO_VAL(src));
+    fail_if_non_accessible(STU_VALUE(src));
 
-    assert(ARR_LEN(src) == 2);
-    assert(IS_HANDLE(ARR_AT(src, 0)));
-    assert(IS_BINARY(ARR_AT(src, 1)));
+    assert(ARR_LEN(src) == 1);
+    assert(IS_STRUCT(ARR_AT(src, 0)));
 
-    // A shallow copy will get the schema as-is (plain HANDLE!) but will not
-    // get new instance data for the binary in slot 2.
+    // This doesn't copy the data out of the array, or the schema...just the
+    // value.  In fact, the schema is in the misc field and has to just be
+    // linked manually.
     //
     REBSTU *copy = Copy_Array_Shallow(src, SPECIFIED);
+    ARR_SERIES(copy)->misc.schema = ARR_SERIES(src)->misc.schema;
 
     // Update the binary data with a copy of its sequence.
     //
     // !!! Note that this leaves the offset intact, and will wind up making a
     // copy as big as struct the instance is embedded into if nonzero offset.
 
-    REBSER *bin_copy = Copy_Sequence(VAL_SERIES(ARR_AT(copy, 1)));
-    INIT_VAL_SERIES(ARR_AT(copy, 1), bin_copy);
+    REBSER *bin_copy = Copy_Sequence(STU_DATA_BIN(src));
+    STU_VALUE(copy)->payload.structure.data = bin_copy;
     assert(STU_DATA_BIN(copy) == bin_copy);
 
     MANAGE_SERIES(bin_copy);
@@ -1403,9 +1518,7 @@ REBTYPE(Struct)
 
             // Clone an existing STRUCT:
             if (IS_STRUCT(val)) {
-                VAL_RESET_HEADER(ret, REB_STRUCT);
-                ret->payload.structure.stu
-                    = Copy_Struct_Managed(VAL_STRUCT(val));
+                *ret = *STU_VALUE(Copy_Struct_Managed(VAL_STRUCT(val)));
 
                 // only accept value initialization
                 init_fields(ret, arg);

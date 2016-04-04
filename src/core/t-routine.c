@@ -106,39 +106,7 @@
 
 #include "mem-pools.h" // low-level memory pool access
 
-#ifdef HAVE_LIBFFI_AVAILABLE
-    #include <ffi.h>
-#else
-    // Non-functional stubs, see notes at top of t-routine.c
-
-    typedef struct _ffi_type
-    {
-        size_t size;
-        unsigned short alignment;
-        unsigned short type;
-        struct _ffi_type **elements;
-    } ffi_type;
-
-    #define FFI_TYPE_VOID       0
-    #define FFI_TYPE_INT        1
-    #define FFI_TYPE_FLOAT      2
-    #define FFI_TYPE_DOUBLE     3
-    #define FFI_TYPE_LONGDOUBLE 4
-    #define FFI_TYPE_UINT8      5
-    #define FFI_TYPE_SINT8      6
-    #define FFI_TYPE_UINT16     7
-    #define FFI_TYPE_SINT16     8
-    #define FFI_TYPE_UINT32     9
-    #define FFI_TYPE_SINT32     10
-    #define FFI_TYPE_UINT64     11
-    #define FFI_TYPE_SINT64     12
-    #define FFI_TYPE_STRUCT     13
-    #define FFI_TYPE_POINTER    14
-    #define FFI_TYPE_COMPLEX    15
-
-    // !!! Heads-up to FFI lib authors: these aren't const definitions.  :-/
-    // Stray modifications could ruin these "constants".  Being const-correct
-    // in the parameter structs for the type arrays would have been nice...
+#if !defined(HAVE_LIBFFI_AVAILABLE)
 
     ffi_type ffi_type_void = { 0, 0, FFI_TYPE_VOID, NULL };
     ffi_type ffi_type_uint8 = { 0, 0, FFI_TYPE_UINT8, NULL };
@@ -152,48 +120,6 @@
     ffi_type ffi_type_float = { 0, 0, FFI_TYPE_FLOAT, NULL };
     ffi_type ffi_type_double = { 0, 0, FFI_TYPE_DOUBLE, NULL };
     ffi_type ffi_type_pointer = { 0, 0, FFI_TYPE_POINTER, NULL };
-
-    // Switched from an enum to allow Panic w/o complaint
-    typedef int ffi_status;
-    const int FFI_OK = 0;
-    const int FFI_BAD_TYPEDEF = 1;
-    const int FFI_BAD_ABI = 2;
-
-    typedef enum ffi_abi
-    {
-        // !!! The real ffi_abi constants will be different per-platform,
-        // you would not have the full list.  Interestingly, a subsetting
-        // script *might* choose to alter libffi to produce a larger list
-        // vs being full of #ifdefs (though that's rather invasive change
-        // to the libffi code to be maintaining!)
-
-        FFI_FIRST_ABI = 0x0BAD,
-        FFI_WIN64,
-        FFI_STDCALL,
-        FFI_SYSV,
-        FFI_THISCALL,
-        FFI_FASTCALL,
-        FFI_MS_CDECL,
-        FFI_UNIX64,
-        FFI_VFP,
-        FFI_O32,
-        FFI_N32,
-        FFI_N64,
-        FFI_O32_SOFT_FLOAT,
-        FFI_N32_SOFT_FLOAT,
-        FFI_N64_SOFT_FLOAT,
-        FFI_LAST_ABI,
-        FFI_DEFAULT_ABI = FFI_FIRST_ABI
-    } ffi_abi;
-
-    typedef struct {
-        ffi_abi abi;
-        unsigned nargs;
-        ffi_type **arg_types;
-        ffi_type *rtype;
-        unsigned bytes;
-        unsigned flags;
-    } ffi_cif;
 
     ffi_status ffi_prep_cif(
         ffi_cif *cif,
@@ -225,13 +151,6 @@
         fail (Error(RE_NOT_FFI_BUILD));
     }
 
-    // The closure is a "black box" but client code takes the sizeof() to
-    // pass into the alloc routine...
-
-    typedef struct {
-        int stub;
-    } ffi_closure;
-
     void *ffi_closure_alloc(size_t size, void **code) {
         fail (Error(RE_NOT_FFI_BUILD));
     }
@@ -249,15 +168,7 @@
     void ffi_closure_free (void *closure) {
         panic (Error(RE_NOT_FFI_BUILD));
     }
-#endif // HAVE_LIBFFI_AVAILABLE
-
-inline static void QUEUE_EXTRA_MEM(REBRIN *r, void *p) {
-    *SER_AT(void*, r->extra_mem, SER_LEN(r->extra_mem)) = p;
-    EXPAND_SERIES_TAIL(r->extra_mem, 1);
-}
-
-
-static ffi_type *struct_type_to_ffi[STRUCT_TYPE_MAX];
+#endif
 
 
 static ffi_type *process_type_block(
@@ -266,25 +177,6 @@ static ffi_type *process_type_block(
     REBVAL *blk,
     REBOOL make
 );
-
-
-static void init_type_map()
-{
-    if (struct_type_to_ffi[0]) return;
-    struct_type_to_ffi[STRUCT_TYPE_UINT8] = &ffi_type_uint8;
-    struct_type_to_ffi[STRUCT_TYPE_INT8] = &ffi_type_sint8;
-    struct_type_to_ffi[STRUCT_TYPE_UINT16] = &ffi_type_uint16;
-    struct_type_to_ffi[STRUCT_TYPE_INT16] = &ffi_type_sint16;
-    struct_type_to_ffi[STRUCT_TYPE_UINT32] = &ffi_type_uint32;
-    struct_type_to_ffi[STRUCT_TYPE_INT32] = &ffi_type_sint32;
-    struct_type_to_ffi[STRUCT_TYPE_UINT64] = &ffi_type_uint64;
-    struct_type_to_ffi[STRUCT_TYPE_INT64] = &ffi_type_sint64;
-
-    struct_type_to_ffi[STRUCT_TYPE_FLOAT] = &ffi_type_float;
-    struct_type_to_ffi[STRUCT_TYPE_DOUBLE] = &ffi_type_double;
-
-    struct_type_to_ffi[STRUCT_TYPE_POINTER] = &ffi_type_pointer;
-}
 
 
 //
@@ -305,97 +197,6 @@ REBINT CT_Routine(const RELVAL *a, const RELVAL *b, REBINT mode)
 REBINT CT_Callback(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     return -1;
-}
-
-
-static REBCNT n_struct_fields (REBSER *fields)
-{
-    REBCNT n_fields = 0;
-
-    REBCNT i;
-    for (i = 0; i < SER_LEN(fields); ++i) {
-        struct Struct_Field *field = SER_AT(struct Struct_Field, fields, i);
-
-        if (field->type != STRUCT_TYPE_STRUCT)
-            n_fields += field->dimension;
-        else
-            n_fields += n_struct_fields(field->fields);
-    }
-    return n_fields;
-}
-
-
-static ffi_type* struct_to_ffi(
-    REBRIN *r,
-    REBSER *fields,
-    REBOOL make
-){
-    ffi_type *stype = NULL;
-    if (make) {
-        stype = OS_ALLOC(ffi_type);
-        QUEUE_EXTRA_MEM(r, stype);
-    }
-    else {
-        REBSER *ser = Make_Series(2, sizeof(ffi_type), MKS_NONE);
-        SET_SER_FLAG(ser, SERIES_FLAG_FIXED_SIZE);
-        stype = SER_HEAD(ffi_type, ser);
-        PUSH_GUARD_SERIES(ser);
-    }
-
-    stype->size = 0;
-    stype->alignment = 0;
-    stype->type = FFI_TYPE_STRUCT;
-
-    /* one extra for NULL */
-    if (make) {
-        stype->elements = OS_ALLOC_N(ffi_type*, 1 + n_struct_fields(fields));
-        QUEUE_EXTRA_MEM(r, stype->elements);
-    }
-    else {
-        REBSER *ser = Make_Series(
-            2 + n_struct_fields(fields), sizeof(ffi_type*), MKS_NONE
-        );
-        SET_SER_FLAG(ser, SERIES_FLAG_FIXED_SIZE);
-        stype->elements = SER_HEAD(ffi_type*, ser);
-        PUSH_GUARD_SERIES(ser);
-    }
-
-    REBCNT j = 0;
-    REBCNT i;
-    for (i = 0; i < SER_LEN(fields); ++i) {
-        struct Struct_Field *field = SER_AT(struct Struct_Field, fields, i);
-        if (field->type == STRUCT_TYPE_REBVAL) {
-            //
-            // "don't see a point to pass a rebol value to external functions"
-            //
-            // !!! ^-- What if the value is being passed through and will
-            // come back via a callback?
-            //
-            fail (Error(RE_MISC));
-        }
-        else if (field->type != STRUCT_TYPE_STRUCT) {
-            if (!struct_type_to_ffi[field->type])
-                return NULL;
-
-            REBCNT n;
-            for (n = 0; n < field->dimension; ++n) {
-                stype->elements[j++] = struct_type_to_ffi[field->type];
-            }
-        }
-        else {
-            ffi_type *subtype = struct_to_ffi(r, field->fields, make);
-            if (!subtype)
-                return NULL;
-
-            REBCNT n = 0;
-            for (n = 0; n < field->dimension; ++n) {
-                stype->elements[j++] = subtype;
-            }
-        }
-    }
-    stype->elements[j] = NULL;
-
-    return stype;
 }
 
 
@@ -499,9 +300,7 @@ static ffi_type *rebol_type_to_ffi(
     }
 
     if (IS_STRUCT(elem)) {
-        fftype = struct_to_ffi(r, VAL_STRUCT_FIELDLIST(elem), make);
-        if (!fftype)
-            return NULL;
+        fftype = VAL_STRUCT_FFTYPE(elem);
 
         // !!! Comment said "for callback and return value"
         //
@@ -514,9 +313,7 @@ static ffi_type *rebol_type_to_ffi(
             dest = Alloc_Tail_Array(RIN_ARG_STRUCTS(r));
         }
 
-        VAL_RESET_HEADER(dest, REB_STRUCT);
-        dest->payload.structure.stu
-            = Copy_Struct_Managed(VAL_STRUCT(elem));
+        *dest = *STU_VALUE(Copy_Struct_Managed(VAL_STRUCT(elem)));
 
         return fftype;
     }
@@ -848,15 +645,14 @@ static void ffi_to_rebol(
         break;
 
     case FFI_TYPE_STRUCT:
-        VAL_RESET_HEADER(rebol_ret, REB_STRUCT);
-
+        //
         // !!! This inherits the same schema pointer, allocates a buffer of
         // appropriate size to match the original object, and then copies
         // the data out of the return structure.  It's not actually the
         // case that the "return structure" contains anything useful, it
         // merely was impossible to separate a structure from its schema.
-        rebol_ret->payload.structure.stu
-            = Copy_Struct_Managed(RIN_RET_STRUCT(rin));
+        //
+        *rebol_ret = *STU_VALUE(Copy_Struct_Managed(RIN_RET_STRUCT(rin)));
 
         // Immediately overwrite the copied data with the data from the
         // ffi call.
@@ -1157,13 +953,6 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
 //
 void Free_Routine(REBRIN *rin)
 {
-    REBCNT n = 0;
-    for (n = 0; n < SER_LEN(rin->extra_mem); ++n) {
-        void *addr = *SER_AT(void*, rin->extra_mem, n);
-        //printf("freeing %p\n", addr);
-        OS_FREE(addr);
-    }
-
     CLEAR_RIN_FLAG(rin, ROUTINE_FLAG_MARK);
     if (GET_RIN_FLAG(rin, ROUTINE_FLAG_CALLBACK))
         ffi_closure_free(RIN_CLOSURE(rin));
@@ -1296,10 +1085,9 @@ static void callback_dispatcher(
                     KNOWN(ARR_AT(RIN_ARG_STRUCTS(rin), i + 1))
                 ));
 
-            elem->payload.structure.stu
-                = Copy_Struct_Managed(
-                    VAL_STRUCT(ARR_AT(RIN_ARG_STRUCTS(rin), i + 1))
-                );
+            *elem = *STU_VALUE(Copy_Struct_Managed(
+                VAL_STRUCT(ARR_AT(RIN_ARG_STRUCTS(rin), i + 1))
+            ));
 
             memcpy(
                 SER_AT(
@@ -1414,7 +1202,6 @@ REBOOL MT_Routine(
 ) {
     RELVAL *blk = NULL;
     REBCNT eval_idx = 0; /* for spec block evaluation */
-    REBSER *extra_mem = NULL;
     REBOOL ret = TRUE;
     CFUNC *func = NULL;
     REBCNT n = 0; // args start at 0 (return value is separate, RET_FFTYPE)
@@ -1483,12 +1270,7 @@ REBOOL MT_Routine(
     INIT_RIN_ABI(r, FFI_DEFAULT_ABI);
     RIN_LIB(r) = NULL;
 
-    extra_mem = Make_Series(N_ARGS, sizeof(void*), MKS_NONE);
-    RIN_EXTRA_MEM(r) = extra_mem;
-
     INIT_RIN_RET_FFTYPE(r, &ffi_type_void); // default return type
-
-    init_type_map();
 
     blk = VAL_ARRAY_AT(data);
 
@@ -1496,7 +1278,6 @@ REBOOL MT_Routine(
 
     MANAGE_SERIES(RIN_ARG_FFTYPES(r));
     MANAGE_ARRAY(RIN_ARG_STRUCTS(r));
-    MANAGE_SERIES(RIN_EXTRA_MEM(r));
 
     if (!is_callback) {
         REBIXO indexor = 0;

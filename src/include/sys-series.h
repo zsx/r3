@@ -987,7 +987,6 @@ struct Reb_Routine_Info {
     REBVAL ret_struct; // value describing return structure if struct (or none)
     REBARR *arg_structs; // values for struct arguments (or none)
 
-    REBSER *extra_mem; // extra memory that needs to be freed
     REBCNT flags; // !!! 32-bit...should it use REBFLGS for 64-bit on 64-bit?
     REBINT abi; // actually `ffi_abi` (see RIN_ABI)
 
