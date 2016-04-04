@@ -473,7 +473,13 @@ REBOOL Do_Path_Throws_Core(
 //
 REBCTX *Error_Bad_Path_Select(REBPVS *pvs)
 {
-    return Error(RE_INVALID_PATH, pvs->orig, pvs->item);
+    REBVAL orig;
+    COPY_VALUE(&orig, pvs->orig, pvs->item_specifier);
+
+    REBVAL item;
+    COPY_VALUE(&item, pvs->item, pvs->item_specifier);
+
+    return Error(RE_INVALID_PATH, &orig, &item);
 }
 
 
@@ -482,13 +488,13 @@ REBCTX *Error_Bad_Path_Select(REBPVS *pvs)
 //
 REBCTX *Error_Bad_Path_Set(REBPVS *pvs)
 {
-    REBVAL item;
-    COPY_VALUE(&item, pvs->item, pvs->item_specifier);
-
     REBVAL orig;
     COPY_VALUE(&orig, pvs->orig, pvs->item_specifier);
 
-    return Error(RE_BAD_PATH_SET, pvs->orig, pvs->item);
+    REBVAL item;
+    COPY_VALUE(&item, pvs->item, pvs->item_specifier);
+
+    return Error(RE_BAD_PATH_SET, &orig, &item);
 }
 
 

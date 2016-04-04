@@ -1023,7 +1023,6 @@ inline static RELVAL *REL(REBVAL *v) {
 //
 #define GUESSED SPECIFIED
 
-
 // This can be used to turn a RELVAL into a REBVAL.  If the RELVAL is
 // indeed relative and needs to be made specific to be put into the
 // REBVAL, then the specifier is used to do that.  Debug builds assert

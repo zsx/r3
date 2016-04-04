@@ -297,6 +297,10 @@ void COPY_VALUE_Debug(
     assert(!IS_END(src));
     assert(!IS_TRASH_DEBUG(src));
 
+#ifdef __cplusplus
+    Assert_Cell_Writable(dest, __FILE__, __LINE__);
+#endif
+
     if (IS_RELATIVE(src)) {
         assert(ANY_WORD(src) || ANY_ARRAY(src));
         if (specifier == SPECIFIED) {
