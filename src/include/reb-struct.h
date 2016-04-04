@@ -61,32 +61,11 @@ struct Struct_Field {
     REBCNT size; /* size of element, in bytes */
 
     /* Note: C89 bitfields may be 'int', 'unsigned int', or 'signed int' */
-    unsigned int array:1;
+    unsigned int is_array:1;
     /* field is initialized? */
     /* (used by GC to decide if the value needs to be marked) */
     unsigned int done:1;
 };
 
-/* this is hackish to work around the size limit of REBSTU
- *  VAL_STRUCT_DATA(val) is not the actual data, but a series with
- *  one Struct_Data element, and this element has various infomation
- *  about the struct data
- * */
-struct Struct_Data {
-    REBSER *data;
-    REBCNT offset;
-    REBCNT len;
-    REBFLGS flags;
-};
-
-#define STRUCT_DATA_BIN(v) (SER_HEAD(struct Struct_Data, (v)->data)->data)
-#define STRUCT_OFFSET(v) (SER_HEAD(struct Struct_Data, (v)->data)->offset)
-#define STRUCT_LEN(v) (SER_HEAD(struct Struct_Data, (v)->data)->len)
-#define STRUCT_FLAGS(v) (SER_HEAD(struct Struct_Data, (v)->data)->flags)
-
-#define VAL_STRUCT_DATA_BIN(v) STRUCT_DATA_BIN(&VAL_STRUCT(v))
-#define VAL_STRUCT_OFFSET(v) STRUCT_OFFSET(&VAL_STRUCT(v))
-#define VAL_STRUCT_LEN(v) STRUCT_LEN(&VAL_STRUCT(v))
-#define VAL_STRUCT_FLAGS(v) STRUCT_FLAGS(&VAL_STRUCT(v))
 
 #define VAL_STRUCT_LIMIT MAX_U32

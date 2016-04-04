@@ -499,18 +499,24 @@ static ffi_type *rebol_type_to_ffi(
     }
 
     if (IS_STRUCT(elem)) {
-        fftype = struct_to_ffi(r, VAL_STRUCT_FIELDS(elem), make);
+        fftype = struct_to_ffi(r, VAL_STRUCT_FIELDLIST(elem), make);
         if (!fftype)
             return NULL;
 
         // !!! Comment said "for callback and return value"
         //
+        REBVAL *dest;
+
         if (param == NULL)
-            Copy_Struct_Val(elem, RIN_RET_STRUCT_VAL(r));
+            dest = RIN_RET_STRUCT_VAL(r);
         else {
             TYPE_SET(param, REB_STRUCT);
-            Copy_Struct_Val(elem, Alloc_Tail_Array(RIN_ARG_STRUCTS(r)));
+            dest = Alloc_Tail_Array(RIN_ARG_STRUCTS(r));
         }
+
+        VAL_RESET_HEADER(dest, REB_STRUCT);
+        dest->payload.structure.stu
+            = Copy_Struct_Managed(VAL_STRUCT(elem));
 
         return fftype;
     }
@@ -761,15 +767,15 @@ static REBUPT arg_to_ffi(
             sizeof(void*),
             store,
             (arg == NULL)
-                ? STRUCT_LEN(&RIN_RET_STRUCT(r))
-                : STRUCT_LEN(&VAL_STRUCT(arg))
+                ? STU_SIZE(RIN_RET_STRUCT(r))
+                : STU_SIZE(VAL_STRUCT(arg))
         );
         if (!arg) break;
 
         memcpy(
             dest,
             SER_AT(REBYTE, VAL_STRUCT_DATA_BIN(arg), VAL_STRUCT_OFFSET(arg)),
-            STRUCT_LEN(&VAL_STRUCT(arg))
+            STU_SIZE(VAL_STRUCT(arg))
         );
         }
         break;
@@ -843,7 +849,18 @@ static void ffi_to_rebol(
 
     case FFI_TYPE_STRUCT:
         VAL_RESET_HEADER(rebol_ret, REB_STRUCT);
-        Copy_Struct(&RIN_RET_STRUCT(rin), &VAL_STRUCT(rebol_ret));
+
+        // !!! This inherits the same schema pointer, allocates a buffer of
+        // appropriate size to match the original object, and then copies
+        // the data out of the return structure.  It's not actually the
+        // case that the "return structure" contains anything useful, it
+        // merely was impossible to separate a structure from its schema.
+        rebol_ret->payload.structure.stu
+            = Copy_Struct_Managed(RIN_RET_STRUCT(rin));
+
+        // Immediately overwrite the copied data with the data from the
+        // ffi call.
+        //
         memcpy(
             SER_AT(
                 REBYTE,
@@ -851,7 +868,7 @@ static void ffi_to_rebol(
                 VAL_STRUCT_OFFSET(rebol_ret)
             ),
             ffi_rvalue,
-            VAL_STRUCT_LEN(rebol_ret)
+            VAL_STRUCT_SIZE(rebol_ret)
         );
         break;
 
@@ -911,7 +928,8 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
                 f->out, feed, param, vararg, SYM_0, VARARG_OP_TAKE
             );
             if (indexor == THROWN_FLAG) {
-                return TRUE;
+                assert(THROWN(f->out));
+                return R_OUT_IS_THROWN;
             }
             if (indexor == END_FLAG)
                 break;
@@ -1039,7 +1057,7 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
                     r,
                     &param, // will set the type bits to match for some reason
                     DS_AT(dsp + 1), // error if this is not a block
-                    FALSE // not a return value
+                    FALSE // !!! make is false...meaning, what?
                 );
 
             *SER_AT(void*, arg_offsets, i) = cast(void*, arg_to_ffi(
@@ -1278,9 +1296,11 @@ static void callback_dispatcher(
                     KNOWN(ARR_AT(RIN_ARG_STRUCTS(rin), i + 1))
                 ));
 
-            Copy_Struct_Val(
-                KNOWN(ARR_AT(RIN_ARG_STRUCTS(rin), i + 1)), elem
-            );
+            elem->payload.structure.stu
+                = Copy_Struct_Managed(
+                    VAL_STRUCT(ARR_AT(RIN_ARG_STRUCTS(rin), i + 1))
+                );
+
             memcpy(
                 SER_AT(
                     REBYTE,
@@ -1288,7 +1308,7 @@ static void callback_dispatcher(
                     VAL_STRUCT_OFFSET(elem)
                 ),
                 args[i],
-                VAL_STRUCT_LEN(elem)
+                VAL_STRUCT_SIZE(elem)
             );
             break;
 
@@ -1360,7 +1380,7 @@ static void callback_dispatcher(
                 VAL_STRUCT_DATA_BIN(&result),
                 VAL_STRUCT_OFFSET(&result)
             ),
-            VAL_STRUCT_LEN(&result)
+            VAL_STRUCT_SIZE(&result)
         );
         break;
 

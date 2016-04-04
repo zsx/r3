@@ -1447,7 +1447,7 @@ void Mold_Value(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
     {
         REBARR *array;
         Pre_Mold(value, mold);
-        array = Struct_To_Array(&VAL_STRUCT(value));
+        array = Struct_To_Array(VAL_STRUCT(value));
         Mold_Array_At(mold, array, 0, 0);
         End_Mold(mold);
     }

@@ -378,6 +378,7 @@ struct Reb_Series {
         REBOOL negated; // for bitsets (must be shared, can't be in REBVAL)
         REBARR *subfeed; // for *non-frame* VARARGS! ("array1") shared feed
         REBCTX *meta; // paramlists and keylists can store a "meta" object
+        REBSER *schema; // STRUCT uses this (parallels object's keylist)
     } misc;
 
 #if !defined(NDEBUG)

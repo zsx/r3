@@ -2098,20 +2098,73 @@ enum {
 // and tells how to map data into a Rebol object used as a target.
 //
 
+inline static REBVAL *STU_VALUE(REBSTU *stu) {
+    assert(ARR_LEN(stu) == 1);
+    return KNOWN(ARR_HEAD(stu));
+}
+
+#define STU_INACCESSIBLE(stu) \
+    VAL_STRUCT_INACCESSIBLE(STU_VALUE(stu))
+
+inline static struct Struct_Field *STU_SCHEMA(REBSTU *stu) {
+    //
+    // The new concept for structures is to make a singular structure
+    // descriptor OBJECT!.  Previously structs didn't have a top level node,
+    // but a series of them... so this has to extract the fieldlist from
+    // the new-format top-level node.
+
+    REBSER *schema = ARR_SERIES(stu)->misc.schema;
+
+#if !defined(NDEBUG)
+    if (SER_LEN(schema) != 1)
+        Panic_Series(schema);
+    assert(SER_LEN(schema) == 1);
+#endif
+
+    struct Struct_Field *top = SER_HEAD(struct Struct_Field, schema);
+    assert(top->type == STRUCT_TYPE_STRUCT);
+    return top;
+}
+
+inline static REBSER *STU_FIELDLIST(REBSTU *stu) {
+    return STU_SCHEMA(stu)->fields;
+}
+
+inline static REBCNT STU_SIZE(REBSTU *stu) {
+    return STU_SCHEMA(stu)->size;
+}
+
+inline static REBSER *STU_DATA_BIN(REBSTU *stu) {
+    return STU_VALUE(stu)->payload.structure.data;
+}
+
+inline static REBCNT STU_OFFSET(REBSTU *stu) {
+    return STU_VALUE(stu)->payload.structure.offset;
+}
+
 #define VAL_STRUCT(v) \
-    ((v)->payload.structure)
+    ((v)->payload.structure.stu)
 
 #define VAL_STRUCT_SPEC(v) \
-    ((v)->payload.structure.spec)
+    (STU_SCHEMA(VAL_STRUCT(v))->spec)
 
-#define VAL_STRUCT_FIELDS(v) \
-    ((v)->payload.structure.fields)
+#define VAL_STRUCT_INACCESSIBLE(v) \
+    SER_DATA_NOT_ACCESSIBLE(VAL_STRUCT_DATA_BIN(v))
 
-#define VAL_STRUCT_DATA(v) \
+#define VAL_STRUCT_SCHEMA(v) \
+    STU_SCHEMA(VAL_STRUCT(v))
+
+#define VAL_STRUCT_SIZE(v) \
+    STU_SIZE(VAL_STRUCT(v))
+
+#define VAL_STRUCT_DATA_BIN(v) \
     ((v)->payload.structure.data)
 
-#define VAL_STRUCT_DP(v) \
-    BIN_HEAD(VAL_STRUCT_DATA(v))
+#define VAL_STRUCT_OFFSET(v) \
+    ((v)->payload.structure.offset)
+
+#define VAL_STRUCT_FIELDLIST(v) \
+    STU_FIELDLIST(VAL_STRUCT(v))
 
 
 //=////////////////////////////////////////////////////////////////////////=//

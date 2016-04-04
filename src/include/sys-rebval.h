@@ -719,11 +719,30 @@ struct Reb_Library {
     REBARR *spec;
 };
 
-typedef struct Reb_Struct {
-    REBARR *spec;
-    REBSER *fields;    // fields definition
-    REBSER *data;
-} REBSTU;
+// The general FFI direction is to move it so that it is "baked in" less,
+// and represents an instance of a generalized extension mechanism (like GOB!
+// should be).  On that path, a struct's internals are simplified to being
+// just an array:
+//
+// [0] is a specification OBJECT! which contains all the information about
+// the structure's layout, regardless of what offset it would find itself at
+// inside of a data blob.  This includes the total size, and arrays of
+// field definitions...essentially, the validated spec.  It also contains
+// a HANDLE! which contains the FFI-type.
+//
+// [1] is the content BINARY!.  The VAL_INDEX of the binary indicates the
+// offset within the struct.
+//
+// As an interim step, the [0] is the ordinary struct fields series as an
+// ordinary BINARY!
+//
+struct Reb_Struct {
+    REBARR *stu; // [0] is canon self value, ->misc.schema is schema
+    REBSER *data; // binary data series (may be shared with other structs)
+    REBCNT offset; // offset for this struct in the possibly shared series
+};
+
+typedef REBARR REBSTU;
 
 #pragma pack() // set back to default (was set to 4 at start of file)
     #include "reb-gob.h"
