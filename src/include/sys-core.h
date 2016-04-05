@@ -164,8 +164,6 @@ typedef struct rebol_mem_pool REBPOL;
 #include "sys-state.h"
 #include "sys-frame.h" // `struct Reb_Frame` definition (also used by value)
 
-#include "reb-struct.h"
-
 //-- Port actions (for native port schemes):
 
 #define PORT_ACTIONS A_CREATE  // port actions begin here
@@ -658,7 +656,10 @@ enum Reb_Vararg_Op {
 #include "sys-globals.h"
 
 #include "sys-series.h" // Series accessor routines (used by value accessors)
+
 #include "sys-value.h" // Value accessors
+
+#include "reb-struct.h"
 
 #include "host-lib.h"
 

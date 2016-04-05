@@ -32,35 +32,90 @@
 
 #define STATIC_assert(e) do {(void)sizeof(char[1 - 2*!(e)]);} while(0)
 
-#define IS_INTEGER_TYPE(t) \
-    ((t) < STRUCT_TYPE_INTEGER)
 
-#define IS_DECIMAL_TYPE(t) \
-    ((t) > STRUCT_TYPE_INTEGER && (t) < STRUCT_TYPE_DECIMAL)
+//
+//  Get_FFType_Enum_Info: C
+//
+// Returns whether the FFI type is integer-like (REB_INTEGER) or decimal-like
+// (REB_DECIMAL).  If it is neither, it gives back REB_0.  Returns a symbol
+// if one is applicable.
+//
+// !!! Previously this was a table, which was based on a duplicate of the
+// FFI_TYPE constants as an enum (STRUCT_TYPE_XXX).  Getting rid of the
+// STRUCT_TYPE_XXX helps reduce confusion and redundancy, but there is no
+// FFI_TYPE_MAX or fixed ordering guaranteed necessarily of the constants.
+// Having a `switch` is worth not creating a mirror enum, however.
+//
+void *Get_FFType_Enum_Info_Core(
+    REBSYM *sym_out,
+    enum Reb_Kind *kind_out,
+    unsigned short type
+) {
+    switch (type) {
+    case FFI_TYPE_UINT8:
+        *sym_out = SYM_UINT8;
+        *kind_out = REB_INTEGER;
+        return &ffi_type_uint8;
 
-#define IS_NUMERIC_TYPE(t) \
-    (IS_INTEGER_TYPE(t) || IS_DECIMAL_TYPE(t))
+    case FFI_TYPE_SINT8:
+        *sym_out = SYM_INT8;
+        *kind_out = REB_INTEGER;
+        return &ffi_type_sint8;
 
-static const REBINT type_to_sym [STRUCT_TYPE_MAX] = {
-    SYM_UINT8,
-    SYM_INT8,
-    SYM_UINT16,
-    SYM_INT16,
-    SYM_UINT32,
-    SYM_INT32,
-    SYM_UINT64,
-    SYM_INT64,
-    -1, //SYM_INTEGER,
+    case FFI_TYPE_UINT16:
+        *sym_out = SYM_UINT16;
+        *kind_out = REB_INTEGER;
+        return &ffi_type_uint16;
 
-    SYM_FLOAT,
-    SYM_DOUBLE,
-    -1, //SYM_DECIMAL,
+    case FFI_TYPE_SINT16:
+        *sym_out = SYM_INT16;
+        *kind_out = REB_INTEGER;
+        return &ffi_type_sint16;
 
-    SYM_POINTER,
-    -1, //SYM_STRUCT
-    SYM_REBVAL
-    //STRUCT_TYPE_MAX
-};
+    case FFI_TYPE_UINT32:
+        *sym_out = SYM_UINT32;
+        *kind_out = REB_INTEGER;
+        return &ffi_type_uint32;
+
+    case FFI_TYPE_SINT32:
+        *sym_out = SYM_INT32;
+        *kind_out = REB_INTEGER;
+        return &ffi_type_sint32;
+
+    case FFI_TYPE_UINT64:
+        *sym_out = SYM_INT64;
+        *kind_out = REB_INTEGER;
+        return &ffi_type_uint64;
+
+    case FFI_TYPE_SINT64:
+        *sym_out = SYM_INT64;
+        *kind_out = REB_INTEGER;
+        return &ffi_type_sint64;
+
+    case FFI_TYPE_FLOAT:
+        *sym_out = SYM_FLOAT;
+        *kind_out = REB_DECIMAL;
+        return &ffi_type_float;
+
+    case FFI_TYPE_DOUBLE:
+        *sym_out = SYM_DOUBLE;
+        *kind_out = REB_DECIMAL;
+        return &ffi_type_double;
+
+    case FFI_TYPE_POINTER:
+        *sym_out = SYM_POINTER;
+        *kind_out = REB_0;
+        return &ffi_type_pointer;
+
+    // !!! SYM_INTEGER, SYM_DECIMAL, SYM_STRUCT was "-1" in original table
+
+    default:
+        assert(FALSE);
+        *sym_out = SYM_0;
+        *kind_out = REB_0;
+        return NULL;
+    }
+}
 
 
 static void fail_if_non_accessible(const REBVAL *val)
@@ -84,7 +139,7 @@ static void get_scalar(
         // !!! This just sets the field to void with no error...that seems
         // like a bad idea.
         //
-        if (field->type != STRUCT_TYPE_STRUCT) {
+        if (field->type != FFI_TYPE_STRUCT) {
             SET_VOID(val);
             return;
         }
@@ -99,51 +154,57 @@ static void get_scalar(
     );
 
     switch (field->type) {
-    case STRUCT_TYPE_UINT8:
+    case FFI_TYPE_UINT8:
         SET_INTEGER(val, *cast(u8*, data));
         break;
 
-    case STRUCT_TYPE_INT8:
+    case FFI_TYPE_SINT8:
         SET_INTEGER(val, *cast(i8*, data));
         break;
 
-    case STRUCT_TYPE_UINT16:
+    case FFI_TYPE_UINT16:
         SET_INTEGER(val, *cast(u16*, data));
         break;
 
-    case STRUCT_TYPE_INT16:
+    case FFI_TYPE_SINT16:
         SET_INTEGER(val, *cast(i8*, data));
         break;
 
-    case STRUCT_TYPE_UINT32:
+    case FFI_TYPE_UINT32:
         SET_INTEGER(val, *cast(u32*, data));
         break;
 
-    case STRUCT_TYPE_INT32:
+    case FFI_TYPE_SINT32:
         SET_INTEGER(val, *cast(i32*, data));
         break;
 
-    case STRUCT_TYPE_UINT64:
+    case FFI_TYPE_UINT64:
         SET_INTEGER(val, *cast(u64*, data));
         break;
 
-    case STRUCT_TYPE_INT64:
+    case FFI_TYPE_SINT64:
         SET_INTEGER(val, *cast(i64*, data));
         break;
 
-    case STRUCT_TYPE_FLOAT:
+    case FFI_TYPE_FLOAT:
         SET_DECIMAL(val, *cast(float*, data));
         break;
 
-    case STRUCT_TYPE_DOUBLE:
+    case FFI_TYPE_DOUBLE:
         SET_DECIMAL(val, *cast(double*, data));
         break;
 
-    case STRUCT_TYPE_POINTER:
-        SET_INTEGER(val, cast(REBUPT, *cast(void**, data)));
+    case FFI_TYPE_POINTER:
+        if (field->is_rebval) {
+            assert(field->size == sizeof(REBVAL));
+            assert(field->dimension == 4);
+            memcpy(val, data, sizeof(REBVAL));
+        }
+        else
+            SET_INTEGER(val, cast(REBUPT, *cast(void**, data)));
         break;
 
-    case STRUCT_TYPE_STRUCT:
+    case FFI_TYPE_STRUCT:
         {
         // In order for the schema to participate in GC it must be a series.
         // Currently this series is created with a single value of the root
@@ -177,10 +238,6 @@ static void get_scalar(
         assert(ARR_LEN(sub_stu) == 1);
         MANAGE_ARRAY(sub_stu);
         }
-        break;
-
-    case STRUCT_TYPE_REBVAL:
-        memcpy(val, data, sizeof(REBVAL));
         break;
 
     default:
@@ -283,7 +340,7 @@ REBARR *Struct_To_Array(REBSTU *stu)
         Val_Init_Block(type_blk, Make_Array(1));
 
         val = Alloc_Tail_Array(VAL_ARRAY(type_blk));
-        if (field->type == STRUCT_TYPE_STRUCT) {
+        if (field->type == FFI_TYPE_STRUCT) {
             REBVAL *nested;
             DS_PUSH_TRASH_SAFE;
             nested = DS_TOP;
@@ -294,8 +351,14 @@ REBARR *Struct_To_Array(REBSTU *stu)
             Val_Init_Block(val, Struct_To_Array(VAL_STRUCT(nested)));
 
             DS_DROP;
-        } else
-            Val_Init_Word(val, REB_WORD, type_to_sym[field->type]);
+        }
+        else {
+            REBSYM sym;
+            enum Reb_Kind kind; // dummy
+            Get_FFType_Enum_Info(&sym, &kind, field->type);
+            assert(sym != SYM_0); // !!! was not previously asserted (?)
+            Val_Init_Word(val, REB_WORD, sym);
+        }
 
         /* optional dimension */
         if (field->dimension > 1) {
@@ -348,7 +411,7 @@ static REBOOL same_fields(REBSER *tgt, REBSER *src)
             || tgt_fields[n].size != src_fields[n].size) {
             return FALSE;
         }
-        if (tgt_fields[n].type == STRUCT_TYPE_STRUCT
+        if (tgt_fields[n].type == FFI_TYPE_STRUCT
             && ! same_fields(tgt_fields[n].fields, src_fields[n].fields)) {
             return FALSE;
         }
@@ -376,29 +439,37 @@ static REBOOL assign_scalar_core(
     u64 i = 0;
     double d = 0;
 
-    if (field->type == STRUCT_TYPE_REBVAL) {
+    if (field->is_rebval) {
+        assert(FALSE); // need to actually adjust for correct n
+        assert(field->type == FFI_TYPE_POINTER);
+        assert(field->dimension % 4 == 0);
+        assert(field->size == sizeof(REBVAL));
         memcpy(data, val, sizeof(REBVAL));
         return TRUE;
     }
 
+    REBSYM sym; // dummy
+    enum Reb_Kind kind;
+    Get_FFType_Enum_Info(&sym, &kind, field->type);
+
     switch (VAL_TYPE(val)) {
         case REB_DECIMAL:
-            if (!IS_NUMERIC_TYPE(field->type))
+            if (kind != REB_INTEGER && kind != REB_DECIMAL)
                 fail (Error_Invalid_Type(VAL_TYPE(val)));
 
             d = VAL_DECIMAL(val);
             i = (u64) d;
             break;
         case REB_INTEGER:
-            if (!IS_NUMERIC_TYPE(field->type))
-                if (field->type != STRUCT_TYPE_POINTER)
+            if (kind != REB_INTEGER && kind != REB_DECIMAL)
+                if (field->type != FFI_TYPE_POINTER)
                     fail (Error_Invalid_Type(VAL_TYPE(val)));
 
             i = (u64) VAL_INT64(val);
             d = (double)i;
             break;
         case REB_STRUCT:
-            if (STRUCT_TYPE_STRUCT != field->type)
+            if (FFI_TYPE_STRUCT != field->type)
                 fail (Error_Invalid_Type(VAL_TYPE(val)));
             break;
         default:
@@ -406,40 +477,40 @@ static REBOOL assign_scalar_core(
     }
 
     switch (field->type) {
-        case STRUCT_TYPE_INT8:
+        case FFI_TYPE_SINT8:
             *(i8*)data = (i8)i;
             break;
-        case STRUCT_TYPE_UINT8:
+        case FFI_TYPE_UINT8:
             *(u8*)data = (u8)i;
             break;
-        case STRUCT_TYPE_INT16:
+        case FFI_TYPE_SINT16:
             *(i16*)data = (i16)i;
             break;
-        case STRUCT_TYPE_UINT16:
+        case FFI_TYPE_UINT16:
             *(u16*)data = (u16)i;
             break;
-        case STRUCT_TYPE_INT32:
+        case FFI_TYPE_SINT32:
             *(i32*)data = (i32)i;
             break;
-        case STRUCT_TYPE_UINT32:
+        case FFI_TYPE_UINT32:
             *(u32*)data = (u32)i;
             break;
-        case STRUCT_TYPE_INT64:
+        case FFI_TYPE_SINT64:
             *(i64*)data = (i64)i;
             break;
-        case STRUCT_TYPE_UINT64:
+        case FFI_TYPE_UINT64:
             *(u64*)data = (u64)i;
             break;
-        case STRUCT_TYPE_POINTER:
+        case FFI_TYPE_POINTER:
             *cast(void**, data) = cast(void*, cast(REBUPT, i));
             break;
-        case STRUCT_TYPE_FLOAT:
+        case FFI_TYPE_FLOAT:
             *(float*)data = (float)d;
             break;
-        case STRUCT_TYPE_DOUBLE:
+        case FFI_TYPE_DOUBLE:
             *(double*)data = (double)d;
             break;
-        case STRUCT_TYPE_STRUCT:
+        case FFI_TYPE_STRUCT:
             if (field->size != VAL_STRUCT_SIZE(val))
                 fail (Error_Invalid_Arg(val));
 
@@ -695,61 +766,63 @@ static void Parse_Field_Type_May_Fail(
     if (IS_END(val))
         fail (Error(RE_MISC)); // !!! better error
 
+    field->is_rebval = FALSE; // by default, not a REBVAL
+
     if (IS_WORD(val)) {
 
         switch (VAL_WORD_CANON(val)) {
         case SYM_UINT8:
-            field->type = STRUCT_TYPE_UINT8;
+            field->type = FFI_TYPE_UINT8;
             field->size = 1;
             break;
 
         case SYM_INT8:
-            field->type = STRUCT_TYPE_INT8;
+            field->type = FFI_TYPE_SINT8;
             field->size = 1;
             break;
 
         case SYM_UINT16:
-            field->type = STRUCT_TYPE_UINT16;
+            field->type = FFI_TYPE_UINT16;
             field->size = 2;
             break;
 
         case SYM_INT16:
-            field->type = STRUCT_TYPE_INT16;
+            field->type = FFI_TYPE_SINT16;
             field->size = 2;
             break;
 
         case SYM_UINT32:
-            field->type = STRUCT_TYPE_UINT32;
+            field->type = FFI_TYPE_UINT32;
             field->size = 4;
             break;
 
         case SYM_INT32:
-            field->type = STRUCT_TYPE_INT32;
+            field->type = FFI_TYPE_SINT32;
             field->size = 4;
             break;
 
         case SYM_UINT64:
-            field->type = STRUCT_TYPE_UINT64;
+            field->type = FFI_TYPE_UINT64;
             field->size = 8;
             break;
 
         case SYM_INT64:
-            field->type = STRUCT_TYPE_INT64;
+            field->type = FFI_TYPE_SINT64;
             field->size = 8;
             break;
 
         case SYM_FLOAT:
-            field->type = STRUCT_TYPE_FLOAT;
+            field->type = FFI_TYPE_FLOAT;
             field->size = 4;
             break;
 
         case SYM_DOUBLE:
-            field->type = STRUCT_TYPE_DOUBLE;
+            field->type = FFI_TYPE_DOUBLE;
             field->size = 8;
             break;
 
         case SYM_POINTER:
-            field->type = STRUCT_TYPE_POINTER;
+            field->type = FFI_TYPE_POINTER;
             field->size = sizeof(void*);
             break;
 
@@ -762,7 +835,7 @@ static void Parse_Field_Type_May_Fail(
                 assert(res);
 
                 field->size = SER_LEN(VAL_STRUCT_DATA_BIN(inner));
-                field->type = STRUCT_TYPE_STRUCT;
+                field->type = FFI_TYPE_STRUCT;
                 field->fields = VAL_STRUCT_FIELDLIST(inner);
                 field->spec = VAL_STRUCT_SPEC(inner);
                 *init = inner; // a shortcut for struct intialization
@@ -772,8 +845,9 @@ static void Parse_Field_Type_May_Fail(
             break;
 
         case SYM_REBVAL:
-            field->type = STRUCT_TYPE_REBVAL;
-            field->size = sizeof(REBVAL);
+            field->is_rebval = TRUE;
+            field->type = FFI_TYPE_POINTER;
+            field->size = sizeof(void*); // multiplied by 4 at the end
             break;
 
         default:
@@ -785,7 +859,7 @@ static void Parse_Field_Type_May_Fail(
         // [b: [struct-a] val-a]
         //
         field->size = SER_LEN(VAL_STRUCT_DATA_BIN(val));
-        field->type = STRUCT_TYPE_STRUCT;
+        field->type = FFI_TYPE_STRUCT;
         field->fields = VAL_STRUCT_FIELDLIST(val);
         field->spec = VAL_STRUCT_SPEC(val);
         COPY_VALUE(*init, val, VAL_SPECIFIER(spec));
@@ -824,6 +898,9 @@ static void Parse_Field_Type_May_Fail(
     }
     else
         fail (Error_Invalid_Type(VAL_TYPE(val)));
+
+    if (field->is_rebval)
+        field->dimension = field->dimension * 4;
 }
 
 
@@ -845,33 +922,12 @@ static REBCNT Total_Struct_Dimensionality(REBSER *fields)
     for (i = 0; i < SER_LEN(fields); ++i) {
         struct Struct_Field *field = SER_AT(struct Struct_Field, fields, i);
 
-        if (field->type != STRUCT_TYPE_STRUCT)
+        if (field->type != FFI_TYPE_STRUCT)
             n_fields += field->dimension;
         else
             n_fields += Total_Struct_Dimensionality(field->fields);
     }
     return n_fields;
-}
-
-
-static ffi_type *struct_type_to_ffi[STRUCT_TYPE_MAX];
-
-static void init_type_map()
-{
-    if (struct_type_to_ffi[0]) return;
-    struct_type_to_ffi[STRUCT_TYPE_UINT8] = &ffi_type_uint8;
-    struct_type_to_ffi[STRUCT_TYPE_INT8] = &ffi_type_sint8;
-    struct_type_to_ffi[STRUCT_TYPE_UINT16] = &ffi_type_uint16;
-    struct_type_to_ffi[STRUCT_TYPE_INT16] = &ffi_type_sint16;
-    struct_type_to_ffi[STRUCT_TYPE_UINT32] = &ffi_type_uint32;
-    struct_type_to_ffi[STRUCT_TYPE_INT32] = &ffi_type_sint32;
-    struct_type_to_ffi[STRUCT_TYPE_UINT64] = &ffi_type_uint64;
-    struct_type_to_ffi[STRUCT_TYPE_INT64] = &ffi_type_sint64;
-
-    struct_type_to_ffi[STRUCT_TYPE_FLOAT] = &ffi_type_float;
-    struct_type_to_ffi[STRUCT_TYPE_DOUBLE] = &ffi_type_double;
-
-    struct_type_to_ffi[STRUCT_TYPE_POINTER] = &ffi_type_pointer;
 }
 
 
@@ -909,8 +965,9 @@ REBOOL MT_Struct(
     struct Struct_Field *schema = SER_HEAD(struct Struct_Field, field_1);
 
     schema->spec = Copy_Array_Shallow(VAL_ARRAY(data), specifier);
-    schema->type = STRUCT_TYPE_STRUCT;
+    schema->type = FFI_TYPE_STRUCT;
     schema->is_array = FALSE;
+    schema->is_rebval = FALSE;
     schema->sym = SYM_0; // no symbol for the struct itself
     schema->offset = 999999; // shouldn't be used
     schema->fields = Make_Series(
@@ -1092,7 +1149,7 @@ REBOOL MT_Struct(
             }
         }
         else if (raw_addr == 0) {
-            if (field->type == STRUCT_TYPE_STRUCT) {
+            if (field->type == FFI_TYPE_STRUCT) {
                 REBCNT n = 0;
                 for (n = 0; n < field->dimension; n ++) {
                     memcpy(
@@ -1106,7 +1163,9 @@ REBOOL MT_Struct(
                     );
                 }
             }
-            else if (field->type == STRUCT_TYPE_REBVAL) {
+            else if (field->is_rebval) {
+                assert(FALSE); // needs work
+
                 REBCNT n = 0;
                 for (n = 0; n < field->dimension; n ++) {
                     if (!assign_scalar(
@@ -1148,29 +1207,27 @@ REBOOL MT_Struct(
 // SET UP FOR FFI
 //
 
-    init_type_map();
-
     // The reason structs exist at all is so that they can be used with the
     // FFI, and the FFI requires you to set up a "ffi_type" C struct describing
     // each datatype.  There are stock types for the primitives, but each
     // structure needs its own.  We build the ffi_type at the same time as
     // the structure.
     //
-    schema->fftype_ser = Make_Series(2, sizeof(ffi_type), MKS_NONE); // !!! 2?
-    SET_SER_FLAG(schema->fftype_ser, SERIES_FLAG_FIXED_SIZE);
-    ffi_type *stype = SER_HEAD(ffi_type, schema->fftype_ser);
+    schema->fftype = Make_Series(1, sizeof(ffi_type), MKS_NONE);
+    SET_SER_FLAG(schema->fftype, SERIES_FLAG_FIXED_SIZE);
+    ffi_type *fftype = SER_HEAD(ffi_type, schema->fftype);
 
-    stype->size = 0;
-    stype->alignment = 0;
-    stype->type = FFI_TYPE_STRUCT;
+    fftype->size = 0;
+    fftype->alignment = 0;
+    fftype->type = FFI_TYPE_STRUCT;
 
-    schema->fields_fftypes_ser = Make_Series( // !!! comment "1 for null"...2?
-        2 + Total_Struct_Dimensionality(schema->fields),
+    schema->fields_fftype_ptrs = Make_Series(
+        Total_Struct_Dimensionality(schema->fields) + 1, // 1 for null at end
         sizeof(ffi_type*),
         MKS_NONE
     );
-    SET_SER_FLAG(schema->fields_fftypes_ser, SERIES_FLAG_FIXED_SIZE);
-    stype->elements = SER_HEAD(ffi_type*, schema->fields_fftypes_ser);
+    SET_SER_FLAG(schema->fields_fftype_ptrs, SERIES_FLAG_FIXED_SIZE);
+    fftype->elements = SER_HEAD(ffi_type*, schema->fields_fftype_ptrs);
 
     REBCNT j = 0;
     REBCNT i;
@@ -1178,7 +1235,7 @@ REBOOL MT_Struct(
         struct Struct_Field *field
             = SER_AT(struct Struct_Field, schema->fields, i);
 
-        if (field->type == STRUCT_TYPE_REBVAL) {
+        if (field->is_rebval) {
             //
             // "don't see a point to pass a rebol value to external functions"
             //
@@ -1187,30 +1244,33 @@ REBOOL MT_Struct(
             //
             fail (Error(RE_MISC));
         }
-        else if (field->type == STRUCT_TYPE_STRUCT) {
+        else if (field->type == FFI_TYPE_STRUCT) {
             REBCNT n = 0;
             for (n = 0; n < field->dimension; ++n) {
-                stype->elements[j++] = SER_HEAD(ffi_type, field->fftype_ser);
+                fftype->elements[j++] = SER_HEAD(ffi_type, field->fftype);
             }
         }
         else {
-            assert(struct_type_to_ffi[field->type]);
+            REBSYM sym; // dummy
+            enum Reb_Kind kind; // dummy
+            ffi_type* field_fftype
+                = Get_FFType_Enum_Info(&sym, &kind, field->type);
 
             REBCNT n;
             for (n = 0; n < field->dimension; ++n) {
-                stype->elements[j++] = struct_type_to_ffi[field->type];
+                fftype->elements[j++] = field_fftype;
             }
         }
     }
-    stype->elements[j] = NULL;
+    fftype->elements[j] = NULL;
 
 
 //
 // FINALIZE VALUE
 //
 
-    MANAGE_SERIES(schema->fields_fftypes_ser);
-    MANAGE_SERIES(schema->fftype_ser);
+    MANAGE_SERIES(schema->fields_fftype_ptrs);
+    MANAGE_SERIES(schema->fftype);
     MANAGE_ARRAY(schema->spec);
     MANAGE_SERIES(schema->fields);
 
@@ -1370,13 +1430,10 @@ REBINT CT_Struct(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 
 //
-//  Copy_Struct: C
+//  Copy_Struct_Managed: C
 //
 REBSTU *Copy_Struct_Managed(REBSTU *src)
 {
-    // !!! Whatever this is it will need to be done another way now.  Note:
-    // review what an "external struct" was supposed to be.
-    //
     fail_if_non_accessible(STU_VALUE(src));
 
     assert(ARR_LEN(src) == 1);

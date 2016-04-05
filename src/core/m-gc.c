@@ -340,7 +340,34 @@ static void Queue_Mark_Field_Deep(
     REBSER *data_bin,
     REBCNT offset
 ){
-    if (field->type == STRUCT_TYPE_STRUCT) {
+    if (field->is_rebval) {
+        //
+        // !!! The FFI apparently can tunnel REBVALs through to callbacks.
+        // They would generally appear as raw sizeof(REBVAL) blobs to the
+        // C routines processing them.  The GC considers the REBVAL* to be
+        // "live", and there may be an array of them...so they are marked
+        // much as a REBARR would.
+        //
+        assert(field->type == FFI_TYPE_POINTER);
+        assert(field->dimension % 4 == 0);
+        assert(field->size == sizeof(REBVAL));
+
+        REBCNT i;
+        for (i = 0; i < field->dimension; i += 4) {
+            REBVAL *value = cast(REBVAL*,
+                SER_AT(
+                    REBYTE,
+                    data_bin,
+                    offset + field->offset + i * field->size
+                )
+            );
+
+            if (field->done)
+                Queue_Mark_Value_Deep(value);
+        }
+    }
+    else if (field->type == FFI_TYPE_STRUCT) {
+        assert(!field->is_rebval);
         MARK_SERIES_ONLY(field->fields);
         QUEUE_MARK_ARRAY_DEEP(field->spec);
 
@@ -356,29 +383,6 @@ static void Queue_Mark_Field_Deep(
             assert(subfield->offset >= offset);
 
             Queue_Mark_Field_Deep(subfield, data_bin, subfield->offset);
-        }
-    }
-    else if (field->type == STRUCT_TYPE_REBVAL) {
-        //
-        // !!! The FFI apparently can tunnel REBVALs through to callbacks.
-        // They would generally appear as raw sizeof(REBVAL) blobs to the
-        // C routines processing them.  The GC considers the REBVAL* to be
-        // "live", and there may be an array of them...so they are marked
-        // much as a REBARR would.
-        //
-        assert(field->size == sizeof(REBVAL));
-        REBCNT i;
-        for (i = 0; i < field->dimension; i ++) {
-            REBVAL *value = cast(REBVAL*,
-                SER_AT(
-                    REBYTE,
-                    data_bin,
-                    offset + field->offset + i * field->size
-                )
-            );
-
-            if (field->done)
-                Queue_Mark_Value_Deep(value);
         }
     }
     else {
@@ -402,9 +406,54 @@ static void Queue_Mark_Routine_Deep(REBRIN *r)
 {
     SET_RIN_FLAG(r, ROUTINE_FLAG_MARK);
 
-    MARK_SERIES_ONLY(RIN_ARG_FFTYPES(r));
-    Queue_Mark_Value_Deep(RIN_RET_STRUCT_VAL(r));
-    QUEUE_MARK_ARRAY_DEEP(RIN_ARG_STRUCTS(r));
+    // Mark the descriptions for the return type and argument types.
+    //
+    // !!! This winds up being a bit convoluted, because an OBJECT!-like thing
+    // is being implemented as a HANDLE! to a series, in order to get the
+    // behavior of multiple references and GC'd when the last goes away.
+    // This "schema" concept also allows the `ffi_type` descriptive structures
+    // to be garbage collected.  Replace with OBJECT!s in the future.
+
+    if (IS_HANDLE(&r->ret_schema)) {
+        REBSER *schema = cast(REBSER*, VAL_HANDLE_DATA(&r->ret_schema));
+        MARK_SERIES_ONLY(schema);
+        Queue_Mark_Field_Deep(
+            *SER_HEAD(struct Struct_Field*, schema), NULL, 0
+        );
+    }
+    else // special, allows NONE (e.g. void return)
+        assert(IS_INTEGER(&r->ret_schema) || IS_BLANK(&r->ret_schema));
+
+    QUEUE_MARK_ARRAY_DEEP(r->args_schemas);
+    REBCNT n;
+    for (n = 0; n < ARR_LEN(r->args_schemas); ++n) {
+        if (IS_HANDLE(ARR_AT(r->args_schemas, n))) {
+            REBSER *schema
+                = cast(REBSER*, VAL_HANDLE_DATA(ARR_AT(r->args_schemas, n)));
+            MARK_SERIES_ONLY(schema);
+            Queue_Mark_Field_Deep(
+                *SER_HEAD(struct Struct_Field*, schema), NULL, 0
+            );
+        }
+        else
+            assert(IS_INTEGER(ARR_AT(r->args_schemas, n)));
+    }
+
+    if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC)) {
+        assert(r->cif == NULL);
+        assert(r->args_fftypes == NULL);
+    }
+    else {
+        // !!! r->cif should always be set to something in non-variadic
+        // routines, but currently the implementation has to tolerate partially
+        // formed routines...because evaluations are called during make-routine
+        // before the CIF is ready to be created or not.
+        //
+        if (r->cif)
+            MARK_SERIES_ONLY(r->cif);
+        if (r->args_fftypes)
+            MARK_SERIES_ONLY(r->args_fftypes);
+    }
 
     if (GET_RIN_FLAG(r, ROUTINE_FLAG_CALLBACK)) {
         REBFUN *cb_func = RIN_CALLBACK_FUNC(r);
@@ -968,8 +1017,8 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             // These series are backing stores for the `ffi_type` data that
             // is needed to use the struct with the FFI api.
             //
-            MARK_SERIES_ONLY(VAL_STRUCT_SCHEMA(val)->fftype_ser);
-            MARK_SERIES_ONLY(VAL_STRUCT_SCHEMA(val)->fields_fftypes_ser);
+            MARK_SERIES_ONLY(VAL_STRUCT_SCHEMA(val)->fftype);
+            MARK_SERIES_ONLY(VAL_STRUCT_SCHEMA(val)->fields_fftype_ptrs);
 
             // Recursively mark the schema and any nested structures (or
             // REBVAL-typed fields, specially recognized by the interface)

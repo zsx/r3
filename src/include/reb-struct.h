@@ -127,36 +127,15 @@
 #endif // HAVE_LIBFFI_AVAILABLE
 
 
-enum {
-    STRUCT_TYPE_UINT8 = 0,
-    STRUCT_TYPE_INT8,
-    STRUCT_TYPE_UINT16,
-    STRUCT_TYPE_INT16,
-    STRUCT_TYPE_UINT32,
-    STRUCT_TYPE_INT32,
-    STRUCT_TYPE_UINT64,
-    STRUCT_TYPE_INT64,
-    STRUCT_TYPE_INTEGER,
-
-    STRUCT_TYPE_FLOAT,
-    STRUCT_TYPE_DOUBLE,
-    STRUCT_TYPE_DECIMAL,
-
-    STRUCT_TYPE_POINTER,
-    STRUCT_TYPE_STRUCT,
-    STRUCT_TYPE_REBVAL,
-    STRUCT_TYPE_MAX
-};
-
 struct Struct_Field {
     REBARR* spec; /* for nested struct */
     REBSER* fields; /* for nested struct */
     REBSYM sym;
 
-    REBINT type; /* rebol type */
+    unsigned short type; // e.g. FFI_TYPE_XXX constants
 
-    REBSER *fftype_ser;
-    REBSER *fields_fftypes_ser;
+    REBSER *fftype; // single-element series, one `ffi_type`
+    REBSER *fields_fftype_ptrs; // multiple-element series of `ffi_type*`
 
     /* size is limited by struct->offset, so only 16-bit */
     REBCNT offset;
@@ -165,10 +144,258 @@ struct Struct_Field {
 
     /* Note: C89 bitfields may be 'int', 'unsigned int', or 'signed int' */
     unsigned int is_array:1;
+
+    // A REBVAL is passed as an FFI_TYPE_POINTER array of length 4.  But
+    // for purposes of the GC marking, in the structs it has to be known
+    // that they are REBVAL.
+    //
+    // !!! What is passing REBVALs for?
+    //
+    unsigned int is_rebval:1;
+
     /* field is initialized? */
     /* (used by GC to decide if the value needs to be marked) */
     unsigned int done:1;
 };
 
-
 #define VAL_STRUCT_LIMIT MAX_U32
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  STRUCT! (`struct Reb_Struct`)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Struct is used by the FFI code to describe the layout of a C `struct`,
+// so that Rebol data can be proxied to a C function call.
+//
+// !!! Atronix added the struct type to get coverage in the FFI, and it is
+// possible to make and extract structure data even if one is not calling
+// a routine at all.  This might not be necessary, in that the struct
+// description could be an ordinary OBJECT! which is used in FFI specs
+// and tells how to map data into a Rebol object used as a target.
+//
+
+inline static REBVAL *STU_VALUE(REBSTU *stu) {
+    assert(ARR_LEN(stu) == 1);
+    return KNOWN(ARR_HEAD(stu));
+}
+
+#define STU_INACCESSIBLE(stu) \
+    VAL_STRUCT_INACCESSIBLE(STU_VALUE(stu))
+
+inline static struct Struct_Field *STU_SCHEMA(REBSTU *stu) {
+    //
+    // The new concept for structures is to make a singular structure
+    // descriptor OBJECT!.  Previously structs didn't have a top level node,
+    // but a series of them... so this has to extract the fieldlist from
+    // the new-format top-level node.
+
+    REBSER *schema = ARR_SERIES(stu)->misc.schema;
+
+#if !defined(NDEBUG)
+    if (SER_LEN(schema) != 1)
+        Panic_Series(schema);
+    assert(SER_LEN(schema) == 1);
+#endif
+
+    struct Struct_Field *top = SER_HEAD(struct Struct_Field, schema);
+    assert(top->type == FFI_TYPE_STRUCT);
+    return top;
+}
+
+inline static REBSER *STU_FIELDLIST(REBSTU *stu) {
+    return STU_SCHEMA(stu)->fields;
+}
+
+inline static REBCNT STU_SIZE(REBSTU *stu) {
+    return STU_SCHEMA(stu)->size;
+}
+
+inline static REBSER *STU_DATA_BIN(REBSTU *stu) {
+    return STU_VALUE(stu)->payload.structure.data;
+}
+
+inline static REBCNT STU_OFFSET(REBSTU *stu) {
+    return STU_VALUE(stu)->payload.structure.offset;
+}
+
+#define STU_FFTYPE(stu) \
+    SER_HEAD(ffi_type, STU_SCHEMA(stu)->fftype)
+
+#define VAL_STRUCT(v) \
+    ((v)->payload.structure.stu)
+
+#define VAL_STRUCT_SPEC(v) \
+    (STU_SCHEMA(VAL_STRUCT(v))->spec)
+
+#define VAL_STRUCT_INACCESSIBLE(v) \
+    SER_DATA_NOT_ACCESSIBLE(VAL_STRUCT_DATA_BIN(v))
+
+#define VAL_STRUCT_SCHEMA(v) \
+    STU_SCHEMA(VAL_STRUCT(v))
+
+#define VAL_STRUCT_SIZE(v) \
+    STU_SIZE(VAL_STRUCT(v))
+
+#define VAL_STRUCT_DATA_BIN(v) \
+    ((v)->payload.structure.data)
+
+#define VAL_STRUCT_OFFSET(v) \
+    ((v)->payload.structure.offset)
+
+#define VAL_STRUCT_FIELDLIST(v) \
+    STU_FIELDLIST(VAL_STRUCT(v))
+
+#define VAL_STRUCT_FFTYPE(v) \
+    STU_FFTYPE(VAL_STRUCT(v))
+
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  ROUTINE SUPPORT
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// A routine is an interface to calling a C function, which uses the libffi
+// library.
+//
+// !!! Previously, ROUTINE! was an ANY-FUNCTION! category (like NATIVE!,
+// COMMAND!, ACTION!, etc.)  Ren-C unified these under a single FUNCTION!
+// type for the purposes of interface (included in the elimination of the
+// CLOSURE! vs. FUNCTION! distinction).
+//
+// Since MAKE ROUTINE! wouldn't work (without some hacks in the compatibility
+// layer), MAKE-ROUTINE was introduced as a native that returns a FUNCTION!.
+// This opens the door to having MAKE-ROUTINE be a user function which then
+// generates another user function which calls a simpler native to dispatch
+// its work.  That review is pending.
+//
+
+struct Reb_Routine_Info {
+    union {
+        struct {
+            REBLHL *lib;
+            CFUNC *funcptr;
+        } rot;
+        struct {
+            //
+            // The closure allocation routine gives back a void* and not
+            // an ffi_closure* for some reason.  (Perhaps because it takes
+            // a sizeof() that is >= size of closure, so may be bigger.)
+            //
+            ffi_closure *closure;
+            REBFUN *func;
+            void *dispatcher;
+        } cb;
+    } info;
+
+    // Here the "schema" is either an INTEGER! (which is the FFI_TYPE constant
+    // of the argument) or a HANDLE! containing a REBSER* of length 1 that
+    // contains a `Struct_Field` (it's held in a series to allow it to be
+    // referenced multiple places and participate in GC).
+    //
+    // !!! REBVALs are used here to simplify a GC-participating typed
+    // struct, with an eye to a future where the schemas are done with OBJECT!
+    // so that special GC behavior and C struct definitions is not necessary.
+    //
+    REBVAL ret_schema;
+    REBARR *args_schemas;
+
+    // The Call InterFace (CIF) for a C function with fixed arguments can
+    // be created once and then used many times.  For a variadic routine,
+    // it must be created to match the variadic arguments.  Hence this will
+    // be NULL for variadics.
+    //
+    REBSER *cif; // one ffi_cif long (for GC participation, fail()...)
+    REBSER *args_fftypes; // list of ffi_type*, must live as long as CIF does
+
+    REBCNT flags; // !!! 32-bit...should it use REBFLGS for 64-bit on 64-bit?
+    ffi_abi abi; // an enum
+
+    //REBUPT padding; // sizeof(Reb_Routine_Info) % 8 must be 0 for Make_Node()
+};
+
+
+enum {
+    ROUTINE_FLAG_MARK = 1 << 0, // routine was found during GC mark scan.
+    ROUTINE_FLAG_USED = 1 << 1,
+    ROUTINE_FLAG_CALLBACK = 1 << 2, // is a callback
+    ROUTINE_FLAG_VARIADIC = 1 << 3 // has FFI va_list interface
+};
+
+#define SET_RIN_FLAG(s,f) \
+    ((s)->flags |= (f))
+
+#define CLEAR_RIN_FLAG(s,f) \
+    ((s)->flags &= ~(f))
+
+#define GET_RIN_FLAG(s, f) \
+    LOGICAL((s)->flags & (f))
+
+// Routine Field Accessors
+
+#define RIN_FUNCPTR(r) \
+    ((r)->info.rot.funcptr)
+
+#define RIN_LIB(r) \
+    ((r)->info.rot.lib)
+
+#define RIN_NUM_FIXED_ARGS(r) \
+    ARR_LEN((r)->args_schemas)
+
+// !!! Should this be 1-based to be consistent with ARG() and PARAM() (or
+// should the D_ARG(N) 1-basedness legacy be changed to a C 0-based one?)
+//
+#define RIN_ARG_SCHEMA(r,n) \
+    KNOWN(ARR_AT((r)->args_schemas, (n)))
+
+#define Get_FFType_Enum_Info(sym_out,kind_out,type) \
+    cast(ffi_type*, Get_FFType_Enum_Info_Core((sym_out), (kind_out), (type)))
+
+inline static void* SCHEMA_FFTYPE_CORE(const RELVAL *schema) {
+    if (IS_HANDLE(schema)) {
+        struct Struct_Field *field
+            = SER_HEAD(
+                struct Struct_Field,
+                cast(REBSER*, VAL_HANDLE_DATA(schema))
+            );
+        return SER_HEAD(ffi_type, field->fftype);
+    }
+
+    // Avoid creating a "VOID" type in order to not give the illusion of
+    // void parameters being legal.  The NONE! return type is handled
+    // exclusively by the return value, to prevent potential mixups.
+    //
+    assert(IS_INTEGER(schema));
+
+    enum Reb_Kind kind; // dummy
+    REBSYM sym; // dummy
+    return Get_FFType_Enum_Info(&sym, &kind, VAL_INT32(schema));
+}
+
+#define SCHEMA_FFTYPE(schema) \
+    cast(ffi_type*, SCHEMA_FFTYPE_CORE(schema))
+
+#define RIN_RET_SCHEMA(r) \
+    (&(r)->ret_schema)
+
+#define RIN_DISPATCHER(r) \
+    ((r)->info.cb.dispatcher)
+
+#define RIN_CALLBACK_FUNC(r) \
+    ((r)->info.cb.func)
+
+#define RIN_CLOSURE(r) \
+    cast(ffi_closure*, (r)->info.cb.closure)
+
+#define INIT_RIN_CLOSURE(r, closure_) \
+    ((r)->info.cb.closure = (closure_), NOOP)
+
+#define RIN_ABI(r) \
+    cast(ffi_abi, (r)->abi)
+
+#define INIT_RIN_ABI(r, abi_) \
+    ((r)->abi = (abi_), NOOP)
