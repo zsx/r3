@@ -344,7 +344,7 @@ static void Schema_From_Block_May_Fail(
 //
 // This means sequential arguments in the store may have padding between them.
 //
-inline static REBYTE *Expand_And_Align_Core(
+inline static void *Expand_And_Align_Core(
     REBUPT *offset_out,
     REBCNT align,
     REBSER *store,
@@ -359,7 +359,7 @@ inline static REBYTE *Expand_And_Align_Core(
     return SER_DATA_RAW(store) + *offset_out;
 }
 
-inline static REBYTE *Expand_And_Align(
+inline static void *Expand_And_Align(
     REBUPT *offset_out,
     REBSER *store,
     REBCNT size // assumes align == size
@@ -377,6 +377,7 @@ inline static REBYTE *Expand_And_Align(
  * */
 static REBUPT arg_to_ffi(
     REBSER *store,
+    void *dest,
     const REBVAL *arg,
     const REBVAL *schema,
     const REBVAL *param
@@ -388,9 +389,21 @@ static REBUPT arg_to_ffi(
         assert(arg != NULL && IS_TYPESET(param));
     else
         assert(arg == NULL); // return value, so just make space (no arg data)
+
+    // Only one of dest or store should be non-NULL.  This allows to write
+    // either to a known pointer of sufficient size (dest) or to a series
+    // that will expand enough to accomodate the data (store).
+    //
+    if (store == NULL)
+        assert(dest != NULL);
+    else
+        assert(dest == NULL);
 #endif
 
     struct Reb_Frame *frame_ = FS_TOP; // So you can use the D_xxx macros
+
+    if (!dest)
+        offset = 0;
 
     if (IS_HANDLE(schema)) {
         struct Struct_Field *top
@@ -406,12 +419,13 @@ static REBUPT arg_to_ffi(
         // is sizeof(void*) here...this may waste some space in the padding
         // between arguments, but that shouldn't have any semantic effect.
         //
-        REBYTE *dest = Expand_And_Align_Core(
-            &offset,
-            sizeof(void*),
-            store,
-            top->size
-        );
+        if (!dest)
+            dest = Expand_And_Align_Core(
+                &offset,
+                sizeof(void*),
+                store,
+                top->size
+            );
 
         if (arg == NULL) {
             //
@@ -450,7 +464,8 @@ static REBUPT arg_to_ffi(
     case FFI_TYPE_UINT8:
         {
         u8 u;
-        REBYTE *dest = Expand_And_Align(&offset, store, sizeof(u));
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(u));
         if (!arg) break;
 
         if (!IS_INTEGER(arg))
@@ -464,7 +479,8 @@ static REBUPT arg_to_ffi(
     case FFI_TYPE_SINT8:
         {
         i8 i;
-        REBYTE *dest = Expand_And_Align(&offset, store, sizeof(i));
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(i));
         if (!arg) break;
 
         if (!IS_INTEGER(arg))
@@ -478,7 +494,8 @@ static REBUPT arg_to_ffi(
     case FFI_TYPE_UINT16:
         {
         u16 u;
-        REBYTE *dest = Expand_And_Align(&offset, store, sizeof(u));
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(u));
         if (!arg) break;
 
         if (!IS_INTEGER(arg))
@@ -492,7 +509,8 @@ static REBUPT arg_to_ffi(
     case FFI_TYPE_SINT16:
         {
         i16 i;
-        REBYTE *dest = Expand_And_Align(&offset, store, sizeof(i));
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(i));
         if (!arg) break;
 
         if (!IS_INTEGER(arg))
@@ -506,7 +524,8 @@ static REBUPT arg_to_ffi(
     case FFI_TYPE_UINT32:
         {
         u32 u;
-        REBYTE *dest = Expand_And_Align(&offset, store, sizeof(u));
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(u));
         if (!arg) break;
 
         if (!IS_INTEGER(arg))
@@ -520,7 +539,8 @@ static REBUPT arg_to_ffi(
     case FFI_TYPE_SINT32:
         {
         i32 i;
-        REBYTE *dest = Expand_And_Align(&offset, store, sizeof(i));
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(i));
         if (!arg) break;
 
         if (!IS_INTEGER(arg))
@@ -534,7 +554,8 @@ static REBUPT arg_to_ffi(
     case FFI_TYPE_UINT64:
     case FFI_TYPE_SINT64:
         {
-        REBYTE *dest = Expand_And_Align(&offset, store, sizeof(REBI64));
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(REBI64));
         if (!arg) break;
 
         if (!IS_INTEGER(arg))
@@ -548,7 +569,8 @@ static REBUPT arg_to_ffi(
         //
         // Note: Function pointers and data pointers may not be same size.
         //
-        REBYTE *dest = Expand_And_Align(&offset, store, sizeof(void*));
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(void*));
         if (!arg) break;
 
         switch (VAL_TYPE(arg)) {
@@ -593,7 +615,8 @@ static REBUPT arg_to_ffi(
     case FFI_TYPE_FLOAT:
         {
         float f;
-        REBYTE *dest = Expand_And_Align(&offset, store, sizeof(f));
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(f));
         if (!arg) break;
 
         if (!IS_DECIMAL(arg))
@@ -606,7 +629,8 @@ static REBUPT arg_to_ffi(
 
     case FFI_TYPE_DOUBLE:
         {
-        REBYTE *dest = Expand_And_Align(&offset, store, sizeof(double));
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(double));
         if (!arg) break;
 
         if (!IS_DECIMAL(arg))
@@ -830,6 +854,7 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
     if (!IS_BLANK(RIN_RET_SCHEMA(rin))) {
         ret_offset = cast(void*, arg_to_ffi(
             store, // ffi-converted arg appended here
+            NULL, // dest pointer must be NULL if store is non-NULL
             NULL, // arg: none (we're only making space--leave uninitialized)
             RIN_RET_SCHEMA(rin),
             NULL // param: none (it's a return value/output)
@@ -850,6 +875,7 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
     for (; i < num_fixed; ++i) {
         *SER_AT(void*, arg_offsets, i) = cast(void*, arg_to_ffi(
             store, // ffi-converted arg appended here
+            NULL, // dest pointer must be NULL if store is non-NULL
             FRM_ARG(f, i + 1), // 1-based
             RIN_ARG_SCHEMA(rin, i), // 0-based
             FUNC_PARAM(FRM_FUNC(f), i + 1) // 1-based
@@ -909,6 +935,7 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
 
             *SER_AT(void*, arg_offsets, i) = cast(void*, arg_to_ffi(
                 store, // data appended to store
+                NULL, // dest pointer must be NULL if store is non-NULL
                 DS_AT(dsp), // arg
                 &schema,
                 &param // used for typecheck, VAL_TYPESET_SYM for error msgs
@@ -1012,6 +1039,16 @@ void Free_Routine(REBRIN *rin)
 }
 
 
+//
+// Callbacks allow C code to call Rebol functions.  It does so by creating a
+// stub function pointer that can be passed in slots where C code expected
+// a C function pointer.  When such stubs are triggered, the FFI will call
+// this dispatcher--which was registered using ffi_prep_closure_loc().
+//
+// An example usage of this feature is in %qsort.r, where the C library
+// function qsort() is made to use a custom comparison function that is
+// actually written in Rebol.
+//
 static void callback_dispatcher(
     ffi_cif *cif,
     void *ret,
@@ -1047,93 +1084,37 @@ static void callback_dispatcher(
     // the arguments will be the remaining values.
     //
     REBARR *code = Make_Array(1 + cif->nargs);
+    {
+        RELVAL *elem = ARR_HEAD(code);
+        *elem = *FUNC_VALUE(RIN_CALLBACK_FUNC(rin));
+        ++elem;
 
-    RELVAL *elem = ARR_HEAD(code);
-    *elem = *FUNC_VALUE(RIN_CALLBACK_FUNC(rin));
-    ++elem;
+        REBCNT i;
+        for (i = 0; i < cif->nargs; ++i, ++elem)
+            ffi_to_rebol(SINK(elem), RIN_ARG_SCHEMA(rin, i), args[i]);
 
-    REBCNT i;
-    for (i = 0; i < cif->nargs; ++i, ++elem)
-        ffi_to_rebol(SINK(elem), RIN_ARG_SCHEMA(rin, i), args[i]);
-
-    SET_ARRAY_LEN(code, 1 + cif->nargs);
-    TERM_ARRAY(code);
-
-    // !!! Currently an array must be managed in order to use it with DO,
-    // because the series could be put into a block of a backtrace.  It will
-    // be guarded implicitly during the Do_At_Throws(), however.
-    //
-    MANAGE_ARRAY(code);
-
-    REBVAL result;
-    if (Do_At_Throws(&result, code, 0, SPECIFIED)) {
-        //
-        // !!! Does not check for thrown cases...what should this
-        // do in case of THROW, BREAK, QUIT?
-        //
-        fail (Error_No_Catch_For_Throw(&result));
+        SET_ARRAY_LEN(code, 1 + cif->nargs);
+        TERM_ARRAY(code);
     }
 
-    // !!! Could Free_Array(array) if not managed to use with DO, instead
-    // the GC will free it when it gets around to it.
+    MANAGE_ARRAY(code); // DO requires managed arrays (guarded while running)
 
-    // !!! The below code is redundant with arg_to_ffi...however that code
-    // is set up to work with series memory, not an already made buffer
-    // of the correct size.  The arg_to_ffi might be able to have the
-    // "store" created to the right size up front.  Merge these when
-    // possible.
+    REBVAL result;
+    if (Do_At_Throws(&result, code, 0, SPECIFIED))
+        fail (Error_No_Catch_For_Throw(&result)); // !!! Tunnel throws out?
 
-    switch (cif->rtype->type) {
-    case FFI_TYPE_VOID:
-        break;
-
-    case FFI_TYPE_UINT8:
-        *((u8*)ret) = (u8)VAL_INT64(&result);
-        break;
-
-    case FFI_TYPE_SINT8:
-        *((i8*)ret) = (i8)VAL_INT64(&result);
-        break;
-
-    case FFI_TYPE_UINT16:
-        *((u16*)ret) = (u16)VAL_INT64(&result);
-        break;
-
-    case FFI_TYPE_SINT16:
-        *((i16*)ret) = (i16)VAL_INT64(&result);
-        break;
-
-    case FFI_TYPE_UINT32:
-        *((u32*)ret) = (u32)VAL_INT64(&result);
-        break;
-
-    case FFI_TYPE_SINT32:
-        *((i32*)ret) = (i32)VAL_INT64(&result);
-        break;
-
-    case FFI_TYPE_UINT64:
-    case FFI_TYPE_POINTER:
-        *((u64*)ret) = (u64)VAL_INT64(&result);
-        break;
-
-    case FFI_TYPE_SINT64:
-        *((i64*)ret) = (i64)VAL_INT64(&result);
-        break;
-
-    case FFI_TYPE_STRUCT:
-        memcpy(
-            ret,
-            SER_AT(
-                REBYTE,
-                VAL_STRUCT_DATA_BIN(&result),
-                VAL_STRUCT_OFFSET(&result)
-            ),
-            VAL_STRUCT_SIZE(&result)
+    if (cif->rtype->type == FFI_TYPE_VOID)
+        assert(IS_BLANK(RIN_RET_SCHEMA(rin)));
+    else {
+        REBVAL param;
+        Val_Init_Typeset(&param, 0, SYM_RETURN);
+        arg_to_ffi(
+            NULL, // store must be NULL if dest is non-NULL,
+            ret, // destination pointer
+            &result,
+            RIN_RET_SCHEMA(rin),
+            &param // parameter used for symbol in error only
         );
-        break;
-
-    default:
-        fail (Error_Invalid_Arg(&result));
     }
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
