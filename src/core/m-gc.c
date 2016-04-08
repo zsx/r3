@@ -912,7 +912,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                 // The word is unbound...make sure index is 0 in debug build.
                 //
             #if !defined(NDEBUG)
-                assert(VAL_WORD_INDEX(val) == 0);
+                assert(val->payload.any_word.place.binding.index == 0);
             #endif
             }
             break;

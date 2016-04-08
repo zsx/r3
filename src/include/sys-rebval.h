@@ -1064,7 +1064,8 @@ inline static void COPY_VALUE_CORE(
     REBCTX *specifier
 ) {
     if (src->header.bits & VALUE_FLAG_RELATIVE) {
-        dest->header.bits = src->header.bits & ~VALUE_FLAG_RELATIVE;
+        dest->header.bits
+            = src->header.bits & ~cast(REBUPT, VALUE_FLAG_RELATIVE);
         if (src->header.bits & VALUE_FLAG_ARRAY) {
             dest->payload.any_series.target.specific = specifier;
             dest->payload.any_series.series

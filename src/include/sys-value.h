@@ -467,6 +467,11 @@ inline static REBOOL IS_VOID(const RELVAL *v)
     }
 
     inline static REBVAL *Sink_Debug(RELVAL *v, const char *file, int line) {
+        //
+        // SINK claims it's okay to cast from RELVAL to REBVAL because the
+        // value is just going to be written to.  Verify that claim in the
+        // debug build by setting to trash as part of the cast.
+        //
         Set_Trash_Debug(v, file, line);
         return cast(REBVAL*, v);
     }
@@ -1539,7 +1544,7 @@ inline static enum Reb_Param_Class VAL_PARAM_CLASS(const RELVAL *v) {
 
 inline static void INIT_VAL_PARAM_CLASS(RELVAL *v, enum Reb_Param_Class c) {
     v->header.bits &= ~PCLASS_MASK;
-    v->header.bits |= (c << TYPE_SPECIFIC_BIT);
+    v->header.bits |= cast(REBUPT, c << TYPE_SPECIFIC_BIT);
 }
 
 
@@ -1621,12 +1626,14 @@ inline static void INIT_WORD_INDEX(RELVAL *v, REBCNT i) {
             ? VAL_TYPESET_SYM(FUNC_PARAM(VAL_WORD_FUNC(v), i))
             : CTX_KEY_SYM(VAL_WORD_CONTEXT(KNOWN(v)), i)
     ));
-    v->payload.any_word.place.binding.index = i;
+    v->payload.any_word.place.binding.index = cast(REBINT, i);
 }
 
 inline static REBCNT VAL_WORD_INDEX(const RELVAL *v) {
     assert(ANY_WORD(v));
-    return v->payload.any_word.place.binding.index;
+    REBINT i = v->payload.any_word.place.binding.index;
+    assert(i > 0);
+    return cast(REBCNT, i);
 }
 
 inline static void UNBIND_WORD(RELVAL *v) {
@@ -2146,7 +2153,11 @@ inline static void SET_EVENT_INFO(RELVAL *val, u8 type, u8 flags, u8 win) {
     (VAL_EVENT_DATA(v))
 
 inline static void SET_EVENT_XY(RELVAL *v, REBINT x, REBINT y) {
-    VAL_EVENT_DATA(v) = ((y << 16) | (x & 0xffff));
+    //
+    // !!! "conversion to u32 from REBINT may change the sign of the result"
+    // Hence cast.  Not clear what the intent is.
+    //
+    VAL_EVENT_DATA(v) = cast(u32, ((y << 16) | (x & 0xffff)));
 }
 
 // Key event data
