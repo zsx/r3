@@ -290,6 +290,7 @@ void Unmap_Bytes(void *srcp, REBYTE **dstp, char *map) {
 	REBCNT				*dp;
 	RGBQUADPTR			color;
 	RGBQUADPTR			ctab = 0;
+	REBOOL				bottom_up = 1;
 
 	cp = codi->data;
 	Map_Bytes(&bmfh, &cp, mapBITMAPFILEHEADER);
@@ -346,12 +347,18 @@ void Unmap_Bytes(void *srcp, REBYTE **dstp, char *map) {
 	if (bmfh.bfOffBits != (DWORD)(cp - codi->data))
 		cp = codi->data + bmfh.bfOffBits;
 
+	if (h < 0) {
+		bottom_up = 0;
+		h = -h;
+	}
+
 	codi->w = w;
 	codi->h = h;
 	codi->bits = Make_Mem(w * h * 4);
 
 	dp = (REBCNT *) codi->bits;
-	dp += w * h - w;
+	if (bottom_up)
+		dp += w * h - w;
 
 	for (y = 0; y<h; y++) {
 		switch(compression) {
@@ -497,7 +504,8 @@ void Unmap_Bytes(void *srcp, REBYTE **dstp, char *map) {
 			codi->error = CODI_ERR_ENCODING;
 			goto error;
 		}
-		dp -= 2 * w;
+		if (bottom_up)
+			dp -= 2 * w;
 	}
 error:
 	if (ctab) free(ctab);
