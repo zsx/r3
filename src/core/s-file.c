@@ -286,7 +286,7 @@ REBSER *Value_To_Local_Path(REBVAL *val, REBOOL full)
 // 
 // Helper to above function.
 //
-REBSER *Value_To_OS_Path(REBVAL *val, REBOOL full)
+REBSER *Value_To_OS_Path(const REBVAL *val, REBOOL full)
 {
     REBSER *ser; // will be unicode size
 #ifndef TO_WINDOWS

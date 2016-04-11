@@ -33,8 +33,193 @@
 #include "sys-dec-to-char.h"
 #include <errno.h>
 
-typedef REBOOL (*MAKE_FUNC)(REBVAL *, RELVAL *, REBCTX *, enum Reb_Kind);
+extern const MAKE_FUNC Make_Dispatch[REB_MAX_0];
+
+// !!! Actually should be a .inc file, as it includes data declarations
+// Has a repeated prototype in %l-scan.c to avoid double inclusion
+//
 #include "tmp-maketypes.h"
+
+//
+//  make: native [
+//
+//  {Constructs or allocates the specified datatype.}
+//
+//      type [any-value!]
+//          {The datatype -or- an examplar value of the type to construct}
+//      def [any-value!]
+//          {Definition or size of the new value (binding may be modified)}
+//  ]
+//
+REBNATIVE(make)
+{
+    PARAM(1, type);
+    PARAM(2, def);
+
+    REBVAL *type = ARG(type);
+    REBVAL *arg = ARG(def);
+
+#if !defined(NDEBUG)
+    if (IS_GOB(type)) {
+        //
+        // !!! It appears that GOBs had some kind of inheritance mechanism, by
+        // which you would write:
+        //
+        //     gob1: make gob! [...]
+        //     gob2: make gob1 [...]
+        //
+        // The new plan is that MAKE operates on a definition spec, and that
+        // this type slot is always a value or exemplar.  So if the feature
+        // is needed, it should be something like:
+        //
+        //     gob1: make gob! [...]
+        //     gob2: make gob! [gob1 ...]
+        //
+        // Or perhaps not use make at all, but some other operation.
+        //
+        assert(FALSE);
+    }
+    else if (IS_EVENT(type)) {
+        assert(FALSE); // ^-- same for events (?)
+    }
+#endif
+
+    enum Reb_Kind kind;
+    if (IS_DATATYPE(type))
+        kind = VAL_TYPE_KIND(type);
+    else
+        kind = VAL_TYPE(type);
+
+    MAKE_FUNC dispatcher = Make_Dispatch[TO_0_FROM_KIND(kind)];
+    if (dispatcher == NULL)
+        fail (Error_Bad_Make(kind, arg));
+
+    if (IS_VARARGS(arg)) {
+        //
+        // Converting a VARARGS! to an ANY-ARRAY! involves spooling those
+        // varargs to the end and making an array out of that.  It's not known
+        // how many elements that will be, so they're gathered to the data
+        // stack to find the size, then an array made.  Note that | will stop
+        // a normal or soft-quoted varargs, but a hard-quoted varargs will
+        // grab all the values to the end of the source.
+        //
+        // !!! MAKE should likely not be allowed to THROW in the general
+        // case--especially if it is the implementation of construction
+        // syntax (arbitrary code should not run during LOAD).  Since
+        // vararg spooling may involve evaluation (e.g. to create an array)
+        // it may be a poor fit for the MAKE umbrella.
+        //
+        // Temporarily putting the code here so that the make dispatchers
+        // do not have to bubble up throws, but it is likely that this
+        // should not have been a MAKE operation in the first place.
+        //
+        // !!! This MAKE will be destructive to its input (the varargs will
+        // be fetched and exhausted).  That's not necessarily obvious, but
+        // with a TO conversion it would be even less obvious...
+        //
+        if (dispatcher != &MAKE_Array)
+            fail (Error_Bad_Make(kind, arg));
+
+        const REBVAL *vararg_param;
+        REBVAL *vararg_arg;
+
+        REBVAL fake_param;
+
+        REBARR *feed;
+
+        if (GET_VAL_FLAG(arg, VARARGS_FLAG_NO_FRAME)) {
+            feed = VAL_VARARGS_ARRAY1(arg);
+
+            // Just a vararg created from a block, so no typeset or quoting
+            // settings available.  Make a fake parameter that hard quotes
+            // and takes any type (it will be type checked if in a chain).
+            //
+            Val_Init_Typeset(&fake_param, ALL_64, SYM_ELLIPSIS);
+            INIT_VAL_PARAM_CLASS(&fake_param, PARAM_CLASS_HARD_QUOTE);
+            vararg_param = &fake_param;
+            vararg_arg = &fake_param; // doesn't matter, just gets flag set
+        }
+        else {
+            feed = CTX_VARLIST(VAL_VARARGS_FRAME_CTX(arg));
+            vararg_param = VAL_VARARGS_PARAM(arg);
+            vararg_arg = VAL_VARARGS_ARG(arg);
+        }
+
+        REBDSP dsp_orig = DSP;
+
+        do {
+            REBIXO indexor = Do_Vararg_Op_Core(
+                D_OUT, feed, vararg_param, vararg_arg, SYM_0, VARARG_OP_TAKE
+            );
+
+            if (indexor == THROWN_FLAG) {
+                DS_DROP_TO(dsp_orig);
+                return TRUE;
+            }
+            if (indexor == END_FLAG)
+                break;
+            assert(indexor == VALIST_FLAG);
+
+            DS_PUSH(D_OUT);
+        } while (TRUE);
+
+        Val_Init_Array(D_OUT, kind, Pop_Stack_Values(dsp_orig));
+
+        if (FALSE) {
+            //
+            // !!! If desired, input could be fed back into the varargs
+            // after exhaustion by setting it up with array data as a new
+            // subfeed.  Probably doesn't make sense to re-feed with data
+            // that has been evaluated, and subfeeds can't be fixed up
+            // like this either...disabled for now.
+            //
+            REBARR **subfeed_addr = SUBFEED_ADDR_OF_FEED(feed);
+            assert(*subfeed_addr == NULL); // all values should be exhausted
+            *subfeed_addr = Make_Singular_Array(D_OUT);
+            MANAGE_ARRAY(*subfeed_addr);
+            *SUBFEED_ADDR_OF_FEED(*subfeed_addr) = NULL;
+        }
+
+        return FALSE;
+    }
+
+    dispatcher(D_OUT, kind, arg); // may fail()
+    return R_OUT;
+}
+
+
+//
+//  to: native [
+//
+//  {Converts to a specified datatype.}
+//
+//      type [any-value!]
+//          {The datatype -or- an exemplar value of the target type}
+//      value [any-value!]
+//          {The source value to convert}
+//  ]
+//
+REBNATIVE(to)
+{
+    PARAM(1, type);
+    PARAM(2, value);
+
+    REBVAL *type = ARG(type);
+    REBVAL *arg = ARG(value);
+
+    enum Reb_Kind kind;
+    if (IS_DATATYPE(type))
+        kind = VAL_TYPE_KIND(type);
+    else
+        kind = VAL_TYPE(type);
+
+    TO_FUNC dispatcher = To_Dispatch[TO_0_FROM_KIND(kind)];
+    if (dispatcher == NULL)
+        fail (Error_Invalid_Arg(arg));
+
+    dispatcher(D_OUT, kind, arg); // may fail();
+    return R_OUT;
+}
 
 
 //
@@ -784,98 +969,6 @@ const REBYTE *Scan_Any(
     SET_SERIES_LEN(VAL_SERIES(value), n);
 
     return cp + len;
-}
-
-
-//
-//  Construct_Value: C
-// 
-// Lexical datatype constructor. Return TRUE on success.
-// 
-// !!! `out` slot *must* be gc safe !!!
-// 
-// This function makes datatypes that are not normally expressible
-// in unevaluated source code format. The format of the datatype
-// constructor is:
-// 
-//     #[datatype! | keyword spec]
-// 
-// The first item is a datatype word or NONE, FALSE or TRUE. The
-// second part is a specification for the datatype, as a basic
-// type (such as a string) or a block.
-// 
-// Keep in mind that this function is being called as part of the
-// scanner, so optimal performance is critical.
-//
-REBOOL Construct_Value(REBVAL *out, REBARR *spec, REBCTX *specifier)
-{
-    RELVAL *val;
-    REBSYM sym;
-    enum Reb_Kind type;
-    MAKE_FUNC func;
-
-    val = ARR_HEAD(spec);
-
-    if (!IS_WORD(val)) return FALSE;
-
-    // Handle the datatype or keyword:
-    sym = VAL_WORD_CANON(val);
-    if (sym > REB_MAX_0) { // >, not >=, because they are one-based
-
-        switch (sym) {
-    #if !defined(NDEBUG)
-        case SYM_NONE:
-            // Should be a legacy switch
-    #endif
-        case SYM_BLANK:
-            SET_BLANK(out);
-            return TRUE;
-
-        case SYM_FALSE:
-            SET_FALSE(out);
-            return TRUE;
-
-        case SYM_TRUE:
-            SET_TRUE(out);
-            return TRUE;
-
-        default:
-            return FALSE;
-        }
-    }
-
-    type = KIND_FROM_SYM(sym);
-
-    // Check for trivial types:
-    if (type == REB_0) {
-        SET_VOID(out);
-        return TRUE;
-    }
-    if (type == REB_BLANK) {
-        SET_BLANK(out);
-        return TRUE;
-    }
-
-    val++;
-    if (IS_END(val)) return FALSE;
-
-    if ((func = Make_Dispatch[TO_0_FROM_KIND(type)])) {
-        // As written today, the creation process may call into the evaluator.
-        // The spec content should not be GC'd during that time.  (This was
-        // previously managed by holding it in the `out` slot, but making
-        // the protection of the spec value come from the destination would
-        // be bad if it were overwritten partway through, then the val
-        // out of the spec referred to again...)
-
-        PUSH_GUARD_ARRAY(spec);
-        if (func(out, val, specifier, type)) {
-            DROP_GUARD_ARRAY(spec);
-            return TRUE;
-        }
-        DROP_GUARD_ARRAY(spec);
-    }
-
-    return FALSE;
 }
 
 

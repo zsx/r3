@@ -47,39 +47,80 @@ REBINT CT_Pair(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 
 //
-//  MT_Pair: C
+//  MAKE_Pair: C
 //
-REBOOL MT_Pair(
-    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
-) {
+void MAKE_Pair(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
+{
+    if (IS_PAIR(arg)) {
+        *out = *arg;
+        return;
+    }
+
+    if (IS_STRING(arg)) {
+        //
+        // -1234567890x-1234567890
+        //
+        REBCNT len;
+        REBYTE *bp
+            = Temp_Byte_Chars_May_Fail(arg, VAL_LEN_AT(arg), &len, FALSE);
+
+        if (!Scan_Pair(bp, len, out)) goto bad_make;
+
+        return;
+    }
+
     REBD32 x;
     REBD32 y;
 
-    if (IS_PAIR(data)) {
-        *out = *KNOWN(data);
-        return TRUE;
+    if (IS_INTEGER(arg)) {
+        x = cast(REBD32, VAL_INT32(arg));
+        y = cast(REBD32, VAL_INT32(arg));
     }
+    else if (IS_DECIMAL(arg)) {
+        VAL_RESET_HEADER(out, REB_PAIR);
+        x = cast(REBD32, VAL_DECIMAL(arg));
+        y = cast(REBD32, VAL_DECIMAL(arg));
+    }
+    else if (IS_BLOCK(arg) && VAL_LEN_AT(arg) == 2) {
+        RELVAL *item = VAL_ARRAY_AT(arg);
 
-    if (!IS_BLOCK(data)) return FALSE;
+        if (IS_INTEGER(item))
+            x = cast(REBD32, VAL_INT64(item));
+        else if (IS_DECIMAL(item))
+            x = cast(REBD32, VAL_DECIMAL(item));
+        else
+            goto bad_make;
 
-    data = VAL_ARRAY_AT(data);
+        ++item;
+        if (IS_END(item))
+            goto bad_make;
 
-    if (IS_INTEGER(data)) x = (REBD32)VAL_INT64(data);
-    else if (IS_DECIMAL(data)) x = (REBD32)VAL_DECIMAL(data);
-    else return FALSE;
-
-    data++;
-    if (IS_END(data))
-        return FALSE;
-
-    if (IS_INTEGER(data)) y = (REBD32)VAL_INT64(data);
-    else if (IS_DECIMAL(data)) y = (REBD32)VAL_DECIMAL(data);
-    else return FALSE;
+        if (IS_INTEGER(item))
+            y = cast(REBD32, VAL_INT64(item));
+        else if (IS_DECIMAL(item))
+            y = cast(REBD32, VAL_DECIMAL(item));
+        else
+            goto bad_make;
+    }
+    else
+        goto bad_make;
 
     VAL_RESET_HEADER(out, REB_PAIR);
     VAL_PAIR_X(out) = x;
     VAL_PAIR_Y(out) = y;
-    return TRUE;
+    return;
+
+bad_make:
+    fail (Error_Bad_Make(REB_PAIR, arg));
+}
+
+
+//
+//  TO_Pair: C
+//
+void TO_Pair(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    MAKE_Pair(out, kind, arg);
 }
 
 
@@ -319,37 +360,6 @@ REBTYPE(Pair)
 ///         }
             SET_DECIMAL(D_OUT, n == 0 ? x1 : y1);
             return R_OUT;
-
-        case A_MAKE:
-        case A_TO:
-            assert(D_ARGC > 1);
-            val = D_ARG(2);
-
-            if (IS_PAIR(val)) {
-                *D_OUT = *val;
-                return R_OUT;
-            }
-            if (IS_STRING(val)) {
-                REBYTE *bp;
-                REBCNT len;
-                // -1234567890x-1234567890
-                bp = Temp_Byte_Chars_May_Fail(val, VAL_LEN_AT(val), &len, FALSE);
-                if (Scan_Pair(bp, len, D_OUT)) return R_OUT;
-            }
-            if (IS_INTEGER(val)) {
-                x1 = y1 = (REBD32)VAL_INT64(val);
-                goto setPair;
-            }
-            if (IS_DECIMAL(val)) {
-                x1 = y1 = (REBD32)VAL_DECIMAL(val);
-                goto setPair;
-            }
-            if (ANY_ARRAY(val) && VAL_LEN_AT(val) <= 2) {
-                if (MT_Pair(D_OUT, val, SPECIFIED, REB_PAIR))
-                    return R_OUT;
-            }
-
-            fail (Error_Bad_Make(REB_PAIR, val));
         }
     }
 

@@ -397,6 +397,48 @@ REBIXO Do_Vararg_Op_May_Throw(
 
 
 //
+//  MAKE_Varargs: C
+//
+void MAKE_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    // With MAKE VARARGS! on an ANY-ARRAY!, the array is the backing store
+    // (shared) that the varargs interface cannot affect, but changes to
+    // the array will change the varargs.
+    //
+    if (ANY_ARRAY(arg)) {
+        //
+        // Make a single-element array to hold a reference+index to the
+        // incoming ANY-ARRAY!.  This level of indirection means all
+        // VARARGS! copied from this will update their indices together.
+        //
+        REBARR *array1 = Make_Singular_Array(arg);
+        MANAGE_ARRAY(array1);
+
+        // must initialize subfeed pointer in union before reading from it
+        //
+        *SUBFEED_ADDR_OF_FEED(array1) = NULL;
+
+        VAL_RESET_HEADER(out, REB_VARARGS);
+        SET_VAL_FLAG(out, VARARGS_FLAG_NO_FRAME);
+        out->payload.varargs.feed.array1 = array1;
+
+        return;
+    }
+
+    fail (Error_Bad_Make(kind, arg));
+}
+
+
+//
+//  TO_Varargs: C
+//
+void TO_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    fail (Error_Invalid_Arg(arg));
+}
+
+
+//
 //  REBTYPE: C
 //
 // Handles the very limited set of operations possible on a VARARGS!
@@ -408,35 +450,6 @@ REBTYPE(Varargs)
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
     REBIXO indexor;
-
-    if (action == A_MAKE || action == A_TO) {
-        //
-        // With MAKE VARARGS! on an ANY-ARRAY!, the array is the backing store
-        // (shared) that the varargs interface cannot affect, but changes to
-        // the array will change the varargs.
-        //
-        if (action == A_MAKE && ANY_ARRAY(arg)) {
-            //
-            // Make a single-element array to hold a reference+index to the
-            // incoming ANY-ARRAY!.  This level of indirection means all
-            // VARARGS! copied from this will update their indices together.
-            //
-            REBARR *array1 = Make_Singular_Array(arg);
-            MANAGE_ARRAY(array1);
-
-            // must initialize subfeed pointer in union before reading from it
-            //
-            *SUBFEED_ADDR_OF_FEED(array1) = NULL;
-
-            VAL_RESET_HEADER(D_OUT, REB_VARARGS);
-            SET_VAL_FLAG(D_OUT, VARARGS_FLAG_NO_FRAME);
-            D_OUT->payload.varargs.feed.array1 = array1;
-
-            return R_OUT;
-        }
-
-        fail (Error_Bad_Make(VAL_TYPE(value), value));
-    }
 
     switch (action) {
     case A_PICK: {

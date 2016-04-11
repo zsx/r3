@@ -239,18 +239,6 @@ reflect: action [
 
 ;-- Making, copying, modifying
 
-make: action [
-    {Constructs or allocates the specified datatype.}
-    type [<opt> any-value!] {The datatype or an example value}
-    spec [<opt> any-value!] {Attributes or size of the new value (modified)}
-]
-
-to: action [
-    {Converts to a specified datatype.}
-    type [<opt> any-value!] {The datatype or example value}
-    spec [<opt> any-value!] {The attributes of the new value}
-]
-
 copy: action [
     {Copies a series, object, or other value.}
     value [blank! any-series! port! map! object! frame! bitset! function!]

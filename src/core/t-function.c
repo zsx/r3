@@ -63,7 +63,7 @@ REBINT CT_Function(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 
 //
-//  MT_Function: C
+//  MAKE_Function: C
 // 
 // For REB_FUNCTION and "make spec", there is a function spec block and then
 // a block of Rebol code implementing that function.  In that case we expect
@@ -78,29 +78,24 @@ REBINT CT_Function(const RELVAL *a, const RELVAL *b, REBINT mode)
 // 
 // See notes in Make_Command() regarding that mechanism and meaning.
 //
-REBOOL MT_Function(
-    REBVAL *out, RELVAL *def, REBCTX *specifier, enum Reb_Kind kind
-) {
+void MAKE_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
     assert(kind == REB_FUNCTION);
 
-    if (!IS_BLOCK(def)) return FALSE;
-    if (VAL_LEN_AT(def) != 2) return FALSE;
+    if (
+        !IS_BLOCK(arg)
+        || VAL_LEN_AT(arg) != 2
+        || !IS_BLOCK(VAL_ARRAY_AT(arg))
+        || !IS_BLOCK(VAL_ARRAY_AT(arg) + 1)
+    ){
+        fail (Error_Bad_Make(kind, arg));
+    }
 
     REBVAL spec;
-    COPY_VALUE(
-        &spec,
-        VAL_ARRAY_AT_HEAD(def, 0),
-        IS_SPECIFIC(def) ? VAL_SPECIFIER(KNOWN(def)) : specifier
-    );
-    if (!IS_BLOCK(&spec)) return FALSE;
+    COPY_VALUE(&spec, VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg));
 
     REBVAL body;
-    COPY_VALUE(
-        &body,
-        VAL_ARRAY_AT_HEAD(def, 1),
-        IS_SPECIFIC(def) ? VAL_SPECIFIER(KNOWN(def)) : specifier
-    );
-    if (!IS_BLOCK(&body)) return FALSE;
+    COPY_VALUE(&body, VAL_ARRAY_AT(arg) + 1, VAL_SPECIFIER(arg));
 
     // Spec-constructed functions do *not* have definitional returns
     // added automatically.  They are part of the generators.  So the
@@ -111,9 +106,18 @@ REBOOL MT_Function(
     REBFUN *fun = Make_Plain_Function_May_Fail(&spec, &body, MKF_NONE);
 
     *out = *FUNC_VALUE(fun);
+}
 
-    // We only get here if Make() doesn't raise an error...
-    return TRUE;
+
+//
+//  TO_Function: C
+//
+void TO_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    // `to function! foo` is meaningless (and should not be given meaning,
+    // because `to function! [print "DOES exists for this, for instance"]`
+    //
+    fail (Error_Invalid_Arg(arg));
 }
 
 
@@ -126,22 +130,6 @@ REBTYPE(Function)
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
     switch (action) {
-    case A_TO:
-        // `to function! foo` is meaningless (and should not be given meaning,
-        // because `to function! [print "DOES exists for this, for instance"]`
-        break;
-
-    case A_MAKE:
-        if (!IS_DATATYPE(value)) fail (Error_Invalid_Arg(value));
-
-        // MT_Function checks for `[[spec] [body]]` arg if function/closure
-        // and for `[[spec] extension command-num]` if command
-        if (!IS_BLOCK(arg))
-            fail (Error_Bad_Make(VAL_TYPE_KIND(value), arg));
-        if (!MT_Function(D_OUT, arg, SPECIFIED, VAL_TYPE_KIND(value)))
-            fail (Error_Bad_Make(VAL_TYPE_KIND(value), arg));
-        return R_OUT;
-
     case A_COPY:
         // !!! The R3-Alpha theory was that functions could modify "their
         // bodies" while running, effectively accruing state that one might

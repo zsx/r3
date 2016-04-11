@@ -402,78 +402,102 @@ REBINT Cmp_Date(const RELVAL *d1, const RELVAL *d2)
 
 
 //
-//  MT_Date: C
-// 
-// Given a block of values, construct a date datatype.
+//  MAKE_Date: C
 //
-REBOOL MT_Date(
-    REBVAL *val, RELVAL *arg, REBCTX *specifier, enum Reb_Kind type
-) {
-    REBI64 secs = NO_TIME;
-    REBINT tz = 0;
-    REBDAT date;
-    REBCNT year, month, day;
-
+void MAKE_Date(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
     if (IS_DATE(arg)) {
-        COPY_VALUE(val, arg, specifier);
-        return TRUE;
+        *out = *arg;
+        return;
     }
 
-    if (!IS_INTEGER(arg)) return FALSE;
-    day = Int32s(KNOWN(arg), 1);
-    ++arg;
-    if (!IS_INTEGER(arg)) return FALSE;
-    month = Int32s(KNOWN(arg), 1);
-    ++arg;
-    if (!IS_INTEGER(arg)) return FALSE;
-    if (day > 99) {
-        year = day;
-        day = Int32s(KNOWN(arg), 1);
-        ++arg;
-    }
-    else {
-        year = Int32s(KNOWN(arg), 0);
-        ++arg;
+    if (IS_STRING(arg)) {
+        REBCNT len;
+        REBYTE *bp = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_DATE, &len, FALSE);
+        if (!Scan_Date(bp, len, out))
+            goto bad_make;
+        return;
     }
 
-    if (month < 1 || month > 12) return FALSE;
+    if (ANY_ARRAY(arg) && VAL_ARRAY_LEN_AT(arg) >= 3) {
+        REBI64 secs = NO_TIME;
+        REBINT tz = 0;
+        REBDAT date;
+        REBCNT year, month, day;
 
-    if (year > MAX_YEAR || day < 1 || day > Month_Max_Days[month-1])
-        return FALSE;
+        const RELVAL *item = VAL_ARRAY_AT(arg);
+        if (!IS_INTEGER(item))
+            goto bad_make;
+        day = Int32s(item, 1);
 
-    // Check February for leap year or century:
-    if (month == 2 && day == 29) {
-        if (((year % 4) != 0) ||        // not leap year
-            ((year % 100) == 0 &&       // century?
-            (year % 400) != 0)) return FALSE; // not leap century
+        ++item;
+        if (!IS_INTEGER(item))
+            goto bad_make;
+        month = Int32s(item, 1);
+
+        ++item;
+        if (!IS_INTEGER(item))
+            goto bad_make;
+
+        if (day > 99) {
+            year = day;
+            day = Int32s(item, 1);
+            ++item;
+        }
+        else {
+            year = Int32s(item, 0);
+            ++item;
+        }
+
+        if (month < 1 || month > 12)
+            goto bad_make;
+
+        if (year > MAX_YEAR || day < 1 || day > Month_Max_Days[month-1])
+            goto bad_make;
+
+        // Check February for leap year or century:
+        if (month == 2 && day == 29) {
+            if (((year % 4) != 0) ||        // not leap year
+                ((year % 100) == 0 &&       // century?
+                (year % 400) != 0)) goto bad_make; // not leap century
+        }
+
+        day--;
+        month--;
+
+        if (IS_TIME(item)) {
+            secs = VAL_TIME(item);
+            ++item;
+        }
+
+        if (IS_TIME(item)) {
+            tz = cast(REBINT, VAL_TIME(item) / (ZONE_MINS * MIN_SEC));
+            if (tz < -MAX_ZONE || tz > MAX_ZONE)
+                fail (Error_Out_Of_Range(const_KNOWN(item)));
+            ++item;
+        }
+
+        if (NOT_END(item)) goto bad_make;
+
+        Normalize_Time(&secs, &day);
+        date = Normalize_Date(day, month, year, tz);
+
+        VAL_RESET_HEADER(out, REB_DATE);
+        VAL_DATE(out) = date;
+        VAL_TIME(out) = secs;
+        Adjust_Date_Zone(out, TRUE);
+        return;
     }
 
-    day--;
-    month--;
+bad_make:
+    fail (Error_Bad_Make(REB_DATE, arg));
+}
 
-    if (IS_TIME(arg)) {
-        secs = VAL_TIME(arg);
-        arg++;
-    }
 
-    if (IS_TIME(arg)) {
-        tz = (REBINT)(VAL_TIME(arg) / (ZONE_MINS * MIN_SEC));
-        if (tz < -MAX_ZONE || tz > MAX_ZONE)
-            fail (Error_Out_Of_Range(KNOWN(arg)));
-        arg++;
-    }
-
-    if (NOT_END(arg)) return FALSE;
-
-    Normalize_Time(&secs, &day);
-    date = Normalize_Date(day, month, year, tz);
-
-    VAL_RESET_HEADER(val, REB_DATE);
-    VAL_DATE(val) = date;
-    VAL_TIME(val) = secs;
-    Adjust_Date_Zone(val, TRUE);
-
-    return TRUE;
+//
+//  TO_Date: C
+//
+void TO_Date(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    MAKE_Date(out, kind, arg);
 }
 
 
@@ -717,16 +741,13 @@ REBTYPE(Date)
     REBINT  num;
 
     val = D_ARG(1);
-    if (IS_DATE(val)) {
-        date  = VAL_DATE(val);
-        day   = VAL_DAY(val) - 1;
-        month = VAL_MONTH(val) - 1;
-        year  = VAL_YEAR(val);
-        tz    = VAL_ZONE(val);
-        secs  = VAL_TIME(val);
-    }
-    else if (!(IS_DATATYPE(val) && (action == A_MAKE || action == A_TO)))
-        fail (Error_Invalid_Arg(val));
+    assert(IS_DATE(val));
+    date  = VAL_DATE(val);
+    day   = VAL_DAY(val) - 1;
+    month = VAL_MONTH(val) - 1;
+    year  = VAL_YEAR(val);
+    tz    = VAL_ZONE(val);
+    secs  = VAL_TIME(val);
 
     if (D_ARGC > 1) arg = D_ARG(2);
 
@@ -792,32 +813,6 @@ REBTYPE(Date)
 ///         *D_OUT = *D_ARG(3);
 ///         return R_OUT;
 
-        case A_MAKE:
-        case A_TO:
-            assert(D_ARGC > 1);
-            if (IS_DATE(arg)) {
-                val = arg;
-                goto ret_val;
-            }
-            if (IS_STRING(arg)) {
-                REBYTE *bp;
-                REBCNT len;
-                bp = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_DATE, &len, FALSE);
-                if (Scan_Date(bp, len, D_OUT)) return R_OUT;
-            }
-            else if (ANY_ARRAY(arg) && VAL_ARRAY_LEN_AT(arg) >= 3) {
-                if (MT_Date(
-                    D_OUT, VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg), REB_DATE
-                )) {
-                    return R_OUT;
-                }
-            }
-//          else if (IS_BLANK(arg)) {
-//              secs = nsec = day = month = year = tz = 0;
-//              goto fixTime;
-//          }
-            fail (Error_Bad_Make(REB_DATE, arg));
-
         case A_RANDOM: {
             REFINE(2, seed);
             REFINE(3, secure);
@@ -869,9 +864,5 @@ setDate:
 
 ret_int:
     SET_INTEGER(D_OUT, num);
-    return R_OUT;
-
-ret_val:
-    *D_OUT = *val;
     return R_OUT;
 }

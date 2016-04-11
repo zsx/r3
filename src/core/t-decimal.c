@@ -113,22 +113,161 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 
 
 //
-//  MT_Decimal: C
+//  Binary_To_Decimal: C
 //
-REBOOL MT_Decimal(
-    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
-) {
-    if (NOT_END(data+1)) return FALSE;
+static void Binary_To_Decimal(const REBVAL *bin, REBVAL *out)
+{
+    REBI64 n = 0;
+    REBSER *ser = VAL_SERIES(bin);
+    REBCNT idx = VAL_INDEX(bin);
+    REBCNT len = VAL_LEN_AT(bin);
 
-    if (IS_DECIMAL(data))
-        *out = *KNOWN(data);
-    else if (IS_INTEGER(data)) {
-        SET_DECIMAL(out, (REBDEC)VAL_INT64(data));
+    if (len > 8) len = 8;
+
+    for (; len; len--, idx++) n = (n << 8) | (REBI64)(GET_ANY_CHAR(ser, idx));
+
+    VAL_RESET_HEADER(out, REB_DECIMAL);
+    VAL_DECIMAL_BITS(out) = n;
+}
+
+
+//
+//  MAKE_Decimal: C
+//
+void MAKE_Decimal(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    REBDEC d;
+
+    switch (VAL_TYPE(arg)) {
+    case REB_DECIMAL:
+        d = VAL_DECIMAL(arg);
+        goto dont_divide_if_percent;
+
+    case REB_PERCENT:
+        d = VAL_DECIMAL(arg);
+        goto dont_divide_if_percent;
+
+    case REB_INTEGER:
+        d = cast(REBDEC, VAL_INT64(arg));
+        goto dont_divide_if_percent;
+
+    case REB_MONEY:
+        d = deci_to_decimal(VAL_MONEY_AMOUNT(arg));
+        goto dont_divide_if_percent;
+
+    case REB_LOGIC:
+        d = VAL_LOGIC(arg) ? 1.0 : 0.0;
+        goto dont_divide_if_percent;
+
+    case REB_CHAR:
+        d = cast(REBDEC, VAL_CHAR(arg));
+        goto dont_divide_if_percent;
+
+    case REB_TIME:
+        d = VAL_TIME(arg) * NANO;
+        break;
+
+    case REB_STRING:
+        {
+        REBYTE *bp;
+        REBCNT len;
+        bp = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_DECIMAL, &len, FALSE);
+
+        VAL_RESET_HEADER(out, kind);
+        if (!Scan_Decimal(
+            &d, bp, len, LOGICAL(kind != REB_PERCENT)
+        )) {
+            goto bad_make;
+        }
+        break;
+        }
+
+    case REB_BINARY:
+        Binary_To_Decimal(arg, out);
+        VAL_RESET_HEADER(out, kind);
+        d = VAL_DECIMAL(out);
+        break;
+
+#ifdef removed
+//          case REB_ISSUE:
+    {
+        REBYTE *bp;
+        REBCNT len;
+        bp = Temp_Byte_Chars_May_Fail(arg, MAX_HEX_LEN, &len, FALSE);
+        if (Scan_Hex(&VAL_INT64(out), bp, len, len) == 0)
+            fail (Error_Bad_Make(REB_DECIMAL, val));
+        d = VAL_DECIMAL(out);
+        break;
     }
-    else return FALSE;
+#endif
 
-    VAL_SET_TYPE_BITS(out, type);
-    return TRUE;
+    default:
+        if (ANY_ARRAY(arg) && VAL_ARRAY_LEN_AT(arg) == 2) {
+            RELVAL *item = VAL_ARRAY_AT(arg);
+            if (IS_INTEGER(item))
+                d = cast(REBDEC, VAL_INT64(item));
+            else if (IS_DECIMAL(item) || IS_PERCENT(item))
+                d = VAL_DECIMAL(item);
+            else {
+                REBVAL specific;
+                COPY_VALUE(&specific, item, VAL_SPECIFIER(arg));
+
+                fail (Error_Invalid_Arg(&specific));
+            }
+
+            ++item;
+
+            REBDEC exp;
+            if (IS_INTEGER(item))
+                exp = cast(REBDEC, VAL_INT64(item));
+            else if (IS_DECIMAL(item) || IS_PERCENT(item))
+                exp = VAL_DECIMAL(item);
+            else {
+                REBVAL specific;
+                COPY_VALUE(&specific, item, VAL_SPECIFIER(arg));
+                fail (Error_Invalid_Arg(&specific));
+            }
+
+            while (exp >= 1) {
+                //
+                // !!! Comment here said "funky. There must be a better way"
+                //
+                --exp;
+                d *= 10.0;
+                if (!FINITE(d))
+                    fail (Error(RE_OVERFLOW));
+            }
+
+            while (exp <= -1) {
+                ++exp;
+                d /= 10.0;
+            }
+        }
+        else
+            fail (Error_Bad_Make(kind, arg));
+    }
+
+    if (kind == REB_PERCENT)
+        d /= 100.0;
+
+dont_divide_if_percent:
+    if (!FINITE(d))
+        fail (Error(RE_OVERFLOW));
+
+    VAL_RESET_HEADER(out, kind);
+    VAL_DECIMAL(out) = d;
+    return;
+
+bad_make:
+    fail (Error_Bad_Make(kind, arg));
+}
+
+
+//
+//  TO_Decimal: C
+//
+void TO_Decimal(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    MAKE_Decimal(out, kind, arg);
 }
 
 
@@ -186,34 +325,6 @@ REBINT CT_Decimal(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 
 //
-//  Check_Overflow: C
-//
-static void Check_Overflow(REBDEC dval)
-{
-    if (!FINITE(dval)) fail (Error(RE_OVERFLOW));
-}
-
-
-//
-//  Binary_To_Decimal: C
-//
-static void Binary_To_Decimal(const REBVAL *bin, REBVAL *out)
-{
-    REBI64 n = 0;
-    REBSER *ser = VAL_SERIES(bin);
-    REBCNT idx = VAL_INDEX(bin);
-    REBCNT len = VAL_LEN_AT(bin);
-
-    if (len > 8) len = 8;
-
-    for (; len; len--, idx++) n = (n << 8) | (REBI64)(GET_ANY_CHAR(ser, idx));
-
-    VAL_RESET_HEADER(out, REB_DECIMAL);
-    VAL_DECIMAL_BITS(out) = n;
-}
-
-
-//
 //  REBTYPE: C
 //
 REBTYPE(Decimal)
@@ -223,11 +334,9 @@ REBTYPE(Decimal)
     REBVAL  *arg;
     REBDEC  d2;
     REBINT  num;
-    REBDEC  exp;
     enum Reb_Kind type = REB_0; // ?? why initialize this
 
-    if (action != A_MAKE && action != A_TO)
-        d1 = VAL_DECIMAL(val);
+    d1 = VAL_DECIMAL(val);
 
     // all binary actions
     if (IS_BINARY_ACT(action)) {
@@ -330,118 +439,6 @@ REBTYPE(Decimal)
             return ((action != A_EVEN_Q) != ((d1 < 0.5) || (d1 >= 1.5)))
                 ? R_TRUE
                 : R_FALSE;
-
-        case A_MAKE:
-        case A_TO:
-            // MAKE decimal! 2  and  MAKE 1.0 2  formats:
-            if (IS_DATATYPE(val)) type = VAL_TYPE_KIND(val);
-            else type = VAL_TYPE(val);
-
-            val = D_ARG(2);
-
-            switch (VAL_TYPE(val)) {
-
-            case REB_DECIMAL:
-                d1 = VAL_DECIMAL(val);
-                goto setDec;
-
-            case REB_PERCENT:
-                d1 = VAL_DECIMAL(val);
-                goto setDec;
-
-            case REB_INTEGER:
-                d1 = (REBDEC)VAL_INT64(val);
-                goto setDec;
-
-            case REB_MONEY:
-                d1 = deci_to_decimal(VAL_MONEY_AMOUNT(val));
-                goto setDec;
-
-            case REB_LOGIC:
-                d1 = VAL_LOGIC(val) ? 1.0 : 0.0;
-                goto setDec;
-
-            case REB_CHAR:
-                d1 = (REBDEC)VAL_CHAR(val);
-                goto setDec;
-
-            case REB_TIME:
-                d1 = VAL_TIME(val) * NANO;
-                break;
-
-            case REB_STRING:
-            {
-                REBYTE *bp;
-                REBCNT len;
-                bp = Temp_Byte_Chars_May_Fail(val, MAX_SCAN_DECIMAL, &len, FALSE);
-
-                VAL_RESET_HEADER(D_OUT, REB_DECIMAL);
-                if (Scan_Decimal(
-                    &VAL_DECIMAL(D_OUT), bp, len, LOGICAL(type != REB_PERCENT)
-                )) {
-                    d1 = VAL_DECIMAL(D_OUT);
-                    if (type == REB_PERCENT) break;
-                    goto setDec;
-                }
-                fail (Error_Bad_Make(type, val));
-            }
-
-            case REB_BINARY:
-                Binary_To_Decimal(val, D_OUT);
-                d1 = VAL_DECIMAL(D_OUT);
-                break;
-
-#ifdef removed
-//          case REB_ISSUE:
-            {
-                REBYTE *bp;
-                REBCNT len;
-                bp = Temp_Byte_Chars_May_Fail(val, MAX_HEX_LEN, &len, FALSE);
-                if (Scan_Hex(&VAL_INT64(D_OUT), bp, len, len) == 0)
-                    fail (Error_Bad_Make(REB_DECIMAL, val));
-                d1 = VAL_DECIMAL(D_OUT);
-                break;
-            }
-#endif
-
-            default:
-                if (ANY_ARRAY(val) && VAL_ARRAY_LEN_AT(val) == 2) {
-                    RELVAL *item = VAL_ARRAY_AT(val);
-                    if (IS_INTEGER(item))
-                        d1 = (REBDEC)VAL_INT64(item);
-                    else if (IS_DECIMAL(item) || IS_PERCENT(item))
-                        d1 = VAL_DECIMAL(item);
-                    else {
-                        REBVAL specific;
-                        COPY_VALUE(&specific, item, VAL_SPECIFIER(val));
-
-                        fail (Error_Bad_Make(REB_DECIMAL, &specific));
-                    }
-
-                    ++item;
-
-                    if (IS_INTEGER(item))
-                        exp = (REBDEC)VAL_INT64(item);
-                    else if (IS_DECIMAL(item) || IS_PERCENT(item))
-                        exp = VAL_DECIMAL(item);
-                    else {
-                        REBVAL specific;
-                        COPY_VALUE(&specific, item, VAL_SPECIFIER(val));
-
-                        fail (Error_Bad_Make(REB_DECIMAL, &specific));
-                    }
-
-                    while (exp >= 1)            // funky. There must be a better way
-                        exp--, d1 *= 10.0, Check_Overflow(d1);
-                    while (exp <= -1)
-                        exp++, d1 /= 10.0;
-                }
-                else
-                    fail (Error_Bad_Make(type, val));
-            }
-
-            if (type == REB_PERCENT) d1 /= 100.0;
-            goto setDec;
 
         case A_ROUND:
             arg = D_ARG(3);

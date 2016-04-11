@@ -44,36 +44,108 @@ REBINT CT_Tuple(const RELVAL *a, const RELVAL *b, REBINT mode)
 }
 
 
-//
-//  MT_Tuple: C
-//
-REBOOL MT_Tuple(
-    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
-) {
-    REBYTE  *vp;
-    REBINT len = 0;
-    REBINT n;
 
-    vp = VAL_TUPLE(out);
-    for (; NOT_END(data); data++, vp++, len++) {
-        if (len >= 10) return FALSE;
-        if (IS_INTEGER(data)) {
-            n = Int32(KNOWN(data));
-        }
-        else if (IS_CHAR(data)) {
-            n = VAL_CHAR(data);
-        }
-        else return FALSE;
-        if (n > 255 || n < 0) return FALSE;
-        *vp = n;
+//
+//  MAKE_Tuple: C
+//
+void MAKE_Tuple(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
+{
+    if (IS_TUPLE(arg)) {
+        *out = *arg;
+        return;
     }
 
-    VAL_TUPLE_LEN(out) = len;
+    VAL_RESET_HEADER(out, REB_TUPLE);
+    REBYTE *vp = VAL_TUPLE(out);
 
-    for (; len < 10; len++) *vp++ = 0;
+    // !!! Net lookup parses IP addresses out of `tcp://93.184.216.34` or
+    // similar URL!s.  In Rebol3 these captures come back the same type
+    // as the input instead of as STRING!, which was a latent bug in the
+    // network code of the 12-Dec-2012 release:
+    //
+    // https://github.com/rebol/rebol/blob/master/src/mezz/sys-ports.r#L110
+    //
+    // All attempts to convert a URL!-flavored IP address failed.  Taking
+    // URL! here fixes it, though there are still open questions.
+    //
+    if (IS_STRING(arg) || IS_URL(arg)) {
+        REBCNT len;
+        REBYTE *ap = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_TUPLE, &len, FALSE);
+        if (Scan_Tuple(ap, len, out))
+            return;
+        goto bad_arg;
+    }
 
-    VAL_RESET_HEADER(out, type);
-    return TRUE;
+    if (ANY_ARRAY(arg)) {
+        REBINT len = 0;
+        REBINT n;
+
+        RELVAL *item = VAL_ARRAY_AT(arg);
+
+        for (; NOT_END(item); ++item, ++vp, ++len) {
+            if (len >= 10) goto bad_make;
+            if (IS_INTEGER(item)) {
+                n = Int32(item);
+            }
+            else if (IS_CHAR(item)) {
+                n = VAL_CHAR(item);
+            }
+            else
+                goto bad_make;
+
+            if (n > 255 || n < 0) goto bad_make;
+            *vp = n;
+        }
+
+        VAL_TUPLE_LEN(out) = len;
+
+        for (; len < 10; len++) *vp++ = 0;
+        return;
+    }
+
+    REBCNT alen;
+
+    if (IS_ISSUE(arg)) {
+        REBUNI c;
+        const REBYTE *ap = Get_Sym_Name(VAL_WORD_SYM(arg));
+        REBCNT len = LEN_BYTES(ap);  // UTF-8 len
+        if (len & 1) goto bad_arg; // must have even # of chars
+        len /= 2;
+        if (len > MAX_TUPLE) goto bad_arg; // valid even for UTF-8
+        VAL_TUPLE_LEN(out) = len;
+        for (alen = 0; alen < len; alen++) {
+            const REBOOL unicode = FALSE;
+            if (!Scan_Hex2(ap, &c, unicode)) goto bad_arg;
+            *vp++ = cast(REBYTE, c);
+            ap += 2;
+        }
+    }
+    else if (IS_BINARY(arg)) {
+        REBYTE *ap = VAL_BIN_AT(arg);
+        REBCNT len = VAL_LEN_AT(arg);
+        if (len > MAX_TUPLE) len = MAX_TUPLE;
+        VAL_TUPLE_LEN(out) = len;
+        for (alen = 0; alen < len; alen++) *vp++ = *ap++;
+    }
+    else goto bad_arg;
+
+    for (; alen < MAX_TUPLE; alen++) *vp++ = 0;
+    return;
+
+bad_arg:
+    fail (Error_Invalid_Arg(arg));
+
+bad_make:
+    fail (Error_Bad_Make(REB_TUPLE, arg));
+}
+
+
+//
+//  TO_Tuple: C
+//
+void TO_Tuple(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    MAKE_Tuple(out, kind, arg);
 }
 
 
@@ -198,11 +270,9 @@ REBTYPE(Tuple)
     REBINT  a;
     REBDEC  dec;
 
-    if (IS_TUPLE(value)) {
-        vp = VAL_TUPLE(value);
-        len = VAL_TUPLE_LEN(value);
-    } else if (!(IS_DATATYPE(value) && (action == A_MAKE || action == A_TO)))
-        fail (Error_Invalid_Arg(value));
+    assert(IS_TUPLE(value));
+    vp = VAL_TUPLE(value);
+    len = VAL_TUPLE_LEN(value);
 
     if (IS_BINARY_ACT(action)) {
         assert(vp);
@@ -354,68 +424,6 @@ REBTYPE(Tuple)
         goto ret_value;
 
 */
-    case A_MAKE:
-    case A_TO:
-        if (IS_TUPLE(arg)) {
-            *D_OUT = *D_ARG(2);
-            return R_OUT;
-        }
-
-        // !!! Net lookup parses IP addresses out of `tcp://93.184.216.34` or
-        // similar URL!s.  In Rebol3 these captures come back the same type
-        // as the input instead of as STRING!, which was a latent bug in the
-        // network code of the 12-Dec-2012 release:
-        //
-        // https://github.com/rebol/rebol/blob/master/src/mezz/sys-ports.r#L110
-        //
-        // All attempts to convert a URL!-flavored IP address failed.  Taking
-        // URL! here fixes it, though there are still open questions.
-        //
-        if (IS_STRING(arg) || IS_URL(arg)) {
-            ap = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_TUPLE, &len, FALSE);
-            if (Scan_Tuple(ap, len, D_OUT)) return R_OUT;
-            goto bad_arg;
-        }
-
-        if (ANY_ARRAY(arg)) {
-            if (!MT_Tuple(
-                D_OUT, VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg), REB_TUPLE
-            )) {
-                fail (Error_Bad_Make(REB_TUPLE, arg));
-            }
-            return R_OUT;
-        }
-
-        VAL_RESET_HEADER(value, REB_TUPLE);
-        vp = VAL_TUPLE(value);
-        if (IS_ISSUE(arg)) {
-            REBUNI c;
-            ap = Get_Sym_Name(VAL_WORD_SYM(arg));
-            len = LEN_BYTES(ap);  // UTF-8 len
-            if (len & 1) goto bad_arg; // must have even # of chars
-            len /= 2;
-            if (len > MAX_TUPLE) goto bad_arg; // valid even for UTF-8
-            VAL_TUPLE_LEN(value) = len;
-            for (alen = 0; alen < len; alen++) {
-                const REBOOL unicode = FALSE;
-                if (!Scan_Hex2(ap, &c, unicode)) goto bad_arg;
-                *vp++ = (REBYTE)c;
-                ap += 2;
-            }
-        }
-        else if (IS_BINARY(arg)) {
-            ap = VAL_BIN_AT(arg);
-            len = VAL_LEN_AT(arg);
-            if (len > MAX_TUPLE) len = MAX_TUPLE;
-            VAL_TUPLE_LEN(value) = len;
-            for (alen = 0; alen < len; alen++) *vp++ = *ap++;
-        }
-        else goto bad_arg;
-
-        for (; alen < MAX_TUPLE; alen++) *vp++ = 0;
-        goto ret_value;
-
-bad_arg:
         fail (Error_Bad_Make(REB_TUPLE, arg));
     }
 

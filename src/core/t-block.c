@@ -54,61 +54,173 @@ REBINT CT_Array(const RELVAL *a, const RELVAL *b, REBINT mode)
     return (num > 0);
 }
 
-static void No_Nones(REBVAL *arg) {
-    RELVAL *item = VAL_ARRAY_AT(arg);
-    for (; NOT_END(item); item++) {
-        if (IS_BLANK(item))
-            fail (Error_Invalid_Arg_Core(item, VAL_SPECIFIER(arg)));
+
+//
+//  MAKE_Array: C
+// 
+// "Make Type" dispatcher for the following subtypes:
+// 
+//     MAKE_Block
+//     MAKE_Group
+//     MAKE_Path
+//     MAKE_Set_Path
+//     MAKE_Get_Path
+//     MAKE_Lit_Path
+//
+void MAKE_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    //
+    // `make block! 10` => creates array with certain initial capacity
+    //
+    if (IS_INTEGER(arg) || IS_DECIMAL(arg)) {
+        Val_Init_Array(out, kind, Make_Array(Int32s(arg, 0)));
+        return;
     }
+
+    // !!! See #2263 -- Ren-C has unified MAKE and construction syntax.  A
+    // block parameter to MAKE should be arity 2...the existing array for
+    // the data source, and an offset from that array value's index:
+    //
+    //     >> p1: #[path! [[a b c] 2]]
+    //     == b/c
+    //
+    //     >> head p1
+    //     == a/b/c
+    //
+    //     >> block: [a b c]
+    //     >> p2: make path! compose [(block) 2]
+    //     == b/c
+    //
+    //     >> append block 'd
+    //     == [a b c d]
+    //
+    //     >> p2
+    //     == b/c/d
+    //
+    // !!! This could be eased to not require the index, but without it then
+    // it can be somewhat confusing as to why [[a b c]] is needed instead of
+    // just [a b c] as the construction spec.
+    //
+    if (ANY_ARRAY(arg)) {
+        if (
+            VAL_ARRAY_LEN_AT(arg) != 2
+            || !ANY_ARRAY(VAL_ARRAY_AT(arg))
+            || !IS_INTEGER(VAL_ARRAY_AT(arg) + 1)
+        ) {
+            goto bad_make;
+        }
+
+        RELVAL *any_array = VAL_ARRAY_AT(arg);
+        REBINT index = VAL_INDEX(any_array) + Int32(VAL_ARRAY_AT(arg) + 1) - 1;
+
+        // If the index being out of
+        if (index < 0 || index > cast(REBINT, VAL_LEN_HEAD(any_array)))
+            index = VAL_LEN_HEAD(any_array); // !!! is an error better?
+
+        Val_Init_Series_Index_Core(
+            out,
+            kind,
+            ARR_SERIES(VAL_ARRAY(any_array)),
+            index,
+            IS_SPECIFIC(any_array)
+                ? VAL_SPECIFIER(KNOWN(any_array))
+                : VAL_SPECIFIER(arg)
+        );
+
+        // !!! Previously this code would clear line break options on path
+        // elements, using `CLEAR_VAL_FLAG(..., VALUE_FLAG_LINE)`.  But if
+        // arrays are allowed to alias each others contents, the aliasing
+        // via MAKE shouldn't modify the store.  Line marker filtering out of
+        // paths should be part of the MOLDing logic -or- a path with embedded
+        // line markers should use construction syntax to preserve them.
+
+        return;
+    }
+
+    // !!! In R3-Alpha, MAKE and TO handled all cases except INTEGER!
+    // and TYPESET! in the same way.  Ren-C switches MAKE of ANY-ARRAY!
+    // to be special (in order to compatible with construction syntax),
+    // continues the special treatment of INTEGER! by MAKE to mean
+    // a size, and disallows MAKE TYPESET!.  This is a practical matter
+    // of addressing changes in #2263 and keeping legacy working, as
+    // opposed to endorsing any rationale in R3-Alpha's choices.
+    //
+    if (IS_TYPESET(arg))
+        goto bad_make;
+
+    TO_Array(out, kind, arg);
+    return;
+
+bad_make:
+    fail (Error_Bad_Make(kind, arg));
 }
 
 
 //
-//  MT_Array: C
-// 
-// "Make Type" dispatcher for the following subtypes:
-// 
-//     MT_Block
-//     MT_Group
-//     MT_Path
-//     MT_Set_Path
-//     MT_Get_Path
-//     MT_Lit_Path
+//  TO_Array: C
 //
-// Currently the reason construction syntax is needed is generally for paths,
-// for instance paths-inside-paths.  To be unambiguous, `#[path! [a b/c d]]`
-// can't be molded as just `a/b/c/d`.
-//
-// There's also a feature to allow the molding of arrays that are not
-// positioned at the head with an integer, such as if `mold next [a b c]`
-// would be `#[block! [a b c] 2]`
-//
-REBOOL MT_Array(
-    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
-) {
-    REBCNT i;
-
-    if (!ANY_ARRAY(data)) return FALSE;
-
-    if (type >= REB_PATH && type <= REB_LIT_PATH) {
-        RELVAL *head = VAL_ARRAY_HEAD(data);
-        if (IS_END(head) || !ANY_WORD(head))
-            return FALSE;
+void TO_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    if (IS_TYPESET(arg)) {
+        //
+        // This makes a block of types out of a typeset.  Previously it was
+        // restricted to only BLOCK!, now it lets you turn a typeset into
+        // a GROUP! or a PATH!, etc.
+        //
+        Val_Init_Array(out, kind, Typeset_To_Array(arg));
     }
-
-    COPY_VALUE(out, data, specifier);
-    ++data;
-
-    VAL_RESET_HEADER(out, type);
-    SET_VAL_FLAG(out, VALUE_FLAG_ARRAY);
-
-    i = NOT_END(data) && IS_INTEGER(data) ? Int32(KNOWN(data)) - 1 : 0;
-
-    if (i > VAL_LEN_HEAD(out))
-        i = VAL_LEN_HEAD(out); // clip it
-
-    VAL_INDEX(out) = i;
-    return TRUE;
+    else if (ANY_ARRAY(arg)) {
+        //
+        // `to group! [1 2 3]` etc. -- copy the array data at the index
+        // position and change the type.  (Note: MAKE does not copy the
+        // data, but aliases it under a new kind.)
+        //
+        Val_Init_Array(
+            out,
+            kind,
+            Copy_Values_Len_Shallow(
+                VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg), VAL_ARRAY_LEN_AT(arg)
+            )
+        );
+    }
+    else if (IS_STRING(arg)) {
+        //
+        // `to block! "some string"` historically scans the source, so you
+        // get an unbound code array.  Because the string may contain REBUNI
+        // characters, it may have to be converted to UTF8 before being
+        // used with the scanner.
+        //
+        REBCNT len;
+        REBCNT index;
+        REBSER *utf8 = Temp_Bin_Str_Managed(arg, &index, &len);
+        PUSH_GUARD_SERIES(utf8);
+        Val_Init_Array(out, kind, Scan_Source(BIN_HEAD(utf8), BIN_LEN(utf8)));
+        DROP_GUARD_SERIES(utf8);
+    }
+    else if (IS_BINARY(arg)) {
+        //
+        // `to block! #{00BDAE....}` assumes the binary data is UTF8, and
+        // goes directly to the scanner to make an unbound code array.
+        //
+        Val_Init_Array(
+            out, kind, Scan_Source(VAL_BIN_AT(arg), VAL_LEN_AT(arg))
+        );
+    }
+    else if (IS_MAP(arg)) {
+        Val_Init_Array(out, kind, Map_To_Array(VAL_MAP(arg), 0));
+    }
+    else if (ANY_CONTEXT(arg)) {
+        Val_Init_Array(out, kind, Context_To_Array(VAL_CONTEXT(arg), 3));
+    }
+    else if (IS_VECTOR(arg)) {
+        Val_Init_Array(out, kind, Vector_To_Array(arg));
+    }
+    else {
+        // !!! The general case of not having any special conversion behavior
+        // in R3-Alpha is just to fall through to making a 1-element block
+        // containing the value.  This may seem somewhat random, and an
+        // error may be preferable.
+        //
+        Val_Init_Array(out, kind, Copy_Values_Len_Shallow(arg, SPECIFIED, 1));
+    }
 }
 
 
@@ -223,166 +335,6 @@ REBCNT Find_In_Array(
         }
         return NOT_FOUND;
     }
-}
-
-
-//
-//  Make_Block_Type_Throws: C
-// 
-// Arg can be:
-//     1. integer (length of block)
-//     2. block (copy it)
-//     3. value (convert to a block)
-//
-REBOOL Make_Block_Type_Throws(
-    REBVAL *out,
-    enum Reb_Kind type,
-    REBOOL make,
-    REBVAL *arg
-) {
-    REBCNT len;
-    REBARR *array;
-
-    // make block! [1 2 3]
-    if (ANY_ARRAY(arg)) {
-        len = VAL_ARRAY_LEN_AT(arg);
-        if (len > 0 && type >= REB_PATH && type <= REB_LIT_PATH)
-            No_Nones(arg);
-        array = Copy_Values_Len_Shallow(
-            VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg), len
-        );
-        goto done;
-    }
-
-    if (IS_STRING(arg)) {
-        REBCNT index, len = 0;
-        REBSER *temp = Temp_Bin_Str_Managed(arg, &index, &len);
-        INIT_VAL_SERIES(arg, temp); // caution: macro copies args!
-        array = Scan_Source(VAL_BIN(arg), VAL_LEN_AT(arg));
-        goto done;
-    }
-
-    if (IS_BINARY(arg)) {
-        array = Scan_Source(VAL_BIN_AT(arg), VAL_LEN_AT(arg));
-        goto done;
-    }
-
-    if (IS_MAP(arg)) {
-        array = Map_To_Array(VAL_MAP(arg), 0);
-        goto done;
-    }
-
-    if (ANY_CONTEXT(arg)) {
-        array = Context_To_Array(VAL_CONTEXT(arg), 3);
-        goto done;
-    }
-
-    if (IS_VECTOR(arg)) {
-        array = Vector_To_Array(arg);
-        goto done;
-    }
-
-//  if (make && IS_BLANK(arg)) {
-//      array = Make_Array(0);
-//      goto done;
-//  }
-
-    if (IS_VARARGS(arg)) {
-        //
-        // Converting a VARARGS! to an ANY-ARRAY! involves spooling those
-        // varargs to the end and making an array out of that.  It's not known
-        // how many elements that will be, so they're gathered to the data
-        // stack to find the size, then an array made.  Note that | will stop
-        // a normal or soft-quoted varargs, but a hard-quoted varargs will
-        // grab all the values to the end of the source.
-
-        // !!! This MAKE will be destructive to its input (the varargs will
-        // be fetched and exhausted).  That's not necessarily obvious, but
-        // with a TO conversion it would be even less obvious...
-        //
-        if (!make)
-            fail (Error(RE_VARARGS_MAKE_ONLY));
-
-        const RELVAL *param;
-        REBVAL fake_param;
-
-        REBARR *feed;
-
-        if (GET_VAL_FLAG(arg, VARARGS_FLAG_NO_FRAME)) {
-            feed = VAL_VARARGS_ARRAY1(arg);
-
-            // Just a vararg created from a block, so no typeset or quoting
-            // settings available.  Make a fake parameter that hard quotes
-            // and takes any type (it will be type checked if in a chain).
-            //
-            Val_Init_Typeset(&fake_param, ALL_64, SYM_ELLIPSIS);
-            INIT_VAL_PARAM_CLASS(&fake_param, PARAM_CLASS_HARD_QUOTE);
-            param = &fake_param;
-        }
-        else {
-            feed = CTX_VARLIST(VAL_VARARGS_FRAME_CTX(arg));
-            param = VAL_VARARGS_PARAM(arg);
-        }
-
-        REBDSP dsp_orig = DSP;
-
-        do {
-            REBIXO indexor = Do_Vararg_Op_Core(
-                out, feed, param, arg, SYM_0, VARARG_OP_TAKE
-            );
-
-            if (indexor == THROWN_FLAG) {
-                DS_DROP_TO(dsp_orig);
-                return TRUE;
-            }
-            if (indexor == END_FLAG)
-                break;
-            assert(indexor == VALIST_FLAG);
-
-            DS_PUSH(out);
-        } while (TRUE);
-
-        Val_Init_Array(out, type, Pop_Stack_Values(dsp_orig));
-
-        if (FALSE) {
-            //
-            // !!! If desired, input could be fed back into the varargs
-            // after exhaustion by setting it up with array data as a new
-            // subfeed.  Probably doesn't make sense to re-feed with data
-            // that has been evaluated, and subfeeds can't be fixed up
-            // like this either...disabled for now.
-            //
-            REBARR **subfeed_addr = SUBFEED_ADDR_OF_FEED(feed);
-            assert(*subfeed_addr == NULL); // all values should be exhausted
-            *subfeed_addr = Make_Singular_Array(out);
-            MANAGE_ARRAY(*subfeed_addr);
-            *SUBFEED_ADDR_OF_FEED(*subfeed_addr) = NULL;
-        }
-
-        return FALSE;
-    }
-
-    // to block! typset
-    if (!make && IS_TYPESET(arg) && type == REB_BLOCK) {
-        Val_Init_Array(out, type, Typeset_To_Array(arg));
-        return FALSE;
-    }
-
-    if (make) {
-        // make block! 10
-        if (IS_INTEGER(arg) || IS_DECIMAL(arg)) {
-            len = Int32s(arg, 0);
-            Val_Init_Array(out, type, Make_Array(len));
-            return FALSE;
-        }
-        fail (Error_Invalid_Arg(arg));
-    }
-
-    array = Copy_Values_Len_Shallow(arg, SPECIFIED, 1); // REBVAL, known
-
-done:
-    Val_Init_Array(out, type, array);
-    return FALSE;
 }
 
 
@@ -724,10 +676,6 @@ REBTYPE(Array)
     REBVAL *value = D_ARG(1);
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
-    REBARR *array;
-    REBINT index;
-    REBCTX *specifier;
-
     // Support for port: OPEN [scheme: ...], READ [ ], etc.
     if (action >= PORT_ACTIONS && IS_BLOCK(value))
         return T_Port(frame_, action);
@@ -739,44 +687,11 @@ REBTYPE(Array)
             return r;
     }
 
-    // Special case (to avoid fetch of index and tail below):
-    if (action == A_MAKE || action == A_TO) {
-        //
-        // make block! ...
-        // to block! ...
-        //
-        assert(IS_DATATYPE(value));
-
-        if (
-            Make_Block_Type_Throws(
-                value, // out
-                VAL_TYPE_KIND(value), // type
-                LOGICAL(action == A_MAKE), // make? (as opposed to to?)
-                arg // size, block to copy, or value to convert
-            )
-        ) {
-            *D_OUT = *value;
-            return R_OUT_IS_THROWN;
-        }
-
-        if (ANY_PATH(value)) {
-            // Get rid of any line break options on the path's elements
-            RELVAL *clear = VAL_ARRAY_HEAD(value);
-            for (; NOT_END(clear); clear++) {
-                CLEAR_VAL_FLAG(clear, VALUE_FLAG_LINE);
-            }
-        }
-        *D_OUT = *value;
-        return R_OUT;
-    }
-
-    // Extract the array and the index from value.
-    //
     // NOTE: Partial1() used below can mutate VAL_INDEX(value), be aware :-/
     //
-    array = VAL_ARRAY(value);
-    index = cast(REBINT, VAL_INDEX(value));
-    specifier = VAL_SPECIFIER(value);
+    REBARR *array = VAL_ARRAY(value);
+    REBINT index = cast(REBINT, VAL_INDEX(value));
+    REBCTX *specifier = VAL_SPECIFIER(value);
 
     switch (action) {
     case A_POKE:

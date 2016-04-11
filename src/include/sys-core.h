@@ -159,6 +159,9 @@ typedef struct rebol_mem_pool REBPOL;
 #include "sys-rebval.h" // REBVAL structure definition
 #include "sys-rebser.h" // REBSER series definition (embeds REBVAL definition)
 
+typedef void (*MAKE_FUNC)(REBVAL*, enum Reb_Kind, const REBVAL*);
+typedef void (*TO_FUNC)(REBVAL*, enum Reb_Kind, const REBVAL*);
+
 #include "sys-scan.h"
 #include "sys-stack.h"
 #include "sys-state.h"

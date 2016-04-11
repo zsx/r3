@@ -35,25 +35,6 @@
 
 #define MAX_WAIT_MS 64 // Maximum millsec to sleep
 
-//
-//  Make_Port: C
-// 
-// Create a new port. This is done by calling the MAKE_PORT
-// function stored in the system/intrinsic object.
-//
-void Make_Port(REBVAL *out, const REBVAL *spec)
-{
-    if (Apply_Only_Throws(
-        out, Sys_Func(SYS_CTX_MAKE_PORT_P), spec, END_CELL
-    )) {
-        // Gave back an unhandled RETURN, BREAK, CONTINUE, etc...
-        fail (Error_No_Catch_For_Throw(out));
-    }
-
-    // !!! Shouldn't this be testing for !IS_PORT( ) ?
-    if (IS_BLANK(out)) fail (Error(RE_INVALID_SPEC, spec));
-}
-
 
 //
 //  Is_Port_Open: C

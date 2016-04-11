@@ -180,7 +180,7 @@ REBINT CT_Time(const RELVAL *a, const RELVAL *b, REBINT mode)
 // 
 // Returns NO_TIME if error.
 //
-REBI64 Make_Time(REBVAL *val)
+REBI64 Make_Time(const REBVAL *val)
 {
     REBI64 secs = 0;
 
@@ -191,8 +191,9 @@ REBI64 Make_Time(REBVAL *val)
         REBYTE *bp;
         REBCNT len;
         bp = Temp_Byte_Chars_May_Fail(val, MAX_SCAN_TIME, &len, FALSE);
-        if (!Scan_Time(bp, len, val)) goto no_time;
-        secs = VAL_TIME(val);
+        REBVAL temp;
+        if (!Scan_Time(bp, len, &temp)) goto no_time;
+        secs = VAL_TIME(&temp);
     }
     else if (IS_INTEGER(val)) {
         if (VAL_INT64(val) < -MAX_SECONDS || VAL_INT64(val) > MAX_SECONDS)
@@ -247,25 +248,26 @@ REBI64 Make_Time(REBVAL *val)
 
 
 //
-//  MT_Time: C
+//  MAKE_Time: C
 //
-REBOOL MT_Time(
-    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
-) {
-    REBI64 secs;
-
-    REBVAL specified;
-    COPY_VALUE(&specified, data, specifier);
-
-    secs = Make_Time(&specified);
-
-    if (secs == NO_TIME) return FALSE;
+void MAKE_Time(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
+{
+    REBI64 secs = Make_Time(arg);
+    if (secs == NO_TIME)
+        fail (Error_Bad_Make(REB_TIME, arg));
 
     VAL_RESET_HEADER(out, REB_TIME);
     VAL_TIME(out) = secs;
     VAL_DATE(out).bits = 0;
+}
 
-    return TRUE;
+
+//
+//  TO_Time: C
+//
+void TO_Time(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    MAKE_Time(out, kind, arg);
 }
 
 
@@ -557,14 +559,7 @@ REBTYPE(Time)
 ///         Pick_Path(D_OUT, val, arg, D_ARG(3));
 ///         *D_OUT = *D_ARG(3);
 ///         return R_OUT;
-
-        case A_MAKE:
-        case A_TO:
-            assert(arg);
-
-            secs = Make_Time(arg);
-            if (secs == NO_TIME) fail (Error_Bad_Make(REB_TIME, arg));
-            goto setTime;
+///
         }
     }
     fail (Error_Illegal_Action(REB_TIME, action));

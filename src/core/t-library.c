@@ -46,6 +46,44 @@ REBINT CT_Library(const RELVAL *a, const RELVAL *b, REBINT mode)
     return -1;
 }
 
+
+//
+//  MAKE_Library: C
+//
+void MAKE_Library(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    if (!IS_FILE(arg))
+        fail (Error_Unexpected_Type(REB_FILE, VAL_TYPE(arg)));
+
+    void *lib = NULL;
+    REBCNT error = 0;
+    REBSER *path = Value_To_OS_Path(arg, FALSE);
+    lib = OS_OPEN_LIBRARY(SER_HEAD(REBCHR, path), &error);
+    Free_Series(path);
+    if (!lib)
+        fail (Error_Bad_Make(REB_LIBRARY, arg));
+
+    VAL_LIB_SPEC(out) = Make_Array(1);
+    MANAGE_ARRAY(VAL_LIB_SPEC(out));
+
+    Append_Value(VAL_LIB_SPEC(out), arg);
+    VAL_LIB_HANDLE(out) = cast(REBLHL*, Make_Node(LIB_POOL));
+    VAL_LIB_FD(out) = lib;
+    SET_LIB_FLAG(VAL_LIB_HANDLE(out), LIB_FLAG_USED);
+    CLEAR_LIB_FLAG(VAL_LIB_HANDLE(out), LIB_FLAG_CLOSED);
+    VAL_RESET_HEADER(out, REB_LIBRARY);
+}
+
+
+//
+//  TO_Library: C
+//
+void TO_Library(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    MAKE_Library(out, kind, arg);
+}
+
+
 //
 //  REBTYPE: C
 //
@@ -56,34 +94,6 @@ REBTYPE(Library)
 
     // unary actions
     switch(action) {
-        case A_MAKE:
-            //RL_Print("%s, %d, Make library action\n", __func__, __LINE__);
-        case A_TO:
-            if (!IS_DATATYPE(val)) {
-                fail (Error_Unexpected_Type(REB_LIBRARY, VAL_TYPE(val)));
-            }
-            if (!IS_FILE(arg)) {
-                fail (Error_Unexpected_Type(REB_FILE, VAL_TYPE(arg)));
-            } else {
-                void *lib = NULL;
-                REBCNT error = 0;
-                REBSER *path = Value_To_OS_Path(arg, FALSE);
-                lib = OS_OPEN_LIBRARY(SER_HEAD(REBCHR, path), &error);
-                Free_Series(path);
-                if (!lib)
-                    fail (Error_Bad_Make(REB_LIBRARY, arg));
-
-                VAL_LIB_SPEC(D_OUT) = Make_Array(1);
-                MANAGE_ARRAY(VAL_LIB_SPEC(D_OUT));
-
-                Append_Value(VAL_LIB_SPEC(D_OUT), arg);
-                VAL_LIB_HANDLE(D_OUT) = cast(REBLHL*, Make_Node(LIB_POOL));
-                VAL_LIB_FD(D_OUT) = lib;
-                SET_LIB_FLAG(VAL_LIB_HANDLE(D_OUT), LIB_FLAG_USED);
-                CLEAR_LIB_FLAG(VAL_LIB_HANDLE(D_OUT), LIB_FLAG_CLOSED);
-                VAL_RESET_HEADER(D_OUT, REB_LIBRARY);
-            }
-            break;
         case A_CLOSE:
             OS_CLOSE_LIBRARY(VAL_LIB_FD(val));
             SET_LIB_FLAG(VAL_LIB_HANDLE(val), LIB_FLAG_CLOSED);

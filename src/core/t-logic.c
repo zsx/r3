@@ -49,14 +49,45 @@ REBINT CT_Logic(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 
 //
-//  MT_Logic: C
+//  MAKE_Logic: C
 //
-REBOOL MT_Logic(
-    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
-) {
-    if (!IS_INTEGER(data)) return FALSE;
-    SET_LOGIC(out, LOGICAL(VAL_INT64(data) != 0));
-    return TRUE;
+void MAKE_Logic(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    //
+    // As a construction routine, MAKE takes more liberties in the
+    // meaning of its parameters, so it lets zero values be false.
+    //
+    // !!! Is there a better idea for MAKE that does not hinge on the
+    // "zero is false" concept?  Is there a reason it should?
+    //
+    if (
+        IS_CONDITIONAL_FALSE(arg)
+        || (IS_INTEGER(arg) && VAL_INT64(arg) == 0)
+        || (
+            (IS_DECIMAL(arg) || IS_PERCENT(arg))
+            && (VAL_DECIMAL(arg) == 0.0)
+        )
+        || (IS_MONEY(arg) && deci_is_zero(VAL_MONEY_AMOUNT(arg)))
+    ) {
+        SET_FALSE(out);
+    }
+    else
+        SET_TRUE(out);
+}
+
+
+//
+//  TO_Logic: C
+//
+void TO_Logic(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    //
+    // As a "Rebol conversion", TO falls in line with the rest of the
+    // interpreter canon that all non-none non-logic-false values are
+    // considered effectively "truth".
+    //
+    if (IS_CONDITIONAL_TRUE(arg))
+        SET_TRUE(out);
+    else
+        SET_FALSE(out);
 }
 
 
@@ -78,8 +109,7 @@ REBTYPE(Logic)
             fail (Error_Unexpected_Type(REB_LOGIC, VAL_TYPE(arg)));
     }
 
-    if (action != A_MAKE && action != A_TO)
-        val1 = VAL_LOGIC(D_ARG(1));
+    val1 = VAL_LOGIC(D_ARG(1));
 
     switch (action) {
 
@@ -108,35 +138,6 @@ REBTYPE(Logic)
         if (Random_Int(D_REF(3)) & 1) // /secure
             return R_TRUE;
         return R_FALSE;
-
-    case A_TO:
-        // As a "Rebol conversion", TO falls in line with the rest of the
-        // interpreter canon that all non-blank non-logic values are
-        // considered effectively "truth".
-        //
-        if (IS_CONDITIONAL_TRUE(arg))
-            return R_TRUE;
-        return R_FALSE;
-
-    case A_MAKE:
-        // As a construction routine, MAKE takes more liberties in the
-        // meaning of its parameters, so it lets zero values be false.
-        //
-        // !!! Is there a better idea for MAKE that does not hinge on the
-        // "zero is false" concept?  Is there a reason it should?
-        //
-        if (
-            IS_CONDITIONAL_FALSE(arg)
-            || (IS_INTEGER(arg) && VAL_INT64(arg) == 0)
-            || (
-                (IS_DECIMAL(arg) || IS_PERCENT(arg))
-                && (VAL_DECIMAL(arg) == 0.0)
-            )
-            || (IS_MONEY(arg) && deci_is_zero(VAL_MONEY_AMOUNT(arg)))
-        ) {
-            return R_FALSE;
-        }
-        return R_TRUE;
 
     default:
         fail (Error_Illegal_Action(REB_LOGIC, action));

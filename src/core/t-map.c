@@ -446,34 +446,52 @@ static void Append_Map(
 
 
 //
-//  MT_Map: C
+//  MAKE_Map: C
 //
-REBOOL MT_Map(REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type)
+void MAKE_Map(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    if (ANY_NUMBER(arg)) {
+        REBMAP *map = Make_Map(Int32s(arg, 0));
+        Val_Init_Map(out, map);
+    }
+    else {
+        // !!! R3-Alpha TO of MAP! was like MAKE but wouldn't accept just
+        // being given a size.
+        //
+        TO_Map(out, kind, arg);
+    }
+}
+
+
+//
+//  TO_Map: C
+//
+void TO_Map(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
     REBARR* array;
     REBCNT len;
     REBCNT index;
 
-    if (IS_MAP(data)) {
-        array = MAP_PAIRLIST(VAL_MAP(data));
+    if (IS_BLOCK(arg) || IS_GROUP(arg)) {
+        //
+        // make map! [word val word val]
+        //
+        array = VAL_ARRAY(arg);
+        index = VAL_INDEX(arg);
+        len = VAL_ARRAY_LEN_AT(arg);
+    }
+    else if (IS_MAP(arg)) {
+        array = MAP_PAIRLIST(VAL_MAP(arg));
         index = 0;// maps don't have an index/"position"
         len = ARR_LEN(array);
     }
-    else if (IS_BLOCK(data)) {
-        array = VAL_ARRAY(data);
-        index = VAL_INDEX(data);
-        len = VAL_ARRAY_LEN_AT(data);
-    }
     else
-        return FALSE;
+        fail (Error_Invalid_Arg(arg));
 
     REBMAP *map = Make_Map(len / 2); // [key value key value...] + END
-    Append_Map(map, array, index, specifier, UNKNOWN);
+    Append_Map(map, array, index, VAL_SPECIFIER(arg), UNKNOWN);
     Rehash_Map(map);
-
     Val_Init_Map(out, map);
-
-    return TRUE;
 }
 
 
@@ -599,11 +617,8 @@ REBTYPE(Map)
     REBVAL *val = D_ARG(1);
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     REBINT n;
-    REBMAP *map;
+    REBMAP *map = VAL_MAP(val);
     REBCNT  args;
-
-    if (action != A_MAKE && action != A_TO)
-        map = VAL_MAP(val);
 
     // Check must be in this order (to avoid checking a non-series value);
     if (action >= A_TAKE && action <= A_SORT)
@@ -671,30 +686,13 @@ REBTYPE(Map)
         SET_INTEGER(D_OUT, Length_Map(map));
         return R_OUT;
 
-    case A_MAKE:
-    case A_TO:
-        // make map! [word val word val]
-        if (IS_BLOCK(arg) || IS_GROUP(arg) || IS_MAP(arg)) {
-            if (MT_Map(D_OUT, arg, SPECIFIED, REB_MAP)) return R_OUT;
-            fail (Error_Invalid_Arg(arg));
-//      } else if (IS_BLANK(arg)) {
-//          n = 3; // just a start
-        // make map! 10000
-        } else if (ANY_NUMBER(arg)) {
-            if (action == A_TO) fail (Error_Invalid_Arg(arg));
-            n = Int32s(arg, 0);
-        }
-        else
-            fail (Error_Bad_Make(REB_MAP, Type_Of(arg)));
-
-        // positive only
-        map = Make_Map(n);
-        Val_Init_Map(D_OUT, map);
-        return R_OUT;
-
     case A_COPY:
-        if (MT_Map(D_OUT, val, SPECIFIED, REB_MAP)) return R_OUT;
-        fail (Error_Invalid_Arg(val));
+        //
+        // !!! the copying map case should probably not be a MAKE case, but
+        // implemented here as copy.
+        //
+        MAKE_Map(D_OUT, REB_MAP, val); // may fail()
+        return R_OUT;
 
     case A_CLEAR:
         Reset_Array(MAP_PAIRLIST(map));

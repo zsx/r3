@@ -58,15 +58,184 @@ REBINT CT_Image(const RELVAL *a, const RELVAL *b, REBINT mode)
 }
 
 
+void Copy_Image_Value(REBVAL *out, const REBVAL *arg, REBINT len)
+{
+    len = MAX(len, 0); // no negatives
+    len = MIN(len, cast(REBINT, VAL_IMAGE_LEN(arg)));
+
+    REBINT w = VAL_IMAGE_WIDE(arg);
+    w = MAX(w, 1);
+
+    REBINT h;
+    if (len <= w) {
+        h = 1;
+        w = len;
+    }
+    else
+        h = len / w;
+
+    if (w == 0)
+        h = 0;
+
+    REBSER *series = Make_Image(w, h, TRUE);
+    Val_Init_Image(out, series);
+    memcpy(VAL_IMAGE_HEAD(out), VAL_IMAGE_DATA(arg), w * h * 4);
+}
+
+
 //
-//  MT_Image: C
+//  MAKE_Image: C
 //
-REBOOL MT_Image(
-    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
-) {
-    if (!Create_Image(data, specifier, out, 1)) return FALSE;
-    VAL_RESET_HEADER(out, REB_IMAGE);
-    return TRUE;
+void MAKE_Image(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    if (IS_IMAGE(arg)) {
+        //
+        // make image! img
+        //
+        Copy_Image_Value(out, arg, VAL_IMAGE_LEN(arg));
+    }
+    else if (IS_BLANK(arg) || (IS_BLOCK(arg) && VAL_ARRAY_LEN_AT(arg) == 0)) {
+        //
+        // make image! [] (or none)
+        //
+        Val_Init_Image(out, Make_Image(0, 0, TRUE));
+    }
+    else if (IS_PAIR(arg)) {
+        //
+        // make image! size
+        //
+        REBINT w = VAL_PAIR_X_INT(arg);
+        REBINT h = VAL_PAIR_Y_INT(arg);
+        w = MAX(w, 0);
+        h = MAX(h, 0);
+        Val_Init_Image(out, Make_Image(w, h, TRUE));
+    }
+    else if (IS_BLOCK(arg)) {
+        //
+        // make image! [size rgb alpha index]
+        //
+        RELVAL *item = VAL_ARRAY_AT(arg);
+
+        if (!IS_PAIR(item)) goto bad_make;
+
+        REBINT w = VAL_PAIR_X_INT(item);
+        REBINT h = VAL_PAIR_Y_INT(item);
+        if (w < 0 || h < 0) goto bad_make;
+
+        REBSER *img = Make_Image(w, h, FALSE);
+        if (!img) goto bad_make;
+
+        Val_Init_Image(out, img);
+
+        REBYTE *ip = IMG_DATA(img); // image pointer
+        REBCNT size = w * h;
+
+        ++item;
+
+        if (IS_END(item)) {
+            //
+            // make image! [10x20]... already done
+        }
+        else if (IS_BINARY(item)) {
+
+            // Load image data:
+            Bin_To_RGB(ip, size, VAL_BIN_AT(item), VAL_LEN_AT(item) / 3);
+            ++item;
+
+            // !!! Review handling of END here; was not explicit before and
+            // just fell through the binary and integer tests...
+
+            // Load alpha channel data:
+            if (NOT_END(item) && IS_BINARY(item)) {
+                Bin_To_Alpha(ip, size, VAL_BIN_AT(item), VAL_LEN_AT(item));
+    //          VAL_IMAGE_TRANSP(value)=VITT_ALPHA;
+                ++item;
+            }
+
+            if (NOT_END(item) && IS_INTEGER(item)) {
+                VAL_INDEX(out) = (Int32s(KNOWN(item), 1) - 1);
+                ++item;
+            }
+        }
+        else if (IS_TUPLE(item)) {
+            Fill_Rect(cast(REBCNT*, ip), TO_PIXEL_TUPLE(item), w, w, h, TRUE);
+            ++item;
+            if (IS_INTEGER(item)) {
+                Fill_Alpha_Rect(
+                    cast(REBCNT*, ip), cast(REBYTE, VAL_INT32(item)), w, w, h
+                );
+    //          VAL_IMAGE_TRANSP(value)=VITT_ALPHA;
+                ++item;
+            }
+        }
+        else if (IS_BLOCK(item)) {
+            REBCNT bad_index;
+            if (Array_Has_Non_Tuple(&bad_index, item))
+                fail (Error_Invalid_Arg_Core(
+                    VAL_ARRAY_AT_HEAD(item, bad_index),
+                    IS_SPECIFIC(item)
+                        ? VAL_SPECIFIER(KNOWN(item))
+                        : VAL_SPECIFIER(arg)
+                ));
+
+            Tuples_To_RGBA(
+                ip, size, KNOWN(VAL_ARRAY_AT(item)), VAL_LEN_AT(item)
+            );
+        }
+        else
+            goto bad_make;
+
+        assert(IS_IMAGE(out));
+    }
+    else
+        fail (Error_Invalid_Type(VAL_TYPE(arg)));
+
+    return;
+
+bad_make:
+    fail (Error_Bad_Make(kind, arg));
+}
+
+
+//
+//  TO_Image: C
+//
+void TO_Image(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    if (IS_IMAGE(arg)) {
+        Copy_Image_Value(out, arg, VAL_IMAGE_LEN(arg));
+    }
+    else if (IS_GOB(arg)) {
+        REBSER *series = OS_GOB_TO_IMAGE(VAL_GOB(arg));
+        if (!series)
+            fail (Error_Bad_Make(REB_IMAGE, arg));
+        Val_Init_Image(out, series);
+    }
+    else if (IS_BINARY(arg)) {
+        REBINT diff = VAL_LEN_AT(arg) / 4;
+        if (diff == 0)
+            fail (Error_Bad_Make(REB_IMAGE, arg));
+
+        REBINT w;
+        if (diff < 100) w = diff;
+        else if (diff < 10000) w = 100;
+        else w = 500;
+
+        REBINT h = diff / w;
+        if (w * h < diff) h++; // partial line
+
+        REBSER *series = Make_Image(w, h, TRUE);
+        Val_Init_Image(out, series);
+        Bin_To_RGBA(
+            IMG_DATA(series),
+            w * h,
+            VAL_BIN_AT(arg),
+            VAL_LEN_AT(arg) / 4,
+            FALSE
+        );
+    }
+    else
+        fail (Error_Invalid_Type(VAL_TYPE(arg)));
 }
 
 
@@ -380,7 +549,7 @@ void Mold_Image_Data(const REBVAL *value, REB_MOLD *mold)
 //
 //  Make_Image_Binary: C
 //
-REBSER *Make_Image_Binary(REBVAL *image)
+REBSER *Make_Image_Binary(const REBVAL *image)
 {
     REBSER *ser;
     REBINT len;
@@ -429,87 +598,6 @@ void Clear_Image(REBVAL *img)
     REBCNT h = VAL_IMAGE_HIGH(img);
     REBYTE *p = VAL_IMAGE_HEAD(img);
     CLEAR_IMAGE(p, w, h);
-}
-
-
-//
-//  Create_Image: C
-// 
-// Create an image value from components block [pair rgb alpha].
-//
-REBVAL *Create_Image(RELVAL *block, REBCTX *specifier, REBVAL *val, REBCNT modes)
-{
-    REBINT w, h;
-    REBYTE *ip; // image pointer
-    REBCNT size;
-    REBSER *img;
-
-    // Check that PAIR is valid:
-    if (!IS_PAIR(block)) return 0;
-    w = VAL_PAIR_X_INT(block);
-    h = VAL_PAIR_Y_INT(block);
-    if (w < 0 || h < 0) return 0;
-
-    img = Make_Image(w, h, FALSE);
-    if (img == 0) return 0;
-    Val_Init_Image(val, img);
-
-    ip = IMG_DATA(img);
-    size = w * h;
-
-    //len = VAL_ARRAY_LEN_AT(arg);
-    block++;
-
-    if (IS_END(block)) return val;
-
-    if (IS_BINARY(block)) {
-
-        // Load image data:
-        Bin_To_RGB(ip, size, VAL_BIN_AT(block), VAL_LEN_AT(block) / 3);
-        block++;
-
-        // !!! Review handling of END here; was not explicit before and
-        // just fell through the binary and integer tests...
-
-        // Load alpha channel data:
-        if (NOT_END(block) && IS_BINARY(block)) {
-            Bin_To_Alpha(ip, size, VAL_BIN_AT(block), VAL_LEN_AT(block));
-//          VAL_IMAGE_TRANSP(value)=VITT_ALPHA;
-            block++;
-        }
-
-        if (NOT_END(block) && IS_INTEGER(block)) {
-            VAL_INDEX(val) = (Int32s(KNOWN(block), 1) - 1);
-            block++;
-        }
-    }
-    else if (IS_TUPLE(block)) {
-        Fill_Rect((REBCNT *)ip, TO_PIXEL_TUPLE(block), w, w, h, TRUE);
-        block++;
-        if (IS_INTEGER(block)) {
-            Fill_Alpha_Rect((REBCNT *)ip, (REBYTE)VAL_INT32(block), w, w, h);
-//          VAL_IMAGE_TRANSP(value)=VITT_ALPHA;
-            block++;
-        }
-    }
-    else if (IS_BLOCK(block)) {
-        REBCNT bad_index;
-        if (Array_Has_Non_Tuple(&bad_index, block))
-            fail (Error_Invalid_Arg_Core(
-                VAL_ARRAY_AT_HEAD(block, bad_index),
-                IS_SPECIFIC(block)
-                    ? VAL_SPECIFIER(KNOWN(block))
-                    : specifier
-            ));
-
-        Tuples_To_RGBA(ip, size, KNOWN(VAL_ARRAY_AT(block)), VAL_LEN_AT(block));
-    }
-    else
-        return NULL;
-
-    //if (NOT_END(block)) fail (Error_Invalid_Arg(block));
-
-    return val;
 }
 
 
@@ -845,12 +933,10 @@ REBTYPE(Image)
     REBVAL  *val;
 
     // Clip index if past tail:
-    if (action != A_MAKE && action != A_TO) {
-        series = VAL_SERIES(value);
-        index = VAL_INDEX(value);
-        tail = (REBINT)SER_LEN(series);
-        if (index > tail) index = tail;
-    }
+    series = VAL_SERIES(value);
+    index = VAL_INDEX(value);
+    tail = (REBINT)SER_LEN(series);
+    if (index > tail) index = tail;
 
     // Check must be in this order (to avoid checking a non-series value);
     if (action >= A_TAKE && action <= A_SORT)
@@ -1015,68 +1101,6 @@ REBTYPE(Image)
         Find_Image(frame_); // sets DS_OUT
         break;
 
-    case A_TO:
-        if (IS_IMAGE(arg)) goto makeCopy;
-        else if (IS_GOB(arg)) {
-            //value = Make_Image(ROUND_TO_INT(GOB_W(VAL_GOB(arg))), ROUND_TO_INT(GOB_H(VAL_GOB(arg))));
-            //*D_OUT = *value;
-            series = OS_GOB_TO_IMAGE(VAL_GOB(arg));
-            if (!series) fail (Error_Bad_Make(REB_IMAGE, arg));
-            Val_Init_Image(value, series);
-            break;
-        }
-        else if (IS_BINARY(arg)) {
-            diff = VAL_LEN_AT(arg) / 4;
-            if (diff == 0) fail (Error_Bad_Make(REB_IMAGE, arg));
-            if (diff < 100) w = diff;
-            else if (diff < 10000) w = 100;
-            else w = 500;
-            h = diff / w;
-            if (w * h < diff) h++; // partial line
-            series = Make_Image(w, h, TRUE);
-            Val_Init_Image(value, series);
-            Bin_To_RGBA(
-                IMG_DATA(series),
-                w * h,
-                VAL_BIN_AT(arg),
-                VAL_LEN_AT(arg) / 4,
-                FALSE
-            );
-            break;
-        }
-        fail (Error_Invalid_Type(VAL_TYPE(arg)));
-
-    case A_MAKE:
-        // make image! img
-        if (IS_IMAGE(arg)) goto makeCopy;
-
-        // make image! [] (or _)
-        if (IS_IMAGE(value) && (IS_BLANK(arg) || (IS_BLOCK(arg) && (VAL_ARRAY_LEN_AT(arg) == 0)))) {
-            arg = value;
-            goto makeCopy;
-        }
-
-        // make image! size
-        if (IS_PAIR(arg)) {
-            w = VAL_PAIR_X_INT(arg);
-            h = VAL_PAIR_Y_INT(arg);
-            w = MAX(w, 0);
-            h = MAX(h, 0);
-            series = Make_Image(w, h, TRUE);
-            Val_Init_Image(value, series);
-            break;
-        }
-//      else if (IS_BLANK(arg)) {
-//          *value = *Make_Image(0, 0);
-//          CLEAR_IMAGE(VAL_IMAGE_HEAD(value), 0, 0);
-//          break;
-//      }
-        // make image! [size rgb alpha index]
-        else if (IS_BLOCK(arg)) {
-            if (Create_Image(VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg), value, 0)) break;
-        }
-        fail (Error_Invalid_Type(VAL_TYPE(arg)));
-
     case A_COPY:  // copy series /part len
         if (!D_REF(2)) {
             arg = value;
@@ -1121,19 +1145,8 @@ makeCopy:
         // Src image is arg.
         len = VAL_IMAGE_LEN(arg);
 makeCopy2:
-        len = MAX(len, 0); // no negatives
-        len = MIN(len, (REBINT)VAL_IMAGE_LEN(arg));
-        w = VAL_IMAGE_WIDE(arg);
-        w = MAX(w, 1);
-        if (len <= w) h = 1, w = len;
-        else h = len / w;
-        if (w == 0) h = 0;
-        series = Make_Image(w, h, TRUE);
-        Val_Init_Image(D_OUT, series);
-        memcpy(VAL_IMAGE_HEAD(D_OUT), VAL_IMAGE_DATA(arg), w * h * 4);
-//      VAL_IMAGE_TRANSP(D_OUT) = VAL_IMAGE_TRANSP(arg);
+        Copy_Image_Value(D_OUT, arg, len);
         return R_OUT;
-        break;
 
     default:
         fail (Error_Illegal_Action(VAL_TYPE(value), action));

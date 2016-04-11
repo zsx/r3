@@ -53,6 +53,82 @@ REBINT CT_Char(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 
 //
+//  MAKE_Char: C
+//
+void MAKE_Char(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    REBUNI uni;
+
+    switch(VAL_TYPE(arg)) {
+    case REB_CHAR:
+        uni = VAL_CHAR(arg);
+        break;
+
+    case REB_INTEGER:
+    case REB_DECIMAL:
+        {
+        REBINT n = Int32(arg);
+        if (n > MAX_UNI || n < 0) goto bad_make;
+        uni = n;
+        }
+        break;
+
+    case REB_BINARY:
+        {
+        const REBYTE *bp = VAL_BIN(arg);
+        REBCNT len = VAL_LEN_AT(arg);
+        if (len == 0) goto bad_make;
+        if (*bp <= 0x80) {
+            if (len != 1)
+                goto bad_make;
+
+            uni = *bp;
+        }
+        else {
+            --len;
+            bp = Back_Scan_UTF8_Char(&uni, bp, &len);
+            if (!bp || len != 0) // must be valid UTF8 and consume all data
+                goto bad_make;
+        }
+        } // case REB_BINARY
+        break;
+
+#ifdef removed
+//      case REB_ISSUE:
+        // Scan 8 or 16 bit hex str, will throw on error...
+        REBINT n = Scan_Hex_Value(
+            VAL_RAW_DATA_AT(arg), VAL_LEN_AT(arg), !VAL_BYTE_SIZE(arg)
+        );
+        if (n > MAX_UNI || n < 0) goto bad_make;
+        chr = n;
+        break;
+#endif
+
+    case REB_STRING:
+        if (VAL_INDEX(arg) >= VAL_LEN_HEAD(arg))
+            goto bad_make;
+        uni = GET_ANY_CHAR(VAL_SERIES(arg), VAL_INDEX(arg));
+        break;
+
+    default:
+    bad_make:
+        fail (Error_Bad_Make(REB_CHAR, arg));
+    }
+
+    SET_CHAR(out, uni);
+}
+
+
+//
+//  TO_Char: C
+//
+void TO_Char(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    MAKE_Char(out, kind, arg);
+}
+
+
+//
 //  REBTYPE: C
 //
 REBTYPE(Char)
@@ -134,70 +210,6 @@ REBTYPE(Char)
         }
         if (chr == 0) break;
         chr = (REBUNI)(1 + ((REBCNT)Random_Int(D_REF(3)) % chr)); // /secure
-        break;
-
-    case A_MAKE:
-    case A_TO:
-        val = D_ARG(2);
-
-        switch(VAL_TYPE(val)) {
-        case REB_CHAR:
-            chr = VAL_CHAR(val);
-            break;
-
-        case REB_INTEGER:
-        case REB_DECIMAL:
-            arg = Int32(val);
-            if (arg > MAX_UNI || arg < 0) goto bad_make;
-            chr = arg;
-            break;
-
-        case REB_BINARY:
-        {
-            const REBYTE *bp = VAL_BIN(val);
-            arg = VAL_LEN_AT(val);
-            if (arg == 0) goto bad_make;
-            if (*bp > 0x80) {
-                // !!! This test is presumably redundant - temporarily left
-                // in as a check to see if its presence here detected
-                // anything differently that Scan_UTF8_Char wouldn't.
-                REBOOL redundant_legal = Legal_UTF8_Char(bp, arg);
-
-                if (!Back_Scan_UTF8_Char(&chr, bp, NULL)) {
-                    assert(!redundant_legal);
-                    goto bad_make;
-                }
-                if (!redundant_legal) {
-                    assert(FALSE);
-                    goto bad_make;
-                }
-            }
-            else
-                chr = *bp;
-        }
-            break;
-
-#ifdef removed
-//      case REB_ISSUE:
-            // Scan 8 or 16 bit hex str, will throw on error...
-            arg = Scan_Hex_Value(
-                VAL_RAW_DATA_AT(val), VAL_LEN_AT(val), !VAL_BYTE_SIZE(val)
-            );
-            if (arg > MAX_UNI || arg < 0) goto bad_make;
-            chr = arg;
-            break;
-#endif
-
-        case REB_STRING:
-            if (VAL_INDEX(val) >= VAL_LEN_HEAD(val))
-                fail (Error_Bad_Make(REB_CHAR, val));
-            chr = GET_ANY_CHAR(VAL_SERIES(val), VAL_INDEX(val));
-            break;
-
-        default:
-bad_make:
-        fail (Error_Bad_Make(REB_CHAR, val));
-    }
         break;
 
     default:

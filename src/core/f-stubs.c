@@ -118,21 +118,28 @@ REBINT Float_Int16(REBD32 f)
 //
 //  Int32: C
 //
-REBINT Int32(const REBVAL *val)
+REBINT Int32(const RELVAL *val)
 {
-    REBINT n = 0;
-
     if (IS_DECIMAL(val)) {
         if (VAL_DECIMAL(val) > MAX_I32 || VAL_DECIMAL(val) < MIN_I32)
-            fail (Error_Out_Of_Range(val));
-        n = (REBINT)VAL_DECIMAL(val);
-    } else {
-        if (VAL_INT64(val) > (i64)MAX_I32 || VAL_INT64(val) < (i64)MIN_I32)
-            fail (Error_Out_Of_Range(val));
-        n = VAL_INT32(val);
+            goto out_of_range;
+
+        return cast(REBINT, VAL_DECIMAL(val));
     }
 
-    return n;
+    assert(IS_INTEGER(val));
+
+    if (
+        VAL_INT64(val) > cast(i64, MAX_I32)
+        || VAL_INT64(val) < cast(i64, MIN_I32)
+    ) {
+        goto out_of_range;
+    }
+
+    return VAL_INT32(val);
+
+out_of_range:
+    fail (Error_Out_Of_Range(const_KNOWN(val)));
 }
 
 
@@ -145,18 +152,20 @@ REBINT Int32(const REBVAL *val)
 //     1: >  0
 //    -1: <  0
 //
-REBINT Int32s(const REBVAL *val, REBINT sign)
+REBINT Int32s(const RELVAL *val, REBINT sign)
 {
-    REBINT n = 0;
+    REBINT n;
 
     if (IS_DECIMAL(val)) {
         if (VAL_DECIMAL(val) > MAX_I32 || VAL_DECIMAL(val) < MIN_I32)
-            fail (Error_Out_Of_Range(val));
+            goto out_of_range;
 
-        n = (REBINT)VAL_DECIMAL(val);
+        n = cast(REBINT, VAL_DECIMAL(val));
     } else {
-        if (VAL_INT64(val) > (i64)MAX_I32 || VAL_INT64(val) < (i64)MIN_I32)
-            fail (Error_Out_Of_Range(val));
+        assert(IS_INTEGER(val));
+
+        if (VAL_INT64(val) > cast(i64, MAX_I32))
+            goto out_of_range;
 
         n = VAL_INT32(val);
     }
@@ -164,12 +173,13 @@ REBINT Int32s(const REBVAL *val, REBINT sign)
     // More efficient to use positive sense:
     if (
         (sign == 0 && n >= 0) ||
-        (sign >  0 && n >  0) ||
-        (sign <  0 && n <  0)
+        (sign > 0 && n > 0) ||
+        (sign < 0 && n < 0)
     )
         return n;
 
-    fail (Error_Out_Of_Range(val));
+out_of_range:
+    fail (Error_Out_Of_Range(const_KNOWN(val)));
 }
 
 

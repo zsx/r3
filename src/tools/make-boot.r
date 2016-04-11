@@ -298,7 +298,7 @@ for-each-record-NO-RETURN type boot-types [
         ; taken care of by make-headers.r, no need to re-emit
         comment [
             emit-line/up1/decl
-                "extern REBOOL MT_" type/class "(REBVAL *, REBVAL *, REBCNT);"
+                "extern REBOOL MAKE_" type/class "(REBVAL *, REBVAL *, REBCNT);"
         ]
         append types-used type/class
     ]
@@ -320,7 +320,32 @@ for-each-record-NO-RETURN type boot-types [
     if group? type/class [type/class: first type/class]
 
     either type/make = '* [
-        emit-line/var "MT_" type/class type/name
+        emit-line/var "MAKE_" type/class type/name
+    ][
+        emit-line "" "0" type/name
+    ]
+]
+
+
+emit {
+^};
+
+
+/***********************************************************************
+**
+*/  const TO_FUNC To_Dispatch[REB_MAX_0] =
+/*
+**      Specifies the TO method used for each datatype.
+**
+***********************************************************************/
+^{
+}
+
+for-each-record-NO-RETURN type boot-types [
+    if group? type/class [type/class: first type/class]
+
+    either type/make = '* [
+        emit-line/var "TO_" type/class type/name
     ][
         emit-line "" "0" type/name
     ]

@@ -241,25 +241,37 @@ REBOOL Update_Typeset_Bits_Core(
 
 
 //
-//  MT_Typeset: C
+//  MAKE_Typeset: C
 //
-REBOOL MT_Typeset(
-    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
-) {
-    if (!IS_BLOCK(data)) return FALSE;
-
-    Val_Init_Typeset(out, 0, SYM_0);
-
-    if (!Update_Typeset_Bits_Core(
-        out,
-        VAL_ARRAY_HEAD(data),
-        specifier,
-        TRUE // `trap`: true means to return FALSE instead of fail() on error
-    )) {
-        return FALSE;
+void MAKE_Typeset(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    if (IS_TYPESET(arg)) {
+        *out = *arg;
+        return;
     }
 
-    return TRUE;
+    if (!IS_BLOCK(arg)) goto bad_make;
+
+    Val_Init_Typeset(out, 0, SYM_0);
+    Update_Typeset_Bits_Core(
+        out,
+        VAL_ARRAY_AT(arg),
+        VAL_SPECIFIER(arg),
+        FALSE // `trap`: false means fail() instead of FALSE on error
+    );
+    return;
+
+bad_make:
+    fail (Error_Bad_Make(REB_TYPESET, arg));
+}
+
+
+//
+//  TO_Typeset: C
+//
+void TO_Typeset(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    MAKE_Typeset(out, kind, arg);
 }
 
 
@@ -269,7 +281,7 @@ REBOOL MT_Typeset(
 // Converts typeset value to a block of datatypes.
 // No order is specified.
 //
-REBARR *Typeset_To_Array(REBVAL *tset)
+REBARR *Typeset_To_Array(const REBVAL *tset)
 {
     REBARR *block;
     REBVAL *value;
@@ -317,30 +329,6 @@ REBTYPE(Typeset)
             return (TYPE_CHECK(val, VAL_TYPE_KIND(arg))) ? R_TRUE : R_FALSE;
         }
         fail (Error_Invalid_Arg(arg));
-
-    case A_MAKE:
-    case A_TO:
-        if (IS_BLOCK(arg)) {
-            Val_Init_Typeset(D_OUT, 0, SYM_0);
-            Update_Typeset_Bits_Core(
-                D_OUT,
-                VAL_ARRAY_AT(arg),
-                VAL_SPECIFIER(arg),
-                FALSE // `trap`: false means fail() instead of FALSE on error
-            );
-            return R_OUT;
-        }
-    //  if (IS_BLANK(arg)) {
-    //      VAL_RESET_HEADER(arg, REB_TYPESET);
-    //      VAL_TYPESET_BITS(arg) = 0L;
-    //      *D_OUT = *D_ARG(2);
-    //      return R_OUT;
-    //  }
-        if (IS_TYPESET(arg)) {
-            *D_OUT = *D_ARG(2);
-            return R_OUT;
-        }
-        fail (Error_Bad_Make(REB_TYPESET, arg));
 
     case A_AND_T:
     case A_OR_T:

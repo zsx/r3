@@ -51,11 +51,11 @@ lit-bar     (unit)      +       +       -       *       -
 ;-- Scalars
 
 logic       logic       *       *       -       *       -
-integer     integer     *       *       -       -       [number scalar]
+integer     integer     *       *       -       *       [number scalar]
 decimal     decimal     *       *       -       *       [number scalar]
 percent     decimal     *       *       -       *       [number scalar]
-money       money       *       *       -       -       scalar
-char        char        *       f*      -       -       scalar
+money       money       *       *       -       *       scalar
+char        char        *       f*      -       *       scalar
 pair        pair        *       *       *       *       scalar
 tuple       tuple       *       *       *       *       scalar
 time        time        *       *       *       *       scalar
@@ -63,12 +63,12 @@ date        date        *       *       *       *       -
 
 ;-- Order dependent: next few words
 
-word        (word)      +       *       -       -       word
-set-word    (word)      +       *       -       -       word
-get-word    (word)      +       *       -       -       word
-lit-word    (word)      +       *       -       -       word
-refinement  word        +       *       -       -       word
-issue       word        +       *       -       -       word
+word        (word)      +       *       -       *       word
+set-word    (word)      +       *       -       *       word
+get-word    (word)      +       *       -       *       word
+lit-word    (word)      +       *       -       *       word
+refinement  word        +       *       -       *       word
+issue       word        +       *       -       *       word
 
 ;-- Series
 
@@ -98,17 +98,17 @@ typeset     typeset     +       f*      -       *       -
 
 function    (function)  *       -       -       *       -
 
-varargs     varargs     -       -       -       -       -
+varargs     varargs     -       -       -       *       -
 
 object      context     *       f*      *       *       context
 frame       context     *       f*      *       *       context
 module      context     *       f*      *       *       context
 error       context     +       f+      *       *       context
 task        context     +       +       *       *       context
-port        port        context context context -       context
+port        port        context context context *       context
 
 gob         gob         *       *       *       *       -
 event       event       *       *       *       *       -
 handle      0           -       -       -       -       -
 struct      struct      *       *       *       *       -
-library     library     -       -       -       -       -
+library     library     -       -       -       *       -

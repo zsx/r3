@@ -51,15 +51,9 @@ REBOOL Series_Common_Action_Returns(
     REBVAL *value = D_ARG(1);
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
-    REBINT index;
-    REBINT tail;
+    REBINT index = cast(REBINT, VAL_INDEX(value));
+    REBINT tail = cast(REBINT, VAL_LEN_HEAD(value));
     REBINT len = 0;
-
-    if (action == A_MAKE || action == A_TO)
-        return FALSE; // not a common operation, not handled
-
-    index = cast(REBINT, VAL_INDEX(value));
-    tail = cast(REBINT, VAL_LEN_HEAD(value));
 
     switch (action) {
 

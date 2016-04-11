@@ -42,12 +42,42 @@ REBINT CT_Port(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 
 //
-//  MT_Port: C
+//  MAKE_Port: C
 //
-REBOOL MT_Port(
-    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
-) {
-    return FALSE;
+// Create a new port. This is done by calling the MAKE_PORT
+// function stored in the system/intrinsic object.
+//
+void MAKE_Port(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    if (Apply_Only_Throws(
+        out, Sys_Func(SYS_CTX_MAKE_PORT_P), arg, END_CELL
+    )) {
+        // Gave back an unhandled RETURN, BREAK, CONTINUE, etc...
+        fail (Error_No_Catch_For_Throw(out));
+    }
+
+    // !!! Shouldn't this be testing for !IS_PORT( ) ?
+    if (IS_BLANK(out))
+        fail (Error(RE_INVALID_SPEC, arg));
+}
+
+
+//
+//  TO_Port: C
+//
+void TO_Port(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    if (!IS_OBJECT(arg))
+        fail (Error_Bad_Make(REB_PORT, arg));
+
+    // !!! cannot convert TO a PORT! without copying the whole context...
+    // which raises the question of why convert an object to a port,
+    // vs. making it as a port to begin with (?)  Look into why
+    // system/standard/port is made with CONTEXT and not with MAKE PORT!
+    //
+    REBCTX *context = Copy_Context_Shallow(VAL_CONTEXT(arg));
+    VAL_RESET_HEADER(CTX_VALUE(context), REB_PORT);
+    Val_Init_Port(out, context);
 }
 
 
@@ -75,7 +105,7 @@ REBTYPE(Port)
         // output is set.  Review.
         //
         if (!IS_PORT(value)) {
-            Make_Port(D_OUT, value);
+            MAKE_Port(D_OUT, REB_PORT, value);
             *D_ARG(1) = *D_OUT;
             value = D_ARG(1);
         } else
@@ -85,25 +115,6 @@ REBTYPE(Port)
 
     case A_REFLECT:
         return T_Context(frame_, action);
-
-    case A_MAKE:
-        if (!IS_DATATYPE(value)) fail (Error_Bad_Make(REB_PORT, value));
-        Make_Port(D_OUT, arg);
-        return R_OUT;
-
-    case A_TO:
-        if (!(IS_DATATYPE(value) && IS_OBJECT(arg)))
-            fail (Error_Bad_Make(REB_PORT, arg));
-
-        // !!! cannot convert TO a PORT! without copying the whole context...
-        // which raises the question of why convert an object to a port,
-        // vs. making it as a port to begin with (?)  Look into why
-        // system/standard/port is made with CONTEXT and not with MAKE PORT!
-        //
-        context = Copy_Context_Shallow(VAL_CONTEXT(arg));
-        VAL_RESET_HEADER(CTX_VALUE(context), REB_PORT);
-        Val_Init_Port(D_OUT, context);
-        return R_OUT;
     }
 
     return Do_Port_Action(frame_, VAL_CONTEXT(value), action);

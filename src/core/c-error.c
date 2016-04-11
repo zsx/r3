@@ -476,7 +476,7 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
 //
 REBOOL Make_Error_Object_Throws(
     REBVAL *out, // output location **MUST BE GC SAFE**!
-    REBVAL *arg
+    const REBVAL *arg
 ) {
     // Frame from the error object template defined in %sysobj.r
     //
@@ -1236,7 +1236,7 @@ REBCTX *Error_Non_Logic_Refinement(struct Reb_Frame *f) {
 REBCTX *Error_Bad_Func_Def(const REBVAL *spec, const REBVAL *body)
 {
     // !!! Improve this error; it's simply a direct emulation of arity-1
-    // error that existed before refactoring code out of MT_Function().
+    // error that existed before refactoring code out of MAKE_Function().
 
     REBARR *array = Make_Array(2);
     REBVAL def;

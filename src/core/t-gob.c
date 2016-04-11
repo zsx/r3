@@ -694,20 +694,63 @@ REBARR *Gob_To_Array(REBGOB *gob)
 
 
 //
-//  MT_Gob: C
+//  Extend_Gob_Core: C
 //
-REBOOL MT_Gob(REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type)
-{
-    REBGOB *ngob;
+// !!! R3-Alpha's MAKE has been unified with construction syntax, which has
+// no "parent" slot (just type and value).  To try and incrementally keep
+// code working, this parameterized function is called by both REBNATIVE(make)
+// REBNATIVE(construct).
+//
+void Extend_Gob_Core(REBGOB *gob, const REBVAL *arg) {
+    //
+    // !!! See notes about derivation in REBNATIVE(make).  When deriving, it
+    // appeared to copy the variables while nulling out the pane and parent
+    // fields.  Then it applied the variables.  It also *said* in the case of
+    // passing in another gob "merge gob provided as argument", but didn't
+    // seem to do any merging--it just overwrote.  So the block and pair cases
+    // were the only ones "merging".
 
-    if (IS_BLOCK(data)) {
-        ngob = Make_Gob();
-        Set_GOB_Vars(ngob, VAL_ARRAY_AT(data), specifier);
-        SET_GOB(out, ngob);
-        return TRUE;
+    if (IS_BLOCK(arg)) {
+        Set_GOB_Vars(gob, VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg));
     }
+    else if (IS_PAIR(arg)) {
+        gob->size.x = VAL_PAIR_X(arg);
+        gob->size.y = VAL_PAIR_Y(arg);
+    }
+    else
+        fail (Error_Bad_Make(REB_GOB, arg));
+}
 
-    return FALSE;
+
+//
+//  MAKE_Gob: C
+//
+void MAKE_Gob(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
+{
+    REBGOB *gob = Make_Gob();
+
+    if (IS_GOB(arg)) {
+        //
+        // !!! See notes in Extend_Gob_Core; previously a parent was allowed
+        // here, but completely overwritten with a GOB! argument.
+        //
+        *gob = *VAL_GOB(arg);
+        gob->pane = NULL;
+        gob->parent = NULL;
+    }
+    else
+        Extend_Gob_Core(gob, arg);
+
+    SET_GOB(out, gob);
+}
+
+
+//
+//  TO_Gob: C
+//
+void TO_Gob(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
+{
+    fail (Error_Invalid_Arg(arg));
 }
 
 
@@ -800,50 +843,13 @@ REBTYPE(Gob)
 
     *D_OUT = *val;
 
-    if (IS_GOB(val)) {
-        gob = VAL_GOB(val);
-        index = VAL_GOB_INDEX(val);
-        tail = GOB_PANE(gob) ? GOB_LEN(gob) : 0;
-    }
-    else if (!(IS_DATATYPE(val) && action == A_MAKE))
-        fail (Error_Invalid_Arg(val));
+    assert(IS_GOB(val));
+    gob = VAL_GOB(val);
+    index = VAL_GOB_INDEX(val);
+    tail = GOB_PANE(gob) ? GOB_LEN(gob) : 0;
 
     // unary actions
     switch(action) {
-
-    case A_MAKE:
-        ngob = Make_Gob();
-
-        // Clone an existing GOB:
-        if (IS_GOB(val)) {  // local variable "gob" is valid
-            *ngob = *gob;   // Copy all values
-            ngob->pane = 0;
-            ngob->parent = 0;
-        }
-        else if (!IS_DATATYPE(val)) goto is_arg_error;
-
-        // Initialize GOB from block:
-        if (IS_BLOCK(arg)) {
-            Set_GOB_Vars(ngob, VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg));
-        }
-        // Merge GOB provided as argument:
-        else if (IS_GOB(arg)) {
-            *ngob = *VAL_GOB(arg);
-            ngob->pane = 0;
-            ngob->parent = 0;
-        }
-        else if (IS_PAIR(arg)) {
-            ngob->size.x = VAL_PAIR_X(arg);
-            ngob->size.y = VAL_PAIR_Y(arg);
-        }
-        else
-            fail (Error_Bad_Make(REB_GOB, arg));
-        // Allow NONE as argument:
-//      else if (!IS_BLANK(arg))
-//          goto is_arg_error;
-        SET_GOB(D_OUT, ngob);
-        break;
-
     case A_PICK:
         if (!ANY_NUMBER(arg) && !IS_BLANK(arg)) fail (Error_Invalid_Arg(arg));
         if (!GOB_PANE(gob)) goto is_blank;

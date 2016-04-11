@@ -35,6 +35,11 @@
 
 #include "sys-core.h"
 
+// %tmp-maketypes.h cannot be included multiple times
+//
+extern const MAKE_FUNC Make_Dispatch[REB_MAX_0];
+
+
 // In UTF8 C0, C1, F5, and FF are invalid.
 #ifdef USE_UNICODE
 #define LEX_UTFE LEX_DEFAULT
@@ -1378,6 +1383,8 @@ static REBARR *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
 //
 static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
 {
+    REBVAL cell;
+
     REBINT token;
     REBCNT len;
     const REBYTE *bp;
@@ -1682,15 +1689,106 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
             break;
 
         case TOKEN_CONSTRUCT:
-            block = Scan_Full_Block(scan_state, ']');
-            value = SINK(ARR_TAIL(emitbuf));
-            SET_ARRAY_LEN(emitbuf, ARR_LEN(emitbuf) + 1); // Protect from GC
-            Bind_Values_All_Deep(ARR_HEAD(block), Lib_Context);
-            if (!Construct_Value(value, block, SPECIFIED)) {
-                if (IS_END(value)) Val_Init_Block(value, block);
-                fail (Error(RE_MALCONSTRUCT, value));
+            {
+            RELVAL *value = SINK(ARR_TAIL(emitbuf));
+
+            if (0) {
+                // !!! This was the R3-Alpha protection code.  As a method of
+                // GC protection it has a problem...the emit buffer may wind
+                // up containing half-built garbage if there is a fail(), which
+                // the emit buffer will consider good.  So either the code has
+                // to be fail-proof (nothing that does memory allocation is)
+                // or the buffer can't be used.
+                //
+                SET_ARRAY_LEN(emitbuf, ARR_LEN(emitbuf) + 1);
             }
-            SET_ARRAY_LEN(emitbuf, ARR_LEN(emitbuf) - 1); // Unprotect
+
+            block = Scan_Full_Block(scan_state, ']');
+
+            // !!! Should the scanner be doing binding at all, and if so why
+            // just Lib_Context?  Not binding would break functions entirely,
+            // but they can't round-trip anyway.  See #2262.
+            //
+            Bind_Values_All_Deep(ARR_HEAD(block), Lib_Context);
+
+            if (ARR_LEN(block) == 0 || !IS_WORD(ARR_AT(block, 0))) {
+                REBVAL temp;
+                Val_Init_Block(&temp, block);
+                fail (Error(RE_MALCONSTRUCT, &temp));
+            }
+
+            REBSYM sym = VAL_WORD_CANON(ARR_AT(block, 0));
+            if (IS_KIND_SYM(sym)) {
+                enum Reb_Kind kind = KIND_FROM_SYM(sym);
+
+                MAKE_FUNC dispatcher = Make_Dispatch[TO_0_FROM_KIND(kind)];
+
+                if (dispatcher == NULL || ARR_LEN(block) != 2) {
+                    REBVAL temp;
+                    Val_Init_Block(&temp, block);
+                    fail (Error(RE_MALCONSTRUCT, &temp));
+                }
+
+                // !!! As written today, MAKE may call into the evaluator, and
+                // hence a GC may be triggered.  Performing evaluations during
+                // the scanner is a questionable idea, but at the very least
+                // `block` must be guarded.
+                //
+                PUSH_GUARD_ARRAY(block);
+                SET_TRASH_SAFE(&cell);
+                PUSH_GUARD_VALUE(&cell);
+
+                dispatcher(&cell, kind, KNOWN(ARR_AT(block, 1))); // may fail()
+
+                assert(!IS_TRASH_DEBUG(&cell));
+
+                *value = cell;
+                DROP_GUARD_VALUE(&cell);
+                DROP_GUARD_ARRAY(block);
+            }
+            else {
+                if (ARR_LEN(block) != 1) {
+                    REBVAL temp;
+                    Val_Init_Block(&temp, block);
+                    fail (Error(RE_MALCONSTRUCT, &temp));
+                }
+
+                // !!! Construction syntax allows the "type" slot to be one of
+                // the literals #[false], #[true]... along with legacy #[none]
+                // while the legacy #[unset] is no longer possible (but
+                // could load some kind of erroring function value)
+                //
+                switch (sym) {
+            #if !defined(NDEBUG)
+                case SYM_NONE:
+                    // Should be under a LEGACY flag...
+                    SET_BLANK(value);
+                    break;
+            #endif
+
+                case SYM_FALSE:
+                    SET_FALSE(value);
+                    break;
+
+                case SYM_TRUE:
+                    SET_TRUE(value);
+                    break;
+
+                default:
+                    {
+                    REBVAL temp;
+                    Val_Init_Block(&temp, block);
+                    fail (Error(RE_MALCONSTRUCT, &temp));
+                    }
+                }
+            }
+
+            if (0) {
+                // This was the R3-Alpha unprotect, see notes above.
+                //
+                SET_ARRAY_LEN(emitbuf, ARR_LEN(emitbuf) - 1);
+            }
+            } // case TOKEN_CONSTRUCT
             break;
 
         case TOKEN_END:

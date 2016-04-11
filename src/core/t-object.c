@@ -278,30 +278,188 @@ REBINT CT_Context(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 
 //
-//  MT_Context: C
+//  MAKE_Context: C
 //
-REBOOL MT_Context(
-    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
-) {
-    REBCTX *context;
-    if (!IS_BLOCK(data)) return FALSE;
+void MAKE_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    if (kind == REB_FRAME) {
+        REBARR *varlist;
+        REBCNT n;
+        REBVAL *var;
+        const REBOOL fill_bar = FALSE;
 
-    context = Construct_Context(
-        type, VAL_ARRAY_AT(data), specifier, NULL
-    );
+        // !!! Current experiment for making frames lets you give it
+        // a FUNCTION! only.
+        //
+        if (!IS_FUNCTION(arg))
+            fail (Error_Bad_Make(kind, arg));
 
-    Val_Init_Context(out, type, context);
-
-    if (type == REB_ERROR) {
-        REBVAL result;
-        if (Make_Error_Object_Throws(&result, out)) {
-            *out = result;
-            return FALSE;
+        if (
+            VAL_FUNC(arg) == NAT_FUNC(return)
+            || VAL_FUNC(arg) == NAT_FUNC(leave)
+        ) {
+            // !!! Although definitionally scoped return and leave
+            // functions give the *appearance* of having independent
+            // REBFUNs, they don't.  They have an EXIT_FROM field poked
+            // into the REBVAL of the natives for RETURN and LEAVE which
+            // makes them slightly corrupt function REBVALs (overwriting
+            // their "C code" native function pointer field).  This will
+            // need special handling in frames--it can be done, it just
+            // means that the Reb_Any_Context will have to be able to
+            // store the context to exit from instead of the function
+            // itself (could then use # of args in the frame to tell
+            // whether it's a return or a leave...)
+            //
+            fail (Error(RE_MISC));
         }
-        assert(IS_ERROR(&result));
-        *out = result;
+
+        // In order to have the frame survive the call to MAKE and be
+        // returned to the user it can't be stack allocated, because it
+        // would immediately become useless.  Allocate dynamically.
+        //
+        Val_Init_Context(
+            out,
+            REB_FRAME,
+            Make_Frame_For_Function(arg)
+        );
+
+        return;
     }
-    return TRUE;
+
+    if (kind == REB_OBJECT && IS_BLANK(arg)) {
+        //
+        // Special case (necessary?) to return an empty object.
+        //
+        Val_Init_Object(
+            out,
+            Construct_Context(
+                REB_OBJECT,
+                NULL, // head
+                SPECIFIED,
+                NULL
+            )
+        );
+        return;
+    }
+
+    if (kind == REB_OBJECT && IS_BLOCK(arg)) {
+        //
+        // Simple object creation with no evaluation, so all values are
+        // handled "as-is".  Should have a spec block and a body block.
+        //
+        // Note: In %r3-legacy.r, the old evaluative MAKE OBJECT! is
+        // done by redefining MAKE itself, and calling the CONSTRUCT
+        // generator if the make def is not the [[spec][body]] format.
+
+        if (
+            VAL_LEN_AT(arg) != 2
+            || !IS_BLOCK(VAL_ARRAY_AT(arg)) // spec
+            || !IS_BLOCK(VAL_ARRAY_AT(arg) + 1) // body
+        ) {
+            fail (Error_Bad_Make(kind, arg));
+        }
+
+        // !!! Spec block is currently ignored, but required.
+
+        Val_Init_Object(
+            out,
+            Construct_Context(
+                REB_OBJECT,
+                VAL_ARRAY_AT(VAL_ARRAY_AT(arg) + 1),
+                VAL_SPECIFIER(arg),
+                NULL // no parent
+            )
+        );
+
+        return;
+    }
+
+    // make error! [....]
+    //
+    // arg is block/string, but let Make_Error_Object_Throws do the
+    // type checking.
+    //
+    if (kind == REB_ERROR) {
+        //
+        // !!! Evaluation should not happen during a make.  FAIL should
+        // be the primitive that does the evaluations, and then call
+        // into this with the reduced block.
+        //
+        if (Make_Error_Object_Throws(out, arg))
+            fail (Error_No_Catch_For_Throw(out));
+
+        return;
+    }
+
+    // `make object! 10` - currently not prohibited for any context type
+    //
+    if (ANY_NUMBER(arg)) {
+        REBINT n = Int32s(arg, 0);
+
+        // !!! Temporary!  Ultimately SELF will be a user protocol.
+        // We use Make_Selfish_Context while MAKE is filling in for
+        // what will be responsibility of the generators, just to
+        // get "completely fake SELF" out of index slot [0]
+        //
+        REBCTX *context = Make_Selfish_Context_Detect(
+            kind, // type
+            NULL, // spec
+            NULL, // body
+            END_CELL, // scan for toplevel set-words, empty
+            NULL // parent
+        );
+
+        // !!! Allocation when SELF is not the responsibility of MAKE
+        // will be more basic and look like this.
+        //
+        /* context = Alloc_Context(n);
+        VAL_RESET_HEADER(CTX_VALUE(context), target);
+        CTX_SPEC(context) = NULL;
+        CTX_BODY(context) = NULL; */
+        Val_Init_Context(out, kind, context);
+
+        return;
+    }
+
+    // make object! map!
+    if (IS_MAP(arg)) {
+        REBCTX *context = Alloc_Context_From_Map(VAL_MAP(arg));
+        Val_Init_Context(out, kind, context);
+        return;
+    }
+
+    fail (Error_Bad_Make(kind, arg));
+}
+
+
+//
+//  TO_Context: C
+//
+void TO_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    if (kind == REB_ERROR) {
+        //
+        // arg is checked to be block or string
+        //
+        if (Make_Error_Object_Throws(out, arg))
+            fail (Error_No_Catch_For_Throw(out));
+        return;
+    }
+
+    if (kind == REB_OBJECT) {
+        if (IS_ERROR(arg)) {
+            if (VAL_ERR_NUM(arg) < 100)
+                fail (Error_Invalid_Arg(arg)); // !!! ???
+        }
+
+        // !!! Contexts hold canon values now that are typed, this init
+        // will assert--a TO conversion would thus need to copy the varlist
+        //
+        Val_Init_Object(out, VAL_CONTEXT(arg));
+        return;
+    }
+
+    fail (Error_Bad_Make(kind, arg));
 }
 
 
@@ -450,157 +608,6 @@ REBTYPE(Context)
     enum Reb_Kind target;
 
     switch (action) {
-
-    case A_MAKE:
-        //
-        // `make object! | error! | module!`; first parameter must be either
-        // a datatype or a type exemplar.
-        //
-        assert(IS_DATATYPE(value));
-        target = VAL_TYPE_KIND(value);
-
-        if (target == REB_FRAME) {
-            REBARR *varlist;
-            REBCNT n;
-            REBVAL *var;
-
-            // !!! Current experiment for making frames lets you give it
-            // a FUNCTION! only.
-            //
-            if (!IS_FUNCTION(arg))
-                fail (Error_Bad_Make(target, arg));
-
-            // In order to have the frame survive the call to MAKE and be
-            // returned to the user it can't be stack allocated, because it
-            // would immediately become useless.  Allocate dynamically.
-            //
-            Val_Init_Context(
-                D_OUT,
-                REB_FRAME,
-                Make_Frame_For_Function(arg) // all void vars default
-            );
-
-            return R_OUT;
-        }
-
-        if ((target == REB_OBJECT || target == REB_MODULE) && IS_BLANK(arg)) {
-            //
-            // Special case (necessary?) to return an empty object.
-            //
-            Val_Init_Object(
-                D_OUT,
-                Construct_Context(
-                    REB_OBJECT,
-                    NULL, // head
-                    SPECIFIED,
-                    NULL
-                )
-            );
-            return R_OUT;
-        }
-
-        if ((target == REB_OBJECT || target == REB_MODULE) && IS_BLOCK(arg)) {
-            //
-            // Simple object creation with no evaluation, so all values are
-            // handled "as-is".  Should have a spec block and a body block.
-            //
-            // Note: In %r3-legacy.r, the old evaluative MAKE OBJECT! is
-            // done by redefining MAKE itself, and calling the CONSTRUCT
-            // generator if the make def is not the [[spec][body]] format.
-
-            if (
-                VAL_LEN_AT(arg) != 2
-                || !IS_BLOCK(VAL_ARRAY_AT(arg)) // spec
-                || !IS_BLOCK(VAL_ARRAY_AT(arg) + 1) // body
-            ) {
-                fail (Error_Bad_Make(target, arg));
-            }
-
-            // !!! Spec block is currently ignored, but required.
-
-            Val_Init_Object(
-                D_OUT,
-                Construct_Context(
-                    REB_OBJECT,
-                    VAL_ARRAY_AT(VAL_ARRAY_AT(arg) + 1),
-                    VAL_SPECIFIER(arg),
-                    NULL // no parent
-                )
-            );
-
-            return R_OUT;
-        }
-
-        // make error! [....]
-        //
-        // arg is block/string, but let Make_Error_Object_Throws do the
-        // type checking.
-        //
-        if (target == REB_ERROR) {
-            if (Make_Error_Object_Throws(D_OUT, arg))
-                return R_OUT_IS_THROWN;
-            return R_OUT;
-        }
-
-        // `make object! 10` - currently not prohibited for any context type
-        //
-        if (ANY_NUMBER(arg)) {
-            REBINT n = Int32s(arg, 0);
-
-            // !!! Temporary!  Ultimately SELF will be a user protocol.
-            // We use Make_Selfish_Context while MAKE is filling in for
-            // what will be responsibility of the generators, just to
-            // get "completely fake SELF" out of index slot [0]
-            //
-            context = Make_Selfish_Context_Detect(
-                target, // type
-                NULL, // spec
-                NULL, // body
-                END_CELL, // scan for toplevel set-words, empty
-                NULL // parent
-            );
-
-            // !!! Allocation when SELF is not the responsibility of MAKE
-            // will be more basic and look like this.
-            //
-            /* context = Alloc_Context(n);
-            VAL_RESET_HEADER(CTX_VALUE(context), target);
-            CTX_META(context) = NULL;
-            CTX_BODY(context) = NULL; */
-            Val_Init_Context(D_OUT, target, context);
-            return R_OUT;
-        }
-
-        // make object! map!
-        if (IS_MAP(arg)) {
-            context = Alloc_Context_From_Map(VAL_MAP(arg));
-            Val_Init_Context(D_OUT, target, context);
-            return R_OUT;
-        }
-        fail (Error_Bad_Make(target, arg));
-
-    case A_TO:
-        assert(IS_DATATYPE(value));
-        target = VAL_TYPE_KIND(value);
-
-        // special conversions to object! | error! | module!
-        if (target == REB_ERROR) {
-            // arg is block/string, returns value
-            if (Make_Error_Object_Throws(D_OUT, arg))
-                return R_OUT_IS_THROWN;
-            return R_OUT;
-        }
-        else if (target == REB_OBJECT) {
-            if (IS_ERROR(arg)) {
-                if (VAL_ERR_NUM(arg) < 100) fail (Error_Invalid_Arg(arg));
-                context = VAL_CONTEXT(arg);
-                break; // returns context
-            }
-            Val_Init_Object(D_OUT, VAL_CONTEXT(arg));
-            return R_OUT;
-        }
-        fail (Error_Bad_Make(target, arg));
-
     case A_APPEND:
         FAIL_IF_LOCKED_CONTEXT(VAL_CONTEXT(value));
         if (!IS_OBJECT(value) && !IS_MODULE(value))
@@ -745,7 +752,59 @@ REBNATIVE(construct)
     enum Reb_Kind target;
     REBCTX *context;
 
-    if (ANY_CONTEXT(spec)) {
+    if (IS_STRUCT(spec)) {
+        //
+        // !!! Compatibility for `MAKE struct [...]` from Atronix R3.  There
+        // isn't any real "inheritance management" for structs but it allows
+        // the re-use of the structure's field definitions, so it is a means
+        // of saving on memory (?)
+        //
+        REBSTU *stu = Copy_Struct_Managed(VAL_STRUCT(spec));
+
+        *D_OUT = *STU_VALUE(stu);
+
+        // !!! Comment said "only accept value initialization"
+        //
+        Init_Struct_Fields(D_OUT, body);
+        return R_OUT;
+    }
+    else if (IS_GOB(spec)) {
+        //
+        // !!! Compatibility for `MAKE gob [...]` or `MAKE gob NxN` from
+        // R3-Alpha GUI.  Start by copying the gob (minus pane and parent),
+        // then apply delta to its properties from arg.  Doesn't save memory,
+        // or keep any parent linkage--could be done in user code as a copy
+        // and then apply the difference.
+        //
+        REBGOB *gob = Make_Gob();
+        *gob = *VAL_GOB(spec);
+        gob->pane = NULL;
+        gob->parent = NULL;
+
+        if (!IS_BLOCK(body))
+            fail (Error_Bad_Make(REB_GOB, body));
+
+        Extend_Gob_Core(gob, body);
+        SET_GOB(D_OUT, gob);
+        return R_OUT;
+    }
+    else if (IS_EVENT(spec)) {
+        //
+        // !!! As with GOB!, the 2-argument form of MAKE-ing an event is just
+        // a shorthand for copy-and-apply.  Could be user code.
+        //
+        if (!IS_BLOCK(body))
+            fail (Error_Bad_Make(REB_EVENT, body));
+
+        *D_OUT = *spec; // !!! This is a very "shallow" clone of the event
+        Set_Event_Vars(
+            D_OUT,
+            VAL_ARRAY_AT(body),
+            VAL_SPECIFIER(body)
+        );
+        return R_OUT;
+    }
+    else if (ANY_CONTEXT(spec)) {
         parent = VAL_CONTEXT(spec);
         target = VAL_TYPE(spec);
     }
@@ -785,14 +844,16 @@ REBNATIVE(construct)
     // the first argument is an exemplar of the type to create only, bringing
     // uniformity to MAKE.
     //
-    if (target == REB_OBJECT && (IS_BLOCK(body) || IS_BLANK(body))) {
-        //
+    if (
+        (target == REB_OBJECT || target == REB_MODULE)
+        && (IS_BLOCK(body) || IS_BLANK(body))) {
+
         // First we scan the object for top-level set words in
         // order to make an appropriately sized context.  Then
         // we put it into an object in D_OUT to GC protect it.
         //
         context = Make_Selfish_Context_Detect(
-            REB_OBJECT, // type
+            target, // type
             NULL, // spec
             NULL, // body
             // scan for toplevel set-words

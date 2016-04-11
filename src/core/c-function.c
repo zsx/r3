@@ -1052,7 +1052,7 @@ REBFUN *Make_Plain_Function_May_Fail(
 // applications or specializations.  It reuses the keylist of the function
 // but makes a new varlist.
 //
-REBCTX *Make_Frame_For_Function(REBVAL *value) {
+REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     //
     // Note that this cannot take just a REBFUN* directly, because definitional
     // RETURN and LEAVE only have their unique `exit_from` bits in the REBVAL.
@@ -1347,20 +1347,6 @@ REB_R Action_Dispatcher(struct Reb_Frame *f)
             return R_TRUE;
 
         return R_FALSE;
-    }
-
-    if (action_num == A_MAKE || action_num == A_TO) {
-        //
-        // !!! These should not be "actions"...but go through the MT_xxx
-        // routine for "Make Type".  The first value is allowed to be either
-        // a datatype or an instance of the datatype to use as an "exemplar",
-        // but avoid each routine having to check for that by canonizing as
-        // a datatype here.
-        //
-        if (type == REB_DATATYPE)
-            type = VAL_TYPE_KIND(FRM_ARG(f, 1)); // datatype...but which one?
-        else
-            Val_Init_Datatype(FRM_ARG(f, 1), type); // change to a datatype
     }
 
     REBACT action = Value_Dispatch[TO_0_FROM_KIND(type)];

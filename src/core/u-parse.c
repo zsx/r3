@@ -113,7 +113,7 @@ static REBOOL Subparse_Throws(
     // with no items advanced.
     //
     if (VAL_INDEX(rules) >= VAL_LEN_HEAD(rules)) {
-        COPY_VALUE(out, input, input_specifier);
+        SET_INTEGER(out, VAL_LEN_HEAD(rules));
         return FALSE;
     }
 
@@ -1305,6 +1305,12 @@ REBNATIVE(subparse)
         /* Print_Parse_Index(f); */
         UPDATE_EXPRESSION_START(f);
 
+    #if !defined(NDEBUG)
+        ++TG_Do_Count;
+        do_count = TG_Do_Count;
+        cast(void, do_count); // suppress compiler warning about lack of use
+    #endif
+
     //==////////////////////////////////////////////////////////////////==//
     //
     // GARBAGE COLLECTION AND EVENT HANDLING
@@ -1843,7 +1849,6 @@ REBNATIVE(subparse)
             }
             else if (IS_BLOCK(rule)) {
                 REBOOL interrupted;
-
                 if (Subparse_Throws(
                     &interrupted,
                     P_OUT,

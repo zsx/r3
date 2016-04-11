@@ -69,6 +69,83 @@ REBINT CT_Word(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 
 //
+//  MAKE_Word: C
+//
+void MAKE_Word(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    if (ANY_WORD(arg)) {
+        //
+        // Only reset the type, not all the header bits (the bits must
+        // stay in sync with the binding state)
+        //
+        *out = *arg;
+        VAL_SET_TYPE_BITS(out, kind);
+        return;
+    }
+
+    REBSYM sym;
+
+    if (IS_STRING(arg)) {
+        REBYTE *bp;
+        REBCNT len;
+        const REBOOL allow_utf8 = TRUE;
+
+        // Set sym. Rest is set below.  If characters in the source
+        // string are > 0x80 they will be encoded to UTF8 to be stored
+        // in the symbol.
+        //
+        bp = Temp_Byte_Chars_May_Fail(
+            arg, MAX_SCAN_WORD, &len, allow_utf8
+        );
+
+        if (kind == REB_ISSUE)
+            sym = Scan_Issue(bp, len);
+        else
+            sym = Scan_Word(bp, len);
+
+        if (sym == SYM_0)
+            fail (Error(RE_BAD_CHAR, arg));
+    }
+    else if (IS_CHAR(arg)) {
+        REBYTE buf[8];
+        sym = Encode_UTF8_Char(&buf[0], VAL_CHAR(arg)); //returns length
+        sym = Scan_Word(&buf[0], sym);
+        if (!sym) fail (Error(RE_BAD_CHAR, arg));
+    }
+    else if (IS_DATATYPE(arg)) {
+    #if defined(NDEBUG)
+        sym = VAL_TYPE_SYM(arg);
+    #else
+        if (
+            LEGACY(OPTIONS_PAREN_INSTEAD_OF_GROUP)
+            && VAL_TYPE_KIND(arg) == REB_GROUP
+        ) {
+            sym = SYM_PAREN_X; // e_Xclamation point (PAREN!)
+        }
+        else
+            sym = VAL_TYPE_SYM(arg);
+    #endif
+    }
+    else if (IS_LOGIC(arg)) {
+        sym = VAL_LOGIC(arg) ? SYM_TRUE : SYM_FALSE;
+    }
+    else
+        fail (Error_Unexpected_Type(REB_WORD, VAL_TYPE(arg)));
+
+    Val_Init_Word(out, kind, sym);
+}
+
+
+//
+//  TO_Word: C
+//
+void TO_Word(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    MAKE_Word(out, kind, arg);
+}
+
+
+//
 //  REBTYPE: C
 //
 REBTYPE(Word)
@@ -79,67 +156,6 @@ REBTYPE(Word)
     REBSYM sym;
 
     switch (action) {
-    case A_MAKE:
-    case A_TO:
-        // TO word! ...
-        assert(IS_DATATYPE(val));
-        if (ANY_WORD(arg)) {
-            //
-            // Only reset the type, not all the header bits (the bits must
-            // stay in sync with the binding state)
-            //
-            VAL_SET_TYPE_BITS(arg, VAL_TYPE_KIND(val));
-            *D_OUT = *D_ARG(2);
-            return R_OUT;
-        }
-        else {
-            if (IS_STRING(arg)) {
-                REBYTE *bp;
-                REBCNT len;
-                const REBOOL allow_utf8 = TRUE;
-
-                // Set sym. Rest is set below.  If characters in the source
-                // string are > 0x80 they will be encoded to UTF8 to be stored
-                // in the symbol.
-                //
-                bp = Temp_Byte_Chars_May_Fail(
-                    arg, MAX_SCAN_WORD, &len, allow_utf8
-                );
-
-                if (VAL_TYPE_KIND(val) == REB_ISSUE) sym = Scan_Issue(bp, len);
-                else sym = Scan_Word(bp, len);
-                if (!sym) fail (Error(RE_BAD_CHAR, arg));
-            }
-            else if (IS_CHAR(arg)) {
-                REBYTE buf[8];
-                sym = Encode_UTF8_Char(&buf[0], VAL_CHAR(arg)); //returns length
-                sym = Scan_Word(&buf[0], sym);
-                if (!sym) fail (Error(RE_BAD_CHAR, arg));
-            }
-            else if (IS_DATATYPE(arg)) {
-            #if defined(NDEBUG)
-                sym = VAL_TYPE_SYM(arg);
-            #else
-                if (
-                    LEGACY(OPTIONS_PAREN_INSTEAD_OF_GROUP)
-                    && VAL_TYPE_KIND(arg) == REB_GROUP
-                ) {
-                    sym = SYM_PAREN_X; // e_Xclamation point (GROUP!)
-                }
-                else
-                    sym = VAL_TYPE_SYM(arg);
-            #endif
-            }
-            else if (IS_LOGIC(arg)) {
-                sym = VAL_LOGIC(arg) ? SYM_TRUE : SYM_FALSE;
-            }
-            else
-                fail (Error_Unexpected_Type(REB_WORD, VAL_TYPE(arg)));
-
-            Val_Init_Word(D_OUT, VAL_TYPE_KIND(val), sym);
-        }
-        break;
-
     default:
         assert(ANY_WORD(val));
         fail (Error_Illegal_Action(VAL_TYPE(val), action));

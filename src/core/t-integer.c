@@ -45,6 +45,52 @@ REBINT CT_Integer(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 
 //
+//  MAKE_Integer: C
+//
+void MAKE_Integer(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    VAL_RESET_HEADER(out, REB_INTEGER);
+
+    if (IS_LOGIC(arg)) {
+        //
+        // !!! Due to Rebol's policies on conditional truth and falsehood,
+        // it refuses to say TO FALSE is 0.  MAKE has shades of meaning
+        // that are more "dialected", e.g. MAKE BLOCK! 10 creates a block
+        // with capacity 10 and not literally `[10]` (or a block with ten
+        // NONE! values in it).  Under that liberal umbrella it decides
+        // that it will make an integer 0 out of FALSE due to it having
+        // fewer seeming "rules" than TO would.
+
+        VAL_INT64(out) = VAL_LOGIC(arg) ? 1 : 0;
+
+        // !!! The same principle could suggest MAKE is not bound by
+        // the "reversibility" requirement and hence could interpret
+        // binaries unsigned by default.  Before getting things any
+        // weirder should probably leave it as is.
+    }
+    else {
+        // use signed logic by default (use TO-INTEGER/UNSIGNED to force
+        // unsigned interpretation or error if that doesn't make sense)
+
+        Value_To_Int64(&VAL_INT64(out), arg, FALSE);
+    }
+}
+
+
+//
+//  TO_Integer: C
+//
+void TO_Integer(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    // use signed logic by default (use TO-INTEGER/UNSIGNED to force
+    // unsigned interpretation or error if that doesn't make sense)
+
+    VAL_RESET_HEADER(out, REB_INTEGER);
+    Value_To_Int64(&VAL_INT64(out), arg, FALSE);
+}
+
+
+//
 //  Value_To_Int64: C
 // 
 // Interpret `value` as a 64-bit integer and return it in `out`.
@@ -298,8 +344,7 @@ REBTYPE(Integer)
     REBOOL sgn;
     REBI64 anum;
 
-    if (action != A_MAKE && action != A_TO)
-        num = VAL_INT64(val);
+    num = VAL_INT64(val);
 
     if (IS_BINARY_ACT(action)) {
 
@@ -452,35 +497,6 @@ REBTYPE(Integer)
         else          num =   1 + (REBI64)(arg % num);
 #endif
         break;
-
-    case A_MAKE:
-    case A_TO:
-        val = D_ARG(2);
-        VAL_RESET_HEADER(D_OUT, REB_INTEGER);
-
-        if (action == A_MAKE && IS_LOGIC(val)) {
-            // !!! Due to Rebol's policies on conditional truth and falsehood,
-            // it refuses to say TO FALSE is 0.  MAKE has shades of meaning
-            // that are more "dialected", e.g. MAKE BLOCK! 10 creates a block
-            // with capacity 10 and not literally `[10]` (or a block with ten
-            // NONE! values in it).  Under that liberal umbrella it decides
-            // that it will make an integer 0 out of FALSE due to it having
-            // fewer seeming "rules" than TO would.
-
-            VAL_INT64(D_OUT) = VAL_LOGIC(val) ? 1 : 0;
-
-            // !!! The same principle could suggest MAKE is not bound by
-            // the "reversibility" requirement and hence could interpret
-            // binaries unsigned by default.  Before getting things any
-            // weirder should probably leave it as is.
-        }
-        else {
-            // use signed logic by default (use TO-INTEGER/UNSIGNED to force
-            // unsigned interpretation or error if that doesn't make sense)
-
-            Value_To_Int64(&VAL_INT64(D_OUT), val, FALSE);
-        }
-        return R_OUT;
 
     default:
         fail (Error_Illegal_Action(REB_INTEGER, action));

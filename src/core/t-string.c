@@ -205,7 +205,7 @@ static REBCNT find_string(
 }
 
 
-static REBSER *make_string(REBVAL *arg, REBOOL make)
+static REBSER *make_string(const REBVAL *arg, REBOOL make)
 {
     REBSER *ser = 0;
 
@@ -253,7 +253,7 @@ static REBSER *make_string(REBVAL *arg, REBOOL make)
 }
 
 
-static REBSER *Make_Binary_BE64(REBVAL *arg)
+static REBSER *Make_Binary_BE64(const REBVAL *arg)
 {
     REBSER *ser = Make_Binary(9);
     REBI64 n;
@@ -279,7 +279,7 @@ static REBSER *Make_Binary_BE64(REBVAL *arg)
 }
 
 
-static REBSER *make_binary(REBVAL *arg, REBOOL make)
+static REBSER *make_binary(const REBVAL *arg, REBOOL make)
 {
     REBSER *ser;
 
@@ -349,27 +349,55 @@ static REBSER *make_binary(REBVAL *arg, REBOOL make)
 
 
 //
-//  MT_String: C
+//  MAKE_String: C
 //
-REBOOL MT_String(
-    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
-) {
-    REBCNT i;
+void MAKE_String(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    REBSER *ser = (kind != REB_BINARY)
+        ? make_string(arg, TRUE)
+        : make_binary(arg, TRUE);
 
-    if (!ANY_BINSTR(data)) return FALSE;
-    *out = *KNOWN(data);
-    ++data;
+    if (!ser)
+        fail (Error_Invalid_Arg(arg));
 
-    VAL_RESET_HEADER(out, type);
-
-    // !!! This did not have special END handling previously, but it would have
-    // taken the 0 branch.  Review if this is sensible.
+    // !!! Preloading an index depended on variadic construction syntax.
+    // Keeping code here as reminder even though no value to process.
     //
-    i = NOT_END(data) && IS_INTEGER(data) ? Int32(KNOWN(data)) - 1 : 0;
+    const REBVAL *extra = END_CELL;
 
-    if (i > VAL_LEN_HEAD(out)) i = VAL_LEN_HEAD(out); // clip it
-    VAL_INDEX(out) = i;
-    return TRUE;
+    REBCNT i;
+    if (IS_END(extra)) {
+        i = 0;
+    }
+    else if (IS_INTEGER(extra)) {
+        i = Int32(extra) - 1;
+    }
+    else
+        goto bad_make;
+
+    if (i > SER_LEN(ser))
+        i = SER_LEN(ser); // clip it
+
+    Val_Init_Series_Index(out, kind, ser, i);
+    return;
+
+bad_make:
+    fail (Error_Bad_Make(kind, arg));
+}
+
+
+//
+//  TO_String: C
+//
+void TO_String(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    REBSER *ser = (kind != REB_BINARY)
+        ? make_string(arg, FALSE)
+        : make_binary(arg, FALSE);
+
+    if (!ser)
+        fail (Error_Invalid_Arg(arg));
+
+    Val_Init_Series(out, kind, ser);
 }
 
 
@@ -645,10 +673,8 @@ REBTYPE(String)
     }
 
     // Common setup code for all actions:
-    if (action != A_MAKE && action != A_TO) {
-        index = cast(REBINT, VAL_INDEX(value));
-        tail = cast(REBINT, VAL_LEN_HEAD(value));
-    }
+    index = cast(REBINT, VAL_INDEX(value));
+    tail = cast(REBINT, VAL_LEN_HEAD(value));
 
     // Check must be in this order (to avoid checking a non-series value);
     if (action >= A_TAKE && action <= A_SORT)
@@ -825,21 +851,6 @@ zero_str:
         ser = Copy_String_Slimming(VAL_SERIES(value), VAL_INDEX(value), len);
         goto ser_exit;
 
-    case A_MAKE:
-    case A_TO:
-        // Determine the datatype to create:
-        type = VAL_TYPE(value);
-        if (type == REB_DATATYPE) type = VAL_TYPE_KIND(value);
-
-        if (IS_BLANK(arg)) fail (Error_Bad_Make(type, arg));
-
-        ser = (type != REB_BINARY)
-            ? make_string(arg, LOGICAL(action == A_MAKE))
-            : make_binary(arg, LOGICAL(action == A_MAKE));
-
-        if (ser) goto str_exit;
-        fail (Error_Invalid_Arg(arg));
-
     //-- Bitwise:
 
     case A_AND_T:
@@ -943,7 +954,6 @@ zero_str:
 
 ser_exit:
     type = VAL_TYPE(value);
-str_exit:
     Val_Init_Series(D_OUT, type, ser);
     return R_OUT;
 

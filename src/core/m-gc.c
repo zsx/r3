@@ -462,7 +462,7 @@ static void Queue_Mark_Routine_Deep(REBRIN *r)
             QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(cb_func));
         }
         else {
-            // !!! There is a call during MT_Routine that does an evaluation
+            // !!! There is a call during MAKE_Routine that does an evaluation
             // while creating a callback function, before the CALLBACK_FUNC
             // has been set.  If the garbage collector is invoked at that
             // time, this will happen.  This should be reviewed to see if
@@ -1584,7 +1584,11 @@ void Guard_Value_Core(const RELVAL *value)
     // the guard call is made (even if GC isn't necessarily going to happen
     // immediately, and value could theoretically become valid before then.)
     //
-    assert(IS_END(value) || VAL_TYPE(value) < REB_MAX);
+    assert(
+        IS_END(value)
+        || IS_VOID_OR_SAFE_TRASH(value)
+        || VAL_TYPE(value) < REB_MAX
+    );
 
 #ifdef STRESS_CHECK_GUARD_VALUE_POINTER
     //

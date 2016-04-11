@@ -497,7 +497,7 @@ callback?: func [f] [all [function? :f | 6 = func-class-of :f]]
 ; to the routine! datatype (for instance) but should cover most cases.
 ;
 lib-make: :make
-make: (function [
+make: function [
     "Constructs or allocates the specified datatype."
     :lookahead [any-value! <...>]
     type [<opt> any-value! <...>]
@@ -548,7 +548,9 @@ make: (function [
             return has :def
         ]
 
-        object? :type [
+        any [
+            object? :type | struct? :type | gob? :type
+        ][
             ;
             ; For most types in Rebol2 and R3-Alpha, MAKE VALUE [...]
             ; was equivalent to MAKE TYPE-OF VALUE [...].  But with
@@ -556,12 +558,27 @@ make: (function [
             ; some-object as a parent.  This must use a generator
             ; in Ren-C.
             ;
+            ; The STRUCT!, GOB!, and EVENT! types had a special 2-arg
+            ; variation as well, which is bridged here.
+            ;
             return construct :type :def
+        ]
+
+        all [find any-array! :type | any-array? :def] [
+            ;
+            ; MAKE BLOCK! of a BLOCK! was changed in Ren-C to be
+            ; compatible with the construction syntax, so that it lets
+            ; you combine existing array data with an index used for
+            ; aliasing.  It is no longer a synonym for TO ANY-ARRAY!
+            ; that makes a copy of the data at the source index and
+            ; changes the type.  (So use TO if you want that.)
+            ;
+            return to :type :def
         ]
     ]
 
     lib-make :type :def
-])
+]
 
 
 ; To invoke this function, use `do <r3-legacy>` instead of calling it

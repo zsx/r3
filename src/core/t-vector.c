@@ -199,7 +199,7 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 // 
 // Convert a vector to a block.
 //
-REBARR *Vector_To_Array(REBVAL *vect)
+REBARR *Vector_To_Array(const REBVAL *vect)
 {
     REBCNT len = VAL_LEN_AT(vect);
     REBYTE *data = SER_DATA_RAW(VAL_SERIES(vect));
@@ -438,13 +438,37 @@ REBVAL *Make_Vector_Spec(RELVAL *bp, REBCTX *specifier, REBVAL *value)
 
 
 //
-//  MT_Vector: C
+//  MAKE_Vector: C
 //
-REBOOL MT_Vector(
-    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
-) {
-    if (Make_Vector_Spec(data, specifier, out)) return TRUE;
-    return FALSE;
+void MAKE_Vector(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    // CASE: make vector! 100
+    if (IS_INTEGER(arg) || IS_DECIMAL(arg)) {
+        REBINT size = Int32s(arg, 0);
+        if (size < 0) goto bad_make;
+        REBSER *ser = Make_Vector(0, 0, 1, 32, size);
+        Val_Init_Vector(out, ser);
+        return;
+    }
+
+    TO_Vector(out, kind, arg); // may fail()
+    return;
+
+bad_make:
+    fail (Error_Bad_Make(kind, arg));
+}
+
+
+//
+//  TO_Vector: C
+//
+void TO_Vector(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    if (IS_BLOCK(arg)) {
+        if (Make_Vector_Spec(VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg), out))
+            return;
+    }
+    fail (Error_Bad_Make(kind, arg));
 }
 
 
@@ -543,7 +567,6 @@ REBTYPE(Vector)
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     REBINT type;
     REBINT size;
-    REBSER *vect;
     REBSER *ser;
 
     // Common operations for any series type (length, head, etc.)
@@ -553,8 +576,7 @@ REBTYPE(Vector)
             return r;
     }
 
-    if (action != A_MAKE && action != A_TO)
-        vect = VAL_SERIES(value);
+    REBSER *vect = VAL_SERIES(value);
 
     // Check must be in this order (to avoid checking a non-series value);
     if (action >= A_TAKE && action <= A_SORT)
@@ -571,32 +593,6 @@ REBTYPE(Vector)
         Pick_Path(D_OUT, value, arg, D_ARG(3));
         *D_OUT = *D_ARG(3);
         return R_OUT;
-
-    case A_MAKE:
-        assert(IS_DATATYPE(value) && VAL_TYPE_KIND(value) == REB_VECTOR);
-
-        // CASE: make vector! 100
-        if (IS_INTEGER(arg) || IS_DECIMAL(arg)) {
-            size = Int32s(arg, 0);
-            if (size < 0) goto bad_make;
-            ser = Make_Vector(0, 0, 1, 32, size);
-            Val_Init_Vector(value, ser);
-            break;
-        }
-//      if (IS_BLANK(arg)) {
-//          ser = Make_Vector(0, 0, 1, 32, 0);
-//          Val_Init_Vector(value, ser);
-//          break;
-//      }
-        // fall thru
-
-    case A_TO: {
-        assert(IS_DATATYPE(value) && VAL_TYPE_KIND(value) == REB_VECTOR);
-        if (IS_BLOCK(arg)) {
-            if (Make_Vector_Spec(VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg), value)) break;
-        }
-        goto bad_make;
-    }
 
     case A_LENGTH:
         //bits = 1 << (vect->size & 3);
@@ -621,9 +617,6 @@ REBTYPE(Vector)
 
     *D_OUT = *value;
     return R_OUT;
-
-bad_make:
-    fail (Error_Bad_Make(REB_VECTOR, arg));
 }
 
 

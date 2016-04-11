@@ -26,11 +26,11 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// See notes in %sys-rebval.h for the definition of the REBVAL structure.
+// This file provides accessors for the various value types.  Because these
+// accessors operate on REBVAL (or RELVAL) pointers, the inline functions need
+// the complete struct definition available from all the payload types.
 //
-// This file provides accessors for the various payload types.  Because these
-// accessors operate on REBVAL pointers, the inline functions cannot work
-// without having the complete struct definition available from all the types.
+// See notes in %sys-rebval.h for the definition of the REBVAL structure.
 //
 // An attempt is made to group the accessors in sections.  Some functions are
 // defined in %c-value.c for the sake of the grouping.

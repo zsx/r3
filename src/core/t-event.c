@@ -185,7 +185,7 @@ static REBOOL Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
 //
 //  Set_Event_Vars: C
 //
-static void Set_Event_Vars(REBVAL *evt, RELVAL *blk, REBCTX *specifier)
+void Set_Event_Vars(REBVAL *evt, RELVAL *blk, REBCTX *specifier)
 {
     while (NOT_END(blk)) {
         REBVAL var;
@@ -358,23 +358,30 @@ is_blank:
 
 
 //
-//  MT_Event: C
+//  MAKE_Event: C
 //
-REBOOL MT_Event(
-    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
-) {
-    if (IS_BLOCK(data)) {
+void MAKE_Event(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    if (IS_BLOCK(arg)) {
         CLEARS(out);
+        INIT_CELL_WRITABLE_IF_DEBUG(out);
+        VAL_RESET_HEADER(out, REB_EVENT);
         Set_Event_Vars(
             out,
-            VAL_ARRAY_AT(data),
-            IS_SPECIFIC(data) ? VAL_SPECIFIER(KNOWN(data)) : specifier
+            VAL_ARRAY_AT(arg),
+            VAL_SPECIFIER(arg)
         );
-        VAL_RESET_HEADER(out, REB_EVENT);
-        return TRUE;
     }
+    else
+        fail (Error_Unexpected_Type(REB_EVENT, VAL_TYPE(arg)));
+}
 
-    return FALSE;
+
+//
+//  TO_Event: C
+//
+void TO_Event(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    fail (Error_Invalid_Arg(arg));
 }
 
 
@@ -413,41 +420,9 @@ REBINT PD_Event(REBPVS *pvs)
 //
 REBTYPE(Event)
 {
-    REBVAL *value;
-    REBVAL *arg;
-
-    value = D_ARG(1);
-    arg = D_ARG(2);
-
-    if (action == A_MAKE) {
-        // Clone an existing event?
-        if (IS_EVENT(value)) {
-            *D_OUT = *D_ARG(1);
-            return R_OUT;
-        }
-        else if (IS_DATATYPE(value)) {
-            if (IS_EVENT(arg)) {
-                *D_OUT = *D_ARG(2);
-                return R_OUT;
-            }
-            //fail (Error_Bad_Make(REB_EVENT, value));
-            VAL_RESET_HEADER(D_OUT, REB_EVENT);
-            CLEARS(&(D_OUT->payload.event));
-        }
-        else
-is_arg_error:
-            fail (Error_Unexpected_Type(REB_EVENT, VAL_TYPE(arg)));
-
-        // Initialize GOB from block:
-        if (IS_BLOCK(arg))
-            Set_Event_Vars(D_OUT, VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg));
-        else goto is_arg_error;
-    }
-    else
-        fail (Error_Illegal_Action(REB_EVENT, action));
-
-    return R_OUT;
+    fail (Error_Illegal_Action(REB_EVENT, action));
 }
+
 
 #ifdef ndef
 //  case A_PATH:

@@ -91,37 +91,41 @@ void Mold_Bitset(const REBVAL *value, REB_MOLD *mold)
 
 
 //
-//  MT_Bitset: C
+//  MAKE_Bitset: C
 //
-REBOOL MT_Bitset(
-    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
-) {
+void MAKE_Bitset(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
     REBOOL is_not = FALSE;
 
-    if (IS_BLOCK(data)) {
-        REBINT len = Find_Max_Bit(data);
-        REBSER *ser;
+    REBINT len = Find_Max_Bit(arg);
 
-        if (len < 0 || len > 0xFFFFFF)
-            fail (Error_Invalid_Arg_Core(data, specifier));
+    // Determine size of bitset. Returns -1 for errors.
+    //
+    // !!! R3-alpha construction syntax said 0xFFFFFF while the A_MAKE
+    // path used 0x0FFFFFFF.  Assume A_MAKE was more likely right.
+    //
+    if (len < 0 || len > 0x0FFFFFFF)
+        fail (Error_Invalid_Arg(arg));
 
-        ser = Make_Bitset(len);
+    REBSER *ser = Make_Bitset(len);
+    Val_Init_Bitset(out, ser);
 
-        {
-            REBVAL specific;
-            COPY_VALUE(&specific, data, specifier);
-            Set_Bits(ser, &specific, TRUE);
-        }
+    if (IS_INTEGER(arg)) return; // allocated at a size, no contents.
 
-        Val_Init_Bitset(out, ser);
-        return TRUE;
+    if (IS_BINARY(arg)) {
+        memcpy(BIN_HEAD(ser), VAL_BIN_AT(arg), len/8 + 1);
+        return;
     }
 
-    if (!IS_BINARY(data)) return FALSE;
-
-    Val_Init_Bitset(out, Copy_Sequence_At_Position(KNOWN(data)));
+    Set_Bits(ser, arg, TRUE);
     INIT_BITS_NOT(VAL_SERIES(out), FALSE);
-    return TRUE;
+}
+
+
+//
+//  TO_Bitset: C
+//
+void TO_Bitset(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    MAKE_Bitset(out, kind, arg);
 }
 
 
@@ -131,7 +135,7 @@ REBOOL MT_Bitset(
 // Return integer number for the maximum bit number defined by
 // the value. Used to determine how much space to allocate.
 //
-REBINT Find_Max_Bit(RELVAL *val)
+REBINT Find_Max_Bit(const RELVAL *val)
 {
     REBINT maxi = 0;
     REBINT n;
@@ -143,7 +147,7 @@ REBINT Find_Max_Bit(RELVAL *val)
         break;
 
     case REB_INTEGER:
-        maxi = Int32s(KNOWN(val), 0);
+        maxi = Int32s(val, 0);
         break;
 
     case REB_STRING:
@@ -574,24 +578,6 @@ REBTYPE(Bitset)
         INIT_BITS_NOT(ser, NOT(BITS_NOT(VAL_SERIES(value))));
         Val_Init_Bitset(value, ser);
         break;
-
-    case A_MAKE:
-    case A_TO:
-        // Determine size of bitset. Returns -1 for errors.
-        len = Find_Max_Bit(arg);
-        if (len < 0 || len > 0x0FFFFFFF) fail (Error_Invalid_Arg(arg));
-
-        ser = Make_Bitset(len);
-        Val_Init_Bitset(value, ser);
-
-        // Nothing more to do.
-        if (IS_INTEGER(arg)) break;
-
-        if (IS_BINARY(arg)) {
-            memcpy(BIN_HEAD(ser), VAL_BIN_AT(arg), len/8 + 1);
-            break;
-        }
-        // FALL THRU...
 
     case A_APPEND:  // Accepts: #"a" "abc" [1 - 10] [#"a" - #"z"] etc.
     case A_INSERT:

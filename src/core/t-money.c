@@ -52,6 +52,62 @@ REBINT CT_Money(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 
 //
+//  MAKE_Money: C
+//
+void MAKE_Money(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    switch (VAL_TYPE(arg)) {
+    case REB_INTEGER:
+        VAL_MONEY_AMOUNT(out) = int_to_deci(VAL_INT64(arg));
+        break;
+
+    case REB_DECIMAL:
+    case REB_PERCENT:
+        VAL_MONEY_AMOUNT(out) = decimal_to_deci(VAL_DECIMAL(arg));
+        break;
+
+    case REB_MONEY:
+        *out = *arg;
+        return;
+
+    case REB_STRING:
+    {
+        const REBYTE *end;
+        REBYTE *str = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_MONEY, 0, FALSE);
+        VAL_MONEY_AMOUNT(out) = string_to_deci(str, &end);
+        if (end == str || *end != 0)
+            goto bad_make;
+        break;
+    }
+
+//      case REB_ISSUE:
+    case REB_BINARY:
+        Bin_To_Money_May_Fail(out, arg);
+        break;
+
+    case REB_LOGIC:
+        VAL_MONEY_AMOUNT(out) = int_to_deci(VAL_LOGIC(arg) ? 1 : 0);
+        break;
+
+    default:
+    bad_make:
+        fail (Error_Bad_Make(REB_MONEY, arg));
+    }
+
+    VAL_RESET_HEADER(out, REB_MONEY);
+}
+
+
+//
+//  TO_Money: C
+//
+void TO_Money(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    MAKE_Money(out, kind, arg);
+}
+
+
+//
 //  Emit_Money: C
 //
 REBINT Emit_Money(const REBVAL *value, REBYTE *buf, REBFLGS opts)
@@ -65,7 +121,7 @@ REBINT Emit_Money(const REBVAL *value, REBYTE *buf, REBFLGS opts)
 //
 // Will successfully convert or fail (longjmp) with an error.
 //
-void Bin_To_Money_May_Fail(REBVAL *result, REBVAL *val)
+void Bin_To_Money_May_Fail(REBVAL *result, const REBVAL *val)
 {
     REBCNT len;
     REBYTE buf[MAX_HEX_LEN+4] = {0}; // binary to convert
@@ -196,50 +252,6 @@ REBTYPE(Money)
         if (action == A_EVEN_Q) equal = !equal;
         if (equal) goto is_true;
         goto is_false;
-
-    case A_MAKE:
-    case A_TO:
-        arg = D_ARG(2);
-
-        switch (VAL_TYPE(arg)) {
-
-        case REB_INTEGER:
-            VAL_MONEY_AMOUNT(D_OUT) = int_to_deci(VAL_INT64(arg));
-            break;
-
-        case REB_DECIMAL:
-        case REB_PERCENT:
-            VAL_MONEY_AMOUNT(D_OUT) = decimal_to_deci(VAL_DECIMAL(arg));
-            break;
-
-        case REB_MONEY:
-            *D_OUT = *D_ARG(2);
-            return R_OUT;
-
-        case REB_STRING:
-        {
-            const REBYTE *end;
-            str = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_MONEY, 0, FALSE);
-            VAL_MONEY_AMOUNT(D_OUT) = string_to_deci(str, &end);
-            if (end == str || *end != 0) fail (Error_Bad_Make(REB_MONEY, arg));
-            break;
-        }
-
-//      case REB_ISSUE:
-        case REB_BINARY:
-            Bin_To_Money_May_Fail(D_OUT, arg);
-            break;
-
-        case REB_LOGIC:
-            equal = !VAL_LOGIC(arg);
-//      case REB_BLANK: // 'equal defaults to 1
-            VAL_MONEY_AMOUNT(D_OUT) = int_to_deci(equal ? 0 : 1);
-            break;
-
-        default:
-            fail (Error_Bad_Make(REB_MONEY, arg));
-        }
-        break;
 
     default:
         fail (Error_Illegal_Action(REB_MONEY, action));

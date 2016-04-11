@@ -42,19 +42,27 @@ REBINT CT_Datatype(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 
 //
-//  MT_Datatype: C
+//  MAKE_Datatype: C
 //
-REBOOL MT_Datatype(
-    REBVAL *out, RELVAL *data, REBCTX *specifier, enum Reb_Kind type
-) {
-    REBSYM sym;
-    if (!IS_WORD(data)) return FALSE;
-    sym = VAL_WORD_CANON(data);
-    if (sym > REB_MAX_0) return FALSE;
+void MAKE_Datatype(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    if (!IS_WORD(arg))
+        fail (Error_Bad_Make(kind, arg));
+
+    REBSYM sym = VAL_WORD_CANON(arg);
+    if (sym > REB_MAX_0)
+        fail (Error_Bad_Make(kind, arg));
+
     VAL_RESET_HEADER(out, REB_DATATYPE);
     VAL_TYPE_KIND(out) = KIND_FROM_SYM(sym);
     VAL_TYPE_SPEC(out) = 0;
-    return TRUE;
+}
+
+
+//
+//  TO_Datatype: C
+//
+void TO_Datatype(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    MAKE_Datatype(out, kind, arg);
 }
 
 
@@ -119,14 +127,6 @@ REBTYPE(Datatype)
         else
             fail (Error_Cannot_Reflect(VAL_TYPE(value), arg));
         break;}
-
-    case A_MAKE:
-    case A_TO:
-        assert(kind == REB_DATATYPE);
-        if (MT_Datatype(D_OUT, arg, SPECIFIED, REB_DATATYPE))
-            break;
-
-        fail (Error_Bad_Make(REB_DATATYPE, arg));
 
     default:
         fail (Error_Illegal_Action(REB_DATATYPE, action));

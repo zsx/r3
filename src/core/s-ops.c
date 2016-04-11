@@ -168,7 +168,7 @@ REBYTE *Temp_Byte_Chars_May_Fail(
 // instead of managing a created result they could be responsible
 // for freeing it if so.
 //
-REBSER *Temp_Bin_Str_Managed(REBVAL *val, REBCNT *index, REBCNT *length)
+REBSER *Temp_Bin_Str_Managed(const REBVAL *val, REBCNT *index, REBCNT *length)
 {
     REBCNT len = (length && *length) ? *length : VAL_LEN_AT(val);
     REBSER *series;

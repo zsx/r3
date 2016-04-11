@@ -210,9 +210,11 @@ static void Schema_From_Block_May_Fail(
         // Use the block spec to build a temporary structure through the same
         // machinery that implements `make struct! [...]`
 
+        REBVAL def;
+        COPY_VALUE(&def, item, VAL_SPECIFIER(blk));
+
         REBVAL temp;
-        if (!MT_Struct(&temp, item, VAL_SPECIFIER(blk), REB_STRUCT))
-            fail (Error_Invalid_Arg(blk));
+        MAKE_Struct(&temp, REB_STRUCT, &def); // may fail()
 
         assert(IS_STRUCT(&temp));
 
