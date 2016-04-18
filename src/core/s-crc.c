@@ -389,7 +389,15 @@ void Val_Init_Map(REBVAL *out, REBMAP *map)
     if (MAP_HASHLIST(map))
         ENSURE_SERIES_MANAGED(MAP_HASHLIST(map));
 
-    Val_Init_Array(out, REB_MAP, MAP_PAIRLIST(map));
+    ENSURE_ARRAY_MANAGED(MAP_PAIRLIST(map));
+
+    VAL_RESET_HEADER(out, REB_MAP);
+
+    // Note: Don't set VALUE_FLAG_ARRAY
+    //
+    out->payload.any_series.target.specific = SPECIFIED;
+    out->payload.any_series.series = ARR_SERIES(MAP_PAIRLIST(map));
+    out->payload.any_series.index = 0;
 }
 
 
