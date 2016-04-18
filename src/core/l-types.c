@@ -521,8 +521,14 @@ const REBYTE *Scan_Date(const REBYTE *cp, REBCNT len, REBVAL *value)
         sep = *cp++;
         if (cp >= end) goto end_date;
         cp = Scan_Time(cp, 0, value);
-        if (!IS_TIME(value) || (VAL_TIME(value) < 0) || (VAL_TIME(value) >= TIME_SEC(24 * 60 * 60)))
-            return 0;
+        if (
+            !cp
+            || !IS_TIME(value)
+            || (VAL_TIME(value) < 0)
+            || (VAL_TIME(value) >= TIME_SEC(24 * 60 * 60))
+        ){
+            return NULL;
+        }
     }
 
     if (*cp == sep) cp++;
