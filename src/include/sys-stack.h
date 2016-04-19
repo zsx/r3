@@ -205,9 +205,9 @@ typedef unsigned int REBDSP;
 // element popped out of it.  In memory it looks like this:
 //
 //      [chunker->next
-//          (->payload_left size [value1][value2][value3]...)   // chunk 1
-//          (->payload_left size [value1]...)                   // chunk 2
-//          (->payload_left size [value1][value2]...)           // chunk 3
+//          (->offset size [value1][value2][value3]...)   // chunk 1
+//          (->offset size [value1]...)                   // chunk 2
+//          (->offset size [value1][value2]...)           // chunk 3
 //          ...remaining payload space in chunker...
 //      ]
 //
@@ -218,12 +218,16 @@ typedef unsigned int REBDSP;
 
 struct Reb_Chunker;
 
-#define CS_CHUNKER_PAYLOAD (2048 - sizeof(struct Reb_Chunker*))
-
 struct Reb_Chunker {
     struct Reb_Chunker *next;
-    REBYTE payload[CS_CHUNKER_PAYLOAD];
+    // use REBUPT to make 'payload' aligned with pointers
+    REBUPT size; // payload size
+    REBYTE payload[1];
 };
+
+#define BASE_CHUNKER_SIZE (sizeof(void*) + sizeof(REBUPT))
+#define CS_CHUNKER_PAYLOAD (2048 - BASE_CHUNKER_SIZE)
+
 
 struct Reb_Chunk;
 
@@ -240,15 +244,15 @@ struct Reb_Chunk {
     //
     struct Reb_Value_Header size;
 
-    // How many bytes are left in the memory chunker this chunk lives in
+    // The offset of this chunk in the memory chunker this chunk lives in
     // (its own size has already been subtracted from the amount)
     //
-    REBUPT payload_left;
+    REBUPT offset;
 
 #if defined(__LP64__) || defined(__LLP64__)
     //
     // !!! Sizes above are wasteful compared to theory!  Both the size and
-    // payload_left could fit into a single REBUPT, so this is wasting a
+    // offset could fit into a single REBUPT, so this is wasting a
     // pointer...saving only 2 pointers per chunk instead of 3 over a full
     // REBVAL termination.
     //
