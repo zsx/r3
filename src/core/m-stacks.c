@@ -33,12 +33,8 @@
 
 #define CHUNKER_FROM_CHUNK(c) \
     cast(struct Reb_Chunker*, \
-        cast(REBYTE*, (c)) \
-        + (c)->size.bits \
-        + (c)->payload_left \
-        - sizeof(struct Reb_Chunker) \
-    )
-
+        cast(REBYTE*, (c)) - (c)->offset \
+        - offsetof(struct Reb_Chunker, payload))
 
 //
 //  Init_Stacks: C
@@ -49,23 +45,22 @@ void Init_Stacks(REBCNT size)
     // one chunk so that the push and drop routines never worry about testing
     // for the empty case.
 
-    TG_Root_Chunker = ALLOC(struct Reb_Chunker);
+    TG_Root_Chunker = cast(struct Reb_Chunker*, Alloc_Mem(BASE_CHUNKER_SIZE + CS_CHUNKER_PAYLOAD));
 #if !defined(NDEBUG)
     memset(TG_Root_Chunker, 0xBD, sizeof(struct Reb_Chunker));
 #endif
     TG_Root_Chunker->next = NULL;
+    TG_Root_Chunker->size = CS_CHUNKER_PAYLOAD;
     TG_Top_Chunk = cast(struct Reb_Chunk*, &TG_Root_Chunker->payload);
     TG_Top_Chunk->prev = NULL;
     TG_Top_Chunk->size.bits = BASE_CHUNK_SIZE; // zero values for initial chunk
-    TG_Top_Chunk->payload_left = CS_CHUNKER_PAYLOAD - BASE_CHUNK_SIZE;
+    TG_Top_Chunk->offset = 0;
 
     // Implicit termination trick--see VALUE_FLAG_NOT_END and related notes
     cast(
         struct Reb_Chunk*, cast(REBYTE*, TG_Top_Chunk) + BASE_CHUNK_SIZE
     )->size.bits = 0;
     assert(IS_END(&TG_Top_Chunk->values[0]));
-
-    TG_Head_Chunk = TG_Top_Chunk;
 
     // Start the data stack out with just one element in it, and make it an
     // unwritable trash for the debug build.  This helps avoid both accidental
@@ -130,11 +125,11 @@ void Shutdown_Stacks(void)
     // that next chunk of headroom still allocated.
     //
     if (TG_Root_Chunker->next)
-        FREE(struct Reb_Chunker, TG_Root_Chunker->next);
+        Free_Mem(TG_Root_Chunker->next, TG_Root_Chunker->next->size + BASE_CHUNKER_SIZE);
 
     // OTOH we always have to free the root chunker.
     //
-    FREE(struct Reb_Chunker, TG_Root_Chunker);
+    Free_Mem(TG_Root_Chunker, TG_Root_Chunker->size + BASE_CHUNKER_SIZE);
 }
 
 
@@ -261,6 +256,12 @@ void Pop_Stack_Values_Into(REBVAL *into, REBDSP dsp_start) {
 REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values, REBARR *opt_holder) {
     const REBCNT size = BASE_CHUNK_SIZE + num_values * sizeof(REBVAL);
 
+    // an extra Reb_Value_Header is placed at the very end of the array to
+    // denote a block terminator without a full REBVAL
+    const REBCNT size_with_terminator = size + sizeof(struct Reb_Value_Header);
+
+    struct Reb_Chunker *chunker = CHUNKER_FROM_CHUNK(TG_Top_Chunk);
+
     struct Reb_Chunk *chunk;
 
     // Establish invariant where 'chunk' points to a location big enough to
@@ -268,10 +269,12 @@ REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values, REBARR *opt_holder) {
     // that TG_Top_Chunk is never NULL, due to the initialization leaving
     // one empty chunk at the beginning and manually destroying it on
     // shutdown (this simplifies Push)
+    const REBCNT payload_left = chunker->size - TG_Top_Chunk->offset
+          - TG_Top_Chunk->size.bits;
 
-    if (
-        TG_Top_Chunk->payload_left >= size + sizeof(struct Reb_Chunk *)
-    ) {
+    assert(chunker->size >= CS_CHUNKER_PAYLOAD);
+
+    if (payload_left >= size_with_terminator) {
         //
         // Topmost chunker has space for the chunk *and* a pointer with the
         // END marker bit (e.g. last bit 0).  So advance past the topmost
@@ -281,50 +284,42 @@ REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values, REBARR *opt_holder) {
             cast(REBYTE*, TG_Top_Chunk) + TG_Top_Chunk->size.bits
         );
 
-        // top's payload_left accounted for previous chunk, account for ours
+        // top's offset accounted for previous chunk, account for ours
         //
-        chunk->payload_left = TG_Top_Chunk->payload_left - size;
+        chunk->offset = TG_Top_Chunk->offset + TG_Top_Chunk->size.bits;
     }
     else {
         //
         // Topmost chunker has insufficient space
         //
-        struct Reb_Chunker *chunker = CHUNKER_FROM_CHUNK(TG_Top_Chunk);
 
-        // If not big enough for the chunk (and a next chunk's prev pointer,
-        // needed to signal END on the values[]), a new chunk wouldn't be
-        // big enough, either!
-        //
-        // !!! Extend model so that it uses an ordinary ALLOC of memory in
-        // cases where no chunk is big enough.
-        //
-        assert(size + sizeof(struct Reb_Chunk *) <= CS_CHUNKER_PAYLOAD);
-
+        REBOOL need_alloc = TRUE;
         if (chunker->next) {
             //
-            // Previously allocated chunker exists already to grow into
+            // Previously allocated chunker exists already, check if it is big
+            // enough
             //
             assert(!chunker->next->next);
+            if (chunker->next->size >= size_with_terminator)
+                need_alloc = FALSE;
+            else
+                Free_Mem(chunker->next, chunker->next->size + BASE_CHUNKER_SIZE);
         }
-        else {
+        if (need_alloc) {
             // No previously allocated chunker...we have to allocate it
             //
-            chunker->next = ALLOC(struct Reb_Chunker);
+            const REBCNT payload_size = BASE_CHUNKER_SIZE
+                + (size_with_terminator < CS_CHUNKER_PAYLOAD ?
+                    CS_CHUNKER_PAYLOAD : (size_with_terminator << 1));
+            chunker->next = cast(struct Reb_Chunker*, Alloc_Mem(payload_size));
             chunker->next->next = NULL;
+            chunker->next->size = payload_size - BASE_CHUNKER_SIZE;
         }
 
-        assert(size + sizeof(struct Reb_Chunk *) <= CS_CHUNKER_PAYLOAD);
+        assert(chunker->next->size >= size_with_terminator);
 
         chunk = cast(struct Reb_Chunk*, &chunker->next->payload);
-        chunk->payload_left = CS_CHUNKER_PAYLOAD - size;
-
-        TG_Head_Chunk = chunk;
-
-        // Though we can usually trust a chunk to have its prev set in advance
-        // by the chunk before it, a new allocation wouldn't be initialized,
-        // so set it manually.
-        //
-        chunk->prev = TG_Top_Chunk;
+        chunk->offset = 0;
     }
 
     // The size does double duty to terminate the previous chunk's REBVALs
@@ -436,19 +431,12 @@ void Drop_Chunk(REBVAL *opt_head)
     // Drop to the prior top chunk
     TG_Top_Chunk = chunk->prev;
 
-    if (chunk == TG_Head_Chunk) {
+    if (chunk->offset == 0) {
         // This chunk sits at the head of a chunker.
 
-        struct Reb_Chunker *chunker = cast(struct Reb_Chunker*,
-            cast(REBYTE*, chunk) - sizeof(struct Reb_Chunker*)
-        );
-        assert(CHUNKER_FROM_CHUNK(chunk) == chunker);
-        assert(chunk->payload_left + chunk->size.bits == CS_CHUNKER_PAYLOAD);
+        struct Reb_Chunker *chunker = CHUNKER_FROM_CHUNK(chunk);
 
         assert(TG_Top_Chunk);
-        TG_Head_Chunk = cast(
-            struct Reb_Chunk*, &CHUNKER_FROM_CHUNK(TG_Top_Chunk)->payload
-        );
 
         // When we've completely emptied a chunker, we check to see if the
         // chunker after it is still live.  If so, we free it.  But we
@@ -456,7 +444,7 @@ void Drop_Chunk(REBVAL *opt_head)
         // rapidly get another push, to avoid Make_Mem()/Free_Mem() costs.
 
         if (chunker->next) {
-            FREE(struct Reb_Chunker, chunker->next);
+            Free_Mem(chunker->next, chunker->next->size + BASE_CHUNKER_SIZE);
             chunker->next = NULL;
         }
     }
