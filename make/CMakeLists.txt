@@ -139,12 +139,13 @@ elseif (R3_OS_ID STREQUAL "0.4.22") #linux arm64
     set (TO_LINUX_AARCH64 TRUE)
     list (APPEND COMMON_MACROS
         TO_LINUX_AARCH64
+        __LP64__
         )
 elseif (R3_OS_ID STREQUAL "0.4.40") #linux x86_64
     set (TO_LINUX_X64 TRUE)
     list (APPEND COMMON_MACROS
         TO_LINUX_X64
-        __LLP64__
+        __LP64__
         )
 endif ()
 

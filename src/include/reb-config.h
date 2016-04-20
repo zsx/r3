@@ -160,6 +160,9 @@ Special internal defines used by RT, not Host-Kit developers:
 #ifdef TO_LINUX_ARM
 #endif
 
+#ifdef TO_LINUX_AARCH64
+#endif
+
 #ifdef TO_LINUX_MIPS
 #endif
 

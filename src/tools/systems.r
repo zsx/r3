@@ -73,6 +73,9 @@ systems: [
     0.4.21      linux-arm       linux
             [LEN LLC +O2 HID LDL ST1 -LM PIE LCB]
 
+    0.4.22      linux-aarch64       linux
+            [LP64 LEN LLC +O2 HID LDL ST1 -LM]
+
     0.4.30      linux-mips      linux
             [LEN LLC +O2 HID LDL ST1 -LM]
 
