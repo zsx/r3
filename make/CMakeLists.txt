@@ -96,6 +96,10 @@ elseif (R3_OS_ID STREQUAL "0.4.20") #linux arm
     list (APPEND COMMON_MACROS
         TO_LINUX_ARM
         )
+elseif (R3_OS_ID STREQUAL "0.4.22") #linux arm64
+    list (APPEND COMMON_MACROS
+        TO_LINUX_AARCH64
+        )
 elseif (R3_OS_ID STREQUAL "0.4.40") #linux x86_64
     list (APPEND COMMON_MACROS
         TO_LINUX_X64
@@ -155,7 +159,7 @@ endif ()
 
 if (R3_EXTERNAL_FFI)
     find_package(PkgConfig)
-    pkg_search_module(FFI libffi)
+		#pkg_search_module(FFI libffi)
     if (${FFI_FOUND})
         set (COMMON_MACROS ${COMMON_MACROS} HAVE_LIBFFI_AVAILABLE)
     else ()
