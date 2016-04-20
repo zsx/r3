@@ -4,6 +4,7 @@ OS_ID?= 0.4.4
 BIT="-m32"
 EXTRA_VIEW_CFLAGS=-DUSE_GTK_FILECHOOSER -DUSE_XSHM
 LIBFFI_A=libffi.$(MAKEFILE)/lib32/libffi.a
+PKG_CONFIG=PKG_CONFIG_PATH=/usr/lib32/pkgconfig pkg-config
 
 MD=makefiles
 

@@ -17,7 +17,7 @@ $(OBJ_DIR)/agg_fontconfig.o:$S/agg/agg_fontconfig.cpp
 	$(CXX) $< $(HFLAGS_CPP) $(HFLAGS_FONT_CONFIG) -o $@
 
 $(OBJ_DIR)/file-chooser-gtk.o:      $S/os/linux/file-chooser-gtk.c
-	$(CC) $< $(HFLAGS) `pkg-config gtk+-3.0 --cflags` -o $@
+	$(CC) $< $(HFLAGS) `$(PKG_CONFIG) gtk+-3.0 --cflags` -o $@
 
 $(OBJ_DIR)/host-lib.o:      $S/os/linux/host-lib.c
 	$(CC) $S/os/linux/host-lib.c $(HFLAGS) -o $(OBJ_DIR)/host-lib.o

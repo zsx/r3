@@ -3,15 +3,15 @@ CC ?=	$(TOOLS)clang
 CXX  ?= $(TOOLS)clang
 
 INCL ?= .
-INC= -I$(INCL) -I$S/include/ -I$S/codecs/ -I../src/freetype-2.4.12/include `pkg-config freetype2 --cflags` -Ilibffi.$(MAKEFILE)/lib/libffi-3.1.1/include/
+INC= -I$(INCL) -I$S/include/ -I$S/codecs/ -I../src/freetype-2.4.12/include `$(PKG_CONFIG) freetype2 --cflags` -Ilibffi.$(MAKEFILE)/lib/libffi-3.1.1/include/
 
 RAPI_FLAGS=  $(CFLAGS) $(BIT) -Wno-pointer-sign -fvisibility=default -fPIC -ffloat-store
 HOST_CORE_FLAGS= $(CFLAGS) -Wno-pointer-sign -DREB_CORE -DMIN_OS -DREB_EXE  $(BIT) -fvisibility=default  -D_FILE_OFFSET_BITS=64 -DCUSTOM_STARTUP -ffloat-store
 HOST_VIEW_FLAGS= $(CFLAGS) -Wno-pointer-sign -DREB_EXE $(BIT) -fvisibility=default  -D_FILE_OFFSET_BITS=64 -DCUSTOM_STARTUP -ffloat-store $(EXTRA_VIEW_CFLAGS)
-HFLAGS_FONT_CONFIG=`pkg-config fontconfig --cflags`
+HFLAGS_FONT_CONFIG=`$(PKG_CONFIG) fontconfig --cflags`
 
 CLIB= -ldl -lm $(LIBFFI_A)
-GUI_CLIB=  -ldl -lm -lstdc++ -lfreetype -L../src/freetype-2.4.12/objs/.libs/ `pkg-config freetype2 --libs` -lXrandr -lX11 `pkg-config fontconfig --libs` $(BIT) -lXext $(LDFLAGS)
+GUI_CLIB=  -ldl -lm -lstdc++ -lfreetype -L../src/freetype-2.4.12/objs/.libs/ `$(PKG_CONFIG) freetype2 --libs` -lXrandr -lX11 `$(PKG_CONFIG) fontconfig --libs` $(BIT) -lXext $(LDFLAGS)
 # REBOL builds various include files:
 REBOL=	$(CD)r3-make-linux -qs
 
