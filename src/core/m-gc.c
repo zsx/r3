@@ -391,6 +391,8 @@ static void Queue_Mark_Struct_Deep(const REBSTU *stu)
     unsigned int len = 0;
     REBSER *series = NULL;
 
+    if (GET_SER_FLAG(STRUCT_DATA_BIN(stu), SERIES_FLAG_MARK)) return; //avoid recursive call
+
     // The spec is the only Rebol-value-array in the struct
     QUEUE_MARK_ARRAY_DEEP(stu->spec);
 
