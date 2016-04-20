@@ -84,7 +84,6 @@ elseif (UNIX)
     if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
         list (APPEND COMMON_MACROS
             TO_LINUX
-            TO_LINUX_X86
             ENDIAN_LITTLE
             HAS_LL_CONSTS
             )
