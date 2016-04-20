@@ -1737,7 +1737,7 @@ REBCNT Recycle_Core(REBOOL shutdown, REBMDP *dump)
         //
         REBI64 bytes_freed = GC_Ballast - gc_ballast0;
         REBI64 bytes_used = VAL_INT64(TASK_BALLAST) - GC_Ballast;
-	    printf("Recycled %d (%lld bytes), used: %lld, GC_Ballast: %lld, Task Ballast: %lld\n", count, bytes_freed, bytes_used, GC_Ballast, VAL_INT64(TASK_BALLAST));
+	    //printf("Recycled %d (%lld bytes), used: %lld, GC_Ballast: %lld, Task Ballast: %lld\n", count, bytes_freed, bytes_used, GC_Ballast, VAL_INT64(TASK_BALLAST));
         
         /* if the used bytes is beyond the range of (75%, 90%) of Task_Ballast, adjust Task_Ballast to (1.25 * bytes_used)
          * The idea is that before next recycle runs, it can at least allocate (1/10 * Task_Ballast) bytes of memory,
@@ -1751,18 +1751,18 @@ REBCNT Recycle_Core(REBOOL shutdown, REBMDP *dump)
             REBI64 ballast = VAL_INT64(TASK_BALLAST);
             VAL_INT64(TASK_BALLAST) = bytes_used * 5 / 4;
             GC_Ballast += VAL_INT64(TASK_BALLAST) - ballast;
-            printf("Task ballast is increased to %lld\n", VAL_INT64(TASK_BALLAST));
+            //printf("Task ballast is increased to %lld\n", VAL_INT64(TASK_BALLAST));
         } else if (bytes_used < VAL_INT64(TASK_BALLAST) * 3 / 4 && VAL_INT64(TASK_BALLAST) > MEM_BALLAST) {
             REBI64 ballast = VAL_INT64(TASK_BALLAST);
             VAL_INT64(TASK_BALLAST) = bytes_used * 5 / 4;
             if (VAL_INT64(TASK_BALLAST) < MEM_BALLAST) {
                 VAL_INT64(TASK_BALLAST) = MEM_BALLAST;
             }
-            printf("Task ballast is reduced to %lld\n", VAL_INT64(TASK_BALLAST));
+            //printf("Task ballast is reduced to %lld\n", VAL_INT64(TASK_BALLAST));
             GC_Ballast -= ballast - VAL_INT64(TASK_BALLAST);
         }
 
-        printf("After adjustment, GC_Ballast: %lld\n", GC_Ballast);
+        //printf("After adjustment, GC_Ballast: %lld\n", GC_Ballast);
 
         GC_Disabled = 0;
         if (Reb_Opts->watch_recycle)
