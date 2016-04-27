@@ -583,6 +583,21 @@ REBNATIVE(make_command)
     return R_OUT;
 }
 
+//
+//  Find_Command_Extension: C
+// 
+// Find the extension of the command (used by profiler to identify the command) 
+// 
+// A command value consists of:
+//     args - same as other funcs
+//     spec - same as other funcs
+//     body - [ext-obj func-index]
+//
+void * Find_Command_Extension(struct Reb_Frame *frame_)
+{
+    REBVAL *val = ARR_HEAD(FUNC_BODY(D_FUNC));
+    return &Ext_List[VAL_I32(VAL_CONTEXT_VAR(val, SELFISH(1)))];
+}
 
 //
 //  Do_Command_Core: C

@@ -190,6 +190,7 @@ set (CORE_SOURCE
     ${CORE_DIR}/c-function.c
     ${CORE_DIR}/c-path.c
     ${CORE_DIR}/c-port.c
+    ${CORE_DIR}/c-profile.c
     ${CORE_DIR}/c-signal.c
     ${CORE_DIR}/c-task.c
     ${CORE_DIR}/c-word.c

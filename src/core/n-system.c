@@ -119,6 +119,20 @@ REBNATIVE(dump_memory)
 }
 
 //
+//  dump-runtime: native [
+//  
+//  "Dump the runtime data to a file"
+//  
+//      path [file!] "Where to dump the data"
+//  ]
+//
+REBNATIVE(dump_runtime)
+{
+    Dump_Func_Stats(D_ARG(1));
+    return R_UNSET;
+}
+
+//
 //  recycle: native [
 //  
 //  "Recycles unused memory."

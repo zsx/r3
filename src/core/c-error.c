@@ -1165,6 +1165,16 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
     // will be used up quickly.
     //
     MANAGE_ARRAY(CTX_VARLIST(error));
+
+    // Finish the func stats
+    if (PG_Func_Profiler) {
+        struct Reb_Frame *f = FS_TOP;
+        for (; f != NULL && f != Saved_State->frame; f = f->prior) {
+            if (f->mode != CALL_MODE_FUNCTION) continue;
+            f->eval_time = OS_DELTA_TIME(f->eval_time, 0);
+            Func_Profile_End(f);
+        }
+    }
     return error;
 }
 

@@ -35,6 +35,7 @@ core: [
     c-function.c
     c-path.c
     c-port.c
+    c-profile.c
     c-signal.c
     c-task.c
     c-value.c
