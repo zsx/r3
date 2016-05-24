@@ -368,7 +368,6 @@ REB_R Destroy_External_Storage(REBVAL *out,
     }
     if (!GET_SER_FLAG(ser, SERIES_FLAG_ACCESSIBLE)) {
         REBVAL i;
-        VAL_INIT_WRITABLE_DEBUG(&i);
         SET_INTEGER(&i, cast(REBUPT, SER_DATA_RAW(ser)));
 
         fail (Error(RE_ALREADY_DESTROYED, &i));
@@ -390,7 +389,6 @@ REB_R Destroy_External_Storage(REBVAL *out,
         elem = Alloc_Tail_Array(array);
         SET_INTEGER(elem, cast(REBUPT, SER_DATA_RAW(ser)));
 
-        VAL_INIT_WRITABLE_DEBUG(&safe);
         threw = Do_At_Throws(&safe, array, 0);
 
         DROP_GUARD_ARRAY(array);

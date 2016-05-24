@@ -197,8 +197,7 @@ value_ready_for_do_next:
     // also need to reset evaluation to normal vs. a kind of "inline quoting"
     // in case EVAL/ONLY had enabled that.
     //
-    VAL_INIT_WRITABLE_DEBUG(&(f->cell.eval)); // in union, always reinit
-    SET_TRASH_IF_DEBUG(&(f->cell.eval));
+    SET_TRASH_IF_DEBUG(&(f->cell.eval)); // in union, always reinit
 
     f->args_evaluate = NOT(f->flags & DO_FLAG_NO_ARGS_EVALUATE);
 
@@ -548,7 +547,6 @@ reevaluate:
         // of storage.  This should be reviewed along with Do_Path generally.
         {
             REBVAL temp;
-            VAL_INIT_WRITABLE_DEBUG(&temp);
             if (Do_Path_Throws(&temp, NULL, f->param, f->out)) {
                 f->indexor = THROWN_FLAG;
                 *(f->out) = temp;
@@ -684,7 +682,6 @@ reevaluate:
             // normal evaluation but it does not apply to the value being
             // retriggered itself, just any arguments it consumes.)
             //
-            VAL_INIT_WRITABLE_DEBUG(&f->cell.eval);
             DO_NEXT_REFETCH_MAY_THROW(&f->cell.eval, f, f->lookahead_flags);
 
             if (f->indexor == THROWN_FLAG)
@@ -984,8 +981,6 @@ reevaluate:
                 ) {
                     if (!IS_VARARGS(f->arg)) {
                         REBVAL honest_param;
-                        VAL_INIT_WRITABLE_DEBUG(&honest_param);
-
                         Val_Init_Typeset(
                             &honest_param,
                             FLAGIT_KIND(REB_VARARGS), // *actually* expected...
@@ -2084,7 +2079,6 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
             }
             else {
                 REBVAL dump;
-                VAL_INIT_WRITABLE_DEBUG(&dump);
 
                 Val_Init_Block_Index(
                     &dump, f->source.array, cast(REBCNT, f->indexor)

@@ -92,7 +92,6 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
     REBPEF dispatcher;
 
     REBVAL temp;
-    VAL_INIT_WRITABLE_DEBUG(&temp);
 
     // Path must have dispatcher, else return:
     dispatcher = Path_Dispatch[VAL_TYPE_0(pvs->value)];
@@ -287,7 +286,6 @@ REBOOL Do_Path_Throws(
 
     if (label_sym) {
         REBVAL refinement;
-        VAL_INIT_WRITABLE_DEBUG(&refinement);
 
         // When a function is hit, path processing stops as soon as the
         // processed sub-path resolves to a function. The path is still sitting

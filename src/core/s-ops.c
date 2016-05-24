@@ -211,8 +211,6 @@ REBSER *Temp_Bin_Str_Managed(REBVAL *val, REBCNT *index, REBCNT *length)
         // model to clean up the series.)
         {
             REBVAL protect;
-            VAL_INIT_WRITABLE_DEBUG(&protect);
-
             Val_Init_String(&protect, series);
             Protect_Value(&protect, FLAGIT(PROT_SET));
 

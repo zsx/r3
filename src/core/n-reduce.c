@@ -72,8 +72,6 @@ REBOOL Reduce_Array_Throws(
 
     while (indexor != END_FLAG) {
         REBVAL reduced;
-        VAL_INIT_WRITABLE_DEBUG(&reduced);
-
         DO_NEXT_MAY_THROW(indexor, &reduced, array, indexor);
 
         if (indexor == THROWN_FLAG) {
@@ -196,8 +194,6 @@ REBOOL Reduce_Array_No_Set_Throws(
         }
         else {
             REBVAL reduced;
-            VAL_INIT_WRITABLE_DEBUG(&reduced);
-
             DO_NEXT_MAY_THROW(indexor, &reduced, block, indexor);
             if (indexor == THROWN_FLAG) {
                 *out = reduced;
@@ -322,8 +318,6 @@ REBOOL Compose_Values_Throws(
     for (; NOT_END(value); value++) {
         if (IS_GROUP(value)) {
             REBVAL evaluated;
-            VAL_INIT_WRITABLE_DEBUG(&evaluated);
-
             if (DO_VAL_ARRAY_AT_THROWS(&evaluated, value)) {
                 *out = evaluated;
                 DS_DROP_TO(dsp_orig);
@@ -359,8 +353,6 @@ REBOOL Compose_Values_Throws(
                 // compose/deep [does [(1 + 2)] nested] => [does [3] nested]
 
                 REBVAL composed;
-                VAL_INIT_WRITABLE_DEBUG(&composed);
-
                 if (Compose_Values_Throws(
                     &composed, VAL_ARRAY_HEAD(value), TRUE, only, into
                 )) {

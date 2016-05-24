@@ -609,8 +609,6 @@ static REBCTX *Error_Bad_Scan(
     ERROR_VARS *vars; // C struct mirroring fixed portion of error fields
     REBVAL arg1;
     REBVAL arg2;
-    VAL_INIT_WRITABLE_DEBUG(&arg1);
-    VAL_INIT_WRITABLE_DEBUG(&arg2);
 
     assert(errnum != 0);
 

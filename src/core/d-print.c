@@ -131,7 +131,6 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
         // path up to return results from an interactive breakpoint.
         //
         REBVAL result;
-        VAL_INIT_WRITABLE_DEBUG(&result);
 
         if (Do_Signals_Throws(&result))
             fail (Error_No_Catch_For_Throw(&result));
@@ -157,7 +156,6 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
             // path up to return results from an interactive breakpoint.
             //
             REBVAL result;
-            VAL_INIT_WRITABLE_DEBUG(&result);
 
             if (Do_Signals_Throws(&result))
                 fail (Error_No_Catch_For_Throw(&result));
@@ -374,14 +372,13 @@ void Debug_Series(REBSER *ser)
     if (BYTE_SIZE(ser))
         Debug_Str(s_cast(BIN_HEAD(ser)));
     else if (Is_Array_Series(ser)) {
-        REBVAL value;
-        VAL_INIT_WRITABLE_DEBUG(&value);
-
+        //
         // May not actually be a REB_BLOCK, but we put it in a value
         // container for now saying it is so we can output it.  It may be
         // a context and we may not want to Manage_Series here, so we use a
         // raw VAL_SET instead of Val_Init_Block
         //
+        REBVAL value;
         VAL_RESET_HEADER(&value, REB_BLOCK);
         INIT_VAL_SERIES(&value, ser);
         VAL_INDEX(&value) = 0;
@@ -879,7 +876,6 @@ pick:
             //
             // !!! Better approach?  Can the series be passed directly?
             //
-            VAL_INIT_WRITABLE_DEBUG(&value);
             VAL_RESET_HEADER(&value, REB_BLOCK);
             INIT_VAL_SERIES(&value, va_arg(*vaptr, REBSER*));
             VAL_INDEX(&value) = 0;
@@ -1082,7 +1078,6 @@ REBOOL Format_GC_Safe_Value_Throws(
             REBOOL nested_reduce = reduce;
 
             REBVAL maybe_thrown;
-            VAL_INIT_WRITABLE_DEBUG(&maybe_thrown);
 
         #if !defined(NDEBUG)
             if (LEGACY(OPTIONS_NO_REDUCE_NESTED_PRINT))
@@ -1203,6 +1198,7 @@ REBOOL Prin_GC_Safe_Value_Throws(
     REBOOL reduce
 ) {
     REBVAL pending_delimiter;
+    SET_END(&pending_delimiter);
 
     REB_MOLD mo;
     CLEARS(&mo);
@@ -1211,9 +1207,6 @@ REBOOL Prin_GC_Safe_Value_Throws(
         mo.limit = limit;
     }
     Push_Mold(&mo);
-
-    VAL_INIT_WRITABLE_DEBUG(&pending_delimiter);
-    SET_END(&pending_delimiter);
 
     if (mold)
         Mold_Value(&mo, value, TRUE);
@@ -1256,7 +1249,6 @@ void Print_Value(const REBVAL *value, REBCNT limit, REBOOL mold)
     // Note: Does not reduce
     //
     REBVAL delimiter;
-    VAL_INIT_WRITABLE_DEBUG(&delimiter);
     SET_CHAR(&delimiter, ' ');
 
     (void)Prin_GC_Safe_Value_Throws(

@@ -150,7 +150,6 @@ REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
     // common binding operations than function spec analysis.
     //
     REBVAL bubble;
-    VAL_INIT_WRITABLE_DEBUG(&bubble);
     SET_END(&bubble); // not holding a value being bubbled to end...
 
     // Start by reusing the code that makes keylists out of Rebol-structured
@@ -1267,9 +1266,6 @@ void Do_Function_Core(struct Reb_Frame *f)
     else {
         REBCTX *frame = f->data.context;
 
-        REBVAL body;
-        VAL_INIT_WRITABLE_DEBUG(&body);
-
         assert(f->flags & DO_FLAG_FRAME_CONTEXT);
 
         // Clone the body of the closure to allow us to rebind words inside
@@ -1277,6 +1273,7 @@ void Do_Function_Core(struct Reb_Frame *f)
         // invocation.  (Costly, but that is the mechanics of words at the
         // present time, until true relative binding is implemented.)
         //
+        REBVAL body;
         VAL_RESET_HEADER(&body, REB_BLOCK);
         INIT_VAL_ARRAY(&body, Copy_Array_Deep_Managed(FUNC_BODY(f->func)));
         VAL_INDEX(&body) = 0;

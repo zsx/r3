@@ -45,7 +45,6 @@ static REB_R DNS_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
     REBOOL sync = FALSE; // act synchronously
 
     REBVAL tmp;
-    VAL_INIT_WRITABLE_DEBUG(&tmp);
 
     Validate_Port(port, action);
 

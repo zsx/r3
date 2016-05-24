@@ -350,8 +350,6 @@ REBIXO Do_Vararg_Op_May_Throw(
         REBIXO indexor;
 
         REBVAL fake_param;
-        VAL_INIT_WRITABLE_DEBUG(&fake_param);
-
         Val_Init_Typeset(&fake_param, ALL_64, SYM_ELLIPSIS); // any type
         SET_VAL_FLAG(&fake_param, TYPESET_FLAG_VARIADIC); // pretend <...> tag
         INIT_VAL_PARAM_CLASS(&fake_param, PARAM_CLASS_HARD_QUOTE);
@@ -562,7 +560,6 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
         const REBVAL *varargs_param = VAL_VARARGS_PARAM(value);
 
         REBVAL param_word;
-        VAL_INIT_WRITABLE_DEBUG(&param_word);
 
         if (
             GET_CTX_FLAG(VAL_VARARGS_FRAME_CTX(value), CONTEXT_FLAG_STACK) &&

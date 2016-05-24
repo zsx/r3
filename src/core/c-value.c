@@ -84,16 +84,7 @@ ATTRIBUTE_NO_RETURN void Panic_Value(const REBVAL *value)
 //  Assert_Cell_Writable: C
 //
 // If this check fails, then you're either writing to memory you shouldn't,
-// or are writing to an "unformatted" stack value.  For instance:
-//
-//     REBVAL value;
-//     SET_INTEGER(&value, 10);
-//
-// For REBVALs that don't live in series, you need to do:
-//
-//     REBVAL value;
-//     VAL_INIT_WRITABLE_DEBUG(&value);
-//     SET_INTEGER(&value, 10);
+// or are writing to an "unformatted" stack value.
 //
 // The check helps avoid very bad catastrophies that might ensue if "implicit
 // end markers" could be overwritten.  These are the ENDs that are actually

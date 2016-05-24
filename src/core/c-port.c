@@ -153,9 +153,6 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
 
     REBVAL tmp;
     REBVAL result;
-    VAL_INIT_WRITABLE_DEBUG(&tmp);
-    VAL_INIT_WRITABLE_DEBUG(&result);
-    VAL_INIT_WRITABLE_DEBUG(&awake_only);
 
     // Get the system port object:
     port = Get_System(SYS_PORTS, PORTS_SYSTEM);
@@ -241,10 +238,9 @@ REBOOL Wait_Ports(REBARR *ports, REBCNT timeout, REBOOL only)
         }
 
         if (GET_SIGNAL(SIG_INTERRUPT)) {
-            REBVAL result;
-            VAL_INIT_WRITABLE_DEBUG(&result);
-
             CLR_SIGNAL(SIG_INTERRUPT);
+
+            REBVAL result;
             if (Do_Breakpoint_Throws(&result, TRUE, VOID_CELL, FALSE)) {
                 //
                 // !!! Consider Wait_Ports() callsites being re-engineered
@@ -410,7 +406,6 @@ static REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
     REBVAL *path = ARR_HEAD(path_array);
 
     REBVAL first;
-    VAL_INIT_WRITABLE_DEBUG(&first);
 
     *path = *FUNC_VALUE(func_new);
     ++path;
@@ -525,7 +520,6 @@ int Do_Port_Action(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
     actor = Obj_Value(actor, n);
     if (!n || !actor || !IS_FUNCTION(actor)) {
         REBVAL action_word;
-        VAL_INIT_WRITABLE_DEBUG(&action_word);
         Val_Init_Word(&action_word, REB_WORD, Get_Action_Sym(action));
 
         fail (Error(RE_NO_PORT_ACTION, &action_word));
@@ -566,7 +560,6 @@ void Secure_Port(REBCNT kind, REBREQ *req, REBVAL *name, REBSER *path)
     REBYTE *flags;
 
     REBVAL val;
-    VAL_INIT_WRITABLE_DEBUG(&val);
     Val_Init_String(&val, path);
 
     flags = Security_Policy(kind, &val); // policy flags

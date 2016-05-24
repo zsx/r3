@@ -238,7 +238,6 @@ static void Do_Global_Block(
     struct Reb_State state;
 
     REBVAL result;
-    VAL_INIT_WRITABLE_DEBUG(&result);
 
     Bind_Values_Set_Midstream_Shallow(
         item, rebind > 1 ? Sys_Context : Lib_Context
@@ -547,7 +546,6 @@ REBNATIVE(context)
     PARAM(1, spec);
 
     REBVAL dummy; // doesn't need GC-safety for this use (at time of writing)
-    VAL_INIT_WRITABLE_DEBUG(&dummy);
 
     Val_Init_Object(
         D_OUT,
@@ -866,25 +864,19 @@ static void Init_Root_Context(void)
     SET_VOID(&PG_Void_Cell[0]);
     VAL_INIT_WRITABLE_DEBUG(&PG_Void_Cell[1]);
     SET_TRASH_IF_DEBUG(&PG_Void_Cell[1]);
-    MARK_VAL_UNWRITABLE_DEBUG(&PG_Void_Cell[1]);
+    MARK_CELL_UNWRITABLE_DEBUG(&PG_Void_Cell[1]);
 
-    VAL_INIT_WRITABLE_DEBUG(&PG_Blank_Value[0]);
     SET_BLANK(&PG_Blank_Value[0]);
-    VAL_INIT_WRITABLE_DEBUG(&PG_Blank_Value[1]);
     SET_TRASH_IF_DEBUG(&PG_Blank_Value[1]);
-    MARK_VAL_UNWRITABLE_DEBUG(&PG_Blank_Value[1]);
+    MARK_CELL_UNWRITABLE_DEBUG(&PG_Blank_Value[1]);
 
-    VAL_INIT_WRITABLE_DEBUG(&PG_False_Value[0]);
     SET_FALSE(&PG_False_Value[0]);
-    VAL_INIT_WRITABLE_DEBUG(&PG_False_Value[1]);
     SET_TRASH_IF_DEBUG(&PG_False_Value[1]);
-    MARK_VAL_UNWRITABLE_DEBUG(&PG_False_Value[1]);
+    MARK_CELL_UNWRITABLE_DEBUG(&PG_False_Value[1]);
 
-    VAL_INIT_WRITABLE_DEBUG(&PG_True_Value[0]);
     SET_TRUE(&PG_True_Value[0]);
-    VAL_INIT_WRITABLE_DEBUG(&PG_True_Value[1]);
     SET_TRASH_IF_DEBUG(&PG_True_Value[1]);
-    MARK_VAL_UNWRITABLE_DEBUG(&PG_True_Value[1]);
+    MARK_CELL_UNWRITABLE_DEBUG(&PG_True_Value[1]);
 
     // We can't actually put an end value in the middle of a block, so we poke
     // this one into a program global.  It is not legal to bit-copy an
@@ -1004,7 +996,6 @@ static void Init_Task_Context(void)
     // The thrown arg is not intended to ever be around long enough to be
     // seen by the GC.
     //
-    VAL_INIT_WRITABLE_DEBUG(&TG_Thrown_Arg);
     SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
 
     // Can't ASSERT_CONTEXT here; no keylist yet...
@@ -1026,7 +1017,6 @@ static void Init_System_Object(void)
     REBCNT n;
 
     REBVAL result;
-    VAL_INIT_WRITABLE_DEBUG(&result);
 
     // Create the system object from the sysobj block (defined in %sysobj.r)
     //
@@ -1523,7 +1513,6 @@ void Init_Core(REBARGS *rargs)
     const REBYTE durable[] = "durable";
 
     REBVAL result;
-    VAL_INIT_WRITABLE_DEBUG(&result);
 
 #if defined(TEST_EARLY_BOOT_PANIC)
     // This is a good place to test if the "pre-booting panic" is working.
@@ -1722,7 +1711,6 @@ void Init_Core(REBARGS *rargs)
 
     if (error) {
         REBVAL temp;
-        VAL_INIT_WRITABLE_DEBUG(&temp);
         Val_Init_Error(&temp, error);
 
         // You shouldn't be able to halt during Init_Core() startup.

@@ -350,7 +350,6 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
 
     if (PG_Boot_Phase < BOOT_DONE) {
         REBVAL error_value;
-        VAL_INIT_WRITABLE_DEBUG(&error_value);
 
         Val_Init_Error(&error_value, error);
         Debug_Fmt("** Error raised during Init_Core(), should not happen!");
@@ -572,7 +571,6 @@ REBOOL Make_Error_Object_Throws(
         // apply the same logic as if an OBJECT! had been passed in above.
 
         REBVAL evaluated;
-        VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
         // Bind and do an evaluation step (as with MAKE OBJECT! with A_MAKE
         // code in REBTYPE(Context) and code in REBNATIVE(construct))
@@ -592,8 +590,6 @@ REBOOL Make_Error_Object_Throws(
 
         Rebind_Context_Deep(root_error, error, NULL);
         Bind_Values_Deep(VAL_ARRAY_AT(arg), error);
-
-        VAL_INIT_WRITABLE_DEBUG(&evaluated);
 
         if (DO_VAL_ARRAY_AT_THROWS(&evaluated, arg)) {
             *out = evaluated;
@@ -663,8 +659,6 @@ REBOOL Make_Error_Object_Throws(
 
             REBVAL id;
             REBVAL type;
-            VAL_INIT_WRITABLE_DEBUG(&id);
-            VAL_INIT_WRITABLE_DEBUG(&type);
 
             if (!IS_BLANK(&vars->message)) // assume a MESSAGE: is wrong
                 fail (Error(RE_INVALID_ERROR, arg));
@@ -878,8 +872,6 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
     REBVAL *message;
     REBVAL id;
     REBVAL type;
-    VAL_INIT_WRITABLE_DEBUG(&id);
-    VAL_INIT_WRITABLE_DEBUG(&type);
 
     assert(code != 0);
 
@@ -1149,8 +1141,6 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
 
             REBVAL marker;
             REBVAL ellipsis;
-            VAL_INIT_WRITABLE_DEBUG(&marker);
-            VAL_INIT_WRITABLE_DEBUG(&ellipsis);
             Val_Init_Word(&marker, REB_WORD, SYM__Q_Q);
             Val_Init_Word(&ellipsis, REB_WORD, SYM_ELLIPSIS);
 
@@ -1224,7 +1214,6 @@ REBCTX *Error_Bad_Func_Def(const REBVAL *spec, const REBVAL *body)
 
     REBARR *array = Make_Array(2);
     REBVAL def;
-    VAL_INIT_WRITABLE_DEBUG(&def);
 
     Append_Value(array, spec);
     Append_Value(array, body);
@@ -1240,8 +1229,6 @@ REBCTX *Error_No_Arg(REBCNT label_sym, const REBVAL *key)
 {
     REBVAL key_word;
     REBVAL label;
-    VAL_INIT_WRITABLE_DEBUG(&key_word);
-    VAL_INIT_WRITABLE_DEBUG(&label);
 
     assert(IS_TYPESET(key));
 
@@ -1263,7 +1250,6 @@ REBCTX *Error_No_Arg(REBCNT label_sym, const REBVAL *key)
 REBCTX *Error_Invalid_Datatype(REBCNT id)
 {
     REBVAL id_value;
-    VAL_INIT_WRITABLE_DEBUG(&id_value);
 
     SET_INTEGER(&id_value, id);
     return Error(RE_INVALID_DATATYPE, &id_value, END_VALUE);
@@ -1276,7 +1262,6 @@ REBCTX *Error_Invalid_Datatype(REBCNT id)
 REBCTX *Error_No_Memory(REBCNT bytes)
 {
     REBVAL bytes_value;
-    VAL_INIT_WRITABLE_DEBUG(&bytes_value);
 
     SET_INTEGER(&bytes_value, bytes);
     return Error(RE_NO_MEMORY, &bytes_value, END_VALUE);
@@ -1304,7 +1289,6 @@ REBCTX *Error_Invalid_Arg(const REBVAL *value)
 REBCTX *Error_No_Catch_For_Throw(REBVAL *thrown)
 {
     REBVAL arg;
-    VAL_INIT_WRITABLE_DEBUG(&arg);
 
     assert(THROWN(thrown));
     CATCH_THROWN(&arg, thrown); // clears bit
@@ -1343,10 +1327,9 @@ REBCTX *Error_Out_Of_Range(const REBVAL *arg)
 //
 REBCTX *Error_Protected_Key(REBVAL *key)
 {
-    REBVAL key_name;
-    VAL_INIT_WRITABLE_DEBUG(&key_name);
-
     assert(IS_TYPESET(key));
+
+    REBVAL key_name;
     Val_Init_Word(&key_name, REB_WORD, VAL_TYPESET_SYM(key));
 
     return Error(RE_LOCKED_WORD, &key_name, END_VALUE);
@@ -1359,8 +1342,6 @@ REBCTX *Error_Protected_Key(REBVAL *key)
 REBCTX *Error_Illegal_Action(enum Reb_Kind type, REBCNT action)
 {
     REBVAL action_word;
-    VAL_INIT_WRITABLE_DEBUG(&action_word);
-
     Val_Init_Word(&action_word, REB_WORD, Get_Action_Sym(action));
 
     return Error(RE_CANNOT_USE, &action_word, Get_Type(type), END_VALUE);
@@ -1373,8 +1354,6 @@ REBCTX *Error_Illegal_Action(enum Reb_Kind type, REBCNT action)
 REBCTX *Error_Math_Args(enum Reb_Kind type, REBCNT action)
 {
     REBVAL action_word;
-    VAL_INIT_WRITABLE_DEBUG(&action_word);
-
     Val_Init_Word(&action_word, REB_WORD, Get_Action_Sym(action));
 
     return Error(RE_NOT_RELATED, &action_word, Get_Type(type), END_VALUE);
@@ -1453,13 +1432,12 @@ REBCTX *Error_Local_Injection(
     REBCNT label_sym,
     const REBVAL *param
 ) {
-    REBVAL param_word;
-    REBVAL label_word;
-    VAL_INIT_WRITABLE_DEBUG(&param_word);
-    VAL_INIT_WRITABLE_DEBUG(&label_word);
-
     assert(IS_TYPESET(param));
+
+    REBVAL param_word;
     Val_Init_Word(&param_word, REB_WORD, VAL_TYPESET_SYM(param));
+
+    REBVAL label_word;
     Val_Init_Word(&label_word, REB_WORD, label_sym);
 
     return Error(
@@ -1495,18 +1473,15 @@ REBCTX *Error_Cannot_Reflect(enum Reb_Kind type, const REBVAL *arg)
 REBCTX *Error_On_Port(REBCNT errnum, REBCTX *port, REBINT err_code)
 {
     REBVAL *spec = CTX_VAR(port, STD_PORT_SPEC);
-    REBVAL *val;
-
-    REBVAL err_code_value;
-    VAL_INIT_WRITABLE_DEBUG(&err_code_value);
 
     if (!IS_OBJECT(spec)) fail (Error(RE_INVALID_PORT));
 
-    val = Get_Object(spec, STD_PORT_SPEC_HEAD_REF); // most informative
+    REBVAL *val = Get_Object(spec, STD_PORT_SPEC_HEAD_REF); // most informative
     if (IS_BLANK(val)) val = Get_Object(spec, STD_PORT_SPEC_HEAD_TITLE);
 
-    VAL_INIT_WRITABLE_DEBUG(&err_code_value);
+    REBVAL err_code_value;
     SET_INTEGER(&err_code_value, err_code);
+
     return Error(errnum, val, &err_code_value, END_VALUE);
 }
 

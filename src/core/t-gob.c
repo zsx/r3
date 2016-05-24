@@ -595,15 +595,14 @@ static void Set_GOB_Vars(REBGOB *gob, const REBVAL *blk)
     const REBVAL *val;
 
     while (NOT_END(blk)) {
-        REBVAL safe;
-        VAL_INIT_WRITABLE_DEBUG(&safe);
-
         var = blk++;
         val = blk++;
         if (!IS_SET_WORD(var))
             fail (Error(RE_EXPECT_VAL, Get_Type(REB_SET_WORD), Type_Of(var)));
         if (IS_END(val) || IS_VOID(val) || IS_SET_WORD(val))
             fail (Error(RE_NEED_VALUE, var));
+
+        REBVAL safe;
         Get_Simple_Value_Into(&safe, val);
         if (!Set_GOB_Var(gob, var, &safe))
             fail (Error(RE_BAD_FIELD_SET, var, Type_Of(val)));

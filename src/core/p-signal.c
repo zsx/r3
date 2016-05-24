@@ -66,7 +66,6 @@ static void update(REBREQ *req, REBINT len, REBVAL *arg)
 
         // context[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
         //
-        VAL_INIT_WRITABLE_DEBUG(CTX_VALUE(obj));
         VAL_RESET_HEADER(CTX_VALUE(obj), REB_OBJECT);
 
         CTX_VALUE(obj)->payload.any_context.context = obj;

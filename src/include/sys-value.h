@@ -586,7 +586,7 @@ enum {
     #define SET_VOID(v) \
         VAL_RESET_HEADER((v), REB_0)
 
-    #define MARK_VAL_UNWRITABLE_DEBUG(v) NOOP
+    #define MARK_CELL_UNWRITABLE_DEBUG(v) NOOP
 
     #define VAL_INIT_WRITABLE_DEBUG(v) NOOP
 
@@ -621,7 +621,7 @@ enum {
     // cell unable to be used with SET_END() or VAL_RESET_HEADER() until
     // a SET_TRASH_IF_DEBUG() or SET_TRASH_SAFE() is used to overrule it.
     //
-    #define MARK_VAL_UNWRITABLE_DEBUG(v) \
+    #define MARK_CELL_UNWRITABLE_DEBUG(v) \
         ((v)->header.bits &= ~cast(REBUPT, WRITABLE_MASK_DEBUG), NOOP)
 
     // The debug build requires that any value slot that's going to be written

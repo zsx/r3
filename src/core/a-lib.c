@@ -165,7 +165,6 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
     int error_num;
 
     REBVAL result;
-    VAL_INIT_WRITABLE_DEBUG(&result);
 
     if (bin) {
         ser = Decompress(bin, len, -1, FALSE, FALSE);
@@ -430,7 +429,6 @@ RL_API int RL_Do_String(
     REBCTX *error;
 
     REBVAL result;
-    VAL_INIT_WRITABLE_DEBUG(&result);
 
     // assumes it can only be run at the topmost level where
     // the data stack is completely empty.
@@ -471,7 +469,6 @@ RL_API int RL_Do_String(
         REBCTX *user = VAL_CONTEXT(Get_System(SYS_CONTEXTS, CTX_USER));
 
         REBVAL vali;
-        VAL_INIT_WRITABLE_DEBUG(&vali);
         SET_INTEGER(&vali, CTX_LEN(user) + 1);
 
         Bind_Values_All_Deep(ARR_HEAD(code), user);
@@ -599,7 +596,6 @@ RL_API void RL_Do_Commands(REBARR *array, REBCNT flags, REBCEC *cec)
     REBIXO indexor; // "index -or- a flag"
 
     REBVAL result;
-    VAL_INIT_WRITABLE_DEBUG(&result);
 
     cec_before = TG_Command_Execution_Context;
     TG_Command_Execution_Context = cec; // push
@@ -1118,7 +1114,6 @@ RL_API int RL_Get_Value(REBARR *array, u32 index, RXIARG *result)
 RL_API REBOOL RL_Set_Value(REBARR *array, u32 index, RXIARG val, int type)
 {
     REBVAL value;
-    VAL_INIT_WRITABLE_DEBUG(&value);
     RXI_To_Value(&value, &val, type);
 
     if (index >= ARR_LEN(array)) {

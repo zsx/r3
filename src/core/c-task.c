@@ -84,7 +84,6 @@ static void Launch_Task(void *task_rebval)
     REBARR *body;
 
     REBVAL ignored; // !!! Should result be ignored?
-    VAL_INIT_WRITABLE_DEBUG(&ignored);
 
     Debug_Str("Begin Task");
 

@@ -74,7 +74,7 @@ void Init_Stacks(REBCNT size)
         SET_TRASH_SAFE(ARR_HEAD(DS_Array));
 
     #if !defined(NDEBUG)
-        MARK_VAL_UNWRITABLE_DEBUG(ARR_HEAD(DS_Array));
+        MARK_CELL_UNWRITABLE_DEBUG(ARR_HEAD(DS_Array));
     #endif
 
         // The END marker will signal DS_PUSH that it has run out of space,

@@ -90,7 +90,6 @@ static void Print_Parse_Index(
     REBCNT index
 ) {
     REBVAL item;
-    VAL_INIT_WRITABLE_DEBUG(&item);
     Val_Init_Series(&item, type, series);
     VAL_INDEX(&item) = index;
 
@@ -219,7 +218,6 @@ static REBCNT Parse_Next_String(
     REBCNT flags = P_FIND_FLAGS | AM_FIND_MATCH | AM_FIND_TAIL;
 
     REBVAL save;
-    VAL_INIT_WRITABLE_DEBUG(&save);
 
     if (Trace_Level) {
         Trace_Value("input", item);
@@ -380,7 +378,6 @@ static REBCNT Parse_Next_Array(
     REBVAL *blk = ARR_AT(array, index);
 
     REBVAL save;
-    VAL_INIT_WRITABLE_DEBUG(&save);
 
     if (Trace_Level) {
         Trace_Value("input", item);
@@ -489,7 +486,6 @@ static REBCNT To_Thru(
     REBCNT len;
 
     REBVAL save;
-    VAL_INIT_WRITABLE_DEBUG(&save);
 
     for (; index <= SER_LEN(P_INPUT); index++) {
 
@@ -644,8 +640,6 @@ static REBCNT To_Thru(
 found:
     if (NOT_END(blk + 1) && IS_GROUP(blk + 1)) {
         REBVAL evaluated;
-        VAL_INIT_WRITABLE_DEBUG(&evaluated);
-
         if (DO_VAL_ARRAY_AT_THROWS(&evaluated, blk + 1)) {
             *f->out = evaluated;
             return THROWN_FLAG;
@@ -657,8 +651,6 @@ found:
 found1:
     if (NOT_END(blk + 1) && IS_GROUP(blk + 1)) {
         REBVAL evaluated;
-        VAL_INIT_WRITABLE_DEBUG(&evaluated);
-
         if (DO_VAL_ARRAY_AT_THROWS(&evaluated, blk + 1)) {
             *f->out = save;
             return THROWN_FLAG;
@@ -714,7 +706,6 @@ static REBCNT Parse_To(
     else {
         if (Is_Array_Series(P_INPUT)) {
             REBVAL word; /// !!!Temp, but where can we put it?
-            VAL_INIT_WRITABLE_DEBUG(&word);
 
             if (IS_LIT_WORD(item)) {  // patch to search for word, not lit.
                 word = *item;
@@ -841,10 +832,7 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
 
     REBIXO indexor = P_POS;
 
-    REBVAL value;
     REBVAL save; // REVIEW: Could this just reuse value?
-    VAL_INIT_WRITABLE_DEBUG(&value);
-    VAL_INIT_WRITABLE_DEBUG(&save);
 
     // First, check for end of input
     //
@@ -857,6 +845,7 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
 
     // Evaluate next expression, stop processing if BREAK/RETURN/QUIT/THROW...
     //
+    REBVAL value;
     DO_NEXT_MAY_THROW(indexor, &value, AS_ARRAY(P_INPUT), indexor);
     if (indexor == THROWN_FLAG) {
         *f->out = value;
@@ -1009,7 +998,6 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
     REBCNT cmd;
 
     REBVAL save;
-    VAL_INIT_WRITABLE_DEBUG(&save);
 
     if (C_STACK_OVERFLOWING(&flags)) Trap_Stack_Overflow();
 
@@ -1031,7 +1019,6 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
             // path up to return results from an interactive breakpoint.
             //
             REBVAL result;
-            VAL_INIT_WRITABLE_DEBUG(&result);
 
             if (Do_Signals_Throws(&result))
                 fail (Error_No_Catch_For_Throw(&result));
@@ -1133,8 +1120,6 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                     case SYM_RETURN:
                         if (IS_GROUP(P_RULE)) {
                             REBVAL evaluated;
-                            VAL_INIT_WRITABLE_DEBUG(&evaluated);
-
                             if (DO_VAL_ARRAY_AT_THROWS(&evaluated, P_RULE)) {
                                 //
                                 // If the group evaluation result gives a
@@ -1212,8 +1197,6 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                 // word: - set a variable to the series at current index
                 if (IS_SET_WORD(item)) {
                     REBVAL temp;
-                    VAL_INIT_WRITABLE_DEBUG(&temp);
-
                     Val_Init_Series_Index(&temp, P_TYPE, P_INPUT, P_POS);
 
                     *GET_MUTABLE_VAR_MAY_FAIL(item) = temp;
@@ -1248,10 +1231,9 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
             }
             else if (IS_SET_PATH(item)) {
                 REBVAL tmp;
-                VAL_INIT_WRITABLE_DEBUG(&tmp);
-
                 Val_Init_Series(&tmp, P_TYPE, P_INPUT);
                 VAL_INDEX(&tmp) = P_POS;
+
                 if (Do_Path_Throws(&save, NULL, item, &tmp))
                     fail (Error_No_Catch_For_Throw(&save));
                 item = &save;
@@ -1278,10 +1260,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
 
         if (IS_GROUP(item)) {
             REBVAL evaluated;
-            VAL_INIT_WRITABLE_DEBUG(&evaluated);
-
-            // might GC
-            if (DO_VAL_ARRAY_AT_THROWS(&evaluated, item)) {
+            if (DO_VAL_ARRAY_AT_THROWS(&evaluated, item)) { // might GC
                 *f->out = evaluated;
                 return THROWN_FLAG;
             }
@@ -1567,8 +1546,6 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
 
                 if (GET_FLAG(flags, PF_COPY)) {
                     REBVAL temp;
-                    VAL_INIT_WRITABLE_DEBUG(&temp);
-
                     Val_Init_Series(
                         &temp,
                         P_TYPE,
@@ -1608,8 +1585,6 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                     // See notes on PARSE's return in handling of SYM_RETURN
 
                     REBVAL captured;
-                    VAL_INIT_WRITABLE_DEBUG(&captured);
-
                     Val_Init_Series(
                         &captured,
                         P_TYPE,

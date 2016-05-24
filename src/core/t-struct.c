@@ -66,8 +66,6 @@ static void fail_if_non_accessible(const REBVAL *val)
     if (NOT_ACCESSIBLE(&VAL_STRUCT(val))) {
         REBSER *data = VAL_STRUCT_DATA_BIN(val);
         REBVAL i;
-
-        VAL_INIT_WRITABLE_DEBUG(&i);
         SET_INTEGER(&i, cast(REBUPT, SER_DATA_RAW(data)));
         fail (Error(RE_BAD_MEMORY, &i, val));
     }
@@ -169,8 +167,6 @@ static REBOOL Get_Struct_Var(REBSTU *stu, const REBVAL *word, REBVAL *val)
                 REBCNT n = 0;
                 for (n = 0; n < field->dimension; n ++) {
                     REBVAL elem;
-                    VAL_INIT_WRITABLE_DEBUG(&elem);
-
                     get_scalar(stu, field, n, &elem);
                     Append_Value(array, &elem);
                 }
@@ -677,8 +673,6 @@ static REBOOL parse_field_type(struct Struct_Field *field, REBVAL *spec, REBVAL 
         field->array = 0; // FALSE, but bitfield must be integer
     } else if (IS_BLOCK(val)) {// make struct! [a: [int32 [2]] [0 0]]
         REBVAL ret;
-        VAL_INIT_WRITABLE_DEBUG(&ret);
-
         if (DO_VAL_ARRAY_AT_THROWS(&ret, val)) {
             // !!! Does not check for thrown cases...what should this
             // do in case of THROW, BREAK, QUIT?
@@ -804,8 +798,6 @@ REBOOL MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
             if (expect_init) {
                 REBVAL safe; // result of reduce or do (GC saved during eval)
-                VAL_INIT_WRITABLE_DEBUG(&safe);
-
                 init = &safe;
 
                 if (IS_END(blk)) {

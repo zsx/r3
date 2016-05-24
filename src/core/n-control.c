@@ -205,7 +205,6 @@ static int Protect(struct Reb_Frame *frame_, REBCNT flags)
             REBVAL *val2;
 
             REBVAL safe;
-            VAL_INIT_WRITABLE_DEBUG(&safe);
 
             for (val = VAL_ARRAY_AT(val); NOT_END(val); val++) {
                 if (IS_WORD(val)) {
@@ -1239,7 +1238,6 @@ REBNATIVE(fail)
             REB_MOLD mo;
             CLEARS(&mo);
 
-            VAL_INIT_WRITABLE_DEBUG(&pending_delimiter);
             SET_END(&pending_delimiter);
 
             // Check to make sure we're only drawing from the limited types
@@ -1665,7 +1663,6 @@ REBNATIVE(trap)
                 }
                 else {
                     REBVAL arg;
-                    VAL_INIT_WRITABLE_DEBUG(&arg);
                     Val_Init_Error(&arg, error);
 
                     // If the handler takes at least one parameter that

@@ -982,8 +982,6 @@ static void process_type_block(const REBVAL *out, REBVAL *blk, REBCNT n, REBOOL 
         if (IS_WORD(t) && VAL_WORD_CANON(t) == SYM_STRUCT_TYPE) {
             /* followed by struct definition */
             REBVAL tmp;
-            VAL_INIT_WRITABLE_DEBUG(&tmp);
-
             SET_BLANK(&tmp); // GC should not reach uninitialized values
             PUSH_GUARD_VALUE(&tmp);
 
@@ -1025,9 +1023,6 @@ static void callback_dispatcher(
 
     struct Reb_State state;
     REBCTX *error;
-
-    REBVAL safe;
-    VAL_INIT_WRITABLE_DEBUG(&safe);
 
     if (IS_ERROR(&Callback_Error)) return;
 
@@ -1103,6 +1098,7 @@ static void callback_dispatcher(
         }
     }
 
+    REBVAL safe;
     if (Do_At_Throws(&safe, array, 0)) {
         // !!! Does not check for thrown cases...what should this
         // do in case of THROW, BREAK, QUIT?
@@ -1254,12 +1250,10 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Func_Class fclass)
     if (fclass == FUNC_CLASS_ROUTINE) {
         REBIXO indexor = 0;
 
-        REBVAL lib;
-        VAL_INIT_WRITABLE_DEBUG(&lib);
-
         if (!IS_BLOCK(&blk[0]))
             fail (Error_Unexpected_Type(REB_BLOCK, VAL_TYPE(&blk[0])));
 
+        REBVAL lib;
         DO_NEXT_MAY_THROW(indexor, &lib, VAL_ARRAY(data), 1);
         if (indexor == THROWN_FLAG)
             fail (Error_No_Catch_For_Throw(&lib));
@@ -1324,12 +1318,10 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Func_Class fclass)
     } else if (fclass == FUNC_CLASS_CALLBACK) {
         REBIXO indexor = 0;
 
-        REBVAL fun;
-        VAL_INIT_WRITABLE_DEBUG(&fun);
-
         if (!IS_BLOCK(&blk[0]))
             fail (Error_Invalid_Arg(&blk[0]));
 
+        REBVAL fun;
         DO_NEXT_MAY_THROW(indexor, &fun, VAL_ARRAY(data), 1);
         if (indexor == THROWN_FLAG)
             fail (Error_No_Catch_For_Throw(&fun));

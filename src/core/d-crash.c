@@ -154,15 +154,13 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
         REB_MOLD mo;
         REBSER *bytes;
 
-        REBVAL error;
-        VAL_INIT_WRITABLE_DEBUG(&error);
-
         CLEARS(&mo);
         SET_FLAG(mo.opts, MOPT_LIMIT);
         mo.limit = PANIC_BUF_SIZE - strlen(message); // codepoints, not bytes
 
         Push_Mold(&mo);
 
+        REBVAL error;
         if (opt_error) {
             assert(!vaptr);
             Val_Init_Error(&error, opt_error);

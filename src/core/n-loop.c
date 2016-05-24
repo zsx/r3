@@ -517,8 +517,6 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
                 else {
                     // !!! Review this error (and this routine...)
                     REBVAL key_name;
-                    VAL_INIT_WRITABLE_DEBUG(&key_name);
-
                     Val_Init_Word(&key_name, REB_WORD, VAL_TYPESET_SYM(key));
                     fail (Error_Invalid_Arg(&key_name));
                 }
@@ -539,8 +537,6 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
                     else {
                         // !!! Review this error (and this routine...)
                         REBVAL key_name;
-                        VAL_INIT_WRITABLE_DEBUG(&key_name);
-
                         Val_Init_Word(
                             &key_name, REB_WORD, VAL_TYPESET_SYM(key)
                         );
@@ -1124,7 +1120,6 @@ REBNATIVE(while)
     // from GC (no need to, as it doesn't need to stay live across eval)
     //
     REBVAL unsafe;
-    VAL_INIT_WRITABLE_DEBUG(&unsafe);
 
     // If the loop body never runs (and condition doesn't error or throw),
     // we want to return no value

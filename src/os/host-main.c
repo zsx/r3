@@ -342,8 +342,6 @@ int Do_String(
         REBCTX *user_ctx = VAL_CONTEXT(Get_System(SYS_CONTEXTS, CTX_USER));
 
         REBVAL vali;
-        VAL_INIT_WRITABLE_DEBUG(&vali);
-
         SET_INTEGER(&vali, CTX_LEN(user_ctx) + 1);
 
         Bind_Values_All_Deep(ARR_HEAD(code), user_ctx);
@@ -359,7 +357,6 @@ int Do_String(
             REBCTX *frame_ctx;
 
             REBVAL level;
-            VAL_INIT_WRITABLE_DEBUG(&level);
             SET_INTEGER(&level, HG_Stack_Level);
 
             frame = Frame_For_Stack_Level(NULL, &level, FALSE);
@@ -543,8 +540,6 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
         REBARR *spec = Scan_Source(N_debug_spec, LEN_BYTES(N_debug_spec));
 
         REBVAL debug_native;
-        VAL_INIT_WRITABLE_DEBUG(&debug_native);
-
         Make_Native(&debug_native, spec, &N_debug, FUNC_CLASS_NATIVE);
 
         *Append_Context(Lib_Context, 0, debug_sym) = debug_native;
@@ -604,7 +599,6 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
         REBCTX *error;
 
         REBVAL result;
-        VAL_INIT_WRITABLE_DEBUG(&result);
 
         // See notes regarding unix signals and Ctrl-C in main() for why
         // this must be pushed in order to handle potential breaks during
@@ -970,7 +964,6 @@ REBOOL Host_Breakpoint_Quitting_Hook(
 
     {
         REBVAL level;
-        VAL_INIT_WRITABLE_DEBUG(&level);
         SET_INTEGER(&level, 1);
 
         if (Frame_For_Stack_Level(NULL, &level, FALSE) != NULL)
@@ -1078,7 +1071,6 @@ int main(int argc, char **argv_ansi)
         REBCTX *error;
 
         REBVAL value;
-        VAL_INIT_WRITABLE_DEBUG(&value);
         SET_END(&value);
         PUSH_GUARD_VALUE(&value); // !!! Out_Value expects value to be GC safe
 

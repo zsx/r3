@@ -667,7 +667,6 @@ REBNATIVE(in)
             REBCNT i;
             for (i = VAL_INDEX(val); i < VAL_LEN_HEAD(val); i++) {
                 REBVAL safe;
-                VAL_INIT_WRITABLE_DEBUG(&safe);
 
                 v = VAL_ARRAY_AT_HEAD(val, i);
                 Get_Simple_Value_Into(&safe, v);
@@ -939,8 +938,6 @@ REBNATIVE(set)
 
     if (ANY_PATH(target)) {
         REBVAL dummy;
-        VAL_INIT_WRITABLE_DEBUG(&dummy);
-
         if (Do_Path_Throws(&dummy, NULL, target, value))
             fail (Error_No_Catch_For_Throw(&dummy));
 
@@ -1013,8 +1010,6 @@ REBNATIVE(set)
 
             if (!REF(opt) && IS_VOID(value)) {
                 REBVAL key_name;
-                VAL_INIT_WRITABLE_DEBUG(&key_name);
-
                 Val_Init_Word(&key_name, REB_WORD, VAL_TYPESET_SYM(key));
                 fail (Error(RE_NEED_VALUE, &key_name));
             }
@@ -1272,7 +1267,6 @@ REBNATIVE(set_q)
         VAL_SET_TYPE_BITS(location, REB_GET_PATH);
 
         REBVAL temp;
-        VAL_INIT_WRITABLE_DEBUG(&temp);
         if (Do_Path_Throws(&temp, NULL, location, NULL)) {
             //
             // !!! Shouldn't be evaluating, much less throwing--so fail

@@ -908,7 +908,6 @@ void Do_Construct(REBVAL* head)
     REBDSP dsp_orig = DSP;
 
     REBVAL temp;
-    VAL_INIT_WRITABLE_DEBUG(&temp);
     SET_BLANK(&temp);
 
     // This routine reads values from the start to the finish, which means

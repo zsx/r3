@@ -280,7 +280,6 @@ REBOOL Make_Block_Type_Throws(
 
         const REBVAL *param;
         REBVAL fake_param;
-        VAL_INIT_WRITABLE_DEBUG(&fake_param);
 
         // !!! This MAKE will be destructive to its input (the varargs will
         // be fetched and exhausted).  That's not necessarily obvious, but
@@ -414,7 +413,6 @@ static int Compare_Call(void *thunk, const void *v1, const void *v2)
     const void *tmp = NULL;
 
     REBVAL result;
-    VAL_INIT_WRITABLE_DEBUG(&result);
 
     if (!sort_flags.reverse) { /*swap v1 and v2 */
         tmp = v1;
@@ -681,7 +679,6 @@ REBTYPE(Array)
     REBCNT  ret;
 
     REBVAL val;
-    VAL_INIT_WRITABLE_DEBUG(&val);
 
     // Support for port: OPEN [scheme: ...], READ [ ], etc.
     if (action >= PORT_ACTIONS && IS_BLOCK(value))

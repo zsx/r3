@@ -92,6 +92,7 @@ REBNATIVE(form)
 
     if (REF(new)) {
         REBVAL pending_delimiter;
+        SET_END(&pending_delimiter);
 
         REB_MOLD mo;
         CLEARS(&mo);
@@ -104,9 +105,6 @@ REBNATIVE(form)
             *delimiter = *ROOT_DEFAULT_PRINT_DELIMITER;
 
         Push_Mold(&mo);
-
-        VAL_INIT_WRITABLE_DEBUG(&pending_delimiter);
-        SET_END(&pending_delimiter);
 
         if (Format_GC_Safe_Value_Throws(
             D_OUT,
@@ -367,7 +365,6 @@ REBNATIVE(wait)
 
     if (IS_BLOCK(val)) {
         REBVAL unsafe; // temporary not safe from GC
-        VAL_INIT_WRITABLE_DEBUG(&unsafe);
 
         if (Reduce_Array_Throws(
             &unsafe, VAL_ARRAY(val), VAL_INDEX(val), FALSE
@@ -600,17 +597,13 @@ REBNATIVE(change_dir)
         // !!! Should it at least check for a trailing `/`?
     }
     else {
-        REBSER *ser;
-
-        REBVAL val;
-        VAL_INIT_WRITABLE_DEBUG(&val);
-
         assert(IS_FILE(arg));
 
-        ser = Value_To_OS_Path(arg, TRUE);
+        REBSER *ser = Value_To_OS_Path(arg, TRUE);
         if (!ser)
             fail (Error_Invalid_Arg(arg)); // !!! ERROR MSG
 
+        REBVAL val;
         Val_Init_String(&val, ser); // may be unicode or utf-8
         Check_Security(SYM_FILE, POL_EXEC, &val);
 

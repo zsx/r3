@@ -70,7 +70,6 @@ REBVAL *Find_Mutable_In_Contexts(REBSYM sym, REBVAL *where)
     REBVAL *val;
 
     REBVAL safe;
-    VAL_INIT_WRITABLE_DEBUG(&safe);
 
     for (; NOT_END(where); where++) {
         if (IS_WORD(where)) {
@@ -159,7 +158,6 @@ static REBVAL *Eval_Arg(REBDIA *dia)
     REBVAL *value = ARR_AT(dia->args, dia->argi);
 
     REBVAL safe;
-    VAL_INIT_WRITABLE_DEBUG(&safe);
 
     switch (VAL_TYPE(value)) {
 
