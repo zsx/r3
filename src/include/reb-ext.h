@@ -167,7 +167,7 @@ typedef int (*RXICAL)(int cmd, RXIFRM *args, REBCEC *ctx);
 
 // Command function return values:
 enum rxi_return {
-    RXR_UNSET,
+    RXR_VOID,
     RXR_NONE,
     RXR_TRUE,
     RXR_FALSE,

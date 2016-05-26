@@ -892,7 +892,7 @@ static void Mold_Map(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
     // Mold all non-UNSET! entries
     mold->indent++;
     for (val = ARR_HEAD(mapser); NOT_END(val) && NOT_END(val+1); val += 2) {
-        if (!IS_UNSET(val + 1)) {
+        if (!IS_VOID(val + 1)) {
             if (molded) New_Indented_Line(mold);
             Emit(mold, "V V", val, val+1);
             if (!molded) Append_Codepoint_Raw(mold->series, '\n');

@@ -107,10 +107,10 @@ void Legacy_Convert_Function_Args_Debug(struct Reb_Frame *f)
             else assert(FALSE);
         }
         else if (VAL_PARAM_CLASS(param) == PARAM_CLASS_PURE_LOCAL)
-            assert(IS_UNSET(arg));
+            assert(IS_VOID(arg));
         else {
             if (set_none) {
-                assert(IS_UNSET(arg));
+                assert(IS_VOID(arg));
                 SET_NONE(arg);
             }
         }

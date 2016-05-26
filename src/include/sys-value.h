@@ -664,10 +664,10 @@ enum {
         (VAL_RESET_HEADER((v), REB_UNSET), SET_TRACK_PAYLOAD(v))
 #endif
 
-// Pointer to a global protected unset value that can be used when a read-only
-// UNSET! value is needed.
+// Pointer to a global protected void cell that can be used when a read-only
+// "absence of value" bit pattern is needed.
 //
-#define UNSET_VALUE (&PG_Unset_Value[0])
+#define VOID_CELL (&PG_Void_Cell[0])
 
 // In legacy mode Ren-C still supports the old convention that IFs that don't
 // take the true branch or a WHILE loop that never runs a body return a NONE!
@@ -2040,7 +2040,7 @@ enum {
     // to specify another result...this cannot be caught by the REB_TRASH
     // trick for detecting an unwritten D_OUT.
     //
-    R_UNSET, // => SET_UNSET(D_OUT); return R_OUT;
+    R_VOID, // => SET_UNSET(D_OUT); return R_OUT;
     R_NONE, // => SET_NONE(D_OUT); return R_OUT;
     R_TRUE, // => SET_TRUE(D_OUT); return R_OUT;
     R_FALSE // => SET_FALSE(D_OUT); return R_OUT;

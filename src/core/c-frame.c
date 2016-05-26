@@ -1214,7 +1214,7 @@ void Resolve_Context(
     // Done by marking all source words (in bind table):
     key = CTX_KEYS_HEAD(source);
     for (n = 1; NOT_END(key); n++, key++) {
-        if (IS_UNSET(only_words) || binds[VAL_TYPESET_CANON(key)])
+        if (IS_VOID(only_words) || binds[VAL_TYPESET_CANON(key)])
             binds[VAL_TYPESET_CANON(key)] = n;
     }
 
@@ -1227,7 +1227,7 @@ void Resolve_Context(
             binds[VAL_TYPESET_CANON(key)] = 0; // mark it as set
             if (
                 !GET_VAL_FLAG(key, TYPESET_FLAG_LOCKED)
-                && (all || IS_UNSET(var))
+                && (all || IS_VOID(var))
             ) {
                 if (m < 0) SET_UNSET(var); // no value in source context
                 else *var = *CTX_VAR(source, m);

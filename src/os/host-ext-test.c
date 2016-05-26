@@ -215,7 +215,7 @@ RXIEXT int RX_Call(int cmd, RXIFRM *frm, REBCEC *ctx) {
             cec.index = 0;
             RL_DO_COMMANDS(RXA_SERIES(frm, 1), 0, &cec);
         }
-        return RXR_UNSET;
+        return RXR_VOID;
 
     case 10:
         RXA_INT64(frm, 1) = (i64)(ctx ? ctx->index : -1);

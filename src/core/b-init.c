@@ -289,7 +289,7 @@ static void Do_Global_Block(
 
     ASSERT_STATE_BALANCED(&state);
 
-    if (!IS_UNSET(&result))
+    if (!IS_VOID(&result))
         panic (Error(RE_MISC));
 }
 
@@ -743,11 +743,11 @@ static void Init_Root_Context(void)
     // the root set.  Should that change, they could be explicitly added
     // to the GC's root set.
 
-    VAL_INIT_WRITABLE_DEBUG(&PG_Unset_Value[0]);
-    SET_UNSET(&PG_Unset_Value[0]);
-    VAL_INIT_WRITABLE_DEBUG(&PG_Unset_Value[1]);
-    SET_TRASH_IF_DEBUG(&PG_Unset_Value[1]);
-    MARK_VAL_UNWRITABLE_DEBUG(&PG_Unset_Value[1]);
+    VAL_INIT_WRITABLE_DEBUG(&PG_Void_Cell[0]);
+    SET_UNSET(&PG_Void_Cell[0]);
+    VAL_INIT_WRITABLE_DEBUG(&PG_Void_Cell[1]);
+    SET_TRASH_IF_DEBUG(&PG_Void_Cell[1]);
+    MARK_VAL_UNWRITABLE_DEBUG(&PG_Void_Cell[1]);
 
     VAL_INIT_WRITABLE_DEBUG(&PG_None_Value[0]);
     SET_NONE(&PG_None_Value[0]);
@@ -929,7 +929,7 @@ static void Init_System_Object(void)
     //
     if (DO_VAL_ARRAY_AT_THROWS(&result, &Boot_Block->sysobj))
         panic (Error_No_Catch_For_Throw(&result));
-    if (!IS_UNSET(&result))
+    if (!IS_VOID(&result))
         panic (Error(RE_MISC));
 
     // Create a global value for it.  (This is why we are able to say `system`
@@ -1639,7 +1639,7 @@ void Init_Core(REBARGS *rargs)
     // Success of the 'finish-init-core' Rebol code is signified by returning
     // a UNSET! (all other return results indicate an error state)
 
-    if (!IS_UNSET(&result)) {
+    if (!IS_VOID(&result)) {
         Debug_Fmt("** 'finish-init-core' returned non-none!: %r", &result);
         panic (Error(RE_MISC));
     }

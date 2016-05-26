@@ -200,7 +200,7 @@ REBNATIVE(assert)
         }
     }
 
-    return R_UNSET;
+    return R_VOID;
 }
 
 
@@ -421,7 +421,7 @@ REBNATIVE(context_of)
 //
 REBNATIVE(any_value_q)
 {
-    return IS_UNSET(D_ARG(1)) ? R_FALSE : R_TRUE;
+    return IS_VOID(D_ARG(1)) ? R_FALSE : R_TRUE;
 }
 
 
@@ -592,7 +592,7 @@ REBNATIVE(get)
         *D_OUT = *source;
     }
 
-    if (!REF(opt) && IS_UNSET(D_OUT))
+    if (!REF(opt) && IS_VOID(D_OUT))
         fail (Error(RE_NO_VALUE, source));
 
     return R_OUT;
@@ -611,7 +611,7 @@ REBNATIVE(to_value)
 {
     PARAM(1, value);
 
-    if (IS_UNSET(ARG(value)))
+    if (IS_VOID(ARG(value)))
         return R_NONE;
 
     *D_OUT = *ARG(value);
@@ -632,7 +632,7 @@ REBNATIVE(opt)
     PARAM(1, value);
 
     if (IS_NONE(ARG(value)))
-        return R_UNSET;
+        return R_VOID;
 
     *D_OUT = *ARG(value);
     return R_OUT;
@@ -858,7 +858,7 @@ REBNATIVE(set)
     REBVAL *value = ARG(value);
     REBOOL set_with_block;
 
-    if (!REF(opt) && IS_UNSET(value))
+    if (!REF(opt) && IS_VOID(value))
         fail (Error(RE_NEED_VALUE, target));
 
     // Simple request to set a word variable.  Allows ANY-WORD, which means
@@ -944,7 +944,7 @@ REBNATIVE(set)
             //
             if (!set_with_block) continue;
 
-            if (!REF(opt) && IS_UNSET(value)) {
+            if (!REF(opt) && IS_VOID(value)) {
                 REBVAL key_name;
                 VAL_INIT_WRITABLE_DEBUG(&key_name);
 
@@ -1008,7 +1008,7 @@ REBNATIVE(set)
             case REB_WORD:
             case REB_SET_WORD:
             case REB_LIT_WORD:
-                if (IS_UNSET(value)) {
+                if (IS_VOID(value)) {
                     assert(set_with_block); // if not, caught earlier...!
                     fail (Error(RE_NEED_VALUE, target));
                 }
@@ -1021,7 +1021,7 @@ REBNATIVE(set)
                 // it's a get-word for the !set_with_block too.
                 //
                 if (
-                    IS_UNSET(
+                    IS_VOID(
                         IS_WORD(value)
                             ? GET_OPT_VAR_MAY_FAIL(value)
                             : value
@@ -1134,7 +1134,7 @@ REBNATIVE(unset)
             SET_UNSET(var);
         }
     }
-    return R_UNSET;
+    return R_VOID;
 }
 
 
@@ -1173,7 +1173,7 @@ REBNATIVE(set_q)
 
     if (ANY_WORD(location)) {
         const REBVAL *var = GET_OPT_VAR_MAY_FAIL(location); // fails if unbound
-        if (IS_UNSET(var))
+        if (IS_VOID(var))
             return R_FALSE;
     }
     else {
@@ -1201,7 +1201,7 @@ REBNATIVE(set_q)
         // We did not pass in a symbol ID
         //
         assert(DSP == dsp_orig);
-        if (IS_UNSET(&temp))
+        if (IS_VOID(&temp))
             return R_FALSE;
     }
 
@@ -1288,7 +1288,7 @@ REBNATIVE(nothing_q)
 {
     PARAM(1, value);
 
-    return (IS_NONE(ARG(value)) || IS_UNSET(ARG(value))) ? R_TRUE : R_FALSE;
+    return (IS_NONE(ARG(value)) || IS_VOID(ARG(value))) ? R_TRUE : R_FALSE;
 }
 
 
@@ -1309,7 +1309,7 @@ REBNATIVE(something_q)
 {
     PARAM(1, value);
 
-    return (IS_NONE(ARG(value)) || IS_UNSET(ARG(value))) ? R_FALSE : R_TRUE;
+    return (IS_NONE(ARG(value)) || IS_VOID(ARG(value))) ? R_FALSE : R_TRUE;
 }
 
 

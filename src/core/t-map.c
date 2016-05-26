@@ -151,7 +151,7 @@ REBINT Find_Key_Hashed(
             if (!cased && VAL_WORD_CANON(key) == VAL_WORD_CANON(val) && uncased == len) {
                 uncased = hash;
             }
-            else if (wide > 1 && IS_UNSET(++val) && zombie == len) {
+            else if (wide > 1 && IS_VOID(++val) && zombie == len) {
                 zombie = hash;
             }
             hash += skip;
@@ -172,7 +172,7 @@ REBINT Find_Key_Hashed(
                     uncased = hash;
                 }
             }
-            if (wide > 1 && IS_UNSET(++val) && zombie == len)  {
+            if (wide > 1 && IS_VOID(++val) && zombie == len)  {
                 zombie = hash;
             }
             hash += skip;
@@ -193,7 +193,7 @@ REBINT Find_Key_Hashed(
                     uncased = hash;
                 }
             }
-            if (wide > 1 && IS_UNSET(++val) && zombie == len) zombie = hash;
+            if (wide > 1 && IS_VOID(++val) && zombie == len) zombie = hash;
             hash += skip;
             if (hash >= len) hash -= len;
         }
@@ -241,7 +241,7 @@ static void Rehash_Map(REBMAP *map)
         REBCNT hash;
         const REBOOL cased = TRUE; // cased=TRUE is always fine
 
-        if (IS_UNSET(key + 1)) {
+        if (IS_VOID(key + 1)) {
             //
             // It's a "zombie", move last key to overwrite it
             //
@@ -255,7 +255,7 @@ static void Rehash_Map(REBMAP *map)
 
         // discard zombies at end of pairlist
         //
-        while (IS_UNSET(ARR_AT(pairlist, ARR_LEN(pairlist) - 1))) {
+        while (IS_VOID(ARR_AT(pairlist, ARR_LEN(pairlist) - 1))) {
             SET_ARRAY_LEN(pairlist, ARR_LEN(pairlist) - 2);
         }
     }
@@ -307,7 +307,7 @@ static REBCNT Find_Map_Entry(
         return n;
     }
 
-    if (IS_UNSET(val)) return 0; // trying to remove non-existing key
+    if (IS_VOID(val)) return 0; // trying to remove non-existing key
 
     // Create new entry:
     Append_Value(pairlist, key);
@@ -361,11 +361,11 @@ REBINT PD_Map(REBPVS *pvs)
     );
 
     if (n == 0)
-        val = UNSET_VALUE;
+        val = VOID_CELL;
     else
         val = ARR_AT(MAP_PAIRLIST(VAL_MAP(pvs->value)), ((n - 1) * 2) + 1);
 
-    if (IS_UNSET(val))
+    if (IS_VOID(val))
         return PE_NONE;
 
     pvs->value = val;
@@ -584,7 +584,7 @@ REBTYPE(Map)
         n = Find_Map_Entry(map, arg, 0, LOGICAL(args & AM_FIND_CASE));
         if (!n) return R_NONE;
         *D_OUT = *ARR_AT(MAP_PAIRLIST(map), ((n - 1) * 2) + 1);
-        if (IS_UNSET(D_OUT)) return R_NONE;
+        if (IS_VOID(D_OUT)) return R_NONE;
         if (action == A_FIND) *D_OUT = *val;
         return R_OUT;
 
@@ -604,7 +604,7 @@ REBTYPE(Map)
             fail (Error_Illegal_Action(REB_MAP, action));
         }
         *D_OUT = *val;
-        Find_Map_Entry(map, D_ARG(5), UNSET_VALUE, TRUE);
+        Find_Map_Entry(map, D_ARG(5), VOID_CELL, TRUE);
         return R_OUT;
 
     case A_POKE:  // CHECK all pokes!!! to be sure they check args now !!!

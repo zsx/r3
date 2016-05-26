@@ -214,7 +214,7 @@ value_ready_for_do_next:
             NOTE_THROWING(goto return_indexor);
         }
 
-        if (!IS_UNSET(f->out)) {
+        if (!IS_VOID(f->out)) {
             //
             // !!! What to do with something like a Ctrl-C-based breakpoint
             // session that does something like `resume/with 10`?  We are
@@ -342,7 +342,7 @@ reevaluate:
             goto do_function_in_value;
         }
 
-        if (IS_UNSET(f->out))
+        if (IS_VOID(f->out))
             fail (Error(RE_NO_VALUE, f->value)); // need `:x` if `x` is unset
 
     #if !defined(NDEBUG)
@@ -382,7 +382,7 @@ reevaluate:
             QUOTE_NEXT_REFETCH(f->out, f);
 
     #if !defined(NDEBUG)
-        if (LEGACY(OPTIONS_SET_WORD_VOID_IS_ERROR) && IS_UNSET(f->out))
+        if (LEGACY(OPTIONS_SET_WORD_VOID_IS_ERROR) && IS_VOID(f->out))
             fail (Error(RE_NEED_VALUE, f->param)); // e.g. `foo: ()`
     #endif
 
@@ -450,7 +450,7 @@ reevaluate:
             NOTE_THROWING(goto return_indexor);
         }
 
-        if (IS_UNSET(f->out))
+        if (IS_VOID(f->out))
             fail (Error(RE_NO_VALUE, f->value)); // need `:x/y` if `y` is unset
 
         if (IS_FUNCTION(f->out)) {
@@ -521,7 +521,7 @@ reevaluate:
         }
 
     #if !defined(NDEBUG)
-        if (LEGACY(OPTIONS_SET_WORD_VOID_IS_ERROR) && IS_UNSET(f->out))
+        if (LEGACY(OPTIONS_SET_WORD_VOID_IS_ERROR) && IS_VOID(f->out))
             fail (Error(RE_NEED_VALUE, f->param)); // e.g. `a/b/c: ()`
     #endif
 
@@ -891,7 +891,7 @@ reevaluate:
                                 = f->arg;
 
                             MARK_REFINEMENT_USED(f->arg, f->param);
-                            f->refine = UNSET_VALUE; // "consume args later"
+                            f->refine = VOID_CELL; // "consume args later"
                             goto continue_arg_loop;
                         }
                     }
@@ -921,7 +921,7 @@ reevaluate:
                 // If any TRUE? value we consider the refinement used, but
                 // UNSET! is neither conditionally true nor false
                 //
-                if (IS_UNSET(f->arg))
+                if (IS_VOID(f->arg))
                     fail (Error_Arg_Type(
                         FRM_LABEL(f), f->param, Type_Of(f->arg))
                     );
@@ -942,7 +942,7 @@ reevaluate:
 
     //=//// IF JUST SKIPPING TO NEXT REFINEMENT, MOVE ON //////////////////=//
 
-            if (IS_UNSET(f->refine))
+            if (IS_VOID(f->refine))
                 goto continue_arg_loop;
 
     //=//// PURE "LOCAL:" ARG (must be unset, no consumption) /////////////=//
@@ -954,7 +954,7 @@ reevaluate:
                     goto continue_arg_loop;
                 }
 
-                if (IS_UNSET(f->arg)) // the only legal specialized value
+                if (IS_VOID(f->arg)) // the only legal specialized value
                     goto continue_arg_loop;
 
                 fail (Error_Local_Injection(FRM_LABEL(f), f->param));
@@ -1142,7 +1142,7 @@ reevaluate:
                 IS_WORD(f->refine) // refinement arg in use, but revokable
             );
 
-            if (IS_UNSET(f->arg)) {
+            if (IS_VOID(f->arg)) {
                 if (IS_WORD(f->refine)) {
                     //
                     // We can only revoke the refinement if this is the 1st
@@ -1264,7 +1264,7 @@ reevaluate:
                 // LEAVE never created an arglist, so it doesn't have to
                 // free one.  Also, it wants to just return UNSET!
                 //
-                CONVERT_NAME_TO_THROWN(f->out, UNSET_VALUE, TRUE);
+                CONVERT_NAME_TO_THROWN(f->out, VOID_CELL, TRUE);
                 NOTE_THROWING(goto return_indexor);
             }
 
@@ -1338,7 +1338,7 @@ reevaluate:
             f->refine = FRM_ARG(f, VAL_FUNC_NUM_PARAMS(FUNC_VALUE(f->func)));
 
             assert(VAL_PARAM_CLASS(f->param) == PARAM_CLASS_PURE_LOCAL);
-            assert(IS_UNSET(f->refine));
+            assert(IS_VOID(f->refine));
 
             if (VAL_TYPESET_CANON(f->param) == SYM_RETURN)
                 *(f->refine) = *ROOT_RETURN_NATIVE;

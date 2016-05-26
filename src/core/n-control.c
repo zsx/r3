@@ -305,12 +305,12 @@ REBNATIVE(all)
         DO_NEXT_MAY_THROW(indexor, D_OUT, block, indexor);
         if (indexor == THROWN_FLAG) return R_OUT_IS_THROWN;
 
-        if (IS_UNSET(D_OUT)) continue;
+        if (IS_VOID(D_OUT)) continue;
 
         if (IS_CONDITIONAL_FALSE(D_OUT)) return R_NONE;
     }
 
-    if (IS_UNSET(D_OUT)) return R_TRUE;
+    if (IS_VOID(D_OUT)) return R_TRUE;
 
     return R_OUT;
 }
@@ -345,7 +345,7 @@ REBNATIVE(any)
         DO_NEXT_MAY_THROW(indexor, D_OUT, block, indexor);
         if (indexor == THROWN_FLAG) return R_OUT_IS_THROWN;
 
-        if (IS_UNSET(D_OUT)) continue;
+        if (IS_VOID(D_OUT)) continue;
 
         if (IS_CONDITIONAL_TRUE(D_OUT)) return R_OUT;
     }
@@ -408,7 +408,7 @@ REBNATIVE(break)
     REFINE(1, with);
     PARAM(2, value);
 
-    REBVAL *value = REF(with) ? ARG(value) : UNSET_VALUE;
+    REBVAL *value = REF(with) ? ARG(value) : VOID_CELL;
 
     *D_OUT = *FUNC_VALUE(D_FUNC);
 
@@ -494,7 +494,7 @@ REBNATIVE(case)
         // of an IF/UNLESS/EITHER is a spot where opting out is not allowed,
         // so it seems equally applicable to CASE.
         //
-        if (IS_UNSET(safe_temp)) fail (Error(RE_NO_RETURN));
+        if (IS_VOID(safe_temp)) fail (Error(RE_NO_RETURN));
 
         // Expression barriers in CASE statements are only allowed at the
         // in-between-pairs spots.  This maximizes their usefulness, because
@@ -572,7 +572,7 @@ REBNATIVE(case)
 
         #if !defined(NDEBUG)
             if (LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS)) {
-                if (IS_UNSET(D_OUT)) {
+                if (IS_VOID(D_OUT)) {
                     // case [true [] false [1 + 2]] => true ;-- in Rebol2
                     SET_TRUE(D_OUT);
                 }
@@ -854,7 +854,7 @@ REBNATIVE(comment)
     // All the work was already done (at the cost of setting up
     // state that would just have to be torn down).
 
-    return R_UNSET;
+    return R_VOID;
 }
 
 
@@ -877,7 +877,7 @@ REBNATIVE(continue)
     REFINE(1, with);
     PARAM(2, value);
 
-    REBVAL *value = REF(with) ? ARG(value) : UNSET_VALUE;
+    REBVAL *value = REF(with) ? ARG(value) : VOID_CELL;
 
     *D_OUT = *FUNC_VALUE(D_FUNC);
 
@@ -913,7 +913,7 @@ REBNATIVE(do)
     switch (VAL_TYPE(value)) {
     case REB_UNSET:
         // useful for `do if ...` types of scenarios
-        return R_UNSET;
+        return R_VOID;
 
     case REB_NONE:
         // useful for `do all ...` types of scenarios
@@ -981,8 +981,8 @@ REBNATIVE(do)
             D_OUT,
             Sys_Func(SYS_CTX_DO_P),
             value,
-            REF(args) ? ARG(arg) : UNSET_VALUE,
-            REF(next) ? ARG(var) : UNSET_VALUE,
+            REF(args) ? ARG(arg) : VOID_CELL,
+            REF(next) ? ARG(var) : VOID_CELL,
             END_VALUE
         )) {
             return R_OUT_IS_THROWN;
@@ -1134,14 +1134,14 @@ REBNATIVE(exit)
         *D_OUT = *FUNC_VALUE(frame->func);
 
         CONVERT_NAME_TO_THROWN(
-            D_OUT, REF(with) ? ARG(value) : UNSET_VALUE, TRUE
+            D_OUT, REF(with) ? ARG(value) : VOID_CELL, TRUE
         );
 
         return R_OUT_IS_THROWN;
     }
 #endif
 
-    if (IS_UNSET(level)) {
+    if (IS_VOID(level)) {
         //
         // The thrown exit protocol understands integers to be a count down
         // of how many frames to skip.  If no /FROM argument is provided
@@ -1173,7 +1173,7 @@ REBNATIVE(exit)
         *D_OUT = *level;
     }
 
-    CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : UNSET_VALUE, TRUE);
+    CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : VOID_CELL, TRUE);
 
     return R_OUT_IS_THROWN;
 }

@@ -209,7 +209,7 @@ REBNATIVE(print)
     if (NOT(REF(only)))
         Print_OS_Line();
 
-    return R_UNSET;
+    return R_VOID;
 }
 
 
@@ -642,7 +642,7 @@ REBNATIVE(browse)
     Check_Security(SYM_BROWSE, POL_EXEC, arg);
 
     if (IS_NONE(arg))
-        return R_UNSET;
+        return R_VOID;
 
     // !!! By passing NULL we don't get backing series to protect!
     url = Val_Str_To_OS_Managed(NULL, arg);
@@ -650,13 +650,13 @@ REBNATIVE(browse)
     r = OS_BROWSE(url, 0);
 
     if (r == 0) {
-        return R_UNSET;
+        return R_VOID;
     } else {
         Make_OS_Error(D_OUT, r);
         fail (Error(RE_CALL_FAIL, D_OUT));
     }
 
-    return R_UNSET;
+    return R_VOID;
 }
 
 
@@ -1251,7 +1251,7 @@ REBNATIVE(get_env)
 
     lenplus = OS_GET_ENV(cmd, NULL, 0);
     if (lenplus == 0) return R_NONE;
-    if (lenplus < 0) return R_UNSET;
+    if (lenplus < 0) return R_VOID;
 
     // Two copies...is there a better way?
     buf = ALLOC_N(REBCHR, lenplus);
@@ -1295,20 +1295,20 @@ REBNATIVE(set_env)
             Val_Init_String(D_OUT, Copy_OS_Str(value, OS_STRLEN(value)));
             return R_OUT;
         }
-        return R_UNSET;
+        return R_VOID;
     }
 
     if (IS_NONE(arg2)) {
         success = OS_SET_ENV(cmd, 0);
         if (success)
             return R_NONE;
-        return R_UNSET;
+        return R_VOID;
     }
 
     // is there any checking that native interface has not changed
     // out from under the expectations of the code?
 
-    return R_UNSET;
+    return R_VOID;
 }
 
 

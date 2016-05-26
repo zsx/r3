@@ -665,7 +665,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             return RXR_NO_COMMAND;
     }
 
-    return RXR_UNSET;
+    return RXR_VOID;
 }
 
 //

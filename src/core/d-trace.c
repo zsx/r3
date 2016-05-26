@@ -236,11 +236,11 @@ REBNATIVE(trace)
             Trace_Flags = 0;
             if (lines < 0) {
                 fail (Error_Invalid_Arg(arg));
-                return R_UNSET;
+                return R_VOID;
             }
 
             Display_Backtrace(cast(REBCNT, lines));
-            return R_UNSET;
+            return R_VOID;
         }
     }
     else Enable_Backtrace(FALSE);
@@ -258,7 +258,7 @@ REBNATIVE(trace)
     }
     else Trace_Flags = 0;
 
-    return R_UNSET;
+    return R_VOID;
 }
 
 

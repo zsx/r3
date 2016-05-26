@@ -448,7 +448,7 @@ static void Sort_String(
     if (len <= 1) return;
 
     // Skip factor:
-    if (!IS_UNSET(skipv)) {
+    if (!IS_VOID(skipv)) {
         skip = Get_Num_From_Arg(skipv);
         if (skip <= 0 || len % skip != 0 || skip > len)
             fail (Error_Invalid_Arg(skipv));
@@ -920,7 +920,7 @@ zero_str:
                     VAL_LEN_AT(value) * SER_WIDE(VAL_SERIES(value))
                 )
             );
-            return R_UNSET;
+            return R_VOID;
         }
 
         if (D_REF(4)) { // /only

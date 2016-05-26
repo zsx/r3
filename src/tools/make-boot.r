@@ -558,6 +558,9 @@ for-each-record-NO-RETURN type boot-types [
 ; !!! Consider ways of making this more robust.
 ;
 emit {
+#define IS_VOID(v) \
+    LOGICAL(VAL_TYPE(v) == REB_UNSET)
+
 #define IS_SET(v) \
     LOGICAL(VAL_TYPE(v) > REB_UNSET)
 

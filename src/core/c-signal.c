@@ -91,7 +91,7 @@ REBOOL Do_Signals_Throws(REBVAL *out)
         CLR_SIGNAL(SIG_INTERRUPT);
         Eval_Sigmask = mask;
 
-        if (Do_Breakpoint_Throws(out, TRUE, UNSET_VALUE, FALSE))
+        if (Do_Breakpoint_Throws(out, TRUE, VOID_CELL, FALSE))
             return TRUE;
 
         return FALSE;

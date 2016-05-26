@@ -509,7 +509,7 @@ static void Sort_Block(
     if (len <= 1) return;
 
     // Skip factor:
-    if (!IS_UNSET(skipv)) {
+    if (!IS_VOID(skipv)) {
         skip = Get_Num_From_Arg(skipv);
         if (skip <= 0 || len % skip != 0 || skip > len)
             fail (Error_Out_Of_Range(skipv));

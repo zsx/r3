@@ -444,7 +444,7 @@ REBTYPE(Integer)
     case A_RANDOM:
         if (D_REF(2)) { // seed
             Set_Random(num);
-            return R_UNSET;
+            return R_VOID;
         }
         if (num == 0) break;
         num = Random_Range(num, D_REF(3));  //!!! 64 bits

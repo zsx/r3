@@ -323,7 +323,7 @@ REBOOL Compose_Values_Throws(
                     push++;
                 }
             }
-            else if (!IS_UNSET(&evaluated)) {
+            else if (!IS_VOID(&evaluated)) {
                 //
                 // compose [(1 + 2) inserts as-is] => [3 inserts as-is]
                 // compose/only [([a b c]) unmerged] => [[a b c] unmerged]

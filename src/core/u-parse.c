@@ -176,7 +176,7 @@ static const REBVAL *Get_Parse_Value(REBVAL *safe, const REBVAL *item)
         // error, as it is in the evaluator.  (See how this is handled
         // by REB_WORD in %c-do.c)
         //
-        if (IS_UNSET(var))
+        if (IS_VOID(var))
             fail (Error(RE_NO_VALUE, item));
 
         return var;
@@ -191,7 +191,7 @@ static const REBVAL *Get_Parse_Value(REBVAL *safe, const REBVAL *item)
 
         // See notes above about UNSET!
         //
-        if (IS_UNSET(safe))
+        if (IS_VOID(safe))
             fail (Error(RE_NO_VALUE, item));
 
         return safe;
@@ -869,7 +869,7 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
         n = VAL_CMD(item);
 
         if (n == SYM_SKIP)
-            return IS_UNSET(&value) ? NOT_FOUND : P_POS;
+            return IS_VOID(&value) ? NOT_FOUND : P_POS;
 
         if (n == SYM_QUOTE) {
             item = item + 1;
@@ -1650,7 +1650,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                     // CHECK FOR QUOTE!!
                     item = Get_Parse_Value(&save, item); // new value
 
-                    if (IS_UNSET(item)) fail (Error(RE_NO_VALUE, P_RULE - 1));
+                    if (IS_VOID(item)) fail (Error(RE_NO_VALUE, P_RULE - 1));
 
                     if (IS_END(item)) goto bad_end;
 

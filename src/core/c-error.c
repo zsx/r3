@@ -1503,7 +1503,7 @@ int Exit_Status_From_Value(REBVAL *value)
         //
         return VAL_INT32(value);
     }
-    else if (IS_UNSET(value) || IS_NONE(value)) {
+    else if (IS_VOID(value) || IS_NONE(value)) {
         // An unset would happen with just QUIT or EXIT and no /WITH,
         // so treating that as a 0 for success makes sense.  A NONE!
         // seems like nothing to report as well, for instance:

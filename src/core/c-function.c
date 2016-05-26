@@ -1211,7 +1211,7 @@ void Do_Native_Core(struct Reb_Frame *f)
     case R_NONE:
         SET_NONE(f->out);
         break;
-    case R_UNSET:
+    case R_VOID:
         SET_UNSET(f->out);
         break;
     case R_TRUE:
@@ -1263,7 +1263,7 @@ void Do_Action_Core(struct Reb_Frame *f)
     case R_NONE:
         SET_NONE(f->out);
         break;
-    case R_UNSET:
+    case R_VOID:
         SET_UNSET(f->out);
         break;
     case R_TRUE:

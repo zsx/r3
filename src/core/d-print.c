@@ -1007,7 +1007,7 @@ REBOOL Format_GC_Safe_Value_Throws(
     f.eval_fetched = NULL;
 
     do {
-        if (IS_UNSET(f.value)) {
+        if (IS_VOID(f.value)) {
             //
             // Unsets format to nothing (!!! should NONE! do the same?)
             //

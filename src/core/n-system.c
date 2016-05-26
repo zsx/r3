@@ -77,7 +77,7 @@ REBNATIVE(quit)
 
         // (UNSET! will be translated to 0 if it gets caught for the shell)
 
-        CONVERT_NAME_TO_THROWN(D_OUT, UNSET_VALUE, FALSE);
+        CONVERT_NAME_TO_THROWN(D_OUT, VOID_CELL, FALSE);
     }
 
     return R_OUT_IS_THROWN;
@@ -119,7 +119,7 @@ REBNATIVE(recycle)
 
     if (D_REF(1)) { // /off
         GC_Active = FALSE;
-        return R_UNSET;
+        return R_VOID;
     }
 
     if (D_REF(2)) {// /on
@@ -307,7 +307,7 @@ REBNATIVE(evoke)
         }
     }
 
-    return R_UNSET;
+    return R_VOID;
 #endif
 }
 
@@ -333,7 +333,7 @@ REBNATIVE(limit_usage)
     } else if (sym == SYM_MEMORY) {
         if (PG_Mem_Limit == 0) PG_Mem_Limit = Int64(D_ARG(2));
     }
-    return R_UNSET;
+    return R_VOID;
 }
 
 
@@ -557,7 +557,7 @@ REBNATIVE(backtrace)
     // backtrace lined up with what that routine returns.  This isn't a very
     // performance-critical routine, so it's good to have the doublecheck.
     //
-    REBOOL get_frame = NOT(IS_UNSET(level) || IS_NONE(level));
+    REBOOL get_frame = NOT(IS_VOID(level) || IS_NONE(level));
 
     REBARR *backtrace;
     struct Reb_Frame *frame;
@@ -818,7 +818,7 @@ REBNATIVE(backtrace)
     // TRUE = mold
     //
     Print_Value(D_OUT, 0, TRUE);
-    return R_UNSET;
+    return R_VOID;
 }
 
 
@@ -917,7 +917,7 @@ struct Reb_Frame *Frame_For_Stack_Level(
             continue;
         }
 
-        if (IS_UNSET(level) || IS_NONE(level)) {
+        if (IS_VOID(level) || IS_NONE(level)) {
             //
             // Take first actual frame if unset or none
             //
@@ -1251,8 +1251,8 @@ REBNATIVE(breakpoint)
     if (Do_Breakpoint_Throws(
         D_OUT,
         FALSE, // not a Ctrl-C, it's an actual BREAKPOINT
-        UNSET_VALUE, // default result if RESUME does not override
-        FALSE // !execute (don't try to evaluate the UNSET_VALUE)
+        VOID_CELL, // default result if RESUME does not override
+        FALSE // !execute (don't try to evaluate the VOID_CELL)
     )) {
         return R_OUT_IS_THROWN;
     }

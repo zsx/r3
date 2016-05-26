@@ -824,7 +824,7 @@ REBTYPE(Date)
                     + (cast(REBI64, Julian_Date(date)) << 32)
                     + secs
                 );
-                return R_UNSET;
+                return R_VOID;
             }
 
             if (year == 0) break;

@@ -99,7 +99,7 @@ REBTYPE(Logic)
         if (D_REF(2)) { // /seed
             // random/seed false restarts; true randomizes
             Set_Random(val1 ? (REBINT)OS_DELTA_TIME(0, 0) : 1);
-            return R_UNSET;
+            return R_VOID;
         }
         if (Random_Int(D_REF(3)) & 1) // /secure
             return R_TRUE;

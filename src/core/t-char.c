@@ -130,7 +130,7 @@ REBTYPE(Char)
     case A_RANDOM:  //!!! needs further definition ?  random/zero
         if (D_REF(2)) { // /seed
             Set_Random(chr);
-            return R_UNSET;
+            return R_VOID;
         }
         if (chr == 0) break;
         chr = (REBUNI)(1 + ((REBCNT)Random_Int(D_REF(3)) % chr)); // /secure

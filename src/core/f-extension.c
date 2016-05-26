@@ -645,7 +645,7 @@ void Do_Command_Core(struct Reb_Frame *f)
         RXI_To_Block(&rxifrm, f->out);
         break;
 
-    case RXR_UNSET:
+    case RXR_VOID:
         SET_UNSET(f->out);
         break;
 

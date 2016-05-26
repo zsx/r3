@@ -281,7 +281,7 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
     // convention (as for FINISH_INIT_CORE) that any non-UNSET! result from
     // FINISH_RL_START indicates something went wrong.
 
-    if (IS_UNSET(&result))
+    if (IS_VOID(&result))
         error_num = 0; // no error
     else {
         assert(FALSE); // should not happen (raise an error instead)

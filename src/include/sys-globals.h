@@ -81,7 +81,7 @@ PVAR REB_OPTS *Reb_Opts;
 // arrays--they are singular values, and the second element is set to
 // be trash to trap any unwanted access.
 //
-PVAR struct Reb_Value PG_Unset_Value[2];
+PVAR struct Reb_Value PG_Void_Cell[2];
 PVAR struct Reb_Value PG_None_Value[2];
 PVAR struct Reb_Value PG_False_Value[2];
 PVAR struct Reb_Value PG_True_Value[2];

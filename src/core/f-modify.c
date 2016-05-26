@@ -55,7 +55,7 @@ REBCNT Modify_Array(
     REBINT index;
 #endif
 
-    if (IS_UNSET(src_val) || dups < 0) {
+    if (IS_VOID(src_val) || dups < 0) {
         // If they are effectively asking for "no action" then all we have
         // to do is return the natural index result for the operation.
         // (APPEND will return 0, insert the tail of the insertion...so index)

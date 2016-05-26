@@ -64,9 +64,9 @@ REBTYPE(None)
     case A_MAKE:
     case A_TO:
         if (IS_DATATYPE(val))
-            return VAL_TYPE_KIND(val) == REB_NONE ? R_NONE : R_UNSET;
+            return VAL_TYPE_KIND(val) == REB_NONE ? R_NONE : R_VOID;
         else
-            return IS_NONE(val) ? R_NONE : R_UNSET;
+            return IS_NONE(val) ? R_NONE : R_VOID;
 
     case A_TAIL_Q:
         if (IS_NONE(val)) return R_TRUE;

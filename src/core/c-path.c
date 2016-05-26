@@ -105,7 +105,7 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
     // object/:field case:
     if (IS_GET_WORD(pvs->item)) {
         pvs->selector = GET_MUTABLE_VAR_MAY_FAIL(pvs->item);
-        if (IS_UNSET(pvs->selector))
+        if (IS_VOID(pvs->selector))
             fail (Error(RE_NO_VALUE, pvs->item));
     }
     // object/(expr) case:
@@ -219,7 +219,7 @@ REBOOL Do_Path_Throws(
     //
     if (IS_WORD(pvs.item)) {
         pvs.value = GET_MUTABLE_VAR_MAY_FAIL(pvs.item);
-        if (IS_UNSET(pvs.value))
+        if (IS_VOID(pvs.value))
             fail (Error(RE_NO_VALUE, pvs.item));
     }
     else {

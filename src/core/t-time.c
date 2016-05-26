@@ -535,7 +535,7 @@ REBTYPE(Time)
         case A_RANDOM:
             if (D_REF(2)) {
                 Set_Random(secs);
-                return R_UNSET;
+                return R_VOID;
             }
             secs = Random_Range(secs / SEC_SEC, D_REF(3)) * SEC_SEC;
             goto fixTime;

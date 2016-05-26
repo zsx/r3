@@ -418,7 +418,7 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
     else
         SET_UNSET_UNLESS_LEGACY_NONE(D_OUT); // Default if loop does not run
 
-    if (IS_NONE(data_value) || IS_UNSET(data_value)) return R_OUT;
+    if (IS_NONE(data_value) || IS_VOID(data_value)) return R_OUT;
 
     body_copy = Init_Loop(&context, ARG(vars), ARG(body));
     Val_Init_Object(ARG(vars), context); // keep GC safe
@@ -529,7 +529,7 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
             }
             else if (IS_MAP(data_value)) {
                 REBVAL *val = ARR_AT(AS_ARRAY(series), index | 1);
-                if (!IS_UNSET(val)) {
+                if (!IS_VOID(val)) {
                     if (j == 0) {
                         *var = *ARR_AT(AS_ARRAY(series), index & ~1);
                         if (IS_END(var + 1)) index++; // only words
@@ -592,7 +592,7 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
             break;
         case LOOP_REMOVE_EACH:
             // If FALSE return (or unset), copy values to the write location
-            if (IS_CONDITIONAL_FALSE(D_OUT) || IS_UNSET(D_OUT)) {
+            if (IS_CONDITIONAL_FALSE(D_OUT) || IS_VOID(D_OUT)) {
                 //
                 // memory areas may overlap, so use memmove and not memcpy!
                 //
@@ -610,10 +610,10 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
             break;
         case LOOP_MAP_EACH:
             // anything that's not an UNSET! will be added to the result
-            if (!IS_UNSET(D_OUT)) Append_Value(mapped, D_OUT);
+            if (!IS_VOID(D_OUT)) Append_Value(mapped, D_OUT);
             break;
         case LOOP_EVERY:
-            if (IS_UNSET(D_OUT)) {
+            if (IS_VOID(D_OUT)) {
                 // Unsets "opt out" of the vote, as with ANY and ALL
             }
             else
@@ -653,7 +653,7 @@ skip_hidden: ;
     if (LEGACY(OPTIONS_BREAK_WITH_OVERRIDES)) {
         // In legacy R3-ALPHA, BREAK without a provided value did *not*
         // override the result.  It returned the partial results.
-        if (stop && !IS_UNSET(D_OUT))
+        if (stop && !IS_VOID(D_OUT))
             return R_OUT;
     }
 #endif
@@ -685,7 +685,7 @@ skip_hidden: ;
 
         // We want to act like `ALL MAP-EACH ...`, hence we effectively ignore
         // unsets and return TRUE if the last evaluation leaves an unset.
-        if (IS_UNSET(D_OUT)) return R_TRUE;
+        if (IS_VOID(D_OUT)) return R_TRUE;
 
         return R_OUT;
 
@@ -1087,7 +1087,7 @@ REBNATIVE(until)
                 // expression of breaking an until to say CONTINUE/WITH TRUE,
                 // as BREAK/WITH TRUE says it much better.
                 //
-                if (!IS_UNSET(D_OUT))
+                if (!IS_VOID(D_OUT))
                     fail (Error(RE_BREAK_NOT_CONTINUE));
 
                 goto skip_check;
@@ -1095,7 +1095,7 @@ REBNATIVE(until)
             return R_OUT_IS_THROWN;
         }
 
-        if (IS_UNSET(D_OUT)) fail (Error(RE_NO_RETURN));
+        if (IS_VOID(D_OUT)) fail (Error(RE_NO_RETURN));
 
     } while (IS_CONDITIONAL_FALSE(D_OUT));
 
@@ -1143,7 +1143,7 @@ REBNATIVE(while)
             return R_OUT_IS_THROWN;
         }
 
-        if (IS_UNSET(&unsafe))
+        if (IS_VOID(&unsafe))
             fail (Error(RE_NO_RETURN));
 
         if (IS_CONDITIONAL_FALSE(&unsafe)) {

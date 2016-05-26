@@ -892,7 +892,7 @@ REBOOL MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
                     REBCNT n = 0;
                     for (n = 0; n < field->dimension; n ++) {
                         if (!assign_scalar(
-                            &VAL_STRUCT(out), field, n, UNSET_VALUE
+                            &VAL_STRUCT(out), field, n, VOID_CELL
                         )) {
                             //RL_Print("Failed to assign element value\n");
                             goto failed;

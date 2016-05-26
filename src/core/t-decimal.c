@@ -461,7 +461,7 @@ REBTYPE(Decimal)
         case A_RANDOM:
             if (D_REF(2)) {
                 Set_Random(*cast(REBI64*, &VAL_DECIMAL(val))); // use IEEE bits
-                return R_UNSET;
+                return R_VOID;
             }
 #ifdef OLD_METHOD
             if (d1 > (double) (((unsigned long) -1)>>1))

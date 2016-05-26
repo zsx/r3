@@ -227,7 +227,7 @@ REB_R N_debug(struct Reb_Frame *frame_) {
     PARAM(1, value);
     REBVAL *value = ARG(value);
 
-    if (IS_UNSET(value)) {
+    if (IS_VOID(value)) {
         //
         // e.g. just `>> debug` and [enter] in the console.  Ideally this
         // would shift the REPL into a mode where all commands issued were
@@ -896,7 +896,7 @@ void Host_Repl(int *exit_status, REBVAL *out, REBOOL at_breakpoint) {
             // There was no error.  If the value on top of stack is an unset
             // then nothing will be printed, otherwise print it out.
             //
-            if (!IS_UNSET(out)) {
+            if (!IS_VOID(out)) {
                 Out_Str(result_str, 0); // "=="
                 Out_Value(out, 500, TRUE, 1);
             }

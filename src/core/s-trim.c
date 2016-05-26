@@ -56,7 +56,7 @@ static void replace_with(REBSER *ser, REBCNT index, REBCNT tail, REBVAL *with)
 
     // Setup WITH array from arg or the default:
     n = 0;
-    if (IS_UNSET(with)) {
+    if (IS_VOID(with)) {
         bp = cb_cast("\n \r\t");
         wlen = n = 4;
     }
