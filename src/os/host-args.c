@@ -64,6 +64,7 @@ const struct {const REBCHR *word; const int flag;} arg_words[] = {
     {OS_STR_LIT("halt"),        RO_HALT},
     {OS_STR_LIT("help"),        RO_HELP},
     {OS_STR_LIT("import"),      RO_IMPORT | RO_EXT},
+    {OS_STR_LIT("profile"),     RO_PROFILE | RO_EXT},
     {OS_STR_LIT("quiet"),       RO_QUIET},
     {OS_STR_LIT("secure"),      RO_SECURE | RO_EXT},
     {OS_STR_LIT("trace"),       RO_TRACE},
@@ -168,6 +169,10 @@ static int Get_Ext_Arg(int flag, REBARGS *rargs, REBCHR *arg)
 
     case RO_DEBUG:
         rargs->debug = arg;
+        break;
+
+    case RO_PROFILE:
+        rargs->profile = arg;
         break;
 
     case RO_SECURE:
@@ -279,6 +284,7 @@ error:
     rargs->version = NULL;
     rargs->do_arg = NULL;
     rargs->debug = NULL;
+    rargs->profile = NULL;
     rargs->secure = NULL;
     rargs->import = NULL;
     rargs->boot = NULL;

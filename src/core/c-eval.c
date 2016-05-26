@@ -129,8 +129,6 @@ void Do_Core(struct Reb_Frame * const f)
         // having valid fields to GC protect (more in use during functions).
         //
         f->prior = TG_Frame_Stack;
-        if (TG_Frame_Stack)
-            TG_Frame_Stack->next = f;
         TG_Frame_Stack = f;
     #if !defined(NDEBUG)
         SNAP_STATE(&f->state); // to make sure stack balances, etc.
@@ -1412,10 +1410,7 @@ reevaluate:
         // going to need to be updated anyway back to DO_MODE_0, so no harm
         // in reusing it for the indicator.
         //
-        if (PG_Func_Profiler != NULL) {
-            f->eval_time = OS_DELTA_TIME(0, 0);
-            Func_Profile_Start(f);
-        }
+        Func_Profile_Start(f);
         switch (VAL_FUNC_CLASS(FUNC_VALUE(f->func))) {
         case FUNC_CLASS_NATIVE:
             Do_Native_Core(f);
@@ -1449,10 +1444,8 @@ reevaluate:
         default:
             fail (Error(RE_MISC));
         }
-        if (PG_Func_Profiler != NULL) {
-            f->eval_time = OS_DELTA_TIME(f->eval_time, 0);
-            Func_Profile_End(f);
-        }
+
+        Func_Profile_End(f);
 
     #if !defined(NDEBUG)
         assert(
@@ -1833,8 +1826,6 @@ return_indexor:
     // this restoration will be done by the Drop_Trap helper.)
     //
     TG_Frame_Stack = f->prior;
-    if (TG_Frame_Stack)
-        TG_Frame_Stack->next = NULL;
 
     // Caller needs to inspect `index`, at minimum to know if it's THROWN_FLAG
 }

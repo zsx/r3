@@ -397,6 +397,7 @@ usage: func [
 
         --boot level     Valid levels: base sys mods
         --debug flags    For user scripts (system/options/debug)
+        --profile path   Dump runtime profiling data to a file
         --halt (-h)      Leave console open when script is done
         --import file    Import a module prior to script
         --quiet (-q)     No startup banners or information

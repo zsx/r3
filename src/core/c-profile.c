@@ -21,95 +21,73 @@
 
 #include "sys-core.h"
 #include <assert.h>
+#include <time.h>
+#include <stdio.h>
 
-static REBI64 profiler_epoch;
+#include <signal.h>
 
-#define VEC_AT(t, v, i) \
-    cast(t*, &(v)->data[(i) * (v)->width])
+static FILE* pfile;
 
-struct Reb_Caller {
-    REBCNT caller_idx; // index in the PG_Func_Profiler vector
-    REBCNT n; // how many times it's called by this caller
+#pragma pack (push, 1)
+struct Prof_Entry {
+    void *block_addr;
+    REBUPT index;
+    REBUPT val_addr;
+    i64 wc_time;
+    i64 CPU_TIME;
+    i32 func_class;
+    i32 record_type;
+    i32 n_len;
+};
+#pragma pack (pop)
 
-	/* time is in microseconds */
-	REBI64 min_time;
-	REBI64 max_time;
-	REBI64 total_time;
-    REBI64 partial_time; // if this is on the call chain to dump-runtime
+REBUPT stop_id = 0;
+
+enum Prof_Entry_Type {
+    RT_BOF,
+    RT_BOC,
+    RT_EOC,
+    RT_EOF
 };
 
-struct Reb_Func_Stats {
-	REBUPT id; /* function ID */
-	REBSYM sym; /* name */
-    REBCNT type;
-
-	struct Reb_FS_Vector callers; /* pointers to callers */
-};
-
-static
-void *vector_alloc_at_end(struct Reb_FS_Vector *v)
+static void write_prof_data(struct Prof_Entry *entry, const char *name)
 {
-	if (v->capacity < v->size + 1) {
-		void *m;
-		REBCNT c = v->capacity * 2;
-
-		if (c == 0)
-			c = 1024;
-
-		m = Alloc_Mem(c * v->width);
-		if (v->size > 0) {
-			memcpy(m, v->data, v->size * v->width);
-			Free_Mem(v->data, v->capacity * v->width);
-		}
-		v->data = m;
-		v->capacity = c;
-	}
-	v->size ++;
-	return &v->data[v->width * (v->size - 1)];
+    //if (entry->block_addr == (void*)stop_id) {
+    //   raise(SIGTRAP);
+    //}
+    entry->n_len = strlen(name);
+    if (fwrite(entry, sizeof(*entry), 1, pfile) < 0) {
+        fclose(pfile);
+        pfile = NULL;
+    }
+    if (fprintf(pfile, "%s", name) < 0) {
+        fclose(pfile);
+        pfile = NULL;
+    }
 }
-
 //
 //  Init_Func_Profiler: C
 // 
 // Initialize the profiler
 // 
-void Init_Func_Profiler(void)
+void Init_Func_Profiler(const REBCHR *path)
 {
-    struct Reb_FS_Vector *v = Alloc_Mem(sizeof(struct Reb_FS_Vector));
-    struct Reb_Func_Stats *head;
-    v->capacity = 4096;
-    v->width = sizeof(struct Reb_Func_Stats);
-    v->size = 1;
-    v->data = Alloc_Mem(v->capacity * v->width);
-    PG_Func_Profiler = v;
+    if (path == NULL) return;
+    pfile = fopen(cast(char*, path), "w");
+    if (pfile != NULL) {
+        struct Prof_Entry entry = {
+            NULL,
+            CLOCKS_PER_SEC, /* abuse indix */
+            0, /* value addr */
+            OS_DELTA_TIME(0, 0),
+            clock(),
+            0, /* func_class */
+            RT_BOF, /* record type */
+            0 
+        };
 
-    /* reserve the first slot for NULL */
-    head = VEC_AT(struct Reb_Func_Stats, PG_Func_Profiler, 0);
-    head->id = 0;
-    head->sym = SYM_0;
-    head->type = 0;
-
-    head->callers.capacity = 0;
-    head->callers.size = 0;
-    head->callers.data = NULL;
-
-    profiler_epoch = OS_DELTA_TIME(0, 0);
-}
-
-static struct Reb_Func_Stats *
-find_frame(struct Reb_Frame *f)
-{
-	struct Reb_Func_Stats *fs = NULL;
-    REBCNT i;
-	for(i = 0; i < PG_Func_Profiler->size; i ++) {
-		struct Reb_Func_Stats *fs;
-		fs = VEC_AT(struct Reb_Func_Stats, PG_Func_Profiler, i);
-		if (fs->id == f->eval_id) {
-            f->profile_idx = i;
-            return fs;
-		}
-	}
-    return NULL;
+        write_prof_data(&entry, "prof-data");
+    }
 }
 
 static REBUPT 
@@ -150,6 +128,27 @@ get_frame_id(struct Reb_Frame *f)
     }
 }
 
+static void Func_Profile(struct Reb_Frame *f, enum Prof_Entry_Type rt)
+{
+    //1, addr, name, type, time
+    if (pfile) {
+        const char *name = Get_Sym_Name(FRM_LABEL(f));
+        const void *addr = (f->indexor == VALIST_FLAG) ?
+            cast(const void *, f->source.vaptr)
+            : f->source.array;
+        struct Prof_Entry entry = {
+            addr,
+            f->expr_index,
+            get_frame_id(f),
+            OS_DELTA_TIME(0, 0),
+            clock(),
+            VAL_FUNC_CLASS(FUNC_VALUE(FRM_FUNC(f))), /* func_class */
+            rt, /* record type */
+            0, /* n-len, set later */
+        };
+        write_prof_data(&entry, name);
+    }
+}
 //
 //  Func_Profile_Start: C
 // 
@@ -157,61 +156,9 @@ get_frame_id(struct Reb_Frame *f)
 // 
 void Func_Profile_Start(struct Reb_Frame *f)
 {
-	REBCNT i;
-    struct Reb_Frame *p;
-    struct Reb_Func_Stats *fs = NULL;
-    REBOOL found;
+    assert(f->mode == CALL_MODE_FUNCTION);
 
-    f->eval_id = get_frame_id(f);
-    fs = find_frame(f);
-	if (fs == NULL) {
-		fs = vector_alloc_at_end(PG_Func_Profiler);
-        f->profile_idx = PG_Func_Profiler->size - 1;
-
-        fs->sym = FRM_LABEL(f);
-		fs->id = f->eval_id;
-        fs->type = VAL_FUNC_CLASS(FUNC_VALUE(f->func));
-
-		fs->callers.data = NULL;
-		fs->callers.capacity = 0;
-		fs->callers.size = 0;
-		fs->callers.width = sizeof(struct Reb_Caller);
-    }
-
-	/* update caller info */
-    for (p = f->prior;
-        p != NULL && p->mode != CALL_MODE_FUNCTION;
-        p = p->prior);
-
-    found = FALSE;
-    for (i = 0; i < fs->callers.size; i++) {
-        struct Reb_Func_Stats *caller_fs;
-        REBCNT caller_index;
-
-        caller_index = VEC_AT(struct Reb_Caller, &fs->callers, i)->caller_idx;
-        caller_fs = VEC_AT(struct Reb_Func_Stats, PG_Func_Profiler, caller_index);
-
-        if ((p == NULL && caller_index == 0)
-            || (p != NULL && caller_index != 0
-                && caller_fs->id == p->eval_id)){
-            f->last_caller = i;
-            found = TRUE;
-            break;
-        }
-    }
-    if (!found) {
-	    struct Reb_Caller *caller;
-        caller = vector_alloc_at_end(&fs->callers);
-        f->last_caller = fs->callers.size - 1;
-
-        caller->caller_idx = (p == NULL)? 0 : p->profile_idx;
-        caller->n = 0;
-        caller->total_time = caller->max_time = 0;
-        caller->min_time = 0;
-        caller->partial_time = 0;
-    }
-
-    assert(fs->callers.size > 0);
+    Func_Profile(f, RT_BOC);
 }
 
 //
@@ -221,27 +168,8 @@ void Func_Profile_Start(struct Reb_Frame *f)
 // 
 void Func_Profile_End(struct Reb_Frame *f)
 {
-    REBI64 time = f->eval_time;
-
-    struct Reb_Func_Stats *fs = NULL;
-    struct Reb_Caller *caller;
-    
-    assert(f->profile_idx < PG_Func_Profiler->size);
-
-    fs = VEC_AT(struct Reb_Func_Stats, PG_Func_Profiler, f->profile_idx);
-    caller = VEC_AT(struct Reb_Caller, &fs->callers, f->last_caller);
-
-    assert(caller != NULL);
-
-    if (caller->n == 0) {
-        caller->max_time = caller->min_time = caller->total_time = time;
-    }
-    else {
-        if (caller->min_time > time) caller->min_time = time;
-        if (caller->max_time < time) caller->max_time = time;
-        caller->total_time += time;
-    }
-    caller->n++;
+    // f->mode could be CALL_MODE_THROW_PENDING
+    Func_Profile(f, RT_EOC);
 }
 
 //
@@ -251,98 +179,19 @@ void Func_Profile_End(struct Reb_Frame *f)
 // 
 void Shutdown_Func_Profiler(void)
 {
-    REBCNT i;
-    struct Reb_FS_Vector *v = PG_Func_Profiler;
-    for (i = 0; i < v->size; i++) {
-        struct Reb_Func_Stats *fs = VEC_AT(struct Reb_Func_Stats, v, i);
-        if (fs->callers.capacity > 0) {
-            Free_Mem(fs->callers.data,
-                fs->callers.capacity * fs->callers.width);
-        }
+    if (pfile) {
+        struct Prof_Entry entry = {
+            NULL, /* addr */
+            0,
+            0, /* value addr */
+            OS_DELTA_TIME(0, 0),
+            clock(),
+            0,      /* func_class */
+            RT_EOF, /* record type */
+            0,  /* n_len */
+        };
+        write_prof_data(&entry, "");
+        fclose(pfile);
     }
-    Free_Mem(v->data, v->capacity * v->width);
-    FREE(struct Reb_FS_Vector, v);
-    PG_Func_Profiler = NULL;
-}
-
-static void
-set_partial_time(struct Reb_Frame *f, REBI64 time)
-{
-    struct Reb_Func_Stats *fs = NULL;
-    struct Reb_Caller *caller;
-
-    if (f->mode != CALL_MODE_FUNCTION) return;
-    
-    assert(f->profile_idx < PG_Func_Profiler->size);
-
-    fs = VEC_AT(struct Reb_Func_Stats, PG_Func_Profiler, f->profile_idx);
-    caller = VEC_AT(struct Reb_Caller, &fs->callers, f->last_caller);
-
-    assert(caller != NULL);
-
-    caller->partial_time = time;
-}
-
-//
-//  Dump_Func_Stats: C
-// 
-// Dump the function statistics to a file
-// 
-void Dump_Func_Stats(REBVAL *path)
-{
-    REBCNT i;
-    REBSER *ser;
-    FILE *dest;
-    struct Reb_FS_Vector *v = PG_Func_Profiler;
-    struct Reb_Frame *f;
-
-    if (v == NULL) {
-        return;
-    }
-    ser = Value_To_OS_Path(path, TRUE);
-    dest = fopen(cast(char*, SER_HEAD(REBCHR, ser)), "w");
-    if (dest == NULL) {
-        Free_Series(ser);
-        return;
-    }
-    Free_Series(ser);
-
-    // Update partial_time
-    for (f = FS_TOP; f != NULL; f = f->prior) {
-        set_partial_time(f, OS_DELTA_TIME(f->eval_time, 0));
-    }
-
-    fprintf(dest, "#Total Time,%lld\n", OS_DELTA_TIME(profiler_epoch, 0));
-    fprintf(dest, "#ID,Name,TYPE,Caller_ID,Caller_Name,Count,"
-        "Min_Time,Max_Time,Total_Time,Average_Time\n");
-    for (i = 0; i < v->size; i++) {
-        REBCNT j; 
-        struct Reb_Func_Stats *fs = VEC_AT(struct Reb_Func_Stats, v, i);
-        assert(i == 0 || fs->callers.size > 0);
-        for(j = 0; j < fs->callers.size; j ++) {
-            struct Reb_Caller *caller;
-            struct Reb_Func_Stats *caller_fs;
-
-            caller = VEC_AT(struct Reb_Caller, &fs->callers, j);
-            assert(caller->caller_idx < PG_Func_Profiler->size);
-
-            caller_fs = VEC_AT(struct Reb_Func_Stats, PG_Func_Profiler,
-                caller->caller_idx);
-
-            fprintf(dest, "%llx,%s,%d,%llx,%s,%d,%lld,%lld,%lld,%.2f\n",
-                fs->id, Get_Sym_Name(fs->sym),
-                fs->type,
-                caller_fs->id,
-                cast(char*, Get_Sym_Name(caller_fs->sym)),
-                caller->n, caller->min_time, caller->max_time,
-                caller->total_time + caller->partial_time,
-                caller->n == 0 ? 0: ((double)caller->total_time) / caller->n);
-        }
-    }
-    fclose(dest);
-
-    // clear partial_time
-    for (f = FS_TOP; f != NULL; f = f->prior) {
-        set_partial_time(f, 0);
-    }
+    pfile = NULL;
 }

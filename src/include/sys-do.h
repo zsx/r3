@@ -507,12 +507,6 @@ struct Reb_Frame {
     //
     struct Reb_Frame *prior;
 
-    // `next` [INTERNAL, READ-ONLY]
-    //
-    // The next call frame (may be NULL if this is the last stack call).
-    //
-    struct Reb_Frame *next;
-
     // `mode` [INTERNAL, READ-ONLY]
     //
     // State variable during parameter fulfillment.  So before refinements,
@@ -583,26 +577,9 @@ struct Reb_Frame {
     // breakpoints on certain ticks in reproducible situations.
     //
     REBCNT do_count; // !!! Move to dynamic data, available in a debug mode?
+
 #endif
-
-    // `eval_time` [READ-ONLY]
-    // in microsecond, how much time is spend in this function call
-    //
-    REBI64 eval_time;
-
-    // `eval_id` [READ-ONLY]
-    // 
     REBUPT eval_id;
-
-    // `profile_idx` [READ-ONLY]
-    //  Used by the profiler for fast access to the stats
-    //
-    REBCNT profile_idx;
-
-    // `last_caller`
-    // Used by the profiler for fast access to the caller
-    //
-    REBCNT last_caller;
 };
 
 // Each iteration of DO bumps a global count, that in deterministic repro

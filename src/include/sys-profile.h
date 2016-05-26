@@ -18,11 +18,3 @@
 **  limitations under the License.
 **
 ************************************************************************/
-
-struct Reb_FS_Vector {
-	REBYTE *data;
-	REBCNT width;
-	REBCNT size;
-	REBCNT capacity;
-};
-

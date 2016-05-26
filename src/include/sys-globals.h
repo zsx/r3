@@ -100,8 +100,6 @@ PVAR REBFUN *PG_Leave_Func; // LEAVE native func (never GC'd)
 //
 PVAR REBBRK PG_Breakpoint_Quitting_Hook;
 
-PVAR struct Reb_FS_Vector *PG_Func_Profiler;
-
 /***********************************************************************
 **
 **  Thread Globals - Local to each thread
@@ -139,9 +137,6 @@ TVAR REBUPT Stack_Limit;    // Limit address for CPU stack.
     //
     TVAR REBCNT TG_Do_Count;
 #endif
-
-// Dump CPU profiling info
-TVAR FILE *TG_Profile_File;
 
 // Each time Do_Core is called a Reb_Frame* is pushed to the "frame stack".
 // Some pushed entries will represent groups or paths being executed, and

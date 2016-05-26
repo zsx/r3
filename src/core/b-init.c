@@ -1509,7 +1509,7 @@ void Init_Core(REBARGS *rargs)
     Init_Datatypes();       // Create REBOL datatypes
     Init_Typesets();        // Create standard typesets
     Init_Constants();       // Constant values
-    Init_Func_Profiler();
+    Init_Func_Profiler(rargs->profile);
 
     // Run actual code:
     DOUT("Level 4");
