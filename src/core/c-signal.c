@@ -32,6 +32,23 @@
 // (Note: Not to be confused with SIGINT and unix "signals", although on
 // unix an evaluator signal can be triggered by a unix signal.)
 //
+// Note in signal dispatch that R3-Alpha did not have a policy articulated on
+// dealing with the interrupt nature of the SIGINT signals sent by Ctrl-C:
+//
+// https://en.wikipedia.org/wiki/Unix_signal
+//
+// Guarding against errors being longjmp'd when an evaluation is in effect
+// isn't the only time these signals are processed.  Rebol's Process_Signals
+// currently happens during I/O, such as printing output.  As a consequence,
+// a Ctrl-C can be picked up and then triggered during an Out_Value, jumping
+// the stack from there.
+//
+// This means a top-level trap must always be in effect, even though no eval
+// is running.  This trap's job is to handle errors that happen *while
+// reporting another error*, with Ctrl-C triggering a HALT being the most
+// likely example if not running an evaluation (though any fail() could
+// cause it)
+//
 
 #include "sys-core.h"
 
