@@ -85,7 +85,8 @@ void Value_To_RXI(RXIARG *arg, const REBVAL *val)
         break;
 
     case REB_TUPLE:
-        arg->addr = cast(void *, VAL_TUPLE_DATA(val));
+        memcpy(arg->bytes, VAL_TUPLE_DATA(val),
+            MIN(VAL_TUPLE_LEN(val) + 1, sizeof(arg->bytes)));
         break;
 
     case REB_TIME:
@@ -195,7 +196,8 @@ void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type)
         break;
 
     case RXT_TUPLE:
-        SET_TUPLE(val, arg->addr);
+        VAL_RESET_HEADER(val, REB_TUPLE);
+        memcpy(VAL_TUPLE_DATA(val), arg->bytes, MIN(arg->bytes[0] + 1, sizeof(arg->bytes)));
         break;
 
     case RXT_TIME:
