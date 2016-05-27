@@ -760,7 +760,10 @@ REBTYPE(Array)
 repick:
         value = Pick_Block(value, arg);
         if (action == A_PICK) {
-            if (!value) goto is_none;
+            if (!value) {
+                SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
+                return R_OUT;
+            }
             *D_OUT = *value;
         } else {
             if (!value) fail (Error_Out_Of_Range(arg));
@@ -769,25 +772,6 @@ repick:
             *D_OUT = *arg;
         }
         return R_OUT;
-
-/*
-        len = Get_Num_From_Arg(arg); // Position
-        index += len;
-        if (len > 0) index--;
-        if (len == 0 || index < 0 || index >= tail) {
-            if (action == A_PICK) goto is_none;
-            fail (Error_Out_Of_Range(arg));
-        }
-        if (action == A_PICK) {
-pick_it:
-            *D_OUT = ARR_HEAD(array)[index];
-            return R_OUT;
-        }
-        arg = D_ARG(3);
-        *D_OUT = *arg;
-        ARR_HEAD(array)[index] = *arg;
-        return R_OUT;
-*/
 
     case A_TAKE:
         // take/part:
@@ -805,7 +789,10 @@ zero_blk:
         // take/last:
         if (D_REF(5)) index = tail - len;
         if (index < 0 || index >= tail) {
-            if (!D_REF(2)) goto is_none;
+            if (!D_REF(2)) {
+                SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
+                return R_OUT;
+            }
             goto zero_blk;
         }
 
@@ -831,7 +818,11 @@ zero_blk:
         if (args & AM_FIND_SKIP) ret = Int32s(D_ARG(ARG_FIND_SIZE), 1);
         ret = Find_In_Array(array, index, tail, arg, len, args, ret);
 
-        if (ret >= (REBCNT)tail) goto is_none;
+        if (ret >= (REBCNT)tail) {
+            if (action == A_FIND) return R_NONE;
+            SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
+            return R_OUT;
+        }
         if (args & AM_FIND_ONLY) len = 1;
         if (action == A_FIND) {
             if (args & (AM_FIND_TAIL | AM_FIND_MATCH)) ret += len;
@@ -839,7 +830,11 @@ zero_blk:
         }
         else {
             ret += len;
-            if (ret >= (REBCNT)tail) goto is_none;
+            if (ret >= (REBCNT)tail) {
+                if (action == A_FIND) return R_NONE;
+                SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
+                return R_OUT;
+            }
             value = ARR_AT(array, ret);
         }
         break;
@@ -958,7 +953,7 @@ zero_blk:
         if (!IS_BLOCK(value)) fail (Error_Illegal_Action(VAL_TYPE(value), action));
         if (D_REF(2)) fail (Error(RE_BAD_REFINES)); // seed
         if (D_REF(4)) { // /only
-            if (index >= tail) goto is_none;
+            if (index >= tail) return R_NONE;
             len = (REBCNT)Random_Int(D_REF(3)) % (tail - index);  // /secure
             arg = D_ARG(2); // pass to pick
             SET_INTEGER(arg, len+1);
@@ -979,9 +974,6 @@ zero_blk:
 
     *D_OUT = *value;
     return R_OUT;
-
-is_none:
-    return R_NONE;
 }
 
 

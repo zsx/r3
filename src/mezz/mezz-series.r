@@ -306,7 +306,7 @@ reword: function [
 
     ; Convert keyword if the type doesn't match
     ;
-    cword: pick [(w: to wtype w)] wtype <> type-of source
+    cword: to-value pick [(w: to wtype w)] wtype <> type-of source
     set/opt [out: fout:] pick [
         [   ; Convert to string if type combination needs it
             (output: insert output to string! copy/part a b)

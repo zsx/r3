@@ -1582,9 +1582,11 @@ reevaluate:
         }
 
         f->mode = CALL_MODE_GUARD_ARRAY_ONLY;
-        CLEAR_FRAME_SYM(f);
 
-        if (Trace_Flags) Trace_Return(FRM_LABEL(f), f->out);
+        if (Trace_Flags)
+            Trace_Return(FRM_LABEL(f), f->out);
+
+        CLEAR_FRAME_SYM(f);
         break;
 
 
