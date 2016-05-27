@@ -1181,4 +1181,4 @@ struct Reb_Map {
 // slots that are unused, so can give a deceptive number.  But so can
 // objects with hidden fields, locals in paramlists, etc.
 
-#define AS_MAP(s)               (*cast(REBMAP**, &(s)))
+#define AS_MAP(s)               cast(REBMAP*, (s))

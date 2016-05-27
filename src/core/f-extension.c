@@ -92,7 +92,7 @@ void Value_To_RXI(RXIARG *arg, const REBVAL *val)
         break;
 
     case REB_TUPLE:
-        arg->addr = cast(void *, VAL_TUPLE_DATA(val));
+        arg->addr = cast(void *, m_cast(REBYTE *, VAL_TUPLE_DATA(val)));
         break;
 
     case REB_TIME:

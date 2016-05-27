@@ -1174,8 +1174,13 @@ struct Reb_Any_Series {
 #define VAL_RAW_DATA_AT(v) \
     SER_AT_RAW(SER_WIDE(VAL_SERIES(v)), VAL_SERIES(v), VAL_INDEX(v))
 
+// Ren-C introduced const REBVAL* usage, but propagating const vs non
+// const REBSER pointers didn't show enough benefit to be worth the
+// work in supporting them (at this time).  Mutability cast needed.
+//
 #define VAL_MAP(v) \
-    (assert(IS_MAP(v)), AS_MAP((v)->payload.any_series.series))
+    (assert(IS_MAP(v)), \
+        AS_MAP(m_cast(REBSER*, (v)->payload.any_series.series)))
 
 // Note: These macros represent things that used to sometimes be functions,
 // and sometimes were not.  They could be done without a function call, but
@@ -1750,14 +1755,7 @@ struct Reb_Typeset {
 
 // Symbol is SYM_0 unless typeset in object keylist or func paramlist
 
-#ifdef NDEBUG
-    #define VAL_TYPESET_SYM(v) ((v)->payload.typeset.sym)
-#else
-    // !!! Due to large reorganizations, it may be that VAL_WORD_SYM and
-    // VAL_TYPESET_SYM calls were swapped.  In the aftermath of reorganization
-    // this check is prudent (until further notice...)
-    #define VAL_TYPESET_SYM(v) (*VAL_TYPESET_SYM_Ptr_Debug(v))
-#endif
+#define VAL_TYPESET_SYM(v) ((v)->payload.typeset.sym)
 
 #define VAL_TYPESET_CANON(v) \
     VAL_SYM_CANON(ARR_AT(PG_Word_Table.array, VAL_TYPESET_SYM(v)))
