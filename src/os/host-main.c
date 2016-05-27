@@ -1132,6 +1132,7 @@ cleanup_and_exit:
     // No need to do a "clean" shutdown, as we are about to exit the process
     // (Note: The debug build runs through the clean shutdown anyway!)
     RL_Shutdown(FALSE);
+    Shutdown_Func_Profiler();
 
     return exit_status;
 }
