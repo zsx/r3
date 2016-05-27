@@ -47,7 +47,7 @@ view: func [
 	if not screen: system/view/screen-gob [return none]
 
 	; Convert option block to a map:
-	opts: make map! either options [reduce/no-set opts] []
+	opts: make map! either options [reduce/no-set opts] [[]]
 	user-title: any [opts/title opts/(to set-word! 'title)]
 	user-offset: any [opts/offset opts/(to set-word! 'offset)]
 	user-flags: any [opts/flags opts/(to set-word! 'flags)]
