@@ -57,8 +57,8 @@ ATTRIBUTE_NO_RETURN void Panic_Value(const REBVAL *value)
     case REB_NONE:
     case REB_LOGIC:
     case REB_BAR:
-        Debug_Fmt(
-            "REBVAL init on tick #%d at %s:%d",
+        printf(
+            "REBVAL init on tick #%d at %s:%d\n",
             value->payload.track.count,
             value->payload.track.filename,
             value->payload.track.line
@@ -67,14 +67,15 @@ ATTRIBUTE_NO_RETURN void Panic_Value(const REBVAL *value)
     }
 #endif
 
-    Debug_Fmt("Kind=%d", cast(int, value->header.bits & HEADER_TYPE_MASK));
+    printf("Kind=%d\n", cast(int, value->header.bits & HEADER_TYPE_MASK));
 
     if (containing) {
-        Debug_Fmt("Containing series for value pointer found, panicking it:");
+        printf("Containing series for value pointer found, panicking it:\n");
         Panic_Series(containing);
     }
 
-    Debug_Fmt("No containing series for value...panicking to make stack dump");
+    printf("No containing series for value, panicking to dump stack\n");
+    fflush(stdout);
     Panic_Array(EMPTY_ARRAY);
 }
 
@@ -178,11 +179,13 @@ enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v, const char *file, int line)
         // happens to have its zero bit set.  Since half of all possible
         // bit patterns are even, it's more worth it than usual to point out.
         //
-        Debug_Fmt("END marker (or garbage) in VAL_TYPE(), %s:%d", file, line);
+        printf("END marker (or garbage) in VAL_TYPE(), %s:%d\n", file, line);
+        fflush(stdout);
         Panic_Value(v);
     }
     if (IS_TRASH_DEBUG(v)) {
-        Debug_Fmt("Unexpected TRASH in VAL_TYPE(), %s:%d", file, line);
+        printf("Unexpected TRASH in VAL_TYPE(), %s:%d\n", file, line);
+        fflush(stdout);
         Panic_Value(v);
     }
     return cast(enum Reb_Kind, (v)->header.bits & HEADER_TYPE_MASK);

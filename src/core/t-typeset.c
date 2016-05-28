@@ -213,7 +213,7 @@ REBOOL MT_Typeset(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
     if (!IS_BLOCK(data)) return FALSE;
 
-    VAL_RESET_HEADER(out, REB_TYPESET);
+    Val_Init_Typeset(out, 0, SYM_0);
 
     if (!Update_Typeset_Bits_Core(
         out,
@@ -285,7 +285,7 @@ REBTYPE(Typeset)
     case A_MAKE:
     case A_TO:
         if (IS_BLOCK(arg)) {
-            VAL_RESET_HEADER(D_OUT, REB_TYPESET);
+            Val_Init_Typeset(D_OUT, 0, SYM_0);
             Update_Typeset_Bits_Core(
                 D_OUT,
                 VAL_ARRAY_AT(arg),
