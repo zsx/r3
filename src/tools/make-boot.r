@@ -1272,7 +1272,9 @@ emit newline
 boot-typespecs: make block! 100
 specs: load %typespec.r
 for-each type datatypes [
-    append/only boot-typespecs select specs type
+    if type = 0 [continue]
+    assert [spec: select specs type]
+    append/only boot-typespecs spec
 ]
 
 ;-- Create main code section (compressed):

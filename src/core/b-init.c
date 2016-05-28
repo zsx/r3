@@ -375,7 +375,7 @@ static void Init_Datatypes(void)
         value = Append_Context(Lib_Context, word, SYM_0);
         VAL_RESET_HEADER(value, REB_DATATYPE);
         VAL_TYPE_KIND(value) = KIND_FROM_0(n);
-        VAL_TYPE_SPEC(value) = VAL_ARRAY(ARR_AT(specs, n));
+        VAL_TYPE_SPEC(value) = VAL_ARRAY(ARR_AT(specs, n - 1));
 
         // !!! The system depends on these definitions, as they are used by
         // Get_Type and Type_Of.  Although it is convenient to be able to
