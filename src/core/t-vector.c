@@ -583,7 +583,7 @@ REBTYPE(Vector)
             Val_Init_Vector(value, ser);
             break;
         }
-//      if (IS_NONE(arg)) {
+//      if (IS_BLANK(arg)) {
 //          ser = Make_Vector(0, 0, 1, 32, 0);
 //          Val_Init_Vector(value, ser);
 //          break;

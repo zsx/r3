@@ -104,7 +104,7 @@ REBTYPE(Datatype)
             );
 
             for (; NOT_END(var); ++var, ++key) {
-                if (IS_END(value)) SET_NONE(var);
+                if (IS_END(value)) SET_BLANK(var);
                 else *var = *value++;
             }
 
@@ -119,10 +119,10 @@ REBTYPE(Datatype)
         if (kind != REB_DATATYPE) {
             act = Value_Dispatch[TO_0_FROM_KIND(kind)];
             if (act) return act(frame_, action);
-            //return R_NONE;
+            //return R_BLANK;
             fail (Error_Bad_Make(kind, arg));
         }
-        // if (IS_NONE(arg)) return R_NONE;
+        // if (IS_BLANK(arg)) return R_BLANK;
         if (MT_Datatype(D_OUT, arg, REB_DATATYPE))
             break;
 

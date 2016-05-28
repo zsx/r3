@@ -284,7 +284,7 @@ unless (
 ) [
 	fail [
 		"make-make.r requires os-specific obj list in file-base.r"
-		"none was provided for" rejoin ["os-" config/os-base]
+        "blank was provided for" rejoin ["os-" config/os-base]
 	]
 ]
 
@@ -416,7 +416,7 @@ unless flag? -SP [ ; Use standard paths:
 if flag? EXE [macro+ BIN_SUFFIX %.exe]
 macro++ CLIB linker-flags
 macro++ RAPI_FLAGS compiler-flags
-macro++ HOST_FLAGS make compiler-flags [PIC: NCM: none]
+macro++ HOST_FLAGS make compiler-flags [PIC: NCM: _]
 macro+  HOST_FLAGS compiler-flags/f64 ; default for all
 
 if flag? +SC [remove find os-specific-objs 'host-readline.c]

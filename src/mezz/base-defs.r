@@ -24,7 +24,7 @@ body-of: ;-- real BODY-OF defined in %mezz-func.r
 words-of:
 values-of:
 types-of:
-    none
+    blank
 
 use [word title] [
     for-each name system/catalog/reflectors [
@@ -42,13 +42,13 @@ use [word title] [
     ]
 ]
 
-decode-url: none ; set in sys init
+decode-url: _ ; set in sys init
 
-r3-legacy*: none ; set in %mezz-legacy.r
+r3-legacy*: _ ; set in %mezz-legacy.r
 
 ; used only by Ren-C++ as a test of how to patch the lib context prior to
 ; boot at the higher levels.
-test-rencpp-low-level-hook: none
+test-rencpp-low-level-hook: _
 
 ;-- Setup Codecs -------------------------------------------------------------
 
@@ -89,7 +89,7 @@ internal!: make typeset! [
 
 immediate!: make typeset! [
     ; Does not include internal datatypes
-    none! logic! any-scalar! date! any-word! datatype! typeset! event!
+    blank! logic! any-scalar! date! any-word! datatype! typeset! event!
 ]
 
 system/options/result-types: make typeset! [
@@ -146,11 +146,10 @@ ok?: func [
     not error? :value
 ]
 
-; Currently BLANK! is an alias for NONE!, but Ren-C's plan is that BLANK!
-; would be the official name, with NONE! the legacy alias.
-;
-blank?: :none?
-blank!: :none!
+; Words for BLANK! and BAR! (for those who don't like symbols)...
+
+blank: _
+bar: '|
 
 ; Experimental shorthand for ANY-VALUE? test (will also be VALUE?)
 ;

@@ -15,7 +15,7 @@ REBOL [
 ]
 
 0           *
-none        *
+blank       *
 handle      *
 
 logic       4

@@ -830,9 +830,12 @@ REBOOL Construct_Value(REBVAL *out, REBARR *spec)
     if (sym > REB_MAX_0) { // >, not >=, because they are one-based
 
         switch (sym) {
-
+    #if !defined(NDEBUG)
         case SYM_NONE:
-            SET_NONE(out);
+            // Should be a legacy switch
+    #endif
+        case SYM_BLANK:
+            SET_BLANK(out);
             return TRUE;
 
         case SYM_FALSE:
@@ -855,8 +858,8 @@ REBOOL Construct_Value(REBVAL *out, REBARR *spec)
         SET_VOID(out);
         return TRUE;
     }
-    if (type == REB_NONE) {
-        SET_NONE(out);
+    if (type == REB_BLANK) {
+        SET_BLANK(out);
         return TRUE;
     }
 
@@ -925,7 +928,7 @@ REBARR *Scan_Net_Header(REBARR *header, REBYTE *str)
                     if (IS_BLOCK(val+1)) {
                         // Block of values already exists:
                         val = Alloc_Tail_Array(VAL_ARRAY(val + 1));
-                        SET_NONE(val);
+                        SET_BLANK(val);
                     }
                     else {
                         // Create new block for values:
@@ -935,7 +938,7 @@ REBARR *Scan_Net_Header(REBARR *header, REBYTE *str)
                         *val2 = val[1];
                         Val_Init_Block(val + 1, array);
                         val = Alloc_Tail_Array(array); // for new value
-                        SET_NONE(val);
+                        SET_BLANK(val);
                     }
                     break;
                 }
@@ -944,7 +947,7 @@ REBARR *Scan_Net_Header(REBARR *header, REBYTE *str)
                 val = Alloc_Tail_Array(header); // add new word
                 Val_Init_Word(val, REB_SET_WORD, sym);
                 val = Alloc_Tail_Array(header); // for new value
-                SET_NONE(val);
+                SET_BLANK(val);
             }
         }
         else break;

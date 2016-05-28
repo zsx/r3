@@ -395,7 +395,7 @@ REBNATIVE(context_of)
 {
     PARAM(1, word);
 
-    if (IS_WORD_UNBOUND(ARG(word))) return R_NONE;
+    if (IS_WORD_UNBOUND(ARG(word))) return R_BLANK;
 
     // Requesting the context of a word that is relatively bound may result
     // in that word having a FRAME! incarnated as a REBSER node (if it
@@ -514,7 +514,7 @@ REBNATIVE(collect_words)
 //  
 //  {Gets the value of a word or path, or values of a context.}
 //  
-//      source [none! any-word! any-path! any-context!]
+//      source [blank! any-word! any-path! any-context!]
 //          "Word, path, context to get"
 //      /opt
 //          "Optionally return no value if the source is not SET?"
@@ -587,7 +587,7 @@ REBNATIVE(get)
         Val_Init_Block(D_OUT, array);
     }
     else {
-        assert(IS_NONE(source));
+        assert(IS_BLANK(source));
         *D_OUT = *source;
     }
 
@@ -611,7 +611,7 @@ REBNATIVE(to_value)
     PARAM(1, value);
 
     if (IS_VOID(ARG(value)))
-        return R_NONE;
+        return R_BLANK;
 
     *D_OUT = *ARG(value);
     return R_OUT;
@@ -630,7 +630,7 @@ REBNATIVE(opt)
 {
     PARAM(1, value);
 
-    if (IS_NONE(ARG(value)))
+    if (IS_BLANK(ARG(value)))
         return R_VOID;
 
     *D_OUT = *ARG(value);
@@ -687,7 +687,7 @@ REBNATIVE(in)
                     }
                 }
             }
-            return R_NONE;
+            return R_BLANK;
         }
 
         fail (Error_Invalid_Arg(word));
@@ -704,7 +704,7 @@ REBNATIVE(in)
 
     index = Find_Word_In_Context(context, VAL_WORD_SYM(word), FALSE);
     if (index == 0)
-        return R_NONE;
+        return R_BLANK;
 
     VAL_RESET_HEADER(D_OUT, VAL_TYPE(word));
     INIT_WORD_SYM(D_OUT, VAL_WORD_SYM(word));
@@ -730,6 +730,48 @@ REBNATIVE(and_q)
         return R_TRUE;
     else
         return R_FALSE;
+}
+
+
+//
+//  nor?: native [
+//
+//  {Returns true if both values are conditionally false (no "short-circuit")}
+//
+//      value1
+//      value2
+//  ]
+//
+REBNATIVE(nor_q)
+{
+    PARAM(1, value1);
+    PARAM(2, value2);
+
+    if (IS_CONDITIONAL_FALSE(ARG(value1)) && IS_CONDITIONAL_FALSE(ARG(value2)))
+        return R_TRUE;
+    else
+        return R_FALSE;
+}
+
+
+//
+//  nand?: native [
+//
+//  {Returns false if both values are conditionally true (no "short-circuit")}
+//
+//      value1
+//      value2
+//  ]
+//
+REBNATIVE(nand_q)
+{
+    PARAM(1, value1);
+    PARAM(2, value2);
+
+    if (IS_CONDITIONAL_TRUE(ARG(value1)) && IS_CONDITIONAL_TRUE(ARG(value2)))
+        return R_FALSE;
+    else
+        return R_TRUE;
 }
 
 
@@ -1008,7 +1050,7 @@ REBNATIVE(set)
 
             if (IS_END(value)) {
                 if (!REF(pad)) break;
-                SET_NONE(var);
+                SET_BLANK(var);
                 continue;
             }
             *var = *value;
@@ -1095,7 +1137,7 @@ REBNATIVE(set)
             if (IS_END(value)) {
                 if (!REF(pad)) break;
                 set_with_block = FALSE;
-                value = NONE_VALUE;
+                value = BLANK_VALUE;
             }
         }
     }
@@ -1120,7 +1162,7 @@ REBNATIVE(type_of)
 
     enum Reb_Kind kind = VAL_TYPE(ARG(value));
     if (kind == REB_0)
-        return R_NONE;
+        return R_BLANK;
 
     Val_Init_Datatype(D_OUT, kind);
     return R_OUT;
@@ -1275,7 +1317,7 @@ REBNATIVE(true_q)
 //      value [any-value!] ; Note: No [<opt> any-value!] - void must fail.
 //  ][
 //      either any [
-//          none? :value
+//          blank? :value
 //          :value = false
 //      ][
 //          true
@@ -1318,7 +1360,7 @@ REBNATIVE(quote)
 //
 //      value [<opt> any-value!]
 //  ][
-//      none? type-of :value
+//      blank? type-of :value
 //  ]
 //
 REBNATIVE(void_q)
@@ -1355,7 +1397,7 @@ REBNATIVE(void)
 //  ][
 //      any [
 //          void? :value
-//          none? :value
+//          blank? :value
 //      ]
 //  ]
 //
@@ -1363,7 +1405,7 @@ REBNATIVE(nothing_q)
 {
     PARAM(1, value);
 
-    return (IS_NONE(ARG(value)) || IS_VOID(ARG(value))) ? R_TRUE : R_FALSE;
+    return (IS_BLANK(ARG(value)) || IS_VOID(ARG(value))) ? R_TRUE : R_FALSE;
 }
 
 
@@ -1376,7 +1418,7 @@ REBNATIVE(nothing_q)
 //  ][
 //      all [
 //          any-value? :value
-//          not none? value
+//          not blank? value
 //      ]
 //  ]
 //
@@ -1384,7 +1426,7 @@ REBNATIVE(something_q)
 {
     PARAM(1, value);
 
-    return (IS_NONE(ARG(value)) || IS_VOID(ARG(value))) ? R_FALSE : R_TRUE;
+    return (IS_BLANK(ARG(value)) || IS_VOID(ARG(value))) ? R_FALSE : R_TRUE;
 }
 
 

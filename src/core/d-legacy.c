@@ -78,7 +78,7 @@ REBOOL In_Legacy_Function_Debug(void)
 //
 //  Legacy_Convert_Function_Args_Debug: C
 //
-// R3-Alpha and Rebol2 used TRUE for a refinement and NONE for the argument
+// R3-Alpha and Rebol2 used TRUE for a refinement and BLANK for the argument
 // to a refinement which is not present.  Ren-C provides the name of the
 // argument as a WORD! if for the refinement, and void for refinement
 // args that are not there.  (This makes chaining work.)
@@ -92,26 +92,26 @@ void Legacy_Convert_Function_Args_Debug(struct Reb_Frame *f)
     REBVAL *param = FUNC_PARAMS_HEAD(f->func);
     REBVAL *arg = FRM_ARGS_HEAD(f);
 
-    REBOOL set_none = FALSE;
+    REBOOL set_blank = FALSE;
 
     for (; NOT_END(param); ++param, ++arg) {
         if (VAL_PARAM_CLASS(param) == PARAM_CLASS_REFINEMENT) {
             if (IS_WORD(arg)) {
                 assert(VAL_WORD_SYM(arg) == VAL_TYPESET_SYM(param));
                 SET_TRUE(arg);
-                set_none = FALSE;
+                set_blank = FALSE;
             }
-            else if (IS_NONE(arg)) {
-                set_none = TRUE;
+            else if (IS_BLANK(arg)) {
+                set_blank = TRUE;
             }
             else assert(FALSE);
         }
         else if (VAL_PARAM_CLASS(param) == PARAM_CLASS_PURE_LOCAL)
             assert(IS_VOID(arg));
         else {
-            if (set_none) {
+            if (set_blank) {
                 assert(IS_VOID(arg));
-                SET_NONE(arg);
+                SET_BLANK(arg);
             }
         }
     }
@@ -161,7 +161,7 @@ REBCTX *Make_Guarded_Arg123_Error(void)
 
     for (n = 0; n < 3; n++, key++, var++) {
         Val_Init_Typeset(key, ALL_64, SYM_ARG1 + n);
-        SET_NONE(var);
+        SET_BLANK(var);
     }
 
     SET_END(key);

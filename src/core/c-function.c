@@ -37,7 +37,7 @@
     Args list is a block of word+values:
 
         word - word, 'word, :word, /word
-        value - typeset! or none (valid datatypes)
+        value - typeset! or blank (valid datatypes)
 
     Args list provides:
 
@@ -274,9 +274,9 @@ REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
         case REB_REFINEMENT:
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_REFINEMENT);
 
-            // Refinements can nominally be only WORD! or NONE!
+            // Refinements can nominally be only WORD! or BLANK!
             VAL_TYPESET_BITS(typeset) =
-                (FLAGIT_KIND(REB_WORD) | FLAGIT_KIND(REB_NONE));
+                (FLAGIT_KIND(REB_WORD) | FLAGIT_KIND(REB_BLANK));
             break;
 
         case REB_SET_WORD:
@@ -809,7 +809,7 @@ void Make_Function(
                         // Notational convenience for optional.
                         // func [x [<opt> integer!]] => func [x [_ integer!]]
                         //
-                        SET_NONE(subitem);
+                        SET_BLANK(subitem);
                     }
                     else if (
                         0 == Compare_String_Vals(
@@ -1226,8 +1226,8 @@ void Do_Native_Core(struct Reb_Frame *f)
     case R_OUT_IS_THROWN:
         f->mode = CALL_MODE_THROW_PENDING;
         break;
-    case R_NONE:
-        SET_NONE(f->out);
+    case R_BLANK:
+        SET_BLANK(f->out);
         break;
     case R_VOID:
         SET_VOID(f->out);
@@ -1278,8 +1278,8 @@ void Do_Action_Core(struct Reb_Frame *f)
     case R_OUT_IS_THROWN:
         f->mode = CALL_MODE_THROW_PENDING;
         break;
-    case R_NONE:
-        SET_NONE(f->out);
+    case R_BLANK:
+        SET_BLANK(f->out);
         break;
     case R_VOID:
         SET_VOID(f->out);

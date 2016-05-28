@@ -177,7 +177,7 @@ REBARR *Make_Where_For_Frame(struct Reb_Frame *frame)
 //
 //  "Get execution point summary for a function call (if still on stack)"
 //
-//      level [frame! function! integer! none!]
+//      level [frame! function! integer! blank!]
 //  ]
 //
 REBNATIVE(where_of)
@@ -217,7 +217,7 @@ REBNATIVE(label_of)
     // return something like TRUE instead of a fake symbol?
     //
     if (frame == NULL)
-        return R_NONE;
+        return R_BLANK;
 
     Val_Init_Word(D_OUT, REB_WORD, FRM_LABEL(frame));
     return R_OUT;
@@ -279,7 +279,7 @@ REBNATIVE(backtrace_index)
         return R_OUT;
     }
 
-    return R_NONE;
+    return R_BLANK;
 }
 
 
@@ -288,12 +288,12 @@ REBNATIVE(backtrace_index)
 //
 //  "Backtrace to find a specific FRAME!, or other queried property."
 //
-//      level [| none! integer! function!]
-//          "Stack level to return frame for (none to list)"
+//      level [| blank! integer! function! |]
+//          "Stack level to return frame for (blank to list)"
 //      /limit
 //          "Limit the length of the backtrace"
-//      frames [none! integer!]
-//          "Max number of frames (pending and active), none for no limit"
+//      frames [blank! integer!]
+//          "Max number of frames (pending and active), blank for no limit"
 //      /brief
 //          "Do not list depths, just function labels on one line"
 //      /only ;-- should this be /QUIET or similar?
@@ -324,7 +324,7 @@ REBNATIVE(backtrace)
     // backtrace lined up with what that routine returns.  This isn't a very
     // performance-critical routine, so it's good to have the doublecheck.
     //
-    REBOOL get_frame = NOT(IS_VOID(level) || IS_NONE(level));
+    REBOOL get_frame = NOT(IS_VOID(level) || IS_BLANK(level));
 
     REBARR *backtrace;
     struct Reb_Frame *frame;
@@ -340,7 +340,7 @@ REBNATIVE(backtrace)
     }
 
     if (REF(limit)) {
-        if (IS_NONE(ARG(frames)))
+        if (IS_BLANK(ARG(frames)))
             max_rows = MAX_U32; // NONE is no limit--as many frames as possible
         else {
             if (VAL_INT32(ARG(frames)) < 0)
@@ -570,7 +570,7 @@ REBNATIVE(backtrace)
     // !!! Would it be better to give an error?
     //
     if (get_frame)
-        return R_NONE;
+        return R_BLANK;
 
     // Return accumulated backtrace otherwise.  The reverse filling process
     // should have exactly used up all the index slots, leaving index at 0.
@@ -687,9 +687,9 @@ struct Reb_Frame *Frame_For_Stack_Level(
             continue;
         }
 
-        if (IS_VOID(level) || IS_NONE(level)) {
+        if (IS_VOID(level) || IS_BLANK(level)) {
             //
-            // Take first actual frame if unset or none
+            // Take first actual frame if void or blank
             //
             goto return_maybe_set_number_out;
         }

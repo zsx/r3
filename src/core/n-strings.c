@@ -375,7 +375,7 @@ REBNATIVE(decompress)
         len = BIN_LEN(VAL_SERIES(arg));
 
     if (limit && max < 0)
-        return R_NONE; // !!! Should negative limit be an error instead?
+        return R_BLANK; // !!! Should negative limit be an error instead?
 
     Val_Init_Binary(D_OUT, Decompress(
         BIN_HEAD(VAL_SERIES(arg)) + VAL_INDEX(arg), len, max, gzip, only
@@ -890,13 +890,13 @@ REBNATIVE(find_script)
 
     n = What_UTF(VAL_BIN_AT(arg), VAL_LEN_AT(arg));
 
-    if (n != 0 && n != 8) return R_NONE;  // UTF8 only
+    if (n != 0 && n != 8) return R_BLANK;  // UTF8 only
 
     if (n == 8) VAL_INDEX(arg) += 3;  // BOM8 length
 
     n = Scan_Header(VAL_BIN_AT(arg), VAL_LEN_AT(arg)); // returns offset
 
-    if (n == -1) return R_NONE;
+    if (n == -1) return R_BLANK;
 
     VAL_INDEX(arg) += n;
 
@@ -924,7 +924,7 @@ REBNATIVE(utf_q)
 //
 //  invalid-utf?: native [
 //  
-//  {Checks UTF encoding; if correct, returns none else position of error.}
+//  {Checks UTF encoding; if correct, returns blank else position of error.}
 //  
 //      data [binary!]
 //      /utf "Check encodings other than UTF-8"
@@ -941,7 +941,7 @@ REBNATIVE(invalid_utf_q)
     REBYTE *bp;
 
     bp = Check_UTF8(VAL_BIN_AT(arg), VAL_LEN_AT(arg));
-    if (bp == 0) return R_NONE;
+    if (bp == 0) return R_BLANK;
 
     VAL_INDEX(arg) = bp - VAL_BIN_HEAD(arg);
 

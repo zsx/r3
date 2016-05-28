@@ -42,7 +42,7 @@ idate-to-date: function [date [string!]] [
         if zone = "GMT" [zone: copy "+0"]
         to date! ajoin [day "-" month "-" year "/" time zone]
     ][
-        none
+        blank
     ]
 ]
 
@@ -83,7 +83,7 @@ read-sync-awake: func [event [event!] /local error] [
         ]
         error [
             error: event/port/state/error
-            event/port/state/error: none
+            event/port/state/error: _
             fail error
         ]
     ] [
@@ -147,7 +147,7 @@ make-http-error: func [
     /otherhost new-url [url!]
 ] [
     ; cannot call it "message" because message is the error template.  :-/
-    ; hence when the error is created it has message defined as none, and
+    ; hence when the error is created it has message defined as blank, and
     ; you have to overwrite it if you're doing a custom template, e.g.
     ;
     ;     make error! [message: ["the" :animal "has claws"] animal: "cat"]
@@ -188,9 +188,13 @@ make-http-error: func [
 make-http-request: func [
     "Create an HTTP request (returns string!)"
     method [word! string!] "E.g. GET, HEAD, POST etc."
-    target [file! string!] {In case of string!, no escaping is performed (eg. useful to override escaping etc.). Careful!}
+    target [file! string!]
+        {In case of string!, no escaping is performed.}
+        {(eg. useful to override escaping etc.). Careful!}
     headers [block!] "Request headers (set-word! string! pairs)"
-    content [any-string! binary! none!] {Request contents (Content-Length is created automatically). Empty string not exactly like none.}
+    content [any-string! binary! blank!]
+        {Request contents (Content-Length is created automatically).}
+        {Empty string not exactly like blank.}
     /local result
 ] [
     result: rejoin [
@@ -229,7 +233,7 @@ do-request: func [
     ] spec/headers
     port/state/state: 'doing-request
     info/headers: info/response-line: info/response-parsed: port/data:
-    info/size: info/date: info/name: none
+    info/size: info/date: info/name: blank
     write port/state/connection
     make-http-request spec/method any [spec/path %/]
     ; to file! double encodes any % in the url
@@ -241,7 +245,12 @@ parse-write-dialect: func [port block /local spec debug] [
     parse block [
         opt [ 'headers ( spec/debug: true ) ]
         [set block word! (spec/method: block) | (spec/method: 'post)]
-        opt [set block [file! | url!] (spec/path: block)] [set block block! (spec/headers: block) | (spec/headers: [])] [set block [any-string! | binary!] (spec/content: block) | (spec/content: none)]
+        opt [set block [file! | url!] (spec/path: block)]
+        [set block block! (spec/headers: block) | (spec/headers: [])]
+        [
+            set block [any-string! | binary!] (spec/content: block)
+            | (spec/content: blank)
+        ]
     ]
 ]
 check-response: func [port /local conn res headers d1 d2 line info state awake spec] [
@@ -388,7 +397,10 @@ check-response: func [port /local conn res headers d1 d2 line info state awake s
             unless res [res: awake make event! [type: 'ready port: port]]
         ]
         info [
-            info/headers: info/response-line: info/response-parsed: port/data: none
+            info/headers: _
+            info/response-line: _
+            info/response-parsed: _
+            port/data: _
             state/state: 'reading-headers
             read conn
         ]
@@ -404,9 +416,9 @@ crlfbin: #{0D0A}
 crlf2bin: #{0D0A0D0A}
 crlf2: to string! crlf2bin
 http-response-headers: context [
-    Content-Length:
-    Transfer-Encoding:
-    Last-Modified: none
+    Content-Length: _
+    Transfer-Encoding: _
+    Last-Modified: _
 ]
 do-redirect: func [port [port!] new-uri [url! string! file!] /local spec state] [
     spec: port/spec
@@ -525,14 +537,14 @@ sys/make-scheme [
         path: %/
         method: 'get
         headers: []
-        content: none
+        content: _
         timeout: 15
-        debug: none
+        debug: _
     ]
     info: make system/standard/file-info [
         response-line:
         response-parsed:
-        headers: none
+        headers: _
     ]
     actor: [
         read: func [
@@ -579,8 +591,8 @@ sys/make-scheme [
             ]
             port/state: context [
                 state: 'inited
-                connection:
-                error: none
+                connection: _
+                error: _
                 close?: no
                 info: make port/scheme/info [type: 'file]
                 awake: :port/awake
@@ -606,8 +618,8 @@ sys/make-scheme [
         ] [
             if port/state [
                 close port/state/connection
-                port/state/connection/awake: none
-                port/state: none
+                port/state/connection/awake: _
+                port/state: _
             ]
             port
         ]
@@ -626,7 +638,7 @@ sys/make-scheme [
         ] [
             if state: port/state [
                 either error? error: state/error [
-                    state/error: none
+                    state/error: _
                     error
                 ] [
                     state/info

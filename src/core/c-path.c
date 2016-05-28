@@ -132,7 +132,7 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
         break;
 
     case PE_NONE:
-        SET_NONE(pvs->store);
+        SET_BLANK(pvs->store);
     case PE_USE_STORE:
         pvs->value = pvs->store;
         break;
@@ -348,7 +348,7 @@ REBOOL Do_Path_Throws(
         // should balance!)
 
         for (; NOT_END(pvs.item); ++pvs.item) { // "the refinements"
-            if (IS_NONE(pvs.item)) continue;
+            if (IS_BLANK(pvs.item)) continue;
 
             if (IS_GROUP(pvs.item)) {
                 // Note it is not legal to use the data stack directly as the
@@ -359,13 +359,13 @@ REBOOL Do_Path_Throws(
                     DS_DROP_TO(dsp_orig);
                     return TRUE;
                 }
-                if (IS_NONE(&refinement)) continue;
+                if (IS_BLANK(&refinement)) continue;
                 DS_PUSH(&refinement);
             }
             else if (IS_GET_WORD(pvs.item)) {
                 DS_PUSH_TRASH;
                 *DS_TOP = *GET_OPT_VAR_MAY_FAIL(pvs.item);
-                if (IS_NONE(DS_TOP)) {
+                if (IS_BLANK(DS_TOP)) {
                     DS_DROP;
                     continue;
                 }
@@ -490,7 +490,7 @@ void Pick_Path(
         break;
 
     case PE_NONE:
-        SET_NONE(pvs.store);
+        SET_BLANK(pvs.store);
     case PE_USE_STORE:
         pvs.value = pvs.store;
         break;

@@ -140,7 +140,7 @@ head?: action [
 
 tail?: action [
     {Returns TRUE if series is at or past its end; or empty for other types.}
-    series [any-series! object! gob! port! bitset! map! none! varargs!]
+    series [any-series! object! gob! port! bitset! map! blank! varargs!]
 ]
 
 past?: action [
@@ -172,13 +172,13 @@ at: action [
 
 index-of: action [
     {Returns the current position (index) of the series.}
-    series [any-series! gob! port! none!]
+    series [any-series! gob! port! blank!]
     /xy {Returns index as an XY pair offset}
 ]
 
 length: action [
     {Returns the length (from the current position for series.)}
-    series [any-series! port! map! tuple! bitset! object! gob! struct! any-word! none!]
+    series [any-series! port! map! tuple! bitset! object! gob! struct! any-word! blank!]
 ]
 
 ;-- Series Extraction
@@ -194,8 +194,8 @@ pick: action [
 ;-- Series Search
 
 find: action [
-    {Searches for a value; for series returns where found, else none.}
-    series [any-series! map! gob! port! bitset! typeset! object! none!]
+    {Searches for a value; for series returns where found, else blank.}
+    series [any-series! map! gob! port! bitset! typeset! object! blank!]
     value [<opt> any-value!]
     /part {Limits the search to a given length or position}
     limit [any-number! any-series! pair!]
@@ -213,8 +213,8 @@ find: action [
 ]
 
 select: action [
-    {Searches for a value; returns the value that follows, else none.}
-    series [any-series! port! map! object! none!]
+    {Searches for a value; returns the value that follows, else void.}
+    series [any-series! port! map! object! blank!]
     value [<opt> any-value!]
     /part {Limits the search to a given length or position}
     limit [any-number! any-series! pair!]
@@ -263,7 +263,7 @@ copy: action [
 
 take: action [
     {Removes and returns one or more elements.}
-    series [any-series! port! gob! none! varargs!] {At position (modified)}
+    series [any-series! port! gob! blank! varargs!] {At position (modified)}
     /part {Specifies a length or end position}
     limit [any-number! any-series! pair! bar!]
     /deep {Also copies series values within the block}
@@ -294,7 +294,7 @@ append: action [
 
 remove: action [
     {Removes element(s); returns same position.}
-    series [any-series! map! gob! port! bitset! none!] {At position (modified)}
+    series [any-series! map! gob! port! bitset! blank!] {At position (modified)}
     /part {Removes multiple elements or to a given position}
     limit [any-number! any-series! pair! char!]
     /map {Remove key from map}
@@ -321,11 +321,11 @@ poke: action [
 
 clear: action [
     {Removes elements from current position to tail; returns at new tail.}
-    series [any-series! port! map! gob! bitset! none!] {At position (modified)}
+    series [any-series! port! map! gob! bitset! blank!] {At position (modified)}
 ]
 
 trim: action [
-    {Removes spaces from strings or nones from blocks or objects.}
+    {Removes spaces from strings or blanks from blocks or objects.}
     series [any-series! object! error! module!] {Series (modified) or object (made)}
     /head {Removes only from the head}
     /tail {Removes only from the tail}
@@ -400,7 +400,7 @@ read: action [
     /string {Convert UTF and line terminators to standard text string}
     /lines {Convert to block of strings (implies /string)}
 ;   /as {Convert to string using a specified encoding}
-;       encoding [none! any-number!] {UTF number (0 8 16 -16)}
+;       encoding [blank! any-number!] {UTF number (0 8 16 -16)}
 ]
 
 write: action [
@@ -416,7 +416,7 @@ write: action [
         access [block!]
     /lines {Write each value in a block as a separate line}
 ;   /as {Convert string to a specified encoding}
-;       encoding [none! any-number!] {UTF number (0 8 16 -16)}
+;       encoding [blank! any-number!] {UTF number (0 8 16 -16)}
 ]
 
 open?: action [
@@ -428,13 +428,13 @@ query: action [
     {Returns information about a port, file, or URL.}
     target [port! file! url! block!]
     /mode "Get mode information"
-    field [word! none!] "NONE will return valid modes for port type"
+    field [word! blank!] "NONE will return valid modes for port type"
 ]
 
 modify: action [
     {Change mode or control for port or file.}
     target [port! file!]
-    field [word! none!]
+    field [word! blank!]
     value
 ]
 

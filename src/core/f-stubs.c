@@ -584,7 +584,7 @@ REBINT Partial1(REBVAL *sval, REBVAL *lval)
 // Args:
 //     aval: target value
 //     bval: argument to modify target (optional)
-//     lval: length value (or none)
+//     lval: length value (or blank)
 // 
 // Determine the length of a /PART value. It can be:
 //     1. integer or decimal

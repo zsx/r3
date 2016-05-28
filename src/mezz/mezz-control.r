@@ -13,8 +13,8 @@ REBOL [
 
 launch: func [
     {Runs a script as a separate process; return immediately.}
-    script [file! string! none!] "The name of the script"
-    /args arg [string! block! none!] "Arguments to the script"
+    script [file! string! blank!] "The name of the script"
+    /args arg [string! block! blank!] "Arguments to the script"
     /wait "Wait for the process to terminate"
 ][
     if file? script [script: to-local-file clean-path script]

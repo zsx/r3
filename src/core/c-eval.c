@@ -845,8 +845,8 @@ reevaluate:
     //=//// UNSPECIALIZED REFINEMENT SLOT (no consumption) ////////////////=//
 
                     if (f->dsp_orig == DSP) { // no refinements left on stack
-                        SET_NONE(f->arg);
-                        f->refine = NONE_VALUE; // "don't consume args, ever"
+                        SET_BLANK(f->arg);
+                        f->refine = BLANK_VALUE; // "don't consume args, ever"
                         goto continue_arg_loop;
                     }
 
@@ -892,8 +892,8 @@ reevaluate:
 
                     // Wasn't in the path and not specialized, so not present
                     //
-                    SET_NONE(f->arg);
-                    f->refine = NONE_VALUE; // "don't consume args, ever"
+                    SET_BLANK(f->arg);
+                    f->refine = BLANK_VALUE; // "don't consume args, ever"
                     goto continue_arg_loop;
                 }
 
@@ -919,8 +919,8 @@ reevaluate:
                 // is neither true nor false)
                 //
                 if (IS_VOID(f->arg) || IS_CONDITIONAL_FALSE(f->arg)) {
-                    SET_NONE(f->arg);
-                    f->refine = NONE_VALUE; // (read-only)
+                    SET_BLANK(f->arg);
+                    f->refine = BLANK_VALUE; // (read-only)
                 }
                 else {
                     Val_Init_Word(
@@ -1015,7 +1015,7 @@ reevaluate:
             // Unspecialized arguments that do not consume do not need any
             // further processing or checking.  void will always be fine.
             //
-            if (IS_NONE(f->refine)) { // FALSE if revoked, and still evaluates
+            if (IS_BLANK(f->refine)) { // FALSE if revoked, and still evaluates
                 SET_VOID(f->arg);
                 goto continue_arg_loop;
             }
@@ -1139,7 +1139,7 @@ reevaluate:
             // See notes on `Reb_Frame.refine` in %sys-do.h for more info.
             //
             assert(
-                IS_NONE(f->refine) || // arg to unused refinement
+                IS_BLANK(f->refine) || // arg to unused refinement
                 IS_LOGIC(f->refine) || // F = revoked, T = not refinement arg
                 IS_WORD(f->refine) // refinement arg in use, but revokable
             );
@@ -1154,7 +1154,7 @@ reevaluate:
                     if (f->refine + 1 != f->arg)
                         fail (Error(RE_BAD_REFINE_REVOKE));
 
-                    SET_NONE(f->refine);
+                    SET_BLANK(f->refine);
                     f->refine = FALSE_VALUE;
                 }
 

@@ -361,7 +361,7 @@ static REBOOL Set_GOB_Var(REBGOB *gob, const REBVAL *word, const REBVAL *val)
             GOB_CONTENT(gob) = VAL_SERIES(val);
 //          if (!VAL_IMAGE_TRANSP(val)) SET_GOB_OPAQUE(gob);
         }
-        else if (IS_NONE(val)) SET_GOB_TYPE(gob, GOBT_NONE);
+        else if (IS_BLANK(val)) SET_GOB_TYPE(gob, GOBT_NONE);
         else return FALSE;
         break;
 
@@ -371,7 +371,7 @@ static REBOOL Set_GOB_Var(REBGOB *gob, const REBVAL *word, const REBVAL *val)
             SET_GOB_TYPE(gob, GOBT_DRAW);
             GOB_CONTENT(gob) = VAL_SERIES(val);
         }
-        else if (IS_NONE(val)) SET_GOB_TYPE(gob, GOBT_NONE);
+        else if (IS_BLANK(val)) SET_GOB_TYPE(gob, GOBT_NONE);
         else return FALSE;
         break;
 
@@ -385,7 +385,7 @@ static REBOOL Set_GOB_Var(REBGOB *gob, const REBVAL *word, const REBVAL *val)
             SET_GOB_TYPE(gob, GOBT_STRING);
             GOB_CONTENT(gob) = VAL_SERIES(val);
         }
-        else if (IS_NONE(val)) SET_GOB_TYPE(gob, GOBT_NONE);
+        else if (IS_BLANK(val)) SET_GOB_TYPE(gob, GOBT_NONE);
         else return FALSE;
         break;
 
@@ -395,7 +395,7 @@ static REBOOL Set_GOB_Var(REBGOB *gob, const REBVAL *word, const REBVAL *val)
             SET_GOB_TYPE(gob, GOBT_EFFECT);
             GOB_CONTENT(gob) = VAL_SERIES(val);
         }
-        else if (IS_NONE(val)) SET_GOB_TYPE(gob, GOBT_NONE);
+        else if (IS_BLANK(val)) SET_GOB_TYPE(gob, GOBT_NONE);
         else return FALSE;
         break;
 
@@ -407,7 +407,7 @@ static REBOOL Set_GOB_Var(REBGOB *gob, const REBVAL *word, const REBVAL *val)
             if (VAL_TUPLE_LEN(val) < 4 || VAL_TUPLE(val)[3] == 0)
                 SET_GOB_OPAQUE(gob);
         }
-        else if (IS_NONE(val)) SET_GOB_TYPE(gob, GOBT_NONE);
+        else if (IS_BLANK(val)) SET_GOB_TYPE(gob, GOBT_NONE);
         break;
 
     case SYM_PANE:
@@ -418,7 +418,7 @@ static REBOOL Set_GOB_Var(REBGOB *gob, const REBVAL *word, const REBVAL *val)
             );
         else if (IS_GOB(val))
             Insert_Gobs(gob, val, 0, 1, FALSE);
-        else if (IS_NONE(val))
+        else if (IS_BLANK(val))
             gob->pane = 0;
         else
             return FALSE;
@@ -450,7 +450,7 @@ static REBOOL Set_GOB_Var(REBGOB *gob, const REBVAL *word, const REBVAL *val)
             SET_GOB_DTYPE(gob, GOBD_INTEGER);
             SET_GOB_DATA(gob, cast(REBSER*, cast(REBIPT, VAL_INT64(val))));
         }
-        else if (IS_NONE(val))
+        else if (IS_BLANK(val))
             SET_GOB_TYPE(gob, GOBT_NONE);
         else return FALSE;
         break;
@@ -501,7 +501,7 @@ static REBOOL Get_GOB_Var(REBGOB *gob, const REBVAL *word, REBVAL *val)
         if (GOB_TYPE(gob) == GOBT_IMAGE) {
             // image
         }
-        else goto is_none;
+        else goto is_blank;
         break;
 
     case SYM_DRAW:
@@ -509,7 +509,7 @@ static REBOOL Get_GOB_Var(REBGOB *gob, const REBVAL *word, REBVAL *val)
             // !!! comment said "compiler optimizes" the init "calls below" (?)
             Val_Init_Block(val, AS_ARRAY(GOB_CONTENT(gob)));
         }
-        else goto is_none;
+        else goto is_blank;
         break;
 
     case SYM_TEXT:
@@ -519,21 +519,21 @@ static REBOOL Get_GOB_Var(REBGOB *gob, const REBVAL *word, REBVAL *val)
         else if (GOB_TYPE(gob) == GOBT_STRING) {
             Val_Init_String(val, GOB_CONTENT(gob));
         }
-        else goto is_none;
+        else goto is_blank;
         break;
 
     case SYM_EFFECT:
         if (GOB_TYPE(gob) == GOBT_EFFECT) {
             Val_Init_Block(val, AS_ARRAY(GOB_CONTENT(gob)));
         }
-        else goto is_none;
+        else goto is_blank;
         break;
 
     case SYM_COLOR:
         if (GOB_TYPE(gob) == GOBT_COLOR) {
             Set_Tuple_Pixel((REBYTE*)&GOB_CONTENT(gob), val);
         }
-        else goto is_none;
+        else goto is_blank;
         break;
 
     case SYM_ALPHA:
@@ -552,8 +552,8 @@ static REBOOL Get_GOB_Var(REBGOB *gob, const REBVAL *word, REBVAL *val)
             SET_GOB(val, GOB_PARENT(gob));
         }
         else
-is_none:
-            SET_NONE(val);
+is_blank:
+            SET_BLANK(val);
         break;
 
     case SYM_DATA:
@@ -572,7 +572,7 @@ is_none:
         else if (GOB_DTYPE(gob) == GOBD_INTEGER) {
             SET_INTEGER(val, (REBIPT)GOB_DATA(gob));
         }
-        else goto is_none;
+        else goto is_blank;
         break;
 
     case SYM_FLAGS:
@@ -630,7 +630,7 @@ REBARR *Gob_To_Array(REBGOB *gob)
         val = Alloc_Tail_Array(array);
         Val_Init_Word(val, REB_SET_WORD, words[n]);
         vals[n] = Alloc_Tail_Array(array);
-        SET_NONE(vals[n]);
+        SET_BLANK(vals[n]);
     }
 
     SET_PAIR(vals[0], GOB_X(gob), GOB_Y(gob));
@@ -808,16 +808,16 @@ REBTYPE(Gob)
         else
             fail (Error_Bad_Make(REB_GOB, arg));
         // Allow NONE as argument:
-//      else if (!IS_NONE(arg))
+//      else if (!IS_BLANK(arg))
 //          goto is_arg_error;
         SET_GOB(D_OUT, ngob);
         break;
 
     case A_PICK:
-        if (!IS_NUMBER(arg) && !IS_NONE(arg)) fail (Error_Invalid_Arg(arg));
-        if (!GOB_PANE(gob)) goto is_none;
+        if (!IS_NUMBER(arg) && !IS_BLANK(arg)) fail (Error_Invalid_Arg(arg));
+        if (!GOB_PANE(gob)) goto is_blank;
         index += Get_Num_From_Arg(arg) - 1;
-        if (index >= tail) goto is_none;
+        if (index >= tail) goto is_blank;
         gob = *GOB_AT(gob, index);
         index = 0;
         goto set_index;
@@ -873,7 +873,7 @@ REBTYPE(Gob)
     case A_TAKE:
         len = D_REF(2) ? Get_Num_From_Arg(D_ARG(3)) : 1;
         if (index + len > tail) len = tail - index;
-        if (index >= tail) goto is_none;
+        if (index >= tail) goto is_blank;
         if (!D_REF(2)) { // just one value
             VAL_RESET_HEADER(D_OUT, REB_GOB);
             VAL_GOB(D_OUT) = *GOB_AT(gob, index);
@@ -933,10 +933,10 @@ REBTYPE(Gob)
     case A_FIND:
         if (IS_GOB(arg)) {
             index = Find_Gob(gob, VAL_GOB(arg));
-            if (index == NOT_FOUND) goto is_none;
+            if (index == NOT_FOUND) goto is_blank;
             goto set_index;
         }
-        goto is_none;
+        goto is_blank;
 
     case A_REVERSE:
         for (index = 0; index < tail/2; index++) {
@@ -958,8 +958,8 @@ set_index:
     VAL_GOB_INDEX(D_OUT) = index;
     return R_OUT;
 
-is_none:
-    return R_NONE;
+is_blank:
+    return R_BLANK;
 
 is_arg_error:
     fail (Error_Unexpected_Type(REB_GOB, VAL_TYPE(arg)));

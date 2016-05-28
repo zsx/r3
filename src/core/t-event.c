@@ -102,7 +102,7 @@ static REBOOL Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
             VAL_EVENT_MODEL(value) = EVM_OBJECT;
             VAL_EVENT_SER(value) = ARR_SERIES(CTX_VARLIST(VAL_CONTEXT(val)));
         }
-        else if (IS_NONE(val)) {
+        else if (IS_BLANK(val)) {
             VAL_EVENT_MODEL(value) = EVM_GUI;
         } else return FALSE;
         break;
@@ -197,7 +197,7 @@ static void Set_Event_Vars(REBVAL *evt, REBVAL *blk)
         var = blk++;
         val = blk++;
         if (IS_END(val))
-            val = NONE_VALUE;
+            val = BLANK_VALUE;
         else {
             Get_Simple_Value_Into(&safe, val);
             val = &safe;
@@ -220,7 +220,7 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSYM sym, REBVAL *val)
     switch (sym) {
 
     case SYM_TYPE:
-        if (VAL_EVENT_TYPE(value) == 0) goto is_none;
+        if (VAL_EVENT_TYPE(value) == 0) goto is_blank;
         arg = Get_System(SYS_VIEW, VIEW_EVENT_TYPES);
         if (IS_BLOCK(arg) && VAL_LEN_HEAD(arg) >= EVT_MAX) {
             *val = *VAL_ARRAY_AT_HEAD(arg, VAL_EVENT_TYPE(value));
@@ -248,7 +248,7 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSYM sym, REBVAL *val)
             // assumes EVM_DEVICE
             // Event holds the IO-Request, which has the PORT:
             req = VAL_EVENT_REQ(value);
-            if (!req || !req->port) goto is_none;
+            if (!req || !req->port) goto is_blank;
             Val_Init_Port(val, AS_CONTEXT(cast(REBSER*, req->port)));
         }
         break;
@@ -265,7 +265,7 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSYM sym, REBVAL *val)
 
     case SYM_OFFSET:
         if (VAL_EVENT_TYPE(value) == EVT_KEY || VAL_EVENT_TYPE(value) == EVT_KEY_UP)
-            goto is_none;
+            goto is_blank;
         VAL_RESET_HEADER(val, REB_PAIR);
         VAL_PAIR_X(val) = (REBD32)VAL_EVENT_X(value);
         VAL_PAIR_Y(val) = (REBD32)VAL_EVENT_Y(value);
@@ -273,7 +273,7 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSYM sym, REBVAL *val)
 
     case SYM_KEY:
         if (VAL_EVENT_TYPE(value) != EVT_KEY && VAL_EVENT_TYPE(value) != EVT_KEY_UP)
-            goto is_none;
+            goto is_blank;
         n = VAL_EVENT_DATA(value); // key-words in top 16, chars in lower 16
         if (n & 0xffff0000) {
             arg = Get_System(SYS_VIEW, VIEW_EVENT_KEYS);
@@ -306,19 +306,19 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSYM sym, REBVAL *val)
             Val_Init_Block(val, array);
         }
         else
-            SET_NONE(val);
+            SET_BLANK(val);
         break;
 
     case SYM_CODE:
         if (VAL_EVENT_TYPE(value) != EVT_KEY && VAL_EVENT_TYPE(value) != EVT_KEY_UP)
-            goto is_none;
+            goto is_blank;
         n = VAL_EVENT_DATA(value); // key-words in top 16, chars in lower 16
         SET_INTEGER(val, n);
         break;
 
     case SYM_DATA:
         // Event holds a file string:
-        if (VAL_EVENT_TYPE(value) != EVT_DROP_FILE) goto is_none;
+        if (VAL_EVENT_TYPE(value) != EVT_DROP_FILE) goto is_blank;
         if (!GET_FLAG(VAL_EVENT_FLAGS(value), EVF_COPIED)) {
             void *str = VAL_EVENT_SER(value);
 
@@ -345,8 +345,8 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSYM sym, REBVAL *val)
 
     return TRUE;
 
-is_none:
-    SET_NONE(val);
+is_blank:
+    SET_BLANK(val);
     return TRUE;
 }
 
@@ -462,18 +462,18 @@ is_arg_error:
         if (num > 0) index--;
         if (num == 0 || index < 0 || index > EF_DCLICK) {
             if (action == A_POKE) fail (Error_Out_Of_Range(arg));
-            goto is_none;
+            goto is_blank;
         }
 pick_it:
         switch(index) {
         case EF_TYPE:
-            if (VAL_EVENT_TYPE(value) == 0) goto is_none;
+            if (VAL_EVENT_TYPE(value) == 0) goto is_blank;
             arg = Get_System(SYS_VIEW, VIEW_EVENT_TYPES);
             if (IS_BLOCK(arg) && VAL_LEN_HEAD(arg) >= EVT_MAX) {
                 *D_OUT = *VAL_ARRAY_AT_HEAD(arg, VAL_EVENT_TYPE(value));
                 return R_OUT;
             }
-            return R_NONE;
+            return R_BLANK;
 
         case EF_PORT:
             // Most events are for the GUI:
@@ -481,13 +481,13 @@ pick_it:
                 *D_OUT = *Get_System(SYS_VIEW, VIEW_EVENT_PORT);
             else {
                 req = VAL_EVENT_REQ(value);
-                if (!req || !req->port) goto is_none;
+                if (!req || !req->port) goto is_blank;
                 Val_Init_Port(D_OUT, cast(REBSER*, req->port));
             }
             return R_OUT;
 
         case EF_KEY:
-            if (VAL_EVENT_TYPE(value) != EVT_KEY) goto is_none;
+            if (VAL_EVENT_TYPE(value) != EVT_KEY) goto is_blank;
             if (VAL_EVENT_FLAGS(value)) {  // !!!!!!!!!!!!! needs mask
                 VAL_RESET_HEADER(D_OUT, REB_CHAR);
                 VAL_CHAR(D_OUT) = VAL_EVENT_KEY(value) & 0xff;
@@ -571,7 +571,7 @@ void Mold_Event(const REBVAL *value, REB_MOLD *mold)
 
     for (field = 0; fields[field]; field++) {
         Get_Event_Var(value, fields[field], &val);
-        if (!IS_NONE(&val)) {
+        if (!IS_BLANK(&val)) {
             New_Indented_Line(mold);
             Append_UTF8_May_Fail(
                 mold->series, Get_Sym_Name(fields[field]), -1

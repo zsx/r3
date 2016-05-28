@@ -998,7 +998,7 @@ typedef enum {
 /* Dithering options for decompression. */
 
 typedef enum {
-    JDITHER_NONE,       /* no dithering */
+    JDITHER_BLANK,       /* no dithering */
     JDITHER_ORDERED,    /* simple ordered dither */
     JDITHER_FS      /* Floyd-Steinberg error diffusion dither */
 } J_DITHER_MODE;

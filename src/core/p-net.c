@@ -97,8 +97,8 @@ static void Accept_New_Port(REBVAL *out, REBCTX *port, REBREQ *sock)
     port = Copy_Context_Shallow(port);
     Val_Init_Port(out, port); // Also for GC protect
 
-    SET_NONE(CTX_VAR(port, STD_PORT_DATA)); // just to be sure.
-    SET_NONE(CTX_VAR(port, STD_PORT_STATE)); // just to be sure.
+    SET_BLANK(CTX_VAR(port, STD_PORT_DATA)); // just to be sure.
+    SET_BLANK(CTX_VAR(port, STD_PORT_STATE)); // just to be sure.
 
     // Copy over the new sock data:
     sock = cast(REBREQ*, Use_Port_State(port, RDI_NET, sizeof(*sock)));
@@ -176,7 +176,7 @@ static REB_R Transport_Actor(
             }
 
             // No host, must be a LISTEN socket:
-            else if (IS_NONE(arg)) {
+            else if (IS_BLANK(arg)) {
                 SET_FLAG(sock->modes, RST_LISTEN);
                 sock->common.data = 0; // where ACCEPT requests are queued
                 sock->special.net.local_port = IS_INTEGER(val) ? VAL_INT32(val) : 8000;
@@ -215,9 +215,9 @@ static REB_R Transport_Actor(
             }
         }
         else if (sock->command == RDC_WRITE) {
-            SET_NONE(arg);  // Write is done.
+            SET_BLANK(arg);  // Write is done.
         }
-        return R_NONE;
+        return R_BLANK;
 
     case A_READ:
         // Read data into a buffer, expanding the buffer if needed.
@@ -279,7 +279,7 @@ static REB_R Transport_Actor(
         //Print("(write length %d)", len);
         result = OS_DO_DEVICE(sock, RDC_WRITE); // send can happen immediately
         if (result < 0) fail (Error_On_Port(RE_WRITE_ERROR, port, sock->error));
-        if (result == DR_DONE) SET_NONE(CTX_VAR(port, STD_PORT_DATA));
+        if (result == DR_DONE) SET_BLANK(CTX_VAR(port, STD_PORT_DATA));
         break;
 
     case A_PICK:

@@ -197,7 +197,7 @@ REBCNT Hash_Value(const REBVAL *val)
 
     case REB_BAR:
     case REB_LIT_BAR:
-    case REB_NONE:
+    case REB_BLANK:
         ret = 0;
         break;
 

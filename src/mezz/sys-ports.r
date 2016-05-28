@@ -47,7 +47,7 @@ make-port*: func [
             spec: port/spec
         ]
         true [
-            return none
+            return blank
         ]
     ]
 
@@ -85,7 +85,7 @@ make-port*: func [
     path-char:   insert copy alpha-num "/=+-_.;:&$@%*',~?| []()^"" ; !!! note: space allowed
     user-char:   insert copy alpha-num "=+-_.;&$%*,'#|"
     pass-char:   complement make bitset! "^/ ^-@"
-    s1: s2: none ; in R3, input datatype is preserved - these are now URL strings!
+    s1: s2: _ ; in R3, input datatype is preserved - these are now URL strings!
     out: []
     emit: func ['w v] [reduce/into [to set-word! w if :v [to string! :v]] tail out]
 
@@ -157,7 +157,7 @@ make-port*: func [
     ]
 ]
 
-decode-url: none ; used by sys funcs, defined above, set below
+decode-url: _ ; used by sys funcs, defined above, set below
 
 ;-- Native Schemes -----------------------------------------------------------
 
@@ -219,7 +219,7 @@ init-schemes: func [
             waked: sport/data ; The wake list (pending awakes)
 
             if only [
-                unless block? ports [return none] ;short cut for a pause
+                unless block? ports [return blank] ;short cut for a pause
             ]
 
             ; Process all events (even if no awake ports).
@@ -230,7 +230,7 @@ init-schemes: func [
                 event: first event-list
                 port: event/port
                 either any [
-                    none? only
+                    not only
                     find ports port
                 ][
                     remove event-list ;avoid event overflow caused by wake-up recursively calling into wait
@@ -246,7 +246,7 @@ init-schemes: func [
             ]
 
             ; No wake ports (just a timer), return now.
-            unless block? ports [return none]
+            unless block? ports [return blank]
 
             ; Are any of the requested ports awake?
             for-next ports [

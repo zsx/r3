@@ -1,6 +1,6 @@
 //
 //  File: %t-none.c
-//  Summary: "none datatype"
+//  Summary: "none (blank) datatype"
 //  Section: datatypes
 //  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
 //  Homepage: https://github.com/metaeducation/ren-c/
@@ -77,7 +77,7 @@ REBTYPE(Unit)
     case A_REMOVE:
     case A_CLEAR:
     case A_TAKE:
-        return R_NONE;
+        return R_BLANK;
 
     default:
         break;

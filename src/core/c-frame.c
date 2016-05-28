@@ -804,7 +804,7 @@ REBCTX *Make_Selfish_Context_Detect(
     {
         REBVAL *var = CTX_VARS_HEAD(context);
         for (; len > 1; len--, var++) // 1 is rootvar (context), already done
-            SET_NONE(var);
+            SET_BLANK(var);
         SET_END(var);
     }
 
@@ -909,7 +909,7 @@ void Do_Construct(REBVAL* head)
 
     REBVAL temp;
     VAL_INIT_WRITABLE_DEBUG(&temp);
-    SET_NONE(&temp);
+    SET_BLANK(&temp);
 
     // This routine reads values from the start to the finish, which means
     // that if it wishes to do `word1: word2: value` it needs to have some
@@ -949,8 +949,8 @@ void Do_Construct(REBVAL* head)
         //
         if (IS_WORD(value)) {
             switch (VAL_WORD_CANON(value)) {
-            case SYM_NONE:
-                SET_NONE(&temp);
+            case SYM_BLANK:
+                SET_BLANK(&temp);
                 break;
 
             case SYM_TRUE:
@@ -978,11 +978,11 @@ void Do_Construct(REBVAL* head)
             temp = *value;
             VAL_SET_TYPE_BITS(&temp, REB_PATH);
         }
-        else if (VAL_TYPE(value) >= REB_NONE) { // all valid values
+        else if (VAL_TYPE(value) >= REB_BLANK) { // all valid values
             temp = *value;
         }
         else
-            SET_NONE(&temp);
+            SET_BLANK(&temp);
 
         // Set prior set-words:
         while (DSP > dsp_orig) {

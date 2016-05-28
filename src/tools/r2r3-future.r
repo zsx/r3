@@ -81,14 +81,20 @@ if void? :set? [
     ]
 ]
 
+unless set? 'blank? [
+    blank?: get 'none?
+    blank!: get 'none!
+    blank: get 'none
+    _: none
+]
 
 ; Ren-C replaces the awkward term PAREN! with GROUP!  (Retaining PAREN!
 ; for compatibility as pointing to the same datatype).  Older Rebols
 ; haven't heard of GROUP!, so establish the reverse compatibility.
 ;
 if void? :group? [
-    group?: :paren?
-    group!: paren!
+    group?: get 'paren?
+    group!: get 'paren!
 ]
 
 ; Older versions of Rebol had a different concept of what FUNCTION meant
@@ -135,7 +141,7 @@ unless find words-of :set /opt [
         set_ANY: any
         any: :lib/any ;-- in case it needs to be used
         opt_ANY: opt
-        opt: none ;-- no OPT defined yet, but just in case, keep clear
+        lib-set/any 'opt () ;-- doesn't exist in R3-Alpha
 
         apply :lib-set [target :value (any [opt_ANY set_ANY]) pad]
     ]
@@ -159,7 +165,7 @@ unless find words-of :get /opt [
         set_ANY: any
         any: :lib/any ;-- in case it needs to be used
         opt_ANY: opt
-        opt: none ;-- no OPT defined yet, but just in case, keep clear
+        lib-set/any 'opt () ;-- doesn't exist in R3-Alpha
 
         apply :lib-get [source (any [opt_ANY set_ANY])]
     ]
@@ -180,7 +186,7 @@ if group? reduce quote () [
             "Keep set-words as-is. Do not set them."
         /only
             "Only evaluate words and paths, not functions"
-        words [block! none!]
+        words [block! blank!]
             "Optional words that are not evaluated (keywords)"
         /into
             {Output results into a series with no intermediate storage}
@@ -243,7 +249,7 @@ migrations: [
         {NONE! to a void, all other value types pass through.}
         value [any-type!]
     ][
-        either none? get/opt 'value [()][
+        either blank? get/opt 'value [()][
             get/opt 'value
         ]
     ])
@@ -252,13 +258,13 @@ migrations: [
         {Turns unset to NONE, with ANY-VALUE! passing through. (See: OPT)}
         value [any-type!]
     ][
-        either void? get/opt 'value [none][:value]
+        either void? get/opt 'value [blank][:value]
     ])
 
     something? <as> (func [value [any-type!]] [
         not any [
             void? :value
-            none? :value
+            blank? :value
         ]
     ])
 

@@ -98,7 +98,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             RXA_INDEX(frm,1) = 0;
             return RXR_VALUE;
         }
-        return RXR_NONE;
+        return RXR_BLANK;
 */
 
     case CMD_CORE_TO_PNG:
@@ -138,7 +138,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
 
             if (error) {
                 if (buffer != NULL) free(buffer);
-                return RXR_NONE;
+                return RXR_BLANK;
             }
             //RL_Print("buff size: %d\n",buffersize);
             //allocate new binary!
@@ -218,7 +218,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 //set current context
                 ctx = (RC4_CTX*)RXA_HANDLE(frm, 4);
 
-                if (RXA_TYPE(frm, 5) == RXT_NONE) {
+                if (RXA_TYPE(frm, 5) == RXT_BLANK) {
                     //destroy context
                     OS_FREE(ctx);
 
@@ -271,7 +271,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 //set current context
                 ctx = (AES_CTX*)RXA_HANDLE(frm,5);
 
-                if (RXA_TYPE(frm, 6) == RXT_NONE) {
+                if (RXA_TYPE(frm, 6) == RXT_BLANK) {
                     //destroy context
                     OS_FREE(ctx);
 
@@ -288,7 +288,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 dataBuffer = (REBYTE *)RL_SERIES(data, RXI_SER_DATA) + RXA_INDEX(frm, 6);
                 len = RL_SERIES(data, RXI_SER_TAIL) - RXA_INDEX(frm, 6);
 
-                if (len == 0) return RXT_NONE;
+                if (len == 0) return RXT_BLANK;
 
                 //calculate padded length
                 pad_len = (((len - 1) >> 4) << 4) + AES_BLOCKSIZE;
@@ -341,7 +341,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                     data = RXA_SERIES(frm, 3);
                     dataBuffer = (REBYTE *)RL_SERIES(data, RXI_SER_DATA) + RXA_INDEX(frm, 3);
 
-                    if ((RL_SERIES(data, RXI_SER_TAIL) - RXA_INDEX(frm, 3)) < AES_IV_SIZE) return RXR_NONE;
+                    if ((RL_SERIES(data, RXI_SER_TAIL) - RXA_INDEX(frm, 3)) < AES_IV_SIZE) return RXR_BLANK;
 
                     memcpy(iv, dataBuffer, AES_IV_SIZE);
                 }
@@ -358,7 +358,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
 
                 if (len != 128 && len != 256) {
                     OS_FREE(ctx);
-                    return RXR_NONE;
+                    return RXR_BLANK;
                 }
 
                 AES_set_key(
@@ -398,7 +398,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             RSA_CTX *rsa_ctx = NULL;
 
             if (RXA_WORD(frm, 5)) { //padding refinement
-                padding = LOGICAL(RXA_TYPE(frm, 6) != RXT_NONE);
+                padding = LOGICAL(RXA_TYPE(frm, 6) != RXT_BLANK);
             }
 
             words = RL_WORDS_OF_OBJECT(obj);
@@ -456,11 +456,11 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
 
             OS_FREE(words);
 
-            if (!n || !e) return RXR_NONE;
+            if (!n || !e) return RXR_BLANK;
 
             if (RXA_WORD(frm, 4)) // private refinement
             {
-                if (!d) return RXR_NONE;
+                if (!d) return RXR_BLANK;
                 RSA_priv_key_new(
                     &rsa_ctx, n, n_len, e, e_len, d, d_len,
                     p, p_len, q, q_len, dp, dp_len, dq, dq_len, qinv, qinv_len
@@ -492,7 +492,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 if (binary_len == -1) {
                     bi_free(rsa_ctx->bi_ctx, data_bi);
                     RSA_free(rsa_ctx);
-                    return RXR_NONE;
+                    return RXR_BLANK;
                 }
             } else {
                 if (
@@ -507,7 +507,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 ) {
                     bi_free(rsa_ctx->bi_ctx, data_bi);
                     RSA_free(rsa_ctx);
-                    return RXR_NONE;
+                    return RXR_BLANK;
                 }
             }
 
@@ -636,7 +636,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
 
             dh_ctx.gy = (REBYTE *)RL_SERIES(pub_key, RXI_SER_DATA) + RXA_INDEX(frm, 2);
 
-            if (!dh_ctx.p || !dh_ctx.x || !dh_ctx.gy) return RXR_NONE;
+            if (!dh_ctx.p || !dh_ctx.x || !dh_ctx.gy) return RXR_BLANK;
 
             //allocate new binary!
             binary = RL_Make_String(dh_ctx.len, FALSE);

@@ -19,7 +19,7 @@ REBOL [
 ; Next four fields are updated during build:
 version:  0.0.0
 build:    1
-platform: none
+platform: _
 product:  'core
 
 license: {Copyright 2012 REBOL Technologies
@@ -31,9 +31,9 @@ See: http://www.apache.org/licenses/LICENSE-2.0
 catalog: context [
     ; Static (non-changing) values, blocks, objects
     datatypes: []
-    actions: none
-    natives: none
-    errors: none
+    actions: _
+    natives: _
+    errors: _
     reflectors: [spec body words values types title addr]
     ; Official list of system/options/flags that can appear.
     ; Must match host reb-args.h enum!
@@ -49,7 +49,7 @@ contexts: context [
     sys:
     lib:
     user:
-        none
+        _
 ]
 
 state: context [
@@ -69,7 +69,7 @@ state: context [
             0.0.0
         extension: 2.2.2 ; execute only
     ]
-    last-error: none ; used by WHY?
+    last-error: _ ; used by WHY?
 ]
 
 modules: []
@@ -82,7 +82,7 @@ dialects: context [
     effect:
     text:
     rebcode:
-        none
+        _
 ]
 
 schemes: context []
@@ -93,15 +93,15 @@ ports: context [
     output:         ; Port for user output
     echo:           ; Port for echoing output
     system:         ; Port for system events
-    callback: none  ; Port for callback events
-;   serial: none    ; serial device name block
+    callback: _     ; Port for callback events
+;   serial: _       ; serial device name block
 ]
 
 locale: context [
     language:   ; Human language locale
     language*:
     locale:
-    locale*: none
+    locale*: _
     months: [
         "January" "February" "March" "April" "May" "June"
         "July" "August" "September" "October" "November" "December"
@@ -112,23 +112,22 @@ locale: context [
 ]
 
 options: context [  ; Options supplied to REBOL during startup
-    boot:           ; The path to the executable
-    home:           ; Path of home directory
-    path:           ; Where script was started or the startup dir
-        none
+    boot: _         ; The path to the executable
+    home: _         ; Path of home directory
+    path: _         ; Where script was started or the startup dir
 
-    current-path:   ; Current URL! or FILE! path to use for relative lookups
+    current-path: _ ; Current URL! or FILE! path to use for relative lookups
 
-    flags:          ; Boot flag bits (see system/catalog/boot-flags)
-    script:         ; Filename of script to evaluate
-    args:           ; Command line arguments passed to script
-    do-arg:         ; Set to a block if --do was specified
-    import:         ; imported modules
-    debug:          ; debug flags
-    secure:         ; security policy
-    version:        ; script version needed
-    boot-level:     ; how far to boot up
-        none
+    flags: _        ; Boot flag bits (see system/catalog/boot-flags)
+    script: _       ; Filename of script to evaluate
+    args: _         ; Command line arguments passed to script
+    do-arg: _       ; Set to a block if --do was specified
+    import: _       ; imported modules
+    debug: _        ; debug flags
+    secure: _       ; security policy
+    version: _      ; script version needed
+    boot-level: _   ; how far to boot up
+
 
     quiet: false    ; do not show startup info (compatibility)
 
@@ -137,7 +136,7 @@ options: context [  ; Options supplied to REBOL during startup
     module-paths: [%./]
     default-suffix: %.reb ; Used by IMPORT if no suffix is provided
     file-types: []
-    result-types: none
+    result-types: _
 
     ; Legacy Behaviors Options (paid attention to only by debug builds)
 
@@ -178,7 +177,7 @@ script: context [
     parent:         ; Script that loaded the current one
     path:           ; Location of the script being evaluated
     args:           ; args passed to script
-        none
+        blank
 ]
 
 standard: context [
@@ -219,13 +218,12 @@ standard: context [
     ]
 
     error: context [ ; Template used for all errors:
-        code: none
+        code: _
         type: 'user
-        id:   'message
-        message:
-        near:
-        where:
-            none
+        id: 'message
+        message: _
+        near: _
+        where: _
 
         ; Arguments will be allocated in the context at creation time if
         ; necessary (errors with no arguments will just have a message)
@@ -237,7 +235,7 @@ standard: context [
         parent:
         path:
         args:
-            none
+            blank
     ]
 
     header: context [
@@ -254,7 +252,7 @@ standard: context [
 ;       compress:
 ;       exports:
 ;       content:
-            none
+            blank
     ]
 
     scheme: context [
@@ -266,7 +264,7 @@ standard: context [
 ;       type:       ; bytes, integers, objects, values, block
         actor:      ; standard action handler for scheme port functions
         awake:      ; standard awake handler for this scheme's ports
-            none
+            blank
     ]
 
     port: context [ ; Port specification object
@@ -278,7 +276,7 @@ standard: context [
         data:       ; data buffer (usually binary or block)
         locals:     ; user-defined storage of local data
 ;       stats:      ; stats on operation (optional)
-            none
+            blank
     ]
 
     port-spec-head: context [
@@ -286,21 +284,20 @@ standard: context [
         scheme:     ; reference to scheme that defines this port
         ref:        ; reference path or url (for errors)
         path:       ; used for files
-           none     ; (extended here)
+           blank    ; (extended here)
     ]
 
     port-spec-net: make port-spec-head [
-        host: none
+        host: _
         port-id: 80
-            none
     ]
 
     port-spec-serial: make port-spec-head [
         speed: 115200
         data-size: 8
-        parity: none
+        parity: _
         stop-bits: 1
-        flow-control: none ;not supported on all systems
+        flow-control: _ ;not supported on all systems
     ]
 
     port-spec-signal: make port-spec-head [
@@ -312,7 +309,7 @@ standard: context [
         size:
         date:
         type:
-            none
+            blank
     ]
 
     net-info: context [
@@ -320,7 +317,7 @@ standard: context [
         local-port:
         remote-ip:
         remote-port:
-            none
+            blank
     ]
 
     extension: context [
@@ -330,7 +327,7 @@ standard: context [
         command:    ; command function
         cmd-index:  ; command index counter
         words:      ; symbol references
-            none
+            blank
     ]
 
     stats: context [ ; port stats
@@ -346,24 +343,24 @@ standard: context [
         made-blocks:
         made-objects:
         recycles:
-            none
+            blank
     ]
 
     type-spec: context [
         title:
         type:
-            none
+            blank
     ]
 
-    utype: none
-    font: none  ; mezz-graphics.h
-    para: none  ; mezz-graphics.h
+    utype: _
+    font: _  ; mezz-graphics.h
+    para: _  ; mezz-graphics.h
 ]
 
 view: context [
-    screen-gob: none
-    handler: none
-    event-port: none
+    screen-gob: _
+    handler: _
+    event-port: _
     event-types: [
         ; Event types. Order dependent for C and REBOL.
         ; Due to fixed C constants, this list cannot be reordered after release!
@@ -442,14 +439,14 @@ view: context [
     ]
 ]
 
-;;stats: none
+;;stats: blank
 
 ;user-license: context [
 ;   name:
 ;   email:
 ;   id:
 ;   message:
-;       none
+;       blank
 ;]
 
 
@@ -500,7 +497,7 @@ view: context [
 ;       data-bits:
 ;       parity:
 ;       stop-bits:
-;           none
+;           blank
 ;       rts-cts: true
 ;       user-data:
 ;       awake:
@@ -510,7 +507,7 @@ view: context [
 ;       pass-thru:
 ;       open-append:
 ;       open-new:
-;           none
+;           blank
 ;   ]
 
 ;   email: context [ ; Email header object
@@ -529,26 +526,26 @@ view: context [
 ;       MIME-Version:
 ;       Content-Type:
 ;       Content:
-;           none
+;           blank
 ;   ]
 
 ;user: context [
 ;   name:           ; User's name
 ;   email:          ; User's default email address
 ;   home:           ; The HOME environment variable
-;   words: none
+;   words: blank
 ;]
 
 ;network: context [
 ;   host: ""        ; Host name of the user's computer
 ;   host-address: 0.0.0.0 ; Host computer's TCP-IP address
-;   trace: none
+;   trace: blank
 ;]
 
 ;console: context [
-;   hide-types: none ; types not to print
-;   history:         ; Log of user inputs
-;   keys: none       ; Keymap for special key
+;   hide-types: _    ; types not to print
+;   history: _       ; Log of user inputs
+;   keys: _          ; Keymap for special key
 ;   prompt:  {>> }   ; Specifies the prompt
 ;   result:  {== }   ; Specifies result
 ;   escape:  {(escape)} ; Indicates an escape
@@ -558,7 +555,7 @@ view: context [
 ;]
 
 ;           decimal: #"."   ; The character used as the decimal point in decimal and money vals
-;           sig-digits: none    ; Significant digits to use for decimals ; none for normal printing
+;           sig-digits: _    ; Significant digits to use for decimals ; blank for normal printing
 ;           date-sep: #"-"  ; The character used as the date separator
 ;           date-month-num: false   ; True if months are displayed as numbers; False for names
 ;           time-sep: #":"  ; The character used as the time separator
@@ -579,14 +576,14 @@ view: context [
 ;       remote-user:
 ;       remote-ident:
 ;       Content-Type:           ; cap'd for email header
-;       content-length: none
+;       content-length: blank
 ;       other-headers: []
 ;   ]
 ;   browser-type: 0
 
 ;   trace:          ; True if the --trace flag was specified
-;   help: none      ; True if the --help flags was specified
-;   halt: none      ; halt after script
+;   help: blank      ; True if the --help flags was specified
+;   halt: blank      ; halt after script
 
 ;-- Expectation is that evaluation ends with no result, empty GROUP! does that
 ()

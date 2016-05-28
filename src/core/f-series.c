@@ -319,7 +319,7 @@ chkDecimal:
     case REB_STRUCT:
         return Cmp_Struct(s, t);
 
-    case REB_NONE:
+    case REB_BLANK:
     case REB_0:
     default:
         break;

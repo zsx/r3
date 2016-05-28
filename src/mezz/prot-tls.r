@@ -16,9 +16,7 @@ REBOL [
 
 ; support functions
 
-debug:
-;:print
-none
+debug: (comment [:print] blank)
 
 emit: func [
     ctx [object!]
@@ -153,7 +151,7 @@ parse-asn: func [
                                 (either constructed? ["constructed"] ["primitive"])
                                 (index-of data)
                                 (size)
-                                (either constructed? [none] [val])
+                                (either constructed? [blank] [val])
                             ]
                         ]
                         if constructed? [
@@ -226,7 +224,7 @@ update-proto-state: func [
 ] [
     debug [ctx/protocol-state "->" new-state write-state]
     either any [
-        none? ctx/protocol-state
+        blank? ctx/protocol-state
         all [
             next-state: get-next-proto-state/:write-state ctx
             find next-state new-state
@@ -606,7 +604,12 @@ parse-messages: func [
                             session-id: copy/part at msg-content 34 msg-content/33
                             cipher-suite: copy/part at msg-content 34 + msg-content/33 2
                             compression-method-length: first at msg-content 36 + msg-content/33
-                            compression-method: either compression-method-length = 0 [none] [copy/part at msg-content 37 + msg-content/33 compression-method-length]
+                            compression-method:
+                                either compression-method-length = 0 [blank] [
+                                    copy/part
+                                        at msg-content 37 + msg-content/33
+                                        compression-method-length
+                                ]
                         ]
                         ctx/cipher-suite: msg-obj/cipher-suite
 
@@ -940,16 +943,16 @@ tls-init: func [
 ] [
     ctx/seq-num-r: 0
     ctx/seq-num-w: 0
-    ctx/protocol-state: none
+    ctx/protocol-state: _
     ctx/encrypted?: false
 
     switch ctx/crypt-method [
         rc4 [
             if ctx/encrypt-stream [
-                ctx/encrypt-stream: rc4/stream ctx/encrypt-stream none
+                ctx/encrypt-stream: rc4/stream ctx/encrypt-stream blank
             ]
             if ctx/decrypt-stream [
-                ctx/decrypt-stream: rc4/stream ctx/decrypt-stream none
+                ctx/decrypt-stream: rc4/stream ctx/decrypt-stream blank
             ]
         ]
     ]
@@ -1016,7 +1019,7 @@ tls-awake: function [event [event!]] [
         not port/data
     ] [
         ; reset the data field when interleaving port r/w states
-        tls-port/data: none
+        tls-port/data: _
     ]
 
     switch/default event/type [
@@ -1064,7 +1067,7 @@ tls-awake: function [event [event!]] [
                                 unless tls-port/data [tls-port/data: clear tls-port/state/port-data]
                                 append tls-port/data msg/content
                                 application?: true
-                                msg/type: none
+                                msg/type: _
                             ]
                         ]
                     ]
@@ -1132,13 +1135,13 @@ sys/make-scheme [
             port/state: context [
                 data-buffer: make binary! 32000
                 port-data: make binary! 32000
-                resp: none
+                resp: _
 
                 version: #{03 01} ; protocol version used
 
                 server?: false
 
-                protocol-state: none
+                protocol-state: _
 
                 key-method:
 
@@ -1150,7 +1153,7 @@ sys/make-scheme [
                 block-size:
                 iv-size:
 
-                cipher-suite: none
+                cipher-suite: blank
 
 
                 client-crypt-key:
@@ -1158,7 +1161,7 @@ sys/make-scheme [
                 client-iv:
                 server-crypt-key:
                 server-mac-key:
-                server-iv: none
+                server-iv: blank
 
                 seq-num-r: 0
                 seq-num-w: 0
@@ -1171,11 +1174,11 @@ sys/make-scheme [
                 client-random: server-random: pre-master-secret: master-secret:
                 key-block:
                 certificate: pub-key: pub-exp:
-                dh-key: dh-pub: none
+                dh-key: dh-pub: blank
 
-                encrypt-stream: decrypt-stream: none
+                encrypt-stream: decrypt-stream: blank
 
-                connection: none
+                connection: _
             ]
 
             port/state/connection: conn: make port! [
@@ -1216,25 +1219,25 @@ sys/make-scheme [
             switch port/state/crypt-method [
                 rc4 [
                     if port/state/encrypt-stream [
-                        rc4/stream port/state/encrypt-stream none
+                        rc4/stream port/state/encrypt-stream blank
                     ]
                     if port/state/decrypt-stream [
-                        rc4/stream port/state/decrypt-stream none
+                        rc4/stream port/state/decrypt-stream blank
                     ]
                 ]
                 aes [
                     if port/state/encrypt-stream [
-                        aes/stream port/state/encrypt-stream none
+                        aes/stream port/state/encrypt-stream blank
                     ]
                     if port/state/decrypt-stream [
-                        aes/stream port/state/decrypt-stream none
+                        aes/stream port/state/decrypt-stream blank
                     ]
                 ]
             ]
 
             debug "TLS/TCP port closed"
-            port/state/connection/awake: none
-            port/state: none
+            port/state/connection/awake: blank
+            port/state: blank
             port
         ]
         copy: func [port [port!]] [

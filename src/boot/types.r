@@ -44,7 +44,7 @@ REBOL [
 ;
 0           unit        -       -       -       -       -
 
-none        unit        +       +       -       *       -
+blank       unit        +       +       -       *       -
 bar         (unit)      +       +       -       *       -
 lit-bar     (unit)      +       +       -       *       -
 

@@ -234,7 +234,7 @@ REBTYPE(Function)
 
             default:
                 assert(FALSE);
-                return R_NONE;
+                return R_BLANK;
             }
             break;
 

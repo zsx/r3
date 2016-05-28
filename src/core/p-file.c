@@ -486,7 +486,7 @@ static REB_R File_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
     case A_QUERY:
         if (!IS_OPEN(file)) {
             Setup_File(file, 0, path);
-            if (OS_DO_DEVICE(file, RDC_QUERY) < 0) return R_NONE;
+            if (OS_DO_DEVICE(file, RDC_QUERY) < 0) return R_BLANK;
         }
         Ret_Query_File(port, file, D_OUT);
         // !!! free file path?
@@ -496,7 +496,7 @@ static REB_R File_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
         Set_Mode_Value(file, Get_Mode_Id(D_ARG(2)), D_ARG(3));
         if (!IS_OPEN(file)) {
             Setup_File(file, 0, path);
-            if (OS_DO_DEVICE(file, RDC_MODIFY) < 0) return R_NONE;
+            if (OS_DO_DEVICE(file, RDC_MODIFY) < 0) return R_BLANK;
         }
         return R_TRUE;
         break;

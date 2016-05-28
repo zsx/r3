@@ -29,7 +29,7 @@ scan: ; Used by scanner. Keep in sync with Value_Types in scan.h file!
     "word-set"
     "word-get"
     "word-lit"
-    "none"
+    "blank"
     "logic"
     "integer"
     "decimal"

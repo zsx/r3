@@ -145,7 +145,7 @@ emit-line: func [prefix word cmt /var /define /code /decl /up1 /local str][
         decl   [rejoin [prefix str cmt]]
         true   [rejoin ["    " prefix str ","]]
     ]
-    if any [code decl] [cmt: none]
+    if any [code decl] [cmt: _]
     if cmt [
         append str space
         case [
@@ -631,7 +631,7 @@ emit {
 ***********************************************************************/
 
 #define TS_NOTHING \
-    (FLAGIT_KIND(REB_0) | FLAGIT_KIND(REB_NONE))
+    (FLAGIT_KIND(REB_0) | FLAGIT_KIND(REB_BLANK))
 
 // ANY-SOMETHING! is the base "all bits" typeset that just does not include
 // NONE! or a void (review if typesets should be allowed to mention void
@@ -645,7 +645,7 @@ emit {
 // count void (this is distinct from R3-Alpha's ANY-TYPE!, which is steered
 // clear from for reasons including that it looks a lot like ANY-DATATYPE!)
 //
-#define TS_VALUE (TS_SOMETHING | FLAGIT_KIND(REB_NONE))
+#define TS_VALUE (TS_SOMETHING | FLAGIT_KIND(REB_BLANK))
 
 }
 
@@ -970,18 +970,18 @@ make-obj-defs: func [obj prefix depth /selfless /local f] [
         ; at 1, and if there's no "userspace" self in the 1 slot, the first
         ; key has to be...so we make `SYS_CTX_0 = 0` (for instance)
         ;
-        emit-line prefix "0 = 0" none
+        emit-line prefix "0 = 0" blank
     ][
         ; The internal generator currently puts SELF at the start of new
         ; objects in key slot 1, by default.  Eventually MAKE OBJECT! will
         ; have nothing to do with adding SELF, and it will be entirely a
         ; by-product of generators.
         ;
-        emit-line prefix "SELF = 1" none
+        emit-line prefix "SELF = 1" blank
     ]
 
     for-each field words-of obj [
-        emit-line prefix field none
+        emit-line prefix field blank
     ]
     emit [tab uppercase join prefix "MAX^/"]
     emit "};^/^/"
@@ -1046,15 +1046,15 @@ emit newline
 
 emit ["enum event_types {" newline]
 for-each field ob/view/event-types [
-    emit-line "EVT_" field none
+    emit-line "EVT_" field blank
 ]
 emit [tab "EVT_MAX^/"]
 emit "};^/^/"
 
 emit ["enum event_keys {" newline]
-emit-line "EVK_" "NONE" none
+emit-line "EVK_" "NONE" blank
 for-each field ob/view/event-keys [
-    emit-line "EVK_" field none
+    emit-line "EVK_" field blank
 ]
 emit [tab "EVK_MAX^/"]
 emit "};^/^/"
@@ -1139,7 +1139,7 @@ for-each [category info] boot-errors [
 
         code: code + 1
     ]
-    emit-line "RE_" join to word! category "_max" none
+    emit-line "RE_" join to word! category "_max" blank
     emit newline
 ]
 
@@ -1180,7 +1180,7 @@ write inc/tmp-portmodes.h out
 ;-- Add other MEZZ functions:
 mezz-files: load %../mezz/boot-files.r ; base lib, sys, mezz
 
-;append boot-mezz+ none ?? why was this needed?
+;append boot-mezz+ blank ?? why was this needed?
 
 for-each section [boot-base boot-sys boot-mezz] [
     set section make block! 200

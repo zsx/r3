@@ -160,7 +160,7 @@ REBINT Find_Max_Bit(REBVAL *val)
         //maxi++;
         break;
 
-    case REB_NONE:
+    case REB_BLANK:
         maxi = 0;
         break;
 
@@ -538,7 +538,7 @@ REBTYPE(Bitset)
 
     case A_PICK:
     case A_FIND:
-        if (!Check_Bits(VAL_SERIES(value), arg, D_REF(ARG_FIND_CASE))) return R_NONE;
+        if (!Check_Bits(VAL_SERIES(value), arg, D_REF(ARG_FIND_CASE))) return R_BLANK;
         return R_TRUE;
 
     case A_COMPLEMENT:

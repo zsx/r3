@@ -58,7 +58,7 @@ finish-init-core: proc [
     ; Set the "boot-level"
     ; !!! Is this something the user needs to be concerned with?
     ;
-    assert [none? boot-level]
+    assert [blank? boot-level]
     boot-level: 'full
 
     ; It was a stated goal at one point that it should be possible to protect
@@ -115,7 +115,7 @@ finish-rl-start: proc [
             [all [get opt to get act get opt]]
         ]
     ]
-    ; version, import, secure are all of valid type or none
+    ; version, import, secure are all of valid type or blank
 
     if flags/verbose [print self]
 
@@ -146,7 +146,7 @@ finish-rl-start: proc [
         if boot-host [
             loud-print "Init host code..."
             do load boot-host
-            boot-host: none
+            boot-host: _
         ]
     ]
 
@@ -171,13 +171,13 @@ finish-rl-start: proc [
     ; Import module?
     if import [lib/import import]
 
-    unless none? boot-embedded [
+    unless blank? boot-embedded [
         code: load/header/type boot-embedded 'unbound
         ;boot-print ["executing embedded script:" mold code]
         system/script: make system/standard/script [
             title: select first code 'title
             header: first code
-            parent: none
+            parent: _
             path: what-dir
             args: script-args
         ]
@@ -208,7 +208,7 @@ finish-rl-start: proc [
             system/script: make system/standard/script [
                 title: select first code 'title
                 header: first code
-                parent: none
+                parent: _
                 path: what-dir
                 args: script-args
             ]

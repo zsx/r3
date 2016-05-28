@@ -332,7 +332,7 @@ static void Load_Boot(void)
     if (VAL_LEN_HEAD(&Boot_Block->types) != REB_MAX_0 - 1)
         panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
 
-    if (VAL_WORD_SYM(VAL_ARRAY_HEAD(&Boot_Block->types)) != SYM_NONE_TYPE)
+    if (VAL_WORD_SYM(VAL_ARRAY_HEAD(&Boot_Block->types)) != SYM_BLANK_TYPE)
         panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
 
     // Create low-level string pointers (used by RS_ constants):
@@ -349,7 +349,7 @@ static void Load_Boot(void)
         }
     }
 
-    if (COMPARE_BYTES(cb_cast("none!"), Get_Sym_Name(SYM_NONE_TYPE)) != 0)
+    if (COMPARE_BYTES(cb_cast("blank!"), Get_Sym_Name(SYM_BLANK_TYPE)) != 0)
         panic (Error(RE_BAD_BOOT_STRING));
     if (COMPARE_BYTES(cb_cast("true"), Get_Sym_Name(SYM_TRUE)) != 0)
         panic (Error(RE_BAD_BOOT_STRING));
@@ -407,9 +407,9 @@ static void Init_Constants(void)
     REBVAL *value;
     extern const double pi1;
 
-    value = Append_Context(Lib_Context, 0, SYM_NONE);
-    SET_NONE(value);
-    assert(IS_NONE(value));
+    value = Append_Context(Lib_Context, 0, SYM_BLANK);
+    SET_BLANK(value);
+    assert(IS_BLANK(value));
     assert(IS_CONDITIONAL_FALSE(value));
 
     value = Append_Context(Lib_Context, 0, SYM_TRUE);
@@ -457,7 +457,7 @@ void Turn_Typespec_Opts_Into_Nones(REBARR *spec)
                         subitem, ROOT_OPT_TAG, TRUE
                     )
                 ) {
-                    SET_NONE(subitem);
+                    SET_BLANK(subitem);
                 }
             }
         }
@@ -816,7 +816,7 @@ static void Init_Root_Context(void)
     {
         REBINT n = 1;
         REBVAL *var = CTX_VARS_HEAD(root);
-        for (; n < ROOT_MAX; n++, var++) SET_NONE(var);
+        for (; n < ROOT_MAX; n++, var++) SET_BLANK(var);
         SET_END(var);
         SET_ARRAY_LEN(CTX_VARLIST(root), ROOT_MAX);
     }
@@ -838,11 +838,11 @@ static void Init_Root_Context(void)
     SET_TRASH_IF_DEBUG(&PG_Void_Cell[1]);
     MARK_VAL_UNWRITABLE_DEBUG(&PG_Void_Cell[1]);
 
-    VAL_INIT_WRITABLE_DEBUG(&PG_None_Value[0]);
-    SET_NONE(&PG_None_Value[0]);
-    VAL_INIT_WRITABLE_DEBUG(&PG_None_Value[1]);
-    SET_TRASH_IF_DEBUG(&PG_None_Value[1]);
-    MARK_VAL_UNWRITABLE_DEBUG(&PG_None_Value[1]);
+    VAL_INIT_WRITABLE_DEBUG(&PG_Blank_Value[0]);
+    SET_BLANK(&PG_Blank_Value[0]);
+    VAL_INIT_WRITABLE_DEBUG(&PG_Blank_Value[1]);
+    SET_TRASH_IF_DEBUG(&PG_Blank_Value[1]);
+    MARK_VAL_UNWRITABLE_DEBUG(&PG_Blank_Value[1]);
 
     VAL_INIT_WRITABLE_DEBUG(&PG_False_Value[0]);
     SET_FALSE(&PG_False_Value[0]);
@@ -962,7 +962,7 @@ static void Init_Task_Context(void)
     {
         REBINT n = 1;
         REBVAL *var = CTX_VARS_HEAD(task);
-        for (; n < TASK_MAX; n++, var++) SET_NONE(var);
+        for (; n < TASK_MAX; n++, var++) SET_BLANK(var);
         SET_END(var);
         SET_ARRAY_LEN(CTX_VARLIST(task), TASK_MAX);
     }
@@ -1029,12 +1029,12 @@ static void Init_System_Object(void)
 
     // We also add the system object under the root, to ensure it can't be
     // garbage collected and be able to access it from the C code.  (Someone
-    // could say `system: none` in the Lib_Context and then it would be a
+    // could say `system: blank` in the Lib_Context and then it would be a
     // candidate for garbage collection otherwise!)
     //
     Val_Init_Object(ROOT_SYSTEM, system);
 
-    // Create system/datatypes block.  Start at 1 (REB_NONE), given that 0
+    // Create system/datatypes block.  Start at 1 (REB_BLANK), given that 0
     // is REB_0 and does not correspond to a value type.
     //
     value = Get_System(SYS_CATALOG, CAT_DATATYPES);
@@ -1498,10 +1498,10 @@ void Init_Core(REBARGS *rargs)
 #if defined(TEST_EARLY_BOOT_PANIC)
     // This is a good place to test if the "pre-booting panic" is working.
     // It should be unable to present a format string, only the error code.
-    panic (Error(RE_NO_VALUE, NONE_VALUE));
+    panic (Error(RE_NO_VALUE, BLANK_VALUE));
 #elif defined(TEST_EARLY_BOOT_FAIL)
     // A fail should have the same behavior as a panic at this boot phase.
-    fail (Error(RE_NO_VALUE, NONE_VALUE));
+    fail (Error(RE_NO_VALUE, BLANK_VALUE));
 #endif
 
     DOUT("Main init");
@@ -1673,11 +1673,11 @@ void Init_Core(REBARGS *rargs)
 
 #if defined(TEST_MID_BOOT_PANIC)
     // At this point panics should be able to present the full message.
-    panic (Error(RE_NO_VALUE, NONE_VALUE));
+    panic (Error(RE_NO_VALUE, BLANK_VALUE));
 #elif defined(TEST_MID_BOOT_FAIL)
     // With no PUSH_TRAP yet, fail should give a localized assert in a debug
     // build but act like panic does in a release build.
-    fail (Error(RE_NO_VALUE, NONE_VALUE));
+    fail (Error(RE_NO_VALUE, BLANK_VALUE));
 #endif
 
     // Special pre-made errors:
@@ -1719,7 +1719,7 @@ void Init_Core(REBARGS *rargs)
     *CTX_VAR(Sys_Context, SYS_CTX_BOOT_PROT) = Boot_Block->protocols;
 
     // No longer needs protecting:
-    SET_NONE(ROOT_BOOT);
+    SET_BLANK(ROOT_BOOT);
     Boot_Block = NULL;
     PG_Boot_Phase = BOOT_MEZZ;
 
@@ -1738,7 +1738,7 @@ void Init_Core(REBARGS *rargs)
     // void (all other return results indicate an error state)
 
     if (!IS_VOID(&result)) {
-        Debug_Fmt("** 'finish-init-core' returned non-none!: %r", &result);
+        Debug_Fmt("** 'finish-init-core' returned value: %r", &result);
         panic (Error(RE_MISC));
     }
 

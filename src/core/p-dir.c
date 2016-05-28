@@ -212,7 +212,7 @@ static REB_R Dir_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
             if (result < 0)
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, dir.error));
             *D_OUT = *state;
-            SET_NONE(state);
+            SET_BLANK(state);
         }
         else {
             // !!! This copies the strings in the block, shallowly.  What is
@@ -244,7 +244,7 @@ create:
             *D_OUT = *D_ARG(1);
             return R_OUT;
         }
-        SET_NONE(state);
+        SET_BLANK(state);
         break;
 
     case A_RENAME:
@@ -265,7 +265,7 @@ create:
 
     case A_DELETE:
         //Trap_Security(flags[POL_WRITE], POL_WRITE, path);
-        SET_NONE(state);
+        SET_BLANK(state);
         Init_Dir_Path(&dir, path, 0, POL_WRITE);
         // !!! add *.r deletion
         // !!! add recursive delete (?)
@@ -295,14 +295,14 @@ create:
         return R_FALSE;
 
     case A_CLOSE:
-        SET_NONE(state);
+        SET_BLANK(state);
         break;
 
     case A_QUERY:
         //Trap_Security(flags[POL_READ], POL_READ, path);
-        SET_NONE(state);
+        SET_BLANK(state);
         Init_Dir_Path(&dir, path, -1, REMOVE_TAIL_SLASH | POL_READ);
-        if (OS_DO_DEVICE(&dir, RDC_QUERY) < 0) return R_NONE;
+        if (OS_DO_DEVICE(&dir, RDC_QUERY) < 0) return R_BLANK;
         Ret_Query_File(port, &dir, D_OUT);
         ///OS_FREE(dir.file.path);
         break;

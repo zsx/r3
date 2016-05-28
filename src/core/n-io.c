@@ -39,7 +39,7 @@
 //  
 //  "Copies console output to a file."
 //  
-//      target [file! none! logic!]
+//      target [file! blank! logic!]
 //  ]
 //
 REBNATIVE(echo)
@@ -71,7 +71,7 @@ REBNATIVE(echo)
 //      value [<opt> any-value!] "The value to form"
 //      /delimit
 //          "Use a delimiter between expressions that added to the output"
-//      delimiter [none! any-scalar! any-string! block!]
+//      delimiter [blank! any-scalar! any-string! block!]
 //          "Delimiting value (or block of delimiters for each depth)"
 //      /quote
 //          "Do not reduce values in blocks"
@@ -175,7 +175,7 @@ REBNATIVE(mold)
 //          "Don't use dialect--print ANY-VALUE! as-is (no newline)"
 //      /delimit
 //          "Use a delimiter between expressions that added to the output"
-//      delimiter [none! any-scalar! any-string! block!]
+//      delimiter [blank! any-scalar! any-string! block!]
 //          "Delimiting value (or block of delimiters for each depth)"
 //      /quote
 //          "Do not reduce values in blocks"
@@ -327,7 +327,7 @@ REBNATIVE(now)
         VAL_ZONE(ret) = 0;
     }
     else if (D_REF(4)) {    // time
-        //if (dat.time == ???) SET_NONE(ret);
+        //if (dat.time == ???) SET_BLANK(ret);
         VAL_RESET_HEADER(ret, REB_TIME);
     }
     else if (D_REF(5)) {    // zone
@@ -351,7 +351,7 @@ REBNATIVE(now)
 //  
 //  "Waits for a duration, port, or both."
 //  
-//      value [any-number! time! port! block! none!]
+//      value [any-number! time! port! block! blank!]
 //      /all "Returns all in a block"
 //      /only {only check for ports given in the block to this function}
 //  ]
@@ -363,7 +363,7 @@ REBNATIVE(wait)
     REBARR *ports = NULL;
     REBINT n = 0;
 
-    SET_NONE(D_OUT);
+    SET_BLANK(D_OUT);
 
     if (IS_BLOCK(val)) {
         REBVAL unsafe; // temporary not safe from GC
@@ -382,9 +382,9 @@ REBNATIVE(wait)
             if (IS_INTEGER(val) || IS_DECIMAL(val)) break;
         }
         if (IS_END(val)) {
-            if (n == 0) return R_NONE; // has no pending ports!
+            if (n == 0) return R_BLANK; // has no pending ports!
             else timeout = ALL_BITS; // no timeout provided
-            // SET_NONE(val); // no timeout -- BUG: unterminated block in GC
+            // SET_BLANK(val); // no timeout -- BUG: unterminated block in GC
         }
     }
 
@@ -405,11 +405,11 @@ REBNATIVE(wait)
             break;
 
         case REB_PORT:
-            if (!Pending_Port(val)) return R_NONE;
+            if (!Pending_Port(val)) return R_BLANK;
             ports = Make_Array(1);
             Append_Value(ports, val);
             // fall thru...
-        case REB_NONE:
+        case REB_BLANK:
             timeout = ALL_BITS; // wait for all windows
             break;
 
@@ -425,9 +425,9 @@ REBNATIVE(wait)
     // Process port events [stack-move]:
     if (!Wait_Ports(ports, timeout, D_REF(3))) {
         Sieve_Ports(NULL); /* just reset the waked list */
-        return R_NONE;
+        return R_BLANK;
     }
-    if (!ports) return R_NONE;
+    if (!ports) return R_BLANK;
 
     // Determine what port(s) waked us:
     Sieve_Ports(ports);
@@ -435,7 +435,7 @@ REBNATIVE(wait)
     if (!D_REF(2)) { // not /all ports
         val = ARR_HEAD(ports);
         if (IS_PORT(val)) *D_OUT = *val;
-        else SET_NONE(D_OUT);
+        else SET_BLANK(D_OUT);
     }
 
     return R_OUT;
@@ -554,7 +554,7 @@ REBNATIVE(what_dir)
     if (IS_URL(current_path)) {
         *D_OUT = *current_path;
     }
-    else if (IS_FILE(current_path) || IS_NONE(current_path)) {
+    else if (IS_FILE(current_path) || IS_BLANK(current_path)) {
         len = OS_GET_CURRENT_DIR(&lpath);
 
         // allocates extra for end `/`
@@ -630,7 +630,7 @@ REBNATIVE(change_dir)
 //  
 //  "Open web browser to a URL or local file."
 //  
-//      url [url! file! none!]
+//      url [url! file! blank!]
 //  ]
 //
 REBNATIVE(browse)
@@ -641,7 +641,7 @@ REBNATIVE(browse)
 
     Check_Security(SYM_BROWSE, POL_EXEC, arg);
 
-    if (IS_NONE(arg))
+    if (IS_BLANK(arg))
         return R_VOID;
 
     // !!! By passing NULL we don't get backing series to protect!
@@ -672,9 +672,12 @@ REBNATIVE(browse)
 //      /console "Runs command with I/O redirected to console"
 //      /shell "Forces command to be run from shell"
 //      /info "Returns process information object"
-//      /input in [string! binary! file! none!] "Redirects stdin to in"
-//      /output out [string! binary! file! none!] "Redirects stdout to out"
-//      /error err [string! binary! file! none!] "Redirects stderr to err"
+//      /input in [string! binary! file! blank!]
+//          "Redirects stdin to in"
+//      /output out [string! binary! file! blank!]
+//          "Redirects stdout to out"
+//      /error err [string! binary! file! blank!]
+//          "Redirects stderr to err"
 //  ]
 //
 REBNATIVE(call)
@@ -782,7 +785,7 @@ REBNATIVE(call)
             os_input = SER_HEAD(char, input_ser);
             input_len = SER_LEN(input_ser);
         }
-        else if (IS_NONE(param)) {
+        else if (IS_BLANK(param)) {
             input_type = NONE_TYPE;
         }
         else
@@ -812,7 +815,7 @@ REBNATIVE(call)
             os_output = SER_HEAD(char, output_ser);
             output_len = SER_LEN(output_ser);
         }
-        else if (IS_NONE(param)) {
+        else if (IS_BLANK(param)) {
             output_type = NONE_TYPE;
         }
         else
@@ -839,7 +842,7 @@ REBNATIVE(call)
             os_err = SER_HEAD(char, err_ser);
             err_len = SER_LEN(err_ser);
         }
-        else if (IS_NONE(param)) {
+        else if (IS_BLANK(param)) {
             err_type = NONE_TYPE;
         }
         else
@@ -1219,7 +1222,7 @@ REBNATIVE(request_file)
             Val_Init_File(D_OUT, ser);
         }
     } else
-        SET_NONE(D_OUT);
+        SET_BLANK(D_OUT);
 
     OS_FREE(fr.files);
 
@@ -1250,7 +1253,7 @@ REBNATIVE(get_env)
     cmd = Val_Str_To_OS_Managed(NULL, arg);
 
     lenplus = OS_GET_ENV(cmd, NULL, 0);
-    if (lenplus == 0) return R_NONE;
+    if (lenplus == 0) return R_BLANK;
     if (lenplus < 0) return R_VOID;
 
     // Two copies...is there a better way?
@@ -1269,7 +1272,7 @@ REBNATIVE(get_env)
 //  {Sets the value of an operating system environment variable (for current process).}
 //  
 //      var [any-string! any-word!] "Variable to set"
-//      value [string! none!] "Value to set, or NONE to unset it"
+//      value [string! blank!] "Value to set, or NONE to unset it"
 //  ]
 //
 REBNATIVE(set_env)
@@ -1298,10 +1301,10 @@ REBNATIVE(set_env)
         return R_VOID;
     }
 
-    if (IS_NONE(arg2)) {
+    if (IS_BLANK(arg2)) {
         success = OS_SET_ENV(cmd, 0);
         if (success)
-            return R_NONE;
+            return R_BLANK;
         return R_VOID;
     }
 
@@ -1359,7 +1362,7 @@ REBNATIVE(access_os)
                     if (ret < 0) {
                         switch (ret) {
                             case OS_ENA:
-                                return R_NONE;
+                                return R_BLANK;
 
                             case OS_EPERM:
                                 fail (Error(RE_PERMISSION_DENIED));
@@ -1381,7 +1384,7 @@ REBNATIVE(access_os)
             else {
                 REBINT ret = OS_GET_UID();
                 if (ret < 0) {
-                    return R_NONE;
+                    return R_BLANK;
                 } else {
                     SET_INTEGER(D_OUT, ret);
                     return R_OUT;
@@ -1395,7 +1398,7 @@ REBNATIVE(access_os)
                     if (ret < 0) {
                         switch (ret) {
                             case OS_ENA:
-                                return R_NONE;
+                                return R_BLANK;
 
                             case OS_EPERM:
                                 fail (Error(RE_PERMISSION_DENIED));
@@ -1417,7 +1420,7 @@ REBNATIVE(access_os)
             else {
                 REBINT ret = OS_GET_GID();
                 if (ret < 0) {
-                    return R_NONE;
+                    return R_BLANK;
                 } else {
                     SET_INTEGER(D_OUT, ret);
                     return R_OUT;
@@ -1431,7 +1434,7 @@ REBNATIVE(access_os)
                     if (ret < 0) {
                         switch (ret) {
                             case OS_ENA:
-                                return R_NONE;
+                                return R_BLANK;
 
                             case OS_EPERM:
                                 fail (Error(RE_PERMISSION_DENIED));
@@ -1453,7 +1456,7 @@ REBNATIVE(access_os)
             else {
                 REBINT ret = OS_GET_EUID();
                 if (ret < 0) {
-                    return R_NONE;
+                    return R_BLANK;
                 } else {
                     SET_INTEGER(D_OUT, ret);
                     return R_OUT;
@@ -1467,7 +1470,7 @@ REBNATIVE(access_os)
                     if (ret < 0) {
                         switch (ret) {
                             case OS_ENA:
-                                return R_NONE;
+                                return R_BLANK;
 
                             case OS_EPERM:
                                 fail (Error(RE_PERMISSION_DENIED));
@@ -1489,7 +1492,7 @@ REBNATIVE(access_os)
             else {
                 REBINT ret = OS_GET_EGID();
                 if (ret < 0) {
-                    return R_NONE;
+                    return R_BLANK;
                 } else {
                     SET_INTEGER(D_OUT, ret);
                     return R_OUT;
@@ -1523,7 +1526,7 @@ REBNATIVE(access_os)
                 if (ret < 0) {
                     switch (ret) {
                         case OS_ENA:
-                            return R_NONE;
+                            return R_BLANK;
 
                         case OS_EPERM:
                             fail (Error(RE_PERMISSION_DENIED));
@@ -1544,7 +1547,7 @@ REBNATIVE(access_os)
             } else {
                 REBINT ret = OS_GET_PID();
                 if (ret < 0) {
-                    return R_NONE;
+                    return R_BLANK;
                 } else {
                     SET_INTEGER(D_OUT, ret);
                     return R_OUT;

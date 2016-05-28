@@ -71,7 +71,7 @@ REBTYPE(Logic)
     if (IS_BINARY_ACT(action)) {
         if (IS_LOGIC(arg))
             val2 = VAL_LOGIC(arg);
-        else if (IS_NONE(arg))
+        else if (IS_BLANK(arg))
             val2 = FALSE;
         else
             fail (Error_Unexpected_Type(REB_LOGIC, VAL_TYPE(arg)));
@@ -107,7 +107,7 @@ REBTYPE(Logic)
 
     case A_TO:
         // As a "Rebol conversion", TO falls in line with the rest of the
-        // interpreter canon that all non-none non-logic values are
+        // interpreter canon that all non-blank non-logic values are
         // considered effectively "truth".
         //
         if (IS_CONDITIONAL_TRUE(arg))

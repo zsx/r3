@@ -133,7 +133,7 @@ static REBARR *Init_Loop(
         // !!! This should likely use the unset-defaulting in Ren-C with the
         // legacy fallback to NONE!
         //
-        SET_NONE(var);
+        SET_BLANK(var);
         var++;
 
         spec++;
@@ -317,7 +317,7 @@ static REB_R Loop_Skip(
     //
     // !!! Is this a good case for unset opting out?  (R3-Alpha didn't.)
     //
-    if (IS_NONE(var))
+    if (IS_BLANK(var))
         return R_OUT;
     if (!ANY_SERIES(var))
         fail (Error_Invalid_Arg(var));
@@ -360,7 +360,7 @@ static REB_R Loop_Skip(
         // change.  This seemed like an arbitrary limitation and Ren-C
         // removed it, only checking that it's a series.
         //
-        if (IS_NONE(var))
+        if (IS_BLANK(var))
             return R_OUT;
         if (!ANY_SERIES(var))
             fail (Error_Invalid_Arg(var));
@@ -418,7 +418,7 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
     else
         SET_VOID_UNLESS_LEGACY_NONE(D_OUT); // Default if loop does not run
 
-    if (IS_NONE(data_value) || IS_VOID(data_value)) return R_OUT;
+    if (IS_BLANK(data_value) || IS_VOID(data_value)) return R_OUT;
 
     body_copy = Init_Loop(&context, ARG(vars), ARG(body));
     Val_Init_Object(ARG(vars), context); // keep GC safe
@@ -482,7 +482,7 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
         for (i = 1; !IS_END(key); i++, key++, var++) {
 
             if (index >= tail) {
-                SET_NONE(var);
+                SET_BLANK(var);
                 continue;
             }
 
@@ -681,7 +681,7 @@ skip_hidden: ;
         // Result is the cumulative TRUE? state of all the input (with any
         // unsets taken out of the consideration).  The last TRUE? input
         // if all valid and NONE! otherwise.  (Like ALL.)
-        if (!every_true) return R_NONE;
+        if (!every_true) return R_BLANK;
 
         // We want to act like `ALL MAP-EACH ...`, hence we effectively ignore
         // unsets and return TRUE if the last evaluation leaves an unset.
@@ -884,7 +884,7 @@ REBNATIVE(forever)
 //  
 //      'word [word! block!]
 //          "Word or block of words to set each time (local)"
-//      data [any-series! any-context! map! none!]
+//      data [any-series! any-context! map! blank!]
 //          "The series to traverse"
 //      body [block!]
 //          "Block to evaluate each time"
@@ -935,7 +935,7 @@ REBNATIVE(map_each)
 //  
 //      'word [word! block!]
 //          "Word or block of words to set each time (local)"
-//      data [any-series! any-context! map! none!]
+//      data [any-series! any-context! map! blank!]
 //          "The series to traverse"
 //      body [block!]
 //          "Block to evaluate each time"
@@ -952,7 +952,7 @@ REBNATIVE(every)
 //  
 //  "Evaluates a block a specified number of times."
 //  
-//      count [any-number! logic! none!]
+//      count [any-number! logic! blank!]
 //          "Repetitions (true loops infinitely, FALSE? doesn't run)"
 //      block [block!]
 //          "Block to evaluate"
@@ -1014,7 +1014,7 @@ REBNATIVE(loop)
 //  {Evaluates a block a number of times or over a series.}
 //  
 //      'word [word!] "Word to set each time"
-//      value [any-number! any-series! none!] 
+//      value [any-number! any-series! blank!]
 //      "Maximum number or series to traverse"
 //      body [block!] "Block to evaluate each time"
 //  ]
@@ -1026,7 +1026,7 @@ REBNATIVE(repeat)
     REBVAL *var;
     REBVAL *count = D_ARG(2);
 
-    if (IS_NONE(count)) {
+    if (IS_BLANK(count)) {
         SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
         return R_OUT;
     }
@@ -1150,7 +1150,7 @@ REBNATIVE(while)
             //
             // When the condition evaluates to a LOGIC! false or a NONE!,
             // WHILE returns whatever the last value was that the body
-            // evaluated to (or none if no body evaluations yet).
+            // evaluated to (or blank if no body evaluations yet).
             //
             return R_OUT;
         }

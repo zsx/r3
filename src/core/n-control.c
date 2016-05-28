@@ -301,7 +301,7 @@ REBNATIVE(all)
 
         if (IS_VOID(D_OUT)) continue;
 
-        if (IS_CONDITIONAL_FALSE(D_OUT)) return R_NONE;
+        if (IS_CONDITIONAL_FALSE(D_OUT)) return R_BLANK;
     }
 
     if (IS_VOID(D_OUT)) return R_TRUE;
@@ -344,7 +344,36 @@ REBNATIVE(any)
         if (IS_CONDITIONAL_TRUE(D_OUT)) return R_OUT;
     }
 
-    return R_NONE;
+    return R_BLANK;
+}
+
+
+//
+//  none: native [
+//
+//  {Shortcut NOR, ignores unsets. Returns TRUE if all FALSE?, or BLANK.}
+//
+//      block [block!] "Block of expressions"
+//  ]
+//
+REBNATIVE(none)
+//
+// !!! In order to reduce confusion and accidents in the near term, the
+// %mezz-legacy.r renames this to NONE-OF and makes NONE report an error.
+{
+    REBARR *block = VAL_ARRAY(D_ARG(1));
+    REBIXO indexor = VAL_INDEX(D_ARG(1));
+
+    while (indexor != END_FLAG) {
+        DO_NEXT_MAY_THROW(indexor, D_OUT, block, indexor);
+        if (indexor == THROWN_FLAG) return R_OUT_IS_THROWN;
+
+        if (IS_VOID(D_OUT)) continue;
+
+        if (IS_CONDITIONAL_TRUE(D_OUT)) return R_BLANK;
+    }
+
+    return R_TRUE;
 }
 
 
@@ -368,7 +397,7 @@ REBNATIVE(attempt)
 // The first time through the following code 'error' will be NULL, but...
 // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
 
-    if (error) return R_NONE;
+    if (error) return R_BLANK;
 
     if (DO_VAL_ARRAY_AT_THROWS(D_OUT, block)) {
         DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
@@ -696,7 +725,7 @@ REBNATIVE(catch)
         else {
             // Return THROW's arg only if it did not have a /NAME supplied
             //
-            if (IS_NONE(D_OUT))
+            if (IS_BLANK(D_OUT))
                 goto was_caught;
         }
 
@@ -822,7 +851,7 @@ REBNATIVE(throw)
         // in general.  Debug output should make noise about THROWNs
         // whenever it sees them.
 
-        SET_NONE(D_OUT);
+        SET_BLANK(D_OUT);
     }
 
     CONVERT_NAME_TO_THROWN(D_OUT, value);
@@ -886,12 +915,12 @@ REBNATIVE(continue)
 //  
 //  {Evaluates a block of source code (directly or fetched according to type)}
 //  
-//      source [<opt> none! block! group! string! binary! url! file! tag!
+//      source [<opt> blank! block! group! string! binary! url! file! tag!
 //      error! function!]
 //      /args {If value is a script, this will set its system/script/args}
 //      arg "Args passed to a script (normally a string)"
 //      /next {Do next expression only, return it, update block variable}
-//      var [word! none!] "Variable updated with new block position"
+//      var [word! blank!] "Variable updated with new block position"
 //  ]
 //
 REBNATIVE(do)
@@ -900,7 +929,7 @@ REBNATIVE(do)
     REFINE(2, args);
     PARAM(3, arg);
     REFINE(4, next);
-    PARAM(5, var); // if NONE!, DO/NEXT only but no var update
+    PARAM(5, var); // if BLANK!, DO/NEXT only but no var update
 
     REBVAL *value = ARG(value);
 
@@ -909,9 +938,9 @@ REBNATIVE(do)
         // useful for `do if ...` types of scenarios
         return R_VOID;
 
-    case REB_NONE:
+    case REB_BLANK:
         // useful for `do all ...` types of scenarios
-        return R_NONE;
+        return R_BLANK;
 
     case REB_BLOCK:
     case REB_GROUP:
@@ -932,12 +961,12 @@ REBNATIVE(do)
                 // !!! What if the block was mutated, and D_ARG(1) is no
                 // longer actually the expression that started the throw?
 
-                if (!IS_NONE(ARG(var)))
+                if (!IS_BLANK(ARG(var)))
                     *GET_MUTABLE_VAR_MAY_FAIL(ARG(var)) = *value;
                 return R_OUT_IS_THROWN;
             }
 
-            if (!IS_NONE(ARG(var))) {
+            if (!IS_BLANK(ARG(var))) {
                 //
                 // "continuation" of block...turn END_FLAG into the end so it
                 // can test TAIL? as true to know the evaluation finished.
@@ -1477,7 +1506,7 @@ REBNATIVE(switch)
 {
     REBVAL * const value = D_ARG(1);
     REBVAL * const cases = D_ARG(2);
-    // has_default implied by default_case not being none
+    // has_default implied by default_case not being blank
     REBVAL * const default_case = D_ARG(4);
     REBOOL all = D_REF(5);
     REBOOL strict = D_REF(6);
@@ -1579,7 +1608,7 @@ REBNATIVE(switch)
         // function is "legacy" marked.  It's not perfect, see notes.
         //
         if (LEGACY_RUNNING(OPTIONS_NO_SWITCH_FALLTHROUGH))
-            return R_NONE;
+            return R_BLANK;
     #endif
 
     return R_OUT;

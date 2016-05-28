@@ -57,7 +57,7 @@ static REB_R Clipboard_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT acti
         if (req->command == RDC_READ) {
             // this could be executed twice:
             // once for an event READ, once for the CLOSE following the READ
-            if (!req->common.data) return R_NONE;
+            if (!req->common.data) return R_BLANK;
             len = req->actual;
             if (GET_FLAG(req->flags, RRF_WIDE)) {
                 // convert to UTF8, so that it can be converted back to string!
@@ -78,9 +78,9 @@ static REB_R Clipboard_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT acti
             req->common.data = 0;
         }
         else if (req->command == RDC_WRITE) {
-            SET_NONE(arg);  // Write is done.
+            SET_BLANK(arg);  // Write is done.
         }
-        return R_NONE;
+        return R_BLANK;
 
     case A_READ:
         // This device is opened on the READ:
@@ -92,7 +92,7 @@ static REB_R Clipboard_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT acti
         CLR_FLAG(req->flags, RRF_WIDE); // allow byte or wide chars
         result = OS_DO_DEVICE(req, RDC_READ);
         if (result < 0) fail (Error_On_Port(RE_READ_ERROR, port, req->error));
-        if (result > 0) return R_NONE; /* pending */
+        if (result > 0) return R_BLANK; /* pending */
 
         // Copy and set the string result:
         arg = CTX_VAR(port, STD_PORT_DATA);
@@ -171,10 +171,10 @@ static REB_R Clipboard_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT acti
         req->actual = 0;
 
         result = OS_DO_DEVICE(req, RDC_WRITE);
-        SET_NONE(CTX_VAR(port, STD_PORT_DATA)); // GC can collect it
+        SET_BLANK(CTX_VAR(port, STD_PORT_DATA)); // GC can collect it
 
         if (result < 0) fail (Error_On_Port(RE_WRITE_ERROR, port, req->error));
-        //if (result == DR_DONE) SET_NONE(CTX_VAR(port, STD_PORT_DATA));
+        //if (result == DR_DONE) SET_BLANK(CTX_VAR(port, STD_PORT_DATA));
         break;
 
     case A_OPEN:

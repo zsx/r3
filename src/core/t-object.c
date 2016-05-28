@@ -206,7 +206,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
         if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
             fail (Error(RE_HIDDEN));
 
-        if (IS_END(word + 1)) SET_NONE(var);
+        if (IS_END(word + 1)) SET_BLANK(var);
         else *var = word[1];
 
         if (IS_END(word + 1)) break; // fix bug#708
@@ -232,7 +232,7 @@ static REBCTX *Trim_Context(REBCTX *context)
     key = CTX_KEYS_HEAD(context);
     var = CTX_VARS_HEAD(context);
     for (; NOT_END(var); var++, key++) {
-        if (VAL_TYPE(var) > REB_NONE && !GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
+        if (VAL_TYPE(var) > REB_BLANK && !GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
             copy_count++;
     }
 
@@ -249,7 +249,7 @@ static REBCTX *Trim_Context(REBCTX *context)
     var_new = CTX_VARS_HEAD(context_new);
     key_new = CTX_KEYS_HEAD(context_new);
     for (; NOT_END(var); var++, key++) {
-        if (VAL_TYPE(var) > REB_NONE && !GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
+        if (VAL_TYPE(var) > REB_BLANK && !GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
             *var_new++ = *var;
             *key_new++ = *key;
         }
@@ -411,7 +411,7 @@ REBTYPE(Context)
             return R_OUT;
         }
 
-        if (target == REB_OBJECT && (IS_BLOCK(arg) || IS_NONE(arg))) {
+        if (target == REB_OBJECT && (IS_BLOCK(arg) || IS_BLANK(arg))) {
             //
             // make object! [init]
             //
@@ -424,12 +424,12 @@ REBTYPE(Context)
                 NULL, // spec
                 NULL, // body
                 // scan for toplevel set-words
-                IS_NONE(arg) ? END_VALUE : VAL_ARRAY_AT(arg),
+                IS_BLANK(arg) ? END_VALUE : VAL_ARRAY_AT(arg),
                 src_context // parent
             );
             Val_Init_Object(D_OUT, context);
 
-            if (!IS_NONE(arg)) {
+            if (!IS_BLANK(arg)) {
                 REBVAL dummy;
                 VAL_INIT_WRITABLE_DEBUG(&dummy);
 
@@ -628,15 +628,15 @@ REBTYPE(Context)
         REBINT n;
 
         if (!IS_WORD(arg))
-            return R_NONE;
+            return R_BLANK;
 
         n = Find_Word_In_Context(VAL_CONTEXT(value), VAL_WORD_SYM(arg), FALSE);
 
         if (n <= 0)
-            return R_NONE;
+            return R_BLANK;
 
         if (cast(REBCNT, n) > CTX_LEN(VAL_CONTEXT(value)))
-            return R_NONE;
+            return R_BLANK;
 
         if (action == A_FIND) return R_TRUE;
 

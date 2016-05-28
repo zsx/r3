@@ -227,7 +227,7 @@ REBOOL Reduce_Array_No_Set_Throws(
 //          "Keep set-words as-is. Do not set them."
 //      /only
 //          "Only evaluate words and paths, not functions"
-//      words [block! none!]
+//      words [block! blank!]
 //          "Optional words that are not evaluated (keywords)"
 //      /into
 //          {Output results into a series with no intermediate storage}

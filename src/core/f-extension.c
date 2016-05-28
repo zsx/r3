@@ -168,8 +168,8 @@ void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type)
         SET_VOID(val);
         break;
 
-    case RXT_NONE:
-        SET_NONE(val);
+    case RXT_BLANK:
+        SET_BLANK(val);
         break;
 
     case RXT_LOGIC:
@@ -653,8 +653,8 @@ void Do_Command_Core(struct Reb_Frame *f)
         SET_VOID(f->out);
         break;
 
-    case RXR_NONE:
-        SET_NONE(f->out);
+    case RXR_BLANK:
+        SET_BLANK(f->out);
         break;
 
     case RXR_TRUE:

@@ -108,7 +108,7 @@ static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
             req->special.serial.stop_bits = VAL_INT32(arg);
 
             arg = Obj_Value(spec, STD_PORT_SPEC_SERIAL_PARITY);
-            if (IS_NONE(arg)) {
+            if (IS_BLANK(arg)) {
                 req->special.serial.parity = SERIAL_PARITY_NONE;
             } else {
                 if (!IS_WORD(arg))
@@ -127,7 +127,7 @@ static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
             }
 
             arg = Obj_Value(spec, STD_PORT_SPEC_SERIAL_FLOW_CONTROL);
-            if (IS_NONE(arg)) {
+            if (IS_BLANK(arg)) {
                 req->special.serial.flow_control = SERIAL_FLOW_CONTROL_NONE;
             } else {
                 if (!IS_WORD(arg))
@@ -234,9 +234,9 @@ static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
             }
         }
         else if (req->command == RDC_WRITE) {
-            SET_NONE(arg);  // Write is done.
+            SET_BLANK(arg);  // Write is done.
         }
-        return R_NONE;
+        return R_BLANK;
 
     case A_OPEN_Q:
         return R_TRUE;

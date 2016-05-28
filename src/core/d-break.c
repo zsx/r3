@@ -74,7 +74,7 @@ REBOOL Do_Breakpoint_Throws(
     const REBVAL *default_value,
     REBOOL do_default
 ) {
-    REBVAL *target = NONE_VALUE;
+    REBVAL *target = BLANK_VALUE;
 
     REBVAL temp;
     VAL_INIT_WRITABLE_DEBUG(&temp);
@@ -229,7 +229,7 @@ REBOOL Do_Breakpoint_Throws(
             assert(found);
         #endif
 
-            if (IS_NONE(mode)) {
+            if (IS_BLANK(mode)) {
                 //
                 // If the resume instruction had no /DO or /WITH of its own,
                 // then it doesn't override whatever the breakpoint provided
@@ -246,7 +246,7 @@ REBOOL Do_Breakpoint_Throws(
                     //
                     // Throwing is not compatible with /AT currently.
                     //
-                    if (!IS_NONE(target))
+                    if (!IS_BLANK(target))
                         fail (Error_No_Catch_For_Throw(&temp));
 
                     // Just act as if the BREAKPOINT call itself threw
@@ -436,7 +436,7 @@ REBNATIVE(resume)
         *ARR_AT(instruction, RESUME_INST_PAYLOAD) = *ARG(code);
     }
     else {
-        SET_NONE(ARR_AT(instruction, RESUME_INST_MODE)); // use default
+        SET_BLANK(ARR_AT(instruction, RESUME_INST_MODE)); // use default
 
         // Even though this slot should be ignored, use BAR! to try and make
         // any attempts to use it more conspicuous (an unset wouldn't be)

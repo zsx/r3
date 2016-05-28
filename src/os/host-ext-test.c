@@ -72,7 +72,7 @@ char *RX_Spec =
     "cec0:   command [{test command context struct} blk [block!]]\n"
     "cec1:   command [{returns cec.index value or -1 if no cec}]\n"
 
-    "a: b: c: none\n"
+    "a: b: c: _\n"
     "xtest: does [\n"
         "for-each blk [\n"
             "[xarg0]\n"

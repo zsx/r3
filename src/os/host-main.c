@@ -267,7 +267,7 @@ modify_with_confidence:
         "feature you want isn't implemented doesn't mean you can't add it!)\n"
     );
 
-    return R_NONE;
+    return R_BLANK;
 }
 
 

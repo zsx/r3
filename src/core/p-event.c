@@ -98,7 +98,7 @@ REBVAL *Append_Event(void)
     value = VAL_ARRAY_TAIL(state);
     SET_END(value);
     value--;
-    SET_NONE(value);
+    SET_BLANK(value);
 
     //Dump_Series(VAL_SERIES(state), "state");
     //Print("Tail: %d %d", VAL_LEN_HEAD(state), nn++);
@@ -168,7 +168,7 @@ static REB_R Event_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
     switch (action) {
 
     case A_UPDATE:
-        return R_NONE;
+        return R_BLANK;
 
     // Normal block actions done on events:
     case A_POKE:

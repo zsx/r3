@@ -499,7 +499,7 @@ void Debug_Values(const REBVAL *value, REBCNT count, REBCNT limit)
 
     for (n = 0; n < count; n++, value++) {
         Debug_Space(1);
-        if (n > 0 && VAL_TYPE(value) <= REB_NONE) Debug_Chars('.', 1);
+        if (n > 0 && VAL_TYPE(value) <= REB_BLANK) Debug_Chars('.', 1);
         else {
             REB_MOLD mo;
             CLEARS(&mo);
@@ -941,7 +941,7 @@ static const REBVAL *Pending_Format_Delimiter(
         return delimiter;
 
     if (VAL_ARRAY_LEN_AT(delimiter) == 0)
-        return NONE_VALUE;
+        return BLANK_VALUE;
 
     if (depth >= VAL_ARRAY_LEN_AT(delimiter))
         depth = VAL_ARRAY_LEN_AT(delimiter) - 1;
@@ -954,8 +954,8 @@ static const REBVAL *Pending_Format_Delimiter(
     // BAR! at the end signals a stop, not to keep repeating the last
     // delimiter for higher levels.  Same effect as a NONE!
     //
-    if (IS_BAR(delimiter) || IS_NONE(delimiter))
-        return NONE_VALUE;
+    if (IS_BAR(delimiter) || IS_BLANK(delimiter))
+        return BLANK_VALUE;
 
     // We have to re-type-check against the legal delimiter types here.
     //
@@ -1051,7 +1051,7 @@ REBOOL Format_GC_Safe_Value_Throws(
             // should be interpreted as UTF-8 bytes.
             //
             if (VAL_LEN_AT(f.value) > 0) {
-                if (!IS_END(pending_delimiter) && !IS_NONE(pending_delimiter))
+                if (!IS_END(pending_delimiter) && !IS_BLANK(pending_delimiter))
                     Mold_Value(mold, pending_delimiter, FALSE);
 
                 Append_UTF8_May_Fail(
@@ -1156,7 +1156,7 @@ REBOOL Format_GC_Safe_Value_Throws(
             REBCNT rollback_point = UNI_LEN(mold->series);
             REBCNT mold_point;
 
-            if (!IS_END(pending_delimiter) && !IS_NONE(pending_delimiter))
+            if (!IS_END(pending_delimiter) && !IS_BLANK(pending_delimiter))
                 Mold_Value(mold, pending_delimiter, FALSE);
 
             mold_point = UNI_LEN(mold->series);
@@ -1170,7 +1170,7 @@ REBOOL Format_GC_Safe_Value_Throws(
                 //
                 SET_UNI_LEN(mold->series, rollback_point);
                 UNI_TERM(mold->series);
-                SET_NONE(pending_delimiter);
+                SET_BLANK(pending_delimiter);
             }
             else {
                 *pending_delimiter

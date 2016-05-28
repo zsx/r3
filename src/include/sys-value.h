@@ -280,7 +280,7 @@ struct Reb_Value_Header {
 enum {
     // `VALUE_FLAG_FALSE`
     //
-    // Both NONE! and LOGIC!'s false state are FALSE? ("conditionally false").
+    // Both BLANK! and LOGIC!'s false state are FALSE? ("conditionally false").
     // All other types are TRUE?.  To make checking FALSE? and TRUE? faster,
     // this bit is set when creating NONE! or FALSE.  As a result, LOGIC!
     // does not need to store any data in its payload... its data of being
@@ -509,7 +509,7 @@ enum {
 // whose VAL_TYPE() doesn't need any information beyond the header.  This
 // offers a chance to inject some information into the payload to help
 // know where the value originated.  It is used by voids (and void trash),
-// NONE!, LOGIC!, and BAR!.
+// BLANK!, LOGIC!, and BAR!.
 //
 // In addition to the file and line number where the assignment was made,
 // the "tick count" of the DO loop is also saved.  This means that it can
@@ -664,7 +664,7 @@ enum {
 #define VOID_CELL (&PG_Void_Cell[0])
 
 // In legacy mode Ren-C still supports the old convention that IFs that don't
-// take the true branch or a WHILE loop that never runs a body return a NONE!
+// take the true branch or a WHILE loop that never runs a body return a BLANK!
 // value instead of no value.  To track the locations where this decision is
 // made more easily, SET_VOID_UNLESS_LEGACY_NONE() is used.
 //
@@ -673,7 +673,7 @@ enum {
         SET_VOID(v) // LEGACY() only available in Debug builds
 #else
     #define SET_VOID_UNLESS_LEGACY_NONE(v) \
-        (LEGACY(OPTIONS_NONE_INSTEAD_OF_VOIDS) ? SET_NONE(v) : SET_VOID(v))
+        (LEGACY(OPTIONS_NONE_INSTEAD_OF_VOIDS) ? SET_BLANK(v) : SET_VOID(v))
 #endif
 
 
@@ -717,37 +717,37 @@ enum {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  NONE! (unit type - fits in header bits, may use `struct Reb_Track`)
+//  BLANK! (unit type - fits in header bits, may use `struct Reb_Track`)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Unlike a void cell, none values are inactive.  They do not cause errors
+// Unlike a void cell, blank values are inactive.  They do not cause errors
 // when they are used in situations like the condition of an IF statement.
 // Instead they are considered to be false--like the LOGIC! #[false] value.
-// So none is considered to be the other "conditionally false" value.
+// So blank is considered to be the other "conditionally false" value.
 //
 // Only those two values are conditionally false in Rebol, and testing for
 // conditional truth and falsehood is frequent.  Hence in addition to its
-// type, NONE! also carries a header bit that can be checked for conditional
-// falsehood.
+// type, BLANK! also carries a header bit that can be checked for conditional
+// falsehood, to save on needing to separately test the type.
 //
-// Though having tracking information for a none is less frequently useful
+// Though having tracking information for a blank is less frequently useful
 // than for a void, it's there in debug builds just in case it ever serves a
 // purpose, as the REBVAL payload is not being used.
 //
 
 #ifdef NDEBUG
-    #define SET_NONE(v) \
-        ((v)->header.bits = VALUE_FLAG_FALSE | NOT_END_MASK | REB_NONE)
+    #define SET_BLANK(v) \
+        ((v)->header.bits = VALUE_FLAG_FALSE | NOT_END_MASK | REB_BLANK)
 #else
-    #define SET_NONE(v) \
+    #define SET_BLANK(v) \
         (Assert_Cell_Writable((v), __FILE__, __LINE__), \
             (v)->header.bits = VALUE_FLAG_FALSE | \
-            NOT_END_MASK | WRITABLE_MASK_DEBUG | REB_NONE, \
+            NOT_END_MASK | WRITABLE_MASK_DEBUG | REB_BLANK, \
         SET_TRACK_PAYLOAD(v))
 #endif
 
-#define NONE_VALUE (&PG_None_Value[0])
+#define BLANK_VALUE (&PG_Blank_Value[0])
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -759,7 +759,7 @@ enum {
 // A logic can be either true or false.  For purposes of optimization, logical
 // falsehood is indicated by one of the value option bits in the header--as
 // opposed to in the value payload.  This means it can be tested quickly and
-// that a single check can test for both NONE! and logic false.
+// that a single check can test for both BLANK! and logic false.
 //
 // Conditional truth and falsehood allows an interpretation where a NONE!
 // is a "falsey" value as well as logic false.  Unsets are neither
@@ -2047,7 +2047,7 @@ enum {
     // trick for detecting an unwritten D_OUT.
     //
     R_VOID, // => SET_VOID(D_OUT); return R_OUT;
-    R_NONE, // => SET_NONE(D_OUT); return R_OUT;
+    R_BLANK, // => SET_BLANK(D_OUT); return R_OUT;
     R_TRUE, // => SET_TRUE(D_OUT); return R_OUT;
     R_FALSE // => SET_FALSE(D_OUT); return R_OUT;
 };

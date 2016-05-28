@@ -894,7 +894,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             }
             break;
 
-        case REB_NONE:
+        case REB_BLANK:
         case REB_BAR:
         case REB_LIT_BAR:
         case REB_LOGIC:

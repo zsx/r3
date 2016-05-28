@@ -127,7 +127,7 @@ REBINT PD_Tuple(REBPVS *pvs)
 
         if (IS_INTEGER(setval) || IS_DECIMAL(setval))
             i = Int32(setval);
-        else if (IS_NONE(setval)) {
+        else if (IS_BLANK(setval)) {
             n--;
             CLEAR(dat + n, MAX_TUPLE - n);
             VAL_TUPLE_LEN(pvs->value) = n;
@@ -335,7 +335,7 @@ REBTYPE(Tuple)
   poke_it:
         a = Get_Num_From_Arg(arg);
         if (a <= 0 || a > len) {
-            if (action == A_PICK) return R_NONE;
+            if (action == A_PICK) return R_BLANK;
             fail (Error_Out_Of_Range(arg));
         }
         if (action == A_PICK) {

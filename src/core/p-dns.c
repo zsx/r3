@@ -140,7 +140,7 @@ pick:
         return R_FALSE;
 
     case A_UPDATE:
-        return R_NONE;
+        return R_BLANK;
 
     default:
         fail (Error_Illegal_Action(REB_PORT, action));

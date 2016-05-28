@@ -1426,7 +1426,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
 
         // If in a path, handle start of path /word or word//word cases:
         if (mode_char == '/' && *bp == '/') {
-            SET_NONE(value);
+            SET_BLANK(value);
             SET_ARRAY_LEN(emitbuf, ARR_LEN(emitbuf) + 1);
             scan_state->begin = bp + 1;
             continue;
@@ -1496,7 +1496,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
             break;
 
         case TOKEN_BLANK:
-            SET_NONE(value);
+            SET_BLANK(value);
             ++bp;
             break;
 
@@ -1532,7 +1532,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
                     token = TOKEN_CONSTRUCT;
                     goto syntax_error;
                 }
-                SET_NONE(value);  // A single # means NONE
+                SET_BLANK(value);  // A single # means NONE
             }
             else {
                 REBSYM sym = Scan_Issue(bp + 1, len - 1);
@@ -1693,7 +1693,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
             continue;
 
         default:
-            SET_NONE(value);
+            SET_BLANK(value);
         }
 
         if (line) {

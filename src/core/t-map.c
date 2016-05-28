@@ -283,7 +283,7 @@ static REBCNT Find_Map_Entry(
     REBVAL *v;
     REBCNT n;
 
-    if (IS_NONE(key)) return 0;
+    if (IS_BLANK(key)) return 0;
 
     assert(hashlist);
 
@@ -326,7 +326,7 @@ REBINT Length_Map(REBMAP *map)
     REBVAL *v = ARR_HEAD(MAP_PAIRLIST(map));
 
     for (n = 0; !IS_END(v); n += 2, v += 2) {
-        if (!IS_NONE(v + 1)) c++; // must have non-none value
+        if (!IS_BLANK(v + 1)) c++; // must have non-blank value (!!! void?)
     }
 
     assert(n == ARR_LEN(MAP_PAIRLIST(map)));
@@ -350,7 +350,7 @@ REBINT PD_Map(REBPVS *pvs)
     if (setting)
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(pvs->value));
 
-    if (IS_NONE(pvs->selector))
+    if (IS_BLANK(pvs->selector))
         return PE_NONE;
 
     n = Find_Map_Entry(
@@ -454,7 +454,7 @@ REBARR *Map_To_Array(REBMAP *map, REBINT what)
     //
     val = ARR_HEAD(MAP_PAIRLIST(map));
     for (; NOT_END(val) && NOT_END(val + 1); val += 2) {
-        if (!IS_NONE(val + 1)) cnt++; // must have non-none value
+        if (!IS_BLANK(val + 1)) cnt++; // must have non-blank value !!! void?
     }
 
     // Copy entries to new block:
@@ -463,7 +463,7 @@ REBARR *Map_To_Array(REBMAP *map, REBINT what)
     out = ARR_HEAD(array);
     val = ARR_HEAD(MAP_PAIRLIST(map));
     for (; NOT_END(val) && NOT_END(val+1); val += 2) {
-        if (!IS_NONE(val+1)) {
+        if (!IS_BLANK(val+1)) {
             if (what <= 0) *out++ = val[0];
             if (what >= 0) *out++ = val[1];
         }
@@ -516,7 +516,7 @@ REBCTX *Alloc_Context_From_Map(REBMAP *map)
     // Count number of set entries:
     mval = ARR_HEAD(MAP_PAIRLIST(map));
     for (; NOT_END(mval) && NOT_END(mval + 1); mval += 2) {
-        if (ANY_WORD(mval) && !IS_NONE(mval + 1)) cnt++;
+        if (ANY_WORD(mval) && !IS_BLANK(mval + 1)) cnt++;
     }
 
     // See Alloc_Context() - cannot use it directly because no Collect_Words
@@ -527,7 +527,7 @@ REBCTX *Alloc_Context_From_Map(REBMAP *map)
     mval = ARR_HEAD(MAP_PAIRLIST(map));
 
     for (; NOT_END(mval) && NOT_END(mval + 1); mval += 2) {
-        if (ANY_WORD(mval) && !IS_NONE(mval + 1)) {
+        if (ANY_WORD(mval) && !IS_BLANK(mval + 1)) {
             // !!! Used to leave SET_WORD typed values here... but why?
             // (Objects did not make use of the set-word vs. other distinctions
             // that function specs did.)
@@ -574,7 +574,7 @@ REBTYPE(Map)
 
     case A_PICK:
         val = Pick_Block(val, arg);
-        if (!val) return R_NONE;
+        if (!val) return R_BLANK;
         *D_OUT = *val;
         return R_OUT;
 
@@ -582,9 +582,9 @@ REBTYPE(Map)
     case A_SELECT:
         args = Find_Refines(frame_, ALL_FIND_REFS);
         n = Find_Map_Entry(map, arg, 0, LOGICAL(args & AM_FIND_CASE));
-        if (!n) return R_NONE;
+        if (!n) return R_BLANK;
         *D_OUT = *ARR_AT(MAP_PAIRLIST(map), ((n - 1) * 2) + 1);
-        if (IS_VOID(D_OUT)) return R_NONE;
+        if (IS_VOID(D_OUT)) return R_BLANK;
         if (action == A_FIND) *D_OUT = *val;
         return R_OUT;
 
@@ -622,7 +622,7 @@ REBTYPE(Map)
         if (IS_BLOCK(arg) || IS_GROUP(arg) || IS_MAP(arg)) {
             if (MT_Map(D_OUT, arg, REB_MAP)) return R_OUT;
             fail (Error_Invalid_Arg(arg));
-//      } else if (IS_NONE(arg)) {
+//      } else if (IS_BLANK(arg)) {
 //          n = 3; // just a start
         // make map! 10000
         } else if (IS_NUMBER(arg)) {

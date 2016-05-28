@@ -24,9 +24,9 @@ info?: func [
 ]
 
 exists?: func [
-    {Returns the type of a file or URL if it exists, otherwise none.}
+    {Returns the type of a file or URL if it exists, otherwise blank.}
     target [file! url!]
-][ ; Returns 'file or 'dir, or none
+][ ; Returns 'file or 'dir, or blank
     select attempt [query target] 'type
 ]
 
@@ -192,6 +192,9 @@ load: function [
     /all     {Load all values, including header (as block)}
     ;/unbound {Do not bind the block}
 ][
+    load_ALL: all
+    all: :lib/all
+
     if string? data: case [
         file? source [read source]
         url? source [read source]
@@ -200,14 +203,14 @@ load: function [
 
     if binary? :data [
         data: transcode data
-        hdr?: lib/all ['REBOL = first data block? second data]
+        hdr?: all ['REBOL = first data block? second data]
         case [
             header [
                 unless hdr? [cause-error 'syntax 'no-header source]
                 remove data
                 data/1: attempt [construct/with first data system/standard/header]
             ]
-            all none ; /header overrides /all
+            load_ALL blank ; /header overrides /all
             hdr? [remove/part data 2]
         ]
     ;   unless unbound []
@@ -215,7 +218,7 @@ load: function [
 
         ; If appropriate and possible, return singular data value
         unless any [
-            all
+            load_ALL
             header
             1 <> length data
         ][data: first data]
@@ -227,4 +230,4 @@ load: function [
 ; Reserve these slots near LOAD:
 save:
 import:
-    none
+    blank

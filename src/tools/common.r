@@ -243,8 +243,8 @@ for-each-record-NO-RETURN: func [
 ]
 
 find-record-unique: func [
-    {Get a record in a table as an object, error if duplicate, none if absent}
-    ;; return: [object! none!]
+    {Get a record in a table as an object, error if duplicate, blank if absent}
+    ;; return: [object! blank!]
     table [block!] {Table of values with header block as first element}
     key [word!] {Object key to search for a match on}
     value {Value that the looked up key must be uniquely equal to}
@@ -254,7 +254,7 @@ find-record-unique: func [
         fail [key {not found in table headers:} (first table)]
     ]
 
-    result: none
+    result: _
     for-each-record-NO-RETURN rec table [
         unless value = select rec key [continue]
 

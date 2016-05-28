@@ -979,7 +979,7 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
             !GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)
             && (
                 !var ||
-                ((VAL_TYPE(var) > REB_NONE) || !GET_MOPT(mold, MOPT_NO_NONE))
+                ((VAL_TYPE(var) > REB_BLANK) || !GET_MOPT(mold, MOPT_NO_NONE))
             )
         ){
             New_Indented_Line(mold);
@@ -1036,7 +1036,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 
     // Form: ** Where: function
     value = &vars->where;
-    if (VAL_TYPE(value) > REB_NONE) {
+    if (VAL_TYPE(value) > REB_BLANK) {
         Append_Codepoint_Raw(mold->series, '\n');
         Append_Boot_Str(mold->series, RS_ERRS+2);
         Mold_Value(mold, value, FALSE);
@@ -1044,7 +1044,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 
     // Form: ** Near: location
     value = &vars->nearest;
-    if (VAL_TYPE(value) > REB_NONE) {
+    if (VAL_TYPE(value) > REB_BLANK) {
         Append_Codepoint_Raw(mold->series, '\n');
         Append_Boot_Str(mold->series, RS_ERRS+3);
         if (IS_STRING(value)) // special case: source file line number
@@ -1142,7 +1142,7 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
         Append_Unencoded(ser, "'|");
         break;
 
-    case REB_NONE:
+    case REB_BLANK:
         Append_Unencoded(ser, "_");
         break;
 

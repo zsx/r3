@@ -23,8 +23,8 @@ REBOL [
 ;-- SYS context definition begins here --
 ;   WARNING: ORDER DEPENDENT part of context (accessed from C code)
 
-native: none ; for boot only
-action: none ; for boot only
+native: _ ; for boot only
+action: _ ; for boot only
 
 do*: function [
     {SYS: Called by system for DO on datatypes that require special handling.}
@@ -100,7 +100,7 @@ do*: function [
     ; Load the data, first so it will error before change-dir
     data: load/header/type value 'unbound ; unbound so DO-NEEDS runs before INTERN
     ; Get the header and advance 'data to the code position
-    hdr: first+ data  ; object or none
+    hdr: first+ data  ; object or blank
     ; data is a block! here, with the header object in the first position back
     is-module: 'module = select hdr 'type
 
@@ -172,11 +172,11 @@ do*: function [
 ; MOVE some of these to SYSTEM?
 boot-banner: ajoin ["REBOL 3.0 A" system/version/3 " " system/build newline]
 boot-help: "Boot-sys level - no extra features."
-boot-host: none ; any host add-ons to the lib (binary)
-boot-mezz: none ; built-in mezz code (put here on boot)
-boot-prot: none ; built-in boot protocols
-boot-exts: none ; boot extension list
-boot-embedded: none ; embedded script
+boot-host: _ ; any host add-ons to the lib (binary)
+boot-mezz: _ ; built-in mezz code (put here on boot)
+boot-prot: _ ; built-in boot protocols
+boot-exts: _ ; boot extension list
+boot-embedded: _ ; embedded script
 
 export: func [
     "Low level export of values (e.g. functions) to lib."

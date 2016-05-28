@@ -281,7 +281,7 @@ REBINT OS_Kill(REBINT pid)
 //     16: show
 // 
 // input_type/output_type/err_type:
-//     0: none
+//     0: blank
 //     1: string
 //     2: file
 // 

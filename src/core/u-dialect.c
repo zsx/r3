@@ -116,7 +116,7 @@ static int Find_Command(REBCTX *dialect, REBVAL *word)
     }
 
     // If keyword (not command) return negated index:
-    if (IS_NONE(CTX_VAR(dialect, n))) return -n;
+    if (IS_BLANK(CTX_VAR(dialect, n))) return -n;
     return n;
 }
 
@@ -284,16 +284,16 @@ again:
         // Make room for it in the output block:
         if (IS_END(outp)) {
             outp = Alloc_Tail_Array(dia->out);
-            SET_NONE(outp);
-        } else if (!IS_NONE(outp)) {
+            SET_BLANK(outp);
+        } else if (!IS_BLANK(outp)) {
             // There's already an arg in this slot, so skip it...
             if (dia->cmd > dia->default_cmd) outp++;
             if (!rept) continue; // see if there's another farg that will work for it
             // Look for first empty slot:
-            while (NOT_END(outp) && !IS_NONE(outp)) outp++;
+            while (NOT_END(outp) && !IS_BLANK(outp)) outp++;
             if (IS_END(outp)) {
                 outp = Alloc_Tail_Array(dia->out);
-                SET_NONE(outp);
+                SET_BLANK(outp);
             }
         }
 
@@ -416,7 +416,7 @@ static REBINT Do_Cmd(REBDIA *dia)
         if (!val)
             return -REB_DIALECT_BAD_ARG;
         if (IS_END(val)) break;
-        if (!IS_NONE(val)) {
+        if (!IS_BLANK(val)) {
             //Print("n %d len %d argi %d", n, dia->len, dia->argi);
             err = Add_Arg(dia, val); // 1: good, 0: no-type, -N: error
             if (err == 0) return n; // remainder
@@ -428,7 +428,7 @@ static REBINT Do_Cmd(REBDIA *dia)
     if (dia->cmd > dia->default_cmd) {
         for (n = ARR_LEN(dia->out); n < size; n++) {
             REBVAL *temp = Alloc_Tail_Array(dia->out);
-            SET_NONE(temp);
+            SET_BLANK(temp);
         }
     }
 
@@ -595,7 +595,7 @@ REBNATIVE(delect)
     dia.out = VAL_ARRAY(ARG(output));
     dia.outi = VAL_INDEX(ARG(output));
 
-    if (dia.argi >= ARR_LEN(dia.args)) return R_NONE; // end of block
+    if (dia.argi >= ARR_LEN(dia.args)) return R_BLANK; // end of block
 
     self_index = Find_Word_In_Context(dia.dialect, SYM_SELF, TRUE);
     dia.default_cmd = self_index == 0 ? 1 : SELFISH(1);

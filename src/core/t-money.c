@@ -232,7 +232,7 @@ REBTYPE(Money)
 
         case REB_LOGIC:
             equal = !VAL_LOGIC(arg);
-//      case REB_NONE: // 'equal defaults to 1
+//      case REB_BLANK: // 'equal defaults to 1
             VAL_MONEY_AMOUNT(D_OUT) = int_to_deci(equal ? 0 : 1);
             break;
 

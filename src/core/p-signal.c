@@ -227,7 +227,7 @@ static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
                     update(req, len, arg);
                 }
             }
-            return R_NONE;
+            return R_BLANK;
 
         case A_READ:
             // This device is opened on the READ:
@@ -257,7 +257,7 @@ static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
                 return R_OUT;
             } else {
                 Free_Series(ser);
-                return R_NONE;
+                return R_BLANK;
             }
 
         case A_CLOSE:

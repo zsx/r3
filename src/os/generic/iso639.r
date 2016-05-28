@@ -43,8 +43,8 @@ EOL: charset [#"^/" #"^M"]
 parse cnt [
     some [
         copy temp to "|" (emit rejoin [{^{"} temp {", }]) ;3-letter code
-        "|" [copy temp 3 lower (emit rejoin [{"} temp {"}]) | none (emit "NULL")] (emit ", ") ; terminologic
-        "|" [copy temp 2 lower (emit rejoin [{"} temp {"}]) | none (emit "NULL")] (emit ", ") ; 2-letter code
+        "|" [copy temp 3 lower (emit rejoin [{"} temp {"}]) | blank (emit "NULL")] (emit ", ") ; terminologic
+        "|" [copy temp 2 lower (emit rejoin [{"} temp {"}]) | blank (emit "NULL")] (emit ", ") ; 2-letter code
         "|" copy temp to "|" (emit rejoin [{"} temp {", }]) ;language name in English
         "|" copy temp to "^/" (emit rejoin [{"} binary-to-chex temp {"^},^/}]) ;lanuage name in french language
         EOL

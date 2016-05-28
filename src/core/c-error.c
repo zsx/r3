@@ -616,10 +616,10 @@ REBOOL Make_Error_Object_Throws(
         //
         // String argument to MAKE ERROR! makes a custom error from user:
         //
-        //     code: 1000 ;-- default none
+        //     code: 1000 ;-- default is blank
         //     type: 'user
         //     id: 'message
-        //     message: "whatever the string was" ;-- default none
+        //     message: "whatever the string was" ;-- default is blank
         //
         // Minus the code number and message, this is the default state of
         // root_error if not overridden.
@@ -631,7 +631,7 @@ REBOOL Make_Error_Object_Throws(
         VAL_RESET_HEADER(CTX_VALUE(error), REB_ERROR);
 
         vars = ERR_VARS(error);
-        assert(IS_NONE(&vars->code));
+        assert(IS_BLANK(&vars->code));
 
         // fill in RE_USER (1000) later if it passes the check
 
@@ -666,7 +666,7 @@ REBOOL Make_Error_Object_Throws(
             VAL_INIT_WRITABLE_DEBUG(&id);
             VAL_INIT_WRITABLE_DEBUG(&type);
 
-            if (!IS_NONE(&vars->message)) // assume a MESSAGE: is wrong
+            if (!IS_BLANK(&vars->message)) // assume a MESSAGE: is wrong
                 fail (Error(RE_INVALID_ERROR, arg));
 
             message = Find_Error_For_Code(
@@ -680,7 +680,7 @@ REBOOL Make_Error_Object_Throws(
 
             vars->message = *message;
 
-            if (!IS_NONE(&vars->id)) {
+            if (!IS_BLANK(&vars->id)) {
                 if (
                     !IS_WORD(&vars->id)
                     || !SAME_SYM(
@@ -692,7 +692,7 @@ REBOOL Make_Error_Object_Throws(
             }
             vars->id = id; // normalize binding and case
 
-            if (!IS_NONE(&vars->type)) {
+            if (!IS_BLANK(&vars->type)) {
                 if (
                     !IS_WORD(&vars->id)
                     || !SAME_SYM(
@@ -715,7 +715,7 @@ REBOOL Make_Error_Object_Throws(
         REBCTX *categories = VAL_CONTEXT(Get_System(SYS_CATALOG, CAT_ERRORS));
         REBVAL *category;
 
-        assert(IS_NONE(&vars->code));
+        assert(IS_BLANK(&vars->code));
 
         // Find correct category for TYPE: (if any)
         category = Find_Word_Value(categories, VAL_WORD_SYM(&vars->type));
@@ -748,7 +748,7 @@ REBOOL Make_Error_Object_Throws(
             if (message) {
                 assert(IS_STRING(message) || IS_BLOCK(message));
 
-                if (!IS_NONE(&vars->message))
+                if (!IS_BLANK(&vars->message))
                     fail (Error(RE_INVALID_ERROR, arg));
 
                 vars->message = *message;
@@ -793,7 +793,7 @@ REBOOL Make_Error_Object_Throws(
         // For now we just write 1000 into the error code field, if that was
         // not already there.
 
-        if (IS_NONE(&vars->code))
+        if (IS_BLANK(&vars->code))
             SET_INTEGER(&vars->code, RE_USER);
         else if (IS_INTEGER(&vars->code)) {
             if (VAL_INT32(&vars->code) != RE_USER)
@@ -807,12 +807,12 @@ REBOOL Make_Error_Object_Throws(
         // This is conservative logic and not good for general purposes.
 
         if (
-            !(IS_WORD(&vars->id) || IS_NONE(&vars->id))
-            || !(IS_WORD(&vars->type) || IS_NONE(&vars->type))
+            !(IS_WORD(&vars->id) || IS_BLANK(&vars->id))
+            || !(IS_WORD(&vars->type) || IS_BLANK(&vars->type))
             || !(
                 IS_BLOCK(&vars->message)
                 || IS_STRING(&vars->message)
-                || IS_NONE(&vars->message)
+                || IS_BLANK(&vars->message)
             )
         ) {
             fail (Error(RE_INVALID_ERROR, arg));
@@ -1006,7 +1006,7 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
                     //
                     // But we'll just use NONE.  Debug build asserts here.
 
-                    arg = NONE_VALUE;
+                    arg = BLANK_VALUE;
                 #else
                     Debug_Fmt(
                         "too few args passed for error code %d at %s line %d",
@@ -1046,12 +1046,12 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
 
     #if !defined(NDEBUG)
         if (LEGACY(OPTIONS_ARG1_ARG2_ARG3_ERROR)) {
-            // Need to fill in nones for any remaining args.
+            // Need to fill in blanks for any remaining args.
             while (*arg1_arg2_arg3 != SYM_0) {
                 Val_Init_Typeset(key, ALL_64, *arg1_arg2_arg3);
                 arg1_arg2_arg3++;
                 key++;
-                SET_NONE(value);
+                SET_BLANK(value);
                 value++;
             }
         }
@@ -1309,7 +1309,7 @@ REBCTX *Error_No_Catch_For_Throw(REBVAL *thrown)
     assert(THROWN(thrown));
     CATCH_THROWN(&arg, thrown); // clears bit
 
-    if (IS_NONE(thrown))
+    if (IS_BLANK(thrown))
         return Error(RE_NO_CATCH, &arg, END_VALUE);
 
     return Error(RE_NO_CATCH_NAMED, &arg, thrown, END_VALUE);
@@ -1503,7 +1503,7 @@ REBCTX *Error_On_Port(REBCNT errnum, REBCTX *port, REBINT err_code)
     if (!IS_OBJECT(spec)) fail (Error(RE_INVALID_PORT));
 
     val = Get_Object(spec, STD_PORT_SPEC_HEAD_REF); // most informative
-    if (IS_NONE(val)) val = Get_Object(spec, STD_PORT_SPEC_HEAD_TITLE);
+    if (IS_BLANK(val)) val = Get_Object(spec, STD_PORT_SPEC_HEAD_TITLE);
 
     VAL_INIT_WRITABLE_DEBUG(&err_code_value);
     SET_INTEGER(&err_code_value, err_code);
@@ -1530,7 +1530,7 @@ int Exit_Status_From_Value(REBVAL *value)
         //
         return VAL_INT32(value);
     }
-    else if (IS_VOID(value) || IS_NONE(value)) {
+    else if (IS_VOID(value) || IS_BLANK(value)) {
         // An unset would happen with just QUIT or EXIT and no /WITH,
         // so treating that as a 0 for success makes sense.  A NONE!
         // seems like nothing to report as well, for instance:

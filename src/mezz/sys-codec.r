@@ -54,6 +54,7 @@ encode: function [
 ]
 
 encoding?: function [
+    ; !!! Functions ending in ? should only return TRUE or FALSE
     "Returns the media codec name for given binary data. (identify)"
     data [binary!]
 ][
@@ -62,7 +63,7 @@ encoding?: function [
             return name
         ]
     ]
-    none
+    blank
 ]
 
 export [decode encode encoding?]

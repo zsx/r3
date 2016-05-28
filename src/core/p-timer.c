@@ -71,7 +71,7 @@ static REB_R Event_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
     switch (action) {
 
     case A_UPDATE:
-        return R_NONE;
+        return R_BLANK;
 
     // Normal block actions done on events:
     case A_POKE:

@@ -231,7 +231,7 @@ static REBCNT Parse_Next_String(
         Trace_String(BIN_AT(P_INPUT, index), BIN_LEN(P_INPUT) - index);
     }
 
-    if (IS_NONE(item)) return index;
+    if (IS_BLANK(item)) return index;
 
     if (index >= SER_LEN(P_INPUT)) return NOT_FOUND;
 
@@ -312,7 +312,7 @@ static REBCNT Parse_Next_String(
         Free_Series(ser);
         break;
 
-    case REB_NONE:
+    case REB_BLANK:
         break;
 
     // Parse a sub-rule block:
@@ -423,7 +423,7 @@ static REBCNT Parse_Next_Array(
         if (IS_PATH(blk) && !Cmp_Block(blk, item, FALSE)) break;
         goto no_result;
 
-    case REB_NONE:
+    case REB_BLANK:
         break;
 
     // Parse a sub-rule block:
@@ -940,8 +940,8 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
         fail (Error(RE_PARSE_RULE, item));
     }
 
-    if (IS_NONE(item))
-        return (VAL_TYPE(&value) > REB_NONE) ? NOT_FOUND : P_POS;
+    if (IS_BLANK(item))
+        return (VAL_TYPE(&value) > REB_BLANK) ? NOT_FOUND : P_POS;
 
     // !!! This copies a single value into a block to use as data.  Is there
     // any way this might be avoided?
@@ -1584,11 +1584,11 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                     REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word);
 
                     if (Is_Array_Series(P_INPUT)) {
-                        if (count == 0) SET_NONE(var);
+                        if (count == 0) SET_BLANK(var);
                         else *var = *ARR_AT(AS_ARRAY(P_INPUT), begin);
                     }
                     else {
-                        if (count == 0) SET_NONE(var);
+                        if (count == 0) SET_BLANK(var);
                         else {
                             i = GET_ANY_CHAR(P_INPUT, begin);
                             if (P_TYPE == REB_BINARY) {
@@ -1736,7 +1736,7 @@ static REB_R Parse_Core(struct Reb_Frame *frame_, REBOOL logic)
 
     struct Reb_Frame parse;
 
-    if (IS_NONE(ARG(rules)) || IS_STRING(ARG(rules))) {
+    if (IS_BLANK(ARG(rules)) || IS_STRING(ARG(rules))) {
         //
         // !!! R3-Alpha supported "simple parse", which was cued by the rules
         // being either NONE! or a STRING!.  Though this functionality does
@@ -1839,13 +1839,13 @@ static REB_R Parse_Core(struct Reb_Frame *frame_, REBOOL logic)
     // Parse can fail if the match rule state can't process pending input.
     //
     if (index == NOT_FOUND)
-        return logic ? R_FALSE : R_NONE;
+        return logic ? R_FALSE : R_BLANK;
 
     // If the match rules all completed, but the parse position didn't end
     // at (or beyond) the tail of the input series, the parse also failed.
     //
     if (index < VAL_LEN_HEAD(ARG(input)))
-        return logic ? R_FALSE : R_NONE;
+        return logic ? R_FALSE : R_BLANK;
 
     // The end was reached...if doing a logic-based PARSE? then return TRUE.
     //
@@ -1868,8 +1868,8 @@ static REB_R Parse_Core(struct Reb_Frame *frame_, REBOOL logic)
 //
 //      input [any-series!]
 //          "Input series to parse"
-//      rules [block! string! none!]
-//          "Rules to parse by (STRING! and NONE! are deprecated)"
+//      rules [block! string! blank!]
+//          "Rules to parse by (STRING! and BLANK!/none! are deprecated)"
 //      /case
 //          "Uses case-sensitive comparison"
 //      /all
@@ -1891,7 +1891,7 @@ REBNATIVE(parse_q)
 //
 //      input [any-series!]
 //          "Input series to parse (default result for successful match)"
-//      rules [block! string! none!]
+//      rules [block! string! blank!]
 //          "Rules to parse by (STRING! and NONE! are deprecated)"
 //      /case
 //          "Uses case-sensitive comparison"

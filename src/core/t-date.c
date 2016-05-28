@@ -605,7 +605,7 @@ REBINT PD_Date(REBPVS *pvs)
 
         if (IS_INTEGER(setval) || IS_DECIMAL(setval))
             n = Int32s(setval, 0);
-        else if (IS_NONE(setval))
+        else if (IS_BLANK(setval))
             n = 0;
         else if (IS_TIME(setval) && (i == 3 || i == 4))
             NOOP;
@@ -625,7 +625,7 @@ REBINT PD_Date(REBPVS *pvs)
             break;
         case 3:
             // time
-            if (IS_NONE(setval)) {
+            if (IS_BLANK(setval)) {
                 secs = NO_TIME;
                 tz = 0;
                 break;
@@ -802,7 +802,7 @@ REBTYPE(Date)
                     return R_OUT;
                 }
             }
-//          else if (IS_NONE(arg)) {
+//          else if (IS_BLANK(arg)) {
 //              secs = nsec = day = month = year = tz = 0;
 //              goto fixTime;
 //          }

@@ -106,7 +106,7 @@ title-of: function [
                     return copy item
                 ]
                 if any-word? :item [
-                    return none
+                    return blank
                 ]
             ]
         ]
@@ -120,7 +120,7 @@ title-of: function [
         ]
     ]
 
-    none
+    blank
 ]
 
 
@@ -352,7 +352,7 @@ help: procedure [
     use [argl refl ref b v] [
         argl: copy []
         refl: copy []
-        ref: b: v: none
+        ref: b: v: _
 
         parse args [
             any [string! | block!]
@@ -364,7 +364,7 @@ help: procedure [
                 |   get-word!
                 |   lit-word!
                 ]
-                (append/only either ref [refl][argl] b: reduce [word none none])
+                (append/only either ref [refl][argl] b: reduce [word _ _])
                 any [set v block! (b/3: v) | set v string! (b/2: v)]
             ]
         ]
@@ -558,10 +558,10 @@ upgrade: function [
 
 why?: function [
     "Explain the last error in more detail."
-    'err [_ word! path! error! none!] "Optional error value"
+    'err [<opt> word! path! error! blank!] "Optional error value"
 ][
     case [
-        not set? 'err [err: none]
+        not set? 'err [err: _]
         word? err [err: get err]
         path? err [err: get err]
     ]
@@ -597,7 +597,7 @@ why?: function [
 ;   "Run R3 demo."
 ;][
 ;   print "Fetching demo..."
-;   if error? err: trap [do http://www.atronixengineering.com/r3/demo.r none][
+;   if error? err: trap [do http://www.atronixengineering.com/r3/demo.r blank][
 ;       either err/id = 'protocol [print "Cannot load demo from web."][do err]
 ;   ]
 ;   return ()

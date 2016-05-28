@@ -59,11 +59,13 @@ set/lookback left-arrow (specialize :lambda [only: true])
 
 right-arrow: left-arrow: ()
 
-and: or: xor: ()
+and: or: xor: nor: nand: ()
 
 set/lookback 'and :and?
 set/lookback 'or :or?
 set/lookback 'xor :xor?
+set/lookback 'nor :nor?
+set/lookback 'nand :nand?
 
 and*: or+: xor+: ()
 

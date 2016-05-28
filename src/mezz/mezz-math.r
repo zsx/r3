@@ -138,7 +138,7 @@ math: function/with [
         :pre-uop :post-uop :prim-val
     ]
 
-    res: either parse expr expression [expr-val] [none]
+    res: either parse expr expression [expr-val] [blank]
 
     set [
         expr-val expr-op term-val term-op power-val unary-val
@@ -149,7 +149,7 @@ math: function/with [
 ][
     slash: to-lit-word first [ / ]
 
-    expr-val: expr-op: none
+    expr-val: expr-op: _
 
     expression: [
         term (expr-val: term-val)
@@ -159,7 +159,7 @@ math: function/with [
         ]
     ]
 
-    term-val: term-op: none
+    term-val: term-op: _
 
     term: [
         pow (term-val: power-val)
@@ -169,14 +169,14 @@ math: function/with [
         ]
     ]
 
-    power-val: none
+    power-val: _
 
     pow: [
         unary (power-val: unary-val)
         opt ['** unary (power-val: compose [power (power-val) (unary-val)])]
     ]
 
-    unary-val: pre-uop: post-uop: none
+    unary-val: pre-uop: post-uop: _
 
     unary: [
         (post-uop: pre-uop: [])
@@ -186,7 +186,7 @@ math: function/with [
         (unary-val: compose [(post-uop) (pre-uop) (prim-val)])
     ]
 
-    prim-val: none
+    prim-val: _
 
     ; WARNING: uses recursion for parens.
     primary: [

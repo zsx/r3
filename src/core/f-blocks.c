@@ -257,7 +257,7 @@ REBARR *Copy_Array_Core_Managed(
     // `[switch 1 [2]]` in it (for instance) then when that code is used to
     // make a function body, the `[switch 1 [2]]` in that body will also
     // be marked legacy.  Then if it runs, the SWITCH can dispatch to return
-    // none instead of the Ren-C behavior of returning `2`.
+    // blank instead of the Ren-C behavior of returning `2`.
     //
     if (GET_ARR_FLAG(original, SERIES_FLAG_LEGACY))
         SET_ARR_FLAG(copy, SERIES_FLAG_LEGACY);

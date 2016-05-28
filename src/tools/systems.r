@@ -215,7 +215,7 @@ config-system: func [
         ; no vote in the ANY)
         :id
 
-        ; If version was none and asked to /guess, use opts if given
+        ; If version was blank and asked to /guess, use opts if given
         if all [guess hint] [
             if block? hint [hint: first hint]
             if hint = ">" [hint: "0.3.1"] ; !!! "bogus cw editor" (?)

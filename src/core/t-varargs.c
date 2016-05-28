@@ -435,7 +435,7 @@ REBTYPE(Varargs)
         indexor = Do_Vararg_Op_May_Throw(D_OUT, value, VARARG_OP_FIRST);
         assert(indexor == VALIST_FLAG || indexor == END_FLAG); // no throw
         if (indexor == END_FLAG)
-            SET_NONE(D_OUT); // want to be consistent with TAKE
+            SET_BLANK(D_OUT); // want to be consistent with TAKE
 
         return R_OUT;
     }
@@ -464,7 +464,7 @@ REBTYPE(Varargs)
                 return R_OUT_IS_THROWN;
 
             if (indexor == END_FLAG)
-                SET_NONE(D_OUT); // currently take returns NONE! if no data
+                SET_BLANK(D_OUT); // currently take returns NONE! if no data
 
             return R_OUT;
         }

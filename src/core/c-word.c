@@ -408,8 +408,8 @@ void Init_Words(REBOOL only)
         // The word (symbol) table itself:
         PG_Word_Table.array = Make_Array(WORD_TABLE_SIZE);
 
-        // !!! R3-Alpha would "Put a NONE at the head" here.  Why?  It seemed
-        // to later think it needed to be able to read a symbol out of a none,
+        // !!! R3-Alpha would "Put a BLANK at the head" here.  Why?  It seemed
+        // to later think it needed to be able to read a symbol out of a blank,
         // which it cannot do.  Changed to a typeset with symbol 0--which
         // seems to work as intended, but review what the intent is.
         //

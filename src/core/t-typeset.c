@@ -179,7 +179,7 @@ REBOOL Update_Typeset_Bits_Core(
             //
             SET_VAL_FLAG(typeset, TYPESET_FLAG_ENDABLE);
         }
-        else if (IS_NONE(item)) {
+        else if (IS_BLANK(item)) {
             //
             // A NONE! in a typeset spec for functions indicates a willingness
             // to take an optional.  (This was once done with the "UNSET!"
@@ -262,7 +262,7 @@ REBARR *Typeset_To_Array(REBVAL *tset)
                 // indicate that they take optional values.  This may wind up
                 // as a feature of MAKE FUNCTION! only.
                 //
-                SET_NONE(value);
+                SET_BLANK(value);
             }
             else
                 Val_Init_Datatype(value, KIND_FROM_0(n));
@@ -299,7 +299,7 @@ REBTYPE(Typeset)
             );
             return R_OUT;
         }
-    //  if (IS_NONE(arg)) {
+    //  if (IS_BLANK(arg)) {
     //      VAL_RESET_HEADER(arg, REB_TYPESET);
     //      VAL_TYPESET_BITS(arg) = 0L;
     //      *D_OUT = *D_ARG(2);

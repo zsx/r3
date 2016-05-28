@@ -13,7 +13,7 @@ REBOL [
 
 empty?: func [
     {Returns TRUE if empty or NONE, or for series if index is at or beyond its tail.}
-    series [any-series! object! gob! port! bitset! map! none!]
+    series [any-series! object! gob! port! bitset! map! blank!]
 ][
     tail? series
 ]
@@ -30,7 +30,7 @@ found?: func [
     "Returns TRUE if value is not NONE."
     value
 ][
-    not none? :value
+    not blank? :value
 ]
 
 last?: single?: func [
@@ -98,7 +98,7 @@ array: func [
     /local block rest
 ][
     if block? size [
-        if tail? rest: next size [rest: none]
+        if tail? rest: next size [rest: _]
         unless integer? size: first size [
             cause-error 'script 'expect-arg reduce ['array 'size type-of :size]
         ]
@@ -115,7 +115,7 @@ array: func [
             loop size [block: insert/only block value] ; Called every time
         ]
         'default [
-            insert/dup block either initial [value][none] size
+            insert/dup block either initial [value][_] size
         ]
     ]
     head block
@@ -200,7 +200,7 @@ reword: function [
         "Use values as-is, do not reduce the block, insert block values"
     /escape
         "Choose your own escape char(s) or [begin end] delimiters"
-    char [char! any-string! binary! block! none!]
+    char [char! any-string! binary! block! blank!]
         {Default "$"}
     /into
         "Insert into a buffer instead (returns position after insert)"
@@ -224,7 +224,7 @@ reword: function [
     ; Determine the escape delimiter(s), if any
     ;
     char: to-value :char
-    char-end: none
+    char-end: _
     case/all [
         not escape [char: "$"]
         block? char [
@@ -253,7 +253,7 @@ reword: function [
         ] [vals: values]  ; Success, so use it
 
         ; Otherwise, convert keywords to wtype, remove duplicates and empties
-        ; Last duplicate keyword wins; empty keywords + unset + none removed
+        ; Last duplicate keyword wins; empty keywords + unset + blank removed
         ; Any trailing delimiter is added to the end of the key for convenience
         ;
         all [
@@ -265,7 +265,7 @@ reword: function [
                 v: do/next values 'values
                 if any [set-word? :w lit-word? :w] [w: to word! :w]
                 case [
-                    wtype = type-of :w none
+                    wtype = type-of :w blank
                     wtype <> binary! [w: to wtype :w]
                     any-string? :w [w: to binary! :w]
                     'else [w: to binary! to string! :w]
@@ -284,7 +284,7 @@ reword: function [
             for-each [w v] values [  ; for-each can be used on all values types
                 if any [set-word? :w lit-word? :w] [w: to word! :w]
                 case [
-                    wtype = type-of :w none
+                    wtype = type-of :w blank
                     wtype <> binary! [w: to wtype :w]
                     any-string? :w [w: to binary! :w]
                     'else [w: to binary! to string! :w]
@@ -333,7 +333,7 @@ reword: function [
     ][
         ; Starting escape string defined, use regular TO
         if wtype <> type-of char [char: to wtype char]
-        [a: any [to char b: char [escape | none]] to end fout]
+        [a: any [to char b: char [escape | blank]] to end fout]
     ]
 
     parse/:case_REWORD source rule
@@ -371,7 +371,7 @@ extract: func [
     width [integer!] "Size of each entry (the skip)"
     /index "Extract from an offset position"
     pos "The position(s)" [any-number! logic! block!]
-    /default "Use a default value instead of none"
+    /default "Use a default value instead of blank"
     value "The value to use (will be called each time if a function)"
     /into "Insert into a buffer instead (returns position after insert)"
     output [any-series!] "The buffer series (modified)"
@@ -389,14 +389,14 @@ extract: func [
         if void? :output [output: make series len * length pos]
         if all [not default any-string? output] [value: copy ""]
         for-skip series width [for-next pos [
-            if none? val: pick series pos/1 [val: value]
+            if void? val: pick series pos/1 [val: value]
             output: insert/only output :val
         ]]
     ][
         if void? :output [output: make series len]
         if all [not default any-string? output] [value: copy ""]
         for-skip series width [
-            if none? val: pick series pos [val: value]
+            if void? val: pick series pos [val: value]
             output: insert/only output :val
         ]
     ]
@@ -596,7 +596,7 @@ split: func [
                 case [
                     bitset? dlm [
                         ; ATTEMPT is here because LAST will return NONE for an
-                        ; empty series, and finding none in a bitest is not allowed.
+                        ; empty series, and finding blank in a bitest is not allowed.
                         if attempt [find dlm last series] [add-fill-val]
                     ]
                     char? dlm [

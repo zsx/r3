@@ -192,7 +192,7 @@ object: func [
     {Defines a unique object.}
     blk [block!] {Object words and values (modified)}
 ][
-    make object! append blk none
+    make object! append blk blank
 ]
 
 module: func [
@@ -221,11 +221,11 @@ module: func [
     assert/type [
         spec object!
         body block!
-        mixins [object! none!]
-        spec/name [word! none!]
-        spec/type [word! none!]
-        spec/version [tuple! none!]
-        spec/options [block! none!]
+        mixins [object! blank!]
+        spec/name [word! blank!]
+        spec/type [word! blank!]
+        spec/version [tuple! blank!]
+        spec/options [block! blank!]
     ]
 
     ; Module is an object during its initialization:
@@ -261,7 +261,7 @@ module: func [
     ]
 
     ; Collect 'hidden keyword words, removing the keywords. Ignore exports.
-    hidden: none
+    hidden: _
     if find body 'hidden [
         hidden: make block! 10
         ; Note: Exports are not hidden, silently for now
@@ -353,7 +353,7 @@ default: func [
     'word [word! set-word! lit-word!] "The word (use :var for word! values)"
     value "The value" ; void not allowed on purpose
 ][
-    unless all [set? word | not none? get word] [set word :value] :value
+    unless all [set? word | not blank? get word] [set word :value] :value
 ]
 
 

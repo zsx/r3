@@ -54,7 +54,7 @@ ATTRIBUTE_NO_RETURN void Panic_Value(const REBVAL *value)
 #ifdef TRACK_EMPTY_PAYLOADS
     switch (value->header.bits & HEADER_TYPE_MASK) {
     case REB_0:
-    case REB_NONE:
+    case REB_BLANK:
     case REB_LOGIC:
     case REB_BAR:
         printf(

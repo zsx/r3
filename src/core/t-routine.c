@@ -463,7 +463,7 @@ static REBOOL rebol_type_to_ffi(const REBVAL *out, const REBVAL *elem, REBCNT id
                 return FALSE;
         }
         temp = Alloc_Tail_Array(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
-        SET_NONE(temp);
+        SET_BLANK(temp);
     }
     else if (IS_STRUCT(elem)) {
         ffi_type *ftype = struct_to_ffi(out, VAL_STRUCT_FIELDS(elem), make);
@@ -984,7 +984,7 @@ static void process_type_block(const REBVAL *out, REBVAL *blk, REBCNT n, REBOOL 
             REBVAL tmp;
             VAL_INIT_WRITABLE_DEBUG(&tmp);
 
-            SET_NONE(&tmp); // GC should not reach uninitialized values
+            SET_BLANK(&tmp); // GC should not reach uninitialized values
             PUSH_GUARD_VALUE(&tmp);
 
             ++ t;
@@ -1221,7 +1221,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Func_Class fclass)
 
     // !!! should this be VAL_INIT_WRITABLE_DEBUG(), e.g. write-only location?
     //
-    SET_NONE(temp);
+    SET_BLANK(temp);
 
     VAL_ROUTINE_ABI(out) = FFI_DEFAULT_ABI;
     VAL_ROUTINE_LIB(out) = NULL;

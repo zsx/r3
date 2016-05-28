@@ -243,7 +243,7 @@ static REBSER *make_string(REBVAL *arg, REBOOL make)
         Append_Codepoint_Raw(ser, VAL_CHAR(arg));
     }
     // MAKE/TO <type> <any-value>
-//  else if (IS_NONE(arg)) {
+//  else if (IS_BLANK(arg)) {
 //      ser = Make_Binary(0);
 //  }
     else
@@ -707,7 +707,7 @@ find:
 
         ret = find_string(VAL_SERIES(value), index, tail, arg, len, args, ret);
 
-        if (ret >= (REBCNT)tail) goto is_none;
+        if (ret >= (REBCNT)tail) goto is_blank;
         if (args & AM_FIND_ONLY) len = 1;
 
         if (action == A_FIND) {
@@ -716,7 +716,7 @@ find:
         }
         else {
             ret++;
-            if (ret >= (REBCNT)tail) goto is_none;
+            if (ret >= (REBCNT)tail) goto is_blank;
             if (IS_BINARY(value)) {
                 SET_INTEGER(value, *BIN_AT(VAL_SERIES(value), ret));
             }
@@ -733,7 +733,7 @@ find:
         if (REB_I32_SUB_OF(len, 1, &len)
             || REB_I32_ADD_OF(index, len, &index)
             || index < 0 || index >= tail) {
-            if (action == A_PICK) goto is_none;
+            if (action == A_PICK) goto is_blank;
             fail (Error_Out_Of_Range(arg));
         }
         if (action == A_PICK) {
@@ -789,7 +789,7 @@ zero_str:
         // take/last:
         if (D_REF(5)) index = tail - len;
         if (index < 0 || index >= tail) {
-            if (!D_REF(2)) goto is_none;
+            if (!D_REF(2)) goto is_blank;
             goto zero_str;
         }
 
@@ -828,7 +828,7 @@ zero_str:
         type = VAL_TYPE(value);
         if (type == REB_DATATYPE) type = VAL_TYPE_KIND(value);
 
-        if (IS_NONE(arg)) fail (Error_Bad_Make(type, arg));
+        if (IS_BLANK(arg)) fail (Error_Bad_Make(type, arg));
 
         ser = (type != REB_BINARY)
             ? make_string(arg, LOGICAL(action == A_MAKE))
@@ -924,7 +924,7 @@ zero_str:
         }
 
         if (D_REF(4)) { // /only
-            if (index >= tail) goto is_none;
+            if (index >= tail) goto is_blank;
             index += (REBCNT)Random_Int(D_REF(3)) % (tail - index);  // /secure
             goto pick_it;
         }
@@ -944,6 +944,6 @@ str_exit:
     Val_Init_Series(D_OUT, type, ser);
     return R_OUT;
 
-is_none:
-    return R_NONE;
+is_blank:
+    return R_BLANK;
 }

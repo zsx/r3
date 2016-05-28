@@ -51,7 +51,7 @@ void Make_Port(REBVAL *out, const REBVAL *spec)
     }
 
     // !!! Shouldn't this be testing for !IS_PORT( ) ?
-    if (IS_NONE(out)) fail (Error(RE_INVALID_SPEC, spec));
+    if (IS_BLANK(out)) fail (Error(RE_INVALID_SPEC, spec));
 }
 
 
@@ -179,7 +179,7 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
     if (!IS_FUNCTION(awake)) return -1;
 
     if (ports) Val_Init_Block(&tmp, ports);
-    else SET_NONE(&tmp);
+    else SET_BLANK(&tmp);
 
     if (only) {
         //
@@ -511,7 +511,7 @@ int Do_Port_Action(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
     // Get actor for port, if it has one:
     actor = CTX_VAR(port, STD_PORT_ACTOR);
 
-    if (IS_NONE(actor)) return R_NONE;
+    if (IS_BLANK(actor)) return R_BLANK;
 
     // If actor is a native function:
     if (IS_FUNCTION_AND(actor, FUNC_CLASS_NATIVE))
@@ -676,13 +676,13 @@ REBNATIVE(set_scheme)
         fail (Error(RE_NO_SCHEME_NAME));
 
     actor = Obj_Value(ARG(scheme), STD_SCHEME_ACTOR);
-    if (!actor) return R_NONE;
+    if (!actor) return R_BLANK;
 
     // Does this scheme have native actor or actions?
     for (n = 0; n < MAX_SCHEMES && Scheme_Actions[n].sym; n++) {
         if (Scheme_Actions[n].sym == VAL_WORD_SYM(name)) break;
     }
-    if (n == MAX_SCHEMES || !Scheme_Actions[n].sym) return R_NONE;
+    if (n == MAX_SCHEMES || !Scheme_Actions[n].sym) return R_BLANK;
 
     // The scheme uses a native actor:
     if (Scheme_Actions[n].fun) {
@@ -731,7 +731,7 @@ REBNATIVE(set_scheme)
     }
 
     // The scheme has an array of action natives:
-    if (!IS_OBJECT(actor)) return R_NONE;
+    if (!IS_OBJECT(actor)) return R_BLANK;
 
     // Map action natives to scheme actor words:
     map = Scheme_Actions[n].map;

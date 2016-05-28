@@ -1091,7 +1091,7 @@ struct Native_Refine {
     //
     #define REFINE(n,name) \
         const struct Native_Refine p_##name = { \
-            NOT(IS_NONE(frame_->arg + (n) - 1)), \
+            NOT(IS_BLANK(frame_->arg + (n) - 1)), \
             frame_->arg + (n) - 1, \
             (n) \
         }
@@ -1108,15 +1108,15 @@ struct Native_Refine {
 
 #ifdef NDEBUG
     #define REF(name) \
-        NOT(IS_NONE(ARG(name)))
+        NOT(IS_BLANK(ARG(name)))
 #else
     // An added useless ?: helps check in debug build to make sure we do not
     // try to use REF() on something defined as PARAM(), but only REFINE()
     //
     #define REF(name) \
         ((p_##name).used_cache \
-            ? NOT(IS_NONE(ARG(name))) \
-            : NOT(IS_NONE(ARG(name))))
+            ? NOT(IS_BLANK(ARG(name))) \
+            : NOT(IS_BLANK(ARG(name))))
 #endif
 
 
@@ -1208,7 +1208,7 @@ struct Native_Refine {
 #define D_OUT       FRM_OUT(frame_)         // GC-safe slot for output value
 #define D_ARGC      FRM_NUM_ARGS(frame_)        // count of args+refinements/args
 #define D_ARG(n)    FRM_ARG(frame_, (n))    // pass 1 for first arg
-#define D_REF(n)    NOT(IS_NONE(D_ARG(n)))  // D_REFinement (not D_REFerence)
+#define D_REF(n)    NOT(IS_BLANK(D_ARG(n)))  // D_REFinement (not D_REFerence)
 #define D_FUNC      FRM_FUNC(frame_)        // REBVAL* of running function
 #define D_LABEL_SYM FRM_LABEL(frame_)       // symbol or placeholder for call
 #define D_DSP_ORIG  FRM_DSP_ORIG(frame_)    // Original data stack pointer

@@ -109,8 +109,10 @@ type?: function [
             ; return a value of type NONE! (not a datatype).  But the
             ; word conversion will say it's UNSET!.
             ;
-            unset!
+            'unset!
         ]
+
+        blank? :value ['none!]
 
         'default [to-word type-of :value]
     ]
@@ -218,7 +220,7 @@ series?: :any-series?
 ; it...which was the way of achieving "optional" arguments.  However, this
 ; concept of "no type" being included isn't necessarily a typeset feature,
 ; but a feature of function arguments (like being variadic).  Hence using
-; the _ here to pass in a literal none may not be a long term feature, as
+; the _ here to pass in a literal blank may not be a long term feature, as
 ; allowing no type could be for function specs only--not general typesets.
 ;
 any-type!: make typeset! [_ any-value!]
@@ -275,6 +277,17 @@ value?: does [
         | {(It will be a shorthand for ANY-VALUE! a.k.a. NOT VOID?)}
         | {SET? is similar to R3-Alpha VALUE?--but SET? only takes words}
         | {If running in <r3-legacy> mode, old VALUE? meaning is available.}
+    ]
+]
+
+none-of: :none ;-- reduce mistakes for now by renaming NONE out of the way
+
+none?: none!: none: does [
+    fail [
+        {NONE is reserved in Ren-C for future use}
+        | {(It will act like NONE-OF, e.g. NONE [a b] => ALL [not a not b])}
+        | {_ is now a "BLANK! literal", with BLANK? test and BLANK the word.}
+        | {If running in <r3-legacy> mode, old NONE meaning is available.}
     ]
 ]
 
@@ -353,7 +366,7 @@ set: func [
         case [
             any 'opt ;-- Note: refinement, not native ANY []
             opt 'opt ;-- Note: refinement, not native OPT
-            'default none
+            'default blank
         ]
     )/:pad/:infix target :value
 ]
@@ -393,12 +406,12 @@ get: function [
     opt: :lib/opt
 
     either any [
-        none? :source
+        blank? :source
         any-word? :source
         any-path? :source
         any-context? :source
     ][
-        lib-get/(either any [opt_GET any_GET] 'opt none) :source
+        lib-get/(either any [opt_GET any_GET] 'opt blank) :source
     ][
         if system/options/get-will-get-anything [:source]
         fail ["GET takes ANY-WORD!, ANY-PATH!, ANY-CONTEXT!, not" (:source)]
@@ -619,7 +632,7 @@ set 'r3-legacy* func [] [
     ; Ren-C features, which would not be available if running a second time
     ; while legacy mode is on.  Hence make running multiple times a no-op.
     ;
-    if r3-legacy-mode [return none]
+    if r3-legacy-mode [return blank]
 
     append system/contexts/user compose [
 
@@ -632,7 +645,7 @@ set 'r3-legacy* func [] [
         ; or path to tell whether a variable is unset... but that is reserved
         ; for NOT SET? until legacy is adapted.
         ;
-        unset?: :void?
+        unset?: (:void?)
 
         ; Result from TYPE-OF () is a NONE!, so this should allow one to write
         ; `unset! = type-of ()`.  Also, a NONE! value in a typeset spec is
@@ -643,6 +656,12 @@ set 'r3-legacy* func [] [
         ; Note that with this definition, `datatype? unset!` will fail.
         ;
         unset!: _
+
+        ; NONE is reserved for NONE-OF in the future
+        ;
+        none: (:blank)
+        none!: (:blank!)
+        none?: (:blank?)
 
         ; The bizarre VALUE? function would look up words, return TRUE if they
         ; were set and FALSE if not.  All other values it returned TRUE.  The
@@ -690,7 +709,7 @@ set 'r3-legacy* func [] [
         do: (function [
             {Evaluates a block of source code (variadic <r3-legacy> bridge)}
 
-            source [<opt> none! block! group! string! binary! url! file! tag!
+            source [<opt> blank! block! group! string! binary! url! file! tag!
                 error! function!
             ]
             normals [any-type! <...>]
@@ -705,7 +724,7 @@ set 'r3-legacy* func [] [
                 "Args passed to a script (normally a string)"
             /next
                 {Do next expression only, return it, update block variable}
-            var [word! none!]
+            var [word! blank!]
                 "Variable updated with new block position"
         ][
             next_DO: next
@@ -744,7 +763,7 @@ set 'r3-legacy* func [] [
         ; it back in (more or less) by delegating to split.
         ;
         ; Also, as an experiment Ren-C has been changed so that a successful
-        ; parse returns the input, while an unsuccessful one returns none.
+        ; parse returns the input, while an unsuccessful one returns blank.
         ; Historically PARSE returned LOGIC!, this restores that behavior.
         ;
         parse: (function [
@@ -752,7 +771,7 @@ set 'r3-legacy* func [] [
 
             input [any-series!]
                 "Input series to parse"
-            rules [block! string! none!]
+            rules [block! string! blank!]
                 "Rules (string! is <r3-legacy>, use SPLIT)"
             /case
                 "Uses case-sensitive comparison"
@@ -766,7 +785,7 @@ set 'r3-legacy* func [] [
             all: :lib/all
 
             case [
-                none? rules [
+                blank? rules [
                     split input charset reduce [tab space cr lf]
                 ]
 
@@ -787,7 +806,7 @@ set 'r3-legacy* func [] [
                     ;
                     result: lib/parse/:case_PARSE input rules
                     case [
-                        none? result [false]
+                        blank? result [false]
                         same? result input [true]
                         'default [result]
                     ]
@@ -826,7 +845,7 @@ set 'r3-legacy* func [] [
 
             'vars [word! block!]
                 "Word or block of words to set each time (local)"
-            data [any-series! any-context! map! none!]
+            data [any-series! any-context! map! blank!]
                 "The series to traverse"
             body [block!]
                 "Block to evaluate each time"
@@ -883,7 +902,7 @@ set 'r3-legacy* func [] [
                 "Keep set-words as-is. Do not set them."
             /only
                 "Only evaluate words and paths, not functions"
-            words [block! none!]
+            words [block! blank!]
                 "Optional words that are not evaluated (keywords)"
             /into
                 {Output results into a series with no intermediate storage}
@@ -981,10 +1000,10 @@ set 'r3-legacy* func [] [
             ; Get the full backtrace to start with because we need to filter
             ;
             bt: backtrace/limit/:args/(
-                either block 'where none
+                either block 'where blank
             )/(
-                either func_STACK 'function none
-            ) none
+                either func_STACK 'function blank
+            ) blank
 
             ; The backtrace is going to have STACK in it, in slot number 1.
             ; But the caller doesn't want to see STACK.  So remove it.
@@ -1073,5 +1092,5 @@ set 'r3-legacy* func [] [
     system/options/no-reduce-nested-print: true
 
     r3-legacy-mode: on
-    return none
+    return blank
 ]

@@ -56,7 +56,7 @@ REBINT CT_Array(const REBVAL *a, const REBVAL *b, REBINT mode)
 static void No_Nones(REBVAL *arg) {
     arg = VAL_ARRAY_AT(arg);
     for (; NOT_END(arg); arg++) {
-        if (IS_NONE(arg)) fail (Error_Invalid_Arg(arg));
+        if (IS_BLANK(arg)) fail (Error_Invalid_Arg(arg));
     }
 }
 
@@ -259,7 +259,7 @@ REBOOL Make_Block_Type_Throws(
         goto done;
     }
 
-//  if (make && IS_NONE(arg)) {
+//  if (make && IS_BLANK(arg)) {
 //      array = Make_Array(0);
 //      goto done;
 //  }
@@ -539,7 +539,7 @@ static void Trim_Array(REBARR *array, REBCNT index, REBCNT flags)
 
     if (flags & AM_TRIM_TAIL) {
         for (; end >= (index + 1); end--) {
-            if (VAL_TYPE(head + end - 1) > REB_NONE) break;
+            if (VAL_TYPE(head + end - 1) > REB_BLANK) break;
         }
         Remove_Series(ARR_SERIES(array), end, ARR_LEN(array) - end);
         if (!(flags & AM_TRIM_HEAD) || index >= end) return;
@@ -547,14 +547,14 @@ static void Trim_Array(REBARR *array, REBCNT index, REBCNT flags)
 
     if (flags & AM_TRIM_HEAD) {
         for (; index < end; index++) {
-            if (VAL_TYPE(head + index) > REB_NONE) break;
+            if (VAL_TYPE(head + index) > REB_BLANK) break;
         }
         Remove_Series(ARR_SERIES(array), out, index - out);
     }
 
     if (flags == 0) {
         for (; index < end; index++) {
-            if (VAL_TYPE(head + index) > REB_NONE) {
+            if (VAL_TYPE(head + index) > REB_BLANK) {
                 *ARR_AT(array, out) = head[index];
                 out++;
             }
@@ -819,7 +819,7 @@ zero_blk:
         ret = Find_In_Array(array, index, tail, arg, len, args, ret);
 
         if (ret >= (REBCNT)tail) {
-            if (action == A_FIND) return R_NONE;
+            if (action == A_FIND) return R_BLANK;
             SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
             return R_OUT;
         }
@@ -831,7 +831,7 @@ zero_blk:
         else {
             ret += len;
             if (ret >= (REBCNT)tail) {
-                if (action == A_FIND) return R_NONE;
+                if (action == A_FIND) return R_BLANK;
                 SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
                 return R_OUT;
             }
@@ -953,7 +953,7 @@ zero_blk:
         if (!IS_BLOCK(value)) fail (Error_Illegal_Action(VAL_TYPE(value), action));
         if (D_REF(2)) fail (Error(RE_BAD_REFINES)); // seed
         if (D_REF(4)) { // /only
-            if (index >= tail) return R_NONE;
+            if (index >= tail) return R_BLANK;
             len = (REBCNT)Random_Int(D_REF(3)) % (tail - index);  // /secure
             arg = D_ARG(2); // pass to pick
             SET_INTEGER(arg, len+1);

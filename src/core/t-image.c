@@ -718,7 +718,7 @@ REBVAL *Find_Image(struct Reb_Frame *frame_)
     REBYTE  no_refs[10] = {5, 6, 7, 8, 9, 10, 13, 14}; // ref - 1 (invalid refinements)
 
     len = tail - index;
-    if (!len) goto find_none;
+    if (!len) goto find_blank;
 
     for (n = 0; n < 8; n++) // (zero based)
         if (D_REF(no_refs[n]))
@@ -744,15 +744,15 @@ REBVAL *Find_Image(struct Reb_Frame *frame_)
     if (p) {
         n = (REBCNT)(p - (REBCNT *)VAL_IMAGE_HEAD(value));
         if (D_REF(11)) { // match
-            if (n != (REBINT)index) goto find_none;
+            if (n != (REBINT)index) goto find_blank;
             n++;
         } else if (D_REF(12)) n++; // /tail
         index = n;
         VAL_INDEX(value) = index;
         return value;
     }
-find_none:
-    return NONE_VALUE;
+find_blank:
+    return BLANK_VALUE;
 }
 
 
@@ -935,7 +935,7 @@ REBTYPE(Image)
         if (diff == 0 || index < 0 || index >= tail) {
             if (action == A_POKE)
                 fail (Error_Out_Of_Range(arg));
-            goto is_none;
+            goto is_blank;
         }
 
         if (action == A_POKE) {
@@ -1042,8 +1042,8 @@ REBTYPE(Image)
         // make image! img
         if (IS_IMAGE(arg)) goto makeCopy;
 
-        // make image! [] (or none)
-        if (IS_IMAGE(value) && (IS_NONE(arg) || (IS_BLOCK(arg) && (VAL_ARRAY_LEN_AT(arg) == 0)))) {
+        // make image! [] (or _)
+        if (IS_IMAGE(value) && (IS_BLANK(arg) || (IS_BLOCK(arg) && (VAL_ARRAY_LEN_AT(arg) == 0)))) {
             arg = value;
             goto makeCopy;
         }
@@ -1058,7 +1058,7 @@ REBTYPE(Image)
             Val_Init_Image(value, series);
             break;
         }
-//      else if (IS_NONE(arg)) {
+//      else if (IS_BLANK(arg)) {
 //          *value = *Make_Image(0, 0);
 //          CLEAR_IMAGE(VAL_IMAGE_HEAD(value), 0, 0);
 //          break;

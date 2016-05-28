@@ -333,7 +333,7 @@ REBINT PD_Time(REBPVS *pvs)
     else {
         if (IS_INTEGER(setval) || IS_DECIMAL(setval))
             n = Int32s(setval, 0);
-        else if (IS_NONE(setval))
+        else if (IS_BLANK(setval))
             n = 0;
         else
             fail (Error_Bad_Path_Set(pvs));
