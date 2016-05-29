@@ -535,7 +535,9 @@ void Push_Or_Alloc_Vars_For_Call(struct Reb_Frame *f) {
         SET_ARR_FLAG(varlist, SERIES_FLAG_FIXED_SIZE);
 
         // Skip the [0] slot which will be filled with the CTX_VALUE
+        // !!! Note: Array made the 0 slot an end marker
         //
+        SET_TRASH_IF_DEBUG(ARR_AT(varlist, 0));
         slot = ARR_AT(varlist, 1);
 
         // The NULL stackvars will be picked up by the reification; reuse the
@@ -575,7 +577,7 @@ void Push_Or_Alloc_Vars_For_Call(struct Reb_Frame *f) {
     // so maybe faster than a memset (if unsets were the pattern of a uniform
     // byte, currently not true)
     //
-    while (num_slots--) {
+    while (num_slots) {
         //
         // In Rebol2 and R3-Alpha, unused refinement arguments were set to
         // NONE! (and refinements were TRUE as opposed to the WORD! of the
@@ -591,6 +593,7 @@ void Push_Or_Alloc_Vars_For_Call(struct Reb_Frame *f) {
             SET_BAR(slot);
 
         slot++;
+        --num_slots;
     }
 
     if (varlist) {
@@ -601,6 +604,21 @@ void Push_Or_Alloc_Vars_For_Call(struct Reb_Frame *f) {
         // somewhere...)
         //
         Context_For_Frame_May_Reify(f, varlist, FALSE);
+    }
+
+    // If it's a specialization, we've already taken care of what we
+    // needed to know from that specialization--all further references
+    // will need to talk about the function which is being called.
+    //
+    // !!! For debugging, it would probably be desirable to indicate
+    // that this call of the function originated from a specialization.
+    // So that would mean saving the specialization's f->func somewhere.
+    //
+    if (FUNC_CLASS(f->func) == FUNC_CLASS_SPECIALIZED) {
+        f->func = CTX_FRAME_FUNC(
+            FUNC_VALUE(f->func)->payload.function.impl.special
+        );
+        f->flags |= DO_FLAG_EXECUTE_FRAME;
     }
 }
 
@@ -621,6 +639,12 @@ REBCTX *Context_For_Frame_May_Reify(
     REBARR *opt_varlist, // if a CLOSURE! and varlist is preallocated
     REBOOL ensure_managed
 ) {
+#if !defined(NDEBUG)
+    if (opt_varlist) {
+        assert(IS_TRASH_DEBUG(ARR_AT(opt_varlist, 0))); // we fill this in
+    }
+#endif
+
     REBCTX *context;
     struct Reb_Chunk *chunk;
 

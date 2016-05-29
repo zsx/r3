@@ -1725,9 +1725,17 @@ enum {
     // a VARARGS! type are different things.  (A function may accept a
     // variadic number of VARARGS! values, for instance.)
     //
-    TYPESET_FLAG_VARIADIC = (1 << (TYPE_SPECIFIC_BIT + 7)) | TYPESET_FLAG_X
+    TYPESET_FLAG_VARIADIC = (1 << (TYPE_SPECIFIC_BIT + 7)) | TYPESET_FLAG_X,
 
     // WARNING: + 7 is max type-specific bit!
+
+    // Endability is distinct from optional, and it means that a parameter is
+    // willing to accept being at the end of the input.  This means either
+    // an infix dispatch's left argument is missing (e.g. `do [+ 5]`) or an
+    // ordinary argument hit the end (e.g. the trick used for `>> help` when
+    // the arity is 1 usually as `>> help foo`)
+    //
+    TYPESET_FLAG_ENDABLE = (1 << (TYPE_SPECIFIC_BIT + 8)) | TYPESET_FLAG_X
 };
 
 struct Reb_Typeset {

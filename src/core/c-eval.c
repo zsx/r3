@@ -333,10 +333,19 @@ reevaluate:
 
     dispatch_the_word_in_out:
         if (IS_FUNCTION(f->out)) { // check before checking unset, for speed
-            if (GET_VAL_FLAG(f->out, FUNC_FLAG_INFIX))
-                fail (Error(RE_NO_OP_ARG, f->value)); // see Note above
-
             SET_FRAME_SYM(f, VAL_WORD_SYM(f->value));
+
+            if (GET_VAL_FLAG(f->out, FUNC_FLAG_INFIX)) {
+                f->func = VAL_FUNC(f->out);
+                f->param = FUNC_PARAMS_HEAD(f->func);
+                if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
+                    fail (Error_No_Arg(FRM_LABEL(f), f->param));
+
+                // !!! ^-- custom error, adapt RE_NO_OP_ARG?
+
+                SET_VOID(f->out);
+                goto do_infix_out_is_first_arg;
+            }
 
             f->value = f->out;
             goto do_function_in_value;
@@ -469,8 +478,19 @@ reevaluate:
             // values, and make it work.  But then, a loop of DO/NEXT
             // may not behave the same as DO-ing the whole block.  Bad.)
             //
-            if (GET_VAL_FLAG(f->out, FUNC_FLAG_INFIX))
-                fail (Error_Has_Bad_Type(f->out));
+            // So only run an infix function if it has declared that it can
+            // accept an <end> on its first argument.  (This is an end from
+            // the left, as opposed to the usual end from the right.)
+            //
+            if (GET_VAL_FLAG(f->out, FUNC_FLAG_INFIX)) {
+                f->func = VAL_FUNC(f->out);
+                f->param = FUNC_PARAMS_HEAD(f->func);
+                if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
+                    fail (Error_No_Arg(FRM_LABEL(f), f->param));
+
+                SET_VOID(f->out);
+                goto do_infix_out_is_first_arg;
+            }
 
             f->value = f->out;
             goto do_function_in_value;
@@ -749,21 +769,6 @@ reevaluate:
         //
         Push_Or_Alloc_Vars_For_Call(f);
 
-        // If it's a specialization, we've already taken care of what we
-        // needed to know from that specialization--all further references
-        // will need to talk about the function which is being called.
-        //
-        // !!! For debugging, it would probably be desirable to indicate
-        // that this call of the function originated from a specialization.
-        // So that would mean saving the specialization's f->func somewhere.
-        //
-        if (FUNC_CLASS(f->func) == FUNC_CLASS_SPECIALIZED) {
-            f->func = CTX_FRAME_FUNC(
-                FUNC_VALUE(f->func)->payload.function.impl.special
-            );
-            f->flags |= DO_FLAG_EXECUTE_FRAME;
-        }
-
         // Advance the input, which loses our ability to inspect the function
         // value further.  Note we are allowed to be at a END_FLAG (such
         // as if the function has no arguments, or perhaps its first argument
@@ -1029,7 +1034,7 @@ reevaluate:
     //=//// VARIADIC ARG (doesn't consume anything *yet*) /////////////////=//
 
             // Evaluation argument "hook" parameters (marked in MAKE FUNCTION!
-            // by a `|` in the typeset, and in FUNC by `<...>`).  They point
+            // by a `[[]]` in the spec, and in FUNC by `<...>`).  They point
             // back to this call through a reified FRAME!, and are able to
             // consume additional arguments during the function run.
             //
@@ -1059,15 +1064,25 @@ reevaluate:
 
     //=//// AFTER THIS, PARAMS CONSUME--ERROR ON END MARKER, BAR! ////////=//
 
-            if (f->indexor == END_FLAG)
-                fail (Error_No_Arg(FRM_LABEL(f), f->param));
+            if (f->indexor == END_FLAG) {
+                if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
+                    fail (Error_No_Arg(FRM_LABEL(f), f->param));
+
+                SET_VOID(f->arg);
+                goto continue_arg_loop;
+            }
 
             // Literal expression barriers cannot be consumed in normal
             // evaluation, even if the argument takes a BAR!.  It must come
             // through non-literal means(e.g. `quote '|` or `first [|]`)
             //
-            if (f->args_evaluate && IS_BAR(f->value))
-                fail (Error(RE_EXPRESSION_BARRIER));
+            if (f->args_evaluate && IS_BAR(f->value)) {
+                if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
+                    fail (Error(RE_EXPRESSION_BARRIER));
+
+                SET_VOID(f->arg);
+                goto continue_arg_loop;
+            }
 
     //=//// REGULAR ARG-OR-REFINEMENT-ARG (consumes a DO/NEXT's worth) ////=//
 
@@ -1166,9 +1181,23 @@ reevaluate:
             }
 
             if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg))) {
-                fail (Error_Arg_Type(
-                    FRM_LABEL(f), f->param, VAL_TYPE(f->arg)
-                ));
+                //
+                // While an END being "endably processed" skips the type check
+                // in normal evaluation, there's a special case in specialized
+                // infix functions where the void gets poked into the slot
+                // and then the enumeration starts over.  It's not a huge
+                // efficiency issue to check again (we're erroring anyway)
+                // but would be more elegant if there were some way to avoid
+                // the double checking.
+                //
+                if (
+                    !IS_VOID(f->arg)
+                    && !GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE)
+                ) {
+                    fail (Error_Arg_Type(
+                        FRM_LABEL(f), f->param, VAL_TYPE(f->arg)
+                    ));
+                }
             }
 
         continue_arg_loop: // `continue` might bind to the wrong scope
@@ -1700,6 +1729,8 @@ reevaluate:
                 SET_FRAME_SYM(f, VAL_WORD_SYM(f->value));
                 f->func = VAL_FUNC(f->param);
 
+            do_infix_out_is_first_arg:
+                //
                 // The warped function values used for definitional return
                 // usually need their EXIT_FROMs extracted, but here we should
                 // not worry about it as neither RETURN nor LEAVE are infix
@@ -1708,28 +1739,80 @@ reevaluate:
                 assert(f->func != PG_Return_Func);
                 f->exit_from = NULL;
 
-                // We go ahead and start the vars, and put our evaluated
-                // result into it as the "left-hand-side" before calling into
-                // the rest of function's behavior.
-                //
                 Push_Or_Alloc_Vars_For_Call(f);
 
-                // Infix functions must have at least arity 1 (exactly 2?)
+                // The current `out` wants to be the first argument of the
+                // infix function...BUT if the function is a specialization
+                // then the "first parameter" might not be the first slot
+                // in the frame.  Hence the argument needs to go into the
+                // *first unspecialized slot*.
+                //
+                f->param = FUNC_PARAMS_HEAD(f->func);
+                f->arg = FRM_ARGS_HEAD(f);
+
+                // Infix functions must have at least arity 1 in order
+                // to accept an argument...error TBD
                 //
                 assert(FUNC_NUM_PARAMS(f->func) >= 1);
-                f->param = FUNC_PARAMS_HEAD(f->func);
-                if (!TYPE_CHECK(f->param, VAL_TYPE(f->out)))
-                    fail (Error_Arg_Type(
-                        FRM_LABEL(f), f->param, VAL_TYPE(f->out))
-                    );
 
-                // Use current `out` as first argument of the infix function
-                //
-                f->arg = FRM_ARGS_HEAD(f);
+                if (f->flags & DO_FLAG_EXECUTE_FRAME) {
+                    //
+                    // A specialized function uses BAR! to indicate arguments
+                    // which are to be acquired.  Cannot fulfill an infix
+                    // slot using one, because that would not be "fulfilling"
+                    //
+                    // !!! This could be a simpler check for if (!IS_VOID)
+                    // with the BAR->void change
+                    //
+                    assert(!IS_BAR(f->out));
+
+                    while (NOT_END(f->arg) && !IS_BAR(f->arg)) {
+                        ++f->param;
+                        ++f->arg;
+                    }
+
+                    // TBD: Error message if no unspecialized slots
+                    assert(NOT_END(f->arg));
+                }
+
+                if (IS_VOID(f->out)) {
+                    //
+                    // For speed and storage reasons, the optionality flag is
+                    // checked via the REB_0 bit in the typeset.  Infix
+                    // functions are not currently able to distinguish
+                    // <opt> and <end>, with <opt> being more questionable
+                    // in terms of usage.  For now, a void coming in for
+                    // either purpose will be accepted--review.
+                    //
+                    if (
+                        !GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE)
+                        && !TYPE_CHECK(f->param, VAL_TYPE(f->out))
+                    ) {
+                        fail (Error_Arg_Type(
+                            FRM_LABEL(f), f->param, VAL_TYPE(f->out))
+                        );
+                    }
+                }
+                else {
+                    if (!TYPE_CHECK(f->param, VAL_TYPE(f->out)))
+                        fail (Error_Arg_Type(
+                            FRM_LABEL(f), f->param, VAL_TYPE(f->out))
+                        );
+                }
+
                 *(f->arg) = *(f->out);
 
-                ++f->param;
-                ++f->arg;
+                if (f->flags & DO_FLAG_EXECUTE_FRAME) {
+                    // Reset to the start of parameters and arguments, the
+                    // filled in parameter will not be considered
+                    //
+                    f->param = FUNC_PARAMS_HEAD(f->func);
+                    f->arg = FRM_ARGS_HEAD(f);
+                }
+                else {
+                    ++f->param;
+                    ++f->arg;
+                }
 
                 // During the argument evaluations, do not look further ahead
                 //

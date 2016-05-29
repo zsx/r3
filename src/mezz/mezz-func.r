@@ -98,7 +98,7 @@ spec-of: function [
             ;
             specials: copy []
             for-each [key value] frame [
-                unless bar? value [
+                unless bar? :value [
                     append specials key
                 ]
             ]

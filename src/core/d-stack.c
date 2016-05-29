@@ -288,7 +288,7 @@ REBNATIVE(backtrace_index)
 //
 //  "Backtrace to find a specific FRAME!, or other queried property."
 //
-//      level [none! integer! function! |]
+//      level [| none! integer! function!]
 //          "Stack level to return frame for (none to list)"
 //      /limit
 //          "Limit the length of the backtrace"
@@ -317,19 +317,7 @@ REBNATIVE(backtrace)
 
     REBOOL first = TRUE; // special check of first frame for "breakpoint 0"
 
-    // If variadic and empty, then point level at VOID_VALUE...otherwise
-    // try and extract one argument.
-    //
-    REBVAL *level;
-    REBVAL level_store;
-    if (Do_Vararg_Op_May_Throw(
-        &level_store, ARG(level), VARARG_OP_TAKE) == END_FLAG
-    ) {
-        level = VOID_CELL;
-    }
-    else {
-        level = &level_store;
-    }
+    REBVAL *level = ARG(level); // void if at <end>
 
     // Note: Running this code path is *intentionally* redundant with
     // Frame_For_Stack_Level, as a way of keeping the numbers listed in a

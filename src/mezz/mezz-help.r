@@ -126,13 +126,13 @@ title-of: function [
 
 help: procedure [
     "Prints information about words and values (if no args, general help)."
-    'word [any-value! <...>]
+    'word [<end> any-value!]
     /doc "Open web browser to related documentation."
 ][
-    if tail? word [
+    if not set? 'word [
         ;
-        ; The VARARGS! is empty, so it was just `>> help` or `do [help]` or
-        ; similar.  Print out generic help message.
+        ; Was just `>> help` or `do [help]` or similar.
+        ; Print out generic help message.
         ;
         print trim/auto {
             Use HELP to see built-in info:
@@ -185,12 +185,6 @@ help: procedure [
         }
         leave
     ]
-
-    ; Otherwise, the VARARGS! has at least one element available in the series
-    ; after the HELP invocation.  Overwrite the varargs value by taking that
-    ; first item out of it.
-    ;
-    word: take word
 
 ;           Word completion:
 ;

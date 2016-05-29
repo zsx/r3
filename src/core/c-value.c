@@ -257,9 +257,15 @@ void Probe_Core_Debug(
     const REBVAL *val
 ) {
     if (msg)
-        Debug_Fmt("\n** PROBE_MSG(\"%s\") %s:%d\n%r\n", msg, file, line, val);
+        printf("\n** PROBE_MSG(\"%s\") ", msg);
     else
-        Debug_Fmt("\n** PROBE() %s:%d\n%r\n", file, line, val);
+        printf("\n** PROBE() ");
+
+    printf("tick %d %s:%d\n", cast(int, TG_Do_Count), file, line);
+
+    fflush(stdout);
+
+    Debug_Fmt("%r\n", val);
 }
 
 #endif

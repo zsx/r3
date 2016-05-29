@@ -135,13 +135,20 @@ REBOOL Update_Typeset_Bits_Core(
     const REBVAL *head,
     REBOOL trap // if TRUE, then return FALSE instead of failing
 ) {
+    assert(IS_TYPESET(typeset));
+    VAL_TYPESET_BITS(typeset) = 0;
+
     const REBVAL *item = head;
+    if (!IS_END(item) && IS_BLOCK(item)) {
+        // Double blocks are a variadic signal.
+        if (!IS_END(item + 1))
+            fail (Error(RE_MISC));
+
+        item = VAL_ARRAY_AT(item);
+        SET_VAL_FLAG(typeset, TYPESET_FLAG_VARIADIC);
+    }
 
     REBARR *types = VAL_ARRAY(ROOT_TYPESETS);
-
-    assert(IS_TYPESET(typeset));
-
-    VAL_TYPESET_BITS(typeset) = 0;
 
     for (; NOT_END(item); item++) {
         const REBVAL *var = NULL;
@@ -164,14 +171,13 @@ REBOOL Update_Typeset_Bits_Core(
 
         if (IS_BAR(item)) {
             //
-            // A BAR! in a typeset spec for functions indicates variadicness.
-            // Notationally, the function generators turn <...> into a BAR!
-            // when producing the spec for MAKE FUNCTION!.
+            // A BAR! in a typeset spec for functions indicates a tolerance
+            // of endability.
             //
             // !!! Review if this should be allowed in general typeset
             // construction or just a feature of function specs.
             //
-            SET_VAL_FLAG(typeset, TYPESET_FLAG_VARIADIC);
+            SET_VAL_FLAG(typeset, TYPESET_FLAG_ENDABLE);
         }
         else if (IS_NONE(item)) {
             //

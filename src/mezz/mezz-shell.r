@@ -22,7 +22,7 @@ mkdir:  :make-dir
 
 cd: func [
     "Change directory (shell shortcut function)."
-    'path [<opt> file! word! path! string!]
+    'path [<end> file! word! path! string!]
         "Accepts %file, :variables and just words (as dirs)"
 ][
     switch type-of :path [

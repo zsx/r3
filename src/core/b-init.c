@@ -448,6 +448,8 @@ void Turn_Typespec_Opts_Into_Nones(REBARR *spec)
     for (; NOT_END(item); ++item) {
         if (IS_BLOCK(item)) {
             REBVAL *subitem = VAL_ARRAY_AT(item);
+            if (IS_BLOCK(subitem))
+                subitem = VAL_ARRAY_AT(subitem);
             for (; NOT_END(subitem); ++subitem) {
                 if (
                     IS_TAG(subitem)
@@ -1486,6 +1488,7 @@ void Init_Core(REBARGS *rargs)
     const REBYTE no_return[] = "no-return";
     const REBYTE ellipsis[] = "...";
     const REBYTE opt[] = "opt";
+    const REBYTE end[] = "end";
     const REBYTE infix[] = "infix";
     const REBYTE local[] = "local";
     const REBYTE durable[] = "durable";
@@ -1631,6 +1634,13 @@ void Init_Core(REBARGS *rargs)
     );
     SET_SER_FLAG(VAL_SERIES(ROOT_OPT_TAG), SERIES_FLAG_FIXED_SIZE);
     SET_SER_FLAG(VAL_SERIES(ROOT_OPT_TAG), SERIES_FLAG_LOCKED);
+
+    Val_Init_Tag(
+        ROOT_END_TAG,
+        Append_UTF8_May_Fail(NULL, end, LEN_BYTES(ellipsis))
+    );
+    SET_SER_FLAG(VAL_SERIES(ROOT_END_TAG), SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAG(VAL_SERIES(ROOT_END_TAG), SERIES_FLAG_LOCKED);
 
     Val_Init_Tag(
         ROOT_INFIX_TAG,

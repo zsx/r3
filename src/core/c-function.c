@@ -789,7 +789,7 @@ void Make_Function(
                 // extension signifiers too, as MAKE TYPESET! doesn't know
                 // any keywords either.
                 //
-                REBVAL *subitem = VAL_ARRAY_HEAD(item);
+                REBVAL *subitem = VAL_ARRAY_AT(item);
                 for (; NOT_END(subitem); ++subitem) {
                     if (!IS_TAG(subitem))
                         continue;
@@ -798,23 +798,36 @@ void Make_Function(
                         0 ==
                         Compare_String_Vals(subitem, ROOT_ELLIPSIS_TAG, TRUE)
                     ) {
-                        // Really this is just a notational convenience for
-                        // what happens with a BAR!, because a spec saying
-                        // `func [x [integer! |]]` is not as easy to see as
-                        // one that says `func [x [integer! <...>]]`
+                        // Notational convenience for variadic.
+                        // func [x [<...> integer!]] => func [x [[integer!]]]
                         //
-                        SET_BAR(subitem);
+                        REBARR *array = Make_Singular_Array(item);
+                        Remove_Series(
+                            ARR_SERIES(VAL_ARRAY(item)),
+                            subitem - VAL_ARRAY_AT(item),
+                            1
+                        );
+                        Val_Init_Block(item, array);
                     }
                     else if (
                         0 == Compare_String_Vals(
                             subitem, ROOT_OPT_TAG, TRUE
                         )
                     ) {
-                        // Another notational convenience for NONE!, since
-                        // a spec saying `func [x [_ integer!]]` is not as
-                        // clear as `func [x [<opt> integer!]]`
+                        // Notational convenience for optional.
+                        // func [x [<opt> integer!]] => func [x [_ integer!]]
                         //
                         SET_NONE(subitem);
+                    }
+                    else if (
+                        0 == Compare_String_Vals(
+                            subitem, ROOT_END_TAG, TRUE
+                        )
+                    ) {
+                        // Notational convenience for endable.
+                        // func [x [<end> integer!]] => func [x [| integer!]]
+                        //
+                        SET_BAR(subitem);
                     }
                 }
             }
