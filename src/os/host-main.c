@@ -1083,6 +1083,8 @@ int main(int argc, char **argv_ansi)
         PUSH_GUARD_VALUE(&value); // !!! Out_Value expects value to be GC safe
 
     push_trap:
+        SET_END(&value);
+
         //
         // The R3-Alpha host kit did not have a policy articulated on dealing
         // with the interrupt nature of the SIGINT signals sent by Ctrl-C

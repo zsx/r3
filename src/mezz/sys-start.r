@@ -32,7 +32,7 @@ REBOL [
     }
 ]
 
-finish-init-core: func [
+finish-init-core: proc [
     "Completes the boot sequence for Ren/C core."
     /local tmp
 ] bind [ ; context is system/options
@@ -67,14 +67,10 @@ finish-init-core: func [
     ;
     comment [if :lib/secure [protect-system-object]]
 
-    ; returning a value would cause a "panic" error (quits)
-    ;
-    return ()
-
 ] system/options
 
 
-finish-rl-start: func [
+finish-rl-start: proc [
     "Loads extras, handles args, security, scripts (should be host-specific)."
     /local file script-path script-args code
 ] bind [ ; context is: system/options
@@ -233,8 +229,4 @@ finish-rl-start: func [
     ]
 
     finish-rl-start: 'done
-
-    ; returning a value would cause a "panic" error (quits)
-    ;
-    return ()
 ] system/options
