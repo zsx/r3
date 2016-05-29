@@ -74,6 +74,43 @@ function: func [
     func spec body
 ]
 
+lambda: function [
+    {Convenience variadic wrapper for FUNCTION constructors}
+    args [<end> word! block!]
+        {Block of argument words, or a single word (passed via LIT-WORD!)}
+    :body [any-value! <...>]
+        {Block that serves as the body or variadic elements for the body}
+    /only
+        {Use FUNC and do not run locals-gathering on the body}
+][
+    f: either only :func :function
+    f case [
+        not set? 'args [[]]
+        word? args [reduce [args]]
+        'default [args]
+    ] case [
+        block? first body [take body]
+        'default [make block! body]
+    ]
+]
+
+; So long as the code wants to stay buildable with R3-Alpha, the mezzanine
+; cannot use -> or <-, nor even mention them as words.  So this hack is likely
+; to be around for quite a long time.  FIRST, LOAD, INTERN etc. are not
+; in the definition order at this point...so PICK MAKE BLOCK! is used.
+;
+right-arrow: bind (pick make block! "->" 1) context-of 'lambda
+left-arrow: bind (pick make block! "<-" 1) context-of 'lambda
+
+; !!! TO-INFIX as a function value modifier is marked for death; this will
+; use SET-INFIX once it exists.
+;
+set right-arrow to-infix :lambda
+set left-arrow to-infix (specialize :lambda [only: true])
+
+right-arrow: left-arrow: ()
+
+
 use: func [
     {Defines words local to a block.}
     vars [block! word!] {Local word(s) to the block}
