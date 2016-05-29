@@ -637,17 +637,37 @@ REBNATIVE(context)
 //
 //  Init_Ops: C
 //
+// This contains the weird words that the lexer doesn't easily let us make
+// set-words out of, like /: and //: and <>:.  These shouldn't be processed
+// by %make-boot.r if the legal exceptions are going to expand, because that
+// would mean R3-Alpha couldn't be used to build Ren-C.  So it's better to
+// have the exceptions hardcoded here.
+//
 static void Init_Ops(void)
 {
-    REBVAL *word;
-    REBVAL *val;
+    const char *names[] = {
+        "<",
+        "<=",
+        ">",
+        ">=",
+        "<>", // may ultimately be targeted for empty tag in Ren-C
+        "->", // FUNCTION-style lambda ("reaches in")
+        "<-", // FUNC-style lambda ("reaches out")
+        "/",
+        "//", // is remainder in R3-Alpha :-/
+        NULL
+    };
 
-    for (word = VAL_ARRAY_HEAD(&Boot_Block->ops); NOT_END(word); word++) {
+    REBINT i = 0;
+    while (names[i]) {
+        REBSYM sym = Make_Word(cb_cast(names[i]), strlen(names[i]));
+
         // Append the operator name to the lib frame:
-        val = Append_Context(Lib_Context, word, 0);
+        REBVAL *val = Append_Context(Lib_Context, NULL, sym);
 
         // leave void, functions will be filled in later...
         cast(void, cast(REBUPT, val));
+        ++i;
     }
 }
 

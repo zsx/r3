@@ -63,7 +63,6 @@ sections: [
     boot-booters
     boot-actions
     boot-natives
-    boot-ops
     boot-typespecs
     boot-errors
     boot-sysobj
@@ -1281,7 +1280,6 @@ for-each type datatypes [
 boot-types: new-types
 boot-root: load %root.r
 boot-task: load %task.r
-boot-ops: load %ops.r
 ;boot-script: load %script.r
 
 write %boot-code.r mold reduce sections
