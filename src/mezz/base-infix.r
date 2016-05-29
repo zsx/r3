@@ -18,36 +18,55 @@ REBOL [
     }
 ]
 
-+: to-infix :add
--: to-infix :subtract
-*: to-infix :multiply
++: -: *: ()
 
-set (pick [/] 1) to-infix :divide
-set (pick [//] 1) to-infix :remainder
+set/lookback '+ :add
+set/lookback '- :subtract
+set/lookback '* :multiply
 
-**: to-infix :power
-=: to-infix :equal?
-=?: to-infix :same?
-==: to-infix :strict-equal?
-!=: to-infix :not-equal?
+set/lookback (pick [/] 1) :divide
+set/lookback (pick [//] 1) :remainder
 
-set (pick [<>] 1) to-infix :not-equal?
+**: =: =?: ==: !=: ()
 
-!==: to-infix :strict-not-equal?
+set/lookback '** :power
+set/lookback '= :equal?
+set/lookback '=? :same?
+set/lookback '== :strict-equal?
+set/lookback '!= :not-equal?
 
-set (pick [<] 1) to-infix :lesser?
-set (pick [<=] 1) to-infix :lesser-or-equal?
-set (pick [>] 1) to-infix :greater?
-set (pick [>=] 1) to-infix :greater-or-equal?
+set/lookback (pick [<>] 1) :not-equal?
 
-and: to-infix :and?
-or: to-infix :or?
-xor: to-infix :xor?
+!==: ()
 
-and*: to-infix :and~
-or+: to-infix :or~
-xor+: to-infix :xor~
+set/lookback '!== :strict-not-equal?
 
-; !!! C-isms that are unlikely to be kept
-&: to-infix :and~
-|: to-infix :or~
+set/lookback (pick [<] 1) :lesser?
+set/lookback (pick [<=] 1) :lesser-or-equal?
+set/lookback (pick [>] 1) :greater?
+set/lookback (pick [>=] 1) :greater-or-equal?
+
+; So long as the code wants to stay buildable with R3-Alpha, the mezzanine
+; cannot use -> or <-, nor even mention them as words.  So this hack is likely
+; to be around for quite a long time.  FIRST, LOAD, INTERN etc. are not
+; in the definition order at this point...so PICK MAKE BLOCK! is used.
+;
+right-arrow: bind (pick make block! "->" 1) context-of 'lambda
+left-arrow: bind (pick make block! "<-" 1) context-of 'lambda
+
+set/lookback right-arrow :lambda
+set/lookback left-arrow (specialize :lambda [only: true])
+
+right-arrow: left-arrow: ()
+
+and: or: xor: ()
+
+set/lookback 'and :and?
+set/lookback 'or :or?
+set/lookback 'xor :xor?
+
+and*: or+: xor+: ()
+
+set/lookback 'and* :and~
+set/lookback 'or+ :or~
+set/lookback 'xor+ :xor~

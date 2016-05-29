@@ -85,7 +85,7 @@ REBIXO Do_Vararg_Op_Core(
     assert(LOGICAL(out == NULL) == LOGICAL(op == VARARG_OP_TAIL_Q));
 
     if (op == VARARG_OP_FIRST && pclass != PARAM_CLASS_HARD_QUOTE)
-        fail (Error(RE_VARARGS_NO_LOOK)); // lookahead needs hard quote
+        fail (Error(RE_VARARGS_NO_LOOK)); // lookback needs hard quote
 
     // If the VARARGS! has a call frame, then ensure that the call frame where
     // the VARARGS! originated is still on the stack.

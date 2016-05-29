@@ -1489,7 +1489,6 @@ void Init_Core(REBARGS *rargs)
     const REBYTE ellipsis[] = "...";
     const REBYTE opt[] = "opt";
     const REBYTE end[] = "end";
-    const REBYTE infix[] = "infix";
     const REBYTE local[] = "local";
     const REBYTE durable[] = "durable";
 
@@ -1641,13 +1640,6 @@ void Init_Core(REBARGS *rargs)
     );
     SET_SER_FLAG(VAL_SERIES(ROOT_END_TAG), SERIES_FLAG_FIXED_SIZE);
     SET_SER_FLAG(VAL_SERIES(ROOT_END_TAG), SERIES_FLAG_LOCKED);
-
-    Val_Init_Tag(
-        ROOT_INFIX_TAG,
-        Append_UTF8_May_Fail(NULL, infix, LEN_BYTES(infix))
-    );
-    SET_SER_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SERIES_FLAG_FIXED_SIZE);
-    SET_SER_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SERIES_FLAG_LOCKED);
 
     Val_Init_Tag(
         ROOT_LOCAL_TAG,

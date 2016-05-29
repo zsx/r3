@@ -841,6 +841,8 @@ REBNATIVE(resolve)
 //          "Value is optional, and if no value is provided unset the target"
 //      /pad
 //          {For objects, set remaining words to NONE if block is too short}
+//      /lookback
+//          {Function uses evaluator lookahead to "look back" (see SET-INFIX)}
 //  ]
 //
 REBNATIVE(set)
@@ -849,6 +851,7 @@ REBNATIVE(set)
     PARAM(2, value);
     REFINE(3, opt);
     REFINE(4, pad);
+    REFINE(5, lookback);
 
     // Pointers independent from the arguments.  If we change them, they can
     // be reset to point at the original argument again.
@@ -860,14 +863,37 @@ REBNATIVE(set)
     if (!REF(opt) && IS_VOID(value))
         fail (Error(RE_NEED_VALUE, target));
 
+    REBOOL lookback = REF(lookback);
+
+    if (lookback) {
+        if (!IS_FUNCTION(value))
+            fail (Error(RE_MISC));
+
+        // SET-INFIX checks for properties of the function to ensure it is
+        // actually infix, and INFIX? tests specifically for that.  The only
+        // things that should be checked here are to make sure things that
+        // are impossible aren't being requested... e.g. a "look back quote
+        // of a WORD!" (the word can't be quoted because it's evaluated
+        // before the evaluator lookahead that would see the infix function).
+        //
+        // !!! Should arity 0 functions be prohibited?
+    }
+
     // Simple request to set a word variable.  Allows ANY-WORD, which means
     // for instance that `set quote x: (expression)` would mean that the
     // locals gathering facility of FUNCTION would still gather x.
     //
     if (ANY_WORD(target)) {
-        *GET_MUTABLE_VAR_MAY_FAIL(target) = *value;
+        *Get_Var_Core(&lookback, target, GETVAR_IS_SETVAR) = *value;
         goto return_value_arg;
     }
+
+    // !!! For starters, just the word form is supported for lookback.  Though
+    // you can't dispatch a lookback from a path, you should be able to set
+    // a word in a context to one.
+    //
+    if (lookback)
+        fail (Error(RE_MISC));
 
     if (ANY_PATH(target)) {
         REBVAL dummy;
@@ -1143,22 +1169,32 @@ REBNATIVE(unset)
 
 
 //
-//  infix?: native [
+//  lookback?: native [
 //  
-//  {Returns TRUE if the function gets its first argument prior to the call}
+//  {TRUE if looks up to a function and gets first argument before the call}
 //  
-//      value [function!]
+//      source [any-word! any-path!]
 //  ]
 //
-REBNATIVE(infix_q)
+REBNATIVE(lookback_q)
 {
-    REBVAL *func = D_ARG(1);
+    REBVAL *source = D_ARG(1);
 
-    assert(IS_FUNCTION(func));
-    if (GET_VAL_FLAG(func, FUNC_FLAG_INFIX))
-        return R_TRUE;
+    if (ANY_WORD(source)) {
+        REBOOL lookback;
+        const REBVAL *var = Get_Var_Core(&lookback, source, 0); // May fail()
+        if (!IS_FUNCTION(var))
+            return R_FALSE;
 
-    return R_FALSE;
+        return lookback ? R_TRUE : R_FALSE;
+    }
+    else {
+        assert(ANY_PATH(source));
+
+        // Not implemented yet...
+
+        fail (Error(RE_MISC));
+    }
 }
 
 

@@ -274,8 +274,13 @@ help: procedure [
         leave
     ]
 
+    ; Functions are not infix in Ren-C, only bindings of words to infix, so
+    ; we have to read the infixness off of the word before GETting it.
+
     ; Get value (may be a function, so handle with ":")
     either path? :word [
+        print ["!!! NOTE: Infix testing not currently supported for paths !!!"]
+        lookback: false
         if any [
             error? set/opt 'value trap [get :word] ;trap reduce [to-get-path word]
             not set? 'value
@@ -284,6 +289,7 @@ help: procedure [
             leave
         ]
     ][
+        lookback: lookback? :word
         value: get :word
     ]
     unless function? :value [
@@ -309,8 +315,8 @@ help: procedure [
     ;
     clear find args /local
 
-    either infix? :value [
-        print [args/1 word args/2]
+    either lookback [
+        print [args/1 word form/new/quote next args]
     ][
         ; Test idiom... print "tightly" by going straight to a second level
         ; of nesting, where | also means space and can serve as a barrier.

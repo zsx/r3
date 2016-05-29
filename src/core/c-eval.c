@@ -321,30 +321,31 @@ reevaluate:
 // to a variable which is not set).  Should the word look up to a function,
 // then that function will be called by jumping to the ANY-FUNCTION! case.
 //
-// Note: Infix functions cannot be dispatched from this point, as there is no
-// "Left-Hand-Side" computed to use.  Infix dispatch happens on words during
-// a lookahead *after* this switch statement, when a omputed value in f->out
-// is available.
-//
 //==//////////////////////////////////////////////////////////////////////==//
 
-    case ET_WORD:
-        *(f->out) = *GET_OPT_VAR_MAY_FAIL(f->value);
+    case ET_WORD: {
+        REBOOL lookback;
+        *(f->out) = *Get_Var_Core(&lookback, f->value, GETVAR_READ_ONLY);
 
     dispatch_the_word_in_out:
         if (IS_FUNCTION(f->out)) { // check before checking unset, for speed
             SET_FRAME_SYM(f, VAL_WORD_SYM(f->value));
 
-            if (GET_VAL_FLAG(f->out, FUNC_FLAG_INFIX)) {
+            if (lookback) {
+                //
+                // Note: Infix functions cannot "look back" for a valid first
+                // argument at this point, because there's no "Left-Hand-Side"
+                // computed to use.  We "look ahead" for an infix operation
+                // *after* this switch statement, when a computed value in
+                // f->out is there for the infix operation to "look back at".
+                //
+                // Hence, the only infix functions that can run from this
+                // point are those that explicitly tolerate an <end> point as
+                // their first argument.
+
                 f->func = VAL_FUNC(f->out);
-                f->param = FUNC_PARAMS_HEAD(f->func);
-                if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
-                    fail (Error_No_Arg(FRM_LABEL(f), f->param));
-
-                // !!! ^-- custom error, adapt RE_NO_OP_ARG?
-
-                SET_VOID(f->out);
-                goto do_infix_out_is_first_arg;
+                SET_END(f->out);
+                goto do_infix_out_is_first_arg_maybe_end;
             }
 
             f->value = f->out;
@@ -361,6 +362,7 @@ reevaluate:
 
         FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
+    }
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
@@ -473,24 +475,11 @@ reevaluate:
             //
             assert(DSP >= f->dsp_orig);
 
-            // Cannot handle infix because prior value is wiped out above
-            // (Theoretically we could save it if we are DO-ing a chain of
-            // values, and make it work.  But then, a loop of DO/NEXT
-            // may not behave the same as DO-ing the whole block.  Bad.)
-            //
-            // So only run an infix function if it has declared that it can
-            // accept an <end> on its first argument.  (This is an end from
-            // the left, as opposed to the usual end from the right.)
-            //
-            if (GET_VAL_FLAG(f->out, FUNC_FLAG_INFIX)) {
-                f->func = VAL_FUNC(f->out);
-                f->param = FUNC_PARAMS_HEAD(f->func);
-                if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
-                    fail (Error_No_Arg(FRM_LABEL(f), f->param));
-
-                SET_VOID(f->out);
-                goto do_infix_out_is_first_arg;
-            }
+            // The WORD! dispatch case checks whether the dispatch was via an
+            // infix binding at this point, and if so allows the infix function
+            // to run only if it has an <end>able left argument.  Paths ignore
+            // the infix-or-not status of a binding for several reasons, so
+            // this does not come into play here.
 
             f->value = f->out;
             goto do_function_in_value;
@@ -1720,16 +1709,14 @@ reevaluate:
         // so word lookup is the only way to get infix behavior.)
         //
         if (IS_WORD(f->value)) {
-            f->param = GET_OPT_VAR_MAY_FAIL(f->value);
+            REBOOL lookback;
+            f->param = Get_Var_Core(&lookback, f->value, GETVAR_READ_ONLY);
 
-            if (
-                IS_FUNCTION(f->param)
-                && GET_VAL_FLAG(f->param, FUNC_FLAG_INFIX)
-            ) {
+            if (lookback && IS_FUNCTION(f->param)) {
                 SET_FRAME_SYM(f, VAL_WORD_SYM(f->value));
                 f->func = VAL_FUNC(f->param);
 
-            do_infix_out_is_first_arg:
+            do_infix_out_is_first_arg_maybe_end:
                 //
                 // The warped function values used for definitional return
                 // usually need their EXIT_FROMs extracted, but here we should
@@ -1742,65 +1729,60 @@ reevaluate:
                 Push_Or_Alloc_Vars_For_Call(f);
 
                 // The current `out` wants to be the first argument of the
-                // infix function...BUT if the function is a specialization
-                // then the "first parameter" might not be the first slot
-                // in the frame.  Hence the argument needs to go into the
-                // *first unspecialized slot*.
+                // infix function, but it must go into a "normal" slot.  That
+                // means it can't be specialized already, and
+                //
+                // !!! REVIEW if there is a trick by which the output could
+                // be snuck into the eval cell and reuse existing machinery,
+                // since having duplicate code here that finds the next slot
+                // will be error prone.  Look into after infix overhaul is
+                // complete.
                 //
                 f->param = FUNC_PARAMS_HEAD(f->func);
                 f->arg = FRM_ARGS_HEAD(f);
 
-                // Infix functions must have at least arity 1 in order
-                // to accept an argument...error TBD
+                // A specialized function uses BAR! to indicate arguments
+                // which are to be acquired.  Cannot fulfill an infix
+                // slot using one, because that would not be "fulfilling"
                 //
-                assert(FUNC_NUM_PARAMS(f->func) >= 1);
+                // !!! This could be a simpler check for if (!IS_VOID)
+                // with the BAR->void change
+                //
+                assert(
+                    NOT(f->flags & DO_FLAG_EXECUTE_FRAME)
+                    || !IS_BAR(f->out)
+                );
 
-                if (f->flags & DO_FLAG_EXECUTE_FRAME) {
-                    //
-                    // A specialized function uses BAR! to indicate arguments
-                    // which are to be acquired.  Cannot fulfill an infix
-                    // slot using one, because that would not be "fulfilling"
-                    //
-                    // !!! This could be a simpler check for if (!IS_VOID)
-                    // with the BAR->void change
-                    //
-                    assert(!IS_BAR(f->out));
-
-                    while (NOT_END(f->arg) && !IS_BAR(f->arg)) {
-                        ++f->param;
-                        ++f->arg;
-                    }
-
-                    // TBD: Error message if no unspecialized slots
-                    assert(NOT_END(f->arg));
+                while (
+                    NOT_END(f->arg)
+                    && (
+                        NOT(f->flags & DO_FLAG_EXECUTE_FRAME)
+                        || !IS_BAR(f->arg)
+                    )
+                    && VAL_PARAM_CLASS(f->param) == PARAM_CLASS_PURE_LOCAL
+                ) {
+                    ++f->param;
+                    ++f->arg;
                 }
 
-                if (IS_VOID(f->out)) {
-                    //
-                    // For speed and storage reasons, the optionality flag is
-                    // checked via the REB_0 bit in the typeset.  Infix
-                    // functions are not currently able to distinguish
-                    // <opt> and <end>, with <opt> being more questionable
-                    // in terms of usage.  For now, a void coming in for
-                    // either purpose will be accepted--review.
-                    //
-                    if (
-                        !GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE)
-                        && !TYPE_CHECK(f->param, VAL_TYPE(f->out))
-                    ) {
-                        fail (Error_Arg_Type(
-                            FRM_LABEL(f), f->param, VAL_TYPE(f->out))
-                        );
-                    }
+                // TBD: Good error messages.
+                //
+                assert(NOT_END(f->arg));
+                assert(VAL_PARAM_CLASS(f->param) == PARAM_CLASS_NORMAL);
+
+                if (IS_END(f->out)) {
+                    if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
+                        fail (Error_No_Arg(FRM_LABEL(f), f->param));
+
+                    SET_VOID(f->arg);
                 }
                 else {
                     if (!TYPE_CHECK(f->param, VAL_TYPE(f->out)))
                         fail (Error_Arg_Type(
                             FRM_LABEL(f), f->param, VAL_TYPE(f->out))
                         );
+                    *(f->arg) = *(f->out);
                 }
-
-                *(f->arg) = *(f->out);
 
                 if (f->flags & DO_FLAG_EXECUTE_FRAME) {
                     // Reset to the start of parameters and arguments, the

@@ -140,11 +140,8 @@ static void Protect_Word_Value(REBVAL *word, REBCNT flags)
             // Ignore existing mutability state so that it may be modified.
             // Most routines should NOT do this!
             //
-            val = Get_Var_Core(
-                word,
-                TRUE, // trap, e.g. may fail.
-                FALSE // writable access not enforced
-            );
+            REBOOL lookback; // ignored
+            val = Get_Var_Core(&lookback, word, GETVAR_READ_ONLY);
             Protect_Value(val, flags);
             Unmark(val);
         }
@@ -216,11 +213,8 @@ static int Protect(struct Reb_Frame *frame_, REBCNT flags)
                     // Since we *are* PROTECT we allow ourselves to get mutable
                     // references to even protected values to protect them.
                     //
-                    val2 = Get_Var_Core(
-                        val,
-                        TRUE, // trap, e.g. may fail.
-                        FALSE // writable access not enforced
-                    );
+                    REBOOL lookback; // ignored
+                    Get_Var_Core(&lookback, val, GETVAR_READ_ONLY);
                 }
                 else if (IS_PATH(val)) {
                     if (Do_Path_Throws(&safe, NULL, val, NULL))

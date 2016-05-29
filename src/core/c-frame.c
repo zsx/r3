@@ -152,19 +152,13 @@ REBCTX *Alloc_Context(REBCNT len)
 
 
 //
-//  Expand_Context: C
-// 
-// Expand a context. Copy words if keylist is not unique.
+//  Expand_Context_Keylist_Core: C
 //
-void Expand_Context(REBCTX *context, REBCNT delta)
+// Returns whether or not the expansion invalidated existing keys.
+//
+REBOOL Expand_Context_Keylist_Core(REBCTX *context, REBCNT delta)
 {
     REBARR *keylist = CTX_KEYLIST(context);
-
-    // varlist is unique to each object--expand without making a copy.
-    //
-    Extend_Series(ARR_SERIES(CTX_VARLIST(context)), delta);
-    TERM_ARRAY(CTX_VARLIST(context));
-
     if (GET_ARR_FLAG(keylist, KEYLIST_FLAG_SHARED)) {
         //
         // INIT_CTX_KEYLIST_SHARED was used to set the flag that indicates
@@ -178,20 +172,50 @@ void Expand_Context(REBCTX *context, REBCNT delta)
         keylist = Copy_Array_Extra_Shallow(keylist, delta);
         MANAGE_ARRAY(keylist);
         INIT_CTX_KEYLIST_UNIQUE(context, keylist);
+        return TRUE;
     }
-    else {
-        // INIT_CTX_KEYLIST_UNIQUE was used to set this keylist in the
-        // context, and no INIT_CTX_KEYLIST_SHARED was used by another context
-        // to mark the flag indicating it's shared.  Extend it directly.
 
+    // INIT_CTX_KEYLIST_UNIQUE was used to set this keylist in the
+    // context, and no INIT_CTX_KEYLIST_SHARED was used by another context
+    // to mark the flag indicating it's shared.  Extend it directly.
+
+    if (delta != 0) {
         Extend_Series(ARR_SERIES(keylist), delta);
         TERM_ARRAY(keylist);
     }
+    return FALSE;
 }
 
 
 //
-//  Append_Context: C
+//  Ensure_Keylist_Unique_Invalidated: C
+//
+// Returns true if the keylist had to be changed to make it unique.
+//
+REBOOL Ensure_Keylist_Unique_Invalidated(REBCTX *context)
+{
+    return Expand_Context_Keylist_Core(context, 0);
+}
+
+
+//
+//  Expand_Context: C
+//
+// Expand a context. Copy words if keylist is not unique.
+//
+void Expand_Context(REBCTX *context, REBCNT delta)
+{
+    // varlist is unique to each object--expand without making a copy.
+    //
+    Extend_Series(ARR_SERIES(CTX_VARLIST(context)), delta);
+    TERM_ARRAY(CTX_VARLIST(context));
+
+    Expand_Context_Keylist_Core(context, delta);
+}
+
+
+//
+//  Append_Context_Core: C
 // 
 // Append a word to the context word list. Expands the list if necessary.
 // Returns the value cell for the word.  The appended variable is unset.
@@ -207,8 +231,12 @@ void Expand_Context(REBCTX *context, REBCNT delta)
 // in the context and can get the index out of a relatively bound word,
 // they usually likely don't need the result directly.
 //
-REBVAL *Append_Context(REBCTX *context, REBVAL *word, REBSYM sym)
-{
+REBVAL *Append_Context_Core(
+    REBCTX *context,
+    REBVAL *word,
+    REBSYM sym,
+    REBOOL lookahead
+) {
     REBARR *keylist = CTX_KEYLIST(context);
     REBVAL *value;
 
@@ -218,6 +246,9 @@ REBVAL *Append_Context(REBCTX *context, REBVAL *word, REBSYM sym)
     value = ARR_LAST(keylist);
     Val_Init_Typeset(value, ALL_64, word ? VAL_WORD_SYM(word) : sym);
     TERM_ARRAY(keylist);
+
+    if (lookahead)
+        SET_VAL_FLAG(value, TYPESET_FLAG_LOOKBACK);
 
     // Add an unset value to var list
     //
@@ -249,6 +280,17 @@ REBVAL *Append_Context(REBCTX *context, REBVAL *word, REBSYM sym)
         assert(sym != SYM_0);
 
     return value; // The variable value location for the key we just added.
+}
+
+
+//
+//  Append_Context: C
+//
+// Most common appending is not concerned with lookahead bit (e.g. whether the
+// key is infix).  Generally only an issue when copying.
+//
+REBVAL *Append_Context(REBCTX *context, REBVAL *word, REBSYM sym) {
+    return Append_Context_Core(context, word, sym, FALSE);
 }
 
 
@@ -1237,7 +1279,20 @@ void Resolve_Context(
                 && (all || IS_VOID(var))
             ) {
                 if (m < 0) SET_VOID(var); // no value in source context
-                else *var = *CTX_VAR(source, m);
+                else {
+                    *var = *CTX_VAR(source, m);
+
+                    // Need to also copy if the binding is lookahead (e.g.
+                    // would be an infix call).
+                    //
+                    if (GET_VAL_FLAG(
+                        CTX_KEY(source, m), TYPESET_FLAG_LOOKBACK
+                    )) {
+                        SET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK);
+                    }
+                    else
+                        CLEAR_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK);
+                }
             }
         }
     }
@@ -1249,7 +1304,12 @@ void Resolve_Context(
             if (binds[VAL_TYPESET_CANON(key)]) {
                 // Note: no protect check is needed here
                 binds[VAL_TYPESET_CANON(key)] = 0;
-                var = Append_Context(target, 0, VAL_TYPESET_CANON(key));
+                var = Append_Context_Core(
+                    target,
+                    0,
+                    VAL_TYPESET_CANON(key),
+                    GET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK)
+                );
                 *var = *CTX_VAR(source, n);
             }
         }

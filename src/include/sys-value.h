@@ -1727,7 +1727,10 @@ enum {
     //
     TYPESET_FLAG_VARIADIC = (1 << (TYPE_SPECIFIC_BIT + 7)) | TYPESET_FLAG_X,
 
-    // WARNING: + 7 is max type-specific bit!
+    // !!! In R3-Alpha, there were only 8 type-specific bits...with the
+    // remaining bits "reserved for future use".  This goes over the line
+    // with a 9th type-specific bit, which may or may not need review.
+    // It could just be that more type-specific bits is the future use.
 
     // Endability is distinct from optional, and it means that a parameter is
     // willing to accept being at the end of the input.  This means either
@@ -1735,7 +1738,13 @@ enum {
     // ordinary argument hit the end (e.g. the trick used for `>> help` when
     // the arity is 1 usually as `>> help foo`)
     //
-    TYPESET_FLAG_ENDABLE = (1 << (TYPE_SPECIFIC_BIT + 8)) | TYPESET_FLAG_X
+    TYPESET_FLAG_ENDABLE = (1 << (TYPE_SPECIFIC_BIT + 8)) | TYPESET_FLAG_X,
+
+    // For performance, a cached PROTECTED_OR_LOOKAHEAD or'd flag could make
+    // it so that each SET doesn't have to clear out the flag.  See
+    // notes on that in variable setting.
+    //
+    TYPESET_FLAG_LOOKBACK = (1 << (TYPE_SPECIFIC_BIT + 9)) | TYPESET_FLAG_X
 };
 
 struct Reb_Typeset {
@@ -1994,20 +2003,16 @@ enum Reb_Func_Class {
 #endif
 
 enum {
-    // called with "infix" protocol.  Start at bit 3 to skip FUNC_CLASS bits
-    //
-    FUNC_FLAG_INFIX = (1 << (TYPE_SPECIFIC_BIT + 3)) | FUNC_FLAG_X,
-
     // function "fakes" a definitionally scoped return (or a "LEAVE"...which
     // word is determined by the symbol of the *last* parameter)
     //
-    FUNC_FLAG_LEAVE_OR_RETURN = (1 << (TYPE_SPECIFIC_BIT + 4)) | FUNC_FLAG_X,
+    FUNC_FLAG_LEAVE_OR_RETURN = (1 << (TYPE_SPECIFIC_BIT + 3)) | FUNC_FLAG_X,
 
 #if !defined(NDEBUG)
     //
     // TRUE-valued refinements, NONE! for unused args
     //
-    FUNC_FLAG_LEGACY = (1 << (TYPE_SPECIFIC_BIT + 5)) | FUNC_FLAG_X,
+    FUNC_FLAG_LEGACY = (1 << (TYPE_SPECIFIC_BIT + 4)) | FUNC_FLAG_X,
 #endif
 
     FUNC_FLAG_NO_COMMA // needed for proper comma termination of this list

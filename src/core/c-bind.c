@@ -36,18 +36,19 @@
 
 
 //
-//  Get_Var_Core: C
+//  Get_Var_Core // temp export in sys-core.h, so not marked as ": C"
 //
 // Get the word--variable--value. (Generally, use the macros like
 // GET_VAR or GET_MUTABLE_VAR instead of this).  This routine is
 // called quite a lot and so attention to performance is important.
 //
-// If `trap` is TRUE, return NULL instead of raising errors on unbounds.
+// Coded assuming most common case is to give an error on unbounds, and
+// that only read access is requested (so no checking on protection)
 //
-// Coded assuming most common case is trap=FALSE and writable=FALSE
-//
-REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
+REBVAL *Get_Var_Core(REBOOL *lookback, const REBVAL *any_word, REBFLGS flags)
 {
+    assert(ANY_WORD(any_word));
+
     if (GET_VAL_FLAG(any_word, VALUE_FLAG_RELATIVE)) {
         //
         // RELATIVE CONTEXT: Word is stack-relative bound to a function with
@@ -69,30 +70,46 @@ REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
         REBCNT index = VAL_WORD_INDEX(any_word);
         REBVAL *value;
 
-        struct Reb_Frame *frame
-            = Frame_For_Relative_Word(any_word, trap);
+        struct Reb_Frame *frame =
+            Frame_For_Relative_Word(
+                any_word, LOGICAL(flags & GETVAR_UNBOUND_OK)
+            );
 
         assert(GET_VAL_FLAG(any_word, WORD_FLAG_BOUND)); // should be set too
 
         if (!frame) {
-            assert(trap);
+            assert(flags & GETVAR_UNBOUND_OK);
             return NULL;
         }
 
-        if (
-            writable &&
-            GET_VAL_FLAG(
-                FUNC_PARAM(FRM_FUNC(frame), index),
-                TYPESET_FLAG_LOCKED
-            )
-        ) {
-            if (trap) return NULL;
+        REBVAL *key = FUNC_PARAM(FRM_FUNC(frame), index);
 
-            fail (Error(RE_LOCKED_WORD, any_word));
+        if (flags & GETVAR_IS_SETVAR) {
+            if (GET_VAL_FLAG(key, TYPESET_FLAG_LOCKED))
+                fail (Error(RE_LOCKED_WORD, any_word));
+
+            if (*lookback != GET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK)) {
+                //
+                // Because infixness is no longer a property of values but of
+                // the key in a binding, this creates a problem if you want a
+                // local in a function to serve as infix...because the effect
+                // would be felt by all instances of that function.  One
+                // recursion should not be able to affect another in that way,
+                // so it is prohibited.
+                //
+                // !!! This problem already prohibits a PROTECT of function
+                // words, so if a solution were engineered for one it would
+                // likely be able to apply to both.
+
+                fail (Error(RE_MISC));
+            }
         }
 
         value = FRM_ARG(frame, index);
         assert(!THROWN(value));
+
+        assert(NOT(GET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK)));
+        *lookback = FALSE;
         return value;
     }
     else if (GET_VAL_FLAG(any_word, WORD_FLAG_BOUND)) {
@@ -127,28 +144,54 @@ REBVAL *Get_Var_Core(const REBVAL *any_word, REBOOL trap, REBOOL writable)
             // In the meantime, report the same error as a function which
             // is no longer on the stack.
 
-            if (trap) return NULL;
+            if (flags & GETVAR_UNBOUND_OK) return NULL;
 
             fail (Error(RE_NO_RELATIVE, any_word));
         }
 
-        if (
-            writable &&
-            GET_VAL_FLAG(CTX_KEY(context, index), TYPESET_FLAG_LOCKED)
-        ) {
-            if (trap) return NULL;
-
-            fail (Error(RE_LOCKED_WORD, any_word));
-        }
+        REBVAL *key = CTX_KEY(context, index);
 
         value = CTX_VAR(context, index);
         assert(!THROWN(value));
+
+        if (NOT(flags & GETVAR_IS_SETVAR)) {
+            *lookback = GET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK);
+            return value;
+        }
+
+        if (GET_VAL_FLAG(key, TYPESET_FLAG_LOCKED))
+            fail (Error(RE_LOCKED_WORD, any_word));
+
+        // If we are writing, then we write the state of the lookback boolean
+        // but also return what it was before.
+
+        if (*lookback != GET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK)) {
+            //
+            // Make sure if this context shares a keylist that we aren't
+            // setting the other object's lookback states.  Current price paid
+            // is making an independent keylist (same issue as adding a key)
+            //
+            if (Ensure_Keylist_Unique_Invalidated(context))
+                key = CTX_KEY(context, index); // refresh
+
+            if (*lookback)
+                SET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK);
+            else
+                CLEAR_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK);
+
+            *lookback = NOT(*lookback); // *effectively* return the *old* state
+        }
+        else {
+            // We didn't have to change the lookback, so it must have matched
+            // what was passed in...leave it alone.
+        }
+
         return value;
     }
 
     // If none of the above cases matched, then it's not bound at all.
 
-    if (trap) return NULL;
+    if (flags & GETVAR_UNBOUND_OK) return NULL;
 
     fail (Error(RE_NOT_BOUND, any_word));
 }

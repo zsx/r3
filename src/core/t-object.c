@@ -183,7 +183,12 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
     Expand_Context(context, ARR_LEN(BUF_COLLECT) - len);
     for (key = ARR_AT(BUF_COLLECT, len); NOT_END(key); key++) {
         assert(IS_TYPESET(key));
-        Append_Context(context, NULL, VAL_TYPESET_SYM(key));
+        Append_Context_Core(
+            context,
+            NULL,
+            VAL_TYPESET_SYM(key),
+            GET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK) // !!! needed?  others?
+        );
     }
 
     // Set new values to obj words

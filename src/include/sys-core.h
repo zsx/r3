@@ -594,17 +594,50 @@ enum Reb_Vararg_Op {
 // returning NULL.
 //
 
-#define GET_OPT_VAR_MAY_FAIL(w) \
-    c_cast(const REBVAL*, Get_Var_Core((w), FALSE, FALSE))
+enum {
+    GETVAR_READ_ONLY = 0,
+    GETVAR_UNBOUND_OK = 1 << 0,
+    GETVAR_IS_SETVAR = 1 << 1, // will clear infix bit, so "always writes"!
+};
 
-#define TRY_GET_OPT_VAR(w) \
-    c_cast(const REBVAL*, Get_Var_Core((w), TRUE, FALSE))
+// !!! The files have not been sorted out in this commit properly to
+// have the externs set up for inline functions...this will not be necessary
+// once that is committed (it's in the specific binding branch).
+//
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern REBVAL *Get_Var_Core(
+    REBOOL *lookback,
+    const REBVAL *any_word,
+    REBFLGS flags
+);
+#ifdef __cplusplus
+}
+#endif
 
-#define GET_MUTABLE_VAR_MAY_FAIL(w) \
-    (Get_Var_Core((w), FALSE, TRUE))
+static inline const REBVAL *GET_OPT_VAR_MAY_FAIL(const REBVAL *any_word) {
+    REBOOL dummy;
+    return Get_Var_Core(&dummy, any_word, 0);
+}
 
-#define TRY_GET_MUTABLE_VAR(w) \
-    (Get_Var_Core((w), TRUE, TRUE))
+static inline const REBVAL *TRY_GET_OPT_VAR(const REBVAL *any_word) {
+    REBOOL dummy;
+    return Get_Var_Core(&dummy, any_word, GETVAR_UNBOUND_OK);
+}
+
+static inline REBVAL *GET_MUTABLE_VAR_MAY_FAIL(const REBVAL *any_word) {
+    REBOOL lookback = FALSE; // resets infix/postfix/etc. flag
+    return Get_Var_Core(&lookback, any_word, GETVAR_IS_SETVAR);
+}
+
+static inline REBVAL *TRY_GET_MUTABLE_VAR(const REBVAL *any_word) {
+    REBOOL lookback = FALSE; // resets infix/postfix/etc. flag
+    return Get_Var_Core(
+        &lookback, any_word, GETVAR_IS_SETVAR | GETVAR_UNBOUND_OK
+    );
+}
+
 
 
 /***********************************************************************

@@ -52,14 +52,6 @@ REBOL [
 r3-legacy-mode: off
 
 
-op?: func [
-    "Returns TRUE if the argument is an ANY-FUNCTION? and INFIX?"
-    value [<opt> any-value!]
-][
-    either function? :value [:infix? :value] false
-]
-
-
 ; GROUP! is a better name than PAREN! for many reasons.  It's a complete word,
 ; it's no more characters, it doesn't have the same first two letters as
 ; PATH! so it mentally and typographically hashes better from one of the two
@@ -352,6 +344,8 @@ set: func [
         "Value is optional, and if no value is provided then unset the word"
     /pad
         {For objects, set remaining words to NONE if block is too short}
+    /infix
+        {If value is a function, then make the bound word dispatch infix}
     /any
         "Deprecated legacy synonym for /opt"
 ][
@@ -361,7 +355,7 @@ set: func [
             opt 'opt ;-- Note: refinement, not native OPT
             'default none
         ]
-    )/:pad target :value
+    )/:pad/:infix target :value
 ]
 
 
@@ -671,6 +665,17 @@ set 'r3-legacy* func [] [
 
         ; Not contentious, but trying to excise this ASAP
         funct: (:function)
+
+        ; There are no separate function types for infix in Ren-C.  SET/INFIX
+        ; makes that particular binding act infix, but if the function is
+        ; dealt with as a function value it will not be infix.
+        ;
+        op?: (func [
+            "Always returns FALSE (lookback? test can only be run on WORD!s)"
+            value [<opt> any-value!]
+        ][
+            false
+        ])
 
         ; R3-Alpha and Rebol2's DO was effectively variadic.  If you gave it
         ; a function, it could "reach out" to grab arguments from after the

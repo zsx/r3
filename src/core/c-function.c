@@ -686,14 +686,6 @@ void Make_Function(
                     /*Remove_Series(VAL_FUNC_SPEC(out), index, 1);*/
                 }
                 else if (
-                    0 == Compare_String_Vals(item, ROOT_INFIX_TAG, TRUE)
-                ) {
-                    // The <infix> option may or may not stick around.  How
-                    // infix functions dispatch is in flux.
-                    //
-                    SET_VAL_FLAG(out, FUNC_FLAG_INFIX);
-                }
-                else if (
                     0 == Compare_String_Vals(item, ROOT_LOCAL_TAG, TRUE)
                 ) {
                     // While using x: and y: for pure locals is one option,
@@ -1661,42 +1653,6 @@ REBNATIVE(apply)
 }
 
 
-//
-//  to-infix: native [
-//
-//  {Copy a FUNCTION! value so that it dispatches as infix from word lookup.}
-//
-//      value [function!]
-//  ]
-//
-REBNATIVE(to_infix)
-{
-    PARAM(1, value);
-
-    *D_OUT = *ARG(value);
-    SET_VAL_FLAG(D_OUT, FUNC_FLAG_INFIX);
-    return R_OUT;
-}
-
-
-//
-//  to-prefix: native [
-//
-//  {Copy a FUNCTION! value so that it dispatches as prefix from word lookup.}
-//
-//      value [function!]
-//  ]
-//
-REBNATIVE(to_prefix)
-{
-    PARAM(1, value);
-
-    *D_OUT = *ARG(value);
-    CLEAR_VAL_FLAG(D_OUT, FUNC_FLAG_INFIX);
-    return R_OUT;
-}
-
-
 #if !defined(NDEBUG)
 
 //
@@ -1800,14 +1756,6 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
         | VALUE_FLAG_THROWN
     );
 
-    // Additionally, FUNC_FLAG_INFIX is allowed to be different from the
-    // canon value.  This is because the infixed-ness or not of a function
-    // is carried by the value not by the function.
-    //
-    func_header.bits |= FUNC_FLAG_INFIX;
-    v_header.bits |= FUNC_FLAG_INFIX;
-
-
     if (v_header.bits != func_header.bits) {
         //
         // If this happens, these help with debugging if stopped at breakpoint.
@@ -1817,10 +1765,6 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
             = GET_VAL_FLAG(v, FUNC_FLAG_LEAVE_OR_RETURN);
         REBOOL has_return_func
             = GET_VAL_FLAG(func_value, FUNC_FLAG_LEAVE_OR_RETURN);
-        REBOOL infix_value
-            = GET_VAL_FLAG(v, FUNC_FLAG_INFIX);
-        REBOOL infix_func
-            = GET_VAL_FLAG(func_value, FUNC_FLAG_INFIX);
 
         Debug_Fmt("Mismatch header bits found in FUNC_VALUE from payload");
         Debug_Array(v->payload.function.spec);

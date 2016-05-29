@@ -74,6 +74,81 @@ function: func [
     func spec body
 ]
 
+
+; To help for discoverability, there is SET-INFIX and INFIX?.  However, the
+; term can be a misnomer if the function is more advanced, and using the
+; "lookback" capabilities in another way.  Hence these return descriptive
+; errors when people are "outside the bounds" of assurance RE:infixedness.
+
+arity-of: function [
+    value [any-word! any-path! function!]
+][
+    unless function? :value [
+        value: get value
+        unless function? :value [return 0]
+    ]
+
+    if variadic? :value [
+        fail "arity-of cannot give reliable answer for variadic functions"
+    ]
+
+    ; !!! Should willingness to take endability cause a similar error?
+    ; Arguably the answer tells you an arity that at least it *will* accept,
+    ; so it's not completely false.
+
+    arity: 0
+    active: true
+    for-each param reflect :value 'words [
+        if active [arity: arity + 1]
+        if refinement? :param [
+            unless function? :value [return arity]
+            active: find value to-word param
+            continue
+        ]
+    ]
+    arity
+]
+
+nfix?: function [
+    n [integer!]
+    name [string!]
+    source [any-word! any-path!]
+][
+    case [
+        not lookback? source [false]
+        equal? n arity: arity-of source [true]
+        all [equal? n 1 | equal? arity 2] [
+            false ; PREFIX? callers know INFIX? exists
+        ]
+        'default [
+            fail [
+                name "used on lookback function with arity" arity
+                | "Use LOOKBACK? for generalized (tricky) testing"
+            ]
+        ]
+    ]
+]
+
+postfix?: specialize :nfix? [n: 1 | name: "POSTFIX?"]
+infix?: specialize :nfix? [n: 2 | name: "INFIX?"]
+
+
+set-nfix: function [
+    n [integer!]
+    name [string!]
+    target [any-word! any-path!]
+    value [function!]
+][
+    unless equal? n arity-of :value [
+        fail [name "requires arity" n "functions, see SET/LOOKAHEAD"]
+    ]
+    set/lookback target :value
+]
+
+set-postfix: specialize :set-nfix [n: 1 | name: "SET-POSTFIX?"]
+set-infix: specialize :set-nfix [n: 2 | name: "SET-INFIX?"]
+
+
 lambda: function [
     {Convenience variadic wrapper for FUNCTION constructors}
     args [<end> word! block!]
@@ -93,23 +168,6 @@ lambda: function [
         'default [make block! body]
     ]
 ]
-
-; So long as the code wants to stay buildable with R3-Alpha, the mezzanine
-; cannot use -> or <-, nor even mention them as words.  So this hack is likely
-; to be around for quite a long time.  FIRST, LOAD, INTERN etc. are not
-; in the definition order at this point...so PICK MAKE BLOCK! is used.
-;
-right-arrow: bind (pick make block! "->" 1) context-of 'lambda
-left-arrow: bind (pick make block! "<-" 1) context-of 'lambda
-
-; !!! TO-INFIX as a function value modifier is marked for death; this will
-; use SET-INFIX once it exists.
-;
-set right-arrow to-infix :lambda
-set left-arrow to-infix (specialize :lambda [only: true])
-
-right-arrow: left-arrow: ()
-
 
 use: func [
     {Defines words local to a block.}
