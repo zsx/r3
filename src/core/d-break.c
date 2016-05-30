@@ -77,7 +77,6 @@ REBOOL Do_Breakpoint_Throws(
     REBVAL *target = BLANK_VALUE;
 
     REBVAL temp;
-    VAL_INIT_WRITABLE_DEBUG(&temp);
 
     if (!PG_Breakpoint_Quitting_Hook) {
         //
@@ -113,8 +112,6 @@ REBOOL Do_Breakpoint_Throws(
         if (error) {
         #if !defined(NDEBUG)
             REBVAL error_value;
-            VAL_INIT_WRITABLE_DEBUG(&error_value);
-
             Val_Init_Error(&error_value, error);
             PROBE_MSG(&error_value, "Error not trapped during breakpoint:");
             Panic_Array(CTX_VARLIST(error));
@@ -407,7 +404,6 @@ REBNATIVE(resume)
     struct Reb_Frame *frame;
 
     REBVAL cell;
-    VAL_INIT_WRITABLE_DEBUG(&cell);
 
     if (REF(with) && REF(do)) {
         //

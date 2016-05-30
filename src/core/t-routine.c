@@ -1215,7 +1215,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Func_Class fclass)
     // reserve for returning struct
     temp = Alloc_Tail_Array(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
 
-    // !!! should this be VAL_INIT_WRITABLE_DEBUG(), e.g. write-only location?
+    // !!! should this be INIT_CELL_WRITABLE_IF_DEBUG(), e.g. write-only location?
     //
     SET_BLANK(temp);
 

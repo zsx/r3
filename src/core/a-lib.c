@@ -246,7 +246,7 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
     }
 
     if (Apply_Only_Throws(
-        &result, Sys_Func(SYS_CTX_FINISH_RL_START), END_VALUE
+        &result, Sys_Func(SYS_CTX_FINISH_RL_START), END_CELL
     )) {
         #if !defined(NDEBUG)
             if (LEGACY(OPTIONS_EXIT_FUNCTIONS_ONLY))

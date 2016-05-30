@@ -369,7 +369,7 @@ REBVAL *Sys_Func(REBCNT inum)
 //
 //  Apply_Only_Throws: C
 //
-// Takes a list of arguments terminated by END_VALUE (or any IS_END) and
+// Takes a list of arguments terminated by END_CELL (or any IS_END) and
 // will do something similar to R3-Alpha's "apply/only" with a value.  If
 // that value is a function, it will be called...if it is a SET-WORD! it
 // will be assigned, etc.

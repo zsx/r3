@@ -197,7 +197,12 @@ value_ready_for_do_next:
     // also need to reset evaluation to normal vs. a kind of "inline quoting"
     // in case EVAL/ONLY had enabled that.
     //
-    SET_TRASH_IF_DEBUG(&(f->cell.eval)); // in union, always reinit
+    // Note that since the cell lives in a union, it cannot have a constructor
+    // so the automatic mark of writable that most REBVALs get could not
+    // be used.  Since it's a raw RELVAL, we have to explicitly mark writable.
+    //
+    INIT_CELL_WRITABLE_IF_DEBUG(&(f->cell.eval));
+    SET_TRASH_IF_DEBUG(&(f->cell.eval));
 
     f->args_evaluate = NOT(f->flags & DO_FLAG_NO_ARGS_EVALUATE);
 
@@ -682,6 +687,12 @@ reevaluate:
             // normal evaluation but it does not apply to the value being
             // retriggered itself, just any arguments it consumes.)
             //
+            // Though the debug build does a writability init earlier in
+            // the routine, the eval's cell bits live in a union that can
+            // wind up getting used for other purposes.  Hence the writability
+            // must be re-indicated here before the slot is used.
+            //
+            INIT_CELL_WRITABLE_IF_DEBUG(&f->cell.eval);
             DO_NEXT_REFETCH_MAY_THROW(&f->cell.eval, f, f->lookahead_flags);
 
             if (f->indexor == THROWN_FLAG)
@@ -718,9 +729,9 @@ reevaluate:
             if (f->value)
                 f->eval_fetched = f->value;
             else
-                f->eval_fetched = END_VALUE; // NULL means no eval_fetched :-/
+                f->eval_fetched = END_CELL; // NULL means no eval_fetched :-/
 
-            f->value = &f->cell.eval;
+            f->value = const_KNOWN(&f->cell.eval);
             CLEAR_FRAME_SYM(f);
             goto reevaluate; // we don't move index!
         }

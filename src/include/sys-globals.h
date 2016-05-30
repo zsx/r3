@@ -75,17 +75,18 @@ PVAR REB_OPTS *Reb_Opts;
     PVAR REBOOL PG_Always_Malloc;   // For memory-related troubleshooting
 #endif
 
-// These are some canon VOID, NONE, TRUE, and FALSE values.  They are here
-// in two-element arrays in order that those using them don't accidentally
+// These are some canon BLANK, TRUE, and FALSE values (and void/end cells).
+// In two-element arrays in order that those using them don't accidentally
 // pass them to routines that will increment the pointer as if they are
 // arrays--they are singular values, and the second element is set to
 // be trash to trap any unwanted access.
 //
-PVAR struct Reb_Value PG_Void_Cell[2];
-PVAR struct Reb_Value PG_Blank_Value[2];
-PVAR struct Reb_Value PG_False_Value[2];
-PVAR struct Reb_Value PG_True_Value[2];
-PVAR struct Reb_Value PG_End_Val;
+PVAR REBVAL PG_End_Cell;
+PVAR REBVAL PG_Void_Cell[2];
+
+PVAR REBVAL PG_Blank_Value[2];
+PVAR REBVAL PG_False_Value[2];
+PVAR REBVAL PG_True_Value[2];
 
 // This signal word should be thread-local, but it will not work
 // when implemented that way. Needs research!!!!

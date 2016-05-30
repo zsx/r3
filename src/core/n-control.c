@@ -771,7 +771,7 @@ was_caught:
                 // If the handler is zero arity or takes a first parameter
                 // that is a refinement, call it with no arguments
                 //
-                if (Apply_Only_Throws(D_OUT, handler, END_VALUE))
+                if (Apply_Only_Throws(D_OUT, handler, END_CELL))
                     return R_OUT_IS_THROWN;
             }
             else if (
@@ -782,7 +782,7 @@ was_caught:
                 // parameter), or a greater arity with a second parameter that
                 // is a refinement...call it with *just* the thrown value.
                 //
-                if (Apply_Only_Throws(D_OUT, handler, thrown_arg, END_VALUE))
+                if (Apply_Only_Throws(D_OUT, handler, thrown_arg, END_CELL))
                     return R_OUT_IS_THROWN;
             }
             else {
@@ -791,7 +791,7 @@ was_caught:
                 // checking that the arguments are legal for the call.
                 //
                 if (Apply_Only_Throws(
-                    D_OUT, handler, thrown_arg, thrown_name, END_VALUE
+                    D_OUT, handler, thrown_arg, thrown_name, END_CELL
                 )) {
                     return R_OUT_IS_THROWN;
                 }
@@ -1005,7 +1005,7 @@ REBNATIVE(do)
             value,
             REF(args) ? ARG(arg) : VOID_CELL,
             REF(next) ? ARG(var) : VOID_CELL,
-            END_VALUE
+            END_CELL
         )) {
             return R_OUT_IS_THROWN;
         }
@@ -1658,7 +1658,7 @@ REBNATIVE(trap)
                     // Arity zero handlers (or handlers whose first
                     // parameter is a refinement) we call without the ERROR!
                     //
-                    if (Apply_Only_Throws(D_OUT, handler, END_VALUE))
+                    if (Apply_Only_Throws(D_OUT, handler, END_CELL))
                         return R_OUT_IS_THROWN;
                 }
                 else {
@@ -1669,7 +1669,7 @@ REBNATIVE(trap)
                     // isn't a refinement, try passing it the ERROR! we
                     // trapped.  Apply will do argument checking.
                     //
-                    if (Apply_Only_Throws(D_OUT, handler, &arg, END_VALUE))
+                    if (Apply_Only_Throws(D_OUT, handler, &arg, END_CELL))
                         return R_OUT_IS_THROWN;
                 }
 

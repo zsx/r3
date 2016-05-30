@@ -772,7 +772,7 @@ static REBOOL Series_Data_Alloc(
         // caller to manage...they do not know about the ->rest
         //
         for (n = 0; n < length; n++)
-            VAL_INIT_WRITABLE_DEBUG(ARR_AT(AS_ARRAY(s), n));
+            INIT_CELL_WRITABLE_IF_DEBUG(ARR_AT(AS_ARRAY(s), n));
 
         // !!! We should intentionally mark the overage range as being a
         // kind of trash that is both not an end *and* not possible to set.
@@ -784,7 +784,7 @@ static REBOOL Series_Data_Alloc(
         // bias or tail capacity.
         //
         for(; n < s->content.dynamic.rest; n++) {
-            VAL_INIT_WRITABLE_DEBUG(ARR_AT(AS_ARRAY(s), n));
+            INIT_CELL_WRITABLE_IF_DEBUG(ARR_AT(AS_ARRAY(s), n));
           /*SET_VAL_FLAG(ARR_AT(AS_ARRAY(series), n), VALUE_FLAG_READ_ONLY);*/
         }
     }
@@ -976,7 +976,7 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
         //
         SER_SET_WIDE(s, wide);
         assert(!GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC));
-        VAL_INIT_WRITABLE_DEBUG(&s->content.values[0]);
+        INIT_CELL_WRITABLE_IF_DEBUG(&s->content.values[0]);
     }
     else {
         // Allocate the actual data blob that holds the series elements
@@ -1022,10 +1022,11 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
 
     CHECK_MEMORY(2);
 
-    assert(
-        NOT(s->info.bits & NOT_END_MASK)
-        && NOT(s->info.bits & WRITABLE_MASK_DEBUG)
-    );
+    assert(NOT(s->info.bits & NOT_END_MASK));
+
+#ifdef __cplusplus
+    assert(NOT(s->info.bits & WRITABLE_MASK_DEBUG));
+#endif
 
     return s;
 }
@@ -1180,7 +1181,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
             // but when it is this will be useful.
             //
             for (index = 0; index < delta; index++)
-                VAL_INIT_WRITABLE_DEBUG(ARR_AT(AS_ARRAY(series), index));
+                INIT_CELL_WRITABLE_IF_DEBUG(ARR_AT(AS_ARRAY(series), index));
         }
     #endif
         return;
@@ -1236,7 +1237,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
             //
             while (delta != 0) {
                 --delta;
-                VAL_INIT_WRITABLE_DEBUG(
+                INIT_CELL_WRITABLE_IF_DEBUG(
                     ARR_AT(AS_ARRAY(series), index + delta)
                 );
             }

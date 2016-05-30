@@ -444,7 +444,7 @@ static int Compare_Call(void *thunk, const void *v1, const void *v2)
         sort_flags.compare,
         v1,
         v2,
-        END_VALUE
+        END_CELL
     )) {
         fail (Error_No_Catch_For_Throw(&result));
     }

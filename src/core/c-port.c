@@ -44,7 +44,7 @@
 void Make_Port(REBVAL *out, const REBVAL *spec)
 {
     if (Apply_Only_Throws(
-        out, Sys_Func(SYS_CTX_MAKE_PORT_P), spec, END_VALUE
+        out, Sys_Func(SYS_CTX_MAKE_PORT_P), spec, END_CELL
     )) {
         // Gave back an unhandled RETURN, BREAK, CONTINUE, etc...
         fail (Error_No_Catch_For_Throw(out));
@@ -197,7 +197,7 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
         only ? &awake_only : awake,
         port,
         &tmp,
-        END_VALUE
+        END_CELL
     )) {
         fail (Error_No_Catch_For_Throw(&result));
     }

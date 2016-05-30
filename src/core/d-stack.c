@@ -454,7 +454,6 @@ REBNATIVE(backtrace)
         if (!pending) {
             REBCNT temp_num;
             REBVAL temp_val;
-            VAL_INIT_WRITABLE_DEBUG(&temp_val);
             SET_INTEGER(&temp_val, number);
 
             if (

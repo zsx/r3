@@ -38,9 +38,24 @@
 // Because the Reb_Series structure includes a Reb_Value by value, it
 // must be included *after* %sys-value.h
 //
+// !!! Note that the RELVAL and REBVAL distinction only applies after
+// merging the specific-binding branch.  However, pre-specific-binding the
+// fact that RELVAL is a base class of REBVAL in C++ that doesn't default
+// construct is relevant to the Assert_Cell_Writable checks.
+//
 #ifdef REB_DEF
     struct Reb_Value; // A Rebol value cell
-    #define REBVAL struct Reb_Value
+     #define RELVAL struct Reb_Value // maybe IS_RELATIVE()
+
+    // !!! Specific Values are from the specific binding branch, but included
+    // here in order to get the automatic C++ writability check (without
+    // having to format every cell that gets created)
+    //
+    #ifdef __cplusplus
+        #define REBVAL struct Reb_Specific_Value // guaranteed IS_SPECIFIC()
+    #else
+        #define REBVAL struct Reb_Value // guaranteed IS_SPECIFIC(), unchecked
+    #endif
 
     struct Reb_Series; // Rebol series node
     typedef struct Reb_Series REBSER;

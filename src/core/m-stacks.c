@@ -74,7 +74,7 @@ void Init_Stacks(REBCNT size)
         SET_TRASH_SAFE(ARR_HEAD(DS_Array));
 
     #if !defined(NDEBUG)
-        MARK_CELL_UNWRITABLE_DEBUG(ARR_HEAD(DS_Array));
+        MARK_CELL_UNWRITABLE_IF_DEBUG(ARR_HEAD(DS_Array));
     #endif
 
         // The END marker will signal DS_PUSH that it has run out of space,
@@ -370,7 +370,7 @@ REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values, REBARR *opt_holder) {
     {
         REBCNT index;
         for (index = 0; index < num_values; index++)
-            VAL_INIT_WRITABLE_DEBUG(&chunk->values[index]);
+            INIT_CELL_WRITABLE_IF_DEBUG(&chunk->values[index]);
     }
 #endif
 

@@ -969,7 +969,7 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
     #else
         // Will get here even for a parameterless string due to throwing in
         // the extra "arguments" of the __FILE__ and __LINE__
-        temp = IS_STRING(message) ? END_VALUE : VAL_ARRAY_HEAD(message);
+        temp = IS_STRING(message) ? END_CELL : VAL_ARRAY_HEAD(message);
     #endif
 
         while (NOT_END(temp)) {
@@ -979,7 +979,7 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
                 // NULL is 0 in C, and so passing NULL to a va_arg list and
                 // reading it as a pointer is not legal (because it will just
                 // be an integer).  One would have to use `(REBVAL*)NULL`, so
-                // END_VALUE is used instead (consistent w/variadic Do_XXX)
+                // END_CELL is used instead (consistent w/variadic Do_XXX)
                 //
                 assert(arg != NULL);
 
@@ -1218,7 +1218,7 @@ REBCTX *Error_Bad_Func_Def(const REBVAL *spec, const REBVAL *body)
     Append_Value(array, spec);
     Append_Value(array, body);
     Val_Init_Block(&def, array);
-    return Error(RE_BAD_FUNC_DEF, &def, END_VALUE);
+    return Error(RE_BAD_FUNC_DEF, &def, END_CELL);
 }
 
 
@@ -1239,7 +1239,7 @@ REBCTX *Error_No_Arg(REBCNT label_sym, const REBVAL *key)
         RE_NO_ARG,
         &label,
         &key_word,
-        END_VALUE
+        END_CELL
     );
 }
 
@@ -1252,7 +1252,7 @@ REBCTX *Error_Invalid_Datatype(REBCNT id)
     REBVAL id_value;
 
     SET_INTEGER(&id_value, id);
-    return Error(RE_INVALID_DATATYPE, &id_value, END_VALUE);
+    return Error(RE_INVALID_DATATYPE, &id_value, END_CELL);
 }
 
 
@@ -1264,7 +1264,7 @@ REBCTX *Error_No_Memory(REBCNT bytes)
     REBVAL bytes_value;
 
     SET_INTEGER(&bytes_value, bytes);
-    return Error(RE_NO_MEMORY, &bytes_value, END_VALUE);
+    return Error(RE_NO_MEMORY, &bytes_value, END_CELL);
 }
 
 
@@ -1279,7 +1279,7 @@ REBCTX *Error_No_Memory(REBCNT bytes)
 REBCTX *Error_Invalid_Arg(const REBVAL *value)
 {
     assert(NOT_END(value)); // can't use with END markers
-    return Error(RE_INVALID_ARG, value, END_VALUE);
+    return Error(RE_INVALID_ARG, value, END_CELL);
 }
 
 
@@ -1294,9 +1294,9 @@ REBCTX *Error_No_Catch_For_Throw(REBVAL *thrown)
     CATCH_THROWN(&arg, thrown); // clears bit
 
     if (IS_BLANK(thrown))
-        return Error(RE_NO_CATCH, &arg, END_VALUE);
+        return Error(RE_NO_CATCH, &arg, END_CELL);
 
-    return Error(RE_NO_CATCH_NAMED, &arg, thrown, END_VALUE);
+    return Error(RE_NO_CATCH_NAMED, &arg, thrown, END_CELL);
 }
 
 
@@ -1307,7 +1307,7 @@ REBCTX *Error_No_Catch_For_Throw(REBVAL *thrown)
 //
 REBCTX *Error_Has_Bad_Type(const REBVAL *value)
 {
-    return Error(RE_INVALID_TYPE, Type_Of(value), END_VALUE);
+    return Error(RE_INVALID_TYPE, Type_Of(value), END_CELL);
 }
 
 
@@ -1318,7 +1318,7 @@ REBCTX *Error_Has_Bad_Type(const REBVAL *value)
 //
 REBCTX *Error_Out_Of_Range(const REBVAL *arg)
 {
-    return Error(RE_OUT_OF_RANGE, arg, END_VALUE);
+    return Error(RE_OUT_OF_RANGE, arg, END_CELL);
 }
 
 
@@ -1332,7 +1332,7 @@ REBCTX *Error_Protected_Key(REBVAL *key)
     REBVAL key_name;
     Val_Init_Word(&key_name, REB_WORD, VAL_TYPESET_SYM(key));
 
-    return Error(RE_LOCKED_WORD, &key_name, END_VALUE);
+    return Error(RE_LOCKED_WORD, &key_name, END_CELL);
 }
 
 
@@ -1344,7 +1344,7 @@ REBCTX *Error_Illegal_Action(enum Reb_Kind type, REBCNT action)
     REBVAL action_word;
     Val_Init_Word(&action_word, REB_WORD, Get_Action_Sym(action));
 
-    return Error(RE_CANNOT_USE, &action_word, Get_Type(type), END_VALUE);
+    return Error(RE_CANNOT_USE, &action_word, Get_Type(type), END_CELL);
 }
 
 
@@ -1356,7 +1356,7 @@ REBCTX *Error_Math_Args(enum Reb_Kind type, REBCNT action)
     REBVAL action_word;
     Val_Init_Word(&action_word, REB_WORD, Get_Action_Sym(action));
 
-    return Error(RE_NOT_RELATED, &action_word, Get_Type(type), END_VALUE);
+    return Error(RE_NOT_RELATED, &action_word, Get_Type(type), END_CELL);
 }
 
 
@@ -1372,7 +1372,7 @@ REBCTX *Error_Unexpected_Type(enum Reb_Kind expected, enum Reb_Kind actual)
         RE_EXPECT_VAL,
         Get_Type(expected),
         Get_Type(actual),
-        END_VALUE
+        END_CELL
     );
 }
 
@@ -1405,7 +1405,7 @@ REBCTX *Error_Arg_Type(
             &label_word,
             datatype,
             &param_word,
-            END_VALUE
+            END_CELL
         );
     }
 
@@ -1416,7 +1416,7 @@ REBCTX *Error_Arg_Type(
         RE_ARG_REQUIRED,
         &label_word,
         &param_word,
-        END_VALUE
+        END_CELL
     );
 }
 
@@ -1444,7 +1444,7 @@ REBCTX *Error_Local_Injection(
         RE_LOCAL_INJECTION,
         &param_word,
         &label_word,
-        END_VALUE
+        END_CELL
     );
 }
 
@@ -1454,7 +1454,7 @@ REBCTX *Error_Local_Injection(
 //
 REBCTX *Error_Bad_Make(enum Reb_Kind type, const REBVAL *spec)
 {
-    return Error(RE_BAD_MAKE_ARG, Get_Type(type), spec, END_VALUE);
+    return Error(RE_BAD_MAKE_ARG, Get_Type(type), spec, END_CELL);
 }
 
 
@@ -1463,7 +1463,7 @@ REBCTX *Error_Bad_Make(enum Reb_Kind type, const REBVAL *spec)
 //
 REBCTX *Error_Cannot_Reflect(enum Reb_Kind type, const REBVAL *arg)
 {
-    return Error(RE_CANNOT_USE, arg, Get_Type(type), END_VALUE);
+    return Error(RE_CANNOT_USE, arg, Get_Type(type), END_CELL);
 }
 
 
@@ -1482,7 +1482,7 @@ REBCTX *Error_On_Port(REBCNT errnum, REBCTX *port, REBINT err_code)
     REBVAL err_code_value;
     SET_INTEGER(&err_code_value, err_code);
 
-    return Error(errnum, val, &err_code_value, END_VALUE);
+    return Error(errnum, val, &err_code_value, END_CELL);
 }
 
 

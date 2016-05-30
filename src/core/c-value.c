@@ -36,7 +36,7 @@
 #if !defined(NDEBUG)
 
 //
-//  Panic_Value: C
+//  Panic_Value_Debug: C
 //
 // This is a debug-only "error generator", which will hunt through all the
 // series allocations and panic on the series that contains the value (if
@@ -47,11 +47,16 @@
 // it will dump out where the initialization happened if that information
 // was stored.
 //
-ATTRIBUTE_NO_RETURN void Panic_Value(const REBVAL *value)
-{
+ATTRIBUTE_NO_RETURN void Panic_Value_Debug(
+    const RELVAL *value,
+    const char *file,
+    int line
+) {
     REBSER *containing = Try_Find_Containing_Series_Debug(value);
 
-#ifdef TRACK_EMPTY_PAYLOADS
+    printf("PANIC VALUE called from %s:%d\n", file, line);
+    fflush(stdout);
+
     switch (value->header.bits & HEADER_TYPE_MASK) {
     case REB_0:
     case REB_BLANK:
@@ -59,32 +64,33 @@ ATTRIBUTE_NO_RETURN void Panic_Value(const REBVAL *value)
     case REB_BAR:
         printf(
             "REBVAL init on tick #%d at %s:%d\n",
-            value->payload.track.count,
+            cast(unsigned int, value->payload.track.count),
             value->payload.track.filename,
             value->payload.track.line
         );
+        fflush(stdout);
         break;
     }
-#endif
 
     printf("Kind=%d\n", cast(int, value->header.bits & HEADER_TYPE_MASK));
+    fflush(stdout);
 
     if (containing) {
         printf("Containing series for value pointer found, panicking it:\n");
+        fflush(stdout);
         Panic_Series(containing);
     }
 
-    printf("No containing series for value, panicking to dump stack\n");
+    printf("No containing series for value...panicking to make stack dump:\n");
     fflush(stdout);
     Panic_Array(EMPTY_ARRAY);
 }
 
 
+#if defined(__cplusplus)
+
 //
 //  Assert_Cell_Writable: C
-//
-// If this check fails, then you're either writing to memory you shouldn't,
-// or are writing to an "unformatted" stack value.
 //
 // The check helps avoid very bad catastrophies that might ensue if "implicit
 // end markers" could be overwritten.  These are the ENDs that are actually
@@ -93,9 +99,11 @@ ATTRIBUTE_NO_RETURN void Panic_Value(const REBVAL *value)
 //
 // (A fringe benefit is catching writes to other unanticipated locations.)
 //
-void Assert_Cell_Writable(const REBVAL *v, const char *file, int line)
-{
-/*
+void Assert_Cell_Writable(
+    const RELVAL *v,
+    const char *file,
+    int line
+) {
     // REBVALs should not be written at addresses that do not match the
     // alignment of the processor.  This checks modulo the size of an unsigned
     // integer the same size as a platform pointer (REBUPT => uintptr_t)
@@ -103,38 +111,73 @@ void Assert_Cell_Writable(const REBVAL *v, const char *file, int line)
     assert(cast(REBUPT, (v)) % sizeof(REBUPT) == 0);
 
     if (NOT((v)->header.bits & WRITABLE_MASK_DEBUG)) {
-        printf("Non-writable value found at %s:%d", file, line);
+        printf("Non-writable value passed to writing routine\n");
         fflush(stdout);
-        Panic_Value(v);
+        Panic_Value_Debug(v, file, line);
     }
-*/
+}
+
+#endif
+
+
+//
+//  VAL_RESET_HEADER_Debug: C
+//
+void VAL_RESET_HEADER_Debug(
+    RELVAL *v,
+    enum Reb_Kind kind,
+    const char *file,
+    int line
+) {
+    ASSERT_CELL_WRITABLE_IF_DEBUG(v, file, line);
+    VAL_RESET_HEADER_CORE(v, kind);
+    MARK_CELL_WRITABLE_IF_DEBUG(v);
+}
+
+
+
+//
+//  Sink_Debug: C
+//
+// !!! Uses proper inlines after specific-binding merge, but written this
+// way so that sinks get the right file and line information while the
+// old macros are still around.
+//
+REBVAL *Sink_Debug(RELVAL *v, const char *file, int line) {
+    //
+    // SINK claims it's okay to cast from RELVAL to REBVAL because the
+    // value is just going to be written to.  Verify that claim in the
+    // debug build by setting to trash as part of the cast.
+    //
+    VAL_RESET_HEADER((v), REB_0); /* don't set NOT_TRASH flag */
+    (v)->payload.track.filename = file;
+    (v)->payload.track.line = line;
+    (v)->payload.track.count = TG_Do_Count;
+    return cast(REBVAL*, v);
 }
 
 
 //
 //  IS_END_Debug: C
 //
-// The debug build puts REB_MAX in the type slot of a REB_END, to help to
-// distinguish it from the 0 that signifies an unset TRASH.  This means that
-// any writable value can be checked to ensure it is an actual END marker
-// and not "uninitialized".  This trick can only be used so long as REB_MAX
-// is 63 or smaller (ensured by an assertion at startup ATM.
-//
-// Note: a non-writable value (e.g. a pointer) could have any bit pattern in
-// the type slot.  So only check if it's a Rebol-initialized value slot...
-// and then, tolerate "GC safe trash" (ordinary unset in release)
-//
-REBOOL IS_END_Debug(const REBVAL *v) {
+REBOOL IS_END_Debug(const RELVAL *v, const char *file, int line) {
+#ifdef __cplusplus
     if (
-        ((v)->header.bits & WRITABLE_MASK_DEBUG)
-        && IS_TRASH_DEBUG(v)
-        && NOT(GET_VAL_FLAG((v), VOID_FLAG_SAFE_TRASH))
+        (v->header.bits & WRITABLE_MASK_DEBUG)
+        //
+        // Note: a non-writable value could have any bit pattern in the
+        // type slot, so we only check for trash in writable ones.
+        //
+        && (v->header.bits & HEADER_TYPE_MASK) == REB_0
+        && NOT(v->header.bits & VOID_FLAG_NOT_TRASH)
+        && NOT(v->header.bits & VOID_FLAG_SAFE_TRASH)
     ) {
-        Debug_Fmt("IS_END() called on value marked as a TRASH unset");
-        Panic_Value(v);
+        printf("IS_END() called on value marked as TRASH\n");
+        fflush(stdout);
+        Panic_Value_Debug(v, file, line);
     }
-
-    return LOGICAL((v)->header.bits % 2 == 0);
+#endif
+    return IS_END_MACRO(v);
 }
 
 
@@ -148,7 +191,7 @@ REBOOL IS_CONDITIONAL_FALSE_Debug(const REBVAL *v)
 {
     if (IS_END(v) || IS_VOID(v) || IS_TRASH_DEBUG(v)) {
         Debug_Fmt("Conditional true/false test on END or void or trash");
-        Panic_Value(v);
+        PANIC_VALUE(v);
     }
 
     return GET_VAL_FLAG(v, VALUE_FLAG_FALSE);
@@ -170,14 +213,14 @@ enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v, const char *file, int line)
         // happens to have its zero bit set.  Since half of all possible
         // bit patterns are even, it's more worth it than usual to point out.
         //
-        printf("END marker (or garbage) in VAL_TYPE(), %s:%d\n", file, line);
+        printf("END marker or garbage (low bit 0) in VAL_TYPE()\n");
         fflush(stdout);
-        Panic_Value(v);
+        Panic_Value_Debug(v, file, line);
     }
     if (IS_TRASH_DEBUG(v)) {
-        printf("Unexpected TRASH in VAL_TYPE(), %s:%d\n", file, line);
+        printf("Unexpected TRASH in VAL_TYPE()\n");
         fflush(stdout);
-        Panic_Value(v);
+        Panic_Value_Debug(v, file, line);
     }
     return cast(enum Reb_Kind, (v)->header.bits & HEADER_TYPE_MASK);
 }

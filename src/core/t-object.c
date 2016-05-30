@@ -422,7 +422,7 @@ REBTYPE(Context)
                 NULL, // spec
                 NULL, // body
                 // scan for toplevel set-words
-                IS_BLANK(arg) ? END_VALUE : VAL_ARRAY_AT(arg),
+                IS_BLANK(arg) ? END_CELL : VAL_ARRAY_AT(arg),
                 src_context // parent
             );
             Val_Init_Object(D_OUT, context);
@@ -486,7 +486,7 @@ REBTYPE(Context)
                 target, // type
                 NULL, // spec
                 NULL, // body
-                END_VALUE, // scan for toplevel set-words, empty
+                END_CELL, // scan for toplevel set-words, empty
                 NULL // parent
             );
 

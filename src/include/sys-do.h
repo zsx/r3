@@ -292,7 +292,7 @@ struct Reb_Frame {
     // of that same VARARGS! in other locations.  See notes in %sys-value.h
     //
     union {
-        REBVAL eval;
+        struct Reb_Value eval; // Reb_Specific_Value doesn't default construct
         REBARR *subfeed; // during VARARGS! (see also REBSER.misc.subfeed)
     } cell;
 
@@ -807,7 +807,7 @@ struct Reb_Frame {
                 } \
             } \
         } \
-        f_.out = (out_); \
+        f_.out = SINK(out_); \
         f_.source = (source_); \
         f_.value = (value_in); \
         f_.indexor = (indexor_in); \

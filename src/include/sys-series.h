@@ -466,7 +466,7 @@ struct Reb_Series {
     (GET_SER_FLAG((s), SERIES_FLAG_HAS_DYNAMIC) \
         ? ((s)->content.dynamic.len) \
         : GET_SER_FLAG((s), SERIES_FLAG_ARRAY) \
-            ? (IS_END(&(s)->content.values[0]) ? 0 : 1) \
+            ? (IS_END(cast(REBVAL*, &(s)->content.values[0])) ? 0 : 1) \
             : (s)->misc.len)
 
 #define SET_SERIES_LEN(s,l) \
@@ -1045,7 +1045,7 @@ struct Reb_Context {
 //
 #define CTX_VALUE(c) \
     (GET_CTX_FLAG((c), CONTEXT_FLAG_STACK) \
-        ? &ARR_SERIES(CTX_VARLIST(c))->content.values[0] \
+        ? cast(REBVAL*, &ARR_SERIES(CTX_VARLIST(c))->content.values[0]) \
         : ARR_HEAD(CTX_VARLIST(c)))
 
 // Navigate from context to context components.  Note that the context's

@@ -179,7 +179,28 @@ struct Reb_Value_Header {
 // double-duty as an implicit terminator for the contained values can
 // trigger an alert if the values try to overwrite it.
 //
-#ifdef NDEBUG
+#if defined(__cplusplus) && !defined(NDEBUG)
+    //
+    // We want to be assured that we are not trying to take the type of a
+    // value that is actually an END marker, because end markers chew out only
+    // one bit--the rest of the REBUPT bits besides the bottom two may be
+    // anything necessary for the purpose.
+    //
+    // Only the C++ build honors the writability mask, because REBVAL is
+    // defined to a struct with a constructor that initializes the cell.
+    // If the C build wanted to also get the debug check, every REBVAL
+    // stack initialization would have to set it explicitly:
+    //
+    //     REBVAL value;
+    //     VAL_INIT_WRITABLE_DEBUG(&value);
+    //     SET_BLANK(value);
+    //
+    // In practice this was too unwieldy, so enhanced debugging of "mystery
+    // bugs" from stray writes should likely be done in a C++ build.
+    //
+    #define WRITABLE_MASK_DEBUG \
+        cast(REBUPT, 0x02)
+#else
     //
     // Though in the abstract it is desirable to have a way to protect an
     // individual value from writing even in the release build, this is
@@ -187,13 +208,8 @@ struct Reb_Value_Header {
     // to do two writes instead of one (one to format, then later to write
     // and check that it is properly formatted space)
     //
-#else
-    // We want to be assured that we are not trying to take the type of a
-    // value that is actually an END marker, because end markers chew out only
-    // one bit--the rest of the REBUPT bits besides the bottom two may be
-    // anything necessary for the purpose.
-    //
-    #define WRITABLE_MASK_DEBUG cast(REBUPT, 0x02)
+    #define WRITABLE_MASK_DEBUG \
+        cast(REBUPT, 0x00)
 #endif
 
 // The type mask comes up a bit and it's a fairly obvious constant, so this
@@ -237,10 +253,13 @@ struct Reb_Value_Header {
 // being sought of when terminators will be required and when they will not.
 //
 
+#define IS_END_MACRO(v) \
+    LOGICAL((v)->header.bits % 2 == 0)
+
 #ifdef NDEBUG
-    #define IS_END(v)       LOGICAL((v)->header.bits % 2 == 0)
+    #define IS_END(v)       IS_END_MACRO(v)
 #else
-    #define IS_END(v)       IS_END_Debug(v)
+    #define IS_END(v)       IS_END_Debug((v), __FILE__, __LINE__)
 #endif
 
 #define NOT_END(v)          NOT(IS_END(v))
@@ -250,12 +269,12 @@ struct Reb_Value_Header {
 #else
     //
     // The slot we are trying to write into must have at least been formatted
-    // in the debug build VAL_INIT_WRITABLE_DEBUG().  Otherwise it could be a
+    // in the debug build INIT_CELL_WRITABLE_IF_DEBUG().  Otherwise it could be a
     // pointer with its low bit clear, doing double-duty as an IS_END(),
     // marker...which we cannot overwrite...not even with another END marker.
     //
     #define SET_END(v) \
-        (Assert_Cell_Writable((v), __FILE__, __LINE__), \
+        (ASSERT_CELL_WRITABLE_IF_DEBUG((v), __FILE__, __LINE__), \
             (v)->header.bits = WRITABLE_MASK_DEBUG | REB_MAX)
 #endif
 
@@ -264,7 +283,7 @@ struct Reb_Value_Header {
 // of the value payload is accessed, it will trip memory checkers like
 // Valgrind or Address Sanitizer to warn of the mistake.
 //
-#define END_VALUE (&PG_End_Val)
+#define END_CELL (&PG_End_Cell)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -472,22 +491,75 @@ enum {
     ((v)->header.bits &= ~cast(REBUPT, HEADER_TYPE_MASK), \
         (v)->header.bits |= (t))
 
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  CELL WRITABILITY AND SETUP
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 // VAL_RESET_HEADER clears out the header and sets it to a new type (and also
 // sets the option bits indicating the value is *not* an END marker, and
 // that the value is a full cell which can be written to).
 //
+// The debug build includes an extra check that the value we are about
+// to write the header of is actually a full REBVAL-sized slot...and not
+// just an implicit END marker that's really doing double-duty as some
+// internal pointer of a container structure.
+//
+// The debug build also requires that value slots which are to be written
+// to via VAL_RESET_HEADER() be marked writable.  Series and other value
+// containers do this automatically, but if you make a REBVAL as a stack
+// variable then it will have to be done before any write can happen.
+//
+
+#define VAL_RESET_HEADER_CORE(v,kind) \
+    ((v)->header.bits = NOT_END_MASK | cast(REBUPT, (kind)))
+
 #ifdef NDEBUG
+    #define ASSERT_CELL_WRITABLE_IF_DEBUG(v) \
+        NOOP
+
+    #define INIT_CELL_WRITABLE_IF_DEBUG(v) \
+        NOOP
+
+    #define MARK_CELL_WRITABLE_IF_DEBUG(v) \
+        NOOP
+
+    #define MARK_CELL_UNWRITABLE_IF_DEBUG(v) \
+        NOOP
+
     #define VAL_RESET_HEADER(v,t) \
-        ((v)->header.bits = NOT_END_MASK | (t))
+        VAL_RESET_HEADER_CORE((v), (t))
 #else
-    // The debug build includes an extra check that the value we are about
-    // to write the header of is actually a full REBVAL-sized slot...and not
-    // just an implicit END marker that's really doing double-duty as some
-    // internal pointer of a container structure.
-    //
-    #define VAL_RESET_HEADER(v,t) \
-        (Assert_Cell_Writable((v), __FILE__, __LINE__), \
-            (v)->header.bits = NOT_END_MASK | WRITABLE_MASK_DEBUG | (t))
+    #ifdef __cplusplus
+        #define ASSERT_CELL_WRITABLE_IF_DEBUG(v,file,line) \
+            Assert_Cell_Writable((v), (file), (line))
+
+        #define INIT_CELL_WRITABLE_IF_DEBUG(v) \
+            ((v)->header.bits = WRITABLE_MASK_DEBUG) // trashes completely
+
+        #define MARK_CELL_WRITABLE_IF_DEBUG(v) \
+            ((v)->header.bits |= WRITABLE_MASK_DEBUG) // just adds bit
+
+        #define MARK_CELL_UNWRITABLE_IF_DEBUG(v) \
+            ((v)->header.bits &= ~cast(REBUPT, WRITABLE_MASK_DEBUG))
+    #else
+        #define ASSERT_CELL_WRITABLE_IF_DEBUG(v,file,line) \
+            NOOP
+
+        #define INIT_CELL_WRITABLE_IF_DEBUG(v) \
+            NOOP
+
+        #define MARK_CELL_WRITABLE_IF_DEBUG(v) \
+            NOOP
+
+        #define MARK_CELL_UNWRITABLE_IF_DEBUG(v) \
+            NOOP
+    #endif
+
+    #define VAL_RESET_HEADER(v,k) \
+        VAL_RESET_HEADER_Debug((v), (k), __FILE__, __LINE__)
 #endif
 
 // !!! SET_ZEROED is a macro-capture of a dodgy behavior of R3-Alpha,
@@ -586,13 +658,11 @@ enum {
     #define SET_VOID(v) \
         VAL_RESET_HEADER((v), REB_0)
 
-    #define MARK_CELL_UNWRITABLE_DEBUG(v) NOOP
-
-    #define VAL_INIT_WRITABLE_DEBUG(v) NOOP
-
     #define SET_TRASH_IF_DEBUG(v) NOOP
 
     #define SET_TRASH_SAFE(v) SET_VOID(v)
+
+    #define SINK(v) cast(REBVAL*, (v))
 #else
     enum {
         VOID_FLAG_NOT_TRASH = (1 << TYPE_SPECIFIC_BIT) | REB_0,
@@ -617,28 +687,6 @@ enum {
         (((v)->header.bits & HEADER_TYPE_MASK) == REB_0 \
         && !(((v)->header.bits & VOID_FLAG_NOT_TRASH)))
 
-    // This particularly virulent form of trashing will make the resultant
-    // cell unable to be used with SET_END() or VAL_RESET_HEADER() until
-    // a SET_TRASH_IF_DEBUG() or SET_TRASH_SAFE() is used to overrule it.
-    //
-    #define MARK_CELL_UNWRITABLE_DEBUG(v) \
-        ((v)->header.bits &= ~cast(REBUPT, WRITABLE_MASK_DEBUG), NOOP)
-
-    // The debug build requires that any value slot that's going to be written
-    // to via VAL_RESET_HEADER() be marked writable.  Series and other value
-    // containers do this automatically, but if you make a REBVAL as a stack
-    // variable then it will have to be done before any write can happen.
-    //
-    // An alignment check to the size of a pointer is commented out due to
-    // being expensive to run on every value in the system, but should be
-    // added under an "intense checks" switch.
-    //
-    #define VAL_INIT_WRITABLE_DEBUG(v) \
-        ( \
-            (v)->header.bits = NOT_END_MASK | WRITABLE_MASK_DEBUG, \
-            SET_TRACK_PAYLOAD(v) \
-        )
-
     #define SET_TRASH_IF_DEBUG(v) \
         ( \
             VAL_RESET_HEADER((v), REB_0), /* don't set NOT_TRASH flag */ \
@@ -651,6 +699,9 @@ enum {
             SET_VAL_FLAG((v), VOID_FLAG_SAFE_TRASH), \
             SET_TRACK_PAYLOAD(v) \
         )
+
+    #define SINK(v) \
+        Sink_Debug((v), __FILE__, __LINE__)
 #endif
 
 // To help avoid confusion which might suggest there is a VOID! datatype, the
@@ -741,7 +792,7 @@ enum {
         ((v)->header.bits = VALUE_FLAG_FALSE | NOT_END_MASK | REB_BLANK)
 #else
     #define SET_BLANK(v) \
-        (Assert_Cell_Writable((v), __FILE__, __LINE__), \
+        (ASSERT_CELL_WRITABLE_IF_DEBUG((v), __FILE__, __LINE__), \
             (v)->header.bits = VALUE_FLAG_FALSE | \
             NOT_END_MASK | WRITABLE_MASK_DEBUG | REB_BLANK, \
         SET_TRACK_PAYLOAD(v))
@@ -781,13 +832,13 @@ enum {
             | VALUE_FLAG_FALSE)
 #else
     #define SET_TRUE(v) \
-        (Assert_Cell_Writable((v), __FILE__, __LINE__), \
+        (ASSERT_CELL_WRITABLE_IF_DEBUG((v), __FILE__, __LINE__), \
             (v)->header.bits = REB_LOGIC | NOT_END_MASK \
                 | WRITABLE_MASK_DEBUG, \
          SET_TRACK_PAYLOAD(v)) // compound
 
     #define SET_FALSE(v) \
-        (Assert_Cell_Writable((v), __FILE__, __LINE__), \
+        (ASSERT_CELL_WRITABLE_IF_DEBUG((v), __FILE__, __LINE__), \
             (v)->header.bits = REB_LOGIC | NOT_END_MASK \
             | WRITABLE_MASK_DEBUG | VALUE_FLAG_FALSE, \
          SET_TRACK_PAYLOAD(v))  // compound
@@ -1108,6 +1159,31 @@ union Reb_Binding_Target {
 #else
     #define VAL_SPECIFIC(v)     VAL_SPECIFIC_Debug(v)
 #endif
+
+
+//
+// Converting between relative and specific values.  Even though specific
+// values are derived from relative ones, a cast is sometimes necessary--
+// such as for pointer arithmetic, or in a macro that wants to type check
+// rather than blindly accept a coercion.
+//
+// !!! These macros have no teeth until the specific-binding branch is
+// merged in, and are basically only useful if you have an error like:
+//
+// "invalid conversion from 'Reb_Value*' to 'Reb_Specific_Value*'"
+//
+
+#define const_KNOWN(v) \
+    cast(const REBVAL*, (v))
+
+#define KNOWN(v) \
+    cast(REBVAL*, (v))
+
+#define const_REL(v) \
+    cast(const RELVAL*, (v))
+
+#define REL(v) \
+    cast(RELVAL*, (v))
 
 
 struct Reb_Any_Series {
@@ -2617,22 +2693,51 @@ struct Reb_Value
 #pragma pack() // set back to default (was set to 4 at start of file)
 
 
+#ifdef __cplusplus
+    struct Reb_Specific_Value : public Reb_Value {
+    #if !defined(NDEBUG)
+        //
+        // In C++11, it is now formally legal to add constructors to types
+        // without interfering with their "standard layout" properties, or
+        // making them uncopyable with memcpy(), etc.  For the rules, see:
+        //
+        //     http://stackoverflow.com/a/7189821/211160
+        //
+        // In the debug C++ build there is an extra check of writability. This
+        // makes sure that stack variables holding REBVAL are marked with that.
+        // It also means that the check can only be performed by the C++ build,
+        // otherwise there would need to be a manual set of this bit on every
+        // stack variable.
+        //
+        Reb_Specific_Value () {
+            header.bits = WRITABLE_MASK_DEBUG;
+        }
+    #endif
+    };
+#endif
+
+
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  DEBUG PROBING
+//  DEBUG PROBE AND PANIC
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// This small macro can be inserted into code to probe a value in debug
-// builds.  It takes a REBVAL* and an optional message:
+// The PROBE macro can be used in debug builds to mold a REBVAL much like the
+// Rebol `probe` operation.  PROBE_MSG can add a message:
 //
 //     REBVAL *v = Some_Value_Pointer();
 //
 //     PROBE(v);
-//     PROBE_MSG(v, "some value");
+//     PROBE_MSG(v, "the v value debug dump label");
 //
 // In order to make it easier to find out where a piece of debug spew is
-// coming from, the file and line number are included.
+// coming from, the file and line number will be output as well.
+//
+// PANIC_VALUE causes a crash on a value, while trying to provide information
+// that could identify where that value was assigned.  If it is resident
+// in a series and you are using Address Sanitizer or Valgrind, then it should
+// cause a crash that pinpoints the stack where that array was allocated.
 //
 
 #if !defined(NDEBUG)
@@ -2641,7 +2746,11 @@ struct Reb_Value
 
     #define PROBE_MSG(v, m) \
         Probe_Core_Debug((m), __FILE__, __LINE__, (v))
+
+    #define PANIC_VALUE(v) \
+        Panic_Value_Debug((v), __FILE__, __LINE__)
 #endif
+
 
 
 //=////////////////////////////////////////////////////////////////////////=//

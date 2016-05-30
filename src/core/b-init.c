@@ -721,7 +721,6 @@ static void Init_Natives(void)
         // the Natives table.  The associated C function is provided by a
         // table built in the bootstrap scripts, `Native_C_Funcs`.
         //
-        VAL_INIT_WRITABLE_DEBUG(&Natives[n]);
         Make_Native(
             &Natives[n],
             VAL_ARRAY(spec),
@@ -860,30 +859,28 @@ static void Init_Root_Context(void)
     // the root set.  Should that change, they could be explicitly added
     // to the GC's root set.
 
-    VAL_INIT_WRITABLE_DEBUG(&PG_Void_Cell[0]);
     SET_VOID(&PG_Void_Cell[0]);
-    VAL_INIT_WRITABLE_DEBUG(&PG_Void_Cell[1]);
     SET_TRASH_IF_DEBUG(&PG_Void_Cell[1]);
-    MARK_CELL_UNWRITABLE_DEBUG(&PG_Void_Cell[1]);
+    MARK_CELL_UNWRITABLE_IF_DEBUG(&PG_Void_Cell[1]);
 
     SET_BLANK(&PG_Blank_Value[0]);
     SET_TRASH_IF_DEBUG(&PG_Blank_Value[1]);
-    MARK_CELL_UNWRITABLE_DEBUG(&PG_Blank_Value[1]);
+    MARK_CELL_UNWRITABLE_IF_DEBUG(&PG_Blank_Value[1]);
 
     SET_FALSE(&PG_False_Value[0]);
     SET_TRASH_IF_DEBUG(&PG_False_Value[1]);
-    MARK_CELL_UNWRITABLE_DEBUG(&PG_False_Value[1]);
+    MARK_CELL_UNWRITABLE_IF_DEBUG(&PG_False_Value[1]);
 
     SET_TRUE(&PG_True_Value[0]);
     SET_TRASH_IF_DEBUG(&PG_True_Value[1]);
-    MARK_CELL_UNWRITABLE_DEBUG(&PG_True_Value[1]);
+    MARK_CELL_UNWRITABLE_IF_DEBUG(&PG_True_Value[1]);
 
     // We can't actually put an end value in the middle of a block, so we poke
     // this one into a program global.  It is not legal to bit-copy an
     // END (you always use SET_END), so we can make it unwritable.
     //
-    PG_End_Val.header.bits = 0; // read-only end
-    assert(IS_END(END_VALUE)); // sanity check that it took
+    PG_End_Cell.header.bits = 0; // read-only end
+    assert(IS_END(END_CELL)); // sanity check that it took
 
     // The EMPTY_BLOCK provides EMPTY_ARRAY.  It is locked for protection.
     //
@@ -1685,7 +1682,6 @@ void Init_Core(REBARGS *rargs)
     Init_Codecs();
     Init_Errors(&Boot_Block->errors); // Needs system/standard/error object
 
-    VAL_INIT_WRITABLE_DEBUG(&Callback_Error); // format for "writable" check
     SET_VOID(&Callback_Error);
 
     PG_Boot_Phase = BOOT_ERRORS;
@@ -1744,7 +1740,7 @@ void Init_Core(REBARGS *rargs)
     assert(DSP == 0 && FS_TOP == NULL);
 
     if (Apply_Only_Throws(
-        &result, Sys_Func(SYS_CTX_FINISH_INIT_CORE), END_VALUE
+        &result, Sys_Func(SYS_CTX_FINISH_INIT_CORE), END_CELL
     )) {
         // Note: You shouldn't be able to throw any uncaught values during
         // Init_Core() startup, including throws implementing QUIT or EXIT.
