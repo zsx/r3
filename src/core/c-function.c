@@ -1361,41 +1361,48 @@ REBNATIVE(proc)
 
 
 //
-// "Manual soft quoting" used by APPLY and SPECIALIZE.  This will get an
-// optional symbol out of a value, or consider it to be anonymous.  On the
-// downside it means that passing an expression needs to be in a GROUP!
+//  Get_If_Word_Or_Path_Arg: C
 //
-//     >> apply (first reduce [:append :print]) [series: [a b] value: 'c]
-//     == [a b c]
+// Some routines like APPLY and SPECIALIZE are willing to take a WORD! or
+// PATH! instead of just the value type they are looking for, and perform
+// the GET for you.  By doing the GET inside the function, they are able
+// to preserve the symbol:
 //
-// On the upside, the error messages (and debug stack information) can be much
-// more meaningful in the common case, because they know the symbol of the
-// GET-WORD! used:
-//
-//     >> apply :append [value: 'c]
+//     >> apply 'append [value: 'c]
 //     ** Script error: append is missing its series argument
 //
-// !!! This may be more useful as a general technique, but static for now.
-//
-static REBOOL Manual_Soft_Quote_Throws(
+void Get_If_Word_Or_Path_Arg(
     REBVAL *out,
-    REBSYM *opt_sym,
+    REBSYM *sym, // will not return SYM_0, but might be SYM___ANONYMOUS__
     const REBVAL *value
 ) {
-    if (IS_GET_WORD(value))
-        *opt_sym = VAL_WORD_SYM(value);
+    REBVAL adjusted = *value;
+
+    if (ANY_WORD(value)) {
+        *sym = VAL_WORD_SYM(value);
+        VAL_SET_TYPE_BITS(&adjusted, REB_GET_WORD);
+    }
+    else if (ANY_PATH(value)) {
+        //
+        // In theory we could get a symbol here, assuming we only do non
+        // evaluated GETs.  Not implemented at the moment.
+        //
+        *sym = SYM___ANONYMOUS__;
+        VAL_SET_TYPE_BITS(&adjusted, REB_GET_PATH);
+    }
     else {
-        *opt_sym = SYM___ANONYMOUS__;
-        if (!IS_GET_PATH(value) && !IS_GET_WORD(value)) {
-            *out = *value;
-            return FALSE;
-        }
+        *sym = SYM___ANONYMOUS__;
+        *out = *value;
+        return;
     }
 
-    if (DO_VALUE_THROWS(out, value))
-        return TRUE;
-
-    return FALSE;
+    if (DO_VALUE_THROWS(out, &adjusted)) {
+        //
+        // !!! GET_PATH should not evaluate GROUP!, and hence shouldn't be
+        // able to throw.  TBD.
+        //
+        fail (Error_No_Catch_For_Throw(out));
+    }
 }
 
 
@@ -1404,8 +1411,8 @@ static REBOOL Manual_Soft_Quote_Throws(
 //
 //  {Create a new function through partial or full specialization of another}
 //
-//      :value [function! get-word! get-path! group!]
-//          {Function specifier (will be soft quoted, keeps name for error)}
+//      value [function! any-word! any-path!]
+//          {Function or specifying word (preserves word name for debug info)}
 //      def [block!]
 //          {Definition for FRAME! fields for args and refinements}
 //  ]
@@ -1415,19 +1422,18 @@ REBNATIVE(specialize)
     PARAM(1, value);
     PARAM(2, def);
 
-    REBSYM opt_sym;
+    REBSYM sym; // may be anonymous
 
     // We don't limit to taking a FUNCTION! value directly, because that loses
-    // the symbol (for debugging, errors, etc.)  If caller passes a GET-WORD!
+    // the symbol (for debugging, errors, etc.)  If caller passes a WORD!
     // then we lookup the variable to get the function, but save the symbol.
     //
-    if (Manual_Soft_Quote_Throws(D_OUT, &opt_sym, ARG(value)))
-        return R_OUT_IS_THROWN;
+    Get_If_Word_Or_Path_Arg(D_OUT, &sym, ARG(value));
 
     if (!IS_FUNCTION(D_OUT))
-        fail (Error(RE_APPLY_NON_FUNCTION, ARG(value))); // for SPECIALIZE too
+        fail (Error(RE_APPLY_NON_FUNCTION, ARG(value))); // for APPLY too
 
-    if (Specialize_Function_Throws(D_OUT, VAL_FUNC(D_OUT), opt_sym, ARG(def)))
+    if (Specialize_Function_Throws(D_OUT, VAL_FUNC(D_OUT), sym, ARG(def)))
         return R_OUT_IS_THROWN;
 
     return R_OUT;
@@ -1570,8 +1576,8 @@ call_now:
 //
 //  {Invoke a function with all required arguments specified.}
 //
-//      :value [function! get-word! get-path! group!]
-//          {Function specifier (will be soft quoted, keeps name for error)}
+//      value [function! any-word! any-path!]
+//          {Function or specifying word (preserves word name for debug info)}
 //      def [block!]
 //          {Frame definition block (will be bound and evaluated)}
 //  ]
@@ -1602,14 +1608,13 @@ REBNATIVE(apply)
 #endif
 
     // We don't limit to taking a FUNCTION! value directly, because that loses
-    // the symbol (for debugging, errors, etc.)  If caller passes a GET-WORD!
+    // the symbol (for debugging, errors, etc.)  If caller passes a WORD!
     // then we lookup the variable to get the function, but save the symbol.
     //
-    if (Manual_Soft_Quote_Throws(D_OUT, &sym, ARG(value)))
-        return R_OUT_IS_THROWN;
+    Get_If_Word_Or_Path_Arg(D_OUT, &sym, ARG(value));
 
     if (!IS_FUNCTION(D_OUT))
-        fail (Error(RE_APPLY_NON_FUNCTION, ARG(value)));
+        fail (Error(RE_APPLY_NON_FUNCTION, ARG(value))); // for SPECIALIZE too
 
     f->func = VAL_FUNC(D_OUT);
     if (f->func == NAT_FUNC(return) || f->func == NAT_FUNC(leave))
