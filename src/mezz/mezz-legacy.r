@@ -357,18 +357,22 @@ set: func [
         "Value is optional, and if no value is provided then unset the word"
     /pad
         {For objects, set remaining words to NONE if block is too short}
-    /infix
+    /lookback
         {If value is a function, then make the bound word dispatch infix}
     /any
         "Deprecated legacy synonym for /opt"
 ][
-    lib-set/(
-        case [
+    apply :lib-set [
+        target: target
+        value: :value
+        opt: case [
             any 'opt ;-- Note: refinement, not native ANY []
             opt 'opt ;-- Note: refinement, not native OPT
             'default blank
         ]
-    )/:pad/:infix target :value
+        pad: pad
+        lookback: lookback
+    ]
 ]
 
 
@@ -674,11 +678,15 @@ set 'r3-legacy* func [] [
             either any-word? :value [set? value] [true]
         ])
 
-        and: (:and*)
+        ; These words do NOT inherit the infixed-ness, and you simply cannot
+        ; set things infix through a plain set-word.  We have to do this
+        ; after the words are appended to the object.
 
-        or: (:or+)
+        and: _
 
-        xor: (:xor+)
+        or: _
+
+        xor: _
 
         apply: (:r3-alpha-apply)
 
@@ -1066,6 +1074,13 @@ set 'r3-legacy* func [] [
             bt
         ])
     ]
+
+    ;
+    ; set-infix on PATH! instead of WORD! is still TBD
+    ;
+    set-infix (bind 'and system/contexts/user) :and*
+    set-infix (bind 'or system/contexts/user) :or+
+    set-infix (bind 'xor system/contexts/user) :xor+
 
     ; NOTE: these flags only work in debug builds.  A better availability
     ; test for the functionality is needed, as these flags may be expired
