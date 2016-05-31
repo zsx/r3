@@ -849,22 +849,51 @@ static void Mold_Function(const REBVAL *value, REB_MOLD *mold)
 
     Append_Codepoint_Raw(mold->series, '[');
 
-    // !!! ??
-    /* "& ~(1<<MOPT_MOLD_ALL)); // Never literalize it (/all)." */
-    Mold_Array_At(mold, VAL_FUNC_SPEC(value), 0, 0);
-
-    if (VAL_FUNC_CLASS(value) == FUNC_CLASS_USER) {
+    if (VAL_FUNC_CLASS(value) == FUNC_CLASS_SPECIALIZED) {
         //
-        // MOLD is an example of user-facing code that needs to be complicit
-        // in the "lie" about the effective bodies of the functions made
-        // by the optimized generators FUNC and CLOS...
+        // !!! Interim form of looking at specialized functions... just
+        // show the spec's preserved word (if any)
+        //
+        //     >> source first
+        //     first: make function! [:pick make frame! [
+        //         aggregate: $void
+        //         index: 1
+        //     ]]
+        //
+        // While ugly and far from LOADable, it helps with debugging.
 
-        REBOOL is_fake;
-        REBARR *body = Get_Maybe_Fake_Func_Body(&is_fake, value);
+        REBVAL name;
+        Val_Init_Word(
+            &name, REB_GET_WORD, VAL_WORD_SYM(ARR_HEAD(VAL_FUNC_SPEC(value)))
+        );
+        Mold_Value(mold, &name, FALSE);
 
-        Mold_Array_At(mold, body, 0, 0);
+        Append_Codepoint_Raw(mold->series, ' ');
 
-        if (is_fake) Free_Array(body); // was shallow copy
+        REBVAL frame;
+        Val_Init_Context(
+            &frame, REB_FRAME, value->payload.function.impl.special
+        );
+        Mold_Value(mold, &frame, TRUE);
+    }
+    else {
+        // !!! ??
+        /* "& ~(1<<MOPT_MOLD_ALL)); // Never literalize it (/all)." */
+        Mold_Array_At(mold, VAL_FUNC_SPEC(value), 0, 0);
+
+        if (VAL_FUNC_CLASS(value) == FUNC_CLASS_USER) {
+            //
+            // MOLD is an example of user-facing code that needs to be complicit
+            // in the "lie" about the effective bodies of the functions made
+            // by the optimized generators FUNC and CLOS...
+
+            REBOOL is_fake;
+            REBARR *body = Get_Maybe_Fake_Func_Body(&is_fake, value);
+
+            Mold_Array_At(mold, body, 0, 0);
+
+            if (is_fake) Free_Array(body); // was shallow copy
+        }
     }
 
     Append_Codepoint_Raw(mold->series, ']');

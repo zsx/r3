@@ -24,12 +24,20 @@ REBOL [
 ; "for performance" suggests a faster substitution "macro" construct may
 ; be required.  Until then, they are mezzanine.
 
-first: func [
-    {Returns the first value of a series.}
-    value
-] [
-    pick value 1
+redescribe: func [
+    {Not yet implemented: create a function value with a new description}
+
+    new-spec [block!]
+    f [function!]
+][
+    :f
 ]
+
+first: redescribe [
+    {Returns the first value of a series.}
+](
+    specialize 'pick [index: 1]
+)
 
 first+: func [
     {Return the FIRST of a series then increment the series index.}
@@ -39,68 +47,59 @@ first+: func [
     also (pick prior: get word 1) (set word next prior)
 ]
 
-second: func [
+second: redescribe [
     {Returns the second value of a series.}
-    value
-] [
-    pick value 2
-]
+](
+    specialize 'pick [index: 2]
+)
 
-third: func [
+third: redescribe [
     {Returns the third value of a series.}
-    value
-] [
-    pick value 3
-]
+](
+    specialize 'pick [index: 3]
+)
 
-fourth: func [
+fourth: redescribe [
     {Returns the fourth value of a series.}
-    value
-] [
-    pick value 4
-]
+](
+    specialize 'pick [index: 4]
+)
 
-fifth: func [
+fifth: redescribe [
     {Returns the fifth value of a series.}
-    value
-] [
-    pick value 5
-]
+](
+    specialize 'pick [index: 5]
+)
 
-sixth: func [
+sixth: redescribe [
     {Returns the sixth value of a series.}
-    value
-] [
-    pick value 6
-]
+](
+    specialize 'pick [index: 6]
+)
 
-seventh: func [
+seventh: redescribe [
     {Returns the seventh value of a series.}
-    value
-] [
-    pick value 7
-]
+](
+    specialize 'pick [index: 7]
+)
 
-eighth: func [
+eighth: redescribe [
     {Returns the eighth value of a series.}
-    value
-] [
-    pick value 8
-]
+](
+    specialize 'pick [index: 8]
+)
 
-ninth: func [
+ninth: redescribe [
     {Returns the ninth value of a series.}
-    value
-] [
-    pick value 9
-]
+](
+    specialize 'pick [index: 9]
+)
 
-tenth: func [
+tenth: redescribe [
     {Returns the tenth value of a series.}
-    value
-] [
-    pick value 10
-]
+](
+    specialize 'pick [index: 10]
+)
 
 last: func [
     {Returns the last value of a series.}

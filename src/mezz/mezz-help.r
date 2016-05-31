@@ -246,7 +246,7 @@ help: procedure [
                 "It is of the general type" value/type newline
             ]
         ]
-        if all [any-word? :word | not set? :word] [return ()]
+        if all [any-word? :word | not set? :word] [leave]
         types: dump-obj/match lib :word
         sort types
         if not empty? types [
@@ -331,12 +331,12 @@ help: procedure [
         tab uppercase mold word " is " type-name :value " value."
     ]
 
-    unless args: find spec-of :value any-word! [return ()]
+    unless args: find spec-of :value any-word! [leave]
     clear find args /local
 
     ;-- Print arg lists:
     print-args: func [label list /extra /local str] [
-        if empty? list [return ()]
+        if empty? list [leave]
         print label
         for-each arg list [
             str: ajoin [tab arg/1]
@@ -556,7 +556,7 @@ upgrade: function [
     fail "Automatic upgrade checking is currently not supported."
 ]
 
-why?: function [
+why?: procedure [
     "Explain the last error in more detail."
     'err [<opt> word! path! error! blank!] "Optional error value"
 ][
@@ -588,7 +588,6 @@ why?: function [
     ][
         print "No information is available."
     ]
-    return ()
 ]
 
 ; GUI demos not available in Core build
