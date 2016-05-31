@@ -724,7 +724,7 @@ enum {
         SET_VOID(v) // LEGACY() only available in Debug builds
 #else
     #define SET_VOID_UNLESS_LEGACY_NONE(v) \
-        (LEGACY(OPTIONS_NONE_INSTEAD_OF_VOIDS) ? SET_BLANK(v) : SET_VOID(v))
+        SET_VOID_UNLESS_LEGACY_NONE_Debug(v);
 #endif
 
 

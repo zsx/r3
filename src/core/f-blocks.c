@@ -163,11 +163,21 @@ void Clonify_Values_Len_Managed(
         ASSERT_VALUE_MANAGED(value);
 
         if (types & FLAGIT_KIND(VAL_TYPE(value)) & TS_SERIES_OBJ) {
-            //
+        #if !defined(NDEBUG)
+            REBOOL legacy = FALSE;
+        #endif
+
             // Objects and series get shallow copied at minimum
             //
             REBSER *series;
             if (ANY_CONTEXT(value)) {
+            #if !defined(NDEBUG)
+                legacy = GET_ARR_FLAG(
+                    CTX_VARLIST(VAL_CONTEXT(value)),
+                    SERIES_FLAG_LEGACY
+                );
+            #endif
+
                 assert(!IS_FRAME(value)); // !!! Don't exist yet...
                 INIT_VAL_CONTEXT(
                     value,
@@ -177,6 +187,10 @@ void Clonify_Values_Len_Managed(
             }
             else {
                 if (Is_Array_Series(VAL_SERIES(value))) {
+                #if !defined(NDEBUG)
+                    legacy = GET_ARR_FLAG(VAL_ARRAY(value), SERIES_FLAG_LEGACY);
+                #endif
+
                     series = ARR_SERIES(
                         Copy_Array_Shallow(VAL_ARRAY(value))
                     );
@@ -185,6 +199,11 @@ void Clonify_Values_Len_Managed(
                     series = Copy_Sequence(VAL_SERIES(value));
                 INIT_VAL_SERIES(value, series);
             }
+
+        #if !defined(NDEBUG)
+            if (legacy) // propagate legacy
+                SET_SER_FLAG(series, SERIES_FLAG_LEGACY);
+        #endif
 
             MANAGE_SERIES(series);
 
