@@ -1024,10 +1024,10 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
                 return -TOKEN_WORD;
             }
             if (
-                cp[0] == '<' && cp[1] == '-'
+                cp[0] == '<' && (cp[1] == '-' || cp[1] == '|')
                 && (IS_LEX_DELIMIT(cp[2]) || IS_LEX_ANY_SPACE(cp[2]))
             ) {
-                return TOKEN_WORD;
+                return TOKEN_WORD; // "<|" and "<-"
             }
             if (GET_LEX_VALUE(*cp) == LEX_SPECIAL_GREATER) return -TOKEN_WORD;
             cp = Skip_Tag(cp);
@@ -1077,6 +1077,12 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
             //
             if (IS_LEX_DELIMIT(cp[1]) || IS_LEX_ANY_SPACE(cp[1]))
                 return TOKEN_BAR;
+            if (
+                cp[1] == '>'
+                && (IS_LEX_DELIMIT(cp[2]) || IS_LEX_ANY_SPACE(cp[2]))
+            ) {
+                return TOKEN_WORD; // for "|>"
+            }
             type = TOKEN_WORD;
             goto scanword;
 

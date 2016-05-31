@@ -169,6 +169,25 @@ lambda: function [
     ]
 ]
 
+
+left-bar: func [
+    {Expression barrier that evaluates to left side but executes right.}
+    left [<opt> any-value!]
+    right [<opt> any-value! <...>]
+][
+    while [not tail? right] [take right]
+    :left
+]
+
+right-bar: func [
+    {Expression barrier that evaluates to first expression on right.}
+    left [<opt> any-value!]
+    right [<opt> any-value! <...>]
+][
+    also take right (while [not tail? right] [take right])
+]
+
+
 use: func [
     {Defines words local to a block.}
     vars [block! word!] {Local word(s) to the block}

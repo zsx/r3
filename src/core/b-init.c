@@ -596,7 +596,9 @@ static void Init_Ops(void)
         ">=",
         "<>", // may ultimately be targeted for empty tag in Ren-C
         "->", // FUNCTION-style lambda ("reaches in")
-        "<-", // FUNC-style lambda ("reaches out")
+        "<-", // FUNC-style lambda ("reaches out"),
+        "|>", // Evaluate to next single expression, but do ones afterward
+        "<|", // Evaluate to previous expression, but do rest (like ALSO)
         "/",
         "//", // is remainder in R3-Alpha :-/
         NULL
