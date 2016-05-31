@@ -85,6 +85,7 @@ PVAR REBVAL PG_End_Cell;
 PVAR REBVAL PG_Void_Cell[2];
 
 PVAR REBVAL PG_Blank_Value[2];
+PVAR REBVAL PG_Bar_Value[2];
 PVAR REBVAL PG_False_Value[2];
 PVAR REBVAL PG_True_Value[2];
 

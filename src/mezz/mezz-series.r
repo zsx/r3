@@ -68,7 +68,7 @@ remold: func [
     /all  {Mold in serialized format}
     /flat {No indentation}
 ][
-    mold/:only/:all/:flat reduce :value
+    mold/(if only 'only)/(if all 'all)/(if flat 'flat) reduce :value
 ]
 
 charset: func [
@@ -121,7 +121,7 @@ array: func [
     head block
 ]
 
-replace: func [
+replace: function [
     "Replaces a search value with the replace value within the target series."
     target  [any-series!] "Series to replace within (modified)"
     pattern "Value to be replaced (converted if necessary)"
@@ -132,10 +132,11 @@ replace: func [
     /case "Case-sensitive replacement"
     /tail "Return target after the last replacement position"
 
-    /local save-target len value pos do-break
-
     ; Consider adding an /any refinement to use find/any, once that works.
 ][
+    case_REPLACE: case
+    case: :lib/case
+
     save-target: target
 
     ; !!! These conversions being missing seems a problem with FIND the native
@@ -151,7 +152,7 @@ replace: func [
     ; Note that if a FORM actually happens inside of FIND, it could wind up
     ; happening repeatedly in the /ALL case if that happens.
 
-    len: lib/case [
+    len: case [
         ; leave bitset patterns as-is regardless of target type, len = 1
         bitset? :pattern 1
 
@@ -171,7 +172,7 @@ replace: func [
         true 1
     ]
 
-    while [pos: find/:case target :pattern] [
+    while [pos: find/(if case_REPLACE 'case) target :pattern] [
         ; apply replacement if function, or drops pos if not
         ; the parens quarantine function invocation to maximum arity of 1
         (value: replacement pos)
@@ -336,7 +337,7 @@ reword: function [
         [a: any [to char b: char [escape | blank]] to end fout]
     ]
 
-    parse/:case_REWORD source rule
+    parse/(if case_REWORD 'case) source rule
 
     ; Return end of output with /into, head otherwise
     either into [output] [head output]
@@ -441,7 +442,7 @@ collect-with: func [
     keeper: func [
         value [<opt> any-value!] /only
     ][
-        output: insert/:only output :value
+        output: insert/(if only 'only) output :value
         :value
     ]
 

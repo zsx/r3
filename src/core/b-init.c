@@ -867,6 +867,10 @@ static void Init_Root_Context(void)
     SET_TRASH_IF_DEBUG(&PG_Blank_Value[1]);
     MARK_CELL_UNWRITABLE_IF_DEBUG(&PG_Blank_Value[1]);
 
+    SET_BAR(&PG_Bar_Value[0]);
+    SET_TRASH_IF_DEBUG(&PG_Bar_Value[1]);
+    MARK_CELL_UNWRITABLE_IF_DEBUG(&PG_Bar_Value[1]);
+
     SET_FALSE(&PG_False_Value[0]);
     SET_TRASH_IF_DEBUG(&PG_False_Value[1]);
     MARK_CELL_UNWRITABLE_IF_DEBUG(&PG_False_Value[1]);

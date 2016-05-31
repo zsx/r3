@@ -143,7 +143,7 @@ options: context [  ; Options supplied to REBOL during startup
     lit-word-decay: false
     exit-functions-only: false
     broken-case-semantics: false
-    refinements-true: false
+    refinements-blank: false
     forever-64-bit-ints: false
     print-forms-everything: false
     break-with-overrides: false
@@ -155,7 +155,7 @@ options: context [  ; Options supplied to REBOL during startup
     arg1-arg2-arg3-error: false
 
     ; These option will only apply if the function which is currently executing
-    ; was created after legacy mode was enabled, and if refinements-true is
+    ; was created after legacy mode was enabled, and if refinements-blank is
     ; set (because that's what marks functions as "legacy" or not")
     ;
     no-switch-evals: false

@@ -765,6 +765,8 @@ enum {
         (VAL_RESET_HEADER((v), REB_LIT_BAR), SET_TRACK_PAYLOAD(v))
 #endif
 
+#define BAR_VALUE (&PG_Bar_Value[0])
+
 
 //=////////////////////////////////////////////////////////////////////////=//
 //

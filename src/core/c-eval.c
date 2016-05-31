@@ -96,15 +96,6 @@
     } while(0)
 
 
-// In Ren-C, marking an argument used is done by setting it to a WORD! which
-// has the same symbol as the refinement itself.  This makes certain chaining
-// scenarios easier (though APPLY is being improved to the point where it
-// may be less necessary).  This macro makes it clear that's what's happening.
-//
-#define MARK_REFINEMENT_USED(arg,param) \
-    Val_Init_Word((arg), REB_WORD, VAL_TYPESET_SYM(param));
-
-
 //
 //  Do_Core: C
 //
@@ -812,7 +803,7 @@ reevaluate:
         //
         f->cell.subfeed = NULL;
         f->mode = CALL_MODE_ARGS;
-        f->refine = TRUE_VALUE; // "not a refinement arg, evaluate normally"
+        f->refine = BAR_VALUE; // "not a refinement arg, evaluate normally"
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -867,7 +858,7 @@ reevaluate:
     //=//// UNSPECIALIZED REFINEMENT SLOT (no consumption) ////////////////=//
 
                     if (f->dsp_orig == DSP) { // no refinements left on stack
-                        SET_BLANK(f->arg);
+                        SET_FALSE(f->arg);
                         f->refine = BLANK_VALUE; // "don't consume args, ever"
                         goto continue_arg_loop;
                     }
@@ -880,7 +871,7 @@ reevaluate:
                     ) {
                         DS_DROP; // we're lucky: this was next refinement used
 
-                        MARK_REFINEMENT_USED(f->arg, f->param);
+                        SET_TRUE(f->arg); // marks refinement used
                         f->refine = f->arg; // "consume args (can be revoked)"
                         goto continue_arg_loop;
                     }
@@ -906,7 +897,7 @@ reevaluate:
                             f->refine->payload.any_word.place.pickup.arg
                                 = f->arg;
 
-                            MARK_REFINEMENT_USED(f->arg, f->param);
+                            SET_TRUE(f->arg); // marks refinement used
                             f->refine = VOID_CELL; // "consume args later"
                             goto continue_arg_loop;
                         }
@@ -914,7 +905,7 @@ reevaluate:
 
                     // Wasn't in the path and not specialized, so not present
                     //
-                    SET_BLANK(f->arg);
+                    SET_FALSE(f->arg);
                     f->refine = BLANK_VALUE; // "don't consume args, ever"
                     goto continue_arg_loop;
                 }
@@ -934,21 +925,20 @@ reevaluate:
                     *(f->arg) = *(f->out);
                 }
 
-                if (!IS_LOGIC(f->arg) && !IS_BLANK(f->arg) && !IS_WORD(f->arg)) {
+                if (!IS_LOGIC(f->arg)) {
                     //
-                    // !!! Refinements must specialize to true or FALSE,
-                    // temporarily tolerating blanks...
+                    // Refinements must specialize as TRUE or FALSE
                     //
-                    fail (Error(RE_MISC)); // !!! add more descriptive error
+                    REBVAL word;
+                    Val_Init_Word(&word, REB_WORD, VAL_TYPESET_SYM(f->param));
+                    fail (Error(RE_NON_LOGIC_REFINE, &word, Type_Of(f->arg)));
                 }
-                else if (VAL_LOGIC(f->arg) || IS_WORD(f->arg)) { // TRUE
-                    Val_Init_Word(
-                        f->arg, REB_WORD, VAL_TYPESET_SYM(f->param)
-                    );
+                else if (IS_CONDITIONAL_TRUE(f->arg)) { // must be TRUE
+                    SET_TRUE(f->arg);
                     f->refine = f->arg; // remember so we can revoke!
                 }
-                else { // FALSE
-                    SET_BLANK(f->arg);
+                else { // must be FALSE
+                    SET_FALSE(f->arg);
                     f->refine = BLANK_VALUE; // (read-only)
                 }
 
@@ -1159,34 +1149,45 @@ reevaluate:
             // See notes on `Reb_Frame.refine` in %sys-do.h for more info.
             //
             assert(
-                IS_BLANK(f->refine) || // arg to unused refinement
-                IS_LOGIC(f->refine) || // F = revoked, T = not refinement arg
-                IS_WORD(f->refine) // refinement arg in use, but revokable
+                IS_BLANK(f->refine) || // f->arg is arg to never-used refinment
+                IS_LOGIC(f->refine) || // F = revoked, T = used refinement slot
+                IS_BAR(f->refine) // f->arg is ordinary function argument
             );
 
             if (IS_VOID(f->arg)) {
-                if (IS_WORD(f->refine)) {
+                if (IS_BAR(f->refine)) {
                     //
+                    // fall through to check ordinary arg for if <opt> is ok
+                }
+                else if (IS_CONDITIONAL_FALSE(f->refine)) {
+                    //
+                    // FALSE means the refinement has already been revoked so
+                    // the void is okay.  BLANK! means the refinement was
+                    // never in use in the first place.  Don't type check.
+                    //
+                    goto continue_arg_loop;
+                }
+                else {
+                    assert(IS_LOGIC(f->refine));
+
                     // We can only revoke the refinement if this is the 1st
                     // refinement arg.  If it's a later arg, then the first
                     // didn't trigger revocation, or refine wouldn't be WORD!
                     //
                     if (f->refine + 1 != f->arg)
-                        fail (Error(RE_BAD_REFINE_REVOKE));
+                        fail (Error_Bad_Refine_Revoke(f));
 
-                    SET_BLANK(f->refine);
+                    SET_FALSE(f->refine);
                     f->refine = FALSE_VALUE;
+                    goto continue_arg_loop; // don't type check for optionality
                 }
-
-                if (IS_CONDITIONAL_FALSE(f->refine))
-                    goto continue_arg_loop; // don't type check revoked/unused
             }
             else {
                 // If the argument is set, then the refinement shouldn't be
                 // in a revoked or unused state.
                 //
                 if (IS_CONDITIONAL_FALSE(f->refine))
-                    fail (Error(RE_BAD_REFINE_REVOKE));
+                    fail (Error_Bad_Refine_Revoke(f));
             }
 
             if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg))) {
@@ -1230,7 +1231,7 @@ reevaluate:
             }
             f->param = DS_TOP->payload.any_word.place.pickup.param;
             f->refine = f->arg = DS_TOP->payload.any_word.place.pickup.arg;
-            assert(IS_WORD(f->refine));
+            assert(IS_LOGIC(f->refine) && VAL_LOGIC(f->refine));
             DS_DROP;
             f->mode = CALL_MODE_REFINEMENT_PICKUP;
             goto continue_arg_loop; // leaves refine, but bumps param+arg
@@ -1239,7 +1240,7 @@ reevaluate:
     #if !defined(NDEBUG)
         if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEGACY)) {
             //
-            // OPTIONS_REFINEMENTS_TRUE was set when this particular function
+            // OPTIONS_REFINEMENTS_BLANK was set when this particular function
             // was created.  Use the debug-build's legacy post-processing
             // so refinements and their args work like in Rebol2/R3-Alpha.
             //

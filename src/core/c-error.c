@@ -1284,6 +1284,36 @@ REBCTX *Error_Invalid_Arg(const REBVAL *value)
 
 
 //
+//  Error_Bad_Refine_Revoke: C
+//
+// We may have to search for the refinement, so we always do (speed of error
+// creation not considered that relevant to the evaluator, being overshadowed
+// by the error handling).  See the remarks about the state of f->refine in
+// the Reb_Frame definition.
+//
+REBCTX *Error_Bad_Refine_Revoke(struct Reb_Frame *f)
+{
+    assert(IS_TYPESET(f->param));
+
+    REBVAL param_name;
+    Val_Init_Word(&param_name, REB_WORD, VAL_TYPESET_SYM(f->param));
+
+    while (VAL_PARAM_CLASS(f->param) != PARAM_CLASS_REFINEMENT)
+        --f->param;
+
+    REBVAL refine_name;
+    Val_Init_Word(&refine_name, REB_REFINEMENT, VAL_TYPESET_SYM(f->param));
+
+    if (IS_VOID(f->arg)) // was void and shouldn't have been
+        return Error(RE_BAD_REFINE_REVOKE, &refine_name, &param_name, END_CELL);
+
+    // wasn't void and should have been
+    //
+    return Error(RE_ARGUMENT_REVOKED, &refine_name, &param_name, END_CELL);
+}
+
+
+//
 //  Error_No_Catch_For_Throw: C
 //
 REBCTX *Error_No_Catch_For_Throw(REBVAL *thrown)

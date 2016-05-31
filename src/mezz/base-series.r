@@ -144,7 +144,7 @@ repend: func [
     count [any-number! pair!]
 ][
     either any-value? :value [
-        append/part/:only/dup series reduce :value :limit :count
+        append/part/(if only 'only)/dup series reduce :value :limit :count
     ][
         head series ;-- simulating result of appending () returns the head
     ]

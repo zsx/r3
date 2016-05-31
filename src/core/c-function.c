@@ -842,11 +842,11 @@ void Make_Function(
     // If FUNC or MAKE FUNCTION! are being invoked from an array of code that
     // has been flagged "legacy" (e.g. the body of a function created after
     // `do <r3-legacy>` has been run) then mark the function with the setting
-    // to make refinements TRUE instead of WORD! when used, as well as their
-    // args NONE! instead of void when not used...if that option is on.
+    // to make refinements and args blank instead of FALSE/void...if that
+    // option is on.
     //
     if (
-        LEGACY_RUNNING(OPTIONS_REFINEMENTS_TRUE)
+        LEGACY_RUNNING(OPTIONS_REFINEMENTS_BLANK)
         || GET_ARR_FLAG(VAL_ARRAY(spec), SERIES_FLAG_LEGACY)
         || GET_ARR_FLAG(VAL_ARRAY(body), SERIES_FLAG_LEGACY)
     ) {

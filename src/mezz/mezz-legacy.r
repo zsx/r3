@@ -416,7 +416,7 @@ get: function [
         any-path? :source
         any-context? :source
     ][
-        lib-get/(either any [opt_GET any_GET] 'opt blank) :source
+        lib-get/(if any [opt_GET any_GET] 'opt) :source
     ][
         if system/options/get-will-get-anything [:source]
         fail ["GET takes ANY-WORD!, ANY-PATH!, ANY-CONTEXT!, not" (:source)]
@@ -799,7 +799,7 @@ set 'r3-legacy* func [] [
                 ]
 
                 true [
-                    ; This requires system/options/refinements-true to work.
+                    ; This requires system/options/refinements-blank to work.
                     ;
                     ; Note that the heuristic here is not 100% right,
                     ; but probably works most of the time.  The goal is
@@ -809,7 +809,7 @@ set 'r3-legacy* func [] [
                     ; RETURN...if that happens and the RETURN just so
                     ; happens to be the input, this will return TRUE.
                     ;
-                    result: lib/parse/:case_PARSE input rules
+                    result: lib/parse/(if case_PARSE 'case) input rules
                     case [
                         blank? result [false]
                         same? result input [true]
@@ -1080,7 +1080,7 @@ set 'r3-legacy* func [] [
     system/options/lit-word-decay: true
     system/options/broken-case-semantics: true
     system/options/exit-functions-only: true
-    system/options/refinements-true: true
+    system/options/refinements-blank: true
     system/options/no-switch-evals: true
     system/options/no-switch-fallthrough: true
     system/options/forever-64-bit-ints: true

@@ -226,7 +226,7 @@ update-proto-state: func [
     either any [
         blank? ctx/protocol-state
         all [
-            next-state: get-next-proto-state/:write-state ctx
+            next-state: get-next-proto-state/(if write-state 'write-state) ctx
             find next-state new-state
         ]
     ] [

@@ -155,7 +155,9 @@ Script: [
     no-refine:          [:arg1 {has no refinement called} :arg2]
     bad-refines:        {incompatible or invalid refinements}
     bad-refine:         [{incompatible or duplicate refinement:} :arg1]
-    bad-refine-revoke:  {refinement's args must be either all unset or all set}
+    argument-revoked:   [:arg1 {refinement revoked, cannot supply} :arg2]
+    bad-refine-revoke:  [:arg1 {refinement in use, can't be revoked by} :arg2]
+    non-logic-refine:   [:arg1 {refinement must be LOGIC!, not} :arg2]
 
     invalid-path:       [{cannot access} :arg2 {in path} :arg1]
     bad-path-type:      [{path} :arg1 {is not valid for} :arg2 {type}]

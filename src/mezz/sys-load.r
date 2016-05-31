@@ -434,7 +434,7 @@ load: function [
         ;-- Load multiple sources?
         block? source [
             return map-each item source [
-                (load/type/:header/:all_LOAD :item :ftype)
+                load/type/(if header 'header)/(if all_LOAD 'all) item :ftype
             ]
         ]
 
@@ -635,7 +635,6 @@ load-module: function [
     ; Returns blank if source is word and no module of that name is loaded.
     ; Returns blank if source is file/url and read or load-extension fails.
 
-    assert/type [local blank!] ; easiest way to protect against /local hacks
     if import [delay: _] ; /import overrides /delay
 
     ; Process the source, based on its type
@@ -737,9 +736,19 @@ load-module: function [
             ]
 
             return map-each [mod ver sum name] source [
-                (load-module/ver/sum/name/:no-share/:no-lib/:import/:delay
-                    mod :ver :sum (opt name)
-                )
+                apply 'load-module [
+                    source: mod
+                    version: version
+                    ver: :ver
+                    check: :check
+                    sum: :sum
+                    as: true
+                    name: opt name
+                    no-share: no-share
+                    no-lib: no-lib
+                    import: import
+                    delay: delay
+                ]
             ]
         ]
     ]
@@ -907,16 +916,29 @@ import: function [
     ; If it's a needs dialect block, call DO-NEEDS/block:
     if block? module [
         assert [not version not check] ; these can only apply to one module
-        return do-needs/:no-share/:no-lib/:no-user/block module
+        return apply 'do-needs [
+            needs: module
+            no-share: :no-share
+            no-lib: :no-lib
+            no-user: :no-user
+            block: true
+        ]
     ]
 
     ; Note: IMPORT block! returns a block of all the modules imported.
 
     ; Try to load and check the module.
-    set [name: mod:] (
-        ; !!! the original code said /import, not conditional on refinement
-        load-module/version/check/:no-share/:no-lib/import module :ver :sum
-    )
+    ; !!! the original code said /import, not conditional on refinement
+    set [name: mod:] apply 'load-module [
+        source: module
+        version: version
+        ver: :ver
+        check: check
+        sum: :sum
+        no-share: no-share
+        no-lib: no-lib
+        import: true
+    ]
 
     case [
         mod  blank  ; success!
@@ -927,8 +949,16 @@ import: function [
 
             for-each path system/options/module-paths [
                 if set [name: mod:] (
-                    load-module/version/check/as/:no-share/:no-lib/import
-                        path/:file :ver :sum module
+                    apply 'load-module [
+                        source: path/:file
+                        version: version
+                        ver: :ver
+                        check: check
+                        sum: :sum
+                        no-share: :no-share
+                        no-lib: :no-lib
+                        import: true
+                    ]
                 ) [
                     break
                 ]

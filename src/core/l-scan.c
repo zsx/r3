@@ -1798,11 +1798,11 @@ exit_block:
     // SWITCH can run differently based on noticing it was dispatched from
     // a reference living in that legacy code.
     //
-    // !!! Currently cued by the REFINEMENTS_TRUE option which also applies
+    // !!! Currently cued by the REFINEMENTS_BLANK option which also applies
     // to functions, but should be its own independent switch.
     //
 #if !defined(NDEBUG)
-    if (LEGACY(OPTIONS_REFINEMENTS_TRUE))
+    if (LEGACY(OPTIONS_REFINEMENTS_BLANK))
         SET_ARR_FLAG(block, SERIES_FLAG_LEGACY);
 #endif
 

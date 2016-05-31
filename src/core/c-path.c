@@ -346,7 +346,7 @@ REBOOL Do_Path_Throws(
         // should balance!)
 
         for (; NOT_END(pvs.item); ++pvs.item) { // "the refinements"
-            if (IS_BLANK(pvs.item)) continue;
+            if (IS_VOID(pvs.item)) continue;
 
             if (IS_GROUP(pvs.item)) {
                 // Note it is not legal to use the data stack directly as the
@@ -357,13 +357,13 @@ REBOOL Do_Path_Throws(
                     DS_DROP_TO(dsp_orig);
                     return TRUE;
                 }
-                if (IS_BLANK(&refinement)) continue;
+                if (IS_VOID(&refinement)) continue;
                 DS_PUSH(&refinement);
             }
             else if (IS_GET_WORD(pvs.item)) {
                 DS_PUSH_TRASH;
                 *DS_TOP = *GET_OPT_VAR_MAY_FAIL(pvs.item);
-                if (IS_BLANK(DS_TOP)) {
+                if (IS_VOID(DS_TOP)) {
                     DS_DROP;
                     continue;
                 }
@@ -373,8 +373,9 @@ REBOOL Do_Path_Throws(
             // Whatever we were trying to use as a refinement should now be
             // on the top of the data stack, and only words are legal ATM
             //
-            if (!IS_WORD(DS_TOP))
+            if (!IS_WORD(DS_TOP)) {
                 fail (Error(RE_BAD_REFINE, DS_TOP));
+            }
 
             // Go ahead and canonize the word symbol so we don't have to
             // do it each time in order to get a case-insenstive compare
