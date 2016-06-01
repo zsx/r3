@@ -692,6 +692,7 @@ struct Reb_Frame {
             (f)->indexor = END_FLAG; \
             break; \
         } \
+        (f)->flags = 0; /* !!! review */ \
         (f)->indexor = VAL_INDEX(v) + 1; \
         (f)->source.array = VAL_ARRAY(v); \
         (f)->eval_fetched = NULL; \
