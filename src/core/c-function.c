@@ -1480,7 +1480,6 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
     SNAP_STATE(&f->state); // for comparison to make sure stack balances, etc.
 #endif
 
-    f->value = NULL;
     f->indexor = END_FLAG;
     f->source.array = EMPTY_ARRAY;
     f->eval_fetched = NULL;
@@ -1494,18 +1493,26 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
     #if !defined(NDEBUG)
         f->data.stackvars = NULL;
         f->mode = CALL_MODE_GUARD_ARRAY_ONLY; // lie for a second
+        f->func = NULL; // debug build checks before Push_Or_Alloc_Vars
     #endif
 
         f->flags =
             DO_FLAG_NEXT | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_NO_LOOKAHEAD;
-        Push_Or_Alloc_Vars_For_Call(f);
+
+        Push_Or_Alloc_Vars_For_Underlying_Func(f); // sets f->func
     }
     else {
         f->flags |=
             DO_FLAG_NEXT | DO_FLAG_FRAME_CONTEXT | DO_FLAG_EXECUTE_FRAME;
 
         f->mode = CALL_MODE_ARGS;
+        // f->func should already be set
+        f->exit_from = NULL; // !!! TBD: handle correctly
     }
+
+#if !defined(NDEBUG)
+    f->value = NULL; // nothing to FETCH_NEXT, this is a debug check
+#endif
 
     f->arg = FRM_ARGS_HEAD(f);
     f->param = FUNC_PARAMS_HEAD(f->func);
@@ -1515,51 +1522,64 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
 
     f->cell.subfeed = NULL;
 
-    if (!opt_def)
-        goto call_now;
-
-    if (f->flags & DO_FLAG_FRAME_CONTEXT) {
+    if (!opt_def) {
         //
-        // There's a pool-allocated context, specific binding available
+        // No need to push a frame, as there already is one.
         //
-        Bind_Values_Core(
-            VAL_ARRAY_AT(opt_def),
-            f->data.context,
-            FLAGIT_KIND(REB_SET_WORD), // types to bind (just set-word!)
-            0, // types to "add midstream" to binding as we go (nothing)
-            BIND_DEEP
-        );
-
-        f->mode = CALL_MODE_ARGS; // protects context, needed during DO of def
+        // !!! This form of execution raises a ton of open questions about
+        // what to do if a frame is used more than once.  Function calls
+        // are allowed to destroy their arguments and will contaminate the
+        // pure locals.  We need to treat this as a "non-specializing
+        // specialization", and push a frame.  The narrow case of frame
+        // reuse needs to be contained to something that a function can only
+        // do to itself--e.g. to facilitate tail recursion, because no caller
+        // but the function itself understands the state of its locals in situ.
+        //
+        ASSERT_CONTEXT(f->data.context);
     }
     else {
-        // Relative binding (long term this would be specific also)
-        //
-        Bind_Relative_Deep(
-            f->func, VAL_ARRAY_AT(opt_def), FLAGIT_KIND(REB_SET_WORD)
-        );
+        if (f->flags & DO_FLAG_FRAME_CONTEXT) {
+            //
+            // There's a pool-allocated context, specific binding available
+            //
+            Bind_Values_Core(
+                VAL_ARRAY_AT(opt_def),
+                f->data.context,
+                FLAGIT_KIND(REB_SET_WORD), // types to bind (just set-word!)
+                0, // types to "add midstream" to binding as we go (nothing)
+                BIND_DEEP
+            );
 
-        // !!! While running `def`, it must believe that the relatively bound
-        // variables can be resolved.  For relative binding it will only think
-        // so if a stack frame for the function exists and is in the running
-        // state.  Hence we have to lie here temporarily during DO of def.
+            f->mode = CALL_MODE_ARGS; // protects context during DO of def
+        }
+        else {
+            // Relative binding (long term this would be specific also)
+            //
+            Bind_Relative_Deep(
+                f->func, VAL_ARRAY_AT(opt_def), FLAGIT_KIND(REB_SET_WORD)
+            );
+
+            // !!! While running `def`, it believes that the relatively bound
+            // variables can be resolved.  For relative binding it only thinks
+            // so if a stack frame for the function exists in the running
+            // state.  Hence we have to lie here temporarily during DO of def.
+            //
+            f->mode = CALL_MODE_FUNCTION;
+            f->arg = &f->data.stackvars[0];
+        }
+
+        // Do the block into scratch space--we ignore the result (unless it is
+        // thrown, in which case it must be returned.)
         //
-        f->mode = CALL_MODE_FUNCTION;
-        f->arg = &f->data.stackvars[0];
+        if (DO_VAL_ARRAY_AT_THROWS(f->out, opt_def))
+            return R_OUT_IS_THROWN;
+
+        // Undo our lie about the function running (if we had to lie)...
+        //
+        if (NOT(f->flags & DO_FLAG_FRAME_CONTEXT))
+            f->mode = CALL_MODE_ARGS;
     }
 
-    // Do the block into scratch space--we ignore the result (unless it is
-    // thrown, in which case it must be returned.)
-    //
-    if (DO_VAL_ARRAY_AT_THROWS(f->out, opt_def))
-        return R_OUT_IS_THROWN;
-
-    // Undo our lie about the function running (if we had to lie)...
-    //
-    if (NOT(f->flags & DO_FLAG_FRAME_CONTEXT))
-        f->mode = CALL_MODE_ARGS;
-
-call_now:
     Do_Core(f);
 
     if (f->indexor == THROWN_FLAG)
@@ -1616,12 +1636,7 @@ REBNATIVE(apply)
     if (!IS_FUNCTION(D_OUT))
         fail (Error(RE_APPLY_NON_FUNCTION, ARG(value))); // for SPECIALIZE too
 
-    f->func = VAL_FUNC(D_OUT);
-    if (f->func == NAT_FUNC(return) || f->func == NAT_FUNC(leave))
-        f->exit_from = VAL_FUNC_EXIT_FROM(D_OUT);
-    else
-        f->exit_from = NULL;
-
+    f->value = D_OUT;
     f->out = D_OUT;
 
     return Apply_Frame_Core(f, sym, def);

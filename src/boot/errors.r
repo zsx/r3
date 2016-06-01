@@ -128,6 +128,7 @@ Script: [
 
     expression-barrier: {Expression barrier hit while processing arguments}
     bar-hit-mid-case:   {Expression barrier hit in middle of CASE pairing}
+    punctuation-hit:    [:arg1 {punctuation can't serve as function argument}]
 
     reduce-made-void:   {Expression in REDUCE evaluated to void}
     break-not-continue: {Use BREAK/WITH when body is the breaking condition}

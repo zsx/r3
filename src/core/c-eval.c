@@ -86,6 +86,36 @@
 #endif
 
 
+// We save the index at the start of the expression in case it is needed
+// for error reporting.
+//
+// !!! FRM_INDEX can account for prefetching, but it cannot know what a
+// preloaded head value was unless it was saved under a debug> mode.
+//
+static inline void Start_New_Expression_Core(struct Reb_Frame *f) {
+    f->expr_index = f->indexor;
+    if (Trace_Flags)
+        Trace_Line(f);
+}
+
+#ifdef NDEBUG
+    #define START_NEW_EXPRESSION(f) \
+        Start_New_Expression_Core(f)
+#else
+    // Macro is used to mutate local do_count variable in Do_Core (for easier
+    // browsing in the watchlist) as well as to not be in a deeper stack level
+    // than Do_Core when a DO_COUNT_BREAKPOINT is hit.
+    //
+    #define START_NEW_EXPRESSION(f) \
+        do { \
+            Start_New_Expression_Core(f); \
+            do_count = Do_Core_Expression_Checks_Debug(f); \
+            if (do_count == DO_COUNT_BREAKPOINT) \
+                debug_break(); /* see %debug_break.h */ \
+        } while (FALSE)
+#endif
+
+
 // Simple macro for wrapping (but not obscuring) a `goto` in the code below
 //
 #define NOTE_THROWING(g) \
@@ -185,15 +215,6 @@ value_ready_for_do_next:
     assert(f->value && !IS_END(f->value) && f->value != f->out);
     assert(f->indexor != END_FLAG && f->indexor != THROWN_FLAG);
 
-    if (Trace_Flags) Trace_Line(f);
-
-    // Save the index at the start of the expression in case it is needed
-    // for error reporting.  FRM_INDEX can account for prefetching, but it
-    // cannot know what a preloaded head value was unless it was saved
-    // under a debug> mode.
-    //
-    f->expr_index = f->indexor;
-
     // Make sure `eval` is trash in debug build if not doing a `reevaluate`.
     // It does not have to be GC safe (for reasons explained below).  We
     // also need to reset evaluation to normal vs. a kind of "inline quoting"
@@ -258,12 +279,7 @@ reevaluate:
     //
     if (SPORADICALLY(2)) SET_TRASH_SAFE(f->out);
 
-#if !defined(NDEBUG)
-    do_count = Do_Core_Expression_Checks_Debug(f);
-
-    if (do_count == DO_COUNT_BREAKPOINT)
-        debug_break(); // see %debug_break.h
-#endif
+    START_NEW_EXPRESSION(f);
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -271,14 +287,21 @@ reevaluate:
     //
     //==////////////////////////////////////////////////////////////////==//
 
-    switch (Eval_Table[VAL_TYPE(f->value)]) { // see ET_XXX, RE: jump table
+    // This switch is done via ET_XXX and not just switching on the VAL_TYPE()
+    // (e.g. REB_XXX).  The reason is due to "jump table" optimizing--because
+    // the REB_XXX types are sparse, the switch would be less efficient than
+    // when switching on values that are packed consecutively (e.g. ET_XXX).
+    //
+    // Note that infix ("lookback") functions are dispatched *after* the
+    // switch...unless DO_FLAG_NO_LOOKAHEAD is set.
+
+    switch (Eval_Table[VAL_TYPE(f->value)]) { // DO_COUNT_BREAKPOINT lands here
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
 // [no evaluation] (REB_BLOCK, REB_INTEGER, REB_STRING, etc.)
 //
-// Copy the value's bits to f->out and fetch the next value.  (Infix behavior
-// may kick in for this same "DO/NEXT" step--see processing after switch.)
+// Copy the value's bits to f->out and fetch the next value.
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
@@ -333,7 +356,6 @@ reevaluate:
         REBOOL lookback;
         *(f->out) = *Get_Var_Core(&lookback, f->value, GETVAR_READ_ONLY);
 
-    dispatch_the_word_in_out:
         if (IS_FUNCTION(f->out)) { // check before checking unset, for speed
             SET_FRAME_SYM(f, VAL_WORD_SYM(f->value));
 
@@ -349,14 +371,19 @@ reevaluate:
                 // point are those that explicitly tolerate an <end> point as
                 // their first argument.
 
-                f->func = VAL_FUNC(f->out);
+                f->cell.eval = *f->out;
+                f->value = const_KNOWN(&f->cell.eval);
+
                 SET_END(f->out);
-                goto do_infix_out_is_first_arg_maybe_end;
+                goto do_infix_function_in_value_first_arg_is_out;
             }
 
             f->value = f->out;
-            goto do_function_in_value;
+            goto do_prefix_function_in_value;
         }
+
+    handle_out_as_if_it_was_gotten_by_word:
+        assert(!IS_FUNCTION(f->out)); // lookback local isn't valid if jumped in
 
         if (IS_VOID(f->out))
             fail (Error(RE_NO_VALUE, f->value)); // need `:x` if `x` is unset
@@ -488,7 +515,7 @@ reevaluate:
             // this does not come into play here.
 
             f->value = f->out;
-            goto do_function_in_value;
+            goto do_prefix_function_in_value;
         }
         else {
             // Path should have been fully processed, no refinements on stack
@@ -626,21 +653,11 @@ reevaluate:
         //
         SET_FRAME_SYM(f, SYM___ANONYMOUS__);
 
-    do_function_in_value:
-        //
-        // `do_function_in_value` expects the function to be in f->value,
-        // and if it's a definitional return we need to extract its target.
-        // (the REBVAL you get from FUNC_VALUE() does not have the exit_from
-        // poked into it.)
-        //
-        // Note that you *can* have a 'literal' definitional return value,
-        // because the user can compose it into a block like any function.
-        //
+    do_prefix_function_in_value:
         assert(IS_FUNCTION(f->value));
-        f->func = VAL_FUNC(f->value);
         assert(f->label_sym != SYM_0); // must be something (even "anonymous")
     #if !defined(NDEBUG)
-        assert(f->label_str != NULL); // debug build only
+        assert(f->label_str != NULL); // SET_FRAME_SYM sets (for C debugging)
     #endif
 
         // There may be refinements pushed to the data stack to process, if
@@ -676,7 +693,9 @@ reevaluate:
         // runs "under the evaluator"...because it *is the evaluator itself*.
         // Hence it is handled in a special way.
         //
-        if (f->func == NAT_FUNC(eval)) {
+        // !!! Currently EVAL cannot be specialized or trigger from "infix"
+        //
+        if (VAL_FUNC(f->value) == NAT_FUNC(eval)) {
             FETCH_NEXT_ONLY_MAYBE_END(f);
 
             if (f->indexor == END_FLAG) // e.g. `do [eval]`
@@ -740,26 +759,6 @@ reevaluate:
 
     //==////////////////////////////////////////////////////////////////==//
     //
-    // DEFINITIONAL RETURN EXTRACTION
-    //
-    //==////////////////////////////////////////////////////////////////==//
-
-        // At this point `f->value` is still good because we have not
-        // advanced the input.  We extract the special exit_from property
-        // contained in optimized definitional returns.
-        //
-        if (f->func == NAT_FUNC(leave)) {
-            f->exit_from = VAL_FUNC_EXIT_FROM(f->value);
-            goto do_definitional_exit_from;
-        }
-
-        if (f->func == NAT_FUNC(return))
-            f->exit_from = VAL_FUNC_EXIT_FROM(f->value);
-        else
-            f->exit_from = NULL;
-
-    //==////////////////////////////////////////////////////////////////==//
-    //
     // FUNCTION! NORMAL ARGUMENT FULFILLMENT PROCESS
     //
     //==////////////////////////////////////////////////////////////////==//
@@ -768,7 +767,11 @@ reevaluate:
         // may wind up resident in stack space or in dynamically allocated
         // space.  This sets up the memory as appropriate for the flags.
         //
-        Push_Or_Alloc_Vars_For_Call(f);
+        // This extracts f->func and gets the frame set up as it should be
+        // (either full of voids or pre-filled with some specialized values,
+        // and void for those still needed as arguments).
+        //
+        Push_Or_Alloc_Vars_For_Underlying_Func(f); // sets f->func
 
         // Advance the input, which loses our ability to inspect the function
         // value further.  Note we are allowed to be at a END_FLAG (such
@@ -1190,25 +1193,10 @@ reevaluate:
                     fail (Error_Bad_Refine_Revoke(f));
             }
 
-            if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg))) {
-                //
-                // While an END being "endably processed" skips the type check
-                // in normal evaluation, there's a special case in specialized
-                // infix functions where the void gets poked into the slot
-                // and then the enumeration starts over.  It's not a huge
-                // efficiency issue to check again (we're erroring anyway)
-                // but would be more elegant if there were some way to avoid
-                // the double checking.
-                //
-                if (
-                    !IS_VOID(f->arg)
-                    && !GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE)
-                ) {
-                    fail (Error_Arg_Type(
-                        FRM_LABEL(f), f->param, VAL_TYPE(f->arg)
-                    ));
-                }
-            }
+            if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg)))
+                fail (
+                    Error_Arg_Type(FRM_LABEL(f), f->param, VAL_TYPE(f->arg))
+                );
 
         continue_arg_loop: // `continue` might bind to the wrong scope
             NOOP;
@@ -1255,7 +1243,6 @@ reevaluate:
     //==////////////////////////////////////////////////////////////////==//
 
         if (f->exit_from) {
-        do_definitional_exit_from:
             //
             // If it's a definitional return, then we need to do the throw
             // for the return, named by the value in the exit_from.  This
@@ -1297,22 +1284,16 @@ reevaluate:
                 assert(VAL_FUNC_PARAMLIST(f->out) == f->exit_from);
             }
 
-            f->indexor = THROWN_FLAG;
-
             if (f->func == NAT_FUNC(leave)) {
-                //
-                // LEAVE never created an arglist, so it doesn't have to
-                // free one.  Also, it doesn't want to return a value.
-                //
                 CONVERT_NAME_TO_EXIT_THROWN(f->out, VOID_CELL);
-                NOTE_THROWING(goto return_indexor);
+            }
+            else {
+                assert(f->func == NAT_FUNC(return));
+                assert(FUNC_NUM_PARAMS(f->func) == 1);
+                CONVERT_NAME_TO_EXIT_THROWN(f->out, FRM_ARGS_HEAD(f));
             }
 
-            // On the other hand, RETURN did make an arglist that has to be
-            // dropped from the chunk stack.
-            //
-            assert(FUNC_NUM_PARAMS(f->func) == 1);
-            CONVERT_NAME_TO_EXIT_THROWN(f->out, FRM_ARGS_HEAD(f));
+            f->indexor = THROWN_FLAG;
             NOTE_THROWING(goto drop_call_and_return_thrown);
         }
 
@@ -1578,8 +1559,9 @@ reevaluate:
         //
         // No longer need to check f->data.context for thrown status if it
         // was used, so overwrite the dead pointer in the union.  Note there
-        // are two entry points to Push_Or_Alloc_Vars_For_Call at the moment,
-        // so this clearing can't be done by the debug routine at top of loop.
+        // are two entry points to Push_Or_Alloc_Vars_For_Underlying_Func
+        // at the moment, so this clearing can't be done by the debug routine
+        // at top of loop.
         //
         f->data.stackvars = NULL;
     #endif
@@ -1626,6 +1608,10 @@ reevaluate:
             Trace_Return(FRM_LABEL(f), f->out);
 
         CLEAR_FRAME_SYM(f);
+
+    #if !defined(NDEBUG)
+        f->func = NULL;
+    #endif
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1667,139 +1653,192 @@ reevaluate:
         // currently processing an infix operation.  The currently processing
         // operation is thus given "higher precedence" by this disablement.
     }
-    else {
+    else if (IS_WORD(f->value)) {
+        //
         // Since we're not at an END, we know f->value has been prefetched,
-        // so we can "peek" at it.
+        // so we "peek" at it if it is a WORD!.  If it looks up to an infix
+        // function, we will use the value in `out` as the "left-hand-side"
+        // of that invocation.
         //
-        // If it is a WORD! that looks up to an infix function, we will use
-        // the value sitting in `out` as the "left-hand-side" (parameter 1)
-        // of that invocation.  (See #1934 for the resolution that literal
-        // function values in the source will act as if they were prefix,
-        // so word lookup is the only way to get infix behavior.)
+        // We can't overwrite f->value in case this is a DO/NEXT and the
+        // prefetched value is supposed to be good for a future Do_Core call.
+        // So f->param is used to temporarily hold the fetched pointer.
         //
-        if (IS_WORD(f->value)) {
-            REBOOL lookback;
-            f->param = Get_Var_Core(&lookback, f->value, GETVAR_READ_ONLY);
+        REBOOL lookback;
+        f->param = Get_Var_Core(&lookback, f->value, GETVAR_READ_ONLY);
 
-            if (lookback && IS_FUNCTION(f->param)) {
-                SET_FRAME_SYM(f, VAL_WORD_SYM(f->value));
-                f->func = VAL_FUNC(f->param);
+    //=//// NOT A FUNCTION, BUT MAKE USE OF THE GET (if not a DO/NEXT) ////=//
 
-            do_infix_out_is_first_arg_maybe_end:
+        if (!IS_FUNCTION(f->param)) {
+            if (NOT(f->flags & DO_FLAG_TO_END))
+                goto return_indexor;
+
+            START_NEW_EXPRESSION(f); // v-- DO_COUNT_BREAKPOINT lands below
+
+            *f->out = *f->param;
+            goto handle_out_as_if_it_was_gotten_by_word;
+        }
+
+    //=//// NOT INFIX, BUT MAKE USE OF THE GET (if not a DO/NEXT) ////////=//
+
+        if (!lookback) {
+            if (NOT(f->flags & DO_FLAG_TO_END))
+                goto return_indexor;
+
+            START_NEW_EXPRESSION(f); // v-- DO_COUNT_BREAKPOINT lands below
+
+            SET_FRAME_SYM(f, VAL_WORD_SYM(f->value));
+            f->value = f->param;
+            goto do_prefix_function_in_value;
+        }
+
+    //==////////////////////////////////////////////////////////////////==//
+    //
+    // INFIX/POSTFIX/ETC. "LOOKBACK" PROCESSING
+    //
+    //==////////////////////////////////////////////////////////////////==//
+
+        // We peeked one word ahead and saw it looked up to an infix function.
+        // The desired "first" argument is the product of the previous
+        // evaluation (in f->out).  If we jump here from the ET_WORD case,
+        // then no previous eval is available...so f->out will be an END_CELL.
+        //
+        // Handling this isn't as easy as pushing argument storage, poking the
+        // value into FRM_ARG(1), and calling ordinary function dispatch to
+        // take care of the rest.  That's because the infix function might be
+        // a specialization--in which case its first unspecialized argument
+        // could be at any index in the frame.  (Pure locals are also permitted
+        // at any index in unspecialized functions, so we handle that too.)
+
+        START_NEW_EXPRESSION(f); // v-- DO_COUNT_BREAKPOINT lands below
+
+        SET_FRAME_SYM(f, VAL_WORD_SYM(f->value));
+        f->value = f->param;
+
+    do_infix_function_in_value_first_arg_is_out:
+
+        // Infix dispatch can only come from word lookup.  The APPLY operation
+        // and DO of a FRAME! should not be able to get here.  (Note: this
+        // means that if DO_FLAG_EXECUTE_FRAME is set, we are specializing
+        // and must interpret any void f->arg as an unspecified parameter.)
+        //
+        assert(!applying);
+
+        Push_Or_Alloc_Vars_For_Underlying_Func(f); // sets f->func
+        f->param = FUNC_PARAMS_HEAD(f->func);
+        f->arg = FRM_ARGS_HEAD(f);
+
+        // Look for the first "normal" argument that has not been specialized
+        // to fulfill.  Any soft-quoted specializations will have to be
+        // handled in the process.
+        //
+        for (; ; ++f->param, ++f->arg) {
+            if (IS_END(f->param)) {
                 //
-                // The warped function values used for definitional return
-                // usually need their EXIT_FROMs extracted, but here we should
-                // not worry about it as neither RETURN nor LEAVE are infix
+                // A lookback binding that takes two arguments is "infix".
+                // A lookback binding that takes one argument is "postfix".
+                // A lookback binding that takes > 2 arguments is weird.
                 //
-                assert(f->func != NAT_FUNC(leave));
-                assert(f->func != NAT_FUNC(return));
-                f->exit_from = NULL;
-
-                Push_Or_Alloc_Vars_For_Call(f);
-
-                // The current `out` wants to be the first argument of the
-                // infix function, but it must go into a "normal" slot.  That
-                // means it can't be specialized already, and
+                // Here we look at the parameters list and see nothing, e.g.
+                // it's a lookback function with 0 arguments.  It can't take
+                // the f->out parameter we have, so we error unless f->out
+                // is an END_VALUE.  This makes it "punctuation".
                 //
-                // !!! REVIEW if there is a trick by which the output could
-                // be snuck into the eval cell and reuse existing machinery,
-                // since having duplicate code here that finds the next slot
-                // will be error prone.  Look into after infix overhaul is
-                // complete.
+                // !!! There is a subtlety here because punctuation does *not*
+                // disable infix lookahead.  This makes it distinct from an
+                // arity-1 lookback binding that can tolerate <end>.  Whether
+                // this is a good idea or not remains to be seen, but it's
+                // a possible distinction to make, so it's being explored.
                 //
-                f->param = FUNC_PARAMS_HEAD(f->func);
-                f->arg = FRM_ARGS_HEAD(f);
-
-                // A specialized function uses voids to indicate arguments
-                // which are to be acquired.  Cannot fulfill an infix
-                // slot using one, because that would not be "fulfilling"
-                //
-                assert(
-                    NOT(f->flags & DO_FLAG_EXECUTE_FRAME)
-                    || !IS_VOID(f->out)
-                );
-
-                while (
-                    NOT_END(f->arg)
-                    && (
-                        NOT(f->flags & DO_FLAG_EXECUTE_FRAME)
-                        || !IS_VOID(f->arg)
-                    )
-                    && VAL_PARAM_CLASS(f->param) == PARAM_CLASS_PURE_LOCAL
+            handle_infix_as_punctuation:
+                if (
+                    IS_END(f->out)
+                    && (f->lookahead_flags & DO_FLAG_NO_LOOKAHEAD)
                 ) {
-                    ++f->param;
-                    ++f->arg;
+                    REBVAL word;
+                    Val_Init_Word(&word, REB_WORD, f->label_sym);
+                    fail (Error(RE_PUNCTUATION_HIT, &word));
                 }
 
-                // TBD: Good error messages.
+                // Note: We set f->lookahead_flags to DO_FLAG_NO_LOOKAHEAD
+                // when processing infix/etc usually.  But here it wouldn't
+                // matter, because there are no arguments to process.
                 //
-                assert(NOT_END(f->arg));
-                assert(VAL_PARAM_CLASS(f->param) == PARAM_CLASS_NORMAL);
-
-                if (IS_END(f->out)) {
-                    if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
-                        fail (Error_No_Arg(FRM_LABEL(f), f->param));
-
-                    SET_VOID(f->arg);
-                }
-                else {
-                    if (!TYPE_CHECK(f->param, VAL_TYPE(f->out)))
-                        fail (Error_Arg_Type(
-                            FRM_LABEL(f), f->param, VAL_TYPE(f->out))
-                        );
-                    *(f->arg) = *(f->out);
-                }
-
-                if (f->flags & DO_FLAG_EXECUTE_FRAME) {
-                    // Reset to the start of parameters and arguments, the
-                    // filled in parameter will not be considered
-                    //
-                    f->param = FUNC_PARAMS_HEAD(f->func);
-                    f->arg = FRM_ARGS_HEAD(f);
-                }
-                else {
-                    ++f->param;
-                    ++f->arg;
-                }
-
-                // During the argument evaluations, do not look further ahead
-                //
-                f->lookahead_flags = DO_FLAG_NO_LOOKAHEAD;
-
                 FETCH_NEXT_ONLY_MAYBE_END(f);
                 goto do_function_arglist_in_progress;
             }
 
-            // Perhaps not an infix function, but we just paid for a variable
-            // lookup.  If this isn't just a DO/NEXT, use the work!
+            if (VAL_PARAM_CLASS(f->param) == PARAM_CLASS_PURE_LOCAL) {
+                if (IS_VOID(f->arg))
+                    continue;
+
+                fail (Error_Local_Injection(FRM_LABEL(f), f->param));
+            }
+
+            if (VAL_PARAM_CLASS(f->param) != PARAM_CLASS_NORMAL) {
+                if (
+                    VAL_PARAM_CLASS(f->param) == PARAM_CLASS_REFINEMENT
+                    && IS_VOID(f->arg)
+                    && NOT(f->flags & DO_FLAG_EXECUTE_FRAME)
+                ) {
+                    // If we hit an unused refinement, we're out of normal
+                    // parameters.  So we've exhausted the basic arity.
+                    //
+                    goto handle_infix_as_punctuation;
+                }
+
+                // !!! This one is tricky.  Should you be allowed to specialize
+                // a function e.g. `specialize :append [dup: true]` and affect
+                // its arity without actually supplying the arg?  It seems
+                // reasonable but it would require more handling.
+                //
+                fail (Error(RE_MISC)); // esoteric specialization cases TBD
+            }
+
+            if (IS_VOID(f->arg))
+                break; // it's either unspecialized or needs our arg
+
+            // Non-void normal parameters must be specializations here.
             //
-            if (f->flags & DO_FLAG_TO_END) {
-                //
-                // We need to update the `expr_index` since we are skipping
-                // the whole `do_at_index` preparation for the next cycle,
-                // and also need to run the "expression checks" in debug
-                // builds to update the tick count and clear out state.
-                //
-                f->expr_index = f->indexor;
-                *(f->out) = *(f->param); // param trashed by Expression_Checks
+            assert(f->flags & DO_FLAG_EXECUTE_FRAME);
 
-            #if !defined(NDEBUG)
-                do_count = Do_Core_Expression_Checks_Debug(f);
-
-                if (do_count == DO_COUNT_BREAKPOINT)
-                    debug_break(); // see %debug_break.h
-            #endif
-
-                if (Trace_Flags) Trace_Line(f);
-
-                goto dispatch_the_word_in_out; // will handle the FETCH_NEXT
+            if (f->args_evaluate && IS_QUOTABLY_SOFT(f->arg)) {
+                if (DO_VALUE_THROWS(SINK(&f->cell.eval), f->arg)) {
+                    // infix cannot be refined -- don't need DS_DROP_TO
+                    f->indexor = THROWN_FLAG;
+                    NOTE_THROWING(goto drop_call_and_return_thrown);
+                }
+                *f->arg = *KNOWN(&f->cell.eval);
             }
         }
 
-        // Note: PATH! may contain parens, which would need to be evaluated
-        // during lookahead.  This could cause side-effects if the lookahead
-        // fails.  Consequently, PATH! should not be a candidate for doing
-        // an infix dispatch.
+        // Now f->arg is the valid argument slot to write into, but we still
+        // have to type check to make sure what's in f->out is a fit.
+        //
+        if (IS_END(f->out)) {
+            if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
+                fail (Error_No_Arg(FRM_LABEL(f), f->param));
+
+            SET_VOID(f->arg);
+        }
+        else {
+            if (!TYPE_CHECK(f->param, VAL_TYPE(f->out)))
+                fail (Error_Arg_Type(
+                    FRM_LABEL(f), f->param, VAL_TYPE(f->out))
+                );
+            *f->arg = *f->out;
+        }
+
+        // Now we bump the parameter and arg, and go through ordinary
+        // function argument fulfillment.  Note that during the argument
+        // evaluations for an infix function, we do not look further ahead.
+        //
+        f->lookahead_flags = DO_FLAG_NO_LOOKAHEAD;
+        ++f->param;
+        ++f->arg;
+
+        FETCH_NEXT_ONLY_MAYBE_END(f);
+        goto do_function_arglist_in_progress;
     }
 
     // Continue evaluating rest of block if not just a DO/NEXT
@@ -1995,12 +2034,16 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
     // trash in at this point...though by the time of that call, they must
     // hold valid values.
     //
-    f->func = cast(REBFUN*, 0xDECAFBAD);
+    f->func = NULL;
 
     assert(f->label_sym == SYM_0);
     assert(f->label_str == NULL);
 
-    f->param = cast(REBVAL*, 0xDECAFBAD);
+    // We specifically don't trash f->param, because infix evaluation needs
+    // to start a new expression, where the debug and tracing sees the
+    // current f->value but the f->param is holding the next value.
+    //
+    /* f->param = cast(REBVAL*, 0xDECAFBAD); */
     f->arg = cast(REBVAL*, 0xDECAFBAD);
     f->refine = cast(REBVAL*, 0xDECAFBAD);
 

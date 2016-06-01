@@ -464,7 +464,7 @@ void Drop_Chunk(REBVAL *opt_head)
 
 
 //
-//  Push_Or_Alloc_Vars_For_Call: C
+//  Push_Or_Alloc_Vars_For_Underlying_Func: C
 //
 // Allocate the series of REBVALs inspected by a function when executed (the
 // values behind D_ARG(1), D_REF(2), etc.)  Since the call contains the
@@ -478,11 +478,10 @@ void Drop_Chunk(REBVAL *opt_head)
 // actually invoke the function, so it's Dispatch_Call that actually moves
 // it to the running status.
 //
-void Push_Or_Alloc_Vars_For_Call(struct Reb_Frame *f) {
+void Push_Or_Alloc_Vars_For_Underlying_Func(struct Reb_Frame *f) {
     REBVAL *slot;
     REBCNT num_slots;
     REBARR *varlist;
-    REBFUN *actual_func;
     REBVAL *special_arg;
 
     // Should not already have any vars.  We zero out the union field for
@@ -492,23 +491,46 @@ void Push_Or_Alloc_Vars_For_Call(struct Reb_Frame *f) {
     assert(!f->data.stackvars);
 #endif
 
-    if (FUNC_CLASS(f->func) == FUNC_CLASS_SPECIALIZED) {
-        actual_func = CTX_FRAME_FUNC(
-            FUNC_VALUE(f->func)->payload.function.impl.special
-        );
-        special_arg = CTX_VARS_HEAD(
-            FUNC_VALUE(f->func)->payload.function.impl.special
-        );
+    // We need the actual REBVAL of the function here, and not just the REBFUN.
+    // This is true even though you can get a canon REBVAL from a function
+    // pointer with FUNC_VALUE().  The reason is because all definitional
+    // returns share a common REBFUN, and it's only the "hacked" REBVAL that
+    // contains the extra information of the exit_from...either in the
+    // frame context (if a specialization) or in place of code pointer (if not)
+    //
+    assert(IS_FUNCTION(f->value));
+    assert(f->func == NULL);
+
+    if (VAL_FUNC_CLASS(f->value) == FUNC_CLASS_SPECIALIZED) {
+        //
+        // !!! For debugging, it would probably be desirable to indicate
+        // that this call of the function originated from a specialization.
+        // So that would mean saving the specialization's f->func somewhere.
+        //
+        f->func = CTX_FRAME_FUNC(f->value->payload.function.impl.special);
+
+        special_arg = CTX_VARS_HEAD(f->value->payload.function.impl.special);
+
+        // !!! TBD: correct extraction of f->exit_from
+        f->exit_from = NULL;
+
+        f->flags |= DO_FLAG_EXECUTE_FRAME;
     }
     else {
-        actual_func = f->func;
+        f->func = VAL_FUNC(f->value);
+
         special_arg = NULL;
+
+        if (f->func == NAT_FUNC(leave) || f->func == NAT_FUNC(return))
+            f->exit_from = VAL_FUNC_EXIT_FROM(f->value);
+        else
+            f->exit_from = NULL;
     }
 
     // `num_vars` is the total number of elements in the series, including the
     // function's "Self" REBVAL in the 0 slot.
     //
-    num_slots = FUNC_NUM_PARAMS(actual_func);
+    num_slots = FUNC_NUM_PARAMS(f->func);
 
     // For starters clear the context flag; it's just the chunk with no
     // "reification" (Context_For_Frame_May_Reify() might change this)
@@ -519,7 +541,7 @@ void Push_Or_Alloc_Vars_For_Call(struct Reb_Frame *f) {
     // slot long, because function frames start with the value of the
     // function in slot 0.
     //
-    if (IS_FUNC_DURABLE(FUNC_VALUE(actual_func))) {
+    if (IS_FUNC_DURABLE(FUNC_VALUE(f->func))) {
         //
         // !!! In the near term, it's hoped that CLOSURE! will go away and
         // that stack frames can be "hybrids" with some pooled allocated
@@ -604,21 +626,6 @@ void Push_Or_Alloc_Vars_For_Call(struct Reb_Frame *f) {
         // somewhere...)
         //
         Context_For_Frame_May_Reify(f, varlist, FALSE);
-    }
-
-    // If it's a specialization, we've already taken care of what we
-    // needed to know from that specialization--all further references
-    // will need to talk about the function which is being called.
-    //
-    // !!! For debugging, it would probably be desirable to indicate
-    // that this call of the function originated from a specialization.
-    // So that would mean saving the specialization's f->func somewhere.
-    //
-    if (FUNC_CLASS(f->func) == FUNC_CLASS_SPECIALIZED) {
-        f->func = CTX_FRAME_FUNC(
-            FUNC_VALUE(f->func)->payload.function.impl.special
-        );
-        f->flags |= DO_FLAG_EXECUTE_FRAME;
     }
 }
 
