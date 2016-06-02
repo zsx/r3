@@ -498,8 +498,13 @@ void Make_Command(
     //
     Turn_Typespec_Opts_Into_Nones(VAL_FUNC_SPEC(out));
 
+    REBOOL punctuates;
     out->payload.function.func
-        = AS_FUNC(Make_Paramlist_Managed(VAL_FUNC_SPEC(out), SYM_0));
+        = AS_FUNC(Make_Paramlist_Managed(
+            VAL_FUNC_SPEC(out), &punctuates, SYM_0
+        ));
+
+    SET_VAL_FLAG(out, FUNC_FLAG_PUNCTUATES);
 
     // There is no "body", but we want to save `extension` and `command_num`
     // and the only place there is to put it is in the place where a function

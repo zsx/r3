@@ -1236,6 +1236,29 @@ REBNATIVE(lookback_q)
 
 
 //
+//  punctuates?: native [
+//
+//  {TRUE if looks up to a function and gets first argument before the call}
+//
+//      value [function! any-word! any-path!]
+//          {Function or specifying word/path}
+//  ]
+//
+REBNATIVE(punctuates_q)
+{
+    PARAM(1, value);
+
+    REBSYM sym; // unused here
+    Get_If_Word_Or_Path_Arg(D_OUT, &sym, ARG(value));
+
+    if (!IS_FUNCTION(D_OUT))
+        fail (Error_Unexpected_Type(REB_FUNCTION, VAL_TYPE(D_OUT)));
+
+    return GET_VAL_FLAG(D_OUT, FUNC_FLAG_PUNCTUATES) ? R_TRUE : R_FALSE;
+}
+
+
+//
 //  set?: native [
 //  
 //  "Returns whether a bound word or path is set (!!! shouldn't eval GROUP!s)"

@@ -134,11 +134,16 @@ REBARR *List_Func_Typesets(REBVAL *func)
 // 
 // Throw an error for invalid values.
 //
-REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
-{
+REBARR *Make_Paramlist_Managed(
+    REBARR *spec,
+    REBOOL *punctuates,
+    REBCNT opt_sym_last
+) {
     REBVAL *item;
     REBARR *paramlist;
     REBVAL *typeset;
+
+    *punctuates = FALSE;
 
     // Use a temporary to hold a value being "bubbled" toward the end if there
     // was a request for a canon symbol to be moved to the end.  (Feature used
@@ -244,6 +249,11 @@ REBARR *Make_Paramlist_Managed(REBARR *spec, REBCNT opt_sym_last)
                 }
                 fail (Error(RE_BAD_FUNC_DEF, item));
             }
+            continue;
+        }
+
+        if (IS_BAR(item)) {
+            *punctuates = TRUE;
             continue;
         }
 
@@ -391,8 +401,12 @@ void Make_Native(
     VAL_FUNC_CODE(out) = code;
     VAL_FUNC_SPEC(out) = spec;
 
+    REBOOL punctuates;
     out->payload.function.func
-        = AS_FUNC(Make_Paramlist_Managed(spec, SYM_0));
+        = AS_FUNC(Make_Paramlist_Managed(spec, &punctuates, SYM_0));
+
+    if (punctuates)
+        SET_VAL_FLAG(out, FUNC_FLAG_PUNCTUATES);
 
     // Save the function value in slot 0 of the paramlist so that having
     // just the paramlist REBARR can get you the full REBVAL of the function
@@ -520,7 +534,7 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 //
 void Make_Function(
     REBVAL *out,
-    REBOOL returns_unset,
+    REBOOL is_procedure,
     const REBVAL *spec,
     const REBVAL *body,
     REBOOL has_return
@@ -529,6 +543,9 @@ void Make_Function(
 
     VAL_RESET_HEADER(out, REB_FUNCTION); // clears value flags in header...
     INIT_VAL_FUNC_CLASS(out, FUNC_CLASS_USER);
+
+    if (is_procedure)
+        SET_VAL_FLAG(out, FUNC_FLAG_PUNCTUATES);
 
     if (!IS_BLOCK(spec) || !IS_BLOCK(body))
         fail (Error_Bad_Func_Def(spec, body));
@@ -541,7 +558,7 @@ void Make_Function(
         // on whether the "effective spec" needs a definitional exit or not.
         //
         if (has_return) {
-            VAL_FUNC_SPEC(out) = returns_unset
+            VAL_FUNC_SPEC(out) = is_procedure
                 ? VAL_ARRAY(ROOT_LEAVE_BLOCK)
                 : VAL_ARRAY(ROOT_RETURN_BLOCK);
         } else
@@ -633,6 +650,15 @@ void Make_Function(
                     // want to pay.
 
                     /*Remove_Series(VAL_FUNC_SPEC(out), index, 1);*/
+                }
+                else if (
+                    0 == Compare_String_Vals(item, ROOT_PUNCTUATES_TAG, TRUE)
+                ) {
+                    // !!! Right now a BAR! in the top level is what is read
+                    // as meaning punctuates by MAKE FUNCTION!, though this
+                    // is perhaps not permanent.
+
+                    SET_BAR(item);
                 }
                 else if (
                     0 == Compare_String_Vals(item, ROOT_LOCAL_TAG, TRUE)
@@ -783,7 +809,7 @@ void Make_Function(
             //
             Append_Value(
                 VAL_FUNC_SPEC(out),
-                returns_unset
+                is_procedure
                     ? ROOT_LEAVE_SET_WORD
                     : ROOT_RETURN_SET_WORD
             );
@@ -795,12 +821,17 @@ void Make_Function(
     // have located in the final slot if its symbol is found (so SYM_RETURN
     // if the function has a optimized definitional return).
     //
+    REBOOL punctuates;
     out->payload.function.func = AS_FUNC(
         Make_Paramlist_Managed(
             VAL_FUNC_SPEC(out),
-            has_return ? (returns_unset ? SYM_LEAVE : SYM_RETURN) : SYM_0
+            &punctuates,
+            has_return ? (is_procedure ? SYM_LEAVE : SYM_RETURN) : SYM_0
         )
     );
+
+    if (punctuates)
+        SET_VAL_FLAG(out, FUNC_FLAG_PUNCTUATES);
 
     // We copy the body or do the empty body optimization to not copy and
     // use the EMPTY_ARRAY (which probably doesn't happen often...)
@@ -823,7 +854,7 @@ void Make_Function(
     #if !defined(NDEBUG)
         REBVAL *param = ARR_LAST(AS_ARRAY(out->payload.function.func));
 
-        assert(returns_unset
+        assert(is_procedure
             ? VAL_TYPESET_CANON(param) == SYM_LEAVE
             : VAL_TYPESET_CANON(param) == SYM_RETURN);
 
@@ -1352,9 +1383,9 @@ REBNATIVE(func)
     PARAM(2, body);
 
     const REBOOL has_return = TRUE;
-    const REBOOL returns_unset = FALSE;
+    const REBOOL is_procedure = FALSE;
 
-    Make_Function(D_OUT, returns_unset, ARG(spec), ARG(body), has_return);
+    Make_Function(D_OUT, is_procedure, ARG(spec), ARG(body), has_return);
     return R_OUT;
 }
 
@@ -1381,9 +1412,9 @@ REBNATIVE(proc)
     PARAM(2, body);
 
     const REBOOL has_return = TRUE;
-    const REBOOL returns_unset = TRUE;
+    const REBOOL is_procedure = TRUE;
 
-    Make_Function(D_OUT, returns_unset, ARG(spec), ARG(body), has_return);
+    Make_Function(D_OUT, is_procedure, ARG(spec), ARG(body), has_return);
 
     return R_OUT;
 }

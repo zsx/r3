@@ -75,7 +75,7 @@ REBOOL MT_Function(REBVAL *out, REBVAL *def, enum Reb_Kind kind)
     // general in any case due to loss of bindings.)
     //
     const REBOOL has_return = FALSE;
-    const REBOOL returns_unset = FALSE;
+    const REBOOL is_procedure = FALSE;
 
     REBVAL *spec;
     REBVAL *body;
@@ -91,7 +91,7 @@ REBOOL MT_Function(REBVAL *out, REBVAL *def, enum Reb_Kind kind)
     body = VAL_ARRAY_AT_HEAD(def, 1);
     if (!IS_BLOCK(body)) return FALSE;
 
-    Make_Function(out, returns_unset, spec, body, has_return);
+    Make_Function(out, is_procedure, spec, body, has_return);
 
     // We only get here if Make() doesn't raise an error...
     return TRUE;

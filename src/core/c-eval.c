@@ -767,6 +767,20 @@ reevaluate:
         //
         assert(DSP >= f->dsp_orig);
 
+        // If a function doesn't want to act as an argument to a function
+        // call from the left, we can prohibit that by looking one stack
+        // frame above us and seeing if f->param is a typeset.  If it is,
+        // then we're being asked to generate an argument slot.
+        //
+        // Note: We pay attention to the outermost wrapper function or
+        // specialization, not what the innermost implementation function
+        // says.  This gives the most flexibility.
+
+        if (GET_VAL_FLAG(f->value, FUNC_FLAG_PUNCTUATES))
+            if (f->prior && !IS_END(f->prior->param))
+                if (IS_TYPESET(f->prior->param))
+                    fail (Error_Punctuator_Hit(f));
+
         // We reset the lookahead_flags here to do a lookahead regardless
         // of what was passed in by the caller.  The reason is that each
         // level of function dispatch resets it.  Consider:
@@ -1475,6 +1489,8 @@ reevaluate:
                 VAL_FUNC_EXIT_FROM(f->refine) = FUNC_PARAMLIST(f->func);
         }
 
+        f->param = END_CELL; // easier way to assure this?
+
         if (Trace_Flags) Trace_Func(FRM_LABEL(f), FUNC_VALUE(f->func));
 
         assert(f->indexor != THROWN_FLAG);
@@ -1743,10 +1759,7 @@ reevaluate:
     // used for the immediately previous evaluation).  We're using the f->flags
     // lookahead state that was requested at entry of Do_Core.
     //
-    if (
-        (f->flags & DO_FLAG_NO_LOOKAHEAD)
-        || (f->lookahead_flags & DO_FLAG_PUNCTUATOR)
-    ) {
+    if ((f->flags & DO_FLAG_NO_LOOKAHEAD) || eval_type == ET_TERMINAL) {
         //
         // Don't do infix lookahead if asked *not* to look.  It's not typical
         // to be requested by callers (there is already no infix lookahead
@@ -1851,7 +1864,8 @@ reevaluate:
             handle_infix_as_punctuator:
                 if (IS_END(f->out))
                     if (f->lookahead_flags & DO_FLAG_NO_LOOKAHEAD)
-                        fail (Error_Punctuator_Hit(f));
+                        if (GET_VAL_FLAG(f->value, FUNC_FLAG_PUNCTUATES))
+                            fail (Error_Punctuator_Hit(f));
 
                 // Setting the lookahead_flags for the next operation to
                 // DO_FLAG_NO_LOOKAHEAD would be pointless here, as it's
@@ -1862,7 +1876,8 @@ reevaluate:
                 // disables lookahead...even if f->flags asked for it.
                 //
                 FETCH_NEXT_ONLY_MAYBE_END(f);
-                f->lookahead_flags = DO_FLAG_PUNCTUATOR;
+                eval_type = ET_TERMINAL;
+                // f->lookahead_flags don't matter--there are no arguments
                 goto do_function_arglist_in_progress;
             }
 

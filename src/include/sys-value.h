@@ -2094,11 +2094,22 @@ enum {
     //
     FUNC_FLAG_LEAVE_OR_RETURN = (1 << (TYPE_SPECIFIC_BIT + 3)) | FUNC_FLAG_X,
 
+    // A function may act as a barrier on its left (so that it cannot act
+    // as an input argument to another function).
+    //
+    // Given the "greedy" nature of infix, a function with arguments cannot
+    // be stopped from infix consumption on its right--because the arguments
+    // would consume them.  Only a function with no arguments is able to
+    // trigger an error when used as a left argument.  This is the ability
+    // given to lookback 0 arity functions, known as "punctuators".
+    //
+    FUNC_FLAG_PUNCTUATES = (1 << (TYPE_SPECIFIC_BIT + 4)) | FUNC_FLAG_X,
+
 #if !defined(NDEBUG)
     //
     // TRUE-valued refinements, NONE! for unused args
     //
-    FUNC_FLAG_LEGACY = (1 << (TYPE_SPECIFIC_BIT + 4)) | FUNC_FLAG_X,
+    FUNC_FLAG_LEGACY = (1 << (TYPE_SPECIFIC_BIT + 5)) | FUNC_FLAG_X,
 #endif
 
     FUNC_FLAG_NO_COMMA // needed for proper comma termination of this list

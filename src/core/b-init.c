@@ -1514,6 +1514,7 @@ void Init_Core(REBARGS *rargs)
     const REBYTE end[] = "end";
     const REBYTE local[] = "local";
     const REBYTE durable[] = "durable";
+    const REBYTE punctuates[] = "punctuates";
 
     REBVAL result;
 
@@ -1641,6 +1642,13 @@ void Init_Core(REBARGS *rargs)
     );
     SET_SER_FLAG(VAL_SERIES(ROOT_NO_RETURN_TAG), SERIES_FLAG_FIXED_SIZE);
     SET_SER_FLAG(VAL_SERIES(ROOT_NO_RETURN_TAG), SERIES_FLAG_LOCKED);
+
+    Val_Init_Tag(
+        ROOT_PUNCTUATES_TAG,
+        Append_UTF8_May_Fail(NULL, punctuates, LEN_BYTES(punctuates))
+    );
+    SET_SER_FLAG(VAL_SERIES(ROOT_PUNCTUATES_TAG), SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAG(VAL_SERIES(ROOT_PUNCTUATES_TAG), SERIES_FLAG_LOCKED);
 
     Val_Init_Tag(
         ROOT_ELLIPSIS_TAG,

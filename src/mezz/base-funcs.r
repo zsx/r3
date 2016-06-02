@@ -131,7 +131,7 @@ nfix?: function [
     ]
 ]
 
-punctuator?: specialize :nfix? [n: 0 | name: "PUNCTUATOR?"]
+endfix?: specialize :nfix? [n: 0 | name: "ENDFIX?"]
 postfix?: specialize :nfix? [n: 1 | name: "POSTFIX?"]
 infix?: specialize :nfix? [n: 2 | name: "INFIX?"]
 
@@ -148,7 +148,7 @@ set-nfix: function [
     set/lookback target :value
 ]
 
-set-punctuator: specialize :set-nfix [n: 0 | name: "SET-PUNCTUATOR"]
+set-endfix: specialize :set-nfix [n: 0 | name: "SET-ENDFIX"]
 set-postfix: specialize :set-nfix [n: 1 | name: "SET-POSTFIX"]
 set-infix: specialize :set-nfix [n: 2 | name: "SET-INFIX"]
 

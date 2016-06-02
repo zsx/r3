@@ -128,7 +128,7 @@ Script: [
 
     expression-barrier: {Expression barrier hit while processing arguments}
     bar-hit-mid-case:   {Expression barrier hit in middle of CASE pairing}
-    punctuator-hit:     [:arg1 {can't be passed as an argument (punctuator)}]
+    punctuator-hit:     [:arg1 {punctuates and can't be passed as an argument}]
 
     reduce-made-void:   {Expression in REDUCE evaluated to void}
     break-not-continue: {Use BREAK/WITH when body is the breaking condition}
