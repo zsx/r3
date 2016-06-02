@@ -242,6 +242,19 @@ void Do_Core(struct Reb_Frame * const f)
         assert(FALSE);
     }
 
+    // f->param has a special purpose in nested evaluations to be used to
+    // tell the evaluator if it's running a SET-WORD! or a SET-PATH!, so
+    // that quoting infix operators can see it... e.g. `x: ++ 10`.  The
+    // contract is that it will be a typeset or one of those things.
+    //
+    assert(
+        !f->prior
+        || IS_END(f->prior->param)
+        || IS_TYPESET(f->prior->param)
+        || IS_SET_WORD(f->prior->param)
+        || IS_SET_PATH(f->prior->param)
+    );
+
     // Check just once (stack level would be constant if checked in a loop)
     //
     if (C_STACK_OVERFLOWING(&f)) Trap_Stack_Overflow();
@@ -473,7 +486,12 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_SET_WORD:
-        f->param = f->value; // fetch writes f->value, so save SET-WORD! ptr
+        //
+        // fetch writes f->value, so save SET-WORD! ptr.  Note that the nested
+        // evaluation here might peek up at it if it contains an infix
+        // function that quotes its first argument, e.g. `x: ++ 10`
+        //
+        f->param = f->value;
 
         FETCH_NEXT_ONLY_MAYBE_END(f);
         if (f->indexor == END_FLAG)
@@ -534,10 +552,13 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_GROUP:
+        f->param = END_CELL; // stops nested lookback from quoting
+
         if (DO_VAL_ARRAY_AT_THROWS(f->out, f->value)) {
             f->indexor = THROWN_FLAG;
             NOTE_THROWING(goto return_indexor);
         }
+
         FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
 
@@ -548,8 +569,9 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_PATH: {
-        REBSYM sym;
+        f->param = END_CELL; // stops nested lookback from quoting
 
+        REBSYM sym;
         if (Do_Path_Throws(
             f->out,
             &sym, // requesting symbol says we process refinements
@@ -599,7 +621,12 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_SET_PATH:
-        f->param = f->value; // fetch writes f->value, save SET-WORD! pointer
+        //
+        // fetch writes f->value, so save SET-WORD! ptr.  Note that the nested
+        // evaluation here might peek up at it if it contains an infix
+        // function that quotes its first argument, e.g. `x/y: ++ 10`
+        //
+        f->param = f->value;
 
         FETCH_NEXT_ONLY_MAYBE_END(f);
 
@@ -668,6 +695,15 @@ reevaluate:
 
     case ET_GET_PATH:
         //
+        // !!! This stops any nested evaluations from having an infix lookback
+        // that quotes.  But should a GET-PATH! be able to call into the
+        // evaluator anyway, by evaluating GROUP!s in the path?  It's clear
+        // that `get path` shouldn't be able to evaluate (a GET should not
+        // have side effects).  But perhaps source-level GET-PATH!s can be
+        // more liberal, as one can visibly see the GROUP!s.
+        //
+        f->param = END_CELL;
+
         // returns in word the path item, DS_TOP has value
         //
         if (Do_Path_Throws(f->out, NULL, f->value, NULL)) {
@@ -768,6 +804,8 @@ reevaluate:
                 fail (Error_No_Arg(
                     FRM_LABEL(f), FUNC_PARAM(NAT_FUNC(eval), 1)
                 ));
+
+            f->param = END_CELL; // tell infix lookback it can't quote
 
             // "DO/NEXT" full expression into the `eval` REBVAR slot
             // (updates index...).  (There is an /ONLY switch to suppress

@@ -705,6 +705,7 @@ struct Reb_Frame {
             break; \
         } \
         (f)->flags = 0; /* !!! review */ \
+        (f)->param = END_CELL; /* for set-word/set-path infix quoting */ \
         (f)->indexor = VAL_INDEX(v) + 1; \
         (f)->source.array = VAL_ARRAY(v); \
         (f)->eval_fetched = NULL; \
@@ -1169,20 +1170,17 @@ struct Native_Refine {
 
 #define FRM_PARAMS_HEAD(f)  FUNC_PARAMS_HEAD((f)->func)
 
-// Though `arg` is in use to point at the arguments during evaluation, the
-// other parameter fulfillment pointers `param` and `refine` are free for
-// use.  Since the GC is aware of these pointers, it can protect whatever
-// they are pointing at.  This can be useful for routines that have a local
+// `arg` is in use to point at the arguments during evaluation, and `param`
+// may hold a SET-WORD! or SET-PATH! available for a lookback to quote.
+// But during evaluations, `refine` is free.
+//
+// Since the GC is aware of the pointers, it can protect whatever refine is
+// pointing at.  This can be useful for routines that have a local
 // memory cell.  This does not require a push or a pop of anything--it only
 // protects as long as the native is running.  (This trick is available to
 // the dispatchers as well.)
 //
-// Using X and Y instead of 1 and 2 to avoid confusing with PARAM(#)s
-//
 #define PROTECT_FRM_X(f,v) \
-    ((f)->param = (v))
-
-#define PROTECT_FRM_Y(f,v) \
     ((f)->refine = (v))
 
 // It's not clear exactly in which situations one might be using this; while
