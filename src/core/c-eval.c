@@ -1239,31 +1239,24 @@ reevaluate:
 
     //=//// QUOTED ARG-OR-REFINEMENT-ARG (HARD OR SOFT QUOTE) /////////////=//
 
-            if (
-                pclass == PARAM_CLASS_SOFT_QUOTE
-                && f->args_evaluate // it's not an EVAL/ONLY
-                && IS_QUOTABLY_SOFT(f->value)
-            ) {
-                if (DO_VALUE_THROWS(f->out, f->value)) {
-                    DS_DROP_TO(f->dsp_orig);
-                    f->indexor = THROWN_FLAG;
-                    NOTE_THROWING(goto drop_call_and_return_thrown);
+            if (pclass == PARAM_CLASS_HARD_QUOTE)
+                QUOTE_NEXT_REFETCH(f->arg, f); // clears VALUE_FLAG_EVALUATED
+            else {
+                assert(pclass == PARAM_CLASS_SOFT_QUOTE);
+
+                if (f->args_evaluate && IS_QUOTABLY_SOFT(f->value)) {
+                    if (DO_VALUE_THROWS(f->arg, f->value)) {
+                        DS_DROP_TO(f->dsp_orig);
+                        *f->out = *f->arg;
+                        f->indexor = THROWN_FLAG;
+                        NOTE_THROWING(goto drop_call_and_return_thrown);
+                    }
                 }
+                else
+                    *f->arg = *f->value;
 
-                *(f->arg) = *(f->out);
                 FETCH_NEXT_ONLY_MAYBE_END(f);
-                goto continue_arg_loop;
             }
-
-            // This is either not one of the "soft quoted" cases, or
-            // "hard quoting" was explicitly used with GET-WORD!:
-
-            assert(
-                pclass == PARAM_CLASS_HARD_QUOTE
-                || pclass == PARAM_CLASS_SOFT_QUOTE
-            );
-
-            QUOTE_NEXT_REFETCH(f->arg, f); // clears VALUE_FLAG_EVALUATED
 
     //=//// TYPE CHECKING FOR (MOST) ARGS AT END OF ARG LOOP //////////////=//
 
