@@ -86,6 +86,58 @@
 #endif
 
 
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// EVALUATOR ERROR HELPERS
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+// An attempt was made to use a FRAME! to preload a value into a local when
+// calling a function to directly use that frame.  (The operational invariant
+// of a function when it starts is that locals are not set.)
+//
+static REBCTX *Error_Local_Injection(struct Reb_Frame *f) {
+    assert(IS_TYPESET(f->param));
+
+    REBVAL param_word;
+    Val_Init_Word(&param_word, REB_WORD, VAL_TYPESET_SYM(f->param));
+
+    REBVAL label_word;
+    Val_Init_Word(&label_word, REB_WORD, f->label_sym);
+
+    return Error(RE_LOCAL_INJECTION, &param_word, &label_word, END_CELL);
+}
+
+
+// A punctuator is a "lookahead arity 0 operation", which has special handling
+// such that it cannot be passed as an argument to a function.  Note that
+// f->label_sym must contain the symbol of the punctuator rejecting the call.
+//
+static REBCTX *Error_Punctuator_Hit(struct Reb_Frame *f) {
+    REBVAL punctuator_name;
+    Val_Init_Word(&punctuator_name, REB_WORD, f->label_sym);
+    fail (Error(RE_PUNCTUATOR_HIT, &punctuator_name));
+}
+
+
+// Ren-C allows functions to be specialized, such that a function's frame can
+// be filled (or partially filled) by an example frame.  The variables
+// corresponding to refinements must be canonized to either TRUE or FALSE
+// by these specializations, because that's what the called function expects.
+//
+static REBCTX *Error_Non_Logic_Refinement(struct Reb_Frame *f) {
+    REBVAL word;
+    Val_Init_Word(&word, REB_WORD, VAL_TYPESET_SYM(f->param));
+    fail (Error(RE_NON_LOGIC_REFINE, &word, Type_Of(f->arg)));
+}
+
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// INLINE CODE FRAGMENTS FOR REUSED EVALUATOR PATTERNS
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
 // We save the index at the start of the expression in case it is needed
 // for error reporting.
 //
@@ -124,6 +176,15 @@ static inline void Start_New_Expression_Core(struct Reb_Frame *f) {
         assert(THROWN(f->out)); \
         g; /* goto statement left at callsite for readability */ \
     } while(0)
+
+
+// There are several points in the code below where f->arg has to be checked
+// for validity against f->param.
+//
+static inline void Type_Check_Arg_For_Param_May_Fail(struct Reb_Frame * f) {
+    if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg)))
+        fail (Error_Arg_Type(FRM_LABEL(f), f->param, VAL_TYPE(f->arg)));
+}
 
 
 //
@@ -295,7 +356,12 @@ reevaluate:
     // Note that infix ("lookback") functions are dispatched *after* the
     // switch...unless DO_FLAG_NO_LOOKAHEAD is set.
 
-    switch (Eval_Table[VAL_TYPE(f->value)]) { // DO_COUNT_BREAKPOINT lands here
+    // v-- DO_COUNT_BREAKPOINT lands here (seems like "invisible" breakpoint)
+
+    REBUPT eval_type; // don't initialize due to "goto crossing"
+    eval_type = Eval_Table[VAL_TYPE(f->value)]; // REBUPT for speed
+
+    switch (eval_type) {
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
@@ -305,7 +371,7 @@ reevaluate:
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
-    case ET_NONE:
+    case ET_INERT:
         QUOTE_NEXT_REFETCH(f->out, f);
         break;
 
@@ -928,19 +994,14 @@ reevaluate:
                     *(f->arg) = *(f->out);
                 }
 
-                if (!IS_LOGIC(f->arg)) {
-                    //
-                    // Refinements must specialize as TRUE or FALSE
-                    //
-                    REBVAL word;
-                    Val_Init_Word(&word, REB_WORD, VAL_TYPESET_SYM(f->param));
-                    fail (Error(RE_NON_LOGIC_REFINE, &word, Type_Of(f->arg)));
-                }
-                else if (IS_CONDITIONAL_TRUE(f->arg)) { // must be TRUE
+                if (!IS_LOGIC(f->arg))
+                    fail (Error_Non_Logic_Refinement(f));
+
+                if (IS_CONDITIONAL_TRUE(f->arg)) {
                     SET_TRUE(f->arg);
                     f->refine = f->arg; // remember so we can revoke!
                 }
-                else { // must be FALSE
+                else {
                     SET_FALSE(f->arg);
                     f->refine = BLANK_VALUE; // (read-only)
                 }
@@ -960,7 +1021,7 @@ reevaluate:
                 if (IS_VOID(f->arg)) // only legal value - can't specialize
                     goto continue_arg_loop;
 
-                fail (Error_Local_Injection(FRM_LABEL(f), f->param));
+                fail (Error_Local_Injection(f));
             }
 
     //=//// SPECIALIZED ARG (already filled, so does not consume) /////////=//
@@ -1193,10 +1254,7 @@ reevaluate:
                     fail (Error_Bad_Refine_Revoke(f));
             }
 
-            if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg)))
-                fail (
-                    Error_Arg_Type(FRM_LABEL(f), f->param, VAL_TYPE(f->arg))
-                );
+            Type_Check_Arg_For_Param_May_Fail(f);
 
         continue_arg_loop: // `continue` might bind to the wrong scope
             NOOP;
@@ -1753,14 +1811,9 @@ reevaluate:
                 // it's not being consumed as a function arg.
                 //
             handle_infix_as_punctuator:
-                if (
-                    IS_END(f->out)
-                    && (f->lookahead_flags & DO_FLAG_NO_LOOKAHEAD)
-                ) {
-                    REBVAL word;
-                    Val_Init_Word(&word, REB_WORD, f->label_sym);
-                    fail (Error(RE_PUNCTUATOR_HIT, &word));
-                }
+                if (IS_END(f->out))
+                    if (f->lookahead_flags & DO_FLAG_NO_LOOKAHEAD)
+                        fail (Error_Punctuator_Hit(f));
 
                 // Setting the lookahead_flags for the next operation to
                 // DO_FLAG_NO_LOOKAHEAD would be pointless here, as it's
@@ -1779,7 +1832,7 @@ reevaluate:
                 if (IS_VOID(f->arg))
                     continue;
 
-                fail (Error_Local_Injection(FRM_LABEL(f), f->param));
+                fail (Error_Local_Injection(f));
             }
 
             if (VAL_PARAM_CLASS(f->param) != PARAM_CLASS_NORMAL) {
@@ -1829,11 +1882,8 @@ reevaluate:
             SET_VOID(f->arg);
         }
         else {
-            if (!TYPE_CHECK(f->param, VAL_TYPE(f->out)))
-                fail (Error_Arg_Type(
-                    FRM_LABEL(f), f->param, VAL_TYPE(f->out))
-                );
             *f->arg = *f->out;
+            Type_Check_Arg_For_Param_May_Fail(f);
         }
 
         // Now we bump the parameter and arg, and go through ordinary

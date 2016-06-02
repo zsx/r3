@@ -1687,11 +1687,7 @@ enum Reb_Param_Class {
     //     a is 1
     //     ** Script error: + operator is missing an argument
     //
-    PARAM_CLASS_NORMAL,
-
-    // `PARAM_CLASS_REFINEMENT`
-    //
-    PARAM_CLASS_REFINEMENT,
+    PARAM_CLASS_NORMAL = 0x01,
 
     // `PARAM_CLASS_HARD_QUOTE` is cued by a GET-WORD! in the function spec
     // dialect.  It indicates that a single value of  content at the callsite
@@ -1705,25 +1701,11 @@ enum Reb_Param_Class {
     //     >> foo (1 + 2)
     //     a is (1 + 2)
     //
-    PARAM_CLASS_HARD_QUOTE, // GET-WORD! in spec
+    PARAM_CLASS_HARD_QUOTE = 0x02, // GET-WORD! in spec
 
-    // `PARAM_CLASS_SOFT_QUOTE` is cued by a LIT-WORD! in the function spec
-    // dialect.  It quotes with the exception of GROUP!, GET-WORD!, and
-    // GET-PATH!...which will be evaluated:
+    // `PARAM_CLASS_REFINEMENT`
     //
-    //     >> foo: function ['a] [print [{a is} a]
-    //
-    //     >> foo 1 + 2
-    //     a is 1
-    //
-    //     >> foo (1 + 2)
-    //     a is 3
-    //
-    // Although possible to implement soft quoting with hard quoting, it is
-    // a convenient way to allow callers to "escape" a quoted context when
-    // they need to.
-    //
-    PARAM_CLASS_SOFT_QUOTE,
+    PARAM_CLASS_REFINEMENT = 0x03,
 
     // `PARAM_CLASS_PURE_LOCAL` has the disambiguator "pure" on it because
     // historically Rebol used a refinement named `/local` by convention to
@@ -1744,8 +1726,34 @@ enum Reb_Param_Class {
     // no debug-purpose PARAM_CLASS_0) and free up a scarce typeset flag.
     // But is it the case that hiding and localness should be independent?
     //
-    PARAM_CLASS_PURE_LOCAL
+    PARAM_CLASS_PURE_LOCAL = 0x04,
+
+    // Currently unused, but present for contiguity in switch() jump tables
+    //
+    PARAM_CLASS_UNUSED_5 = 0x05,
+
+    // `PARAM_CLASS_SOFT_QUOTE` is cued by a LIT-WORD! in the function spec
+    // dialect.  It quotes with the exception of GROUP!, GET-WORD!, and
+    // GET-PATH!...which will be evaluated:
+    //
+    //     >> foo: function ['a] [print [{a is} a]
+    //
+    //     >> foo 1 + 2
+    //     a is 1
+    //
+    //     >> foo (1 + 2)
+    //     a is 3
+    //
+    // Although possible to implement soft quoting with hard quoting, it is
+    // a convenient way to allow callers to "escape" a quoted context when
+    // they need to.
+    //
+    // Note: Value chosen for PCLASS_ANY_QUOTE_MASK in common with hard quote
+    //
+    PARAM_CLASS_SOFT_QUOTE = 0x06
 };
+
+#define PCLASS_ANY_QUOTE_MASK = 0x02
 
 #define PCLASS_MASK (cast(REBUPT, 0x07) << TYPE_SPECIFIC_BIT)
 

@@ -1452,34 +1452,6 @@ REBCTX *Error_Arg_Type(
 
 
 //
-//  Error_Local_Injection: C
-//
-// An attempt was made to use a FRAME! to preload a value into a local when
-// calling a function to directly use that frame.  The operational invariant
-// of a function when it starts is that locals are unset.
-//
-REBCTX *Error_Local_Injection(
-    REBCNT label_sym,
-    const REBVAL *param
-) {
-    assert(IS_TYPESET(param));
-
-    REBVAL param_word;
-    Val_Init_Word(&param_word, REB_WORD, VAL_TYPESET_SYM(param));
-
-    REBVAL label_word;
-    Val_Init_Word(&label_word, REB_WORD, label_sym);
-
-    return Error(
-        RE_LOCAL_INJECTION,
-        &param_word,
-        &label_word,
-        END_CELL
-    );
-}
-
-
-//
 //  Error_Bad_Make: C
 //
 REBCTX *Error_Bad_Make(enum Reb_Kind type, const REBVAL *spec)

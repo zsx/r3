@@ -223,8 +223,8 @@ emit {
 // implementation behind the ANY_EVAL macro.  All non-zero values then can
 // mean "has some behavior in the evaluator".
 //
-enum ^{
-    ET_NONE = 0,
+enum Reb_Eval_Type ^{
+    ET_INERT = 0,
 }
 
 for-each-record-NO-RETURN type boot-types [
@@ -271,7 +271,7 @@ for-each-record-NO-RETURN type boot-types [
     either group? type/class [
         emit-line "" rejoin ["ET_" uppercase to-string type/name] ""
     ][
-        emit-line "" "ET_NONE" ""
+        emit-line "" "ET_INERT" ""
     ]
     loop 3 [emit-line "" "0xAE" "available"]
 ]
