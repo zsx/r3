@@ -138,7 +138,19 @@ enum {
     // expression evaluation is complete.  Review to see if they actually
     // would rather know something else, but this is a cheap flag for now.
     //
-    DO_FLAG_VALIST = 1 << 9
+    DO_FLAG_VALIST = 1 << 9,
+
+    // Punctuators are a special behavior which is triggered by an arity-0
+    // lookahead function.  The idea of a function with no arguments that is
+    // "infix-like" did not have another meaning, so since there was a
+    // case being paid for in the code recognizing this situation it was
+    // given some usefulness...namely to prohibit passing as an argument.
+    //
+    // !!! This may make BAR! seem obsolete, as it could be implemented as
+    // a function.  But BAR! is special as it cannot be quoted, and it has
+    // several other purposes...plus it is more efficient to evaluate.
+    //
+    DO_FLAG_PUNCTUATOR = 1 << 10
 };
 
 

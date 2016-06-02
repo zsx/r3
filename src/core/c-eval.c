@@ -1643,7 +1643,14 @@ reevaluate:
     //
     assert(f->indexor != THROWN_FLAG && !THROWN(f->out));
 
-    if (f->flags & DO_FLAG_NO_LOOKAHEAD) {
+    // Note we are not testing the nested f->lookahead_flags here (which were
+    // used for the immediately previous evaluation).  We're using the f->flags
+    // lookahead state that was requested at entry of Do_Core.
+    //
+    if (
+        (f->flags & DO_FLAG_NO_LOOKAHEAD)
+        || (f->lookahead_flags & DO_FLAG_PUNCTUATOR)
+    ) {
         //
         // Don't do infix lookahead if asked *not* to look.  It's not typical
         // to be requested by callers (there is already no infix lookahead
@@ -1742,29 +1749,29 @@ reevaluate:
                 // Here we look at the parameters list and see nothing, e.g.
                 // it's a lookback function with 0 arguments.  It can't take
                 // the f->out parameter we have, so we error unless f->out
-                // is an END_VALUE.  This makes it "punctuation".
+                // is an END_VALUE.  This makes it a "punctuator".  Ensure
+                // it's not being consumed as a function arg.
                 //
-                // !!! There is a subtlety here because punctuation does *not*
-                // disable infix lookahead.  This makes it distinct from an
-                // arity-1 lookback binding that can tolerate <end>.  Whether
-                // this is a good idea or not remains to be seen, but it's
-                // a possible distinction to make, so it's being explored.
-                //
-            handle_infix_as_punctuation:
+            handle_infix_as_punctuator:
                 if (
                     IS_END(f->out)
                     && (f->lookahead_flags & DO_FLAG_NO_LOOKAHEAD)
                 ) {
                     REBVAL word;
                     Val_Init_Word(&word, REB_WORD, f->label_sym);
-                    fail (Error(RE_PUNCTUATION_HIT, &word));
+                    fail (Error(RE_PUNCTUATOR_HIT, &word));
                 }
 
-                // Note: We set f->lookahead_flags to DO_FLAG_NO_LOOKAHEAD
-                // when processing infix/etc usually.  But here it wouldn't
-                // matter, because there are no arguments to process.
+                // Setting the lookahead_flags for the next operation to
+                // DO_FLAG_NO_LOOKAHEAD would be pointless here, as it's
+                // arity 0 and there are no arguments to process (which is
+                // what lookahead_flags generally influences).  So we use
+                // a distinct flag that will be seen after the call
+                // completes when we return to the infix processing, which
+                // disables lookahead...even if f->flags asked for it.
                 //
                 FETCH_NEXT_ONLY_MAYBE_END(f);
+                f->lookahead_flags = DO_FLAG_PUNCTUATOR;
                 goto do_function_arglist_in_progress;
             }
 
@@ -1784,7 +1791,7 @@ reevaluate:
                     // If we hit an unused refinement, we're out of normal
                     // parameters.  So we've exhausted the basic arity.
                     //
-                    goto handle_infix_as_punctuation;
+                    goto handle_infix_as_punctuator;
                 }
 
                 // !!! This one is tricky.  Should you be allowed to specialize

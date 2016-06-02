@@ -83,6 +83,8 @@ function: func [
 arity-of: function [
     value [any-word! any-path! function!]
 ][
+    if path? :value [fail "arity-of for paths is not yet implemented."]
+
     unless function? :value [
         value: get value
         unless function? :value [return 0]
@@ -97,14 +99,11 @@ arity-of: function [
     ; so it's not completely false.
 
     arity: 0
-    active: true
     for-each param reflect :value 'words [
-        if active [arity: arity + 1]
         if refinement? :param [
-            unless function? :value [return arity]
-            active: find value to-word param
-            continue
+            return arity
         ]
+        arity: arity + 1
     ]
     arity
 ]
@@ -117,8 +116,11 @@ nfix?: function [
     case [
         not lookback? source [false]
         equal? n arity: arity-of source [true]
-        all [equal? n 1 | equal? arity 2] [
-            false ; PREFIX? callers know INFIX? exists
+        n < arity [
+            ; If the queried arity is lower than the arity of the function,
+            ; assume it's ok...e.g. PREFIX? callers know INFIX? exists (but
+            ; we don't assume INFIX? callers know PREFIX?/PUNCTUATOR? exist)
+            false
         ]
         'default [
             fail [
@@ -129,6 +131,7 @@ nfix?: function [
     ]
 ]
 
+punctuator?: specialize :nfix? [n: 0 | name: "PUNCTUATOR?"]
 postfix?: specialize :nfix? [n: 1 | name: "POSTFIX?"]
 infix?: specialize :nfix? [n: 2 | name: "INFIX?"]
 
@@ -145,8 +148,9 @@ set-nfix: function [
     set/lookback target :value
 ]
 
-set-postfix: specialize :set-nfix [n: 1 | name: "SET-POSTFIX?"]
-set-infix: specialize :set-nfix [n: 2 | name: "SET-INFIX?"]
+set-punctuator: specialize :set-nfix [n: 0 | name: "SET-PUNCTUATOR"]
+set-postfix: specialize :set-nfix [n: 1 | name: "SET-POSTFIX"]
+set-infix: specialize :set-nfix [n: 2 | name: "SET-INFIX"]
 
 
 lambda: function [
