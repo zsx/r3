@@ -386,7 +386,16 @@ enum {
     // bits of the supporting implementation changes are committed into the
     // master branch at a time.
     //
-    VALUE_FLAG_RELATIVE = 1 << (GENERAL_VALUE_BIT + 4)
+    VALUE_FLAG_RELATIVE = 1 << (GENERAL_VALUE_BIT + 4),
+
+    // `VALUE_FLAG_EVALUATED` is a somewhat dodgy-yet-unavoidable concept.
+    // This is that some functions wish to be sensitive to whether or not
+    // their argument came as a literal in source or as a product of an
+    // evaluation.  While all values carry the bit, it is only guaranteed
+    // to be meaningful on arguments in function frames...though it is
+    // valid on any result at the moment of taking it from Do_Core().
+    //
+    VALUE_FLAG_EVALUATED = 1 << (GENERAL_VALUE_BIT + 5)
 };
 
 // VALUE_FLAG_XXX flags are applicable to all types.  Type-specific flags are

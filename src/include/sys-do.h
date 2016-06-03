@@ -865,6 +865,7 @@ struct Reb_Frame {
         do { \
             *dest = *(f)->value; \
             FETCH_NEXT_ONLY_MAYBE_END(f); \
+            CLEAR_VAL_FLAG(dest, VALUE_FLAG_EVALUATED); \
         } while (0)
 
 #else
@@ -873,6 +874,7 @@ struct Reb_Frame {
             TRACE_FETCH_DEBUG("QUOTE_NEXT_REFETCH", (f), FALSE); \
             *dest = *(f)->value; \
             FETCH_NEXT_ONLY_MAYBE_END(f); \
+            CLEAR_VAL_FLAG(dest, VALUE_FLAG_EVALUATED); \
             TRACE_FETCH_DEBUG("QUOTE_NEXT_REFETCH", (f), TRUE); \
         } while (0)
 #endif

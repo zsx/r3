@@ -1799,11 +1799,13 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
         VALUE_FLAG_EXIT_FROM
         | VALUE_FLAG_LINE
         | VALUE_FLAG_THROWN
+        | VALUE_FLAG_EVALUATED
     );
     func_header.bits |= (
         VALUE_FLAG_EXIT_FROM
         | VALUE_FLAG_LINE
         | VALUE_FLAG_THROWN
+        | VALUE_FLAG_EVALUATED
     );
 
     if (v_header.bits != func_header.bits) {

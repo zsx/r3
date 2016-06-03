@@ -1236,6 +1236,35 @@ REBNATIVE(lookback_q)
 
 
 //
+//  evaluated?: native [
+//
+//  {Discern if a function parameter came from an "active" evaluation.}
+//
+//      parameter [word!]
+//  ]
+//
+REBNATIVE(evaluated_q)
+//
+// This operation is somewhat dodgy.  So even though the flag is carried by
+// all values, and could be generalized in the system somehow to query on
+// anything--we don't.  It's strictly for function parameters, and
+// even then it should be restricted to functions that have labeled
+// themselves as absolutely needing to do this for ergonomic reasons.
+{
+    PARAM(1, parameter);
+
+    // !!! TBD: Enforce this is a function parameter (specific binding branch
+    // makes the test different, and easier)
+
+    REBOOL lookback; // unused
+    const REBVAL *var = Get_Var_Core( // may fail
+        &lookback, ARG(parameter), GETVAR_READ_ONLY
+    );
+    return GET_VAL_FLAG(var, VALUE_FLAG_EVALUATED) ? R_TRUE : R_FALSE;
+}
+
+
+//
 //  punctuates?: native [
 //
 //  {Returns true if function (or word looking up to function) is punctuating}

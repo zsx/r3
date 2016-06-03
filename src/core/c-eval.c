@@ -385,7 +385,7 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_INERT:
-        QUOTE_NEXT_REFETCH(f->out, f);
+        QUOTE_NEXT_REFETCH(f->out, f); // clears VALUE_FLAG_EVALUATED
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -411,7 +411,6 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_BAR:
-        SET_VOID(f->out);
         FETCH_NEXT_ONLY_MAYBE_END(f);
         if (f->indexor != END_FLAG)
             goto value_ready_for_do_next; // keep feeding BAR!s...
@@ -422,6 +421,7 @@ reevaluate:
 
     case ET_LIT_BAR:
         SET_BAR(f->out);
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
 
@@ -477,6 +477,7 @@ reevaluate:
             VAL_SET_TYPE_BITS(f->out, REB_WORD); // don't reset full header!
     #endif
 
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
     }
@@ -510,9 +511,10 @@ reevaluate:
             DO_NEXT_REFETCH_MAY_THROW(f->out, f, DO_FLAG_LOOKAHEAD);
             if (f->indexor == THROWN_FLAG)
                 NOTE_THROWING(goto return_indexor);
+            SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         }
         else
-            QUOTE_NEXT_REFETCH(f->out, f);
+            QUOTE_NEXT_REFETCH(f->out, f); // clears VALUE_FLAG_EVALUATED
 
     #if !defined(NDEBUG)
         if (LEGACY(OPTIONS_SET_WORD_VOID_IS_ERROR) && IS_VOID(f->out))
@@ -533,6 +535,7 @@ reevaluate:
 
     case ET_GET_WORD:
         *(f->out) = *GET_OPT_VAR_MAY_FAIL(f->value);
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
 
@@ -546,8 +549,9 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_LIT_WORD:
-        QUOTE_NEXT_REFETCH(f->out, f);
+        QUOTE_NEXT_REFETCH(f->out, f); // we're adding VALUE_FLAG_EVALUATED
         VAL_SET_TYPE_BITS(f->out, REB_WORD);
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -564,6 +568,7 @@ reevaluate:
             NOTE_THROWING(goto return_indexor);
         }
 
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
 
@@ -610,12 +615,13 @@ reevaluate:
             f->value = f->out;
             goto do_prefix_function_in_value;
         }
-        else {
-            // Path should have been fully processed, no refinements on stack
-            //
-            assert(DSP == f->dsp_orig);
-            FETCH_NEXT_ONLY_MAYBE_END(f);
-        }
+
+        // Path should have been fully processed, no refinements on stack
+        //
+        assert(DSP == f->dsp_orig);
+
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
     }
 
@@ -690,6 +696,8 @@ reevaluate:
         // process refinements.  Should not get any back.
         //
         assert(DSP == f->dsp_orig);
+
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -719,6 +727,7 @@ reevaluate:
         // We did not pass in a symbol ID
         //
         assert(DSP == f->dsp_orig);
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
 
@@ -736,6 +745,7 @@ reevaluate:
     case ET_LIT_PATH:
         QUOTE_NEXT_REFETCH(f->out, f);
         VAL_SET_TYPE_BITS(f->out, REB_PATH);
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1222,7 +1232,7 @@ reevaluate:
                     }
                 }
                 else
-                    QUOTE_NEXT_REFETCH(f->arg, f);
+                    QUOTE_NEXT_REFETCH(f->arg, f); // no VALUE_FLAG_EVALUATED
 
                 goto check_arg;
             }
@@ -1253,7 +1263,7 @@ reevaluate:
                 || pclass == PARAM_CLASS_SOFT_QUOTE
             );
 
-            QUOTE_NEXT_REFETCH(f->arg, f);
+            QUOTE_NEXT_REFETCH(f->arg, f); // clears VALUE_FLAG_EVALUATED
 
     //=//// TYPE CHECKING FOR (MOST) ARGS AT END OF ARG LOOP //////////////=//
 
@@ -1729,6 +1739,8 @@ reevaluate:
     #if !defined(NDEBUG)
         f->func = NULL;
     #endif
+
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
