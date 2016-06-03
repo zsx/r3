@@ -16,6 +16,20 @@ REBOL [
     }
 ]
 
+; Control structures evaluate to either void (if no branches taken) or the
+; last value of any evaluated blocks.  This applies to everything from IF
+; to CASE to WHILE.  The ? versions are tailored to return whether a branch
+; was taken at all, and always return either TRUE or FALSE.
+;
+if?: specialize 'if [?: true]
+unless?: specialize 'unless [?: true]
+while?: specialize 'while [?: true]
+case?: specialize 'case [?: true]
+switch?: specialize 'switch [?: true]
+trap?: specialize 'trap [?: true]
+catch?: specialize 'catch [?: true]
+
+
 does: func [
     {A shortcut to define a function that has no arguments or locals.}
     body [block!] {The body block of the function}

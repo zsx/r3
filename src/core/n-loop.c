@@ -1102,16 +1102,19 @@ REBNATIVE(until)
 //
 //  while: native [
 //  
-//  {While a condition block is TRUE, evaluates another block.}
+//  {While a condition block is TRUE?, evaluates another block.}
 //  
 //      condition [block!]
 //      body [block!]
+//      /?
+//          "Instead of last body result, return LOGIC! of if body ever ran"
 //  ]
 //
 REBNATIVE(while)
 {
     PARAM(1, condition);
     PARAM(2, body);
+    REFINE(3, q);
 
     // We need to keep the condition and body safe from GC, so we can't
     // use a D_ARG slot for evaluating the condition (can't overwrite
@@ -1121,10 +1124,7 @@ REBNATIVE(while)
     //
     REBVAL unsafe;
 
-    // If the loop body never runs (and condition doesn't error or throw),
-    // we want to return no value
-    //
-    SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
+    REBOOL none_ran = TRUE; // !!! TBD: END marker default, so = IS_END(D_OUT)
 
     do {
         if (DO_VAL_ARRAY_AT_THROWS(&unsafe, ARG(condition))) {
@@ -1142,21 +1142,28 @@ REBNATIVE(while)
             fail (Error(RE_NO_RETURN));
 
         if (IS_CONDITIONAL_FALSE(&unsafe)) {
-            //
-            // When the condition evaluates to a LOGIC! false or a NONE!,
-            // WHILE returns whatever the last value was that the body
-            // evaluated to (or blank if no body evaluations yet).
-            //
-            return R_OUT;
+            if (REF(q))
+                return none_ran ? R_FALSE : R_TRUE; // /? asks if body ran
+
+            if (none_ran)
+                SET_VOID_UNLESS_LEGACY_NONE(D_OUT); // void if body didn't run
+
+            return R_OUT; // last body evaluative result (may be void)
         }
 
         if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(body))) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
-                if (stop) return R_OUT;
+                if (stop) {
+                    if (REF(q)) return R_TRUE; // if a break ran, body ran
+                    return R_OUT;
+                }
                 continue;
             }
             return R_OUT_IS_THROWN;
         }
+
+        none_ran = FALSE;
     } while (TRUE);
+
 }
