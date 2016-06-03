@@ -151,6 +151,13 @@ ok?: func [
 blank: _
 bar: '|
 
+; void is a little bit dodgy because it's not an alias for a value (e.g. you
+; GET it and you'll have a function).  But it cannot be a value retrieved via
+; a word because void isn't a value.  Still, having it as a word might
+; be considered by some to be more literate than `()`.
+
+void: does []
+
 ; Experimental shorthand for ANY-VALUE? test (will also be VALUE?)
 ;
 ?: :any-value?
