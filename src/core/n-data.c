@@ -1238,13 +1238,19 @@ REBNATIVE(lookback_q)
 //
 //  punctuates?: native [
 //
-//  {TRUE if looks up to a function and gets first argument before the call}
+//  {Returns true if function (or word looking up to function) is punctuating}
 //
-//      value [function! any-word! any-path!]
-//          {Function or specifying word/path}
+//      value [function! word!]
+//          {Function or specifying word}
 //  ]
 //
 REBNATIVE(punctuates_q)
+//
+// !!! This function faces the general problem that it cannot substitute for
+// the evaluator's knowledge of punctuation, e.g. if a path evaluates to a
+// <punctuates> function, without risking the running of code.  Since this is
+// likely to be used in lookahead scenarios (e.g. ||) then it's a bad idea to
+// give the impression that it "works on paths".
 {
     PARAM(1, value);
 

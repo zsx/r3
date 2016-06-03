@@ -55,11 +55,13 @@ right-arrow: bind (pick make block! "->" 1) context-of 'lambda
 left-arrow: bind (pick make block! "<-" 1) context-of 'lambda
 left-flag: bind (pick make block! "<|" 1) context-of 'lambda
 right-flag: bind (pick make block! "|>" 1) context-of 'lambda
+||: ()
 
 set/lookback right-arrow :lambda
 set/lookback left-arrow (specialize :lambda [only: true])
 set/lookback left-flag :left-bar
-set/lookback right-flag :right-bar
+set right-flag :right-bar ;-- not mechanically infix (punctuator)
+set '|| :once-bar ;-- also not mechanically infix (punctuator)
 
 right-arrow: left-arrow: left-flag: right-flag: () ; don't leave stray defs
 

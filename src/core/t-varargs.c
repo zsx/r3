@@ -462,7 +462,7 @@ REBTYPE(Varargs)
                 return R_OUT_IS_THROWN;
 
             if (indexor == END_FLAG)
-                SET_BLANK(D_OUT); // currently take returns NONE! if no data
+                SET_VOID(D_OUT); // currently allowed even without an /OPT
 
             return R_OUT;
         }

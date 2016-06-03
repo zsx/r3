@@ -413,6 +413,11 @@ reevaluate:
     case ET_BAR:
         SET_VOID(f->out);
         FETCH_NEXT_ONLY_MAYBE_END(f);
+        if (f->indexor != END_FLAG)
+            goto value_ready_for_do_next; // keep feeding BAR!s...
+
+        SET_VOID(f->out);
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         break;
 
     case ET_LIT_BAR:
