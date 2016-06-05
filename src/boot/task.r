@@ -15,7 +15,6 @@ REBOL [
     }
 ]
 
-stack           ; data stack
 ballast         ; current memory ballast (used for GC)
 max-ballast     ; ballast reset value
 stack-error     ; special stack overlow error object

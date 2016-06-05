@@ -1027,15 +1027,10 @@ static void Mark_Array_Deep_Core(REBARR *array)
     for (; NOT_END(value); value++) {
         if (IS_VOID_OR_SAFE_TRASH(value)) {
             //
-            // Unsets are illegal in most arrays, but the varlist of a context
-            // uses unset values to denote that the variable is not set.
+            // Voids are illegal in most arrays, but the varlist of a context
+            // uses void values to denote that the variable is not set.
             //
-            // They are also legal in the data stack.
-            //
-            assert(
-                array == DS_Array
-                || GET_ARR_FLAG(array, ARRAY_FLAG_CONTEXT_VARLIST)
-            );
+            assert(GET_ARR_FLAG(array, ARRAY_FLAG_CONTEXT_VARLIST));
         }
         else
             Queue_Mark_Value_Deep(value);
@@ -1298,14 +1293,14 @@ REBCNT Recycle_Core(REBOOL shutdown)
     // stack is concerned to indicate unused capacity.  However, the GC
     // doesn't want to mark these "marker-only" values live.
     //
-    // Hence this temporarily puts an END marker at one past the DSP, if it
-    // is required to do so.  Then it puts safe trash back--or leaves it as
-    // an end if it wasn't disturbed.
-    //
-    if (IS_END(&DS_Movable_Base[DSP + 1]))
-        assert(DSP == ARR_LEN(DS_Array));
-    else
-        SET_END(&DS_Movable_Base[DSP + 1]);
+    REBVAL *stackval = DS_TOP;
+    assert(IS_TRASH_DEBUG(&DS_Movable_Base[0]));
+    while (stackval != &DS_Movable_Base[0]) {
+        if (NOT(IS_VOID_OR_SAFE_TRASH(stackval)))
+            Queue_Mark_Value_Deep(stackval);
+        --stackval;
+    }
+    Propagate_All_GC_Marks();
 
     // MARKING PHASE: the "root set" from which we determine the liveness
     // (or deadness) of a series.  If we are shutting down, we are freeing
@@ -1455,11 +1450,6 @@ REBCNT Recycle_Core(REBOOL shutdown)
 
         if (Reb_Opts->watch_recycle)
             Debug_Fmt(cs_cast(BOOT_STR(RS_WATCH, 1)), count);
-
-        // Undo the data stack END marking if necessary.
-        //
-        if (DSP != ARR_LEN(DS_Array))
-            SET_TRASH_SAFE(&DS_Movable_Base[DSP + 1]);
     }
 
     ASSERT_NO_GC_MARKS_PENDING();

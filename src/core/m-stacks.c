@@ -93,16 +93,6 @@ void Init_Stacks(REBCNT size)
         DS_DROP;
     }
 
-    // !!! Historically the data stack used a "special GC" because it was
-    // not always terminated with an END marker.  It also had some fixed
-    // sized assumptions about how much it would grow during a function
-    // call which let it not check to see if it needed to expand on every
-    // push.  Ren-C turned it into an ordinary series and sought to pin
-    // other things down first, but there may be some optimizations that
-    // get added back in--hopefully that will benefit all series.
-    //
-    Set_Root_Series(TASK_STACK, ARR_SERIES(DS_Array));
-
     // Call stack (includes pending functions, parens...anything that sets
     // up a `struct Reb_Frame` and calls Do_Core())  Singly linked.
     //
@@ -176,7 +166,7 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
     //
     DS_Movable_Base = ARR_HEAD(DS_Array); // must do before using DS_TOP
 
-    // We fill in the data stack with "GC safe trash" (which is unset it the
+    // We fill in the data stack with "GC safe trash" (which is void in the
     // release build, but will raise an alarm if VAL_TYPE() called on it in
     // the debug build).  In order to serve as a marker for the stack slot
     // being available, it merely must not be IS_END()...
@@ -191,8 +181,10 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
     // Update the end marker to serve as the indicator for when the next
     // stack push would need to expand.
     //
-    SET_END(value);
     SET_ARRAY_LEN(DS_Array, len_new);
+    assert(value == ARR_TAIL(DS_Array));
+    SET_END(value);
+
     ASSERT_ARRAY(DS_Array);
 }
 
