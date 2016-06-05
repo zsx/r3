@@ -1056,8 +1056,10 @@ REBNATIVE(do)
             D_OUT,
             Sys_Func(SYS_CTX_DO_P),
             value,
-            REF(args) ? ARG(arg) : VOID_CELL,
-            REF(next) ? ARG(var) : VOID_CELL,
+            REF(args) ? TRUE_VALUE : FALSE_VALUE,
+            REF(args) ? ARG(arg) : BLANK_VALUE, // can't put void in block
+            REF(next) ? TRUE_VALUE : FALSE_VALUE,
+            REF(next) ? ARG(var) : BLANK_VALUE, // can't put void in block
             END_CELL
         )) {
             return R_OUT_IS_THROWN;

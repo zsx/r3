@@ -29,20 +29,24 @@ action: _ ; for boot only
 do*: function [
     {SYS: Called by system for DO on datatypes that require special handling.}
     value [file! url! string! binary! tag!]
-    arg [<opt> any-value!]
+    args [logic!]
+        "Positional workaround of /ARGS"
+    arg [any-value!]
         "Args passed as system/script/args to a script (normally a string)"
-    var [<opt> word!]
+    next [logic!]
+        "Positional workaround of /NEXT"
+    var [blank! word!]
         "If do next expression only, variable updated with new block position"
 ][
     ; !!! These were refinements on the original DO* which were called from
     ; the system using positional order.  Under the Ren-C model you cannot
-    ; select refinements positionally.  It would be *possible* to keep these
-    ; going as refinements and have the system build a path to make a call,
-    ; but using optionality as the signal is easier.  Refinement names
-    ; configured here for ease but revisit (also revisit using word "next")
+    ; select refinements positionally, nor can you pass "void" cells.  It
+    ; would be *possible* to keep these going as refinements and have the
+    ; system build a path to make a call, but this is easier.  Revisit this
+    ; (also revisit the use of the word "next")
     ;
-    args: any-value? :arg
-    next: any-value? :var
+    arg: either args [arg] [void]
+    var: either next [var] [void]
 
     ; This code is only called for urls, files, strings, and tags.
     ; DO of functions, blocks, paths, and other do-able types is done in the
