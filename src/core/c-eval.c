@@ -511,7 +511,8 @@ reevaluate:
             DO_NEXT_REFETCH_MAY_THROW(f->out, f, DO_FLAG_LOOKAHEAD);
             if (f->indexor == THROWN_FLAG)
                 NOTE_THROWING(goto return_indexor);
-            SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+
+            // leave VALUE_FLAG_EVALUATED as is
         }
         else
             QUOTE_NEXT_REFETCH(f->out, f); // clears VALUE_FLAG_EVALUATED
@@ -690,14 +691,14 @@ reevaluate:
                 *(f->out) = temp;
                 NOTE_THROWING(goto return_indexor);
             }
+
+            // leave VALUE_FLAG_EVALUATED as is
         }
 
         // We did not pass in a symbol, so not a call... hence we cannot
         // process refinements.  Should not get any back.
         //
         assert(DSP == f->dsp_orig);
-
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1721,6 +1722,14 @@ reevaluate:
                     );
             }
         }
+
+        // Calling a function counts as an evaluation *unless* that function
+        // is semiquote (the generic means for fooling the semiquote? test)
+        //
+        if (f->func == NAT_FUNC(semiquote))
+            CLEAR_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        else
+            SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
 
         f->mode = CALL_MODE_GUARD_ARRAY_ONLY;
 

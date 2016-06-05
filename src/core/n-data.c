@@ -1236,14 +1236,14 @@ REBNATIVE(lookback_q)
 
 
 //
-//  evaluated?: native [
+//  semiquoted?: native [
 //
 //  {Discern if a function parameter came from an "active" evaluation.}
 //
 //      parameter [word!]
 //  ]
 //
-REBNATIVE(evaluated_q)
+REBNATIVE(semiquoted_q)
 //
 // This operation is somewhat dodgy.  So even though the flag is carried by
 // all values, and could be generalized in the system somehow to query on
@@ -1260,7 +1260,30 @@ REBNATIVE(evaluated_q)
     const REBVAL *var = Get_Var_Core( // may fail
         &lookback, ARG(parameter), GETVAR_READ_ONLY
     );
-    return GET_VAL_FLAG(var, VALUE_FLAG_EVALUATED) ? R_TRUE : R_FALSE;
+    return GET_VAL_FLAG(var, VALUE_FLAG_EVALUATED) ? R_FALSE : R_TRUE;
+}
+
+
+//
+//  semiquote: native [
+//
+//  {Marks a function argument to be treated as if it had been literal source}
+//
+//      value [any-value!]
+//  ]
+//
+REBNATIVE(semiquote)
+{
+    PARAM(1, value);
+
+    *D_OUT = *ARG(value);
+
+    // We cannot clear the VALUE_FLAG_EVALUATED bit here and make it stick,
+    // because the bit would just get added back on by Do_Core when the
+    // function finished.  So instead Do_Core recognizes this native
+    // specificially and clears the bit there.
+
+    return R_OUT;
 }
 
 
