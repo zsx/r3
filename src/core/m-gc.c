@@ -1263,7 +1263,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
         struct Reb_Frame *f = FS_TOP;
         for (; f != NULL; f = f->prior) {
             const REBOOL truncated = TRUE;
-            if (f->indexor == VALIST_FLAG)
+            if (f->flags & DO_FLAG_VALIST)
                 Reify_Va_To_Array_In_Frame(f, truncated); // see function
         }
     }

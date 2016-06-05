@@ -157,25 +157,35 @@ void Reify_Va_To_Array_In_Frame(struct Reb_Frame *f, REBOOL truncated)
     }
 
     if (f->indexor != END_FLAG) {
+        assert(!IS_END(f->value));
+        DS_PUSH(f->value);
+
         while (NOT_END(value = va_arg(*f->source.vaptr, const REBVAL*)))
             DS_PUSH(value);
 
-        if (truncated)
-            f->indexor = 1; // skip the --optimized-out--
+        if (truncated) {
+            f->indexor = 2; // skip the --optimized-out--
+        }
         else
-            f->indexor = 0; // position at the start of the extracted values
+            f->indexor = 1; // position at the start of the extracted values
     }
     else {
         // Leave at the END_FLAG, but give back the array to serve as
         // notice of the truncation (if it was truncated)
+        //
+        assert(IS_END(f->value));
     }
 
     if (DSP != dsp_orig) {
         f->source.array = Pop_Stack_Values(dsp_orig);
         MANAGE_ARRAY(f->source.array); // held alive while frame running
+
+    if (NOT_END(f->value)) {
+        if (truncated)
+            f->value = ARR_AT(f->source.array, 1); // skip --optimized out--
+        else
+            f->value = ARR_HEAD(f->source.array);
     }
-    else
-        f->source.array = EMPTY_ARRAY; // doesn't need to be unique
 
     // We clear the DO_FLAG_VALIST, assuming that the truncation marker is
     // enough information to record the fact that it was a va_list (revisit
