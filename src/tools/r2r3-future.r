@@ -58,17 +58,6 @@ if void? :any-context! [
     any-context?: :any-object?
 ]
 
-; ANY-VALUE! is anything that isn't void.  -OPT- ANY-VALUE! is a
-; placeholder for [<opt> ANY-VALUE!]
-;
-either void? :any-value! [
-    any-value!: difference any-type! (make typeset! [unset!])
-    *opt-legacy*: unset!
-    any-value?: func [item [*opt-legacy* any-value!]] [not void? :item]
-][
-    *opt-legacy*: _
-]
-
 if void? :set? [
     set?: func [
         "Returns whether a bound word has a value (fails if unbound)"
@@ -86,6 +75,17 @@ unless set? 'blank? [
     blank!: get 'none!
     blank: get 'none
     _: none
+]
+
+; ANY-VALUE! is anything that isn't void.  -OPT- ANY-VALUE! is a
+; placeholder for [<opt> ANY-VALUE!]
+;
+either void? :any-value! [
+    any-value!: difference any-type! (make typeset! [unset!])
+    *opt-legacy*: unset!
+    any-value?: func [item [*opt-legacy* any-value!]] [not void? :item]
+][
+    *opt-legacy*: _
 ]
 
 ; Ren-C replaces the awkward term PAREN! with GROUP!  (Retaining PAREN!
