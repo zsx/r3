@@ -566,7 +566,7 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
             //
             // This can happen if you internally try and PROBE() a varargs
             // item that is residing in the argument slots for a function,
-            // while that function is still in CALL_MODE_ARGS.
+            // while that function is still fulfilling its arguments.
             //
             Append_Unencoded(mold->series, "** varargs frame not fulfilled");
         }

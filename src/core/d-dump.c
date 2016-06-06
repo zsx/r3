@@ -198,15 +198,27 @@ void Dump_Stack(struct Reb_Frame *f, REBCNT level)
     REBVAL *param;
 
     static const char *mode_strings[] = {
-        "CALL_MODE_GUARD_ARRAY_ONLY",
-        "CALL_MODE_ARGS",
-        "CALL_MODE_REFINEMENT_PICKUP",
-        "CALL_MODE_FUNCTION",
-        "CALL_MODE_THROW_PENDING",
+        "ET_INERT",
+        "ET_BAR",
+        "ET_LIT_BAR",
+        "ET_WORD",
+        "ET_SET_WORD",
+        "ET_GET_WORD",
+        "ET_LIT_WORD",
+        "ET_GROUP",
+        "ET_PATH",
+        "ET_SET_PATH",
+        "ET_GET_PATH",
+        "ET_LIT_PATH",
+        "ET_FUNCTION",
+    #if !defined(NDEBUG)
+        "ET_TRASH",
+    #endif
+        "ET_THROW_CANDIDATE",
         NULL
     };
 
-    assert(mode_strings[CALL_MODE_MAX] == NULL);
+    assert(mode_strings[ET_MAX] == NULL);
 
     Debug_Fmt(""); // newline.
 
@@ -220,10 +232,10 @@ void Dump_Stack(struct Reb_Frame *f, REBCNT level)
         "STACK[%d](%s) - %s",
         level,
         Get_Sym_Name(FRM_LABEL(f)),
-        mode_strings[f->mode]
+        mode_strings[f->eval_type]
     );
 
-    if (f->mode == CALL_MODE_GUARD_ARRAY_ONLY) {
+    if (f->eval_type != ET_FUNCTION) {
         Debug_Fmt("(no function call pending or in progress)");
         return;
     }

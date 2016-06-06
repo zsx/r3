@@ -423,7 +423,7 @@ void Drop_Chunk(REBVAL *opt_head)
 
 
 //
-//  Push_Or_Alloc_Vars_For_Underlying_Func: C
+//  Push_Or_Alloc_Args_For_Underlying_Func: C
 //
 // Allocate the series of REBVALs inspected by a function when executed (the
 // values behind D_ARG(1), D_REF(2), etc.)  Since the call contains the
@@ -437,18 +437,11 @@ void Drop_Chunk(REBVAL *opt_head)
 // actually invoke the function, so it's Dispatch_Call that actually moves
 // it to the running status.
 //
-void Push_Or_Alloc_Vars_For_Underlying_Func(struct Reb_Frame *f) {
+void Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
     REBVAL *slot;
     REBCNT num_slots;
     REBARR *varlist;
     REBVAL *special_arg;
-
-    // Should not already have any vars.  We zero out the union field for
-    // the chunk, so that's the one we should check.
-    //
-#if !defined(NDEBUG)
-    assert(!f->data.stackvars);
-#endif
 
     // We need the actual REBVAL of the function here, and not just the REBFUN.
     // This is true even though you can get a canon REBVAL from a function
@@ -458,7 +451,6 @@ void Push_Or_Alloc_Vars_For_Underlying_Func(struct Reb_Frame *f) {
     // frame context (if a specialization) or in place of code pointer (if not)
     //
     assert(IS_FUNCTION(f->value));
-    assert(f->func == NULL);
 
     if (VAL_FUNC_CLASS(f->value) == FUNC_CLASS_SPECIALIZED) {
         //
@@ -588,6 +580,8 @@ void Push_Or_Alloc_Vars_For_Underlying_Func(struct Reb_Frame *f) {
 // But if it has already been managed, it will be returned that way.
 //
 REBCTX *Context_For_Frame_May_Reify_Core(struct Reb_Frame *f) {
+    assert(f->eval_type == ET_FUNCTION); // varargs reifies while still pending
+
     REBCTX *context;
     struct Reb_Chunk *chunk;
 
@@ -600,16 +594,12 @@ REBCTX *Context_For_Frame_May_Reify_Core(struct Reb_Frame *f) {
         // mode, calling MANAGE_ARRAY is illegal -- need test for that !!!
 
         assert(IS_TRASH_DEBUG(ARR_AT(f->data.varlist, 0))); // we fill this in
-
         assert(GET_ARR_FLAG(f->data.varlist, SERIES_FLAG_HAS_DYNAMIC));
 
         context = AS_CONTEXT(f->data.varlist);
-
         CTX_STACKVARS(context) = NULL;
     }
     else {
-        assert(f->mode != CALL_MODE_GUARD_ARRAY_ONLY);
-
         context = AS_CONTEXT(Make_Series(
             1, // length report will not come from this, but from end marker
             sizeof(REBVAL),
@@ -645,15 +635,14 @@ REBCTX *Context_For_Frame_May_Reify_Core(struct Reb_Frame *f) {
     //
     assert(!GET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_MANAGED));
 
-    // When in CALL_MODE_PENDING or CALL_MODE_FUNCTION, the arglist will
-    // be marked safe from GC.  It is managed because the pointer makes
-    // its way into bindings that ANY-WORD! values may have, and they
-    // need to not crash.
+    // When in ET_FUNCTION, the arglist will be marked safe from GC.
+    // It is managed because the pointer makes its way into bindings that
+    // ANY-WORD! values may have, and they need to not crash.
     //
     // !!! Note that theoretically pending mode arrays do not need GC
-    // access as no running could could get them, but the debugger is
-    // able to access this information.  GC protection for pending
-    // frames could be issued on demand by the debugger, however.
+    // access as no running code could get them, but the debugger is
+    // able to access this information.  This is under review for how it
+    // might be stopped.
     //
     VAL_RESET_HEADER(CTX_VALUE(context), REB_FRAME);
     INIT_VAL_CONTEXT(CTX_VALUE(context), context);
@@ -677,7 +666,8 @@ REBCTX *Context_For_Frame_May_Reify_Core(struct Reb_Frame *f) {
 //
 REBCTX *Context_For_Frame_May_Reify_Managed(struct Reb_Frame *f)
 {
-    assert(f->mode == CALL_MODE_FUNCTION);
+    assert(f->eval_type == ET_FUNCTION);
+    assert(!Is_Function_Frame_Fulfilling(f));
 
     REBCTX *context = Context_For_Frame_May_Reify_Core(f);
     ENSURE_ARRAY_MANAGED(CTX_VARLIST(context));

@@ -685,5 +685,5 @@ void Do_Command_Core(struct Reb_Frame *f)
 
     // Note: no current interface for Rebol "commands" to throw (to the extent
     // that REB_COMMAND has a future in Ren-C).  If it could throw, then
-    // this would set `f->mode = CALL_MODE_THROW_PENDING` in that case.
+    // this would set `f->eval_type = ET_THROW_CANDIDATE` in that case.
 }

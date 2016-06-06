@@ -254,6 +254,79 @@ enum {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
+//  EVALUATION TYPES ("ET_XXX")
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// The REB_XXX types are not sequential, but skip by 4 in order to have the
+// low 2 bits clear on all values in the enumeration.  This means faster
+// extraction and comparison without needing to bit-shift, but it also
+// means that a `switch` statement can't be optimized into a jump table--
+// which generally requires contiguous values:
+//
+// http://stackoverflow.com/questions/17061967/c-switch-and-jump-tables
+//
+// By having a table that can quickly convert an `enum Reb_Kind` into a
+// small integer suitable for a switch statement in the evaluator, the
+// optimization can be leveraged.  The special value of "0" is picked for
+// no evaluation behavior, so the table can have a second use as the quick
+// implementation behind the ANY_EVAL macro.  All non-zero values then can
+// mean "has some behavior in the evaluator".
+//
+enum Reb_Eval_Type {
+    ET_INERT = 0, // does double duty as logic FALSE in "ANY_EVAL()"
+    ET_BAR,
+    ET_LIT_BAR,
+    ET_WORD,
+    ET_SET_WORD,
+    ET_GET_WORD,
+    ET_LIT_WORD,
+    ET_GROUP,
+    ET_PATH,
+    ET_SET_PATH,
+    ET_GET_PATH,
+    ET_LIT_PATH,
+    ET_FUNCTION,
+
+#if !defined(NDEBUG)
+    ET_TRASH,
+#endif
+
+    // A frame needs a way to show it is in a "thrown" state from which it might
+    // recover the index.  So it can't use f->indexor as THROWN_FLAG, because then
+    // the index would be gone.  Since thrown frames should not be seen by the
+    // GC, this is signaled using an invalid "mode"--an alias for ET_MAX.
+    //
+    ET_THROW_CANDIDATE, // special
+    ET_MAX
+};
+
+#ifdef NDEBUG
+    typedef REBUPT REBET; // native-sized integer is faster in release builds
+#else
+    typedef enum Reb_Eval_Type REBET; // typed enum is better info in debugger
+#endif
+
+// If the type has evaluator behavior (vs. just passing through).  So like
+// WORD!, GROUP!, FUNCTION! (as opposed to BLOCK!, INTEGER!, OBJECT!).
+// The types are not arranged in an order that makes a super fast test easy
+// (though perhaps someday it could be tweaked so that all the evaluated types
+// had a certain bit set?) hence use a small fixed table.
+//
+// Note that this table has 256 entries, of which only those corresponding
+// to having the two lowest bits zero are set.  This is to avoid needing
+// shifting to check if a value is evaluable.  The other storage could be
+// used for properties of the type +1, +2, +3 ... at the cost of a bit of
+// math but reusing the values.  Any integer property could be stored for
+// the evaluables so long as non-evaluables are 0 in this list.
+//
+extern const REBET Eval_Table[REB_MAX];
+
+#define ANY_EVAL(v) LOGICAL(Eval_Table[VAL_TYPE(v)])
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
 //  REBOL DO STATE (a.k.a. Reb_Frame)
 //
 //=////////////////////////////////////////////////////////////////////////=//
@@ -269,23 +342,8 @@ enum {
 // in this way is to make it faster and easier to delegate branches in
 // the Do loop--without bearing the overhead of setting up new stack state.
 //
-// A stack-allocated Reb_Frame cannot contain anything that can't be freed by
-// the PUSH_TRAP handling implicitly--so no malloc'd members, no cleanup
-// needing imperative code, etc.  Any allocations must be of things that the
-// GC or otherwise will take care of, because a Reb_Frame will just vanish
-// if there is an error while it's running that doesn't get trapped inside
-// of it somewhere.
+// See Fail_Core for the handling of freeing of frame state on errors.
 //
-// Note: Keep in sync with `mode_strings` in Dump_Stack
-//
-enum Reb_Call_Mode {
-    CALL_MODE_GUARD_ARRAY_ONLY, // no special mode signal
-    CALL_MODE_ARGS, // first straight walk through the arguments
-    CALL_MODE_REFINEMENT_PICKUP, // pass for refinements used out of order
-    CALL_MODE_FUNCTION, // running an ANY-FUNCTION!
-    CALL_MODE_THROW_PENDING, // function threw (sometimes may be intercepted)
-    CALL_MODE_MAX
-};
 
 union Reb_Frame_Source {
     REBARR *array;
@@ -538,7 +596,7 @@ struct Reb_Frame {
     // State variable during parameter fulfillment.  So before refinements,
     // in refinement, skipping...etc.
     //
-    // One particularly important usage is CALL_MODE_FUNCTION, which needs to
+    // One particularly important usage is ET_FUNCTION, which needs to
     // be checked by `Get_Var`.  This is a necessarily evil while FUNCTION!
     // does not have the semantics of CLOSURE!, because pathological cases
     // in "stack-relative" addressing can get their hands on "reused" bound
@@ -552,9 +610,9 @@ struct Reb_Frame {
     //
     // Since a leaked word from another instance of a function can give
     // access to a call frame during its formation, we need a way to tell
-    // when a call frame is finished forming...CALL_MODE_FUNCTION is it.
+    // when a call frame is finished forming: Is_Function_Frame_Fulfilling()
     //
-    enum Reb_Call_Mode mode;
+    REBET eval_type; // speedier to use REBUPT, but not as nice in debugger
 
     // `expr_index` [INTERNAL, READ-ONLY]
     //
@@ -607,22 +665,25 @@ struct Reb_Frame {
 };
 
 // It's helpful when looking in the debugger to be able to look at a frame
-// and see a cached string for the function it's running (if there is one)
+// and see a cached string for the function it's running (if there is one).
+// The release build only considers the frame symbol valid if ET_FUNCTION
 //
 #ifdef NDEBUG
     #define SET_FRAME_SYM(f,s) \
         ((f)->label_sym = (s))
 
     #define CLEAR_FRAME_SYM(f) \
-        ((f)->label_sym = SYM_0)
+        NOOP
 #else
     #define SET_FRAME_SYM(f,s) \
-        ((f)->label_sym = (s), \
-        (f)->label_str = cast(const char*, Get_Sym_Name((f)->label_sym)))
+        (assert((f)->eval_type == ET_FUNCTION), \
+            (f)->label_sym = (s), \
+            (f)->label_str = cast(const char*, Get_Sym_Name((f)->label_sym)))
 
     #define CLEAR_FRAME_SYM(f) \
         ((f)->label_sym = SYM_0, (f)->label_str = NULL)
 #endif
+
 
 // Each iteration of DO bumps a global count, that in deterministic repro
 // cases can be very helpful in identifying the "tick" where certain problems
@@ -736,7 +797,6 @@ struct Reb_Frame {
         (f)->source.array = VAL_ARRAY(v); \
         (f)->eval_fetched = NULL; \
         (f)->label_sym = SYM_0; \
-        (f)->mode = CALL_MODE_GUARD_ARRAY_ONLY; \
         PUSH_CALL(f); \
     } while (0)
 
@@ -847,7 +907,6 @@ struct Reb_Frame {
         f_.source = (source_); \
         f_.value = (value_in); \
         f_.indexor = (indexor_in); \
-        f_.mode = CALL_MODE_GUARD_ARRAY_ONLY; \
         f_.flags = DO_FLAG_ARGS_EVALUATE | DO_FLAG_NEXT | (flags_); \
         Do_Core(&f_); \
         assert(f_.indexor == VALIST_FLAG || (indexor_in) != f_.indexor); \

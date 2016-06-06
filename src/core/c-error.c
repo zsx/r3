@@ -381,7 +381,7 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
     //
     struct Reb_Frame *f = FS_TOP;
     while (f != Saved_State->frame) {
-        if (f->mode == CALL_MODE_FUNCTION)
+        if (f->eval_type == ET_FUNCTION)
             Drop_Function_Args_For_Frame(f, FALSE); // FALSE: don't drop chunks
 
         struct Reb_Frame *prior = f->prior;
@@ -410,22 +410,24 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
 //
 REBCNT Stack_Depth(void)
 {
-    struct Reb_Frame *frame = FS_TOP;
-    REBCNT count = 0;
+    REBCNT depth = 0;
 
-    while (frame) {
-        if (frame->mode == CALL_MODE_FUNCTION) {
-            //
-            // We only count invoked functions (not group or path evaluations
-            // or "pending" functions that are building their arguments but
-            // have not been formally invoked yet)
-            //
-            count++;
-        }
-        frame = FRM_PRIOR(frame);
+    struct Reb_Frame *f = FS_TOP;
+    while (f) {
+        if (f->eval_type == ET_FUNCTION)
+            if (NOT(Is_Function_Frame_Fulfilling(f))) {
+                //
+                // We only count invoked functions (not group or path
+                // evaluations or "pending" functions that are building their
+                // arguments but have not been formally invoked yet)
+                //
+                ++depth;
+            }
+
+        f = FRM_PRIOR(f);
     }
 
-    return count;
+    return depth;
 }
 
 
@@ -1099,7 +1101,9 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
             //
             // Only invoked functions (not pending functions, parens, etc.)
             //
-            if (frame->mode != CALL_MODE_FUNCTION)
+            if (frame->eval_type != ET_FUNCTION)
+                continue;
+            if (Is_Function_Frame_Fulfilling(frame))
                 continue;
 
             Val_Init_Word(

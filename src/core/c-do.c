@@ -73,7 +73,6 @@ REBIXO Do_Array_At_Core(
     f.out = out;
     f.source.array = array;
     f.flags = flags;
-    f.mode = CALL_MODE_GUARD_ARRAY_ONLY;
 
     Do_Core(&f);
 
@@ -267,7 +266,6 @@ REBIXO Do_Va_Core(
     f.out = out;
     f.indexor = VALIST_FLAG;
     f.source.vaptr = vaptr;
-    f.mode = CALL_MODE_GUARD_ARRAY_ONLY;
 
     f.flags = flags | DO_FLAG_VALIST; // see notes in %sys-do.h on why needed
 

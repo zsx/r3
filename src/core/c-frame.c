@@ -1408,6 +1408,27 @@ REBCNT Find_Word_In_Array(REBARR *array, REBCNT index, REBSYM sym)
 
 
 //
+//  Is_Function_Frame_Fulfilling: C
+//
+// While a function frame is fulfilling its arguments, the `f->param` will
+// be pointing to a typeset.  The invariant that is maintained is that
+// `f->param` will *not* be a typeset when the function is actually in the
+// process of running.  (So no need to set/clear/test another "mode".)
+//
+// !!! Make inline when possible.
+//
+REBOOL Is_Function_Frame_Fulfilling(struct Reb_Frame *f)
+{
+    assert(f->eval_type == ET_FUNCTION);
+    if (IS_END(f->param))
+        return FALSE;
+
+    assert(IS_TYPESET(f->param));
+    return TRUE;
+}
+
+
+//
 //  Frame_For_Relative_Word: C
 //
 // Looks up word from a relative binding to get a specific context.  Currently
@@ -1431,14 +1452,15 @@ struct Reb_Frame *Frame_For_Relative_Word(
 
     for (; frame != NULL; frame = FRM_PRIOR(frame)) {
         if (
-            frame->mode != CALL_MODE_FUNCTION
+            frame->eval_type != ET_FUNCTION
             || FRM_FUNC(frame) != VAL_WORD_FUNC(any_word)
+            || Is_Function_Frame_Fulfilling(frame)
         ) {
             continue;
         }
 
         // Currently the only `mode` in which a frame should be
-        // considered as a legitimate match is CALL_MODE_FUNCTION.
+        // considered as a legitimate match is ET_FUNCTION.
         // Other call types include a GROUP! being recursed or
         // a function whose frame is pending and doesn't have all
         // the arguments ready yet... these shouldn't count.

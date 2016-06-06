@@ -579,7 +579,9 @@ static void Mark_Frame_Stack_Deep(void)
     struct Reb_Frame *f = TG_Frame_Stack;
 
     for (; f != NULL; f = f->prior) {
-        //
+        assert(f->eval_type != ET_TRASH);
+        assert(f->eval_type != ET_THROW_CANDIDATE);
+
         // Should have taken care of reifying all the VALIST on the stack
         // earlier in the recycle process (don't want to create new arrays
         // once the recycling has started...)
@@ -602,7 +604,7 @@ static void Mark_Frame_Stack_Deep(void)
         if (f->value && NOT_END(f->value) && Is_Value_Managed(f->value))
             Queue_Mark_Value_Deep(f->value);
 
-        if (f->mode == CALL_MODE_GUARD_ARRAY_ONLY) {
+        if (f->eval_type != ET_FUNCTION) {
             //
             // The only fields we protect if no function is pending or running
             // with this frame is the array and the potentially pending value.
@@ -611,13 +613,28 @@ static void Mark_Frame_Stack_Deep(void)
             // while evaluating the group it has no anchor anywhere in the
             // root set and could be GC'd.  The Reb_Frame's array ref is it.
             //
+            // !!! Consider the ->param field for SET-WORD! and SET-PATH!,
+            // these require protection too (!)
+            //
+            continue;
+        }
+
+        QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(f->func)); // never NULL
+
+        if (f->func == NAT_FUNC(eval)) {
+            //
+            // EVAL is special because it doesn't use argument lists, it
+            // evaluates directly into the f->cell.  (This should be protected
+            // by the evaluation's f->out into that cell.)
+            //
             continue;
         }
 
         // The subfeed may be in use by VARARGS!, and it may be either a
-        // context or a single element array.
+        // context or a single element array.  It will only be valid during
+        // the function's actual running.
         //
-        if (f->cell.subfeed) {
+        if (!Is_Function_Frame_Fulfilling(f) && f->cell.subfeed) {
             if (GET_ARR_FLAG(f->cell.subfeed, ARRAY_FLAG_CONTEXT_VARLIST))
                 QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(f->cell.subfeed));
             else {
@@ -625,8 +642,6 @@ static void Mark_Frame_Stack_Deep(void)
                 QUEUE_MARK_ARRAY_DEEP(f->cell.subfeed);
             }
         }
-
-        QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(f->func)); // never NULL
 
         if (!IS_VOID_OR_SAFE_TRASH(f->out))
             Queue_Mark_Value_Deep(f->out); // never NULL
@@ -637,7 +652,7 @@ static void Mark_Frame_Stack_Deep(void)
 
         // In the current implementation (under review) functions use
         // stack-based chunks to gather their arguments, and closures use
-        // ordinary arrays.  If the call mode is CALL_MODE_PENDING then
+        // ordinary arrays.  If the call mode is pending then
         // the arglist is under construction, but guaranteed to have all
         // cells be safe for garbage collection.
         //

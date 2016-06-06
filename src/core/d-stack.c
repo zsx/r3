@@ -112,8 +112,8 @@ REBARR *Make_Where_For_Frame(struct Reb_Frame *frame)
     end = MIN(ARR_LEN(FRM_ARRAY(frame)), FRM_INDEX(frame));
 
     assert(end >= start);
-    assert(frame->mode != CALL_MODE_GUARD_ARRAY_ONLY);
-    pending = NOT(frame->mode == CALL_MODE_FUNCTION);
+    assert(frame->eval_type == ET_FUNCTION);
+    pending = Is_Function_Frame_Fulfilling(frame);
 
     // Do a shallow copy so that the WHERE information only includes
     // the range of the array being executed up to the point of
@@ -372,7 +372,7 @@ REBNATIVE(backtrace)
         index = 0;
         row = 0;
         for (frame = FS_TOP->prior; frame != NULL; frame = FRM_PRIOR(frame)) {
-            if (frame->mode == CALL_MODE_GUARD_ARRAY_ONLY) continue;
+            if (frame->eval_type != ET_FUNCTION) continue;
 
             // index and property, unless /BRIEF in which case it will just
             // be the property.
@@ -403,7 +403,6 @@ REBNATIVE(backtrace)
     for (frame = FS_TOP->prior; frame != NULL; frame = frame->prior) {
         REBCNT len;
         REBVAL *temp;
-        REBOOL pending;
 
         // Only consider invoked or pending functions in the backtrace.
         //
@@ -413,12 +412,11 @@ REBNATIVE(backtrace)
         // be interesting to see GROUP! stack levels that are being
         // executed as well (as they are something like DO).
         //
-        if (frame->mode == CALL_MODE_GUARD_ARRAY_ONLY)
+        if (frame->eval_type != ET_FUNCTION)
             continue;
 
-        if (frame->mode == CALL_MODE_FUNCTION) {
-            pending = FALSE;
-
+        REBOOL pending = Is_Function_Frame_Fulfilling(frame);
+        if (NOT(pending)) {
             if (
                 first
                 && IS_FUNCTION_AND(FUNC_VALUE(frame->func), FUNC_CLASS_NATIVE)
@@ -439,8 +437,6 @@ REBNATIVE(backtrace)
             else
                 ++number;
         }
-        else
-            pending = TRUE;
 
         first = FALSE;
 
@@ -635,7 +631,7 @@ struct Reb_Frame *Frame_For_Stack_Level(
         frame = frame->prior;
 
     for (; frame != NULL; frame = frame->prior) {
-        if (frame->mode != CALL_MODE_FUNCTION) {
+        if (frame->eval_type != ET_FUNCTION) {
             //
             // Don't consider pending calls, or GROUP!, or any non-invoked
             // function as a candidate to target.
@@ -650,6 +646,8 @@ struct Reb_Frame *Frame_For_Stack_Level(
             //
             continue;
         }
+        if (Is_Function_Frame_Fulfilling(frame))
+            continue;
 
         if (first) {
             if (
@@ -678,13 +676,6 @@ struct Reb_Frame *Frame_For_Stack_Level(
             goto return_maybe_set_number_out;
 
         first = FALSE;
-
-        if (frame->mode != CALL_MODE_FUNCTION) {
-            //
-            // Pending frames don't get numbered
-            //
-            continue;
-        }
 
         if (IS_VOID(level) || IS_BLANK(level)) {
             //
@@ -736,18 +727,19 @@ REBNATIVE(running_q)
     PARAM(1, frame);
 
     REBCTX *frame_ctx = VAL_CONTEXT(ARG(frame));
-    struct Reb_Frame *frame;
-
     if (GET_CTX_FLAG(frame_ctx, CONTEXT_FLAG_STACK))
         if (!GET_CTX_FLAG(frame_ctx, SERIES_FLAG_ACCESSIBLE))
             return R_FALSE;
 
-    frame = CTX_FRAME(frame_ctx);
+    struct Reb_Frame *f = CTX_FRAME(frame_ctx);
 
-    if (frame->mode == CALL_MODE_FUNCTION)
-        return R_TRUE;
+    if (f->eval_type != ET_FUNCTION)
+        return R_FALSE;
 
-    return R_FALSE;
+    if (Is_Function_Frame_Fulfilling(f))
+        return R_FALSE;
+
+    return R_TRUE;
 }
 
 
@@ -764,20 +756,15 @@ REBNATIVE(pending_q)
     PARAM(1, frame);
 
     REBCTX *frame_ctx = VAL_CONTEXT(ARG(frame));
-    struct Reb_Frame *frame;
-
     if (GET_CTX_FLAG(frame_ctx, CONTEXT_FLAG_STACK))
         if (!GET_CTX_FLAG(frame_ctx, SERIES_FLAG_ACCESSIBLE))
             return R_FALSE;
 
-    frame = CTX_FRAME(frame_ctx);
+    struct Reb_Frame *f = CTX_FRAME(frame_ctx);
 
-    if (
-        frame->mode == CALL_MODE_ARGS
-        || frame->mode == CALL_MODE_REFINEMENT_PICKUP
-    ) {
-        return R_TRUE;
-    }
+    if (f->eval_type == ET_FUNCTION)
+        if (Is_Function_Frame_Fulfilling(f))
+            return R_TRUE;
 
     return R_FALSE;
 }

@@ -1886,8 +1886,8 @@ struct Reb_Typeset {
 
 
 #define VAL_PARAM_CLASS(v) \
-    cast(enum Reb_Param_Class, \
-        ((v)->header.bits & PCLASS_MASK) >> TYPE_SPECIFIC_BIT)
+    (assert(IS_TYPESET(v)), cast(enum Reb_Param_Class, \
+        ((v)->header.bits & PCLASS_MASK) >> TYPE_SPECIFIC_BIT))
 
 #define INIT_VAL_PARAM_CLASS(v,c) \
     ((v)->header.bits &= ~PCLASS_MASK, \

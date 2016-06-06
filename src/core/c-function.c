@@ -1222,7 +1222,7 @@ void Do_Native_Core(struct Reb_Frame *f)
     case R_OUT: // put sequentially in switch() for jump-table optimization
         break;
     case R_OUT_IS_THROWN:
-        f->mode = CALL_MODE_THROW_PENDING;
+        f->eval_type = ET_THROW_CANDIDATE;
         break;
     case R_BLANK:
         SET_BLANK(f->out);
@@ -1274,7 +1274,7 @@ void Do_Action_Core(struct Reb_Frame *f)
     case R_OUT: // put sequentially in switch() for jump-table optimization
         break;
     case R_OUT_IS_THROWN:
-        f->mode = CALL_MODE_THROW_PENDING;
+        f->eval_type = ET_THROW_CANDIDATE;
         break;
     case R_BLANK:
         SET_BLANK(f->out);
@@ -1318,7 +1318,7 @@ void Do_Function_Core(struct Reb_Frame *f)
         // to the currently running function.
         //
         if (Do_At_Throws(f->out, FUNC_BODY(f->func), 0))
-            f->mode = CALL_MODE_THROW_PENDING;
+            f->eval_type = ET_THROW_CANDIDATE;
     }
     else {
         assert(f->flags & DO_FLAG_HAS_VARLIST);
@@ -1343,7 +1343,7 @@ void Do_Function_Core(struct Reb_Frame *f)
         PROTECT_FRM_X(f, &body);
 
         if (DO_VAL_ARRAY_AT_THROWS(f->out, &body))
-            f->mode = CALL_MODE_THROW_PENDING;
+            f->eval_type = ET_THROW_CANDIDATE;
 
         // References to parts of this function's copied body may still be
         // extant, but we no longer need to hold it from GC.  Fortunately the
@@ -1367,7 +1367,7 @@ void Do_Routine_Core(struct Reb_Frame *f)
     Free_Array(args);
 
     // Note: cannot "throw" a Rebol value across an FFI boundary.  If you
-    // could this would set `f->mode = CALL_MODE_THROW_PENDING` in that case.
+    // could this would set `f->eval_type = ET_THROW_CANDIDATEs` in that case.
 }
 
 
@@ -1527,6 +1527,8 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
 #if !defined(NDEBUG)
     f->label_sym = SYM_0; // debug build checks label was SYM_0 before SET
 #endif
+
+    f->eval_type = ET_FUNCTION;
     SET_FRAME_SYM(f, sym);
 
     // !!! Because APPLY is being written as a regular native (and not a
@@ -1569,22 +1571,15 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
     // for it...it should have its own space.
     //
     if (opt_def) {
-    #if !defined(NDEBUG)
-        f->data.stackvars = NULL;
-        f->mode = CALL_MODE_GUARD_ARRAY_ONLY; // lie for a second
-        f->func = NULL; // debug build checks before Push_Or_Alloc_Vars
-    #endif
-
         f->flags =
             DO_FLAG_NEXT | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_NO_LOOKAHEAD;
 
-        Push_Or_Alloc_Vars_For_Underlying_Func(f); // sets f->func
+        Push_Or_Alloc_Args_For_Underlying_Func(f); // sets f->func
     }
     else {
         f->flags |=
             DO_FLAG_NEXT | DO_FLAG_HAS_VARLIST | DO_FLAG_EXECUTE_FRAME;
 
-        f->mode = CALL_MODE_ARGS;
         // f->func should already be set
         f->exit_from = NULL; // !!! TBD: handle correctly
     }
@@ -1595,7 +1590,6 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
     f->value = END_CELL;
 
     f->arg = FRM_ARGS_HEAD(f);
-    f->param = FUNC_PARAMS_HEAD(f->func);
     f->refine = TRUE_VALUE;
     f->cell.subfeed = NULL;
 
@@ -1615,6 +1609,13 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
         ASSERT_CONTEXT(AS_CONTEXT(f->data.varlist));
     }
     else {
+        // !!! Prior to specific binding, it's necessary to signal to the
+        // Is_Function_Frame_Fulfilling() that this frame is *not* fulfilling
+        // by setting f->param to END_CELL.  That way it will be considered
+        // a valid target for the stack walk to do the binding.
+        //
+        f->param = END_CELL;
+
         if (f->flags & DO_FLAG_HAS_VARLIST) {
             //
             // Here we are binding with a maybe-not-valid context.  Should
@@ -1631,8 +1632,6 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
                 0, // types to "add midstream" to binding as we go (nothing)
                 BIND_DEEP
             );
-
-            f->mode = CALL_MODE_ARGS; // protects context during DO of def
         }
         else {
             // Relative binding (long term this would be specific also)
@@ -1641,12 +1640,6 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
                 f->func, VAL_ARRAY_AT(opt_def), FLAGIT_KIND(REB_SET_WORD)
             );
 
-            // !!! While running `def`, it believes that the relatively bound
-            // variables can be resolved.  For relative binding it only thinks
-            // so if a stack frame for the function exists in the running
-            // state.  Hence we have to lie here temporarily during DO of def.
-            //
-            f->mode = CALL_MODE_FUNCTION;
             f->arg = &f->data.stackvars[0];
         }
 
@@ -1657,12 +1650,9 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
             DROP_CALL(f);
             return R_OUT_IS_THROWN;
         }
-
-        // Undo our lie about the function running (if we had to lie)...
-        //
-        if (NOT(f->flags & DO_FLAG_HAS_VARLIST))
-            f->mode = CALL_MODE_ARGS;
     }
+
+    f->param = FUNC_PARAMS_HEAD(f->func);
 
     Do_Core(f);
 
