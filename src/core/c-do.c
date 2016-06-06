@@ -180,6 +180,17 @@ void Reify_Va_To_Array_In_Frame(struct Reb_Frame *f, REBOOL truncated)
         f->source.array = Pop_Stack_Values(dsp_orig);
         MANAGE_ARRAY(f->source.array); // held alive while frame running
 
+        SET_ARR_FLAG(f->source.array, SERIES_FLAG_LOCKED);
+        f->flags |= DO_FLAG_TOOK_FRAME_LOCK;
+    }
+    else {
+        // The series needs to be locked during Do_Core, but it doesn't have
+        // to be unique.  Use empty array but don't say we locked it.
+
+        assert(GET_ARR_FLAG(EMPTY_ARRAY, SERIES_FLAG_LOCKED));
+        f->source.array = EMPTY_ARRAY;
+    }
+
     if (NOT_END(f->value)) {
         if (truncated)
             f->value = ARR_AT(f->source.array, 1); // skip --optimized out--

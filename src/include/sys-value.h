@@ -1613,8 +1613,8 @@ struct Reb_Any_Word {
 
 #define VAL_WORD_CONTEXT_MAY_REIFY(v) \
     (GET_VAL_FLAG((v), VALUE_FLAG_RELATIVE) \
-        ? Context_For_Frame_May_Reify( \
-            Frame_For_Relative_Word((v), FALSE), NULL, TRUE) \
+        ? Context_For_Frame_May_Reify_Managed( \
+            Frame_For_Relative_Word((v), FALSE)) \
         : VAL_WORD_CONTEXT(v))
 
 #define INIT_WORD_CONTEXT(v,context) \
@@ -2333,7 +2333,7 @@ struct Reb_Varargs {
     // looks to get the next item.
     //
     union {
-        REBCTX *frame_ctx;
+        REBARR *varlist; // might be an in-progress varlist if not managed
 
         REBARR *array1; // for MAKE VARARGS! to share a reference on an array
     } feed;
@@ -2350,7 +2350,11 @@ struct Reb_Varargs {
     const REBVAL *param;
 };
 
-#define VAL_VARARGS_FRAME_CTX(v) ((v)->payload.varargs.feed.frame_ctx)
+#define VAL_VARARGS_FRAME_CTX(v) \
+    (assert(GET_ARR_FLAG( \
+        (v)->payload.varargs.feed.varlist, SERIES_FLAG_MANAGED)), \
+    AS_CONTEXT((v)->payload.varargs.feed.varlist))
+
 #define VAL_VARARGS_ARRAY1(v) ((v)->payload.varargs.feed.array1)
 
 #define VAL_VARARGS_PARAM(v) ((v)->payload.varargs.param)

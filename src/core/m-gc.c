@@ -586,20 +586,20 @@ static void Mark_Frame_Stack_Deep(void)
         //
         assert(f->indexor != VALIST_FLAG);
 
-        if (f->indexor == END_FLAG) {
-            //
-            // This is possible, because the frame could be sitting at the
-            // end of a block when a function runs, e.g. `do [zero-arity]`.
-            // That frame will stay on the stack while the zero-arity
-            // function is running, which could be arbitrarily long...so
-            // a GC could happen.
-        }
-        else {
-            assert(f->indexor != THROWN_FLAG);
-            QUEUE_MARK_ARRAY_DEEP(f->source.array);
-        }
+        // END_FLAG is possible, because the frame could be sitting at the
+        // end of a block when a function runs, e.g. `do [zero-arity]`.
+        // That frame will stay on the stack while the zero-arity
+        // function is running, which could be arbitrarily long...so
+        // a GC could happen.
+        //
+        // !!! FETCH_NEXT could do the array unprotect, and make it possible
+        // to GC the series sooner.
+        //
+        assert(f->indexor != THROWN_FLAG);
+        assert(GET_ARR_FLAG(f->source.array, SERIES_FLAG_MANAGED));
+        QUEUE_MARK_ARRAY_DEEP(f->source.array);
 
-        if (f->value && Is_Value_Managed(f->value))
+        if (f->value && NOT_END(f->value) && Is_Value_Managed(f->value))
             Queue_Mark_Value_Deep(f->value);
 
         if (f->mode == CALL_MODE_GUARD_ARRAY_ONLY) {
@@ -641,24 +641,30 @@ static void Mark_Frame_Stack_Deep(void)
         // the arglist is under construction, but guaranteed to have all
         // cells be safe for garbage collection.
         //
-        if (f->flags & DO_FLAG_FRAME_CONTEXT) {
+        if (f->flags & DO_FLAG_HAS_VARLIST) {
             //
-            // Though a Reb_Frame starts off with just a chunk of memory, it
-            // may be promoted to a context (backed by a data pointer of
-            // that chunk of memory).  This context *may not be managed yet*
-            // in the current implementation.
+            // We need to GC protect the values in the varlist no matter what,
+            // but it might not be managed yet (e.g. could still contain END
+            // markers during argument fulfillment).  But if it is managed,
+            // then it needs to be handed to normal GC.
             //
-            if (
-                GET_ARR_FLAG(
-                    CTX_VARLIST(f->data.context),
-                    SERIES_FLAG_MANAGED
-                )
-            ) {
-                QUEUE_MARK_CONTEXT_DEEP(f->data.context);
+            if (GET_ARR_FLAG(f->data.varlist, SERIES_FLAG_MANAGED)) {
+                assert(!IS_TRASH_DEBUG(ARR_AT(f->data.varlist, 0)));
+                assert(
+                    GET_ARR_FLAG(f->data.varlist, ARRAY_FLAG_CONTEXT_VARLIST)
+                );
+                QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(f->data.varlist));
             }
             else {
-                // Just mark the keylist...
-                QUEUE_MARK_ARRAY_DEEP(CTX_KEYLIST(f->data.context));
+                REBCNT num_params = FUNC_NUM_PARAMS(f->func);
+                REBVAL *slot = FRM_ARGS_HEAD(f); // may be stack or dynamic
+                while (num_params != 0) {
+                    if (!IS_END(slot) && !IS_VOID_OR_SAFE_TRASH(slot))
+                        Queue_Mark_Value_Deep(slot);
+                    ++slot;
+                    --num_params;
+                }
+                assert(IS_END(slot));
             }
         }
         else  {
@@ -836,10 +842,23 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
                 QUEUE_MARK_ARRAY_DEEP(VAL_VARARGS_ARRAY1(val));
             }
             else {
-                subfeed = *SUBFEED_ADDR_OF_FEED(
-                    CTX_VARLIST(VAL_VARARGS_FRAME_CTX(val))
-                );
-                QUEUE_MARK_CONTEXT_DEEP(VAL_VARARGS_FRAME_CTX(val));
+                //
+                // VARARGS! can wind up holding a pointer to a frame that is
+                // not managed, because arguments are still being fulfilled
+                // in the frame where the varargs lives.  This is a bit snakey,
+                // but if that's the state it's in, then it need not worry
+                // about GC protecting the frame...because it protects itself
+                // so long as the function is running.  (If it tried to
+                // protect it, then it could hit unfinished/corrupt arg cells)
+                //
+                REBARR *varlist = val->payload.varargs.feed.varlist;
+                assert(GET_ARR_FLAG(varlist, ARRAY_FLAG_CONTEXT_VARLIST));
+                if (GET_ARR_FLAG(varlist, SERIES_FLAG_MANAGED)) {
+                    QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(varlist)); // it's good
+                    subfeed = *SUBFEED_ADDR_OF_FEED(varlist);
+                }
+                else
+                    subfeed = NULL; // function still getting args, not running
             }
 
             if (subfeed) {

@@ -202,12 +202,12 @@ REBOOL Do_Breakpoint_Throws(
                 // If the frame were the one we were looking for, it would be
                 // reified (so it would have a context to match)
                 //
-                if (NOT(frame->flags & DO_FLAG_FRAME_CONTEXT))
+                if (NOT(frame->flags & DO_FLAG_HAS_VARLIST))
                     continue;
 
                 if (
                     VAL_CONTEXT(target)
-                    == AS_CONTEXT(frame->data.context)
+                    == AS_CONTEXT(frame->data.varlist)
                 ) {
                     // Found a match before hitting any breakpoints, so no
                     // need to retransmit.
@@ -479,7 +479,7 @@ REBNATIVE(resume)
     Val_Init_Context(
         ARR_AT(instruction, RESUME_INST_TARGET),
         REB_FRAME,
-        Context_For_Frame_May_Reify(frame, NULL, FALSE)
+        Context_For_Frame_May_Reify_Managed(frame)
     );
 
     SET_ARRAY_LEN(instruction, RESUME_INST_MAX);

@@ -122,7 +122,7 @@ enum {
     // Note: This flag is not paired, but if it were the alternative would
     // be DO_FLAG_FRAME_CHUNK...which is the default assumption.
     //
-    DO_FLAG_FRAME_CONTEXT = 1 << 7,
+    DO_FLAG_HAS_VARLIST = 1 << 7,
 
     // A pre-built frame can be executed "in-place" without a new allocation.
     // It will be type checked, and also any BAR! parameters will indicate
@@ -150,7 +150,13 @@ enum {
     // a function.  But BAR! is special as it cannot be quoted, and it has
     // several other purposes...plus it is more efficient to evaluate.
     //
-    DO_FLAG_PUNCTUATOR = 1 << 10
+    DO_FLAG_PUNCTUATOR = 1 << 10,
+
+    // While R3-Alpha permitted modifications of an array while it was being
+    // executed, Ren-C does not.  It takes a lock if the source is not already
+    // read only, and sets it back when Do_Core is finished (or on errors)
+    //
+    DO_FLAG_TOOK_FRAME_LOCK = 1 << 11
 };
 
 
@@ -449,7 +455,7 @@ struct Reb_Frame {
     // the frame by the debugger.
     //
     union {
-        REBCTX *context;
+        REBARR *varlist;
         REBVAL *stackvars;
     } data;
 
@@ -697,7 +703,18 @@ struct Reb_Frame {
 // currently...this is an open question.
 //
 
-#define PUSH_CALL_UNLESS_END(c,v) \
+#define PUSH_CALL(f) \
+    do { \
+        (f)->prior = TG_Frame_Stack; \
+        TG_Frame_Stack = (f); \
+        if (NOT(f->flags & DO_FLAG_VALIST)) \
+            if (!GET_ARR_FLAG((f)->source.array, SERIES_FLAG_LOCKED)) { \
+                SET_ARR_FLAG(f->source.array, SERIES_FLAG_LOCKED); \
+                f->flags |= DO_FLAG_TOOK_FRAME_LOCK; \
+            } \
+    } while (0)
+
+#define PUSH_ARTIFICIAL_CALL_UNLESS_END(c,v) \
     do { \
         (f)->value = VAL_ARRAY_AT(v); \
         if (IS_END((f)->value)) { \
@@ -711,8 +728,7 @@ struct Reb_Frame {
         (f)->eval_fetched = NULL; \
         (f)->label_sym = SYM_0; \
         (f)->mode = CALL_MODE_GUARD_ARRAY_ONLY; \
-        (f)->prior = TG_Frame_Stack; \
-        TG_Frame_Stack = f; \
+        PUSH_CALL(f); \
     } while (0)
 
 #define UPDATE_EXPRESSION_START(f) \
@@ -720,18 +736,22 @@ struct Reb_Frame {
 
 #define DROP_CALL(f) \
     do { \
+        if ((f)->flags & DO_FLAG_TOOK_FRAME_LOCK) { \
+            assert(GET_ARR_FLAG((f)->source.array, SERIES_FLAG_LOCKED)); \
+            CLEAR_ARR_FLAG((f)->source.array, SERIES_FLAG_LOCKED); \
+        } \
         assert(TG_Frame_Stack == (f)); \
-        TG_Frame_Stack = f->prior; \
+        TG_Frame_Stack = (f)->prior; \
     } while (0)
 
 #if 0
     // For detailed debugging of the fetching; coarse tool used only in very
     // deep debugging of the evaluator.
     //
-    #define TRACE_FETCH_DEBUG(m,c,a) \
+    #define TRACE_FETCH_DEBUG(m,f,a) \
         Trace_Fetch_Debug((m), (f), (a))
 #else
-    #define TRACE_FETCH_DEBUG(m,c,a) NOOP
+    #define TRACE_FETCH_DEBUG(m,f,a) NOOP
 #endif
 
 //
@@ -742,30 +762,24 @@ struct Reb_Frame {
     do { \
         if ((f)->eval_fetched) { \
             if (IS_END((f)->eval_fetched)) \
-                (f)->value = NULL; /* could be debug only */ \
+                (f)->value = END_CELL; \
             else \
                 (f)->value = (f)->eval_fetched; \
             (f)->eval_fetched = NULL; \
             break; \
         } \
         if ((f)->indexor != VALIST_FLAG) { \
-            if ((f)->indexor < ARR_LEN((f)->source.array)) { \
-                assert((f)->value != \
-                    ARR_AT((f)->source.array, (f)->indexor)); \
-                (f)->value = ARR_AT((f)->source.array, (f)->indexor); \
-                (f)->indexor = (f)->indexor + 1; \
-            } \
-            else { \
-                (f)->value = NULL; \
+            (f)->value = ARR_AT((f)->source.array, (f)->indexor); \
+            ++(f)->indexor; \
+            if (IS_END((f)->value)) \
                 (f)->indexor = END_FLAG; \
-            } \
         } \
         else { \
             (f)->value = va_arg(*(f)->source.vaptr, const REBVAL*); \
-            if (IS_END((f)->value)) { \
-                (f)->value = NULL; \
+            if (IS_END((f)->value)) \
                 (f)->indexor = END_FLAG; \
-            } \
+            else \
+                assert(!IS_VOID((f)->value)); \
         } \
     } while (0)
 
@@ -1192,9 +1206,13 @@ struct Native_Refine {
 // reuse a frame that's been reified after its initial "chunk only" state.
 // For now check the flag and don't just assume it's a raw frame.
 //
+// Uses ARR_AT instead of CTX_VAR because the varlist may not be finished.
+//
 #define FRM_ARGS_HEAD(f) \
-    (((f)->flags & DO_FLAG_FRAME_CONTEXT) \
-        ? CTX_VARS_HEAD((f)->data.context) \
+    (((f)->flags & DO_FLAG_HAS_VARLIST) \
+        ? (GET_ARR_FLAG((f)->data.varlist, CONTEXT_FLAG_STACK) \
+            ? CTX_STACKVARS(AS_CONTEXT((f)->data.varlist)) \
+            : ARR_AT((f)->data.varlist, 1)) \
         : &(f)->data.stackvars[0])
 
 // ARGS is the parameters and refinements

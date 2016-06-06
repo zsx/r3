@@ -919,7 +919,7 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
             if (!ANY_BINSTR(&value) && !ANY_ARRAY(&value))
                 return NOT_FOUND;
 
-            sub_parse.data.stackvars = Push_Ended_Trash_Chunk(3, NULL);
+            sub_parse.data.stackvars = Push_Ended_Trash_Chunk(3);
             sub_parse.data.stackvars[0] = value; // series
             SET_INTEGER(&sub_parse.data.stackvars[1], P_FIND_FLAGS); // fflags
             SET_INTEGER(&sub_parse.data.stackvars[2], 0); // result
@@ -963,7 +963,7 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
     // !!! This copies a single value into a block to use as data.  Is there
     // any way this might be avoided?
     //
-    newparse.data.stackvars = Push_Ended_Trash_Chunk(3, NULL);
+    newparse.data.stackvars = Push_Ended_Trash_Chunk(3);
     Val_Init_Block_Index(
         &newparse.data.stackvars[0],
         Make_Array(1), // !!! "copy the value into its own block"
@@ -1410,7 +1410,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                         break;
                     }
 
-                    sub_parse.data.stackvars = Push_Ended_Trash_Chunk(3, NULL);
+                    sub_parse.data.stackvars = Push_Ended_Trash_Chunk(3);
                     sub_parse.data.stackvars[0] = *val;
                     SET_INTEGER(&sub_parse.data.stackvars[1], P_FIND_FLAGS);
                     SET_INTEGER(&sub_parse.data.stackvars[2], P_RESULT);
@@ -1764,7 +1764,7 @@ static REB_R Parse_Core(struct Reb_Frame *frame_, REBOOL logic)
     parse.indexor = VAL_INDEX(rules);
     // Note: `parse.value` set above
 
-    parse.data.stackvars = Push_Ended_Trash_Chunk(3, NULL);
+    parse.data.stackvars = Push_Ended_Trash_Chunk(3);
 
     parse.data.stackvars[0] = *ARG(input);
 

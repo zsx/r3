@@ -109,8 +109,11 @@ typedef unsigned int REBDSP;
 #define DS_TOP DS_AT(DS_Index)
 
 #if !defined(NDEBUG)
-    #define IN_DATA_STACK(p) \
-        (ARR_LEN(DS_Array) != 0 && (p) >= DS_AT(0) && (p) <= DS_TOP)
+    #define IS_VALUE_IN_ARRAY(a,v) \
+        (ARR_LEN(a) != 0 && (v) >= ARR_HEAD(a) && (v) < ARR_TAIL(a))
+
+    #define IN_DATA_STACK(v) \
+        IS_VALUE_IN_ARRAY(DS_Array, (v))
 #endif
 
 //
@@ -139,7 +142,8 @@ typedef unsigned int REBDSP;
     (DS_PUSH_TRASH, SET_TRASH_SAFE(DS_TOP), NOOP)
 
 #define DS_PUSH(v) \
-    (ASSERT_VALUE_MANAGED(v), DS_PUSH_TRASH, *DS_TOP = *(v), NOOP)
+    (assert(!IS_VOID(v)), ASSERT_VALUE_MANAGED(v), \
+        DS_PUSH_TRASH, *DS_TOP = *(v), NOOP)
 
 #define DS_PUSH_NONE \
     (DS_PUSH_TRASH, SET_BLANK(DS_TOP), NOOP)
@@ -259,14 +263,6 @@ struct Reb_Chunk {
     // machines.  So this is a test to see if this follows the rules.
     //
 #endif
-
-    // If this serves as the backing memory for a context's stackvars then
-    // when the data goes away it is necessary to mark that context as
-    // not having its memory any more.  This cannot be managed purely by the
-    // client, because a fail() can longjmp...and the chunk stack needs enough
-    // information stored to find that series to mark.
-    //
-    REBCTX *opt_context;
 
     // Pointer to the previous chunk.
     //

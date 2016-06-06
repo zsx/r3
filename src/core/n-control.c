@@ -478,7 +478,7 @@ REBNATIVE(case)
     struct Reb_Frame frame;
     struct Reb_Frame *f = &frame;
 
-    PUSH_CALL_UNLESS_END(f, ARG(block));
+    PUSH_ARTIFICIAL_CALL_UNLESS_END(f, ARG(block));
     if (f->indexor == END_FLAG) { // quickly terminate on empty array
         if (REF(q))
             return R_FALSE;
@@ -1127,7 +1127,7 @@ REBNATIVE(do)
         f->func = CTX_FRAME_FUNC(VAL_CONTEXT(value));
         f->exit_from = NULL;
 
-        f->data.context = VAL_CONTEXT(value); // because def is NULL
+        f->data.varlist = CTX_VARLIST(VAL_CONTEXT(value)); // need w/NULL def
 
         return Apply_Frame_Core(f, SYM___ANONYMOUS__, NULL);
     }

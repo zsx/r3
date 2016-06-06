@@ -49,14 +49,6 @@
 //   an entity which tracks its own position on each fetch, where "indexor"
 //   is serving as a flag and should be left static.
 //
-// !!! There is currently no "locking" or other protection on the arrays that
-// are in the call stack and executing.  Each iteration must be prepared for
-// the case that the array has been modified out from under it.  The code
-// evaluator will not crash, but re-fetches...ending the evaluation if the
-// array has been shortened to before the index, and using possibly new
-// values.  The benefits of this self-modifying lenience should be reviewed
-// to inform a decision regarding the locking of arrays during evaluation.
-//
 
 #include "sys-core.h"
 
@@ -218,8 +210,7 @@ void Do_Core(struct Reb_Frame * const f)
         // Chain the call state into the stack, and mark it as generally not
         // having valid fields to GC protect (more in use during functions).
         //
-        f->prior = TG_Frame_Stack;
-        TG_Frame_Stack = f;
+        PUSH_CALL(f);
     #if !defined(NDEBUG)
         SNAP_STATE(&f->state); // to make sure stack balances, etc.
         do_count = Do_Core_Entry_Checks_Debug(f); // run once per Do_Core()
@@ -1177,11 +1168,13 @@ reevaluate:
 
                 VAL_RESET_HEADER(f->arg, REB_VARARGS);
 
-                VAL_VARARGS_FRAME_CTX(f->arg)
-                    = Context_For_Frame_May_Reify(f, NULL, FALSE);
-                ENSURE_ARRAY_MANAGED(
-                    CTX_VARLIST(VAL_VARARGS_FRAME_CTX(f->arg))
-                );
+                // Note that this varlist is to a context that is not ready
+                // to be shared with the GC yet (bad cells in any unfilled
+                // arg slots).  To help cue that it's not necessarily a
+                // completed context yet, we store it as an array type.
+                //
+                Context_For_Frame_May_Reify_Core(f);
+                f->arg->payload.varargs.feed.varlist = f->data.varlist;
 
                 VAL_VARARGS_PARAM(f->arg) = f->param; // type checks on TAKE
 
@@ -1432,6 +1425,8 @@ reevaluate:
 
         // param, refine, and args should be valid and safe for GC here
 
+        f->mode = CALL_MODE_FUNCTION;
+
         // Now we reset arg to the head of the argument list.  This provides
         // fast access for the callees, so they don't have to go through an
         // indirection further than just f->arg to get it.
@@ -1439,20 +1434,17 @@ reevaluate:
         // !!! When hybrid frames are introduced, review the question of
         // which pointer "wins".  Might more than one be used?
         //
-        if (f->flags & DO_FLAG_FRAME_CONTEXT) {
+        if (f->flags & DO_FLAG_HAS_VARLIST) {
             //
-            // !!! Here this caches a dynamic series data pointer in arg.
-            // For arbitrary series this is not legal to do, because a
-            // resize could relocate it...but we know the argument list will
-            // not expand in the current implementation.  However, a memory
-            // compactor would likely prefer that there not be too many
-            // locked series in order to more freely rearrange memory, so
-            // this is a tradeoff.
+            // Technically speaking we would only be *required* at this point
+            // to manage the varlist array if we've poked it into a vararg
+            // as a context.  But specific binding will always require a
+            // context available, so no point in optimizing here.  Since we
+            // are already doing the DO_FLAG_HAS_VARLIST test, do it.
             //
-            assert(GET_ARR_FLAG(
-                AS_ARRAY(f->data.context), SERIES_FLAG_FIXED_SIZE
-            ));
-            f->arg = CTX_VARS_HEAD(f->data.context);
+            Context_For_Frame_May_Reify_Managed(f);
+
+            f->arg = CTX_VARS_HEAD(AS_CONTEXT(f->data.varlist));
         }
         else {
             // We cache the stackvars data pointer in the stack allocated
@@ -1461,6 +1453,7 @@ reevaluate:
             // level lifetime.
             //
             f->arg = &f->data.stackvars[0];
+            assert(CHUNK_FROM_VALUES(f->arg) == TG_Top_Chunk);
         }
 
         // If the function has a native-optimized version of definitional
@@ -1492,19 +1485,26 @@ reevaluate:
             // temporary state of affairs, as all functions able to have a
             // definitional return will have contexts in NewFunction.
             //
-            if (f->flags & DO_FLAG_FRAME_CONTEXT)
-                VAL_FUNC_EXIT_FROM(f->refine) = CTX_VARLIST(f->data.context);
+            if (f->flags & DO_FLAG_HAS_VARLIST)
+                VAL_FUNC_EXIT_FROM(f->refine) = f->data.varlist;
             else
                 VAL_FUNC_EXIT_FROM(f->refine) = FUNC_PARAMLIST(f->func);
         }
 
-        f->param = END_CELL; // easier way to assure this?
+        // The garbage collector may run when we call out to functions, so
+        // we have to be sure that the frame fields are something valid.
+        //
+        assert(IS_END(f->param) || IS_TYPESET(f->param));
+        f->param = END_CELL; // review: merge ET_xxx and frame modes
+        assert(
+            IS_END(f->value)
+            || (f->flags & DO_FLAG_VALIST)
+            || IS_VALUE_IN_ARRAY(f->source.array, f->value)
+        );
 
         if (Trace_Flags) Trace_Func(FRM_LABEL(f), FUNC_VALUE(f->func));
 
         assert(f->indexor != THROWN_FLAG);
-
-        f->mode = CALL_MODE_FUNCTION;
 
         // If the Do_XXX_Core function dispatcher throws, we can't let it
         // write `f->indexor` directly to become THROWN_FLAG because we may
@@ -1561,42 +1561,6 @@ reevaluate:
     #endif
 
     drop_call_and_return_thrown:
-        //
-        // The same label is currently used for both these outcomes, and
-        // which happens depends on whether eval_fetched is NULL or not
-        //
-        if (f->flags & DO_FLAG_FRAME_CONTEXT) {
-            if (CTX_STACKVARS(f->data.context) != NULL)
-                Drop_Chunk(CTX_STACKVARS(f->data.context));
-
-            if (GET_ARR_FLAG(
-                CTX_VARLIST(f->data.context), SERIES_FLAG_MANAGED
-            )) {
-                // Context at some point became managed and hence may still
-                // have outstanding references.  The accessible flag should
-                // have been cleared by the drop chunk above.
-                //
-                assert(
-                    !GET_ARR_FLAG(
-                        CTX_VARLIST(f->data.context), SERIES_FLAG_ACCESSIBLE
-                    )
-                );
-            }
-            else {
-                // If nothing happened that might have caused the context to
-                // become managed (e.g. Val_Init_Word() using it or a
-                // Val_Init_Object() for the frame) then the varlist can just
-                // go away...
-                //
-                Free_Array(CTX_VARLIST(f->data.context));
-                //
-                // NOTE: Even though we've freed the pointer, we still compare
-                // it for identity below when checking to see if this was the
-                // stack level being thrown to!
-            }
-        }
-        else
-            Drop_Chunk(f->data.stackvars);
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -1621,8 +1585,8 @@ reevaluate:
                 // frame context.
                 //
                 if (
-                    (f->flags & DO_FLAG_FRAME_CONTEXT) &&
-                    VAL_CONTEXT(f->out) == AS_CONTEXT(f->data.context)
+                    (f->flags & DO_FLAG_HAS_VARLIST) &&
+                    CTX_VARLIST(VAL_CONTEXT(f->out)) == f->data.varlist
                 ) {
                     CATCH_THROWN(f->out, f->out);
                     f->mode = CALL_MODE_GUARD_ARRAY_ONLY;
@@ -1671,6 +1635,8 @@ reevaluate:
     // FUNCTION! CALL COMPLETION (Type Check Result, Throw If Needed)
     //
     //==////////////////////////////////////////////////////////////////==//
+
+        Drop_Function_Args_For_Frame(f, TRUE); // TRUE: drop chunks
 
         // If running a frame execution then clear that flag out.
         //
@@ -1741,8 +1707,6 @@ reevaluate:
     #if !defined(NDEBUG)
         f->func = NULL;
     #endif
-
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1982,7 +1946,7 @@ return_indexor:
     // Restore the top of stack (if there is a fail() and associated longjmp,
     // this restoration will be done by the Drop_Trap helper.)
     //
-    TG_Frame_Stack = f->prior;
+    DROP_CALL(f);
 
     // Caller needs to inspect `index`, at minimum to know if it's THROWN_FLAG
 }
@@ -2083,7 +2047,7 @@ static REBUPT Do_Core_Entry_Checks_Debug(struct Reb_Frame *f)
 
     // This flag is managed solely by the frame code; shouldn't come in set
     //
-    assert(NOT(f->flags & DO_FLAG_FRAME_CONTEXT));
+    assert(NOT(f->flags & DO_FLAG_HAS_VARLIST));
 
 #if !defined(NDEBUG)
     //
@@ -2255,7 +2219,7 @@ static void Do_Core_Exit_Checks_Debug(struct Reb_Frame *f) {
         assert(f->indexor == THROWN_FLAG || f->indexor == END_FLAG);
 
     if (f->indexor == END_FLAG) {
-        assert(f->value == NULL); // NULLing out value may become debug-only
+        assert(IS_END(f->value));
         assert(NOT_END(f->out)); // series END marker shouldn't leak out
     }
 

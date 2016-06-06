@@ -245,7 +245,7 @@ void Pop_Stack_Values_Into(REBVAL *into, REBDSP dsp_start) {
 // always has its low bit clear (pointers are not odd on 99% of architectures,
 // this is checked by an assertion).
 //
-REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values, REBARR *opt_holder) {
+REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
     const REBCNT size = BASE_CHUNK_SIZE + num_values * sizeof(REBVAL);
 
     // an extra Reb_Value_Header is placed at the very end of the array to
@@ -348,8 +348,6 @@ REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values, REBARR *opt_holder) {
 
     chunk->prev = TG_Top_Chunk;
 
-    chunk->opt_context = NULL;
-
     TG_Top_Chunk = chunk;
 
 #if !defined(NDEBUG)
@@ -385,40 +383,9 @@ void Drop_Chunk(REBVAL *opt_head)
     // Passing in `values` is optional, but a good check to make sure you are
     // actually dropping the chunk you think you are.  (On an error condition
     // when dropping chunks to try and restore the top chunk to a previous
-    // state, this information isn't available because the call frame data
-    // containing the chunk pointer has been longjmp'd past into oblivion.)
+    // state, this information isn't available.)
     //
     assert(!opt_head || CHUNK_FROM_VALUES(opt_head) == chunk);
-
-    if (chunk->opt_context) {
-        REBARR *varlist = CTX_VARLIST(chunk->opt_context);
-        assert(
-            !GET_ARR_FLAG(varlist, SERIES_FLAG_HAS_DYNAMIC)
-            && GET_ARR_FLAG(varlist, CONTEXT_FLAG_STACK)
-            && GET_ARR_FLAG(varlist, SERIES_FLAG_ARRAY)
-        );
-        assert(GET_ARR_FLAG(varlist, SERIES_FLAG_ACCESSIBLE));
-        assert(
-            CTX_STACKVARS(chunk->opt_context) == &TG_Top_Chunk->values[0]
-        );
-        CLEAR_ARR_FLAG(varlist, SERIES_FLAG_ACCESSIBLE);
-
-    #if !defined(NDEBUG)
-        //
-        // The general idea of the "canon" values inside of ANY-CONTEXT!
-        // and ANY-FUNCTION! at their slot [0] positions of varlist and
-        // paramlist respectively was that all REBVAL instances of that
-        // context or object would mirror those bits.  Because we have
-        // SERIES_FLAG_ACCESSIBLE then it's possible to keep this invariant
-        // and let a stale stackvars pointer be bad inside the context to
-        // match any extant REBVALs, but debugging will be more obvious if
-        // the bits are deliberately set to bad--even if this is incongruous
-        // with those values.  Thus there is no check that these bits line
-        // up and we turn the ones in the context itself to garbage here.
-        //
-        CTX_STACKVARS(chunk->opt_context) = cast(REBVAL*, 0xDECAFBAD);
-    #endif
-    }
 
     // Drop to the prior top chunk
     TG_Top_Chunk = chunk->prev;
@@ -524,10 +491,7 @@ void Push_Or_Alloc_Vars_For_Underlying_Func(struct Reb_Frame *f) {
     //
     num_slots = FUNC_NUM_PARAMS(f->func);
 
-    // For starters clear the context flag; it's just the chunk with no
-    // "reification" (Context_For_Frame_May_Reify() might change this)
-    //
-    f->flags &= ~DO_FLAG_FRAME_CONTEXT;
+    assert(NOT(f->flags & DO_FLAG_HAS_VARLIST)); // should be clear
 
     // Make REBVALs to hold the arguments.  It will always be at least one
     // slot long, because function frames start with the value of the
@@ -543,21 +507,19 @@ void Push_Or_Alloc_Vars_For_Underlying_Func(struct Reb_Frame *f) {
         // nothing... CLOSURE!'s variables args and locals all survive the
         // end of the call, and none of a FUNCTION!'s do.
         //
-        varlist = Make_Array(num_slots + 1);
+        REBARR *varlist = Make_Array(num_slots + 1);
         SET_ARRAY_LEN(varlist, num_slots + 1);
         SET_END(ARR_AT(varlist, num_slots + 1));
         SET_ARR_FLAG(varlist, SERIES_FLAG_FIXED_SIZE);
 
         // Skip the [0] slot which will be filled with the CTX_VALUE
-        // !!! Note: Array made the 0 slot an end marker
+        // !!! Note: Make_Array made the 0 slot an end marker
         //
         SET_TRASH_IF_DEBUG(ARR_AT(varlist, 0));
         slot = ARR_AT(varlist, 1);
 
-        // The NULL stackvars will be picked up by the reification; reuse the
-        // work that function does vs. duplicating it here.
-        //
-        f->data.stackvars = NULL;
+        f->data.varlist = varlist;
+        f->flags |= DO_FLAG_HAS_VARLIST;
     }
     else {
         // We start by allocating the data for the args and locals on the chunk
@@ -569,14 +531,11 @@ void Push_Or_Alloc_Vars_For_Underlying_Func(struct Reb_Frame *f) {
         // Note that chunks implicitly have an END at the end; no need to
         // put one there.
         //
-        f->data.stackvars = Push_Ended_Trash_Chunk(num_slots, NULL);
-        assert(CHUNK_LEN_FROM_VALUES(f->data.stackvars) == num_slots);
-        slot = &f->data.stackvars[0];
+        REBVAL *stackvars = Push_Ended_Trash_Chunk(num_slots);
+        assert(CHUNK_LEN_FROM_VALUES(stackvars) == num_slots);
+        slot = &stackvars[0];
 
-        // For now there's no hybridization; a context with stackvars has
-        // no pooled allocation.
-        //
-        varlist = NULL;
+        f->data.stackvars = stackvars;
     }
 
     // Make_Call does not fill the args in the frame--that's up to Do_Core
@@ -609,21 +568,11 @@ void Push_Or_Alloc_Vars_For_Underlying_Func(struct Reb_Frame *f) {
         slot++;
         --num_slots;
     }
-
-    if (varlist) {
-        //
-        // If we had to create a pooled array allocation to store any vars
-        // that will outlive the series, there's no way to avoid reifying
-        // the context (have to hold onto the allocated varlist pointer
-        // somewhere...)
-        //
-        Context_For_Frame_May_Reify(f, varlist, FALSE);
-    }
 }
 
 
 //
-//  Context_For_Frame_May_Reify: C
+//  Context_For_Frame_May_Reify_Core: C
 //
 // A Reb_Frame does not allocate a REBSER for its frame to be used in the
 // context by default.  But one can be allocated on demand, even for a NATIVE!
@@ -633,34 +582,30 @@ void Push_Or_Alloc_Vars_For_Underlying_Func(struct Reb_Frame *f) {
 //
 // If there's already a frame this will return it, otherwise create it.
 //
-REBCTX *Context_For_Frame_May_Reify(
-    struct Reb_Frame *f,
-    REBARR *opt_varlist, // if a CLOSURE! and varlist is preallocated
-    REBOOL ensure_managed
-) {
-#if !defined(NDEBUG)
-    if (opt_varlist) {
-        assert(IS_TRASH_DEBUG(ARR_AT(opt_varlist, 0))); // we fill this in
-    }
-#endif
-
+// The result of this operation will not necessarily give back a managed
+// context.  All cases can't be managed because it may be in a partial state
+// (of fulfilling function arguments), and may contain bad data in the varlist.
+// But if it has already been managed, it will be returned that way.
+//
+REBCTX *Context_For_Frame_May_Reify_Core(struct Reb_Frame *f) {
     REBCTX *context;
     struct Reb_Chunk *chunk;
 
-    if (f->flags & DO_FLAG_FRAME_CONTEXT)
-        return f->data.context;
+    if (f->flags & DO_FLAG_HAS_VARLIST) {
+        if (GET_ARR_FLAG(f->data.varlist, ARRAY_FLAG_CONTEXT_VARLIST))
+            return AS_CONTEXT(f->data.varlist); // already a context!
 
-    if (opt_varlist) {
-        //
-        // This is an a-priori creation of pooled data... arg isn't ready to
-        // check yet.
-        //
-    #if !defined(NDEBUG)
-        assert(f->mode == CALL_MODE_GUARD_ARRAY_ONLY); // APPLY doesn't init
-    #endif
+        // We have our function call's args in an array, but it is not yet
+        // a context.  !!! Really this cannot reify if we're in arg gathering
+        // mode, calling MANAGE_ARRAY is illegal -- need test for that !!!
 
-        context = AS_CONTEXT(opt_varlist);
-        assert(GET_ARR_FLAG(AS_ARRAY(context), SERIES_FLAG_HAS_DYNAMIC));
+        assert(IS_TRASH_DEBUG(ARR_AT(f->data.varlist, 0))); // we fill this in
+
+        assert(GET_ARR_FLAG(f->data.varlist, SERIES_FLAG_HAS_DYNAMIC));
+
+        context = AS_CONTEXT(f->data.varlist);
+
+        CTX_STACKVARS(context) = NULL;
     }
     else {
         assert(f->mode != CALL_MODE_GUARD_ARRAY_ONLY);
@@ -672,21 +617,19 @@ REBCTX *Context_For_Frame_May_Reify(
         ));
 
         assert(!GET_ARR_FLAG(AS_ARRAY(context), SERIES_FLAG_HAS_DYNAMIC));
+        SET_ARR_FLAG(AS_ARRAY(context), SERIES_FLAG_ARRAY);
+        SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_FIXED_SIZE);
+
+        SET_CTX_FLAG(context, CONTEXT_FLAG_STACK);
+        SET_CTX_FLAG(context, SERIES_FLAG_ACCESSIBLE);
+
+        CTX_STACKVARS(context) = f->data.stackvars;
+
+        f->data.varlist = CTX_VARLIST(context);
+        f->flags |= DO_FLAG_HAS_VARLIST;
     }
 
-    SET_ARR_FLAG(AS_ARRAY(context), SERIES_FLAG_ARRAY);
     SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST);
-
-    // We have to set the lock flag on the series as long as it is on
-    // the stack.  This means that no matter what cleverness the GC
-    // might think it can do shuffling data around, the closure frame
-    // is not a candidate for this cleverness.
-    //
-    // !!! Review the overall philosophy of not allowing the frame of
-    // functions/closures to grow.  It is very likely a good idea, but
-    // there may be reasons to introduce some kind of flexibility.
-    //
-    SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_FIXED_SIZE);
 
     // We do not Manage_Context, because we are reusing a word series here
     // that has already been managed.  The arglist array was managed when
@@ -700,15 +643,7 @@ REBCTX *Context_For_Frame_May_Reify(
     // initializing word REBVALs that are bound into it will ensure
     // managedness, as will creating a REBVAL for it.
     //
-    if (ensure_managed)
-        ENSURE_ARRAY_MANAGED(CTX_VARLIST(context));
-    else {
-        // Might there be a version that doesn't ensure but also accepts if
-        // it happens to be managed?  (Current non-ensuring client assumes
-        // it's not managed...
-        //
-        assert(!GET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_MANAGED));
-    }
+    assert(!GET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_MANAGED));
 
     // When in CALL_MODE_PENDING or CALL_MODE_FUNCTION, the arglist will
     // be marked safe from GC.  It is managed because the pointer makes
@@ -724,26 +659,6 @@ REBCTX *Context_For_Frame_May_Reify(
     INIT_VAL_CONTEXT(CTX_VALUE(context), context);
     INIT_CONTEXT_FRAME(context, f);
 
-    // Give this series the data from what was in the chunk, and make note
-    // of the series in the chunk so that it can be marked as "gone bad"
-    // when that chunk gets freed (could happen during a fail() or when
-    // the stack frame finishes normally)
-    //
-    CTX_STACKVARS(context) = f->data.stackvars;
-
-    if (f->data.stackvars) {
-        assert(!opt_varlist);
-
-        chunk = CHUNK_FROM_VALUES(f->data.stackvars);
-        assert(!chunk->opt_context);
-        chunk->opt_context = context;
-
-        SET_CTX_FLAG(context, CONTEXT_FLAG_STACK);
-        SET_CTX_FLAG(context, SERIES_FLAG_ACCESSIBLE);
-    }
-    else
-        assert(opt_varlist);
-
     // A reification of a frame for native code should not allow changing
     // the values out from under it, because that could cause it to crash
     // the interpreter.  (Generally speaking, modification should only be
@@ -753,16 +668,114 @@ REBCTX *Context_For_Frame_May_Reify(
     if (VAL_FUNC_CLASS(FUNC_VALUE(f->func)) != FUNC_CLASS_USER)
         SET_ARR_FLAG(AS_ARRAY(context), SERIES_FLAG_LOCKED);
 
+    return context;
+}
+
+
+//
+//  Context_For_Frame_May_Reify_Managed: C
+//
+REBCTX *Context_For_Frame_May_Reify_Managed(struct Reb_Frame *f)
+{
+    assert(f->mode == CALL_MODE_FUNCTION);
+
+    REBCTX *context = Context_For_Frame_May_Reify_Core(f);
+    ENSURE_ARRAY_MANAGED(CTX_VARLIST(context));
+
     // Finally we mark the flags to say this contains a valid frame, so that
     // future calls to this routine will return it instead of making another.
     // This flag must be cleared when the call is finished (as the Reb_Frame
     // will be blown away if there's an error, no concerns about that).
     //
     ASSERT_CONTEXT(context);
-    f->data.context = context;
-    f->flags |= DO_FLAG_FRAME_CONTEXT;
-
     return context;
+}
+
+
+//
+//  Drop_Function_Args_For_Frame: C
+//
+// This routine needs to be shared with the error handling code.  It would be
+// nice if it were inlined into Do_Core...but repeating the code just to save
+// the function call overhead is second-guessing the optimizer and would be
+// a cause of bugs.
+//
+// Note that in response to an error, we do not want to drop the chunks,
+// because there are other clients of the chunk stack that may be running.
+// Hence the chunks will be freed by the error trap helper.
+//
+void Drop_Function_Args_For_Frame(struct Reb_Frame *f, REBOOL drop_chunks)
+{
+    if (NOT(f->flags & DO_FLAG_HAS_VARLIST)) {
+        //
+        // Stack extent arguments with no identifying frame (this would
+        // be the typical case when calling a native, for instance).
+        //
+        if (drop_chunks)
+            Drop_Chunk(f->data.stackvars);
+        return;
+    }
+
+    // We're freeing the varlist (or leaving it up to the GC), so clear flag
+    //
+    f->flags &= ~DO_FLAG_HAS_VARLIST;
+
+    REBARR *varlist = f->data.varlist;
+    assert(GET_ARR_FLAG(varlist, SERIES_FLAG_ARRAY));
+
+    if (NOT(GET_ARR_FLAG(varlist, SERIES_FLAG_MANAGED))) {
+        //
+        // It's an array, but hasn't become managed yet...either because
+        // it couldn't be (args still being fulfilled, may have bad cells) or
+        // didn't need to be (no Context_For_Frame_May_Reify_Managed).  We
+        // can just free it.
+        //
+        Free_Array(f->data.varlist);
+        return;
+    }
+
+    // The varlist might have been for indefinite extent variables, or it
+    // might be a stub holder for a stack context.
+
+    ASSERT_ARRAY_MANAGED(varlist);
+
+    if (NOT(GET_ARR_FLAG(varlist, CONTEXT_FLAG_STACK))) {
+        //
+        // If there's no stack memory being tracked by this context, it
+        // has dynamic memory and is being managed by the garbage collector
+        // so there's nothing to do.
+        //
+        assert(GET_ARR_FLAG(varlist, SERIES_FLAG_HAS_DYNAMIC));
+        return;
+    }
+
+    // It's reified but has its data pointer into the chunk stack, which
+    // means we have to free it and mark the array inaccessible.
+
+    assert(GET_ARR_FLAG(varlist, ARRAY_FLAG_CONTEXT_VARLIST));
+    assert(NOT(GET_ARR_FLAG(varlist, SERIES_FLAG_HAS_DYNAMIC)));
+
+    assert(GET_ARR_FLAG(varlist, SERIES_FLAG_ACCESSIBLE));
+    CLEAR_ARR_FLAG(varlist, SERIES_FLAG_ACCESSIBLE);
+
+    if (drop_chunks)
+        Drop_Chunk(CTX_STACKVARS(AS_CONTEXT(varlist)));
+
+#if !defined(NDEBUG)
+    //
+    // The general idea of the "canon" values inside of ANY-CONTEXT!
+    // and ANY-FUNCTION! at their slot [0] positions of varlist and
+    // paramlist respectively was that all REBVAL instances of that
+    // context or object would mirror those bits.  Because we have
+    // SERIES_FLAG_ACCESSIBLE then it's possible to keep this invariant
+    // and let a stale stackvars pointer be bad inside the context to
+    // match any extant REBVALs, but debugging will be more obvious if
+    // the bits are deliberately set to bad--even if this is incongruous
+    // with those values.  Thus there is no check that these bits line
+    // up and we turn the ones in the context itself to garbage here.
+    //
+    CTX_STACKVARS(AS_CONTEXT(varlist)) = cast(REBVAL*, 0xDECAFBAD);
+#endif
 }
 
 

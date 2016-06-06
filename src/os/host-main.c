@@ -366,7 +366,7 @@ int Do_String(
             // and we're not putting it into a FRAME! value, so it might leak
             // otherwise if it's reified.
             //
-            frame_ctx = Context_For_Frame_May_Reify(frame, NULL, TRUE);
+            frame_ctx = Context_For_Frame_May_Reify_Managed(frame);
 
             Bind_Values_Deep(ARR_HEAD(code), frame_ctx);
         }

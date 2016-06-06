@@ -738,7 +738,7 @@ set 'r3-legacy* func [] [
             either function? :source [
                 code: reduce [:source]
                 params: words-of :source
-                while [params/1] [
+                while [not tail? params] [
                     append code switch type-of params/1 [
                         :word! [take normals]
                         :lit-word! [take softs]

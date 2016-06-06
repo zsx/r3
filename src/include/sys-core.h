@@ -730,6 +730,21 @@ static inline REBVAL *TRY_GET_MUTABLE_VAR(const REBVAL *any_word) {
         } while (0)
 #endif
 
+// See comments on C_STACK_OVERFLOWING, regarding today's flawed mechanism for
+// handling stack overflows (and remarks on how it might be improved).  For
+// now, the only special handling is to use a pre-created error vs. allocating.
+//
+#ifdef NDEBUG
+    #define Trap_Stack_Overflow() \
+        Fail_Core(VAL_CONTEXT(TASK_STACK_ERROR))
+#else
+    #define Trap_Stack_Overflow() \
+        do { \
+            TG_Erroring_C_File = __FILE__; \
+            TG_Erroring_C_Line = __LINE__; \
+            Fail_Core(VAL_CONTEXT(TASK_STACK_ERROR)); \
+        } while (0)
+#endif
 
 #define ALL_BITS    ((REBCNT)(-1))
 #ifdef HAS_LL_CONSTS

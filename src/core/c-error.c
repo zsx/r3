@@ -45,8 +45,6 @@ void Snap_State_Core(struct Reb_State *s)
     s->dsp = DSP;
     s->top_chunk = TG_Top_Chunk;
 
-    s->frame = FS_TOP;
-
     // There should not be a Collect_Keys in progress.  (We use a non-zero
     // length of the collect buffer to tell if a later fail() happens in
     // the middle of a Collect_Keys.)
@@ -55,7 +53,7 @@ void Snap_State_Core(struct Reb_State *s)
 
     s->series_guard_len = SER_LEN(GC_Series_Guard);
     s->value_guard_len = SER_LEN(GC_Value_Guard);
-    s->frame_stack = TG_Frame_Stack;
+    s->frame = FS_TOP;
     s->gc_disable = GC_Disabled;
 
     s->manuals_len = SER_LEN(GC_Manuals);
@@ -122,7 +120,6 @@ void Assert_State_Balanced_Debug(
         goto problem_found;
     }
 
-    assert(s->frame_stack == TG_Frame_Stack);
     assert(s->gc_disable == GC_Disabled);
 
     // !!! Note that this inherits a test that uses GC_Manuals->content.xxx
@@ -234,7 +231,7 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
 
     SET_SERIES_LEN(GC_Series_Guard, s->series_guard_len);
     SET_SERIES_LEN(GC_Value_Guard, s->value_guard_len);
-    TG_Frame_Stack = s->frame_stack;
+    TG_Frame_Stack = s->frame;
     SET_SERIES_LEN(UNI_BUF, s->uni_buf_len);
     TERM_SERIES(UNI_BUF); // see remarks on termination in Pop/Drop Molds
 
@@ -369,11 +366,30 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
 
     if (Trace_Level) {
         Debug_Fmt(
-            "Parse back: %r",
+            "Error id, type: %r %r",
             &ERR_VARS(error)->type,
             &ERR_VARS(error)->id
         );
     }
+
+    // The information for the Rebol call frames generally is held in stack
+    // variables, so the data will go bad in the longjmp.  We have to free
+    // the data *before* the jump.  Be careful not to let this code get too
+    // recursive or do other things that would be bad news if we're responding
+    // to C_STACK_OVERFLOWING.  (See notes on the sketchiness in general of
+    // the way R3-Alpha handles stack overflows, and alternative plans.)
+    //
+    struct Reb_Frame *f = FS_TOP;
+    while (f != Saved_State->frame) {
+        if (f->mode == CALL_MODE_FUNCTION)
+            Drop_Function_Args_For_Frame(f, FALSE); // FALSE: don't drop chunks
+
+        struct Reb_Frame *prior = f->prior;
+        DROP_CALL(f);
+        f = prior;
+    }
+
+    TG_Frame_Stack = f; // TG_Frame_Stack is writable FS_TOP
 
     // We pass the error as a context rather than as a value.
 
@@ -384,31 +400,6 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
     // builds.  (The value will not be kept alive, it is not seen by GC)
 
     SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
-
-    LONG_JUMP(Saved_State->cpu_state, 1);
-}
-
-
-//
-//  Trap_Stack_Overflow: C
-// 
-// See comments on C_STACK_OVERFLOWING.  This routine is
-// deliberately separate and simple so that it allocates no
-// objects or locals...and doesn't run any code that itself
-// might wind up calling C_STACK_OVERFLOWING.  Hence it uses
-// the preallocated TASK_STACK_ERROR frame.
-//
-void Trap_Stack_Overflow(void)
-{
-    if (!Saved_State) {
-        // The most likely case for there not being a PUSH_TRAP in effect
-        // would be a stack overflow during boot.
-
-        Debug_Fmt("*** NO \"SAVED STATE\" - PLEASE MENTION THIS FACT! ***");
-        panic (VAL_CONTEXT(TASK_STACK_ERROR));
-    }
-
-    Saved_State->error = VAL_CONTEXT(TASK_STACK_ERROR);
 
     LONG_JUMP(Saved_State->cpu_state, 1);
 }

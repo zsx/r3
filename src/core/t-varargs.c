@@ -561,7 +561,16 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
 
         REBVAL param_word;
 
-        if (
+        REBARR *varlist = value->payload.varargs.feed.varlist;
+        if (!GET_ARR_FLAG(varlist, SERIES_FLAG_MANAGED)) {
+            //
+            // This can happen if you internally try and PROBE() a varargs
+            // item that is residing in the argument slots for a function,
+            // while that function is still in CALL_MODE_ARGS.
+            //
+            Append_Unencoded(mold->series, "** varargs frame not fulfilled");
+        }
+        else if (
             GET_CTX_FLAG(VAL_VARARGS_FRAME_CTX(value), CONTEXT_FLAG_STACK) &&
             !GET_CTX_FLAG(VAL_VARARGS_FRAME_CTX(value), SERIES_FLAG_ACCESSIBLE)
         ) {

@@ -513,7 +513,7 @@ REBNATIVE(backtrace)
             Val_Init_Context(
                 D_OUT,
                 REB_FRAME,
-                Context_For_Frame_May_Reify(frame, NULL, FALSE)
+                Context_For_Frame_May_Reify_Managed(frame)
             );
             return R_OUT;
         }
@@ -699,8 +699,8 @@ struct Reb_Frame *Frame_For_Stack_Level(
         }
         else if (IS_FRAME(level)) {
             if (
-                (frame->flags & DO_FLAG_FRAME_CONTEXT)
-                && frame->data.context == VAL_CONTEXT(level)
+                (frame->flags & DO_FLAG_HAS_VARLIST)
+                && frame->data.varlist == CTX_VARLIST(VAL_CONTEXT(level))
             ) {
                 goto return_maybe_set_number_out;
             }

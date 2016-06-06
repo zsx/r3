@@ -1299,6 +1299,14 @@ void Do_Action_Core(struct Reb_Frame *f)
 //
 void Do_Function_Core(struct Reb_Frame *f)
 {
+    // In specific binding, we must always reify the frame and get it handed
+    // over to the GC when calling user functions.  This is "costly" but
+    // essential.  It is not technically necessary except for "closures"
+    // prior to specific binding, but this helps exercise the code path
+    // in the non-specific-binding branch.
+    //
+    REBCTX *frame_ctx = Context_For_Frame_May_Reify_Managed(f);
+
     Eval_Functions++;
 
     if (!IS_FUNC_DURABLE(FUNC_VALUE(f->func))) {
@@ -1313,9 +1321,7 @@ void Do_Function_Core(struct Reb_Frame *f)
             f->mode = CALL_MODE_THROW_PENDING;
     }
     else {
-        REBCTX *frame = f->data.context;
-
-        assert(f->flags & DO_FLAG_FRAME_CONTEXT);
+        assert(f->flags & DO_FLAG_HAS_VARLIST);
 
         // Clone the body of the closure to allow us to rebind words inside
         // of it so that they point specifically to the instances for this
@@ -1327,7 +1333,9 @@ void Do_Function_Core(struct Reb_Frame *f)
         INIT_VAL_ARRAY(&body, Copy_Array_Deep_Managed(FUNC_BODY(f->func)));
         VAL_INDEX(&body) = 0;
 
-        Rebind_Values_Specifically_Deep(f->func, frame, VAL_ARRAY_AT(&body));
+        Rebind_Values_Specifically_Deep(
+            f->func, frame_ctx, VAL_ARRAY_AT(&body)
+        );
 
         // Protect the body from garbage collection during the course of the
         // execution.  (This is inexpensive...it just points `f->param` to it.)
@@ -1533,18 +1541,29 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
     // establish for other reasons (e.g. continuations), so that is what is
     // used here.
 
-    f->prior = TG_Frame_Stack;
-    TG_Frame_Stack = f;
-
-#if !defined(NDEBUG)
-    SNAP_STATE(&f->state); // for comparison to make sure stack balances, etc.
-#endif
-
     f->indexor = END_FLAG;
     f->source.array = EMPTY_ARRAY;
     f->eval_fetched = NULL;
 
     f->dsp_orig = DSP;
+
+    f->args_evaluate = FALSE;
+    f->lookahead_flags = DO_FLAG_NO_LOOKAHEAD; // should be doing no evals!
+
+    // !!! We have to push a call here currently because prior to specific
+    // binding, the stack gets walked to resolve variables.   Hence in the
+    // apply case, Do_Core doesn't do its own push to the frame stack.
+    //
+    PUSH_CALL(f);
+
+#if !defined(NDEBUG)
+    //
+    // We may push a data chunk, which is one of the things the snapshot state
+    // checks.  It also checks the top of stack, so that has to be set as well.
+    // So this has to come before Push_Or_Alloc_Vars
+    //
+    SNAP_STATE(&f->state);
+#endif
 
     // If applying an existing FRAME! there should be no need to push vars
     // for it...it should have its own space.
@@ -1563,23 +1582,21 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
     }
     else {
         f->flags |=
-            DO_FLAG_NEXT | DO_FLAG_FRAME_CONTEXT | DO_FLAG_EXECUTE_FRAME;
+            DO_FLAG_NEXT | DO_FLAG_HAS_VARLIST | DO_FLAG_EXECUTE_FRAME;
 
         f->mode = CALL_MODE_ARGS;
         // f->func should already be set
         f->exit_from = NULL; // !!! TBD: handle correctly
     }
 
-#if !defined(NDEBUG)
-    f->value = NULL; // nothing to FETCH_NEXT, this is a debug check
-#endif
+    // Now that we've let Push_Or_Alloc_Vars see f->value the function, we
+    // pretend our input source has ended.
+
+    f->value = END_CELL;
 
     f->arg = FRM_ARGS_HEAD(f);
     f->param = FUNC_PARAMS_HEAD(f->func);
     f->refine = TRUE_VALUE;
-    f->args_evaluate = FALSE;
-    f->lookahead_flags = DO_FLAG_NO_LOOKAHEAD; // should be doing no evals!
-
     f->cell.subfeed = NULL;
 
     if (!opt_def) {
@@ -1595,16 +1612,21 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
         // do to itself--e.g. to facilitate tail recursion, because no caller
         // but the function itself understands the state of its locals in situ.
         //
-        ASSERT_CONTEXT(f->data.context);
+        ASSERT_CONTEXT(AS_CONTEXT(f->data.varlist));
     }
     else {
-        if (f->flags & DO_FLAG_FRAME_CONTEXT) {
+        if (f->flags & DO_FLAG_HAS_VARLIST) {
             //
+            // Here we are binding with a maybe-not-valid context.  Should
+            // probably just use the keylist...
+            //
+            REBCTX *frame_ctx = Context_For_Frame_May_Reify_Managed(f);
+
             // There's a pool-allocated context, specific binding available
             //
             Bind_Values_Core(
                 VAL_ARRAY_AT(opt_def),
-                f->data.context,
+                frame_ctx,
                 FLAGIT_KIND(REB_SET_WORD), // types to bind (just set-word!)
                 0, // types to "add midstream" to binding as we go (nothing)
                 BIND_DEEP
@@ -1631,12 +1653,14 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
         // Do the block into scratch space--we ignore the result (unless it is
         // thrown, in which case it must be returned.)
         //
-        if (DO_VAL_ARRAY_AT_THROWS(f->out, opt_def))
+        if (DO_VAL_ARRAY_AT_THROWS(f->out, opt_def)) {
+            DROP_CALL(f);
             return R_OUT_IS_THROWN;
+        }
 
         // Undo our lie about the function running (if we had to lie)...
         //
-        if (NOT(f->flags & DO_FLAG_FRAME_CONTEXT))
+        if (NOT(f->flags & DO_FLAG_HAS_VARLIST))
             f->mode = CALL_MODE_ARGS;
     }
 

@@ -126,7 +126,6 @@ struct Reb_State {
     struct Reb_Frame *frame;
     REBCNT series_guard_len;
     REBCNT value_guard_len;
-    struct Reb_Frame *frame_stack; // is it necessary to keep this *and* FS_TOP?
     REBCTX *error;
     REBINT gc_disable;      // Count of GC_Disables at time of Push
 
