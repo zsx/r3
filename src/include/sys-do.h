@@ -156,7 +156,16 @@ enum {
     // executed, Ren-C does not.  It takes a lock if the source is not already
     // read only, and sets it back when Do_Core is finished (or on errors)
     //
-    DO_FLAG_TOOK_FRAME_LOCK = 1 << 11
+    DO_FLAG_TOOK_FRAME_LOCK = 1 << 11,
+
+    // DO_FLAG_CANT_BE_INFIX_LEFT_ARG is ignored if passed into a frame's
+    // flags.  It only has effect when applied to the temporary flags
+    // applicable to one evaluation.  It is set on the "lookahead flags"
+    // when a lookback function of arity 0 is seen.  The meaning given to
+    // these functions is that they refuse to serve as the left argument
+    // to another lookback function.
+    //
+    DO_FLAG_CANT_BE_INFIX_LEFT_ARG = 1 << 12
 };
 
 
@@ -826,10 +835,9 @@ struct Reb_Frame {
                     *(out_) = *(value_in); \
                     assert(!IS_TRASH_DEBUG(out_)); \
                     (value_out) = ARR_AT((source_).array, (indexor_in)); \
-                    if (IS_END(value_out)) { \
+                    if (IS_END(value_out)) \
                         (indexor_out) = END_FLAG; \
-                        (value_out) = NULL; /* this could be debug only */ \
-                    } else \
+                    else \
                         (indexor_out) = (indexor_in) + 1; \
                     break; \
                 } \

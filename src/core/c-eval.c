@@ -112,6 +112,26 @@ static REBCTX *Error_Punctuator_Hit(struct Reb_Frame *f) {
 }
 
 
+// This error happens when an attempt is made to use an arity-0 lookback
+// binding as a left-hand argument to an infix function.  The reason it is
+// given such a strange meaning is that the bit is available (what else would
+// an arity-0 lookback function do differently from an arity-0 prefix one?)
+// and because being able to stop being consumed from the right is something
+// only arity-0 functions can accomplish, because if they had args then it
+// would be the args receiving the infix.
+//
+// !!! The symbol of the function causing the block is not available at the
+// time of the error, which means the message reports the failing function.
+// This could be improved heuristically, but it's not 100% guaranteed to be
+// able to step back in an array to see it--since there may be no array.
+//
+static REBCTX *Error_Infix_Left_Arg_Prohibited(struct Reb_Frame *f) {
+    REBVAL infix_name;
+    Val_Init_Word(&infix_name, REB_WORD, f->label_sym);
+    fail (Error(RE_NO_INFIX_LEFT_ARG, &infix_name, END_CELL));
+}
+
+
 // Ren-C allows functions to be specialized, such that a function's frame can
 // be filled (or partially filled) by an example frame.  The variables
 // corresponding to refinements must be canonized to either TRUE or FALSE
@@ -1742,7 +1762,7 @@ reevaluate:
     // used for the immediately previous evaluation).  We're using the f->flags
     // lookahead state that was requested at entry of Do_Core.
     //
-    if ((f->flags & DO_FLAG_NO_LOOKAHEAD) || eval_type == ET_TERMINAL) {
+    if (f->flags & DO_FLAG_NO_LOOKAHEAD) {
         //
         // Don't do infix lookahead if asked *not* to look.  It's not typical
         // to be requested by callers (there is already no infix lookahead
@@ -1851,16 +1871,16 @@ reevaluate:
                             fail (Error_Punctuator_Hit(f));
 
                 // Setting the lookahead_flags for the next operation to
-                // DO_FLAG_NO_LOOKAHEAD would be pointless here, as it's
-                // arity 0 and there are no arguments to process (which is
-                // what lookahead_flags generally influences).  So we use
-                // a distinct flag that will be seen after the call
+                // DO_FLAG_NO_LOOKAHEAD is irrelevant here, as it is arity
+                // 0 and there are no arguments to process (lookahead_flags
+                // specifically gets passed to nested evaluations).  So we
+                // use a distinct flag that will be seen after the call
                 // completes when we return to the infix processing, which
                 // disables lookahead...even if f->flags asked for it.
                 //
                 FETCH_NEXT_ONLY_MAYBE_END(f);
-                eval_type = ET_TERMINAL;
-                // f->lookahead_flags don't matter--there are no arguments
+                f->lookahead_flags =
+                    DO_FLAG_CANT_BE_INFIX_LEFT_ARG | DO_FLAG_NO_LOOKAHEAD;
                 goto do_function_arglist_in_progress;
             }
 
@@ -1908,10 +1928,25 @@ reevaluate:
             }
         }
 
-        // Now f->arg is the valid argument slot to write into, but we still
+        // Now f->arg is the valid argument slot to write into.  But we still
         // have to type check to make sure what's in f->out is a fit.
         //
-        if (IS_END(f->out)) {
+        if (f->lookahead_flags & DO_FLAG_CANT_BE_INFIX_LEFT_ARG) {
+            //
+            // It may be the case that f->out came from an arity 0 lookback
+            // function which acts as a sort of "<punctuates>" from the right.
+            // If it returned a value it would be confusing for that to be
+            // ignored with no error.  But allow that if it returned void
+            // that it be considered to be "end-like" (hence you can write
+            // something like an expression barrier, if you return void
+            // from an arity 0 lookback function).
+            //
+            if (IS_VOID(f->out) && GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
+                SET_VOID(f->arg);
+            else
+                fail (Error_Infix_Left_Arg_Prohibited(f));
+        }
+        else if (IS_END(f->out)) {
             if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                 fail (Error_No_Arg(FRM_LABEL(f), f->param));
 

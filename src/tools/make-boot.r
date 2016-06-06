@@ -224,8 +224,7 @@ emit {
 // mean "has some behavior in the evaluator".
 //
 enum Reb_Eval_Type ^{
-    ET_TERMINAL = 0,
-    ET_INERT = 1,
+    ET_INERT = 0, // does double duty as logic FALSE in "ANY_EVAL()"
 }
 
 for-each-record-NO-RETURN type boot-types [
