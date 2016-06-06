@@ -54,21 +54,21 @@ to-c-name: function [
         ; Take care of special cases of singular symbols
 
         ; Used specifically by t-routine.c to make SYM_ELLIPSIS
-        ... ["ellipsis"]
+        ... [copy "ellipsis"]
 
         ; Used to make SYM_HYPHEN which is needed by `charset [#"A" - #"Z"]`
-        - ["hyphen"]
+        - [copy "hyphen"]
 
         ; Used by u-dialect apparently
-        * ["asterisk"]
+        * [copy "asterisk"]
 
         ; None of these are used at present, but included in case
-        . ["period"]
-        ? ["question"]
-        ! ["exclamation"]
-        + ["plus"]
-        ~ ["tilde"]
-        | ["bar"]
+        . [copy "period"]
+        ? [copy "question"]
+        ! [copy "exclamation"]
+        + [copy "plus"]
+        ~ [copy "tilde"]
+        | [copy "bar"]
     ][
         ; If these symbols occur composite in a longer word, they use a
         ; shorthand; e.g. `true?` => `true_q`
