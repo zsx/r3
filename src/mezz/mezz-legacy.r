@@ -593,7 +593,7 @@ callback?: func [f] [all [function? :f | 6 = func-class-of :f]]
 lib-make: :lib/make
 make: func [
     "Constructs or allocates the specified datatype."
-    :lookahead [<opt> any-value! <...>]
+    :lookahead [any-value! <...>]
     type [<opt> any-value! <...>]
         "The datatype or an example value"
     spec [<opt> any-value! <...>]
@@ -717,11 +717,11 @@ set 'r3-legacy* func [] [
             source [<opt> blank! block! group! string! binary! url! file! tag!
                 error! function!
             ]
-            normals [any-type! <...>]
+            normals [any-value! <...>]
                 {Normal variadic parameters if function (<r3-legacy> only)}
-            'softs [any-type! <...>]
+            'softs [any-value! <...>]
                 {Soft-quote variadic parameters if function (<r3-legacy> only)}
-            :hards [any-type! <...>]
+            :hards [any-value! <...>]
                 {Hard-quote variadic parameters if function (<r3-legacy> only)}
             /args
                 {If value is a script, this will set its system/script/args}

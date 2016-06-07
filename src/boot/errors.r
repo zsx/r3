@@ -131,6 +131,8 @@ Script: [
     punctuator-hit:     [:arg1 {punctuates and can't be passed as an argument}]
     no-infix-left-arg:  [:arg1 {isn't allowed 1st argument from previous call}]
 
+    hard-quote-void:    [:arg1 {is hard quoted and can't be optionally void}]
+
     reduce-made-void:   {Expression in REDUCE evaluated to void}
     break-not-continue: {Use BREAK/WITH when body is the breaking condition}
 

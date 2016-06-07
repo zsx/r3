@@ -247,7 +247,7 @@ migrations: [
     ; "optional" (a.k.a. void) handling
     opt <as> (func [
         {NONE! to a void, all other value types pass through.}
-        value [any-type!]
+        value [*opt-legacy* any-value!]
     ][
         either blank? get/opt 'value [()][
             get/opt 'value
@@ -256,12 +256,12 @@ migrations: [
 
     to-value <as> (func [
         {Turns unset to NONE, with ANY-VALUE! passing through. (See: OPT)}
-        value [any-type!]
+        value [*opt-legacy* any-value!]
     ][
         either void? get/opt 'value [blank][:value]
     ])
 
-    something? <as> (func [value [any-type!]] [
+    something? <as> (func [value [*opt-legacy* any-value!]] [
         not any [
             void? :value
             blank? :value

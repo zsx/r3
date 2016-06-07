@@ -213,6 +213,18 @@ REBARR *Make_Paramlist_Managed(
                     VAL_ARRAY_HEAD(item),
                     FALSE // `trap`: false means fail vs. return FALSE if error
                 );
+
+                // A hard quote can only get a void if it is an <end>.
+                //
+                if (VAL_PARAM_CLASS(typeset) == PARAM_CLASS_HARD_QUOTE)
+                    if (TYPE_CHECK(typeset, REB_0)) {
+                        REBVAL param_name;
+                        Val_Init_Word(
+                            &param_name, REB_WORD, VAL_TYPESET_SYM(typeset)
+                        );
+                        fail (Error(RE_HARD_QUOTE_VOID, &param_name));
+                    }
+
                 continue;
             }
 
@@ -283,9 +295,12 @@ REBARR *Make_Paramlist_Managed(
         case REB_REFINEMENT:
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_REFINEMENT);
 
-            // Refinements can nominally be only WORD! or BLANK!
-            VAL_TYPESET_BITS(typeset) =
-                (FLAGIT_KIND(REB_WORD) | FLAGIT_KIND(REB_BLANK));
+            // !!! The typeset bits of a refinement are not currently used.
+            // They are checked for TRUE or FALSE but this is done literally
+            // by the code.  This means that every refinement has some spare
+            // bits available in it for another purpose.
+            //
+            VAL_TYPESET_BITS(typeset) = 0;
             break;
 
         case REB_SET_WORD:

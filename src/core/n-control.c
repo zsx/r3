@@ -1158,7 +1158,7 @@ REBNATIVE(do)
 //          {Variable number of args required as evaluation's parameters}
 //      /only
 //          {Suppress evaluation on any ensuing arguments value consumes}
-//      :quoted [[<opt> any-value!]]
+//      :quoted [[any-value!]]
 //          {Variadic feed used to acquire quoted arguments (if needed)}
 //  ]
 //

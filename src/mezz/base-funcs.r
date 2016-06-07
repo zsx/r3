@@ -209,7 +209,7 @@ once-bar: func [
     <punctuates>
     {Expression barrier that's willing to only run one expression after it}
     right [<opt> any-value! <...>]
-    :lookahead [<opt> any-value! <...>]
+    :lookahead [any-value! <...>]
     look:
 ][
     also take right (
@@ -221,7 +221,7 @@ once-bar: func [
                 punctuates? :look
             ]
         ][
-            ; Can't tell if a PATH! is punctuating w/o risking execution :-(
+            ; Can't tell if a PATH! is punctuating w/o risking execution.
             ; Be conservative. <punctuating> might not be the attribute
             ; sought after anyway, e.g. `1 + 2 || 3 + 4 print "Hi"` probably
             ; ought to be an error.  "barrier-like" may be the quality.

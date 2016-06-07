@@ -1414,7 +1414,7 @@ REBNATIVE(false_q)
 //
 //  "Returns the value passed to it without evaluation."
 //
-//      :value [<opt> any-value!]
+//      :value [any-value!]
 //  ][
 //      :value
 //  ]
@@ -1424,6 +1424,12 @@ REBNATIVE(quote)
     PARAM(1, value);
 
     *D_OUT = *ARG(value);
+
+    // We cannot clear the VALUE_FLAG_EVALUATED bit here and make it stick,
+    // because the bit would just get added back on by Do_Core when the
+    // function finished.  So instead Do_Core recognizes this native
+    // specificially and clears the bit there.
+
     return R_OUT;
 }
 

@@ -1639,10 +1639,10 @@ reevaluate:
             }
         }
 
-        // Calling a function counts as an evaluation *unless* that function
-        // is semiquote (the generic means for fooling the semiquote? test)
+        // Calling a function counts as an evaluation *unless* it's quote or
+        // semiquote (the generic means for fooling the semiquote? test)
         //
-        if (f->func == NAT_FUNC(semiquote))
+        if (f->func == NAT_FUNC(semiquote) || f->func == NAT_FUNC(quote))
             CLEAR_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         else
             SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
