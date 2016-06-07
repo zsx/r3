@@ -450,17 +450,17 @@ void Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
     // contains the extra information of the exit_from...either in the
     // frame context (if a specialization) or in place of code pointer (if not)
     //
-    assert(IS_FUNCTION(f->value));
+    assert(IS_FUNCTION(f->param));
 
-    if (VAL_FUNC_CLASS(f->value) == FUNC_CLASS_SPECIALIZED) {
+    if (VAL_FUNC_CLASS(f->param) == FUNC_CLASS_SPECIALIZED) {
         //
         // !!! For debugging, it would probably be desirable to indicate
         // that this call of the function originated from a specialization.
         // So that would mean saving the specialization's f->func somewhere.
         //
-        f->func = CTX_FRAME_FUNC(f->value->payload.function.impl.special);
+        f->func = CTX_FRAME_FUNC(f->param->payload.function.impl.special);
 
-        special_arg = CTX_VARS_HEAD(f->value->payload.function.impl.special);
+        special_arg = CTX_VARS_HEAD(f->param->payload.function.impl.special);
 
         // !!! TBD: correct extraction of f->exit_from
         f->exit_from = NULL;
@@ -468,12 +468,12 @@ void Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
         f->flags |= DO_FLAG_EXECUTE_FRAME;
     }
     else {
-        f->func = VAL_FUNC(f->value);
+        f->func = VAL_FUNC(f->param);
 
         special_arg = NULL;
 
         if (f->func == NAT_FUNC(leave) || f->func == NAT_FUNC(return))
-            f->exit_from = VAL_FUNC_EXIT_FROM(f->value);
+            f->exit_from = VAL_FUNC_EXIT_FROM(f->param);
         else
             f->exit_from = NULL;
     }

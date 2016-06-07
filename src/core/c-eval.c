@@ -112,6 +112,24 @@ static REBCTX *Error_Punctuator_Hit(struct Reb_Frame *f) {
 }
 
 
+// You can't have infix operators as `(1 + 2) infix-op 3 4 5` which quote
+// their left-hand sides, because they have been evaluated.  However, the
+// VALUE_FLAG_EVALUATED permits the determination of inerts that would have
+// been okay to quote, e.g. `<a tag> infix-op 3 4 5`.
+//
+static REBCTX *Error_Lookback_Quote_Too_Late(struct Reb_Frame *f) {
+    fail (Error(RE_INFIX_QUOTE_LATE, f->out, END_CELL));
+}
+
+
+// Infix hard quoting is allowed to quote SET-WORD! and SET-PATH! as the
+// left hand side of lookback and infix functions.  But soft quoting is not.
+//
+static REBCTX *Error_Lookback_Quote_Set_Soft(struct Reb_Frame *f) {
+    fail (Error(RE_INFIX_QUOTE_SET, f->out, END_CELL));
+}
+
+
 // This error happens when an attempt is made to use an arity-0 lookback
 // binding as a left-hand argument to an infix function.  The reason it is
 // given such a strange meaning is that the bit is available (what else would
@@ -214,21 +232,25 @@ void Do_Core(struct Reb_Frame * const f)
     REBUPT do_count; // cache of `f->do_count` (improves watchlist visibility)
 #endif
 
-    // !!! Temporary hack until better finesse is found...an APPLY wants to
-    // treat voids in the frame as valid argument fulfillment for optional
-    // arguments (as opposed to SPECIALIZE, which wants to treat them as
-    // unspecialized and potentially gathered from the callsite).  The
-    // right bits aren't in place yet to know which it is in the middle of
-    // the function, but should be streamlined so they are.
+    // This flag is used to tell the function code whether it needs to
+    // "lookback" (into f->out) to find its next argument instead of going
+    // through normal evaluation.
     //
-    REBOOL applying;
-
-    // APPLY and a DO of a FRAME! reuse the same
+    // A lookback binding that takes two arguments is "infix".
+    // A lookback binding that takes one argument is "postfix".
+    // A lookback binding that takes > 2 arguments can be cool (`->` lambdas)
     //
-    if (TG_Frame_Stack == f) { // pushed already so an apply...
-        applying = TRUE;
+    REBOOL lookback = FALSE;
 
-        assert(TG_Frame_Stack == f);
+    // Establish baseline for whether we are to evaluate function argumentsn
+    // according to the flags passed in.  EVAL can change this with EVAL/ONLY
+    //
+    REBOOL args_evaluate = NOT(f->flags & DO_FLAG_NO_ARGS_EVALUATE);
+
+    // APPLY and a DO of a FRAME! both use this same code path.
+    //
+    if (f->flags & DO_FLAG_APPLYING) {
+        assert(TG_Frame_Stack == f); // already pushed (and args in progress)
         assert(f->label_sym != SYM_0);
         assert(f->label_str != NULL);
         assert(f->eval_type == ET_FUNCTION);
@@ -239,8 +261,6 @@ void Do_Core(struct Reb_Frame * const f)
 
         goto do_function_arglist_in_progress;
     }
-
-    applying = FALSE;
 
     PUSH_CALL(f);
 
@@ -273,9 +293,8 @@ void Do_Core(struct Reb_Frame * const f)
 
 value_ready_for_do_next:
 
-    f->args_evaluate = NOT(f->flags & DO_FLAG_NO_ARGS_EVALUATE);
-
     assert(Eval_Count != 0);
+
     if (--Eval_Count == 0 || Eval_Signals) {
         //
         // Note that Do_Signals_Throws() may do a recycle step of the GC, or
@@ -312,10 +331,6 @@ reevaluate:
     //
     // (We also want the debugger to consider the triggering EVAL as the
     // start of the expression, and don't want to advance `expr_index`).
-
-    f->lookahead_flags = (f->flags & DO_FLAG_LOOKAHEAD)
-        ? DO_FLAG_LOOKAHEAD
-        : DO_FLAG_NO_LOOKAHEAD;
 
     // On entry we initialized `f->out` to a GC-safe value, and no evaluations
     // should write END markers or unsafe trash in the slot.  As evaluations
@@ -408,52 +423,61 @@ reevaluate:
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
-    case ET_WORD: {
-        REBOOL lookback;
-        *(f->out) = *Get_Var_Core(&lookback, f->value, GETVAR_READ_ONLY);
+    case ET_WORD:
+        f->param = Get_Var_Core(&lookback, f->value, GETVAR_READ_ONLY);
 
-        if (IS_FUNCTION(f->out)) { // check before checking unset, for speed
+        if (IS_FUNCTION(f->param)) { // before IS_VOID() speeds common case
+
             f->eval_type = ET_FUNCTION;
             SET_FRAME_SYM(f, VAL_WORD_SYM(f->value));
 
-            if (lookback) {
-                //
-                // Note: Infix functions cannot "look back" for a valid first
-                // argument at this point, because there's no "Left-Hand-Side"
-                // computed to use.  We "look ahead" for an infix operation
-                // *after* this switch statement, when a computed value in
-                // f->out is there for the infix operation to "look back at".
-                //
-                // Hence, the only infix functions that can run from this
-                // point are those that explicitly tolerate an <end> point as
-                // their first argument.
+            if (NOT(lookback)) // ordinary "prefix" function dispatch
+                goto do_function_in_param;
 
-                f->cell.eval = *f->out;
-                f->value = const_KNOWN(&f->cell.eval);
+            // `case ET_WORD` runs at the start of a new evaluation cycle.
+            // It could be the very first element evaluated, hence it's not
+            // meaningful to say it has a "left hand side" in f->out to give
+            // an infix (prefix, etc.) lookback function.
+            //
+            // However, it can climb the stack and peek at the eval_type of
+            // the parent to find SET-WORD! or SET-PATH!s in progress.
+            // They are signaled specially as not being products of an
+            // evaluation--hence safe to quote.
 
-                SET_END(f->out);
-                goto do_infix_function_in_value_first_arg_is_out;
-            }
+            if (f->prior)
+                switch (f->prior->eval_type) {
+                case ET_SET_WORD:
+                    *f->out = *f->prior->param;
+                    assert(IS_SET_WORD(f->out));
+                    CLEAR_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+                    goto do_function_in_param;
 
-            f->value = f->out;
-            goto do_prefix_function_in_value;
+                case ET_SET_PATH:
+                    *f->out = *f->prior->param;
+                    assert(IS_SET_PATH(f->out));
+                    CLEAR_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+                    goto do_function_in_param;
+                }
+
+            SET_END(f->out); // some <end> args are able to tolerate absences
+            goto do_function_in_param;
         }
 
-    handle_out_as_if_it_was_gotten_by_word:
-        assert(!IS_FUNCTION(f->out)); // `REBOOL lookback` not good if goto'd
+    do_word_in_value_fetched_as_param:
+        assert(!IS_FUNCTION(f->param)); // infix handling needs differ
 
-        if (IS_VOID(f->out))
+        if (IS_VOID(f->param))
             fail (Error(RE_NO_VALUE, f->value)); // need `:x` if `x` is unset
+
+        *f->out = *f->param;
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        FETCH_NEXT_ONLY_MAYBE_END(f);
 
     #if !defined(NDEBUG)
         if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(f->out))
             VAL_SET_TYPE_BITS(f->out, REB_WORD); // don't reset full header!
     #endif
-
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
-        FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
-    }
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
@@ -476,7 +500,7 @@ reevaluate:
         if (f->indexor == END_FLAG)
             fail (Error(RE_NEED_VALUE, f->param)); // e.g. `do [foo:]`
 
-        if (f->args_evaluate) {
+        if (args_evaluate) {
             //
             // A SET-WORD! handles lookahead like a prefix function would;
             // so it uses lookahead on its arguments regardless of f->flags
@@ -535,8 +559,6 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_GROUP:
-        f->param = END_CELL; // stops nested lookback from quoting
-
         if (DO_VAL_ARRAY_AT_THROWS(f->out, f->value)) {
             f->indexor = THROWN_FLAG;
             NOTE_THROWING(goto return_indexor);
@@ -553,8 +575,6 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_PATH: {
-        f->param = END_CELL; // stops nested lookback from quoting
-
         REBSYM sym;
         if (Do_Path_Throws(
             f->out,
@@ -587,8 +607,9 @@ reevaluate:
             // the infix-or-not status of a binding for several reasons, so
             // this does not come into play here.
 
-            f->value = f->out;
-            goto do_prefix_function_in_value;
+            f->param = f->out;
+            assert(!lookback);
+            goto do_function_in_param;
         }
 
         // Path should have been fully processed, no refinements on stack
@@ -626,7 +647,7 @@ reevaluate:
         // will *not* put this value in the output when it is making the
         // variable assignment!
         //
-        if (f->args_evaluate) {
+        if (args_evaluate) {
             //
             // A SET-PATH! handles lookahead like a prefix function would;
             // so it uses lookahead on its arguments regardless of f->flags
@@ -683,15 +704,6 @@ reevaluate:
 
     case ET_GET_PATH:
         //
-        // !!! This stops any nested evaluations from having an infix lookback
-        // that quotes.  But should a GET-PATH! be able to call into the
-        // evaluator anyway, by evaluating GROUP!s in the path?  It's clear
-        // that `get path` shouldn't be able to evaluate (a GET should not
-        // have side effects).  But perhaps source-level GET-PATH!s can be
-        // more liberal, as one can visibly see the GROUP!s.
-        //
-        f->param = END_CELL;
-
         // returns in word the path item, DS_TOP has value
         //
         if (Do_Path_Throws(f->out, NULL, f->value, NULL)) {
@@ -740,13 +752,17 @@ reevaluate:
 
     case ET_FUNCTION:
         //
-        // Note: Because this is a function value being hit literally in
-        // a block, no word was used to get it, so its name is unknown.
+        // Hitting this case (vs the labels below) means hitting a function
+        // literally in a block.  This is relatively uncommon, so the code
+        // caters to more common function fetches winding up in f->param.
         //
-        SET_FRAME_SYM(f, SYM___ANONYMOUS__);
+        f->param = f->value;
+        SET_FRAME_SYM(f, SYM___ANONYMOUS__); // literal functions are nameless
 
-    do_prefix_function_in_value:
-        assert(IS_FUNCTION(f->value));
+    do_function_in_param:
+
+        assert(IS_FUNCTION(f->param));
+
         assert(f->label_sym != SYM_0); // must be something (even "anonymous")
     #if !defined(NDEBUG)
         assert(f->label_str != NULL); // SET_FRAME_SYM sets (for C debugging)
@@ -758,36 +774,21 @@ reevaluate:
         assert(DSP >= f->dsp_orig);
 
         // If a function doesn't want to act as an argument to a function
-        // call from the left, we can prohibit that by looking one stack
-        // frame above us and seeing if f->param is a typeset.  If it is,
-        // then we're being asked to generate an argument slot.
+        // call or an assignment (e.g. `x: print "don't do this"`) we can
+        // stop it by looking at the frame above.  Note that if a function
+        // frame is running but not fulfilling arguments, that just means
+        // that this is being used in the implementation.
         //
-        // Note: We pay attention to the outermost wrapper function or
-        // specialization, not what the innermost implementation function
-        // says.  This gives the most flexibility.
-
-        if (GET_VAL_FLAG(f->value, FUNC_FLAG_PUNCTUATES))
-            if (f->prior && !IS_END(f->prior->param))
-                if (IS_TYPESET(f->prior->param))
+        if (GET_VAL_FLAG(f->param, FUNC_FLAG_PUNCTUATES) && f->prior)
+            switch (f->prior->eval_type) {
+            case ET_FUNCTION:
+                if (Is_Function_Frame_Fulfilling(f->prior))
                     fail (Error_Punctuator_Hit(f));
-
-        // We reset the lookahead_flags here to do a lookahead regardless
-        // of what was passed in by the caller.  The reason is that each
-        // level of function dispatch resets it.  Consider:
-        //
-        //     >> "1" = mold 2 - 1
-        //
-        // mold is not infix.  Hence while it is acquiring its arguments
-        // that needs to have lookahead.
-        //
-        // This means that the caller can only control lookahead at the
-        // granularity of the DO/NEXT points; it will be dictated by the
-        // function itself at each level after that.  Note that when an
-        // infix function is found after the loop, it jumps in lower than
-        // this point to do the execution, so its change to lookahead is
-        // not overwritten by this.
-        //
-        f->lookahead_flags = DO_FLAG_LOOKAHEAD;
+                break;
+            case ET_SET_PATH:
+            case ET_SET_WORD:
+                fail (Error_Punctuator_Hit(f));
+            }
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -799,9 +800,7 @@ reevaluate:
         // runs "under the evaluator"...because it *is the evaluator itself*.
         // Hence it is handled in a special way.
         //
-        // !!! Currently EVAL cannot be specialized or trigger from "infix"
-        //
-        if (VAL_FUNC(f->value) == NAT_FUNC(eval)) {
+        if (VAL_FUNC(f->param) == NAT_FUNC(eval)) {
             FETCH_NEXT_ONLY_MAYBE_END(f);
 
             // The garbage collector expects f->func to be valid during an
@@ -811,15 +810,24 @@ reevaluate:
             f->func = NAT_FUNC(eval);
             f->param = FUNC_PARAM(NAT_FUNC(eval), 1);
 
-            if (f->indexor == END_FLAG) // e.g. `do [eval]`
-                fail (Error_No_Arg(FRM_LABEL(f), f->param));
-
             // "DO/NEXT" full expression into the `eval` REBVAR slot
             // (updates index...).  (There is an /ONLY switch to suppress
             // normal evaluation but it does not apply to the value being
             // retriggered itself, just any arguments it consumes.)
             //
-            DO_NEXT_REFETCH_MAY_THROW(&f->cell.eval, f, f->lookahead_flags);
+            if (lookback) {
+                if (IS_END(f->out))
+                    fail (Error_No_Arg(FRM_LABEL(f), f->param));
+
+                f->cell.eval = *f->out;
+                lookback = FALSE;
+            }
+            else {
+                if (f->indexor == END_FLAG) // e.g. `do [eval]`
+                    fail (Error_No_Arg(FRM_LABEL(f), f->param));
+
+                DO_NEXT_REFETCH_MAY_THROW(&f->cell.eval, f, DO_FLAG_LOOKAHEAD);
+            }
 
             if (f->indexor == THROWN_FLAG)
                 NOTE_THROWING(goto return_indexor);
@@ -832,10 +840,10 @@ reevaluate:
                 assert(DSP == f->dsp_orig + 1);
                 assert(VAL_WORD_SYM(DS_TOP) == SYM_ONLY); // canonized on push
                 DS_DROP;
-                f->args_evaluate = FALSE;
+                args_evaluate = FALSE;
             }
             else
-                f->args_evaluate = TRUE;
+                args_evaluate = TRUE;
 
             // Jumping to the `reevaluate:` label will skip the fetch from the
             // array to get the next `value`.  So seed it with the address of
@@ -878,22 +886,36 @@ reevaluate:
         f->param = FUNC_PARAMS_HEAD(f->func); // formal parameters (in spec)
         f->arg = FRM_ARGS_HEAD(f); // actual argument slots (just created)
 
-        FETCH_NEXT_ONLY_MAYBE_END(f); // overwrites f->value, f keeps f->func
+        FETCH_NEXT_ONLY_MAYBE_END(f); // overwrites f->value
 
     do_function_arglist_in_progress:
-        //
-        // f->out may have either contained the infix argument (if jumped in)
-        // or if this was a fresh loop iteration, the debug build had
-        // set f->out to a safe trash.  Using the statistical technique
-        // again, we mimic the release build behavior of trust *half* the
-        // time, and put in a trapping trash the other half...
-        //
-    #if !defined(NDEBUG)
-        if (SPORADICALLY(2))
-            SET_TRASH_SAFE(f->out);
-    #endif
+
+        // Now that we have extracted f->func, we do not have to worry that
+        // f->value might have lived in f->cell.eval.  We can't overwrite
+        // f->out in case that is holding the first argument to an infix
+        // function, so f->cell.eval gets used for temporary evaluations.
 
         assert(f->eval_type == ET_FUNCTION);
+
+        // Infix dispatch can only come from word lookup.  The APPLY operation
+        // and DO of a FRAME! should not be able to lookback.  (Note: this
+        // means that if DO_FLAG_EXECUTE_FRAME is set, we are specializing
+        // and must interpret any void f->arg as an unspecified parameter.)
+        //
+        assert(NOT(lookback && (f->flags & DO_FLAG_APPLYING)));
+
+        // `10 = add 5 5` is `true`
+        // `add 5 5 = 10` is `** Script error: expected logic! not integer!`
+        //
+        // `5 + 5 = 10` is `true`
+        // `10 = 5 + 5` is `** Script error: expected logic! not integer!`
+        //
+        // We may consume the `lookahead` parameter, but if we *were* looking
+        // ahead then it suppresses lookahead on all evaluated arguments.
+        // Need a separate variable to track it.
+        //
+        REBUPT lookahead_flags =
+            lookback ? DO_FLAG_NO_LOOKAHEAD : DO_FLAG_LOOKAHEAD;
 
         f->refine = BAR_VALUE; // "not a refinement arg, evaluate normally"
         f->cell.subfeed = NULL; // abuse: non-null is refinement pickup mode
@@ -1012,17 +1034,18 @@ reevaluate:
 
     //=//// SPECIALIZED REFINEMENT SLOT (no consumption) //////////////////=//
 
-                if (f->args_evaluate && IS_QUOTABLY_SOFT(f->arg)) {
+                if (args_evaluate && IS_QUOTABLY_SOFT(f->arg)) {
                     //
                     // Needed for `(copy [1 2 3])`, active specializations
 
-                    if (DO_VALUE_THROWS(f->out, f->arg)) {
+                    if (DO_VALUE_THROWS(&f->cell.eval, f->arg)) {
                         DS_DROP_TO(f->dsp_orig);
                         f->indexor = THROWN_FLAG;
+                        *f->out = *KNOWN(&f->cell.eval);
                         NOTE_THROWING(goto drop_call_and_return_thrown);
                     }
 
-                    *(f->arg) = *(f->out);
+                    *f->arg = *KNOWN(&f->cell.eval);
                 }
 
                 if (!IS_LOGIC(f->arg))
@@ -1062,15 +1085,16 @@ reevaluate:
                 // The arg came preloaded with a value to use.  Handle soft
                 // quoting first, in case arg needs evaluation.
 
-                if (f->args_evaluate && IS_QUOTABLY_SOFT(f->arg)) {
+                if (args_evaluate && IS_QUOTABLY_SOFT(f->arg)) {
 
-                    if (DO_VALUE_THROWS(f->out, f->arg)) {
+                    if (DO_VALUE_THROWS(&f->cell.eval, f->arg)) {
                         DS_DROP_TO(f->dsp_orig);
                         f->indexor = THROWN_FLAG;
+                        *f->out = *KNOWN(&f->cell.eval);
                         NOTE_THROWING(goto drop_call_and_return_thrown);
                     }
 
-                    *(f->arg) = *(f->out);
+                    *f->arg = *KNOWN(&f->cell.eval);
                 }
 
                 // Varargs are special, because the type checking doesn't
@@ -1136,7 +1160,7 @@ reevaluate:
                 // the varargs needs to have this flag communicated...but
                 // then should it function variadically anyway?
                 //
-                assert(f->args_evaluate);
+                assert(args_evaluate);
 
                 VAL_RESET_HEADER(f->arg, REB_VARARGS);
 
@@ -1156,7 +1180,7 @@ reevaluate:
 
             assert(IS_VOID(f->arg));
 
-            if (applying) goto check_arg; // try treating void as optional
+            if (f->flags & DO_FLAG_APPLYING) goto check_arg; // void = optional
 
     //=//// ERROR ON END MARKER, BAR! IF APPLICABLE //////////////////////=//
 
@@ -1171,7 +1195,7 @@ reevaluate:
             // evaluation, even if the argument takes a BAR!.  It must come
             // through non-literal means(e.g. `quote '|` or `first [|]`)
             //
-            if (f->args_evaluate && IS_BAR(f->value)) {
+            if (args_evaluate && IS_BAR(f->value)) {
                 if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                     fail (Error(RE_EXPRESSION_BARRIER));
 
@@ -1181,17 +1205,25 @@ reevaluate:
     //=//// REGULAR ARG-OR-REFINEMENT-ARG (consumes a DO/NEXT's worth) ////=//
 
             if (pclass == PARAM_CLASS_NORMAL) {
-                if (f->args_evaluate) {
-                    DO_NEXT_REFETCH_MAY_THROW(f->arg, f, f->lookahead_flags);
+                if (lookback) {
+                    lookback = FALSE;
+
+                    if (IS_END(f->out)) {
+                        if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
+                            fail (Error_No_Arg(FRM_LABEL(f), f->param));
+
+                        SET_VOID(f->out);
+                        goto continue_arg_loop;
+                    }
+
+                    *f->arg = *f->out;
+                }
+                else if (args_evaluate) {
+                    DO_NEXT_REFETCH_MAY_THROW(f->arg, f, lookahead_flags);
 
                     if (f->indexor == THROWN_FLAG) {
-                        *(f->out) = *(f->arg);
-
-                        // If we have refinements pending on the data
-                        // stack we need to balance those...
-                        //
-                        DS_DROP_TO(f->dsp_orig);
-
+                        DS_DROP_TO(f->dsp_orig); // pending refinements
+                        *f->out = *f->arg;
                         NOTE_THROWING(goto drop_call_and_return_thrown);
                     }
                 }
@@ -1201,35 +1233,76 @@ reevaluate:
                 goto check_arg;
             }
 
-    //=//// QUOTED ARG-OR-REFINEMENT-ARG (HARD OR SOFT QUOTE) /////////////=//
+    //=//// HARD QUOTED ARG-OR-REFINEMENT-ARG /////////////////////////////=//
 
-            if (pclass == PARAM_CLASS_HARD_QUOTE)
-                QUOTE_NEXT_REFETCH(f->arg, f); // clears VALUE_FLAG_EVALUATED
-            else {
-                assert(pclass == PARAM_CLASS_SOFT_QUOTE);
+            if (pclass == PARAM_CLASS_HARD_QUOTE) {
+                if (lookback) {
+                    lookback = FALSE;
 
-                if (f->args_evaluate && IS_QUOTABLY_SOFT(f->value)) {
-                    if (DO_VALUE_THROWS(f->arg, f->value)) {
-                        DS_DROP_TO(f->dsp_orig);
-                        *f->out = *f->arg;
-                        f->indexor = THROWN_FLAG;
-                        NOTE_THROWING(goto drop_call_and_return_thrown);
+                    if (IS_END(f->out)) {
+                        if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
+                            fail (Error_No_Arg(FRM_LABEL(f), f->param));
+
+                        SET_VOID(f->out);
+                        goto continue_arg_loop;
                     }
+
+                    if (GET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED))
+                        fail (Error_Lookback_Quote_Too_Late(f));
+
+                    *f->arg = *f->out;
                 }
                 else
-                    *f->arg = *f->value;
+                    QUOTE_NEXT_REFETCH(f->arg, f); // non-VALUE_FLAG_EVALUATED
 
-                FETCH_NEXT_ONLY_MAYBE_END(f);
+                goto check_arg;
             }
 
+    //=//// SOFT QUOTED ARG-OR-REFINEMENT-ARG  ////////////////////////////=//
+
+            assert(pclass == PARAM_CLASS_SOFT_QUOTE);
+
+            if (lookback) {
+                lookback = FALSE;
+
+                if (IS_END(f->out)) {
+                    if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
+                        fail (Error_No_Arg(FRM_LABEL(f), f->param));
+
+                    SET_VOID(f->out);
+                    goto continue_arg_loop;
+                }
+
+                if (GET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED))
+                    fail (Error_Lookback_Quote_Too_Late(f));
+
+                if (IS_SET_WORD(f->out) || IS_SET_PATH(f->out))
+                    fail (Error_Lookback_Quote_Set_Soft(f));
+
+                *f->arg = *f->out;
+            }
+            else if (args_evaluate && IS_QUOTABLY_SOFT(f->value)) {
+                if (DO_VALUE_THROWS(f->arg, f->value)) {
+                    DS_DROP_TO(f->dsp_orig);
+                    *f->out = *f->arg;
+                    f->indexor = THROWN_FLAG;
+                    NOTE_THROWING(goto drop_call_and_return_thrown);
+                }
+            }
+            else
+                *f->arg = *f->value;
+
+            FETCH_NEXT_ONLY_MAYBE_END(f);
+
     //=//// TYPE CHECKING FOR (MOST) ARGS AT END OF ARG LOOP //////////////=//
+
+        check_arg:
 
             // Some arguments can be fulfilled and skip type checking or
             // take care of it themselves.  But normal args pass through
             // this code which checks the typeset and also handles it when
             // a void arg signals the revocation of a refinement usage.
 
-        check_arg:
             ASSERT_VALUE_MANAGED(f->arg);
             assert(pclass != PARAM_CLASS_REFINEMENT);
             assert(pclass != PARAM_CLASS_PURE_LOCAL);
@@ -1464,6 +1537,7 @@ reevaluate:
         // f->param cannot be a typeset while the function is running, because
         // typesets are used as a signal to Is_Function_Frame_Fulfilling.
         //
+        f->cell.subfeed = NULL; // we have to save f->out now
         assert(f->cell.subfeed == NULL);
         assert(IS_END(f->param));
         assert(
@@ -1620,8 +1694,8 @@ reevaluate:
         // was and return no value
         //
         if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEAVE_OR_RETURN)) {
-            REBVAL *last_param = FUNC_PARAM(f->func, FUNC_NUM_PARAMS(f->func));
-            if (VAL_TYPESET_CANON(last_param) == SYM_LEAVE) {
+            f->param = FUNC_PARAM(f->func, FUNC_NUM_PARAMS(f->func));
+            if (VAL_TYPESET_CANON(f->param) == SYM_LEAVE) {
                 SET_VOID(f->out);
             }
             else {
@@ -1631,10 +1705,10 @@ reevaluate:
                 // information for the non-existent return function specific
                 // to this call is hidden.
                 //
-                assert(VAL_TYPESET_CANON(last_param) == SYM_RETURN);
-                if (!TYPE_CHECK(last_param, VAL_TYPE(f->out)))
+                assert(VAL_TYPESET_CANON(f->param) == SYM_RETURN);
+                if (!TYPE_CHECK(f->param, VAL_TYPE(f->out)))
                     fail (Error_Arg_Type(
-                        SYM_RETURN, last_param, VAL_TYPE(f->out))
+                        SYM_RETURN, f->param, VAL_TYPE(f->out))
                     );
             }
         }
@@ -1671,21 +1745,15 @@ reevaluate:
     //
     //==////////////////////////////////////////////////////////////////==//
 
-    // It's valid for the operations above to fall through after a fetch or
-    // refetch that could have reached the end.
-    //
-    if (f->indexor == END_FLAG)
-        goto return_indexor;
-
-    // Throws should have already returned at the time of throw, by jumping
-    // to the `thrown_index` label.
-    //
     assert(f->indexor != THROWN_FLAG && !THROWN(f->out));
 
-    // Note we are not testing the nested f->lookahead_flags here (which were
-    // used for the immediately previous evaluation).  We're using the f->flags
-    // lookahead state that was requested at entry of Do_Core.
-    //
+    if (f->indexor == END_FLAG) {
+        assert(IS_END(f->value));
+        goto return_indexor;
+    }
+
+    assert(!IS_END(f->value));
+
     if (f->flags & DO_FLAG_NO_LOOKAHEAD) {
         //
         // Don't do infix lookahead if asked *not* to look.  It's not typical
@@ -1697,204 +1765,36 @@ reevaluate:
         // operation is thus given "higher precedence" by this disablement.
     }
     else if (IS_WORD(f->value)) {
+        REBOOL lookback_leftover = lookback;
+
+        // Don't overwrite f->value (if this just a DO/NEXT and it's not
+        // infix, we might need to hold it at its position.)
         //
-        // Since we're not at an END, we know f->value has been prefetched,
-        // so we "peek" at it if it is a WORD!.  If it looks up to an infix
-        // function, we will use the value in `out` as the "left-hand-side"
-        // of that invocation.
-        //
-        // We can't overwrite f->value in case this is a DO/NEXT and the
-        // prefetched value is supposed to be good for a future Do_Core call.
-        // So f->param is used to temporarily hold the fetched pointer.
-        //
-        REBOOL lookback;
         f->param = Get_Var_Core(&lookback, f->value, GETVAR_READ_ONLY);
 
-    //=//// NOT A FUNCTION, BUT MAKE USE OF THE GET (if not a DO/NEXT) ////=//
+    //=//// DO/NEXT WON'T RUN MORE CODE UNLESS IT'S AN INFIX FUNCTION /////=//
 
-        if (!IS_FUNCTION(f->param)) {
-            if (NOT(f->flags & DO_FLAG_TO_END))
-                goto return_indexor;
+        if (NOT(lookback) && NOT(f->flags & DO_FLAG_TO_END))
+            goto return_indexor;
 
-            START_NEW_EXPRESSION(f); // v-- DO_COUNT_BREAKPOINT lands below
-
-            *f->out = *f->param;
-            goto handle_out_as_if_it_was_gotten_by_word;
-        }
-
-    //=//// NOT INFIX, BUT MAKE USE OF THE GET (if not a DO/NEXT) ////////=//
-
-        if (!lookback) {
-            if (NOT(f->flags & DO_FLAG_TO_END))
-                goto return_indexor;
-
-            START_NEW_EXPRESSION(f); // v-- DO_COUNT_BREAKPOINT lands below
-
-            f->eval_type = ET_FUNCTION;
-            SET_FRAME_SYM(f, VAL_WORD_SYM(f->value));
-            f->value = f->param;
-            goto do_prefix_function_in_value;
-        }
-
-    //==////////////////////////////////////////////////////////////////==//
-    //
-    // INFIX/POSTFIX/ETC. "LOOKBACK" PROCESSING
-    //
-    //==////////////////////////////////////////////////////////////////==//
-
-        // We peeked one word ahead and saw it looked up to an infix function.
-        // The desired "first" argument is the product of the previous
-        // evaluation (in f->out).  If we jump here from the ET_WORD case,
-        // then no previous eval is available...so f->out will be an END_CELL.
-        //
-        // Handling this isn't as easy as pushing argument storage, poking the
-        // value into FRM_ARG(1), and calling ordinary function dispatch to
-        // take care of the rest.  That's because the infix function might be
-        // a specialization--in which case its first unspecialized argument
-        // could be at any index in the frame.  (Pure locals are also permitted
-        // at any index in unspecialized functions, so we handle that too.)
+    //=//// IT'S INFIX OR WE'RE DOING TO THE END...DISPATCH LIKE WORD /////=//
 
         START_NEW_EXPRESSION(f); // v-- DO_COUNT_BREAKPOINT lands below
 
+        if (!IS_FUNCTION(f->param))
+            goto do_word_in_value_fetched_as_param;
+
         f->eval_type = ET_FUNCTION;
         SET_FRAME_SYM(f, VAL_WORD_SYM(f->value));
-        f->value = f->param;
 
-    do_infix_function_in_value_first_arg_is_out:
-
-        // Infix dispatch can only come from word lookup.  The APPLY operation
-        // and DO of a FRAME! should not be able to get here.  (Note: this
-        // means that if DO_FLAG_EXECUTE_FRAME is set, we are specializing
-        // and must interpret any void f->arg as an unspecified parameter.)
+        // If a previous "infix" call had 0 arguments and didn't consume
+        // the value before it, assume that means it's a 0-arg barrier
+        // that does not want to be the left hand side of another infix.
         //
-        assert(!applying);
+        if (lookback && lookback_leftover)
+            fail (Error_Infix_Left_Arg_Prohibited(f));
 
-        Push_Or_Alloc_Args_For_Underlying_Func(f); // sets f->func
-
-        f->param = FUNC_PARAMS_HEAD(f->func);
-        f->arg = FRM_ARGS_HEAD(f);
-
-        // Look for the first "normal" argument that has not been specialized
-        // to fulfill.  Any soft-quoted specializations will have to be
-        // handled in the process.
-        //
-        for (; ; ++f->param, ++f->arg) {
-            if (IS_END(f->param)) {
-                //
-                // A lookback binding that takes two arguments is "infix".
-                // A lookback binding that takes one argument is "postfix".
-                // A lookback binding that takes > 2 arguments is weird.
-                //
-                // Here we look at the parameters list and see nothing, e.g.
-                // it's a lookback function with 0 arguments.  It can't take
-                // the f->out parameter we have, so we error unless f->out
-                // is an END_VALUE.  This makes it a "punctuator".  Ensure
-                // it's not being consumed as a function arg.
-                //
-            handle_infix_as_punctuator:
-                if (IS_END(f->out))
-                    if (f->lookahead_flags & DO_FLAG_NO_LOOKAHEAD)
-                        if (GET_VAL_FLAG(f->value, FUNC_FLAG_PUNCTUATES))
-                            fail (Error_Punctuator_Hit(f));
-
-                // Setting the lookahead_flags for the next operation to
-                // DO_FLAG_NO_LOOKAHEAD is irrelevant here, as it is arity
-                // 0 and there are no arguments to process (lookahead_flags
-                // specifically gets passed to nested evaluations).  So we
-                // use a distinct flag that will be seen after the call
-                // completes when we return to the infix processing, which
-                // disables lookahead...even if f->flags asked for it.
-                //
-                FETCH_NEXT_ONLY_MAYBE_END(f);
-                f->lookahead_flags =
-                    DO_FLAG_CANT_BE_INFIX_LEFT_ARG | DO_FLAG_NO_LOOKAHEAD;
-
-                goto do_function_arglist_in_progress;
-            }
-
-            if (VAL_PARAM_CLASS(f->param) == PARAM_CLASS_PURE_LOCAL) {
-                if (IS_VOID(f->arg))
-                    continue;
-
-                fail (Error_Local_Injection(f));
-            }
-
-            if (VAL_PARAM_CLASS(f->param) != PARAM_CLASS_NORMAL) {
-                if (
-                    VAL_PARAM_CLASS(f->param) == PARAM_CLASS_REFINEMENT
-                    && IS_VOID(f->arg)
-                    && NOT(f->flags & DO_FLAG_EXECUTE_FRAME)
-                ) {
-                    // If we hit an unused refinement, we're out of normal
-                    // parameters.  So we've exhausted the basic arity.
-                    //
-                    goto handle_infix_as_punctuator;
-                }
-
-                // !!! This one is tricky.  Should you be allowed to specialize
-                // a function e.g. `specialize :append [dup: true]` and affect
-                // its arity without actually supplying the arg?  It seems
-                // reasonable but it would require more handling.
-                //
-                fail (Error(RE_MISC)); // esoteric specialization cases TBD
-            }
-
-            if (IS_VOID(f->arg))
-                break; // it's either unspecialized or needs our arg
-
-            // Non-void normal parameters must be specializations here.
-            //
-            assert(f->flags & DO_FLAG_EXECUTE_FRAME);
-
-            if (f->args_evaluate && IS_QUOTABLY_SOFT(f->arg)) {
-                if (DO_VALUE_THROWS(SINK(&f->cell.eval), f->arg)) {
-                    // infix cannot be refined -- don't need DS_DROP_TO
-                    f->indexor = THROWN_FLAG;
-                    NOTE_THROWING(goto drop_call_and_return_thrown);
-                }
-                *f->arg = *KNOWN(&f->cell.eval);
-            }
-        }
-
-        // Now f->arg is the valid argument slot to write into.  But we still
-        // have to type check to make sure what's in f->out is a fit.
-        //
-        if (f->lookahead_flags & DO_FLAG_CANT_BE_INFIX_LEFT_ARG) {
-            //
-            // It may be the case that f->out came from an arity 0 lookback
-            // function which acts as a sort of "<punctuates>" from the right.
-            // If it returned a value it would be confusing for that to be
-            // ignored with no error.  But allow that if it returned void
-            // that it be considered to be "end-like" (hence you can write
-            // something like an expression barrier, if you return void
-            // from an arity 0 lookback function).
-            //
-            if (IS_VOID(f->out) && GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
-                SET_VOID(f->arg);
-            else
-                fail (Error_Infix_Left_Arg_Prohibited(f));
-        }
-        else if (IS_END(f->out)) {
-            if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
-                fail (Error_No_Arg(FRM_LABEL(f), f->param));
-
-            SET_VOID(f->arg);
-        }
-        else {
-            *f->arg = *f->out;
-            Type_Check_Arg_For_Param_May_Fail(f);
-        }
-
-        // Now we bump the parameter and arg, and go through ordinary
-        // function argument fulfillment.  Note that during the argument
-        // evaluations for an infix function, we do not look further ahead.
-        //
-        f->lookahead_flags = DO_FLAG_NO_LOOKAHEAD;
-        ++f->param;
-        ++f->arg;
-
-        FETCH_NEXT_ONLY_MAYBE_END(f);
-        goto do_function_arglist_in_progress;
+        goto do_function_in_param;
     }
 
     // Continue evaluating rest of block if not just a DO/NEXT

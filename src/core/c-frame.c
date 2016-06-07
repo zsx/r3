@@ -1423,7 +1423,7 @@ REBOOL Is_Function_Frame_Fulfilling(struct Reb_Frame *f)
     if (IS_END(f->param))
         return FALSE;
 
-    assert(IS_TYPESET(f->param));
+    // used to only allow typeset, now any non-END param signals fulfilling
     return TRUE;
 }
 

@@ -1564,9 +1564,6 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
 
     f->dsp_orig = DSP;
 
-    f->args_evaluate = FALSE;
-    f->lookahead_flags = DO_FLAG_NO_LOOKAHEAD; // should be doing no evals!
-
     // !!! We have to push a call here currently because prior to specific
     // binding, the stack gets walked to resolve variables.   Hence in the
     // apply case, Do_Core doesn't do its own push to the frame stack.
@@ -1587,13 +1584,20 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
     //
     if (opt_def) {
         f->flags =
-            DO_FLAG_NEXT | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_NO_LOOKAHEAD;
+            DO_FLAG_NEXT
+            | DO_FLAG_NO_LOOKAHEAD
+            | DO_FLAG_NO_ARGS_EVALUATE
+            | DO_FLAG_APPLYING;
 
         Push_Or_Alloc_Args_For_Underlying_Func(f); // sets f->func
     }
     else {
         f->flags |=
-            DO_FLAG_NEXT | DO_FLAG_HAS_VARLIST | DO_FLAG_EXECUTE_FRAME;
+            DO_FLAG_NEXT
+            | DO_FLAG_NO_LOOKAHEAD
+            | DO_FLAG_HAS_VARLIST
+            | DO_FLAG_EXECUTE_FRAME
+            | DO_FLAG_APPLYING;
 
         // f->func should already be set
         f->exit_from = NULL; // !!! TBD: handle correctly
@@ -1725,7 +1729,7 @@ REBNATIVE(apply)
     if (!IS_FUNCTION(D_OUT))
         fail (Error(RE_APPLY_NON_FUNCTION, ARG(value))); // for SPECIALIZE too
 
-    f->value = D_OUT;
+    f->param = D_OUT;
     f->out = D_OUT;
 
     return Apply_Frame_Core(f, sym, def);

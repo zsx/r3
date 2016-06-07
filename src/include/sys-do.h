@@ -165,7 +165,13 @@ enum {
     // these functions is that they refuse to serve as the left argument
     // to another lookback function.
     //
-    DO_FLAG_CANT_BE_INFIX_LEFT_ARG = 1 << 12
+    DO_FLAG_CANT_BE_INFIX_LEFT_ARG = 1 << 12,
+
+    // DO_FLAG_APPLYING is used to indicate that the Do_Core code is entering
+    // a situation where the frame was already set up and a void means that
+    // the argument is "opted out of"...not specialized out.
+    //
+    DO_FLAG_APPLYING = 1 << 13
 };
 
 
@@ -630,15 +636,6 @@ struct Reb_Frame {
     // value if it represents a exit_from
     //
     REBARR *exit_from;
-
-    // Although the f->flags has a "baseline" of whether one is seeking to
-    // suppress argument evaluation or lookahead, these can be temporarily
-    // changed during the loop.  An EVAL/ONLY can disable argument evaluation
-    // for one DO/NEXT step, and lookahead can be disabled for arguments
-    // during one level of a function call.
-    //
-    REBUPT args_evaluate; // native pointer size is faster than REBOOL :-/
-    REBUPT lookahead_flags; // DO_FLAG_LOOKAHEAD or DO_FLAG_NO_LOOKAHEAD
 
 #if !defined(NDEBUG)
     //
