@@ -214,7 +214,6 @@ void Dump_Stack(struct Reb_Frame *f, REBCNT level)
     #if !defined(NDEBUG)
         "ET_TRASH",
     #endif
-        "ET_THROW_CANDIDATE",
         NULL
     };
 

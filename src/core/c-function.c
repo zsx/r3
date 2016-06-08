@@ -1221,9 +1221,9 @@ void Clonify_Function(REBVAL *value)
 
 
 //
-//  Do_Native_Core: C
+//  Do_Native_Core_Throws: C
 //
-void Do_Native_Core(struct Reb_Frame *f)
+REBOOL Do_Native_Core_Throws(struct Reb_Frame *f)
 {
     REB_R ret;
 
@@ -1237,8 +1237,7 @@ void Do_Native_Core(struct Reb_Frame *f)
     case R_OUT: // put sequentially in switch() for jump-table optimization
         break;
     case R_OUT_IS_THROWN:
-        f->eval_type = ET_THROW_CANDIDATE;
-        break;
+        return TRUE;
     case R_BLANK:
         SET_BLANK(f->out);
         break;
@@ -1254,13 +1253,15 @@ void Do_Native_Core(struct Reb_Frame *f)
     default:
         assert(FALSE);
     }
+
+    return FALSE;
 }
 
 
 //
-//  Do_Action_Core: C
+//  Do_Action_Core_Throws: C
 //
-void Do_Action_Core(struct Reb_Frame *f)
+REBOOL Do_Action_Core_Throws(struct Reb_Frame *f)
 {
     enum Reb_Kind type = VAL_TYPE(FRM_ARG(f, 1));
     REBACT action;
@@ -1278,7 +1279,7 @@ void Do_Action_Core(struct Reb_Frame *f)
         else
             SET_FALSE(f->out);
 
-        return;
+        return FALSE;
     }
 
     action = Value_Dispatch[TO_0_FROM_KIND(type)];
@@ -1289,8 +1290,7 @@ void Do_Action_Core(struct Reb_Frame *f)
     case R_OUT: // put sequentially in switch() for jump-table optimization
         break;
     case R_OUT_IS_THROWN:
-        f->eval_type = ET_THROW_CANDIDATE;
-        break;
+        return TRUE;
     case R_BLANK:
         SET_BLANK(f->out);
         break;
@@ -1306,13 +1306,14 @@ void Do_Action_Core(struct Reb_Frame *f)
     default:
         assert(FALSE);
     }
+    return FALSE;
 }
 
 
 //
-//  Do_Function_Core: C
+//  Do_Function_Core_Throws: C
 //
-void Do_Function_Core(struct Reb_Frame *f)
+REBOOL Do_Function_Core_Throws(struct Reb_Frame *f)
 {
     // In specific binding, we must always reify the frame and get it handed
     // over to the GC when calling user functions.  This is "costly" but
@@ -1332,8 +1333,7 @@ void Do_Function_Core(struct Reb_Frame *f)
         // that words embedded in the shared blocks may only look up relative
         // to the currently running function.
         //
-        if (Do_At_Throws(f->out, FUNC_BODY(f->func), 0))
-            f->eval_type = ET_THROW_CANDIDATE;
+        return Do_At_Throws(f->out, FUNC_BODY(f->func), 0);
     }
     else {
         assert(f->flags & DO_FLAG_HAS_VARLIST);
@@ -1357,8 +1357,7 @@ void Do_Function_Core(struct Reb_Frame *f)
         //
         PROTECT_FRM_X(f, &body);
 
-        if (DO_VAL_ARRAY_AT_THROWS(f->out, &body))
-            f->eval_type = ET_THROW_CANDIDATE;
+        return DO_VAL_ARRAY_AT_THROWS(f->out, &body);
 
         // References to parts of this function's copied body may still be
         // extant, but we no longer need to hold it from GC.  Fortunately the
@@ -1368,9 +1367,9 @@ void Do_Function_Core(struct Reb_Frame *f)
 
 
 //
-//  Do_Routine_Core: C
+//  Do_Routine_Core_Throws: C
 //
-void Do_Routine_Core(struct Reb_Frame *f)
+REBOOL Do_Routine_Core_Throws(struct Reb_Frame *f)
 {
     REBARR *args = Copy_Values_Len_Shallow(
         FRM_NUM_ARGS(f) > 0 ? FRM_ARG(f, 1) : NULL,
@@ -1381,8 +1380,9 @@ void Do_Routine_Core(struct Reb_Frame *f)
 
     Free_Array(args);
 
-    // Note: cannot "throw" a Rebol value across an FFI boundary.  If you
-    // could this would set `f->eval_type = ET_THROW_CANDIDATEs` in that case.
+    // Note: cannot "throw" a Rebol value across an FFI boundary.
+
+    return FALSE;
 }
 
 

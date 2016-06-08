@@ -298,12 +298,6 @@ enum Reb_Eval_Type {
     ET_TRASH,
 #endif
 
-    // A frame needs a way to show it is in a "thrown" state from which it might
-    // recover the index.  So it can't use f->indexor as THROWN_FLAG, because then
-    // the index would be gone.  Since thrown frames should not be seen by the
-    // GC, this is signaled using an invalid "mode"--an alias for ET_MAX.
-    //
-    ET_THROW_CANDIDATE, // special
     ET_MAX
 };
 

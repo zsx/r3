@@ -1551,34 +1551,29 @@ reevaluate:
 
         // If the Do_XXX_Core function dispatcher throws, we can't let it
         // write `f->indexor` directly to become THROWN_FLAG because we may
-        // "recover" from the throw by realizing it was a RETURN.  If that
-        // is the case, the function we called is the one that returned...
-        // so there could still be code after it to execute, and that index
-        // will be needed.
+        // "recover" from the throw by realizing it was a RETURN.
         //
-        // Rather than have a separate `REBOOL threw`, this goes ahead and
-        // overwrites `f->eval_type` with ET_THROW_CANDIDATE
-        //
+        REBOOL threw;
         switch (VAL_FUNC_CLASS(FUNC_VALUE(f->func))) {
         case FUNC_CLASS_NATIVE:
-            Do_Native_Core(f);
+            threw = Do_Native_Core_Throws(f);
             break;
 
         case FUNC_CLASS_ACTION:
-            Do_Action_Core(f);
+            threw = Do_Action_Core_Throws(f);
             break;
 
         case FUNC_CLASS_COMMAND:
-            Do_Command_Core(f);
+            threw = Do_Command_Core_Throws(f);
             break;
 
         case FUNC_CLASS_CALLBACK:
         case FUNC_CLASS_ROUTINE:
-            Do_Routine_Core(f);
+            threw = Do_Routine_Core_Throws(f);
             break;
 
         case FUNC_CLASS_USER:
-            Do_Function_Core(f);
+            threw = Do_Function_Core_Throws(f);
             break;
 
         case FUNC_CLASS_SPECIALIZED:
@@ -1593,8 +1588,8 @@ reevaluate:
             fail (Error(RE_MISC));
         }
 
-        assert(f->eval_type == ET_FUNCTION || f->eval_type == ET_THROW_CANDIDATE);
-        assert(THROWN(f->out) == LOGICAL(f->eval_type == ET_THROW_CANDIDATE));
+        assert(THROWN(f->out) == threw);
+        assert(f->eval_type == ET_FUNCTION); // shouldn't have changed
 
     drop_call_and_return_thrown:
 
@@ -1610,10 +1605,7 @@ reevaluate:
         // control in debug situations (and perhaps some non-debug capabilities
         // will be discovered as well).
         //
-        if (
-            f->eval_type == ET_THROW_CANDIDATE
-            && GET_VAL_FLAG(f->out, VALUE_FLAG_EXIT_FROM)
-        ) {
+        if (threw && GET_VAL_FLAG(f->out, VALUE_FLAG_EXIT_FROM)) {
             if (IS_FRAME(f->out)) {
                 //
                 // This identifies an exit from a *specific* functiion
@@ -1625,7 +1617,7 @@ reevaluate:
                     CTX_VARLIST(VAL_CONTEXT(f->out)) == f->data.varlist
                 ) {
                     CATCH_THROWN(f->out, f->out);
-                    f->eval_type = ET_FUNCTION;
+                    threw = FALSE;
                 }
             }
             else if (IS_FUNCTION(f->out)) {
@@ -1640,7 +1632,7 @@ reevaluate:
                 //
                 if (VAL_FUNC_PARAMLIST(f->out) == FUNC_PARAMLIST(f->func)) {
                     CATCH_THROWN(f->out, f->out);
-                    f->eval_type = ET_FUNCTION;
+                    threw = FALSE;
                 }
             }
             else if (IS_INTEGER(f->out)) {
@@ -1650,7 +1642,7 @@ reevaluate:
                 //
                 if (VAL_INT32(f->out) == 1) {
                     CATCH_THROWN(f->out, f->out);
-                    f->eval_type = ET_FUNCTION;
+                    threw = FALSE;
                 }
                 else {
                     // don't reset header (keep thrown flag as is), just bump
@@ -1681,7 +1673,7 @@ reevaluate:
         // If the throw wasn't intercepted as an exit from this function call,
         // accept the throw.
         //
-        if (f->eval_type == ET_THROW_CANDIDATE) {
+        if (threw) {
             f->indexor = THROWN_FLAG;
             NOTE_THROWING(goto return_indexor);
         }
@@ -1753,6 +1745,8 @@ reevaluate:
     }
 
     assert(!IS_END(f->value));
+
+    f->eval_type = Eval_Table[VAL_TYPE(f->value)];
 
     if (f->flags & DO_FLAG_NO_LOOKAHEAD) {
         //

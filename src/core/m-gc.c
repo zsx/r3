@@ -580,7 +580,6 @@ static void Mark_Frame_Stack_Deep(void)
 
     for (; f != NULL; f = f->prior) {
         assert(f->eval_type != ET_TRASH);
-        assert(f->eval_type != ET_THROW_CANDIDATE);
 
         // Should have taken care of reifying all the VALIST on the stack
         // earlier in the recycle process (don't want to create new arrays
