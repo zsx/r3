@@ -10,6 +10,19 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+	enum selection_status {
+		SEL_STATUS_NONE,
+		SEL_STATUS_COPY_TARGETS_CONVERTED,
+		SEL_STATUS_COPY_DATA_CONVERTED,
+		SEL_STATUS_COPY_DATA,
+		SEL_STATUS_COPY_INCR_DATA,
+		SEL_STATUS_COPY_INCR_WAIT,
+		SEL_STATUS_COPY_DONE,
+		SEL_STATUS_PASTE_INCR,
+		SEL_STATUS_PASTE_DONE
+	};
+
 	typedef enum {
 		pix_format_undefined,
 		pix_format_bgr555 = 0,
@@ -20,11 +33,10 @@ extern "C" {
 
 	typedef struct {
 		Window win; /* the hidden window for copy and paste */
-		int		status; /* -1 request hasn't been sent
-						   0, request sent
-						   1, response received */
+		enum selection_status status;
+		Atom	target;
 		Atom 	property;
-		void	*data;
+		char	*data;
 		REBCNT	data_length;
 	} selection_t;
 
@@ -61,6 +73,7 @@ extern "C" {
 		REBOOL  has_xshm;
 #endif
 		REBOOL has_double_buffer;
+		size_t	max_request_size;
 	} x_info_t;
 
 	typedef struct {

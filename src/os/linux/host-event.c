@@ -183,6 +183,20 @@ void X_Finish_Resizing()
 	X_Init_Resizing(); /* get ready for next call */
 }
 
+static void handle_clip_window_property_notify(XEvent *ev)
+{
+	//printf("%s: %d\n", __func__, __LINE__);
+	if (ev->xproperty.atom != global_x_info->selection.property) return;
+	if (ev->xproperty.state == PropertyDelete) {
+	} else if (ev->xproperty.state == PropertyNewValue) {
+		//printf("%s: %d: PropertyNewValue\n", __func__, __LINE__);
+		if (global_x_info->selection.status == SEL_STATUS_COPY_INCR_WAIT) {
+			global_x_info->selection.status = SEL_STATUS_COPY_INCR_DATA;
+			//printf("%d, changed status to COPY_INCR_DATA because of PropertyNewValue\n", __LINE__);
+		}
+	}
+}
+
 static void handle_property_notify(XEvent *ev, REBGOB *gob)
 {
 	/*
@@ -214,6 +228,8 @@ static void handle_property_notify(XEvent *ev, REBGOB *gob)
 										   global_x_info->display,
 										   "_NET_WM_STATE_HIDDEN",
 										   False);
+	Atom XA_INCR = XInternAtom(global_x_info->display, "INCR", False);
+
 	if (!XA_WM_STATE
 		|| !XA_FULLSCREEN
 		|| !XA_MAX_HORZ
@@ -437,6 +453,13 @@ static void handle_client_message(XEvent *ev)
 	}
 }
 
+static int change_property_failed;
+static int change_property_error_handler(Display *dpy, XErrorEvent *err)
+{
+	change_property_failed = 1;
+	return 0;
+}
+
 static void handle_selection_request(XEvent *ev)
 {
 	XEvent selection_event;
@@ -459,7 +482,10 @@ static void handle_selection_request(XEvent *ev)
 											  global_x_info->display,
 											  "CLIPBOARD",
 											  True);
-	selection_event.type = SelectionNotify;
+
+	size_t chunk_size = global_x_info->max_request_size / 4;
+	//printf("%s: %d\n", __func__, __LINE__);
+
 	if (ev->xselectionrequest.target == XA_TARGETS) {
 		selection_event.xselection.property = ev->xselectionrequest.property;
 		Atom targets[] = {XA_TARGETS, XA_UTF8_STRING, XA_STRING};
@@ -473,6 +499,12 @@ static void handle_selection_request(XEvent *ev)
 						sizeof(targets)/sizeof(targets[0]));
 	} else if (ev->xselectionrequest.target == XA_STRING
 			   || ev->xselectionrequest.target == XA_UTF8_STRING) {
+		int (*orig_error_handler)(Display *, XErrorEvent *);
+
+		XFlush(global_x_info->display);
+		orig_error_handler = XSetErrorHandler(change_property_error_handler);
+		change_property_failed = 0;
+
 		selection_event.xselection.property = ev->xselectionrequest.property;
 		XChangeProperty(global_x_info->display,
 						ev->xselectionrequest.requestor,
@@ -481,15 +513,28 @@ static void handle_selection_request(XEvent *ev)
 						8,			/* format, unsigned short */
 						PropModeReplace,
 						global_x_info->selection.data,
-						global_x_info->selection.data_length);
+						MIN(global_x_info->selection.data_length, global_x_info->max_request_size));
+		global_x_info->selection.status = SEL_STATUS_NONE;
+		//printf("%d, changed status to PASTE_NONE because all data is sent\n", __LINE__);
+		XFlush(global_x_info->display);
+		if (change_property_failed) {
+			/* reset status */
+			global_x_info->selection.status = SEL_STATUS_NONE;
+			//global_x_info->selection.property = None;
+			//global_x_info->selection.requestor = None;
+			//printf("%d, changed status to NONE because setproperty failed\n", __LINE__);
+		}
+		XSetErrorHandler(orig_error_handler);
 	} else {
 		selection_event.xselection.property = 0;
 	}
+	selection_event.type = SelectionNotify;
 	selection_event.xselection.send_event = 1;
 	selection_event.xselection.display = ev->xselectionrequest.display;
 	selection_event.xselection.requestor = ev->xselectionrequest.requestor;
 	selection_event.xselection.selection = ev->xselectionrequest.selection;
 	selection_event.xselection.target = ev->xselectionrequest.target;
+	selection_event.xselection.property = ev->xselectionrequest.property;
 	selection_event.xselection.time = ev->xselectionrequest.time;
 	//RL_Print("Sending selection_event\n");
 	XSendEvent(selection_event.xselection.display,
@@ -513,6 +558,11 @@ static void handle_selection_notify(XEvent *ev)
 											  global_x_info->display,
 											  "CLIPBOARD",
 											  True);
+	Atom XA_INCR = x_atom_list_find_atom(global_x_info->x_atom_list,
+											  global_x_info->display,
+											  "INCR",
+											  True);
+	//printf("%s: %d\n", __func__, __LINE__);
 	if (ev->xselection.target == XA_TARGETS){
 		Atom     actual_type;
 		int      actual_format;
@@ -520,13 +570,18 @@ static void handle_selection_notify(XEvent *ev)
 		long     bytes;
 		Atom     *data = NULL;
 		int      status;
+		//printf("%s: %d, TARGETS\n", __func__, __LINE__);
+		if (global_x_info->selection.status != SEL_STATUS_COPY_TARGETS_CONVERTED) {
+			//printf("%s: %d, Unpectected SelectionNotify\n", __func__, __LINE__);
+			return;
+		}
 		if (ev->xselection.property){
 			status = XGetWindowProperty(ev->xselection.display,
 										ev->xselection.requestor,
 										ev->xselection.property,
 										0,
 										(~0L),
-										False,
+										True,
 										XA_ATOM,
 										&actual_type,
 										&actual_format,
@@ -542,15 +597,20 @@ static void handle_selection_notify(XEvent *ev)
 									  data[i],
 									  ev->xselection.property,
 									  ev->xselection.requestor,
-									  CurrentTime);
+									  ev->xselection.time);
 					break;
 				}
 			}
 		}
+		global_x_info->selection.status = SEL_STATUS_COPY_DATA_CONVERTED;
+		//printf("%d, changed status to COPY_DATA_CONVERTED because of SelectionNotify\n", __LINE__);
 	} else if (ev->xselection.target == XA_UTF8_STRING
 			   || ev->xselection.target == XA_STRING) {
-		global_x_info->selection.property = ev->xselection.property;
-		global_x_info->selection.status = 1; /* response received */
+		if (global_x_info->selection.status == SEL_STATUS_COPY_DATA_CONVERTED) {
+			global_x_info->selection.property = ev->xselection.property;
+			global_x_info->selection.status = SEL_STATUS_COPY_DATA; /* response received */
+			//printf("%d, changed status to COPY_DATA because of SelectionNotify\n", __LINE__);
+		}
 	}
 }
 
@@ -835,10 +895,15 @@ void Dispatch_Event(XEvent *ev)
 			handle_client_message(ev);
 			break;
 		case PropertyNotify:
-			/* check if it's fullscreen */
-			gob = Find_Gob_By_Window(ev->xproperty.window); /*this event could come after window is free'ed */
-			if (gob != NULL)
-				handle_property_notify(ev, gob);
+			if (ev->xproperty.window == global_x_info->selection.win) {
+				//|| ev->xproperty.window == global_x_info->selection.requestor) {
+				handle_clip_window_property_notify(ev);
+			} else {
+				/* check if it's fullscreen */
+				gob = Find_Gob_By_Window(ev->xproperty.window); /*this event could come after window is free'ed */
+				if (gob != NULL)
+					handle_property_notify(ev, gob);
+			}
 			break;
 		case ConfigureNotify:
 			gob = Find_Gob_By_Window(ev->xconfigure.window);

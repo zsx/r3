@@ -80,13 +80,17 @@ extern void Signal_Device(REBREQ *req, REBINT type);
 
 static REBINT copy_to_req(REBREQ *req, char* data, REBCNT data_len)
 {
-	req->data = OS_Make(data_len + 1);
+	if (req->data) {
+		req->data = realloc(req->data, req->actual + data_len + 1);
+	} else {
+		req->data = OS_Make(data_len + 1);
+	}
 	if (req->data == NULL){
 		return DR_ERROR;
 	}
-	COPY_STR(req->data, data, data_len);
-	req->data[data_len] = '\0';
-	req->actual = data_len;
+	COPY_STR(req->data + req->actual, data, data_len);
+	req->data[req->actual + data_len] = '\0';
+	req->actual += data_len;
 	return DR_DONE;
 }
 
@@ -95,33 +99,65 @@ static REBINT do_read_clipboard(REBREQ * req, Atom property)
 	Atom     actual_type;
 	int      actual_format;
 	long     nitems;
-	long     bytes;
+	long     bytes = 0;
 	char     *data = NULL;
 	int      status;
+
+	Atom XA_INCR = x_atom_list_find_atom(global_x_info->x_atom_list,
+										   global_x_info->display,
+										   "INCR",
+										   False);
+
 	if (global_x_info->selection.property){
-		status = XGetWindowProperty(global_x_info->display,
-									global_x_info->selection.win,
-									property,
-									0,
-									(~0L),
-									False,
-									AnyPropertyType,
-									&actual_type,
-									&actual_format,
-									&nitems,
-									&bytes,
-									(unsigned char**)&data);
-		if (nitems <= 0){
-			goto error;
-		}
+		do {
+			status = XGetWindowProperty(global_x_info->display,
+										global_x_info->selection.win,
+										property,
+										0,
+										(~0L),
+										True,
+										AnyPropertyType,
+										&actual_type,
+										&actual_format,
+										&nitems,
+										&bytes,
+										(unsigned char**)&data);
+			if (nitems == 0
+				&& global_x_info->selection.status == SEL_STATUS_COPY_INCR_DATA){
+				global_x_info->selection.status = SEL_STATUS_COPY_DONE;
+				//printf("%d, changed status to COPY_DONE because None is received\n", __LINE__);
+				break;
+			}
+			if (nitems <= 0){
+				global_x_info->selection.status = SEL_STATUS_COPY_DONE;
+				//printf("%d, changed status to COPY_DONE because None is received\n", __LINE__);
+				return DR_ERROR;
+			}
 
-		if (DR_ERROR == copy_to_req(req, data, nitems)){;
+			if (actual_type == XA_INCR) {
+				global_x_info->selection.status = SEL_STATUS_COPY_INCR_WAIT;
+				//printf("%d, changed status to COPY_INCR_WAIT because type == INCR\n", __LINE__);
+				XFree(data);
+				return DR_PEND;
+			}
+			
+
+			if (DR_ERROR == copy_to_req(req, data, nitems)){;
+				XFree(data);
+				goto error;
+			}
 			XFree(data);
-			goto error;
-		}
-		XFree(data);
+		} while (bytes > 0);
 
-		Signal_Device(req, EVT_READ);
+		if (global_x_info->selection.status == SEL_STATUS_COPY_DATA) {
+			global_x_info->selection.status = SEL_STATUS_COPY_DONE;
+			//printf("%d, changed status to COPY_DONE because data is small\n", __LINE__);
+		} else if (global_x_info->selection.status == SEL_STATUS_COPY_INCR_DATA) {
+			global_x_info->selection.status = SEL_STATUS_COPY_INCR_WAIT;
+			//printf("%d, changed status to INCR_WAIT because more data is expecting\n", __LINE__);
+			return DR_PEND;
+		}
+
 		//RL_Print("do_read_clipboard succeeded\n");
 		goto close;
 	}
@@ -130,7 +166,8 @@ static REBINT do_read_clipboard(REBREQ * req, Atom property)
 error:
 	req->actual = 0;
 close:
-	Signal_Device(req, EVT_CLOSE);
+
+	// Informing the owner the data has been transferred by deleting the property
 	return DR_DONE;
 }
 
@@ -142,10 +179,11 @@ close:
 {
 	REBYTE *clip = NULL;
 	REBINT len;
-	REBINT status = global_x_info->selection.status;
+	enum selection_status status = global_x_info->selection.status;
+	Window win = global_x_info->selection.win;
 
 	//RL_Print("Read_Clipboard\n");
-	req->actual = 0;
+	//req->actual = 0;
 	Window owner = 0;
 	Display *display = global_x_info->display;
 	if (display == NULL) {
@@ -166,33 +204,49 @@ close:
 										global_x_info->selection.data_length)){
 				goto error;
 			}
-			global_x_info->selection.status = -1;
+			global_x_info->selection.status = SEL_STATUS_NONE;
+			//printf("%d, changed status to NONE because copying from itself\n", __LINE__);
 			goto close;
 		} else {
 			goto error;
 		}
 	}
 
-	if (status < 0) { /* request not sent yet */
-		if (global_x_info->selection.win == 0){
-			global_x_info->selection.win
+	if (status == SEL_STATUS_NONE
+		|| status == SEL_STATUS_PASTE_INCR // paste/write not done yet, just overwrite it
+		|| status == SEL_STATUS_PASTE_DONE) { /* request not sent yet */
+		if (win == 0){
+			win = global_x_info->selection.win
 				= XCreateWindow(display,
 								RootWindow(display, 0),
 								0, 0, 50, 50, 0,
 								CopyFromParent, InputOnly,
 							   	CopyFromParent, 0,0);
+			XSelectInput(display, win, PropertyChangeMask);
 		}
 		//XSync(display, False);
 		Atom XA_TARGETS = XInternAtom(global_x_info->display, "TARGETS", False);
 		XConvertSelection(display,
 						  XA_CLIPBOARD, XA_TARGETS, XA_SELECTION,
 						  global_x_info->selection.win,
-						  CurrentTime);
-		global_x_info->selection.status = 0; /* pending */
+						  CurrentTime); //FIXME: shouldn't use CurrentTime, ICCCM sec 2.4 
+		global_x_info->selection.status = SEL_STATUS_COPY_TARGETS_CONVERTED; /* pending */
+		//printf("%d, changed status to TARGET_CONVERTED because of reading\n", __LINE__);
+		global_x_info->selection.property = XA_SELECTION;
+		req->actual = 0;
 		return DR_PEND;
-	} else if (status) { /* response received */
-		global_x_info->selection.status = -1; /* prep for next read */
-		return do_read_clipboard(req, XA_SELECTION);
+	} else if (status == SEL_STATUS_COPY_INCR_DATA
+			   || status == SEL_STATUS_COPY_DATA) { /* response received */
+		int ret = do_read_clipboard(req, XA_SELECTION);
+		if (ret == DR_ERROR) goto error;
+		if (global_x_info->selection.status == SEL_STATUS_COPY_DONE) {
+			Signal_Device(req, EVT_READ);
+			global_x_info->selection.status = SEL_STATUS_NONE; /* prep for next read */
+			//printf("%d, changed status to NONE for next read\n", __LINE__);
+			return DR_DONE;
+		} else {
+			return DR_PEND;
+		}
 	} else { /* request sent and response not received yet */
 		return DR_PEND;
 	}
@@ -230,6 +284,7 @@ close:
 							CopyFromParent, InputOnly,
 							CopyFromParent, 0,0);
 		//RL_Print("window = %d\n", win);
+		XSelectInput(display, win, PropertyChangeMask);
 	}
 	void *data = global_x_info->selection.data;
 	if (data != NULL) {
@@ -247,6 +302,7 @@ close:
 	REBCNT dst_len = src_len;
 	Encode_UTF8(data, len, req->data, &dst_len, TRUE, 0);
 	global_x_info->selection.data_length = dst_len;
+	//global_x_info->selection.offset = 0;
 	//XSync(display, False);
 	XSetSelectionOwner(display, XA_CLIPBOARD, win, CurrentTime);
 	//XFlush(display);

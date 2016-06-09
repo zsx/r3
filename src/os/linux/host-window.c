@@ -236,7 +236,7 @@ static REBXYF Zero_Pair = {0, 0};
 	global_x_info = OS_Make(sizeof(x_info_t));
 	memset(global_x_info, 0, sizeof(x_info_t));
 
-	global_x_info->selection.status = -1;
+	global_x_info->selection.status = SEL_STATUS_NONE;
 	global_x_info->display = XOpenDisplay(NULL);
 
 	if (global_x_info->display == NULL){
@@ -335,6 +335,10 @@ static REBXYF Zero_Pair = {0, 0};
 												 CopyFromParent, InputOutput,
 												 CopyFromParent, 0, NULL);
 
+	global_x_info->max_request_size = XExtendedMaxRequestSize(global_x_info->display);
+	if (global_x_info->max_request_size == 0) {
+		global_x_info->max_request_size = XMaxRequestSize(global_x_info->display);
+	}
 	retrieve_net_supported();
 }
 
