@@ -95,20 +95,22 @@
 		arg = OFV(port, STD_PORT_DATA);
 		
 		len = req->actual;
-		if (GET_FLAG(req->flags, RRF_WIDE)) {
-			len /= sizeof(REBUNI); //correct length
+		if (len > 0) {
+			if (GET_FLAG(req->flags, RRF_WIDE)) {
+				len /= sizeof(REBUNI); //correct length
 
-			/* convert to UTF8, so that it can be converted back to string! */
-			REBCNT size = Length_As_UTF8((REBUNI*)req->data, len, TRUE, FALSE);
-			REBSER *ser = Make_Binary(size);
-			Encode_UTF8(SERIES_DATA(ser), size, req->data, &len, TRUE, FALSE);
-			SERIES_TAIL(ser) = len;
-			Set_Binary(arg, ser);
-		} else {
-			REBSER *ser = Make_Binary(len);
-			COPY_MEM(BIN_HEAD(ser), req->data, len);
-			SERIES_TAIL(ser) = len;
-			Set_Binary(arg, ser);
+				/* convert to UTF8, so that it can be converted back to string! */
+				REBCNT size = Length_As_UTF8((REBUNI*)req->data, len, TRUE, FALSE);
+				REBSER *ser = Make_Binary(size);
+				Encode_UTF8(SERIES_DATA(ser), size, req->data, &len, TRUE, FALSE);
+				SERIES_TAIL(ser) = len;
+				Set_Binary(arg, ser);
+			} else {
+				REBSER *ser = Make_Binary(len);
+				COPY_MEM(BIN_HEAD(ser), req->data, len);
+				SERIES_TAIL(ser) = len;
+				Set_Binary(arg, ser);
+			}
 		}
 
 		*D_RET = *arg;
