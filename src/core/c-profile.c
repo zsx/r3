@@ -30,7 +30,7 @@ static FILE* pfile;
 
 #pragma pack (push, 1)
 struct Prof_Entry {
-    void *block_addr;
+    const void *block_addr;
     REBUPT index;
     REBUPT val_addr;
     i64 wc_time;
@@ -50,17 +50,17 @@ enum Prof_Entry_Type {
     RT_EOF
 };
 
-static void write_prof_data(struct Prof_Entry *entry, const char *name)
+static void write_prof_data(struct Prof_Entry *entry, const REBYTE *name)
 {
     //if (entry->block_addr == (void*)stop_id) {
     //   raise(SIGTRAP);
     //}
-    entry->n_len = strlen(name);
-    if (fwrite(entry, sizeof(*entry), 1, pfile) < 0) {
+    entry->n_len = strlen(cast(char*, name));
+    if (fwrite(entry, sizeof(*entry), 1, pfile) == 0) {
         fclose(pfile);
         pfile = NULL;
     }
-    if (fprintf(pfile, "%s", name) < 0) {
+    if (fprintf(pfile, "%s", cast(char*, name)) == 0) {
         fclose(pfile);
         pfile = NULL;
     }
@@ -86,7 +86,7 @@ void Init_Func_Profiler(const REBCHR *path)
             0 
         };
 
-        write_prof_data(&entry, "prof-data");
+        write_prof_data(&entry, cast(REBYTE*, "prof-data"));
     }
 }
 
@@ -132,7 +132,7 @@ static void Func_Profile(struct Reb_Frame *f, enum Prof_Entry_Type rt)
 {
     //1, addr, name, type, time
     if (pfile) {
-        const char *name = Get_Sym_Name(FRM_LABEL(f));
+        const REBYTE *name = Get_Sym_Name(FRM_LABEL(f));
         const void *addr = (f->indexor == VALIST_FLAG) ?
             cast(const void *, f->source.vaptr)
             : f->source.array;
@@ -190,7 +190,7 @@ void Shutdown_Func_Profiler(void)
             RT_EOF, /* record type */
             0,  /* n_len */
         };
-        write_prof_data(&entry, "");
+        write_prof_data(&entry, cast(REBYTE*, ""));
         fclose(pfile);
     }
     pfile = NULL;
