@@ -205,7 +205,9 @@ REBARR *Pop_Stack_Values(REBDSP dsp_start)
     REBCNT len = DSP - dsp_start;
     REBVAL *values = ARR_AT(DS_Array, dsp_start + 1);
 
-    REBARR *array = Copy_Values_Len_Shallow(values, len);
+    // Data stack should be fully specified--no relative values
+    //
+    REBARR *array = Copy_Values_Len_Shallow(values, SPECIFIED, len);
 
     DS_DROP_TO(dsp_start);
     return array;

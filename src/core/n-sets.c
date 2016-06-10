@@ -128,7 +128,7 @@ static REBSER *Make_Set_Operation_Series(
             //
             i = VAL_INDEX(val1);
             for (; i < SER_LEN(ser); i += skip) {
-                REBVAL *item = ARR_AT(AS_ARRAY(ser), i);
+                RELVAL *item = ARR_AT(AS_ARRAY(ser), i);
                 if (flags & SOP_FLAG_CHECK) {
                     h = Find_Key_Hashed(
                         VAL_ARRAY(val2), hser, item, skip, cased, 1
@@ -171,7 +171,7 @@ static REBSER *Make_Set_Operation_Series(
         if (hret)
             Free_Series(hret);
 
-        out_ser = ARR_SERIES(Copy_Array_Shallow(AS_ARRAY(buffer)));
+        out_ser = ARR_SERIES(Copy_Array_Shallow(AS_ARRAY(buffer), SPECIFIED));
         RESET_TAIL(buffer); // required - allow reuse
     }
     else {

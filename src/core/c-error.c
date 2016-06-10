@@ -1598,7 +1598,13 @@ void Init_Errors(REBVAL *errors)
 
     // Create error objects and error type objects:
     *ROOT_ERROBJ = *Get_System(SYS_STANDARD, STD_ERROR);
-    errs = Construct_Context(REB_OBJECT, VAL_ARRAY_HEAD(errors), FALSE, NULL);
+    errs = Construct_Context(
+        REB_OBJECT,
+        VAL_ARRAY_HEAD(errors),
+        SPECIFIED, // we're confident source array isn't in a function body
+        FALSE,
+        NULL
+    );
 
     Val_Init_Object(Get_System(SYS_CATALOG, CAT_ERRORS), errs);
 
@@ -1606,7 +1612,13 @@ void Init_Errors(REBVAL *errors)
     // so self is in slot 1 and the actual errors start at context slot 2)
     //
     for (val = CTX_VAR(errs, SELFISH(1)); NOT_END(val); val++) {
-        errs = Construct_Context(REB_OBJECT, VAL_ARRAY_HEAD(val), FALSE, NULL);
+        errs = Construct_Context(
+            REB_OBJECT,
+            VAL_ARRAY_HEAD(val),
+            SPECIFIED, // source array not in a function body
+            FALSE,
+            NULL
+        );
         Val_Init_Object(val, errs);
     }
 }

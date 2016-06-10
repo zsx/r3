@@ -476,6 +476,21 @@ struct Reb_Frame {
     //
     REBIXO indexor;
 
+    // `specifier` [INPUT, READ-ONLY, GC-PROTECTED]
+    //
+    // The specifier context is where any relatively bound words are looked
+    // up to become "specific".  (If the function inside the specifier does
+    // not match the function of any relatively bound words that happen to
+    // be fetched into Reb_Frame.value, then that is a problem that will
+    // assert in the debug build.)
+    //
+    // Typically the specifier used is extracted from the payload of the
+    // Reb_Any_Series that provided the source.array for the call to DO.
+    // It may also be NULL if it is known that there are no relatively bound
+    // words that will be encountered from the source.
+    //
+    REBCTX *specifier;
+
     // `label_sym` [INTERNAL, READ-ONLY]
     //
     // Functions don't have "names", though they can be assigned to words.
@@ -521,7 +536,7 @@ struct Reb_Frame {
     // advanced but we'd like to hold the old one...this makes it important
     // to protect it from GC if we have advanced beyond as well!)
     //
-    const REBVAL *param;
+    const RELVAL *param;
 
     // `arg` [INTERNAL, also CACHE of `ARR_HEAD(arglist)`]
     //
@@ -777,9 +792,11 @@ typedef struct Reb_Frame Reb_Enumerator;
         (f)->value = VAL_ARRAY_AT(v); \
         (f)->eval_type = ET_INERT; \
         (f)->flags = 0; /* !!! review */ \
-        (f)->indexor = VAL_INDEX(v) + 1; \
         (f)->source.array = VAL_ARRAY(v); \
+        (f)->indexor = VAL_INDEX(v) + 1; \
+        (f)->specifier = VAL_SPECIFIER(v); \
         (f)->eval_fetched = NULL; \
+        (f)->label_sym = SYM_0; \
         PUSH_CALL(f); \
     } while (0)
 
@@ -867,6 +884,7 @@ typedef struct Reb_Frame Reb_Enumerator;
         f_.out = (dest); \
         f_.source = (f)->source; \
         f_.value = (f)->value; \
+        f_.specifier = (f)->specifier; \
         f_.indexor = (f)->indexor; \
         f_.gotten = NULL; \
         f_.lookback = FALSE; \
@@ -885,7 +903,6 @@ typedef struct Reb_Frame Reb_Enumerator;
 #ifdef NDEBUG
     #define DO_NEXT_REFETCH_MAY_THROW(dest,f,flags) \
         DO_CORE_REFETCH_MAY_THROW((dest), (f), (flags))
-
 #else
     #define DO_NEXT_REFETCH_MAY_THROW(dest,f,flags) \
         do { \
@@ -911,7 +928,7 @@ typedef struct Reb_Frame Reb_Enumerator;
     #define QUOTE_NEXT_REFETCH(dest,f) \
         do { \
             TRACE_FETCH_DEBUG("QUOTE_NEXT_REFETCH", (f), FALSE); \
-            *dest = *(f)->value; \
+            COPY_VALUE((dest), (f)->value, (f)->specifier); \
             FETCH_NEXT_ONLY_MAYBE_END(f); \
             CLEAR_VAL_FLAG(dest, VALUE_FLAG_EVALUATED); \
             TRACE_FETCH_DEBUG("QUOTE_NEXT_REFETCH", (f), TRUE); \
@@ -962,7 +979,7 @@ typedef struct Reb_Frame Reb_Enumerator;
 // THROWN() value.
 //
 
-#define DO_NEXT_MAY_THROW(indexor_out,out,array_in,index) \
+#define DO_NEXT_MAY_THROW(indexor_out,out,array_in,index,specifier_in) \
     do { \
         struct Reb_Frame dummy; /* not a "real frame", Do_Core not called */ \
         dummy.value = ARR_AT((array_in), (index)); \
@@ -971,6 +988,7 @@ typedef struct Reb_Frame Reb_Enumerator;
             (indexor_out) = END_FLAG; \
             break; \
         } \
+        dummy.specifier = (specifier_in); \
         dummy.source.array = (array_in); \
         dummy.indexor = (index) + 1; \
         dummy.eval_fetched = NULL; \
@@ -990,16 +1008,16 @@ typedef struct Reb_Frame Reb_Enumerator;
 // array and index are extracted, and will be protected from GC by the DO
 // state...so it is legal to e.g DO_VAL_ARRAY_AT_THROWS(D_OUT, D_OUT).
 //
-#define DO_VAL_ARRAY_AT_THROWS(out,array) \
-    Do_At_Throws((out), VAL_ARRAY(m_cast(REBVAL*, array)), VAL_INDEX(array))
+#define DO_VAL_ARRAY_AT_THROWS(out,any_array) \
+    Do_At_Throws((out), \
+        VAL_ARRAY(any_array), VAL_INDEX(any_array), VAL_SPECIFIER(any_array))
 
 // Lowercase, because doesn't repeat array parameter.  If macro picked head
 // off itself, it would need to be uppercase!
 //
-
-#define Do_At_Throws(out,array,index) \
+#define Do_At_Throws(out,array,index,specifier) \
     LOGICAL(THROWN_FLAG == Do_Array_At_Core( \
-        (out), NULL, (array), (index), \
+        (out), NULL, (array), (index), (specifier), \
         DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD))
 
 // Because Do_Core can seed with a single value, we seed with our value and
@@ -1008,8 +1026,9 @@ typedef struct Reb_Frame Reb_Enumerator;
 // just evaluate to itself!
 //
 #define EVAL_VALUE_THROWS(out,value) \
-    LOGICAL(THROWN_FLAG == Do_Array_At_Core((out), (value), EMPTY_ARRAY, \
-        0, DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD))
+    LOGICAL(THROWN_FLAG == Do_Array_At_Core((out), \
+        (value), EMPTY_ARRAY, 0, SPECIFIED, \
+        DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -1063,6 +1082,14 @@ typedef struct Reb_Path_Value_State {
     // `orig` original path input, saved for error messages
     //
     const REBVAL *orig;
+
+    // A specifier is needed because the PATH! is processed by incrementing
+    // through values, which may be resident in an array that was part of
+    // the cloning of a function body.  The specifier allows the path
+    // evaluation to disambiguate which variable a word's relative binding
+    // would match.
+    //
+    REBCTX *specifier;
 } REBPVS;
 
 enum Path_Eval_Result {

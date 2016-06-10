@@ -389,7 +389,7 @@ REB_R Destroy_External_Storage(REBVAL *out,
         elem = Alloc_Tail_Array(array);
         SET_INTEGER(elem, cast(REBUPT, SER_DATA_RAW(ser)));
 
-        threw = Do_At_Throws(&safe, array, 0);
+        threw = Do_At_Throws(&safe, array, 0, SPECIFIED); // 2 non-relative val
 
         DROP_GUARD_ARRAY(array);
 

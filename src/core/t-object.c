@@ -282,7 +282,9 @@ REBOOL MT_Context(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     REBCTX *context;
     if (!IS_BLOCK(data)) return FALSE;
 
-    context = Construct_Context(type, VAL_ARRAY_AT(data), FALSE, NULL);
+    context = Construct_Context(
+        type, VAL_ARRAY_AT(data), VAL_SPECIFIER(data), FALSE, NULL
+    );
 
     Val_Init_Context(out, type, context);
 
@@ -644,7 +646,7 @@ REBTYPE(Context)
             else types |= VAL_TYPESET_BITS(arg);
         }
         context = AS_CONTEXT(
-            Copy_Array_Shallow(CTX_VARLIST(VAL_CONTEXT(value)))
+            Copy_Array_Shallow(CTX_VARLIST(VAL_CONTEXT(value)), SPECIFIED)
         );
         INIT_CTX_KEYLIST_SHARED(context, CTX_KEYLIST(VAL_CONTEXT(value)));
         SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST);
@@ -652,6 +654,7 @@ REBTYPE(Context)
         if (types != 0) {
             Clonify_Values_Len_Managed(
                 CTX_VARS_HEAD(context),
+                SPECIFIED,
                 CTX_LEN(context),
                 D_REF(ARG_COPY_DEEP),
                 types

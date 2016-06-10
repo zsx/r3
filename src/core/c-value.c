@@ -254,8 +254,26 @@ void Assert_Flags_Are_For_Value(const RELVAL *v, REBUPT f) {
 //
 REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
 {
+    REBCTX *specific = (v)->payload.any_target.specific;
     assert(IS_SPECIFIC(v));
-    return (v)->payload.any_target.specific;
+    if (specific != NULL) {
+        //
+        // Basic sanity check: make sure it's a context at all
+        //
+        if (!GET_ARR_FLAG(CTX_VARLIST(specific), ARRAY_FLAG_CONTEXT_VARLIST)) {
+            printf("Non-CONTEXT found as specifier in specific value\n");
+            Panic_Series(cast(REBSER*, specific));
+        }
+
+        // While an ANY-WORD! can be bound specifically to an arbitrary
+        // object, an ANY-ARRAY! only becomes bound specifically to frames.
+        // The keylist for a frame's context should come from a function's
+        // paramlist, which should have a FUNCTION! value in keylist[0]
+        //
+        if (ANY_ARRAY(v))
+            assert(IS_FUNCTION(CTX_ROOTKEY(specific)));
+    }
+    return specific;
 }
 
 
@@ -275,6 +293,80 @@ void INIT_WORD_INDEX_Debug(RELVAL *v, REBCNT i)
             VAL_WORD_SYM(v), CTX_KEY_SYM(VAL_WORD_CONTEXT(KNOWN(v)), i))
         );
     (v)->payload.any_word.place.binding.index = (i);
+}
+
+
+//
+//  IS_RELATIVE_Debug: C
+//
+// One should only be testing relvals for their relativeness or specificness,
+// because all REBVAL* should be guaranteed to be speciic!
+//
+REBOOL IS_RELATIVE_Debug(const RELVAL *value)
+{
+    return GET_VAL_FLAG(value, VALUE_FLAG_RELATIVE);
+}
+
+
+//
+//  ENSURE_C_REBVAL_Debug: C
+//
+// NOOP for type check in the debug build.
+//
+const REBVAL *ENSURE_C_REBVAL_Debug(const REBVAL *value)
+{
+    assert(!GET_VAL_FLAG(value, VALUE_FLAG_RELATIVE));
+    return value;
+}
+
+
+//
+//  ENSURE_REBVAL_Debug: C
+//
+// NOOP for type check in the debug build.
+//
+REBVAL *ENSURE_REBVAL_Debug(REBVAL *value)
+{
+    assert(!GET_VAL_FLAG(value, VALUE_FLAG_RELATIVE));
+    return value;
+}
+
+
+//
+//  ENSURE_RELVAL_Debug: C
+//
+RELVAL *ENSURE_RELVAL_Debug(RELVAL *value) {
+    return value;
+}
+
+
+//
+//  ENSURE_C_RELVAL_Debug: C
+//
+const RELVAL *ENSURE_C_RELVAL_Debug(const RELVAL *value)
+{
+    return value;
+}
+
+
+//
+//  Assert_Is_Payload: C
+//
+// Simple NOOP used as a helper in checking that a pointer is either a
+// REBVAL -or- a RELVAL in C.
+//
+void Assert_Is_Payload(const union Reb_Value_Payload *payload)
+{
+}
+
+
+//
+//  COPY_VALUE_Debug: C
+//
+// A function in debug build for compile-time type check (vs. blind casting)
+//
+void COPY_VALUE_Debug(REBVAL *dest, const RELVAL *src, REBCTX *specifier) {
+    COPY_VALUE_MACRO(dest, src, specifier);
 }
 
 

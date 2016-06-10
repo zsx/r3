@@ -76,7 +76,7 @@ REBCNT Modify_Array(
         // Are we modifying ourselves? If so, copy src_val block first:
         if (dst_arr == VAL_ARRAY(src_val)) {
             REBARR *copy = Copy_Array_At_Shallow(
-                VAL_ARRAY(src_val), VAL_INDEX(src_val)
+                VAL_ARRAY(src_val), VAL_INDEX(src_val), VAL_SPECIFIER(src_val)
             );
             src_val = ARR_HEAD(copy);
         }

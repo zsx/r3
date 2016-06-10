@@ -97,10 +97,13 @@ static REBARR *Init_Loop(
     REBVAL *var;
     REBARR *body_out;
 
+    const RELVAL *item;
+
     assert(IS_BLOCK(body));
 
     // For :WORD format, get the var's value:
-    if (IS_GET_WORD(spec)) spec = GET_OPT_VAR_MAY_FAIL(spec);
+    if (IS_GET_WORD(spec))
+        spec = GET_OPT_VAR_MAY_FAIL(spec, SPECIFIED);
 
     // Hand-make a CONTEXT (done for for speed):
     len = IS_BLOCK(spec) ? VAL_LEN_AT(spec) : 1;
@@ -117,16 +120,21 @@ static REBARR *Init_Loop(
     key = CTX_KEYS_HEAD(context);
     var = CTX_VARS_HEAD(context);
 
-    if (IS_BLOCK(spec)) spec = VAL_ARRAY_AT(spec);
+    if (IS_BLOCK(spec)) {
+        item = VAL_ARRAY_AT(spec);
+    }
+    else {
+        item = spec;
+    }
 
     // Optimally create the FOREACH context:
     while (len-- > 0) {
-        if (!IS_WORD(spec) && !IS_SET_WORD(spec)) {
+        if (!IS_WORD(item) && !IS_SET_WORD(item)) {
             FREE_CONTEXT(context);
-            fail (Error_Invalid_Arg(spec));
+            fail (Error_Invalid_Arg(item));
         }
 
-        Val_Init_Typeset(key, ALL_64, VAL_WORD_SYM(spec));
+        Val_Init_Typeset(key, ALL_64, VAL_WORD_SYM(item));
         key++;
 
         // !!! This should likely use the unset-defaulting in Ren-C with the
@@ -135,14 +143,14 @@ static REBARR *Init_Loop(
         SET_BLANK(var);
         var++;
 
-        spec++;
+        ++item;
     }
 
     SET_END(key);
     SET_END(var);
 
     body_out = Copy_Array_At_Deep_Managed(
-        VAL_ARRAY(body), VAL_INDEX(body)
+        VAL_ARRAY(body), VAL_INDEX(body), VAL_SPECIFIER(body)
     );
     Bind_Values_Deep(ARR_HEAD(body_out), context);
 
@@ -176,7 +184,10 @@ static REBOOL Loop_Series_Throws(
     for (; (ii > 0) ? si <= ei : si >= ei; si += ii) {
         VAL_INDEX(var) = si;
 
-        if (Do_At_Throws(out, body, 0)) {
+        // loop bodies are copies at the moment, so fully specified; there
+        // may be a point to making it more efficient by not always copying
+        //
+        if (Do_At_Throws(out, body, 0, SPECIFIED)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(out, &stop)) {
                 if (stop) break;
@@ -210,7 +221,7 @@ static REBOOL Loop_Integer_Throws(
     while ((incr > 0) ? start <= end : start >= end) {
         VAL_INT64(var) = start;
 
-        if (Do_At_Throws(out, body, 0)) {
+        if (Do_At_Throws(out, body, 0, SPECIFIED)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(out, &stop)) {
                 if (stop) break;
@@ -272,7 +283,7 @@ static REBOOL Loop_Number_Throws(
     for (; (i > 0.0) ? s <= e : s >= e; s += i) {
         VAL_DECIMAL(var) = s;
 
-        if (Do_At_Throws(out, body, 0)) {
+        if (Do_At_Throws(out, body, 0, SPECIFIED)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(out, &stop)) {
                 if (stop) break;
@@ -303,7 +314,7 @@ static REB_R Loop_Skip(
 ) {
     REBOOL q = FALSE; // !!! currently /? option not passed in
 
-    REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word);
+    REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word, SPECIFIED);
 
     // Though we can only iterate on a series, BLANK! is used as a way of
     // opting out.  This could be useful, e.g. `for-next x (any ...) [...]`
@@ -480,7 +491,11 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
             }
 
             if (ANY_ARRAY(data_value)) {
-                *var = *ARR_AT(AS_ARRAY(series), index);
+                COPY_VALUE(
+                    var,
+                    ARR_AT(AS_ARRAY(series), index),
+                    VAL_SPECIFIER(data_value) // !!! always matches series?
+                );
             }
             else if (ANY_CONTEXT(data_value)) {
                 if (GET_VAL_FLAG(
@@ -505,8 +520,13 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
                         index--;
                     }
                 }
-                else if (j == 1)
-                    *var = *ARR_AT(AS_ARRAY(series), index);
+                else if (j == 1) {
+                    COPY_VALUE(
+                        var,
+                        ARR_AT(AS_ARRAY(series), index),
+                        SPECIFIED // !!! it's a varlist
+                    );
+                }
                 else {
                     // !!! Review this error (and this routine...)
                     REBVAL key_name;
@@ -522,11 +542,21 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
                 REBVAL *val = ARR_AT(AS_ARRAY(series), index | 1);
                 if (!IS_VOID(val)) {
                     if (j == 0) {
-                        *var = *ARR_AT(AS_ARRAY(series), index & ~1);
+                        COPY_VALUE(
+                            var,
+                            ARR_AT(AS_ARRAY(series), index & ~1),
+                            SPECIFIED // maps always specified
+                        );
+
                         if (IS_END(var + 1)) index++; // only words
                     }
-                    else if (j == 1)
-                        *var = *ARR_AT(AS_ARRAY(series), index);
+                    else if (j == 1) {
+                        COPY_VALUE(
+                            var,
+                            ARR_AT(AS_ARRAY(series), index),
+                            SPECIFIED // maps always specified
+                        );
+                    }
                     else {
                         // !!! Review this error (and this routine...)
                         REBVAL key_name;
@@ -564,7 +594,7 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
             index++;
         }
 
-        if (Do_At_Throws(D_OUT, body_copy, 0)) {
+        if (Do_At_Throws(D_OUT, body_copy, 0, SPECIFIED)) { // copy, specified
             if (!Catching_Break_Or_Continue(D_OUT, &stop)) {
                 // A non-loop throw, we should be bubbling up
                 threw = TRUE;

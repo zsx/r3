@@ -368,7 +368,7 @@ REBNATIVE(wait)
         REBVAL unsafe; // temporary not safe from GC
 
         if (Reduce_Array_Throws(
-            &unsafe, VAL_ARRAY(val), VAL_INDEX(val), FALSE
+            &unsafe, VAL_ARRAY(val), VAL_INDEX(val), VAL_SPECIFIER(val), FALSE
         )) {
             *D_OUT = unsafe;
             return R_OUT_IS_THROWN;

@@ -176,7 +176,7 @@ static void Insert_Gobs(REBGOB *gob, const REBVAL *arg, REBCNT index, REBCNT len
     sarg = arg;
     for (n = count = 0; n < len; n++, val++) {
         val = arg++;
-        if (IS_WORD(val)) val = GET_OPT_VAR_MAY_FAIL(val);
+        if (IS_WORD(val)) val = GET_OPT_VAR_MAY_FAIL(val, GUESSED);
         if (IS_GOB(val)) {
             count++;
             if (GOB_PARENT(VAL_GOB(val))) {
@@ -223,7 +223,7 @@ static void Insert_Gobs(REBGOB *gob, const REBVAL *arg, REBCNT index, REBCNT len
     ptr = GOB_AT(gob, index);
     for (n = 0; n < len; n++) {
         val = arg++;
-        if (IS_WORD(val)) val = GET_OPT_VAR_MAY_FAIL(val);
+        if (IS_WORD(val)) val = GET_OPT_VAR_MAY_FAIL(val, GUESSED);
         if (IS_GOB(val)) {
             // !!! Temporary error of some kind (supposed to trap, not panic?)
             if (GOB_PARENT(VAL_GOB(val))) fail (Error(RE_MISC));
@@ -603,7 +603,7 @@ static void Set_GOB_Vars(REBGOB *gob, const REBVAL *blk)
             fail (Error(RE_NEED_VALUE, var));
 
         REBVAL safe;
-        Get_Simple_Value_Into(&safe, val);
+        Get_Simple_Value_Into(&safe, val, GUESSED);
         if (!Set_GOB_Var(gob, var, &safe))
             fail (Error(RE_BAD_FIELD_SET, var, Type_Of(val)));
     }

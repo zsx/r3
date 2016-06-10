@@ -46,6 +46,7 @@ REBOOL Reduce_Array_Throws(
     REBVAL *out,
     REBARR *array,
     REBCNT index,
+    REBCTX *specifier,
     REBOOL into
 ) {
     REBDSP dsp_orig = DSP;
@@ -72,7 +73,7 @@ REBOOL Reduce_Array_Throws(
 
     while (indexor != END_FLAG) {
         REBVAL reduced;
-        DO_NEXT_MAY_THROW(indexor, &reduced, array, indexor);
+        DO_NEXT_MAY_THROW(indexor, &reduced, array, indexor, specifier);
 
         if (indexor == THROWN_FLAG) {
             *out = reduced;
@@ -113,12 +114,12 @@ void Reduce_Only(
     REBVAL *out,
     REBARR *block,
     REBCNT index,
+    REBCTX *specifier,
     REBVAL *words,
     REBOOL into
 ) {
     REBDSP dsp_orig = DSP;
-    REBVAL *val;
-    const REBVAL *v;
+    RELVAL *item;
     REBARR *arr = 0;
     REBCNT idx = 0;
 
@@ -127,42 +128,43 @@ void Reduce_Only(
         idx = VAL_INDEX(words);
     }
 
-    for (val = ARR_AT(block, index); NOT_END(val); val++) {
-        if (IS_WORD(val)) {
+    for (item = ARR_AT(block, index); NOT_END(item); item++) {
+        if (IS_WORD(item)) {
             // Check for keyword:
             if (
                 arr &&
-                NOT_FOUND != Find_Word_In_Array(arr, idx, VAL_WORD_CANON(val))
+                NOT_FOUND != Find_Word_In_Array(arr, idx, VAL_WORD_CANON(item))
             ) {
-                DS_PUSH(val);
+                DS_PUSH_RELVAL(item, specifier);
                 continue;
             }
-            v = GET_OPT_VAR_MAY_FAIL(val);
-            DS_PUSH(v);
+
+            DS_PUSH(GET_OPT_VAR_MAY_FAIL(item, specifier));
         }
-        else if (IS_PATH(val)) {
+        else if (IS_PATH(item)) {
+            REBVAL temp;
+
             if (arr) {
                 // Check for keyword/path:
-                v = VAL_ARRAY_AT(val);
+                const RELVAL *v = VAL_ARRAY_AT(item);
                 if (IS_WORD(v)) {
                     if (
                         NOT_FOUND
                         != Find_Word_In_Array(arr, idx, VAL_WORD_CANON(v))
                     ) {
-                        DS_PUSH(val);
+                        DS_PUSH_RELVAL(item, specifier);
                         continue;
                     }
                 }
             }
 
-            // pushes val on stack
-            DS_PUSH_TRASH_SAFE;
-            if (Do_Path_Throws(DS_TOP, NULL, val, NULL))
-                fail (Error_No_Catch_For_Throw(DS_TOP));
+            if (Do_Path_Throws_Core(&temp, NULL, item, specifier, NULL))
+                fail (Error_No_Catch_For_Throw(&temp));
+
+            DS_PUSH(&temp);
         }
-        else DS_PUSH(val);
-        // No need to check for unwinds (THROWN) here, because unwinds should
-        // never be accessible via words or paths.
+        else
+            DS_PUSH_RELVAL(item, specifier);
     }
 
     if (into)
@@ -181,20 +183,21 @@ REBOOL Reduce_Array_No_Set_Throws(
     REBVAL *out,
     REBARR *block,
     REBCNT index,
+    REBCTX *specifier,
     REBOOL into
 ) {
     REBDSP dsp_orig = DSP;
     REBIXO indexor = index;
 
     while (index < ARR_LEN(block)) {
-        REBVAL *value = ARR_AT(block, index);
+        RELVAL *value = ARR_AT(block, index);
         if (IS_SET_WORD(value)) {
-            DS_PUSH(value);
+            DS_PUSH_RELVAL(value, specifier);
             index++;
         }
         else {
             REBVAL reduced;
-            DO_NEXT_MAY_THROW(indexor, &reduced, block, indexor);
+            DO_NEXT_MAY_THROW(indexor, &reduced, block, indexor, specifier);
             if (indexor == THROWN_FLAG) {
                 *out = reduced;
                 DS_DROP_TO(dsp_orig);
@@ -247,7 +250,11 @@ REBNATIVE(reduce)
 
         if (REF(no_set)) {
             if (Reduce_Array_No_Set_Throws(
-                D_OUT, VAL_ARRAY(value), VAL_INDEX(value), REF(into)
+                D_OUT,
+                VAL_ARRAY(value),
+                VAL_INDEX(value),
+                VAL_SPECIFIER(value),
+                REF(into)
             )) {
                 return R_OUT_IS_THROWN;
             }
@@ -257,13 +264,18 @@ REBNATIVE(reduce)
                 D_OUT,
                 VAL_ARRAY(value),
                 VAL_INDEX(value),
+                VAL_SPECIFIER(value),
                 ARG(words),
                 REF(into)
             );
         }
         else {
             if (Reduce_Array_Throws(
-                D_OUT, VAL_ARRAY(value), VAL_INDEX(value), REF(into)
+                D_OUT,
+                VAL_ARRAY(value),
+                VAL_INDEX(value),
+                VAL_SPECIFIER(value),
+                REF(into)
             )) {
                 return R_OUT_IS_THROWN;
             }
@@ -307,18 +319,24 @@ REBNATIVE(reduce)
 //
 REBOOL Compose_Values_Throws(
     REBVAL *out,
-    const REBVAL *head,
+    const RELVAL *head,
+    REBCTX *specifier,
     REBOOL deep,
     REBOOL only,
     REBOOL into
 ) {
-    const REBVAL *value = head;
+    const RELVAL *value = head;
     REBDSP dsp_orig = DSP;
 
     for (; NOT_END(value); value++) {
         if (IS_GROUP(value)) {
             REBVAL evaluated;
-            if (DO_VAL_ARRAY_AT_THROWS(&evaluated, value)) {
+            if (Do_At_Throws(
+                &evaluated,
+                VAL_ARRAY(value),
+                VAL_INDEX(value),
+                specifier
+            )) {
                 *out = evaluated;
                 DS_DROP_TO(dsp_orig);
                 return TRUE;
@@ -328,9 +346,9 @@ REBOOL Compose_Values_Throws(
                 //
                 // compose [blocks ([a b c]) merge] => [blocks a b c merge]
                 //
-                REBVAL *push = VAL_ARRAY_AT(&evaluated);
+                RELVAL *push = VAL_ARRAY_AT(&evaluated);
                 while (!IS_END(push)) {
-                    DS_PUSH(push);
+                    DS_PUSH_RELVAL(push, VAL_SPECIFIER(&evaluated));
                     push++;
                 }
             }
@@ -354,7 +372,12 @@ REBOOL Compose_Values_Throws(
 
                 REBVAL composed;
                 if (Compose_Values_Throws(
-                    &composed, VAL_ARRAY_HEAD(value), TRUE, only, into
+                    &composed,
+                    VAL_ARRAY_AT(value),
+                    specifier,
+                    TRUE,
+                    only,
+                    into
                 )) {
                     *out = composed;
                     DS_DROP_TO(dsp_orig);
@@ -364,7 +387,7 @@ REBOOL Compose_Values_Throws(
                 DS_PUSH(&composed);
             }
             else {
-                DS_PUSH(value);
+                DS_PUSH_RELVAL(value, specifier);
                 if (ANY_ARRAY(value)) {
                     //
                     // compose [copy/(orig) (copy)] => [copy/(orig) (copy)]
@@ -372,7 +395,11 @@ REBOOL Compose_Values_Throws(
                     //
                     INIT_VAL_ARRAY(
                         DS_TOP,
-                        Copy_Array_Shallow(VAL_ARRAY(value))
+                        Copy_Array_At_Shallow(
+                            VAL_ARRAY(value),
+                            VAL_INDEX(value),
+                            specifier
+                        )
                     );
                     MANAGE_ARRAY(VAL_ARRAY(DS_TOP));
                 }
@@ -382,7 +409,7 @@ REBOOL Compose_Values_Throws(
             //
             // compose [[(1 + 2)] (reverse "wollahs")] => [[(1 + 2)] "shallow"]
             //
-            DS_PUSH(value);
+            DS_PUSH_RELVAL(value, specifier);
         }
     }
 
@@ -434,7 +461,12 @@ REBNATIVE(compose)
     if (REF(into)) *D_OUT = *ARG(out);
 
     if (Compose_Values_Throws(
-        D_OUT, VAL_ARRAY_HEAD(ARG(value)), REF(deep), REF(only), REF(into)
+        D_OUT,
+        VAL_ARRAY_HEAD(ARG(value)),
+        VAL_SPECIFIER(ARG(value)),
+        REF(deep),
+        REF(only),
+        REF(into)
     )) {
         return R_OUT_IS_THROWN;
     }

@@ -598,34 +598,46 @@ extern "C" {
 extern REBVAL *Get_Var_Core(
     REBOOL *lookback,
     const REBVAL *any_word,
+    REBCTX *specifier,
     REBFLGS flags
 );
 #ifdef __cplusplus
 }
 #endif
 
-static inline const REBVAL *GET_OPT_VAR_MAY_FAIL(const REBVAL *any_word) {
+static inline const REBVAL *GET_OPT_VAR_MAY_FAIL(
+    const REBVAL *any_word,
+    REBCTX *specifier
+) {
     REBOOL dummy;
-    return Get_Var_Core(&dummy, any_word, 0);
+    return Get_Var_Core(&dummy, any_word, specifier, 0);
 }
 
-static inline const REBVAL *TRY_GET_OPT_VAR(const REBVAL *any_word) {
+static inline const REBVAL *TRY_GET_OPT_VAR(
+    const REBVAL *any_word,
+    REBCTX *specifier
+) {
     REBOOL dummy;
-    return Get_Var_Core(&dummy, any_word, GETVAR_UNBOUND_OK);
+    return Get_Var_Core(&dummy, any_word, specifier, GETVAR_UNBOUND_OK);
 }
 
-static inline REBVAL *GET_MUTABLE_VAR_MAY_FAIL(const REBVAL *any_word) {
+static inline REBVAL *GET_MUTABLE_VAR_MAY_FAIL(
+    const REBVAL *any_word,
+    REBCTX *specifier
+) {
     REBOOL lookback = FALSE; // resets infix/postfix/etc. flag
-    return Get_Var_Core(&lookback, any_word, GETVAR_IS_SETVAR);
+    return Get_Var_Core(&lookback, any_word, specifier, GETVAR_IS_SETVAR);
 }
 
-static inline REBVAL *TRY_GET_MUTABLE_VAR(const REBVAL *any_word) {
+static inline REBVAL *TRY_GET_MUTABLE_VAR(
+    const REBVAL *any_word,
+    REBCTX *specifier
+) {
     REBOOL lookback = FALSE; // resets infix/postfix/etc. flag
     return Get_Var_Core(
-        &lookback, any_word, GETVAR_IS_SETVAR | GETVAR_UNBOUND_OK
+        &lookback, any_word, specifier, GETVAR_IS_SETVAR | GETVAR_UNBOUND_OK
     );
 }
-
 
 
 /***********************************************************************

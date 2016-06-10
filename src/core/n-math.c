@@ -636,10 +636,12 @@ REBNATIVE(same_q)
                 return R_FALSE;
             }
 
-            if (IS_RELATIVE(value1) != IS_RELATIVE(value2))
+            if (!(IS_SPECIFIC(value1) && IS_SPECIFIC(value2)))
                 return R_FALSE; // Relatively bound words can't match specific
 
-            if (VAL_WORD_CONTEXT(value1) != VAL_WORD_CONTEXT(value2))
+            REBCTX *ctx1 = VAL_WORD_CONTEXT(value1);
+            REBCTX *ctx2 = VAL_WORD_CONTEXT(value2);
+            if (ctx1 != ctx2)
                 return R_FALSE;
         }
         return R_TRUE;

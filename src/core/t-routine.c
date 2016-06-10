@@ -856,7 +856,10 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
         // reset length
         SET_SERIES_LEN(ROUTINE_FFI_ARG_TYPES(rot), n_fixed + 1);
 
-        ROUTINE_ALL_ARGS(rot) = Copy_Array_Shallow(ROUTINE_FIXED_ARGS(rot));
+        ROUTINE_ALL_ARGS(rot) = Copy_Array_Shallow(
+            ROUTINE_FIXED_ARGS(rot), SPECIFIED
+        );
+
         MANAGE_ARRAY(ROUTINE_ALL_ARGS(rot));
 
         for (i = 1, j = 1; i < VAL_LEN_HEAD(va_values) + 1; i ++, j ++) {
@@ -1103,7 +1106,7 @@ static void callback_dispatcher(
     }
 
     REBVAL safe;
-    if (Do_At_Throws(&safe, array, 0)) {
+    if (Do_At_Throws(&safe, array, 0, SPECIFIED)) {
         // !!! Does not check for thrown cases...what should this
         // do in case of THROW, BREAK, QUIT?
         fail (Error_No_Catch_For_Throw(&safe));
@@ -1284,7 +1287,10 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, REBOOL is_callback)
             fail (Error_Unexpected_Type(REB_BLOCK, VAL_TYPE(&blk[0])));
 
         REBVAL lib;
-        DO_NEXT_MAY_THROW(indexor, &lib, VAL_ARRAY(data), 1);
+        DO_NEXT_MAY_THROW(
+            indexor, &lib, VAL_ARRAY(data), 1, VAL_SPECIFIER(data)
+        );
+
         if (indexor == THROWN_FLAG)
             fail (Error_No_Catch_For_Throw(&lib));
 
@@ -1352,7 +1358,10 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, REBOOL is_callback)
             fail (Error_Invalid_Arg(&blk[0]));
 
         REBVAL fun;
-        DO_NEXT_MAY_THROW(indexor, &fun, VAL_ARRAY(data), 1);
+        DO_NEXT_MAY_THROW(
+            indexor, &fun, VAL_ARRAY(data), 1, VAL_SPECIFIER(data)
+        );
+
         if (indexor == THROWN_FLAG)
             fail (Error_No_Catch_For_Throw(&fun));
 
@@ -1382,8 +1391,11 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, REBOOL is_callback)
                             fail (Error_Invalid_Arg(blk)); /* duplicate ellipsis */
                         }
                         ROUTINE_SET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARIADIC);
-                        //Change the argument list to be a block
-                        VAL_ROUTINE_FIXED_ARGS(out) = Copy_Array_Shallow(VAL_ROUTINE_PARAMLIST(out));
+
+                        // Change the argument list to be a block
+                        VAL_ROUTINE_FIXED_ARGS(out) = Copy_Array_Shallow(
+                            VAL_ROUTINE_PARAMLIST(out), SPECIFIED
+                        );
                         MANAGE_ARRAY(VAL_ROUTINE_FIXED_ARGS(out));
                         Remove_Series(
                             ARR_SERIES(VAL_ROUTINE_PARAMLIST(out)),

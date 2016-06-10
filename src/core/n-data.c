@@ -99,7 +99,7 @@ static REBOOL Is_Type_Of(const REBVAL *value, REBVAL *types)
 {
     const REBVAL *val;
 
-    val = IS_WORD(types) ? GET_OPT_VAR_MAY_FAIL(types) : types;
+    val = IS_WORD(types) ? GET_OPT_VAR_MAY_FAIL(types, GUESSED) : types;
 
     if (IS_DATATYPE(val))
         return LOGICAL(VAL_TYPE_KIND(val) == VAL_TYPE(value));
@@ -109,7 +109,7 @@ static REBOOL Is_Type_Of(const REBVAL *value, REBVAL *types)
 
     if (IS_BLOCK(val)) {
         for (types = VAL_ARRAY_AT(val); NOT_END(types); types++) {
-            val = IS_WORD(types) ? GET_OPT_VAR_MAY_FAIL(types) : types;
+            val = IS_WORD(types) ? GET_OPT_VAR_MAY_FAIL(types, GUESSED) : types;
             if (IS_DATATYPE(val)) {
                 if (VAL_TYPE_KIND(val) == VAL_TYPE(value)) return TRUE;
             }
@@ -143,6 +143,8 @@ REBNATIVE(assert)
     PARAM(1, conditions);
     REFINE(2, type);
 
+    REBCTX *specifier = VAL_SPECIFIER(ARG(conditions));
+
     if (!REF(type)) {
         REBARR *block = VAL_ARRAY(ARG(conditions));
         REBIXO indexor = VAL_INDEX(ARG(conditions));
@@ -151,13 +153,15 @@ REBNATIVE(assert)
         while (indexor != END_FLAG) {
             i = cast(REBCNT, indexor);
 
-            DO_NEXT_MAY_THROW(indexor, D_OUT, block, indexor);
+            DO_NEXT_MAY_THROW(indexor, D_OUT, block, indexor, specifier);
             if (indexor == THROWN_FLAG)
                 return R_OUT_IS_THROWN;
 
             if (IS_CONDITIONAL_FALSE(D_OUT)) {
                 // !!! Only copies 3 values (and flaky), see CC#2231
-                Val_Init_Block(D_OUT, Copy_Array_At_Max_Shallow(block, i, 3));
+                Val_Init_Block(
+                    D_OUT, Copy_Array_At_Max_Shallow(block, i, GUESSED, 3)
+                );
                 fail (Error(RE_ASSERT_FAILED, D_OUT));
             }
         }
@@ -171,10 +175,10 @@ REBNATIVE(assert)
 
         for (; NOT_END(value); value += 2) {
             if (IS_WORD(value)) {
-                val = GET_OPT_VAR_MAY_FAIL(value);
+                val = GET_OPT_VAR_MAY_FAIL(value, GUESSED);
             }
             else if (IS_PATH(value)) {
-                if (Do_Path_Throws(D_OUT, NULL, value, 0))
+                if (Do_Path_Throws_Core(D_OUT, NULL, value, GUESSED, NULL))
                     fail (Error_No_Catch_For_Throw(D_OUT));
 
                 val = D_OUT;
@@ -354,7 +358,7 @@ REBNATIVE(bind)
     *D_OUT = *value;
     if (REF(copy)) {
         array = Copy_Array_At_Deep_Managed(
-            VAL_ARRAY(value), VAL_INDEX(value)
+            VAL_ARRAY(value), VAL_INDEX(value), VAL_SPECIFIER(value)
         );
         INIT_VAL_ARRAY(D_OUT, array);
     }
@@ -531,7 +535,7 @@ REBNATIVE(get)
     REBVAL *source = ARG(source);
 
     if (ANY_WORD(source)) {
-        *D_OUT = *GET_OPT_VAR_MAY_FAIL(source);
+        *D_OUT = *GET_OPT_VAR_MAY_FAIL(source, SPECIFIED);
     }
     else if (ANY_PATH(source)) {
         //
@@ -543,7 +547,7 @@ REBNATIVE(get)
         // Here we DO it, which means that `get 'foo/bar` will act the same
         // as `:foo/bar` for all types.
         //
-        if (Do_Path_Throws(D_OUT, NULL, source, NULL))
+        if (Do_Path_Throws_Core(D_OUT, NULL, source, SPECIFIED, NULL))
             return R_OUT_IS_THROWN;
 
         // !!! Should this prohibit GROUP! evaluations?  Failure to do so
@@ -668,8 +672,12 @@ REBNATIVE(in)
             for (i = VAL_INDEX(val); i < VAL_LEN_HEAD(val); i++) {
                 REBVAL safe;
 
-                v = VAL_ARRAY_AT_HEAD(val, i);
-                Get_Simple_Value_Into(&safe, v);
+                Get_Simple_Value_Into(
+                    &safe,
+                    VAL_ARRAY_AT_HEAD(val, i),
+                    VAL_SPECIFIER(val)
+                );
+
                 v = &safe;
                 if (IS_OBJECT(v)) {
                     context = VAL_CONTEXT(v);
@@ -925,7 +933,7 @@ REBNATIVE(set)
     // locals gathering facility of FUNCTION would still gather x.
     //
     if (ANY_WORD(target)) {
-        *Get_Var_Core(&lookback, target, GETVAR_IS_SETVAR) = *value;
+        *Get_Var_Core(&lookback, target, GUESSED, GETVAR_IS_SETVAR) = *value;
         goto return_value_arg;
     }
 
@@ -938,7 +946,7 @@ REBNATIVE(set)
 
     if (ANY_PATH(target)) {
         REBVAL dummy;
-        if (Do_Path_Throws(&dummy, NULL, target, value))
+        if (Do_Path_Throws_Core(&dummy, NULL, target, SPECIFIED, value))
             fail (Error_No_Catch_For_Throw(&dummy));
 
         // If not a throw, then there is no result out of a setting a path,
@@ -1085,7 +1093,7 @@ REBNATIVE(set)
                 if (
                     IS_VOID(
                         IS_WORD(value)
-                            ? GET_OPT_VAR_MAY_FAIL(value)
+                            ? GET_OPT_VAR_MAY_FAIL(value, GUESSED)
                             : value
                     )
                 ) {
@@ -1111,7 +1119,7 @@ REBNATIVE(set)
     //
     for (; NOT_END(target); target++) {
         if (IS_WORD(target) || IS_SET_WORD(target) || IS_LIT_WORD(target)) {
-            *GET_MUTABLE_VAR_MAY_FAIL(target) = *value;
+            *GET_MUTABLE_VAR_MAY_FAIL(target, GUESSED) = *value;
         }
         else if (IS_GET_WORD(target)) {
             //
@@ -1120,8 +1128,8 @@ REBNATIVE(set)
             // arg handling of get-words as "hard quotes", for instance)
             // Not exactly the same thing, but worth contemplating.
             //
-            *GET_MUTABLE_VAR_MAY_FAIL(target) = IS_WORD(value)
-                ? *GET_OPT_VAR_MAY_FAIL(value)
+            *GET_MUTABLE_VAR_MAY_FAIL(target, GUESSED) = IS_WORD(value)
+                ? *GET_OPT_VAR_MAY_FAIL(value, GUESSED)
                 : *value;
         }
         else
@@ -1180,10 +1188,7 @@ REBNATIVE(unset)
     REBVAL *target = ARG(target);
 
     if (ANY_WORD(target)) {
-        if (IS_WORD_UNBOUND(target))
-            fail (Error(RE_NOT_BOUND, target));
-
-        REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(target);
+        REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(target, GUESSED);
         SET_VOID(var);
         return R_VOID;
     }
@@ -1195,10 +1200,7 @@ REBNATIVE(unset)
         if (!ANY_WORD(word))
             fail (Error_Invalid_Arg(word));
 
-        if (IS_WORD_UNBOUND(word))
-            fail (Error(RE_NOT_BOUND, word));
-
-        REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word);
+        REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word, GUESSED);
         SET_VOID(var);
     }
 
@@ -1220,7 +1222,10 @@ REBNATIVE(lookback_q)
 
     if (ANY_WORD(source)) {
         REBOOL lookback;
-        const REBVAL *var = Get_Var_Core(&lookback, source, 0); // May fail()
+        const REBVAL *var = Get_Var_Core(
+            &lookback, source, SPECIFIED, GETVAR_READ_ONLY // may fail()
+        );
+
         if (!IS_FUNCTION(var))
             return R_FALSE;
 
@@ -1259,7 +1264,7 @@ REBNATIVE(semiquoted_q)
 
     REBOOL lookback; // unused
     const REBVAL *var = Get_Var_Core( // may fail
-        &lookback, ARG(parameter), GETVAR_READ_ONLY
+        &lookback, ARG(parameter), SPECIFIED, GETVAR_READ_ONLY
     );
     return GET_VAL_FLAG(var, VALUE_FLAG_EVALUATED) ? R_FALSE : R_TRUE;
 }
@@ -1394,7 +1399,10 @@ REBNATIVE(set_q)
     REBVAL *location = ARG(location);
 
     if (ANY_WORD(location)) {
-        const REBVAL *var = GET_OPT_VAR_MAY_FAIL(location); // fails if unbound
+        //
+        // Note this will fail if unbound
+        //
+        const REBVAL *var = GET_OPT_VAR_MAY_FAIL(location, SPECIFIED);
         if (IS_VOID(var))
             return R_FALSE;
     }
@@ -1412,8 +1420,9 @@ REBNATIVE(set_q)
         VAL_SET_TYPE_BITS(location, REB_GET_PATH);
 
         REBVAL temp;
-        if (Do_Path_Throws(&temp, NULL, location, NULL)) {
-            //
+        if (Do_Path_Throws_Core(
+            &temp, NULL, location, VAL_SPECIFIER(location), NULL
+        )) {
             // !!! Shouldn't be evaluating, much less throwing--so fail
             //
             fail (Error_No_Catch_For_Throw(&temp));

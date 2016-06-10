@@ -192,7 +192,7 @@ struct Reb_Value_Header {
     // stack initialization would have to set it explicitly:
     //
     //     REBVAL value;
-    //     VAL_INIT_WRITABLE_DEBUG(&value);
+    //     VAL_INIT_WRITABLE_DEBUG(&value); // C++ REBVAL does in constructor
     //     SET_BLANK(value);
     //
     // In practice this was too unwieldy, so enhanced debugging of "mystery
@@ -207,6 +207,9 @@ struct Reb_Value_Header {
     // a debug-only check...it makes every value header initialization have
     // to do two writes instead of one (one to format, then later to write
     // and check that it is properly formatted space)
+    //
+    // !!! We define the WRITABLE_MASK_DEBUG as 0 for the C build, though the
+    // specific-binding branch is organized to not have it at all
     //
     #define WRITABLE_MASK_DEBUG \
         cast(REBUPT, 0x00)
@@ -1144,31 +1147,6 @@ union Reb_Binding_Target {
 #endif
 
 
-//
-// Converting between relative and specific values.  Even though specific
-// values are derived from relative ones, a cast is sometimes necessary--
-// such as for pointer arithmetic, or in a macro that wants to type check
-// rather than blindly accept a coercion.
-//
-// !!! These macros have no teeth until the specific-binding branch is
-// merged in, and are basically only useful if you have an error like:
-//
-// "invalid conversion from 'Reb_Value*' to 'Reb_Specific_Value*'"
-//
-
-#define const_KNOWN(v) \
-    cast(const REBVAL*, (v))
-
-#define KNOWN(v) \
-    cast(REBVAL*, (v))
-
-#define const_REL(v) \
-    cast(const RELVAL*, (v))
-
-#define REL(v) \
-    cast(RELVAL*, (v))
-
-
 struct Reb_Any_Series {
     //
     // `specifier` is used in ANY-ARRAY! payloads.  It is a pointer to a FRAME!
@@ -1222,7 +1200,8 @@ struct Reb_Any_Series {
     ((v)->payload.any_series.series = (s))
 
 #define INIT_VAL_ARRAY(v,s) \
-    ((v)->payload.any_series.series = ARR_SERIES(s))
+    ((v)->payload.any_series.target.specific = SPECIFIED, \
+    (v)->payload.any_series.series = ARR_SERIES(s))
 
 #define VAL_INDEX(v)        ((v)->payload.any_series.index)
 #define VAL_LEN_HEAD(v)     SER_LEN(VAL_SERIES(v))
@@ -2755,6 +2734,111 @@ struct Reb_Value
         }
     #endif
     };
+#endif
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  RELVAL ("POSSIBLY RELATIVE VALUE")
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// RELVAL exists to help quarantine the bit patterns for relative words into
+// the deep-copied-body of the function they are for.  To actually look them
+// up, they must be paired with a FRAME! matching the actual instance of the
+// running function on the stack they correspond to.  Once made specific,
+// a word may then be freely copied into any REBVAL slot.
+//
+// In addition to ANY-WORD!, an ANY-ARRAY! can also be relative, if it is
+// part of the deep-copied function body.  The reason that arrays must be
+// relative too is in case they contain relative words.  If they do, then
+// recursion into them must carry forward the resolving "specifier" pointer
+// to be combined with any relative words that are seen later.
+//
+// A relative value pointer is allowed to point to a specific value, but a
+// relative word or array cannot be pointed to by a REBVAL*.
+//
+
+// When you have a RELVAL* (e.g. from a REBARR) that you "know" to be specific,
+// this macro can be used for that.  Checks to make sure in debug build.
+//
+// Use for: "invalid conversion from 'Reb_Value*' to 'Reb_Specific_Value*'"
+//
+//#ifdef NDEBUG
+    #define const_KNOWN(v)      cast(const REBVAL*, (v))
+    #define KNOWN(v)            cast(REBVAL*, (v))
+//#else
+//    #define const_KNOWN(v)      const_KNOWN_Debug(v)
+//    #define KNOWN(v)            KNOWN_Debug(v)
+//#endif
+
+// To make it easier to look for places that think they aren't dealing
+// with any relative values, pass this as the specifier instead of NULL.
+//
+#define SPECIFIED cast(REBCTX*, 0)
+
+// To try and have some hope of getting to the point where the specifier is
+// threaded properly through, for starters the system is just trying to
+// compile and run with the new parameterization.  If up against a wall and
+// no specifier available, just pass GUESSED.
+//
+#define GUESSED cast(REBCTX*, 0)
+
+// This can be used to turn a RELVAL into a REBVAL.  If the RELVAL is
+// indeed relative and needs to be made specific to be put into the
+// REBVAL, then the specifier is used to do that.  Debug builds assert
+// that the function in the specifier indeed matches the target in
+// the relative value (because relative values in an array may only
+// be relative to the function that deep copied them, and that is the
+// only kind of specifier you can use with them).
+//
+// !!! Temporarily this only will combine the specifier with the relative
+// value if the functions match.  Really it should be able to assert that
+// any relative values *always* match the specifier, just not there yet.
+//
+#define COPY_VALUE_MACRO(dest,src,specifier) \
+    do { \
+        if ( \
+            IS_RELATIVE(src) && specifier \
+            && VAL_RELATIVE(src) == VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier)) \
+        ) { \
+            (dest)->header.bits = (src)->header.bits & ~VALUE_FLAG_RELATIVE; \
+            if (ANY_ARRAY(src)) { \
+                (dest)->payload.any_series.target.specific = (specifier); \
+                (dest)->payload.any_series.series \
+                    = (src)->payload.any_series.series; \
+                (dest)->payload.any_series.index \
+                    = (src)->payload.any_series.index; \
+            } \
+            else { \
+                assert(ANY_WORD(src)); \
+                (dest)->payload.any_word.place.binding.target.specific \
+                    = (specifier); \
+                (dest)->payload.any_word.place.binding.index \
+                    = (src)->payload.any_word.place.binding.index; \
+                (dest)->payload.any_word.sym = (src)->payload.any_word.sym; \
+            } \
+        } \
+        else { \
+            (dest)->header = (src)->header; \
+            (dest)->payload = (src)->payload; \
+        } \
+    } while (0)
+
+#ifdef NDEBUG
+    #define COPY_VALUE(dest,src,specifier) \
+        COPY_VALUE_MACRO(SINK(dest),(src),(specifier))
+#else
+    #define COPY_VALUE(dest,src,specifier) \
+        COPY_VALUE_Debug(SINK(dest),(src),(specifier))
+#endif
+
+// In the C++ build, defining this overload that takes a REBVAL* instead of
+// a RELVAL*, and then not defining it...will tell you that you do not need
+// to use COPY_VALUE.  Just say `*dest = *src` if your source is a REBVAL!
+//
+#ifdef __cplusplus
+void COPY_VALUE_Debug(REBVAL *dest, const REBVAL *src, REBCTX *specifier);
 #endif
 
 

@@ -147,6 +147,13 @@ typedef unsigned int REBDSP;
 #define DS_PUSH(v) \
     (assert(!IS_VOID(v)), DS_PUSH_MAYBE_VOID(v))
 
+#define DS_PUSH_RELVAL(v,s) \
+    do { \
+        ASSERT_VALUE_MANAGED(v); \
+        DS_PUSH_TRASH; \
+        COPY_VALUE(DS_TOP, (v), (s)); \
+    } while(0)
+
 // POPPING AND "DROPPING"
 
 #ifdef NDEBUG

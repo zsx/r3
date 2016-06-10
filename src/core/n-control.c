@@ -141,7 +141,7 @@ static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
             // Most routines should NOT do this!
             //
             REBOOL lookback; // ignored
-            val = Get_Var_Core(&lookback, word, GETVAR_READ_ONLY);
+            val = Get_Var_Core(&lookback, word, SPECIFIED, GETVAR_READ_ONLY);
             Protect_Value(val, flags);
             Unmark(val);
         }
@@ -181,51 +181,62 @@ static int Protect(struct Reb_Frame *frame_, REBFLGS flags)
     REFINE(3, words);
     REFINE(4, values);
 
-    REBVAL *val = ARG(value);
+    REBVAL *value = ARG(value);
 
     // flags has PROT_SET bit (set or not)
 
-    Check_Security(SYM_PROTECT, POL_WRITE, val);
+    Check_Security(SYM_PROTECT, POL_WRITE, value);
 
     if (REF(deep)) SET_FLAG(flags, PROT_DEEP);
     //if (REF(words)) SET_FLAG(flags, PROT_WORD);
 
-    if (IS_WORD(val) || IS_PATH(val)) {
-        Protect_Word_Value(val, flags); // will unmark if deep
+    if (IS_WORD(value) || IS_PATH(value)) {
+        Protect_Word_Value(value, flags); // will unmark if deep
         goto return_value_arg;
     }
 
-    if (IS_BLOCK(val)) {
+    if (IS_BLOCK(value)) {
         if (REF(words)) {
-            for (val = VAL_ARRAY_AT(val); NOT_END(val); val++)
+            REBVAL *val;
+            for (val = VAL_ARRAY_AT(value); NOT_END(val); val++)
                 Protect_Word_Value(val, flags);  // will unmark if deep
             goto return_value_arg;
         }
         if (REF(values)) {
-            REBVAL *val2;
+            REBVAL *var;
+            RELVAL *item;
 
             REBVAL safe;
 
-            for (val = VAL_ARRAY_AT(val); NOT_END(val); val++) {
-                if (IS_WORD(val)) {
+            for (item = VAL_ARRAY_AT(value); NOT_END(item); ++item) {
+                if (IS_WORD(item)) {
                     //
                     // Since we *are* PROTECT we allow ourselves to get mutable
                     // references to even protected values to protect them.
                     //
                     REBOOL lookback; // ignored
-                    Get_Var_Core(&lookback, val, GETVAR_READ_ONLY);
+                    var = Get_Var_Core(
+                        &lookback,
+                        item,
+                        VAL_SPECIFIER(value),
+                        GETVAR_READ_ONLY
+                    );
                 }
-                else if (IS_PATH(val)) {
-                    if (Do_Path_Throws(&safe, NULL, val, NULL))
+                else if (IS_PATH(value)) {
+                    if (Do_Path_Throws_Core(
+                        &safe, NULL, value, SPECIFIED, NULL
+                    ))
                         fail (Error_No_Catch_For_Throw(&safe));
 
-                    val2 = &safe;
+                    var = &safe;
                 }
-                else
-                    val2 = val;
+                else {
+                    safe = *value;
+                    var = &safe;
+                }
 
-                Protect_Value(val2, flags);
-                if (GET_FLAG(flags, PROT_DEEP)) Unmark(val2);
+                Protect_Value(var, flags);
+                if (GET_FLAG(flags, PROT_DEEP)) Unmark(var);
             }
             goto return_value_arg;
         }
@@ -233,9 +244,9 @@ static int Protect(struct Reb_Frame *frame_, REBFLGS flags)
 
     if (GET_FLAG(flags, PROT_HIDE)) fail (Error(RE_BAD_REFINES));
 
-    Protect_Value(val, flags);
+    Protect_Value(value, flags);
 
-    if (GET_FLAG(flags, PROT_DEEP)) Unmark(val);
+    if (GET_FLAG(flags, PROT_DEEP)) Unmark(value);
 
 return_value_arg:
     *D_OUT = *ARG(value);
@@ -923,7 +934,8 @@ REBNATIVE(do)
                 indexor, // updated
                 D_OUT,
                 VAL_ARRAY(value),
-                indexor
+                indexor,
+                VAL_SPECIFIER(value)
             );
 
             if (indexor == THROWN_FLAG) {
@@ -933,8 +945,11 @@ REBNATIVE(do)
                 // !!! What if the block was mutated, and D_ARG(1) is no
                 // longer actually the expression that started the throw?
 
-                if (!IS_BLANK(ARG(var)))
-                    *GET_MUTABLE_VAR_MAY_FAIL(ARG(var)) = *value;
+                if (!IS_BLANK(ARG(var))) {
+                    *GET_MUTABLE_VAR_MAY_FAIL(ARG(var), SPECIFIED)
+                        = *value;
+                }
+
                 return R_OUT_IS_THROWN;
             }
 
@@ -953,7 +968,8 @@ REBNATIVE(do)
                 else
                     VAL_INDEX(value) = cast(REBCNT, indexor);
 
-                *GET_MUTABLE_VAR_MAY_FAIL(ARG(var)) = *ARG(value);
+                *GET_MUTABLE_VAR_MAY_FAIL(ARG(var), SPECIFIED)
+                    = *ARG(value);
             }
 
             return R_OUT;
@@ -1286,7 +1302,9 @@ REBNATIVE(fail)
                 // message so it can be templated.
                 //
                 if (IS_WORD(item) || IS_GET_WORD(item)) {
-                    const REBVAL *var = TRY_GET_OPT_VAR(item);
+                    const REBVAL *var
+                        = TRY_GET_OPT_VAR(item, VAL_SPECIFIER(reason));
+
                     if (!var || !IS_FUNCTION(var))
                         continue;
                 }
@@ -1634,8 +1652,16 @@ REBNATIVE(switch)
         // Run the code if it was found.  Because it writes D_OUT with a value
         // (or void), it won't be END--so we'll know at least one case has run.
 
-        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, e.value))
-            goto return_thrown;
+        if (Do_At_Throws(
+            D_OUT,
+            VAL_ARRAY(e.value),
+            VAL_INDEX(e.value),
+            IS_SPECIFIC(e.value)
+                ? VAL_SPECIFIER(KNOWN(e.value))
+                : VAL_SPECIFIER(ARG(cases))
+        )) {
+            return R_OUT_IS_THROWN;
+        }
 
         // Only keep processing if the /ALL refinement was specified
 

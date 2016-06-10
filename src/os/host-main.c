@@ -380,7 +380,7 @@ int Do_String(
         Bind_Values_Deep(ARR_HEAD(code), Lib_Context); */
     }
 
-    if (Do_At_Throws(out, code, 0)) { // `code` is implicitly GC protected
+    if (Do_At_Throws(out, code, 0, SPECIFIED)) { // `code` will be GC protected
         if (at_breakpoint) {
             if (
                 IS_FUNCTION(out)

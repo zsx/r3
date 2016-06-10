@@ -222,6 +222,7 @@ static REB_R Dir_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
                 Copy_Array_Core_Managed(
                     VAL_ARRAY(state),
                     0, // at
+                    VAL_SPECIFIER(state),
                     VAL_ARRAY_LEN_AT(state), // tail
                     0, // extra
                     FALSE, // !deep

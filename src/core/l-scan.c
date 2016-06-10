@@ -1788,7 +1788,9 @@ exit_block:
 #endif
 
     len = ARR_LEN(emitbuf);
-    block = Copy_Values_Len_Shallow(ARR_AT(emitbuf, begin), len - begin);
+    block = Copy_Values_Len_Shallow(
+        ARR_AT(emitbuf, begin), SPECIFIED, len - begin // no RELVALs in scan
+    );
     ASSERT_SERIES_TERM(ARR_SERIES(block));
 
     SET_ARRAY_LEN(emitbuf, begin);

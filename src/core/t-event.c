@@ -198,7 +198,7 @@ static void Set_Event_Vars(REBVAL *evt, REBVAL *blk)
         if (IS_END(val))
             val = BLANK_VALUE;
         else {
-            Get_Simple_Value_Into(&safe, val);
+            Get_Simple_Value_Into(&safe, val, GUESSED);
             val = &safe;
         }
         if (!Set_Event_Var(evt, var, val))

@@ -726,7 +726,9 @@ REBOOL MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
         REBUPT raw_addr = 0;
         REBCNT alignment = 0;
 
-        VAL_STRUCT_SPEC(out) = Copy_Array_Shallow(VAL_ARRAY(data));
+        VAL_STRUCT_SPEC(out) = Copy_Array_Shallow(
+            VAL_ARRAY(data), VAL_SPECIFIER(data)
+        );
         VAL_STRUCT_DATA(out) = Make_Series(
             1, sizeof(struct Struct_Data), MKS_NONE
         );
@@ -804,16 +806,19 @@ REBOOL MT_Struct(REBVAL *out, REBVAL *data, enum Reb_Kind type)
                 if (IS_END(blk)) {
                    fail (Error_Invalid_Arg(blk));
                 } else if (IS_BLOCK(blk)) {
-                    if (Reduce_Array_Throws(init, VAL_ARRAY(blk), 0, FALSE))
+                    if (Reduce_Array_Throws(
+                        init, VAL_ARRAY(blk), 0, VAL_SPECIFIER(blk), FALSE
+                    )) {
                         fail (Error_No_Catch_For_Throw(init));
-
+                    }
                     ++ blk;
                 } else {
                     DO_NEXT_MAY_THROW(
                         eval_idx,
                         init,
                         VAL_ARRAY(data),
-                        blk - VAL_ARRAY_AT(data)
+                        blk - VAL_ARRAY_AT(data),
+                        VAL_SPECIFIER(data)
                     );
                     if (eval_idx == THROWN_FLAG)
                         fail (Error_No_Catch_For_Throw(init));
@@ -1260,7 +1265,10 @@ REBTYPE(Struct)
                         break;
                     case SYM_SPEC:
                         Val_Init_Block(
-                            ret, Copy_Array_Deep_Managed(VAL_STRUCT_SPEC(val))
+                            ret,
+                            Copy_Array_Deep_Managed(
+                                VAL_STRUCT_SPEC(val), SPECIFIED
+                            )
                         );
                         Unbind_Values_Deep(VAL_ARRAY_HEAD(val));
                         break;

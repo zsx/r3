@@ -1433,7 +1433,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
     // are being freed.
     //
     if (!shutdown) {
-
+        //
         // !!! This code was added by Atronix to deal with frequent garbage
         // collection, but the logic is not correct.  The issue has been
         // raised and is commented out pending a correct solution.

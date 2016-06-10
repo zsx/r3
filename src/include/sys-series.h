@@ -919,23 +919,27 @@ struct Reb_Array {
 #define Append_Value(a,v) \
     (*Alloc_Tail_Array((a)) = *(v), NOOP)
 
-#define Copy_Values_Len_Shallow(v,l) \
-    Copy_Values_Len_Extra_Shallow((v), (l), 0)
+#define Copy_Values_Len_Shallow(v,s,l) \
+    Copy_Values_Len_Extra_Shallow((v), (s), (l), 0)
 
-#define Copy_Array_Shallow(a) \
-    Copy_Array_At_Shallow((a), 0)
+#define Copy_Array_Shallow(a,s) \
+    Copy_Array_At_Shallow((a), 0, (s))
 
-#define Copy_Array_Deep_Managed(a) \
-    Copy_Array_At_Extra_Deep_Managed((a), 0, 0)
+#define Copy_Array_Deep_Managed(a,s) \
+    Copy_Array_At_Extra_Deep_Managed((a), 0, (s), 0)
 
-#define Copy_Array_At_Deep_Managed(a,i) \
-    Copy_Array_At_Extra_Deep_Managed((a), (i), 0)
+#define Copy_Array_At_Deep_Managed(a,i,s) \
+    Copy_Array_At_Extra_Deep_Managed((a), (i), (s), 0)
 
-#define Copy_Array_At_Shallow(a,i) \
-    Copy_Array_At_Extra_Shallow((a), (i), 0)
+#define COPY_ANY_ARRAY_AT_DEEP_MANAGED(v) \
+    Copy_Array_At_Extra_Deep_Managed( \
+        VAL_ARRAY(v), VAL_INDEX(v), VAL_SPECIFIER(v), 0)
 
-#define Copy_Array_Extra_Shallow(a,e) \
-    Copy_Array_At_Extra_Shallow((a), 0, (e))
+#define Copy_Array_At_Shallow(a,i,s) \
+    Copy_Array_At_Extra_Shallow((a), (i), (s), 0)
+
+#define Copy_Array_Extra_Shallow(a,s,e) \
+    Copy_Array_At_Extra_Shallow((a), 0, (s), (e))
 
 #define Free_Array(a) \
     Free_Series(ARR_SERIES(a))

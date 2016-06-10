@@ -45,8 +45,12 @@
 // Coded assuming most common case is to give an error on unbounds, and
 // that only read access is requested (so no checking on protection)
 //
-REBVAL *Get_Var_Core(REBOOL *lookback, const REBVAL *any_word, REBFLGS flags)
-{
+REBVAL *Get_Var_Core(
+    REBOOL *lookback,
+    const RELVAL *any_word,
+    REBCTX *specifier,
+    REBFLGS flags
+) {
     assert(ANY_WORD(any_word));
 
     if (GET_VAL_FLAG(any_word, VALUE_FLAG_RELATIVE)) {
@@ -120,7 +124,7 @@ REBVAL *Get_Var_Core(REBOOL *lookback, const REBVAL *any_word, REBFLGS flags)
         //
         // (Including e.g. looking up 'append' in the user context.)
 
-        REBCTX *context = VAL_WORD_CONTEXT(any_word);
+        REBCTX *context = VAL_WORD_CONTEXT(const_KNOWN(any_word));
         REBCNT index = VAL_WORD_INDEX(any_word);
         REBVAL *value;
 

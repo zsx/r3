@@ -219,7 +219,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 
     REBOOL refinement_seen = FALSE;
 
-    RELVAL *item;
+    const RELVAL *item;
     for (item = VAL_ARRAY_AT(spec); NOT_END(item); item++) {
 
     //=//// STRING! FOR FUNCTION DESCRIPTION OR PARAMETER NOTE ////////////=//
@@ -331,7 +331,13 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 DS_PUSH_TRASH;
                 Val_Init_Block(
                     DS_TOP,
-                    Copy_Array_At_Deep_Managed(VAL_ARRAY(item), VAL_INDEX(item))
+                    Copy_Array_At_Deep_Managed(
+                        VAL_ARRAY(item),
+                        VAL_INDEX(item),
+                        IS_SPECIFIC(item)
+                            ? VAL_SPECIFIER(const_KNOWN(item))
+                            : VAL_SPECIFIER(spec)
+                    )
                 );
             }
             else if (IS_STRING(DS_TOP)) { // !!! are blocks after notes good?
@@ -344,7 +350,13 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 
                 Val_Init_Block(
                     DS_TOP - 1,
-                    Copy_Array_At_Deep_Managed(VAL_ARRAY(item), VAL_INDEX(item))
+                    Copy_Array_At_Deep_Managed(
+                        VAL_ARRAY(item),
+                        VAL_INDEX(item),
+                        IS_SPECIFIC(item)
+                            ? VAL_SPECIFIER(const_KNOWN(item))
+                            : VAL_SPECIFIER(spec)
+                    )
                 );
             }
             else
@@ -356,6 +368,9 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             Update_Typeset_Bits_Core(
                 typeset,
                 VAL_ARRAY_HEAD(item),
+                IS_SPECIFIC(item)
+                    ? VAL_SPECIFIER(const_KNOWN(item))
+                    : VAL_SPECIFIER(spec),
                 FALSE // `trap`: false means fail vs. return FALSE if error
             );
 
@@ -404,6 +419,14 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             DS_PUSH(EMPTY_STRING);
         assert(IS_STRING(DS_TOP));
 
+        // Allow "all datatypes but void".  Note that this is the <opt> sense
+        // of void signal--not the <end> sense, which is controlled by a flag.
+        // We do not canonize the saved symbol in the paramlist, see #2258.
+        //
+        DS_PUSH_TRASH;
+        REBVAL *typeset = DS_TOP;
+        Val_Init_Typeset(typeset, ~FLAGIT_KIND(REB_0), VAL_WORD_SYM(item));
+
         // All these would cancel a definitional return (leave has same idea):
         //
         //     func [return [integer!]]
@@ -416,25 +439,17 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         if (canon == SYM_RETURN) {
             assert(definitional_return == NULL);
             if (IS_SET_WORD(item))
-                definitional_return = item; // RETURN: is explicitly tolerated
+                definitional_return = typeset; // RETURN: explicitly tolerated
             else
                 flags &= ~MKF_RETURN;
         }
         else if (canon == SYM_LEAVE) {
             assert(definitional_leave == NULL);
             if (IS_SET_WORD(item))
-                definitional_leave = item; // LEAVE: is explicitly tolerated
+                definitional_leave = typeset; // LEAVE: is explicitly tolerated
             else
                 flags &= ~MKF_LEAVE;
         }
-
-        // Allow "all datatypes but void".  Note that this is the <opt> sense
-        // of void signal--not the <end> sense, which is controlled by a flag.
-        // We do not canonize the saved symbol in the paramlist, see #2258.
-        //
-        DS_PUSH_TRASH;
-        REBVAL *typeset = DS_TOP;
-        Val_Init_Typeset(typeset, ~FLAGIT_KIND(REB_0), VAL_WORD_SYM(item));
 
         switch (VAL_TYPE(item)) {
         case REB_WORD:
@@ -824,7 +839,7 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 
     // See comments in sysobj.r on standard/func-body and standard/proc-body
     //
-    fake_body = Copy_Array_Shallow(VAL_ARRAY(example));
+    fake_body = Copy_Array_Shallow(VAL_ARRAY(example), VAL_SPECIFIER(example));
 
     // Index 5 (or 4 in zero-based C) should be #BODY, a "real" body.  Since
     // the body has relative words and relative arrays and this is not pairing
@@ -924,9 +939,7 @@ REBFUN *Make_Plain_Function_May_Fail(
     REBARR *body_array =
         (VAL_ARRAY_LEN_AT(code) == 0)
             ? EMPTY_ARRAY // just reuse empty array if empty, no copy
-            : Copy_Array_At_Deep_Managed(
-                VAL_ARRAY(code), VAL_INDEX(code)
-            );
+            : COPY_ANY_ARRAY_AT_DEEP_MANAGED(code);
 
     // We need to do a raw initialization of this block RELVAL because it is
     // relative to a function.  (Val_Init_Block assumes all specific values)
@@ -1091,7 +1104,9 @@ REBOOL Specialize_Function_Throws(
         // be built for the code ultimately being called--and specializations
         // have no code of their own.)
 
-        REBARR *varlist = Copy_Array_Deep_Managed(CTX_VARLIST(exemplar));
+        REBARR *varlist = Copy_Array_Deep_Managed(
+            CTX_VARLIST(exemplar), SPECIFIED
+        );
         SET_ARR_FLAG(varlist, ARRAY_FLAG_CONTEXT_VARLIST);
         INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(varlist), CTX_KEYLIST(exemplar));
 
@@ -1231,7 +1246,10 @@ void Clonify_Function(REBVAL *value)
 
     REBFUN *original_fun = VAL_FUNC(value);
 
-    REBARR *paramlist = Copy_Array_Shallow(FUNC_PARAMLIST(original_fun));
+    REBARR *paramlist = Copy_Array_Shallow(
+        FUNC_PARAMLIST(original_fun),
+        SPECIFIED
+    );
     MANAGE_ARRAY(paramlist);
     ARR_HEAD(paramlist)->payload.function.func = AS_FUNC(paramlist);
 
@@ -1252,14 +1270,17 @@ void Clonify_Function(REBVAL *value)
     VAL_RESET_HEADER(body, REB_BLOCK);
     body->payload.any_series.series
         = ARR_SERIES(
-            Copy_Array_Deep_Managed(VAL_ARRAY(FUNC_BODY(original_fun)))
+            Copy_Array_Deep_Managed(
+                VAL_ARRAY(FUNC_BODY(original_fun)),
+                SPECIFIED
+            )
         );
     VAL_INDEX(body) = 0;
-    SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
-    FUNC_BODY(new_fun)->payload.any_series.target.relative = AS_FUNC(paramlist);
 
     // Remap references in the body from the original function to new
 
+    SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
+    INIT_ARRAY_RELATIVE(body, AS_FUNC(paramlist));
     Rebind_Values_Relative_Deep(
         original_fun,
         new_fun,
@@ -1332,7 +1353,7 @@ REB_R Plain_Dispatcher(struct Reb_Frame *f)
         // that words embedded in the shared blocks may only look up relative
         // to the currently running function.
         //
-        if (Do_At_Throws(f->out, VAL_ARRAY(body), 0))
+        if (Do_At_Throws(f->out, VAL_ARRAY(body), 0, GUESSED))
             r = R_OUT_IS_THROWN;
         else
             r = R_OUT;
@@ -1348,7 +1369,7 @@ REB_R Plain_Dispatcher(struct Reb_Frame *f)
         REBVAL copy;
         VAL_RESET_HEADER(&copy, REB_BLOCK);
         INIT_VAL_ARRAY(
-            &copy, Copy_Array_Deep_Managed(VAL_ARRAY(body))
+            &copy, Copy_Array_Deep_Managed(VAL_ARRAY(body), frame_ctx)
         );
         VAL_INDEX(&copy) = 0;
 
@@ -1442,8 +1463,12 @@ REB_R Hijacker_Dispatcher(struct Reb_Frame *f)
 //
 REB_R Routine_Dispatcher(struct Reb_Frame *f)
 {
+    // All the arguments have been fully specified as REBVALs by the
+    // argument fulfillment process.
+    //
     REBARR *args = Copy_Values_Len_Shallow(
-        FRM_NUM_ARGS(f) > 0 ? FRM_ARG(f, 1) : NULL,
+        FRM_ARGS_HEAD(f),
+        SPECIFIED,
         FRM_NUM_ARGS(f)
     );
 
@@ -1462,7 +1487,7 @@ REB_R Adapter_Dispatcher(struct Reb_Frame *f)
     REBVAL *adaptation = FUNC_BODY(f->func);
     assert(ARR_LEN(VAL_ARRAY(adaptation)) == 2);
 
-    REBARR* prelude = VAL_ARRAY(VAL_ARRAY_AT_HEAD(adaptation, 0));
+    REBVAL* prelude = KNOWN(VAL_ARRAY_AT_HEAD(adaptation, 0));
     REBVAL* adaptee = KNOWN(VAL_ARRAY_AT_HEAD(adaptation, 1));
 
     // !!! With specific binding, we could slip the adapter a specifier for
@@ -1483,8 +1508,9 @@ REB_R Adapter_Dispatcher(struct Reb_Frame *f)
     if (THROWN_FLAG == Do_Array_At_Core(
         f->out,
         NULL, // no virtual first element
-        prelude,
-        0, // index
+        VAL_ARRAY(prelude),
+        0, // index,
+        VAL_SPECIFIER(prelude),
         DO_FLAG_TO_END | DO_FLAG_LOOKAHEAD | DO_FLAG_ARGS_EVALUATE
     )) {
         f->func = save_func;
@@ -1760,29 +1786,31 @@ REBNATIVE(specialize)
 //
 //  {Create a processing pipeline of functions that consume the last's result}
 //
-//      chainees [block!]
+//      pipeline [block!]
 //      /only
 //  ]
 //
 REBNATIVE(chain)
 {
-    PARAM(1, chainees);
+    PARAM(1, pipeline);
     REFINE(2, only);
 
     REBVAL *out = D_OUT; // plan ahead for factoring into Chain_Function(out..
 
     assert(!REF(only)); // not written yet
 
+    REBVAL *pipeline = ARG(pipeline);
     REBARR *chainees;
     if (REF(only)) {
-        chainees = Copy_Array_At_Deep_Managed(
-            VAL_ARRAY(ARG(chainees)),
-            VAL_INDEX(ARG(chainees))
-        );
+        chainees = COPY_ANY_ARRAY_AT_DEEP_MANAGED(pipeline);
     }
     else {
         if (Reduce_Array_Throws(
-            out, VAL_ARRAY(ARG(chainees)), VAL_INDEX(ARG(chainees)), FALSE
+            out,
+            VAL_ARRAY(pipeline),
+            VAL_INDEX(pipeline),
+            VAL_SPECIFIER(pipeline),
+            FALSE
         )) {
             return R_OUT_IS_THROWN;
         }
@@ -1800,7 +1828,9 @@ REBNATIVE(chain)
     //
     REBVAL *starter = KNOWN(ARR_HEAD(chainees));
     assert(IS_FUNCTION(ARR_HEAD(chainees)));
-    REBARR *paramlist = Copy_Array_Shallow(VAL_FUNC_PARAMLIST(starter));
+    REBARR *paramlist = Copy_Array_Shallow(
+        VAL_FUNC_PARAMLIST(starter), SPECIFIED
+    );
     ARR_HEAD(paramlist)->payload.function.func = AS_FUNC(paramlist);
     MANAGE_ARRAY(paramlist);
 
@@ -1863,10 +1893,7 @@ REBNATIVE(adapt)
     // a read-only input to be "viewed" with a relative binding, and no copy
     // would need be made if input was R/O.  For now, we copy to relativize.
     //
-    REBARR *prelude = Copy_Array_At_Deep_Managed(
-        VAL_ARRAY(ARG(prelude)),
-        VAL_INDEX(ARG(prelude))
-    );
+    REBARR *prelude = COPY_ANY_ARRAY_AT_DEEP_MANAGED(ARG(prelude));
 
     // For the binding to be correct, the indices that the words use must be
     // the right ones for the frame pushed.  So if you adapt a specialization
@@ -1886,7 +1913,9 @@ REBNATIVE(adapt)
     // will be identical typesets to the original.  It's [0] element must
     // identify the function we're creating vs the original, however.
     //
-    REBARR *paramlist = Copy_Array_Shallow(VAL_FUNC_PARAMLIST(adaptee));
+    REBARR *paramlist = Copy_Array_Shallow(
+        VAL_FUNC_PARAMLIST(adaptee), SPECIFIED
+    );
     ARR_HEAD(paramlist)->payload.function.func = AS_FUNC(paramlist);
     MANAGE_ARRAY(paramlist);
 
@@ -1994,8 +2023,9 @@ REBNATIVE(hijack)
 
         D_OUT->payload.function.func
             = AS_FUNC(Copy_Array_Deep_Managed(
-                AS_ARRAY(D_OUT->payload.function.func))
-            );
+                AS_ARRAY(D_OUT->payload.function.func),
+                SPECIFIED // !!! Note: not actually "deep", just typesets
+            ));
         VAL_FUNC_META(D_OUT) = VAL_FUNC_META(victim);
 
         // We make a "singular" REBSER node to represent the hijacker's body.

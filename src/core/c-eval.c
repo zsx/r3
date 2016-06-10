@@ -84,7 +84,6 @@
 #endif
 
 
-
 static inline void Start_New_Expression_Core(struct Reb_Frame *f) {
     f->expr_index = f->indexor; // !!! See FRM_INDEX() for caveats
     if (Trace_Flags)
@@ -316,7 +315,7 @@ reevaluate:
     case ET_WORD:
         if (f->gotten == NULL) // no work to reuse from failed optimization
             f->gotten = Get_Var_Core(
-                &f->lookback, f->value, GETVAR_READ_ONLY
+                &f->lookback, f->value, f->specifier, GETVAR_READ_ONLY
             );
 
         if (IS_FUNCTION(f->gotten)) { // before IS_VOID() speeds common case
@@ -342,13 +341,13 @@ reevaluate:
             if (f->prior)
                 switch (f->prior->eval_type) {
                 case ET_SET_WORD:
-                    *f->out = *f->prior->param;
+                    *f->out = *const_KNOWN(f->prior->param);
                     assert(IS_SET_WORD(f->out));
                     CLEAR_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
                     goto do_function_in_gotten;
 
                 case ET_SET_PATH:
-                    *f->out = *f->prior->param;
+                    *f->out = *const_KNOWN(f->prior->param);
                     assert(IS_SET_PATH(f->out));
                     CLEAR_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
                     goto do_function_in_gotten;
@@ -415,7 +414,7 @@ reevaluate:
             fail (Error(RE_NEED_VALUE, f->param)); // e.g. `foo: ()`
     #endif
 
-        *GET_MUTABLE_VAR_MAY_FAIL(f->param) = *(f->out);
+        *GET_MUTABLE_VAR_MAY_FAIL(f->param, f->specifier) = *(f->out);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -429,7 +428,7 @@ reevaluate:
 
     case ET_GET_WORD:
         if (f->gotten == NULL) // no work to reuse from failed optimization
-            f->gotten = GET_OPT_VAR_MAY_FAIL(f->value);
+            f->gotten = GET_OPT_VAR_MAY_FAIL(f->value, f->specifier);
 
         *f->out = *f->gotten;
         SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
@@ -458,8 +457,20 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_GROUP:
-        if (DO_VAL_ARRAY_AT_THROWS(f->out, f->value))
+        //
+        // If the source array we are processing that is yielding values is
+        // part of the deep copy of a function body, it's possible that this
+        // GROUP! is a "relative ANY-ARRAY!" that needs the specifier to
+        // resolve the relative any-words and other any-arrays inside it...
+        //
+        if (Do_At_Throws(
+            f->out,
+            VAL_ARRAY(f->value),
+            VAL_INDEX(f->value),
+            f->specifier
+        )) {
             goto finished;
+        }
 
         SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         FETCH_NEXT_ONLY_MAYBE_END(f);
@@ -473,10 +484,11 @@ reevaluate:
 
     case ET_PATH: {
         REBSYM sym;
-        if (Do_Path_Throws(
+        if (Do_Path_Throws_Core(
             f->out,
             &sym, // requesting symbol says we process refinements
             f->value,
+            f->specifier,
             NULL // `setval`: null means don't treat as SET-PATH!
         )) {
             goto finished;
@@ -585,7 +597,13 @@ reevaluate:
         // of storage.  This should be reviewed along with Do_Path generally.
         {
             REBVAL temp;
-            if (Do_Path_Throws(&temp, NULL, f->param, f->out)) {
+            if (Do_Path_Throws_Core(
+                &temp, // output location
+                NULL, // not requesting symbol means refinements not allowed
+                f->param, // param is currently holding SET-PATH! we got in
+                f->specifier, // needed to resolve relative array in path
+                f->out // `setval`: non-NULL means do assignment as SET-PATH!
+            )) {
                 *(f->out) = temp;
                 goto finished;
             }
@@ -609,8 +627,15 @@ reevaluate:
         //
         // returns in word the path item, DS_TOP has value
         //
-        if (Do_Path_Throws(f->out, NULL, f->value, NULL))
+        if (Do_Path_Throws_Core(
+            f->out,
+            NULL, // not requesting symbol means refinements not allowed
+            f->value,
+            f->specifier,
+            NULL // `setval`: null means don't treat as SET-PATH!
+        )) {
             goto finished;
+        }
 
         // We did not pass in a symbol ID
         //
@@ -1624,6 +1649,7 @@ reevaluate:
         f->gotten = Get_Var_Core(
             &f->lookback,
             f->value,
+            f->specifier,
             GETVAR_READ_ONLY
         );
 
@@ -1674,7 +1700,8 @@ finished:
     //
     DROP_CALL(f);
 
-    // All callers must inspect for THROWN()
+    // All callers must inspect for THROWN(f->out), and most should also
+    // inspect for IS_END(f->value)
 }
 
 
@@ -1867,7 +1894,7 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
     else
         assert(f->label_sym == SYM_0 && f->label_str == NULL);
 
-    f->param = cast(const REBVAL*, 0xDECAFBAD);
+    f->param = cast(const RELVAL*, 0xDECAFBAD);
     f->arg = cast(REBVAL*, 0xDECAFBAD);
     f->refine = cast(REBVAL*, 0xDECAFBAD);
 

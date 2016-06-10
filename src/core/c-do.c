@@ -47,15 +47,16 @@
 //
 REBIXO Do_Array_At_Core(
     REBVAL *out,
-    const REBVAL *opt_first,
+    const RELVAL *opt_first,
     REBARR *array,
     REBCNT index,
+    REBCTX *specifier,
     REBFLGS flags
 ) {
     struct Reb_Frame f;
 
     if (opt_first) {
-        f.value = opt_first;
+        f.value = opt_first; // must also be relative to specifier if relative
         f.indexor = index;
     }
     else {
@@ -72,6 +73,7 @@ REBIXO Do_Array_At_Core(
 
     f.out = out;
     f.source.array = array;
+    f.specifier = specifier;
     f.flags = flags;
     f.gotten = NULL; // so ET_WORD and ET_GET_WORD do their own Get_Var
     f.lookback = FALSE;
@@ -261,7 +263,7 @@ REBIXO Do_Va_Core(
     struct Reb_Frame f;
 
     if (opt_first)
-        f.value = opt_first;
+        f.value = opt_first; // doesn't need specifier, not relative
     else {
         // Do_Core() requires caller pre-seed first value, always
         //
@@ -278,6 +280,7 @@ REBIXO Do_Va_Core(
     f.source.vaptr = vaptr;
     f.gotten = NULL; // so ET_WORD and ET_GET_WORD do their own Get_Var
     f.lookback = FALSE;
+    f.specifier = SPECIFIED; // va_list values MUST be full REBVAL* already
 
     f.flags = flags | DO_FLAG_VALIST; // see notes in %sys-do.h on why needed
 

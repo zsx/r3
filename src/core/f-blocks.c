@@ -58,6 +58,7 @@ REBARR *Make_Array(REBCNT capacity)
 REBARR *Copy_Array_At_Extra_Shallow(
     REBARR *original,
     REBCNT index,
+    REBCTX *specifier,
     REBCNT extra
 ) {
     REBCNT len = ARR_LEN(original);
@@ -68,7 +69,38 @@ REBARR *Copy_Array_At_Extra_Shallow(
     len -= index;
     copy = Make_Array(len + extra + 1);
 
-    memcpy(ARR_HEAD(copy), ARR_AT(original, index), len * sizeof(REBVAL));
+    if (specifier == SPECIFIED) {
+        //
+        // We can just bit-copy a fully specified array.  By its definition
+        // it may not contain any RELVALs.  But in the debug build, double
+        // check that...
+        //
+    #if !defined(NDEBUG)
+        RELVAL *check = ARR_AT(original, index);
+        REBCNT count = 0;
+        for (; count < len; ++count) {
+            //
+            // Temporarily disable check.  The system uses dynamic binding
+            // for the moment to resolve relative values in the absence of
+            // a specifier, and the general desire is to get the specifiers
+            // chained in everywhere they need to be.
+            //
+            /* assert(IS_SPECIFIC(check)); */
+        }
+    #endif
+
+        memcpy(ARR_HEAD(copy), ARR_AT(original, index), len * sizeof(REBVAL));
+    }
+    else {
+        // Any RELVALs will have to be handled.  Review if a memcpy with
+        // a touch-up phase is faster, or if there is any less naive way.
+        //
+        RELVAL *src = ARR_AT(original, index);
+        REBVAL *dest = KNOWN(ARR_HEAD(copy));
+        REBCNT count = 0;
+        for (; count < len; ++count, ++dest, ++src)
+            COPY_VALUE(dest, src, specifier);
+    }
 
     SET_ARRAY_LEN(copy, len);
     TERM_ARRAY(copy);
@@ -83,8 +115,12 @@ REBARR *Copy_Array_At_Extra_Shallow(
 // Shallow copy an array from the given index for given maximum
 // length (clipping if it exceeds the array length)
 //
-REBARR *Copy_Array_At_Max_Shallow(REBARR *original, REBCNT index, REBCNT max)
-{
+REBARR *Copy_Array_At_Max_Shallow(
+    REBARR *original,
+    REBCNT index,
+    REBCTX *specifier,
+    REBCNT max
+) {
     REBARR *copy;
 
     if (index > ARR_LEN(original))
@@ -111,7 +147,8 @@ REBARR *Copy_Array_At_Max_Shallow(REBARR *original, REBCNT index, REBCNT max)
 // series created to hold exactly that many entries.
 //
 REBARR *Copy_Values_Len_Extra_Shallow(
-    const REBVAL *head,
+    const RELVAL *head,
+    REBCTX *specifier,
     REBCNT len,
     REBCNT extra
 ) {
@@ -119,7 +156,23 @@ REBARR *Copy_Values_Len_Extra_Shallow(
 
     array = Make_Array(len + extra + 1);
 
-    memcpy(ARR_HEAD(array), head, len * sizeof(REBVAL));
+    if (specifier == SPECIFIED) {
+    #if !defined(NDEBUG)
+        REBCNT count = 0;
+        const RELVAL *check = head;
+        for (; count < len; ++count, ++check) {
+            /*assert(IS_SPECIFIC(check));*/ // temporarily disable
+        }
+    #endif
+        memcpy(ARR_HEAD(array), head, len * sizeof(REBVAL));
+    }
+    else {
+        REBCNT count = 0;
+        const RELVAL *src = head;
+        REBVAL *dest = KNOWN(ARR_HEAD(array));
+        for (; count < len; ++count, ++src, ++dest)
+            COPY_VALUE(dest, src, specifier);
+    }
 
     SET_ARRAY_LEN(array, len);
     TERM_ARRAY(array);
@@ -144,12 +197,13 @@ REBARR *Copy_Values_Len_Extra_Shallow(
 // are in an array, and assert that they are managed.)
 //
 void Clonify_Values_Len_Managed(
-    REBVAL *head,
+    RELVAL *head,
+    REBCTX *specifier,
     REBCNT len,
     REBOOL deep,
     REBU64 types
 ) {
-    REBVAL *value = head;
+    RELVAL *value = head;
     REBCNT index;
 
     if (C_STACK_OVERFLOWING(&len)) Trap_Stack_Overflow();
@@ -191,12 +245,29 @@ void Clonify_Values_Len_Managed(
                     legacy = GET_ARR_FLAG(VAL_ARRAY(value), SERIES_FLAG_LEGACY);
                 #endif
 
-                    series = ARR_SERIES(
-                        Copy_Array_Shallow(VAL_ARRAY(value))
-                    );
+                    if (IS_RELATIVE(value)) {
+                        assert(
+                            VAL_RELATIVE(value)
+                            == VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier))
+                        );
+                        series = ARR_SERIES(
+                            Copy_Array_Shallow(VAL_ARRAY(value), specifier)
+                        );
+                        CLEAR_VAL_FLAG(value, VALUE_FLAG_RELATIVE);
+                        INIT_ARRAY_SPECIFIC(value, specifier);
+                    }
+                    else {
+                        series = ARR_SERIES(
+                            Copy_Array_Shallow(
+                                VAL_ARRAY(value),
+                                VAL_SPECIFIER(KNOWN(value)) // not relative...
+                            )
+                        );
+                    }
                 }
                 else
                     series = Copy_Sequence(VAL_SERIES(value));
+
                 INIT_VAL_SERIES(value, series);
             }
 
@@ -212,9 +283,17 @@ void Clonify_Values_Len_Managed(
             // If we're going to copy deeply, we go back over the shallow
             // copied series and "clonify" the values in it.
             //
+            // Since we had to get rid of the relative bindings in the
+            // shallow copy, we can pass in SPECIFIED here...but the recursion
+            // in Clonify_Values will be threading through any updated specificity
+            // through to the new values.
+            //
             if (types & FLAGIT_KIND(VAL_TYPE(value)) & TS_ARRAYS_OBJ) {
+                REBOOL array = ANY_ARRAY(value);
+                REBOOL context = ANY_CONTEXT(value);
                 Clonify_Values_Len_Managed(
                      ARR_HEAD(AS_ARRAY(series)),
+                     SPECIFIED,
                      VAL_LEN_HEAD(value),
                      deep,
                      types
@@ -245,6 +324,7 @@ void Clonify_Values_Len_Managed(
 REBARR *Copy_Array_Core_Managed(
     REBARR *original,
     REBCNT index,
+    REBCTX *specifier,
     REBCNT tail,
     REBCNT extra,
     REBOOL deep,
@@ -260,13 +340,13 @@ REBARR *Copy_Array_Core_Managed(
     }
     else {
         copy = Copy_Values_Len_Extra_Shallow(
-            ARR_AT(original, index), tail - index, extra
+            ARR_AT(original, index), specifier, tail - index, extra
         );
         MANAGE_ARRAY(copy);
 
-        if (types != 0)
+        if (types != 0) // the copy above should have specified top level
             Clonify_Values_Len_Managed(
-                ARR_HEAD(copy), ARR_LEN(copy), deep, types
+                ARR_HEAD(copy), SPECIFIED, ARR_LEN(copy), deep, types
             );
     }
 
@@ -303,11 +383,13 @@ REBARR *Copy_Array_Core_Managed(
 REBARR *Copy_Array_At_Extra_Deep_Managed(
     REBARR *original,
     REBCNT index,
+    REBCTX *specifier,
     REBCNT extra
 ) {
     return Copy_Array_Core_Managed(
         original,
         index, // at
+        specifier,
         ARR_LEN(original), // tail
         extra, // extra
         TRUE, // deep

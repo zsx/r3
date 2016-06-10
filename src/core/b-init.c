@@ -280,7 +280,7 @@ static void Do_Global_Block(
 
     SNAP_STATE(&state);
 
-    if (Do_At_Throws(&result, block, index))
+    if (Do_At_Throws(&result, block, index, SPECIFIED))
         panic (Error_No_Catch_For_Throw(&result));
 
     ASSERT_STATE_BALANCED(&state);

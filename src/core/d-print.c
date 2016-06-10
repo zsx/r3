@@ -990,6 +990,7 @@ REBOOL Format_GC_Safe_Value_Throws(
 
         f.indexor = VAL_INDEX(val_gc_safe) + 1;
         f.source.array = VAL_ARRAY(val_gc_safe);
+        f.specifier = VAL_SPECIFIER(val_gc_safe);
     }
     else {
         // Prefetch with value + an empty array to use same code path
@@ -997,6 +998,7 @@ REBOOL Format_GC_Safe_Value_Throws(
         f.value = val_gc_safe;
         f.indexor = 0;
         f.source.array = EMPTY_ARRAY;
+        f.specifier = NULL; // f.value is guaranteed non-relative
     }
 
     f.flags = DO_FLAG_NEXT | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD;

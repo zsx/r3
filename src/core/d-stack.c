@@ -45,7 +45,7 @@
 // ellipses to show they have been cut off.  It does not change the arrays
 // in question, but replaces them with copies.
 //
-void Collapsify_Array(REBARR *array, REBCNT limit)
+void Collapsify_Array(REBARR *array, REBCTX *specifier, REBCNT limit)
 {
     REBVAL *item = ARR_HEAD(array);
     for (; NOT_END(item); ++item) {
@@ -53,6 +53,7 @@ void Collapsify_Array(REBARR *array, REBCNT limit)
             REBARR *copy = Copy_Array_At_Max_Shallow(
                 VAL_ARRAY(item),
                 VAL_INDEX(item),
+                IS_RELATIVE(item) ? specifier : VAL_SPECIFIER(KNOWN(item)),
                 limit + 1
             );
 
@@ -60,6 +61,7 @@ void Collapsify_Array(REBARR *array, REBCNT limit)
 
             Collapsify_Array(
                 copy,
+                SPECIFIED,
                 limit
             );
 
@@ -144,7 +146,7 @@ REBARR *Make_Where_For_Frame(struct Reb_Frame *frame)
         SET_ARRAY_LEN(where, len);
         TERM_ARRAY(where);
 
-        Collapsify_Array(where, 3);
+        Collapsify_Array(where, SPECIFIED, 3);
     }
 
     // Making a shallow copy offers another advantage, that it's

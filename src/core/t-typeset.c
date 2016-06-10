@@ -131,8 +131,9 @@ void Val_Init_Typeset(REBVAL *value, REBU64 bits, REBSYM sym)
 // reviewed to see if anything actually used it.
 //
 REBOOL Update_Typeset_Bits_Core(
-    REBVAL *typeset,
-    const REBVAL *head,
+    RELVAL *typeset,
+    const RELVAL *head,
+    REBCTX *specifier,
     REBOOL trap // if TRUE, then return FALSE instead of failing
 ) {
     assert(IS_TYPESET(typeset));
@@ -153,7 +154,7 @@ REBOOL Update_Typeset_Bits_Core(
     for (; NOT_END(item); item++) {
         const REBVAL *var = NULL;
 
-        if (IS_WORD(item) && !(var = TRY_GET_OPT_VAR(item))) {
+        if (IS_WORD(item) && !(var = TRY_GET_OPT_VAR(item, GUESSED))) {
             REBSYM sym = VAL_WORD_SYM(item);
 
             // See notes: if a word doesn't look up to a variable, then its
@@ -248,6 +249,7 @@ REBOOL MT_Typeset(REBVAL *out, REBVAL *data, enum Reb_Kind type)
     if (!Update_Typeset_Bits_Core(
         out,
         VAL_ARRAY_HEAD(data),
+        VAL_SPECIFIER(data),
         TRUE // `trap`: true means to return FALSE instead of fail() on error
     )) {
         return FALSE;
@@ -319,6 +321,7 @@ REBTYPE(Typeset)
             Update_Typeset_Bits_Core(
                 D_OUT,
                 VAL_ARRAY_AT(arg),
+                VAL_SPECIFIER(arg),
                 FALSE // `trap`: false means fail() instead of FALSE on error
             );
             return R_OUT;

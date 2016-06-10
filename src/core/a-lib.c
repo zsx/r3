@@ -475,7 +475,7 @@ RL_API int RL_Do_String(
         Resolve_Context(user, Lib_Context, &vali, FALSE, FALSE);
     }
 
-    if (Do_At_Throws(&result, code, 0)) {
+    if (Do_At_Throws(&result, code, 0, GUESSED)) {
         DROP_GUARD_ARRAY(code);
 
         if (
@@ -600,11 +600,21 @@ RL_API void RL_Do_Commands(REBARR *array, REBCNT flags, REBCEC *cec)
     cec_before = TG_Command_Execution_Context;
     TG_Command_Execution_Context = cec; // push
 
+    // !!! In a general sense, passing in any old array (that might be in
+    // the body of a function) will not work here to pass in SPECIFIED
+    // because it will not find locals.  If a block is completely constructed
+    // at runtime through RL_Api calls, it should however have all specific
+    // words and blocks.  If this is not the case (and it is important)
+    // then dynamic scoping could be used to try matching the words to
+    // the most recent call to the function they're in on the stack...but
+    // hopefully it won't be needed.
+
     indexor = Do_Array_At_Core(
         &result,
         NULL, // `first`: NULL means start at array head (no injected head)
         array,
         0, // start evaluating at index 0
+        SPECIFIED, // !!! see notes above
         DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
     );
 

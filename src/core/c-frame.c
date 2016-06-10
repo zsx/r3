@@ -143,10 +143,13 @@ REBOOL Expand_Context_Keylist_Core(REBCTX *context, REBCNT delta)
         //
         // (If all shared copies break away in this fashion, then the last
         // copy of the dangling keylist will be GC'd.)
+        //
+        // Keylists are only typesets, so no need for a specifier.
 
         REBCTX *meta = ARR_SERIES(keylist)->misc.meta; // preserve meta object
 
-        keylist = Copy_Array_Extra_Shallow(keylist, delta);
+        keylist = Copy_Array_Extra_Shallow(keylist, SPECIFIED, delta);        
+
         ARR_SERIES(keylist)->misc.meta = meta;
 
         MANAGE_ARRAY(keylist);
@@ -287,13 +290,21 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
 
     REBCTX *meta = CTX_META(src); // preserve meta object (if any)
 
+    // Note that keylists contain only typesets (hence no relative values),
+    // and no varlist is part of a function body.  All the values here should
+    // be fully specified.
+    //
     if (extra == 0) {
-        dest = AS_CONTEXT(Copy_Array_Shallow(CTX_VARLIST(src)));
+        dest = AS_CONTEXT(Copy_Array_Shallow(CTX_VARLIST(src), SPECIFIED));
         INIT_CTX_KEYLIST_SHARED(dest, CTX_KEYLIST(src));
     }
     else {
-        REBARR *keylist = Copy_Array_Extra_Shallow(CTX_KEYLIST(src), extra);
-        dest = AS_CONTEXT(Copy_Array_Extra_Shallow(CTX_VARLIST(src), extra));
+        REBARR *keylist = Copy_Array_Extra_Shallow(
+            CTX_KEYLIST(src), SPECIFIED, extra
+        );
+        dest = AS_CONTEXT(Copy_Array_Extra_Shallow(
+            CTX_VARLIST(src), SPECIFIED, extra
+        ));
         INIT_CTX_KEYLIST_UNIQUE(dest, keylist);
         MANAGE_ARRAY(CTX_KEYLIST(dest));
     }
@@ -382,7 +393,9 @@ REBARR *Grab_Collected_Keylist_Managed(REBCTX *prior)
         keylist = CTX_KEYLIST(prior);
     }
     else {
-        keylist = Copy_Array_Shallow(BUF_COLLECT);
+        // The BUF_COLLECT should contain only typesets, so no relative values
+        //
+        keylist = Copy_Array_Shallow(BUF_COLLECT, SPECIFIED);
         MANAGE_ARRAY(keylist);
     }
 
@@ -696,8 +709,11 @@ REBARR *Collect_Words(
             binds[VAL_WORD_CANON(word)] = 0;
     }
 
+    // The words in BUF_COLLECT are newly created, and should not be bound
+    // at all... hence fully specified with no relative words
+    //
     array = Copy_Array_At_Max_Shallow(
-        BUF_COLLECT, start, ARR_LEN(BUF_COLLECT) - start
+        BUF_COLLECT, start, SPECIFIED, ARR_LEN(BUF_COLLECT) - start
     );
     SET_ARRAY_LEN(BUF_COLLECT, 0);  // allow reuse
 
@@ -794,7 +810,9 @@ REBCTX *Make_Selfish_Context_Detect(
 
     if (opt_parent) {
         //
-        // Bitwise copy parent values (will have bits fixed by Clonify)
+        // Bitwise copy parent values (will have bits fixed by Clonify).
+        // None of these should be relative, because they came from object
+        // vars (that were not part of the deep copy of a function body)
         //
         memcpy(
             CTX_VARS_HEAD(context),
@@ -806,7 +824,11 @@ REBCTX *Make_Selfish_Context_Detect(
         // their series components with deep copies of themselves:
         //
         Clonify_Values_Len_Managed(
-            CTX_VAR(context, 1), CTX_LEN(context), TRUE, TS_CLONE
+            CTX_VARS_HEAD(context),
+            SPECIFIED,
+            CTX_LEN(context),
+            TRUE,
+            TS_CLONE
         );
     }
 
@@ -857,6 +879,7 @@ REBCTX *Make_Selfish_Context_Detect(
 REBCTX *Construct_Context(
     enum Reb_Kind kind,
     REBVAL *head,
+    REBCTX *specifier,
     REBOOL as_is,
     REBCTX *opt_parent
 ) {
@@ -870,8 +893,8 @@ REBCTX *Construct_Context(
 
     if (NOT_END(head)) Bind_Values_Shallow(head, context);
 
-    if (as_is) Do_Min_Construct(head);
-    else Do_Construct(head);
+    if (as_is) Do_Min_Construct(head, specifier);
+    else Do_Construct(head, specifier);
 
     return context;
 }
@@ -886,9 +909,9 @@ REBCTX *Construct_Context(
 //
 // Handles cascading set words:  word1: word2: value
 //
-void Do_Construct(REBVAL* head)
+void Do_Construct(const RELVAL* head, REBCTX *specifier)
 {
-    REBVAL *value = head;
+    const REBVAL *value = head;
     REBDSP dsp_orig = DSP;
 
     REBVAL temp;
@@ -910,7 +933,7 @@ void Do_Construct(REBVAL* head)
             // Remember this SET-WORD!.  Come back and set what it is
             // bound to, once a non-SET-WORD! value is found.
             //
-            DS_PUSH(value);
+            DS_PUSH_RELVAL(value, specifier);
             continue;
         }
 
@@ -969,7 +992,11 @@ void Do_Construct(REBVAL* head)
 
         // Set prior set-words:
         while (DSP > dsp_orig) {
-            *GET_MUTABLE_VAR_MAY_FAIL(DS_TOP) = temp;
+            COPY_VALUE(
+                GET_MUTABLE_VAR_MAY_FAIL(DS_TOP, SPECIFIED),
+                &temp,
+                specifier
+            );
             DS_DROP;
         }
     }
@@ -994,21 +1021,25 @@ void Do_Construct(REBVAL* head)
 // Then `a` and `b` will be set to 1, while `+` and `2` will be ignored, `d`
 // will be the word `print`, and `e` will be left as it was.
 //
-void Do_Min_Construct(const REBVAL* head)
+void Do_Min_Construct(const RELVAL* head, REBCTX *specifier)
 {
-    const REBVAL *value = head;
+    const RELVAL *value = head;
     REBDSP dsp_orig = DSP;
 
     for (; NOT_END(value); value++) {
         if (IS_SET_WORD(value)) {
-            DS_PUSH(value); // push this SET-WORD! to the stack
+            DS_PUSH_RELVAL(value, specifier); // push SET-WORD! to the stack
         }
         else {
             // For any pushed SET-WORD!s, assign them to this non-SET-WORD!
             // value and then drop them from the stack.
             //
             while (DSP > dsp_orig) {
-                *GET_MUTABLE_VAR_MAY_FAIL(DS_TOP) = *value;
+                COPY_VALUE(
+                    GET_MUTABLE_VAR_MAY_FAIL(DS_TOP, SPECIFIED),
+                    value,
+                    specifier
+                );
                 DS_DROP;
             }
         }
@@ -1104,12 +1135,13 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     TERM_ARRAY(BUF_COLLECT);
 
     // Allocate child (now that we know the correct size).  Obey invariant
-    // that keylists are always managed.
+    // that keylists are always managed.  The BUF_COLLECT contains only
+    // typesets, so no need for a specifier in the copy.
     //
     // !!! Review: should child start fresh with no meta information, or get
     // the meta information held by parents?
     //
-    keylist = Copy_Array_Shallow(BUF_COLLECT);
+    keylist = Copy_Array_Shallow(BUF_COLLECT, SPECIFIED);
     MANAGE_ARRAY(keylist);
     ARR_SERIES(keylist)->misc.meta = NULL;
 
@@ -1152,9 +1184,14 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     // Terminate the child context:
     TERM_ARRAY(CTX_VARLIST(child));
 
-    // Deep copy the child
+    // Deep copy the child.  Context vars are REBVALs, already fully specified
+    //
     Clonify_Values_Len_Managed(
-        CTX_VARS_HEAD(child), CTX_LEN(child), TRUE, TS_CLONE
+        CTX_VARS_HEAD(child),
+        SPECIFIED,
+        CTX_LEN(child),
+        TRUE,
+        TS_CLONE
     );
 
     // Rebind the child
@@ -1423,7 +1460,7 @@ REBOOL Is_Function_Frame_Fulfilling(struct Reb_Frame *f)
 // this uses the stack (dynamic binding) but a better idea is in the works.
 //
 struct Reb_Frame *Frame_For_Relative_Word(
-    const REBVAL *any_word,
+    const RELVAL *any_word,
     REBOOL trap
 ) {
     // !!! This is the temporary answer to relative binding.  NewFunction

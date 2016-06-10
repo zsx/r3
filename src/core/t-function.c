@@ -176,7 +176,7 @@ REBTYPE(Function)
 
                 REBOOL is_fake;
                 REBARR *body = Get_Maybe_Fake_Func_Body(&is_fake, value);
-                Val_Init_Block(D_OUT, Copy_Array_Deep_Managed(body));
+                Val_Init_Block(D_OUT, Copy_Array_Deep_Managed(body, SPECIFIED));
 
                 if (IS_FUNC_DURABLE(value)) {
                     // See #2221 for why durable body copies unbind locals
@@ -197,7 +197,7 @@ REBTYPE(Function)
                 D_OUT,
                 REB_BLOCK,
                 Copy_Array_Deep_Managed(
-                    VAL_ARRAY(VAL_FUNC_BODY(value))
+                    VAL_ARRAY(VAL_FUNC_BODY(value)), SPECIFIED
                 )
             );
             return R_OUT;

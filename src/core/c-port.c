@@ -458,6 +458,7 @@ REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
         &first, // path not in array but will be "virtual" first array element
         code_array,
         0, // index
+        SPECIFIED, // reusing existing REBVAL arguments, no relative values
         DO_FLAG_TO_END | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
     );
 

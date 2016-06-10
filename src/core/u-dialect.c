@@ -73,10 +73,10 @@ REBVAL *Find_Mutable_In_Contexts(REBSYM sym, REBVAL *where)
 
     for (; NOT_END(where); where++) {
         if (IS_WORD(where)) {
-            val = GET_MUTABLE_VAR_MAY_FAIL(where);
+            val = GET_MUTABLE_VAR_MAY_FAIL(where, GUESSED);
         }
         else if (IS_PATH(where)) {
-            if (Do_Path_Throws(&safe, NULL, where, 0))
+            if (Do_Path_Throws_Core(&safe, NULL, where, GUESSED, NULL))
                 fail (Error_No_Catch_For_Throw(&safe));
             val = &safe;
         }
@@ -171,12 +171,15 @@ static REBVAL *Eval_Arg(REBDIA *dia)
                 );
                 if (value) break;
             }
-            value = TRY_GET_MUTABLE_VAR(val); // NULL if protected or not found
+
+            // value comes back NULL if protected or not found
+            //
+            value = TRY_GET_MUTABLE_VAR(val, GUESSED);
         }
         break;
 
     case REB_PATH:
-        if (Do_Path_Throws(&safe, NULL, value, NULL))
+        if (Do_Path_Throws_Core(&safe, NULL, value, GUESSED, NULL))
             fail (Error_No_Catch_For_Throw(&safe));
         if (IS_FUNCTION(&safe)) return NULL;
         DS_PUSH(&safe);
@@ -262,7 +265,8 @@ again:
                 }
                 // Is it a typeset?
                 else if (
-                    (temp = TRY_GET_MUTABLE_VAR(fargs)) && IS_TYPESET(temp)
+                    (temp = TRY_GET_MUTABLE_VAR(fargs, GUESSED))
+                    && IS_TYPESET(temp)
                 ) {
                     if (TYPE_CHECK(temp, VAL_TYPE(value))) accept = 1;
                 }

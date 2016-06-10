@@ -849,5 +849,5 @@ REBARR *Split_Lines(REBVAL *val)
         SET_VAL_FLAG(val, VALUE_FLAG_LINE);
     }
 
-    return Copy_Array_Shallow(array);
+    return Copy_Array_Shallow(array, SPECIFIED); // no relative values
 }

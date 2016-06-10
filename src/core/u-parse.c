@@ -167,7 +167,7 @@ static const REBVAL *Get_Parse_Value(REBVAL *safe, const REBVAL *item)
 
         // If `item` is not bound, there will be a fail() during GET_VAR
         //
-        var = GET_OPT_VAR_MAY_FAIL(item);
+        var = GET_OPT_VAR_MAY_FAIL(item, GUESSED);
 
         // While NONE! is legal and represents a no-op in parse, if a
         // you write `parse "" [to undefined-value]`...and undefined-value
@@ -185,7 +185,7 @@ static const REBVAL *Get_Parse_Value(REBVAL *safe, const REBVAL *item)
         //
         // !!! REVIEW: how should GET-PATH! be handled?
 
-        if (Do_Path_Throws(safe, NULL, item, NULL))
+        if (Do_Path_Throws_Core(safe, NULL, item, GUESSED, NULL))
             fail (Error_No_Catch_For_Throw(safe));
 
         // See notes above about voids
@@ -523,7 +523,7 @@ static REBCNT To_Thru(
                 else {
                     // !!! Should mutability be enforced?  It might have to
                     // be if set/copy are used...
-                    item = GET_MUTABLE_VAR_MAY_FAIL(item);
+                    item = GET_MUTABLE_VAR_MAY_FAIL(item, GUESSED);
                 }
             }
             else if (IS_PATH(item)) {
@@ -874,7 +874,7 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
     // Evaluate next expression, stop processing if BREAK/RETURN/QUIT/THROW...
     //
     REBVAL value;
-    DO_NEXT_MAY_THROW(indexor, &value, AS_ARRAY(P_INPUT), indexor);
+    DO_NEXT_MAY_THROW(indexor, &value, AS_ARRAY(P_INPUT), indexor, GUESSED);
     if (indexor == THROWN_FLAG) {
         *f->out = value;
         return THROWN_FLAG;
@@ -1226,7 +1226,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                     REBVAL temp;
                     Val_Init_Series_Index(&temp, P_TYPE, P_INPUT, P_POS);
 
-                    *GET_MUTABLE_VAR_MAY_FAIL(item) = temp;
+                    *GET_MUTABLE_VAR_MAY_FAIL(item, GUESSED) = temp;
 
                     continue;
                 }
@@ -1234,7 +1234,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                 // :word - change the index for the series to a new position
                 if (IS_GET_WORD(item)) {
                     // !!! Should mutability be enforced?
-                    item = GET_MUTABLE_VAR_MAY_FAIL(item);
+                    item = GET_MUTABLE_VAR_MAY_FAIL(item, GUESSED);
                     if (!ANY_SERIES(item)) // #1263
                         fail (Error(RE_PARSE_SERIES, P_RULE - 1));
                     P_POS = Set_Parse_Series(f, item);
@@ -1244,7 +1244,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                 // word - some other variable
                 if (IS_WORD(item)) {
                     // !!! Should mutability be enforced?
-                    item = GET_MUTABLE_VAR_MAY_FAIL(item);
+                    item = GET_MUTABLE_VAR_MAY_FAIL(item, GUESSED);
                 }
 
                 // item can still be 'word or /word
@@ -1252,7 +1252,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
         }
         else if (ANY_PATH(item)) {
             if (IS_PATH(item)) {
-                if (Do_Path_Throws(&save, NULL, item, NULL))
+                if (Do_Path_Throws_Core(&save, NULL, item, GUESSED, NULL))
                     fail (Error_No_Catch_For_Throw(&save));
                 item = &save;
             }
@@ -1261,12 +1261,13 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                 Val_Init_Series(&tmp, P_TYPE, P_INPUT);
                 VAL_INDEX(&tmp) = P_POS;
 
-                if (Do_Path_Throws(&save, NULL, item, &tmp))
+                if (Do_Path_Throws_Core(&save, NULL, item, GUESSED, &tmp))
                     fail (Error_No_Catch_For_Throw(&save));
+
                 item = &save;
             }
             else if (IS_GET_PATH(item)) {
-                if (Do_Path_Throws(&save, NULL, item, NULL))
+                if (Do_Path_Throws_Core(&save, NULL, item, GUESSED, NULL))
                     fail (Error_No_Catch_For_Throw(&save));
                 // CureCode #1263 change
                 /* if (
@@ -1578,14 +1579,14 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                         P_TYPE,
                         Is_Array_Series(P_INPUT)
                             ? ARR_SERIES(Copy_Array_At_Max_Shallow(
-                                AS_ARRAY(P_INPUT), begin, count
+                                AS_ARRAY(P_INPUT), begin, GUESSED, count
                             ))
                             : Copy_String_Slimming(P_INPUT, begin, count)
                     );
-                    *GET_MUTABLE_VAR_MAY_FAIL(word) = temp;
+                    *GET_MUTABLE_VAR_MAY_FAIL(word, GUESSED) = temp;
                 }
                 else if (GET_FLAG(flags, PF_SET)) {
-                    REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word);
+                    REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word, GUESSED);
 
                     if (Is_Array_Series(P_INPUT)) {
                         if (count == 0) SET_BLANK(var);
@@ -1617,7 +1618,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                         P_TYPE,
                         Is_Array_Series(P_INPUT)
                             ? ARR_SERIES(Copy_Array_At_Max_Shallow(
-                                AS_ARRAY(P_INPUT), begin, count
+                                AS_ARRAY(P_INPUT), begin, GUESSED, count
                             ))
                             : Copy_String_Slimming(P_INPUT, begin, count)
                     );

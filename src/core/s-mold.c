@@ -1456,8 +1456,12 @@ REBSER *Copy_Mold_Value(const REBVAL *value, REBFLGS opts)
 // 
 // Reduce a block and then form each value into a string REBVAL.
 //
-REBOOL Form_Reduce_Throws(REBVAL *out, REBARR *block, REBCNT index)
-{
+REBOOL Form_Reduce_Throws(
+    REBVAL *out,
+    REBARR *block,
+    REBCNT index,
+    REBCTX *specifier
+) {
     REBIXO indexor = index;
 
     REB_MOLD mo;
@@ -1466,7 +1470,7 @@ REBOOL Form_Reduce_Throws(REBVAL *out, REBARR *block, REBCNT index)
     Push_Mold(&mo);
 
     while (indexor != END_FLAG) {
-        DO_NEXT_MAY_THROW(indexor, out, block, indexor);
+        DO_NEXT_MAY_THROW(indexor, out, block, indexor, specifier);
         if (indexor == THROWN_FLAG)
             return TRUE;
 

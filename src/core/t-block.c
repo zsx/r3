@@ -228,7 +228,9 @@ REBOOL Make_Block_Type_Throws(
         len = VAL_ARRAY_LEN_AT(arg);
         if (len > 0 && type >= REB_PATH && type <= REB_LIT_PATH)
             No_Nones(arg);
-        array = Copy_Values_Len_Shallow(VAL_ARRAY_AT(arg), len);
+        array = Copy_Values_Len_Shallow(
+            VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg), len
+        );
         goto done;
     }
 
@@ -356,7 +358,7 @@ REBOOL Make_Block_Type_Throws(
         fail (Error_Invalid_Arg(arg));
     }
 
-    array = Copy_Values_Len_Shallow(arg, 1);
+    array = Copy_Values_Len_Shallow(arg, SPECIFIED, 1); // REBVAL, known
 
 done:
     Val_Init_Array(out, type, array);
@@ -778,7 +780,7 @@ pick_using_arg:
             *D_OUT = ARR_HEAD(array)[index];
         else
             Val_Init_Block(
-                D_OUT, Copy_Array_At_Max_Shallow(array, index, len)
+                D_OUT, Copy_Array_At_Max_Shallow(array, index, GUESSED, len)
             );
         Remove_Series(ARR_SERIES(array), index, len);
         return R_OUT;
@@ -895,6 +897,7 @@ pick_using_arg:
         copy = Copy_Array_Core_Managed(
             array,
             VAL_INDEX(value), // at
+            GUESSED,
             VAL_INDEX(value) + Partial1(value, ARG(limit)), // tail
             0, // extra
             REF(deep), // deep

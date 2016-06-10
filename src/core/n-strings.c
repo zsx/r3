@@ -131,8 +131,10 @@ REBNATIVE(ajoin)
 {
     PARAM(1, block);
 
+    REBVAL *block = ARG(block);
+
     if (Form_Reduce_Throws(
-        D_OUT, VAL_ARRAY(ARG(block)), VAL_INDEX(ARG(block))
+        D_OUT, VAL_ARRAY(block), VAL_INDEX(block), VAL_SPECIFIER(block)
     )) {
         return R_OUT_IS_THROWN;
     }
@@ -439,7 +441,11 @@ REBNATIVE(construct)
     Val_Init_Object(
         D_OUT,
         Construct_Context(
-            REB_OBJECT, VAL_ARRAY_AT(spec_value), REF(only), parent
+            REB_OBJECT,
+            VAL_ARRAY_AT(spec_value),
+            VAL_SPECIFIER(spec_value),
+            REF(only),
+            parent
         )
     );
 
