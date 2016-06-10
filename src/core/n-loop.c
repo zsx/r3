@@ -1124,7 +1124,7 @@ REBNATIVE(while)
     //
     REBVAL unsafe;
 
-    REBOOL none_ran = TRUE; // !!! TBD: END marker default, so = IS_END(D_OUT)
+    assert(IS_END(D_OUT)); // guaranteed, used to test if body ever ran...
 
     do {
         if (DO_VAL_ARRAY_AT_THROWS(&unsafe, ARG(condition))) {
@@ -1143,9 +1143,9 @@ REBNATIVE(while)
 
         if (IS_CONDITIONAL_FALSE(&unsafe)) {
             if (REF(q))
-                return none_ran ? R_FALSE : R_TRUE; // /? asks if body ran
+                return IS_END(D_OUT) ? R_FALSE : R_TRUE; // /? if body ran
 
-            if (none_ran)
+            if (IS_END(D_OUT))
                 SET_VOID_UNLESS_LEGACY_NONE(D_OUT); // void if body didn't run
 
             return R_OUT; // last body evaluative result (may be void)
@@ -1155,6 +1155,7 @@ REBNATIVE(while)
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) {
+                    assert(NOT_END(D_OUT));
                     if (REF(q)) return R_TRUE; // if a break ran, body ran
                     return R_OUT;
                 }
@@ -1163,7 +1164,5 @@ REBNATIVE(while)
             return R_OUT_IS_THROWN;
         }
 
-        none_ran = FALSE;
     } while (TRUE);
-
 }

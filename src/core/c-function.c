@@ -1638,9 +1638,10 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
         ASSERT_CONTEXT(AS_CONTEXT(f->data.varlist));
     }
 
-    f->arg = FRM_ARGS_HEAD(f);
     f->refine = TRUE_VALUE;
     f->cell.subfeed = NULL;
+
+    f->arg = FRM_ARGS_HEAD(f);
 
     if (opt_def) {
         //
@@ -1674,8 +1675,6 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
             Bind_Relative_Deep(
                 f->func, VAL_ARRAY_AT(opt_def), FLAGIT_KIND(REB_SET_WORD)
             );
-
-            f->arg = &f->data.stackvars[0];
         }
 
         // Do the block into scratch space--we ignore the result (unless it is
@@ -1688,6 +1687,7 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
     }
 
     f->param = FUNC_PARAMS_HEAD(f->func);
+    SET_END(f->out);
 
     Do_Core(f);
 

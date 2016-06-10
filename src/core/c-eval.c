@@ -284,12 +284,6 @@ void Do_Core(struct Reb_Frame * const f)
     //
     f->eval_fetched = NULL;
 
-    // The f->out slot is GC protected while the natives or user code runs.
-    // To keep it from crashing the GC, we put in "safe trash" that will be
-    // acceptable to the GC but raise alerts if any other code reads it.
-    //
-    SET_TRASH_SAFE(f->out);
-
 value_ready_for_do_next:
 
     assert(Eval_Count != 0);
@@ -335,15 +329,6 @@ reevaluate:
     //
     // (We also want the debugger to consider the triggering EVAL as the
     // start of the expression, and don't want to advance `expr_index`).
-
-    // On entry we initialized `f->out` to a GC-safe value, and no evaluations
-    // should write END markers or unsafe trash in the slot.  As evaluations
-    // proceed the value they wrote in `f->out` should be fine to leave there
-    // as it won't crash the GC--and is cheaper than overwriting.  But in the
-    // debug build, throw safe trash in the slot half the time to catch stray
-    // reuses of irrelevant data...and test the release path the other half.
-    //
-    if (SPORADICALLY(2)) SET_TRASH_SAFE(f->out);
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -435,8 +420,10 @@ reevaluate:
             f->eval_type = ET_FUNCTION;
             SET_FRAME_SYM(f, VAL_WORD_SYM(f->value));
 
-            if (NOT(lookback)) // ordinary "prefix" function dispatch
+            if (NOT(lookback)) { // ordinary "prefix" function dispatch
+                SET_END(f->out);
                 goto do_function_in_param;
+            }
 
             // `case ET_WORD` runs at the start of a new evaluation cycle.
             // It could be the very first element evaluated, hence it's not
@@ -608,8 +595,11 @@ reevaluate:
             // the infix-or-not status of a binding for several reasons, so
             // this does not come into play here.
 
-            f->param = f->out;
             assert(!lookback);
+
+            f->cell.eval = *f->out;
+            f->param = KNOWN(&f->cell.eval);
+            SET_END(f->out);
             goto do_function_in_param;
         }
 
@@ -635,6 +625,12 @@ reevaluate:
         // function that quotes its first argument, e.g. `x/y: ++ 10`
         //
         f->param = f->value;
+
+        // f->out is held between a DO_NEXT and a Do_Path and expected to
+        // stay valid.  The GC must therefore protect the f->out slot, so
+        // it can't contain garbage.  (Similar issue with ET_FUNCTION)
+        //
+        SET_END(f->out);
 
         FETCH_NEXT_ONLY_MAYBE_END(f);
 
@@ -756,6 +752,8 @@ reevaluate:
         f->param = f->value;
         SET_FRAME_SYM(f, SYM___ANONYMOUS__); // literal functions are nameless
 
+        SET_END(f->out); // needs GC-safe data
+
     do_function_in_param:
 
         assert(IS_FUNCTION(f->param));
@@ -818,12 +816,15 @@ reevaluate:
 
                 f->cell.eval = *f->out;
                 lookback = FALSE;
+                SET_END(f->out);
             }
             else {
                 if (f->indexor == END_FLAG) // e.g. `do [eval]`
                     fail (Error_No_Arg(FRM_LABEL(f), f->param));
 
-                DO_NEXT_REFETCH_MAY_THROW(&f->cell.eval, f, DO_FLAG_LOOKAHEAD);
+                DO_NEXT_REFETCH_MAY_THROW(
+                    SINK(&f->cell.eval), f, DO_FLAG_LOOKAHEAD
+                );
 
                 if (THROWN(&f->cell.eval)) goto finished;
             }
@@ -899,6 +900,12 @@ reevaluate:
         // and must interpret any void f->arg as an unspecified parameter.)
         //
         assert(NOT(lookback && (f->flags & DO_FLAG_APPLYING)));
+
+        // The f->out slot is guarded while a function is gathering its
+        // arguments.  It cannot contain garbage, so it must either be END
+        // or a lookback's first argument (which can also be END).
+        //
+        assert(IS_END(f->out) || lookback);
 
         // `10 = add 5 5` is `true`
         // `add 5 5 = 10` is `** Script error: expected logic! not integer!`
@@ -1034,7 +1041,7 @@ reevaluate:
                     //
                     // Needed for `(copy [1 2 3])`, active specializations
 
-                    if (DO_VALUE_THROWS(&f->cell.eval, f->arg)) {
+                    if (DO_VALUE_THROWS(SINK(&f->cell.eval), f->arg)) {
                         *f->out = *KNOWN(&f->cell.eval);
                         DS_DROP_TO(f->dsp_orig);
                         Drop_Function_Args_For_Frame(f);
@@ -1081,7 +1088,7 @@ reevaluate:
 
                 if (args_evaluate && IS_QUOTABLY_SOFT(f->arg)) {
 
-                    if (DO_VALUE_THROWS(&f->cell.eval, f->arg)) {
+                    if (DO_VALUE_THROWS(SINK(&f->cell.eval), f->arg)) {
                         *f->out = *KNOWN(&f->cell.eval);
                         DS_DROP_TO(f->dsp_orig);
                         Drop_Function_Args_For_Frame(f);
@@ -1211,6 +1218,7 @@ reevaluate:
                     }
 
                     *f->arg = *f->out;
+                    SET_END(f->out);
                 }
                 else if (args_evaluate) {
                     DO_NEXT_REFETCH_MAY_THROW(f->arg, f, lookahead_flags);
@@ -1246,6 +1254,7 @@ reevaluate:
                         fail (Error_Lookback_Quote_Too_Late(f));
 
                     *f->arg = *f->out;
+                    SET_END(f->out);
                 }
                 else
                     QUOTE_NEXT_REFETCH(f->arg, f); // non-VALUE_FLAG_EVALUATED
@@ -1275,6 +1284,7 @@ reevaluate:
                     fail (Error_Lookback_Quote_Set_Soft(f));
 
                 *f->arg = *f->out;
+                SET_END(f->out);
             }
             else if (args_evaluate && IS_QUOTABLY_SOFT(f->value)) {
                 if (DO_VALUE_THROWS(f->arg, f->value)) {
@@ -1455,12 +1465,6 @@ reevaluate:
 
         assert(DSP == f->dsp_orig);
 
-        // Although the Make_Call wrote safe trash into the output slot, we
-        // need to do it again for the dispatch, since the spots are used to
-        // do argument fulfillment into.
-        //
-        SET_TRASH_SAFE(f->out);
-
         // Now we reset arg to the head of the argument list.  This provides
         // fast access for the callees, so they don't have to go through an
         // indirection further than just f->arg to get it.
@@ -1532,8 +1536,7 @@ reevaluate:
         // f->param cannot be a typeset while the function is running, because
         // typesets are used as a signal to Is_Function_Frame_Fulfilling.
         //
-        f->cell.subfeed = NULL; // we have to save f->out now
-        assert(f->cell.subfeed == NULL);
+        f->cell.subfeed = NULL;
         assert(IS_END(f->param));
         assert(
             IS_END(f->value)
@@ -1543,6 +1546,16 @@ reevaluate:
         assert(f->indexor != THROWN_FLAG);
 
         if (Trace_Flags) Trace_Func(FRM_LABEL(f), FUNC_VALUE(f->func));
+
+        // The out slot needs initialization for GC safety during the function
+        // run.  Choosing an END marker should be legal because places that
+        // you can use as output targets can't be visible to the GC (that
+        // includes argument arrays being fulfilled).  This offers extra
+        // perks, because it means a recycle/torture will catch you if you
+        // try to Do_Core into movable memory...*and* a native can tell if it
+        // has written the output slot yet or not (e.g. WHILE's /? refinement).
+        //
+        assert(IS_END(f->out));
 
         // Any of the below may return f->out as THROWN()
         //
@@ -1748,8 +1761,12 @@ reevaluate:
         // the value before it, assume that means it's a 0-arg barrier
         // that does not want to be the left hand side of another infix.
         //
-        if (lookback && lookback_leftover)
-            fail (Error_Infix_Left_Arg_Prohibited(f));
+        if (lookback) {
+            if (lookback_leftover)
+                fail (Error_Infix_Left_Arg_Prohibited(f));
+        }
+        else
+            SET_END(f->out);
 
         goto do_function_in_param;
     }

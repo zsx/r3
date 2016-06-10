@@ -603,6 +603,14 @@ static void Mark_Frame_Stack_Deep(void)
         if (f->value && NOT_END(f->value) && Is_Value_Managed(f->value))
             Queue_Mark_Value_Deep(f->value);
 
+        // Specialization code may run while an f->out is being held as the
+        // left-hand-side of an infix operation.  And SET-PATH! also holds
+        // f->out alive across an evaluation.
+        //
+        if (f->eval_type == ET_FUNCTION || f->eval_type == ET_SET_PATH)
+            if (!IS_END(f->out) && !IS_VOID_OR_SAFE_TRASH(f->out))
+                Queue_Mark_Value_Deep(f->out); // never NULL
+
         if (f->eval_type != ET_FUNCTION) {
             //
             // The only fields we protect if no function is pending or running
@@ -633,17 +641,33 @@ static void Mark_Frame_Stack_Deep(void)
         // context or a single element array.  It will only be valid during
         // the function's actual running.
         //
-        if (!Is_Function_Frame_Fulfilling(f) && f->cell.subfeed) {
-            if (GET_ARR_FLAG(f->cell.subfeed, ARRAY_FLAG_CONTEXT_VARLIST))
-                QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(f->cell.subfeed));
-            else {
-                assert(ARR_LEN(f->cell.subfeed) == 1);
-                QUEUE_MARK_ARRAY_DEEP(f->cell.subfeed);
+        if (!Is_Function_Frame_Fulfilling(f)) {
+            if (f->cell.subfeed) {
+                if (GET_ARR_FLAG(f->cell.subfeed, ARRAY_FLAG_CONTEXT_VARLIST))
+                    QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(f->cell.subfeed));
+                else {
+                    assert(ARR_LEN(f->cell.subfeed) == 1);
+                    QUEUE_MARK_ARRAY_DEEP(f->cell.subfeed);
+                }
+            }
+
+            if (
+                !IS_END(f->param) // can't be NULL
+                && !IS_VOID_OR_SAFE_TRASH(f->param)
+                && Is_Value_Managed(f->param)
+            ) {
+                Queue_Mark_Value_Deep(f->param);
+            }
+
+            if (
+                f->refine // currently allowed to be NULL
+                && !IS_END(f->refine)
+                && !IS_VOID_OR_SAFE_TRASH(f->refine)
+                && Is_Value_Managed(f->refine)
+            ) {
+                Queue_Mark_Value_Deep(f->refine);
             }
         }
-
-        if (!IS_VOID_OR_SAFE_TRASH(f->out))
-            Queue_Mark_Value_Deep(f->out); // never NULL
 
         // !!! symbols are not currently GC'd, but if they were this would
         // need to keep the label sym alive!
@@ -686,26 +710,6 @@ static void Mark_Frame_Stack_Deep(void)
             // stack, then the chunk stack walk already took care of it.
             // (the chunk stack can be used for things other than the call
             // stack, so long as they are stack-like in a call relative way)
-        }
-
-        // `param`, and `refine` may both be NULL
-        // (`arg` is a cache of the head of the arglist)
-
-        if (
-            f->param
-            && !IS_END(f->param) // can be end
-            && !IS_VOID_OR_SAFE_TRASH(f->param)
-            && Is_Value_Managed(f->param)
-        ) {
-            Queue_Mark_Value_Deep(f->param);
-        }
-
-        if (
-            f->refine
-            && !IS_VOID_OR_SAFE_TRASH(f->refine)
-            && Is_Value_Managed(f->refine)
-        ) {
-            Queue_Mark_Value_Deep(f->refine);
         }
 
         Propagate_All_GC_Marks();
@@ -1044,7 +1048,7 @@ static void Mark_Array_Deep_Core(REBARR *array)
     //
     // The GC is a good general hook point that all series which have been
     // managed will go through, so it's a good time to assert properties
-    // about the array.  If
+    // about the array.
     //
     ASSERT_ARRAY(array);
 #else

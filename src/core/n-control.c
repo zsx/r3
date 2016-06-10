@@ -487,7 +487,7 @@ REBNATIVE(case)
         return R_OUT;
     }
 
-    REBOOL none_ran = TRUE; // !!! TBD: END marker default, so = IS_END(D_OUT)
+    assert(IS_END(D_OUT)); // guaranteed, used to test if body ever ran...
 
     while (f->indexor != END_FLAG) {
         UPDATE_EXPRESSION_START(f);
@@ -616,10 +616,7 @@ REBNATIVE(case)
             }
         #endif
 
-            if (all) {
-                none_ran = FALSE;
-                continue; // keep matching if /ALL
-            }
+            if (all) continue; // keep matching if /ALL
 
             DROP_CALL(f);
 
@@ -634,9 +631,9 @@ REBNATIVE(case)
     // D_OUT will still be END if no cases ran
 
     if (REF(q))
-        return none_ran ? R_FALSE : R_TRUE; // /? asks if any cases ran
+        return IS_END(D_OUT) ? R_FALSE : R_TRUE; // /? asks if any cases ran
 
-    if (none_ran)
+    if (IS_END(D_OUT))
         SET_VOID_UNLESS_LEGACY_NONE(D_OUT); // otherwise void if no cases ran
 
     return R_OUT; // last case evaluative result if a case ran (may be void)

@@ -1755,7 +1755,7 @@ static REB_R Parse_Core(struct Reb_Frame *frame_, REBOOL logic)
     // trash value in the debug build.  We double-check the expectation of
     // whether the parse loop overwites this slot with a result or not.
     //
-    assert(IS_TRASH_DEBUG(D_OUT));
+    assert(IS_END(D_OUT));
 
     assert(IS_BLOCK(rules));
     parse.value = VAL_ARRAY_AT(rules);
@@ -1837,7 +1837,7 @@ static REB_R Parse_Core(struct Reb_Frame *frame_, REBOOL logic)
 
     // If the loop returned to us, it shouldn't have put anything in out.
     //
-    assert(IS_TRASH_DEBUG(D_OUT));
+    assert(IS_END(D_OUT));
 
     // Parse can fail if the match rule state can't process pending input.
     //

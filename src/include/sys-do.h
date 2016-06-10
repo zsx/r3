@@ -894,7 +894,7 @@ struct Reb_Frame {
                 } \
             } \
         } \
-        f_.out = SINK(out_); \
+        f_.out = out_; \
         f_.source = (source_); \
         f_.value = (value_in); \
         f_.indexor = (indexor_in); \
@@ -1041,7 +1041,7 @@ struct Reb_Frame {
 // an EMPTY_ARRAY.  Revisit if there's a "best" dispatcher...
 //
 #define DO_VALUE_THROWS(out,value) \
-    LOGICAL(THROWN_FLAG == Do_Array_At_Core(SINK(out), (value), EMPTY_ARRAY, \
+    LOGICAL(THROWN_FLAG == Do_Array_At_Core((out), (value), EMPTY_ARRAY, \
         0, DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD))
 
 
