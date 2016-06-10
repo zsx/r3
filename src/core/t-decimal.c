@@ -438,10 +438,10 @@ REBTYPE(Decimal)
             num = Get_Round_Flags(frame_);
             if (D_REF(2)) { // to
                 if (IS_MONEY(arg)) {
+                    VAL_RESET_HEADER(D_OUT, REB_MONEY);
                     VAL_MONEY_AMOUNT(D_OUT) = Round_Deci(
                         decimal_to_deci(d1), num, VAL_MONEY_AMOUNT(arg)
                     );
-                    VAL_SET_TYPE_BITS(D_OUT, REB_MONEY);
                     return R_OUT;
                 }
                 if (IS_TIME(arg)) fail (Error_Invalid_Arg(arg));
