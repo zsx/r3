@@ -482,7 +482,7 @@ static void Queue_Mark_Field_Deep(const REBSTU *stu, struct Struct_Field *field,
     struct mem_dump_entry entry = {
         .addr = field,
         .parent = parent,
-        .name = Get_Sym_Name(field->sym),
+        .name = cast(char*, Get_Sym_Name(field->sym)),
         .edge = "<field>",
         .kind = REB_KIND_FIELD,
         .size = 0 /* counted in fields already */
@@ -517,7 +517,7 @@ static void Queue_Mark_Field_Deep(const REBSTU *stu, struct Struct_Field *field,
 
             /* This could lead to an infinite recursive call to Queue_Mark_Field_Deep if this value refers back to this struct */
             if (field->done)
-                Queue_Mark_Value_Deep(data, Get_Sym_Name(field->sym), STRUCT_DATA_BIN(stu), "<rebval>", dump);
+                Queue_Mark_Value_Deep(data, cast(char*, Get_Sym_Name(field->sym)), STRUCT_DATA_BIN(stu), "<rebval>", dump);
         }
     }
     else {
@@ -758,7 +758,7 @@ static void Mark_Frame_Stack_Deep(REBMDP *dump)
     struct mem_dump_entry entry;
     
     entry.addr = f;
-    entry.name = (f == NULL)? NULL : Get_Sym_Name(f->opt_label_sym);
+    entry.name = (f == NULL)? NULL : cast(char *, Get_Sym_Name(f->opt_label_sym));
     entry.parent = NULL;
     entry.kind = REB_KIND_CALL;
     entry.edge = "<TG_Frame_Stack>",
@@ -868,7 +868,7 @@ static void Mark_Frame_Stack_Deep(REBMDP *dump)
     next:
         if (f->prior) {
             entry.addr = f->prior;
-            entry.name = Get_Sym_Name(f->opt_label_sym);
+            entry.name = cast(char*, Get_Sym_Name(f->opt_label_sym));
             entry.parent = f;
             entry.kind = REB_KIND_CALL;
             entry.edge = "<prior>";
@@ -924,7 +924,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val, const char *name, const void *pare
     entry.size = sizeof(REBVAL);
 
     if (name == NULL && ANY_WORD(val)) {
-        entry.name = VAL_WORD_NAME(val);
+        entry.name = cast(char*, VAL_WORD_NAME(val));
     }
     Dump_Mem_Entry(dump, &entry);
 
@@ -1266,10 +1266,10 @@ static void Mark_Array_Deep_Core(struct mark_stack_elem *elem, REBMDP *dump)
         if (dump && key != NULL) {
             switch (VAL_TYPE(key)) {
             case REB_TYPESET:
-                name = Get_Sym_Name(VAL_TYPESET_SYM(key));
+                name = cast(char*, Get_Sym_Name(VAL_TYPESET_SYM(key)));
                 break;
             case REB_WORD:
-                name = Get_Sym_Name(VAL_WORD_SYM(key));
+                name = cast(char*, Get_Sym_Name(VAL_WORD_SYM(key)));
                 break;
             default:
                 if (key != ARR_HEAD(cast(REBARR*, keylist))) {// the first element could be function!, native!, etc for FRAMEs
