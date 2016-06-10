@@ -241,9 +241,8 @@ void Pop_Stack_Values_Into(REBVAL *into, REBDSP dsp_start) {
 //
 // The "Ended" indicates that there is no need to manually put an end in the
 // `num_values` slot.  Chunks are implicitly terminated by their layout,
-// because the pointer which indicates the previous chunk on the next chunk
-// always has its low bit clear (pointers are not odd on 99% of architectures,
-// this is checked by an assertion).
+// because the low bit of subsequent chunks is set to 0, for data that does
+// double-duty as a END marker.
 //
 REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
     const REBCNT size = BASE_CHUNK_SIZE + num_values * sizeof(REBVAL);
@@ -426,16 +425,14 @@ void Drop_Chunk(REBVAL *opt_head)
 //  Push_Or_Alloc_Args_For_Underlying_Func: C
 //
 // Allocate the series of REBVALs inspected by a function when executed (the
-// values behind D_ARG(1), D_REF(2), etc.)  Since the call contains the
-// REBFUN pointer, it is known how many parameters are needed.
+// values behind D_ARG(1), D_REF(2), etc.)
 //
-// The call frame will be pushed onto the call stack, and hence its fields
-// will be seen by the GC and protected.
-// 
-// However...we do not set the frame as "Running" at the same time we create
-// it.  We need to fulfill its arguments in the caller's frame before we
-// actually invoke the function, so it's Dispatch_Call that actually moves
-// it to the running status.
+// If the function is a specialization, then the parameter list of that
+// specialization will have *fewer* parameters than the full function would.
+// For this reason we push the arguments for the "underlying" function.
+// Yet if there are specialized values, they must be filled in from the
+// exemplar frame.
+//
 //
 void Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
     REBVAL *slot;
@@ -452,31 +449,44 @@ void Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
     //
     assert(IS_FUNCTION(f->param));
 
+    f->func = VAL_FUNC(f->param);
+
     if (VAL_FUNC_CLASS(f->param) == FUNC_CLASS_SPECIALIZED) {
         //
+        // Can't use a specialized f->func as the frame's function because
+        // it has the wrong number of arguments (calls to VAL_FUNC_PARAMLIST
+        // on f->func would be bad).
+        //
+        if (f->func == VAL_FUNC(f->param))
+            f->func = VAL_FUNC(
+                CTX_FRAME_FUNC_VALUE(f->param->payload.function.impl.special)
+            );
+
         // !!! For debugging, it would probably be desirable to indicate
         // that this call of the function originated from a specialization.
         // So that would mean saving the specialization's f->func somewhere.
-        //
-        f->func = CTX_FRAME_FUNC(f->param->payload.function.impl.special);
 
         special_arg = CTX_VARS_HEAD(f->param->payload.function.impl.special);
 
-        // !!! TBD: correct extraction of f->exit_from
-        f->exit_from = NULL;
+        // Need to dig f->param a level deeper to see if it's a definitionally
+        // scoped RETURN or LEAVE.
+        //
+        f->param =
+            CTX_FRAME_FUNC_VALUE(f->param->payload.function.impl.special);
 
         f->flags |= DO_FLAG_EXECUTE_FRAME;
     }
     else {
-        f->func = VAL_FUNC(f->param);
-
         special_arg = NULL;
-
-        if (f->func == NAT_FUNC(leave) || f->func == NAT_FUNC(return))
-            f->exit_from = VAL_FUNC_EXIT_FROM(f->param);
-        else
-            f->exit_from = NULL;
     }
+
+    if (
+        VAL_FUNC(f->param) == NAT_FUNC(leave)
+        || VAL_FUNC(f->param) == NAT_FUNC(return)
+    ) {
+        f->exit_from = VAL_FUNC_EXIT_FROM(f->param);
+    } else
+        f->exit_from = NULL;
 
     // `num_vars` is the total number of elements in the series, including the
     // function's "Self" REBVAL in the 0 slot.

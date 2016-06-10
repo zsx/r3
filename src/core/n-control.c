@@ -1124,8 +1124,14 @@ REBNATIVE(do)
         // arguments to be filled in.
         //
         f->out = D_OUT;
-        f->func = CTX_FRAME_FUNC(VAL_CONTEXT(value));
-        f->exit_from = NULL;
+        f->func = VAL_FUNC(CTX_FRAME_FUNC_VALUE(VAL_CONTEXT(value)));
+        if (f->func == NAT_FUNC(leave) || f->func == NAT_FUNC(return))
+            f->exit_from = VAL_FUNC_EXIT_FROM(
+                CTX_FRAME_FUNC_VALUE(VAL_CONTEXT(value))
+            );
+        else
+            f->exit_from = NULL;
+
 
         f->data.varlist = CTX_VARLIST(VAL_CONTEXT(value)); // need w/NULL def
 

@@ -245,7 +245,7 @@ REBNATIVE(function_of)
         // no longer on the stack.
         //
         REBCTX *context = VAL_CONTEXT(level);
-        *D_OUT = *FUNC_VALUE(CTX_FRAME_FUNC(context));
+        *D_OUT = *CTX_FRAME_FUNC_VALUE(context);
     }
     else {
         struct Reb_Frame *frame = Frame_For_Stack_Level(NULL, level, TRUE);

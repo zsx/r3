@@ -1074,8 +1074,8 @@ struct Reb_Context {
 #define CTX_FRAME(c) \
     (VAL_CONTEXT_FRAME(CTX_VALUE(c)) + 0)
 
-#define CTX_FRAME_FUNC(c) \
-    (assert(IS_FUNCTION(CTX_ROOTKEY(c))), VAL_FUNC(CTX_ROOTKEY(c)))
+#define CTX_FRAME_FUNC_VALUE(c) \
+    (assert(IS_FUNCTION(CTX_ROOTKEY(c))), CTX_ROOTKEY(c))
 
 #define CTX_STACKVARS(c)    VAL_CONTEXT_STACKVARS(CTX_VALUE(c))
 

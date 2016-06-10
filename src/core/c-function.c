@@ -971,8 +971,13 @@ void Make_Function(
 // applications or specializations.  It reuses the keylist of the function
 // but makes a new varlist.
 //
-REBCTX *Make_Frame_For_Function(REBFUN *func) {
+REBCTX *Make_Frame_For_Function(REBVAL *value) {
     //
+    // Note that this cannot take just a REBFUN* directly, because definitional
+    // RETURN and LEAVE only have their unique `exit_from` bits in the REBVAL.
+    //
+    REBFUN *func = VAL_FUNC(value);
+
     // In order to have the frame survive the call to MAKE and be
     // returned to the user it can't be stack allocated, because it
     // would immediately become useless.  Allocate dynamically.
@@ -986,7 +991,20 @@ REBCTX *Make_Frame_For_Function(REBFUN *func) {
     REBVAL *var = ARR_HEAD(varlist);
     VAL_RESET_HEADER(var, REB_FRAME);
     INIT_VAL_CONTEXT(var, AS_CONTEXT(varlist));
-    INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(varlist), FUNC_PARAMLIST(func));
+
+    // Usually we can reuse the keylist we're given, but the exception is in
+    // the case of definitional return and leave.  The problem there is that
+    // each return and leave is not actually a unique function, but we would
+    // be only storing the unused archetypal RETURN function in the rootkey.
+    // We have to make a new keylist if that's the case.
+    //
+    REBARR *paramlist = FUNC_PARAMLIST(func);
+    if (func == NAT_FUNC(return) || func == NAT_FUNC(leave)) {
+        paramlist = Copy_Array_Deep_Managed(paramlist);
+        assert(VAL_FUNC_EXIT_FROM(value) != NULL);
+        *ARR_AT(paramlist, 0) = *value;
+    }
+    INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(varlist), paramlist);
     ASSERT_ARRAY_MANAGED(CTX_KEYLIST(AS_CONTEXT(varlist)));
 
     // !!! The frame will never have stack storage if created this
@@ -1027,13 +1045,13 @@ REBCTX *Make_Frame_For_Function(REBFUN *func) {
 //
 REBOOL Specialize_Function_Throws(
     REBVAL *out,
-    REBFUN *func,
+    REBVAL *func_value,
     REBSYM opt_original_sym,
     REBVAL *block // !!! REVIEW: gets binding modified directly (not copied)
 ) {
     REBCTX *frame_ctx;
 
-    if (FUNC_CLASS(func) == FUNC_CLASS_SPECIALIZED) {
+    if (VAL_FUNC_CLASS(func_value) == FUNC_CLASS_SPECIALIZED) {
         //
         // Specializing a specialization is ultimately just a specialization
         // of the innermost function being specialized.  (Imagine specializing
@@ -1044,11 +1062,11 @@ REBOOL Specialize_Function_Throws(
         // have no code of their own.)
         //
         frame_ctx = AS_CONTEXT(Copy_Array_Deep_Managed(
-            CTX_VARLIST(FUNC_VALUE(func)->payload.function.impl.special)
+            CTX_VARLIST(func_value->payload.function.impl.special)
         ));
         INIT_CTX_KEYLIST_SHARED(
             frame_ctx,
-            CTX_KEYLIST(FUNC_VALUE(func)->payload.function.impl.special)
+            CTX_KEYLIST(func_value->payload.function.impl.special)
         );
         SET_ARR_FLAG(CTX_VARLIST(frame_ctx), ARRAY_FLAG_CONTEXT_VARLIST);
         INIT_VAL_CONTEXT(CTX_VALUE(frame_ctx), frame_ctx);
@@ -1057,7 +1075,7 @@ REBOOL Specialize_Function_Throws(
         // An initial specialization is responsible for making a frame out
         // of the function's paramlist.  Frame vars default void.
         //
-        frame_ctx = Make_Frame_For_Function(func);
+        frame_ctx = Make_Frame_For_Function(func_value);
         MANAGE_ARRAY(CTX_VARLIST(frame_ctx)); // because above case manages
     }
 
@@ -1516,7 +1534,7 @@ REBNATIVE(specialize)
     if (!IS_FUNCTION(D_OUT))
         fail (Error(RE_APPLY_NON_FUNCTION, ARG(value))); // for APPLY too
 
-    if (Specialize_Function_Throws(D_OUT, VAL_FUNC(D_OUT), sym, ARG(def)))
+    if (Specialize_Function_Throws(D_OUT, D_OUT, sym, ARG(def)))
         return R_OUT_IS_THROWN;
 
     return R_OUT;
