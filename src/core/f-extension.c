@@ -588,7 +588,7 @@ REBNATIVE(make_command)
 
 
 //
-//  Do_Command_Core_Throws: C
+//  Do_Command_Core: C
 //
 // Because it cannot interact with REBVALs directly, a COMMAND! must have
 // the Reb_Frame's REBVAL[] array proxied into an array of RXIARGs inside
@@ -604,7 +604,7 @@ REBNATIVE(make_command)
 // !!! The very ad-hoc nature of the R3-Alpha extension API has made it a
 // legacy-maintenance-only area.  See notes in %reb-ext.h.
 //
-REBOOL Do_Command_Core_Throws(struct Reb_Frame *f)
+REBOOL Do_Command_Core(struct Reb_Frame *f)
 {
     // For a "body", a command has a data array with [ext-obj func-index]
     // See Make_Command() for an explanation of these two values.

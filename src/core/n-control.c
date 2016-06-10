@@ -501,7 +501,7 @@ REBNATIVE(case)
 
         DO_NEXT_REFETCH_MAY_THROW(safe_temp, f, DO_FLAG_LOOKAHEAD);
 
-        if (f->indexor == THROWN_FLAG) {
+        if (THROWN(safe_temp)) {
             *D_OUT = *safe_temp; // is a RETURN, BREAK, THROW...
             DROP_CALL(f);
             return R_OUT_IS_THROWN;
@@ -580,7 +580,7 @@ REBNATIVE(case)
 
         DO_NEXT_REFETCH_MAY_THROW(safe_temp, f, DO_FLAG_LOOKAHEAD);
 
-        if (f->indexor == THROWN_FLAG) {
+        if (THROWN(safe_temp)) {
             *D_OUT = *safe_temp; // is a RETURN, BREAK, THROW...
             DROP_CALL(f);
             return R_OUT_IS_THROWN;

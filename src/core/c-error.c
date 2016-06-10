@@ -382,7 +382,7 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
     struct Reb_Frame *f = FS_TOP;
     while (f != Saved_State->frame) {
         if (f->eval_type == ET_FUNCTION)
-            Drop_Function_Args_For_Frame(f, FALSE); // FALSE: don't drop chunks
+            Drop_Function_Args_For_Frame_Core(f, FALSE); // don't drop chunks
 
         struct Reb_Frame *prior = f->prior;
         DROP_CALL(f);

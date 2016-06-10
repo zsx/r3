@@ -693,7 +693,7 @@ REBCTX *Context_For_Frame_May_Reify_Managed(struct Reb_Frame *f)
 
 
 //
-//  Drop_Function_Args_For_Frame: C
+//  Drop_Function_Args_For_Frame_Core: C
 //
 // This routine needs to be shared with the error handling code.  It would be
 // nice if it were inlined into Do_Core...but repeating the code just to save
@@ -704,13 +704,14 @@ REBCTX *Context_For_Frame_May_Reify_Managed(struct Reb_Frame *f)
 // because there are other clients of the chunk stack that may be running.
 // Hence the chunks will be freed by the error trap helper.
 //
-void Drop_Function_Args_For_Frame(struct Reb_Frame *f, REBOOL drop_chunks)
+void Drop_Function_Args_For_Frame_Core(struct Reb_Frame *f, REBOOL drop_chunks)
 {
     if (NOT(f->flags & DO_FLAG_HAS_VARLIST)) {
         //
         // Stack extent arguments with no identifying frame (this would
         // be the typical case when calling a native, for instance).
         //
+        f->flags &= ~DO_FLAG_EXECUTE_FRAME;
         if (drop_chunks)
             Drop_Chunk(f->data.stackvars);
         return;
@@ -718,7 +719,7 @@ void Drop_Function_Args_For_Frame(struct Reb_Frame *f, REBOOL drop_chunks)
 
     // We're freeing the varlist (or leaving it up to the GC), so clear flag
     //
-    f->flags &= ~DO_FLAG_HAS_VARLIST;
+    f->flags &= ~(DO_FLAG_HAS_VARLIST | DO_FLAG_EXECUTE_FRAME);
 
     REBARR *varlist = f->data.varlist;
     assert(GET_ARR_FLAG(varlist, SERIES_FLAG_ARRAY));

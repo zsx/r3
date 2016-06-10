@@ -204,7 +204,7 @@ REBOOL IS_CONDITIONAL_FALSE_Debug(const REBVAL *v)
 // Variant of VAL_TYPE() macro for the debug build which checks to ensure that
 // you never call it on an END marker or on REB_TRASH.
 //
-enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v, const char *file, int line)
+enum Reb_Kind VAL_TYPE_Debug(const RELVAL *v, const char *file, int line)
 {
     if (IS_END(v)) {
         //
@@ -233,7 +233,7 @@ enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v, const char *file, int line)
 // accidentally checking or setting a type-specific flag on the wrong type
 // of value in the debug build.
 //
-void Assert_Flags_Are_For_Value(const REBVAL *v, REBUPT f) {
+void Assert_Flags_Are_For_Value(const RELVAL *v, REBUPT f) {
     if ((f & HEADER_TYPE_MASK) == 0)
         return; // flag applies to any value (or trash)
 

@@ -198,16 +198,6 @@ static inline void Start_New_Expression_Core(struct Reb_Frame *f) {
 #endif
 
 
-// Simple macro for wrapping (but not obscuring) a `goto` in the code below
-//
-#define NOTE_THROWING(g) \
-    do { \
-        assert(f->indexor == THROWN_FLAG); \
-        assert(THROWN(f->out)); \
-        g; /* goto statement left at callsite for readability */ \
-    } while(0)
-
-
 // There's a need to signal a mode for refinement pickups, and since they
 // are atypical and subfeed needs to be initialized to NULL anyway before
 // running the function, a non-NULL-subfeed is used.
@@ -220,6 +210,15 @@ static inline void Start_New_Expression_Core(struct Reb_Frame *f) {
 static inline void Type_Check_Arg_For_Param_May_Fail(struct Reb_Frame * f) {
     if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg)))
         fail (Error_Arg_Type(FRM_LABEL(f), f->param, VAL_TYPE(f->arg)));
+}
+
+
+// Help keep code below readable, as only error processing in Fail_Core passes
+// in FALSE (signifies not to drop chunks, because there might be others
+// pushed that haven't balanced)
+//
+static inline void Drop_Function_Args_For_Frame(struct Reb_Frame *f) {
+    Drop_Function_Args_For_Frame_Core(f, TRUE);
 }
 
 
@@ -301,13 +300,18 @@ value_ready_for_do_next:
         // it may spawn an entire interactive debugging session via
         // breakpoint before it returns.  It may also FAIL and longjmp out.
         //
+        REBET eval_type_saved = f->eval_type;
         f->eval_type = ET_INERT;
-        if (Do_Signals_Throws(f->out)) {
-            f->indexor = THROWN_FLAG;
-            NOTE_THROWING(goto return_indexor);
+
+        INIT_CELL_WRITABLE_IF_DEBUG(&f->cell.eval);
+        if (Do_Signals_Throws(KNOWN(&f->cell.eval))) {
+            *f->out = *KNOWN(&f->cell.eval);
+            goto finished;
         }
 
-        if (!IS_VOID(f->out)) {
+        f->eval_type = eval_type_saved;
+
+        if (!IS_VOID(&f->cell.eval)) {
             //
             // !!! What to do with something like a Ctrl-C-based breakpoint
             // session that does something like `resume/with 10`?  We are
@@ -506,8 +510,8 @@ reevaluate:
             // so it uses lookahead on its arguments regardless of f->flags
             //
             DO_NEXT_REFETCH_MAY_THROW(f->out, f, DO_FLAG_LOOKAHEAD);
-            if (f->indexor == THROWN_FLAG)
-                NOTE_THROWING(goto return_indexor);
+
+            if (THROWN(f->out)) goto finished;
 
             // leave VALUE_FLAG_EVALUATED as is
         }
@@ -559,10 +563,8 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_GROUP:
-        if (DO_VAL_ARRAY_AT_THROWS(f->out, f->value)) {
-            f->indexor = THROWN_FLAG;
-            NOTE_THROWING(goto return_indexor);
-        }
+        if (DO_VAL_ARRAY_AT_THROWS(f->out, f->value))
+            goto finished;
 
         SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         FETCH_NEXT_ONLY_MAYBE_END(f);
@@ -582,8 +584,7 @@ reevaluate:
             f->value,
             NULL // `setval`: null means don't treat as SET-PATH!
         )) {
-            f->indexor = THROWN_FLAG;
-            NOTE_THROWING(goto return_indexor);
+            goto finished;
         }
 
         if (IS_VOID(f->out))
@@ -654,8 +655,7 @@ reevaluate:
             //
             DO_NEXT_REFETCH_MAY_THROW(f->out, f, DO_FLAG_LOOKAHEAD);
 
-            if (f->indexor == THROWN_FLAG)
-                NOTE_THROWING(goto return_indexor);
+            if (THROWN(f->out)) goto finished;
         }
         else {
             *(f->out) = *(f->value);
@@ -682,9 +682,8 @@ reevaluate:
         {
             REBVAL temp;
             if (Do_Path_Throws(&temp, NULL, f->param, f->out)) {
-                f->indexor = THROWN_FLAG;
                 *(f->out) = temp;
-                NOTE_THROWING(goto return_indexor);
+                goto finished;
             }
 
             // leave VALUE_FLAG_EVALUATED as is
@@ -706,10 +705,8 @@ reevaluate:
         //
         // returns in word the path item, DS_TOP has value
         //
-        if (Do_Path_Throws(f->out, NULL, f->value, NULL)) {
-            f->indexor = THROWN_FLAG;
-            NOTE_THROWING(goto return_indexor);
-        }
+        if (Do_Path_Throws(f->out, NULL, f->value, NULL))
+            goto finished;
 
         // We did not pass in a symbol ID
         //
@@ -827,10 +824,9 @@ reevaluate:
                     fail (Error_No_Arg(FRM_LABEL(f), f->param));
 
                 DO_NEXT_REFETCH_MAY_THROW(&f->cell.eval, f, DO_FLAG_LOOKAHEAD);
-            }
 
-            if (f->indexor == THROWN_FLAG)
-                NOTE_THROWING(goto return_indexor);
+                if (THROWN(&f->cell.eval)) goto finished;
+            }
 
             // There's only one refinement to EVAL and that is /ONLY.  It can
             // push one refinement to the stack or none.  The state will
@@ -914,8 +910,8 @@ reevaluate:
         // ahead then it suppresses lookahead on all evaluated arguments.
         // Need a separate variable to track it.
         //
-        REBUPT lookahead_flags =
-            lookback ? DO_FLAG_NO_LOOKAHEAD : DO_FLAG_LOOKAHEAD;
+        REBUPT lookahead_flags; // `goto finished` would cross if initialized
+        lookahead_flags = lookback ? DO_FLAG_NO_LOOKAHEAD : DO_FLAG_LOOKAHEAD;
 
         f->refine = BAR_VALUE; // "not a refinement arg, evaluate normally"
         f->cell.subfeed = NULL; // abuse: non-null is refinement pickup mode
@@ -1039,10 +1035,10 @@ reevaluate:
                     // Needed for `(copy [1 2 3])`, active specializations
 
                     if (DO_VALUE_THROWS(&f->cell.eval, f->arg)) {
-                        DS_DROP_TO(f->dsp_orig);
-                        f->indexor = THROWN_FLAG;
                         *f->out = *KNOWN(&f->cell.eval);
-                        NOTE_THROWING(goto drop_call_and_return_thrown);
+                        DS_DROP_TO(f->dsp_orig);
+                        Drop_Function_Args_For_Frame(f);
+                        goto finished;
                     }
 
                     *f->arg = *KNOWN(&f->cell.eval);
@@ -1065,17 +1061,15 @@ reevaluate:
 
     //=//// IF JUST SKIPPING TO NEXT REFINEMENT, MOVE ON //////////////////=//
 
-            if (IS_VOID(f->refine))
-                goto continue_arg_loop;
+            if (IS_VOID(f->refine)) goto continue_arg_loop;
 
-    //=//// PURE "LOCAL:" ARG (must be unset, no consumption) /////////////=//
+    //=//// PURE "LOCAL:" ARG (must not be set, no consumption) ///////////=//
 
             if (pclass == PARAM_CLASS_PURE_LOCAL) {
+                if (NOT(IS_VOID(f->arg)))
+                    fail (Error_Local_Injection(f));
 
-                if (IS_VOID(f->arg)) // only legal value - can't specialize
-                    goto continue_arg_loop;
-
-                fail (Error_Local_Injection(f));
+                goto continue_arg_loop;
             }
 
     //=//// SPECIALIZED ARG (already filled, so does not consume) /////////=//
@@ -1088,10 +1082,10 @@ reevaluate:
                 if (args_evaluate && IS_QUOTABLY_SOFT(f->arg)) {
 
                     if (DO_VALUE_THROWS(&f->cell.eval, f->arg)) {
-                        DS_DROP_TO(f->dsp_orig);
-                        f->indexor = THROWN_FLAG;
                         *f->out = *KNOWN(&f->cell.eval);
-                        NOTE_THROWING(goto drop_call_and_return_thrown);
+                        DS_DROP_TO(f->dsp_orig);
+                        Drop_Function_Args_For_Frame(f);
+                        goto finished;
                     }
 
                     *f->arg = *KNOWN(&f->cell.eval);
@@ -1221,10 +1215,11 @@ reevaluate:
                 else if (args_evaluate) {
                     DO_NEXT_REFETCH_MAY_THROW(f->arg, f, lookahead_flags);
 
-                    if (f->indexor == THROWN_FLAG) {
-                        DS_DROP_TO(f->dsp_orig); // pending refinements
+                    if (THROWN(f->arg)) {
                         *f->out = *f->arg;
-                        NOTE_THROWING(goto drop_call_and_return_thrown);
+                        DS_DROP_TO(f->dsp_orig); // pending refinements
+                        Drop_Function_Args_For_Frame(f);
+                        goto finished;
                     }
                 }
                 else
@@ -1283,10 +1278,10 @@ reevaluate:
             }
             else if (args_evaluate && IS_QUOTABLY_SOFT(f->value)) {
                 if (DO_VALUE_THROWS(f->arg, f->value)) {
-                    DS_DROP_TO(f->dsp_orig);
                     *f->out = *f->arg;
-                    f->indexor = THROWN_FLAG;
-                    NOTE_THROWING(goto drop_call_and_return_thrown);
+                    DS_DROP_TO(f->dsp_orig);
+                    Drop_Function_Args_For_Frame(f);
+                    goto finished;
                 }
             }
             else
@@ -1448,8 +1443,8 @@ reevaluate:
                 CONVERT_NAME_TO_EXIT_THROWN(f->out, FRM_ARGS_HEAD(f));
             }
 
-            f->indexor = THROWN_FLAG;
-            NOTE_THROWING(goto drop_call_and_return_thrown);
+            Drop_Function_Args_For_Frame(f);
+            goto finished;
         }
 
     //==////////////////////////////////////////////////////////////////==//
@@ -1549,31 +1544,28 @@ reevaluate:
 
         if (Trace_Flags) Trace_Func(FRM_LABEL(f), FUNC_VALUE(f->func));
 
-        // If the Do_XXX_Core function dispatcher throws, we can't let it
-        // write `f->indexor` directly to become THROWN_FLAG because we may
-        // "recover" from the throw by realizing it was a RETURN.
+        // Any of the below may return f->out as THROWN()
         //
-        REBOOL threw;
         switch (VAL_FUNC_CLASS(FUNC_VALUE(f->func))) {
         case FUNC_CLASS_NATIVE:
-            threw = Do_Native_Core_Throws(f);
+            Do_Native_Core(f);
             break;
 
         case FUNC_CLASS_ACTION:
-            threw = Do_Action_Core_Throws(f);
+            Do_Action_Core(f);
             break;
 
         case FUNC_CLASS_COMMAND:
-            threw = Do_Command_Core_Throws(f);
+            Do_Command_Core(f);
             break;
 
         case FUNC_CLASS_CALLBACK:
         case FUNC_CLASS_ROUTINE:
-            threw = Do_Routine_Core_Throws(f);
+            Do_Routine_Core(f);
             break;
 
         case FUNC_CLASS_USER:
-            threw = Do_Function_Core_Throws(f);
+            Do_Function_Core(f);
             break;
 
         case FUNC_CLASS_SPECIALIZED:
@@ -1588,10 +1580,7 @@ reevaluate:
             fail (Error(RE_MISC));
         }
 
-        assert(THROWN(f->out) == threw);
         assert(f->eval_type == ET_FUNCTION); // shouldn't have changed
-
-    drop_call_and_return_thrown:
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -1605,53 +1594,36 @@ reevaluate:
         // control in debug situations (and perhaps some non-debug capabilities
         // will be discovered as well).
         //
-        if (threw && GET_VAL_FLAG(f->out, VALUE_FLAG_EXIT_FROM)) {
+        if (GET_VAL_FLAG(f->out, VALUE_FLAG_EXIT_FROM)) {
+            assert(THROWN(f->out));
+
             if (IS_FRAME(f->out)) {
                 //
                 // This identifies an exit from a *specific* functiion
                 // invocation.  We can only match it if we have a reified
                 // frame context.
                 //
-                if (
-                    (f->flags & DO_FLAG_HAS_VARLIST) &&
-                    CTX_VARLIST(VAL_CONTEXT(f->out)) == f->data.varlist
-                ) {
-                    CATCH_THROWN(f->out, f->out);
-                    threw = FALSE;
-                }
+                if (f->flags & DO_FLAG_HAS_VARLIST)
+                    if (CTX_VARLIST(VAL_CONTEXT(f->out)) == f->data.varlist)
+                        CATCH_THROWN(f->out, f->out);
             }
             else if (IS_FUNCTION(f->out)) {
                 //
-                // This identifies an exit from whichever instance of the
-                // function is most recent on the stack.  This can be used
-                // to exit without reifying a frame.  If exiting dynamically
-                // when all that was named was a function, but definitionally
-                // scoped returns should ideally have a trick for having
-                // the behavior of a reified frame without needing to do
-                // so (for now, they use this path in FUNCTION!)
+                // The most recent instance of a function on the stack (if
+                // any) will catch a FUNCTION! style exit.
                 //
-                if (VAL_FUNC_PARAMLIST(f->out) == FUNC_PARAMLIST(f->func)) {
+                if (VAL_FUNC(f->out) == f->func)
                     CATCH_THROWN(f->out, f->out);
-                    threw = FALSE;
-                }
             }
             else if (IS_INTEGER(f->out)) {
                 //
                 // If it's an integer, we drop the value at each stack level
                 // until 1 is reached...
                 //
-                if (VAL_INT32(f->out) == 1) {
+                if (VAL_INT32(f->out) == 1)
                     CATCH_THROWN(f->out, f->out);
-                    threw = FALSE;
-                }
-                else {
-                    // don't reset header (keep thrown flag as is), just bump
-                    // the count down by one...
-                    //
-                    --VAL_INT64(f->out);
-                    //
-                    // ...and stay in thrown mode...
-                }
+                else
+                    --VAL_INT64(f->out); // don't catch it, just decrement
             }
             else {
                 assert(FALSE); // no other low-level EXIT/FROM supported
@@ -1664,21 +1636,12 @@ reevaluate:
     //
     //==////////////////////////////////////////////////////////////////==//
 
-        Drop_Function_Args_For_Frame(f, TRUE); // TRUE: drop chunks
-
-        // If running a frame execution then clear that flag out.
-        //
-        f->flags &= ~DO_FLAG_EXECUTE_FRAME;
+        Drop_Function_Args_For_Frame(f);
 
         // If the throw wasn't intercepted as an exit from this function call,
         // accept the throw.
         //
-        if (threw) {
-            f->indexor = THROWN_FLAG;
-            NOTE_THROWING(goto return_indexor);
-        }
-        else if (f->indexor == THROWN_FLAG)
-            NOTE_THROWING(goto return_indexor);
+        if (THROWN(f->out)) goto finished;
 
         // Here we know the function finished and did not throw or exit.  If
         // it has a definitional return we need to type check it--and if it
@@ -1737,11 +1700,11 @@ reevaluate:
     //
     //==////////////////////////////////////////////////////////////////==//
 
-    assert(f->indexor != THROWN_FLAG && !THROWN(f->out));
+    assert(!THROWN(f->out)); // should have jumped to exit sooner
 
     if (f->indexor == END_FLAG) {
         assert(IS_END(f->value));
-        goto return_indexor;
+        goto finished;
     }
 
     assert(!IS_END(f->value));
@@ -1769,7 +1732,7 @@ reevaluate:
     //=//// DO/NEXT WON'T RUN MORE CODE UNLESS IT'S AN INFIX FUNCTION /////=//
 
         if (NOT(lookback) && NOT(f->flags & DO_FLAG_TO_END))
-            goto return_indexor;
+            goto finished;
 
     //=//// IT'S INFIX OR WE'RE DOING TO THE END...DISPATCH LIKE WORD /////=//
 
@@ -1795,7 +1758,8 @@ reevaluate:
     //
     if (f->flags & DO_FLAG_TO_END) goto value_ready_for_do_next;
 
-return_indexor:
+finished:
+
 #if !defined(NDEBUG)
     Do_Core_Exit_Checks_Debug(f); // will get called unless a fail() longjmps
 #endif
@@ -1933,6 +1897,11 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
     // mold buffer position, the outstanding manual series allocations, etc.
     //
     ASSERT_STATE_BALANCED(&f->state);
+
+    // Once a throw is started, no new expressions may be evaluated until
+    // that throw gets handled.
+    //
+    assert(IS_TRASH_DEBUG(&TG_Thrown_Arg));
 
     f->eval_type = ET_TRASH;
     assert(f->label_sym == SYM_0);
@@ -2073,10 +2042,10 @@ static void Do_Core_Exit_Checks_Debug(struct Reb_Frame *f) {
     //
     ASSERT_STATE_BALANCED(&f->state);
 
-    if (
-        f->indexor != END_FLAG && f->indexor != THROWN_FLAG
-        && f->indexor != VALIST_FLAG
-    ) {
+    assert(f->indexor != THROWN_FLAG); // flag only returned by wrappers
+
+    if (f->indexor != END_FLAG && f->indexor != VALIST_FLAG) {
+        //
         // If we're at the array's end position, then we've prefetched the
         // last value for processing (and not signaled end) but on the
         // next fetch we *will* signal an end.
@@ -2085,7 +2054,7 @@ static void Do_Core_Exit_Checks_Debug(struct Reb_Frame *f) {
     }
 
     if (f->flags & DO_FLAG_TO_END)
-        assert(f->indexor == THROWN_FLAG || f->indexor == END_FLAG);
+        assert(THROWN(f->out) || f->indexor == END_FLAG);
 
     if (f->indexor == END_FLAG) {
         assert(IS_END(f->value));
@@ -2098,9 +2067,7 @@ static void Do_Core_Exit_Checks_Debug(struct Reb_Frame *f) {
     assert(!IS_TRASH_DEBUG(f->out));
     assert(VAL_TYPE(f->out) < REB_MAX); // cheap check
 
-    if (f->indexor == THROWN_FLAG)
-        assert(THROWN(f->out));
-    else {
+    if (NOT(THROWN(f->out))) {
         assert(f->label_sym == SYM_0);
         ASSERT_VALUE_MANAGED(f->out);
     }

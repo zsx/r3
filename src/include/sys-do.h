@@ -1012,7 +1012,9 @@ struct Reb_Frame {
             (source), indexor_, value_, NULL, \
             DO_FLAG_LOOKAHEAD \
         ); \
-        if ((indexor_out) != END_FLAG && (indexor_out) != THROWN_FLAG) { \
+        if (THROWN(out)) \
+            (indexor_out) = THROWN_FLAG; \
+        else if ((indexor_out) != END_FLAG) { \
             assert((indexor_out) > 1); \
             (indexor_out) = (indexor_out) - 1; \
         } \
@@ -1039,8 +1041,8 @@ struct Reb_Frame {
 // an EMPTY_ARRAY.  Revisit if there's a "best" dispatcher...
 //
 #define DO_VALUE_THROWS(out,value) \
-    LOGICAL(THROWN_FLAG == Do_Array_At_Core((out), (value), EMPTY_ARRAY, 0, \
-        DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD))
+    LOGICAL(THROWN_FLAG == Do_Array_At_Core(SINK(out), (value), EMPTY_ARRAY, \
+        0, DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD))
 
 
 //=////////////////////////////////////////////////////////////////////////=//

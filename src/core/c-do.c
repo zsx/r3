@@ -76,6 +76,9 @@ REBIXO Do_Array_At_Core(
 
     Do_Core(&f);
 
+    if (THROWN(f.out))
+        return THROWN_FLAG; // !!! prohibits recovery from exits
+
     return f.indexor;
 }
 
@@ -270,6 +273,9 @@ REBIXO Do_Va_Core(
     f.flags = flags | DO_FLAG_VALIST; // see notes in %sys-do.h on why needed
 
     Do_Core(&f);
+
+    if (THROWN(f.out))
+        return THROWN_FLAG; // !!! prohibits recovery from exits
 
     if (flags & DO_FLAG_NEXT) {
         //

@@ -231,7 +231,7 @@ handle_subfeed:
                 : DO_FLAG_NO_LOOKAHEAD
         );
 
-        if (f->indexor == THROWN_FLAG)
+        if (THROWN(out))
             return THROWN_FLAG;
         break;
 

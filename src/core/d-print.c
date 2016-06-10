@@ -1112,7 +1112,7 @@ REBOOL Format_GC_Safe_Value_Throws(
         }
         else if (reduce) {
             DO_NEXT_REFETCH_MAY_THROW(out, &f, DO_FLAG_LOOKAHEAD);
-            if (f.indexor == THROWN_FLAG)
+            if (THROWN(out))
                 return TRUE;
 
             // If we got here via a reduction step, we might have gotten

@@ -1239,23 +1239,29 @@ void Clonify_Function(REBVAL *value)
 
 
 //
-//  Do_Native_Core_Throws: C
+//  Do_Native_Core: C
 //
-REBOOL Do_Native_Core_Throws(struct Reb_Frame *f)
+void Do_Native_Core(struct Reb_Frame *f)
 {
-    REB_R ret;
-
     Eval_Natives++;
 
     // For all other native function pointers (for now)...ordinary dispatch.
 
-    ret = FUNC_CODE(f->func)(f);
+    REB_R ret = FUNC_CODE(f->func)(f);
+
+    if (ret == R_OUT_IS_THROWN) {
+        assert(THROWN(f->out));
+        return;
+    }
+
+    assert(NOT(THROWN(f->out)));
 
     switch (ret) {
     case R_OUT: // put sequentially in switch() for jump-table optimization
         break;
     case R_OUT_IS_THROWN:
-        return TRUE;
+        assert(THROWN(f->out));
+        break;
     case R_BLANK:
         SET_BLANK(f->out);
         break;
@@ -1271,22 +1277,17 @@ REBOOL Do_Native_Core_Throws(struct Reb_Frame *f)
     default:
         assert(FALSE);
     }
-
-    return FALSE;
 }
 
 
 //
-//  Do_Action_Core_Throws: C
+//  Do_Action_Core: C
 //
-REBOOL Do_Action_Core_Throws(struct Reb_Frame *f)
+void Do_Action_Core(struct Reb_Frame *f)
 {
-    enum Reb_Kind type = VAL_TYPE(FRM_ARG(f, 1));
-    REBACT action;
-    REB_R ret;
-
     Eval_Natives++;
 
+    enum Reb_Kind type = VAL_TYPE(FRM_ARG(f, 1));
     assert(type < REB_MAX);
 
     // Handle special datatype test cases (eg. integer?).
@@ -1297,18 +1298,24 @@ REBOOL Do_Action_Core_Throws(struct Reb_Frame *f)
         else
             SET_FALSE(f->out);
 
-        return FALSE;
+        return;
     }
 
-    action = Value_Dispatch[TO_0_FROM_KIND(type)];
+    REBACT action = Value_Dispatch[TO_0_FROM_KIND(type)];
     if (!action) fail (Error_Illegal_Action(type, FUNC_ACT(f->func)));
-    ret = action(f, FUNC_ACT(f->func));
+
+    REB_R ret = action(f, FUNC_ACT(f->func));
+
+    if (ret == R_OUT_IS_THROWN) {
+        assert(THROWN(f->out));
+        return;
+    }
+
+    assert(NOT(THROWN(f->out)));
 
     switch (ret) {
     case R_OUT: // put sequentially in switch() for jump-table optimization
         break;
-    case R_OUT_IS_THROWN:
-        return TRUE;
     case R_BLANK:
         SET_BLANK(f->out);
         break;
@@ -1324,14 +1331,13 @@ REBOOL Do_Action_Core_Throws(struct Reb_Frame *f)
     default:
         assert(FALSE);
     }
-    return FALSE;
 }
 
 
 //
-//  Do_Function_Core_Throws: C
+//  Do_Function_Core: C
 //
-REBOOL Do_Function_Core_Throws(struct Reb_Frame *f)
+void Do_Function_Core(struct Reb_Frame *f)
 {
     // In specific binding, we must always reify the frame and get it handed
     // over to the GC when calling user functions.  This is "costly" but
@@ -1351,7 +1357,10 @@ REBOOL Do_Function_Core_Throws(struct Reb_Frame *f)
         // that words embedded in the shared blocks may only look up relative
         // to the currently running function.
         //
-        return Do_At_Throws(f->out, FUNC_BODY(f->func), 0);
+        if (Do_At_Throws(f->out, FUNC_BODY(f->func), 0))
+            assert(THROWN(f->out));
+        else
+            assert(NOT(THROWN(f->out)));
     }
     else {
         assert(f->flags & DO_FLAG_HAS_VARLIST);
@@ -1375,7 +1384,10 @@ REBOOL Do_Function_Core_Throws(struct Reb_Frame *f)
         //
         PROTECT_FRM_X(f, &body);
 
-        return DO_VAL_ARRAY_AT_THROWS(f->out, &body);
+        if (DO_VAL_ARRAY_AT_THROWS(f->out, &body))
+            assert(THROWN(f->out));
+        else
+            assert(NOT(THROWN(f->out)));
 
         // References to parts of this function's copied body may still be
         // extant, but we no longer need to hold it from GC.  Fortunately the
@@ -1385,9 +1397,9 @@ REBOOL Do_Function_Core_Throws(struct Reb_Frame *f)
 
 
 //
-//  Do_Routine_Core_Throws: C
+//  Do_Routine_Core: C
 //
-REBOOL Do_Routine_Core_Throws(struct Reb_Frame *f)
+void Do_Routine_Core(struct Reb_Frame *f)
 {
     REBARR *args = Copy_Values_Len_Shallow(
         FRM_NUM_ARGS(f) > 0 ? FRM_ARG(f, 1) : NULL,
@@ -1397,10 +1409,6 @@ REBOOL Do_Routine_Core_Throws(struct Reb_Frame *f)
     Call_Routine(f->func, args, f->out);
 
     Free_Array(args);
-
-    // Note: cannot "throw" a Rebol value across an FFI boundary.
-
-    return FALSE;
 }
 
 
@@ -1683,8 +1691,8 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
 
     Do_Core(f);
 
-    if (f->indexor == THROWN_FLAG)
-        return R_OUT_IS_THROWN;
+    if (THROWN(f->out))
+        return R_OUT_IS_THROWN; // prohibits recovery from exits
 
     assert(f->indexor == END_FLAG); // we started at END_FLAG, can only throw
 
