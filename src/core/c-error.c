@@ -246,6 +246,7 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
 #endif
 
     SET_ARRAY_LEN(MOLD_STACK, s->mold_loop_tail);
+    TERM_ARRAY(MOLD_STACK);
 
     GC_Disabled = s->gc_disable;
 
