@@ -304,7 +304,7 @@ static int get_work_area(Display *display, METRIC_TYPE type)
 	SDL_Rect rect;
 	SDL_DisplayMode mode;
 	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "number of screens: %d\n", SDL_GetNumVideoDisplays());
-	float dpi;
+	float ddpi, vdpi, hdpi;
 
 	switch (type) {
 		case SM_SCREEN_WIDTH:
@@ -326,12 +326,12 @@ static int get_work_area(Display *display, METRIC_TYPE type)
 			return rect.h;
 
 		case SM_SCREEN_DPI_X:
-			if (SDL_GetDisplayDPI(0, NULL, &dpi, NULL) < 0) return 0;
-			return dpi;
+			if (SDL_GetDisplayDPI(0, &ddpi, &hdpi, &vdpi) < 0) return 0;
+			return hdpi;
 
 		case SM_SCREEN_DPI_Y:
-			if (SDL_GetDisplayDPI(0, NULL, NULL, &dpi) < 0) return 0;
-			return dpi;
+			if (SDL_GetDisplayDPI(0, &ddpi, &hdpi, &vdpi) < 0) return 0;
+			return vdpi;
 	}
 	return 0;
 #endif
