@@ -1555,6 +1555,18 @@ REBNATIVE(specialize)
 //
 // If opt_def is NULL, then f->data.context must be set
 //
+// !!! Because APPLY is being written as a regular native (and not a
+// special exception case inside of Do_Core) it has to "re-enter" Do_Core
+// and jump to the argument processing.  This is the first example of
+// such a re-entry, and is not particularly streamlined yet.
+//
+// This could also be accomplished if function dispatch were a subroutine
+// that would be called both here and from the evaluator loop.  But if
+// the subroutine were parameterized with the frame state, it would be
+// basically equivalent to a re-entry.  And re-entry is interesting to
+// experiment with for other reasons (e.g. continuations), so that is what
+// is used here.
+//
 REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
 {
 #if !defined(NDEBUG)
@@ -1564,23 +1576,22 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
     f->eval_type = ET_FUNCTION;
     SET_FRAME_SYM(f, sym);
 
-    // !!! Because APPLY is being written as a regular native (and not a
-    // special exception case inside of Do_Core) it has to "re-enter" Do_Core
-    // and jump to the argument processing.  This is the first example of
-    // such a re-entry, and is not particularly streamlined yet.
+    // We pretend our "input source" has ended.
     //
-    // This could also be accomplished if function dispatch were a subroutine
-    // that would be called both here and from the evaluator loop.  But if
-    // the subroutine were parameterized with the frame state, it would be
-    // basically equivalent to a re-entry.  And re-entry is interesting to
-    // establish for other reasons (e.g. continuations), so that is what is
-    // used here.
-
+    f->value = END_CELL;
     f->indexor = END_FLAG;
     f->source.array = EMPTY_ARRAY;
     f->eval_fetched = NULL;
 
     f->dsp_orig = DSP;
+
+    f->flags =
+        DO_FLAG_NEXT
+        | DO_FLAG_NO_LOOKAHEAD
+        | DO_FLAG_NO_ARGS_EVALUATE
+        | DO_FLAG_APPLYING;
+
+    assert(NOT(f->flags & DO_FLAG_HAS_VARLIST));
 
     // !!! We have to push a call here currently because prior to specific
     // binding, the stack gets walked to resolve variables.   Hence in the
@@ -1601,39 +1612,12 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
     // for it...it should have its own space.
     //
     if (opt_def) {
-        f->flags =
-            DO_FLAG_NEXT
-            | DO_FLAG_NO_LOOKAHEAD
-            | DO_FLAG_NO_ARGS_EVALUATE
-            | DO_FLAG_APPLYING;
-
         Push_Or_Alloc_Args_For_Underlying_Func(f); // sets f->func
     }
     else {
-        f->flags |=
-            DO_FLAG_NEXT
-            | DO_FLAG_NO_LOOKAHEAD
-            | DO_FLAG_HAS_VARLIST
-            | DO_FLAG_EXECUTE_FRAME
-            | DO_FLAG_APPLYING;
-
         // f->func should already be set
-        f->exit_from = NULL; // !!! TBD: handle correctly
-    }
+        f->flags |= DO_FLAG_HAS_VARLIST;
 
-    // Now that we've let Push_Or_Alloc_Vars see f->value the function, we
-    // pretend our input source has ended.
-
-    f->value = END_CELL;
-
-    f->arg = FRM_ARGS_HEAD(f);
-    f->refine = TRUE_VALUE;
-    f->cell.subfeed = NULL;
-
-    if (!opt_def) {
-        //
-        // No need to push a frame, as there already is one.
-        //
         // !!! This form of execution raises a ton of open questions about
         // what to do if a frame is used more than once.  Function calls
         // are allowed to destroy their arguments and will contaminate the
@@ -1645,7 +1629,13 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
         //
         ASSERT_CONTEXT(AS_CONTEXT(f->data.varlist));
     }
-    else {
+
+    f->arg = FRM_ARGS_HEAD(f);
+    f->refine = TRUE_VALUE;
+    f->cell.subfeed = NULL;
+
+    if (opt_def) {
+        //
         // !!! Prior to specific binding, it's necessary to signal to the
         // Is_Function_Frame_Fulfilling() that this frame is *not* fulfilling
         // by setting f->param to END_CELL.  That way it will be considered

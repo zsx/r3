@@ -782,8 +782,8 @@ struct Reb_Frame {
             (f)->indexor = END_FLAG; \
             break; \
         } \
+        (f)->eval_type = ET_INERT; \
         (f)->flags = 0; /* !!! review */ \
-        (f)->param = END_CELL; /* for set-word/set-path infix quoting */ \
         (f)->indexor = VAL_INDEX(v) + 1; \
         (f)->source.array = VAL_ARRAY(v); \
         (f)->eval_fetched = NULL; \
