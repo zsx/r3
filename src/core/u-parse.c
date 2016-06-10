@@ -1037,8 +1037,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
     // For each rule in the rule block:
     while (NOT_END(P_RULE)) {
 
-        //Print_Parse_Index(P_TYPE, P_RULE, P_INPUT, P_PAUSE);
-
+        /* Print_Parse_Index(P_TYPE, P_RULE, P_INPUT, P_POS); */
 
         if (--Eval_Count <= 0 || Eval_Signals) {
             //

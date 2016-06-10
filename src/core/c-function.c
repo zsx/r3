@@ -1577,9 +1577,7 @@ REBNATIVE(specialize)
 //
 REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
 {
-#if !defined(NDEBUG)
-    f->label_sym = SYM_0; // debug build checks label was SYM_0 before SET
-#endif
+    assert(IS_FUNCTION(f->gotten));
 
     f->eval_type = ET_FUNCTION;
     SET_FRAME_SYM(f, sym);
@@ -1590,6 +1588,7 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
     f->indexor = END_FLAG;
     f->source.array = EMPTY_ARRAY;
     f->eval_fetched = NULL;
+    f->lookback = FALSE;
 
     f->dsp_orig = DSP;
 
@@ -1623,7 +1622,7 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
         Push_Or_Alloc_Args_For_Underlying_Func(f); // sets f->func
     }
     else {
-        // f->func should already be set
+        // f->func and f->exit_from should already be set
         f->flags |= DO_FLAG_HAS_VARLIST;
 
         // !!! This form of execution raises a ton of open questions about
@@ -1676,6 +1675,9 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
                 f->func, VAL_ARRAY_AT(opt_def), FLAGIT_KIND(REB_SET_WORD)
             );
         }
+
+        f->param = END_CELL; // for Is_Function_Frame_Fulfilling() during GC
+        f->refine = NULL; // necessary since GC looks at it
 
         // Do the block into scratch space--we ignore the result (unless it is
         // thrown, in which case it must be returned.)
@@ -1745,7 +1747,7 @@ REBNATIVE(apply)
     if (!IS_FUNCTION(D_OUT))
         fail (Error(RE_APPLY_NON_FUNCTION, ARG(value))); // for SPECIALIZE too
 
-    f->param = D_OUT;
+    f->gotten = D_OUT;
     f->out = D_OUT;
 
     return Apply_Frame_Core(f, sym, def);

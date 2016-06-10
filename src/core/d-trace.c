@@ -279,13 +279,11 @@ void Trace_Fetch_Debug(const char* msg, struct Reb_Frame *f, REBOOL after) {
         msg,
         after ? "AFTER" : "BEFORE"
     );
-    assert(f->value != NULL || (after && f->indexor == END_FLAG));
-    if (f->value) {
-        if (IS_END(f->value))
-            Debug_Fmt("END shouldn't happen except temporarily in parse");
-        else
-            PROBE(f->value);
-    }
+
+    if (IS_END(f->value))
+        Debug_Fmt("f->value is END");
+    else
+        PROBE(f->value);
 }
 
 #endif

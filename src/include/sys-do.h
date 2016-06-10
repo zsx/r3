@@ -446,6 +446,23 @@ struct Reb_Frame {
     //
     const REBVAL *value;
 
+    // `gotten`
+    //
+    // Work in Get_Var that might need to be reused makes use of this pointer.
+    //
+    const REBVAL *gotten;
+
+    // This flag is used to tell the function code whether it needs to
+    // "lookback" (into f->out) to find its next argument instead of going
+    // through normal evaluation.
+    //
+    // A lookback binding that takes two arguments is "infix".
+    // A lookback binding that takes one argument is "postfix".
+    // A lookback binding that takes > 2 arguments can be cool (`->` lambdas)
+    // A lookback binding that takes zero arguments blocks subsequent lookback
+    //
+    REBOOL lookback;
+
     // `eval_fetched` [INTERNAL, READ-ONLY, GC-PROTECTS pointed-to REBVAL]
     //
     // Mechanically speaking, running an EVAL has to overwrite `value` from
@@ -871,38 +888,38 @@ struct Reb_Frame {
 //  * `index_out` and `index_in` can be the same variable (and usually are)
 //  * `value_out` and `value_in` can be the same variable (and usually are)
 //
-#define DO_CORE_REFETCH_MAY_THROW( \
-    value_out,indexor_out,out_,source_,indexor_in,value_in,eval_fetched,flags_ \
-) \
+#define DO_CORE_REFETCH_MAY_THROW(dest,f,flags_) \
     do { \
         struct Reb_Frame f_; \
-        if (!eval_fetched && indexor_in != VALIST_FLAG) { \
+        f_.eval_type = Eval_Table[VAL_TYPE((f)->value)]; \
+        if (!(f)->eval_fetched && (f)->indexor != VALIST_FLAG) { \
             if (SPORADICALLY(2)) { /* every OTHER execution fast if DEBUG */ \
                 if ( \
-                    !ANY_EVAL(value_in) \
-                    && (IS_END((value_in) + 1) || !ANY_EVAL((value_in) + 1)) \
+                    (f_.eval_type == ET_INERT) \
+                    && (IS_END((f)->value + 1) || !ANY_EVAL((f)->value + 1)) \
                 ) { \
-                    assert(!IS_TRASH_DEBUG(value_in)); \
-                    *(out_) = *(value_in); \
-                    assert(!IS_TRASH_DEBUG(out_)); \
-                    (value_out) = ARR_AT((source_).array, (indexor_in)); \
-                    if (IS_END(value_out)) \
-                        (indexor_out) = END_FLAG; \
+                    *(dest) = *(f)->value; \
+                    (f)->value = ARR_AT((f)->source.array, (f)->indexor); \
+                    if (IS_END((f)->value)) \
+                        (f)->indexor = END_FLAG; \
                     else \
-                        (indexor_out) = (indexor_in) + 1; \
+                        ++(f)->indexor; \
                     break; \
                 } \
             } \
         } \
-        f_.out = out_; \
-        f_.source = (source_); \
-        f_.value = (value_in); \
-        f_.indexor = (indexor_in); \
+        f_.out = (dest); \
+        f_.source = (f)->source; \
+        f_.value = (f)->value; \
+        f_.indexor = (f)->indexor; \
+        f_.gotten = NULL; \
+        f_.lookback = FALSE; \
         f_.flags = DO_FLAG_ARGS_EVALUATE | DO_FLAG_NEXT | (flags_); \
         Do_Core(&f_); \
-        assert(f_.indexor == VALIST_FLAG || (indexor_in) != f_.indexor); \
-        (indexor_out) = f_.indexor; \
-        (value_out) = f_.value; \
+        assert(f_.indexor == VALIST_FLAG || (f)->indexor != f_.indexor); \
+        (f)->indexor = f_.indexor; \
+        (f)->value = f_.value; \
+        (f)->gotten = NULL; \
     } while (0)
 
 //
@@ -911,19 +928,13 @@ struct Reb_Frame {
 
 #ifdef NDEBUG
     #define DO_NEXT_REFETCH_MAY_THROW(dest,f,flags) \
-        DO_CORE_REFETCH_MAY_THROW( \
-            (f)->value, (f)->indexor, dest, /* outputs */ \
-            (f)->source, (f)->indexor, (f)->value, (f)->eval_fetched, \
-            flags /* inputs */) \
+        DO_CORE_REFETCH_MAY_THROW((dest), (f), (flags))
 
 #else
     #define DO_NEXT_REFETCH_MAY_THROW(dest,f,flags) \
         do { \
             TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_MAY_THROW", (f), FALSE); \
-            DO_CORE_REFETCH_MAY_THROW( \
-                (f)->value, (f)->indexor, dest, /* outputs */ \
-                (f)->source, (f)->indexor, (f)->value, (f)->eval_fetched, \
-                flags /* inputs */); \
+            DO_CORE_REFETCH_MAY_THROW((dest), (f), (flags)); \
             TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_MAY_THROW", (f), TRUE); \
         } while (0)
 #endif
@@ -997,28 +1008,26 @@ struct Reb_Frame {
 
 #define DO_NEXT_MAY_THROW(indexor_out,out,array_in,index) \
     do { \
-        union Reb_Frame_Source source; \
-        REBIXO indexor_ = index + 1; \
-        REBVAL *value_ = ARR_AT((array_in), (index)); \
-        const REBVAL *dummy; /* need for va_list continuation, not array */ \
-        if (IS_END(value_)) { \
+        struct Reb_Frame dummy; /* not a "real frame", Do_Core not called */ \
+        dummy.value = ARR_AT((array_in), (index)); \
+        if (IS_END(dummy.value)) { \
             SET_VOID(out); \
             (indexor_out) = END_FLAG; \
             break; \
         } \
-        source.array = (array_in); \
-        DO_CORE_REFETCH_MAY_THROW( \
-            dummy, (indexor_out), (out), \
-            (source), indexor_, value_, NULL, \
-            DO_FLAG_LOOKAHEAD \
-        ); \
+        dummy.source.array = (array_in); \
+        dummy.indexor = (index) + 1; \
+        dummy.eval_fetched = NULL; \
+        dummy.gotten = NULL; \
+        DO_CORE_REFETCH_MAY_THROW((out), &(dummy), DO_FLAG_LOOKAHEAD); \
         if (THROWN(out)) \
             (indexor_out) = THROWN_FLAG; \
-        else if ((indexor_out) != END_FLAG) { \
-            assert((indexor_out) > 1); \
-            (indexor_out) = (indexor_out) - 1; \
+        else if (dummy.indexor == END_FLAG) \
+            (indexor_out) = END_FLAG; \
+        else { \
+            assert(dummy.indexor > 1); \
+            (indexor_out) = dummy.indexor - 1; \
         } \
-        (void)dummy; \
     } while (0)
 
 // Note: It is safe for `out` and `array` to be the same variable.  The

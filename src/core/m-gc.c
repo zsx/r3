@@ -651,13 +651,7 @@ static void Mark_Frame_Stack_Deep(void)
                 }
             }
 
-            if (
-                !IS_END(f->param) // can't be NULL
-                && !IS_VOID_OR_SAFE_TRASH(f->param)
-                && Is_Value_Managed(f->param)
-            ) {
-                Queue_Mark_Value_Deep(f->param);
-            }
+            assert(IS_END(f->param)); // indicates function is running
 
             if (
                 f->refine // currently allowed to be NULL

@@ -73,6 +73,10 @@ REBIXO Do_Array_At_Core(
     f.out = out;
     f.source.array = array;
     f.flags = flags;
+    f.gotten = NULL; // so ET_WORD and ET_GET_WORD do their own Get_Var
+    f.lookback = FALSE;
+
+    f.eval_type = Eval_Table[VAL_TYPE(f.value)];
 
     Do_Core(&f);
 
@@ -269,8 +273,12 @@ REBIXO Do_Va_Core(
     f.out = out;
     f.indexor = VALIST_FLAG;
     f.source.vaptr = vaptr;
+    f.gotten = NULL; // so ET_WORD and ET_GET_WORD do their own Get_Var
+    f.lookback = FALSE;
 
     f.flags = flags | DO_FLAG_VALIST; // see notes in %sys-do.h on why needed
+
+    f.eval_type = Eval_Table[VAL_TYPE(f.value)];
 
     Do_Core(&f);
 

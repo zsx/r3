@@ -1,5 +1,5 @@
 //
-//  File: %c-do.c
+//  File: %c-eval.c
 //  Summary: "Central Interpreter Evaluator"
 //  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
 //  Homepage: https://github.com/metaeducation/ren-c/
@@ -60,7 +60,7 @@
     // Forward declarations for debug-build-only code--routines at end of
     // file.  (Separated into functions to reduce clutter in the main logic.)
     //
-    static REBUPT Do_Core_Entry_Checks_Debug(struct Reb_Frame *f);
+    static void Do_Core_Entry_Checks_Debug(struct Reb_Frame *f);
     static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f);
     static void Do_Core_Exit_Checks_Debug(struct Reb_Frame *f);
 
@@ -70,6 +70,12 @@
     // the level of interest and recompile with it here to get a breakpoint
     // at that tick.
     //
+    // Notice also that in debug builds, frames carry this value in them.
+    // *Plus* you can get the initialization tick for void cells, BLANK!s,
+    // LOGIC!s, and most end markers by looking at the `track` payload of
+    // the REBVAL cell.  And series contain the do_count where they were
+    // created as well.
+    //
     //      *** DON'T COMMIT THIS v-- KEEP IT AT ZERO! ***
     #define DO_COUNT_BREAKPOINT    0
     //      *** DON'T COMMIT THIS --^ KEEP IT AT ZERO! ***
@@ -78,88 +84,6 @@
 #endif
 
 
-//==//////////////////////////////////////////////////////////////////////==//
-//
-// EVALUATOR ERROR HELPERS
-//
-//==//////////////////////////////////////////////////////////////////////==//
-
-// An attempt was made to use a FRAME! to preload a value into a local when
-// calling a function to directly use that frame.  (The operational invariant
-// of a function when it starts is that locals are not set.)
-//
-static REBCTX *Error_Local_Injection(struct Reb_Frame *f) {
-    assert(IS_TYPESET(f->param));
-
-    REBVAL param_word;
-    Val_Init_Word(&param_word, REB_WORD, VAL_TYPESET_SYM(f->param));
-
-    REBVAL label_word;
-    Val_Init_Word(&label_word, REB_WORD, f->label_sym);
-
-    return Error(RE_LOCAL_INJECTION, &param_word, &label_word, END_CELL);
-}
-
-
-// A punctuator is a "lookahead arity 0 operation", which has special handling
-// such that it cannot be passed as an argument to a function.  Note that
-// f->label_sym must contain the symbol of the punctuator rejecting the call.
-//
-static REBCTX *Error_Punctuator_Hit(struct Reb_Frame *f) {
-    REBVAL punctuator_name;
-    Val_Init_Word(&punctuator_name, REB_WORD, f->label_sym);
-    fail (Error(RE_PUNCTUATOR_HIT, &punctuator_name));
-}
-
-
-// You can't have infix operators as `(1 + 2) infix-op 3 4 5` which quote
-// their left-hand sides, because they have been evaluated.  However, the
-// VALUE_FLAG_EVALUATED permits the determination of inerts that would have
-// been okay to quote, e.g. `<a tag> infix-op 3 4 5`.
-//
-static REBCTX *Error_Lookback_Quote_Too_Late(struct Reb_Frame *f) {
-    fail (Error(RE_INFIX_QUOTE_LATE, f->out, END_CELL));
-}
-
-
-// Infix hard quoting is allowed to quote SET-WORD! and SET-PATH! as the
-// left hand side of lookback and infix functions.  But soft quoting is not.
-//
-static REBCTX *Error_Lookback_Quote_Set_Soft(struct Reb_Frame *f) {
-    fail (Error(RE_INFIX_QUOTE_SET, f->out, END_CELL));
-}
-
-
-// This error happens when an attempt is made to use an arity-0 lookback
-// binding as a left-hand argument to an infix function.  The reason it is
-// given such a strange meaning is that the bit is available (what else would
-// an arity-0 lookback function do differently from an arity-0 prefix one?)
-// and because being able to stop being consumed from the right is something
-// only arity-0 functions can accomplish, because if they had args then it
-// would be the args receiving the infix.
-//
-// !!! The symbol of the function causing the block is not available at the
-// time of the error, which means the message reports the failing function.
-// This could be improved heuristically, but it's not 100% guaranteed to be
-// able to step back in an array to see it--since there may be no array.
-//
-static REBCTX *Error_Infix_Left_Arg_Prohibited(struct Reb_Frame *f) {
-    REBVAL infix_name;
-    Val_Init_Word(&infix_name, REB_WORD, f->label_sym);
-    fail (Error(RE_NO_INFIX_LEFT_ARG, &infix_name, END_CELL));
-}
-
-
-// Ren-C allows functions to be specialized, such that a function's frame can
-// be filled (or partially filled) by an example frame.  The variables
-// corresponding to refinements must be canonized to either TRUE or FALSE
-// by these specializations, because that's what the called function expects.
-//
-static REBCTX *Error_Non_Logic_Refinement(struct Reb_Frame *f) {
-    REBVAL word;
-    Val_Init_Word(&word, REB_WORD, VAL_TYPESET_SYM(f->param));
-    fail (Error(RE_NON_LOGIC_REFINE, &word, Type_Of(f->arg)));
-}
 
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -197,6 +121,14 @@ static inline void Start_New_Expression_Core(struct Reb_Frame *f) {
         } while (FALSE)
 #endif
 
+static inline void Type_Check_Arg_For_Param_May_Fail(struct Reb_Frame * f) {
+    if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg)))
+        fail (Error_Arg_Type(FRM_LABEL(f), f->param, VAL_TYPE(f->arg)));
+}
+
+static inline void Drop_Function_Args_For_Frame(struct Reb_Frame *f) {
+    Drop_Function_Args_For_Frame_Core(f, TRUE);
+}
 
 // There's a need to signal a mode for refinement pickups, and since they
 // are atypical and subfeed needs to be initialized to NULL anyway before
@@ -204,42 +136,26 @@ static inline void Start_New_Expression_Core(struct Reb_Frame *f) {
 //
 #define REFINEMENT_PICKUP_SIGNIFIER EMPTY_ARRAY
 
-// There are several points in the code below where f->arg has to be checked
-// for validity against f->param.
-//
-static inline void Type_Check_Arg_For_Param_May_Fail(struct Reb_Frame * f) {
-    if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg)))
-        fail (Error_Arg_Type(FRM_LABEL(f), f->param, VAL_TYPE(f->arg)));
-}
-
-
-// Help keep code below readable, as only error processing in Fail_Core passes
-// in FALSE (signifies not to drop chunks, because there might be others
-// pushed that haven't balanced)
-//
-static inline void Drop_Function_Args_For_Frame(struct Reb_Frame *f) {
-    Drop_Function_Args_For_Frame_Core(f, TRUE);
-}
-
 
 //
 //  Do_Core: C
 //
+// While this routine looks very complex, it's actually not that difficult
+// to step through.  A lot of it is assertions, debug tracking, and comments.
+//
+// Whether fields contain usable values upon entry depends on `f->eval_type`
+// and a number of conditions.  For instance, if ET_FUNCTION and `f->lookback`
+// then `f->out` will contain the first argument to the lookback (e.g. infix)
+// function being run.
+//
+// Comments on the definition of Reb_Frame are a good place to start looking
+// to understand what's going on.
+//
 void Do_Core(struct Reb_Frame * const f)
 {
 #if !defined(NDEBUG)
-    REBUPT do_count; // cache of `f->do_count` (improves watchlist visibility)
+    REBUPT do_count = f->do_count = TG_Do_Count; // snapshot initial state
 #endif
-
-    // This flag is used to tell the function code whether it needs to
-    // "lookback" (into f->out) to find its next argument instead of going
-    // through normal evaluation.
-    //
-    // A lookback binding that takes two arguments is "infix".
-    // A lookback binding that takes one argument is "postfix".
-    // A lookback binding that takes > 2 arguments can be cool (`->` lambdas)
-    //
-    REBOOL lookback = FALSE;
 
     // Establish baseline for whether we are to evaluate function argumentsn
     // according to the flags passed in.  EVAL can change this with EVAL/ONLY
@@ -248,24 +164,14 @@ void Do_Core(struct Reb_Frame * const f)
 
     // APPLY and a DO of a FRAME! both use this same code path.
     //
-    if (f->flags & DO_FLAG_APPLYING) {
-        assert(TG_Frame_Stack == f); // already pushed (and args in progress)
-        assert(f->label_sym != SYM_0);
-        assert(f->label_str != NULL);
-        assert(f->eval_type == ET_FUNCTION);
-
-    #if !defined(NDEBUG)
-        do_count = TG_Do_Count; // entry checks for debug not true here
-    #endif
-
+    if (f->flags & DO_FLAG_APPLYING)
         goto do_function_arglist_in_progress;
-    }
 
     PUSH_CALL(f);
 
 #if !defined(NDEBUG)
     SNAP_STATE(&f->state); // to make sure stack balances, etc.
-    do_count = Do_Core_Entry_Checks_Debug(f); // run once per Do_Core()
+    Do_Core_Entry_Checks_Debug(f); // run once per Do_Core()
 #endif
 
     // Check just once (stack level would be constant if checked in a loop)
@@ -284,7 +190,7 @@ void Do_Core(struct Reb_Frame * const f)
     //
     f->eval_fetched = NULL;
 
-value_ready_for_do_next:
+do_next:
 
     assert(Eval_Count != 0);
 
@@ -346,11 +252,7 @@ reevaluate:
 
     START_NEW_EXPRESSION(f);
 
-    // v-- DO_COUNT_BREAKPOINT lands here (seems like "invisible" breakpoint)
-
-    f->eval_type = Eval_Table[VAL_TYPE(f->value)]; // REBUPT for speed;
-
-    switch (f->eval_type) {
+    switch (f->eval_type) { // <-- DO_COUNT_BREAKPOINT landing spot
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
@@ -388,8 +290,10 @@ reevaluate:
 
     case ET_BAR:
         FETCH_NEXT_ONLY_MAYBE_END(f);
-        if (f->indexor != END_FLAG)
-            goto value_ready_for_do_next; // keep feeding BAR!s...
+        if (f->indexor != END_FLAG) {
+            f->eval_type = Eval_Table[VAL_TYPE(f->value)];
+            goto do_next; // keep feeding BAR!s
+        }
 
         SET_VOID(f->out);
         SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
@@ -413,16 +317,19 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_WORD:
-        f->param = Get_Var_Core(&lookback, f->value, GETVAR_READ_ONLY);
+        if (f->gotten == NULL) // no work to reuse from failed optimization
+            f->gotten = Get_Var_Core(
+                &f->lookback, f->value, GETVAR_READ_ONLY
+            );
 
-        if (IS_FUNCTION(f->param)) { // before IS_VOID() speeds common case
+        if (IS_FUNCTION(f->gotten)) { // before IS_VOID() speeds common case
 
             f->eval_type = ET_FUNCTION;
             SET_FRAME_SYM(f, VAL_WORD_SYM(f->value));
 
-            if (NOT(lookback)) { // ordinary "prefix" function dispatch
+            if (NOT(f->lookback)) { // ordinary "prefix" function dispatch
                 SET_END(f->out);
-                goto do_function_in_param;
+                goto do_function_in_gotten;
             }
 
             // `case ET_WORD` runs at the start of a new evaluation cycle.
@@ -441,26 +348,26 @@ reevaluate:
                     *f->out = *f->prior->param;
                     assert(IS_SET_WORD(f->out));
                     CLEAR_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
-                    goto do_function_in_param;
+                    goto do_function_in_gotten;
 
                 case ET_SET_PATH:
                     *f->out = *f->prior->param;
                     assert(IS_SET_PATH(f->out));
                     CLEAR_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
-                    goto do_function_in_param;
+                    goto do_function_in_gotten;
                 }
 
             SET_END(f->out); // some <end> args are able to tolerate absences
-            goto do_function_in_param;
+            goto do_function_in_gotten;
         }
 
-    do_word_in_value_fetched_as_param:
-        assert(!IS_FUNCTION(f->param)); // infix handling needs differ
+    do_word_in_value_with_gotten:
+        assert(!IS_FUNCTION(f->gotten)); // infix handling needs differ
 
-        if (IS_VOID(f->param))
+        if (IS_VOID(f->gotten))
             fail (Error(RE_NO_VALUE, f->value)); // need `:x` if `x` is unset
 
-        *f->out = *f->param;
+        *f->out = *f->gotten;
         SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         FETCH_NEXT_ONLY_MAYBE_END(f);
 
@@ -485,6 +392,7 @@ reevaluate:
         // evaluation here might peek up at it if it contains an infix
         // function that quotes its first argument, e.g. `x: ++ 10`
         //
+        assert(IS_SET_WORD(f->value));
         f->param = f->value;
 
         FETCH_NEXT_ONLY_MAYBE_END(f);
@@ -523,7 +431,10 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_GET_WORD:
-        *(f->out) = *GET_OPT_VAR_MAY_FAIL(f->value);
+        if (f->gotten == NULL) // no work to reuse from failed optimization
+            f->gotten = GET_OPT_VAR_MAY_FAIL(f->value);
+
+        *f->out = *f->gotten;
         SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
@@ -595,12 +506,12 @@ reevaluate:
             // the infix-or-not status of a binding for several reasons, so
             // this does not come into play here.
 
-            assert(!lookback);
+            assert(!f->lookback);
 
             f->cell.eval = *f->out;
-            f->param = KNOWN(&f->cell.eval);
+            f->gotten = KNOWN(&f->cell.eval);
             SET_END(f->out);
-            goto do_function_in_param;
+            goto do_function_in_gotten;
         }
 
         // Path should have been fully processed, no refinements on stack
@@ -739,24 +650,28 @@ reevaluate:
 // is only triggered when they are looked up from a word.  See #1934.
 //
 // Most function evaluations are triggered from a SWITCH on a WORD! or PATH!,
-// which jumps in at the `do_function_in_value` label.
+// which jumps in at the `do_function_in_gotten` label.
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_FUNCTION:
-        //
-        // Hitting this case (vs the labels below) means hitting a function
-        // literally in a block.  This is relatively uncommon, so the code
-        // caters to more common function fetches winding up in f->param.
-        //
-        f->param = f->value;
-        SET_FRAME_SYM(f, SYM___ANONYMOUS__); // literal functions are nameless
+        if (f->lookback) {
+            assert(NOT_END(f->out)); // !!! for future use
+        }
+        else {
+            //
+            // Hitting this case (vs the labels below) means hitting a function
+            // literally in a block.  This is relatively uncommon, so the code
+            // caters to more common function fetches winding up in f->gotten.
+            //
+            f->gotten = f->value;
+            SET_FRAME_SYM(f, SYM___ANONYMOUS__); // literal functions nameless
+            SET_END(f->out); // needs GC-safe data
+        }
 
-        SET_END(f->out); // needs GC-safe data
+    do_function_in_gotten:
 
-    do_function_in_param:
-
-        assert(IS_FUNCTION(f->param));
+        assert(IS_FUNCTION(f->gotten));
 
         assert(f->label_sym != SYM_0); // must be something (even "anonymous")
     #if !defined(NDEBUG)
@@ -774,7 +689,7 @@ reevaluate:
         // frame is running but not fulfilling arguments, that just means
         // that this is being used in the implementation.
         //
-        if (GET_VAL_FLAG(f->param, FUNC_FLAG_PUNCTUATES) && f->prior)
+        if (GET_VAL_FLAG(f->gotten, FUNC_FLAG_PUNCTUATES) && f->prior)
             switch (f->prior->eval_type) {
             case ET_FUNCTION:
                 if (Is_Function_Frame_Fulfilling(f->prior))
@@ -795,7 +710,7 @@ reevaluate:
         // runs "under the evaluator"...because it *is the evaluator itself*.
         // Hence it is handled in a special way.
         //
-        if (VAL_FUNC(f->param) == NAT_FUNC(eval)) {
+        if (VAL_FUNC(f->gotten) == NAT_FUNC(eval)) {
             FETCH_NEXT_ONLY_MAYBE_END(f);
 
             // The garbage collector expects f->func to be valid during an
@@ -810,12 +725,12 @@ reevaluate:
             // normal evaluation but it does not apply to the value being
             // retriggered itself, just any arguments it consumes.)
             //
-            if (lookback) {
+            if (f->lookback) {
                 if (IS_END(f->out))
                     fail (Error_No_Arg(FRM_LABEL(f), f->param));
 
                 f->cell.eval = *f->out;
-                lookback = FALSE;
+                f->lookback = FALSE;
                 SET_END(f->out);
             }
             else {
@@ -842,6 +757,8 @@ reevaluate:
             else
                 args_evaluate = TRUE;
 
+            CLEAR_FRAME_SYM(f);
+
             // Jumping to the `reevaluate:` label will skip the fetch from the
             // array to get the next `value`.  So seed it with the address of
             // eval result, and step the index back by one so the next
@@ -853,17 +770,10 @@ reevaluate:
             // that gets evaluated it will wind up in f->func, if it's a
             // GROUP! or PATH!-containing-GROUP! it winds up in f->array...)
             //
-            // Note that we may be at the end (which would usually be a NULL
-            // case for f->value) but we are splicing in eval over that,
-            // which keeps the switch from crashing.
-            //
-            if (f->value)
-                f->eval_fetched = f->value;
-            else
-                f->eval_fetched = END_CELL; // NULL means no eval_fetched :-/
+            f->eval_fetched = f->value; // may be END marker for next fetch
 
             f->value = const_KNOWN(&f->cell.eval);
-            CLEAR_FRAME_SYM(f);
+            f->eval_type = Eval_Table[VAL_TYPE(f->value)];
             goto reevaluate; // we don't move index!
         }
 
@@ -899,13 +809,13 @@ reevaluate:
         // means that if DO_FLAG_EXECUTE_FRAME is set, we are specializing
         // and must interpret any void f->arg as an unspecified parameter.)
         //
-        assert(NOT(lookback && (f->flags & DO_FLAG_APPLYING)));
+        assert(NOT(f->lookback && (f->flags & DO_FLAG_APPLYING)));
 
         // The f->out slot is guarded while a function is gathering its
         // arguments.  It cannot contain garbage, so it must either be END
         // or a lookback's first argument (which can also be END).
         //
-        assert(IS_END(f->out) || lookback);
+        assert(IS_END(f->out) || f->lookback);
 
         // `10 = add 5 5` is `true`
         // `add 5 5 = 10` is `** Script error: expected logic! not integer!`
@@ -918,7 +828,8 @@ reevaluate:
         // Need a separate variable to track it.
         //
         REBUPT lookahead_flags; // `goto finished` would cross if initialized
-        lookahead_flags = lookback ? DO_FLAG_NO_LOOKAHEAD : DO_FLAG_LOOKAHEAD;
+        lookahead_flags =
+            f->lookback ? DO_FLAG_NO_LOOKAHEAD : DO_FLAG_LOOKAHEAD;
 
         f->refine = BAR_VALUE; // "not a refinement arg, evaluate normally"
         f->cell.subfeed = NULL; // abuse: non-null is refinement pickup mode
@@ -1206,8 +1117,8 @@ reevaluate:
     //=//// REGULAR ARG-OR-REFINEMENT-ARG (consumes a DO/NEXT's worth) ////=//
 
             if (pclass == PARAM_CLASS_NORMAL) {
-                if (lookback) {
-                    lookback = FALSE;
+                if (f->lookback) {
+                    f->lookback = FALSE;
 
                     if (IS_END(f->out)) {
                         if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
@@ -1239,8 +1150,8 @@ reevaluate:
     //=//// HARD QUOTED ARG-OR-REFINEMENT-ARG /////////////////////////////=//
 
             if (pclass == PARAM_CLASS_HARD_QUOTE) {
-                if (lookback) {
-                    lookback = FALSE;
+                if (f->lookback) {
+                    f->lookback = FALSE;
 
                     if (IS_END(f->out)) {
                         if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
@@ -1266,8 +1177,8 @@ reevaluate:
 
             assert(pclass == PARAM_CLASS_SOFT_QUOTE);
 
-            if (lookback) {
-                lookback = FALSE;
+            if (f->lookback) {
+                f->lookback = FALSE;
 
                 if (IS_END(f->out)) {
                     if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
@@ -1538,6 +1449,7 @@ reevaluate:
         //
         f->cell.subfeed = NULL;
         assert(IS_END(f->param));
+        // refine can be anything.
         assert(
             IS_END(f->value)
             || (f->flags & DO_FLAG_VALIST)
@@ -1733,26 +1645,32 @@ reevaluate:
         // However, recursive cases of DO disable infix dispatch if they are
         // currently processing an infix operation.  The currently processing
         // operation is thus given "higher precedence" by this disablement.
+
+        f->gotten = NULL; // signal to ET_WORD and ET_GET_WORD to do a get
     }
-    else if (IS_WORD(f->value)) {
-        REBOOL lookback_leftover = lookback;
+    else if (f->eval_type == ET_WORD) {
+        REBOOL lookback_leftover = f->lookback;
 
         // Don't overwrite f->value (if this just a DO/NEXT and it's not
         // infix, we might need to hold it at its position.)
         //
-        f->param = Get_Var_Core(&lookback, f->value, GETVAR_READ_ONLY);
+        f->gotten = Get_Var_Core(
+            &f->lookback,
+            f->value,
+            GETVAR_READ_ONLY
+        );
 
     //=//// DO/NEXT WON'T RUN MORE CODE UNLESS IT'S AN INFIX FUNCTION /////=//
 
-        if (NOT(lookback) && NOT(f->flags & DO_FLAG_TO_END))
+        if (NOT(f->lookback) && NOT(f->flags & DO_FLAG_TO_END))
             goto finished;
 
     //=//// IT'S INFIX OR WE'RE DOING TO THE END...DISPATCH LIKE WORD /////=//
 
-        START_NEW_EXPRESSION(f); // v-- DO_COUNT_BREAKPOINT lands below
+        START_NEW_EXPRESSION(f);
 
-        if (!IS_FUNCTION(f->param))
-            goto do_word_in_value_fetched_as_param;
+        if (!IS_FUNCTION(f->gotten)) // <-- DO_COUNT_BREAKPOINT landing spot
+            goto do_word_in_value_with_gotten;
 
         f->eval_type = ET_FUNCTION;
         SET_FRAME_SYM(f, VAL_WORD_SYM(f->value));
@@ -1761,19 +1679,22 @@ reevaluate:
         // the value before it, assume that means it's a 0-arg barrier
         // that does not want to be the left hand side of another infix.
         //
-        if (lookback) {
+        if (f->lookback) {
             if (lookback_leftover)
                 fail (Error_Infix_Left_Arg_Prohibited(f));
         }
         else
             SET_END(f->out);
 
-        goto do_function_in_param;
+        goto do_function_in_gotten;
     }
+    else
+        f->gotten = NULL; // signal to ET_GET_WORD it needs to fetch for itself
 
     // Continue evaluating rest of block if not just a DO/NEXT
     //
-    if (f->flags & DO_FLAG_TO_END) goto value_ready_for_do_next;
+    if (f->flags & DO_FLAG_TO_END)
+        goto do_next;
 
 finished:
 
@@ -1823,7 +1744,7 @@ finished:
 
 #if !defined(NDEBUG)
 
-static REBUPT Do_Core_Entry_Checks_Debug(struct Reb_Frame *f)
+static void Do_Core_Entry_Checks_Debug(struct Reb_Frame *f)
 {
     // Though we can protect the value written into the target pointer 'out'
     // from GC during the course of evaluation, we can't protect the
@@ -1861,6 +1782,13 @@ static REBUPT Do_Core_Entry_Checks_Debug(struct Reb_Frame *f)
     //
     assert(f->value);
 
+    if (f->eval_type == ET_FUNCTION && f->gotten != NULL)
+        assert(f->label_sym != SYM_0 && f->label_str != NULL);
+    else {
+        f->label_sym = SYM_0;
+        f->label_str = NULL;
+    }
+
     // All callers should ensure that the type isn't an END marker before
     // bothering to invoke Do_Core().
     //
@@ -1886,17 +1814,6 @@ static REBUPT Do_Core_Entry_Checks_Debug(struct Reb_Frame *f)
     // This flag is managed solely by the frame code; shouldn't come in set
     //
     assert(NOT(f->flags & DO_FLAG_HAS_VARLIST));
-
-    f->label_sym = SYM_0;
-    f->label_str = NULL;
-
-    // Snapshot the "tick count" to assist in showing the value of the tick
-    // count at each level in a stack, so breakpoints can be strategically
-    // set for that tick based on higher levels than the value you might
-    // see during a crash.
-    //
-    f->do_count = TG_Do_Count;
-    return f->do_count;
 }
 
 
@@ -1920,8 +1837,11 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
     //
     assert(IS_TRASH_DEBUG(&TG_Thrown_Arg));
 
-    f->eval_type = ET_TRASH;
-    assert(f->label_sym == SYM_0);
+    // The eval_type is expected to be calculated already, because it's an
+    // opportunity for the caller to decide pushing a frame is not necessary
+    // (e.g. if it's ET_INERT).  Hence it is only set at the end of the loop.
+    //
+    assert(f->eval_type == Eval_Table[VAL_TYPE(f->value)]);
 
     // If running the evaluator, then this frame should be the topmost on the
     // frame stack.
@@ -1981,14 +1901,12 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
     //
     f->func = NULL;
 
-    assert(f->label_sym == SYM_0);
-    assert(f->label_str == NULL);
+    if (f->eval_type == ET_FUNCTION && f->gotten != NULL)
+        assert(f->label_sym != SYM_0 && f->label_str != NULL);
+    else
+        assert(f->label_sym == SYM_0 && f->label_str == NULL);
 
-    // We specifically don't trash f->param, because infix evaluation needs
-    // to start a new expression, where the debug and tracing sees the
-    // current f->value but the f->param is holding the next value.
-    //
-    /* f->param = cast(REBVAL*, 0xDECAFBAD); */
+    f->param = cast(const REBVAL*, 0xDECAFBAD);
     f->arg = cast(REBVAL*, 0xDECAFBAD);
     f->refine = cast(REBVAL*, 0xDECAFBAD);
 

@@ -1201,6 +1201,102 @@ REBCTX *Error(REBCNT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
 
 
 //
+//  Error_Local_Injection: C
+//
+// An attempt was made to use a FRAME! to preload a value into a local when
+// calling a function to directly use that frame.  (The operational invariant
+// of a function when it starts is that locals are not set.)
+//
+REBCTX *Error_Local_Injection(struct Reb_Frame *f) {
+    assert(IS_TYPESET(f->param));
+
+    REBVAL param_word;
+    Val_Init_Word(&param_word, REB_WORD, VAL_TYPESET_SYM(f->param));
+
+    REBVAL label_word;
+    Val_Init_Word(&label_word, REB_WORD, f->label_sym);
+
+    return Error(RE_LOCAL_INJECTION, &param_word, &label_word, END_CELL);
+}
+
+
+//
+//  Error_Punctuator_Hit: C
+//
+// A punctuator is a "lookahead arity 0 operation", which has special handling
+// such that it cannot be passed as an argument to a function.  Note that
+// f->label_sym must contain the symbol of the punctuator rejecting the call.
+//
+REBCTX *Error_Punctuator_Hit(struct Reb_Frame *f) {
+    REBVAL punctuator_name;
+    Val_Init_Word(&punctuator_name, REB_WORD, f->label_sym);
+    fail (Error(RE_PUNCTUATOR_HIT, &punctuator_name));
+}
+
+
+//
+//  Error_Lookback_Quote_Too_Late: C
+//
+// You can't have infix operators as `(1 + 2) infix-op 3 4 5` which quote
+// their left-hand sides, because they have been evaluated.  However, the
+// VALUE_FLAG_EVALUATED permits the determination of inerts that would have
+// been okay to quote, e.g. `<a tag> infix-op 3 4 5`.
+//
+REBCTX *Error_Lookback_Quote_Too_Late(struct Reb_Frame *f) {
+    fail (Error(RE_INFIX_QUOTE_LATE, f->out, END_CELL));
+}
+
+
+//
+//  Error_Lookback_Quote_Set_Soft: C
+//
+// Infix hard quoting is allowed to quote SET-WORD! and SET-PATH! as the
+// left hand side of lookback and infix functions.  But soft quoting is not.
+//
+REBCTX *Error_Lookback_Quote_Set_Soft(struct Reb_Frame *f) {
+    fail (Error(RE_INFIX_QUOTE_SET, f->out, END_CELL));
+}
+
+
+//
+//  Error_Infix_Left_Arg_Prohibited: C
+//
+// This error happens when an attempt is made to use an arity-0 lookback
+// binding as a left-hand argument to an infix function.  The reason it is
+// given such a strange meaning is that the bit is available (what else would
+// an arity-0 lookback function do differently from an arity-0 prefix one?)
+// and because being able to stop being consumed from the right is something
+// only arity-0 functions can accomplish, because if they had args then it
+// would be the args receiving the infix.
+//
+// !!! The symbol of the function causing the block is not available at the
+// time of the error, which means the message reports the failing function.
+// This could be improved heuristically, but it's not 100% guaranteed to be
+// able to step back in an array to see it--since there may be no array.
+//
+REBCTX *Error_Infix_Left_Arg_Prohibited(struct Reb_Frame *f) {
+    REBVAL infix_name;
+    Val_Init_Word(&infix_name, REB_WORD, f->label_sym);
+    fail (Error(RE_NO_INFIX_LEFT_ARG, &infix_name, END_CELL));
+}
+
+
+//
+//  Error_Non_Logic_Refinement: C
+//
+// Ren-C allows functions to be specialized, such that a function's frame can
+// be filled (or partially filled) by an example frame.  The variables
+// corresponding to refinements must be canonized to either TRUE or FALSE
+// by these specializations, because that's what the called function expects.
+//
+REBCTX *Error_Non_Logic_Refinement(struct Reb_Frame *f) {
+    REBVAL word;
+    Val_Init_Word(&word, REB_WORD, VAL_TYPESET_SYM(f->param));
+    fail (Error(RE_NON_LOGIC_REFINE, &word, Type_Of(f->arg)));
+}
+
+
+//
 //  Error_Bad_Func_Def: C
 //
 REBCTX *Error_Bad_Func_Def(const REBVAL *spec, const REBVAL *body)

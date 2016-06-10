@@ -447,32 +447,33 @@ void Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
     // contains the extra information of the exit_from...either in the
     // frame context (if a specialization) or in place of code pointer (if not)
     //
-    assert(IS_FUNCTION(f->param));
+    assert(IS_FUNCTION(f->gotten));
 
-    f->func = VAL_FUNC(f->param);
+    f->func = VAL_FUNC(f->gotten);
 
-    if (VAL_FUNC_CLASS(f->param) == FUNC_CLASS_SPECIALIZED) {
+    if (VAL_FUNC_CLASS(f->gotten) == FUNC_CLASS_SPECIALIZED) {
         //
         // Can't use a specialized f->func as the frame's function because
         // it has the wrong number of arguments (calls to VAL_FUNC_PARAMLIST
         // on f->func would be bad).
         //
-        if (f->func == VAL_FUNC(f->param))
+        if (f->func == VAL_FUNC(f->gotten))
             f->func = VAL_FUNC(
-                CTX_FRAME_FUNC_VALUE(f->param->payload.function.impl.special)
+                CTX_FRAME_FUNC_VALUE(f->gotten->payload.function.impl.special)
             );
 
         // !!! For debugging, it would probably be desirable to indicate
         // that this call of the function originated from a specialization.
         // So that would mean saving the specialization's f->func somewhere.
+        //
 
-        special_arg = CTX_VARS_HEAD(f->param->payload.function.impl.special);
+        special_arg = CTX_VARS_HEAD(f->gotten->payload.function.impl.special);
 
-        // Need to dig f->param a level deeper to see if it's a definitionally
+        // Need to dig f->gotten a level deeper to see if it's a definitionally
         // scoped RETURN or LEAVE.
         //
-        f->param =
-            CTX_FRAME_FUNC_VALUE(f->param->payload.function.impl.special);
+        f->gotten =
+            CTX_FRAME_FUNC_VALUE(f->gotten->payload.function.impl.special);
 
         f->flags |= DO_FLAG_EXECUTE_FRAME;
     }
@@ -481,10 +482,10 @@ void Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
     }
 
     if (
-        VAL_FUNC(f->param) == NAT_FUNC(leave)
-        || VAL_FUNC(f->param) == NAT_FUNC(return)
+        VAL_FUNC(f->gotten) == NAT_FUNC(leave)
+        || VAL_FUNC(f->gotten) == NAT_FUNC(return)
     ) {
-        f->exit_from = VAL_FUNC_EXIT_FROM(f->param);
+        f->exit_from = VAL_FUNC_EXIT_FROM(f->gotten);
     } else
         f->exit_from = NULL;
 
