@@ -939,7 +939,7 @@ RL_API int RL_Get_String(REBSER *series, u32 index, void **str)
 //
 RL_API int RL_Get_UTF8_String(REBSER *series, u32 index, REBYTE **str)
 {
-    int len;
+    REBCNT len;
 
     if (index >= SER_LEN(series))
         len = 0;
