@@ -584,19 +584,17 @@ static void Init_Natives(void)
         // values.  Having all natives loaded fully before ever running
         // Do_Core() helps with stability and invariants.
 
-        REBVAL *name;
-        RELVAL *spec;
-        REBOOL has_body;
-
         // Get the name the native will be started at with in Lib_Context
         //
         if (!IS_SET_WORD(item))
             panic (Error(RE_NATIVE_BOOT));
-        name = KNOWN(item);
+
+        REBVAL *name = KNOWN(item);
         ++item;
 
         // See if it's being invoked with NATIVE or NATIVE/BODY
         //
+        REBOOL has_body;
         if (IS_WORD(item)) {
             if (VAL_WORD_SYM(item) != SYM_NATIVE)
                 panic (Error(RE_NATIVE_BOOT));
@@ -622,7 +620,8 @@ static void Init_Natives(void)
         //
         if (!IS_BLOCK(item))
             panic (Error(RE_NATIVE_BOOT));
-        spec = item;
+
+        REBVAL *spec = KNOWN(item);
         assert(VAL_INDEX(spec) == 0); // must be at head (we don't copy)
         ++item;
 

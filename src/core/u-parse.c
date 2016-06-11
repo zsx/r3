@@ -128,6 +128,7 @@ static REBOOL Subparse_Throws(
     f->index = VAL_INDEX(rules) + 1;
 
     f->pending = NULL;
+    f->gotten = NULL;
 
     f->stackvars = Push_Ended_Trash_Chunk(2);
     f->varlist = NULL;

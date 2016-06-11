@@ -539,8 +539,6 @@ REBNATIVE(case)
         //     condition: false
         //     case [condition 10 + 20 true {hello}] ;-- returns {hello}
         //
-        // So a FALSE? condition evaluates the branch without affecting D_OUT.
-
         if (IS_CONDITIONAL_FALSE(temp)) {
             DO_NEXT_REFETCH_MAY_THROW(temp, &e, DO_FLAG_LOOKAHEAD);
             if (THROWN(temp)) {

@@ -44,6 +44,7 @@ core: [
     d-break.c
     d-crash.c
     d-dump.c
+    d-eval.c
     d-legacy.c
     d-print.c
     d-stack.c

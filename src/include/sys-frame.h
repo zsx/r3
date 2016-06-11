@@ -355,7 +355,17 @@ struct Reb_Frame {
 
     // `gotten`
     //
-    // Work in Get_Var that might need to be reused makes use of this pointer.
+    // There is a lookahead step to see if the next item in an array is a
+    // WORD!.  If so it is checked to see if that word is a "lookback word"
+    // (e.g. one that was SET/LOOKBACK to serve as an infix function).
+    // Performing that lookup has the same cost as getting the variable value.
+    // Considering that the value will need to be used anyway--infix or not--
+    // the pointer is held in this field for WORD!s (and sometimes FUNCTION!)
+    //
+    // This carries a risk if a DO_NEXT is performed--followed by something
+    // that changes variables or the array--followed by another DO_NEXT.
+    // There is an assert to check this, and clients wishing to be robust
+    // across this (and other modifications) need to use the INDEXOR-based API.
     //
     const REBVAL *gotten;
 

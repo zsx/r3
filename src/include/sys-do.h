@@ -224,6 +224,8 @@ inline static void FETCH_NEXT_ONLY_MAYBE_END(struct Reb_Frame *f) {
     TRACE_FETCH_DEBUG("FETCH_NEXT_ONLY_MAYBE_END", f, FALSE);
 
     assert(NOT_END(f->value));
+    assert(f->gotten == NULL); // we'd be invalidating it!
+
     if (f->pending == NULL) {
         f->value = ARR_AT(f->source.array, f->index);
         ++f->index;
@@ -283,15 +285,22 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
     //
     switch (child->eval_type) {
     case ET_WORD: {
-        child->gotten = Get_Var_Core(
-            &child->lookback,
-            parent->value,
-            parent->specifier,
-            GETVAR_READ_ONLY
-        );
+        if (parent->gotten == NULL) {
+            child->gotten = Get_Var_Core(
+                &child->lookback,
+                parent->value,
+                parent->specifier,
+                GETVAR_READ_ONLY
+            );
+        }
+        else {
+            child->gotten = parent->gotten;
+            child->lookback = FALSE;
+            parent->gotten = NULL;
+        }
 
         if (IS_FUNCTION(child->gotten))
-            goto no_optimization; // ET_WORD reuses f->param, f->lookback
+            goto no_optimization; // ET_WORD reuses f->gotten, f->lookback
 
         if (IS_VOID(child->gotten))
             fail (Error_No_Value_Core(parent->value, parent->specifier));
@@ -307,13 +316,12 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
         break;
 
     case ET_GET_WORD: {
-        child->gotten = Get_Var_Core(
+        *out = *Get_Var_Core(
             &child->lookback,
             parent->value,
             parent->specifier,
             GETVAR_READ_ONLY
         );
-        *out = *child->gotten;
         SET_VAL_FLAG(out, VALUE_FLAG_EVALUATED);
         }
         break;
@@ -321,8 +329,6 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
     case ET_INERT:
         COPY_VALUE(out, parent->value, parent->specifier);
         CLEAR_VAL_FLAG(out, VALUE_FLAG_EVALUATED);
-        child->lookback = FALSE;
-        child->gotten = NULL; // technically not necessary (?)
         break;
 
     default:
@@ -373,7 +379,6 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
     return;
 
 no_optimization:
-    assert(NOT(parent->lookback));
     child->out = out;
     child->source = parent->source;
     child->value = parent->value;
@@ -392,7 +397,7 @@ no_optimization:
     parent->pending = child->pending;
     parent->value = child->value;
     parent->index = child->index;
-    parent->gotten = NULL;
+    parent->gotten = child->gotten;
 
     TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_MAY_THROW", parent, TRUE);
 }
@@ -402,6 +407,7 @@ inline static void QUOTE_NEXT_REFETCH(RELVAL *dest, struct Reb_Frame *f) {
     TRACE_FETCH_DEBUG("QUOTE_NEXT_REFETCH", f, FALSE);
     COPY_VALUE(dest, f->value, f->specifier);
     CLEAR_VAL_FLAG(dest, VALUE_FLAG_EVALUATED);
+    f->gotten = NULL;
     FETCH_NEXT_ONLY_MAYBE_END(f);
     TRACE_FETCH_DEBUG("QUOTE_NEXT_REFETCH", (f), TRUE);
 }

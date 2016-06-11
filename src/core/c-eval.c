@@ -57,13 +57,6 @@
 
 #if !defined(NDEBUG)
     //
-    // Forward declarations for debug-build-only code--routines at end of
-    // file.  (Separated into functions to reduce clutter in the main logic.)
-    //
-    static void Do_Core_Entry_Checks_Debug(struct Reb_Frame *f);
-    static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f);
-    static void Do_Core_Exit_Checks_Debug(struct Reb_Frame *f);
-
     // The `do_count` should be visible in the C debugger watchlist as a
     // local variable in Do_Core() for each stack level.  So if a fail()
     // happens at a deterministic moment in a run, capture the number from
@@ -81,6 +74,11 @@
     //      *** DON'T COMMIT THIS --^ KEEP IT AT ZERO! ***
     //
     // !!! Taking this number on the command line could be convenient.
+    //
+    // Note also there is `Dump_Frame_Location()` if there's a trouble spot
+    // and you want to see what the state is.  It will reify C va_list
+    // input for you, so you can see what the C caller passed as an array.
+    //
 #endif
 
 
@@ -102,10 +100,14 @@ static inline void Start_New_Expression_Core(struct Reb_Frame *f) {
         do { \
             Start_New_Expression_Core(f); \
             do_count = Do_Core_Expression_Checks_Debug(f); \
-            if (do_count == DO_COUNT_BREAKPOINT) \
+            if (do_count == DO_COUNT_BREAKPOINT) { \
+                Debug_Fmt("DO_COUNT_BREAKPOINT hit at %d", f->do_count); \
+                Dump_Frame_Location(f); \
                 debug_break(); /* see %debug_break.h */ \
+            } \
         } while (FALSE)
 #endif
+
 
 static inline void Type_Check_Arg_For_Param_May_Fail(struct Reb_Frame * f) {
     if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg)))
@@ -359,6 +361,7 @@ reevaluate:
 
         *f->out = *f->gotten;
         SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        f->gotten = NULL;
         FETCH_NEXT_ONLY_MAYBE_END(f);
 
     #if !defined(NDEBUG)
@@ -421,10 +424,7 @@ reevaluate:
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_GET_WORD:
-        if (f->gotten == NULL) // no work to reuse from failed optimization
-            f->gotten = GET_OPT_VAR_MAY_FAIL(f->value, f->specifier);
-
-        *f->out = *f->gotten;
+        *f->out = *GET_OPT_VAR_MAY_FAIL(f->value, f->specifier);
         SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
@@ -681,7 +681,7 @@ reevaluate:
 
     case ET_FUNCTION:
         if (f->lookback) {
-            assert(NOT_END(f->out)); // !!! for future use
+            assert(NOT_END(f->out));
         }
         else {
             //
@@ -719,6 +719,7 @@ reevaluate:
         // Hence it is handled in a special way.
         //
         if (VAL_FUNC(f->gotten) == NAT_FUNC(eval)) {
+            f->gotten = NULL;
             FETCH_NEXT_ONLY_MAYBE_END(f);
 
             // The garbage collector expects f->func to be valid during an
@@ -803,6 +804,7 @@ reevaluate:
 
         Push_Or_Alloc_Args_For_Underlying_Func(f); // sets f's func, param, arg
 
+        f->gotten = NULL;
         FETCH_NEXT_ONLY_MAYBE_END(f); // overwrites f->value
 
     do_function_arglist_in_progress:
@@ -1644,8 +1646,6 @@ reevaluate:
         // However, recursive cases of DO disable infix dispatch if they are
         // currently processing an infix operation.  The currently processing
         // operation is thus given "higher precedence" by this disablement.
-
-        f->gotten = NULL; // signal to ET_WORD and ET_GET_WORD to do a get
     }
     else if (f->eval_type == ET_WORD) {
         REBOOL lookback_leftover = f->lookback;
@@ -1688,8 +1688,6 @@ reevaluate:
 
         goto do_function_in_gotten;
     }
-    else
-        f->gotten = NULL; // signal to ET_GET_WORD it needs to fetch for itself
 
     // Continue evaluating rest of block if not just a DO/NEXT
     //
@@ -1710,330 +1708,3 @@ finished:
     // All callers must inspect for THROWN(f->out), and most should also
     // inspect for IS_END(f->value)
 }
-
-
-//==//////////////////////////////////////////////////////////////////////==//
-//
-// DEBUG-BUILD ONLY CHECKS
-//
-//==//////////////////////////////////////////////////////////////////////==//
-//
-// Due to the length of Do_Core() and how many debug checks it already has,
-// three debug-only routines are separated out:
-//
-// * Do_Core_Entry_Checks_Debug() runs once at the beginning of a Do_Core()
-//   call.  It verifies that the fields of the frame the caller has to
-//   provide have been pre-filled correctly, and snapshots bits of the
-//   interpreter state that are supposed to "balance back to zero" by the
-//   end of a run (assuming it completes, and doesn't longjmp from fail()ing)
-//
-// * Do_Core_Expression_Checks_Debug() runs before each full "expression"
-//   is evaluated, e.g. before each DO/NEXT step.  It makes sure the state
-//   balanced completely--so no DS_PUSH that wasn't balanced by a DS_POP
-//   or DS_DROP (for example).  It also trashes variables in the frame which
-//   might accidentally carry over from one step to another, so that there
-//   will be a crash instead of a casual reuse.
-//
-// * Do_Core_Exit_Checks_Debug() runs if the Do_Core() call makes it to the
-//   end without a fail() longjmping out from under it.  It also checks to
-//   make sure the state has balanced, and that the return result is
-//   consistent with the state being returned.
-//
-// Because none of these routines are in the release build, they cannot have
-// any side-effects that affect the interpreter's ordinary operation.
-//
-
-#if !defined(NDEBUG)
-
-static void Do_Core_Entry_Checks_Debug(struct Reb_Frame *f)
-{
-    // Though we can protect the value written into the target pointer 'out'
-    // from GC during the course of evaluation, we can't protect the
-    // underlying value from relocation.  Technically this would be a problem
-    // for any series which might be modified while this call is running, but
-    // most notably it applies to the data stack--where output used to always
-    // be returned.
-    //
-    // !!! A non-contiguous data stack which is not a series is a possibility.
-    //
-#ifdef STRESS_CHECK_DO_OUT_POINTER
-    REBSER *containing = Try_Find_Containing_Series_Debug(f->out);
-
-    if (containing) {
-        if (GET_SER_FLAG(series, SERIES_FLAG_FIXED_SIZE)) {
-            //
-            // Currently it's considered OK to be writing into a fixed size
-            // series, for instance the durable portion of a function's
-            // arg storage.  It's assumed that the memory will not move
-            // during the course of the argument evaluation.
-            //
-        }
-        else {
-            Debug_Fmt("Request for ->out location in movable series memory");
-            assert(FALSE);
-        }
-    }
-#else
-    assert(!IN_DATA_STACK_DEBUG(f->out));
-#endif
-
-    // The caller must preload ->value with the first value to process.  It
-    // may be resident in the array passed that will be used to fetch further
-    // values, or it may not.
-    //
-    assert(f->value);
-
-    if (f->eval_type == ET_FUNCTION && f->gotten != NULL)
-        assert(f->label_sym != SYM_0 && f->label_str != NULL);
-    else {
-        f->label_sym = SYM_0;
-        f->label_str = NULL;
-    }
-
-    // All callers should ensure that the type isn't an END marker before
-    // bothering to invoke Do_Core().
-    //
-    assert(NOT_END(f->value));
-
-    // The DO_FLAGs were decided to come in pairs for clarity, to make sure
-    // that each callsite of the core routines was clear on what it was
-    // asking for.  This may or may not be overkill long term, but helps now.
-    //
-    assert(
-        LOGICAL(f->flags & DO_FLAG_NEXT)
-        != LOGICAL(f->flags & DO_FLAG_TO_END)
-    );
-    assert(
-        LOGICAL(f->flags & DO_FLAG_LOOKAHEAD)
-        != LOGICAL(f->flags & DO_FLAG_NO_LOOKAHEAD)
-    );
-    assert(
-        LOGICAL(f->flags & DO_FLAG_ARGS_EVALUATE)
-        != LOGICAL(f->flags & DO_FLAG_NO_ARGS_EVALUATE)
-    );
-}
-
-
-//
-// The iteration preamble takes care of clearing out variables and preparing
-// the state for a new "/NEXT" evaluation.  It's a way of ensuring in the
-// debug build that one evaluation does not leak data into the next, and
-// making the code shareable allows code paths that jump to later spots
-// in the switch (vs. starting at the top) to reuse the work.
-//
-static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
-    //
-    // There shouldn't have been any "accumulated state", in the sense that
-    // we should be back where we started in terms of the data stack, the
-    // mold buffer position, the outstanding manual series allocations, etc.
-    //
-    ASSERT_STATE_BALANCED(&f->state);
-
-    // Once a throw is started, no new expressions may be evaluated until
-    // that throw gets handled.
-    //
-    assert(IS_TRASH_DEBUG(&TG_Thrown_Arg));
-
-    // If running the evaluator, then this frame should be the topmost on the
-    // frame stack.
-    //
-    assert(f == FS_TOP);
-
-    // We checked for END when we entered Do_Core() and short circuited
-    // that, but if we're running DO_FLAG_TO_END then the catch for that is
-    // an index check.  We shouldn't go back and `do_at_index` on an end!
-    //
-    // !!! are there more rules for the locations value can't point to?
-    //
-    assert(f->value && NOT_END(f->value) && f->value != f->out);
-    assert(NOT(THROWN(f->value)));
-
-    // The eval_type is expected to be calculated already, because it's an
-    // opportunity for the caller to decide pushing a frame is not necessary
-    // (e.g. if it's ET_INERT).  Hence it is only set at the end of the loop.
-    //
-    // Special exemption is made when f->gotten is a function and the symbol
-    // has been set from a WORD!, because f->value is still that word.
-    //
-    assert(
-        f->eval_type == Eval_Table[VAL_TYPE(f->value)]
-        || (f->lookback && f->eval_type == ET_FUNCTION && IS_WORD(f->value))
-    );
-
-    if (f->flags & DO_FLAG_VA_LIST)
-        assert(f->index == TRASHED_INDEX);
-    else {
-        assert(
-            f->index != TRASHED_INDEX
-            && f->index != END_FLAG
-            && f->index != THROWN_FLAG
-            && f->index != VA_LIST_FLAG
-        ); // END, THROWN, VA_LIST only used by wrappers
-    }
-
-    // Make sure `eval` is trash in debug build if not doing a `reevaluate`.
-    // It does not have to be GC safe (for reasons explained below).  We
-    // also need to reset evaluation to normal vs. a kind of "inline quoting"
-    // in case EVAL/ONLY had enabled that.
-    //
-    // Note that since the cell lives in a union, it cannot have a constructor
-    // so the automatic mark of writable that most REBVALs get could not
-    // be used.  Since it's a raw RELVAL, we have to explicitly mark writable.
-    //
-    // Also, the eval's cell bits live in a union that can wind up getting used
-    // for other purposes.  Hence the writability must be re-indicated here
-    // before the slot is used each time.
-    //
-    if (f->value != &(f->cell.eval)) {
-        INIT_CELL_WRITABLE_IF_DEBUG(&(f->cell.eval));
-        SET_TRASH_IF_DEBUG(&(f->cell.eval));
-    }
-
-    // The value we are processing should not be THROWN() and any series in
-    // it should be under management by the garbage collector.
-    //
-    // !!! THROWN() bit on individual values is in the process of being
-    // deprecated, in favor of the evaluator being in a "throwing state".
-    //
-    assert(!THROWN(f->value));
-    ASSERT_VALUE_MANAGED(f->value);
-    assert(f->value != f->out);
-
-    // Trash call variables in debug build to make sure they're not reused.
-    // Note that this call frame will *not* be seen by the GC unless it gets
-    // chained in via a function execution, so it's okay to put "non-GC safe"
-    // trash in at this point...though by the time of that call, they must
-    // hold valid values.
-    //
-    f->func = NULL;
-
-    if (f->eval_type == ET_FUNCTION && f->gotten != NULL)
-        assert(f->label_sym != SYM_0 && f->label_str != NULL);
-    else
-        assert(f->label_sym == SYM_0 && f->label_str == NULL);
-
-    f->param = cast(const RELVAL*, 0xDECAFBAD);
-    f->arg = cast(REBVAL*, 0xDECAFBAD);
-    f->refine = cast(REBVAL*, 0xDECAFBAD);
-
-    f->exit_from = cast(REBARR*, 0xDECAFBAD);
-
-    f->stackvars = cast(REBVAL*, 0xDECAFBAD);
-    f->varlist = cast(REBARR*, 0xDECAFBAD);
-
-    f->func = cast(REBFUN*, 0xDECAFBAD);
-
-    // Mutate va_list sources into arrays at fairly random moments in the
-    // debug build.  It should be able to handle it at any time.
-    //
-    if ((f->flags & DO_FLAG_VA_LIST) && SPORADICALLY(50)) {
-        const REBOOL truncated = TRUE;
-        Reify_Va_To_Array_In_Frame(f, truncated);
-    }
-
-    // We bound the count at the max unsigned 32-bit, since otherwise it would
-    // roll over to zero and print a message that wasn't asked for, which
-    // is annoying even in a debug build.  (It's actually a REBUPT, so this
-    // wastes possible bits in the 64-bit build, but there's no MAX_REBUPT.)
-    //
-    if (TG_Do_Count < MAX_U32) {
-        f->do_count = ++TG_Do_Count;
-        if (f->do_count == DO_COUNT_BREAKPOINT) {
-            REBVAL dump;
-            COPY_VALUE(&dump, f->value, f->specifier);
-
-            PROBE_MSG(&dump, "DO_COUNT_BREAKPOINT hit at...");
-
-            if (f->flags & DO_FLAG_VA_LIST) {
-                //
-                // NOTE: This reifies the va_list in the frame, and hence has
-                // side effects.  It may need to be commented out if the
-                // problem you are trapping with DO_COUNT_BREAKPOINT was
-                // specifically with va_list frame processing.
-                //
-                const REBOOL truncated = TRUE;
-                Reify_Va_To_Array_In_Frame(f, truncated);
-            }
-
-            if (f->pending && NOT_END(f->pending)) {
-                assert(IS_SPECIFIC(f->pending));
-                PROBE_MSG(
-                    const_KNOWN(f->pending),
-                    "EVAL in progress, so next will be..."
-                );
-            }
-
-            if (IS_END(f->value)) {
-                Debug_Fmt("...then at end of array");
-            }
-            else {
-                REBVAL dump;
-                Val_Init_Series_Index_Core(
-                    &dump,
-                    REB_BLOCK,
-                    ARR_SERIES(f->source.array),
-                    cast(REBCNT, f->index),
-                    f->specifier
-                );
-
-                PROBE_MSG(&dump, "...then this array for the next input");
-            }
-        }
-    }
-
-    return f->do_count;
-}
-
-
-static void Do_Core_Exit_Checks_Debug(struct Reb_Frame *f) {
-    //
-    // Make sure the data stack, mold stack, and other structures didn't
-    // accumulate any state over the course of the run.
-    //
-    ASSERT_STATE_BALANCED(&f->state);
-
-    if (f->flags & DO_FLAG_VA_LIST)
-        assert(f->index == TRASHED_INDEX);
-    else {
-        assert(
-            f->index != TRASHED_INDEX
-            && f->index != END_FLAG
-            && f->index != THROWN_FLAG
-            && f->index != VA_LIST_FLAG
-        ); // END, THROWN, VA_LIST only used by wrappers
-    }
-
-    if (NOT_END(f->value) && NOT(f->flags & DO_FLAG_VA_LIST)) {
-        //
-        // If we're at the array's end position, then we've prefetched the
-        // last value for processing (and not signaled end) but on the
-        // next fetch we *will* signal an end.
-        //
-        assert(
-            (f->index <= ARR_LEN(f->source.array))
-            || (
-                (
-                    (f->pending && IS_END(f->pending))
-                    || THROWN(f->out)
-                )
-                && f->index == ARR_LEN(f->source.array) + 1
-            )
-        );
-    }
-
-    if (f->flags & DO_FLAG_TO_END)
-        assert(THROWN(f->out) || IS_END(f->value));
-
-    // Function execution should have written *some* actual output value.
-    //
-    assert(NOT_END(f->out)); // series END marker shouldn't leak out
-    assert(!IS_TRASH_DEBUG(f->out));
-    assert(VAL_TYPE(f->out) < REB_MAX); // cheap check
-
-    if (NOT(THROWN(f->out))) {
-        assert(f->label_sym == SYM_0);
-        ASSERT_VALUE_MANAGED(f->out);
-    }
-}
-
-#endif

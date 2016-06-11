@@ -191,6 +191,7 @@ set (CORE_SOURCE
     ${CORE_DIR}/d-break.c
     ${CORE_DIR}/d-crash.c
     ${CORE_DIR}/d-dump.c
+    ${CORE_DIR}/d-eval.c
     ${CORE_DIR}/d-legacy.c
     ${CORE_DIR}/d-print.c
     ${CORE_DIR}/d-stack.c
