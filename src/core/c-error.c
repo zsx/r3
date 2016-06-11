@@ -1201,26 +1201,6 @@ REBCTX *Error(REBCNT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
 
 
 //
-//  Error_Local_Injection: C
-//
-// An attempt was made to use a FRAME! to preload a value into a local when
-// calling a function to directly use that frame.  (The operational invariant
-// of a function when it starts is that locals are not set.)
-//
-REBCTX *Error_Local_Injection(struct Reb_Frame *f) {
-    assert(IS_TYPESET(f->param));
-
-    REBVAL param_word;
-    Val_Init_Word(&param_word, REB_WORD, VAL_TYPESET_SYM(f->param));
-
-    REBVAL label_word;
-    Val_Init_Word(&label_word, REB_WORD, f->label_sym);
-
-    return Error(RE_LOCAL_INJECTION, &param_word, &label_word, END_CELL);
-}
-
-
-//
 //  Error_Punctuator_Hit: C
 //
 // A punctuator is a "lookahead arity 0 operation", which has special handling

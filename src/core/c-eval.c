@@ -865,6 +865,15 @@ reevaluate:
         for (; NOT_END(f->param); ++f->param, ++f->arg) {
             pclass = VAL_PARAM_CLASS(f->param);
 
+    //=//// "PURE" LOCAL: ARG /////////////////////////////////////////////=//
+
+            if (pclass == PARAM_CLASS_PURE_LOCAL) {
+                SET_VOID(f->arg); // faster than checking bad specializations
+                goto continue_arg_loop;
+            }
+
+    //=//// A /REFINEMENT ARG /////////////////////////////////////////////=//
+
             if (pclass == PARAM_CLASS_REFINEMENT) {
 
                 // Refinement "pickups" are finished when another refinement
@@ -967,15 +976,6 @@ reevaluate:
     //=//// IF JUST SKIPPING TO NEXT REFINEMENT, MOVE ON //////////////////=//
 
             if (IS_VOID(f->refine)) goto continue_arg_loop;
-
-    //=//// PURE "LOCAL:" ARG (must not be set, no consumption) ///////////=//
-
-            if (pclass == PARAM_CLASS_PURE_LOCAL) {
-                if (NOT(IS_VOID(f->arg)))
-                    fail (Error_Local_Injection(f));
-
-                goto continue_arg_loop;
-            }
 
     //=//// SPECIALIZED ARG (already filled, so does not consume) /////////=//
 
