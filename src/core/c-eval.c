@@ -36,7 +36,7 @@
 //
 // NOTES:
 //
-// * This is a very long routine.  That is largely on purpose, because it
+// * Do_Core() is a very long routine.  That is largely on purpose, because it
 //   doesn't contain repeated portions.  If it were broken into functions that
 //   would add overhead for little benefit, and prevent interesting tricks
 //   and optimizations.  Note that it is broken down into sections, and
@@ -85,21 +85,8 @@
 
 
 
-
-//==//////////////////////////////////////////////////////////////////////==//
-//
-// INLINE CODE FRAGMENTS FOR REUSED EVALUATOR PATTERNS
-//
-//==//////////////////////////////////////////////////////////////////////==//
-
-// We save the index at the start of the expression in case it is needed
-// for error reporting.
-//
-// !!! FRM_INDEX can account for prefetching, but it cannot know what a
-// preloaded head value was unless it was saved under a debug> mode.
-//
 static inline void Start_New_Expression_Core(struct Reb_Frame *f) {
-    f->expr_index = f->indexor;
+    f->expr_index = f->indexor; // !!! See FRM_INDEX() for caveats
     if (Trace_Flags)
         Trace_Line(f);
 }
@@ -290,7 +277,7 @@ reevaluate:
 
     case ET_BAR:
         FETCH_NEXT_ONLY_MAYBE_END(f);
-        if (f->indexor != END_FLAG) {
+        if (NOT_END(f->value)) {
             f->eval_type = Eval_Table[VAL_TYPE(f->value)];
             goto do_next; // keep feeding BAR!s
         }
@@ -396,7 +383,7 @@ reevaluate:
         f->param = f->value;
 
         FETCH_NEXT_ONLY_MAYBE_END(f);
-        if (f->indexor == END_FLAG)
+        if (IS_END(f->value))
             fail (Error(RE_NEED_VALUE, f->param)); // e.g. `do [foo:]`
 
         if (args_evaluate) {
@@ -547,7 +534,7 @@ reevaluate:
 
         // `do [a/b/c:]` is not legal
         //
-        if (f->indexor == END_FLAG)
+        if (IS_END(f->value))
             fail (Error(RE_NEED_VALUE, f->param));
 
         // We want the result of the set path to wind up in `out`, so go
@@ -734,7 +721,7 @@ reevaluate:
                 SET_END(f->out);
             }
             else {
-                if (f->indexor == END_FLAG) // e.g. `do [eval]`
+                if (IS_END(f->value)) // e.g. `do [eval]`
                     fail (Error_No_Arg(FRM_LABEL(f), f->param));
 
                 DO_NEXT_REFETCH_MAY_THROW(
@@ -1096,7 +1083,7 @@ reevaluate:
 
     //=//// ERROR ON END MARKER, BAR! IF APPLICABLE //////////////////////=//
 
-            if (f->indexor == END_FLAG) {
+            if (IS_END(f->value)) {
                 if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                     fail (Error_No_Arg(FRM_LABEL(f), f->param));
 
@@ -1455,7 +1442,7 @@ reevaluate:
             || (f->flags & DO_FLAG_VALIST)
             || IS_VALUE_IN_ARRAY(f->source.array, f->value)
         );
-        assert(f->indexor != THROWN_FLAG);
+        assert(NOT(THROWN(f->value)));
 
         if (Trace_Flags) Trace_Func(FRM_LABEL(f), FUNC_VALUE(f->func));
 
@@ -1627,10 +1614,8 @@ reevaluate:
 
     assert(!THROWN(f->out)); // should have jumped to exit sooner
 
-    if (f->indexor == END_FLAG) {
-        assert(IS_END(f->value));
+    if (IS_END(f->value))
         goto finished;
-    }
 
     assert(!IS_END(f->value));
 
@@ -1707,7 +1692,7 @@ finished:
     //
     DROP_CALL(f);
 
-    // Caller needs to inspect `index`, at minimum to know if it's THROWN_FLAG
+    // All callers must inspect for THROWN()
 }
 
 
@@ -1855,7 +1840,7 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
     // !!! are there more rules for the locations value can't point to?
     //
     assert(f->value && NOT_END(f->value) && f->value != f->out);
-    assert(f->indexor != THROWN_FLAG);
+    assert(NOT(THROWN(f->value)));
 
     // Make sure `eval` is trash in debug build if not doing a `reevaluate`.
     // It does not have to be GC safe (for reasons explained below).  We
@@ -1875,14 +1860,12 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
         SET_TRASH_IF_DEBUG(&(f->cell.eval));
     }
 
-    // Note that `f->indexor` *might* be END_FLAG in the case of an eval;
+    // Note that `f->value` *might* be an END marker in the case of an eval;
     // if you write `do [eval help]` then it will load help in as f->value
     // and retrigger, and `help` (for instance) is capable of handling a
-    // prefetched input that is at end.  This is different from most cases
-    // where END_FLAG directly implies prefetch input was exhausted and
-    // f->value must be NULL.
+    // prefetched input that is at end.
     //
-    assert(f->indexor != END_FLAG || IS_END(f->eval_fetched));
+    assert(NOT_END(f->value) || IS_END(f->eval_fetched));
 
     // The value we are processing should not be THROWN() and any series in
     // it should be under management by the garbage collector.
@@ -1952,7 +1935,7 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
                 PROBE_MSG(&dump, "EVAL in progress, so next will be...");
             }
 
-            if (f->indexor == END_FLAG) {
+            if (IS_END(f->value)) {
                 Debug_Fmt("...then at end of array");
             }
             else {
@@ -1977,9 +1960,11 @@ static void Do_Core_Exit_Checks_Debug(struct Reb_Frame *f) {
     //
     ASSERT_STATE_BALANCED(&f->state);
 
-    assert(f->indexor != THROWN_FLAG); // flag only returned by wrappers
+    // The END and THROWN flags are only used by wrappers.
+    //
+    assert(f->indexor != END_FLAG && f->indexor != THROWN_FLAG);
 
-    if (f->indexor != END_FLAG && f->indexor != VALIST_FLAG) {
+    if (NOT_END(f->value) && f->indexor != VALIST_FLAG) {
         //
         // If we're at the array's end position, then we've prefetched the
         // last value for processing (and not signaled end) but on the
@@ -1989,16 +1974,11 @@ static void Do_Core_Exit_Checks_Debug(struct Reb_Frame *f) {
     }
 
     if (f->flags & DO_FLAG_TO_END)
-        assert(THROWN(f->out) || f->indexor == END_FLAG);
+        assert(THROWN(f->out) || IS_END(f->value));
 
-    if (f->indexor == END_FLAG) {
-        assert(IS_END(f->value));
-        assert(NOT_END(f->out)); // series END marker shouldn't leak out
-    }
-
-    // Function execution should have written *some* actual output value
-    // over the trash that we put in the return slot before the call.
+    // Function execution should have written *some* actual output value.
     //
+    assert(NOT_END(f->out)); // series END marker shouldn't leak out
     assert(!IS_TRASH_DEBUG(f->out));
     assert(VAL_TYPE(f->out) < REB_MAX); // cheap check
 

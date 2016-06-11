@@ -1175,9 +1175,7 @@ REBOOL Format_GC_Safe_Value_Throws(
             FETCH_NEXT_ONLY_MAYBE_END(&f);
         }
 
-        if (f.indexor == END_FLAG)
-            break;
-    } while (TRUE);
+    } while (NOT_END(f.value));
 
     return FALSE;
 }

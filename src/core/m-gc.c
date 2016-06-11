@@ -596,7 +596,6 @@ static void Mark_Frame_Stack_Deep(void)
         // !!! FETCH_NEXT could do the array unprotect, and make it possible
         // to GC the series sooner.
         //
-        assert(f->indexor != THROWN_FLAG);
         assert(GET_ARR_FLAG(f->source.array, SERIES_FLAG_MANAGED));
         QUEUE_MARK_ARRAY_DEEP(f->source.array);
 

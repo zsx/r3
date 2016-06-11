@@ -1585,7 +1585,7 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
     // We pretend our "input source" has ended.
     //
     f->value = END_CELL;
-    f->indexor = END_FLAG;
+    f->indexor = 0;
     f->source.array = EMPTY_ARRAY;
     f->eval_fetched = NULL;
     f->lookback = FALSE;
@@ -1696,7 +1696,7 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
     if (THROWN(f->out))
         return R_OUT_IS_THROWN; // prohibits recovery from exits
 
-    assert(f->indexor == END_FLAG); // we started at END_FLAG, can only throw
+    assert(IS_END(f->value)); // we started at END_FLAG, can only throw
 
     return R_OUT;
 }

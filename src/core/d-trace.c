@@ -102,8 +102,8 @@ void Trace_Line(struct Reb_Frame *f)
 
     CHECK_DEPTH(depth);
 
-    if (f->indexor == END_FLAG) {
-        Debug_Fmt_("END_FLAG...");
+    if (IS_END(f->value)) {
+        Debug_Fmt_("END");
     }
     else if (f->indexor == VALIST_FLAG) {
         Debug_Fmt_("VALIST_FLAG...");

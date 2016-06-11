@@ -496,17 +496,13 @@ struct Reb_Frame {
     // `indexor` [INPUT, OUTPUT]
     //
     // This can hold an "index OR a flag" related to the current state of
-    // the enumeration of the values being evaluated.  For the flags, see
-    // notes on REBIXO and END_FLAG, THROWN_FLAG.  Note also the case of
-    // a C va_list where the actual index of the REBVAL* is intrinsic to
+    // the enumeration of the values being evaluated.  The only flag that
+    // is maintained internally to the evaluator is that of a C va_list.
+    // This is where where the actual index of the REBVAL* is intrinsic to
     // the enumeration...so the indexor will be VA_LIST flag vs. a count.
     //
-    // Successive fetching is always done by index and not with `++c-value`.
-    // This is for several reasons, but one of them is to avoid crashing if
-    // the input array is modified during the evaluation.
-    //
-    // !!! While it doesn't *crash*, a good user-facing explanation of
-    // handling what it does instead seems not to have been articulated!  :-/
+    // While THROWN_FLAG and END_FLAG are currently exported, they are only
+    // used by wrappers of Do_Core, not this struct field.
     //
     REBIXO indexor;
 
@@ -730,20 +726,20 @@ struct Reb_Frame {
 //
 // One invariant of access is that the input may only advance.  Before any
 // operations are called, any low-level client must have already seeded
-// c->value with a valid "fetched" REBVAL*.  END is not valid, so callers
-// beginning a Do_To_End must pre-check that condition themselves before
-// calling Do_Core.  And if an operation sets the c->index to END_FLAG then
-// that must be checked--it's not legal to call more operations on a call
-// frame after a fetch reports the end.
+// f->value with a valid "fetched" REBVAL*.  END is not valid input, so
+// callers beginning a Do_To_End must pre-check that condition themselves
+// before calling Do_Core.  And if an operation sets the c->index to END_FLAG
+// then that must be checked--it's not legal to call more operations on a
+// call frame after a fetch reports the end.
 //
 // Operations are:
 //
 //  FETCH_NEXT_ONLY_MAYBE_END
 //
-//      Retrieve next pointer for examination to c->value.  The previous
-//      c->value pointer is overwritten.  (No REBVAL bits are moved by
+//      Retrieve next pointer for examination to f->value.  The previous
+//      f->value pointer is overwritten.  (No REBVAL bits are moved by
 //      this operation, only the 'currently processing' pointer reassigned.)
-//      c->index may be set to END_FLAG if the end of input is reached.
+//      f->value may become an END marker...test with IS_END()
 //
 // DO_NEXT_REFETCH_MAY_THROW
 //
@@ -751,8 +747,8 @@ struct Reb_Frame {
 //      as necessary to complete a /NEXT (or failing with an error).  This
 //      writes the computed REBVAL into a destination location.  After the
 //      operation, the next c->value pointer will already be fetched and
-//      waiting for examination or use.  c->index may be set to either
-//      THROWN_FLAG or END_FLAG by this operation.
+//      waiting for examination or use.  The returned value may be THROWN(),
+//      and the f->value may IS_END().
 //
 // QUOTE_NEXT_REFETCH
 //
@@ -762,23 +758,9 @@ struct Reb_Frame {
 //      operation vs just having callers do the two steps is to monitor
 //      when some of the input has been "consumed" vs. merely fetched.
 //
-//      !!! This is unenforceable in the C build, but in the C++ build it
-//      could be ensured c->value was only dereferenced via * and stored
-//      to targets through this routine.
-//
 // This is not intending to be a "published" API of Rebol/Ren-C.  But the
 // privileged level of access can be used by natives that feel they can
 // optimize performance by working with the evaluator directly.
-//
-// !!! For better or worse, Do_Core does not lock the series it is iterating.
-// This means any arbitrary user code (or system code) could theoretically
-// disrupt a series out from under it, and then crash the system on the
-// next fetch.  Hence an array and an index are used, and in terms of "crash
-// avoidance" (albeit not necessarily "semantic sensibility) it's necessary
-// to clip the index to be within the range of the series.  In theory it
-// would be possible to track the cases where clipping the index was needed
-// or not, though it might be better to just lock the series being evaluated
-// currently...this is an open question.
 //
 
 #define PUSH_CALL(f) \
@@ -837,26 +819,19 @@ struct Reb_Frame {
 
 #define FETCH_NEXT_ONLY_MAYBE_END_RAW(f) \
     do { \
+        assert(NOT_END((f)->value)); \
         if ((f)->eval_fetched) { \
-            if (IS_END((f)->eval_fetched)) \
-                (f)->value = END_CELL; \
-            else \
-                (f)->value = (f)->eval_fetched; \
+            (f)->value = (f)->eval_fetched; \
             (f)->eval_fetched = NULL; \
             break; \
         } \
         if ((f)->indexor != VALIST_FLAG) { \
             (f)->value = ARR_AT((f)->source.array, (f)->indexor); \
             ++(f)->indexor; \
-            if (IS_END((f)->value)) \
-                (f)->indexor = END_FLAG; \
         } \
         else { \
             (f)->value = va_arg(*(f)->source.vaptr, const REBVAL*); \
-            if (IS_END((f)->value)) \
-                (f)->indexor = END_FLAG; \
-            else \
-                assert(!IS_VOID((f)->value)); \
+            assert(IS_END((f)->value) || !IS_VOID((f)->value)); \
         } \
     } while (0)
 
@@ -900,10 +875,7 @@ struct Reb_Frame {
                 ) { \
                     *(dest) = *(f)->value; \
                     (f)->value = ARR_AT((f)->source.array, (f)->indexor); \
-                    if (IS_END((f)->value)) \
-                        (f)->indexor = END_FLAG; \
-                    else \
-                        ++(f)->indexor; \
+                    ++(f)->indexor; \
                     break; \
                 } \
             } \
@@ -1022,7 +994,7 @@ struct Reb_Frame {
         DO_CORE_REFETCH_MAY_THROW((out), &(dummy), DO_FLAG_LOOKAHEAD); \
         if (THROWN(out)) \
             (indexor_out) = THROWN_FLAG; \
-        else if (dummy.indexor == END_FLAG) \
+        else if (IS_END(dummy.value)) \
             (indexor_out) = END_FLAG; \
         else { \
             assert(dummy.indexor > 1); \
@@ -1242,6 +1214,12 @@ struct Native_Refine {
 #define FRM_ARRAY(f) \
     (assert(!FRM_IS_VALIST(f)), (f)->source.array)
 
+// !!! Though the evaluator saves its `indexor`, the index is not meaningful
+// in a valist.  Also, if `opt_head` values are used to prefetch before an
+// array, those will be lost too.  A true debugging mode would need to
+// convert these cases to ordinary arrays before running them, in order
+// to accurately present the errors.
+//
 #define FRM_INDEX(f) \
     (assert(!FRM_IS_VALIST(f)), (f)->indexor == END_FLAG \
         ? ARR_LEN((f)->source.array) : (f)->indexor - 1)

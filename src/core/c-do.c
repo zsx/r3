@@ -83,7 +83,7 @@ REBIXO Do_Array_At_Core(
     if (THROWN(f.out))
         return THROWN_FLAG; // !!! prohibits recovery from exits
 
-    return f.indexor;
+    return IS_END(f.value) ? END_FLAG : f.indexor;
 }
 
 
@@ -151,7 +151,7 @@ void Reify_Va_To_Array_In_Frame(struct Reb_Frame *f, REBOOL truncated)
     const REBVAL *value;
 
     assert(f->flags & DO_FLAG_VALIST);
-    assert(f->indexor == VALIST_FLAG || f->indexor == END_FLAG);
+    assert(f->indexor == VALIST_FLAG);
 
     //assert(f->eval_fetched == NULL); // could reification ever happen here?
 
@@ -162,8 +162,7 @@ void Reify_Va_To_Array_In_Frame(struct Reb_Frame *f, REBOOL truncated)
         DS_PUSH(&temp);
     }
 
-    if (f->indexor != END_FLAG) {
-        assert(!IS_END(f->value));
+    if (NOT_END(f->value)) {
         DS_PUSH(f->value);
 
         while (NOT_END(value = va_arg(*f->source.vaptr, const REBVAL*)))
@@ -176,10 +175,10 @@ void Reify_Va_To_Array_In_Frame(struct Reb_Frame *f, REBOOL truncated)
             f->indexor = 1; // position at the start of the extracted values
     }
     else {
-        // Leave at the END_FLAG, but give back the array to serve as
+        // Leave at the END, but give back the array to serve as
         // notice of the truncation (if it was truncated)
         //
-        assert(IS_END(f->value));
+        f->indexor = 0;
     }
 
     if (DSP != dsp_orig) {
@@ -301,22 +300,21 @@ REBIXO Do_Va_Core(
         // don't line up with the parameter order.  Also, doing it without
         // explicit request undermines knowledge of the efficiency lost.
         //
-        if (f.indexor != THROWN_FLAG && f.indexor != END_FLAG) {
+        if (NOT(THROWN(f.out)) && NOT_END(f.value)) {
             //
             // Try one more fetch and see if it's at the end.  If not, we did
             // not consume all the input.
             //
             FETCH_NEXT_ONLY_MAYBE_END(&f);
-            if (f.indexor != END_FLAG) {
+            if (NOT_END(f.value)) {
                 assert(f.indexor == VALIST_FLAG); // couldn't throw!!
                 return VALIST_INCOMPLETE_FLAG;
             }
         }
-
-        assert(f.indexor == THROWN_FLAG || f.indexor == END_FLAG);
     }
 
-    return f.indexor;
+    assert(IS_END(f.value));
+    return END_FLAG;
 }
 
 
@@ -416,17 +414,13 @@ REBVAL *Sys_Func(REBCNT inum)
 //
 REBOOL Apply_Only_Throws(REBVAL *out, const REBVAL *applicand, ...)
 {
-    REBIXO indexor;
     va_list va;
+    va_start(va, applicand); // must mention last param before the "..."
 
 #ifdef VA_END_IS_MANDATORY
     struct Reb_State state;
     REBCTX *error;
-#endif
 
-    va_start(va, applicand); // must mention last param before the "..."
-
-#ifdef VA_END_IS_MANDATORY
     PUSH_TRAP(&error, &state);
 
 // The first time through the following code 'error' will be NULL, but...
@@ -438,7 +432,7 @@ REBOOL Apply_Only_Throws(REBVAL *out, const REBVAL *applicand, ...)
     }
 #endif
 
-    indexor = Do_Va_Core(
+    REBIXO indexor = Do_Va_Core(
         out,
         applicand, // opt_first
         &va,

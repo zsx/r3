@@ -162,7 +162,7 @@ handle_subfeed:
         // "Ordinary" case... use the original frame implied by the VARARGS!
         // The Reb_Frame isn't a bad pointer, we checked FRAME! is stack-live.
         //
-        if (f->indexor == END_FLAG)
+        if (IS_END(f->value))
             goto return_end_flag;
 
         if (op == VARARG_OP_FIRST) {
@@ -209,7 +209,7 @@ handle_subfeed:
     // The invariant here is that `c` has been prepared for fetching/doing
     // and has at least one value in it.
     //
-    assert(f->indexor != THROWN_FLAG && f->indexor != END_FLAG);
+    assert(NOT_END(f->value));
     assert(sym_func != SYM_0);
     assert(op != VARARG_OP_FIRST);
 
@@ -268,7 +268,7 @@ handle_subfeed:
         assert(FALSE);
     }
 
-    assert(f->indexor != THROWN_FLAG); // should have returned above
+    assert(NOT(THROWN(out))); // should have returned above
 
     // If the `c` we were updating was the stack local call we created just
     // for this function, then the new index status would be lost when this
@@ -276,7 +276,7 @@ handle_subfeed:
     //
     if (f == &temp_frame) {
         assert(ANY_ARRAY(shared));
-        if (f->indexor == END_FLAG)
+        if (IS_END(f->value))
             SET_END(shared); // signal no more to all varargs sharing value
         else {
             // The indexor is "prefetched", so although the temp_frame would
@@ -615,17 +615,13 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
 
             f = CTX_FRAME(VAL_VARARGS_FRAME_CTX(value));
 
-            assert(f->indexor != THROWN_FLAG);
-
-            if (f->value == NULL)
+            if (IS_END(f->value))
                 Append_Unencoded(mold->series, "*exhausted*");
             else {
                 Mold_Value(mold, f->value, TRUE);
 
                 if (f->indexor == VALIST_FLAG)
                     Append_Unencoded(mold->series, "*C varargs, pending*");
-                else if (f->indexor == END_FLAG)
-                    Append_Unencoded(mold->series, "*end*");
                 else
                     Mold_Array_At(
                         mold, f->source.array, cast(REBCNT, f->indexor), NULL

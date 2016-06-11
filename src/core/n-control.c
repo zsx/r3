@@ -459,6 +459,8 @@ REBNATIVE(case)
     REFINE(2, all);
     REFINE(3, q);
 
+    assert(IS_END(D_OUT)); // guaranteed, used to test if body ever ran...
+
     // Save refinement to boolean to free up call frame slot, and reuse its
     // cell as a temporary GC-safe location for holding evaluations.
     //
@@ -479,7 +481,7 @@ REBNATIVE(case)
     struct Reb_Frame *f = &frame;
 
     PUSH_ARTIFICIAL_CALL_UNLESS_END(f, ARG(block));
-    if (f->indexor == END_FLAG) { // quickly terminate on empty array
+    if (IS_END(f->value)) { // quickly terminate on empty array
         if (REF(q))
             return R_FALSE;
 
@@ -487,9 +489,7 @@ REBNATIVE(case)
         return R_OUT;
     }
 
-    assert(IS_END(D_OUT)); // guaranteed, used to test if body ever ran...
-
-    while (f->indexor != END_FLAG) {
+    do {
         UPDATE_EXPRESSION_START(f);
         if (IS_BAR(f->value)) {
             //
@@ -515,7 +515,7 @@ REBNATIVE(case)
         //         false ; no matching body for condition
         //     ]
         //
-        if (f->indexor == END_FLAG) {
+        if (IS_END(f->value)) {
         #if !defined(NDEBUG)
             if (LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS)) {
                 // case [first [a b c]] => true ;-- in Rebol2
@@ -624,7 +624,7 @@ REBNATIVE(case)
 
             return R_OUT; // evaluative result of case otherwise (may be void)
         }
-    }
+    } while (NOT_END(f->value));
 
     DROP_CALL(f);
 
