@@ -140,38 +140,16 @@ enum {
     //
     DO_FLAG_VALIST = 1 << 9,
 
-    // Punctuators are a special behavior which is triggered by an arity-0
-    // lookahead function.  The idea of a function with no arguments that is
-    // "infix-like" did not have another meaning, so since there was a
-    // case being paid for in the code recognizing this situation it was
-    // given some usefulness...namely to prohibit passing as an argument.
-    //
-    // !!! This may make BAR! seem obsolete, as it could be implemented as
-    // a function.  But BAR! is special as it cannot be quoted, and it has
-    // several other purposes...plus it is more efficient to evaluate.
-    //
-    DO_FLAG_PUNCTUATOR = 1 << 10,
-
     // While R3-Alpha permitted modifications of an array while it was being
     // executed, Ren-C does not.  It takes a lock if the source is not already
     // read only, and sets it back when Do_Core is finished (or on errors)
     //
-    DO_FLAG_TOOK_FRAME_LOCK = 1 << 11,
-
-    // DO_FLAG_CANT_BE_INFIX_LEFT_ARG is ignored if passed into a frame's
-    // flags.  It only has effect when applied to the temporary flags
-    // applicable to one evaluation.  It is set on the "lookahead flags"
-    // when a lookback function of arity 0 is seen.  The meaning given to
-    // these functions is that they refuse to serve as the left argument
-    // to another lookback function.
-    //
-    DO_FLAG_CANT_BE_INFIX_LEFT_ARG = 1 << 12,
+    DO_FLAG_TOOK_FRAME_LOCK = 1 << 10,
 
     // DO_FLAG_APPLYING is used to indicate that the Do_Core code is entering
-    // a situation where the frame was already set up and a void means that
-    // the argument is "opted out of"...not specialized out.
+    // a situation where the frame was already set up.
     //
-    DO_FLAG_APPLYING = 1 << 13
+    DO_FLAG_APPLYING = 1 << 11
 };
 
 

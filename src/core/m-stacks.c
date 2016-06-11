@@ -544,32 +544,28 @@ void Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
     // Make_Call does not fill the args in the frame--that's up to Do_Core
     // and Apply_Block as they go along.  But the frame has to survive
     // Recycle() during arg fulfillment, slots can't be left uninitialized.
-    // It is important to set to void for bookkeeping so that refinement
-    // scanning knows when it has filled a refinement slot (and hence its
-    // args) or not.
+    // END markers are used in the slots, since the array is being built and
+    // not yet shown to GC--and can be distinguished from "void" which might
+    // be a meaningful value for some specialization forms.
     //
-    // !!! Filling with specialized args could be done via a memcpy; doing
-    // an unset only writes 1 out of 4 pointer-sized values in release build
-    // so maybe faster than a memset (if unsets were the pattern of a uniform
-    // byte, currently not true)
-    //
-    while (num_slots) {
-        //
-        // In Rebol2 and R3-Alpha, unused refinement arguments were set to
-        // NONE! (and refinements were TRUE as opposed to the WORD! of the
-        // refinement itself).  We captured the state of the legacy flag at
-        // the time of function creation, so that both kinds of functions
-        // can coexist at the same time.
-        //
-        if (special_arg) {
-            *slot = *special_arg;
+    if (special_arg) {
+        while (num_slots) {
+            if (IS_VOID(special_arg))
+                SET_END(slot);
+            else {
+                *slot = *special_arg;
+            }
+            ++slot;
             ++special_arg;
+            --num_slots;
         }
-        else
-            SET_VOID(slot); // void means unspecialized, fulfill from callsite
-
-        slot++;
-        --num_slots;
+    }
+    else {
+        while (num_slots) { // memset() to 0 empirically slower than this loop
+            SET_END(slot);
+            ++slot;
+            --num_slots;
+        }
     }
 }
 

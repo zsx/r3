@@ -117,11 +117,9 @@ static inline void Drop_Function_Args_For_Frame(struct Reb_Frame *f) {
     Drop_Function_Args_For_Frame_Core(f, TRUE);
 }
 
-// There's a need to signal a mode for refinement pickups, and since they
-// are atypical and subfeed needs to be initialized to NULL anyway before
-// running the function, a non-NULL-subfeed is used.
-//
-#define REFINEMENT_PICKUP_SIGNIFIER EMPTY_ARRAY
+static inline REBOOL Specialized_Arg(REBVAL *arg) {
+    return NOT_END(arg); // END marker is used to indicate "pending" arg slots
+}
 
 
 //
@@ -151,8 +149,10 @@ void Do_Core(struct Reb_Frame * const f)
 
     // APPLY and a DO of a FRAME! both use this same code path.
     //
-    if (f->flags & DO_FLAG_APPLYING)
+    if (f->flags & DO_FLAG_APPLYING) {
+        assert(NOT(f->lookback)); // no support ATM for "applying infixedly"
         goto do_function_arglist_in_progress;
+    }
 
     PUSH_CALL(f);
 
@@ -791,13 +791,6 @@ reevaluate:
 
         assert(f->eval_type == ET_FUNCTION);
 
-        // Infix dispatch can only come from word lookup.  The APPLY operation
-        // and DO of a FRAME! should not be able to lookback.  (Note: this
-        // means that if DO_FLAG_EXECUTE_FRAME is set, we are specializing
-        // and must interpret any void f->arg as an unspecified parameter.)
-        //
-        assert(NOT(f->lookback && (f->flags & DO_FLAG_APPLYING)));
-
         // The f->out slot is guarded while a function is gathering its
         // arguments.  It cannot contain garbage, so it must either be END
         // or a lookback's first argument (which can also be END).
@@ -819,7 +812,6 @@ reevaluate:
             f->lookback ? DO_FLAG_NO_LOOKAHEAD : DO_FLAG_LOOKAHEAD;
 
         f->refine = BAR_VALUE; // "not a refinement arg, evaluate normally"
-        f->cell.subfeed = NULL; // abuse: non-null is refinement pickup mode
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -862,15 +854,11 @@ reevaluate:
 
         enum Reb_Param_Class pclass; // gotos would cross it if inside loop
 
+        REBOOL doing_pickups; // case label would cross it if initialized
+        doing_pickups = FALSE;
+
         for (; NOT_END(f->param); ++f->param, ++f->arg) {
             pclass = VAL_PARAM_CLASS(f->param);
-
-    //=//// "PURE" LOCAL: ARG /////////////////////////////////////////////=//
-
-            if (pclass == PARAM_CLASS_PURE_LOCAL) {
-                SET_VOID(f->arg); // faster than checking bad specializations
-                goto continue_arg_loop;
-            }
 
     //=//// A /REFINEMENT ARG /////////////////////////////////////////////=//
 
@@ -879,13 +867,12 @@ reevaluate:
                 // Refinement "pickups" are finished when another refinement
                 // is hit after them.
                 //
-                if (f->cell.subfeed == REFINEMENT_PICKUP_SIGNIFIER) {
-                    f->cell.subfeed = NULL;
+                if (doing_pickups) {
                     f->param = END_CELL; // !Is_Function_Frame_Fulfilling
                     break;
                 }
 
-                if (IS_VOID(f->arg)) {
+                if (NOT(Specialized_Arg(f->arg))) {
 
     //=//// UNSPECIALIZED REFINEMENT SLOT (no consumption) ////////////////=//
 
@@ -958,28 +945,37 @@ reevaluate:
                     *f->arg = *KNOWN(&f->cell.eval);
                 }
 
+                if (IS_VOID(f->arg)) {
+                    SET_FALSE(f->arg);
+                    f->refine = BLANK_VALUE; // handled same as false
+                    goto continue_arg_loop;
+                }
+
                 if (!IS_LOGIC(f->arg))
                     fail (Error_Non_Logic_Refinement(f));
 
-                if (IS_CONDITIONAL_TRUE(f->arg)) {
-                    SET_TRUE(f->arg);
+                if (IS_CONDITIONAL_TRUE(f->arg))
                     f->refine = f->arg; // remember so we can revoke!
-                }
-                else {
-                    SET_FALSE(f->arg);
+                else
                     f->refine = BLANK_VALUE; // (read-only)
-                }
 
                 goto continue_arg_loop;
             }
 
-    //=//// IF JUST SKIPPING TO NEXT REFINEMENT, MOVE ON //////////////////=//
+    //=//// "PURE" LOCAL: ARG /////////////////////////////////////////////=//
+
+            if (pclass == PARAM_CLASS_PURE_LOCAL) {
+                SET_VOID(f->arg); // faster than checking bad specializations
+                goto continue_arg_loop;
+            }
+
+    //=//// IF COMING BACK TO REFINEMENT ARGS LATER, MOVE ON FOR NOW //////=//
 
             if (IS_VOID(f->refine)) goto continue_arg_loop;
 
     //=//// SPECIALIZED ARG (already filled, so does not consume) /////////=//
 
-            if (NOT(IS_VOID(f->arg))) {
+            if (Specialized_Arg(f->arg)) {
 
                 // The arg came preloaded with a value to use.  Handle soft
                 // quoting first, in case arg needs evaluation.
@@ -1040,7 +1036,8 @@ reevaluate:
             // further processing or checking.  void will always be fine.
             //
             if (IS_BLANK(f->refine)) { // FALSE if revoked, and still evaluates
-                assert(IS_VOID(f->arg));
+                assert(NOT(Specialized_Arg(f->arg)));
+                SET_VOID(f->arg);
                 goto continue_arg_loop;
             }
 
@@ -1077,9 +1074,7 @@ reevaluate:
 
     //=//// AFTER THIS, PARAMS CONSUME FROM CALLSITE IF NOT APPLY ////////=//
 
-            assert(IS_VOID(f->arg));
-
-            if (f->flags & DO_FLAG_APPLYING) goto check_arg; // void = optional
+            assert(NOT(Specialized_Arg(f->arg)));
 
     //=//// ERROR ON END MARKER, BAR! IF APPLICABLE //////////////////////=//
 
@@ -1279,7 +1274,7 @@ reevaluate:
             f->refine = f->arg = DS_TOP->payload.any_word.place.pickup.arg;
             assert(IS_LOGIC(f->refine) && VAL_LOGIC(f->refine));
             DS_DROP;
-            f->cell.subfeed = REFINEMENT_PICKUP_SIGNIFIER;
+            doing_pickups = TRUE;
             goto continue_arg_loop; // leaves refine, but bumps param+arg
         }
 
