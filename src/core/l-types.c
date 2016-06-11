@@ -158,7 +158,7 @@ REBNATIVE(make)
             }
             if (indexor == END_FLAG)
                 break;
-            assert(indexor == VALIST_FLAG);
+            assert(indexor == VA_LIST_FLAG);
 
             DS_PUSH(D_OUT);
         } while (TRUE);

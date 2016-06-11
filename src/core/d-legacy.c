@@ -57,7 +57,7 @@ REBOOL In_Legacy_Function_Debug(void)
     //
     struct Reb_Frame *frame = FS_TOP;
     for (; frame != NULL; frame = frame->prior) {
-        if (frame->flags & DO_FLAG_VALIST)
+        if (frame->flags & DO_FLAG_VA_LIST)
             return FALSE; // no source array to look at
 
         break; // whatever's dispatching here, there is a source array

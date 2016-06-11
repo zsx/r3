@@ -583,7 +583,7 @@ static void Mark_Frame_Stack_Deep(void)
         // earlier in the recycle process (don't want to create new arrays
         // once the recycling has started...)
         //
-        assert(f->indexor != VALIST_FLAG);
+        assert(f->index != VA_LIST_FLAG);
 
         // END_FLAG is possible, because the frame could be sitting at the
         // end of a block when a function runs, e.g. `do [zero-arity]`.
@@ -1341,7 +1341,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
         struct Reb_Frame *f = FS_TOP;
         for (; f != NULL; f = f->prior) {
             const REBOOL truncated = TRUE;
-            if (f->flags & DO_FLAG_VALIST)
+            if (f->flags & DO_FLAG_VA_LIST)
                 Reify_Va_To_Array_In_Frame(f, truncated); // see function
         }
     }

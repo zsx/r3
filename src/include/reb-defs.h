@@ -79,7 +79,7 @@
     // The C build simply defines a REBIXO as a synonym for a pointer-sized int.
     // In the C++ build, the indexor is a more restrictive class...which redefines
     // a subset of operations for integers but does *not* implicitly cast to one
-    // Hence if a THROWN_FLAG, END_FLAG, VALIST_FLAG etc. is used with integer
+    // Hence if a THROWN_FLAG, END_FLAG, VA_LIST_FLAG etc. is used with integer
     // math or put into an `int` variable accidentally, this will be caught.
     //
     // Because indexors are not stored in REBVALs or places where memory usage
@@ -94,21 +94,21 @@
     #define END_FLAG 0x80000000  // end of block as index
     #define THROWN_FLAG (END_FLAG - 0x75) // throw as an index
 
-    // The VALIST_FLAG is the index used when a C va_list pointer is the input.
+    // The VA_LIST_FLAG is the index used when a C va_list pointer is the input.
     // Because access to a `va_list` is strictly increasing through va_arg(),
     // there is no way to track an index; fetches are indexed automatically
     // and sequentially without possibility for mutation of the list.  Should
     // this index be used it will always be the index of a DO_NEXT until either
     // an END_FLAG or a THROWN_FLAG is reached.
     //
-    #define VALIST_FLAG (END_FLAG - 0xBD)
+    #define VA_LIST_FLAG (END_FLAG - 0xBD)
 
-    // This is not an actual DO state flag that you would see in a Reb_Frame's
-    // index, but it is a value that is returned in case a non-continuable
-    // DO_NEXT call is made on va_lists.  One can make the observation that it
-    // is incomplete only--not resume.
+    // This is used internally in frames in the debug build when the index
+    // does not apply (e.g. END, THROWN, VA_LIST)
     //
-    #define VALIST_INCOMPLETE_FLAG (END_FLAG - 0xAE)
+    #if !defined(NDEBUG)
+        #define TRASHED_INDEX (END_FLAG - 0xAE)
+    #endif
 
     #if defined(NDEBUG) || !defined(__cplusplus) || (__cplusplus < 201103L)
         typedef REBUPT REBIXO;

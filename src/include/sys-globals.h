@@ -89,6 +89,11 @@ PVAR REBVAL PG_Bar_Value[2];
 PVAR REBVAL PG_False_Value[2];
 PVAR REBVAL PG_True_Value[2];
 
+// Special (but standards-legal) REBVAL* used in the `pending` field of a frame
+// to indicate it fetches its values from a C va_list.
+//
+PVAR REBVAL PG_Va_List_Pending;
+
 // This signal word should be thread-local, but it will not work
 // when implemented that way. Needs research!!!!
 PVAR REBCNT Eval_Signals;   // Signal flags

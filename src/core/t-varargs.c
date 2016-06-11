@@ -57,9 +57,9 @@
 //
 // * returns END_FLAG if it reaches the end of an entire input chain
 //
-// * returns VALIST_FLAG if the input is not exhausted
+// * returns VA_LIST_FLAG if the input is not exhausted
 //
-// Note: Returning VALIST_FLAG is probably a lie, since the odds of the
+// Note: Returning VA_LIST_FLAG is probably a lie, since the odds of the
 // underlying varargs being from a FRAME! running on a C `va_list` aren't
 // necessarily that high.  For now it is a good enough signal simply because
 // it is not an index number, so it is an opaque way of saying "there is
@@ -74,7 +74,7 @@ REBIXO Do_Vararg_Op_Core(
     enum Reb_Vararg_Op op
 ) {
     struct Reb_Frame *f;
-    REBIXO indexor = VALIST_FLAG;
+    REBIXO indexor = VA_LIST_FLAG;
 
     struct Reb_Frame temp_frame;
 
@@ -169,7 +169,7 @@ handle_subfeed:
 
         if (op == VARARG_OP_FIRST) {
             COPY_VALUE(out, f->value, f->specifier);
-            return VALIST_FLAG;
+            return VA_LIST_FLAG;
         }
     }
     else {
@@ -195,7 +195,7 @@ handle_subfeed:
 
         if (op == VARARG_OP_FIRST) {
             *out = *KNOWN(VAL_ARRAY_AT(shared)); // no relative values
-            return VALIST_FLAG;
+            return VA_LIST_FLAG;
         }
 
         // Fill in just enough enformation to call the FETCH-based routines
@@ -203,9 +203,9 @@ handle_subfeed:
         temp_frame.value = VAL_ARRAY_AT(shared);
         temp_frame.specifier = SPECIFIED;
         temp_frame.source.array = VAL_ARRAY(shared);
-        temp_frame.indexor = VAL_INDEX(shared) + 1;
+        temp_frame.index = VAL_INDEX(shared) + 1;
         temp_frame.out = out;
-        temp_frame.eval_fetched = NULL;
+        temp_frame.pending = NULL;
         temp_frame.label_sym = SYM_NATIVE; // !!! lie, shouldn't be used
 
         f = &temp_frame;
@@ -226,7 +226,7 @@ handle_subfeed:
     //
     switch (pclass) {
     case PARAM_CLASS_NORMAL:
-        if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
+        if (op == VARARG_OP_TAIL_Q) return VA_LIST_FLAG;
 
         DO_NEXT_REFETCH_MAY_THROW(
             out,
@@ -246,7 +246,7 @@ handle_subfeed:
         break;
 
     case PARAM_CLASS_HARD_QUOTE:
-        if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
+        if (op == VARARG_OP_TAIL_Q) return VA_LIST_FLAG;
 
         QUOTE_NEXT_REFETCH(out, f);
         CLEAR_VAL_FLAG(arg, VALUE_FLAG_EVALUATED);
@@ -259,7 +259,7 @@ handle_subfeed:
             || IS_GET_WORD(f->value)
             || IS_GET_PATH(f->value) // these 3 cases evaluate
         ) {
-            if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
+            if (op == VARARG_OP_TAIL_Q) return VA_LIST_FLAG;
 
             if (EVAL_VALUE_CORE_THROWS(out, f->value, f->specifier))
                 return THROWN_FLAG;
@@ -272,7 +272,7 @@ handle_subfeed:
             FETCH_NEXT_ONLY_MAYBE_END(f);
         }
         else { // not a soft-"exception" case, quote ordinarily
-            if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
+            if (op == VARARG_OP_TAIL_Q) return VA_LIST_FLAG;
 
             QUOTE_NEXT_REFETCH(out, f);
 
@@ -299,8 +299,8 @@ handle_subfeed:
             // be ready to use again we're throwing it away, and need to
             // effectively "undo the prefetch" by taking it down by 1.  The
             //
-            assert(f->indexor > 0);
-            VAL_INDEX(shared) = f->indexor - 1; // update seen by all sharings
+            assert(f->index > 0);
+            VAL_INDEX(shared) = f->index - 1; // update seen by all sharings
         }
     }
 
@@ -333,7 +333,7 @@ handle_subfeed:
     if (!TYPE_CHECK(param, VAL_TYPE(out)))
         fail (Error_Arg_Type(sym_func, param, VAL_TYPE(out)));
 
-    return VALIST_FLAG; // may be at end now, but reflect that at *next* call
+    return VA_LIST_FLAG; // may be at end now, but reflect that at *next* call
 
 return_end_flag:
     if (op != VARARG_OP_TAIL_Q) SET_TRASH_IF_DEBUG(out);
@@ -377,7 +377,7 @@ REBIXO Do_Vararg_Op_May_Throw(
             op
         );
 
-        assert(indexor == END_FLAG || indexor == VALIST_FLAG); // can't throw
+        assert(indexor == END_FLAG || indexor == VA_LIST_FLAG); // can't throw
         return indexor;
     }
 
@@ -460,7 +460,7 @@ REBTYPE(Varargs)
             fail (Error(RE_VARARGS_NO_LOOK));
 
         indexor = Do_Vararg_Op_May_Throw(D_OUT, value, VARARG_OP_FIRST);
-        assert(indexor == VALIST_FLAG || indexor == END_FLAG); // no throw
+        assert(indexor == VA_LIST_FLAG || indexor == END_FLAG); // no throw
         if (indexor == END_FLAG)
             SET_BLANK(D_OUT); // want to be consistent with TAKE
 
@@ -469,7 +469,7 @@ REBTYPE(Varargs)
 
     case A_TAIL_Q: {
         indexor = Do_Vararg_Op_May_Throw(NULL, value, VARARG_OP_TAIL_Q);
-        assert(indexor == VALIST_FLAG || indexor == END_FLAG); // no throw
+        assert(indexor == VA_LIST_FLAG || indexor == END_FLAG); // no throw
         return indexor == END_FLAG ? R_TRUE : R_FALSE;
     }
 
@@ -650,11 +650,11 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
             else {
                 Mold_Value(mold, f->value, TRUE);
 
-                if (f->indexor == VALIST_FLAG)
+                if (f->flags & DO_FLAG_VA_LIST)
                     Append_Unencoded(mold->series, "*C varargs, pending*");
                 else
                     Mold_Array_At(
-                        mold, f->source.array, cast(REBCNT, f->indexor), NULL
+                        mold, f->source.array, cast(REBCNT, f->index), NULL
                     );
             }
         }

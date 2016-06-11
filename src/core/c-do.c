@@ -57,13 +57,13 @@ REBIXO Do_Array_At_Core(
 
     if (opt_first) {
         f.value = opt_first;
-        f.indexor = index;
+        f.index = index;
     }
     else {
         // Do_Core() requires caller pre-seed first value, always
         //
         f.value = ARR_AT(array, index);
-        f.indexor = index + 1;
+        f.index = index + 1;
     }
 
     if (IS_END(f.value)) {
@@ -77,6 +77,7 @@ REBIXO Do_Array_At_Core(
     f.flags = flags;
     f.gotten = NULL; // so ET_WORD and ET_GET_WORD do their own Get_Var
     f.lookback = FALSE;
+    f.pending = NULL;
 
     f.eval_type = Eval_Table[VAL_TYPE(f.value)];
 
@@ -85,7 +86,7 @@ REBIXO Do_Array_At_Core(
     if (THROWN(f.out))
         return THROWN_FLAG; // !!! prohibits recovery from exits
 
-    return IS_END(f.value) ? END_FLAG : f.indexor;
+    return IS_END(f.value) ? END_FLAG : f.index;
 }
 
 
@@ -144,17 +145,11 @@ REBIXO Do_Values_At_Core(
 // (unless told that it's not truncated, e.g. a debug mode that calls it
 // before any items are consumed).
 //
-// This does not touch the current prefetched f->value in the frame--it only
-// changes the source and the indexor which will be seen by the next fetch.
-//
 void Reify_Va_To_Array_In_Frame(struct Reb_Frame *f, REBOOL truncated)
 {
     REBDSP dsp_orig = DSP;
 
-    assert(f->flags & DO_FLAG_VALIST);
-    assert(f->indexor == VALIST_FLAG);
-
-    //assert(f->eval_fetched == NULL); // could reification ever happen here?
+    assert(f->flags & DO_FLAG_VA_LIST);
 
     if (truncated) {
         REBVAL temp;
@@ -164,26 +159,21 @@ void Reify_Va_To_Array_In_Frame(struct Reb_Frame *f, REBOOL truncated)
     }
 
     if (NOT_END(f->value)) {
-        assert(!IS_VOID(f->value) || NOT(f->flags & DO_FLAG_ARGS_EVALUATE));
-        DS_PUSH_RELVAL_MAYBE_VOID(f->value, f->specifier);
+        do {
+            DS_PUSH_RELVAL_MAYBE_VOID(f->value, f->specifier);
+            FETCH_NEXT_ONLY_MAYBE_END(f);
+        } while (NOT_END(f->value));
 
-        const RELVAL *spool; // need to keep f->value for END test after
-        while (NOT_END(spool = va_arg(*f->source.vaptr, const REBVAL*))) {
-            assert(!IS_VOID(spool) || NOT(f->flags & DO_FLAG_ARGS_EVALUATE));
-            DS_PUSH_RELVAL_MAYBE_VOID(spool, f->specifier);
-        }
-
-        if (truncated) {
-            f->indexor = 2; // skip the --optimized-out--
-        }
+        if (truncated)
+            f->index = 2; // skip the --optimized-out--
         else
-            f->indexor = 1; // position at the start of the extracted values
+            f->index = 1; // position at the start of the extracted values
     }
     else {
         // Leave at the END, but give back the array to serve as
         // notice of the truncation (if it was truncated)
         //
-        f->indexor = 0;
+        f->index = 0;
     }
 
     if (DSP != dsp_orig) {
@@ -202,18 +192,19 @@ void Reify_Va_To_Array_In_Frame(struct Reb_Frame *f, REBOOL truncated)
         f->source.array = EMPTY_ARRAY;
     }
 
-    if (NOT_END(f->value)) {
-        if (truncated)
-            f->value = ARR_AT(f->source.array, 1); // skip --optimized out--
-        else
-            f->value = ARR_HEAD(f->source.array);
-    }
+    if (truncated)
+        f->value = ARR_AT(f->source.array, 1); // skip --optimized out--
+    else
+        f->value = ARR_HEAD(f->source.array);
 
-    // We clear the DO_FLAG_VALIST, assuming that the truncation marker is
+    // We clear the DO_FLAG_VA_LIST, assuming that the truncation marker is
     // enough information to record the fact that it was a va_list (revisit
     // if there's another reason to know what it was...)
 
-    f->flags &= ~DO_FLAG_VALIST;
+    f->flags &= ~DO_FLAG_VA_LIST;
+
+    assert(f->pending == VA_LIST_PENDING);
+    f->pending = NULL;
 }
 
 
@@ -251,8 +242,7 @@ void Reify_Va_To_Array_In_Frame(struct Reb_Frame *f, REBOOL truncated)
 // *and* check that you ended properly.  It means this function will need
 // two different signatures (and so will each caller of this routine).
 //
-// Returns THROWN_FLAG, END_FLAG--or if DO_FLAG_NEXT is used it may return
-// VALIST_INCOMPLETE_FLAG.
+// Returns THROWN_FLAG, END_FLAG, or VA_LIST_FLAG
 //
 REBIXO Do_Va_Core(
     REBVAL *out,
@@ -277,13 +267,16 @@ REBIXO Do_Va_Core(
     }
 
     f.out = out;
-    f.indexor = VALIST_FLAG;
+#if !defined(NDEBUG)
+    f.index = TRASHED_INDEX;
+#endif
     f.source.vaptr = vaptr;
     f.gotten = NULL; // so ET_WORD and ET_GET_WORD do their own Get_Var
     f.lookback = FALSE;
     f.specifier = SPECIFIED; // va_list values MUST be full REBVAL* already
+    f.pending = VA_LIST_PENDING;
 
-    f.flags = flags | DO_FLAG_VALIST; // see notes in %sys-do.h on why needed
+    f.flags = flags | DO_FLAG_VA_LIST; // see notes in %sys-do.h on why needed
 
     f.eval_type = Eval_Table[VAL_TYPE(f.value)];
 
@@ -292,37 +285,7 @@ REBIXO Do_Va_Core(
     if (THROWN(f.out))
         return THROWN_FLAG; // !!! prohibits recovery from exits
 
-    if (flags & DO_FLAG_NEXT) {
-        //
-        // The lookahead needed to permit lookback functions (e.g. infix)
-        // causes a fetch that cannot be undone.  Hence va_list DO/NEXT can't
-        // be resumed -- see VALIST_INCOMPLETE_FLAG.  For a resumable interface
-        // on va_list, see the lower level API.
-        //
-        // Note that the va_list may be reified during the call, so the
-        // index may not be VALIST_FLAG at this point.
-        //
-        // !!! Should this auto-reify, so it can keep going in all cases?
-        // The transition from va_list to non is a bit strange, and even
-        // if it were possible then users might wonder why the numbers
-        // don't line up with the parameter order.  Also, doing it without
-        // explicit request undermines knowledge of the efficiency lost.
-        //
-        if (NOT(THROWN(f.out)) && NOT_END(f.value)) {
-            //
-            // Try one more fetch and see if it's at the end.  If not, we did
-            // not consume all the input.
-            //
-            FETCH_NEXT_ONLY_MAYBE_END(&f);
-            if (NOT_END(f.value)) {
-                assert(f.indexor == VALIST_FLAG); // couldn't throw!!
-                return VALIST_INCOMPLETE_FLAG;
-            }
-        }
-    }
-
-    assert(IS_END(f.value));
-    return END_FLAG;
+    return IS_END(f.value) ? END_FLAG : VA_LIST_FLAG;
 }
 
 
@@ -447,7 +410,7 @@ REBOOL Apply_Only_Throws(REBVAL *out, const REBVAL *applicand, ...)
         DO_FLAG_NEXT | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
     );
 
-    if (indexor == VALIST_INCOMPLETE_FLAG) {
+    if (indexor == VA_LIST_FLAG) {
         //
         // Not consuming all the arguments given suggests a problem as far
         // as this interface is concerned.  To tolerate incomplete states,

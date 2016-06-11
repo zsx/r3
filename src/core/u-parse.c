@@ -125,9 +125,9 @@ static REBOOL Subparse_Throws(
         : rules_specifier;
 
     f->source.array = VAL_ARRAY(rules);
-    f->indexor = VAL_INDEX(rules) + 1;
+    f->index = VAL_INDEX(rules) + 1;
 
-    f->eval_fetched = NULL;
+    f->pending = NULL;
 
     f->stackvars = Push_Ended_Trash_Chunk(2);
     f->varlist = NULL;
@@ -1161,7 +1161,7 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
     newparse.out = P_OUT;
 
     newparse.source.array = f->source.array;
-    newparse.indexor = f->indexor;
+    newparse.index = f->index;
     newparse.value = rule;
     newparse.specifier = P_RULE_SPECIFIER;
 

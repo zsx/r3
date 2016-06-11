@@ -143,7 +143,7 @@ inline static void PUSH_CALL(struct Reb_Frame *f)
 {
     f->prior = TG_Frame_Stack;
     TG_Frame_Stack = f;
-    if (NOT(f->flags & DO_FLAG_VALIST))
+    if (NOT(f->flags & DO_FLAG_VA_LIST))
         if (!GET_ARR_FLAG(f->source.array, SERIES_FLAG_LOCKED)) {
             SET_ARR_FLAG(f->source.array, SERIES_FLAG_LOCKED);
             f->flags |= DO_FLAG_TOOK_FRAME_LOCK;
@@ -151,8 +151,8 @@ inline static void PUSH_CALL(struct Reb_Frame *f)
 }
 
 inline static void UPDATE_EXPRESSION_START(struct Reb_Frame *f) {
-    assert(f->indexor != VALIST_FLAG);
-    f->expr_index = f->indexor;
+    assert(NOT(f->flags & DO_FLAG_VA_LIST));
+    f->expr_index = f->index;
 }
 
 inline static void DROP_CALL(struct Reb_Frame *f) {
@@ -163,6 +163,7 @@ inline static void DROP_CALL(struct Reb_Frame *f) {
     assert(TG_Frame_Stack == f);
     TG_Frame_Stack = f->prior;
 }
+
 
 //
 // Code that walks across Rebol arrays and performs evaluations must consider
@@ -187,10 +188,10 @@ inline static void PUSH_SAFE_ENUMERATOR(
     f->flags = DO_FLAG_NEXT | DO_FLAG_ARGS_EVALUATE; // !!! review
     f->gotten = NULL; // tells ET_WORD and ET_GET_WORD they must do a get
     f->lookback = FALSE;
-    f->indexor = VAL_INDEX(v) + 1;
+    f->index = VAL_INDEX(v) + 1;
     f->specifier = VAL_SPECIFIER(v);
-    f->eval_fetched = NULL;
     f->eval_type = ET_SAFE_ENUMERATOR;
+    f->pending = NULL;
     PUSH_CALL(f);
 }
 
@@ -209,27 +210,38 @@ inline static void PUSH_SAFE_ENUMERATOR(
         NOOP
 #endif
 
+#define VA_LIST_PENDING cast(const RELVAL*, &PG_Va_List_Pending)
+
 //
 // FETCH_NEXT_ONLY_MAYBE_END (see notes above)
+//
+// This routine is optimized assuming the common case is that values are
+// being read out of an array.  Whether to read out of a C va_list or to use
+// a "virtual" next value (e.g. an old value saved by EVAL) are both indicated
+// by f->pending, hence a NULL test of that can be executed quickly.
 //
 inline static void FETCH_NEXT_ONLY_MAYBE_END(struct Reb_Frame *f) {
     TRACE_FETCH_DEBUG("FETCH_NEXT_ONLY_MAYBE_END", f, FALSE);
 
-    if (f->eval_fetched) {
-        f->value = f->eval_fetched;
-        f->eval_fetched = NULL;
+    assert(NOT_END(f->value));
+    if (f->pending == NULL) {
+        f->value = ARR_AT(f->source.array, f->index);
+        ++f->index;
     }
-    else if (f->indexor != VALIST_FLAG) {
-        f->value = ARR_AT(f->source.array, f->indexor);
-        ++f->indexor;
-    }
-    else {
+    else if (f->pending == VA_LIST_PENDING) {
         f->value = va_arg(*f->source.vaptr, const REBVAL*);
         assert(
             IS_END(f->value)
             || (IS_VOID(f->value) && NOT((f)->flags & DO_FLAG_ARGS_EVALUATE))
             || !IS_RELATIVE(f->value)
         );
+    }
+    else {
+        f->value = f->pending;
+        if (f->flags & DO_FLAG_VA_LIST)
+            f->pending = VA_LIST_PENDING;
+        else
+            f->pending = NULL;
     }
 
     TRACE_FETCH_DEBUG("FETCH_NEXT_ONLY_MAYBE_END", f, TRUE);
@@ -365,16 +377,21 @@ no_optimization:
     child->out = out;
     child->source = parent->source;
     child->value = parent->value;
-    child->indexor = parent->indexor;
+    child->index = parent->index;
     child->specifier = parent->specifier;
     child->flags = DO_FLAG_ARGS_EVALUATE | DO_FLAG_NEXT | flags;
+    child->pending = parent->pending;
 
     Do_Core(child);
 
     assert(NOT(child->lookback));
-    assert(child->indexor == VALIST_FLAG || parent->indexor != child->indexor);
+    assert(
+        (child->flags & DO_FLAG_VA_LIST)
+        || parent->index != child->index
+    );
+    parent->pending = child->pending;
     parent->value = child->value;
-    parent->indexor = child->indexor;
+    parent->index = child->index;
     parent->gotten = NULL;
 
     TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_MAY_THROW", parent, TRUE);
@@ -435,9 +452,9 @@ inline static REBIXO DO_NEXT_MAY_THROW(
 
     f->source.array = array;
     f->specifier = specifier;
-    f->indexor = index + 1;
+    f->index = index + 1;
     f->flags = 0;
-    f->eval_fetched = NULL;
+    f->pending = NULL;
     f->lookback = FALSE;
     f->gotten = NULL;
     f->eval_type = Eval_Table[VAL_TYPE(f->value)];
@@ -450,8 +467,8 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     if (IS_END(f->value))
         return END_FLAG;
 
-    assert(f->indexor > 1);
-    return f->indexor - 1;
+    assert(f->index > 1);
+    return f->index - 1;
 }
 
 inline static REBOOL Do_At_Throws(
@@ -721,7 +738,7 @@ struct Native_Refine {
 #define FS_TOP (TG_Frame_Stack + 0) // avoid assignment to FS_TOP via + 0
 
 #define FRM_IS_VALIST(f) \
-    LOGICAL((f)->flags & DO_FLAG_VALIST)
+    LOGICAL((f)->flags & DO_FLAG_VA_LIST)
 
 #define FRM_ARRAY(f) \
     (assert(!FRM_IS_VALIST(f)), (f)->source.array)
@@ -733,8 +750,8 @@ struct Native_Refine {
 // to accurately present the errors.
 //
 #define FRM_INDEX(f) \
-    (assert(!FRM_IS_VALIST(f)), (f)->indexor == END_FLAG \
-        ? ARR_LEN((f)->source.array) : (f)->indexor - 1)
+    (assert(!FRM_IS_VALIST(f)), IS_END((f)->value) \
+        ? ARR_LEN((f)->source.array) : (f)->index - 1)
 
 #define FRM_EXPR_INDEX(f) \
     (assert(!FRM_IS_VALIST(f)), (f)->expr_index == END_FLAG \

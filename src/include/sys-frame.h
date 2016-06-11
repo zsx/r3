@@ -120,7 +120,7 @@ enum {
     //
     DO_FLAG_EXECUTE_FRAME = 1 << 7,
 
-    // Usually VALIST_FLAG is enough to tell when there is a source array to
+    // Usually VA_LIST_FLAG is enough to tell when there is a source array to
     // examine or not.  However, when the end is reached it is written over
     // with END_FLAG and it's no longer possible to tell if there's an array
     // available to inspect or not.  The few cases that "need to know" are
@@ -128,7 +128,7 @@ enum {
     // expression evaluation is complete.  Review to see if they actually
     // would rather know something else, but this is a cheap flag for now.
     //
-    DO_FLAG_VALIST = 1 << 8,
+    DO_FLAG_VA_LIST = 1 << 8,
 
     // While R3-Alpha permitted modifications of an array while it was being
     // executed, Ren-C does not.  It takes a lock if the source is not already
@@ -370,7 +370,7 @@ struct Reb_Frame {
     //
     REBOOL lookback;
 
-    // `eval_fetched` [INTERNAL, READ-ONLY, GC-PROTECTS pointed-to REBVAL]
+    // `pending` [INTERNAL, READ-ONLY, GC-PROTECTS pointed-to REBVAL]
     //
     // Mechanically speaking, running an EVAL has to overwrite `value` from
     // the natural pre-fetching course, so that the evaluated value can be
@@ -381,7 +381,7 @@ struct Reb_Frame {
     // by virtue of not being NULL signals to just use the value on the
     // next fetch instead of fetching again.
     //
-    const RELVAL *eval_fetched;
+    const RELVAL *pending;
 
     // source.array, source.vaptr [INPUT, READ-ONLY, GC-PROTECTED]
     //
@@ -400,22 +400,12 @@ struct Reb_Frame {
     //
     union Reb_Frame_Source source;
 
-    // `indexor` [INPUT, OUTPUT]
+    // `index` [INPUT, OUTPUT]
     //
-    // This can hold an "index OR a flag" related to the current state of
-    // the enumeration of the values being evaluated.  For the flags, see
-    // notes on REBIXO and END_FLAG, THROWN_FLAG.  Note also the case of
-    // a C va_list where the actual index of the REBVAL* is intrinsic to
-    // the enumeration...so the indexor will be VA_LIST flag vs. a count.
+    // This holds the index of the *next* item in the array to fetch as
+    // f->value for processing.  It's invalid if the frame is for a C va_list.
     //
-    // Successive fetching is always done by index and not with `++c-value`.
-    // This is for several reasons, but one of them is to avoid crashing if
-    // the input array is modified during the evaluation.
-    //
-    // !!! While it doesn't *crash*, a good user-facing explanation of
-    // handling what it does instead seems not to have been articulated!  :-/
-    //
-    REBIXO indexor;
+    REBCNT index;
 
     // `specifier` [INPUT, READ-ONLY, GC-PROTECTED]
     //

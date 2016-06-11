@@ -105,11 +105,11 @@ void Trace_Line(struct Reb_Frame *f)
     if (IS_END(f->value)) {
         Debug_Fmt_("END");
     }
-    else if (f->indexor == VALIST_FLAG) {
-        Debug_Fmt_("VALIST_FLAG...");
+    else if (f->flags & DO_FLAG_VA_LIST) {
+        Debug_Fmt_("VA_LIST_FLAG...");
     }
     else {
-        Debug_Fmt_("%-02d: %50r", cast(REBINT, f->indexor), f->value);
+        Debug_Fmt_("%-02d: %50r", cast(REBINT, f->index), f->value);
     }
 
     if (IS_WORD(f->value) || IS_GET_WORD(f->value)) {
@@ -275,7 +275,7 @@ REBNATIVE(trace)
 void Trace_Fetch_Debug(const char* msg, struct Reb_Frame *f, REBOOL after) {
     Debug_Fmt(
         "%d - %s : %s",
-        cast(REBCNT, f->indexor),
+        cast(REBCNT, f->index),
         msg,
         after ? "AFTER" : "BEFORE"
     );

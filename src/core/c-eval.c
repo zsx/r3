@@ -85,7 +85,7 @@
 
 
 static inline void Start_New_Expression_Core(struct Reb_Frame *f) {
-    f->expr_index = f->indexor; // !!! See FRM_INDEX() for caveats
+    f->expr_index = f->index; // !!! See FRM_INDEX() for caveats
     if (Trace_Flags)
         Trace_Line(f);
 }
@@ -179,12 +179,6 @@ void Do_Core(struct Reb_Frame * const f)
     // are any that are not processed)
     //
     f->dsp_orig = DSP;
-
-    // Indicate that we do not have a value already fetched by eval which is
-    // pending to be the next fetch (after the eval's "slipstreamed" f->value
-    // is done processing).
-    //
-    f->eval_fetched = NULL;
 
 do_next:
 
@@ -784,7 +778,7 @@ reevaluate:
             // that gets evaluated it will wind up in f->func, if it's a
             // GROUP! or PATH!-containing-GROUP! it winds up in f->array...)
             //
-            f->eval_fetched = f->value; // may be END marker for next fetch
+            f->pending = f->value; // may be END marker for next fetch
 
             // Since the evaluation result is a REBVAL and not a RELVAL, it
             // is specific.  This means the `f->specifier` (which can only
@@ -1436,7 +1430,7 @@ reevaluate:
         // refine can be anything.
         assert(
             IS_END(f->value)
-            || (f->flags & DO_FLAG_VALIST)
+            || (f->flags & DO_FLAG_VA_LIST)
             || IS_VALUE_IN_ARRAY(f->source.array, f->value)
         );
 
@@ -1840,18 +1834,6 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
     //
     assert(IS_TRASH_DEBUG(&TG_Thrown_Arg));
 
-    // The eval_type is expected to be calculated already, because it's an
-    // opportunity for the caller to decide pushing a frame is not necessary
-    // (e.g. if it's ET_INERT).  Hence it is only set at the end of the loop.
-    //
-    // Special exemption is made when f->gotten is a function and the symbol
-    // has been set from a WORD!, because f->value is still that word.
-    //
-    assert(
-        f->eval_type == Eval_Table[VAL_TYPE(f->value)]
-        || (f->lookback && f->eval_type == ET_FUNCTION && IS_WORD(f->value))
-    );
-
     // If running the evaluator, then this frame should be the topmost on the
     // frame stack.
     //
@@ -1865,6 +1847,29 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
     //
     assert(f->value && NOT_END(f->value) && f->value != f->out);
     assert(NOT(THROWN(f->value)));
+
+    // The eval_type is expected to be calculated already, because it's an
+    // opportunity for the caller to decide pushing a frame is not necessary
+    // (e.g. if it's ET_INERT).  Hence it is only set at the end of the loop.
+    //
+    // Special exemption is made when f->gotten is a function and the symbol
+    // has been set from a WORD!, because f->value is still that word.
+    //
+    assert(
+        f->eval_type == Eval_Table[VAL_TYPE(f->value)]
+        || (f->lookback && f->eval_type == ET_FUNCTION && IS_WORD(f->value))
+    );
+
+    if (f->flags & DO_FLAG_VA_LIST)
+        assert(f->index == TRASHED_INDEX);
+    else {
+        assert(
+            f->index != TRASHED_INDEX
+            && f->index != END_FLAG
+            && f->index != THROWN_FLAG
+            && f->index != VA_LIST_FLAG
+        ); // END, THROWN, VA_LIST only used by wrappers
+    }
 
     // Make sure `eval` is trash in debug build if not doing a `reevaluate`.
     // It does not have to be GC safe (for reasons explained below).  We
@@ -1883,13 +1888,6 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
         INIT_CELL_WRITABLE_IF_DEBUG(&(f->cell.eval));
         SET_TRASH_IF_DEBUG(&(f->cell.eval));
     }
-
-    // Note that `f->value` *might* be an END marker in the case of an eval;
-    // if you write `do [eval help]` then it will load help in as f->value
-    // and retrigger, and `help` (for instance) is capable of handling a
-    // prefetched input that is at end.
-    //
-    assert(NOT_END(f->value) || IS_END(f->eval_fetched));
 
     // The value we are processing should not be THROWN() and any series in
     // it should be under management by the garbage collector.
@@ -1928,7 +1926,7 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
     // Mutate va_list sources into arrays at fairly random moments in the
     // debug build.  It should be able to handle it at any time.
     //
-    if (f->indexor == VALIST_FLAG && SPORADICALLY(50)) {
+    if ((f->flags & DO_FLAG_VA_LIST) && SPORADICALLY(50)) {
         const REBOOL truncated = TRUE;
         Reify_Va_To_Array_In_Frame(f, truncated);
     }
@@ -1946,7 +1944,7 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
 
             PROBE_MSG(&dump, "DO_COUNT_BREAKPOINT hit at...");
 
-            if (f->indexor == VALIST_FLAG) {
+            if (f->flags & DO_FLAG_VA_LIST) {
                 //
                 // NOTE: This reifies the va_list in the frame, and hence has
                 // side effects.  It may need to be commented out if the
@@ -1957,10 +1955,10 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
                 Reify_Va_To_Array_In_Frame(f, truncated);
             }
 
-            if (f->eval_fetched && NOT_END(f->eval_fetched)) {
-                assert(IS_SPECIFIC(f->eval_fetched));
+            if (f->pending && NOT_END(f->pending)) {
+                assert(IS_SPECIFIC(f->pending));
                 PROBE_MSG(
-                    const_KNOWN(f->eval_fetched),
+                    const_KNOWN(f->pending),
                     "EVAL in progress, so next will be..."
                 );
             }
@@ -1974,7 +1972,7 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
                     &dump,
                     REB_BLOCK,
                     ARR_SERIES(f->source.array),
-                    cast(REBCNT, f->indexor),
+                    cast(REBCNT, f->index),
                     f->specifier
                 );
 
@@ -1994,24 +1992,31 @@ static void Do_Core_Exit_Checks_Debug(struct Reb_Frame *f) {
     //
     ASSERT_STATE_BALANCED(&f->state);
 
-    // The END and THROWN flags are only used by wrappers.
-    //
-    assert(f->indexor != END_FLAG && f->indexor != THROWN_FLAG);
+    if (f->flags & DO_FLAG_VA_LIST)
+        assert(f->index == TRASHED_INDEX);
+    else {
+        assert(
+            f->index != TRASHED_INDEX
+            && f->index != END_FLAG
+            && f->index != THROWN_FLAG
+            && f->index != VA_LIST_FLAG
+        ); // END, THROWN, VA_LIST only used by wrappers
+    }
 
-    if (NOT_END(f->value) && f->indexor != VALIST_FLAG) {
+    if (NOT_END(f->value) && NOT(f->flags & DO_FLAG_VA_LIST)) {
         //
         // If we're at the array's end position, then we've prefetched the
         // last value for processing (and not signaled end) but on the
         // next fetch we *will* signal an end.
         //
         assert(
-            (f->indexor <= ARR_LEN(f->source.array))
+            (f->index <= ARR_LEN(f->source.array))
             || (
                 (
-                    (f->eval_fetched && IS_END(f->eval_fetched))
+                    (f->pending && IS_END(f->pending))
                     || THROWN(f->out)
                 )
-                && f->indexor == ARR_LEN(f->source.array) + 1
+                && f->index == ARR_LEN(f->source.array) + 1
             )
         );
     }
