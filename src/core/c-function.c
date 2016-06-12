@@ -1823,18 +1823,15 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
     //
     // We also set VALUE_FLAG_THROWN as that is not required to be sync'd
     // with the persistent value in the function.  This bit is deprecated
-    // however, for many of the same reasons it's a nuisance here.  The
-    // VALUE_FLAG_EXIT_FROM needs to be handled in the same way.
+    // however, for many of the same reasons it's a nuisance here.
     //
     v_header.bits |= (
-        VALUE_FLAG_EXIT_FROM
-        | VALUE_FLAG_LINE
+        VALUE_FLAG_LINE
         | VALUE_FLAG_THROWN
         | VALUE_FLAG_EVALUATED
     );
     func_header.bits |= (
-        VALUE_FLAG_EXIT_FROM
-        | VALUE_FLAG_LINE
+        VALUE_FLAG_LINE
         | VALUE_FLAG_THROWN
         | VALUE_FLAG_EVALUATED
     );

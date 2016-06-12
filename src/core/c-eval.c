@@ -1433,44 +1433,35 @@ reevaluate:
     //
     //==////////////////////////////////////////////////////////////////==//
 
-        // A definitional return should only be intercepted if it was for this
-        // particular function invocation.  Definitional return abilities have
-        // been extended to natives and actions, in order to permit stack
-        // control in debug situations (and perhaps some non-debug capabilities
-        // will be discovered as well).
-        //
-        if (GET_VAL_FLAG(f->out, VALUE_FLAG_EXIT_FROM)) {
-            assert(THROWN(f->out));
-
-            if (IS_FRAME(f->out)) {
+        if (THROWN(f->out)) {
+            if (!IS_FUNCTION(f->out) || VAL_FUNC(f->out) != NAT_FUNC(exit)) {
                 //
-                // This identifies an exit from a *specific* functiion
-                // invocation.  We can only match it if we have a reified
-                // frame context.  Note f->varlist may be null here.
+                // Do_Core only catches "definitional exits" to current frame
                 //
-                if (CTX_VARLIST(VAL_CONTEXT(f->out)) == f->varlist)
-                    CATCH_THROWN(f->out, f->out);
+                Drop_Function_Args_For_Frame(f);
+                goto finished;
             }
-            else if (IS_FUNCTION(f->out)) {
+
+            ASSERT_ARRAY(VAL_FUNC_EXIT_FROM(f->out));
+
+            if (VAL_FUNC_EXIT_FROM(f->out) == FUNC_PARAMLIST(f->func)) {
                 //
                 // The most recent instance of a function on the stack (if
                 // any) will catch a FUNCTION! style exit.
                 //
-                if (VAL_FUNC(f->out) == f->func)
-                    CATCH_THROWN(f->out, f->out);
+                CATCH_THROWN(f->out, f->out);
             }
-            else if (IS_INTEGER(f->out)) {
+            else if (VAL_FUNC_EXIT_FROM(f->out) == f->varlist) {
                 //
-                // If it's an integer, we drop the value at each stack level
-                // until 1 is reached...
+                // This identifies an exit from a *specific* function
+                // invocation.  We'll only match it if we have a reified
+                // frame context.  (Note f->varlist may be null here.)
                 //
-                if (VAL_INT32(f->out) == 1)
-                    CATCH_THROWN(f->out, f->out);
-                else
-                    --VAL_INT64(f->out); // don't catch it, just decrement
+                CATCH_THROWN(f->out, f->out);
             }
             else {
-                assert(FALSE); // no other low-level EXIT/FROM supported
+                Drop_Function_Args_For_Frame(f);
+                goto finished; // stay THROWN and try to exit frames above...
             }
         }
 

@@ -533,25 +533,14 @@ enum Reb_Vararg_Op {
             (TG_Thrown_Arg = *(arg)); \
         } while (0)
 
-    #define CONVERT_NAME_TO_EXIT_THROWN(name,arg) \
-        do { \
-            SET_VAL_FLAG((name), VALUE_FLAG_EXIT_FROM); \
-            SET_VAL_FLAG((name), VALUE_FLAG_THROWN); \
-            (TG_Thrown_Arg = *(arg)); \
-        } while (0)
-
     #define CATCH_THROWN(arg,thrown) \
         do { \
-            CLEAR_VAL_FLAG((thrown), VALUE_FLAG_EXIT_FROM); \
             CLEAR_VAL_FLAG((thrown), VALUE_FLAG_THROWN); \
             (*(arg) = TG_Thrown_Arg); \
         } while (0)
 #else
     #define CONVERT_NAME_TO_THROWN(name,arg) \
-        Convert_Name_To_Thrown_Debug((name), (arg), FALSE)
-
-    #define CONVERT_NAME_TO_EXIT_THROWN(name,arg) \
-        Convert_Name_To_Thrown_Debug((name), (arg), TRUE)
+        Convert_Name_To_Thrown_Debug((name), (arg))
 
     #define CATCH_THROWN(a,t) \
         Catch_Thrown_Debug(a, t)

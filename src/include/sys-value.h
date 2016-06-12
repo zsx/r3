@@ -359,21 +359,6 @@ enum {
     //
     VALUE_FLAG_THROWN = 1 << (GENERAL_VALUE_BIT + 2),
 
-    // This is a bit used in conjunction with VALUE_FLAG_THROWN, which could
-    // also be folded in to be a model of being in an "exiting state".  The
-    // usage is for definitionally scoped RETURN, RESUME/AT, and EXIT/FROM
-    // where the frame desired to be targeted is marked with this flag.
-    // Currently it is indicated by either the object of the call frame (for
-    // a CLOSURE!) or the paramlist for all other ANY-FUNCTION!.
-    //
-    // !!! WARNING - In the current scheme this will only jump up to the most
-    // recent instantiation of the function, as it does not have unique
-    // identity in relative binding.  When FUNCTION! and its kind are updated
-    // to use a new technique that brings it to parity with CLOSURE! in this
-    // regard, then that will fix this.
-    //
-    VALUE_FLAG_EXIT_FROM = 1 << (GENERAL_VALUE_BIT + 3),
-
     // `VALUE_FLAG_RELATIVE` is used to indicate a value that needs to have
     // a specific context added into it before it can have its bits copied
     // or used for some purposes.  An ANY-WORD! is relative if it refers to

@@ -264,24 +264,8 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
 // Sets a task-local value to be associated with the name and
 // mark it as the proxy value indicating a THROW().
 //
-void Convert_Name_To_Thrown_Debug(
-    REBVAL *name,
-    const REBVAL *arg,
-    REBOOL exit_from // name represents function to exit from
-) {
+void Convert_Name_To_Thrown_Debug(REBVAL *name, const REBVAL *arg) {
     assert(!THROWN(name));
-
-    if (exit_from) {
-        //
-        // If a context, the throw is asking to send an exit instruction to
-        // a specific frame on the stack.  If a function, the throw is asking
-        // to exit its most recent invocation on the stack ("dynamic").  If
-        // an integer, it is asking for a countdown, bumping by 1 at each
-        // step up the stack.
-        //
-        assert(IS_FRAME(name) || IS_FUNCTION(name) || IS_INTEGER(name));
-        SET_VAL_FLAG((name), VALUE_FLAG_EXIT_FROM);
-    }
 
     SET_VAL_FLAG(name, VALUE_FLAG_THROWN);
 
@@ -306,7 +290,6 @@ void Catch_Thrown_Debug(REBVAL *out, REBVAL *thrown)
 {
     assert(THROWN(thrown));
     CLEAR_VAL_FLAG(thrown, VALUE_FLAG_THROWN);
-    CLEAR_VAL_FLAG(thrown, VALUE_FLAG_EXIT_FROM);
 
     assert(!IS_TRASH_DEBUG(&TG_Thrown_Arg));
 

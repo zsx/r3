@@ -1193,6 +1193,68 @@ REBNATIVE(variadic_q)
 
 
 //
+//  Make_Thrown_Exit_Value: C
+//
+// This routine will generate a THROWN() value that can be used to indicate
+// a desire to exit from a particular level in the stack with a value (or void)
+//
+// It is used in the implementation of the EXIT native.
+//
+void Make_Thrown_Exit_Value(
+    REBVAL *out,
+    const REBVAL *level, // FRAME!, FUNCTION! (or INTEGER! relative to frame)
+    const REBVAL *value,
+    struct Reb_Frame *frame // only required if level is INTEGER!
+) {
+    *out = *NAT_VALUE(exit);
+
+    if (IS_INTEGER(level)) {
+        REBCNT count = VAL_INT32(level);
+        if (count <= 0)
+            fail (Error(RE_INVALID_EXIT));
+
+        struct Reb_Frame *f = frame->prior;
+        for (; TRUE; f = f->prior) {
+            if (f == NULL)
+                fail (Error(RE_INVALID_EXIT));
+
+            if (f->eval_type != ET_FUNCTION) continue; // only exit functions
+
+            if (Is_Function_Frame_Fulfilling(f)) continue; // not ready to exit
+
+        #if !defined(NDEBUG)
+            if (LEGACY(OPTIONS_DONT_EXIT_NATIVES))
+                if (FUNC_CLASS(f->func) != FUNC_CLASS_USER)
+                    continue; // R3-Alpha would exit the first user function
+        #endif
+
+            --count;
+
+            if (count == 0) {
+                //
+                // We want the integer-based exits to identify frames uniquely.
+                // Without a context varlist, a frame can't be unique.
+                //
+                Context_For_Frame_May_Reify_Managed(f);
+                assert(f->varlist);
+                out->payload.function.exit_from = f->varlist;
+                break;
+            }
+        }
+    }
+    else if (IS_FRAME(level)) {
+        out->payload.function.exit_from = CTX_VARLIST(VAL_CONTEXT(level));
+    }
+    else {
+        assert(IS_FUNCTION(level));
+        out->payload.function.exit_from = VAL_FUNC_PARAMLIST(level);
+    }
+
+    CONVERT_NAME_TO_THROWN(out, value);
+}
+
+
+//
 //  exit: native [
 //  
 //  {Leave enclosing function, or jump /FROM.}
@@ -1208,8 +1270,9 @@ REBNATIVE(variadic_q)
 //
 REBNATIVE(exit)
 //
-// EXIT is implemented via a THROWN() value that bubbles up through
-// the stack.
+// EXIT is implemented via a THROWN() value that bubbles up through the stack.
+// Using EXIT's function REBVAL with a target `exit_from` field is the
+// protocol understood by Do_Core to catch a throw itself.
 //
 // !!! Allowing to pass an INTEGER! to exit from a function based on its
 // BACKTRACE number is a bit low-level, and perhaps should be restricted to
@@ -1220,71 +1283,12 @@ REBNATIVE(exit)
     REFINE(3, from);
     PARAM(4, level);
 
-    REBVAL *level = ARG(level);
+    if (NOT(REF(from)))
+        SET_INTEGER(ARG(level), 1); // default--exit one function stack level
 
-#if !defined(NDEBUG)
-    //
-    // Though the Ren-C default is to allow exiting from natives (and not
-    // to provide the poor invariant of different behavior based on whether
-    // the containing function is native or not), the legacy switch lets
-    // EXIT skip consideration of non-FUNCTIONs.
-    //
-    if (LEGACY(OPTIONS_DONT_EXIT_NATIVES)) {
-        struct Reb_Frame *frame = frame_->prior;
+    assert(REF(with) || IS_VOID(ARG(value)));
 
-        while (
-            frame != NULL
-            && FUNC_CLASS(frame->func) != FUNC_CLASS_USER
-        ) {
-            frame = frame->prior;
-        }
-
-        if (frame == NULL)
-            fail (Error(RE_INVALID_EXIT));
-
-        *D_OUT = *FUNC_VALUE(frame->func);
-
-        CONVERT_NAME_TO_EXIT_THROWN(
-            D_OUT, REF(with) ? ARG(value) : VOID_CELL
-        );
-
-        return R_OUT_IS_THROWN;
-    }
-#endif
-
-    if (IS_VOID(level)) {
-        //
-        // The thrown exit protocol understands integers to be a count down
-        // of how many frames to skip.  If no /FROM argument is provided
-        // that means they want to exit from the function that called exit,
-        // so the protocol here is to use a count of 2 (that way exit does
-        // not exit itself...)
-        //
-        SET_INTEGER(D_OUT, 2);
-    }
-    else if (IS_INTEGER(level)) {
-        //
-        // Pursuant to the above, if we get an integer we want to bump it
-        // up by 1 from what the user asked for, in order to account for
-        // EXIT's exit from itself.
-        //
-        // (Note that if a refinement like /WITH is used it is possible to
-        // wind up in a debug stack during argument fulfillment to an exit,
-        // so you may actually have reason to "EXIT from an EXIT"...so better
-        // to use the count than to have a rule like "EXIT rejects EXITs")
-        //
-        if (VAL_INT32(level) < 0)
-            fail (Error(RE_INVALID_EXIT));
-
-        SET_INTEGER(D_OUT, VAL_INT32(level) + 1);
-    }
-    else {
-        assert(IS_FRAME(level) || IS_FUNCTION(level));
-
-        *D_OUT = *level;
-    }
-
-    CONVERT_NAME_TO_EXIT_THROWN(D_OUT, REF(with) ? ARG(value) : VOID_CELL);
+    Make_Thrown_Exit_Value(D_OUT, ARG(level), ARG(value), frame_);
 
     return R_OUT_IS_THROWN;
 }
@@ -1559,38 +1563,6 @@ REBNATIVE(unprotect)
 }
 
 
-static inline void Get_Throw_Name_For_Return_Or_Leave(struct Reb_Frame *frame_)
-{
-    if (!frame_->exit_from)
-        fail (Error(RE_MISC)); // raw native should not be accessible
-
-    ASSERT_ARRAY(frame_->exit_from);
-
-    // We only have a REBARR*, but want to actually THROW a full
-    // REBVAL (FUNCTION! or FRAME! if it has a context) which matches
-    // the paramlist.  In either case, the value comes from slot [0]
-    // of the RETURN_FROM array, but in the debug build do an added
-    // sanity check.
-    //
-    if (GET_ARR_FLAG(frame_->exit_from, ARRAY_FLAG_CONTEXT_VARLIST)) {
-        //
-        // Request to exit from a specific FRAME!
-        //
-        *D_OUT = *CTX_VALUE(AS_CONTEXT(frame_->exit_from));
-        assert(IS_FRAME(D_OUT));
-        assert(CTX_VARLIST(VAL_CONTEXT(D_OUT)) == frame_->exit_from);
-    }
-    else {
-        // Request to dynamically exit from first ANY-FUNCTION! found
-        // that has a given parameter list
-        //
-        *D_OUT = *FUNC_VALUE(AS_FUNC(frame_->exit_from));
-        assert(IS_FUNCTION(D_OUT));
-        assert(VAL_FUNC_PARAMLIST(D_OUT) == frame_->exit_from);
-    }
-}
-
-
 //
 //  return: native [
 //  
@@ -1606,8 +1578,10 @@ REBNATIVE(return)
 {
     PARAM(1, value);
 
-    Get_Throw_Name_For_Return_Or_Leave(frame_);
-    CONVERT_NAME_TO_EXIT_THROWN(D_OUT, ARG(value));
+    *D_OUT = *NAT_VALUE(exit); // see also Make_Thrown_Exit_Value
+    D_OUT->payload.function.exit_from = frame_->exit_from;
+
+    CONVERT_NAME_TO_THROWN(D_OUT, ARG(value));
     return R_OUT_IS_THROWN;
 }
 
@@ -1623,8 +1597,10 @@ REBNATIVE(leave)
 //
 // See notes on REBNATIVE(return)
 {
-    Get_Throw_Name_For_Return_Or_Leave(frame_);
-    CONVERT_NAME_TO_EXIT_THROWN(D_OUT, VOID_CELL);
+    *D_OUT = *NAT_VALUE(exit); // see also Make_Thrown_Exit_Value
+    D_OUT->payload.function.exit_from = frame_->exit_from;
+
+    CONVERT_NAME_TO_THROWN(D_OUT, VOID_CELL);
     return R_OUT_IS_THROWN;
 }
 

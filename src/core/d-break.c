@@ -295,8 +295,7 @@ return_temp:
     // natives do not currently respond to definitional returns...though
     // they can do so just as well as FUNCTION! can.
     //
-    *out = *target;
-    CONVERT_NAME_TO_EXIT_THROWN(out, &temp);
+    Make_Thrown_Exit_Value(out, target, &temp, NULL);
 
     return TRUE; // TRUE = thrown
 }
