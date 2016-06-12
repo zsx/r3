@@ -420,6 +420,7 @@ void Make_Native(
         = AS_FUNC(Make_Paramlist_Managed(spec, &punctuates, SYM_0));
 
     VAL_FUNC_SPEC(out) = spec;
+    VAL_FUNC_EXIT_FROM(out) = NULL;
 
     if (punctuates)
         SET_VAL_FLAG(out, FUNC_FLAG_PUNCTUATES);
@@ -1787,27 +1788,7 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
 
     switch (VAL_FUNC_CLASS(v)) {
     case FUNC_CLASS_NATIVE:
-        //
-        // Only the definitional returns are allowed to lie on a per-value
-        // basis and put a differing field in besides the canon FUNC_CODE
-        // which lives in the [0] cell of the paramlist.
-        //
-        if (func != NAT_FUNC(return) && func != NAT_FUNC(leave)) {
-            assert(
-                v->payload.function.impl.code == FUNC_CODE(func)
-            );
-        }
-        else {
-            // !!! There's ROOT_RETURN_NATIVE and also the native in the
-            // system context which have the real code in them.  If those
-            // are accounted for then it might be possible to assert that
-            // any returns we see are definitional...but until then we
-            // don't know if it has a valid code field or not.
-            //
-            /*assert(
-                GET_ARR_FLAG(v->payload.function.impl.body, SERIES_FLAG_ARRAY)
-            );*/
-        }
+        assert(v->payload.function.impl.code == FUNC_CODE(func));
         break;
 
     case FUNC_CLASS_ACTION:

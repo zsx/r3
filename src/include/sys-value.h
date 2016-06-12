@@ -2179,6 +2179,14 @@ typedef struct Reb_Routine_Info REBRIN;
 
 struct Reb_Function {
     //
+    // Definitionally-scoped returns introduced the idea of there being a
+    // unique property on a per-REBVAL instance for the natives RETURN and
+    // LEAVE, in order to identify that instance of the "archetypal" natives
+    // relative to a specific frame or function.  This idea has overlap with
+    // the Reb_Binding_Target, and may be unified for this common cell slot.
+    //
+    REBARR *exit_from;
+
     // `paramlist` is a Rebol Array whose 1..NUM_PARAMS values are all
     // TYPESET! values, with an embedded symbol (a.k.a. a "param") as well
     // as other bits, including the parameter class (PARAM_CLASS).  This
@@ -2248,22 +2256,7 @@ struct Reb_Function {
 #define VAL_FUNC_ACT(v)       ((v)->payload.function.impl.act)
 #define VAL_FUNC_INFO(v)      ((v)->payload.function.impl.info)
 #define VAL_FUNC_SPECIAL(v)   ((v)->payload.function.impl.special)
-
-// FUNC_FLAG_LEAVE_OR_RETURN functions use RETURN or LEAVE native's function
-// value to give the definitional return its prototype, but overwrite its
-// code pointer to hold the paramlist of the target.
-//
-// Do_Native_Throws() sees when someone tries to execute one of these "native
-// returns"...and instead interprets it as a THROW whose /NAME is the function
-// value.  The paramlist has that value (it's the REBVAL in slot #0)  In this
-// way the illusion of a "new function being created on each call" is given.
-//
-// This is a special case: the body value of the hacked REBVAL of the return
-// is allowed to be inconsistent with the content of the ROOT_RETURN_NATIVE's
-// actual FUNC.  (In the general case, the [0] element of the FUNC must be
-// consistent with the fields of the value holding it.)
-//
-#define VAL_FUNC_EXIT_FROM(v) VAL_FUNC_BODY(v)
+#define VAL_FUNC_EXIT_FROM(v) ((v)->payload.function.exit_from)
 
 // !!! At the moment functions are "all durable" or "none durable" w.r.t. the
 // survival of their arguments and locals after the call.  This corresponds

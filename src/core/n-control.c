@@ -1564,6 +1564,38 @@ REBNATIVE(unprotect)
 }
 
 
+static inline void Get_Throw_Name_For_Return_Or_Leave(struct Reb_Frame *frame_)
+{
+    if (!frame_->exit_from)
+        fail (Error(RE_MISC)); // raw native should not be accessible
+
+    ASSERT_ARRAY(frame_->exit_from);
+
+    // We only have a REBARR*, but want to actually THROW a full
+    // REBVAL (FUNCTION! or FRAME! if it has a context) which matches
+    // the paramlist.  In either case, the value comes from slot [0]
+    // of the RETURN_FROM array, but in the debug build do an added
+    // sanity check.
+    //
+    if (GET_ARR_FLAG(frame_->exit_from, ARRAY_FLAG_CONTEXT_VARLIST)) {
+        //
+        // Request to exit from a specific FRAME!
+        //
+        *D_OUT = *CTX_VALUE(AS_CONTEXT(frame_->exit_from));
+        assert(IS_FRAME(D_OUT));
+        assert(CTX_VARLIST(VAL_CONTEXT(D_OUT)) == frame_->exit_from);
+    }
+    else {
+        // Request to dynamically exit from first ANY-FUNCTION! found
+        // that has a given parameter list
+        //
+        *D_OUT = *FUNC_VALUE(AS_FUNC(frame_->exit_from));
+        assert(IS_FUNCTION(D_OUT));
+        assert(VAL_FUNC_PARAMLIST(D_OUT) == frame_->exit_from);
+    }
+}
+
+
 //
 //  return: native [
 //  
@@ -1574,16 +1606,14 @@ REBNATIVE(unprotect)
 //
 REBNATIVE(return)
 //
-// There is a RETURN native defined, and its native function spec is
-// utilized to create the appropriate help and calling protocol
-// information for values that have overridden its VAL_FUNC_CODE
-// slot with a VAL_FUNC_EXIT_FROM spec.
-// 
-// However: this native is unset and its actual code body should
-// never be able to be called.  The non-definitional return construct
-// that people should use if they need it would be EXIT and EXIT/WITH
+// Note: type checking for RETURN (and for values that "fall out the bottom"
+// of a FUNC-generated function) is in Do_Core.
 {
-    panic (Error(RE_MISC));
+    PARAM(1, value);
+
+    Get_Throw_Name_For_Return_Or_Leave(frame_);
+    CONVERT_NAME_TO_EXIT_THROWN(D_OUT, ARG(value));
+    return R_OUT_IS_THROWN;
 }
 
 
@@ -1598,7 +1628,9 @@ REBNATIVE(leave)
 //
 // See notes on REBNATIVE(return)
 {
-    panic (Error(RE_MISC));
+    Get_Throw_Name_For_Return_Or_Leave(frame_);
+    CONVERT_NAME_TO_EXIT_THROWN(D_OUT, VOID_CELL);
+    return R_OUT_IS_THROWN;
 }
 
 

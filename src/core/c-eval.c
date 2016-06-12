@@ -1291,67 +1291,6 @@ reevaluate:
 
     //==////////////////////////////////////////////////////////////////==//
     //
-    // FUNCTION! THROWING OF "RETURN" + "LEAVE" DEFINITIONAL EXITs
-    //
-    //==////////////////////////////////////////////////////////////////==//
-
-        if (f->exit_from) {
-            //
-            // If it's a definitional return, then we need to do the throw
-            // for the return, named by the value in the exit_from.  This
-            // should be the RETURN native with 1 arg as the function, and
-            // the native code pointer should have been replaced by a
-            // REBFUN (if function) or REBCTX (if durable) to jump to.
-            //
-            // !!! Long term there will always be frames for user functions
-            // where definitional returns are possible, but for now they
-            // still only make them by default if <durable> requested)
-            //
-            // LEAVE jumps directly here, because it doesn't need to go
-            // through any parameter evaluation.  (Note that RETURN can't
-            // simply evaluate the next item without inserting an opportunity
-            // for the debugger, e.g. `return (breakpoint)`...)
-            //
-            ASSERT_ARRAY(f->exit_from);
-
-            // We only have a REBARR*, but want to actually THROW a full
-            // REBVAL (FUNCTION! or FRAME! if it has a context) which matches
-            // the paramlist.  In either case, the value comes from slot [0]
-            // of the RETURN_FROM array, but in the debug build do an added
-            // sanity check.
-            //
-            if (GET_ARR_FLAG(f->exit_from, ARRAY_FLAG_CONTEXT_VARLIST)) {
-                //
-                // Request to exit from a specific FRAME!
-                //
-                *(f->out) = *CTX_VALUE(AS_CONTEXT(f->exit_from));
-                assert(IS_FRAME(f->out));
-                assert(CTX_VARLIST(VAL_CONTEXT(f->out)) == f->exit_from);
-            }
-            else {
-                // Request to dynamically exit from first ANY-FUNCTION! found
-                // that has a given parameter list
-                //
-                *(f->out) = *FUNC_VALUE(AS_FUNC(f->exit_from));
-                assert(IS_FUNCTION(f->out));
-                assert(VAL_FUNC_PARAMLIST(f->out) == f->exit_from);
-            }
-
-            if (f->func == NAT_FUNC(leave)) {
-                CONVERT_NAME_TO_EXIT_THROWN(f->out, VOID_CELL);
-            }
-            else {
-                assert(f->func == NAT_FUNC(return));
-                assert(FUNC_NUM_PARAMS(f->func) == 1);
-                CONVERT_NAME_TO_EXIT_THROWN(f->out, FRM_ARGS_HEAD(f));
-            }
-
-            Drop_Function_Args_For_Frame(f);
-            goto finished;
-        }
-
-    //==////////////////////////////////////////////////////////////////==//
-    //
     // FUNCTION! ARGUMENTS NOW GATHERED, DISPATCH CALL
     //
     //==////////////////////////////////////////////////////////////////==//

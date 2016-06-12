@@ -379,25 +379,6 @@ REBTYPE(Context)
             if (!IS_FUNCTION(arg))
                 fail (Error_Bad_Make(target, arg));
 
-            if (
-                VAL_FUNC(arg) == NAT_FUNC(return)
-                || VAL_FUNC(arg) == NAT_FUNC(leave)
-            ) {
-                // !!! Although definitionally scoped return and leave
-                // functions give the *appearance* of having independent
-                // REBFUNs, they don't.  They have an EXIT_FROM field poked
-                // into the REBVAL of the natives for RETURN and LEAVE which
-                // makes them slightly corrupt function REBVALs (overwriting
-                // their "C code" native function pointer field).  This will
-                // need special handling in frames--it can be done, it just
-                // means that the Reb_Any_Context will have to be able to
-                // store the context to exit from instead of the function
-                // itself (could then use # of args in the frame to tell
-                // whether it's a return or a leave...)
-                //
-                fail (Error(RE_MISC));
-            }
-
             // In order to have the frame survive the call to MAKE and be
             // returned to the user it can't be stack allocated, because it
             // would immediately become useless.  Allocate dynamically.
