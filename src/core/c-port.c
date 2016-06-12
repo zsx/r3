@@ -710,8 +710,8 @@ REBNATIVE(set_scheme)
         //
         VAL_RESET_HEADER(actor, REB_FUNCTION);
         INIT_VAL_FUNC_CLASS(actor, FUNC_CLASS_NATIVE);
-        VAL_FUNC_SPEC(actor) = spec;
         actor->payload.function.func = AS_FUNC(paramlist);
+        VAL_FUNC_SPEC(actor) = spec;
 
         VAL_FUNC_CODE(actor) = cast(REBNAT, Scheme_Actions[n].fun);
 

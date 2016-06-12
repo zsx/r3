@@ -2190,14 +2190,15 @@ struct Reb_Function {
     // can be passed around as a single pointer from which a whole REBVAL
     // for the function can be found.
     //
-    REBFUN *func; // !!! TBD: change to REBARR*, rename as paramlist
-
-    // `spec` is a Rebol Aray which generally contains the information that
-    // was passed to MAKE FUNCTION! to create the `paramlist`.  After the
+    // The `misc` field of the function series is `spec`, which contains data
+    // passed to MAKE FUNCTION! to create the `paramlist`.  After the
     // paramlist has been generated, it is not generally processed by the
     // code and remains mostly to be scanned by user mode code to make HELP.
+    // As "metadata" it is not kept in the canon value itself so it can be
+    // updated or augmented by functions like `redescribe` without worrying
+    // about all the Reb_Function REBVALs that are extant.
     //
-    REBARR *spec;
+    REBFUN *func; // !!! TBD: change to REBARR*, rename as paramlist
 
     union Reb_Function_Impl {
         REBNAT code;
@@ -2233,8 +2234,10 @@ struct Reb_Function {
 #else
     #define VAL_FUNC(v)             VAL_FUNC_Debug(v)
 #endif
-#define VAL_FUNC_SPEC(v)            ((v)->payload.function.spec)
+
 #define VAL_FUNC_PARAMLIST(v)       FUNC_PARAMLIST(VAL_FUNC(v))
+#define VAL_FUNC_SPEC(v) \
+    (ARR_SERIES(FUNC_PARAMLIST((v)->payload.function.func))->misc.spec)
 
 #define VAL_FUNC_NUM_PARAMS(v)      FUNC_NUM_PARAMS(VAL_FUNC(v))
 #define VAL_FUNC_PARAMS_HEAD(v)     FUNC_PARAMS_HEAD(VAL_FUNC(v))

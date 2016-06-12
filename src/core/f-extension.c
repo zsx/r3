@@ -466,7 +466,7 @@ REBNATIVE(load_extension)
 //
 void Make_Command(
     REBVAL *out,
-    const REBVAL *spec,
+    const REBVAL *spec_val,
     const REBVAL *extension,
     const REBVAL *command_num
 ) {
@@ -484,28 +484,28 @@ void Make_Command(
     if (!IS_INTEGER(command_num) || VAL_INT64(command_num) > 0xffff)
         goto bad_func_def;
 
-    if (!IS_BLOCK(spec)) goto bad_func_def;
+    if (!IS_BLOCK(spec_val)) goto bad_func_def;
 
     VAL_RESET_HEADER(out, REB_FUNCTION); // clears exts and opts in header...
     INIT_VAL_FUNC_CLASS(out, FUNC_CLASS_COMMAND);
 
     // See notes in `Make_Function()` about why a copy is *required*.
 
-    VAL_FUNC_SPEC(out) =
-        Copy_Array_At_Deep_Managed(VAL_ARRAY(spec), VAL_INDEX(spec));
+    REBARR *spec; // goto crosses initialization
+    spec = Copy_Array_At_Deep_Managed(VAL_ARRAY(spec_val), VAL_INDEX(spec_val));
 
     // spec scanner doesn't know <opt>, just _
     //
-    Turn_Typespec_Opts_Into_Nones(VAL_FUNC_SPEC(out));
+    Turn_Typespec_Opts_Into_Nones(spec);
 
     REBOOL punctuates;
     out->payload.function.func
-        = AS_FUNC(Make_Paramlist_Managed(
-            VAL_FUNC_SPEC(out), &punctuates, SYM_0
-        ));
+        = AS_FUNC(Make_Paramlist_Managed(spec, &punctuates, SYM_0));
 
     if (punctuates)
         SET_VAL_FLAG(out, FUNC_FLAG_PUNCTUATES);
+
+    VAL_FUNC_SPEC(out) = spec;
 
     // There is no "body", but we want to save `extension` and `command_num`
     // and the only place there is to put it is in the place where a function
@@ -546,7 +546,7 @@ bad_func_def:
         // emulate error before refactoring (improve if it's relevant...)
         REBVAL def;
         REBARR *array = Make_Array(3);
-        Append_Value(array, spec);
+        Append_Value(array, spec_val);
         Append_Value(array, extension);
         Append_Value(array, command_num);
         Val_Init_Block(&def, array);

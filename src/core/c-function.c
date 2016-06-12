@@ -414,11 +414,12 @@ void Make_Native(
     INIT_VAL_FUNC_CLASS(out, fclass);
 
     VAL_FUNC_CODE(out) = code;
-    VAL_FUNC_SPEC(out) = spec;
 
     REBOOL punctuates;
     out->payload.function.func
         = AS_FUNC(Make_Paramlist_Managed(spec, &punctuates, SYM_0));
+
+    VAL_FUNC_SPEC(out) = spec;
 
     if (punctuates)
         SET_VAL_FLAG(out, FUNC_FLAG_PUNCTUATES);
@@ -550,8 +551,8 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 void Make_Function(
     REBVAL *out,
     REBOOL is_procedure,
-    const REBVAL *spec,
-    const REBVAL *body,
+    const REBVAL *spec_val,
+    const REBVAL *body_val,
     REBOOL has_return
 ) {
     REBOOL durable = FALSE;
@@ -562,10 +563,12 @@ void Make_Function(
     if (is_procedure)
         SET_VAL_FLAG(out, FUNC_FLAG_PUNCTUATES);
 
-    if (!IS_BLOCK(spec) || !IS_BLOCK(body))
-        fail (Error_Bad_Func_Def(spec, body));
+    if (!IS_BLOCK(spec_val) || !IS_BLOCK(body_val))
+        fail (Error_Bad_Func_Def(spec_val, body_val));
 
-    if (VAL_LEN_AT(spec) == 0) {
+    REBARR *spec;
+
+    if (VAL_LEN_AT(spec_val) == 0) {
         //
         // Empty specs are semi-common (e.g. DOES [...] is FUNC [] [...]).
         // Since the spec is read-only once put into the function value,
@@ -573,11 +576,11 @@ void Make_Function(
         // on whether the "effective spec" needs a definitional exit or not.
         //
         if (has_return) {
-            VAL_FUNC_SPEC(out) = is_procedure
+            spec = is_procedure
                 ? VAL_ARRAY(ROOT_LEAVE_BLOCK)
                 : VAL_ARRAY(ROOT_RETURN_BLOCK);
         } else
-            VAL_FUNC_SPEC(out) = EMPTY_ARRAY;
+            spec = EMPTY_ARRAY;
     }
     else if (!has_return) {
         //
@@ -587,8 +590,8 @@ void Make_Function(
         // conversion).  It is "effectively <no-return>", though the
         // non-definitional EXIT and EXIT/WITH will still be available.
         //
-        VAL_FUNC_SPEC(out) = Copy_Array_At_Deep_Managed(
-            VAL_ARRAY(spec), VAL_INDEX(spec)
+        spec = Copy_Array_At_Deep_Managed(
+            VAL_ARRAY(spec_val), VAL_INDEX(spec_val)
         );
     }
     else {
@@ -605,13 +608,13 @@ void Make_Function(
         // for the capacity of the copy to have an extra value.  (May be a
         // waste if unused, but would require two passes to avoid it.)
         //
-        VAL_FUNC_SPEC(out) = Copy_Array_At_Extra_Deep_Managed(
-            VAL_ARRAY(spec),
-            VAL_INDEX(spec),
+        spec = Copy_Array_At_Extra_Deep_Managed(
+            VAL_ARRAY(spec_val),
+            VAL_INDEX(spec_val),
             1 // +1 capacity hint
         );
 
-        item = ARR_HEAD(VAL_FUNC_SPEC(out));
+        item = ARR_HEAD(spec);
         for (; NOT_END(item); index++, item++) {
             if (IS_SET_WORD(item)) {
                 //
@@ -823,7 +826,7 @@ void Make_Function(
             // need to expand the array.
             //
             Append_Value(
-                VAL_FUNC_SPEC(out),
+                spec,
                 is_procedure
                     ? ROOT_LEAVE_SET_WORD
                     : ROOT_RETURN_SET_WORD
@@ -839,11 +842,13 @@ void Make_Function(
     REBOOL punctuates;
     out->payload.function.func = AS_FUNC(
         Make_Paramlist_Managed(
-            VAL_FUNC_SPEC(out),
+            spec,
             &punctuates,
             has_return ? (is_procedure ? SYM_LEAVE : SYM_RETURN) : SYM_0
         )
     );
+
+    VAL_FUNC_SPEC(out) = spec;
 
     if (punctuates)
         SET_VAL_FLAG(out, FUNC_FLAG_PUNCTUATES);
@@ -851,11 +856,11 @@ void Make_Function(
     // We copy the body or do the empty body optimization to not copy and
     // use the EMPTY_ARRAY (which probably doesn't happen often...)
     //
-    if (VAL_LEN_AT(body) == 0)
+    if (VAL_LEN_AT(body_val) == 0)
         VAL_FUNC_BODY(out) = EMPTY_ARRAY;
     else
         VAL_FUNC_BODY(out) = Copy_Array_At_Deep_Managed(
-            VAL_ARRAY(body), VAL_INDEX(body)
+            VAL_ARRAY(body_val), VAL_INDEX(body_val)
         );
 
     // Even if `has_return` was passed in true, the FUNC or CLOS generator
@@ -893,8 +898,8 @@ void Make_Function(
     //
     if (
         LEGACY_RUNNING(OPTIONS_REFINEMENTS_BLANK)
-        || GET_ARR_FLAG(VAL_ARRAY(spec), SERIES_FLAG_LEGACY)
-        || GET_ARR_FLAG(VAL_ARRAY(body), SERIES_FLAG_LEGACY)
+        || GET_ARR_FLAG(VAL_ARRAY(spec_val), SERIES_FLAG_LEGACY)
+        || GET_ARR_FLAG(VAL_ARRAY(body_val), SERIES_FLAG_LEGACY)
     ) {
         SET_VAL_FLAG(out, FUNC_FLAG_LEGACY);
     }
@@ -1124,7 +1129,6 @@ REBOOL Specialize_Function_Throws(
     //
     VAL_RESET_HEADER(out, REB_FUNCTION);
     INIT_VAL_FUNC_CLASS(out, FUNC_CLASS_SPECIALIZED);
-    out->payload.function.spec = spec;
 
     // The "body" is just the frame of specialization information.
     //
@@ -1147,6 +1151,8 @@ REBOOL Specialize_Function_Throws(
     REBARR *paramlist = Pop_Stack_Values(dsp_orig);
     MANAGE_ARRAY(paramlist);
     out->payload.function.func = AS_FUNC(paramlist);
+
+    VAL_FUNC_SPEC(out) = spec;
 
     // Update canon value's bits to match what we're giving back in out.
     //
@@ -1206,6 +1212,7 @@ void Clonify_Function(REBVAL *value)
 
     value->payload.function.func = AS_FUNC(paramlist_copy);
 
+    VAL_FUNC_SPEC(value) = FUNC_SPEC(func_orig);
     VAL_FUNC_BODY(value) = Copy_Array_Deep_Managed(VAL_FUNC_BODY(value));
 
     // Remap references in the body from paramlist_orig to our new copied
@@ -1776,7 +1783,7 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
     assert(IS_FUNCTION(v));
     assert(func == FUNC_VALUE(func)->payload.function.func);
     assert(GET_ARR_FLAG(FUNC_PARAMLIST(func), SERIES_FLAG_ARRAY));
-    assert(GET_ARR_FLAG(v->payload.function.spec, SERIES_FLAG_ARRAY));
+    assert(GET_ARR_FLAG(VAL_FUNC_SPEC(v), SERIES_FLAG_ARRAY));
 
     switch (VAL_FUNC_CLASS(v)) {
     case FUNC_CLASS_NATIVE:
@@ -1870,7 +1877,7 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
             = GET_VAL_FLAG(func_value, FUNC_FLAG_LEAVE_OR_RETURN);
 
         Debug_Fmt("Mismatch header bits found in FUNC_VALUE from payload");
-        Debug_Array(v->payload.function.spec);
+        Debug_Array(VAL_FUNC_SPEC(v));
         Panic_Array(FUNC_PARAMLIST(func));
     }
 
