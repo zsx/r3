@@ -270,11 +270,12 @@ check_sign:
 //
 REBNATIVE(to_integer)
 {
-    REBVAL * const value = D_ARG(1);
+    PARAM(1, value);
+
     REBOOL no_sign = D_REF(2);
 
     VAL_RESET_HEADER(D_OUT, REB_INTEGER);
-    Value_To_Int64(&VAL_INT64(D_OUT), value, no_sign);
+    Value_To_Int64(&VAL_INT64(D_OUT), ARG(value), no_sign);
 
     return R_OUT;
 }

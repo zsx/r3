@@ -851,15 +851,15 @@ REBNATIVE(for_skip)
 //  
 //  "Evaluates a block endlessly."
 //  
-//      body [block!] "Block to evaluate each time"
+//      block [block!] "Block to evaluate each time"
 //  ]
 //
 REBNATIVE(forever)
 {
-    REBVAL * const block = D_ARG(1);
+    PARAM(1, block);
 
     do {
-        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, block)) {
+        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(block))) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;
@@ -1068,11 +1068,11 @@ REBNATIVE(repeat)
 //
 REBNATIVE(until)
 {
-    REBVAL * const block = D_ARG(1);
+    PARAM(1, block);
 
     do {
     skip_check:
-        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, block)) {
+        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(block))) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;

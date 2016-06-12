@@ -1169,38 +1169,39 @@ REBNATIVE(type_of)
 //  
 //  {Unsets the value of a word (in its current context.)}
 //  
-//      word [any-word! block!] "Word or block of words"
+//      target [any-word! block!]
+//          "Word or block of words"
 //  ]
 //
 REBNATIVE(unset)
 {
-    REBVAL * const value = D_ARG(1);
-    REBVAL *var;
-    REBVAL *word;
+    PARAM(1, target);
 
-    if (ANY_WORD(value)) {
-        word = value;
+    REBVAL *target = ARG(target);
+
+    if (ANY_WORD(target)) {
+        if (IS_WORD_UNBOUND(target))
+            fail (Error(RE_NOT_BOUND, target));
+
+        REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(target);
+        SET_VOID(var);
+        return R_VOID;
+    }
+
+    assert(IS_BLOCK(target));
+
+    REBVAL *word;
+    for (word = VAL_ARRAY_AT(target); NOT_END(word); ++word) {
+        if (!ANY_WORD(word))
+            fail (Error_Invalid_Arg(word));
 
         if (IS_WORD_UNBOUND(word))
             fail (Error(RE_NOT_BOUND, word));
 
-        var = GET_MUTABLE_VAR_MAY_FAIL(word);
+        REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word);
         SET_VOID(var);
     }
-    else {
-        assert(IS_BLOCK(value));
 
-        for (word = VAL_ARRAY_AT(value); NOT_END(word); word++) {
-            if (!ANY_WORD(word))
-                fail (Error_Invalid_Arg(word));
-
-            if (IS_WORD_UNBOUND(word))
-                fail (Error(RE_NOT_BOUND, word));
-
-            var = GET_MUTABLE_VAR_MAY_FAIL(word);
-            SET_VOID(var);
-        }
-    }
     return R_VOID;
 }
 

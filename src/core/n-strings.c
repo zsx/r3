@@ -153,16 +153,18 @@ REBNATIVE(spelling_of)
 //
 // This is a native implementation of SPELLING-OF from rebol-proposals.
 {
-    REBVAL * const value = D_ARG(1);
+    PARAM(1, value);
+
+    REBVAL *value = ARG(value);
+
     REBSER *series;
 
-    // Shouldn't take binary types...
-    assert(!IS_BINARY(value));
-
     if (ANY_BINSTR(value)) {
+        assert(!IS_BINARY(value)); // Shouldn't accept binary types...
+
         // Grab the data out of all string types, which has no delimiters
         // included (they are added in the forming process)
-
+        //
         series = Copy_String_Slimming(VAL_SERIES(value), VAL_INDEX(value), -1);
     }
     else {

@@ -386,7 +386,7 @@ REBNATIVE(none)
 //
 REBNATIVE(attempt)
 {
-    REBVAL * const block = D_ARG(1);
+    REBVAL *block = D_ARG(1);
 
     struct Reb_State state;
     REBCTX *error;
@@ -707,8 +707,8 @@ REBNATIVE(catch)
             // We use equal? by way of Compare_Modify_Values, and re-use the
             // refinement slots for the mutable space
 
-            REBVAL * const temp1 = ARG(quit);
-            REBVAL * const temp2 = ARG(any);
+            REBVAL *temp1 = ARG(quit);
+            REBVAL *temp2 = ARG(any);
 
             // !!! The reason we're copying isn't so the VALUE_FLAG_THROWN bit
             // won't confuse the equality comparison...but would it have?
@@ -847,16 +847,25 @@ was_caught:
 //  
 //  "Throws control back to a previous catch."
 //  
-//      value [<opt> any-value!] "Value returned from catch"
-//      /name "Throws to a named catch"
+//      value [<opt> any-value!]
+//          "Value returned from catch"
+//      /name
+//          "Throws to a named catch"
 //      name-value [word! function! object!]
 //  ]
 //
 REBNATIVE(throw)
+//
+// Choices are currently limited for what one can use as a "name" of a THROW.
+// Note blocks as names would conflict with the `name_list` feature in CATCH.
+//
+// !!! Should parameters be /NAMED and NAME ?
 {
-    REBVAL * const value = D_ARG(1);
-    REBOOL named = D_REF(2);
-    REBVAL * const name_value = D_ARG(3);
+    PARAM(1, value);
+    REFINE(2, name);
+    PARAM(3, name_value);
+
+    REBVAL *value = ARG(value);
 
     if (IS_ERROR(value)) {
         //
@@ -871,25 +880,15 @@ REBNATIVE(throw)
         // (Better than complicating via THROW/ERROR-IS-INTENTIONAL!)
     }
 
-    if (named) {
-        // blocks as names would conflict with name_list feature in catch
-        assert(!IS_BLOCK(name_value));
-        *D_OUT = *name_value;
-    }
+    if (REF(name))
+        *D_OUT = *ARG(name_value);
     else {
-        // None values serving as representative of THROWN() means "no name"
-
-        // !!! This convention might be a bit "hidden" while debugging if
-        // one misses the THROWN() bit.  But that's true of THROWN() values
-        // in general.  Debug output should make noise about THROWNs
-        // whenever it sees them.
-
+        // Blank values serve as representative of THROWN() means "no name"
+        //
         SET_BLANK(D_OUT);
     }
 
     CONVERT_NAME_TO_THROWN(D_OUT, value);
-
-    // Throw name is in D_OUT, thrown value is held task local
     return R_OUT_IS_THROWN;
 }
 
@@ -1300,17 +1299,20 @@ REBNATIVE(exit)
 //  {Interrupts execution by reporting an error (a TRAP can intercept it).}
 //  
 //      reason [error! string! block!] 
-//      "ERROR! value, message string, or failure spec"
+//          "ERROR! value, message string, or failure spec"
 //  ]
 //
 REBNATIVE(fail)
 {
-    REBVAL * const reason = D_ARG(1);
+    PARAM(1, reason);
+
+    REBVAL *reason = ARG(reason);
 
     if (IS_ERROR(reason)) {
         fail (VAL_CONTEXT(reason));
     }
     else if (IS_STRING(reason) || IS_BLOCK(reason)) {
+        //
         // Ultimately we'd like FAIL to use some clever error-creating
         // dialect when passed a block, maybe something like:
         //
