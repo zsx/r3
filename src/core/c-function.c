@@ -998,19 +998,12 @@ REBCTX *Make_Frame_For_Function(REBVAL *value) {
     VAL_RESET_HEADER(var, REB_FRAME);
     INIT_VAL_CONTEXT(var, AS_CONTEXT(varlist));
 
-    // Usually we can reuse the keylist we're given, but the exception is in
-    // the case of definitional return and leave.  The problem there is that
-    // each return and leave is not actually a unique function, but we would
-    // be only storing the unused archetypal RETURN function in the rootkey.
-    // We have to make a new keylist if that's the case.
+    // We can reuse the paramlist we're given, but note in the case of
+    // definitional RETURN and LEAVE we have to stow the `exit_from` field
+    // in the context, since the single archetype paramlist does not hold
+    // enough information to know where to return *to*.
     //
-    REBARR *paramlist = FUNC_PARAMLIST(func);
-    if (func == NAT_FUNC(return) || func == NAT_FUNC(leave)) {
-        paramlist = Copy_Array_Deep_Managed(paramlist);
-        assert(VAL_FUNC_EXIT_FROM(value) != NULL);
-        *ARR_AT(paramlist, 0) = *value;
-    }
-    INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(varlist), paramlist);
+    INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(varlist), FUNC_PARAMLIST(func));
     ASSERT_ARRAY_MANAGED(CTX_KEYLIST(AS_CONTEXT(varlist)));
 
     // !!! The frame will never have stack storage if created this
@@ -1022,7 +1015,8 @@ REBCTX *Make_Frame_For_Function(REBVAL *value) {
     // walks to find the pointer (possibly recaching in values.)
     //
     INIT_CONTEXT_FRAME(AS_CONTEXT(varlist), NULL);
-    CTX_STACKVARS(AS_CONTEXT(varlist)) = NULL;
+    VAL_CONTEXT_EXIT_FROM(CTX_VALUE(AS_CONTEXT(varlist)))
+        = VAL_FUNC_EXIT_FROM(value);
     ++var;
 
     // A FRAME! defaults all args and locals to not being set.  If the frame
@@ -1371,7 +1365,7 @@ void Do_Function_Core(struct Reb_Frame *f)
             assert(NOT(THROWN(f->out)));
     }
     else {
-        assert(f->flags & DO_FLAG_HAS_VARLIST);
+        assert(f->varlist);
 
         // Clone the body of the closure to allow us to rebind words inside
         // of it so that they point specifically to the instances for this
@@ -1606,8 +1600,6 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
         | DO_FLAG_NO_ARGS_EVALUATE
         | DO_FLAG_APPLYING;
 
-    assert(NOT(f->flags & DO_FLAG_HAS_VARLIST));
-
     // !!! We have to push a call here currently because prior to specific
     // binding, the stack gets walked to resolve variables.   Hence in the
     // apply case, Do_Core doesn't do its own push to the frame stack.
@@ -1631,7 +1623,6 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
     }
     else {
         // f->func and f->exit_from should already be set
-        f->flags |= DO_FLAG_HAS_VARLIST;
 
         // !!! This form of execution raises a ton of open questions about
         // what to do if a frame is used more than once.  Function calls
@@ -1642,7 +1633,8 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
         // do to itself--e.g. to facilitate tail recursion, because no caller
         // but the function itself understands the state of its locals in situ.
         //
-        ASSERT_CONTEXT(AS_CONTEXT(f->data.varlist));
+        ASSERT_CONTEXT(AS_CONTEXT(f->varlist));
+        f->stackvars = NULL;
     }
 
     f->refine = TRUE_VALUE;
@@ -1659,7 +1651,7 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
         //
         f->param = END_CELL;
 
-        if (f->flags & DO_FLAG_HAS_VARLIST) {
+        if (f->varlist != NULL) {
             //
             // Here we are binding with a maybe-not-valid context.  Should
             // probably just use the keylist...

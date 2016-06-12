@@ -1066,7 +1066,7 @@ reevaluate:
                 // completed context yet, we store it as an array type.
                 //
                 Context_For_Frame_May_Reify_Core(f);
-                f->arg->payload.varargs.feed.varlist = f->data.varlist;
+                f->arg->payload.varargs.feed.varlist = f->varlist;
 
                 VAL_VARARGS_PARAM(f->arg) = f->param; // type checks on TAKE
                 goto continue_arg_loop;
@@ -1304,17 +1304,16 @@ reevaluate:
         // !!! When hybrid frames are introduced, review the question of
         // which pointer "wins".  Might more than one be used?
         //
-        if (f->flags & DO_FLAG_HAS_VARLIST) {
+        if (f->varlist) {
             //
             // Technically speaking we would only be *required* at this point
             // to manage the varlist array if we've poked it into a vararg
             // as a context.  But specific binding will always require a
-            // context available, so no point in optimizing here.  Since we
-            // are already doing the DO_FLAG_HAS_VARLIST test, do it.
+            // context available, so no point in optimizing here.
             //
             Context_For_Frame_May_Reify_Managed(f);
 
-            f->arg = CTX_VARS_HEAD(AS_CONTEXT(f->data.varlist));
+            f->arg = CTX_VARS_HEAD(AS_CONTEXT(f->varlist));
         }
         else {
             // We cache the stackvars data pointer in the stack allocated
@@ -1322,7 +1321,7 @@ reevaluate:
             // context, the data pointer will be the same over the stack
             // level lifetime.
             //
-            f->arg = &f->data.stackvars[0];
+            f->arg = &f->stackvars[0];
             assert(CHUNK_FROM_VALUES(f->arg) == TG_Top_Chunk);
         }
 
@@ -1355,8 +1354,8 @@ reevaluate:
             // temporary state of affairs, as all functions able to have a
             // definitional return will have contexts in NewFunction.
             //
-            if (f->flags & DO_FLAG_HAS_VARLIST)
-                VAL_FUNC_EXIT_FROM(f->refine) = f->data.varlist;
+            if (f->varlist)
+                VAL_FUNC_EXIT_FROM(f->refine) = f->varlist;
             else
                 VAL_FUNC_EXIT_FROM(f->refine) = FUNC_PARAMLIST(f->func);
 
@@ -1447,11 +1446,10 @@ reevaluate:
                 //
                 // This identifies an exit from a *specific* functiion
                 // invocation.  We can only match it if we have a reified
-                // frame context.
+                // frame context.  Note f->varlist may be null here.
                 //
-                if (f->flags & DO_FLAG_HAS_VARLIST)
-                    if (CTX_VARLIST(VAL_CONTEXT(f->out)) == f->data.varlist)
-                        CATCH_THROWN(f->out, f->out);
+                if (CTX_VARLIST(VAL_CONTEXT(f->out)) == f->varlist)
+                    CATCH_THROWN(f->out, f->out);
             }
             else if (IS_FUNCTION(f->out)) {
                 //
@@ -1729,10 +1727,6 @@ static void Do_Core_Entry_Checks_Debug(struct Reb_Frame *f)
         LOGICAL(f->flags & DO_FLAG_ARGS_EVALUATE)
         != LOGICAL(f->flags & DO_FLAG_NO_ARGS_EVALUATE)
     );
-
-    // This flag is managed solely by the frame code; shouldn't come in set
-    //
-    assert(NOT(f->flags & DO_FLAG_HAS_VARLIST));
 }
 
 
@@ -1829,7 +1823,9 @@ static REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
 
     f->exit_from = cast(REBARR*, 0xDECAFBAD);
 
-    f->data.stackvars = cast(REBVAL*, 0xDECAFBAD);
+    f->stackvars = cast(REBVAL*, 0xDECAFBAD);
+    f->varlist = cast(REBARR*, 0xDECAFBAD);
+
     f->func = cast(REBFUN*, 0xDECAFBAD);
 
     // Mutate va_list sources into arrays at fairly random moments in the

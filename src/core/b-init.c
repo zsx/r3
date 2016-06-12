@@ -839,7 +839,7 @@ static void Init_Root_Context(void)
     //
     VAL_RESET_HEADER(CTX_VALUE(root), REB_OBJECT);
     VAL_CONTEXT_SPEC(CTX_VALUE(root)) = NULL;
-    VAL_CONTEXT_STACKVARS(CTX_VALUE(root)) = NULL;
+    VAL_CONTEXT_EXIT_FROM(CTX_VALUE(root)) = NULL;
 
     // Set all other values to blank
     {
@@ -981,7 +981,7 @@ static void Init_Task_Context(void)
     //
     VAL_RESET_HEADER(CTX_VALUE(task), REB_OBJECT);
     VAL_CONTEXT_SPEC(CTX_VALUE(task)) = NULL;
-    VAL_CONTEXT_STACKVARS(CTX_VALUE(task)) = NULL;
+    VAL_CONTEXT_EXIT_FROM(CTX_VALUE(task)) = NULL;
 
     // Set all other values to NONE:
     {
@@ -1091,7 +1091,7 @@ static void Init_System_Object(void)
         value = Get_System(SYS_CODECS, 0);
         VAL_RESET_HEADER(CTX_VALUE(codecs), REB_OBJECT);
         INIT_CONTEXT_SPEC(codecs, NULL);
-        CTX_STACKVARS(codecs) = NULL;
+        VAL_CONTEXT_EXIT_FROM(CTX_VALUE(codecs)) = NULL;
         Val_Init_Object(value, codecs);
     }
 }
@@ -1588,7 +1588,7 @@ void Init_Core(REBARGS *rargs)
 
     VAL_RESET_HEADER(CTX_VALUE(Lib_Context), REB_OBJECT);
     INIT_CONTEXT_SPEC(Lib_Context, NULL);
-    CTX_STACKVARS(Lib_Context) = NULL;
+    VAL_CONTEXT_EXIT_FROM(CTX_VALUE(Lib_Context)) = NULL;
 
     // Must manage, else Expand_Context() looks like a leak
     //
@@ -1597,7 +1597,7 @@ void Init_Core(REBARGS *rargs)
 
     VAL_RESET_HEADER(CTX_VALUE(Sys_Context), REB_OBJECT);
     INIT_CONTEXT_SPEC(Sys_Context, NULL);
-    CTX_STACKVARS(Sys_Context) = NULL;
+    VAL_CONTEXT_EXIT_FROM(CTX_VALUE(Sys_Context)) = NULL;
 
     DOUT("Level 2");
     Load_Boot();            // Protected strings now available

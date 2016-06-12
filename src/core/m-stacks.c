@@ -437,7 +437,6 @@ void Drop_Chunk(REBVAL *opt_head)
 void Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
     REBVAL *slot;
     REBCNT num_slots;
-    REBARR *varlist;
     REBVAL *special_arg;
 
     // We need the actual REBVAL of the function here, and not just the REBFUN.
@@ -494,8 +493,6 @@ void Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
     //
     num_slots = FUNC_NUM_PARAMS(f->func);
 
-    assert(NOT(f->flags & DO_FLAG_HAS_VARLIST)); // should be clear
-
     // Make REBVALs to hold the arguments.  It will always be at least one
     // slot long, because function frames start with the value of the
     // function in slot 0.
@@ -510,19 +507,17 @@ void Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
         // nothing... CLOSURE!'s variables args and locals all survive the
         // end of the call, and none of a FUNCTION!'s do.
         //
-        REBARR *varlist = Make_Array(num_slots + 1);
-        SET_ARRAY_LEN(varlist, num_slots + 1);
-        SET_END(ARR_AT(varlist, num_slots + 1));
-        SET_ARR_FLAG(varlist, SERIES_FLAG_FIXED_SIZE);
+        f->stackvars = NULL;
+        f->varlist = Make_Array(num_slots + 1);
+        SET_ARRAY_LEN(f->varlist, num_slots + 1);
+        SET_END(ARR_AT(f->varlist, num_slots + 1));
+        SET_ARR_FLAG(f->varlist, SERIES_FLAG_FIXED_SIZE);
 
         // Skip the [0] slot which will be filled with the CTX_VALUE
         // !!! Note: Make_Array made the 0 slot an end marker
         //
-        SET_TRASH_IF_DEBUG(ARR_AT(varlist, 0));
-        slot = ARR_AT(varlist, 1);
-
-        f->data.varlist = varlist;
-        f->flags |= DO_FLAG_HAS_VARLIST;
+        SET_TRASH_IF_DEBUG(ARR_AT(f->varlist, 0));
+        slot = ARR_AT(f->varlist, 1);
     }
     else {
         // We start by allocating the data for the args and locals on the chunk
@@ -534,11 +529,10 @@ void Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
         // Note that chunks implicitly have an END at the end; no need to
         // put one there.
         //
-        REBVAL *stackvars = Push_Ended_Trash_Chunk(num_slots);
-        assert(CHUNK_LEN_FROM_VALUES(stackvars) == num_slots);
-        slot = &stackvars[0];
-
-        f->data.stackvars = stackvars;
+        f->varlist = NULL;
+        f->stackvars = Push_Ended_Trash_Chunk(num_slots);
+        assert(CHUNK_LEN_FROM_VALUES(f->stackvars) == num_slots);
+        slot = &f->stackvars[0];
     }
 
     // Make_Call does not fill the args in the frame--that's up to Do_Core
@@ -592,19 +586,18 @@ REBCTX *Context_For_Frame_May_Reify_Core(struct Reb_Frame *f) {
     REBCTX *context;
     struct Reb_Chunk *chunk;
 
-    if (f->flags & DO_FLAG_HAS_VARLIST) {
-        if (GET_ARR_FLAG(f->data.varlist, ARRAY_FLAG_CONTEXT_VARLIST))
-            return AS_CONTEXT(f->data.varlist); // already a context!
+    if (f->varlist != NULL) {
+        if (GET_ARR_FLAG(f->varlist, ARRAY_FLAG_CONTEXT_VARLIST))
+            return AS_CONTEXT(f->varlist); // already a context!
 
         // We have our function call's args in an array, but it is not yet
         // a context.  !!! Really this cannot reify if we're in arg gathering
         // mode, calling MANAGE_ARRAY is illegal -- need test for that !!!
 
-        assert(IS_TRASH_DEBUG(ARR_AT(f->data.varlist, 0))); // we fill this in
-        assert(GET_ARR_FLAG(f->data.varlist, SERIES_FLAG_HAS_DYNAMIC));
+        assert(IS_TRASH_DEBUG(ARR_AT(f->varlist, 0))); // we fill this in
+        assert(GET_ARR_FLAG(f->varlist, SERIES_FLAG_HAS_DYNAMIC));
 
-        context = AS_CONTEXT(f->data.varlist);
-        CTX_STACKVARS(context) = NULL;
+        context = AS_CONTEXT(f->varlist);
     }
     else {
         context = AS_CONTEXT(Make_Series(
@@ -620,10 +613,7 @@ REBCTX *Context_For_Frame_May_Reify_Core(struct Reb_Frame *f) {
         SET_CTX_FLAG(context, CONTEXT_FLAG_STACK);
         SET_CTX_FLAG(context, SERIES_FLAG_ACCESSIBLE);
 
-        CTX_STACKVARS(context) = f->data.stackvars;
-
-        f->data.varlist = CTX_VARLIST(context);
-        f->flags |= DO_FLAG_HAS_VARLIST;
+        f->varlist = CTX_VARLIST(context);
     }
 
     SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST);
@@ -703,77 +693,59 @@ REBCTX *Context_For_Frame_May_Reify_Managed(struct Reb_Frame *f)
 //
 void Drop_Function_Args_For_Frame_Core(struct Reb_Frame *f, REBOOL drop_chunks)
 {
-    if (NOT(f->flags & DO_FLAG_HAS_VARLIST)) {
-        //
-        // Stack extent arguments with no identifying frame (this would
-        // be the typical case when calling a native, for instance).
-        //
-        f->flags &= ~DO_FLAG_EXECUTE_FRAME;
-        if (drop_chunks)
-            Drop_Chunk(f->data.stackvars);
-        return;
+    f->flags &= ~DO_FLAG_EXECUTE_FRAME;
+
+    if (drop_chunks && f->stackvars) {
+        Drop_Chunk(f->stackvars);
     }
 
-    // We're freeing the varlist (or leaving it up to the GC), so clear flag
-    //
-    f->flags &= ~(DO_FLAG_HAS_VARLIST | DO_FLAG_EXECUTE_FRAME);
+    if (f->varlist == NULL) goto finished;
 
-    REBARR *varlist = f->data.varlist;
-    assert(GET_ARR_FLAG(varlist, SERIES_FLAG_ARRAY));
+    assert(GET_ARR_FLAG(f->varlist, SERIES_FLAG_ARRAY));
 
-    if (NOT(GET_ARR_FLAG(varlist, SERIES_FLAG_MANAGED))) {
+    if (NOT(GET_ARR_FLAG(f->varlist, SERIES_FLAG_MANAGED))) {
         //
         // It's an array, but hasn't become managed yet...either because
         // it couldn't be (args still being fulfilled, may have bad cells) or
         // didn't need to be (no Context_For_Frame_May_Reify_Managed).  We
         // can just free it.
         //
-        Free_Array(f->data.varlist);
-        return;
+        Free_Array(f->varlist);
+        goto finished;
     }
 
     // The varlist might have been for indefinite extent variables, or it
     // might be a stub holder for a stack context.
 
-    ASSERT_ARRAY_MANAGED(varlist);
+    ASSERT_ARRAY_MANAGED(f->varlist);
 
-    if (NOT(GET_ARR_FLAG(varlist, CONTEXT_FLAG_STACK))) {
+    if (NOT(GET_ARR_FLAG(f->varlist, CONTEXT_FLAG_STACK))) {
         //
         // If there's no stack memory being tracked by this context, it
         // has dynamic memory and is being managed by the garbage collector
         // so there's nothing to do.
         //
-        assert(GET_ARR_FLAG(varlist, SERIES_FLAG_HAS_DYNAMIC));
-        return;
+        assert(GET_ARR_FLAG(f->varlist, SERIES_FLAG_HAS_DYNAMIC));
+        goto finished;
     }
 
     // It's reified but has its data pointer into the chunk stack, which
     // means we have to free it and mark the array inaccessible.
 
-    assert(GET_ARR_FLAG(varlist, ARRAY_FLAG_CONTEXT_VARLIST));
-    assert(NOT(GET_ARR_FLAG(varlist, SERIES_FLAG_HAS_DYNAMIC)));
+    assert(GET_ARR_FLAG(f->varlist, ARRAY_FLAG_CONTEXT_VARLIST));
+    assert(NOT(GET_ARR_FLAG(f->varlist, SERIES_FLAG_HAS_DYNAMIC)));
 
-    assert(GET_ARR_FLAG(varlist, SERIES_FLAG_ACCESSIBLE));
-    CLEAR_ARR_FLAG(varlist, SERIES_FLAG_ACCESSIBLE);
+    assert(GET_ARR_FLAG(f->varlist, SERIES_FLAG_ACCESSIBLE));
+    CLEAR_ARR_FLAG(f->varlist, SERIES_FLAG_ACCESSIBLE);
 
-    if (drop_chunks)
-        Drop_Chunk(CTX_STACKVARS(AS_CONTEXT(varlist)));
+finished:
 
 #if !defined(NDEBUG)
-    //
-    // The general idea of the "canon" values inside of ANY-CONTEXT!
-    // and ANY-FUNCTION! at their slot [0] positions of varlist and
-    // paramlist respectively was that all REBVAL instances of that
-    // context or object would mirror those bits.  Because we have
-    // SERIES_FLAG_ACCESSIBLE then it's possible to keep this invariant
-    // and let a stale stackvars pointer be bad inside the context to
-    // match any extant REBVALs, but debugging will be more obvious if
-    // the bits are deliberately set to bad--even if this is incongruous
-    // with those values.  Thus there is no check that these bits line
-    // up and we turn the ones in the context itself to garbage here.
-    //
-    CTX_STACKVARS(AS_CONTEXT(varlist)) = cast(REBVAL*, 0xDECAFBAD);
+    f->stackvars = cast(REBVAL*, 0xDECAFBAD);
+    f->varlist = cast(REBARR*, 0xDECAFBAD);
 #endif
+
+    return; // needed for release build so `finished:` labels a statement
 }
 
 

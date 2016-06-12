@@ -204,13 +204,10 @@ REBOOL Do_Breakpoint_Throws(
                 // If the frame were the one we were looking for, it would be
                 // reified (so it would have a context to match)
                 //
-                if (NOT(frame->flags & DO_FLAG_HAS_VARLIST))
+                if (frame->varlist == NULL)
                     continue;
 
-                if (
-                    VAL_CONTEXT(target)
-                    == AS_CONTEXT(frame->data.varlist)
-                ) {
+                if (VAL_CONTEXT(target) == AS_CONTEXT(frame->varlist)) {
                     // Found a match before hitting any breakpoints, so no
                     // need to retransmit.
                     //

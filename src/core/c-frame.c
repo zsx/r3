@@ -127,9 +127,7 @@ REBCTX *Alloc_Context(REBCNT len)
     CTX_VALUE(context)->payload.any_context.more.spec
         =  cast(REBCTX*, 0xBAADF00D);
 
-    // CTX_STACKVARS allowed to be set to NULL, but must be done so explicitly
-    //
-    CTX_STACKVARS(context) = cast(REBVAL*, 0xBAADF00D);
+    VAL_CONTEXT_EXIT_FROM(CTX_VALUE(context)) = cast(REBARR*, 0xBAADF00D);
 #endif
 
     // context[0] is a value instance of the OBJECT!/MODULE!/PORT!/ERROR! we
@@ -758,7 +756,7 @@ void Rebind_Context_Deep(REBCTX *src, REBCTX *dst, REBINT *opt_binds)
 REBCTX *Make_Selfish_Context_Detect(
     enum Reb_Kind kind,
     REBCTX *spec,
-    REBVAL *stackvars,
+    REBARR *exit_from,
     const REBVAL *head,
     REBCTX *opt_parent
 ) {
@@ -792,7 +790,7 @@ REBCTX *Make_Selfish_Context_Detect(
     //
     CTX_VALUE(context)->payload.any_context.context = context;
     VAL_CONTEXT_SPEC(CTX_VALUE(context)) = NULL;
-    VAL_CONTEXT_STACKVARS(CTX_VALUE(context)) = NULL;
+    VAL_CONTEXT_EXIT_FROM(CTX_VALUE(context)) = NULL;
 
     SET_ARRAY_LEN(CTX_VARLIST(context), len);
 
@@ -830,7 +828,7 @@ REBCTX *Make_Selfish_Context_Detect(
     assert(CTX_TYPE(context) == kind);
 
     INIT_CONTEXT_SPEC(context, spec);
-    CTX_STACKVARS(context) = stackvars;
+    VAL_CONTEXT_EXIT_FROM(CTX_VALUE(context)) = exit_from;
 
     // We should have a SELF key in all cases here.  Set it to be a copy of
     // the object we just created.  (It is indeed a copy of the [0] element,
@@ -1138,7 +1136,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     INIT_CTX_KEYLIST_UNIQUE(child, keylist);
     INIT_VAL_CONTEXT(value, child);
     VAL_CONTEXT_SPEC(value) = NULL;
-    VAL_CONTEXT_STACKVARS(value) = NULL;
+    VAL_CONTEXT_EXIT_FROM(value) = NULL;
 
     // Copy parent1 values:
     memcpy(

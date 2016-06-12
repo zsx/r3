@@ -121,8 +121,8 @@ static void Print_Parse_Index(
 //
 static REBCNT Set_Parse_Series(struct Reb_Frame *f, const REBVAL *item)
 {
-    f->data.stackvars[0] = *item;
-    VAL_INDEX(&f->data.stackvars[0]) = (VAL_INDEX(item) > VAL_LEN_HEAD(item))
+    f->stackvars[0] = *item;
+    VAL_INDEX(&f->stackvars[0]) = (VAL_INDEX(item) > VAL_LEN_HEAD(item))
         ? VAL_LEN_HEAD(item)
         : VAL_INDEX(item);
 
@@ -919,11 +919,11 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
             if (!ANY_BINSTR(&value) && !ANY_ARRAY(&value))
                 return NOT_FOUND;
 
-            sub_parse.data.stackvars = Push_Ended_Trash_Chunk(3);
-            sub_parse.data.stackvars[0] = value; // series
-            SET_INTEGER(&sub_parse.data.stackvars[1], P_FIND_FLAGS); // fflags
-            SET_INTEGER(&sub_parse.data.stackvars[2], 0); // result
-            sub_parse.arg = sub_parse.data.stackvars;
+            sub_parse.stackvars = Push_Ended_Trash_Chunk(3);
+            sub_parse.stackvars[0] = value; // series
+            SET_INTEGER(&sub_parse.stackvars[1], P_FIND_FLAGS); // fflags
+            SET_INTEGER(&sub_parse.stackvars[2], 0); // result
+            sub_parse.arg = sub_parse.stackvars;
             sub_parse.out = f->out;
 
             sub_parse.source.array = VAL_ARRAY(item);
@@ -932,7 +932,7 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
 
             i = Parse_Rules_Loop(&sub_parse, 0);
 
-            Drop_Chunk(sub_parse.data.stackvars);
+            Drop_Chunk(sub_parse.stackvars);
 
             if (i == THROWN_FLAG) return THROWN_FLAG;
 
@@ -963,16 +963,16 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
     // !!! This copies a single value into a block to use as data.  Is there
     // any way this might be avoided?
     //
-    newparse.data.stackvars = Push_Ended_Trash_Chunk(3);
+    newparse.stackvars = Push_Ended_Trash_Chunk(3);
     Val_Init_Block_Index(
-        &newparse.data.stackvars[0],
+        &newparse.stackvars[0],
         Make_Array(1), // !!! "copy the value into its own block"
         0 // position 0
     ); // series (now a REB_BLOCK)
-    Append_Value(AS_ARRAY(VAL_SERIES(&newparse.data.stackvars[0])), &value);
-    SET_INTEGER(&newparse.data.stackvars[1], P_FIND_FLAGS); // find_flags
-    SET_INTEGER(&newparse.data.stackvars[2], 0); // result
-    newparse.arg = newparse.data.stackvars;
+    Append_Value(AS_ARRAY(VAL_SERIES(&newparse.stackvars[0])), &value);
+    SET_INTEGER(&newparse.stackvars[1], P_FIND_FLAGS); // find_flags
+    SET_INTEGER(&newparse.stackvars[2], 0); // result
+    newparse.arg = newparse.stackvars;
     newparse.out = f->out;
 
     newparse.source.array = f->source.array;
@@ -980,9 +980,9 @@ static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
     newparse.value = item;
 
     {
-    PUSH_GUARD_SERIES(VAL_SERIES(&newparse.data.stackvars[0]));
+    PUSH_GUARD_SERIES(VAL_SERIES(&newparse.stackvars[0]));
     n = Parse_Next_Array(&newparse, P_POS, item, 0);
-    DROP_GUARD_SERIES(VAL_SERIES(&newparse.data.stackvars[0]));
+    DROP_GUARD_SERIES(VAL_SERIES(&newparse.stackvars[0]));
     }
 
     if (n == THROWN_FLAG)
@@ -1409,11 +1409,11 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
                         break;
                     }
 
-                    sub_parse.data.stackvars = Push_Ended_Trash_Chunk(3);
-                    sub_parse.data.stackvars[0] = *val;
-                    SET_INTEGER(&sub_parse.data.stackvars[1], P_FIND_FLAGS);
-                    SET_INTEGER(&sub_parse.data.stackvars[2], P_RESULT);
-                    sub_parse.arg = sub_parse.data.stackvars;
+                    sub_parse.stackvars = Push_Ended_Trash_Chunk(3);
+                    sub_parse.stackvars[0] = *val;
+                    SET_INTEGER(&sub_parse.stackvars[1], P_FIND_FLAGS);
+                    SET_INTEGER(&sub_parse.stackvars[2], P_RESULT);
+                    sub_parse.arg = sub_parse.stackvars;
                     sub_parse.out = f->out;
 
                     sub_parse.source.array = VAL_ARRAY(item);
@@ -1422,7 +1422,7 @@ static REBCNT Parse_Rules_Loop(struct Reb_Frame *f, REBCNT depth) {
 
                     i = Parse_Rules_Loop(&sub_parse, depth + 1);
 
-                    Drop_Chunk(sub_parse.data.stackvars);
+                    Drop_Chunk(sub_parse.stackvars);
 
                     if (i == THROWN_FLAG) return THROWN_FLAG;
 
@@ -1763,31 +1763,31 @@ static REB_R Parse_Core(struct Reb_Frame *frame_, REBOOL logic)
     parse.indexor = VAL_INDEX(rules);
     // Note: `parse.value` set above
 
-    parse.data.stackvars = Push_Ended_Trash_Chunk(3);
+    parse.stackvars = Push_Ended_Trash_Chunk(3);
 
-    parse.data.stackvars[0] = *ARG(input);
+    parse.stackvars[0] = *ARG(input);
 
     // We always want "case-sensitivity" on binary bytes, vs. treating as
     // case-insensitive bytes for ASCII characters.
     //
     SET_INTEGER(
-        &parse.data.stackvars[1],
+        &parse.stackvars[1],
         REF(case) || IS_BINARY(ARG(input)) ? AM_FIND_CASE : 0
     );
 
     // !!! Is there some type more meaningful to use for result?  NONE vs.
     // TRUE and FALSE perhaps?  It seems to be 0, -1, and 1...
     //
-    SET_INTEGER(&parse.data.stackvars[2], 0);
+    SET_INTEGER(&parse.stackvars[2], 0);
 
-    parse.arg = parse.data.stackvars;
+    parse.arg = parse.stackvars;
 
     parse.out = D_OUT;
 
 
     index = Parse_Rules_Loop(&parse, 0);
 
-    Drop_Chunk(parse.data.stackvars);
+    Drop_Chunk(parse.stackvars);
 
     if (index == THROWN_FLAG) {
         assert(!IS_TRASH_DEBUG(D_OUT));

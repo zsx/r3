@@ -689,10 +689,7 @@ struct Reb_Frame *Frame_For_Stack_Level(
                 goto return_maybe_set_number_out;
         }
         else if (IS_FRAME(level)) {
-            if (
-                (frame->flags & DO_FLAG_HAS_VARLIST)
-                && frame->data.varlist == CTX_VARLIST(VAL_CONTEXT(level))
-            ) {
+            if (frame->varlist == CTX_VARLIST(VAL_CONTEXT(level))) {
                 goto return_maybe_set_number_out;
             }
         }

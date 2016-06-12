@@ -1931,6 +1931,13 @@ struct Reb_Typeset {
 
 struct Reb_Any_Context {
     //
+    // Unless it copies the keylist, a context cannot uniquely describe a
+    // "special" instance of an archetype function it is bound to.  This
+    // field needs to be combined with the FUNC_VALUE of a frame context
+    // to get the full definition.
+    //
+    REBARR *exit_from;
+
     // `varlist` is a Rebol Array that from 1..NUM_VARS contains REBVALs
     // representing the stored values in the context.
     //
@@ -1943,14 +1950,6 @@ struct Reb_Any_Context {
     // the keylist involves making a copy if it is shared.
     //
     REBCTX *context; // !!! TBD: change to REBARR*, rename as varlist
-
-    // `stackvars` points to values that are resident on the "chunk stack",
-    // where arguments to functions go when they aren't <durable>.  This
-    // is presently only used by FRAME!, but it is conceivable that other
-    // context types might also want stack variables that can be freed
-    // after some point (e.g. after the MAKE OBJECT! [...] body code has run)
-    //
-    REBVAL *stackvars;
 
     union {
         REBCTX *spec; // used by REB_MODULE
@@ -1975,11 +1974,15 @@ struct Reb_Any_Context {
 
 #define VAL_CONTEXT_SPEC(v)         ((v)->payload.any_context.more.spec)
 
-#define VAL_CONTEXT_STACKVARS(v)    ((v)->payload.any_context.stackvars)
+#define VAL_CONTEXT_EXIT_FROM(v) \
+    ((v)->payload.any_context.exit_from)
+
+#define VAL_CONTEXT_STACKVARS(v) \
+    ((v)->payload.any_context.more.frame->stackvars)
 
 #define VAL_CONTEXT_STACKVARS_LEN(v) \
     (assert(ANY_CONTEXT(v)), \
-        CHUNK_LEN_FROM_VALUES((v)->payload.any_context.stackvars))
+        CHUNK_LEN_FROM_VALUES(VAL_CONTEXT_STACKVARS(v)))
 
 #define VAL_CONTEXT_FRAME(v)        ((v)->payload.any_context.more.frame)
 

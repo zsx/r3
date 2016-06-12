@@ -538,7 +538,7 @@ REBTYPE(Context)
 
             context = Copy_Context_Shallow(VAL_CONTEXT(item + 1));
             VAL_CONTEXT_SPEC(CTX_VALUE(context)) = VAL_CONTEXT(item);
-            assert(VAL_CONTEXT_STACKVARS(CTX_VALUE(context)) == NULL);
+            assert(VAL_CONTEXT_EXIT_FROM(CTX_VALUE(context)) == NULL);
             VAL_RESET_HEADER(CTX_VALUE(context), REB_MODULE);
 
             // !!! Again, not how this should be done but... if there is a

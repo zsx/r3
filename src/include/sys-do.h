@@ -114,15 +114,7 @@ enum {
     DO_FLAG_ARGS_EVALUATE = 1 << 5,
     DO_FLAG_NO_ARGS_EVALUATE = 1 << 6,
 
-    // Not all function invocations require there to be a persistent frame
-    // that identifies it.  One will be needed if there are going to be
-    // words bound into the frame (in a way that cannot be finessed through
-    // relative binding)
-    //
-    // Note: This flag is not paired, but if it were the alternative would
-    // be DO_FLAG_FRAME_CHUNK...which is the default assumption.
-    //
-    DO_FLAG_HAS_VARLIST = 1 << 7,
+    DO_FLAG_UNUSED_7 = 1 << 7,
 
     // A pre-built frame can be executed "in-place" without a new allocation.
     // It will be type checked, and also any BAR! parameters will indicate
@@ -494,28 +486,29 @@ struct Reb_Frame {
     //
     REBSYM label_sym;
 
-    // `data` [INTERNAL, VALUES MUTABLE and GC-SAFE]
+    // `stackvars` [INTERNAL, VALUES MUTABLE and GC-SAFE]
     //
-    // The dynamic portion of the call frame has args with which a function is
-    // being invoked.  The data is resident in the "chunk stack".
+    // For functions without "indefinite extent", the invocation arguments are
+    // stored in the "chunk stack", where allocations are fast, address stable,
+    // and implicitly terminated.  If a function has indefinite extent, this
+    // will be set to NULL.
     //
-    // If a client of this array is a NATIVE!, then it will access the data
-    // directly by offset index (e.g. `PARAM(3,...)`).  But if it is a
-    // FUNCTION! implemented by the user, it has words for arguments and
-    // locals to access by, and hence a FRAME!.  The frame is like an OBJECT!
-    // but since its data also lives in the chunk stack, words bound into it
-    // won't be able to fetch the data after the call has completed.
+    // This can contain END markers at any position during arg fulfillment.
     //
-    // !!! For debugging purposes, it will be necessary to request natives
-    // to not "run framelessly" (though that means not-even-a-chunk frame).
-    // This might also request not to run as "just a chunk" so that the
-    // content of the native frame would be inspectable by words bound into
-    // the frame by the debugger.
+    REBVAL *stackvars;
+
+    // `varlist`
     //
-    union {
-        REBARR *varlist;
-        REBVAL *stackvars;
-    } data;
+    // For functions with "indefinite extent", the varlist is the CTX_VARLIST
+    // of a FRAME! context in which the function's arguments live.  It is
+    // also possible for this varlist to come into existence even for functions
+    // like natives, if the frame's context is "reified" (e.g. by the debugger)
+    // If neither of these conditions are true, it will be NULL
+    //
+    // This can contain END markers at any position during arg fulfillment,
+    // and this means it cannot have a MANAGE_ARRAY call until that is over.
+    //
+    REBARR *varlist;
 
     // `param` [INTERNAL, REUSABLE, GC-PROTECTS pointed-to REBVALs]
     //
@@ -1234,11 +1227,7 @@ struct Native_Refine {
 // Uses ARR_AT instead of CTX_VAR because the varlist may not be finished.
 //
 #define FRM_ARGS_HEAD(f) \
-    (((f)->flags & DO_FLAG_HAS_VARLIST) \
-        ? (GET_ARR_FLAG((f)->data.varlist, CONTEXT_FLAG_STACK) \
-            ? CTX_STACKVARS(AS_CONTEXT((f)->data.varlist)) \
-            : ARR_AT((f)->data.varlist, 1)) \
-        : &(f)->data.stackvars[0])
+    ((f)->stackvars ? &(f)->stackvars[0] : ARR_AT((f)->varlist, 1))
 
 // ARGS is the parameters and refinements
 // 1-based indexing into the arglist (0 slot is for object/function value)

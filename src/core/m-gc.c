@@ -672,19 +672,17 @@ static void Mark_Frame_Stack_Deep(void)
         // the arglist is under construction, but guaranteed to have all
         // cells be safe for garbage collection.
         //
-        if (f->flags & DO_FLAG_HAS_VARLIST) {
+        if (f->varlist != NULL) {
             //
             // We need to GC protect the values in the varlist no matter what,
             // but it might not be managed yet (e.g. could still contain END
             // markers during argument fulfillment).  But if it is managed,
             // then it needs to be handed to normal GC.
             //
-            if (GET_ARR_FLAG(f->data.varlist, SERIES_FLAG_MANAGED)) {
-                assert(!IS_TRASH_DEBUG(ARR_AT(f->data.varlist, 0)));
-                assert(
-                    GET_ARR_FLAG(f->data.varlist, ARRAY_FLAG_CONTEXT_VARLIST)
-                );
-                QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(f->data.varlist));
+            if (GET_ARR_FLAG(f->varlist, SERIES_FLAG_MANAGED)) {
+                assert(!IS_TRASH_DEBUG(ARR_AT(f->varlist, 0)));
+                assert(GET_ARR_FLAG(f->varlist, ARRAY_FLAG_CONTEXT_VARLIST));
+                QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(f->varlist));
             }
             else {
                 REBCNT num_params = FUNC_NUM_PARAMS(f->func);
