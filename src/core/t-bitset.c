@@ -32,7 +32,15 @@
 
 #define MAX_BITSET 0x7fffffff
 
-#define BITS_NOT(s) ((s)->misc.negated)
+static inline REBOOL BITS_NOT(REBSER *s) {
+    assert(s->misc.negated == TRUE || s->misc.negated == FALSE);
+    return s->misc.negated;
+}
+
+static inline void INIT_BITS_NOT(REBSER *s, REBOOL negated) {
+    s->misc.negated = negated;
+}
+
 
 //
 //  CT_Bitset: C
@@ -63,7 +71,7 @@ REBSER *Make_Bitset(REBCNT len)
     ser = Make_Binary(len);
     Clear_Series(ser);
     SET_SERIES_LEN(ser, len);
-    BITS_NOT(ser) = FALSE;
+    INIT_BITS_NOT(ser, FALSE);
 
     return ser;
 }
@@ -101,7 +109,7 @@ REBOOL MT_Bitset(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 
     if (!IS_BINARY(data)) return FALSE;
     Val_Init_Bitset(out, Copy_Sequence_At_Position(data));
-    BITS_NOT(VAL_SERIES(out)) = FALSE;
+    INIT_BITS_NOT(VAL_SERIES(out), FALSE);
     return TRUE;
 }
 
@@ -306,7 +314,7 @@ REBOOL Set_Bits(REBSER *bset, const REBVAL *val, REBOOL set)
 
     val = VAL_ARRAY_AT(val);
     if (NOT_END(val) && IS_SAME_WORD(val, SYM_NOT)) {
-        BITS_NOT(bset) = TRUE;
+        INIT_BITS_NOT(bset, TRUE);
         val++;
     }
 
@@ -544,7 +552,7 @@ REBTYPE(Bitset)
     case A_COMPLEMENT:
     case A_NEGATE:
         ser = Copy_Sequence(VAL_SERIES(value));
-        BITS_NOT(ser) = NOT(BITS_NOT(VAL_SERIES(value)));
+        INIT_BITS_NOT(ser, NOT(BITS_NOT(VAL_SERIES(value))));
         Val_Init_Bitset(value, ser);
         break;
 
@@ -592,6 +600,7 @@ set_bits:
             Copy_Sequence_At_Position(value),
             VAL_INDEX(value)
         );
+        INIT_BITS_NOT(VAL_SERIES(D_OUT), BITS_NOT(VAL_SERIES(value)));
         return R_OUT;
 
     case A_LENGTH:
