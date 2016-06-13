@@ -1,10 +1,9 @@
 REBOL [
     System: "REBOL [R3] Language Interpreter and Run-time Environment"
     Title: "REBOL 3 Mezzanine: Legacy compatibility"
+    Homepage: https://trello.com/b/l385BE7a/porting-guide
     Rights: {
-        Copyright 1997-2015 REBOL Technologies
-        Copyright 2012-2015 Rebol Open Source Contributors
-
+        Copyright 2012-2016 Rebol Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -12,176 +11,107 @@ REBOL [
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
     Description: {
-        These definitions turn the clock backward for Rebol code that was
-        written prior to Ren/C, e.g. binaries available on rebolsource.net
-        or R3-Alpha binaries from rebol.com.  Some flags which are set
-        which affect the behavior of natives and the evaluator ARE ONLY
-        ENABLED IN DEBUG BUILDS OF REN/C...so be aware of that.
+        These definitions attempt to create a compatibility mode for Ren-C,
+        so that it operates more like R3-Alpha.
 
         Some "legacy" definitions (like `foreach` as synonym of `for-each`)
-        are kept by default for now, possibly indefinitely.  For other
-        changes--such as variations in behavior of natives of the same
-        name--you need to add the following to your code:
+        are enabled by default, and may remain indefinitely.  Other changes
+        may be strictly incompatible: words have been used for different
+        purposes, or variations in natives of the same name.  Hence it is
+        necessary to "re-skin" the environment, by running:
 
             do <r3-legacy>
 
         (Dispatch for this from DO is in the DO* function of %sys-base.r)
 
         This statement will do nothing in older Rebols, since executing a
-        tag evaluates to just a tag.  Note that the current trick will
-        modify the user context directly, and is not module-based...so
-        you really are sort of "backdating" the system globally.  A
-        more selective version that turns features on and off one at
-        a time to ease porting is needed, perhaps like:
+        tag evaluates to just a tag.
+
+        Though as much of the compatibility bridge as possible is sought to
+        be implemented in user code, some flags affect the executable behavior
+        of the evaluator.  To avoid interfering with the native performance of
+        Ren-C, THESE ARE ONLY ENABLED IN DEBUG BUILDS.  Be aware of that.
+
+        Legacy mode is intended to assist in porting efforts to Ren-C, and to
+        exercise the abilities of the language to "flex".  It is not intended
+        as a "supported" operating mode.  Contributions making it work more
+        seamlessly are welcome, but scheduling of improvements to the legacy
+        mode are on a strictly "as-needed" basis.
+    }
+    Notes: {
+        At present it is a one-way street.  Once `do <r3-legacy>` is run,
+        there is no clean "shutdown" of legacy mode to go back to plain Ren-C.
+
+        The current trick will modify the user context directly, and is not
+        module-based...so you really are sort of "backdating" the system
+        globally.  A more selective version that turns features on and off
+        one at a time to ease porting is needed, perhaps like:
 
             do/args <r3-legacy> [
                 new-do: off
                 question-marks: on
             ]
-
-        As always, feedback and improvement welcome.  A porting guide Trello
-        has been started at:
-
-            https://trello.com/b/l385BE7a/porting-guide
     }
 ]
 
-; This identifies if r3-legacy mode is has been turned on, useful mostly only
-; for turning it off again.
+; This identifies if r3-legacy mode is has been turned on, useful mostly
+; to avoid trying to turn it on twice.
 ;
 r3-legacy-mode: off
 
 
-; GROUP! is a better name than PAREN! for many reasons.  It's a complete word,
-; it's no more characters, it doesn't have the same first two letters as
-; PATH! so it mentally and typographically hashes better from one of the two
-; other array types, it describes the function of what it does in the
-; evaluator (where "BLOCK! blocks evaluation of the contents, the GROUP!
-; does normal evaluation but limits it to the group)...
-;
-; Historically, changing the name of a type was especially burdensome because
-; the name would be encoded when you did a TO-WORD on it, such as in order
-; to perform a SWITCH.  (Rebol2 added TYPE?/WORD to make this convenient.)
-; Now it is possible to use get-words in SWITCH to lookup, so things should
-; be easier.
-;
-; What one uses in one's code is one's own choice.  But the internal canon
-; for the term in Ren-C's code and mezzanine is GROUP!
+; Ren-C *prefers* the use of GROUP! to PAREN!, both likely to remain legal.
+; https://trello.com/c/ANlT44nH
 ;
 paren?: :group?
 paren!: :group!
 to-paren: :to-group
 
 
-; The TYPE?/WORD primitive is adjusted to give back PAREN! as the word if
-; the legacy switch for it is enabled.
+; General renamings away from non-LOGIC!-ending-in-?-functions
+; https://trello.com/c/DVXmdtIb
 ;
-; The previous /WORD refinement was common because things like SWITCH
-; statements wanted to operate on the word for the datatype, since in
-; unevaluated contexts INTEGER! would be a WORD! and not a DATATYPE!.  With
-; change to allow lax equality comparisons to see a datatype and its word
-; as being equal, this is not as necessary.  Cases that truly need it can
-; use TO-WORD TYPE-OF.
-;
-type?: function [
-    "Returns the datatype of a value <r3-legacy>."
-    value [<opt> any-value!]
-    /word "No longer in TYPE-OF, as WORD! and DATATYPE! can be EQUAL?"
-][
-    case [
-        not word [
-            type-of :value
-        ]
+index?: :index-of
+offset?: :offset-of
+sign?: :sign-of
+suffix?: :suffix-of
 
-        all [
-            group? :value
-            system/options/paren-instead-of-group
-        ][
-            ; For legacy compatibility, type?/word will return PAREN!
-            ; instead of Ren-C standard GROUP! if the switch is on.
-            ;
-            'paren!
-        ]
-
-        void? :value [
-            ;
-            ; UNSET! is no longer a real value type, and TYPE-OF will
-            ; return a value of type NONE! (not a datatype).  But the
-            ; word conversion will say it's UNSET!.
-            ;
-            'unset!
-        ]
-
-        blank? :value ['none!]
-
-        'default [to-word type-of :value]
-    ]
+comment [
+    ; !!! Less common cases still linger as question mark routines that
+    ; don't return LOGIC!, and they seem like they need greater rethinking in
+    ; general. What replaces them (for ones that are kept) might be new.
+    ;
+    encoding?: _
+    file-type?: _
+    speed?: _
+    why?: _
+    info?: _
+    exists?: _
 ]
 
 
-; See also prot-http.r, which has an actor with a LENGTH? "method".  Given
-; how actors work, it cannot be overriden here.
+; Semi-controversial choice to take a noun to avoid "lengthening LENGTH?"
+; https://trello.com/c/4OT7qvdu
+;
 length?: :length
 
-index?: :index-of
 
-offset?: :offset-of
-
-sign?: :sign-of
-
-suffix?: :suffix-of
-
-; While `foreach` may have been comfortable for some as a word, its hard
-; not to see the word `reach` inside of it.  Once you recognize that it's
-; not a word and see it with fresh eyes, it looks bad...and also not part
-; of the family of other -each functions like `remove-each` and `map-each`.
-; The need for the hyphen for `for-each` isn't that bad, but the hyphen
-; does break the rhythm a little bit.  `every` was selected as a
-; near-synonym of `for-each` (with a different return result).
-;
-; Because there is no eager need to retake foreach for any other purpose
-; and it doesn't convey any fundamentally incorrect idea, it is low on
-; the priority list to eliminate completely.  It may be retained as a
-; synonym, and `each` may be considered as well.  The support of synonyms
-; is controversial and should be balanced against the value of standards.
+; FOREACH isn't being taken for anything else, may stay a built-in synonym
+; https://trello.com/c/cxvHGNha
 ;
 foreach: :for-each
 
 
-; Ren-C's FOR-NEXT is a more lenient version of FORALL, which allows you to
-; switch the variable being iterated to any other type of series--NONE will
-; terminate the enumeration, so will reaching the tail.  (R3-Alpha let you
-; switch series, but only if the type matched what you initially started
-; enumerating).
-;
-; Additionally, it adds FOR-BACK to do a reverse enumeration.  Both of these
-; are simply variations of FOR-SKIP with 1 and -1 respectively.
+; FOR-NEXT lets you switch series (unlike FORALL), see also FOR-BACK
+; https://trello.com/c/StCADPIB
 ;
 forall: :for-next
 forskip: :for-skip
 
 
-; The distinctions between Rebol's types is important to articulate.
-; So using the term "BLOCK" generically to mean any composite
-; series--as well as specificially the bracketed block type--is a
-; recipe for confusion.
+; Both in user code and in the C code, good to avoid BLOCK! vs. ANY-BLOCK!
+; https://trello.com/c/lCSdxtux
 ;
-; Importantly: it also makes it difficult to get one's bearings
-; in the C sources.  It's hard to find where exactly the bits are in
-; play that make something a bracketed block...or if that's what you
-; are dealing with at all.  Hence some unique name for the typeclass
-; is needed.
-;
-; The search for a new word for the ANY-BLOCK! superclass went on for
-; a long time.  LIST! was looking like it might have to be the winner,
-; until ARRAY! was deemed more fitting.  The notion that a "Rebol
-; Array" contains "Rebol Values" that can be elements of any type
-; (including other arrays) separates it from the other series classes
-; which can only contain one type of element (codepoints for strings,
-; bytes for binaries, numbers for vector).  In the future those may
-; have more unification under a typeclass of their own, but ARRAY!
-; is for BLOCK!, PAREN!, PATH!, GET-PATH!, SET-PATH!, and LIT-PATH!
-
 any-block!: :any-array!
 any-block?: :any-array?
 
@@ -194,36 +124,26 @@ any-object!: :any-context!
 any-object?: :any-context?
 
 
-; By having typesets prefixed with ANY-*, it helps cement the realization
-; on the user's part that they are not dealing with a concrete type...so
-; even though this is in the function prototype, they will not get back
-; that answer from TYPE-OF, nor could they pass it to MAKE or TO.  Because
-; typsets cannot be returned in that way, they're easier than most things
-; to make synonyms for the old ANY-less variations.
-
+; Typesets containing ANY- helps signal they are not concrete types
+; https://trello.com/c/d0Nw87kp
+;
 number!: :any-number!
 number?: :any-number?
-
 scalar!: :any-scalar!
 scalar?: :any-scalar?
-
 series!: :any-series!
 series?: :any-series?
 
-; ANY-TYPE! had an ambiguity in it, which was that with DATATYPE! around
-; (possibly being renamed to TYPE! but maybe not) it sounded as if it might
-; mean ANY-DATATYPE!--which is more narrow than what it meant to say which
-; is "really, any legal Rebol value, type or otherwise".  So ANY-VALUE! is
-; the better word for that.  Added for backwards compatibility.
+
+; ANY-TYPE! is ambiguous with ANY-DATATYPE!
+; https://trello.com/c/1jTJXB0d
 ;
-; Because UNSET! was a datatype in R3-Alpha and Rebol2, ANY-TYPE! included
-; it...which was the way of achieving "optional" arguments.  However, this
-; concept of "no type" being included isn't necessarily a typeset feature,
-; but a feature of function arguments (like being variadic).  Hence using
-; the _ here to pass in a literal blank may not be a long term feature, as
-; allowing no type could be for function specs only--not general typesets.
+; !!! For compatibility to mean "typeset including void", this uses an
+; undocumented internal feature of MAKE TYPESET! which lets voids be put in
+; the set.  This may not wind up being a user-visible feature.
 ;
 any-type!: make typeset! [_ any-value!]
+
 
 ; BIND? and BOUND? didn't fit the naming convention of returning LOGIC! if
 ; they end in a question mark.  Also, CONTEXT-OF is more explicit about the
@@ -232,17 +152,6 @@ any-type!: make typeset! [_ any-value!]
 ;
 bound?: :context-of
 bind?: :context-of
-
-; !!! These less common cases still linger as question mark routines that
-; don't return LOGIC!, and they seem like they need greater rethinking in
-; general. What replaces them (for ones that are kept) might be entirely new.
-
-;encoding?
-;file-type?
-;speed?
-;why?
-;info?
-;exists?
 
 
 ; !!! Technically speaking all frames should be "selfless" in the sense that
@@ -290,6 +199,17 @@ none?: none!: none: does [
         | {If running in <r3-legacy> mode, old NONE meaning is available.}
     ]
 ]
+
+type?: does [
+    fail [
+        {TYPE? is reserved in Ren-C for future use}
+        | {(Though not fixed in stone, it may replace DATATYPE?)}
+        | {TYPE-OF is the current replacement, with no TYPE-OF/WORD}
+        | {Use soft quotes, e.g. SWITCH TYPE-OF 1 [:INTEGER! [...]]}
+        | {If running in <r3-legacy> mode, old TYPE? meaning is available.}
+    ]
+]
+
 
 ; There were several different strata of equality checks, and one was EQUIV?
 ; as well as NOT-EQUIV?.  With changes to make comparisons inside the system
@@ -424,17 +344,8 @@ get: function [
 ]
 
 
-; In word-space, TRY is very close to ATTEMPT, in having ambiguity about what
-; is done with the error if one happens.  It also has historical baggage with
-; TRY/CATCH constructs. TRAP does not have that, and better parallels CATCH
-; by communicating you seek to "trap errors in this code (with this handler)"
-; Here trapping the error suggests you "caught it in a trap" and it is
-; in the trap (and hence in your possession) to examine.  /WITH is not only
-; shorter than /EXCEPT but it makes much more sense.
-;
-; !!! This may free up TRY for more interesting uses, such as a much shorter
-; word to use for ATTEMPT.  Even so, this is not a priority at this point in
-; time...so TRY is left to linger without needing `do <r3-legacy>`
+; TRAP makes more sense as parallel-to-CATCH, /WITH makes more sense too
+; https://trello.com/c/IbnfBaLI
 ;
 try: func [
     {Tries to DO a block and returns its value or an error.}
@@ -621,18 +532,8 @@ make: func [
 ; directly, as that will be a no-op in older Rebols.  Notice the word
 ; is defined in sys-base.r, as it needs to be visible pre-Mezzanine
 ;
-; Legacy mode is specifically intended to assist in porting efforts to
-; Ren-C, not as a permanent operating mode.  While contributions making it
-; work more seamlessly are more than welcome, scheduling of improvements to
-; the legacy mode are on a strictly "as-needed" basis.
-;
 set 'r3-legacy* func [] [
 
-    ; There's no clean "shutdown" of legacy mode at this time to go back to
-    ; plain Ren-C.  The code that enables legacy mode also is allowed to use
-    ; Ren-C features, which would not be available if running a second time
-    ; while legacy mode is on.  Hence make running multiple times a no-op.
-    ;
     if r3-legacy-mode [return blank]
 
     append system/contexts/user compose [
@@ -673,6 +574,32 @@ set 'r3-legacy* func [] [
             value
         ][
             either any-word? :value [set? value] [true]
+        ])
+
+        ; Note that TYPE?/WORD is less necessary since SWITCH can soft quote
+        ; https://trello.com/c/fjJb3eR2
+        ;
+        type?: (function [
+            "Returns the datatype of a value <r3-legacy>."
+            value [<opt> any-value!]
+            /word
+        ][
+            case [
+                not word [type-of :value]
+
+                not set? 'value [quote unset!] ;-- https://trello.com/c/rmsTJueg
+
+                blank? :value [quote none!] ;-- https://trello.com/c/vJTaG3w5
+
+                all [
+                    group? :value
+                    system/options/paren-instead-of-group
+                ][
+                    quote paren! ;-- https://trello.com/c/ANlT44nH
+                ]
+
+                'default [to-word type-of :value]
+            ]
         ])
 
         ; These words do NOT inherit the infixed-ness, and you simply cannot
@@ -943,7 +870,7 @@ set 'r3-legacy* func [] [
             count [number! pair!]
         ][
             ;-- R3-alpha REPEND with block behavior called out
-
+            ;
             apply :append [
                 | series: series
                 | value: either block? :value [reduce :value] [value]
@@ -959,106 +886,11 @@ set 'r3-legacy* func [] [
             rest "Value or block of values"
         ][
             ;-- double-inline of R3-alpha `repend value :rest`
+            ;
             apply :append [
                 | series: either series? :value [copy value] [form :value]
                 | value: either block? :rest [reduce :rest] [rest]
             ]
-        ])
-
-        ; The name STACK is a noun that really suits a variable name, and
-        ; the interim choice for this functionality in Ren-C is "backtrace".
-        ; Because it is a debug-privilege API it might wind up under DEBUG
-        ; or some part of a REFLECT dialect over the long term.
-        ;
-        ; Several refinements have been renamed or are no longer relevant,
-        ; and it has a zero-arity default.  This wraps what functionality of
-        ; R3-Alpha's STACK corresponds in a terribly inefficient way, which
-        ; will likely never matter because odds are no one used it.
-        ;
-        ; !!! This routine would require review if anyone finds it of
-        ; actual interest, it's just here to show how it *could* be done.
-        ;
-        stack: (function [
-            "Returns stack backtrace or other values."
-            offset [integer!] "Relative backward offset"
-            /block "Block evaluation position"
-            /word "Function or object name, if known"
-            /func "Function value"
-            /args "Block of args (may be modified)"
-            /size "Current stack size (in value units)"
-            /depth "Stack depth (frames)"
-            /limit "Stack bounds (auto expanding)"
-        ][
-            func_STACK: :func
-            func: :lib/func
-
-            ; Get the full backtrace to start with because we need to filter
-            ;
-            bt: backtrace/limit/:args/(
-                either block 'where blank
-            )/(
-                either func_STACK 'function blank
-            ) blank
-
-            ; The backtrace is going to have STACK in it, in slot number 1.
-            ; But the caller doesn't want to see STACK.  So remove it.
-            ;
-            take/part (find bt 1) 2
-
-            if depth [
-                count: 0
-                for-each item bt [
-                    if integer? item [count: count + 1]
-                ]
-                return count
-            ]
-
-            ; Now renumber all the stack entries to bump them down by 1,
-            ; accounting for the removal of stack.  If we find a number
-            ; that is less than the offset requested, strip the remainder.
-            ;
-            for-next bt [
-                unless integer? bt/1 [continue]
-
-                bt/1: bt/1 - 1 ;; clears new-line marker, have to reset it
-                new-line bt true
-
-                if bt/1 < offset [
-                    clear bt
-                    break
-                ]
-            ]
-
-            ; If a singular property was requested, then select it out and
-            ; return it.
-            ;
-            case [
-                any [block func_STACK args] [
-                    prop: select bt offset
-                    return to-value if prop [
-                        second prop
-                    ]
-                ]
-
-                word [
-                    prop: select bt offset
-                    return to-value if prop [
-                        first prop
-                    ]
-                ]
-
-                size [fail "STACK/SIZE no longer supported"]
-
-                limit [fail "STACK/LIMIT no longer supported"]
-            ]
-
-            ; Or by default just return the backtrace/only minus the
-            ; last thing (the above is more a test for backtrace than
-            ; anything...hence very roundabout)
-            ;
-            bt: backtrace/only
-            take/last bt
-            bt
         ])
     ]
 
