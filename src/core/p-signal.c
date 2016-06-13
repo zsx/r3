@@ -69,8 +69,6 @@ static void update(REBREQ *req, REBINT len, REBVAL *arg)
         VAL_RESET_HEADER(CTX_VALUE(obj), REB_OBJECT);
 
         CTX_VALUE(obj)->payload.any_context.context = obj;
-        VAL_CONTEXT_SPEC(CTX_VALUE(obj)) = NULL;
-        VAL_CONTEXT_STACKVARS(CTX_VALUE(obj)) = NULL;
 
         val = Alloc_Tail_Array(VAL_ARRAY(arg));
         Val_Init_Object(val, obj);

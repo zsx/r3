@@ -283,7 +283,8 @@ insert: action [
 
 append: action [
     {Inserts element(s) at tail; for series, returns head.}
-    series [any-series! port! map! gob! object! bitset!] {Any position (modified)}
+    series [any-series! port! map! gob! object! module! bitset!]
+        {Any position (modified)}
     value [<opt> any-value!] {The value to insert}
     /part {Limits to a given length or position}
     limit [any-number! any-series! pair!]

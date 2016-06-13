@@ -838,7 +838,6 @@ static void Init_Root_Context(void)
     // !!! Also no `stackvars` (or `spec`, not yet implemented); revisit
     //
     VAL_RESET_HEADER(CTX_VALUE(root), REB_OBJECT);
-    VAL_CONTEXT_SPEC(CTX_VALUE(root)) = NULL;
     VAL_CONTEXT_EXIT_FROM(CTX_VALUE(root)) = NULL;
 
     // Set all other values to blank
@@ -980,7 +979,6 @@ static void Init_Task_Context(void)
     // !!! Also no `body` (or `spec`, not yet implemented); revisit
     //
     VAL_RESET_HEADER(CTX_VALUE(task), REB_OBJECT);
-    VAL_CONTEXT_SPEC(CTX_VALUE(task)) = NULL;
     VAL_CONTEXT_EXIT_FROM(CTX_VALUE(task)) = NULL;
 
     // Set all other values to NONE:
@@ -1090,7 +1088,6 @@ static void Init_System_Object(void)
 
         value = Get_System(SYS_CODECS, 0);
         VAL_RESET_HEADER(CTX_VALUE(codecs), REB_OBJECT);
-        INIT_CONTEXT_SPEC(codecs, NULL);
         VAL_CONTEXT_EXIT_FROM(CTX_VALUE(codecs)) = NULL;
         Val_Init_Object(value, codecs);
     }
@@ -1587,7 +1584,6 @@ void Init_Core(REBARGS *rargs)
     MANAGE_ARRAY(CTX_VARLIST(Lib_Context));
 
     VAL_RESET_HEADER(CTX_VALUE(Lib_Context), REB_OBJECT);
-    INIT_CONTEXT_SPEC(Lib_Context, NULL);
     VAL_CONTEXT_EXIT_FROM(CTX_VALUE(Lib_Context)) = NULL;
 
     // Must manage, else Expand_Context() looks like a leak
@@ -1596,7 +1592,6 @@ void Init_Core(REBARGS *rargs)
     MANAGE_ARRAY(CTX_VARLIST(Sys_Context));
 
     VAL_RESET_HEADER(CTX_VALUE(Sys_Context), REB_OBJECT);
-    INIT_CONTEXT_SPEC(Sys_Context, NULL);
     VAL_CONTEXT_EXIT_FROM(CTX_VALUE(Sys_Context)) = NULL;
 
     DOUT("Level 2");

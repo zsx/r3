@@ -767,10 +767,9 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             {
                 REBVAL *value = CTX_VALUE(context);
                 assert(VAL_CONTEXT(value) == context);
+                assert(VAL_CONTEXT_META(val) == VAL_CONTEXT_META(value));
                 if (IS_FRAME(val))
                     assert(VAL_CONTEXT_FRAME(val) == VAL_CONTEXT_FRAME(value));
-                else
-                    assert(VAL_CONTEXT_SPEC(val) == VAL_CONTEXT_SPEC(value));
 
                 // Though the general rule is that canon values should match
                 // the bits of any instance, an exception is made in the
@@ -790,31 +789,16 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
 
             QUEUE_MARK_CONTEXT_DEEP(context);
 
-            if (IS_FRAME(val)) {
-                //
-                // The FRM_CALL is either on the stack--in which case its
-                // already taken care of in terms of marking--or it has gone
-                // bad in which case it should be ignored.
-                //
-                // !!! Should the GC null out bad pointers or just leave them?
-            }
-            else {
-                if (VAL_CONTEXT_SPEC(val)) {
-                    //
-                    // !!! Under the module system, the spec is another
-                    // context of an object constructed with the various pieces
-                    // of module information.  This idea is being reviewed to
-                    // see if what is called the "object spec" should be
-                    // something more like a function spec, with the module
-                    // information going in something called a "meta"
-                    //
-                    QUEUE_MARK_CONTEXT_DEEP(VAL_CONTEXT_SPEC(val));
-                }
-            }
+            // !!! Currently a FRAME! has a keylist which is storing a non-
+            // context block spec.  This will be changed to be compatible
+            // with the meta on object keylists.
+            //
+            if (!IS_FRAME(val) && VAL_CONTEXT_META(val))
+                QUEUE_MARK_CONTEXT_DEEP(VAL_CONTEXT_META(val));
 
-            // If CTX_STACKVARS is not NULL, the marking will be taken
-            // care of in the walk of the chunk stack (which may hold data for
-            // other stack-like REBVAL arrays that are not in contexts)
+            // For VAL_CONTEXT_FRAME, the FRM_CALL is either on the stack
+            // (in which case it's already taken care of for marking) or it
+            // has gone bad, in which case it should be ignored.
 
             break;
         }

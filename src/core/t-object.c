@@ -239,8 +239,6 @@ static REBCTX *Trim_Context(REBCTX *context)
     // Create new context based on the size found
     //
     context_new = Alloc_Context(copy_count);
-    VAL_CONTEXT_SPEC(CTX_VALUE(context_new)) = NULL;
-    VAL_CONTEXT_STACKVARS(CTX_VALUE(context_new)) = NULL;
 
     // Second pass: copy the values that were not skipped in the first pass
     //
@@ -331,6 +329,73 @@ REBINT PD_Context(REBPVS *pvs)
 
 
 //
+//  meta-of: native [
+//
+//  {Get a reference to the "meta" object associated with a value.}
+//
+//      value [any-context!]
+//  ]
+//
+REBNATIVE(meta_of)
+//
+// The first implementation of linking a "meta object" to another object
+// originates from the original module system--where it was called the
+// "module spec".  By moving it out of object REBVALs to the misc field of
+// a keylist, it becomes possible to change the meta object and have that
+// change seen by all references.
+//
+// As modules are still the first client of this meta information, it works
+// a similar way.  It is mutable by all references by default, unless
+// it is protected.
+//
+// !!! This feature is under development and expected to extend to functions
+// and possibly other types of values--both as the meta information, and
+// as being able to have the meta information.
+{
+    PARAM(1, value);
+
+    REBCTX *meta = VAL_CONTEXT_META(ARG(value));
+    if (!meta) return R_BLANK;
+
+    Val_Init_Object(D_OUT, meta);
+    return R_OUT;
+}
+
+
+//
+//  set-meta: native [
+//
+//  {Set "meta" object associated with all references to a value.}
+//
+//      value [any-context!]
+//      meta [any-context! blank!]
+//  ]
+//
+REBNATIVE(set_meta)
+{
+    PARAM(1, value);
+    PARAM(2, meta);
+
+    REBVAL *value = ARG(value);
+    REBVAL *meta = ARG(meta);
+
+    if (IS_BLANK(meta))
+        INIT_CONTEXT_META(VAL_CONTEXT(value), NULL);
+    else {
+        // !!! Putting a context value that has an `exit_from` into a single
+        // REBCTX* will only have the canon context value, which has no
+        // per-instance REBVAL bits.  Consider more holistic checks for this.
+        //
+        assert(VAL_CONTEXT_EXIT_FROM(value) == NULL);
+
+        INIT_CONTEXT_META(VAL_CONTEXT(value), VAL_CONTEXT(meta));
+    }
+
+    return R_VOID;
+}
+
+
+//
 //  REBTYPE: C
 // 
 // Handles object!, module!, and error! datatypes.
@@ -392,7 +457,10 @@ REBTYPE(Context)
             return R_OUT;
         }
 
-        if (target == REB_OBJECT && (IS_BLOCK(arg) || IS_BLANK(arg))) {
+        if (
+            (target == REB_OBJECT || target == REB_MODULE)
+            && (IS_BLOCK(arg) || IS_BLANK(arg))
+        ) {
             //
             // make object! [init]
             //
@@ -408,7 +476,7 @@ REBTYPE(Context)
                 IS_BLANK(arg) ? END_CELL : VAL_ARRAY_AT(arg),
                 src_context // parent
             );
-            Val_Init_Object(D_OUT, context);
+            Val_Init_Context(D_OUT, target, context);
 
             if (!IS_BLANK(arg)) {
                 //
@@ -478,7 +546,7 @@ REBTYPE(Context)
             //
             /* context = Alloc_Context(n);
             VAL_RESET_HEADER(CTX_VALUE(context), target);
-            CTX_SPEC(context) = NULL;
+            CTX_META(context) = NULL;
             CTX_BODY(context) = NULL; */
             Val_Init_Context(D_OUT, target, context);
             return R_OUT;
@@ -513,54 +581,11 @@ REBTYPE(Context)
             Val_Init_Object(D_OUT, VAL_CONTEXT(arg));
             return R_OUT;
         }
-        else if (target == REB_MODULE) {
-            REBVAL *item;
-            if (!IS_BLOCK(arg))
-                fail (Error_Bad_Make(REB_MODULE, arg));
-
-            item = VAL_ARRAY_AT(arg);
-
-            // Called from `make-module*`, as `to module! reduce [spec obj]`
-            //
-            // item[0] should be module spec
-            // item[1] should be module object
-            //
-            if (IS_END(item) || IS_END(item + 1))
-                fail (Error_Bad_Make(REB_MODULE, arg));
-            if (!IS_OBJECT(item))
-                fail (Error_Invalid_Arg(item));
-            if (!IS_OBJECT(item + 1))
-                fail (Error_Invalid_Arg(item + 1));
-
-            // !!! We must make a shallow copy of the context, otherwise there
-            // is no way to change the context type to module without wrecking
-            // the object passed in.
-
-            context = Copy_Context_Shallow(VAL_CONTEXT(item + 1));
-            VAL_CONTEXT_SPEC(CTX_VALUE(context)) = VAL_CONTEXT(item);
-            assert(VAL_CONTEXT_EXIT_FROM(CTX_VALUE(context)) == NULL);
-            VAL_RESET_HEADER(CTX_VALUE(context), REB_MODULE);
-
-            // !!! Again, not how this should be done but... if there is a
-            // self we set it to the module we just made.  (Here we tolerate
-            // it if there wasn't one in the object copied from.)
-            //
-            {
-                REBCNT self_index = Find_Word_In_Context(context, SYM_SELF, TRUE);
-                if (self_index != 0) {
-                    assert(CTX_KEY_CANON(context, self_index) == SYM_SELF);
-                    *CTX_VAR(context, self_index) = *CTX_VALUE(context);
-                }
-            }
-
-            Val_Init_Module(D_OUT, context);
-            return R_OUT;
-        }
         fail (Error_Bad_Make(target, arg));
 
     case A_APPEND:
         FAIL_IF_LOCKED_CONTEXT(VAL_CONTEXT(value));
-        if (!IS_OBJECT(value))
+        if (!IS_OBJECT(value) && !IS_MODULE(value))
             fail (Error_Illegal_Action(VAL_TYPE(value), action));
         Append_To_Context(VAL_CONTEXT(value), arg);
         *D_OUT = *D_ARG(1);
@@ -626,17 +651,8 @@ REBTYPE(Context)
 
     case A_REFLECT:
         action = What_Reflector(arg); // zero on error
-        if (action == OF_SPEC) {
-            //
-            // !!! Rename to META-OF
-            //
-            // We do not return this by copy because it belongs to the user
-            // constructs to manage.  If they wish to PROTECT it they may,
-            // but what we give back here can be modified.
-            //
-            Val_Init_Object(D_OUT, VAL_CONTEXT_SPEC(value));
-            return R_OUT;
-        }
+        if (action == OF_SPEC)
+            fail (Error(RE_MISC));
 
         // Adjust for compatibility with PICK:
         if (action == OF_VALUES) action = 2;

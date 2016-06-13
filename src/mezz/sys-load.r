@@ -17,6 +17,11 @@ REBOL [
 
         These functions are kept in a single file because they
         are inter-related.
+
+        The fledgling module system in R3-Alpha was never widely used or
+        tested, but there's a description page here:
+
+        http://www.rebol.com/r3/docs/concepts/modules-defining.html
     }
 ]
 
@@ -81,7 +86,7 @@ mixin?: func [
     mod [module! object!] "Module or spec header"
 ][
     ; Note: Unnamed modules DO NOT default to being mixins.
-    if module? mod [mod: spec-of mod]  ; Get the header object
+    if module? mod [mod: meta-of mod]  ; Get the header object
     true? all [
         find select mod 'options 'private
         ; If there are no exports, there's no difference
@@ -343,7 +348,7 @@ load-boot-exts: function [
             ]
 
             not delay [
-                hdr: spec-of mod: do compose [module (load-ext-module ext)]
+                hdr: meta-of mod: do compose [module (load-ext-module ext)]
             ]
 
             ; NOTE: This will error out if the code contains commands but
@@ -586,7 +591,7 @@ do-needs: function [
 
         ; Collect any mixins into the object (if we are doing that)
         if all [any-value? :mixins mixin? mod] [
-            resolve/extend/only mixins mod select spec-of mod 'exports
+            resolve/extend/only mixins mod select meta-of mod 'exports
         ]
         mod
     ]
@@ -757,7 +762,7 @@ load-module: function [
         ; Get info from preloaded or delayed modules
         void? :mod [mod: _]
         module? mod [
-            delay: no-share: _ hdr: spec-of mod
+            delay: no-share: _ hdr: meta-of mod
             assert/type [hdr/options [block! blank!]]
         ]
         block? mod [set/opt [hdr: code:] mod]
@@ -804,7 +809,7 @@ load-module: function [
         ] [
             ; Get existing module's info
             case/all [
-                module? :mod0 [hdr0: spec-of mod0] ; final header
+                module? :mod0 [hdr0: meta-of mod0] ; final header
                 block? :mod0 [hdr0: first mod0] ; cached preparsed header
                 ;assert/type [name0 word! hdr0 object! sum0 [binary! blank!]] blank
                 not tuple? ver0: :hdr0/version [ver0: 0.0.0]
@@ -979,7 +984,7 @@ import: function [
     case [
         ; Do nothing if /no-user or no exports.
         no-user  blank
-        not block? exports: select hdr: spec-of mod 'exports  blank
+        not block? exports: select hdr: meta-of mod 'exports  blank
         empty? exports  blank
 
         any [

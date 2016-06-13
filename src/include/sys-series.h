@@ -402,6 +402,7 @@ struct Reb_Series {
         REBOOL negated; // for bitsets (must be shared, can't be in REBVAL)
         REBARR *subfeed; // for *non-frame* VARARGS! ("array1") shared feed
         REBARR *spec; // functions can update descriptions outside canon value
+        REBCTX *meta; // paramlists and keylists can store a "meta" object
     } misc;
 
 #if !defined(NDEBUG)
@@ -1061,12 +1062,11 @@ struct Reb_Context {
 #define CTX_ROOTKEY(c)      ARR_HEAD(CTX_KEYLIST(c))
 #define CTX_TYPE(c)         VAL_TYPE(CTX_VALUE(c))
 
-#define INIT_CONTEXT_SPEC(c,s) \
-    (assert(!IS_FRAME(CTX_VALUE(c))), \
-        VAL_CONTEXT_SPEC(CTX_VALUE(c)) = (s))
+#define INIT_CONTEXT_META(c,s) \
+    (VAL_CONTEXT_META(CTX_VALUE(c)) = (s))
 
-#define CTX_SPEC(c) \
-    (VAL_CONTEXT_SPEC(CTX_VALUE(c)) + 0)
+#define CTX_META(c) \
+    (VAL_CONTEXT_META(CTX_VALUE(c)) + 0)
 
 #define INIT_CONTEXT_FRAME(c,f) \
     (assert(IS_FRAME(CTX_VALUE(c))), \

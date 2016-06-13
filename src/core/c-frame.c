@@ -99,53 +99,28 @@
 //
 REBCTX *Alloc_Context(REBCNT len)
 {
-    REBCTX *context;
-    REBARR *keylist;
-    REBVAL *value;
+    REBARR *varlist = Make_Array(len + 1); // size + room for ROOTVAR
+    SET_ARR_FLAG(varlist, ARRAY_FLAG_CONTEXT_VARLIST);
 
-    keylist = Make_Array(len + 1); // size + room for ROOTKEY (SYM_0)
-    context = AS_CONTEXT(Make_Array(len + 1));
-    SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST);
+    // varlist[0] is a value instance of the OBJECT!/MODULE!/PORT!/ERROR! we
+    // are building which contains this context.
 
-    // Note: cannot use Append_Frame for first word.
-
-#if !defined(NDEBUG)
-    //
-    // Type of the embedded object cell must be set to REB_OBJECT, REB_MODULE,
-    // REB_PORT, or REB_ERROR.  This information will be mirrored in instances
-    // of an object initialized with this context.
-    //
-    SET_TRASH_IF_DEBUG(CTX_VALUE(context));
-
-    // !!! Modules seemed to be using a CONTEXT-style series for a spec, as
-    // opposed to a simple array.  This is contentious with the plan for what
-    // an object spec will wind up looking like, and may end up being the
-    // "meta" information.
-    //
-    // !!! This should likely corrupt the data for the CTX_FUNC as well
-    //
-    CTX_VALUE(context)->payload.any_context.more.spec
-        =  cast(REBCTX*, 0xBAADF00D);
-
-    VAL_CONTEXT_EXIT_FROM(CTX_VALUE(context)) = cast(REBARR*, 0xBAADF00D);
-#endif
-
-    // context[0] is a value instance of the OBJECT!/MODULE!/PORT!/ERROR! we
-    // are building which contains this context
-    //
-    CTX_VALUE(context)->payload.any_context.context = context;
-    INIT_CTX_KEYLIST_UNIQUE(context, keylist);
-    MANAGE_ARRAY(keylist);
-
-    SET_END(CTX_VARS_HEAD(context));
-    SET_ARRAY_LEN(CTX_VARLIST(context), 1);
+    REBVAL *rootvar = Alloc_Tail_Array(varlist);
+    SET_TRASH_IF_DEBUG(rootvar);
+    rootvar->payload.any_context.context = AS_CONTEXT(varlist);
 
     // keylist[0] is the "rootkey" which we currently initialize to SYM_0
-    //
-    value = Alloc_Tail_Array(keylist);
-    Val_Init_Typeset(value, ALL_64, SYM_0);
 
-    return context;
+    REBARR *keylist = Make_Array(len + 1); // size + room for ROOTKEY
+    Val_Init_Typeset(Alloc_Tail_Array(keylist), ALL_64, SYM_0);
+    ARR_SERIES(keylist)->misc.meta = NULL; // GC sees meta object, must init
+
+    // varlists link keylists via REBSER.misc field, sharable hence managed
+
+    INIT_CTX_KEYLIST_UNIQUE(AS_CONTEXT(varlist), keylist);
+    MANAGE_ARRAY(keylist);
+
+    return AS_CONTEXT(varlist); // varlist pointer is context handle
 }
 
 
@@ -156,6 +131,8 @@ REBCTX *Alloc_Context(REBCNT len)
 //
 REBOOL Expand_Context_Keylist_Core(REBCTX *context, REBCNT delta)
 {
+    if (delta == 0) return FALSE;
+
     REBARR *keylist = CTX_KEYLIST(context);
     if (GET_ARR_FLAG(keylist, KEYLIST_FLAG_SHARED)) {
         //
@@ -167,9 +144,14 @@ REBOOL Expand_Context_Keylist_Core(REBCTX *context, REBCNT delta)
         // (If all shared copies break away in this fashion, then the last
         // copy of the dangling keylist will be GC'd.)
 
+        REBCTX *meta = ARR_SERIES(keylist)->misc.meta; // preserve meta object
+
         keylist = Copy_Array_Extra_Shallow(keylist, delta);
+        ARR_SERIES(keylist)->misc.meta = meta;
+
         MANAGE_ARRAY(keylist);
         INIT_CTX_KEYLIST_UNIQUE(context, keylist);
+
         return TRUE;
     }
 
@@ -177,10 +159,9 @@ REBOOL Expand_Context_Keylist_Core(REBCTX *context, REBCNT delta)
     // context, and no INIT_CTX_KEYLIST_SHARED was used by another context
     // to mark the flag indicating it's shared.  Extend it directly.
 
-    if (delta != 0) {
-        Extend_Series(ARR_SERIES(keylist), delta);
-        TERM_ARRAY(keylist);
-    }
+    Extend_Series(ARR_SERIES(keylist), delta);
+    TERM_ARRAY(keylist);
+
     return FALSE;
 }
 
@@ -304,6 +285,8 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
     assert(GET_ARR_FLAG(CTX_VARLIST(src), ARRAY_FLAG_CONTEXT_VARLIST));
     assert(GET_ARR_FLAG(CTX_KEYLIST(src), SERIES_FLAG_MANAGED));
 
+    REBCTX *meta = CTX_META(src); // preserve meta object (if any)
+
     if (extra == 0) {
         dest = AS_CONTEXT(Copy_Array_Shallow(CTX_VARLIST(src)));
         INIT_CTX_KEYLIST_SHARED(dest, CTX_KEYLIST(src));
@@ -318,6 +301,8 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
     SET_ARR_FLAG(CTX_VARLIST(dest), ARRAY_FLAG_CONTEXT_VARLIST);
 
     INIT_VAL_CONTEXT(CTX_VALUE(dest), dest);
+
+    INIT_CONTEXT_META(dest, meta); // will be placed on new keylist
 
     return dest;
 }
@@ -400,6 +385,8 @@ REBARR *Grab_Collected_Keylist_Managed(REBCTX *prior)
         keylist = Copy_Array_Shallow(BUF_COLLECT);
         MANAGE_ARRAY(keylist);
     }
+
+    ARR_SERIES(keylist)->misc.meta = NULL; // clear meta object (GC sees this)
 
     return keylist;
 }
@@ -789,7 +776,6 @@ REBCTX *Make_Selfish_Context_Detect(
     // context[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
     //
     CTX_VALUE(context)->payload.any_context.context = context;
-    VAL_CONTEXT_SPEC(CTX_VALUE(context)) = NULL;
     VAL_CONTEXT_EXIT_FROM(CTX_VALUE(context)) = NULL;
 
     SET_ARRAY_LEN(CTX_VARLIST(context), len);
@@ -827,7 +813,7 @@ REBCTX *Make_Selfish_Context_Detect(
     VAL_RESET_HEADER(CTX_VALUE(context), kind);
     assert(CTX_TYPE(context) == kind);
 
-    INIT_CONTEXT_SPEC(context, spec);
+    INIT_CONTEXT_META(context, spec);
     VAL_CONTEXT_EXIT_FROM(CTX_VALUE(context)) = exit_from;
 
     // We should have a SELF key in all cases here.  Set it to be a copy of
@@ -1120,8 +1106,13 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     // Allocate child (now that we know the correct size).  Obey invariant
     // that keylists are always managed.
     //
+    // !!! Review: should child start fresh with no meta information, or get
+    // the meta information held by parents?
+    //
     keylist = Copy_Array_Shallow(BUF_COLLECT);
     MANAGE_ARRAY(keylist);
+    ARR_SERIES(keylist)->misc.meta = NULL;
+
     child = AS_CONTEXT(Make_Array(ARR_LEN(keylist)));
     SET_ARR_FLAG(CTX_VARLIST(child), ARRAY_FLAG_CONTEXT_VARLIST);
 
@@ -1135,7 +1126,6 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     VAL_RESET_HEADER(value, CTX_TYPE(parent1));
     INIT_CTX_KEYLIST_UNIQUE(child, keylist);
     INIT_VAL_CONTEXT(value, child);
-    VAL_CONTEXT_SPEC(value) = NULL;
     VAL_CONTEXT_EXIT_FROM(value) = NULL;
 
     // Copy parent1 values:

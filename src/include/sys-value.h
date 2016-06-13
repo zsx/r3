@@ -1934,11 +1934,13 @@ struct Reb_Any_Context {
     // may be shared with an arbitrary number of other contexts.  Changing
     // the keylist involves making a copy if it is shared.
     //
+    // REB_MODULE depends on a property stored in the "meta" miscellaneous
+    // field of the keylist, which is another object's-worth of data *about*
+    // the module's contents (e.g. the processed header)
+    //
     REBCTX *context; // !!! TBD: change to REBARR*, rename as varlist
 
     union {
-        REBCTX *spec; // used by REB_MODULE
-
         // Used by REB_FRAME.  This is the call that corresponded to the
         // FRAME! at the time it was created.  The pointer becomes invalid if
         // the call ends, so the flags on the context must be consulted to
@@ -1957,7 +1959,8 @@ struct Reb_Any_Context {
 #define INIT_VAL_CONTEXT(v,c) \
     ((v)->payload.any_context.context = (c))
 
-#define VAL_CONTEXT_SPEC(v)         ((v)->payload.any_context.more.spec)
+#define VAL_CONTEXT_META(v) \
+    (ARR_SERIES(CTX_KEYLIST((v)->payload.any_context.context))->misc.meta)
 
 #define VAL_CONTEXT_EXIT_FROM(v) \
     ((v)->payload.any_context.exit_from)
@@ -1995,21 +1998,6 @@ struct Reb_Any_Context {
 
 #define Val_Init_Object(v,c) \
     Val_Init_Context((v), REB_OBJECT, (c))
-
-
-/***********************************************************************
-**
-**  MODULES - Code isolation units
-**
-**  http://www.rebol.com/r3/docs/concepts/modules-defining.html
-**
-***********************************************************************/
-
-#define VAL_MOD_SPEC(v)     VAL_CONTEXT_SPEC(v)
-#define VAL_MOD_BODY(v)     VAL_CONTEXT_BODY(v)
-
-#define Val_Init_Module(v,c) \
-    Val_Init_Context((v), REB_MODULE, (c))
 
 
 /***********************************************************************

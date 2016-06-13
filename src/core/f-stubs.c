@@ -476,17 +476,18 @@ void Val_Init_Context(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
 
     assert(GET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST));
 
-    // !!! Historically spec is a frame of an object for a "module spec",
-    // may want to use another word of that and make a block "spec"
-    //
-    if (IS_FRAME(CTX_VALUE(context))) {
+    if (IS_FRAME(CTX_VALUE(context)))
         assert(IS_FUNCTION(CTX_FRAME_FUNC_VALUE(context)));
-    }
-    else
-        assert(
-            NOT(CTX_SPEC(context))
-            || ANY_CONTEXT(CTX_VALUE(CTX_SPEC(context)))
-        );
+
+    // !!! meta information currently must be an ANY-CONTEXT or NULL.  Meta
+    // information on frames is temporarily not supported, as the "meta"
+    // information of VAL_FUNC_SPEC lives on that keylist.
+    //
+    assert(
+        IS_FRAME(CTX_VALUE(context))
+        || !CTX_META(context)
+        || ANY_CONTEXT(CTX_VALUE(CTX_META(context)))
+    );
 #endif
 
     // Some contexts (stack frames in particular) start out unmanaged, and

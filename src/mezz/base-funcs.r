@@ -268,7 +268,7 @@ module: func [
     body [block!] "The body block of the module (modified)"
     /mixin "Mix in words from other modules"
     mixins [object!] "Words collected into an object"
-    /local obj hidden w mod
+    /local hidden w mod
 ][
     mixins: to-value :mixins
 
@@ -295,11 +295,13 @@ module: func [
         spec/options [block! blank!]
     ]
 
-    ; Module is an object during its initialization:
-    obj: make object! 7 ; arbitrary starting size
+    ; In Ren-C, MAKE MODULE! acts just like MAKE OBJECT! due to the generic
+    ; facility for SET-META.
+
+    mod: make module! 7 ; arbitrary starting size
 
     if find spec/options 'extension [
-        append obj 'lib-base ; specific runtime values MUST BE FIRST
+        append mod 'lib-base ; specific runtime values MUST BE FIRST
     ]
 
     unless spec/type [spec/type: 'module] ; in case not set earlier
@@ -348,11 +350,11 @@ module: func [
     ]
 
     ; Add hidden words next to the context (performance):
-    if block? hidden [bind/new hidden obj]
+    if block? hidden [bind/new hidden mod]
 
     if block? hidden [protect/hide/words hidden]
 
-    mod: to module! reduce [spec obj]
+    set-meta mod spec
 
     ; Add exported words at top of context (performance):
     if block? select spec 'exports [bind/new spec/exports mod]

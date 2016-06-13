@@ -308,10 +308,6 @@ void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type)
         Val_Init_Object(val, cast(REBCTX*, arg->addr));
         break;
 
-    case RXT_MODULE:
-        Val_Init_Module(val, cast(REBCTX*, arg->addr));
-        break;
-
     default:
         fail(Error(RE_BAD_CMD_ARGS));
     }
