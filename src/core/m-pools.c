@@ -907,8 +907,6 @@ REBCNT Series_Allocation_Unpooled(REBSER *series)
 //
 REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
 {
-    REBSER *s;
-
     // PRESERVE flag only makes sense for Remake_Series, where there is
     // previous data to be kept.
     assert(!(flags & MKS_PRESERVE));
@@ -924,7 +922,7 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
 
 //  if (GC_TRIGGER) Recycle();
 
-    s = cast(REBSER*, Make_Node(SER_POOL));
+    REBSER *s = cast(REBSER*, Make_Node(SER_POOL));
 
     if ((GC_Ballast -= sizeof(REBSER)) <= 0) SET_SIGNAL(SIG_RECYCLE);
 
@@ -936,6 +934,8 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
     //
     s->guard = cast(REBINT*, malloc(sizeof(*s->guard)));
     free(s->guard);
+
+    s->misc.keylist = cast(REBARR*, 0xBAD3BAD3);
 #endif
 
     // The trick which is used to allow s->info to pose as an IS_END() marker
@@ -1450,9 +1450,10 @@ void GC_Kill_Series(REBSER *series)
     }
 
     series->info.bits = 0; // includes width
-    //series->data = BAD_MEM_PTR;
-    //series->tail = 0xBAD2BAD2;
-    //series->misc.size = 0xBAD3BAD3;
+
+#if !defined(NDEBUG)
+    series->misc.keylist = cast(REBARR*, 0xBAD3BAD3);
+#endif
 
     Free_Node(SER_POOL, cast(REBNOD*, series));
 
