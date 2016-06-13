@@ -213,14 +213,14 @@ handle_subfeed:
     assert(sym_func != SYM_0);
     assert(op != VARARG_OP_FIRST);
 
+    if (IS_BAR(f->value))
+        goto return_end_flag; // all functions, including varargs, stop at `|`
+
     // Based on the quoting class of the parameter, fulfill the varargs from
     // whatever information was loaded into `c` as the "feed" for values.
     //
     switch (pclass) {
     case PARAM_CLASS_NORMAL:
-        if (IS_BAR(f->value))
-            goto return_end_flag; // normal varargs stop at `|`
-
         if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
 
         DO_NEXT_REFETCH_MAY_THROW(
@@ -238,12 +238,10 @@ handle_subfeed:
     case PARAM_CLASS_HARD_QUOTE:
         if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
 
-        QUOTE_NEXT_REFETCH(out, f); // hard quoted varargs consume `|`
+        QUOTE_NEXT_REFETCH(out, f);
         break;
 
     case PARAM_CLASS_SOFT_QUOTE:
-        if (IS_BAR(f->value))
-            goto return_end_flag; // soft-quoted varargs stop at `|`
 
         if (
             IS_GROUP(f->value)
