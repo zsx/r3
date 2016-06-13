@@ -372,17 +372,6 @@ enum {
     PATH_OPT_SRC_IS_DIR         = 1 << 2
 };
 
-// Reflector words (words-of, body-of, etc.)
-enum Reb_Reflectors {
-    OF_BASE,
-    OF_WORDS, // to be compatible with R2
-    OF_BODY,
-    OF_SPEC,
-    OF_VALUES,
-    OF_TYPES,
-    OF_MAX
-};
-
 // Load option flags:
 enum {
     LOAD_ALL = 0,       // Returns header along with script if present

@@ -735,21 +735,3 @@ REBARR *Collect_Set_Words(REBVAL *val)
 
     return array;
 }
-
-
-//
-//  What_Reflector: C
-//
-REBINT What_Reflector(REBVAL *word)
-{
-    if (IS_WORD(word)) {
-        switch (VAL_WORD_SYM(word)) {
-        case SYM_SPEC:   return OF_SPEC;
-        case SYM_BODY:   return OF_BODY;
-        case SYM_WORDS:  return OF_WORDS;
-        case SYM_VALUES: return OF_VALUES;
-        case SYM_TYPES:  return OF_TYPES;
-        }
-    }
-    return 0;
-}

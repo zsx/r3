@@ -649,20 +649,19 @@ REBTYPE(Context)
         return R_OUT;
     }
 
-    case A_REFLECT:
-        action = What_Reflector(arg); // zero on error
-        if (action == OF_SPEC)
-            fail (Error(RE_MISC));
+    case A_REFLECT: {
+        REBSYM canon = VAL_WORD_CANON(arg);
 
-        // Adjust for compatibility with PICK:
-        if (action == OF_VALUES) action = 2;
-        else if (action == OF_BODY) action = 3;
-
-        if (action < 1 || action > 3)
+        switch (canon) {
+        case SYM_WORDS: action = 1; break;
+        case SYM_VALUES: action = 2; break;
+        case SYM_BODY: action = 3; break;
+        default:
             fail (Error_Cannot_Reflect(VAL_TYPE(value), arg));
+        }
 
         Val_Init_Block(D_OUT, Context_To_Array(VAL_CONTEXT(value), action));
-        return R_OUT;
+        return R_OUT; }
 
     case A_TRIM:
         if (Find_Refines(frame_, ALL_TRIM_REFS)) {

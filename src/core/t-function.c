@@ -130,33 +130,26 @@ REBTYPE(Function)
         Clonify_Function(D_OUT);
         return R_OUT;
 
-    case A_REFLECT:
-        if (
-            VAL_FUNC_CLASS(value) == FUNC_CLASS_CALLBACK
-            && VAL_WORD_CANON(arg) == SYM_ADDR
-        ) {
-            // !!! Temp...there was no OF_SPEC when integrating MT_XXXs
-            //
-            SET_INTEGER(D_OUT, cast(REBUPT, VAL_ROUTINE_DISPATCHER(value)));
-            return R_OUT;
-        }
+    case A_REFLECT: {
+        REBSYM canon = VAL_WORD_CANON(arg);
 
-        if (
-            VAL_FUNC_CLASS(value) == FUNC_CLASS_ROUTINE
-            && VAL_WORD_CANON(arg) == SYM_ADDR
-        ) {
-            // !!! Same as above, temporary while exploring solutions.
-            //
-            SET_INTEGER(D_OUT, cast(REBUPT, VAL_ROUTINE_FUNCPTR(value)));
-            return R_OUT;
-        }
+        switch (canon) {
+        case SYM_ADDR:
+            if (VAL_FUNC_CLASS(value) == FUNC_CLASS_CALLBACK) {
+                SET_INTEGER(D_OUT, cast(REBUPT, VAL_ROUTINE_DISPATCHER(value)));
+                return R_OUT;
+            }
+            if (VAL_FUNC_CLASS(value) == FUNC_CLASS_ROUTINE) {
+                SET_INTEGER(D_OUT, cast(REBUPT, VAL_ROUTINE_FUNCPTR(value)));
+                return R_OUT;
+            }
+            break;
 
-        switch (What_Reflector(arg)) {
-        case OF_WORDS:
+        case SYM_WORDS:
             Val_Init_Block(D_OUT, List_Func_Words(value));
             return R_OUT;
 
-        case OF_BODY:
+        case SYM_BODY:
             switch (VAL_FUNC_CLASS(value)) {
             case FUNC_CLASS_NATIVE: {
                 REBCNT n = 0;
@@ -234,7 +227,7 @@ REBTYPE(Function)
             }
             break;
 
-        case OF_SPEC:
+        case SYM_SPEC:
             Val_Init_Block(
                 D_OUT, Copy_Array_Deep_Managed(VAL_FUNC_SPEC(value))
             );
@@ -242,7 +235,7 @@ REBTYPE(Function)
             Unbind_Values_Deep(VAL_ARRAY_HEAD(D_OUT));
             return R_OUT;
 
-        case OF_TYPES: {
+        case SYM_TYPES: {
             REBARR *copy = Make_Array(VAL_FUNC_NUM_PARAMS(value));
             REBVAL *param;
             REBVAL *typeset;
@@ -269,7 +262,7 @@ REBTYPE(Function)
         default:
             fail (Error_Cannot_Reflect(VAL_TYPE(value), arg));
         }
-        break;
+        break; }
     }
 
     fail (Error_Illegal_Action(VAL_TYPE(value), action));

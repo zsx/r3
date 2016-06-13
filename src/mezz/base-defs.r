@@ -9,38 +9,101 @@ REBOL [
         Licensed under the Apache License, Version 2.0
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
+    Description: {
+        This code is evaluated just after actions, natives, sysobj, and
+        other lower level definitions. This file intializes a minimal working
+        environment that is used for the rest of the boot.
+    }
     Note: {
-        This code is evaluated just after actions, natives, sysobj, and other lower
-        levels definitions. This file intializes a minimal working environment
-        that is used for the rest of the boot.
+        Any exported SET-WORD!s must be themselves "top level". This hampers
+        procedural code here that would like to use tables to avoid repeating
+        itself.  This means variadic approaches have to be used that quote
+        SET-WORD!s living at the top level, inline after the function call.
     }
 ]
 
-;-- Create the reflector functions (e.g. spec-of, body-of, ...)
+; Words for BLANK! and BAR!, for those who don't like symbols
 
-; Must be defined in A108 (no forward refs)
-spec-of:
-body-of: ;-- real BODY-OF defined in %mezz-func.r
-words-of:
-values-of:
-types-of:
-    blank
+blank: _
+bar: '|
 
-use [word title] [
-    for-each name system/catalog/reflectors [
-        word: make word! ajoin [name "-of"]
-        word: bind/new word 'reflect
-        title: ajoin ["Returns a copy of the " name " of a " switch/default name [
-            spec        ["function or module"]
-            values      ["object or module"]
-            types title ["function"] ; title should include module Title too...
-            addr ["struct or callback"]
-        ] ["function, object, or module"]] ; body, words
-        set word func
-            reduce [title 'value]
-            compose [reflect :value (to lit-word! name)]
+
+; There is no Rebol value representing void, so it cannot be assigned as
+; a word to a literal.  This VOID function is an alternative to `()`
+
+void: does []
+
+
+eval func [
+    {Make reflector functions (variadic to quote "top-level" words)}
+    :set-word... [[ set-word!]]
+    :divider... [[word!]]
+    :categories... [[string!]]
+    /local set-word categories name
+][
+    while [any-value? set-word: take set-word...] [
+        assert ['-- = take divider...]
+        categories: take categories...
+
+        ; extract XXX string from XXX-OF
+        name: head clear find (spelling-of set-word) {-of}
+
+        set set-word make function! compose/deep [
+            [
+                (ajoin [{Returns a copy of the } name { of a } categories {.}])
+                value
+            ][
+                reflect :value (to lit-word! name)
+            ]
+        ]
     ]
 ]
+    spec-of: -- {function, object, or module}
+    body-of: -- {function or module} ; %mezz-func.r overwrites
+    words-of: -- {function, object, or module}
+    values-of: -- {object or module}
+    types-of: -- {function}
+    addr-of: -- {struct or callback}
+    title-of: -- {function} ; should work for module
+|
+
+
+eval func [
+    {Make the ANY-XXX? typeset testers (variadic to quote top-level words)}
+    :set-word... [[set-word!]]
+    :divider... [[word!]]
+    :summary... [[string!]]
+    /local set-word summary typeset-word typeset
+][
+    while [any-value? set-word: take set-word...] [
+        assert ['-- = take divider...]
+        summary: take summary...
+
+        ; any-xxx? => any-xxx!, needs to be bound to fetch typeset
+        typeset-word: to word! head change (find spelling-of set-word "?") "!"
+        typeset-word: bind typeset-word set-word
+        assert [typeset? typeset: get typeset-word]
+
+        set set-word make function! compose/deep [
+            [
+                (ajoin [{Return TRUE if value is } summary {.}])
+                value [_ any-value!]
+            ][
+                find (typeset) type-of :value
+            ]
+        ]
+    ]
+]
+    any-string?: -- "any type of string"
+    any-word?: -- "any type of word"
+    any-path?: -- "any type of path"
+    any-context?: -- "any type of context"
+    any-number?: -- "a number (integer or decimal)"
+    any-series?: -- "any type of series"
+    any-scalar?: -- "any type of scalar"
+    any-array?: -- "a series of Rebol values"
+|
+
 
 decode-url: _ ; set in sys init
 
@@ -97,48 +160,6 @@ system/options/result-types: make typeset! [
 ]
 
 
-;-- Create "To-Datatype" conversion functions early in bootstrap:
-
-any-string?: func [
-    "Return TRUE if value is any type of string."
-    value [<opt> any-value!]
-][find any-string! type-of :value]
-
-any-word?: func [
-    "Return TRUE if value is any type of word."
-    value [<opt> any-value!]
-][find any-word! type-of :value]
-
-any-path?: func [
-    "Return TRUE if value is any type of path."
-    value [<opt> any-value!]
-][find any-path! type-of :value]
-
-any-context?: func [
-    "Return TRUE if value is an OBJECT!, ERROR!, PORT!, or MODULE!"
-    value [<opt> any-value!]
-][find any-context! type-of :value]
-
-any-number?: func [
-    "Return TRUE if value is a number (integer or decimal)."
-    value [<opt> any-value!]
-][find any-number! type-of :value]
-
-any-series?: func [
-    "Return TRUE if value is any type of series."
-    value [<opt> any-value!]
-][find any-series! type-of :value]
-
-any-scalar?: func [
-    "Return TRUE if value is any type of scalar."
-    value [<opt> any-value!]
-][find any-scalar! type-of :value]
-
-any-array?: func [
-    "Return TRUE if value is a series containing all the same type."
-    value [<opt> any-value!]
-][find any-array! type-of :value]
-
 ok?: func [
     "Returns TRUE on all values that are not ERROR!"
     value [<opt> any-value!]
@@ -146,17 +167,6 @@ ok?: func [
     not error? :value
 ]
 
-; Words for BLANK! and BAR! (for those who don't like symbols)...
-
-blank: _
-bar: '|
-
-; void is a little bit dodgy because it's not an alias for a value (e.g. you
-; GET it and you'll have a function).  But it cannot be a value retrieved via
-; a word because void isn't a value.  Still, having it as a word might
-; be considered by some to be more literate than `()`.
-
-void: does []
 
 ; Experimental shorthand for ANY-VALUE? test (will also be VALUE?)
 ;

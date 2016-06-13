@@ -657,21 +657,18 @@ REBTYPE(Map)
         return R_OUT;
 
     case A_REFLECT: {
-        REBARR *array;
+        REBCNT canon = VAL_WORD_CANON(arg);
 
-        action = What_Reflector(arg); // zero on error
-
-        // Adjust for compatibility with PICK:
-        if (action == OF_VALUES)
+        if (canon == SYM_VALUES)
             n = 1;
-        else if (action == OF_WORDS)
+        else if (canon == SYM_WORDS)
             n = -1;
-        else if (action == OF_BODY)
+        else if (canon == SYM_BODY)
             n = 0;
         else
             fail (Error_Cannot_Reflect(REB_MAP, arg));
 
-        array = Map_To_Array(map, n);
+        REBARR *array = Map_To_Array(map, n);
         Val_Init_Block(D_OUT, array);
         return R_OUT;
     }

@@ -70,9 +70,9 @@ REBTYPE(Datatype)
 
     switch (action) {
 
-    case A_REFLECT:
-        n = What_Reflector(arg); // zero on error
-        if (n == OF_SPEC) {
+    case A_REFLECT: {
+        REBSYM canon = VAL_WORD_CANON(arg);
+        if (canon == SYM_SPEC) {
             //
             // The "type specs" were loaded as an array, but this reflector
             // wants to give back an object.  Combine the array with the
@@ -112,7 +112,7 @@ REBTYPE(Datatype)
         }
         else
             fail (Error_Cannot_Reflect(VAL_TYPE(value), arg));
-        break;
+        break;}
 
     case A_MAKE:
     case A_TO:
