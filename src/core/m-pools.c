@@ -932,10 +932,16 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
     // kind of guard for tracking the call stack at the point of allocation
     // if we find some undesirable condition that we want a trace from
     //
-    s->guard = cast(REBINT*, malloc(sizeof(*s->guard)));
+    s->guard = cast(int*, malloc(sizeof(*s->guard)));
     free(s->guard);
 
     s->misc.keylist = cast(REBARR*, 0xBAD3BAD3);
+
+    // It's necessary to have another value in order to round out the size of
+    // the pool node so pointer-aligned entries are given out, so might as well
+    // make that hold a useful value--the tick count when the series was made
+    //
+    s->do_count = TG_Do_Count;
 #endif
 
     // The trick which is used to allow s->info to pose as an IS_END() marker
@@ -1497,6 +1503,10 @@ void Free_Series(REBSER *series)
         Debug_Fmt("Trying to Free_Series() on a series managed by GC.");
         Panic_Series(series);
     }
+
+    // Update the do count to be the count on which the series was freed
+    //
+    series->do_count = TG_Do_Count;
 #endif
 
     // Note: Code repeated in Manage_Series()
