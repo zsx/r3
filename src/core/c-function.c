@@ -1139,7 +1139,7 @@ REBOOL Specialize_Function_Throws(
     REBVAL *param = CTX_KEYS_HEAD(frame_ctx);
     REBVAL *arg = CTX_VARS_HEAD(frame_ctx);
     for (; NOT_END(param); ++param, ++arg) {
-        if (!IS_VOID(arg))
+        if (IS_VOID(arg))
             DS_PUSH(param);
     }
 
