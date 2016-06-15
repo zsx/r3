@@ -69,6 +69,7 @@ REBIXO Do_Vararg_Op_Core(
     REBVAL *out,
     REBARR *feed, // may be varlist or 1-element-long array w/shared value
     const REBVAL *param,
+    REBVAL *arg, // for updating VALUE_FLAG_EVALUATED
     REBSYM sym_func, // symbol of the function invocation param belongs to
     enum Reb_Vararg_Op op
 ) {
@@ -141,6 +142,7 @@ handle_subfeed:
             out,
             *subfeed_addr,
             param,
+            arg,
             sym_func,
             op
         );
@@ -233,12 +235,18 @@ handle_subfeed:
 
         if (THROWN(out))
             return THROWN_FLAG;
+
+        if (GET_VAL_FLAG(out, VALUE_FLAG_EVALUATED))
+            SET_VAL_FLAG(arg, VALUE_FLAG_EVALUATED);
+        else
+            CLEAR_VAL_FLAG(arg, VALUE_FLAG_EVALUATED);
         break;
 
     case PARAM_CLASS_HARD_QUOTE:
         if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
 
         QUOTE_NEXT_REFETCH(out, f);
+        CLEAR_VAL_FLAG(arg, VALUE_FLAG_EVALUATED);
         break;
 
     case PARAM_CLASS_SOFT_QUOTE:
@@ -253,12 +261,19 @@ handle_subfeed:
             if (DO_VALUE_THROWS(out, f->value))
                 return THROWN_FLAG;
 
+            if (GET_VAL_FLAG(out, VALUE_FLAG_EVALUATED))
+                SET_VAL_FLAG(arg, VALUE_FLAG_EVALUATED);
+            else
+                CLEAR_VAL_FLAG(arg, VALUE_FLAG_EVALUATED);
+
             FETCH_NEXT_ONLY_MAYBE_END(f);
         }
         else { // not a soft-"exception" case, quote ordinarily
             if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
 
             QUOTE_NEXT_REFETCH(out, f);
+
+            CLEAR_VAL_FLAG(arg, VALUE_FLAG_EVALUATED);
         }
         break;
 
@@ -356,6 +371,7 @@ REBIXO Do_Vararg_Op_May_Throw(
             out,
             VAL_VARARGS_ARRAY1(varargs), // single-element array w/shared value
             &fake_param,
+            &fake_param, // just need dummy place to write VALUE_FLAG_EVALUATED
             SYM_0, // should never be used, as no errors possible (?)
             op
         );
@@ -372,6 +388,7 @@ REBIXO Do_Vararg_Op_May_Throw(
         out,
         CTX_VARLIST(VAL_VARARGS_FRAME_CTX(varargs)),
         VAL_VARARGS_PARAM(varargs), // distinct from the frame->param!
+        VAL_VARARGS_ARG(varargs), // may have changed since function started
         SYM_0, // have it fetch symbol from frame if call is active
         op
     );

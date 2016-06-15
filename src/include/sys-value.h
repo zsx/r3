@@ -2320,6 +2320,14 @@ struct Reb_Varargs {
     // array grew, revisit the rules on holding pointers into paramlists.
     //
     const REBVAL *param;
+
+    // Similar to the param, the arg is only good for the lifetime of the
+    // FRAME!...but even less so, because VARARGS! can (currently) be
+    // overwritten with another value in the function frame at any point.
+    // Despite this, we proxy the VALUE_FLAG_EVALUATED from the last TAKE
+    // onto the argument to reflect its *argument* status.
+    //
+    REBVAL *arg;
 };
 
 #define VAL_VARARGS_FRAME_CTX(v) \
@@ -2330,6 +2338,7 @@ struct Reb_Varargs {
 #define VAL_VARARGS_ARRAY1(v) ((v)->payload.varargs.feed.array1)
 
 #define VAL_VARARGS_PARAM(v) ((v)->payload.varargs.param)
+#define VAL_VARARGS_ARG(v) ((v)->payload.varargs.arg)
 
 // The subfeed is either the varlist of the frame of another varargs that is
 // being chained at the moment, or the `array1` of another varargs.  To

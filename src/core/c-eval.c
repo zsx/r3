@@ -1069,6 +1069,7 @@ reevaluate:
                 f->arg->payload.varargs.feed.varlist = f->varlist;
 
                 VAL_VARARGS_PARAM(f->arg) = f->param; // type checks on TAKE
+                VAL_VARARGS_ARG(f->arg) = f->arg; // traces back, might change
                 goto continue_arg_loop;
             }
 

@@ -306,7 +306,7 @@ REBOOL Make_Block_Type_Throws(
 
         do {
             REBIXO indexor = Do_Vararg_Op_Core(
-                out, feed, param, SYM_0, VARARG_OP_TAKE
+                out, feed, param, arg, SYM_0, VARARG_OP_TAKE
             );
 
             if (indexor == THROWN_FLAG) {
