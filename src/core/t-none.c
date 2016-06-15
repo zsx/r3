@@ -79,6 +79,11 @@ REBTYPE(Unit)
     case A_TAKE:
         return R_BLANK;
 
+    case A_COPY:
+        if (IS_BLANK(val))
+            return R_BLANK; // perhaps allow COPY on any type, as well.
+        break;
+
     default:
         break;
     }

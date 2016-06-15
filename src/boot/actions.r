@@ -195,7 +195,7 @@ pick: action [
 
 find: action [
     {Searches for a value; for series returns where found, else blank.}
-    series [any-series! map! gob! port! bitset! typeset! object! blank!]
+    series [any-series! any-context! map! gob! bitset! typeset! blank!]
     value [<opt> any-value!]
     /part {Limits the search to a given length or position}
     limit [any-number! any-series! pair!]
@@ -214,7 +214,7 @@ find: action [
 
 select: action [
     {Searches for a value; returns the value that follows, else void.}
-    series [any-series! port! map! object! blank!]
+    series [any-series! any-context! map! blank!]
     value [<opt> any-value!]
     /part {Limits the search to a given length or position}
     limit [any-number! any-series! pair!]
@@ -253,7 +253,8 @@ to: action [
 
 copy: action [
     {Copies a series, object, or other value.}
-    value [any-series! port! map! object! bitset! function!] {At position}
+    value [blank! any-series! port! map! object! bitset! function!]
+        {At position}
     /part {Limits to a given length or position}
     limit [any-number! any-series! pair!]
     /deep {Also copies series values within the block}
