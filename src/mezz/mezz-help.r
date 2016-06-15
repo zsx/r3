@@ -55,7 +55,7 @@ help: procedure [
         ; Was just `>> help` or `do [help]` or similar.
         ; Print out generic help message.
         ;
-        print trim/auto {
+        print trim/auto copy {
             Use HELP to see built-in info:
 
                 help insert
@@ -306,7 +306,7 @@ about: func [
 usage: func [
     "Prints command-line arguments."
 ][
-    print trim/auto {
+    print trim/auto copy {
     Command line usage:
 
         REBOL |options| |script| |arguments|

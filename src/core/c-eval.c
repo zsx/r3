@@ -1083,6 +1083,7 @@ reevaluate:
                 if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                     fail (Error_No_Arg(FRM_LABEL(f), f->param));
 
+                SET_VOID(f->arg);
                 goto continue_arg_loop;
             }
 
@@ -1094,6 +1095,7 @@ reevaluate:
                 if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                     fail (Error(RE_EXPRESSION_BARRIER));
 
+                SET_VOID(f->arg);
                 goto continue_arg_loop;
             }
 
