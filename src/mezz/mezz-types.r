@@ -43,12 +43,10 @@ use [word] [
             word: in lib word
             blank? get word
         ][
-            ; Add doc line only if this build has autodocs:
-            set word func either string? first spec-of :make [
-                reduce [reform ["Converts to" form type "value."] 'value]
-            ][
-                [value]
-            ] compose [to (type) :value]
+            set word make function! compose/deep [
+                [(ajoin ["Converts to" form type "value."]) value]
+                [to (type) :value]
+            ]
         ]
     ]
 ]

@@ -58,7 +58,7 @@ emit-proto: func [proto] [
 ]
 
 process: func [file] [
-    if verbose [?? file]
+    if verbose [probe [file]]
     source.text: read join core-folder the-file: file
     if r3 [source.text: deline to-string source.text]
     proto-parser/emit-proto: :emit-proto

@@ -16,45 +16,6 @@ REBOL [
     }
 ]
 
-probe: func [
-    {Debug print a molded value and returns that same value.}
-    value [<opt> any-value!]
-][
-    print mold :value
-    :value
-]
-
-??: func [
-    {Debug print a word, path, or block of such, followed by its molded value.}
-    'name "Word, path, and block to obtain values."
-    /local out
-][
-    case [
-        any [
-            word? :name
-            path? :name
-        ][
-            print ajoin [name ": " mold name: get :name]
-        ]
-        block? :name [
-            out: make string! 50
-            for-each word name [
-                either any [
-                    word? :word
-                    path? :word
-                ][
-                    repend out [word ": " mold get word "  "]
-                ][
-                    repend out [mold word " "]
-                ]
-            ]
-            print out
-        ]
-        true [probe :name]
-    ]
-    :name
-]
-
 boot-print: func [
     "Prints during boot when not quiet."
     data

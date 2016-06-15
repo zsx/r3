@@ -892,6 +892,17 @@ set 'r3-legacy* func [] [
                 | value: either block? :rest [reduce :rest] [rest]
             ]
         ])
+
+        ??: (func [
+            {Debug print word, path, or block of such, followed by value.}
+            'name "Word, path, and block to obtain values."
+            /local out
+        ][
+            if not block? name [
+                name: compose [(name)]
+            ]
+            probe semiquote name ;-- signal to probe to use dialect form
+        ])
     ]
 
     ;

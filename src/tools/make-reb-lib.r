@@ -159,7 +159,7 @@ emit-proto: func [
 ]
 
 process: func [file] [
-    if verbose [?? file]
+    if verbose [probe [file]]
     data: read the-file: file
     data: to-string data
 
