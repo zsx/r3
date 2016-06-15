@@ -1891,7 +1891,16 @@ static void Do_Core_Exit_Checks_Debug(struct Reb_Frame *f) {
         // last value for processing (and not signaled end) but on the
         // next fetch we *will* signal an end.
         //
-        assert(f->indexor <= ARR_LEN(f->source.array));
+        assert(
+            (f->indexor <= ARR_LEN(f->source.array))
+            || (
+                (
+                    (f->eval_fetched && IS_END(f->eval_fetched))
+                    || THROWN(f->out)
+                )
+                && f->indexor == ARR_LEN(f->source.array) + 1
+            )
+        );
     }
 
     if (f->flags & DO_FLAG_TO_END)

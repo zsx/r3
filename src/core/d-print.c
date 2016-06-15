@@ -1218,6 +1218,7 @@ REBOOL Prin_GC_Safe_Value_Throws(
             delimiter,
             0 // depth
         )) {
+            Drop_Mold(&mo);
             return TRUE;
         }
     }
