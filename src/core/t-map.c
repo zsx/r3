@@ -68,15 +68,15 @@ REBINT CT_Map(const REBVAL *a, const REBVAL *b, REBINT mode)
 //  Make_Map: C
 // 
 // Makes a MAP block (that holds both keys and values).
-// Size is the number of key-value pairs.
+// Capacity is measured in key-value pairings.
 // A hash series is also created.
 //
-static REBMAP *Make_Map(REBINT size)
+static REBMAP *Make_Map(REBCNT capacity)
 {
-    REBARR *array = Make_Array(size * 2);
+    REBARR *array = Make_Array((capacity * 2) + 1); // + 1 for terminator
     REBMAP *map = AS_MAP(array);
 
-    MAP_HASHLIST(map) = Make_Hash_Sequence(size);
+    MAP_HASHLIST(map) = Make_Hash_Sequence(capacity);
 
     return map;
 }
@@ -376,9 +376,13 @@ REBINT PD_Map(REBPVS *pvs)
 //
 //  Append_Map: C
 //
-static void Append_Map(REBMAP *map, REBVAL *any_array, REBCNT len)
-{
-    REBVAL *item = VAL_ARRAY_AT(any_array);
+static void Append_Map(
+    REBMAP *map,
+    REBARR *any_array,
+    REBCNT index,
+    REBCNT len
+) {
+    REBVAL *item = ARR_AT(any_array, index);
     REBCNT n = 0;
 
     while (n < len && NOT_END(item)) {
@@ -419,17 +423,25 @@ static void Append_Map(REBMAP *map, REBVAL *any_array, REBCNT len)
 //
 REBOOL MT_Map(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 {
-    REBCNT n;
-    REBMAP *map;
+    REBARR* array;
+    REBCNT len;
+    REBCNT index;
 
-    if (!IS_BLOCK(data) && !IS_MAP(data)) return FALSE;
+    if (IS_MAP(data)) {
+        array = MAP_PAIRLIST(VAL_MAP(data));
+        index = 0;// maps don't have an index/"position"
+        len = ARR_LEN(array);
+    }
+    else if (IS_BLOCK(data)) {
+        array = VAL_ARRAY(data);
+        index = VAL_INDEX(data);
+        len = VAL_ARRAY_LEN_AT(data);
+    }
+    else
+        return FALSE;
 
-    n = VAL_ARRAY_LEN_AT(data);
-
-    map = Make_Map(1 + n / 3); // prudential allocation, think at BARs: map[1 2 | 3 4 | ...]
-
-    Append_Map(map, data, UNKNOWN);
-
+    REBMAP *map = Make_Map(len / 2); // [key value key value...] + END
+    Append_Map(map, array, index, UNKNOWN);
     Rehash_Map(map);
 
     Val_Init_Map(out, map);
@@ -596,7 +608,12 @@ REBTYPE(Map)
             n = Int32(D_ARG(AN_COUNT));
             if (n <= 0) break;
         }
-        Append_Map(map, arg, Partial1(arg, D_ARG(AN_LIMIT)));
+        Append_Map(
+            map,
+            VAL_ARRAY(arg),
+            VAL_INDEX(arg),
+            Partial1(arg, D_ARG(AN_LIMIT))
+        );
         return R_OUT;
 
     case A_REMOVE:
