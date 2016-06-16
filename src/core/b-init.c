@@ -519,9 +519,10 @@ REBNATIVE(action)
     Make_Native(
         D_OUT,
         VAL_ARRAY(spec),
-        cast(REBNAT, cast(REBUPT, Action_Index)),
-        FUNC_CLASS_ACTION
+        &Action_Dispatcher
     );
+
+    SET_INTEGER(ARR_HEAD(VAL_FUNC_BODY(D_OUT)), Action_Index);
 
     Action_Index++;
     return R_OUT;
@@ -705,20 +706,6 @@ static void Init_Natives(void)
         Turn_Typespec_Opts_Into_Nones(VAL_ARRAY(spec));
         ++item;
 
-        // If a user-equivalent body was provided, then save it in a side
-        // table so that BODY-OF can look it up.  (there's no room for it in
-        // the native's REBVAL)
-        //
-        if (has_body) {
-            if (!IS_BLOCK(item))
-                panic (Error(RE_NATIVE_BOOT));
-            assert(VAL_INDEX(item) == 0); // must be at head (we don't copy)
-            Native_Bodies[n] = VAL_ARRAY(item);
-            ++item;
-        }
-        else
-            Native_Bodies[n] = NULL;
-
         // With the components extracted, generate the native and add it to
         // the Natives table.  The associated C function is provided by a
         // table built in the bootstrap scripts, `Native_C_Funcs`.
@@ -726,9 +713,20 @@ static void Init_Natives(void)
         Make_Native(
             &Natives[n],
             VAL_ARRAY(spec),
-            Native_C_Funcs[n],
-            FUNC_CLASS_NATIVE
+            Native_C_Funcs[n]
         );
+        assert(VAL_FUNC_EXIT_FROM(&Natives[n]) == NULL);
+
+        // If a user-equivalent body was provided, then save it in the native's
+        // REBVAL for later lookup (BLANK! is defaulted by Make_Native)
+        //
+        if (has_body) {
+            if (!IS_BLOCK(item))
+                panic (Error(RE_NATIVE_BOOT));
+            assert(VAL_INDEX(item) == 0); // must be at head (we don't copy)
+            *ARR_HEAD(VAL_FUNC_BODY(&Natives[n])) = *item;
+            ++item;
+        }
 
         // Append the native to the Lib_Context under the name given
         //

@@ -55,16 +55,16 @@ REBOOL Catching_Break_Or_Continue(REBVAL *val, REBOOL *stop)
 
     // Throw /NAME-s used by CONTINUE and BREAK are the actual native
     // function values of the routines themselves.
-    if (!IS_FUNCTION_AND(val, FUNC_CLASS_NATIVE))
+    if (!IS_FUNCTION(val))
         return FALSE;
 
-    if (VAL_FUNC_CODE(val) == &N_break) {
+    if (VAL_FUNC_DISPATCH(val) == &N_break) {
         *stop = TRUE; // was BREAK or BREAK/WITH
         CATCH_THROWN(val, val); // will be unset if no /WITH was used
         return TRUE;
     }
 
-    if (VAL_FUNC_CODE(val) == &N_continue) {
+    if (VAL_FUNC_DISPATCH(val) == &N_continue) {
         *stop = FALSE; // was CONTINUE or CONTINUE/WITH
         CATCH_THROWN(val, val); // will be unset if no /WITH was used
         return TRUE;

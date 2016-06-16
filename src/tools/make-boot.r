@@ -1197,8 +1197,6 @@ print [num-natives "natives"]
 
 emit [newline {REBVAL Natives[NUM_NATIVES];}]
 
-emit [newline {REBARR *Native_Bodies[NUM_NATIVES];}]
-
 emit [newline {const REBNAT Native_C_Funcs[NUM_NATIVES] = ^{
 }]
 for-each val nats [
@@ -1307,11 +1305,6 @@ extern const REBNAT Native_C_Funcs[NUM_NATIVES];
 // A canon FUNCTION! REBVAL of the native, accessible by the native's index #.
 //
 extern REBVAL Natives[NUM_NATIVES];
-
-// When a native is initialized during boot, it can provide a "fake body" to
-// be shown as how it could be coded equivalently in user code.  May be NULL.
-//
-extern REBARR *Native_Bodies[NUM_NATIVES];
 
 enum Native_Indices ^{
 }

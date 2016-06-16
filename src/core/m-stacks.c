@@ -450,29 +450,26 @@ void Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
 
     f->func = VAL_FUNC(f->gotten);
 
-    if (VAL_FUNC_CLASS(f->gotten) == FUNC_CLASS_SPECIALIZED) {
+    if (IS_FUNCTION_SPECIALIZER(f->gotten)) {
         //
         // Can't use a specialized f->func as the frame's function because
         // it has the wrong number of arguments (calls to VAL_FUNC_PARAMLIST
         // on f->func would be bad).
         //
+        REBCTX *exemplar_ctx = VAL_CONTEXT(VAL_FUNC_EXEMPLAR(f->gotten));
         if (f->func == VAL_FUNC(f->gotten))
-            f->func = VAL_FUNC(
-                CTX_FRAME_FUNC_VALUE(f->gotten->payload.function.impl.special)
-            );
+            f->func = VAL_FUNC(CTX_FRAME_FUNC_VALUE(exemplar_ctx));
 
         // !!! For debugging, it would probably be desirable to indicate
         // that this call of the function originated from a specialization.
         // So that would mean saving the specialization's f->func somewhere.
-        //
 
-        special_arg = CTX_VARS_HEAD(f->gotten->payload.function.impl.special);
+        special_arg = CTX_VARS_HEAD(exemplar_ctx);
 
         // Need to dig f->gotten a level deeper to see if it's a definitionally
         // scoped RETURN or LEAVE.
         //
-        f->gotten =
-            CTX_FRAME_FUNC_VALUE(f->gotten->payload.function.impl.special);
+        f->gotten = CTX_FRAME_FUNC_VALUE(exemplar_ctx);
 
         f->flags |= DO_FLAG_EXECUTE_FRAME;
     }
@@ -651,7 +648,7 @@ REBCTX *Context_For_Frame_May_Reify_Core(struct Reb_Frame *f) {
     // possible in the debugger anyway.)  For now, protect unless it's a
     // user function.
     //
-    if (VAL_FUNC_CLASS(FUNC_VALUE(f->func)) != FUNC_CLASS_USER)
+    if (NOT(IS_FUNCTION_PLAIN(FUNC_VALUE(f->func))))
         SET_ARR_FLAG(AS_ARRAY(context), SERIES_FLAG_LOCKED);
 
     return context;

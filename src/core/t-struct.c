@@ -1307,7 +1307,7 @@ REBNATIVE(destroy_struct_storage)
     PARAM(3, free_func);
 
     if (REF(free_q)) {
-        if (VAL_FUNC_CLASS(ARG(free_func)) != FUNC_CLASS_ROUTINE)
+        if (IS_FUNCTION_ROUTINE(ARG(free_func)))
             fail (Error(RE_FREE_NEEDS_ROUTINE));
     }
 

@@ -254,9 +254,9 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
         #endif
 
         if (
-            IS_FUNCTION_AND(&result, FUNC_CLASS_NATIVE) && (
-                VAL_FUNC_CODE(&result) == &N_quit
-                || VAL_FUNC_CODE(&result) == &N_exit
+            IS_FUNCTION(&result) && (
+                VAL_FUNC_DISPATCH(&result) == &N_quit
+                || VAL_FUNC_DISPATCH(&result) == &N_exit
             )
         ) {
             int status;
@@ -479,9 +479,9 @@ RL_API int RL_Do_String(
         DROP_GUARD_ARRAY(code);
 
         if (
-            IS_FUNCTION_AND(&result, FUNC_CLASS_NATIVE) && (
-                VAL_FUNC_CODE(&result) == &N_quit
-                || VAL_FUNC_CODE(&result) == &N_exit
+            IS_FUNCTION(&result) && (
+                VAL_FUNC_DISPATCH(&result) == &N_quit
+                || VAL_FUNC_DISPATCH(&result) == &N_exit
             )
         ) {
             CATCH_THROWN(&result, &result);

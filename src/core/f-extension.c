@@ -483,7 +483,6 @@ void Make_Command(
     if (!IS_BLOCK(spec_val)) goto bad_func_def;
 
     VAL_RESET_HEADER(out, REB_FUNCTION); // clears exts and opts in header...
-    INIT_VAL_FUNC_CLASS(out, FUNC_CLASS_COMMAND);
 
     // See notes in `Make_Function()` about why a copy is *required*.
 
@@ -502,6 +501,7 @@ void Make_Command(
         SET_VAL_FLAG(out, FUNC_FLAG_PUNCTUATES);
 
     VAL_FUNC_SPEC(out) = spec;
+    VAL_FUNC_EXIT_FROM(out) = NULL;
 
     // There is no "body", but we want to save `extension` and `command_num`
     // and the only place there is to put it is in the place where a function
@@ -512,6 +512,7 @@ void Make_Command(
     Append_Value(VAL_FUNC_BODY(out), extension);
     Append_Value(VAL_FUNC_BODY(out), command_num);
     MANAGE_ARRAY(VAL_FUNC_BODY(out));
+    VAL_FUNC_DISPATCH(out) = &Command_Dispatcher;
 
     // Put the command REBVAL in slot 0 so that REB_COMMAND, like other
     // function types, can find the function value from the paramlist.
@@ -584,7 +585,7 @@ REBNATIVE(make_command)
 
 
 //
-//  Do_Command_Core: C
+//  Command_Dispatcher: C
 //
 // Because it cannot interact with REBVALs directly, a COMMAND! must have
 // the Reb_Frame's REBVAL[] array proxied into an array of RXIARGs inside
@@ -600,7 +601,7 @@ REBNATIVE(make_command)
 // !!! The very ad-hoc nature of the R3-Alpha extension API has made it a
 // legacy-maintenance-only area.  See notes in %reb-ext.h.
 //
-REBOOL Do_Command_Core(struct Reb_Frame *f)
+REB_R Command_Dispatcher(struct Reb_Frame *f)
 {
     // For a "body", a command has a data array with [ext-obj func-index]
     // See Make_Command() for an explanation of these two values.
@@ -683,5 +684,5 @@ REBOOL Do_Command_Core(struct Reb_Frame *f)
     // Note: no current interface for Rebol "commands" to throw (to the extent
     // that REB_COMMAND has a future in Ren-C).
 
-    return FALSE;
+    return R_OUT;
 }

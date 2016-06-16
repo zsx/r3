@@ -121,7 +121,7 @@ extern "C" ^{
 // are included in a system-wide header in order to allow recognizing a
 // given native by identity in the C code, e.g.:
 //
-//     if (VAL_FUNC_CODE(native) == &N_parse) { ... }
+//     if (VAL_FUNC_DISPATCH(native) == &N_parse) { ... }
 //
 }
 

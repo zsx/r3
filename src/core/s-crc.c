@@ -299,13 +299,6 @@ REBCNT Hash_Value(const REBVAL *val)
         // immutable once created, it is legal to put them in hashes.  The
         // VAL_FUNC is the paramlist series, guaranteed unique per function
         //
-        // !!! Callback was not allowed to be hashed before nor was it in
-        // the any function category.  But it had a spec, paramlist, and
-        // routine.  In any case, it wasn't hashed here before.
-        //
-        if (VAL_FUNC_CLASS(val) == FUNC_CLASS_CALLBACK)
-            fail (Error_Has_Bad_Type(val));
-
         ret = cast(REBCNT, cast(REBUPT, VAL_FUNC(val)) >> 4);
         break;
 

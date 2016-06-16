@@ -606,7 +606,7 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
                     ptrs[idx] = VAL_RAW_DATA_AT(arg);
                     return &ptrs[idx];
                 case REB_FUNCTION:
-                    if (VAL_FUNC_CLASS(arg) != FUNC_CLASS_CALLBACK)
+                    if (NOT(IS_FUNCTION_CALLBACK(arg)))
                         fail (Error(RE_ONLY_CALLBACK_PTR));
 
                     ptrs[idx] = VAL_ROUTINE_DISPATCHER(arg);
@@ -1170,7 +1170,7 @@ static void callback_dispatcher(
 //     abi: word "note"
 // ] lib "name"]
 //
-REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Func_Class fclass)
+REBOOL MT_Routine(REBVAL *out, REBVAL *data, REBOOL is_callback)
 {
     //RL_Print("%s, %d\n", __func__, __LINE__);
     ffi_type ** args = NULL;
@@ -1189,13 +1189,19 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Func_Class fclass)
     }
 
     VAL_RESET_HEADER(out, REB_FUNCTION);
-    INIT_VAL_FUNC_CLASS(out, fclass);
 
-    VAL_ROUTINE_INFO(out) = cast(REBRIN*, Make_Node(RIN_POOL));
+    VAL_FUNC_BODY(out) = Make_Singular_Array(VOID_CELL);
+    MANAGE_ARRAY(VAL_FUNC_BODY(out));
+    VAL_RESET_HEADER(ARR_HEAD(VAL_FUNC_BODY(out)), REB_HANDLE);
+    VAL_HANDLE_DATA(ARR_HEAD(VAL_FUNC_BODY(out)))
+        = cast(REBRIN*, Make_Node(RIN_POOL));
+
+    VAL_FUNC_DISPATCH(out) = &Routine_Dispatcher;
+
     memset(VAL_ROUTINE_INFO(out), 0, sizeof(REBRIN));
     ROUTINE_SET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_USED);
 
-    if (fclass == FUNC_CLASS_CALLBACK) {
+    if (is_callback) {
         ROUTINE_SET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_CALLBACK);
     }
 
@@ -1241,13 +1247,12 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Func_Class fclass)
     // operation were to run, the series would be candidates for GC if
     // they are not linked somehow into the transitive closure of the roots.
     //
-    ENSURE_ARRAY_MANAGED(VAL_ROUTINE_SPEC(out)); // probably already managed
     MANAGE_SERIES(VAL_ROUTINE_FFI_ARG_TYPES(out));
     MANAGE_ARRAY(VAL_ROUTINE_PARAMLIST(out));
     MANAGE_ARRAY(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
     MANAGE_SERIES(VAL_ROUTINE_EXTRA_MEM(out));
 
-    if (fclass == FUNC_CLASS_ROUTINE) {
+    if (!is_callback) {
         REBIXO indexor = 0;
 
         if (!IS_BLOCK(&blk[0]))
@@ -1315,7 +1320,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Func_Class fclass)
                 VAL_ROUTINE_FUNCPTR(out) = func;
             }
         }
-    } else if (fclass == FUNC_CLASS_CALLBACK) {
+    } else {
         REBIXO indexor = 0;
 
         if (!IS_BLOCK(&blk[0]))
@@ -1335,8 +1340,6 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Func_Class fclass)
 
         //printf("RIN: %p, func: %p\n", VAL_ROUTINE_INFO(out), &blk[1]);
     }
-    else
-        assert(FALSE);
 
     blk = VAL_ARRAY_AT(&blk[0]);
     for (; NOT_END(blk); blk++) {
@@ -1494,7 +1497,7 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Func_Class fclass)
         }
     }
 
-    if (fclass == FUNC_CLASS_CALLBACK) {
+    if (is_callback) {
         VAL_ROUTINE_CLOSURE(out) = ffi_closure_alloc(sizeof(ffi_closure), &VAL_ROUTINE_DISPATCHER(out));
         if (VAL_ROUTINE_CLOSURE(out) == NULL) {
             //printf("No memory\n");
@@ -1534,7 +1537,9 @@ REBNATIVE(make_routine)
 {
     PARAM(1, def);
 
-    MT_Routine(D_OUT, ARG(def), FUNC_CLASS_ROUTINE);
+    const REBOOL is_callback = FALSE;
+
+    MT_Routine(D_OUT, ARG(def), TRUE);
 
     return R_OUT;
 }
@@ -1552,7 +1557,9 @@ REBNATIVE(make_callback)
 {
     PARAM(1, def);
 
-    MT_Routine(D_OUT, ARG(def), FUNC_CLASS_CALLBACK);
+    const REBOOL is_callback = TRUE;
+
+    MT_Routine(D_OUT, ARG(def), is_callback);
 
     return R_OUT;
 }

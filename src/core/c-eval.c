@@ -1392,40 +1392,32 @@ reevaluate:
         //
         assert(IS_END(f->out));
 
-        // Any of the below may return f->out as THROWN()
+        // Any of the below may return f->out as THROWN().  (Note: this used
+        // to do `Eval_Natives++` in the native dispatcher, which now fades
+        // into the background.)
         //
-        switch (VAL_FUNC_CLASS(FUNC_VALUE(f->func))) {
-        case FUNC_CLASS_NATIVE:
-            Do_Native_Core(f);
+        REBNAT dispatch;
+        dispatch = VAL_FUNC_DISPATCH(FUNC_VALUE(f->func));
+        switch (dispatch(f)) {
+        case R_OUT: // put sequentially in switch() for jump-table optimization
             break;
-
-        case FUNC_CLASS_ACTION:
-            Do_Action_Core(f);
+        case R_OUT_IS_THROWN:
+            assert(THROWN(f->out));
             break;
-
-        case FUNC_CLASS_COMMAND:
-            Do_Command_Core(f);
+        case R_BLANK:
+            SET_BLANK(f->out);
             break;
-
-        case FUNC_CLASS_CALLBACK:
-        case FUNC_CLASS_ROUTINE:
-            Do_Routine_Core(f);
+        case R_VOID:
+            SET_VOID(f->out);
             break;
-
-        case FUNC_CLASS_USER:
-            Do_Function_Core(f);
+        case R_TRUE:
+            SET_TRUE(f->out);
             break;
-
-        case FUNC_CLASS_SPECIALIZED:
-            //
-            // Shouldn't get here--the specific function type should have been
-            // extracted from the frame to use.
-            //
-            assert(FALSE);
+        case R_FALSE:
+            SET_FALSE(f->out);
             break;
-
         default:
-            fail (Error(RE_MISC));
+            assert(FALSE);
         }
 
         assert(f->eval_type == ET_FUNCTION); // shouldn't have changed

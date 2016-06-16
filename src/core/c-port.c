@@ -508,9 +508,9 @@ int Do_Port_Action(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 
     if (IS_BLANK(actor)) return R_BLANK;
 
-    // If actor is a native function:
-    if (IS_FUNCTION_AND(actor, FUNC_CLASS_NATIVE))
-        return cast(REBPAF, VAL_FUNC_CODE(actor))(frame_, port, action);
+    // If actor is a function (!!! Note: must be native !!!)
+    if (IS_FUNCTION(actor))
+        return cast(REBPAF, VAL_FUNC_DISPATCH(actor))(frame_, port, action);
 
     // actor must be an object:
     if (!IS_OBJECT(actor)) fail (Error(RE_INVALID_ACTOR));
@@ -531,19 +531,6 @@ int Do_Port_Action(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
     }
 
     return R_OUT;
-
-    // If not in PORT actor, use the SCHEME actor:
-#ifdef no_longer_used
-    if (n == 0) {
-        actor = Obj_Value(scheme, STD_SCHEME_actor);
-        if (!actor) goto err;
-        if (IS_FUNCTION_AND(actor, FUNC_CLASS_NATIVE)) goto fun;
-        if (!IS_OBJECT(actor)) goto err; //vTrap_Expect(value, STD_PORT_actor, REB_OBJECT);
-        n = Find_Action(actor, action);
-        if (n == 0) goto err;
-    }
-#endif
-
 }
 
 
@@ -709,11 +696,12 @@ REBNATIVE(set_scheme)
         // could be made at startup.
         //
         VAL_RESET_HEADER(actor, REB_FUNCTION);
-        INIT_VAL_FUNC_CLASS(actor, FUNC_CLASS_NATIVE);
         actor->payload.function.func = AS_FUNC(paramlist);
         VAL_FUNC_SPEC(actor) = spec;
 
-        VAL_FUNC_CODE(actor) = cast(REBNAT, Scheme_Actions[n].fun);
+        VAL_FUNC_BODY(actor) = Make_Singular_Array(BLANK_VALUE);
+        MANAGE_ARRAY(VAL_FUNC_BODY(actor));
+        VAL_FUNC_DISPATCH(actor) = cast(REBNAT, Scheme_Actions[n].fun);
 
         // Poke the function value itself into the [0] slot (see definition
         // of `struct Reb_Func` for explanation of why this is needed)
@@ -739,8 +727,7 @@ REBNATIVE(set_scheme)
             Make_Native(
                 Obj_Value(actor, n), // function,
                 VAL_FUNC_SPEC(act),
-                cast(REBNAT, map->func),
-                FUNC_CLASS_NATIVE
+                cast(REBNAT, map->func)
             );
         }
     }

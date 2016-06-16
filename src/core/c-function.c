@@ -58,7 +58,7 @@
 // Return a block of function words, unbound.
 // Note: skips 0th entry.
 //
-REBARR *List_Func_Words(const REBVAL *func)
+REBARR *List_Func_Words(const REBVAL *func, REBOOL pure_locals)
 {
     REBARR *array = Make_Array(VAL_FUNC_NUM_PARAMS(func));
     REBVAL *param = VAL_FUNC_PARAMS_HEAD(func);
@@ -84,8 +84,11 @@ REBARR *List_Func_Words(const REBVAL *func)
             break;
 
         case PARAM_CLASS_PURE_LOCAL:
-            // treat as invisible and do not expose via WORDS-OF
-            continue;
+            if (!pure_locals)
+                continue; // treat as invisible, e.g. for WORDS-OF
+
+            kind = REB_SET_WORD;
+            break;
 
         default:
             assert(FALSE);
@@ -403,17 +406,19 @@ REBCNT Find_Param_Index(REBARR *paramlist, REBSYM sym)
 void Make_Native(
     REBVAL *out,
     REBARR *spec,
-    REBNAT code,
-    enum Reb_Func_Class fclass
+    REBNAT dispatch
 ) {
     //Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SER_LEN(spec));
 
     ENSURE_ARRAY_MANAGED(spec);
 
     VAL_RESET_HEADER(out, REB_FUNCTION);
-    INIT_VAL_FUNC_CLASS(out, fclass);
 
-    VAL_FUNC_CODE(out) = code;
+    // Start with an empty singular array (necessary to put dispatch in misc)
+    //
+    VAL_FUNC_BODY(out) = Make_Singular_Array(BLANK_VALUE);
+    MANAGE_ARRAY(VAL_FUNC_BODY(out));
+    VAL_FUNC_DISPATCH(out) = dispatch;
 
     REBOOL punctuates;
     out->payload.function.func
@@ -456,7 +461,7 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
     REBARR *fake_body;
     REBVAL *example = NULL;
 
-    assert(IS_FUNCTION(func) && VAL_FUNC_CLASS(func) == FUNC_CLASS_USER);
+    assert(IS_FUNCTION(func) && IS_FUNCTION_PLAIN(func));
 
     if (GET_VAL_FLAG(func, FUNC_FLAG_LEAVE_OR_RETURN)) {
         REBVAL *last_param = VAL_FUNC_PARAM(func, VAL_FUNC_NUM_PARAMS(func));
@@ -559,7 +564,6 @@ void Make_Function(
     REBOOL durable = FALSE;
 
     VAL_RESET_HEADER(out, REB_FUNCTION); // clears value flags in header...
-    INIT_VAL_FUNC_CLASS(out, FUNC_CLASS_USER);
 
     if (is_procedure)
         SET_VAL_FLAG(out, FUNC_FLAG_PUNCTUATES);
@@ -850,19 +854,22 @@ void Make_Function(
     );
 
     VAL_FUNC_SPEC(out) = spec;
+    VAL_FUNC_EXIT_FROM(out) = NULL;
 
     if (punctuates)
         SET_VAL_FLAG(out, FUNC_FLAG_PUNCTUATES);
 
-    // We copy the body or do the empty body optimization to not copy and
-    // use the EMPTY_ARRAY (which probably doesn't happen often...)
+    // We copy the body.  It doesn't necessarily need to be unique, but if it
+    // used the EMPTY_ARRAY then it would have to have the user function
+    // dispatcher in its misc field (or be another similar array that did)
     //
-    if (VAL_LEN_AT(body_val) == 0)
-        VAL_FUNC_BODY(out) = EMPTY_ARRAY;
-    else
-        VAL_FUNC_BODY(out) = Copy_Array_At_Deep_Managed(
-            VAL_ARRAY(body_val), VAL_INDEX(body_val)
-        );
+    VAL_FUNC_BODY(out) = Copy_Array_At_Deep_Managed(
+        VAL_ARRAY(body_val), VAL_INDEX(body_val)
+    );
+
+    // Dispatcher lives in the "misc" field of the body series, we can set now
+    //
+    VAL_FUNC_DISPATCH(out) = &Plain_Dispatcher;
 
     // Even if `has_return` was passed in true, the FUNC or CLOS generator
     // may have seen something to turn it off and turned it false.  But if
@@ -1051,7 +1058,7 @@ REBOOL Specialize_Function_Throws(
 ) {
     REBCTX *frame_ctx;
 
-    if (VAL_FUNC_CLASS(func_value) == FUNC_CLASS_SPECIALIZED) {
+    if (IS_FUNCTION_SPECIALIZER(func_value)) {
         //
         // Specializing a specialization is ultimately just a specialization
         // of the innermost function being specialized.  (Imagine specializing
@@ -1062,14 +1069,15 @@ REBOOL Specialize_Function_Throws(
         // have no code of their own.)
         //
         frame_ctx = AS_CONTEXT(Copy_Array_Deep_Managed(
-            CTX_VARLIST(func_value->payload.function.impl.special)
+            CTX_VARLIST(VAL_CONTEXT(VAL_FUNC_EXEMPLAR(func_value)))
         ));
         INIT_CTX_KEYLIST_SHARED(
             frame_ctx,
-            CTX_KEYLIST(func_value->payload.function.impl.special)
+            CTX_KEYLIST(VAL_CONTEXT(VAL_FUNC_EXEMPLAR(func_value)))
         );
         SET_ARR_FLAG(CTX_VARLIST(frame_ctx), ARRAY_FLAG_CONTEXT_VARLIST);
         INIT_VAL_CONTEXT(CTX_VALUE(frame_ctx), frame_ctx);
+        assert(VAL_CONTEXT_EXIT_FROM(CTX_VALUE(frame_ctx)) == NULL);
     }
     else {
         // An initial specialization is responsible for making a frame out
@@ -1123,11 +1131,27 @@ REBOOL Specialize_Function_Throws(
     // Begin initializing the returned function value
     //
     VAL_RESET_HEADER(out, REB_FUNCTION);
-    INIT_VAL_FUNC_CLASS(out, FUNC_CLASS_SPECIALIZED);
 
-    // The "body" is just the frame of specialization information.
+    // The "body" is the FRAME! value of the specialization.  Though we may
+    // not be able to touch the keylist of that frame to update the "archetype"
+    // exit_from, we can patch this cell in the "body array" to hold it.
     //
-    out->payload.function.impl.special = frame_ctx;
+    VAL_FUNC_BODY(out) = Make_Singular_Array(CTX_VALUE(frame_ctx));
+    MANAGE_ARRAY(VAL_FUNC_BODY(out));
+    VAL_CONTEXT_EXIT_FROM(VAL_FUNC_EXEMPLAR(out))
+        = VAL_FUNC_EXIT_FROM(func_value);
+
+    // Currently specializations never actually run their own dispatch, but
+    // it may be useful to recognize the function category by a dispatcher
+    //
+    VAL_FUNC_DISPATCH(out) = &Specializer_Dispatcher;
+
+    // !!! What impacts does it have to carry-or-not-carry exit_from on the
+    // newly created specialized function?  Assume it is not necessary, in
+    // case there's some reason to retarget or modify a specialization that
+    // might not apply to its specializee.
+    //
+    VAL_CONTEXT_EXIT_FROM(CTX_VALUE(frame_ctx)) = NULL;
 
     // Generate paramlist by way of the data stack.  Push empty value (to
     // become the function value afterward), then all the args that remain
@@ -1190,7 +1214,7 @@ void Clonify_Function(REBVAL *value)
     // questionable, for now we will suspend disbelief and preserve what
     // R3-Alpha did until a clear resolution.
 
-    if (!IS_FUNCTION_AND(value, FUNC_CLASS_USER))
+    if (!IS_FUNCTION(value) || !IS_FUNCTION_PLAIN(value))
         return;
 
     if (IS_FUNC_DURABLE(value))
@@ -1209,6 +1233,7 @@ void Clonify_Function(REBVAL *value)
 
     VAL_FUNC_SPEC(value) = FUNC_SPEC(func_orig);
     VAL_FUNC_BODY(value) = Copy_Array_Deep_Managed(VAL_FUNC_BODY(value));
+    VAL_FUNC_DISPATCH(value) = &Plain_Dispatcher;
 
     // Remap references in the body from paramlist_orig to our new copied
     // word list we saved in VAL_FUNC_PARAMLIST(value)
@@ -1241,51 +1266,9 @@ void Clonify_Function(REBVAL *value)
 
 
 //
-//  Do_Native_Core: C
+//  Action_Dispatcher: C
 //
-void Do_Native_Core(struct Reb_Frame *f)
-{
-    Eval_Natives++;
-
-    // For all other native function pointers (for now)...ordinary dispatch.
-
-    REB_R ret = FUNC_CODE(f->func)(f);
-
-    if (ret == R_OUT_IS_THROWN) {
-        assert(THROWN(f->out));
-        return;
-    }
-
-    assert(NOT(THROWN(f->out)));
-
-    switch (ret) {
-    case R_OUT: // put sequentially in switch() for jump-table optimization
-        break;
-    case R_OUT_IS_THROWN:
-        assert(THROWN(f->out));
-        break;
-    case R_BLANK:
-        SET_BLANK(f->out);
-        break;
-    case R_VOID:
-        SET_VOID(f->out);
-        break;
-    case R_TRUE:
-        SET_TRUE(f->out);
-        break;
-    case R_FALSE:
-        SET_FALSE(f->out);
-        break;
-    default:
-        assert(FALSE);
-    }
-}
-
-
-//
-//  Do_Action_Core: C
-//
-void Do_Action_Core(struct Reb_Frame *f)
+REB_R Action_Dispatcher(struct Reb_Frame *f)
 {
     Eval_Natives++;
 
@@ -1296,50 +1279,22 @@ void Do_Action_Core(struct Reb_Frame *f)
     //
     if (FUNC_ACT(f->func) < REB_MAX_0) {
         if (TO_0_FROM_KIND(type) == FUNC_ACT(f->func))
-            SET_TRUE(f->out);
-        else
-            SET_FALSE(f->out);
+            return R_TRUE;
 
-        return;
+        return R_FALSE;
     }
 
     REBACT action = Value_Dispatch[TO_0_FROM_KIND(type)];
     if (!action) fail (Error_Illegal_Action(type, FUNC_ACT(f->func)));
 
-    REB_R ret = action(f, FUNC_ACT(f->func));
-
-    if (ret == R_OUT_IS_THROWN) {
-        assert(THROWN(f->out));
-        return;
-    }
-
-    assert(NOT(THROWN(f->out)));
-
-    switch (ret) {
-    case R_OUT: // put sequentially in switch() for jump-table optimization
-        break;
-    case R_BLANK:
-        SET_BLANK(f->out);
-        break;
-    case R_VOID:
-        SET_VOID(f->out);
-        break;
-    case R_TRUE:
-        SET_TRUE(f->out);
-        break;
-    case R_FALSE:
-        SET_FALSE(f->out);
-        break;
-    default:
-        assert(FALSE);
-    }
+    return action(f, FUNC_ACT(f->func));
 }
 
 
 //
-//  Do_Function_Core: C
+//  Plain_Dispatcher: C
 //
-void Do_Function_Core(struct Reb_Frame *f)
+REB_R Plain_Dispatcher(struct Reb_Frame *f)
 {
     // In specific binding, we must always reify the frame and get it handed
     // over to the GC when calling user functions.  This is "costly" but
@@ -1360,9 +1315,9 @@ void Do_Function_Core(struct Reb_Frame *f)
         // to the currently running function.
         //
         if (Do_At_Throws(f->out, FUNC_BODY(f->func), 0))
-            assert(THROWN(f->out));
+            return R_OUT_IS_THROWN;
         else
-            assert(NOT(THROWN(f->out)));
+            return R_OUT;
     }
     else {
         assert(f->varlist);
@@ -1387,9 +1342,9 @@ void Do_Function_Core(struct Reb_Frame *f)
         PROTECT_FRM_X(f, &body);
 
         if (DO_VAL_ARRAY_AT_THROWS(f->out, &body))
-            assert(THROWN(f->out));
+            return R_OUT_IS_THROWN;
         else
-            assert(NOT(THROWN(f->out)));
+            return R_OUT;
 
         // References to parts of this function's copied body may still be
         // extant, but we no longer need to hold it from GC.  Fortunately the
@@ -1399,9 +1354,44 @@ void Do_Function_Core(struct Reb_Frame *f)
 
 
 //
-//  Do_Routine_Core: C
+//  Specializer_Dispatcher: C
 //
-void Do_Routine_Core(struct Reb_Frame *f)
+// The evaluator does not do any special "running" of a specialized frame.
+// All of the contribution that the specialization has to make was taken care
+// of at the time of generating the arguments to the underlying function.
+//
+REB_R Specializer_Dispatcher(struct Reb_Frame *f)
+{
+    fail (Error(RE_MISC));
+}
+
+
+//
+//  Hooked_Dispatcher: C
+//
+// A hooked dispatch is based on poking a function value into the body of
+// another function and just running that.  It destroys the existing body,
+// but the hooking routine gives a new function back that can be substituted.
+//
+REB_R Hooked_Dispatcher(struct Reb_Frame *f)
+{
+    // Whatever was initially in the body of the function
+    REBVAL *hook = KNOWN(ARR_HEAD(FUNC_BODY(f->func)));
+    assert(IS_FUNCTION(hook));
+
+    REBNAT dispatch = VAL_FUNC_DISPATCH(hook);
+
+    f->func = VAL_FUNC(hook);
+    f->exit_from = VAL_FUNC_EXIT_FROM(hook);
+
+    return dispatch(f);
+}
+
+
+//
+//  Routine_Dispatcher: C
+//
+REB_R Routine_Dispatcher(struct Reb_Frame *f)
 {
     REBARR *args = Copy_Values_Len_Shallow(
         FRM_NUM_ARGS(f) > 0 ? FRM_ARG(f, 1) : NULL,
@@ -1411,6 +1401,7 @@ void Do_Routine_Core(struct Reb_Frame *f)
     Call_Routine(f->func, args, f->out);
 
     Free_Array(args);
+    return R_OUT;
 }
 
 
@@ -1776,44 +1767,9 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
     assert(IS_FUNCTION(v));
     assert(func == FUNC_VALUE(func)->payload.function.func);
     assert(GET_ARR_FLAG(FUNC_PARAMLIST(func), SERIES_FLAG_ARRAY));
-    assert(GET_ARR_FLAG(VAL_FUNC_SPEC(v), SERIES_FLAG_ARRAY));
 
-    switch (VAL_FUNC_CLASS(v)) {
-    case FUNC_CLASS_NATIVE:
-        assert(v->payload.function.impl.code == FUNC_CODE(func));
-        break;
-
-    case FUNC_CLASS_ACTION:
-        assert(
-            v->payload.function.impl.act == FUNC_ACT(func)
-        );
-        break;
-
-    case FUNC_CLASS_COMMAND:
-    case FUNC_CLASS_USER:
-        assert(
-            v->payload.function.impl.body == FUNC_BODY(func)
-        );
-        break;
-
-    case FUNC_CLASS_CALLBACK:
-    case FUNC_CLASS_ROUTINE:
-        assert(
-            v->payload.function.impl.info == FUNC_INFO(func)
-        );
-        break;
-
-    case FUNC_CLASS_SPECIALIZED:
-        assert(
-            v->payload.function.impl.special
-            == FUNC_VALUE(func)->payload.function.impl.special
-        );
-        break;
-
-    default:
-        assert(FALSE);
-        break;
-    }
+    assert(VAL_FUNC_BODY(v) == FUNC_BODY(func));
+    assert(VAL_FUNC_DISPATCH(v) == FUNC_DISPATCH(func));
 
     // set VALUE_FLAG_LINE on both headers for sake of comparison, we allow
     // it to be different from the value stored in frame.

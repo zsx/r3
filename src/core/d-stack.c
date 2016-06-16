@@ -419,10 +419,9 @@ REBNATIVE(backtrace)
         if (NOT(pending)) {
             if (
                 first
-                && IS_FUNCTION_AND(FUNC_VALUE(frame->func), FUNC_CLASS_NATIVE)
                 && (
-                    FUNC_CODE(frame->func) == &N_pause
-                    || FUNC_CODE(frame->func) == &N_breakpoint
+                    FUNC_DISPATCH(frame->func) == &N_pause
+                    || FUNC_DISPATCH(frame->func) == &N_breakpoint
                 )
             ) {
                 // Omitting breakpoints from the list entirely presents a
@@ -651,11 +650,8 @@ struct Reb_Frame *Frame_For_Stack_Level(
 
         if (first) {
             if (
-                IS_FUNCTION_AND(FUNC_VALUE(frame->func), FUNC_CLASS_NATIVE)
-                && (
-                    FUNC_CODE(frame->func) == &N_pause
-                    || FUNC_CODE(frame->func) == N_breakpoint
-                )
+                FUNC_DISPATCH(frame->func) == &N_pause
+                || FUNC_DISPATCH(frame->func) == N_breakpoint
             ) {
                 // this is considered the "0".  Return it only if 0 was requested
                 // specifically (you don't "count down to it");

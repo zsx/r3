@@ -686,17 +686,11 @@ REBNATIVE(catch)
         if (
             (
                 REF(any)
-                && (
-                    !IS_FUNCTION_AND(D_OUT, FUNC_CLASS_NATIVE)
-                    || VAL_FUNC_CODE(D_OUT) != &N_quit
-                )
+                && (!IS_FUNCTION(D_OUT) || VAL_FUNC_DISPATCH(D_OUT) != &N_quit)
             )
             || (
                 REF(quit)
-                && (
-                    IS_FUNCTION_AND(D_OUT, FUNC_CLASS_NATIVE)
-                    && VAL_FUNC_CODE(D_OUT) == &N_quit
-                )
+                && (IS_FUNCTION(D_OUT) && VAL_FUNC_DISPATCH(D_OUT) == &N_quit)
             )
         ) {
             goto was_caught;
@@ -1223,7 +1217,7 @@ void Make_Thrown_Exit_Value(
 
         #if !defined(NDEBUG)
             if (LEGACY(OPTIONS_DONT_EXIT_NATIVES))
-                if (FUNC_CLASS(f->func) != FUNC_CLASS_USER)
+                if (NOT(IS_FUNCTION_PLAIN(FUNC_VALUE(f->func))))
                     continue; // R3-Alpha would exit the first user function
         #endif
 

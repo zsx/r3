@@ -185,10 +185,9 @@ REBOOL Do_Breakpoint_Throws(
 
                 if (
                     frame != FS_TOP
-                    && FUNC_CLASS(frame->func) == FUNC_CLASS_NATIVE
                     && (
-                        FUNC_CODE(frame->func) == &N_pause
-                        || FUNC_CODE(frame->func) == &N_breakpoint
+                        FUNC_DISPATCH(frame->func) == &N_pause
+                        || FUNC_DISPATCH(frame->func) == &N_breakpoint
                     )
                 ) {
                     // We hit a breakpoint (that wasn't this call to
@@ -461,11 +460,10 @@ REBNATIVE(resume)
         for (; frame != NULL; frame = frame->prior) {
             if (frame->eval_type != ET_FUNCTION) continue;
             if (Is_Function_Frame_Fulfilling(frame)) continue;
-            if (FUNC_CLASS(frame->func) != FUNC_CLASS_NATIVE) continue;
 
             if (
-                FUNC_CODE(frame->func) == &N_pause
-                || FUNC_CODE(frame->func) == &N_breakpoint
+                FUNC_DISPATCH(frame->func) == &N_pause
+                || FUNC_DISPATCH(frame->func) == &N_breakpoint
             ) {
                 break;
             }

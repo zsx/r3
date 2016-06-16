@@ -2050,23 +2050,6 @@ struct Reb_Any_Context {
 **
 ***********************************************************************/
 
-// !!! Functions used to come in several different REB_XXX types, but have
-// been folded all into one REB_FUNCTION with different type-specific-bits.
-// 7 types for now, use 3 bits...hopefully just two bits needed long term.
-
-enum Reb_Func_Class {
-    FUNC_CLASS_0 = 0, // leave invalid to catch not-set-func-classes
-    FUNC_CLASS_NATIVE, // "direct CPU evaluated function"
-    FUNC_CLASS_USER, // "function body is Rebol code"
-    FUNC_CLASS_ACTION, // "datatype native function (standard polymorphic)"
-    FUNC_CLASS_COMMAND, // "special dispatch-based function"
-    FUNC_CLASS_ROUTINE, // "external C function"
-    FUNC_CLASS_CALLBACK, // "function to be called from C"
-    FUNC_CLASS_SPECIALIZED // "specialization of another function"
-};
-
-#define FCLASS_MASK (cast(REBUPT, 0x07) << TYPE_SPECIFIC_BIT)
-
 #ifdef NDEBUG
     #define FUNC_FLAG_X 0
 #else
@@ -2077,7 +2060,7 @@ enum {
     // function "fakes" a definitionally scoped return (or a "LEAVE"...which
     // word is determined by the symbol of the *last* parameter)
     //
-    FUNC_FLAG_LEAVE_OR_RETURN = (1 << (TYPE_SPECIFIC_BIT + 3)) | FUNC_FLAG_X,
+    FUNC_FLAG_LEAVE_OR_RETURN = (1 << (TYPE_SPECIFIC_BIT + 0)) | FUNC_FLAG_X,
 
     // A function may act as a barrier on its left (so that it cannot act
     // as an input argument to another function).
@@ -2088,13 +2071,13 @@ enum {
     // trigger an error when used as a left argument.  This is the ability
     // given to lookback 0 arity functions, known as "punctuators".
     //
-    FUNC_FLAG_PUNCTUATES = (1 << (TYPE_SPECIFIC_BIT + 4)) | FUNC_FLAG_X,
+    FUNC_FLAG_PUNCTUATES = (1 << (TYPE_SPECIFIC_BIT + 1)) | FUNC_FLAG_X,
 
 #if !defined(NDEBUG)
     //
     // TRUE-valued refinements, NONE! for unused args
     //
-    FUNC_FLAG_LEGACY = (1 << (TYPE_SPECIFIC_BIT + 5)) | FUNC_FLAG_X,
+    FUNC_FLAG_LEGACY = (1 << (TYPE_SPECIFIC_BIT + 2)) | FUNC_FLAG_X,
 #endif
 
     FUNC_FLAG_NO_COMMA // needed for proper comma termination of this list
@@ -2184,33 +2167,24 @@ struct Reb_Function {
     //
     REBFUN *func; // !!! TBD: change to REBARR*, rename as paramlist
 
-    union Reb_Function_Impl {
-        REBNAT code;
-        REBARR *body;
-        REBCNT act;
-        REBRIN *info;
-        REBCTX *special;
-    } impl;
+    // `body` is always a REBARR--even an optimized "singular" one that is
+    // only the size of one REBSER.  This is because the information for a
+    // function body is an array in the majority of function instances, and
+    // also because it can standardize the native dispatcher code in the
+    // REBARR's series "misc" field.  This gives two benefits: no need for
+    // a switch on the function's type to figure out the dispatcher, and also
+    // to move the dispatcher out of the REBVAL itself into something that
+    // can be revectored or "hooked" for all instances of the function.
+    //
+    // PLAIN FUNCTIONS: body array is... the body of the function, obviously
+    // NATIVES: body is "equivalent code for native" (if any) in help
+    // ACTIONS: body is a 1-element array containing an INTEGER!
+    // SPECIALIZATIONS: body is a 1-element array containing a FRAME!
+    // CALLBACKS: body is a 1-element array with a HANDLE! (REBRIN*)
+    // ROUTINES: body is a 1-element array with a HANDLE! (REBRIN*)
+    //
+    REBARR *body;
 };
-
-#define VAL_FUNC_CLASS(v) \
-    cast(enum Reb_Func_Class, \
-        ((v)->header.bits & FCLASS_MASK) >> TYPE_SPECIFIC_BIT)
-
-// Could be potentially faster testing of the function class as well as if
-// something is a function, but keeps them together in any case.  So:
-//
-//     IS_NATIVE(f) => IS_FUNCTION_AND(f, FUNC_CLASS_NATIVE)
-//
-// For the time being, this will help avoid mistakes from coders assuming
-// that other function categories are still a separate type.
-//
-#define IS_FUNCTION_AND(v,c) \
-    (IS_FUNCTION(v) && (VAL_FUNC_CLASS(v) == (c)))
-
-#define INIT_VAL_FUNC_CLASS(v,c) \
-    ((v)->header.bits &= ~FCLASS_MASK, \
-    (v)->header.bits |= ((c) << TYPE_SPECIFIC_BIT))
 
 /* argument is of type REBVAL* */
 #ifdef NDEBUG
@@ -2227,11 +2201,44 @@ struct Reb_Function {
 #define VAL_FUNC_PARAMS_HEAD(v)     FUNC_PARAMS_HEAD(VAL_FUNC(v))
 #define VAL_FUNC_PARAM(v,p)         FUNC_PARAM(VAL_FUNC(v), (p))
 
-#define VAL_FUNC_CODE(v)      ((v)->payload.function.impl.code)
-#define VAL_FUNC_BODY(v)      ((v)->payload.function.impl.body)
-#define VAL_FUNC_ACT(v)       ((v)->payload.function.impl.act)
-#define VAL_FUNC_INFO(v)      ((v)->payload.function.impl.info)
-#define VAL_FUNC_SPECIAL(v)   ((v)->payload.function.impl.special)
+#define VAL_FUNC_DISPATCH(v) \
+    (ARR_SERIES((v)->payload.function.body)->misc.dispatch)
+
+#define IS_FUNCTION_PLAIN(v) \
+    (assert(IS_FUNCTION(v)), VAL_FUNC_DISPATCH(v) == &Plain_Dispatcher)
+
+#define IS_FUNCTION_ACTION(v) \
+    (assert(IS_FUNCTION(v)), VAL_FUNC_DISPATCH(v) == &Action_Dispatcher)
+
+#define IS_FUNCTION_COMMAND(v) \
+    (assert(IS_FUNCTION(v)), VAL_FUNC_DISPATCH(v) == &Command_Dispatcher)
+
+#define IS_FUNCTION_SPECIALIZER(v) \
+    (assert(IS_FUNCTION(v)), VAL_FUNC_DISPATCH(v) == &Specializer_Dispatcher)
+
+#define IS_FUNCTION_ROUTINE(v) \
+    (assert(IS_FUNCTION(v)), VAL_FUNC_DISPATCH(v) == &Routine_Dispatcher \
+        && NOT(IS_CALLBACK_ROUTINE(VAL_FUNC_INFO(v))))
+
+#define IS_FUNCTION_CALLBACK(v) \
+    (assert(IS_FUNCTION(v)), VAL_FUNC_DISPATCH(v) == &Routine_Dispatcher \
+        && IS_CALLBACK_ROUTINE(VAL_FUNC_INFO(v)))
+
+#define IS_FUNCTION_HOOKED(v) \
+    (assert(IS_FUNCTION(v)), VAL_FUNC_DISPATCH(v) == &Hooked_Dispatcher)
+
+#define VAL_FUNC_BODY(v) \
+    ((v)->payload.function.body)
+
+#define VAL_FUNC_ACT(v) \
+    cast(REBCNT, VAL_INT32(ARR_HEAD(VAL_FUNC_BODY(v))))
+
+#define VAL_FUNC_INFO(v) \
+    cast(REBRIN*, VAL_HANDLE_DATA(ARR_HEAD(VAL_FUNC_BODY(v))))
+
+#define VAL_FUNC_EXEMPLAR(v) \
+    KNOWN(ARR_HEAD(VAL_FUNC_BODY(v)))
+
 #define VAL_FUNC_EXIT_FROM(v) ((v)->payload.function.exit_from)
 
 // !!! At the moment functions are "all durable" or "none durable" w.r.t. the

@@ -117,7 +117,7 @@ void Trace_Line(struct Reb_Frame *f)
         if (VAL_TYPE(var) < REB_FUNCTION)
             Debug_Fmt_(" : %50r", var);
         else if (VAL_TYPE(var) == REB_FUNCTION) {
-            REBARR *words = List_Func_Words(var);
+            REBARR *words = List_Func_Words(var, FALSE); // no locals
             Debug_Fmt_(" : %s %50m", Get_Type_Name(var), words);
             Free_Array(words);
         }

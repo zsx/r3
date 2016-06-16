@@ -255,7 +255,8 @@ static void Bind_Values_Inner_Loop(
             );
         }
         else if (
-            IS_FUNCTION_AND(value, FUNC_CLASS_USER)
+            IS_FUNCTION(value)
+            && IS_FUNCTION_PLAIN(value)
             && (flags & BIND_FUNC)
         ) {
             // !!! Likely-to-be deprecated functionality--rebinding inside the
@@ -434,11 +435,6 @@ void Bind_Relative_Deep(REBFUN *func, REBVAL *head, REBU64 bind_types)
     // purposes of debug inspection, read-only access presents an
     // interesting case.  While this avenue is explored, relative bindings
     // for all function types are being permitted.
-    //
-    /*assert(
-        IS_FUNCTION(FUNC_VALUE(func))
-        && VAL_FUNC_CLASS(FUNC_VALUE(func)) == FUNC_CLASS_USER
-    );*/
 
     ASSERT_BIND_TABLE_EMPTY;
 
@@ -513,10 +509,7 @@ void Rebind_Values_Deep(
                 INIT_WORD_INDEX(value, opt_binds[canon]);
             }
         }
-        else if (
-            IS_FUNCTION(value)
-            && VAL_FUNC_CLASS(value) == FUNC_CLASS_USER
-        ) {
+        else if (IS_FUNCTION(value) && IS_FUNCTION_PLAIN(value)) {
             //
             // !!! Extremely questionable feature--walking into function
             // bodies and changing them.  This R3-Alpha concept was largely

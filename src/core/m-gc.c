@@ -804,22 +804,19 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
         }
 
         case REB_FUNCTION: {
-            enum Reb_Func_Class fclass = VAL_FUNC_CLASS(val);
+            assert(VAL_FUNC_PARAMLIST(val) == FUNC_PARAMLIST(VAL_FUNC(val)));
+            QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_PARAMLIST(val));
 
-            if (fclass == FUNC_CLASS_USER || fclass == FUNC_CLASS_COMMAND)
-                QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_BODY(val));
-
-            if (fclass == FUNC_CLASS_ROUTINE || fclass == FUNC_CLASS_CALLBACK)
-                Queue_Mark_Routine_Deep(VAL_ROUTINE(val));
-
-            if (fclass == FUNC_CLASS_SPECIALIZED)
-                QUEUE_MARK_CONTEXT_DEEP(val->payload.function.impl.special);
+            QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_BODY(val));
 
             assert(VAL_FUNC_SPEC(val) == FUNC_SPEC(VAL_FUNC(val)));
-            assert(VAL_FUNC_PARAMLIST(val) == FUNC_PARAMLIST(VAL_FUNC(val)));
 
             QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_SPEC(val));
-            QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_PARAMLIST(val));
+            // Of all the function types, only the routines and callbacks use
+            // HANDLE! and must be explicitly pointed out in the body.
+            //
+            if (IS_FUNCTION_ROUTINE(val))
+                Queue_Mark_Routine_Deep(VAL_ROUTINE(val));
             break;
         }
 
@@ -1323,14 +1320,11 @@ REBCNT Recycle_Core(REBOOL shutdown)
         REBSER **sp;
         REBVAL **vp;
 
-        // Mark all natives and "fake" native function bodies
+        // Mark all natives
         {
             REBCNT n;
-            for (n = 0; n < NUM_NATIVES; ++n) {
-                if (Native_Bodies[n])
-                    MARK_ARRAY_DEEP(Native_Bodies[n]);
+            for (n = 0; n < NUM_NATIVES; ++n)
                 MARK_ARRAY_DEEP(AS_ARRAY(VAL_FUNC(&Natives[n])));
-            }
         }
 
         // Mark series that have been temporarily protected from garbage

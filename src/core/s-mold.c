@@ -849,51 +849,40 @@ static void Mold_Function(const REBVAL *value, REB_MOLD *mold)
 
     Append_Codepoint_Raw(mold->series, '[');
 
-    if (VAL_FUNC_CLASS(value) == FUNC_CLASS_SPECIALIZED) {
+    // !!! The system is no longer keeping the spec of functions, in order
+    // to focus on a generalized "meta info object" service.  MOLD of
+    // functions temporarily uses the word list as a substitute (which
+    // drops types)
+    //
+    REBARR *words_list = List_Func_Words(value, TRUE); // show pure locals
+    Mold_Array_At(mold, words_list, 0, 0);
+    Free_Array(words_list);
+
+    if (IS_FUNCTION_PLAIN(value)) {
         //
-        // !!! Interim form of looking at specialized functions... just
-        // show the spec's preserved word (if any)
+        // MOLD is an example of user-facing code that needs to be complicit
+        // in the "lie" about the effective bodies of the functions made
+        // by the optimized generators FUNC and CLOS...
+
+        REBOOL is_fake;
+        REBARR *body = Get_Maybe_Fake_Func_Body(&is_fake, value);
+
+        Mold_Array_At(mold, body, 0, 0);
+
+        if (is_fake) Free_Array(body); // was shallow copy
+    }
+    else if (IS_FUNCTION_SPECIALIZER(value)) {
+        //
+        // !!! Interim form of looking at specialized functions... show
+        // the frame
         //
         //     >> source first
-        //     first: make function! [:pick make frame! [
+        //     first: make function! [[aggregate index] [
         //         aggregate: $void
         //         index: 1
         //     ]]
         //
-        // While ugly and far from LOADable, it helps with debugging.
-
-        REBVAL name;
-        Val_Init_Word(
-            &name, REB_GET_WORD, VAL_WORD_SYM(ARR_HEAD(VAL_FUNC_SPEC(value)))
-        );
-        Mold_Value(mold, &name, FALSE);
-
-        Append_Codepoint_Raw(mold->series, ' ');
-
-        REBVAL frame;
-        Val_Init_Context(
-            &frame, REB_FRAME, value->payload.function.impl.special
-        );
-        Mold_Value(mold, &frame, TRUE);
-    }
-    else {
-        // !!! ??
-        /* "& ~(1<<MOPT_MOLD_ALL)); // Never literalize it (/all)." */
-        Mold_Array_At(mold, VAL_FUNC_SPEC(value), 0, 0);
-
-        if (VAL_FUNC_CLASS(value) == FUNC_CLASS_USER) {
-            //
-            // MOLD is an example of user-facing code that needs to be complicit
-            // in the "lie" about the effective bodies of the functions made
-            // by the optimized generators FUNC and CLOS...
-
-            REBOOL is_fake;
-            REBARR *body = Get_Maybe_Fake_Func_Body(&is_fake, value);
-
-            Mold_Array_At(mold, body, 0, 0);
-
-            if (is_fake) Free_Array(body); // was shallow copy
-        }
+        Mold_Value(mold, VAL_FUNC_EXEMPLAR(value), TRUE);
     }
 
     Append_Codepoint_Raw(mold->series, ']');

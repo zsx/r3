@@ -383,8 +383,8 @@ int Do_String(
     if (Do_At_Throws(out, code, 0)) { // `code` is implicitly GC protected
         if (at_breakpoint) {
             if (
-                IS_FUNCTION_AND(out, FUNC_CLASS_NATIVE)
-                && VAL_FUNC_CODE(out) == &N_resume
+                IS_FUNCTION(out)
+                && VAL_FUNC_DISPATCH(out) == &N_resume
             ) {
                 //
                 // This means we're done with the embedded REPL.  We want to
@@ -403,8 +403,8 @@ int Do_String(
             }
 
             if (
-                IS_FUNCTION_AND(out, FUNC_CLASS_NATIVE)
-                && VAL_FUNC_CODE(out) == &N_quit
+                IS_FUNCTION(out)
+                && VAL_FUNC_DISPATCH(out) == &N_quit
             ) {
                 //
                 // It would be frustrating if the system did not respond to
@@ -423,10 +423,10 @@ int Do_String(
             // now, also EXIT as meaning you want to leave.
             //
             if (
-                IS_FUNCTION_AND(out, FUNC_CLASS_NATIVE)
+                IS_FUNCTION(out)
                 && (
-                    VAL_FUNC_CODE(out) == &N_quit
-                    || VAL_FUNC_CODE(out) == &N_exit
+                    VAL_FUNC_DISPATCH(out) == &N_quit
+                    || VAL_FUNC_DISPATCH(out) == &N_exit
                 )
             ) {
                 DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
@@ -540,7 +540,7 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
         REBARR *spec = Scan_Source(N_debug_spec, LEN_BYTES(N_debug_spec));
 
         REBVAL debug_native;
-        Make_Native(&debug_native, spec, &N_debug, FUNC_CLASS_NATIVE);
+        Make_Native(&debug_native, spec, &N_debug);
 
         *Append_Context(Lib_Context, 0, debug_sym) = debug_native;
         *Append_Context(user_context, 0, debug_sym) = debug_native;

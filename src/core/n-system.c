@@ -371,10 +371,9 @@ REBNATIVE(check)
         ASSERT_CONTEXT(VAL_CONTEXT(value));
     }
     else if (IS_FUNCTION(value)) {
-        ASSERT_ARRAY(VAL_FUNC_SPEC(value));
+        assert(VAL_FUNC_EXIT_FROM(value) == NULL);
         ASSERT_ARRAY(VAL_FUNC_PARAMLIST(value));
-        if (VAL_FUNC_CLASS(value) == FUNC_CLASS_USER)
-            ASSERT_ARRAY(VAL_FUNC_BODY(value));
+        ASSERT_ARRAY(VAL_FUNC_BODY(value));
     }
 
     return R_TRUE;

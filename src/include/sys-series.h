@@ -391,6 +391,7 @@ struct Reb_Series {
     // might be referring to the series.
     //
     union {
+        REBNAT dispatch; // native dispatcher code, see Reb_Function's body
         REBCNT len; // length of non-arrays when !SERIES_FLAG_HAS_DYNAMIC
         REBCNT size;    // used for vectors and bitsets
         REBSER *hashlist; // MAP datatype uses this
@@ -1147,10 +1148,20 @@ struct Reb_Func {
 #define FUNC_SPEC(f) \
     (ARR_SERIES(FUNC_PARAMLIST(FUNC_VALUE(f)->payload.function.func))->misc.spec)
 
-#define FUNC_CODE(f)            (FUNC_VALUE(f)->payload.function.impl.code)
-#define FUNC_BODY(f)            (FUNC_VALUE(f)->payload.function.impl.body)
-#define FUNC_ACT(f)             (FUNC_VALUE(f)->payload.function.impl.act)
-#define FUNC_INFO(f)            (FUNC_VALUE(f)->payload.function.impl.info)
+#define FUNC_DISPATCH(f) \
+    (ARR_SERIES(FUNC_VALUE(f)->payload.function.body)->misc.dispatch)
+
+#define FUNC_BODY(f) \
+    (FUNC_VALUE(f)->payload.function.body)
+
+#define FUNC_ACT(f) \
+    cast(REBCNT, VAL_INT32(ARR_HEAD(FUNC_BODY(f))))
+
+#define FUNC_INFO(f) \
+    cast(REBRIN*, VAL_HANDLE_DATA(ARR_HEAD(FUNC_BODY(f))))
+
+#define FUNC_EXEMPLAR(f) \
+    KNOWN(ARR_HEAD(FUNC_BODY(f)))
 
 
 //=////////////////////////////////////////////////////////////////////////=//

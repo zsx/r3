@@ -32,10 +32,22 @@
 
 static REBOOL Same_Func(const REBVAL *val, const REBVAL *arg)
 {
-    if (VAL_TYPE(val) == VAL_TYPE(arg) &&
-        VAL_FUNC_SPEC(val) == VAL_FUNC_SPEC(arg) &&
-        VAL_FUNC_PARAMLIST(val) == VAL_FUNC_PARAMLIST(arg) &&
-        VAL_FUNC_CODE(val) == VAL_FUNC_CODE(arg)) return TRUE;
+    assert(IS_FUNCTION(val) && IS_FUNCTION(arg));
+
+    // !!! The "EXIT_FROM" tweak that facilitated definitionally scoped RETURN
+    // is under study for generalization, to let individual function values
+    // distinguish themselves "cheaply" from archetypal ones.  It's not yet
+    // generalized cleanly, so we can't guarantee this test...temporarily
+    // consider all RETURNs and all LEAVEs equal until ready for this.
+    //
+    /* if (VAL_FUNC_EXIT_FROM(val) == VAL_FUNC_EXIT_FROM(arg)) */
+
+    if (VAL_FUNC_PARAMLIST(val) == VAL_FUNC_PARAMLIST(arg)) {
+        assert(VAL_FUNC_DISPATCH(val) == VAL_FUNC_DISPATCH(arg));
+        assert(VAL_FUNC_BODY(val) == VAL_FUNC_BODY(arg));
+        return TRUE;
+    }
+
     return FALSE;
 }
 
@@ -135,49 +147,25 @@ REBTYPE(Function)
 
         switch (canon) {
         case SYM_ADDR:
-            if (VAL_FUNC_CLASS(value) == FUNC_CLASS_CALLBACK) {
+            if (IS_FUNCTION_CALLBACK(value)) {
                 SET_INTEGER(D_OUT, cast(REBUPT, VAL_ROUTINE_DISPATCHER(value)));
                 return R_OUT;
             }
-            if (VAL_FUNC_CLASS(value) == FUNC_CLASS_ROUTINE) {
+            if (IS_FUNCTION_ROUTINE(value)) {
                 SET_INTEGER(D_OUT, cast(REBUPT, VAL_ROUTINE_FUNCPTR(value)));
                 return R_OUT;
             }
             break;
 
         case SYM_WORDS:
-            Val_Init_Block(D_OUT, List_Func_Words(value));
+            Val_Init_Block(D_OUT, List_Func_Words(value, FALSE)); // no locals
             return R_OUT;
 
         case SYM_BODY:
-            switch (VAL_FUNC_CLASS(value)) {
-            case FUNC_CLASS_NATIVE: {
-                REBCNT n = 0;
-                for (; n < NUM_NATIVES; ++n)
-                    if (VAL_FUNC_CODE(value) == VAL_FUNC_CODE(&Natives[n]))
-                        break;
-                if (n == NUM_NATIVES) fail (Error(RE_MISC));
+            if (IS_FUNCTION_HOOKED(value))
+                fail (Error(RE_MISC)); // body corrupt, need to recurse
 
-                if (Native_Bodies[n]) { // was created with NATIVE/BODY
-                    Val_Init_Array(
-                        D_OUT,
-                        REB_BLOCK,
-                        Copy_Array_Deep_Managed(Native_Bodies[n])
-                    );
-                }
-                else {
-                    SET_HANDLE_CODE(D_OUT, cast(CFUNC*, VAL_FUNC_CODE(value)));
-                }
-
-                return R_OUT;
-            }
-
-            case FUNC_CLASS_ACTION: {
-                SET_INTEGER(D_OUT, VAL_FUNC_ACT(value));
-                return R_OUT;
-            }
-
-            case FUNC_CLASS_USER: {
+            if (IS_FUNCTION_PLAIN(value)) {
                 //
                 // BODY-OF is an example of user-facing code that needs to be
                 // complicit in the "lie" about the effective bodies of the
@@ -199,40 +187,16 @@ REBTYPE(Function)
                 return R_OUT;
             }
 
-            case FUNC_CLASS_COMMAND: {
-                SET_INTEGER(D_OUT, 0);
-                return R_OUT;
-            }
-
-            case FUNC_CLASS_ROUTINE: {
-                SET_INTEGER(D_OUT, 0);
-                return R_OUT;
-            }
-
-            case FUNC_CLASS_CALLBACK: {
-                Val_Init_Array(D_OUT, REB_BLOCK, VAL_FUNC_BODY(value));
-                return R_OUT;
-            }
-
-            case FUNC_CLASS_SPECIALIZED:
-                //
-                // Just a FRAME! (turned into a BLOCK! by mezzanine BODY-OF)
-                //
-                Val_Init_Context(D_OUT, REB_FRAME, VAL_FUNC_SPECIAL(value));
-                return R_OUT;
-
-            default:
-                assert(FALSE);
-                return R_BLANK;
-            }
-            break;
-
-        case SYM_SPEC:
-            Val_Init_Block(
-                D_OUT, Copy_Array_Deep_Managed(VAL_FUNC_SPEC(value))
+            // For other function types, leak internal guts and hope for
+            // the best, temporarily.
+            //
+            Val_Init_Array(
+                D_OUT,
+                REB_BLOCK,
+                Copy_Array_Deep_Managed(
+                    VAL_ARRAY(ARR_HEAD(VAL_FUNC_BODY(value)))
+                )
             );
-
-            Unbind_Values_Deep(VAL_ARRAY_HEAD(D_OUT));
             return R_OUT;
 
         case SYM_TYPES: {
@@ -278,9 +242,36 @@ REBTYPE(Function)
 //  ]
 //
 REBNATIVE(func_class_of)
+//
+// !!! The concept of the VAL_FUNC_CLASS was killed, because functions get
+// their classification by way of their dispatch pointers.  Generally
+// speaking, functions should be a "black box" to user code, and it's only
+// at the "meta" level that a function would choose to expose whether it
+// is something like a specialization or an adaptation...but that would be
+// purely documentary, and could lie.
 {
     PARAM(1, func);
 
-    SET_INTEGER(D_OUT, VAL_FUNC_CLASS(ARG(func)));
+    REBVAL *value = ARG(func);
+    REBCNT n;
+
+    if (IS_FUNCTION_PLAIN(value))
+        n = 2;
+    else if (IS_FUNCTION_ACTION(value))
+        n = 3;
+    else if (IS_FUNCTION_COMMAND(value))
+        n = 4;
+    else if (IS_FUNCTION_ROUTINE(value))
+        n = 5;
+    else if (IS_FUNCTION_CALLBACK(value))
+        n = 6;
+    else if (IS_FUNCTION_SPECIALIZER(value))
+        n = 7;
+    else {
+        // !!! A shaky guess, but assume native if none of the above.
+        n = 1;
+    }
+
+    SET_INTEGER(D_OUT, n);
     return R_OUT;
 }
