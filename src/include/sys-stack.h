@@ -141,9 +141,11 @@ typedef unsigned int REBDSP;
 #define DS_PUSH_TRASH_SAFE \
     (DS_PUSH_TRASH, SET_TRASH_SAFE(DS_TOP), NOOP)
 
+#define DS_PUSH_MAYBE_VOID(v) \
+    (ASSERT_VALUE_MANAGED(v), DS_PUSH_TRASH, *DS_TOP = *(v), NOOP)
+
 #define DS_PUSH(v) \
-    (assert(!IS_VOID(v)), ASSERT_VALUE_MANAGED(v), \
-        DS_PUSH_TRASH, *DS_TOP = *(v), NOOP)
+    (assert(!IS_VOID(v)), DS_PUSH_MAYBE_VOID(v))
 
 // POPPING AND "DROPPING"
 

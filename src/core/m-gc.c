@@ -1038,9 +1038,13 @@ static void Mark_Array_Deep_Core(REBARR *array)
         if (IS_VOID_OR_SAFE_TRASH(value)) {
             //
             // Voids are illegal in most arrays, but the varlist of a context
-            // uses void values to denote that the variable is not set.
+            // uses void values to denote that the variable is not set.  Also
+            // reified C va_lists as Do_Core() sources can have them.
             //
-            assert(GET_ARR_FLAG(array, ARRAY_FLAG_CONTEXT_VARLIST));
+            assert(
+                GET_ARR_FLAG(array, ARRAY_FLAG_CONTEXT_VARLIST)
+                || GET_ARR_FLAG(array, ARRAY_FLAG_VOIDS_LEGAL)
+            );
         }
         else
             Queue_Mark_Value_Deep(value);

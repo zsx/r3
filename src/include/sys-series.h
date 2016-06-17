@@ -292,6 +292,17 @@ enum {
     //
     KEYLIST_FLAG_SHARED = 1 << 13,
 
+    // `ARRAY_FLAG_VOIDS_LEGAL` identifies arrays in which it is legal to
+    // have void elements.  This is used for instance on reified C va_list()s
+    // which were being used for unevaluated applies.  When those va_lists
+    // need to be put into arrays for the purposes of GC protection, they may
+    // contain voids which they need to track.
+    //
+    // Note: ARRAY_FLAG_CONTEXT_VARLIST also implies legality of voids, which
+    // are used to represent unset variables.
+    //
+    ARRAY_FLAG_VOIDS_LEGAL = 1 << 14,
+
     // `SERIES_FLAG_LEGACY` is a flag which is marked at the root set of the
     // body of legacy functions.  It can be used in a dynamic examination of
     // a call to see if it "originates from legacy code".  This is a vague
@@ -300,7 +311,7 @@ enum {
     // But it's good enough for casual compatibility in many cases.
     //
 #if !defined NDEBUG
-    SERIES_FLAG_LEGACY = 1 << 14,
+    SERIES_FLAG_LEGACY = 1 << 15,
 #endif
 
     SERIES_FLAG_NO_COMMA_NEEDED = 0 // solves dangling comma from above

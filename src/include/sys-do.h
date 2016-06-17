@@ -802,7 +802,8 @@ struct Reb_Frame {
         } \
         else { \
             (f)->value = va_arg(*(f)->source.vaptr, const REBVAL*); \
-            assert(IS_END((f)->value) || !IS_VOID((f)->value)); \
+            assert(IS_END((f)->value) || !IS_VOID((f)->value) || \
+                NOT((f)->flags & DO_FLAG_ARGS_EVALUATE)); \
         } \
     } while (0)
 

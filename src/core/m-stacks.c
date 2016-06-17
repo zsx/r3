@@ -84,6 +84,12 @@ void Init_Stacks(REBCNT size)
         SET_END(ARR_TAIL(DS_Array));
         ASSERT_ARRAY(DS_Array);
 
+        // DS_PUSH checks what you're pushing isn't void, as most arrays can't
+        // contain them.  But DS_PUSH_MAYBE_VOID allows you to, in case you
+        // are building a context varlist or similar.
+        //
+        SET_ARR_FLAG(DS_Array, ARRAY_FLAG_VOIDS_LEGAL);
+
         // Reuse the expansion logic that happens on a DS_PUSH to get the
         // initial stack size.  It requires you to be on an END to run.  Then
         // drop the hypothetical thing pushed.

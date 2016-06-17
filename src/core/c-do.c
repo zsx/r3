@@ -163,10 +163,13 @@ void Reify_Va_To_Array_In_Frame(struct Reb_Frame *f, REBOOL truncated)
     }
 
     if (NOT_END(f->value)) {
-        DS_PUSH(f->value);
+        assert(!IS_VOID(f->value) || NOT(f->flags & DO_FLAG_ARGS_EVALUATE));
+        DS_PUSH_MAYBE_VOID(f->value);
 
-        while (NOT_END(value = va_arg(*f->source.vaptr, const REBVAL*)))
-            DS_PUSH(value);
+        while (NOT_END(value = va_arg(*f->source.vaptr, const REBVAL*))) {
+            assert(!IS_VOID(value) || NOT(f->flags & DO_FLAG_ARGS_EVALUATE));
+            DS_PUSH_MAYBE_VOID(value);
+        }
 
         if (truncated) {
             f->indexor = 2; // skip the --optimized-out--
@@ -186,6 +189,7 @@ void Reify_Va_To_Array_In_Frame(struct Reb_Frame *f, REBOOL truncated)
         MANAGE_ARRAY(f->source.array); // held alive while frame running
 
         SET_ARR_FLAG(f->source.array, SERIES_FLAG_LOCKED);
+        SET_ARR_FLAG(f->source.array, ARRAY_FLAG_VOIDS_LEGAL);
         f->flags |= DO_FLAG_TOOK_FRAME_LOCK;
     }
     else {
