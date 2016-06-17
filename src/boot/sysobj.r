@@ -245,6 +245,13 @@ standard: context [
             _
     ]
 
+    chained-meta: context [
+        description:
+        chainees:
+        chainee-names:
+            _
+    ]
+
     error: context [ ; Template used for all errors:
         code: _
         type: 'user

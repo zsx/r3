@@ -502,7 +502,7 @@ callback?: func [f] [all [function? :f | 6 = func-class-of :f]]
 ; to the routine! datatype (for instance) but should cover most cases.
 ;
 lib-make: :lib/make
-make: func [
+make: function [
     "Constructs or allocates the specified datatype."
     :lookahead [any-value! <...>]
     type [<opt> any-value! <...>]
@@ -523,6 +523,7 @@ make: func [
             assert [function! = take type]
             make-command take spec
         ]
+
         (lib-make take type take spec)
     ]
 ]
@@ -532,9 +533,38 @@ make: func [
 ; directly, as that will be a no-op in older Rebols.  Notice the word
 ; is defined in sys-base.r, as it needs to be visible pre-Mezzanine
 ;
-set 'r3-legacy* func [] [
+; !!! There are a lot of SET-WORD!s in this routine inside an object append.
+; So it's a good case study of how one can get a very large number of
+; locals if using FUNCTION.  Study.
+;
+set 'r3-legacy* func [<local> if-flag] [
 
     if r3-legacy-mode [return blank]
+
+    ; NOTE: these flags only work in debug builds.  A better availability
+    ; test for the functionality is needed, as these flags may be expired
+    ; at different times on a case-by-case basis.
+    ;
+    ; (We don't flip these switches until after the above functions have been
+    ; created, so that the shims can use Ren-C features like word-valued
+    ; refinements/etc.)
+    ;
+    system/options/lit-word-decay: true
+    system/options/broken-case-semantics: true
+    system/options/exit-functions-only: true
+    system/options/mutable-function-bodies: true
+    system/options/refinements-blank: true
+    system/options/no-switch-evals: true
+    system/options/no-switch-fallthrough: true
+    system/options/forever-64-bit-ints: true
+    system/options/print-forms-everything: true
+    system/options/break-with-overrides: true
+    system/options/none-instead-of-voids: true
+    system/options/arg1-arg2-arg3-error: true
+    system/options/dont-exit-natives: true
+    system/options/paren-instead-of-group: true
+    system/options/get-will-get-anything: true
+    system/options/no-reduce-nested-print: true
 
     append system/contexts/user compose [
 
@@ -912,30 +942,32 @@ set 'r3-legacy* func [] [
     set-infix (bind 'or system/contexts/user) :or+
     set-infix (bind 'xor system/contexts/user) :xor+
 
-    ; NOTE: these flags only work in debug builds.  A better availability
-    ; test for the functionality is needed, as these flags may be expired
-    ; at different times on a case-by-case basis.
+    if-flag: func [flag [word!] body [block!]] [
+        if system/options/(flag) body
+    ]
+
     ;
-    ; (We don't flip these switches until after the above functions have been
-    ; created, so that the shims can use Ren-C features like word-valued
-    ; refinements/etc.)
+    ; The Ren-C invariant for control constructs that don't run their cases
+    ; is to return VOID, not a "NONE!" (BLANK!) as in R3-Alpha.  We assume
+    ; that converting void results from these operations gives compatibility,
+    ; and if it doesn't it's likealy a bigger problem because you can't put
+    ; "unset! literals" (voids) into blocks in the first place.
     ;
-    system/options/lit-word-decay: true
-    system/options/broken-case-semantics: true
-    system/options/exit-functions-only: true
-    system/options/mutable-function-bodies: true
-    system/options/refinements-blank: true
-    system/options/no-switch-evals: true
-    system/options/no-switch-fallthrough: true
-    system/options/forever-64-bit-ints: true
-    system/options/print-forms-everything: true
-    system/options/break-with-overrides: true
-    system/options/none-instead-of-voids: true
-    system/options/arg1-arg2-arg3-error: true
-    system/options/dont-exit-natives: true
-    system/options/paren-instead-of-group: true
-    system/options/get-will-get-anything: true
-    system/options/no-reduce-nested-print: true
+    ; So make a lot of things like `first: (chain [:first :to-value])`
+    ;
+    if-flag 'none-instead-of-voids [
+        for-each word [
+            first second third fourth fifth sixth seventh eighth ninth tenth
+            select pick
+            if unless either case switch
+            while foreach loop repeat forall forskip
+        ][
+            append system/contexts/user compose [
+                (to-set-word word)
+                (chain compose [(to-get-word word) :to-value])
+            ]
+        ]
+    ]
 
     r3-legacy-mode: on
     return blank

@@ -2114,7 +2114,13 @@ enum {
     R_VOID, // => SET_VOID(D_OUT); return R_OUT;
     R_BLANK, // => SET_BLANK(D_OUT); return R_OUT;
     R_TRUE, // => SET_TRUE(D_OUT); return R_OUT;
-    R_FALSE // => SET_FALSE(D_OUT); return R_OUT;
+    R_FALSE, // => SET_FALSE(D_OUT); return R_OUT;
+
+    // If Do_Core gets back an R_REDO from a dispatcher, it will re-execute
+    // the f->func in the frame.  This function may be changed by the
+    // dispatcher from what was originally called.
+    //
+    R_REDO
 };
 typedef REBCNT REB_R;
 
@@ -2214,27 +2220,33 @@ struct Reb_Function {
     (ARR_SERIES((v)->payload.function.body)->misc.dispatch)
 
 #define IS_FUNCTION_PLAIN(v) \
-    (assert(IS_FUNCTION(v)), VAL_FUNC_DISPATCH(v) == &Plain_Dispatcher)
+    (VAL_FUNC_DISPATCH(v) == &Plain_Dispatcher)
 
 #define IS_FUNCTION_ACTION(v) \
-    (assert(IS_FUNCTION(v)), VAL_FUNC_DISPATCH(v) == &Action_Dispatcher)
+    (VAL_FUNC_DISPATCH(v) == &Action_Dispatcher)
 
 #define IS_FUNCTION_COMMAND(v) \
-    (assert(IS_FUNCTION(v)), VAL_FUNC_DISPATCH(v) == &Command_Dispatcher)
+    (VAL_FUNC_DISPATCH(v) == &Command_Dispatcher)
 
 #define IS_FUNCTION_SPECIALIZER(v) \
-    (assert(IS_FUNCTION(v)), VAL_FUNC_DISPATCH(v) == &Specializer_Dispatcher)
+    (VAL_FUNC_DISPATCH(v) == &Specializer_Dispatcher)
+
+#define IS_FUNCTION_ADAPTER(v) \
+    (VAL_FUNC_DISPATCH(v) == &Adapter_Dispatcher)
+
+#define IS_FUNCTION_CHAINER(v) \
+    (VAL_FUNC_DISPATCH(v) == &Chainer_Dispatcher)
 
 #define IS_FUNCTION_ROUTINE(v) \
-    (assert(IS_FUNCTION(v)), VAL_FUNC_DISPATCH(v) == &Routine_Dispatcher \
+    (VAL_FUNC_DISPATCH(v) == &Routine_Dispatcher \
         && NOT(IS_CALLBACK_ROUTINE(VAL_FUNC_INFO(v))))
 
 #define IS_FUNCTION_CALLBACK(v) \
-    (assert(IS_FUNCTION(v)), VAL_FUNC_DISPATCH(v) == &Routine_Dispatcher \
+    (VAL_FUNC_DISPATCH(v) == &Routine_Dispatcher \
         && IS_CALLBACK_ROUTINE(VAL_FUNC_INFO(v)))
 
 #define IS_FUNCTION_HOOKED(v) \
-    (assert(IS_FUNCTION(v)), VAL_FUNC_DISPATCH(v) == &Hooked_Dispatcher)
+    (VAL_FUNC_DISPATCH(v) == &Hooked_Dispatcher)
 
 #define VAL_FUNC_BODY(v) \
     ((v)->payload.function.body)

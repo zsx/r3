@@ -16,10 +16,30 @@ REBOL [
     }
 ]
 
+; Due to wanting R3-Alpha to be able to run the bootstrap build, these objects
+; could not unset these fields.  (make object! [x: ()] fails in R3-Alpha)
+;
+system/standard/function-meta/description:
+system/standard/function-meta/parameter-types:
+system/standard/function-meta/parameter-notes:
+system/standard/specialized-meta/description:
+system/standard/specialized-meta/specializee:
+system/standard/specialized-meta/specializee-name:
+system/standard/adapted-meta/description:
+system/standard/adapted-meta/adaptee:
+system/standard/adapted-meta/adaptee-name:
+system/standard/chained-meta/description:
+system/standard/chained-meta/chainees:
+system/standard/chained-meta/chainee-names:
+    ()
+
+
 ; Control structures evaluate to either void (if no branches taken) or the
 ; last value of any evaluated blocks.  This applies to everything from IF
 ; to CASE to WHILE.  The ? versions are tailored to return whether a branch
 ; was taken at all, and always return either TRUE or FALSE.
+; Due to wanting R3-Alpha to be able to run the bootstrap build, these objects
+; could not unset these fields.  (make object! [x: ()] fails in R3-Alpha)
 ;
 if?: specialize 'if [?: true]
 unless?: specialize 'unless [?: true]
@@ -105,6 +125,56 @@ function: specialize :make-action [generator: :func]
 procedure: specialize :make-action [generator: :proc]
 
 
+; Functions can be chained, adapted, and specialized--repeatedly.  The meta
+; information from which HELP is determined can be inherited through links
+; in that meta information.  Though in order to mutate the information for
+; the purposes of distinguishing a derived function, it must be copied.
+;
+dig-function-meta-fields: function [value [function!]] [
+    meta: meta-of :value
+
+    underlying: is function! any [
+        :meta/specializee
+        :meta/adaptee
+        all [block? :meta/chainees | first meta/chainees]
+    ]
+
+    fields: all [:underlying | dig-function-meta-fields :underlying]
+
+    inherit-frame: function [parent [blank! frame!]] [
+        if blank? parent [return blank]
+
+        child: make frame! :value
+        for-each param child [
+            if ? select parent param [
+                child/(param): copy parent/(param)
+            ]
+        ]
+        return child
+    ]
+
+    return make system/standard/function-meta [
+        description: (
+            is string! any [
+                select meta 'description
+                all [fields | copy fields/description]
+            ]
+        )
+        parameter-types: (
+            is frame! any [
+                select meta 'parameter-types
+                all [fields | inherit-frame :fields/parameter-types]
+            ]
+        )
+        parameter-notes: (
+            is frame! any [
+                select meta 'parameter-notes
+                all [fields | inherit-frame :fields/parameter-notes]
+            ]
+        )
+    ]
+]
+
 redescribe: function [
     {Mutate function description with new title and/or new argument notes.}
 
@@ -154,41 +224,22 @@ redescribe: function [
     ; but to reuse archetypal ones.  Also to limit the total number of
     ; variations that clients like HELP have to reason about.)
     ;
-    regenerate-meta: func [] [
-        description: meta/description
-        meta: blank
-        on-demand-meta
-        meta/description: description
-    ]
-
     on-demand-notes: func [] [
         on-demand-meta
 
-        if notes [return ()]
+        if find meta 'parameter-notes [return ()]
 
-        original: any [:meta/specializee | :meta/adaptee] ;-- may be blank
-        original-meta: all [:original | meta-of :original] ;-- may be blank
+        fields: dig-function-meta-fields :value
 
-        regenerate-meta
+        meta: blank ;-- need to get a parameter-notes field in the OBJECT!
+        on-demand-meta ;-- ...so this loses SPECIALIZEE, etc.
 
-        meta/parameter-types: opt copy all [
-            select original-meta 'parameter-types
-        ]
-        notes: meta/parameter-notes: make frame! :value
-
-        ; Grab any of the original parameter descriptions for starters, so
-        ; that only the new ones that are described override.  Note that
-        ; specialized parameter lists are subsets of the original list.
-        ;
-        if original-notes: (select original-meta 'parameter-notes) [
-            for-each param notes [
-                notes/(param): original-notes/(param)
-            ]
-        ]
+        description: meta/description: fields/description
+        notes: meta/parameter-notes: fields/parameter-notes
+        types: meta/parameter-types: fields/parameter-types
     ]
 
     unless parse spec [
-        (description: {}) ;-- delete existing description instruction
         opt [
             set description: string! (
                 either all [equal? description {} | not meta] [

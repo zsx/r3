@@ -1207,13 +1207,18 @@ REBCTX *Make_Frame_For_Function(REBVAL *value) {
 //
 REBOOL Specialize_Function_Throws(
     REBVAL *out,
-    REBVAL *func_value,
-    REBSYM opt_original_sym,
+    REBVAL *specializee,
+    REBSYM opt_specializee_sym, // can be SYM_0
     REBVAL *block // !!! REVIEW: gets binding modified directly (not copied)
 ) {
-    REBCTX *frame_ctx;
+    assert(out != specializee);
 
-    if (IS_FUNCTION_SPECIALIZER(func_value)) {
+    REBCTX *exemplar;
+    REBARR *exit_from;
+
+    REBFUN *func = Find_Underlying_Func(&exit_from, &exemplar, specializee);
+
+    if (exemplar) {
         //
         // Specializing a specialization is ultimately just a specialization
         // of the innermost function being specialized.  (Imagine specializing
@@ -1222,25 +1227,27 @@ REBOOL Specialize_Function_Throws(
         // needs to have as many parameters as APPEND has.  The frame must be
         // be built for the code ultimately being called--and specializations
         // have no code of their own.)
-        //
-        frame_ctx = AS_CONTEXT(Copy_Array_Deep_Managed(
-            CTX_VARLIST(VAL_CONTEXT(VAL_FUNC_EXEMPLAR(func_value)))
-        ));
-        INIT_CTX_KEYLIST_SHARED(
-            frame_ctx,
-            CTX_KEYLIST(VAL_CONTEXT(VAL_FUNC_EXEMPLAR(func_value)))
-        );
-        SET_ARR_FLAG(CTX_VARLIST(frame_ctx), ARRAY_FLAG_CONTEXT_VARLIST);
-        INIT_VAL_CONTEXT(CTX_VALUE(frame_ctx), frame_ctx);
-        assert(VAL_CONTEXT_EXIT_FROM(CTX_VALUE(frame_ctx)) == NULL);
+
+        REBARR *varlist = Copy_Array_Deep_Managed(CTX_VARLIST(exemplar));
+        SET_ARR_FLAG(varlist, ARRAY_FLAG_CONTEXT_VARLIST);
+        INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(varlist), CTX_KEYLIST(exemplar));
+
+        exemplar = AS_CONTEXT(varlist); // okay, now make exemplar our copy
+        INIT_VAL_CONTEXT(CTX_VALUE(exemplar), exemplar);
+        // exit_from should be good to go
     }
     else {
         // An initial specialization is responsible for making a frame out
         // of the function's paramlist.  Frame vars default void.
         //
-        frame_ctx = Make_Frame_For_Function(func_value);
-        MANAGE_ARRAY(CTX_VARLIST(frame_ctx)); // because above case manages
+        exemplar = Make_Frame_For_Function(specializee);
+        MANAGE_ARRAY(CTX_VARLIST(exemplar));
+        exit_from = VAL_FUNC_EXIT_FROM(specializee);
     }
+
+    // Archetypal frame values can't have exit_froms (would write paramlist)
+    //
+    assert(VAL_CONTEXT_EXIT_FROM(CTX_VALUE(exemplar)) == NULL);
 
     // Bind all the SET-WORD! in the body that match params in the frame
     // into the frame.  This means `value: value` can very likely have
@@ -1254,7 +1261,7 @@ REBOOL Specialize_Function_Throws(
     //
     Bind_Values_Core(
         VAL_ARRAY_AT(block),
-        frame_ctx,
+        exemplar,
         FLAGIT_KIND(REB_SET_WORD), // types to bind (just set-word!)
         0, // types to "add midstream" to binding as we go (nothing)
         BIND_DEEP
@@ -1263,14 +1270,14 @@ REBOOL Specialize_Function_Throws(
     // Do the block into scratch space--we ignore the result (unless it is
     // thrown, in which case it must be returned.)
     {
-        PUSH_GUARD_ARRAY(CTX_VARLIST(frame_ctx));
+        PUSH_GUARD_ARRAY(CTX_VARLIST(exemplar));
 
         if (DO_VAL_ARRAY_AT_THROWS(out, block)) {
-            DROP_GUARD_ARRAY(CTX_VARLIST(frame_ctx));
+            DROP_GUARD_ARRAY(CTX_VARLIST(exemplar));
             return TRUE;
         }
 
-        DROP_GUARD_ARRAY(CTX_VARLIST(frame_ctx));
+        DROP_GUARD_ARRAY(CTX_VARLIST(exemplar));
     }
 
     // Begin initializing the returned function value
@@ -1281,22 +1288,14 @@ REBOOL Specialize_Function_Throws(
     // not be able to touch the keylist of that frame to update the "archetype"
     // exit_from, we can patch this cell in the "body array" to hold it.
     //
-    VAL_FUNC_BODY(out) = Make_Singular_Array(CTX_VALUE(frame_ctx));
+    VAL_FUNC_BODY(out) = Make_Singular_Array(CTX_VALUE(exemplar));
     MANAGE_ARRAY(VAL_FUNC_BODY(out));
-    VAL_CONTEXT_EXIT_FROM(VAL_FUNC_EXEMPLAR(out))
-        = VAL_FUNC_EXIT_FROM(func_value);
+    VAL_CONTEXT_EXIT_FROM(VAL_FUNC_EXEMPLAR(out)) = exit_from;
 
     // Currently specializations never actually run their own dispatch, but
     // it may be useful to recognize the function category by a dispatcher
     //
     VAL_FUNC_DISPATCH(out) = &Specializer_Dispatcher;
-
-    // !!! What impacts does it have to carry-or-not-carry exit_from on the
-    // newly created specialized function?  Assume it is not necessary, in
-    // case there's some reason to retarget or modify a specialization that
-    // might not apply to its specializee.
-    //
-    VAL_CONTEXT_EXIT_FROM(CTX_VALUE(frame_ctx)) = NULL;
 
     // Generate paramlist by way of the data stack.  Push empty value (to
     // become the function value afterward), then all the args that remain
@@ -1305,8 +1304,8 @@ REBOOL Specialize_Function_Throws(
     REBDSP dsp_orig = DSP;
     DS_PUSH_TRASH_SAFE; // later initialized as [0] canon value
 
-    REBVAL *param = CTX_KEYS_HEAD(frame_ctx);
-    REBVAL *arg = CTX_VARS_HEAD(frame_ctx);
+    REBVAL *param = CTX_KEYS_HEAD(exemplar);
+    REBVAL *arg = CTX_VARS_HEAD(exemplar);
     for (; NOT_END(param); ++param, ++arg) {
         if (IS_VOID(arg))
             DS_PUSH(param);
@@ -1318,12 +1317,13 @@ REBOOL Specialize_Function_Throws(
 
     // See %sysobj.r for `specialized-meta:` object template
 
-    REBVAL *example = Get_System(SYS_STANDARD, STD_SPECIALIZED_META);
+    REBVAL *std_meta = Get_System(SYS_STANDARD, STD_SPECIALIZED_META);
+    REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(std_meta));
 
-    REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(example));
-    assert(IS_BLANK(CTX_VAR(meta, SELFISH(1)))); // no description by default
-    *CTX_VAR(meta, SELFISH(2)) = *func_value;
-    Val_Init_Word(CTX_VAR(meta, SELFISH(3)), REB_WORD, opt_original_sym);
+    assert(IS_VOID(CTX_VAR(meta, SELFISH(1)))); // no description by default
+    *CTX_VAR(meta, SELFISH(2)) = *specializee;
+    if (opt_specializee_sym != SYM_0)
+        Val_Init_Word(CTX_VAR(meta, SELFISH(3)), REB_WORD, opt_specializee_sym);
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
     VAL_FUNC_META(out) = meta;
@@ -1517,9 +1517,17 @@ REB_R Plain_Dispatcher(struct Reb_Frame *f)
 // All of the contribution that the specialization has to make was taken care
 // of at the time of generating the arguments to the underlying function.
 //
+// Though an attempt is made to use the work of "digging" past specialized
+// frames, some exist deep as chains of specializations etc.  These have
+// to just be peeled off when the chain runs.
+//
 REB_R Specializer_Dispatcher(struct Reb_Frame *f)
 {
-    fail (Error(RE_MISC));
+    REBVAL *exemplar = FUNC_EXEMPLAR(f->func);
+    f->func = VAL_FUNC(CTX_FRAME_FUNC_VALUE(VAL_CONTEXT(exemplar)));
+    f->exit_from = VAL_CONTEXT_EXIT_FROM(exemplar);
+
+    return R_REDO;
 }
 
 
@@ -1559,6 +1567,106 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
 
     Free_Array(args);
     return R_OUT;
+}
+
+
+//
+//  Adapter_Dispatcher: C
+//
+REB_R Adapter_Dispatcher(struct Reb_Frame *f)
+{
+    REBARR* adaptation = FUNC_BODY(f->func);
+    assert(ARR_LEN(adaptation) == 2);
+    REBARR* prelude = VAL_ARRAY(ARR_AT(adaptation, 0));
+    REBVAL* adaptee = KNOWN(ARR_AT(adaptation, 1));
+
+    // The first thing to do is run the prelude code, which may throw.  If it
+    // does throw--including a RETURN--that means the adapted function will
+    // not be run.
+    //
+    if (THROWN_FLAG == Do_Array_At_Core(
+        f->out,
+        NULL, // no virtual first element
+        prelude,
+        0, // index
+        DO_FLAG_TO_END | DO_FLAG_LOOKAHEAD | DO_FLAG_ARGS_EVALUATE
+    )) {
+        return R_OUT_IS_THROWN;
+    }
+
+    // Next the adapted function needs to be run, but it could be any kind of
+    // function.  Rather than repeat the logic and checks, this dispatcher
+    // will ask Do_Core to "REDO" after changing the f->func.
+    //
+    // But the f->func we want isn't going to be a specialization.  Any top
+    // level specializations have already contributed their part, merely
+    // by virtue of setting up the frame.  Dig beneath them.
+    //
+    do {
+        f->func = VAL_FUNC(adaptee);
+        f->exit_from = VAL_FUNC_EXIT_FROM(adaptee);
+    } while (IS_FUNCTION_SPECIALIZER(FUNC_VALUE(f->func)));
+
+    // We have to run a type-checking sweep, to make sure the state of the
+    // arguments is legal for the function.  Note that in particular,
+    // a native function makes assumptions that the bit patterns are correct
+    // for the set of types it takes...and most would crash the interpreter
+    // if given a cell with an unexpected type in it.
+    //
+    REBVAL *test = f->arg;
+    f->param = FUNC_PARAMS_HEAD(f->func);
+    for (; NOT_END(test); ++test, ++f->param) {
+        switch (VAL_PARAM_CLASS(f->param)) {
+        case PARAM_CLASS_PURE_LOCAL:
+            SET_VOID(test); // cheaper than checking
+            break;
+
+        case PARAM_CLASS_REFINEMENT:
+            if (!IS_LOGIC(test))
+                assert(FALSE);
+            break;
+
+        case PARAM_CLASS_HARD_QUOTE:
+        case PARAM_CLASS_SOFT_QUOTE:
+        case PARAM_CLASS_NORMAL:
+            if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg)))
+                assert(FALSE);
+            break;
+
+        default:
+            assert(FALSE);
+        }
+    }
+
+    return R_REDO; // Have Do_Core run the adaptee updated into f->func
+}
+
+
+//
+//  Chainer_Dispatcher: C
+//
+REB_R Chainer_Dispatcher(struct Reb_Frame *f)
+{
+    REBARR *pipeline = FUNC_BODY(f->func); // is the "pipeline" of functions
+
+    // Before skipping off to find the underlying non-chained function
+    // to kick off the execution, the post-processing pipeline has to
+    // be "pushed" so it is not forgotten.  Go in reverse order so
+    // the function to apply last is at the bottom of the stack.
+    //
+    REBVAL *value = KNOWN(ARR_LAST(pipeline));
+    while (value != ARR_HEAD(pipeline)) {
+        assert(IS_FUNCTION(value));
+        DS_PUSH(KNOWN(value));
+        --value;
+    }
+
+    // Extract the first function, itself which might be a chain.
+    //
+    f->func = VAL_FUNC(value);
+    f->exit_from = VAL_FUNC_EXIT_FROM(value);
+
+    return R_REDO;
 }
 
 
@@ -1639,13 +1747,13 @@ REBNATIVE(proc)
 //
 void Get_If_Word_Or_Path_Arg(
     REBVAL *out,
-    REBSYM *sym, // will not return SYM_0, but might be SYM___ANONYMOUS__
+    REBSYM *opt_sym, // may return SYM_0
     const REBVAL *value
 ) {
     REBVAL adjusted = *value;
 
     if (ANY_WORD(value)) {
-        *sym = VAL_WORD_SYM(value);
+        *opt_sym = VAL_WORD_SYM(value);
         VAL_SET_TYPE_BITS(&adjusted, REB_GET_WORD);
     }
     else if (ANY_PATH(value)) {
@@ -1653,11 +1761,11 @@ void Get_If_Word_Or_Path_Arg(
         // In theory we could get a symbol here, assuming we only do non
         // evaluated GETs.  Not implemented at the moment.
         //
-        *sym = SYM___ANONYMOUS__;
+        *opt_sym = SYM_0;
         VAL_SET_TYPE_BITS(&adjusted, REB_GET_PATH);
     }
     else {
-        *sym = SYM___ANONYMOUS__;
+        *opt_sym = SYM_0;
         *out = *value;
         return;
     }
@@ -1688,19 +1796,202 @@ REBNATIVE(specialize)
     PARAM(1, value);
     PARAM(2, def);
 
-    REBSYM sym; // may be anonymous
+    REBSYM opt_sym; // may be SYM_0
 
     // We don't limit to taking a FUNCTION! value directly, because that loses
     // the symbol (for debugging, errors, etc.)  If caller passes a WORD!
     // then we lookup the variable to get the function, but save the symbol.
     //
-    Get_If_Word_Or_Path_Arg(D_OUT, &sym, ARG(value));
+    REBVAL specializee;
+    Get_If_Word_Or_Path_Arg(&specializee, &opt_sym, ARG(value));
 
-    if (!IS_FUNCTION(D_OUT))
+    if (!IS_FUNCTION(&specializee))
         fail (Error(RE_APPLY_NON_FUNCTION, ARG(value))); // for APPLY too
 
-    if (Specialize_Function_Throws(D_OUT, D_OUT, sym, ARG(def)))
+    if (Specialize_Function_Throws(D_OUT, &specializee, opt_sym, ARG(def)))
         return R_OUT_IS_THROWN;
+
+    return R_OUT;
+}
+
+
+//
+//  chain: native [
+//
+//  {Create a processing pipeline of functions that consume the last's result}
+//
+//      chainees [block!]
+//      /only
+//  ]
+//
+REBNATIVE(chain)
+{
+    PARAM(1, chainees);
+    REFINE(2, only);
+
+    REBVAL *out = D_OUT; // plan ahead for factoring into Chain_Function(out..
+
+    assert(!REF(only)); // not written yet
+
+    REBARR *chainees;
+
+    if (REF(only)) {
+        chainees = Copy_Array_At_Deep_Managed(
+            VAL_ARRAY(ARG(chainees)),
+            VAL_INDEX(ARG(chainees))
+        );
+    }
+    else {
+        if (Reduce_Array_Throws(
+            out, VAL_ARRAY(ARG(chainees)), VAL_INDEX(ARG(chainees)), FALSE
+        )) {
+            return R_OUT_IS_THROWN;
+        }
+
+        chainees = VAL_ARRAY(out); // should be all specific values
+        ASSERT_ARRAY_MANAGED(chainees);
+    }
+
+    // !!! Should validate pipeline here.  What would be legal besides
+    // just functions...is it a dialect?
+
+    assert(IS_FUNCTION(ARR_HEAD(chainees)));
+    REBVAL *starter = KNOWN(ARR_HEAD(chainees));
+
+    // Begin initializing the returned function value
+    //
+    VAL_RESET_HEADER(out, REB_FUNCTION);
+
+    // The "body" is just the pipeline.
+    //
+    out->payload.function.body = chainees;
+    VAL_FUNC_DISPATCH(out) = &Chainer_Dispatcher;
+
+    // The paramlist needs to be unique to designate this function, but
+    // will be identical typesets to the first function in the chain.  It's
+    // [0] element must identify the function we're creating vs the original,
+    // however.
+    //
+    REBARR *paramlist = Copy_Array_Shallow(VAL_FUNC_PARAMLIST(starter));
+    MANAGE_ARRAY(paramlist);
+    out->payload.function.func = AS_FUNC(paramlist);
+
+    // See %sysobj.r for `specialized-meta:` object template
+
+    REBVAL *std_meta = Get_System(SYS_STANDARD, STD_CHAINED_META);
+    REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(std_meta));
+
+    assert(IS_VOID(CTX_VAR(meta, SELFISH(1)))); // no description by default
+    Val_Init_Block(CTX_VAR(meta, SELFISH(2)), chainees);
+    //
+    // !!! There could be a system for preserving names in the chain, by
+    // accepting lit-words instead of functions--or even by reading the
+    // GET-WORD!s in the block.  Consider for the future.
+    //
+    assert(IS_VOID(CTX_VAR(meta, SELFISH(3))));
+
+    MANAGE_ARRAY(CTX_VARLIST(meta));
+    VAL_FUNC_META(out) = meta;
+    VAL_FUNC_EXIT_FROM(out) = NULL;
+
+    // Update canon value's bits to match what we're giving back in out.
+    //
+    *ARR_HEAD(paramlist) = *out;
+
+    return R_OUT;
+}
+
+
+//
+//  adapt: native [
+//
+//  {Create a variant of a function that preprocesses its arguments}
+//
+//      adaptee [function! any-word! any-path!]
+//          {Function or specifying word (preserves word name for debug info)}
+//      prelude [block!]
+//          {Code to run in constructed frame before adapted function runs}
+//  ]
+//
+REBNATIVE(adapt)
+{
+    PARAM(1, adaptee);
+    PARAM(2, prelude);
+
+    REBVAL *adaptee = ARG(adaptee);
+
+    REBSYM opt_adaptee_sym;
+    Get_If_Word_Or_Path_Arg(D_OUT, &opt_adaptee_sym, adaptee);
+    if (!IS_FUNCTION(D_OUT))
+        fail (Error(RE_APPLY_NON_FUNCTION, adaptee));
+
+    *adaptee = *D_OUT;
+
+    REBVAL *out = D_OUT; // plan ahead for factoring into Adapt_Function(out..
+
+    // !!! In a future branch it may be possible that specific binding allows
+    // a read-only input to be "viewed" with a relative binding, and no copy
+    // would need be made if input was R/O.  For now, we copy to relativize.
+    //
+    // Note that the code needs to be bound to the same function keylist as
+    // the adaptee's code is, because only one frame is being created--and
+    // the adaptee's code already requires its keylist to be the one used.
+    //
+    REBARR *prelude = Copy_Array_At_Deep_Managed(
+        VAL_ARRAY(ARG(prelude)),
+        VAL_INDEX(ARG(prelude))
+    );
+    Bind_Relative_Deep(VAL_FUNC(adaptee), ARR_HEAD(prelude), TS_ANY_WORD);
+
+    // We need to store the 2 values describing the adaptation so that Do_Core
+    // knows what to do when it sees FUNC_CLASS_ADAPTED.  [0] is the prelude
+    // BLOCK!, [1] is the FUNCTION! we've adapted.
+    //
+    // !!! This could be optimized to make a copy of the array leaving the
+    // 0 cell blank to leave room for the adaptee, then DO the block from
+    // the 1 index.
+    //
+    REBARR *adaptation = Make_Array(2);
+    Val_Init_Block(ARR_AT(adaptation, 0), prelude);
+    *ARR_AT(adaptation, 1) = *adaptee;
+    SET_ARRAY_LEN(adaptation, 2);
+    TERM_ARRAY(adaptation);
+    MANAGE_ARRAY(adaptation);
+
+    // Begin initializing the returned function value
+    //
+    VAL_RESET_HEADER(out, REB_FUNCTION);
+
+    // The "body" is just the adaptation.
+    //
+    out->payload.function.body = adaptation;
+    VAL_FUNC_DISPATCH(out) = &Adapter_Dispatcher;
+
+    // The paramlist needs to be unique to designate this function, but
+    // will be identical typesets to the original.  It's [0] element must
+    // identify the function we're creating vs the original, however.
+    //
+    REBARR *paramlist = Copy_Array_Shallow(VAL_FUNC_PARAMLIST(adaptee));
+    MANAGE_ARRAY(paramlist);
+    out->payload.function.func = AS_FUNC(paramlist);
+
+    // See %sysobj.r for `specialized-meta:` object template
+
+    REBVAL *example = Get_System(SYS_STANDARD, STD_ADAPTED_META);
+
+    REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(example));
+    assert(IS_VOID(CTX_VAR(meta, SELFISH(1)))); // no description by default
+    *CTX_VAR(meta, SELFISH(2)) = *adaptee;
+    if (opt_adaptee_sym != SYM_0)
+        Val_Init_Word(CTX_VAR(meta, SELFISH(3)), REB_WORD, opt_adaptee_sym);
+
+    MANAGE_ARRAY(CTX_VARLIST(meta));
+    VAL_FUNC_META(out) = meta;
+    VAL_FUNC_EXIT_FROM(out) = NULL;
+
+    // Update canon value's bits to match what we're giving back in out.
+    //
+    *ARR_HEAD(paramlist) = *out;
 
     return R_OUT;
 }
@@ -1898,6 +2189,8 @@ REBNATIVE(apply)
     // then we lookup the variable to get the function, but save the symbol.
     //
     Get_If_Word_Or_Path_Arg(D_OUT, &sym, ARG(value));
+    if (sym == SYM_0)
+        sym = SYM___ANONYMOUS__; // Do_Core requires *some* non SYM_0 symbol
 
     if (!IS_FUNCTION(D_OUT))
         fail (Error(RE_APPLY_NON_FUNCTION, ARG(value))); // for SPECIALIZE too

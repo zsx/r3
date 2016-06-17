@@ -191,12 +191,14 @@ help: procedure [
     ]
 
     ; If arg is a string or datatype! word, search the system:
-    if any [string? :word all [word? :word datatype? get :word]] [
-        if all [word? :word datatype? get :word] [
+    if any [string? :word | all [word? :word | datatype? get :word]] [
+        if all [word? :word | datatype? get :word] [
             value: spec-of get :word
             print [
                 mold :word "is a datatype" newline
-                "It is defined as" either find "aeiou" first value/title ["an"] ["a"] value/title newline
+                "It is defined as"
+                    either find "aeiou" first value/title ["an"] ["a"]
+                    value/title newline
                 "It is of the general type" value/type newline
             ]
         ]
@@ -280,60 +282,54 @@ help: procedure [
         ]
     ]
 
+    ; Dig deeply, but try to inherit the most specific meta fields available
+    ;
+    fields: dig-function-meta-fields :value
+
+    description: fields/description
+    types: fields/parameter-types
+    notes: fields/parameter-notes
+
+    ; For reporting what kind of function this is, don't dig at all--just
+    ; look at the meta information of the function being asked about
+    ;
     meta: meta-of :value
-
-    description: types: notes: _
-
-    inherit-properties: func [] [
-        description: any [
-            :description | is string! select meta 'description
-        ]
-        types: any [
-            :types | is frame! select meta 'parameter-types
-        ]
-        notes: any [
-            :notes | is frame! select meta 'parameter-notes
-        ]
-    ]
-
-    inherit-properties ;-- look for fields in the passed in function first
-
     all [
-        original-name: is word! [
+        original-name: is word! (
             any [select meta 'specializee-name | select meta 'adaptee-name]
-        ]
+        )
         original-name: uppercase mold original-name
     ]
 
     specializee: is function! select meta 'specializee
     adaptee: is function! select meta 'adaptee
-    assert [not both? :specializee :adaptee]
+    chainees: is block! select meta 'chainees
 
     classification: case [
         :specializee [
-            meta: meta-of :specializee
             either original-name [
-                ajoin [{a specialization of } original-name {.}]
+                ajoin [{a specialization of } original-name]
             ][
-                {a specialized function.}
+                {a specialized function}
             ]
         ]
 
         :adaptee [
-            meta: meta-of :adaptee
             either original-name [
-                ajoin [{an adaptation of } original-name {.}]
+                ajoin [{an adaptation of } original-name]
             ][
-                {an adapted function.}
+                {an adapted function}
             ]
+        ]
+
+        :chainees [
+            {a chained function}
         ]
 
         true [
             {a function}
         ]
     ]
-
-    inherit-properties ;-- look for any updated fields if meta changed
 
     print ajoin [
         newline "DESCRIPTION:" newline
@@ -352,7 +348,7 @@ help: procedure [
             note: is string! select notes to-word param
             type: is [block! any-word!] select types to-word param
 
-            if notes [append append str " -- " note]
+            if note [append append str " -- " note]
 
             if all [types | not refinement? param] [
                 repend str [" (" type ")"]

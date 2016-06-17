@@ -117,6 +117,16 @@ static inline void Drop_Function_Args_For_Frame(struct Reb_Frame *f) {
     Drop_Function_Args_For_Frame_Core(f, TRUE);
 }
 
+static inline void Abort_Function_Args_For_Frame(struct Reb_Frame *f) {
+    Drop_Function_Args_For_Frame(f);
+
+    // If a function call is aborted, there may be pending refinements (if
+    // in the gathering phase) or functions (if running a chainer) on the
+    // data stack.  They must be dropped to balance.
+    //
+    DS_DROP_TO(f->dsp_orig);
+}
+
 static inline REBOOL Specialized_Arg(REBVAL *arg) {
     return NOT_END(arg); // END marker is used to indicate "pending" arg slots
 }
@@ -937,8 +947,7 @@ reevaluate:
 
                     if (DO_VALUE_THROWS(SINK(&f->cell.eval), f->arg)) {
                         *f->out = *KNOWN(&f->cell.eval);
-                        DS_DROP_TO(f->dsp_orig);
-                        Drop_Function_Args_For_Frame(f);
+                        Abort_Function_Args_For_Frame(f);
                         goto finished;
                     }
 
@@ -984,8 +993,7 @@ reevaluate:
 
                     if (DO_VALUE_THROWS(SINK(&f->cell.eval), f->arg)) {
                         *f->out = *KNOWN(&f->cell.eval);
-                        DS_DROP_TO(f->dsp_orig);
-                        Drop_Function_Args_For_Frame(f);
+                        Abort_Function_Args_For_Frame(f);
                         goto finished;
                     }
 
@@ -1121,8 +1129,7 @@ reevaluate:
 
                     if (THROWN(f->arg)) {
                         *f->out = *f->arg;
-                        DS_DROP_TO(f->dsp_orig); // pending refinements
-                        Drop_Function_Args_For_Frame(f);
+                        Abort_Function_Args_For_Frame(f);
                         goto finished;
                     }
                 }
@@ -1185,8 +1192,7 @@ reevaluate:
             else if (args_evaluate && IS_QUOTABLY_SOFT(f->value)) {
                 if (DO_VALUE_THROWS(f->arg, f->value)) {
                     *f->out = *f->arg;
-                    DS_DROP_TO(f->dsp_orig);
-                    Drop_Function_Args_For_Frame(f);
+                    Abort_Function_Args_For_Frame(f);
                     goto finished;
                 }
             }
@@ -1365,12 +1371,16 @@ reevaluate:
             f->param = END_CELL; // can't be a typeset while function runs
         }
 
+        if (Trace_Flags) Trace_Func(FRM_LABEL(f), FUNC_VALUE(f->func));
+
         // The garbage collector may run when we call out to functions, so
         // we have to be sure that the frame fields are something valid.
         // f->param cannot be a typeset while the function is running, because
         // typesets are used as a signal to Is_Function_Frame_Fulfilling.
         //
         f->cell.subfeed = NULL;
+
+    execute_func:
         assert(IS_END(f->param));
         // refine can be anything.
         assert(
@@ -1378,7 +1388,6 @@ reevaluate:
             || (f->flags & DO_FLAG_VALIST)
             || IS_VALUE_IN_ARRAY(f->source.array, f->value)
         );
-        assert(NOT(THROWN(f->value)));
 
         if (Trace_Flags) Trace_Func(FRM_LABEL(f), FUNC_VALUE(f->func));
 
@@ -1394,7 +1403,8 @@ reevaluate:
 
         // Any of the below may return f->out as THROWN().  (Note: this used
         // to do `Eval_Natives++` in the native dispatcher, which now fades
-        // into the background.)
+        // into the background.)  The dispatcher may also push functions to
+        // the data stack which will be used to process the return result.
         //
         REBNAT dispatch;
         dispatch = VAL_FUNC_DISPATCH(FUNC_VALUE(f->func));
@@ -1434,11 +1444,21 @@ reevaluate:
             SET_FALSE(f->out);
             break;
 
+        case R_REDO:
+            //
+            // This instruction represents the idea that it is desired to
+            // run the f->func again.  The dispatcher may have changed the
+            // value of what f->func is, for instance.
+            //
+            SET_END(f->out);
+            goto execute_func;
+
         default:
             assert(FALSE);
         }
 
         assert(f->eval_type == ET_FUNCTION); // shouldn't have changed
+        assert(NOT_END(f->out)); // should have overwritten
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -1451,7 +1471,7 @@ reevaluate:
                 //
                 // Do_Core only catches "definitional exits" to current frame
                 //
-                Drop_Function_Args_For_Frame(f);
+                Abort_Function_Args_For_Frame(f);
                 goto finished;
             }
 
@@ -1473,7 +1493,7 @@ reevaluate:
                 CATCH_THROWN(f->out, f->out);
             }
             else {
-                Drop_Function_Args_For_Frame(f);
+                Abort_Function_Args_For_Frame(f);
                 goto finished; // stay THROWN and try to exit frames above...
             }
         }
@@ -1485,11 +1505,6 @@ reevaluate:
     //==////////////////////////////////////////////////////////////////==//
 
         Drop_Function_Args_For_Frame(f);
-
-        // If the throw wasn't intercepted as an exit from this function call,
-        // accept the throw.
-        //
-        if (THROWN(f->out)) goto finished;
 
         // Here we know the function finished and did not throw or exit.  If
         // it has a definitional return we need to type check it--and if it
@@ -1523,6 +1538,25 @@ reevaluate:
             CLEAR_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         else
             SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+
+        // If we have functions pending to run on the outputs, then do so.
+        //
+        while (DSP != f->dsp_orig) {
+            assert(IS_FUNCTION(DS_TOP));
+
+            f->eval_type = ET_INERT; // function is over, so don't involve GC
+
+            REBVAL temp = *f->out; // better safe than sorry, for now?
+            if (Apply_Only_Throws(
+                f->out, DS_TOP, &temp, END_CELL
+            )) {
+                goto finished;
+            }
+
+            DS_DROP;
+        }
+
+        assert(DSP == f->dsp_orig);
 
         if (Trace_Flags)
             Trace_Return(FRM_LABEL(f), f->out);

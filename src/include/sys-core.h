@@ -536,7 +536,7 @@ enum Reb_Vararg_Op {
 #endif
 
 #define THROWN(v) \
-    GET_VAL_FLAG((v), VALUE_FLAG_THROWN)
+    (assert(!IS_END(v)), GET_VAL_FLAG((v), VALUE_FLAG_THROWN))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
