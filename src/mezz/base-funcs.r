@@ -34,22 +34,6 @@ system/standard/chained-meta/chainee-names:
     ()
 
 
-; Control structures evaluate to either void (if no branches taken) or the
-; last value of any evaluated blocks.  This applies to everything from IF
-; to CASE to WHILE.  The ? versions are tailored to return whether a branch
-; was taken at all, and always return either TRUE or FALSE.
-; Due to wanting R3-Alpha to be able to run the bootstrap build, these objects
-; could not unset these fields.  (make object! [x: ()] fails in R3-Alpha)
-;
-if?: specialize 'if [?: true]
-unless?: specialize 'unless [?: true]
-while?: specialize 'while [?: true]
-case?: specialize 'case [?: true]
-switch?: specialize 'switch [?: true]
-trap?: specialize 'trap [?: true]
-catch?: specialize 'catch [?: true]
-
-
 does: func [
     {A shortcut to define a function that has no arguments or locals.}
     body [block!] {The body block of the function}
@@ -302,6 +286,79 @@ redescribe [
 ] :procedure
 
 
+; LOGIC VERSIONS OF CONTROL STRUCTURES
+;
+; Control structures evaluate to either void (if no branches taken) or the
+; last value of any evaluated blocks.  This applies to everything from IF
+; to CASE to WHILE.  The ? versions are tailored to return whether a branch
+; was taken at all, and always return either TRUE or FALSE.
+
+if?: redescribe [
+    {Variation of IF which returns TRUE if the branch runs, FALSE if not}
+](
+    specialize 'if [?: true]
+)
+
+unless?: redescribe [
+    {Variation of UNLESS which returns TRUE if the branch runs, FALSE if not}
+](
+    specialize 'unless [?: true]
+)
+
+while?: redescribe [
+    {Variation of WHILE which returns TRUE if the body ever runs, FALSE if not}
+](
+    specialize 'while [?: true]
+)
+
+case?: redescribe [
+    {Variation of CASE which returns TRUE if any cases run, FALSE if not}
+](
+    specialize 'case [?: true]
+)
+
+switch?: redescribe [
+    {Variation of SWITCH which returns TRUE if any cases run, FALSE if not}
+](
+    specialize 'switch [?: true]
+)
+
+trap?: redescribe [
+    {Variation of TRAP which returns TRUE if an error traps, FALSE if not}
+](
+    specialize 'trap [?: true]
+)
+
+catch?: redescribe [
+    {Variation of CATCH which returns TRUE if a throw is caught, FALSE if not}
+](
+    specialize 'catch [?: true]
+)
+
+any?: redescribe [
+    {Shortcut OR, ignores voids. Unlike plain ANY, forces result to LOGIC!}
+](
+    chain [:any :true?]
+)
+
+all?: redescribe [
+    {Shortcut AND, ignores voids. Unlike plain ALL, forces result to LOGIC!}
+](
+    chain [:all :true?]
+)
+
+find?: redescribe [
+    {Variant of FIND that returns TRUE if present and FALSE if not.}
+](
+    chain [:find :true?]
+)
+
+select?: redescribe [
+    {Variant of SELECT that returns TRUE if a value was selected, else FALSE.}
+](
+    chain [:select :any-value?]
+)
+
 ; To help for discoverability, there is SET-INFIX and INFIX?.  However, the
 ; term can be a misnomer if the function is more advanced, and using the
 ; "lookback" capabilities in another way.  Hence these return descriptive
@@ -346,7 +403,7 @@ nfix?: function [
         n < arity [
             ; If the queried arity is lower than the arity of the function,
             ; assume it's ok...e.g. PREFIX? callers know INFIX? exists (but
-            ; we don't assume INFIX? callers know PREFIX?/PUNCTUATOR? exist)
+            ; we don't assume INFIX? callers know PREFIX?/ENDFIX? exist)
             false
         ]
         'default [
@@ -358,9 +415,23 @@ nfix?: function [
     ]
 ]
 
-endfix?: specialize :nfix? [n: 0 | name: "ENDFIX?"]
-postfix?: specialize :nfix? [n: 1 | name: "POSTFIX?"]
-infix?: specialize :nfix? [n: 2 | name: "INFIX?"]
+endfix?: redescribe [
+    {TRUE if a no-argument function is SET/LOOKBACK to not allow right infix.}
+](
+    specialize :nfix? [n: 0 | name: "ENDFIX?"]
+)
+
+postfix?: redescribe [
+    {TRUE if an arity 1 function is SET/LOOKBACK to act as postfix.}
+](
+    specialize :nfix? [n: 1 | name: "POSTFIX?"]
+)
+
+infix?: redescribe [
+    {TRUE if an arity 2 function is SET/LOOKBACK to act as infix.}
+](
+    specialize :nfix? [n: 2 | name: "INFIX?"]
+)
 
 
 set-nfix: function [
@@ -375,9 +446,23 @@ set-nfix: function [
     set/lookback target :value
 ]
 
-set-endfix: specialize :set-nfix [n: 0 | name: "SET-ENDFIX"]
-set-postfix: specialize :set-nfix [n: 1 | name: "SET-POSTFIX"]
-set-infix: specialize :set-nfix [n: 2 | name: "SET-INFIX"]
+set-endfix: redescribe [
+    {Convenience wrapper for SET/LOOKBACK that ensures function is arity 0.}
+](
+    specialize :set-nfix [n: 0 | name: "SET-ENDFIX"]
+)
+
+set-postfix: redescribe [
+    {Convenience wrapper for SET/LOOKBACK that ensures a function is arity 1.}
+](
+    specialize :set-nfix [n: 1 | name: "SET-POSTFIX"]
+)
+
+set-infix: redescribe [
+    {Convenience wrapper for SET/LOOKBACK that ensures a function is arity 2.}
+](
+    specialize :set-nfix [n: 2 | name: "SET-INFIX"]
+)
 
 
 lambda: function [

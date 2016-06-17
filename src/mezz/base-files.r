@@ -115,7 +115,7 @@ make-dir: func [
     for-each dir dirs [
         path: either empty? path [dir][path/:dir]
         append path slash
-        if error? trap [make-dir path] [
+        if trap? [make-dir path] [
             for-each dir created [attempt [delete dir]]
             cause-error 'access 'cannot-open path
         ]

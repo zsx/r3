@@ -26,13 +26,6 @@ offset-of: func [
     subtract index-of series2 index-of series1
 ]
 
-found?: func [
-    "Returns TRUE if value is not NONE."
-    value
-][
-    not blank? :value
-]
-
 last?: single?: func [
     "Returns TRUE if the series length is 1."
     series [any-series! port! map! tuple! bitset! object! gob! any-word!]

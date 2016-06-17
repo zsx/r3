@@ -87,7 +87,7 @@ mixin?: func [
 ][
     ; Note: Unnamed modules DO NOT default to being mixins.
     if module? mod [mod: meta-of mod]  ; Get the header object
-    true? all [
+    all? [
         find select mod 'options 'private
         ; If there are no exports, there's no difference
         block? select mod 'exports
@@ -686,7 +686,7 @@ load-module: function [
                             cause-error 'syntax hdr source ; word is error code
                         ]
 
-                        not any [delay delay: true? find hdr/options 'delay] [
+                        not any [delay | delay: find? hdr/options 'delay] [
                             set [hdr: code:] load-ext-module ext ; import now
                         ]
                     ]

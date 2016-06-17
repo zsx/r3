@@ -210,6 +210,12 @@ type?: does [
     ]
 ]
 
+found?: does [
+    fail [
+        {FOUND? is deprecated in Ren-C, see chained function FIND?}
+        | {FOUND? is available if running in <r3-legacy> mode.}
+    ]
+]
 
 ; There were several different strata of equality checks, and one was EQUIV?
 ; as well as NOT-EQUIV?.  With changes to make comparisons inside the system
@@ -290,7 +296,7 @@ set: function [
     apply :lib-set [
         target: target
         value: :value
-        opt: true? any [set_ANY set_OPT]
+        opt: any? [set_ANY set_OPT]
         pad: pad
         lookback: lookback
     ]
@@ -630,6 +636,13 @@ set 'r3-legacy* func [<local> if-flag] [
 
                 'default [to-word type-of :value]
             ]
+        ])
+
+        found?: (func [
+            "Returns TRUE if value is not NONE."
+            value
+        ][
+            not blank? :value
         ])
 
         ; These words do NOT inherit the infixed-ness, and you simply cannot
