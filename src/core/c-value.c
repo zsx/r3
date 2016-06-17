@@ -279,44 +279,6 @@ void INIT_WORD_INDEX_Debug(REBVAL *v, REBCNT i)
 
 
 //
-//  SET_VOID_UNLESS_LEGACY_NONE_Debug: C
-//
-// This routine enhances the intelligence of the decision whether to return
-// a void or a BLANK! from operations that wish to be compatible with R3-Alpha.
-// The way it does so is to look at the legacy bit on a series, and guide
-// the decision on whether to use the setting based on that bit.
-//
-// Hence all mezzanine code which is loaded without the legacy bit will
-// ignore the setting when code is run with it.  So an IF statement in
-// the mezzanine at source level will still return a void, even if the
-// set-blank-when-returning-from-a-failed-IF setting is turned on.
-//
-void SET_VOID_UNLESS_LEGACY_NONE_Debug(REBVAL *out) {
-    if (!LEGACY(OPTIONS_NONE_INSTEAD_OF_VOIDS)) {
-        SET_VOID(out);
-        return;
-    }
-
-    struct Reb_Frame *f = FS_TOP;
-    while (f) {
-        if (!FRM_IS_VALIST(f)) {
-            if (GET_ARR_FLAG(f->source.array, SERIES_FLAG_LEGACY))
-                SET_BLANK(out);
-            else
-                SET_VOID(out);
-            return;
-        }
-        f = f->prior;
-    }
-
-    // There's no source code to check, assume the worst and honor the
-    // legacy switch.  (May reverse this assumption...)
-    //
-    SET_BLANK(out);
-}
-
-
-//
 //  Probe_Core_Debug: C
 //
 // Debug function for outputting a value.  Done as a function instead of just

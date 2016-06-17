@@ -708,19 +708,6 @@ enum {
 //
 #define VOID_CELL (&PG_Void_Cell[0])
 
-// In legacy mode Ren-C still supports the old convention that IFs that don't
-// take the true branch or a WHILE loop that never runs a body return a BLANK!
-// value instead of no value.  To track the locations where this decision is
-// made more easily, SET_VOID_UNLESS_LEGACY_NONE() is used.
-//
-#ifdef NDEBUG
-    #define SET_VOID_UNLESS_LEGACY_NONE(v) \
-        SET_VOID(v) // LEGACY() only available in Debug builds
-#else
-    #define SET_VOID_UNLESS_LEGACY_NONE(v) \
-        SET_VOID_UNLESS_LEGACY_NONE_Debug(v);
-#endif
-
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -2103,6 +2090,19 @@ enum {
     //
     R_OUT_IS_THROWN,
 
+    // This is a return value in service of the /? functions.  Since all
+    // dispatchers receive an END marker in the f->out slot (a.k.a. D_OUT)
+    // then it can be used to tell if the output has been written "in band"
+    // by a legal value or void.  This returns TRUE if D_OUT is not END,
+    // and FALSE if it still is.
+    //
+    R_OUT_TRUE_IF_WRITTEN,
+
+    // Similar to R_OUT_WRITTEN_Q, this converts an illegal END marker return
+    // value in R_OUT to simply a void.
+    //
+    R_OUT_VOID_IF_UNWRITTEN,
+
     // !!! These R_ values are somewhat superfluous...and actually inefficient
     // because they have to be checked by the caller in a switch statement
     // to take the equivalent action.  They have a slight advantage in
@@ -2117,6 +2117,15 @@ enum {
     R_FALSE // => SET_FALSE(D_OUT); return R_OUT;
 };
 typedef REBCNT REB_R;
+
+// Convenience function for getting the "/?" behavior if it is enabled, and
+// doing the default thing--assuming END is being left in the D_OUT slot
+//
+inline static REB_R R_OUT_Q(REBOOL q) {
+    if (q) return R_OUT_TRUE_IF_WRITTEN;
+    return R_OUT_VOID_IF_UNWRITTEN;
+}
+
 
 // NATIVE! function
 typedef REB_R (*REBNAT)(struct Reb_Frame *frame_);

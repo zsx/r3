@@ -1401,21 +1401,39 @@ reevaluate:
         switch (dispatch(f)) {
         case R_OUT: // put sequentially in switch() for jump-table optimization
             break;
+
         case R_OUT_IS_THROWN:
             assert(THROWN(f->out));
             break;
+
+        case R_OUT_TRUE_IF_WRITTEN:
+            if (IS_END(f->out))
+                SET_FALSE(f->out);
+            else
+                SET_TRUE(f->out);
+            break;
+
+        case R_OUT_VOID_IF_UNWRITTEN:
+            if (IS_END(f->out))
+                SET_VOID(f->out);
+            break;
+
         case R_BLANK:
             SET_BLANK(f->out);
             break;
+
         case R_VOID:
             SET_VOID(f->out);
             break;
+
         case R_TRUE:
             SET_TRUE(f->out);
             break;
+
         case R_FALSE:
             SET_FALSE(f->out);
             break;
+
         default:
             assert(FALSE);
         }

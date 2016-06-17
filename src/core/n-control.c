@@ -459,8 +459,6 @@ REBNATIVE(case)
     REFINE(2, all);
     REFINE(3, q);
 
-    assert(IS_END(D_OUT)); // guaranteed, used to test if body ever ran...
-
     // Save refinement to boolean to free up call frame slot, and reuse its
     // cell as a temporary GC-safe location for holding evaluations.
     //
@@ -485,8 +483,7 @@ REBNATIVE(case)
         if (REF(q))
             return R_FALSE;
 
-        SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
-        return R_OUT;
+        return R_VOID;
     }
 
     do {
@@ -573,7 +570,7 @@ REBNATIVE(case)
             // forgets the last evaluative result for a TRUE condition
             // when /ALL is set (instead of keeping it to return)
             //
-            SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
+            SET_VOID(D_OUT);
             continue;
         }
     #endif
@@ -628,15 +625,7 @@ REBNATIVE(case)
 
     DROP_CALL(f);
 
-    // D_OUT will still be END if no cases ran
-
-    if (REF(q))
-        return IS_END(D_OUT) ? R_FALSE : R_TRUE; // /? asks if any cases ran
-
-    if (IS_END(D_OUT))
-        SET_VOID_UNLESS_LEGACY_NONE(D_OUT); // otherwise void if no cases ran
-
-    return R_OUT; // last case evaluative result if a case ran (may be void)
+    return R_OUT_Q(REF(q));
 }
 
 
@@ -1427,10 +1416,8 @@ static REB_R If_Unless_Core(struct Reb_Frame *frame_, REBOOL trigger) {
         return R_TRUE;
     }
 
-    if (!REF(q)) {
-        SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
-        return R_OUT;
-    }
+    if (!REF(q))
+        return R_VOID;
 
     return R_FALSE;
 }
@@ -1632,32 +1619,29 @@ REBNATIVE(switch)
     REFINE(6, strict);
     REFINE(7, q);
 
+    // Save refinement to boolean to free up call frame slot, and reuse its
+    // cell as a temporary GC-safe location for holding evaluations.
+    //
+    REBOOL all = REF(all);
+    REBVAL *safe_temp = ARG(all);
+
     REBVAL *value = ARG(value);
     REBVAL *cases = ARG(cases);
     // has_default implied by default_case not being blank
     REBVAL *default_case = ARG(case);
-    REBOOL all = REF(all);
     REBOOL strict = REF(strict);
-
-    REBOOL found = FALSE;
 
     REBVAL *item = VAL_ARRAY_AT(cases);
 
-    SET_VOID_UNLESS_LEGACY_NONE(D_OUT); // default return if no cases run
-
     for (; NOT_END(item); item++) {
-
-        // The way SWITCH works with blocks is that blocks are considered
-        // bodies to match for other value types, so you can't use them
-        // as case keys themselves.  They'll be skipped until we find
-        // a non-block case we want to match.
-
+        //
+        // Blocks are considered bodies to match for other value types.
+        // They can't be used as case keys--they skip until a non-block seen.
+        // This also clears out the notion of any condition that would "fall
+        // out the body", by resetting the temporary to and END
+        //
         if (IS_BLOCK(item)) {
-            // Each time we see a block that we don't take, we reset
-            // the output to void...because we only leak evaluations
-            // out the bottom of the switch if no block would catch it
-
-            SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
+            SET_END(safe_temp);
             continue;
         }
 
@@ -1665,7 +1649,7 @@ REBNATIVE(switch)
         // mechanism as in lit-quotes of function specs to avoid quoting)
         // You can still evaluate to one of these, e.g. `(quote :foo)` to
         // use parens to produce a GET-WORD! to test against.
-
+        //
         if (IS_GROUP(item) || IS_GET_WORD(item) || IS_GET_PATH(item)) {
 
         #if !defined(NDEBUG)
@@ -1674,20 +1658,22 @@ REBNATIVE(switch)
             // Guide usage of the flag by currently running function *only*.
             //
             if (LEGACY_RUNNING(OPTIONS_NO_SWITCH_EVALS)) {
-                *D_OUT = *item;
+                *safe_temp = *item;
                 goto compare_values;
             }
         #endif
 
-            if (DO_VALUE_THROWS(D_OUT, item))
+            if (DO_VALUE_THROWS(safe_temp, item)) {
+                *D_OUT = *safe_temp;
                 return R_OUT_IS_THROWN;
+            }
         }
         else {
             // Even if we're just using the item literally, we need to copy
             // it from the block the user loaned us...because the type
             // coercion in Compare_Modify_Values could mutate it.
 
-            *D_OUT = *item;
+            *safe_temp = *item;
         }
 
     #if !defined(NDEBUG)
@@ -1700,7 +1686,7 @@ REBNATIVE(switch)
         // have compared equal to so will 1%.  (That's the idea, anyway,
         // required for `a = b` and `b = c` to properly imply `a = c`.)
 
-        if (!Compare_Modify_Values(value, D_OUT, strict ? 1 : 0))
+        if (!Compare_Modify_Values(value, safe_temp, strict ? 1 : 0))
             continue;
 
         // Skip ahead to try and find a block, to treat as code
@@ -1709,8 +1695,6 @@ REBNATIVE(switch)
             if (IS_END(item)) break;
             item++;
         }
-
-        found = TRUE;
 
         if (DO_VAL_ARRAY_AT_THROWS(D_OUT, item))
             return R_OUT_IS_THROWN;
@@ -1724,9 +1708,18 @@ REBNATIVE(switch)
         }
     }
 
-    if (!found && IS_BLOCK(default_case)) {
-        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, default_case))
-            return R_OUT_IS_THROWN;
+    // If we get here and D_OUT wasn't overwritten from an END marker, that
+    // means no case bodies ever ran.
+
+    if (IS_END(D_OUT)) {
+        if (IS_BLOCK(default_case)) {
+            if (DO_VAL_ARRAY_AT_THROWS(D_OUT, default_case))
+                return R_OUT_IS_THROWN;
+        }
+        else if (NOT_END(safe_temp))
+            *D_OUT = *safe_temp; // let last test value "fall out"
+        else
+            SET_VOID(D_OUT);
 
         if (REF(q)) return R_FALSE; // running a default doesn't count for /?
 
@@ -1742,11 +1735,10 @@ REBNATIVE(switch)
         // function is "legacy" marked.  It's not perfect, see notes.
         //
         if (LEGACY_RUNNING(OPTIONS_NO_SWITCH_FALLTHROUGH))
-            return R_BLANK;
+            return R_VOID;
     #endif
 
-    if (REF(q))
-        return found ? R_TRUE : R_FALSE;
+    if (REF(q)) return R_TRUE;
 
     return R_OUT;
 }

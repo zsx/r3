@@ -725,16 +725,14 @@ REBTYPE(Array)
     index = cast(REBINT, VAL_INDEX(value));
 
     switch (action) {
-
     case A_POKE:
     case A_PICK: {
 pick_using_arg:
         value = Pick_Block(value, arg);
         if (action == A_PICK) {
-            if (!value) {
-                SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
-                return R_OUT;
-            }
+            if (!value)
+                return R_VOID;
+
             *D_OUT = *value;
         } else {
             FAIL_IF_LOCKED_ARRAY(array);
@@ -769,10 +767,8 @@ pick_using_arg:
             index = VAL_LEN_HEAD(value) - len;
 
         if (index < 0 || index >= cast(REBINT, VAL_LEN_HEAD(value))) {
-            if (!REF(part)) {
-                SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
-                return R_OUT;
-            }
+            if (!REF(part))
+                return R_VOID;
 
             goto return_empty_block;
         }
@@ -809,8 +805,7 @@ pick_using_arg:
 
         if (ret >= cast(REBCNT, limit)) {
             if (action == A_FIND) return R_BLANK;
-            SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
-            return R_OUT;
+            return R_VOID;
         }
         if (args & AM_FIND_ONLY) len = 1;
         if (action == A_FIND) {
@@ -821,8 +816,7 @@ pick_using_arg:
             ret += len;
             if (ret >= cast(REBCNT, limit)) {
                 if (action == A_FIND) return R_BLANK;
-                SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
-                return R_OUT;
+                return R_VOID;
             }
             value = ARR_AT(array, ret);
         }

@@ -620,6 +620,8 @@ REB_R Command_Dispatcher(struct Reb_Frame *f)
         Value_To_RXI(&rxifrm.rxiargs[n], arg);
     }
 
+    SET_VOID(f->out); // !!! "commands" seriously predated the END marker trick
+
     n = handler->call(
         cmd_num, &rxifrm, cast(REBCEC*, TG_Command_Execution_Context)
     );

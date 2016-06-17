@@ -173,8 +173,6 @@ static REBOOL Loop_Series_Throws(
 
     if (ei < 0) ei = 0;
 
-    SET_VOID_UNLESS_LEGACY_NONE(out); // Default if the loop does not run
-
     for (; (ii > 0) ? si <= ei : si >= ei; si += ii) {
         VAL_INDEX(var) = si;
 
@@ -208,8 +206,6 @@ static REBOOL Loop_Integer_Throws(
     REBI64 incr
 ) {
     VAL_RESET_HEADER(var, REB_INTEGER);
-
-    SET_VOID_UNLESS_LEGACY_NONE(out); // Default if the loop does not run
 
     while ((incr > 0) ? start <= end : start >= end) {
         VAL_INT64(var) = start;
@@ -273,8 +269,6 @@ static REBOOL Loop_Number_Throws(
 
     VAL_RESET_HEADER(var, REB_DECIMAL);
 
-    SET_VOID_UNLESS_LEGACY_NONE(out); // Default if the loop does not run
-
     for (; (i > 0.0) ? s <= e : s >= e; s += i) {
         VAL_DECIMAL(var) = s;
 
@@ -307,17 +301,16 @@ static REB_R Loop_Skip(
     REBINT skip,
     REBVAL *body // Must be GC safe!
 ) {
+    REBOOL q = FALSE; // !!! currently /? option not passed in
+
     REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word);
 
-    SET_VOID_UNLESS_LEGACY_NONE(out);
-
-    // Though we can only iterate on a series, NONE! is used as a way of
-    // opting out.  This could be useful, e.g. `for-next (any ...) [...]`
-    //
-    // !!! Is this a good case for unset opting out?  (R3-Alpha didn't.)
+    // Though we can only iterate on a series, BLANK! is used as a way of
+    // opting out.  This could be useful, e.g. `for-next x (any ...) [...]`
     //
     if (IS_BLANK(var))
-        return R_OUT;
+        return R_OUT_Q(q);
+
     if (!ANY_SERIES(var))
         fail (Error_Invalid_Arg(var));
 
@@ -360,7 +353,8 @@ static REB_R Loop_Skip(
         // removed it, only checking that it's a series.
         //
         if (IS_BLANK(var))
-            return R_OUT;
+            return R_OUT_Q(q);
+
         if (!ANY_SERIES(var))
             fail (Error_Invalid_Arg(var));
 
@@ -369,7 +363,7 @@ static REB_R Loop_Skip(
 
 restore_var_and_return:
     *var = *word;
-    return R_OUT;
+    return R_OUT_Q(q);
 }
 
 
@@ -412,10 +406,10 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
     REBOOL every_true = TRUE; // need due to OPTIONS_NONE_INSTEAD_OF_VOIDS
     REBOOL threw = FALSE; // did a non-BREAK or non-CONTINUE throw occur
 
+    REBOOL q = FALSE; // !!! Currently, /? option is not passed in
+
     if (mode == LOOP_EVERY)
         SET_TRUE(D_OUT); // Default output is TRUE, to match ALL MAP-EACH
-    else
-        SET_VOID_UNLESS_LEGACY_NONE(D_OUT); // Default if loop does not run
 
     if (IS_BLANK(data_value) || IS_VOID(data_value)) return R_OUT;
 
@@ -461,7 +455,7 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
                 DROP_GUARD_ARRAY(mapped);
                 Val_Init_Block(D_OUT, mapped);
             }
-            return R_OUT;
+            return R_OUT_Q(q);
         }
     }
 
@@ -648,7 +642,7 @@ skip_hidden: ;
     if (LEGACY(OPTIONS_BREAK_WITH_OVERRIDES)) {
         // In legacy R3-ALPHA, BREAK without a provided value did *not*
         // override the result.  It returned the partial results.
-        if (stop && !IS_VOID(D_OUT))
+        if (stop && !IS_END(D_OUT))
             return R_OUT;
     }
 #endif
@@ -657,18 +651,18 @@ skip_hidden: ;
     case LOOP_FOR_EACH:
         // Returns last body result or /WITH of BREAK (or the /WITH of a
         // CONTINUE if it turned out to be the last iteration)
-        return R_OUT;
+        return R_OUT_Q(q);
 
     case LOOP_REMOVE_EACH:
         // Remove hole (updates tail):
         if (write_index < index)
             Remove_Series(series, write_index, index - write_index);
         SET_INTEGER(D_OUT, index - write_index);
-        return R_OUT;
+        return R_OUT_Q(q);
 
     case LOOP_MAP_EACH:
         Val_Init_Block(D_OUT, mapped);
-        return R_OUT;
+        return R_OUT_Q(q);
 
     case LOOP_EVERY:
         if (threw) return R_OUT_IS_THROWN;
@@ -711,6 +705,8 @@ REBNATIVE(for)
     PARAM(3, end);
     PARAM(4, bump);
     PARAM(5, body);
+
+    REBOOL q = FALSE; // !!! No /q refinement yet, and FOR may be going away
 
     REBARR *body_copy;
     REBCTX *context;
@@ -774,7 +770,7 @@ REBNATIVE(for)
         }
     }
 
-    return R_OUT;
+    return R_OUT_Q(q);
 }
 
 
@@ -960,15 +956,14 @@ REBNATIVE(loop)
 
     REBI64 count;
 
-    SET_VOID_UNLESS_LEGACY_NONE(D_OUT); // Default if the loop does not run
-
     if (IS_CONDITIONAL_FALSE(ARG(count))) {
         //
         // A NONE! or LOGIC! FALSE means don't run the loop at all.
         //
-        return R_OUT;
+        return R_VOID;
     }
-    else if (IS_LOGIC(ARG(count))) {
+
+    if (IS_LOGIC(ARG(count))) {
         //
         // (Must be TRUE).  Run forever.  As a micro-optimization we don't
         // complicate the condition checking in the loop, but seed with a
@@ -999,6 +994,9 @@ REBNATIVE(loop)
         goto restart;
     }
 
+    if (IS_END(D_OUT))
+        return R_VOID;
+
     return R_OUT;
 }
 
@@ -1021,10 +1019,10 @@ REBNATIVE(repeat)
     REBVAL *var;
     REBVAL *count = D_ARG(2);
 
-    if (IS_BLANK(count)) {
-        SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
-        return R_OUT;
-    }
+    REBOOL q = FALSE; // !!! No /? passed in at the moment
+
+    if (IS_BLANK(count))
+        return q ? R_FALSE : R_VOID;
 
     if (IS_DECIMAL(count) || IS_PERCENT(count)) {
         REBI64 i64 = Int64(count);
@@ -1043,17 +1041,16 @@ REBNATIVE(repeat)
             return R_OUT_IS_THROWN;
         }
 
-        return R_OUT;
+        return R_OUT_Q(q);
     }
     else if (IS_INTEGER(count)) {
         if (Loop_Integer_Throws(D_OUT, var, body, 1, VAL_INT64(count), 1))
             return R_OUT_IS_THROWN;
 
-        return R_OUT;
+        return R_OUT_Q(q);
     }
 
-    SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
-    return R_OUT;
+    return q ? R_FALSE : R_VOID;
 }
 
 
@@ -1113,49 +1110,37 @@ REBNATIVE(while)
 {
     PARAM(1, condition);
     PARAM(2, body);
-    REFINE(3, q);
+    REFINE(3, q_safe_temp);
 
-    // We need to keep the condition and body safe from GC, so we can't
-    // use a D_ARG slot for evaluating the condition (can't overwrite
-    // D_OUT because that's the last loop's value we might return).  Our
-    // temporary value is called "unsafe" because it is not protected
-    // from GC (no need to, as it doesn't need to stay live across eval)
-    //
-    REBVAL unsafe;
-
-    assert(IS_END(D_OUT)); // guaranteed, used to test if body ever ran...
+    REBOOL q = VAL_LOGIC(ARG(q_safe_temp));
+    REBVAL *safe_temp = ARG(q_safe_temp);
 
     do {
-        if (DO_VAL_ARRAY_AT_THROWS(&unsafe, ARG(condition))) {
+        if (DO_VAL_ARRAY_AT_THROWS(safe_temp, ARG(condition))) {
             //
             // A while loop should only look for breaks and continues in its
             // body, not in its condition.  So `while [break] []` is a
             // request to break the enclosing loop (or error if there is
             // nothing to catch that break).  Hence we bubble up the throw.
             //
-            *D_OUT = unsafe;
+            *D_OUT = *safe_temp;
             return R_OUT_IS_THROWN;
         }
 
-        if (IS_VOID(&unsafe))
+        if (IS_VOID(safe_temp))
             fail (Error(RE_NO_RETURN));
 
-        if (IS_CONDITIONAL_FALSE(&unsafe)) {
-            if (REF(q))
-                return IS_END(D_OUT) ? R_FALSE : R_TRUE; // /? if body ran
+        if (IS_CONDITIONAL_FALSE(safe_temp))
+            return R_OUT_Q(q);
 
-            if (IS_END(D_OUT))
-                SET_VOID_UNLESS_LEGACY_NONE(D_OUT); // void if body didn't run
-
-            return R_OUT; // last body evaluative result (may be void)
-        }
-
+        // If this line runs, it will put a non-END marker in D_OUT, which
+        // will signal R_OUT_Q() to return TRUE if /? (and D_OUT otherwise)
+        //
         if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(body))) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) {
-                    assert(NOT_END(D_OUT));
-                    if (REF(q)) return R_TRUE; // if a break ran, body ran
+                    if (q) return R_TRUE;
                     return R_OUT;
                 }
                 continue;

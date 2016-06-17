@@ -107,8 +107,7 @@ pick:
                 !sock->special.net.host_info
                 || !GET_FLAG(sock->flags, RRF_DONE
             )) {
-                SET_VOID_UNLESS_LEGACY_NONE(D_OUT);
-                return R_OUT;
+                return R_VOID;
             }
             if (sock->error) {
                 OS_DO_DEVICE(sock, RDC_CLOSE);
