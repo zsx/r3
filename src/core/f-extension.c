@@ -493,31 +493,23 @@ void Make_Command(
     //
     Turn_Typespec_Opts_Into_Nones(spec);
 
-    REBOOL punctuates;
-    out->payload.function.func
-        = AS_FUNC(Make_Paramlist_Managed(spec, &punctuates, SYM_0));
-
-    if (punctuates)
-        SET_VAL_FLAG(out, FUNC_FLAG_PUNCTUATES);
-
-    VAL_FUNC_SPEC(out) = spec;
-    VAL_FUNC_EXIT_FROM(out) = NULL;
-
     // There is no "body", but we want to save `extension` and `command_num`
     // and the only place there is to put it is in the place where a function
     // body series would go.  So make a 2 element series to store them and
     // copy the values into it.
     //
-    VAL_FUNC_BODY(out) = Make_Array(2);
-    Append_Value(VAL_FUNC_BODY(out), extension);
-    Append_Value(VAL_FUNC_BODY(out), command_num);
-    MANAGE_ARRAY(VAL_FUNC_BODY(out));
-    VAL_FUNC_DISPATCH(out) = &Command_Dispatcher;
+    REBARR *body; // goto would cross initialization
+    body = Make_Array(2);
+    Append_Value(body, extension);
+    Append_Value(body, command_num);
+    MANAGE_ARRAY(body);
 
-    // Put the command REBVAL in slot 0 so that REB_COMMAND, like other
-    // function types, can find the function value from the paramlist.
+    REBFUN *fun; // goto would cross initialization
+    fun = Make_Paramlist_Managed(
+        spec, SYM_0, body, &Command_Dispatcher
+    );
 
-    *FUNC_VALUE(out->payload.function.func) = *out;
+    *out = *FUNC_VALUE(fun);
 
     // Make sure the command doesn't use any types for which an "RXT" parallel
     // datatype (to a REB_XXX type) has not been published:
@@ -528,7 +520,7 @@ void Make_Command(
                 // !!! this said "not END and not UNSET (no args)"...what is
                 // it actually supposed to be doing with this 3?
                 //
-                (3 != ~VAL_TYPESET_BITS(args))
+                (FLAGIT_64(REB_0) != ~VAL_TYPESET_BITS(args))
                 && (VAL_TYPESET_BITS(args) & ~RXT_ALLOWED_TYPES)
             ) {
                 fail (Error(RE_BAD_FUNC_ARG, args));

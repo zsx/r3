@@ -158,13 +158,12 @@ is: func [
     value [<opt> any-value!]
 ][
     if block? types [types: make typeset! types]
-    either case [
-        datatype? types [types = type-of :value]
-        typeset? types [find types type-of :value]
-    ][
-        :value
-    ][
-        blank
+    case [
+        void? :value [blank]
+        blank? :value [blank]
+        datatype? types [types = type-of :value | :value]
+        typeset? types [find types type-of :value | :value]
+        true [blank]
     ]
 ]
 

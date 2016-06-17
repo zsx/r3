@@ -51,42 +51,204 @@ leave: does [
     fail "LEAVE called--but no function generator providing it in use"
 ]
 
-function: func [
-    ; !!! Should have a unified constructor with PROCEDURE
-    {Defines a function with all set-words as locals.}
-    spec [block!] {Help string (opt) followed by arg words (and opt type and string)}
-    body [block!] {The body block of the function}
-    /with {Define or use a persistent object (self)}
-    object [object! block! map!] {The object or spec}
-    /extern words [block!] {These words are not local}
+
+make-action: func [
+    {Internal generator used by FUNCTION and PROCEDURE specializations.}
+    generator [function!]
+        {Arity-2 "lower"-level function generator to use (e.g. FUNC or PROC)}
+    spec [block!]
+        {Help string (opt) followed by arg words (and opt type and string)}
+    body [block!]
+        {The body block of the function}
+    /with
+        {Define or use a persistent object (self)}
+    object [object! block! map!]
+        {The object or spec}
+    /extern
+        {Provide explicit list of external words}
+    words [block!]
+        {These words are not local.}
 ][
-    ; Copy the spec and add /local to the end if not found (no deep copy needed)
-    unless find spec: copy spec /local [append spec [
-        /local ; In a block so the generated source gets the newlines
-    ]]
-
-    ; Collect all set-words in the body as words to be used as locals, and add
-    ; them to the spec. Don't include the words already in the spec or object.
-    insert find/tail spec /local collect-words/deep/set/ignore body either with [
-        ; Make our own local object if a premade one is not provided
+    if with [
         unless object? object [object: make object! object]
-
-        ; Make a full copy of the body, to allow reuse of the original
         body: copy/deep body
-
-        bind body object  ; Bind any object words found in the body
-
-        ; Ignore the words in the spec and those in the object. The spec needs
-        ; to be copied since the object words shouldn't be added to the locals.
-        ; ignore 'self too
-        compose [(spec) 'self (words-of object) (:words)]
-    ][
-        ; Don't include the words in the spec, or any extern words.
-        either extern [append copy spec words] [spec]
+        bind body object
     ]
 
-    func spec body
+    ; Gather the SET-WORD!s in the body, ignoring some excluded candidates.
+    ;
+    words: collect-words/deep/set/ignore body compose [
+        (spec) ;-- ignore the ANY-WORD!s already in the spec block
+
+        (if with [words-of object]) ;-- ignore fields of /WITH object (if any)
+
+        (if with ['self]) ; !!! REVIEW: ignore self too if binding to object?
+
+        (:words) ;-- ignore explicit words given as an argument (if any)
+    ]
+
+    ; !!! The words that come back from COLLECT-WORDS are all WORD!, but we
+    ; need SET-WORD! to specify pure locals to the generators.  Review the
+    ; COLLECT-WORDS interface to efficiently give this result.
+    ;
+    spec: copy spec
+    for-next words [
+        append spec to set-word! words/1
+    ]
+
+    generator spec body
 ]
+
+;-- These are "redescribed" after REDESCRIBE is created
+;
+function: specialize :make-action [generator: :func]
+procedure: specialize :make-action [generator: :proc]
+
+
+redescribe: function [
+    {Mutate function description with new title and/or new argument notes.}
+
+    spec [block!]
+        {Either a string description, or a spec block (without types).}
+    value [function!]
+][
+    meta: meta-of :value
+    notes: _
+
+    ; For efficiency, objects are only created on demand by hitting the
+    ; required point in the PARSE.  Hence `redescribe [] :foo` will not tamper
+    ; with the meta information at all, while `reescribe [{stuff}] :foo` will
+    ; only manipulate the description.not created unless they are needed by
+    ; hitting the required point in the PARSE of the spec.
+
+    on-demand-meta: func [] [
+        case/all [
+            not meta [
+                meta: copy system/standard/function-meta
+                set-meta :value meta
+            ]
+
+            not find meta 'description [
+                fail [{archetype META-OF doesn't have DESCRIPTION slot} meta]
+            ]
+
+            not notes: any [:meta/parameter-notes] [
+                return () ; specialized or adapted, HELP uses original notes
+            ]
+
+            not frame? notes [
+                fail [{PARAMETER-NOTES in META-OF is not a FRAME!} notes]
+            ]
+
+            :value != function-of notes [
+                fail [{PARAMETER-NOTES in META-OF frame mismatch} notes]
+            ]
+        ]
+    ]
+
+    ; !!! SPECIALIZEE and SPECIALIZEE-NAME will be lost if a REDESCRIBE is
+    ; done of a specialized function that needs to change more than just the
+    ; main description.  Same with ADAPTEE and ADAPTEE-NAME in adaptations.
+    ;
+    ; (This is for efficiency to not generate new keylists on each describe
+    ; but to reuse archetypal ones.  Also to limit the total number of
+    ; variations that clients like HELP have to reason about.)
+    ;
+    regenerate-meta: func [] [
+        description: meta/description
+        meta: blank
+        on-demand-meta
+        meta/description: description
+    ]
+
+    on-demand-notes: func [] [
+        on-demand-meta
+
+        if notes [return ()]
+
+        original: any [:meta/specializee | :meta/adaptee] ;-- may be blank
+        original-meta: all [:original | meta-of :original] ;-- may be blank
+
+        regenerate-meta
+
+        meta/parameter-types: opt copy all [
+            select original-meta 'parameter-types
+        ]
+        notes: meta/parameter-notes: make frame! :value
+
+        ; Grab any of the original parameter descriptions for starters, so
+        ; that only the new ones that are described override.  Note that
+        ; specialized parameter lists are subsets of the original list.
+        ;
+        if original-notes: (select original-meta 'parameter-notes) [
+            for-each param notes [
+                notes/(param): original-notes/(param)
+            ]
+        ]
+    ]
+
+    unless parse spec [
+        (description: {}) ;-- delete existing description instruction
+        opt [
+            set description: string! (
+                either all [equal? description {} | not meta] [
+                    ; No action needed (no meta to delete old description in)
+                ][
+                    on-demand-meta
+                    meta/description: if not equal? description {} [
+                        description
+                    ]
+                ]
+            )
+        ]
+        any [
+            set param: [word! | get-word! | lit-word! | refinement!]
+
+            ; It's legal for the redescribe to name a parameter just to
+            ; show it's there for descriptive purposes without adding notes.
+            ; But if {} is given as the notes, that's seen as a request
+            ; to delete a note.
+            ;
+            opt [[set note: string!] (
+                on-demand-meta
+                if (not equal? note {}) or notes [
+                    on-demand-notes
+
+                    unless find notes to word! param [
+                        fail [param "not found in frame to describe"]
+                    ]
+
+                    actual: first find words-of :value param
+                    unless strict-equal? param actual [
+                        fail [param {doesn't match word type of} actual]
+                    ]
+
+                    notes/(to word! param): if not equal? note {} [note]
+                ]
+            )]
+        ]
+    ][
+        fail [{REDESCRIBE specs should be STRING! and ANY-WORD! only:} spec]
+    ]
+
+    ; If you kill all the notes then they will be cleaned up.  The meta
+    ; object will be left behind, however.
+    ;
+    if all [notes | every [param note] notes [not set? 'note]] [
+        meta/parameter-notes: ()
+    ]
+
+    :value ;-- should have updated the meta
+]
+
+
+redescribe [
+    {Define an action with set-words as locals, that returns a value.}
+] :function
+
+redescribe [
+    {Define an action with set-words as locals, that doesn't return a value.}
+] :procedure
 
 
 ; To help for discoverability, there is SET-INFIX and INFIX?.  However, the
@@ -404,7 +566,7 @@ cause-error: func [
     ; Filter out functional values:
     for-next args [
         if function? first args [
-            change/only args spec-of first args
+            change/only args meta-of first args
         ]
     ]
     ; Build and throw the error:

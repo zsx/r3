@@ -34,6 +34,10 @@ end-tag         ; FUNC+PROC use as alternative to | to mark endable args
 local-tag       ; marks the beginning of a list of "pure locals"
 durable-tag     ; !!! In progress - argument word lookup survives call ending
 
+;; !!! See notes on FUNCTION-META in %sysobj.r
+
+function-meta
+
 ;; PRINT takes a /DELIMIT which can be a block specifying delimiters at each
 ;; level of depth in the recursion of blocks.  The default is [#" " |], which
 ;; is a signal to put spaces at the first level and then after that nothing.

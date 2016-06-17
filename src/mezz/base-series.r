@@ -16,23 +16,6 @@ REBOL [
     }
 ]
 
-
-; !!! These used to be series natives that leveraged their implementation
-; as a hacked-up re-dispatch to A_PICK.  The method that used was not viable
-; when the call stack got its own data structure.  Given that dispatch was
-; not itself free, the idea of needing to write such helpers as natives
-; "for performance" suggests a faster substitution "macro" construct may
-; be required.  Until then, they are mezzanine.
-
-redescribe: func [
-    {Not yet implemented: create a function value with a new description}
-
-    new-spec [block!]
-    f [function!]
-][
-    :f
-]
-
 first: redescribe [
     {Returns the first value of a series.}
 ](

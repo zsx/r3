@@ -79,6 +79,11 @@ types
 title
 ;addr already defined
 
+; !!! See notes on FUNCTION-META in %sysobj.r
+description
+parameter-types
+parameter-notes
+
 x
 y
 +

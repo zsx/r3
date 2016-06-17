@@ -11,37 +11,70 @@ REBOL [
     }
 ]
 
+spec-of: function [
+    {Generate a block which could be used as a "spec block" from a function.}
+
+    value [function!]
+][
+    meta: is object! meta-of :value
+
+    specializee: is function! select meta 'specializee
+    adaptee: is function! select meta 'specializee
+    original-meta: is object! any [
+        all [:specializee | meta-of :specializee]
+        all [:adaptee | meta-of :adaptee]
+    ]
+
+    spec: copy []
+
+    if description: is string! any [
+        select meta 'description
+        select original-meta 'description
+    ][
+        append spec description
+        new-line back spec true
+    ]
+
+    types: is frame! any [
+        select meta 'parameter-types
+        select original-meta 'parameter-types
+    ]
+    notes: is frame! any [
+        select meta 'parameter-notes
+        select original-meta 'parameter-notes
+    ]
+
+    for-each param words-of :value [
+        if type: select types param [append spec type]
+        if note: select notes param [append spec note]
+    ]
+
+    return spec
+]
+
+
 title-of: function [
-    {Examines the spec of a value and extracts a summary of it's purpose.}
+    {Extracts a summary of a value's purpose from its "meta" information.}
 
     value [any-value!]
 ][
     switch type-of :value [
         :function! [
-            ;
-            ; Get the first STRING! before any parameter definitions, or
-            ; NONE! if there isn't one.
-
-            for-each item spec-of :value [
-                if string? :item [
-                    return copy item
-                ]
-                if any-word? :item [
-                    return blank
-                ]
+            all [
+                object? meta: meta-of :value
+                string? description: select meta 'description
+                copy description
             ]
         ]
 
         :datatype! [
-            ;
-            ; Each datatype should have a help string.
-
             spec: spec-of value
-            return spec/title
+            assert [string? spec] ;-- !!! Consider simplifying "type specs"
+            spec/title
         ]
-    ]
 
-    blank
+        (blank)
+    ]
 ]
 
 
@@ -226,72 +259,117 @@ help: procedure [
     ;-- Print info about function:
     prin "USAGE:^/^-"
 
-    args: words-of :value
+    args: _ ;-- plain arguments
+    refinements: _ ;-- refinements and refinement arguments
 
-    ; !!! Historically, HELP would not show anything that happens after a
-    ; /local.  The way it did this was to clear everything after /local
-    ; in the WORDS-OF list.  But with the <local> tag, *the locals do
-    ; not show up in the WORDS-OF list* because the FUNC generator
-    ; converted them all
-    ;
-    clear find args /local
-
-    either lookback [
-        print [args/1 word form/new/quote next args]
-    ][
-        ; Test idiom... print "tightly" by going straight to a second level
-        ; of nesting, where | also means space and can serve as a barrier.
-        ; Must FORM/QUOTE args to keep them from trying to be reduced.
-        ;
-        print [[uppercase mold word | form/new/quote args]]
+    parse words-of :value [
+        copy args some [word! | get-word! | lit-word!]
+        copy refinements some [refinement! | word! | get-word! | lit-word!]
     ]
+
+    ; Output exemplar calling string, e.g. LEFT + RIGHT or FOO A B C
+    ; !!! Should refinement args be shown for lookback case??
+    ;
+    either lookback [
+        print [(args/1) (uppercase mold word) (form next args)]
+    ][
+        print [
+            (uppercase mold word)
+            if args [form args]
+            if refinements [form refinements]
+        ]
+    ]
+
+    meta: meta-of :value
+
+    description: types: notes: _
+
+    inherit-properties: func [] [
+        description: any [
+            :description | is string! select meta 'description
+        ]
+        types: any [
+            :types | is frame! select meta 'parameter-types
+        ]
+        notes: any [
+            :notes | is frame! select meta 'parameter-notes
+        ]
+    ]
+
+    inherit-properties ;-- look for fields in the passed in function first
+
+    all [
+        original-name: is word! [
+            any [select meta 'specializee-name | select meta 'adaptee-name]
+        ]
+        original-name: uppercase mold original-name
+    ]
+
+    specializee: is function! select meta 'specializee
+    adaptee: is function! select meta 'adaptee
+    assert [not both? :specializee :adaptee]
+
+    classification: case [
+        :specializee [
+            meta: meta-of :specializee
+            either original-name [
+                ajoin [{a specialization of } original-name {.}]
+            ][
+                {a specialized function.}
+            ]
+        ]
+
+        :adaptee [
+            meta: meta-of :adaptee
+            either original-name [
+                ajoin [{an adaptation of } original-name {.}]
+            ][
+                {an adapted function.}
+            ]
+        ]
+
+        true [
+            {a function}
+        ]
+    ]
+
+    inherit-properties ;-- look for any updated fields if meta changed
 
     print ajoin [
         newline "DESCRIPTION:" newline
-        tab any [title-of :value "(undocumented)"] newline
-        tab uppercase mold word " is " type-name :value " value."
+        tab any [description | "(undocumented)"] newline
+        tab (uppercase mold word) { is } classification {.}
     ]
 
-    unless args: find spec-of :value any-word! [leave]
-    clear find args /local
+    print-args: procedure [list /indent-words] [
+        for-each param list [
+            str: ajoin [tab param] ;-- single tab arguments
 
-    ;-- Print arg lists:
-    print-args: func [label list /extra /local str] [
-        if empty? list [leave]
-        print label
-        for-each arg list [
-            str: ajoin [tab arg/1]
-            if all [extra word? arg/1] [insert str tab]
-            if arg/2 [append append str " -- " arg/2]
-            if all [arg/3 not refinement? arg/1] [
-                repend str [" (" arg/3 ")"]
+            if all [indent-words | word? param] [
+                insert str tab ;-- double tab arguments to refinements
             ]
+
+            note: is string! select notes to-word param
+            type: is [block! any-word!] select types to-word param
+
+            if notes [append append str " -- " note]
+
+            if all [types | not refinement? param] [
+                repend str [" (" type ")"]
+            ]
+
             print str
         ]
     ]
 
-    use [argl refl ref b v] [
-        argl: copy []
-        refl: copy []
-        ref: b: v: _
+    unless empty? args [
+        print "^/ARGUMENTS:"
+        print-args args
+    ]
 
-        parse args [
-            any [string! | block!]
-            any [
-                set word [
-                    ; We omit set-word! as it is a "pure local"
-                    refinement! (ref: true)
-                |   word!
-                |   get-word!
-                |   lit-word!
-                ]
-                (append/only either ref [refl][argl] b: reduce [word _ _])
-                any [set v block! (b/3: v) | set v string! (b/2: v)]
-            ]
-        ]
-
-        print-args "^/ARGUMENTS:" argl
-        print-args/extra "^/REFINEMENTS:" refl
+    unless empty? refinements [
+        print "^/REFINEMENTS:"
+        print-args/indent-words refinements
     ]
 ]
 

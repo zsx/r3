@@ -524,6 +524,8 @@ REBNATIVE(action)
 
     SET_INTEGER(ARR_HEAD(VAL_FUNC_BODY(D_OUT)), Action_Index);
 
+    VAL_FUNC_ACTION_SPEC(D_OUT) = VAL_ARRAY(spec);
+
     Action_Index++;
     return R_OUT;
 }
@@ -641,6 +643,18 @@ static void Init_Ops(void)
 //
 static void Init_Natives(void)
 {
+    // !!! See notes on FUNCTION-META in %sysobj.r
+    {
+        REBCTX *function_meta = Alloc_Context(3);
+        Append_Context(function_meta, NULL, SYM_DESCRIPTION);
+        Append_Context(function_meta, NULL, SYM_PARAMETER_TYPES);
+        Append_Context(function_meta, NULL, SYM_PARAMETER_NOTES);
+        REBVAL *rootvar = CTX_VALUE(function_meta);
+        VAL_RESET_HEADER(rootvar, REB_OBJECT);
+        VAL_CONTEXT_EXIT_FROM(rootvar) = NULL;
+        Val_Init_Object(ROOT_FUNCTION_META, function_meta);
+    }
+
     REBVAL *item = VAL_ARRAY_HEAD(&Boot_Block->natives);
     REBCNT n = 0;
     REBVAL *action_word;

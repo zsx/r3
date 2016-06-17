@@ -1207,7 +1207,9 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, REBOOL is_callback)
 
 #define N_ARGS 8
 
-    VAL_ROUTINE_SPEC(out) = Copy_Array_Shallow(VAL_ARRAY(data));
+    // !!! Routines use different spec logic than the other generators.
+
+    VAL_ROUTINE_META(out) = NULL; /* Copy_Array_Shallow(VAL_ARRAY(data)) */
     VAL_ROUTINE_FFI_ARG_TYPES(out) =
         Make_Series(N_ARGS, sizeof(ffi_type*), MKS_NONE);
     out->payload.function.func = AS_FUNC(Make_Array(N_ARGS));

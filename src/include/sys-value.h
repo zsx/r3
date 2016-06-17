@@ -2194,8 +2194,8 @@ struct Reb_Function {
 #endif
 
 #define VAL_FUNC_PARAMLIST(v)       FUNC_PARAMLIST(VAL_FUNC(v))
-#define VAL_FUNC_SPEC(v) \
-    (ARR_SERIES(FUNC_PARAMLIST((v)->payload.function.func))->misc.spec)
+#define VAL_FUNC_META(v) \
+    (ARR_SERIES(FUNC_PARAMLIST((v)->payload.function.func))->misc.meta)
 
 #define VAL_FUNC_NUM_PARAMS(v)      FUNC_NUM_PARAMS(VAL_FUNC(v))
 #define VAL_FUNC_PARAMS_HEAD(v)     FUNC_PARAMS_HEAD(VAL_FUNC(v))
@@ -2240,6 +2240,14 @@ struct Reb_Function {
     KNOWN(ARR_HEAD(VAL_FUNC_BODY(v)))
 
 #define VAL_FUNC_EXIT_FROM(v) ((v)->payload.function.exit_from)
+
+// !!! As the system moves away from knowing or saving anything about the
+// "spec block dialect" for functions and being purely word-and-typeset-based
+// for MAKE FUNCTION!, an internal bit of code uses the action specs that
+// were being discarded by REBNATIVE(action).  It pokes them in the exit_from.
+//
+#define VAL_FUNC_ACTION_SPEC(v) \
+    VAL_FUNC_EXIT_FROM(v)
 
 // !!! At the moment functions are "all durable" or "none durable" w.r.t. the
 // survival of their arguments and locals after the call.  This corresponds
@@ -2502,7 +2510,7 @@ enum {
 
 /* argument is REBFCN */
 
-#define ROUTINE_SPEC(v)             FUNC_SPEC(v)
+#define ROUTINE_META(v)             FUNC_META(v)
 #define ROUTINE_INFO(v)             FUNC_INFO(v)
 #define ROUTINE_PARAMLIST(v)        FUNC_PARAMLIST(v)
 #define ROUTINE_FUNCPTR(v)          (ROUTINE_INFO(v)->info.rot.funcptr)
@@ -2537,7 +2545,7 @@ enum {
 
 /* argument is REBVAL */
 #define VAL_ROUTINE(v)              VAL_FUNC(v)
-#define VAL_ROUTINE_SPEC(v)         VAL_FUNC_SPEC(v)
+#define VAL_ROUTINE_META(v)         VAL_FUNC_META(v)
 #define VAL_ROUTINE_INFO(v)         VAL_FUNC_INFO(v)
 #define VAL_ROUTINE_PARAMLIST(v)    VAL_FUNC_PARAMLIST(v)
 #define VAL_ROUTINE_FUNCPTR(v)      (VAL_ROUTINE_INFO(v)->info.rot.funcptr)

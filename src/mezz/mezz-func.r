@@ -12,42 +12,6 @@ REBOL [
 ]
 
 
-procedure: func [
-    ; !!! Should have a unified constructor with FUNCTION
-    {Defines a closure function with all set-words as locals.}
-    spec [block!] {Help string (opt) followed by arg words (and opt type and string)}
-    body [block!] {The body block of the function}
-    /with {Define or use a persistent object (self)}
-    object [object! block! map!] {The object or spec}
-    /extern words [block!] {These words are not local}
-][
-    ; Copy the spec and add /local to the end if not found (no deep copy needed)
-    unless find spec: copy spec /local [append spec [
-        /local ; In a block so the generated source gets the newlines
-    ]]
-
-    ; Collect all set-words in the body as words to be used as locals, and add
-    ; them to the spec. Don't include the words already in the spec or object.
-    insert find/tail spec /local collect-words/deep/set/ignore body either with [
-        ; Make our own local object if a premade one is not provided
-        unless object? object [object: make object! object]
-
-        ; Make a full copy of the body, to allow reuse of the original
-        body: copy/deep body
-
-        bind body object  ; Bind any object words found in the body
-
-        ; Ignore the words in the spec and those in the object. The spec needs
-        ; to be copied since the object words shouldn't be added to the locals.
-        append append append copy spec 'self words-of object words ; ignore 'self too
-    ][
-        ; Don't include the words in the spec, or any extern words.
-        either extern [append copy spec words] [spec]
-    ]
-
-    proc spec body
-]
-
 map: func [
     {Make a map value (hashed associative block).}
     val
@@ -62,69 +26,6 @@ task: func [
     body [block!] {The body block of the task}
 ][
     make task! copy/deep reduce [spec body]
-]
-
-
-spec-of: function [
-    value [any-value!]
-][
-    spec: reflect :value 'spec
-    unless function? :value [return spec]
-
-    ; For performance and memory usage reasons, SPECIALIZE does not produce a
-    ; spec at the time of specialization.  It only makes one on-demand when
-    ; SPEC-OF is called.  The information the spec actually retains is just
-    ; an optimized 1-element series containing the WORD! name that the
-    ; specialization is for.
-    ;
-    switch func-class-of :value [
-        1 2 3 4 5 6 [spec]
-
-        7 [
-            ; It was specialized, and what we really want to do is look at
-            ; the spec of the function it specialized, and pare it down
-            ;
-            assert [word? first spec]
-            frame: reflect :value 'body
-            assert [frame? :frame]
-            spec: reflect function-of frame 'spec
-            insert spec [
-                <specialized> ;-- is block for newline
-            ]
-
-            ; If we look at the frame, any values that are not BAR! are
-            ; considered to be specialized.  The soft-quoted value from the
-            ; frame will be used vs. information at the callsite.
-            ;
-            specials: copy []
-            for-each [key value] frame [
-                unless bar? :value [
-                    append specials key
-                ]
-            ]
-
-            ; Pare down the original function spec by removing all the words
-            ; that were specialized, as well as any type blocks or commentary
-            ; string notes that came afterwards.
-            ;
-            while [not tail? spec] [
-                either all [any-word? spec/1 | find specials spec/1] [
-                    take spec
-                    while [
-                        all [not tail? spec | not any-word? spec/1]
-                    ][
-                        take spec
-                    ]
-                ][
-                    spec: next spec
-                ]
-            ]
-
-            head spec
-        ]
-
-        (fail "Unknown function class")
-    ]
 ]
 
 

@@ -442,7 +442,8 @@ static void Queue_Mark_Struct_Deep(const REBSTU *stu)
 //
 static void Queue_Mark_Routine_Deep(REBROT *rot)
 {
-    QUEUE_MARK_ARRAY_DEEP(ROUTINE_SPEC(rot));
+    if (ROUTINE_META(rot))
+        QUEUE_MARK_CONTEXT_DEEP(ROUTINE_META(rot));
     ROUTINE_SET_FLAG(ROUTINE_INFO(rot), ROUTINE_MARK);
 
     MARK_SERIES_ONLY(ROUTINE_FFI_ARG_TYPES(rot));
@@ -809,9 +810,9 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
 
             QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_BODY(val));
 
-            assert(VAL_FUNC_SPEC(val) == FUNC_SPEC(VAL_FUNC(val)));
+            if (VAL_FUNC_META(val) != NULL)
+                QUEUE_MARK_CONTEXT_DEEP(VAL_FUNC_META(val));
 
-            QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_SPEC(val));
             // Of all the function types, only the routines and callbacks use
             // HANDLE! and must be explicitly pointed out in the body.
             //

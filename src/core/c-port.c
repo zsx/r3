@@ -668,15 +668,7 @@ REBNATIVE(set_scheme)
     if (Scheme_Actions[n].fun) {
         // Hand build a native function used to reach native scheme actors.
         REBARR *paramlist = Make_Array(2);
-        REBARR *spec = Make_Array(1);
-
-        // !!! Because "any word will do", it's just making an args list
-        // that looks like [port!]
-        //
-        Val_Init_Word(
-            Alloc_Tail_Array(spec), REB_WORD, SYM_FROM_KIND(REB_PORT)
-        );
-        MANAGE_ARRAY(spec);
+        ARR_SERIES(paramlist)->misc.meta = NULL; // should there be meta info?
 
         Alloc_Tail_Array(paramlist); // for [0] function reference to self
         Val_Init_Typeset(
@@ -691,13 +683,8 @@ REBNATIVE(set_scheme)
         );
         MANAGE_ARRAY(paramlist);
 
-        // !!! Review: If this spec ever got leaked then it would be leaking
-        // 'typed' words to the user.  For safety, a single global actor spec
-        // could be made at startup.
-        //
         VAL_RESET_HEADER(actor, REB_FUNCTION);
         actor->payload.function.func = AS_FUNC(paramlist);
-        VAL_FUNC_SPEC(actor) = spec;
 
         VAL_FUNC_BODY(actor) = Make_Singular_Array(BLANK_VALUE);
         MANAGE_ARRAY(VAL_FUNC_BODY(actor));
@@ -726,7 +713,7 @@ REBNATIVE(set_scheme)
             // Make native function for action:
             Make_Native(
                 Obj_Value(actor, n), // function,
-                VAL_FUNC_SPEC(act),
+                VAL_FUNC_ACTION_SPEC(act), // hack, actually VAL_EXIT_FROM
                 cast(REBNAT, map->func)
             );
         }

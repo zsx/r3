@@ -343,7 +343,7 @@ REBINT PD_Context(REBPVS *pvs)
 //
 //  {Get a reference to the "meta" object associated with a value.}
 //
-//      value [any-context!]
+//      value [function! object! module!]
 //  ]
 //
 REBNATIVE(meta_of)
@@ -364,7 +364,16 @@ REBNATIVE(meta_of)
 {
     PARAM(1, value);
 
-    REBCTX *meta = VAL_CONTEXT_META(ARG(value));
+    REBVAL *value = ARG(value);
+
+    REBCTX *meta;
+    if (IS_FUNCTION(value))
+        meta = VAL_FUNC_META(value);
+    else {
+        assert(ANY_CONTEXT(value));
+        meta = VAL_CONTEXT_META(value);
+    }
+
     if (!meta) return R_BLANK;
 
     Val_Init_Object(D_OUT, meta);
@@ -377,28 +386,42 @@ REBNATIVE(meta_of)
 //
 //  {Set "meta" object associated with all references to a value.}
 //
-//      value [any-context!]
-//      meta [any-context! blank!]
+//      value [function! object! module!]
+//      meta [object! blank!]
 //  ]
 //
 REBNATIVE(set_meta)
+//
+// !!! You cannot currently put meta information onto a FRAME!, because the
+// slot where the meta information would go is where the meta information
+// would live for the function--since frames use a functions "paramlist"
+// as their keylist.  Types taken are deliberately narrow for the moment.
 {
     PARAM(1, value);
     PARAM(2, meta);
 
-    REBVAL *value = ARG(value);
-    REBVAL *meta = ARG(meta);
-
-    if (IS_BLANK(meta))
-        INIT_CONTEXT_META(VAL_CONTEXT(value), NULL);
-    else {
+    REBCTX *meta;
+    if (ANY_CONTEXT(ARG(meta))) {
+        //
         // !!! Putting a context value that has an `exit_from` into a single
         // REBCTX* will only have the canon context value, which has no
-        // per-instance REBVAL bits.  Consider more holistic checks for this.
+        // per-instance REBVAL bits.  Consider systemic checks for this.
         //
-        assert(VAL_CONTEXT_EXIT_FROM(value) == NULL);
+        assert(VAL_CONTEXT_EXIT_FROM(ARG(meta)) == NULL);
+        meta = VAL_CONTEXT(ARG(meta));
+    }
+    else {
+        assert(IS_BLANK(ARG(meta)));
+        meta = NULL;
+    }
 
-        INIT_CONTEXT_META(VAL_CONTEXT(value), VAL_CONTEXT(meta));
+    REBVAL *value = ARG(value);
+
+    if (IS_FUNCTION(value))
+        VAL_FUNC_META(value) = meta;
+    else {
+        assert(ANY_CONTEXT(value));
+        INIT_CONTEXT_META(VAL_CONTEXT(value), meta);
     }
 
     return R_VOID;

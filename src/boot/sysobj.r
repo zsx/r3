@@ -208,13 +208,41 @@ standard: context [
         comment {No return value.}
     ]
 
-    ; A very near-future feature is the ability to have natives supply a
-    ; "source equivalent" implementation body, so you can see what it would
-    ; do if it were not optimized as C code.  This is just a quick test to
-    ; pave the way for BODY-OF to be able to handle such data.
+    ; !!! The %sysobj.r initialization currently runs natives (notably the
+    ; natives for making objects, and here using COMMENT because it can).
+    ; This means that if the FUNCTION-META information is going to be produced
+    ; from a spec block for natives, it wouldn't be available while the
+    ; natives are getting initialized.
     ;
-    quote-body-test: [
-        :value
+    ; It may be desirable to sort out this dependency by using a construction
+    ; syntax and making this a MAP! or OBJECT! literal.  In the meantime,
+    ; the archetypal context has to be created "by hand" for natives to use,
+    ; with this archetype used by the REDESCRIBE Mezzanine.
+    ;
+    function-meta: context [
+        description:
+        parameter-types:
+        parameter-notes:
+            _
+    ]
+
+    ; !!! The common case is that specializations will not need to be
+    ; REDESCRIBE'd besides their title.  If they are, then they switch the
+    ; meta archetype to `function-meta` and subset the parameters.  Otherwise
+    ; HELP just follows the `specializee` and gets descriptions there.
+    ;
+    specialized-meta: context [
+        description:
+        specializee:
+        specializee-name:
+            _
+    ]
+
+    adapted-meta: context [
+        description:
+        adaptee:
+        adaptee-name:
+            _
     ]
 
     error: context [ ; Template used for all errors:

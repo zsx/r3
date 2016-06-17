@@ -402,7 +402,6 @@ struct Reb_Series {
         } area;
         REBOOL negated; // for bitsets (must be shared, can't be in REBVAL)
         REBARR *subfeed; // for *non-frame* VARARGS! ("array1") shared feed
-        REBARR *spec; // functions can update descriptions outside canon value
         REBCTX *meta; // paramlists and keylists can store a "meta" object
     } misc;
 
@@ -1145,8 +1144,8 @@ struct Reb_Func {
 
 #define FUNC_CLASS(f)           VAL_FUNC_CLASS(FUNC_VALUE(f))
 #define FUNC_VALUE(f)           ARR_HEAD(FUNC_PARAMLIST(f))
-#define FUNC_SPEC(f) \
-    (ARR_SERIES(FUNC_PARAMLIST(FUNC_VALUE(f)->payload.function.func))->misc.spec)
+#define FUNC_META(f) \
+    (ARR_SERIES(FUNC_PARAMLIST(f))->misc.meta)
 
 #define FUNC_DISPATCH(f) \
     (ARR_SERIES(FUNC_VALUE(f)->payload.function.body)->misc.dispatch)

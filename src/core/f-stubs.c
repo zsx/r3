@@ -479,15 +479,10 @@ void Val_Init_Context(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
     if (IS_FRAME(CTX_VALUE(context)))
         assert(IS_FUNCTION(CTX_FRAME_FUNC_VALUE(context)));
 
-    // !!! meta information currently must be an ANY-CONTEXT or NULL.  Meta
-    // information on frames is temporarily not supported, as the "meta"
-    // information of VAL_FUNC_SPEC lives on that keylist.
+    // !!! Currently only a context can serve as the "meta" information,
+    // though the interface may expand.
     //
-    assert(
-        IS_FRAME(CTX_VALUE(context))
-        || !CTX_META(context)
-        || ANY_CONTEXT(CTX_VALUE(CTX_META(context)))
-    );
+    assert(!CTX_META(context) || ANY_CONTEXT(CTX_VALUE(CTX_META(context))));
 #endif
 
     // Some contexts (stack frames in particular) start out unmanaged, and

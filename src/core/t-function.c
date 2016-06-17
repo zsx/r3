@@ -103,9 +103,8 @@ REBOOL MT_Function(REBVAL *out, REBVAL *def, enum Reb_Kind kind)
     body = VAL_ARRAY_AT_HEAD(def, 1);
     if (!IS_BLOCK(body)) return FALSE;
 
-    Make_Function(out, is_procedure, spec, body, has_return);
-
-    // We only get here if Make() doesn't raise an error...
+    REBFUN *fun = Make_Function_May_Fail(is_procedure, spec, body, has_return);
+    *out = *FUNC_VALUE(fun);
     return TRUE;
 }
 
