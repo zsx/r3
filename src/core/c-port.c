@@ -635,6 +635,50 @@ void Register_Scheme(REBSYM sym, const PORT_ACTION *map, REBPAF fun)
 
 
 //
+//  Make_Spec_From_Function: C
+//
+// !!! This is an interim hack to try and deal with the fact that some PORT!
+// related thing needs the spec from which actions were created--that the
+// system no longer stores.  Regenerate it quickly from the object data,
+// and ignore any inefficiency since this code is hopefully going away soon.
+//
+REBARR *Make_Spec_From_Function(REBVAL *func)
+{
+    REBARR *words = List_Func_Words(func, FALSE);
+    REBARR *spec = Make_Array(ARR_LEN(words) * 3 + 1);
+
+    REBCTX *types = NULL;
+    REBCTX *notes = NULL;
+
+    REBCTX *meta = VAL_FUNC_META(func);
+    if (meta) {
+        assert(CTX_LEN(meta) == 3); // description, parameter-types,notes
+
+        if (IS_STRING(CTX_VAR(meta, 1)))
+            Append_Value(spec, CTX_VAR(meta, 1));
+
+        if (IS_FRAME(CTX_VAR(meta, 2)))
+            types = VAL_CONTEXT(CTX_VAR(meta, 2));
+
+        if (IS_FRAME(CTX_VAR(meta, 3)))
+            notes = VAL_CONTEXT(CTX_VAR(meta, 3));
+    }
+
+    REBCNT index = 1;
+    for (; index <= ARR_LEN(words); ++index) {
+        Append_Value(spec, ARR_AT(words, index - 1));
+        if (types && IS_BLOCK(CTX_VAR(types, index)))
+            Append_Value(spec, CTX_VAR(types, index));
+        if (notes && IS_STRING(CTX_VAR(notes, index)))
+            Append_Value(spec, CTX_VAR(notes, index));
+    }
+
+    Free_Array(words);
+    return spec;
+}
+
+
+//
 //  set-scheme: native [
 //  
 //  "Low-level port scheme actor initialization."
@@ -710,12 +754,13 @@ REBNATIVE(set_scheme)
             // Get standard action's spec block:
             REBVAL *act = Get_Action_Value(map->action);
 
-            // Make native function for action:
+            REBARR *spec = Make_Spec_From_Function(act); // !!! see function
             Make_Native(
-                Obj_Value(actor, n), // function,
-                VAL_FUNC_ACTION_SPEC(act), // hack, actually VAL_EXIT_FROM
+                Obj_Value(actor, n), // function
+                spec,
                 cast(REBNAT, map->func)
             );
+            Free_Array(spec);
         }
     }
     return R_TRUE;

@@ -524,8 +524,6 @@ REBNATIVE(action)
 
     SET_INTEGER(ARR_HEAD(VAL_FUNC_BODY(D_OUT)), Action_Index);
 
-    VAL_FUNC_ACTION_SPEC(D_OUT) = VAL_ARRAY(spec);
-
     Action_Index++;
     return R_OUT;
 }

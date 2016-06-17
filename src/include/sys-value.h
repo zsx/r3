@@ -2250,14 +2250,6 @@ struct Reb_Function {
 
 #define VAL_FUNC_EXIT_FROM(v) ((v)->payload.function.exit_from)
 
-// !!! As the system moves away from knowing or saving anything about the
-// "spec block dialect" for functions and being purely word-and-typeset-based
-// for MAKE FUNCTION!, an internal bit of code uses the action specs that
-// were being discarded by REBNATIVE(action).  It pokes them in the exit_from.
-//
-#define VAL_FUNC_ACTION_SPEC(v) \
-    VAL_FUNC_EXIT_FROM(v)
-
 // !!! At the moment functions are "all durable" or "none durable" w.r.t. the
 // survival of their arguments and locals after the call.  This corresponds
 // to the CLOSURE! and FUNCTION! distinction for the moment, and brings
