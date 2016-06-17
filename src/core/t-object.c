@@ -312,8 +312,18 @@ REBINT PD_Context(REBPVS *pvs)
     }
     else fail (Error_Bad_Path_Select(pvs));
 
-    if (n == 0)
+    if (n == 0) {
+        //
+        // !!! The logic for allowing a GET-PATH! to be void if it's the last
+        // lookup that fails here is hacked in, but desirable for parity
+        // with the behavior of GET-WORD!
+        //
+        if (IS_GET_PATH(pvs->orig) && IS_END(pvs->item + 1)) {
+            SET_VOID(pvs->store);
+            return PE_USE_STORE;
+        }
         fail (Error_Bad_Path_Select(pvs));
+    }
 
     if (
         pvs->opt_setval
