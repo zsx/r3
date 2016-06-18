@@ -715,16 +715,16 @@ REBNATIVE(set_scheme)
         ARR_SERIES(paramlist)->misc.meta = NULL; // should there be meta info?
 
         Alloc_Tail_Array(paramlist); // for [0] function reference to self
-        Val_Init_Typeset(
-            Alloc_Tail_Array(paramlist),
-            // Typeset is chosen as empty to prevent normal invocation;
-            // these actors are only dispatched from the C code.
-            // !!! Should the C code type check?
-            // !!! New answer is yes...ALL_64 for now until it can be
-            // deduced what the intention was.
-            ALL_64,
-            SYM_FROM_KIND(REB_PORT)
-        );
+
+        // Typeset is chosen as empty to prevent normal invocation;
+        // these actors are only dispatched from the C code.
+        // !!! Should the C code type check?
+        // !!! New answer is yes...ALL_64 for now until it can be
+        // deduced what the intention was.
+
+        REBVAL *typeset = Alloc_Tail_Array(paramlist);
+        Val_Init_Typeset(typeset, ALL_64, SYM_FROM_KIND(REB_PORT));
+        INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_NORMAL);
         MANAGE_ARRAY(paramlist);
 
         VAL_RESET_HEADER(actor, REB_FUNCTION);
