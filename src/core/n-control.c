@@ -271,40 +271,42 @@ REBNATIVE(also)
 //  ]
 //
 REBNATIVE(all)
-//
-// ALL is effectively Rebol's "short-circuit AND".  Unsets do not vote either
-// true or false...they are ignored.
-// 
-// To offer a more generically useful result than just TRUE or FALSE, it will
-// use as a "truthy" value whatever the last evaluation in the chain was.  If
-// there was no last value, but no conditionally false instance hit to break
-// the chain, as in `all []` or `all [1 2 ()]`...it will return TRUE.
-// 
-// (Note: It would become a more costly operation to retain the last truthy
-// value to return 2 in the case of `all [1 2 ()`]`, just to say it could.
-// The overhead would undermine the raw efficiency of the operation.)
-// 
-// For the "falsy" value, ALL uses a NONE! rather than logic FALSE.  It's a
-// historical design decision which has some benefits, but perhaps some
-// drawbacks to those wishing to use it on logic values and stay in the
-// logic domain.  (`all [true true]` => true, `all [false true]` is NONE!).
 {
-    REBARR *block = VAL_ARRAY(D_ARG(1));
-    REBIXO indexor = VAL_INDEX(D_ARG(1));
+    PARAM(1, block);
 
-    SET_TRUE(D_OUT);
+    Reb_Enumerator e;
+    PUSH_SAFE_ENUMERATOR(&e, ARG(block)); // DO-ing code could disrupt `block`
 
-    while (indexor != END_FLAG) {
-        DO_NEXT_MAY_THROW(indexor, D_OUT, block, indexor);
-        if (indexor == THROWN_FLAG) return R_OUT_IS_THROWN;
-
-        if (IS_VOID(D_OUT)) continue;
-
-        if (IS_CONDITIONAL_FALSE(D_OUT)) return R_BLANK;
+    if (IS_END(e.value)) { // `all []` is considered TRUE
+        DROP_SAFE_ENUMERATOR(&e);
+        return R_TRUE;
     }
 
-    if (IS_VOID(D_OUT)) return R_TRUE;
+    do {
+        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_LOOKAHEAD);
+        if (THROWN(D_OUT)) {
+            DROP_SAFE_ENUMERATOR(&e);
+            return R_OUT_IS_THROWN;
+        }
 
+        if (IS_VOID(D_OUT)) // voids do not "vote" true or false
+            continue;
+
+        if (IS_CONDITIONAL_FALSE(D_OUT)) { // a failed ALL returns BLANK!
+            DROP_SAFE_ENUMERATOR(&e);
+            return R_BLANK;
+        }
+    } while (NOT_END(e.value));
+
+    // Note: Though ALL wants to use as a "truthy" value whatever the last
+    // evaluation was, with `all [1 2 ()]`...the 2 is already gone.  There
+    // would be overhead trying to preserve it.  Considering that `all []`
+    // has to pull a TRUE out of thin air anyway, it is accepted.
+
+    if (IS_VOID(D_OUT))
+        SET_TRUE(D_OUT);
+
+    DROP_SAFE_ENUMERATOR(&e);
     return R_OUT;
 }
 
@@ -318,31 +320,40 @@ REBNATIVE(all)
 //  ]
 //
 REBNATIVE(any)
-//
-// ANY is effectively Rebol's "short-circuit OR".  Unsets do not vote either
-// true or false...they are ignored.
-// 
-// See ALL's notes about returning the last truthy value or NONE! (vs. FALSE)
-// 
-// The base case of `any []` is NONE! and not TRUE.  This might seem strange
-// given that `all []` is TRUE.  But this ties more into what the questions
-// they are used to ask about in practice: "Were all of these things not
-// false?" as opposed to "Were any of these things true?"  It is also the
-// case that `FALSE OR X OR Y` matches with `TRUE AND X AND Y` as the
-// "seed" for not affecting the chain.
 {
-    REBARR *block = VAL_ARRAY(D_ARG(1));
-    REBIXO indexor = VAL_INDEX(D_ARG(1));
+    PARAM(1, block);
 
-    while (indexor != END_FLAG) {
-        DO_NEXT_MAY_THROW(indexor, D_OUT, block, indexor);
-        if (indexor == THROWN_FLAG) return R_OUT_IS_THROWN;
+    Reb_Enumerator e;
+    PUSH_SAFE_ENUMERATOR(&e, ARG(block)); // DO-ing code could disrupt `block`
 
-        if (IS_VOID(D_OUT)) continue;
-
-        if (IS_CONDITIONAL_TRUE(D_OUT)) return R_OUT;
+    if (IS_END(e.value)) { // `any []` is a failure case, returns BLANK!
+        DROP_SAFE_ENUMERATOR(&e);
+        return R_BLANK;
     }
 
+    // Note: although `all []` is TRUE, `any []` is NONE!.  This sides with
+    // general usage as "Were all of these things not false?" as opposed to
+    // "Were any of these things true?".  Also, `FALSE OR X OR Y` shows it
+    // as the "unit" for OR, matching `TRUE AND X AND Y` as the seed that
+    // doesn't affect the outcome of the chain.
+
+    do {
+        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_LOOKAHEAD);
+        if (THROWN(D_OUT)) {
+            DROP_SAFE_ENUMERATOR(&e);
+            return R_OUT_IS_THROWN;
+        }
+
+        if (IS_VOID(D_OUT)) // voids do not "vote" true or false
+            continue;
+
+        if (IS_CONDITIONAL_TRUE(D_OUT)) { // successful ANY returns the value
+            DROP_SAFE_ENUMERATOR(&e);
+            return R_OUT;
+        }
+    } while (NOT_END(e.value));
+
+    DROP_SAFE_ENUMERATOR(&e);
     return R_BLANK;
 }
 
@@ -360,18 +371,31 @@ REBNATIVE(none)
 // !!! In order to reduce confusion and accidents in the near term, the
 // %mezz-legacy.r renames this to NONE-OF and makes NONE report an error.
 {
-    REBARR *block = VAL_ARRAY(D_ARG(1));
-    REBIXO indexor = VAL_INDEX(D_ARG(1));
+    PARAM(1, block);
 
-    while (indexor != END_FLAG) {
-        DO_NEXT_MAY_THROW(indexor, D_OUT, block, indexor);
-        if (indexor == THROWN_FLAG) return R_OUT_IS_THROWN;
+    Reb_Enumerator e;
+    PUSH_SAFE_ENUMERATOR(&e, ARG(block)); // DO-ing code could disrupt `block`
 
-        if (IS_VOID(D_OUT)) continue;
+    if (IS_END(e.value)) // `none []` is a success case, returns TRUE
+        return R_TRUE;
 
-        if (IS_CONDITIONAL_TRUE(D_OUT)) return R_BLANK;
-    }
+    do {
+        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_LOOKAHEAD);
+        if (THROWN(D_OUT)) {
+            DROP_SAFE_ENUMERATOR(&e);
+            return R_OUT_IS_THROWN;
+        }
 
+        if (IS_VOID(D_OUT)) // voids do not "vote" true or false
+            continue;
+
+        if (IS_CONDITIONAL_TRUE(D_OUT)) { // successful ANY returns the value
+            DROP_SAFE_ENUMERATOR(&e);
+            return R_BLANK;
+        }
+    } while (NOT_END(e.value));
+
+    DROP_SAFE_ENUMERATOR(&e);
     return R_TRUE;
 }
 
@@ -456,177 +480,95 @@ REBNATIVE(break)
 REBNATIVE(case)
 {
     PARAM(1, block);
-    REFINE(2, all);
+    REFINE(2, all_reused);
     REFINE(3, q);
 
-    // Save refinement to boolean to free up call frame slot, and reuse its
-    // cell as a temporary GC-safe location for holding evaluations.
-    //
-    REBOOL all = REF(all);
-    REBVAL *safe_temp = ARG(all);
+    REBOOL all = REF(all_reused);
+    REBVAL *temp = ARG(all_reused); // temporary value, GC safe (if needed)
 
-    // condition result must survive across potential GC evaluations of
-    // the body evaluation re-using `safe-temp`, but can be collapsed to a
-    // flag as the full value of the condition is never returned.
-    //
-    REBOOL matched;
+    Reb_Enumerator e;
+    PUSH_SAFE_ENUMERATOR(&e, ARG(block)); // DO-ing cases could disrupt `block`
 
-    // To evaluate in a linear sequence most efficiently, CASE uses a single
-    // frame, instead of using macros that build and tear one down on each
-    // individual evaluation.
-    //
-    struct Reb_Frame frame;
-    struct Reb_Frame *f = &frame;
+    while (NOT_END(e.value)) {
+        UPDATE_EXPRESSION_START(&e); // informs the error delivery better
 
-    PUSH_ARTIFICIAL_CALL_UNLESS_END(f, ARG(block));
-    if (IS_END(f->value)) { // quickly terminate on empty array
-        if (REF(q))
-            return R_FALSE;
-
-        return R_VOID;
-    }
-
-    do {
-        UPDATE_EXPRESSION_START(f);
-        if (IS_BAR(f->value)) {
-            //
-            // interstitial (e.g. `case [1 2 | 3 4]`) - BAR! legal here, skip
-            //
-            FETCH_NEXT_ONLY_MAYBE_END(f);
+        if (IS_BAR(e.value)) { // interstitial BAR! legal, `case [1 2 | 3 4]`
+            FETCH_NEXT_ONLY_MAYBE_END(&e);
             continue;
         }
 
-        DO_NEXT_REFETCH_MAY_THROW(safe_temp, f, DO_FLAG_LOOKAHEAD);
+        // Perform a DO/NEXT's worth of evaluation on a "condition" to test
 
-        if (THROWN(safe_temp)) {
-            *D_OUT = *safe_temp; // is a RETURN, BREAK, THROW...
-            DROP_CALL(f);
-            return R_OUT_IS_THROWN;
+        DO_NEXT_REFETCH_MAY_THROW(temp, &e, DO_FLAG_LOOKAHEAD);
+        if (THROWN(temp)) {
+            *D_OUT = *temp;
+            goto return_thrown;
         }
 
-        // CASE statements are rather freeform as-is, and it seems most useful
-        // to return an error on things like:
-        //
-        //     case [
-        //         false [print "skipped"]
-        //         false ; no matching body for condition
-        //     ]
-        //
-        if (IS_END(f->value)) {
-        #if !defined(NDEBUG)
-            if (LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS)) {
-                // case [first [a b c]] => true ;-- in Rebol2
-                DROP_CALL(f);
-                return R_TRUE;
-            }
-        #endif
+        if (IS_VOID(temp)) // no void conditions allowed (as with IF)
+            fail (Error(RE_NO_RETURN));
 
+        if (IS_END(e.value)) // require conditions and branches in pairs
             fail (Error(RE_PAST_END));
-        }
 
-        // While unset is often a chance to "opt-out" of things, the condition
-        // of an IF/UNLESS/EITHER is a spot where opting out is not allowed,
-        // so it seems equally applicable to CASE.
-        //
-        if (IS_VOID(safe_temp)) fail (Error(RE_NO_RETURN));
-
-        // Expression barriers in CASE statements are only allowed at the
-        // in-between-pairs spots.  This maximizes their usefulness, because
-        // they can actually catch something interesting (being out of sync
-        // on conditions and branches).
-        //
-        if (IS_BAR(f->value))
+        if (IS_BAR(e.value)) // BAR! out of sync, between condition and branch
             fail (Error(RE_BAR_HIT_MID_CASE));
 
-        matched = IS_CONDITIONAL_TRUE(safe_temp);
-
-        // We DO the next expression, rather than just assume it is a
-        // literal block.  That allows you to write things like:
+        // Regardless of whether a "condition" was true or false, it's
+        // necessary to evaluate the next "branch" to know how far to skip:
         //
         //     condition: true
-        //     case [condition 10 + 20] ;-- returns 30
+        //     case [condition 10 + 20 true {hello}] ;-- returns 30
         //
-        // But we need to DO regardless of the condition being true or
-        // false.  Rebol2 would just skip over one item (the 10 in this
-        // case) and get an error.  Code not in blocks must be evaluated
-        // even if false, as it is with 'if false (print "eval'd")'
+        //     condition: false
+        //     case [condition 10 + 20 true {hello}] ;-- returns {hello}
         //
-        // If the source was a literal block then the Do_Next_May_Throw
-        // will *probably* be a no-op, but consider infix operators:
-        //
-        //     case [true [stuff] + [more stuff]]
-        //
-        // Until such time as DO guarantees such things aren't legal,
-        // CASE must evaluate block literals too.
+        // So a FALSE? condition evaluates the branch without affecting D_OUT.
 
-    #if !defined(NDEBUG)
-        if (LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS) && !matched) {
-            //
-            // case [true add 1 2] => 3
-            // case [false add 1 2] => 2 ;-- in Rebol2
-            //
-            FETCH_NEXT_ONLY_MAYBE_END(f);
-
-            // forgets the last evaluative result for a TRUE condition
-            // when /ALL is set (instead of keeping it to return)
-            //
-            SET_VOID(D_OUT);
+        if (IS_CONDITIONAL_FALSE(temp)) {
+            DO_NEXT_REFETCH_MAY_THROW(temp, &e, DO_FLAG_LOOKAHEAD);
+            if (THROWN(temp)) {
+                *D_OUT = *temp;
+                goto return_thrown;
+            }
             continue;
         }
-    #endif
 
-        DO_NEXT_REFETCH_MAY_THROW(safe_temp, f, DO_FLAG_LOOKAHEAD);
+        // When the condition is TRUE?, CASE actually does a double evaluation
+        // if a block is yielded as the branch:
+        //
+        //     stuff: [print "This will be printed"]
+        //     case [true stuff]
+        //
+        // Similar to IF TRUE STUFF, so CASE can act like many IFs at once.
 
-        if (THROWN(safe_temp)) {
-            *D_OUT = *safe_temp; // is a RETURN, BREAK, THROW...
-            DROP_CALL(f);
-            return R_OUT_IS_THROWN;
-        }
+        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_LOOKAHEAD);
+        if (THROWN(D_OUT))
+            goto return_thrown;
 
-        if (matched) {
-            if (IS_BLOCK(safe_temp)) {
-                //
-                // The classical implementation of CASE is defined to give two
-                // evals for things like:
-                //
-                //     stuff: [print "This will be printed"]
-                //     case [true stuff]
-                //
-                // This puts it more closely in the spirit of being a kind of
-                // "optimized IF-ELSE" as `if true stuff` would also behave
-                // in the manner of running that block.
-                //
-                if (DO_VAL_ARRAY_AT_THROWS(D_OUT, safe_temp)) {
-                    DROP_CALL(f);
-                    return R_OUT_IS_THROWN;
-                }
-            }
-            else
-                *D_OUT = *safe_temp;
+        if (IS_BLOCK(D_OUT))
+            if (DO_VAL_ARRAY_AT_THROWS(D_OUT, D_OUT)) // ok for same src/dest
+                goto return_thrown;
 
-        #if !defined(NDEBUG)
-            if (LEGACY(OPTIONS_BROKEN_CASE_SEMANTICS)) {
-                if (IS_VOID(D_OUT)) {
-                    // case [true [] false [1 + 2]] => true ;-- in Rebol2
-                    SET_TRUE(D_OUT);
-                }
-            }
-        #endif
+        if (NOT(all)) goto return_matched;
 
-            if (all) continue; // keep matching if /ALL
+        // keep matching if /ALL
+    }
 
-            DROP_CALL(f);
+//return_maybe_matched:
+    DROP_SAFE_ENUMERATOR(&e);
+    return R_OUT_Q(REF(q)); // reacts if /?, detects if D_OUT was written to
 
-            if (REF(q)) return R_TRUE; // one case ran (this one) for /?
+return_matched:
+    DROP_SAFE_ENUMERATOR(&e);
+    if (REF(q)) return R_TRUE; // at least one case ran for /? to get TRUE
+    return R_OUT;
 
-            return R_OUT; // evaluative result of case otherwise (may be void)
-        }
-    } while (NOT_END(f->value));
-
-    DROP_CALL(f);
-
-    return R_OUT_Q(REF(q));
+return_thrown:
+    DROP_SAFE_ENUMERATOR(&e);
+    return R_OUT_IS_THROWN;
 }
+
 
 
 //
@@ -1614,133 +1556,113 @@ REBNATIVE(switch)
     PARAM(1, value);
     PARAM(2, cases);
     REFINE(3, default);
-    PARAM(4, case);
+    PARAM(4, default_case);
     REFINE(5, all);
     REFINE(6, strict);
     REFINE(7, q);
 
-    // Save refinement to boolean to free up call frame slot, and reuse its
-    // cell as a temporary GC-safe location for holding evaluations.
-    //
+    Reb_Enumerator e;
+    PUSH_SAFE_ENUMERATOR(&e, ARG(cases)); // DO-ing matches may disrupt `cases`
+
+    // The evaluator always initializes the out slot to an END marker.  That
+    // makes sure it gets overwritten with a value (or void) before returning.
+    // But here SWITCH also lets END indicate no matching cases ran yet.
+
+    assert(IS_END(D_OUT));
+
+    // Save refinement to boolean to free up call frame slot.  Reuse its
+    // cell as a temporary GC-safe location for holding evaluations.  This
+    // holds the last test so that `switch 9 [1 ["a"] 2 ["b"] "c"]` is "c".
+
     REBOOL all = REF(all);
-    REBVAL *safe_temp = ARG(all);
+    REBVAL *fallout = ARG(all);
+    SET_VOID(fallout);
 
-    REBVAL *value = ARG(value);
-    REBVAL *cases = ARG(cases);
-    // has_default implied by default_case not being blank
-    REBVAL *default_case = ARG(case);
-    REBOOL strict = REF(strict);
+    while (NOT_END(e.value)) {
 
-    REBVAL *item = VAL_ARRAY_AT(cases);
+        // If a block is seen at this point, it doesn't correspond to any
+        // condition to match.  If no more tests are run, let it suppress the
+        // feature of the last value "falling out" the bottom of the switch
 
-    for (; NOT_END(item); item++) {
-        //
-        // Blocks are considered bodies to match for other value types.
-        // They can't be used as case keys--they skip until a non-block seen.
-        // This also clears out the notion of any condition that would "fall
-        // out the body", by resetting the temporary to and END
-        //
-        if (IS_BLOCK(item)) {
-            SET_END(safe_temp);
-            continue;
+        if (IS_BLOCK(e.value)) {
+            SET_VOID(fallout);
+            goto continue_loop;
         }
 
-        // GET-WORD!, GET-PATH!, and GROUP! are evaluated (an escaping
-        // mechanism as in lit-quotes of function specs to avoid quoting)
-        // You can still evaluate to one of these, e.g. `(quote :foo)` to
-        // use parens to produce a GET-WORD! to test against.
-        //
-        if (IS_GROUP(item) || IS_GET_WORD(item) || IS_GET_PATH(item)) {
+        // GROUP!, GET-WORD! and GET-PATH! are evaluated in Ren-C's SWITCH
+        // All other types are seen as-is (hence words act "quoted")
 
-        #if !defined(NDEBUG)
-            //
-            // Note: Mezzanine can no longer support a non-eval'ing switch.
-            // Guide usage of the flag by currently running function *only*.
-            //
-            if (LEGACY_RUNNING(OPTIONS_NO_SWITCH_EVALS)) {
-                *safe_temp = *item;
-                goto compare_values;
+        if (
+            IS_GROUP(e.value)
+            || IS_GET_WORD(e.value)
+            || IS_GET_PATH(e.value)
+        ) {
+            if (DO_VALUE_THROWS(fallout, e.value)) {
+                *D_OUT = *fallout;
+                goto return_thrown;
             }
-        #endif
-
-            if (DO_VALUE_THROWS(safe_temp, item)) {
-                *D_OUT = *safe_temp;
-                return R_OUT_IS_THROWN;
-            }
+            // Note: e.value may have gone stale during DO, must REFETCH
         }
-        else {
-            // Even if we're just using the item literally, we need to copy
-            // it from the block the user loaned us...because the type
-            // coercion in Compare_Modify_Values could mutate it.
-
-            *safe_temp = *item;
-        }
-
-    #if !defined(NDEBUG)
-    compare_values: // only used by LEGACY(OPTIONS_NO_SWITCH_EVALS)
-    #endif
+        else
+            *fallout = *e.value;
 
         // It's okay that we are letting the comparison change `value`
         // here, because equality is supposed to be transitive.  So if it
         // changes 0.01 to 1% in order to compare it, anything 0.01 would
         // have compared equal to so will 1%.  (That's the idea, anyway,
         // required for `a = b` and `b = c` to properly imply `a = c`.)
+        //
+        // !!! This means fallout can be modified from its intent.  Rather
+        // than copy here, this is a reminder to review the mechanism by
+        // which equality is determined--and why it has to mutate.
 
-        if (!Compare_Modify_Values(value, safe_temp, strict ? 1 : 0))
-            continue;
+        if (!Compare_Modify_Values(ARG(value), fallout, REF(strict) ? 1 : 0))
+            goto continue_loop;
 
-        // Skip ahead to try and find a block, to treat as code
+        // Skip ahead to try and find a block, to treat as code for the match
 
-        while (!IS_BLOCK(item)) {
-            if (IS_END(item)) break;
-            item++;
-        }
+        do {
+            FETCH_NEXT_ONLY_MAYBE_END(&e);
+            if (IS_END(e.value)) break;
+        } while (!IS_BLOCK(e.value));
 
-        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, item))
-            return R_OUT_IS_THROWN;
+        // Run the code if it was found.  Because it writes D_OUT with a value
+        // (or void), it won't be END--so we'll know at least one case has run.
+
+        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, e.value))
+            goto return_thrown;
 
         // Only keep processing if the /ALL refinement was specified
 
-        if (!all) {
-            if (REF(q)) return R_TRUE; // accepted a case for /?
+        if (NOT(all)) goto return_matched;
 
-            return R_OUT;
-        }
+    continue_loop:
+        FETCH_NEXT_ONLY_MAYBE_END(&e);
     }
 
-    // If we get here and D_OUT wasn't overwritten from an END marker, that
-    // means no case bodies ever ran.
+    if (NOT_END(D_OUT)) // at least one case body's DO ran and overwrote D_OUT
+        goto return_matched;
 
-    if (IS_END(D_OUT)) {
-        if (IS_BLOCK(default_case)) {
-            if (DO_VAL_ARRAY_AT_THROWS(D_OUT, default_case))
-                return R_OUT_IS_THROWN;
-        }
-        else if (NOT_END(safe_temp))
-            *D_OUT = *safe_temp; // let last test value "fall out"
-        else
-            SET_VOID(D_OUT);
-
-        if (REF(q)) return R_FALSE; // running a default doesn't count for /?
-
-        return R_OUT;
+    if (REF(default)) {
+        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(default_case)))
+            goto return_thrown;
     }
+    else
+        *D_OUT = *fallout; // let last test value "fall out", might be void
 
-    #if !defined(NDEBUG)
-        //
-        // R3-Alpha made `switch 1 [1]` NONE!, in Ren-C this is 1 (and useful
-        // especially with evaluated items like GROUP! for a fallthrough
-        // syntax alternative to `switch/default`.)  Mezzanine relies on this
-        // now, so only use the legacy behavior if the currently running
-        // function is "legacy" marked.  It's not perfect, see notes.
-        //
-        if (LEGACY_RUNNING(OPTIONS_NO_SWITCH_FALLTHROUGH))
-            return R_VOID;
-    #endif
-
-    if (REF(q)) return R_TRUE;
-
+//return_defaulted:
+    DROP_SAFE_ENUMERATOR(&e);
+    if (REF(q)) return R_FALSE; // running default code doesn't count for /?
     return R_OUT;
+
+return_matched:
+    DROP_SAFE_ENUMERATOR(&e);
+    if (REF(q)) return R_TRUE;
+    return R_OUT;
+
+return_thrown:
+    DROP_SAFE_ENUMERATOR(&e);
+    return R_OUT_IS_THROWN;
 }
 
 

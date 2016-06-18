@@ -1110,27 +1110,27 @@ REBNATIVE(while)
 {
     PARAM(1, condition);
     PARAM(2, body);
-    REFINE(3, q_safe_temp);
+    REFINE(3, q_reused);
 
-    REBOOL q = VAL_LOGIC(ARG(q_safe_temp));
-    REBVAL *safe_temp = ARG(q_safe_temp);
+    REBOOL q = VAL_LOGIC(ARG(q_reused));
+    REBVAL *temp = ARG(q_reused); // cell-sized slot that is also GC-safe
 
     do {
-        if (DO_VAL_ARRAY_AT_THROWS(safe_temp, ARG(condition))) {
+        if (DO_VAL_ARRAY_AT_THROWS(temp, ARG(condition))) {
             //
             // A while loop should only look for breaks and continues in its
             // body, not in its condition.  So `while [break] []` is a
             // request to break the enclosing loop (or error if there is
             // nothing to catch that break).  Hence we bubble up the throw.
             //
-            *D_OUT = *safe_temp;
+            *D_OUT = *temp;
             return R_OUT_IS_THROWN;
         }
 
-        if (IS_VOID(safe_temp))
+        if (IS_VOID(temp))
             fail (Error(RE_NO_RETURN));
 
-        if (IS_CONDITIONAL_FALSE(safe_temp))
+        if (IS_CONDITIONAL_FALSE(temp))
             return R_OUT_Q(q);
 
         // If this line runs, it will put a non-END marker in D_OUT, which

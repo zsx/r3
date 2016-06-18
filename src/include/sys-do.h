@@ -738,27 +738,11 @@ struct Reb_Frame {
     do { \
         (f)->prior = TG_Frame_Stack; \
         TG_Frame_Stack = (f); \
-        if (NOT(f->flags & DO_FLAG_VALIST)) \
+        if (NOT((f)->flags & DO_FLAG_VALIST)) \
             if (!GET_ARR_FLAG((f)->source.array, SERIES_FLAG_LOCKED)) { \
-                SET_ARR_FLAG(f->source.array, SERIES_FLAG_LOCKED); \
-                f->flags |= DO_FLAG_TOOK_FRAME_LOCK; \
+                SET_ARR_FLAG((f)->source.array, SERIES_FLAG_LOCKED); \
+                (f)->flags |= DO_FLAG_TOOK_FRAME_LOCK; \
             } \
-    } while (0)
-
-#define PUSH_ARTIFICIAL_CALL_UNLESS_END(c,v) \
-    do { \
-        (f)->value = VAL_ARRAY_AT(v); \
-        if (IS_END((f)->value)) { \
-            (f)->indexor = END_FLAG; \
-            break; \
-        } \
-        (f)->eval_type = ET_INERT; \
-        (f)->flags = 0; /* !!! review */ \
-        (f)->indexor = VAL_INDEX(v) + 1; \
-        (f)->source.array = VAL_ARRAY(v); \
-        (f)->eval_fetched = NULL; \
-        (f)->label_sym = SYM_0; \
-        PUSH_CALL(f); \
     } while (0)
 
 #define UPDATE_EXPRESSION_START(f) \
@@ -773,6 +757,34 @@ struct Reb_Frame {
         assert(TG_Frame_Stack == (f)); \
         TG_Frame_Stack = (f)->prior; \
     } while (0)
+
+//
+// Code that walks across Rebol arrays and performs evaluations must consider
+// that arbitrary user code may disrupt the array being enumerated.  If the
+// array is to expand, it might have a different data pointer entirely.
+//
+// The Reb_Enumerator abstracts whatever mechanism is used to deal with this
+// problem.  That could include doing nothing at all about it and just
+// incrementing the pointer and hoping for the best (R3-Alpha would do this
+// often).  However Ren-C reuses the same mechanism as its evaluator, which
+// is to hold a temporary lock on the array.
+//
+
+typedef struct Reb_Frame Reb_Enumerator;
+
+#define PUSH_SAFE_ENUMERATOR(f,v) \
+    do { \
+        (f)->value = VAL_ARRAY_AT(v); \
+        (f)->eval_type = ET_INERT; \
+        (f)->flags = 0; /* !!! review */ \
+        (f)->indexor = VAL_INDEX(v) + 1; \
+        (f)->source.array = VAL_ARRAY(v); \
+        (f)->eval_fetched = NULL; \
+        PUSH_CALL(f); \
+    } while (0)
+
+#define DROP_SAFE_ENUMERATOR(f) \
+    DROP_CALL(f)
 
 #if 0
     // For detailed debugging of the fetching; coarse tool used only in very
