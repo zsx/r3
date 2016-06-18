@@ -196,6 +196,8 @@ REBFUN *Make_Paramlist_Managed(
     REBOOL has_types = FALSE;
     REBOOL has_notes = FALSE;
 
+    REBOOL refinement_seen = FALSE;
+
     REBVAL *item;
     for (item = ARR_HEAD(spec); NOT_END(item); item++) {
 
@@ -359,17 +361,21 @@ REBFUN *Make_Paramlist_Managed(
         switch (VAL_TYPE(item)) {
         case REB_WORD:
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_NORMAL);
+            if (refinement_seen) VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_0);
             break;
 
         case REB_GET_WORD:
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_HARD_QUOTE);
+            if (refinement_seen) VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_0);
             break;
 
         case REB_LIT_WORD:
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_SOFT_QUOTE);
+            if (refinement_seen) VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_0);
             break;
 
         case REB_REFINEMENT:
+            refinement_seen = TRUE;
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_REFINEMENT);
             //
             // !!! The typeset bits of a refinement are not currently used.
@@ -381,6 +387,11 @@ REBFUN *Make_Paramlist_Managed(
 
         case REB_SET_WORD:
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_PURE_LOCAL);
+            //
+            // !!! Typeset bits of pure locals also not currently used,
+            // though definitional return should be using it for the return
+            // type of the function.
+            //
             break;
 
         default:
