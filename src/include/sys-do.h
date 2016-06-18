@@ -1215,8 +1215,6 @@ struct Native_Refine {
 #define FRM_FUNC(f)         ((f)->func)
 #define FRM_DSP_ORIG(f)     ((f)->dsp_orig + 0) // Lvalue
 
-#define FRM_PARAMS_HEAD(f)  FUNC_PARAMS_HEAD((f)->func)
-
 // `arg` is in use to point at the arguments during evaluation, and `param`
 // may hold a SET-WORD! or SET-PATH! available for a lookback to quote.
 // But during evaluations, `refine` is free.

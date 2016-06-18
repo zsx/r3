@@ -453,7 +453,7 @@ closure: func [
         {These words are not local}
     words [block!]
 ][
-    apply :function [
+    apply 'function [
         spec: compose [<durable> (spec)]
         body: body
         if with: with [
@@ -543,7 +543,7 @@ make: function [
 ; So it's a good case study of how one can get a very large number of
 ; locals if using FUNCTION.  Study.
 ;
-set 'r3-legacy* func [<local> if-flag] [
+set 'r3-legacy* func [<local> if-flags] [
 
     if r3-legacy-mode [return blank]
 
@@ -955,8 +955,10 @@ set 'r3-legacy* func [<local> if-flag] [
     set-infix (bind 'or system/contexts/user) :or+
     set-infix (bind 'xor system/contexts/user) :xor+
 
-    if-flag: func [flag [word!] body [block!]] [
-        if system/options/(flag) body
+    if-flags: func [flags [block!] body [block!]] [
+        for-each flag flags [
+            if system/options/(flag) [return do body]
+        ]
     ]
 
     ;
@@ -968,11 +970,11 @@ set 'r3-legacy* func [<local> if-flag] [
     ;
     ; So make a lot of things like `first: (chain [:first :to-value])`
     ;
-    if-flag 'none-instead-of-voids [
+    if-flags [none-instead-of-voids] [
         for-each word [
             first second third fourth fifth sixth seventh eighth ninth tenth
             select pick
-            if unless either case switch
+            if unless either case
             while foreach loop repeat forall forskip
         ][
             append system/contexts/user compose [
@@ -981,6 +983,39 @@ set 'r3-legacy* func [<local> if-flag] [
             ]
         ]
     ]
+
+    ; SWITCH had several behavior changes--it evaluates GROUP! and GET-WORD!
+    ; and GET-PATH!--and values "fall out" the bottom if there isn't a match
+    ; (and the last item isn't a block).
+    ;
+    ; We'll assume these cases are rare in <r3-legacy> porting, but swap in
+    ; SWITCH for a routine that will FAIL if the cases come up.  A sufficiently
+    ; motivated individual could then make a compatibility construct, but
+    ; probably would rather just change it so their code runs faster.  :-/
+    ;
+    if-flags [no-switch-evals no-switch-fallthrough][
+    append system/contexts/user compose [
+        switch: (
+            chain [
+                adapt 'switch [use [last-was-block] [
+                    last-was-block: false
+                    for-next cases [
+                        if is [get-word! get-path! group!] cases/1 [
+                            fail [{SWITCH non-<r3-legacy> evaluates} (cases/1)]
+                        ]
+                        if block? cases/1 [
+                            last-was-block: true
+                        ]
+                    ]
+                    unless last-was-block [
+                        fail [{SWITCH non-<r3-legacy>} last cases {"fallout"}]
+                    ]
+                ]]
+            |
+                :to-value
+            ]
+        )
+    ]]
 
     r3-legacy-mode: on
     return blank

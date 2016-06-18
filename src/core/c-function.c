@@ -1225,9 +1225,7 @@ REBOOL Specialize_Function_Throws(
     assert(out != specializee);
 
     REBCTX *exemplar;
-    REBARR *exit_from;
-
-    REBFUN *func = Find_Underlying_Func(&exit_from, &exemplar, specializee);
+    REBFUN *func = Find_Underlying_Func(&exemplar, specializee);
 
     if (exemplar) {
         //
@@ -1245,7 +1243,6 @@ REBOOL Specialize_Function_Throws(
 
         exemplar = AS_CONTEXT(varlist); // okay, now make exemplar our copy
         INIT_VAL_CONTEXT(CTX_VALUE(exemplar), exemplar);
-        // exit_from should be good to go
     }
     else {
         // An initial specialization is responsible for making a frame out
@@ -1253,7 +1250,6 @@ REBOOL Specialize_Function_Throws(
         //
         exemplar = Make_Frame_For_Function(specializee);
         MANAGE_ARRAY(CTX_VARLIST(exemplar));
-        exit_from = VAL_FUNC_EXIT_FROM(specializee);
     }
 
     // Archetypal frame values can't have exit_froms (would write paramlist)
@@ -1301,7 +1297,8 @@ REBOOL Specialize_Function_Throws(
     //
     VAL_FUNC_BODY(out) = Make_Singular_Array(CTX_VALUE(exemplar));
     MANAGE_ARRAY(VAL_FUNC_BODY(out));
-    VAL_CONTEXT_EXIT_FROM(VAL_FUNC_EXEMPLAR(out)) = exit_from;
+    VAL_CONTEXT_EXIT_FROM(VAL_FUNC_EXEMPLAR(out))
+        = VAL_FUNC_EXIT_FROM(specializee);
 
     // Currently specializations never actually run their own dispatch, but
     // it may be useful to recognize the function category by a dispatcher
@@ -1591,6 +1588,17 @@ REB_R Adapter_Dispatcher(struct Reb_Frame *f)
     REBARR* prelude = VAL_ARRAY(ARR_AT(adaptation, 0));
     REBVAL* adaptee = KNOWN(ARR_AT(adaptation, 1));
 
+    // !!! With specific binding, we could slip the adapter a specifier for
+    // the underlying function.  But until then, it looks at the stack.  The
+    // f->func has to match what it's looking for that it bound to--which is
+    // the underlying function.
+
+    REBCTX *exemplar;
+    REBFUN *under = Find_Underlying_Func(&exemplar, adaptee);
+
+    REBFUN *save_func = f->func;
+    f->func = under;
+
     // The first thing to do is run the prelude code, which may throw.  If it
     // does throw--including a RETURN--that means the adapted function will
     // not be run.
@@ -1602,21 +1610,11 @@ REB_R Adapter_Dispatcher(struct Reb_Frame *f)
         0, // index
         DO_FLAG_TO_END | DO_FLAG_LOOKAHEAD | DO_FLAG_ARGS_EVALUATE
     )) {
+        f->func = save_func;
         return R_OUT_IS_THROWN;
     }
 
-    // Next the adapted function needs to be run, but it could be any kind of
-    // function.  Rather than repeat the logic and checks, this dispatcher
-    // will ask Do_Core to "REDO" after changing the f->func.
-    //
-    // But the f->func we want isn't going to be a specialization.  Any top
-    // level specializations have already contributed their part, merely
-    // by virtue of setting up the frame.  Dig beneath them.
-    //
-    do {
-        f->func = VAL_FUNC(adaptee);
-        f->exit_from = VAL_FUNC_EXIT_FROM(adaptee);
-    } while (IS_FUNCTION_SPECIALIZER(FUNC_VALUE(f->func)));
+    f->func = save_func;
 
     // We have to run a type-checking sweep, to make sure the state of the
     // arguments is legal for the function.  Note that in particular,
@@ -1624,24 +1622,48 @@ REB_R Adapter_Dispatcher(struct Reb_Frame *f)
     // for the set of types it takes...and most would crash the interpreter
     // if given a cell with an unexpected type in it.
     //
-    REBVAL *test = f->arg;
-    f->param = FUNC_PARAMS_HEAD(f->func);
-    for (; NOT_END(test); ++test, ++f->param) {
-        switch (VAL_PARAM_CLASS(f->param)) {
+    // Notice also that the underlying params, though they must match the
+    // order and symbols, may skip some due to specialization.
+    //
+    REBVAL *arg_save = f->arg;
+    f->param = FUNC_PARAMS_HEAD(under);
+
+    // We have to enumerate a frame as big as the underlying function, but
+    // the adaptee may have fewer parameters due to specialization.  (In the
+    // future, it may also subset the typesets accepted.)
+
+    REBVAL *adaptee_param = FUNC_PARAMS_HEAD(VAL_FUNC(adaptee));
+
+    for (; NOT_END(f->param); ++f->arg, ++f->param) {
+        while (VAL_TYPESET_SYM(adaptee_param) != VAL_TYPESET_SYM(f->param))
+            ++adaptee_param;
+
+        // !!! In the future, it may be possible for adaptations to take
+        // different types than the function they adapt (or perhaps just a
+        // subset of those types)
+        //
+        assert(VAL_TYPESET_BITS(adaptee_param) == VAL_TYPESET_BITS(f->param));
+
+        enum Reb_Param_Class pclass = VAL_PARAM_CLASS(adaptee_param);
+        assert(pclass == VAL_PARAM_CLASS(adaptee_param));
+
+        switch (pclass) {
         case PARAM_CLASS_PURE_LOCAL:
-            SET_VOID(test); // cheaper than checking
+            SET_VOID(f->arg); // cheaper than checking
             break;
 
         case PARAM_CLASS_REFINEMENT:
-            if (!IS_LOGIC(test))
-                assert(FALSE);
+            if (!IS_LOGIC(f->arg))
+                fail (Error_Non_Logic_Refinement(f));
             break;
 
         case PARAM_CLASS_HARD_QUOTE:
         case PARAM_CLASS_SOFT_QUOTE:
         case PARAM_CLASS_NORMAL:
-            if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg)))
-                assert(FALSE);
+            if (!TYPE_CHECK(adaptee_param, VAL_TYPE(f->arg)))
+                fail (Error_Arg_Type(
+                    FRM_LABEL(f), adaptee_param, VAL_TYPE(f->arg)
+                ));
             break;
 
         default:
@@ -1649,6 +1671,10 @@ REB_R Adapter_Dispatcher(struct Reb_Frame *f)
         }
     }
 
+    f->arg = arg_save;
+
+    f->func = VAL_FUNC(adaptee);
+    f->exit_from = VAL_FUNC_EXIT_FROM(adaptee);
     return R_REDO; // Have Do_Core run the adaptee updated into f->func
 }
 
@@ -1944,15 +1970,24 @@ REBNATIVE(adapt)
     // a read-only input to be "viewed" with a relative binding, and no copy
     // would need be made if input was R/O.  For now, we copy to relativize.
     //
-    // Note that the code needs to be bound to the same function keylist as
-    // the adaptee's code is, because only one frame is being created--and
-    // the adaptee's code already requires its keylist to be the one used.
-    //
     REBARR *prelude = Copy_Array_At_Deep_Managed(
         VAL_ARRAY(ARG(prelude)),
         VAL_INDEX(ARG(prelude))
     );
-    Bind_Relative_Deep(VAL_FUNC(adaptee), ARR_HEAD(prelude), TS_ANY_WORD);
+
+    // For the binding to be correct, the indices that the words use must be
+    // the right ones for the frame pushed.  So if you adapt a specialization
+    // that has one parameter, and the function that underlies that has
+    // 10 parameters and the one parameter you're adapting to is it's 10th
+    // and not its 1st...that has to be taken into account.
+    //
+    // Hence you must bind relative to that deeper function...e.g. the function
+    // behind the frame of the specialization which gets pushed.
+    //
+    REBCTX *exemplar;
+    REBFUN *under = Find_Underlying_Func(&exemplar, adaptee);
+
+    Bind_Relative_Deep(under, ARR_HEAD(prelude), TS_ANY_WORD);
 
     // We need to store the 2 values describing the adaptation so that Do_Core
     // knows what to do when it sees FUNC_CLASS_ADAPTED.  [0] is the prelude
@@ -2075,8 +2110,9 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
     // If applying an existing FRAME! there should be no need to push vars
     // for it...it should have its own space.
     //
+    REBFUN *under;
     if (opt_def) {
-        Push_Or_Alloc_Args_For_Underlying_Func(f); // sets f->func
+        under = Push_Or_Alloc_Args_For_Underlying_Func(f);
     }
     else {
         // f->func and f->exit_from should already be set
@@ -2092,12 +2128,14 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
         //
         ASSERT_CONTEXT(AS_CONTEXT(f->varlist));
         f->stackvars = NULL;
+
+        under = f->func;
+        f->arg = FRM_ARGS_HEAD(f);
+        f->param = FUNC_PARAMS_HEAD(f->func); // !!! Review
     }
 
     f->refine = TRUE_VALUE;
     f->cell.subfeed = NULL;
-
-    f->arg = FRM_ARGS_HEAD(f);
 
     if (opt_def) {
         //
@@ -2106,7 +2144,10 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
         // by setting f->param to END_CELL.  That way it will be considered
         // a valid target for the stack walk to do the binding.
         //
-        f->param = END_CELL;
+        const REBVAL *param_saved = f->param;
+
+        f->param = END_CELL; // for Is_Function_Frame_Fulfilling() during GC
+        f->refine = NULL; // necessary since GC looks at it
 
         if (f->varlist != NULL) {
             //
@@ -2129,23 +2170,26 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
             // Relative binding (long term this would be specific also)
             //
             Bind_Relative_Deep(
-                f->func, VAL_ARRAY_AT(opt_def), FLAGIT_KIND(REB_SET_WORD)
+                under, VAL_ARRAY_AT(opt_def), FLAGIT_KIND(REB_SET_WORD)
             );
         }
 
-        f->param = END_CELL; // for Is_Function_Frame_Fulfilling() during GC
-        f->refine = NULL; // necessary since GC looks at it
+        REBFUN *func_saved = f->func; // another pre-specific binding hack
+        f->func = under;
 
         // Do the block into scratch space--we ignore the result (unless it is
         // thrown, in which case it must be returned.)
         //
         if (DO_VAL_ARRAY_AT_THROWS(f->out, opt_def)) {
+            f->func = func_saved;
             DROP_CALL(f);
             return R_OUT_IS_THROWN;
         }
+
+        f->func = func_saved;
+        f->param = param_saved;
     }
 
-    f->param = FUNC_PARAMS_HEAD(f->func);
     SET_END(f->out);
 
     Do_Core(f);

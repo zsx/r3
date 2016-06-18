@@ -785,10 +785,7 @@ reevaluate:
         // incrementation, that they are both terminated by END, and
         // that there are an equal number of values in both.
 
-        Push_Or_Alloc_Args_For_Underlying_Func(f); // sets f->func
-
-        f->param = FUNC_PARAMS_HEAD(f->func); // formal parameters (in spec)
-        f->arg = FRM_ARGS_HEAD(f); // actual argument slots (just created)
+        Push_Or_Alloc_Args_For_Underlying_Func(f); // sets f's func, param, arg
 
         FETCH_NEXT_ONLY_MAYBE_END(f); // overwrites f->value
 

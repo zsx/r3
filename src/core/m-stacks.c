@@ -438,73 +438,42 @@ void Drop_Chunk(REBVAL *opt_head)
 // executes--after the specializations are peeled away--will expect.
 //
 REBFUN *Find_Underlying_Func(
-    REBARR **exit_from_out,
     REBCTX **exemplar_out, // frame context containing specialized arguments
-    const REBVAL *outermost
+    const REBVAL *value
 ) {
-    const REBVAL *digger = outermost; // may dig "outermost" too if specialized
-
-    // Dig past any adapters or chainers to try and find underlying exemplar
-    // data for any specializations.  Chainers and adapters will still need
-    // to be executed, so leave the function pointer at outermost.
-    //
     REBOOL loop;
     do {
         loop = FALSE;
 
-        while (IS_FUNCTION_ADAPTER(digger)) {
-            digger = KNOWN(ARR_AT(VAL_FUNC_BODY(digger), 1));
+        // A specializer knows its underlying function because it is the
+        // function its exemplar was designed for.
+        //
+        // Only the outermost specialized frame is needed.  It should have
+        // taken into account the effects of any deeper specializations at the
+        // time of creation, to cache the summation of the specilized args.
+        //
+        if (IS_FUNCTION_SPECIALIZER(value)) {
+            *exemplar_out = VAL_CONTEXT(VAL_FUNC_EXEMPLAR(value));
+            return VAL_FUNC(CTX_FRAME_FUNC_VALUE(*exemplar_out));
+        }
+
+        // !!! Other function types could cache their underlying function,
+        // e.g. in the body[0] cell.  This would be better than recalculating
+        // every time!
+
+        while (IS_FUNCTION_ADAPTER(value)) {
+            value = KNOWN(ARR_AT(VAL_FUNC_BODY(value), 1));
             loop = TRUE;
         }
 
-        while (IS_FUNCTION_CHAINER(digger)) {
-            digger = KNOWN(ARR_HEAD(VAL_FUNC_BODY(digger)));
+        while (IS_FUNCTION_CHAINER(value)) {
+            value = KNOWN(ARR_HEAD(VAL_FUNC_BODY(value)));
             loop = TRUE;
         }
     } while (loop);
 
-    // If we find a specialization, extract its exemplar frame (and exit_from)
-    //
-    if (IS_FUNCTION_SPECIALIZER(digger)) {
-        REBVAL *exemplar = VAL_FUNC_EXEMPLAR(digger);
-
-        // Only the outermost specialized frame is needed.  It should have
-        // taken into account the effects of any deeper specializations at the
-        // time of creation, to get the top-level list of specialized values.
-        //
-        *exemplar_out = VAL_CONTEXT(exemplar);
-        *exit_from_out = VAL_CONTEXT_EXIT_FROM(exemplar);
-
-        // If there were no chains or adapters, then this specializer was
-        // the outermost function to begin with.  But specializations have no
-        // body to run.  We continue to "dig" to find an appropriate
-        // non-specialized `outermost` function to start the execution with.
-        //
-        while (digger == outermost) {
-            outermost = digger = CTX_FRAME_FUNC_VALUE(VAL_CONTEXT(exemplar));
-            if (NOT(IS_FUNCTION_SPECIALIZER(digger)))
-                break;
-
-            exemplar = VAL_FUNC_EXEMPLAR(digger);
-            *exit_from_out = VAL_CONTEXT_EXIT_FROM(exemplar);
-
-            // Every specialization in the "function stack" should be the
-            // same frame size--taking into full account the underlying
-            // function.
-            //
-            assert(CTX_LEN(*exemplar_out) == CTX_LEN(VAL_CONTEXT(exemplar)));
-        }
-
-        // !!! For debugging, it would probably be desirable to indicate
-        // that this call of the function originated from a specialization.
-        // So that would mean saving the specialization's function somewhere.
-    }
-    else {
-        *exemplar_out = NULL;
-        *exit_from_out = VAL_FUNC_EXIT_FROM(outermost);
-    }
-
-    return VAL_FUNC(outermost);
+    *exemplar_out = NULL;
+    return VAL_FUNC(value);
 }
 
 
@@ -525,36 +494,28 @@ REBFUN *Find_Underlying_Func(
 //
 // Specializations must "dig" in order to find the underlying function.
 //
-void Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
+REBFUN *Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
     //
     // We need the actual REBVAL of the function here, and not just the REBFUN.
     // This is true even though you can get an archetype REBVAL from a function
     // pointer with FUNC_VALUE().  That archetype--as with RETURN and LEAVE--
     // will not carry the specific `exit_from` information of a value.
-
+    //
     assert(IS_FUNCTION(f->gotten));
 
-    REBCTX *exemplar;
-    f->func = Find_Underlying_Func(&f->exit_from, &exemplar, f->gotten);
-
-    REBCNT num_args;
-    REBVAL *special_arg;
-    if (exemplar) {
-        num_args = CTX_LEN(exemplar);
-        special_arg = CTX_VARS_HEAD(exemplar);
-        f->flags |= DO_FLAG_EXECUTE_FRAME; // void is "unspecialized" not <opt>
-    }
-    else {
-        num_args = FUNC_NUM_PARAMS(f->func);
-        special_arg = NULL;
-    }
-
-    // Make REBVALs to hold the arguments.  It will always be at least one
-    // slot long, because function frames start with the value of the
-    // function in slot 0.
+    // The underlying function is whose parameter list must be enumerated.
+    // Even though this underlying function can have more arguments than the
+    // "interface" function being called from f->gotten, any parameters more
+    // than in that interface won't be gathered at the callsite because they
+    // will not contain END markers.
     //
+    REBCTX *exemplar;
+    REBFUN *under = Find_Underlying_Func(&exemplar, f->gotten);
+    REBCNT num_args = FUNC_NUM_PARAMS(under);
+    f->param = FUNC_PARAMS_HEAD(under);
+
     REBVAL *slot;
-    if (IS_FUNC_DURABLE(FUNC_VALUE(f->func))) {
+    if (IS_FUNC_DURABLE(FUNC_VALUE(under))) {
         //
         // !!! In the near term, it's hoped that CLOSURE! will go away and
         // that stack frames can be "hybrids" with some pooled allocated
@@ -574,7 +535,7 @@ void Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
         // !!! Note: Make_Array made the 0 slot an end marker
         //
         SET_TRASH_IF_DEBUG(ARR_AT(f->varlist, 0));
-        slot = ARR_AT(f->varlist, 1);
+        f->arg = slot = ARR_AT(f->varlist, 1);
     }
     else {
         // We start by allocating the data for the args and locals on the chunk
@@ -589,7 +550,7 @@ void Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
         f->varlist = NULL;
         f->stackvars = Push_Ended_Trash_Chunk(num_args);
         assert(CHUNK_LEN_FROM_VALUES(f->stackvars) == num_args);
-        slot = &f->stackvars[0];
+        f->arg = slot = &f->stackvars[0];
     }
 
     // Make_Call does not fill the args in the frame--that's up to Do_Core
@@ -598,8 +559,10 @@ void Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
     // END markers are used in the slots, since the array is being built and
     // not yet shown to GC--and can be distinguished from "void" which might
     // be a meaningful value for some specialization forms.
-    //
-    if (special_arg) {
+
+    if (exemplar) {
+        REBVAL *special_arg = CTX_VARS_HEAD(exemplar);
+
         while (num_args) {
             if (IS_VOID(special_arg)) {
                 if (f->flags & DO_FLAG_APPLYING)
@@ -614,6 +577,8 @@ void Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
             ++special_arg;
             --num_args;
         }
+
+        f->flags |= DO_FLAG_EXECUTE_FRAME; // void is "unspecialized" not <opt>
     }
     else if (f->flags & DO_FLAG_APPLYING) {
         //
@@ -633,6 +598,11 @@ void Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
             --num_args;
         }
     }
+
+    f->func = VAL_FUNC(f->gotten);
+    f->exit_from = VAL_FUNC_EXIT_FROM(f->gotten);
+
+    return under;
 }
 
 
