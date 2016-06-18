@@ -1196,7 +1196,7 @@ sys/make-scheme [
             port
         ]
         open?: func [port [port!]] [
-            found? all [port/state open? port/state/connection]
+            all? [port/state open? port/state/connection]
         ]
         close: func [port [port!] /local ctx] [
             unless port/state [return port]

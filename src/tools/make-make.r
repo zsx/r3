@@ -306,7 +306,7 @@ output: make string! 10000
 ;** Functions
 ;******************************************************************************
 
-flag?: func ['word] [found? find config/build-flags word]
+flag?: func ['word] [not blank? find config/build-flags word]
 
 macro+: func [
 	"Appends value to end of macro= line"

@@ -611,7 +611,7 @@ sys/make-scheme [
         open?: func [
             port [port!]
         ] [
-            found? all [port/state open? port/state/connection]
+            all? [port/state open? port/state/connection]
         ]
         close: func [
             port [port!]

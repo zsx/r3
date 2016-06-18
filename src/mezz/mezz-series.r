@@ -410,9 +410,9 @@ alter: func [
             append series :value true
         ]
     ]
-    found? unless remove (
-        either case [find/case series :value] [find series :value]
-    ) [append series :value]
+    unless? remove (find/(if case ['case]) series :value) [
+        append series :value ;-- returns true if this branch runs, false if not
+    ]
 ]
 
 
