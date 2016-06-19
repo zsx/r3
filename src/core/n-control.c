@@ -1502,6 +1502,9 @@ REBNATIVE(return)
 {
     PARAM(1, value);
 
+    if (frame_->exit_from == NULL) // raw native, not a variant FUNCTION made
+        fail (Error(RE_RETURN_ARCHETYPE));
+
     *D_OUT = *NAT_VALUE(exit); // see also Make_Thrown_Exit_Value
     D_OUT->payload.function.exit_from = frame_->exit_from;
 
@@ -1521,6 +1524,9 @@ REBNATIVE(leave)
 //
 // See notes on REBNATIVE(return)
 {
+    if (frame_->exit_from == NULL) // raw native, not a variant PROCEDURE made
+        fail (Error(RE_RETURN_ARCHETYPE));
+
     *D_OUT = *NAT_VALUE(exit); // see also Make_Thrown_Exit_Value
     D_OUT->payload.function.exit_from = frame_->exit_from;
 

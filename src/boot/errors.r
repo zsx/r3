@@ -205,6 +205,9 @@ Script: [
     dialect:            [{incorrect} :arg1 {dialect usage at:} :arg2]
     bad-command:        {invalid command format (extension function)}
 
+    return-archetype:   {RETURN called with no generator providing it in use}
+    leave-archetype:    {LEAVE called with no generator providing it in use}
+
     parse-rule:         [{PARSE - invalid rule or usage of rule:} :arg1]
     parse-end:          [{PARSE - unexpected end of rule after:} :arg1]
     parse-variable:     [{PARSE - expected a variable, not:} :arg1]

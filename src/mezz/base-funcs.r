@@ -44,20 +44,6 @@ does: func [
     func [] body
 ]
 
-; The RETURN and LEAVE native specs are used to provide the prototype for
-; the fake definitional returns.  But the only way you should be able to get
-; at these natives is through the FUNC and PROC generators (when they hack
-; out its function pointer to do implement the FUNC_FLAG_LEAVE_OR_RETURN).
-; Should the native code itself somehow get called, it would error.
-;
-return: does [
-    fail "RETURN called--but no function generator providing it in use"
-]
-
-leave: does [
-    fail "LEAVE called--but no function generator providing it in use"
-]
-
 
 make-action: func [
     {Internal generator used by FUNCTION and PROCEDURE specializations.}
