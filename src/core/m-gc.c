@@ -1351,7 +1351,6 @@ REBCNT Recycle_Core(REBOOL shutdown)
         // Mark value stack (temp-saved values):
         vp = SER_HEAD(REBVAL*, GC_Value_Guard);
         for (n = SER_LEN(GC_Value_Guard); n > 0; n--, vp++) {
-            if (NOT_END(*vp))
             if (NOT_END(*vp) && !IS_VOID_OR_SAFE_TRASH(*vp))
                 Queue_Mark_Value_Deep(*vp);
             Propagate_All_GC_Marks();

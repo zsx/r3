@@ -1318,6 +1318,69 @@ REBNATIVE(punctuates_q)
 
 
 //
+//  as: native [
+//
+//  {Aliases the underlying data of one series to act as another of same class}
+//
+//      type [datatype!]
+//      value [any-series!]
+//  ]
+//
+REBNATIVE(as)
+{
+    PARAM(1, type);
+    PARAM(2, value);
+
+    enum Reb_Kind kind = VAL_TYPE_KIND(ARG(type));
+    REBVAL *value = ARG(value);
+
+    switch (kind) {
+    case REB_BLOCK:
+    case REB_GROUP:
+    case REB_PATH:
+    case REB_LIT_PATH:
+    case REB_GET_PATH:
+        if (!ANY_ARRAY(value))
+            fail (Error_Invalid_Arg(value));
+        break;
+
+    case REB_STRING:
+    case REB_TAG:
+    case REB_FILE:
+    case REB_URL:
+        if (!ANY_BINSTR(value) || IS_BINARY(value))
+            fail (Error_Invalid_Arg(value));
+        break;
+    }
+
+    VAL_SET_TYPE_BITS(value, kind);
+    *D_OUT = *value;
+    return R_OUT;
+}
+
+
+//
+//  aliases?: native [
+//
+//  {Return whether or not the underlying data of one value aliases another}
+//
+//     value1 [any-series!]
+//     value2 [any-series!]
+//  ]
+//
+REBNATIVE(aliases_q)
+{
+    PARAM(1, value1);
+    PARAM(2, value2);
+
+    if (VAL_SERIES(ARG(value1)) == VAL_SERIES(ARG(value2)))
+        return R_TRUE;
+
+    return R_FALSE;
+}
+
+
+//
 //  set?: native [
 //  
 //  "Returns whether a bound word or path is set (!!! shouldn't eval GROUP!s)"

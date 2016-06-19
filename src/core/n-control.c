@@ -880,7 +880,6 @@ REBNATIVE(continue)
 //          binary! ;-- treated as UTF-8
 //          url! ;-- load code from URL via protocol
 //          file! ;-- load code from file on local disk
-//          group! ;-- !!! likely not needed with the AS aliasing
 //          tag! ;-- proposed as module library tag name, hacked as demo
 //          error! ;-- should use FAIL instead
 //          function! ;-- will only run arity 0 functions (avoids DO variadic)
