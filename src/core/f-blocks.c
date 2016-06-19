@@ -373,8 +373,12 @@ REBCNT Find_Same_Array(REBARR *search_values, const REBVAL *value)
 
     other = ARR_HEAD(search_values);
     for (; NOT_END(other); other++, index++) {
-        if (ANY_ARRAY(other) || IS_MAP(other)) {
+        if (ANY_ARRAY(other)) {
             if (array == VAL_ARRAY(other))
+                return index;
+        }
+        else if (IS_MAP(other)) {
+            if (array == MAP_PAIRLIST(VAL_MAP(other)))
                 return index;
         }
         else if (ANY_CONTEXT(other)) {
