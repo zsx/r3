@@ -1004,7 +1004,7 @@ REBNATIVE(do)
         REBVAL *param = FUNC_PARAMS_HEAD(VAL_FUNC(value));
         while (
             NOT_END(param)
-            && (VAL_PARAM_CLASS(param) == PARAM_CLASS_PURE_LOCAL)
+            && (VAL_PARAM_CLASS(param) == PARAM_CLASS_LOCAL)
         ) {
             ++param;
         }

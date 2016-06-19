@@ -537,10 +537,12 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
         !Find_Word_In_Context(Lib_Context, debug_sym, TRUE)
         && !Find_Word_In_Context(user_context, debug_sym, TRUE)
     ) {
-        REBARR *spec = Scan_Source(N_debug_spec, LEN_BYTES(N_debug_spec));
+        REBARR *spec_array = Scan_Source(N_debug_spec, LEN_BYTES(N_debug_spec));
+        REBVAL spec;
+        Val_Init_Block(&spec, spec_array);
 
         REBVAL debug_native;
-        Make_Native(&debug_native, spec, &N_debug);
+        Make_Native(&debug_native, &spec, &N_debug);
 
         *Append_Context(Lib_Context, 0, debug_sym) = debug_native;
         *Append_Context(user_context, 0, debug_sym) = debug_native;

@@ -80,15 +80,6 @@ REBINT CT_Function(const REBVAL *a, const REBVAL *b, REBINT mode)
 //
 REBOOL MT_Function(REBVAL *out, REBVAL *def, enum Reb_Kind kind)
 {
-    // Spec-constructed functions do *not* have definitional returns
-    // added automatically.  They are part of the generators.  So the
-    // behavior comes--as with any other generator--from the projected
-    // code (though round-tripping it via text is not possible in
-    // general in any case due to loss of bindings.)
-    //
-    const REBOOL has_return = FALSE;
-    const REBOOL is_procedure = FALSE;
-
     REBVAL *spec;
     REBVAL *body;
 
@@ -103,7 +94,14 @@ REBOOL MT_Function(REBVAL *out, REBVAL *def, enum Reb_Kind kind)
     body = VAL_ARRAY_AT_HEAD(def, 1);
     if (!IS_BLOCK(body)) return FALSE;
 
-    REBFUN *fun = Make_Function_May_Fail(is_procedure, spec, body, has_return);
+    // Spec-constructed functions do *not* have definitional returns
+    // added automatically.  They are part of the generators.  So the
+    // behavior comes--as with any other generator--from the projected
+    // code (though round-tripping it via text is not possible in
+    // general in any case due to loss of bindings.)
+    //
+    REBFUN *fun = Make_Function_May_Fail(spec, body, MKF_NONE);
+
     *out = *FUNC_VALUE(fun);
     return TRUE;
 }

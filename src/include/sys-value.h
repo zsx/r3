@@ -1206,11 +1206,11 @@ struct Reb_Any_Series {
 
 #define INIT_ARRAY_SPECIFIC(v,context) \
     (assert(IS_SPECIFIC(v)), \
-        (v)->payload.any_array.target.specific = (context))
+        (v)->payload.any_series.target.specific = (context))
 
 #define INIT_ARRAY_RELATIVE(v,func) \
     (assert(IS_RELATIVE(v)), \
-        (v)->payload.any_array.target.relative = (func))
+        (v)->payload.any_series.target.relative = (func))
 
 #ifdef NDEBUG
     #define VAL_SERIES(v)   ((v)->payload.any_series.series)
@@ -1371,6 +1371,8 @@ struct Reb_Any_Series {
 #define EMPTY_BLOCK     ROOT_EMPTY_BLOCK
 #define EMPTY_ARRAY     VAL_ARRAY(ROOT_EMPTY_BLOCK)
 
+#define EMPTY_STRING \
+    ROOT_EMPTY_STRING
 
 /***********************************************************************
 **
@@ -1688,30 +1690,21 @@ enum Reb_Param_Class {
     //
     PARAM_CLASS_REFINEMENT = 0x03,
 
-    // `PARAM_CLASS_PURE_LOCAL` has the disambiguator "pure" on it because
-    // historically Rebol used a refinement named `/local` by convention to
-    // define "locals".  This created the phenomenon of "locals injection"
-    // where callers could actually invoke a function with `foo/local`.
-    // It also gave a sort of "keyword" to the language, and introduced
-    // friction on usage of the name for things like `time/local`.
-    //
-    // Ren-C uses a SET-WORD! in the spec to indicate a pure local which
-    // guarantees that when the function starts, it will not be set.
-    // (There's a "technicality" outlier in the FUNC_FLAG_LEAVE_OR_RETURN
-    // trick, which will put a "magic" REBNATIVE(return) in `return:` slots.
-    // But it gives the illusion that it happens after the function is
-    // started with a fake function body boilerplate shown via BODY-OF.)
+    // `PARAM_CLASS_LOCAL` is a "pure" local, which will be set to void by
+    // argument fulfillment.  It is indicated by a SET-WORD! in the function
+    // spec, or by coming after a <local> tag in the function generators.
     //
     // !!! Initially these were indicated with TYPESET_FLAG_HIDDEN.  That
     // would allow the PARAM_CLASS to fit in just two bits (if there were
     // no debug-purpose PARAM_CLASS_0) and free up a scarce typeset flag.
     // But is it the case that hiding and localness should be independent?
     //
-    PARAM_CLASS_PURE_LOCAL = 0x04,
+    PARAM_CLASS_LOCAL = 0x04,
 
-    // Currently unused, but present for contiguity in switch() jump tables
+    // PARAM_CLASS_RETURN acts like a pure local, but is pre-filled with a
+    // definitionally-scoped function value that takes 1 arg and returns it.
     //
-    PARAM_CLASS_UNUSED_5 = 0x05,
+    PARAM_CLASS_RETURN = 0x05,
 
     // `PARAM_CLASS_SOFT_QUOTE` is cued by a LIT-WORD! in the function spec
     // dialect.  It quotes with the exception of GROUP!, GET-WORD!, and
@@ -1731,7 +1724,14 @@ enum Reb_Param_Class {
     //
     // Note: Value chosen for PCLASS_ANY_QUOTE_MASK in common with hard quote
     //
-    PARAM_CLASS_SOFT_QUOTE = 0x06
+    PARAM_CLASS_SOFT_QUOTE = 0x06,
+
+    // `PARAM_CLASS_LEAVE` acts like a pure local, but is pre-filled with a
+    // definitionally-scoped function value that takes 0 args and returns void
+    //
+    PARAM_CLASS_LEAVE = 0x07,
+
+    PARAM_CLASS_MAX
 };
 
 #define PCLASS_ANY_QUOTE_MASK = 0x02
@@ -2044,10 +2044,13 @@ struct Reb_Any_Context {
 #endif
 
 enum {
-    // function "fakes" a definitionally scoped return (or a "LEAVE"...which
-    // word is determined by the symbol of the *last* parameter)
+    // RETURN will always be in the last paramlist slot (if present)
     //
-    FUNC_FLAG_LEAVE_OR_RETURN = (1 << (TYPE_SPECIFIC_BIT + 0)) | FUNC_FLAG_X,
+    FUNC_FLAG_RETURN = (1 << (TYPE_SPECIFIC_BIT + 0)) | FUNC_FLAG_X,
+
+    // LEAVE will always be in the last paramlist slot (if present)
+    //
+    FUNC_FLAG_LEAVE = (1 << (TYPE_SPECIFIC_BIT + 1)) | FUNC_FLAG_X,
 
     // A function may act as a barrier on its left (so that it cannot act
     // as an input argument to another function).
@@ -2058,13 +2061,13 @@ enum {
     // trigger an error when used as a left argument.  This is the ability
     // given to lookback 0 arity functions, known as "punctuators".
     //
-    FUNC_FLAG_PUNCTUATES = (1 << (TYPE_SPECIFIC_BIT + 1)) | FUNC_FLAG_X,
+    FUNC_FLAG_PUNCTUATES = (1 << (TYPE_SPECIFIC_BIT + 2)) | FUNC_FLAG_X,
 
 #if !defined(NDEBUG)
     //
     // TRUE-valued refinements, NONE! for unused args
     //
-    FUNC_FLAG_LEGACY = (1 << (TYPE_SPECIFIC_BIT + 2)) | FUNC_FLAG_X,
+    FUNC_FLAG_LEGACY = (1 << (TYPE_SPECIFIC_BIT + 3)) | FUNC_FLAG_X,
 #endif
 
     FUNC_FLAG_NO_COMMA // needed for proper comma termination of this list

@@ -426,42 +426,6 @@ static void Init_Constants(void)
 
 
 //
-//  Turn_Typespec_Opts_Into_Nones: C
-//
-// In function specs, `[x [<opt> integer!]]` is a notational nicety for
-// indicating that a parameter is optional.  The TAG! "keyword" is not known
-// to MAKE FUNCTION!, it uses a NONE! literal to indicate it.  The generators
-// transform it for convenience.  This is used by NATIVE, ACTION, and COMMAND
-// while FUNC and PROC have their own larger amount of work done in spec
-// processing (for returns, etc.)
-//
-// !!! Note that this modifies the specs directly, so no copy is being made
-// (it's mutating the arg to NATIVE, ACTION, etc.)
-//
-void Turn_Typespec_Opts_Into_Nones(REBARR *spec)
-{
-    REBVAL *item = ARR_HEAD(spec);
-    for (; NOT_END(item); ++item) {
-        if (IS_BLOCK(item)) {
-            REBVAL *subitem = VAL_ARRAY_AT(item);
-            if (IS_BLOCK(subitem))
-                subitem = VAL_ARRAY_AT(subitem);
-            for (; NOT_END(subitem); ++subitem) {
-                if (
-                    IS_TAG(subitem)
-                    && 0 == Compare_String_Vals(
-                        subitem, ROOT_OPT_TAG, TRUE
-                    )
-                ) {
-                    SET_BLANK(subitem);
-                }
-            }
-        }
-    }
-}
-
-
-//
 //  action: native [
 //
 //  {Creates datatype action (for internal usage only).}
@@ -512,13 +476,9 @@ REBNATIVE(action)
 
     assert(VAL_INDEX(spec) == 0); // must be at head as we don't copy
 
-    // spec scanner doesn't know <opt>, just _
-    //
-    Turn_Typespec_Opts_Into_Nones(VAL_ARRAY(spec));
-
     Make_Native(
         D_OUT,
-        VAL_ARRAY(spec),
+        spec,
         &Action_Dispatcher
     );
 
@@ -715,7 +675,6 @@ static void Init_Natives(void)
             panic (Error(RE_NATIVE_BOOT));
         spec = item;
         assert(VAL_INDEX(spec) == 0); // must be at head (we don't copy)
-        Turn_Typespec_Opts_Into_Nones(VAL_ARRAY(spec));
         ++item;
 
         // With the components extracted, generate the native and add it to
@@ -723,8 +682,8 @@ static void Init_Natives(void)
         // table built in the bootstrap scripts, `Native_C_Funcs`.
         //
         Make_Native(
-            &Natives[n],
-            VAL_ARRAY(spec),
+            SINK(&Natives[n]),
+            spec,
             Native_C_Funcs[n]
         );
         assert(VAL_FUNC_EXIT_FROM(&Natives[n]) == NULL);
@@ -903,25 +862,11 @@ static void Init_Root_Context(void)
     SET_SER_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SERIES_FLAG_LOCKED);
     SET_SER_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SERIES_FLAG_FIXED_SIZE);
 
-    // Used by FUNC and PROC generators - RETURN: & LEAVE:
-    //
-    Val_Init_Word(ROOT_RETURN_SET_WORD, REB_SET_WORD, SYM_RETURN);
-    Val_Init_Word(ROOT_LEAVE_SET_WORD, REB_SET_WORD, SYM_LEAVE);
-
-    // Make a series that's just [return:], that is made often in function
-    // spec blocks (when the original spec was just []).  Unlike the paramlist
-    // a function spec doesn't need unique mutable identity, so a shared
-    // series saves on allocation time and space...do the same for [leave:]
-    //
-    Val_Init_Block(ROOT_RETURN_BLOCK, Make_Array(1));
-    Append_Value(VAL_ARRAY(ROOT_RETURN_BLOCK), ROOT_RETURN_SET_WORD);
-    SET_ARR_FLAG(VAL_ARRAY(ROOT_RETURN_BLOCK), SERIES_FLAG_LOCKED);
-    SET_ARR_FLAG(VAL_ARRAY(ROOT_RETURN_BLOCK), SERIES_FLAG_FIXED_SIZE);
-
-    Val_Init_Block(ROOT_LEAVE_BLOCK, Make_Array(1));
-    Append_Value(VAL_ARRAY(ROOT_LEAVE_BLOCK), ROOT_LEAVE_SET_WORD);
-    SET_ARR_FLAG(VAL_ARRAY(ROOT_LEAVE_BLOCK), SERIES_FLAG_LOCKED);
-    SET_ARR_FLAG(VAL_ARRAY(ROOT_LEAVE_BLOCK), SERIES_FLAG_FIXED_SIZE);
+    REBSER *empty_series = Make_Binary(1);
+    *BIN_AT(empty_series, 0) = '\0';
+    Val_Init_String(ROOT_EMPTY_STRING, empty_series);
+    SET_SER_FLAG(VAL_SERIES(ROOT_EMPTY_STRING), SERIES_FLAG_LOCKED);
+    SET_SER_FLAG(VAL_SERIES(ROOT_EMPTY_STRING), SERIES_FLAG_FIXED_SIZE);
 
     // Used by REBNATIVE(print)
     //
@@ -1510,19 +1455,6 @@ void Init_Core(REBARGS *rargs)
     struct Reb_State state;
     REBARR *keylist;
 
-    // !!! These need to find a new home, and preferably a way to be read
-    // as constants declared in Rebol files.  Hasn't been done yet due to
-    // a desire to keep this as an obvious TBD for remembering to do it
-    // right, but also to protect the values from changing.
-    //
-    const REBYTE no_return[] = "no-return";
-    const REBYTE ellipsis[] = "...";
-    const REBYTE opt[] = "opt";
-    const REBYTE end[] = "end";
-    const REBYTE local[] = "local";
-    const REBYTE durable[] = "durable";
-    const REBYTE punctuates[] = "punctuates";
-
     REBVAL result;
 
 #if defined(TEST_EARLY_BOOT_PANIC)
@@ -1641,6 +1573,12 @@ void Init_Core(REBARGS *rargs)
     // it, but it didn't seem there was a "compare UTF8 byte array to
     // arbitrary decoded REB_TAG which may or may not be REBUNI" routine.
 
+    // !!! These need to find a new home, and preferably a way to be read
+    // as constants declared in Rebol files.  Hasn't been done yet due to
+    // a desire to keep this as an obvious TBD for remembering to do it
+    // right, but also to protect the values from changing.
+
+    const REBYTE no_return[] = "no-return";
     Val_Init_Tag(
         ROOT_NO_RETURN_TAG,
         Append_UTF8_May_Fail(NULL, no_return, LEN_BYTES(no_return))
@@ -1648,6 +1586,15 @@ void Init_Core(REBARGS *rargs)
     SET_SER_FLAG(VAL_SERIES(ROOT_NO_RETURN_TAG), SERIES_FLAG_FIXED_SIZE);
     SET_SER_FLAG(VAL_SERIES(ROOT_NO_RETURN_TAG), SERIES_FLAG_LOCKED);
 
+    const REBYTE no_leave[] = "no-leave";
+    Val_Init_Tag(
+        ROOT_NO_LEAVE_TAG,
+        Append_UTF8_May_Fail(NULL, no_leave, LEN_BYTES(no_leave))
+    );
+    SET_SER_FLAG(VAL_SERIES(ROOT_NO_LEAVE_TAG), SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAG(VAL_SERIES(ROOT_NO_LEAVE_TAG), SERIES_FLAG_LOCKED);
+
+    const REBYTE punctuates[] = "punctuates";
     Val_Init_Tag(
         ROOT_PUNCTUATES_TAG,
         Append_UTF8_May_Fail(NULL, punctuates, LEN_BYTES(punctuates))
@@ -1655,6 +1602,7 @@ void Init_Core(REBARGS *rargs)
     SET_SER_FLAG(VAL_SERIES(ROOT_PUNCTUATES_TAG), SERIES_FLAG_FIXED_SIZE);
     SET_SER_FLAG(VAL_SERIES(ROOT_PUNCTUATES_TAG), SERIES_FLAG_LOCKED);
 
+    const REBYTE ellipsis[] = "...";
     Val_Init_Tag(
         ROOT_ELLIPSIS_TAG,
         Append_UTF8_May_Fail(NULL, ellipsis, LEN_BYTES(ellipsis))
@@ -1662,6 +1610,7 @@ void Init_Core(REBARGS *rargs)
     SET_SER_FLAG(VAL_SERIES(ROOT_ELLIPSIS_TAG), SERIES_FLAG_FIXED_SIZE);
     SET_SER_FLAG(VAL_SERIES(ROOT_ELLIPSIS_TAG), SERIES_FLAG_LOCKED);
 
+    const REBYTE opt[] = "opt";
     Val_Init_Tag(
         ROOT_OPT_TAG,
         Append_UTF8_May_Fail(NULL, opt, LEN_BYTES(ellipsis))
@@ -1669,6 +1618,7 @@ void Init_Core(REBARGS *rargs)
     SET_SER_FLAG(VAL_SERIES(ROOT_OPT_TAG), SERIES_FLAG_FIXED_SIZE);
     SET_SER_FLAG(VAL_SERIES(ROOT_OPT_TAG), SERIES_FLAG_LOCKED);
 
+    const REBYTE end[] = "end";
     Val_Init_Tag(
         ROOT_END_TAG,
         Append_UTF8_May_Fail(NULL, end, LEN_BYTES(ellipsis))
@@ -1676,6 +1626,7 @@ void Init_Core(REBARGS *rargs)
     SET_SER_FLAG(VAL_SERIES(ROOT_END_TAG), SERIES_FLAG_FIXED_SIZE);
     SET_SER_FLAG(VAL_SERIES(ROOT_END_TAG), SERIES_FLAG_LOCKED);
 
+    const REBYTE local[] = "local";
     Val_Init_Tag(
         ROOT_LOCAL_TAG,
         Append_UTF8_May_Fail(NULL, local, LEN_BYTES(local))
@@ -1683,6 +1634,7 @@ void Init_Core(REBARGS *rargs)
     SET_SER_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SERIES_FLAG_FIXED_SIZE);
     SET_SER_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SERIES_FLAG_LOCKED);
 
+    const REBYTE durable[] = "durable";
     Val_Init_Tag(
         ROOT_DURABLE_TAG,
         Append_UTF8_May_Fail(NULL, durable, LEN_BYTES(durable))

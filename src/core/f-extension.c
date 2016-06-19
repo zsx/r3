@@ -486,15 +486,11 @@ void Make_Command(
 
     // See notes in `Make_Function()` about why a copy is *required*.
 
-    REBARR *spec; // goto crosses initialization
-    spec = Copy_Array_At_Deep_Managed(VAL_ARRAY(spec_val), VAL_INDEX(spec_val));
-
-    // spec scanner doesn't know <opt>, just _
-    //
-    Turn_Typespec_Opts_Into_Nones(spec);
-
     REBFUN *fun; // goto would cross initialization
-    fun = Make_Paramlist_Managed(spec, SYM_0);
+    fun = Make_Paramlist_Managed(
+        spec_val,
+        SYM_0
+    );
 
     // There is no "body", but we want to save `extension` and `command_num`
     // and the only place there is to put it is in the place where a function

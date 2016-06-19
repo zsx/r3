@@ -413,7 +413,7 @@ REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
     for (; NOT_END(param); ++param, ++arg) {
         enum Reb_Param_Class pclass = VAL_PARAM_CLASS(param);
 
-        if (pclass == PARAM_CLASS_PURE_LOCAL)
+        if (pclass == PARAM_CLASS_LOCAL)
              continue; // don't add a callsite expression for it (can't)!
 
         if (pclass == PARAM_CLASS_REFINEMENT) {
@@ -754,13 +754,15 @@ REBNATIVE(set_scheme)
             // Get standard action's spec block:
             REBVAL *act = Get_Action_Value(map->action);
 
-            REBARR *spec = Make_Spec_From_Function(act); // !!! see function
+            REBARR *spec_array = Make_Spec_From_Function(act); // !!!
+            REBVAL spec;
+            Val_Init_Block(&spec, spec_array); // manages
+
             Make_Native(
                 Obj_Value(actor, n), // function
-                spec,
+                &spec,
                 cast(REBNAT, map->func)
             );
-            Free_Array(spec);
         }
     }
     return R_TRUE;

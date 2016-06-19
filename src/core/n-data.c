@@ -1748,7 +1748,7 @@ REBNATIVE(map_gob_offset)
 // that you have an ANY-SERIES! value you're calling it on (or one of the
 // exception types that use REBSERs)
 //
-REBSER *VAL_SERIES_Debug(const REBVAL *v)
+REBSER *VAL_SERIES_Debug(const RELVAL *v)
 {
     assert(ANY_SERIES(v) || IS_MAP(v) || IS_VECTOR(v) || IS_IMAGE(v));
     return (v)->payload.any_series.series;

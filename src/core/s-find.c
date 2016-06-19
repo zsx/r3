@@ -219,7 +219,7 @@ REBINT Compare_Uni_Str(REBUNI *u1, REBUNI *u2, REBCNT len, REBOOL uncase)
 // 
 // Used for: general string comparions (various places)
 //
-REBINT Compare_String_Vals(const REBVAL *v1, const REBVAL *v2, REBOOL uncase)
+REBINT Compare_String_Vals(const RELVAL *v1, const RELVAL *v2, REBOOL uncase)
 {
     REBCNT l1  = VAL_LEN_AT(v1);
     REBCNT l2  = VAL_LEN_AT(v2);

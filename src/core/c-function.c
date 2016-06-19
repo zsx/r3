@@ -83,7 +83,9 @@ REBARR *List_Func_Words(const REBVAL *func, REBOOL pure_locals)
             kind = REB_LIT_WORD;
             break;
 
-        case PARAM_CLASS_PURE_LOCAL:
+        case PARAM_CLASS_LOCAL:
+        case PARAM_CLASS_RETURN: // "magic" local - prefilled invisibly
+        case PARAM_CLASS_LEAVE: // "magic" local - prefilled invisibly
             if (!pure_locals)
                 continue; // treat as invisible, e.g. for WORDS-OF
 
@@ -128,6 +130,13 @@ REBARR *List_Func_Typesets(REBVAL *func)
 }
 
 
+inline static void Swap_Values(RELVAL *value1, RELVAL *value2) {
+    REBVAL temp = *KNOWN(value1);
+    *value1 = *KNOWN(value2);
+    *value2 = temp;
+}
+
+
 //
 //  Make_Paramlist_Managed: C
 // 
@@ -149,11 +158,28 @@ REBARR *List_Func_Typesets(REBVAL *func)
 // routine tries to fill in FUNCTION-META (see %sysobj.r) as well as to
 // produce a paramlist suitable for the function.
 //
+// Note a "true local" (indicated by a set-word) is considered to be tacit
+// approval of wanting a definitional return by the generator.  This helps
+// because Red's model for specifying returns uses a SET-WORD!
+//
+//     func [return: [integer!] {returns an integer}]
+//
+// In Ren/C's case it just means you want a local called return, but the
+// generator will be "initializing it with a definitional return" for you.
+// You don't have to use it if you don't want to...and may overwrite the
+// variable.  But it won't be a void at the start.
+//
 REBFUN *Make_Paramlist_Managed(
-    REBARR *spec,
-    REBCNT opt_sym_last
+    const REBVAL *spec,
+    REBFLGS flags
 ) {
-    REBUPT func_flags = 0;
+    assert(ANY_ARRAY(spec));
+
+    REBUPT header_bits = 0;
+    if (flags & MKF_PUNCTUATES)
+        header_bits |= FUNC_FLAG_PUNCTUATES;
+
+    REBOOL durable = FALSE;
 
     // We want to be able to notice when words are duplicated, and the bind
     // table can be used for that purpose.
@@ -164,16 +190,8 @@ REBFUN *Make_Paramlist_Managed(
     REBDSP dsp_orig = DSP;
     assert(DS_TOP == DS_AT(dsp_orig));
 
-    // Watch for the point in the parameter gathering that we want to be moved
-    // to the tail of the serious for the optimization of definitional return.
-    //
-    REBVAL *to_be_moved = NULL;
-
-    REBVAL empty_string;
-    REBVAL *EMPTY_STRING = &empty_string;
-    REBSER *empty_series = Make_Binary(1);
-    *BIN_AT(empty_series, 0) = '\0';
-    Val_Init_String(&empty_string, empty_series);
+    RELVAL *definitional_return = NULL;
+    RELVAL *definitional_leave = NULL;
 
     // As we go through the spec block, we push TYPESET! BLOCK! STRING! triples.
     // These will be split out into separate arrays after the process is done.
@@ -192,10 +210,17 @@ REBFUN *Make_Paramlist_Managed(
     REBOOL has_types = FALSE;
     REBOOL has_notes = FALSE;
 
+    // Trickier case: when the `func` or `proc` natives are used, they
+    // must read the given spec the way a user-space generator might.
+    // They must decide whether to add a specially handled RETURN
+    // local, which will be given a tricky "native" definitional return
+    //
+    REBOOL convert_local = FALSE;
+
     REBOOL refinement_seen = FALSE;
 
-    REBVAL *item;
-    for (item = ARR_HEAD(spec); NOT_END(item); item++) {
+    RELVAL *item;
+    for (item = VAL_ARRAY_AT(spec); NOT_END(item); item++) {
 
     //=//// STRING! FOR FUNCTION DESCRIPTION OR PARAMETER NOTE ////////////=//
 
@@ -232,8 +257,40 @@ REBFUN *Make_Paramlist_Managed(
 
     //=//// TAGS LIKE <local>, <no-return>, <punctuates>, etc. ////////////=//
 
-        if (IS_TAG(item))
-            continue; // leave it be for now (MAKE FUNCTION! vs FUNC differ)
+        if (IS_TAG(item) && (flags & MKF_KEYWORDS)) {
+            if (0 == Compare_String_Vals(item, ROOT_NO_RETURN_TAG, TRUE)) {
+                flags &= ~MKF_RETURN;
+            }
+            else if (0 == Compare_String_Vals(item, ROOT_NO_LEAVE_TAG, TRUE)) {
+                flags &= ~MKF_LEAVE;
+            }
+            else if (
+                0 == Compare_String_Vals(item, ROOT_PUNCTUATES_TAG, TRUE)
+            ) {
+                header_bits |= FUNC_FLAG_PUNCTUATES;
+            }
+            else if (0 == Compare_String_Vals(item, ROOT_LOCAL_TAG, TRUE)) {
+                convert_local = TRUE;
+            }
+            else if (0 == Compare_String_Vals(item, ROOT_DURABLE_TAG, TRUE)) {
+                //
+                // <durable> is currently a lesser version of what it
+                // hopes to be, but signals what R3-Alpha called CLOSURE!
+                // semantics.  Indicating that a typeset is durable in
+                // the low-level will need to be done with some notation
+                // that doesn't use "keywords"--perhaps a #[true] or a
+                // #[false] picked up on by the typeset.
+                //
+                // !!! Enforce only at the head, if it's going to be
+                // applying to everything??
+                //
+                durable = TRUE;
+            }
+            else
+                fail (Error(RE_BAD_FUNC_DEF, item));
+
+            continue;
+        }
 
     //=//// BLOCK! OF TYPES TO MAKE TYPESET FROM (PLUS PARAMETER TAGS) ////=//
 
@@ -321,7 +378,7 @@ REBFUN *Make_Paramlist_Managed(
     //=//// BAR! AS LOW-LEVEL MAKE FUNCTION! SIGNAL FOR <punctuates> //////=//
 
         if (IS_BAR(item)) { // !!! Review this notational choice
-            func_flags |= FUNC_FLAG_PUNCTUATES;
+            header_bits |= FUNC_FLAG_PUNCTUATES;
             continue;
         }
 
@@ -347,6 +404,30 @@ REBFUN *Make_Paramlist_Managed(
             DS_PUSH(EMPTY_STRING);
         assert(IS_STRING(DS_TOP));
 
+        // All these would cancel a definitional return (leave has same idea):
+        //
+        //     func [return [integer!]]
+        //     func [/value return]
+        //     func [/local return] ;-- /local is not special in Ren-C
+        //
+        // ...although `return:` is explicitly tolerated ATM for compatibility
+        // (despite violating the "pure locals are NULL" premise)
+
+        if (canon == SYM_RETURN) {
+            assert(definitional_return == NULL);
+            if (IS_SET_WORD(item))
+                definitional_return = item; // RETURN: is explicitly tolerated
+            else
+                flags &= ~MKF_RETURN;
+        }
+        else if (canon == SYM_LEAVE) {
+            assert(definitional_leave == NULL);
+            if (IS_SET_WORD(item))
+                definitional_leave = item; // LEAVE: is explicitly tolerated
+            else
+                flags &= ~MKF_LEAVE;
+        }
+
         // Allow "all datatypes but void".  Note that this is the <opt> sense
         // of void signal--not the <end> sense, which is controlled by a flag.
         // We do not canonize the saved symbol in the paramlist, see #2258.
@@ -354,18 +435,26 @@ REBFUN *Make_Paramlist_Managed(
         DS_PUSH_TRASH;
         REBVAL *typeset = DS_TOP;
         Val_Init_Typeset(typeset, ~FLAGIT_KIND(REB_0), VAL_WORD_SYM(item));
+
         switch (VAL_TYPE(item)) {
         case REB_WORD:
-            INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_NORMAL);
+            INIT_VAL_PARAM_CLASS(
+                typeset,
+                convert_local ? PARAM_CLASS_LOCAL : PARAM_CLASS_NORMAL
+            );
             if (refinement_seen) VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_0);
             break;
 
         case REB_GET_WORD:
+            if (convert_local)
+                fail (Error(RE_BAD_FUNC_DEF)); // what's a "quoted local"?
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_HARD_QUOTE);
             if (refinement_seen) VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_0);
             break;
 
         case REB_LIT_WORD:
+            if (convert_local)
+                fail (Error(RE_BAD_FUNC_DEF)); // what's a "quoted local"?
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_SOFT_QUOTE);
             if (refinement_seen) VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_0);
             break;
@@ -373,16 +462,23 @@ REBFUN *Make_Paramlist_Managed(
         case REB_REFINEMENT:
             refinement_seen = TRUE;
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_REFINEMENT);
-            //
+
             // !!! The typeset bits of a refinement are not currently used.
             // They are checked for TRUE or FALSE but this is done literally
             // by the code.  This means that every refinement has some spare
             // bits available in it for another purpose.
+
+            // A refinement signals us to stop doing the locals conversion.
+            // Historically, help hides any refinements that appear behind a
+            // /local, so presumably it would do the same with <local>...
+            // but this feature does not currently exist in Ren-C.
             //
+            convert_local = FALSE;
             break;
 
         case REB_SET_WORD:
-            INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_PURE_LOCAL);
+            // tolerate as-is if convert_local
+            INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_LOCAL);
             //
             // !!! Typeset bits of pure locals also not currently used,
             // though definitional return should be using it for the return
@@ -395,13 +491,13 @@ REBFUN *Make_Paramlist_Managed(
         }
         assert(VAL_PARAM_CLASS(typeset) != PARAM_CLASS_0);
 
-        // If this is the symbol we were asked to strategically position last
-        // in the parameter list, keep track of its pointer.
+        // !!! This is a lame way of setting the durability, because it means
+        // that there's no way a user with just `make function!` could do it.
+        // However, it's a step closer to the solution and eliminating the
+        // FUNCTION!/CLOSURE! distinction.
         //
-        if (VAL_TYPESET_CANON(typeset) == opt_sym_last) {
-            assert(to_be_moved == NULL && opt_sym_last);
-            to_be_moved = typeset;
-        }
+        if (durable)
+            SET_VAL_FLAG(typeset, TYPESET_FLAG_DURABLE);
     }
 
     // Go ahead and flesh out the TYPESET! BLOCK! STRING! triples.
@@ -412,38 +508,58 @@ REBFUN *Make_Paramlist_Managed(
         DS_PUSH(EMPTY_STRING);
     assert((DSP - dsp_orig) % 3 == 0); // must be a multiple of 3
 
-    // Slots, which is length +1 for including the rootvar/rootparam
+    // Definitional RETURN and LEAVE slots must have their argument values
+    // fulfilled with FUNCTION! values specific to the function being called
+    // on *every instantiation*.  They are marked with special parameter
+    // classes to avoid needing to separately do canon comparison of their
+    // symbols to find them.  In addition, since RETURN's typeset holds
+    // types that need to be checked at the end of the function run, it
+    // is moved to a predictable location: last slot of the paramlist.
+    //
+    // Note: Trying to take advantage of the "predictable first position"
+    // by swapping is not legal, as the first argument's position matters
+    // in the ordinary arity of calling.
+
+    if (flags & MKF_LEAVE) {
+        if (definitional_leave == NULL) { // no LEAVE: pure local explicit
+            DS_PUSH_TRASH;
+            definitional_leave = DS_TOP;
+            Val_Init_Typeset(DS_TOP, FLAGIT_64(REB_0), SYM_LEAVE);
+            INIT_VAL_PARAM_CLASS(DS_TOP, PARAM_CLASS_LEAVE);
+            DS_PUSH(EMPTY_BLOCK);
+            DS_PUSH(EMPTY_STRING);
+        }
+        else {
+            assert(VAL_PARAM_CLASS(definitional_leave) == PARAM_CLASS_LOCAL);
+            INIT_VAL_PARAM_CLASS(definitional_leave, PARAM_CLASS_LEAVE);
+        }
+        header_bits |= FUNC_FLAG_LEAVE;
+    }
+
+    if (flags & MKF_RETURN) {
+        if (definitional_return == NULL) { // no RETURN: pure local explicit
+            DS_PUSH_TRASH;
+            definitional_return = DS_TOP;
+            Val_Init_Typeset(DS_TOP, ALL_64, SYM_RETURN);
+            INIT_VAL_PARAM_CLASS(definitional_return, PARAM_CLASS_RETURN);
+            DS_PUSH(EMPTY_BLOCK);
+            DS_PUSH(EMPTY_STRING);
+            // no need to move it--it's already at the tail position
+        }
+        else {
+            assert(VAL_PARAM_CLASS(definitional_return) == PARAM_CLASS_LOCAL);
+            INIT_VAL_PARAM_CLASS(definitional_return, PARAM_CLASS_RETURN);
+
+            Swap_Values(DS_TOP - 2, definitional_return);
+            Swap_Values(DS_TOP - 1, definitional_return + 1);
+            Swap_Values(DS_TOP, definitional_return + 2);
+        }
+        header_bits |= FUNC_FLAG_RETURN;
+    }
+
+    // Slots, which is length +1 (includes the rootvar or rootparam)
     //
     REBCNT num_slots = (DSP - dsp_orig) / 3;
-
-    // If we were looking for something to send to the end, assert we've
-    // found it...and swap the three triples at the tail with its three.
-    // (it might already be the last slot, but don't worry about it).
-    //
-    if (opt_sym_last != SYM_0) {
-        assert(to_be_moved != NULL);
-
-        REBVAL temp;
-
-        temp = *(DS_TOP - 2);
-        *(DS_TOP - 2) = *to_be_moved;
-        *to_be_moved = temp;
-
-        temp = *(DS_TOP - 1);
-        *(DS_TOP - 1) = *(to_be_moved + 1);
-        *(to_be_moved + 1) = temp;
-
-        temp = *(DS_TOP);
-        *(DS_TOP) = *(to_be_moved + 2);
-        *(to_be_moved + 2) = temp;
-
-        // !!! For now we set the typeset of the element to ALL_64, because
-        // this is where the definitional return will hide its type info.
-        // Until a notation is picked for the spec this capability isn't
-        // enabled, but will be.
-        //
-        VAL_TYPESET_BITS(DS_TOP - 2) = ALL_64;
-    }
 
     // Must make the function "paramlist" even if "empty", for identity
     //
@@ -451,7 +567,7 @@ REBFUN *Make_Paramlist_Managed(
     if (TRUE) {
         REBVAL *dest = ARR_HEAD(paramlist); // canon function value
         VAL_RESET_HEADER(dest, REB_FUNCTION);
-        SET_VAL_FLAGS(dest, func_flags);
+        SET_VAL_FLAGS(dest, header_bits);
         dest->payload.function.func = AS_FUNC(paramlist);
         dest->payload.function.exit_from = NULL;
         ++dest;
@@ -614,7 +730,7 @@ REBCNT Find_Param_Index(REBARR *paramlist, REBSYM sym)
 //
 void Make_Native(
     REBVAL *out,
-    REBARR *spec,
+    REBVAL *spec,
     REBNAT dispatch
 ) {
     //Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SER_LEN(spec));
@@ -639,8 +755,8 @@ void Make_Native(
 //
 //  Get_Maybe_Fake_Func_Body: C
 // 
-// The FUNC_FLAG_LEAVE_OR_RETURN tricks used for definitional scoping
-// make it seem like a generator authored more code in the function's
+// The FUNC_FLAG_LEAVE and FUNC_FLAG_RETURN tricks used for definitional
+// scoping make it seem like a generator authored more code in the function's
 // body...but the code isn't *actually* there and an optimized internal
 // trick is used.
 // 
@@ -655,15 +771,21 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 
     assert(IS_FUNCTION(func) && IS_FUNCTION_PLAIN(func));
 
-    if (GET_VAL_FLAG(func, FUNC_FLAG_LEAVE_OR_RETURN)) {
-        REBVAL *last_param = VAL_FUNC_PARAM(func, VAL_FUNC_NUM_PARAMS(func));
-
-        if (SYM_RETURN == VAL_TYPESET_CANON(last_param))
+    REBCNT body_index;
+    if (GET_VAL_FLAG(func, FUNC_FLAG_RETURN)) {
+        if (GET_VAL_FLAG(func, FUNC_FLAG_LEAVE)) {
             example = Get_System(SYS_STANDARD, STD_FUNC_BODY);
-        else {
-            assert(SYM_LEAVE == VAL_TYPESET_CANON(last_param));
-            example = Get_System(SYS_STANDARD, STD_PROC_BODY);
+            body_index = 8;
         }
+        else {
+            example = Get_System(SYS_STANDARD, STD_FUNC_NO_LEAVE_BODY);
+            body_index = 4;
+        }
+        *is_fake = TRUE;
+    }
+    else if (GET_VAL_FLAG(func, FUNC_FLAG_LEAVE)) {
+        example = Get_System(SYS_STANDARD, STD_PROC_BODY);
+        body_index = 4;
         *is_fake = TRUE;
     }
     else {
@@ -675,11 +797,20 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
     //
     fake_body = Copy_Array_Shallow(VAL_ARRAY(example));
 
-    // Index 5 (or 4 in zero-based C) should be #BODY, a "real" body
-    //
-    assert(IS_ISSUE(ARR_AT(fake_body, 4))); // #BODY
-    Val_Init_Array(ARR_AT(fake_body, 4), REB_GROUP, VAL_FUNC_BODY(func));
-    SET_VAL_FLAG(ARR_AT(fake_body, 4), VALUE_FLAG_LINE);
+    // Index 5 (or 4 in zero-based C) should be #BODY, a "real" body.  Since
+    // the body has relative words and relative arrays and this is not pairing
+    // that with a frame from any specific invocation, the value must be
+    // marked as relative.
+    {
+        RELVAL *slot = ARR_AT(fake_body, body_index); // #BODY
+        assert(IS_ISSUE(slot));
+
+        VAL_RESET_HEADER(slot, REB_GROUP);
+        SET_VAL_FLAGS(slot, VALUE_FLAG_RELATIVE | VALUE_FLAG_LINE);
+        INIT_VAL_ARRAY(slot, VAL_FUNC_BODY(func));
+        VAL_INDEX(slot) = 0;
+        INIT_ARRAY_RELATIVE(slot, VAL_FUNC(func));
+    }
 
     return fake_body;
 }
@@ -747,291 +878,19 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 // raised as an error.
 //
 REBFUN *Make_Function_May_Fail(
-    REBOOL is_procedure,
     const REBVAL *spec_val,
     const REBVAL *body_val,
-    REBOOL has_return
+    REBFLGS flags
 ) {
-    REBOOL durable = FALSE;
-
     if (!IS_BLOCK(spec_val) || !IS_BLOCK(body_val))
         fail (Error_Bad_Func_Def(spec_val, body_val));
 
-    REBARR *spec;
+    REBFUN *fun = Make_Paramlist_Managed(spec_val, flags);
 
-    if (VAL_LEN_AT(spec_val) == 0) {
-        //
-        // Empty specs are semi-common (e.g. DOES [...] is FUNC [] [...]).
-        // Since the spec is read-only once put into the function value,
-        // re-use an appropriate instance of [], [return:], or [leave:] based
-        // on whether the "effective spec" needs a definitional exit or not.
-        //
-        if (has_return) {
-            spec = is_procedure
-                ? VAL_ARRAY(ROOT_LEAVE_BLOCK)
-                : VAL_ARRAY(ROOT_RETURN_BLOCK);
-        } else
-            spec = EMPTY_ARRAY;
-    }
-    else if (!has_return) {
-        //
-        // If has_return is FALSE upon entry, then nothing in the spec disabled
-        // a definitional exit...and this was called by `make function!`.  So
-        // there are no bells and whistles (including <opt> or <...> tag
-        // conversion).  It is "effectively <no-return>", though the
-        // non-definitional EXIT and EXIT/WITH will still be available.
-        //
-        spec = Copy_Array_At_Deep_Managed(
-            VAL_ARRAY(spec_val), VAL_INDEX(spec_val)
-        );
-    }
-    else {
-        // Trickier case: when the `func` or `clos` natives are used, they
-        // must read the given spec the way a user-space generator might.
-        // They must decide whether to add a specially handled RETURN
-        // local, which will be given a tricky "native" definitional return
-
-        REBCNT index = 0;
-        REBOOL convert_local = FALSE;
-        REBVAL *item;
-
-        // We may add a return or leave, so avoid a later expansion by asking
-        // for the capacity of the copy to have an extra value.  (May be a
-        // waste if unused, but would require two passes to avoid it.)
-        //
-        spec = Copy_Array_At_Extra_Deep_Managed(
-            VAL_ARRAY(spec_val),
-            VAL_INDEX(spec_val),
-            1 // +1 capacity hint
-        );
-
-        item = ARR_HEAD(spec);
-        for (; NOT_END(item); index++, item++) {
-            if (IS_SET_WORD(item)) {
-                //
-                // Note a "true local" (indicated by a set-word) is considered
-                // to be tacit approval of wanting a definitional return
-                // by the generator.  This helps because Red's model
-                // for specifying returns uses a SET-WORD!
-                //
-                //     func [return: [integer!] {returns an integer}]
-                //
-                // In Ren/C's case it just means you want a local called
-                // return, but the generator will be "initializing it
-                // with a definitional return" for you.  You don't have
-                // to use it if you don't want to...
-
-                // !!! TBD: make type checking work (not yet implemented in
-                // Red, either).  Will only be available as a generator
-                // feature, by way of ENSURE-TYPE wrapping the body and the
-                // argument typing on the return function.
-
-                continue;
-            }
-
-            if (IS_TAG(item)) {
-                if (
-                    0 == Compare_String_Vals(item, ROOT_NO_RETURN_TAG, TRUE)
-                ) {
-                    // The <no-return> tag is a way to cue FUNC and PROC that
-                    // you do not want a definitional return:
-                    //
-                    //     foo: func [<no-return> a] [return a]
-                    //     foo 10 ;-- ERROR!
-                    //
-                    // This is redundant with the default for `make function!`.
-                    // But having an option to use the familiar arity-2 form
-                    // will probably appeal to more users.  Also, having two
-                    // independent parameters can save the need for a REDUCE
-                    // or COMPOSE that is generally required to composite a
-                    // single block parameter that MAKE FUNCTION! requires.
-                    //
-                    has_return = FALSE;
-
-                    // We *could* remove the <no-return> tag, or check to
-                    // see if there's more than one, etc.  But Check_Func_Spec
-                    // is tolerant of any strings that we leave in the spec.
-                }
-                else if (
-                    0 == Compare_String_Vals(item, ROOT_PUNCTUATES_TAG, TRUE)
-                ) {
-                    // !!! Right now a BAR! in the top level is what is read
-                    // as meaning punctuates by MAKE FUNCTION!, though this
-                    // is perhaps not permanent.
-
-                    SET_BAR(item);
-                }
-                else if (
-                    0 == Compare_String_Vals(item, ROOT_LOCAL_TAG, TRUE)
-                ) {
-                    // While using x: and y: for pure locals is one option,
-                    // it has two downsides.  One downside is that it makes
-                    // the spec look too much "like everything else", so
-                    // all the code kind of bleeds together.  Another is that
-                    // if you nest one function within another then the outer
-                    // function will wind up locals-gathering the locals of
-                    // the inner function.  (It will anyway if you put the
-                    // whole literal body there, but if you're adding the
-                    // locals in a generator to be picked up by code that
-                    // rebinds to them then it makes a difference.)
-                    //
-                    // Having a tag that lets you mark a run of locals is
-                    // useful.  It will convert WORD! to SET-WORD! in the
-                    // spec, and stop at the next refinement.
-                    //
-                    convert_local = TRUE;
-
-                    // See notes about how we *could* remove ANY-STRING!s like
-                    // the <local> tag from the spec, but Check_Func_Spec
-                    // doesn't mind...it might be useful for HELP...and it's
-                    // cheaper not to.
-                }
-                else if (
-                    0 == Compare_String_Vals(item, ROOT_DURABLE_TAG, TRUE)
-                ) {
-                    // <durable> is currently a lesser version of what it
-                    // hopes to be, but signals what R3-Alpha called CLOSURE!
-                    // semantics.  Indicating that a typeset is durable in
-                    // the low-level will need to be done with some notation
-                    // that doesn't use "keywords"--perhaps a #[true] or a
-                    // #[false] picked up on by the typeset.
-                    //
-                    // !!! Enforce only at the head, if it's going to be
-                    // applying to everything??
-                    //
-                    durable = TRUE;
-                }
-                else
-                    fail (Error(RE_BAD_FUNC_DEF, item));
-            }
-            else if (ANY_WORD(item)) {
-                if (convert_local) {
-                    if (IS_WORD(item)) {
-                        //
-                        // We convert words to set-words for pure local status
-                        //
-                        VAL_SET_TYPE_BITS(item, REB_SET_WORD);
-                    }
-                    else if (IS_REFINEMENT(item)) {
-                        //
-                        // A refinement signals us to stop doing the locals
-                        // conversion.  Historically, help hides any
-                        // refinements that appear behind a /local, so
-                        // presumably it would do the same with <local>...
-                        // but mechanically there is no way to tell
-                        // Check_Func_Spec to hide a refinement.
-                        //
-                        convert_local = FALSE;
-                    }
-                    else {
-                        // We've already ruled out pure locals, so this means
-                        // they wrote something like:
-                        //
-                        //     func [a b <local> 'c #d :e]
-                        //
-                        // Consider that an error.
-                        //
-                        fail (Error(RE_BAD_FUNC_DEF, item));
-                    }
-                }
-
-                if (SAME_SYM(VAL_WORD_SYM(item), SYM_RETURN)) {
-                    //
-                    // Although return: is explicitly tolerated,  all these
-                    // would cancel a definitional return:
-                    //
-                    //     func [return [integer!]]
-                    //     func [/value return]
-                    //     func [/local return]
-                    //
-                    // The last one because /local is actually "just an ordinary
-                    // refinement".  The choice of HELP to omit it could be
-                    // a configuration setting.
-                    //
-                    has_return = FALSE;
-                }
-            }
-            else if (IS_BLOCK(item)) {
-                //
-                // Blocks representing typesets must be inspected for
-                // extension signifiers too, as MAKE TYPESET! doesn't know
-                // any keywords either.
-                //
-                REBVAL *subitem = VAL_ARRAY_AT(item);
-                for (; NOT_END(subitem); ++subitem) {
-                    if (!IS_TAG(subitem))
-                        continue;
-
-                    if (
-                        0 ==
-                        Compare_String_Vals(subitem, ROOT_ELLIPSIS_TAG, TRUE)
-                    ) {
-                        // Notational convenience for variadic.
-                        // func [x [<...> integer!]] => func [x [[integer!]]]
-                        //
-                        REBARR *array = Make_Singular_Array(item);
-                        Remove_Series(
-                            ARR_SERIES(VAL_ARRAY(item)),
-                            subitem - VAL_ARRAY_AT(item),
-                            1
-                        );
-                        Val_Init_Block(item, array);
-                    }
-                    else if (
-                        0 == Compare_String_Vals(
-                            subitem, ROOT_OPT_TAG, TRUE
-                        )
-                    ) {
-                        // Notational convenience for optional.
-                        // func [x [<opt> integer!]] => func [x [_ integer!]]
-                        //
-                        SET_BLANK(subitem);
-                    }
-                    else if (
-                        0 == Compare_String_Vals(
-                            subitem, ROOT_END_TAG, TRUE
-                        )
-                    ) {
-                        // Notational convenience for endable.
-                        // func [x [<end> integer!]] => func [x [| integer!]]
-                        //
-                        SET_BAR(subitem);
-                    }
-                }
-            }
-        }
-
-        if (has_return) {
-            //
-            // No prior RETURN (or other issue) stopping definitional return!
-            // Add the "true local" RETURN: to the spec.  +1 capacity was
-            // reserved in anticipation of this possibility, so it should not
-            // need to expand the array.
-            //
-            Append_Value(
-                spec,
-                is_procedure
-                    ? ROOT_LEAVE_SET_WORD
-                    : ROOT_RETURN_SET_WORD
-            );
-        }
-    }
-
-    // Spec checking will longjmp out with an error if the spec is bad.
-    // For efficiency, we tell the paramlist what symbol we would like to
-    // have located in the final slot if its symbol is found (so SYM_RETURN
-    // if the function has a optimized definitional return).
+    // We copy the body.  It is indirected into a block value so that it may
+    // carry a specifier--also so that multiple functions with different
+    // dispatchers could theoretically have the same array.
     //
-    REBFUN *fun = Make_Paramlist_Managed(
-        spec,
-        has_return ? (is_procedure ? SYM_LEAVE : SYM_RETURN) : SYM_0
-    );
-
-    // We copy the body.  It doesn't necessarily need to be unique, but if it
-    // used the EMPTY_ARRAY then it would have to have the user function
-    // dispatcher in its misc field (or be another similar array that did)
-    //
-    // It is indirected into a block value so that it may carry a specifier.
     // This way, if the function gets hijacked it can be re-relativized by
     // the Plain_Dispatcher that can notice if the paramlist of a function
     // value is a mismatch for the value it is relativized against--without
@@ -1058,34 +917,6 @@ REBFUN *Make_Function_May_Fail(
 
     FUNC_DISPATCH(fun) = &Plain_Dispatcher;
 
-    if (is_procedure)
-        SET_VAL_FLAG(FUNC_VALUE(fun), FUNC_FLAG_PUNCTUATES);
-
-    // Even if `has_return` was passed in true, the FUNC or CLOS generator
-    // may have seen something to turn it off and turned it false.  But if
-    // it's still on, then signal we want the fancy fake return!
-    //
-    if (has_return) {
-        //
-        // Make_Paramlist above should have ensured it's in the last slot.
-        //
-    #if !defined(NDEBUG)
-        REBVAL *param = ARR_LAST(AS_ARRAY(fun));
-
-        assert(is_procedure
-            ? VAL_TYPESET_CANON(param) == SYM_LEAVE
-            : VAL_TYPESET_CANON(param) == SYM_RETURN);
-
-        assert(VAL_PARAM_CLASS(param) == PARAM_CLASS_PURE_LOCAL);
-    #endif
-
-        // Flag that this function has a definitional return, so Dispatch_Call
-        // knows to write the "hacked" function in that final local.  (Arg
-        // fulfillment should leave the hidden parameter unset)
-        //
-        SET_VAL_FLAG(FUNC_VALUE(fun), FUNC_FLAG_LEAVE_OR_RETURN);
-    }
-
 #if !defined(NDEBUG)
     //
     // If FUNC or MAKE FUNCTION! are being invoked from an array of code that
@@ -1102,18 +933,6 @@ REBFUN *Make_Function_May_Fail(
         SET_VAL_FLAG(FUNC_VALUE(fun), FUNC_FLAG_LEGACY);
     }
 #endif
-
-    // !!! This is a lame way of setting the durability, because it means
-    // that there's no way a user with just `make function!` could do it.
-    // However, it's a step closer to the solution and eliminating the
-    // FUNCTION!/CLOSURE! distinction.
-    //
-    if (durable) {
-        REBVAL *param;
-        param = FUNC_PARAMS_HEAD(fun);
-        for (; NOT_END(param); ++param)
-            SET_VAL_FLAG(param, TYPESET_FLAG_DURABLE);
-    }
 
     // The argument and local symbols have been arranged in the function's
     // "frame" and are now in index order.  These numbers are put
@@ -1712,8 +1531,40 @@ REB_R Adapter_Dispatcher(struct Reb_Frame *f)
         assert(pclass == VAL_PARAM_CLASS(adaptee_param));
 
         switch (pclass) {
-        case PARAM_CLASS_PURE_LOCAL:
+        case PARAM_CLASS_LOCAL:
             SET_VOID(f->arg); // cheaper than checking
+            break;
+
+        case PARAM_CLASS_RETURN:
+            assert(VAL_TYPESET_CANON(f->param) == SYM_RETURN);
+
+            if (!GET_VAL_FLAG(adaptee, FUNC_FLAG_RETURN)) {
+                SET_VOID(f->arg); // may be another adapter, filled in later
+                break;
+            }
+
+            *f->arg = *NAT_VALUE(return);
+
+            if (f->varlist) // !!! in specific binding, always for Plain
+                f->arg->payload.function.exit_from = f->varlist;
+            else
+                f->arg->payload.function.exit_from = FUNC_PARAMLIST(f->func);
+            break;
+
+        case PARAM_CLASS_LEAVE:
+            assert(VAL_TYPESET_CANON(f->param) == SYM_LEAVE);
+
+            if (!GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEAVE)) {
+                SET_VOID(f->arg); // may be adapter, and filled in later
+                break;
+            }
+
+            *f->arg = *NAT_VALUE(return);
+
+            if (f->varlist) // !!! in specific binding, always for Plain
+                f->arg->payload.function.exit_from = f->varlist;
+            else
+                f->arg->payload.function.exit_from = FUNC_PARAMLIST(f->func);
             break;
 
         case PARAM_CLASS_REFINEMENT:
@@ -1790,11 +1641,8 @@ REBNATIVE(func)
     PARAM(1, spec);
     PARAM(2, body);
 
-    const REBOOL has_return = TRUE;
-    const REBOOL is_procedure = FALSE;
-
     REBFUN *fun = Make_Function_May_Fail(
-        is_procedure, ARG(spec), ARG(body), has_return
+        ARG(spec), ARG(body), MKF_RETURN | MKF_LEAVE | MKF_KEYWORDS
     );
 
     *D_OUT = *FUNC_VALUE(fun);
@@ -1823,11 +1671,8 @@ REBNATIVE(proc)
     PARAM(1, spec);
     PARAM(2, body);
 
-    const REBOOL has_return = TRUE;
-    const REBOOL is_procedure = TRUE;
-
     REBFUN *fun = Make_Function_May_Fail(
-        is_procedure, ARG(spec), ARG(body), has_return
+        ARG(spec), ARG(body), MKF_LEAVE | MKF_PUNCTUATES | MKF_KEYWORDS
     );
 
     *D_OUT = *FUNC_VALUE(fun);
@@ -2510,9 +2355,13 @@ REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
         //
         REBVAL *func_value = FUNC_VALUE(func);
         REBOOL has_return_value
-            = GET_VAL_FLAG(v, FUNC_FLAG_LEAVE_OR_RETURN);
+            = GET_VAL_FLAG(v, FUNC_FLAG_RETURN);
         REBOOL has_return_func
-            = GET_VAL_FLAG(func_value, FUNC_FLAG_LEAVE_OR_RETURN);
+            = GET_VAL_FLAG(func_value, FUNC_FLAG_RETURN);
+        REBOOL has_leave_value
+            = GET_VAL_FLAG(v, FUNC_FLAG_LEAVE);
+        REBOOL has_leave_func
+            = GET_VAL_FLAG(func_value, FUNC_FLAG_LEAVE);
 
         Debug_Fmt("Mismatch header bits found in FUNC_VALUE from payload");
         Panic_Array(FUNC_PARAMLIST(func));

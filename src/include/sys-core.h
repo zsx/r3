@@ -243,6 +243,15 @@ enum {
     MKS_NO_DYNAMIC  = 1 << 5    // Internal series using REBVAL[0] slot
 };
 
+// Modes allowed by Make_Function:
+enum {
+    MKF_NONE        = 0,        // no special handling (e.g. MAKE FUNCTION!)
+    MKF_RETURN      = 1 << 0,   // has definitional RETURN
+    MKF_LEAVE       = 1 << 1,   // has definitional LEAVE
+    MKF_PUNCTUATES  = 1 << 2,   // generated function can't be used as argument
+    MKF_KEYWORDS    = 1 << 3    // respond to words like <opt>, <no-return>
+};
+
 // Modes allowed by Copy_Block function:
 enum {
     COPY_SHALLOW = 0,

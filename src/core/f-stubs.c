@@ -515,7 +515,7 @@ void Val_Init_Context(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
 // Get length of an ANY-SERIES! value, taking the current index into account.
 // Avoid negative values.
 //
-REBCNT Val_Series_Len_At(const REBVAL *value)
+REBCNT Val_Series_Len_At(const RELVAL *value)
 {
     if (VAL_INDEX(value) >= VAL_LEN_HEAD(value)) return 0;
     return VAL_LEN_HEAD(value) - VAL_INDEX(value);

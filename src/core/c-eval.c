@@ -838,19 +838,6 @@ reevaluate:
         // during the argument fulfillment process (unless they turn out to
         // be optional in the invocation).
         //
-        // It is mostly straightforward, but notice that refinements are
-        // somewhat tricky.  These two calls mean different things:
-        //
-        //     foo: func [a /b c /d e] [...]
-        //
-        //     foo/b/d (1 + 2) (3 + 4) (5 + 6)
-        //     foo/d/b (1 + 2) (3 + 4) (5 + 6)
-        //
-        // The order of refinements in the definition (b d) might not match
-        // what order the refinements are invoked in the path.  This means
-        // the "visitation order" of the parameters while walking across
-        // parameters in the array might not match the "consumption order"
-        // of the expressions that are being fetched from the callsite.
         //
         // To get around that, there's a trick.  An out-of-order refinement
         // makes a note in the stack about a parameter and arg position that
@@ -869,11 +856,30 @@ reevaluate:
 
     //=//// A /REFINEMENT ARG /////////////////////////////////////////////=//
 
+            // Refinements are checked for first for a reason.  This is to
+            // short-circuit based on the `doing_pickups` flag before redoing
+            // fulfillments on arguments that have already been handled.
+            //
+            // The reason an argument might have already been handled is
+            // because refinements have to reach back and be revisited after
+            // the original parameter walk.  They can't be fulfilled in a
+            // single pass because these two calls mean different things:
+            //
+            //     foo: func [a /b c /d e] [...]
+            //
+            //     foo/b/d (1 + 2) (3 + 4) (5 + 6)
+            //     foo/d/b (1 + 2) (3 + 4) (5 + 6)
+            //
+            // The order of refinements in the definition (b d) might not match
+            // what order the refinements are invoked in the path.  This means
+            // the "visitation order" of the parameters while walking across
+            // parameters in the array might not match the "consumption order"
+            // of the expressions that are being fetched from the callsite.
+            // Hence refinements are targeted to be revisited by "pickups"
+            // after the initial parameter walk.
+
             if (pclass == PARAM_CLASS_REFINEMENT) {
 
-                // Refinement "pickups" are finished when another refinement
-                // is hit after them.
-                //
                 if (doing_pickups) {
                     f->param = END_CELL; // !Is_Function_Frame_Fulfilling
                     break;
@@ -970,8 +976,55 @@ reevaluate:
 
     //=//// "PURE" LOCAL: ARG /////////////////////////////////////////////=//
 
-            if (pclass == PARAM_CLASS_PURE_LOCAL) {
+            // This takes care of locals, including "magic" RETURN and LEAVE
+            // cells that need to be pre-filled.  Notice that although the
+            // parameter list may have RETURN and LEAVE slots, that parameter
+            // list may be reused by an "adapter" or "hijacker" which would
+            // technically happen *before* the "magic" (if the user had
+            // implemented the definitinal returns themselves inside the
+            // function body).  Hence they are not always filled.
+            //
+            // Also note that while it might seem intuitive to take care of
+            // these "easy" fills before refinement checking--checking for
+            // refinement pickups ending prevents double-doing this work.
+
+            switch (pclass) {
+            case PARAM_CLASS_LOCAL:
                 SET_VOID(f->arg); // faster than checking bad specializations
+                goto continue_arg_loop;
+
+            case PARAM_CLASS_RETURN:
+                assert(VAL_TYPESET_CANON(f->param) == SYM_RETURN);
+
+                if (!GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_RETURN)) {
+                    SET_VOID(f->arg);
+                    goto continue_arg_loop;
+                }
+
+                *f->arg = *NAT_VALUE(return);
+
+                if (f->varlist) // !!! in specific binding, always for Plain
+                    f->arg->payload.function.exit_from = f->varlist;
+                else
+                    f->arg->payload.function.exit_from
+                        = FUNC_PARAMLIST(f->func);
+                goto continue_arg_loop;
+
+            case PARAM_CLASS_LEAVE:
+                assert(VAL_TYPESET_CANON(f->param) == SYM_LEAVE);
+
+                if (!GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEAVE)) {
+                    SET_VOID(f->arg);
+                    goto continue_arg_loop;
+                }
+
+                *f->arg = *NAT_VALUE(return);
+
+                if (f->varlist) // !!! in specific binding, always for Plain
+                    f->arg->payload.function.exit_from = f->varlist;
+                else
+                    f->arg->payload.function.exit_from
+                        = FUNC_PARAMLIST(f->func);
                 goto continue_arg_loop;
             }
 
@@ -1209,7 +1262,7 @@ reevaluate:
 
             ASSERT_VALUE_MANAGED(f->arg);
             assert(pclass != PARAM_CLASS_REFINEMENT);
-            assert(pclass != PARAM_CLASS_PURE_LOCAL);
+            assert(pclass != PARAM_CLASS_LOCAL);
 
             // See notes on `Reb_Frame.refine` in %sys-do.h for more info.
             //
@@ -1329,43 +1382,6 @@ reevaluate:
             //
             f->arg = &f->stackvars[0];
             assert(CHUNK_FROM_VALUES(f->arg) == TG_Top_Chunk);
-        }
-
-        // If the function has a native-optimized version of definitional
-        // return, the local for this return should so far have just been
-        // ensured in last slot...and left unset by the arg filling.
-        //
-        // Now fill in the var for that local with a "hacked up" native
-        // Note that FUNCTION! uses its PARAMLIST as the RETURN_FROM
-        // usually, but not if it's reusing a frame.
-        //
-        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEAVE_OR_RETURN)) {
-            f->param = FUNC_PARAM(
-                f->func, VAL_FUNC_NUM_PARAMS(FUNC_VALUE(f->func))
-            );
-            f->refine = FRM_ARG(f, VAL_FUNC_NUM_PARAMS(FUNC_VALUE(f->func)));
-
-            assert(VAL_PARAM_CLASS(f->param) == PARAM_CLASS_PURE_LOCAL);
-            assert(IS_VOID(f->refine));
-
-            if (VAL_TYPESET_CANON(f->param) == SYM_RETURN)
-                *(f->refine) = *NAT_VALUE(return);
-            else {
-                assert(VAL_TYPESET_CANON(f->param) == SYM_LEAVE);
-                *(f->refine) = *NAT_VALUE(leave);
-            }
-
-            // !!! Having to pick a function paramlist or a context for
-            // definitional return (and doubly testing this flag) is a likely
-            // temporary state of affairs, as all functions able to have a
-            // definitional return will have contexts in NewFunction.
-            //
-            if (f->varlist)
-                VAL_FUNC_EXIT_FROM(f->refine) = f->varlist;
-            else
-                VAL_FUNC_EXIT_FROM(f->refine) = FUNC_PARAMLIST(f->func);
-
-            f->param = END_CELL; // can't be a typeset while function runs
         }
 
         if (Trace_Flags) Trace_Func(FRM_LABEL(f), FUNC_VALUE(f->func));
@@ -1505,27 +1521,26 @@ reevaluate:
 
         // Here we know the function finished and did not throw or exit.  If
         // it has a definitional return we need to type check it--and if it
-        // has a leave we have to squash whatever the last evaluative result
-        // was and return no value
-        //
-        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEAVE_OR_RETURN)) {
+        // has punctuates we have to squash whatever the last evaluative
+        // result was and return no value
+
+        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_PUNCTUATES)) {
+            SET_VOID(f->out);
+        }
+        else if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_RETURN)) {
             f->param = FUNC_PARAM(f->func, FUNC_NUM_PARAMS(f->func));
-            if (VAL_TYPESET_CANON(f->param) == SYM_LEAVE) {
-                SET_VOID(f->out);
-            }
-            else {
-                // The type bits of the definitional return are not applicable
-                // to the `return` word being associated with a FUNCTION!
-                // vs. an INTEGER! (for instance).  It is where the type
-                // information for the non-existent return function specific
-                // to this call is hidden.
-                //
-                assert(VAL_TYPESET_CANON(f->param) == SYM_RETURN);
-                if (!TYPE_CHECK(f->param, VAL_TYPE(f->out)))
-                    fail (Error_Arg_Type(
-                        SYM_RETURN, f->param, VAL_TYPE(f->out))
-                    );
-            }
+            assert(VAL_TYPESET_CANON(f->param) == SYM_RETURN);
+
+            // The type bits of the definitional return are not applicable
+            // to the `return` word being associated with a FUNCTION!
+            // vs. an INTEGER! (for instance).  It is where the type
+            // information for the non-existent return function specific
+            // to this call is hidden.
+            //
+            if (!TYPE_CHECK(f->param, VAL_TYPE(f->out)))
+                fail (Error_Arg_Type(
+                    SYM_RETURN, f->param, VAL_TYPE(f->out))
+                );
         }
 
         // Calling a function counts as an evaluation *unless* it's quote or

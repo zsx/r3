@@ -22,11 +22,13 @@ errobj          ; error object template
 strings         ; low-level strings accessed via Boot_Strs[] (GC protection)
 typesets        ; block of TYPESETs used by system; expandable
 empty-block     ; a value that is an empty BLOCK!
+empty-string    ; a value that is an empty STRING!
 
 ;; Tags used in the native-optimized versions of user-function-generators
 ;; FUNC and PROC
 
 no-return-tag   ; func w/o definitional return, ignores non-definitional ones
+no-leave-tag    ; func w/o definitional leave, ignores non-definitional ones
 punctuates-tag  ; function's result cannot be used as a function argument
 ellipsis-tag    ; FUNC+PROC use as alternative to [[]] to mark varargs
 opt-tag         ; FUNC+PROC use as alternative to _ to mark optional void? args
@@ -43,17 +45,6 @@ function-meta
 ;; is a signal to put spaces at the first level and then after that nothing.
 ;;
 default-print-delimiter
-
-;; The FUNC and PROC function generators are native code, and quick access
-;; to a block of [RETURN:] or [LEAVE:] is useful to share across all of the
-;; instances of functions like those created by DOES.  Having a filled
-;; REBVAL of the word alone saves a call to Val_Init_Word_Unbound with
-;; the symbol as well.
-
-return-set-word
-return-block
-leave-set-word
-leave-block
 
 boot            ; boot block defined in boot.r (GC'd after boot is done)
 

@@ -169,23 +169,47 @@ REBOOL Update_Typeset_Bits_Core(
 
         if (!var) var = item;
 
-        if (IS_BAR(item)) {
+        // Though MAKE FUNCTION! at its lowest level attempts to avoid any
+        // keywords, there are native-optimized function generators that do
+        // use them.  Since this code is shared by both, it may or may not
+        // set typeset flags as a parameter.  Default to always for now.
+        //
+        const REBOOL keywords = TRUE;
+
+        if (
+            keywords && IS_TAG(item) && (
+                0 == Compare_String_Vals(item, ROOT_ELLIPSIS_TAG, TRUE)
+            )
+        ) {
+            // Notational convenience for variadic.
+            // func [x [<...> integer!]] => func [x [[integer!]]]
             //
+            SET_VAL_FLAG(typeset, TYPESET_FLAG_VARIADIC);
+        }
+        else if (
+            IS_BAR(item) || (keywords && IS_TAG(item) && (
+                0 == Compare_String_Vals(item, ROOT_END_TAG, TRUE)
+            ))
+        ) {
             // A BAR! in a typeset spec for functions indicates a tolerance
-            // of endability.
+            // of endability.  Notational convenience:
             //
-            // !!! Review if this should be allowed in general typeset
-            // construction or just a feature of function specs.
+            // func [x [<end> integer!]] => func [x [| integer!]]
             //
             SET_VAL_FLAG(typeset, TYPESET_FLAG_ENDABLE);
         }
-        else if (IS_BLANK(item)) {
-            //
-            // A NONE! in a typeset spec for functions indicates a willingness
+        else if (
+            IS_BLANK(item) || (keywords && IS_TAG(item) && (
+                0 == Compare_String_Vals(item, ROOT_OPT_TAG, TRUE)
+            ))
+        ) {
+            // A BLANK! in a typeset spec for functions indicates a willingness
             // to take an optional.  (This was once done with the "UNSET!"
             // datatype, but now that there isn't a user-exposed unset data
             // type this is not done.)  Still, since REB_0 is available
             // internally it is used in the type filtering here.
+            //
+            // func [x [<opt> integer!]] => func [x [_ integer!]]
             //
             // !!! As with BAR! for variadics, review if this makes sense to
             // allow with `make typeset!` instead of just function specs.

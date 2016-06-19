@@ -94,7 +94,8 @@ void Legacy_Convert_Function_Args_Debug(struct Reb_Frame *f)
     REBOOL set_blank = FALSE;
 
     for (; NOT_END(param); ++param, ++arg) {
-        if (VAL_PARAM_CLASS(param) == PARAM_CLASS_REFINEMENT) {
+        switch (VAL_PARAM_CLASS(param)) {
+        case PARAM_CLASS_REFINEMENT:
             if (IS_LOGIC(arg)) {
                 if (VAL_LOGIC(arg))
                     set_blank = FALSE;
@@ -104,14 +105,28 @@ void Legacy_Convert_Function_Args_Debug(struct Reb_Frame *f)
                 }
             }
             else assert(FALSE);
-        }
-        else if (VAL_PARAM_CLASS(param) == PARAM_CLASS_PURE_LOCAL)
-            assert(IS_VOID(arg)); // keep pure locals as void, even in legacy
-        else {
+            break;
+
+        case PARAM_CLASS_LOCAL:
+            assert(IS_VOID(arg)); // keep *pure* locals as void, even in legacy
+            break;
+
+        case PARAM_CLASS_RETURN:
+        case PARAM_CLASS_LEAVE:
+            assert(IS_FUNCTION(arg) || IS_VOID(arg));
+            break;
+
+        case PARAM_CLASS_NORMAL:
+        case PARAM_CLASS_HARD_QUOTE:
+        case PARAM_CLASS_SOFT_QUOTE:
             if (set_blank) {
                 assert(IS_VOID(arg));
                 SET_BLANK(arg);
             }
+            break;
+
+        default:
+            assert(FALSE);
         }
     }
 }
