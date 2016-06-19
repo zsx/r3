@@ -1,6 +1,6 @@
 //
 //  File: %t-routine.c
-//  Summary: "External Routine Support"
+//  Summary: "Support for calling non-Rebol C functions in DLLs w/Rebol args)"
 //  Section: datatypes
 //  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
 //  Homepage: https://github.com/metaeducation/ren-c/
@@ -27,79 +27,17 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// When Rebol3 was open-sourced in 12-Dec-2012, that version had lost
-// support for the ROUTINE! type from Rebol2.  It was later
-// reimplemented by Atronix in their fork via the cross-platform (and
-// popularly used) Foreign Function Interface library "libffi":
+// This code was contributed by Atronix Engineering:
 //
-//     https://en.wikipedia.org/wiki/Libffi
+// http://www.atronixengineering.com/downloads/
 //
-// Yet Rebol is very conservative about library dependencies that
-// introduce their "own build step", due to the complexity introduced.
-// If one is to build libffi for a particular platform, that requires
-// having the rather messy GNU autotools installed.  Notice the
-// `Makefile.am`, `acinclude.m4`, `autogen.sh`, `configure.ac`,
-// `configure.host`, etc:
+// It will only work if your build (-D)efines "-DHAVE_LIBFFI_AVAILABLE".
 //
-//     https://github.com/atgreen/libffi
-//
-// Suddenly, you need more than just a C compiler (and a rebol.exe) to
-// build Rebol.  You now need to have everything to configure and
-// build libffi.  -OR- it would mean a dependency on a built library
-// you had to find or get somewhere that was not part of the OS
-// naturally, which can be a wild goose chase with version
-// incompatibility.  If you `sudo apt-get libffi`, now you need apt-get
-// *and* you pull down any dependencies as well!
-//
-// (Note: Rebol's "just say no" attitude is the heart of the Rebellion:
-//
-//     http://www.rebol.com/cgi-bin/blog.r?view=0497
-//
-// ...so keeping the core true to this principle is critical.  If this
-// principle is compromised, the whole point of the project is lost.)
-//
-// Yet Rebol2 had ROUTINE!.  Red also has ROUTINE!, and is hinging its
-// story for rapid interoperability on it (you should not have to
-// wrap and recompile a DLL of C functions just to call them).  Users
-// want the feature and always ask...and Atronix needs it enough to have
-// had @ShixinZeng write it!
-//
-// Regarding the choice of libffi in particular, it's a strong sign to
-// notice how many other language projects are using it.  Short list
-// taken from 2015 Wikipedia:
-//
-//     Python, Haskell, Dalvik, F-Script, PyPy, PyObjC, RubyCocoa,
-//     JRuby, Rubinius, MacRuby, gcj, GNU Smalltalk, IcedTea, Cycript,
-//     Pawn, Squeak, Java Native Access, Common Lisp, Racket,
-//     Embeddable Common Lisp and Mozilla.
-//
-// Rebol could roll its own implementation.  But that takes time and
-// maintenance, and it's hard to imagine how much better a job could
-// be done for a C-based foreign function interface on these platforms;
-// it's light and quite small once built.  So it makes sense to
-// "extract" libffi's code out of its repo to form one .h and .c file.
-// They'd live in the Rebol sources and build with the existing process,
-// with no need for GNU Autotools (which are *particularly* crufty!!!)
-//
-// Doing such extractions by hand is how Rebol was originally done;
-// that made it hard to merge updates.  As a more future-proof method,
-// @HostileFork wrote a make-zlib.r extractor that can take a copy of
-// the zlib repository and do the work (mostly) automatically.  Going
-// forward it seems prudent to do the same with libffi and any other
-// libraries that Rebol co-opts into its turnkey build process.
-//
-// Until that happens for libffi, not definining HAVE_LIBFFI_AVAILABLE,
-// will give you a short list of non-functional "stubs".  These can
+// Not defining HAVE_LIBFFI_AVAILABLE will produce a short list of
+// non-working "stubs" that match the interface of <libffi.h>.  These can
 // allow t-routine.c to compile anyway.  That assists with maintenance
-// of the code and keeping it on the radar, even among those doing core
-// maintenance who are not building against the FFI.
-//
-// (Note: Longer term there may be a story by which a feature like
-// ROUTINE! could be implemented as a third party extension.  There is
-// short-term thinking trying to facilitate this for GOB! in Ren/C, to
-// try and open the doors to more type extensions.  That's a hard
-// problem in itself...and the needs of ROUTINE! are hooked a bit more
-// tightly into the evaluation loop.  So possibly not happening.)
+// of the code and keeping it on the radar--even among those doing core
+// coding who are not building against the FFI.
 //
 
 #include "sys-core.h"
@@ -127,7 +65,7 @@
         unsigned int nargs,
         ffi_type *rtype,
         ffi_type **atypes
-    ) {
+    ){
         fail (Error(RE_NOT_FFI_BUILD));
     }
 
@@ -138,7 +76,7 @@
         unsigned int ntotalargs,
         ffi_type *rtype,
         ffi_type **atypes
-    ) {
+    ){
         fail (Error(RE_NOT_FFI_BUILD));
     }
 
@@ -147,7 +85,7 @@
         void (*fn)(void),
         void *rvalue,
         void **avalue
-    ) {
+    ){
         fail (Error(RE_NOT_FFI_BUILD));
     }
 
@@ -161,34 +99,78 @@
         void (*fun)(ffi_cif *, void *, void **, void *),
         void *user_data,
         void *codeloc
-    ) {
+    ){
         panic (Error(RE_NOT_FFI_BUILD));
     }
 
-    void ffi_closure_free (void *closure) {
+    void ffi_closure_free(void *closure) {
         panic (Error(RE_NOT_FFI_BUILD));
     }
 #endif
 
 
+// There is a platform-dependent list of legal ABIs which the MAKE-ROUTINE
+// and MAKE-CALLBACK natives take as an option via refinement
 //
-//  CT_Routine: C
-//
-REBINT CT_Routine(const RELVAL *a, const RELVAL *b, REBINT mode)
-{
-    if (mode >= 0)
-        return VAL_FUNC_ROUTINE(a) == VAL_FUNC_ROUTINE(b);
+static ffi_abi Abi_From_Word(const REBVAL *word) {
+    switch (VAL_WORD_CANON(word)) {
+    case SYM_DEFAULT:
+        return FFI_DEFAULT_ABI;
 
-    return -1;
-}
+#ifdef X86_WIN64
+    case SYM_WIN64:
+        return FFI_WIN64;
 
+#elif defined(X86_WIN32) || defined(TO_LINUX_X86) || defined(TO_LINUX_X64)
+    case SYM_STDCALL:
+        return FFI_STDCALL;
 
-//
-//  CT_Callback: C
-//
-REBINT CT_Callback(const RELVAL *a, const RELVAL *b, REBINT mode)
-{
-    return -1;
+    case SYM_SYSV:
+        return FFI_SYSV;
+
+    case SYM_THISCALL:
+        return FFI_THISCALL;
+
+    case SYM_FASTCALL:
+        return FFI_FASTCALL;
+
+#ifdef X86_WIN32
+    case SYM_MS_CDECL:
+        return FFI_MS_CDECL;
+#else
+    case SYM_UNIX64:
+        return FFI_UNIX64;
+#endif //X86_WIN32
+
+#elif defined (TO_LINUX_ARM)
+    case SYM_VFP:
+        return FFI_VFP;
+
+    case SYM_SYSV:
+        return FFI_SYSV;
+
+#elif defined (TO_LINUX_MIPS)
+    case SYM_O32:
+        return FFI_O32;
+
+    case SYM_N32:
+        return FFI_N32;
+
+    case SYM_N64:
+        return FFI_N64;
+
+    case SYM_O32_SOFT_FLOAT:
+        return FFI_O32_SOFT_FLOAT;
+
+    case SYM_N32_SOFT_FLOAT:
+        return FFI_N32_SOFT_FLOAT;
+
+    case SYM_N64_SOFT_FLOAT:
+        return FFI_N64_SOFT_FLOAT;
+#endif //X86_WIN64
+    }
+
+    fail (Error_Invalid_Arg(word));
 }
 
 
@@ -208,7 +190,9 @@ static void Schema_From_Block_May_Fail(
     REBVAL *param_out, // => TYPESET!
     const REBVAL *blk
 ){
-    if (!IS_BLOCK(blk) || VAL_LEN_AT(blk) == 0)
+    assert(IS_BLOCK(blk));
+
+    if (VAL_LEN_AT(blk) == 0)
         fail (Error_Invalid_Arg(blk));
 
     Val_Init_Typeset(param_out, 0, SYM_0);
@@ -368,13 +352,11 @@ inline static void *Expand_And_Align(
 }
 
 
-/* make a copy of the argument
- * arg referes to return value when idx = 0
- * function args start from idx = 1
- *
- * @ptrs is an array with a length of number of arguments of @rot
- *
- * */
+//
+// Convert a Rebol value into a bit pattern suitable for the expectations of
+// the FFI for how a C argument would be represented.  (e.g. turn an
+// INTEGER! into the appropriate representation of an `int` in memory.)
+//
 static REBUPT arg_to_ffi(
     REBSER *store,
     void *dest,
@@ -382,26 +364,30 @@ static REBUPT arg_to_ffi(
     const REBVAL *schema,
     const REBVAL *param
 ){
-    REBUPT offset;
+    // Only one of dest or store should be non-NULL.  This allows to write
+    // either to a known pointer of sufficient size (dest) or to a series
+    // that will expand enough to accommodate the data (store).
+    //
+    assert(store == NULL ? dest != NULL : dest == NULL);
 
 #if !defined(NDEBUG)
+    //
+    // If the value being converted has a "name"--e.g. the FFI Routine
+    // interface named it in the spec--then `param` contains that name, for
+    // reporting any errors in the conversion.
+    //
+    // !!! Shouldn't the argument have already had its type checked by the
+    // calling process?
+    //
     if (param)
         assert(arg != NULL && IS_TYPESET(param));
     else
         assert(arg == NULL); // return value, so just make space (no arg data)
-
-    // Only one of dest or store should be non-NULL.  This allows to write
-    // either to a known pointer of sufficient size (dest) or to a series
-    // that will expand enough to accomodate the data (store).
-    //
-    if (store == NULL)
-        assert(dest != NULL);
-    else
-        assert(dest == NULL);
 #endif
 
     struct Reb_Frame *frame_ = FS_TOP; // So you can use the D_xxx macros
 
+    REBUPT offset;
     if (!dest)
         offset = 0;
 
@@ -461,8 +447,7 @@ static REBUPT arg_to_ffi(
     assert(IS_INTEGER(schema));
 
     switch (VAL_INT32(schema)) {
-    case FFI_TYPE_UINT8:
-        {
+    case FFI_TYPE_UINT8:{
         u8 u;
         if (!dest)
             dest = Expand_And_Align(&offset, store, sizeof(u));
@@ -473,11 +458,9 @@ static REBUPT arg_to_ffi(
 
         u = cast(u8, VAL_INT64(arg));
         memcpy(dest, &u, sizeof(u));
-        }
-        break;
+        break;}
 
-    case FFI_TYPE_SINT8:
-        {
+    case FFI_TYPE_SINT8:{
         i8 i;
         if (!dest)
             dest = Expand_And_Align(&offset, store, sizeof(i));
@@ -488,11 +471,9 @@ static REBUPT arg_to_ffi(
 
         i = cast(i8, VAL_INT64(arg));
         memcpy(dest, &i, sizeof(i));
-        }
-        break;
+        break;}
 
-    case FFI_TYPE_UINT16:
-        {
+    case FFI_TYPE_UINT16:{
         u16 u;
         if (!dest)
             dest = Expand_And_Align(&offset, store, sizeof(u));
@@ -503,11 +484,9 @@ static REBUPT arg_to_ffi(
 
         u = cast(u16, VAL_INT64(arg));
         memcpy(dest, &u, sizeof(u));
-        }
-        break;
+        break;}
 
-    case FFI_TYPE_SINT16:
-        {
+    case FFI_TYPE_SINT16:{
         i16 i;
         if (!dest)
             dest = Expand_And_Align(&offset, store, sizeof(i));
@@ -518,11 +497,9 @@ static REBUPT arg_to_ffi(
 
         i = cast(i16, VAL_INT64(arg));
         memcpy(dest, &i, sizeof(i));
-        }
-        break;
+        break;}
 
-    case FFI_TYPE_UINT32:
-        {
+    case FFI_TYPE_UINT32:{
         u32 u;
         if (!dest)
             dest = Expand_And_Align(&offset, store, sizeof(u));
@@ -533,11 +510,9 @@ static REBUPT arg_to_ffi(
 
         u = cast(u32, VAL_INT64(arg));
         memcpy(dest, &u, sizeof(u));
-        }
-        break;
+        break;}
 
-    case FFI_TYPE_SINT32:
-        {
+    case FFI_TYPE_SINT32:{
         i32 i;
         if (!dest)
             dest = Expand_And_Align(&offset, store, sizeof(i));
@@ -548,12 +523,10 @@ static REBUPT arg_to_ffi(
 
         i = cast(i32, VAL_INT64(arg));
         memcpy(dest, &i, sizeof(i));
-        }
-        break;
+        break;}
 
     case FFI_TYPE_UINT64:
-    case FFI_TYPE_SINT64:
-        {
+    case FFI_TYPE_SINT64:{
         if (!dest)
             dest = Expand_And_Align(&offset, store, sizeof(REBI64));
         if (!arg) break;
@@ -562,10 +535,9 @@ static REBUPT arg_to_ffi(
             fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
 
         memcpy(dest, &VAL_INT64(arg), sizeof(REBI64));
-        }
-        break;
+        break;}
 
-    case FFI_TYPE_POINTER: {
+    case FFI_TYPE_POINTER:{
         //
         // Note: Function pointers and data pointers may not be same size.
         //
@@ -574,17 +546,14 @@ static REBUPT arg_to_ffi(
         if (!arg) break;
 
         switch (VAL_TYPE(arg)) {
-        case REB_INTEGER:
-            {
+        case REB_INTEGER:{
             REBIPT ipt = VAL_INT64(arg); // REBIPT is like C99's intptr_t
             memcpy(dest, &VAL_INT64(arg), sizeof(void*));
-            }
-            break;
+            break;}
 
         case REB_STRING:
         case REB_BINARY:
-        case REB_VECTOR:
-            {
+        case REB_VECTOR:{
             // !!! This is a questionable idea, giving out pointers directly
             // into Rebol series data.  One issue is that the recipient of
             // the data doesn't know whether to interpret it as REBYTE[] or as
@@ -596,24 +565,22 @@ static REBUPT arg_to_ffi(
             //
             REBYTE *raw_ptr = VAL_RAW_DATA_AT(arg);
             memcpy(dest, &raw_ptr, sizeof(raw_ptr)); // copies a *pointer*!
-            }
-            break;
+            break;}
 
-        case REB_FUNCTION: {
+        case REB_FUNCTION:{
             if (!GET_RIN_FLAG(VAL_FUNC_ROUTINE(arg), ROUTINE_FLAG_CALLBACK))
                 fail (Error(RE_ONLY_CALLBACK_PTR));
 
             void* dispatcher = RIN_DISPATCHER(VAL_FUNC_ROUTINE(arg));
             memcpy(dest, &dispatcher, sizeof(dispatcher));
-            break; }
+            break;}
 
         default:
             fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
         }
-        break; } // end case FFI_TYPE_POINTER
+        break;} // end case FFI_TYPE_POINTER
 
-    case FFI_TYPE_FLOAT:
-        {
+    case FFI_TYPE_FLOAT:{
         float f;
         if (!dest)
             dest = Expand_And_Align(&offset, store, sizeof(f));
@@ -624,11 +591,9 @@ static REBUPT arg_to_ffi(
 
         f = cast(float, VAL_DECIMAL(arg));
         memcpy(dest, &f, sizeof(f));
-        }
-        break;
+        break;}
 
-    case FFI_TYPE_DOUBLE:
-        {
+    case FFI_TYPE_DOUBLE:{
         if (!dest)
             dest = Expand_And_Align(&offset, store, sizeof(double));
         if (!arg) break;
@@ -637,8 +602,7 @@ static REBUPT arg_to_ffi(
             fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
 
         memcpy(dest, &VAL_DECIMAL(arg), sizeof(double));
-        }
-        break;
+        break;}
 
     case FFI_TYPE_STRUCT:
         //
@@ -957,10 +921,8 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
             SER_HEAD(ffi_type*, args_fftypes) // arguments FFI types
         );
 
-        if (status != FFI_OK) {
-            //RL_Print("Couldn't prep CIF_VAR\n");
-            fail (Error(RE_MISC));
-        }
+        if (status != FFI_OK)
+            fail (Error(RE_MISC)); // Couldn't prep CIF_VAR
     }
 
     // Now that all the additions to store have been made, we want to change
@@ -982,16 +944,13 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
 
     // ** THE ACTUAL FFI CALL **
     //
-    // Note that the "offsets" are now actually pointers.  Also note that
-    // there is no mechanism to "throw" a Rebol value across an FFI boundary.
-    // If you could (e.g. by tunneling up through a callback somehow) this
-    // would set `f->mode = CALL_MODE_THROW_PENDING`.
+    // Note that the "offsets" are now actually pointers.
     {
         SET_VOID(&Callback_Error); // !!! guarantee it's already void?
 
         ffi_call(
             SER_HEAD(ffi_cif, cif),
-            RIN_FUNCPTR(rin),
+            RIN_CFUNC(rin),
             ret_offset, // actually a real pointer now (no longer an offset)
             (num_args == 0)
                 ? NULL
@@ -1084,19 +1043,16 @@ static void callback_dispatcher(
     // the arguments will be the remaining values.
     //
     REBARR *code = Make_Array(1 + cif->nargs);
-    {
-        RELVAL *elem = ARR_HEAD(code);
-        *elem = *FUNC_VALUE(RIN_CALLBACK_FUNC(rin));
-        ++elem;
+    RELVAL *elem = ARR_HEAD(code);
+    *elem = *FUNC_VALUE(RIN_CALLBACK_FUNC(rin));
+    ++elem;
 
-        REBCNT i;
-        for (i = 0; i < cif->nargs; ++i, ++elem)
-            ffi_to_rebol(SINK(elem), RIN_ARG_SCHEMA(rin, i), args[i]);
+    REBCNT i;
+    for (i = 0; i < cif->nargs; ++i, ++elem)
+        ffi_to_rebol(SINK(elem), RIN_ARG_SCHEMA(rin, i), args[i]);
 
-        SET_ARRAY_LEN(code, 1 + cif->nargs);
-        TERM_ARRAY(code);
-    }
-
+    SET_ARRAY_LEN(code, 1 + cif->nargs);
+    TERM_ARRAY(code);
     MANAGE_ARRAY(code); // DO requires managed arrays (guarded while running)
 
     REBVAL result;
@@ -1122,217 +1078,84 @@ static void callback_dispatcher(
 
 
 //
-//  MT_Routine: C
+//  Alloc_Ffi_Function_For_Spec: C
 // 
-// format:
-// make routine! [[
+// This allocates a REBFUN designed for using with the FFI--though it does
+// not fill in the actual code to call.  That is done by the caller, which
+// needs to be done differently if it runs a C function (routine) or if it
+// makes Rebol code callable as if it were a C function (callback).
+//
+// It has a HANDLE! holding a Routine INfo structure (RIN) which describes
+// the FFI argument types.  For callbacks, this cannot be automatically
+// deduced from the parameters of the Rebol function it wraps--because there
+// are multiple possible mappings (e.g. differently sized C types all of
+// which are passed in from Rebol's INTEGER!)
+//
+// The spec format is a block which is similar to the spec for functions:
+//
+// [
 //     "document"
 //     arg1 [type1 type2] "note"
 //     arg2 [type3] "note"
 //     ...
 //     argn [typen] "note"
 //     return: [type] "note"
-//     abi: word "note"
-// ] lib "name"]
+// ]
 //
-REBOOL MT_Routine(
-    REBVAL *out,
-    RELVAL *data,
-    REBCTX *specifier,
-    REBOOL is_callback
-) {
-    if (!IS_BLOCK(data))
-        return FALSE;
-
-    RELVAL *blk = NULL;
-    REBCNT eval_idx = 0; /* for spec block evaluation */
-    CFUNC *func = NULL;
-    REBCNT n = 0; // args start at 0 (return value is separate, RET_FFTYPE)
-    REBCNT has_return = 0;
-    REBCNT has_abi = 0;
-    REBVAL *temp;
-
-    // !!! This code has a challenging property with the new invariant, that
-    // a function is created in a single step from a paramlist and a
-    // dispatcher.  The challenging property is that in order to GC protect
-    // a routine as it is being built, its "REBRIN" must be called out to
-    // the GC...which is done by being part of a routine.  But since
-    // evaluations happen during the building to make the paramlist, this
-    // is a Catch-22.
-    //
-    // Specific binding branch has an implementation that sorts this out, but
-    // may alter other behaviors.  In the meantime this is left building the
-    // function internals by hand.
-
-    VAL_RESET_HEADER(out, REB_FUNCTION);
-
-    REBARR* body_array = Make_Singular_Array(BLANK_VALUE);
-    out->payload.function.body = body_array;
-    MANAGE_ARRAY(body_array);
-    assert(IS_BLANK(VAL_FUNC_BODY(out)));
-
-    ARR_SERIES(body_array)->misc.dispatcher = &Routine_Dispatcher;
-    assert(VAL_FUNC_DISPATCHER(out) == &Routine_Dispatcher);
+REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec) {
+    assert(IS_BLOCK(ffi_spec));
 
     REBRIN *r = cast(REBRIN*, Make_Node(RIN_POOL));
+    r->flags = 0;
+    SET_RIN_FLAG(r, ROUTINE_FLAG_USED); // so pooled node knows it's in use
+    r->abi = FFI_DEFAULT_ABI;
 
-    VAL_RESET_HEADER(VAL_FUNC_BODY(out), REB_HANDLE);
-    VAL_HANDLE_DATA(VAL_FUNC_BODY(out)) = cast(REBRIN*, r);
-
-    memset(r, 0, sizeof(REBRIN));
-    SET_RIN_FLAG(r, ROUTINE_FLAG_USED);
-
-    if (is_callback)
-        SET_RIN_FLAG(r, ROUTINE_FLAG_CALLBACK);
-
-#define N_ARGS 8
-
-    // !!! Routines use different spec logic than the other generators.
-
-    out->payload.function.func = AS_FUNC(Make_Array(N_ARGS));
-
-    VAL_FUNC_META(out) = NULL; /* Copy_Array_Shallow(VAL_ARRAY(data)) */
-
-    out->payload.function.func = AS_FUNC(Make_Array(N_ARGS));
-
-    // first slot is reserved for the "self", see `struct Reb_Func`
-    //
-    temp = Alloc_Tail_Array(FUNC_PARAMLIST(out->payload.function.func));
-    *temp = *out;
-
-    // NONE! in the ret schema slot means ffi_type_void (the default if no
-    // return: is specified).  It is not generally a legal "schema", but
-    // used in the return slot because it's special (allowed to be void)
-    //
     INIT_CELL_WRITABLE_IF_DEBUG(RIN_RET_SCHEMA(r));
-    SET_BLANK(RIN_RET_SCHEMA(r));
+    SET_BLANK(RIN_RET_SCHEMA(r)); // blank means returns void (the default)
 
-    INIT_RIN_ABI(r, FFI_DEFAULT_ABI);
-    RIN_LIB(r) = NULL;
+    const REBCNT capacity_guess = 8; // !!! Magic number...why 8? (can grow)
 
-    blk = VAL_ARRAY_AT(data);
+    REBARR *paramlist = Make_Array(capacity_guess);
 
-    MANAGE_ARRAY(VAL_FUNC_PARAMLIST(out));
+    // first slot is reserved for the "canon value", see `struct Reb_Function`
+    //
+    REBVAL *rootparam = Alloc_Tail_Array(paramlist);
 
-    r->args_schemas = Make_Array(N_ARGS);
+    // arguments can be complex, defined as structures.  A "schema" is a
+    // REBVAL that holds either an INTEGER! for simple types, or a HANDLE!
+    // for compound ones.
+    //
+    // Note that in order to avoid deep walking the schemas after construction
+    // to convert them from unmanaged to managed, they are managed at the
+    // time of creation.  This means that the array of them has to be
+    // guarded across any evaluations, since the routine being built is not
+    // ready for GC visibility.
+    //
+    // !!! Should the spec analysis be allowed to do evaluation? (it does)
+    //
+    r->args_schemas = Make_Array(capacity_guess);
     MANAGE_ARRAY(r->args_schemas);
+    PUSH_GUARD_ARRAY(r->args_schemas);
 
-    if (!is_callback) {
-        REBIXO indexor = 0;
+    REBCNT num_fixed = 0; // number of fixed (non-variadic) arguments
 
-        if (!IS_BLOCK(&blk[0]))
-            fail (Error_Unexpected_Type(REB_BLOCK, VAL_TYPE(&blk[0])));
+    RELVAL *item = VAL_ARRAY_AT(ffi_spec);
+    for (; NOT_END(item); ++item) {
+        if (IS_STRING(item))
+            continue; // !!! TBD: extract FUNC_META information from spec notes
 
-        REBVAL lib;
-        indexor = DO_NEXT_MAY_THROW(&lib, VAL_ARRAY(data), 1, specifier);
-
-        if (indexor == THROWN_FLAG)
-            fail (Error_No_Catch_For_Throw(&lib));
-
-        if (IS_INTEGER(&lib)) {
-            if (indexor != END_FLAG)
-                fail (Error_Invalid_Arg(KNOWN(&blk[cast(REBCNT, indexor)])));
-
-            //treated as a pointer to the function
-            if (VAL_INT64(&lib) == 0)
-                fail (Error_Invalid_Arg(&lib));
-
-            // Cannot cast directly to a function pointer from a 64-bit value
-            // on 32-bit systems; first cast to int that holds Unsigned PoinTer
-            //
-            RIN_FUNCPTR(r) = cast(CFUNC*, cast(REBUPT, VAL_INT64(&lib)));
-        }
-        else {
-            REBSER *byte_sized;
-            REBCNT b_index;
-            REBCNT b_len;
-            REBCNT fn_idx = cast(REBCNT, indexor);
-
-            if (!IS_LIBRARY(&lib))
-                fail (Error_Invalid_Arg(&lib));
-
-            if (!IS_STRING(&blk[fn_idx]))
-                fail (Error_Invalid_Arg(KNOWN(&blk[fn_idx])));
-
-            if (NOT_END(&blk[fn_idx + 1]))
-                fail (Error_Invalid_Arg(KNOWN(&blk[fn_idx + 1])));
-
-            RIN_LIB(r) = VAL_LIB_HANDLE(&lib);
-            if (RIN_LIB(r) == NULL)
-                fail (Error_Invalid_Arg(&lib));
-
-            TERM_SEQUENCE(VAL_SERIES(&blk[fn_idx]));
-
-            // OS_FIND_FUNCTION takes a char* on both Windows and Posix.  The
-            // string that gets here could be REBUNI wide or BYTE_SIZE(), so
-            // make sure it's turned into a char* before passing.
-            //
-            // !!! Should it error if any bytes need to be UTF8 encoded?
-            //
-            b_index = VAL_INDEX(&blk[fn_idx]);
-            b_len = VAL_LEN_AT(&blk[fn_idx]);
-            byte_sized = Temp_Bin_Str_Managed(
-                KNOWN(&blk[fn_idx]), &b_index, &b_len
-            );
-
-            func = OS_FIND_FUNCTION(
-                LIB_FD(RIN_LIB(r)),
-                SER_HEAD(char, byte_sized)
-            );
-
-            if (!func) {
-                //printf("Couldn't find function: %s\n", VAL_DATA_AT(&blk[2]));
-                fail (Error_Invalid_Arg(KNOWN(&blk[fn_idx])));
-            }
-
-            RIN_FUNCPTR(r) = func;
-        }
-    }
-    else {
-        REBIXO indexor = 0;
-
-        if (!IS_BLOCK(&blk[0]))
-            fail (Error_Invalid_Arg(KNOWN(&blk[0])));
-
-        REBVAL fun;
-        indexor = DO_NEXT_MAY_THROW(&fun, VAL_ARRAY(data), 1, specifier);
-
-        if (indexor == THROWN_FLAG)
-            fail (Error_No_Catch_For_Throw(&fun));
-
-        if (!IS_FUNCTION(&fun))
-            fail (Error_Invalid_Arg(&fun));
-
-        RIN_CALLBACK_FUNC(r) = VAL_FUNC(&fun);
-
-        if (indexor != END_FLAG)
-            fail (Error_Invalid_Arg(KNOWN(&blk[cast(REBCNT, indexor)])));
-    }
-
-
-
-    blk = VAL_ARRAY_AT(&blk[0]);
-    for (; NOT_END(blk); ++blk) {
-        if (IS_STRING(blk)) {
-            // Notes in the spec, ignore them
-            continue;
-        }
-
-        switch (VAL_TYPE(blk)) {
-        case REB_WORD:
-            {
+        switch (VAL_TYPE(item)) {
+        case REB_WORD:{
             REBVAL *v = NULL;
-            REBSYM sym = VAL_WORD_SYM(blk);
+            REBSYM sym = VAL_WORD_SYM(item);
 
-            if (SAME_SYM(sym, SYM_ELLIPSIS)) {
-                if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC)) {
-                    // duplicate ellipsis
-                    fail (Error_Invalid_Arg(KNOWN(blk)));
-                }
+            if (SAME_SYM(sym, SYM_ELLIPSIS)) { // variadic
+                if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC))
+                    fail (Error_Invalid_Arg(KNOWN(item))); // duplicate "..."
 
                 SET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC);
 
-                REBVAL *param = Alloc_Tail_Array(VAL_FUNC_PARAMLIST(out));
+                REBVAL *param = Alloc_Tail_Array(paramlist);
 
                 // Currently the rule is that if VARARGS! is itself a valid
                 // parameter type, then the varargs will not chain.  We want
@@ -1347,146 +1170,58 @@ REBOOL MT_Routine(
                 SET_VAL_FLAG(param, TYPESET_FLAG_VARIADIC);
                 INIT_VAL_PARAM_CLASS(param, PARAM_CLASS_NORMAL);
             }
-            else {
-                if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC)) {
-                    //... has to be the last argument
-                    fail (Error_Invalid_Arg(KNOWN(blk)));
-                }
+            else { // ordinary argument
+                if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC))
+                    fail (Error_Invalid_Arg(KNOWN(item))); // variadic is final
 
-                REBVAL *param = Alloc_Tail_Array(VAL_FUNC_PARAMLIST(out));
+                REBVAL *param = Alloc_Tail_Array(paramlist);
 
-                ++blk;
+                ++item;
+
+                REBVAL block;
+                COPY_VALUE(&block, item, VAL_SPECIFIER(ffi_spec));
+
                 Schema_From_Block_May_Fail(
                     Alloc_Tail_Array(r->args_schemas), // schema (out)
                     param, // param (out)
-                    KNOWN(blk) // block (in)
+                    &block // block (in)
                 );
 
                 VAL_TYPESET_SYM_INIT(param, sym);
                 INIT_VAL_PARAM_CLASS(param, PARAM_CLASS_NORMAL);
-                ++n;
+                ++num_fixed;
             }
-            }
-            break;
+            break;}
 
         case REB_SET_WORD:
-            switch (VAL_WORD_CANON(blk)) {
-            case SYM_ABI:
-                ++blk;
-                if (!IS_WORD(blk) || has_abi > 1)
-                    fail (Error_Invalid_Arg(KNOWN(blk)));
+            switch (VAL_WORD_CANON(item)) {
+            case SYM_RETURN:{
+                if (!IS_BLANK(RIN_RET_SCHEMA(r)))
+                    fail (Error_Invalid_Arg(KNOWN(item))); // already a RETURN:
 
-                switch (VAL_WORD_CANON(blk)) {
-                case SYM_DEFAULT:
-                    INIT_RIN_ABI(r, FFI_DEFAULT_ABI);
-                    break;
+                ++item;
 
-    #ifdef X86_WIN64
-
-                case SYM_WIN64:
-                    INIT_RIN_ABI(r, FFI_WIN64);
-                    break;
-
-    #elif defined(X86_WIN32) || defined(TO_LINUX_X86) || defined(TO_LINUX_X64)
-
-                case SYM_STDCALL:
-                    INIT_RIN_ABI(r, FFI_STDCALL);
-                    break;
-
-                case SYM_SYSV:
-                    INIT_RIN_ABI(r, FFI_SYSV);
-                    break;
-
-                case SYM_THISCALL:
-                    INIT_RIN_ABI(r, FFI_THISCALL);
-                    break;
-
-                case SYM_FASTCALL:
-                    INIT_RIN_ABI(r, FFI_FASTCALL);
-                    break;
-
-            #ifdef X86_WIN32
-                case SYM_MS_CDECL:
-                    INIT_RIN_ABI(r, FFI_MS_CDECL);
-                    break;
-            #else
-                case SYM_UNIX64:
-                    INIT_RIN_ABI(r, FFI_UNIX64);
-                    break;
-            #endif //X86_WIN32
-
-    #elif defined (TO_LINUX_ARM)
-
-                case SYM_VFP:
-                    INIT_RIN_ABI(r, FFI_VFP);
-                    break;
-
-                case SYM_SYSV:
-                    INIT_RIN_ABI(r, FFI_SYSV);
-                    break;
-
-    #elif defined (TO_LINUX_MIPS)
-
-                case SYM_O32:
-                    INIT_RIN_ABI(r, FFI_O32);
-                    break;
-
-                case SYM_N32:
-                    INIT_RIN_ABI(r, FFI_N32);
-                    break;
-
-                case SYM_N64:
-                    INIT_RIN_ABI(r, FFI_N64);
-                    break;
-
-                case SYM_O32_SOFT_FLOAT:
-                    INIT_RIN_ABI(r, FFI_O32_SOFT_FLOAT);
-                    break;
-
-                case SYM_N32_SOFT_FLOAT:
-                    INIT_RIN_ABI(r, FFI_N32_SOFT_FLOAT);
-                    break;
-
-                case SYM_N64_SOFT_FLOAT:
-                    INIT_RIN_ABI(r, FFI_N64_SOFT_FLOAT);
-                    break;
-
-    #endif //X86_WIN64
-
-                default:
-                    fail (Error_Invalid_Arg(KNOWN(blk)));
-                }
-                ++has_abi;
-                break; // case SYM_ABI
-
-            case SYM_RETURN:
-                {
-                if (has_return > 1)
-                    fail (Error_Invalid_Arg(KNOWN(blk)));
-
-                ++has_return;
-                ++blk;
+                REBVAL block;
+                COPY_VALUE(&block, item, VAL_SPECIFIER(ffi_spec));
 
                 REBVAL param;
                 Schema_From_Block_May_Fail(
                     RIN_RET_SCHEMA(r),
                     &param, // dummy (a return/output has no arg to typecheck)
-                    KNOWN(blk)
+                    &block
                 );
-                }
-                break;
+                break;}
 
             default:
-                fail (Error_Invalid_Arg(KNOWN(blk)));
+                fail (Error_Invalid_Arg(KNOWN(item)));
             }
             break;
 
         default:
-            fail (Error_Invalid_Arg(KNOWN(blk)));
+            fail (Error_Invalid_Arg(KNOWN(item)));
         }
     }
 
-    REBCNT num_fixed = n;
     SET_ARRAY_LEN(r->args_schemas, num_fixed);
     TERM_ARRAY(r->args_schemas);
     ASSERT_ARRAY(r->args_schemas);
@@ -1530,7 +1265,7 @@ REBOOL MT_Routine(
                     ? NULL
                     : SER_HEAD(ffi_type*, r->args_fftypes)
             )
-        ) {
+        ){
             fail (Error(RE_MISC)); // !!! Couldn't prep cif...
         }
 
@@ -1539,51 +1274,137 @@ REBOOL MT_Routine(
             MANAGE_SERIES(r->args_fftypes); // must have same lifetime as cif
     }
 
-    if (is_callback) {
-        ffi_closure* closure = cast(ffi_closure*, ffi_closure_alloc(
-            sizeof(ffi_closure), &RIN_DISPATCHER(r)
-        ));
+    DROP_GUARD_ARRAY(r->args_schemas);
 
-        if (closure == NULL)
-            fail (Error(RE_MISC)); // couldn't allocate closure
+    // Now fill in the canon value of the paramlist so it is an actual "REBFUN"
+    //
+    VAL_RESET_HEADER(rootparam, REB_FUNCTION);
+    rootparam->payload.function.func = AS_FUNC(paramlist);
+    rootparam->payload.function.exit_from = NULL;
 
-        INIT_RIN_CLOSURE(r, closure);
+    // The "body" value of a routine is a handle which points to the routine
+    // info.  This is available to the Routine_Dispatcher when the function
+    // gets called.
+    //
+    MANAGE_ARRAY(paramlist);
+    REBFUN *fun = Make_Function(paramlist, &Routine_Dispatcher);
+    SET_HANDLE_DATA(FUNC_BODY(fun), cast(REBRIN*, r));
 
-        ffi_status status;
+    FUNC_META(fun) = NULL; // lives on paramlist
 
-        if (
-            FFI_OK != ffi_prep_closure_loc(
-                RIN_CLOSURE(r),
-                SER_HEAD(ffi_cif, r->cif),
-                callback_dispatcher,
-                r,
-                RIN_DISPATCHER(r)
-            )
-        ) {
-            fail (Error(RE_MISC)); // couldn't prep closure
-        }
-    }
-
-    return TRUE;
+    return fun; // still needs to have function or callback info added!
 }
 
 
 //
 //  make-routine: native [
 //
-//  {Native for creating the FUNCTION! for what was once ROUTINE!}
+//  {Create a bridge for interfacing with arbitrary C code in a DLL}
 //
-//      def [block!]
+//      lib [library!]
+//          {Library DLL that function lives in (get with MAKE LIBRARY!)}
+//      name [string!]
+//          {Linker name of the function in the DLL}
+//      ffi-spec [block!]
+//          {Description of what C argument types the function takes}
+//      /abi
+//          {Specify the Application Binary Interface (vs. using default)}
+//      abi-type [word!]
+//          {'CDECL, 'FASTCALL, 'STDCALL, etc.}
 //  ]
 //
 REBNATIVE(make_routine)
+//
+// !!! Would be nice if this could just take a filename and the lib management
+// was automatic, e.g. no LIBRARY! type.
 {
-    PARAM(1, def);
+    PARAM(1, lib);
+    PARAM(2, name);
+    PARAM(3, ffi_spec);
+    REFINE(4, abi);
+    PARAM(5, abi_type);
 
-    const REBOOL is_callback = FALSE;
+    // Make sure library wasn't closed with CLOSE
+    //
+    REBLHL *lib = VAL_LIB_HANDLE(ARG(lib));
+    if (lib == NULL)
+        fail (Error_Invalid_Arg(ARG(lib)));
 
-    MT_Routine(D_OUT, ARG(def), SPECIFIED, is_callback);
+    // Try to find the C function pointer in the DLL, if it's there.
+    // OS_FIND_FUNCTION takes a char* on both Windows and Posix.  The
+    // string that gets here could be REBUNI wide or BYTE_SIZE(), so
+    // make sure it's turned into a char* before passing.
+    //
+    // !!! Should it error if any bytes need to be UTF8 encoded?
+    //
+    REBVAL *name = ARG(name);
+    REBCNT b_index = VAL_INDEX(name);
+    REBCNT b_len = VAL_LEN_AT(name);
+    REBSER *byte_sized = Temp_Bin_Str_Managed(name, &b_index, &b_len);
 
+    CFUNC *cfunc = OS_FIND_FUNCTION(LIB_FD(lib), SER_HEAD(char, byte_sized));
+    if (!cfunc)
+        fail (Error_Invalid_Arg(ARG(name))); // couldn't find function
+
+    // Process the parameter types into a function, then fill it in
+
+    REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec));
+    REBRIN *r = FUNC_ROUTINE(fun);
+
+    if (REF(abi))
+        r->abi = Abi_From_Word(ARG(abi_type));
+
+    r->code.routine.cfunc = cfunc;
+    r->code.routine.lib = lib;
+
+    *D_OUT = *FUNC_VALUE(fun);
+    return R_OUT;
+}
+
+
+//
+//  make-routine-raw: native [
+//
+//  {Create a bridge for interfacing with a C function, by pointer}
+//
+//      pointer [integer!]
+//          {Raw address of function in memory}
+//      ffi-spec [block!]
+//          {Description of what C argument types the function takes}
+//      /abi
+//          {Specify the Application Binary Interface (vs. using default)}
+//      abi-type [word!]
+//          {'CDECL, 'FASTCALL, 'STDCALL, etc.}
+//  ]
+//
+REBNATIVE(make_routine_raw)
+//
+// !!! Would be nice if this could just take a filename and the lib management
+// was automatic, e.g. no LIBRARY! type.
+{
+    PARAM(1, pointer);
+    PARAM(2, ffi_spec);
+    REFINE(3, abi);
+    PARAM(4, abi_type);
+
+    // Cannot cast directly to a function pointer from a 64-bit value
+    // on 32-bit systems; first cast to (U)nsigned int that holds (P)oin(T)er
+    //
+    CFUNC *cfunc = cast(CFUNC*, cast(REBUPT, VAL_INT64(ARG(pointer))));
+
+    if (cfunc == NULL)
+        fail (Error_Invalid_Arg(ARG(pointer)));
+
+    REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec));
+    REBRIN *r = FUNC_ROUTINE(fun);
+
+    if (REF(abi))
+        r->abi = Abi_From_Word(ARG(abi_type));
+
+    r->code.routine.cfunc = cfunc;
+    r->code.routine.lib = NULL;
+
+    *D_OUT = *FUNC_VALUE(fun);
     return R_OUT;
 }
 
@@ -1591,18 +1412,56 @@ REBNATIVE(make_routine)
 //
 //  make-callback: native [
 //
-//  {Native for creating the FUNCTION! for what was once CALLBACK!}
+//  {Wrap function so it can be called in raw C code with a function pointer.}
 //
-//      def [block!]
+//      action [function!]
+//          {The existing Rebol function whose functionality is being wrapped}
+//      ffi-spec [block!]
+//          {Description of what C types each Rebol argument should map to}
+//      /abi
+//          {Specify the Application Binary Interface (vs. using default)}
+//      abi-type [word!]
+//          {'CDECL, 'FASTCALL, 'STDCALL, etc.}
 //  ]
 //
 REBNATIVE(make_callback)
 {
-    PARAM(1, def);
+    PARAM(1, action);
+    PARAM(2, ffi_spec);
+    REFINE(3, abi);
+    PARAM(4, abi_type); // void if absent
 
-    const REBOOL is_callback = TRUE;
+    REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec));
+    REBRIN *r = FUNC_ROUTINE(fun);
 
-    MT_Routine(D_OUT, ARG(def), SPECIFIED, is_callback);
+    if (REF(abi))
+        r->abi = Abi_From_Word(ARG(abi_type));
 
+    RIN_CALLBACK_FUNC(r) = VAL_FUNC(ARG(action));
+
+    r->code.callback.closure = cast(ffi_closure*, ffi_closure_alloc(
+        sizeof(ffi_closure), &RIN_DISPATCHER(r)
+    ));
+
+    if (RIN_CLOSURE(r) == NULL)
+        fail (Error(RE_MISC)); // couldn't allocate closure
+
+    ffi_status status;
+
+    if (
+        FFI_OK != ffi_prep_closure_loc(
+            RIN_CLOSURE(r),
+            SER_HEAD(ffi_cif, r->cif),
+            callback_dispatcher,
+            r,
+            RIN_DISPATCHER(r)
+        )
+    ){
+        fail (Error(RE_MISC)); // couldn't prep closure
+    }
+
+    SET_RIN_FLAG(r, ROUTINE_FLAG_CALLBACK);
+
+    *D_OUT = *FUNC_VALUE(fun);
     return R_OUT;
 }

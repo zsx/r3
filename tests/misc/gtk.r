@@ -18,63 +18,51 @@ libgob: try/except [
     make library! %libgobject-2.0.so.0
 ]
 
-gtk-init: make routine! compose [
-    [
+gtk-init:
+    make-routine libgtk "gtk_init" [
         argc [pointer]
         argv [pointer]
     ]
-    (libgtk) "gtk_init"
-]
-gtk-window-new: make routine! compose [
-    [
+
+gtk-window-new:
+    make-routine libgtk "gtk_window_new" [
         type [int32]
         return: [pointer]
     ]
-    (libgtk) "gtk_window_new"
-]
 
-gtk-window-set-default-size: make-routine compose [
-    [
+gtk-window-set-default-size:
+    make-routine libgtk "gtk_window_set_default_size" [
         windown [pointer]
         width    [int32]
         height    [int32]
         return: [void]
     ]
-    (libgtk) "gtk_window_set_default_size"
-]
 
-gtk-window-set-resizable: make-routine compose [
-    [
+gtk-window-set-resizable:
+    make-routine libgtk "gtk_window_set_resizable" [
         window [pointer]
         resizable [int32]
         return: [void]
     ]
-    (libgtk) "gtk_window_set_resizable"
-]
 
-gtk-window-set-title: make-routine compose [
-    [
+gtk-window-set-title:
+    make-routine libgtk "gtk_window_set_title" [
         win [pointer]
         title [pointer]
     ]
-    (libgtk) "gtk_window_set_title"
-]
 
-gtk-widget-show: make-routine compose [
-    [
+gtk-widget-show:
+    make-routine libgtk "gtk_widget_show" [
         widget [pointer]
     ]
-    (libgtk) "gtk_widget_show"
-]
-gtk-hbox-new: make-routine compose [
-    [
+
+gtk-hbox-new:
+    make-routine libgtk "gtk_hbox_new" [
         return: [pointer]
     ]
-    (libgtk) "gtk_hbox_new"
-]
 
-gtk-box-pack-start: make-routine compose [
-    [
+gtk-box-pack-start:
+    make-routine libgtk "gtk_box_pack_start" [
         box [pointer]
         child [pointer]
         expand [uint8]
@@ -82,74 +70,55 @@ gtk-box-pack-start: make-routine compose [
         padding [uint32]
         return: [pointer]
     ]
-    (libgtk) "gtk_box_pack_start"
-]
 
-gtk-box-set-spacing: make-routine compose [
-    [
+gtk-box-set-spacing:
+    make-routine libgtk "gtk_box_set_spacing" [
         box [pointer]
         spacing [int32]
         return: [void]
     ]
-    (libgtk) "gtk_box_set_spacing"
-]
 
-gtk-box-get-spacing: make-routine compose [
-    [
+gtk-box-get-spacing:
+    make-routine libgtk "gtk_box_get_spacing" [
         box [pointer]
         return: [int32]
     ]
-    (libgtk) "gtk_box_get_spacing"
-]
 
-gtk-toggle-button-new-with-label: make-routine compose [
-    [
+gtk-toggle-button-new-with-label:
+    make-routine libgtk "gtk_toggle_button_new_with_label" [
         label [pointer]
         return: [pointer]
     ]
-    (libgtk) "gtk_toggle_button_new_with_label"
-]
 
-gtk-font-button-new: make-routine compose [
-    [
+gtk-font-button-new:
+    make-routine libgtk "gtk_font_button_new" [
         return: [pointer]
     ]
-    (libgtk) "gtk_font_button_new"
-]
-gtk-font-chooser-widget-new: make-routine compose [
-    [
+
+gtk-font-chooser-widget-new:
+    make-routine libgtk "gtk_font_chooser_widget_new" [
         return: [pointer]
     ]
-    (libgtk) "gtk_font_chooser_widget_new"
-]
-gtk-font-chooser-set-font: make-routine compose [
-    [
+
+gtk-font-chooser-set-font:
+    make-routine libgtk "gtk_font_chooser_set_font" [
         fontchooser [pointer]
         fontname [pointer]
     ]
-    (libgtk) "gtk_font_chooser_set_font"
-]
 
-gtk-color-button-new: make-routine compose [
-    [
+gtk-color-button-new:
+    make-routine libgtk "gtk_color_button_new" [
         return: [pointer]
     ]
-    (libgtk) "gtk_color_button_new"
-]
 
-gtk-main: make-routine compose [
-    [
-    ]
-    (libgtk) "gtk_main"
-]
-gtk-main-quit: make-routine compose [
-    [
-    ]
-    (libgtk) "gtk_main_quit"
-]
+gtk-main:
+    make-routine libgtk "gtk_main" []
 
-g-signal-connect-data: make-routine compose [
-    [
+gtk-main-quit:
+    make-routine libgtk "gtk_main_quit" []
+
+g-signal-connect-data:
+    make-routine libgob "g_signal_connect_data" [
         instance [pointer]
         detailed-signal [pointer]
         c-handler [pointer]
@@ -158,8 +127,6 @@ g-signal-connect-data: make-routine compose [
         connect-flags [int32]
         return: [int64]
     ]
-    (libgob) "g_signal_connect_data"
-]
 
 g-signal-connect: func [
     instance [integer!]
@@ -170,29 +137,23 @@ g-signal-connect: func [
     g-signal-connect-data instance detailed-signal c-handler data 0 0
 ]
 
-gtk-button-new-with-label: make-routine compose [
-    [
+gtk-button-new-with-label:
+    make-routine libgtk "gtk_button_new_with_label" [
         label [pointer]
         return: [pointer]
     ]
-    (libgtk) "gtk_button_new_with_label"
-]
 
-gtk-button-set-label: make-routine compose [
-    [
+gtk-button-set-label:
+    make-routine libgtk "gtk_button_set_label" [
         button [pointer]
         label [pointer]
     ]
-    (libgtk) "gtk_button_set_label"
-]
 
-gtk-container-add: make-routine compose [
-    [
+gtk-container-add:
+    make-routine libgtk "gtk_container_add" [
         container [pointer]
         elem      [pointer]
     ]
-    (libgtk) "gtk_container_add"
-]
 
 init-gtk: function [app] [
     arg0: make struct! compose/deep [

@@ -1249,24 +1249,23 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Libs(void)
 //
 ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Routines(void)
 {
-    REBSEG  *seg;
-    REBRIN  *info;
-    REBCNT  n;
-    REBCNT  count = 0;
+    REBCNT count = 0;
 
+    REBSEG *seg;
     for (seg = Mem_Pools[RIN_POOL].segs; seg; seg = seg->next) {
-        info = (REBRIN *) (seg + 1);
+        REBRIN *rin = cast(REBRIN*, seg + 1);
+        REBCNT n;
         for (n = Mem_Pools[RIN_POOL].units; n > 0; n--) {
-            if (GET_RIN_FLAG(info, ROUTINE_FLAG_USED)) {
-                if (GET_RIN_FLAG(info, ROUTINE_FLAG_MARK))
-                    CLEAR_RIN_FLAG(info, ROUTINE_FLAG_MARK);
+            if (GET_RIN_FLAG(rin, ROUTINE_FLAG_USED)) {
+                if (GET_RIN_FLAG(rin, ROUTINE_FLAG_MARK))
+                    CLEAR_RIN_FLAG(rin, ROUTINE_FLAG_MARK);
                 else {
-                    CLEAR_RIN_FLAG(info, ROUTINE_FLAG_USED);
-                    Free_Routine(info);
-                    count ++;
+                    CLEAR_RIN_FLAG(rin, ROUTINE_FLAG_USED);
+                    Free_Routine(rin);
+                    ++count;
                 }
             }
-            info ++;
+            ++rin;
         }
     }
 

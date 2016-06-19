@@ -278,8 +278,8 @@ struct Reb_Routine_Info {
     union {
         struct {
             REBLHL *lib;
-            CFUNC *funcptr;
-        } rot;
+            CFUNC *cfunc;
+        } routine;
         struct {
             //
             // The closure allocation routine gives back a void* and not
@@ -289,8 +289,8 @@ struct Reb_Routine_Info {
             ffi_closure *closure;
             REBFUN *func;
             void *dispatcher;
-        } cb;
-    } info;
+        } callback;
+    } code;
 
     // Here the "schema" is either an INTEGER! (which is the FFI_TYPE constant
     // of the argument) or a HANDLE! containing a REBSER* of length 1 that
@@ -337,11 +337,11 @@ enum {
 
 // Routine Field Accessors
 
-#define RIN_FUNCPTR(r) \
-    ((r)->info.rot.funcptr)
+inline static CFUNC *RIN_CFUNC(REBRIN *r)
+    { return r->code.routine.cfunc; }
 
-#define RIN_LIB(r) \
-    ((r)->info.rot.lib)
+inline static REBLHL *RIN_LIB(REBRIN *r)
+    { return r->code.routine.lib; }
 
 #define RIN_NUM_FIXED_ARGS(r) \
     ARR_LEN((r)->args_schemas)
@@ -383,19 +383,13 @@ inline static void* SCHEMA_FFTYPE_CORE(const RELVAL *schema) {
     (&(r)->ret_schema)
 
 #define RIN_DISPATCHER(r) \
-    ((r)->info.cb.dispatcher)
+    ((r)->code.callback.dispatcher)
 
 #define RIN_CALLBACK_FUNC(r) \
-    ((r)->info.cb.func)
+    ((r)->code.callback.func)
 
 #define RIN_CLOSURE(r) \
-    cast(ffi_closure*, (r)->info.cb.closure)
-
-#define INIT_RIN_CLOSURE(r, closure_) \
-    ((r)->info.cb.closure = (closure_), NOOP)
+    ((r)->code.callback.closure)
 
 #define RIN_ABI(r) \
     cast(ffi_abi, (r)->abi)
-
-#define INIT_RIN_ABI(r, abi_) \
-    ((r)->abi = (abi_), NOOP)

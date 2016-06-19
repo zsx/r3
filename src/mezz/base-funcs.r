@@ -746,23 +746,17 @@ default: func [
 
 
 ensure: func [
-    {Pass through data that isn't VOID? or FALSE?, but FAIL otherwise}
-    arg [<opt> any-value!]
-    /value
-        {Only check for ANY-VALUE? (FALSE and NONE ok, but not void)}
-    /type
-    types [block! datatype! typeset!]
-        {FAIL only if not one of these types (block converts to TYPESET!)}
-
+    {Pass through a value only if it matches types (or TRUE?/FALSE? state)}
+    types [block! datatype! typeset! logic!]
+    arg [any-value!] ;-- not <opt>, so implicitly ensured to be non-void
     ; !!! To be rewritten as a native once behavior is pinned down.
 ][
-    unless any-value? :arg [
-        unless type [fail "ENSURE did not expect value to be void"]
-    ]
-
-    unless type [
-        unless any [arg value] [
-            fail ["ENSURE did not expect arg to be" (mold :arg)]
+    if logic? types [
+        unless types = (true? :arg) [
+            fail [
+                "ENSURE expected" (mold :arg)
+                "to be" (either types {TRUE?} {FALSE?})
+            ]
         ]
         return :arg
     ]
@@ -775,6 +769,7 @@ ensure: func [
     ]) type-of :arg [
         fail ["ENSURE did not expect arg to have type" (type-of :arg)]
     ]
+
     :arg
 ]
 

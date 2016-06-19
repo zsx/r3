@@ -35,7 +35,11 @@ libc: make library! %libc.so.6
 
 x64?: 40 = fifth system/version
 size_t: either x64? ['int64]['int32]
-qsort: make-routine compose/deep [
+
+; This tests the compatibility shim for MAKE that lets MAKE ROUTINE! work,
+; though that is deprecated (use MAKE-ROUTINE or MAKE-ROUTINE-RAW)
+;
+qsort: make routine! compose/deep [
     [
         base [pointer]
         nmemb [(size_t)]

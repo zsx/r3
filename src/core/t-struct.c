@@ -1274,7 +1274,7 @@ REBOOL MT_Struct(
     MANAGE_ARRAY(schema->spec);
     MANAGE_SERIES(schema->fields);
 
-    REBSTU *stu = Make_Singular_Array(VOID_CELL);
+    REBSTU *stu = Make_Singular_Array(BLANK_VALUE);
     MANAGE_SERIES(field_1);
     ARR_SERIES(stu)->misc.schema = field_1;
 

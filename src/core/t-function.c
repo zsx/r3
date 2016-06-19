@@ -170,7 +170,7 @@ REBTYPE(Function)
                 && !GET_RIN_FLAG(VAL_FUNC_ROUTINE(value), ROUTINE_FLAG_CALLBACK)
             ) {
                 SET_INTEGER(
-                    D_OUT, cast(REBUPT, RIN_FUNCPTR(VAL_FUNC_ROUTINE(value)))
+                    D_OUT, cast(REBUPT, RIN_CFUNC(VAL_FUNC_ROUTINE(value)))
                 );
                 return R_OUT;
             }

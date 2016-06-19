@@ -497,44 +497,55 @@ callback?: func [f] [all [function? :f | 6 = func-class-of :f]]
 ; to the routine! datatype (for instance) but should cover most cases.
 ;
 lib-make: :make
-make: (func [
+make: (function [
     "Constructs or allocates the specified datatype."
     :lookahead [any-value! <...>]
     type [<opt> any-value! <...>]
         "The datatype or an example value"
-    spec [<opt> any-value! <...>]
+    def [<opt> any-value! <...>]
         "Attributes or size of the new value (modified)"
 ][
     switch first lookahead [
         callback! [
             assert [function! = take type]
-            return make-callback take spec
+            def: ensure block! take def
+            ffi-spec: ensure block! first def
+            action: ensure function! reduce second def
+            return make-callback :action ffi-spec
         ]
         routine! [
             assert [function! = take type]
-            return make-routine take spec
+            def: ensure block! take def
+            ffi-spec: ensure block! first def
+            lib: ensure [integer! library!] reduce second def
+            if integer? lib [ ;-- interpreted as raw function pointer
+                return make-routine-raw lib ffi-spec
+            ]
+            name: ensure string! third def
+            return make-routine lib name ffi-spec
         ]
         command! [
             assert [function! = take type]
-            return make-command take spec
+            def: ensure block! take def
+            return make-command def
         ]
     ]
 
     type: take type
-    spec: take spec
+    def: take def
 
     case [
         all [
             :type = object!
-            block? :spec
-            not block? first spec
+            block? :def
+            not block? first def
         ][
             ;
             ; MAKE OBJECT! [x: ...] vs. MAKE OBJECT! [[spec][body]]
             ; This old style did evaluation.  Must use a generator
             ; for that in Ren-C.
             ;
-            return has :spec
+            return has :def
         ]
 
         object? :type [
@@ -545,11 +556,11 @@ make: (func [
             ; some-object as a parent.  This must use a generator
             ; in Ren-C.
             ;
-            return construct :type :spec
+            return construct :type :def
         ]
     ]
 
-    lib-make :type :spec
+    lib-make :type :def
 ])
 
 
