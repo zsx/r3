@@ -252,6 +252,13 @@ standard: context [
             _
     ]
 
+    hijacked-meta: context [
+        description:
+        hijackee:
+        hijackee-name:
+            _
+    ]
+
     error: context [ ; Template used for all errors:
         code: _
         type: 'user

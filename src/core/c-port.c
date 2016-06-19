@@ -376,7 +376,7 @@ REBCNT Find_Action(REBVAL *object, REBCNT action)
 // !!! Marked static to avoid casual re-uses, which may not be likely but
 // just to stop more calls from being introduced on accident.
 //
-static REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
+REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
 {
     REBIXO indexor;
 

@@ -1071,6 +1071,20 @@ REBARR *Make_Singular_Array(REBVAL *single) {
 
 
 //
+//  Swap_Underlying_Series_Data: C
+//
+void Swap_Underlying_Series_Data(REBSER *s1, REBSER *s2)
+{
+    assert(SER_WIDE(s1) == SER_WIDE(s2));
+    assert(Is_Array_Series(s1) == Is_Array_Series(s2));
+
+    REBSER temp = *s1;
+    *s1 = *s2;
+    *s2 = temp;
+}
+
+
+//
 //  Free_Unbiased_Series_Data: C
 // 
 // Routines that are part of the core series implementation

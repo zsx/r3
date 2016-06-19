@@ -123,8 +123,12 @@ Script: [
     expect-val:         [{expected} :arg1 {not} :arg2]
     expect-type:        [:arg1 :arg2 {field must be of type} :arg3]
     cannot-use:         [{cannot use} :arg1 {on} :arg2 {value}]
+
     apply-too-many:     {Too many values in processed argument block of APPLY.}
-    local-injection:    [{Attempt to inject value to local} :arg1 {in} :arg2]
+    apply-has-changed:  {APPLY takes frame def block (or see r3-alpha-apply)}
+    apply-non-function: [:arg1 {needs to be a function for APPLY/SPECIALIZE}]
+
+    hijack-blank:       {Hijacked function was captured but no body given yet}
 
     expression-barrier: {Expression barrier hit while processing arguments}
     bar-hit-mid-case:   {Expression barrier hit in middle of CASE pairing}
@@ -143,9 +147,7 @@ Script: [
     use-eval-for-eval:  {Use EVAL or APPLY to call functions arity > 0, not DO}
     use-fail-for-error: [{Use FAIL (not THROW or DO) to raise} :arg1]
     use-split-simple:   {Use SPLIT (instead of PARSE) for "simple" parsing}
-    apply-has-changed:  {APPLY takes frame def block (or see r3-alpha-apply)}
 
-    apply-non-function: [:arg1 {needs to be a function for APPLY/SPECIALIZE}]
     limited-fail-input: {FAIL requires complex expressions to be in a GROUP!}
 
     invalid-arg:        [{invalid argument:} :arg1]

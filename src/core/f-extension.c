@@ -493,6 +493,9 @@ void Make_Command(
     //
     Turn_Typespec_Opts_Into_Nones(spec);
 
+    REBFUN *fun; // goto would cross initialization
+    fun = Make_Paramlist_Managed(spec, SYM_0);
+
     // There is no "body", but we want to save `extension` and `command_num`
     // and the only place there is to put it is in the place where a function
     // body series would go.  So make a 2 element series to store them and
@@ -504,10 +507,8 @@ void Make_Command(
     Append_Value(body, command_num);
     MANAGE_ARRAY(body);
 
-    REBFUN *fun; // goto would cross initialization
-    fun = Make_Paramlist_Managed(
-        spec, SYM_0, body, &Command_Dispatcher
-    );
+    FUNC_BODY(fun) = body;
+    FUNC_DISPATCH(fun) = &Command_Dispatcher;
 
     *out = *FUNC_VALUE(fun);
 

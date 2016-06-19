@@ -2245,8 +2245,8 @@ struct Reb_Function {
     (VAL_FUNC_DISPATCH(v) == &Routine_Dispatcher \
         && IS_CALLBACK_ROUTINE(VAL_FUNC_INFO(v)))
 
-#define IS_FUNCTION_HOOKED(v) \
-    (VAL_FUNC_DISPATCH(v) == &Hooked_Dispatcher)
+#define IS_FUNCTION_HIJACKER(v) \
+    (VAL_FUNC_DISPATCH(v) == &Hijacker_Dispatcher)
 
 #define VAL_FUNC_BODY(v) \
     ((v)->payload.function.body)

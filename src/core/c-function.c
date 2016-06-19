@@ -151,12 +151,8 @@ REBARR *List_Func_Typesets(REBVAL *func)
 //
 REBFUN *Make_Paramlist_Managed(
     REBARR *spec,
-    REBCNT opt_sym_last,
-    REBARR *body,
-    REBNAT dispatch
+    REBCNT opt_sym_last
 ) {
-    ASSERT_ARRAY_MANAGED(body);
-
     REBUPT func_flags = 0;
 
     // We want to be able to notice when words are duplicated, and the bind
@@ -458,8 +454,6 @@ REBFUN *Make_Paramlist_Managed(
         SET_VAL_FLAGS(dest, func_flags);
         dest->payload.function.func = AS_FUNC(paramlist);
         dest->payload.function.exit_from = NULL;
-        dest->payload.function.body = body;
-        VAL_FUNC_DISPATCH(dest) = dispatch;
         ++dest;
 
         REBVAL *src = DS_AT(dsp_orig + 1);
@@ -625,10 +619,12 @@ void Make_Native(
 ) {
     //Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SER_LEN(spec));
 
-    REBARR *body = Make_Singular_Array(BLANK_VALUE); // no body by default
-    MANAGE_ARRAY(body);
+    REBFUN *fun = Make_Paramlist_Managed(spec, SYM_0);
 
-    REBFUN *fun = Make_Paramlist_Managed(spec, SYM_0, body, dispatch);
+    REBARR *body = Make_Singular_Array(BLANK_VALUE); // no body by default
+    FUNC_BODY(fun) = body;
+    MANAGE_ARRAY(body);
+    FUNC_DISPATCH(fun) = dispatch;
 
     *out = *FUNC_VALUE(fun);
 
@@ -1021,14 +1017,6 @@ REBFUN *Make_Function_May_Fail(
         }
     }
 
-    // We copy the body.  It doesn't necessarily need to be unique, but if it
-    // used the EMPTY_ARRAY then it would have to have the user function
-    // dispatcher in its misc field (or be another similar array that did)
-    //
-    REBARR *body = Copy_Array_At_Deep_Managed(
-        VAL_ARRAY(body_val), VAL_INDEX(body_val)
-    );
-
     // Spec checking will longjmp out with an error if the spec is bad.
     // For efficiency, we tell the paramlist what symbol we would like to
     // have located in the final slot if its symbol is found (so SYM_RETURN
@@ -1036,10 +1024,39 @@ REBFUN *Make_Function_May_Fail(
     //
     REBFUN *fun = Make_Paramlist_Managed(
         spec,
-        has_return ? (is_procedure ? SYM_LEAVE : SYM_RETURN) : SYM_0,
-        body,
-        &Plain_Dispatcher
+        has_return ? (is_procedure ? SYM_LEAVE : SYM_RETURN) : SYM_0
     );
+
+    // We copy the body.  It doesn't necessarily need to be unique, but if it
+    // used the EMPTY_ARRAY then it would have to have the user function
+    // dispatcher in its misc field (or be another similar array that did)
+    //
+    // It is indirected into a block value so that it may carry a specifier.
+    // This way, if the function gets hijacked it can be re-relativized by
+    // the Plain_Dispatcher that can notice if the paramlist of a function
+    // value is a mismatch for the value it is relativized against--without
+    // making it have to be a "rerelativizer" or other such thing.
+    //
+    // NOTE: This means that getting the FUNCTION-OF a frame based on the
+    // encoded paramlist is a flawed concept--which it already is due to
+    // specializations etc.
+    //
+    REBARR *body = Make_Singular_Array(VOID_CELL);
+    Val_Init_Array(
+        ARR_HEAD(body),
+        REB_BLOCK,
+        VAL_ARRAY_LEN_AT(body_val) == 0
+            ? EMPTY_ARRAY
+            : Copy_Array_At_Deep_Managed(
+                VAL_ARRAY(body_val), VAL_INDEX(body_val)
+            )
+    );
+    SET_VAL_FLAG(ARR_HEAD(body), VALUE_FLAG_RELATIVE);
+    ARR_HEAD(body)->payload.any_series.target.relative = fun;
+    MANAGE_ARRAY(body);
+    FUNC_VALUE(fun)->payload.function.body = body;
+
+    FUNC_DISPATCH(fun) = &Plain_Dispatcher;
 
     if (is_procedure)
         SET_VAL_FLAG(FUNC_VALUE(fun), FUNC_FLAG_PUNCTUATES);
@@ -1471,6 +1488,21 @@ REB_R Plain_Dispatcher(struct Reb_Frame *f)
 
     Eval_Functions++;
 
+    REBARR *body = FUNC_BODY(f->func);
+    assert(ARR_LEN(body) == 1);
+    REBVAL *block = ARR_HEAD(body);
+    assert(IS_BLOCK(block) && IS_RELATIVE(block) && VAL_INDEX(block) == 0);
+
+    // !!! This concern will be different in specific binding.  But during
+    // dynamic binding, if a hijacked function has put a new paramlist into
+    // effect for this function than the one its body was bound relative to,
+    // then this frame has to lie and say the stack was for that.
+
+    REBFUN *save_func = f->func;
+    f->func = VAL_RELATIVE(block);
+
+    REB_R r;
+
     if (!IS_FUNC_DURABLE(FUNC_VALUE(f->func))) {
         //
         // Simple model with no deep copying or rebinding of the body on
@@ -1479,10 +1511,10 @@ REB_R Plain_Dispatcher(struct Reb_Frame *f)
         // that words embedded in the shared blocks may only look up relative
         // to the currently running function.
         //
-        if (Do_At_Throws(f->out, FUNC_BODY(f->func), 0))
-            return R_OUT_IS_THROWN;
+        if (Do_At_Throws(f->out, VAL_ARRAY(block), 0))
+            r = R_OUT_IS_THROWN;
         else
-            return R_OUT;
+            r = R_OUT;
     }
     else {
         assert(f->varlist);
@@ -1492,29 +1524,34 @@ REB_R Plain_Dispatcher(struct Reb_Frame *f)
         // invocation.  (Costly, but that is the mechanics of words at the
         // present time, until true relative binding is implemented.)
         //
-        REBVAL body;
-        VAL_RESET_HEADER(&body, REB_BLOCK);
-        INIT_VAL_ARRAY(&body, Copy_Array_Deep_Managed(FUNC_BODY(f->func)));
-        VAL_INDEX(&body) = 0;
+        REBVAL copy;
+        VAL_RESET_HEADER(&copy, REB_BLOCK);
+        INIT_VAL_ARRAY(
+            &copy, Copy_Array_Deep_Managed(VAL_ARRAY(block))
+        );
+        VAL_INDEX(&copy) = 0;
 
         Rebind_Values_Specifically_Deep(
-            f->func, frame_ctx, VAL_ARRAY_AT(&body)
+            f->func, frame_ctx, VAL_ARRAY_AT(&copy)
         );
 
         // Protect the body from garbage collection during the course of the
         // execution.  (This is inexpensive...it just points `f->param` to it.)
         //
-        PROTECT_FRM_X(f, &body);
+        PROTECT_FRM_X(f, &copy);
 
-        if (DO_VAL_ARRAY_AT_THROWS(f->out, &body))
-            return R_OUT_IS_THROWN;
+        if (DO_VAL_ARRAY_AT_THROWS(f->out, &copy))
+            r = R_OUT_IS_THROWN;
         else
-            return R_OUT;
+            r = R_OUT;
 
         // References to parts of this function's copied body may still be
         // extant, but we no longer need to hold it from GC.  Fortunately the
         // PROTECT_FRM_X will be implicitly dropped when the call ends.
     }
+
+    f->func = save_func;
+    return r;
 }
 
 
@@ -1540,24 +1577,42 @@ REB_R Specializer_Dispatcher(struct Reb_Frame *f)
 
 
 //
-//  Hooked_Dispatcher: C
+//  Hijacker_Dispatcher: C
 //
-// A hooked dispatch is based on poking a function value into the body of
-// another function and just running that.  It destroys the existing body,
-// but the hooking routine gives a new function back that can be substituted.
+// A hijacker keeps the parameter list and layout, plus identity, of another
+// function.  But instead of running that function's body, it maps the
+// parameters into its own body.  It does this by actually mutating the
+// contents of the shared body series that is held by all the instances
+// of the function.
 //
-REB_R Hooked_Dispatcher(struct Reb_Frame *f)
+// To avoid its mechanical disruption from causing harm to any running
+// instances, all function "bodies" must reserve their [0] slot for the
+// hijacker.
+//
+REB_R Hijacker_Dispatcher(struct Reb_Frame *f)
 {
     // Whatever was initially in the body of the function
     REBVAL *hook = KNOWN(ARR_HEAD(FUNC_BODY(f->func)));
+
+    if (IS_BLANK(hook)) // blank hijacking allows capture, but nothing to run
+        fail (Error(RE_HIJACK_BLANK));
+
     assert(IS_FUNCTION(hook));
 
-    REBNAT dispatch = VAL_FUNC_DISPATCH(hook);
+    // Prior to specific binding, the function that the body is looking for
+    // has to be on the stack for words to look up.
 
+    REBFUN *save_func = f->func;
     f->func = VAL_FUNC(hook);
-    f->exit_from = VAL_FUNC_EXIT_FROM(hook);
 
-    return dispatch(f);
+    if (Redo_Func_Throws(f, VAL_FUNC(hook))) {
+        f->func = save_func;
+        return R_OUT_IS_THROWN;
+    }
+
+    f->func = save_func;
+
+    return R_OUT;
 }
 
 
@@ -2038,6 +2093,142 @@ REBNATIVE(adapt)
     // Update canon value's bits to match what we're giving back in out.
     //
     *ARR_HEAD(paramlist) = *out;
+
+    return R_OUT;
+}
+
+
+//
+//  hijack: native [
+//
+//  {Cause all existing references to a function to invoke another function.}
+//
+//      victim [function! any-word! any-path!]
+//          {Function value whose references are to be affected.}
+//      hijacker [function! any-word! any-path! blank!]
+//          {The function to run in its place or BLANK! to extract prior code.}
+//  ]
+//
+REBNATIVE(hijack)
+//
+// !!! Should the parameters be checked for baseline compatibility, or just
+// let all failures happen at the moment of trying to run the hijack?
+// As it is, one might not require a perfectly compatible interface,
+// and be tolerant if the refinements don't line up...just fail if any
+// case of trying to use unaligned refinements happens.
+//
+{
+    PARAM(1, victim);
+    PARAM(2, hijacker);
+
+    REBVAL victim_value;
+    REBSYM victim_sym;
+    Get_If_Word_Or_Path_Arg(
+        &victim_value, &victim_sym, ARG(victim)
+    );
+    REBVAL *victim = &victim_value;
+    if (!IS_FUNCTION(victim))
+        fail (Error(RE_MISC));
+
+    REBVAL hijacker_value;
+    REBSYM hijacker_sym;
+    Get_If_Word_Or_Path_Arg(
+        &hijacker_value, &hijacker_sym, ARG(hijacker)
+    );
+    REBVAL *hijacker = &hijacker_value;
+    if (!IS_FUNCTION(hijacker) && !IS_BLANK(hijacker))
+        fail (Error(RE_MISC));
+
+    // !!! Should hijacking a function with itself be a no-op?  One could make
+    // an argument from semantics that the effect of replacing something with
+    // itself is not to change anything, but erroring may give a sanity check.
+    //
+    if (!IS_BLANK(hijacker) && VAL_FUNC(victim) == VAL_FUNC(hijacker))
+        fail (Error(RE_MISC));
+
+    // We give back a working variant of the victim, with a new paramlist
+    // (hence a new identity), and the pointer of the swapbody -but- with
+    // the actual data held by the old body.
+    //
+    // The exception is if the victim is a "blank hijackee"...in which case
+    // it was generated by a previous hijack call, likely for the purposes
+    // of using the function within its own implementation.  Don't bother
+    // copying the paramlist to hijack it again...just poke the value in
+    // and return blank.
+    //
+    if (
+        IS_FUNCTION_HIJACKER(victim)
+        && IS_BLANK(ARR_HEAD(victim->payload.function.body))
+    ) {
+        if (IS_BLANK(hijacker))
+            fail (Error(RE_MISC)); // !!! Allow re-blanking a blank?
+
+        SET_BLANK(D_OUT);
+    }
+    else {
+        *D_OUT = *victim;
+
+        D_OUT->payload.function.func
+            = AS_FUNC(Copy_Array_Deep_Managed(
+                AS_ARRAY(D_OUT->payload.function.func))
+            );
+        VAL_FUNC_META(D_OUT) = VAL_FUNC_META(victim);
+
+        // We make a "singular" REBSER node to represent the hijacker's body.
+        // Then we "swap" it with the existing REBSER node.  That way the old
+        // body pointer will indicate the swapped array, but we have a new
+        // REBSER by which to refer to the old body array's data.
+        //
+        REBARR *swapbody = Make_Singular_Array(VOID_CELL);
+        MANAGE_ARRAY(swapbody);
+        Swap_Underlying_Series_Data(
+            ARR_SERIES(swapbody), ARR_SERIES(victim->payload.function.body)
+        );
+
+        D_OUT->payload.function.body = swapbody;
+        VAL_FUNC_META(D_OUT) = VAL_FUNC_META(victim);
+
+        // In the special case of a plain dispatcher, the body needs to
+        // preserve the original paramlist--because that is what it was
+        // relativized against (not the new paramlist just made).  The
+        // Plain_Dispatcher will need to take this into account.
+        //
+    #if !defined(NDEBUG)
+        if (IS_FUNCTION_PLAIN(victim)) {
+            assert(IS_RELATIVE(victim));
+            REBVAL *block = ARR_HEAD(victim->payload.function.body);
+            assert(IS_BLOCK(block));
+            assert(VAL_INDEX(block) == 0);
+            assert(VAL_RELATIVE(block) == VAL_FUNC(victim));
+        }
+    #endif
+
+        *ARR_HEAD(AS_ARRAY(D_OUT->payload.function.func)) = *D_OUT;
+    }
+
+    // Give the victim a new body, that's just a single-valued array with
+    // the new function in it.  Also, update its meta information to indicate
+    // that it has been hijacked.
+
+    assert(ARR_LEN(victim->payload.function.body) == 1);
+    *ARR_HEAD(victim->payload.function.body) = *hijacker;
+    VAL_FUNC_DISPATCH(victim) = &Hijacker_Dispatcher;
+    VAL_FUNC_EXIT_FROM(victim) = NULL;
+
+    // See %sysobj.r for `hijacked-meta:` object template
+
+    REBVAL *std_meta = Get_System(SYS_STANDARD, STD_HIJACKED_META);
+    REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(std_meta));
+
+    assert(IS_VOID(CTX_VAR(meta, SELFISH(1)))); // no description by default
+    *CTX_VAR(meta, SELFISH(2)) = *D_OUT;
+    if (victim_sym != SYM_0)
+        Val_Init_Word(CTX_VAR(meta, SELFISH(3)), REB_WORD, victim_sym);
+
+    MANAGE_ARRAY(CTX_VARLIST(meta));
+    VAL_FUNC_META(victim) = meta;
+
+    *ARR_HEAD(AS_ARRAY(victim->payload.function.func)) = *victim; // archetype
 
     return R_OUT;
 }

@@ -296,7 +296,11 @@ help: procedure [
     meta: meta-of :value
     all [
         original-name: is word! (
-            any [select meta 'specializee-name | select meta 'adaptee-name]
+            any [
+                select meta 'specializee-name
+                select meta 'adaptee-name
+                select meta 'hijackee-name
+            ]
         )
         original-name: uppercase mold original-name
     ]
@@ -304,6 +308,7 @@ help: procedure [
     specializee: is function! select meta 'specializee
     adaptee: is function! select meta 'adaptee
     chainees: is block! select meta 'chainees
+    hijackee: is function! select meta 'hijackee
 
     classification: case [
         :specializee [
@@ -324,6 +329,14 @@ help: procedure [
 
         :chainees [
             {a chained function}
+        ]
+
+        :hijackee [
+            either original-name [
+                ajoin [{a hijacking of } original-name]
+            ][
+                {a hijacked function}
+            ]
         ]
 
         true [

@@ -31,6 +31,9 @@ system/standard/adapted-meta/adaptee-name:
 system/standard/chained-meta/description:
 system/standard/chained-meta/chainees:
 system/standard/chained-meta/chainee-names:
+system/standard/hijacked-meta/description:
+system/standard/hijacked-meta/hijackee:
+system/standard/hijacked-meta/hijackee-name:
     ()
 
 
@@ -120,6 +123,7 @@ dig-function-meta-fields: function [value [function!]] [
     underlying: is function! any [
         :meta/specializee
         :meta/adaptee
+        :meta/hijackee
         all [block? :meta/chainees | first meta/chainees]
     ]
 

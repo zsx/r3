@@ -161,7 +161,7 @@ REBTYPE(Function)
             return R_OUT;
 
         case SYM_BODY:
-            if (IS_FUNCTION_HOOKED(value))
+            if (IS_FUNCTION_HIJACKER(value))
                 fail (Error(RE_MISC)); // body corrupt, need to recurse
 
             if (IS_FUNCTION_PLAIN(value)) {

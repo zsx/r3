@@ -472,7 +472,18 @@ REBFUN *Find_Underlying_Func(
         }
     } while (loop);
 
-    *exemplar_out = NULL;
+    *exemplar_out = NULL; // underlying function is not specializing.
+
+    // A plain function may be a re-relativization (due to hijacking) with
+    // what was originally a body made for another function.  In that case,
+    // the frame needs to be "for that", so it is the underlying function.
+
+    if (IS_FUNCTION_PLAIN(value)) {
+        REBVAL *block = ARR_HEAD(VAL_FUNC_BODY(value));
+        assert(IS_RELATIVE(block));
+        return VAL_RELATIVE(block);
+    }
+
     return VAL_FUNC(value);
 }
 

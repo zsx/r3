@@ -159,6 +159,8 @@ is: func [
     /relax
         {Do not trigger an error if types contain LOGIC! or BLANK!.}
 ][
+    if not set? 'value [return blank]
+
     if block? types [types: make typeset! types]
 
     case [
