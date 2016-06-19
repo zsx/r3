@@ -1011,7 +1011,7 @@ REBNATIVE(do)
         if (NOT_END(param))
             fail (Error(RE_USE_EVAL_FOR_EVAL));
 
-        if (DO_VALUE_THROWS(D_OUT, value))
+        if (EVAL_VALUE_THROWS(D_OUT, value))
             return R_OUT_IS_THROWN;
         return R_OUT;
     }
@@ -1596,7 +1596,7 @@ REBNATIVE(switch)
             || IS_GET_WORD(e.value)
             || IS_GET_PATH(e.value)
         ) {
-            if (DO_VALUE_THROWS(fallout, e.value)) {
+            if (EVAL_VALUE_THROWS(fallout, e.value)) {
                 *D_OUT = *fallout;
                 goto return_thrown;
             }

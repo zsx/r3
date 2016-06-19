@@ -286,7 +286,7 @@ REBNATIVE(reduce)
     //
     // !!! Should the error be more "reduce-specific" if args were required?
     //
-    if (DO_VALUE_THROWS(D_OUT, value))
+    if (EVAL_VALUE_THROWS(D_OUT, value))
         return R_OUT_IS_THROWN;
 
     return R_OUT;

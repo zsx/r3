@@ -1003,9 +1003,11 @@ typedef struct Reb_Frame Reb_Enumerator;
         DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD))
 
 // Because Do_Core can seed with a single value, we seed with our value and
-// an EMPTY_ARRAY.  Revisit if there's a "best" dispatcher...
+// an EMPTY_ARRAY.  Revisit if there's a "best" dispatcher.  Note this is
+// an EVAL and not a DO...hence if you pass it a block, then the block will
+// just evaluate to itself!
 //
-#define DO_VALUE_THROWS(out,value) \
+#define EVAL_VALUE_THROWS(out,value) \
     LOGICAL(THROWN_FLAG == Do_Array_At_Core((out), (value), EMPTY_ARRAY, \
         0, DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD))
 

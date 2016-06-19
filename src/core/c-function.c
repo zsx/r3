@@ -1862,7 +1862,7 @@ void Get_If_Word_Or_Path_Arg(
         return;
     }
 
-    if (DO_VALUE_THROWS(out, &adjusted)) {
+    if (EVAL_VALUE_THROWS(out, &adjusted)) {
         //
         // !!! GET_PATH should not evaluate GROUP!, and hence shouldn't be
         // able to throw.  TBD.

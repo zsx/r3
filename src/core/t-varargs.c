@@ -258,7 +258,7 @@ handle_subfeed:
         ) {
             if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
 
-            if (DO_VALUE_THROWS(out, f->value))
+            if (EVAL_VALUE_THROWS(out, f->value))
                 return THROWN_FLAG;
 
             if (GET_VAL_FLAG(out, VALUE_FLAG_EVALUATED))

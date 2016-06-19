@@ -942,7 +942,7 @@ reevaluate:
                     //
                     // Needed for `(copy [1 2 3])`, active specializations
 
-                    if (DO_VALUE_THROWS(SINK(&f->cell.eval), f->arg)) {
+                    if (EVAL_VALUE_THROWS(SINK(&f->cell.eval), f->arg)) {
                         *f->out = *KNOWN(&f->cell.eval);
                         Abort_Function_Args_For_Frame(f);
                         goto finished;
@@ -988,7 +988,7 @@ reevaluate:
 
                 if (args_evaluate && IS_QUOTABLY_SOFT(f->arg)) {
 
-                    if (DO_VALUE_THROWS(SINK(&f->cell.eval), f->arg)) {
+                    if (EVAL_VALUE_THROWS(SINK(&f->cell.eval), f->arg)) {
                         *f->out = *KNOWN(&f->cell.eval);
                         Abort_Function_Args_For_Frame(f);
                         goto finished;
@@ -1187,7 +1187,7 @@ reevaluate:
                 SET_END(f->out);
             }
             else if (args_evaluate && IS_QUOTABLY_SOFT(f->value)) {
-                if (DO_VALUE_THROWS(f->arg, f->value)) {
+                if (EVAL_VALUE_THROWS(f->arg, f->value)) {
                     *f->out = *f->arg;
                     Abort_Function_Args_For_Frame(f);
                     goto finished;
