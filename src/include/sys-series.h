@@ -1162,16 +1162,16 @@ struct Reb_Func {
     (ARR_SERIES(FUNC_VALUE(f)->payload.function.body)->misc.dispatch)
 
 #define FUNC_BODY(f) \
-    (FUNC_VALUE(f)->payload.function.body)
+    (ARR_HEAD(FUNC_VALUE(f)->payload.function.body) + 0)
 
 #define FUNC_ACT(f) \
-    cast(REBCNT, VAL_INT32(ARR_HEAD(FUNC_BODY(f))))
+    cast(REBCNT, VAL_INT32(FUNC_BODY(f)))
 
 #define FUNC_INFO(f) \
-    cast(REBRIN*, VAL_HANDLE_DATA(ARR_HEAD(FUNC_BODY(f))))
+    cast(REBRIN*, VAL_HANDLE_DATA(FUNC_BODY(f)))
 
 #define FUNC_EXEMPLAR(f) \
-    KNOWN(ARR_HEAD(FUNC_BODY(f)))
+    KNOWN(FUNC_BODY(f))
 
 
 //=////////////////////////////////////////////////////////////////////////=//

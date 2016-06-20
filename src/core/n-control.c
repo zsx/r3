@@ -57,7 +57,7 @@ static void Protect_Key(REBVAL *key, REBFLGS flags)
 // 
 // Anything that calls this must call Unmark() when done.
 //
-void Protect_Value(REBVAL *value, REBFLGS flags)
+void Protect_Value(RELVAL *value, REBFLGS flags)
 {
     if (ANY_SERIES(value) || IS_MAP(value))
         Protect_Series(value, flags);
@@ -71,7 +71,7 @@ void Protect_Value(REBVAL *value, REBFLGS flags)
 // 
 // Anything that calls this must call Unmark() when done.
 //
-void Protect_Series(REBVAL *val, REBFLGS flags)
+void Protect_Series(RELVAL *val, REBFLGS flags)
 {
     REBSER *series = VAL_SERIES(val);
 
@@ -97,7 +97,7 @@ void Protect_Series(REBVAL *val, REBFLGS flags)
 // 
 // Anything that calls this must call Unmark() when done.
 //
-void Protect_Object(REBVAL *value, REBFLGS flags)
+void Protect_Object(RELVAL *value, REBFLGS flags)
 {
     REBCTX *context = VAL_CONTEXT(value);
 
@@ -110,7 +110,7 @@ void Protect_Object(REBVAL *value, REBFLGS flags)
         CLEAR_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_LOCKED);
 
     for (value = CTX_KEY(context, 1); NOT_END(value); value++) {
-        Protect_Key(value, flags);
+        Protect_Key(KNOWN(value), flags);
     }
 
     if (!GET_FLAG(flags, PROT_DEEP)) return;

@@ -100,7 +100,7 @@ REBOOL MT_Function(REBVAL *out, REBVAL *def, enum Reb_Kind kind)
     // code (though round-tripping it via text is not possible in
     // general in any case due to loss of bindings.)
     //
-    REBFUN *fun = Make_Function_May_Fail(spec, body, MKF_NONE);
+    REBFUN *fun = Make_Plain_Function_May_Fail(spec, body, MKF_NONE);
 
     *out = *FUNC_VALUE(fun);
     return TRUE;
@@ -197,7 +197,7 @@ REBTYPE(Function)
                 D_OUT,
                 REB_BLOCK,
                 Copy_Array_Deep_Managed(
-                    VAL_ARRAY(ARR_HEAD(VAL_FUNC_BODY(value)))
+                    VAL_ARRAY(VAL_FUNC_BODY(value))
                 )
             );
             return R_OUT;

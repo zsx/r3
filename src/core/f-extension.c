@@ -462,7 +462,7 @@ REBNATIVE(load_extension)
 //
 void Make_Command(
     REBVAL *out,
-    const REBVAL *spec_val,
+    const REBVAL *spec,
     const REBVAL *extension,
     const REBVAL *command_num
 ) {
@@ -480,51 +480,43 @@ void Make_Command(
     if (!IS_INTEGER(command_num) || VAL_INT64(command_num) > 0xffff)
         goto bad_func_def;
 
-    if (!IS_BLOCK(spec_val)) goto bad_func_def;
-
-    VAL_RESET_HEADER(out, REB_FUNCTION); // clears exts and opts in header...
-
-    // See notes in `Make_Function()` about why a copy is *required*.
+    if (!IS_BLOCK(spec)) goto bad_func_def;
 
     REBFUN *fun; // goto would cross initialization
-    fun = Make_Paramlist_Managed(
-        spec_val,
-        SYM_0
+    fun = Make_Function(
+        Make_Paramlist_Managed_May_Fail(spec, MKF_KEYWORDS),
+        &Command_Dispatcher
     );
 
-    // There is no "body", but we want to save `extension` and `command_num`
-    // and the only place there is to put it is in the place where a function
-    // body series would go.  So make a 2 element series to store them and
-    // copy the values into it.
+    // There is no "code" for a body, but there is information that tells the
+    // Command_Dispatcher what to do: `extension` and `command_num`.  This
+    // two element array is placed in the FUNC_BODY value.
     //
-    REBARR *body; // goto would cross initialization
-    body = Make_Array(2);
-    Append_Value(body, extension);
-    Append_Value(body, command_num);
-    MANAGE_ARRAY(body);
+    REBARR *body_array; // goto would cross initialization
+    body_array = Make_Array(2);
+    Append_Value(body_array, extension);
+    Append_Value(body_array, command_num);
 
-    FUNC_BODY(fun) = body;
-    FUNC_DISPATCH(fun) = &Command_Dispatcher;
-
-    *out = *FUNC_VALUE(fun);
+    Val_Init_Block(FUNC_BODY(fun), body_array); // manages
 
     // Make sure the command doesn't use any types for which an "RXT" parallel
     // datatype (to a REB_XXX type) has not been published:
     {
-        REBVAL *args = VAL_FUNC_PARAMS_HEAD(out);
-        for (; NOT_END(args); args++) {
+        REBVAL *param = FUNC_PARAMS_HEAD(fun);
+        for (; NOT_END(param); ++param) {
             if (
                 // !!! this said "not END and not UNSET (no args)"...what is
                 // it actually supposed to be doing with this 3?
                 //
-                (FLAGIT_64(REB_0) != ~VAL_TYPESET_BITS(args))
-                && (VAL_TYPESET_BITS(args) & ~RXT_ALLOWED_TYPES)
+                (FLAGIT_64(REB_0) != ~VAL_TYPESET_BITS(param))
+                && (VAL_TYPESET_BITS(param) & ~RXT_ALLOWED_TYPES)
             ) {
-                fail (Error(RE_BAD_FUNC_ARG, args));
+                fail (Error(RE_BAD_FUNC_ARG, param));
             }
         }
     }
 
+    *out = *FUNC_VALUE(fun);
     return;
 
 bad_func_def:
@@ -532,7 +524,7 @@ bad_func_def:
         // emulate error before refactoring (improve if it's relevant...)
         REBVAL def;
         REBARR *array = Make_Array(3);
-        Append_Value(array, spec_val);
+        Append_Value(array, spec);
         Append_Value(array, extension);
         Append_Value(array, command_num);
         Val_Init_Block(&def, array);
@@ -595,7 +587,7 @@ REB_R Command_Dispatcher(struct Reb_Frame *f)
     // For a "body", a command has a data array with [ext-obj func-index]
     // See Make_Command() for an explanation of these two values.
     //
-    REBVAL *data = ARR_HEAD(FUNC_BODY(f->func));
+    REBVAL *data = VAL_ARRAY_HEAD(FUNC_BODY(f->func));
     REBEXT *handler = &Ext_List[VAL_I32(VAL_CONTEXT_VAR(data, SELFISH(1)))];
     REBCNT cmd_num = cast(REBCNT, Int32(data + 1));
 

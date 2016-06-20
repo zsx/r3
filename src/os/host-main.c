@@ -541,11 +541,13 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
         REBVAL spec;
         Val_Init_Block(&spec, spec_array);
 
-        REBVAL debug_native;
-        Make_Native(&debug_native, &spec, &N_debug);
+        REBFUN *debug_native = Make_Function(
+            Make_Paramlist_Managed_May_Fail(&spec, MKF_KEYWORDS),
+            &N_debug
+        );
 
-        *Append_Context(Lib_Context, 0, debug_sym) = debug_native;
-        *Append_Context(user_context, 0, debug_sym) = debug_native;
+        *Append_Context(Lib_Context, 0, debug_sym) = *FUNC_VALUE(debug_native);
+        *Append_Context(user_context, 0, debug_sym) = *FUNC_VALUE(debug_native);
     }
     else {
         // It's already there--e.g. someone added REBNATIVE(debug).  Assert

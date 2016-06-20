@@ -399,7 +399,7 @@ REBCNT Find_Same_Array(REBARR *search_values, const REBVAL *value)
 // Note: these markers are also used for GC. Functions that
 // call this must not be able to trigger GC!
 //
-void Unmark(REBVAL *val)
+void Unmark(RELVAL *val)
 {
     REBARR *array;
 

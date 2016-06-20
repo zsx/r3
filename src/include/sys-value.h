@@ -2220,7 +2220,7 @@ struct Reb_Function {
 #define VAL_FUNC_PARAM(v,p)         FUNC_PARAM(VAL_FUNC(v), (p))
 
 #define VAL_FUNC_DISPATCH(v) \
-    (ARR_SERIES((v)->payload.function.body)->misc.dispatch)
+    cast(REBNAT, ARR_SERIES((v)->payload.function.body)->misc.dispatch)
 
 #define IS_FUNCTION_PLAIN(v) \
     (VAL_FUNC_DISPATCH(v) == &Plain_Dispatcher)
@@ -2247,16 +2247,16 @@ struct Reb_Function {
     (VAL_FUNC_DISPATCH(v) == &Hijacker_Dispatcher)
 
 #define VAL_FUNC_BODY(v) \
-    ((v)->payload.function.body)
+    (ARR_HEAD((v)->payload.function.body) + 0)
 
 #define VAL_FUNC_ACT(v) \
-    cast(REBCNT, VAL_INT32(ARR_HEAD(VAL_FUNC_BODY(v))))
+    cast(REBCNT, VAL_INT32(VAL_FUNC_BODY(v)))
 
 #define VAL_FUNC_INFO(v) \
-    cast(REBRIN*, VAL_HANDLE_DATA(ARR_HEAD(VAL_FUNC_BODY(v))))
+    cast(REBRIN*, VAL_HANDLE_DATA(VAL_FUNC_BODY(v)))
 
 #define VAL_FUNC_EXEMPLAR(v) \
-    KNOWN(ARR_HEAD(VAL_FUNC_BODY(v)))
+    KNOWN(VAL_FUNC_BODY(v))
 
 #define VAL_FUNC_EXIT_FROM(v) ((v)->payload.function.exit_from)
 

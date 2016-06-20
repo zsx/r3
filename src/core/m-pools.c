@@ -1046,7 +1046,14 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
 // resizable arrays, but for now the early instances testing the behavior
 // of fitting an array's data into a single node are all fixed 1-elements.
 //
-REBARR *Make_Singular_Array(REBVAL *single) {
+REBARR *Make_Singular_Array(const RELVAL *single) {
+    //
+    // !!! For the moment, singular arrays are required to be legal arrays--no
+    // voids, and must contain an element--so no END.  One of both of these
+    // conditions may be relaxed in the future.
+    //
+    assert(NOT_END(single) && !IS_VOID(single));
+
     REBARR *array = AS_ARRAY(
         Make_Series(
             1, // length will not come from this, but from end marker
@@ -1061,7 +1068,7 @@ REBARR *Make_Singular_Array(REBVAL *single) {
 
     assert(!GET_ARR_FLAG(array, SERIES_FLAG_HAS_DYNAMIC)); // paranoid check
 
-    *ARR_HEAD(array) = *single; // afterward, [0] value is NOT_END()
+    *cast(RELVAL*, ARR_HEAD(array)) = *single; // !!! temporary cast
 
     assert(ARR_LEN(array) == 1); // if NOT_END() for [0] value, length is 1
     assert(IS_END(ARR_TAIL(array))); // info bits signal this; low bits clear

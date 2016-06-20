@@ -690,18 +690,14 @@ REBNATIVE(set_scheme)
 {
     PARAM(1, scheme);
 
-    REBVAL *actor;
-    REBVAL *name;
-    REBCNT n;
-    const PORT_ACTION *map = 0;
-
-    name = Obj_Value(ARG(scheme), STD_SCHEME_NAME);
+    REBVAL *name = Obj_Value(ARG(scheme), STD_SCHEME_NAME);
     if (!IS_WORD(name))
         fail (Error(RE_NO_SCHEME_NAME));
 
-    actor = Obj_Value(ARG(scheme), STD_SCHEME_ACTOR);
+    REBVAL *actor = Obj_Value(ARG(scheme), STD_SCHEME_ACTOR);
     if (!actor) return R_BLANK;
 
+    REBCNT n;
     // Does this scheme have native actor or actions?
     for (n = 0; n < MAX_SCHEMES && Scheme_Actions[n].sym; n++) {
         if (Scheme_Actions[n].sym == VAL_WORD_SYM(name)) break;
@@ -710,34 +706,18 @@ REBNATIVE(set_scheme)
 
     // The scheme uses a native actor:
     if (Scheme_Actions[n].fun) {
-        // Hand build a native function used to reach native scheme actors.
-        REBARR *paramlist = Make_Array(2);
-        ARR_SERIES(paramlist)->misc.meta = NULL; // should there be meta info?
+        REBVAL *port_actor_spec = Get_System(SYS_STANDARD, STD_PORT_ACTOR_SPEC);
 
-        Alloc_Tail_Array(paramlist); // for [0] function reference to self
+        // !!! Not sure what this code was supposed to do, and it is
+        // deprecated.  It takes a single argument, and currently the spec
+        // allows [<opt> any-value!].
 
-        // Typeset is chosen as empty to prevent normal invocation;
-        // these actors are only dispatched from the C code.
-        // !!! Should the C code type check?
-        // !!! New answer is yes...ALL_64 for now until it can be
-        // deduced what the intention was.
+        REBFUN *fun = Make_Function(
+            Make_Paramlist_Managed_May_Fail(port_actor_spec, MKF_KEYWORDS),
+            cast(REBNAT, Scheme_Actions[n].fun) // !!! actually a REBPAF (!!!)
+        );
 
-        REBVAL *typeset = Alloc_Tail_Array(paramlist);
-        Val_Init_Typeset(typeset, ALL_64, SYM_FROM_KIND(REB_PORT));
-        INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_NORMAL);
-        MANAGE_ARRAY(paramlist);
-
-        VAL_RESET_HEADER(actor, REB_FUNCTION);
-        actor->payload.function.func = AS_FUNC(paramlist);
-
-        VAL_FUNC_BODY(actor) = Make_Singular_Array(BLANK_VALUE);
-        MANAGE_ARRAY(VAL_FUNC_BODY(actor));
-        VAL_FUNC_DISPATCH(actor) = cast(REBNAT, Scheme_Actions[n].fun);
-
-        // Poke the function value itself into the [0] slot (see definition
-        // of `struct Reb_Func` for explanation of why this is needed)
-        //
-        *FUNC_VALUE(actor->payload.function.func) = *actor;
+        *actor = *FUNC_VALUE(fun);
 
         return R_TRUE;
     }
@@ -746,7 +726,7 @@ REBNATIVE(set_scheme)
     if (!IS_OBJECT(actor)) return R_BLANK;
 
     // Map action natives to scheme actor words:
-    map = Scheme_Actions[n].map;
+    const PORT_ACTION *map = Scheme_Actions[n].map;
     for (; map->func; map++) {
         // Find the action in the scheme actor:
         n = Find_Action(actor, map->action);
@@ -758,11 +738,12 @@ REBNATIVE(set_scheme)
             REBVAL spec;
             Val_Init_Block(&spec, spec_array); // manages
 
-            Make_Native(
-                Obj_Value(actor, n), // function
-                &spec,
-                cast(REBNAT, map->func)
+            REBFUN *fun = Make_Function(
+                Make_Paramlist_Managed_May_Fail(&spec, MKF_KEYWORDS),
+                cast(REBNAT, map->func) // !!! actually a REBPAF (!!!)
             );
+
+            *Obj_Value(actor, n) = *FUNC_VALUE(fun);
         }
     }
     return R_TRUE;

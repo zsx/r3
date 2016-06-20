@@ -808,7 +808,10 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             assert(VAL_FUNC_PARAMLIST(val) == FUNC_PARAMLIST(VAL_FUNC(val)));
             QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_PARAMLIST(val));
 
-            QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_BODY(val));
+            // Need to queue the mark of the array for the body--as trying
+            // to mark the "singular" value directly could infinite loop.
+            //
+            QUEUE_MARK_ARRAY_DEEP(val->payload.function.body);
 
             if (VAL_FUNC_META(val) != NULL)
                 QUEUE_MARK_CONTEXT_DEEP(VAL_FUNC_META(val));

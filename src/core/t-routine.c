@@ -1192,15 +1192,30 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, REBOOL is_callback)
         return FALSE;
     }
 
+    // !!! This code has a challenging property with the new invariant, that
+    // a function is created in a single step from a paramlist and a
+    // dispatcher.  The challenging property is that in order to GC protect
+    // a routine as it is being built, its "REBRIN" must be called out to
+    // the GC...which is done by being part of a routine.  But since
+    // evaluations happen during the building to make the paramlist, this
+    // is a Catch-22.
+    //
+    // Specific binding branch has an implementation that sorts this out, but
+    // may alter other behaviors.  In the meantime this is left building the
+    // function internals by hand.
+
     VAL_RESET_HEADER(out, REB_FUNCTION);
 
-    VAL_FUNC_BODY(out) = Make_Singular_Array(VOID_CELL);
-    MANAGE_ARRAY(VAL_FUNC_BODY(out));
-    VAL_RESET_HEADER(ARR_HEAD(VAL_FUNC_BODY(out)), REB_HANDLE);
-    VAL_HANDLE_DATA(ARR_HEAD(VAL_FUNC_BODY(out)))
-        = cast(REBRIN*, Make_Node(RIN_POOL));
+    REBARR* body_array = Make_Singular_Array(BLANK_VALUE);
+    out->payload.function.body = body_array;
+    MANAGE_ARRAY(body_array);
+    assert(IS_BLANK(VAL_FUNC_BODY(out)));
 
-    VAL_FUNC_DISPATCH(out) = &Routine_Dispatcher;
+    ARR_SERIES(body_array)->misc.dispatch = &Routine_Dispatcher;
+    assert(VAL_FUNC_DISPATCH(out) == &Routine_Dispatcher);
+
+    VAL_RESET_HEADER(VAL_FUNC_BODY(out), REB_HANDLE);
+    VAL_HANDLE_DATA(VAL_FUNC_BODY(out)) = cast(REBRIN*, Make_Node(RIN_POOL));
 
     memset(VAL_ROUTINE_INFO(out), 0, sizeof(REBRIN));
     ROUTINE_SET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_USED);

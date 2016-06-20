@@ -474,17 +474,15 @@ REBNATIVE(action)
         }
     }
 
-    assert(VAL_INDEX(spec) == 0); // must be at head as we don't copy
-
-    Make_Native(
-        D_OUT,
-        spec,
+    REBFUN *fun = Make_Function(
+        Make_Paramlist_Managed_May_Fail(spec, MKF_KEYWORDS),
         &Action_Dispatcher
     );
 
-    SET_INTEGER(ARR_HEAD(VAL_FUNC_BODY(D_OUT)), Action_Index);
-
+    SET_INTEGER(FUNC_BODY(fun), Action_Index);
     Action_Index++;
+
+    *D_OUT = *FUNC_VALUE(fun);
     return R_OUT;
 }
 
@@ -680,24 +678,23 @@ static void Init_Natives(void)
         // With the components extracted, generate the native and add it to
         // the Natives table.  The associated C function is provided by a
         // table built in the bootstrap scripts, `Native_C_Funcs`.
-        //
-        Make_Native(
-            SINK(&Natives[n]),
-            spec,
-            Native_C_Funcs[n]
-        );
-        assert(VAL_FUNC_EXIT_FROM(&Natives[n]) == NULL);
 
-        // If a user-equivalent body was provided, then save it in the native's
-        // REBVAL for later lookup (BLANK! is defaulted by Make_Native)
+        REBFUN *fun = Make_Function(
+            Make_Paramlist_Managed_May_Fail(KNOWN(spec), MKF_KEYWORDS),
+            Native_C_Funcs[n] // "dispatcher" is unique to this "native"
+        );
+
+        // If a user-equivalent body was provided, we save it in the native's
+        // REBVAL for later lookup.
         //
         if (has_body) {
             if (!IS_BLOCK(item))
                 panic (Error(RE_NATIVE_BOOT));
-            assert(VAL_INDEX(item) == 0); // must be at head (we don't copy)
-            *ARR_HEAD(VAL_FUNC_BODY(&Natives[n])) = *item;
+            *FUNC_BODY(fun) = *KNOWN(item); // !!! handle relative?
             ++item;
         }
+
+        Natives[n] = *FUNC_VALUE(fun);
 
         // Append the native to the Lib_Context under the name given
         //

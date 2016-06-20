@@ -462,12 +462,12 @@ REBFUN *Find_Underlying_Func(
         // every time!
 
         while (IS_FUNCTION_ADAPTER(value)) {
-            value = KNOWN(ARR_AT(VAL_FUNC_BODY(value), 1));
+            value = KNOWN(VAL_ARRAY_AT_HEAD(VAL_FUNC_BODY(value), 1));
             loop = TRUE;
         }
 
         while (IS_FUNCTION_CHAINER(value)) {
-            value = KNOWN(ARR_HEAD(VAL_FUNC_BODY(value)));
+            value = KNOWN(VAL_ARRAY_AT_HEAD(VAL_FUNC_BODY(value), 0));
             loop = TRUE;
         }
     } while (loop);
@@ -479,9 +479,9 @@ REBFUN *Find_Underlying_Func(
     // the frame needs to be "for that", so it is the underlying function.
 
     if (IS_FUNCTION_PLAIN(value)) {
-        REBVAL *block = ARR_HEAD(VAL_FUNC_BODY(value));
-        assert(IS_RELATIVE(block));
-        return VAL_RELATIVE(block);
+        REBVAL *body = VAL_FUNC_BODY(value);
+        assert(IS_RELATIVE(body));
+        return VAL_RELATIVE(body);
     }
 
     return VAL_FUNC(value);

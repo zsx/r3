@@ -264,7 +264,7 @@ static void Bind_Values_Inner_Loop(
             //
             Bind_Values_Inner_Loop(
                 binds,
-                ARR_HEAD(VAL_FUNC_BODY(value)),
+                VAL_FUNC_BODY(value),
                 context,
                 bind_types,
                 add_midstream_types,
@@ -384,10 +384,10 @@ REBCNT Try_Bind_Word(REBCTX *context, REBVAL *word)
 static void Bind_Relative_Inner_Loop(
     REBINT *binds,
     REBFUN *func,
-    REBVAL *head,
+    RELVAL *head,
     REBU64 bind_types
 ) {
-    REBVAL *value = head;
+    RELVAL *value = head;
     for (; NOT_END(value); value++) {
         REBU64 type_bit = FLAGIT_KIND(VAL_TYPE(value));
 
@@ -423,7 +423,7 @@ static void Bind_Relative_Inner_Loop(
 // To indicate the relative nature of the index, it is set to
 // a negative offset.
 //
-void Bind_Relative_Deep(REBFUN *func, REBVAL *head, REBU64 bind_types)
+void Bind_Relative_Deep(REBFUN *func, RELVAL *head, REBU64 bind_types)
 {
     REBVAL *param;
     REBCNT index;
@@ -519,7 +519,7 @@ void Rebind_Values_Deep(
             // Ren-C has a different idea in the works.
             //
             Rebind_Values_Deep(
-                src, dst, ARR_HEAD(VAL_FUNC_BODY(value)), opt_binds
+                src, dst, VAL_FUNC_BODY(value), opt_binds
             );
         }
     }

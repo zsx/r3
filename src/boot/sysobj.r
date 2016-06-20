@@ -220,6 +220,11 @@ standard: context [
         comment {No return value.}
     ]
 
+    ; !!! The PORT! and actor code is deprecated, but this bridges it so
+    ; it doesn't have to build a spec by hand.
+    ;
+    port-actor-spec: [port-actor-parameter [<opt> any-value!]]
+
     ; !!! The %sysobj.r initialization currently runs natives (notably the
     ; natives for making objects, and here using COMMENT because it can).
     ; This means that if the FUNCTION-META information is going to be produced

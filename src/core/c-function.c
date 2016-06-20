@@ -138,7 +138,7 @@ inline static void Swap_Values(RELVAL *value1, RELVAL *value2) {
 
 
 //
-//  Make_Paramlist_Managed: C
+//  Make_Paramlist_Managed_May_Fail: C
 // 
 // Check function spec of the form:
 // 
@@ -169,7 +169,7 @@ inline static void Swap_Values(RELVAL *value1, RELVAL *value2) {
 // You don't have to use it if you don't want to...and may overwrite the
 // variable.  But it won't be a void at the start.
 //
-REBFUN *Make_Paramlist_Managed(
+REBARR *Make_Paramlist_Managed_May_Fail(
     const REBVAL *spec,
     REBFLGS flags
 ) {
@@ -691,7 +691,7 @@ REBFUN *Make_Paramlist_Managed(
     //
     DS_DROP_TO(dsp_orig);
 
-    return AS_FUNC(paramlist);
+    return paramlist;
 }
 
 
@@ -726,29 +726,58 @@ REBCNT Find_Param_Index(REBARR *paramlist, REBSYM sym)
 
 
 //
-//  Make_Native: C
+//  Make_Function: C
 //
-void Make_Native(
-    REBVAL *out,
-    REBVAL *spec,
-    REBNAT dispatch
+// Create an archetypal form of a function, given C code implementing a
+// dispatcher that will be called by Do_Core.  Dispatchers are of the form:
+//
+//     REB_R Dispatcher(struct Reb_Frame *f) {...}
+//
+// The REBFUN returned is "archetypal" because individual REBVALs which hold
+// the same REBFUN may differ in a per-REBVAL piece of "instance" data.
+// (This is how one RETURN is distinguished from another--the instance
+// data stored in the REBVAL identifies the pointer of the FRAME! to exit).
+//
+// Functions have an associated REBVAL-sized cell of data, accessible via
+// FUNC_BODY().  This is where they can store information that will be
+// available when the dispatcher is called.  Despite the name, it doesn't
+// have to be an array--it can be any REBVAL.
+//
+REBFUN *Make_Function(
+    REBARR *paramlist,
+    REBNAT dispatch // native C function called by Do_Core
 ) {
-    //Print("Make_Native: %s spec %d", Get_Sym_Name(type+1), SER_LEN(spec));
+    ASSERT_ARRAY_MANAGED(paramlist);
+    assert(IS_FUNCTION(ARR_HEAD(paramlist))); // !!! body not fully formed...
 
-    REBFUN *fun = Make_Paramlist_Managed(spec, SYM_0);
+    REBFUN *fun = AS_FUNC(paramlist);
+    assert(ARR_HEAD(paramlist)->payload.function.func == fun);
 
-    REBARR *body = Make_Singular_Array(BLANK_VALUE); // no body by default
-    FUNC_BODY(fun) = body;
-    MANAGE_ARRAY(body);
-    FUNC_DISPATCH(fun) = dispatch;
+    assert(VAL_FUNC_EXIT_FROM(FUNC_VALUE(fun)) == NULL); // archetype
 
-    *out = *FUNC_VALUE(fun);
+    // The "body" for a function can be any REBVAL.  It doesn't have to be
+    // a block--it's anything that the dispatcher might wish to interpret.
+    // It is allocated as a "singular" array--packed into sizeof(REBSER)
+    // thanks to the END marker trick.
+
+    REBARR *body_holder = Make_Singular_Array(BLANK_VALUE);
+    MANAGE_ARRAY(body_holder);
+    FUNC_VALUE(fun)->payload.function.body = body_holder;
+
+    // The C function pointer is stored inside the REBSER node for the body.
+    // Hence there's no need for a `switch` on a function class in Do_Core,
+    // Having a level of indirection from the REBVAL bits themself also
+    // facilitates the "Hijacker" to change multiple REBVALs behavior.
+
+    ARR_SERIES(body_holder)->misc.dispatch = dispatch;
 
     // Note: used to set the keys of natives as read-only so that the debugger
     // couldn't manipulate the values in a native frame out from under it,
     // potentially crashing C code (vs. just causing userspace code to
     // error).  That protection is now done to the frame series on reification
     // in order to be able to MAKE FRAME! and reuse the native's paramlist.
+
+    return fun;
 }
 
 
@@ -790,7 +819,7 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
     }
     else {
         *is_fake = FALSE;
-        return VAL_FUNC_BODY(func);
+        return VAL_ARRAY(VAL_FUNC_BODY(func));
     }
 
     // See comments in sysobj.r on standard/func-body and standard/proc-body
@@ -807,7 +836,7 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 
         VAL_RESET_HEADER(slot, REB_GROUP);
         SET_VAL_FLAGS(slot, VALUE_FLAG_RELATIVE | VALUE_FLAG_LINE);
-        INIT_VAL_ARRAY(slot, VAL_FUNC_BODY(func));
+        INIT_VAL_ARRAY(slot, VAL_ARRAY(VAL_FUNC_BODY(func)));
         VAL_INDEX(slot) = 0;
         INIT_ARRAY_RELATIVE(slot, VAL_FUNC(func));
     }
@@ -817,15 +846,12 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 
 
 //
-//  Make_Function_May_Fail: C
+//  Make_Plain_Function_May_Fail: C
 // 
-// This is the support routine behind `MAKE FUNCTION!` (or CLOSURE!), the
-// basic building block of creating functions in Rebol.
-// 
-// If `has_return` is passed in as TRUE, then is also the optimized native
-// implementation for the function generators FUNC and CLOS.  Ren/C's
-// schematic for these generators is *very* different from R3-Alpha, whose
-// definition of FUNC was simply:
+// This is the support routine behind `MAKE FUNCTION!`, FUNC, and PROC.
+//
+// Ren/C's schematic for the FUNC and PROC generators is *very* different
+// from R3-Alpha, whose definition of FUNC was simply:
 // 
 //     make function! copy/deep reduce [spec body]
 // 
@@ -877,45 +903,40 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 // `out` or not return...as a failed check on a function spec is
 // raised as an error.
 //
-REBFUN *Make_Function_May_Fail(
-    const REBVAL *spec_val,
-    const REBVAL *body_val,
+REBFUN *Make_Plain_Function_May_Fail(
+    const REBVAL *spec,
+    const REBVAL *code,
     REBFLGS flags
 ) {
-    if (!IS_BLOCK(spec_val) || !IS_BLOCK(body_val))
-        fail (Error_Bad_Func_Def(spec_val, body_val));
+    if (!IS_BLOCK(spec) || !IS_BLOCK(code))
+        fail (Error_Bad_Func_Def(spec, code));
 
-    REBFUN *fun = Make_Paramlist_Managed(spec_val, flags);
-
-    // We copy the body.  It is indirected into a block value so that it may
-    // carry a specifier--also so that multiple functions with different
-    // dispatchers could theoretically have the same array.
-    //
-    // This way, if the function gets hijacked it can be re-relativized by
-    // the Plain_Dispatcher that can notice if the paramlist of a function
-    // value is a mismatch for the value it is relativized against--without
-    // making it have to be a "rerelativizer" or other such thing.
-    //
-    // NOTE: This means that getting the FUNCTION-OF a frame based on the
-    // encoded paramlist is a flawed concept--which it already is due to
-    // specializations etc.
-    //
-    REBARR *body = Make_Singular_Array(VOID_CELL);
-    Val_Init_Array(
-        ARR_HEAD(body),
-        REB_BLOCK,
-        VAL_ARRAY_LEN_AT(body_val) == 0
-            ? EMPTY_ARRAY
-            : Copy_Array_At_Deep_Managed(
-                VAL_ARRAY(body_val), VAL_INDEX(body_val)
-            )
+    REBFUN *fun = Make_Function(
+        Make_Paramlist_Managed_May_Fail(spec, flags),
+        &Plain_Dispatcher
     );
-    SET_VAL_FLAG(ARR_HEAD(body), VALUE_FLAG_RELATIVE);
-    ARR_HEAD(body)->payload.any_series.target.relative = fun;
-    MANAGE_ARRAY(body);
-    FUNC_VALUE(fun)->payload.function.body = body;
 
-    FUNC_DISPATCH(fun) = &Plain_Dispatcher;
+    // We need to copy the body in order to relativize its references to
+    // args and locals to refer to the parameter list.  Future implementations
+    // might be able to "image" the bindings virtually, and not require this
+    // copy if the input code is read-only.
+    //
+    REBARR *body_array =
+        (VAL_ARRAY_LEN_AT(code) == 0)
+            ? EMPTY_ARRAY // just reuse empty array if empty, no copy
+            : Copy_Array_At_Deep_Managed(
+                VAL_ARRAY(code), VAL_INDEX(code)
+            );
+
+    // We need to do a raw initialization of this block RELVAL because it is
+    // relative to a function.  (Val_Init_Block assumes all specific values)
+    //
+    RELVAL *body = FUNC_BODY(fun);
+    VAL_RESET_HEADER(body, REB_BLOCK);
+    body->payload.any_series.series = ARR_SERIES(body_array);
+    VAL_INDEX(body) = 0;
+    SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
+    body->payload.any_series.target.relative = fun;
 
 #if !defined(NDEBUG)
     //
@@ -927,8 +948,8 @@ REBFUN *Make_Function_May_Fail(
     //
     if (
         LEGACY_RUNNING(OPTIONS_REFINEMENTS_BLANK)
-        || GET_ARR_FLAG(VAL_ARRAY(spec_val), SERIES_FLAG_LEGACY)
-        || GET_ARR_FLAG(VAL_ARRAY(body_val), SERIES_FLAG_LEGACY)
+        || GET_ARR_FLAG(VAL_ARRAY(spec), SERIES_FLAG_LEGACY)
+        || GET_ARR_FLAG(VAL_ARRAY(code), SERIES_FLAG_LEGACY)
     ) {
         SET_VAL_FLAG(FUNC_VALUE(fun), FUNC_FLAG_LEGACY);
     }
@@ -944,7 +965,7 @@ REBFUN *Make_Function_May_Fail(
     // body of the durable...it is copied each time and the real numbers
     // filled in.  Having the indexes already done speeds the copying.)
     //
-    Bind_Relative_Deep(fun, ARR_HEAD(body), TS_ANY_WORD);
+    Bind_Relative_Deep(fun, VAL_ARRAY_HEAD(body), TS_ANY_WORD);
 
 #if !defined(NDEBUG)
     if (LEGACY(OPTIONS_MUTABLE_FUNCTION_BODIES))
@@ -968,12 +989,9 @@ REBFUN *Make_Function_May_Fail(
     // is used by the mandatory Unmark() routine as well.  Easier to use
     // than to figure out how to modify it to take series for this ATM.
     //
-    REBVAL new_body;
-    Val_Init_Block(&new_body, FUNC_BODY(fun));
-
-    Protect_Series(&new_body, FLAGIT(PROT_DEEP) | FLAGIT(PROT_SET));
-    assert(GET_ARR_FLAG(VAL_ARRAY(&new_body), SERIES_FLAG_LOCKED));
-    Unmark(&new_body);
+    Protect_Series(body, FLAGIT(PROT_DEEP) | FLAGIT(PROT_SET));
+    assert(GET_ARR_FLAG(VAL_ARRAY(body), SERIES_FLAG_LOCKED));
+    Unmark(body);
 
     return fun;
 }
@@ -1061,7 +1079,7 @@ REBOOL Specialize_Function_Throws(
     assert(out != specializee);
 
     REBCTX *exemplar;
-    REBFUN *func = Find_Underlying_Func(&exemplar, specializee);
+    REBFUN *under = Find_Underlying_Func(&exemplar, specializee);
 
     if (exemplar) {
         //
@@ -1084,7 +1102,7 @@ REBOOL Specialize_Function_Throws(
         // An initial specialization is responsible for making a frame out
         // of the function's paramlist.  Frame vars default void.
         //
-        exemplar = Make_Frame_For_Function(specializee);
+        exemplar = Make_Frame_For_Function(FUNC_VALUE(under));
         MANAGE_ARRAY(CTX_VARLIST(exemplar));
     }
 
@@ -1123,30 +1141,12 @@ REBOOL Specialize_Function_Throws(
         DROP_GUARD_ARRAY(CTX_VARLIST(exemplar));
     }
 
-    // Begin initializing the returned function value
-    //
-    VAL_RESET_HEADER(out, REB_FUNCTION);
-
-    // The "body" is the FRAME! value of the specialization.  Though we may
-    // not be able to touch the keylist of that frame to update the "archetype"
-    // exit_from, we can patch this cell in the "body array" to hold it.
-    //
-    VAL_FUNC_BODY(out) = Make_Singular_Array(CTX_VALUE(exemplar));
-    MANAGE_ARRAY(VAL_FUNC_BODY(out));
-    VAL_CONTEXT_EXIT_FROM(VAL_FUNC_EXEMPLAR(out))
-        = VAL_FUNC_EXIT_FROM(specializee);
-
-    // Currently specializations never actually run their own dispatch, but
-    // it may be useful to recognize the function category by a dispatcher
-    //
-    VAL_FUNC_DISPATCH(out) = &Specializer_Dispatcher;
-
-    // Generate paramlist by way of the data stack.  Push empty value (to
+    // Generate paramlist by way of the data stack.  Push inherited value (to
     // become the function value afterward), then all the args that remain
     // unspecialized (indicated by being void...<opt> is not supported)
     //
     REBDSP dsp_orig = DSP;
-    DS_PUSH_TRASH_SAFE; // later initialized as [0] canon value
+    DS_PUSH(FUNC_VALUE(VAL_FUNC(specializee))); // !!! is inheriting good?
 
     REBVAL *param = CTX_KEYS_HEAD(exemplar);
     REBVAL *arg = CTX_VARS_HEAD(exemplar);
@@ -1157,7 +1157,15 @@ REBOOL Specialize_Function_Throws(
 
     REBARR *paramlist = Pop_Stack_Values(dsp_orig);
     MANAGE_ARRAY(paramlist);
-    out->payload.function.func = AS_FUNC(paramlist);
+    ARR_HEAD(paramlist)->payload.function.func = AS_FUNC(paramlist);
+
+    REBFUN *fun = Make_Function(paramlist, &Specializer_Dispatcher);
+
+    // The "body" is the FRAME! value of the specialization.  Though we may
+    // not be able to touch the keylist of that frame to update the "archetype"
+    // exit_from, we can patch this cell in the "body array" to hold it.
+    //
+    *FUNC_BODY(fun) = *CTX_VALUE(exemplar);
 
     // See %sysobj.r for `specialized-meta:` object template
 
@@ -1170,12 +1178,10 @@ REBOOL Specialize_Function_Throws(
         Val_Init_Word(CTX_VAR(meta, SELFISH(3)), REB_WORD, opt_specializee_sym);
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
-    VAL_FUNC_META(out) = meta;
-    VAL_FUNC_EXIT_FROM(out) = NULL;
+    FUNC_META(fun) = meta;
 
-    // Update canon value's bits to match what we're giving back in out.
-    //
-    *ARR_HEAD(paramlist) = *out;
+    *out = *FUNC_VALUE(fun);
+    assert(VAL_FUNC_EXIT_FROM(out) == NULL); // VAL_FUNC_EXIT_FROM(specializee)
 
     return FALSE;
 }
@@ -1192,9 +1198,6 @@ REBOOL Specialize_Function_Throws(
 //
 void Clonify_Function(REBVAL *value)
 {
-    REBFUN *func_orig;
-    REBARR *paramlist_copy;
-
     // !!! Conceptually the only types it currently makes sense to speak of
     // copying are functions and closures.  Though the concept is a little
     // bit "fuzzy"...the idea is that the series which are reachable from
@@ -1226,52 +1229,44 @@ void Clonify_Function(REBVAL *value)
     // two calls on the stack would be seen as recursions of the same
     // function, sharing each others "stack relative locals".
 
-    func_orig = VAL_FUNC(value);
-    paramlist_copy = Copy_Array_Shallow(FUNC_PARAMLIST(func_orig));
+    REBFUN *original_fun = VAL_FUNC(value);
 
-    value->payload.function.func = AS_FUNC(paramlist_copy);
+    REBARR *paramlist = Copy_Array_Shallow(FUNC_PARAMLIST(original_fun));
+    MANAGE_ARRAY(paramlist);
+    ARR_HEAD(paramlist)->payload.function.func = AS_FUNC(paramlist);
 
-    VAL_FUNC_META(value) = FUNC_META(func_orig);
+    REBFUN *new_fun = Make_Function(paramlist, &Plain_Dispatcher);
 
-    VAL_FUNC_BODY(value) = Copy_Array_Deep_Managed(VAL_FUNC_BODY(value));
-    VAL_FUNC_DISPATCH(value) = &Plain_Dispatcher;
+    // !!! Meta: copy, inherit?
+    //
+    FUNC_META(new_fun) = FUNC_META(original_fun);
 
-    // Remap references in the body from paramlist_orig to our new copied
-    // word list we saved in VAL_FUNC_PARAMLIST(value)
+    REBVAL *body = FUNC_BODY(new_fun);
 
-    Rebind_Values_Relative_Deep(
-        func_orig,
-        value->payload.function.func,
-        ARR_HEAD(VAL_FUNC_BODY(value))
-    );
-
-    // Since we rebound the body, we need to instruct the Plain_Dispatcher
+    // Since we rebind the body, we need to instruct the Plain_Dispatcher
     // that it's o.k. to tell the frame lookup that it can find variables
     // under the "new paramlist".  However, in specific binding where
     // bodies are not copied, you would preserve the "underlying" paramlist
     // in this slot
-
-    assert(IS_RELATIVE(ARR_HEAD(VAL_FUNC_BODY(value))));
-    VAL_RELATIVE(ARR_HEAD(VAL_FUNC_BODY(value))) = AS_FUNC(paramlist_copy);
-
-    // The above phrasing came from deep cloning code, while the below was
-    // in the Copy_Function code.  Evaluate if there is now "dead code"
-    // relating to the difference.
-/*
-    Bind_Relative_Deep(
-        VAL_FUNC_PARAMLIST(out),
-        ARR_HEAD(VAL_FUNC_BODY(out)),
-        TS_ANY_WORD
-    );
-*/
-
-    // The first element in the paramlist is the identity of the function
-    // value itself.  So we must update this value if we make a copy,
-    // so the paramlist does not indicate the original.
     //
-    *FUNC_VALUE(value->payload.function.func) = *value;
+    VAL_RESET_HEADER(body, REB_BLOCK);
+    body->payload.any_series.series
+        = ARR_SERIES(
+            Copy_Array_Deep_Managed(VAL_ARRAY(FUNC_BODY(original_fun)))
+        );
+    VAL_INDEX(body) = 0;
+    SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
+    VAL_RELATIVE(FUNC_BODY(new_fun)) = AS_FUNC(paramlist);
 
-    MANAGE_ARRAY(VAL_FUNC_PARAMLIST(value));
+    // Remap references in the body from the original function to new
+
+    Rebind_Values_Relative_Deep(
+        original_fun,
+        new_fun,
+        VAL_ARRAY_HEAD(FUNC_BODY(new_fun))
+    );
+
+    *value = *FUNC_VALUE(new_fun);
 }
 
 
@@ -1316,10 +1311,8 @@ REB_R Plain_Dispatcher(struct Reb_Frame *f)
 
     Eval_Functions++;
 
-    REBARR *body = FUNC_BODY(f->func);
-    assert(ARR_LEN(body) == 1);
-    REBVAL *block = ARR_HEAD(body);
-    assert(IS_BLOCK(block) && IS_RELATIVE(block) && VAL_INDEX(block) == 0);
+    RELVAL *body = FUNC_BODY(f->func);
+    assert(IS_BLOCK(body) && IS_RELATIVE(body) && VAL_INDEX(body) == 0);
 
     // !!! This concern will be different in specific binding.  But during
     // dynamic binding, if a hijacked function has put a new paramlist into
@@ -1327,7 +1320,7 @@ REB_R Plain_Dispatcher(struct Reb_Frame *f)
     // then this frame has to lie and say the stack was for that.
 
     REBFUN *save_func = f->func;
-    f->func = VAL_RELATIVE(block);
+    f->func = VAL_RELATIVE(body);
 
     REB_R r;
 
@@ -1339,7 +1332,7 @@ REB_R Plain_Dispatcher(struct Reb_Frame *f)
         // that words embedded in the shared blocks may only look up relative
         // to the currently running function.
         //
-        if (Do_At_Throws(f->out, VAL_ARRAY(block), 0))
+        if (Do_At_Throws(f->out, VAL_ARRAY(body), 0))
             r = R_OUT_IS_THROWN;
         else
             r = R_OUT;
@@ -1355,7 +1348,7 @@ REB_R Plain_Dispatcher(struct Reb_Frame *f)
         REBVAL copy;
         VAL_RESET_HEADER(&copy, REB_BLOCK);
         INIT_VAL_ARRAY(
-            &copy, Copy_Array_Deep_Managed(VAL_ARRAY(block))
+            &copy, Copy_Array_Deep_Managed(VAL_ARRAY(body))
         );
         VAL_INDEX(&copy) = 0;
 
@@ -1420,7 +1413,7 @@ REB_R Specializer_Dispatcher(struct Reb_Frame *f)
 REB_R Hijacker_Dispatcher(struct Reb_Frame *f)
 {
     // Whatever was initially in the body of the function
-    REBVAL *hook = KNOWN(ARR_HEAD(FUNC_BODY(f->func)));
+    RELVAL *hook = FUNC_BODY(f->func);
 
     if (IS_BLANK(hook)) // blank hijacking allows capture, but nothing to run
         fail (Error(RE_HIJACK_BLANK));
@@ -1466,10 +1459,11 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
 //
 REB_R Adapter_Dispatcher(struct Reb_Frame *f)
 {
-    REBARR* adaptation = FUNC_BODY(f->func);
-    assert(ARR_LEN(adaptation) == 2);
-    REBARR* prelude = VAL_ARRAY(ARR_AT(adaptation, 0));
-    REBVAL* adaptee = KNOWN(ARR_AT(adaptation, 1));
+    REBVAL *adaptation = FUNC_BODY(f->func);
+    assert(ARR_LEN(VAL_ARRAY(adaptation)) == 2);
+
+    REBARR* prelude = VAL_ARRAY(VAL_ARRAY_AT_HEAD(adaptation, 0));
+    REBVAL* adaptee = KNOWN(VAL_ARRAY_AT_HEAD(adaptation, 1));
 
     // !!! With specific binding, we could slip the adapter a specifier for
     // the underlying function.  But until then, it looks at the stack.  The
@@ -1599,15 +1593,15 @@ REB_R Adapter_Dispatcher(struct Reb_Frame *f)
 //
 REB_R Chainer_Dispatcher(struct Reb_Frame *f)
 {
-    REBARR *pipeline = FUNC_BODY(f->func); // is the "pipeline" of functions
+    REBVAL *pipeline = FUNC_BODY(f->func); // is the "pipeline" of functions
 
     // Before skipping off to find the underlying non-chained function
     // to kick off the execution, the post-processing pipeline has to
     // be "pushed" so it is not forgotten.  Go in reverse order so
     // the function to apply last is at the bottom of the stack.
     //
-    REBVAL *value = KNOWN(ARR_LAST(pipeline));
-    while (value != ARR_HEAD(pipeline)) {
+    REBVAL *value = KNOWN(ARR_LAST(VAL_ARRAY(pipeline)));
+    while (value != VAL_ARRAY_HEAD(pipeline)) {
         assert(IS_FUNCTION(value));
         DS_PUSH(KNOWN(value));
         --value;
@@ -1641,7 +1635,7 @@ REBNATIVE(func)
     PARAM(1, spec);
     PARAM(2, body);
 
-    REBFUN *fun = Make_Function_May_Fail(
+    REBFUN *fun = Make_Plain_Function_May_Fail(
         ARG(spec), ARG(body), MKF_RETURN | MKF_LEAVE | MKF_KEYWORDS
     );
 
@@ -1671,7 +1665,7 @@ REBNATIVE(proc)
     PARAM(1, spec);
     PARAM(2, body);
 
-    REBFUN *fun = Make_Function_May_Fail(
+    REBFUN *fun = Make_Plain_Function_May_Fail(
         ARG(spec), ARG(body), MKF_LEAVE | MKF_PUNCTUATES | MKF_KEYWORDS
     );
 
@@ -1780,7 +1774,6 @@ REBNATIVE(chain)
     assert(!REF(only)); // not written yet
 
     REBARR *chainees;
-
     if (REF(only)) {
         chainees = Copy_Array_At_Deep_Managed(
             VAL_ARRAY(ARG(chainees)),
@@ -1793,34 +1786,29 @@ REBNATIVE(chain)
         )) {
             return R_OUT_IS_THROWN;
         }
-
         chainees = VAL_ARRAY(out); // should be all specific values
         ASSERT_ARRAY_MANAGED(chainees);
     }
-
-    // !!! Should validate pipeline here.  What would be legal besides
-    // just functions...is it a dialect?
-
-    assert(IS_FUNCTION(ARR_HEAD(chainees)));
-    REBVAL *starter = KNOWN(ARR_HEAD(chainees));
-
-    // Begin initializing the returned function value
-    //
-    VAL_RESET_HEADER(out, REB_FUNCTION);
-
-    // The "body" is just the pipeline.
-    //
-    out->payload.function.body = chainees;
-    VAL_FUNC_DISPATCH(out) = &Chainer_Dispatcher;
 
     // The paramlist needs to be unique to designate this function, but
     // will be identical typesets to the first function in the chain.  It's
     // [0] element must identify the function we're creating vs the original,
     // however.
     //
+    // !!! Should validate pipeline here.  What would be legal besides
+    // just functions...is it a dialect?
+    //
+    REBVAL *starter = KNOWN(ARR_HEAD(chainees));
+    assert(IS_FUNCTION(ARR_HEAD(chainees)));
     REBARR *paramlist = Copy_Array_Shallow(VAL_FUNC_PARAMLIST(starter));
+    ARR_HEAD(paramlist)->payload.function.func = AS_FUNC(paramlist);
     MANAGE_ARRAY(paramlist);
-    out->payload.function.func = AS_FUNC(paramlist);
+
+    REBFUN *fun = Make_Function(paramlist, &Chainer_Dispatcher);
+
+    // "body" is the chainees array, available to the dispatcher when called
+    //
+    Val_Init_Block(FUNC_BODY(fun), chainees);
 
     // See %sysobj.r for `specialized-meta:` object template
 
@@ -1837,12 +1825,10 @@ REBNATIVE(chain)
     assert(IS_VOID(CTX_VAR(meta, SELFISH(3))));
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
-    VAL_FUNC_META(out) = meta;
-    VAL_FUNC_EXIT_FROM(out) = NULL;
+    FUNC_META(fun) = meta;
 
-    // Update canon value's bits to match what we're giving back in out.
-    //
-    *ARR_HEAD(paramlist) = *out;
+    *D_OUT = *FUNC_VALUE(fun);
+    assert(VAL_FUNC_EXIT_FROM(D_OUT) == NULL);
 
     return R_OUT;
 }
@@ -1873,8 +1859,6 @@ REBNATIVE(adapt)
 
     *adaptee = *D_OUT;
 
-    REBVAL *out = D_OUT; // plan ahead for factoring into Adapt_Function(out..
-
     // !!! In a future branch it may be possible that specific binding allows
     // a read-only input to be "viewed" with a relative binding, and no copy
     // would need be made if input was R/O.  For now, we copy to relativize.
@@ -1898,37 +1882,25 @@ REBNATIVE(adapt)
 
     Bind_Relative_Deep(under, ARR_HEAD(prelude), TS_ANY_WORD);
 
-    // We need to store the 2 values describing the adaptation so that Do_Core
-    // knows what to do when it sees FUNC_CLASS_ADAPTED.  [0] is the prelude
-    // BLOCK!, [1] is the FUNCTION! we've adapted.
-    //
-    // !!! This could be optimized to make a copy of the array leaving the
-    // 0 cell blank to leave room for the adaptee, then DO the block from
-    // the 1 index.
-    //
-    REBARR *adaptation = Make_Array(2);
-    Val_Init_Block(ARR_AT(adaptation, 0), prelude);
-    *ARR_AT(adaptation, 1) = *adaptee;
-    SET_ARRAY_LEN(adaptation, 2);
-    TERM_ARRAY(adaptation);
-    MANAGE_ARRAY(adaptation);
-
-    // Begin initializing the returned function value
-    //
-    VAL_RESET_HEADER(out, REB_FUNCTION);
-
-    // The "body" is just the adaptation.
-    //
-    out->payload.function.body = adaptation;
-    VAL_FUNC_DISPATCH(out) = &Adapter_Dispatcher;
-
     // The paramlist needs to be unique to designate this function, but
     // will be identical typesets to the original.  It's [0] element must
     // identify the function we're creating vs the original, however.
     //
     REBARR *paramlist = Copy_Array_Shallow(VAL_FUNC_PARAMLIST(adaptee));
+    ARR_HEAD(paramlist)->payload.function.func = AS_FUNC(paramlist);
     MANAGE_ARRAY(paramlist);
-    out->payload.function.func = AS_FUNC(paramlist);
+
+    REBFUN *fun = Make_Function(paramlist, &Adapter_Dispatcher);
+
+    // We need to store the 2 values describing the adaptation so that the
+    // dispatcher knows what to do when it gets called and inspects FUNC_BODY.
+    //
+    // [0] is the prelude BLOCK!, [1] is the FUNCTION! we've adapted.
+    //
+    REBARR *adaptation = Make_Array(2);
+    Val_Init_Block(Alloc_Tail_Array(adaptation), prelude);
+    Append_Value(adaptation, adaptee);
+    Val_Init_Block(FUNC_BODY(fun), adaptation);
 
     // See %sysobj.r for `specialized-meta:` object template
 
@@ -1941,12 +1913,10 @@ REBNATIVE(adapt)
         Val_Init_Word(CTX_VAR(meta, SELFISH(3)), REB_WORD, opt_adaptee_sym);
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
-    VAL_FUNC_META(out) = meta;
-    VAL_FUNC_EXIT_FROM(out) = NULL;
+    FUNC_META(fun) = meta;
 
-    // Update canon value's bits to match what we're giving back in out.
-    //
-    *ARR_HEAD(paramlist) = *out;
+    *D_OUT = *FUNC_VALUE(fun);
+    assert(VAL_FUNC_EXIT_FROM(D_OUT) == NULL);
 
     return R_OUT;
 }
@@ -2033,7 +2003,7 @@ REBNATIVE(hijack)
         // body pointer will indicate the swapped array, but we have a new
         // REBSER by which to refer to the old body array's data.
         //
-        REBARR *swapbody = Make_Singular_Array(VOID_CELL);
+        REBARR *swapbody = Make_Singular_Array(BLANK_VALUE);
         MANAGE_ARRAY(swapbody);
         Swap_Underlying_Series_Data(
             ARR_SERIES(swapbody), ARR_SERIES(victim->payload.function.body)
@@ -2066,7 +2036,8 @@ REBNATIVE(hijack)
 
     assert(ARR_LEN(victim->payload.function.body) == 1);
     *ARR_HEAD(victim->payload.function.body) = *hijacker;
-    VAL_FUNC_DISPATCH(victim) = &Hijacker_Dispatcher;
+    ARR_SERIES(victim->payload.function.body)->misc.dispatch
+        = &Hijacker_Dispatcher;
     VAL_FUNC_EXIT_FROM(victim) = NULL;
 
     // See %sysobj.r for `hijacked-meta:` object template
@@ -2316,7 +2287,7 @@ REBVAL *FUNC_PARAM_Debug(REBFUN *f, REBCNT n) {
 //
 //  VAL_FUNC_Debug: C
 //
-REBFUN *VAL_FUNC_Debug(const REBVAL *v) {
+REBFUN *VAL_FUNC_Debug(const RELVAL *v) {
     REBFUN *func = v->payload.function.func;
     struct Reb_Value_Header v_header = v->header;
     struct Reb_Value_Header func_header = FUNC_VALUE(func)->header;

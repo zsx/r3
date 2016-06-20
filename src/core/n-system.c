@@ -373,7 +373,7 @@ REBNATIVE(check)
     else if (IS_FUNCTION(value)) {
         assert(VAL_FUNC_EXIT_FROM(value) == NULL);
         ASSERT_ARRAY(VAL_FUNC_PARAMLIST(value));
-        ASSERT_ARRAY(VAL_FUNC_BODY(value));
+        ASSERT_ARRAY(VAL_ARRAY(VAL_FUNC_BODY(value)));
     }
 
     return R_TRUE;

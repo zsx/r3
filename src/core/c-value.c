@@ -262,7 +262,7 @@ REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
 //
 //  INIT_WORD_INDEX_Debug: C
 //
-void INIT_WORD_INDEX_Debug(REBVAL *v, REBCNT i)
+void INIT_WORD_INDEX_Debug(RELVAL *v, REBCNT i)
 {
     assert(ANY_WORD(v));
     assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND));
@@ -272,7 +272,7 @@ void INIT_WORD_INDEX_Debug(REBVAL *v, REBCNT i)
         );
     else
         assert(SAME_SYM(
-            VAL_WORD_SYM(v), CTX_KEY_SYM(VAL_WORD_CONTEXT(v), i))
+            VAL_WORD_SYM(v), CTX_KEY_SYM(VAL_WORD_CONTEXT(KNOWN(v)), i))
         );
     (v)->payload.any_word.place.binding.index = (i);
 }
