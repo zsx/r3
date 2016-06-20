@@ -938,8 +938,8 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
         SET_ARRAY_LEN(CTX_VARLIST(error), root_len + expected_args + 1);
         SET_ARRAY_LEN(CTX_KEYLIST(error), root_len + expected_args + 1);
 
-        key = CTX_KEY(error, root_len + 1);
-        value = CTX_VAR(error, root_len + 1);
+        key = CTX_KEY(error, root_len) + 1;
+        value = CTX_VAR(error, root_len) + 1;
 
     #ifdef NDEBUG
         temp = VAL_ARRAY_HEAD(message);
