@@ -500,7 +500,6 @@ add_custom_command(OUTPUT
     )
 
 set (GENERATED_CORE_SOURCE
-    ${NATIVE_OUTPUT}
     ${HEADER_OUTPUT}
     ${BOOT_OUTPUT}
     ${EXT_CORE_OUTPUT}
