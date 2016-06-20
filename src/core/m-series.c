@@ -562,12 +562,18 @@ ATTRIBUTE_NO_RETURN void Panic_Series_Debug(
     // during mold and other times.
     //
     printf("\n\n*** Panic_Series() in %s at line %d\n", file, line);
+    if (SER_FREED(series))
+        printf("Likely freed ");
+    else
+        printf("Likely created ");
+    printf("during evaluator tick: %d\n", cast(REBCNT, series->do_count));
     fflush(stdout);
 
     if (*series->guard == 1020) // should make valgrind or asan alert
         panic (Error(RE_MISC));
 
-    printf("!!! *series->guard dereference didn't crash (not a REBSER?)\n");
+    printf("!!! *series->guard didn't trigger ASAN/Valgrind trap\n");
+    printf("!!! either not a REBSER, or you're not running ASAN/Valgrind\n");
     fflush(stdout);
 
     panic (Error(RE_MISC)); // just in case it didn't crash

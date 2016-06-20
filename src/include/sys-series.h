@@ -444,10 +444,10 @@ struct Reb_Series {
 //
 
 #define SET_SER_FLAG(s,f) \
-    cast(void, ((s)->info.bits |= (f)))
+    cast(void, ((s)->info.bits |= cast(REBUPT, f)))
 
 #define CLEAR_SER_FLAG(s,f) \
-    cast(void, ((s)->info.bits &= ~(f)))
+    cast(void, ((s)->info.bits &= ~cast(REBUPT, f)))
 
 #define GET_SER_FLAG(s,f) \
     LOGICAL((s)->info.bits & (f))
