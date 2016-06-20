@@ -146,11 +146,17 @@ REBTYPE(Function)
 
         switch (canon) {
         case SYM_ADDR:
-            if (IS_FUNCTION_CALLBACK(value)) {
+            if (
+                IS_FUNCTION_RIN(value)
+                && IS_CALLBACK_ROUTINE(VAL_FUNC_INFO(value))
+            ) {
                 SET_INTEGER(D_OUT, cast(REBUPT, VAL_ROUTINE_DISPATCHER(value)));
                 return R_OUT;
             }
-            if (IS_FUNCTION_ROUTINE(value)) {
+            if (
+                IS_FUNCTION_RIN(value)
+                && NOT(IS_CALLBACK_ROUTINE(VAL_FUNC_INFO(value)))
+            ) {
                 SET_INTEGER(D_OUT, cast(REBUPT, VAL_ROUTINE_FUNCPTR(value)));
                 return R_OUT;
             }
@@ -260,10 +266,12 @@ REBNATIVE(func_class_of)
         n = 3;
     else if (IS_FUNCTION_COMMAND(value))
         n = 4;
-    else if (IS_FUNCTION_ROUTINE(value))
-        n = 5;
-    else if (IS_FUNCTION_CALLBACK(value))
-        n = 6;
+    else if (IS_FUNCTION_RIN(value)) {
+        if (!IS_CALLBACK_ROUTINE(VAL_FUNC_INFO(value)))
+            n = 5;
+        else
+            n = 6;
+    }
     else if (IS_FUNCTION_SPECIALIZER(value))
         n = 7;
     else {

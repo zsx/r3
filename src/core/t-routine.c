@@ -606,8 +606,12 @@ static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
                     ptrs[idx] = VAL_RAW_DATA_AT(arg);
                     return &ptrs[idx];
                 case REB_FUNCTION:
-                    if (NOT(IS_FUNCTION_CALLBACK(arg)))
+                    if (
+                        NOT(IS_FUNCTION_RIN(arg))
+                        || NOT(IS_CALLBACK_ROUTINE(VAL_FUNC_INFO(arg)))
+                    ) {
                         fail (Error(RE_ONLY_CALLBACK_PTR));
+                    }
 
                     ptrs[idx] = VAL_ROUTINE_DISPATCHER(arg);
                     return &ptrs[idx];
@@ -1209,10 +1213,14 @@ REBOOL MT_Routine(REBVAL *out, REBVAL *data, REBOOL is_callback)
 
     // !!! Routines use different spec logic than the other generators.
 
-    VAL_ROUTINE_META(out) = NULL; /* Copy_Array_Shallow(VAL_ARRAY(data)) */
-    VAL_ROUTINE_FFI_ARG_TYPES(out) =
-        Make_Series(N_ARGS, sizeof(ffi_type*), MKS_NONE);
     out->payload.function.func = AS_FUNC(Make_Array(N_ARGS));
+
+    VAL_ROUTINE_META(out) = NULL; /* Copy_Array_Shallow(VAL_ARRAY(data)) */
+
+    REBSER *ffi_arg_types = Make_Series(N_ARGS, sizeof(ffi_type*), MKS_NONE);
+    assert(GET_SER_FLAG(ffi_arg_types, SERIES_FLAG_HAS_DYNAMIC));
+    VAL_ROUTINE_FFI_ARG_TYPES(out) = ffi_arg_types;
+    assert(VAL_ROUTINE_FFI_ARG_TYPES(out) == ffi_arg_types);
 
     // first slot is reserved for the "self", see `struct Reb_Func`
     //
@@ -1541,7 +1549,7 @@ REBNATIVE(make_routine)
 
     const REBOOL is_callback = FALSE;
 
-    MT_Routine(D_OUT, ARG(def), TRUE);
+    MT_Routine(D_OUT, ARG(def), is_callback);
 
     return R_OUT;
 }

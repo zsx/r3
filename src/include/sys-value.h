@@ -2237,13 +2237,8 @@ struct Reb_Function {
 #define IS_FUNCTION_CHAINER(v) \
     (VAL_FUNC_DISPATCH(v) == &Chainer_Dispatcher)
 
-#define IS_FUNCTION_ROUTINE(v) \
-    (VAL_FUNC_DISPATCH(v) == &Routine_Dispatcher \
-        && NOT(IS_CALLBACK_ROUTINE(VAL_FUNC_INFO(v))))
-
-#define IS_FUNCTION_CALLBACK(v) \
-    (VAL_FUNC_DISPATCH(v) == &Routine_Dispatcher \
-        && IS_CALLBACK_ROUTINE(VAL_FUNC_INFO(v)))
+#define IS_FUNCTION_RIN(v) \
+    (VAL_FUNC_DISPATCH(v) == &Routine_Dispatcher)
 
 #define IS_FUNCTION_HIJACKER(v) \
     (VAL_FUNC_DISPATCH(v) == &Hijacker_Dispatcher)

@@ -816,7 +816,7 @@ void Queue_Mark_Value_Deep(const REBVAL *val)
             // Of all the function types, only the routines and callbacks use
             // HANDLE! and must be explicitly pointed out in the body.
             //
-            if (IS_FUNCTION_ROUTINE(val))
+            if (IS_FUNCTION_RIN(val))
                 Queue_Mark_Routine_Deep(VAL_ROUTINE(val));
             break;
         }
