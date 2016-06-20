@@ -374,6 +374,12 @@ add_custom_command(OUTPUT
     ${HEADER_DEPENDS}
     )
 
+set_source_files_properties(
+    ${TOP_SRC_DIR}/include/tmp-evaltypes.inc
+    PROPERTIES
+    HEADER_FILE_ONLY TRUE
+    )
+
 set(BOOT_OUTPUT
     ${TOP_SRC_DIR}/include/tmp-evaltypes.inc
     ${TOP_SRC_DIR}/include/tmp-maketypes.h
