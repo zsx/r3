@@ -1426,6 +1426,15 @@ void Clonify_Function(REBVAL *value)
         ARR_HEAD(VAL_FUNC_BODY(value))
     );
 
+    // Since we rebound the body, we need to instruct the Plain_Dispatcher
+    // that it's o.k. to tell the frame lookup that it can find variables
+    // under the "new paramlist".  However, in specific binding where
+    // bodies are not copied, you would preserve the "underlying" paramlist
+    // in this slot
+
+    assert(IS_RELATIVE(ARR_HEAD(VAL_FUNC_BODY(value))));
+    VAL_RELATIVE(ARR_HEAD(VAL_FUNC_BODY(value))) = AS_FUNC(paramlist_copy);
+
     // The above phrasing came from deep cloning code, while the below was
     // in the Copy_Function code.  Evaluate if there is now "dead code"
     // relating to the difference.
