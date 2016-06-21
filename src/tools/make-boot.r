@@ -26,7 +26,8 @@ do %common.r
 do %form-header.r
 
 do %systems.r
-config: config-system/guess system/options/args
+args: parse-args system/options/args
+config: config-system/guess args/OS_ID
 
 write-if: proc [file data] [
     if data != attempt [read file][
@@ -39,8 +40,12 @@ write-if: proc [file data] [
 
 change-dir %../boot/
 ;dir: %../core/temp/  ; temporary definition
-inc: %../include/
-src: %../core/
+output-dir: to file! any [args/OUTDIR %../]
+mkdir/deep output-dir/include
+mkdir/deep output-dir/boot
+mkdir/deep output-dir/core
+inc: output-dir/include
+src: output-dir/core
 
 version: load %version.r
 version/4: config/id/2
@@ -100,8 +105,7 @@ unless args: any [
     fail "No platform specified."
 ]
 
-if args/1 = ">" [args: ["Win32" "VIEW-PRO"]] ; for debugging only
-product: to-word any [args/2  "core"]
+product: to-word any [args/PRODUCT  "core"]
 
 platform-data: context [type: 'windows]
 build: context [features: [help-strings]]
@@ -838,7 +842,7 @@ replace wordlist '*port-modes* load %modes.r
 
 for-each word wordlist [add-word word]
 
-boot-actions: load %tmp-actions.r
+boot-actions: load output-dir/boot/tmp-actions.r
 for-each item boot-actions [
     if set-word? :item [
         add-word/skip-if-duplicate to-word item ;-- maybe in %words.r already
@@ -1164,7 +1168,7 @@ emit {
 
 externs: make string! 2000
 boot-booters: load %booters.r
-boot-natives: load %tmp-natives.r
+boot-natives: load output-dir/boot/tmp-natives.r
 
 nats: append copy boot-booters boot-natives
 num-natives: 0
