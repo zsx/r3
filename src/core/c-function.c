@@ -1256,7 +1256,7 @@ void Clonify_Function(REBVAL *value)
         );
     VAL_INDEX(body) = 0;
     SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
-    VAL_RELATIVE(FUNC_BODY(new_fun)) = AS_FUNC(paramlist);
+    FUNC_BODY(new_fun)->payload.any_series.target.relative = AS_FUNC(paramlist);
 
     // Remap references in the body from the original function to new
 
