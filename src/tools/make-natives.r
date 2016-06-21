@@ -20,6 +20,10 @@ print "------ Generate tmp-natives.r"
 
 r3: system/version > 2.100.0
 
+args: parse-args system/options/args
+output-dir: to file! any [args/OUTDIR %../]
+mkdir/deep output-dir/boot
+
 verbose: false
 
 native-buffer: make string! 200
@@ -116,7 +120,7 @@ append output-buffer {
 ()
 }
 
-write %../boot/tmp-natives.r output-buffer
+write output-dir/boot/tmp-natives.r output-buffer
 
 print [proto-count "natives"]
 print " "
@@ -171,4 +175,4 @@ append output-buffer mold/only load %../boot/actions.r
 
 append output-buffer rejoin [newline newline]
 
-write %../boot/tmp-actions.r output-buffer
+write output-dir/boot/tmp-actions.r output-buffer

@@ -17,6 +17,9 @@ do %common.r
 do %common-parsers.r
 
 print "------ Building headers"
+args: parse-args system/options/args
+output-dir: to file! any [args/OUTDIR %../]
+mkdir/deep output-dir/include
 
 r3: system/version > 2.100.0
 
@@ -126,7 +129,7 @@ extern "C" ^{
 }
 
 boot-booters: load %../boot/booters.r
-boot-natives: load %../boot/tmp-natives.r
+boot-natives: load output-dir/boot/tmp-natives.r
 
 nats: append copy boot-booters boot-natives
 
@@ -170,7 +173,7 @@ emit-out {
 #endif
 }
 
-write %../include/tmp-funcs.h output-buffer
+write output-dir/include/tmp-funcs.h output-buffer
 
 print [proto-count "function prototypes"]
 ;wait 1
@@ -181,7 +184,7 @@ clear output-buffer
 
 emit-header "Function Argument Enums" %func-args.h
 
-action-list: load %../boot/tmp-actions.r
+action-list: load output-dir/boot/tmp-actions.r
 
 make-arg-enums: func [word] [
     ; Search file for definition:
@@ -239,7 +242,7 @@ for-each word [
     write
 ] [make-arg-enums word]
 
-action-list: load %../boot/tmp-natives.r
+action-list: load output-dir/boot/tmp-natives.r
 
 for-each word [
     checksum
@@ -247,7 +250,7 @@ for-each word [
 ] [make-arg-enums word]
 
 ;?? output-buffer
-write %../include/tmp-funcargs.h output-buffer
+write output-dir/include/tmp-funcargs.h output-buffer
 
 
 ;-------------------------------------------------------------------------
@@ -272,7 +275,7 @@ parse data [
     ]
 ]
 
-write %../include/tmp-strings.h output-buffer
+write output-dir/include/tmp-strings.h output-buffer
 
 if any [has-duplicates verbose] [
     print "** NOTE ABOVE PROBLEM!"

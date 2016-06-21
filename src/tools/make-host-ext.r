@@ -23,6 +23,9 @@ do %common.r
 
 secure none
 do %form-header.r
+args: parse-args system/options/args
+output-dir: to file! any [args/OUTDIR %../]
+mkdir/deep output-dir/include
 
 ;-- Collect Sources ----------------------------------------------------------
 
@@ -125,7 +128,7 @@ emit-file: func [
     ]
     emit "#endif^/"
 
-    write rejoin [%../include/ file %.h] out
+    write rejoin [output-dir/include %/ file %.h] out
 
 ;   clear out
 ;   emit form-header/gen join title " - Module Initialization" second split-path file %make-host-ext.r

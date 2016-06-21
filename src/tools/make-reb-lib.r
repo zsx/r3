@@ -13,6 +13,8 @@ REBOL [
     Needs: 2.100.100
 ]
 
+do %common.r
+
 print "--- Make Reb-Lib Headers ---"
 
 verbose: true
@@ -25,7 +27,11 @@ src-dir: %../core/
 reb-lib: src-dir/a-lib.c
 ext-lib: src-dir/f-extension.c
 
-out-dir: %../include/
+args: parse-args system/options/args
+output-dir: to file! any [args/OUTDIR %../]
+out-dir: output-dir/include
+mkdir/deep out-dir
+
 reb-ext-lib:  out-dir/reb-lib.h   ; for Host usage
 reb-ext-defs: out-dir/reb-lib-lib.h  ; for REBOL usage
 

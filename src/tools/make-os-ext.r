@@ -20,11 +20,14 @@ version: load %../boot/version.r
 lib-version: version/3
 print ["--- Make OS Ext Lib --- Version:" lib-version]
 
-do %common.r
+do %common.r
 do %common-parsers.r
 do %systems.r
 
-config: config-system/guess system/options/args
+args: parse-args system/options/args
+config: config-system/guess args/OS_ID
+output-dir: to file! any [args/OUTDIR %../]
+mkdir output-dir/include
 
 do %form-header.r
 
@@ -465,7 +468,7 @@ newline newline (rebol-lib-macros)
 
 ;print output-buffer ;halt
 ;print ['checksum checksum/tcp checksum-source]
-write %../include/host-lib.h output-buffer
+write output-dir/include/host-lib.h output-buffer
 
 
 output-buffer: rejoin [
@@ -513,7 +516,7 @@ REBOL_HOST_LIB Host_Lib_Init = ^{
 "^};" newline
 ]
 
-write %../include/host-table.inc output-buffer
+write output-dir/include/host-table.inc output-buffer
 
 ;ask "Done"
 print "   "
