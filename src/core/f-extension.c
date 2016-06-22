@@ -626,10 +626,12 @@ void Do_Command_Core(struct Reb_Frame *frame_)
     // Copy args to command frame (array of args):
     RXA_COUNT(&frm) = D_ARGC;
     if (D_ARGC > 7) fail (Error(RE_BAD_COMMAND));
-    val = D_ARG(1);
-    for (n = 1; n <= D_ARGC; n++, val++) {
-        RXA_TYPE(&frm, n) = Reb_To_RXT[VAL_TYPE_0(val)];
-        Value_To_RXI(&frm.args[n], val);
+    if (D_ARGC > 0) {
+        val = D_ARG(1);
+        for (n = 1; n <= D_ARGC; n++, val++) {
+            RXA_TYPE(&frm, n) = Reb_To_RXT[VAL_TYPE_0(val)];
+            Value_To_RXI(&frm.args[n], val);
+        }
     }
 
     // Call the command:
