@@ -5,7 +5,9 @@ set (CMAKE_OSX_DEPLOYMENT_TARGET 10.7)
 
 project (Rebol3 C CXX)
 set (TOP_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../src")
+set (TOP_GENERATED_SRC_DIR "${CMAKE_CURRENT_BINARY_DIR}/src")
 set (CORE_DIR "${TOP_SRC_DIR}/core")
+set (CORE_GENERATED_DIR "${TOP_GENERATED_SRC_DIR}/core")
 set (OS_DIR "${TOP_SRC_DIR}/os")
 set (AGG_DIR "${TOP_SRC_DIR}/agg")
 set (TOOLS_DIR "${TOP_SRC_DIR}/tools")
@@ -158,7 +160,7 @@ endif ()
 
 if (R3_EXTERNAL_FFI)
     find_package(PkgConfig)
-		#pkg_search_module(FFI libffi)
+    pkg_search_module(FFI libffi)
     if (${FFI_FOUND})
         set (COMMON_MACROS ${COMMON_MACROS} HAVE_LIBFFI_AVAILABLE)
     else ()
@@ -180,7 +182,7 @@ set (CORE_SOURCE
     ${CORE_DIR}/a-globals.c
     ${CORE_DIR}/a-lib.c
     ${CORE_DIR}/a-stubs.c
-    ${CORE_DIR}/b-boot.c
+    ${CORE_GENERATED_DIR}/b-boot.c
     ${CORE_DIR}/b-init.c
     ${CORE_DIR}/c-bind.c
     ${CORE_DIR}/c-do.c
@@ -298,23 +300,23 @@ list(REMOVE_ITEM CORE_C_FILES ${CORE_DIR}/a-lib2.c) #see make-headers.r
 #message("CORE_C_FILES: ${CORE_C_FILES}")
 
 set(NATIVE_OUTPUT
-    ${TOP_SRC_DIR}/boot/tmp-natives.r
-    ${TOP_SRC_DIR}/boot/tmp-actions.r
+    ${TOP_GENERATED_SRC_DIR}/boot/tmp-natives.r
+    ${TOP_GENERATED_SRC_DIR}/boot/tmp-actions.r
     )
 set(NATIVE_DEPENDS "")
 
 add_custom_command(OUTPUT
     ${NATIVE_OUTPUT}
-    COMMAND ${REBOL} ${TOOLS_DIR}/make-natives.r
+    COMMAND ${REBOL} ${TOOLS_DIR}/make-natives.r OUTDIR=${TOP_GENERATED_SRC_DIR}
     DEPENDS
     ${REBOL} ${TOOLS_DIR}/make-natives.r
     ${NTIVE_DEPENDS}
 )
 
 set(HEADER_OUTPUT
-    ${TOP_SRC_DIR}/include/tmp-funcs.h
-    ${TOP_SRC_DIR}/include/tmp-funcargs.h
-    ${TOP_SRC_DIR}/include/tmp-strings.h
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-funcs.h
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-funcargs.h
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-strings.h
     )
 set(HEADER_DEPENDS
     ${TOOLS_DIR}/common.r
@@ -326,34 +328,34 @@ set(HEADER_DEPENDS
 
 add_custom_command(OUTPUT
     ${HEADER_OUTPUT}
-    COMMAND ${REBOL} ${TOOLS_DIR}/make-headers.r
+    COMMAND ${REBOL} ${TOOLS_DIR}/make-headers.r OUTDIR=${TOP_GENERATED_SRC_DIR}
     DEPENDS
     ${TOOLS_DIR}/make-headers.r
     ${HEADER_DEPENDS}
     )
 
 set_source_files_properties(
-    ${TOP_SRC_DIR}/include/tmp-evaltypes.inc
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-evaltypes.inc
     PROPERTIES
     HEADER_FILE_ONLY TRUE
     )
 
 set(BOOT_OUTPUT
-    ${TOP_SRC_DIR}/include/tmp-evaltypes.inc
-    ${TOP_SRC_DIR}/include/tmp-maketypes.h
-    ${TOP_SRC_DIR}/include/tmp-comptypes.h
-    ${TOP_SRC_DIR}/include/reb-types.h
-    ${TOP_SRC_DIR}/include/ext-types.h
-    ${TOP_SRC_DIR}/include/tmp-exttypes.h
-    ${TOP_SRC_DIR}/include/tmp-bootdefs.h
-    ${TOP_SRC_DIR}/include/tmp-sysobj.h
-    ${TOP_SRC_DIR}/include/reb-dialect.h
-    ${TOP_SRC_DIR}/include/reb-evtypes.h
-    ${TOP_SRC_DIR}/include/tmp-errnums.h
-    ${TOP_SRC_DIR}/include/tmp-portmodes.h
-    ${TOP_SRC_DIR}/include/tmp-sysctx.h
-    ${TOP_SRC_DIR}/include/tmp-boot.h
-    ${TOP_SRC_DIR}/core/b-boot.c
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-evaltypes.inc
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-maketypes.h
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-comptypes.h
+    ${TOP_GENERATED_SRC_DIR}/include/reb-types.h
+    ${TOP_GENERATED_SRC_DIR}/include/ext-types.h
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-exttypes.h
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-bootdefs.h
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-sysobj.h
+    ${TOP_GENERATED_SRC_DIR}/include/reb-dialect.h
+    ${TOP_GENERATED_SRC_DIR}/include/reb-evtypes.h
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-errnums.h
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-portmodes.h
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-sysctx.h
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-boot.h
+    ${CORE_GENERATED_DIR}/b-boot.c
     )
 set(BOOT_DEPENDS
     # all of the files loaded by make-boot.r
@@ -364,14 +366,14 @@ set(BOOT_DEPENDS
     ${TOP_SRC_DIR}/boot/errors.r
     ${TOP_SRC_DIR}/boot/words.r
     ${TOP_SRC_DIR}/boot/modes.r
-    ${TOP_SRC_DIR}/boot/tmp-actions.r
+    ${TOP_GENERATED_SRC_DIR}/boot/tmp-actions.r
     ${TOP_SRC_DIR}/boot/sysobj.r
     ${TOP_SRC_DIR}/boot/platforms.r
 
     ${TOP_SRC_DIR}/mezz/boot-files.r
 
     ${TOP_SRC_DIR}/boot/booters.r
-    ${TOP_SRC_DIR}/boot/tmp-natives.r
+    ${TOP_GENERATED_SRC_DIR}/boot/tmp-natives.r
     ${TOP_SRC_DIR}/boot/typespec.r
     ${TOP_SRC_DIR}/boot/root.r
     ${TOP_SRC_DIR}/boot/task.r
@@ -413,14 +415,14 @@ set(BOOT_DEPENDS
 
 add_custom_command(OUTPUT
     ${BOOT_OUTPUT}
-    COMMAND ${REBOL} ${TOOLS_DIR}/make-boot.r ${R3_OS_ID}
+    COMMAND ${REBOL} ${TOOLS_DIR}/make-boot.r OS_ID=${R3_OS_ID} OUTDIR=${TOP_GENERATED_SRC_DIR}
     DEPENDS
     ${TOOLS_DIR}/make-boot.r
     ${BOOT_DEPENDS}
     )
 
 set(EXT_CORE_OUTPUT
-    ${TOP_SRC_DIR}/include/host-ext-core.h
+    ${TOP_GENERATED_SRC_DIR}/include/host-ext-core.h
     )
 
 set(EXT_CORE_DEPENDS
@@ -429,15 +431,15 @@ set(EXT_CORE_DEPENDS
 
 add_custom_command(OUTPUT
     ${EXT_CORE_OUTPUT}
-    COMMAND ${REBOL} ${TOOLS_DIR}/core-ext.r
+    COMMAND ${REBOL} ${TOOLS_DIR}/core-ext.r OUTDIR=${TOP_GENERATED_SRC_DIR}
     DEPENDS
     ${TOOLS_DIR}/core-ext.r
     ${EXT_CORE_DEPENDS}
     )
 
 set(REB_LIB_OUTPUT
-    ${TOP_SRC_DIR}/include/reb-lib.h
-    ${TOP_SRC_DIR}/include/reb-lib-lib.h
+    ${TOP_GENERATED_SRC_DIR}/include/reb-lib.h
+    ${TOP_GENERATED_SRC_DIR}/include/reb-lib-lib.h
     )
 
 set(REB_LIB_DEPENDS
@@ -451,7 +453,7 @@ set(REB_LIB_DEPENDS
 
 add_custom_command(OUTPUT
     ${REB_LIB_OUTPUT}
-    COMMAND ${REBOL} ${TOOLS_DIR}/make-reb-lib.r
+    COMMAND ${REBOL} ${TOOLS_DIR}/make-reb-lib.r OUTDIR=${TOP_GENERATED_SRC_DIR}
     DEPENDS
     ${TOOLS_DIR}/make-reb-lib.r
     ${REB_LIB_DEPENDS}
@@ -464,16 +466,16 @@ set (GENERATED_CORE_SOURCE
     ${REB_LIB_OUTPUT}
     )
 
+#HOST
 set_source_files_properties(
-    ${TOP_SRC_DIR}/include/host-table.inc
+    ${TOP_GENERATED_SRC_DIR}/include/host-table.inc
     PROPERTIES
     HEADER_FILE_ONLY TRUE
     )
 
-#HOST
 set(EXT_OS_OUTPUT
-    ${TOP_SRC_DIR}/include/host-lib.h
-    ${TOP_SRC_DIR}/include/host-table.inc
+    ${TOP_GENERATED_SRC_DIR}/include/host-lib.h
+		${TOP_GENERATED_SRC_DIR}/include/host-table.inc
     )
 
 set(EXT_OS_DEPENDS
@@ -488,7 +490,7 @@ set(EXT_OS_DEPENDS
 if (R3_BUILD_VIEW)
     add_custom_command(OUTPUT
         ${EXT_OS_OUTPUT}
-        COMMAND ${REBOL} ${TOOLS_DIR}/make-os-ext.r ${R3_OS_ID} gfx
+        COMMAND ${REBOL} ${TOOLS_DIR}/make-os-ext.r OS_ID=${R3_OS_ID} GFX=1 OUTDIR=${TOP_GENERATED_SRC_DIR}
         DEPENDS
         ${TOOLS_DIR}/make-os-ext.r
         ${EXT_OS_DEPENDS}
@@ -496,7 +498,7 @@ if (R3_BUILD_VIEW)
 else ()
     add_custom_command(OUTPUT
         ${EXT_OS_OUTPUT}
-        COMMAND ${REBOL} ${TOOLS_DIR}/make-os-ext.r ${R3_OS_ID}
+        COMMAND ${REBOL} ${TOOLS_DIR}/make-os-ext.r OS_ID=${R3_OS_ID} OUTDIR=${TOP_GENERATED_SRC_DIR}
         DEPENDS
         ${TOOLS_DIR}/make-os-ext.r
         ${EXT_OS_DEPENDS}
@@ -529,8 +531,17 @@ if(NOT (MSVC_IDE OR XCODE))
 endif()
 add_library(libr3_core_core OBJECT ${CORE_SOURCE} ${GENERATED_CORE_SOURCE} ${GENERATED_OS_SOURCE})
 add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> ${OS_SOURCE})
-target_include_directories(libr3_core_core PUBLIC ${TOP_SRC_DIR}/include ${TOP_SRC_DIR}/codecs ${FFI_INCLUDE_DIRS})
-target_include_directories(r3-core PUBLIC ${TOP_SRC_DIR}/include ${TOP_SRC_DIR}/codecs)
+target_include_directories(libr3_core_core PUBLIC
+		${TOP_GENERATED_SRC_DIR}/include
+		${TOP_SRC_DIR}/include
+		${TOP_SRC_DIR}/codecs
+		${FFI_INCLUDE_DIRS}
+		)
+target_include_directories(r3-core PUBLIC
+		${TOP_GENERATED_SRC_DIR}/include
+		${TOP_SRC_DIR}/include
+		${TOP_SRC_DIR}/codecs
+		)
 target_compile_definitions(libr3_core_core PUBLIC REB_API REB_CORE ${COMMON_MACROS})
 if (WIN32)
     #WINSYS_WIN32 is needed for dev-event.c
