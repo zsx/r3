@@ -57,10 +57,14 @@
 #define GOB_COMPOSITOR(gob)	(Find_Compositor(gob)) //gets handle to window's
 
 //***** Externs *****
-
 extern void OS_Init_Windows(void);
+extern void OS_Update_Window(REBGOB *gob);
+extern void* OS_Open_Window(REBGOB *gob);
+extern void OS_Close_Window(REBGOB *gob);
 extern REBD32 OS_Get_Metrics(METRIC_TYPE type);
 extern void* OS_Load_Cursor(void *cursor);
+extern void OS_Set_Cursor(void *cursor);
+extern void OS_Destroy_Cursor(void *cursor);
 extern void* OS_Image_To_Cursor(REBYTE* image, REBINT width, REBINT height);
 extern void OS_Show_Soft_Keyboard(void* win, REBINT x, REBINT y);
 
