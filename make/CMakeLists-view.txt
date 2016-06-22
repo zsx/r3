@@ -117,12 +117,15 @@ set (WIN_SYS_SOURCE
 	${WIN_SYS_DIR}/SDL/host-window.c
 	${WIN_SYS_DIR}/SDL/host-graphics.c
 )
+set (GENERATED_VIEW_SOURCE 
+	${TOP_GENERATED_SRC_DIR}/include/host-ext-draw.h
+	${TOP_GENERATED_SRC_DIR}/include/host-ext-shape.h
+	${TOP_GENERATED_SRC_DIR}/include/host-ext-text.h
+	${TOP_GENERATED_SRC_DIR}/include/host-ext-graphics.h
+)
 add_custom_command(OUTPUT
-	${TOP_SRC_DIR}/include/host-ext-draw.h
-	${TOP_SRC_DIR}/include/host-ext-shape.h
-	${TOP_SRC_DIR}/include/host-ext-text.h
-	${TOP_SRC_DIR}/include/host-ext-graphics.h
-	COMMAND ${REBOL} ${TOOLS_DIR}/view-ext.r
+	${GENERATED_VIEW_SOURCE}
+	COMMAND ${REBOL} ${TOOLS_DIR}/view-ext.r OUTDIR=${TOP_GENERATED_SRC_DIR}
 	DEPENDS
 	${TOOLS_DIR}/view-ext.r
 	${TOP_SRC_DIR}/boot/graphics.r
@@ -130,13 +133,6 @@ add_custom_command(OUTPUT
 	${TOP_SRC_DIR}/boot/shape.r
 	${TOP_SRC_DIR}/boot/text.r
 	${TOP_SRC_DIR}/mezz/view-funcs.r
-
-)
-set (GENERATED_VIEW_SOURCE 
-	${TOP_SRC_DIR}/include/host-ext-draw.h
-	${TOP_SRC_DIR}/include/host-ext-shape.h
-	${TOP_SRC_DIR}/include/host-ext-text.h
-	${TOP_SRC_DIR}/include/host-ext-graphics.h
 )
 add_library(libr3_view_core OBJECT
 				${CORE_SOURCE}
@@ -163,6 +159,7 @@ add_executable(r3-view
 SET_TARGET_PROPERTIES(r3-view PROPERTIES LINKER_LANGUAGE C)
 
 target_include_directories(libr3_view_core PUBLIC
+	${TOP_GENERATED_SRC_DIR}/include
 	${TOP_SRC_DIR}/include
 	${TOP_SRC_DIR}/codecs
 	${FFI_INCLUDE_DIRS}
@@ -174,6 +171,7 @@ target_compile_definitions(libnanovg PUBLIC
 	${GLEW_DEFINITIONS}
 )
 target_include_directories(libagg PUBLIC
+	${TOP_GENERATED_SRC_DIR}/include
 	${TOP_SRC_DIR}/include
 	${AGG_INCLUDE_DIRS}
 )
@@ -183,6 +181,7 @@ target_compile_definitions(libagg PUBLIC
 )
 
 target_include_directories(r3-view PUBLIC
+	${TOP_GENERATED_SRC_DIR}/include
 	${TOP_SRC_DIR}/include
 	${TOP_SRC_DIR}/codecs
 )
@@ -192,6 +191,7 @@ target_compile_definitions(r3-view PUBLIC
 )
 
 target_include_directories(libr3_win_sys PUBLIC
+	${TOP_GENERATED_SRC_DIR}/include
 	${TOP_SRC_DIR}/include
 	${SDL_INCLUDE_DIRS}
 	${GLEW_INCLUDE_DIRS}
@@ -214,6 +214,7 @@ if (DEFINED SDL_CFLAGS OR DEFINED GLEW_CFLAGS)
 endif()
 
 target_include_directories(libr3_view PUBLIC
+	${TOP_GENERATED_SRC_DIR}/include
 	${TOP_SRC_DIR}/include
 	${AGG_DIR}
 	${EXTERNAL_DIR}/nanovg/src
