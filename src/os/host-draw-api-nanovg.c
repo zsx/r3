@@ -851,7 +851,7 @@ static void nvgdrw_triangle(void* gr, REBXYF p1, REBXYF p2, REBXYF p3, REBCNT c1
 }
 
 //SHAPE functions
-static void nvgshp_arc(void* gr, REBCNT rel, REBXYF p, REBXYF r, REBDEC ang, REBINT positive, REBINT large)
+static void nvgshp_arc(void* gr, REBINT rel, REBXYF p, REBXYF r, REBDEC ang, REBINT positive, REBINT large)
 {
 	// See http://www.w3.org/TR/SVG/implnote.html#ArcImplementationNotes
 
@@ -986,7 +986,7 @@ static void nvgshp_end(void* gr)
 	//printf("%s, %d\n", __func__, __LINE__);
 }
 
-static void nvgshp_curve(void* gr, REBCNT rel, REBXYF p1, REBXYF p2, REBXYF p3)
+static void nvgshp_curve(void* gr, REBINT rel, REBXYF p1, REBXYF p2, REBXYF p3)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 
@@ -1013,7 +1013,7 @@ static void nvgshp_curve(void* gr, REBCNT rel, REBXYF p1, REBXYF p2, REBXYF p3)
 
 }
 
-static void nvgshp_curv(void* gr, REBCNT rel, REBXYF p2, REBXYF p3)
+static void nvgshp_curv(void* gr, REBINT rel, REBXYF p2, REBXYF p3)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 
@@ -1046,7 +1046,7 @@ static void nvgshp_curv(void* gr, REBCNT rel, REBXYF p2, REBXYF p3)
 	ctx->last_shape_cmd = rel? 's' : 'S';
 }
 
-static void nvgshp_hline(void* gr, REBCNT rel, REBDEC x)
+static void nvgshp_hline(void* gr, REBINT rel, REBDEC x)
 {
 	float y;
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
@@ -1063,7 +1063,7 @@ static void nvgshp_hline(void* gr, REBCNT rel, REBDEC x)
 //	printf("point after hline: (%f, %f)\n", ctx->last_x, ctx->last_y);
 }
 
-static void nvgshp_line(void* gr, REBCNT rel, REBXYF p)
+static void nvgshp_line(void* gr, REBINT rel, REBXYF p)
 {
 	float x, y;
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
@@ -1079,7 +1079,7 @@ static void nvgshp_line(void* gr, REBCNT rel, REBXYF p)
 	//printf("%s, %d: %fx%f\n", __func__, __LINE__, x, y);
 }
 
-static void nvgshp_move(void* gr, REBCNT rel, REBXYF p)
+static void nvgshp_move(void* gr, REBINT rel, REBXYF p)
 {
 	float x, y;
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
@@ -1104,7 +1104,7 @@ static void nvgshp_begin(void* gr)
 	nvgBeginPath(ctx->nvg);
 }
 
-static void nvgshp_vline(void* gr, REBCNT rel, REBDEC y)
+static void nvgshp_vline(void* gr, REBINT rel, REBDEC y)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	float x;
@@ -1119,7 +1119,7 @@ static void nvgshp_vline(void* gr, REBCNT rel, REBDEC y)
 	ctx->last_shape_cmd = rel? 'v' : 'V';
 }
 
-static void nvgshp_qcurv(void* gr, REBCNT rel, REBXYF p)
+static void nvgshp_qcurv(void* gr, REBINT rel, REBXYF p)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	REBXYF p1;
@@ -1148,7 +1148,7 @@ static void nvgshp_qcurv(void* gr, REBCNT rel, REBXYF p)
 	ctx->last_control_y = p1.y;
 }
 
-static void nvgshp_qcurve(void* gr, REBCNT rel, REBXYF p1, REBXYF p2)
+static void nvgshp_qcurve(void* gr, REBINT rel, REBXYF p1, REBXYF p2)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	if (rel) {

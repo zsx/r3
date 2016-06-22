@@ -91,16 +91,16 @@ struct REBRDR_DRW {
 	//REBINT (*rebdrw_effect)(void* gr, REBPAR* p1, REBPAR* p2, REBSER* block);
 
 	//SHAPE functions
-	void (*rebshp_arc)(void* gr, REBCNT rel, REBXYF p, REBXYF r, REBDEC ang, REBINT sweep, REBINT large);
+	void (*rebshp_arc)(void* gr, REBINT rel, REBXYF p, REBXYF r, REBDEC ang, REBINT sweep, REBINT large);
 	void (*rebshp_close)(void* gr);
-	void (*rebshp_hline)(void* gr, REBCNT rel, REBDEC x);
-	void (*rebshp_line)(void* gr, REBCNT rel, REBXYF p);
-	void (*rebshp_move)(void* gr, REBCNT rel, REBXYF p);
+	void (*rebshp_hline)(void* gr, REBINT rel, REBDEC x);
+	void (*rebshp_line)(void* gr, REBINT rel, REBXYF p);
+	void (*rebshp_move)(void* gr, REBINT rel, REBXYF p);
 	void (*rebshp_begin)(void* gr);
 	void (*rebshp_end)(void* gr);
-	void (*rebshp_vline)(void* gr, REBCNT rel, REBDEC y);
-	void (*rebshp_curv)(void* gr, REBCNT rel, REBXYF p1, REBXYF p2);
-	void (*rebshp_curve)(void* gr, REBCNT rel, REBXYF p1, REBXYF p2, REBXYF p3);
-	void (*rebshp_qcurv)(void* gr, REBCNT rel, REBXYF p);
-	void (*rebshp_qcurve)(void* gr, REBCNT rel, REBXYF p1, REBXYF p2);
+	void (*rebshp_vline)(void* gr, REBINT rel, REBDEC y);
+	void (*rebshp_curv)(void* gr, REBINT rel, REBXYF p1, REBXYF p2);
+	void (*rebshp_curve)(void* gr, REBINT rel, REBXYF p1, REBXYF p2, REBXYF p3);
+	void (*rebshp_qcurv)(void* gr, REBINT rel, REBXYF p);
+	void (*rebshp_qcurve)(void* gr, REBINT rel, REBXYF p1, REBXYF p2);
 };

@@ -55,7 +55,7 @@ extern "C" void* Rich_Text;
 extern "C" REBOOL As_OS_Str(REBSER *series, REBCHR **string);
 extern "C" REBOOL As_UTF32_Str(REBSER *series, REBCHR **string);
 
-extern "C" void agg_rt_block_text(void *richtext, REBSER *block)
+extern "C" void agg_rt_block_text(void *richtext, void * draw_ctx, REBSER *block)
 {
 	REBCEC ctx;
 
@@ -90,7 +90,7 @@ extern "C" REBINT agg_rt_gob_text(REBGOB *gob, REBDRW_CTX *draw_ctx, REBXYI abs_
 	rt->rt_set_clip(clip_oft.x, clip_oft.y, clip_siz.x, clip_siz.y, w, h);
 
 	if (GOB_TYPE(gob) == GOBT_TEXT)
-		agg_rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
+		agg_rt_block_text(rt, NULL, (REBSER *)GOB_CONTENT(gob));
 	else {
 		REBCHR* str;
 #ifdef TO_WIN32
@@ -177,7 +177,7 @@ extern "C" void agg_rt_drop(void* rt, REBINT number)
 	((rich_text*)rt)->rt_drop(number);
 }
 
-extern "C" void agg_rt_font(void* rt, void* fnt)
+extern "C" void agg_rt_font(void* rt, REBFNT* fnt)
 {
 	((rich_text*)rt)->rt_set_font((font*)fnt);
 	((rich_text*)rt)->rt_push();
@@ -222,7 +222,7 @@ extern "C" void agg_rt_newline(void* rt, REBINT index)
 	((rich_text*)rt)->rt_push(index);
 }
 
-extern "C" void agg_rt_para(void* rt, void* pra)
+extern "C" void agg_rt_para(void* rt, REBPRA* pra)
 {
 	((rich_text*)rt)->rt_set_para((para*)pra);
 	((rich_text*)rt)->rt_push();
@@ -258,7 +258,7 @@ extern "C" void agg_rt_shadow(void* rt, REBXYF d, REBCNT color, REBINT blur)
 	((rich_text*)rt)->rt_push();
 }
 
-extern "C" void agg_rt_set_font_styles(void* fnt_, u32 word){
+extern "C" void agg_rt_set_font_styles(REBFNT* fnt_, u32 word){
 	font *fnt = (font*)fnt_;
 switch (word){
     case W_TEXT_BOLD:
@@ -286,7 +286,7 @@ REBOOL dealloc;
 	((rich_text*)rt)->rt_reset();
 	((rich_text*)rt)->rt_set_clip(0,0, GOB_LOG_W_INT(gob),GOB_LOG_H_INT(gob));
 	if (GOB_TYPE(gob) == GOBT_TEXT){
-		agg_rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
+		agg_rt_block_text(rt, NULL, (REBSER *)GOB_CONTENT(gob));
 	} else if (GOB_TYPE(gob) == GOBT_STRING) {
 #ifdef TO_WIN32
 		//Windows uses UTF16 wide chars
@@ -336,7 +336,7 @@ REBOOL dealloc;
 	((rich_text*)rt)->rt_reset();
 	((rich_text*)rt)->rt_set_clip(0,0, GOB_LOG_W_INT(gob),GOB_LOG_H_INT(gob));
 	if (GOB_TYPE(gob) == GOBT_TEXT){
-		agg_rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
+		agg_rt_block_text(rt, NULL, (REBSER *)GOB_CONTENT(gob));
 	} else if (GOB_TYPE(gob) == GOBT_STRING) {
 #ifdef TO_WIN32
 		//Windows uses UTF16 wide chars
@@ -363,7 +363,7 @@ REBOOL dealloc;
 	((rich_text*)rt)->rt_reset();
 	((rich_text*)rt)->rt_set_clip(0,0, GOB_LOG_W_INT(gob),GOB_LOG_H_INT(gob));
 	if (GOB_TYPE(gob) == GOBT_TEXT){
-		agg_rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
+		agg_rt_block_text(rt, NULL, (REBSER *)GOB_CONTENT(gob));
 	} else if (GOB_TYPE(gob) == GOBT_STRING) {
 #ifdef TO_WIN32
 		//Windows uses UTF16 wide chars

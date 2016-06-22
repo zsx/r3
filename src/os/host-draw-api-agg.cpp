@@ -228,7 +228,7 @@ extern "C" void aggdrw_image_filter(void* gr, REBINT type, REBINT mode, REBDEC b
 	((agg_graphics*)gr)->agg_image_filter(type, mode, blur);
 }
 
-extern "C" void aggdrw_image_options(void* gr, REBCNT keyCol, REBINT border)
+extern "C" void aggdrw_image_options(void* gr, REBOOL keyColorEnabled, REBCNT keyCol, REBINT border)
 {
     if (keyCol)
     ((agg_graphics*)gr)->agg_image_options(((REBYTE*)&keyCol)[0], ((REBYTE*)&keyCol)[1], ((REBYTE*)&keyCol)[2], ((REBYTE*)&keyCol)[3], border);
