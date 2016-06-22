@@ -217,6 +217,10 @@ enum Reb_Eval_Type {
     ET_LIT_PATH,
     ET_FUNCTION,
 
+    // !!! Review more efficient way of expressing safe enumerators
+
+    ET_SAFE_ENUMERATOR,
+
 #if !defined(NDEBUG)
     ET_TRASH,
 #endif

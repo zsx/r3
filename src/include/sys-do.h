@@ -191,6 +191,7 @@ inline static void PUSH_SAFE_ENUMERATOR(
     f->indexor = VAL_INDEX(v) + 1;
     f->specifier = VAL_SPECIFIER(v);
     f->eval_fetched = NULL;
+    f->eval_type = ET_SAFE_ENUMERATOR;
     PUSH_CALL(f);
 }
 
