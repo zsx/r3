@@ -112,9 +112,8 @@ void MAKE_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         RELVAL *any_array = VAL_ARRAY_AT(arg);
         REBINT index = VAL_INDEX(any_array) + Int32(VAL_ARRAY_AT(arg) + 1) - 1;
 
-        // If the index being out of
         if (index < 0 || index > cast(REBINT, VAL_LEN_HEAD(any_array)))
-            index = VAL_LEN_HEAD(any_array); // !!! is an error better?
+            goto bad_make;
 
         Val_Init_Series_Index_Core(
             out,

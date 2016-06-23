@@ -351,37 +351,51 @@ static REBSER *make_binary(const REBVAL *arg, REBOOL make)
 //
 //  MAKE_String: C
 //
-void MAKE_String(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
-    REBSER *ser = (kind != REB_BINARY)
-        ? make_string(arg, TRUE)
-        : make_binary(arg, TRUE);
+void MAKE_String(REBVAL *out, enum Reb_Kind kind, const REBVAL *def) {
+    if (IS_BLOCK(def)) {
+        //
+        // The construction syntax for making strings or binaries that are
+        // preloaded with an offset into the data is #[binary [#{0001} 2]].
+        // In R3-Alpha make definitions didn't have to be a single value
+        // (they are for compatibility between construction syntax and MAKE
+        // in Ren-C).  So the positional syntax was #[binary! #{0001} 2]...
+        // while #[binary [#{0001} 2]] would join the pieces together in order
+        // to produce #{000102}.  That behavior is not available in Ren-C.
+
+        if (VAL_ARRAY_LEN_AT(def) != 2)
+            goto bad_make;
+
+        RELVAL *any_binstr = VAL_ARRAY_AT(def);
+        if (!ANY_BINSTR(any_binstr))
+            goto bad_make;
+        if (IS_BINARY(any_binstr) != LOGICAL(kind == REB_BINARY))
+            goto bad_make;
+
+        RELVAL *index = VAL_ARRAY_AT(def) + 1;
+        if (!IS_INTEGER(index))
+            goto bad_make;
+
+        REBINT i = Int32(index) - 1 + VAL_INDEX(any_binstr);
+        if (i < 0 || i > cast(REBINT, VAL_LEN_AT(any_binstr)))
+            goto bad_make;
+
+        Val_Init_Series_Index(out, kind, VAL_SERIES(any_binstr), i);
+        return;
+    }
+
+    REBSER *ser; // goto would cross initialization
+    ser = (kind != REB_BINARY)
+        ? make_string(def, TRUE)
+        : make_binary(def, TRUE);
 
     if (!ser)
-        fail (Error_Invalid_Arg(arg));
-
-    // !!! Preloading an index depended on variadic construction syntax.
-    // Keeping code here as reminder even though no value to process.
-    //
-    const REBVAL *extra = END_CELL;
-
-    REBCNT i;
-    if (IS_END(extra)) {
-        i = 0;
-    }
-    else if (IS_INTEGER(extra)) {
-        i = Int32(extra) - 1;
-    }
-    else
         goto bad_make;
 
-    if (i > SER_LEN(ser))
-        i = SER_LEN(ser); // clip it
-
-    Val_Init_Series_Index(out, kind, ser, i);
+    Val_Init_Series_Index(out, kind, ser, 0);
     return;
 
 bad_make:
-    fail (Error_Bad_Make(kind, arg));
+    fail (Error_Bad_Make(kind, def));
 }
 
 

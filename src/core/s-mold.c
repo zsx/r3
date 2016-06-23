@@ -679,8 +679,10 @@ static void Mold_Block(const RELVAL *value, REB_MOLD *mold)
         Pre_Mold(value, mold); // #[block! part
         //if (over) Append_Unencoded(mold->series, "[]");
         //else
+        Append_Codepoint_Raw(mold->series, '[');
         Mold_Array_At(mold, VAL_ARRAY(value), 0, 0);
         Post_Mold(value, mold);
+        Append_Codepoint_Raw(mold->series, ']');
     }
     else
     {

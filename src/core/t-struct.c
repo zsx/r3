@@ -34,7 +34,7 @@
 
 
 //
-//  Get_FFType_Enum_Info: C
+//  Get_FFType_Enum_Info_Core: C
 //
 // Returns whether the FFI type is integer-like (REB_INTEGER) or decimal-like
 // (REB_DECIMAL).  If it is neither, it gives back REB_0.  Returns a symbol

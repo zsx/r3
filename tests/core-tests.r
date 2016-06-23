@@ -190,7 +190,7 @@
 ; minimum
 [block? []]
 ; alternative literal representation
-[[] == #[block! []]]
+[[] == #[block! [[] 1]]]
 [[] == make block! 0]
 [[] == to block! ""]
 ["[]" == mold []]
@@ -462,7 +462,7 @@
     same? :type-of f
 ]
 [
-    f: closure [] [#[blank]]
+    f: closure [] [_]
     blank? f
 ]
 [
@@ -1342,10 +1342,10 @@
 ; minimum
 ; bug#1947
 ; empty get-path test
-[get-path? load "#[get-path! [a]]"]
+[get-path? load "#[get-path! [[a] 1]]"]
 [
     all [
-        get-path? a: load "#[get-path! [a b c] 2]"
+        get-path? a: load "#[get-path! [[a b c] 2]]"
         2 == index? a
     ]
 ]
@@ -1400,10 +1400,10 @@
 [not image? 1]
 [image! = type-of make image! 0x0]
 ; minimum
-[image? #[image! 0x0 #{}]]
+[image? #[image! [0x0 #{}]]]
 ; default colours
 [
-    a-value: #[image! 1x1 #{}]
+    a-value: #[image! [1x1 #{}]]
     equal? pick a-value 0x0 0.0.0.255
 ]
 ; datatypes/integer.r
@@ -1470,10 +1470,10 @@
 [lit-path! = type-of first ['a/b]]
 ; minimum
 ; bug#1947
-[lit-path? load "#[lit-path! [a]]"]
+[lit-path? load "#[lit-path! [[a] 1]]"]
 [
     all [
-        lit-path? a: load "#[lit-path! [a b c] 2]"
+        lit-path? a: load "#[lit-path! [[a b c] 2]]"
         2 == index? a
     ]
 ]
@@ -1751,7 +1751,7 @@
 ; minimum
 [object? make object! []]
 ; literal form
-[object? #[object! []]]
+[object? #[object! [[][]]]]
 ; local words
 [
     x: 1
@@ -1889,7 +1889,7 @@
 ; minimum
 [group! = type-of first [()]]
 ; alternative literal form
-[strict-equal? first [()] first [#[group! []]]]
+[strict-equal? first [()] first [#[group! [[] 1]]]]
 [strict-equal? first [()] make group! 0]
 [strict-equal? first [()] to group! []]
 ["()" == mold first [()]]
@@ -1920,10 +1920,10 @@
 [path! = type-of 'a/b]
 ; the minimum
 ; bug#1947
-[path? load "#[path! [a]]"]
+[path? load "#[path! [[a] 1]]"]
 [
     all [
-        path? a: load "#[path! [a b c] 2]"
+        path? a: load "#[path! [[a b c] 2]]"
         2 == index? a
     ]
 ]
@@ -1947,7 +1947,7 @@
 ]
 [
     blk: [[] 3]
-    3 == blk/#[block! []]
+    3 == blk/#[block! [[] 1]]
 ]
 [
     blk: [_ 3]
@@ -2135,10 +2135,10 @@
 [set-path! = type-of first [a/b:]]
 ; the minimum
 ; bug#1947
-[set-path? load "#[set-path! [a]]"]
+[set-path? load "#[set-path! [[a] 1]]"]
 [
     all [
-        set-path? a: load "#[set-path! [a b c] 2]"
+        set-path? a: load "#[set-path! [[a b c] 2]]"
         2 == index? a
     ]
 ]
@@ -2875,10 +2875,10 @@
 ; Different contents
 [not equal? #{00} #{01}]
 ; Offset + similar contents at reference
-[equal? #{00} #[binary! #{0000} 2]]
+[equal? #{00} #[binary! [#{0000} 2]]]
 ; Offset + similar contents at reference
-[equal? #{00} #[binary! #{0100} 2]]
-[equal? equal? #{00} #[binary! #{0100} 2] equal? #[binary! #{0100} 2] #{00}]
+[equal? #{00} #[binary! [#{0100} 2]]]
+[equal? equal? #{00} #[binary! [#{0100} 2]] equal? #[binary! [#{0100} 2]] #{00}]
 ; No binary! padding
 [not equal? #{00} #{0000}]
 [equal? equal? #{00} #{0000} equal? #{0000} #{00}]
@@ -2911,49 +2911,49 @@
     equal? equal? a-value to string! a-value equal? to string! a-value a-value
 ]
 ; image! same contents
-[equal? a-value: #[image! 1x1 #{000000}] a-value]
-[equal? #[image! 1x1 #{000000}] #[image! 1x1 #{000000}]]
-[equal? #[image! 1x1 #{}] #[image! 1x1 #{000000}]]
+[equal? a-value: #[image! [1x1 #{000000}]] a-value]
+[equal? #[image! [1x1 #{000000}]] #[image! [1x1 #{000000}]]]
+[equal? #[image! [1x1 #{}]] #[image! [1x1 #{000000}]]]
 ; image! different size
-[not equal? #[image! 1x2 #{000000}] #[image! 1x1 #{000000}]]
+[not equal? #[image! [1x2 #{000000}]] #[image! [1x1 #{000000}]]]
 ; image! different size
-[not equal? #[image! 2x1 #{000000}] #[image! 1x1 #{000000}]]
+[not equal? #[image! [2x1 #{000000}]] #[image! [1x1 #{000000}]]]
 ; image! different rgb
-[not equal? #[image! 1x1 #{000001}] #[image! 1x1 #{000000}]]
+[not equal? #[image! [1x1 #{000001}]] #[image! [1x1 #{000000}]]]
 ; image! alpha not specified = ff
-[equal? #[image! 1x1 #{000000} #{ff}] #[image! 1x1 #{000000}]]
+[equal? #[image! [1x1 #{000000} #{ff}]] #[image! [1x1 #{000000}]]]
 ; image! alpha different
-[not equal? #[image! 1x1 #{000000} #{01}] #[image! 1x1 #{000000} #{00}]]
+[not equal? #[image! [1x1 #{000000} #{01}]] #[image! [1x1 #{000000} #{00}]]]
 ; Literal offset not supported in R2.
-[equal? #[image! 1x1 #{000000} 2] #[image! 1x1 #{000000} 2]]
+[equal? #[image! [1x1 #{000000} 2]] #[image! [1x1 #{000000} 2]]]
 ; Literal offset not supported in R2.
-[not equal? #[image! 1x1 #{000000} 2] #[image! 1x1 #{000000}]]
+[not equal? #[image! [1x1 #{000000} 2]] #[image! [1x1 #{000000}]]]
 [
-    a-value: #[image! 1x1 #{000000}]
+    a-value: #[image! [1x1 #{000000}]]
     not equal? a-value next a-value
 ]
 ; image! offset + structural equivalence
-[equal? #[image! 0x0 #{}] next #[image! 1x1 #{000000}]]
+[equal? #[image! [0x0 #{}]] next #[image! [1x1 #{000000}]]]
 ; image! offset + structural equivalence
-[equal? #[image! 1x0 #{}] next #[image! 1x1 #{000000}]]
+[equal? #[image! [1x0 #{}]] next #[image! [1x1 #{000000}]]]
 ; image! offset + structural equivalence
-[equal? #[image! 0x1 #{}] next #[image! 1x1 #{000000}]]
+[equal? #[image! [0x1 #{}]] next #[image! [1x1 #{000000}]]]
 #r2
 ; image! offset + structural equivalence
-[not equal? #[image! 0x0 #{}] next #[image! 1x1 #{000000}]]
+[not equal? #[image! [0x0 #{}]] next #[image! [1x1 #{000000}]]]
 #r2
 ; image! offset + structural equivalence
-[not equal? #[image! 1x0 #{}] next #[image! 1x1 #{000000}]]
+[not equal? #[image! [1x0 #{}]] next #[image! [1x1 #{000000}]]]
 #r2
 ; image! offset + structural equivalence
-[not equal? #[image! 0x1 #{}] next #[image! 1x1 #{000000}]]
+[not equal? #[image! [0x1 #{}]] next #[image! [1x1 #{000000}]]]
 ; No implicit to binary! from image!
-[not equal? #{00} #[image! 1x1 #{000000}]]
+[not equal? #{00} #[image! [1x1 #{000000}]]]
 ; No implicit to binary! from image!
-[not equal? #{00000000} #[image! 1x1 #{000000}]]
+[not equal? #{00000000} #[image! [1x1 #{000000}]]]
 ; No implicit to binary! from image!
-[not equal? #{0000000000} #[image! 1x1 #{000000}]]
-[equal? equal? #{00} #[image! 1x1 #{00}] equal? #[image! 1x1 #{00}] #{00}]
+[not equal? #{0000000000} #[image! [1x1 #{000000}]]]
+[equal? equal? #{00} #[image! [1x1 #{00}]] equal? #[image! [1x1 #{00}]] #{00}]
 ; No implicit to binary! from integer!
 [not equal? #{00} to integer! #{00}]
 [equal? equal? #{00} to integer! #{00} equal? to integer! #{00} #{00}]
@@ -3409,7 +3409,7 @@
     ]
     b-value: has/only [
         a: 1.0 b: $1 c: 100% d: 0.01
-        e: [/a a 'a :a a: #"A" #[binary! #{0000} 2]]
+        e: [/a a 'a :a a: #"A" #[binary! [#{0000} 2]]]
         f: [#a <A> http://A a@A.com "A"]
         g: :a/b/(c: 'd/e/f)/(b/d: [:f/g h/i])
     ]
@@ -3516,10 +3516,10 @@
 ; Different contents
 [not equiv? #{00} #{01}]
 ; Offset + similar contents at reference
-[equiv? #{00} #[binary! #{0000} 2]]
+[equiv? #{00} #[binary! [#{0000} 2]]]
 ; Offset + similar contents at reference
-[equiv? #{00} #[binary! #{0100} 2]]
-[equal? equiv? #{00} #[binary! #{0100} 2] equiv? #[binary! #{0100} 2] #{00}]
+[equiv? #{00} #[binary! [#{0100} 2]]]
+[equal? equiv? #{00} #[binary! [#{0100} 2]] equiv? #[binary! [#{0100} 2]] #{00}]
 ; No binary! padding
 [not equiv? #{00} #{0000}]
 [equal? equiv? #{00} #{0000} equiv? #{0000} #{00}]
@@ -3550,12 +3550,12 @@
     equal? equiv? a-value to string! a-value equiv? to string! a-value a-value
 ]
 ; image! same contents
-[equiv? a-value: #[image! 1x1 #{000000}] a-value]
-[equiv? #[image! 1x1 #{000000}] #[image! 1x1 #{000000}]]
-[equiv? #[image! 1x1 #{}] #[image! 1x1 #{000000}]]
-[not equiv? #{00} #[image! 1x1 #{00}]]
+[equiv? a-value: #[image! [1x1 #{000000}]] a-value]
+[equiv? #[image! [1x1 #{000000}]] #[image! [1x1 #{000000}]]]
+[equiv? #[image! [1x1 #{}]] #[image! [1x1 #{000000}]]]
+[not equiv? #{00} #[image! [1x1 #{00}]]]
 ; symmetry
-[equal? equiv? #{00} #[image! 1x1 #{00}] equiv? #[image! 1x1 #{00}] #{00}]
+[equal? equiv? #{00} #[image! [1x1 #{00}]] equiv? #[image! [1x1 #{00}]] #{00}]
 [not equiv? #{00} to integer! #{00}]
 ; symmetry
 [equal? equiv? #{00} to integer! #{00} equiv? to integer! #{00} #{00}]
@@ -3957,9 +3957,9 @@
     a-value: %""
     equal? same? a-value to string! a-value same? to string! a-value a-value
 ]
-[not same? #{00} #[image! 1x1 #{00}]]
+[not same? #{00} #[image! [1x1 #{00}]]]
 ; symmetry
-[equal? same? #{00} #[image! 1x1 #{00}] same? #[image! 1x1 #{00}] #{00}]
+[equal? same? #{00} #[image! [1x1 #{00}]] same? #[image! [1x1 #{00}]] #{00}]
 [not same? #{00} to integer! #{00}]
 ; symmetry
 [equal? same? #{00} to integer! #{00} same? to integer! #{00} #{00}]
@@ -4377,9 +4377,9 @@
     a-value: %""
     equal? strict-equal? a-value to string! a-value strict-equal? to string! a-value a-value
 ]
-[not strict-equal? #{00} #[image! 1x1 #{00}]]
+[not strict-equal? #{00} #[image! [1x1 #{00}]]]
 ; symmetry
-[equal? strict-equal? #{00} #[image! 1x1 #{00}] strict-equal? #[image! 1x1 #{00}] #{00}]
+[equal? strict-equal? #{00} #[image! [1x1 #{00}]] strict-equal? #[image! [1x1 #{00}]] #{00}]
 [not strict-equal? #{00} to integer! #{00}]
 ; symmetry
 [equal? strict-equal? #{00} to integer! #{00} strict-equal? to integer! #{00} #{00}]
@@ -7440,7 +7440,7 @@
 ; bug#719
 ["()" = mold quote ()]
 ; bug#77
-["#[block! [1 2] 2]" == mold/all next [1 2]]
+["#[block! [[1 2] 2]]" == mold/all next [1 2]]
 ; bug#77
 [blank? find mold/flat make object! [a: 1] "    "]
 ; bug#84
@@ -10420,8 +10420,8 @@
 [not parse "a" compose [thru (charset "a") skip]]
 [true? parse "ba" compose [to (charset "a") skip]]
 [not parse "ba" compose [to (charset "a") "ba"]]
-; self-modifying rule
-[not parse "abcd" rule: ["ab" (remove back tail rule) "cd"]]
+; self-modifying rule, not legal in Ren-C if it's during the parse
+[error? try [not parse "abcd" rule: ["ab" (remove back tail rule) "cd"]]]
 ; functions/series/pick.r
 #64bit
 [error? try [pick at [1 2 3 4 5] 3 -9223372036854775808]]
@@ -10563,7 +10563,7 @@
 [[1 2 3] = sort/compare [1 3 2] :<]
 [[3 2 1] = sort/compare [1 3 2] :>]
 ; bug#1516: SORT/compare ignores the typespec of its function argument
-[error? try [sort/compare reduce [1 2 #[blank!]] :>]]
+[error? try [sort/compare reduce [1 2 _] :>]]
 ; functions/series/split.r
 ; Tests taken from bug#1886.
 [["1234" "5678" "1234" "5678"] == split "1234567812345678" 4]

@@ -1,6 +1,6 @@
-> These tests originated from the repository [on GitHub][1].  It was originally the work of Carl Sassenrath, Ladislav Mecir, Andreas Bolka, Brian Hawley, and John K:
+> These tests originated from the repository [on GitHub][1].  It was originally the work of Carl Sassenrath, Ladislav Mecir, Andreas Bolka, Brian Hawley, and John K.
 >
-> The code was been moved from a separate submodule directly into Ren-C's %tests/ subdirectory.  This is because development on the original repository largely ceased, and it makes keeping the tests in sync with the Ren-C version easier.
+> The Ren-C fork was moved from a submodule directly into the %tests/ subdirectory.  This is because development on the original repository ceased, and it makes keeping the tests in sync with the Ren-C version easier.
 >
 > In the Ren-C version, an extensive source analysis script was added by Brett Handley.  This has parse rules for C, and is used to check the source codebase itself for static analysis properties.
 >
@@ -18,7 +18,7 @@
 
 # Running the Tests
 
-The test cases are listed ins `core-tests.r` and the script for running them is called `run-recover.r`.  Executing it on Kubuntu might look like:
+The test cases are listed in `core-tests.r` and the script for running them is called `run-recover.r`.  Executing it on Kubuntu might look like:
 
     ladislav@lkub64:/rebol-test$ /r3/make/r3 run-recover.r
 
