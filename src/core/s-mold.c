@@ -829,7 +829,7 @@ static void Mold_Typeset(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 
     // Convert bits to types (we can make this more efficient !!)
     for (n = 0; n < REB_MAX_0; n++) {
-        if (TYPE_CHECK(value, n)) {
+        if (TYPE_CHECK(value, KIND_FROM_0(n))) {
             Emit(mold, "+DN ", SYM_DATATYPE_TYPE, n + 1);
         }
     }
