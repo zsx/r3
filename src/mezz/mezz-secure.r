@@ -41,7 +41,7 @@ secure: function/with [
             file  "a file path"
             url   "a file path"
             other "other value, such as integer"
-        ] [print ["  " t "-" d]]
+        ] [print [space space t "-" d]]
         print "Settings for read, write, and execute are also available."
         print "Type: help/doc secure for detailed documentation and examples."
         return ()

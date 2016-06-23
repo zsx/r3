@@ -750,6 +750,9 @@ inline static void SET_CHAR(RELVAL *v, REBUNI uni) {
     VAL_CHAR(v) = uni;
 }
 
+#define SPACE_VALUE \
+    (ROOT_SPACE_CHAR)
+
 
 //=////////////////////////////////////////////////////////////////////////=//
 //

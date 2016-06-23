@@ -193,13 +193,15 @@ help: procedure [
     ; If arg is a string or datatype! word, search the system:
     if any [string? :word | all [word? :word | datatype? get :word]] [
         if all [word? :word | datatype? get :word] [
-            value: spec-of get :word
+            typespec: spec-of get :word
             print [
-                mold :word "is a datatype" newline
-                "It is defined as"
-                    either find "aeiou" first value/title ["an"] ["a"]
-                    value/title newline
-                "It is of the general type" value/type newline
+                word {is a datatype}
+                    |
+                {It is defined as}
+                    either find "aeiou" first typespec/title ["an"] ["a"]
+                    typespec/title newline
+                    |
+                "It is of the general type" typespec/type
             ]
         ]
         if all [word? :word | not set? :word] [leave]
@@ -273,13 +275,9 @@ help: procedure [
     ; !!! Should refinement args be shown for lookback case??
     ;
     either lookback [
-        print [(args/1) (uppercase mold word) (form next args)]
+        print [args/1 | uppercase mold word | next args]
     ][
-        print [
-            (uppercase mold word)
-            if args [form args]
-            if refinements [form refinements]
-        ]
+        print [uppercase mold word | args | refinements]
     ]
 
     ; Dig deeply, but try to inherit the most specific meta fields available
@@ -344,10 +342,14 @@ help: procedure [
         ]
     ]
 
-    print ajoin [
-        newline "DESCRIPTION:" newline
-        tab any [description | "(undocumented)"] newline
-        tab (uppercase mold word) { is } classification {.}
+    print [
+        newline
+            |
+        "DESCRIPTION:" newline
+            |
+        tab (any [description | "(undocumented)"]) newline
+            |
+        tab (uppercase mold word) {is} [classification {.}]
     ]
 
     print-args: procedure [list /indent-words] [
@@ -361,10 +363,10 @@ help: procedure [
             note: is string! select notes to-word param
             type: is [block! any-word!] select types to-word param
 
-            if note [append append str " -- " note]
+            if note [repend str [" -- " note]]
 
             if all [types | not refinement? param] [
-                repend str [" (" type ")"]
+                repend str [space "(" type ")"]
             ]
 
             print str
@@ -544,7 +546,7 @@ what: procedure [
     vals: make string! size
     for-each [word arg] sort/skip list 2 [
         append/dup clear vals #" " size
-        print [head change vals word any [arg ""]]
+        print [head change vals word | :arg]
     ]
 ]
 

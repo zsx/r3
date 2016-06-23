@@ -24,6 +24,8 @@ typesets        ; block of TYPESETs used by system; expandable
 empty-block     ; a value that is an empty BLOCK!
 empty-string    ; a value that is an empty STRING!
 
+space-char      ; a value that is a space CHAR!
+
 ;; Tags used in the native-optimized versions of user-function-generators
 ;; FUNC and PROC
 
@@ -39,12 +41,6 @@ durable-tag     ; !!! In progress - argument word lookup survives call ending
 ;; !!! See notes on FUNCTION-META in %sysobj.r
 
 function-meta
-
-;; PRINT takes a /DELIMIT which can be a block specifying delimiters at each
-;; level of depth in the recursion of blocks.  The default is [#" " |], which
-;; is a signal to put spaces at the first level and then after that nothing.
-;;
-default-print-delimiter
 
 boot            ; boot block defined in boot.r (GC'd after boot is done)
 

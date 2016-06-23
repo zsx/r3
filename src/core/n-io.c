@@ -88,7 +88,6 @@ REBNATIVE(form)
     REFINE(5, new);
 
     REBVAL *value = ARG(value);
-    REBVAL *delimiter = ARG(delimiter);
 
     if (REF(new)) {
         REBVAL pending_delimiter;
@@ -101,18 +100,20 @@ REBNATIVE(form)
         // print logic available programmatically.  Possible outcome is that
         // this would become the new FORM.
 
-        if (!REF(delimit))
-            *delimiter = *ROOT_DEFAULT_PRINT_DELIMITER;
+        REBVAL *delimiter;
+        if (REF(delimit))
+            delimiter = ARG(delimiter);
+        else
+            delimiter = SPACE_VALUE;
 
         Push_Mold(&mo);
 
-        if (Format_GC_Safe_Value_Throws(
+        if (Form_Value_Throws(
             D_OUT,
             &mo,
             &pending_delimiter,
             value,
-            SPECIFIED,
-            LOGICAL(!REF(quote) && IS_BLOCK(value)),
+            (REF(quote) || !IS_BLOCK(value) ? 0 : FORM_FLAG_REDUCE),
             delimiter,
             0 // depth
         )) {
@@ -165,18 +166,20 @@ REBNATIVE(mold)
 
 //
 //  print: native [
-//      | ;-- punctuates (e.g. procedure-like)
+//      <punctuates>
 //  
 //  "Outputs value to standard output using the PRINT dialect."
 //  
-//      value [<opt> any-value!]
-//          "Literal or BLOCK! in the PRINT dialect, outputs with a newline"
+//      value [any-value!]
+//          "Value or BLOCK! literal in PRINT dialect, newline if any output"
 //      /only
-//          "Don't use dialect--print ANY-VALUE! as-is (no newline)"
+//          "Do not include automatic spacing or newlines"
 //      /delimit
 //          "Use a delimiter between expressions that added to the output"
 //      delimiter [blank! any-scalar! any-string! block!]
 //          "Delimiting value (or block of delimiters for each depth)"
+//      /eval
+//          "Print block using the evaluating dialect (even if not literal)"
 //      /quote
 //          "Do not reduce values in blocks"
 //  ]
@@ -187,27 +190,50 @@ REBNATIVE(print)
     REFINE(2, only);
     REFINE(3, delimit);
     PARAM(4, delimiter);
-    REFINE(5, quote);
+    REFINE(5, eval);
+    REFINE(6, quote);
 
-    // By default, we assume the delimiter is supposed to be a space at the
-    // outermost level and nothing at every level beyond that: [#" " |]
+    REBVAL *value = ARG(value);
+
+    if (IS_VOID(value)) // opt out of printing
+        return R_VOID;
+
+    // Literal blocks passed to PRINT are assumed to be all right to evaluate.
+    // But for safety, `print x` will not run code if x is a block, unless the
+    // /EVAL switch is used.  This helps prevent accidents, confusions, or
+    // security problems if a block gets into a slot that wasn't expecting it.
     //
-    if (!REF(delimit))
-        *ARG(delimiter) = *ROOT_DEFAULT_PRINT_DELIMITER;
+    if (
+        IS_BLOCK(value)
+        && GET_VAL_FLAG(value, VALUE_FLAG_EVALUATED)
+        && NOT(REF(eval))
+    ){
+        fail (Error(RE_PRINT_NEEDS_EVAL));
+    }
 
-    if (Prin_GC_Safe_Value_Throws(
+    const REBVAL *delimiter;
+    if (REF(delimit))
+        delimiter = ARG(delimiter);
+    else if (REF(only))
+        delimiter = BLANK_VALUE;
+    else {
+        // By default, we assume the delimiter is supposed to be a space at the
+        // outermost level and nothing at every level beyond that.
+        //
+        delimiter = SPACE_VALUE;
+    }
+
+    if (Print_Value_Throws(
         D_OUT,
-        ARG(value),
-        ARG(delimiter),
+        value,
+        delimiter,
         0, // `limit`: 0 means do not limit output length
-        FALSE, // `mold`: false means don't, e.g. no "quotes around strings"
-        LOGICAL(!REF(quote) && !REF(only)) // `reduce`: don't if /QUOTE, /ONLY
+        (REF(only) ? FORM_FLAG_ONLY : FORM_FLAG_NEWLINE_SEQUENTIAL_STRINGS)
+            | (REF(quote) ? 0 : FORM_FLAG_REDUCE)
+            | (REF(only) ? 0 : FORM_FLAG_NEWLINE_UNLESS_EMPTY)
     )) {
         return R_OUT_IS_THROWN;
     }
-
-    if (NOT(REF(only)))
-        Print_OS_Line();
 
     return R_VOID;
 }

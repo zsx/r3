@@ -289,6 +289,15 @@ enum {
     MKF_KEYWORDS    = 1 << 3    // respond to words like <opt>, <no-return>
 };
 
+// Modes allowed by FORM
+enum {
+    FORM_FLAG_ONLY = 0,
+    FORM_FLAG_REDUCE = 1 << 0,
+    FORM_FLAG_NEWLINE_SEQUENTIAL_STRINGS = 1 << 1,
+    FORM_FLAG_NEWLINE_UNLESS_EMPTY = 1 << 2,
+    FORM_FLAG_MOLD = 1 << 3
+};
+
 // Modes allowed by Copy_Block function:
 enum {
     COPY_SHALLOW = 0,

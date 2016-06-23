@@ -16,16 +16,28 @@ REBOL [
     }
 ]
 
-boot-print: func [
+boot-print: function [
     "Prints during boot when not quiet."
     data
+    /eval
 ][
-    unless system/options/quiet [print :data]
+    eval_BOOT_PRINT: eval
+    eval: :lib/eval
+
+    unless system/options/quiet [
+        print/(if any [eval | semiquoted? 'data] ['eval]) :data
+    ]
 ]
 
-loud-print: func [
+loud-print: function [
     "Prints during boot when verbose."
     data
+    /eval
 ][
-    if system/options/flags/verbose [print :data]
+    eval_BOOT_PRINT: eval
+    eval: :lib/eval
+
+    if system/options/flags/verbose [
+        print/(if any [eval | semiquoted? 'data] ['eval]) :data
+    ]
 ]

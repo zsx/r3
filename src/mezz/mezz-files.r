@@ -39,7 +39,7 @@ clean-path: func [
 
     if all [dir not dir? file] [append file #"/"]
 
-    out: make file length file ; same datatype
+    out: make type-of file length file ; same datatype
     cnt: 0 ; back dir counter
 
     parse reverse file [

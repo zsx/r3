@@ -177,8 +177,8 @@ init-gtk: function [app] [
         addr: [pointer] (reflect argv 'addr)
     ]
 
-    print ["addr-argv: " addr-argv]
-    print ["addr of addr-argv: " reflect addr-argv 'addr]
+    print ["addr-argv:" addr-argv]
+    print ["addr of addr-argv:" reflect addr-argv 'addr]
 
     gtk-init (reflect argc 'addr) (reflect addr-argv 'addr)
     print ["argc:" argc "argv:" argv]

@@ -128,6 +128,8 @@ Script: [
     apply-has-changed:  {APPLY takes frame def block (or see r3-alpha-apply)}
     apply-non-function: [:arg1 {needs to be a function for APPLY/SPECIALIZE}]
 
+    print-needs-eval:   {PRINT needs /EVAL to process non-literal blocks}
+
     hijack-blank:       {Hijacked function was captured but no body given yet}
 
     expression-barrier: {Expression barrier hit while processing arguments}

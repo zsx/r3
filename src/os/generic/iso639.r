@@ -30,7 +30,7 @@ binary-to-chex: func [
     bin [binary! any-string!]
     /local ret c
 ][
-    print ["bin: " mold bin]
+    print ["bin:" mold bin]
     ret: copy ""
     for-each c bin [
         append ret join "\x" skip to-hex to integer! to char! c 6

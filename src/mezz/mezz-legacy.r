@@ -179,26 +179,26 @@ selfless?: func [context [any-context!]] [
 unset!: does [
     fail [
         {UNSET! is not a datatype in Ren-C.}
-        | {You can test with VOID? (), but the TYPE-OF () is a NONE! *value*}
-        | {So NONE? TYPE-OF () will be TRUE.}
+        {You can test with VOID? (), but the TYPE-OF () is a NONE! *value*}
+        {So NONE? TYPE-OF () will be TRUE.}
     ]
 ]
 
 unset?: does [
     fail [
         {UNSET? is reserved in Ren-C for future use}
-        | {(Will mean VOID? GET, like R3-Alpha VALUE?, only for WORDs/PATHs}
-        | {Use VOID? for a similar test, but be aware there is no UNSET! type}
-        | {If running in <r3-legacy> mode, old UNSET? meaning is available}
+        {(Will mean VOID? GET, like R3-Alpha VALUE?, only for WORDs/PATHs}
+        {Use VOID? for a similar test, but be aware there is no UNSET! type}
+        {If running in <r3-legacy> mode, old UNSET? meaning is available}
     ]
 ]
 
 value?: does [
     fail [
         {VALUE? is reserved in Ren-C for future use}
-        | {(It will be a shorthand for ANY-VALUE! a.k.a. NOT VOID?)}
-        | {SET? is similar to R3-Alpha VALUE?--but SET? only takes words}
-        | {If running in <r3-legacy> mode, old VALUE? meaning is available.}
+        {(It will be a shorthand for ANY-VALUE! a.k.a. NOT VOID?)}
+        {SET? is similar to R3-Alpha VALUE?--but SET? only takes words}
+        {If running in <r3-legacy> mode, old VALUE? meaning is available.}
     ]
 ]
 
@@ -207,26 +207,26 @@ none-of: :none ;-- reduce mistakes for now by renaming NONE out of the way
 none?: none!: none: does [
     fail [
         {NONE is reserved in Ren-C for future use}
-        | {(It will act like NONE-OF, e.g. NONE [a b] => ALL [not a not b])}
-        | {_ is now a "BLANK! literal", with BLANK? test and BLANK the word.}
-        | {If running in <r3-legacy> mode, old NONE meaning is available.}
+        {(It will act like NONE-OF, e.g. NONE [a b] => ALL [not a not b])}
+        {_ is now a "BLANK! literal", with BLANK? test and BLANK the word.}
+        {If running in <r3-legacy> mode, old NONE meaning is available.}
     ]
 ]
 
 type?: does [
     fail [
         {TYPE? is reserved in Ren-C for future use}
-        | {(Though not fixed in stone, it may replace DATATYPE?)}
-        | {TYPE-OF is the current replacement, with no TYPE-OF/WORD}
-        | {Use soft quotes, e.g. SWITCH TYPE-OF 1 [:INTEGER! [...]]}
-        | {If running in <r3-legacy> mode, old TYPE? meaning is available.}
+        {(Though not fixed in stone, it may replace DATATYPE?)}
+        {TYPE-OF is the current replacement, with no TYPE-OF/WORD}
+        {Use soft quotes, e.g. SWITCH TYPE-OF 1 [:INTEGER! [...]]}
+        {If running in <r3-legacy> mode, old TYPE? meaning is available.}
     ]
 ]
 
 found?: does [
     fail [
         {FOUND? is deprecated in Ren-C, see chained function FIND?}
-        | {FOUND? is available if running in <r3-legacy> mode.}
+        {FOUND? is available if running in <r3-legacy> mode.}
     ]
 ]
 
@@ -563,18 +563,25 @@ make: function [
             ;
             return construct :type :def
         ]
+    ]
 
-        all [find any-array! :type | any-array? :def] [
-            ;
-            ; MAKE BLOCK! of a BLOCK! was changed in Ren-C to be
-            ; compatible with the construction syntax, so that it lets
-            ; you combine existing array data with an index used for
-            ; aliasing.  It is no longer a synonym for TO ANY-ARRAY!
-            ; that makes a copy of the data at the source index and
-            ; changes the type.  (So use TO if you want that.)
-            ;
-            return to :type :def
-        ]
+    ; R3-Alpha would accept an example value of the type in the first slot.
+    ; This is of questionable utility.
+    ;
+    unless datatype? :type [
+        type: type-of :type
+    ]
+
+    if all [find any-array! :type | any-array? :def] [
+        ;
+        ; MAKE BLOCK! of a BLOCK! was changed in Ren-C to be
+        ; compatible with the construction syntax, so that it lets
+        ; you combine existing array data with an index used for
+        ; aliasing.  It is no longer a synonym for TO ANY-ARRAY!
+        ; that makes a copy of the data at the source index and
+        ; changes the type.  (So use TO if you want that.)
+        ;
+        return to :type :def
     ]
 
     lib-make :type :def
@@ -992,6 +999,11 @@ set 'r3-legacy* func [<local> if-flags] [
             ]
             probe semiquote name ;-- signal to probe to use dialect form
         ])
+
+        ; To be on the safe side, the PRINT in the box won't do evaluations on
+        ; blocks unless the literal argument itself is a block
+        ;
+        print: (specialize 'print [eval: true])
 
         ; In Ren-C, HAS is the arity-1 parallel to OBJECT as arity-2 (similar
         ; to the relationship between DOES and FUNCTION).  In Rebol2 and

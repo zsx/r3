@@ -1248,10 +1248,10 @@ REBNATIVE(fail)
 
     REBVAL *reason = ARG(reason);
 
-    if (IS_ERROR(reason)) {
-        fail (VAL_CONTEXT(reason));
-    }
-    else if (IS_STRING(reason) || IS_BLOCK(reason)) {
+    if (IS_ERROR(reason))
+        fail (VAL_CONTEXT(reason)); // if argument is an error, trigger as-is
+
+    if (IS_BLOCK(reason)) {
         //
         // Ultimately we'd like FAIL to use some clever error-creating
         // dialect when passed a block, maybe something like:
@@ -1265,87 +1265,87 @@ REBNATIVE(fail)
         //
         //     fail/with [{The key} :key-name {is invalid}] [key-name: key]
         //
-        if (IS_BLOCK(reason)) {
-            RELVAL *item = VAL_ARRAY_AT(reason);
+        // But for the moment, this
 
-            REBVAL pending_delimiter;
-            SET_END(&pending_delimiter);
+        RELVAL *item = VAL_ARRAY_AT(reason);
 
-            REB_MOLD mo;
-            CLEARS(&mo);
+        REBVAL pending_delimiter;
+        SET_END(&pending_delimiter);
 
-            // Check to make sure we're only drawing from the limited types
-            // we accept (reserving room for future dialect expansion)
+        REB_MOLD mo;
+        CLEARS(&mo);
+
+        // Check to make sure we're only drawing from the limited types
+        // we accept (reserving room for future dialect expansion)
+        //
+        for (; NOT_END(item); item++) {
+            if (IS_STRING(item) || IS_SCALAR(item))
+                continue;
+
+            // Leave the group in and let the reduce take care of it
             //
-            for (; NOT_END(item); item++) {
-                if (IS_STRING(item) || IS_SCALAR(item))
+            if (IS_GROUP(item))
+                continue;
+
+            // Literal blocks in the spec given to Format used by PRINT
+            // has special meaning for BLOCK! (and BAR! when not used
+            // in the middle of an expression)
+            //
+            if (IS_BLOCK(item) || IS_BAR(item))
+                continue;
+
+            // Leave words in to be handled by the reduce step as long
+            // as they don't look up to functions.
+            //
+            // !!! This keeps the option open of being able to know that
+            // strings that appear in the block appear in the error
+            // message so it can be templated.
+            //
+            if (IS_WORD(item) || IS_GET_WORD(item)) {
+                const REBVAL *var
+                    = TRY_GET_OPT_VAR(item, VAL_SPECIFIER(reason));
+
+                if (!var || !IS_FUNCTION(var))
                     continue;
-
-                // Leave the group in and let the reduce take care of it
-                //
-                if (IS_GROUP(item))
-                    continue;
-
-                // Literal blocks in the spec given to Format used by PRINT
-                // has special meaning for BLOCK! (and BAR! when not used
-                // in the middle of an expression)
-                //
-                if (IS_BLOCK(item) || IS_BAR(item))
-                    continue;
-
-                // Leave words in to be handled by the reduce step as long
-                // as they don't look up to functions.
-                //
-                // !!! This keeps the option open of being able to know that
-                // strings that appear in the block appear in the error
-                // message so it can be templated.
-                //
-                if (IS_WORD(item) || IS_GET_WORD(item)) {
-                    const REBVAL *var
-                        = TRY_GET_OPT_VAR(item, VAL_SPECIFIER(reason));
-
-                    if (!var || !IS_FUNCTION(var))
-                        continue;
-                }
-
-                // The only way to tell if a path resolves to a function
-                // or not is to actually evaluate it, and we are delegating
-                // to Reduce_Block ATM.  For now we force you to use a GROUP!
-                //
-                //     fail [{Erroring on} (the/safe/side) {for now.}]
-                //
-                fail (Error(RE_LIMITED_FAIL_INPUT));
             }
 
-            // Use the same logic that PRINT does, which will create newline
-            // at expression barriers and form literal blocks with no spaces
-
-            Push_Mold(&mo);
-            if (Format_GC_Safe_Value_Throws(
-                D_OUT,
-                &mo,
-                &pending_delimiter, // variable shared by recursions
-                reason,
-                SPECIFIED,
-                TRUE, // reduce
-                ROOT_DEFAULT_PRINT_DELIMITER, // same as PRINT (customizable?)
-                0 // depth
-            )) {
-                return R_OUT_IS_THROWN;
-            }
-
-            Val_Init_String(reason, Pop_Molded_String(&mo));
+            // The only way to tell if a path resolves to a function
+            // or not is to actually evaluate it, and we are delegating
+            // to Reduce_Block ATM.  For now we force you to use a GROUP!
+            //
+            //     fail [{Erroring on} (the/safe/side) {for now.}]
+            //
+            fail (Error(RE_LIMITED_FAIL_INPUT));
         }
 
-        if (Make_Error_Object_Throws(D_OUT, reason)) {
-            // Throw name is in D_OUT, thrown value is held task local
+        // Use the same logic that PRINT does, which will create newline
+        // at expression barriers and form literal blocks with no spaces
+
+        Push_Mold(&mo);
+        if (Form_Value_Throws(
+            D_OUT,
+            &mo,
+            &pending_delimiter, // variable shared by recursions
+            reason,
+            FORM_FLAG_REDUCE
+                | FORM_FLAG_NEWLINE_SEQUENTIAL_STRINGS, // no newline at end
+            SPACE_VALUE, // delimiter same as PRINT (customizable?)
+            0 // depth
+        )) {
             return R_OUT_IS_THROWN;
         }
 
-        fail (VAL_CONTEXT(D_OUT));
+        Val_Init_String(reason, Pop_Molded_String(&mo));
     }
 
-    DEAD_END;
+    assert(IS_STRING(reason));
+
+    if (Make_Error_Object_Throws(D_OUT, reason)) {
+        // Throw name is in D_OUT, thrown value is held task local
+        return R_OUT_IS_THROWN;
+    }
+
+    fail (VAL_CONTEXT(D_OUT));
 }
 
 

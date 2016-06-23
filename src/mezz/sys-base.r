@@ -145,9 +145,9 @@ do*: function [
 
         ; Print out the script info
         boot-print [
-            (either is-module "Module:" "Script:")  mold select hdr 'title
-            "Version:" select hdr 'version
-            "Date:" select hdr 'date
+            (either is-module "Module:" "Script:") select hdr 'title
+                "Version:" opt select hdr 'version
+                "Date:" opt select hdr 'date
         ]
 
         also (

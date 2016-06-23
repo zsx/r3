@@ -144,7 +144,7 @@ extern "C" {
 REBARGS Main_Args;
 
 const REBYTE halt_str[] = "[escape]";
-const REBYTE prompt_str[] = ">> ";
+const REBYTE prompt_str[] = "\n>> ";
 const REBYTE result_str[] = "== ";
 const REBYTE why_str[] = "** Note: use WHY? for more error information\n\n";
 const REBYTE breakpoint_str[] =
