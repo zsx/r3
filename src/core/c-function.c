@@ -2088,12 +2088,11 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
 
     // We pretend our "input source" has ended.
     //
-    f->value = END_CELL;
+    SET_FRAME_VALUE(f, END_CELL);
     f->index = 0;
     f->source.array = EMPTY_ARRAY;
     f->specifier = SPECIFIED;
     f->pending = NULL;
-    f->lookback = FALSE;
 
     f->dsp_orig = DSP;
 

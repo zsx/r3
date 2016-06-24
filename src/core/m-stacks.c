@@ -636,7 +636,7 @@ REBFUN *Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
 // But if it has already been managed, it will be returned that way.
 //
 REBCTX *Context_For_Frame_May_Reify_Core(struct Reb_Frame *f) {
-    assert(f->eval_type == ET_FUNCTION); // varargs reifies while still pending
+    assert(Is_Any_Function_Frame(f)); // varargs reifies while still pending
 
     REBCTX *context;
     struct Reb_Chunk *chunk;
@@ -689,8 +689,8 @@ REBCTX *Context_For_Frame_May_Reify_Core(struct Reb_Frame *f) {
     //
     assert(!GET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_MANAGED));
 
-    // When in ET_FUNCTION, the arglist will be marked safe from GC.
-    // It is managed because the pointer makes its way into bindings that
+    // When in ET_FUNCTION or ET_LOOKBACK, the arglist will be marked safe from
+    // GC. It is managed because the pointer makes its way into bindings that
     // ANY-WORD! values may have, and they need to not crash.
     //
     // !!! Note that theoretically pending mode arrays do not need GC
@@ -720,8 +720,7 @@ REBCTX *Context_For_Frame_May_Reify_Core(struct Reb_Frame *f) {
 //
 REBCTX *Context_For_Frame_May_Reify_Managed(struct Reb_Frame *f)
 {
-    assert(f->eval_type == ET_FUNCTION);
-    assert(!Is_Function_Frame_Fulfilling(f));
+    assert(Is_Any_Function_Frame(f) && NOT(Is_Function_Frame_Fulfilling(f)));
 
     REBCTX *context = Context_For_Frame_May_Reify_Core(f);
     ENSURE_ARRAY_MANAGED(CTX_VARLIST(context));

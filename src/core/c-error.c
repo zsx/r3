@@ -322,7 +322,7 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
     //
     struct Reb_Frame *f = FS_TOP;
     while (f != Saved_State->frame) {
-        if (f->eval_type == ET_FUNCTION)
+        if (Is_Any_Function_Frame(f))
             Drop_Function_Args_For_Frame_Core(f, FALSE); // don't drop chunks
 
         struct Reb_Frame *prior = f->prior;
@@ -355,7 +355,7 @@ REBCNT Stack_Depth(void)
 
     struct Reb_Frame *f = FS_TOP;
     while (f) {
-        if (f->eval_type == ET_FUNCTION)
+        if (Is_Any_Function_Frame(f))
             if (NOT(Is_Function_Frame_Fulfilling(f))) {
                 //
                 // We only count invoked functions (not group or path
@@ -1055,7 +1055,7 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
             //
             // Only invoked functions (not pending functions, parens, etc.)
             //
-            if (frame->eval_type != ET_FUNCTION)
+            if (NOT(Is_Any_Function_Frame(frame)))
                 continue;
             if (Is_Function_Frame_Fulfilling(frame))
                 continue;

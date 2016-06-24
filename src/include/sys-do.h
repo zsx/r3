@@ -82,6 +82,50 @@ inline static REBOOL IS_QUOTABLY_SOFT(const RELVAL *v) {
 }
 
 
+inline static REBOOL Is_Any_Function_Frame(struct Reb_Frame *f) {
+    return LOGICAL(f->eval_type == ET_FUNCTION || f->eval_type == ET_LOOKBACK);
+}
+
+// While a function frame is fulfilling its arguments, the `f->param` will
+// be pointing to a typeset.  The invariant that is maintained is that
+// `f->param` will *not* be a typeset when the function is actually in the
+// process of running.  (So no need to set/clear/test another "mode".)
+//
+inline static REBOOL Is_Function_Frame_Fulfilling(struct Reb_Frame *f)
+{
+    assert(Is_Any_Function_Frame(f));
+    return NOT_END(f->param);
+}
+
+
+// It's helpful when looking in the debugger to be able to look at a frame
+// and see a cached string for the function it's running (if there is one).
+// The release build only considers the frame symbol valid if ET_FUNCTION
+//
+inline static void SET_FRAME_SYM(struct Reb_Frame *f, REBSYM sym) {
+    assert(Is_Any_Function_Frame(f));
+    f->label_sym = sym;
+    f->label_str = cast(const char*, Get_Sym_Name(sym));
+}
+
+inline static void CLEAR_FRAME_SYM(struct Reb_Frame *f) {
+#if !defined(NDEBUG)
+    f->label_sym = SYM_0;
+    f->label_str = NULL;
+#endif
+}
+
+inline static void SET_FRAME_VALUE(struct Reb_Frame *f, const RELVAL *value) {
+    f->value = value;
+
+#if !defined(NDEBUG)
+    if (NOT_END(f->value))
+        f->value_type = VAL_TYPE(f->value);
+    else
+        f->value_type = REB_MAX;
+#endif
+}
+
 //=////////////////////////////////////////////////////////////////////////=//
 //
 //  DO's LOWEST-LEVEL EVALUATOR HOOKING
@@ -183,11 +227,10 @@ inline static void PUSH_SAFE_ENUMERATOR(
     struct Reb_Frame *f,
     const REBVAL *v
 ) {
-    f->value = VAL_ARRAY_AT(v);
+    SET_FRAME_VALUE(f, VAL_ARRAY_AT(v));
     f->source.array = VAL_ARRAY(v);
     f->flags = DO_FLAG_NEXT | DO_FLAG_ARGS_EVALUATE; // !!! review
     f->gotten = NULL; // tells ET_WORD and ET_GET_WORD they must do a get
-    f->lookback = FALSE;
     f->index = VAL_INDEX(v) + 1;
     f->specifier = VAL_SPECIFIER(v);
     f->eval_type = ET_SAFE_ENUMERATOR;
@@ -227,11 +270,11 @@ inline static void FETCH_NEXT_ONLY_MAYBE_END(struct Reb_Frame *f) {
     assert(f->gotten == NULL); // we'd be invalidating it!
 
     if (f->pending == NULL) {
-        f->value = ARR_AT(f->source.array, f->index);
+        SET_FRAME_VALUE(f, ARR_AT(f->source.array, f->index));
         ++f->index;
     }
     else if (f->pending == VA_LIST_PENDING) {
-        f->value = va_arg(*f->source.vaptr, const REBVAL*);
+        SET_FRAME_VALUE(f, va_arg(*f->source.vaptr, const REBVAL*));
         assert(
             IS_END(f->value)
             || (IS_VOID(f->value) && NOT((f)->flags & DO_FLAG_ARGS_EVALUATE))
@@ -239,7 +282,7 @@ inline static void FETCH_NEXT_ONLY_MAYBE_END(struct Reb_Frame *f) {
         );
     }
     else {
-        f->value = f->pending;
+        SET_FRAME_VALUE(f, f->pending);
         if (f->flags & DO_FLAG_VA_LIST)
             f->pending = VA_LIST_PENDING;
         else
@@ -247,6 +290,38 @@ inline static void FETCH_NEXT_ONLY_MAYBE_END(struct Reb_Frame *f) {
     }
 
     TRACE_FETCH_DEBUG("FETCH_NEXT_ONLY_MAYBE_END", f, TRUE);
+}
+
+
+// Things like the `case ET_WORD` run at the start of a new evaluation cycle.
+// It could be the very first element evaluated, hence it might seem not
+// meaningful to say it has a "left hand side" in f->out to give an infix
+// (prefix, etc.) lookback function.
+//
+// However...it can climb the stack and peek at the eval_type of the parent to
+// find SET-WORD! or SET-PATH!s in progress.  They are not products of an
+// evaluation--hence are safe to quote, allowing constructs like `x: ++ 1`
+//
+inline static void Try_Lookback_At_Evaluation_Cycle_Start(
+    REBVAL *out,
+    struct Reb_Frame *f
+){
+    if (f->prior)
+        switch (f->prior->eval_type) {
+        case ET_SET_WORD:
+            COPY_VALUE(f->out, f->prior->param, f->prior->specifier);
+            assert(IS_SET_WORD(f->out));
+            CLEAR_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+            return;
+
+        case ET_SET_PATH:
+            COPY_VALUE(f->out, f->prior->param, f->prior->specifier);
+            assert(IS_SET_PATH(f->out));
+            CLEAR_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+            return;
+        }
+
+    SET_END(f->out); // some <end> args are able to tolerate absences
 }
 
 
@@ -287,20 +362,26 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
     case ET_WORD: {
         if (parent->gotten == NULL) {
             child->gotten = Get_Var_Core(
-                &child->lookback,
+                &child->eval_type, // sets to ET_LOOKBACK or ET_FUNCTION
                 parent->value,
                 parent->specifier,
                 GETVAR_READ_ONLY
             );
         }
         else {
+            child->eval_type = Eval_Table[VAL_TYPE(parent->gotten)];
             child->gotten = parent->gotten;
-            child->lookback = FALSE;
             parent->gotten = NULL;
         }
 
-        if (IS_FUNCTION(child->gotten))
-            goto no_optimization; // ET_WORD reuses f->gotten, f->lookback
+        if (IS_FUNCTION(child->gotten)) {
+            if (child->eval_type == ET_LOOKBACK)
+                Try_Lookback_At_Evaluation_Cycle_Start(out, parent);
+            else {
+                assert(child->eval_type == ET_FUNCTION);
+            }
+            goto no_optimization;
+        }
 
         if (IS_VOID(child->gotten))
             fail (Error_No_Value_Core(parent->value, parent->specifier));
@@ -317,7 +398,7 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
 
     case ET_GET_WORD: {
         *out = *Get_Var_Core(
-            &child->lookback,
+            &child->eval_type, // sets to ET_LOOKBACK or ET_FUNCTION <ignored>
             parent->value,
             parent->specifier,
             GETVAR_READ_ONLY
@@ -336,7 +417,6 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
         // that currently need an independent frame from the parent in order
         // to hold their state.
         //
-        child->lookback = FALSE;
         child->gotten = NULL;
         goto no_optimization;
     }
@@ -353,26 +433,22 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
 
     if ((flags & DO_FLAG_LOOKAHEAD) && (child->eval_type == ET_WORD)) {
         child->gotten = Get_Var_Core(
-            &child->lookback,
+            &child->eval_type, // sets to ET_LOOKBACK or ET_FUNCTION
             parent->value,
             parent->specifier,
             GETVAR_READ_ONLY
         );
 
         // We only want to run the function if it is a lookback function,
-        // otherwise we leave it prefetched in f->param.  It will be reused
+        // otherwise we leave it prefetched in f->gotten.  It will be reused
         // on the next Do_Core call.
         //
-        // However, we cannot fall through to the ET_WORD dispatch for the
-        // function, because it would not pay attention to f->out.  We have
-        // to switch the eval_type to ET_FUNCTION so it handles it.
-        //
-        if (child->lookback) {
+        if (child->eval_type == ET_LOOKBACK) {
             assert(IS_FUNCTION(child->gotten));
-            child->eval_type = ET_FUNCTION;
-            SET_FRAME_SYM(child, VAL_WORD_SYM(parent->value));
-            goto no_optimization; // ET_FUNCTION reuses f->param, f->lookback
+            goto no_optimization;
         }
+
+        child->eval_type = ET_WORD;
     }
 
     TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_MAY_THROW", parent, TRUE);
@@ -381,7 +457,7 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
 no_optimization:
     child->out = out;
     child->source = parent->source;
-    child->value = parent->value;
+    SET_FRAME_VALUE(child, parent->value);
     child->index = parent->index;
     child->specifier = parent->specifier;
     child->flags = DO_FLAG_ARGS_EVALUATE | DO_FLAG_NEXT | flags;
@@ -389,13 +465,13 @@ no_optimization:
 
     Do_Core(child);
 
-    assert(NOT(child->lookback));
+    assert(child->eval_type != ET_LOOKBACK);
     assert(
         (child->flags & DO_FLAG_VA_LIST)
         || parent->index != child->index
     );
     parent->pending = child->pending;
-    parent->value = child->value;
+    SET_FRAME_VALUE(parent, child->value);
     parent->index = child->index;
     parent->gotten = child->gotten;
 
@@ -450,7 +526,7 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     struct Reb_Frame frame;
     struct Reb_Frame *f = &frame;
 
-    f->value = ARR_AT(array, index);
+    SET_FRAME_VALUE(f, ARR_AT(array, index));
     if (IS_END(f->value)) {
         SET_VOID(out);
         return END_FLAG;
@@ -461,7 +537,6 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     f->index = index + 1;
     f->flags = 0;
     f->pending = NULL;
-    f->lookback = FALSE;
     f->gotten = NULL;
     f->eval_type = Eval_Table[VAL_TYPE(f->value)];
 

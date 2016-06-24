@@ -781,29 +781,11 @@ enum {
 };
 
 
-// !!! The files have not been sorted out in this commit properly to
-// have the externs set up for inline functions...this will not be necessary
-// once that is committed (it's in the specific binding branch).
-//
-#ifdef __cplusplus
-extern "C" {
-#endif
-extern REBVAL *Get_Var_Core(
- REBOOL *lookback,
- const RELVAL *any_word,
- REBCTX *specifier,
- REBFLGS flags
-);
-#ifdef __cplusplus
-}
-#endif
-
-
 static inline const REBVAL *GET_OPT_VAR_MAY_FAIL(
     const RELVAL *any_word,
     REBCTX *specifier
 ) {
-    REBOOL dummy;
+    REBUPT dummy;
     return Get_Var_Core(&dummy, any_word, specifier, 0);
 }
 
@@ -811,7 +793,7 @@ static inline const REBVAL *TRY_GET_OPT_VAR(
     const RELVAL *any_word,
     REBCTX *specifier
 ) {
-    REBOOL dummy;
+    REBUPT dummy;
     return Get_Var_Core(&dummy, any_word, specifier, GETVAR_UNBOUND_OK);
 }
 
@@ -819,7 +801,7 @@ static inline REBVAL *GET_MUTABLE_VAR_MAY_FAIL(
     const RELVAL *any_word,
     REBCTX *specifier
 ) {
-    REBOOL lookback = FALSE; // resets infix/postfix/etc. flag
+    REBUPT lookback = ET_FUNCTION; // resets infix/postfix/etc. flag
     return Get_Var_Core(&lookback, any_word, specifier, GETVAR_IS_SETVAR);
 }
 
@@ -827,7 +809,7 @@ static inline REBVAL *TRY_GET_MUTABLE_VAR(
     const RELVAL *any_word,
     REBCTX *specifier
 ) {
-    REBOOL lookback = FALSE; // resets infix/postfix/etc. flag
+    REBUPT lookback = ET_FUNCTION; // resets infix/postfix/etc. flag
     return Get_Var_Core(
         &lookback, any_word, specifier, GETVAR_IS_SETVAR | GETVAR_UNBOUND_OK
     );

@@ -145,12 +145,8 @@ void Do_Core_Entry_Checks_Debug(struct Reb_Frame *f)
     //
     assert(f->value);
 
-    if (f->eval_type == ET_FUNCTION && f->gotten != NULL)
-        assert(f->label_sym != SYM_0 && f->label_str != NULL);
-    else {
-        f->label_sym = SYM_0;
-        f->label_str = NULL;
-    }
+    f->label_sym = SYM_0;
+    f->label_str = NULL;
 
     // All callers should ensure that the type isn't an END marker before
     // bothering to invoke Do_Core().
@@ -202,6 +198,8 @@ static void Do_Core_Shared_Checks_Debug(struct Reb_Frame *f) {
     if (IS_END(f->value) || THROWN(f->out))
         return;
 
+    assert(f->value_type == VAL_TYPE(f->value));
+
     //=//// BELOW CHECKS ONLY APPLY IN THE EXIT CASE WITH MORE DATA ///////=//
 
     // The eval_type is expected to be calculated already.  Should match
@@ -209,7 +207,10 @@ static void Do_Core_Shared_Checks_Debug(struct Reb_Frame *f) {
     // coming from DO_NEXT_REFETCH_MAY_THROW()
     //
     assert(
-        (f->lookback && f->eval_type == ET_FUNCTION && IS_WORD(f->value))
+        (
+            (f->eval_type == ET_LOOKBACK  || f->eval_type == ET_FUNCTION)
+            && (IS_WORD(f->value) || IS_FUNCTION(f->value))
+        )
         || f->eval_type == Eval_Table[VAL_TYPE(f->value)]
     );
 
@@ -221,7 +222,7 @@ static void Do_Core_Shared_Checks_Debug(struct Reb_Frame *f) {
 
     if (f->gotten != NULL) { // See notes on `f->gotten`
         if (IS_WORD(f->value)) {
-            REBOOL test_lookback;
+            REBUPT test_lookback;
             REBVAL *test_gotten = Get_Var_Core(
                 &test_lookback,
                 f->value,
@@ -234,7 +235,8 @@ static void Do_Core_Shared_Checks_Debug(struct Reb_Frame *f) {
             // you probably should be using the INDEXOR-based API.
             //
             assert(test_gotten == f->gotten);
-            assert(test_lookback == f->lookback);
+            if (test_lookback == ET_LOOKBACK)
+                assert(f->eval_type == ET_LOOKBACK);
         }
         else
             assert(IS_FUNCTION(f->value));
@@ -260,16 +262,7 @@ REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
     //
     assert(IS_TRASH_DEBUG(&TG_Thrown_Arg));
 
-    if (f->lookback) {
-        if (f->eval_type == ET_WORD)
-            assert(f->label_sym == SYM_0 && f->label_str == NULL);
-        else {
-            assert(f->eval_type == ET_FUNCTION);
-            assert(f->label_sym != SYM_0 && f->label_str != NULL);
-        }
-    }
-    else
-        assert(f->label_sym == SYM_0 && f->label_str == NULL);
+    assert(f->label_sym == SYM_0 && f->label_str == NULL);
 
     // Make sure `eval` is trash in debug build if not doing a `reevaluate`.
     // It does not have to be GC safe (for reasons explained below).  We

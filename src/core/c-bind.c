@@ -36,7 +36,7 @@
 
 
 //
-//  Get_Var_Core // temp export in sys-core.h, so not marked as ": C"
+//  Get_Var_Core: C
 //
 // Get the word--variable--value. (Generally, use the macros like
 // GET_VAR or GET_MUTABLE_VAR instead of this).  This routine is
@@ -46,7 +46,7 @@
 // that only read access is requested (so no checking on protection)
 //
 REBVAL *Get_Var_Core(
-    REBOOL *lookback,
+    REBUPT *lookback, // either 1 or 0 (REBUPT to use w/Reb_Frame->eval_type)
     const RELVAL *any_word,
     REBCTX *specifier,
     REBFLGS flags
@@ -220,6 +220,7 @@ REBVAL *Get_Var_Core(
         }
     }
 
+    assert(*lookback == ET_FUNCTION || *lookback == ET_LOOKBACK);
     assert(!THROWN(var));
     return var;
 }

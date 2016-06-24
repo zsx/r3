@@ -1331,27 +1331,6 @@ REBCNT Find_Word_In_Array(REBARR *array, REBCNT index, REBSYM sym)
 
 
 //
-//  Is_Function_Frame_Fulfilling: C
-//
-// While a function frame is fulfilling its arguments, the `f->param` will
-// be pointing to a typeset.  The invariant that is maintained is that
-// `f->param` will *not* be a typeset when the function is actually in the
-// process of running.  (So no need to set/clear/test another "mode".)
-//
-// !!! Make inline when possible.
-//
-REBOOL Is_Function_Frame_Fulfilling(struct Reb_Frame *f)
-{
-    assert(f->eval_type == ET_FUNCTION);
-    if (IS_END(f->param))
-        return FALSE;
-
-    // used to only allow typeset, now any non-END param signals fulfilling
-    return TRUE;
-}
-
-
-//
 //  Obj_Value: C
 // 
 // Return pointer to the nth VALUE of an object.

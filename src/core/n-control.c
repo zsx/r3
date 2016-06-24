@@ -139,7 +139,7 @@ static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
             // Ignore existing mutability state so that it may be modified.
             // Most routines should NOT do this!
             //
-            REBOOL lookback; // ignored
+            REBUPT lookback; // ignored
             val = Get_Var_Core(
                 &lookback,
                 word,
@@ -221,7 +221,7 @@ static int Protect(struct Reb_Frame *frame_, REBFLGS flags)
                     // Since we *are* PROTECT we allow ourselves to get mutable
                     // references to even protected values to protect them.
                     //
-                    REBOOL lookback; // ignored
+                    REBUPT lookback; // ignored
                     var = Get_Var_Core(
                         &lookback,
                         item,
@@ -1157,7 +1157,7 @@ void Make_Thrown_Exit_Value(
             if (f == NULL)
                 fail (Error(RE_INVALID_EXIT));
 
-            if (f->eval_type != ET_FUNCTION) continue; // only exit functions
+            if (NOT(Is_Any_Function_Frame(f))) continue; // only exit functions
 
             if (Is_Function_Frame_Fulfilling(f)) continue; // not ready to exit
 

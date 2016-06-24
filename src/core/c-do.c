@@ -76,7 +76,6 @@ REBIXO Do_Array_At_Core(
     f.specifier = specifier;
     f.flags = flags;
     f.gotten = NULL; // so ET_WORD and ET_GET_WORD do their own Get_Var
-    f.lookback = FALSE;
     f.pending = NULL;
 
     f.eval_type = Eval_Table[VAL_TYPE(f.value)];
@@ -193,9 +192,9 @@ void Reify_Va_To_Array_In_Frame(struct Reb_Frame *f, REBOOL truncated)
     }
 
     if (truncated)
-        f->value = ARR_AT(f->source.array, 1); // skip --optimized out--
+        SET_FRAME_VALUE(f, ARR_AT(f->source.array, 1)); // skip `--optimized--`
     else
-        f->value = ARR_HEAD(f->source.array);
+        SET_FRAME_VALUE(f, ARR_HEAD(f->source.array));
 
     // We clear the DO_FLAG_VA_LIST, assuming that the truncation marker is
     // enough information to record the fact that it was a va_list (revisit
@@ -272,7 +271,6 @@ REBIXO Do_Va_Core(
 #endif
     f.source.vaptr = vaptr;
     f.gotten = NULL; // so ET_WORD and ET_GET_WORD do their own Get_Var
-    f.lookback = FALSE;
     f.specifier = SPECIFIED; // va_list values MUST be full REBVAL* already
     f.pending = VA_LIST_PENDING;
 

@@ -897,7 +897,7 @@ REBNATIVE(set)
     if (!REF(opt) && IS_VOID(ARG(value)))
         fail (Error(RE_NEED_VALUE, ARG(target)));
 
-    REBOOL lookback = REF(lookback);
+    REBUPT lookback = REF(lookback);
 
     if (lookback) {
         if (!IS_FUNCTION(ARG(value)))
@@ -1231,7 +1231,7 @@ REBNATIVE(lookback_q)
     REBVAL *source = D_ARG(1);
 
     if (ANY_WORD(source)) {
-        REBOOL lookback;
+        REBUPT lookback;
         const REBVAL *var = Get_Var_Core(
             &lookback, source, SPECIFIED, GETVAR_READ_ONLY // may fail()
         );
@@ -1272,7 +1272,7 @@ REBNATIVE(semiquoted_q)
     // !!! TBD: Enforce this is a function parameter (specific binding branch
     // makes the test different, and easier)
 
-    REBOOL lookback; // unused
+    REBUPT lookback; // unused
     const REBVAL *var = Get_Var_Core( // may fail
         &lookback, ARG(parameter), SPECIFIED, GETVAR_READ_ONLY
     );

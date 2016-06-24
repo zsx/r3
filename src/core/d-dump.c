@@ -198,6 +198,9 @@ void Dump_Stack(struct Reb_Frame *f, REBCNT level)
     REBVAL *param;
 
     static const char *mode_strings[] = {
+        "ET_FUNCTION",
+        "ET_LOOKBACK",
+
         "ET_INERT",
         "ET_BAR",
         "ET_LIT_BAR",
@@ -210,7 +213,9 @@ void Dump_Stack(struct Reb_Frame *f, REBCNT level)
         "ET_SET_PATH",
         "ET_GET_PATH",
         "ET_LIT_PATH",
-        "ET_FUNCTION",
+
+        "ET_SAFE_ENUMERATOR",
+
     #if !defined(NDEBUG)
         "ET_TRASH",
     #endif
@@ -234,7 +239,7 @@ void Dump_Stack(struct Reb_Frame *f, REBCNT level)
         mode_strings[f->eval_type]
     );
 
-    if (f->eval_type != ET_FUNCTION) {
+    if (NOT(Is_Any_Function_Frame(f))) {
         Debug_Fmt("(no function call pending or in progress)");
         return;
     }

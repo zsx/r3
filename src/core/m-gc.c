@@ -607,11 +607,11 @@ static void Mark_Frame_Stack_Deep(void)
         // left-hand-side of an infix operation.  And SET-PATH! also holds
         // f->out alive across an evaluation.
         //
-        if (f->eval_type == ET_FUNCTION || f->eval_type == ET_SET_PATH)
+        if (Is_Any_Function_Frame(f) || f->eval_type == ET_SET_PATH)
             if (!IS_END(f->out) && !IS_VOID_OR_SAFE_TRASH(f->out))
                 Queue_Mark_Value_Deep(f->out); // never NULL
 
-        if (f->eval_type != ET_FUNCTION) {
+        if (NOT(Is_Any_Function_Frame(f))) {
             //
             // The only fields we protect if no function is pending or running
             // with this frame is the array and the potentially pending value.

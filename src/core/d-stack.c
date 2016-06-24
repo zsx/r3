@@ -127,7 +127,7 @@ REBARR *Make_Where_For_Frame(struct Reb_Frame *f)
 
     assert(end >= start);
 
-    assert(f->eval_type == ET_FUNCTION);
+    assert(Is_Any_Function_Frame(f));
     pending = Is_Function_Frame_Fulfilling(f);
 
     // !!! We may be running a function where the value for the function was a
@@ -382,7 +382,7 @@ REBNATIVE(backtrace)
         index = 0;
         row = 0;
         for (frame = FS_TOP->prior; frame != NULL; frame = FRM_PRIOR(frame)) {
-            if (frame->eval_type != ET_FUNCTION) continue;
+            if (!Is_Any_Function_Frame(frame)) continue;
 
             // index and property, unless /BRIEF in which case it will just
             // be the property.
@@ -422,7 +422,7 @@ REBNATIVE(backtrace)
         // be interesting to see GROUP! stack levels that are being
         // executed as well (as they are something like DO).
         //
-        if (frame->eval_type != ET_FUNCTION)
+        if (NOT(Is_Any_Function_Frame(frame)))
             continue;
 
         REBOOL pending = Is_Function_Frame_Fulfilling(frame);
@@ -640,7 +640,7 @@ struct Reb_Frame *Frame_For_Stack_Level(
         frame = frame->prior;
 
     for (; frame != NULL; frame = frame->prior) {
-        if (frame->eval_type != ET_FUNCTION) {
+        if (NOT(Is_Any_Function_Frame(frame))) {
             //
             // Don't consider pending calls, or GROUP!, or any non-invoked
             // function as a candidate to target.
@@ -736,7 +736,7 @@ REBNATIVE(running_q)
 
     struct Reb_Frame *f = CTX_FRAME(frame_ctx);
 
-    if (f->eval_type != ET_FUNCTION)
+    if (NOT(Is_Any_Function_Frame(f)))
         return R_FALSE;
 
     if (Is_Function_Frame_Fulfilling(f))
@@ -765,7 +765,7 @@ REBNATIVE(pending_q)
 
     struct Reb_Frame *f = CTX_FRAME(frame_ctx);
 
-    if (f->eval_type == ET_FUNCTION)
+    if (Is_Any_Function_Frame(f))
         if (Is_Function_Frame_Fulfilling(f))
             return R_TRUE;
 

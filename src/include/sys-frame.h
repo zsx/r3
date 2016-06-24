@@ -86,14 +86,6 @@ enum {
     // invariant and especially in light of potential interaction with
     // DO_FLAG_LOOKAHEAD.
     //
-    // NOTE: DO_FLAG_NEXT is *non-continuable* with va_list.  This is due to
-    // contention with DO_FLAG_LOOKAHEAD which would not be able to "un-fetch"
-    // in the case of a lookahead for infix that failed (and NO_LOOKAHEAD is
-    // very rare with API clients).  But also, the va_list could need a
-    // conversion to an array during evaluation...and any continuation would
-    // need to be sensitive to this change, which is extra trouble for very
-    // little likely benefit.
-    //
     DO_FLAG_NEXT = 1 << 1,
     DO_FLAG_TO_END = 1 << 2,
 
@@ -203,7 +195,10 @@ enum {
 // mean "has some behavior in the evaluator".
 //
 enum Reb_Eval_Type {
-    ET_INERT = 0, // does double duty as logic FALSE in "ANY_EVAL()"
+    ET_FUNCTION = 0, // does double duty as logic FALSE for Get_Var lookback
+    ET_LOOKBACK = 1, // does double duty as logic TRUE for Get_Var lookback
+
+    ET_INERT,
     ET_BAR,
     ET_LIT_BAR,
     ET_WORD,
@@ -215,7 +210,6 @@ enum Reb_Eval_Type {
     ET_SET_PATH,
     ET_GET_PATH,
     ET_LIT_PATH,
-    ET_FUNCTION,
 
     // !!! Review more efficient way of expressing safe enumerators
 
@@ -249,7 +243,7 @@ enum Reb_Eval_Type {
 //
 extern const REBET Eval_Table[REB_MAX];
 
-#define ANY_EVAL(v) LOGICAL(Eval_Table[VAL_TYPE(v)])
+#define ANY_EVAL(v) LOGICAL(Eval_Table[VAL_TYPE(v)] != ET_INERT)
 
 
 union Reb_Frame_Source {
@@ -258,73 +252,92 @@ union Reb_Frame_Source {
 };
 
 // NOTE: The ordering of the fields in `Reb_Frame` are specifically done so
-// as to accomplish correct 64-bit alignment of pointers on 64-bit systems
-// (as long as REBCNT and REBINT are 32-bit on such platforms).  If modifying
-// the structure, be sensitive to this issue.
+// as to accomplish correct 64-bit alignment of pointers on 64-bit systems.
 //
 // Because performance in the core evaluator loop is system-critical, this
 // uses full platform `int`s instead of REBCNTs.
 //
+// If modifying the structure, be sensitive to this issue--and that the
+// layout of this structure is mirrored in Ren-Cpp.
+//
 struct Reb_Frame {
     //
-    // `eval` [INTERNAL, NON-READABLE, not GC-PROTECTED?]
+    // `cell`
     //
-    // Placed at the head of the structure for alignment reasons, but the most
-    // difficult field of Reb_Frame to explain.  It serves the purpose of a
-    // holding cell that is needed while an EVAL is running, because the
-    // calculated value that had lived in `c->out` which is being evaluated
-    // can't stay in that spot while the next evaluation is writing into it.
-    // Frameless natives and other code with call frame access should not
-    // tamper w/it or read it--from their point of view it is "random".
+    // This is a REBVAL-sized slot which is used for multiple purposes.
     //
-    // Once a function evaluation has started and the fields of the FUNC
-    // extracted, however, then specifically the eval slot is free up until
-    // the function evaluation is over.  As a result, it is used by VARARGS!
-    // to hold a piece of state that is visible to all bit-pattern-instances
-    // of that same VARARGS! in other locations.  See notes in %sys-value.h
+    // * It is a temporary storage space for evaluations, in order to avoid
+    //   overwriting f->out when the value in it needs to be preserved.
+    //
+    // * It is where the EVAL instruction stores the temporary item that it
+    //   splices into the evaluator feed, e.g. for `eval (first [x:]) 10 + 20`
+    //   would be the storage for the `x:` SET-WORD! during the addition.
+    //
+    // * During a function call, it is available for other purposes.  One
+    //   current usage is to have it hold a pointer that all variadic
+    //   arguments tied to this frame can share, when they are chaining
+    //   one list of variadic arguments inside of another.
     //
     union {
         RELVAL eval;
-        REBARR *subfeed; // during VARARGS! (see also REBSER.misc.subfeed)
+        REBARR *subfeed; // (see also REBSER.misc.subfeed)
     } cell;
 
-    // `func` [INTERNAL, READ-ONLY, GC-PROTECTED]
+    // `prior`
     //
-    // If a function call is currently in effect, `func` holds a pointer to
-    // the function being run.  Because functions are identified and passed
-    // by a platform pointer as their paramlist REBSER*, you must use
-    // `FUNC_VALUE(c->func)` to get a pointer to a canon REBVAL representing
-    // that function (to examine its function flags, for instance).
+    // The prior call frame (may be NULL if this is the topmost stack call).
     //
-    REBFUN *func;
+    // !!! Should there always be a known "top stack level" so prior does
+    // not ever have to be tested for NULL from within Do_Core?
+    //
+    struct Reb_Frame *prior;
 
-    // `dsp_orig` [INTERNAL, READ-ONLY]
+    // `dsp_orig`
     //
     // The data stack pointer captured on entry to the evaluation.  It is used
     // by debug checks to make sure the data stack stays balanced after each
-    // sub-operation.  Yet also, refinements are pushed to the data stack and
-    // something to compare against to find out how many is needed.  At this
-    // position to sync alignment with same-sized `flags`.
+    // sub-operation.  It's also used to measure how many refinements have
+    // been pushed to the data stack by a path evaluation.
     //
     REBUPT dsp_orig; // type is REBDSP, but enforce alignment here
 
-    // `flags` [INPUT, READ-ONLY]
-    //
-    // These are DO_FLAG_xxx or'd together.  If the call is being set up
-    // for an Apply as opposed to Do, this must be 0.
-    //
-    REBUPT flags; // type is REBFLGS, but enforce alignment here
-
-    // `out` [INPUT pointer of where to write an OUTPUT, GC-SAFE cell]
+    // `out`
     //
     // This is where to write the result of the evaluation.  It should not be
     // in "movable" memory, hence not in a series data array.  Often it is
     // used as an intermediate free location to do calculations en route to
-    // a final result, due to being GC-safe
+    // a final result, due to being GC-safe during function evaluation.
     //
     REBVAL *out;
 
-    // `value` [INPUT, REUSABLE, GC-PROTECTS pointed-to REBVAL]
+    // `flags`
+    //
+    // These are DO_FLAG_XXX or'd together--see their documentation above.
+    //
+    REBUPT flags; // type is REBFLGS, but enforce alignment here
+
+    // source.array, source.vaptr
+    //
+    // This is the source from which new values will be fetched.  In addition
+    // to working with an array, it is also possible to feed the evaluator
+    // arbitrary REBVAL*s through a variable argument list on the C stack.
+    // This means no array needs to be dynamically allocated (though some
+    // conditions require the va_list to be converted to an array, see notes
+    // on Reify_Va_To_Array_In_Frame().)
+    //
+    union Reb_Frame_Source source;
+
+    // `specifier`
+    //
+    // This is used for relatively bound words to be looked up to become
+    // specific.  Typically the specifier is extracted from the payload of the
+    // ANY-ARRAY! value that provided the source.array for the call to DO.
+    // It may also be NULL if it is known that there are no relatively bound
+    // words that will be encountered from the source--as in va_list calls.
+    //
+    REBCTX *specifier;
+
+    // `value`
     //
     // This is the value currently being processed.  Callers pass in the
     // first value pointer...which for any successive evaluations will be
@@ -339,19 +352,42 @@ struct Reb_Frame {
     // situations...as insertions usually have to "slide down" the values in
     // the series and may also need to perform alloc/free/copy to expand.)
     //
-    // !!! The ramifications of using a disconnected value on debugging
-    // which is *not* part of the series is that the "where" will come up
-    // with missing information.  This is not the only case where the
-    // optimization of not making a series or not making a frame creates
-    // a problem--and in general, optimization will interfere with almost any
-    // debug feedback.  The proposed solution is to have a "debug mode" which
-    // causes more conservatism--for instance, if it is noticed in an
-    // evaluation that the value pointer does *not* line up at the head of
-    // the series for the evaluation given, it would be cached somewhere...
-    // then if any problem needing a where came up, a series would be made
-    // to put it in.  (The where series is paying for a copy anyway.)
+    // !!! Review impacts on debugging; e.g. a debug mode should hold onto
+    // the initial value in order to display full error messages.
     //
     const RELVAL *value;
+
+    // `index`
+    //
+    // This holds the index of the *next* item in the array to fetch as
+    // f->value for processing.  It's invalid if the frame is for a C va_list.
+    //
+    REBUPT index;
+
+    // `expr_index`
+    //
+    // The error reporting machinery doesn't want where `index` is right now,
+    // but where it was at the beginning of a single DO/NEXT step.
+    //
+    REBUPT expr_index;
+
+    // `eval_type`
+    //
+    // This is the enumerated type upon which the evaluator's main switch
+    // statement is driven, to indicate whether the frame is to perform a
+    // ET_SET_WORD, or an ET_FUNCTION call, etc.
+    //
+    // The reason the evaluator doesn't just a `switch` on REB_XXX types is
+    // efficiency (using consecutive small numbers lets the switch optimize
+    // as a jump table).  It also offers more encoding possibilities, e.g.
+    // ET_LOOKBACK implies that it's doing function argument gathering with
+    // the first argument to use waiting in f->out.  Overwriting the eval_type
+    // can then clear more "flag state" in a single assignment.
+    //
+    // Although it is an enum Reb_Eval_Type, the Reb_Frame structure needs
+    // to be well-defined in its layout.
+    //
+    REBUPT eval_type;
 
     // `gotten`
     //
@@ -369,18 +405,7 @@ struct Reb_Frame {
     //
     const REBVAL *gotten;
 
-    // This flag is used to tell the function code whether it needs to
-    // "lookback" (into f->out) to find its next argument instead of going
-    // through normal evaluation.
-    //
-    // A lookback binding that takes two arguments is "infix".
-    // A lookback binding that takes one argument is "postfix".
-    // A lookback binding that takes > 2 arguments can be cool (`->` lambdas)
-    // A lookback binding that takes zero arguments blocks subsequent lookback
-    //
-    REBOOL lookback;
-
-    // `pending` [INTERNAL, READ-ONLY, GC-PROTECTS pointed-to REBVAL]
+    // `pending`
     //
     // Mechanically speaking, running an EVAL has to overwrite `value` from
     // the natural pre-fetching course, so that the evaluated value can be
@@ -393,63 +418,43 @@ struct Reb_Frame {
     //
     const RELVAL *pending;
 
-    // source.array, source.vaptr [INPUT, READ-ONLY, GC-PROTECTED]
+    // `func`
     //
-    // This is the source from which new values will be fetched.  The most
-    // common dispatch of the evaluator is on values that live inside of a
-    // Rebol BLOCK! or GROUP!...but something to know is that the `array`
-    // could have come from any ANY-ARRAY! (e.g. a PATH!).  The fact that it
-    // came from a value marked REB_PATH is not known here: value-bearing
-    // series will all "evaluate like a block" when passed to Do_Core.
+    // If a function call is currently in effect, `func` holds a pointer to
+    // the function being run.  Because functions are identified and passed
+    // by a platform pointer as their paramlist REBSER*, you must use
+    // `FUNC_VALUE(c->func)` to get a pointer to a canon REBVAL representing
+    // that function (to examine its function flags, for instance).
     //
-    // In addition to working with a source of values in a traditional series,
-    // in Ren-C it is also possible to feed the evaluator arbitrary REBVAL*s
-    // through a variable argument list.  Though this means no array needs to
-    // be dynamically allocated, some conditions require the va_list to be
-    // converted to an array.  See notes on Reify_Va_To_Array_In_Frame().
-    //
-    union Reb_Frame_Source source;
+    REBFUN *func;
 
-    // `index` [INPUT, OUTPUT]
+    // `exit_from`
     //
-    // This holds the index of the *next* item in the array to fetch as
-    // f->value for processing.  It's invalid if the frame is for a C va_list.
+    // A REBFUN* alone is not enough to fully specify a function, because
+    // it may be an "archetype".  For instance, the archetypal RETURN native
+    // doesn't have enough specific information in it to know *which* function
+    // to exit.  The additional pointer of context is exit_from, and it is
+    // extracted from the function REBVAL.
     //
-    REBCNT index;
+    REBARR *exit_from; // either a varlist of a FRAME! or function paramlist
 
-    // `specifier` [INPUT, READ-ONLY, GC-PROTECTED]
-    //
-    // The specifier context is where any relatively bound words are looked
-    // up to become "specific".  (If the function inside the specifier does
-    // not match the function of any relatively bound words that happen to
-    // be fetched into Reb_Frame.value, then that is a problem that will
-    // assert in the debug build.)
-    //
-    // Typically the specifier used is extracted from the payload of the
-    // Reb_Any_Series that provided the source.array for the call to DO.
-    // It may also be NULL if it is known that there are no relatively bound
-    // words that will be encountered from the source.
-    //
-    REBCTX *specifier;
-
-    // `label_sym` [INTERNAL, READ-ONLY]
+    // `label_sym`
     //
     // Functions don't have "names", though they can be assigned to words.
-    // Typically the label symbol is passed into the evaluator as SYM_0 and
-    // then only changed if a function dispatches by WORD!, however it
-    // is possible for Do_Core to be called with a preloaded symbol for
-    // better debugging descriptivity.
+    // The evaluator only enforces that the symbol be set during function
+    // calls--in the release build, it is allowed to be garbage otherwise.
     //
-    REBSYM label_sym;
+    REBUPT label_sym; // actually REBSYM
 
-    // `stackvars` [INTERNAL, VALUES MUTABLE and GC-SAFE]
+    // `stackvars`
     //
     // For functions without "indefinite extent", the invocation arguments are
     // stored in the "chunk stack", where allocations are fast, address stable,
     // and implicitly terminated.  If a function has indefinite extent, this
     // will be set to NULL.
     //
-    // This can contain END markers at any position during arg fulfillment.
+    // This can contain END markers at any position during arg fulfillment,
+    // but must all be non-END when the function actually runs.
     //
     REBVAL *stackvars;
 
@@ -466,7 +471,7 @@ struct Reb_Frame {
     //
     REBARR *varlist;
 
-    // `param` [INTERNAL, REUSABLE, GC-PROTECTS pointed-to REBVALs]
+    // `param`
     //
     // We use the convention that "param" refers to the TYPESET! (plus symbol)
     // from the spec of the function--a.k.a. the "formal argument".  This
@@ -481,7 +486,7 @@ struct Reb_Frame {
     //
     const RELVAL *param;
 
-    // `arg` [INTERNAL, also CACHE of `ARR_HEAD(arglist)`]
+    // `arg`
     //
     // "arg" is the "actual argument"...which holds the pointer to the
     // REBVAL slot in the `arglist` for that corresponding `param`.  These
@@ -494,7 +499,7 @@ struct Reb_Frame {
     //
     REBVAL *arg;
 
-    // `refine` [INTERNAL, REUSABLE, GC-PROTECTS pointed-to REBVAL]
+    // `refine`
     //
     // During parameter fulfillment, this might point to the `arg` slot
     // of a refinement which is having its arguments processed.  Or it may
@@ -527,55 +532,9 @@ struct Reb_Frame {
     //
     REBVAL *refine;
 
-    // `prior` [INTERNAL, READ-ONLY]
-    //
-    // The prior call frame (may be NULL if this is the topmost stack call).
-    //
-    struct Reb_Frame *prior;
-
-    // `mode` [INTERNAL, READ-ONLY]
-    //
-    // State variable during parameter fulfillment.  So before refinements,
-    // in refinement, skipping...etc.
-    //
-    // One particularly important usage is CALL_MODE_FUNCTION, which needs to
-    // be checked by `Get_Var`.  This is a necessarily evil while FUNCTION!
-    // does not have the semantics of CLOSURE!, because pathological cases
-    // in "stack-relative" addressing can get their hands on "reused" bound
-    // words during the formation process, e.g.:
-    //
-    //      leaker: func [/exec e /gimme g] [
-    //          either gimme [return [g]] [reduce e]
-    //      ]
-    //
-    //      leaker/exec reduce leaker/gimme 10
-    //
-    // Since a leaked word from another instance of a function can give
-    // access to a call frame during its formation, we need a way to tell
-    // when a call frame is finished forming...CALL_MODE_FUNCTION is it.
-    //
-    REBET eval_type; // enum in debug build, faster REBUPT in release
-
-    // `expr_index` [INTERNAL, READ-ONLY]
-    //
-    // Although the evaluator has to know what the current `index` is, the
-    // error reporting machinery typically wants to know where the index
-    // was *before* the last evaluation started...in order to present an
-    // idea of the expression that caused the error.  This is the index
-    // of where the currently evaluating expression started.
-    //
-    REBIXO expr_index;
-
-    // Definitional Return gives back a "corrupted" REBVAL of a return native,
-    // whose body is actually an indicator of the return target.  The
-    // Reb_Frame only stores the FUNC so we must extract this body from the
-    // value if it represents a exit_from
-    //
-    REBARR *exit_from;
-
 #if !defined(NDEBUG)
     //
-    // `label_str` [INTERNAL, DEBUG, READ-ONLY]
+    // `label_str` [DEBUG]
     //
     // Knowing the label symbol is not as handy as knowing the actual string
     // of the function this call represents (if any).  It is in UTF8 format,
@@ -583,7 +542,13 @@ struct Reb_Frame {
     //
     const char *label_str;
 
-    // `do_count` [INTERNAL, DEBUG, READ-ONLY]
+    // `value_type`
+    //
+    // The fetching mechanics cache the type of f->value
+    //
+    enum Reb_Kind value_type;
+
+    // `do_count` [DEBUG]
     //
     // The `do_count` represents the expression evaluation "tick" where the
     // Reb_Frame is starting its processing.  This is helpful for setting
@@ -596,24 +561,3 @@ struct Reb_Frame {
     struct Reb_State state;
 #endif
 };
-
-
-// It's helpful when looking in the debugger to be able to look at a frame
-// and see a cached string for the function it's running (if there is one).
-// The release build only considers the frame symbol valid if ET_FUNCTION
-//
-#ifdef NDEBUG
-    #define SET_FRAME_SYM(f,s) \
-        ((f)->label_sym = (s))
-
-    #define CLEAR_FRAME_SYM(f) \
-        NOOP
-#else
-    #define SET_FRAME_SYM(f,s) \
-        (assert((f)->eval_type == ET_FUNCTION), \
-            (f)->label_sym = (s), \
-            (f)->label_str = cast(const char*, Get_Sym_Name((f)->label_sym)))
-
-    #define CLEAR_FRAME_SYM(f) \
-        ((f)->label_sym = SYM_0, (f)->label_str = NULL)
-#endif

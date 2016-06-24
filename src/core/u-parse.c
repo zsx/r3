@@ -119,7 +119,7 @@ static REBOOL Subparse_Throws(
 
     f->out = out;
 
-    f->value = VAL_ARRAY_AT(rules);
+    SET_FRAME_VALUE(f, VAL_ARRAY_AT(rules));
     f->specifier = IS_SPECIFIC(rules)
         ? VAL_SPECIFIER(const_KNOWN(rules))
         : rules_specifier;

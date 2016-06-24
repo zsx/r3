@@ -178,7 +178,7 @@ REBOOL Do_Breakpoint_Throws(
             //
 
             for (frame = FS_TOP; frame != NULL; frame = frame->prior) {
-                if (frame->eval_type != ET_FUNCTION)
+                if (NOT(Is_Any_Function_Frame(frame)))
                     continue;
                 if (Is_Function_Frame_Fulfilling(frame))
                     continue;
@@ -458,7 +458,7 @@ REBNATIVE(resume)
 
         frame = FS_TOP;
         for (; frame != NULL; frame = frame->prior) {
-            if (frame->eval_type != ET_FUNCTION) continue;
+            if (NOT(Is_Any_Function_Frame(frame))) continue;
             if (Is_Function_Frame_Fulfilling(frame)) continue;
 
             if (
