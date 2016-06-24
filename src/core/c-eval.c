@@ -139,12 +139,39 @@ static inline REBOOL Specialized_Arg(REBVAL *arg) {
 // While this routine looks very complex, it's actually not that difficult
 // to step through.  A lot of it is assertions, debug tracking, and comments.
 //
-// Whether fields contain usable values upon entry depends on `f->eval_type`
-// and a number of conditions.  For instance, if ET_LOOKBACK then `f->out`
-// will contain the first argument to a lookback (e.g. infix) function.
-//
 // Comments on the definition of Reb_Frame are a good place to start looking
-// to understand what's going on.  See %sys-frame.h
+// to understand what's going on.  See %sys-frame.h for full details.
+//
+// To summarize, these fields are required upon initialization:
+//
+//     f->value
+//     Fetched first value to execute (may not be an END marker)
+//
+//     f->eval_type
+//     Kind of execution requested (should line up with f->value)
+//
+//     f->source
+//     Contains the REBARR* or C va_list of subsequent values to fetch
+//
+//     f->index
+//     Needed if f->source is an array (can be garbage if it's a C va_list)
+//
+//     f->pending
+//     Must be VA_LIST_PENDING if source is a va_list, else NULL
+//
+//     f->specifier
+//     Context where to look up relative values in f->source, else NULL
+//
+//     f->out*
+//     REBVAL pointer to which the evaluation's result should be written
+//     Can point to uninitialized bits, unless f->eval_type is ET_LOOKBACK,
+//     in which case it must be the REBVAL to use as first infix argument
+//
+//     f->gotten
+//     Must be either be the Get_Var() lookup of f->value, or NULL
+//
+// More detailed assertions of the preconditions, postconditions, and state
+// at each evaluation step are contained in %d-eval.c
 //
 void Do_Core(struct Reb_Frame * const f)
 {

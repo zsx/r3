@@ -56,13 +56,13 @@ REBIXO Do_Array_At_Core(
     struct Reb_Frame f;
 
     if (opt_first) {
-        f.value = opt_first;
+        SET_FRAME_VALUE(&f, opt_first);
         f.index = index;
     }
     else {
         // Do_Core() requires caller pre-seed first value, always
         //
-        f.value = ARR_AT(array, index);
+        SET_FRAME_VALUE(&f, ARR_AT(array, index));
         f.index = index + 1;
     }
 
@@ -252,11 +252,9 @@ REBIXO Do_Va_Core(
     struct Reb_Frame f;
 
     if (opt_first)
-        f.value = opt_first; // doesn't need specifier, not relative
+        SET_FRAME_VALUE(&f, opt_first); // doesn't need specifier, not relative
     else {
-        // Do_Core() requires caller pre-seed first value, always
-        //
-        f.value = va_arg(*vaptr, const REBVAL*);
+        SET_FRAME_VALUE(&f, va_arg(*vaptr, const REBVAL*));
         assert(!IS_RELATIVE(f.value));
     }
 

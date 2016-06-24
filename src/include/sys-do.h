@@ -104,8 +104,10 @@ inline static REBOOL Is_Function_Frame_Fulfilling(struct Reb_Frame *f)
 //
 inline static void SET_FRAME_SYM(struct Reb_Frame *f, REBSYM sym) {
     assert(Is_Any_Function_Frame(f));
+#if !defined(NDEBUG)
     f->label_sym = sym;
     f->label_str = cast(const char*, Get_Sym_Name(sym));
+#endif
 }
 
 inline static void CLEAR_FRAME_SYM(struct Reb_Frame *f) {
@@ -309,16 +311,19 @@ inline static void Try_Lookback_At_Evaluation_Cycle_Start(
     if (f->prior)
         switch (f->prior->eval_type) {
         case ET_SET_WORD:
-            COPY_VALUE(f->out, f->prior->param, f->prior->specifier);
-            assert(IS_SET_WORD(f->out));
-            CLEAR_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+            COPY_VALUE(out, f->prior->param, f->prior->specifier);
+            assert(IS_SET_WORD(out));
+            CLEAR_VAL_FLAG(out, VALUE_FLAG_EVALUATED);
             return;
 
         case ET_SET_PATH:
-            COPY_VALUE(f->out, f->prior->param, f->prior->specifier);
-            assert(IS_SET_PATH(f->out));
-            CLEAR_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+            COPY_VALUE(out, f->prior->param, f->prior->specifier);
+            assert(IS_SET_PATH(out));
+            CLEAR_VAL_FLAG(out, VALUE_FLAG_EVALUATED);
             return;
+
+        default:
+            break;
         }
 
     SET_END(f->out); // some <end> args are able to tolerate absences
