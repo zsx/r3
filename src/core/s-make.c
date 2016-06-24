@@ -333,10 +333,8 @@ REBCHR *Val_Str_To_OS_Managed(REBSER **out, REBVAL *val)
         return cast(REBCHR*, VAL_BIN_AT(val));
     }
     else {
-        REBCNT n = VAL_LEN_AT(val);
-
         // !!! "Leaks" in the sense that the GC has to take care of this
-        REBSER *ser = Temp_Bin_Str_Managed(val, 0, &n);
+        REBSER *ser = Temp_Bin_Str_Managed(val, 0, NULL);
 
         if (out) *out = ser;
 

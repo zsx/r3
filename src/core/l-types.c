@@ -1018,7 +1018,7 @@ REBNATIVE(scan_net_header)
 
     // Convert string if necessary. Store back for GC safety.
     //
-    temp = Temp_Bin_Str_Managed(header, &index, 0);
+    temp = Temp_Bin_Str_Managed(header, &index, NULL);
     INIT_VAL_SERIES(header, temp); // caution: macro copies args!
 
     // !!! This is assuming the string is in bytes, but what if it was

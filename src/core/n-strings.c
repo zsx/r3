@@ -436,7 +436,7 @@ REBNATIVE(enbase)
     REBCNT index;
     REBVAL *arg = D_ARG(1);
 
-    Val_Init_Binary(arg, Temp_Bin_Str_Managed(arg, &index, 0));
+    Val_Init_Binary(arg, Temp_Bin_Str_Managed(arg, &index, NULL));
     VAL_INDEX(arg) = index;
 
     if (D_REF(2)) base = VAL_INT32(D_ARG(3));

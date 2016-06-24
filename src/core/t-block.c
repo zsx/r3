@@ -187,9 +187,8 @@ void TO_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         // characters, it may have to be converted to UTF8 before being
         // used with the scanner.
         //
-        REBCNT len;
         REBCNT index;
-        REBSER *utf8 = Temp_Bin_Str_Managed(arg, &index, &len);
+        REBSER *utf8 = Temp_Bin_Str_Managed(arg, &index, NULL);
         PUSH_GUARD_SERIES(utf8);
         Val_Init_Array(out, kind, Scan_Source(BIN_HEAD(utf8), BIN_LEN(utf8)));
         DROP_GUARD_SERIES(utf8);
