@@ -1705,8 +1705,9 @@ enum {
 };
 
 #ifdef NDEBUG
-    #define VAL_FUNC(v) \
-        ((v)->payload.function.func + 0)
+    inline static REBFUN *VAL_FUNC(const RELVAL *v) {
+        return AS_FUNC(v->payload.function.paramlist);
+    }
 #else
     #define VAL_FUNC(v) \
         VAL_FUNC_Debug(v)
@@ -1725,13 +1726,13 @@ inline static REBVAL *VAL_FUNC_PARAM(const RELVAL *v, REBCNT n)
     { return FUNC_PARAM(VAL_FUNC(v), n); }
 
 inline static RELVAL *VAL_FUNC_BODY(const RELVAL *v)
-    { return ARR_HEAD(v->payload.function.body); }
+    { return ARR_HEAD(v->payload.function.body_holder); }
 
 inline static REBNAT VAL_FUNC_DISPATCHER(const RELVAL *v)
-    { return ARR_SERIES(v->payload.function.body)->misc.dispatcher; }
+    { return ARR_SERIES(v->payload.function.body_holder)->misc.dispatcher; }
 
-#define VAL_FUNC_META(v) \
-    (ARR_SERIES(FUNC_PARAMLIST((v)->payload.function.func))->misc.meta)
+inline static REBCTX *VAL_FUNC_META(const RELVAL *v)
+    { return ARR_SERIES(v->payload.function.paramlist)->misc.meta; }
 
 inline static REBOOL IS_FUNCTION_PLAIN(const RELVAL *v)
     { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Plain_Dispatcher); }
@@ -1782,7 +1783,7 @@ inline static REBOOL IS_FUNC_DURABLE(REBFUN *f) {
     (&Natives[N_##name##_ID])
 
 #define NAT_FUNC(name) \
-    (NAT_VALUE(name)->payload.function.func)
+    VAL_FUNC(NAT_VALUE(name))
 
 
 
@@ -1823,14 +1824,12 @@ inline static REBOOL IS_FUNC_DURABLE(REBFUN *f) {
 
 inline static REBCTX *VAL_CONTEXT(const RELVAL *v) {
     assert(ANY_CONTEXT(v));
-    return v->payload.any_context.context;
+    return AS_CONTEXT(v->payload.any_context.varlist);
 }
 
-#define INIT_VAL_CONTEXT(v,c) \
-    ((v)->payload.any_context.context = (c))
-
-#define VAL_CONTEXT_SPEC(v) \
-    ((v)->payload.any_context.more.spec)
+inline static void INIT_VAL_CONTEXT(REBVAL *v, REBCTX *c) {
+    v->payload.any_context.varlist = CTX_VARLIST(c);
+}
 
 #define VAL_CONTEXT_FRAME(v) \
     ((v)->payload.any_context.more.frame)
@@ -1843,8 +1842,11 @@ inline static REBCTX *VAL_CONTEXT(const RELVAL *v) {
 #define VAL_CONTEXT_KEY(v,n) \
     CTX_KEY(VAL_CONTEXT(v), (n))
 
-#define VAL_CONTEXT_META(v) \
-    (ARR_SERIES(CTX_KEYLIST((v)->payload.any_context.context))->misc.meta)
+inline static REBCTX *VAL_CONTEXT_META(const RELVAL *v) {
+    return ARR_SERIES(
+        CTX_KEYLIST(AS_CONTEXT(v->payload.any_context.varlist))
+    )->misc.meta;
+}
 
 #define VAL_CONTEXT_EXIT_FROM(v) \
     ((v)->payload.any_context.exit_from)
@@ -1857,18 +1859,14 @@ inline static REBCNT VAL_CONTEXT_STACKVARS_LEN(const RELVAL *v) {
 #define VAL_CONTEXT_KEY_SYM(v,n) \
     CTX_KEY_SYM(VAL_CONTEXT(v), (n))
 
-inline static void INIT_CONTEXT_SPEC(REBCTX *c, REBCTX *spec) {
-    assert(!IS_FRAME(CTX_VALUE(c)));
-    VAL_CONTEXT_SPEC(CTX_VALUE(c)) = spec;
-}
-
 inline static void INIT_CONTEXT_FRAME(REBCTX *c, struct Reb_Frame *frame) {
     assert(IS_FRAME(CTX_VALUE(c)));
     VAL_CONTEXT_FRAME(CTX_VALUE(c)) = frame;
 }
 
-#define INIT_CONTEXT_META(c,s) \
-    (VAL_CONTEXT_META(CTX_VALUE(c)) = (s))
+inline static void INIT_CONTEXT_META(REBCTX *c, REBCTX *m) {
+    ARR_SERIES(CTX_KEYLIST(c))->misc.meta = m;
+}
 
 inline static REBVAL *CTX_FRAME_FUNC_VALUE(const REBCTX *c) {
     assert(IS_FUNCTION(CTX_ROOTKEY(c)));

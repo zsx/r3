@@ -242,10 +242,8 @@ void Clonify_Values_Len_Managed(
             #endif
 
                 assert(!IS_FRAME(value)); // !!! Don't exist yet...
-                INIT_VAL_CONTEXT(
-                    value,
-                    Copy_Context_Shallow(VAL_CONTEXT(value))
-                );
+                value->payload.any_context.varlist =
+                    CTX_VARLIST(Copy_Context_Shallow(VAL_CONTEXT(value)));
                 series = ARR_SERIES(CTX_VARLIST(VAL_CONTEXT(value)));
             }
             else {

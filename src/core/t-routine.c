@@ -1281,7 +1281,7 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec) {
     // Now fill in the canon value of the paramlist so it is an actual "REBFUN"
     //
     VAL_RESET_HEADER(rootparam, REB_FUNCTION);
-    rootparam->payload.function.func = AS_FUNC(paramlist);
+    rootparam->payload.function.paramlist = paramlist;
     rootparam->payload.function.exit_from = NULL;
 
     // The "body" value of a routine is a handle which points to the routine

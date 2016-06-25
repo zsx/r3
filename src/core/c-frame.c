@@ -107,7 +107,7 @@ REBCTX *Alloc_Context(REBCNT len)
 
     REBVAL *rootvar = Alloc_Tail_Array(varlist);
     SET_TRASH_IF_DEBUG(rootvar);
-    rootvar->payload.any_context.context = AS_CONTEXT(varlist);
+    rootvar->payload.any_context.varlist = varlist;
 
     // keylist[0] is the "rootkey" which we currently initialize to SYM_0
 
@@ -314,7 +314,7 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
 
     SET_ARR_FLAG(CTX_VARLIST(dest), ARRAY_FLAG_CONTEXT_VARLIST);
 
-    INIT_VAL_CONTEXT(CTX_VALUE(dest), dest);
+    CTX_VALUE(dest)->payload.any_context.varlist = CTX_VARLIST(dest);
 
     INIT_CONTEXT_META(dest, meta); // will be placed on new keylist
 
@@ -767,24 +767,22 @@ REBCTX *Make_Selfish_Context_Detect(
     const RELVAL *head,
     REBCTX *opt_parent
 ) {
-    REBARR *keylist;
-    REBCTX *context;
     REBCNT self_index;
-
-    REBCNT len;
-
-    keylist = Collect_Keylist_Managed(
+    REBARR *keylist = Collect_Keylist_Managed(
         &self_index,
         head,
         opt_parent,
         COLLECT_ONLY_SET_WORDS | COLLECT_ENSURE_SELF
     );
-    len = ARR_LEN(keylist);
+
+    REBCNT len = ARR_LEN(keylist);
 
     // Make a context of same size as keylist (END already accounted for)
     //
-    context = AS_CONTEXT(Make_Array(len));
-    SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST);
+    REBARR *varlist = Make_Array(len);
+    SET_ARR_FLAG(varlist, ARRAY_FLAG_CONTEXT_VARLIST);
+
+    REBCTX *context = AS_CONTEXT(varlist);
 
     // !!! We actually don't know if the keylist coming back from
     // Collect_Keylist_Managed was created new or reused.  Err on the safe
@@ -795,7 +793,7 @@ REBCTX *Make_Selfish_Context_Detect(
 
     // context[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
     //
-    CTX_VALUE(context)->payload.any_context.context = context;
+    CTX_VALUE(context)->payload.any_context.varlist = varlist;
     VAL_CONTEXT_EXIT_FROM(CTX_VALUE(context)) = NULL;
 
     SET_ARRAY_LEN(CTX_VARLIST(context), len);
@@ -1049,7 +1047,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     //
     VAL_RESET_HEADER(value, CTX_TYPE(parent1));
     INIT_CTX_KEYLIST_UNIQUE(child, keylist);
-    INIT_VAL_CONTEXT(value, child);
+    value->payload.any_context.varlist = CTX_VARLIST(child);
     VAL_CONTEXT_EXIT_FROM(value) = NULL;
 
     // Copy parent1 values:
@@ -1434,7 +1432,7 @@ void Assert_Context_Core(REBCTX *context)
         Panic_Context(context);
     }
 
-    if (var->payload.any_context.context != context) {
+    if (var->payload.any_context.varlist != CTX_VARLIST(context)) {
         Debug_Fmt("Embedded ANY-CONTEXT!'s context doesn't match context");
         Panic_Context(context);
     }

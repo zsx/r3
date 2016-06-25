@@ -584,7 +584,7 @@ REBNATIVE(set_meta)
     REBVAL *value = ARG(value);
 
     if (IS_FUNCTION(value))
-        VAL_FUNC_META(value) = meta;
+        ARR_SERIES(VAL_FUNC_PARAMLIST(value))->misc.meta = meta;
     else {
         assert(ANY_CONTEXT(value));
         INIT_CONTEXT_META(VAL_CONTEXT(value), meta);
@@ -640,7 +640,7 @@ REBTYPE(Context)
         );
         INIT_CTX_KEYLIST_SHARED(context, CTX_KEYLIST(VAL_CONTEXT(value)));
         SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST);
-        INIT_VAL_CONTEXT(CTX_VALUE(context), context);
+        CTX_VALUE(context)->payload.any_context.varlist = CTX_VARLIST(context);
         if (types != 0) {
             Clonify_Values_Len_Managed(
                 CTX_VARS_HEAD(context),

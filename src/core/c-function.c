@@ -585,7 +585,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         RELVAL *dest = ARR_HEAD(paramlist); // canon function value
         VAL_RESET_HEADER(dest, REB_FUNCTION);
         SET_VAL_FLAGS(dest, header_bits);
-        dest->payload.function.func = AS_FUNC(paramlist);
+        dest->payload.function.paramlist = paramlist;
         dest->payload.function.exit_from = NULL;
         ++dest;
 
@@ -627,10 +627,10 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     if (has_description || has_types || has_notes) {
         meta = Copy_Context_Shallow(VAL_CONTEXT(ROOT_FUNCTION_META));
         MANAGE_ARRAY(CTX_VARLIST(meta));
-        VAL_FUNC_META(ARR_HEAD(paramlist)) = meta;
+        ARR_SERIES(paramlist)->misc.meta = meta;
     }
     else
-        VAL_FUNC_META(ARR_HEAD(paramlist)) = NULL;
+        ARR_SERIES(paramlist)->misc.meta = NULL;
 
     // If a description string was gathered, it's sitting in the first string
     // slot, the third cell we pushed onto the stack.  Extract it if so.
@@ -649,7 +649,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 
         RELVAL *dest = ARR_HEAD(types_varlist); // rootvar: canon FRAME! value
         VAL_RESET_HEADER(dest, REB_FRAME);
-        dest->payload.any_context.context = AS_CONTEXT(types_varlist);
+        dest->payload.any_context.varlist = types_varlist;
         dest->payload.any_context.exit_from = NULL;
         ++dest;
 
@@ -681,7 +681,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 
         RELVAL *dest = ARR_HEAD(notes_varlist); // rootvar: canon FRAME! value
         VAL_RESET_HEADER(dest, REB_FRAME);
-        dest->payload.any_context.context = AS_CONTEXT(notes_varlist);
+        dest->payload.any_context.varlist = notes_varlist;
         dest->payload.any_context.exit_from = NULL;
         ++dest;
 
@@ -765,12 +765,11 @@ REBFUN *Make_Function(
     REBNAT dispatcher // native C function called by Do_Core
 ) {
     ASSERT_ARRAY_MANAGED(paramlist);
-    assert(IS_FUNCTION(ARR_HEAD(paramlist))); // !!! body not fully formed...
 
-    REBFUN *fun = AS_FUNC(paramlist);
-    assert(ARR_HEAD(paramlist)->payload.function.func == fun);
-
-    assert(VAL_FUNC_EXIT_FROM(FUNC_VALUE(fun)) == NULL); // archetype
+    RELVAL *rootparam = ARR_HEAD(paramlist);
+    assert(IS_FUNCTION(rootparam)); // !!! body not fully formed...
+    assert(rootparam->payload.function.paramlist == paramlist);
+    assert(rootparam->payload.function.exit_from == NULL); // archetype
 
     // The "body" for a function can be any REBVAL.  It doesn't have to be
     // a block--it's anything that the dispatcher might wish to interpret.
@@ -779,7 +778,7 @@ REBFUN *Make_Function(
 
     REBARR *body_holder = Make_Singular_Array(BLANK_VALUE);
     MANAGE_ARRAY(body_holder);
-    FUNC_VALUE(fun)->payload.function.body = body_holder;
+    rootparam->payload.function.body_holder = body_holder;
 
     // The C function pointer is stored inside the REBSER node for the body.
     // Hence there's no need for a `switch` on a function class in Do_Core,
@@ -794,7 +793,7 @@ REBFUN *Make_Function(
     // error).  That protection is now done to the frame series on reification
     // in order to be able to MAKE FRAME! and reuse the native's paramlist.
 
-    return fun;
+    return AS_FUNC(paramlist);
 }
 
 
@@ -819,12 +818,16 @@ REBFUN *Make_Function(
 //
 REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
 {
-    REBCTX *expired = AS_CONTEXT(Make_Singular_Array(BLANK_VALUE));
-    SET_ARR_FLAG(CTX_VARLIST(expired), ARRAY_FLAG_CONTEXT_VARLIST);
+    REBARR *varlist = Make_Singular_Array(BLANK_VALUE);
+    SET_ARR_FLAG(varlist, ARRAY_FLAG_CONTEXT_VARLIST);
+    MANAGE_ARRAY(varlist);
+
+    REBCTX *expired = AS_CONTEXT(varlist);
     SET_CTX_FLAG(expired, CONTEXT_FLAG_STACK); // don't set FLAG_ACCESSIBLE
 
     INIT_CTX_KEYLIST_SHARED(expired, FUNC_PARAMLIST(func));
-    INIT_VAL_CONTEXT(CTX_VALUE(expired), expired);
+
+    CTX_VALUE(expired)->payload.any_context.varlist = varlist;
 
     // Clients aren't supposed to ever be looking at the values for the
     // stackvars or the frame if it is expired.  That should hopefully
@@ -834,7 +837,6 @@ REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
     //
     CTX_VALUE(expired)->payload.any_context.more.frame = NULL;
 
-    MANAGE_ARRAY(CTX_VARLIST(expired));
     return expired;
 }
 
@@ -1071,7 +1073,7 @@ REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     //
     REBVAL *var = SINK(ARR_HEAD(varlist));
     VAL_RESET_HEADER(var, REB_FRAME);
-    INIT_VAL_CONTEXT(var, AS_CONTEXT(varlist));
+    var->payload.any_context.varlist = varlist;
 
     // We can reuse the paramlist we're given, but note in the case of
     // definitional RETURN and LEAVE we have to stow the `exit_from` field
@@ -1146,7 +1148,7 @@ REBOOL Specialize_Function_Throws(
         INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(varlist), CTX_KEYLIST(exemplar));
 
         exemplar = AS_CONTEXT(varlist); // okay, now make exemplar our copy
-        INIT_VAL_CONTEXT(CTX_VALUE(exemplar), exemplar);
+        CTX_VALUE(exemplar)->payload.any_context.varlist = varlist;
     }
     else {
         // An initial specialization is responsible for making a frame out
@@ -1207,7 +1209,9 @@ REBOOL Specialize_Function_Throws(
 
     REBARR *paramlist = Pop_Stack_Values(dsp_orig);
     MANAGE_ARRAY(paramlist);
-    ARR_HEAD(paramlist)->payload.function.func = AS_FUNC(paramlist);
+
+    RELVAL *rootparam = ARR_HEAD(paramlist);
+    rootparam->payload.function.paramlist = paramlist;
 
     REBFUN *fun = Make_Function(paramlist, &Specializer_Dispatcher);
 
@@ -1227,7 +1231,7 @@ REBOOL Specialize_Function_Throws(
         Val_Init_Word(CTX_VAR(meta, 3), REB_WORD, opt_specializee_sym);
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
-    FUNC_META(fun) = meta;
+    ARR_SERIES(paramlist)->misc.meta = meta;
 
     *out = *FUNC_VALUE(fun);
     assert(VAL_FUNC_EXIT_FROM(out) == NULL); // VAL_FUNC_EXIT_FROM(specializee)
@@ -1291,7 +1295,7 @@ void Clonify_Function(REBVAL *value)
         SPECIFIED
     );
     MANAGE_ARRAY(paramlist);
-    ARR_HEAD(paramlist)->payload.function.func = AS_FUNC(paramlist);
+    ARR_HEAD(paramlist)->payload.function.paramlist = paramlist;
 
     REBFUN *new_fun = Make_Function(paramlist, &Plain_Dispatcher);
 
@@ -1773,7 +1777,7 @@ REBNATIVE(chain)
     REBARR *paramlist = Copy_Array_Shallow(
         VAL_FUNC_PARAMLIST(ARR_HEAD(chainees)), SPECIFIED
     );
-    ARR_HEAD(paramlist)->payload.function.func = AS_FUNC(paramlist);
+    ARR_HEAD(paramlist)->payload.function.paramlist = paramlist;
     MANAGE_ARRAY(paramlist);
 
     REBFUN *fun = Make_Function(paramlist, &Chainer_Dispatcher);
@@ -1861,7 +1865,7 @@ REBNATIVE(adapt)
     REBARR *paramlist = Copy_Array_Shallow(
         VAL_FUNC_PARAMLIST(adaptee), SPECIFIED
     );
-    ARR_HEAD(paramlist)->payload.function.func = AS_FUNC(paramlist);
+    ARR_HEAD(paramlist)->payload.function.paramlist = paramlist;
     MANAGE_ARRAY(paramlist);
 
     REBFUN *fun = Make_Function(paramlist, &Adapter_Dispatcher);
@@ -1968,10 +1972,7 @@ REBNATIVE(hijack)
     // copying the paramlist to hijack it again...just poke the value in
     // and return blank.
     //
-    if (
-        IS_FUNCTION_HIJACKER(victim)
-        && IS_BLANK(ARR_HEAD(victim->payload.function.body))
-    ) {
+    if (IS_FUNCTION_HIJACKER(victim) && IS_BLANK(VAL_FUNC_BODY(victim))) {
         if (IS_BLANK(hijacker))
             fail (Error(RE_MISC)); // !!! Allow re-blanking a blank?
 
@@ -1980,12 +1981,13 @@ REBNATIVE(hijack)
     else {
         *D_OUT = *victim;
 
-        D_OUT->payload.function.func
-            = AS_FUNC(Copy_Array_Deep_Managed(
-                AS_ARRAY(D_OUT->payload.function.func),
+        D_OUT->payload.function.paramlist
+            = Copy_Array_Deep_Managed(
+                D_OUT->payload.function.paramlist,
                 SPECIFIED // !!! Note: not actually "deep", just typesets
-            ));
-        VAL_FUNC_META(D_OUT) = VAL_FUNC_META(victim);
+            );
+        ARR_SERIES(D_OUT->payload.function.paramlist)->misc.meta
+            = VAL_FUNC_META(victim);
 
         // We make a "singular" REBSER node to represent the hijacker's body.
         // Then we "swap" it with the existing REBSER node.  That way the old
@@ -1995,11 +1997,13 @@ REBNATIVE(hijack)
         REBARR *swapbody = Make_Singular_Array(BLANK_VALUE);
         MANAGE_ARRAY(swapbody);
         Swap_Underlying_Series_Data(
-            ARR_SERIES(swapbody), ARR_SERIES(victim->payload.function.body)
+            ARR_SERIES(swapbody),
+            ARR_SERIES(victim->payload.function.body_holder)
         );
 
-        D_OUT->payload.function.body = swapbody;
-        VAL_FUNC_META(D_OUT) = VAL_FUNC_META(victim);
+        D_OUT->payload.function.body_holder = swapbody;
+        ARR_SERIES(D_OUT->payload.function.paramlist)->misc.meta
+            = VAL_FUNC_META(victim);
 
         // In the special case of a plain dispatcher, the body needs to
         // preserve the original paramlist--because that is what it was
@@ -2008,23 +2012,23 @@ REBNATIVE(hijack)
         //
     #if !defined(NDEBUG)
         if (IS_FUNCTION_PLAIN(victim)) {
-            RELVAL *block = ARR_HEAD(victim->payload.function.body);
+            RELVAL *block = ARR_HEAD(victim->payload.function.body_holder);
             assert(IS_BLOCK(block));
             assert(VAL_INDEX(block) == 0);
             assert(VAL_RELATIVE(block) == VAL_FUNC(victim));
         }
     #endif
 
-        *ARR_HEAD(AS_ARRAY(D_OUT->payload.function.func)) = *D_OUT;
+        *ARR_HEAD(D_OUT->payload.function.paramlist) = *D_OUT;
     }
 
     // Give the victim a new body, that's just a single-valued array with
     // the new function in it.  Also, update its meta information to indicate
     // that it has been hijacked.
 
-    assert(ARR_LEN(victim->payload.function.body) == 1);
-    *ARR_HEAD(victim->payload.function.body) = *hijacker;
-    ARR_SERIES(victim->payload.function.body)->misc.dispatcher
+    assert(ARR_LEN(victim->payload.function.body_holder) == 1);
+    *ARR_HEAD(victim->payload.function.body_holder) = *hijacker;
+    ARR_SERIES(victim->payload.function.body_holder)->misc.dispatcher
         = &Hijacker_Dispatcher;
     victim->payload.function.exit_from = NULL;
 
@@ -2039,9 +2043,9 @@ REBNATIVE(hijack)
         Val_Init_Word(CTX_VAR(meta, SELFISH(3)), REB_WORD, victim_sym);
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
-    VAL_FUNC_META(victim) = meta;
+    ARR_SERIES(victim->payload.function.paramlist)->misc.meta = meta;
 
-    *ARR_HEAD(AS_ARRAY(victim->payload.function.func)) = *victim; // archetype
+    *ARR_HEAD(AS_ARRAY(victim->payload.function.paramlist)) = *victim;
 
     return R_OUT;
 }
@@ -2230,12 +2234,12 @@ REBNATIVE(apply)
 //  VAL_FUNC_Debug: C
 //
 REBFUN *VAL_FUNC_Debug(const RELVAL *v) {
-    REBFUN *func = v->payload.function.func;
+    REBFUN *func = AS_FUNC(v->payload.function.paramlist);
     struct Reb_Value_Header v_header = v->header;
     struct Reb_Value_Header func_header = FUNC_VALUE(func)->header;
 
     assert(IS_FUNCTION(v));
-    assert(func == FUNC_VALUE(func)->payload.function.func);
+    assert(func == AS_FUNC(FUNC_VALUE(func)->payload.function.paramlist));
     assert(GET_ARR_FLAG(FUNC_PARAMLIST(func), SERIES_FLAG_ARRAY));
 
     assert(VAL_FUNC_BODY(v) == FUNC_BODY(func));

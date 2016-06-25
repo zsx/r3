@@ -699,7 +699,7 @@ REBCTX *Context_For_Frame_May_Reify_Core(struct Reb_Frame *f) {
     // might be stopped.
     //
     VAL_RESET_HEADER(CTX_VALUE(context), REB_FRAME);
-    INIT_VAL_CONTEXT(CTX_VALUE(context), context);
+    CTX_VALUE(context)->payload.any_context.varlist = CTX_VARLIST(context);
     INIT_CONTEXT_FRAME(context, f);
 
     // A reification of a frame for native code should not allow changing

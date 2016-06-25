@@ -811,7 +811,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             // Need to queue the mark of the array for the body--as trying
             // to mark the "singular" value directly could infinite loop.
             //
-            QUEUE_MARK_ARRAY_DEEP(val->payload.function.body);
+            QUEUE_MARK_ARRAY_DEEP(val->payload.function.body_holder);
 
             if (VAL_FUNC_META(val) != NULL)
                 QUEUE_MARK_CONTEXT_DEEP(VAL_FUNC_META(val));

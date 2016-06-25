@@ -602,25 +602,25 @@ struct Reb_Function {
     // updated or augmented by functions like `redescribe` without worrying
     // about all the Reb_Function REBVALs that are extant.
     //
-    REBFUN *func; // !!! TBD: change to REBARR*, rename as paramlist
+    REBARR *paramlist;
 
-    // `body` is always a REBARR--even an optimized "singular" one that is
-    // only the size of one REBSER.  This is because the information for a
-    // function body is an array in the majority of function instances, and
-    // also because it can standardize the native dispatcher code in the
-    // REBARR's series "misc" field.  This gives two benefits: no need for
-    // a switch on the function's type to figure out the dispatcher, and also
-    // to move the dispatcher out of the REBVAL itself into something that
-    // can be revectored or "hooked" for all instances of the function.
+    // `body_holder` is an optimized "singular" REBSER, the size of exactly
+    // one value.  This is because the information for a function body is an
+    // array in the majority of function instances, and also because it can
+    // standardize the native dispatcher code in the REBARR's series "misc"
+    // field.  This gives two benefits: no need for a switch on the function's
+    // type to figure out the dispatcher, and also to move the dispatcher out
+    // of the REBVAL itself into something that can be revectored or "hooked"
+    // for all instances of the function.
     //
-    // PLAIN FUNCTIONS: body array is... the body of the function, obviously
+    // PLAIN FUNCTIONS: body is a BLOCK!, the body of the function, obviously
     // NATIVES: body is "equivalent code for native" (if any) in help
-    // ACTIONS: body is a 1-element array containing an INTEGER!
+    // ACTIONS: body is a WORD! for the verb of the action (OPEN, APPEND, etc)
     // SPECIALIZATIONS: body is a 1-element array containing a FRAME!
-    // CALLBACKS: body is a 1-element array with a HANDLE! (REBRIN*)
-    // ROUTINES: body is a 1-element array with a HANDLE! (REBRIN*)
+    // CALLBACKS: body a HANDLE! (REBRIN*)
+    // ROUTINES: body a HANDLE! (REBRIN*)
     //
-    REBARR *body;
+    REBARR *body_holder;
 };
 
 struct Reb_Any_Context {
@@ -647,11 +647,9 @@ struct Reb_Any_Context {
     // field of the keylist, which is another object's-worth of data *about*
     // the module's contents (e.g. the processed header)
     //
-    REBCTX *context; // !!! TBD: change to REBARR*, rename as varlist
+    REBARR *varlist;
 
     union {
-        REBCTX *spec; // used by REB_MODULE
-
         // Used by REB_FRAME.  This is the call that corresponded to the
         // FRAME! at the time it was created.  The pointer becomes invalid if
         // the call ends, so the flags on the context must be consulted to

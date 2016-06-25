@@ -754,14 +754,17 @@ struct Reb_Context {
 
 // It's convenient to not have to extract the array just to check/set flags
 //
-#define SET_CTX_FLAG(c,f) \
-    SET_ARR_FLAG(CTX_VARLIST(c), (f))
+inline static void SET_CTX_FLAG(REBCTX *c, REBUPT f) {
+    SET_ARR_FLAG(CTX_VARLIST(c), f);
+}
 
-#define CLEAR_CTX_FLAG(c,f) \
-    CLEAR_ARR_FLAG(CTX_VARLIST(c), (f))
+inline static void CLEAR_CTX_FLAG(REBCTX *c, REBUPT f) {
+    CLEAR_ARR_FLAG(CTX_VARLIST(c), f);
+}
 
-#define GET_CTX_FLAG(c,f) \
-    GET_ARR_FLAG(CTX_VARLIST(c), (f))
+inline static REBOOL GET_CTX_FLAG(REBCTX *c, REBUPT f) {
+    return GET_ARR_FLAG(CTX_VARLIST(c), f);
+}
 
 // If you want to talk generically about a context just for the purposes of
 // setting its series flags (for instance) and not to access the "varlist"
@@ -924,11 +927,13 @@ inline static REBVAL *FUNC_VALUE(REBFUN *f) {
 }
 
 inline static REBNAT FUNC_DISPATCHER(REBFUN *f) {
-    return ARR_SERIES(FUNC_VALUE(f)->payload.function.body)->misc.dispatcher;
+    return ARR_SERIES(
+        FUNC_VALUE(f)->payload.function.body_holder
+    )->misc.dispatcher;
 }
 
 inline static RELVAL *FUNC_BODY(REBFUN *f) {
-    return ARR_HEAD(FUNC_VALUE(f)->payload.function.body);
+    return ARR_HEAD(FUNC_VALUE(f)->payload.function.body_holder);
 }
 
 inline static REBVAL *FUNC_PARAM(REBFUN *f, REBCNT n) {
@@ -946,7 +951,7 @@ inline static REBCNT FUNC_NUM_PARAMS(REBFUN *f) {
 // Note: On Windows, FUNC_DISPATCH is already defined in the header files
 //
 #define FUNC_DISPATCHER(f) \
-    (ARR_SERIES(FUNC_VALUE(f)->payload.function.body)->misc.dispatcher)
+    (ARR_SERIES(FUNC_VALUE(f)->payload.function.body_holder)->misc.dispatcher)
 
 // There is no binding information in a function parameter (typeset) so a
 // REBVAL should be okay.
