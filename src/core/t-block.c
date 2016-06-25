@@ -674,10 +674,6 @@ REBTYPE(Array)
     REBVAL *value = D_ARG(1);
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
-    // Support for port: OPEN [scheme: ...], READ [ ], etc.
-    if (action >= PORT_ACTIONS && IS_BLOCK(value))
-        return T_Port(frame_, action);
-
     // Common operations for any series type (length, head, etc.)
     {
         REB_R r;
@@ -692,12 +688,12 @@ REBTYPE(Array)
     REBCTX *specifier = VAL_SPECIFIER(value);
 
     switch (action) {
-    case A_POKE:
-    case A_PICK: {
+    case SYM_POKE:
+    case SYM_PICK: {
         RELVAL *slot;
     pick_using_arg:
         slot = Pick_Block(D_OUT, value, arg);
-        if (action == A_PICK) {
+        if (action == SYM_PICK) {
             if (IS_VOID(D_OUT)) {
                 assert(!slot);
                 return R_VOID;
@@ -715,7 +711,7 @@ REBTYPE(Array)
         return R_OUT;
     }
 
-    case A_TAKE: {
+    case SYM_TAKE: {
         REFINE(2, part);
         PARAM(3, limit);
         REFINE(4, deep);
@@ -758,8 +754,8 @@ REBTYPE(Array)
 
     //-- Search:
 
-    case A_FIND:
-    case A_SELECT: {
+    case SYM_FIND:
+    case SYM_SELECT: {
         REBCNT args = Find_Refines(frame_, ALL_FIND_REFS);
         REBINT len = ANY_ARRAY(arg) ? VAL_ARRAY_LEN_AT(arg) : 1;
 
@@ -776,11 +772,11 @@ REBTYPE(Array)
         ret = Find_In_Array(array, index, limit, arg, len, args, ret);
 
         if (ret >= cast(REBCNT, limit)) {
-            if (action == A_FIND) return R_BLANK;
+            if (action == SYM_FIND) return R_BLANK;
             return R_VOID;
         }
         if (args & AM_FIND_ONLY) len = 1;
-        if (action == A_FIND) {
+        if (action == SYM_FIND) {
             if (args & (AM_FIND_TAIL | AM_FIND_MATCH)) ret += len;
             VAL_INDEX(value) = ret;
             *D_OUT = *value;
@@ -788,7 +784,7 @@ REBTYPE(Array)
         else {
             ret += len;
             if (ret >= cast(REBCNT, limit)) {
-                if (action == A_FIND) return R_BLANK;
+                if (action == SYM_FIND) return R_BLANK;
                 return R_VOID;
             }
             COPY_VALUE(D_OUT, ARR_AT(array, ret), specifier);
@@ -797,15 +793,15 @@ REBTYPE(Array)
     }
 
     //-- Modification:
-    case A_APPEND:
-    case A_INSERT:
-    case A_CHANGE: {
+    case SYM_APPEND:
+    case SYM_INSERT:
+    case SYM_CHANGE: {
         REBCNT args = 0;
 
         // Length of target (may modify index): (arg can be anything)
         //
         REBINT len = Partial1(
-            (action == A_CHANGE)
+            (action == SYM_CHANGE)
                 ? value
                 : arg,
             D_ARG(AN_LIMIT)
@@ -830,7 +826,7 @@ REBTYPE(Array)
         return R_OUT;
     }
 
-    case A_CLEAR: {
+    case SYM_CLEAR: {
         FAIL_IF_LOCKED_ARRAY(array);
         if (index < cast(REBINT, VAL_LEN_HEAD(value))) {
             if (index == 0) Reset_Array(array);
@@ -845,7 +841,7 @@ REBTYPE(Array)
 
     //-- Creation:
 
-    case A_COPY: {
+    case SYM_COPY: {
         REFINE(2, part);
         PARAM(3, limit);
         REFINE(4, deep);
@@ -879,7 +875,7 @@ REBTYPE(Array)
 
     //-- Special actions:
 
-    case A_TRIM: {
+    case SYM_TRIM: {
         REBCNT args = Find_Refines(frame_, ALL_TRIM_REFS);
         FAIL_IF_LOCKED_ARRAY(array);
 
@@ -889,7 +885,7 @@ REBTYPE(Array)
         return R_OUT;
     }
 
-    case A_SWAP: {
+    case SYM_SWAP: {
         if (!ANY_ARRAY(arg))
             fail (Error_Invalid_Arg(arg));
 
@@ -910,7 +906,7 @@ REBTYPE(Array)
         return R_OUT;
     }
 
-    case A_REVERSE: {
+    case SYM_REVERSE: {
         REBINT len = Partial1(value, D_ARG(3));
 
         FAIL_IF_LOCKED_ARRAY(array);
@@ -931,7 +927,7 @@ REBTYPE(Array)
         return R_OUT;
     }
 
-    case A_SORT: {
+    case SYM_SORT: {
         FAIL_IF_LOCKED_ARRAY(array);
         Sort_Block(
             value,
@@ -946,7 +942,7 @@ REBTYPE(Array)
         return R_OUT;
     }
 
-    case A_RANDOM: {
+    case SYM_RANDOM: {
         REFINE(2, seed);
         REFINE(3, secure);
         REFINE(4, only);
@@ -962,7 +958,7 @@ REBTYPE(Array)
                 1 + (Random_Int(REF(secure)) % (VAL_LEN_HEAD(value) - index))
             );
             arg = ARG(seed); // argument to pick
-            action = A_PICK;
+            action = SYM_PICK;
             goto pick_using_arg;
         }
 
@@ -975,7 +971,15 @@ REBTYPE(Array)
         break; // fallthrough to error
     }
 
-    fail (Error_Illegal_Action(VAL_TYPE(value), action));
+    // If it wasn't one of the block actions, fall through and let the port
+    // system try.  OPEN [scheme: ...], READ [ ], etc.
+    //
+    // !!! This used to be done by sensing explicitly what a "port action"
+    // was, but that involved checking if the action was in a numeric range.
+    // The symbol-based action dispatch is more open-ended.  Trying this
+    // to see how it works.
+
+    return T_Port(frame_, action);
 
 return_empty_block:
     Val_Init_Block(D_OUT, Make_Array(0));

@@ -63,15 +63,15 @@ REBCNT Modify_Array(
         // to do is return the natural index result for the operation.
         // (APPEND will return 0, insert the tail of the insertion...so index)
 
-        return (action == A_APPEND) ? 0 : dst_idx;
+        return (action == SYM_APPEND) ? 0 : dst_idx;
     }
 
-    if (action == A_APPEND || dst_idx > tail) dst_idx = tail;
+    if (action == SYM_APPEND || dst_idx > tail) dst_idx = tail;
 
     // Check /PART, compute LEN:
     if (!GET_FLAG(flags, AN_ONLY) && ANY_ARRAY(src_val)) {
         // Adjust length of insertion if changing /PART:
-        if (action != A_CHANGE && GET_FLAG(flags, AN_PART))
+        if (action != SYM_CHANGE && GET_FLAG(flags, AN_PART))
             ilen = dst_len;
         else
             ilen = VAL_LEN_AT(src_val);
@@ -98,7 +98,7 @@ REBCNT Modify_Array(
     // Total to insert:
     size = dups * ilen;
 
-    if (action != A_CHANGE) {
+    if (action != SYM_CHANGE) {
         // Always expand dst_arr for INSERT and APPEND actions:
         Expand_Series(ARR_SERIES(dst_arr), dst_idx, size);
     }
@@ -112,7 +112,7 @@ REBCNT Modify_Array(
         }
     }
 
-    tail = (action == A_APPEND) ? 0 : size + dst_idx;
+    tail = (action == SYM_APPEND) ? 0 : size + dst_idx;
 
 #if !defined(NDEBUG)
     for (index = 0; index < ilen; index++) {
@@ -160,13 +160,13 @@ REBCNT Modify_String(
     REBINT limit;
 
     // For INSERT/PART and APPEND/PART
-    if (action != A_CHANGE && GET_FLAG(flags, AN_PART))
+    if (action != SYM_CHANGE && GET_FLAG(flags, AN_PART))
         limit = dst_len; // should be non-negative
     else
         limit = -1;
 
-    if (limit == 0 || dups < 0) return (action == A_APPEND) ? 0 : dst_idx;
-    if (action == A_APPEND || dst_idx > tail) dst_idx = tail;
+    if (limit == 0 || dups < 0) return (action == SYM_APPEND) ? 0 : dst_idx;
+    if (action == SYM_APPEND || dst_idx > tail) dst_idx = tail;
 
     // If the src_val is not a string, then we need to create a string:
     if (GET_FLAG(flags, AN_SERIES)) { // used to indicate a BINARY series
@@ -245,7 +245,7 @@ REBCNT Modify_String(
     // Total to insert:
     size = dups * src_len;
 
-    if (action != A_CHANGE) {
+    if (action != SYM_CHANGE) {
         // Always expand dst_ser for INSERT and APPEND actions:
         Expand_Series(dst_ser, dst_idx, size);
     } else {
@@ -272,5 +272,5 @@ REBCNT Modify_String(
         Free_Series(src_ser);
     }
 
-    return (action == A_APPEND) ? 0 : dst_idx;
+    return (action == SYM_APPEND) ? 0 : dst_idx;
 }

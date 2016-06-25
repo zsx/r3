@@ -92,13 +92,13 @@ REBTYPE(Port)
 
     switch (action) {
 
-    case A_READ:
-    case A_WRITE:
-    case A_QUERY:
-    case A_OPEN:
-    case A_CREATE:
-    case A_DELETE:
-    case A_RENAME:
+    case SYM_READ:
+    case SYM_WRITE:
+    case SYM_QUERY:
+    case SYM_OPEN:
+    case SYM_CREATE:
+    case SYM_DELETE:
+    case SYM_RENAME:
         // !!! We are going to "re-apply" the call frame with routines that
         // are going to read the D_ARG(1) slot *implicitly* regardless of
         // what value points to.  And dodgily, we must also make sure the
@@ -110,10 +110,10 @@ REBTYPE(Port)
             value = D_ARG(1);
         } else
             *D_OUT = *value;
-    case A_UPDATE:
+    case SYM_UPDATE:
         break;
 
-    case A_REFLECT:
+    case SYM_REFLECT:
         return T_Context(frame_, action);
     }
 

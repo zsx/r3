@@ -34,7 +34,7 @@
 //
 //  Clipboard_Actor: C
 //
-static REB_R Clipboard_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
+static REB_R Clipboard_Actor(struct Reb_Frame *frame_, REBCTX *port, REBSYM action)
 {
     REBREQ *req;
     REBINT result;
@@ -50,7 +50,7 @@ static REB_R Clipboard_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT acti
     req = cast(REBREQ*, Use_Port_State(port, RDI_CLIPBOARD, sizeof(REBREQ)));
 
     switch (action) {
-    case A_UPDATE:
+    case SYM_UPDATE:
         // Update the port object after a READ or WRITE operation.
         // This is normally called by the WAKE-UP function.
         arg = CTX_VAR(port, STD_PORT_DATA);
@@ -82,7 +82,7 @@ static REB_R Clipboard_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT acti
         }
         return R_BLANK;
 
-    case A_READ:
+    case SYM_READ:
         // This device is opened on the READ:
         if (!IS_OPEN(req)) {
             if (OS_DO_DEVICE(req, RDC_OPEN))
@@ -117,7 +117,7 @@ static REB_R Clipboard_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT acti
         *D_OUT = *arg;
         return R_OUT;
 
-    case A_WRITE:
+    case SYM_WRITE:
         if (!IS_STRING(arg) && !IS_BINARY(arg))
             fail (Error(RE_INVALID_PORT_ARG, arg));
         // This device is opened on the WRITE:
@@ -177,16 +177,16 @@ static REB_R Clipboard_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT acti
         //if (result == DR_DONE) SET_BLANK(CTX_VAR(port, STD_PORT_DATA));
         break;
 
-    case A_OPEN:
+    case SYM_OPEN:
         if (OS_DO_DEVICE(req, RDC_OPEN))
             fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
         break;
 
-    case A_CLOSE:
+    case SYM_CLOSE:
         OS_DO_DEVICE(req, RDC_CLOSE);
         break;
 
-    case A_OPEN_Q:
+    case SYM_OPEN_Q:
         if (IS_OPEN(req)) return R_TRUE;
         return R_FALSE;
 

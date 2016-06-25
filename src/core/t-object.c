@@ -608,7 +608,7 @@ REBTYPE(Context)
     enum Reb_Kind target;
 
     switch (action) {
-    case A_APPEND:
+    case SYM_APPEND:
         FAIL_IF_LOCKED_CONTEXT(VAL_CONTEXT(value));
         if (!IS_OBJECT(value) && !IS_MODULE(value))
             fail (Error_Illegal_Action(VAL_TYPE(value), action));
@@ -616,13 +616,13 @@ REBTYPE(Context)
         *D_OUT = *D_ARG(1);
         return R_OUT;
 
-    case A_LENGTH:
+    case SYM_LENGTH:
         if (!IS_OBJECT(value))
             fail (Error_Illegal_Action(VAL_TYPE(value), action));
         SET_INTEGER(D_OUT, CTX_LEN(VAL_CONTEXT(value)));
         return R_OUT;
 
-    case A_COPY:
+    case SYM_COPY:
         // Note: words are not copied and bindings not changed!
     {
         REBU64 types = 0;
@@ -654,8 +654,8 @@ REBTYPE(Context)
         return R_OUT;
     }
 
-    case A_SELECT:
-    case A_FIND: {
+    case SYM_SELECT:
+    case SYM_FIND: {
         REBINT n;
 
         if (!IS_WORD(arg))
@@ -669,13 +669,13 @@ REBTYPE(Context)
         if (cast(REBCNT, n) > CTX_LEN(VAL_CONTEXT(value)))
             return R_BLANK;
 
-        if (action == A_FIND) return R_TRUE;
+        if (action == SYM_FIND) return R_TRUE;
 
         *D_OUT = *CTX_VAR(VAL_CONTEXT(value), n);
         return R_OUT;
     }
 
-    case A_REFLECT: {
+    case SYM_REFLECT: {
         REBSYM canon = VAL_WORD_CANON(arg);
 
         switch (canon) {
@@ -689,7 +689,7 @@ REBTYPE(Context)
         Val_Init_Block(D_OUT, Context_To_Array(VAL_CONTEXT(value), action));
         return R_OUT; }
 
-    case A_TRIM:
+    case SYM_TRIM:
         if (Find_Refines(frame_, ALL_TRIM_REFS)) {
             // no refinements are allowed
             fail (Error(RE_BAD_REFINES));
@@ -701,7 +701,7 @@ REBTYPE(Context)
         );
         return R_OUT;
 
-    case A_TAIL_Q:
+    case SYM_TAIL_Q:
         if (IS_OBJECT(value)) {
             SET_LOGIC(D_OUT, LOGICAL(CTX_LEN(VAL_CONTEXT(value)) == 0));
             return R_OUT;

@@ -37,7 +37,7 @@
 //
 //  Serial_Actor: C
 //
-static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
+static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBSYM action)
 {
     REBREQ *req;    // IO request
     REBVAL *spec;   // port spec
@@ -68,7 +68,7 @@ static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 
         switch (action) {
 
-        case A_OPEN:
+        case SYM_OPEN:
             arg = Obj_Value(spec, STD_PORT_SPEC_SERIAL_PATH);
             if (! (IS_FILE(arg) || IS_STRING(arg) || IS_BINARY(arg)))
                 fail (Error(RE_INVALID_PORT_ARG, arg));
@@ -150,10 +150,10 @@ static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
             SET_OPEN(req);
             return R_OUT;
 
-        case A_CLOSE:
+        case SYM_CLOSE:
             return R_OUT;
 
-        case A_OPEN_Q:
+        case SYM_OPEN_Q:
             return R_FALSE;
 
         default:
@@ -164,7 +164,7 @@ static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
     // Actions for an open socket:
     switch (action) {
 
-    case A_READ:
+    case SYM_READ:
         refs = Find_Refines(frame_, ALL_READ_REFS);
 
         // Setup the read buffer (allocate a buffer if needed):
@@ -199,7 +199,7 @@ static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
         *D_OUT = *arg;
         return R_OUT;
 
-    case A_WRITE:
+    case SYM_WRITE:
         refs = Find_Refines(frame_, ALL_WRITE_REFS);
 
         // Determine length. Clip /PART to size of string if needed.
@@ -221,7 +221,7 @@ static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
         if (result < 0) fail (Error_On_Port(RE_WRITE_ERROR, port, req->error));
         break;
 
-    case A_UPDATE:
+    case SYM_UPDATE:
         // Update the port object after a READ or WRITE operation.
         // This is normally called by the WAKE-UP function.
         arg = CTX_VAR(port, STD_PORT_DATA);
@@ -238,10 +238,10 @@ static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
         }
         return R_BLANK;
 
-    case A_OPEN_Q:
+    case SYM_OPEN_Q:
         return R_TRUE;
 
-    case A_CLOSE:
+    case SYM_CLOSE:
         if (IS_OPEN(req)) {
             OS_DO_DEVICE(req, RDC_CLOSE);
             SET_CLOSED(req);

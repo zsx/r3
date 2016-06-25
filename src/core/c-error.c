@@ -1421,10 +1421,10 @@ REBCTX *Error_Protected_Key(REBVAL *key)
 //
 //  Error_Illegal_Action: C
 //
-REBCTX *Error_Illegal_Action(enum Reb_Kind type, REBCNT action)
+REBCTX *Error_Illegal_Action(enum Reb_Kind type, REBSYM action)
 {
     REBVAL action_word;
-    Val_Init_Word(&action_word, REB_WORD, Get_Action_Sym(action));
+    Val_Init_Word(&action_word, REB_WORD, action);
 
     return Error(RE_CANNOT_USE, &action_word, Get_Type(type), END_CELL);
 }
@@ -1433,10 +1433,10 @@ REBCTX *Error_Illegal_Action(enum Reb_Kind type, REBCNT action)
 //
 //  Error_Math_Args: C
 //
-REBCTX *Error_Math_Args(enum Reb_Kind type, REBCNT action)
+REBCTX *Error_Math_Args(enum Reb_Kind type, REBSYM action)
 {
     REBVAL action_word;
-    Val_Init_Word(&action_word, REB_WORD, Get_Action_Sym(action));
+    Val_Init_Word(&action_word, REB_WORD, action);
 
     return Error(RE_NOT_RELATED, &action_word, Get_Type(type), END_CELL);
 }

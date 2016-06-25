@@ -1219,13 +1219,12 @@ REBOOL Specialize_Function_Throws(
 
     // See %sysobj.r for `specialized-meta:` object template
 
-    REBVAL *std_meta = Get_System(SYS_STANDARD, STD_SPECIALIZED_META);
-    REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(std_meta));
+    REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(ROOT_SPECIALIZED_META));
 
-    assert(IS_VOID(CTX_VAR(meta, SELFISH(1)))); // no description by default
-    *CTX_VAR(meta, SELFISH(2)) = *specializee;
+    assert(IS_VOID(CTX_VAR(meta, 1))); // no description by default
+    *CTX_VAR(meta, 2) = *specializee;
     if (opt_specializee_sym != SYM_0)
-        Val_Init_Word(CTX_VAR(meta, SELFISH(3)), REB_WORD, opt_specializee_sym);
+        Val_Init_Word(CTX_VAR(meta, 3), REB_WORD, opt_specializee_sym);
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
     FUNC_META(fun) = meta;
@@ -1331,28 +1330,23 @@ void Clonify_Function(REBVAL *value)
 //
 //  Action_Dispatcher: C
 //
+// "actions" are historically a kind of dispatch based on the first argument's
+// type, and then calling a common function for that type parameterized with
+// a word for the action.  e.g. APPEND X [...] would look at the type of X,
+// and call a function based on that parameterized with APPEND and the list
+// of arguments.
+//
 REB_R Action_Dispatcher(struct Reb_Frame *f)
 {
     Eval_Natives++;
 
     enum Reb_Kind type = VAL_TYPE(FRM_ARG(f, 1));
-    assert(type < REB_MAX);
 
-    REBCNT action_num = VAL_INT32(FUNC_BODY(f->func));
+    REBACT subdispatch = Value_Dispatch[TO_0_FROM_KIND(type)];
+    if (subdispatch == NULL)
+        fail (Error_Illegal_Action(type, VAL_WORD_CANON(FUNC_BODY(f->func))));
 
-    // Handle special datatype test cases (eg. integer?).
-    //
-    if (action_num < REB_MAX_0) {
-        if (TO_0_FROM_KIND(type) == action_num)
-            return R_TRUE;
-
-        return R_FALSE;
-    }
-
-    REBACT action = Value_Dispatch[TO_0_FROM_KIND(type)];
-    if (!action) fail (Error_Illegal_Action(type, action_num));
-
-    return action(f, action_num);
+    return subdispatch(f, VAL_WORD_CANON(FUNC_BODY(f->func)));
 }
 
 

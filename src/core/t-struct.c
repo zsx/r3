@@ -345,7 +345,7 @@ REBARR *Struct_To_Array(REBSTU *stu)
             DS_PUSH_TRASH_SAFE;
             nested = DS_TOP;
 
-            Val_Init_Word(val, REB_WORD, SYM_STRUCT_TYPE);
+            Val_Init_Word(val, REB_WORD, SYM_STRUCT_X);
             get_scalar(stu, field, 0, nested);
             val = Alloc_Tail_Array(VAL_ARRAY(type_blk));
             Val_Init_Block(val, Struct_To_Array(VAL_STRUCT(nested)));
@@ -826,7 +826,7 @@ static void Parse_Field_Type_May_Fail(
             field->size = sizeof(void*);
             break;
 
-        case SYM_STRUCT_TYPE:
+        case SYM_STRUCT_X:
             ++ val;
             if (IS_BLOCK(val)) {
                 REBVAL specified;
@@ -1572,7 +1572,7 @@ REBTYPE(Struct)
     SET_VOID(ret);
     // unary actions
     switch(action) {
-        case A_CHANGE:
+        case SYM_CHANGE:
             {
                 arg = D_ARG(2);
                 if (!IS_BINARY(arg))
@@ -1589,7 +1589,7 @@ REBTYPE(Struct)
             }
             break;
 
-        case A_REFLECT:
+        case SYM_REFLECT:
             {
                 REBINT n;
                 arg = D_ARG(2);
@@ -1624,7 +1624,7 @@ REBTYPE(Struct)
             }
             break;
 
-        case A_LENGTH:
+        case SYM_LENGTH:
             SET_INTEGER(ret, SER_LEN(VAL_STRUCT_DATA_BIN(val)));
             break;
         default:

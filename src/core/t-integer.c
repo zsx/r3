@@ -346,8 +346,20 @@ REBTYPE(Integer)
 
     num = VAL_INT64(val);
 
-    if (IS_BINARY_ACT(action)) {
-
+    // !!! This used to rely on IS_BINARY_ACT, which is no longer available
+    // in the symbol based dispatch.  Consider doing another way.
+    //
+    if (
+        action == SYM_ADD
+        || action == SYM_SUBTRACT
+        || action == SYM_MULTIPLY
+        || action == SYM_DIVIDE
+        || action == SYM_POWER
+        || action == SYM_AND_T
+        || action == SYM_OR_T
+        || action == SYM_XOR_T
+        || action == SYM_REMAINDER
+    ){
         if (IS_INTEGER(val2)) arg = VAL_INT64(val2);
         else if (IS_CHAR(val2)) arg = VAL_CHAR(val2);
         else {
@@ -355,8 +367,8 @@ REBTYPE(Integer)
             n = 0; // use to flag special case
             switch(action) {
             // Anything added to an integer is same as adding the integer:
-            case A_ADD:
-            case A_MULTIPLY:
+            case SYM_ADD:
+            case SYM_MULTIPLY:
                 // Swap parameter order:
                 *D_OUT = *val2;  // Use as temp workspace
                 *val2 = *val;
@@ -364,12 +376,12 @@ REBTYPE(Integer)
                 return Value_Dispatch[VAL_TYPE_0(val)](frame_, action);
 
             // Only type valid to subtract from, divide into, is decimal/money:
-            case A_SUBTRACT:
+            case SYM_SUBTRACT:
                 n = 1;
                 /* fall through */
-            case A_DIVIDE:
-            case A_REMAINDER:
-            case A_POWER:
+            case SYM_DIVIDE:
+            case SYM_REMAINDER:
+            case SYM_POWER:
                 if (IS_DECIMAL(val2) || IS_PERCENT(val2)) {
                     SET_DECIMAL(val, (REBDEC)num); // convert main arg
                     return T_Decimal(frame_, action);
@@ -393,22 +405,22 @@ REBTYPE(Integer)
 
     switch (action) {
 
-    case A_ADD:
+    case SYM_ADD:
         if (REB_I64_ADD_OF(num, arg, &anum)) fail (Error(RE_OVERFLOW));
         num = anum;
         break;
 
-    case A_SUBTRACT:
+    case SYM_SUBTRACT:
         if (REB_I64_SUB_OF(num, arg, &anum)) fail (Error(RE_OVERFLOW));
         num = anum;
         break;
 
-    case A_MULTIPLY:
+    case SYM_MULTIPLY:
         if (REB_I64_MUL_OF(num, arg, &p)) fail (Error(RE_OVERFLOW));
         num = p;
         break;
 
-    case A_DIVIDE:
+    case SYM_DIVIDE:
         if (arg == 0)
             fail (Error(RE_ZERO_DIVIDE));
         if (num == MIN_I64 && arg == -1)
@@ -419,50 +431,50 @@ REBTYPE(Integer)
         }
         // Fall thru
 
-    case A_POWER:
+    case SYM_POWER:
         SET_DECIMAL(val, (REBDEC)num);
         SET_DECIMAL(val2, (REBDEC)arg);
         return T_Decimal(frame_, action);
 
-    case A_REMAINDER:
+    case SYM_REMAINDER:
         if (arg == 0) fail (Error(RE_ZERO_DIVIDE));
         num = (arg != -1) ? (num % arg) : 0; // !!! was macro called REM2 (?)
         break;
 
-    case A_AND_T:
+    case SYM_AND_T:
         num &= arg;
         break;
 
-    case A_OR_T:
+    case SYM_OR_T:
         num |= arg;
         break;
 
-    case A_XOR_T:
+    case SYM_XOR_T:
         num ^= arg;
         break;
 
-    case A_NEGATE:
+    case SYM_NEGATE:
         if (num == MIN_I64) fail (Error(RE_OVERFLOW));
         num = -num;
         break;
 
-    case A_COMPLEMENT:
+    case SYM_COMPLEMENT:
         num = ~num;
         break;
 
-    case A_ABSOLUTE:
+    case SYM_ABSOLUTE:
         if (num == MIN_I64) fail (Error(RE_OVERFLOW));
         if (num < 0) num = -num;
         break;
 
-    case A_EVEN_Q:
+    case SYM_EVEN_Q:
         num = ~num;
-    case A_ODD_Q:
+    case SYM_ODD_Q:
         if (num & 1)
             return R_TRUE;
         return R_FALSE;
 
-    case A_ROUND:
+    case SYM_ROUND:
         val2 = D_ARG(3);
         n = Get_Round_Flags(frame_);
         if (D_REF(2)) { // to
@@ -485,7 +497,7 @@ REBTYPE(Integer)
         num = Round_Int(num, n, arg);
         break;
 
-    case A_RANDOM:
+    case SYM_RANDOM:
         if (D_REF(2)) { // seed
             Set_Random(num);
             return R_VOID;

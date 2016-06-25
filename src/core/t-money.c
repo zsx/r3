@@ -140,6 +140,25 @@ void Bin_To_Money_May_Fail(REBVAL *result, const REBVAL *val)
 }
 
 
+static REBVAL *Math_Arg_For_Money(REBVAL *store, REBVAL *arg, REBSYM action)
+{
+    if (IS_MONEY(arg))
+        return arg;
+
+    if (IS_INTEGER(arg)) {
+        VAL_MONEY_AMOUNT(store) = int_to_deci(VAL_INT64(arg));
+        return store;
+    }
+
+    if (IS_DECIMAL(arg) || IS_PERCENT(arg)) {
+        VAL_MONEY_AMOUNT(store) = decimal_to_deci(VAL_DECIMAL(arg));
+        return store;
+    }
+
+    fail (Error_Math_Args(REB_MONEY, action));
+}
+
+
 //
 //  REBTYPE: C
 //
@@ -147,76 +166,54 @@ REBTYPE(Money)
 {
     REBVAL *val = D_ARG(1);
     REBVAL *arg;
-    const REBYTE *str;
-    REBINT equal = 1;
 
-    if (IS_BINARY_ACT(action)) {
-        arg = D_ARG(2);
+    switch (action) {
+    case SYM_ADD:
+        arg = Math_Arg_For_Money(D_OUT, D_ARG(2), action);
+        VAL_MONEY_AMOUNT(D_OUT) = deci_add(
+            VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
+        );
+        break;
 
-        if (IS_MONEY(arg))
-            ;
-        else if (IS_INTEGER(arg)) {
-            VAL_MONEY_AMOUNT(D_OUT) = int_to_deci(VAL_INT64(arg));
-            arg = D_OUT;
-        }
-        else if (IS_DECIMAL(arg) || IS_PERCENT(arg)) {
-            VAL_MONEY_AMOUNT(D_OUT) = decimal_to_deci(VAL_DECIMAL(arg));
-            arg = D_OUT;
-        }
-        else
-            fail (Error_Math_Args(REB_MONEY, action));
+    case SYM_SUBTRACT:
+        arg = Math_Arg_For_Money(D_OUT, D_ARG(2), action);
+        VAL_MONEY_AMOUNT(D_OUT) = deci_subtract(
+            VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
+        );
+        break;
 
-        switch (action) {
-        case A_ADD:
-            VAL_MONEY_AMOUNT(D_OUT) = deci_add(
-                VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
-            );
-            break;
+    case SYM_MULTIPLY:
+        arg = Math_Arg_For_Money(D_OUT, D_ARG(2), action);
+        VAL_MONEY_AMOUNT(D_OUT) = deci_multiply(
+            VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
+        );
+        break;
 
-        case A_SUBTRACT:
-            VAL_MONEY_AMOUNT(D_OUT) = deci_subtract(
-                VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
-            );
-            break;
+    case SYM_DIVIDE:
+        arg = Math_Arg_For_Money(D_OUT, D_ARG(2), action);
+        VAL_MONEY_AMOUNT(D_OUT) = deci_divide(
+            VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
+        );
+        break;
 
-        case A_MULTIPLY:
-            VAL_MONEY_AMOUNT(D_OUT) = deci_multiply(
-                VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
-            );
-            break;
+    case SYM_REMAINDER:
+        arg = Math_Arg_For_Money(D_OUT, D_ARG(2), action);
+        VAL_MONEY_AMOUNT(D_OUT) = deci_mod(
+            VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
+        );
+        break;
 
-        case A_DIVIDE:
-            VAL_MONEY_AMOUNT(D_OUT) = deci_divide(
-                VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
-            );
-            break;
-
-        case A_REMAINDER:
-            VAL_MONEY_AMOUNT(D_OUT) = deci_mod(
-                VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
-            );
-            break;
-
-        default:
-            fail (Error_Illegal_Action(REB_MONEY, action));
-        }
-
-        VAL_RESET_HEADER(D_OUT, REB_MONEY);
-        return R_OUT;
-    }
-
-    switch(action) {
-    case A_NEGATE:
+    case SYM_NEGATE:
         VAL_MONEY_AMOUNT(val).s = !VAL_MONEY_AMOUNT(val).s;
         *D_OUT = *D_ARG(1);
         return R_OUT;
 
-    case A_ABSOLUTE:
+    case SYM_ABSOLUTE:
         VAL_MONEY_AMOUNT(val).s = 0;
         *D_OUT = *D_ARG(1);
         return R_OUT;
 
-    case A_ROUND:
+    case SYM_ROUND:
         arg = D_ARG(3);
         if (D_REF(2)) {
             if (IS_INTEGER(arg))
@@ -246,12 +243,11 @@ REBTYPE(Money)
         }
         break;
 
-    case A_EVEN_Q:
-    case A_ODD_Q:
-        equal = 1 & (REBINT)deci_to_int(VAL_MONEY_AMOUNT(val));
-        if (action == A_EVEN_Q) equal = !equal;
-        if (equal) goto is_true;
-        goto is_false;
+    case SYM_EVEN_Q:
+    case SYM_ODD_Q: {
+        REBINT result = 1 & cast(REBINT, deci_to_int(VAL_MONEY_AMOUNT(val)));
+        if (action == SYM_EVEN_Q) result = !result;
+        return result ? R_TRUE : R_FALSE; }
 
     default:
         fail (Error_Illegal_Action(REB_MONEY, action));
@@ -259,8 +255,5 @@ REBTYPE(Money)
 
     VAL_RESET_HEADER(D_OUT, REB_MONEY);
     return R_OUT;
-
-is_true:  return R_TRUE;
-is_false: return R_FALSE;
 }
 

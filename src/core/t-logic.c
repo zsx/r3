@@ -91,45 +91,48 @@ void TO_Logic(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
 }
 
 
+static inline REBOOL Math_Arg_For_Logic(REBVAL *arg)
+{
+    if (IS_LOGIC(arg))
+        return VAL_LOGIC(arg);
+
+    if (IS_BLANK(arg))
+        return FALSE;
+
+    fail (Error_Unexpected_Type(REB_LOGIC, VAL_TYPE(arg)));
+}
+
+
 //
 //  REBTYPE: C
 //
 REBTYPE(Logic)
 {
-    REBOOL val1;
+    REBOOL val1 = VAL_LOGIC(D_ARG(1));
     REBOOL val2;
-    REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-
-    if (IS_BINARY_ACT(action)) {
-        if (IS_LOGIC(arg))
-            val2 = VAL_LOGIC(arg);
-        else if (IS_BLANK(arg))
-            val2 = FALSE;
-        else
-            fail (Error_Unexpected_Type(REB_LOGIC, VAL_TYPE(arg)));
-    }
-
-    val1 = VAL_LOGIC(D_ARG(1));
 
     switch (action) {
 
-    case A_AND_T:
+    case SYM_AND_T:
+        val2 = Math_Arg_For_Logic(D_ARG(2));
         val1 = LOGICAL(val1 && val2);
         break;
 
-    case A_OR_T:
+    case SYM_OR_T:
+        val2 = Math_Arg_For_Logic(D_ARG(2));
         val1 = LOGICAL(val1 || val2);
         break;
 
-    case A_XOR_T:
+    case SYM_XOR_T:
+        val2 = Math_Arg_For_Logic(D_ARG(2));
         val1 = LOGICAL(!val1 != !val2);
         break;
 
-    case A_COMPLEMENT:
+    case SYM_COMPLEMENT:
         val1 = NOT(val1);
         break;
 
-    case A_RANDOM:
+    case SYM_RANDOM:
         if (D_REF(2)) { // /seed
             // random/seed false restarts; true randomizes
             Set_Random(val1 ? (REBINT)OS_DELTA_TIME(0, 0) : 1);

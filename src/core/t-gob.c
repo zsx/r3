@@ -850,7 +850,7 @@ REBTYPE(Gob)
 
     // unary actions
     switch(action) {
-    case A_PICK:
+    case SYM_PICK:
         if (!ANY_NUMBER(arg) && !IS_BLANK(arg)) fail (Error_Invalid_Arg(arg));
         if (!GOB_PANE(gob)) goto is_blank;
         index += Get_Num_From_Arg(arg) - 1;
@@ -859,14 +859,14 @@ REBTYPE(Gob)
         index = 0;
         goto set_index;
 
-    case A_POKE:
+    case SYM_POKE:
         index += Get_Num_From_Arg(arg) - 1;
         arg = D_ARG(3);
-    case A_CHANGE:
+    case SYM_CHANGE:
         if (!IS_GOB(arg)) goto is_arg_error;
         if (!GOB_PANE(gob) || index >= tail) fail (Error(RE_PAST_END));
         if (
-            action == A_CHANGE
+            action == SYM_CHANGE
             && (D_REF(AN_PART) || D_REF(AN_ONLY) || D_REF(AN_DUP))
         ) {
             fail (Error(RE_NOT_DONE));
@@ -875,16 +875,16 @@ REBTYPE(Gob)
         //ngob = *GOB_AT(gob, index);
         //GOB_PARENT(ngob) = 0;
         //*GOB_AT(gob, index) = VAL_GOB(arg);
-        if (action == A_POKE) {
+        if (action == SYM_POKE) {
             *D_OUT = *arg;
             return R_OUT;
         }
         index++;
         goto set_index;
 
-    case A_APPEND:
+    case SYM_APPEND:
         index = tail;
-    case A_INSERT:
+    case SYM_INSERT:
         if (D_REF(AN_PART) || D_REF(AN_ONLY) || D_REF(AN_DUP))
             fail (Error(RE_NOT_DONE));
         if (IS_GOB(arg)) len = 1;
@@ -896,18 +896,18 @@ REBTYPE(Gob)
         Insert_Gobs(gob, arg, index, len, FALSE);
         break;
 
-    case A_CLEAR:
+    case SYM_CLEAR:
         if (tail > index) Remove_Gobs(gob, index, tail - index);
         break;
 
-    case A_REMOVE:
+    case SYM_REMOVE:
         // /PART length
         len = D_REF(2) ? Get_Num_From_Arg(D_ARG(3)) : 1;
         if (index + len > tail) len = tail - index;
         if (index < tail && len != 0) Remove_Gobs(gob, index, len);
         break;
 
-    case A_TAKE:
+    case SYM_TAKE:
         len = D_REF(2) ? Get_Num_From_Arg(D_ARG(3)) : 1;
         if (index + len > tail) len = tail - index;
         if (index >= tail) goto is_blank;
@@ -924,50 +924,50 @@ REBTYPE(Gob)
         }
         return R_OUT;
 
-    case A_NEXT:
+    case SYM_NEXT:
         if (index < tail) index++;
         goto set_index;
 
-    case A_BACK:
+    case SYM_BACK:
         if (index > 0) index--;
         goto set_index;
 
-    case A_AT:
+    case SYM_AT:
         index--;
-    case A_SKIP:
+    case SYM_SKIP:
         index += VAL_INT32(arg);
         goto set_index;
 
-    case A_HEAD:
+    case SYM_HEAD:
         index = 0;
         goto set_index;
 
-    case A_TAIL:
+    case SYM_TAIL:
         index = tail;
         goto set_index;
 
-    case A_HEAD_Q:
+    case SYM_HEAD_Q:
         if (index == 0) goto is_true;
         goto is_false;
 
-    case A_TAIL_Q:
+    case SYM_TAIL_Q:
         if (index >= tail) goto is_true;
         goto is_false;
 
-    case A_PAST_Q:
+    case SYM_PAST_Q:
         if (index > tail) goto is_true;
         goto is_false;
 
-    case A_INDEX_OF:
+    case SYM_INDEX_OF:
         SET_INTEGER(D_OUT, index + 1);
         break;
 
-    case A_LENGTH:
+    case SYM_LENGTH:
         index = (tail > index) ? tail - index : 0;
         SET_INTEGER(D_OUT, index);
         break;
 
-    case A_FIND:
+    case SYM_FIND:
         if (IS_GOB(arg)) {
             index = Find_Gob(gob, VAL_GOB(arg));
             if (index == NOT_FOUND) goto is_blank;
@@ -975,7 +975,7 @@ REBTYPE(Gob)
         }
         goto is_blank;
 
-    case A_REVERSE:
+    case SYM_REVERSE:
         for (index = 0; index < tail/2; index++) {
             ngob = *GOB_AT(gob, tail-index-1);
             *GOB_AT(gob, tail-index-1) = *GOB_AT(gob, index);

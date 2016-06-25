@@ -561,12 +561,12 @@ typedef REB_R (*REBNAT)(struct Reb_Frame *frame_);
     REB_R N_##n(struct Reb_Frame *frame_)
 
 // ACTION! function (one per each DATATYPE!)
-typedef REB_R (*REBACT)(struct Reb_Frame *frame_, REBCNT a);
+typedef REB_R (*REBACT)(struct Reb_Frame *frame_, REBSYM a);
 #define REBTYPE(n) \
-    REB_R T_##n(struct Reb_Frame *frame_, REBCNT action)
+    REB_R T_##n(struct Reb_Frame *frame_, REBSYM action)
 
 // PORT!-action function
-typedef REB_R (*REBPAF)(struct Reb_Frame *frame_, REBCTX *p, REBCNT a);
+typedef REB_R (*REBPAF)(struct Reb_Frame *frame_, REBCTX *p, REBSYM a);
 
 // COMMAND! function
 typedef REB_R (*CMD_FUNC)(REBCNT n, REBSER *args);

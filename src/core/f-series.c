@@ -59,40 +59,40 @@ REBOOL Series_Common_Action_Returns(
 
     //-- Navigation:
 
-    case A_HEAD:
+    case SYM_HEAD:
         VAL_INDEX(value) = 0;
         break;
 
-    case A_TAIL:
+    case SYM_TAIL:
         VAL_INDEX(value) = (REBCNT)tail;
         break;
 
-    case A_HEAD_Q:
+    case SYM_HEAD_Q:
         *r = (index == 0) ? R_TRUE : R_FALSE;
         return TRUE; // handled
 
-    case A_TAIL_Q:
+    case SYM_TAIL_Q:
         *r = (index >= tail) ? R_TRUE : R_FALSE;
         return TRUE; // handled
 
-    case A_PAST_Q:
+    case SYM_PAST_Q:
         *r = (index > tail) ? R_TRUE : R_FALSE;
         return TRUE; // handled
 
-    case A_NEXT:
+    case SYM_NEXT:
         if (index < tail) VAL_INDEX(value)++;
         break;
 
-    case A_BACK:
+    case SYM_BACK:
         if (index > 0) VAL_INDEX(value)--;
         break;
 
-    case A_SKIP:
-    case A_AT:
+    case SYM_SKIP:
+    case SYM_AT:
         len = Get_Num_From_Arg(arg);
         {
             REBI64 i = (REBI64)index + (REBI64)len;
-            if (action == A_SKIP) {
+            if (action == SYM_SKIP) {
                 if (IS_LOGIC(arg)) i--;
             } else { // A_AT
                 if (len > 0) i--;
@@ -103,17 +103,17 @@ REBOOL Series_Common_Action_Returns(
         }
         break;
 
-    case A_INDEX_OF:
+    case SYM_INDEX_OF:
         SET_INTEGER(D_OUT, cast(REBI64, index) + 1);
         *r = R_OUT;
         return TRUE; // handled
 
-    case A_LENGTH:
+    case SYM_LENGTH:
         SET_INTEGER(D_OUT, tail > index ? tail - index : 0);
         *r = R_OUT;
         return TRUE; // handled
 
-    case A_REMOVE:
+    case SYM_REMOVE:
         // /PART length
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
         len = D_REF(2) ? Partial(value, 0, D_ARG(3)) : 1;
@@ -122,15 +122,15 @@ REBOOL Series_Common_Action_Returns(
             Remove_Series(VAL_SERIES(value), VAL_INDEX(value), len);
         break;
 
-    case A_ADD:         // Join_Strings(value, arg);
-    case A_SUBTRACT:    // "test this" - 10
-    case A_MULTIPLY:    // "t" * 4 = "tttt"
-    case A_DIVIDE:
-    case A_REMAINDER:
-    case A_POWER:
-    case A_ODD_Q:
-    case A_EVEN_Q:
-    case A_ABSOLUTE:
+    case SYM_ADD:         // Join_Strings(value, arg);
+    case SYM_SUBTRACT:    // "test this" - 10
+    case SYM_MULTIPLY:    // "t" * 4 = "tttt"
+    case SYM_DIVIDE:
+    case SYM_REMAINDER:
+    case SYM_POWER:
+    case SYM_ODD_Q:
+    case SYM_EVEN_Q:
+    case SYM_ABSOLUTE:
         fail (Error_Illegal_Action(VAL_TYPE(value), action));
 
     default:

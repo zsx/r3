@@ -330,17 +330,24 @@ REBINT CT_Decimal(const RELVAL *a, const RELVAL *b, REBINT mode)
 REBTYPE(Decimal)
 {
     REBVAL  *val = D_ARG(1);
-    REBDEC  d1;
     REBVAL  *arg;
     REBDEC  d2;
     REBINT  num;
     enum Reb_Kind type = REB_0; // ?? why initialize this
 
-    d1 = VAL_DECIMAL(val);
+    REBDEC d1 = VAL_DECIMAL(val);
 
-    // all binary actions
-    if (IS_BINARY_ACT(action)) {
-
+    // !!! This used to use IS_BINARY_ACT() which is no longer available with
+    // symbol-based dispatch.  Consider doing this another way.
+    //
+    if (
+        action == SYM_ADD
+        || action == SYM_SUBTRACT
+        || action == SYM_MULTIPLY
+        || action == SYM_DIVIDE
+        || action == SYM_REMAINDER
+        || action == SYM_POWER
+    ){
         arg = D_ARG(2);
         type = VAL_TYPE(arg);
         if (type != REB_DECIMAL && (
@@ -349,8 +356,8 @@ REBTYPE(Decimal)
                 type == REB_MONEY ||
                 type == REB_TIME
             ) && (
-                action == A_ADD ||
-                action == A_MULTIPLY
+                action == SYM_ADD ||
+                action == SYM_MULTIPLY
             )
         ){
             *D_OUT = *D_ARG(2);
@@ -370,7 +377,7 @@ REBTYPE(Decimal)
                 d2 = VAL_DECIMAL(arg);
             } else if (type == REB_PERCENT) {
                 d2 = VAL_DECIMAL(arg);
-                if (action == A_DIVIDE) type = REB_DECIMAL;
+                if (action == SYM_DIVIDE) type = REB_DECIMAL;
                 else if (!IS_PERCENT(val)) type = VAL_TYPE(val);
             } else if (type == REB_MONEY) {
                 SET_MONEY(val, decimal_to_deci(VAL_DECIMAL(val)));
@@ -385,26 +392,26 @@ REBTYPE(Decimal)
 
             switch (action) {
 
-            case A_ADD:
+            case SYM_ADD:
                 d1 += d2;
                 goto setDec;
 
-            case A_SUBTRACT:
+            case SYM_SUBTRACT:
                 d1 -= d2;
                 goto setDec;
 
-            case A_MULTIPLY:
+            case SYM_MULTIPLY:
                 d1 *= d2;
                 goto setDec;
 
-            case A_DIVIDE:
-            case A_REMAINDER:
+            case SYM_DIVIDE:
+            case SYM_REMAINDER:
                 if (d2 == 0.0) fail (Error(RE_ZERO_DIVIDE));
-                if (action == A_DIVIDE) d1 /= d2;
+                if (action == SYM_DIVIDE) d1 /= d2;
                 else d1 = fmod(d1, d2);
                 goto setDec;
 
-            case A_POWER:
+            case SYM_POWER:
                 if (d1 == 0) goto setDec;
                 if (d2 == 0) {
                     d1 = 1.0;
@@ -425,22 +432,22 @@ REBTYPE(Decimal)
         // unary actions
         switch (action) {
 
-        case A_NEGATE:
+        case SYM_NEGATE:
             d1 = -d1;
             goto setDec;
 
-        case A_ABSOLUTE:
+        case SYM_ABSOLUTE:
             if (d1 < 0) d1 = -d1;
             goto setDec;
 
-        case A_EVEN_Q:
-        case A_ODD_Q:
+        case SYM_EVEN_Q:
+        case SYM_ODD_Q:
             d1 = fabs(fmod(d1, 2.0));
-            return ((action != A_EVEN_Q) != ((d1 < 0.5) || (d1 >= 1.5)))
+            return ((action != SYM_EVEN_Q) != ((d1 < 0.5) || (d1 >= 1.5)))
                 ? R_TRUE
                 : R_FALSE;
 
-        case A_ROUND:
+        case SYM_ROUND:
             arg = D_ARG(3);
             num = Get_Round_Flags(frame_);
             if (D_REF(2)) { // to
@@ -464,7 +471,7 @@ REBTYPE(Decimal)
                 d1 = Round_Dec(d1, num | 1, type == REB_PERCENT ? 0.01L : 1.0L); // /TO
             goto setDec;
 
-        case A_RANDOM:
+        case SYM_RANDOM:
             if (D_REF(2)) {
                 Set_Random(*cast(REBI64*, &VAL_DECIMAL(val))); // use IEEE bits
                 return R_VOID;
@@ -472,7 +479,7 @@ REBTYPE(Decimal)
             d1 = Random_Dec(d1, D_REF(3));
             goto setDec;
 
-        case A_COMPLEMENT:
+        case SYM_COMPLEMENT:
             SET_INTEGER(D_OUT, ~(REBINT)d1);
             return R_OUT;
         }

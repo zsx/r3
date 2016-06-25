@@ -152,7 +152,7 @@ static int sig_word_num(REBSYM canon)
 //
 //  Signal_Actor: C
 //
-static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
+static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBSYM action)
 {
     REBREQ *req;
     REBINT result;
@@ -170,8 +170,8 @@ static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 
     if (!IS_OPEN(req)) {
         switch (action) {
-            case A_READ:
-            case A_OPEN:
+            case SYM_READ:
+            case SYM_OPEN:
                 val = Obj_Value(spec, STD_PORT_SPEC_SIGNAL_MASK);
                 if (!IS_BLOCK(val))
                     fail (Error(RE_INVALID_SPEC, val));
@@ -203,19 +203,19 @@ static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 
                 if (OS_DO_DEVICE(req, RDC_OPEN))
                     fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
-                if (action == A_OPEN) {
+                if (action == SYM_OPEN) {
                     *D_OUT = *D_ARG(1); // port
                     return R_OUT;
                 }
                 break;
 
-            case A_CLOSE:
+            case SYM_CLOSE:
                 return R_OUT;
 
-            case A_OPEN_Q:
+            case SYM_OPEN_Q:
                 return R_FALSE;
 
-            case A_UPDATE:  // allowed after a close
+            case SYM_UPDATE:  // allowed after a close
                 break;
 
             default:
@@ -224,7 +224,7 @@ static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
     }
 
     switch (action) {
-        case A_UPDATE:
+        case SYM_UPDATE:
             // Update the port object after a READ or WRITE operation.
             // This is normally called by the WAKE-UP function.
             arg = CTX_VAR(port, STD_PORT_DATA);
@@ -236,7 +236,7 @@ static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
             }
             return R_BLANK;
 
-        case A_READ:
+        case SYM_READ:
             // This device is opened on the READ:
             // Issue the read request:
             arg = CTX_VAR(port, STD_PORT_DATA);
@@ -267,15 +267,15 @@ static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
                 return R_BLANK;
             }
 
-        case A_CLOSE:
+        case SYM_CLOSE:
             OS_DO_DEVICE(req, RDC_CLOSE);
             *D_OUT = *D_ARG(1);
             return R_OUT;
 
-        case A_OPEN_Q:
+        case SYM_OPEN_Q:
             return R_TRUE;
 
-        case A_OPEN:
+        case SYM_OPEN:
             fail (Error(RE_ALREADY_OPEN, D_ARG(1)));
 
         default:

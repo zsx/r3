@@ -328,7 +328,9 @@ static void Load_Boot(void)
     if (VAL_LEN_HEAD(&Boot_Block->types) != REB_MAX_0 - 1)
         panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
 
-    if (VAL_WORD_SYM(VAL_ARRAY_HEAD(&Boot_Block->types)) != SYM_BLANK_TYPE)
+    // First type should be BLANK! ("!" turned to "_X" to be a legal C symbol)
+    //
+    if (VAL_WORD_SYM(VAL_ARRAY_HEAD(&Boot_Block->types)) != SYM_BLANK_X)
         panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
 
     // Create low-level string pointers (used by RS_ constants):
@@ -345,7 +347,7 @@ static void Load_Boot(void)
         }
     }
 
-    if (COMPARE_BYTES(cb_cast("blank!"), Get_Sym_Name(SYM_BLANK_TYPE)) != 0)
+    if (COMPARE_BYTES(cb_cast("blank!"), Get_Sym_Name(SYM_BLANK_X)) != 0)
         panic (Error(RE_BAD_BOOT_STRING));
     if (COMPARE_BYTES(cb_cast("true"), Get_Sym_Name(SYM_TRUE)) != 0)
         panic (Error(RE_BAD_BOOT_STRING));
@@ -426,12 +428,46 @@ static void Init_Constants(void)
 
 
 //
+//  has-type?: native [
+//
+//  {Checks to see if a value has a type or is in a typeset.}
+//
+//      type [datatype! typeset!]
+//      value [<opt> any-value!]
+//  ]
+//
+REBNATIVE(has_type_q)
+{
+    PARAM(1, type);
+    PARAM(2, value);
+
+    REBVAL *value = ARG(value);
+    if (IS_VOID(value))
+        return R_FALSE;
+
+    REBVAL *type = ARG(type);
+
+    if (IS_DATATYPE(type)) {
+        if (VAL_TYPE(value) == VAL_TYPE_KIND(type))
+            return R_TRUE;
+    }
+    else {
+        assert(IS_TYPESET(type));
+        if (TYPE_CHECK(type, VAL_TYPE(value)))
+            return R_TRUE;
+    }
+
+    return R_FALSE;
+}
+
+
+//
 //  action: native [
 //
 //  {Creates datatype action (for internal usage only).}
 //
+//      :verb [set-word! word!]
 //      spec [block!]
-//      /typecheck type [integer! datatype!]
 //  ]
 //
 REBNATIVE(action)
@@ -439,49 +475,21 @@ REBNATIVE(action)
 // The `action` native is searched for explicitly by %make-natives.r and put
 // in second place for initialization (after the `native` native).
 //
-// If /TYPECHECK is used then you can get a fast checker for a datatype:
-//
-//     string?: action/typecheck [value [<opt> any-value!]] string!
-//
-// Because words are not bound to the datatypes at the time of action building
-// it accepts integer numbers for bootstrapping.
+// It is designed to be a lookback binding that quotes its first argument,
+// so when you write FOO: ACTION [...], the FOO: gets quoted to be the verb.
+// The SET/LOOKBACK is done by the bootstrap, after the natives are loaded.
 {
-    PARAM(1, spec);
-    REFINE(2, typecheck);
-    PARAM(3, type);
+    PARAM(1, verb);
+    PARAM(2, spec);
 
     REBVAL *spec = ARG(spec);
-
-    if (Action_Index >= A_MAX_ACTION) panic (Error(RE_ACTION_OVERFLOW));
-
-    // The boot generation process is set up so that the action numbers will
-    // conveniently line up to match the type checks to keep the numbers
-    // from overlapping with actions, but the refinement makes it more clear
-    // exactly what is going on.
-    //
-    if (REF(typecheck)) {
-        if (IS_INTEGER(ARG(type)))
-            assert(VAL_INT32(ARG(type)) == cast(REBINT, Action_Index));
-        else {
-            // !!! Originally this was written to take datatypes, then that
-            // didn't work.  It was changed to INTEGER! with the datatype
-            // left for future need (do users need to create ACTIONs like
-            // this?)  But should it be changed to take a symbol instead
-            // (quoted perhaps?) of the type so the boot reads better?
-            //
-            assert(IS_DATATYPE(ARG(type)));
-            fail (Error(RE_MISC));
-        }
-    }
-    assert(VAL_INDEX(ARG(spec)) == 0); // must be at head as we don't copy
 
     REBFUN *fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(spec, MKF_KEYWORDS),
         &Action_Dispatcher
     );
 
-    SET_INTEGER(FUNC_BODY(fun), Action_Index);
-    Action_Index++;
+    *FUNC_BODY(fun) = *ARG(verb);
 
     *D_OUT = *FUNC_VALUE(fun);
     return R_OUT;
@@ -504,7 +512,7 @@ static void Init_Ops(void)
         "<=",
         ">",
         ">=",
-        "<>", // may ultimately be targeted for empty tag in Ren-C
+        "<>", // may ultimately be targeted for empty tag in Ren-Cs
         "->", // FUNCTION-style lambda ("reaches in")
         "<-", // FUNC-style lambda ("reaches out"),
         "|>", // Evaluate to next single expression, but do ones afterward
@@ -560,6 +568,18 @@ static void Init_Natives(void)
         VAL_RESET_HEADER(rootvar, REB_OBJECT);
         VAL_CONTEXT_EXIT_FROM(rootvar) = NULL;
         Val_Init_Object(ROOT_FUNCTION_META, function_meta);
+    }
+
+    // !!! Same, we want to have SPECIALIZE before %sysobj.r loaded
+    {
+        REBCTX *specialized_meta = Alloc_Context(3);
+        Append_Context(specialized_meta, NULL, SYM_DESCRIPTION);
+        Append_Context(specialized_meta, NULL, SYM_SPECIALIZEE);
+        Append_Context(specialized_meta, NULL, SYM_SPECIALIZEE_NAME);
+        REBVAL *rootvar = CTX_VALUE(specialized_meta);
+        VAL_RESET_HEADER(rootvar, REB_OBJECT);
+        VAL_CONTEXT_EXIT_FROM(rootvar) = NULL;
+        Val_Init_Object(ROOT_SPECIALIZED_META, specialized_meta);
     }
 
     RELVAL *item = VAL_ARRAY_HEAD(&Boot_Block->natives);
@@ -646,12 +666,17 @@ static void Init_Natives(void)
 
         Natives[n] = *FUNC_VALUE(fun);
 
-        // Append the native to the Lib_Context under the name given
+        // Append the native to the Lib_Context under the name given.  Do
+        // special case SET/LOOKBACK=TRUE (using Append_Context_Core) so
+        // that SOME-ACTION: ACTION [...] allows ACTION to see the SOME-ACTION
+        // symbol, and know to use it.
         //
-        *Append_Context(Lib_Context, name, 0) = Natives[n];
-
-        if (VAL_WORD_SYM(name) == SYM_ACTION)
-            action_word = name; // was bound by Append_Context
+        if (VAL_WORD_SYM(name) == SYM_ACTION) {
+            *Append_Context_Core(Lib_Context, name, 0, TRUE) = Natives[n];
+             action_word = name; // was bound by Append_Context_Core
+        }
+        else
+            *Append_Context(Lib_Context, name, 0) = Natives[n];
 
         ++n;
     }
@@ -678,34 +703,15 @@ static void Init_Natives(void)
     //
     Action_Marker = CTX_LEN(Lib_Context);
 
-    // Low-numbered actions are type tests for that REB_XXX value.  There is
-    // no type name for "VOID!" at type enumeration 0, so skip A_0_Q.  The
-    // VOID? function is its own native.
-    //
-    Action_Index = 1;
-
     // With the natives registered (including ACTION), it's now safe to
-    // run the evaluator to register the actions.  This will increment the
-    // Action_Index through the defined `action-name: action [...]` items
-    // in the actions block.
+    // run the evaluator to register the actions.
     //
     Do_Global_Block(VAL_ARRAY(&Boot_Block->actions), 0, -1, action_word);
 
     // Sanity check the symbol transformation
     //
-    if (0 != strcmp("open", cs_cast(Get_Sym_Name(Get_Action_Sym(A_OPEN)))))
+    if (0 != strcmp("open", cs_cast(Get_Sym_Name(SYM_OPEN))))
         panic (Error(RE_NATIVE_BOOT));
-}
-
-
-//
-//  Get_Action_Sym: C
-// 
-// Return the word symbol for a given Action number.
-//
-REBCNT Get_Action_Sym(REBCNT action)
-{
-    return CTX_KEY_SYM(Lib_Context, Action_Marker + action);
 }
 
 

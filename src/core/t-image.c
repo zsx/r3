@@ -628,9 +628,9 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
 
     if (!(w = VAL_IMAGE_WIDE(value))) return value;
 
-    if (action == A_APPEND) {
+    if (action == SYM_APPEND) {
         index = tail;
-        action = A_INSERT;
+        action = SYM_INSERT;
     }
 
     x = index % w; // offset on the line
@@ -656,7 +656,7 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
             dupx = MAX(dupx, 0);
             dupx = MIN(dupx, (REBINT)w - x); // clip dup width
             dupy = MAX(dupy, 0);
-            if (action != A_INSERT)
+            if (action != SYM_INSERT)
                 dupy = MIN(dupy, (REBINT)VAL_IMAGE_HIGH(value) - y);
             else
                 dup = dupy * w;
@@ -694,7 +694,7 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
                 partx = MAX(partx, 0);
                 partx = MIN(partx, (REBINT)w - x); // clip part width
                 party = MAX(party, 0);
-                if (action != A_INSERT)
+                if (action != SYM_INSERT)
                     party = MIN(party, (REBINT)VAL_IMAGE_HIGH(value) - y);
                 else
                     part = party * w;
@@ -711,7 +711,7 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
             partx = VAL_IMAGE_WIDE(arg);
             party = VAL_IMAGE_HIGH(arg);
             partx = MIN(partx, (REBINT)w - x); // clip part width
-            if (action != A_INSERT)
+            if (action != SYM_INSERT)
                 party = MIN(party, (REBINT)VAL_IMAGE_HIGH(value) - y);
             else
                 part = party * w;
@@ -725,7 +725,7 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
     }
 
     // Expand image data if necessary:
-    if (action == A_INSERT) {
+    if (action == SYM_INSERT) {
         if (index > tail) index = tail;
         Expand_Series(VAL_SERIES(value), index, dup * part);
         RESET_IMAGE(VAL_BIN(value) + (index * 4), dup * part); //length in 'pixels'
@@ -774,7 +774,7 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
 
     Reset_Height(value);
 
-    if (action == A_APPEND) VAL_INDEX(value) = 0;
+    if (action == SYM_APPEND) VAL_INDEX(value) = 0;
     return value;
 }
 
@@ -939,40 +939,40 @@ REBTYPE(Image)
     if (index > tail) index = tail;
 
     // Check must be in this order (to avoid checking a non-series value);
-    if (action >= A_TAKE && action <= A_SORT)
+    if (action >= SYM_TAKE && action <= SYM_SORT)
         FAIL_IF_LOCKED_SERIES(series);
 
     // Dispatch action:
     switch (action) {
 
-    case A_HEAD:
+    case SYM_HEAD:
         VAL_INDEX(value) = 0;
         break;
 
-    case A_TAIL:
+    case SYM_TAIL:
         VAL_INDEX(value) = (REBCNT)tail;
         break;
 
-    case A_HEAD_Q:
+    case SYM_HEAD_Q:
         return (index == 0) ? R_TRUE : R_FALSE;
 
-    case A_TAIL_Q:
+    case SYM_TAIL_Q:
         return (index >= tail) ? R_TRUE : R_FALSE;
 
-    case A_NEXT:
+    case SYM_NEXT:
         if (index < tail) VAL_INDEX(value)++;
         break;
 
-    case A_BACK:
+    case SYM_BACK:
         if (index > 0) VAL_INDEX(value)--;
         break;
 
-    case A_COMPLEMENT:
+    case SYM_COMPLEMENT:
         series = Complement_Image(value);
         Val_Init_Image(value, series); // use series var not func
         break;
 
-    case A_INDEX_OF:
+    case SYM_INDEX_OF:
         if (D_REF(2)) {
             VAL_RESET_HEADER(D_OUT, REB_PAIR);
             VAL_PAIR_X(D_OUT) = cast(REBD32, index % VAL_IMAGE_WIDE(value));
@@ -984,32 +984,32 @@ REBTYPE(Image)
             return R_OUT;
         }
         // fallthrough
-    case A_LENGTH:
+    case SYM_LENGTH:
         SET_INTEGER(D_OUT, tail > index ? tail - index : 0);
         return R_OUT;
 
-    case A_PICK:
+    case SYM_PICK:
         Pick_Path(D_OUT, value, arg, 0);
         return R_OUT;
 
-    case A_POKE:
+    case SYM_POKE:
         Pick_Path(D_OUT, value, arg, D_ARG(3));
         *D_OUT = *D_ARG(3);
         return R_OUT;
 
-    case A_SKIP:
-    case A_AT:
+    case SYM_SKIP:
+    case SYM_AT:
         // This logic is somewhat complicated by the fact that INTEGER args use
         // base-1 indexing, but PAIR args use base-0.
         if (IS_PAIR(arg)) {
-            if (action == A_AT) action = A_SKIP;
+            if (action == SYM_AT) action = SYM_SKIP;
             diff = (VAL_PAIR_Y_INT(arg) * VAL_IMAGE_WIDE(value) + VAL_PAIR_X_INT(arg)) +
-                ((action == A_SKIP) ? 0 : 1);
+                ((action == SYM_SKIP) ? 0 : 1);
         } else
             diff = Get_Num_From_Arg(arg);
 
         index += diff;
-        if (action == A_SKIP) {
+        if (action == SYM_SKIP) {
             if (IS_LOGIC(arg)) index--;
         } else {
             if (diff > 0) index--; // For at, pick, poke.
@@ -1063,14 +1063,14 @@ REBTYPE(Image)
         break;
 #endif
 
-    case A_CLEAR:   // clear series
+    case SYM_CLEAR:   // clear series
         if (index < tail) {
             SET_SERIES_LEN(VAL_SERIES(value), cast(REBCNT, index));
             Reset_Height(value);
         }
         break;
 
-    case A_REMOVE:  // remove series /part count
+    case SYM_REMOVE:  // remove series /part count
         if (D_REF(2)) {
             val = D_ARG(3);
             if (IS_INTEGER(val)) {
@@ -1091,17 +1091,17 @@ REBTYPE(Image)
         Reset_Height(value);
         break;
 
-    case A_APPEND:
-    case A_INSERT:  // insert ser val /part len /only /dup count
-    case A_CHANGE:  // change ser val /part len /only /dup count
+    case SYM_APPEND:
+    case SYM_INSERT:  // insert ser val /part len /only /dup count
+    case SYM_CHANGE:  // change ser val /part len /only /dup count
         value = Modify_Image(frame_, action); // sets DS_OUT
         break;
 
-    case A_FIND:    // find   ser val /part len /only /case /any /with wild /match /tail
+    case SYM_FIND:    // find   ser val /part len /only /case /any /with wild /match /tail
         Find_Image(frame_); // sets DS_OUT
         break;
 
-    case A_COPY:  // copy series /part len
+    case SYM_COPY:  // copy series /part len
         if (!D_REF(2)) {
             arg = value;
             goto makeCopy;

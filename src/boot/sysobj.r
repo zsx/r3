@@ -248,6 +248,9 @@ standard: construct [] [
             _
     ]
 
+    ; !!! As with FUNCTION-META, this is needed by SPECIALIZE, before
+    ; %sysobj.r has been loaded.  So a copy is built by hand.  Review.
+    ;
     ; !!! The common case is that specializations will not need to be
     ; REDESCRIBE'd besides their title.  If they are, then they switch the
     ; meta archetype to `function-meta` and subset the parameters.  Otherwise

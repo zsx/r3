@@ -166,7 +166,7 @@ static void Init_Dir_Path(REBREQ *dir, REBVAL *path, REBINT wild, REBCNT policy)
 // 
 // Internal port handler for file directories.
 //
-static REB_R Dir_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
+static REB_R Dir_Actor(struct Reb_Frame *frame_, REBCTX *port, REBSYM action)
 {
     REBVAL *spec;
     REBVAL *path;
@@ -201,7 +201,7 @@ static REB_R Dir_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 
     switch (action) {
 
-    case A_READ:
+    case SYM_READ:
         //Trap_Security(flags[POL_READ], POL_READ, path);
         args = Find_Refines(frame_, ALL_READ_REFS);
         if (!IS_BLOCK(state)) {     // !!! ignores /SKIP and /PART, for now
@@ -232,7 +232,7 @@ static REB_R Dir_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
         }
         break;
 
-    case A_CREATE:
+    case SYM_CREATE:
         //Trap_Security(flags[POL_WRITE], POL_WRITE, path);
         if (IS_BLOCK(state)) fail (Error(RE_ALREADY_OPEN, path));
 create:
@@ -240,7 +240,7 @@ create:
         result = OS_DO_DEVICE(&dir, RDC_CREATE);
         ///OS_FREE(dir.file.path);
         if (result < 0) fail (Error(RE_NO_CREATE, path));
-        if (action == A_CREATE) {
+        if (action == SYM_CREATE) {
             // !!! Used to return D_ARG(2), but create is single arity.  :-/
             *D_OUT = *D_ARG(1);
             return R_OUT;
@@ -248,7 +248,7 @@ create:
         SET_BLANK(state);
         break;
 
-    case A_RENAME:
+    case SYM_RENAME:
         if (IS_BLOCK(state)) fail (Error(RE_ALREADY_OPEN, path));
         else {
             REBSER *target;
@@ -264,7 +264,7 @@ create:
         }
         break;
 
-    case A_DELETE:
+    case SYM_DELETE:
         //Trap_Security(flags[POL_WRITE], POL_WRITE, path);
         SET_BLANK(state);
         Init_Dir_Path(&dir, path, 0, POL_WRITE);
@@ -277,7 +277,7 @@ create:
         *D_OUT = *D_ARG(1);
         return R_OUT;
 
-    case A_OPEN:
+    case SYM_OPEN:
         // !! If open fails, what if user does a READ w/o checking for error?
         if (IS_BLOCK(state)) fail (Error(RE_ALREADY_OPEN, path));
         //Trap_Security(flags[POL_READ], POL_READ, path);
@@ -291,15 +291,15 @@ create:
         if (result < 0) fail (Error_On_Port(RE_CANNOT_OPEN, port, dir.error));
         break;
 
-    case A_OPEN_Q:
+    case SYM_OPEN_Q:
         if (IS_BLOCK(state)) return R_TRUE;
         return R_FALSE;
 
-    case A_CLOSE:
+    case SYM_CLOSE:
         SET_BLANK(state);
         break;
 
-    case A_QUERY:
+    case SYM_QUERY:
         //Trap_Security(flags[POL_READ], POL_READ, path);
         SET_BLANK(state);
         Init_Dir_Path(&dir, path, -1, REMOVE_TAIL_SLASH | POL_READ);
@@ -310,7 +310,7 @@ create:
 
     //-- Port Series Actions (only called if opened as a port)
 
-    case A_LENGTH:
+    case SYM_LENGTH:
         len = IS_BLOCK(state) ? VAL_ARRAY_LEN_AT(state) : 0;
         SET_INTEGER(D_OUT, len);
         break;

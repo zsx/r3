@@ -504,7 +504,7 @@ REBNATIVE(wake_up)
         // We don't pass `value` or `event` in, because we just pass the
         // current call info.  The port action can re-read the arguments.
         //
-        Do_Port_Action(frame_, port, A_UPDATE);
+        Do_Port_Action(frame_, port, SYM_UPDATE);
     }
 
     value = CTX_VAR(port, STD_PORT_AWAKE);

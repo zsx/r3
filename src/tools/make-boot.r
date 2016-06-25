@@ -854,60 +854,47 @@ emit {
 }
 
 n: 0
-for-each-record-NO-RETURN type boot-types [
+boot-words: []
+add-word: func [word /skip-if-duplicate /type] [
     ;
-    ; We don't emit a SYM_VOID because there is no unset type.  Conveniently,
-    ; this goes along with the idea that SYM_0 as 0 is an illegal and "null"
-    ; symbol (cannot be turned into a string)
+    ; Horribly inefficient linear search, but MAP! in R3-Alpha is unreliable
+    ; and implemented differently, and we want this code to work in it too.
     ;
-    if n != 0 [
-        emit-line "SYM_" join type/name "_type" n
+    if find boot-words word [
+        if skip-if-duplicate [return ()]
+        fail ["Duplicate word specified" word]
     ]
 
+    emit-line "SYM_" word reform [n "-" word] ;-- emit-line does ? => _Q, etc.
     n: n + 1
+
+    ; The types make a SYM_XXX entry, but they're kept in a separate block
+    ; in the boot object (see `boot-types` in `sections`)
+    ;
+    unless type [append boot-words word]
 ]
 
-boot-words: load %words.r
+for-each-record-NO-RETURN type boot-types [
+    if n = 0 [n: n + 1 | continue]
 
-replace boot-words '*port-modes* load %modes.r
-
-for-each word boot-words [
-    emit-line "SYM_" word reform [n "-" word]
-    n: n + 1
+    add-word/type to-word rejoin [to-string type/name "!"]
 ]
-emit-end
 
-;-- Generate Action Constants ------------------------------------------------
+wordlist: load %words.r
+replace wordlist '*port-modes* load %modes.r
 
-emit {
-/***********************************************************************
-**
-*/  enum REBOL_Actions
-/*
-**      REBOL datatype action numbers.
-**
-**      Note the correspondence to action numbers that are less than REB_MAX
-**      as the query for the datatype with that enum value.  (INTEGER? etc.)
-**
-***********************************************************************/
-^{
-}
+for-each word wordlist [add-word word]
 
 boot-actions: load %tmp-actions.r
-n: 2 ;-- actions start at 2, for the type checks, skipping TRASH? and END?
-emit-line "A_" "0 = 0" "Unused (would be A_TRASH_Q)"
-for-each word boot-actions [
-    if set-word? :word [
-        emit-line "A_" to word! :word n
-        n: n + 1
+for-each item boot-actions [
+    if set-word? :item [
+        add-word/skip-if-duplicate to-word item ;-- maybe in %words.r already
     ]
 ]
-emit [tab "A_MAX_ACTION" lf "};"]
-emit {
 
-#define IS_BINARY_ACT(a) ((a) <= A_XOR_T)
-}
-print [n "actions"]
+emit-end
+
+print [n "words + actions"]
 
 write inc/tmp-bootdefs.h out
 

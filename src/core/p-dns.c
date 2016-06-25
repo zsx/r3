@@ -35,7 +35,7 @@
 //
 //  DNS_Actor: C
 //
-static REB_R DNS_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
+static REB_R DNS_Actor(struct Reb_Frame *frame_, REBCTX *port, REBSYM action)
 {
     REBVAL *spec;
     REBREQ *sock;
@@ -59,7 +59,7 @@ static REB_R DNS_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 
     switch (action) {
 
-    case A_READ:
+    case SYM_READ:
         if (!IS_OPEN(sock)) {
             if (OS_DO_DEVICE(sock, RDC_OPEN))
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, sock->error));
@@ -96,7 +96,7 @@ static REB_R DNS_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
         }
         break;
 
-    case A_PICK:  // FIRST - return result
+    case SYM_PICK:  // FIRST - return result
         if (!IS_OPEN(sock))
             fail (Error_On_Port(RE_NOT_OPEN, port, -12));
 
@@ -124,20 +124,20 @@ pick:
             fail (Error_Out_Of_Range(arg));
         break;
 
-    case A_OPEN:
+    case SYM_OPEN:
         if (OS_DO_DEVICE(sock, RDC_OPEN))
             fail (Error_On_Port(RE_CANNOT_OPEN, port, -12));
         break;
 
-    case A_CLOSE:
+    case SYM_CLOSE:
         OS_DO_DEVICE(sock, RDC_CLOSE);
         break;
 
-    case A_OPEN_Q:
+    case SYM_OPEN_Q:
         if (IS_OPEN(sock)) return R_TRUE;
         return R_FALSE;
 
-    case A_UPDATE:
+    case SYM_UPDATE:
         return R_BLANK;
 
     default:

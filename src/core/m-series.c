@@ -395,6 +395,8 @@ void Reset_Array(REBARR *array)
 //
 void Clear_Series(REBSER *series)
 {
+    assert(!GET_SER_FLAG(series, SERIES_FLAG_LOCKED));
+
     Unbias_Series(series, FALSE);
     series->content.dynamic.len = 0;
     CLEAR(series->content.dynamic.data, SER_SPACE(series));

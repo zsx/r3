@@ -317,9 +317,7 @@ void Sieve_Ports(REBARR *ports)
 //
 REBCNT Find_Action(REBVAL *object, REBCNT action)
 {
-    return Find_Word_In_Context(
-        VAL_CONTEXT(object), Get_Action_Sym(action), FALSE
-    );
+    return Find_Word_In_Context(VAL_CONTEXT(object), action, FALSE);
 }
 
 
@@ -476,11 +474,6 @@ REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
 //
 int Do_Port_Action(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 {
-    REBVAL *actor;
-    REBCNT n = 0;
-
-    assert(action < A_MAX_ACTION);
-
     assert(GET_ARR_FLAG(CTX_VARLIST(port), ARRAY_FLAG_CONTEXT_VARLIST));
 
     // Verify valid port (all of these must be false):
@@ -494,7 +487,8 @@ int Do_Port_Action(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
     }
 
     // Get actor for port, if it has one:
-    actor = CTX_VAR(port, STD_PORT_ACTOR);
+
+    REBVAL *actor = CTX_VAR(port, STD_PORT_ACTOR);
 
     if (IS_BLANK(actor)) return R_BLANK;
 
@@ -506,11 +500,12 @@ int Do_Port_Action(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
     if (!IS_OBJECT(actor)) fail (Error(RE_INVALID_ACTOR));
 
     // Dispatch object function:
-    n = Find_Action(actor, action);
+
+    REBCNT n = Find_Action(actor, action);
     actor = Obj_Value(actor, n);
     if (!n || !actor || !IS_FUNCTION(actor)) {
         REBVAL action_word;
-        Val_Init_Word(&action_word, REB_WORD, Get_Action_Sym(action));
+        Val_Init_Word(&action_word, REB_WORD, action);
 
         fail (Error(RE_NO_PORT_ACTION, &action_word));
     }
@@ -557,9 +552,7 @@ void Secure_Port(REBCNT kind, REBREQ *req, REBVAL *name, REBSER *path)
 void Validate_Port(REBCTX *port, REBCNT action)
 {
     if (
-        action >= A_MAX_ACTION
-        || CTX_LEN(port) > 50 // !!! ?? why 50 ??
-        || !GET_ARR_FLAG(CTX_VARLIST(port), ARRAY_FLAG_CONTEXT_VARLIST)
+        !GET_ARR_FLAG(CTX_VARLIST(port), ARRAY_FLAG_CONTEXT_VARLIST)
         || !IS_OBJECT(CTX_VAR(port, STD_PORT_SPEC))
     ) {
         fail (Error(RE_INVALID_PORT));
@@ -580,8 +573,8 @@ void Validate_Port(REBCTX *port, REBCNT action)
 **  Example of defining actions:
 **
 **      static const PORT_ACTION File_Actions[] = {
-**          A_OPEN,     P_open,
-**          A_CLOSE,    P_close,
+**          SYM_OPEN,     P_open,
+**          SYM_CLOSE,    P_close,
 **          0, 0
 **      }
 **
@@ -721,9 +714,10 @@ REBNATIVE(set_scheme)
         // Find the action in the scheme actor:
         n = Find_Action(actor, map->action);
         if (n) {
+            assert(FALSE); // does this code ever even run?
+
             // Get standard action's spec block:
             REBVAL *act = Get_Action_Value(map->action);
-
             REBARR *spec_array = Make_Spec_From_Function(act); // !!!
             REBVAL spec;
             Val_Init_Block(&spec, spec_array); // manages

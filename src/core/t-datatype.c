@@ -79,7 +79,7 @@ REBTYPE(Datatype)
 
     switch (action) {
 
-    case A_REFLECT: {
+    case SYM_REFLECT: {
         REBSYM canon = VAL_WORD_CANON(arg);
         if (canon == SYM_SPEC) {
             //

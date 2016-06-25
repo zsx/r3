@@ -324,31 +324,31 @@ REBTYPE(Typeset)
 
     switch (action) {
 
-    case A_FIND:
+    case SYM_FIND:
         if (IS_DATATYPE(arg)) {
             return (TYPE_CHECK(val, VAL_TYPE_KIND(arg))) ? R_TRUE : R_FALSE;
         }
         fail (Error_Invalid_Arg(arg));
 
-    case A_AND_T:
-    case A_OR_T:
-    case A_XOR_T:
+    case SYM_AND_T:
+    case SYM_OR_T:
+    case SYM_XOR_T:
         if (IS_DATATYPE(arg)) {
             VAL_TYPESET_BITS(arg) = FLAGIT_KIND(VAL_TYPE(arg));
         }
         else if (!IS_TYPESET(arg))
             fail (Error_Invalid_Arg(arg));
 
-        if (action == A_OR_T)
+        if (action == SYM_OR_T)
             VAL_TYPESET_BITS(val) |= VAL_TYPESET_BITS(arg);
-        else if (action == A_AND_T)
+        else if (action == SYM_AND_T)
             VAL_TYPESET_BITS(val) &= VAL_TYPESET_BITS(arg);
         else
             VAL_TYPESET_BITS(val) ^= VAL_TYPESET_BITS(arg);
         *D_OUT = *D_ARG(1);
         return R_OUT;
 
-    case A_COMPLEMENT:
+    case SYM_COMPLEMENT:
         VAL_TYPESET_BITS(val) = ~VAL_TYPESET_BITS(val);
         *D_OUT = *D_ARG(1);
         return R_OUT;

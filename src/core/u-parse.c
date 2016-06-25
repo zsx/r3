@@ -2066,7 +2066,7 @@ REBNATIVE(subparse)
                         COPY_VALUE(&specified, rule, P_RULE_SPECIFIER);
 
                         P_POS = Modify_Array(
-                            (flags & PF_CHANGE) ? A_CHANGE : A_INSERT,
+                            (flags & PF_CHANGE) ? SYM_CHANGE : SYM_INSERT,
                             AS_ARRAY(P_INPUT),
                             begin,
                             &specified,
@@ -2093,7 +2093,7 @@ REBNATIVE(subparse)
                             cmd |= (1 << AN_SERIES); // special flag
 
                         P_POS = Modify_String(
-                            (flags & PF_CHANGE) ? A_CHANGE : A_INSERT,
+                            (flags & PF_CHANGE) ? SYM_CHANGE : SYM_INSERT,
                             P_INPUT,
                             begin,
                             &specified,

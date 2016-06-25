@@ -128,29 +128,6 @@ append output-buffer {REBOL [
 }
 
 boot-types: load %../boot/types.r
-n: 0
-for-each-record-NO-RETURN type boot-types [
-    if n == 0 [
-        ;-- We skip TRASH!
-        n: n + 1
-        continue
-    ]
-
-    caps-name: rejoin [(uppercase form type/name) {!}]
-
-    append output-buffer rejoin [
-        type/name "?: action/typecheck" space {[} newline
-        spaced-tab
-            {"} {Returns TRUE if value is of type} space caps-name {"} newline
-        spaced-tab
-            {value [<opt> any-value!]} newline
-        {]} space n
-        newline
-        newline
-    ]
-
-    n: n + 1
-]
 
 append output-buffer mold/only load %../boot/actions.r
 

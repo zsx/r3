@@ -70,19 +70,19 @@ static REB_R Event_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 
     switch (action) {
 
-    case A_UPDATE:
+    case SYM_UPDATE:
         return R_BLANK;
 
     // Normal block actions done on events:
-    case A_POKE:
+    case SYM_POKE:
         if (!IS_EVENT(D_ARG(3))) fail (Error_Invalid_Arg(D_ARG(3)));
         goto act_blk;
-    case A_INSERT:
-    case A_APPEND:
-    //case A_PATH:      // not allowed: port/foo is port object field access
-    //case A_PATH_SET:  // not allowed: above
+    case SYM_INSERT:
+    case SYM_APPEND:
+    //case SYM_PATH:      // not allowed: port/foo is port object field access
+    //case SYM_PATH_SET:  // not allowed: above
         if (!IS_EVENT(arg)) fail (Error_Invalid_Arg(arg));
-    case A_PICK:
+    case SYM_PICK:
 act_blk:
         save_port = *D_ARG(1); // save for return
         *D_ARG(1) = *state;
@@ -94,16 +94,16 @@ act_blk:
         }
         return result; // return condition
 
-    case A_CLEAR:
+    case SYM_CLEAR:
         RESET_ARRAY(state);
         CLR_FLAG(Eval_Signals, SIG_EVENT_PORT);
         break;
 
-    case A_LENGTH:
+    case SYM_LENGTH:
         SET_INTEGER(D_OUT, VAL_LEN_HEAD(state));
         break;
 
-    case A_OPEN:
+    case SYM_OPEN:
         if (!req) { //!!!
             req = OS_MAKE_DEVREQ(RDI_EVENT);
             SET_OPEN(req);

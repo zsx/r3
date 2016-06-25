@@ -130,7 +130,7 @@ REBTYPE(Function)
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
     switch (action) {
-    case A_COPY:
+    case SYM_COPY:
         // !!! The R3-Alpha theory was that functions could modify "their
         // bodies" while running, effectively accruing state that one might
         // want to snapshot.  See notes on Clonify_Function about why this
@@ -139,7 +139,7 @@ REBTYPE(Function)
         Clonify_Function(D_OUT);
         return R_OUT;
 
-    case A_REFLECT: {
+    case SYM_REFLECT: {
         REBSYM canon = VAL_WORD_CANON(arg);
 
         switch (canon) {

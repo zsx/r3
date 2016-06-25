@@ -43,7 +43,7 @@
 //
 //  Console_Actor: C
 //
-static REB_R Console_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
+static REB_R Console_Actor(struct Reb_Frame *frame_, REBCTX *port, REBSYM action)
 {
     REBREQ *req;
     REBINT result;
@@ -59,7 +59,7 @@ static REB_R Console_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action
 
     switch (action) {
 
-    case A_READ:
+    case SYM_READ:
 
         // If not open, open it:
         if (!IS_OPEN(req)) {
@@ -114,16 +114,16 @@ static REB_R Console_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action
         Val_Init_Binary(D_OUT, Copy_Bytes(req->common.data, req->actual));
         break;
 
-    case A_OPEN:
+    case SYM_OPEN:
         SET_OPEN(req);
         break;
 
-    case A_CLOSE:
+    case SYM_CLOSE:
         SET_CLOSED(req);
         //OS_DO_DEVICE(req, RDC_CLOSE);
         break;
 
-    case A_OPEN_Q:
+    case SYM_OPEN_Q:
         if (IS_OPEN(req)) return R_TRUE;
         return R_FALSE;
 

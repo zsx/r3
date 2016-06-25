@@ -578,34 +578,33 @@ REBTYPE(Vector)
 
     REBSER *vect = VAL_SERIES(value);
 
-    // Check must be in this order (to avoid checking a non-series value);
-    if (action >= A_TAKE && action <= A_SORT)
-        FAIL_IF_LOCKED_SERIES(vect);
-
     switch (action) {
 
-    case A_PICK:
+    case SYM_PICK:
         Pick_Path(D_OUT, value, arg, NULL);
         return R_OUT;
 
-    case A_POKE:
+    case SYM_POKE:
+        FAIL_IF_LOCKED_SERIES(vect);
         // Third argument to pick path is the
         Pick_Path(D_OUT, value, arg, D_ARG(3));
         *D_OUT = *D_ARG(3);
         return R_OUT;
 
-    case A_LENGTH:
+    case SYM_LENGTH:
         //bits = 1 << (vect->size & 3);
         SET_INTEGER(D_OUT, SER_LEN(vect));
         return R_OUT;
 
-    case A_COPY:
+    case SYM_COPY:
         ser = Copy_Sequence(vect);
         ser->misc.size = vect->misc.size; // attributes
         Val_Init_Vector(value, ser);
         break;
 
-    case A_RANDOM:
+    case SYM_RANDOM:
+        FAIL_IF_LOCKED_SERIES(vect);
+
         if (D_REF(2) || D_REF(4)) fail (Error(RE_BAD_REFINES)); // /seed /only
         Shuffle_Vector(value, D_REF(3));
         *D_OUT = *D_ARG(1);

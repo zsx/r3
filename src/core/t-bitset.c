@@ -305,6 +305,8 @@ void Set_Bit_Str(REBSER *bset, const REBVAL *val, REBOOL set)
 //
 REBOOL Set_Bits(REBSER *bset, const REBVAL *val, REBOOL set)
 {
+    FAIL_IF_LOCKED_SERIES(bset);
+
     REBCNT n;
     REBCNT c;
     RELVAL *item;
@@ -558,33 +560,32 @@ REBTYPE(Bitset)
     REBINT len;
     REBOOL diff;
 
-    // Check must be in this order (to avoid checking a non-series value);
-    if (action >= A_TAKE && action <= A_SORT)
-        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+    // !!! Set_Bits does locked series check--what should the more general
+    // responsibility be for checking?
 
     switch (action) {
 
     // Define PICK for BITSETS?  PICK's set bits and returns #?
     // Add AND, OR, XOR
 
-    case A_PICK:
-    case A_FIND:
+    case SYM_PICK:
+    case SYM_FIND:
         if (!Check_Bits(VAL_SERIES(value), arg, D_REF(ARG_FIND_CASE))) return R_BLANK;
         return R_TRUE;
 
-    case A_COMPLEMENT:
-    case A_NEGATE:
+    case SYM_COMPLEMENT:
+    case SYM_NEGATE:
         ser = Copy_Sequence(VAL_SERIES(value));
         INIT_BITS_NOT(ser, NOT(BITS_NOT(VAL_SERIES(value))));
         Val_Init_Bitset(value, ser);
         break;
 
-    case A_APPEND:  // Accepts: #"a" "abc" [1 - 10] [#"a" - #"z"] etc.
-    case A_INSERT:
+    case SYM_APPEND:  // Accepts: #"a" "abc" [1 - 10] [#"a" - #"z"] etc.
+    case SYM_INSERT:
         diff = TRUE;
         goto set_bits;
 
-    case A_POKE:
+    case SYM_POKE:
         if (!IS_LOGIC(D_ARG(3)))
             fail (Error_Invalid_Arg(D_ARG(3)));
         diff = VAL_LOGIC(D_ARG(3));
@@ -593,12 +594,12 @@ set_bits:
         if (Set_Bits(VAL_SERIES(value), arg, diff)) break;
         fail (Error_Invalid_Arg(arg));
 
-    case A_REMOVE:  // #"a" "abc"  remove/part bs "abcd"  yuk: /part ?
+    case SYM_REMOVE:  // #"a" "abc"  remove/part bs "abcd"  yuk: /part ?
         if (!D_REF(2)) fail (Error(RE_MISSING_ARG)); // /part required
         if (Set_Bits(VAL_SERIES(value), D_ARG(3), FALSE)) break;
         fail (Error_Invalid_Arg(D_ARG(3)));
 
-    case A_COPY:
+    case SYM_COPY:
         Val_Init_Series_Index(
             D_OUT,
             REB_BITSET,
@@ -608,22 +609,23 @@ set_bits:
         INIT_BITS_NOT(VAL_SERIES(D_OUT), BITS_NOT(VAL_SERIES(value)));
         return R_OUT;
 
-    case A_LENGTH:
+    case SYM_LENGTH:
         len = VAL_LEN_HEAD(value) * 8;
         SET_INTEGER(value, len);
         break;
 
-    case A_TAIL_Q:
+    case SYM_TAIL_Q:
         // Necessary to make EMPTY? work:
         return (VAL_LEN_HEAD(value) == 0) ? R_TRUE : R_FALSE;
 
-    case A_CLEAR:
+    case SYM_CLEAR:
+        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
         Clear_Series(VAL_SERIES(value));
         break;
 
-    case A_AND_T:
-    case A_OR_T:
-    case A_XOR_T:
+    case SYM_AND_T:
+    case SYM_OR_T:
+    case SYM_XOR_T:
         if (!IS_BITSET(arg) && !IS_BINARY(arg))
             fail (Error_Math_Args(VAL_TYPE(arg), action));
         ser = Xandor_Binary(action, value, arg);

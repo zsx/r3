@@ -22,7 +22,105 @@ REBOL [
     }
 ]
 
-; PROBE is a good first function to have handy for debugging all the rest (!)
+; The most existential question of Rebol...is it a Rebol value?  (non-void)
+
+?: :any-value?
+
+
+; Words for BLANK! and BAR!, for those who don't like symbols
+
+blank: _
+bar: '|
+
+
+; There is no Rebol value representing void, so it cannot be assigned as
+; a word to a literal.  This VOID function is an alternative to `()`
+
+void: func [] [] ;-- DOES not defined yet.
+
+
+eval func [
+    {Make type testing functions (variadic to quote "top-level" words)}
+    :set-word... [[ set-word!]]
+    /local set-word type-name
+][
+    while [? set-word: take set-word...] [
+        type-name: append (head clear find (spelling-of set-word) {?}) "!"
+        set set-word specialize 'has-type? compose [
+            type: (bind (to word! type-name) set-word)
+        ]
+    ]
+]
+    ; This list consumed by the variadic evaluation, up to the | barrier
+    ; Each makes a specialization, XXX: SPECIALIZE 'HAS-TYPE? [TYPE: XXX!]
+    ;
+    blank?:
+    bar?:
+    lit-bar?:
+    logic?:
+    integer?:
+    decimal?:
+    percent?:
+    money?:
+    char?:
+    pair?:
+    tuple?:
+    time?:
+    date?:
+    word?:
+    set-word?:
+    get-word?:
+    lit-word?:
+    refinement?:
+    issue?:
+    binary?:
+    string?:
+    file?:
+    email?:
+    url?:
+    tag?:
+    bitset?:
+    image?:
+    vector?:
+    block?:
+    group?:
+    path?:
+    set-path?:
+    get-path?:
+    lit-path?:
+    map?:
+    datatype?:
+    typeset?:
+    function?:
+    varargs?:
+    object?:
+    frame?:
+    module?:
+    error?:
+    task?:
+    port?:
+    gob?:
+    event?:
+    handle?:
+    struct?:
+    library?:
+
+    ; These typesets are predefined during bootstrap.  REDESCRIBE is not
+    ; defined yet, so decide if it's worth it to add descriptions later
+    ; e.g. [{Return TRUE if value is } summary {.}]
+
+    any-string?: ;-- "any type of string"
+    any-word?: ;-- "any type of word"
+    any-path?: ;-- "any type of path"
+    any-context?: ;-- "any type of context"
+    any-number?: ;-- "a number (integer or decimal)"
+    any-series?: ;-- "any type of series"
+    any-scalar?: ;-- "any type of scalar"
+    any-array?: ;-- "a series of Rebol values"
+|
+
+
+; PROBE is a good early function to have handy for debugging all the rest (!)
 ;
 probe: func [
     {Debug print a molded value and returns that same value.}
@@ -69,18 +167,6 @@ probe: func [
 ]
 
 
-; Words for BLANK! and BAR!, for those who don't like symbols
-
-blank: _
-bar: '|
-
-
-; There is no Rebol value representing void, so it cannot be assigned as
-; a word to a literal.  This VOID function is an alternative to `()`
-
-void: func [] [] ;-- DOES not defined yet.
-
-
 eval func [
     {Make reflector functions (variadic to quote "top-level" words)}
     :set-word... [[ set-word!]]
@@ -112,43 +198,6 @@ eval func [
     types-of: _ {function}
     addr-of: _ {struct or callback}
     title-of: _ {function} ; should work for module
-|
-
-
-eval func [
-    {Make the ANY-XXX? typeset testers (variadic to quote top-level words)}
-    :set-word... [[set-word!]]
-    :divider... [[blank!]]
-    :summary... [[string!]]
-    /local set-word summary typeset-word typeset
-][
-    while [any-value? set-word: take set-word...] [
-        take divider... ;-- so it doesn't look like we're setting to a string
-        summary: take summary...
-
-        ; any-xxx? => any-xxx!, needs to be bound to fetch typeset
-        typeset-word: to word! head change (find spelling-of set-word "?") "!"
-        typeset-word: bind typeset-word set-word
-        assert [typeset? typeset: get typeset-word]
-
-        set set-word make function! compose/deep [
-            [
-                (ajoin [{Return TRUE if value is } summary {.}])
-                value [_ any-value!]
-            ][
-                find (typeset) type-of :value
-            ]
-        ]
-    ]
-]
-    any-string?: _ "any type of string"
-    any-word?: _ "any type of word"
-    any-path?: _ "any type of path"
-    any-context?: _ "any type of context"
-    any-number?: _ "a number (integer or decimal)"
-    any-series?: _ "any type of series"
-    any-scalar?: _ "any type of scalar"
-    any-array?: _ "a series of Rebol values"
 |
 
 
@@ -226,8 +275,3 @@ ok?: func [
 ;
 neither?: :nand?
 both?: :and?
-
-
-; Experimental shorthand for ANY-VALUE? test (will also be VALUE?)
-;
-?: :any-value?

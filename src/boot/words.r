@@ -83,6 +83,8 @@ title
 description
 parameter-types
 parameter-notes
+specializee
+specializee-name
 
 x
 y

@@ -396,7 +396,16 @@ REBTYPE(Time)
         arg = D_ARG(2);
     }
 
-    if (IS_BINARY_ACT(action)) {
+    // !!! This used to use IS_BINARY_ACT(), which is not available under
+    // the symbol-based dispatch.  Consider doing another way.
+    //
+    if (
+        action == SYM_ADD
+        || action == SYM_SUBTRACT
+        || action == SYM_MULTIPLY
+        || action == SYM_DIVIDE
+        || action == SYM_REMAINDER
+    ){
         REBINT  type = VAL_TYPE(arg);
 
         assert(arg);
@@ -406,22 +415,22 @@ REBTYPE(Time)
 
             switch (action) {
 
-            case A_ADD:
+            case SYM_ADD:
                 secs = Add_Max(REB_TIME, secs, secs2, MAX_TIME);
                 goto fixTime;
 
-            case A_SUBTRACT:
+            case SYM_SUBTRACT:
                 secs = Add_Max(REB_TIME, secs, -secs2, MAX_TIME);
                 goto fixTime;
 
-            case A_DIVIDE:
+            case SYM_DIVIDE:
                 if (secs2 == 0) fail (Error(RE_ZERO_DIVIDE));
                 //secs /= secs2;
                 VAL_RESET_HEADER(D_OUT, REB_DECIMAL);
                 VAL_DECIMAL(D_OUT) = (REBDEC)secs / (REBDEC)secs2;
                 return R_OUT;
 
-            case A_REMAINDER:
+            case SYM_REMAINDER:
                 if (secs2 == 0) fail (Error(RE_ZERO_DIVIDE));
                 secs %= secs2;
                 goto setTime;
@@ -432,27 +441,27 @@ REBTYPE(Time)
             num = VAL_INT64(arg);
 
             switch(action) {
-            case A_ADD:
+            case SYM_ADD:
                 secs = Add_Max(REB_TIME, secs, num * SEC_SEC, MAX_TIME);
                 goto fixTime;
 
-            case A_SUBTRACT:
+            case SYM_SUBTRACT:
                 secs = Add_Max(REB_TIME, secs, num * -SEC_SEC, MAX_TIME);
                 goto fixTime;
 
-            case A_MULTIPLY:
+            case SYM_MULTIPLY:
                 secs *= num;
                 if (secs < -MAX_TIME || secs > MAX_TIME)
                     fail (Error(RE_TYPE_LIMIT, Get_Type(REB_TIME)));
                 goto setTime;
 
-            case A_DIVIDE:
+            case SYM_DIVIDE:
                 if (num == 0) fail (Error(RE_ZERO_DIVIDE));
                 secs /= num;
                 SET_INTEGER(D_OUT, secs);
                 goto setTime;
 
-            case A_REMAINDER:
+            case SYM_REMAINDER:
                 if (num == 0) fail (Error(RE_ZERO_DIVIDE));
                 secs %= num;
                 goto setTime;
@@ -462,29 +471,29 @@ REBTYPE(Time)
             REBDEC dec = VAL_DECIMAL(arg);
 
             switch(action) {
-            case A_ADD:
+            case SYM_ADD:
                 secs = Add_Max(REB_TIME, secs, (i64)(dec * SEC_SEC), MAX_TIME);
                 goto fixTime;
 
-            case A_SUBTRACT:
+            case SYM_SUBTRACT:
                 secs = Add_Max(REB_TIME, secs, (i64)(dec * -SEC_SEC), MAX_TIME);
                 goto fixTime;
 
-            case A_MULTIPLY:
+            case SYM_MULTIPLY:
                 secs = (REBI64)(secs * dec);
                 goto setTime;
 
-            case A_DIVIDE:
+            case SYM_DIVIDE:
                 if (dec == 0.0) fail (Error(RE_ZERO_DIVIDE));
                 secs = (REBI64)(secs / dec);
                 goto setTime;
 
-//          case A_REMAINDER:
+//          case SYM_REMAINDER:
 //              ld = fmod(ld, VAL_DECIMAL(arg));
 //              goto decTime;
             }
         }
-        else if (type == REB_DATE && action == A_ADD) { // TIME + DATE case
+        else if (type == REB_DATE && action == SYM_ADD) { // TIME + DATE case
             // Swap args and call DATE datatupe:
             *D_ARG(3) = *val; // (temporary location for swap)
             *D_ARG(1) = *arg;
@@ -497,21 +506,21 @@ REBTYPE(Time)
         // unary actions
         switch(action) {
 
-        case A_ODD_Q:
+        case SYM_ODD_Q:
             return ((SECS_IN(secs) & 1) != 0) ? R_TRUE : R_FALSE;
 
-        case A_EVEN_Q:
+        case SYM_EVEN_Q:
             return ((SECS_IN(secs) & 1) == 0) ? R_TRUE : R_FALSE;
 
-        case A_NEGATE:
+        case SYM_NEGATE:
             secs = -secs;
             goto setTime;
 
-        case A_ABSOLUTE:
+        case SYM_ABSOLUTE:
             if (secs < 0) secs = -secs;
             goto setTime;
 
-        case A_ROUND:
+        case SYM_ROUND:
             if (D_REF(2)) {
                 arg = D_ARG(3);
                 if (IS_TIME(arg)) {
@@ -541,7 +550,7 @@ REBTYPE(Time)
             }
             goto fixTime;
 
-        case A_RANDOM:
+        case SYM_RANDOM:
             if (D_REF(2)) {
                 Set_Random(secs);
                 return R_VOID;
@@ -549,13 +558,13 @@ REBTYPE(Time)
             secs = Random_Range(secs / SEC_SEC, D_REF(3)) * SEC_SEC;
             goto fixTime;
 
-        case A_PICK:
+        case SYM_PICK:
             assert(arg);
 
             Pick_Path(D_OUT, val, arg, 0);
             return R_OUT;
 
-///     case A_POKE:
+///     case SYM_POKE:
 ///         Pick_Path(D_OUT, val, arg, D_ARG(3));
 ///         *D_OUT = *D_ARG(3);
 ///         return R_OUT;

@@ -452,7 +452,7 @@ REBTYPE(Varargs)
     REBIXO indexor;
 
     switch (action) {
-    case A_PICK: {
+    case SYM_PICK: {
         if (!IS_INTEGER(arg))
             fail (Error_Invalid_Arg(arg));
 
@@ -467,13 +467,13 @@ REBTYPE(Varargs)
         return R_OUT;
     }
 
-    case A_TAIL_Q: {
+    case SYM_TAIL_Q: {
         indexor = Do_Vararg_Op_May_Throw(NULL, value, VARARG_OP_TAIL_Q);
         assert(indexor == VA_LIST_FLAG || indexor == END_FLAG); // no throw
         return indexor == END_FLAG ? R_TRUE : R_FALSE;
     }
 
-    case A_TAKE: {
+    case SYM_TAKE: {
         REFINE(2, part);
         PARAM(3, limit);
         REFINE(4, deep); // !!! doesn't seem to be implemented on ANY-ARRAY!

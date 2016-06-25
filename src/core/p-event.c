@@ -144,7 +144,7 @@ REBVAL *Find_Last_Event(REBINT model, REBINT type)
 // 
 // Internal port handler for events.
 //
-static REB_R Event_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
+static REB_R Event_Actor(struct Reb_Frame *frame_, REBCTX *port, REBSYM action)
 {
     REBVAL *spec;
     REBVAL *state;
@@ -167,41 +167,45 @@ static REB_R Event_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 
     switch (action) {
 
-    case A_UPDATE:
+    case SYM_UPDATE:
         return R_BLANK;
 
     // Normal block actions done on events:
-    case A_POKE:
+    case SYM_POKE:
         if (!IS_EVENT(D_ARG(3))) fail (Error_Invalid_Arg(D_ARG(3)));
         goto act_blk;
-    case A_INSERT:
-    case A_APPEND:
+    case SYM_INSERT:
+    case SYM_APPEND:
     //case A_PATH:      // not allowed: port/foo is port object field access
     //case A_PATH_SET:  // not allowed: above
         if (!IS_EVENT(arg)) fail (Error_Invalid_Arg(arg));
-    case A_PICK:
+    case SYM_PICK:
 act_blk:
         save_port = *D_ARG(1); // save for return
         *D_ARG(1) = *state;
         result = T_Array(frame_, action);
         SET_SIGNAL(SIG_EVENT_PORT);
-        if (action == A_INSERT || action == A_APPEND || action == A_REMOVE) {
+        if (
+            action == SYM_INSERT
+            || action == SYM_APPEND
+            || action == SYM_REMOVE
+        ){
             *D_OUT = save_port;
             break;
         }
         return result; // return condition
 
-    case A_CLEAR:
+    case SYM_CLEAR:
         SET_SERIES_LEN(VAL_SERIES(state), 0);
         VAL_TERM_ARRAY(state);
         CLR_SIGNAL(SIG_EVENT_PORT);
         break;
 
-    case A_LENGTH:
+    case SYM_LENGTH:
         SET_INTEGER(D_OUT, VAL_LEN_HEAD(state));
         break;
 
-    case A_OPEN:
+    case SYM_OPEN:
         if (!req) { //!!!
             req = OS_MAKE_DEVREQ(RDI_EVENT);
             if (req) {
@@ -211,7 +215,7 @@ act_blk:
         }
         break;
 
-    case A_CLOSE:
+    case SYM_CLOSE:
         OS_ABORT_DEVICE(req);
         OS_DO_DEVICE(req, RDC_CLOSE);
         // free req!!!
@@ -219,7 +223,7 @@ act_blk:
         req = 0;
         break;
 
-    case A_FIND: // add it
+    case SYM_FIND: // add it
 
     default:
         fail (Error_Illegal_Action(REB_PORT, action));

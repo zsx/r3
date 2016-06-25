@@ -751,33 +751,33 @@ REBTYPE(Date)
 
     if (D_ARGC > 1) arg = D_ARG(2);
 
-    if (IS_BINARY_ACT(action)) {
+    if (action == SYM_SUBTRACT || action == SYM_ADD) {
         REBINT  type = VAL_TYPE(arg);
 
         if (type == REB_DATE) {
-            if (action == A_SUBTRACT) {
+            if (action == SYM_SUBTRACT) {
                 num = Diff_Date(date, VAL_DATE(arg));
                 goto ret_int;
             }
         }
         else if (type == REB_TIME) {
             if (secs == NO_TIME) secs = 0;
-            if (action == A_ADD) {
+            if (action == SYM_ADD) {
                 secs += VAL_TIME(arg);
                 goto fixTime;
             }
-            if (action == A_SUBTRACT) {
+            if (action == SYM_SUBTRACT) {
                 secs -= VAL_TIME(arg);
                 goto fixTime;
             }
         }
         else if (type == REB_INTEGER) {
             num = Int32(arg);
-            if (action == A_ADD) {
+            if (action == SYM_ADD) {
                 day += num;
                 goto fixDate;
             }
-            if (action == A_SUBTRACT) {
+            if (action == SYM_SUBTRACT) {
                 day -= num;
                 goto fixDate;
             }
@@ -785,11 +785,11 @@ REBTYPE(Date)
         else if (type == REB_DECIMAL) {
             REBDEC dec = Dec64(arg);
             if (secs == NO_TIME) secs = 0;
-            if (action == A_ADD) {
+            if (action == SYM_ADD) {
                 secs += (REBI64)(dec * TIME_IN_DAY);
                 goto fixTime;
             }
-            if (action == A_SUBTRACT) {
+            if (action == SYM_SUBTRACT) {
                 secs -= (REBI64)(dec * TIME_IN_DAY);
                 goto fixTime;
             }
@@ -797,23 +797,23 @@ REBTYPE(Date)
     }
     else {
         switch(action) {
-        case A_EVEN_Q:
+        case SYM_EVEN_Q:
             return ((~day) & 1) == 0 ? R_TRUE : R_FALSE;
 
-        case A_ODD_Q:
+        case SYM_ODD_Q:
             return (day & 1) == 0 ? R_TRUE : R_FALSE;
 
-        case A_PICK:
+        case SYM_PICK:
             assert(D_ARGC > 1);
             Pick_Path(D_OUT, val, arg, 0);
             return R_OUT;
 
-///     case A_POKE:
+///     case SYM_POKE:
 ///         Pick_Path(D_OUT, val, arg, D_ARG(3));
 ///         *D_OUT = *D_ARG(3);
 ///         return R_OUT;
 
-        case A_RANDOM: {
+        case SYM_RANDOM: {
             REFINE(2, seed);
             REFINE(3, secure);
             // !!! "needs further definition ?  random/zero" <-- ?
@@ -844,7 +844,7 @@ REBTYPE(Date)
             goto fixDate;
         }
 
-        case A_ABSOLUTE:
+        case SYM_ABSOLUTE:
             goto setDate;
         }
     }

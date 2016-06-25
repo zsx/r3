@@ -128,6 +128,23 @@ void TO_Char(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 }
 
 
+static REBINT Math_Arg_For_Char(REBVAL *arg, REBSYM action)
+{
+    switch (VAL_TYPE(arg)) {
+    case REB_CHAR:
+        return VAL_CHAR(arg);
+
+    case REB_INTEGER:
+        return VAL_INT32(arg);
+
+    case REB_DECIMAL:
+        return cast(REBINT, VAL_DECIMAL(arg));
+    }
+
+    fail (Error_Math_Args(REB_CHAR, action));
+}
+
+
 //
 //  REBTYPE: C
 //
@@ -137,25 +154,15 @@ REBTYPE(Char)
     REBINT  arg;
     REBVAL  *val;
 
-    if (IS_BINARY_ACT(action)) {
-        val = D_ARG(2);
-        if (IS_CHAR(val))
-            arg = VAL_CHAR(val);
-        else if (IS_INTEGER(val))
-            arg = VAL_INT32(val);
-        else if (IS_DECIMAL(val))
-            arg = (REBINT)VAL_DECIMAL(val);
-        else
-            fail (Error_Math_Args(REB_CHAR, action));
-    }
-
     switch (action) {
 
-    case A_ADD:
+    case SYM_ADD:
+        arg = Math_Arg_For_Char(D_ARG(2), action);
         chr += cast(REBUNI, arg);
         break;
 
-    case A_SUBTRACT:
+    case SYM_SUBTRACT:
+        arg = Math_Arg_For_Char(D_ARG(2), action);
         chr -= cast(REBUNI, arg);
         if (IS_CHAR(D_ARG(2))) {
             SET_INTEGER(D_OUT, chr);
@@ -163,47 +170,54 @@ REBTYPE(Char)
         }
         break;
 
-    case A_MULTIPLY:
+    case SYM_MULTIPLY:
+        arg = Math_Arg_For_Char(D_ARG(2), action);
         chr *= arg;
         break;
 
-    case A_DIVIDE:
+    case SYM_DIVIDE:
+        arg = Math_Arg_For_Char(D_ARG(2), action);
         if (arg == 0) fail (Error(RE_ZERO_DIVIDE));
         chr /= arg;
         break;
 
-    case A_REMAINDER:
+    case SYM_REMAINDER:
+        arg = Math_Arg_For_Char(D_ARG(2), action);
         if (arg == 0) fail (Error(RE_ZERO_DIVIDE));
         chr %= arg;
         break;
 
-    case A_AND_T:
+    case SYM_AND_T:
+        arg = Math_Arg_For_Char(D_ARG(2), action);
         chr &= cast(REBUNI, arg);
         break;
 
-    case A_OR_T:
+    case SYM_OR_T:
+        arg = Math_Arg_For_Char(D_ARG(2), action);
         chr |= cast(REBUNI, arg);
         break;
 
-    case A_XOR_T:
+    case SYM_XOR_T:
+        arg = Math_Arg_For_Char(D_ARG(2), action);
         chr ^= cast(REBUNI, arg);
         break;
 
-    case A_NEGATE:
+    case SYM_NEGATE:
+        arg = Math_Arg_For_Char(D_ARG(2), action);
         chr = cast(REBUNI, -chr);
         break;
 
-    case A_COMPLEMENT:
+    case SYM_COMPLEMENT:
         chr = cast(REBUNI, ~chr);
         break;
 
-    case A_EVEN_Q:
+    case SYM_EVEN_Q:
         return (cast(REBUNI, ~chr) & 1) ? R_TRUE : R_FALSE;
 
-    case A_ODD_Q:
+    case SYM_ODD_Q:
         return (chr & 1) ? R_TRUE : R_FALSE;
 
-    case A_RANDOM:  //!!! needs further definition ?  random/zero
+    case SYM_RANDOM:  //!!! needs further definition ?  random/zero
         if (D_REF(2)) { // /seed
             Set_Random(chr);
             return R_VOID;

@@ -65,19 +65,19 @@ REBTYPE(Unit)
     assert(!IS_VOID(val));
 
     switch (action) {
-    case A_TAIL_Q:
+    case SYM_TAIL_Q:
         return R_TRUE;
 
-    case A_INDEX_OF:
-    case A_LENGTH:
-    case A_SELECT:
-    case A_FIND:
-    case A_REMOVE:
-    case A_CLEAR:
-    case A_TAKE:
+    case SYM_INDEX_OF:
+    case SYM_LENGTH:
+    case SYM_SELECT:
+    case SYM_FIND:
+    case SYM_REMOVE:
+    case SYM_CLEAR:
+    case SYM_TAKE:
         return R_BLANK;
 
-    case A_COPY:
+    case SYM_COPY:
         if (IS_BLANK(val))
             return R_BLANK; // perhaps allow COPY on any type, as well.
         break;

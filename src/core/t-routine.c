@@ -199,7 +199,7 @@ static void Schema_From_Block_May_Fail(
 
     RELVAL *item = VAL_ARRAY_AT(blk);
 
-    if (IS_WORD(item) && VAL_WORD_CANON(item) == SYM_STRUCT_TYPE) {
+    if (IS_WORD(item) && VAL_WORD_CANON(item) == SYM_STRUCT_X) {
         //
         // [struct! [...struct definition...]]
 

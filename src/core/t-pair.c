@@ -223,129 +223,135 @@ REBINT PD_Pair(REBPVS *pvs)
     return PE_OK;
 }
 
+
+static void Get_Math_Arg_For_Pair(
+    REBD32 *x_out,
+    REBD32 *y_out,
+    REBVAL *arg,
+    REBSYM action
+){
+    switch (VAL_TYPE(arg)) {
+    case REB_PAIR:
+        *x_out = VAL_PAIR_X(arg);
+        *y_out = VAL_PAIR_Y(arg);
+        break;
+
+    case REB_INTEGER:
+        *x_out = *y_out = cast(REBD32, VAL_INT64(arg));
+        break;
+
+    case REB_DECIMAL:
+    case REB_PERCENT:
+        *x_out = *y_out = cast(REBD32, VAL_DECIMAL(arg));
+        break;
+
+    default:
+        fail (Error_Math_Args(REB_PAIR, action));
+    }
+
+}
+
+
 //
 //  REBTYPE: C
 //
 REBTYPE(Pair)
 {
-    REBVAL *val = NULL;
-    REBVAL *arg = NULL;
-    REBINT n;
-    REBD32 x1, x2;
-    REBD32 y1, y2;
+    REBVAL *val = D_ARG(1);
 
-    val = D_ARG(1);
-    x1 = VAL_PAIR_X(val);
-    y1 = VAL_PAIR_Y(val);
-    if (D_ARGC > 1) arg = D_ARG(2);
+    REBD32 x1 = VAL_PAIR_X(val);
+    REBD32 y1 = VAL_PAIR_Y(val);
 
-    if (IS_BINARY_ACT(action)) {
-        assert(D_ARGC > 1);
-        n = VAL_TYPE(arg);
+    REBD32 x2;
+    REBD32 y2;
 
-        if (n == REB_PAIR) {        // handle PAIR - PAIR cases
-            x2 = VAL_PAIR_X(arg);
-            y2 = VAL_PAIR_Y(arg);
+    switch (action) {
+
+    case SYM_ADD:
+        Get_Math_Arg_For_Pair(&x2, &y2, D_ARG(2), action);
+        x1 += x2;
+        y1 += y2;
+        goto setPair;
+
+    case SYM_SUBTRACT:
+        Get_Math_Arg_For_Pair(&x2, &y2, D_ARG(2), action);
+        x1 -= x2;
+        y1 -= y2;
+        goto setPair;
+
+    case SYM_MULTIPLY:
+        Get_Math_Arg_For_Pair(&x2, &y2, D_ARG(2), action);
+        x1 *= x2;
+        y1 *= y2;
+        goto setPair;
+
+    case SYM_DIVIDE:
+    case SYM_REMAINDER:
+        Get_Math_Arg_For_Pair(&x2, &y2, D_ARG(2), action);
+        if (x2 == 0 || y2 == 0) fail (Error(RE_ZERO_DIVIDE));
+        if (action == SYM_DIVIDE) {
+            x1 /= x2;
+            y1 /= y2;
         }
-        else if (n == REB_INTEGER) {
-            x2 = y2 = (REBD32)VAL_INT64(arg);
+        else {
+            x1 = (REBD32)fmod(x1, x2);
+            y1 = (REBD32)fmod(y1, y2);
         }
-        else if (n == REB_DECIMAL || n == REB_PERCENT) {
-            x2 = y2 = (REBD32)VAL_DECIMAL(arg);
+        goto setPair;
+
+    case SYM_NEGATE:
+        x1 = -x1;
+        y1 = -y1;
+        goto setPair;
+
+    case SYM_ABSOLUTE:
+        if (x1 < 0) x1 = -x1;
+        if (y1 < 0) y1 = -y1;
+        goto setPair;
+
+    case SYM_ROUND: {
+        REBDEC d64;
+        REBFLGS flags = Get_Round_Flags(frame_);
+        if (D_REF(2))
+            d64 = Dec64(D_ARG(3));
+        else {
+            d64 = 1.0L;
+            flags |= 1;
         }
-        else fail (Error_Math_Args(REB_PAIR, action));
+        x1 = cast(REBD32, Round_Dec(x1, flags, d64));
+        y1 = cast(REBD32, Round_Dec(y1, flags, d64));
+        goto setPair; }
 
-        switch (action) {
+    case SYM_REVERSE:
+        x2 = x1;
+        x1 = y1;
+        y1 = x2;
+        goto setPair;
 
-        case A_ADD:
-            x1 += x2;
-            y1 += y2;
-            goto setPair;
+    case SYM_RANDOM:
+        if (D_REF(2)) fail (Error(RE_BAD_REFINES)); // seed
+        x1 = cast(REBD32, Random_Range(cast(REBINT, x1), D_REF(3)));
+        y1 = cast(REBD32, Random_Range(cast(REBINT, y1), D_REF(3)));
+        goto setPair;
 
-        case A_SUBTRACT:
-            x1 -= x2;
-            y1 -= y2;
-            goto setPair;
-
-        case A_MULTIPLY:
-            x1 *= x2;
-            y1 *= y2;
-            goto setPair;
-
-        case A_DIVIDE:
-        case A_REMAINDER:
-            if (x2 == 0 || y2 == 0) fail (Error(RE_ZERO_DIVIDE));
-            if (action == A_DIVIDE) {
-                x1 /= x2;
-                y1 /= y2;
-            }
-            else {
-                x1 = (REBD32)fmod(x1, x2);
-                y1 = (REBD32)fmod(y1, y2);
-            }
-            goto setPair;
+    case SYM_PICK: {
+        REBVAL *arg = D_ARG(2);
+        REBINT n;
+        if (IS_WORD(arg)) {
+            if (VAL_WORD_CANON(arg) == SYM_X)
+                n = 0;
+            else if (VAL_WORD_CANON(arg) == SYM_Y)
+                n = 1;
+            else
+                fail (Error_Invalid_Arg(arg));
         }
-
-        fail (Error_Math_Args(REB_PAIR, action));
-    }
-    // Unary actions:
-    else {
-        switch(action) {
-
-        case A_NEGATE:
-            x1 = -x1;
-            y1 = -y1;
-            goto setPair;
-
-        case A_ABSOLUTE:
-            if (x1 < 0) x1 = -x1;
-            if (y1 < 0) y1 = -y1;
-            goto setPair;
-
-        case A_ROUND:
-            {
-                REBDEC d64;
-                n = Get_Round_Flags(frame_);
-                if (D_REF(2))
-                    d64 = Dec64(D_ARG(3));
-                else {
-                    d64 = 1.0L;
-                    n |= 1;
-                }
-                x1 = (REBD32)Round_Dec(x1, n, d64);
-                y1 = (REBD32)Round_Dec(y1, n, d64);
-            }
-            goto setPair;
-
-        case A_REVERSE:
-            x2 = x1;
-            x1 = y1;
-            y1 = x2;
-            goto setPair;
-
-        case A_RANDOM:
-            if (D_REF(2)) fail (Error(RE_BAD_REFINES)); // seed
-            x1 = cast(REBD32, Random_Range(cast(REBINT, x1), D_REF(3)));
-            y1 = cast(REBD32, Random_Range(cast(REBINT, y1), D_REF(3)));
-            goto setPair;
-
-        case A_PICK:
-            assert(D_ARGC > 1);
-            if (IS_WORD(arg)) {
-                if (VAL_WORD_CANON(arg) == SYM_X)
-                    n = 0;
-                else if (VAL_WORD_CANON(arg) == SYM_Y)
-                    n = 1;
-                else
-                    fail (Error_Invalid_Arg(arg));
-            }
-            else {
-                n = Get_Num_From_Arg(arg);
-                if (n < 1 || n > 2) fail (Error_Out_Of_Range(arg));
-                n--;
-            }
-///     case A_POKE:
-///         if (action == A_POKE) {
+        else {
+            n = Get_Num_From_Arg(arg);
+            if (n < 1 || n > 2) fail (Error_Out_Of_Range(arg));
+            n--;
+        }
+///     case SYM_POKE:
+///         if (action == SYM_POKE) {
 ///             arg = D_ARG(3);
 ///             if (IS_INTEGER(arg)) {
 ///                 if (index == 0) x1 = VAL_INT32(arg);
@@ -358,9 +364,8 @@ REBTYPE(Pair)
 ///                 fail (Error_Invalid_Arg(arg));
 ///             goto setPair;
 ///         }
-            SET_DECIMAL(D_OUT, n == 0 ? x1 : y1);
-            return R_OUT;
-        }
+        SET_DECIMAL(D_OUT, n == 0 ? x1 : y1);
+        return R_OUT; }
     }
 
     fail (Error_Illegal_Action(REB_PAIR, action));

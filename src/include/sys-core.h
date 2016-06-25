@@ -169,10 +169,8 @@ typedef void (*TO_FUNC)(REBVAL*, enum Reb_Kind, const REBVAL*);
 
 //-- Port actions (for native port schemes):
 
-#define PORT_ACTIONS A_CREATE  // port actions begin here
-
 typedef struct rebol_port_action_map {
-    const REBCNT action;
+    const REBSYM action;
     const REBPAF func;
 } PORT_ACTION;
 

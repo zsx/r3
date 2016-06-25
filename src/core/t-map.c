@@ -620,19 +620,15 @@ REBTYPE(Map)
     REBMAP *map = VAL_MAP(val);
     REBCNT  args;
 
-    // Check must be in this order (to avoid checking a non-series value);
-    if (action >= A_TAKE && action <= A_SORT)
-        FAIL_IF_LOCKED_ARRAY(MAP_PAIRLIST(map));
-
     switch (action) {
 
-    case A_PICK:
+    case SYM_PICK:
         Pick_Block(D_OUT, val, arg);
         if (IS_VOID(D_OUT)) return R_BLANK;
         return R_OUT;
 
-    case A_FIND:
-    case A_SELECT:
+    case SYM_FIND:
+    case SYM_SELECT:
         args = Find_Refines(frame_, ALL_FIND_REFS);
         n = Find_Map_Entry(
             map,
@@ -645,11 +641,13 @@ REBTYPE(Map)
         if (!n) return R_BLANK;
         *D_OUT = *KNOWN(ARR_AT(MAP_PAIRLIST(map), ((n - 1) * 2) + 1));
         if (IS_VOID(D_OUT)) return R_BLANK;
-        if (action == A_FIND) *D_OUT = *val;
+        if (action == SYM_FIND) *D_OUT = *val;
         return R_OUT;
 
-    case A_INSERT:
-    case A_APPEND:
+    case SYM_INSERT:
+    case SYM_APPEND:
+        FAIL_IF_LOCKED_ARRAY(MAP_PAIRLIST(map));
+
         if (!IS_BLOCK(arg)) fail (Error_Invalid_Arg(val));
         *D_OUT = *val;
         if (D_REF(AN_DUP)) {
@@ -665,7 +663,9 @@ REBTYPE(Map)
         );
         return R_OUT;
 
-    case A_REMOVE:
+    case SYM_REMOVE:
+        FAIL_IF_LOCKED_ARRAY(MAP_PAIRLIST(map));
+
         if (!D_REF(4)) { // /MAP
             fail (Error_Illegal_Action(REB_MAP, action));
         }
@@ -675,18 +675,20 @@ REBTYPE(Map)
         );
         return R_OUT;
 
-    case A_POKE:  // CHECK all pokes!!! to be sure they check args now !!!
+    case SYM_POKE:  // CHECK all pokes!!! to be sure they check args now !!!
+        FAIL_IF_LOCKED_ARRAY(MAP_PAIRLIST(map));
+
         n = Find_Map_Entry(
             map, arg, SPECIFIED, D_ARG(3), SPECIFIED, TRUE
         );
         *D_OUT = *D_ARG(3);
         return R_OUT;
 
-    case A_LENGTH:
+    case SYM_LENGTH:
         SET_INTEGER(D_OUT, Length_Map(map));
         return R_OUT;
 
-    case A_COPY:
+    case SYM_COPY:
         //
         // !!! the copying map case should probably not be a MAKE case, but
         // implemented here as copy.
@@ -694,7 +696,9 @@ REBTYPE(Map)
         MAKE_Map(D_OUT, REB_MAP, val); // may fail()
         return R_OUT;
 
-    case A_CLEAR:
+    case SYM_CLEAR:
+        FAIL_IF_LOCKED_ARRAY(MAP_PAIRLIST(map));
+
         Reset_Array(MAP_PAIRLIST(map));
 
         // !!! Review: should the space for the hashlist be reclaimed?  This
@@ -709,7 +713,7 @@ REBTYPE(Map)
         Val_Init_Map(D_OUT, map);
         return R_OUT;
 
-    case A_REFLECT: {
+    case SYM_REFLECT: {
         REBCNT canon = VAL_WORD_CANON(arg);
 
         if (canon == SYM_VALUES)
@@ -726,7 +730,7 @@ REBTYPE(Map)
         return R_OUT;
     }
 
-    case A_TAIL_Q:
+    case SYM_TAIL_Q:
         return (Length_Map(map) == 0) ? R_TRUE : R_FALSE;
     }
 

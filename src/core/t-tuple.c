@@ -274,7 +274,20 @@ REBTYPE(Tuple)
     vp = VAL_TUPLE(value);
     len = VAL_TUPLE_LEN(value);
 
-    if (IS_BINARY_ACT(action)) {
+    // !!! This used to depend on "IS_BINARY_ACT", a concept that does not
+    // exist any longer with symbol-based action dispatch.  Patch with more
+    // elegant mechanism.
+    //
+    if (
+        action == SYM_ADD
+        || action == SYM_SUBTRACT
+        || action == SYM_MULTIPLY
+        || action == SYM_DIVIDE
+        || action == SYM_REMAINDER
+        || action == SYM_AND_T
+        || action == SYM_OR_T
+        || action == SYM_XOR_T
+    ){
         assert(vp);
 
         if (IS_INTEGER(arg)) {
@@ -299,18 +312,18 @@ REBTYPE(Tuple)
                 a = (REBINT) *ap++;
 
             switch (action) {
-            case A_ADD: v += a; break;
+            case SYM_ADD: v += a; break;
 
-            case A_SUBTRACT: v -= a; break;
+            case SYM_SUBTRACT: v -= a; break;
 
-            case A_MULTIPLY:
+            case SYM_MULTIPLY:
                 if (IS_DECIMAL(arg) || IS_PERCENT(arg))
                     v=(REBINT)(v*dec);
                 else
                     v *= a;
                 break;
 
-            case A_DIVIDE:
+            case SYM_DIVIDE:
                 if (IS_DECIMAL(arg) || IS_PERCENT(arg)) {
                     if (dec == 0.0) fail (Error(RE_ZERO_DIVIDE));
                     v=(REBINT)Round_Dec(v/dec, 0, 1.0);
@@ -320,20 +333,20 @@ REBTYPE(Tuple)
                 }
                 break;
 
-            case A_REMAINDER:
+            case SYM_REMAINDER:
                 if (a == 0) fail (Error(RE_ZERO_DIVIDE));
                 v %= a;
                 break;
 
-            case A_AND_T:
+            case SYM_AND_T:
                 v &= a;
                 break;
 
-            case A_OR_T:
+            case SYM_OR_T:
                 v |= a;
                 break;
 
-            case A_XOR_T:
+            case SYM_XOR_T:
                 v ^= a;
                 break;
 
@@ -349,12 +362,12 @@ REBTYPE(Tuple)
     }
 
     // !!!! merge with SWITCH below !!!
-    if (action == A_COMPLEMENT) {
+    if (action == SYM_COMPLEMENT) {
         for (;len > 0; len--, vp++)
             *vp = (REBYTE)~*vp;
         goto ret_value;
     }
-    if (action == A_RANDOM) {
+    if (action == SYM_RANDOM) {
         if (D_REF(2)) fail (Error(RE_BAD_REFINES)); // seed
         for (;len > 0; len--, vp++) {
             if (*vp)
@@ -373,21 +386,21 @@ REBTYPE(Tuple)
 */
     //a = 1; //???
     switch (action) {
-    case A_LENGTH:
+    case SYM_LENGTH:
         len = MAX(len, 3);
         SET_INTEGER(D_OUT, len);
         return R_OUT;
 
-    case A_PICK:
+    case SYM_PICK:
         Pick_Path(D_OUT, value, arg, 0);
         return R_OUT;
 
-/// case A_POKE:
+/// case SYM_POKE:
 ///     Pick_Path(D_OUT, value, arg, D_ARG(3));
 ///     *D_OUT = *D_ARG(3);
 ///     return R_OUT;
 
-    case A_REVERSE:
+    case SYM_REVERSE:
         if (D_REF(2)) {
             len = Get_Num_From_Arg(D_ARG(3));
             len = MIN(len, VAL_TUPLE_LEN(value));

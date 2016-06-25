@@ -94,7 +94,7 @@ REBTYPE(Library)
 
     // unary actions
     switch(action) {
-        case A_CLOSE:
+        case SYM_CLOSE:
             OS_CLOSE_LIBRARY(VAL_LIB_FD(val));
             SET_LIB_FLAG(VAL_LIB_HANDLE(val), LIB_FLAG_CLOSED);
             SET_VOID(D_OUT);

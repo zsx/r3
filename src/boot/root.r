@@ -41,6 +41,7 @@ durable-tag     ; !!! In progress - argument word lookup survives call ending
 ;; !!! See notes on FUNCTION-META in %sysobj.r
 
 function-meta
+specialized-meta
 
 boot            ; boot block defined in boot.r (GC'd after boot is done)
 
