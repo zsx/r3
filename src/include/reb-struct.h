@@ -192,7 +192,7 @@ inline static struct Struct_Field *STU_SCHEMA(REBSTU *stu) {
     // but a series of them... so this has to extract the fieldlist from
     // the new-format top-level node.
 
-    REBSER *schema = ARR_SERIES(stu)->misc.schema;
+    REBSER *schema = ARR_SERIES(stu)->link.schema;
 
 #if !defined(NDEBUG)
     if (SER_LEN(schema) != 1)

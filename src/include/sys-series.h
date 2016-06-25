@@ -724,7 +724,7 @@ inline static void RESET_SERIES(REBSER *s) {
 //
 
 struct Reb_Context {
-    struct Reb_Array varlist; // keylist is held in ->misc.keylist
+    struct Reb_Array varlist; // keylist is held in ->link.keylist
 };
 
 #ifdef NDEBUG
@@ -779,16 +779,16 @@ inline static REBOOL GET_CTX_FLAG(REBCTX *c, REBUPT f) {
 //
 
 #define CTX_KEYLIST(c) \
-    (ARR_SERIES(CTX_VARLIST(c))->misc.keylist)
+    (ARR_SERIES(CTX_VARLIST(c))->link.keylist)
 
 static inline void INIT_CTX_KEYLIST_SHARED(REBCTX *c, REBARR *keylist) {
     SET_ARR_FLAG(keylist, KEYLIST_FLAG_SHARED);
-    ARR_SERIES(CTX_VARLIST(c))->misc.keylist = keylist;
+    ARR_SERIES(CTX_VARLIST(c))->link.keylist = keylist;
 }
 
 static inline void INIT_CTX_KEYLIST_UNIQUE(REBCTX *c, REBARR *keylist) {
     assert(NOT(GET_ARR_FLAG(keylist, KEYLIST_FLAG_SHARED)));
-    ARR_SERIES(CTX_VARLIST(c))->misc.keylist = keylist;
+    ARR_SERIES(CTX_VARLIST(c))->link.keylist = keylist;
 }
 
 // Navigate from context to context components.  Note that the context's
@@ -994,14 +994,14 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
 //
 
 struct Reb_Map {
-    struct Reb_Array pairlist; // hashlist is held in ->misc.hashlist
+    struct Reb_Array pairlist; // hashlist is held in ->link.hashlist
 };
 
 #define MAP_PAIRLIST(m) \
     (&(m)->pairlist)
 
 #define MAP_HASHLIST(m) \
-    (ARR_SERIES(&(m)->pairlist)->misc.hashlist)
+    (ARR_SERIES(&(m)->pairlist)->link.hashlist)
 
 #define MAP_HASHES(m) \
     SER_HEAD(MAP_HASHLIST(m))

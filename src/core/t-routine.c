@@ -228,7 +228,7 @@ static void Schema_From_Block_May_Fail(
         //
         SET_HANDLE_DATA(
             schema_out,
-            ARR_SERIES(VAL_STRUCT(&temp))->misc.schema
+            ARR_SERIES(VAL_STRUCT(&temp))->link.schema
         );
 
         // Saying "struct!" is legal would suggest any structure is legal.
@@ -642,7 +642,7 @@ static void ffi_to_rebol(
         assert(top->type == FFI_TYPE_STRUCT);
 
         REBSTU *stu = Make_Singular_Array(VOID_CELL);
-        ARR_SERIES(stu)->misc.schema = cast(REBSER*, VAL_HANDLE_DATA(schema));
+        ARR_SERIES(stu)->link.schema = cast(REBSER*, VAL_HANDLE_DATA(schema));
         MANAGE_ARRAY(stu);
 
         REBSER *data = Make_Series(top->size, sizeof(REBYTE), MKS_NONE);
@@ -1289,7 +1289,11 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec) {
     // gets called.
     //
     MANAGE_ARRAY(paramlist);
-    REBFUN *fun = Make_Function(paramlist, &Routine_Dispatcher);
+    REBFUN *fun = Make_Function(
+        paramlist,
+        &Routine_Dispatcher,
+        NULL // no underlying function, this is fundamental
+    );
     SET_HANDLE_DATA(FUNC_BODY(fun), cast(REBRIN*, r));
 
     FUNC_META(fun) = NULL; // lives on paramlist

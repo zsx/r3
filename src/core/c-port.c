@@ -697,7 +697,8 @@ REBNATIVE(set_scheme)
 
         REBFUN *fun = Make_Function(
             Make_Paramlist_Managed_May_Fail(port_actor_spec, MKF_KEYWORDS),
-            cast(REBNAT, Scheme_Actions[n].fun) // !!! actually a REBPAF (!!!)
+            cast(REBNAT, Scheme_Actions[n].fun), // !!! actually a REBPAF (!!!)
+            NULL // no underlying function, fundamental
         );
 
         *actor = *FUNC_VALUE(fun);
@@ -724,7 +725,8 @@ REBNATIVE(set_scheme)
 
             REBFUN *fun = Make_Function(
                 Make_Paramlist_Managed_May_Fail(&spec, MKF_KEYWORDS),
-                cast(REBNAT, map->func) // !!! actually a REBPAF (!!!)
+                cast(REBNAT, map->func), // !!! actually a REBPAF (!!!)
+                NULL // no underlying function, fundamental
             );
 
             *Obj_Value(actor, n) = *FUNC_VALUE(fun);

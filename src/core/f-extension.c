@@ -484,7 +484,8 @@ void Make_Command(
     REBFUN *fun; // goto would cross initialization
     fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(spec, MKF_KEYWORDS),
-        &Command_Dispatcher
+        &Command_Dispatcher,
+        NULL // no underlying function, fundamental
     );
 
     // There is no "code" for a body, but there is information that tells the

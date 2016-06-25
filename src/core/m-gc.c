@@ -1005,7 +1005,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             // single element series--the "schema"--which is held in the
             // miscellaneous slot of the main array.
             //
-            MARK_SERIES_ONLY(ARR_SERIES(VAL_STRUCT(val))->misc.schema);
+            MARK_SERIES_ONLY(ARR_SERIES(VAL_STRUCT(val))->link.schema);
 
             // The data series needs to be marked.  It needs to be marked
             // even for structs that aren't at the 0 offset--because their

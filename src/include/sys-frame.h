@@ -280,7 +280,7 @@ struct Reb_Frame {
     //
     union {
         RELVAL eval;
-        REBARR *subfeed; // (see also REBSER.misc.subfeed)
+        REBARR *subfeed; // (see also REBSER.link.subfeed)
     } cell;
 
     // `prior`

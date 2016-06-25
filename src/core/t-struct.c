@@ -221,7 +221,7 @@ static void get_scalar(
         MANAGE_SERIES(field_1);
 
         REBSTU *sub_stu = Make_Singular_Array(VOID_CELL);
-        ARR_SERIES(sub_stu)->misc.schema = field_1;
+        ARR_SERIES(sub_stu)->link.schema = field_1;
 
         // In this case the structure lives at an offset inside another.
         //
@@ -1364,7 +1364,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
 
     REBSTU *stu = Make_Singular_Array(BLANK_VALUE);
     MANAGE_SERIES(field_1);
-    ARR_SERIES(stu)->misc.schema = field_1;
+    ARR_SERIES(stu)->link.schema = field_1;
 
     VAL_RESET_HEADER(out, REB_STRUCT);
     out->payload.structure.stu = stu;
@@ -1539,7 +1539,7 @@ REBSTU *Copy_Struct_Managed(REBSTU *src)
     // linked manually.
     //
     REBSTU *copy = Copy_Array_Shallow(src, SPECIFIED);
-    ARR_SERIES(copy)->misc.schema = ARR_SERIES(src)->misc.schema;
+    ARR_SERIES(copy)->link.schema = ARR_SERIES(src)->link.schema;
 
     // Update the binary data with a copy of its sequence.
     //

@@ -162,8 +162,13 @@ static void Assert_Basics(void)
     // so they can do double-duty as also a terminator for that REBVAL when
     // enumerated as an ARRAY.
     //
-    if (offsetof(struct Reb_Series, info) != sizeof(REBVAL))
+    if (
+        offsetof(struct Reb_Series, info)
+            - offsetof(struct Reb_Series, content)
+        != sizeof(REBVAL)
+    ){
         panic (Error(RE_MISC));
+    }
 
     // Check special return values used "in-band" in an unsigned integer that
     // is otherwise used for indices.  Make sure they don't overlap.
@@ -486,7 +491,8 @@ REBNATIVE(action)
 
     REBFUN *fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(spec, MKF_KEYWORDS),
-        &Action_Dispatcher
+        &Action_Dispatcher,
+        NULL // no underlying function--this is fundamental
     );
 
     *FUNC_BODY(fun) = *ARG(verb);
@@ -651,7 +657,8 @@ static void Init_Natives(void)
 
         REBFUN *fun = Make_Function(
             Make_Paramlist_Managed_May_Fail(KNOWN(spec), MKF_KEYWORDS),
-            Native_C_Funcs[n] // "dispatcher" is unique to this "native"
+            Native_C_Funcs[n], // "dispatcher" is unique to this "native"
+            NULL // no underlying function, this is fundamental
         );
 
         // If a user-equivalent body was provided, we save it in the native's
@@ -754,7 +761,7 @@ static void Init_Root_Context(void)
     //
     /*Free_Array(CTX_KEYLIST(root));*/
     /*INIT_CTX_KEYLIST_UNIQUE(root, NULL);*/ // can't use with NULL
-    ARR_SERIES(CTX_VARLIST(root))->misc.keylist = NULL;
+    ARR_SERIES(CTX_VARLIST(root))->link.keylist = NULL;
     MANAGE_ARRAY(CTX_VARLIST(root));
 
     // !!! Also no `stackvars` (or `spec`, not yet implemented); revisit
@@ -873,7 +880,7 @@ static void Init_Task_Context(void)
     //
     /*Free_Array(CTX_KEYLIST(task));*/
     /*INIT_CTX_KEYLIST_UNIQUE(task, NULL);*/ // can't use with NULL
-    ARR_SERIES(CTX_VARLIST(task))->misc.keylist = NULL;
+    ARR_SERIES(CTX_VARLIST(task))->link.keylist = NULL;
 
     MANAGE_ARRAY(CTX_VARLIST(task));
 

@@ -322,6 +322,21 @@ struct Reb_Series_Dynamic {
 
 struct Reb_Series {
 
+    // The low 2 bits in the header must be 00 if this is an "ordinary" REBSER
+    // node.  This allows such nodes to implicitly terminate a "doubular"
+    // REBSER node, that is being used as storage for exactly 2 REBVALs.
+    // As long as there aren't two of those REBSERs sequentially in the pool,
+    // an unused node or a used ordinary one can terminate it.
+    //
+    // The other bit that is checked in the header is the USED bit, which is
+    // bit #9.  This is set on all REBVALs and also in END marking headers,
+    // and should be set in used series nodes.
+    //
+    // The remaining bits are free, and used to hold SYM values for those
+    // words that have them.
+    //
+    struct Reb_Value_Header header;
+
     union {
         //
         // If the series does not fit into the REBSER node, then it must be
@@ -361,6 +376,18 @@ struct Reb_Series {
     //
     struct Reb_Value_Header info;
 
+    // The `link` field is generally used for pointers to something that
+    // when updated, all references to this series would want to be able
+    // to see.
+    //
+    union {
+        REBSER *hashlist; // MAP datatype uses this
+        REBARR *keylist; // used by CONTEXT
+        REBARR *subfeed; // for *non-frame* VARARGS! ("array1") shared feed
+        REBSER *schema; // STRUCT uses this (parallels object's keylist)
+        REBFUN *underlying; // specialization -or- final underlying function
+    } link;
+
     // The `misc` field is an extra pointer-sized piece of data which is
     // resident in the series node, and hence visible to all REBVALs that
     // might be referring to the series.
@@ -369,16 +396,12 @@ struct Reb_Series {
         REBNAT dispatcher; // native dispatcher code, see Reb_Function's body
         REBCNT len; // length of non-arrays when !SERIES_FLAG_HAS_DYNAMIC
         REBCNT size;    // used for vectors and bitsets
-        REBSER *hashlist; // MAP datatype uses this
-        REBARR *keylist; // used by CONTEXT
         struct {
             REBCNT wide:16;
             REBCNT high:16;
         } area;
         REBOOL negated; // for bitsets (must be shared, can't be in REBVAL)
-        REBARR *subfeed; // for *non-frame* VARARGS! ("array1") shared feed
         REBCTX *meta; // paramlists and keylists can store a "meta" object
-        REBSER *schema; // STRUCT uses this (parallels object's keylist)
     } misc;
 
 #if !defined(NDEBUG)

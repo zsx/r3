@@ -762,7 +762,8 @@ REBCNT Find_Param_Index(REBARR *paramlist, REBSYM sym)
 //
 REBFUN *Make_Function(
     REBARR *paramlist,
-    REBNAT dispatcher // native C function called by Do_Core
+    REBNAT dispatcher, // native C function called by Do_Core
+    REBFUN *opt_underlying // function which has size of actual frame to push
 ) {
     ASSERT_ARRAY_MANAGED(paramlist);
 
@@ -786,6 +787,12 @@ REBFUN *Make_Function(
     // facilitates the "Hijacker" to change multiple REBVALs behavior.
 
     ARR_SERIES(body_holder)->misc.dispatcher = dispatcher;
+
+    // To avoid NULL checking when a function is called and looking for the
+    // underlying function, put the functions own pointer in if needed
+    //
+    ARR_SERIES(paramlist)->link.underlying
+        = opt_underlying != NULL ? opt_underlying : AS_FUNC(paramlist);
 
     // Note: used to set the keys of natives as read-only so that the debugger
     // couldn't manipulate the values in a native frame out from under it,
@@ -973,7 +980,8 @@ REBFUN *Make_Plain_Function_May_Fail(
 
     REBFUN *fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(spec, flags),
-        &Plain_Dispatcher
+        &Plain_Dispatcher,
+        NULL // no underlying function, this is fundamental
     );
 
     // We need to copy the body in order to relativize its references to
@@ -1128,10 +1136,12 @@ REBOOL Specialize_Function_Throws(
 ) {
     assert(out != specializee);
 
-    REBCTX *exemplar;
-    REBFUN *under = Find_Underlying_Func(&exemplar, specializee);
+    REBFUN *previous; // a previous specialization (if any)
+    REBFUN *underlying = Underlying_Function(&previous, specializee);
 
-    if (exemplar) {
+    REBCTX *exemplar;
+
+    if (previous) {
         //
         // Specializing a specialization is ultimately just a specialization
         // of the innermost function being specialized.  (Imagine specializing
@@ -1141,6 +1151,7 @@ REBOOL Specialize_Function_Throws(
         // be built for the code ultimately being called--and specializations
         // have no code of their own.)
 
+        exemplar = VAL_CONTEXT(FUNC_BODY(previous));
         REBARR *varlist = Copy_Array_Deep_Managed(
             CTX_VARLIST(exemplar), SPECIFIED
         );
@@ -1154,7 +1165,7 @@ REBOOL Specialize_Function_Throws(
         // An initial specialization is responsible for making a frame out
         // of the function's paramlist.  Frame vars default void.
         //
-        exemplar = Make_Frame_For_Function(FUNC_VALUE(under));
+        exemplar = Make_Frame_For_Function(FUNC_VALUE(underlying));
         MANAGE_ARRAY(CTX_VARLIST(exemplar));
     }
 
@@ -1213,7 +1224,11 @@ REBOOL Specialize_Function_Throws(
     RELVAL *rootparam = ARR_HEAD(paramlist);
     rootparam->payload.function.paramlist = paramlist;
 
-    REBFUN *fun = Make_Function(paramlist, &Specializer_Dispatcher);
+    REBFUN *fun = Make_Function(
+        paramlist,
+        &Specializer_Dispatcher,
+        underlying // cache the underlying function pointer in the paramlist
+    );
 
     // The "body" is the FRAME! value of the specialization.  Though we may
     // not be able to touch the keylist of that frame to update the "archetype"
@@ -1297,7 +1312,11 @@ void Clonify_Function(REBVAL *value)
     MANAGE_ARRAY(paramlist);
     ARR_HEAD(paramlist)->payload.function.paramlist = paramlist;
 
-    REBFUN *new_fun = Make_Function(paramlist, &Plain_Dispatcher);
+    REBFUN *new_fun = Make_Function(
+        paramlist,
+        &Plain_Dispatcher,
+        NULL // no underlying function, this is fundamental
+    );
 
     // !!! Meta: copy, inherit?
     //
@@ -1449,8 +1468,8 @@ REB_R Adapter_Dispatcher(struct Reb_Frame *f)
     // f->func has to match what it's looking for that it bound to--which is
     // the underlying function.
 
-    REBCTX *exemplar;
-    REBFUN *under = Find_Underlying_Func(&exemplar, adaptee);
+    REBFUN *specializer;
+    REBFUN *underlying = Underlying_Function(&specializer, adaptee);
 
     // The first thing to do is run the prelude code, which may throw.  If it
     // does throw--including a RETURN--that means the adapted function will
@@ -1469,7 +1488,7 @@ REB_R Adapter_Dispatcher(struct Reb_Frame *f)
     // order and symbols, may skip some due to specialization.
     //
     REBVAL *arg_save = f->arg;
-    f->param = FUNC_PARAMS_HEAD(under);
+    f->param = FUNC_PARAMS_HEAD(underlying);
 
     // We have to enumerate a frame as big as the underlying function, but
     // the adaptee may have fewer parameters due to specialization.  (In the
@@ -1758,11 +1777,13 @@ REBNATIVE(chain)
         ASSERT_ARRAY_MANAGED(chainees);
     }
 
+    REBVAL *first = KNOWN(ARR_HEAD(chainees));
+
     // !!! Current validation is that all are functions.  Should there be other
     // checks?  (That inputs match outputs in the chain?)  Should it be
     // a dialect and allow things other than functions?
     //
-    REBVAL *check = KNOWN(ARR_HEAD(chainees));
+    REBVAL *check = first;
     while (NOT_END(check)) {
         if (!IS_FUNCTION(check))
             fail (Error_Invalid_Arg(check));
@@ -1780,7 +1801,14 @@ REBNATIVE(chain)
     ARR_HEAD(paramlist)->payload.function.paramlist = paramlist;
     MANAGE_ARRAY(paramlist);
 
-    REBFUN *fun = Make_Function(paramlist, &Chainer_Dispatcher);
+    REBFUN *specializer;
+    REBFUN *underlying = Underlying_Function(&specializer, first);
+
+    REBFUN *fun = Make_Function(
+        paramlist,
+        &Chainer_Dispatcher,
+        underlying // cache the underlying function in the paramlist
+    );
 
     // "body" is the chainees array, available to the dispatcher when called
     //
@@ -1845,8 +1873,8 @@ REBNATIVE(adapt)
     // Hence you must bind relative to that deeper function...e.g. the function
     // behind the frame of the specialization which gets pushed.
     //
-    REBCTX *exemplar;
-    REBFUN *under = Find_Underlying_Func(&exemplar, adaptee);
+    REBFUN *specializer;
+    REBFUN *underlying = Underlying_Function(&specializer, adaptee);
 
     // !!! In a future branch it may be possible that specific binding allows
     // a read-only input to be "viewed" with a relative binding, and no copy
@@ -1854,7 +1882,7 @@ REBNATIVE(adapt)
     //
     REBARR *prelude = Copy_And_Bind_Relative_Deep_Managed(
         ARG(prelude),
-        FUNC_PARAMLIST(under),
+        FUNC_PARAMLIST(underlying),
         TS_ANY_WORD
     );
 
@@ -1868,7 +1896,11 @@ REBNATIVE(adapt)
     ARR_HEAD(paramlist)->payload.function.paramlist = paramlist;
     MANAGE_ARRAY(paramlist);
 
-    REBFUN *fun = Make_Function(paramlist, &Adapter_Dispatcher);
+    REBFUN *fun = Make_Function(
+        paramlist,
+        &Adapter_Dispatcher,
+        underlying // cache the underlying function in the paramlist
+    );
 
     // We need to store the 2 values describing the adaptation so that the
     // dispatcher knows what to do when it gets called and inspects FUNC_BODY.
@@ -1882,7 +1914,7 @@ REBNATIVE(adapt)
     INIT_VAL_ARRAY(block, prelude);
     VAL_INDEX(block) = 0;
     SET_VAL_FLAG(block, VALUE_FLAG_RELATIVE);
-    INIT_ARRAY_RELATIVE(block, under);
+    INIT_ARRAY_RELATIVE(block, underlying);
 
     Append_Value(adaptation, adaptee);
 
@@ -1891,7 +1923,7 @@ REBNATIVE(adapt)
     INIT_VAL_ARRAY(body, adaptation);
     VAL_INDEX(body) = 0;
     SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
-    INIT_ARRAY_RELATIVE(body, under);
+    INIT_ARRAY_RELATIVE(body, underlying);
     MANAGE_ARRAY(adaptation);
 
     // See %sysobj.r for `specialized-meta:` object template
@@ -1979,15 +2011,13 @@ REBNATIVE(hijack)
         SET_BLANK(D_OUT);
     }
     else {
-        *D_OUT = *victim;
-
-        D_OUT->payload.function.paramlist
-            = Copy_Array_Deep_Managed(
-                D_OUT->payload.function.paramlist,
-                SPECIFIED // !!! Note: not actually "deep", just typesets
-            );
-        ARR_SERIES(D_OUT->payload.function.paramlist)->misc.meta
-            = VAL_FUNC_META(victim);
+        REBARR *proxy = Copy_Array_Deep_Managed(
+            victim->payload.function.paramlist,
+            SPECIFIED // !!! Note: not actually "deep", just typesets
+        );
+        ARR_SERIES(proxy)->misc.meta = VAL_FUNC_META(victim);
+        ARR_SERIES(proxy)->link.underlying
+            = ARR_SERIES(victim->payload.function.paramlist)->link.underlying;
 
         // We make a "singular" REBSER node to represent the hijacker's body.
         // Then we "swap" it with the existing REBSER node.  That way the old
@@ -2001,23 +2031,9 @@ REBNATIVE(hijack)
             ARR_SERIES(victim->payload.function.body_holder)
         );
 
+        *D_OUT = *victim;
+        D_OUT->payload.function.paramlist = proxy;
         D_OUT->payload.function.body_holder = swapbody;
-        ARR_SERIES(D_OUT->payload.function.paramlist)->misc.meta
-            = VAL_FUNC_META(victim);
-
-        // In the special case of a plain dispatcher, the body needs to
-        // preserve the original paramlist--because that is what it was
-        // relativized against (not the new paramlist just made).  The
-        // Plain_Dispatcher will need to take this into account.
-        //
-    #if !defined(NDEBUG)
-        if (IS_FUNCTION_PLAIN(victim)) {
-            RELVAL *block = ARR_HEAD(victim->payload.function.body_holder);
-            assert(IS_BLOCK(block));
-            assert(VAL_INDEX(block) == 0);
-            assert(VAL_RELATIVE(block) == VAL_FUNC(victim));
-        }
-    #endif
 
         *ARR_HEAD(D_OUT->payload.function.paramlist) = *D_OUT;
     }
@@ -2025,11 +2041,20 @@ REBNATIVE(hijack)
     // Give the victim a new body, that's just a single-valued array with
     // the new function in it.  Also, update its meta information to indicate
     // that it has been hijacked.
+    //
+    // Note that this is special, and can't use Make_Function (because
+    // Make_Function always creates a new body series, and this has to hack
+    // up the body series that has extant pointers in REBVALs already so
+    // that those REBVALs will dispatch to the hijacker).
 
     assert(ARR_LEN(victim->payload.function.body_holder) == 1);
     *ARR_HEAD(victim->payload.function.body_holder) = *hijacker;
     ARR_SERIES(victim->payload.function.body_holder)->misc.dispatcher
         = &Hijacker_Dispatcher;
+    ARR_SERIES(victim->payload.function.body_holder)->link.underlying
+        = IS_BLANK(hijacker)
+            ? VAL_FUNC(victim) // point hijacker to itself (it just errors)
+            : ARR_SERIES(VAL_FUNC_PARAMLIST(hijacker))->link.underlying;
     victim->payload.function.exit_from = NULL;
 
     // See %sysobj.r for `hijacked-meta:` object template

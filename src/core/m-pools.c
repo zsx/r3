@@ -935,7 +935,7 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
     s->guard = cast(int*, malloc(sizeof(*s->guard)));
     free(s->guard);
 
-    s->misc.keylist = cast(REBARR*, 0xBAD3BAD3);
+    s->link.keylist = cast(REBARR*, 0xBAD3BAD3);
 
     // It's necessary to have another value in order to round out the size of
     // the pool node so pointer-aligned entries are given out, so might as well
@@ -1029,10 +1029,7 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
     CHECK_MEMORY(2);
 
     assert(NOT(s->info.bits & NOT_END_MASK));
-
-#ifdef __cplusplus
-    assert(NOT(s->info.bits & WRITABLE_MASK_DEBUG));
-#endif
+    assert(NOT(s->info.bits & CELL_MASK));
 
     return s;
 }
@@ -1479,7 +1476,7 @@ void GC_Kill_Series(REBSER *series)
     series->info.bits = 0; // includes width
 
 #if !defined(NDEBUG)
-    series->misc.keylist = cast(REBARR*, 0xBAD3BAD3);
+    series->link.keylist = cast(REBARR*, 0xBAD3BAD3);
 #endif
 
     Free_Node(SER_POOL, cast(REBNOD*, series));

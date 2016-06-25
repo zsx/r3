@@ -151,7 +151,7 @@ struct Reb_Value_Header {
 #define GENERAL_VALUE_BIT 8
 #define TYPE_SPECIFIC_BIT 16
 
-// `WRITABLE_MASK_DEBUG`
+// `CELL_MASK`
 //
 // This is for the debug build, to make it safer to use the implementation
 // trick of NOT_END_MASK.  It indicates the slot is "REBVAL sized", and can
@@ -162,29 +162,29 @@ struct Reb_Value_Header {
 // double-duty as an implicit terminator for the contained values can
 // trigger an alert if the values try to overwrite it.
 //
-#ifdef NDEBUG
-    //
-    // Though in the abstract it is desirable to have a way to protect an
-    // individual value from writing even in the release build, this is
-    // a debug-only check...it makes every value header initialization have
-    // to do two writes instead of one (one to format, then later to write
-    // and check that it is properly formatted space)
-    //
-#else
-    // We want to be assured that we are not trying to take the type of a
-    // value that is actually an END marker, because end markers chew out only
-    // one bit--the rest of the REBUPT bits besides the bottom two may be
-    // anything necessary for the purpose.
-    //
-    #define WRITABLE_MASK_DEBUG \
-        cast(REBUPT, 0x02)
-#endif
+// Because this is set on *all* writable value cells, it means that it can
+// also be used to distinguish "doubular" REBSER nodes (holders for two
+// REBVALs in the same pool as ordinary REBSERs) from an ordinary REBSER
+// node, as they will have the cell mask clear.
+//
+#define CELL_MASK \
+    cast(REBUPT, 0x02)
 
 // The type mask comes up a bit and it's a fairly obvious constant, so this
-// hardcodes it for obviousness.  High 6 bits of the lowest byte.
+// hardcodes it for obviousness.  High 6 bits of the lowest header byte.
 //
 #define HEADER_TYPE_MASK \
     cast(REBUPT, 0xFC)
+
+// In debug builds, there's an additional property checked on cell writes
+// where values can be marked as unwritable.  There would be cost to checking
+// this in the release build, so it is not intended as a "feature"--just to
+// help avoid damaging things like the global BLANK_VALUE.
+//
+#if !defined(NDEBUG)
+    #define VALUE_FLAG_WRITABLE_DEBUG \
+        cast(REBUPT, 0x80000000)
+#endif
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -274,7 +274,7 @@ enum {
     // to be meaningful on arguments in function frames...though it is
     // valid on any result at the moment of taking it from Do_Core().
     //
-    VALUE_FLAG_EVALUATED = 1 << (GENERAL_VALUE_BIT + 6)
+    VALUE_FLAG_EVALUATED = 1 << (GENERAL_VALUE_BIT + 6),
 };
 
 
@@ -966,7 +966,7 @@ struct Reb_Value
         // stack variable.
         //
         Reb_Specific_Value () {
-            header.bits = WRITABLE_MASK_DEBUG;
+            header.bits = CELL_MASK | VALUE_FLAG_WRITABLE_DEBUG;
         }
     #endif
     };

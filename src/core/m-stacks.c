@@ -426,20 +426,14 @@ void Drop_Chunk(REBVAL *opt_head)
 }
 
 
+#if !defined(NDEBUG)
 //
-//  Find_Underlying_Func: C
+// Slow version, keep temporarily for the double-checking
 //
-// The concept of the "underlying" function is that which has the right
-// number of arguments for the frame to be built.  So if you specialize a
-// plain function with 2 arguments so it has just 1, and then specialize
-// the specialization so that it has 0, your call still needs to be building
-// a frame with 2 arguments.  Because that's what the code that ultimately
-// executes--after the specializations are peeled away--will expect.
-//
-REBFUN *Find_Underlying_Func(
-    REBCTX **exemplar_out, // frame context containing specialized arguments
+REBFUN *Underlying_Function_Debug(
+    REBFUN **specializer_out,
     const REBVAL *value
-) {
+){
     REBOOL loop;
     do {
         loop = FALSE;
@@ -452,8 +446,10 @@ REBFUN *Find_Underlying_Func(
         // time of creation, to cache the summation of the specilized args.
         //
         if (IS_FUNCTION_SPECIALIZER(value)) {
-            *exemplar_out = VAL_CONTEXT(VAL_FUNC_BODY(value));
-            return VAL_FUNC(CTX_FRAME_FUNC_VALUE(*exemplar_out));
+            *specializer_out = VAL_FUNC(value);
+
+            REBCTX *exemplar = VAL_CONTEXT(VAL_FUNC_BODY(value));
+            return VAL_FUNC(CTX_FRAME_FUNC_VALUE(exemplar));
         }
 
         // !!! Other function types could cache their underlying function,
@@ -471,7 +467,7 @@ REBFUN *Find_Underlying_Func(
         }
     } while (loop);
 
-    *exemplar_out = NULL; // underlying function is not specializing.
+    *specializer_out = NULL; // underlying function is not specializing.
 
     // A plain function may be a re-relativization (due to hijacking) with
     // what was originally a body made for another function.  In that case,
@@ -484,6 +480,89 @@ REBFUN *Find_Underlying_Func(
     }
 
     return VAL_FUNC(value);
+}
+#endif
+
+
+//
+//  Underlying_Function: C
+//
+// The concept of the "underlying" function is that which has the right
+// number of arguments for the frame to be built--and which has the actual
+// correct paramlist identity to use for binding in adaptations.
+//
+// So if you specialize a plain function with 2 arguments so it has just 1,
+// and then specialize the specialization so that it has 0, your call still
+// needs to be building a frame with 2 arguments.  Because that's what the
+// code that ultimately executes--after the specializations are peeled away--
+// will expect.
+//
+// And if you adapt an adaptation of a function, the keylist referred to in
+// the frame has to be the one for the inner function.  Using the adaptation's
+// parameter list would write variables the adapted code wouldn't read.
+//
+// For efficiency, the underlying pointer is cached in the function paramlist.
+// However, it may take two steps, if there is a specialization to take into
+// account...because the specialization is needed to get the exemplar frame.
+//
+REBFUN *Underlying_Function(
+    REBFUN **specializer_out,
+    const REBVAL *value
+) {
+    REBFUN *underlying;
+
+    // If the function is itself a specialization, then capture it and then
+    // return its underlying function.
+    //
+    if (IS_FUNCTION_SPECIALIZER(value)) {
+        *specializer_out = VAL_FUNC(value);
+        underlying = ARR_SERIES(VAL_FUNC_PARAMLIST(value))->link.underlying;
+        goto return_and_check;
+    }
+
+    underlying = ARR_SERIES(VAL_FUNC_PARAMLIST(value))->link.underlying;
+
+    if (!IS_FUNCTION_SPECIALIZER(FUNC_VALUE(underlying))) {
+        //
+        // If the function isn't a specialization and its underlying function
+        // isn't either, that means there are no specializations in this
+        // composition.  Note the underlying function pointer may be itself!
+        //
+        *specializer_out = NULL;
+        goto return_and_check;
+    }
+
+    // If the underlying function is a specialization, that means this is
+    // an adaptation or chaining of specializations.  The next underlying
+    // link should be to the real underlying function, digging under all
+    // specializations.
+
+    *specializer_out = underlying;
+    underlying = ARR_SERIES(FUNC_PARAMLIST(underlying))->link.underlying;
+
+return_and_check:
+
+    // This should be the terminal point in the chain of underlyingness, and
+    // it cannot itself be a specialization/adaptation/etc.
+    //
+    assert(
+        underlying
+        == ARR_SERIES(FUNC_PARAMLIST(underlying))->link.underlying
+    );
+    assert(!IS_FUNCTION_SPECIALIZER(FUNC_VALUE(underlying)));
+    assert(!IS_FUNCTION_CHAINER(FUNC_VALUE(underlying)));
+    assert(!IS_FUNCTION_ADAPTER(FUNC_VALUE(underlying)));
+
+#if !defined(NDEBUG)
+    REBFUN* specializer_check;
+    REBFUN* underlying_check = Underlying_Function_Debug(
+        &specializer_check, value
+    );
+    assert(underlying == underlying_check);
+    assert(*specializer_out == specializer_check);
+#endif
+
+    return underlying;
 }
 
 
@@ -519,13 +598,13 @@ REBFUN *Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
     // than in that interface won't be gathered at the callsite because they
     // will not contain END markers.
     //
-    REBCTX *exemplar;
-    REBFUN *under = Find_Underlying_Func(&exemplar, f->gotten);
-    REBCNT num_args = FUNC_NUM_PARAMS(under);
-    f->param = FUNC_PARAMS_HEAD(under);
+    REBFUN *specializer;
+    REBFUN *underlying = Underlying_Function(&specializer, f->gotten);
+    REBCNT num_args = FUNC_NUM_PARAMS(underlying);
+    f->param = FUNC_PARAMS_HEAD(underlying);
 
     REBVAL *slot;
-    if (IS_FUNC_DURABLE(under)) {
+    if (IS_FUNC_DURABLE(underlying)) {
         //
         // !!! In the near term, it's hoped that CLOSURE! will go away and
         // that stack frames can be "hybrids" with some pooled allocated
@@ -571,7 +650,8 @@ REBFUN *Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
     // not yet shown to GC--and can be distinguished from "void" which might
     // be a meaningful value for some specialization forms.
 
-    if (exemplar) {
+    if (specializer) {
+        REBCTX *exemplar = VAL_CONTEXT(FUNC_BODY(specializer));
         REBVAL *special_arg = CTX_VARS_HEAD(exemplar);
 
         while (num_args) {
@@ -615,7 +695,7 @@ REBFUN *Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
     f->func = VAL_FUNC(f->gotten);
     f->exit_from = VAL_FUNC_EXIT_FROM(f->gotten);
 
-    return under;
+    return underlying;
 }
 
 
@@ -677,9 +757,9 @@ REBCTX *Context_For_Frame_May_Reify_Core(struct Reb_Frame *f) {
     // that has already been managed.  The arglist array was managed when
     // created and kept alive by Mark_Call_Frames
     //
-    REBCTX *exemplar;
-    REBFUN *under = Find_Underlying_Func(&exemplar, FUNC_VALUE(f->func));
-    INIT_CTX_KEYLIST_SHARED(context, FUNC_PARAMLIST(under));
+    REBFUN *specializer;
+    REBFUN *underlying = Underlying_Function(&specializer, FUNC_VALUE(f->func));
+    INIT_CTX_KEYLIST_SHARED(context, FUNC_PARAMLIST(underlying));
     ASSERT_ARRAY_MANAGED(CTX_KEYLIST(context));
 
     // We do not manage the varlist, because we'd like to be able to free

@@ -153,6 +153,7 @@ inline static enum Reb_Kind VAL_TYPE_CORE(const RELVAL *v) {
             fflush(stdout);
             Panic_Value_Debug(v, file, line);
         }
+        assert(v->header.bits & CELL_MASK);
         return VAL_TYPE_CORE(v);
     }
 
@@ -301,8 +302,8 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 // variable then it will have to be done before any write can happen.
 //
 
-inline static void VAL_RESET_HEADER_CORE(RELVAL *v, enum Reb_Kind kind) {
-    (v)->header.bits = NOT_END_MASK | cast(REBUPT, kind);
+inline static void VAL_RESET_HEADER_COMMON(RELVAL *v, enum Reb_Kind kind) {
+    (v)->header.bits = NOT_END_MASK | CELL_MASK | cast(REBUPT, kind);
 }
 
 #ifdef NDEBUG
@@ -319,20 +320,22 @@ inline static void VAL_RESET_HEADER_CORE(RELVAL *v, enum Reb_Kind kind) {
         NOOP
 
     #define VAL_RESET_HEADER(v,t) \
-        VAL_RESET_HEADER_CORE((v), (t))
+        VAL_RESET_HEADER_COMMON((v), (t))
 #else
     #ifdef __cplusplus
         #define ASSERT_CELL_WRITABLE_IF_DEBUG(v,file,line) \
             Assert_Cell_Writable((v), (file), (line))
 
+        // trashes completely
         #define INIT_CELL_WRITABLE_IF_DEBUG(v) \
-            ((v)->header.bits = WRITABLE_MASK_DEBUG) // trashes completely
+            ((v)->header.bits = CELL_MASK | VALUE_FLAG_WRITABLE_DEBUG)
 
+        // just adds bit
         #define MARK_CELL_WRITABLE_IF_DEBUG(v) \
-            ((v)->header.bits |= WRITABLE_MASK_DEBUG) // just adds bit
+            ((v)->header.bits |= VALUE_FLAG_WRITABLE_DEBUG)
 
         #define MARK_CELL_UNWRITABLE_IF_DEBUG(v) \
-            ((v)->header.bits &= ~cast(REBUPT, WRITABLE_MASK_DEBUG))
+            ((v)->header.bits &= ~cast(REBUPT, VALUE_FLAG_WRITABLE_DEBUG))
     #else
         #define ASSERT_CELL_WRITABLE_IF_DEBUG(v,file,line) \
             NOOP
@@ -351,8 +354,8 @@ inline static void VAL_RESET_HEADER_CORE(RELVAL *v, enum Reb_Kind kind) {
         RELVAL *v, enum Reb_Kind kind, const char *file, int line
     ){
         ASSERT_CELL_WRITABLE_IF_DEBUG(v, file, line);
-        VAL_RESET_HEADER_CORE(v, kind);
-        v->header.bits |= WRITABLE_MASK_DEBUG;
+        VAL_RESET_HEADER_COMMON(v, kind);
+        v->header.bits |= CELL_MASK | VALUE_FLAG_WRITABLE_DEBUG;
     }
 
     #define VAL_RESET_HEADER(v,k) \
@@ -552,19 +555,19 @@ inline static REBOOL IS_VOID(const RELVAL *v)
 // which can be viewed in the debug watchlist (or shown by PANIC_VALUE)
 //
 
-inline static void SET_BLANK_CORE(RELVAL *v) {
-    v->header.bits = VALUE_FLAG_FALSE | NOT_END_MASK | REB_BLANK;
+inline static void SET_BLANK_COMMON(RELVAL *v) {
+    v->header.bits = VALUE_FLAG_FALSE | NOT_END_MASK | CELL_MASK | REB_BLANK;
 }
 
 #ifdef NDEBUG
     #define SET_BLANK(v) \
-        SET_BLANK_CORE(v)
+        SET_BLANK_COMMON(v)
 #else
     inline static void SET_BLANK_Debug(
         RELVAL *v, const char *file, int line
     ){
         ASSERT_CELL_WRITABLE_IF_DEBUG(v, file, line);
-        SET_BLANK_CORE(v);
+        SET_BLANK_COMMON(v);
         MARK_CELL_WRITABLE_IF_DEBUG(v);
         Set_Track_Payload_Debug(v, file, line);
     }
@@ -604,21 +607,23 @@ inline static void SET_BLANK_CORE(RELVAL *v) {
 #define TRUE_VALUE \
     c_cast(const REBVAL*, &PG_True_Value[0])
 
-#define SET_TRUE_MACRO(v) \
-    ((v)->header.bits = REB_LOGIC | NOT_END_MASK)
+inline static void SET_TRUE_COMMON(RELVAL *v) {
+    v->header.bits = REB_LOGIC | NOT_END_MASK | CELL_MASK;
+}
 
-#define SET_FALSE_MACRO(v) \
-    ((v)->header.bits = REB_LOGIC | NOT_END_MASK | VALUE_FLAG_FALSE)
+inline static void SET_FALSE_COMMON(RELVAL *v) {
+    v->header.bits = REB_LOGIC | NOT_END_MASK | CELL_MASK | VALUE_FLAG_FALSE;
+}
 
-#define IS_CONDITIONAL_FALSE_MACRO(v) \
+#define IS_CONDITIONAL_FALSE_COMMON(v) \
     GET_VAL_FLAG((v), VALUE_FLAG_FALSE)
 
 #ifdef NDEBUG
     #define SET_TRUE(v) \
-        SET_TRUE_MACRO(v)
+        SET_TRUE_COMMON(v)
 
     #define SET_FALSE(v) \
-        SET_FALSE_MACRO(v)
+        SET_FALSE_COMMON(v)
 
     inline static void SET_LOGIC(RELVAL *v, REBOOL b) {
         if (b)
@@ -628,13 +633,13 @@ inline static void SET_BLANK_CORE(RELVAL *v) {
     }
 
     #define IS_CONDITIONAL_FALSE(v) \
-        IS_CONDITIONAL_FALSE_MACRO(v)
+        IS_CONDITIONAL_FALSE_COMMON(v)
 #else
     inline static void SET_TRUE_Debug(
         RELVAL *v, const char *file, int line
     ){
         ASSERT_CELL_WRITABLE_IF_DEBUG(v, file, line);
-        SET_TRUE_MACRO(v);
+        SET_TRUE_COMMON(v);
         MARK_CELL_WRITABLE_IF_DEBUG(v);
         Set_Track_Payload_Debug(v, file, line);
     }
@@ -643,7 +648,7 @@ inline static void SET_BLANK_CORE(RELVAL *v) {
         RELVAL *v, const char *file, int line
     ){
         ASSERT_CELL_WRITABLE_IF_DEBUG(v, file, line);
-        SET_FALSE_MACRO(v);
+        SET_FALSE_COMMON(v);
         MARK_CELL_WRITABLE_IF_DEBUG(v);
         Set_Track_Payload_Debug(v, file, line);
     }
@@ -665,7 +670,7 @@ inline static void SET_BLANK_CORE(RELVAL *v) {
             fflush(stdout);
             Panic_Value_Debug(v, file, line);
         }
-        return IS_CONDITIONAL_FALSE_MACRO(v);
+        return IS_CONDITIONAL_FALSE_COMMON(v);
     }
 
     #define SET_TRUE(v) \
@@ -2002,7 +2007,7 @@ inline static REBARR *VAL_VARARGS_ARRAY1(const RELVAL *v)
 inline static REBARR **SUBFEED_ADDR_OF_FEED(REBARR *a) {
     return GET_ARR_FLAG(a, ARRAY_FLAG_CONTEXT_VARLIST)
         ? &CTX_FRAME(AS_CONTEXT(a))->cell.subfeed
-        : &ARR_SERIES(a)->misc.subfeed;
+        : &ARR_SERIES(a)->link.subfeed;
 }
 
 

@@ -128,7 +128,12 @@ void Assert_Cell_Writable(const RELVAL *v, const char *file, int line)
     //
     assert(cast(REBUPT, (v)) % sizeof(REBUPT) == 0);
 
-    if (NOT((v)->header.bits & WRITABLE_MASK_DEBUG)) {
+    if (NOT((v)->header.bits & CELL_MASK)) {
+        printf("Non-cell passed to writing routine\n");
+        fflush(stdout);
+        Panic_Value_Debug(v, file, line);
+    }
+    if (NOT((v)->header.bits & VALUE_FLAG_WRITABLE_DEBUG)) {
         printf("Non-writable value passed to writing routine\n");
         fflush(stdout);
         Panic_Value_Debug(v, file, line);
@@ -141,11 +146,14 @@ void Assert_Cell_Writable(const RELVAL *v, const char *file, int line)
 //
 //  SET_END_Debug: C
 //
-// Uses REB_MAX instead of just REB_0 for the type, to help cue
+// Uses REB_MAX instead of just REB_0 for the type, to help cue debugging.
+//
+// When SET_END is used, it uses the whole cell.  Implicit termination is
+// done by the raw creation of a Reb_Value_Header in the containing structure.
 //
 void SET_END_Debug(RELVAL *v, const char *file, int line) {
     ASSERT_CELL_WRITABLE_IF_DEBUG(v, file, line);
-    (v)->header.bits = REB_MAX;
+    (v)->header.bits = REB_MAX | CELL_MASK;
     MARK_CELL_WRITABLE_IF_DEBUG(v);
     Set_Track_Payload_Debug(v, file, line);
 }
@@ -157,7 +165,7 @@ void SET_END_Debug(RELVAL *v, const char *file, int line) {
 REBOOL IS_END_Debug(const RELVAL *v, const char *file, int line) {
 #ifdef __cplusplus
     if (
-        (v->header.bits & WRITABLE_MASK_DEBUG)
+        (v->header.bits & CELL_MASK)
         //
         // Note: a non-writable value could have any bit pattern in the
         // type slot, so we only check for trash in writable ones.
