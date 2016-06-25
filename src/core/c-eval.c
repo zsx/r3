@@ -360,7 +360,11 @@ reevaluate:
                 goto do_function_in_gotten;
             }
 
-            Try_Lookback_At_Evaluation_Cycle_Start(f->out, f);
+            if (f->prior)
+                Try_Lookback_In_Prior_Frame(f->out, f->prior);
+            else
+                SET_END(f->out);
+
             goto do_function_in_gotten;
         }
 

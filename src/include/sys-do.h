@@ -304,29 +304,26 @@ inline static void FETCH_NEXT_ONLY_MAYBE_END(struct Reb_Frame *f) {
 // find SET-WORD! or SET-PATH!s in progress.  They are not products of an
 // evaluation--hence are safe to quote, allowing constructs like `x: ++ 1`
 //
-inline static void Try_Lookback_At_Evaluation_Cycle_Start(
+inline static void Try_Lookback_In_Prior_Frame(
     REBVAL *out,
-    struct Reb_Frame *f
+    struct Reb_Frame *prior
 ){
-    if (f->prior)
-        switch (f->prior->eval_type) {
-        case ET_SET_WORD:
-            COPY_VALUE(out, f->prior->param, f->prior->specifier);
-            assert(IS_SET_WORD(out));
-            CLEAR_VAL_FLAG(out, VALUE_FLAG_EVALUATED);
-            return;
+    switch (prior->eval_type) {
+    case ET_SET_WORD:
+        COPY_VALUE(out, prior->param, prior->specifier);
+        assert(IS_SET_WORD(out));
+        CLEAR_VAL_FLAG(out, VALUE_FLAG_EVALUATED);
+        break;
 
-        case ET_SET_PATH:
-            COPY_VALUE(out, f->prior->param, f->prior->specifier);
-            assert(IS_SET_PATH(out));
-            CLEAR_VAL_FLAG(out, VALUE_FLAG_EVALUATED);
-            return;
+    case ET_SET_PATH:
+        COPY_VALUE(out, prior->param, prior->specifier);
+        assert(IS_SET_PATH(out));
+        CLEAR_VAL_FLAG(out, VALUE_FLAG_EVALUATED);
+        break;
 
-        default:
-            break;
-        }
-
-    SET_END(f->out); // some <end> args are able to tolerate absences
+    default:
+        SET_END(out); // some <end> args are able to tolerate absences
+    }
 }
 
 
@@ -381,7 +378,7 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
 
         if (IS_FUNCTION(child->gotten)) {
             if (child->eval_type == ET_LOOKBACK)
-                Try_Lookback_At_Evaluation_Cycle_Start(out, parent);
+                Try_Lookback_In_Prior_Frame(out, parent);
             else {
                 assert(child->eval_type == ET_FUNCTION);
             }
