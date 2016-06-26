@@ -432,7 +432,7 @@ void Drop_Chunk(REBVAL *opt_head)
 //
 REBFUN *Underlying_Function_Debug(
     REBFUN **specializer_out,
-    const REBVAL *value
+    const RELVAL *value
 ){
     REBOOL loop;
     do {
@@ -452,17 +452,29 @@ REBFUN *Underlying_Function_Debug(
             return VAL_FUNC(CTX_FRAME_FUNC_VALUE(exemplar));
         }
 
-        // !!! Other function types could cache their underlying function,
-        // e.g. in the body[0] cell.  This would be better than recalculating
-        // every time!
-
         while (IS_FUNCTION_ADAPTER(value)) {
-            value = KNOWN(VAL_ARRAY_AT_HEAD(VAL_FUNC_BODY(value), 1));
+            value = VAL_ARRAY_AT_HEAD(VAL_FUNC_BODY(value), 1);
             loop = TRUE;
         }
 
         while (IS_FUNCTION_CHAINER(value)) {
-            value = KNOWN(VAL_ARRAY_AT_HEAD(VAL_FUNC_BODY(value), 0));
+            value = VAL_ARRAY_AT_HEAD(VAL_FUNC_BODY(value), 0);
+            loop = TRUE;
+        }
+
+        while (IS_FUNCTION_HIJACKER(value)) {
+            //
+            // The function that got hijacked needs to report the same
+            // underlying function that it did before the hijacking.  The only
+            // place that's stored is in the misc field
+
+            REBFUN *underlying
+                = ARR_SERIES(VAL_FUNC_PARAMLIST(value))->misc.underlying;
+
+            if (underlying == VAL_FUNC(value))
+                break; // hijacking was of a fundamental function
+
+            value = FUNC_VALUE(underlying);
             loop = TRUE;
         }
     } while (loop);
@@ -516,11 +528,11 @@ REBFUN *Underlying_Function(
     //
     if (IS_FUNCTION_SPECIALIZER(value)) {
         *specializer_out = VAL_FUNC(value);
-        underlying = ARR_SERIES(VAL_FUNC_PARAMLIST(value))->link.underlying;
+        underlying = ARR_SERIES(VAL_FUNC_PARAMLIST(value))->misc.underlying;
         goto return_and_check;
     }
 
-    underlying = ARR_SERIES(VAL_FUNC_PARAMLIST(value))->link.underlying;
+    underlying = ARR_SERIES(VAL_FUNC_PARAMLIST(value))->misc.underlying;
 
     if (!IS_FUNCTION_SPECIALIZER(FUNC_VALUE(underlying))) {
         //
@@ -538,7 +550,7 @@ REBFUN *Underlying_Function(
     // specializations.
 
     *specializer_out = underlying;
-    underlying = ARR_SERIES(FUNC_PARAMLIST(underlying))->link.underlying;
+    underlying = ARR_SERIES(FUNC_PARAMLIST(underlying))->misc.underlying;
 
 return_and_check:
 
@@ -547,7 +559,7 @@ return_and_check:
     //
     assert(
         underlying
-        == ARR_SERIES(FUNC_PARAMLIST(underlying))->link.underlying
+        == ARR_SERIES(FUNC_PARAMLIST(underlying))->misc.underlying
     );
     assert(!IS_FUNCTION_SPECIALIZER(FUNC_VALUE(underlying)));
     assert(!IS_FUNCTION_CHAINER(FUNC_VALUE(underlying)));

@@ -113,7 +113,7 @@ REBCTX *Alloc_Context(REBCNT len)
 
     REBARR *keylist = Make_Array(len + 1); // size + room for ROOTKEY
     Val_Init_Typeset(Alloc_Tail_Array(keylist), ALL_64, SYM_0);
-    ARR_SERIES(keylist)->misc.meta = NULL; // GC sees meta object, must init
+    ARR_SERIES(keylist)->link.meta = NULL; // GC sees meta object, must init
 
     // varlists link keylists via REBSER.misc field, sharable hence managed
 
@@ -146,11 +146,11 @@ REBOOL Expand_Context_Keylist_Core(REBCTX *context, REBCNT delta)
         //
         // Keylists are only typesets, so no need for a specifier.
 
-        REBCTX *meta = ARR_SERIES(keylist)->misc.meta; // preserve meta object
+        REBCTX *meta = ARR_SERIES(keylist)->link.meta; // preserve meta object
 
         keylist = Copy_Array_Extra_Shallow(keylist, SPECIFIED, delta);        
 
-        ARR_SERIES(keylist)->misc.meta = meta;
+        ARR_SERIES(keylist)->link.meta = meta;
 
         MANAGE_ARRAY(keylist);
         INIT_CTX_KEYLIST_UNIQUE(context, keylist);
@@ -402,7 +402,7 @@ REBARR *Grab_Collected_Keylist_Managed(REBCTX *prior)
         MANAGE_ARRAY(keylist);
     }
 
-    ARR_SERIES(keylist)->misc.meta = NULL; // clear meta object (GC sees this)
+    ARR_SERIES(keylist)->link.meta = NULL; // clear meta object (GC sees this)
 
     return keylist;
 }
@@ -997,11 +997,6 @@ REBARR *Context_To_Array(REBCTX *context, REBINT mode)
 //
 REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
 {
-    REBARR *keylist;
-    REBCTX *child;
-    REBVAL *key;
-    REBVAL *value;
-    REBCNT n;
     REBINT *binds = WORDS_HEAD(Bind_Table);
 
     assert(CTX_TYPE(parent1) == CTX_TYPE(parent2));
@@ -1031,28 +1026,28 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     // !!! Review: should child start fresh with no meta information, or get
     // the meta information held by parents?
     //
-    keylist = Copy_Array_Shallow(BUF_COLLECT, SPECIFIED);
+    REBARR *keylist = Copy_Array_Shallow(BUF_COLLECT, SPECIFIED);
     MANAGE_ARRAY(keylist);
-    ARR_SERIES(keylist)->misc.meta = NULL;
+    ARR_SERIES(keylist)->link.meta = NULL;
 
-    child = AS_CONTEXT(Make_Array(ARR_LEN(keylist)));
-    SET_ARR_FLAG(CTX_VARLIST(child), ARRAY_FLAG_CONTEXT_VARLIST);
+    REBCTX *merged = AS_CONTEXT(Make_Array(ARR_LEN(keylist)));
+    SET_ARR_FLAG(CTX_VARLIST(merged), ARRAY_FLAG_CONTEXT_VARLIST);
+    INIT_CTX_KEYLIST_UNIQUE(merged, keylist);
 
-    value = Alloc_Tail_Array(CTX_VARLIST(child));
+    REBVAL *rootvar = Alloc_Tail_Array(CTX_VARLIST(merged));
 
     // !!! Currently we assume the child will be of the same type as the
     // parent...so if the parent was an OBJECT! so will the child be, if
     // the parent was an ERROR! so will the child be.  This is a new idea,
     // so review consequences.
     //
-    VAL_RESET_HEADER(value, CTX_TYPE(parent1));
-    INIT_CTX_KEYLIST_UNIQUE(child, keylist);
-    value->payload.any_context.varlist = CTX_VARLIST(child);
-    VAL_CONTEXT_EXIT_FROM(value) = NULL;
+    VAL_RESET_HEADER(rootvar, CTX_TYPE(parent1));
+    rootvar->payload.any_context.varlist = CTX_VARLIST(merged);
+    VAL_CONTEXT_EXIT_FROM(rootvar) = NULL;
 
     // Copy parent1 values:
     memcpy(
-        CTX_VARS_HEAD(child),
+        CTX_VARS_HEAD(merged),
         CTX_VARS_HEAD(parent1),
         CTX_LEN(parent1) * sizeof(REBVAL)
     );
@@ -1060,46 +1055,46 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     // Update the child tail before making calls to CTX_VAR(), because the
     // debug build does a length check.
     //
-    SET_ARRAY_LEN(CTX_VARLIST(child), ARR_LEN(keylist));
+    SET_ARRAY_LEN(CTX_VARLIST(merged), ARR_LEN(keylist));
 
     // Copy parent2 values:
-    key = CTX_KEYS_HEAD(parent2);
-    value = CTX_VARS_HEAD(parent2);
+    REBVAL *key = CTX_KEYS_HEAD(parent2);
+    REBVAL *value = CTX_VARS_HEAD(parent2);
     for (; NOT_END(key); key++, value++) {
         // no need to search when the binding table is available
-        n = binds[VAL_TYPESET_CANON(key)];
-        *CTX_VAR(child, n) = *value;
+        REBCNT n = binds[VAL_TYPESET_CANON(key)];
+        *CTX_VAR(merged, n) = *value;
     }
 
     // Terminate the child context:
-    TERM_ARRAY(CTX_VARLIST(child));
+    TERM_ARRAY(CTX_VARLIST(merged));
 
     // Deep copy the child.  Context vars are REBVALs, already fully specified
     //
     Clonify_Values_Len_Managed(
-        CTX_VARS_HEAD(child),
+        CTX_VARS_HEAD(merged),
         SPECIFIED,
-        CTX_LEN(child),
+        CTX_LEN(merged),
         TRUE,
         TS_CLONE
     );
 
     // Rebind the child
-    Rebind_Context_Deep(parent1, child, NULL);
-    Rebind_Context_Deep(parent2, child, WORDS_HEAD(Bind_Table));
+    Rebind_Context_Deep(parent1, merged, NULL);
+    Rebind_Context_Deep(parent2, merged, WORDS_HEAD(Bind_Table));
 
     // release the bind table
     Collect_Keys_End();
 
     // We should have gotten a SELF in the results, one way or another.
     {
-        REBCNT self_index = Find_Word_In_Context(child, SYM_SELF, TRUE);
+        REBCNT self_index = Find_Word_In_Context(merged, SYM_SELF, TRUE);
         assert(self_index != 0);
-        assert(CTX_KEY_CANON(child, self_index) == SYM_SELF);
-        *CTX_VAR(child, self_index) = *CTX_VALUE(child);
+        assert(CTX_KEY_CANON(merged, self_index) == SYM_SELF);
+        *CTX_VAR(merged, self_index) = *CTX_VALUE(merged);
     }
 
-    return child;
+    return merged;
 }
 
 

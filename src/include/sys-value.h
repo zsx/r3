@@ -1737,7 +1737,7 @@ inline static REBNAT VAL_FUNC_DISPATCHER(const RELVAL *v)
     { return ARR_SERIES(v->payload.function.body_holder)->misc.dispatcher; }
 
 inline static REBCTX *VAL_FUNC_META(const RELVAL *v)
-    { return ARR_SERIES(v->payload.function.paramlist)->misc.meta; }
+    { return ARR_SERIES(v->payload.function.paramlist)->link.meta; }
 
 inline static REBOOL IS_FUNCTION_PLAIN(const RELVAL *v)
     { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Plain_Dispatcher); }
@@ -1837,7 +1837,7 @@ inline static void INIT_VAL_CONTEXT(REBVAL *v, REBCTX *c) {
 }
 
 #define VAL_CONTEXT_FRAME(v) \
-    ((v)->payload.any_context.more.frame)
+    CTX_FRAME(VAL_CONTEXT(v))
 
 // Convenience macros to speak in terms of object values instead of the context
 //
@@ -1850,7 +1850,7 @@ inline static void INIT_VAL_CONTEXT(REBVAL *v, REBCTX *c) {
 inline static REBCTX *VAL_CONTEXT_META(const RELVAL *v) {
     return ARR_SERIES(
         CTX_KEYLIST(AS_CONTEXT(v->payload.any_context.varlist))
-    )->misc.meta;
+    )->link.meta;
 }
 
 #define VAL_CONTEXT_EXIT_FROM(v) \
@@ -1858,7 +1858,7 @@ inline static REBCTX *VAL_CONTEXT_META(const RELVAL *v) {
 
 inline static REBCNT VAL_CONTEXT_STACKVARS_LEN(const RELVAL *v) {
     assert(ANY_CONTEXT(v));
-    return CHUNK_LEN_FROM_VALUES(VAL_CONTEXT_STACKVARS(v));
+    return CHUNK_LEN_FROM_VALUES(CTX_FRAME(VAL_CONTEXT(v))->stackvars);
 }
 
 #define VAL_CONTEXT_KEY_SYM(v,n) \
@@ -1866,11 +1866,11 @@ inline static REBCNT VAL_CONTEXT_STACKVARS_LEN(const RELVAL *v) {
 
 inline static void INIT_CONTEXT_FRAME(REBCTX *c, struct Reb_Frame *frame) {
     assert(IS_FRAME(CTX_VALUE(c)));
-    VAL_CONTEXT_FRAME(CTX_VALUE(c)) = frame;
+    ARR_SERIES(CTX_VARLIST(c))->misc.f = frame;
 }
 
 inline static void INIT_CONTEXT_META(REBCTX *c, REBCTX *m) {
-    ARR_SERIES(CTX_KEYLIST(c))->misc.meta = m;
+    ARR_SERIES(CTX_KEYLIST(c))->link.meta = m;
 }
 
 inline static REBVAL *CTX_FRAME_FUNC_VALUE(const REBCTX *c) {

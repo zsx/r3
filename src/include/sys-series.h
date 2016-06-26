@@ -831,12 +831,13 @@ inline static REBVAL *CTX_VALUE(REBCTX *c) {
         : KNOWN(ARR_HEAD(CTX_VARLIST(c))); // not a RELVAL
 }
 
-#define VAL_CONTEXT_STACKVARS(v) \
-    ((v)->payload.any_context.more.frame->stackvars)
+inline static struct Reb_Frame *CTX_FRAME(REBCTX *c) {
+    return ARR_SERIES(CTX_VARLIST(c))->misc.f;
+}
 
 inline static REBVAL *CTX_VARS_HEAD(REBCTX *c) {
     return GET_CTX_FLAG(c, CONTEXT_FLAG_STACK)
-        ? VAL_CONTEXT_STACKVARS(CTX_VALUE(c))
+        ? CTX_FRAME(c)->stackvars // if NULL, this will crash
         : SER_AT(REBVAL, ARR_SERIES(CTX_VARLIST(c)), 1);
 }
 
@@ -863,15 +864,13 @@ inline static REBVAL *CTX_VAR(REBCTX *c, REBCNT n) {
 #define CTX_KEY_CANON(c,n) \
     VAL_TYPESET_CANON(CTX_KEY((c), (n)))
 
-#define CTX_META(c) \
-    (VAL_CONTEXT_META(CTX_VALUE(c)) + 0)
+inline static REBCTX *CTX_META(REBCTX *c) {
+    return ARR_SERIES(CTX_KEYLIST(c))->link.meta;
+}
 
-#define CTX_FRAME(c) \
-    (VAL_CONTEXT_FRAME(CTX_VALUE(c)) + 0)
-
-#define CTX_STACKVARS(c) \
-    VAL_CONTEXT_STACKVARS(CTX_VALUE(c))
-
+inline static REBVAL *CTX_STACKVARS(REBCTX *c) {
+    return CTX_FRAME(c)->stackvars;
+}
 
 #define FAIL_IF_LOCKED_CONTEXT(c) \
     FAIL_IF_LOCKED_ARRAY(CTX_VARLIST(c))
@@ -933,6 +932,7 @@ inline static REBNAT FUNC_DISPATCHER(REBFUN *f) {
 }
 
 inline static RELVAL *FUNC_BODY(REBFUN *f) {
+    assert(ARR_LEN(FUNC_VALUE(f)->payload.function.body_holder) == 1);
     return ARR_HEAD(FUNC_VALUE(f)->payload.function.body_holder);
 }
 
@@ -945,8 +945,9 @@ inline static REBCNT FUNC_NUM_PARAMS(REBFUN *f) {
     return ARR_LEN(FUNC_PARAMLIST(f)) - 1;
 }
 
-#define FUNC_META(f) \
-    (ARR_SERIES(FUNC_PARAMLIST(f))->misc.meta)
+inline static REBCTX *FUNC_META(REBFUN *f) {
+    return ARR_SERIES(FUNC_PARAMLIST(f))->link.meta;
+}
 
 // Note: On Windows, FUNC_DISPATCH is already defined in the header files
 //

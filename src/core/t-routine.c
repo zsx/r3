@@ -1296,7 +1296,7 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec) {
     );
     SET_HANDLE_DATA(FUNC_BODY(fun), cast(REBRIN*, r));
 
-    FUNC_META(fun) = NULL; // lives on paramlist
+    ARR_SERIES(paramlist)->link.meta = NULL;
 
     return fun; // still needs to have function or callback info added!
 }

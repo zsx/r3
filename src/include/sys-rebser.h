@@ -385,7 +385,7 @@ struct Reb_Series {
         REBARR *keylist; // used by CONTEXT
         REBARR *subfeed; // for *non-frame* VARARGS! ("array1") shared feed
         REBSER *schema; // STRUCT uses this (parallels object's keylist)
-        REBFUN *underlying; // specialization -or- final underlying function
+        REBCTX *meta; // paramlists and keylists can store a "meta" object
     } link;
 
     // The `misc` field is an extra pointer-sized piece of data which is
@@ -401,7 +401,8 @@ struct Reb_Series {
             REBCNT high:16;
         } area;
         REBOOL negated; // for bitsets (must be shared, can't be in REBVAL)
-        REBCTX *meta; // paramlists and keylists can store a "meta" object
+        REBFUN *underlying; // specialization -or- final underlying function
+        struct Reb_Frame *f; // for a FRAME! series, the call frame (or NULL)
     } misc;
 
 #if !defined(NDEBUG)

@@ -584,7 +584,7 @@ REBNATIVE(set_meta)
     REBVAL *value = ARG(value);
 
     if (IS_FUNCTION(value))
-        ARR_SERIES(VAL_FUNC_PARAMLIST(value))->misc.meta = meta;
+        ARR_SERIES(VAL_FUNC_PARAMLIST(value))->link.meta = meta;
     else {
         assert(ANY_CONTEXT(value));
         INIT_CONTEXT_META(VAL_CONTEXT(value), meta);

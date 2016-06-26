@@ -762,31 +762,10 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
         case REB_FRAME:
         case REB_ERROR: {
             REBCTX *context = VAL_CONTEXT(val);
+
             assert(CTX_TYPE(context) == VAL_TYPE(val));
-
-        #if !defined(NDEBUG)
-            {
-                REBVAL *value = CTX_VALUE(context);
-                assert(VAL_CONTEXT(value) == context);
-                assert(VAL_CONTEXT_META(val) == VAL_CONTEXT_META(value));
-                if (IS_FRAME(val))
-                    assert(VAL_CONTEXT_FRAME(val) == VAL_CONTEXT_FRAME(value));
-
-                // Though the general rule is that canon values should match
-                // the bits of any instance, an exception is made in the
-                // case of the stackvars.  The danger of reusing the memory
-                // is high after freeing since the chunk stack pointers
-                // remain live, so the canon value has the field trashed
-                // in debug builds.
-                //
-                if (GET_CTX_FLAG(context, CONTEXT_FLAG_STACK)) {
-                    assert(
-                        VAL_CONTEXT_STACKVARS(val)
-                        == VAL_CONTEXT_STACKVARS(value)
-                    );
-                }
-            }
-        #endif
+            assert(VAL_CONTEXT(CTX_VALUE(context)) == context);
+            assert(VAL_CONTEXT_META(CTX_VALUE(context)) == CTX_META(context));
 
             QUEUE_MARK_CONTEXT_DEEP(context);
 

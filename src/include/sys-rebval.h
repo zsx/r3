@@ -648,18 +648,6 @@ struct Reb_Any_Context {
     // the module's contents (e.g. the processed header)
     //
     REBARR *varlist;
-
-    union {
-        // Used by REB_FRAME.  This is the call that corresponded to the
-        // FRAME! at the time it was created.  The pointer becomes invalid if
-        // the call ends, so the flags on the context must be consulted to
-        // see if it indicates the stack is over before using.
-        //
-        // Note: This is technically just a cache, as the stack could be
-        // walked to find it given the frame.
-        //
-        struct Reb_Frame *frame;
-    } more;
 };
 
 struct Reb_Varargs {
