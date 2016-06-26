@@ -295,7 +295,7 @@ void Set_Vector_Value(REBVAL *var, REBSER *series, REBCNT index)
 
     if (bits >= VTSF08) {
         VAL_RESET_HEADER(var, REB_DECIMAL);
-        VAL_DECIMAL_BITS(var) = get_vect(bits, data, index);
+        INIT_DECIMAL_BITS(var, get_vect(bits, data, index));
     }
     else {
         VAL_RESET_HEADER(var, REB_INTEGER);
@@ -521,7 +521,7 @@ REBINT PD_Vector(REBPVS *pvs)
         }
         else {
             VAL_RESET_HEADER(pvs->store, REB_DECIMAL);
-            VAL_DECIMAL_BITS(pvs->store) = get_vect(bits, vp, n - 1); // 64bit
+            INIT_DECIMAL_BITS(pvs->store, get_vect(bits, vp, n - 1)); // 64bit
         }
 
         return PE_USE_STORE;

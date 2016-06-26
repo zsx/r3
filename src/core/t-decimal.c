@@ -127,7 +127,7 @@ static void Binary_To_Decimal(const REBVAL *bin, REBVAL *out)
     for (; len; len--, idx++) n = (n << 8) | (REBI64)(GET_ANY_CHAR(ser, idx));
 
     VAL_RESET_HEADER(out, REB_DECIMAL);
-    VAL_DECIMAL_BITS(out) = n;
+    INIT_DECIMAL_BITS(out, n);
 }
 
 

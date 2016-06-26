@@ -819,9 +819,6 @@ inline static void SET_INTEGER(RELVAL *v, REBI64 i64) {
 #ifdef NDEBUG
     #define VAL_DECIMAL(v) \
         ((v)->payload.decimal.dec)
-
-    #define VAL_DECIMAL_BITS(v) \
-        (*cast(REBI64*, &(v)->payload.decimal.dec))
 #else
     inline static REBDEC *VAL_DECIMAL_Ptr_Debug(const RELVAL *value) {
         assert(IS_DECIMAL(value) || IS_PERCENT(value));
@@ -829,16 +826,6 @@ inline static void SET_INTEGER(RELVAL *v, REBI64 i64) {
     }
     #define VAL_DECIMAL(v) \
         (*VAL_DECIMAL_Ptr_Debug(v)) // allows lvalue: `VAL_DECIMAL(v) = xxx`
-
-    // !!! Several parts of the code wanted to access the decimal as
-    // "bits" through reinterpreting the bits as a 64-bit integer.  In
-    // the general case this is undefined behavior, and should be
-    // changed!  (It's better than it was, because it used to use the
-    // disengaged integer state of the payload union...calling VAL_INT64()
-    // on a MONEY! or a DECIMAL!  This at least points out the problem.)
-    //
-    #define VAL_DECIMAL_BITS(v) \
-        (*cast(REBI64*, VAL_DECIMAL_Ptr_Debug(v)))
 #endif
 
 inline static void SET_DECIMAL(RELVAL *v, REBDEC n) {
@@ -849,6 +836,22 @@ inline static void SET_DECIMAL(RELVAL *v, REBDEC n) {
 inline static void SET_PERCENT(RELVAL *v, REBDEC n) {
     VAL_RESET_HEADER(v, REB_PERCENT);
     v->payload.decimal.dec = n;
+}
+
+// !!! Several parts of the code wanted to access the decimal as "bits" through
+// reinterpreting the bits as a 64-bit integer.  In the general case this is
+// undefined behavior, and should be changed!  (It's better than it was,
+// because it used to use the disengaged integer state of the payload union...
+// calling VAL_INT64() on a MONEY! or a DECIMAL!  At least this documents it.
+
+inline static REBI64 VAL_DECIMAL_BITS(const RELVAL *v) {
+    assert(IS_DECIMAL(v) || IS_PERCENT(v));
+    return *cast(const REBI64*, &v->payload.decimal.dec);
+}
+
+inline static void INIT_DECIMAL_BITS(REBVAL *v, REBI64 bits) {
+    assert(IS_DECIMAL(v) || IS_PERCENT(v));
+    *cast(REBI64*, &v->payload.decimal.dec) = bits;
 }
 
 
