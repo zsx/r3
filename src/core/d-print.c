@@ -1186,7 +1186,7 @@ REBOOL Form_Value_Throws(
         Append_Unencoded(mold->series, "\n");
     }
 
-    SET_TRASH_IF_DEBUG(out); // no return result unless thrown
+    SET_TRASH_SAFE(out); // no return result unless thrown
     DROP_SAFE_ENUMERATOR(f);
     return FALSE; // not thrown (also `out` may not be initialized)
 

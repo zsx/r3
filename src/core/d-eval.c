@@ -294,7 +294,7 @@ REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
     f->arg = cast(REBVAL*, 0xDECAFBAD);
     f->refine = cast(REBVAL*, 0xDECAFBAD);
 
-    f->exit_from = cast(REBARR*, 0xDECAFBAD);
+    f->binding = cast(REBARR*, 0xDECAFBAD);
 
     f->stackvars = cast(REBVAL*, 0xDECAFBAD);
     f->varlist = cast(REBARR*, 0xDECAFBAD);

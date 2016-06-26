@@ -962,11 +962,11 @@ inline static REBVAL *FUNC_PARAMS_HEAD(REBFUN *f) {
 }
 
 inline static REBSYM FUNC_PARAM_SYM(REBFUN *f, REBCNT n) {
-    return FUNC_PARAM((f), (n))->payload.typeset.sym;
+    return FUNC_PARAM((f), (n))->extra.typeset_sym;
 }
 
 inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
-    return cast(REBRIN*, FUNC_BODY(f)->payload.handle.thing.data);
+    return cast(REBRIN*, FUNC_BODY(f)->payload.handle.data);
 }
 
 

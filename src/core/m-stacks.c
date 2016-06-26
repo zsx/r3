@@ -600,7 +600,7 @@ REBFUN *Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
     // We need the actual REBVAL of the function here, and not just the REBFUN.
     // This is true even though you can get an archetype REBVAL from a function
     // pointer with FUNC_VALUE().  That archetype--as with RETURN and LEAVE--
-    // will not carry the specific `exit_from` information of a value.
+    // will not carry the specific `binding` information of a value.
     //
     assert(IS_FUNCTION(f->gotten));
 
@@ -705,7 +705,7 @@ REBFUN *Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
     assert(IS_END(slot));
 
     f->func = VAL_FUNC(f->gotten);
-    f->exit_from = VAL_FUNC_EXIT_FROM(f->gotten);
+    f->binding = VAL_BINDING(f->gotten);
 
     return underlying;
 }

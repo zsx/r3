@@ -66,7 +66,7 @@ ATTRIBUTE_NO_RETURN void Panic_Value_Debug(
     case REB_BAR:
         printf(
             "REBVAL init on tick #%d at %s:%d\n",
-            cast(unsigned int, value->payload.track.count),
+            cast(unsigned int, value->extra.do_count),
             value->payload.track.filename,
             value->payload.track.line
         );
@@ -202,9 +202,15 @@ REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
     REBCTX *specific;
 
     assert(NOT(GET_VAL_FLAG(v, VALUE_FLAG_RELATIVE)));
-    assert(ANY_WORD(v) || ANY_ARRAY(v));
+    assert(
+        ANY_WORD(v)
+        || ANY_ARRAY(v)
+        || IS_VARARGS(v)
+        || IS_FUNCTION(v)
+        || ANY_CONTEXT(v)
+    );
 
-    specific = VAL_SPECIFIC_MACRO(v);
+    specific = VAL_SPECIFIC_COMMON(v);
 
     if (specific != SPECIFIED) {
         //
@@ -243,7 +249,7 @@ void INIT_WORD_INDEX_Debug(RELVAL *v, REBCNT i)
         assert(SAME_SYM(
             VAL_WORD_SYM(v), CTX_KEY_SYM(VAL_WORD_CONTEXT(KNOWN(v)), i))
         );
-    (v)->payload.any_word.place.binding.index = (i);
+    (v)->payload.any_word.index = (i);
 }
 
 

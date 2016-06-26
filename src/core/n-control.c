@@ -1062,7 +1062,7 @@ REBNATIVE(do)
         f->out = D_OUT;
         f->gotten = CTX_FRAME_FUNC_VALUE(VAL_CONTEXT(value));
         f->func = VAL_FUNC(f->gotten);
-        f->exit_from = VAL_CONTEXT_EXIT_FROM(value);
+        f->binding = VAL_BINDING(value);
 
         f->varlist = CTX_VARLIST(VAL_CONTEXT(value)); // need w/NULL def
 
@@ -1176,17 +1176,17 @@ void Make_Thrown_Exit_Value(
                 //
                 Context_For_Frame_May_Reify_Managed(f);
                 assert(f->varlist);
-                out->payload.function.exit_from = f->varlist;
+                out->extra.binding = f->varlist;
                 break;
             }
         }
     }
     else if (IS_FRAME(level)) {
-        out->payload.function.exit_from = CTX_VARLIST(VAL_CONTEXT(level));
+        out->extra.binding = CTX_VARLIST(VAL_CONTEXT(level));
     }
     else {
         assert(IS_FUNCTION(level));
-        out->payload.function.exit_from = VAL_FUNC_PARAMLIST(level);
+        out->extra.binding = VAL_FUNC_PARAMLIST(level);
     }
 
     CONVERT_NAME_TO_THROWN(out, value);
@@ -1210,7 +1210,7 @@ void Make_Thrown_Exit_Value(
 REBNATIVE(exit)
 //
 // EXIT is implemented via a THROWN() value that bubbles up through the stack.
-// Using EXIT's function REBVAL with a target `exit_from` field is the
+// Using EXIT's function REBVAL with a target `binding` field is the
 // protocol understood by Do_Core to catch a throw itself.
 //
 // !!! Allowing to pass an INTEGER! to exit from a function based on its
@@ -1520,11 +1520,11 @@ REBNATIVE(return)
 {
     PARAM(1, value);
 
-    if (frame_->exit_from == NULL) // raw native, not a variant FUNCTION made
+    if (frame_->binding == NULL) // raw native, not a variant FUNCTION made
         fail (Error(RE_RETURN_ARCHETYPE));
 
     *D_OUT = *NAT_VALUE(exit); // see also Make_Thrown_Exit_Value
-    D_OUT->payload.function.exit_from = frame_->exit_from;
+    D_OUT->extra.binding = frame_->binding;
 
     CONVERT_NAME_TO_THROWN(D_OUT, ARG(value));
     return R_OUT_IS_THROWN;
@@ -1542,11 +1542,11 @@ REBNATIVE(leave)
 //
 // See notes on REBNATIVE(return)
 {
-    if (frame_->exit_from == NULL) // raw native, not a variant PROCEDURE made
+    if (frame_->binding == NULL) // raw native, not a variant PROCEDURE made
         fail (Error(RE_RETURN_ARCHETYPE));
 
     *D_OUT = *NAT_VALUE(exit); // see also Make_Thrown_Exit_Value
-    D_OUT->payload.function.exit_from = frame_->exit_from;
+    D_OUT->extra.binding = frame_->binding;
 
     CONVERT_NAME_TO_THROWN(D_OUT, VOID_CELL);
     return R_OUT_IS_THROWN;

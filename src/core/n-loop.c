@@ -115,7 +115,7 @@ static REBARR *Init_Loop(
     SET_ARRAY_LEN(CTX_KEYLIST(context), len + 1);
 
     VAL_RESET_HEADER(CTX_VALUE(context), REB_OBJECT);
-    VAL_CONTEXT_EXIT_FROM(CTX_VALUE(context)) = NULL;
+    CTX_VALUE(context)->extra.binding = NULL;
 
     // Setup for loop:
     key = CTX_KEYS_HEAD(context);

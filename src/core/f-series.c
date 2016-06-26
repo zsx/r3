@@ -308,7 +308,7 @@ chkDecimal:
         return VAL_FUNC_PARAMLIST(s) - VAL_FUNC_PARAMLIST(t);
 
     case REB_LIBRARY:
-        return VAL_LIB_HANDLE(s) - VAL_LIB_HANDLE(t);
+        return VAL_LIBRARY(s) - VAL_LIBRARY(t);
 
     case REB_STRUCT:
         return Cmp_Struct(s, t);

@@ -339,7 +339,7 @@ void Val_Init_Word_Core(RELVAL *out, enum Reb_Kind type, REBSYM sym)
     INIT_WORD_SYM(out, sym);
 
 #if !defined(NDEBUG)
-    out->payload.any_word.place.binding.index = 0;
+    out->payload.any_word.index = 0;
 #endif
 
     assert(ANY_WORD(out));

@@ -97,7 +97,6 @@
     MEM_BIG_POOLS   = MEM_MID_POOLS   +  4, // larger pools
     SER_POOL     = MEM_BIG_POOLS,
     GOB_POOL,
-    LIB_POOL,
     RIN_POOL, /* routine info */
     SYSTEM_POOL,
     MAX_POOLS

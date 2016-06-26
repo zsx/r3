@@ -301,7 +301,6 @@ enum {
     struct Reb_Track {
         const char *filename;
         int line;
-        REBUPT count;
     };
 #endif
 
@@ -360,28 +359,33 @@ typedef union reb_date {
 
 struct Reb_Time {
     REBI64 nanoseconds;
-    REBDAT date;
 };
 
 typedef struct Reb_Tuple {
-    REBYTE tuple[12];
+    REBYTE tuple[8];
 } REBTUP;
 
-union Reb_Binding_Target {
-    REBFUN *relative; // for VALUE_FLAG_RELATIVE
-    REBCTX *specific; // for !VALUE_FLAG_RELATIVE
+
+//
+// Rebol Symbol
+//
+// !!! Historically Rebol used an unsigned 32-bit integer as a "symbol ID".
+// These symbols did not participate in garbage collection and had to be
+// looked up in a table to get their values.  Ren-C is moving toward adapting
+// REBSERs to be able to store words and canon words, as well as GC them.
+// This starts moving the types to be the size of a platform pointer.
+//
+
+typedef REBUPT REBSYM;
+
+struct Reb_Symbol {
+    REBCNT alias; // Index to next alias form
+    REBCNT name; // Index into PG_Word_Names string
 };
+
 
 struct Reb_Any_Series {
     //
-    // `specifier` is used in ANY-ARRAY! payloads.  It is a pointer to a FRAME!
-    // context which indicates where relatively-bound ANY-WORD! values which
-    // are in the series data can be looked up to get their variable values.
-    // If the array does not contain any relatively bound words then it is
-    // okay for this to be NULL.
-    //
-    union Reb_Binding_Target target;
-
     // `series` represents the actual physical underlying data, which is
     // essentially a vector of equal-sized items.  The length of the item
     // (the series "width") is kept within the REBSER abstraction.  See the
@@ -404,53 +408,22 @@ struct Reb_Any_Series {
     REBCNT index;
 };
 
-//
-// Rebol Symbol
-//
-// !!! Historically Rebol used an unsigned 32-bit integer as a "symbol ID".
-// These symbols did not participate in garbage collection and had to be
-// looked up in a table to get their values.  Ren-C is moving toward adapting
-// REBSERs to be able to store words and canon words, as well as GC them.
-// This starts moving the types to be the size of a platform pointer.
-//
-
-typedef REBUPT REBSYM;
-
-struct Reb_Symbol {
-    REBCNT canon; // Index of the canonical (first) word
-    REBCNT alias; // Index to next alias form
-    REBCNT name; // Index into PG_Word_Names string
-};
-
 struct Reb_Typeset {
-    REBSYM sym; // Symbol (if a key of object or function param)
-
-    // Note: `sym` is first so that the value's 32-bit Reb_Flags header plus
-    // the 32-bit REBCNT will pad `bits` to a REBU64 alignment boundary
-
     REBU64 bits; // One bit for each DATATYPE! (use with FLAGIT_64)
 };
 
-struct Reb_Binding {
-    //
-    // The context to look in to find the word's value.  It is valid if the
-    // word has been bound, and null otherwise.
-    //
-    // Note that if the ANY-CONTEXT! to which this word is bound is a FRAME!,
-    // then that frame may no longer be on the stack.  Hence the space for
-    // the variable is no longer allocated.  Tracking mechanisms must be used
-    // to make sure the word can keep track of this fact.
-    //
-    // !!! Tracking mechanism is currently under development.
-    //
-    // Also note that the expense involved in doing a lookup to a context
-    // that is a FRAME! is greater than one that is not (such as an OBJECT!)
-    // This is because in the current implementation, the stack must be
-    // walked to find the required frame.
-    //
-    union Reb_Binding_Target target;
 
-    // Index of word in context (if word is bound, e.g. `context` is not NULL)
+struct Reb_Any_Word {
+    //
+    // Index of the word's symbol
+    //
+    // Note: Future expansion plans are to have symbol entries tracked by
+    // pointer and garbage collected, likely as series nodes.  A full pointer
+    // sized value is required here.
+    //
+    REBSYM sym;
+
+    // Index of word in context (if word is bound, e.g. `binding` is not NULL)
     //
     // !!! Intended logic is that if the index is positive, then the word
     // is looked for in the context's pooled memory data pointer.  If the
@@ -466,141 +439,29 @@ struct Reb_Binding {
     REBINT index;
 };
 
-union Reb_Any_Word_Place {
-    struct Reb_Binding binding;
-
-    // The order in which refinements are defined in a function spec may
-    // not match the order in which they are mentioned on a path.  As an
-    // efficiency trick, a word on the data stack representing a refinement
-    // usage request is able to store the pointer to its `param` and `arg`
-    // positions, so that they may be returned to after the later-defined
-    // refinement has had its chance to take the earlier fulfillments.
-    //
-    struct {
-        const RELVAL *param;
-        REBVAL *arg;
-    } pickup;
-};
-
-struct Reb_Any_Word {
-    union Reb_Any_Word_Place place;
-
-    // Index of the word's symbol
-    //
-    // Note: Future expansion plans are to have symbol entries tracked by
-    // pointer and garbage collected, likely as series nodes.  A full pointer
-    // sized value is required here.
-    //
-    REBSYM sym;
-};
-
-// enums in C have no guaranteed size, yet Rebol wants to use known size
-// types in its interfaces.  Hence REB_R is a REBCNT from reb-c.h (and not
-// this enumerated type containing its legal values).
-enum {
-    R_OUT = 0,
-
-    // See comments on OPT_VALUE_THROWN about the migration of "thrownness"
-    // from being a property signaled to the evaluator.
-    //
-    // R_OUT_IS_THROWN is a test of that signaling mechanism.  It is currently
-    // being kept in parallel with the THROWN() bit and ensured as matching.
-    // Being in the state of doing a stack unwind will likely be knowable
-    // through other mechanisms even once the thrown bit on the value is
-    // gone...so it may not be the case that natives are asked to do their
-    // own separate indication, so this may wind up replaced with R_OUT.  For
-    // the moment it is good as a double-check.
-    //
-    R_OUT_IS_THROWN,
-
-    // This is a return value in service of the /? functions.  Since all
-    // dispatchers receive an END marker in the f->out slot (a.k.a. D_OUT)
-    // then it can be used to tell if the output has been written "in band"
-    // by a legal value or void.  This returns TRUE if D_OUT is not END,
-    // and FALSE if it still is.
-    //
-    R_OUT_TRUE_IF_WRITTEN,
-
-    // Similar to R_OUT_WRITTEN_Q, this converts an illegal END marker return
-    // value in R_OUT to simply a void.
-    //
-    R_OUT_VOID_IF_UNWRITTEN,
-
-    // !!! These R_ values are somewhat superfluous...and actually inefficient
-    // because they have to be checked by the caller in a switch statement
-    // to take the equivalent action.  They have a slight advantage in
-    // hand-written C code for making it more clear that if you have used
-    // the D_OUT return slot for temporary work that you explicitly want
-    // to specify another result...this cannot be caught by the REB_TRASH
-    // trick for detecting an unwritten D_OUT.
-    //
-    R_VOID, // => SET_VOID(D_OUT); return R_OUT;
-    R_BLANK, // => SET_BLANK(D_OUT); return R_OUT;
-    R_TRUE, // => SET_TRUE(D_OUT); return R_OUT;
-    R_FALSE, // => SET_FALSE(D_OUT); return R_OUT;
-
-    // If Do_Core gets back an R_REDO from a dispatcher, it will re-execute
-    // the f->func in the frame.  This function may be changed by the
-    // dispatcher from what was originally called.
-    //
-    R_REDO
-};
-typedef REBCNT REB_R;
-
-// Convenience function for getting the "/?" behavior if it is enabled, and
-// doing the default thing--assuming END is being left in the D_OUT slot
-//
-inline static REB_R R_OUT_Q(REBOOL q) {
-    if (q) return R_OUT_TRUE_IF_WRITTEN;
-    return R_OUT_VOID_IF_UNWRITTEN;
-}
-
-// NATIVE! function
-typedef REB_R (*REBNAT)(struct Reb_Frame *frame_);
-#define REBNATIVE(n) \
-    REB_R N_##n(struct Reb_Frame *frame_)
-
-// ACTION! function (one per each DATATYPE!)
-typedef REB_R (*REBACT)(struct Reb_Frame *frame_, REBSYM a);
-#define REBTYPE(n) \
-    REB_R T_##n(struct Reb_Frame *frame_, REBSYM action)
-
-// PORT!-action function
-typedef REB_R (*REBPAF)(struct Reb_Frame *frame_, REBCTX *p, REBSYM a);
-
-// COMMAND! function
-typedef REB_R (*CMD_FUNC)(REBCNT n, REBSER *args);
-
-typedef struct Reb_Routine_Info REBRIN;
 
 struct Reb_Function {
     //
-    // Definitionally-scoped returns introduced the idea of there being a
-    // unique property on a per-REBVAL instance for the natives RETURN and
-    // LEAVE, in order to identify that instance of the "archetypal" natives
-    // relative to a specific frame or function.  This idea has overlap with
-    // the Reb_Binding_Target, and may be unified for this common cell slot.
-    //
-    REBARR *exit_from;
-
     // `paramlist` is a Rebol Array whose 1..NUM_PARAMS values are all
     // TYPESET! values, with an embedded symbol (a.k.a. a "param") as well
     // as other bits, including the parameter class (PARAM_CLASS).  This
-    // is the list that is processed to produce WORDS-OF and which is
-    // consulted during invocation to fulfill the arguments.
+    // is the list that is processed to produce WORDS-OF, and which is
+    // consulted during invocation to fulfill the arguments
     //
     // In addition, its [0]th element contains a FUNCTION! value which is
     // self-referentially the function itself.  This means that the paramlist
     // can be passed around as a single pointer from which a whole REBVAL
-    // for the function can be found.
+    // for the function can be found (although this value is archetypal, and
+    // loses the `binding` property--which must be preserved other ways)
     //
-    // The `misc` field of the function series is `spec`, which contains data
-    // passed to MAKE FUNCTION! to create the `paramlist`.  After the
-    // paramlist has been generated, it is not generally processed by the
-    // code and remains mostly to be scanned by user mode code to make HELP.
-    // As "metadata" it is not kept in the canon value itself so it can be
-    // updated or augmented by functions like `redescribe` without worrying
-    // about all the Reb_Function REBVALs that are extant.
+    // The `link.meta` field of the paramlist holds a meta object (if any)
+    // that describes the function.  This is read by help.
+    //
+    // The `misc.underlying` field of the paramlist may point to the
+    // specialization whose frame should be used to set the default values
+    // for the arguments during a call.  Or it will point directly to the
+    // function whose paramlist should be used in the frame pushed.  This is
+    // different in hijackers, adapters, and chainers.
     //
     REBARR *paramlist;
 
@@ -625,13 +486,6 @@ struct Reb_Function {
 
 struct Reb_Any_Context {
     //
-    // Unless it copies the keylist, a context cannot uniquely describe a
-    // "special" instance of an archetype function it is bound to.  This
-    // field needs to be combined with the FUNC_VALUE of a frame context
-    // to get the full definition.
-    //
-    REBARR *exit_from;
-
     // `varlist` is a Rebol Array that from 1..NUM_VARS contains REBVALs
     // representing the stored values in the context.
     //
@@ -648,25 +502,20 @@ struct Reb_Any_Context {
     // the module's contents (e.g. the processed header)
     //
     REBARR *varlist;
+
+    void *unused; // for future expansion
 };
 
+
+// The order in which refinements are defined in a function spec may not match
+// the order in which they are mentioned on a path.  As an efficiency trick,
+// a word on the data stack representing a refinement usage request can be
+// mutated to store the pointer to its `param` and `arg` positions, so that
+// they may be returned to after the later-defined refinement has had its
+// chance to take the earlier fulfillments.
+//
 struct Reb_Varargs {
     //
-    // This is a FRAME! which was on the stack at the time when the VARARGS!
-    // was created.  However it may no longer be on the stack--and once it is
-    // not, it cannot respond to requests to be advanced.  The frame keeps
-    // a flag to test for this as long as this VARARGS! is GC-managed.
-    //
-    // Note that this frame reuses its EVAL slot to hold a value for any
-    // "sub-varargs" that is being processed, so that is the first place it
-    // looks to get the next item.
-    //
-    union {
-        REBARR *varlist; // might be an in-progress varlist if not managed
-
-        REBARR *array1; // for MAKE VARARGS! to share a reference on an array
-    } feed;
-
     // For as long as the VARARGS! can be used, the function it is applying
     // will be alive.  Assume that the locked paramlist won't move in memory
     // (evaluation would break if so, anyway) and hold onto the TYPESET!
@@ -688,22 +537,20 @@ struct Reb_Varargs {
 };
 
 struct Reb_Handle {
-    union {
-        CFUNC *code;
-        void *data;
-        REBUPT number;
-    } thing;
+    CFUNC *code;
+    void *data;
 };
 
-typedef struct Reb_Library_Handle {
-    void * fd;
-    REBUPT flags;
-} REBLHL; // sizeof(REBLHL) % 8 must equal 0 on both 64-bit and 32-bit builds
 
+// Meta information in singular->link.meta
+// Fild descriptor in singular->misc.fd
+//
 struct Reb_Library {
-    REBLHL *handle;
-    REBARR *spec;
+    REBARR *singular; // singular array holding this library value
 };
+
+typedef REBARR REBLIB;
+
 
 // The general FFI direction is to move it so that it is "baked in" less,
 // and represents an instance of a generalized extension mechanism (like GOB!
@@ -725,7 +572,6 @@ struct Reb_Library {
 struct Reb_Struct {
     REBARR *stu; // [0] is canon self value, ->misc.schema is schema
     REBSER *data; // binary data series (may be shared with other structs)
-    REBCNT offset; // offset for this struct in the possibly shared series
 };
 
 typedef REBARR REBSTU;
@@ -739,29 +585,6 @@ struct Reb_Gob {
     REBCNT index;
 };
 
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  VALUE PAYLOAD DEFINITION (`struct Reb_Value`)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// The value is defined to have the header first, and then the value.  Having
-// the header come first is taken advantage of by the trick for allowing
-// a single REBUPT-sized value (32-bit on 32 bit builds, 64-bit on 64-bit
-// builds) be examined to determine if a value is an END marker or not.
-//
-// One aspect of having the header before the payload is that on 32-bit
-// platforms, this means that the starting address of the payload is not on
-// a 64-bit alignment boundary.  This means placing a quantity that needs
-// 64-bit alignment at the start of a payload can cause problems on some
-// platforms with strict alignment requirements.
-//
-// (Note: The reason why this can happen at all is due to the #pragma pack(4)
-// that is put in effect at the top of this file.)
-//
-// See Reb_Integer, Reb_Decimal, and Reb_Typeset for examples where the 64-bit
-// quantity is padded by a pointer or pointer-sized-REBUPT to compensate.
-//
 
 // Reb_All is a structure type designed specifically for getting at
 // the underlying bits of whichever union member is in effect inside
@@ -772,15 +595,88 @@ struct Reb_Gob {
 //
 struct Reb_All {
 #if defined(__LP64__) || defined(__LLP64__)
-    REBCNT bits[6];
+    REBCNT bits[4];
 #else
-    REBCNT bits[3];
+    REBCNT bits[2];
 #endif
 };
 
-#define VAL_ALL_BITS(v) ((v)->payload.all.bits)
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  VALUE CELL DEFINITION (`struct Reb_Value`)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// The value is defined to have the header, "extra", and payload.  Having
+// the header come first is taken advantage of by the trick for allowing
+// a single REBUPT-sized value (32-bit on 32 bit builds, 64-bit on 64-bit
+// builds) be examined to determine if a value is an END marker or not.
+//
+// Conceptually speaking, one might think of the "extra" as being part of
+// the payload.  But it is broken out into a separate union.  This is because
+// the `binding` property is written using common routines for several
+// different types.  If the common routine picked just one of the payload
+// unions to initialize, it would "disengage" the other unions.
+//
+// (C permits *reading* of common leading elements from another union member,
+// even if that wasn't the last union used to write it.  But all bets are off
+// for other unions if you *write* a leading member through another one.
+// For longwinded details: http://stackoverflow.com/a/11996970/211160 )
+//
+// Another aspect of breaking out the "extra" is so that on 32-bit platforms,
+// the starting address of the payload is on a 64-bit alignment boundary.
+// See Reb_Integer, Reb_Decimal, and Reb_Typeset for examples where the 64-bit
+// quantity requires it have 64-bit alignment. (Note: The reason why bad
+// alignments an happen at all is due to the #pragma pack(4) that is put in
+// effect at the top of this file.)
+//
+
+union Reb_Value_Extra {
+    //
+    // The binding will be either a REBFUN (relative to a function) or a
+    // REBCTX (specific to a context).  ARRAY_FLAG_CONTEXT_VARLIST can be
+    // used to tell which it is.
+    //
+    // ANY-WORD!: binding is the word's binding
+    //
+    // ANY-ARRAY!: binding is the relativization or specifier for the REBVALs
+    // which can be found inside of the frame (for recursive resolution
+    // of ANY-WORD!s)
+    //
+    // FUNCTION!: binding is the instance data for archetypal invocation, so
+    // although all the RETURN instances have the same paramlist, it is
+    // the binding which is unique to the REBVAL specifying which to exit
+    //
+    // ANY-CONTEXT!: if a FRAME!, the binding carries the instance data from
+    // the function it is for.  So if the frame was produced for an instance
+    // of RETURN, the keylist only indicates the archetype RETURN.  Putting
+    // the binding back together can indicate the instance.
+    //
+    // VARARGS!: the binding may be to a frame context and it may be to just
+    // an array from which values are read.  It might also be bound to a
+    // function paramlist it doesn't use, because word pickups overwrite WORD!
+    // => VARARGS! in the evaluator loop...and don't reinitialize binding
+    //
+    REBARR *binding;
+
+    // The remaining properties are the "leftovers" of what won't fit in the
+    // payload for other types.  If those types have a quanitity that requires
+    // 64-bit alignment, then that gets the priority for being in the payload,
+    // with the "Extra" pointer-sized item here.
+
+    REBSYM typeset_sym; // if typeset is key of object or function parameter
+    REBDAT date; // time's payload holds the nanoseconds, this is the date
+    REBSYM symbol_canon; // if Reb_Symbol, index of the canonical (first) word
+    REBCNT struct_offset; // offset for struct in the possibly shared series
+
+#if !defined(NDEBUG)
+    REBUPT do_count; // used by track payloads
+#endif
+};
 
 union Reb_Value_Payload {
+    struct Reb_All all;
 
 #if !defined(NDEBUG)
     struct Reb_Track track; // debug only (for void/trash, NONE!, LOGIC!, BAR!)
@@ -799,28 +695,6 @@ union Reb_Value_Payload {
     struct Reb_Datatype datatype;
     struct Reb_Typeset typeset;
 
-    // Both Any_Word and Any_Series have a Reb_Binding_Target as the first
-    // item in their payloads.  Since Reb_Value_Payload is a union, C permits
-    // the *reading* of common leading elements from another union member,
-    // even if that wasn't the last union written.  While this has been a
-    // longstanding informal assumption in C, the standard has adopted it:
-    //
-    //     http://stackoverflow.com/a/11996970/211160
-    //
-    // So `any_target` can be used to read the binding target out of either
-    // an ANY-WORD! or ANY-SERIES! payload.  To be on the safe side, *writing*
-    // should likely be specifically through `any_word` or `any_series`.
-    //
-    union Reb_Binding_Target any_target;
-        struct Reb_Any_Word any_word;
-        struct Reb_Any_Series any_series;
-
-    struct Reb_Any_Context any_context;
-
-    struct Reb_Function function;
-
-    struct Reb_Varargs varargs;
-
     struct Reb_Library library;
     struct Reb_Struct structure; // It's STRUCT!, but 'struct' is a C keyword
 
@@ -829,12 +703,19 @@ union Reb_Value_Payload {
 
     struct Reb_Symbol symbol; // internal
 
-    struct Reb_All all;
+    // These use `specific` or `relative` in `binding`, based on IS_RELATIVE()
+
+    struct Reb_Any_Word any_word;
+    struct Reb_Any_Series any_series;
+    struct Reb_Function function;
+    struct Reb_Any_Context any_context;
+    struct Reb_Varargs varargs;
 };
 
 struct Reb_Value
 {
     struct Reb_Value_Header header;
+    union Reb_Value_Extra extra;
     union Reb_Value_Payload payload;
 };
 
@@ -979,15 +860,22 @@ inline static REBOOL IS_RELATIVE(const RELVAL *v) {
 
 inline static REBFUN *VAL_RELATIVE(const RELVAL *v) {
     assert(IS_RELATIVE(v));
-    return v->payload.any_target.relative; // any_target is read-only, see note
+    //assert(NOT(GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_CONTEXT_VARLIST)));
+    return cast(REBFUN*, v->extra.binding);
 }
 
-#define VAL_SPECIFIC_MACRO(v) \
-    ((v)->payload.any_target.specific) // any_target is read-only, see note
+inline static REBCTX *VAL_SPECIFIC_COMMON(const RELVAL *v) {
+    assert(IS_SPECIFIC(v));
+    //assert(
+    //    v->extra.binding == SPECIFIED
+    //    || GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_CONTEXT_VARLIST)
+    //);
+    return cast(REBCTX*, v->extra.binding);
+}
 
 #ifdef NDEBUG
     #define VAL_SPECIFIC(v) \
-        VAL_SPECIFIC_MACRO(v)
+        VAL_SPECIFIC_COMMON(v)
 #else
     #define VAL_SPECIFIC(v) \
         VAL_SPECIFIC_Debug(v)
@@ -1048,29 +936,17 @@ inline static void COPY_VALUE_CORE(
     REBVAL *dest,
     const RELVAL *src,
     REBCTX *specifier
-) {
+){
     if (src->header.bits & VALUE_FLAG_RELATIVE) {
         dest->header.bits
             = src->header.bits & ~cast(REBUPT, VALUE_FLAG_RELATIVE);
-        if (src->header.bits & VALUE_FLAG_ARRAY) {
-            dest->payload.any_series.target.specific = specifier;
-            dest->payload.any_series.series
-                = src->payload.any_series.series;
-            dest->payload.any_series.index
-                = src->payload.any_series.index;
-        }
-        else { // must be ANY-WORD! (checked by COPY_VALUE_Debug)
-            dest->payload.any_word.place.binding.target.specific
-                = specifier;
-            dest->payload.any_word.place.binding.index
-                = src->payload.any_word.place.binding.index;
-            dest->payload.any_word.sym = src->payload.any_word.sym;
-        }
+        dest->extra.binding = cast(REBARR*, specifier);
     }
     else {
         dest->header = src->header;
-        dest->payload = src->payload;
+        dest->extra.binding = src->extra.binding;
     }
+    dest->payload = src->payload;
 }
 
 

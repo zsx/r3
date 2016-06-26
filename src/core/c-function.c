@@ -586,7 +586,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         VAL_RESET_HEADER(dest, REB_FUNCTION);
         SET_VAL_FLAGS(dest, header_bits);
         dest->payload.function.paramlist = paramlist;
-        dest->payload.function.exit_from = NULL;
+        dest->extra.binding = NULL;
         ++dest;
 
         REBVAL *src = DS_AT(dsp_orig + 1);
@@ -650,7 +650,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         RELVAL *dest = ARR_HEAD(types_varlist); // rootvar: canon FRAME! value
         VAL_RESET_HEADER(dest, REB_FRAME);
         dest->payload.any_context.varlist = types_varlist;
-        dest->payload.any_context.exit_from = NULL;
+        dest->extra.binding = NULL;
         ++dest;
 
         REBVAL *src = DS_AT(dsp_orig + 2);
@@ -682,7 +682,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         RELVAL *dest = ARR_HEAD(notes_varlist); // rootvar: canon FRAME! value
         VAL_RESET_HEADER(dest, REB_FRAME);
         dest->payload.any_context.varlist = notes_varlist;
-        dest->payload.any_context.exit_from = NULL;
+        dest->extra.binding = NULL;
         ++dest;
 
         REBVAL *src = DS_AT(dsp_orig + 3);
@@ -770,7 +770,7 @@ REBFUN *Make_Function(
     RELVAL *rootparam = ARR_HEAD(paramlist);
     assert(IS_FUNCTION(rootparam)); // !!! body not fully formed...
     assert(rootparam->payload.function.paramlist == paramlist);
-    assert(rootparam->payload.function.exit_from == NULL); // archetype
+    assert(rootparam->extra.binding == NULL); // archetype
 
     // The "body" for a function can be any REBVAL.  It doesn't have to be
     // a block--it's anything that the dispatcher might wish to interpret.
@@ -902,7 +902,7 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
         SET_VAL_FLAGS(slot, VALUE_FLAG_RELATIVE | VALUE_FLAG_LINE);
         INIT_VAL_ARRAY(slot, VAL_ARRAY(VAL_FUNC_BODY(func)));
         VAL_INDEX(slot) = 0;
-        INIT_ARRAY_RELATIVE(slot, VAL_FUNC(func));
+        INIT_RELATIVE(slot, VAL_FUNC(func));
     }
 
     return fake_body;
@@ -1003,7 +1003,7 @@ REBFUN *Make_Plain_Function_May_Fail(
     INIT_VAL_ARRAY(body, body_array);
     VAL_INDEX(body) = 0;
     SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
-    body->payload.any_series.target.relative = fun;
+    INIT_RELATIVE(body, fun);
 
 #if !defined(NDEBUG)
     //
@@ -1062,7 +1062,7 @@ REBFUN *Make_Plain_Function_May_Fail(
 REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     //
     // Note that this cannot take just a REBFUN* directly, because definitional
-    // RETURN and LEAVE only have their unique `exit_from` bits in the REBVAL.
+    // RETURN and LEAVE only have their unique `binding` bits in the REBVAL.
     //
     REBFUN *func = VAL_FUNC(value);
 
@@ -1081,7 +1081,7 @@ REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     var->payload.any_context.varlist = varlist;
 
     // We can reuse the paramlist we're given, but note in the case of
-    // definitional RETURN and LEAVE we have to stow the `exit_from` field
+    // definitional RETURN and LEAVE we have to stow the `binding` field
     // in the context, since the single archetype paramlist does not hold
     // enough information to know where to return *to*.
     //
@@ -1097,8 +1097,7 @@ REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     // walks to find the pointer (possibly recaching in values.)
     //
     INIT_CONTEXT_FRAME(AS_CONTEXT(varlist), NULL);
-    VAL_CONTEXT_EXIT_FROM(CTX_VALUE(AS_CONTEXT(varlist)))
-        = VAL_FUNC_EXIT_FROM(value);
+    CTX_VALUE(AS_CONTEXT(varlist))->extra.binding = value->extra.binding;
     ++var;
 
     // A FRAME! defaults all args and locals to not being set.  If the frame
@@ -1166,9 +1165,9 @@ REBOOL Specialize_Function_Throws(
         MANAGE_ARRAY(CTX_VARLIST(exemplar));
     }
 
-    // Archetypal frame values can't have exit_froms (would write paramlist)
+    // Archetypal frame values can't have exit bindings (would write paramlist)
     //
-    assert(VAL_CONTEXT_EXIT_FROM(CTX_VALUE(exemplar)) == NULL);
+    assert(VAL_BINDING(CTX_VALUE(exemplar)) == NULL);
 
     // Bind all the SET-WORD! in the body that match params in the frame
     // into the frame.  This means `value: value` can very likely have
@@ -1229,9 +1228,10 @@ REBOOL Specialize_Function_Throws(
 
     // The "body" is the FRAME! value of the specialization.  Though we may
     // not be able to touch the keylist of that frame to update the "archetype"
-    // exit_from, we can patch this cell in the "body array" to hold it.
+    // binding, we can patch this cell in the "body array" to hold it.
     //
     *FUNC_BODY(fun) = *CTX_VALUE(exemplar);
+    assert(VAL_BINDING(FUNC_BODY(fun)) == VAL_BINDING(specializee));
 
     // See %sysobj.r for `specialized-meta:` object template
 
@@ -1246,7 +1246,7 @@ REBOOL Specialize_Function_Throws(
     ARR_SERIES(paramlist)->link.meta = meta;
 
     *out = *FUNC_VALUE(fun);
-    assert(VAL_FUNC_EXIT_FROM(out) == NULL); // VAL_FUNC_EXIT_FROM(specializee)
+    assert(VAL_BINDING(out) == NULL);
 
     return FALSE;
 }
@@ -1341,7 +1341,7 @@ void Clonify_Function(REBVAL *value)
     // Remap references in the body from the original function to new
 
     SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
-    INIT_ARRAY_RELATIVE(body, AS_FUNC(paramlist));
+    INIT_RELATIVE(body, AS_FUNC(paramlist));
 
     *value = *FUNC_VALUE(new_fun);
 }
@@ -1411,7 +1411,7 @@ REB_R Specializer_Dispatcher(struct Reb_Frame *f)
 {
     REBVAL *exemplar = KNOWN(FUNC_BODY(f->func));
     f->func = VAL_FUNC(CTX_FRAME_FUNC_VALUE(VAL_CONTEXT(exemplar)));
-    f->exit_from = VAL_CONTEXT_EXIT_FROM(exemplar);
+    f->binding = VAL_BINDING(exemplar);
 
     return R_REDO;
 }
@@ -1522,9 +1522,9 @@ REB_R Adapter_Dispatcher(struct Reb_Frame *f)
             *f->arg = *NAT_VALUE(return);
 
             if (f->varlist) // !!! in specific binding, always for Plain
-                f->arg->payload.function.exit_from = f->varlist;
+                f->arg->extra.binding = f->varlist;
             else
-                f->arg->payload.function.exit_from = FUNC_PARAMLIST(f->func);
+                f->arg->extra.binding = FUNC_PARAMLIST(f->func);
             break;
 
         case PARAM_CLASS_LEAVE:
@@ -1538,9 +1538,9 @@ REB_R Adapter_Dispatcher(struct Reb_Frame *f)
             *f->arg = *NAT_VALUE(return);
 
             if (f->varlist) // !!! in specific binding, always for Plain
-                f->arg->payload.function.exit_from = f->varlist;
+                f->arg->extra.binding = f->varlist;
             else
-                f->arg->payload.function.exit_from = FUNC_PARAMLIST(f->func);
+                f->arg->extra.binding = FUNC_PARAMLIST(f->func);
             break;
 
         case PARAM_CLASS_REFINEMENT:
@@ -1565,7 +1565,7 @@ REB_R Adapter_Dispatcher(struct Reb_Frame *f)
     f->arg = arg_save;
 
     f->func = VAL_FUNC(adaptee);
-    f->exit_from = VAL_FUNC_EXIT_FROM(adaptee);
+    f->binding = VAL_BINDING(adaptee);
     return R_REDO; // Have Do_Core run the adaptee updated into f->func
 }
 
@@ -1592,7 +1592,7 @@ REB_R Chainer_Dispatcher(struct Reb_Frame *f)
     // Extract the first function, itself which might be a chain.
     //
     f->func = VAL_FUNC(value);
-    f->exit_from = VAL_FUNC_EXIT_FROM(value);
+    f->binding = VAL_BINDING(value);
 
     return R_REDO;
 }
@@ -1829,7 +1829,7 @@ REBNATIVE(chain)
     ARR_SERIES(paramlist)->link.meta = meta;
 
     *D_OUT = *FUNC_VALUE(fun);
-    assert(VAL_FUNC_EXIT_FROM(D_OUT) == NULL);
+    assert(VAL_BINDING(D_OUT) == NULL);
 
     return R_OUT;
 }
@@ -1910,7 +1910,7 @@ REBNATIVE(adapt)
     INIT_VAL_ARRAY(block, prelude);
     VAL_INDEX(block) = 0;
     SET_VAL_FLAG(block, VALUE_FLAG_RELATIVE);
-    INIT_ARRAY_RELATIVE(block, underlying);
+    INIT_RELATIVE(block, underlying);
 
     Append_Value(adaptation, adaptee);
 
@@ -1919,7 +1919,7 @@ REBNATIVE(adapt)
     INIT_VAL_ARRAY(body, adaptation);
     VAL_INDEX(body) = 0;
     SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
-    INIT_ARRAY_RELATIVE(body, underlying);
+    INIT_RELATIVE(body, underlying);
     MANAGE_ARRAY(adaptation);
 
     // See %sysobj.r for `specialized-meta:` object template
@@ -1936,7 +1936,7 @@ REBNATIVE(adapt)
     ARR_SERIES(paramlist)->link.meta = meta;
 
     *D_OUT = *FUNC_VALUE(fun);
-    assert(VAL_FUNC_EXIT_FROM(D_OUT) == NULL);
+    assert(VAL_BINDING(D_OUT) == NULL);
 
     return R_OUT;
 }
@@ -2040,7 +2040,7 @@ REBNATIVE(hijack)
         *FUNC_BODY(proxy) = *VAL_FUNC_BODY(victim);
 
         *D_OUT = *FUNC_VALUE(proxy);
-        D_OUT->payload.function.exit_from = VAL_FUNC_EXIT_FROM(victim);
+        D_OUT->extra.binding = VAL_BINDING(victim);
 
         REBFUN *specializer;
         Underlying_Function(&specializer, D_OUT);
@@ -2058,7 +2058,7 @@ REBNATIVE(hijack)
     ARR_SERIES(victim->payload.function.body_holder)->misc.dispatcher
         = &Hijacker_Dispatcher;
 
-    victim->payload.function.exit_from = NULL; // old exit_from not relevant
+    victim->extra.binding = NULL; // old exit binding extracted for proxy
 
     *ARR_HEAD(VAL_FUNC_PARAMLIST(victim)) = *victim; // update rootparam
 
@@ -2091,9 +2091,9 @@ REBNATIVE(hijack)
 //
 // Expects the following Reb_Frame fields to be preloaded:
 //
-//    f->out
+//    f->out (just valid pointer, pointed-to value can be garbage)
 //    f->func
-//    f->exit_from
+//    f->binding
 //
 // If opt_def is NULL, then f->data.context must be set
 //
@@ -2154,7 +2154,7 @@ REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSYM sym, REBVAL *opt_def)
         Push_Or_Alloc_Args_For_Underlying_Func(f);
     }
     else {
-        // f->func and f->exit_from should already be set
+        // f->func and f->binding should already be set
 
         // !!! This form of execution raises a ton of open questions about
         // what to do if a frame is used more than once.  Function calls

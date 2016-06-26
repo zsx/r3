@@ -957,7 +957,8 @@ reevaluate:
                     f->refine = DS_TOP;
 
                     if (
-                        VAL_WORD_SYM(f->refine)
+                        IS_WORD(f->refine)
+                        && VAL_WORD_SYM(f->refine)
                         == SYMBOL_TO_CANON(VAL_TYPESET_SYM(f->param)) // #2258
                     ) {
                         DS_DROP; // we're lucky: this was next refinement used
@@ -970,6 +971,7 @@ reevaluate:
                     --f->refine; // not lucky: if in use, this is out of order
 
                     for (; f->refine > DS_AT(f->dsp_orig); --f->refine) {
+                        if (IS_VARARGS(f->refine)) continue; // a pickup
                         if (
                             VAL_WORD_SYM(f->refine) // canonized when pushed
                             == SYMBOL_TO_CANON(
@@ -979,14 +981,12 @@ reevaluate:
                             // The call uses this refinement but we'll have to
                             // come back to it when the expression index to
                             // consume lines up.  Make a note of the param
-                            // and arg and poke them into the stack WORD!.
+                            // and arg and poke them into the stack value.
                             //
-                            UNBIND_WORD(f->refine);
-                            SET_VAL_FLAG(f->refine, WORD_FLAG_PICKUP);
-                            f->refine->payload.any_word.place.pickup.param
-                                = f->param;
-                            f->refine->payload.any_word.place.pickup.arg
-                                = f->arg;
+                            VAL_RESET_HEADER(f->refine, REB_VARARGS);
+                            f->refine->payload.varargs.param
+                                = const_KNOWN(f->param);
+                            f->refine->payload.varargs.arg = f->arg;
 
                             SET_TRUE(f->arg); // marks refinement used
                             // "consume args later" (promise not to change)
@@ -1064,10 +1064,9 @@ reevaluate:
                 *f->arg = *NAT_VALUE(return);
 
                 if (f->varlist) // !!! in specific binding, always for Plain
-                    f->arg->payload.function.exit_from = f->varlist;
+                    f->arg->extra.binding = f->varlist;
                 else
-                    f->arg->payload.function.exit_from
-                        = FUNC_PARAMLIST(f->func);
+                    f->arg->extra.binding = FUNC_PARAMLIST(f->func);
                 goto continue_arg_loop;
 
             case PARAM_CLASS_LEAVE:
@@ -1081,10 +1080,9 @@ reevaluate:
                 *f->arg = *NAT_VALUE(return);
 
                 if (f->varlist) // !!! in specific binding, always for Plain
-                    f->arg->payload.function.exit_from = f->varlist;
+                    f->arg->extra.binding = f->varlist;
                 else
-                    f->arg->payload.function.exit_from
-                        = FUNC_PARAMLIST(f->func);
+                    f->arg->extra.binding = FUNC_PARAMLIST(f->func);
                 goto continue_arg_loop;
             }
 
@@ -1184,7 +1182,7 @@ reevaluate:
                 // completed context yet, we store it as an array type.
                 //
                 Context_For_Frame_May_Reify_Core(f);
-                f->arg->payload.varargs.feed.varlist = f->varlist;
+                f->arg->extra.binding = f->varlist;
 
                 f->arg->payload.varargs.param = const_KNOWN(f->param); // check
                 f->arg->payload.varargs.arg = f->arg; // linkback, might change
@@ -1380,17 +1378,18 @@ reevaluate:
         // them for later fulfillment.
         //
         if (DSP != f->dsp_orig) {
-            if (!GET_VAL_FLAG(DS_TOP, WORD_FLAG_PICKUP)) {
+            if (!IS_VARARGS(DS_TOP)) {
                 //
                 // The walk through the arguments didn't fill in any
                 // information for this word, so it was either a duplicate of
                 // one that was fulfilled or not a refinement the function
                 // has at all.
                 //
+                assert(IS_WORD(DS_TOP));
                 fail (Error(RE_BAD_REFINE, DS_TOP));
             }
-            f->param = DS_TOP->payload.any_word.place.pickup.param;
-            f->refine = f->arg = DS_TOP->payload.any_word.place.pickup.arg;
+            f->param = DS_TOP->payload.varargs.param;
+            f->refine = f->arg = DS_TOP->payload.varargs.arg;
             assert(IS_LOGIC(f->refine) && VAL_LOGIC(f->refine));
             DS_DROP;
             doing_pickups = TRUE;
@@ -1542,16 +1541,16 @@ reevaluate:
                 goto finished;
             }
 
-            ASSERT_ARRAY(VAL_FUNC_EXIT_FROM(f->out));
+            ASSERT_ARRAY(VAL_BINDING(f->out));
 
-            if (VAL_FUNC_EXIT_FROM(f->out) == FUNC_PARAMLIST(f->func)) {
+            if (VAL_BINDING(f->out) == FUNC_PARAMLIST(f->func)) {
                 //
                 // The most recent instance of a function on the stack (if
                 // any) will catch a FUNCTION! style exit.
                 //
                 CATCH_THROWN(f->out, f->out);
             }
-            else if (VAL_FUNC_EXIT_FROM(f->out) == f->varlist) {
+            else if (VAL_BINDING(f->out) == f->varlist) {
                 //
                 // This identifies an exit from a *specific* function
                 // invocation.  We'll only match it if we have a reified

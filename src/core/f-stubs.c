@@ -450,7 +450,7 @@ void Val_Init_Series_Index_Core(
     VAL_RESET_HEADER(value, type);
     value->payload.any_series.series = series;
     VAL_INDEX(value) = index;
-    INIT_ARRAY_SPECIFIC(value, specifier);
+    INIT_SPECIFIC(value, specifier);
 
     if (Is_Array_Series(series)) {
         SET_VAL_FLAG(value, VALUE_FLAG_ARRAY);

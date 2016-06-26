@@ -472,9 +472,10 @@ static void Queue_Mark_Routine_Deep(REBRIN *r)
         }
     } else {
         if (RIN_LIB(r))
-            SET_LIB_FLAG(RIN_LIB(r), LIB_FLAG_MARK);
+            QUEUE_MARK_ARRAY_DEEP(RIN_LIB(r));
         else {
             // may be null if called before the routine is fully constructed
+            // !!! Review if this can be made not possible
         }
     }
 }
@@ -824,14 +825,21 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                 // so long as the function is running.  (If it tried to
                 // protect it, then it could hit unfinished/corrupt arg cells)
                 //
-                REBARR *varlist = val->payload.varargs.feed.varlist;
-                assert(GET_ARR_FLAG(varlist, ARRAY_FLAG_CONTEXT_VARLIST));
-                if (GET_ARR_FLAG(varlist, SERIES_FLAG_MANAGED)) {
-                    QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(varlist)); // it's good
-                    subfeed = *SUBFEED_ADDR_OF_FEED(varlist);
+                REBARR *varlist = VAL_BINDING(val);
+                if (GET_ARR_FLAG(varlist, ARRAY_FLAG_CONTEXT_VARLIST)) {
+                    if (GET_ARR_FLAG(varlist, SERIES_FLAG_MANAGED)) {
+                        QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(varlist)); // good
+                        subfeed = *SUBFEED_ADDR_OF_FEED(varlist);
+                    }
+                    else
+                        subfeed = NULL; // function still getting args, ENDs
                 }
-                else
-                    subfeed = NULL; // function still getting args, not running
+                else {
+                    // This can happen because VARARGS! cells are used to
+                    // do pickups of param/arg pairs, after conversions from
+                    // words, which might have relative binding.  It's not
+                    // paid attention to.
+                }
             }
 
             if (subfeed) {
@@ -891,7 +899,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                 // The word is unbound...make sure index is 0 in debug build.
                 //
             #if !defined(NDEBUG)
-                assert(val->payload.any_word.place.binding.index == 0);
+                assert(val->payload.any_word.index == 0);
             #endif
             }
             break;
@@ -964,10 +972,12 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             break;
         }
 
-        case REB_LIBRARY:
-            SET_LIB_FLAG(VAL_LIB_HANDLE(val), LIB_FLAG_MARK);
-            QUEUE_MARK_ARRAY_DEEP(VAL_LIB_SPEC(val));
-            break;
+        case REB_LIBRARY: {
+            QUEUE_MARK_ARRAY_DEEP(VAL_LIBRARY(val));
+            REBCTX *meta = VAL_LIBRARY_META(val);
+            if (meta != NULL)
+                QUEUE_MARK_CONTEXT_DEEP(meta);
+            break; }
 
         case REB_STRUCT:
             {
@@ -1176,41 +1186,6 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Gobs(void)
                 }
             }
             gob++;
-        }
-    }
-
-    return count;
-}
-
-
-//
-//  Sweep_Libs: C
-// 
-// Free all unmarked libs.
-// 
-// Scans all libs in all segments that are part of the
-// LIB_POOL. Free libs that have not been marked.
-//
-ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Libs(void)
-{
-    REBSEG  *seg;
-    REBLHL  *lib;
-    REBCNT  n;
-    REBCNT  count = 0;
-
-    for (seg = Mem_Pools[LIB_POOL].segs; seg; seg = seg->next) {
-        lib = (REBLHL *) (seg + 1);
-        for (n = Mem_Pools[LIB_POOL].units; n > 0; n--) {
-            if (GET_LIB_FLAG(lib, LIB_FLAG_USED)) {
-                if (GET_LIB_FLAG(lib, LIB_FLAG_MARK))
-                    CLEAR_LIB_FLAG(lib, LIB_FLAG_MARK);
-                else {
-                    CLEAR_LIB_FLAG(lib, LIB_FLAG_USED);
-                    Free_Node(LIB_POOL, cast(REBNOD*, lib));
-                    count++;
-                }
-            }
-            lib++;
         }
     }
 
@@ -1463,7 +1438,6 @@ REBCNT Recycle_Core(REBOOL shutdown)
 
     count += Sweep_Series(shutdown);
     count += Sweep_Gobs();
-    count += Sweep_Libs();
 
     CHECK_MEMORY(4);
 

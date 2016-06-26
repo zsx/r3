@@ -140,24 +140,6 @@ static void Assert_Basics(void)
     if (sizeof(REBDAT) != 4)
         panic (Error(RE_BAD_SIZE));
 
-    // Deep copies of Any_Word in function bodies can be marked as relative to
-    // that function.  Care must be taken to put together the right context
-    // information with the relative value to look up the variable, and it's
-    // important not to "leak" the bit patterns of these relative words when
-    // copying the values elsewhere.  Hence both the words *and* an ANY-ARRAY!
-    // that may be carrying them need to be "derelativized" before copying.
-    // Both carry binding targets that can be relative or specific, and
-    // these should be at the same offset inside the value for fast processing.
-    //
-    if (
-        offsetof(struct Reb_Any_Word, place)
-            + offsetof(union Reb_Any_Word_Place, binding)
-            + offsetof(struct Reb_Binding, target)
-        != offsetof(struct Reb_Any_Series, target)
-    ) {
-        panic (Error(RE_MISC));
-    }
-
     // The REBSER is designed to place the `info` bits exactly after a REBVAL
     // so they can do double-duty as also a terminator for that REBVAL when
     // enumerated as an ARRAY.
@@ -204,7 +186,6 @@ static void Assert_Basics(void)
     assert(sizeof(REBI64) == 8);
     assert(sizeof(REBSER) % 8 == 0);
     assert(sizeof(REBGOB) % 8 == 0);
-    assert(sizeof(REBLHL) % 8 == 0);
     assert(sizeof(REBRIN) % 8 == 0);
 }
 
@@ -572,7 +553,7 @@ static void Init_Natives(void)
         Append_Context(function_meta, NULL, SYM_PARAMETER_NOTES);
         REBVAL *rootvar = CTX_VALUE(function_meta);
         VAL_RESET_HEADER(rootvar, REB_OBJECT);
-        VAL_CONTEXT_EXIT_FROM(rootvar) = NULL;
+        rootvar->extra.binding = NULL;
         Val_Init_Object(ROOT_FUNCTION_META, function_meta);
     }
 
@@ -584,7 +565,7 @@ static void Init_Natives(void)
         Append_Context(specialized_meta, NULL, SYM_SPECIALIZEE_NAME);
         REBVAL *rootvar = CTX_VALUE(specialized_meta);
         VAL_RESET_HEADER(rootvar, REB_OBJECT);
-        VAL_CONTEXT_EXIT_FROM(rootvar) = NULL;
+        rootvar->extra.binding = NULL;
         Val_Init_Object(ROOT_SPECIALIZED_META, specialized_meta);
     }
 
@@ -767,7 +748,7 @@ static void Init_Root_Context(void)
     // !!! Also no `stackvars` (or `spec`, not yet implemented); revisit
     //
     VAL_RESET_HEADER(CTX_VALUE(root), REB_OBJECT);
-    VAL_CONTEXT_EXIT_FROM(CTX_VALUE(root)) = NULL;
+    CTX_VALUE(root)->extra.binding = NULL;
 
     // Set all other values to blank
     {
@@ -887,7 +868,7 @@ static void Init_Task_Context(void)
     // !!! Also no `body` (or `spec`, not yet implemented); revisit
     //
     VAL_RESET_HEADER(CTX_VALUE(task), REB_OBJECT);
-    VAL_CONTEXT_EXIT_FROM(CTX_VALUE(task)) = NULL;
+    CTX_VALUE(task)->extra.binding = NULL;
 
     // Set all other values to NONE:
     {
@@ -996,7 +977,7 @@ static void Init_System_Object(void)
 
         value = Get_System(SYS_CODECS, 0);
         VAL_RESET_HEADER(CTX_VALUE(codecs), REB_OBJECT);
-        VAL_CONTEXT_EXIT_FROM(CTX_VALUE(codecs)) = NULL;
+        CTX_VALUE(codecs)->extra.binding = NULL;
         Val_Init_Object(value, codecs);
     }
 }
@@ -1481,7 +1462,7 @@ void Init_Core(REBARGS *rargs)
     MANAGE_ARRAY(CTX_VARLIST(Lib_Context));
 
     VAL_RESET_HEADER(CTX_VALUE(Lib_Context), REB_OBJECT);
-    VAL_CONTEXT_EXIT_FROM(CTX_VALUE(Lib_Context)) = NULL;
+    CTX_VALUE(Lib_Context)->extra.binding = NULL;
 
     // Must manage, else Expand_Context() looks like a leak
     //
@@ -1489,7 +1470,7 @@ void Init_Core(REBARGS *rargs)
     MANAGE_ARRAY(CTX_VARLIST(Sys_Context));
 
     VAL_RESET_HEADER(CTX_VALUE(Sys_Context), REB_OBJECT);
-    VAL_CONTEXT_EXIT_FROM(CTX_VALUE(Sys_Context)) = NULL;
+    CTX_VALUE(Sys_Context)->extra.binding = NULL;
 
     DOUT("Level 2");
     Load_Boot();            // Protected strings now available

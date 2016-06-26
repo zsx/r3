@@ -228,8 +228,7 @@ static void get_scalar(
         VAL_RESET_HEADER(val, REB_STRUCT);
         val->payload.structure.stu = sub_stu;
         val->payload.structure.data = STU_DATA_BIN(stu); // inside parent data
-        val->payload.structure.offset
-            = data - BIN_HEAD(VAL_STRUCT_DATA_BIN(val));
+        val->extra.struct_offset = data - BIN_HEAD(VAL_STRUCT_DATA_BIN(val));
         assert(VAL_STRUCT_SIZE(val) == field->size); // implicit from schema
 
         // With all fields initialized, assign canon value as singular value
@@ -654,24 +653,18 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
                         fail (Error_Invalid_Arg(attr));
                     }
                     else {
-                        REBVAL *lib;
-                        REBVAL *sym;
-                        CFUNC *addr;
-
-                        lib = KNOWN(VAL_ARRAY_AT_HEAD(attr, 0));
-                        sym = KNOWN(VAL_ARRAY_AT_HEAD(attr, 1));
-
+                        REBVAL *lib = KNOWN(VAL_ARRAY_AT_HEAD(attr, 0));
                         if (!IS_LIBRARY(lib))
                             fail (Error_Invalid_Arg(attr));
-
-                        if (GET_LIB_FLAG(VAL_LIB_HANDLE(lib), LIB_FLAG_CLOSED))
+                        if (IS_LIB_CLOSED(VAL_LIBRARY(lib)))
                             fail (Error(RE_BAD_LIBRARY));
 
+                        REBVAL *sym = KNOWN(VAL_ARRAY_AT_HEAD(attr, 1));
                         if (!ANY_BINSTR(sym))
                             fail (Error_Invalid_Arg(sym));
 
-                        addr = OS_FIND_FUNCTION(
-                            LIB_FD(VAL_LIB_HANDLE(lib)),
+                        CFUNC *addr = OS_FIND_FUNCTION(
+                            VAL_LIBRARY_FD(lib),
                             s_cast(VAL_RAW_DATA_AT(sym))
                         );
                         if (!addr)
@@ -1376,7 +1369,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
         MANAGE_SERIES(data_bin);
         out->payload.structure.data = data_bin;
     }
-    out->payload.structure.offset = 0;
+    out->extra.struct_offset = 0;
 
     *ARR_HEAD(stu) = *out;
     assert(ARR_LEN(stu) == 1);

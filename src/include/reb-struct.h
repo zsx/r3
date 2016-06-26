@@ -218,7 +218,7 @@ inline static REBSER *STU_DATA_BIN(REBSTU *stu) {
 }
 
 inline static REBCNT STU_OFFSET(REBSTU *stu) {
-    return STU_VALUE(stu)->payload.structure.offset;
+    return STU_VALUE(stu)->extra.struct_offset;
 }
 
 #define STU_FFTYPE(stu) \
@@ -243,7 +243,7 @@ inline static REBCNT STU_OFFSET(REBSTU *stu) {
     ((v)->payload.structure.data)
 
 #define VAL_STRUCT_OFFSET(v) \
-    ((v)->payload.structure.offset)
+    ((v)->extra.struct_offset)
 
 #define VAL_STRUCT_FIELDLIST(v) \
     STU_FIELDLIST(VAL_STRUCT(v))
@@ -277,7 +277,7 @@ inline static REBCNT STU_OFFSET(REBSTU *stu) {
 struct Reb_Routine_Info {
     union {
         struct {
-            REBLHL *lib;
+            REBLIB *lib;
             CFUNC *cfunc;
         } routine;
         struct {
@@ -340,7 +340,7 @@ enum {
 inline static CFUNC *RIN_CFUNC(REBRIN *r)
     { return r->code.routine.cfunc; }
 
-inline static REBLHL *RIN_LIB(REBRIN *r)
+inline static REBLIB *RIN_LIB(REBRIN *r)
     { return r->code.routine.lib; }
 
 #define RIN_NUM_FIXED_ARGS(r) \

@@ -97,6 +97,9 @@
 #endif
 
 
+#define VAL_ALL_BITS(v) ((v)->payload.all.bits)
+
+
 //=////////////////////////////////////////////////////////////////////////=//
 //
 //  VALUE "KIND" (1 out of 64 different foundational types)
@@ -267,7 +270,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     ){
         v->payload.track.filename = file;
         v->payload.track.line = line;
-        v->payload.track.count = TG_Do_Count;
+        v->extra.do_count = TG_Do_Count;
     }
 
     inline static const char* VAL_TRACK_FILE(const RELVAL *v)
@@ -277,7 +280,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
         { return v->payload.track.line; }
 
     inline static REBUPT VAL_TRACK_COUNT(const REBVAL *v)
-        { return v->payload.track.count; }
+        { return v->extra.do_count; }
 #endif
 
 
@@ -973,21 +976,21 @@ inline static void SET_TIME(RELVAL *v, REBI64 nanoseconds) {
 //=////////////////////////////////////////////////////////////////////////=//
 
 #define VAL_DATE(v) \
-    ((v)->payload.time.date)
+    ((v)->extra.date)
 
 #define MAX_YEAR 0x3fff
 
 #define VAL_YEAR(v) \
-    ((v)->payload.time.date.date.year)
+    ((v)->extra.date.date.year)
 
 #define VAL_MONTH(v) \
-    ((v)->payload.time.date.date.month)
+    ((v)->extra.date.date.month)
 
 #define VAL_DAY(v) \
-    ((v)->payload.time.date.date.day)
+    ((v)->extra.date.date.day)
 
 #define VAL_ZONE(v) \
-    ((v)->payload.time.date.date.zone)
+    ((v)->extra.date.date.zone)
 
 #define ZONE_MINS 15
 
@@ -1212,19 +1215,19 @@ inline static REBCTX *VAL_SPECIFIER(const REBVAL *v) {
     return VAL_SPECIFIC(v);
 }
 
-inline static void INIT_ARRAY_SPECIFIC(RELVAL *v, REBCTX *context) {
+inline static void INIT_SPECIFIC(RELVAL *v, REBCTX *context) {
     assert(NOT(GET_VAL_FLAG(v, VALUE_FLAG_RELATIVE)));
-    v->payload.any_series.target.specific = context;
+    v->extra.binding = CTX_VARLIST(context);
 }
 
-inline static void INIT_ARRAY_RELATIVE(RELVAL *v, REBFUN *func) {
+inline static void INIT_RELATIVE(RELVAL *v, REBFUN *func) {
     assert(GET_VAL_FLAG(v, VALUE_FLAG_RELATIVE));
-    v->payload.any_series.target.relative = func;
+    v->extra.binding = FUNC_PARAMLIST(func);
 }
 
 inline static void INIT_VAL_ARRAY(RELVAL *v, REBARR *a) {
     SET_VAL_FLAG(v, VALUE_FLAG_ARRAY);
-    v->payload.any_series.target.specific = SPECIFIED;
+    v->extra.binding = cast(REBARR*, SPECIFIED);
     v->payload.any_series.series = ARR_SERIES(a);
 }
 
@@ -1297,7 +1300,7 @@ inline static RELVAL *VAL_ARRAY_TAIL(const RELVAL *v) {
     (BIN_HEAD(PG_Word_Names) + VAL_SYM_NINDEX(v))
 
 #define VAL_SYM_CANON(v) \
-    ((v)->payload.symbol.canon)
+    ((v)->extra.symbol_canon)
 
 #define VAL_SYM_ALIAS(v) \
     ((v)->payload.symbol.alias)
@@ -1527,12 +1530,12 @@ enum {
 
 inline static REBSYM VAL_TYPESET_SYM(const RELVAL *typeset) {
     assert(IS_TYPESET(typeset));
-    return typeset->payload.typeset.sym;
+    return typeset->extra.typeset_sym;
 }
 
 inline static void VAL_TYPESET_SYM_INIT(RELVAL *typeset, REBSYM sym) {
     assert(IS_TYPESET(typeset));
-    typeset->payload.typeset.sym = sym;
+    typeset->extra.typeset_sym = sym;
 }
 
 #define VAL_TYPESET_CANON(v) \
@@ -1610,7 +1613,7 @@ inline static void INIT_WORD_CONTEXT(RELVAL *v, REBCTX *context) {
     assert(GET_VAL_FLAG(v, WORD_FLAG_BOUND) && context != SPECIFIED);
     ENSURE_SERIES_MANAGED(CTX_SERIES(context));
     assert(GET_ARR_FLAG(CTX_KEYLIST(context), SERIES_FLAG_MANAGED));
-    v->payload.any_word.place.binding.target.specific = context;
+    v->extra.binding = CTX_VARLIST(context);
 }
 
 inline static REBCTX *VAL_WORD_CONTEXT(const REBVAL *v) {
@@ -1620,7 +1623,7 @@ inline static REBCTX *VAL_WORD_CONTEXT(const REBVAL *v) {
 
 inline static void INIT_WORD_FUNC(RELVAL *v, REBFUN *func) {
     assert(GET_VAL_FLAG(v, WORD_FLAG_BOUND));
-    v->payload.any_word.place.binding.target.relative = func;
+    v->extra.binding = FUNC_PARAMLIST(func);
 }
 
 inline static REBFUN *VAL_WORD_FUNC(const RELVAL *v) {
@@ -1637,12 +1640,12 @@ inline static void INIT_WORD_INDEX(RELVAL *v, REBCNT i) {
             ? VAL_TYPESET_SYM(FUNC_PARAM(VAL_WORD_FUNC(v), i))
             : CTX_KEY_SYM(VAL_WORD_CONTEXT(KNOWN(v)), i)
     ));
-    v->payload.any_word.place.binding.index = cast(REBINT, i);
+    v->payload.any_word.index = cast(REBINT, i);
 }
 
 inline static REBCNT VAL_WORD_INDEX(const RELVAL *v) {
     assert(ANY_WORD(v));
-    REBINT i = v->payload.any_word.place.binding.index;
+    REBINT i = v->payload.any_word.index;
     assert(i > 0);
     return cast(REBCNT, i);
 }
@@ -1650,7 +1653,7 @@ inline static REBCNT VAL_WORD_INDEX(const RELVAL *v) {
 inline static void UNBIND_WORD(RELVAL *v) {
     CLEAR_VAL_FLAGS(v, WORD_FLAG_BOUND | VALUE_FLAG_RELATIVE);
 #if !defined(NDEBUG)
-    v->payload.any_word.place.binding.index = 0;
+    v->payload.any_word.index = 0;
 #endif
 }
 
@@ -1764,11 +1767,19 @@ inline static REBOOL IS_FUNCTION_HIJACKER(const RELVAL *v)
     { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Hijacker_Dispatcher); }
 
 inline static REBRIN *VAL_FUNC_ROUTINE(const RELVAL *v) {
-    return cast(REBRIN*, VAL_FUNC_BODY(v)->payload.handle.thing.data);
+    return cast(REBRIN*, VAL_FUNC_BODY(v)->payload.handle.data);
 }
 
-inline static REBARR *VAL_FUNC_EXIT_FROM(const RELVAL *v)
-    { return v->payload.function.exit_from; }
+inline static REBARR *VAL_BINDING(const RELVAL *v) {
+    assert(
+        ANY_ARRAY(v)
+        || IS_FUNCTION(v)
+        || ANY_CONTEXT(v)
+        || IS_VARARGS(v)
+        || ANY_WORD(v)
+    );
+    return v->extra.binding;
+}
 
 // !!! At the moment functions are "all durable" or "none durable" w.r.t. the
 // survival of their arguments and locals after the call.
@@ -1852,9 +1863,6 @@ inline static REBCTX *VAL_CONTEXT_META(const RELVAL *v) {
         CTX_KEYLIST(AS_CONTEXT(v->payload.any_context.varlist))
     )->link.meta;
 }
-
-#define VAL_CONTEXT_EXIT_FROM(v) \
-    ((v)->payload.any_context.exit_from)
 
 inline static REBCNT VAL_CONTEXT_STACKVARS_LEN(const RELVAL *v) {
     assert(ANY_CONTEXT(v));
@@ -1988,14 +1996,15 @@ inline static REBVAL *VAL_VARARGS_ARG(const RELVAL *v)
     { return v->payload.varargs.arg; }
 
 inline static REBCTX *VAL_VARARGS_FRAME_CTX(const RELVAL *v) {
-    assert(
-        GET_ARR_FLAG((v)->payload.varargs.feed.varlist, SERIES_FLAG_MANAGED)
-    );
-    return AS_CONTEXT((v)->payload.varargs.feed.varlist);
+    assert(GET_ARR_FLAG(v->extra.binding, SERIES_FLAG_MANAGED));
+    assert(GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_CONTEXT_VARLIST));
+    return AS_CONTEXT(v->extra.binding);
 }
 
-inline static REBARR *VAL_VARARGS_ARRAY1(const RELVAL *v)
-    { return v->payload.varargs.feed.array1; }
+inline static REBARR *VAL_VARARGS_ARRAY1(const RELVAL *v) {
+    assert(!GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_CONTEXT_VARLIST));
+    return v->extra.binding;
+}
 
 
 // The subfeed is either the varlist of the frame of another varargs that is
@@ -2025,13 +2034,13 @@ inline static REBARR **SUBFEED_ADDR_OF_FEED(REBARR *a) {
 //
 
 #define VAL_HANDLE_CODE(v) \
-    ((v)->payload.handle.thing.code)
+    ((v)->payload.handle.code)
 
 #define VAL_HANDLE_DATA(v) \
-    ((v)->payload.handle.thing.data)
+    ((v)->payload.handle.data)
 
 #define VAL_HANDLE_NUMBER(v) \
-    ((v)->payload.handle.thing.number)
+    cast(REBUPT, (v)->payload.handle.data)
 
 inline static void SET_HANDLE_CODE(RELVAL *v, CFUNC *code) {
     VAL_RESET_HEADER(v, REB_HANDLE);
@@ -2045,7 +2054,7 @@ inline static void SET_HANDLE_DATA(RELVAL *v, void *data) {
 
 inline static void SET_HANDLE_NUMBER(RELVAL *v, REBUPT number) {
     VAL_RESET_HEADER(v, REB_HANDLE);
-    VAL_HANDLE_NUMBER(v) = number;
+    VAL_HANDLE_DATA(v) = cast(void*, number);
 }
 
 
@@ -2064,38 +2073,26 @@ inline static void SET_HANDLE_NUMBER(RELVAL *v, REBUPT number) {
 // the system uses internally.
 //
 
-#define LIB_FD(l) \
-    ((l)->fd) // file descriptor
+inline static void *LIB_FD(REBLIB *l) {
+    return ARR_SERIES(l)->misc.fd; // file descriptor
+}
 
-#define LIB_FLAGS(l) \
-    ((l)->flags)
+inline static REBOOL IS_LIB_CLOSED(const REBLIB *l) {
+    return LOGICAL(ARR_SERIES(l)->misc.fd == NULL);
+}
 
-#define VAL_LIB_SPEC(v) \
-    ((v)->payload.library.spec)
+inline static REBCTX *VAL_LIBRARY_META(const RELVAL *v) {
+    return ARR_SERIES(v->payload.library.singular)->link.meta;
+}
 
-#define VAL_LIB_HANDLE(v) \
-    ((v)->payload.library.handle)
+inline static REBLIB *VAL_LIBRARY(const RELVAL *v) {
+    return v->payload.library.singular;
+}
 
-#define VAL_LIB_FD(v) \
-    LIB_FD(VAL_LIB_HANDLE(v))
+inline static void *VAL_LIBRARY_FD(const RELVAL *v) {
+    return LIB_FD(VAL_LIBRARY(v));
+}
 
-#define VAL_LIB_FLAGS(v) \
-    LIB_FLAGS(VAL_LIB_HANDLE(v))
-
-enum {
-    LIB_FLAG_MARK = 1 << 0, // library was found during GC mark scan.
-    LIB_FLAG_USED = 1 << 1,
-    LIB_FLAG_CLOSED = 1 << 2
-};
-
-#define SET_LIB_FLAG(s, f) \
-    (LIB_FLAGS(s) |= (f))
-
-#define CLEAR_LIB_FLAG(s, f) \
-    (LIB_FLAGS(s) &= ~(f))
-
-#define GET_LIB_FLAG(s, f) \
-    (LIB_FLAGS(s) &  (f))
 
 
 //=////////////////////////////////////////////////////////////////////////=//

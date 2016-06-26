@@ -652,7 +652,7 @@ static void ffi_to_rebol(
         VAL_RESET_HEADER(out, REB_STRUCT);
         out->payload.structure.stu = stu;
         out->payload.structure.data = data;
-        out->payload.structure.offset = 0;
+        out->extra.struct_offset = 0;
 
         *ARR_HEAD(stu) = *out; // save canon value
         assert(ARR_LEN(stu) == 1); // should be automatic for singulars
@@ -732,7 +732,7 @@ REB_R Routine_Dispatcher(struct Reb_Frame *f)
         // so there's nothing to track whether that gets loaded or unloaded
     }
     else {
-        if (GET_LIB_FLAG(RIN_LIB(rin), LIB_FLAG_CLOSED))
+        if (IS_LIB_CLOSED(RIN_LIB(rin)))
             fail (Error(RE_BAD_LIBRARY));
     }
 
@@ -1282,7 +1282,7 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec) {
     //
     VAL_RESET_HEADER(rootparam, REB_FUNCTION);
     rootparam->payload.function.paramlist = paramlist;
-    rootparam->payload.function.exit_from = NULL;
+    rootparam->extra.binding = NULL;
 
     // The "body" value of a routine is a handle which points to the routine
     // info.  This is available to the Routine_Dispatcher when the function
@@ -1332,7 +1332,7 @@ REBNATIVE(make_routine)
 
     // Make sure library wasn't closed with CLOSE
     //
-    REBLHL *lib = VAL_LIB_HANDLE(ARG(lib));
+    REBLIB *lib = VAL_LIBRARY(ARG(lib));
     if (lib == NULL)
         fail (Error_Invalid_Arg(ARG(lib)));
 

@@ -403,6 +403,7 @@ struct Reb_Series {
         REBOOL negated; // for bitsets (must be shared, can't be in REBVAL)
         REBFUN *underlying; // specialization -or- final underlying function
         struct Reb_Frame *f; // for a FRAME! series, the call frame (or NULL)
+        void *fd; // file descriptor for library
     } misc;
 
 #if !defined(NDEBUG)

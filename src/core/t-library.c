@@ -30,9 +30,6 @@
 
 #include "sys-core.h"
 
-// !!! Why is there a "LIB_POOL"?  Does that really need optimization?
-//
-#include "mem-pools.h" // low-level memory pool access
 
 //
 //  CT_Library: C
@@ -41,7 +38,7 @@ REBINT CT_Library(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     //RL_Print("%s, %d\n", __func__, __LINE__);
     if (mode >= 0) {
-        return VAL_LIB_HANDLE(a) == VAL_LIB_HANDLE(b);
+        return VAL_LIBRARY(a) == VAL_LIBRARY(b);
     }
     return -1;
 }
@@ -55,23 +52,25 @@ void MAKE_Library(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     if (!IS_FILE(arg))
         fail (Error_Unexpected_Type(REB_FILE, VAL_TYPE(arg)));
 
-    void *lib = NULL;
     REBCNT error = 0;
+
     REBSER *path = Value_To_OS_Path(arg, FALSE);
-    lib = OS_OPEN_LIBRARY(SER_HEAD(REBCHR, path), &error);
+    void *fd = OS_OPEN_LIBRARY(SER_HEAD(REBCHR, path), &error);
     Free_Series(path);
-    if (!lib)
+
+    if (!fd)
         fail (Error_Bad_Make(REB_LIBRARY, arg));
 
-    VAL_LIB_SPEC(out) = Make_Array(1);
-    MANAGE_ARRAY(VAL_LIB_SPEC(out));
+    REBARR *singular = Make_Singular_Array(BLANK_VALUE);
 
-    Append_Value(VAL_LIB_SPEC(out), arg);
-    VAL_LIB_HANDLE(out) = cast(REBLHL*, Make_Node(LIB_POOL));
-    VAL_LIB_FD(out) = lib;
-    SET_LIB_FLAG(VAL_LIB_HANDLE(out), LIB_FLAG_USED);
-    CLEAR_LIB_FLAG(VAL_LIB_HANDLE(out), LIB_FLAG_CLOSED);
-    VAL_RESET_HEADER(out, REB_LIBRARY);
+    VAL_RESET_HEADER(ARR_HEAD(singular), REB_LIBRARY);
+    ARR_HEAD(singular)->payload.library.singular = singular;
+
+    ARR_SERIES(singular)->misc.fd = fd;
+    ARR_SERIES(singular)->link.meta = NULL; // build from spec, e.g. arg?
+
+    MANAGE_ARRAY(singular);
+    *out = *KNOWN(ARR_HEAD(singular));
 }
 
 
@@ -95,12 +94,10 @@ REBTYPE(Library)
     // unary actions
     switch(action) {
         case SYM_CLOSE:
-            OS_CLOSE_LIBRARY(VAL_LIB_FD(val));
-            SET_LIB_FLAG(VAL_LIB_HANDLE(val), LIB_FLAG_CLOSED);
-            SET_VOID(D_OUT);
-            break;
-        default:
-            fail (Error_Illegal_Action(REB_LIBRARY, action));
+            OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(val));
+            ARR_SERIES(VAL_LIBRARY(val))->misc.fd = NULL;
+            return R_VOID;
     }
-    return R_OUT;
+
+    fail (Error_Illegal_Action(REB_LIBRARY, action));
 }

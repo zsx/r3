@@ -266,7 +266,7 @@ void Clonify_Values_Len_Managed(
                     // If it was relative, then copying with a specifier
                     // means it isn't relative any more.
                     //
-                    INIT_ARRAY_SPECIFIC(value, SPECIFIED);
+                    INIT_SPECIFIC(value, SPECIFIED);
                 }
                 else {
                     series = Copy_Sequence(VAL_SERIES(value));
@@ -448,7 +448,7 @@ REBARR *Copy_Rerelativized_Array_Deep_Managed(
                     VAL_ARRAY(src), before, after
                 )
             );
-            INIT_ARRAY_RELATIVE(dest, after);
+            INIT_RELATIVE(dest, after);
         }
         else {
             assert(ANY_WORD(src));

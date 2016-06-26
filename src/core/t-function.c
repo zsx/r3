@@ -34,18 +34,16 @@ static REBOOL Same_Func(const RELVAL *val, const RELVAL *arg)
 {
     assert(IS_FUNCTION(val) && IS_FUNCTION(arg));
 
-    // !!! The "EXIT_FROM" tweak that facilitated definitionally scoped RETURN
-    // is under study for generalization, to let individual function values
-    // distinguish themselves "cheaply" from archetypal ones.  It's not yet
-    // generalized cleanly, so we can't guarantee this test...temporarily
-    // consider all RETURNs and all LEAVEs equal until ready for this.
-    //
-    /* if (VAL_FUNC_EXIT_FROM(val) == VAL_FUNC_EXIT_FROM(arg)) */
-
     if (VAL_FUNC_PARAMLIST(val) == VAL_FUNC_PARAMLIST(arg)) {
         assert(VAL_FUNC_DISPATCHER(val) == VAL_FUNC_DISPATCHER(arg));
         assert(VAL_FUNC_BODY(val) == VAL_FUNC_BODY(arg));
-        return TRUE;
+
+        // All functions that have the same paramlist are not necessarily the
+        // "same function".  For instance, every RETURN shares a common
+        // paramlist, but the binding is different in the REBVAL instances
+        // in order to know where to "exit from".
+
+        return LOGICAL(VAL_BINDING(val) == VAL_BINDING(arg));
     }
 
     return FALSE;

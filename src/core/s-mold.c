@@ -1455,15 +1455,15 @@ void Mold_Value(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
     }
         break;
 
-    case REB_LIBRARY:
+    case REB_LIBRARY: {
         Pre_Mold(value, mold);
 
-        DS_PUSH(KNOWN(ARR_HEAD(VAL_LIB_SPEC(value))));
-        Mold_File(DS_TOP, mold);
-        DS_DROP;
+        REBCTX *meta = VAL_LIBRARY_META(value);
+        if (meta)
+            Mold_Object(CTX_VALUE(meta), mold);
 
         End_Mold(mold);
-        break;
+        break; }
 
     case REB_HANDLE:
         // Value has no printable form, so just print its name.

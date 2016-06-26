@@ -763,7 +763,7 @@ void Rebind_Context_Deep(REBCTX *src, REBCTX *dst, REBINT *opt_binds)
 REBCTX *Make_Selfish_Context_Detect(
     enum Reb_Kind kind,
     REBCTX *spec,
-    REBARR *exit_from,
+    REBARR *binding,
     const RELVAL *head,
     REBCTX *opt_parent
 ) {
@@ -794,7 +794,7 @@ REBCTX *Make_Selfish_Context_Detect(
     // context[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
     //
     CTX_VALUE(context)->payload.any_context.varlist = varlist;
-    VAL_CONTEXT_EXIT_FROM(CTX_VALUE(context)) = NULL;
+    CTX_VALUE(context)->extra.binding = NULL;
 
     SET_ARRAY_LEN(CTX_VARLIST(context), len);
 
@@ -838,7 +838,7 @@ REBCTX *Make_Selfish_Context_Detect(
     assert(CTX_TYPE(context) == kind);
 
     INIT_CONTEXT_META(context, spec);
-    VAL_CONTEXT_EXIT_FROM(CTX_VALUE(context)) = exit_from;
+    CTX_VALUE(context)->extra.binding = binding;
 
     // We should have a SELF key in all cases here.  Set it to be a copy of
     // the object we just created.  (It is indeed a copy of the [0] element,
@@ -1043,7 +1043,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     //
     VAL_RESET_HEADER(rootvar, CTX_TYPE(parent1));
     rootvar->payload.any_context.varlist = CTX_VARLIST(merged);
-    VAL_CONTEXT_EXIT_FROM(rootvar) = NULL;
+    rootvar->extra.binding = NULL;
 
     // Copy parent1 values:
     memcpy(

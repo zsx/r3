@@ -428,15 +428,15 @@ struct Reb_Frame {
     //
     REBFUN *func;
 
-    // `exit_from`
+    // `binding`
     //
     // A REBFUN* alone is not enough to fully specify a function, because
     // it may be an "archetype".  For instance, the archetypal RETURN native
     // doesn't have enough specific information in it to know *which* function
-    // to exit.  The additional pointer of context is exit_from, and it is
+    // to exit.  The additional pointer of context is binding, and it is
     // extracted from the function REBVAL.
     //
-    REBARR *exit_from; // either a varlist of a FRAME! or function paramlist
+    REBARR *binding; // either a varlist of a FRAME! or function paramlist
 
     // `label_sym`
     //

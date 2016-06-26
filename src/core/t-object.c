@@ -283,46 +283,26 @@ REBINT CT_Context(const RELVAL *a, const RELVAL *b, REBINT mode)
 void MAKE_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
     if (kind == REB_FRAME) {
-        REBARR *varlist;
-        REBCNT n;
-        REBVAL *var;
-        const REBOOL fill_bar = FALSE;
-
+        //
         // !!! Current experiment for making frames lets you give it
         // a FUNCTION! only.
         //
         if (!IS_FUNCTION(arg))
             fail (Error_Bad_Make(kind, arg));
 
-        if (
-            VAL_FUNC(arg) == NAT_FUNC(return)
-            || VAL_FUNC(arg) == NAT_FUNC(leave)
-        ) {
-            // !!! Although definitionally scoped return and leave
-            // functions give the *appearance* of having independent
-            // REBFUNs, they don't.  They have an EXIT_FROM field poked
-            // into the REBVAL of the natives for RETURN and LEAVE which
-            // makes them slightly corrupt function REBVALs (overwriting
-            // their "C code" native function pointer field).  This will
-            // need special handling in frames--it can be done, it just
-            // means that the Reb_Any_Context will have to be able to
-            // store the context to exit from instead of the function
-            // itself (could then use # of args in the frame to tell
-            // whether it's a return or a leave...)
-            //
-            fail (Error(RE_MISC));
-        }
-
         // In order to have the frame survive the call to MAKE and be
         // returned to the user it can't be stack allocated, because it
         // would immediately become useless.  Allocate dynamically.
         //
-        Val_Init_Context(
-            out,
-            REB_FRAME,
-            Make_Frame_For_Function(arg)
-        );
+        Val_Init_Context(out, REB_FRAME, Make_Frame_For_Function(arg));
 
+        // The frame's keylist is the same as the function's paramlist, and
+        // the [0] canon value of that array can be used to find the
+        // archetype of the function.  But if the `arg` is a RETURN with a
+        // binding in the REBVAL to where to return from, that unique
+        // instance information must be carried in the REBVAL of the context.
+        //
+        assert(VAL_BINDING(out) == VAL_BINDING(arg));
         return;
     }
 
@@ -568,12 +548,6 @@ REBNATIVE(set_meta)
 
     REBCTX *meta;
     if (ANY_CONTEXT(ARG(meta))) {
-        //
-        // !!! Putting a context value that has an `exit_from` into a single
-        // REBCTX* will only have the canon context value, which has no
-        // per-instance REBVAL bits.  Consider systemic checks for this.
-        //
-        assert(VAL_CONTEXT_EXIT_FROM(ARG(meta)) == NULL);
         meta = VAL_CONTEXT(ARG(meta));
     }
     else {

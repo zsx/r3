@@ -420,7 +420,7 @@ void MAKE_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
         VAL_RESET_HEADER(out, REB_VARARGS);
         SET_VAL_FLAG(out, VARARGS_FLAG_NO_FRAME);
-        out->payload.varargs.feed.array1 = array1;
+        out->extra.binding = array1;
 
         return;
     }
@@ -590,7 +590,7 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
 
         REBVAL param_word;
 
-        REBARR *varlist = value->payload.varargs.feed.varlist;
+        REBARR *varlist = VAL_BINDING(value);
         if (!GET_ARR_FLAG(varlist, SERIES_FLAG_MANAGED)) {
             //
             // This can happen if you internally try and PROBE() a varargs

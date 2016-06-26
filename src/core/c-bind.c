@@ -457,7 +457,7 @@ static void Bind_Relative_Inner_Loop(
             // part of a deep copy of a function body either way.
             //
             SET_VAL_FLAG(value, VALUE_FLAG_RELATIVE);
-            INIT_ARRAY_RELATIVE(value, AS_FUNC(paramlist)); // incomplete func
+            INIT_RELATIVE(value, AS_FUNC(paramlist)); // incomplete func
         }
     }
 }

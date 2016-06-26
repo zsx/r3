@@ -374,7 +374,6 @@ REBNATIVE(check)
         ASSERT_CONTEXT(VAL_CONTEXT(value));
     }
     else if (IS_FUNCTION(value)) {
-        assert(VAL_FUNC_EXIT_FROM(value) == NULL);
         ASSERT_ARRAY(VAL_FUNC_PARAMLIST(value));
         ASSERT_ARRAY(VAL_ARRAY(VAL_FUNC_BODY(value)));
     }

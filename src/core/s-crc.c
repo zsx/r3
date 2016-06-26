@@ -395,7 +395,7 @@ void Val_Init_Map(REBVAL *out, REBMAP *map)
 
     // Note: Don't set VALUE_FLAG_ARRAY
     //
-    out->payload.any_series.target.specific = SPECIFIED;
+    out->extra.binding = cast(REBARR*, SPECIFIED);
     out->payload.any_series.series = ARR_SERIES(MAP_PAIRLIST(map));
     out->payload.any_series.index = 0;
 }

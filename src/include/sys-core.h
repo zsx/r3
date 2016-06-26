@@ -157,6 +157,7 @@ typedef struct rebol_mem_pool REBPOL;
 #include "sys-deci.h"
 
 #include "sys-rebval.h" // REBVAL structure definition
+#include "sys-action.h"
 #include "sys-rebser.h" // REBSER series definition (embeds REBVAL definition)
 
 typedef void (*MAKE_FUNC)(REBVAL*, enum Reb_Kind, const REBVAL*);
