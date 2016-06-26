@@ -276,7 +276,7 @@ enum {
     // But it's good enough for casual compatibility in many cases.
     //
 #if !defined NDEBUG
-    SERIES_FLAG_LEGACY = 1 << 14,
+    SERIES_FLAG_LEGACY = 1 << 15,
 #endif
 
     SERIES_FLAG_NO_COMMA_NEEDED = 0 // solves dangling comma from above
