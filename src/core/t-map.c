@@ -543,14 +543,12 @@ REBARR *Map_To_Array(REBMAP *map, REBINT what)
 REBMAP *Mutate_Array_Into_Map(REBARR *array)
 {
     REBCNT size = ARR_LEN(array);
-    REBMAP *map;
 
     // See note above--can't have this array be accessible via some ANY-BLOCK!
     //
-    assert(!GET_ARR_FLAG(array, SERIES_FLAG_MANAGED));
+    assert(NOT(IS_ARRAY_MANAGED(array)));
 
-    map = AS_MAP(array);
-
+    REBMAP *map = AS_MAP(array);
     MAP_HASHLIST(map) = Make_Hash_Sequence(size);
 
     Rehash_Map(map);

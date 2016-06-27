@@ -116,7 +116,7 @@ REBCNT Modify_Array(
 
 #if !defined(NDEBUG)
     for (index = 0; index < ilen; index++) {
-        if (GET_ARR_FLAG(dst_arr, SERIES_FLAG_MANAGED))
+        if (IS_ARRAY_MANAGED(dst_arr))
             ASSERT_VALUE_MANAGED(&src_rel[index]);
     }
 #endif

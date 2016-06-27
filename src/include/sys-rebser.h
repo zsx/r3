@@ -48,10 +48,19 @@
 //
 // If the data requirements of a series are small, then rather than using the
 // space in the REBSER to track a dynamic allocation, the data can be placed
-// directly in the node itself.  The capacity is chosen to be exactly enough
-// to store a single REBVAL so that length 0 or 1 series can be represented.
-// However, that same amount of capacity may be used by arbitrary series (such
-// as strings) if they are small enough to fit.
+// directly in the node itself.  By leveraging the trick that the low bit of
+// an end marker is all that's needed to terminate arrays, the `info` bits
+// internal to the structure can implicitly terminate the array.  The capacity
+// is enough to store a single REBVAL so that length 0 or 1 series can be
+// represented, along with two extra pointer-sized items (a `link` and `misc`).
+//
+// Additionally, if the data requirements are such that exactly two REBVALs
+// of space are needed, another trick is used.  Implicit termination in that
+// case cannot be accomplished inside the REBSER (as it is exactly two
+// REBVALs in size).  Instead, REBSERs with such a requirement are not
+// located in the pool before another one with the same requirement.  By
+// interleaving them with ordinary series that have bits to spare for the
+// terminator signal, they can fit.  See REBSER_REBVAL_FLAG_MARK, etc.
 //
 // Notes:
 //
@@ -101,35 +110,25 @@ enum {
     //
     SERIES_FLAG_HAS_DYNAMIC = 1 << 2,
 
-    // `SERIES_FLAG_MARK` is used in the "mark and sweep" method of garbage
-    // collection.  It is also used for other purposes which need to go
-    // through and set a generic bit, e.g. to protect against loops in
-    // the transitive closure ("if you hit a SER_MARK, then you've already
-    // processed this series").
+    // `SERIES_FLAG_STRING` identifies that this series holds a string, which
+    // is important to the GC in order to successfully
     //
-    // Because of the dual purpose, it's important to be sure to not run
-    // garbage collection while one of these alternate uses is in effect.
-    // It's also important to reset the bit when done, as GC assumes when
-    // it starts that all bits are cleared.  (The GC itself clears all
-    // the bits by enumerating every series in the series pool during the
-    // sweeping phase.)
+    // !!! While there are advantages to having symbols be a compatible shape
+    // with other series for clients convenience, it may be that using a
+    // different memory pool for tracking some bits make sense.  For instance,
+    // knowing the series is a string is important at GC time...to clean up
+    // aliases and adjust canons.
     //
-    // !!! With more series bits now available, the dual purpose is something
-    // that should be reexamined--so long as bits are free, why reuse if it
-    // creates more risk?
-    //
-    SERIES_FLAG_MARK = 1 << 3,
+    SERIES_FLAG_STRING = 1 << 3,
 
-    // `SERIES_FLAG_MANAGED` indicates that a series is managed by garbage
-    // collection.  If this bit is not set, then during the GC's sweeping
-    // phase the simple fact that it hasn't been SER_MARK'd won't be enough
-    // to let it be considered for freeing.
+    // `STRING_FLAG_CANON` is used to indicate when a REBSTR series represents
+    // the canon form of a word.  This doesn't mean anything special about
+    // the case of its letters--just that it was loaded first.  A canon
+    // string is unique because it does not need to store a pointer to its
+    // canon form, so it can use the REBSER.misc field for the purpose of
+    // holding an index during binding.
     //
-    // See MANAGE_SERIES for details on the lifecycle of a series (how it
-    // starts out manually managed, and then must either become managed or be
-    // freed before the evaluation that created it ends).
-    //
-    SERIES_FLAG_MANAGED = 1 << 4,
+    STRING_FLAG_CANON = 1 << 4,
 
     // `SERIES_FLAG_ARRAY` indicates that this is a series of REBVAL values,
     // and suitable for using as the payload of an ANY-ARRAY! value.  When a

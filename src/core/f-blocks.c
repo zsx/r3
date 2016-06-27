@@ -545,9 +545,10 @@ REBCNT Find_Same_Array(REBARR *search_values, const RELVAL *value)
 //
 void Unmark_Array(REBARR *array)
 {
-    if (!GET_ARR_FLAG(array, SERIES_FLAG_MARK)) return; // avoid loop
+    if (!IS_REBSER_MARKED(ARR_SERIES(array)))
+        return; // avoid loop
 
-    CLEAR_ARR_FLAG(array, SERIES_FLAG_MARK);
+    UNMARK_REBSER(ARR_SERIES(array));
 
     RELVAL *val;
     for (val = ARR_HEAD(array); NOT_END(val); ++val)
@@ -577,7 +578,7 @@ void Unmark(RELVAL *val)
         //
         assert(
             !ANY_SERIES(val)
-            || !GET_SER_FLAG(VAL_SERIES(val), SERIES_FLAG_MARK)
+            || !IS_REBSER_MARKED(VAL_SERIES(val))
         );
         return;
     }

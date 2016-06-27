@@ -98,6 +98,25 @@
 
 
 //
+// Marking
+//
+
+static inline REBOOL IS_REBSER_MARKED(REBSER *rebser) {
+    return LOGICAL(rebser->header.bits & REBSER_REBVAL_FLAG_MARK);
+}
+
+static inline void MARK_REBSER(REBSER *rebser) {
+    assert(NOT(IS_REBSER_MARKED(rebser)));
+    rebser->header.bits |= REBSER_REBVAL_FLAG_MARK;
+}
+
+static inline void UNMARK_REBSER(REBSER *rebser) {
+    assert(IS_REBSER_MARKED(rebser));
+    rebser->header.bits &= ~cast(REBUPT, REBSER_REBVAL_FLAG_MARK);
+}
+
+
+//
 // Series flags
 //
 
@@ -133,8 +152,9 @@
 // the presence or absence of an END marker in the first slot.
 //
 
-#define SER_WIDE(s) \
-    cast(REBYTE, ((s)->info.bits >> 16) & 0xff)
+inline static REBYTE SER_WIDE(REBSER *s) {
+    return cast(REBYTE, (s->info.bits >> 16) & 0xff);
+}
 
 inline static REBCNT SER_LEN(REBSER *s) {
     if (GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC))
@@ -338,11 +358,15 @@ inline static void TERM_SEQUENCE(REBSER *s) {
 // reachable by the GC, it will raise an alert.)
 //
 
+inline static REBOOL IS_SERIES_MANAGED(REBSER *s) {
+    return LOGICAL(s->header.bits & REBSER_REBVAL_FLAG_MANAGED);
+}
+
 #define MANAGE_SERIES(s) \
     Manage_Series(s)
 
 inline static void ENSURE_SERIES_MANAGED(REBSER *s) {
-    if (NOT(GET_SER_FLAG((s), SERIES_FLAG_MANAGED)))
+    if (NOT(IS_SERIES_MANAGED(s)))
         MANAGE_SERIES(s);
 }
 
@@ -354,7 +378,7 @@ inline static void ENSURE_SERIES_MANAGED(REBSER *s) {
         NOOP
 #else
     inline static void ASSERT_SERIES_MANAGED(REBSER *s) {
-        if (NOT(GET_SER_FLAG((s), SERIES_FLAG_MANAGED)))
+        if (NOT(IS_SERIES_MANAGED(s)))
             Panic_Series(s);
     }
 
@@ -635,6 +659,9 @@ inline static void RESET_SERIES(REBSER *s) {
 #define DROP_GUARD_ARRAY(a) \
     DROP_GUARD_SERIES(ARR_SERIES(a))
 
+#define IS_ARRAY_MANAGED(array) \
+    IS_SERIES_MANAGED(ARR_SERIES(array))
+
 #define MANAGE_ARRAY(array) \
     MANAGE_SERIES(ARR_SERIES(array))
 
@@ -749,8 +776,9 @@ struct Reb_Context {
     #define AS_CONTEXT(s)       cast(REBCTX*, (s))
 #endif
 
-#define CTX_VARLIST(c) \
-    (&(c)->varlist)
+inline static REBARR *CTX_VARLIST(REBCTX *c) {
+    return &c->varlist;
+}
 
 // It's convenient to not have to extract the array just to check/set flags
 //
@@ -778,8 +806,9 @@ inline static REBOOL GET_CTX_FLAG(REBCTX *c, REBUPT f) {
 // Special property: keylist pointer is stored in the misc field of REBSER
 //
 
-#define CTX_KEYLIST(c) \
-    (ARR_SERIES(CTX_VARLIST(c))->link.keylist)
+inline static REBARR *CTX_KEYLIST(REBCTX *c) {
+    return ARR_SERIES(CTX_VARLIST(c))->link.keylist;
+}
 
 static inline void INIT_CTX_KEYLIST_SHARED(REBCTX *c, REBARR *keylist) {
     SET_ARR_FLAG(keylist, KEYLIST_FLAG_SHARED);
@@ -818,8 +847,9 @@ static inline void INIT_CTX_KEYLIST_UNIQUE(REBCTX *c, REBARR *keylist) {
 // not live in function body arrays--hence they can't hold relative words.
 // Keys can't hold relative values either.
 //
-#define CTX_KEYS_HEAD(c) \
-    SER_AT(REBVAL, ARR_SERIES(CTX_KEYLIST(c)), 1)
+inline static REBVAL *CTX_KEYS_HEAD(REBCTX *c) {
+    return SER_AT(REBVAL, ARR_SERIES(CTX_KEYLIST(c)), 1);
+}
 
 // There may not be any dynamic or stack allocation available for a stack
 // allocated context, and in that case it will have to come out of the

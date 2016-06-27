@@ -289,7 +289,7 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
     REBCTX *dest;
 
     assert(GET_ARR_FLAG(CTX_VARLIST(src), ARRAY_FLAG_CONTEXT_VARLIST));
-    assert(GET_ARR_FLAG(CTX_KEYLIST(src), SERIES_FLAG_MANAGED));
+    ASSERT_ARRAY_MANAGED(CTX_KEYLIST(src));
 
     REBCTX *meta = CTX_META(src); // preserve meta object (if any)
 

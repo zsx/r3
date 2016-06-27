@@ -73,7 +73,7 @@ void Protect_Value(RELVAL *value, REBFLGS flags)
 //
 void Protect_Series(REBSER *series, REBCNT index, REBFLGS flags)
 {
-    if (GET_SER_FLAG(series, SERIES_FLAG_MARK)) return; // avoid loop
+    if (IS_REBSER_MARKED(series)) return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET))
         SET_SER_FLAG(series, SERIES_FLAG_LOCKED);
@@ -82,7 +82,7 @@ void Protect_Series(REBSER *series, REBCNT index, REBFLGS flags)
 
     if (!Is_Array_Series(series) || !GET_FLAG(flags, PROT_DEEP)) return;
 
-    SET_SER_FLAG(series, SERIES_FLAG_MARK); // recursion protection
+    MARK_REBSER(series); // recursion protection
 
     RELVAL *val = ARR_AT(AS_ARRAY(series), index);
     for (; NOT_END(val); val++) {
@@ -100,7 +100,7 @@ void Protect_Object(RELVAL *value, REBFLGS flags)
 {
     REBCTX *context = VAL_CONTEXT(value);
 
-    if (GET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_MARK))
+    if (IS_REBSER_MARKED(ARR_SERIES(CTX_VARLIST(context))))
         return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET))
@@ -114,7 +114,7 @@ void Protect_Object(RELVAL *value, REBFLGS flags)
 
     if (!GET_FLAG(flags, PROT_DEEP)) return;
 
-    SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_MARK); // recursion protection
+    MARK_REBSER(ARR_SERIES(CTX_VARLIST(context))); // recursion protection
 
     value = CTX_VARS_HEAD(context);
     for (; NOT_END(value); value++) {

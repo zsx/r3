@@ -189,6 +189,57 @@ struct Reb_Value_Header {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
+//  REBSER_REBVAL_FLAGs common to both REBSER and REBVAL
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// An implementation trick permits the pooled nodes that hold series to hold
+// two values.  Since a REBSER is exactly two REBVALs in size, that does not
+// leave any room for termination.  But it is implicitly terminated by virtue
+// of positioning that node next to another style of node that does *not*
+// contain two full values, in order to have just enough spare bits to
+// signal a termination.
+//
+// Because of the overlapped design, there are some flags that have to be
+// "stolen" from the REBVAL in order to take care of the garbage collector's
+// bookkeeping.  Many other flags live in the REBSER's "info" field (as
+// opposed to the shared header).  However, those flags cannot apply to one
+// of the "full bandwidth" usages of two REBVALs in the node--only these
+// basic overhead flags apply.
+//
+
+enum {
+    // `REBSER_REBVAL_FLAG_MANAGED` indicates that a series is managed by
+    // garbage collection.  If this bit is not set, then during the GC's
+    // sweeping phase the simple fact that it hasn't been SER_MARK'd won't
+    // be enough to let it be considered for freeing.
+    //
+    // See MANAGE_SERIES for details on the lifecycle of a series (how it
+    // starts out manually managed, and then must either become managed or be
+    // freed before the evaluation that created it ends).
+    //
+    REBSER_REBVAL_FLAG_MANAGED = 1 << (GENERAL_VALUE_BIT + 0),
+
+    // `REBSER_REBVAL_FLAG_MARK` is used by the mark-and-sweep of the garbage
+    // collector.  Note that the mark is used for other purposes which need to
+    // through and set a generic bit, e.g. to protect against loops in the
+    // transitive closure ("if you hit a SER_MARK, then you've already
+    // processed this series").
+    //
+    // Because of the dual purpose, it's important to be sure to not run
+    // garbage collection while one of these alternate uses is in effect.
+    // It's also important to reset the bit when done, as GC assumes when
+    // it starts that all bits are cleared.  (The GC itself clears all
+    // the bits by enumerating every series in the series pool during the
+    // sweeping phase.)
+    //
+    REBSER_REBVAL_FLAG_MARK = 1 << (GENERAL_VALUE_BIT + 1)
+};
+
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
 //  GENERAL FLAGS common to every REBVAL
 //
 //=////////////////////////////////////////////////////////////////////////=//
@@ -206,7 +257,7 @@ enum {
     // does not need to store any data in its payload... its data of being
     // true or false is already covered by this header bit.
     //
-    VALUE_FLAG_FALSE = 1 << (GENERAL_VALUE_BIT + 0),
+    VALUE_FLAG_FALSE = 1 << (GENERAL_VALUE_BIT + 2),
 
     // `VALUE_FLAG_LINE`
     //
@@ -219,7 +270,7 @@ enum {
     // !!! The native `new-line` is used set this, which has a somewhat
     // poor name considering its similarity to `newline` the line feed char.
     //
-    VALUE_FLAG_LINE = 1 << (GENERAL_VALUE_BIT + 1),
+    VALUE_FLAG_LINE = 1 << (GENERAL_VALUE_BIT + 3),
 
     // `VALUE_FLAG_THROWN`
     //
@@ -249,7 +300,7 @@ enum {
     //        /* handling code */
     //     }
     //
-    VALUE_FLAG_THROWN = 1 << (GENERAL_VALUE_BIT + 2),
+    VALUE_FLAG_THROWN = 1 << (GENERAL_VALUE_BIT + 4),
 
     // `VALUE_FLAG_RELATIVE` is used to indicate a value that needs to have
     // a specific context added into it before it can have its bits copied
@@ -259,13 +310,16 @@ enum {
     // of a function body must be relative also to the same function if
     // it contains any instances of such relative words.
     //
-    VALUE_FLAG_RELATIVE = 1 << (GENERAL_VALUE_BIT + 4),
+    VALUE_FLAG_RELATIVE = 1 << (GENERAL_VALUE_BIT + 5),
 
     // `VALUE_FLAG_ARRAY` is an acceleration of the ANY_ARRAY() test, which
     // also helps keep this file's COPY_VALUE from being dependent on
     // VAL_TYPE() which is provided in %sys-value.h
     //
-    VALUE_FLAG_ARRAY = 1 << (GENERAL_VALUE_BIT + 5),
+    // !!! Should these kinds of tricks be generalized as a typeset caching
+    // for the 64-bit build, using the extra 32-bits in the header?
+    //
+    VALUE_FLAG_ARRAY = 1 << (GENERAL_VALUE_BIT + 6),
 
     // `VALUE_FLAG_EVALUATED` is a somewhat dodgy-yet-important concept.
     // This is that some functions wish to be sensitive to whether or not
@@ -274,7 +328,7 @@ enum {
     // to be meaningful on arguments in function frames...though it is
     // valid on any result at the moment of taking it from Do_Core().
     //
-    VALUE_FLAG_EVALUATED = 1 << (GENERAL_VALUE_BIT + 6),
+    VALUE_FLAG_EVALUATED = 1 << (GENERAL_VALUE_BIT + 7),
 };
 
 

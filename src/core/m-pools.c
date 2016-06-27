@@ -922,6 +922,7 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
 //  if (GC_TRIGGER) Recycle();
 
     REBSER *s = cast(REBSER*, Make_Node(SER_POOL));
+    s->header.bits = 0; // unmanaged, unmarked...double-duty END/unwritable
 
     if ((GC_Ballast -= sizeof(REBSER)) <= 0) SET_SIGNAL(SIG_RECYCLE);
 
@@ -1516,7 +1517,7 @@ void Free_Series(REBSER *series)
     // We can only free a series that is not under management by the
     // garbage collector
     //
-    if (GET_SER_FLAG(series, SERIES_FLAG_MANAGED)) {
+    if (IS_SERIES_MANAGED(series)) {
         Debug_Fmt("Trying to Free_Series() on a series managed by GC.");
         Panic_Series(series);
     }
@@ -1636,13 +1637,13 @@ void Manage_Series(REBSER *series)
         ];
 
 #if !defined(NDEBUG)
-    if (GET_SER_FLAG(series, SERIES_FLAG_MANAGED)) {
+    if (IS_SERIES_MANAGED(series)) {
         Debug_Fmt("Attempt to manage already managed series");
         Panic_Series(series);
     }
 #endif
 
-    SET_SER_FLAG(series, SERIES_FLAG_MANAGED);
+    series->header.bits |= REBSER_REBVAL_FLAG_MANAGED;
 
     // Note: Code repeated in Free_Series()
     //
@@ -1688,16 +1689,16 @@ REBOOL Is_Value_Managed(const RELVAL *value)
 
     if (ANY_CONTEXT(value)) {
         REBCTX *context = VAL_CONTEXT(value);
-        if (GET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_MANAGED)) {
+        if (IS_ARRAY_MANAGED(CTX_VARLIST(context))) {
             ASSERT_ARRAY_MANAGED(CTX_KEYLIST(context));
             return TRUE;
         }
-        assert(!GET_ARR_FLAG(CTX_KEYLIST(context), SERIES_FLAG_MANAGED));
+        assert(NOT(IS_ARRAY_MANAGED(CTX_KEYLIST(context)))); // !!! untrue?
         return FALSE;
     }
 
     if (ANY_SERIES(value))
-        return GET_SER_FLAG(VAL_SERIES(value), SERIES_FLAG_MANAGED);
+        return IS_SERIES_MANAGED(VAL_SERIES(value));
 
     return TRUE;
 }

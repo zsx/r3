@@ -103,32 +103,6 @@
 
 #include "reb-evtypes.h"
 
-//-- For Serious Debugging:
-#ifdef WATCH_GC_VALUE
-REBSER *Watcher = 0;
-REBVAL *WatchVar = 0;
-REBVAL *GC_Break_Point(REBVAL *val) {return val;}
-#endif
-
-// This can be put below
-#ifdef WATCH_GC_VALUE
-            if (Watcher && ser == Watcher)
-                GC_Break_Point(val);
-
-        // for (n = 0; n < depth * 2; n++) Prin_Str(" ");
-        // Mark_Count++;
-        // Print("Mark: %s %x", TYPE_NAME(val), val);
-#endif
-
-// was static, but exported for Ren/C
-/* static void Queue_Mark_Value_Deep(const REBVAL *val);*/
-
-static void Push_Array_Marked_Deep(REBARR *array);
-
-#ifndef NDEBUG
-static void Mark_Series_Only_Debug(REBSER *ser);
-#endif
-
 
 //
 //  Push_Array_Marked_Deep: C
@@ -150,7 +124,7 @@ static void Mark_Series_Only_Debug(REBSER *ser);
 static void Push_Array_Marked_Deep(REBARR *array)
 {
 #if !defined(NDEBUG)
-    if (!GET_ARR_FLAG(array, SERIES_FLAG_MANAGED)) {
+    if (!IS_ARRAY_MANAGED(array)) {
         Debug_Fmt("Link to non-MANAGED item reached by GC");
         Panic_Array(array);
     }
@@ -176,7 +150,7 @@ static void Push_Array_Marked_Deep(REBARR *array)
     assert(!GET_ARR_FLAG(array, SERIES_FLAG_EXTERNAL));
 
     // set by calling macro (helps catch direct calls of this function)
-    assert(GET_ARR_FLAG(array, SERIES_FLAG_MARK));
+    assert(IS_REBSER_MARKED(ARR_SERIES(array)));
 
     // Add series to the end of the mark stack series and update terminator
 
@@ -196,17 +170,16 @@ static void Propagate_All_GC_Marks(void);
     static REBOOL in_mark = FALSE;
 #endif
 
-// NOTE: The following macros uses S parameter multiple times, hence if S has
-// side effects this will run that side-effect multiply.
 
 // Deferred form for marking series that prevents potentially overflowing the
 // C execution stack.
 
 inline static void QUEUE_MARK_ARRAY_DEEP(REBARR *a) {
-    if (!GET_ARR_FLAG((a), SERIES_FLAG_MARK)) { \
-        SET_ARR_FLAG((a), SERIES_FLAG_MARK); \
-        Push_Array_Marked_Deep(a); \
-    }
+    if (IS_REBSER_MARKED(ARR_SERIES(a)))
+        return;
+
+    MARK_REBSER(ARR_SERIES(a));
+    Push_Array_Marked_Deep(a);
 }
 
 inline static void QUEUE_MARK_CONTEXT_DEEP(REBCTX *c) {
@@ -232,40 +205,29 @@ inline static void MARK_CONTEXT_DEEP(REBCTX *c) {
 }
 
 
-// Non-Deep form of mark, to be used on non-BLOCK! series or a block series
-// for which deep marking is not necessary (such as an 'typed' words block)
-
-#ifdef NDEBUG
-    #define MARK_SERIES_ONLY(s) \
-        SET_SER_FLAG((s), SERIES_FLAG_MARK)
-#else
-    #define MARK_SERIES_ONLY(s) \
-        Mark_Series_Only_Debug(s)
-#endif
-
-
 // Assertion for making sure that all the deferred marks have been propagated
 
 #define ASSERT_NO_GC_MARKS_PENDING() \
     assert(SER_LEN(GC_Mark_Stack) == 0)
 
 
-#if !defined(NDEBUG)
+// Non-Deep form of mark, to be used on non-BLOCK! series or a block series
+// for which deep marking is known to be unnecessary.
 //
-//  Mark_Series_Only_Debug: C
-// 
-// Hook point for marking and tracing a single series mark.
-//
-static void Mark_Series_Only_Debug(REBSER *series)
+static inline void MARK_SERIES_ONLY(REBSER *series)
 {
-    if (!GET_SER_FLAG(series, SERIES_FLAG_MANAGED)) {
+#if !defined(NDEBUG)
+    if (NOT(IS_SERIES_MANAGED(series))) {
         Debug_Fmt("Link to non-MANAGED item reached by GC");
         Panic_Series(series);
     }
-
-    SET_SER_FLAG(series, SERIES_FLAG_MARK);
-}
 #endif
+
+    // Don't use MARK_REBSER, because that expects unmarked.  This should be
+    // fast and tolerate setting the bit again without checking.
+    //
+    series->header.bits |= REBSER_REBVAL_FLAG_MARK;
+}
 
 
 //
@@ -289,7 +251,7 @@ static void Queue_Mark_Gob_Deep(REBGOB *gob)
     MARK_GOB(gob);
 
     if (GOB_PANE(gob)) {
-        SET_SER_FLAG(GOB_PANE(gob), SERIES_FLAG_MARK);
+        MARK_REBSER(GOB_PANE(gob));
         pane = GOB_HEAD(gob);
         for (i = 0; i < GOB_LEN(gob); i++, pane++)
             Queue_Mark_Gob_Deep(*pane);
@@ -299,7 +261,7 @@ static void Queue_Mark_Gob_Deep(REBGOB *gob)
 
     if (GOB_CONTENT(gob)) {
         if (GOB_TYPE(gob) >= GOBT_IMAGE && GOB_TYPE(gob) <= GOBT_STRING)
-            SET_SER_FLAG(GOB_CONTENT(gob), SERIES_FLAG_MARK);
+            MARK_REBSER(GOB_CONTENT(gob));
         else if (GOB_TYPE(gob) >= GOBT_DRAW && GOB_TYPE(gob) <= GOBT_EFFECT)
             QUEUE_MARK_ARRAY_DEEP(AS_ARRAY(GOB_CONTENT(gob)));
     }
@@ -595,7 +557,7 @@ static void Mark_Frame_Stack_Deep(void)
         // !!! FETCH_NEXT could do the array unprotect, and make it possible
         // to GC the series sooner.
         //
-        assert(GET_ARR_FLAG(f->source.array, SERIES_FLAG_MANAGED));
+        ASSERT_ARRAY_MANAGED(f->source.array);
         QUEUE_MARK_ARRAY_DEEP(f->source.array);
 
         if (f->value && NOT_END(f->value) && Is_Value_Managed(f->value))
@@ -681,7 +643,7 @@ static void Mark_Frame_Stack_Deep(void)
             // markers during argument fulfillment).  But if it is managed,
             // then it needs to be handed to normal GC.
             //
-            if (GET_ARR_FLAG(f->varlist, SERIES_FLAG_MANAGED)) {
+            if (IS_ARRAY_MANAGED(f->varlist)) {
                 assert(!IS_TRASH_DEBUG(ARR_AT(f->varlist, 0)));
                 assert(GET_ARR_FLAG(f->varlist, ARRAY_FLAG_CONTEXT_VARLIST));
                 QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(f->varlist));
@@ -827,7 +789,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                 //
                 REBARR *varlist = VAL_BINDING(val);
                 if (GET_ARR_FLAG(varlist, ARRAY_FLAG_CONTEXT_VARLIST)) {
-                    if (GET_ARR_FLAG(varlist, SERIES_FLAG_MANAGED)) {
+                    if (IS_ARRAY_MANAGED(varlist)) {
                         QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(varlist)); // good
                         subfeed = *SUBFEED_ADDR_OF_FEED(varlist);
                     }
@@ -1061,14 +1023,14 @@ static void Mark_Array_Deep_Core(REBARR *array)
     // We should have marked this series at queueing time to keep it from
     // being doubly added before the queue had a chance to be processed
     //
-    if (!GET_ARR_FLAG(array, SERIES_FLAG_MARK)) Panic_Array(array);
+    if (!IS_REBSER_MARKED(ARR_SERIES(array))) Panic_Array(array);
 
     // Make sure that a context's varlist wasn't marked without also marking
     // its keylist.  This could happen if QUEUE_MARK_ARRAY is used on a
     // context instead of QUEUE_MARK_CONTEXT.
     //
     if (GET_ARR_FLAG(array, ARRAY_FLAG_CONTEXT_VARLIST))
-        assert(GET_ARR_FLAG(CTX_KEYLIST(AS_CONTEXT(array)), SERIES_FLAG_MARK));
+        assert(IS_REBSER_MARKED(ARR_SERIES(CTX_KEYLIST(AS_CONTEXT(array)))));
 #endif
 
 #ifdef HEAVY_CHECKS
@@ -1143,15 +1105,15 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(REBOOL shutdown)
             if (SER_FREED(series))
                 continue;
 
-            if (GET_SER_FLAG(series, SERIES_FLAG_MANAGED)) {
-                if (shutdown || !GET_SER_FLAG(series, SERIES_FLAG_MARK)) {
+            if (IS_SERIES_MANAGED(series)) {
+                if (shutdown || !IS_REBSER_MARKED(series)) {
                     GC_Kill_Series(series);
                     count++;
                 } else
-                    CLEAR_SER_FLAG(series, SERIES_FLAG_MARK);
+                    UNMARK_REBSER(series);
             }
             else
-                assert(!GET_SER_FLAG(series, SERIES_FLAG_MARK));
+                assert(!IS_REBSER_MARKED(series));
         }
     }
 
@@ -1243,14 +1205,12 @@ static void Propagate_All_GC_Marks(void)
     assert(!in_mark);
 
     while (SER_LEN(GC_Mark_Stack) != 0) {
+        SET_SERIES_LEN(GC_Mark_Stack, SER_LEN(GC_Mark_Stack) - 1); // still ok
+
         // Data pointer may change in response to an expansion during
         // Mark_Array_Deep_Core(), so must be refreshed on each loop.
         //
-        REBARR *array;
-
-        SET_SERIES_LEN(GC_Mark_Stack, SER_LEN(GC_Mark_Stack) - 1);
-
-        array = *SER_AT(REBARR*, GC_Mark_Stack, SER_LEN(GC_Mark_Stack));
+        REBARR *array = *SER_AT(REBARR*, GC_Mark_Stack, SER_LEN(GC_Mark_Stack));
 
         // Drop the series we are processing off the tail, as we could be
         // queuing more of them (hence increasing the tail).

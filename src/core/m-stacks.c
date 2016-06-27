@@ -779,7 +779,7 @@ REBCTX *Context_For_Frame_May_Reify_Core(struct Reb_Frame *f) {
     // initializing word REBVALs that are bound into it will ensure
     // managedness, as will creating a REBVAL for it.
     //
-    assert(!GET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_MANAGED));
+    assert(NOT(IS_ARRAY_MANAGED(CTX_VARLIST(context))));
 
     // When in ET_FUNCTION or ET_LOOKBACK, the arglist will be marked safe from
     // GC. It is managed because the pointer makes its way into bindings that
@@ -851,7 +851,7 @@ void Drop_Function_Args_For_Frame_Core(struct Reb_Frame *f, REBOOL drop_chunks)
 
     assert(GET_ARR_FLAG(f->varlist, SERIES_FLAG_ARRAY));
 
-    if (NOT(GET_ARR_FLAG(f->varlist, SERIES_FLAG_MANAGED))) {
+    if (NOT(IS_ARRAY_MANAGED(f->varlist))) {
         //
         // It's an array, but hasn't become managed yet...either because
         // it couldn't be (args still being fulfilled, may have bad cells) or

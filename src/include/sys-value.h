@@ -372,6 +372,7 @@ inline static void SET_ZEROED(RELVAL *v, enum Reb_Kind kind) {
     // setting the header made it the `zero?` of that type.  Review uses.
     //
     VAL_RESET_HEADER(v, kind);
+    CLEAR(&v->extra, sizeof(union Reb_Value_Extra));
     CLEAR(&v->payload, sizeof(union Reb_Value_Payload));
 }
 
@@ -1623,7 +1624,7 @@ inline static void INIT_WORD_SYM(RELVAL *v, REBSYM sym) {
 inline static void INIT_WORD_CONTEXT(RELVAL *v, REBCTX *context) {
     assert(GET_VAL_FLAG(v, WORD_FLAG_BOUND) && context != SPECIFIED);
     ENSURE_SERIES_MANAGED(CTX_SERIES(context));
-    assert(GET_ARR_FLAG(CTX_KEYLIST(context), SERIES_FLAG_MANAGED));
+    ASSERT_ARRAY_MANAGED(CTX_KEYLIST(context));
     v->extra.binding = CTX_VARLIST(context);
 }
 
@@ -1892,7 +1893,7 @@ inline static void INIT_CONTEXT_META(REBCTX *c, REBCTX *m) {
     ARR_SERIES(CTX_KEYLIST(c))->link.meta = m;
 }
 
-inline static REBVAL *CTX_FRAME_FUNC_VALUE(const REBCTX *c) {
+inline static REBVAL *CTX_FRAME_FUNC_VALUE(REBCTX *c) {
     assert(IS_FUNCTION(CTX_ROOTKEY(c)));
     return CTX_ROOTKEY(c);
 }
@@ -2007,7 +2008,7 @@ inline static REBVAL *VAL_VARARGS_ARG(const RELVAL *v)
     { return v->payload.varargs.arg; }
 
 inline static REBCTX *VAL_VARARGS_FRAME_CTX(const RELVAL *v) {
-    assert(GET_ARR_FLAG(v->extra.binding, SERIES_FLAG_MANAGED));
+    ASSERT_ARRAY_MANAGED(v->extra.binding);
     assert(GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_CONTEXT_VARLIST));
     return AS_CONTEXT(v->extra.binding);
 }

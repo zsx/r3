@@ -591,7 +591,7 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
         REBVAL param_word;
 
         REBARR *varlist = VAL_BINDING(value);
-        if (!GET_ARR_FLAG(varlist, SERIES_FLAG_MANAGED)) {
+        if (NOT(IS_ARRAY_MANAGED(varlist))) {
             //
             // This can happen if you internally try and PROBE() a varargs
             // item that is residing in the argument slots for a function,
