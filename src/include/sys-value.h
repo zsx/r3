@@ -784,11 +784,11 @@ inline static void SET_CHAR(RELVAL *v, REBUNI uni) {
 
 #ifdef NDEBUG
     #define VAL_INT64(v) \
-        ((v)->payload.integer.i64)
+        ((v)->payload.integer)
 #else
     inline static REBI64 *VAL_INT64_Ptr_Debug(const RELVAL *value) {
         assert(IS_INTEGER(value));
-        return &m_cast(REBVAL*, const_KNOWN(value))->payload.integer.i64;
+        return &m_cast(REBVAL*, const_KNOWN(value))->payload.integer;
     }
 
     #define VAL_INT64(v) \
@@ -797,7 +797,7 @@ inline static void SET_CHAR(RELVAL *v, REBUNI uni) {
 
 inline static void SET_INTEGER(RELVAL *v, REBI64 i64) {
     VAL_RESET_HEADER(v, REB_INTEGER);
-    v->payload.integer.i64 = i64;
+    v->payload.integer = i64;
 }
 
 #define VAL_INT32(v) \
@@ -826,24 +826,24 @@ inline static void SET_INTEGER(RELVAL *v, REBI64 i64) {
 
 #ifdef NDEBUG
     #define VAL_DECIMAL(v) \
-        ((v)->payload.decimal.dec)
+        ((v)->payload.decimal)
 #else
     inline static REBDEC *VAL_DECIMAL_Ptr_Debug(const RELVAL *value) {
         assert(IS_DECIMAL(value) || IS_PERCENT(value));
-        return &m_cast(REBVAL*, const_KNOWN(value))->payload.decimal.dec;
+        return &m_cast(REBVAL*, const_KNOWN(value))->payload.decimal;
     }
     #define VAL_DECIMAL(v) \
         (*VAL_DECIMAL_Ptr_Debug(v)) // allows lvalue: `VAL_DECIMAL(v) = xxx`
 #endif
 
-inline static void SET_DECIMAL(RELVAL *v, REBDEC n) {
+inline static void SET_DECIMAL(RELVAL *v, REBDEC d) {
     VAL_RESET_HEADER(v, REB_DECIMAL);
-    v->payload.decimal.dec = n;
+    v->payload.decimal = d;
 }
 
-inline static void SET_PERCENT(RELVAL *v, REBDEC n) {
+inline static void SET_PERCENT(RELVAL *v, REBDEC d) {
     VAL_RESET_HEADER(v, REB_PERCENT);
-    v->payload.decimal.dec = n;
+    v->payload.decimal = d;
 }
 
 // !!! Several parts of the code wanted to access the decimal as "bits" through
@@ -854,12 +854,12 @@ inline static void SET_PERCENT(RELVAL *v, REBDEC n) {
 
 inline static REBI64 VAL_DECIMAL_BITS(const RELVAL *v) {
     assert(IS_DECIMAL(v) || IS_PERCENT(v));
-    return *cast(const REBI64*, &v->payload.decimal.dec);
+    return *cast(const REBI64*, &v->payload.decimal);
 }
 
 inline static void INIT_DECIMAL_BITS(REBVAL *v, REBI64 bits) {
     assert(IS_DECIMAL(v) || IS_PERCENT(v));
-    *cast(REBI64*, &v->payload.decimal.dec) = bits;
+    *cast(REBI64*, &v->payload.decimal) = bits;
 }
 
 
@@ -897,12 +897,23 @@ inline static REBOOL ANY_NUMBER(const RELVAL *v) {
 // with DECIMAL!, although that name may be changing also.
 //
 
-#define VAL_MONEY_AMOUNT(v) \
-    ((v)->payload.money.amount)
+inline static deci VAL_MONEY_AMOUNT(const RELVAL *v) {
+    deci amount;
+    amount.m0 = v->extra.m0;
+    amount.m1 = v->payload.money.m1;
+    amount.m2 = v->payload.money.m2;
+    amount.s = v->payload.money.s;
+    amount.e = v->payload.money.e;
+    return amount;
+}
 
 inline static void SET_MONEY(RELVAL *v, deci amount) {
     VAL_RESET_HEADER(v, REB_MONEY);
-    v->payload.money.amount = amount;
+    v->extra.m0 = amount.m0;
+    v->payload.money.m1 = amount.m1;
+    v->payload.money.m2 = amount.m2;
+    v->payload.money.s = amount.s;
+    v->payload.money.e = amount.e;
 }
 
 
@@ -2133,10 +2144,10 @@ inline static void *VAL_LIBRARY_FD(const RELVAL *v) {
     ((v)->payload.event.time)
 
 #define VAL_EVENT_REQ(v) \
-    ((v)->payload.event.eventee.req)
+    ((v)->extra.eventee.req)
 
 #define VAL_EVENT_SER(v) \
-    ((v)->payload.event.eventee.ser)
+    ((v)->extra.eventee.ser)
 
 #define IS_EVENT_MODEL(v,f) \
     (VAL_EVENT_MODEL(v) == (f))

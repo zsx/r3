@@ -548,9 +548,8 @@ const REBYTE *Scan_Money(const REBYTE *cp, REBCNT len, REBVAL *value)
 
     if (*cp == '$') cp++, len--;
     if (len == 0) return 0;
-    VAL_MONEY_AMOUNT(value) = string_to_deci(cp, &end);
+    SET_MONEY(value, string_to_deci(cp, &end));
     if (end != cp + len) return 0;
-    VAL_RESET_HEADER(value, REB_MONEY);
 
     return end;
 

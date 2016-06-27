@@ -309,16 +309,17 @@ struct Reb_Datatype {
     REBARR *spec;
 };
 
-struct Reb_Integer {
-    REBI64 i64;
-};
-
-struct Reb_Decimal {
-    REBDEC dec;
-};
+// !!! In R3-alpha, the money type was implemented under a type called "deci".
+// The payload for a deci was more than 64 bits in size, which meant it had
+// to be split across the separated union components in Ren-C.  (The 64-bit
+// aligned "payload" and 32-bit aligned "extra" were broken out independently,
+// so that setting one union member would not disengage the other.)
 
 struct Reb_Money {
-    deci amount;
+    unsigned m1:32; /* significand, continuation */
+    unsigned m2:23; /* significand, highest part */
+    unsigned s:1;   /* sign, 0 means nonnegative, 1 means nonpositive */
+    int e:8;        /* exponent */
 };
 
 typedef struct reb_ymdz {
@@ -656,6 +657,18 @@ union Reb_Value_Extra {
     REBSYM symbol_canon; // if Reb_Symbol, index of the canonical (first) word
     REBCNT struct_offset; // offset for struct in the possibly shared series
 
+    // !!! Biasing Ren-C to helping solve its technical problems led the
+    // REBEVT stucture to get split up.  The "eventee" is now in the extra
+    // field, while the event payload is elsewhere.  This brings about a long
+    // anticipated change where REBEVTs would need to be passed around in
+    // clients as REBVAL-sized entities.
+    //
+    // See also rebol_devreq->requestee
+
+    union Reb_Eventee eventee;
+
+    unsigned m0:32; // !!! significand, lowest part - see notes on Reb_Money
+
 #if !defined(NDEBUG)
     REBUPT do_count; // used by track payloads
 #endif
@@ -669,9 +682,8 @@ union Reb_Value_Payload {
 #endif
 
     REBUNI character; // It's CHAR! (for now), but 'char' is a C keyword
-
-    struct Reb_Integer integer;
-    struct Reb_Decimal decimal;
+    REBI64 integer;
+    REBDEC decimal;
 
     struct Reb_Pair pair;
     struct Reb_Money money;

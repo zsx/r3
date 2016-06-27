@@ -220,7 +220,7 @@ do_next:
 
     assert(Eval_Count != 0);
 
-    if (--Eval_Count == 0 || Eval_Signals || TRUE) {
+    if (--Eval_Count == 0 || Eval_Signals) {
         //
         // Note that Do_Signals_Throws() may do a recycle step of the GC, or
         // it may spawn an entire interactive debugging session via

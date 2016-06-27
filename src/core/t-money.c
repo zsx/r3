@@ -58,12 +58,12 @@ void MAKE_Money(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
     switch (VAL_TYPE(arg)) {
     case REB_INTEGER:
-        VAL_MONEY_AMOUNT(out) = int_to_deci(VAL_INT64(arg));
+        SET_MONEY(out, int_to_deci(VAL_INT64(arg)));
         break;
 
     case REB_DECIMAL:
     case REB_PERCENT:
-        VAL_MONEY_AMOUNT(out) = decimal_to_deci(VAL_DECIMAL(arg));
+        SET_MONEY(out, decimal_to_deci(VAL_DECIMAL(arg)));
         break;
 
     case REB_MONEY:
@@ -74,7 +74,7 @@ void MAKE_Money(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     {
         const REBYTE *end;
         REBYTE *str = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_MONEY, 0, FALSE);
-        VAL_MONEY_AMOUNT(out) = string_to_deci(str, &end);
+        SET_MONEY(out, string_to_deci(str, &end));
         if (end == str || *end != 0)
             goto bad_make;
         break;
@@ -86,7 +86,7 @@ void MAKE_Money(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         break;
 
     case REB_LOGIC:
-        VAL_MONEY_AMOUNT(out) = int_to_deci(VAL_LOGIC(arg) ? 1 : 0);
+        SET_MONEY(out, int_to_deci(VAL_LOGIC(arg) ? 1 : 0));
         break;
 
     default:
@@ -136,7 +136,7 @@ void Bin_To_Money_May_Fail(REBVAL *result, const REBVAL *val)
 
     memcpy(buf + 12 - len, buf, len); // shift to right side
     memset(buf, 0, 12 - len);
-    VAL_MONEY_AMOUNT(result) = binary_to_deci(buf);
+    SET_MONEY(result, binary_to_deci(buf));
 }
 
 
@@ -146,12 +146,12 @@ static REBVAL *Math_Arg_For_Money(REBVAL *store, REBVAL *arg, REBSYM action)
         return arg;
 
     if (IS_INTEGER(arg)) {
-        VAL_MONEY_AMOUNT(store) = int_to_deci(VAL_INT64(arg));
+        SET_MONEY(store, int_to_deci(VAL_INT64(arg)));
         return store;
     }
 
     if (IS_DECIMAL(arg) || IS_PERCENT(arg)) {
-        VAL_MONEY_AMOUNT(store) = decimal_to_deci(VAL_DECIMAL(arg));
+        SET_MONEY(store, decimal_to_deci(VAL_DECIMAL(arg)));
         return store;
     }
 
@@ -170,46 +170,46 @@ REBTYPE(Money)
     switch (action) {
     case SYM_ADD:
         arg = Math_Arg_For_Money(D_OUT, D_ARG(2), action);
-        VAL_MONEY_AMOUNT(D_OUT) = deci_add(
+        SET_MONEY(D_OUT, deci_add(
             VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
-        );
+        ));
         break;
 
     case SYM_SUBTRACT:
         arg = Math_Arg_For_Money(D_OUT, D_ARG(2), action);
-        VAL_MONEY_AMOUNT(D_OUT) = deci_subtract(
+        SET_MONEY(D_OUT, deci_subtract(
             VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
-        );
+        ));
         break;
 
     case SYM_MULTIPLY:
         arg = Math_Arg_For_Money(D_OUT, D_ARG(2), action);
-        VAL_MONEY_AMOUNT(D_OUT) = deci_multiply(
+        SET_MONEY(D_OUT, deci_multiply(
             VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
-        );
+        ));
         break;
 
     case SYM_DIVIDE:
         arg = Math_Arg_For_Money(D_OUT, D_ARG(2), action);
-        VAL_MONEY_AMOUNT(D_OUT) = deci_divide(
+        SET_MONEY(D_OUT, deci_divide(
             VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
-        );
+        ));
         break;
 
     case SYM_REMAINDER:
         arg = Math_Arg_For_Money(D_OUT, D_ARG(2), action);
-        VAL_MONEY_AMOUNT(D_OUT) = deci_mod(
+        SET_MONEY(D_OUT, deci_mod(
             VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
-        );
+        ));
         break;
 
     case SYM_NEGATE:
-        VAL_MONEY_AMOUNT(val).s = !VAL_MONEY_AMOUNT(val).s;
+        val->payload.money.s = !val->payload.money.s;
         *D_OUT = *D_ARG(1);
         return R_OUT;
 
     case SYM_ABSOLUTE:
-        VAL_MONEY_AMOUNT(val).s = 0;
+        val->payload.money.s = 0;
         *D_OUT = *D_ARG(1);
         return R_OUT;
 
@@ -217,16 +217,16 @@ REBTYPE(Money)
         arg = D_ARG(3);
         if (D_REF(2)) {
             if (IS_INTEGER(arg))
-                VAL_MONEY_AMOUNT(arg) = int_to_deci(VAL_INT64(arg));
+                SET_MONEY(arg, int_to_deci(VAL_INT64(arg)));
             else if (IS_DECIMAL(arg) || IS_PERCENT(arg))
-                VAL_MONEY_AMOUNT(arg) = decimal_to_deci(VAL_DECIMAL(arg));
+                SET_MONEY(arg, decimal_to_deci(VAL_DECIMAL(arg)));
             else if (!IS_MONEY(arg)) fail (Error_Invalid_Arg(arg));
         }
-        VAL_MONEY_AMOUNT(D_OUT) = Round_Deci(
+        SET_MONEY(D_OUT, Round_Deci(
             VAL_MONEY_AMOUNT(val),
             Get_Round_Flags(frame_),
             VAL_MONEY_AMOUNT(arg)
-        );
+        ));
         if (D_REF(2)) {
             if (IS_DECIMAL(arg) || IS_PERCENT(arg)) {
                 REBDEC dec = deci_to_decimal(VAL_MONEY_AMOUNT(D_OUT));

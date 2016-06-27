@@ -669,14 +669,22 @@ RL_API void RL_Print(const REBYTE *fmt, ...)
 //     To avoid environment problems, this function only appends
 //     to the event queue (no auto-expand). So if the queue is full
 //
+// !!! Note to whom it may concern: REBEVT would now be 100% compatible with
+// a REB_EVENT REBVAL if there was a way of setting the header bits in the
+// places that generate them.
+//
 RL_API int RL_Event(REBEVT *evt)
 {
     REBVAL *event = Append_Event();     // sets signal
 
     if (event) {                        // null if no room left in series
         VAL_RESET_HEADER(event, REB_EVENT); // has more space, if needed
-        event->payload.event = *evt;
-
+        event->extra.eventee = evt->eventee;
+        event->payload.event.type = evt->type;
+        event->payload.event.flags = evt->flags;
+        event->payload.event.win = evt->win;
+        event->payload.event.model = evt->model;
+        event->payload.event.data = evt->data;
         return 1;
     }
 
@@ -702,7 +710,12 @@ RL_API int RL_Update_Event(REBEVT *evt)
     REBVAL *event = Find_Last_Event(evt->model, evt->type);
 
     if (event) {
-        event->payload.event = *evt;
+        event->extra.eventee = evt->eventee;
+        event->payload.event.type = evt->type;
+        event->payload.event.flags = evt->flags;
+        event->payload.event.win = evt->win;
+        event->payload.event.model = evt->model;
+        event->payload.event.data = evt->data;
         return 1;
     }
 
@@ -725,7 +738,7 @@ RL_API REBEVT *RL_Find_Event (REBINT model, REBINT type)
 {
     REBVAL * val = Find_Last_Event(model, type);
     if (val != NULL) {
-        return &val->payload.event;
+        return cast(REBEVT*, val); // should be compatible!
     }
     return NULL;
 }
