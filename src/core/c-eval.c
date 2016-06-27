@@ -1077,7 +1077,7 @@ reevaluate:
                     goto continue_arg_loop;
                 }
 
-                *f->arg = *NAT_VALUE(return);
+                *f->arg = *NAT_VALUE(leave);
 
                 if (f->varlist) // !!! in specific binding, always for Plain
                     f->arg->extra.binding = f->varlist;
@@ -1436,8 +1436,6 @@ reevaluate:
             f->arg = &f->stackvars[0];
             assert(CHUNK_FROM_VALUES(f->arg) == TG_Top_Chunk);
         }
-
-        if (Trace_Flags) Trace_Func(FRM_LABEL(f), FUNC_VALUE(f->func));
 
         // The garbage collector may run when we call out to functions, so
         // we have to be sure that the frame fields are something valid.

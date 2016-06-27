@@ -1535,7 +1535,7 @@ REB_R Adapter_Dispatcher(struct Reb_Frame *f)
                 break;
             }
 
-            *f->arg = *NAT_VALUE(return);
+            *f->arg = *NAT_VALUE(leave);
 
             if (f->varlist) // !!! in specific binding, always for Plain
                 f->arg->extra.binding = f->varlist;

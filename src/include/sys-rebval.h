@@ -310,27 +310,10 @@ struct Reb_Datatype {
 };
 
 struct Reb_Integer {
-    //
-    // On 32-bit platforms, this payload structure begins after a 32-bit
-    // header...hence not a 64-bit aligned location.  Since a REBUPT is
-    // 32-bits on 32-bit platforms and 64-bit on 64-bit, putting one here
-    // right after the header ensures `value` will be on a 64-bit boundary.
-    //
-    // (At time of writing, this is necessary for the "C-to-Javascript"
-    // emscripten build to work.  It's also likely preferred by x86.)
-    //
-    REBUPT padding;
-
     REBI64 i64;
 };
 
 struct Reb_Decimal {
-    //
-    // See notes on Reb_Integer for why this is needed (handles case of when
-    // `value` is 64-bit, and the platform is 32-bit.)
-    //
-    REBUPT padding;
-
     REBDEC dec;
 };
 
@@ -627,9 +610,12 @@ struct Reb_All {
 // Another aspect of breaking out the "extra" is so that on 32-bit platforms,
 // the starting address of the payload is on a 64-bit alignment boundary.
 // See Reb_Integer, Reb_Decimal, and Reb_Typeset for examples where the 64-bit
-// quantity requires it have 64-bit alignment. (Note: The reason why bad
-// alignments an happen at all is due to the #pragma pack(4) that is put in
-// effect at the top of this file.)
+// quantity requires things like REBDEC to have 64-bit alignment.  At time of
+// writing, this is necessary for the "C-to-Javascript" emscripten build to
+// work.  It's also likely preferred by x86.
+//
+// (Note: The reason why error-causing alignments an happen at all is due to
+// the #pragma pack(4) that is put in effect at the top of this file.)
 //
 
 union Reb_Value_Extra {
