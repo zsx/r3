@@ -51,47 +51,39 @@ static  BOOT_BLK *Boot_Block;
 //
 static void Assert_Basics(void)
 {
-#if !defined(NDEBUG)
-    #if defined(__LP64__) || defined(__LLP64__)
-        const char *fmt = "%lu %s\n";
-    #else
-        const char *fmt = "%u %s\n";
-    #endif
+#if !defined(NDEBUG) && defined(SHOW_SIZEOFS)
+    //
+    // For debugging ports to some systems
+    //
+#if defined(__LP64__) || defined(__LLP64__)
+    const char *fmt = "%lu %s\n";
+#else
+    const char *fmt = "%u %s\n";
 #endif
 
-    REBVAL dummy;
+    union Reb_Value_Payload *dummy_payload;
 
-#if !defined(NDEBUG)
-    #if defined(SHOW_SIZEOFS)
-        union Reb_Value_Payload *dummy_payload;
-    #endif
-
-    #if defined(SHOW_SIZEOFS)
-        //
-        // For debugging ports to some systems
-        //
-        printf(fmt, sizeof(dummy_payload->any_word), "any_word");
-        printf(fmt, sizeof(dummy_payload->any_series), "any_series");
-        printf(fmt, sizeof(dummy_payload->integer), "integer");
-        printf(fmt, sizeof(dummy_payload->decimal), "decimal");
-        printf(fmt, sizeof(dummy_payload->character), "char");
-        printf(fmt, sizeof(dummy_payload->datatype), "datatype");
-        printf(fmt, sizeof(dummy_payload->typeset), "typeset");
-        printf(fmt, sizeof(dummy_payload->symbol), "symbol");
-        printf(fmt, sizeof(dummy_payload->time), "time");
-        printf(fmt, sizeof(dummy_payload->tuple), "tuple");
-        printf(fmt, sizeof(dummy_payload->function), "function");
-        printf(fmt, sizeof(dummy_payload->any_context), "any_context");
-        printf(fmt, sizeof(dummy_payload->pair), "pair");
-        printf(fmt, sizeof(dummy_payload->event), "event");
-        printf(fmt, sizeof(dummy_payload->library), "library");
-        printf(fmt, sizeof(dummy_payload->structure), "struct");
-        printf(fmt, sizeof(dummy_payload->gob), "gob");
-        printf(fmt, sizeof(dummy_payload->money), "money");
-        printf(fmt, sizeof(dummy_payload->handle), "handle");
-        printf(fmt, sizeof(dummy_payload->all), "all");
-        fflush(stdout);
-    #endif
+    printf(fmt, sizeof(dummy_payload->any_word), "any_word");
+    printf(fmt, sizeof(dummy_payload->any_series), "any_series");
+    printf(fmt, sizeof(dummy_payload->integer), "integer");
+    printf(fmt, sizeof(dummy_payload->decimal), "decimal");
+    printf(fmt, sizeof(dummy_payload->character), "char");
+    printf(fmt, sizeof(dummy_payload->datatype), "datatype");
+    printf(fmt, sizeof(dummy_payload->typeset), "typeset");
+    printf(fmt, sizeof(dummy_payload->symbol), "symbol");
+    printf(fmt, sizeof(dummy_payload->time), "time");
+    printf(fmt, sizeof(dummy_payload->tuple), "tuple");
+    printf(fmt, sizeof(dummy_payload->function), "function");
+    printf(fmt, sizeof(dummy_payload->any_context), "any_context");
+    printf(fmt, sizeof(dummy_payload->pair), "pair");
+    printf(fmt, sizeof(dummy_payload->event), "event");
+    printf(fmt, sizeof(dummy_payload->library), "library");
+    printf(fmt, sizeof(dummy_payload->structure), "struct");
+    printf(fmt, sizeof(dummy_payload->gob), "gob");
+    printf(fmt, sizeof(dummy_payload->money), "money");
+    printf(fmt, sizeof(dummy_payload->handle), "handle");
+    printf(fmt, sizeof(dummy_payload->all), "all");
+    fflush(stdout);
 #endif
 
     // Although the system is designed to be able to function with REBVAL at
