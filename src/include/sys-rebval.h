@@ -168,13 +168,13 @@ struct Reb_Value_Header {
 // node, as they will have the cell mask clear.
 //
 #define CELL_MASK \
-    cast(REBUPT, 0x02)
+    ((REBUPT)0x02) // <-- don't use `cast()`...superfluous here, slows debug
 
 // The type mask comes up a bit and it's a fairly obvious constant, so this
 // hardcodes it for obviousness.  High 6 bits of the lowest header byte.
 //
 #define HEADER_TYPE_MASK \
-    cast(REBUPT, 0xFC)
+    ((REBUPT)0xFC)
 
 // In debug builds, there's an additional property checked on cell writes
 // where values can be marked as unwritable.  There would be cost to checking
@@ -183,7 +183,7 @@ struct Reb_Value_Header {
 //
 #if !defined(NDEBUG)
     #define VALUE_FLAG_WRITABLE_DEBUG \
-        cast(REBUPT, 0x80000000)
+        ((REBUPT)0x80000000)
 #endif
 
 

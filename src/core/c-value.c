@@ -184,17 +184,6 @@ REBOOL IS_END_Debug(const RELVAL *v, const char *file, int line) {
 
 
 //
-//  IS_TRASH_DEBUG: C
-//
-REBOOL IS_TRASH_DEBUG(const RELVAL *v) {
-    return LOGICAL(
-        (v->header.bits & HEADER_TYPE_MASK) == REB_0
-        && !((v->header.bits & VOID_FLAG_NOT_TRASH))
-    );
-}
-
-
-//
 //  VAL_SPECIFIC_Debug: C
 //
 REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)

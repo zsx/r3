@@ -135,29 +135,49 @@
 #define FLAGIT_KIND(t) \
     (cast(REBU64, 1) << TO_0_FROM_KIND(t)) // makes a 64-bit bitflag
 
-inline static enum Reb_Kind VAL_TYPE_CORE(const RELVAL *v) {
-    return cast(enum Reb_Kind, v->header.bits & HEADER_TYPE_MASK);
-}
+// While inline vs. macro doesn't usually matter much, debug builds won't
+// inline this, and it's called *ALL* the time.  Since it doesn't repeat its
+// argument, it's not worth it to make it a function for slowdown caused.
+// Also, don't bother checking using the `cast()` template in C++.
+//
+#define VAL_TYPE_COMMON(v) \
+    ((enum Reb_Kind)((v)->header.bits & HEADER_TYPE_MASK))
 
 #ifdef NDEBUG
     #define VAL_TYPE(v) \
-        VAL_TYPE_CORE(v)
+        VAL_TYPE_COMMON(v)
 #else
+    enum {
+        VOID_FLAG_NOT_TRASH = (1 << TYPE_SPECIFIC_BIT),
+        VOID_FLAG_SAFE_TRASH = (2 << TYPE_SPECIFIC_BIT)
+    };
+
+    inline static REBOOL IS_TRASH_DEBUG(const RELVAL *v) {
+        // note this is directly inlined into VAL_TYPE_Debug() below
+        return LOGICAL(
+            (v->header.bits & HEADER_TYPE_MASK) == REB_0
+            && !((v->header.bits & VOID_FLAG_NOT_TRASH))
+        );
+    }
+
     inline static enum Reb_Kind VAL_TYPE_Debug(
         const RELVAL *v, const char *file, int line
     ){
-        if (IS_END(v)) {
-            printf("END marker or garbage (low bit 0) in VAL_TYPE()\n");
-            fflush(stdout);
-            Panic_Value_Debug(v, file, line);
+        if (
+            (v->header.bits & CELL_MASK)
+            && NOT(IS_END_MACRO(v)) // IS_END redundantly checks trash
+            && NOT(
+                (v->header.bits & HEADER_TYPE_MASK) == REB_0
+                && !((v->header.bits & VOID_FLAG_NOT_TRASH))
+            ) // ^-- *so* frequent, debug builds hand-inline IS_TRASH_DEBUG()
+        ){
+            return VAL_TYPE_COMMON(v);
         }
-        if (IS_TRASH_DEBUG(v)) {
-            printf("Unexpected TRASH in VAL_TYPE()\n");
-            fflush(stdout);
-            Panic_Value_Debug(v, file, line);
-        }
+
         assert(v->header.bits & CELL_MASK);
-        return VAL_TYPE_CORE(v);
+        printf("END marker or garbage/trash in VAL_TYPE()\n");
+        fflush(stdout);
+        Panic_Value_Debug(v, file, line);
     }
 
     #define VAL_TYPE(v) \
@@ -428,11 +448,6 @@ inline static REBOOL IS_VOID(const RELVAL *v)
         return cast(REBVAL*, v);
     }
 #else
-    enum {
-        VOID_FLAG_NOT_TRASH = (1 << TYPE_SPECIFIC_BIT),
-        VOID_FLAG_SAFE_TRASH = (2 << TYPE_SPECIFIC_BIT)
-    };
-
     inline static void Set_Void_Debug(
         RELVAL *v, const char *file, int line
     ){
