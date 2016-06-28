@@ -56,6 +56,9 @@
     struct Reb_Series; // Rebol series node
     typedef struct Reb_Series REBSER;
 
+    // UTF-8 Everywhere series (used for WORD!s only ATM)
+    typedef REBSER REBSTR;
+
     struct Reb_Array; // REBSER containing REBVALs ("Rebol Array")
     typedef struct Reb_Array REBARR;
 
@@ -90,6 +93,8 @@
     // the binding in Ren-Cpp binary compatible regardless of whether the build
     // was done with C or C++
     //
+
+    struct Reb_Binder; // used as argument in %tmp-funcs.h, needs forward decl
 
     #define END_FLAG 0x80000000  // end of block as index
     #define THROWN_FLAG (END_FLAG - 0x75) // throw as an index
@@ -136,6 +141,7 @@
     typedef void REBSER;
     typedef void REBARR;
     typedef void REBOBJ;
+    typedef void REBSTR;
 #endif
 
 

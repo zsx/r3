@@ -232,13 +232,15 @@ void INIT_WORD_INDEX_Debug(RELVAL *v, REBCNT i)
     assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND));
     if (IS_RELATIVE(v))
         assert(
-            SAME_SYM(VAL_WORD_SYM(v), FUNC_PARAM_SYM(VAL_WORD_FUNC(v), i))
+            VAL_WORD_CANON(v)
+            == VAL_PARAM_CANON(FUNC_PARAM(VAL_WORD_FUNC(v), i))
         );
     else
-        assert(SAME_SYM(
-            VAL_WORD_SYM(v), CTX_KEY_SYM(VAL_WORD_CONTEXT(KNOWN(v)), i))
+        assert(
+            VAL_WORD_CANON(v)
+            == CTX_KEY_CANON(VAL_WORD_CONTEXT(KNOWN(v)), i)
         );
-    (v)->payload.any_word.index = (i);
+    v->payload.any_word.index = i;
 }
 
 

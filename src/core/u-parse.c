@@ -71,9 +71,20 @@ enum parse_flags {
     PF_WHILE = 1 << 10
 };
 
-// Returns SYMBOL or 0 if not a command:
-#define GET_CMD(n) (((n) >= SYM_SET && (n) <= SYM_END) ? (n) : 0)
-#define VAL_CMD(v) GET_CMD(VAL_WORD_CANON(v))
+
+// In %words.r, the parse words are lined up in order so they can be quickly
+// filtered, skipping the need for a switch statement if something is not
+// a parse command.
+//
+// !!! This and other efficiency tricks from R3-Alpha should be reviewed to
+// see if they're really the best option.
+//
+inline static REBSYM VAL_CMD(const RELVAL *v) {
+    REBSYM sym = VAL_WORD_SYM(v);
+    if (sym >= SYM_SET && sym <= SYM_END)
+        return sym;
+    return SYM_0;
+}
 
 
 // Subparse_Throws is a helper that sets up a call frame and invokes Subparse.
@@ -141,7 +152,7 @@ static REBOOL Subparse_Throws(
     SET_INTEGER(&f->stackvars[1], find_flags);
 
     f->arg = f->stackvars;
-    f->label_sym = SYM_SUBPARSE;
+    f->label = Canon(SYM_SUBPARSE);
     f->eval_type = ET_FUNCTION;
     f->func = NAT_FUNC(subparse);
     f->flags = 0;
@@ -636,7 +647,7 @@ static REBCNT To_Thru(
 ) {
     RELVAL *blk;
     const RELVAL *rule;
-    REBCNT cmd;
+    REBSYM cmd;
     REBCNT i;
     REBCNT len;
 
@@ -901,7 +912,7 @@ static REBCNT Parse_To(
         if (i > SER_LEN(P_INPUT))
             i = SER_LEN(P_INPUT);
     }
-    else if (IS_WORD(rule) && VAL_WORD_CANON(rule) == SYM_END) {
+    else if (IS_WORD(rule) && VAL_WORD_SYM(rule) == SYM_END) {
         i = SER_LEN(P_INPUT);
     }
     else if (IS_BLOCK(rule)) {
@@ -1263,7 +1274,7 @@ REBNATIVE(subparse)
     REBINT mincount;    // min pattern count
     REBINT maxcount;    // max pattern count
     REBFLGS flags;
-    REBCNT cmd;
+    REBSYM cmd;
 
     REBVAL save;
 
@@ -1688,7 +1699,7 @@ REBNATIVE(subparse)
             }
             if (IS_WORD(rule)) {
 
-                switch (cmd = VAL_WORD_CANON(rule)) {
+                switch (cmd = VAL_WORD_SYM(rule)) {
 
                 case SYM_SKIP:
                     i = (P_POS < SER_LEN(P_INPUT))
@@ -2042,7 +2053,7 @@ REBNATIVE(subparse)
 
                 if (flags & (PF_INSERT | PF_CHANGE)) {
                     count = (flags & PF_INSERT) ? 0 : count;
-                    cmd = (flags & PF_INSERT) ? 0 : (1<<AN_PART);
+                    REBCNT mod_flags = (flags & PF_INSERT) ? 0 : (1<<AN_PART);
 
                     if (IS_END(P_RULE))
                         fail (Error_Parse_End());
@@ -2052,7 +2063,7 @@ REBNATIVE(subparse)
                         if (cmd != SYM_ONLY)
                             fail (Error_Parse_Rule());
 
-                        cmd |= (1<<AN_ONLY);
+                        mod_flags |= (1<<AN_ONLY);
                         FETCH_NEXT_RULE_MAYBE_END(f);
                         if (IS_END(P_RULE))
                             fail (Error_Parse_End());
@@ -2070,7 +2081,7 @@ REBNATIVE(subparse)
                             AS_ARRAY(P_INPUT),
                             begin,
                             &specified,
-                            cmd,
+                            mod_flags,
                             count,
                             1
                         );
@@ -2090,14 +2101,14 @@ REBNATIVE(subparse)
                         COPY_VALUE(&specified, rule, P_RULE_SPECIFIER);
 
                         if (P_TYPE == REB_BINARY)
-                            cmd |= (1 << AN_SERIES); // special flag
+                            mod_flags |= (1 << AN_SERIES); // special flag
 
                         P_POS = Modify_String(
                             (flags & PF_CHANGE) ? SYM_CHANGE : SYM_INSERT,
                             P_INPUT,
                             begin,
                             &specified,
-                            cmd,
+                            mod_flags,
                             count,
                             1
                         );
