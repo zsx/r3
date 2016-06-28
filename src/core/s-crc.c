@@ -393,9 +393,6 @@ void Val_Init_Map(REBVAL *out, REBMAP *map)
     ENSURE_ARRAY_MANAGED(MAP_PAIRLIST(map));
 
     VAL_RESET_HEADER(out, REB_MAP);
-
-    // Note: Don't set VALUE_FLAG_ARRAY
-    //
     out->extra.binding = cast(REBARR*, SPECIFIED);
     out->payload.any_series.series = ARR_SERIES(MAP_PAIRLIST(map));
     out->payload.any_series.index = 0;

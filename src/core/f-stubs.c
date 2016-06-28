@@ -452,20 +452,16 @@ void Val_Init_Series_Index_Core(
     VAL_INDEX(value) = index;
     INIT_SPECIFIC(value, specifier);
 
-    if (Is_Array_Series(series)) {
-        SET_VAL_FLAG(value, VALUE_FLAG_ARRAY);
-
-    #if !defined(NDEBUG)
-        if (specifier == SPECIFIED) {
-            //
-            // If a SPECIFIED is used for an array, then that top level of the
-            // array cannot have any relative values in it.  Catch it here vs.
-            // waiting until a later assertion.
-            //
-            ASSERT_NO_RELATIVE(AS_ARRAY(series), FALSE);
-        }
-    #endif
+#if !defined(NDEBUG)
+    if (Is_Array_Series(series) && specifier == SPECIFIED) {
+        //
+        // If a SPECIFIED is used for an array, then that top level of the
+        // array cannot have any relative values in it.  Catch it here vs.
+        // waiting until a later assertion.
+        //
+        ASSERT_NO_RELATIVE(AS_ARRAY(series), FALSE);
     }
+#endif
 }
 
 

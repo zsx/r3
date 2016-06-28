@@ -312,15 +312,6 @@ enum {
     //
     VALUE_FLAG_RELATIVE = 1 << (GENERAL_VALUE_BIT + 5),
 
-    // `VALUE_FLAG_ARRAY` is an acceleration of the ANY_ARRAY() test, which
-    // also helps keep this file's COPY_VALUE from being dependent on
-    // VAL_TYPE() which is provided in %sys-value.h
-    //
-    // !!! Should these kinds of tricks be generalized as a typeset caching
-    // for the 64-bit build, using the extra 32-bits in the header?
-    //
-    VALUE_FLAG_ARRAY = 1 << (GENERAL_VALUE_BIT + 6),
-
     // `VALUE_FLAG_EVALUATED` is a somewhat dodgy-yet-important concept.
     // This is that some functions wish to be sensitive to whether or not
     // their argument came as a literal in source or as a product of an

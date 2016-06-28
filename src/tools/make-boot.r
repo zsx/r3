@@ -582,13 +582,8 @@ emit {
 #define ANY_BINSTR(v) \
     LOGICAL(VAL_TYPE(v) >= REB_BINARY && VAL_TYPE(v) <= REB_TAG)
 
-// Accelerated by a value flag
-//
-// #define ANY_ARRAY(v)
-//   LOGICAL(VAL_TYPE(v) >= REB_BLOCK && VAL_TYPE(v) <= REB_LIT_PATH)
-
 #define ANY_ARRAY(v) \
-    GET_VAL_FLAG((v), VALUE_FLAG_ARRAY)
+    LOGICAL(VAL_TYPE(v) >= REB_BLOCK && VAL_TYPE(v) <= REB_LIT_PATH)
 
 #define ANY_WORD(v) \
     LOGICAL(VAL_TYPE(v) >= REB_WORD && VAL_TYPE(v) <= REB_ISSUE)

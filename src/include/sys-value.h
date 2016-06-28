@@ -1253,7 +1253,6 @@ inline static void INIT_RELATIVE(RELVAL *v, REBFUN *func) {
 }
 
 inline static void INIT_VAL_ARRAY(RELVAL *v, REBARR *a) {
-    SET_VAL_FLAG(v, VALUE_FLAG_ARRAY);
     v->extra.binding = cast(REBARR*, SPECIFIED);
     v->payload.any_series.series = ARR_SERIES(a);
 }
