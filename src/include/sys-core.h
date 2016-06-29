@@ -151,7 +151,16 @@ extern void reb_qsort_r(void *a, size_t n, size_t es, void *thunk, cmp_t *cmp);
 // The rest is not necessary to expose to the whole system, but perhaps
 // these two shouldn't be in this specific location.
 //
-typedef void* REBNOD; // Just used for linking free nodes
+typedef struct Reb_Node {
+    struct Reb_Node *next_if_free; // if not free, entire node is available
+
+    // Size of a node must be a multiple of 64-bits.  This is because there
+    // must be a baseline guarantee for node allocations to be able to know
+    // where 64-bit alignment boundaries are.
+    //
+    /*struct REBI64 payload[N];*/
+} REBNOD;
+
 typedef struct rebol_mem_pool REBPOL;
 
 #include "sys-deci.h"

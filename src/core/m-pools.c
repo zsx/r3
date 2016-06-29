@@ -121,20 +121,18 @@ void *Alloc_Mem(size_t size)
     // malloc and free.
 
 #ifdef NDEBUG
-    return calloc(size, 1);
+    return malloc(size);
 #else
-    {
-        // In debug builds we cache the size at the head of the allocation
-        // so we can check it.  This also allows us to catch cases when
-        // free() is paired with Alloc_Mem() instead of using Free_Mem()
-        //
-        // Note that we use a 64-bit quantity, as we want the allocations
-        // to remain suitable in alignment for 64-bit values!
+    // In debug builds we cache the size at the head of the allocation
+    // so we can check it.  This also allows us to catch cases when
+    // free() is paired with Alloc_Mem() instead of using Free_Mem()
+    //
+    // Note that we use a 64-bit quantity, as we want the allocations
+    // to remain suitable in alignment for 64-bit values!
 
-        void *ptr = malloc(size + sizeof(REBI64));
-        *cast(REBI64 *, ptr) = size;
-        return cast(char *, ptr) + sizeof(REBI64);
-    }
+    void *ptr = malloc(size + sizeof(REBI64));
+    *cast(REBI64 *, ptr) = size;
+    return cast(char *, ptr) + sizeof(REBI64);
 #endif
 }
 
@@ -142,34 +140,32 @@ void *Alloc_Mem(size_t size)
 //
 //  Free_Mem: C
 // 
-// NOTE: Instead of Free_Mem, use the FREE and FREE_N
-// wrapper macros to ensure the memory block being freed matches
-// the appropriate size for the type.
+// NOTE: Instead of Free_Mem, use the FREE and FREE_N wrapper macros to ensure
+// the memory block being freed matches the appropriate size for the type.
 //
 void Free_Mem(void *mem, size_t size)
 {
 #ifdef NDEBUG
     free(mem);
 #else
-    {
-        // In debug builds we will not only be able to assert the
-        // correct size...but if someone tries to use a normal free()
-        // and bypass Free_Mem it will trigger debug alerts from the
-        // C runtime of trying to free a non-head-of-malloc.  This
-        // helps in ensuring we get a balanced PG_Mem_Usage of 0 at the
-        // end of the program.  We also know the host allocator uses
-        // a similar trick, but since it doesn't need to remember the
-        // size it puts a known garbage value for us to check for.
+    // In debug builds we will not only be able to assert the correct size...
+    // but if someone tries to use a normal free() and bypass Free_Mem it will
+    // trigger debug alerts from the C runtime of trying to free a
+    // non-head-of-malloc.  This helps in ensuring we get a balanced
+    // PG_Mem_Usage of 0 at the end of the program.
+    //
+    // We also know the host allocator uses a similar trick.  But since it
+    // doesn't need to remember the size, it puts a known garbage value for
+    // us to check for--to give a useful message.
 
-        char *ptr = cast(char *, mem) - sizeof(REBI64);
-        if (*cast(REBI64 *, ptr) == cast(REBI64, -1020)) {
-            Debug_Fmt("** Free_Mem() likely used on OS_Alloc_Mem() memory!");
-            Debug_Fmt("** You should use OS_FREE() instead of FREE().");
-            assert(FALSE);
-        }
-        assert(*cast(REBI64*, ptr) == cast(REBI64, size));
-        free(ptr);
+    char *ptr = cast(char *, mem) - sizeof(REBI64);
+    if (*cast(REBI64 *, ptr) == cast(REBI64, -1020)) {
+        Debug_Fmt("** Free_Mem() likely used on OS_Alloc_Mem() memory!");
+        Debug_Fmt("** You should use OS_FREE() instead of FREE().");
+        assert(FALSE);
     }
+    assert(*cast(REBI64*, ptr) == cast(REBI64, size));
+    free(ptr);
 #endif
     PG_Mem_Usage -= size;
 }
@@ -178,8 +174,6 @@ void Free_Mem(void *mem, size_t size)
 #define POOL_MAP
 
 #define BAD_MEM_PTR ((REBYTE *)0xBAD1BAD1)
-
-//#define GC_TRIGGER (GC_Active && (GC_Ballast <= 0 || (GC_Pending && !GC_Disabled)))
 
 #ifdef POOL_MAP
     #ifdef NDEBUG
@@ -453,21 +447,16 @@ void Check_Pool_Map(void)
 //
 //  Fill_Pool: C
 // 
-// Allocate memory for a pool.  The amount allocated will be
-// determined from the size and units specified when the
-// pool header was created.  The nodes of the pool are linked
-// to the free list.
+// Allocate memory for a pool.  The amount allocated will be determined from
+// the size and units specified when the pool header was created.  The nodes
+// of the pool are linked to the free list.
 //
 static void Fill_Pool(REBPOL *pool)
 {
-    REBSEG  *seg;
-    REBNOD  *node;
-    REBYTE  *next;
-    REBCNT  units = pool->units;
-    REBCNT  mem_size = pool->wide * units + sizeof(REBSEG);
+    REBCNT units = pool->units;
+    REBCNT mem_size = pool->wide * units + sizeof(REBSEG);
 
-    seg = cast(REBSEG *, ALLOC_N(char, mem_size));
-
+    REBSEG *seg = cast(REBSEG *, ALLOC_N(char, mem_size));
     if (!seg) panic (Error_No_Memory(mem_size));
 
     // !!! See notes above whether a more limited contract between the node
@@ -484,42 +473,31 @@ static void Fill_Pool(REBPOL *pool)
     pool->has += units;
 
     // Add new nodes to the end of free list:
-    if (pool->last == NULL) {
-        node = (REBNOD*)&pool->first;
-    } else {
-        node = pool->last;
-        UNPOISON_MEMORY(node, pool->wide);
+
+    REBNOD *node = cast(REBNOD*, seg + 1);
+
+    if (pool->first == NULL) {
+        assert(pool->last == NULL);
+        pool->first = node;
     }
-
-    for (next = (REBYTE *)(seg + 1); units > 0; units--, next += pool->wide) {
-        *node = (REBNOD) next;
-
-        // !!! Were a more limited contract established between the node
-        // type and the pools, this is where it would write the signal
-        // into the unit that it is in a free state.  As it stands, we
-        // do not know what bit the type will use...just that it uses
-        // zero (of something that isn't the first pointer sized thing,
-        // that we just assigned).  If it were looking for zero in
-        // the second pointer sized thing, we might put this line here:
-        //
-        //     *(node + 1) = cast(REBNOD, 0);
-        //
-        // For now we just clear the remaining bits...but we do it all
-        // in one call with the CLEAR() above vs. repeated calls on
-        // each individual unit.  Note each unit only receives a zero
-        // filling once in its lifetime; if it is freed and then reused
-        // it will not be zero filled again (depending on the client to
-        // have done whatever zeroing they needed to indicate the free
-        // state prior to free).
-
-        node  = cast(void**, *node);
-    }
-
-    *node = 0;
-    if (pool->last != NULL) {
+    else {
+        assert(pool->last != NULL);
+        UNPOISON_MEMORY(pool->last, pool->wide);
+        pool->last->next_if_free = node;
         POISON_MEMORY(pool->last, pool->wide);
     }
+
+    while (TRUE) {
+        if (--units == 0) {
+            node->next_if_free = NULL;
+            break;
+        }
+        node->next_if_free = cast(REBNOD*, cast(REBYTE*, node) + pool->wide);
+        node = node->next_if_free;
+    }
+
     pool->last = node;
+
     POISON_MEMORY(seg, mem_size);
 }
 
@@ -566,19 +544,17 @@ static void Fill_Pool(REBPOL *pool)
 //
 void *Make_Node(REBCNT pool_id)
 {
-    REBNOD *node;
-    REBPOL *pool;
-
-    pool = &Mem_Pools[pool_id];
+    REBPOL *pool = &Mem_Pools[pool_id];
     if (!pool->first) Fill_Pool(pool);
-    node = pool->first;
+
+    REBNOD *node = pool->first;
 
     UNPOISON_MEMORY(node, pool->wide);
 
-    pool->first = cast(void**, *node);
-    if (node == pool->last) {
+    pool->first = node->next_if_free;
+    if (node == pool->last)
         pool->last = NULL;
-    }
+
     pool->free--;
 
     // All nodes must start on 64-bit alignment (so that data allocated in
@@ -587,7 +563,7 @@ void *Make_Node(REBCNT pool_id)
     //
     assert(cast(REBUPT, node) % sizeof(REBI64) == 0);
 
-    return (void *)node;
+    return cast(void *, node);
 }
 
 
@@ -616,10 +592,10 @@ void Free_Node(REBCNT pool_id, REBNOD *node)
     // catch stale pointers
 
     UNPOISON_MEMORY(pool->last, pool->wide);
-    *(pool->last) = node;
+    pool->last->next_if_free = node;
     POISON_MEMORY(pool->last, pool->wide);
     pool->last = node;
-    *node = NULL;
+    node->next_if_free = NULL;
 
     POISON_MEMORY(node, pool->wide);
 
@@ -1109,7 +1085,7 @@ static void Free_Unbiased_Series_Data(REBYTE *unbiased, REBCNT size_unpooled)
         assert(Mem_Pools[pool_num].wide >= size_unpooled);
 
         pool = &Mem_Pools[pool_num];
-        *node = pool->first;
+        node->next_if_free = pool->first;
         pool->first = node;
         pool->free++;
     }
@@ -1796,7 +1772,8 @@ REBCNT Check_Memory(void)
     for (pool_num = 0; pool_num < SYSTEM_POOL; pool_num++) {
         count = 0;
         // Check each free node in the memory pool:
-        for (node = cast(void **, Mem_Pools[pool_num].first); node; node = cast(void**, *node)) {
+        node = Mem_Pools[pool_num].first;
+        for (; node != NULL; node = node->next_if_free) {
             count++;
             // The node better belong to one of the pool's segments:
             for (seg = Mem_Pools[pool_num].segs; seg; seg = seg->next) {

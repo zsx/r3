@@ -26,11 +26,13 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// This contains the struct definition for a REBSER (`struct Reb_Series`)
-// It is a small descriptor for a series, and contains information
-// about its content and flags.  Every string and block in REBOL has one,
-// and the code implementing them is reused in many places that Rebol needs
-// a general-purpose dynamically growing structure.
+// This contains the struct definition for the "REBSER" struct Reb_Series.
+// It is a small-ish descriptor for a series (though if the amount of data
+// in the series is small enough, it is embedded into the structure itself.)
+//
+// Every string and block in REBOL has a REBSER, and the code implementing
+// them is reused in many places where Rebol needs a general-purpose
+// dynamically growing structure.
 //
 // The REBSER is fixed-size, and is allocated as a "node" from a memory pool.
 // That pool quickly grants and releases memory ranges that are sizeof(REBSER)
@@ -44,25 +46,43 @@
 // series's data pointer may be freed and reallocated to respond to the needs
 // of resizing.  (In the future, it may be reallocated just as an idle task
 // by the GC to reclaim or optimize space.)  Hence pointers into data in a
-// managed series *must not be held onto across evaluations*.
+// managed series *must not be held onto across evaluations*, without
+// special protection or accomodation.
 //
-// If the data requirements of a series are small, then rather than using the
-// space in the REBSER to track a dynamic allocation, the data can be placed
-// directly in the node itself.  By leveraging the trick that the low bit of
-// an end marker is all that's needed to terminate arrays, the `info` bits
-// internal to the structure can implicitly terminate the array.  The capacity
-// is enough to store a single REBVAL so that length 0 or 1 series can be
-// represented, along with two extra pointer-sized items (a `link` and `misc`).
+//=//// LAYOUT ////////////////////////////////////////////////////////////=//
 //
-// Additionally, if the data requirements are such that exactly two REBVALs
-// of space are needed, another trick is used.  Implicit termination in that
-// case cannot be accomplished inside the REBSER (as it is exactly two
-// REBVALs in size).  Instead, REBSERs with such a requirement are not
-// located in the pool before another one with the same requirement.  By
-// interleaving them with ordinary series that have bits to spare for the
-// terminator signal, they can fit.  See REBSER_REBVAL_FLAG_MARK, etc.
+// A REBSER node is the size of two REBVALs, and there are 3 basic layouts
+// which can be overlaid inside the node:
 //
-// Notes:
+//      Dynamic: [header [allocation tracking] info link misc]
+//     Singular: [header [REBVAL cell] info link misc]
+//         Pair: [[REBVAL cell] [REBVAL cell]]
+//
+// The `info` bitflags are implemented in a special way, such that the low
+// two flags are clear.  That signals an END to a "Singular" array's cell
+// if a traversal attempts to step out of it (and indicates it unwritable).
+// That makes it a legal payload for traversable arrays of length 1 or 0.
+//
+// Singulars have widespread applications in the system, notably the
+// efficient implementation of FRAME!.  They also narrow the gap in overhead
+// between COMPOSE [A (B) C] vs. REDUCE ['A B 'C] to nearly nothing.
+//
+// Pair REBSERs are allocated from the REBSER pool instead of their own to
+// help exchange a common "currency" of allocation size more efficiently.
+// They are planned for use in the PAIR! and MAP! datatypes, and anticipated
+// to play a crucial part in the API--allowing a persistent handle for a
+// GC'able REBVAL and associated "meta" value (which can be used for
+// reference counting or other tracking.)
+//
+// Most of the time, code does not need to be concerned about distinguishing
+// Pair from the Dynamic and Singular layouts--because it already knows
+// which kind it has.  Only the GC needs to be concerned when marking
+// and sweeping.  For this purpose, the node is considered to be free when
+// the header bits are all 0 (low bits 00), Singular when 01, Dynamic when
+// 10, and a Pair when 11.  Dynamic allocation can thus be tested on non-free
+// series when the low bit in the header is 0.
+//
+//=//// NOTES /////////////////////////////////////////////////////////////=//
 //
 // * For the forward declarations of series subclasses, see %reb-defs.h
 //
