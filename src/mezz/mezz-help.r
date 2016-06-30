@@ -45,7 +45,8 @@ spec-of: function [
     ]
 
     for-each param words-of :value [
-        if type: select types param [append spec type]
+        append spec param
+        if type: select types param [append/only spec type]
         if note: select notes param [append spec note]
     ]
 
