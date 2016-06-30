@@ -27,6 +27,7 @@ make object! [
                     loop 1 [
                         try [
                             set exception 'return
+                            print mold block ;-- !!! make this an option
                             set/opt 'result do block
                             set exception blank
                             return :result

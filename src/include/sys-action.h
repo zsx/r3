@@ -78,7 +78,8 @@ enum {
     // the f->func in the frame.  This function may be changed by the
     // dispatcher from what was originally called.
     //
-    R_REDO
+    R_REDO_CHECKED, // check the types again, fill in exits
+    R_REDO_UNCHECKED // don't bother checking, just run next function in stack
 };
 typedef REBCNT REB_R;
 

@@ -1508,7 +1508,11 @@ reevaluate:
             SET_FALSE(f->out);
             break;
 
-        case R_REDO:
+        case R_REDO_CHECKED:
+            SET_END(f->out);
+            goto do_function_arglist_in_progress;
+
+        case R_REDO_UNCHECKED:
             //
             // This instruction represents the idea that it is desired to
             // run the f->func again.  The dispatcher may have changed the

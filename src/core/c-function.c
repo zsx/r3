@@ -1419,7 +1419,7 @@ REB_R Specializer_Dispatcher(struct Reb_Frame *f)
     f->func = VAL_FUNC(CTX_FRAME_FUNC_VALUE(VAL_CONTEXT(exemplar)));
     f->binding = VAL_BINDING(exemplar);
 
-    return R_REDO;
+    return R_REDO_UNCHECKED;
 }
 
 
@@ -1481,98 +1481,9 @@ REB_R Adapter_Dispatcher(struct Reb_Frame *f)
     if (Do_At_Throws(f->out, VAL_ARRAY(prelude), VAL_INDEX(prelude), frame_ctx))
         return R_OUT_IS_THROWN;
 
-    // We have to run a type-checking sweep, to make sure the state of the
-    // arguments is legal for the function.  Note that in particular,
-    // a native function makes assumptions that the bit patterns are correct
-    // for the set of types it takes...and most would crash the interpreter
-    // if given a cell with an unexpected type in it.
-    //
-    // Notice also that the underlying params, though they must match the
-    // order and symbols, may skip some due to specialization.
-    //
-    REBVAL *arg_save = f->arg;
-    f->param = FUNC_PARAMS_HEAD(underlying);
-
-    // We have to enumerate a frame as big as the underlying function, but
-    // the adaptee may have fewer parameters due to specialization.  (In the
-    // future, it may also subset the typesets accepted.)
-
-    REBVAL *adaptee_param = FUNC_PARAMS_HEAD(VAL_FUNC(adaptee));
-
-    for (; NOT_END(f->param); ++f->arg, ++f->param) {
-        while (VAL_PARAM_CANON(adaptee_param) != VAL_PARAM_CANON(f->param))
-            ++adaptee_param;
-
-        // !!! In the future, it may be possible for adaptations to take
-        // different types than the function they adapt (or perhaps just a
-        // subset of those types)
-        //
-        assert(VAL_TYPESET_BITS(adaptee_param) == VAL_TYPESET_BITS(f->param));
-
-        enum Reb_Param_Class pclass = VAL_PARAM_CLASS(adaptee_param);
-        assert(pclass == VAL_PARAM_CLASS(adaptee_param));
-
-        switch (pclass) {
-        case PARAM_CLASS_LOCAL:
-            SET_VOID(f->arg); // cheaper than checking
-            break;
-
-        case PARAM_CLASS_RETURN:
-            assert(VAL_PARAM_SYM(f->param) == SYM_RETURN);
-
-            if (!GET_VAL_FLAG(adaptee, FUNC_FLAG_RETURN)) {
-                SET_VOID(f->arg); // may be another adapter, filled in later
-                break;
-            }
-
-            *f->arg = *NAT_VALUE(return);
-
-            if (f->varlist) // !!! in specific binding, always for Plain
-                f->arg->extra.binding = f->varlist;
-            else
-                f->arg->extra.binding = FUNC_PARAMLIST(f->func);
-            break;
-
-        case PARAM_CLASS_LEAVE:
-            assert(VAL_PARAM_SYM(f->param) == SYM_LEAVE);
-
-            if (!GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEAVE)) {
-                SET_VOID(f->arg); // may be adapter, and filled in later
-                break;
-            }
-
-            *f->arg = *NAT_VALUE(leave);
-
-            if (f->varlist) // !!! in specific binding, always for Plain
-                f->arg->extra.binding = f->varlist;
-            else
-                f->arg->extra.binding = FUNC_PARAMLIST(f->func);
-            break;
-
-        case PARAM_CLASS_REFINEMENT:
-            if (!IS_LOGIC(f->arg))
-                fail (Error_Non_Logic_Refinement(f));
-            break;
-
-        case PARAM_CLASS_HARD_QUOTE:
-        case PARAM_CLASS_SOFT_QUOTE:
-        case PARAM_CLASS_NORMAL:
-            if (!TYPE_CHECK(adaptee_param, VAL_TYPE(f->arg)))
-                fail (Error_Arg_Type(
-                    FRM_LABEL(f), adaptee_param, VAL_TYPE(f->arg)
-                ));
-            break;
-
-        default:
-            assert(FALSE);
-        }
-    }
-
-    f->arg = arg_save;
-
     f->func = VAL_FUNC(adaptee);
     f->binding = VAL_BINDING(adaptee);
-    return R_REDO; // Have Do_Core run the adaptee updated into f->func
+    return R_REDO_CHECKED; // Have Do_Core run the adaptee updated into f->func
 }
 
 
@@ -1600,7 +1511,7 @@ REB_R Chainer_Dispatcher(struct Reb_Frame *f)
     f->func = VAL_FUNC(value);
     f->binding = VAL_BINDING(value);
 
-    return R_REDO;
+    return R_REDO_UNCHECKED; // signatures should match
 }
 
 
