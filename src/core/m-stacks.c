@@ -109,7 +109,9 @@ void Init_Stacks(REBCNT size)
 void Shutdown_Stacks(void)
 {
     assert(FS_TOP == NULL);
-    assert(DSP == 0); // !!! Why not free data stack here?
+
+    assert(DSP == 0);
+    Free_Array(DS_Array);
 
     assert(TG_Top_Chunk == cast(struct Reb_Chunk*, &TG_Root_Chunker->payload));
 

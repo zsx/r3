@@ -1303,23 +1303,6 @@ REBCNT Recycle_Core(REBOOL shutdown)
     VAL_TERM_ARRAY(TASK_BUF_EMIT);
     VAL_TERM_ARRAY(TASK_BUF_COLLECT);
 
-    // The data stack logic is that it is contiguous values that has no
-    // REB_ENDs in it except at the series end.  Bumping up against that
-    // END signal is how the stack knows when it needs to grow.  But every
-    // drop of the stack doesn't clean up the value dropped--because the
-    // values are not END markers, they are considered fine as far as the
-    // stack is concerned to indicate unused capacity.  However, the GC
-    // doesn't want to mark these "marker-only" values live.
-    //
-    REBVAL *stackval = DS_TOP;
-    assert(IS_TRASH_DEBUG(&DS_Movable_Base[0]));
-    while (stackval != &DS_Movable_Base[0]) {
-        if (NOT(IS_VOID_OR_SAFE_TRASH(stackval)))
-            Queue_Mark_Value_Deep(stackval);
-        --stackval;
-    }
-    Propagate_All_GC_Marks();
-
     // MARKING PHASE: the "root set" from which we determine the liveness
     // (or deadness) of a series.  If we are shutting down, we are freeing
     // *all* of the series that are managed by the garbage collector, so
@@ -1331,6 +1314,24 @@ REBCNT Recycle_Core(REBOOL shutdown)
     // be reintroduced in a more limited fashion for this purpose.
 
     if (!shutdown) {
+        //
+        // The data stack logic is that it is contiguous values that has no
+        // REB_ENDs in it except at the series end.  Bumping up against that
+        // END signal is how the stack knows when it needs to grow.  But every
+        // drop of the stack doesn't clean up the value dropped--because the
+        // values are not END markers, they are considered fine as far as the
+        // stack is concerned to indicate unused capacity.  However, the GC
+        // doesn't want to mark these "marker-only" values live.
+        //
+        REBVAL *stackval = DS_TOP;
+        assert(IS_TRASH_DEBUG(&DS_Movable_Base[0]));
+        while (stackval != &DS_Movable_Base[0]) {
+            if (NOT(IS_VOID_OR_SAFE_TRASH(stackval)))
+                Queue_Mark_Value_Deep(stackval);
+            --stackval;
+        }
+        Propagate_All_GC_Marks();
+
         REBSER **sp;
         REBVAL **vp;
 
