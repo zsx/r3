@@ -68,7 +68,16 @@ REBOOL Do_Signals_Throws(REBVAL *out)
     REBCNT sigs;
     REBCNT mask;
 
-    assert(Saved_State || PG_Boot_Phase < BOOT_MEZZ);
+#if !defined(NDEBUG)
+    if (!Saved_State && PG_Boot_Phase >= BOOT_MEZZ) {
+        printf(
+            "WARNING: Printing while no top-level trap handler in place\n"
+            "This is dangerous because of Ctrl-C processing, there's\n"
+            "nothing to catch the HALT signal.\n"
+        );
+        fflush(stdout);
+    }
+#endif
 
     // Accumulate evaluation counter and reset countdown:
     if (Eval_Count <= 0) {
