@@ -1162,16 +1162,16 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Gobs(void)
 
     for (seg = Mem_Pools[GOB_POOL].segs; seg; seg = seg->next) {
         gob = (REBGOB *) (seg + 1);
-        for (n = Mem_Pools[GOB_POOL].units; n > 0; n--) {
-            if (IS_GOB_USED(gob)) {
-                if (IS_GOB_MARK(gob))
-                    UNMARK_GOB(gob);
-                else {
-                    Free_Gob(gob);
-                    count++;
-                }
+        for (n = Mem_Pools[GOB_POOL].units; n > 0; --n, ++gob) {
+            if (gob->header.bits == 0) // unused REBNOD
+                continue;
+
+            if (IS_GOB_MARK(gob))
+                UNMARK_GOB(gob);
+            else {
+                Free_Gob(gob);
+                count++;
             }
-            gob++;
         }
     }
 
@@ -1196,15 +1196,17 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Routines(void)
         REBRIN *rin = cast(REBRIN*, seg + 1);
         REBCNT n;
         for (n = Mem_Pools[RIN_POOL].units; n > 0; n--) {
-            if (GET_RIN_FLAG(rin, ROUTINE_FLAG_USED)) {
-                if (GET_RIN_FLAG(rin, ROUTINE_FLAG_MARK))
-                    CLEAR_RIN_FLAG(rin, ROUTINE_FLAG_MARK);
-                else {
-                    CLEAR_RIN_FLAG(rin, ROUTINE_FLAG_USED);
-                    Free_Routine(rin);
-                    ++count;
-                }
+            if (rin->header.bits == 0)
+                continue; // not used
+
+            assert(GET_RIN_FLAG(rin, ROUTINE_FLAG_USED)); // redundant?
+            if (GET_RIN_FLAG(rin, ROUTINE_FLAG_MARK))
+                CLEAR_RIN_FLAG(rin, ROUTINE_FLAG_MARK);
+            else {
+                Free_Routine(rin);
+                ++count;
             }
+
             ++rin;
         }
     }

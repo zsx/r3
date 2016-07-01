@@ -339,6 +339,31 @@ struct Reb_Series_Dynamic {
 #endif
 };
 
+
+union Reb_Series_Content {
+    //
+    // If the series does not fit into the REBSER node, then it must be
+    // dynamically allocated.  This is the tracking structure for that
+    // dynamic data allocation.
+    //
+    struct Reb_Series_Dynamic dynamic;
+
+    // If not SERIES_FLAG_HAS_DYNAMIC, 0 or 1 length arrays can be held
+    // directly in the series node.  The SERIES_FLAG_0_IS_FALSE bit is set
+    // to zero and signals an IS_END().
+    //
+    // It is thus an "array" of effectively up to length two.  Either the
+    // [0] full element is IS_END(), or the [0] element is another value
+    // and the [1] element is read-only and passes IS_END() to terminate
+    // (but can't have any other value written, as the info bits are
+    // marked as unwritable by SERIES_FLAG_1_IS_FALSE...this protects the
+    // rest of the bits in the debug build as it is checked whenver a
+    // REBVAL tries to write a new header.)
+    //
+    RELVAL values[1];
+};
+
+
 struct Reb_Series {
 
     // The low 2 bits in the header must be 00 if this is an "ordinary" REBSER
@@ -354,30 +379,9 @@ struct Reb_Series {
     // The remaining bits are free, and used to hold SYM values for those
     // words that have them.
     //
-    struct Reb_Value_Header header;
+    struct Reb_Header header;
 
-    union {
-        //
-        // If the series does not fit into the REBSER node, then it must be
-        // dynamically allocated.  This is the tracking structure for that
-        // dynamic data allocation.
-        //
-        struct Reb_Series_Dynamic dynamic;
-
-        // If not SERIES_FLAG_HAS_DYNAMIC, 0 or 1 length arrays can be held
-        // directly in the series node.  The SERIES_FLAG_0_IS_FALSE bit is set
-        // to zero and signals an IS_END().
-        //
-        // It is thus an "array" of effectively up to length two.  Either the
-        // [0] full element is IS_END(), or the [0] element is another value
-        // and the [1] element is read-only and passes IS_END() to terminate
-        // (but can't have any other value written, as the info bits are
-        // marked as unwritable by SERIES_FLAG_1_IS_FALSE...this protects the
-        // rest of the bits in the debug build as it is checked whenver a
-        // REBVAL tries to write a new header.)
-        //
-        RELVAL values[1];
-    } content;
+    union Reb_Series_Content content;
 
     // `info` is the information about the series which needs to be known
     // even if it is not using a dynamic allocation.  So even if the alloc
@@ -393,7 +397,7 @@ struct Reb_Series {
     // be some interesting added caching feature or otherwise that would use
     // it, while not making any feature specifically require a 64-bit CPU.
     //
-    struct Reb_Value_Header info;
+    struct Reb_Header info;
 
     // The `link` field is generally used for pointers to something that
     // when updated, all references to this series would want to be able

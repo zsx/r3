@@ -91,7 +91,7 @@
 /*
 ***********************************************************************/
 {
-    MEM_TINY_POOL = 1,
+    MEM_TINY_POOL = 0,
     MEM_SMALL_POOLS = MEM_TINY_POOL   + 16,
     MEM_MID_POOLS   = MEM_SMALL_POOLS +  4,
     MEM_BIG_POOLS   = MEM_MID_POOLS   +  4, // larger pools

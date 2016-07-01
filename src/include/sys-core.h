@@ -152,6 +152,8 @@ extern void reb_qsort_r(void *a, size_t n, size_t es, void *thunk, cmp_t *cmp);
 // these two shouldn't be in this specific location.
 //
 typedef struct Reb_Node {
+    struct Reb_Header header; // will be header.bits = 0 if node is free
+
     struct Reb_Node *next_if_free; // if not free, entire node is available
 
     // Size of a node must be a multiple of 64-bits.  This is because there

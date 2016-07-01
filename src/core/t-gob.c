@@ -76,7 +76,7 @@ REBGOB *Make_Gob(void)
     GOB_W(gob) = 100;
     GOB_H(gob) = 100;
     GOB_ALPHA(gob) = 255;
-    USE_GOB(gob);
+    gob->header.bits = GOBF_USED;
     if ((GC_Ballast -= Mem_Pools[GOB_POOL].wide) <= 0) SET_SIGNAL(SIG_RECYCLE);
     return gob;
 }
@@ -479,7 +479,7 @@ static REBOOL Set_GOB_Var(REBGOB *gob, const REBVAL *word, const REBVAL *val)
             //clear only flags defined by words
             REBINT i;
             for (i = 0; Gob_Flag_Words[i].sym != 0; ++i)
-                CLR_FLAG(gob->flags, Gob_Flag_Words[i].flags);
+                CLR_FLAG(gob->header.bits, Gob_Flag_Words[i].flags);
 
             RELVAL* item;
             for (item = VAL_ARRAY_HEAD(val); NOT_END(item); item++)

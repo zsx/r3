@@ -149,7 +149,7 @@ void Assert_Cell_Writable(const RELVAL *v, const char *file, int line)
 // Uses REB_MAX instead of just REB_0 for the type, to help cue debugging.
 //
 // When SET_END is used, it uses the whole cell.  Implicit termination is
-// done by the raw creation of a Reb_Value_Header in the containing structure.
+// done by the raw creation of a Reb_Header in the containing structure.
 //
 void SET_END_Debug(RELVAL *v, const char *file, int line) {
     ASSERT_CELL_WRITABLE_IF_DEBUG(v, file, line);

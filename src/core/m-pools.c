@@ -205,7 +205,17 @@ void Free_Mem(void *mem, size_t size)
 ***********************************************************************/
 const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 {
-    {8, 256},           // 0-8 Small string pool
+    // R3-Alpha had a "0-8 small string pool".  e.g. a pool of allocations for
+    // payloads 0 to 8 bytes in length.  These are not technically possible in
+    // Ren-C's pool, because it requires 2*sizeof(void*) for each node at the
+    // minimum...because instead of just the freelist pointer, it has a
+    // standardized header (0 when free).
+    //
+    // This is not a problem, since all such small strings would also need
+    // REBSERs...and Ren-C has a better answer to embed the payload directly
+    // into the REBSER.  This wouldn't apply if you were trying to do very
+    // small allocations of strings that did not have associated REBSERs..
+    // but those don't exist in the code.
 
     MOD_POOL( 1, 256),  // 9-16 (when REBVAL is 16)
     MOD_POOL( 2, 512),  // 17-32 - Small series (x 16)
@@ -459,13 +469,6 @@ static void Fill_Pool(REBPOL *pool)
     REBSEG *seg = cast(REBSEG *, ALLOC_N(char, mem_size));
     if (!seg) panic (Error_No_Memory(mem_size));
 
-    // !!! See notes above whether a more limited contract between the node
-    // types and the pools could prevent needing to zero all the units.
-    // Also note that (for instance) there is no guarantee that memsetting
-    // a pointer variable to zero will make that into a NULL pointer.
-    //
-    CLEAR(seg, mem_size);
-
     seg->size = mem_size;
     seg->next = pool->segs;
     pool->segs = seg;
@@ -488,10 +491,14 @@ static void Fill_Pool(REBPOL *pool)
     }
 
     while (TRUE) {
+        struct Reb_Header *alias = &node->header; // pointer alias
+        alias->bits = 0; // alias ensures compiler invalidates ALL Reb_Headers
+
         if (--units == 0) {
             node->next_if_free = NULL;
             break;
         }
+
         node->next_if_free = cast(REBNOD*, cast(REBYTE*, node) + pool->wide);
         node = node->next_if_free;
     }
@@ -562,6 +569,7 @@ void *Make_Node(REBCNT pool_id)
     // points would be)
     //
     assert(cast(REBUPT, node) % sizeof(REBI64) == 0);
+    assert(node->header.bits == 0); // client needs to change to non-zero
 
     return cast(void *, node);
 }
@@ -578,14 +586,13 @@ void *Make_Node(REBCNT pool_id)
 //
 void Free_Node(REBCNT pool_id, REBNOD *node)
 {
+    assert(node->header.bits != 0); // 0 would indicate already free
+    node->header.bits = 0;
+
     REBPOL *pool = &Mem_Pools[pool_id];
 
-    if (pool->last == NULL) {
-        //
-        // Pool is empty, so fill it.
-        //
+    if (pool->last == NULL) // Fill pool if empty
         Fill_Pool(pool);
-    }
 
     // insert an empty segment, such that this node won't be picked by
     // next Make_Node to enlongate the poisonous time of this area to
@@ -895,10 +902,8 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
     PG_Reb_Stats->Series_Memory += length * wide;
 #endif
 
-//  if (GC_TRIGGER) Recycle();
-
     REBSER *s = cast(REBSER*, Make_Node(SER_POOL));
-    s->header.bits = 0; // unmanaged, unmarked...double-duty END/unwritable
+    s->header.bits = 1; // !!! Temporary--any nonzero value
 
     if ((GC_Ballast -= sizeof(REBSER)) <= 0) SET_SIGNAL(SIG_RECYCLE);
 
@@ -912,6 +917,7 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
     free(s->guard);
 
     s->link.keylist = cast(REBARR*, 0xBAD3BAD3);
+    s->misc.canon = cast(REBSTR*, 0xBAD4BAD4);
 
     // It's necessary to have another value in order to round out the size of
     // the pool node so pointer-aligned entries are given out, so might as well
@@ -927,9 +933,9 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
     // signal memory coherence with accesses through a `Reb_Value.header`
     // as those are members of different structs.  Creating a generic alias
     // pointer tells the optimizer all bets are off and any write to the alias
-    // could invalidate any Reb_Value_Header-typed field anywhere...
+    // could invalidate any Reb_Header-typed field anywhere...
     {
-        struct Reb_Value_Header *alias = &s->info;
+        struct Reb_Header *alias = &s->info;
         alias->bits = 0; // no NOT_END_MASK, no WRITABLE_MASK_DEBUG set...
 
         // Make sure it worked (so that if we interpreted the REBSER content
@@ -975,11 +981,6 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
         // recorded as the block's capacity, in case it ever needs to grow
         // it might be able to save on a reallocation.
     }
-
-    // Note: This used to initialize the "extra" portion of the REBSER to 0.
-    // Such initialization is a bad idea because extra is a union, and it's
-    // undefined behavior to read from it if you don't know which field
-    // was last assigned.
 
     // All series (besides the series that is the list of manual series
     // itself) start out in the list of manual series.  The only way
@@ -1088,6 +1089,9 @@ static void Free_Unbiased_Series_Data(REBYTE *unbiased, REBCNT size_unpooled)
         node->next_if_free = pool->first;
         pool->first = node;
         pool->free++;
+
+        struct Reb_Header *alias = &node->header;
+        node->header.bits = 0;
     }
     else {
         FREE_N(REBYTE, size_unpooled, unbiased);
@@ -1694,8 +1698,6 @@ REBOOL Is_Value_Managed(const RELVAL *value)
 //
 void Free_Gob(REBGOB *gob)
 {
-    FREE_GOB(gob);
-
     Free_Node(GOB_POOL, (REBNOD *)gob);
 
     if (REB_I32_ADD_OF(GC_Ballast, Mem_Pools[GOB_POOL].wide, &GC_Ballast)) {

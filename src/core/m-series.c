@@ -484,11 +484,8 @@ void Assert_Series_Term_Core(REBSER *series)
         // END values aren't canonized to zero bytes, check IS_END explicitly
         //
         if (NOT_END(ARR_AT(AS_ARRAY(series), SER_LEN(series)))) {
-            Debug_String(
-               "Unterminated blocklike series detected",
-               38, // ^--- leng
-               FALSE, 1
-            );
+            printf("Unterminated blocklike series detected\n");
+            fflush(stdout);
             Panic_Series(series);
         }
     }
@@ -497,16 +494,13 @@ void Assert_Series_Term_Core(REBSER *series)
         // If they are terminated, then non-REBVAL-bearing series must have
         // their terminal element as all 0 bytes (to use this check)
         //
+        REBCNT len = SER_LEN(series);
+        REBCNT wide = SER_WIDE(series);
         REBCNT n;
         for (n = 0; n < SER_WIDE(series); n++) {
-            if (0 != series->content.dynamic.data[
-                series->content.dynamic.len * SER_WIDE(series) + n
-            ]) {
-                Debug_String(
-                   "Non-zero byte in terminator of non-block series",
-                   47, // ^--- length of this
-                   FALSE, 1
-                );
+            if (0 != SER_DATA_RAW(series)[(len * wide) + n]) {
+                printf("Non-zero byte in terminator of non-block series\n");
+                fflush(stdout);
                 Panic_Series(series);
             }
         }

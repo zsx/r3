@@ -231,7 +231,7 @@ struct Reb_Chunk;
 
 struct Reb_Chunk {
     //
-    // We start the chunk with a Reb_Value_Header, which has as its `bits`
+    // We start the chunk with a Reb_Header, which has as its `bits`
     // field a REBUPT (unsigned integer size of a pointer).  We are relying
     // on the fact that the low 2 bits of this value is always 0 in order
     // for it to be an implicit END for the value array of the previous chunk.
@@ -240,7 +240,7 @@ struct Reb_Chunk {
     // will run on, hence the low two bits of a byte size of N REBVALs will
     // always have the two lowest bits clear.)
     //
-    struct Reb_Value_Header size;
+    struct Reb_Header size;
 
     // The offset of this chunk in the memory chunker this chunk lives in
     // (its own size has already been subtracted from the amount)

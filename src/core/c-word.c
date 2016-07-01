@@ -324,7 +324,7 @@ new_interning: ; // semicolon needed for statement
 
     SET_SER_FLAGS(intern, SERIES_FLAG_STRING | SERIES_FLAG_FIXED_SIZE);
 
-    assert(intern->header.bits == 0); // SYM_XXX (if any) winds up in high bits
+    assert(intern->header.bits >> 16 == 0); // SYM_XXX (if any) here later
 
     if (canon == NULL) {
         //

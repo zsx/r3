@@ -44,7 +44,9 @@
 // #include "host-view.h"
 
 enum GOB_FLAGS {        // GOB attribute and option flags
-    GOBF_TOP = 0,       // Top level (window or output image)
+    GOBF_USED = 0,
+    GOBF_MARK,
+    GOBF_TOP,           // Top level (window or output image)
     GOBF_WINDOW,        // Window (parent is OS window reference)
     GOBF_OPAQUE,        // Has no alpha
     GOBF_STATIC,        // Does not change
@@ -98,8 +100,9 @@ enum GOB_DTYPES {       // Userdata types
 
 typedef struct rebol_gob REBGOB;
 
-struct rebol_gob {      // size: 64 bytes!
-    REBCNT flags;       // option flags
+struct rebol_gob {
+    struct Reb_Header header;
+
     REBCNT state;       // state flags
 
     REBSER *pane;       // List of child GOBs
@@ -120,12 +123,11 @@ struct rebol_gob {      // size: 64 bytes!
     REBXYF old_offset;  // prior location
     REBXYF old_size;    // prior size
 
-    // All data types allocated in memory pools need to be a multiple of 64
-    // bits in size.  This padding is added in order to get the 64-bit build
-    // to meet that rule (there's an assert when initializing the pools)
-    //
 #if defined(__LP64__) || defined(__LLP64__)
-    REBCNT padding; // bump from 84 bytes on 64-bit to 88 bytes (11 * 8)
+    //
+    // Depending on how the fields are arranged, this may require padding to
+    // make sure the REBNOD-derived type is a multiple of 64-bits in size.
+    //
 #endif
 };
 #pragma pack()
@@ -167,14 +169,14 @@ typedef struct gob_window {             // Maps gob to window
 
 #define CLEAR_GOB_STATE(g) ((g)->state = 0)
 
-#define SET_GOB_FLAG(g,f)       SET_FLAG((g)->flags, f)
-#define GET_GOB_FLAG(g,f)       GET_FLAG((g)->flags, f)
-#define CLR_GOB_FLAG(g,f)       CLR_FLAG((g)->flags, f)
-#define CLR_GOB_FLAGS(g,f,h)    CLR_FLAGS((g)->flags, f, h)
-#define SET_GOB_STATE(g,f)      SET_FLAG((g)->state, f)
-#define GET_GOB_STATE(g,f)      GET_FLAG((g)->state, f)
-#define CLR_GOB_STATE(g,f)      CLR_FLAG((g)->state, f)
-#define CLR_GOB_STATES(g,f,h)   CLR_FLAGS((g)->state, f, h)
+#define SET_GOB_FLAG(g,f)       SET_FLAG((g)->header.bits, f)
+#define GET_GOB_FLAG(g,f)       GET_FLAG((g)->header.bits, f)
+#define CLR_GOB_FLAG(g,f)       CLR_FLAG((g)->header.bits, f)
+#define CLR_GOB_FLAGS(g,f,h)    CLR_FLAGS((g)->header.bits, f, h)
+#define SET_GOB_STATE(g,f)      SET_FLAG((g)->header.bits, f)
+#define GET_GOB_STATE(g,f)      GET_FLAG((g)->header.bits, f)
+#define CLR_GOB_STATE(g,f)      CLR_FLAG((g)->header.bits, f)
+#define CLR_GOB_STATES(g,f,h)   CLR_FLAGS((g)->header.bits, f, h)
 
 #define GOB_ALPHA(g)        ((g)->alpha)
 #define GOB_TYPE(g)         ((g)->ctype)
@@ -216,17 +218,8 @@ typedef struct gob_window {             // Maps gob to window
 #define IS_GOB_STRING(g) (GOB_CONTENT(g) && GOB_TYPE(g) == GOBT_STRING)
 #define IS_GOB_TEXT(g)   (GOB_CONTENT(g) && GOB_TYPE(g) == GOBT_TEXT)
 
-// GC Flags:
-enum {
-    GOB_MARK = 1,       // Gob was found during GC mark scan.
-    GOB_USED = 1<<1     // Gob is used (not free).
-};
-
-#define IS_GOB_MARK(g)  LOGICAL((g)->resv & GOB_MARK)
-#define MARK_GOB(g)     ((g)->resv |= GOB_MARK)
-#define UNMARK_GOB(g)   ((g)->resv &= ~GOB_MARK)
-#define IS_GOB_USED(g)  LOGICAL((g)->resv & GOB_USED)
-#define USE_GOB(g)      ((g)->resv |= GOB_USED)
-#define FREE_GOB(g)     ((g)->resv &= ~GOB_USED)
+#define IS_GOB_MARK(g)  GET_GOB_FLAG((g), GOBF_MARK)
+#define MARK_GOB(g)     SET_GOB_FLAG((g), GOBF_MARK)
+#define UNMARK_GOB(g)   CLR_GOB_FLAG((g), GOBF_MARK)
 
 extern REBGOB *Gob_Root; // Top level GOB (the screen)

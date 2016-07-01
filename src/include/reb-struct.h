@@ -275,6 +275,8 @@ inline static REBCNT STU_OFFSET(REBSTU *stu) {
 //
 
 struct Reb_Routine_Info {
+    struct Reb_Header header;
+
     union {
         struct {
             REBLIB *lib;
@@ -312,10 +314,9 @@ struct Reb_Routine_Info {
     REBSER *cif; // one ffi_cif long (for GC participation, fail()...)
     REBSER *args_fftypes; // list of ffi_type*, must live as long as CIF does
 
-    REBCNT flags; // !!! 32-bit...should it use REBFLGS for 64-bit on 64-bit?
     ffi_abi abi; // an enum
 
-    //REBUPT padding; // sizeof(Reb_Routine_Info) % 8 must be 0 for Make_Node()
+    // sizeof(Reb_Routine_Info) % 8 must be 0 for Make_Node()
 };
 
 
@@ -327,13 +328,13 @@ enum {
 };
 
 #define SET_RIN_FLAG(s,f) \
-    ((s)->flags |= (f))
+    ((s)->header.bits |= (f))
 
 #define CLEAR_RIN_FLAG(s,f) \
-    ((s)->flags &= ~(f))
+    ((s)->header.bits &= ~(f))
 
 #define GET_RIN_FLAG(s, f) \
-    LOGICAL((s)->flags & (f))
+    LOGICAL((s)->header.bits & (f))
 
 // Routine Field Accessors
 

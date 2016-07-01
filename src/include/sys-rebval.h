@@ -98,7 +98,7 @@
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  VALUE HEADER (`struct Reb_Value_Header`)
+//  VALUE HEADER (uses `struct Reb_Header`)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -122,10 +122,6 @@
 // 32-bit machines...but could be used for some optimization or caching
 // purpose to enhance the 64-bit build.  No such uses implemented yet.
 //
-
-struct Reb_Value_Header {
-    REBUPT bits;
-};
 
 // `NOT_END_MASK`
 //
@@ -732,7 +728,7 @@ union Reb_Value_Payload {
 
 struct Reb_Value
 {
-    struct Reb_Value_Header header;
+    struct Reb_Header header;
     union Reb_Value_Extra extra;
     union Reb_Value_Payload payload;
 };

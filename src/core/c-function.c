@@ -2184,8 +2184,8 @@ REBNATIVE(apply)
 //
 REBFUN *VAL_FUNC_Debug(const RELVAL *v) {
     REBFUN *func = AS_FUNC(v->payload.function.paramlist);
-    struct Reb_Value_Header v_header = v->header;
-    struct Reb_Value_Header func_header = FUNC_VALUE(func)->header;
+    struct Reb_Header v_header = v->header;
+    struct Reb_Header func_header = FUNC_VALUE(func)->header;
 
     assert(IS_FUNCTION(v));
     assert(func == AS_FUNC(FUNC_VALUE(func)->payload.function.paramlist));

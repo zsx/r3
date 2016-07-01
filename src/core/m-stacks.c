@@ -252,9 +252,9 @@ void Pop_Stack_Values_Into(REBVAL *into, REBDSP dsp_start) {
 REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
     const REBCNT size = BASE_CHUNK_SIZE + num_values * sizeof(REBVAL);
 
-    // an extra Reb_Value_Header is placed at the very end of the array to
+    // an extra Reb_Header is placed at the very end of the array to
     // denote a block terminator without a full REBVAL
-    const REBCNT size_with_terminator = size + sizeof(struct Reb_Value_Header);
+    const REBCNT size_with_terminator = size + sizeof(struct Reb_Header);
 
     struct Reb_Chunker *chunker = CHUNKER_FROM_CHUNK(TG_Top_Chunk);
 
@@ -333,7 +333,7 @@ REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
     // being subject to "aliasing".  Hence a write to the pointer could affect
     // *any* other value of that type.  This is necessary for the trick.
     {
-        struct Reb_Value_Header *alias = &chunk->size;
+        struct Reb_Header *alias = &chunk->size;
         assert(size % 4 == 0);
         alias->bits = size;
     }
@@ -343,7 +343,7 @@ REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
     {
         // See note above RE: aliasing.
         //
-        struct Reb_Value_Header *alias = &cast(
+        struct Reb_Header *alias = &cast(
             struct Reb_Chunk*,
             cast(REBYTE*, chunk) + size)->size;
         alias->bits = 0;

@@ -1108,7 +1108,7 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec) {
     assert(IS_BLOCK(ffi_spec));
 
     REBRIN *r = cast(REBRIN*, Make_Node(RIN_POOL));
-    r->flags = 0;
+    assert(r->header.bits == 0);
     SET_RIN_FLAG(r, ROUTINE_FLAG_USED); // so pooled node knows it's in use
     r->abi = FFI_DEFAULT_ABI;
 

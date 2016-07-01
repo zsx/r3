@@ -147,6 +147,10 @@
 
 #pragma pack(4)
 
+struct Reb_Header {
+    REBUPT bits;
+};
+
 // X/Y coordinate pair as floats:
 struct Reb_Pair {
     float x;

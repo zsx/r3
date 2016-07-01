@@ -42,7 +42,8 @@
 // of this is that it means the sizes range from 1-255, whereas if 0 was
 // available the width could always be incremented by 1 and range 1-256.
 //
-#define SER_FREED(s)  (0 == SER_WIDE(s))
+#define SER_FREED(s) \
+    ((s)->header.bits == 0)
 
 //
 // Non-series-internal code needs to read SER_WIDE but should not be
