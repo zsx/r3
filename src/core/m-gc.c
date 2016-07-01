@@ -107,7 +107,7 @@
 //
 //  Push_Array_Marked_Deep: C
 // 
-// Note: Call MARK_ARRAY_DEEP or QUEUE_MARK_ARRAY_DEEP instead!
+// Note: Call Mark_Array_Deep or Queue_Mark_Array_Deep instead!
 // 
 // Submits the block into the deferred stack to be processed later
 // with Propagate_All_GC_Marks().  We have already set this series
@@ -174,7 +174,7 @@ static void Propagate_All_GC_Marks(void);
 // Deferred form for marking series that prevents potentially overflowing the
 // C execution stack.
 
-inline static void QUEUE_MARK_ARRAY_DEEP(REBARR *a) {
+inline static void Queue_Mark_Array_Deep(REBARR *a) {
     if (IS_REBSER_MARKED(ARR_SERIES(a)))
         return;
 
@@ -182,25 +182,25 @@ inline static void QUEUE_MARK_ARRAY_DEEP(REBARR *a) {
     Push_Array_Marked_Deep(a);
 }
 
-inline static void QUEUE_MARK_CONTEXT_DEEP(REBCTX *c) {
+inline static void Queue_Mark_Context_Deep(REBCTX *c) {
     assert(GET_ARR_FLAG(CTX_VARLIST(c), ARRAY_FLAG_VARLIST));
-    QUEUE_MARK_ARRAY_DEEP(CTX_KEYLIST(c));
-    QUEUE_MARK_ARRAY_DEEP(CTX_VARLIST(c));
+    Queue_Mark_Array_Deep(CTX_KEYLIST(c));
+    Queue_Mark_Array_Deep(CTX_VARLIST(c));
 }
 
 
 // Non-Queued form for marking blocks.  Used for marking a *root set item*,
 // don't recurse from within Mark_Value/Mark_Gob/Mark_Array_Deep/etc.
 
-inline static void MARK_ARRAY_DEEP(REBARR *a) {
+inline static void Mark_Array_Deep(REBARR *a) {
     assert(!in_mark);
-    QUEUE_MARK_ARRAY_DEEP(a);
+    Queue_Mark_Array_Deep(a);
     Propagate_All_GC_Marks();
 }
 
-inline static void MARK_CONTEXT_DEEP(REBCTX *c) {
+inline static void Mark_Context_Deep(REBCTX *c) {
     assert(!in_mark);
-    QUEUE_MARK_CONTEXT_DEEP(c);
+    Queue_Mark_Context_Deep(c);
     Propagate_All_GC_Marks();
 }
 
@@ -214,7 +214,7 @@ inline static void MARK_CONTEXT_DEEP(REBCTX *c) {
 // Non-Deep form of mark, to be used on non-BLOCK! series or a block series
 // for which deep marking is known to be unnecessary.
 //
-static inline void MARK_SERIES_ONLY(REBSER *series)
+static inline void Mark_Series_Only(REBSER *series)
 {
 #if !defined(NDEBUG)
     if (NOT(IS_SERIES_MANAGED(series))) {
@@ -263,7 +263,7 @@ static void Queue_Mark_Gob_Deep(REBGOB *gob)
         if (GOB_TYPE(gob) >= GOBT_IMAGE && GOB_TYPE(gob) <= GOBT_STRING)
             MARK_REBSER(GOB_CONTENT(gob));
         else if (GOB_TYPE(gob) >= GOBT_DRAW && GOB_TYPE(gob) <= GOBT_EFFECT)
-            QUEUE_MARK_ARRAY_DEEP(AS_ARRAY(GOB_CONTENT(gob)));
+            Queue_Mark_Array_Deep(AS_ARRAY(GOB_CONTENT(gob)));
     }
 
     if (GOB_DATA(gob)) {
@@ -273,14 +273,14 @@ static void Queue_Mark_Gob_Deep(REBGOB *gob)
         default:
             break;
         case GOBD_OBJECT:
-            QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(GOB_DATA(gob)));
+            Queue_Mark_Context_Deep(AS_CONTEXT(GOB_DATA(gob)));
             break;
         case GOBD_STRING:
         case GOBD_BINARY:
-            MARK_SERIES_ONLY(GOB_DATA(gob));
+            Mark_Series_Only(GOB_DATA(gob));
             break;
         case GOBD_BLOCK:
-            QUEUE_MARK_ARRAY_DEEP(AS_ARRAY(GOB_DATA(gob)));
+            Queue_Mark_Array_Deep(AS_ARRAY(GOB_DATA(gob)));
         }
     }
 }
@@ -330,8 +330,8 @@ static void Queue_Mark_Field_Deep(
     }
     else if (field->type == FFI_TYPE_STRUCT) {
         assert(!field->is_rebval);
-        MARK_SERIES_ONLY(field->fields);
-        QUEUE_MARK_ARRAY_DEEP(field->spec);
+        Mark_Series_Only(field->fields);
+        Queue_Mark_Array_Deep(field->spec);
 
         REBCNT i;
         for (i = 0; i < SER_LEN(field->fields); ++i) {
@@ -352,7 +352,7 @@ static void Queue_Mark_Field_Deep(
     }
 
     if (field->name != NULL)
-        MARK_SERIES_ONLY(field->name);
+        Mark_Series_Only(field->name);
 }
 
 
@@ -381,7 +381,7 @@ static void Queue_Mark_Routine_Deep(REBRIN *r)
 
     if (IS_HANDLE(&r->ret_schema)) {
         REBSER *schema = cast(REBSER*, VAL_HANDLE_DATA(&r->ret_schema));
-        MARK_SERIES_ONLY(schema);
+        Mark_Series_Only(schema);
         Queue_Mark_Field_Deep(
             *SER_HEAD(struct Struct_Field*, schema), NULL, 0
         );
@@ -389,13 +389,13 @@ static void Queue_Mark_Routine_Deep(REBRIN *r)
     else // special, allows NONE (e.g. void return)
         assert(IS_INTEGER(&r->ret_schema) || IS_BLANK(&r->ret_schema));
 
-    QUEUE_MARK_ARRAY_DEEP(r->args_schemas);
+    Queue_Mark_Array_Deep(r->args_schemas);
     REBCNT n;
     for (n = 0; n < ARR_LEN(r->args_schemas); ++n) {
         if (IS_HANDLE(ARR_AT(r->args_schemas, n))) {
             REBSER *schema
                 = cast(REBSER*, VAL_HANDLE_DATA(ARR_AT(r->args_schemas, n)));
-            MARK_SERIES_ONLY(schema);
+            Mark_Series_Only(schema);
             Queue_Mark_Field_Deep(
                 *SER_HEAD(struct Struct_Field*, schema), NULL, 0
             );
@@ -415,16 +415,16 @@ static void Queue_Mark_Routine_Deep(REBRIN *r)
         // before the CIF is ready to be created or not.
         //
         if (r->cif)
-            MARK_SERIES_ONLY(r->cif);
+            Mark_Series_Only(r->cif);
         if (r->args_fftypes)
-            MARK_SERIES_ONLY(r->args_fftypes);
+            Mark_Series_Only(r->args_fftypes);
     }
 
     if (GET_RIN_FLAG(r, ROUTINE_FLAG_CALLBACK)) {
         REBFUN *cb_func = RIN_CALLBACK_FUNC(r);
         if (cb_func) {
             // Should take care of spec, body, etc.
-            QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(cb_func));
+            Queue_Mark_Array_Deep(FUNC_PARAMLIST(cb_func));
         }
         else {
             // !!! There is a call during MAKE_Routine that does an evaluation
@@ -437,7 +437,7 @@ static void Queue_Mark_Routine_Deep(REBRIN *r)
         }
     } else {
         if (RIN_LIB(r))
-            QUEUE_MARK_ARRAY_DEEP(RIN_LIB(r));
+            Queue_Mark_Array_Deep(RIN_LIB(r));
         else {
             // may be null if called before the routine is fully constructed
             // !!! Review if this can be made not possible
@@ -468,7 +468,7 @@ static void Queue_Mark_Event_Deep(const RELVAL *value)
         // !!! Comment says void* ->ser field of the REBEVT is a "port or
         // object" but it also looks to store maps.  (?)
         //
-        QUEUE_MARK_ARRAY_DEEP(AS_ARRAY(VAL_EVENT_SER(m_cast(RELVAL*, value))));
+        Queue_Mark_Array_Deep(AS_ARRAY(VAL_EVENT_SER(m_cast(RELVAL*, value))));
     }
 
     if (IS_EVENT_MODEL(value, EVM_DEVICE)) {
@@ -481,7 +481,7 @@ static void Queue_Mark_Event_Deep(const RELVAL *value)
         while (req) {
             // Comment says void* ->port is "link back to REBOL port object"
             if (req->port)
-                QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(cast(REBSER*, req->port)));
+                Queue_Mark_Context_Deep(AS_CONTEXT(cast(REBSER*, req->port)));
             req = req->next;
         }
     }
@@ -509,7 +509,7 @@ static void Mark_Devices_Deep(void)
 
         for (req = dev->pending; req; req = req->next)
             if (req->port)
-                QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(cast(REBSER*, req->port)));
+                Queue_Mark_Context_Deep(AS_CONTEXT(cast(REBSER*, req->port)));
     }
 }
 
@@ -561,13 +561,13 @@ static void Mark_Frame_Stack_Deep(void)
         // to GC the series sooner.
         //
         ASSERT_ARRAY_MANAGED(f->source.array);
-        QUEUE_MARK_ARRAY_DEEP(f->source.array);
+        Queue_Mark_Array_Deep(f->source.array);
 
         if (f->value && NOT_END(f->value) && Is_Value_Managed(f->value))
             Queue_Mark_Value_Deep(f->value);
 
         if (f->specifier != SPECIFIED)
-            QUEUE_MARK_CONTEXT_DEEP(f->specifier);
+            Queue_Mark_Context_Deep(f->specifier);
 
         // Specialization code may run while an f->out is being held as the
         // left-hand-side of an infix operation.  And SET-PATH! also holds
@@ -592,8 +592,8 @@ static void Mark_Frame_Stack_Deep(void)
             continue;
         }
 
-        QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(f->func)); // never NULL
-        MARK_SERIES_ONLY(f->label); // also never NULL
+        Queue_Mark_Array_Deep(FUNC_PARAMLIST(f->func)); // never NULL
+        Mark_Series_Only(f->label); // also never NULL
 
         if (f->func == NAT_FUNC(eval)) {
             //
@@ -611,10 +611,10 @@ static void Mark_Frame_Stack_Deep(void)
         if (!Is_Function_Frame_Fulfilling(f)) {
             if (f->cell.subfeed) {
                 if (GET_ARR_FLAG(f->cell.subfeed, ARRAY_FLAG_VARLIST))
-                    QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(f->cell.subfeed));
+                    Queue_Mark_Context_Deep(AS_CONTEXT(f->cell.subfeed));
                 else {
                     assert(ARR_LEN(f->cell.subfeed) == 1);
-                    QUEUE_MARK_ARRAY_DEEP(f->cell.subfeed);
+                    Queue_Mark_Array_Deep(f->cell.subfeed);
                 }
             }
 
@@ -650,7 +650,7 @@ static void Mark_Frame_Stack_Deep(void)
             if (IS_ARRAY_MANAGED(f->varlist)) {
                 assert(!IS_TRASH_DEBUG(ARR_AT(f->varlist, 0)));
                 assert(GET_ARR_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
-                QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(f->varlist));
+                Queue_Mark_Context_Deep(AS_CONTEXT(f->varlist));
             }
             else {
                 REBCNT num_params = FUNC_NUM_PARAMS(f->func);
@@ -706,7 +706,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             // keys of objects (or parameters of functions)
             //
             if (val->extra.key_spelling != NULL)
-                MARK_SERIES_ONLY(val->extra.key_spelling);
+                Mark_Series_Only(val->extra.key_spelling);
             break;
 
         case REB_HANDLE:
@@ -715,7 +715,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
         case REB_DATATYPE:
             // Type spec is allowed to be NULL.  See %typespec.r file
             if (VAL_TYPE_SPEC(val))
-                QUEUE_MARK_ARRAY_DEEP(VAL_TYPE_SPEC(val));
+                Queue_Mark_Array_Deep(VAL_TYPE_SPEC(val));
             break;
 
         case REB_TASK: // not yet implemented
@@ -732,14 +732,14 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             assert(VAL_CONTEXT(CTX_VALUE(context)) == context);
             assert(VAL_CONTEXT_META(CTX_VALUE(context)) == CTX_META(context));
 
-            QUEUE_MARK_CONTEXT_DEEP(context);
+            Queue_Mark_Context_Deep(context);
 
             // !!! Currently a FRAME! has a keylist which is storing a non-
             // context block spec.  This will be changed to be compatible
             // with the meta on object keylists.
             //
             if (!IS_FRAME(val) && VAL_CONTEXT_META(val))
-                QUEUE_MARK_CONTEXT_DEEP(VAL_CONTEXT_META(val));
+                Queue_Mark_Context_Deep(VAL_CONTEXT_META(val));
 
             // For VAL_CONTEXT_FRAME, the FRM_CALL is either on the stack
             // (in which case it's already taken care of for marking) or it
@@ -750,15 +750,15 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
 
         case REB_FUNCTION: {
             assert(VAL_FUNC_PARAMLIST(val) == FUNC_PARAMLIST(VAL_FUNC(val)));
-            QUEUE_MARK_ARRAY_DEEP(VAL_FUNC_PARAMLIST(val));
+            Queue_Mark_Array_Deep(VAL_FUNC_PARAMLIST(val));
 
             // Need to queue the mark of the array for the body--as trying
             // to mark the "singular" value directly could infinite loop.
             //
-            QUEUE_MARK_ARRAY_DEEP(val->payload.function.body_holder);
+            Queue_Mark_Array_Deep(val->payload.function.body_holder);
 
             if (VAL_FUNC_META(val) != NULL)
-                QUEUE_MARK_CONTEXT_DEEP(VAL_FUNC_META(val));
+                Queue_Mark_Context_Deep(VAL_FUNC_META(val));
 
             // Of all the function types, only the routines and callbacks use
             // HANDLE! and must be explicitly pointed out in the body.
@@ -777,7 +777,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                 // MAKE ARRAY! - which fits compactly in a REBSER.
                 //
                 subfeed = *SUBFEED_ADDR_OF_FEED(VAL_VARARGS_ARRAY1(val));
-                QUEUE_MARK_ARRAY_DEEP(VAL_VARARGS_ARRAY1(val));
+                Queue_Mark_Array_Deep(VAL_VARARGS_ARRAY1(val));
             }
             else {
                 //
@@ -792,7 +792,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                 REBARR *varlist = VAL_BINDING(val);
                 if (GET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST)) {
                     if (IS_ARRAY_MANAGED(varlist)) {
-                        QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(varlist)); // good
+                        Queue_Mark_Context_Deep(AS_CONTEXT(varlist)); // good
                         subfeed = *SUBFEED_ADDR_OF_FEED(varlist);
                     }
                     else
@@ -808,9 +808,9 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
 
             if (subfeed) {
                 if (GET_ARR_FLAG(subfeed, ARRAY_FLAG_VARLIST))
-                    QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(subfeed));
+                    Queue_Mark_Context_Deep(AS_CONTEXT(subfeed));
                 else
-                    QUEUE_MARK_ARRAY_DEEP(subfeed);
+                    Queue_Mark_Array_Deep(subfeed);
             }
 
             break;
@@ -828,7 +828,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             // value.  That's because if the canon value gets GC'd, then
             // another value might become the new canon during that sweep.
             //
-            MARK_SERIES_ONLY(spelling);
+            Mark_Series_Only(spelling);
 
             // A GC cannot run during a binding process--which is the only
             // time a canon word's "index" field is allowed to be nonzero.
@@ -852,12 +852,12 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                 //
                 REBFUN* func = VAL_WORD_FUNC(val);
                 assert(GET_VAL_FLAG(val, WORD_FLAG_BOUND)); // should be set
-                QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(func));
+                Queue_Mark_Array_Deep(FUNC_PARAMLIST(func));
             }
             else if (GET_VAL_FLAG(val, WORD_FLAG_BOUND)) {
                 if (IS_SPECIFIC(val)) {
                     REBCTX* context = VAL_WORD_CONTEXT(const_KNOWN(val));
-                    QUEUE_MARK_CONTEXT_DEEP(context);
+                    Queue_Mark_Context_Deep(context);
                 }
                 else {
                     // We trust that if a relative word's context needs to make
@@ -865,7 +865,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                     // of by the array reference that holds it.
                     //
                     REBFUN* func = VAL_WORD_FUNC(val);
-                    QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(func));
+                    Queue_Mark_Array_Deep(FUNC_PARAMLIST(func));
                 }
             }
             else if (GET_VAL_FLAG(val, WORD_FLAG_PICKUP)) {
@@ -910,16 +910,16 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
         case REB_BITSET:
             ser = VAL_SERIES(val);
             assert(SER_WIDE(ser) <= sizeof(REBUNI));
-            MARK_SERIES_ONLY(ser);
+            Mark_Series_Only(ser);
             break;
 
         case REB_IMAGE:
             //SET_SER_FLAG(VAL_SERIES_SIDE(val), SERIES_FLAG_MARK); //????
-            MARK_SERIES_ONLY(VAL_SERIES(val));
+            Mark_Series_Only(VAL_SERIES(val));
             break;
 
         case REB_VECTOR:
-            MARK_SERIES_ONLY(VAL_SERIES(val));
+            Mark_Series_Only(VAL_SERIES(val));
             break;
 
         case REB_BLOCK:
@@ -931,7 +931,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             if (IS_SPECIFIC(val)) {
                 REBCTX *context = VAL_SPECIFIER(const_KNOWN(val));
                 if (context != SPECIFIED)
-                    QUEUE_MARK_CONTEXT_DEEP(context);
+                    Queue_Mark_Context_Deep(context);
             }
             else {
                 // We trust that if a relative array's context needs to make
@@ -939,26 +939,26 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                 // of by a higher-up array reference that holds it.
                 //
                 REBFUN* func = VAL_RELATIVE(val);
-                QUEUE_MARK_ARRAY_DEEP(FUNC_PARAMLIST(func));
+                Queue_Mark_Array_Deep(FUNC_PARAMLIST(func));
             }
 
-            QUEUE_MARK_ARRAY_DEEP(VAL_ARRAY(val));
+            Queue_Mark_Array_Deep(VAL_ARRAY(val));
             break;
         }
 
         case REB_MAP: {
             REBMAP* map = VAL_MAP(val);
-            QUEUE_MARK_ARRAY_DEEP(MAP_PAIRLIST(map));
+            Queue_Mark_Array_Deep(MAP_PAIRLIST(map));
             if (MAP_HASHLIST(map))
-                MARK_SERIES_ONLY(MAP_HASHLIST(map));
+                Mark_Series_Only(MAP_HASHLIST(map));
             break;
         }
 
         case REB_LIBRARY: {
-            QUEUE_MARK_ARRAY_DEEP(VAL_LIBRARY(val));
+            Queue_Mark_Array_Deep(VAL_LIBRARY(val));
             REBCTX *meta = VAL_LIBRARY_META(val);
             if (meta != NULL)
-                QUEUE_MARK_CONTEXT_DEEP(meta);
+                Queue_Mark_Context_Deep(meta);
             break; }
 
         case REB_STRUCT:
@@ -968,7 +968,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             // contains the REBVAL of the struct itself.  (Because it is
             // "singular" it is only a REBSER node--no data allocation.)
             //
-            QUEUE_MARK_ARRAY_DEEP(VAL_STRUCT(val));
+            Queue_Mark_Array_Deep(VAL_STRUCT(val));
 
             // Though the REBVAL payload carries the data series and offset
             // position of this struct into that data, the hierarchical
@@ -976,14 +976,14 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             // single element series--the "schema"--which is held in the
             // miscellaneous slot of the main array.
             //
-            MARK_SERIES_ONLY(ARR_SERIES(VAL_STRUCT(val))->link.schema);
+            Mark_Series_Only(ARR_SERIES(VAL_STRUCT(val))->link.schema);
 
             // The data series needs to be marked.  It needs to be marked
             // even for structs that aren't at the 0 offset--because their
             // lifetime can be longer than the struct which they represent
             // a "slice" out of.
             //
-            MARK_SERIES_ONLY(VAL_STRUCT_DATA_BIN(val));
+            Mark_Series_Only(VAL_STRUCT_DATA_BIN(val));
 
             // The symbol needs to be GC protected, but only fields have them
 
@@ -992,8 +992,8 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             // These series are backing stores for the `ffi_type` data that
             // is needed to use the struct with the FFI api.
             //
-            MARK_SERIES_ONLY(VAL_STRUCT_SCHEMA(val)->fftype);
-            MARK_SERIES_ONLY(VAL_STRUCT_SCHEMA(val)->fields_fftype_ptrs);
+            Mark_Series_Only(VAL_STRUCT_SCHEMA(val)->fftype);
+            Mark_Series_Only(VAL_STRUCT_SCHEMA(val)->fields_fftype_ptrs);
 
             // Recursively mark the schema and any nested structures (or
             // REBVAL-typed fields, specially recognized by the interface)
@@ -1050,8 +1050,8 @@ static void Mark_Array_Deep_Core(REBARR *array)
     if (!IS_REBSER_MARKED(ARR_SERIES(array))) Panic_Array(array);
 
     // Make sure that a context's varlist wasn't marked without also marking
-    // its keylist.  This could happen if QUEUE_MARK_ARRAY is used on a
-    // context instead of QUEUE_MARK_CONTEXT.
+    // its keylist.  This could happen if Queue_Mark_Array_Deep is used on a
+    // context instead of Queue_Mark_Context_Deep.
     //
     if (GET_ARR_FLAG(array, ARRAY_FLAG_VARLIST))
         assert(IS_REBSER_MARKED(ARR_SERIES(CTX_KEYLIST(AS_CONTEXT(array)))));
@@ -1342,14 +1342,14 @@ REBCNT Recycle_Core(REBOOL shutdown)
             assert(*canon == NULL); // SYM_0 is for all non-builtin words
             ++canon;
             for (; *canon != NULL; ++canon)
-                MARK_SERIES_ONLY(*canon);
+                Mark_Series_Only(*canon);
         }
 
         // Mark all natives
         {
             REBCNT n;
             for (n = 0; n < NUM_NATIVES; ++n)
-                MARK_ARRAY_DEEP(AS_ARRAY(VAL_FUNC(&Natives[n])));
+                Mark_Array_Deep(AS_ARRAY(VAL_FUNC(&Natives[n])));
         }
 
         // Mark series that have been temporarily protected from garbage
@@ -1361,11 +1361,11 @@ REBCNT Recycle_Core(REBOOL shutdown)
         sp = SER_HEAD(REBSER*, GC_Series_Guard);
         for (n = SER_LEN(GC_Series_Guard); n > 0; n--, sp++) {
             if (GET_SER_FLAG(*sp, ARRAY_FLAG_VARLIST))
-                MARK_CONTEXT_DEEP(AS_CONTEXT(*sp));
+                Mark_Context_Deep(AS_CONTEXT(*sp));
             else if (Is_Array_Series(*sp))
-                MARK_ARRAY_DEEP(AS_ARRAY(*sp));
+                Mark_Array_Deep(AS_ARRAY(*sp));
             else
-                MARK_SERIES_ONLY(*sp);
+                Mark_Series_Only(*sp);
         }
 
         // Mark value stack (temp-saved values):
@@ -1402,8 +1402,8 @@ REBCNT Recycle_Core(REBOOL shutdown)
 
         // Mark all root series:
         //
-        MARK_CONTEXT_DEEP(PG_Root_Context);
-        MARK_CONTEXT_DEEP(TG_Task_Context);
+        Mark_Context_Deep(PG_Root_Context);
+        Mark_Context_Deep(TG_Task_Context);
 
         // Mark potential error object from callback!
         if (!IS_VOID_OR_SAFE_TRASH(&Callback_Error)) {
