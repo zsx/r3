@@ -249,8 +249,10 @@ prin: function [
     "Print value, no line break, reducing blocks.  <r3-legacy>, use PRINT/ONLY"
 
     value [<opt> any-value!]
+    /eval
 ][
-    print/only either block? :value [reduce value] [:value]
+    eval: if any [eval | semiquoted? 'value] ['eval]
+    print/delimit/only/:eval :value space
 ]
 
 
