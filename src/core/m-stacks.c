@@ -734,7 +734,7 @@ REBCTX *Context_For_Frame_May_Reify_Core(struct Reb_Frame *f) {
     struct Reb_Chunk *chunk;
 
     if (f->varlist != NULL) {
-        if (GET_ARR_FLAG(f->varlist, ARRAY_FLAG_CONTEXT_VARLIST))
+        if (GET_ARR_FLAG(f->varlist, ARRAY_FLAG_VARLIST))
             return AS_CONTEXT(f->varlist); // already a context!
 
         // We have our function call's args in an array, but it is not yet
@@ -763,7 +763,7 @@ REBCTX *Context_For_Frame_May_Reify_Core(struct Reb_Frame *f) {
         f->varlist = CTX_VARLIST(context);
     }
 
-    SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST);
+    SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_VARLIST);
 
     // We do not Manage_Context, because we are reusing a word series here
     // that has already been managed.  The arglist array was managed when
@@ -880,7 +880,7 @@ void Drop_Function_Args_For_Frame_Core(struct Reb_Frame *f, REBOOL drop_chunks)
     // It's reified but has its data pointer into the chunk stack, which
     // means we have to free it and mark the array inaccessible.
 
-    assert(GET_ARR_FLAG(f->varlist, ARRAY_FLAG_CONTEXT_VARLIST));
+    assert(GET_ARR_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
     assert(NOT(GET_ARR_FLAG(f->varlist, SERIES_FLAG_HAS_DYNAMIC)));
 
     assert(GET_ARR_FLAG(f->varlist, SERIES_FLAG_ACCESSIBLE));

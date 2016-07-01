@@ -205,7 +205,7 @@ REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
         //
         // Basic sanity check: make sure it's a context at all
         //
-        if (!GET_CTX_FLAG(specific, ARRAY_FLAG_CONTEXT_VARLIST)) {
+        if (!GET_CTX_FLAG(specific, ARRAY_FLAG_VARLIST)) {
             printf("Non-CONTEXT found as specifier in specific value\n");
             Panic_Series(cast(REBSER*, specific)); // may not be series either
         }

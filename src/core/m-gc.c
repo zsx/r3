@@ -183,7 +183,7 @@ inline static void QUEUE_MARK_ARRAY_DEEP(REBARR *a) {
 }
 
 inline static void QUEUE_MARK_CONTEXT_DEEP(REBCTX *c) {
-    assert(GET_ARR_FLAG(CTX_VARLIST(c), ARRAY_FLAG_CONTEXT_VARLIST));
+    assert(GET_ARR_FLAG(CTX_VARLIST(c), ARRAY_FLAG_VARLIST));
     QUEUE_MARK_ARRAY_DEEP(CTX_KEYLIST(c));
     QUEUE_MARK_ARRAY_DEEP(CTX_VARLIST(c));
 }
@@ -610,7 +610,7 @@ static void Mark_Frame_Stack_Deep(void)
         //
         if (!Is_Function_Frame_Fulfilling(f)) {
             if (f->cell.subfeed) {
-                if (GET_ARR_FLAG(f->cell.subfeed, ARRAY_FLAG_CONTEXT_VARLIST))
+                if (GET_ARR_FLAG(f->cell.subfeed, ARRAY_FLAG_VARLIST))
                     QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(f->cell.subfeed));
                 else {
                     assert(ARR_LEN(f->cell.subfeed) == 1);
@@ -649,7 +649,7 @@ static void Mark_Frame_Stack_Deep(void)
             //
             if (IS_ARRAY_MANAGED(f->varlist)) {
                 assert(!IS_TRASH_DEBUG(ARR_AT(f->varlist, 0)));
-                assert(GET_ARR_FLAG(f->varlist, ARRAY_FLAG_CONTEXT_VARLIST));
+                assert(GET_ARR_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
                 QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(f->varlist));
             }
             else {
@@ -790,7 +790,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                 // protect it, then it could hit unfinished/corrupt arg cells)
                 //
                 REBARR *varlist = VAL_BINDING(val);
-                if (GET_ARR_FLAG(varlist, ARRAY_FLAG_CONTEXT_VARLIST)) {
+                if (GET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST)) {
                     if (IS_ARRAY_MANAGED(varlist)) {
                         QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(varlist)); // good
                         subfeed = *SUBFEED_ADDR_OF_FEED(varlist);
@@ -807,7 +807,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             }
 
             if (subfeed) {
-                if (GET_ARR_FLAG(subfeed, ARRAY_FLAG_CONTEXT_VARLIST))
+                if (GET_ARR_FLAG(subfeed, ARRAY_FLAG_VARLIST))
                     QUEUE_MARK_CONTEXT_DEEP(AS_CONTEXT(subfeed));
                 else
                     QUEUE_MARK_ARRAY_DEEP(subfeed);
@@ -1053,7 +1053,7 @@ static void Mark_Array_Deep_Core(REBARR *array)
     // its keylist.  This could happen if QUEUE_MARK_ARRAY is used on a
     // context instead of QUEUE_MARK_CONTEXT.
     //
-    if (GET_ARR_FLAG(array, ARRAY_FLAG_CONTEXT_VARLIST))
+    if (GET_ARR_FLAG(array, ARRAY_FLAG_VARLIST))
         assert(IS_REBSER_MARKED(ARR_SERIES(CTX_KEYLIST(AS_CONTEXT(array)))));
 #endif
 
@@ -1082,7 +1082,7 @@ static void Mark_Array_Deep_Core(REBARR *array)
             // reified C va_lists as Do_Core() sources can have them.
             //
             assert(
-                GET_ARR_FLAG(array, ARRAY_FLAG_CONTEXT_VARLIST)
+                GET_ARR_FLAG(array, ARRAY_FLAG_VARLIST)
                 || GET_ARR_FLAG(array, ARRAY_FLAG_VOIDS_LEGAL)
             );
         }
@@ -1360,7 +1360,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
         //
         sp = SER_HEAD(REBSER*, GC_Series_Guard);
         for (n = SER_LEN(GC_Series_Guard); n > 0; n--, sp++) {
-            if (GET_SER_FLAG(*sp, ARRAY_FLAG_CONTEXT_VARLIST))
+            if (GET_SER_FLAG(*sp, ARRAY_FLAG_VARLIST))
                 MARK_CONTEXT_DEEP(AS_CONTEXT(*sp));
             else if (Is_Array_Series(*sp))
                 MARK_ARRAY_DEEP(AS_ARRAY(*sp));

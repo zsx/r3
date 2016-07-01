@@ -648,7 +648,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //
     if (has_types) {
         REBARR *types_varlist = Make_Array(num_slots);
-        SET_ARR_FLAG(types_varlist, ARRAY_FLAG_CONTEXT_VARLIST);
+        SET_ARR_FLAG(types_varlist, ARRAY_FLAG_VARLIST);
         INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(types_varlist), paramlist);
 
         RELVAL *dest = ARR_HEAD(types_varlist); // rootvar: canon FRAME! value
@@ -680,7 +680,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //
     if (has_notes) {
         REBARR *notes_varlist = Make_Array(num_slots);
-        SET_ARR_FLAG(notes_varlist, ARRAY_FLAG_CONTEXT_VARLIST);
+        SET_ARR_FLAG(notes_varlist, ARRAY_FLAG_VARLIST);
         INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(notes_varlist), paramlist);
 
         RELVAL *dest = ARR_HEAD(notes_varlist); // rootvar: canon FRAME! value
@@ -830,7 +830,7 @@ REBFUN *Make_Function(
 REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
 {
     REBARR *varlist = Make_Singular_Array(BLANK_VALUE);
-    SET_ARR_FLAG(varlist, ARRAY_FLAG_CONTEXT_VARLIST);
+    SET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST);
     MANAGE_ARRAY(varlist);
 
     REBCTX *expired = AS_CONTEXT(varlist);
@@ -1075,7 +1075,7 @@ REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     // would immediately become useless.  Allocate dynamically.
     //
     REBARR *varlist = Make_Array(ARR_LEN(FUNC_PARAMLIST(func)));
-    SET_ARR_FLAG(varlist, ARRAY_FLAG_CONTEXT_VARLIST);
+    SET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST);
     SET_ARR_FLAG(varlist, SERIES_FLAG_FIXED_SIZE);
 
     // Fill in the rootvar information for the context canon REBVAL
@@ -1155,7 +1155,7 @@ REBOOL Specialize_Function_Throws(
         REBARR *varlist = Copy_Array_Deep_Managed(
             CTX_VARLIST(exemplar), SPECIFIED
         );
-        SET_ARR_FLAG(varlist, ARRAY_FLAG_CONTEXT_VARLIST);
+        SET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST);
         INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(varlist), CTX_KEYLIST(exemplar));
 
         exemplar = AS_CONTEXT(varlist); // okay, now make exemplar our copy

@@ -474,7 +474,7 @@ REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
 //
 int Do_Port_Action(struct Reb_Frame *frame_, REBCTX *port, REBSYM action)
 {
-    assert(GET_ARR_FLAG(CTX_VARLIST(port), ARRAY_FLAG_CONTEXT_VARLIST));
+    assert(GET_ARR_FLAG(CTX_VARLIST(port), ARRAY_FLAG_VARLIST));
 
     // Verify valid port (all of these must be false):
     if (
@@ -553,7 +553,7 @@ void Secure_Port(REBSYM sym_kind, REBREQ *req, REBVAL *name, REBSER *path)
 void Validate_Port(REBCTX *port, REBCNT action)
 {
     if (
-        !GET_ARR_FLAG(CTX_VARLIST(port), ARRAY_FLAG_CONTEXT_VARLIST)
+        !GET_ARR_FLAG(CTX_VARLIST(port), ARRAY_FLAG_VARLIST)
         || !IS_OBJECT(CTX_VAR(port, STD_PORT_SPEC))
     ) {
         fail (Error(RE_INVALID_PORT));

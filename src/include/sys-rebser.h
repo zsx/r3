@@ -164,14 +164,14 @@ enum {
     //
     SERIES_FLAG_ARRAY = 1 << 5,
 
-    // `ARRAY_FLAG_CONTEXT_VARLIST` indicates this series represents the
+    // `ARRAY_FLAG_VARLIST` indicates this series represents the
     // "varlist" of a context.  A second series can be reached from it via
     // the `->misc` field in the series node, which is a second array known
     // as a "keylist".
     //
     // See notes on REBCTX for further details about what a context is.
     //
-    ARRAY_FLAG_CONTEXT_VARLIST = 1 << 6,
+    ARRAY_FLAG_VARLIST = 1 << 6,
 
     // `SERIES_FLAG_LOCKED` indicates that the series size or values cannot
     // be modified.  This check is honored by some layers of abstraction, but
@@ -282,7 +282,7 @@ enum {
     // need to be put into arrays for the purposes of GC protection, they may
     // contain voids which they need to track.
     //
-    // Note: ARRAY_FLAG_CONTEXT_VARLIST also implies legality of voids, which
+    // Note: ARRAY_FLAG_VARLIST also implies legality of voids, which
     // are used to represent unset variables.
     //
     ARRAY_FLAG_VOIDS_LEGAL = 1 << 14,

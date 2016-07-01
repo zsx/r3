@@ -2009,12 +2009,12 @@ inline static REBVAL *VAL_VARARGS_ARG(const RELVAL *v)
 
 inline static REBCTX *VAL_VARARGS_FRAME_CTX(const RELVAL *v) {
     ASSERT_ARRAY_MANAGED(v->extra.binding);
-    assert(GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_CONTEXT_VARLIST));
+    assert(GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST));
     return AS_CONTEXT(v->extra.binding);
 }
 
 inline static REBARR *VAL_VARARGS_ARRAY1(const RELVAL *v) {
-    assert(!GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_CONTEXT_VARLIST));
+    assert(!GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST));
     return v->extra.binding;
 }
 
@@ -2026,7 +2026,7 @@ inline static REBARR *VAL_VARARGS_ARRAY1(const RELVAL *v) {
 // of the array1.
 //
 inline static REBARR **SUBFEED_ADDR_OF_FEED(REBARR *a) {
-    return GET_ARR_FLAG(a, ARRAY_FLAG_CONTEXT_VARLIST)
+    return GET_ARR_FLAG(a, ARRAY_FLAG_VARLIST)
         ? &CTX_FRAME(AS_CONTEXT(a))->cell.subfeed
         : &ARR_SERIES(a)->link.subfeed;
 }

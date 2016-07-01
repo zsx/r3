@@ -641,7 +641,7 @@ struct Reb_All {
 union Reb_Value_Extra {
     //
     // The binding will be either a REBFUN (relative to a function) or a
-    // REBCTX (specific to a context).  ARRAY_FLAG_CONTEXT_VARLIST can be
+    // REBCTX (specific to a context).  ARRAY_FLAG_VARLIST can be
     // used to tell which it is.
     //
     // ANY-WORD!: binding is the word's binding
@@ -874,7 +874,7 @@ inline static REBOOL IS_RELATIVE(const RELVAL *v) {
 
 inline static REBFUN *VAL_RELATIVE(const RELVAL *v) {
     assert(IS_RELATIVE(v));
-    //assert(NOT(GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_CONTEXT_VARLIST)));
+    //assert(NOT(GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST)));
     return cast(REBFUN*, v->extra.binding);
 }
 
@@ -882,7 +882,7 @@ inline static REBCTX *VAL_SPECIFIC_COMMON(const RELVAL *v) {
     assert(IS_SPECIFIC(v));
     //assert(
     //    v->extra.binding == SPECIFIED
-    //    || GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_CONTEXT_VARLIST)
+    //    || GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST)
     //);
     return cast(REBCTX*, v->extra.binding);
 }

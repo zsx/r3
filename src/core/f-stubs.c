@@ -349,7 +349,7 @@ REBVAL *Get_Object(const REBVAL *any_context, REBCNT index)
 {
     REBCTX *context = VAL_CONTEXT(any_context);
 
-    assert(GET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST));
+    assert(GET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_VARLIST));
     assert(index <= CTX_LEN(context));
     return CTX_VAR(context, index);
 }
@@ -509,7 +509,7 @@ void Val_Init_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
         Panic_Context(context);
     }
 
-    assert(GET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST));
+    assert(GET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_VARLIST));
 
     if (IS_FRAME(CTX_VALUE(context)))
         assert(IS_FUNCTION(CTX_FRAME_FUNC_VALUE(context)));

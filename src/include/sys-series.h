@@ -928,7 +928,7 @@ inline static REBVAL *CTX_KEY(REBCTX *c, REBCNT n) {
 inline static REBVAL *CTX_VAR(REBCTX *c, REBCNT n) {
     REBVAL *var;
     assert(n != 0 && n <= CTX_LEN(c));
-    assert(GET_ARR_FLAG(CTX_VARLIST(c), ARRAY_FLAG_CONTEXT_VARLIST));
+    assert(GET_ARR_FLAG(CTX_VARLIST(c), ARRAY_FLAG_VARLIST));
 
     var = CTX_VARS_HEAD(c) + (n) - 1;
 

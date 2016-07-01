@@ -100,7 +100,7 @@
 REBCTX *Alloc_Context(REBCNT len)
 {
     REBARR *varlist = Make_Array(len + 1); // size + room for ROOTVAR
-    SET_ARR_FLAG(varlist, ARRAY_FLAG_CONTEXT_VARLIST);
+    SET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST);
 
     // varlist[0] is a value instance of the OBJECT!/MODULE!/PORT!/ERROR! we
     // are building which contains this context.
@@ -291,7 +291,7 @@ REBVAL *Append_Context(REBCTX *context, RELVAL *any_word, REBSTR *name) {
 REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
     REBCTX *dest;
 
-    assert(GET_ARR_FLAG(CTX_VARLIST(src), ARRAY_FLAG_CONTEXT_VARLIST));
+    assert(GET_ARR_FLAG(CTX_VARLIST(src), ARRAY_FLAG_VARLIST));
     ASSERT_ARRAY_MANAGED(CTX_KEYLIST(src));
 
     REBCTX *meta = CTX_META(src); // preserve meta object (if any)
@@ -315,7 +315,7 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
         MANAGE_ARRAY(CTX_KEYLIST(dest));
     }
 
-    SET_ARR_FLAG(CTX_VARLIST(dest), ARRAY_FLAG_CONTEXT_VARLIST);
+    SET_ARR_FLAG(CTX_VARLIST(dest), ARRAY_FLAG_VARLIST);
 
     CTX_VALUE(dest)->payload.any_context.varlist = CTX_VARLIST(dest);
 
@@ -799,7 +799,7 @@ REBCTX *Make_Selfish_Context_Detect(
     // Make a context of same size as keylist (END already accounted for)
     //
     REBARR *varlist = Make_Array(len);
-    SET_ARR_FLAG(varlist, ARRAY_FLAG_CONTEXT_VARLIST);
+    SET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST);
 
     REBCTX *context = AS_CONTEXT(varlist);
 
@@ -1050,7 +1050,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     ARR_SERIES(keylist)->link.meta = NULL;
 
     REBCTX *merged = AS_CONTEXT(Make_Array(ARR_LEN(keylist)));
-    SET_ARR_FLAG(CTX_VARLIST(merged), ARRAY_FLAG_CONTEXT_VARLIST);
+    SET_ARR_FLAG(CTX_VARLIST(merged), ARRAY_FLAG_VARLIST);
     INIT_CTX_KEYLIST_UNIQUE(merged, keylist);
 
     REBVAL *rootvar = Alloc_Tail_Array(CTX_VARLIST(merged));
@@ -1382,8 +1382,8 @@ void Assert_Context_Core(REBCTX *context)
 {
     REBARR *varlist = CTX_VARLIST(context);
 
-    if (!GET_ARR_FLAG(varlist, ARRAY_FLAG_CONTEXT_VARLIST)) {
-        Debug_Fmt("Context varlist doesn't have ARRAY_FLAG_CONTEXT_VARLIST");
+    if (!GET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST)) {
+        Debug_Fmt("Context varlist doesn't have ARRAY_FLAG_VARLIST");
         Panic_Array(varlist);
     }
 
