@@ -175,12 +175,12 @@ static REBVAL *Eval_Arg(REBDIA *dia)
 
             // value comes back NULL if protected or not found
             //
-            value = TRY_GET_MUTABLE_VAR(val, GUESSED);
+            value = TRY_GET_MUTABLE_VAR(val, SPECIFIED);
         }
         break;
 
     case REB_PATH:
-        if (Do_Path_Throws_Core(&safe, NULL, value, GUESSED, NULL))
+        if (Do_Path_Throws_Core(&safe, NULL, value, SPECIFIED, NULL))
             fail (Error_No_Catch_For_Throw(&safe));
         if (IS_FUNCTION(&safe)) return NULL;
         DS_PUSH(&safe);
@@ -266,7 +266,7 @@ again:
                 }
                 // Is it a typeset?
                 else if (
-                    (temp = TRY_GET_MUTABLE_VAR(fargs, GUESSED))
+                    (temp = TRY_GET_MUTABLE_VAR(fargs, SPECIFIED))
                     && IS_TYPESET(temp)
                 ) {
                     if (TYPE_CHECK(temp, VAL_TYPE(value))) accept = 1;

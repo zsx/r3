@@ -475,7 +475,7 @@ RL_API int RL_Do_String(
         Resolve_Context(user, Lib_Context, &vali, FALSE, FALSE);
     }
 
-    if (Do_At_Throws(&result, code, 0, GUESSED)) {
+    if (Do_At_Throws(&result, code, 0, SPECIFIED)) { // loaded code nonrelative
         DROP_GUARD_ARRAY(code);
 
         if (

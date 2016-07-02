@@ -63,38 +63,23 @@ REBVAL *Get_Var_Core(
         // find the right function call on the stack (if any) for the word to
         // refer to (the FRAME!)
         //
-        // R3-Alpha would look at the function call stack, and use the most
-        // recent invocation.  This "dynamic binding" had undesirable
-        // properties, and Ren-C achieves "specific binding" to make sure
-        // that words preserve their linkage to the correct instance of the
-        // function invocation they originated in.
+        context = specifier;
 
+    #if !defined(NDEBUG)
         assert(GET_VAL_FLAG(any_word, WORD_FLAG_BOUND)); // should be set too
 
-        // The only legal time to pass in SPECIFIED is if one is convinced
-        // there are no relatively bound words in the array that one is
-        // dealing with.  This assert will happen if that was not the
-        // case, and there actually was one.
-        //
-    #if !defined(NDEBUG)
         if (specifier == SPECIFIED) {
-
             Debug_Fmt("Get_Var_Core on relative value without specifier");
             PROBE_MSG(any_word, "the word");
             assert(IS_FUNCTION(FUNC_VALUE(VAL_WORD_FUNC(any_word))));
             PROBE_MSG(FUNC_VALUE(VAL_WORD_FUNC(any_word)), "the function");
             PANIC_VALUE(any_word);
         }
-    #endif
-
-        // If a specifier is provided, then it must be a frame matching
-        // the function in the relatively bound word.
-        //
         assert(
             VAL_WORD_FUNC(any_word)
             == VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier))
         );
-        context = specifier;
+    #endif
     }
     else if (GET_VAL_FLAG(any_word, WORD_FLAG_BOUND)) {
         //
@@ -104,27 +89,17 @@ REBVAL *Get_Var_Core(
         context = VAL_WORD_CONTEXT(const_KNOWN(any_word));
     }
     else {
-        // If a word is neither relatively nor specifically bound, then it
-        // is unbound and there is no way to get a REBVAL* from it.  Raise
-        // an error, or just return NULL if told to trap it.
+        // UNBOUND: No variable location to retrieve.
 
         if (flags & GETVAR_UNBOUND_OK) return NULL;
 
         fail (Error(RE_NOT_BOUND, any_word));
     }
 
-    // If the word is bound, then it should have an index (currently nonzero)
-    //
     REBCNT index = VAL_WORD_INDEX(any_word);
     assert(index != 0);
 
     REBVAL *key = CTX_KEY(context, index);
-
-    // Check that the symbol matches the one the word thought it did.
-    //
-    // !!! Review if the symbol not matching could be used as a "cache miss"
-    // and a way of being able to delete key/val pairs from objects.
-    //
     assert(VAL_WORD_CANON(any_word) == VAL_KEY_CANON(key));
 
     REBVAL *var;
@@ -498,22 +473,6 @@ REBARR *Copy_And_Bind_Relative_Deep_Managed(
 
     SHUTDOWN_BINDER(&binder);
     return copy;
-}
-
-
-//
-//  Bind_Stack_Word: C
-//
-void Bind_Stack_Word(REBFUN *func, REBVAL *word)
-{
-    REBINT index = Find_Param_Index(FUNC_PARAMLIST(func), VAL_WORD_CANON(word));
-    if (index == 0)
-        fail (Error(RE_NOT_IN_CONTEXT, word));
-
-    VAL_RESET_HEADER(word, VAL_TYPE(word));
-    SET_VAL_FLAGS(word, WORD_FLAG_BOUND | VALUE_FLAG_RELATIVE);
-    INIT_WORD_FUNC(word, func);
-    INIT_WORD_INDEX(word, index);
 }
 
 

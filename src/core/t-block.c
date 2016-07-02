@@ -746,7 +746,7 @@ REBTYPE(Array)
         }
         else
             Val_Init_Block(
-                D_OUT, Copy_Array_At_Max_Shallow(array, index, GUESSED, len)
+                D_OUT, Copy_Array_At_Max_Shallow(array, index, specifier, len)
             );
         Remove_Series(ARR_SERIES(array), index, len);
         return R_OUT;

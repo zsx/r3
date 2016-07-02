@@ -892,10 +892,6 @@ inline static RELVAL *REL(REBVAL *v) {
         cast(REBCTX*, 0xF10F10F1) // helps catch uninitialized locations
 #endif
 
-// !!! temporary - used to document any sites where one is not sure if the
-// value is specific, to aid in finding them to review
-//
-#define GUESSED SPECIFIED
 
 // This can be used to turn a RELVAL into a REBVAL.  If the RELVAL is
 // indeed relative and needs to be made specific to be put into the
@@ -904,14 +900,6 @@ inline static RELVAL *REL(REBVAL *v) {
 // the relative value (because relative values in an array may only
 // be relative to the function that deep copied them, and that is the
 // only kind of specifier you can use with them).
-//
-// NOTE: The reason this is written to specifically intialize the `specific`
-// through the union member of the remaining type is to stay on the right
-// side of the standard.  While *reading* a common leading field out of
-// different union members is legal regardless of who wrote it last,
-// *writing* a common leading field will invalidate the ensuing fields of
-// other union types besides the one it was written through (!)  See notes
-// in Reb_Value's structure definition.
 //
 inline static void COPY_VALUE_CORE(
     REBVAL *dest,
