@@ -429,12 +429,10 @@ REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
         ++code;
     }
 
-    SET_END(code);
-    SET_ARRAY_LEN(code_array, code - ARR_HEAD(code_array));
+    TERM_ARRAY_LEN(code_array, code - ARR_HEAD(code_array));
     MANAGE_ARRAY(code_array);
 
-    SET_END(path);
-    SET_ARRAY_LEN(path_array, path - ARR_HEAD(path_array));
+    TERM_ARRAY_LEN(path_array, path - ARR_HEAD(path_array));
     Val_Init_Array(&first, REB_PATH, path_array); // manages
 
     // Invoke DO with the special mode requesting non-evaluation on all

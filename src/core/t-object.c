@@ -170,7 +170,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
         if (IS_END(word + 1)) break; // fix bug#708
     }
 
-    TERM_ARRAY(BUF_COLLECT);
+    TERM_ARRAY_LEN(BUF_COLLECT, ARR_LEN(BUF_COLLECT));
 
     // Append new words to obj
     //
@@ -256,10 +256,8 @@ static REBCTX *Trim_Context(REBCTX *context)
 
     // Terminate the new context
     //
-    SET_END(var_new);
-    SET_END(key_new);
-    SET_ARRAY_LEN(CTX_VARLIST(context_new), copy_count + 1);
-    SET_ARRAY_LEN(CTX_KEYLIST(context_new), copy_count + 1);
+    TERM_ARRAY_LEN(CTX_VARLIST(context_new), copy_count + 1);
+    TERM_ARRAY_LEN(CTX_KEYLIST(context_new), copy_count + 1);
 
     return context_new;
 }

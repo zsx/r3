@@ -131,7 +131,7 @@ REBCNT Modify_Array(
             );
         }
     }
-    TERM_ARRAY(dst_arr);
+    TERM_ARRAY_LEN(dst_arr, ARR_LEN(dst_arr));
 
     return tail;
 }

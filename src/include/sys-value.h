@@ -351,7 +351,8 @@ inline static void VAL_RESET_HEADER_COMMON(RELVAL *v, enum Reb_Kind kind) {
 
         // trashes completely
         #define INIT_CELL_WRITABLE_IF_DEBUG(v) \
-            ((v)->header.bits = CELL_MASK | VALUE_FLAG_WRITABLE_DEBUG)
+            ((v)->header.bits = CELL_MASK | VALUE_FLAG_WRITABLE_DEBUG \
+                | NOT_END_MASK)
 
         // just adds bit
         #define MARK_CELL_WRITABLE_IF_DEBUG(v) \
@@ -1296,9 +1297,6 @@ inline static RELVAL *VAL_ARRAY_TAIL(const RELVAL *v) {
 //
 #define VAL_ARRAY_AT_HEAD(v,n) \
     ARR_AT(VAL_ARRAY(v), (n))
-
-#define VAL_TERM_ARRAY(v) \
-    TERM_ARRAY(VAL_ARRAY(v))
 
 #define Val_Init_Array_Index(v,t,a,i) \
     Val_Init_Series_Index((v), (t), ARR_SERIES(a), (i))

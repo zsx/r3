@@ -163,7 +163,7 @@ REBOOL Expand_Context_Keylist_Core(REBCTX *context, REBCNT delta)
     // to mark the flag indicating it's shared.  Extend it directly.
 
     Extend_Series(ARR_SERIES(keylist), delta);
-    TERM_ARRAY(keylist);
+    TERM_ARRAY_LEN(keylist, ARR_LEN(keylist));
 
     return FALSE;
 }
@@ -190,7 +190,7 @@ void Expand_Context(REBCTX *context, REBCNT delta)
     // varlist is unique to each object--expand without making a copy.
     //
     Extend_Series(ARR_SERIES(CTX_VARLIST(context)), delta);
-    TERM_ARRAY(CTX_VARLIST(context));
+    TERM_ARRAY_LEN(CTX_VARLIST(context), ARR_LEN(CTX_VARLIST(context)));
 
     Expand_Context_Keylist_Core(context, delta);
 }
@@ -230,7 +230,7 @@ REBVAL *Append_Context_Core(
         ALL_64,
         opt_any_word != NULL ? VAL_WORD_SPELLING(opt_any_word) : opt_name
     );
-    TERM_ARRAY(keylist);
+    TERM_ARRAY_LEN(keylist, ARR_LEN(keylist));
 
     if (lookback)
         SET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK);
@@ -240,7 +240,7 @@ REBVAL *Append_Context_Core(
     EXPAND_SERIES_TAIL(ARR_SERIES(CTX_VARLIST(context)), 1);
     REBVAL *value = SINK(ARR_LAST(CTX_VARLIST(context)));
     SET_VOID(value);
-    TERM_ARRAY(CTX_VARLIST(context));
+    TERM_ARRAY_LEN(CTX_VARLIST(context), ARR_LEN(CTX_VARLIST(context)));
 
     if (opt_any_word) {
         REBCNT len = CTX_LEN(context);
@@ -358,7 +358,7 @@ void Collect_Keys_Start(REBFLGS flags)
     // it's a FRAME! context...and not yet used in other context types)
 
     SET_TRASH_IF_DEBUG(ARR_HEAD(BUF_COLLECT));
-    SET_ARRAY_LEN(BUF_COLLECT, 1);
+    SET_ARRAY_LEN_NOTERM(BUF_COLLECT, 1);
 }
 
 
@@ -379,7 +379,7 @@ REBARR *Grab_Collected_Keylist_Managed(REBCTX *prior)
     // We didn't terminate as we were collecting, so terminate now.
     //
     assert(ARR_LEN(BUF_COLLECT) >= 1); // always at least [0] for rootkey
-    TERM_ARRAY(BUF_COLLECT);
+    TERM_ARRAY_LEN(BUF_COLLECT, ARR_LEN(BUF_COLLECT));
 
 #if !defined(NDEBUG)
     //
@@ -421,7 +421,7 @@ void Collect_Keys_End(struct Reb_Binder *binder)
     // We didn't terminate as we were collecting, so terminate now.
     //
     assert(ARR_LEN(BUF_COLLECT) >= 1); // always at least [0] for rootkey
-    TERM_ARRAY(BUF_COLLECT);
+    TERM_ARRAY_LEN(BUF_COLLECT, ARR_LEN(BUF_COLLECT));
 
     // Reset binding table (note BUF_COLLECT may have expanded)
     //
@@ -448,7 +448,7 @@ void Collect_Keys_End(struct Reb_Binder *binder)
         canon->misc.bind_index.low = 0;
     }
 
-    SET_ARRAY_LEN(BUF_COLLECT, 0); // allow reuse
+    SET_ARRAY_LEN_NOTERM(BUF_COLLECT, 0);
 }
 
 
@@ -487,7 +487,7 @@ void Collect_Context_Keys(
     // and now that the expansion is done, get the pointer to where we want
     // to start collecting new typesets.
     //
-    SET_SERIES_LEN(ARR_SERIES(BUF_COLLECT), bind_index);
+    SET_ARRAY_LEN_NOTERM(BUF_COLLECT, bind_index);
     collect = ARR_TAIL(BUF_COLLECT);
 
     if (check_dups) {
@@ -517,7 +517,7 @@ void Collect_Context_Keys(
         // Increase the length of BUF_COLLLECT by how far `collect` advanced
         // (would be 0 if all the keys were duplicates...)
         //
-        SET_ARRAY_LEN(
+        SET_ARRAY_LEN_NOTERM(
             BUF_COLLECT,
             ARR_LEN(BUF_COLLECT) + (collect - ARR_TAIL(BUF_COLLECT))
         );
@@ -532,7 +532,7 @@ void Collect_Context_Keys(
         // the existing content--if any)
         //
         memcpy(collect, key, CTX_LEN(context) * sizeof(REBVAL));
-        SET_ARRAY_LEN(
+        SET_ARRAY_LEN_NOTERM(
             BUF_COLLECT, ARR_LEN(BUF_COLLECT) + CTX_LEN(context)
         );
 
@@ -640,7 +640,7 @@ REBARR *Collect_Keylist_Managed(
 
             Add_Binder_Index(&binder, VAL_KEY_CANON(self_key), 1);
             *self_index_out = 1;
-            SET_ARRAY_LEN(BUF_COLLECT, 2); // TASK_BUF_COLLECT is at least 2
+            SET_ARRAY_LEN_NOTERM(BUF_COLLECT, 2); // [0] rootkey, plus SELF
         }
         else {
             // No need to add SELF if it's going to be added via the `prior`
@@ -722,7 +722,7 @@ REBARR *Collect_Words(
 
     REBCNT start = ARR_LEN(BUF_COLLECT);
     Collect_Words_Inner_Loop(&binder, head, flags);
-    TERM_ARRAY(BUF_COLLECT);
+    TERM_ARRAY_LEN(BUF_COLLECT, ARR_LEN(BUF_COLLECT));
 
     // Reset word markers:
     //
@@ -736,7 +736,7 @@ REBARR *Collect_Words(
     REBARR *array = Copy_Array_At_Max_Shallow(
         BUF_COLLECT, start, SPECIFIED, ARR_LEN(BUF_COLLECT) - start
     );
-    SET_ARRAY_LEN(BUF_COLLECT, 0);  // allow reuse
+    SET_ARRAY_LEN_NOTERM(BUF_COLLECT, 0);
 
     SHUTDOWN_BINDER(&binder);
     return array;
@@ -815,7 +815,7 @@ REBCTX *Make_Selfish_Context_Detect(
     CTX_VALUE(context)->payload.any_context.varlist = varlist;
     CTX_VALUE(context)->extra.binding = NULL;
 
-    SET_ARRAY_LEN(CTX_VARLIST(context), len);
+    TERM_ARRAY_LEN(CTX_VARLIST(context), len);
 
     // !!! This code was inlined from Create_Frame() because it was only
     // used once here, and it filled the context vars with NONE!.  For
@@ -826,7 +826,6 @@ REBCTX *Make_Selfish_Context_Detect(
         REBVAL *var = CTX_VARS_HEAD(context);
         for (; len > 1; len--, var++) // 1 is rootvar (context), already done
             SET_BLANK(var);
-        SET_END(var);
     }
 
     if (opt_parent) {
@@ -1035,7 +1034,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
 
     // Collect_Keys_End() terminates, but Collect_Context_Inner_Loop() doesn't.
     //
-    TERM_ARRAY(BUF_COLLECT);
+    TERM_ARRAY_LEN(BUF_COLLECT, ARR_LEN(BUF_COLLECT));
 
     // Allocate child (now that we know the correct size).  Obey invariant
     // that keylists are always managed.  The BUF_COLLECT contains only
@@ -1074,7 +1073,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     // Update the child tail before making calls to CTX_VAR(), because the
     // debug build does a length check.
     //
-    SET_ARRAY_LEN(CTX_VARLIST(merged), ARR_LEN(keylist));
+    TERM_ARRAY_LEN(CTX_VARLIST(merged), ARR_LEN(keylist));
 
     // Copy parent2 values:
     REBVAL *key = CTX_KEYS_HEAD(parent2);
@@ -1085,9 +1084,6 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
         assert(n != 0);
         *CTX_VAR(merged, n) = *value;
     }
-
-    // Terminate the child context:
-    TERM_ARRAY(CTX_VARLIST(merged));
 
     // Deep copy the child.  Context vars are REBVALs, already fully specified
     //
@@ -1276,7 +1272,7 @@ void Resolve_Context(
     // !!! Note we explicitly do *not* use Collect_Keys_End().  See warning
     // about errors, out of memory issues, etc. at Collect_Keys_Start()
     //
-    SET_ARRAY_LEN(BUF_COLLECT, 0);  // allow reuse
+    SET_SERIES_LEN(ARR_SERIES(BUF_COLLECT), 0);  // allow reuse, no terminator
 
     SHUTDOWN_BINDER(&binder);
 }

@@ -218,8 +218,8 @@ REBARR *Vector_To_Array(const REBVAL *vect)
         VAL_INT64(val) = get_vect(type, data, n); // can be int or decimal
     }
 
-    SET_END(val);
-    SET_ARRAY_LEN(array, len);
+    TERM_ARRAY_LEN(array, len);
+    assert(IS_END(val));
 
     return array;
 }

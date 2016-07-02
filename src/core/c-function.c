@@ -600,9 +600,8 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             *dest = *src;
             Remove_Binder_Index(&binder, VAL_PARAM_CANON(dest));
         }
-        SET_END(dest);
 
-        SET_ARRAY_LEN(paramlist, num_slots);
+        TERM_ARRAY_LEN(paramlist, num_slots);
         MANAGE_ARRAY(paramlist);
 
         // Make sure the parameter list does not expand.
@@ -666,9 +665,8 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             else
                 *dest = *src;
         }
-        SET_END(dest);
 
-        SET_ARRAY_LEN(types_varlist, num_slots);
+        TERM_ARRAY_LEN(types_varlist, num_slots);
         MANAGE_ARRAY(types_varlist);
 
         Val_Init_Context(
@@ -698,9 +696,8 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             else
                 *dest = *src;
         }
-        SET_END(dest);
 
-        SET_ARRAY_LEN(notes_varlist, num_slots);
+        TERM_ARRAY_LEN(notes_varlist, num_slots);
         MANAGE_ARRAY(notes_varlist);
 
         Val_Init_Context(
@@ -1114,8 +1111,7 @@ REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     for (n = 1; n <= FUNC_NUM_PARAMS(func); ++n, ++var)
         SET_VOID(var);
 
-    SET_END(var);
-    SET_ARRAY_LEN(varlist, ARR_LEN(FUNC_PARAMLIST(func)));
+    TERM_ARRAY_LEN(varlist, ARR_LEN(FUNC_PARAMLIST(func)));
 
     return AS_CONTEXT(varlist);
 }
@@ -1669,8 +1665,6 @@ REBNATIVE(chain)
     REFINE(2, only);
 
     REBVAL *out = D_OUT; // plan ahead for factoring into Chain_Function(out..
-
-    assert(!REF(only)); // not written yet
 
     REBVAL *pipeline = ARG(pipeline);
     REBARR *chainees;

@@ -746,8 +746,7 @@ REBARR *Collect_Set_Words(RELVAL *val)
         if (IS_SET_WORD(val))
             Val_Init_Word(val2++, REB_WORD, VAL_WORD_SPELLING(val));
     }
-    SET_END(val2);
-    SET_ARRAY_LEN(array, count);
+    TERM_ARRAY_LEN(array, count);
 
     return array;
 }

@@ -288,13 +288,13 @@ static REBARR *Pane_To_Array(REBGOB *gob, REBCNT index, REBINT len)
     if (len < 0) len = 0;
 
     array = Make_Array(len);
-    SET_ARRAY_LEN(array, len);
+    TERM_ARRAY_LEN(array, len);
     val = SINK(ARR_HEAD(array));
     gp = GOB_HEAD(gob);
     for (; len > 0; len--, val++, gp++) {
         SET_GOB(val, *gp);
     }
-    SET_END(val);
+    assert(IS_END(val));
 
     return array;
 }

@@ -734,8 +734,7 @@ static void Init_Root_Context(void)
         REBINT n = 1;
         REBVAL *var = CTX_VARS_HEAD(root);
         for (; n < ROOT_MAX; n++, var++) SET_BLANK(var);
-        SET_END(var);
-        SET_ARRAY_LEN(CTX_VARLIST(root), ROOT_MAX);
+        TERM_ARRAY_LEN(CTX_VARLIST(root), ROOT_MAX);
     }
 
     // These values are simple isolated VOID, NONE, TRUE, and FALSE values
@@ -854,8 +853,7 @@ static void Init_Task_Context(void)
         REBINT n = 1;
         REBVAL *var = CTX_VARS_HEAD(task);
         for (; n < TASK_MAX; n++, var++) SET_BLANK(var);
-        SET_END(var);
-        SET_ARRAY_LEN(CTX_VARLIST(task), TASK_MAX);
+        TERM_ARRAY_LEN(CTX_VARLIST(task), TASK_MAX);
     }
 
     // Initialize a few fields:
@@ -1247,12 +1245,11 @@ static void Init_Main_Args(REBARGS *rargs)
         // n == number_of_args + 1
         array = Make_Array(n);
         Val_Init_Block(Get_System(SYS_OPTIONS, OPTIONS_ARGS), array);
-        SET_ARRAY_LEN(array, n - 1);
+        TERM_ARRAY_LEN(array, n - 1);
         for (n = 0; (data = rargs->args[n]); ++n)
             Val_Init_String(
                 ARR_AT(array, n), Copy_OS_Str(data, OS_STRLEN(data))
             );
-        TERM_ARRAY(array);
     }
 
     Set_Option_String(rargs->debug, OPTIONS_DEBUG);

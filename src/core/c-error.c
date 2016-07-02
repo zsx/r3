@@ -245,8 +245,7 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
     TG_Pushing_Mold = FALSE;
 #endif
 
-    SET_ARRAY_LEN(MOLD_STACK, s->mold_loop_tail);
-    TERM_ARRAY(MOLD_STACK);
+    TERM_ARRAY_LEN(MOLD_STACK, s->mold_loop_tail);
 
     GC_Disabled = s->gc_disable;
 
@@ -883,8 +882,8 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
         // Fix up the tail first so CTX_KEY and CTX_VAR don't complain
         // in the debug build that they're accessing beyond the error length
         //
-        SET_ARRAY_LEN(CTX_VARLIST(error), root_len + expected_args + 1);
-        SET_ARRAY_LEN(CTX_KEYLIST(error), root_len + expected_args + 1);
+        TERM_ARRAY_LEN(CTX_VARLIST(error), root_len + expected_args + 1);
+        TERM_ARRAY_LEN(CTX_KEYLIST(error), root_len + expected_args + 1);
 
         key = CTX_KEY(error, root_len) + 1;
         value = CTX_VAR(error, root_len) + 1;
@@ -1010,8 +1009,8 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
         }
     #endif
 
-        SET_END(key);
-        SET_END(value);
+        assert(IS_END(key)); // set above by TERM_ARRAY_LEN
+        assert(IS_END(value)); // ...same
     }
 
     vars = ERR_VARS(error);

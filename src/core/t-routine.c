@@ -1053,8 +1053,7 @@ static void callback_dispatcher(
     for (i = 0; i < cif->nargs; ++i, ++elem)
         ffi_to_rebol(SINK(elem), RIN_ARG_SCHEMA(rin, i), args[i]);
 
-    SET_ARRAY_LEN(code, 1 + cif->nargs);
-    TERM_ARRAY(code);
+    TERM_ARRAY_LEN(code, 1 + cif->nargs);
     MANAGE_ARRAY(code); // DO requires managed arrays (guarded while running)
 
     REBVAL result;
@@ -1224,8 +1223,7 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec) {
         }
     }
 
-    SET_ARRAY_LEN(r->args_schemas, num_fixed);
-    TERM_ARRAY(r->args_schemas);
+    TERM_ARRAY_LEN(r->args_schemas, num_fixed);
     ASSERT_ARRAY(r->args_schemas);
 
     if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC)) {

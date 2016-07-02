@@ -404,8 +404,7 @@ REBNATIVE(backtrace)
         }
 
         backtrace = Make_Array(index);
-        SET_ARRAY_LEN(backtrace, index);
-        TERM_ARRAY(backtrace);
+        TERM_ARRAY_LEN(backtrace, index);
     }
 
     row = 0;

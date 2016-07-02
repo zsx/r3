@@ -731,8 +731,8 @@ static REBOOL Series_Data_Alloc(
         assert(Series_Allocation_Unpooled(s) == size);
 #endif
 
-#if !defined(NDEBUG)
     if (flags & MKS_ARRAY) {
+#if !defined(NDEBUG)
         REBCNT n;
 
         PG_Reb_Stats->Blocks++;
@@ -758,12 +758,33 @@ static REBOOL Series_Data_Alloc(
         // as much potential debug warning as we might when writing into
         // bias or tail capacity.
         //
-        for(; n < s->content.dynamic.rest; n++) {
+        for(; n < s->content.dynamic.rest - 1; n++) {
             INIT_CELL_WRITABLE_IF_DEBUG(ARR_AT(AS_ARRAY(s), n));
           /*SET_VAL_FLAG(ARR_AT(AS_ARRAY(series), n), VALUE_FLAG_READ_ONLY);*/
         }
+    #endif
+
+        // The convention is that the *last* cell in the allocated capacity
+        // is an unwritable end.  This may be located arbitrarily beyond the
+        // capacity the user requested, if a pool unit was used that was
+        // bigger than they asked for...but this will be used in expansion.
+        //
+        // Having an unwritable END in that spot paves the way for more forms
+        // of implicit termination.  In theory one should not need 5 cells
+        // to hold an array of length 4...the 5th header position can merely
+        // mark termination with the low bit clear.
+        //
+        // Currently only singular arrays exploit this, but since they exist
+        // they must be accounted for.  Because callers cannot write past the
+        // capacity they requested, they must use TERM_ARRAY_LEN(), which
+        // avoids writing the unwritable locations by checking for END first.
+        //
+        RELVAL *ultimate = ARR_AT(AS_ARRAY(s), s->content.dynamic.rest - 1);
+        ultimate->header.bits = 0;
+    #if !defined(NDEBUG)
+        Set_Track_Payload_Debug(ultimate, __FILE__, __LINE__);
+    #endif
     }
-#endif
 
     return TRUE;
 }
@@ -1027,16 +1048,17 @@ REBARR *Make_Singular_Array(const RELVAL *single) {
     //
     assert(NOT_END(single) && !IS_VOID(single));
 
-    REBARR *array = AS_ARRAY(
-        Make_Series(
-            1, // length will not come from this, but from end marker
-            sizeof(REBVAL),
-            MKS_NO_DYNAMIC // don't alloc (or free) any data, trust us
-        ));
+    REBSER *series = Make_Series(
+        1, // length will not come from this, but from end marker
+        sizeof(REBVAL),
+        MKS_NO_DYNAMIC // don't alloc (or free) any data, trust us
+    );
+    SET_SER_FLAG(series, SERIES_FLAG_ARRAY);
+
+    REBARR *array = AS_ARRAY(series);
 
     // At present, no ability to resize a singular array--mark fixed size
     //
-    SET_ARR_FLAG(array, SERIES_FLAG_ARRAY);
     SET_ARR_FLAG(array, SERIES_FLAG_FIXED_SIZE);
 
     assert(!GET_ARR_FLAG(array, SERIES_FLAG_HAS_DYNAMIC)); // paranoid check
@@ -1260,12 +1282,14 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
     // Width adjusted variables:
     start = index * wide;
     extra = delta * wide;
-    size  = (series->content.dynamic.len + 1) * wide;
+    size  = (series->content.dynamic.len) * wide;
 
-    if ((size + extra) <= SER_SPACE(series)) {
-        // No expansion was needed. Slide data down if necessary.
-        // Note that the tail is always moved here. This is probably faster
-        // than doing the computation to determine if it needs to be done.
+    if ((size + extra + wide) <= SER_SPACE(series)) { // + wide for terminator
+        //
+        // No expansion was needed.  Slide data down if necessary.  Note that
+        // the tail is not moved and instead the termination is done
+        // separately with TERM_SERIES (in case it reaches an implicit
+        // termination that is not a full-sized cell).
 
         memmove(
             series->content.dynamic.data + start + extra,
@@ -1274,19 +1298,12 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
         );
 
         series->content.dynamic.len += delta;
-
-        if (
+        assert(
             (series->content.dynamic.len + SER_BIAS(series)) * wide
-            >= SER_TOTAL(series)
-        ) {
-            // This shouldn't be possible, but R3-Alpha had code checking for
-            // it that panicked.  Should it be made into an assert?
-            //
-        #if !defined(NDEBUG)
-            Panic_Series(series);
-        #endif
-            panic (Error(RE_MISC));
-        }
+            < SER_TOTAL(series)
+        );
+
+        TERM_SERIES(series);
 
     #if !defined(NDEBUG)
         if (any_array) {
@@ -1373,8 +1390,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
     //
     memcpy(series->content.dynamic.data, data_old, start);
 
-    // Copy the series after the expansion point.  If at tail, this
-    // just moves the terminator to the new tail.
+    // Copy the series after the expansion point.
     //
     memcpy(
         series->content.dynamic.data + start + extra,
@@ -1382,6 +1398,8 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
         size - start
     );
     series->content.dynamic.len = len_old + delta;
+
+    TERM_SERIES(series);
 
     // We have to de-bias the data pointer before we can free it.
     //
@@ -1461,7 +1479,7 @@ void Remake_Series(REBSER *series, REBCNT units, REBYTE wide, REBCNT flags)
         series->content.dynamic.len = 0;
 
     if (flags & MKS_ARRAY)
-        TERM_ARRAY(AS_ARRAY(series));
+        TERM_ARRAY_LEN(AS_ARRAY(series), SER_LEN(series));
     else
         TERM_SEQUENCE(series);
 

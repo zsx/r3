@@ -49,7 +49,7 @@ static int Read_Dir(REBREQ *dir, REBARR *files)
     REBSER *name;
     REBREQ file;
 
-    SET_ARRAY_LEN(files, 0);
+    TERM_ARRAY_LEN(files, 0);
     CLEARS(&file);
 
     // Temporary filename storage; native OS API character size (REBCHR) varies

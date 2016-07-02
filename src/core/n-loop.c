@@ -111,8 +111,8 @@ static REBARR *Init_Loop(
     if (len == 0) fail (Error_Invalid_Arg(spec));
 
     context = Alloc_Context(len);
-    SET_ARRAY_LEN(CTX_VARLIST(context), len + 1);
-    SET_ARRAY_LEN(CTX_KEYLIST(context), len + 1);
+    TERM_ARRAY_LEN(CTX_VARLIST(context), len + 1);
+    TERM_ARRAY_LEN(CTX_KEYLIST(context), len + 1);
 
     VAL_RESET_HEADER(CTX_VALUE(context), REB_OBJECT);
     CTX_VALUE(context)->extra.binding = NULL;
@@ -149,8 +149,8 @@ static REBARR *Init_Loop(
         ++item;
     }
 
-    SET_END(key);
-    SET_END(var);
+    assert(IS_END(key)); // set above by TERM_ARRAY_LEN
+    assert(IS_END(var)); // ...same
 
     body_out = Copy_Array_At_Deep_Managed(
         VAL_ARRAY(body), VAL_INDEX(body), VAL_SPECIFIER(body)

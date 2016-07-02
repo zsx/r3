@@ -1399,8 +1399,9 @@ REBCNT Recycle_Core(REBOOL shutdown)
     // WARNING: These terminate existing open blocks. This could
     // be a problem if code is building a new value at the tail,
     // but has not yet updated the TAIL marker.
-    VAL_TERM_ARRAY(TASK_BUF_EMIT);
-    VAL_TERM_ARRAY(TASK_BUF_COLLECT);
+    //
+    TERM_ARRAY_LEN(BUF_EMIT, ARR_LEN(BUF_EMIT));
+    TERM_ARRAY_LEN(BUF_COLLECT, ARR_LEN(BUF_COLLECT));
 
     // MARKING PHASE: the "root set" from which we determine the liveness
     // (or deadness) of a series.  If we are shutting down, we are freeing
@@ -1449,7 +1450,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
         {
             REBCNT n;
             for (n = 0; n < NUM_NATIVES; ++n)
-                Mark_Array_Deep(AS_ARRAY(VAL_FUNC(&Natives[n])));
+                Mark_Array_Deep(VAL_FUNC_PARAMLIST(&Natives[n]));
         }
 
         // Mark series that have been temporarily protected from garbage

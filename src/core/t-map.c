@@ -252,7 +252,7 @@ static void Rehash_Map(REBMAP *map)
             //
             *key = *KNOWN(ARR_AT(pairlist, ARR_LEN(pairlist) - 2));
             *(key + 1) = *KNOWN(ARR_AT(pairlist, ARR_LEN(pairlist) - 1));
-            SET_ARRAY_LEN(pairlist, ARR_LEN(pairlist) - 2);
+            SET_ARRAY_LEN_NOTERM(pairlist, ARR_LEN(pairlist) - 2);
         }
 
         hash = Find_Key_Hashed(
@@ -263,7 +263,7 @@ static void Rehash_Map(REBMAP *map)
         // discard zombies at end of pairlist
         //
         while (IS_VOID(ARR_AT(pairlist, ARR_LEN(pairlist) - 1))) {
-            SET_ARRAY_LEN(pairlist, ARR_LEN(pairlist) - 2);
+            SET_ARRAY_LEN_NOTERM(pairlist, ARR_LEN(pairlist) - 2);
         }
     }
 }
@@ -545,8 +545,8 @@ REBARR *Map_To_Array(REBMAP *map, REBINT what)
         }
     }
 
-    SET_END(dest);
-    SET_ARRAY_LEN(array, cast(RELVAL*, dest) - ARR_HEAD(array));
+    TERM_ARRAY_LEN(array, cast(RELVAL*, dest) - ARR_HEAD(array));
+    assert(IS_END(dest));
     return array;
 }
 
@@ -616,11 +616,10 @@ REBCTX *Alloc_Context_From_Map(REBMAP *map)
         }
     }
 
-    SET_END(key);
-    SET_END(var);
-
-    SET_ARRAY_LEN(CTX_VARLIST(context), cnt + 1);
-    SET_ARRAY_LEN(CTX_KEYLIST(context), cnt + 1);
+    TERM_ARRAY_LEN(CTX_VARLIST(context), cnt + 1);
+    TERM_ARRAY_LEN(CTX_KEYLIST(context), cnt + 1);
+    assert(IS_END(key));
+    assert(IS_END(var));
 
     return context;
 }

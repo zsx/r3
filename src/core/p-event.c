@@ -74,15 +74,11 @@ REBREQ *req;        //!!! move this global
 //
 REBVAL *Append_Event(void)
 {
-    REBVAL *port;
-    REBVAL *value;
-    REBVAL *state;
-
-    port = Get_System(SYS_PORTS, PORTS_SYSTEM);
+    REBVAL *port = Get_System(SYS_PORTS, PORTS_SYSTEM);
     if (!IS_PORT(port)) return 0; // verify it is a port object
 
     // Get queue block:
-    state = VAL_CONTEXT_VAR(port, STD_PORT_STATE);
+    REBVAL *state = VAL_CONTEXT_VAR(port, STD_PORT_STATE);
     if (!IS_BLOCK(state)) return 0;
 
     // Append to tail if room:
@@ -94,10 +90,9 @@ REBVAL *Append_Event(void)
             //RL_Print("event queue increased to :%d\n", SER_REST(VAL_SERIES(state)));
         }
     }
-    SET_SERIES_LEN(VAL_SERIES(state), VAL_LEN_HEAD(state) + 1);
-    value = SINK(VAL_ARRAY_TAIL(state));
-    SET_END(value);
-    value--;
+    TERM_ARRAY_LEN(VAL_ARRAY(state), VAL_LEN_HEAD(state) + 1);
+
+    REBVAL *value = SINK(ARR_LAST(VAL_ARRAY(state)));
     SET_BLANK(value);
 
     //Dump_Series(VAL_SERIES(state), "state");
@@ -197,7 +192,7 @@ act_blk:
 
     case SYM_CLEAR:
         SET_SERIES_LEN(VAL_SERIES(state), 0);
-        VAL_TERM_ARRAY(state);
+        TERM_ARRAY_LEN(VAL_ARRAY(state), VAL_LEN_HEAD(state));
         CLR_SIGNAL(SIG_EVENT_PORT);
         break;
 

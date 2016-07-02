@@ -1413,7 +1413,7 @@ static REBARR *Scan_Array(
         }
 
         // Is output block buffer large enough?
-        if (token >= TOKEN_WORD && SER_FULL(ARR_SERIES(emitbuf)))
+        if (SER_FULL(ARR_SERIES(emitbuf)))
             Extend_Series(ARR_SERIES(emitbuf), 1024);
 
         value = SINK(ARR_TAIL(emitbuf));
@@ -1422,7 +1422,7 @@ static REBARR *Scan_Array(
         // If in a path, handle start of path /word or word//word cases:
         if (mode_char == '/' && *bp == '/') {
             SET_BLANK(value);
-            SET_ARRAY_LEN(emitbuf, ARR_LEN(emitbuf) + 1);
+            SET_ARRAY_LEN_NOTERM(emitbuf, ARR_LEN(emitbuf) + 1);
             scan_state->begin = bp + 1;
             continue;
         }
@@ -1552,7 +1552,7 @@ static REBARR *Scan_Array(
             value = SINK(ARR_TAIL(emitbuf));
             if (scan_state->errors) {
                 *value = *KNOWN(ARR_LAST(array)); // Copy the error
-                SET_ARRAY_LEN(emitbuf, ARR_LEN(emitbuf) + 1);
+                SET_ARRAY_LEN_NOTERM(emitbuf, ARR_LEN(emitbuf) + 1);
                 goto exit_block;
             }
             Val_Init_Array(
@@ -1689,7 +1689,7 @@ static REBARR *Scan_Array(
                 // to be fail-proof (nothing that does memory allocation is)
                 // or the buffer can't be used.
                 //
-                SET_ARRAY_LEN(emitbuf, ARR_LEN(emitbuf) + 1);
+                SET_ARRAY_LEN_NOTERM(emitbuf, ARR_LEN(emitbuf) + 1);
             }
 
             REBARR *array = Scan_Full_Array(scan_state, ']');
@@ -1776,7 +1776,7 @@ static REBARR *Scan_Array(
             if (0) {
                 // This was the R3-Alpha unprotect, see notes above.
                 //
-                SET_ARRAY_LEN(emitbuf, ARR_LEN(emitbuf) - 1);
+                SET_ARRAY_LEN_NOTERM(emitbuf, ARR_LEN(emitbuf) - 1);
             }
             } // case TOKEN_CONSTRUCT
             break;
@@ -1805,7 +1805,7 @@ static REBARR *Scan_Array(
         VAL_FLAGS(value)|=FLAGS_LINE;
 #endif
         if (!IS_END(value))
-            SET_ARRAY_LEN(emitbuf, ARR_LEN(emitbuf) + 1);
+            SET_ARRAY_LEN_NOTERM(emitbuf, ARR_LEN(emitbuf) + 1);
         else {
         syntax_error: ; // needs to be a statement
 
@@ -1818,7 +1818,7 @@ static REBARR *Scan_Array(
             );
             if (GET_FLAG(scan_state->opts, SCAN_RELAX)) {
                 Val_Init_Error(ARR_TAIL(emitbuf), error);
-                SET_ARRAY_LEN(emitbuf, ARR_LEN(emitbuf) + 1);
+                SET_ARRAY_LEN_NOTERM(emitbuf, ARR_LEN(emitbuf) + 1);
                 goto exit_block;
             }
             fail (error);
@@ -1861,7 +1861,7 @@ exit_block:
     );
     ASSERT_SERIES_TERM(ARR_SERIES(result));
 
-    SET_ARRAY_LEN(emitbuf, begin);
+    SET_ARRAY_LEN_NOTERM(emitbuf, begin);
 
     // All scanned code is expected to be managed by the GC (because walking
     // the tree after constructing it to add the "manage GC" bit would be
@@ -1904,7 +1904,7 @@ extra_error: ; // needs to label a statement
     );
     if (GET_FLAG(scan_state->opts, SCAN_RELAX)) {
         Val_Init_Error(ARR_TAIL(emitbuf), error);
-        SET_ARRAY_LEN(emitbuf, ARR_LEN(emitbuf) + 1);
+        SET_ARRAY_LEN_NOTERM(emitbuf, ARR_LEN(emitbuf) + 1);
         goto exit_block;
     }
     fail (error);

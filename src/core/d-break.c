@@ -479,8 +479,7 @@ REBNATIVE(resume)
         Context_For_Frame_May_Reify_Managed(frame)
     );
 
-    SET_ARRAY_LEN(instruction, RESUME_INST_MAX);
-    TERM_ARRAY(instruction);
+    TERM_ARRAY_LEN(instruction, RESUME_INST_MAX);
 
     // We put the resume instruction into a GROUP! just to make it a little
     // bit more unusual than a BLOCK!.  More hardened approaches might put

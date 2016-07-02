@@ -569,8 +569,7 @@ REBNATIVE(get)
             ++dest;
         }
 
-        SET_END(dest);
-        SET_ARRAY_LEN(array, cast(RELVAL*, dest) - ARR_HEAD(array));
+        TERM_ARRAY_LEN(array, cast(RELVAL*, dest) - ARR_HEAD(array));
         Val_Init_Block(D_OUT, array);
     }
     else {

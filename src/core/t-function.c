@@ -229,8 +229,8 @@ REBTYPE(Function)
                 *typeset = *param;
                 INIT_TYPESET_NAME(typeset, NULL);
             }
-            SET_END(typeset);
-            SET_ARRAY_LEN(copy, VAL_FUNC_NUM_PARAMS(value));
+            TERM_ARRAY_LEN(copy, VAL_FUNC_NUM_PARAMS(value));
+            assert(IS_END(typeset));
 
             Val_Init_Block(D_OUT, copy);
             return R_OUT;

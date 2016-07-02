@@ -42,8 +42,7 @@ REBARR *Make_Array(REBCNT capacity)
 {
     REBSER *series = Make_Series(capacity + 1, sizeof(REBVAL), MKS_ARRAY);
     REBARR *array = AS_ARRAY(series);
-    SET_END(ARR_HEAD(array));
-
+    TERM_ARRAY_LEN(array, 0);
     return array;
 }
 
@@ -95,8 +94,7 @@ REBARR *Copy_Array_At_Extra_Shallow(
             COPY_VALUE(dest, src, specifier);
     }
 
-    SET_ARRAY_LEN(copy, len);
-    TERM_ARRAY(copy);
+    TERM_ARRAY_LEN(copy, len);
 
     return copy;
 }
@@ -142,8 +140,7 @@ REBARR *Copy_Array_At_Max_Shallow(
             COPY_VALUE(dest, src, specifier);
     }
 
-    SET_ARRAY_LEN(copy, max);
-    TERM_ARRAY(copy);
+    TERM_ARRAY_LEN(copy, max);
 
     return copy;
 }
@@ -183,8 +180,7 @@ REBARR *Copy_Values_Len_Extra_Shallow(
             COPY_VALUE(dest, src, specifier);
     }
 
-    SET_ARRAY_LEN(array, len);
-    TERM_ARRAY(array);
+    TERM_ARRAY_LEN(array, len);
 
     return array;
 }
@@ -457,8 +453,7 @@ REBARR *Copy_Rerelativized_Array_Deep_Managed(
         }
     }
 
-    SET_ARRAY_LEN(copy, ARR_LEN(original));
-    TERM_ARRAY(copy);
+    TERM_ARRAY_LEN(copy, ARR_LEN(original));
     MANAGE_ARRAY(copy);
 
     return copy;
@@ -477,14 +472,9 @@ REBARR *Copy_Rerelativized_Array_Deep_Managed(
 //
 REBVAL *Alloc_Tail_Array(REBARR *array)
 {
-    REBVAL *tail;
-
     EXPAND_SERIES_TAIL(ARR_SERIES(array), 1);
-    tail = SER_TAIL(REBVAL, ARR_SERIES(array));
-    SET_END(tail);
-
-    SET_TRASH_IF_DEBUG(tail - 1); // No-op in release builds
-    return tail - 1;
+    TERM_ARRAY_LEN(array, ARR_LEN(array));
+    return SINK(ARR_LAST(array));
 }
 
 

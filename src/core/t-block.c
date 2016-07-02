@@ -1022,5 +1022,12 @@ void Assert_Array_Core(REBARR *array)
         // Not legal to not have an END! at all
         Panic_Array(array);
     }
+
+    if (GET_ARR_FLAG(array, SERIES_FLAG_HAS_DYNAMIC)) {
+        RELVAL *ultimate = ARR_AT(
+            array, ARR_SERIES(array)->content.dynamic.rest - 1
+        );
+        assert(ultimate->header.bits == 0);
+    }
 }
 #endif

@@ -77,8 +77,7 @@ void Init_Stacks(REBCNT size)
         // The END marker will signal DS_PUSH that it has run out of space,
         // and it will perform the allocation at that time.
         //
-        SET_ARRAY_LEN(DS_Array, 1);
-        SET_END(ARR_TAIL(DS_Array));
+        TERM_ARRAY_LEN(DS_Array, 1);
         ASSERT_ARRAY(DS_Array);
 
         // DS_PUSH checks what you're pushing isn't void, as most arrays can't
@@ -186,9 +185,8 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
     // Update the end marker to serve as the indicator for when the next
     // stack push would need to expand.
     //
-    SET_ARRAY_LEN(DS_Array, len_new);
+    TERM_ARRAY_LEN(DS_Array, len_new);
     assert(value == ARR_TAIL(DS_Array));
-    SET_END(value);
 
     ASSERT_ARRAY(DS_Array);
 }
@@ -620,19 +618,15 @@ REBFUN *Push_Or_Alloc_Args_For_Underlying_Func(struct Reb_Frame *f) {
     REBVAL *slot;
     if (IS_FUNC_DURABLE(underlying)) {
         //
-        // !!! In the near term, it's hoped that CLOSURE! will go away and
-        // that stack frames can be "hybrids" with some pooled allocated
-        // vars that survive a call, and some that go away when the stack
-        // frame is finished.  The groundwork for this is laid but it's not
-        // quite ready--so the classic interpretation is that it's all or
-        // nothing... CLOSURE!'s variables args and locals all survive the
-        // end of the call, and none of a FUNCTION!'s do.
+        // !!! It's hoped that stack frames can be "hybrids" with some pooled
+        // allocated vars that survive a call, and some that go away when the
+        // stack frame is finished.  The groundwork for this is laid but it's
+        // not quite ready--so the classic interpretation is that it's all or
+        // nothing (similar to FUNCTION! vs. CLOSURE! in this respect)
         //
         f->stackvars = NULL;
         f->varlist = Make_Array(num_args + 1);
-        SET_ARRAY_LEN(f->varlist, num_args + 1);
-        SET_END(ARR_AT(f->varlist, num_args + 1));
-        MARK_CELL_UNWRITABLE_IF_DEBUG(ARR_AT(f->varlist, num_args + 1));
+        TERM_ARRAY_LEN(f->varlist, num_args + 1);
         SET_ARR_FLAG(f->varlist, SERIES_FLAG_FIXED_SIZE);
 
         // Skip the [0] slot which will be filled with the CTX_VALUE
@@ -749,20 +743,22 @@ REBCTX *Context_For_Frame_May_Reify_Core(struct Reb_Frame *f) {
         context = AS_CONTEXT(f->varlist);
     }
     else {
-        context = AS_CONTEXT(Make_Series(
+        REBSER *series = Make_Series(
             1, // length report will not come from this, but from end marker
             sizeof(REBVAL),
             MKS_NO_DYNAMIC // use the REBVAL in the REBSER--no allocation
-        ));
+        );
+        SET_SER_FLAG(series, SERIES_FLAG_ARRAY);
 
-        assert(!GET_ARR_FLAG(AS_ARRAY(context), SERIES_FLAG_HAS_DYNAMIC));
-        SET_ARR_FLAG(AS_ARRAY(context), SERIES_FLAG_ARRAY);
-        SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_FIXED_SIZE);
+        f->varlist = AS_ARRAY(series);
+
+        assert(!GET_ARR_FLAG(f->varlist, SERIES_FLAG_HAS_DYNAMIC));
+        SET_ARR_FLAG(f->varlist, SERIES_FLAG_FIXED_SIZE);
+
+        context = AS_CONTEXT(f->varlist);
 
         SET_CTX_FLAG(context, CONTEXT_FLAG_STACK);
         SET_CTX_FLAG(context, SERIES_FLAG_ACCESSIBLE);
-
-        f->varlist = CTX_VARLIST(context);
     }
 
     SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_VARLIST);
@@ -803,7 +799,7 @@ REBCTX *Context_For_Frame_May_Reify_Core(struct Reb_Frame *f) {
     // user function.
     //
     if (NOT(IS_FUNCTION_PLAIN(FUNC_VALUE(f->func))))
-        SET_ARR_FLAG(AS_ARRAY(context), SERIES_FLAG_LOCKED);
+        SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_LOCKED);
 
     return context;
 }

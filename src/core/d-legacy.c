@@ -168,8 +168,8 @@ REBCTX *Make_Guarded_Arg123_Error(void)
 
     // Update the length to suppress out of bounds assert from CTX_KEY/VAL
     //
-    SET_ARRAY_LEN(CTX_VARLIST(error), root_len + 3);
-    SET_ARRAY_LEN(CTX_KEYLIST(error), root_len + 3);
+    TERM_ARRAY_LEN(CTX_VARLIST(error), root_len + 3);
+    TERM_ARRAY_LEN(CTX_KEYLIST(error), root_len + 3);
 
     REBVAL *key = CTX_KEY(error, CTX_LEN(root_error)) + 1;
     REBVAL *var = CTX_VAR(error, CTX_LEN(root_error)) + 1;
@@ -183,9 +183,6 @@ REBCTX *Make_Guarded_Arg123_Error(void)
         );
         SET_BLANK(var);
     }
-
-    SET_END(key);
-    SET_END(var);
 
     MANAGE_ARRAY(CTX_VARLIST(error));
     PUSH_GUARD_CONTEXT(error);

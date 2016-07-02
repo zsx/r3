@@ -489,7 +489,7 @@ REBNATIVE(do_codec)
         break;
 
     case CODI_BLOCK:
-        Val_Init_Block(D_OUT, AS_ARRAY(codi.extra.other));
+        Val_Init_Block(D_OUT, AS_ARRAY(cast(REBSER*, codi.extra.other)));
         break;
 
     default:

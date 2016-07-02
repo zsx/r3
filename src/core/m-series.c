@@ -118,7 +118,7 @@ void Append_Values_Len(REBARR *array, const REBVAL *head, REBCNT len)
 
     memcpy(dest, head, sizeof(REBVAL) * len);
 
-    TERM_ARRAY(array);
+    TERM_ARRAY_LEN(array, ARR_LEN(array));
 }
 
 
@@ -331,8 +331,7 @@ void Remove_Sequence_Last(REBSER *series)
 void Remove_Array_Last(REBARR *array)
 {
     assert(ARR_LEN(array) != 0);
-    SET_ARRAY_LEN(array, ARR_LEN(array) - 1);
-    TERM_ARRAY(array);
+    TERM_ARRAY_LEN(array, ARR_LEN(array) - 1);
 }
 
 
@@ -382,8 +381,7 @@ void Reset_Series(REBSER *series)
 void Reset_Array(REBARR *array)
 {
     Unbias_Series(ARR_SERIES(array), FALSE);
-    SET_ARRAY_LEN(array, 0);
-    TERM_ARRAY(array);
+    TERM_ARRAY_LEN(array, 0);
 }
 
 

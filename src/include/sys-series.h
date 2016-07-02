@@ -635,8 +635,10 @@ struct Reb_Array {
 // done.  But also see the note that it's something that could just be
 // disabled by making arrays and series synonyms in "non-type-check" builds.
 //
-#define AS_ARRAY(s) \
-    (cast(REBARR*, (s)))
+static inline REBARR* AS_ARRAY(REBSER *s) {
+    assert(Is_Array_Series(s));
+    return cast(REBARR*, s);
+}
 
 #define ARR_SERIES(a) \
     (&(a)->series)
@@ -676,26 +678,41 @@ inline static REBCNT ARR_LEN(REBARR *a) {
     return SER_LEN(ARR_SERIES(a));
 }
 
-inline static void SET_ARRAY_LEN(REBARR *a, REBCNT len) {
-    assert(Is_Array_Series(ARR_SERIES(a)));
+
+// Clients of Make_Array() should not expect to be able to write past the
+// requested capacity.  In R3-Alpha, it was allowed to write one cell past
+// the capacity, but this always had to be an END.  In Ren-C, the END is
+// implicit in some cases (singular arrays, but perhaps others) and allowing
+// a write would corrupt the END-signaling slot, which only has to have its
+// low bit zero (vs. be the size of an entire cell).
+//
+// TERM_ARRAY_LEN sets the length and terminates the array, and to get around
+// the problem it checks to see if the length is the rest - 1.  Another
+// possibility would be to check to see if the cell was already marked with
+// END...however, that would require initialization of all cells in an array
+// up front, to legitimately examine the bits (and decisions on how to init)
+//
+inline static void TERM_ARRAY_LEN(REBARR *a, REBCNT len) {
+    REBCNT rest = ARR_SERIES(a)->content.dynamic.rest;
+    assert(len < rest);
     SET_SERIES_LEN(ARR_SERIES(a), len);
+    if (len + 1 == rest)
+        assert(ARR_TAIL(a)->header.bits == 0);
+    else
+        SET_END(ARR_TAIL(a));
 }
 
-//
-// !!! Write more about termination in series documentation.
-//
-
-#define TERM_ARRAY(a) \
-    SET_END(ARR_TAIL(a))
+inline static void SET_ARRAY_LEN_NOTERM(REBARR *a, REBCNT len) {
+    SET_SERIES_LEN(ARR_SERIES(a), len); // call out non-terminating usages
+}
 
 inline static void RESET_ARRAY(REBARR *a) {
-    SET_ARRAY_LEN(a, 0);
-    TERM_ARRAY(a);
+    TERM_ARRAY_LEN(a, 0);
 }
 
 inline static void TERM_SERIES(REBSER *s) {
     if (Is_Array_Series(s))
-        TERM_ARRAY(AS_ARRAY(s));
+        TERM_ARRAY_LEN(AS_ARRAY(s), SER_LEN(s));
     else
         memset(SER_AT_RAW(SER_WIDE(s), s, SER_LEN(s)), 0, SER_WIDE(s));
 }
