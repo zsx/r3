@@ -136,8 +136,6 @@ enum {
     SERIAL_FLOW_CONTROL_SOFTWARE
 };
 
-#pragma pack(4)
-
 // Forward references:
 typedef struct rebol_device REBDEV;
 typedef struct rebol_devreq REBREQ;
@@ -226,7 +224,6 @@ struct rebol_devreq {
         } serial;
     } special;
 };
-#pragma pack()
 
 // Simple macros for common OPEN? test (for some but not all ports):
 #define SET_OPEN(r)     SET_FLAG(((REBREQ*)(r))->flags, RRF_OPEN)

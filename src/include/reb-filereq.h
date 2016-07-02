@@ -29,7 +29,6 @@
 
 #define MAX_FILE_REQ_BUF (16*1024)
 
-#pragma pack(4)
 typedef struct Reb_File_Requestor {
     REBCNT flags;   // multi, load/save, unicode
     REBCHR *title;  // title of requestor
@@ -39,7 +38,6 @@ typedef struct Reb_File_Requestor {
     REBCHR *filter; // buffer to hold results
     REBINT len;     // length of buffer
 } REBRFR;
-#pragma pack()
 
 // File Request Flags:
 enum {

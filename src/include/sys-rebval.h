@@ -57,44 +57,6 @@
 // Note: Forward declarations are in %reb-defs.h
 //
 
-// The definition of the REBVAL struct has a header followed by a payload.
-// On 32-bit platforms the header is 32 bits, and on 64-bit platforms it is
-// 64-bits.  However, even on 32-bit platforms, some payloads contain 64-bit
-// quantities (doubles or 64-bit integers).  By default, the compiler would
-// pad a payload with one 64-bit quantity and one 32-bit quantity to 128-bits,
-// which would not leave room for the header (if REBVALs are to be 128-bits).
-//
-// So since R3-Alpha, a `#pragma pack` of 4 is requested for this file:
-//
-//     http://stackoverflow.com/questions/3318410/
-//
-// It is restored to the default via `#pragma pack()` at the end of the file.
-// (Note that pack(push) and pack(pop) are not supported by older compilers.)
-//
-// Compilers are free to ignore pragmas (or error on them).  Also, this
-// packing subverts the automatic alignment handling of the compiler.  So if
-// the manually packed structures do not position 64-bit values on 64-bit
-// alignments, there can be problems.  On x86 this is generally just slower
-// reads and writes, but on more esoteric platforms (like the C-to-Javascript
-// translator "emscripten") some instances do not work at all.
-//
-// Hence REBVAL payloads that contain quantities that need 64-bit alignment
-// put those *after* a platform-pointer sized field, even if that field is
-// just padding.  On 32-bit platforms this will pair with the header to make
-// enough space to get to a 64-bit alignment
-//
-// If #pragma pack is disabled, a REBVAL will wind up being 160 bits.  This
-// won't give ideal performance, and will trigger an assertion in
-// Assert_Basics.  But the code *should* be able to work otherwise if that
-// assertion is removed.
-//
-// Note also that a trick which attempted to put a header into each payload
-// won't work.  There would be no way to generically adjust the bits of the
-// header without picking a specific instance of the union to do it in, which
-// would invalidate the payload for any other type.
-//
-#pragma pack(4)
-
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -586,9 +548,7 @@ struct Reb_Struct {
 
 typedef REBARR REBSTU;
 
-#pragma pack() // set back to default (was set to 4 at start of file)
-    #include "reb-gob.h"
-#pragma pack(4) // resume packing with 4
+#include "reb-gob.h"
 
 struct Reb_Gob {
     REBGOB *gob;
@@ -985,5 +945,3 @@ inline static void COPY_VALUE_CORE(
     #define ASSERT_NO_RELATIVE(array,deep) \
         Assert_No_Relative((array),(deep))
 #endif
-
-#pragma pack() // set back to default (was set to 4 at start of file)

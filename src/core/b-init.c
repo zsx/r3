@@ -70,7 +70,6 @@ static void Assert_Basics(void)
     printf(fmt, sizeof(dummy_payload->character), "char");
     printf(fmt, sizeof(dummy_payload->datatype), "datatype");
     printf(fmt, sizeof(dummy_payload->typeset), "typeset");
-    printf(fmt, sizeof(dummy_payload->symbol), "symbol");
     printf(fmt, sizeof(dummy_payload->time), "time");
     printf(fmt, sizeof(dummy_payload->tuple), "tuple");
     printf(fmt, sizeof(dummy_payload->function), "function");
@@ -97,11 +96,11 @@ static void Assert_Basics(void)
     // and keep running.
     //
     if (sizeof(void *) == 8) {
-        if (sizeof(REBVAL) != 32)
+        if (sizeof(REBVAL) != 32 || sizeof(REBEVT) != 32)
             panic (Error(RE_REBVAL_ALIGNMENT));
     }
     else {
-        if (sizeof(REBVAL) != 16)
+        if (sizeof(REBVAL) != 16 || sizeof(REBEVT) != 16)
             panic (Error(RE_REBVAL_ALIGNMENT));
     }
 

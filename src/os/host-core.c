@@ -685,12 +685,6 @@ void Init_Core_Ext()
     // %reb-host.h, and hence can't check these macros.  It's done here
     // instead for now.
 
-    if (!CHECK_STRUCT_ALIGN)
-        OS_CRASH(
-            cb_cast("Init_Core_Ext()"),
-            cb_cast("Incompatible struct alignment")
-        );
-
     // !!! "Second part will become vers[2] < RL_REV on release" (?)
     if (vers[1] != RL_VER || vers[2] != RL_REV)
         OS_CRASH(

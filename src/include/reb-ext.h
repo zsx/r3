@@ -79,7 +79,6 @@
 
 
 // Value structure (for passing args to and from):
-#pragma pack(4)
 typedef union rxi_arg_val {
     void *addr;
     i64 int64;
@@ -129,7 +128,6 @@ typedef struct rxi_cmd_context {
 typedef unsigned char REBRXT;
 typedef int (*RXICAL)(int cmd, RXIFRM *args, REBCEC *ctx);
 
-#pragma pack()
 
 // Access macros (indirect access via RXIFRM pointer):
 #define RXA_ARG(f,n)    ((f)->rxiargs[n])
