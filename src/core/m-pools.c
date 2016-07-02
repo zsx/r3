@@ -350,7 +350,7 @@ void Shutdown_Pools(void)
     for (; seg != NULL; seg = seg->next) {
         REBSER *series = cast(REBSER*, seg + 1);
         for (n = Mem_Pools[SER_POOL].units; n > 0; n--, series++) {
-            if (SER_FREED(series))
+            if (IS_FREE_NODE(series))
                 continue;
 
             printf("Leaked series at shutdown");
@@ -576,8 +576,9 @@ void *Make_Node(REBCNT pool_id)
 // distinguish the allocated from free state.  (See notes on
 // Make_Node.)
 //
-void Free_Node(REBCNT pool_id, REBNOD *node)
+void Free_Node(REBCNT pool_id, void *pv)
 {
+    REBNOD *node = cast(REBNOD*, pv);
     assert(node->header.bits != 0); // 0 would indicate already free
     node->header.bits = 0;
 
@@ -785,7 +786,7 @@ REBSER *Try_Find_Containing_Series_Debug(const void *pointer)
         REBSER *series = cast(REBSER*, seg + 1);
         REBCNT n;
         for (n = Mem_Pools[SER_POOL].units; n > 0; n--, series++) {
-            if (SER_FREED(series))
+            if (IS_FREE_NODE(series))
                 continue;
 
             if (pointer < cast(void*,
@@ -895,7 +896,11 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
 #endif
 
     REBSER *s = cast(REBSER*, Make_Node(SER_POOL));
-    s->header.bits = 1; // !!! Temporary--any nonzero value
+
+    // Header bits can't be zero.  For now, set the NOT_END_MASK always (the
+    // CELL_MASK is used by "Paireds").
+    //
+    s->header.bits = NOT_END_MASK;
 
     if ((GC_Ballast -= sizeof(REBSER)) <= 0) SET_SIGNAL(SIG_RECYCLE);
 
@@ -962,7 +967,7 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
         // Allocate the actual data blob that holds the series elements
 
         if (!Series_Data_Alloc(s, length, wide, flags)) {
-            Free_Node(SER_POOL, cast(REBNOD*, s));
+            Free_Node(SER_POOL, s);
             fail (Error_No_Memory(length * wide));
         }
 
@@ -1040,6 +1045,68 @@ REBARR *Make_Singular_Array(const RELVAL *single) {
     assert(IS_END(ARR_TAIL(array))); // info bits signal this; low bits clear
 
     return array;
+}
+
+
+//
+//  Make_Pairing: C
+//
+// Make a paired set of values.  The "key" is in the cell *before* the
+// returned pointer.
+//
+// Because pairings are created in large numbers and left outstanding, they
+// are not put into any tracking lists by default.  This means that if there
+// is a fail(), they will leak--unless whichever API client that is using
+// them ensures they are cleaned up.  So in C++, this is done with exception
+// handling.
+//
+// However, untracked/unmanaged pairings have a special ability.  It's
+// possible for them to be "owned" by a FRAME!, which sits in the first cell.
+//
+REBVAL *Make_Pairing(REBCTX *opt_owning_frame) {
+    REBSER *s = cast(REBSER*, Make_Node(SER_POOL)); // 2x REBVAL size
+
+    REBVAL *key = cast(REBVAL*, s);
+    REBVAL *pairing = key + 1;
+
+    INIT_CELL_WRITABLE_IF_DEBUG(key);
+    if (opt_owning_frame) {
+        Val_Init_Context(key, REB_FRAME, opt_owning_frame);
+        SET_VAL_FLAG(key, ANY_CONTEXT_FLAG_OWNS_PAIRED);
+    }
+    else
+        SET_VOID(key); // won't signal GC, header is not purely 0
+
+    INIT_CELL_WRITABLE_IF_DEBUG(pairing);
+    SET_BLANK(pairing); // default for AnyValue in Ren-Cpp, so same here
+
+    return pairing;
+}
+
+
+//
+//  Manage_Pairing: C
+//
+// GC management is a one-way street in Ren-C, and the paired management
+// status is handled by bits directly in the first (or key's) REBVAL header.
+// Switching to managed mode means the key can no longer be changed--only
+// the value.
+//
+void Manage_Pairing(REBVAL *paired) {
+    REBVAL *key = PAIRING_KEY(paired);
+    SET_VAL_FLAG(key, REBSER_REBVAL_FLAG_MANAGED);
+    MARK_CELL_UNWRITABLE_IF_DEBUG(key);
+}
+
+
+//
+//  Free_Pairing: C
+//
+void Free_Pairing(REBVAL *paired) {
+    REBVAL *key = PAIRING_KEY(paired);
+    assert(!GET_VAL_FLAG(key, REBSER_REBVAL_FLAG_MANAGED));
+    REBSER *series = cast(REBSER*, key);
+    Free_Node(SER_POOL, series);
 }
 
 
@@ -1409,18 +1476,16 @@ void Remake_Series(REBSER *series, REBCNT units, REBYTE wide, REBCNT flags)
 //
 void GC_Kill_Series(REBSER *series)
 {
-    REBCNT n;
-    REBCNT size = SER_TOTAL(series);
-
-    // !!! Original comment on freeing series data said: "Protect flag can
-    // be used to prevent GC away from the data field".  ???
-    REBOOL protect = TRUE;
-
-    assert(!SER_FREED(series));
-
 #if !defined(NDEBUG)
     PG_Reb_Stats->Series_Freed++;
 #endif
+
+    assert(!IS_FREE_NODE(series));
+
+    assert(NOT(series->header.bits & CELL_MASK)); // use Free_Paired
+
+    REBCNT n;
+    REBCNT size = SER_TOTAL(series);
 
     // Special handling for adjusting canons.  (REVIEW: do this by keeping the
     // symbol REBSERs in their own pools, and letting that pool's sweeper
@@ -1458,7 +1523,7 @@ void GC_Kill_Series(REBSER *series)
     series->link.keylist = cast(REBARR*, 0xBAD3BAD3);
 #endif
 
-    Free_Node(SER_POOL, cast(REBNOD*, series));
+    Free_Node(SER_POOL, series);
 
     if (REB_I32_ADD_OF(GC_Ballast, size, &GC_Ballast)) {
         GC_Ballast = MAX_I32;
@@ -1488,7 +1553,7 @@ void Free_Series(REBSER *series)
     // below indirectly, so better in the debug build to get a clearer
     // error that won't be conflated with a possible tracking problem
     //
-    if (SER_FREED(series)) {
+    if (IS_FREE_NODE(series)) {
         Debug_Fmt("Trying to Free_Series() on an already freed series");
         Panic_Series(series);
     }
@@ -1518,9 +1583,15 @@ void Free_Series(REBSER *series)
         //
         REBSER **current_ptr = last_ptr - 1;
         while (*current_ptr != series) {
-            assert(
-                current_ptr > cast(REBSER**, GC_Manuals->content.dynamic.data
-            ));
+        #if !defined(NDEBUG)
+            if (
+                current_ptr <= cast(REBSER**, GC_Manuals->content.dynamic.data)
+            ){
+                printf("Series not in list of last manually added series");
+                fflush(stdout);
+                Panic_Series(series);
+            }
+        #endif
             --current_ptr;
         }
         *current_ptr = *last_ptr;
@@ -1690,7 +1761,7 @@ REBOOL Is_Value_Managed(const RELVAL *value)
 //
 void Free_Gob(REBGOB *gob)
 {
-    Free_Node(GOB_POOL, (REBNOD *)gob);
+    Free_Node(GOB_POOL, gob);
 
     if (REB_I32_ADD_OF(GC_Ballast, Mem_Pools[GOB_POOL].wide, &GC_Ballast)) {
         GC_Ballast = MAX_I32;
@@ -1749,7 +1820,7 @@ REBCNT Check_Memory(void)
     for (seg = Mem_Pools[SER_POOL].segs; seg; seg = seg->next) {
         series = (REBSER *) (seg + 1);
         for (count = Mem_Pools[SER_POOL].units; count > 0; count--) {
-            if (!SER_FREED(series)) {
+            if (!IS_FREE_NODE(series)) {
                 if (!SER_REST(series) || !series->content.dynamic.data)
                     goto crash;
                 // Does the size match a known pool?
@@ -1804,7 +1875,7 @@ void Dump_All(REBCNT size)
     for (seg = Mem_Pools[SER_POOL].segs; seg; seg = seg->next) {
         series = (REBSER *) (seg + 1);
         for (count = Mem_Pools[SER_POOL].units; count > 0; count--) {
-            if (!SER_FREED(series)) {
+            if (!IS_FREE_NODE(series)) {
                 if (SER_WIDE(series) == size) {
                     //Debug_Fmt("%3d %4d %4d = \"%s\"", n++, series->tail, SER_TOTAL(series), series->data);
                     Debug_Fmt(
@@ -1836,7 +1907,7 @@ void Dump_Series_In_Pool(REBCNT pool_id)
     for (seg = Mem_Pools[SER_POOL].segs; seg; seg = seg->next) {
         series = (REBSER *) (seg + 1);
         for (count = Mem_Pools[SER_POOL].units; count > 0; count--) {
-            if (!SER_FREED(series)) {
+            if (!IS_FREE_NODE(series)) {
                 if (
                     pool_id == UNKNOWN
                     || FIND_POOL(SER_TOTAL(series)) == pool_id

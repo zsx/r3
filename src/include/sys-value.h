@@ -1850,6 +1850,24 @@ inline static REBOOL IS_FUNC_DURABLE(REBFUN *f) {
 // entire REBVAL if it is needed.
 //
 
+#ifdef NDEBUG
+    #define ANY_CONTEXT_FLAG_X 0
+#else
+    #define ANY_CONTEXT_FLAG_X REB_OBJECT // interpreted to mean ANY-CONTEXT!
+#endif
+
+enum {
+    // `ANY_CONTEXT_FLAG_OWNS_PAIRED` is particular to the idea of a "Paired"
+    // REBSER, which is actually just two REBVALs.  For purposes of the API,
+    // it is possible for one of those values to be used to manage the
+    // lifetime of the pair.  One technique is to tie the value's lifetime
+    // to that of a particular FRAME!
+    //
+    ANY_CONTEXT_FLAG_OWNS_PAIRED
+        = (1 << (TYPE_SPECIFIC_BIT + 0)) | ANY_CONTEXT_FLAG_X
+};
+
+
 inline static REBCTX *VAL_CONTEXT(const RELVAL *v) {
     assert(ANY_CONTEXT(v));
     return AS_CONTEXT(v->payload.any_context.varlist);

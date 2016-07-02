@@ -30,22 +30,6 @@
 // to use.
 //
 
-// The pooled allocator for REBSERs has an enumeration function where all
-// nodes can be visited, and this is used by the garbage collector.  This
-// includes nodes that have never been allocated or have been freed, so
-// "in-band" inside the REBSER there must be some way to tell if a node is
-// live or not.
-//
-// When the pool is initially allocated it is memset() to zero, hence the
-// signal must be some field or bit being zero that is not otherwise used.
-// The signal currently used is the "width" being zero.  The only downside
-// of this is that it means the sizes range from 1-255, whereas if 0 was
-// available the width could always be incremented by 1 and range 1-256.
-//
-#define SER_FREED(s) \
-    ((s)->header.bits == 0)
-
-//
 // Non-series-internal code needs to read SER_WIDE but should not be
 // needing to set it directly.
 //

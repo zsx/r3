@@ -98,25 +98,6 @@
 
 
 //
-// Marking
-//
-
-static inline REBOOL IS_REBSER_MARKED(REBSER *rebser) {
-    return LOGICAL(rebser->header.bits & REBSER_REBVAL_FLAG_MARK);
-}
-
-static inline void MARK_REBSER(REBSER *rebser) {
-    assert(NOT(IS_REBSER_MARKED(rebser)));
-    rebser->header.bits |= REBSER_REBVAL_FLAG_MARK;
-}
-
-static inline void UNMARK_REBSER(REBSER *rebser) {
-    assert(IS_REBSER_MARKED(rebser));
-    rebser->header.bits &= ~cast(REBUPT, REBSER_REBVAL_FLAG_MARK);
-}
-
-
-//
 // Series flags
 //
 
@@ -237,6 +218,23 @@ inline static REBYTE *SER_LAST_RAW(size_t w, REBSER *s) {
 
 #define SER_LAST(t,s) \
     cast(t*, SER_LAST_RAW(sizeof(t), (s)))
+
+//
+// A "paired" series hands out its handle as the REBVAL that does *not* have
+// REBSER header bits scanned on it.  This value is always mutable.  The
+// key, on the other hand, will only allow modifications if it is unmanaged
+// (this stops inadvertent writes for other purposes from clearing the managed
+// bit).
+//
+// !!! There is consideration of whether series payloads of length 2 might
+// be directly allocated as paireds.  This would require positioning such
+// series in the pool so that they abutted against END markers.  It would be
+// premature optimization to do it right now, but the design leaves it open.
+//
+inline static REBVAL *PAIRING_KEY(REBVAL *pairing) {
+    return pairing - 1;
+}
+
 
 //
 // Series size measurements:
@@ -384,6 +382,28 @@ inline static void ENSURE_SERIES_MANAGED(REBSER *s) {
         assert(Is_Value_Managed(v))
 #endif
 
+
+//
+// Marking
+//
+
+static inline REBOOL IS_REBSER_MARKED(REBSER *rebser) {
+    return LOGICAL(rebser->header.bits & REBSER_REBVAL_FLAG_MARK);
+}
+
+static inline void MARK_REBSER(REBSER *rebser) {
+    assert(NOT(IS_REBSER_MARKED(rebser)));
+    assert(
+        IS_SERIES_MANAGED(rebser)
+        || rebser->header.bits & REBSER_REBVAL_FLAG_ROOT
+    );
+    rebser->header.bits |= REBSER_REBVAL_FLAG_MARK;
+}
+
+static inline void UNMARK_REBSER(REBSER *rebser) {
+    assert(IS_REBSER_MARKED(rebser));
+    rebser->header.bits &= ~cast(REBUPT, REBSER_REBVAL_FLAG_MARK);
+}
 
 //=////////////////////////////////////////////////////////////////////////=//
 //

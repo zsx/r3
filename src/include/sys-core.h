@@ -163,6 +163,9 @@ typedef struct Reb_Node {
     /*struct REBI64 payload[N];*/
 } REBNOD;
 
+#define IS_FREE_NODE(n) \
+    (cast(struct Reb_Node*, (n))->header.bits == 0)
+
 typedef struct rebol_mem_pool REBPOL;
 
 #include "sys-deci.h"

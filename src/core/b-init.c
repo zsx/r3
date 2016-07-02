@@ -1480,6 +1480,9 @@ void Init_Core(REBARGS *rargs)
     INIT_CTX_KEYLIST_UNIQUE(PG_Root_Context, keylist);
     ASSERT_CONTEXT(PG_Root_Context);
 
+    ARR_SERIES(CTX_VARLIST(PG_Root_Context))->header.bits
+        |= REBSER_REBVAL_FLAG_ROOT;
+
     // Get the words of the TASK context (to avoid it being an exception case)
     //
     keylist = Collect_Keylist_Managed(
@@ -1487,6 +1490,9 @@ void Init_Core(REBARGS *rargs)
     );
     INIT_CTX_KEYLIST_UNIQUE(TG_Task_Context, keylist);
     ASSERT_CONTEXT(TG_Task_Context);
+
+    ARR_SERIES(CTX_VARLIST(TG_Task_Context))->header.bits
+        |= REBSER_REBVAL_FLAG_ROOT;
 
     // Create main values:
     DOUT("Level 3");

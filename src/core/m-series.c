@@ -513,7 +513,7 @@ void Assert_Series_Term_Core(REBSER *series)
 //
 void Assert_Series_Core(REBSER *series)
 {
-    if (SER_FREED(series))
+    if (IS_FREE_NODE(series))
         Panic_Series(series);
 
     assert(SER_LEN(series) < SER_REST(series));
@@ -538,7 +538,7 @@ ATTRIBUTE_NO_RETURN void Panic_Series_Debug(
     // during mold and other times.
     //
     printf("\n\n*** Panic_Series() in %s at line %d\n", file, line);
-    if (SER_FREED(series))
+    if (IS_FREE_NODE(series))
         printf("Likely freed ");
     else
         printf("Likely created ");

@@ -996,7 +996,7 @@ void Free_Routine(REBRIN *rin)
 
     // cif and ffargs are GC-managed, will free themselves
 
-    Free_Node(RIN_POOL, (REBNOD*)rin);
+    Free_Node(RIN_POOL, rin);
 }
 
 

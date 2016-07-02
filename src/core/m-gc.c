@@ -188,6 +188,42 @@ inline static void Queue_Mark_Context_Deep(REBCTX *c) {
     Queue_Mark_Array_Deep(CTX_VARLIST(c));
 }
 
+static void Queue_Mark_Routine_Deep(REBRIN *r);
+
+inline static void Queue_Mark_Function_Deep(REBFUN *f) {
+    Queue_Mark_Array_Deep(FUNC_PARAMLIST(f));
+
+    // Need to queue the mark of the array for the body--as trying
+    // to mark the "singular" value directly could infinite loop.
+    //
+    Queue_Mark_Array_Deep(FUNC_VALUE(f)->payload.function.body_holder);
+
+    if (FUNC_META(f) != NULL)
+        Queue_Mark_Context_Deep(FUNC_META(f));
+
+    // Of all the function types, only the routines and callbacks use
+    // HANDLE! and must be explicitly pointed out in the body.
+    //
+    if (IS_FUNCTION_RIN(FUNC_VALUE(f)))
+        Queue_Mark_Routine_Deep(VAL_FUNC_ROUTINE(FUNC_VALUE(f)));
+}
+
+inline static void Queue_Mark_Anything_Deep(REBSER *s) {
+    if (IS_REBSER_MARKED(s))
+        return;
+
+    // !!! Temporary: Does not support functions yet, so don't use a function
+    // as a GC root!
+
+    if (GET_SER_FLAG(s, ARRAY_FLAG_VARLIST))
+        Queue_Mark_Context_Deep(AS_CONTEXT(s));
+  /*  else if (GET_SER_FLAG(s, ARRAY_FLAG_PARAMLIST))
+        Queue_Mark_Function_Deep(AS_FUNC(s));
+    else */ if (Is_Array_Series(s))
+        Queue_Mark_Array_Deep(AS_ARRAY(s));
+    else
+        MARK_REBSER(s);
+}
 
 // Non-Queued form for marking blocks.  Used for marking a *root set item*,
 // don't recurse from within Mark_Value/Mark_Gob/Mark_Array_Deep/etc.
@@ -750,21 +786,9 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
 
         case REB_FUNCTION: {
             assert(VAL_FUNC_PARAMLIST(val) == FUNC_PARAMLIST(VAL_FUNC(val)));
-            Queue_Mark_Array_Deep(VAL_FUNC_PARAMLIST(val));
+            Queue_Mark_Function_Deep(VAL_FUNC(val));
 
-            // Need to queue the mark of the array for the body--as trying
-            // to mark the "singular" value directly could infinite loop.
-            //
-            Queue_Mark_Array_Deep(val->payload.function.body_holder);
-
-            if (VAL_FUNC_META(val) != NULL)
-                Queue_Mark_Context_Deep(VAL_FUNC_META(val));
-
-            // Of all the function types, only the routines and callbacks use
-            // HANDLE! and must be explicitly pointed out in the body.
-            //
-            if (IS_FUNCTION_RIN(val))
-                Queue_Mark_Routine_Deep(VAL_FUNC_ROUTINE(val));
+            // !!! Needs to mark the exit/binding...
             break;
         }
 
@@ -1070,7 +1094,7 @@ static void Mark_Array_Deep_Core(REBARR *array)
     // and that it hasn't been freed.
     //
     assert(GET_ARR_FLAG(array, SERIES_FLAG_ARRAY));
-    assert(!SER_FREED(ARR_SERIES(array)));
+    assert(!IS_FREE_NODE(ARR_SERIES(array)));
 #endif
 
     value = ARR_HEAD(array);
@@ -1113,35 +1137,110 @@ static void Mark_Array_Deep_Core(REBARR *array)
 // amount of time...making it seem contentious with the idea of
 // delegating it to the garbage collector in the first place.
 //
-ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(REBOOL shutdown)
+ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
 {
-    REBSEG *seg;
     REBCNT count = 0;
 
+    REBSEG *seg;
     for (seg = Mem_Pools[SER_POOL].segs; seg; seg = seg->next) {
         REBSER *series = cast(REBSER *, seg + 1);
         REBCNT n;
         for (n = Mem_Pools[SER_POOL].units; n > 0; n--, series++) {
-            // See notes on Make_Node() about how the first allocation of a
-            // unit zero-fills *most* of it.  But after that it's up to the
-            // caller of Free_Node() to zero out whatever bits it uses to
-            // indicate "freeness".  We check the zeroness of the `wide`.
-            if (SER_FREED(series))
+            if (IS_FREE_NODE(series))
                 continue;
 
-            if (IS_SERIES_MANAGED(series)) {
-                if (shutdown || !IS_REBSER_MARKED(series)) {
-                    GC_Kill_Series(series);
-                    count++;
-                } else
-                    UNMARK_REBSER(series);
+            if (!IS_SERIES_MANAGED(series))
+                continue;
+
+            if (IS_REBSER_MARKED(series)) {
+                UNMARK_REBSER(series);
+                continue;
             }
+
+            // !!! There used to be a `shutdown` test here, but shouldn't
+            // shutdown just not mark anything and GC everything anyway?
+
+            if (series->header.bits & CELL_MASK)
+                Free_Pairing(cast(REBVAL*, series));
             else
-                assert(!IS_REBSER_MARKED(series));
+                GC_Kill_Series(series);
+
+            count++;
         }
     }
 
     return count;
+}
+
+
+//
+//  Mark_Root_Series: C
+//
+// In Ren-C, there is a concept of there being an open number of GC roots.
+// Through the API, each cell held by a "paired" which is under GC management
+// is considered to be a root.
+//
+// There is also a special ability of a paired, such that if the "key" is
+// a frame with a certain bit set, then it will tie its lifetime to the
+// lifetime of that frame on the stack.  (Not to the lifetime of the FRAME!
+// value itself, which could be indefinite.)
+//
+ATTRIBUTE_NO_SANITIZE_ADDRESS static void Mark_Root_Series(void)
+{
+    REBSEG *seg;
+    for (seg = Mem_Pools[SER_POOL].segs; seg; seg = seg->next) {
+        REBSER *s = cast(REBSER *, seg + 1);
+        REBCNT n;
+        for (n = Mem_Pools[SER_POOL].units; n > 0; --n, ++s) {
+            if (IS_FREE_NODE(s))
+                continue;
+
+            if (IS_REBSER_MARKED(s))
+                continue;
+
+            if (NOT(s->header.bits & REBSER_REBVAL_FLAG_ROOT))
+                continue;
+
+            // If something is marked as a root, then it has its contents
+            // GC managed...even if it is not itself a candidate for GC.
+
+            if (s->header.bits & CELL_MASK) {
+                //
+                // There is a special feature of root paired series, which
+                // is that if the "key" is a frame marked in a certain way,
+                // it will tie its lifetime to that of the execution of that
+                // frame.  When the frame is done executing, it will no
+                // longer preserve the paired.
+                //
+                // (Note: This does not have anything to do with the lifetime
+                // of the FRAME! value itself, which could be indefinite.)
+                //
+                REBVAL *key = cast(REBVAL*, s);
+                REBVAL *pairing = key + 1;
+                if (
+                    IS_FRAME(key)
+                    && GET_VAL_FLAG(key, ANY_CONTEXT_FLAG_OWNS_PAIRED)
+                    /*&& !Is_Context_Running_Or_Pending(VAL_CONTEXT(key))*/
+                ){
+                    Free_Pairing(key); // don't consider a root
+                    continue;
+                }
+
+                // It's alive and a root.  Pick up its dependencies deeply.
+                //
+                MARK_REBSER(s);
+                Queue_Mark_Value_Deep(key);
+                Queue_Mark_Value_Deep(pairing);
+            }
+            else {
+                // We have to do the queueing based on whatever type of series
+                // this is.  So if it's a context, we have to get the
+                // keylist...etc.
+                //
+                Queue_Mark_Anything_Deep(s);
+            }
+        }
+    }
 }
 
 
@@ -1163,7 +1262,7 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Gobs(void)
     for (seg = Mem_Pools[GOB_POOL].segs; seg; seg = seg->next) {
         gob = (REBGOB *) (seg + 1);
         for (n = Mem_Pools[GOB_POOL].units; n > 0; --n, ++gob) {
-            if (gob->header.bits == 0) // unused REBNOD
+            if (IS_FREE_NODE(gob)) // unused REBNOD
                 continue;
 
             if (IS_GOB_MARK(gob))
@@ -1196,7 +1295,7 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Routines(void)
         REBRIN *rin = cast(REBRIN*, seg + 1);
         REBCNT n;
         for (n = Mem_Pools[RIN_POOL].units; n > 0; n--) {
-            if (rin->header.bits == 0)
+            if (IS_FREE_NODE(rin))
                 continue; // not used
 
             assert(GET_RIN_FLAG(rin, ROUTINE_FLAG_USED)); // redundant?
@@ -1403,8 +1502,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
 
         // Mark all root series:
         //
-        Mark_Context_Deep(PG_Root_Context);
-        Mark_Context_Deep(TG_Task_Context);
+        Mark_Root_Series();
 
         // Mark potential error object from callback!
         if (!IS_VOID_OR_SAFE_TRASH(&Callback_Error)) {
@@ -1439,7 +1537,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
     // with pointers, which can't be simply discarded by Sweep_Series
     count = Sweep_Routines();
 
-    count += Sweep_Series(shutdown);
+    count += Sweep_Series();
     count += Sweep_Gobs();
 
     CHECK_MEMORY(4);

@@ -229,7 +229,14 @@ enum {
     // the bits by enumerating every series in the series pool during the
     // sweeping phase.)
     //
-    REBSER_REBVAL_FLAG_MARK = 1 << (GENERAL_VALUE_BIT + 1)
+    REBSER_REBVAL_FLAG_MARK = 1 << (GENERAL_VALUE_BIT + 1),
+
+    // `REBSER_REBVAL_FLAG_ROOT` indicates this should be treated as a
+    // root for GC purposes.  It only means anything on a REBVAL if that
+    // REBVAL happens to live in the key slot of a paired REBSER--it should
+    // not generally be set otherwise.
+    //
+    REBSER_REBVAL_FLAG_ROOT = 1 << (GENERAL_VALUE_BIT + 2),
 };
 
 
@@ -253,7 +260,7 @@ enum {
     // does not need to store any data in its payload... its data of being
     // true or false is already covered by this header bit.
     //
-    VALUE_FLAG_FALSE = 1 << (GENERAL_VALUE_BIT + 2),
+    VALUE_FLAG_FALSE = 1 << (GENERAL_VALUE_BIT + 3),
 
     // `VALUE_FLAG_LINE`
     //
@@ -266,7 +273,7 @@ enum {
     // !!! The native `new-line` is used set this, which has a somewhat
     // poor name considering its similarity to `newline` the line feed char.
     //
-    VALUE_FLAG_LINE = 1 << (GENERAL_VALUE_BIT + 3),
+    VALUE_FLAG_LINE = 1 << (GENERAL_VALUE_BIT + 4),
 
     // `VALUE_FLAG_THROWN`
     //
@@ -296,7 +303,7 @@ enum {
     //        /* handling code */
     //     }
     //
-    VALUE_FLAG_THROWN = 1 << (GENERAL_VALUE_BIT + 4),
+    VALUE_FLAG_THROWN = 1 << (GENERAL_VALUE_BIT + 5),
 
     // `VALUE_FLAG_RELATIVE` is used to indicate a value that needs to have
     // a specific context added into it before it can have its bits copied
@@ -306,7 +313,7 @@ enum {
     // of a function body must be relative also to the same function if
     // it contains any instances of such relative words.
     //
-    VALUE_FLAG_RELATIVE = 1 << (GENERAL_VALUE_BIT + 5),
+    VALUE_FLAG_RELATIVE = 1 << (GENERAL_VALUE_BIT + 6),
 
     // `VALUE_FLAG_EVALUATED` is a somewhat dodgy-yet-important concept.
     // This is that some functions wish to be sensitive to whether or not
