@@ -301,12 +301,23 @@ REBOOL Do_Path_Throws_Core(
 
         // Check for errors:
         if (NOT_END(pvs.item + 1) && !IS_FUNCTION(pvs.value)) {
+            //
             // Only function refinements should get by this line:
-            fail (Error(RE_INVALID_PATH, pvs.orig, pvs.item));
+
+            REBVAL specified_orig;
+            COPY_VALUE(&specified_orig, pvs.orig, specifier);
+
+            REBVAL specified_item;
+            COPY_VALUE(&specified_item, pvs.item, specifier);
+
+            fail (Error(RE_INVALID_PATH, &specified_orig, &specified_item));
         }
     }
-    else if (!IS_FUNCTION(pvs.value))
-        fail (Error(RE_BAD_PATH_TYPE, pvs.orig, Type_Of(pvs.value)));
+    else if (!IS_FUNCTION(pvs.value)) {
+        REBVAL specified;
+        COPY_VALUE(&specified, pvs.orig, specifier);
+        fail (Error(RE_BAD_PATH_TYPE, &specified, Type_Of(pvs.value)));
+    }
 
     if (opt_setval) {
         // If SET then we don't return anything

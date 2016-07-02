@@ -201,47 +201,6 @@ eval func [
 |
 
 
-is: func [
-    {Tests value for being of type or typeset, returns value if so else blank}
-    types [datatype! typeset! block!]
-    value [<opt> any-value!]
-    /relax
-        {Do not trigger an error if types contain LOGIC! or BLANK!.}
-][
-    if not set? 'value [return blank]
-
-    if block? types [types: make typeset! types]
-
-    case [
-        datatype? types [
-            unless relax [
-                if logic! = types [
-                    fail "use IS/RELAX to allow a LOGIC! false result"
-                ]
-                if blank! = types [
-                    fail "use IS/RELAX to allow a BLANK! result"
-                ]
-            ]
-            if types = type-of :value [return :value]
-        ]
-
-        typeset? types [
-            unless relax [
-                if find types logic! [
-                    fail "use IS/RELAX to allow a LOGIC! false result"
-                ]
-                if find types blank! [
-                    fail "use IS/RELAX to allow a BLANK! result"
-                ]
-            ]
-            if find types type-of :value [return :value]
-        ]
-    ]
-
-    blank
-]
-
-
 decode-url: _ ; set in sys init
 
 r3-legacy*: _ ; set in %mezz-legacy.r

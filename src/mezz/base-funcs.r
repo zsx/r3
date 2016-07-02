@@ -117,7 +117,15 @@ procedure: specialize :make-action [generator: :proc]
 dig-function-meta-fields: function [value [function!]] [
     meta: meta-of :value
 
-    underlying: is function! any [
+    unless meta [
+        return construct system/standard/function-meta [
+            description: _
+            parameter-types: make frame! :value
+            parameter-notes: make frame! :value
+        ]
+    ]
+
+    underlying: maybe function! any [
         :meta/specializee
         :meta/adaptee
         :meta/hijackee
@@ -138,21 +146,21 @@ dig-function-meta-fields: function [value [function!]] [
         return child
     ]
 
-    return make system/standard/function-meta [
+    return construct system/standard/function-meta [
         description: (
-            is string! any [
+            maybe string! any [
                 select meta 'description
                 all [fields | copy fields/description]
             ]
         )
         parameter-types: (
-            is frame! any [
+            maybe frame! any [
                 select meta 'parameter-types
                 all [fields | inherit-frame :fields/parameter-types]
             ]
         )
         parameter-notes: (
-            is frame! any [
+            maybe frame! any [
                 select meta 'parameter-notes
                 all [fields | inherit-frame :fields/parameter-notes]
             ]
@@ -745,32 +753,62 @@ default: func [
 ]
 
 
-ensure: func [
+maybe: func [
+    {If value is type, typeset, or logic match passthru, else return blank}
+    types [datatype! typeset! block! logic!]
+    value [<opt> any-value!]
+    /relax
+        {Do not trigger an error if types contain LOGIC! or BLANK!.}
+][
+    if not set? 'value [return blank]
+
+    if block? types [types: make typeset! types]
+
+    case [
+        logic? types [
+            if types = (true? :value) [return :value]
+            return blank
+        ]
+
+        datatype? types [
+            unless relax [
+                if logic! = types [
+                    fail "use /RELAX to allow a LOGIC! false result"
+                ]
+                if blank! = types [
+                    fail "use /RELAX to allow a BLANK! result"
+                ]
+            ]
+            if types = type-of :value [return :value]
+        ]
+
+        typeset? types [
+            unless relax [
+                if find types logic! [
+                    fail "use /RELAX to allow a LOGIC! false result"
+                ]
+                if find types blank! [
+                    fail "use /RELAX to allow a BLANK! result"
+                ]
+            ]
+            if find types type-of :value [return :value]
+        ]
+    ]
+
+    blank
+]
+
+
+ensure: function [
     {Pass through a value only if it matches types (or TRUE?/FALSE? state)}
     types [block! datatype! typeset! logic!]
     arg [any-value!] ;-- not <opt>, so implicitly ensured to be non-void
-    ; !!! To be rewritten as a native once behavior is pinned down.
+    /relax
 ][
-    if logic? types [
-        unless types = (true? :arg) [
-            fail [
-                "ENSURE expected" (mold :arg)
-                "to be" (either types {TRUE?} {FALSE?})
-            ]
-        ]
-        return :arg
-    ]
-
-    unless find (case [
-        block? :types [make typeset! types]
-        typeset? :types [types]
-        datatype? :types [reduce [types]] ;-- we'll find DATATYPE! in a block
-        fail 'unreachable
-    ]) type-of :arg [
+    unless result: maybe/(if relax ['relax]) types :arg [
         fail ["ENSURE did not expect arg to have type" (type-of :arg)]
     ]
-
-    :arg
+    :result
 ]
 
 

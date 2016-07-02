@@ -16,18 +16,18 @@ spec-of: function [
 
     value [function!]
 ][
-    meta: is object! meta-of :value
+    meta: maybe object! meta-of :value
 
-    specializee: is function! select meta 'specializee
-    adaptee: is function! select meta 'specializee
-    original-meta: is object! any [
+    specializee: maybe function! select meta 'specializee
+    adaptee: maybe function! select meta 'specializee
+    original-meta: maybe object! any [
         all [:specializee | meta-of :specializee]
         all [:adaptee | meta-of :adaptee]
     ]
 
     spec: copy []
 
-    if description: is string! any [
+    if description: maybe string! any [
         select meta 'description
         select original-meta 'description
     ][
@@ -35,11 +35,11 @@ spec-of: function [
         new-line back spec true
     ]
 
-    types: is frame! any [
+    types: maybe frame! any [
         select meta 'parameter-types
         select original-meta 'parameter-types
     ]
-    notes: is frame! any [
+    notes: maybe frame! any [
         select meta 'parameter-notes
         select original-meta 'parameter-notes
     ]
@@ -294,7 +294,7 @@ help: procedure [
     ;
     meta: meta-of :value
     all [
-        original-name: is word! (
+        original-name: maybe word! (
             any [
                 select meta 'specializee-name
                 select meta 'adaptee-name
@@ -304,10 +304,10 @@ help: procedure [
         original-name: uppercase mold original-name
     ]
 
-    specializee: is function! select meta 'specializee
-    adaptee: is function! select meta 'adaptee
-    chainees: is block! select meta 'chainees
-    hijackee: is function! select meta 'hijackee
+    specializee: maybe function! select meta 'specializee
+    adaptee: maybe function! select meta 'adaptee
+    chainees: maybe block! select meta 'chainees
+    hijackee: maybe function! select meta 'hijackee
 
     classification: case [
         :specializee [
@@ -361,12 +361,12 @@ help: procedure [
                 insert str tab ;-- double tab arguments to refinements
             ]
 
-            note: is string! select notes to-word param
-            type: is [block! any-word!] select types to-word param
+            note: maybe string! select notes to-word param
+            type: maybe [block! any-word!] select types to-word param
 
             if note [repend str [" -- " note]]
 
-            if all [types | not refinement? param] [
+            if all [type | not refinement? param] [
                 repend str [space "(" type ")"]
             ]
 
