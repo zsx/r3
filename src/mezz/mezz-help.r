@@ -11,6 +11,89 @@ REBOL [
     }
 ]
 
+; !!! R3-Alpha labeled this "MOVE THIS INTERNAL FUNC" but it is actually used
+; to search for patterns in HELP when you type in something that isn't bound,
+; so it uses that as a string pattern.  Review how to better factor that
+; (as part of a general help review)
+;
+dump-obj: function [
+    "Returns a block of information about an object or port."
+    obj [object! port!]
+    /match "Include only those that match a string or datatype" pat
+][
+    clip-str: func [str] [
+        ; Keep string to one line.
+        trim/lines str
+        if (length str) > 45 [str: append copy/part str 45 "..."]
+        str
+    ]
+
+    form-val: func [val] [
+        ; Form a limited string from the value provided.
+        if any-block? :val [return reform ["length:" length val]]
+        if image? :val [return reform ["size:" val/size]]
+        if datatype? :val [return get in spec-of val 'title]
+        if function? :val [
+            return clip-str any [title-of :val mold spec-of :val]
+        ]
+        if object? :val [val: words-of val]
+        if typeset? :val [val: to-block val]
+        if port? :val [val: reduce [val/spec/title val/spec/ref]]
+        if gob? :val [return reform ["offset:" val/offset "size:" val/size]]
+        clip-str mold :val
+    ]
+
+    form-pad: func [val size] [
+        ; Form a value with fixed size (space padding follows).
+        val: form val
+        insert/dup tail val #" " size - length val
+        val
+    ]
+
+    ; Search for matching strings:
+    out: copy []
+    wild: all [set? 'pat | string? pat | find pat "*"]
+
+    for-each [word val] obj [
+        type: type-of :val
+
+        str: either any [function? :type object? :type] [
+            reform [word mold spec-of :val words-of :val]
+        ][
+            form word
+        ]
+        if any [
+            not match
+            all [
+                not void? :val
+                either string? :pat [
+                    either wild [
+                        tail? any [find/any/match str pat pat]
+                    ][
+                        find str pat
+                    ]
+                ][
+                    all [
+                        datatype? get :pat
+                        type = :pat
+                    ]
+                ]
+            ]
+        ][
+            str: form-pad word 15
+            append str #" "
+            append str form-pad type 10 - ((length str) - 15)
+            append out reform [
+                "  " str
+                if type [form-val :val]
+                newline
+            ]
+        ]
+    ]
+    out
+]
+
+
 spec-of: function [
     {Generate a block which could be used as a "spec block" from a function.}
 
