@@ -1377,7 +1377,11 @@ reevaluate:
         // left on the stack with a pointer to the `param` and `arg` after
         // them for later fulfillment.
         //
-        if (DSP != f->dsp_orig) {
+        // Note that there may be functions on the stack if this is the
+        // second time through, and we were just jumping up to check the
+        // parameters in response to a R_REDO_CHECKED; if so, skip this.
+        //
+        if (DSP != f->dsp_orig && !IS_FUNCTION(DS_TOP)) {
             if (!IS_VARARGS(DS_TOP)) {
                 //
                 // The walk through the arguments didn't fill in any
@@ -1406,8 +1410,6 @@ reevaluate:
     // FUNCTION! ARGUMENTS NOW GATHERED, DISPATCH CALL
     //
     //==////////////////////////////////////////////////////////////////==//
-
-        assert(DSP == f->dsp_orig);
 
         // Now we reset arg to the head of the argument list.  This provides
         // fast access for the callees, so they don't have to go through an
