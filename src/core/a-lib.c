@@ -423,17 +423,13 @@ RL_API int RL_Do_String(
     REBCNT flags,
     RXIARG *out
 ) {
-    REBARR *code;
-
-    struct Reb_State state;
-    REBCTX *error;
-
-    REBVAL result;
-
     // assumes it can only be run at the topmost level where
     // the data stack is completely empty.
     //
     assert(DSP == 0);
+
+    struct Reb_State state;
+    REBCTX *error;
 
     PUSH_UNHALTABLE_TRAP(&error, &state);
 
@@ -456,8 +452,7 @@ RL_API int RL_Do_String(
         return -ERR_NUM(error);
     }
 
-    code = Scan_Source(text, LEN_BYTES(text));
-    PUSH_GUARD_ARRAY(code);
+    REBARR *code = Scan_UTF8_Managed(text, LEN_BYTES(text));
 
     // Bind into lib or user spaces?
     if (flags) {
@@ -475,9 +470,8 @@ RL_API int RL_Do_String(
         Resolve_Context(user, Lib_Context, &vali, FALSE, FALSE);
     }
 
-    if (Do_At_Throws(&result, code, 0, SPECIFIED)) { // loaded code nonrelative
-        DROP_GUARD_ARRAY(code);
-
+    REBVAL result;
+    if (Do_At_Throws(&result, code, 0, SPECIFIED)) { // implicitly guarded
         if (
             IS_FUNCTION(&result) && (
                 VAL_FUNC_DISPATCHER(&result) == &N_quit
@@ -493,8 +487,6 @@ RL_API int RL_Do_String(
 
         fail (Error_No_Catch_For_Throw(&result));
     }
-
-    DROP_GUARD_ARRAY(code);
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 

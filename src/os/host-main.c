@@ -289,8 +289,6 @@ int Do_String(
     const REBYTE *text,
     REBOOL at_breakpoint
 ) {
-    REBARR *code;
-
     struct Reb_State state;
     REBCTX *error;
 
@@ -325,7 +323,7 @@ int Do_String(
         return -ERR_NUM(error);
     }
 
-    code = Scan_Source(text, LEN_BYTES(text));
+    REBARR *code = Scan_UTF8_Managed(text, LEN_BYTES(text));
 
     // Where code ends up being bound when loaded at the REPL prompt should
     // be more generally configurable.  (It may be, for instance, that one
@@ -535,7 +533,9 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
         0 == Find_Canon_In_Context(Lib_Context, STR_CANON(debug_name), TRUE) &&
         0 == Find_Canon_In_Context(user_context, STR_CANON(debug_name), TRUE)
     ) {
-        REBARR *spec_array = Scan_Source(N_debug_spec, LEN_BYTES(N_debug_spec));
+        REBARR *spec_array = Scan_UTF8_Managed(
+            N_debug_spec, LEN_BYTES(N_debug_spec)
+        );
         REBVAL spec;
         Val_Init_Block(&spec, spec_array);
 

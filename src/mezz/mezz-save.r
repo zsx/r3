@@ -116,7 +116,7 @@ save: function [
             method: _
         ]
 
-        length_SAVE: is integer! select header-data 'length
+        length_SAVE: maybe integer! select header-data 'length
         header-data: body-of header-data
     ]
 

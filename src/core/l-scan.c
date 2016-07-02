@@ -299,20 +299,6 @@ const REBYTE Lower_Case[256] =
 
 
 //
-//  Skip_To_Byte: C
-// 
-// Skip to the specified byte but not past the provided end
-// pointer of the byte string.  Return NULL if byte is not found.
-//
-const REBYTE *Skip_To_Byte(const REBYTE *cp, const REBYTE *ep, REBYTE b)
-{
-    while (cp != ep && *cp != b) cp++;
-    if (*cp == b) return cp;
-    return NULL;
-}
-
-
-//
 //  Scan_UTF8_Char_Escapable: C
 // 
 // Scan a char, handling ^A, ^/, ^(null), ^(1234)
@@ -603,51 +589,45 @@ static REBCTX *Error_Bad_Scan(
     const REBYTE *arg,
     REBCNT size
 ) {
-    REBCTX *error;
-
-    const REBYTE *name;
-    const REBYTE *cp;
-    const REBYTE *bp;
-    REBSER *ser;
-    REBCNT len = 0;
-
-    ERROR_VARS *vars; // C struct mirroring fixed portion of error fields
-    REBVAL arg1;
-    REBVAL arg2;
-
     assert(errnum != 0);
 
-    ss->errors++;
-
+    const REBYTE *name;
     if (PG_Boot_Strs)
         name = BOOT_STR(RS_SCAN,tkn);
     else
         name = cb_cast("boot");
 
-    cp = ss->head_line;
+    const REBYTE *cp = ss->head_line;
     while (IS_LEX_SPACE(*cp)) cp++; // skip indentation
-    bp = cp;
+
+    REBCNT len = 0;
+    const REBYTE *bp = cp;
     while (!ANY_CR_LF_END(*cp)) {
         cp++;
         len++;
     }
 
-    ser = Make_Binary(len + 16);
+    REBSER *ser = Make_Binary(len + 16);
     Append_Unencoded(ser, "(line ");
     Append_Int(ser, ss->line_count);
     Append_Unencoded(ser, ") ");
     Append_Series(ser, bp, len);
 
+    REBVAL arg1;
     Val_Init_String(&arg1, Copy_Bytes(name, -1));
+
+    REBVAL arg2;
     Val_Init_String(&arg2, Copy_Bytes(arg, size));
 
-    error = Error(errnum, &arg1, &arg2, END_CELL);
+    REBCTX *error = Error(errnum, &arg1, &arg2, END_CELL);
 
     // Write the NEAR information (`Error()` gets it from FS_TOP)
+    // Vars is a C struct mirroring fixed portion of error fields
     //
-    vars = ERR_VARS(error);
+    ERROR_VARS *vars = ERR_VARS(error);
     Val_Init_String(&vars->nearest, ser);
 
+    ss->errors++;
     return error;
 }
 
@@ -1373,25 +1353,27 @@ static REBINT Scan_Head(SCAN_STATE *scan_state)
 }
 
 
-static REBARR *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char);
+static REBARR *Scan_Full_Array(SCAN_STATE *scan_state, REBYTE mode_char);
 
 //
-//  Scan_Block: C
+//  Scan_Array: C
 // 
-// Scan a block (or group) and return it.
-// Sub scanners may return bad by setting value type to zero.
+// Scans an array of values, based on a mode_char.  This character can be
+// '[', '(', or '/' to indicate the processing type.  Always returns array.
 //
-static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
-{
-    REBVAL cell;
-
-    REBINT token;
-    REBCNT len;
-    const REBYTE *bp;
-    const REBYTE *ep;
-    REBVAL *value = NULL;
+// If the source bytes are "1" then it will be the array [1]
+// If the source bytes are "[1]" then it will be the array [[1]]
+//
+// Variations like GET-PATH!, SET-PATH! or LIT-PATH! are not discerned in
+// the result. here.  Instead, ordinary path scanning is done, followed by a
+// transformation (e.g. if the first element was a GET-WORD!, change it to
+// an ordinary WORD! and make it a GET-PATH!)
+//
+static REBARR *Scan_Array(
+    SCAN_STATE *scan_state,
+    REBYTE mode_char
+) {
     REBARR *emitbuf = BUF_EMIT;
-    REBARR *block;
     REBCNT begin = ARR_LEN(emitbuf);   // starting point in block buffer
     REBOOL line = FALSE;
 #ifdef COMP_LINES
@@ -1399,28 +1381,30 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
 #endif
     REBCNT start = scan_state->line_count;
     const REBYTE *start_line = scan_state->head_line;
+
     // just_once for load/next see Load_Script for more info.
     REBOOL just_once = GET_FLAG(scan_state->opts, SCAN_NEXT);
-    REB_MOLD mo;
 
+    REB_MOLD mo;
     CLEARS(&mo);
 
-    if (C_STACK_OVERFLOWING(&token)) Trap_Stack_Overflow();
+    if (C_STACK_OVERFLOWING(&emitbuf)) Trap_Stack_Overflow();
 
     if (just_once)
         CLR_FLAG(scan_state->opts, SCAN_NEXT); // no deeper
 
+    REBVAL *value = NULL;
+    REBINT token;
     while (
 #ifdef COMP_LINES
         linenum=scan_state->line_count,
 #endif
         Drop_Mold_If_Pushed(&mo),
         ((token = Locate_Token_May_Push_Mold(&mo, scan_state)) != TOKEN_END)
-    ) {
-
-        bp = scan_state->begin;
-        ep = scan_state->end;
-        len = (REBCNT)(ep - bp);
+    ){
+        const REBYTE *bp = scan_state->begin;
+        const REBYTE *ep = scan_state->end;
+        REBCNT len = cast(REBCNT, ep - bp);
 
         if (token < 0) {    // Check for error tokens
             token = -token;
@@ -1458,32 +1442,35 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
             )
             && mode_char != '/'
         ) {
-            block = Scan_Block(scan_state, '/');  // (could realloc emitbuf)
-            value = SINK(ARR_TAIL(emitbuf));
+            REBARR *array = Scan_Array(scan_state, '/'); // may realloc emitbuf
+
+            REBVAL *any_path = SINK(ARR_TAIL(emitbuf));
+
             if (token == TOKEN_LIT) {
-                token = REB_LIT_PATH;
-                VAL_RESET_HEADER(ARR_HEAD(block), REB_WORD);
-                assert(IS_WORD_UNBOUND(ARR_HEAD(block)));
+                VAL_RESET_HEADER(value, REB_LIT_PATH);
+                VAL_RESET_HEADER(ARR_HEAD(array), REB_WORD);
+                assert(IS_WORD_UNBOUND(ARR_HEAD(array)));
             }
-            else if (IS_GET_WORD(ARR_HEAD(block))) {
+            else if (IS_GET_WORD(ARR_HEAD(array))) {
                 if (*scan_state->end == ':') goto syntax_error;
-                token = REB_GET_PATH;
-                VAL_RESET_HEADER(ARR_HEAD(block), REB_WORD);
-                assert(IS_WORD_UNBOUND(ARR_HEAD(block)));
+                VAL_RESET_HEADER(any_path, REB_GET_PATH);
+                VAL_RESET_HEADER(ARR_HEAD(array), REB_WORD);
+                assert(IS_WORD_UNBOUND(ARR_HEAD(array)));
             }
             else {
                 if (*scan_state->end == ':') {
-                    token = REB_SET_PATH;
+                    VAL_RESET_HEADER(any_path, REB_SET_PATH);
                     scan_state->begin = ++(scan_state->end);
-                } else token = REB_PATH;
+                }
+                else
+                    VAL_RESET_HEADER(any_path, REB_PATH);
             }
-            VAL_RESET_HEADER(value, cast(enum Reb_Kind, token));
-            INIT_VAL_ARRAY(value, block); // copies args
-            VAL_INDEX(value) = 0;
+            INIT_VAL_ARRAY(any_path, array); // copies args
+            VAL_INDEX(any_path) = 0;
             token = TOKEN_PATH;
-        } else {
-            scan_state->begin = scan_state->end; // accept token
         }
+        else
+            scan_state->begin = scan_state->end; // accept token
 
         // Process each lexical token appropriately:
         switch (token) {  // (idea is that compiler selects computed branch)
@@ -1556,24 +1543,24 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
             break;
 
         case TOKEN_BLOCK_BEGIN:
-        case TOKEN_PAREN_BEGIN:
-            block = Scan_Block(
+        case TOKEN_PAREN_BEGIN: {
+            REBARR *array = Scan_Array(
                 scan_state, (token == TOKEN_BLOCK_BEGIN) ? ']' : ')'
             );
             // (above line could have realloced emitbuf)
             ep = scan_state->end;
             value = SINK(ARR_TAIL(emitbuf));
             if (scan_state->errors) {
-                *value = *KNOWN(ARR_LAST(block)); // Copy the error
+                *value = *KNOWN(ARR_LAST(array)); // Copy the error
                 SET_ARRAY_LEN(emitbuf, ARR_LEN(emitbuf) + 1);
                 goto exit_block;
             }
             Val_Init_Array(
                 value,
                 (token == TOKEN_BLOCK_BEGIN) ? REB_BLOCK : REB_GROUP,
-                block
+                array
             );
-            break;
+            break; }
 
         case TOKEN_PATH:
             break;
@@ -1705,29 +1692,29 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
                 SET_ARRAY_LEN(emitbuf, ARR_LEN(emitbuf) + 1);
             }
 
-            block = Scan_Full_Block(scan_state, ']');
+            REBARR *array = Scan_Full_Array(scan_state, ']');
 
             // !!! Should the scanner be doing binding at all, and if so why
             // just Lib_Context?  Not binding would break functions entirely,
             // but they can't round-trip anyway.  See #2262.
             //
-            Bind_Values_All_Deep(ARR_HEAD(block), Lib_Context);
+            Bind_Values_All_Deep(ARR_HEAD(array), Lib_Context);
 
-            if (ARR_LEN(block) == 0 || !IS_WORD(ARR_AT(block, 0))) {
+            if (ARR_LEN(array) == 0 || !IS_WORD(ARR_HEAD(array))) {
                 REBVAL temp;
-                Val_Init_Block(&temp, block);
+                Val_Init_Block(&temp, array);
                 fail (Error(RE_MALCONSTRUCT, &temp));
             }
 
-            REBSYM sym = VAL_WORD_SYM(ARR_AT(block, 0));
+            REBSYM sym = VAL_WORD_SYM(ARR_HEAD(array));
             if (IS_KIND_SYM(sym)) {
                 enum Reb_Kind kind = KIND_FROM_SYM(sym);
 
                 MAKE_FUNC dispatcher = Make_Dispatch[TO_0_FROM_KIND(kind)];
 
-                if (dispatcher == NULL || ARR_LEN(block) != 2) {
+                if (dispatcher == NULL || ARR_LEN(array) != 2) {
                     REBVAL temp;
-                    Val_Init_Block(&temp, block);
+                    Val_Init_Block(&temp, array);
                     fail (Error(RE_MALCONSTRUCT, &temp));
                 }
 
@@ -1736,22 +1723,23 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
                 // the scanner is a questionable idea, but at the very least
                 // `block` must be guarded.
                 //
-                PUSH_GUARD_ARRAY(block);
+                REBVAL cell;
+                PUSH_GUARD_ARRAY(array);
                 SET_TRASH_SAFE(&cell);
                 PUSH_GUARD_VALUE(&cell);
 
-                dispatcher(&cell, kind, KNOWN(ARR_AT(block, 1))); // may fail()
+                dispatcher(&cell, kind, KNOWN(ARR_AT(array, 1))); // may fail()
 
                 assert(!IS_TRASH_DEBUG(&cell));
 
                 *value = cell;
                 DROP_GUARD_VALUE(&cell);
-                DROP_GUARD_ARRAY(block);
+                DROP_GUARD_ARRAY(array);
             }
             else {
-                if (ARR_LEN(block) != 1) {
+                if (ARR_LEN(array) != 1) {
                     REBVAL temp;
-                    Val_Init_Block(&temp, block);
+                    Val_Init_Block(&temp, array);
                     fail (Error(RE_MALCONSTRUCT, &temp));
                 }
 
@@ -1779,7 +1767,7 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
                 default:
                     {
                     REBVAL temp;
-                    Val_Init_Block(&temp, block);
+                    Val_Init_Block(&temp, array);
                     fail (Error(RE_MALCONSTRUCT, &temp));
                     }
                 }
@@ -1819,9 +1807,9 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
         if (!IS_END(value))
             SET_ARRAY_LEN(emitbuf, ARR_LEN(emitbuf) + 1);
         else {
-            REBCTX *error;
-        syntax_error:
-            error = Error_Bad_Scan(
+        syntax_error: ; // needs to be a statement
+
+            REBCTX *error = Error_Bad_Scan(
                 RE_INVALID,
                 scan_state,
                 cast(REBCNT, token),
@@ -1834,28 +1822,6 @@ static REBARR *Scan_Block(SCAN_STATE *scan_state, REBYTE mode_char)
                 goto exit_block;
             }
             fail (error);
-
-        missing_error:
-            scan_state->line_count = start; // where block started
-            scan_state->head_line = start_line;
-        extra_error: {
-                REBYTE tmp_buf[4];  // Temporary error string
-                tmp_buf[0] = mode_char;
-                tmp_buf[1] = 0;
-                error = Error_Bad_Scan(
-                    RE_MISSING,
-                    scan_state,
-                    cast(REBCNT, token),
-                    tmp_buf,
-                    1
-                );
-                if (GET_FLAG(scan_state->opts, SCAN_RELAX)) {
-                    Val_Init_Error(ARR_TAIL(emitbuf), error);
-                    SET_ARRAY_LEN(emitbuf, ARR_LEN(emitbuf) + 1);
-                    goto exit_block;
-                }
-                fail (error);
-            }
         }
 
         // Check for end of path:
@@ -1887,11 +1853,13 @@ exit_block:
     Print((REBYTE*)"block of %d values ", emitbuf->tail - begin);
 #endif
 
-    len = ARR_LEN(emitbuf);
-    block = Copy_Values_Len_Shallow(
-        ARR_AT(emitbuf, begin), SPECIFIED, len - begin // no RELVALs in scan
+    REBARR *result;
+    result = Copy_Values_Len_Shallow(
+        ARR_AT(emitbuf, begin),
+        SPECIFIED, // no RELVALs in scan
+        ARR_LEN(emitbuf) - begin
     );
-    ASSERT_SERIES_TERM(ARR_SERIES(block));
+    ASSERT_SERIES_TERM(ARR_SERIES(result));
 
     SET_ARRAY_LEN(emitbuf, begin);
 
@@ -1899,7 +1867,7 @@ exit_block:
     // the tree after constructing it to add the "manage GC" bit would be
     // too expensive, and we don't load source and free it manually anyway)
     //
-    MANAGE_ARRAY(block);
+    MANAGE_ARRAY(result);
 
     // In Legacy mode, it can be helpful to know if a block of code is
     // loaded after legacy mode is turned on.  This way, for instance a
@@ -1911,40 +1879,66 @@ exit_block:
     //
 #if !defined(NDEBUG)
     if (LEGACY(OPTIONS_REFINEMENTS_BLANK))
-        SET_ARR_FLAG(block, SERIES_FLAG_LEGACY);
+        SET_ARR_FLAG(result, SERIES_FLAG_LEGACY);
 #endif
 
-    return block;
+    return result;
+
+missing_error:
+
+    scan_state->line_count = start; // where block started
+    scan_state->head_line = start_line;
+
+extra_error: ; // needs to label a statement
+
+    REBYTE tmp_buf[4];  // Temporary error string
+    tmp_buf[0] = mode_char;
+    tmp_buf[1] = 0;
+
+    REBCTX *error = Error_Bad_Scan(
+        RE_MISSING,
+        scan_state,
+        cast(REBCNT, token),
+        tmp_buf,
+        1
+    );
+    if (GET_FLAG(scan_state->opts, SCAN_RELAX)) {
+        Val_Init_Error(ARR_TAIL(emitbuf), error);
+        SET_ARRAY_LEN(emitbuf, ARR_LEN(emitbuf) + 1);
+        goto exit_block;
+    }
+    fail (error);
 }
 
 
 //
-//  Scan_Full_Block: C
+//  Scan_Full_Array: C
 // 
 // Simple variation of scan_block to avoid problem with
 // construct of aggregate values.
 //
-static REBARR *Scan_Full_Block(SCAN_STATE *scan_state, REBYTE mode_char)
+static REBARR *Scan_Full_Array(SCAN_STATE *scan_state, REBYTE mode_char)
 {
-    REBOOL only = GET_FLAG(scan_state->opts, SCAN_ONLY);
-    REBARR *array;
+    REBOOL saved_only = GET_FLAG(scan_state->opts, SCAN_ONLY);
     CLR_FLAG(scan_state->opts, SCAN_ONLY);
-    array = Scan_Block(scan_state, mode_char);
-    if (only) SET_FLAG(scan_state->opts, SCAN_ONLY);
+
+    REBARR *array = Scan_Array(scan_state, mode_char);
+
+    if (saved_only) SET_FLAG(scan_state->opts, SCAN_ONLY);
     return array;
 }
 
 
 //
-//  Scan_Source: C
+//  Scan_UTF8_Managed: C
 // 
 // Scan source code. Scan state initialized. No header required.
 //
-REBARR *Scan_Source(const REBYTE *src, REBCNT len)
+REBARR *Scan_UTF8_Managed(const REBYTE *utf8, REBCNT len)
 {
     SCAN_STATE scan_state;
-    Init_Scan_State(&scan_state, src, len);
-    return Scan_Block(&scan_state, 0);
+    Init_Scan_State(&scan_state, utf8, len);
+    return Scan_Array(&scan_state, 0);
 }
 
 
@@ -2030,7 +2024,7 @@ REBNATIVE(transcode)
     // If the source data bytes are "1" then it will be the block [1]
     // if the source data is "[1]" then it will be the block [[1]]
 
-    Val_Init_Block(D_OUT, Scan_Block(&scan_state, 0));
+    Val_Init_Block(D_OUT, Scan_Array(&scan_state, 0));
 
     // Add a value to the tail of the result, representing the input
     // with position advanced past the content consumed by the scan.

@@ -709,6 +709,19 @@ typedef u16 REBUNI;
 **
 ***********************************************************************/
 
+// Skip to the specified byte but not past the provided end
+// pointer of the byte string.  Return NULL if byte is not found.
+//
+inline static const REBYTE *Skip_To_Byte(
+    const REBYTE *cp,
+    const REBYTE *ep,
+    REBYTE b
+) {
+    while (cp != ep && *cp != b) cp++;
+    if (*cp == b) return cp;
+    return 0;
+}
+
 typedef unsigned int REBFLGS; // Collection of bit flags, CPU optimized
 
 #define FLAGIT(f)           (1u << (f))
