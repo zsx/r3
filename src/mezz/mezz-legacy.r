@@ -1105,7 +1105,7 @@ set 'r3-legacy* func [<local> if-flags] [
                 adapt 'switch [use [last-was-block] [
                     last-was-block: false
                     for-next cases [
-                        if is [get-word! get-path! group!] cases/1 [
+                        if maybe [get-word! get-path! group!] cases/1 [
                             fail [{SWITCH non-<r3-legacy> evaluates} (cases/1)]
                         ]
                         if block? cases/1 [

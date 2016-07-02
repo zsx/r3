@@ -814,7 +814,8 @@ REBSER *Try_Find_Containing_Series_Debug(const void *pointer)
             // check if either of those is the case.
 
             if (pointer < cast(void*, series->content.dynamic.data)) {
-                Debug_Fmt("Pointer found in freed head capacity of series");
+                printf("Pointer found in freed head capacity of series\n");
+                fflush(stdout);
                 return series;
             }
 
@@ -822,7 +823,8 @@ REBSER *Try_Find_Containing_Series_Debug(const void *pointer)
                 series->content.dynamic.data
                 + (SER_WIDE(series) * SER_LEN(series))
             )) {
-                Debug_Fmt("Pointer found in freed tail capacity of series");
+                printf("Pointer found in freed tail capacity of series\n");
+                fflush(stdout);
                 return series;
             }
 
