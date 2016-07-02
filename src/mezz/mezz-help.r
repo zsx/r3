@@ -344,8 +344,12 @@ help: procedure [
     ; If it has refinements, strip them:
     ;if path? :word [word: first :word]
 
+    space4: rejoin [space space space space] ;-- use instead of tab
+
     ;-- Print info about function:
-    prin "USAGE:^/^-"
+    print/only [
+        "USAGE:" newline
+        space4]
 
     args: _ ;-- plain arguments
     refinements: _ ;-- refinements and refinement arguments
@@ -431,39 +435,36 @@ help: procedure [
             |
         "DESCRIPTION:" newline
             |
-        tab (any [description | "(undocumented)"]) newline
+        [space4 (any [description | "(undocumented)"])] newline
             |
-        tab (uppercase mold word) {is} [classification {.}]
+        [space4 (uppercase mold word)] {is} [classification {.}]
     ]
 
     print-args: procedure [list /indent-words] [
         for-each param list [
-            str: ajoin [tab param] ;-- single tab arguments
-
-            if all [indent-words | word? param] [
-                insert str tab ;-- double tab arguments to refinements
-            ]
-
             note: maybe string! select notes to-word param
             type: maybe [block! any-word!] select types to-word param
 
-            if note [repend str [" -- " note]]
-
-            if all [type | not refinement? param] [
-                repend str [space "(" type ")"]
+            ;-- parameter name and type line
+            either all [type | not refinement? param] [
+                print [[space4 param] ["[" type "]"]]
+            ][
+                print [[space4 param]]
             ]
 
-            print str
+            if note [
+                print [[space4 space4 note]]
+            ]
         ]
     ]
 
     unless empty? args [
-        print "^/ARGUMENTS:"
+        print [newline "ARGUMENTS:"]
         print-args args
     ]
 
     unless empty? refinements [
-        print "^/REFINEMENTS:"
+        print [newline "REFINEMENTS:"]
         print-args/indent-words refinements
     ]
 ]
