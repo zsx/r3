@@ -183,12 +183,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 
     REBOOL durable = FALSE;
 
-    // We want to be able to notice when words are duplicated, and a binder
-    // can be used for that purpose.
-    //
-    struct Reb_Binder binder;
-    INIT_BINDER(&binder);
-
     REBDSP dsp_orig = DSP;
     assert(DS_TOP == DS_AT(dsp_orig));
 
@@ -407,8 +401,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         // in the hash table that it is present.  Any non-zero value is ok.
         //
         REBSTR *canon = VAL_WORD_CANON(item);
-        if (NOT(Try_Add_Binder_Index(&binder, canon, 1020)))
-            fail (Error(RE_DUP_VARS, item));
 
         // In rhythm of TYPESET! BLOCK! STRING! we want to be on a string spot
         // at the time of the push of each new typeset.
@@ -538,7 +530,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     if (flags & MKF_LEAVE) {
         if (definitional_leave == NULL) { // no LEAVE: pure local explicit
             REBSTR *canon_leave = Canon(SYM_LEAVE);
-            Add_Binder_Index(&binder, canon_leave, 1020);
 
             DS_PUSH_TRASH;
             definitional_leave = DS_TOP;
@@ -557,7 +548,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     if (flags & MKF_RETURN) {
         if (definitional_return == NULL) { // no RETURN: pure local explicit
             REBSTR *canon_return = Canon(SYM_RETURN);
-            Add_Binder_Index(&binder, canon_return, 1020);
 
             DS_PUSH_TRASH;
             definitional_return = DS_TOP;
@@ -582,7 +572,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //
     REBCNT num_slots = (DSP - dsp_orig) / 3;
 
-    // Must make the function "paramlist" even if "empty", for identity
+    // Must make the function "paramlist" even if "empty", for identity.
     //
     REBARR *paramlist = Make_Array(num_slots);
     if (TRUE) {
@@ -593,12 +583,43 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         dest->extra.binding = NULL;
         ++dest;
 
-        REBVAL *src = DS_AT(dsp_orig + 1);
-        src += 3;
+        // We want to check for duplicates and a Binder can be used for that
+        // purpose--but note that a fail() cannot happen while binders are
+        // in effect UNLESS the BUF_COLLECT contains information to undo it!
+        // There's no BUF_COLLECT here, so don't fail while binder in effect.
+        //
+        // (This is why we wait until the parameter list gathering process
+        // is over to do the duplicate checks--it can fail.)
+        //
+        struct Reb_Binder binder;
+        INIT_BINDER(&binder);
+
+        REBSTR *duplicate = NULL;
+
+        REBVAL *src = DS_AT(dsp_orig + 1) + 3;
+
         for (; src <= DS_TOP; src += 3, ++dest) {
             assert(IS_TYPESET(src));
             *dest = *src;
-            Remove_Binder_Index(&binder, VAL_PARAM_CANON(dest));
+
+            if (!Try_Add_Binder_Index(&binder, VAL_PARAM_CANON(src), 1020))
+                duplicate = VAL_PARAM_SPELLING(src);
+        }
+
+        // Must remove binder indexes for all words, even if about to fail
+        //
+        src = DS_AT(dsp_orig + 1) + 3;
+        for (; src <= DS_TOP; src += 3, ++dest) {
+            if (!Try_Remove_Binder_Index(&binder, VAL_PARAM_CANON(src)))
+                assert(duplicate != NULL);
+        }
+
+        SHUTDOWN_BINDER(&binder);
+
+        if (duplicate) {
+            REBVAL word;
+            Val_Init_Word(&word, REB_WORD, duplicate);
+            fail (Error(RE_DUP_VARS, duplicate));
         }
 
         TERM_ARRAY_LEN(paramlist, num_slots);
@@ -612,8 +633,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         //
         SET_ARR_FLAG(paramlist, SERIES_FLAG_FIXED_SIZE);
     }
-
-    SHUTDOWN_BINDER(&binder);
 
     //=///////////////////////////////////////////////////////////////////=//
     //
