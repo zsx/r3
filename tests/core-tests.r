@@ -2415,7 +2415,7 @@
 ; minimum
 [tuple? make tuple! []]
 ; maximum
-[tuple? 255.255.255.255.255.255.255.255.255.255]
+[tuple? 255.255.255.255.255.255.255]
 [error? try [load "255.255.255.255.255.255.255.255.255.255.255"]]
 ; datatypes/typeset.r
 [typeset? any-array!]
@@ -2980,11 +2980,9 @@
 [equal? 0.0.0 0.0.0]
 [not equal? 0.0.1 0.0.0]
 ; tuple! right-pads with 0
-[equal? 1.0.0 1.0.0.0.0.0.0.0.0.0]
+[equal? 1.0.0 1.0.0.0.0.0.0]
 ; tuple! right-pads with 0
-[equal? 1.0.0.0.0.0.0.0.0.0 1.0.0]
-; tuple! right-pads with 0
-[not equal? 1.0.0 0.0.0.0.0.0.0.1.0.0]
+[equal? 1.0.0.0.0.0.0 1.0.0]
 ; No implicit to binary! from tuple!
 [
     a-value: 0.0.0.0

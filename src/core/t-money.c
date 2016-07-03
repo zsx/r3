@@ -213,35 +213,47 @@ REBTYPE(Money)
         *D_OUT = *D_ARG(1);
         return R_OUT;
 
-    case SYM_ROUND:
-        arg = D_ARG(3);
-        if (D_REF(2)) {
-            if (IS_INTEGER(arg))
-                SET_MONEY(arg, int_to_deci(VAL_INT64(arg)));
-            else if (IS_DECIMAL(arg) || IS_PERCENT(arg))
-                SET_MONEY(arg, decimal_to_deci(VAL_DECIMAL(arg)));
-            else if (!IS_MONEY(arg)) fail (Error_Invalid_Arg(arg));
+    case SYM_ROUND: {
+        REFINE(2, to);
+        PARAM(3, scale);
+
+        REBVAL *scale = ARG(scale);
+
+        REBVAL temp;
+        if (REF(to)) {
+            if (IS_INTEGER(scale))
+                SET_MONEY(&temp, int_to_deci(VAL_INT64(scale)));
+            else if (IS_DECIMAL(scale) || IS_PERCENT(scale))
+                SET_MONEY(&temp, decimal_to_deci(VAL_DECIMAL(scale)));
+            else if (IS_MONEY(scale))
+                temp = *scale;
+            else
+                fail (Error_Invalid_Arg(scale));
         }
+        else
+            SET_MONEY(&temp, int_to_deci(0));
+
         SET_MONEY(D_OUT, Round_Deci(
             VAL_MONEY_AMOUNT(val),
             Get_Round_Flags(frame_),
-            VAL_MONEY_AMOUNT(arg)
+            VAL_MONEY_AMOUNT(&temp)
         ));
-        if (D_REF(2)) {
-            if (IS_DECIMAL(arg) || IS_PERCENT(arg)) {
+
+        if (REF(to)) {
+            if (IS_DECIMAL(scale) || IS_PERCENT(scale)) {
                 REBDEC dec = deci_to_decimal(VAL_MONEY_AMOUNT(D_OUT));
-                VAL_RESET_HEADER(D_OUT, VAL_TYPE(arg));
+                VAL_RESET_HEADER(D_OUT, VAL_TYPE(scale));
                 VAL_DECIMAL(D_OUT) = dec;
                 return R_OUT;
             }
-            if (IS_INTEGER(arg)) {
+            if (IS_INTEGER(scale)) {
                 REBI64 i64 = deci_to_int(VAL_MONEY_AMOUNT(D_OUT));
                 VAL_RESET_HEADER(D_OUT, REB_INTEGER);
                 VAL_INT64(D_OUT) = i64;
                 return R_OUT;
             }
         }
-        break;
+        break; }
 
     case SYM_EVEN_Q:
     case SYM_ODD_Q: {

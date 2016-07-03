@@ -83,7 +83,7 @@ void MAKE_Tuple(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
         RELVAL *item = VAL_ARRAY_AT(arg);
 
         for (; NOT_END(item); ++item, ++vp, ++len) {
-            if (len >= 10) goto bad_make;
+            if (len >= MAX_TUPLE) goto bad_make;
             if (IS_INTEGER(item)) {
                 n = Int32(item);
             }
@@ -99,7 +99,7 @@ void MAKE_Tuple(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
 
         VAL_TUPLE_LEN(out) = len;
 
-        for (; len < 10; len++) *vp++ = 0;
+        for (; len < MAX_TUPLE; len++) *vp++ = 0;
         return;
     }
 

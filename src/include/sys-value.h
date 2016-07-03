@@ -1035,7 +1035,7 @@ inline static void SET_TIME(RELVAL *v, REBI64 nanoseconds) {
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// TUPLE! is a Rebol2/R3-Alpha concept to fit up to 10 byte-sized integers
+// TUPLE! is a Rebol2/R3-Alpha concept to fit up to 7 byte-sized integers
 // directly into a value payload without needing to make a series allocation.
 // At source level they would be numbers separated by dots, like `1.2.3.4.5`.
 // This was mainly applied for IP addresses and RGB/RGBA constants, and
@@ -1048,7 +1048,8 @@ inline static void SET_TIME(RELVAL *v, REBI64 nanoseconds) {
 // generalized partner to PATH!, where `a.b.1` would be like a/b/1
 //
 
-#define MAX_TUPLE 10
+#define MAX_TUPLE \
+    ((sizeof(REBCNT) * 2) - 1) // for same properties on 64-bit and 32-bit
 
 #define VAL_TUPLE(v) \
     ((v)->payload.tuple.tuple + 1)

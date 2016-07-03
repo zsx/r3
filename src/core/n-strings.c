@@ -801,8 +801,13 @@ REBNATIVE(to_hex)
     }
     else if (IS_TUPLE(arg)) {
         REBINT n;
-        if (len < 0 || len > 2 * MAX_TUPLE || len > 2 * VAL_TUPLE_LEN(arg))
+        if (
+            len < 0
+            || len > 2 * cast(REBINT, MAX_TUPLE)
+            || len > 2 * VAL_TUPLE_LEN(arg)
+        ){
             len = 2 * VAL_TUPLE_LEN(arg);
+        }
         for (n = 0; n < VAL_TUPLE_LEN(arg); n++)
             buf = Form_Hex2(buf, VAL_TUPLE(arg)[n]);
         for (; n < 3; n++)
