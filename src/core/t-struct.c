@@ -1150,17 +1150,12 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
                fail (Error_Invalid_Arg(arg));
 
             if (IS_BLOCK(item)) {
-                if (Reduce_Array_Throws(
-                    init,
-                    VAL_ARRAY(item),
-                    0,
-                    IS_SPECIFIC(item)
-                        ? VAL_SPECIFIER(KNOWN(item))
-                        : VAL_SPECIFIER(arg),
-                    FALSE
-                )) {
+                REBVAL specified;
+                COPY_VALUE(&specified, item, VAL_SPECIFIER(arg));
+
+                if (Reduce_Any_Array_Throws(init, &specified, FALSE))
                     fail (Error_No_Catch_For_Throw(init));
-                }
+
                 ++item;
             }
             else {

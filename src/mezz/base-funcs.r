@@ -391,6 +391,7 @@ parse?: redescribe [
 ; errors when people are "outside the bounds" of assurance RE:infixedness.
 
 arity-of: function [
+    "Get the number of fixed parameters (not refinements or refinement args)"
     value [any-word! any-path! function!]
 ][
     if path? :value [fail "arity-of for paths is not yet implemented."]

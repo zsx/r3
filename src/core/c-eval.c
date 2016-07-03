@@ -1682,7 +1682,7 @@ reevaluate:
             &f->eval_type, // gets set to ET_LOOKBACK (or ET_FUNCTION if not)
             f->value,
             f->specifier,
-            GETVAR_READ_ONLY
+            GETVAR_READ_ONLY | GETVAR_UNBOUND_OK
         );
 
     //=//// DO/NEXT WON'T RUN MORE CODE UNLESS IT'S AN INFIX FUNCTION /////=//
@@ -1696,8 +1696,11 @@ reevaluate:
 
         START_NEW_EXPRESSION(f);
 
-        if (!IS_FUNCTION(f->gotten)) // <-- DO_COUNT_BREAKPOINT landing spot
-            goto do_word_in_value_with_gotten;
+        if (!f->gotten) // <-- DO_COUNT_BREAKPOINT landing spot
+            goto do_word_in_value_with_gotten; // let it handle the error
+
+        if (!IS_FUNCTION(f->gotten))
+            goto do_word_in_value_with_gotten; // reuse the work of Get_Var
 
         SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
 

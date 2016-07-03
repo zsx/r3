@@ -388,23 +388,17 @@ REBNATIVE(wait)
     REFINE(2, all);
     REFINE(3, only);
 
-    RELVAL *val = ARG(value);
     REBINT timeout = 0; // in milliseconds
     REBARR *ports = NULL;
     REBINT n = 0;
 
     SET_BLANK(D_OUT);
 
-    if (IS_BLOCK(val)) {
+    RELVAL *val;
+    if (IS_BLOCK(ARG(value))) {
         REBVAL unsafe; // temporary not safe from GC
 
-        if (Reduce_Array_Throws(
-            &unsafe,
-            VAL_ARRAY(ARG(value)),
-            VAL_INDEX(val),
-            VAL_SPECIFIER(ARG(value)),
-            FALSE
-        )) {
+        if (Reduce_Any_Array_Throws(&unsafe, ARG(value), FALSE)) {
             *D_OUT = unsafe;
             return R_OUT_IS_THROWN;
         }
@@ -420,6 +414,8 @@ REBNATIVE(wait)
             // SET_BLANK(val); // no timeout -- BUG: unterminated block in GC
         }
     }
+    else
+        val = ARG(value);
 
     if (NOT_END(val)) {
         switch (VAL_TYPE(val)) {

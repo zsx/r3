@@ -616,10 +616,11 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 
         SHUTDOWN_BINDER(&binder);
 
-        if (duplicate) {
+        if (duplicate != NULL) {
             REBVAL word;
             Val_Init_Word(&word, REB_WORD, duplicate);
-            fail (Error(RE_DUP_VARS, duplicate));
+            PROBE(spec);
+            fail (Error(RE_DUP_VARS, &word));
         }
 
         TERM_ARRAY_LEN(paramlist, num_slots);
@@ -1691,15 +1692,9 @@ REBNATIVE(chain)
         chainees = COPY_ANY_ARRAY_AT_DEEP_MANAGED(pipeline);
     }
     else {
-        if (Reduce_Array_Throws(
-            out,
-            VAL_ARRAY(pipeline),
-            VAL_INDEX(pipeline),
-            VAL_SPECIFIER(pipeline),
-            FALSE
-        )) {
+        if (Reduce_Any_Array_Throws(out, pipeline, FALSE))
             return R_OUT_IS_THROWN;
-        }
+
         chainees = VAL_ARRAY(out); // should be all specific values
         ASSERT_ARRAY_MANAGED(chainees);
     }

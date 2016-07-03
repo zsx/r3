@@ -77,7 +77,7 @@ void MAKE_Tuple(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
     }
 
     if (ANY_ARRAY(arg)) {
-        REBINT len = 0;
+        REBCNT len = 0;
         REBINT n;
 
         RELVAL *item = VAL_ARRAY_AT(arg);
@@ -195,7 +195,7 @@ REBINT PD_Tuple(REBPVS *pvs)
     n = Get_Num_From_Arg(pvs->selector);
 
     if ((setval = pvs->opt_setval)) {
-        if (n <= 0 || n > MAX_TUPLE)
+        if (n <= 0 || n > cast(REBINT, MAX_TUPLE))
             fail (Error_Bad_Path_Select(pvs));
 
         if (IS_INTEGER(setval) || IS_DECIMAL(setval))

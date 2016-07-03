@@ -6935,7 +6935,6 @@
 [error? first reduce [try [1 / 0]]]
 ; unwind functions should stop evaluation, bug#1760
 [void? loop 1 [reduce [break]]]
-[void? loop 1 [reduce/no-set [a: break]]]
 [1 = loop 1 [reduce [break/return 1]]]
 [void? loop 1 [reduce [continue]]]
 [1 = catch [reduce [throw 1]]]

@@ -26,57 +26,37 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// !!! The R3-Alpha REDUCE routine contained several auxiliariy refinements
-// used by fringe dialects.  These need review for whether they are still in
-// working order--or if they need to just be replaced or removed.
-//
 
 #include "sys-core.h"
 
 //
-//  Reduce_Array_Throws: C
+//  Reduce_Any_Array_Throws: C
 //
 // Reduce array from the index position specified in the value.
-// Collect all values from stack and make them into a BLOCK! REBVAL.
 //
-// !!! Review generalization of this to produce an array and not a REBVAL
-// of a particular kind.
+// If `into` then splice into the existing `out`.  Otherwise, overwrite the
+// `out` with all values collected from the stack, into an array matching the
+// type of the input.  So [1 + 1 2 + 2] => [3 4], and 1/+/1/2/+/2 => 3/4
 //
-REBOOL Reduce_Array_Throws(
+REBOOL Reduce_Any_Array_Throws(
     REBVAL *out,
-    REBARR *array,
-    REBCNT index,
-    REBCTX *specifier,
+    REBVAL *any_array,
     REBOOL into
 ) {
     REBDSP dsp_orig = DSP;
-    REBIXO indexor = index;
 
-    // Through the DO_NEXT_MAY_THROW interface, we can't tell the difference
-    // between DOing an array that evaluates to void and an empty
-    // array, because both give back an unset value and an end position.  But
-    // we want:
-    //
-    //     reduce [] => []
-    //     reduce [()] => error
-    //
-    // So must do a special check to handle the former.  This could be changed
-    // to use the lower level DO API, however.
-    //
-    if (IS_END(ARR_AT(array, index))) {
-        if (into)
-            return FALSE;
+    Reb_Enumerator e;
+    PUSH_SAFE_ENUMERATOR(&e, any_array); // REDUCE-ing could disrupt any-array
 
-        Val_Init_Block(out, Make_Array(0));
-        return FALSE;
-    }
+    while (NOT_END(e.value)) {
+        UPDATE_EXPRESSION_START(&e); // informs the error delivery better
 
-    while (indexor != END_FLAG) {
         REBVAL reduced;
-        indexor = DO_NEXT_MAY_THROW(&reduced, array, indexor, specifier);
-        if (indexor == THROWN_FLAG) {
+        DO_NEXT_REFETCH_MAY_THROW(&reduced, &e, DO_FLAG_LOOKAHEAD);
+        if (THROWN(&reduced)) {
             *out = reduced;
             DS_DROP_TO(dsp_orig);
+            DROP_SAFE_ENUMERATOR(&e);
             return TRUE;
         }
 
@@ -98,121 +78,9 @@ REBOOL Reduce_Array_Throws(
     if (into)
         Pop_Stack_Values_Into(out, dsp_orig);
     else
-        Val_Init_Block(out, Pop_Stack_Values(dsp_orig));
+        Val_Init_Array(out, VAL_TYPE(any_array), Pop_Stack_Values(dsp_orig));
 
-    return FALSE;
-}
-
-
-//
-//  Reduce_Only: C
-//
-// Reduce only words and paths not found in word list.
-//
-void Reduce_Only(
-    REBVAL *out,
-    REBARR *block,
-    REBCNT index,
-    REBCTX *specifier,
-    REBVAL *words,
-    REBOOL into
-) {
-    REBDSP dsp_orig = DSP;
-    RELVAL *item;
-    REBARR *arr = 0;
-    REBCNT idx = 0;
-
-    if (IS_BLOCK(words)) {
-        arr = VAL_ARRAY(words);
-        idx = VAL_INDEX(words);
-    }
-
-    for (item = ARR_AT(block, index); NOT_END(item); item++) {
-        if (IS_WORD(item)) {
-            // Check for keyword:
-            if (
-                arr &&
-                NOT_FOUND != Find_Word_In_Array(arr, idx, VAL_WORD_CANON(item))
-            ) {
-                DS_PUSH_RELVAL(item, specifier);
-                continue;
-            }
-
-            DS_PUSH(GET_OPT_VAR_MAY_FAIL(item, specifier));
-        }
-        else if (IS_PATH(item)) {
-            REBVAL temp;
-
-            if (arr) {
-                // Check for keyword/path:
-                const RELVAL *v = VAL_ARRAY_AT(item);
-                if (IS_WORD(v)) {
-                    if (
-                        NOT_FOUND
-                        != Find_Word_In_Array(arr, idx, VAL_WORD_CANON(v))
-                    ) {
-                        DS_PUSH_RELVAL(item, specifier);
-                        continue;
-                    }
-                }
-            }
-
-            if (Do_Path_Throws_Core(&temp, NULL, item, specifier, NULL))
-                fail (Error_No_Catch_For_Throw(&temp));
-
-            DS_PUSH(&temp);
-        }
-        else
-            DS_PUSH_RELVAL(item, specifier);
-    }
-
-    if (into)
-        Pop_Stack_Values_Into(out, dsp_orig);
-    else
-        Val_Init_Block(out, Pop_Stack_Values(dsp_orig));
-
-    assert(DSP == dsp_orig);
-}
-
-
-//
-//  Reduce_Array_No_Set_Throws: C
-//
-REBOOL Reduce_Array_No_Set_Throws(
-    REBVAL *out,
-    REBARR *block,
-    REBCNT index,
-    REBCTX *specifier,
-    REBOOL into
-) {
-    REBDSP dsp_orig = DSP;
-    REBIXO indexor = index;
-
-    while (index < ARR_LEN(block)) {
-        RELVAL *value = ARR_AT(block, index);
-        if (IS_SET_WORD(value)) {
-            DS_PUSH_RELVAL(value, specifier);
-            index++;
-        }
-        else {
-            REBVAL reduced;
-            indexor = DO_NEXT_MAY_THROW(&reduced, block, indexor, specifier);
-
-            if (indexor == THROWN_FLAG) {
-                *out = reduced;
-                DS_DROP_TO(dsp_orig);
-                return TRUE;
-            }
-
-            DS_PUSH(&reduced);
-        }
-    }
-
-    if (into)
-        Pop_Stack_Values_Into(out, dsp_orig);
-    else
-        Val_Init_Block(out, Pop_Stack_Values(dsp_orig));
-
+    DROP_SAFE_ENUMERATOR(&e);
     return FALSE;
 }
 
@@ -223,12 +91,6 @@ REBOOL Reduce_Array_No_Set_Throws(
 //  {Evaluates expressions and returns multiple results.}
 //
 //      value
-//      /no-set
-//          "Keep set-words as-is. Do not set them."
-//      /only
-//          "Only evaluate words and paths, not functions"
-//      words [block! blank!]
-//          "Optional words that are not evaluated (keywords)"
 //      /into
 //          {Output results into a series with no intermediate storage}
 //      target [any-array!]
@@ -237,11 +99,8 @@ REBOOL Reduce_Array_No_Set_Throws(
 REBNATIVE(reduce)
 {
     PARAM(1, value);
-    REFINE(2, no_set);
-    REFINE(3, only);
-    PARAM(4, words);
-    REFINE(5, into);
-    PARAM(6, target);
+    REFINE(2, into);
+    PARAM(3, target);
 
     REBVAL *value = ARG(value);
 
@@ -249,48 +108,11 @@ REBNATIVE(reduce)
         if (REF(into))
             *D_OUT = *ARG(target);
 
-        if (REF(no_set)) {
-            if (Reduce_Array_No_Set_Throws(
-                D_OUT,
-                VAL_ARRAY(value),
-                VAL_INDEX(value),
-                VAL_SPECIFIER(value),
-                REF(into)
-            )) {
-                return R_OUT_IS_THROWN;
-            }
-        }
-        else if (REF(only)) {
-            Reduce_Only(
-                D_OUT,
-                VAL_ARRAY(value),
-                VAL_INDEX(value),
-                VAL_SPECIFIER(value),
-                ARG(words),
-                REF(into)
-            );
-        }
-        else {
-            if (Reduce_Array_Throws(
-                D_OUT,
-                VAL_ARRAY(value),
-                VAL_INDEX(value),
-                VAL_SPECIFIER(value),
-                REF(into)
-            )) {
-                return R_OUT_IS_THROWN;
-            }
+        if (Reduce_Any_Array_Throws(D_OUT, value, REF(into))) {
+            return R_OUT_IS_THROWN;
         }
 
         return R_OUT;
-    }
-
-    if (REF(only) || REF(no_set) || REF(into)) {
-        //
-        // !!! These features on single elements have not been defined or
-        // implemented, and should be reviewed.
-        //
-        fail (Error(RE_MISC));
     }
 
     // A single element should do what is effectively an evaluation but with
@@ -302,12 +124,30 @@ REBNATIVE(reduce)
     if (EVAL_VALUE_THROWS(D_OUT, value))
         return R_OUT_IS_THROWN;
 
+    if (!REF(into))
+        return R_OUT; // just return the evaluated item if no /INTO target
+
+    REBVAL *into = ARG(target);
+    assert(ANY_ARRAY(into));
+    FAIL_IF_LOCKED_ARRAY(VAL_ARRAY(into));
+
+    // Insert the single item into the target array at its current position,
+    // and return the position after the insertion (the /INTO convention)
+
+    VAL_INDEX(into) = Insert_Series(
+        ARR_SERIES(VAL_ARRAY(into)),
+        VAL_INDEX(into),
+        cast(REBYTE*, D_OUT),
+        1 // multiplied by width (sizeof(REBVAL)) in Insert_Series
+    );
+
+    *D_OUT = *into;
     return R_OUT;
 }
 
 
 //
-//  Compose_Values_Throws: C
+//  Compose_Any_Array_Throws: C
 //
 // Compose a block from a block of un-evaluated values and GROUP! arrays that
 // are evaluated.  This calls into Do_Core, so if 'into' is provided, then its
@@ -318,30 +158,32 @@ REBNATIVE(reduce)
 //
 // Writes result value at address pointed to by out.
 //
-REBOOL Compose_Values_Throws(
+REBOOL Compose_Any_Array_Throws(
     REBVAL *out,
-    const RELVAL *head,
-    REBCTX *specifier,
+    const REBVAL *any_array,
     REBOOL deep,
     REBOOL only,
     REBOOL into
 ) {
-    const RELVAL *value = head;
     REBDSP dsp_orig = DSP;
 
-    for (; NOT_END(value); value++) {
-        if (IS_GROUP(value)) {
+    Reb_Enumerator e;
+    PUSH_SAFE_ENUMERATOR(&e, any_array); // evaluating could disrupt any_array
+
+    while (NOT_END(e.value)) {
+        UPDATE_EXPRESSION_START(&e); // informs the error delivery better
+
+        if (IS_GROUP(e.value)) {
+            //
+            // We evaluate here, but disable lookahead so it only evaluates
+            // the GROUP! and doesn't trigger errors on what's after it.
+            //
             REBVAL evaluated;
-            if (Do_At_Throws(
-                &evaluated,
-                VAL_ARRAY(value),
-                VAL_INDEX(value),
-                IS_RELATIVE(value)
-                    ? specifier // if relative, use parent specifier...
-                    : VAL_SPECIFIER(const_KNOWN(value)) // ...else use child's
-            )) {
+            DO_NEXT_REFETCH_MAY_THROW(&evaluated, &e, DO_FLAG_NO_LOOKAHEAD);
+            if (THROWN(&evaluated)) {
                 *out = evaluated;
                 DS_DROP_TO(dsp_orig);
+                DROP_SAFE_ENUMERATOR(&e);
                 return TRUE;
             }
 
@@ -350,7 +192,7 @@ REBOOL Compose_Values_Throws(
                 // compose [blocks ([a b c]) merge] => [blocks a b c merge]
                 //
                 RELVAL *push = VAL_ARRAY_AT(&evaluated);
-                while (!IS_END(push)) {
+                while (NOT_END(push)) {
                     //
                     // `evaluated` is known to be specific, but its specifier
                     // may be needed to derelativize its children.
@@ -368,65 +210,71 @@ REBOOL Compose_Values_Throws(
             }
             else {
                 //
-                // compose [(print "Unsets *vanish*!")] => []
+                // compose [(print "Voids *vanish*!")] => []
                 //
             }
         }
         else if (deep) {
-            if (IS_BLOCK(value)) {
+            if (IS_BLOCK(e.value)) {
                 //
                 // compose/deep [does [(1 + 2)] nested] => [does [3] nested]
 
+                REBVAL specific;
+                COPY_VALUE(&specific, e.value, e.specifier);
+
                 REBVAL composed;
-                if (Compose_Values_Throws(
+                if (Compose_Any_Array_Throws(
                     &composed,
-                    VAL_ARRAY_AT(value),
-                    IS_RELATIVE(value)
-                        ? specifier // use parent specifier if relative...
-                        : VAL_SPECIFIER(const_KNOWN(value)), // ...else child's
+                    &specific,
                     TRUE,
                     only,
                     into
                 )) {
                     *out = composed;
                     DS_DROP_TO(dsp_orig);
+                    DROP_SAFE_ENUMERATOR(&e);
                     return TRUE;
                 }
 
                 DS_PUSH(&composed);
             }
             else {
-                DS_PUSH_RELVAL(value, specifier);
-                if (ANY_ARRAY(value)) {
+                if (ANY_ARRAY(e.value)) {
                     //
                     // compose [copy/(orig) (copy)] => [copy/(orig) (copy)]
                     // !!! path and second group are copies, first group isn't
                     //
                     REBARR *copy = Copy_Array_Shallow(
-                        VAL_ARRAY(value),
-                        IS_RELATIVE(value)
-                            ? specifier // use parent specifier if relative...
-                            : VAL_SPECIFIER(const_KNOWN(value)) // else child's
+                        VAL_ARRAY(e.value),
+                        IS_RELATIVE(e.value)
+                            ? e.specifier // use parent specifier if relative...
+                            : VAL_SPECIFIER(const_KNOWN(e.value)) // else child's
                     );
+                    DS_PUSH_TRASH;
                     Val_Init_Array_Index(
-                        DS_TOP, VAL_TYPE(value), copy, VAL_INDEX(value)
+                        DS_TOP, VAL_TYPE(e.value), copy, VAL_INDEX(e.value)
                     ); // ...manages
                 }
+                else
+                    DS_PUSH_RELVAL(e.value, e.specifier);
             }
+            FETCH_NEXT_ONLY_MAYBE_END(&e);
         }
         else {
             //
             // compose [[(1 + 2)] (reverse "wollahs")] => [[(1 + 2)] "shallow"]
             //
-            DS_PUSH_RELVAL(value, specifier);
+            DS_PUSH_RELVAL(e.value, e.specifier);
+            FETCH_NEXT_ONLY_MAYBE_END(&e);
         }
     }
 
     if (into)
         Pop_Stack_Values_Into(out, dsp_orig);
     else
-        Val_Init_Block(out, Pop_Stack_Values(dsp_orig));
+        Val_Init_Array(out, VAL_TYPE(any_array), Pop_Stack_Values(dsp_orig));
 
+    DROP_SAFE_ENUMERATOR(&e);
     return FALSE;
 }
 
@@ -469,10 +317,9 @@ REBNATIVE(compose)
     //
     if (REF(into)) *D_OUT = *ARG(out);
 
-    if (Compose_Values_Throws(
+    if (Compose_Any_Array_Throws(
         D_OUT,
-        VAL_ARRAY_HEAD(ARG(value)),
-        VAL_SPECIFIER(ARG(value)),
+        ARG(value),
         REF(deep),
         REF(only),
         REF(into)

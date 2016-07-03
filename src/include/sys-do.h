@@ -438,7 +438,7 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
             &child->eval_type, // sets to ET_LOOKBACK or ET_FUNCTION
             parent->value,
             parent->specifier,
-            GETVAR_READ_ONLY
+            GETVAR_READ_ONLY | GETVAR_UNBOUND_OK
         );
 
         // We only want to run the function if it is a lookback function,
@@ -471,6 +471,7 @@ no_optimization:
     assert(
         (child->flags & DO_FLAG_VA_LIST)
         || parent->index != child->index
+        || THROWN(out)
     );
     parent->pending = child->pending;
     SET_FRAME_VALUE(parent, child->value);
