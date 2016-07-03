@@ -594,5 +594,5 @@ seeked:
 //
 void Init_File_Scheme(void)
 {
-    Register_Scheme(Canon(SYM_FILE), 0, File_Actor);
+    Register_Scheme(Canon(SYM_FILE), File_Actor);
 }

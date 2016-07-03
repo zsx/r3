@@ -128,5 +128,5 @@ act_blk:
 //
 void Init_Timer_Scheme(void)
 {
-    Register_Scheme(SYM_TIMER, 0, Event_Actor);
+    Register_Scheme(SYM_TIMER, Event_Actor);
 }

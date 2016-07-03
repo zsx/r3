@@ -359,7 +359,7 @@ static REB_R UDP_Actor(struct Reb_Frame *frame_, REBCTX *port, REBSYM action)
 //
 void Init_TCP_Scheme(void)
 {
-    Register_Scheme(Canon(SYM_TCP), 0, TCP_Actor);
+    Register_Scheme(Canon(SYM_TCP), TCP_Actor);
 }
 
 //
@@ -367,5 +367,5 @@ void Init_TCP_Scheme(void)
 //
 void Init_UDP_Scheme(void)
 {
-    Register_Scheme(Canon(SYM_UDP), 0, UDP_Actor);
+    Register_Scheme(Canon(SYM_UDP), UDP_Actor);
 }

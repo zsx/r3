@@ -34,9 +34,8 @@
 #define EVAL_DOSE 10000
 
 // Boot Vars used locally:
-static  REBCNT  Action_Index;
-static  REBCNT  Action_Marker;
-static  BOOT_BLK *Boot_Block;
+
+static BOOT_BLK *Boot_Block;
 
 
 #ifdef WATCH_BOOT
@@ -665,11 +664,6 @@ static void Init_Natives(void)
     if (!action_word)
         panic (Error(RE_NATIVE_BOOT));
 
-    // Save index for action words.  This is used by Get_Action_Sym().  We
-    // have to subtract to account for the natives.
-    //
-    Action_Marker = CTX_LEN(Lib_Context);
-
     // With the natives registered (including ACTION), it's now safe to
     // run the evaluator to register the actions.
     //
@@ -679,17 +673,6 @@ static void Init_Natives(void)
     //
     if (0 != strcmp("open", cs_cast(STR_HEAD(Canon(SYM_OPEN)))))
         panic (Error(RE_NATIVE_BOOT));
-}
-
-
-//
-//  Get_Action_Value: C
-// 
-// Return the value (function) for a given Action number.
-//
-REBVAL *Get_Action_Value(REBSYM action)
-{
-    return CTX_VAR(Lib_Context, Action_Marker + cast(REBCNT, action));
 }
 
 

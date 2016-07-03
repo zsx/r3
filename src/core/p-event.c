@@ -234,9 +234,9 @@ act_blk:
 void Init_Event_Scheme(void)
 {
     req = 0; // move to port struct
-    Register_Scheme(Canon(SYM_SYSTEM), 0, Event_Actor);
-    Register_Scheme(Canon(SYM_EVENT), 0, Event_Actor);
-    Register_Scheme(Canon(SYM_CALLBACK), 0, Event_Actor);
+    Register_Scheme(Canon(SYM_SYSTEM), Event_Actor);
+    Register_Scheme(Canon(SYM_EVENT), Event_Actor);
+    Register_Scheme(Canon(SYM_CALLBACK), Event_Actor);
 }
 
 

@@ -261,5 +261,5 @@ static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBSYM action)
 //
 void Init_Serial_Scheme(void)
 {
-    Register_Scheme(Canon(SYM_SERIAL), 0, Serial_Actor);
+    Register_Scheme(Canon(SYM_SERIAL), Serial_Actor);
 }

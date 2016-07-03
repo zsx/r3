@@ -558,29 +558,6 @@ void Validate_Port(REBCTX *port, REBCNT action)
     }
 }
 
-/***********************************************************************
-**
-**  Scheme Native Action Support
-**
-**      This array is used to associate a scheme word with its
-**      native action functions.
-**
-**      Each native port scheme must be listed here. This list is
-**      created by each native scheme calling Register_Scheme()
-**      during initialization.
-**
-**  Example of defining actions:
-**
-**      static const PORT_ACTION File_Actions[] = {
-**          SYM_OPEN,     P_open,
-**          SYM_CLOSE,    P_close,
-**          0, 0
-**      }
-**
-**      Register_Scheme(SYM_FILE, &File_Actions[0], 0);
-**
-**
-***********************************************************************/
 
 #ifdef HAS_POSIX_SIGNAL
 #define MAX_SCHEMES 12      // max native schemes
@@ -590,7 +567,6 @@ void Validate_Port(REBCTX *port, REBCNT action)
 
 typedef struct rebol_scheme_actions {
     REBSTR *name;
-    const PORT_ACTION *map;
     REBPAF fun;
 } SCHEME_ACTIONS;
 
@@ -603,7 +579,7 @@ SCHEME_ACTIONS *Scheme_Actions; // Initial Global (not threaded)
 // Associate a scheme word (e.g. FILE) with a set of native
 // scheme actions. This will be used by the Set_Scheme native
 //
-void Register_Scheme(REBSTR *name, const PORT_ACTION *map, REBPAF fun)
+void Register_Scheme(REBSTR *name, REBPAF fun)
 {
     REBINT n;
 
@@ -611,52 +587,7 @@ void Register_Scheme(REBSTR *name, const PORT_ACTION *map, REBPAF fun)
     assert(n < MAX_SCHEMES);
 
     Scheme_Actions[n].name = name;
-    Scheme_Actions[n].map = map;
     Scheme_Actions[n].fun = fun;
-}
-
-
-//
-//  Make_Spec_From_Function: C
-//
-// !!! This is an interim hack to try and deal with the fact that some PORT!
-// related thing needs the spec from which actions were created--that the
-// system no longer stores.  Regenerate it quickly from the object data,
-// and ignore any inefficiency since this code is hopefully going away soon.
-//
-REBARR *Make_Spec_From_Function(REBVAL *func)
-{
-    REBARR *words = List_Func_Words(func, FALSE);
-    REBARR *spec = Make_Array(ARR_LEN(words) * 3 + 1);
-
-    REBCTX *types = NULL;
-    REBCTX *notes = NULL;
-
-    REBCTX *meta = VAL_FUNC_META(func);
-    if (meta) {
-        assert(CTX_LEN(meta) == 3); // description, parameter-types,notes
-
-        if (IS_STRING(CTX_VAR(meta, 1)))
-            Append_Value(spec, CTX_VAR(meta, 1));
-
-        if (IS_FRAME(CTX_VAR(meta, 2)))
-            types = VAL_CONTEXT(CTX_VAR(meta, 2));
-
-        if (IS_FRAME(CTX_VAR(meta, 3)))
-            notes = VAL_CONTEXT(CTX_VAR(meta, 3));
-    }
-
-    REBCNT index = 1;
-    for (; index <= ARR_LEN(words); ++index) {
-        Append_Value(spec, KNOWN(ARR_AT(words, index - 1)));
-        if (types && IS_BLOCK(CTX_VAR(types, index)))
-            Append_Value(spec, CTX_VAR(types, index));
-        if (notes && IS_STRING(CTX_VAR(notes, index)))
-            Append_Value(spec, CTX_VAR(notes, index));
-    }
-
-    Free_Array(words);
-    return spec;
 }
 
 
@@ -688,51 +619,28 @@ REBNATIVE(set_scheme)
     if (n == MAX_SCHEMES || Scheme_Actions[n].name == NULL)
         return R_BLANK;
 
-    // The scheme uses a native actor:
-    if (Scheme_Actions[n].fun) {
-        REBVAL *port_actor_spec = Get_System(SYS_STANDARD, STD_PORT_ACTOR_SPEC);
+    // !!! A previously unused aspect of registering "scheme handlers" was the
+    // idea that instead of a native PAF function ("port action function"),
+    // some kind of map was provided.  Ren-C is going in a different direction
+    // with this, and since it wasn't used that was deleted.  The only scheme
+    // handler supported is a REBPAF "native actor"
+    //
+    assert(Scheme_Actions[n].fun);
 
-        // !!! Not sure what this code was supposed to do, and it is
-        // deprecated.  It takes a single argument, and currently the spec
-        // allows [<opt> any-value!].
+    REBVAL *port_actor_spec = Get_System(SYS_STANDARD, STD_PORT_ACTOR_SPEC);
 
-        REBFUN *fun = Make_Function(
-            Make_Paramlist_Managed_May_Fail(port_actor_spec, MKF_KEYWORDS),
-            cast(REBNAT, Scheme_Actions[n].fun), // !!! actually a REBPAF (!!!)
-            NULL // no underlying function, fundamental
-        );
+    // !!! Not sure what this code was supposed to do, and it is
+    // deprecated.  It takes a single argument, and currently the spec
+    // allows [<opt> any-value!].
 
-        *actor = *FUNC_VALUE(fun);
+    REBFUN *fun = Make_Function(
+        Make_Paramlist_Managed_May_Fail(port_actor_spec, MKF_KEYWORDS),
+        cast(REBNAT, Scheme_Actions[n].fun), // !!! actually a REBPAF (!!!)
+        NULL // no underlying function, fundamental
+    );
 
-        return R_TRUE;
-    }
+    *actor = *FUNC_VALUE(fun);
 
-    // The scheme has an array of action natives:
-    if (!IS_OBJECT(actor)) return R_BLANK;
-
-    // Map action natives to scheme actor words:
-    const PORT_ACTION *map = Scheme_Actions[n].map;
-    for (; map->func; map++) {
-        // Find the action in the scheme actor:
-        n = Find_Action(actor, map->action);
-        if (n) {
-            assert(FALSE); // does this code ever even run?
-
-            // Get standard action's spec block:
-            REBVAL *act = Get_Action_Value(map->action);
-            REBARR *spec_array = Make_Spec_From_Function(act); // !!!
-            REBVAL spec;
-            Val_Init_Block(&spec, spec_array); // manages
-
-            REBFUN *fun = Make_Function(
-                Make_Paramlist_Managed_May_Fail(&spec, MKF_KEYWORDS),
-                cast(REBNAT, map->func), // !!! actually a REBPAF (!!!)
-                NULL // no underlying function, fundamental
-            );
-
-            *Obj_Value(actor, n) = *FUNC_VALUE(fun);
-        }
-    }
     return R_TRUE;
 }
 

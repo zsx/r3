@@ -291,7 +291,7 @@ static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBSYM action)
 //
 void Init_Signal_Scheme(void)
 {
-    Register_Scheme(Canon(SYM_SIGNAL), 0, Signal_Actor);
+    Register_Scheme(Canon(SYM_SIGNAL), Signal_Actor);
 }
 
 #endif //HAS_POSIX_SIGNAL
