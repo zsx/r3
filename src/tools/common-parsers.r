@@ -58,7 +58,7 @@ decode-key-value-text: function [
 
     meta: make block! []
     
-    if not parse/all text data-fields [
+    if not parse text data-fields [
         fail [
             {Expected key value format on line} (line-of text position)
             {and lines must end with newline.}
@@ -78,7 +78,7 @@ decode-lines: function [
     pattern: compose/only [(line-prefix)]
     if not empty? indent [append pattern compose/only [opt (indent)]]
     line: [pos: pattern rest: (rest: remove/part pos rest) :rest thru newline]
-    if not parse/all text [any line] [
+    if not parse text [any line] [
         fail [
             {Expected line} (line-of text pos)
             {to begin with} (mold line-prefix)
@@ -129,7 +129,7 @@ line-of: function [
 
     count-line: [(line: 1 + any [line 0])]
 
-    parse/all copy/part text next position [
+    parse copy/part text next position [
         any [to newline skip count-line] skip count-line
     ]
 
@@ -256,7 +256,7 @@ proto-parser: context [
         is-format201603-fileheader: parsing-at position [
             either all [
                 lines: attempt [decode-lines lines {//} { }]
-                parse/all lines [copy data to {=///} to end]
+                parse lines [copy data to {=///} to end]
                 data: attempt [load-until-blank trim/auto data]
                 data: attempt [
                     either set-word? first data/1 [data/1][blank]

@@ -1463,7 +1463,7 @@ reevaluate:
         // includes argument arrays being fulfilled).  This offers extra
         // perks, because it means a recycle/torture will catch you if you
         // try to Do_Core into movable memory...*and* a native can tell if it
-        // has written the output slot yet or not (e.g. WHILE's /? refinement).
+        // has written the out slot yet or not (e.g. WHILE/LOOPED? refinement).
         //
         assert(IS_END(f->out));
 

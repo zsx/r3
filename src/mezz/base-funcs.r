@@ -305,43 +305,43 @@ redescribe [
 if?: redescribe [
     {Variation of IF which returns TRUE if the branch runs, FALSE if not}
 ](
-    specialize 'if [?: true]
+    specialize 'if [branched?: true]
 )
 
 unless?: redescribe [
     {Variation of UNLESS which returns TRUE if the branch runs, FALSE if not}
 ](
-    specialize 'unless [?: true]
+    specialize 'unless [branched?: true]
 )
 
 while?: redescribe [
     {Variation of WHILE which returns TRUE if the body ever runs, FALSE if not}
 ](
-    specialize 'while [?: true]
+    specialize 'while [looped?: true]
 )
 
 case?: redescribe [
     {Variation of CASE which returns TRUE if any cases run, FALSE if not}
 ](
-    specialize 'case [?: true]
+    specialize 'case [ran?: true]
 )
 
 switch?: redescribe [
     {Variation of SWITCH which returns TRUE if any cases run, FALSE if not}
 ](
-    specialize 'switch [?: true]
+    specialize 'switch [matched?: true]
 )
 
 trap?: redescribe [
     {Variation of TRAP which returns TRUE if an error traps, FALSE if not}
 ](
-    specialize 'trap [?: true]
+    specialize 'trap [trapped?: true]
 )
 
 catch?: redescribe [
     {Variation of CATCH which returns TRUE if a throw is caught, FALSE if not}
 ](
-    specialize 'catch [?: true]
+    specialize 'catch [caught?: true]
 )
 
 any?: redescribe [
@@ -367,6 +367,23 @@ select?: redescribe [
 ](
     chain [:select :any-value?]
 )
+
+parse?: redescribe [
+    {Variant of PARSE that enforces a TRUE or FALSE result from the rules.}
+](
+    chain [
+        :parse
+            |
+        func [x][
+            unless logic? :x [
+                fail [
+                    "Rules passed to PARSE? returned non-LOGIC!:" (mold :x)
+                ]
+            ]
+        ]
+    ]
+)
+
 
 ; To help for discoverability, there is SET-INFIX and INFIX?.  However, the
 ; term can be a misnomer if the function is more advanced, and using the

@@ -316,7 +316,7 @@ ctx-zip: context [
         ]
         if any-file? source [source: read source]
         nb-entries: 0
-        parse/all source [
+        parse source [
             to local-file-sig
             some [
                 to local-file-sig 4 skip

@@ -2149,17 +2149,23 @@ REBNATIVE(subparse)
 
 
 //
-// Shared implementation routine for PARSE? and PARSE.  The difference is that
-// PARSE? only returns whether or not a set of rules completed to the end.
-// PARSE is more general purpose in terms of the result it provides, and
-// it defaults to returning the input.
+//  parse: native [
 //
-static REB_R Parse_Core(struct Reb_Frame *frame_, REBOOL logic)
+//  "Parses a series according to grammar rules and returns a result."
+//
+//      input [any-series!]
+//          "Input series to parse (default result for successful match)"
+//      rules [block! string! blank!]
+//          "Rules to parse by (STRING! and BLANK!/none! are deprecated)"
+//      /case
+//          "Uses case-sensitive comparison"
+//  ]
+//
+REBNATIVE(parse)
 {
     PARAM(1, input);
     PARAM(2, rules);
     REFINE(3, case);
-    REFINE(4, all);
 
     REBVAL *rules = ARG(rules);
     REBCNT index;
@@ -2214,20 +2220,6 @@ static REB_R Parse_Core(struct Reb_Frame *frame_, REBOOL logic)
             // This handles that branch and catches the result value.
             //
             CATCH_THROWN(D_OUT, D_OUT);
-
-            // In the logic case, we are only concerned with matching.  If
-            // a construct that can return arbitrary values is used, then
-            // failure is triggered with a specific error, saying PARSE must
-            // be used instead of PARSE?.
-            //
-            // !!! Review if this is the best semantics for a parsing variant
-            // that is committed to only returning logic TRUE or FALSE, in
-            // spite of existence of rules that allow the general PARSE to
-            // do otherwise.
-            //
-            if (logic && !IS_LOGIC(D_OUT))
-                fail (Error(RE_PARSE_NON_LOGIC, D_OUT));
-
             return R_OUT;
         }
 
@@ -2239,7 +2231,7 @@ static REB_R Parse_Core(struct Reb_Frame *frame_, REBOOL logic)
     // Parse can fail if the match rule state can't process pending input.
     //
     if (IS_BLANK(D_OUT))
-        return logic ? R_FALSE : R_BLANK;
+        return R_FALSE;
 
     assert(IS_INTEGER(D_OUT));
 
@@ -2247,63 +2239,11 @@ static REB_R Parse_Core(struct Reb_Frame *frame_, REBOOL logic)
     // at (or beyond) the tail of the input series, the parse also failed.
     //
     if (VAL_UNT32(D_OUT) < VAL_LEN_HEAD(ARG(input)))
-        return logic ? R_FALSE : R_BLANK;
+        return R_FALSE;
 
-    // The end was reached...if doing a logic-based PARSE? then return TRUE.
+    // The end was reached.  Return TRUE.  (Alternate thoughts, see #2165)
     //
-    if (logic) return R_TRUE;
-
-    // Otherwise it's PARSE so return the input (a series, hence conditionally
-    // true, yet more informative for chaining.)  See #2165.
-    //
-    *D_OUT = *ARG(input);
-    return R_OUT;
-}
-
-
-//
-//  parse?: native [
-//
-//  ; NOTE: If changing this, also update PARSE
-//
-//  "Determines if a series matches the given grammar rules or not."
-//
-//      input [any-series!]
-//          "Input series to parse"
-//      rules [block! string! blank!]
-//          "Rules to parse by (STRING! and BLANK!/none! are deprecated)"
-//      /case
-//          "Uses case-sensitive comparison"
-//      /all
-//          "(ignored refinement left for Rebol2 transitioning)"
-//  ]
-//
-REBNATIVE(parse_q)
-{
-    return Parse_Core(frame_, TRUE);
-}
-
-
-//
-//  parse: native [
-//
-//  ; NOTE: If changing this, also update PARSE?
-//
-//  "Parses a series according to grammar rules and returns a result."
-//
-//      input [any-series!]
-//          "Input series to parse (default result for successful match)"
-//      rules [block! string! blank!]
-//          "Rules to parse by (STRING! and NONE! are deprecated)"
-//      /case
-//          "Uses case-sensitive comparison"
-//      /all
-//          "(ignored refinement left for Rebol2 transitioning)"
-//  ]
-//
-REBNATIVE(parse)
-{
-    return Parse_Core(frame_, FALSE);
+    return R_TRUE;
 }
 
 

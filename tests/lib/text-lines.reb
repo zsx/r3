@@ -20,7 +20,7 @@ decode-lines: function [
     line-prefix [string!] {Usually "**" or "//".}
     indent [string!] {Usually "  ".}
 ] [
-    if not parse/all text [any [line-prefix thru newline]] [
+    if not parse text [any [line-prefix thru newline]] [
         fail [{decode-lines expects each line to begin with} (mold line-prefix) { and finish with a newline.}]
     ]
     insert text newline
@@ -98,7 +98,7 @@ lines-exceeding: function [
         )
     ]
 
-    parse/all text [
+    parse text [
         any [bol: to newline eol: skip count-line]
         bol: skip to end eol: count-line
     ]
@@ -120,7 +120,7 @@ line-of: function [
 
     count-line: [(line: 1 + any [line 0])]
 
-    parse/all copy/part text next position [
+    parse copy/part text next position [
         any [to newline skip count-line] skip count-line
     ]
 

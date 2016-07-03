@@ -120,7 +120,7 @@ rebsource: context [
 
                 malloc-check: [is-identifier "malloc" (append any [malloc malloc: copy []] line-of file-text position)]
 
-                parse/all/case file-text [
+                parse/case file-text [
                     some [
                         position:
                         malloc-check
@@ -226,7 +226,7 @@ rebsource: context [
                 ]
             ]
 
-            remove-each file files [not parse/all file [thru {.c}]]
+            remove-each file files [not parse file [thru {.c}]]
             sort files
 
             files

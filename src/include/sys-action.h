@@ -48,8 +48,8 @@ enum {
     //
     R_OUT_IS_THROWN,
 
-    // This is a return value in service of the /? functions.  Since all
-    // dispatchers receive an END marker in the f->out slot (a.k.a. D_OUT)
+    // This is a return value in service of refinements like IF/BRANCHED?.
+    // Since all dispatchers get END markers in the f->out slot (a.k.a. D_OUT)
     // then it can be used to tell if the output has been written "in band"
     // by a legal value or void.  This returns TRUE if D_OUT is not END,
     // and FALSE if it still is.
@@ -83,8 +83,9 @@ enum {
 };
 typedef REBCNT REB_R;
 
-// Convenience function for getting the "/?" behavior if it is enabled, and
-// doing the default thing--assuming END is being left in the D_OUT slot
+// Convenience function for getting behaviors like WHILE/LOOPED?", and
+// doing the default thing--assuming END is being left in the D_OUT slot if
+// the tested-for condition is not met.
 //
 inline static REB_R R_OUT_Q(REBOOL q) {
     if (q) return R_OUT_TRUE_IF_WRITTEN;

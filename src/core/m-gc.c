@@ -1230,7 +1230,7 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static void Mark_Root_Series(void)
                 //
                 MARK_REBSER(s);
                 Queue_Mark_Value_Deep(key);
-                Queue_Mark_Value_Deep(pairing);
+                Queue_Mark_Value_Deep(pairing); // allow END?
             }
             else {
                 // We have to do the queueing based on whatever type of series
