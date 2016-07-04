@@ -654,9 +654,13 @@ REBTYPE(Map)
             SPECIFIED,
             LOGICAL(args & AM_FIND_CASE)
         );
-        if (!n) return R_BLANK;
+        if (n == 0) {
+            return action == SYM_FIND ? R_BLANK : R_VOID;
+        }
         *D_OUT = *KNOWN(ARR_AT(MAP_PAIRLIST(map), ((n - 1) * 2) + 1));
-        if (IS_VOID(D_OUT)) return R_BLANK;
+        if (IS_VOID(D_OUT)) {
+            return action == SYM_FIND ? R_BLANK : R_VOID;
+        }
         if (action == SYM_FIND) *D_OUT = *val;
         return R_OUT;
 
