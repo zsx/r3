@@ -690,7 +690,7 @@ reevaluate:
 
     case ET_LOOKBACK:
         SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value)); // failed optimize
-        assert(NOT_END(f->out)); // must be the infix's left-hand-side arg
+        // f->out must be the infix's left-hand-side arg, may be END
         goto do_function_in_gotten;
 
     case ET_FUNCTION:
