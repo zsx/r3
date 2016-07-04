@@ -229,7 +229,7 @@ REBNATIVE(print)
         delimiter,
         0, // `limit`: 0 means do not limit output length
         (REF(only) ? FORM_FLAG_ONLY : FORM_FLAG_NEWLINE_SEQUENTIAL_STRINGS)
-            | (REF(quote) ? 0 : FORM_FLAG_REDUCE)
+            | (!IS_BLOCK(value) || REF(quote) ? 0 : FORM_FLAG_REDUCE)
             | (REF(only) ? 0 : FORM_FLAG_NEWLINE_UNLESS_EMPTY)
     )) {
         return R_OUT_IS_THROWN;

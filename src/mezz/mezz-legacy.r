@@ -829,22 +829,7 @@ set 'r3-legacy* func [<local> if-flags] [
                 ]
 
                 true [
-                    ; This requires system/options/refinements-blank to work.
-                    ;
-                    ; Note that the heuristic here is not 100% right,
-                    ; but probably works most of the time.  The goal is
-                    ; to determine when PARSE would have returned true
-                    ; when the new PARSE returns a series on success.  But
-                    ; old parse *could* have returned a series as well with
-                    ; RETURN...if that happens and the RETURN just so
-                    ; happens to be the input, this will return TRUE.
-                    ;
-                    result: lib/parse/(if case_PARSE 'case) input rules
-                    case [
-                        blank? result [false]
-                        same? result input [true]
-                        'default [result]
-                    ]
+                    lib/parse/(if case_PARSE 'case) input rules
                 ]
             ]
         ])
