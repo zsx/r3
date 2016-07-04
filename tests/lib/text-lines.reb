@@ -57,7 +57,7 @@ encode-lines: func [
     text
 ]
 
-foreach-line: func [
+for-each-line: func [
     {Iterate over text lines.}
     'record [word!] {Word set to metadata for each line.}
     text [string!] {Text with lines.}

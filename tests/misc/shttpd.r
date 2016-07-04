@@ -41,17 +41,17 @@ send-chunk: func [port] [
     ]
 ]
 
-handle-request: func [config req /local uri type file data] [
-    parse to-string req ["get " ["/ " | copy uri to " "]]
-    default 'uri "index.html"
+handle-request: function [config req] [
+    parse to-string req ["get " ["/ " | copy uri: to " "]]
+    uri: default "index.html"
     parse uri [some [thru "."] copy ext to end (type: mime-map/:ext)]
-    default 'type "application/octet-stream"
+    type: default "application/octet-stream"
     if not exists? file: config/root/:uri [return error-response 404 uri]
     if error? try [data: read file] [return error-response 400 uri]
     reduce [200 type data]
 ]
 
-awake-client: func [event /local port res] [
+awake-client: function [event] [
     port: event/port
     switch event/type [
         read [

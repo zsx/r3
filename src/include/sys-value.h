@@ -1255,7 +1255,7 @@ inline static void INIT_RELATIVE(RELVAL *v, REBFUN *func) {
 }
 
 inline static void INIT_VAL_ARRAY(RELVAL *v, REBARR *a) {
-    v->extra.binding = cast(REBARR*, SPECIFIED);
+    v->extra.binding = (REBARR*)SPECIFIED; // !!! cast() complains, investigate
     v->payload.any_series.series = ARR_SERIES(a);
 }
 

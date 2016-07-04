@@ -78,3 +78,19 @@ and*: or+: xor+: ()
 set/lookback 'and* :and~
 set/lookback 'or+ :or~
 set/lookback 'xor+ :xor~
+
+default: ()
+
+set/lookback 'default function [
+    "Set a word to a default value if it is not set yet or blank."
+    :set-word [set-word!]
+        "The word"
+    value
+        "The value" ; void not allowed on purpose
+][
+    either all [set? set-word | not blank? gotten: get set-word] [
+        :gotten
+    ][
+        value
+    ]
+]

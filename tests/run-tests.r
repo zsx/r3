@@ -27,7 +27,7 @@ run-tests: func [
     if dir? tests [
         tests: dirize tests
         change-dir tests
-        foreach file read tests [
+        for-each file read tests [
             ; check if it is a test file
             if %.tst = find/last file %. [run-tests file]
         ]

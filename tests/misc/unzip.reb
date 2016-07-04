@@ -248,7 +248,7 @@ ctx-zip: context [
             ; is name a not empty directory?
             either all [deep not empty? files] [
                 ; append content to file list
-                foreach file read root/:name [
+                for-each file read root/:name [
                     append source name/:file
                 ]
             ][

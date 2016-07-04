@@ -29,7 +29,7 @@ log-filter: func [
 
     collect-logs source-log-contents: copy [] source-log
 
-    foreach [source-test source-result] source-log-contents [
+    for-each [source-test source-result] source-log-contents [
         if find [crashed failed] source-result [
             ; test failure
             write/append target-log rejoin [

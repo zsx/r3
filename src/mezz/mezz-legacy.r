@@ -793,6 +793,19 @@ set 'r3-legacy* func [<local> if-flags] [
             ]
         ])
 
+        ; Ren-C's default is a "lookback" that can see the SET-WORD! to its
+        ; left and examine it.  `x: default 10` instead of `default 'x 10`,
+        ; with the same effect.
+        ;
+        default: (func [
+            "Set a word to a default value if it hasn't been set yet."
+            'word [word! set-word! lit-word!]
+                "The word (use :var for word! values)"
+            value "The value" ; void not allowed on purpose
+        ][
+            unless all [set? word | not blank? get word] [set word :value] :value
+        ])
+
         ; Ren-C removed the "simple parse" functionality, which has been
         ; superseded by SPLIT.  For the legacy parse implementation, add
         ; it back in (more or less) by delegating to split.
@@ -872,13 +885,13 @@ set 'r3-legacy* func [<local> if-flags] [
         ][
             if any [
                 not block? vars
-                lib/foreach item vars [
+                lib/for-each item vars [
                     if set-word? item [break/with false]
                     true
                 ]
             ][
                 ; a normal FOREACH
-                return lib/foreach :vars data body
+                return lib/for-each :vars data body
             ]
 
             ; Otherwise it's a weird FOREACH.  So handle a block containing at

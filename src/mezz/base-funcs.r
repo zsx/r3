@@ -776,15 +776,6 @@ cause-error: func [
     ]
 ]
 
-default: func [
-    "Set a word to a default value if it hasn't been set yet."
-    'word [word! set-word! lit-word!] "The word (use :var for word! values)"
-    value "The value" ; void not allowed on purpose
-][
-    unless all [set? word | not blank? get word] [set word :value] :value
-]
-
-
 ensure: function [
     {Pass through a value only if it matches types (or TRUE?/FALSE? state)}
     types [block! datatype! typeset! logic!]

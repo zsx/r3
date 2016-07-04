@@ -393,7 +393,7 @@ void Val_Init_Map(REBVAL *out, REBMAP *map)
     ENSURE_ARRAY_MANAGED(MAP_PAIRLIST(map));
 
     VAL_RESET_HEADER(out, REB_MAP);
-    out->extra.binding = cast(REBARR*, SPECIFIED);
+    out->extra.binding = (REBARR*)SPECIFIED; // !!! cast() gripes, investigate
     out->payload.any_series.series = ARR_SERIES(MAP_PAIRLIST(map));
     out->payload.any_series.index = 0;
 }

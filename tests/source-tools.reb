@@ -29,20 +29,24 @@ rebsource: context [
     src-folder: clean-path ren-c-repo/(%src/)
     ; Path to src/
 
-    logfn: func [message] [print mold new-line/all compose/only message false]
+    logfn: func [message][print mold new-line/all compose/only message false]
     log: :logfn
 
     standard: context [
-
-        std-line-length: 79
+        ;
         ; Not counting newline, lines should be no longer than this.
+        ;
+        std-line-length: 79
 
+        ; Not counting newline, lines over this length have an extra warning.
+        ;
         max-line-length: 127
-        ; Not counting newline, lines over this length require an extra warning.
 
-        function-spacing: [3 eol]
         ; Parse Rule which specifies the standard spacing between functions,
-        ; from final right brace of leading function to intro comment of following function.
+        ; from final right brace of leading function
+        ; to intro comment of following function.
+        ;
+        function-spacing: [3 eol]
     ]
 
     fixed-source-paths: [
@@ -70,13 +74,12 @@ rebsource: context [
 
         files: function [
             {Analyse the source files of REBOL.}
-        ] [
-
+        ][
             file-list: list/c-files
 
             files-analysis: make block! []
 
-            foreach filepath file-list [
+            for-each filepath file-list [
                 analysis: analyse/file filepath
                 append files-analysis analysis
             ]
@@ -87,25 +90,34 @@ rebsource: context [
         file: function [
             {Analyse a file returning facts.}
             file
-        ] [
-
+        ][
             if whitelisted? file [return blank]
 
             analysis: make block! []
 
-            emit: function [body] [
+            emit: function [body][
                 insert position: tail analysis compose/only body
                 new-line position true
             ]
 
             text: read/string src-folder/:file
 
-            if non-std-lines: lines-exceeding standard/std-line-length text [
-                emit [line-exceeds (standard/std-line-length) (file) (non-std-lines)]
+            all [
+                non-std-lines: lines-exceeding standard/std-line-length text
+                    |
+                emit [
+                    line-exceeds
+                    (standard/std-line-length) (file) (non-std-lines)
+                ]
             ]
 
-            if overlength-lines: lines-exceeding standard/max-line-length text [
-                emit [line-exceeds (standard/max-line-length) (file) (overlength-lines)]
+            all [
+                overlength-lines: lines-exceeding standard/max-line-length text
+                    |
+                emit [
+                    line-exceeds
+                    (standard/max-line-length) (file) (overlength-lines)
+                ]
             ]
 
             wsp-not-eol: exclude c.lexical/charsets/ws-char charset {^/}
@@ -116,9 +128,21 @@ rebsource: context [
 
                 is-identifier: [and identifier]
 
-                eol-wsp-check: [wsp-not-eol eol (append any [eol-wsp eol-wsp: copy []] line-of file-text position)]
+                eol-wsp-check: [
+                    wsp-not-eol eol
+                    (
+                        eol-wsp: default copy []
+                        append eol-wsp line-of file-text position
+                    )
+                ]
 
-                malloc-check: [is-identifier "malloc" (append any [malloc malloc: copy []] line-of file-text position)]
+                malloc-check: [
+                    is-identifier "malloc"
+                    (
+                        malloc: default copy []
+                        append malloc line-of file-text position
+                    )
+                ]
 
                 parse/case file-text [
                     some [
@@ -139,19 +163,21 @@ rebsource: context [
                 emit [malloc (file) (malloc)]
             ]
 
-            emit-proto: function [proto] [
-
+            emit-proto: function [proto][
                 if all [
                     'format2015 = proto-parser/style
                     block? proto-parser/data
-                ] [
-
+                ][
                     do bind [
                         if last-func-end [
                             if not all [
-                                parse last-func-end [function-spacing-rule position: to end]
+                                parse last-func-end [
+                                    function-spacing-rule
+                                    position:
+                                    to end
+                                ]
                                 same? position proto-parser/parse.position
-                            ] [
+                            ][
                                 line: line-of text proto-parser/parse.position
                                 append any [
                                     non-std-func-space
@@ -159,7 +185,6 @@ rebsource: context [
                                 ] line-of file-text proto-parser/parse.position
                             ]
                         ]
-
                     ] parser-extension
 
                     either find/match mold proto-parser/data/2 {native} [
@@ -213,15 +238,14 @@ rebsource: context [
 
     list: context [
 
-        c-files: function [{Retrieves a list of .c scripts (relative paths).}] [
-
-            if not src-folder [
-                fail {Configuration required.}
-            ]
+        c-files: function [
+            {Retrieves a list of .c scripts (relative paths).}
+        ][
+            if not src-folder [fail {Configuration required.}]
 
             files: make block! []
-            foreach path fixed-source-paths [
-                foreach file read join src-folder path [
+            for-each path fixed-source-paths [
+                for-each file read join src-folder path [
                     append files join path file
                 ]
             ]
@@ -243,7 +267,9 @@ rebsource: context [
         rbrace: [and punctuator #"}"]
         braced: [lbrace any [braced | not rbrace skip] rbrace]
 
-        function-spacing-rule: bind/copy standard/function-spacing c.lexical/grammar
+        function-spacing-rule: (
+            bind/copy standard/function-spacing c.lexical/grammar
+        )
 
         grammar/function-body: braced
 
@@ -258,8 +284,10 @@ rebsource: context [
 
     ] proto-parser c.lexical/grammar
 
-    whitelisted?: function [{Returns true if file should not be analysed.} file] [
-
-        to-value if find whitelisted file [true]
+    whitelisted?: function [
+        {Returns true if file should not be analysed.}
+        file
+    ][
+        find? whitelisted file
     ]
 ]

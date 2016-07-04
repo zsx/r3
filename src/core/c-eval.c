@@ -124,7 +124,7 @@ static inline REBOOL Start_New_Expression_Throws(struct Reb_Frame *f) {
 
 #ifdef NDEBUG
     #define START_NEW_EXPRESSION_MAY_THROW(f,g) \
-        if (Start_New_Expression_Throws(f))
+        if (Start_New_Expression_Throws(f)) \
             g;
 #else
     // Macro is used to mutate local do_count variable in Do_Core (for easier
