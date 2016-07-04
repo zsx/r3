@@ -903,7 +903,7 @@ REBNATIVE(continue)
 //          "Args passed to a script (normally a string)"
 //      /next
 //          {Do next expression only, return it, update block variable}
-//      var [word! blank!]
+//      var [any-word! blank!]
 //          "Variable updated with new block position"
 //  ]
 //
@@ -1240,11 +1240,17 @@ REBNATIVE(exit)
 //  
 //      reason [error! string! block!] 
 //          "ERROR! value, message string, or failure spec"
+//      /where
+//          "Specify an originating location other than the FAIL itself"
+//      location [frame! any-word!]
+//          "Frame or parameter at which to indicate the error originated"
 //  ]
 //
 REBNATIVE(fail)
 {
     PARAM(1, reason);
+    REFINE(2, where);
+    PARAM(3, location);
 
     REBVAL *reason = ARG(reason);
 
@@ -1340,7 +1346,22 @@ REBNATIVE(fail)
 
     assert(IS_STRING(reason));
 
-    if (Make_Error_Object_Throws(D_OUT, reason)) {
+    struct Reb_Frame *where = NULL;
+    if (REF(where)) {
+        REBCTX *context;
+        if (IS_WORD(ARG(location)))
+            context = VAL_WORD_CONTEXT(ARG(location));
+        else
+            context = VAL_CONTEXT(ARG(location));
+        where = CTX_FRAME(context);
+
+        // !!! If where comes back NULL, what to do?  Probably bad if someone
+        // is trying to decipher an error to trigger another error.  Maybe
+        // the meta info on the error could be annotated with "tried a
+        // where that was for an expired stack frame" or similar...
+    }
+
+    if (Make_Error_Object_Throws(D_OUT, reason, where)) {
         // Throw name is in D_OUT, thrown value is held task local
         return R_OUT_IS_THROWN;
     }

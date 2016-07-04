@@ -2043,9 +2043,12 @@ inline static REBARR *VAL_VARARGS_ARRAY1(const RELVAL *v) {
 // of the array1.
 //
 inline static REBARR **SUBFEED_ADDR_OF_FEED(REBARR *a) {
-    return GET_ARR_FLAG(a, ARRAY_FLAG_VARLIST)
-        ? &CTX_FRAME(AS_CONTEXT(a))->cell.subfeed
-        : &ARR_SERIES(a)->link.subfeed;
+    if (!GET_ARR_FLAG(a, ARRAY_FLAG_VARLIST))
+        return &ARR_SERIES(a)->link.subfeed;
+
+    struct Reb_Frame *f = CTX_FRAME(AS_CONTEXT(a));
+    assert(f != NULL); // need to check frame independently and error on this
+    return &f->cell.subfeed;
 }
 
 

@@ -361,7 +361,7 @@ void MAKE_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         // be the primitive that does the evaluations, and then call
         // into this with the reduced block.
         //
-        if (Make_Error_Object_Throws(out, arg))
+        if (Make_Error_Object_Throws(out, arg, NULL))
             fail (Error_No_Catch_For_Throw(out));
 
         return;
@@ -416,7 +416,7 @@ void TO_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         //
         // arg is checked to be block or string
         //
-        if (Make_Error_Object_Throws(out, arg))
+        if (Make_Error_Object_Throws(out, arg, NULL))
             fail (Error_No_Catch_For_Throw(out));
         return;
     }

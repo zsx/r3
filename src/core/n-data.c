@@ -407,7 +407,11 @@ REBNATIVE(context_of)
 //
 REBNATIVE(any_value_q)
 {
-    return IS_VOID(D_ARG(1)) ? R_FALSE : R_TRUE;
+    PARAM(1, cell);
+
+    if (IS_VOID(ARG(cell)))
+        return R_FALSE;
+    return R_TRUE;
 }
 
 

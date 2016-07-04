@@ -454,6 +454,100 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
 }
 
 
+static void Try_Add_Backtrace_To_Error(
+    REBCTX *error,
+    struct Reb_Frame *where
+) {
+    if (where == NULL)
+        where = FS_TOP;
+    else {
+        // Currently trust that if a Reb_Frame* was passed in, that it must
+        // be good and on the stack.
+    }
+
+    if (where == NULL)
+        return;
+
+    ERROR_VARS *vars = ERR_VARS(error);
+
+    // Set backtrace, in the form of a block of label words that start
+    // from the top of stack and go downward.
+    //
+    REBCNT backtrace_len = 0;
+
+    // Count the number of entries that the backtrace will have
+    //
+    struct Reb_Frame *f = where;
+    for (; f != NULL; f = f->prior)
+        ++backtrace_len;
+
+    REBARR *backtrace = Make_Array(backtrace_len);
+
+    // Reset the call pointer and fill those entries.
+    //
+    f = where;
+    for (; f != NULL; f = f->prior) {
+        //
+        // Only invoked functions (not pending functions, parens, etc.)
+        //
+        if (NOT(Is_Any_Function_Frame(f)))
+            continue;
+        if (Is_Function_Frame_Fulfilling(f))
+            continue;
+
+        Val_Init_Word(
+            Alloc_Tail_Array(backtrace), REB_WORD, FRM_LABEL(f)
+        );
+    }
+    Val_Init_Block(&vars->where, backtrace);
+
+    // Nearby location of the error.  Reify any valist that is running,
+    // so that the error has an array to present.
+    //
+    f = where;
+    if (f && FRM_IS_VALIST(f)) {
+        const REBOOL truncated = TRUE;
+        Reify_Va_To_Array_In_Frame(f, truncated);
+    }
+
+    // Get at most 6 values out of the array.  Ideally 3 before and after
+    // the error point.  If truncating either the head or tail of the
+    // values, put ellipses.  Leave a marker at the point of the error
+    // (currently `??`)
+    //
+    // Note: something like `=>ERROR=>` would be better, but have to
+    // insert a today-legal WORD!
+    {
+        REBDSP dsp_orig = DSP;
+        REBINT start = FRM_INDEX(f) - 3;
+        REBCNT count = 0;
+        RELVAL *item;
+
+        REBVAL marker;
+        Val_Init_Word(&marker, REB_WORD, Canon(SYM__Q_Q));
+
+        REBVAL ellipsis;
+        Val_Init_Word(&ellipsis, REB_WORD, Canon(SYM_ELLIPSIS));
+
+        if (start < 0) {
+            DS_PUSH(&ellipsis);
+            start = 0;
+        }
+        item = ARR_AT(FRM_ARRAY(f), start);
+        while (NOT_END(item) && count++ < 6) {
+            DS_PUSH_RELVAL(item, f->specifier);
+            if (count == FRM_INDEX(f) - start)
+                DS_PUSH(&marker);
+            ++item;
+        }
+        if (NOT_END(item))
+            DS_PUSH(&ellipsis);
+
+        Val_Init_Block(&vars->nearest, Pop_Stack_Values(dsp_orig));
+    }
+}
+
+
 //
 //  Make_Error_Object_Throws: C
 // 
@@ -475,7 +569,8 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
 //
 REBOOL Make_Error_Object_Throws(
     REBVAL *out, // output location **MUST BE GC SAFE**!
-    const REBVAL *arg
+    const REBVAL *arg,
+    struct Reb_Frame *where
 ) {
     // Frame from the error object template defined in %sysobj.r
     //
@@ -743,6 +838,8 @@ REBOOL Make_Error_Object_Throws(
     if (LEGACY(OPTIONS_ARG1_ARG2_ARG3_ERROR))
         DROP_GUARD_CONTEXT(root_error);
 #endif
+
+    Try_Add_Backtrace_To_Error(error, where);
 
     Val_Init_Error(out, error);
     return FALSE;
@@ -1022,85 +1119,7 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
     vars->id = id;
     vars->type = type;
 
-    if (FS_TOP) {
-        //
-        // Set backtrace, in the form of a block of label words that start
-        // from the top of stack and go downward.
-        //
-        REBCNT backtrace_len = 0;
-        REBARR *backtrace;
-
-        // Count the number of entries that the backtrace will have
-        //
-        struct Reb_Frame *frame = FS_TOP;
-        for (; frame != NULL; frame = frame->prior)
-            ++backtrace_len;
-
-        backtrace = Make_Array(backtrace_len);
-
-        // Reset the call pointer and fill those entries.
-        //
-        frame = FS_TOP;
-        for (; frame != NULL; frame = FRM_PRIOR(frame)) {
-            //
-            // Only invoked functions (not pending functions, parens, etc.)
-            //
-            if (NOT(Is_Any_Function_Frame(frame)))
-                continue;
-            if (Is_Function_Frame_Fulfilling(frame))
-                continue;
-
-            Val_Init_Word(
-                Alloc_Tail_Array(backtrace), REB_WORD, FRM_LABEL(frame)
-            );
-        }
-        Val_Init_Block(&vars->where, backtrace);
-
-        // Nearby location of the error.  Reify any valist that is running,
-        // so that the error has an array to present.
-        //
-        frame = FS_TOP;
-        if (frame && FRM_IS_VALIST(frame)) {
-            const REBOOL truncated = TRUE;
-            Reify_Va_To_Array_In_Frame(frame, truncated);
-        }
-
-        // Get at most 6 values out of the array.  Ideally 3 before and after
-        // the error point.  If truncating either the head or tail of the
-        // values, put ellipses.  Leave a marker at the point of the error
-        // (currently `??`)
-        //
-        // Note: something like `=>ERROR=>` would be better, but have to
-        // insert a today-legal WORD!
-        {
-            REBDSP dsp_orig = DSP;
-            REBINT start = FRM_INDEX(FS_TOP) - 3;
-            REBCNT count = 0;
-            RELVAL *item;
-
-            REBVAL marker;
-            Val_Init_Word(&marker, REB_WORD, Canon(SYM__Q_Q));
-
-            REBVAL ellipsis;
-            Val_Init_Word(&ellipsis, REB_WORD, Canon(SYM_ELLIPSIS));
-
-            if (start < 0) {
-                DS_PUSH(&ellipsis);
-                start = 0;
-            }
-            item = ARR_AT(FRM_ARRAY(frame), start);
-            while (NOT_END(item) && count++ < 6) {
-                DS_PUSH_RELVAL(item, frame->specifier);
-                if (count == FRM_INDEX(frame) - start)
-                    DS_PUSH(&marker);
-                ++item;
-            }
-            if (NOT_END(item))
-                DS_PUSH(&ellipsis);
-
-            Val_Init_Block(&vars->nearest, Pop_Stack_Values(dsp_orig));
-        }
-    }
+    Try_Add_Backtrace_To_Error(error, NULL);
 
     // !!! We create errors and then fail() on them without ever putting them
     // into a REBVAL.  This means that if left unmanaged, they would count as

@@ -176,58 +176,58 @@ selfless?: func [context [any-context!]] [
     fail {selfless? no longer has meaning (all frames are "selfless")}
 ]
 
-unset!: does [
-    fail [
+unset!: func [dummy:] [
+    fail/where [
         {UNSET! is not a datatype in Ren-C.}
         {You can test with VOID? (), but the TYPE-OF () is a NONE! *value*}
         {So NONE? TYPE-OF () will be TRUE.}
-    ]
+    ] 'dummy
 ]
 
-unset?: does [
-    fail [
+unset?: func [dummy:] [
+    fail/where [
         {UNSET? is reserved in Ren-C for future use}
         {(Will mean VOID? GET, like R3-Alpha VALUE?, only for WORDs/PATHs}
         {Use VOID? for a similar test, but be aware there is no UNSET! type}
         {If running in <r3-legacy> mode, old UNSET? meaning is available}
-    ]
+    ] 'dummy
 ]
 
-value?: does [
-    fail [
+value?: func [dummy:] [
+    fail/where [
         {VALUE? is reserved in Ren-C for future use}
         {(It will be a shorthand for ANY-VALUE! a.k.a. NOT VOID?)}
         {SET? is similar to R3-Alpha VALUE?--but SET? only takes words}
         {If running in <r3-legacy> mode, old VALUE? meaning is available.}
-    ]
+    ] 'dummy
 ]
 
 none-of: :none ;-- reduce mistakes for now by renaming NONE out of the way
 
-none?: none!: none: does [
-    fail [
+none?: none!: none: func [dummy:] [
+    fail/where [
         {NONE is reserved in Ren-C for future use}
         {(It will act like NONE-OF, e.g. NONE [a b] => ALL [not a not b])}
         {_ is now a "BLANK! literal", with BLANK? test and BLANK the word.}
         {If running in <r3-legacy> mode, old NONE meaning is available.}
-    ]
+    ] 'dummy
 ]
 
-type?: does [
-    fail [
+type?: func [dummy:] [
+    fail/where [
         {TYPE? is reserved in Ren-C for future use}
         {(Though not fixed in stone, it may replace DATATYPE?)}
         {TYPE-OF is the current replacement, with no TYPE-OF/WORD}
         {Use soft quotes, e.g. SWITCH TYPE-OF 1 [:INTEGER! [...]]}
         {If running in <r3-legacy> mode, old TYPE? meaning is available.}
-    ]
+    ] 'dummy
 ]
 
-found?: does [
-    fail [
+found?: func [dummy:] [
+    fail/where [
         {FOUND? is deprecated in Ren-C, see chained function FIND?}
         {FOUND? is available if running in <r3-legacy> mode.}
-    ]
+    ] 'dummy
 ]
 
 ; There were several different strata of equality checks, and one was EQUIV?
