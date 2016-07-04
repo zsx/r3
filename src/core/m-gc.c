@@ -793,15 +793,22 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
         }
 
         case REB_VARARGS: {
-            REBARR *subfeed;
             if (GET_VAL_FLAG(val, VARARGS_FLAG_NO_FRAME)) {
                 //
                 // A single-element shared series node is kept between
                 // instances of the same vararg that was created with
                 // MAKE ARRAY! - which fits compactly in a REBSER.
                 //
-                subfeed = *SUBFEED_ADDR_OF_FEED(VAL_VARARGS_ARRAY1(val));
                 Queue_Mark_Array_Deep(VAL_VARARGS_ARRAY1(val));
+
+                REBARR *subfeed
+                    = *SUBFEED_ADDR_OF_FEED(VAL_VARARGS_ARRAY1(val));
+                if (subfeed) {
+                    if (GET_ARR_FLAG(subfeed, ARRAY_FLAG_VARLIST))
+                        Queue_Mark_Context_Deep(AS_CONTEXT(subfeed));
+                    else
+                        Queue_Mark_Array_Deep(subfeed);
+                }
             }
             else {
                 //
@@ -816,27 +823,14 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                 REBARR *varlist = VAL_BINDING(val);
                 if (GET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST)) {
                     if (IS_ARRAY_MANAGED(varlist)) {
-                        Queue_Mark_Context_Deep(AS_CONTEXT(varlist)); // good
-                        subfeed = *SUBFEED_ADDR_OF_FEED(varlist);
+                        REBCTX *context = AS_CONTEXT(varlist);
+                        Queue_Mark_Context_Deep(context);
                     }
-                    else
-                        subfeed = NULL; // function still getting args, ENDs
                 }
-                else {
-                    // This can happen because VARARGS! cells are used to
-                    // do pickups of param/arg pairs, after conversions from
-                    // words, which might have relative binding.  It's not
-                    // paid attention to.
-                }
-            }
 
-            if (subfeed) {
-                if (GET_ARR_FLAG(subfeed, ARRAY_FLAG_VARLIST))
-                    Queue_Mark_Context_Deep(AS_CONTEXT(subfeed));
-                else
-                    Queue_Mark_Array_Deep(subfeed);
+                // If there's a frame with a subfeed to protect from GC, and
+                // the frame is still good, it will do it already.
             }
-
             break;
         }
 
