@@ -1231,33 +1231,25 @@ static void Free_Unbiased_Series_Data(REBYTE *unbiased, REBCNT size_unpooled)
 //
 void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
 {
-    REBYTE wide = SER_WIDE(series);
-    const REBOOL any_array = Is_Array_Series(series);
-
-    REBCNT start;
-    REBCNT size;
-    REBCNT extra;
-    REBUPT n_found;
-    REBUPT n_available;
-    REBCNT x;
-    REBYTE *data_old;
-    REBCNT size_old;
-    REBINT bias_old;
-    REBINT len_old;
-
-    // ASSERT_SERIES_TERM(series);
+    assert(index <= series->content.dynamic.len);
+    if (delta & 0x80000000) fail (Error(RE_PAST_END)); // 2GB max
 
     if (delta == 0) return;
 
-    // Optimized case of head insertion:
+    REBYTE wide = SER_WIDE(series);
+    const REBOOL is_array = Is_Array_Series(series);
+
     if (index == 0 && SER_BIAS(series) >= delta) {
+
+    //=//// HEAD INSERTION OPTIMIZATION ///////////////////////////////////=//
+
         series->content.dynamic.data -= wide * delta;
         series->content.dynamic.len += delta;
         series->content.dynamic.rest += delta;
         SER_SUB_BIAS(series, delta);
 
     #if !defined(NDEBUG)
-        if (any_array) {
+        if (is_array) {
             //
             // When the bias region was marked, it was made "unsettable" if
             // this was a debug build.  Now that the memory is included in
@@ -1274,15 +1266,11 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
         return;
     }
 
-    // Range checks
-    //
-    assert(index <= series->content.dynamic.len);
-    if (delta & 0x80000000) fail (Error(RE_PAST_END)); // 2GB max
-
     // Width adjusted variables:
-    start = index * wide;
-    extra = delta * wide;
-    size  = (series->content.dynamic.len) * wide;
+
+    REBCNT start = index * wide;
+    REBCNT extra = delta * wide;
+    REBCNT size = series->content.dynamic.len * wide;
 
     if ((size + extra + wide) <= SER_SPACE(series)) { // + wide for terminator
         //
@@ -1306,7 +1294,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
         TERM_SERIES(series);
 
     #if !defined(NDEBUG)
-        if (any_array) {
+        if (is_array) {
             //
             // The opened up area needs to be set to "settable" trash in the
             // debug build.  This takes care of making "unsettable" values
@@ -1329,7 +1317,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
         return;
     }
 
-    // We need to expand the current series allocation.
+//=//// INSUFFICIENT CAPACITY, NEW ALLOCATION REQUIRED ////////////////////=//
 
     if (GET_SER_FLAG(series, SERIES_FLAG_FIXED_SIZE))
         panic (Error(RE_LOCKED_SERIES));
@@ -1343,10 +1331,11 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
     }
 #endif
 
-    // Create a new series that is bigger.
     // Have we recently expanded the same series?
-    x = 1;
-    n_available = 0;
+
+    REBCNT x = 1;
+    REBUPT n_available = 0;
+    REBUPT n_found;
     for (n_found = 0; n_found < MAX_EXPAND_LIST; n_found++) {
         if (Prior_Expand[n_found] == series) {
             x = series->content.dynamic.len + delta + 1; // Double the size
@@ -1362,17 +1351,17 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
     }
 #endif
 
-    data_old = series->content.dynamic.data;
-    bias_old = SER_BIAS(series);
-    size_old = Series_Allocation_Unpooled(series);
-    len_old = series->content.dynamic.len;
+    REBYTE *data_old = series->content.dynamic.data;
+    REBINT bias_old = SER_BIAS(series);
+    REBCNT size_old = Series_Allocation_Unpooled(series);
+    REBINT len_old = series->content.dynamic.len;
 
     series->content.dynamic.data = NULL;
     if (!Series_Data_Alloc(
         series,
         series->content.dynamic.len + delta + x,
         wide,
-        any_array ? (MKS_ARRAY | MKS_POWER_OF_2) : MKS_POWER_OF_2
+        is_array ? (MKS_ARRAY | MKS_POWER_OF_2) : MKS_POWER_OF_2
     )) {
         fail (Error_No_Memory(
             (series->content.dynamic.len + delta + x) * wide)

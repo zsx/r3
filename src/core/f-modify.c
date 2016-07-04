@@ -49,12 +49,6 @@ REBCNT Modify_Array(
 
     REBINT ilen = 1; // length to be inserted
 
-    REBINT size; // total to insert
-
-#if !defined(NDEBUG)
-    REBINT index;
-#endif
-
     const RELVAL *src_rel;
     REBCTX *specifier;
 
@@ -95,8 +89,7 @@ REBCNT Modify_Array(
         specifier = SPECIFIED; // it's a REBVAL, not a RELVAL, so specified
     }
 
-    // Total to insert:
-    size = dups * ilen;
+    REBINT size = dups * ilen; // total to insert
 
     if (action != SYM_CHANGE) {
         // Always expand dst_arr for INSERT and APPEND actions:
@@ -115,9 +108,10 @@ REBCNT Modify_Array(
     tail = (action == SYM_APPEND) ? 0 : size + dst_idx;
 
 #if !defined(NDEBUG)
-    for (index = 0; index < ilen; index++) {
-        if (IS_ARRAY_MANAGED(dst_arr))
-            ASSERT_VALUE_MANAGED(&src_rel[index]);
+    if (IS_ARRAY_MANAGED(dst_arr)) {
+        REBINT i;
+        for (i = 0; i < ilen; ++i)
+            ASSERT_VALUE_MANAGED(&src_rel[i]);
     }
 #endif
 
@@ -132,6 +126,8 @@ REBCNT Modify_Array(
         }
     }
     TERM_ARRAY_LEN(dst_arr, ARR_LEN(dst_arr));
+
+    ASSERT_ARRAY(dst_arr);
 
     return tail;
 }

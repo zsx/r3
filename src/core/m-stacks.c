@@ -143,9 +143,6 @@ void Shutdown_Stacks(void)
 void Expand_Data_Stack_May_Fail(REBCNT amount)
 {
     REBCNT len_old = ARR_LEN(DS_Array);
-    REBCNT len_new;
-    REBCNT n;
-    REBVAL *value;
 
     // The current requests for expansion should only happen when the stack
     // is at its end.  Sanity check that.
@@ -175,8 +172,9 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
     // the debug build).  In order to serve as a marker for the stack slot
     // being available, it merely must not be IS_END()...
     //
-    value = DS_TOP;
-    len_new = len_old + amount;
+    REBVAL *value = DS_TOP;
+    REBCNT len_new = len_old + amount;
+    REBCNT n;
     for (n = len_old; n < len_new; ++n) {
         SET_TRASH_SAFE(value);
         ++value;

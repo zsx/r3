@@ -234,11 +234,9 @@ REBSER *Copy_Sequence_At_Position(const REBVAL *position)
 //
 void Remove_Series(REBSER *series, REBCNT index, REBINT len)
 {
-    REBCNT  start;
-    REBCNT  length;
-    REBYTE  *data;
-
     if (len <= 0) return;
+
+    REBCNT start = index * SER_WIDE(series);
 
     // Optimized case of head removal:
     if (index == 0) {
@@ -292,20 +290,25 @@ void Remove_Series(REBSER *series, REBCNT index, REBINT len)
 
     if (index >= series->content.dynamic.len) return;
 
-    start = index * SER_WIDE(series);
-
     // Clip if past end and optimize the remove operation:
+
     if (len + index >= series->content.dynamic.len) {
         series->content.dynamic.len = index;
         TERM_SERIES(series);
         return;
     }
 
-    length = (SER_LEN(series) + 1) * SER_WIDE(series); // include term.
+    // The terminator is not included in the length, because termination may
+    // be implicit (e.g. there may not be a full SER_WIDE() worth of data
+    // at the termination location).  Use TERM_SERIES() instead.
+    //
+    REBCNT length = SER_LEN(series) * SER_WIDE(series);
     series->content.dynamic.len -= cast(REBCNT, len);
     len *= SER_WIDE(series);
-    data = series->content.dynamic.data + start;
+
+    REBYTE *data = series->content.dynamic.data + start;
     memmove(data, data + len, length - (start + len));
+    TERM_SERIES(series);
 }
 
 

@@ -82,23 +82,59 @@
 #endif
 
 
-static inline void Start_New_Expression_Core(struct Reb_Frame *f) {
+static inline REBOOL Start_New_Expression_Throws(struct Reb_Frame *f) {
+    assert(Eval_Count != 0);
+
+    if (--Eval_Count == 0 || Eval_Signals) {
+        //
+        // Note that Do_Signals_Throws() may do a recycle step of the GC, or
+        // it may spawn an entire interactive debugging session via
+        // breakpoint before it returns.  It may also FAIL and longjmp out.
+        //
+        REBUPT eval_type_saved = f->eval_type;
+        f->eval_type = ET_INERT;
+
+        INIT_CELL_WRITABLE_IF_DEBUG(&f->cell.eval);
+        if (Do_Signals_Throws(SINK(&f->cell.eval))) {
+            *f->out = *KNOWN(&f->cell.eval);
+            return TRUE;
+        }
+
+        f->eval_type = eval_type_saved;
+
+        if (!IS_VOID(&f->cell.eval)) {
+            //
+            // !!! What to do with something like a Ctrl-C-based breakpoint
+            // session that does something like `resume/with 10`?  We are
+            // "in-between" evaluations, so that 10 really has no meaning
+            // and is just going to get discarded.  FAIL for now to alert
+            // the user that something is off, but perhaps the failure
+            // should be contained in a sandbox and restart the break?
+            //
+            fail (Error(RE_MISC));
+        }
+    }
+
     f->expr_index = f->index; // !!! See FRM_INDEX() for caveats
     if (Trace_Flags)
         Trace_Line(f);
+
+    return FALSE;
 }
 
 #ifdef NDEBUG
-    #define START_NEW_EXPRESSION(f) \
-        Start_New_Expression_Core(f)
+    #define START_NEW_EXPRESSION_MAY_THROW(f,g) \
+        if (Start_New_Expression_Throws(f))
+            g;
 #else
     // Macro is used to mutate local do_count variable in Do_Core (for easier
     // browsing in the watchlist) as well as to not be in a deeper stack level
     // than Do_Core when a DO_COUNT_BREAKPOINT is hit.
     //
-    #define START_NEW_EXPRESSION(f) \
+    #define START_NEW_EXPRESSION_MAY_THROW(f,g) \
         do { \
-            Start_New_Expression_Core(f); \
+            if (Start_New_Expression_Throws(f)) \
+                g; \
             do_count = Do_Core_Expression_Checks_Debug(f); \
             if (do_count == DO_COUNT_BREAKPOINT) { \
                 Debug_Fmt("DO_COUNT_BREAKPOINT hit at %d", f->do_count); \
@@ -179,7 +215,7 @@ void Do_Core(struct Reb_Frame * const f)
     REBUPT do_count = f->do_count = TG_Do_Count; // snapshot initial state
 #endif
 
-    // Establish baseline for whether we are to evaluate function argumentsn
+    // Establish baseline for whether we are to evaluate function arguments
     // according to the flags passed in.  EVAL can change this with EVAL/ONLY
     //
     REBOOL args_evaluate = NOT(f->flags & DO_FLAG_NO_ARGS_EVALUATE);
@@ -216,52 +252,6 @@ void Do_Core(struct Reb_Frame * const f)
     //
     f->dsp_orig = DSP;
 
-do_next:
-
-    assert(Eval_Count != 0);
-
-    if (--Eval_Count == 0 || Eval_Signals) {
-        //
-        // Note that Do_Signals_Throws() may do a recycle step of the GC, or
-        // it may spawn an entire interactive debugging session via
-        // breakpoint before it returns.  It may also FAIL and longjmp out.
-        //
-        REBUPT eval_type_saved = f->eval_type;
-        f->eval_type = ET_INERT;
-
-        INIT_CELL_WRITABLE_IF_DEBUG(&f->cell.eval);
-        if (Do_Signals_Throws(SINK(&f->cell.eval))) {
-            *f->out = *KNOWN(&f->cell.eval);
-            goto finished;
-        }
-
-        f->eval_type = eval_type_saved;
-
-        if (!IS_VOID(&f->cell.eval)) {
-            //
-            // !!! What to do with something like a Ctrl-C-based breakpoint
-            // session that does something like `resume/with 10`?  We are
-            // "in-between" evaluations, so that 10 really has no meaning
-            // and is just going to get discarded.  FAIL for now to alert
-            // the user that something is off, but perhaps the failure
-            // should be contained in a sandbox and restart the break?
-            //
-            fail (Error(RE_MISC));
-        }
-    }
-
-reevaluate:
-    // ^--
-    // `reevaluate` is jumped to by EVAL, and must skip the possible Recycle()
-    // from the above.  Whenever `eval` holds a REBVAL it is unseen by the GC
-    // *by design*.  This avoids having to initialize it or GC-safe null it
-    // each time through the evaluator loop.  It will only be protected by
-    // the GC indirectly when its properties are extracted during the switch,
-    // such as a function that gets stored into `f->func`.
-    //
-    // (We also want the debugger to consider the triggering EVAL as the
-    // start of the expression, and don't want to advance `expr_index`).
-
     //==////////////////////////////////////////////////////////////////==//
     //
     // BEGIN MAIN SWITCH STATEMENT
@@ -276,7 +266,11 @@ reevaluate:
     // Note that infix ("lookback") functions are dispatched *after* the
     // switch...unless DO_FLAG_NO_LOOKAHEAD is set.
 
-    START_NEW_EXPRESSION(f);
+do_next:
+
+    START_NEW_EXPRESSION_MAY_THROW(f, goto finished); // Ctrl-C may abort
+
+reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
 
     switch (f->eval_type) { // <-- DO_COUNT_BREAKPOINT landing spot
 
@@ -776,28 +770,20 @@ reevaluate:
 
             CLEAR_FRAME_LABEL(f);
 
-            // Jumping to the `reevaluate:` label will skip the fetch from the
-            // array to get the next `value`.  So seed it with the address of
-            // eval result, and step the index back by one so the next
-            // increment will get our position sync'd in the block.
+            // Save the prefetched f->value for what would be the usual next
+            // item (including if it was an END marker) into f->pending.
+            // Then make f->value the address of the eval result.
             //
-            // If there's any reason to be concerned about the temporary
-            // item being GC'd, it should be taken care of by the implicit
-            // protection from the Do Stack.  (e.g. if it contains a function
-            // that gets evaluated it will wind up in f->func, if it's a
-            // GROUP! or PATH!-containing-GROUP! it winds up in f->array...)
-            //
-            f->pending = f->value; // may be END marker for next fetch
-
             // Since the evaluation result is a REBVAL and not a RELVAL, it
             // is specific.  This means the `f->specifier` (which can only
             // specify values from the source array) won't ever be applied
             // to it, since it only comes into play for IS_RELATIVE values.
             //
-            SET_FRAME_VALUE(f, const_KNOWN(&f->cell.eval));
+            f->pending = f->value;
+            SET_FRAME_VALUE(f, const_KNOWN(&f->cell.eval)); // SPECIFIED
             f->eval_type = Eval_Table[VAL_TYPE(f->value)];
 
-            // The f->gotten (if any) is the fetch for the f->value we just
+            // The f->gotten (if any) was the fetch for the f->value we just
             // put in pending...not the f->value we just set.  Not only is
             // it more expensive to hold onto that cache than to lose it,
             // but an eval can do anything...so the f->gotten might wind
@@ -1694,7 +1680,7 @@ reevaluate:
 
     //=//// IT'S INFIX OR WE'RE DOING TO THE END...DISPATCH LIKE WORD /////=//
 
-        START_NEW_EXPRESSION(f);
+        START_NEW_EXPRESSION_MAY_THROW(f, goto finished); // Ctrl-C may abort
 
         if (!f->gotten) // <-- DO_COUNT_BREAKPOINT landing spot
             goto do_word_in_value_with_gotten; // let it handle the error

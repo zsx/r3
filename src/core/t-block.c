@@ -1024,10 +1024,22 @@ void Assert_Array_Core(REBARR *array)
     }
 
     if (GET_ARR_FLAG(array, SERIES_FLAG_HAS_DYNAMIC)) {
-        RELVAL *ultimate = ARR_AT(
-            array, ARR_SERIES(array)->content.dynamic.rest - 1
-        );
-        assert(ultimate->header.bits == 0);
+        REBCNT rest = ARR_SERIES(array)->content.dynamic.rest;
+        assert(rest > 0 && rest > len);
+        for (; len < rest - 1; len++) {
+            RELVAL *value = ARR_AT(array, len);
+            if (NOT(value->header.bits & CELL_MASK)) {
+                printf("Unwritable cell found in array rest capacity\n");
+                fflush(stdout);
+                Panic_Array(array);
+            }
+        }
+
+        // Last item should be implicit terminator
+        if (ARR_AT(array, len)->header.bits != 0) {
+            printf("Implicit termination/unwritable END missing from array\n");
+            fflush(stdout);
+        }
     }
 }
 #endif
