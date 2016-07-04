@@ -255,6 +255,11 @@ prin: function [
     print/delimit/only/:eval :value space
 ]
 
+; Common debug abbreviations that should be console-only (if anything)
+;
+dt: :delta-time
+dp: :delta-profile
+
 
 ; BREAK/RETURN was supplanted by BREAK/WITH.  The confusing idea of involving
 ; the word RETURN in the refinement (return from where, who?) became only
@@ -509,14 +514,14 @@ make: function [
 ][
     switch first lookahead [
         callback! [
-            assert [function! = take type]
+            verify [function! = take type]
             def: ensure block! take def
             ffi-spec: ensure block! first def
             action: ensure function! reduce second def
             return make-callback :action ffi-spec
         ]
         routine! [
-            assert [function! = take type]
+            verify [function! = take type]
             def: ensure block! take def
             ffi-spec: ensure block! first def
             lib: ensure [integer! library!] reduce second def
@@ -527,7 +532,7 @@ make: function [
             return make-routine lib name ffi-spec
         ]
         command! [
-            assert [function! = take type]
+            verify [function! = take type]
             def: ensure block! take def
             return make-command def
         ]
@@ -928,12 +933,6 @@ set 'r3-legacy* func [<local> if-flags] [
         reduce: (function [
             {Evaluates expressions and returns multiple results.}
             value
-            /no-set
-                "Keep set-words as-is. Do not set them."
-            /only
-                "Only evaluate words and paths, not functions"
-            words [block! blank!]
-                "Optional words that are not evaluated (keywords)"
             /into
                 {Output results into a series with no intermediate storage}
             target [any-block!]
@@ -942,8 +941,6 @@ set 'r3-legacy* func [<local> if-flags] [
 
             apply :lib/reduce [
                 | value: :value
-                | no-set: no-set
-                | if only: only [words: :words]
                 | if into: into [target: :target]
             ]
         ])

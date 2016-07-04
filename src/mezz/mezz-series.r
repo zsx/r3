@@ -616,7 +616,7 @@ find-all: function [
     value
     body [block!] "Evaluated for each occurrence"
 ][
-    assert [any-series? orig: get series]
+    verify [any-series? orig: get series]
     while [any [set series find get series :value (set series orig false)]] [
         do body
         ++ (series)

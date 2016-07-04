@@ -83,7 +83,8 @@ secure: function/with [
 
     ; Set each policy target separately:
     for-each [target pol] policy [
-        assert/type [target [word! file! url!] pol [block! word! integer!]]
+        ensure [word! file! url!] target
+        ensure [block! word! integer!] pol
         set-policy target make-policy target pol pol-obj
     ]
 

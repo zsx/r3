@@ -16,6 +16,18 @@ REBOL [
     }
 ]
 
+assert: func [
+    {Ensure conditions are TRUE? if hooked by debugging (see also: VERIFY)}
+
+    conditions [block!]
+        {Block of conditions to evaluate, void and FALSE? trigger alerts}
+][
+    ; ASSERT has no default implementation, but can be HIJACKed by a debug
+    ; build with a custom validation or output routine.  (Currently there is
+    ; a default hijacking to set it to be equivalent to VERIFY, late in boot.)
+]
+
+
 ; Due to wanting R3-Alpha to be able to run the bootstrap build, these objects
 ; could not unset these fields.  (make object! [x: ()] fails in R3-Alpha)
 ;
@@ -630,7 +642,7 @@ module: func [
     ;
     ; !!! This should be an informative error instead of asserts!
     ;
-    assert/type [
+    for-each [var types] [
         spec object!
         body block!
         mixins [object! blank!]
@@ -638,6 +650,8 @@ module: func [
         spec/type [word! blank!]
         spec/version [tuple! blank!]
         spec/options [block! blank!]
+    ][
+        do compose/only [ensure (types) (var)] ;-- names to show if fails
     ]
 
     ; In Ren-C, MAKE MODULE! acts just like MAKE OBJECT! due to the generic
@@ -771,62 +785,17 @@ default: func [
 ]
 
 
-maybe: func [
-    {If value is type, typeset, or logic match passthru, else return blank}
-    types [datatype! typeset! block! logic!]
-    value [<opt> any-value!]
-    /relax
-        {Do not trigger an error if types contain LOGIC! or BLANK!.}
-][
-    if not set? 'value [return blank]
-
-    if block? types [types: make typeset! types]
-
-    case [
-        logic? types [
-            if types = (true? :value) [return :value]
-            return blank
-        ]
-
-        datatype? types [
-            unless relax [
-                if logic! = types [
-                    fail "use /RELAX to allow a LOGIC! false result"
-                ]
-                if blank! = types [
-                    fail "use /RELAX to allow a BLANK! result"
-                ]
-            ]
-            if types = type-of :value [return :value]
-        ]
-
-        typeset? types [
-            unless relax [
-                if find types logic! [
-                    fail "use /RELAX to allow a LOGIC! false result"
-                ]
-                if find types blank! [
-                    fail "use /RELAX to allow a BLANK! result"
-                ]
-            ]
-            if find types type-of :value [return :value]
-        ]
-    ]
-
-    blank
-]
-
-
 ensure: function [
     {Pass through a value only if it matches types (or TRUE?/FALSE? state)}
     types [block! datatype! typeset! logic!]
     arg [any-value!] ;-- not <opt>, so implicitly ensured to be non-void
-    /relax
 ][
-    unless result: maybe/(if relax ['relax]) types :arg [
-        fail ["ENSURE did not expect arg to have type" (type-of :arg)]
+    if blank? result: maybe types :arg [
+        fail/where [
+            "ENSURE did not expect arg to have type" (type-of :arg)
+        ] 'arg
     ]
-    :result
+    :result ;-- may be void if asked for BLANK! or LOGIC! and it's false
 ]
 
 

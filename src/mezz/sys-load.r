@@ -227,12 +227,10 @@ load-header: function/with [
             ]
         ]
 
-        ;assert/type [rest [binary!]] blank
-
         :key != 'rebol [
             ; block-embedded script, only script compression, ignore hdr/length
 
-            tmp: rest ; saved for possible checksum calc later
+            tmp: ensure binary! rest ; saved for possible checksum calc later
 
             ; decode embedded script
             rest: skip first set [data: end:] transcode/next data 2
@@ -252,11 +250,17 @@ load-header: function/with [
                 ]
             ]
         ]
-        ;assert/type [rest [block! binary!]] blank
+
     ]
-    ;assert/type [hdr object! rest [binary! block!] end binary!]
-    ;assert/type [hdr/checksum [binary! blank!] hdr/options [block! blank!]]
-    reduce [hdr rest end]
+
+    ensure [binary! blank!] hdr/checksum
+    ensure [block! blank!] hdr/options
+
+    reduce [
+        ensure object! hdr
+        ensure [binary! block!] rest
+        ensure binary! end
+    ]
 ][
     non-ws: make bitset! [not 1 - 32]
 ]
@@ -268,12 +272,15 @@ load-ext-module: function [
         "Extension object (from LOAD-EXTENSION, modified)"
 ][
     ; for ext obj: help system/standard/extensions
-    assert/type [ext/lib-base handle! ext/lib-boot binary!] ; Just in case
+    ensure handle! ext/lib-base
+    ensure binary! ext/lib-boot
 
     if word? set [hdr: code:] load-header/required ext/lib-boot [
         cause-error 'syntax hdr ext  ; word returned is error code
     ]
-    ;assert/type [hdr object! hdr/options [block! blank!] code [binary! block!]]
+    ensure object! hdr
+    ensure [block! blank!] hdr/options
+    ensure [binary! block!] code
 
     loud-print ["Extension:" select hdr 'title]
     unless hdr/options [hdr/options: make block! 1]
@@ -654,7 +661,10 @@ load-module: function [
                 ; get the module
                 set [mod: modsum:] next tmp blank
 
-                ;assert/type [mod [module! block!] modsum [binary! blank!]] blank
+                <check> [
+                    ensure [module! block!] mod
+                    ensure [binary! blank!] modsum
+                ]
 
                 ; If no further processing is needed, shortcut return
                 all [not version not check any [delay module? :mod]] [
@@ -763,7 +773,7 @@ load-module: function [
         void? :mod [mod: _]
         module? mod [
             delay: no-share: _ hdr: meta-of mod
-            assert/type [hdr/options [block! blank!]]
+            ensure [block! blank!] hdr/options
         ]
         block? mod [set/opt [hdr: code:] mod]
 
@@ -811,7 +821,13 @@ load-module: function [
             case/all [
                 module? :mod0 [hdr0: meta-of mod0] ; final header
                 block? :mod0 [hdr0: first mod0] ; cached preparsed header
-                ;assert/type [name0 word! hdr0 object! sum0 [binary! blank!]] blank
+
+                <check> [
+                    ensure word! name0
+                    ensure object! hdr0
+                    ensure [binary! blank!] sum0
+                ]
+
                 not tuple? ver0: :hdr0/version [ver0: 0.0.0]
             ]
 
@@ -877,7 +893,8 @@ load-module: function [
                 binary? code [code: to block! code]
             ]
 
-            assert/type [hdr object! code block!]
+            ensure object! hdr
+            ensure block! code
 
             mod: catch/quit [
                 module/mixin hdr code (opt do-needs/no-user hdr)

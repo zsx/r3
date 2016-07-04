@@ -90,130 +90,151 @@ REBNATIVE(latin1_q)
 
 
 //
-//  Is_Type_Of: C
-// 
-// Types can be: word or block. Each element must be either
-// a datatype or a typeset.
+//  verify: native [
 //
-static REBOOL Is_Type_Of(const REBVAL *value, REBVAL *types)
+//  {Ensure conditions are TRUE?, even when not debugging (see also: ASSERT)}
+//
+//      conditions [block!]
+//          {Block of conditions to evaluate, void and FALSE? trigger alerts}
+//  ]
+//
+REBNATIVE(verify)
 {
-    const REBVAL *val;
+    PARAM(1, conditions);
 
-    val = IS_WORD(types) ? GET_OPT_VAR_MAY_FAIL(types, SPECIFIED) : types;
+    Reb_Enumerator e;
+    PUSH_SAFE_ENUMERATOR(&e, ARG(conditions)); // protects conditions during DO
 
-    if (IS_DATATYPE(val))
-        return LOGICAL(VAL_TYPE_KIND(val) == VAL_TYPE(value));
+    while (NOT_END(e.value)) {
+        UPDATE_EXPRESSION_START(&e); // informs the error delivery better
 
-    if (IS_TYPESET(val))
-        return LOGICAL(TYPE_CHECK(val, VAL_TYPE(value)));
-
-    if (IS_BLOCK(val)) {
-        RELVAL *item;
-        for (item = VAL_ARRAY_AT(val); NOT_END(item); ++item) {
-            const RELVAL *temp = IS_WORD(item)
-                ? GET_OPT_VAR_MAY_FAIL(item, VAL_SPECIFIER(val))
-                : item;
-
-            if (IS_DATATYPE(temp)) {
-                if (VAL_TYPE_KIND(temp) == VAL_TYPE(value)) return TRUE;
-            }
-            else if (IS_TYPESET(temp)) {
-                if (TYPE_CHECK(temp, VAL_TYPE(value))) return TRUE;
-            }
-            else
-                fail (Error(RE_INVALID_TYPE, Type_Of(temp)));
+        const RELVAL *start = e.value;
+        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_LOOKAHEAD);
+        if (THROWN(D_OUT)) {
+            DROP_SAFE_ENUMERATOR(&e);
+            return R_OUT_IS_THROWN;
         }
-        return FALSE;
+
+        if (!IS_VOID(D_OUT) && IS_CONDITIONAL_TRUE(D_OUT))
+            continue;
+
+        REBVAL temp;
+        Val_Init_Block(
+            &temp,
+            Copy_Values_Len_Shallow(start, e.specifier, e.value - start)
+        );
+
+        if (IS_VOID(D_OUT))
+            fail (Error(RE_VERIFY_VOID, &temp));
+
+        fail (Error(RE_VERIFY_FAILED, &temp));
     }
 
-    fail (Error_Invalid_Arg(types));
+    DROP_SAFE_ENUMERATOR(&e);
+    return R_VOID;
+}
+
+
+// Test used iteratively by MAYBE native.  Returns R_BLANK if the test fails,
+// R_OUT if success, or R_OUT_IF_THROWN if a test throws.
+//
+inline static REB_R Do_Test_For_Maybe(
+    REBVAL *out,
+    const REBVAL *value,
+    const RELVAL *test
+) {
+    if (IS_DATATYPE(test)) {
+        if (VAL_TYPE_KIND(test) != VAL_TYPE(value))
+            return R_BLANK;
+        *out = *value;
+        return R_OUT;
+    }
+
+    if (IS_TYPESET(test)) {
+        if (!TYPE_CHECK(test, VAL_TYPE(value)))
+            return R_BLANK;
+        *out = *value;
+        return R_OUT;
+    }
+
+    if (IS_FUNCTION(test)) {
+        if (Apply_Only_Throws(out, const_KNOWN(test), value, END_CELL))
+            return R_OUT_IS_THROWN;
+
+        if (IS_VOID(out))
+            fail (Error(RE_NO_RETURN));
+
+        if (IS_CONDITIONAL_FALSE(out))
+            return R_BLANK;
+
+        *out = *value;
+        return R_OUT;
+    }
+
+    fail (Error(RE_INVALID_TYPE, Type_Of(test)));
 }
 
 
 //
-//  assert: native [
-//  
-//  {Assert that condition is true, else cause an assertion error.}
-//  
-//      conditions [block!]
-//      /type {Safely check datatypes of variables (words and paths)}
+//  maybe: native [
+//
+//  {If value passes test (type match, function true) return value, else blank}
+//
+//      test [function! datatype! typeset! block! logic!]
+//      value [<opt> any-value!]
 //  ]
 //
-REBNATIVE(assert)
-//
-// !!! Should this be a mezzanine routine, built atop ENSURE as a native?
-// Given the existence of ENSURE/TYPE, is ASSERT/TYPE necessary?
+REBNATIVE(maybe)
 {
-    PARAM(1, conditions);
-    REFINE(2, type);
+    PARAM(1, test);
+    PARAM(2, value);
 
-    REBCTX *specifier = VAL_SPECIFIER(ARG(conditions));
+    REBVAL *value = ARG(value);
+    if (IS_VOID(value))
+        return R_BLANK;
 
-    if (!REF(type)) {
-        REBARR *block = VAL_ARRAY(ARG(conditions));
-        REBIXO indexor = VAL_INDEX(ARG(conditions));
-        REBCNT i;
+    REBVAL *test = ARG(test);
 
-        while (indexor != END_FLAG) {
-            i = cast(REBCNT, indexor);
-
-            indexor = DO_NEXT_MAY_THROW(D_OUT, block, indexor, specifier);
-            if (indexor == THROWN_FLAG)
-                return R_OUT_IS_THROWN;
-
-            if (IS_CONDITIONAL_FALSE(D_OUT)) {
-                // !!! Only copies 3 values (and flaky), see CC#2231
-                Val_Init_Block(
-                    D_OUT, Copy_Array_At_Max_Shallow(block, i, specifier, 3)
-                );
-                fail (Error(RE_ASSERT_FAILED, D_OUT));
-            }
-        }
-        SET_TRASH_SAFE(D_OUT);
-    }
-    else {
-        // /types [var1 integer!  var2 [integer! decimal!]]
-        const REBVAL *val;
-        RELVAL *value = VAL_ARRAY_AT(ARG(conditions));
-
-        REBVAL type;
-
-        for (; NOT_END(value); value += 2) {
-            if (IS_WORD(value)) {
-                val = GET_OPT_VAR_MAY_FAIL(value, specifier);
-            }
-            else if (IS_PATH(value)) {
-                if (Do_Path_Throws_Core(D_OUT, NULL, value, specifier, NULL))
-                    fail (Error_No_Catch_For_Throw(D_OUT));
-
-                val = D_OUT;
-            }
-            else
-                fail (Error_Invalid_Arg_Core(value, specifier));
-
-            if (IS_END(value + 1)) fail (Error(RE_MISSING_ARG));
-
-            COPY_VALUE(&type, value + 1, specifier);
-
-            if (
-                IS_BLOCK(&type)
-                || IS_WORD(&type)
-                || IS_TYPESET(&type)
-                || IS_DATATYPE(&type)
-            ) {
-                if (!Is_Type_Of(val, &type)) {
-                    REBVAL specific;
-                    COPY_VALUE(&specific, value, specifier);
-
-                    fail (Error(RE_WRONG_TYPE, value));
-                }
-            }
-            else
-                fail (Error_Invalid_Arg(&type));
-        }
+    if (IS_LOGIC(test)) {
+        if (VAL_LOGIC(test) == IS_CONDITIONAL_TRUE(value))
+            goto type_matched;
+        return R_BLANK;
     }
 
-    return R_VOID;
+    REB_R r;
+    if (IS_BLOCK(test)) {
+        RELVAL *item;
+        for (item = VAL_ARRAY_AT(test); NOT_END(item); ++item) {
+            r = Do_Test_For_Maybe(
+                D_OUT,
+                value,
+                IS_WORD(item)
+                    ? GET_OPT_VAR_MAY_FAIL(item, VAL_SPECIFIER(test))
+                    : item
+            );
+
+            if (r != R_BLANK)
+                goto type_matched;
+        }
+    }
+    else
+        r = Do_Test_For_Maybe(D_OUT, value, test);
+
+    if (r == R_OUT_IS_THROWN || r == R_BLANK)
+        return r;
+
+    assert(r == R_OUT); // must have matched!
+
+type_matched:
+    // Because there may be usages like `if maybe logic! x [print "logic!"]`,
+    // it would be bad to take in a FALSE and pass back a FALSE.  Returning
+    // void lets routines like ENSURE take advantage of the checking aspect
+    // without risking a false positive for BLANK! or FALSE in result use.
+    //
+    if (IS_CONDITIONAL_FALSE(value))
+        return R_VOID;
+
+    return R_OUT;
 }
 
 

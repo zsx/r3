@@ -182,8 +182,9 @@ Script: [
     too-long:           {content too long}
     invalid-chars:      {contains invalid characters}
     invalid-compare:    [{cannot compare} :arg1 {with} :arg2]
-    assert-failed:      [{assertion failed for:} :arg1]
-    wrong-type:         [{datatype assertion failed for:} :arg1]
+
+    verify-void:        [{verification condition void at:} :arg1]
+    verify-failed:      [{verification failed for:} :arg1]
 
     invalid-part:       [{invalid /part count:} :arg1]
     type-limit:         [:arg1 {overflow/underflow}]

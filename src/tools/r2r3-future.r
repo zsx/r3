@@ -70,6 +70,10 @@ if void? :set? [
     ]
 ]
 
+unless set? 'verify [
+    verify: :assert ;-- ASSERT may be a no-op in Ren-C, but verify isn't
+]
+
 unless set? 'blank? [
     blank?: get 'none?
     blank!: get 'none!

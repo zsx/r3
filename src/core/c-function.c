@@ -619,7 +619,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         if (duplicate != NULL) {
             REBVAL word;
             Val_Init_Word(&word, REB_WORD, duplicate);
-            PROBE(spec);
             fail (Error(RE_DUP_VARS, &word));
         }
 
