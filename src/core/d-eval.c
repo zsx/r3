@@ -181,8 +181,13 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     // we should be back where we started in terms of the data stack, the
     // mold buffer position, the outstanding manual series allocations, etc.
     //
+    // Because this check is a bit expensive it is lightened up and used in
+    // the exit case only.  But re-enable it to help narrowing down an
+    // imbalanced state discovered on an exit.
+
+    /* ASSERT_STATE_BALANCED(&f->state);*/
     assert(f == FS_TOP);
-    ASSERT_STATE_BALANCED(&f->state);
+    assert(DSP == f->dsp_orig);
 
     if (f->flags & DO_FLAG_VA_LIST)
         assert(f->index == TRASHED_INDEX);
@@ -228,7 +233,7 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
                 f->value,
                 f->specifier,
                 GETVAR_READ_ONLY
-            );
+            ); // Expensive check, but a fairly important one.  Review.
 
             // Successive Do_Core calls are not robust to changes in system
             // state besides those made by Do_Core.  If one of these fire,
@@ -323,6 +328,12 @@ REBUPT Do_Core_Expression_Checks_Debug(REBFRM *f) {
 //  Do_Core_Exit_Checks_Debug: C
 //
 void Do_Core_Exit_Checks_Debug(REBFRM *f) {
+    //
+    // To keep from slowing down the debug build too much, this is not put in
+    // the shared checks.  But if it fires and it's hard to figure out which
+    // exact cycle caused the problem, re-add it in the shared checks.
+    //
+    ASSERT_STATE_BALANCED(&f->state);
 
     Do_Core_Shared_Checks_Debug(f);
 

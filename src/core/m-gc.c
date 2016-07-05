@@ -785,8 +785,13 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
         }
 
         case REB_FUNCTION: {
-            assert(VAL_FUNC_PARAMLIST(val) == FUNC_PARAMLIST(VAL_FUNC(val)));
+            REBVAL *archetype = FUNC_VALUE(VAL_FUNC(val));
+
+            assert(VAL_FUNC_PARAMLIST(val) == VAL_FUNC_PARAMLIST(archetype));
+            assert(VAL_FUNC_BODY(val) == VAL_FUNC_BODY(archetype));
             Queue_Mark_Function_Deep(VAL_FUNC(val));
+            if (VAL_BINDING(val) != NULL)
+                Queue_Mark_Anything_Deep(ARR_SERIES(VAL_BINDING(val)));
 
             // !!! Needs to mark the exit/binding...
             break;

@@ -173,6 +173,7 @@ inline static REBCNT SER_REST(REBSER *s) {
 // but have no element type pointer to pass in.
 //
 inline static REBYTE *SER_DATA_RAW(REBSER *s) {
+    // if updating, also update manual inlining in SER_AT_RAW
     return GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)
         ? s->content.dynamic.data
         : cast(REBYTE*, &s->content.values[0]);
@@ -180,7 +181,11 @@ inline static REBYTE *SER_DATA_RAW(REBSER *s) {
 
 inline static REBYTE *SER_AT_RAW(size_t w, REBSER *s, REBCNT i) {
     assert(w == SER_WIDE(s));
-    return SER_DATA_RAW(s) + ((w) * (i));
+    return ((w) * (i)) + ( // v-- inlining of SER_DATA_RAW
+        GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)
+            ? s->content.dynamic.data
+            : cast(REBYTE*, &s->content.values[0])
+        );
 }
 
 inline static void SER_SET_EXTERNAL_DATA(REBSER *s, void *p) {

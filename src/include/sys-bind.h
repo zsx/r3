@@ -268,7 +268,11 @@ inline static REBVAL *Get_Var_Core(
         // SPECIFIC BINDING: The context the word is bound to is explicitly
         // contained in the `any_word` REBVAL payload.  Just extract it.
         //
-        context = VAL_WORD_CONTEXT(const_KNOWN(any_word));
+        // We use VAL_SPECIFIC_COMMON() here instead of the heavy-checked
+        // VAL_WORD_CONTEXT(), because const_KNOWN() checks for specificity
+        // and the context operations will ensure it's a context.
+        //
+        context = VAL_SPECIFIC_COMMON(const_KNOWN(any_word));
     }
     else {
         // UNBOUND: No variable location to retrieve.

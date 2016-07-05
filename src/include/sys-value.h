@@ -158,15 +158,14 @@
     inline static enum Reb_Kind VAL_TYPE_Debug(
         const RELVAL *v, const char *file, int line
     ){
+        enum Reb_Kind kind = VAL_TYPE_COMMON(v);
         if (
             (v->header.bits & CELL_MASK)
             && NOT(IS_END_MACRO(v)) // IS_END redundantly checks trash
-            && NOT(
-                (v->header.bits & HEADER_TYPE_MASK) == REB_0
-                && !((v->header.bits & VOID_FLAG_NOT_TRASH))
+            && NOT(kind == REB_0 && !((v->header.bits & VOID_FLAG_NOT_TRASH))
             ) // ^-- *so* frequent, debug builds hand-inline IS_TRASH_DEBUG()
         ){
-            return VAL_TYPE_COMMON(v);
+            return kind;
         }
 
         assert(v->header.bits & CELL_MASK);
@@ -206,11 +205,6 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 // named things like TYPESET_FLAG_XXX or WORD_FLAG_XXX and only apply to the
 // type that they reference.  Both use these XXX_VAL_FLAG accessors.
 //
-// For safety in the debug build, all the type-specific flags include their
-// type as part of the flag.  This type is checked first, and then masked out
-// to use the single-bit-flag value which is intended.  The check uses the
-// an exemplar to identify the category (e.g. REB_OBJECT for ANY-CONTEXT!)
-//
 
 #ifdef NDEBUG
     inline static void SET_VAL_FLAGS(RELVAL *v, REBUPT f) {
@@ -231,33 +225,56 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     #define CLEAR_VAL_FLAG(v,f) \
         CLEAR_VAL_FLAGS((v), (f))
 #else
+    // For safety in the debug build, all the type-specific flags include a
+    // type (or type representing a category) as part of the flag.  This type
+    // is checked first, and then masked out to use the single-bit-flag value
+    // which is intended.
+    //
+    // But flag testing routines are called *a lot*, and debug builds do not
+    // inline functions.  So it's worth doing a sketchy macro so this somewhat
+    // borderline assert doesn't wind up taking up 20% of the debug's runtime.
+    //
+    #define CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG \
+        REBUPT category = f & HEADER_TYPE_MASK; \
+        if (category != REB_0) { \
+            enum Reb_Kind kind = VAL_TYPE(v); \
+            if (kind != category) { \
+                if (category == REB_WORD) \
+                    assert(ANY_WORD_KIND(kind)); \
+                else if (category == REB_OBJECT) \
+                    assert(ANY_CONTEXT_KIND(kind)); \
+                else \
+                    assert(FALSE); \
+            } \
+            f &= ~HEADER_TYPE_MASK; \
+        } \
+
+
     inline static void SET_VAL_FLAGS(RELVAL *v, REBUPT f) {
-        Assert_Flags_Are_For_Value(v, f);
-        v->header.bits |= f & ~HEADER_TYPE_MASK;
+        CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
+        v->header.bits |= f;
     }
 
     inline static void SET_VAL_FLAG(RELVAL *v, REBUPT f) {
-        SET_VAL_FLAGS(v, f);
-        f &= ~HEADER_TYPE_MASK;
+        CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
         assert(f && f == (f & -f)); // checks that only one bit is set
+        v->header.bits |= f;
     }
 
     inline static REBOOL GET_VAL_FLAG(const RELVAL *v, REBUPT f) {
-        Assert_Flags_Are_For_Value(v, f);
-        f &= ~HEADER_TYPE_MASK;
-        assert(f && f == (f & -f)); // checks that only one bit is set
+        CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
         return LOGICAL(v->header.bits & f);
     }
 
     inline static void CLEAR_VAL_FLAGS(RELVAL *v, REBUPT f) {
-        Assert_Flags_Are_For_Value(v, f);
-        v->header.bits &= ~(f & ~HEADER_TYPE_MASK);
+        CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
+        v->header.bits &= ~f;
     }
 
     inline static void CLEAR_VAL_FLAG(RELVAL *v, REBUPT f) {
-        CLEAR_VAL_FLAGS(v, f);
-        f &= ~HEADER_TYPE_MASK;
+        CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
         assert(f && f == (f & -f)); // checks that only one bit is set
+        v->header.bits &= ~f;
     }
 #endif
 
@@ -1730,14 +1747,10 @@ enum {
     FUNC_FLAG_NO_COMMA // needed for proper comma termination of this list
 };
 
-#ifdef NDEBUG
-    inline static REBFUN *VAL_FUNC(const RELVAL *v) {
-        return AS_FUNC(v->payload.function.paramlist);
-    }
-#else
-    #define VAL_FUNC(v) \
-        VAL_FUNC_Debug(v)
-#endif
+inline static REBFUN *VAL_FUNC(const RELVAL *v) {
+    assert(IS_FUNCTION(v));
+    return AS_FUNC(v->payload.function.paramlist);
+}
 
 inline static REBARR *VAL_FUNC_PARAMLIST(const RELVAL *v)
     { return FUNC_PARAMLIST(VAL_FUNC(v)); }

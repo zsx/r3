@@ -585,8 +585,12 @@ emit {
 #define ANY_ARRAY(v) \
     LOGICAL(VAL_TYPE(v) >= REB_BLOCK && VAL_TYPE(v) <= REB_LIT_PATH)
 
+inline static REBOOL ANY_WORD_KIND(enum Reb_Kind k) {
+    return LOGICAL(k >= REB_WORD && k <= REB_ISSUE);
+}
+
 #define ANY_WORD(v) \
-    LOGICAL(VAL_TYPE(v) >= REB_WORD && VAL_TYPE(v) <= REB_ISSUE)
+    ANY_WORD_KIND(VAL_TYPE(v))
 
 #define ANY_PATH(v) \
     LOGICAL(VAL_TYPE(v) >= REB_PATH && VAL_TYPE(v) <= REB_LIT_PATH)
@@ -594,8 +598,13 @@ emit {
 #define ANY_EVAL_BLOCK(v) \
     LOGICAL(VAL_TYPE(v) >= REB_BLOCK  && VAL_TYPE(v) <= REB_GROUP)
 
+inline static REBOOL ANY_CONTEXT_KIND(enum Reb_Kind k) {
+    return LOGICAL(k >= REB_OBJECT && k <= REB_PORT);
+}
+
 #define ANY_CONTEXT(v) \
-    LOGICAL(VAL_TYPE(v) >= REB_OBJECT && VAL_TYPE(v) <= REB_PORT)
+    ANY_CONTEXT_KIND(VAL_TYPE(v))
+
 }
 
 emit {

@@ -89,25 +89,6 @@ ATTRIBUTE_NO_RETURN void Panic_Value_Debug(
 }
 
 
-//
-// Assert_Flags_Are_For_Value: C
-//
-void Assert_Flags_Are_For_Value(const RELVAL *v, REBUPT f) {
-    if ((f & HEADER_TYPE_MASK) == REB_0)
-        return; // flag applies to any value (or trash)
-
-    if ((f & HEADER_TYPE_MASK) == REB_FUNCTION) {
-        assert(IS_FUNCTION(v));
-    }
-    else if ((f & HEADER_TYPE_MASK) == REB_OBJECT) {
-        assert(ANY_CONTEXT(v));
-    }
-    else if ((f & HEADER_TYPE_MASK) == REB_WORD) {
-        assert(ANY_WORD(v));
-    }
-}
-
-
 #if defined(__cplusplus)
 
 //
