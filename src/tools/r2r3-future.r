@@ -48,6 +48,15 @@ REBOL [
 ;
 unless true = attempt [void? :some-undefined-thing] [
     void?: :unset?
+
+    ; Since it's R3-Alpha or before, go ahead and mention this...
+    ;
+    default: enfix: does [
+        do make error! rejoin [
+            "The lookback quoting of SET-WORD! and SET-PATH! required by"
+            " ENFIX and DEFAULT are not possible in R3-Alpha"
+        ]
+    ]
 ]
 
 

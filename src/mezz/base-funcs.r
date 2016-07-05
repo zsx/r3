@@ -392,6 +392,7 @@ parse?: redescribe [
                     "Rules passed to PARSE? returned non-LOGIC!:" (mold :x)
                 ]
             ]
+            x
         ]
     ]
 )
