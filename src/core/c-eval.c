@@ -1387,7 +1387,7 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
         }
 
     #if !defined(NDEBUG)
-        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEGACY))
+        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEGACY_DEBUG))
             Legacy_Convert_Function_Args(f); // BLANK!+NONE! vs. FALSE+UNSET!
     #endif
 

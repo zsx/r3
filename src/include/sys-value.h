@@ -1718,9 +1718,18 @@ enum {
 
 #if !defined(NDEBUG)
     //
-    // TRUE-valued refinements, NONE! for unused args
+    // This flag is set on the canon function value when a proxy for a
+    // hijacking is made.  The main use is to disable the assert that the
+    // underlying function cached at the top level matches the actual
+    // function implementation after digging through the layers...because
+    // proxies must have new (cloned) paramlists but use the original bodies.
     //
-    FUNC_FLAG_LEGACY = (1 << (TYPE_SPECIFIC_BIT + 3)) | FUNC_FLAG_X,
+    FUNC_FLAG_PROXY_DEBUG = (1 << (TYPE_SPECIFIC_BIT + 3)) | FUNC_FLAG_X,
+
+    // BLANK! ("none!") for unused refinements instead of FALSE
+    // Also, BLANK! for args of unused refinements instead of not set
+    //
+    FUNC_FLAG_LEGACY_DEBUG = (1 << (TYPE_SPECIFIC_BIT + 4)) | FUNC_FLAG_X,
 #endif
 
     FUNC_FLAG_NO_COMMA // needed for proper comma termination of this list

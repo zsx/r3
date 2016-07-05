@@ -568,7 +568,20 @@ return_and_check:
     REBFUN* underlying_check = Underlying_Function_Debug(
         &specializer_check, value
     );
-    assert(underlying == underlying_check);
+    if (GET_VAL_FLAG(FUNC_VALUE(underlying_check), FUNC_FLAG_PROXY_DEBUG)) {
+        //
+        // Hijacking proxies have to push frames for the functions they proxy
+        // for, because that's the paramlist they're bound to.  Yet they
+        // need a unique identity.  The paramlist should be equivalent, just
+        // at a different address...but just check for same length.
+        //
+        assert(
+            FUNC_NUM_PARAMS(underlying) == FUNC_NUM_PARAMS(underlying_check)
+        );
+    }
+    else
+        assert(underlying == underlying_check); // enforce full match
+
     assert(*specializer_out == specializer_check);
 #endif
 

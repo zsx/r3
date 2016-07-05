@@ -87,7 +87,7 @@ REBOOL In_Legacy_Function_Debug(void)
 // the mainline code.
 //
 // Trigger is when OPTIONS_REFINEMENTS_TRUE is set during function creation,
-// which will give it FUNC_FLAG_LEGACY--leading to this being used.
+// which will give it FUNC_FLAG_LEGACY_DEBUG--leading to this being used.
 //
 void Legacy_Convert_Function_Args(struct Reb_Frame *f)
 {

@@ -1038,7 +1038,7 @@ REBFUN *Make_Plain_Function_May_Fail(
         || GET_ARR_FLAG(VAL_ARRAY(spec), SERIES_FLAG_LEGACY)
         || GET_ARR_FLAG(VAL_ARRAY(code), SERIES_FLAG_LEGACY)
     ) {
-        SET_VAL_FLAG(FUNC_VALUE(fun), FUNC_FLAG_LEGACY);
+        SET_VAL_FLAG(FUNC_VALUE(fun), FUNC_FLAG_LEGACY_DEBUG);
     }
 #endif
 
@@ -1966,8 +1966,12 @@ REBNATIVE(hijack)
         *D_OUT = *FUNC_VALUE(proxy);
         D_OUT->extra.binding = VAL_BINDING(victim);
 
+    #if !defined(NDEBUG)
+        SET_VAL_FLAG(FUNC_VALUE(proxy), FUNC_FLAG_PROXY_DEBUG);
+
         REBFUN *specializer;
-        Underlying_Function(&specializer, D_OUT);
+        Underlying_Function(&specializer, D_OUT); // double-check underlying
+    #endif
     }
 
     // With the return value settled, do the actual hijacking.  The "body"
@@ -2000,8 +2004,10 @@ REBNATIVE(hijack)
     MANAGE_ARRAY(CTX_VARLIST(meta));
     ARR_SERIES(VAL_FUNC_PARAMLIST(victim))->link.meta = meta;
 
+#if !defined(NDEBUG)
     REBFUN *specializer;
-    Underlying_Function(&specializer, victim);
+    Underlying_Function(&specializer, victim); // double-check underlying
+#endif
 
     return R_OUT;
 }
@@ -2215,11 +2221,17 @@ REBFUN *VAL_FUNC_Debug(const RELVAL *v) {
         VALUE_FLAG_LINE
         | VALUE_FLAG_THROWN
         | VALUE_FLAG_EVALUATED
+    #if !defined(NDEBUG)
+        | FUNC_FLAG_PROXY_DEBUG
+    #endif
     );
     func_header.bits |= (
         VALUE_FLAG_LINE
         | VALUE_FLAG_THROWN
         | VALUE_FLAG_EVALUATED
+    #if !defined(NDEBUG)
+        | FUNC_FLAG_PROXY_DEBUG
+    #endif
     );
 
     if (v_header.bits != func_header.bits) {
