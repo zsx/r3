@@ -37,7 +37,7 @@
 
 // %tmp-maketypes.h cannot be included multiple times
 //
-extern const MAKE_FUNC Make_Dispatch[REB_MAX_0];
+extern const MAKE_FUNC Make_Dispatch[REB_MAX];
 
 
 // In UTF8 C0, C1, F5, and FF are invalid.
@@ -1710,7 +1710,7 @@ static REBARR *Scan_Array(
             if (IS_KIND_SYM(sym)) {
                 enum Reb_Kind kind = KIND_FROM_SYM(sym);
 
-                MAKE_FUNC dispatcher = Make_Dispatch[TO_0_FROM_KIND(kind)];
+                MAKE_FUNC dispatcher = Make_Dispatch[kind];
 
                 if (dispatcher == NULL || ARR_LEN(array) != 2) {
                     REBVAL temp;

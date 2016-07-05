@@ -287,15 +287,15 @@ REBARR *Typeset_To_Array(const REBVAL *tset)
     REBINT n;
     REBINT size = 0;
 
-    for (n = 0; n < REB_MAX_0; n++) {
-        if (TYPE_CHECK(tset, KIND_FROM_0(n))) size++;
+    for (n = 0; n < REB_MAX; n++) {
+        if (TYPE_CHECK(tset, cast(enum Reb_Kind, n))) size++;
     }
 
     block = Make_Array(size);
 
     // Convert bits to types:
-    for (n = 0; n < REB_MAX_0; n++) {
-        if (TYPE_CHECK(tset, KIND_FROM_0(n))) {
+    for (n = 0; n < REB_MAX; n++) {
+        if (TYPE_CHECK(tset, cast(enum Reb_Kind, n))) {
             value = Alloc_Tail_Array(block);
             if (n == 0) {
                 //
@@ -306,7 +306,7 @@ REBARR *Typeset_To_Array(const REBVAL *tset)
                 SET_BLANK(value);
             }
             else
-                Val_Init_Datatype(value, KIND_FROM_0(n));
+                Val_Init_Datatype(value, cast(enum Reb_Kind, n));
         }
     }
     return block;

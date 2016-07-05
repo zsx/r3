@@ -298,7 +298,7 @@ static void Load_Boot(void)
 
     // There should be a datatype word for every REB_XXX type except REB_0
     //
-    if (VAL_LEN_HEAD(&Boot_Block->types) != REB_MAX_0 - 1)
+    if (VAL_LEN_HEAD(&Boot_Block->types) != REB_MAX - 1)
         panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
 
     // First type should be BLANK! (Note: Init_Symbols() hasn't run yet, so
@@ -341,11 +341,11 @@ static void Init_Datatypes(void)
     REBINT n;
 
     for (n = 1; NOT_END(word); word++, n++) {
-        assert(n < REB_MAX_0);
+        assert(n < REB_MAX);
 
         REBVAL *value = Append_Context(Lib_Context, KNOWN(word), NULL);
         VAL_RESET_HEADER(value, REB_DATATYPE);
-        VAL_TYPE_KIND(value) = KIND_FROM_0(n);
+        VAL_TYPE_KIND(value) = cast(enum Reb_Kind, n);
         VAL_TYPE_SPEC(value) = VAL_ARRAY(ARR_AT(specs, n - 1));
 
         // !!! The system depends on these definitions, as they are used by
@@ -358,8 +358,8 @@ static void Init_Datatypes(void)
         //
         // (Another possibility would be to use the "datatypes catalog",
         // which appears to copy this subset out from the Lib_Context.)
-
-        assert(value == Get_Type(KIND_FROM_0(n)));
+        //
+        assert(value == Get_Type(cast(enum Reb_Kind, n)));
         SET_VAL_FLAG(CTX_KEY(Lib_Context, 1), TYPESET_FLAG_LOCKED);
     }
 }
@@ -912,8 +912,8 @@ static void Init_System_Object(void)
     //
     value = Get_System(SYS_CATALOG, CAT_DATATYPES);
     array = VAL_ARRAY(value);
-    Extend_Series(ARR_SERIES(array), REB_MAX_0 - 1);
-    for (n = 1; n < REB_MAX_0; n++) {
+    Extend_Series(ARR_SERIES(array), REB_MAX - 1);
+    for (n = 1; n < REB_MAX; n++) {
         Append_Value(array, CTX_VAR(Lib_Context, n));
     }
 

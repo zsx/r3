@@ -484,7 +484,8 @@ void Assert_Series_Term_Core(REBSER *series)
         //
         // END values aren't canonized to zero bytes, check IS_END explicitly
         //
-        if (NOT_END(ARR_AT(AS_ARRAY(series), SER_LEN(series)))) {
+        RELVAL *tail = ARR_TAIL(AS_ARRAY(series));
+        if (NOT_END(tail)) {
             printf("Unterminated blocklike series detected\n");
             fflush(stdout);
             Panic_Series(series);

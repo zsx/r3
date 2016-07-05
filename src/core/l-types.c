@@ -33,7 +33,7 @@
 #include "sys-dec-to-char.h"
 #include <errno.h>
 
-extern const MAKE_FUNC Make_Dispatch[REB_MAX_0];
+extern const MAKE_FUNC Make_Dispatch[REB_MAX];
 
 // !!! Actually should be a .inc file, as it includes data declarations
 // Has a repeated prototype in %l-scan.c to avoid double inclusion
@@ -90,7 +90,7 @@ REBNATIVE(make)
     else
         kind = VAL_TYPE(type);
 
-    MAKE_FUNC dispatcher = Make_Dispatch[TO_0_FROM_KIND(kind)];
+    MAKE_FUNC dispatcher = Make_Dispatch[kind];
     if (dispatcher == NULL)
         fail (Error_Bad_Make(kind, arg));
 
@@ -213,7 +213,7 @@ REBNATIVE(to)
     else
         kind = VAL_TYPE(type);
 
-    TO_FUNC dispatcher = To_Dispatch[TO_0_FROM_KIND(kind)];
+    TO_FUNC dispatcher = To_Dispatch[kind];
     if (dispatcher == NULL)
         fail (Error_Invalid_Arg(arg));
 

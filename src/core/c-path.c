@@ -36,7 +36,7 @@
 // However it contains definitions for Path_Dispatch and other things needed
 // by %c-do, so it is included there and an extern used here.
 //
-extern const REBPEF Path_Dispatch[REB_MAX_0];
+extern const REBPEF Path_Dispatch[REB_MAX];
 
 
 //
@@ -51,7 +51,7 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
     REBVAL temp;
 
     // Path must have dispatcher, else return:
-    dispatcher = Path_Dispatch[VAL_TYPE_0(pvs->value)];
+    dispatcher = Path_Dispatch[VAL_TYPE(pvs->value)];
     if (!dispatcher) return FALSE; // unwind, then check for errors
 
     pvs->item++;
@@ -235,7 +235,7 @@ REBOOL Do_Path_Throws_Core(
         //
         // !!! Is this the desired behavior, or should it be an error?
     }
-    else if (Path_Dispatch[VAL_TYPE_0(pvs.value)]) {
+    else if (Path_Dispatch[VAL_TYPE(pvs.value)]) {
         REBOOL threw = Next_Path_Throws(&pvs);
 
         // !!! See comments about why the initialization of out is necessary.
@@ -513,7 +513,7 @@ void Pick_Path(
     pvs.store = out;        // Temp space for constructed results
 
     // Path must have dispatcher, else return:
-    dispatcher = Path_Dispatch[VAL_TYPE_0(value)];
+    dispatcher = Path_Dispatch[VAL_TYPE(value)];
     if (!dispatcher) return; // unwind, then check for errors
 
     switch (dispatcher(&pvs)) {

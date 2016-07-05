@@ -121,26 +121,21 @@
 // this is asserted by VAL_TYPE_Debug.
 //
 
-#define KIND_FROM_0(z) \
-    cast(enum Reb_Kind, (z) << 2)
-
-#define TO_0_FROM_KIND(k) \
-    (cast(REBCNT, (k)) >> 2)
 
 #define FLAGIT_KIND(t) \
-    (cast(REBU64, 1) << TO_0_FROM_KIND(t)) // makes a 64-bit bitflag
+    (cast(REBU64, 1) << (t)) // makes a 64-bit bitflag
 
 // While inline vs. macro doesn't usually matter much, debug builds won't
 // inline this, and it's called *ALL* the time.  Since it doesn't repeat its
 // argument, it's not worth it to make it a function for slowdown caused.
 // Also, don't bother checking using the `cast()` template in C++.
 //
-#define VAL_TYPE_COMMON(v) \
-    ((enum Reb_Kind)((v)->header.bits & HEADER_TYPE_MASK))
+#define VAL_TYPE_RAW(v) \
+    ((enum Reb_Kind)((v)->header.bits >> HEADER_TYPE_SHIFT))
 
 #ifdef NDEBUG
     #define VAL_TYPE(v) \
-        VAL_TYPE_COMMON(v)
+        VAL_TYPE_RAW(v)
 #else
     enum {
         VOID_FLAG_NOT_TRASH = (1 << TYPE_SPECIFIC_BIT),
@@ -150,20 +145,20 @@
     inline static REBOOL IS_TRASH_DEBUG(const RELVAL *v) {
         // note this is directly inlined into VAL_TYPE_Debug() below
         return LOGICAL(
-            (v->header.bits & HEADER_TYPE_MASK) == REB_0
-            && !((v->header.bits & VOID_FLAG_NOT_TRASH))
+            VAL_TYPE_RAW(v) == REB_0
+            && NOT(v->header.bits & VOID_FLAG_NOT_TRASH)
         );
     }
 
     inline static enum Reb_Kind VAL_TYPE_Debug(
         const RELVAL *v, const char *file, int line
     ){
-        enum Reb_Kind kind = VAL_TYPE_COMMON(v);
+        enum Reb_Kind kind = VAL_TYPE_RAW(v);
         if (
             (v->header.bits & CELL_MASK)
             && NOT(IS_END_MACRO(v)) // IS_END redundantly checks trash
-            && NOT(kind == REB_0 && !((v->header.bits & VOID_FLAG_NOT_TRASH))
-            ) // ^-- *so* frequent, debug builds hand-inline IS_TRASH_DEBUG()
+            && NOT(kind == REB_0 && NOT(v->header.bits & VOID_FLAG_NOT_TRASH))
+            // ^-- *so* frequent, debug builds hand-inline IS_TRASH_DEBUG()
         ){
             return kind;
         }
@@ -178,9 +173,6 @@
         VAL_TYPE_Debug((v), __FILE__, __LINE__)
 #endif
 
-#define VAL_TYPE_0(v) \
-    TO_0_FROM_KIND(VAL_TYPE(v))
-
 inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     //
     // Note: Only use if you are sure the new type payload is in sync with
@@ -190,8 +182,8 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     // Use VAL_RESET_HEADER() to set the type AND initialize the flags to 0.
     //
     assert(!IS_TRASH_DEBUG(v));
-    (v)->header.bits &= ~cast(REBUPT, HEADER_TYPE_MASK);
-    (v)->header.bits |= cast(REBUPT, kind);
+    (v)->header.bits &= ~HEADER_TYPE_MASK;
+    (v)->header.bits |= TYPE_SHIFT_LEFT_FOR_HEADER(kind);
 }
 
 
@@ -235,7 +227,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     // borderline assert doesn't wind up taking up 20% of the debug's runtime.
     //
     #define CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG \
-        REBUPT category = f & HEADER_TYPE_MASK; \
+        REBUPT category = f >> HEADER_TYPE_SHIFT; \
         if (category != REB_0) { \
             enum Reb_Kind kind = VAL_TYPE(v); \
             if (kind != category) { \
@@ -340,7 +332,8 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 //
 
 #define VAL_RESET_HEADER_COMMON(v,kind) \
-    ((v)->header.bits = NOT_END_MASK | CELL_MASK | cast(REBUPT, kind))
+    ((v)->header.bits = TYPE_SHIFT_LEFT_FOR_HEADER(kind) \
+        | NOT_END_MASK | CELL_MASK)
 
 #ifdef NDEBUG
     #define ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v) \
@@ -591,7 +584,8 @@ inline static REBOOL IS_VOID(const RELVAL *v)
 //
 
 inline static void SET_BLANK_COMMON(RELVAL *v) {
-    v->header.bits = VALUE_FLAG_FALSE | NOT_END_MASK | CELL_MASK | REB_BLANK;
+    v->header.bits = TYPE_SHIFT_LEFT_FOR_HEADER(REB_BLANK) \
+        | VALUE_FLAG_FALSE | NOT_END_MASK | CELL_MASK;
 }
 
 #ifdef NDEBUG
@@ -643,11 +637,13 @@ inline static void SET_BLANK_COMMON(RELVAL *v) {
     c_cast(const REBVAL*, &PG_True_Value[0])
 
 inline static void SET_TRUE_COMMON(RELVAL *v) {
-    v->header.bits = REB_LOGIC | NOT_END_MASK | CELL_MASK;
+    v->header.bits = TYPE_SHIFT_LEFT_FOR_HEADER(REB_LOGIC) \
+        | NOT_END_MASK | CELL_MASK;
 }
 
 inline static void SET_FALSE_COMMON(RELVAL *v) {
-    v->header.bits = REB_LOGIC | NOT_END_MASK | CELL_MASK | VALUE_FLAG_FALSE;
+    v->header.bits = TYPE_SHIFT_LEFT_FOR_HEADER(REB_LOGIC) \
+        | NOT_END_MASK | CELL_MASK | VALUE_FLAG_FALSE;
 }
 
 #define IS_CONDITIONAL_FALSE_COMMON(v) \
@@ -755,20 +751,19 @@ inline static REBOOL VAL_LOGIC(const RELVAL *v) {
 #define VAL_TYPE_KIND(v) \
     ((v)->payload.datatype.kind)
 
-#define VAL_TYPE_KIND_0(v) \
-    TO_0_FROM_KIND(VAL_TYPE_KIND(v))
-
 #define VAL_TYPE_SPEC(v) \
     ((v)->payload.datatype.spec)
 
 #define IS_KIND_SYM(s) \
-    ((s) < REB_MAX_0)
+    ((s) < REB_MAX)
 
-#define KIND_FROM_SYM(s) \
-    cast(enum Reb_Kind, KIND_FROM_0(s))
+inline static enum Reb_Kind KIND_FROM_SYM(REBSYM s) {
+    assert(IS_KIND_SYM(s));
+    return cast(enum Reb_Kind, cast(int, (s)));
+}
 
 #define SYM_FROM_KIND(k) \
-    cast(REBSYM, TO_0_FROM_KIND(k))
+    cast(REBSYM, cast(enum Reb_Kind, (k)))
 
 #define VAL_TYPE_SYM(v) \
     SYM_FROM_KIND((v)->payload.datatype.kind)
@@ -1446,7 +1441,8 @@ enum Reb_Param_Class {
 #ifdef NDEBUG
     #define TYPESET_FLAG_X 0
 #else
-    #define TYPESET_FLAG_X REB_TYPESET // interpreted to mean ANY-TYPESET!
+    #define TYPESET_FLAG_X \
+        TYPE_SHIFT_LEFT_FOR_HEADER(REB_TYPESET)
 #endif
 
 // Option flags used with GET_VAL_FLAG().  These describe properties of
@@ -1579,7 +1575,8 @@ inline static void INIT_VAL_PARAM_CLASS(RELVAL *v, enum Reb_Param_Class c) {
 #ifdef NDEBUG
     #define WORD_FLAG_X 0
 #else
-    #define WORD_FLAG_X REB_WORD // interpreted to mean ANY-WORD!
+    #define WORD_FLAG_X \
+        TYPE_SHIFT_LEFT_FOR_HEADER(REB_WORD) // interpreted as ANY-WORD!
 #endif
 
 enum {
@@ -1705,7 +1702,8 @@ inline static void Val_Init_Word(
 #ifdef NDEBUG
     #define FUNC_FLAG_X 0
 #else
-    #define FUNC_FLAG_X REB_FUNCTION
+    #define FUNC_FLAG_X \
+        TYPE_SHIFT_LEFT_FOR_HEADER(REB_FUNCTION)
 #endif
 
 enum {
@@ -1872,7 +1870,8 @@ inline static REBOOL IS_FUNC_DURABLE(REBFUN *f) {
 #ifdef NDEBUG
     #define ANY_CONTEXT_FLAG_X 0
 #else
-    #define ANY_CONTEXT_FLAG_X REB_OBJECT // interpreted to mean ANY-CONTEXT!
+    #define ANY_CONTEXT_FLAG_X \
+        TYPE_SHIFT_LEFT_FOR_HEADER(REB_OBJECT) // interpreted as ANY-CONTEXT!
 #endif
 
 enum {
@@ -2022,7 +2021,8 @@ inline static REBVAL *CTX_FRAME_FUNC_VALUE(REBCTX *c) {
 #ifdef NDEBUG
     #define VARARGS_FLAG_X 0
 #else
-    #define VARARGS_FLAG_X REB_VARARGS
+    #define VARARGS_FLAG_X \
+        TYPE_SHIFT_LEFT_FOR_HEADER(REB_VARARGS)
 #endif
 
 enum {

@@ -26,23 +26,12 @@ scan: ; Used by scanner. Keep in sync with Value_Types in scan.h file!
     "block-end"
     "group-end"
     "word"
-    "!!!word + 1!!!" ; !!! needed for REB_WORD + (token - TOKEN_WORD) trick
-    "!!!word + 2!!!" ; !!! review the necessity of this "adding" on REB_XXXs
-    "!!!word + 2!!!" ; !!! see KIND_OF_WORD_FROM_TOKEN
     "set"
-    "!!!set + 1!!!"
-    "!!!set + 2!!!"
-    "!!!set + 3!!!"
     "get"
-    "!!!get + 1!!!"
-    "!!!get + 2!!!"
-    "!!!get + 3!!!"
     "lit"
-    "!!!none!!!"     ; not needed
     "bar"
     "lit-bar"
     "blank"
-    "!!!logic!!!"    ; not needed
     "integer"
     "decimal"
     "percent"

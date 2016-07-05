@@ -58,7 +58,7 @@ REBOL_HOST_LIB *Host_Lib;
 // the burden of keeping these in sync manually is for the best.
 //
 #include "reb-lib.h"
-extern const REBRXT Reb_To_RXT[REB_MAX_0];
+extern const REBRXT Reb_To_RXT[REB_MAX];
 extern void Value_To_RXI(RXIARG *arg, const REBVAL *val); // f-extension.c
 extern void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type); // f-extension.c
 extern void RXI_To_Block(RXIFRM *frm, REBVAL *out); // f-extension.c
@@ -495,7 +495,7 @@ RL_API int RL_Do_String(
     else
         DS_PUSH(&result);
 
-    return Reb_To_RXT[VAL_TYPE_0(&result)];
+    return Reb_To_RXT[VAL_TYPE(&result)];
 }
 
 
@@ -1105,7 +1105,7 @@ RL_API int RL_Get_Value(REBARR *array, u32 index, RXIARG *result)
     if (index >= ARR_LEN(array)) return 0;
     value = ARR_AT(array, index);
     Value_To_RXI(result, KNOWN(value)); // !!! Only have array, no specifier!
-    return Reb_To_RXT[VAL_TYPE_0(value)];
+    return Reb_To_RXT[VAL_TYPE(value)];
 }
 
 
@@ -1200,7 +1200,7 @@ RL_API int RL_Get_Field(REBSER *obj, REBSTR *word, RXIARG *result)
     REBVAL *value = CTX_VAR(context, index);
     Value_To_RXI(result, value);
 
-    return Reb_To_RXT[VAL_TYPE_0(value)];
+    return Reb_To_RXT[VAL_TYPE(value)];
 }
 
 

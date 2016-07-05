@@ -1367,7 +1367,7 @@ REB_R Action_Dispatcher(REBFRM *f)
 
     enum Reb_Kind type = VAL_TYPE(FRM_ARG(f, 1));
 
-    REBACT subdispatch = Value_Dispatch[TO_0_FROM_KIND(type)];
+    REBACT subdispatch = Value_Dispatch[type];
     if (subdispatch == NULL)
         fail (Error_Illegal_Action(
             type, STR_SYMBOL(VAL_WORD_CANON(FUNC_BODY(f->func)))

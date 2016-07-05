@@ -36,23 +36,13 @@ enum Value_Types {
     TOKEN_BLOCK_END,
     TOKEN_PAREN_END,
     TOKEN_WORD,
-    TOKEN_FILLER1, // !!! needed for REB_WORD + (token - TOKEN_WORD) trick
-    TOKEN_FILLER2, // !!! review the necessity of this "adding" on REB_XXXs
-    TOKEN_FILLER3, // !!! see KIND_OF_WORD_FROM_TOKEN
-    TOKEN_SET,
-    TOKEN_FILLER4,
-    TOKEN_FILLER5,
-    TOKEN_FILLER6,
-    TOKEN_GET,
-    TOKEN_FILLER7,
-    TOKEN_FILLER8,
-    TOKEN_FILLER9,
-    TOKEN_LIT,
-    TOKEN_NONE,     // not needed
+    TOKEN_SET, // order matters (see KIND_OF_WORD_FROM_TOKEN)
+    TOKEN_GET, // ^-- same
+    TOKEN_LIT, // ^-- same
+    TOKEN_BLANK, // not needed
     TOKEN_BAR,
     TOKEN_LIT_BAR,
-    TOKEN_BLANK,
-    TOKEN_LOGIC,    // not needed
+    TOKEN_LOGIC, // not needed
     TOKEN_INTEGER,
     TOKEN_DECIMAL,
     TOKEN_PERCENT,

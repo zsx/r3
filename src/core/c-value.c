@@ -50,31 +50,31 @@
 // was stored.
 //
 ATTRIBUTE_NO_RETURN void Panic_Value_Debug(
-    const RELVAL *value,
+    const RELVAL *v,
     const char *file,
     int line
 ) {
-    REBSER *containing = Try_Find_Containing_Series_Debug(value);
+    REBSER *containing = Try_Find_Containing_Series_Debug(v);
 
     printf("PANIC VALUE called from %s:%d\n", file, line);
     fflush(stdout);
 
-    switch (value->header.bits & HEADER_TYPE_MASK) {
+    switch (VAL_TYPE_RAW(v)) {
     case REB_0:
     case REB_BLANK:
     case REB_LOGIC:
     case REB_BAR:
         printf(
             "REBVAL init on tick #%d at %s:%d\n",
-            cast(unsigned int, value->extra.do_count),
-            value->payload.track.filename,
-            value->payload.track.line
+            cast(unsigned int, v->extra.do_count),
+            v->payload.track.filename,
+            v->payload.track.line
         );
         fflush(stdout);
         break;
     }
 
-    printf("Kind=%d\n", cast(int, value->header.bits & HEADER_TYPE_MASK));
+    printf("Kind=%d\n", cast(int, VAL_TYPE_RAW(v)));
     fflush(stdout);
 
     if (containing) {
@@ -134,7 +134,7 @@ void Assert_Cell_Writable(const RELVAL *v, const char *file, int line)
 //
 void SET_END_Debug(RELVAL *v, const char *file, int line) {
     ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
-    (v)->header.bits = REB_MAX | CELL_MASK;
+    (v)->header.bits = TYPE_SHIFT_LEFT_FOR_HEADER(REB_MAX) | CELL_MASK;
     MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
     Set_Track_Payload_Debug(v, file, line);
 }
@@ -151,7 +151,7 @@ REBOOL IS_END_Debug(const RELVAL *v, const char *file, int line) {
         // Note: a non-writable value could have any bit pattern in the
         // type slot, so we only check for trash in writable ones.
         //
-        && (v->header.bits & HEADER_TYPE_MASK) == REB_0
+        && VAL_TYPE_RAW(v) == REB_0
         && NOT(v->header.bits & VOID_FLAG_NOT_TRASH)
         && NOT(v->header.bits & VOID_FLAG_SAFE_TRASH)
     ) {

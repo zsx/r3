@@ -610,7 +610,7 @@ REB_R Command_Dispatcher(REBFRM *f)
     arg = FRM_ARGS_HEAD(f);
     n = 1; // values start at the rxiargs[1] cell, arbitrary max at rxifrm[7]
     for (; NOT_END(arg); ++arg, ++n) {
-        RXA_TYPE(&rxifrm, n) = Reb_To_RXT[VAL_TYPE_0(arg)];
+        RXA_TYPE(&rxifrm, n) = Reb_To_RXT[VAL_TYPE(arg)];
         Value_To_RXI(&rxifrm.rxiargs[n], arg);
     }
 

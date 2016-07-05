@@ -187,7 +187,7 @@ emit {
 
 /***********************************************************************
 **
-*/  const REBACT Value_Dispatch[REB_MAX_0] =
+*/  const REBACT Value_Dispatch[REB_MAX] =
 /*
 **      The ACTION dispatch function for each datatype.
 **
@@ -224,24 +224,17 @@ emit {
 ** build...but only on Linux so that any debug builds run on other platforms
 ** can help raise alerts on the problem.
 **
-** Though there are only 64 basic "kinds" of types, this spaces them out in
-** an array of 256 to avoid needing to do shifting on the type bits.  The
-** REB_XXX types are actually offset by 2 bits due to the special usage of
-** low bits in the header, and to avoid needing to shift on every test or
-** use of a type they are left as 00 which makes the type constants larger
-** but speeds comparisons and usage.
-**
 ***********************************************************************/
 ^{
 }
 
 for-each-record-NO-RETURN type boot-types [
     either group? type/class [
+        ; a GROUP! indicates that values of the type have evaluator "behavior"
         emit-line "" rejoin ["ET_" uppercase to-string type/name] ""
     ][
         emit-line "" "ET_INERT" ""
     ]
-    loop 3 [emit-line "" "ET_MAX" "available"]
 ]
 emit-end
 
@@ -250,11 +243,11 @@ emit {
 
 
 
-extern const REBPEF Path_Dispatch[REB_MAX_0];
+extern const REBPEF Path_Dispatch[REB_MAX];
 
 /***********************************************************************
 **
-*/  const REBPEF Path_Dispatch[REB_MAX_0] =
+*/  const REBPEF Path_Dispatch[REB_MAX] =
 /*
 **      The path evaluator function for each datatype.
 **
@@ -308,7 +301,7 @@ emit {
 
 /***********************************************************************
 **
-*/  const MAKE_FUNC Make_Dispatch[REB_MAX_0] =
+*/  const MAKE_FUNC Make_Dispatch[REB_MAX] =
 /*
 **      Specifies the make method used for each datatype.
 **
@@ -333,7 +326,7 @@ emit {
 
 /***********************************************************************
 **
-*/  const TO_FUNC To_Dispatch[REB_MAX_0] =
+*/  const TO_FUNC To_Dispatch[REB_MAX] =
 /*
 **      Specifies the TO method used for each datatype.
 **
@@ -386,7 +379,7 @@ for-each-record-NO-RETURN type boot-types [
 emit {
 /***********************************************************************
 **
-*/  const REBCTF Compare_Types[REB_MAX_0] =
+*/  const REBCTF Compare_Types[REB_MAX] =
 /*
 **      Type comparision functions.
 **
@@ -415,7 +408,7 @@ write inc/tmp-comptypes.h out
 ;emit {
 ;/***********************************************************************
 ;**
-;*/ const MOLD_FUNC Mold_Dispatch[REB_MAX_0] =
+;*/ const MOLD_FUNC Mold_Dispatch[REB_MAX] =
 ;/*
 ;**     The MOLD dispatch function for each datatype.
 ;**
@@ -441,7 +434,7 @@ write inc/tmp-comptypes.h out
 ;emit {
 ;/***********************************************************************
 ;**
-;*/ const MOLD_FUNC Form_Dispatch[REB_MAX_0] =
+;*/ const MOLD_FUNC Form_Dispatch[REB_MAX] =
 ;/*
 ;**     The FORM dispatch function for each datatype.
 ;**
@@ -489,28 +482,20 @@ emit [
 
 datatypes: []
 n: 0
-bits: does [n * 4]
 
 for-each-record-NO-RETURN type boot-types [
     append datatypes type/name
 
-    ; Shift in two lowest bits as 1, both must be true in the lowest byte of
-    ; a value header for it to be a valid REBVAL (that isn't an end marker).
-    ; The other 6 bits are the type.  So we shift
-    ;
-    emit-line "REB_" form reduce [type/name {=} bits] bits
+    emit-line "REB_" form reduce [type/name {=} n] n
 
     n: n + 1
 ]
 
-emit-line "REB_" form reduce ["MAX" {=} bits] bits
+emit-line "REB_" form reduce ["MAX" {=} n] n
 
 emit {    REB_ENUM_NO_DANGLING_COMMA // placeholder so REB_MAX can end in comma
 ^};
 
-// For zero based indexing into arrays without concern for the low bits
-//
-#define REB_MAX_0 (REB_MAX / 4)
 }
 
 emit {
@@ -708,11 +693,11 @@ emit {
 extern "C" ^{
 #endif
 
-extern const REBRXT Reb_To_RXT[REB_MAX_0];
+extern const REBRXT Reb_To_RXT[REB_MAX];
 
 /***********************************************************************
 **
-*/  const REBRXT Reb_To_RXT[REB_MAX_0] =
+*/  const REBRXT Reb_To_RXT[REB_MAX] =
 /*
 ***********************************************************************/
 ^{
@@ -749,7 +734,7 @@ emit {
 #define RXT_ALLOWED_TYPES (}
 for-each type next rxt-types [
     if word? type [
-        emit replace join "((u64)" uppercase rejoin ["1<<(REB_" type ">>2)) \^/"] #"-" #"_"
+        emit replace join "((u64)" uppercase rejoin ["1<<(REB_" type ")) \^/"] #"-" #"_"
         emit "|"
     ]
 ]

@@ -106,8 +106,8 @@
 #define NOT_END_MASK \
     cast(REBUPT, 0x01)
 
-#define GENERAL_VALUE_BIT 8
-#define TYPE_SPECIFIC_BIT 16
+#define GENERAL_VALUE_BIT 4
+#define TYPE_SPECIFIC_BIT 12
 
 // `CELL_MASK`
 //
@@ -128,11 +128,19 @@
 #define CELL_MASK \
     ((REBUPT)0x02) // <-- don't use `cast()`...superfluous here, slows debug
 
-// The type mask comes up a bit and it's a fairly obvious constant, so this
-// hardcodes it for obviousness.  High 6 bits of the lowest header byte.
+// The type is stored in the highest bits so that a single right shift
+// operation (which zero fills from the left) can get the 6-bit type.
 //
-#define HEADER_TYPE_MASK \
-    ((REBUPT)0xFC)
+// !!! The 64-bit build would need to use a larger number if it wanted to
+// find a use for its extra 32-bits, which would have to be both masked and
+// shifted (the way types used to be...)
+//
+#define HEADER_TYPE_SHIFT 26
+
+#define TYPE_SHIFT_LEFT_FOR_HEADER(kind) \
+    (((REBUPT)kind) << HEADER_TYPE_SHIFT) // need cast! see also VAL_TYPE_RAW
+
+#define HEADER_TYPE_MASK ((REBUPT)(0x3F) << HEADER_TYPE_SHIFT)
 
 // In debug builds, there's an additional property checked on cell writes
 // where values can be marked as unwritable.  There would be cost to checking
@@ -144,7 +152,7 @@
 //
 #if !defined(NDEBUG) && defined(__cplusplus)
     #define VALUE_FLAG_WRITABLE_CPP_DEBUG \
-        ((REBUPT)0x80000000)
+        ((REBUPT)0x04)
 #endif
 
 
