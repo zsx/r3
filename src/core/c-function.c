@@ -291,32 +291,8 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //=//// BLOCK! OF TYPES TO MAKE TYPESET FROM (PLUS PARAMETER TAGS) ////=//
 
         if (IS_BLOCK(item)) {
-            if (IS_BLOCK(DS_TOP)) {
-                //
-                // Tried to give two blocks of types.  !!! Better error here
-                //
-                if (NOT(IS_BLANK(DS_TOP - 1))) // not [0] slot
-                    fail (Error(RE_BAD_FUNC_DEF, item));
-
-                // !!! Rebol2 had the ability to put a block in the first
-                // slot before any parameters, in which you could put words.
-                // This is deprecated in favor of the use of tags.  We permit
-                // [catch] and [throw] during Rebol2 => Rebol3 migration,
-                // but ignore them.
-                //
-                RELVAL *attribute = VAL_ARRAY_AT(item);
-                for (; NOT_END(attribute); attribute++) {
-                    if (IS_WORD(attribute)) {
-                        if (VAL_WORD_SYM(attribute) == SYM_CATCH)
-                            continue; // ignore it
-                        if (VAL_WORD_SYM(attribute) == SYM_THROW)
-                            continue; // ignore it
-                    }
-                    fail (Error(RE_BAD_FUNC_DEF, item));
-                }
-
-                continue;
-            }
+            if (IS_BLOCK(DS_TOP))
+                fail (Error(RE_BAD_FUNC_DEF, item)); // two blocks of types (!)
 
             // Save the block for parameter types.
             //
@@ -336,6 +312,16 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 );
             }
             else if (IS_STRING(DS_TOP)) { // !!! are blocks after notes good?
+                if (IS_VOID_OR_SAFE_TRASH(DS_TOP - 2)) {
+                    //
+                    // No typesets pushed yet, so this is a block before any
+                    // parameters have been named.  This was legal in Rebol2
+                    // for e.g. `func [[catch] x y][...]`, and R3-Alpha
+                    // ignored it.  Ren-C only tolerates this in <r3-legacy>
+                    //
+                    fail (Error(RE_BAD_FUNC_DEF, item));
+                }
+
                 assert(IS_TYPESET(DS_TOP - 2));
                 typeset = DS_TOP - 2;
 

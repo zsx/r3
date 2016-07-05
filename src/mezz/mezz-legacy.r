@@ -1002,6 +1002,17 @@ set 'r3-legacy* func [<local> if-flags] [
         ;
         print: (specialize 'print [eval: true])
 
+        ; R3-Alpha would tolerate blocks in the first position, which were
+        ; a feature in Rebol2.  e.g. `func [[throw catch] x y][...]`.  Ren-C
+        ; does not allow this.
+        ;
+        func: (func [
+            {FUNC <r3-legacy>} spec [block!] body [block!]
+        ][
+            if block? first spec [spec: next spec]
+            lib/func spec body
+        ])
+
         ; In Ren-C, HAS is the arity-1 parallel to OBJECT as arity-2 (similar
         ; to the relationship between DOES and FUNCTION).  In Rebol2 and
         ; R3-Alpha it just broke out locals into their own block when they
