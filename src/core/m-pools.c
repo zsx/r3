@@ -747,7 +747,7 @@ static REBOOL Series_Data_Alloc(
         // caller to manage...they do not know about the ->rest
         //
         for (n = 0; n < length; n++)
-            INIT_CELL_WRITABLE_IF_DEBUG(ARR_AT(AS_ARRAY(s), n));
+            INIT_CELL_IF_DEBUG(ARR_AT(AS_ARRAY(s), n));
 
         // !!! We should intentionally mark the overage range as being a
         // kind of trash that is both not an end *and* not possible to set.
@@ -759,8 +759,8 @@ static REBOOL Series_Data_Alloc(
         // bias or tail capacity.
         //
         for(; n < s->content.dynamic.rest - 1; n++) {
-            INIT_CELL_WRITABLE_IF_DEBUG(ARR_AT(AS_ARRAY(s), n));
-          /*SET_VAL_FLAG(ARR_AT(AS_ARRAY(series), n), VALUE_FLAG_READ_ONLY);*/
+            INIT_CELL_IF_DEBUG(ARR_AT(AS_ARRAY(s), n));
+          /*MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(ARR_AT(AS_ARRAY(s), n);*/
         }
     #endif
 
@@ -984,7 +984,7 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
         //
         SER_SET_WIDE(s, wide);
         assert(!GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC));
-        INIT_CELL_WRITABLE_IF_DEBUG(&s->content.values[0]);
+        INIT_CELL_IF_DEBUG(&s->content.values[0]);
     }
     else {
         // Allocate the actual data blob that holds the series elements
@@ -1093,7 +1093,7 @@ REBVAL *Make_Pairing(REBCTX *opt_owning_frame) {
     REBVAL *key = cast(REBVAL*, s);
     REBVAL *pairing = key + 1;
 
-    INIT_CELL_WRITABLE_IF_DEBUG(key);
+    INIT_CELL_IF_DEBUG(key);
     if (opt_owning_frame) {
         Val_Init_Context(key, REB_FRAME, opt_owning_frame);
         SET_VAL_FLAG(key, ANY_CONTEXT_FLAG_OWNS_PAIRED);
@@ -1101,7 +1101,7 @@ REBVAL *Make_Pairing(REBCTX *opt_owning_frame) {
     else
         SET_VOID(key); // won't signal GC, header is not purely 0
 
-    INIT_CELL_WRITABLE_IF_DEBUG(pairing);
+    INIT_CELL_IF_DEBUG(pairing);
     SET_BLANK(pairing); // default for AnyValue in Ren-Cpp, so same here
 
     return pairing;
@@ -1119,7 +1119,7 @@ REBVAL *Make_Pairing(REBCTX *opt_owning_frame) {
 void Manage_Pairing(REBVAL *paired) {
     REBVAL *key = PAIRING_KEY(paired);
     SET_VAL_FLAG(key, REBSER_REBVAL_FLAG_MANAGED);
-    MARK_CELL_UNWRITABLE_IF_DEBUG(key);
+    MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(key);
 }
 
 
@@ -1260,7 +1260,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
             // but when it is this will be useful.
             //
             for (index = 0; index < delta; index++)
-                INIT_CELL_WRITABLE_IF_DEBUG(ARR_AT(AS_ARRAY(series), index));
+                INIT_CELL_IF_DEBUG(ARR_AT(AS_ARRAY(series), index));
         }
     #endif
         return;
@@ -1307,7 +1307,7 @@ void Expand_Series(REBSER *series, REBCNT index, REBCNT delta)
             //
             while (delta != 0) {
                 --delta;
-                INIT_CELL_WRITABLE_IF_DEBUG(
+                INIT_CELL_IF_DEBUG(
                     ARR_AT(AS_ARRAY(series), index + delta)
                 );
             }

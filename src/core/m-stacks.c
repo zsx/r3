@@ -72,7 +72,7 @@ void Init_Stacks(REBCNT size)
         DS_Movable_Base = KNOWN(ARR_HEAD(DS_Array)); // can't push RELVALs
 
         SET_TRASH_SAFE(ARR_HEAD(DS_Array));
-        MARK_CELL_UNWRITABLE_IF_DEBUG(ARR_HEAD(DS_Array));
+        MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(ARR_HEAD(DS_Array));
 
         // The END marker will signal DS_PUSH that it has run out of space,
         // and it will perform the allocation at that time.
@@ -362,7 +362,7 @@ REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
     {
         REBCNT index;
         for (index = 0; index < num_values; index++)
-            INIT_CELL_WRITABLE_IF_DEBUG(&chunk->values[index]);
+            INIT_CELL_IF_DEBUG(&chunk->values[index]);
     }
 #endif
 

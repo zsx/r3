@@ -314,76 +314,79 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 // sets the option bits indicating the value is *not* an END marker, and
 // that the value is a full cell which can be written to).
 //
-// The debug build includes an extra check that the value we are about
-// to write the header of is actually a full REBVAL-sized slot...and not
-// just an implicit END marker that's really doing double-duty as some
-// internal pointer of a container structure.
+// INIT_CELL_IF_DEBUG provides additional "pre-formatting" of a cell.  In C
+// debug builds, this helps by making reads of VAL_TYPE assert to say that
+// it hasn't been set to an actual value yet.  In C++ builds, it goes
+// further--because no writes may be done to cells that haven't been INITed.
 //
-// The debug build also requires that value slots which are to be written
-// to via VAL_RESET_HEADER() be marked writable.  Series and other value
-// containers do this automatically, but if you make a REBVAL as a stack
-// variable then it will have to be done before any write can happen.
+// (The write protection is not checked in the C build, due to the clutter
+// that would be necessary on every `REBVAL value;` declaration to call
+// INIT_CELL_IF_DEBUG().  A constructor does this in C++.  It's considered
+// good enough at the present time, though this may change if the GC needs
+// to explicitly know where values on the stack are...which would mean this
+// would not be a debug-build-only concept.)
 //
 
-inline static void VAL_RESET_HEADER_COMMON(RELVAL *v, enum Reb_Kind kind) {
-    (v)->header.bits = NOT_END_MASK | CELL_MASK | cast(REBUPT, kind);
-}
+#define VAL_RESET_HEADER_COMMON(v,kind) \
+    ((v)->header.bits = NOT_END_MASK | CELL_MASK | cast(REBUPT, kind))
 
 #ifdef NDEBUG
-    #define ASSERT_CELL_WRITABLE_IF_DEBUG(v) \
+    #define ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v) \
         NOOP
 
-    #define INIT_CELL_WRITABLE_IF_DEBUG(v) \
+    #define MARK_CELL_WRITABLE_IF_CPP_DEBUG(v) \
         NOOP
 
-    #define MARK_CELL_WRITABLE_IF_DEBUG(v) \
-        NOOP
-
-    #define MARK_CELL_UNWRITABLE_IF_DEBUG(v) \
+    #define MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(v) \
         NOOP
 
     #define VAL_RESET_HEADER(v,t) \
         VAL_RESET_HEADER_COMMON((v), (t))
+
+    #define INIT_CELL_IF_DEBUG(v) \
+        NOOP
 #else
     #ifdef __cplusplus
-        #define ASSERT_CELL_WRITABLE_IF_DEBUG(v,file,line) \
+        #define ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v,file,line) \
             Assert_Cell_Writable((v), (file), (line))
 
-        // trashes completely
-        #define INIT_CELL_WRITABLE_IF_DEBUG(v) \
-            ((v)->header.bits = CELL_MASK | VALUE_FLAG_WRITABLE_DEBUG \
-                | NOT_END_MASK)
-
         // just adds bit
-        #define MARK_CELL_WRITABLE_IF_DEBUG(v) \
-            ((v)->header.bits |= VALUE_FLAG_WRITABLE_DEBUG)
+        #define MARK_CELL_WRITABLE_IF_CPP_DEBUG(v) \
+            ((v)->header.bits |= VALUE_FLAG_WRITABLE_CPP_DEBUG)
 
-        #define MARK_CELL_UNWRITABLE_IF_DEBUG(v) \
-            ((v)->header.bits &= ~cast(REBUPT, VALUE_FLAG_WRITABLE_DEBUG))
+        #define MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(v) \
+            ((v)->header.bits &= ~cast(REBUPT, VALUE_FLAG_WRITABLE_CPP_DEBUG))
     #else
-        #define ASSERT_CELL_WRITABLE_IF_DEBUG(v,file,line) \
+        #define ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v,file,line) \
             NOOP
 
-        #define INIT_CELL_WRITABLE_IF_DEBUG(v) \
+        #define MARK_CELL_WRITABLE_IF_CPP_DEBUG(v) \
             NOOP
 
-        #define MARK_CELL_WRITABLE_IF_DEBUG(v) \
-            NOOP
-
-        #define MARK_CELL_UNWRITABLE_IF_DEBUG(v) \
+        #define MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(v) \
             NOOP
     #endif
 
     inline static void VAL_RESET_HEADER_Debug(
         RELVAL *v, enum Reb_Kind kind, const char *file, int line
     ){
-        ASSERT_CELL_WRITABLE_IF_DEBUG(v, file, line);
+        ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
         VAL_RESET_HEADER_COMMON(v, kind);
-        v->header.bits |= CELL_MASK | VALUE_FLAG_WRITABLE_DEBUG;
+        MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
     }
 
     #define VAL_RESET_HEADER(v,k) \
         VAL_RESET_HEADER_Debug((v), (k), __FILE__, __LINE__)
+
+    inline static void INIT_CELL_Debug(
+        RELVAL *v, const char *file, int line
+    ){
+        VAL_RESET_HEADER_COMMON(v, REB_0); // don't set VOID_FLAG_NOT_TRASH
+        MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
+    }
+
+    #define INIT_CELL_IF_DEBUG(v) \
+        INIT_CELL_Debug((v), __FILE__, __LINE__)
 #endif
 
 inline static void SET_ZEROED(RELVAL *v, enum Reb_Kind kind) {
@@ -586,9 +589,9 @@ inline static void SET_BLANK_COMMON(RELVAL *v) {
     inline static void SET_BLANK_Debug(
         RELVAL *v, const char *file, int line
     ){
-        ASSERT_CELL_WRITABLE_IF_DEBUG(v, file, line);
+        ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
         SET_BLANK_COMMON(v);
-        MARK_CELL_WRITABLE_IF_DEBUG(v);
+        MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
         Set_Track_Payload_Debug(v, file, line);
     }
     #define SET_BLANK(v) \
@@ -658,18 +661,18 @@ inline static void SET_FALSE_COMMON(RELVAL *v) {
     inline static void SET_TRUE_Debug(
         RELVAL *v, const char *file, int line
     ){
-        ASSERT_CELL_WRITABLE_IF_DEBUG(v, file, line);
+        ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
         SET_TRUE_COMMON(v);
-        MARK_CELL_WRITABLE_IF_DEBUG(v);
+        MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
         Set_Track_Payload_Debug(v, file, line);
     }
 
     inline static void SET_FALSE_Debug(
         RELVAL *v, const char *file, int line
     ){
-        ASSERT_CELL_WRITABLE_IF_DEBUG(v, file, line);
+        ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
         SET_FALSE_COMMON(v);
-        MARK_CELL_WRITABLE_IF_DEBUG(v);
+        MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
         Set_Track_Payload_Debug(v, file, line);
     }
 

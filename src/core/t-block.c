@@ -998,48 +998,53 @@ return_empty_block:
 //
 void Assert_Array_Core(REBARR *array)
 {
-    REBCNT len;
-
     // Basic integrity checks (series is not marked free, etc.)  Note that
     // we don't use ASSERT_SERIES the macro here, because that checks to
     // see if the series is an array...and if so, would call this routine
     //
     Assert_Series_Core(ARR_SERIES(array));
 
-    if (!Is_Array_Series(ARR_SERIES(array)))
+    if (NOT(GET_ARR_FLAG(array, SERIES_FLAG_ARRAY))) {
+        printf("Assert_Array called on series without SERIES_FLAG_ARRAY\n");
         Panic_Array(array);
+    }
 
-    for (len = 0; len < ARR_LEN(array); len++) {
-        RELVAL *value = ARR_AT(array, len);
-
+    RELVAL *value = ARR_HEAD(array);
+    REBCNT i;
+    for (i = 0; i < ARR_LEN(array); ++i, ++value) {
         if (IS_END(value)) {
-            // Premature end
+            printf("Premature END found in Assert_Array\n");
+            printf("At index %d, length is %d\n", i, ARR_LEN(array));
+            fflush(stdout);
             Panic_Array(array);
         }
     }
 
-    if (NOT_END(ARR_AT(array, ARR_LEN(array)))) {
-        // Not legal to not have an END! at all
+    if (NOT_END(value)) {
+        printf("END missing in Assert_Array, length is %d\n", ARR_LEN(array));
+        fflush(stdout);
         Panic_Array(array);
     }
 
+    REBCNT rest = ARR_SERIES(array)->content.dynamic.rest;
+
     if (GET_ARR_FLAG(array, SERIES_FLAG_HAS_DYNAMIC)) {
-        REBCNT rest = ARR_SERIES(array)->content.dynamic.rest;
-        assert(rest > 0 && rest > len);
-        for (; len < rest - 1; len++) {
-            RELVAL *value = ARR_AT(array, len);
-            if (NOT(value->header.bits & CELL_MASK)) {
+#ifdef __cplusplus
+        assert(rest > 0 && rest > i);
+        for (; i < rest - 1; ++i, ++value) {
+            if (NOT(value->header.bits & VALUE_FLAG_WRITABLE_CPP_DEBUG)) {
                 printf("Unwritable cell found in array rest capacity\n");
                 fflush(stdout);
                 Panic_Array(array);
             }
         }
-
-        // Last item should be implicit terminator
-        if (ARR_AT(array, len)->header.bits != 0) {
+        assert(value == ARR_AT(array, rest - 1));
+#endif
+        if (ARR_AT(array, rest - 1)->header.bits != 0) {
             printf("Implicit termination/unwritable END missing from array\n");
             fflush(stdout);
         }
     }
+
 }
 #endif

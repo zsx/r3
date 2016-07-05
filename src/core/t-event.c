@@ -372,7 +372,7 @@ is_blank:
 void MAKE_Event(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
     if (IS_BLOCK(arg)) {
         CLEARS(out);
-        INIT_CELL_WRITABLE_IF_DEBUG(out);
+        INIT_CELL_IF_DEBUG(out);
         VAL_RESET_HEADER(out, REB_EVENT);
         Set_Event_Vars(
             out,

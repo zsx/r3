@@ -1111,7 +1111,7 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec) {
     SET_RIN_FLAG(r, ROUTINE_FLAG_USED); // so pooled node knows it's in use
     r->abi = FFI_DEFAULT_ABI;
 
-    INIT_CELL_WRITABLE_IF_DEBUG(RIN_RET_SCHEMA(r));
+    INIT_CELL_IF_DEBUG(RIN_RET_SCHEMA(r));
     SET_BLANK(RIN_RET_SCHEMA(r)); // blank means returns void (the default)
 
     const REBCNT capacity_guess = 8; // !!! Magic number...why 8? (can grow)

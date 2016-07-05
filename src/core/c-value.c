@@ -133,7 +133,7 @@ void Assert_Cell_Writable(const RELVAL *v, const char *file, int line)
         fflush(stdout);
         Panic_Value_Debug(v, file, line);
     }
-    if (NOT((v)->header.bits & VALUE_FLAG_WRITABLE_DEBUG)) {
+    if (NOT((v)->header.bits & VALUE_FLAG_WRITABLE_CPP_DEBUG)) {
         printf("Non-writable value passed to writing routine\n");
         fflush(stdout);
         Panic_Value_Debug(v, file, line);
@@ -152,9 +152,9 @@ void Assert_Cell_Writable(const RELVAL *v, const char *file, int line)
 // done by the raw creation of a Reb_Header in the containing structure.
 //
 void SET_END_Debug(RELVAL *v, const char *file, int line) {
-    ASSERT_CELL_WRITABLE_IF_DEBUG(v, file, line);
+    ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
     (v)->header.bits = REB_MAX | CELL_MASK;
-    MARK_CELL_WRITABLE_IF_DEBUG(v);
+    MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
     Set_Track_Payload_Debug(v, file, line);
 }
 

@@ -139,8 +139,11 @@
 // this in the release build, so it is not intended as a "feature"--just to
 // help avoid damaging things like the global BLANK_VALUE.
 //
-#if !defined(NDEBUG)
-    #define VALUE_FLAG_WRITABLE_DEBUG \
+// This is only checkable under C++, because stack REBVALs would not get the
+// flag implicitly in C...and manual initialization would clutter the code.
+//
+#if !defined(NDEBUG) && defined(__cplusplus)
+    #define VALUE_FLAG_WRITABLE_CPP_DEBUG \
         ((REBUPT)0x80000000)
 #endif
 
@@ -816,7 +819,8 @@ struct Reb_Value
         // stack variable.
         //
         Reb_Specific_Value () {
-            header.bits = CELL_MASK | VALUE_FLAG_WRITABLE_DEBUG;
+            // doesn't set VOID_FLAG_NOT_TRASH, so this is a trash cell
+            header.bits = REB_0 | CELL_MASK | VALUE_FLAG_WRITABLE_CPP_DEBUG;
         }
     #endif
     };

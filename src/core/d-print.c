@@ -945,7 +945,7 @@ static void Get_Pending_Format_Delimiter(
     if (!IS_BLOCK(delimiters)) {
         if (depth == 0) {
             *out = *delimiters;
-            MARK_CELL_WRITABLE_IF_DEBUG(out); // read-only space may be used
+            MARK_CELL_WRITABLE_IF_CPP_DEBUG(out); // read-only item may be used
         }
         else
             SET_BLANK(out);

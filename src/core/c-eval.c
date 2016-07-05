@@ -94,7 +94,7 @@ static inline REBOOL Start_New_Expression_Throws(struct Reb_Frame *f) {
         REBUPT eval_type_saved = f->eval_type;
         f->eval_type = ET_INERT;
 
-        INIT_CELL_WRITABLE_IF_DEBUG(&f->cell.eval);
+        INIT_CELL_IF_DEBUG(&f->cell.eval);
         if (Do_Signals_Throws(SINK(&f->cell.eval))) {
             *f->out = *KNOWN(&f->cell.eval);
             return TRUE;

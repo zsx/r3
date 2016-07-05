@@ -277,10 +277,8 @@ REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
     // for other purposes.  Hence the writability must be re-indicated here
     // before the slot is used each time.
     //
-    if (f->value != &(f->cell.eval)) {
-        INIT_CELL_WRITABLE_IF_DEBUG(&(f->cell.eval));
-        SET_TRASH_IF_DEBUG(&(f->cell.eval));
-    }
+    if (f->value != &(f->cell.eval))
+        INIT_CELL_IF_DEBUG(&(f->cell.eval));
 
     // Trash call variables in debug build to make sure they're not reused.
     // Note that this call frame will *not* be seen by the GC unless it gets

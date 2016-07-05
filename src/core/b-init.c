@@ -733,23 +733,23 @@ static void Init_Root_Context(void)
 
     SET_VOID(&PG_Void_Cell[0]);
     SET_TRASH_IF_DEBUG(&PG_Void_Cell[1]);
-    MARK_CELL_UNWRITABLE_IF_DEBUG(&PG_Void_Cell[1]);
+    MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(&PG_Void_Cell[1]);
 
     SET_BLANK(&PG_Blank_Value[0]);
     SET_TRASH_IF_DEBUG(&PG_Blank_Value[1]);
-    MARK_CELL_UNWRITABLE_IF_DEBUG(&PG_Blank_Value[1]);
+    MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(&PG_Blank_Value[1]);
 
     SET_BAR(&PG_Bar_Value[0]);
     SET_TRASH_IF_DEBUG(&PG_Bar_Value[1]);
-    MARK_CELL_UNWRITABLE_IF_DEBUG(&PG_Bar_Value[1]);
+    MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(&PG_Bar_Value[1]);
 
     SET_FALSE(&PG_False_Value[0]);
     SET_TRASH_IF_DEBUG(&PG_False_Value[1]);
-    MARK_CELL_UNWRITABLE_IF_DEBUG(&PG_False_Value[1]);
+    MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(&PG_False_Value[1]);
 
     SET_TRUE(&PG_True_Value[0]);
     SET_TRASH_IF_DEBUG(&PG_True_Value[1]);
-    MARK_CELL_UNWRITABLE_IF_DEBUG(&PG_True_Value[1]);
+    MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(&PG_True_Value[1]);
 
     // We can't actually put an end value in the middle of a block, so we poke
     // this one into a program global.  It is not legal to bit-copy an
@@ -773,7 +773,7 @@ static void Init_Root_Context(void)
     // Used by REBNATIVE(print)
     //
     SET_CHAR(ROOT_SPACE_CHAR, ' ');
-    MARK_CELL_UNWRITABLE_IF_DEBUG(ROOT_SPACE_CHAR);
+    MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(ROOT_SPACE_CHAR);
 
     // Can't ASSERT_CONTEXT here; no keylist yet...
 }
