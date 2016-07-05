@@ -112,7 +112,7 @@ static void Accept_New_Port(REBVAL *out, REBCTX *port, REBREQ *sock)
 //  Transport_Actor: C
 //
 static REB_R Transport_Actor(
-    struct Reb_Frame *frame_,
+    REBFRM *frame_,
     REBCTX *port,
     REBSYM action,
     enum Transport_Types proto
@@ -341,7 +341,7 @@ static REB_R Transport_Actor(
 //
 //  TCP_Actor: C
 //
-static REB_R TCP_Actor(struct Reb_Frame *frame_, REBCTX *port, REBSYM action)
+static REB_R TCP_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
     return Transport_Actor(frame_, port, action, TRANSPORT_TCP);
 }
@@ -349,7 +349,7 @@ static REB_R TCP_Actor(struct Reb_Frame *frame_, REBCTX *port, REBSYM action)
 //
 //  UDP_Actor: C
 //
-static REB_R UDP_Actor(struct Reb_Frame *frame_, REBCTX *port, REBSYM action)
+static REB_R UDP_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
     return Transport_Actor(frame_, port, action, TRANSPORT_UDP);
 }

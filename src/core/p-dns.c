@@ -35,7 +35,7 @@
 //
 //  DNS_Actor: C
 //
-static REB_R DNS_Actor(struct Reb_Frame *frame_, REBCTX *port, REBSYM action)
+static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
     REBVAL *spec;
     REBREQ *sock;

@@ -49,7 +49,7 @@
 REBINT Eval_Depth(void)
 {
     REBINT depth = 0;
-    struct Reb_Frame *frame = FS_TOP;
+    REBFRM *frame = FS_TOP;
 
     for (; frame != NULL; frame = FRM_PRIOR(frame), depth++)
         NOOP;
@@ -61,9 +61,9 @@ REBINT Eval_Depth(void)
 //
 //  Frame_At_Depth: C
 //
-struct Reb_Frame *Frame_At_Depth(REBCNT n)
+REBFRM *Frame_At_Depth(REBCNT n)
 {
-    struct Reb_Frame *frame = FS_TOP;
+    REBFRM *frame = FS_TOP;
 
     while (frame) {
         if (n == 0) return frame;
@@ -93,7 +93,7 @@ static REBINT Init_Depth(void)
 //
 //  Trace_Line: C
 //
-void Trace_Line(struct Reb_Frame *f)
+void Trace_Line(REBFRM *f)
 {
     int depth;
 
@@ -272,7 +272,7 @@ REBNATIVE(trace)
 // wrong.  This routine hooks the individual fetch and writes at a more
 // fine-grained level than a breakpoint at each DO/NEXT point.
 //
-void Trace_Fetch_Debug(const char* msg, struct Reb_Frame *f, REBOOL after) {
+void Trace_Fetch_Debug(const char* msg, REBFRM *f, REBOOL after) {
     Debug_Fmt(
         "%d - %s : %s",
         cast(REBCNT, f->index),

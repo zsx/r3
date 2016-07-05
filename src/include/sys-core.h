@@ -180,9 +180,8 @@ typedef void (*MAKE_FUNC)(REBVAL*, enum Reb_Kind, const REBVAL*);
 typedef void (*TO_FUNC)(REBVAL*, enum Reb_Kind, const REBVAL*);
 
 #include "sys-scan.h"
-#include "sys-stack.h"
 #include "sys-state.h"
-#include "sys-frame.h" // `struct Reb_Frame` definition (also used by value)
+#include "sys-rebfrm.h" // `REBFRM` definition (also used by value)
 
 //-- Port actions (for native port schemes):
 
@@ -646,6 +645,9 @@ enum Reb_Vararg_Op {
 
 #include "sys-value.h" // Value accessors
 
+#include "sys-stack.h"
+
+#include "sys-frame.h"
 #include "sys-bind.h"
 
 #include "reb-struct.h"
@@ -671,126 +673,6 @@ enum Reb_Vararg_Op {
 #define SET_SIGNAL(f) SET_FLAG(Eval_Signals, f)
 #define GET_SIGNAL(f) GET_FLAG(Eval_Signals, f)
 #define CLR_SIGNAL(f) CLR_FLAG(Eval_Signals, f)
-
-
-// All THROWN values have two parts: the REBVAL arg being thrown and
-// a REBVAL indicating the /NAME of a labeled throw.  (If the throw was
-// created with plain THROW instead of THROW/NAME then its name is NONE!).
-// You cannot fit both values into a single value's bits of course, but
-// since only one THROWN() value is supposed to exist on the stack at a
-// time the arg part is stored off to the side when one is produced
-// during an evaluation.  It must be processed before another evaluation
-// is performed, and if the GC or DO are ever given a value with a
-// THROWN() bit they will assert!
-//
-// A reason to favor the name as "the main part" is that having the name
-// value ready-at-hand allows easy testing of it to see if it needs
-// to be passed on.  That happens more often than using the arg, which
-// will occur exactly once (when it is caught).
-//
-
-#define THROWN(v) \
-    GET_VAL_FLAG((v), VALUE_FLAG_THROWN)
-
-static inline void CONVERT_NAME_TO_THROWN(
-    REBVAL *name, const REBVAL *arg
-){
-    assert(!THROWN(name));
-    SET_VAL_FLAG(name, VALUE_FLAG_THROWN);
-
-    assert(IS_TRASH_DEBUG(&TG_Thrown_Arg));
-    TG_Thrown_Arg = *arg;
-}
-
-static inline void CATCH_THROWN(REBVAL *arg_out, REBVAL *thrown) {
-    //
-    // Note: arg_out and thrown may be the same pointer
-    //
-    assert(!IS_END(thrown));
-    assert(THROWN(thrown));
-    CLEAR_VAL_FLAG(thrown, VALUE_FLAG_THROWN);
-
-    assert(!IS_TRASH_DEBUG(&TG_Thrown_Arg));
-    *arg_out = TG_Thrown_Arg;
-    SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
-}
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  VARIABLE ACCESS
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// When a word is bound to a context by an index, it becomes a means of
-// reading and writing from a persistent storage location.  We use "variable"
-// or just VAR to refer to REBVAL slots reached via binding in this way.
-// More narrowly, a VAR that represents an argument to a function invocation
-// may be called an ARG (and an ARG's "persistence" is only as long as that
-// function call is on the stack).
-//
-// All variables can be put in a protected state where they cannot be written.
-// This protection status is marked on the KEY of the context.  Again, more
-// narrowly we may refer to a KEY that represents a parameter to a function
-// as a PARAM.
-//
-// The GET_OPT_VAR_MAY_FAIL() function takes the conservative default that
-// only const access is needed.  A const pointer to a REBVAL is given back
-// which may be inspected, but the contents not modified.  While a bound
-// variable that is not currently set will return a REB_0 value, trying
-// to GET_OPT_VAR_MAY_FAIL() on an *unbound* word will raise an error.
-//
-// TRY_GET_OPT_VAR() also provides const access.  But it will return NULL
-// instead of fail on unbound variables.
-//
-// GET_MUTABLE_VAR_MAY_FAIL() and TRY_GET_MUTABLE_VAR() offer parallel
-// facilities for getting a non-const REBVAL back.  They will fail if the
-// variable is either unbound -or- marked with OPT_TYPESET_LOCKED to protect
-// them against modification.  The TRY variation will fail quietly by
-// returning NULL.
-//
-
-
-enum {
-    GETVAR_READ_ONLY = 0,
-    GETVAR_UNBOUND_OK = 1 << 0,
-    GETVAR_IS_SETVAR = 1 << 1 // will clear infix bit, so "always writes"!
-};
-
-
-static inline const REBVAL *GET_OPT_VAR_MAY_FAIL(
-    const RELVAL *any_word,
-    REBCTX *specifier
-) {
-    REBUPT dummy;
-    return Get_Var_Core(&dummy, any_word, specifier, 0);
-}
-
-static inline const REBVAL *TRY_GET_OPT_VAR(
-    const RELVAL *any_word,
-    REBCTX *specifier
-) {
-    REBUPT dummy;
-    return Get_Var_Core(&dummy, any_word, specifier, GETVAR_UNBOUND_OK);
-}
-
-static inline REBVAL *GET_MUTABLE_VAR_MAY_FAIL(
-    const RELVAL *any_word,
-    REBCTX *specifier
-) {
-    REBUPT lookback = ET_FUNCTION; // resets infix/postfix/etc. flag
-    return Get_Var_Core(&lookback, any_word, specifier, GETVAR_IS_SETVAR);
-}
-
-static inline REBVAL *TRY_GET_MUTABLE_VAR(
-    const RELVAL *any_word,
-    REBCTX *specifier
-) {
-    REBUPT lookback = ET_FUNCTION; // resets infix/postfix/etc. flag
-    return Get_Var_Core(
-        &lookback, any_word, specifier, GETVAR_IS_SETVAR | GETVAR_UNBOUND_OK
-    );
-}
 
 
 #define ALL_BITS    ((REBCNT)(-1))
@@ -925,4 +807,5 @@ extern const REBACT Value_Dispatch[];
 //extern const REBYTE Lower_Case[];
 
 #include "sys-do.h"
+#include "sys-path.h"
 #include "sys-trap.h"

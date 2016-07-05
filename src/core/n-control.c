@@ -178,7 +178,7 @@ static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
 // 
 // Protect takes a HIDE parameter as #5.
 //
-static int Protect(struct Reb_Frame *frame_, REBFLGS flags)
+static int Protect(REBFRM *frame_, REBFLGS flags)
 {
     PARAM(1, value);
     REFINE(2, deep);
@@ -1053,8 +1053,8 @@ REBNATIVE(do)
             CTX_VARLIST(VAL_CONTEXT(value)), CONTEXT_FLAG_STACK)
         );
 
-        struct Reb_Frame frame;
-        struct Reb_Frame *f = &frame;
+        REBFRM frame;
+        REBFRM *f = &frame;
 
         // Apply_Frame_Core sets up most of the Reb_Frame, but expects these
         // arguments to be filled in.
@@ -1143,7 +1143,7 @@ void Make_Thrown_Exit_Value(
     REBVAL *out,
     const REBVAL *level, // FRAME!, FUNCTION! (or INTEGER! relative to frame)
     const REBVAL *value,
-    struct Reb_Frame *frame // only required if level is INTEGER!
+    REBFRM *frame // only required if level is INTEGER!
 ) {
     *out = *NAT_VALUE(exit);
 
@@ -1152,7 +1152,7 @@ void Make_Thrown_Exit_Value(
         if (count <= 0)
             fail (Error(RE_INVALID_EXIT));
 
-        struct Reb_Frame *f = frame->prior;
+        REBFRM *f = frame->prior;
         for (; TRUE; f = f->prior) {
             if (f == NULL)
                 fail (Error(RE_INVALID_EXIT));
@@ -1346,7 +1346,7 @@ REBNATIVE(fail)
 
     assert(IS_STRING(reason));
 
-    struct Reb_Frame *where = NULL;
+    REBFRM *where = NULL;
     if (REF(where)) {
         REBCTX *context;
         if (IS_WORD(ARG(location)))
@@ -1370,7 +1370,7 @@ REBNATIVE(fail)
 }
 
 
-static REB_R If_Unless_Core(struct Reb_Frame *frame_, REBOOL trigger) {
+static REB_R If_Unless_Core(REBFRM *frame_, REBOOL trigger) {
     PARAM(1, condition);
     PARAM(2, branch);
     REFINE(3, only);

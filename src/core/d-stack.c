@@ -100,7 +100,7 @@ void Collapsify_Array(REBARR *array, REBCTX *specifier, REBCNT limit)
 // onto these values for the purposes of better error messages (at the cost
 // of performance).
 //
-REBARR *Make_Where_For_Frame(struct Reb_Frame *f)
+REBARR *Make_Where_For_Frame(REBFRM *f)
 {
     REBARR *where;
 
@@ -197,7 +197,7 @@ REBNATIVE(where_of)
 {
     PARAM(1, level);
 
-    struct Reb_Frame *frame = Frame_For_Stack_Level(NULL, ARG(level), TRUE);
+    REBFRM *frame = Frame_For_Stack_Level(NULL, ARG(level), TRUE);
     if (frame == NULL)
         fail (Error_Invalid_Arg(ARG(level)));
 
@@ -218,7 +218,7 @@ REBNATIVE(label_of)
 {
     PARAM(1, level);
 
-    struct Reb_Frame *frame = Frame_For_Stack_Level(NULL, ARG(level), TRUE);
+    REBFRM *frame = Frame_For_Stack_Level(NULL, ARG(level), TRUE);
 
     // Make it slightly easier by returning a NONE! instead of giving an
     // error for a frame that isn't on the stack.
@@ -258,7 +258,7 @@ REBNATIVE(function_of)
         *D_OUT = *CTX_FRAME_FUNC_VALUE(context);
     }
     else {
-        struct Reb_Frame *frame = Frame_For_Stack_Level(NULL, level, TRUE);
+        REBFRM *frame = Frame_For_Stack_Level(NULL, level, TRUE);
         if (!frame)
             fail (Error_Invalid_Arg(level));
 
@@ -337,7 +337,7 @@ REBNATIVE(backtrace)
     REBOOL get_frame = NOT(IS_VOID(level) || IS_BLANK(level));
 
     REBARR *backtrace;
-    struct Reb_Frame *frame;
+    REBFRM *frame;
 
     Check_Security(Canon(SYM_DEBUG), POL_READ, 0);
 
@@ -611,12 +611,12 @@ REBNATIVE(backtrace)
 // to unify the logic for omitting things like breakpoint frames, or either
 // considering pending frames or not.
 //
-struct Reb_Frame *Frame_For_Stack_Level(
+REBFRM *Frame_For_Stack_Level(
     REBCNT *number_out,
     const REBVAL *level,
     REBOOL skip_current
 ) {
-    struct Reb_Frame *frame = FS_TOP;
+    REBFRM *frame = FS_TOP;
     REBOOL first = TRUE;
     REBINT num = 0;
 
@@ -733,7 +733,7 @@ REBNATIVE(running_q)
         if (!GET_CTX_FLAG(frame_ctx, SERIES_FLAG_ACCESSIBLE))
             return R_FALSE;
 
-    struct Reb_Frame *f = CTX_FRAME(frame_ctx);
+    REBFRM *f = CTX_FRAME(frame_ctx);
 
     if (NOT(Is_Any_Function_Frame(f)))
         return R_FALSE;
@@ -762,7 +762,7 @@ REBNATIVE(pending_q)
         if (!GET_CTX_FLAG(frame_ctx, SERIES_FLAG_ACCESSIBLE))
             return R_FALSE;
 
-    struct Reb_Frame *f = CTX_FRAME(frame_ctx);
+    REBFRM *f = CTX_FRAME(frame_ctx);
 
     if (Is_Any_Function_Frame(f))
         if (Is_Function_Frame_Fulfilling(f))

@@ -106,8 +106,8 @@ static REBOOL Subparse_Throws(
     REBCTX *rules_specifier,
     REBCNT find_flags
 ) {
-    struct Reb_Frame frame;
-    struct Reb_Frame *f = &frame;
+    REBFRM frame;
+    REBFRM *f = &frame;
     REB_R r;
 
     assert(ANY_ARRAY(rules));
@@ -229,7 +229,7 @@ static REBCTX *Error_Parse_End() {
 }
 
 
-static void Print_Parse_Index(struct Reb_Frame *f) {
+static void Print_Parse_Index(REBFRM *f) {
     REBVAL input;
     Val_Init_Series_Index_Core(
         &input,
@@ -268,7 +268,7 @@ static void Print_Parse_Index(struct Reb_Frame *f) {
 // Change the series, ensuring the index is not past the end.
 //
 static void Set_Parse_Series(
-    struct Reb_Frame *f,
+    REBFRM *f,
     const REBVAL *any_series
 ) {
     f->stackvars[0] = *any_series;
@@ -359,7 +359,7 @@ static const RELVAL *Get_Parse_Value(
 // Otherwise return NOT_FOUND.
 //
 static REBCNT Parse_Next_String(
-    struct Reb_Frame *f,
+    REBFRM *f,
     REBCNT index,
     const RELVAL *rule
 ) {
@@ -523,7 +523,7 @@ static REBCNT Parse_Next_String(
 // If it matches, return the index just past it. Otherwise, return zero.
 //
 static REBCNT Parse_Next_Array(
-    struct Reb_Frame *f,
+    REBFRM *f,
     REBCNT index,
     const RELVAL *rule
 ) {
@@ -640,7 +640,7 @@ no_result:
 //  To_Thru: C
 //
 static REBCNT To_Thru(
-    struct Reb_Frame *f,
+    REBFRM *f,
     REBCNT index,
     const RELVAL *rule_block,
     REBOOL is_thru
@@ -889,7 +889,7 @@ bad_target:
 //     4. block of values - the first one we hit
 //
 static REBCNT Parse_To(
-    struct Reb_Frame *f,
+    REBFRM *f,
     REBCNT index,
     const RELVAL *rule,
     REBOOL is_thru
@@ -1039,11 +1039,11 @@ static REBCNT Parse_To(
 // 
 // Problem: cannot write:  set var do datatype!
 //
-static REBCNT Do_Eval_Rule(struct Reb_Frame *f)
+static REBCNT Do_Eval_Rule(REBFRM *f)
 {
     const RELVAL *rule = P_RULE;
     REBCNT n;
-    struct Reb_Frame newparse;
+    REBFRM newparse;
 
     REBIXO indexor = P_POS;
 
@@ -1252,7 +1252,7 @@ REBNATIVE(subparse)
 // be caught by PARSE before returning.
 //
 {
-    struct Reb_Frame *f = frame_; // nice alias of implicit native parameter
+    REBFRM *f = frame_; // nice alias of implicit native parameter
 
 #if !defined(NDEBUG)
     //

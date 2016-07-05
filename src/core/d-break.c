@@ -150,7 +150,7 @@ REBOOL Do_Breakpoint_Throws(
 
         // Decode and process the "resume instruction"
         {
-            struct Reb_Frame *frame;
+            REBFRM *frame;
             REBVAL *mode;
             REBVAL *payload;
 
@@ -398,7 +398,7 @@ REBNATIVE(resume)
     // same machinery that definitionally-scoped return would to do it).
     // Frames will be reified as necessary.
     //
-    struct Reb_Frame *frame;
+    REBFRM *frame;
 
     REBVAL cell;
 

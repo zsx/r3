@@ -55,7 +55,7 @@ REBOOL In_Legacy_Function_Debug(void)
     // Find the first bit of code that's actually running ordinarily in
     // the evaluator, and not just dispatching.
     //
-    struct Reb_Frame *frame = FS_TOP;
+    REBFRM *frame = FS_TOP;
     for (; frame != NULL; frame = frame->prior) {
         if (frame->flags & DO_FLAG_VA_LIST)
             return FALSE; // no source array to look at
@@ -89,7 +89,7 @@ REBOOL In_Legacy_Function_Debug(void)
 // Trigger is when OPTIONS_REFINEMENTS_TRUE is set during function creation,
 // which will give it FUNC_FLAG_LEGACY_DEBUG--leading to this being used.
 //
-void Legacy_Convert_Function_Args(struct Reb_Frame *f)
+void Legacy_Convert_Function_Args(REBFRM *f)
 {
     REBVAL *param = FUNC_PARAMS_HEAD(f->func);
     REBVAL *arg = FRM_ARGS_HEAD(f);

@@ -325,7 +325,7 @@ static void Set_Seek(REBREQ *file, REBVAL *arg)
 // 
 // Internal port handler for files.
 //
-static REB_R File_Actor(struct Reb_Frame *frame_, REBCTX *port, REBSYM action)
+static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
     REBVAL *spec;
     REBVAL *path;

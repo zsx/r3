@@ -73,10 +73,10 @@ REBIXO Do_Vararg_Op_Core(
     REBSTR *opt_label, // symbol of the function invocation param belongs to
     enum Reb_Vararg_Op op
 ) {
-    struct Reb_Frame *f;
+    REBFRM *f;
     REBIXO indexor = VA_LIST_FLAG;
 
-    struct Reb_Frame temp_frame;
+    REBFRM temp_frame;
 
     REBARR **subfeed_addr;
     REBVAL *shared;
@@ -558,7 +558,7 @@ REBINT CT_Varargs(const RELVAL *a, const RELVAL *b, REBINT mode)
 // be given when printing these out (they should not "lookahead")
 //
 void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
-    struct Reb_Frame *f;
+    REBFRM *f;
 
     REBARR *subfeed;
 

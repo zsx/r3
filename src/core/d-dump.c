@@ -191,7 +191,7 @@ void Dump_Info(void)
 //
 // Prints stack counting levels from the passed in number.  Pass 0 to start.
 //
-void Dump_Stack(struct Reb_Frame *f, REBCNT level)
+void Dump_Stack(REBFRM *f, REBCNT level)
 {
     REBINT n;
     REBVAL *arg;

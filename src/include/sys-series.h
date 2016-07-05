@@ -945,7 +945,7 @@ inline static REBVAL *CTX_VALUE(REBCTX *c) {
         : KNOWN(ARR_HEAD(CTX_VARLIST(c))); // not a RELVAL
 }
 
-inline static struct Reb_Frame *CTX_FRAME(REBCTX *c) {
+inline static REBFRM *CTX_FRAME(REBCTX *c) {
     return ARR_SERIES(CTX_VARLIST(c))->misc.f;
 }
 

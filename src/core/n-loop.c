@@ -391,7 +391,7 @@ restore_var_and_return:
 // Common implementation code of FOR-EACH, REMOVE-EACH, MAP-EACH,
 // and EVERY.
 //
-static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
+static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
 {
     PARAM(1, vars);
     PARAM(2, data);

@@ -387,7 +387,7 @@ static REBUPT arg_to_ffi(
         assert(arg == NULL); // return value, so just make space (no arg data)
 #endif
 
-    struct Reb_Frame *frame_ = FS_TOP; // So you can use the D_xxx macros
+    REBFRM *frame_ = FS_TOP; // So you can use the D_xxx macros
 
     REBUPT offset;
     if (!dest)
@@ -722,7 +722,7 @@ static void ffi_to_rebol(
 //
 //  Routine_Dispatcher: C
 //
-REB_R Routine_Dispatcher(struct Reb_Frame *f)
+REB_R Routine_Dispatcher(REBFRM *f)
 {
     REBRIN *rin = FUNC_ROUTINE(f->func);
 

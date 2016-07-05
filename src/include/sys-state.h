@@ -37,7 +37,7 @@ struct Reb_State {
 
     REBDSP dsp;
     struct Reb_Chunk *top_chunk;
-    struct Reb_Frame *frame;
+    REBFRM *frame;
     REBCNT series_guard_len;
     REBCNT value_guard_len;
     REBCTX *error;

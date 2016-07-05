@@ -60,7 +60,7 @@
 //
 //  Dump_Frame_Location: C
 //
-void Dump_Frame_Location(struct Reb_Frame *f)
+void Dump_Frame_Location(REBFRM *f)
 {
     REBVAL dump;
     COPY_VALUE(&dump, f->value, f->specifier);
@@ -107,7 +107,7 @@ void Dump_Frame_Location(struct Reb_Frame *f)
 //
 //  Do_Core_Entry_Checks_Debug: C
 //
-void Do_Core_Entry_Checks_Debug(struct Reb_Frame *f)
+void Do_Core_Entry_Checks_Debug(REBFRM *f)
 {
     // Though we can protect the value written into the target pointer 'out'
     // from GC during the course of evaluation, we can't protect the
@@ -175,7 +175,7 @@ void Do_Core_Entry_Checks_Debug(struct Reb_Frame *f)
 // These are checks common to Expression and Exit checks (hence also common
 // to the "end of Start" checks, since that runs on the first expression)
 //
-static void Do_Core_Shared_Checks_Debug(struct Reb_Frame *f) {
+static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     //
     // There shouldn't have been any "accumulated state", in the sense that
     // we should be back where we started in terms of the data stack, the
@@ -253,7 +253,7 @@ static void Do_Core_Shared_Checks_Debug(struct Reb_Frame *f) {
 // making the code shareable allows code paths that jump to later spots
 // in the switch (vs. starting at the top) to reuse the work.
 //
-REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
+REBUPT Do_Core_Expression_Checks_Debug(REBFRM *f) {
 
     Do_Core_Shared_Checks_Debug(f);
 
@@ -322,7 +322,7 @@ REBUPT Do_Core_Expression_Checks_Debug(struct Reb_Frame *f) {
 //
 //  Do_Core_Exit_Checks_Debug: C
 //
-void Do_Core_Exit_Checks_Debug(struct Reb_Frame *f) {
+void Do_Core_Exit_Checks_Debug(REBFRM *f) {
 
     Do_Core_Shared_Checks_Debug(f);
 

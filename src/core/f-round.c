@@ -58,7 +58,7 @@ enum {
 // 8 /ceiling   "Round in positive direction"
 // 9 /half-ceiling "Halves round in positive direction"
 //
-REBFLGS Get_Round_Flags(struct Reb_Frame *frame_)
+REBFLGS Get_Round_Flags(REBFRM *frame_)
 {
     REBFLGS flags = 0;
 

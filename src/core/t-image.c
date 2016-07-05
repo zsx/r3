@@ -607,7 +607,7 @@ void Clear_Image(REBVAL *img)
 // Insert or change image
 // ACTION value arg /part len /only /dup count
 //
-REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
+REBVAL *Modify_Image(REBFRM *frame_, REBCNT action)
 {
     REBVAL  *value = D_ARG(1);
     REBVAL  *arg   = D_ARG(2);
@@ -800,7 +800,7 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
 //     14 /last  {Backwards from end of string.}
 //     15 /reverse {Backwards from the current position.}
 //
-REBVAL *Find_Image(struct Reb_Frame *frame_)
+REBVAL *Find_Image(REBFRM *frame_)
 {
     REBVAL  *value = D_ARG(1);
     REBVAL  *arg   = D_ARG(2);

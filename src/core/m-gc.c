@@ -576,7 +576,7 @@ static void Mark_Frame_Stack_Deep(void)
     // The GC must consider all entries, not just those that have been pushed
     // into active evaluation.
     //
-    struct Reb_Frame *f = TG_Frame_Stack;
+    REBFRM *f = TG_Frame_Stack;
 
     for (; f != NULL; f = f->prior) {
         assert(f->eval_type != ET_TRASH);
@@ -1370,7 +1370,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
     // va_list into a REBARR before we start the GC (as it makes new series).
     //
     {
-        struct Reb_Frame *f = FS_TOP;
+        REBFRM *f = FS_TOP;
         for (; f != NULL; f = f->prior) {
             const REBOOL truncated = TRUE;
             if (f->flags & DO_FLAG_VA_LIST)

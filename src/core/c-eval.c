@@ -32,7 +32,7 @@
 // behavior, and there are other flags for controlling its other behaviors.
 //
 // For comprehensive notes on the input parameters, output parameters, and
-// internal state variables...see %sys-do.h and `struct Reb_Frame`.
+// internal state variables...see %sys-do.h and `REBFRM`.
 //
 // NOTES:
 //
@@ -82,7 +82,7 @@
 #endif
 
 
-static inline REBOOL Start_New_Expression_Throws(struct Reb_Frame *f) {
+static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
     assert(Eval_Count != 0);
 
     if (--Eval_Count == 0 || Eval_Signals) {
@@ -145,16 +145,16 @@ static inline REBOOL Start_New_Expression_Throws(struct Reb_Frame *f) {
 #endif
 
 
-static inline void Type_Check_Arg_For_Param_May_Fail(struct Reb_Frame * f) {
+static inline void Type_Check_Arg_For_Param_May_Fail(REBFRM * f) {
     if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg)))
         fail (Error_Arg_Type(FRM_LABEL(f), f->param, VAL_TYPE(f->arg)));
 }
 
-static inline void Drop_Function_Args_For_Frame(struct Reb_Frame *f) {
+static inline void Drop_Function_Args_For_Frame(REBFRM *f) {
     Drop_Function_Args_For_Frame_Core(f, TRUE);
 }
 
-static inline void Abort_Function_Args_For_Frame(struct Reb_Frame *f) {
+static inline void Abort_Function_Args_For_Frame(REBFRM *f) {
     Drop_Function_Args_For_Frame(f);
 
     // If a function call is aborted, there may be pending refinements (if
@@ -209,7 +209,7 @@ static inline REBOOL Specialized_Arg(REBVAL *arg) {
 // More detailed assertions of the preconditions, postconditions, and state
 // at each evaluation step are contained in %d-eval.c
 //
-void Do_Core(struct Reb_Frame * const f)
+void Do_Core(REBFRM * const f)
 {
 #if !defined(NDEBUG)
     REBUPT do_count = f->do_count = TG_Do_Count; // snapshot initial state

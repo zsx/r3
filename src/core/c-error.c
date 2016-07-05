@@ -319,12 +319,12 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
     // to C_STACK_OVERFLOWING.  (See notes on the sketchiness in general of
     // the way R3-Alpha handles stack overflows, and alternative plans.)
     //
-    struct Reb_Frame *f = FS_TOP;
+    REBFRM *f = FS_TOP;
     while (f != Saved_State->frame) {
         if (Is_Any_Function_Frame(f))
             Drop_Function_Args_For_Frame_Core(f, FALSE); // don't drop chunks
 
-        struct Reb_Frame *prior = f->prior;
+        REBFRM *prior = f->prior;
         DROP_CALL(f);
         f = prior;
     }
@@ -352,7 +352,7 @@ REBCNT Stack_Depth(void)
 {
     REBCNT depth = 0;
 
-    struct Reb_Frame *f = FS_TOP;
+    REBFRM *f = FS_TOP;
     while (f) {
         if (Is_Any_Function_Frame(f))
             if (NOT(Is_Function_Frame_Fulfilling(f))) {
@@ -456,7 +456,7 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
 
 static void Try_Add_Backtrace_To_Error(
     REBCTX *error,
-    struct Reb_Frame *where
+    REBFRM *where
 ) {
     if (where == NULL)
         where = FS_TOP;
@@ -477,7 +477,7 @@ static void Try_Add_Backtrace_To_Error(
 
     // Count the number of entries that the backtrace will have
     //
-    struct Reb_Frame *f = where;
+    REBFRM *f = where;
     for (; f != NULL; f = f->prior)
         ++backtrace_len;
 
@@ -570,7 +570,7 @@ static void Try_Add_Backtrace_To_Error(
 REBOOL Make_Error_Object_Throws(
     REBVAL *out, // output location **MUST BE GC SAFE**!
     const REBVAL *arg,
-    struct Reb_Frame *where
+    REBFRM *where
 ) {
     // Frame from the error object template defined in %sysobj.r
     //
@@ -1170,7 +1170,7 @@ REBCTX *Error(REBCNT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
 // such that it cannot be passed as an argument to a function.  Note that
 // f->label_sym must contain the symbol of the punctuator rejecting the call.
 //
-REBCTX *Error_Punctuator_Hit(struct Reb_Frame *f) {
+REBCTX *Error_Punctuator_Hit(REBFRM *f) {
     REBVAL punctuator_name;
     Val_Init_Word(&punctuator_name, REB_WORD, f->label);
     fail (Error(RE_PUNCTUATOR_HIT, &punctuator_name));
@@ -1185,7 +1185,7 @@ REBCTX *Error_Punctuator_Hit(struct Reb_Frame *f) {
 // VALUE_FLAG_EVALUATED permits the determination of inerts that would have
 // been okay to quote, e.g. `<a tag> infix-op 3 4 5`.
 //
-REBCTX *Error_Lookback_Quote_Too_Late(struct Reb_Frame *f) {
+REBCTX *Error_Lookback_Quote_Too_Late(REBFRM *f) {
     fail (Error(RE_INFIX_QUOTE_LATE, f->out, END_CELL));
 }
 
@@ -1196,7 +1196,7 @@ REBCTX *Error_Lookback_Quote_Too_Late(struct Reb_Frame *f) {
 // Infix hard quoting is allowed to quote SET-WORD! and SET-PATH! as the
 // left hand side of lookback and infix functions.  But soft quoting is not.
 //
-REBCTX *Error_Lookback_Quote_Set_Soft(struct Reb_Frame *f) {
+REBCTX *Error_Lookback_Quote_Set_Soft(REBFRM *f) {
     fail (Error(RE_INFIX_QUOTE_SET, f->out, END_CELL));
 }
 
@@ -1217,7 +1217,7 @@ REBCTX *Error_Lookback_Quote_Set_Soft(struct Reb_Frame *f) {
 // This could be improved heuristically, but it's not 100% guaranteed to be
 // able to step back in an array to see it--since there may be no array.
 //
-REBCTX *Error_Infix_Left_Arg_Prohibited(struct Reb_Frame *f) {
+REBCTX *Error_Infix_Left_Arg_Prohibited(REBFRM *f) {
     REBVAL infix_name;
     Val_Init_Word(&infix_name, REB_WORD, f->label);
     fail (Error(RE_NO_INFIX_LEFT_ARG, &infix_name, END_CELL));
@@ -1232,7 +1232,7 @@ REBCTX *Error_Infix_Left_Arg_Prohibited(struct Reb_Frame *f) {
 // corresponding to refinements must be canonized to either TRUE or FALSE
 // by these specializations, because that's what the called function expects.
 //
-REBCTX *Error_Non_Logic_Refinement(struct Reb_Frame *f) {
+REBCTX *Error_Non_Logic_Refinement(REBFRM *f) {
     REBVAL word;
     Val_Init_Word(&word, REB_WORD, VAL_PARAM_SPELLING(f->param));
     fail (Error(RE_NON_LOGIC_REFINE, &word, Type_Of(f->arg)));
@@ -1333,7 +1333,7 @@ REBCTX *Error_Invalid_Arg(const REBVAL *value) {
 // by the error handling).  See the remarks about the state of f->refine in
 // the Reb_Frame definition.
 //
-REBCTX *Error_Bad_Refine_Revoke(struct Reb_Frame *f)
+REBCTX *Error_Bad_Refine_Revoke(REBFRM *f)
 {
     assert(IS_TYPESET(f->param));
 

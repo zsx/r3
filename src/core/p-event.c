@@ -139,7 +139,7 @@ REBVAL *Find_Last_Event(REBINT model, REBINT type)
 // 
 // Internal port handler for events.
 //
-static REB_R Event_Actor(struct Reb_Frame *frame_, REBCTX *port, REBSYM action)
+static REB_R Event_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
     REBVAL *spec;
     REBVAL *state;

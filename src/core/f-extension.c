@@ -585,7 +585,7 @@ REBNATIVE(make_command)
 // !!! The very ad-hoc nature of the R3-Alpha extension API has made it a
 // legacy-maintenance-only area.  See notes in %reb-ext.h.
 //
-REB_R Command_Dispatcher(struct Reb_Frame *f)
+REB_R Command_Dispatcher(REBFRM *f)
 {
     // For a "body", a command has a data array with [ext-obj func-index]
     // See Make_Command() for an explanation of these two values.

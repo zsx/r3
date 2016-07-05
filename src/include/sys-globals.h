@@ -162,7 +162,7 @@ TVAR REBUPT Stack_Limit;    // Limit address for CPU stack.
 // be filtered to get an understanding of something like a "backtrace of
 // currently running functions".
 //
-TVAR struct Reb_Frame *TG_Frame_Stack;
+TVAR REBFRM *TG_Frame_Stack;
 
 //-- Evaluation stack:
 TVAR REBARR *DS_Array;

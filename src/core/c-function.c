@@ -754,7 +754,7 @@ REBCNT Find_Param_Index(REBARR *paramlist, REBSTR *spelling)
 // Create an archetypal form of a function, given C code implementing a
 // dispatcher that will be called by Do_Core.  Dispatchers are of the form:
 //
-//     REB_R Dispatcher(struct Reb_Frame *f) {...}
+//     REB_R Dispatcher(REBFRM *f) {...}
 //
 // The REBFUN returned is "archetypal" because individual REBVALs which hold
 // the same REBFUN may differ in a per-REBVAL piece of "instance" data.
@@ -1361,7 +1361,7 @@ void Clonify_Function(REBVAL *value)
 // and call a function based on that parameterized with APPEND and the list
 // of arguments.
 //
-REB_R Action_Dispatcher(struct Reb_Frame *f)
+REB_R Action_Dispatcher(REBFRM *f)
 {
     Eval_Natives++;
 
@@ -1380,7 +1380,7 @@ REB_R Action_Dispatcher(struct Reb_Frame *f)
 //
 //  Plain_Dispatcher: C
 //
-REB_R Plain_Dispatcher(struct Reb_Frame *f)
+REB_R Plain_Dispatcher(REBFRM *f)
 {
     // In specific binding, we must always reify the frame and get it handed
     // over to the GC when calling user functions.  This is "costly" but
@@ -1414,7 +1414,7 @@ REB_R Plain_Dispatcher(struct Reb_Frame *f)
 // frames, some exist deep as chains of specializations etc.  These have
 // to just be peeled off when the chain runs.
 //
-REB_R Specializer_Dispatcher(struct Reb_Frame *f)
+REB_R Specializer_Dispatcher(REBFRM *f)
 {
     REBVAL *exemplar = KNOWN(FUNC_BODY(f->func));
     f->func = VAL_FUNC(CTX_FRAME_FUNC_VALUE(VAL_CONTEXT(exemplar)));
@@ -1437,7 +1437,7 @@ REB_R Specializer_Dispatcher(struct Reb_Frame *f)
 // instances, all function "bodies" must reserve their [0] slot for the
 // hijacker.
 //
-REB_R Hijacker_Dispatcher(struct Reb_Frame *f)
+REB_R Hijacker_Dispatcher(REBFRM *f)
 {
     // Whatever was initially in the body of the function
     RELVAL *hook = FUNC_BODY(f->func);
@@ -1457,7 +1457,7 @@ REB_R Hijacker_Dispatcher(struct Reb_Frame *f)
 //
 //  Adapter_Dispatcher: C
 //
-REB_R Adapter_Dispatcher(struct Reb_Frame *f)
+REB_R Adapter_Dispatcher(REBFRM *f)
 {
     REBCTX *frame_ctx = Context_For_Frame_May_Reify_Managed(f);
 
@@ -1491,7 +1491,7 @@ REB_R Adapter_Dispatcher(struct Reb_Frame *f)
 //
 //  Chainer_Dispatcher: C
 //
-REB_R Chainer_Dispatcher(struct Reb_Frame *f)
+REB_R Chainer_Dispatcher(REBFRM *f)
 {
     REBVAL *pipeline = KNOWN(FUNC_BODY(f->func)); // array of functions
 
@@ -2025,7 +2025,7 @@ REBNATIVE(hijack)
 // experiment with for other reasons (e.g. continuations), so that is what
 // is used here.
 //
-REB_R Apply_Frame_Core(struct Reb_Frame *f, REBSTR *label, REBVAL *opt_def)
+REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
 {
     assert(IS_FUNCTION(f->gotten));
 
@@ -2140,8 +2140,8 @@ REBNATIVE(apply)
 
     REBVAL *def = ARG(def);
 
-    struct Reb_Frame frame;
-    struct Reb_Frame *f = &frame;
+    REBFRM frame;
+    REBFRM *f = &frame;
 
 #if !defined(NDEBUG)
     RELVAL *first_def = VAL_ARRAY_AT(def);

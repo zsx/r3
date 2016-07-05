@@ -357,7 +357,7 @@ REBCNT Find_Action(REBVAL *object, REBSYM action)
 // !!! Marked static to avoid casual re-uses, which may not be likely but
 // just to stop more calls from being introduced on accident.
 //
-REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
+REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
 {
     REBIXO indexor;
 
@@ -470,7 +470,7 @@ REBOOL Redo_Func_Throws(struct Reb_Frame *f, REBFUN *func_new)
 // NOTE: stack must already be setup correctly for action, and
 // the caller must cleanup the stack.
 //
-int Do_Port_Action(struct Reb_Frame *frame_, REBCTX *port, REBSYM action)
+int Do_Port_Action(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
     assert(GET_ARR_FLAG(CTX_VARLIST(port), ARRAY_FLAG_VARLIST));
 

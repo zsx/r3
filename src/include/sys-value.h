@@ -35,11 +35,6 @@
 // An attempt is made to group the accessors in sections.  Some functions are
 // defined in %c-value.c for the sake of the grouping.
 //
-// !!! R3-Alpha only used macros.  This had the advantage of only needing
-// the definitions available at the *callsite* vs at the point of the accessor
-// definition.  Yet macros may have undesirable properties (especially if
-// macro arguments are used more than once).
-//
 // While some REBVALs are in C stack variables, most reside in the allocated
 // memory block for a Rebol series.  The memory block for a series can be
 // resized and require a reallocation, or it may become invalid if the
@@ -1905,15 +1900,10 @@ inline static REBCTX *VAL_CONTEXT_META(const RELVAL *v) {
     )->link.meta;
 }
 
-inline static REBCNT VAL_CONTEXT_STACKVARS_LEN(const RELVAL *v) {
-    assert(ANY_CONTEXT(v));
-    return CHUNK_LEN_FROM_VALUES(CTX_FRAME(VAL_CONTEXT(v))->stackvars);
-}
-
 #define VAL_CONTEXT_KEY_SYM(v,n) \
     CTX_KEY_SYM(VAL_CONTEXT(v), (n))
 
-inline static void INIT_CONTEXT_FRAME(REBCTX *c, struct Reb_Frame *frame) {
+inline static void INIT_CONTEXT_FRAME(REBCTX *c, REBFRM *frame) {
     assert(IS_FRAME(CTX_VALUE(c)));
     ARR_SERIES(CTX_VARLIST(c))->misc.f = frame;
 }
@@ -2058,7 +2048,7 @@ inline static REBARR **SUBFEED_ADDR_OF_FEED(REBARR *a) {
     if (!GET_ARR_FLAG(a, ARRAY_FLAG_VARLIST))
         return &ARR_SERIES(a)->link.subfeed;
 
-    struct Reb_Frame *f = CTX_FRAME(AS_CONTEXT(a));
+    REBFRM *f = CTX_FRAME(AS_CONTEXT(a));
     assert(f != NULL); // need to check frame independently and error on this
     return &f->cell.subfeed;
 }

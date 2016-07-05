@@ -266,7 +266,7 @@ REBINT Int8u(const REBVAL *val)
 // Scans the stack for function refinements that have been
 // specified in the mask (each as a bit) and are being used.
 //
-REBCNT Find_Refines(struct Reb_Frame *frame_, REBCNT mask)
+REBCNT Find_Refines(REBFRM *frame_, REBCNT mask)
 {
     REBINT n;
     REBCNT result = 0;

@@ -66,13 +66,8 @@
     struct Reb_Map; // REBARR listing key/value pairs with hash
     typedef struct Reb_Map REBMAP;
 
-    struct Reb_Frame; // Non-GC'd raw pointer to call frame, see %sys-do.h
-    //
-    // ^-- Note: This is not a REBCTX or kind of series.  It is a type that is
-    // kept *inside* a REBCTX payload, pointing to ephemeral DO state memory
-    // on the C stack.  It can be blown away by a longjmp during fail().  It
-    // is not aliased as REBFRM to help it stand out as being a non-series
-    // and non-value type.
+    struct Reb_Frame; // Non-GC'd raw call frame, see %sys-frame.h
+    typedef struct Reb_Frame REBFRM;
 
     // The C build simply defines a REBIXO as a synonym for a pointer-sized int.
     // In the C++ build, the indexor is a more restrictive class...which redefines
@@ -124,6 +119,19 @@
 
     struct Reb_Path_Value_State;
     typedef struct Reb_Path_Value_State REBPVS;
+
+    // A standard integer is currently used to represent the data stack
+    // pointer.  `unsigned int` instead of a `REBCNT` in order to leverage the
+    // native performance of the integer type unconstrained by bit size, as
+    // data stack pointers are not stored in REBVALs or similar, and
+    // performance in comparing and manipulation is more important than size.
+    //
+    // Note that a value of 0 indicates an empty stack; the [0] entry is made
+    // to be alerting trash to trap invalid reads or writes of empty stacks.
+    //
+    typedef unsigned int REBDSP;
+    struct Reb_Chunk;
+    struct Reb_Chunker;
 #else
     // The %reb-xxx.h files define structures visible to host code (client)
     // which don't also require pulling in all of the %sys-xxx.h files and

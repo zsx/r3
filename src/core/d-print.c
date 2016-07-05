@@ -1010,8 +1010,8 @@ REBOOL Form_Value_Throws(
 
     REBCNT mold_point_orig = UNI_LEN(mold->series);
 
-    struct Reb_Frame frame;
-    struct Reb_Frame *f = &frame;
+    REBFRM frame;
+    REBFRM *f = &frame;
 
     // !!! Temporary hack, put everything in a block for convenience to the
     // safe enumerator interface.  This protects the value from GC implicitly.

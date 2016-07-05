@@ -166,7 +166,7 @@ static void Init_Dir_Path(REBREQ *dir, REBVAL *path, REBINT wild, REBCNT policy)
 // 
 // Internal port handler for file directories.
 //
-static REB_R Dir_Actor(struct Reb_Frame *frame_, REBCTX *port, REBSYM action)
+static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
     REBVAL *spec;
     REBVAL *path;

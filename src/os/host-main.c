@@ -223,7 +223,7 @@ const REBYTE N_debug_spec[] =
     " 'value [_ integer! frame! function! block!]"
         " {Stack level to inspect or dialect block, or enter debug mode}"
     "";
-REB_R N_debug(struct Reb_Frame *frame_) {
+REB_R N_debug(REBFRM *frame_) {
     PARAM(1, value);
     REBVAL *value = ARG(value);
 
@@ -239,7 +239,7 @@ REB_R N_debug(struct Reb_Frame *frame_) {
     }
 
     if (IS_INTEGER(value) || IS_FRAME(value) || IS_FUNCTION(value)) {
-        struct Reb_Frame *frame;
+        REBFRM *frame;
 
         // We pass TRUE here to account for an extra stack level... the one
         // added by DEBUG itself, which presumably should not count.
@@ -351,7 +351,7 @@ int Do_String(
         // stack level, just the way a body is bound during Make_Function()
         //
         if (at_breakpoint) {
-            struct Reb_Frame *frame;
+            REBFRM *frame;
             REBCTX *frame_ctx;
 
             REBVAL level;
