@@ -489,7 +489,7 @@ REBNATIVE(break)
 //          "Block of cases (conditions followed by values)"
 //      /all
 //          {Evaluate all cases (do not stop at first TRUE? case)}
-//      /ran?
+//      /?
 //          "Instead of last case result, return LOGIC! of if any cases ran"
 //  ]
 //
@@ -497,7 +497,7 @@ REBNATIVE(case)
 {
     PARAM(1, block);
     REFINE(2, all_reused);
-    REFINE(3, ran_q);
+    REFINE(3, q);
 
     REBOOL all = REF(all_reused);
     REBVAL *temp = ARG(all_reused); // temporary value, GC safe (if needed)
@@ -571,11 +571,11 @@ REBNATIVE(case)
 
 //return_maybe_matched:
     DROP_SAFE_ENUMERATOR(&e);
-    return R_OUT_Q(REF(ran_q)); // if /ran?, detect if D_OUT was written to
+    return R_OUT_Q(REF(q)); // if /ran?, detect if D_OUT was written to
 
 return_matched:
     DROP_SAFE_ENUMERATOR(&e);
-    if (REF(ran_q)) return R_TRUE; // /ran? gets TRUE if at least one case ran
+    if (REF(q)) return R_TRUE; // /ran? gets TRUE if at least one case ran
     return R_OUT;
 
 return_thrown:
@@ -603,7 +603,7 @@ return_thrown:
 //          "Handle thrown case with code"
 //      handler [block! function!]
 //          "If FUNCTION!, spec matches [value name]"
-//      /caught?
+//      /?
 //         "Instead of result or catch, return LOGIC! of if a catch occurred"
 //  ]
 //
@@ -620,7 +620,7 @@ REBNATIVE(catch)
     REFINE(5, any);
     REFINE(6, with);
     PARAM(7, handler);
-    REFINE(8, caught_q);
+    REFINE(8, q);
 
     // /ANY would override /NAME, so point out the potential confusion
     //
@@ -697,7 +697,7 @@ REBNATIVE(catch)
         return R_OUT_IS_THROWN;
     }
 
-    if (REF(caught_q)) return R_FALSE;
+    if (REF(q)) return R_FALSE;
 
     return R_OUT;
 
@@ -721,7 +721,7 @@ was_caught:
             if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(handler)))
                 return R_OUT_IS_THROWN;
 
-            if (REF(caught_q)) return R_TRUE;
+            if (REF(q)) return R_TRUE;
 
             return R_OUT;
         }
@@ -765,7 +765,7 @@ was_caught:
                 }
             }
 
-            if (REF(caught_q)) return R_TRUE;
+            if (REF(q)) return R_TRUE;
 
             return R_OUT;
         }
@@ -775,7 +775,7 @@ was_caught:
     //
     CATCH_THROWN(D_OUT, D_OUT);
 
-    if (REF(caught_q)) return R_TRUE;
+    if (REF(q)) return R_TRUE;
 
     return R_OUT;
 }
@@ -1374,16 +1374,16 @@ static REB_R If_Unless_Core(struct Reb_Frame *frame_, REBOOL trigger) {
     PARAM(1, condition);
     PARAM(2, branch);
     REFINE(3, only);
-    REFINE(4, branched_q); //  return TRUE if branch taken, else FALSE
+    REFINE(4, q); //  return TRUE if branch taken, else FALSE
 
     if (IS_CONDITIONAL_TRUE(ARG(condition)) != trigger) { // don't take branch
-        if (REF(branched_q))
+        if (REF(q))
             return R_FALSE;
         return R_VOID;
     }
 
     if (REF(only) || !IS_BLOCK(ARG(branch))) { // taking, but no code to run!
-        if (REF(branched_q))
+        if (REF(q))
             return R_TRUE;
         *D_OUT = *ARG(branch);
         return R_OUT;
@@ -1393,7 +1393,7 @@ static REB_R If_Unless_Core(struct Reb_Frame *frame_, REBOOL trigger) {
 
     if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(branch)))
         return R_OUT_IS_THROWN;
-    if (REF(branched_q))
+    if (REF(q))
         return R_TRUE;
     return R_OUT;
 }
@@ -1408,7 +1408,7 @@ static REB_R If_Unless_Core(struct Reb_Frame *frame_, REBOOL trigger) {
 //      branch ; [<opt> any-value!]
 //      /only
 //          "Return block branches literally instead of evaluating them."
-//      /branched?
+//      /?
 //          "Instead of branch result, return LOGIC! of if branch was taken"
 //  ]
 //
@@ -1427,7 +1427,7 @@ REBNATIVE(if)
 //      branch ; [<opt> any-value!]
 //      /only
 //          "Return block branches literally instead of evaluating them."
-//      /branched?
+//      /?
 //          "Instead of branch result, return TRUE? if branch was taken"
 //  ]
 //
@@ -1587,7 +1587,7 @@ REBNATIVE(leave)
 //          "Evaluate all matches (not just first one)"
 //      /strict
 //          {Use STRICT-EQUAL? when comparing cases instead of EQUAL?}
-//      /matched?
+//      /?
 //          "Instead of last case result, return LOGIC! of if any case matched"
 //  ]
 //
@@ -1599,7 +1599,7 @@ REBNATIVE(switch)
     PARAM(4, default_case);
     REFINE(5, all);
     REFINE(6, strict);
-    REFINE(7, matched_q);
+    REFINE(7, q);
 
     Reb_Enumerator e;
     PUSH_SAFE_ENUMERATOR(&e, ARG(cases)); // DO-ing matches may disrupt `cases`
@@ -1700,12 +1700,12 @@ REBNATIVE(switch)
 
 //return_defaulted:
     DROP_SAFE_ENUMERATOR(&e);
-    if (REF(matched_q)) return R_FALSE; // default code doesn't /matched? count
+    if (REF(q)) return R_FALSE; // running default code doesn't count for /?
     return R_OUT;
 
 return_matched:
     DROP_SAFE_ENUMERATOR(&e);
-    if (REF(matched_q)) return R_TRUE;
+    if (REF(q)) return R_TRUE;
     return R_OUT;
 
 return_thrown:
@@ -1724,7 +1724,7 @@ return_thrown:
 //          "Handle error case with code"
 //      handler [block! function!]
 //          "If FUNCTION!, spec allows [error [error!]]"
-//      /trapped?
+//      /?
 //         "Instead of result or error, return LOGIC! of if a trap occurred"
 //  ]
 //
@@ -1733,7 +1733,7 @@ REBNATIVE(trap)
     PARAM(1, block);
     REFINE(2, with);
     PARAM(3, handler);
-    REFINE(4, trapped_q);
+    REFINE(4, q);
 
     struct Reb_State state;
     REBCTX *error;
@@ -1752,7 +1752,7 @@ REBNATIVE(trap)
                 if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(handler)))
                     return R_OUT_IS_THROWN;
 
-                if (REF(trapped_q)) return R_TRUE;
+                if (REF(q)) return R_TRUE;
 
                 return R_OUT;
             }
@@ -1780,7 +1780,7 @@ REBNATIVE(trap)
                         return R_OUT_IS_THROWN;
                 }
 
-                if (REF(trapped_q)) return R_TRUE;
+                if (REF(q)) return R_TRUE;
 
                 return R_OUT;
             }
@@ -1788,7 +1788,7 @@ REBNATIVE(trap)
             panic (Error(RE_MISC)); // should not be possible (type-checking)
         }
 
-        if (REF(trapped_q)) return R_TRUE;
+        if (REF(q)) return R_TRUE;
 
         Val_Init_Error(D_OUT, error);
         return R_OUT;
@@ -1812,7 +1812,7 @@ REBNATIVE(trap)
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
-    if (REF(trapped_q)) return R_FALSE;
+    if (REF(q)) return R_FALSE;
 
     return R_OUT;
 }

@@ -317,43 +317,43 @@ redescribe [
 if?: redescribe [
     {Variation of IF which returns TRUE if the branch runs, FALSE if not}
 ](
-    specialize 'if [branched?: true]
+    specialize 'if [?: true]
 )
 
 unless?: redescribe [
     {Variation of UNLESS which returns TRUE if the branch runs, FALSE if not}
 ](
-    specialize 'unless [branched?: true]
+    specialize 'unless [?: true]
 )
 
 while?: redescribe [
     {Variation of WHILE which returns TRUE if the body ever runs, FALSE if not}
 ](
-    specialize 'while [looped?: true]
+    specialize 'while [?: true]
 )
 
 case?: redescribe [
     {Variation of CASE which returns TRUE if any cases run, FALSE if not}
 ](
-    specialize 'case [ran?: true]
+    specialize 'case [?: true]
 )
 
 switch?: redescribe [
     {Variation of SWITCH which returns TRUE if any cases run, FALSE if not}
 ](
-    specialize 'switch [matched?: true]
+    specialize 'switch [?: true]
 )
 
 trap?: redescribe [
     {Variation of TRAP which returns TRUE if an error traps, FALSE if not}
 ](
-    specialize 'trap [trapped?: true]
+    specialize 'trap [?: true]
 )
 
 catch?: redescribe [
     {Variation of CATCH which returns TRUE if a throw is caught, FALSE if not}
 ](
-    specialize 'catch [caught?: true]
+    specialize 'catch [?: true]
 )
 
 any?: redescribe [

@@ -1146,7 +1146,7 @@ REBNATIVE(until)
 //  
 //      condition [block!]
 //      body [block!]
-//      /looped?
+//      /?
 //          "Instead of last body result, return LOGIC! of if body ever ran"
 //  ]
 //
@@ -1154,10 +1154,10 @@ REBNATIVE(while)
 {
     PARAM(1, condition);
     PARAM(2, body);
-    REFINE(3, looped_q_reused);
+    REFINE(3, q_reused);
 
-    REBOOL looped_q = VAL_LOGIC(ARG(looped_q_reused));
-    REBVAL *temp = ARG(looped_q_reused); // cell-sized slot taken for GC safety
+    REBOOL q = VAL_LOGIC(ARG(q_reused));
+    REBVAL *temp = ARG(q_reused); // cell-sized slot taken for GC safety
 
     do {
         if (DO_VAL_ARRAY_AT_THROWS(temp, ARG(condition))) {
@@ -1175,7 +1175,7 @@ REBNATIVE(while)
             fail (Error(RE_NO_RETURN));
 
         if (IS_CONDITIONAL_FALSE(temp))
-            return R_OUT_Q(looped_q);
+            return R_OUT_Q(q);
 
         // If this line runs, it will put a non-END marker in D_OUT, which
         // will signal R_OUT_Q() to TRUE if /looped? (and D_OUT otherwise)
@@ -1184,7 +1184,7 @@ REBNATIVE(while)
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) {
-                    if (looped_q) return R_TRUE;
+                    if (q) return R_TRUE;
                     return R_OUT;
                 }
                 continue;
