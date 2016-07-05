@@ -18,79 +18,86 @@ REBOL [
     }
 ]
 
-+: -: *: ()
+enfix: _
 
-set/lookback '+ :add
-set/lookback '- :subtract
-set/lookback '* :multiply
+set/lookback 'enfix function [
+    "Convenience version of SET/LOOKBACK, e.g `+: enfix :add`"
+    :target [set-word! set-path!]
+    action [function!]
+][
+    set/lookback target :action
 
-set/lookback (pick [/] 1) :divide
-set/lookback (pick [//] 1) :remainder
+    ; return value should never be used...the SET-WORD! or SET-PATH!
+    ; evaluation is converted to a GET when infix quoted on the left.
+    ; however, can't be a procedure because `x: some-proc` is illegal
+]
 
-**: =: =?: ==: !=: ()
+default: enfix function [
+    "Set word or path to a default value if it is not set yet or blank."
+    :target [set-word! set-path!]
+        "The word"
+    value
+        "The value" ; void not allowed on purpose
+][
+    unless all [gotten: get/opt target | not blank? gotten] [
+        set target value
+    ]
+    ; return value should never be used...the SET-WORD! or SET-PATH!
+    ; evaluation is converted to a GET when infix quoted on the left.
+    ; however, can't be a procedure because `x: some-proc` is illegal
+]
 
-set/lookback '** :power
-set/lookback '= :equal?
-set/lookback '=? :same?
-set/lookback '== :strict-equal?
-set/lookback '!= :not-equal?
++: enfix :add
+-: enfix :subtract
+*: enfix :multiply
 
-set/lookback (pick [<>] 1) :not-equal?
 
-!==: ()
+**: enfix :power
+=: enfix :equal?
+=?: enfix :same?
+==: enfix :strict-equal?
+!=: enfix :not-equal?
 
-set/lookback '!== :strict-not-equal?
+!==: enfix :strict-not-equal?
 
-set/lookback (pick [<] 1) :lesser?
-set/lookback (pick [<=] 1) :lesser-or-equal?
-set/lookback (pick [>] 1) :greater?
-set/lookback (pick [>=] 1) :greater-or-equal?
+||: enfix :once-bar ;-- not mechanically infix (it's ENDFIX?)
+
+and: enfix :and?
+or: enfix :or?
+xor: enfix :xor?
+nor: enfix :nor?
+nand: enfix :nand?
+
+and*: enfix :and~
+or+: enfix :or~
+xor+: enfix :xor~
+
 
 ; So long as the code wants to stay buildable with R3-Alpha, the mezzanine
 ; cannot use -> or <-, nor even mention them as words.  So this hack is likely
 ; to be around for quite a long time.  FIRST, LOAD, INTERN etc. are not
 ; in the definition order at this point...so PICK MAKE BLOCK! is used.
 ;
+
+set/lookback (pick [/] 1) :divide
+set/lookback (pick [//] 1) :remainder
+
+set/lookback (pick [<>] 1) :not-equal?
+
+set/lookback (pick [<] 1) :lesser?
+set/lookback (pick [<=] 1) :lesser-or-equal?
+set/lookback (pick [>] 1) :greater?
+set/lookback (pick [>=] 1) :greater-or-equal?
+
 right-arrow: bind (pick make block! "->" 1) context-of 'lambda
 left-arrow: bind (pick make block! "<-" 1) context-of 'lambda
 left-flag: bind (pick make block! "<|" 1) context-of 'lambda
 right-flag: bind (pick make block! "|>" 1) context-of 'lambda
-||: ()
 
 set/lookback right-arrow :lambda
 set/lookback left-arrow (specialize :lambda [only: true])
 set/lookback left-flag :left-bar
 set right-flag :right-bar ;-- not mechanically infix (punctuator)
-set '|| :once-bar ;-- also not mechanically infix (punctuator)
+
 
 right-arrow: left-arrow: left-flag: right-flag: () ; don't leave stray defs
-
-and: or: xor: nor: nand: ()
-
-set/lookback 'and :and?
-set/lookback 'or :or?
-set/lookback 'xor :xor?
-set/lookback 'nor :nor?
-set/lookback 'nand :nand?
-
-and*: or+: xor+: ()
-
-set/lookback 'and* :and~
-set/lookback 'or+ :or~
-set/lookback 'xor+ :xor~
-
-default: ()
-
-set/lookback 'default function [
-    "Set a word to a default value if it is not set yet or blank."
-    :set-word [set-word!]
-        "The word"
-    value
-        "The value" ; void not allowed on purpose
-][
-    either all [set? set-word | not blank? gotten: get set-word] [
-        :gotten
-    ][
-        value
-    ]
-]

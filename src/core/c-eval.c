@@ -422,7 +422,21 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
             fail (Error(RE_NEED_VALUE, f->param)); // e.g. `foo: ()`
     #endif
 
-        *GET_MUTABLE_VAR_MAY_FAIL(f->param, f->specifier) = *(f->out);
+        if (f->eval_type == ET_GET_WORD) {
+            //
+            // If the evaluation did a "look back" and captured this SET-WORD!
+            // then whatever it does to the word needs to stick as its value.
+            // It will mutate the eval_type to ET_GET_WORD to tell us to
+            // evaluate to whatever the variable's value is.  (In particular,
+            // this allows ENFIX to do a SET/LOOKBACK on an operator and then
+            // not be undone by overwriting it again.)
+            //
+            *f->out = *GET_OPT_VAR_MAY_FAIL(f->param, f->specifier);
+        }
+        else {
+            assert(f->eval_type == ET_SET_WORD);
+            *GET_MUTABLE_VAR_MAY_FAIL(f->param, f->specifier) = *f->out;
+        }
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -540,19 +554,20 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
-    case ET_SET_PATH:
+    case ET_SET_PATH: {
         //
-        // fetch writes f->value, so save SET-PATH! ptr.  Note that the nested
-        // evaluation here might peek up at it if it contains an infix
-        // function that quotes its first argument, e.g. `x/y: ++ 10`
-        //
-        f->param = f->value;
-
         // f->out is held between a DO_NEXT and a Do_Path and expected to
         // stay valid.  The GC must therefore protect the f->out slot, so
         // it can't contain garbage.  (Similar issue with ET_FUNCTION)
         //
         SET_END(f->out);
+
+        // fetch writes f->value, so save SET-PATH! ptr.  Note that the nested
+        // evaluation here might peek up at it if it contains an infix
+        // function that quotes its first argument, e.g. `x/y: default 10`
+        //
+        f->param = f->value;
+        f->refine = f->out;
 
         FETCH_NEXT_ONLY_MAYBE_END(f);
 
@@ -597,27 +612,40 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
         //
         // In addition to seeming "wrong" it also necessitates an extra cell
         // of storage.  This should be reviewed along with Do_Path generally.
-        {
-            REBVAL temp;
-            if (Do_Path_Throws_Core(
-                &temp, // output location
-                NULL, // not requesting symbol means refinements not allowed
-                f->param, // param is currently holding SET-PATH! we got in
-                f->specifier, // needed to resolve relative array in path
-                f->out // `setval`: non-NULL means do assignment as SET-PATH!
-            )) {
-                *(f->out) = temp;
-                goto finished;
-            }
 
-            // leave VALUE_FLAG_EVALUATED as is
+        // If the evaluation did a "look back" and captured this SET-PATH!
+        // then whatever it does to the path needs to stick as its value.
+        // It will mutate the refine to NULL to tell us to
+        // evaluate to whatever the variable's value is.  (In particular,
+        // this allows ENFIX to do a SET/LOOKBACK on an operator and then
+        // not be undone by overwriting it again.)
+        //
+        // The capture is only legal if the PATH! contains no GROUP!s.
+        // Note that unlike with ET_SET_WORD, there is an evaluation done
+        // here before we can check it, so the eval_type could not be
+        // used (if it were set to ET_SET_WORD, it could be overwritten)
+        //
+        assert(f->refine == f->out || f->refine == NULL);
+
+        REBVAL temp;
+        if (Do_Path_Throws_Core(
+            &temp, // output location
+            NULL, // not requesting symbol means refinements not allowed
+            f->param, // param is currently holding SET-PATH! we got in
+            f->specifier, // needed to resolve relative array in path
+            f->refine // see note above
+        )) {
+            *(f->out) = temp;
+            goto finished;
         }
+
+        // leave VALUE_FLAG_EVALUATED as is
 
         // We did not pass in a symbol, so not a call... hence we cannot
         // process refinements.  Should not get any back.
         //
         assert(DSP == f->dsp_orig);
-        break;
+        break; }
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
@@ -1682,8 +1710,11 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
 
         START_NEW_EXPRESSION_MAY_THROW(f, goto finished); // Ctrl-C may abort
 
-        if (!f->gotten) // <-- DO_COUNT_BREAKPOINT landing spot
-            goto do_word_in_value_with_gotten; // let it handle the error
+        if (!f->gotten) {// <-- DO_COUNT_BREAKPOINT landing spot
+            REBVAL specified;
+            COPY_VALUE(&specified, f->value, f->specifier);
+            fail (Error(RE_NOT_BOUND, &specified));
+        }
 
         if (!IS_FUNCTION(f->gotten))
             goto do_word_in_value_with_gotten; // reuse the work of Get_Var

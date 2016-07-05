@@ -932,7 +932,6 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             break;
 
         case REB_IMAGE:
-            //SET_SER_FLAG(VAL_SERIES_SIDE(val), SERIES_FLAG_MARK); //????
             Mark_Series_Only(VAL_SERIES(val));
             break;
 

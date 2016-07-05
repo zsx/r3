@@ -313,13 +313,29 @@ inline static void Try_Lookback_In_Prior_Frame(
         COPY_VALUE(out, prior->param, prior->specifier);
         assert(IS_SET_WORD(out));
         CLEAR_VAL_FLAG(out, VALUE_FLAG_EVALUATED);
+        prior->eval_type = ET_GET_WORD; // See notes in Do_Core/ET_SET_WORD
         break;
 
-    case ET_SET_PATH:
+    case ET_SET_PATH: {
+        //
+        // The purpose of capturing a SET-PATH! on the left of a lookback
+        // operation is to set it.  Currently the guarantee required is that
+        // `x: x/y: z: m/n/o: whatever` will give all values the same thing,
+        // and to assure that a GET is run after the operation.  But if there
+        // are GROUP!s in the path, then it would evaluate twice.  Avoid it
+        // by disallowing lookback capture of paths containing GROUP!
+        //
+        RELVAL *temp = VAL_ARRAY_AT(prior->param);
+        for (; NOT_END(temp); ++temp)
+            if (IS_GROUP(temp))
+                fail (Error(RE_INFIX_PATH_GROUP, temp));
+
         COPY_VALUE(out, prior->param, prior->specifier);
         assert(IS_SET_PATH(out));
         CLEAR_VAL_FLAG(out, VALUE_FLAG_EVALUATED);
-        break;
+        assert(prior->refine == prior->out);
+        prior->refine = NULL; // See notes in Do_Core/ET_SET_PATH
+        break; }
 
     default:
         SET_END(out); // some <end> args are able to tolerate absences

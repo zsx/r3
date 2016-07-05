@@ -139,6 +139,8 @@ Script: [
     infix-quote-late:   [:arg1 {was evaluated and can't be lookback quoted}]
     infix-quote-set:    [:arg1 {can only be hard-quoted with lookback}]
 
+    infix-path-group:   [:arg1 {GROUP! can't be in a lookback quoted PATH!}]
+
     hard-quote-void:    [:arg1 {is hard quoted and can't be optionally void}]
 
     reduce-made-void:   {Expression in REDUCE evaluated to void}

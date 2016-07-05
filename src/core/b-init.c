@@ -465,8 +465,12 @@ REBNATIVE(action)
 
     *FUNC_BODY(fun) = *ARG(verb);
 
-    *D_OUT = *FUNC_VALUE(fun);
-    return R_OUT;
+    // A lookback quoting function that quotes a SET-WORD! on its left is
+    // responsible for setting the value if it wants it to change.
+    //
+    *GET_MUTABLE_VAR_MAY_FAIL(ARG(verb), SPECIFIED) = *FUNC_VALUE(fun);
+
+    return R_VOID; // result won't be used if a function left-quotes SET-WORD!
 }
 
 

@@ -230,6 +230,15 @@ found?: func [dummy:] [
     ] 'dummy
 ]
 
+op?: func [dummy:] [
+    fail/where [
+        {OP? can't work in Ren-C because there are no "infix FUNCTION!s"}
+        {"infixness" is a proerty of a word binding, made via SET/LOOKBACK}
+        {See: LOOKBACK?, INFIX?, PREFIX?, ENDFIX?}
+    ] 'dummy
+]
+
+
 ; There were several different strata of equality checks, and one was EQUIV?
 ; as well as NOT-EQUIV?.  With changes to make comparisons inside the system
 ; indifferent to binding (unless SAME? is used), these have been shaken up
@@ -705,27 +714,23 @@ set 'r3-legacy* func [<local> if-flags] [
             not blank? :value
         ])
 
-        ; These words do NOT inherit the infixed-ness, and you simply cannot
-        ; set things infix through a plain set-word.  We have to do this
-        ; after the words are appended to the object.
+        ; These words do NOT inherit the infixed-ness via normal assignment
+        ; (infixedness is not a property of functions, a property of the
+        ; words set).  Use ENFIX...itself a lookback (quoting) operation
 
-        and: _
+        and: enfix :and*
 
-        or: _
+        or: enfix :or+
 
-        xor: _
+        xor: enfix :xor+
 
         apply: (:r3-alpha-apply)
 
         ; Not contentious, but trying to excise this ASAP
         funct: (:function)
 
-        ; There are no separate function types for infix in Ren-C.  SET/INFIX
-        ; makes that particular binding act infix, but if the function is
-        ; dealt with as a function value it will not be infix.
-        ;
         op?: (func [
-            "Always returns FALSE (lookback? test can only be run on WORD!s)"
+            "OP? <r3-legacy> behavior which just always returns FALSE"
             value [<opt> any-value!]
         ][
             false
@@ -1059,12 +1064,6 @@ set 'r3-legacy* func [<local> if-flags] [
             ]
         ])
     ]
-
-    ; set-infix on PATH! instead of WORD! is still TBD
-    ;
-    set-infix (bind 'and system/contexts/user) :and*
-    set-infix (bind 'or system/contexts/user) :or+
-    set-infix (bind 'xor system/contexts/user) :xor+
 
     if-flags: func [flags [block!] body [block!]] [
         for-each flag flags [
