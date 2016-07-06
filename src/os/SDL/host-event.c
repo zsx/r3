@@ -220,10 +220,10 @@ static REBFLGS state_to_flags(REBFLGS flags)
 {
     SDL_Keymod mod = SDL_GetModState();
     if (mod & KMOD_CTRL) {
-        flags |= EVF_CONTROL;
+        flags |= 1 << EVF_CONTROL;
     }
     if (mod & KMOD_SHIFT) {
-        flags |= EVF_SHIFT;
+        flags |= 1 << EVF_SHIFT;
     }
 
     return flags;
