@@ -48,6 +48,8 @@
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
 #include <X11/extensions/Xrandr.h>
+#elif defined(TO_WINDOWS)
+#include <Windows.h>
 #endif
 
 //** Externs *****
@@ -329,6 +331,89 @@ static int get_work_area(Display *display, METRIC_TYPE type)
            return 0; //FIXME, not implemented 
        }
 }
+#elif defined(TO_WINDOWS)
+static REBD32 Windows_Get_Metrics(METRIC_TYPE type)
+{
+	REBD32 result = 0;
+	switch(type){
+		case SM_VIRTUAL_SCREEN_WIDTH:
+			result = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+			break;
+		case SM_VIRTUAL_SCREEN_HEIGHT:
+			result = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+			break;
+		case SM_SCREEN_WIDTH:
+			result = GetSystemMetrics(SM_CXSCREEN);
+			break;
+		case SM_SCREEN_HEIGHT:
+			result = GetSystemMetrics(SM_CYSCREEN);
+			break;
+		case SM_WORK_WIDTH:
+			{
+				RECT rect;
+				SystemParametersInfo(SPI_GETWORKAREA, 0, &rect, 0);
+				result = rect.right;
+			}
+			break;
+		case SM_WORK_HEIGHT:
+			{
+				RECT rect;
+				SystemParametersInfo(SPI_GETWORKAREA, 0, &rect, 0);
+				result = rect.bottom;
+			}
+			break;
+		case SM_TITLE_HEIGHT:
+			result = GetSystemMetrics(SM_CYCAPTION);
+			break;
+		case SM_SCREEN_DPI_X:
+			{
+				HDC hDC = GetDC(NULL);
+				result = GetDeviceCaps(hDC, LOGPIXELSX);
+				ReleaseDC(NULL, hDC);
+			}
+			break;
+		case SM_SCREEN_DPI_Y:
+			{
+				HDC hDC = GetDC(NULL);
+				result = GetDeviceCaps(hDC, LOGPIXELSY);
+				ReleaseDC(NULL, hDC);
+			}
+			break;
+		case SM_BORDER_WIDTH:
+			result = GetSystemMetrics(SM_CXSIZEFRAME);
+			break;
+		case SM_BORDER_HEIGHT:
+			result = GetSystemMetrics(SM_CYSIZEFRAME);
+			break;
+		case SM_BORDER_FIXED_WIDTH:
+			result = GetSystemMetrics(SM_CXFIXEDFRAME);
+			break;
+		case SM_BORDER_FIXED_HEIGHT:
+			result = GetSystemMetrics(SM_CYFIXEDFRAME);
+			break;
+		case SM_WINDOW_MIN_WIDTH:
+			result = GetSystemMetrics(SM_CXMIN);
+			break;
+		case SM_WINDOW_MIN_HEIGHT:
+			result = GetSystemMetrics(SM_CYMIN);
+			break;
+		case SM_WORK_X:
+			{
+				RECT rect;
+				SystemParametersInfo(SPI_GETWORKAREA, 0, &rect, 0);
+				result = rect.left;
+			}
+			break;
+		case SM_WORK_Y:
+			{
+				RECT rect;
+				SystemParametersInfo(SPI_GETWORKAREA, 0, &rect, 0);
+				result = rect.top;
+			}
+			break;
+	}
+	return result;
+}
 #endif
 
 /***********************************************************************
@@ -341,6 +426,8 @@ static int get_work_area(Display *display, METRIC_TYPE type)
 {
 #ifdef TO_LINUX
 	return X11_Get_Metrics(type);
+#elif defined(TO_WINDOWS)
+    return Windows_Get_Metrics(type);
 #else
 	SDL_Rect rect;
 	SDL_DisplayMode mode;
