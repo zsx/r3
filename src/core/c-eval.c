@@ -840,6 +840,8 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
 
     do_function_arglist_in_progress:
 
+        INIT_CELL_IF_DEBUG(&(f->cell.eval)); // f->value might have lived here
+
         // Now that we have extracted f->func, we do not have to worry that
         // f->value might have lived in f->cell.eval.  We can't overwrite
         // f->out in case that is holding the first argument to an infix
