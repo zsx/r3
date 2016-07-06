@@ -19,12 +19,14 @@
 **
 ************************************************************************/
 
-#include "sys-core.h"
 #include <assert.h>
 #include <time.h>
 #include <stdio.h>
 
 #include <signal.h>
+
+#define REN_C_STDIO_OK
+#include "sys-core.h"
 
 static FILE* pfile;
 
