@@ -39,7 +39,7 @@ default: enfix function [
     value
         "The value" ; void not allowed on purpose
 ][
-    unless all [gotten: get/opt target | not blank? gotten] [
+    unless all [any-value? gotten: get/opt target | not blank? gotten] [
         set target value
     ]
     ; return value should never be used...the SET-WORD! or SET-PATH!
