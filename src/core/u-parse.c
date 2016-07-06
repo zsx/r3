@@ -124,7 +124,8 @@ static REBOOL Subparse_Throws(
     // with no items advanced.
     //
     if (VAL_INDEX(rules) >= VAL_LEN_HEAD(rules)) {
-        SET_INTEGER(out, VAL_LEN_HEAD(rules));
+        *interrupted_out = FALSE;
+        SET_INTEGER(out, VAL_INDEX(input));
         return FALSE;
     }
 
@@ -527,51 +528,55 @@ static REBCNT Parse_Next_Array(
     REBCNT index,
     const RELVAL *rule
 ) {
-    // !!! THIS CODE NEEDS CLEANUP AND REWRITE BASED ON OTHER CHANGES
     REBARR *array = AS_ARRAY(P_INPUT);
-    RELVAL *blk = ARR_AT(array, index);
+    RELVAL *item = ARR_AT(array, index);
 
     REBVAL save;
 
     if (Trace_Level) {
         Trace_Value("input", rule);
-        if (IS_END(blk)) {
+        if (IS_END(item)) {
             const char *end_str = "** END **";
             Trace_String(cb_cast(end_str), strlen(end_str));
         }
         else
-            Trace_Value("match", blk);
+            Trace_Value("match", item);
     }
 
-    // !!! The previous code did not have a handling for this, but it fell
-    // through to `no_result`.  Is that correct?
-    //
-    if (IS_END(blk)) goto no_result;
+    if (IS_END(item)) {
+        //
+        // Only the BLANK and BLOCK rules can potentially handle an END input
+        // For instance, `parse [] [[[_ _ _]]]` should be able to match.
+        // The other cases would assert if fed an END marker as item.
+        //
+        if (!IS_BLANK(rule) && !IS_BLOCK(rule))
+            goto no_result;
+    }
 
     switch (VAL_TYPE(rule)) {
 
     // Look for specific datattype:
     case REB_DATATYPE:
         index++;
-        if (VAL_TYPE(blk) == VAL_TYPE_KIND(rule)) break;
+        if (VAL_TYPE(item) == VAL_TYPE_KIND(rule)) break;
         goto no_result;
 
     // Look for a set of datatypes:
     case REB_TYPESET:
         index++;
-        if (TYPE_CHECK(rule, VAL_TYPE(blk))) break;
+        if (TYPE_CHECK(rule, VAL_TYPE(item))) break;
         goto no_result;
 
     // 'word
     case REB_LIT_WORD:
         index++;
-        if (IS_WORD(blk) && (VAL_WORD_CANON(blk) == VAL_WORD_CANON(rule)))
+        if (IS_WORD(item) && (VAL_WORD_CANON(item) == VAL_WORD_CANON(rule)))
             break;
         goto no_result;
 
     case REB_LIT_PATH:
         index++;
-        if (IS_PATH(blk) && !Cmp_Array(blk, rule, FALSE)) break;
+        if (IS_PATH(item) && !Cmp_Array(item, rule, FALSE)) break;
         goto no_result;
 
     case REB_BLANK:
@@ -626,7 +631,7 @@ static REBCNT Parse_Next_Array(
     // Match with some other value:
     default:
         index++;
-        if (Cmp_Value(blk, rule, P_HAS_CASE)) goto no_result;
+        if (Cmp_Value(item, rule, P_HAS_CASE)) goto no_result;
     }
 
     return index;

@@ -20,6 +20,9 @@
 ;     limitations under the License.
 ; *****************************************************************************
 ; datatypes/action.r
+
+%parse-tests.r
+
 [action? :abs]
 [not action? 1]
 [function! = type-of :abs]
@@ -10348,100 +10351,6 @@
 [8 = eighth [1 2 3 4 5 6 7 8 9 10 11]]
 [9 = ninth [1 2 3 4 5 6 7 8 9 10 11]]
 [10 = tenth [1 2 3 4 5 6 7 8 9 10 11]]
-; functions/series/parse.r
-; SET-WORD! (store current input position)
-[res: parse ser: [x y] [pos: skip skip] all [res pos = ser]]
-[res: parse ser: [x y] [skip pos: skip] all [res pos = next ser]]
-[res: parse ser: [x y] [skip skip pos: end] all [res pos = tail ser]]
-; bug#2130
-[res: parse ser: [x] [set val pos: word!] all [res val = 'x pos = ser]]
-; bug#2130
-[res: parse ser: [x] [set val: pos: word!] all [res val = 'x pos = ser]]
-; bug#2130
-[res: parse ser: "foo" [copy val pos: skip] all [not res val = "f" pos = ser]]
-; bug#2130
-[res: parse ser: "foo" [copy val: pos: skip] all [not res val = "f" pos = ser]]
-; TO/THRU integer!
-[true? parse "abcd" [to 3 "cd"]]
-[true? parse "abcd" [to 5]]
-[true? parse "abcd" [to 128]]
-; bug#1965
-[true? parse "abcd" [thru 3 "d"]]
-[true? parse "abcd" [thru 4]]
-[true? parse "abcd" [thru 128]]
-[true? parse "abcd" ["ab" to 1 "abcd"]]
-[true? parse "abcd" ["ab" thru 1 "bcd"]]
-; THRU rule
-; bug#682: parse thru tag!
-[
-    t: _
-    parse "<tag>text</tag>" [thru <tag> copy t to </tag>]
-    t == "text"
-]
-; THRU advances the input position correctly.
-[
-    i: 0
-    parse "a." [any [thru "a" (i: i + 1 j: to-value if i > 1 [[end skip]]) j]]
-    i == 1
-]
-; bug#1959: THRU fails to to match at end
-[true? parse "abcd" [thru "d"]]
-[true? parse "abcd" [to "d" skip]]
-; bug#1959
-[true? parse "<abcd>" [thru <abcd>]]
-[true? parse [a b c d] [thru 'd]]
-[true? parse [a b c d] [to 'd skip]]
-; self-invoking rule
-; bug#1672
-[
-    a: [a]
-    error? try [parse [] a]
-]
-; repetition
-; bug#1280
-[
-    parse "" [(i: 0) 3 [["a" |] (i: i + 1)]]
-    i == 3
-]
-; bug#1268
-[
-    i: 0
-    parse "a" [any [(i: i + 1)]]
-    i == 1
-]
-[
-    i: 0
-    parse "a" [while [(i: i + 1 j: to-value if i = 2 [[fail]]) j]]
-    i == 2
-]
-; THEN rule
-; bug#1267
-[
-    b: "abc"
-    c: ["a" | "b"]
-    a2: [any [b e: (d: [:e]) then fail | [c | (d: [fail]) fail]] d]
-    a4: [any [b then e: (d: [:e]) fail | [c | (d: [fail]) fail]] d]
-    equal? parse "aaaaabc" a2 parse "aaaaabc" a4
-]
-; NOT rule
-; bug#1246
-[true? parse "1" [not not "1" "1"]]
-[true? parse "1" [not [not "1"] "1"]]
-[false? parse "" [not 0 "a"]]
-[false? parse "" [not [0 "a"]]]
-; bug#1240
-[true? parse "" [not "a"]]
-[true? parse "" [not skip]]
-[true? parse "" [not fail]]
-; bug#100
-[1 == eval does [parse [] [(return 1)] 2]]
-; bug#1457: TO/THRU + bitset!/charset!
-[true? parse "a" compose [thru (charset "a")]]
-[not parse "a" compose [thru (charset "a") skip]]
-[true? parse "ba" compose [to (charset "a") skip]]
-[not parse "ba" compose [to (charset "a") "ba"]]
-; self-modifying rule, not legal in Ren-C if it's during the parse
-[error? try [not parse "abcd" rule: ["ab" (remove back tail rule) "cd"]]]
 ; functions/series/pick.r
 #64bit
 [error? try [pick at [1 2 3 4 5] 3 -9223372036854775808]]
