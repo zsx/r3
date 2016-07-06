@@ -148,13 +148,13 @@ static void delete_layers(REBDRW_CTX *ctx)
 
 static REBDRW_CTX* nanovg_create_draw_context(SDL_Window *win, REBINT w, REBINT h)
 {
-	REBDRW_CTX *ctx = (REBDRW_CTX*)malloc(sizeof(REBDRW_CTX));
+	REBDRW_CTX *ctx = OS_ALLOC(REBDRW_CTX);
 	if (ctx == NULL) return NULL;
 
 	ctx->win = win;
 	ctx->sdl = SDL_GL_CreateContext(win);
 	if (ctx->sdl == NULL) {
-		free(ctx);
+		OS_FREE(ctx);
 		return NULL;
 	}
 
@@ -176,12 +176,12 @@ static REBDRW_CTX* nanovg_create_draw_context(SDL_Window *win, REBINT w, REBINT 
 	ctx->last_y = 0;
 
 	if (ctx->nvg == NULL) {
-		free(ctx);
+		OS_FREE(ctx);
 		return NULL;
 	}
 	if (create_layers(ctx, w, h) < 0){
 		nvgDeleteGL3(ctx->nvg);
-		free(ctx);
+		OS_FREE(ctx);
 		return NULL;
 	}
 
@@ -217,7 +217,7 @@ static void nanovg_destroy_draw_context(REBDRW_CTX *ctx)
 
 	//printf("Destroyed a NVG context at: %p\n", ctx->nvg);
 
-	free(ctx);
+	OS_FREE(ctx);
 }
 
 static void nanovg_begin_frame(REBDRW_CTX *ctx)
