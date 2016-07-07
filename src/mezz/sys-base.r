@@ -72,9 +72,6 @@ do*: function [
 
         ; Convert value into a URL!
         value: switch/default value [
-            ; Special proposals
-            <proposals> [https://raw.githubusercontent.com/hostilefork/rebol-proposals/master/all-proposals.reb]
-
             ; Encodings and data formats
             <json> [http://reb4.me/r3/json.reb]
             <xml> [http://reb4.me/r3/altxml.reb]

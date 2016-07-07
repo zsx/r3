@@ -410,15 +410,15 @@ try: func [
 r3-alpha-apply: function [
     "Apply a function to a reduced block of arguments."
 
-    func [function!]
+    action [function!]
         "Function value to apply"
     block [block!]
         "Block of args, reduced first (unless /only)"
     /only
         "Use arg values as-is, do not reduce the block"
 ][
-    frame: make frame! :func
-    params: words-of :func
+    frame: make frame! :action
+    params: words-of :action
     using-args: true
 
     while [not tail? block] [
@@ -714,15 +714,15 @@ set 'r3-legacy* func [<local> if-flags] [
             not blank? :value
         ])
 
-        ; These words do NOT inherit the infixed-ness via normal assignment
-        ; (infixedness is not a property of functions, a property of the
-        ; words set).  Use ENFIX...itself a lookback (quoting) operation
+        ; These words do NOT inherit the infixed-ness, and you simply cannot
+        ; set things infix through a plain set-word.  We have to do this
+        ; after the words are appended to the object.
 
-        and: enfix :and*
+        and: _
 
-        or: enfix :or+
+        or: _
 
-        xor: enfix :xor+
+        xor: _
 
         apply: (:r3-alpha-apply)
 
@@ -991,16 +991,7 @@ set 'r3-legacy* func [<local> if-flags] [
             ]
         ])
 
-        ??: (func [
-            {Debug print word, path, or block of such, followed by value.}
-            'name "Word, path, and block to obtain values."
-            /local out
-        ][
-            if not block? name [
-                name: compose [(name)]
-            ]
-            probe semiquote name ;-- signal to probe to use dialect form
-        ])
+        ??: (:dump)
 
         ; To be on the safe side, the PRINT in the box won't do evaluations on
         ; blocks unless the literal argument itself is a block
@@ -1064,6 +1055,12 @@ set 'r3-legacy* func [<local> if-flags] [
             ]
         ])
     ]
+
+    ; set-infix on PATH! instead of WORD! is still TBD
+    ;
+    set-infix (bind 'and system/contexts/user) :and*
+    set-infix (bind 'or system/contexts/user) :or+
+    set-infix (bind 'xor system/contexts/user) :xor+
 
     if-flags: func [flags [block!] body [block!]] [
         for-each flag flags [

@@ -125,45 +125,57 @@ eval func [
 probe: func [
     {Debug print a molded value and returns that same value.}
     value [<opt> any-value!]
-        {Value to display.  *Literal* blocks are evaluated and use as labels.}
-    /only
-        {Output literal blocks as the blocks themselves.}
-    out: item:
+        {Value to display.}
 ][
-    ; !!! Use "PROBE dialect"...what features might be added?
-    ;
-    if all [semiquoted? 'value | block? value] [
-        out: make string! 50
-        for-each item value [
-            case [
-                word? :item [
-                    print [to set-word! item {=>} mold get item]
-                ]
+    print mold :value
+    :value
+]
 
-                path? :item [
-                    print [to set-path! item {=>} mold get item]
-                ]
 
-                group? :item [
-                    trap/with [
-                        print [mold item {=>} mold eval item]
-                    ] func [error] [
-                        print [mold item {=!!!=>} mold error]
-                    ]
-                ]
+dump: func [
+    {Show the name of a value (or block of expressions) with the value itself}
+    return: [<opt> any-value!]
+        {Returns void so as to conveniently "opt-out" of ANY, ALL, etc.}
+    'value
+    <local> dump-one item
+][
+    dump-one: func [item][
+        case [
+            string? item [
+                print ["---" item "---"] ;-- label it
+            ]
 
-                true [
-                    fail [
-                        "Item not WORD!, PATH!, or GROUP! in PROBE:" mold :item
-                    ]
+            word? item [
+                print [to set-word! item "=>" mold get item]
+            ]
+
+            path? item [
+                print [to set-path! item "=>" mold get item]
+            ]
+
+            group? item [
+                trap/with [
+                    print [item "=>" mold eval item]
+                ] func [error] [
+                    print [item "=!!!=>" mold error]
+                ]
+            ]
+
+            true [
+                fail [
+                    "Item not WORD!, PATH!, or GROUP! in DUMP." item
                 ]
             ]
         ]
-        return ()
     ]
 
-    print mold :value
-    :value
+    either block? value [
+        for-each item value [dump-one item]
+    ][
+        dump-one value
+    ]
+
+    return ()
 ]
 
 
