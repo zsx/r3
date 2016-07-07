@@ -1053,6 +1053,7 @@ REBINT Codec_UTF16(REBCDI *codi, REBOOL little_endian)
 
     if (codi->action == CODI_ACT_ENCODE) {
         u16 * data = ALLOC_N(u16, codi->len);
+        codi->data = cast(char*, data);
         if (codi->w == 1) {
             /* in ASCII */
             REBCNT i = 0;
