@@ -180,7 +180,7 @@ static int get_work_area(Display *display, METRIC_TYPE type)
 		   }
 		   return fake_data[index];
 	   }
-       Screen *sc = XDefaultScreenOfDisplay(global_x_info->display);
+       Screen *sc = XDefaultScreenOfDisplay(display);
 	   int virtual_width = XWidthOfScreen(sc);
 	   int virtual_height = XHeightOfScreen(sc);
 
@@ -189,12 +189,12 @@ static int get_work_area(Display *display, METRIC_TYPE type)
 	   XRROutputInfo *info;
 	   XRRCrtcInfo *crtc;
 
-	   Window root = DefaultRootWindow(global_x_info->display);
-	   res = XRRGetScreenResourcesCurrent(global_x_info->display, root);
-	   primary_output = XRRGetOutputPrimary(global_x_info->display, root);
-	   info = XRRGetOutputInfo(global_x_info->display, res, primary_output);
+	   Window root = DefaultRootWindow(display);
+	   res = XRRGetScreenResourcesCurrent(display, root);
+	   primary_output = XRRGetOutputPrimary(display, root);
+	   info = XRRGetOutputInfo(display, res, primary_output);
 
-	   crtc = XRRGetCrtcInfo(global_x_info->display, res, info->crtc);
+	   crtc = XRRGetCrtcInfo(display, res, info->crtc);
 
 	   /* adjust width/height for primary output */
 	   data [2] += crtc->width - virtual_width;
@@ -250,11 +250,11 @@ static int get_work_area(Display *display, METRIC_TYPE type)
            XRROutputInfo *info;
            XRRCrtcInfo *crtc;
 
-           res = XRRGetScreenResourcesCurrent(global_x_info->display, root);
-           primary_output = XRRGetOutputPrimary(global_x_info->display, root);
-           info = XRRGetOutputInfo(global_x_info->display, res, primary_output);
+           res = XRRGetScreenResourcesCurrent(display, root);
+           primary_output = XRRGetOutputPrimary(display, root);
+           info = XRRGetOutputInfo(display, res, primary_output);
 
-           crtc = XRRGetCrtcInfo(global_x_info->display, res, info->crtc);
+           crtc = XRRGetCrtcInfo(display, res, info->crtc);
 
            ret = (type == SM_SCREEN_WIDTH) ? crtc->width : crtc->height;
            XRRFreeCrtcInfo(crtc);
