@@ -128,6 +128,7 @@ get_frame_id(struct Reb_Frame *f)
     default:
         fail(Error(RE_MISC));
     }
+    return 0;
 }
 
 static void Func_Profile(struct Reb_Frame *f, enum Prof_Entry_Type rt)
