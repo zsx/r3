@@ -11,7 +11,7 @@ else()
 	set(AGG_INCLUDE_DIRS ${FONTCONFIG_INCLUDE_DIRS})
 	set(AGG_LIBRARIES ${FONTCONFIG_LDFLAGS})
 	if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-		list(APPEND LIBS "X11")
+		list(APPEND LIBS "X11;Xrandr")
 	endif()
 endif()
 
