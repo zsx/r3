@@ -172,7 +172,7 @@ extern void Draw_Window(REBGOB *wingob, REBGOB *gob);
 				y += GOB_LOG_Y(parent_gob);
 				parent_gob = GOB_TMP_OWNER(parent_gob);
 			}
-			if (GET_GOB_FLAG(parent_gob, GOBF_WINDOW)) {
+			if (parent_gob && GET_GOB_FLAG(parent_gob, GOBF_WINDOW)) {
 				SDL_Window *parent_win = GOB_HWIN(parent_gob);
 				if (parent_win != NULL) {
 					int tx = 0, ty = 0;
