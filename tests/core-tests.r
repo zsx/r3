@@ -5645,7 +5645,7 @@
 [
     o: make object! [a: 0]
     b: eval/only (quote o/a:) 1 + 2
-    all [o/a = 1 b = 3]
+    all [o/a = 3 | b = 3] ;-- above acts as `b: (eval/only (quote o/a:) 1) + 2`
 ]
 [
     a: func [b c :d] [reduce [b c d]]
@@ -6324,9 +6324,9 @@
     num: 0
     for i 1 10 1 [
         num: num + 1
-        success: i = num and* success
+        success: (i = num) and* success
     ]
-    10 = num and* success
+    (10 = num) and* success
 ]
 ; cycle return value
 [false = for i 1 1 1 [false]]
@@ -6989,9 +6989,9 @@
     num: 0
     repeat i 10 [
         num: num + 1
-        success: i = num and* success
+        success: (i = num) and* success
     ]
-    10 = num and* success
+    (10 = num) and* success
 ]
 ; cycle return value
 [false = repeat i 1 [false]]
@@ -7770,94 +7770,94 @@
 [0.0.255 = add 0.0.255 0.0.1]
 [0.0.255 = add 0.0.255 0.0.255]
 ; functions/math/and.r
-[true and* true = true]
-[true and* false = false]
-[false and* true = false]
-[false and* false = false]
+[true = true and* true]
+[false = true and* false]
+[false = false and* true]
+[false = false and* false]
 ; integer
-[1 and* 1 = 1]
-[1 and* 0 = 0]
-[0 and* 1 = 0]
-[0 and* 0 = 0]
-[1 and* 2 = 0]
-[2 and* 1 = 0]
-[2 and* 2 = 2]
+[1 = 1 and* 1]
+[0 = 1 and* 0]
+[0 = 0 and* 1]
+[0 = 0 and* 0]
+[0 = 1 and* 2]
+[0 = 2 and* 1]
+[2 = 2 and* 2]
 ; char
-[#"^(00)" and* #"^(00)" = #"^(00)"]
-[#"^(01)" and* #"^(00)" = #"^(00)"]
-[#"^(00)" and* #"^(01)" = #"^(00)"]
-[#"^(01)" and* #"^(01)" = #"^(01)"]
-[#"^(01)" and* #"^(02)" = #"^(00)"]
-[#"^(02)" and* #"^(02)" = #"^(02)"]
+[#"^(00)" = #"^(00)" and* #"^(00)"]
+[#"^(00)" = #"^(01)" and* #"^(00)"]
+[#"^(00)" = #"^(00)" and* #"^(01)"]
+[#"^(01)" = #"^(01)" and* #"^(01)"]
+[#"^(00)" = #"^(01)" and* #"^(02)"]
+[#"^(02)" = #"^(02)" and* #"^(02)"]
 ; tuple
-[0.0.0 and* 0.0.0 = 0.0.0]
-[1.0.0 and* 1.0.0 = 1.0.0]
-[2.0.0 and* 2.0.0 = 2.0.0]
-[255.255.255 and* 255.255.255 = 255.255.255]
+[0.0.0 = 0.0.0 and* 0.0.0]
+[1.0.0 = 1.0.0 and* 1.0.0]
+[2.0.0 = 2.0.0 and* 2.0.0]
+[255.255.255 = 255.255.255 and* 255.255.255]
 ; binary
-[#{030000} and* #{020000} = #{020000}]
+[#{020000} = #{030000} and* #{020000}]
 [0 = arccosine 1]
 [0 = arccosine/radians 1]
 [30 = arccosine (square-root 3) / 2]
-[pi / 6 = arccosine/radians (square-root 3) / 2]
+[(pi / 6) = arccosine/radians (square-root 3) / 2]
 [45 = arccosine (square-root 2) / 2]
-[pi / 4 = arccosine/radians (square-root 2) / 2]
+[(pi / 4) = arccosine/radians (square-root 2) / 2]
 [60 = arccosine 0.5]
-[pi / 3 = arccosine/radians 0.5]
+[(pi / 3) = arccosine/radians 0.5]
 [90 = arccosine 0]
-[pi / 2 = arccosine/radians 0]
+[(pi / 2) = arccosine/radians 0]
 [180 = arccosine -1]
 [pi = arccosine/radians -1]
 [150 = arccosine (square-root 3) / -2]
-[pi * 5 / 6 = arccosine/radians (square-root 3) / -2]
+[((pi * 5) / 6) = arccosine/radians (square-root 3) / -2]
 [135 = arccosine (square-root 2) / -2]
-[pi * 3 / 4 = arccosine/radians (square-root 2) / -2]
+[((pi * 3) / 4) = arccosine/radians (square-root 2) / -2]
 [120 = arccosine -0.5]
-[pi * 2 / 3 = arccosine/radians -0.5]
+[((pi * 2) / 3) = arccosine/radians -0.5]
 [error? try [arccosine 1.1]]
 [error? try [arccosine -1.1]]
 ; functions/math/arcsine.r
 [0 = arcsine 0]
 [0 = arcsine/radians 0]
 [30 = arcsine 0.5]
-[pi / 6 = arcsine/radians 0.5]
+[(pi / 6) = arcsine/radians 0.5]
 [45 = arcsine (square-root 2) / 2]
-[pi / 4 = arcsine/radians (square-root 2) / 2]
+[(pi / 4) = arcsine/radians (square-root 2) / 2]
 [60 = arcsine (square-root 3) / 2]
-[pi / 3 = arcsine/radians (square-root 3) / 2]
+[(pi / 3) = arcsine/radians (square-root 3) / 2]
 [90 = arcsine 1]
-[pi / 2 = arcsine/radians 1]
+[(pi / 2) = arcsine/radians 1]
 [-30 = arcsine -0.5]
-[pi / -6 = arcsine/radians -0.5]
+[(pi / -6) = arcsine/radians -0.5]
 [-45 = arcsine (square-root 2) / -2]
-[pi / -4 = arcsine/radians (square-root 2) / -2]
+[(pi / -4) = arcsine/radians (square-root 2) / -2]
 [-60 = arcsine (square-root 3) / -2]
-[pi / -3 = arcsine/radians (square-root 3) / -2]
+[(pi / -3) = arcsine/radians (square-root 3) / -2]
 [-90 = arcsine -1]
-[pi / -2 = arcsine/radians -1]
-[1e-12 / (arcsine 1e-12) = (pi / 180)]
-[1e-9 / (arcsine/radians 1e-9) = 1.0]
+[(pi / -2) = arcsine/radians -1]
+[(1e-12 / (arcsine 1e-12)) = (pi / 180)]
+[(1e-9 / (arcsine/radians 1e-9)) = 1.0]
 [error? try [arcsine 1.1]]
 [error? try [arcsine -1.1]]
 ; functions/math/arctangent.r
 [-90 = arctangent -1e16]
-[pi / -2 = arctangent/radians -1e16]
+[(pi / -2) = arctangent/radians -1e16]
 [-60 = arctangent negate square-root 3]
-[pi / -3 = arctangent/radians negate square-root 3]
+[(pi / -3) = arctangent/radians negate square-root 3]
 [-45 = arctangent -1]
-[pi / -4 = arctangent/radians -1]
+[(pi / -4) = arctangent/radians -1]
 [-30 = arctangent (square-root 3) / -3]
-[pi / -6 = arctangent/radians (square-root 3) / -3]
+[(pi / -6) = arctangent/radians (square-root 3) / -3]
 [0 = arctangent 0]
 [0 = arctangent/radians 0]
 [30 = arctangent (square-root 3) / 3]
-[pi / 6 = arctangent/radians (square-root 3) / 3]
+[(pi / 6) = arctangent/radians (square-root 3) / 3]
 [45 = arctangent 1]
-[pi / 4 = arctangent/radians 1]
+[(pi / 4) = arctangent/radians 1]
 [60 = arctangent square-root 3]
-[pi / 3 = arctangent/radians square-root 3]
+[(pi / 3) = arctangent/radians square-root 3]
 [90 = arctangent 1e16]
-[pi / 2 = arctangent/radians 1e16]
+[(pi / 2) = arctangent/radians 1e16]
 ; functions/math/complement.r
 ; bug#849
 [false = complement true]
@@ -7890,20 +7890,20 @@
 ; functions/math/cosine.r
 [1 = cosine 0]
 [1 = cosine/radians 0]
-[(square-root 3) / 2 = cosine 30]
-[(square-root 3) / 2 = cosine/radians pi / 6]
-[(square-root 2) / 2 = cosine 45]
-[(square-root 2) / 2 = cosine/radians pi / 4]
+[((square-root 3) / 2) = cosine 30]
+[((square-root 3) / 2) = cosine/radians pi / 6]
+[((square-root 2) / 2) = cosine 45]
+[((square-root 2) / 2) = cosine/radians pi / 4]
 [0.5 = cosine 60]
 [0.5 = cosine/radians pi / 3]
 [0 = cosine 90]
 [0 = cosine/radians pi / 2]
 [-1 = cosine 180]
 [-1 = cosine/radians pi]
-[(square-root 3) / -2 = cosine 150]
-[(square-root 3) / -2 = cosine/radians pi * 5 / 6]
-[(square-root 2) / -2 = cosine 135]
-[(square-root 2) / -2 = cosine/radians pi * 3 / 4]
+[((square-root 3) / -2) = cosine 150]
+[((square-root 3) / -2) = cosine/radians pi * 5 / 6]
+[((square-root 2) / -2) = cosine 135]
+[((square-root 2) / -2) = cosine/radians pi * 3 / 4]
 [-0.5 = cosine 120]
 [-0.5 = cosine/radians pi * 2 / 3]
 ; functions/math/difference.r
@@ -8026,9 +8026,9 @@
 ; functions/math/exp.r
 [1 = exp 0]
 [2.718281828459045 = exp 1]
-[2.718281828459045 * 2.718281828459045 = exp 2]
+[(2.718281828459045 * 2.718281828459045) = exp 2]
 [(square-root 2.718281828459045) = exp 0.5]
-[1 / 2.718281828459045 = exp -1]
+[(1 / 2.718281828459045) = exp -1]
 ; functions/math/log-10.r
 [0 = log-10 1]
 [0.5 = log-10 square-root 10]
@@ -9208,26 +9208,26 @@
 [0 = sine/radians 0]
 [0.5 = sine 30]
 [0.5 = sine/radians pi / 6]
-[(square-root 2) / 2 = sine 45]
-[(square-root 2) / 2 = sine/radians pi / 4]
-[(square-root 3) / 2 = sine 60]
-[(square-root 3) / 2 = sine/radians pi / 3]
+[((square-root 2) / 2) = sine 45]
+[((square-root 2) / 2) = sine/radians pi / 4]
+[((square-root 3) / 2) = sine 60]
+[((square-root 3) / 2) = sine/radians pi / 3]
 [1 = sine 90]
 [1 = sine/radians pi / 2]
 [0 = sine 180]
 [0 = sine/radians pi]
 [-0.5 = sine -30]
 [-0.5 = sine/radians pi / -6]
-[(square-root 2) / -2 = sine -45]
-[(square-root 2) / -2 = sine/radians pi / -4]
-[(square-root 3) / -2 = sine -60]
-[(square-root 3) / -2 = sine/radians pi / -3]
+[((square-root 2) / -2) = sine -45]
+[((square-root 2) / -2) = sine/radians pi / -4]
+[((square-root 3) / -2) = sine -60]
+[((square-root 3) / -2) = sine/radians pi / -3]
 [-1 = sine -90]
 [-1 = sine/radians pi / -2]
 [0 = sine -180]
 [0 = sine/radians negate pi]
-[(sine 1e-12) / 1e-12 = (pi / 180)]
-[(sine/radians 1e-9) / 1e-9 = 1.0]
+[((sine 1e-12) / 1e-12) = (pi / 180)]
+[((sine/radians 1e-9) / 1e-9) = 1.0]
 ; #bug#852
 ; Flint Hills test
 [
@@ -9236,7 +9236,7 @@
     repeat l n [
         k: to decimal! l
         ks: sine/radians k
-        s4: 1.0 / (k * k * k * ks * ks) + s4
+        s4: (1.0 / (k * k * k * ks * ks)) + s4
     ]
     30.314520404 = round/to s4 1e-9
 ]
@@ -9474,12 +9474,12 @@
 [(negate square-root 3) = tangent/radians pi / -3]
 [-1 = tangent -45]
 [-1 = tangent/radians pi / -4]
-[(square-root 3) / -3 = tangent -30]
-[(square-root 3) / -3 = tangent/radians pi / -6]
+[((square-root 3) / -3) = tangent -30]
+[((square-root 3) / -3) = tangent/radians pi / -6]
 [0 = tangent 0]
 [0 = tangent/radians 0]
-[(square-root 3) / 3 = tangent 30]
-[(square-root 3) / 3 = tangent/radians pi / 6]
+[((square-root 3) / 3) = tangent 30]
+[((square-root 3) / 3) = tangent/radians pi / 6]
 [1 = tangent 45]
 [1 = tangent/radians pi / 4]
 [(square-root 3) = tangent 60]
@@ -9493,7 +9493,7 @@
     repeat l n [
         k: to decimal! l
         kt: tangent/radians k
-        s4t: 1.0 / (kt * kt) + 1.0 / (k * k * k) + s4t
+        s4t: (((1.0 / (kt * kt)) + 1.0) / (k * k * k)) + s4t
     ]
     30.314520404 = round/to s4t 1e-9
 ]

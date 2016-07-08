@@ -622,9 +622,6 @@ static void Mark_Frame_Stack_Deep(void)
             // while evaluating the group it has no anchor anywhere in the
             // root set and could be GC'd.  The Reb_Frame's array ref is it.
             //
-            // !!! Consider the ->param field for SET-WORD! and SET-PATH!,
-            // these require protection too (!)
-            //
             continue;
         }
 

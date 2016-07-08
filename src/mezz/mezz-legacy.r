@@ -640,6 +640,7 @@ set 'r3-legacy* func [<local> if-flags] [
     system/options/paren-instead-of-group: true
     system/options/get-will-get-anything: true
     system/options/no-reduce-nested-print: true
+    system/options/no-infix-lookahead: true
 
     append system/contexts/user compose [
 

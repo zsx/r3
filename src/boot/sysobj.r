@@ -158,6 +158,7 @@ options: construct [] [  ; Options supplied to REBOL during startup
     get-will-get-anything: false
     no-reduce-nested-print: false
     arg1-arg2-arg3-error: false
+    no-infix-lookahead: false
 
     ; These option will only apply if the function which is currently executing
     ; was created after legacy mode was enabled, and if refinements-blank is
@@ -165,15 +166,6 @@ options: construct [] [  ; Options supplied to REBOL during startup
     ;
     no-switch-evals: false
     no-switch-fallthrough: false
-
-    ; Legacy Options that *cannot* be enabled (due to mezzanine dependency
-    ; on the new behavior).  The points are retained in the code for purpose
-    ; of instruction to those curious about where such a decision is made, or
-    ; even if a motivated individual wanted to change the behavior.  That
-    ; would mean adapting the mezzanine (or finding a way to mark a routine
-    ; as not being in the mezzanine and following a different rule.)
-
-    set-word-void-is-error: false
 ]
 
 script: construct [] [

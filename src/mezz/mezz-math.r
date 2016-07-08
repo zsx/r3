@@ -34,30 +34,32 @@ REBOL [
     )
 ]
 
-mod: func [
+mod: function [
     "Compute a nonnegative remainder of A divided by B."
-    ; In fact the function tries to find the remainder,
-    ; that is "almost non-negative"
+    a [any-number! money! time!]
+    b [any-number! money! time!]
+        "Must be nonzero."
+][
+    ; This function tries to find the remainder that is "almost non-negative"
     ; Example: 0.15 - 0.05 - 0.1 // 0.1 is negative,
     ; but it is "almost" zero, i.e. "almost non-negative"
-    a [any-number! money! time!]
-    b [any-number! money! time!] "Must be nonzero."
-    /local r
-] [
+
     ; Compute the smallest non-negative remainder
-    all [negative? r: a // b   r: r + b]
+    all [negative? r: a // b | r: r + b]
     ; Use abs a for comparisons
     a: abs a
     ; If r is "almost" b (i.e. negligible compared to b), the
     ; result will be r - b. Otherwise the result will be r
-    either all [a + r = (a + b)  positive? r + r - b] [r - b] [r]
+    either all [(a + r) = (a + b) | positive? (r + r) - b] [r - b] [r]
 ]
 
-modulo: func [
-    {Wrapper for MOD that handles errors like REMAINDER. Negligible values (compared to A and B) are rounded to zero.}
+modulo: function [
+    {Wrapper for MOD that handles errors like REMAINDER.}
+    return:
+        {Negligible values (compared to A and B) are rounded to zero}
     a [any-number! money! time!]
-    b [any-number! money! time!] "Absolute value will be used"
-    /local r
+    b [any-number! money! time!]
+        "Absolute value will be used"
 ] [
     ; Coerce B to a type compatible with A
     any [any-number? a  b: make a b]
@@ -66,7 +68,7 @@ modulo: func [
     ; If the MOD result is "near zero", w.r.t. A and B,
     ; return 0--the "expected" result, in human terms.
     ; Otherwise, return the result we got from MOD.
-    either any [a - r = a   r + b = b] [make r 0] [r]
+    either any [(a - r) = a | (r + b) = b] [make r 0] [r]
 ]
 
 sign-of: func [

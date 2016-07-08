@@ -187,7 +187,7 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
 
     /* ASSERT_STATE_BALANCED(&f->state);*/
     assert(f == FS_TOP);
-    assert(DSP == f->dsp_orig);
+    /* assert(DSP == f->dsp_orig); */ // !!! not true now with push SET-WORD!
 
     if (f->flags & DO_FLAG_VA_LIST)
         assert(f->index == TRASHED_INDEX);

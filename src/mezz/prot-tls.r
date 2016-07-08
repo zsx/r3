@@ -332,11 +332,11 @@ client-key-exchange: func [
     ctx/client-mac-key: copy/part ctx/key-block ctx/hash-size
     ctx/server-mac-key: copy/part skip ctx/key-block ctx/hash-size ctx/hash-size
     ctx/client-crypt-key: copy/part skip ctx/key-block 2 * ctx/hash-size ctx/crypt-size
-    ctx/server-crypt-key: copy/part skip ctx/key-block 2 * ctx/hash-size + ctx/crypt-size ctx/crypt-size
+    ctx/server-crypt-key: copy/part skip ctx/key-block (2 * ctx/hash-size) + ctx/crypt-size ctx/crypt-size
 
     if ctx/block-size [
         ctx/client-iv: copy/part skip ctx/key-block 2 * (ctx/hash-size + ctx/crypt-size) ctx/block-size
-        ctx/server-iv: copy/part skip ctx/key-block 2 * (ctx/hash-size + ctx/crypt-size) + ctx/block-size ctx/block-size
+        ctx/server-iv: copy/part skip ctx/key-block (2 * (ctx/hash-size + ctx/crypt-size)) + ctx/block-size ctx/block-size
     ]
 
     append ctx/handshake-messages copy at ctx/msg beg + 6
@@ -439,7 +439,7 @@ encrypt-data: func [
 
     if ctx/block-size [
         ; add the padding data in CBC mode
-        padding: ctx/block-size - (1 + (length data) // ctx/block-size)
+        padding: ctx/block-size - ((1 + (length data)) // ctx/block-size)
         len: 1 + padding
         append data head insert/dup make binary! len to-bin padding 1 len
     ]
@@ -564,7 +564,7 @@ parse-messages: func [
         if ctx/block-size [
             ; deal with padding in CBC mode
             data: copy/part data (
-                (length data) - 1 - (to-integer/unsigned last data)
+                ((length data) - 1) - (to-integer/unsigned last data)
             )
             debug ["depadding..."]
         ]
@@ -866,7 +866,7 @@ prf: func [
         len mid s-1 s-2 a p-sha1 p-md5
 ] [
     len: length secret
-    mid: to integer! .5 * (len + either odd? len [1] [0])
+    mid: to integer! (.5 * (len + either odd? len [1] [0]))
 
     s-1: copy/part secret mid
     s-2: copy at secret mid + either odd? len [0] [1]
@@ -893,14 +893,25 @@ prf: func [
 make-key-block: func [
     ctx [object!]
 ] [
-    ctx/key-block: prf ctx/master-secret "key expansion" rejoin [ctx/server-random ctx/client-random] ctx/hash-size + ctx/crypt-size + (either ctx/block-size [ctx/iv-size] [0]) * 2
+    ctx/key-block: prf
+        ctx/master-secret
+        "key expansion"
+        rejoin [ctx/server-random ctx/client-random]
+        (
+            (ctx/hash-size + ctx/crypt-size)
+            + (either ctx/block-size [ctx/iv-size] [0])
+        ) * 2
 ]
 
 make-master-secret: func [
     ctx [object!]
     pre-master-secret [binary!]
 ] [
-    ctx/master-secret: prf pre-master-secret "master secret" rejoin [ctx/client-random ctx/server-random] 48
+    ctx/master-secret: prf
+        pre-master-secret
+        "master secret"
+        rejoin [ctx/client-random ctx/server-random]
+        48
 ]
 
 do-commands: func [

@@ -46,8 +46,7 @@
 //   from the input at a time.  This input may be a source where the index
 //   needs to be tracked and care taken to contain the index within its
 //   boundaries in the face of change (e.g. a mutable ARRAY).  Or it may be
-//   an entity which tracks its own position on each fetch, where "indexor"
-//   is serving as a flag and should be left static.
+//   an entity which tracks its own position on each fetch (e.g. a C va_list)
 //
 
 #include "sys-core.h"
@@ -122,10 +121,17 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
     return FALSE;
 }
 
+#define START_NEW_EXPRESSION_MAY_THROW_COMMON(f,g) \
+    if (Start_New_Expression_Throws(f)) \
+        g; \
+    args_evaluate = NOT(f->flags & DO_FLAG_NO_ARGS_EVALUATE); \
+    lookahead_flags = (f->flags & DO_FLAG_NO_LOOKAHEAD) \
+        ? DO_FLAG_NO_LOOKAHEAD \
+        : DO_FLAG_LOOKAHEAD; \
+
 #ifdef NDEBUG
     #define START_NEW_EXPRESSION_MAY_THROW(f,g) \
-        if (Start_New_Expression_Throws(f)) \
-            g;
+        START_NEW_EXPRESSION_MAY_THROW_COMMON(f, g)
 #else
     // Macro is used to mutate local do_count variable in Do_Core (for easier
     // browsing in the watchlist) as well as to not be in a deeper stack level
@@ -133,8 +139,7 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
     //
     #define START_NEW_EXPRESSION_MAY_THROW(f,g) \
         do { \
-            if (Start_New_Expression_Throws(f)) \
-                g; \
+            START_NEW_EXPRESSION_MAY_THROW_COMMON(f, g); \
             do_count = Do_Core_Expression_Checks_Debug(f); \
             if (do_count == DO_COUNT_BREAKPOINT) { \
                 Debug_Fmt("DO_COUNT_BREAKPOINT hit at %d", f->do_count); \
@@ -215,15 +220,17 @@ void Do_Core(REBFRM * const f)
     REBUPT do_count = f->do_count = TG_Do_Count; // snapshot initial state
 #endif
 
-    // Establish baseline for whether we are to evaluate function arguments
-    // according to the flags passed in.  EVAL can change this with EVAL/ONLY
-    //
-    REBOOL args_evaluate = NOT(f->flags & DO_FLAG_NO_ARGS_EVALUATE);
+    REBOOL args_evaluate; // set on every iteration (varargs do, EVAL/ONLY...)
+    REBUPT lookahead_flags; // ^-- same, currently not independent EVAL switch
 
     // APPLY and a DO of a FRAME! both use this same code path.
     //
     if (f->flags & DO_FLAG_APPLYING) {
-        assert(f->eval_type != ET_LOOKBACK); // "apply infixedly" not supported
+        assert(f->eval_type != ET_LOOKBACK); // "APPLY infixedly" not supported
+        args_evaluate = NOT(f->flags & DO_FLAG_NO_ARGS_EVALUATE);
+        lookahead_flags = (f->flags & DO_FLAG_NO_LOOKAHEAD)
+            ? DO_FLAG_NO_LOOKAHEAD
+            : DO_FLAG_LOOKAHEAD;
         goto do_function_arglist_in_progress;
     }
 
@@ -266,11 +273,15 @@ void Do_Core(REBFRM * const f)
     // Note that infix ("lookback") functions are dispatched *after* the
     // switch...unless DO_FLAG_NO_LOOKAHEAD is set.
 
-do_next:
+do_next:;
 
-    START_NEW_EXPRESSION_MAY_THROW(f, goto finished); // Ctrl-C may abort
+    START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
+    // ^-- sets args_evaluate, lookahead_flags, do_count, Ctrl-C may abort
 
-reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
+reevaluate:;
+    //
+    // ^-- doesn't advance expression index, so `eval x` starts with `eval`
+    // also EVAL/ONLY may change args_evaluate to FALSE for a cycle
 
     switch (f->eval_type) { // <-- DO_COUNT_BREAKPOINT landing spot
 
@@ -312,7 +323,7 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
         FETCH_NEXT_ONLY_MAYBE_END(f);
         if (NOT_END(f->value)) {
             f->eval_type = Eval_Table[VAL_TYPE(f->value)];
-            goto do_next; // keep feeding BAR!s
+            goto do_next; // quickly process next item, no infix test needed
         }
 
         SET_VOID(f->out);
@@ -337,6 +348,7 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_WORD:
+    do_word_in_value:
         if (f->gotten == NULL) // no work to reuse from failed optimization
             f->gotten = Get_Var_Core(
                 &f->eval_type, f->value, f->specifier, GETVAR_READ_ONLY
@@ -354,16 +366,9 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
                 goto do_function_in_gotten;
             }
 
-            if (f->prior)
-                Try_Lookback_In_Prior_Frame(f->out, f->prior);
-            else
-                SET_END(f->out);
-
+            Lookback_For_Set_Word_Or_Set_Path(f->out, f);
             goto do_function_in_gotten;
         }
-
-    do_word_in_value_with_gotten:
-        assert(!IS_FUNCTION(f->gotten)); // infix handling needs differ
 
         if (IS_VOID(f->gotten)) { // need `:x` if `x` is unset
             f->eval_type = ET_WORD; // we overwrote above, but error needs it
@@ -385,59 +390,31 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
 //
 // [SET-WORD!]
 //
-// Does the evaluation into `out`, then gets the variable indicated by the
-// word and writes the result there as well.
+// A chain of `x: y: z: ...` may happen, so there could be any number of
+// SET-WORD!s before the value to assign is found.  Some kind of list needs to
+// be maintained.
+//
+// Recursion is one way to do it--but setting up another frame is expensive.
+// Instead, push the SET-WORD! to the data stack and stay in this frame.  Then
+// handle it via popping when a result is actually found to be stored.
+//
+// Note that nested infix function evaluation might convert the pushed
+// SET-WORD! into a GET-WORD!, e.g. `+: enfix :add` will let ENFIX set `+`
+// however it needs to, and fetch it afterward.
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
     case ET_SET_WORD:
-        //
-        // fetch writes f->value, so save SET-WORD! ptr.  Note that the nested
-        // evaluation here might peek up at it if it contains an infix
-        // function that quotes its first argument, e.g. `x: ++ 10`
-        //
         assert(IS_SET_WORD(f->value));
-        f->param = f->value;
+        DS_PUSH_RELVAL(f->value, f->specifier);
+
+        // ^-- see Do_Pending_Sets_May_Invalidate_Gotten() for real assignment
 
         FETCH_NEXT_ONLY_MAYBE_END(f);
         if (IS_END(f->value))
-            fail (Error(RE_NEED_VALUE, f->param)); // e.g. `do [foo:]`
-
-        if (args_evaluate) {
-            //
-            // A SET-WORD! handles lookahead like a prefix function would;
-            // so it uses lookahead on its arguments regardless of f->flags
-            //
-            DO_NEXT_REFETCH_MAY_THROW(f->out, f, DO_FLAG_LOOKAHEAD);
-
-            if (THROWN(f->out)) goto finished;
-
-            // leave VALUE_FLAG_EVALUATED as is
-        }
-        else
-            QUOTE_NEXT_REFETCH(f->out, f); // clears VALUE_FLAG_EVALUATED
-
-    #if !defined(NDEBUG)
-        if (LEGACY(OPTIONS_SET_WORD_VOID_IS_ERROR) && IS_VOID(f->out))
-            fail (Error(RE_NEED_VALUE, f->param)); // e.g. `foo: ()`
-    #endif
-
-        if (f->eval_type == ET_GET_WORD) {
-            //
-            // If the evaluation did a "look back" and captured this SET-WORD!
-            // then whatever it does to the word needs to stick as its value.
-            // It will mutate the eval_type to ET_GET_WORD to tell us to
-            // evaluate to whatever the variable's value is.  (In particular,
-            // this allows ENFIX to do a SET/LOOKBACK on an operator and then
-            // not be undone by overwriting it again.)
-            //
-            *f->out = *GET_OPT_VAR_MAY_FAIL(f->param, f->specifier);
-        }
-        else {
-            assert(f->eval_type == ET_SET_WORD);
-            *GET_MUTABLE_VAR_MAY_FAIL(f->param, f->specifier) = *f->out;
-        }
-        break;
+            fail (Error(RE_NEED_VALUE, DS_TOP)); // e.g. `do [foo:]`
+        f->eval_type = Eval_Table[VAL_TYPE(f->value)];
+        goto do_next;
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
@@ -539,10 +516,6 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
             goto do_function_in_gotten;
         }
 
-        // Path should have been fully processed, no refinements on stack
-        //
-        assert(DSP == f->dsp_orig);
-
         SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
@@ -552,100 +525,37 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
 //
 // [SET-PATH!]
 //
+// See notes on ET_SET_WORD.  SET-PATH!s are handled in a similar way, by
+// pushing them to the stack, continuing the evaluation in the current frame.
+// This avoids the need to recurse.
+//
+// !!! The evaluation ordering is dictated by the fact that there isn't a
+// separate "evaluate path to target location" and "set target' step.  This
+// is because some targets of assignments (e.g. gob/size/x:) do not correspond
+// to a cell that can be returned; the path operation "encodes as it goes"
+// and requires the value to set as a parameter to Do_Path.  Yet it is
+// counterintuitive given the "left-to-right" nature of the language:
+//
+//     >> foo: make object! [[bar][bar: 10]]
+//
+//     >> foo/(print "left" 'bar): (print "right" 20)
+//     right
+//     left
+//     == 20
+//
 //==//////////////////////////////////////////////////////////////////////==//
 
-    case ET_SET_PATH: {
-        //
-        // f->out is held between a DO_NEXT and a Do_Path and expected to
-        // stay valid.  The GC must therefore protect the f->out slot, so
-        // it can't contain garbage.  (Similar issue with ET_FUNCTION)
-        //
-        SET_END(f->out);
+    case ET_SET_PATH:
+        assert(IS_SET_PATH(f->value));
+        DS_PUSH_RELVAL(f->value, f->specifier);
 
-        // fetch writes f->value, so save SET-PATH! ptr.  Note that the nested
-        // evaluation here might peek up at it if it contains an infix
-        // function that quotes its first argument, e.g. `x/y: default 10`
-        //
-        f->param = f->value;
-        f->refine = f->out;
+        // ^-- see Do_Pending_Sets_May_Invalidate_Gotten() for real assignment
 
         FETCH_NEXT_ONLY_MAYBE_END(f);
-
-        // `do [a/b/c:]` is not legal
-        //
         if (IS_END(f->value))
-            fail (Error(RE_NEED_VALUE, f->param));
-
-        // We want the result of the set path to wind up in `out`, so go
-        // ahead and put the result of the evaluation there.  Do_Path_Throws
-        // will *not* put this value in the output when it is making the
-        // variable assignment!
-        //
-        if (args_evaluate) {
-            //
-            // A SET-PATH! handles lookahead like a prefix function would;
-            // so it uses lookahead on its arguments regardless of f->flags
-            //
-            DO_NEXT_REFETCH_MAY_THROW(f->out, f, DO_FLAG_LOOKAHEAD);
-
-            if (THROWN(f->out)) goto finished;
-        }
-        else {
-            COPY_VALUE(f->out, f->value, f->specifier);
-            FETCH_NEXT_ONLY_MAYBE_END(f);
-        }
-
-    #if !defined(NDEBUG)
-        if (LEGACY(OPTIONS_SET_WORD_VOID_IS_ERROR) && IS_VOID(f->out))
-            fail (Error(RE_NEED_VALUE, f->param)); // e.g. `a/b/c: ()`
-    #endif
-
-        // !!! The evaluation ordering of SET-PATH! evaluation seems to break
-        // the "left-to-right" nature of the language:
-        //
-        //     >> foo: make object! [[bar][bar: 10]]
-        //
-        //     >> foo/(print "left" 'bar): (print "right" 20)
-        //     right
-        //     left
-        //     == 20
-        //
-        // In addition to seeming "wrong" it also necessitates an extra cell
-        // of storage.  This should be reviewed along with Do_Path generally.
-
-        // If the evaluation did a "look back" and captured this SET-PATH!
-        // then whatever it does to the path needs to stick as its value.
-        // It will mutate the refine to NULL to tell us to
-        // evaluate to whatever the variable's value is.  (In particular,
-        // this allows ENFIX to do a SET/LOOKBACK on an operator and then
-        // not be undone by overwriting it again.)
-        //
-        // The capture is only legal if the PATH! contains no GROUP!s.
-        // Note that unlike with ET_SET_WORD, there is an evaluation done
-        // here before we can check it, so the eval_type could not be
-        // used (if it were set to ET_SET_WORD, it could be overwritten)
-        //
-        assert(f->refine == f->out || f->refine == NULL);
-
-        REBVAL temp;
-        if (Do_Path_Throws_Core(
-            &temp, // output location
-            NULL, // not requesting symbol means refinements not allowed
-            f->param, // param is currently holding SET-PATH! we got in
-            f->specifier, // needed to resolve relative array in path
-            f->refine // see note above
-        )) {
-            *(f->out) = temp;
-            goto finished;
-        }
-
-        // leave VALUE_FLAG_EVALUATED as is
-
-        // We did not pass in a symbol, so not a call... hence we cannot
-        // process refinements.  Should not get any back.
-        //
-        assert(DSP == f->dsp_orig);
-        break; }
+            fail (Error(RE_NEED_VALUE, DS_TOP)); // `do [a/b/c:]` is illegal
+        f->eval_type = Eval_Table[VAL_TYPE(f->value)];
+        goto do_next;
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
@@ -671,9 +581,6 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
             goto finished;
         }
 
-        // We did not pass in a symbol ID
-        //
-        assert(DSP == f->dsp_orig);
         SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
@@ -788,10 +695,15 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
             // twist up the evaluator for the next evaluation only.
             //
             if (DSP > f->dsp_orig) {
-                assert(DSP == f->dsp_orig + 1);
-                assert(VAL_WORD_SYM(DS_TOP) == SYM_ONLY);
-                DS_DROP;
-                args_evaluate = FALSE;
+                do {
+                    if (!IS_WORD(DS_TOP))
+                        break;
+
+                    assert(VAL_WORD_SYM(DS_TOP) == SYM_ONLY);
+                    DS_DROP;
+                    args_evaluate = FALSE;
+                    lookahead_flags = DO_FLAG_NO_LOOKAHEAD;
+                } while (DSP > f->dsp_orig);
             }
             else
                 args_evaluate = TRUE;
@@ -864,33 +776,49 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
         // Must be positioned here to apply to infix, and also so that the
         // f->param field is initialized (checked by error machinery)
         //
-        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_PUNCTUATES) && f->prior)
-            switch (f->prior->eval_type) {
-            case ET_FUNCTION:
-            case ET_LOOKBACK:
-                if (Is_Function_Frame_Fulfilling(f->prior))
+        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_PUNCTUATES)) {
+            if (DSP != f->dsp_orig) {
+                switch(VAL_TYPE(DS_TOP)) {
+                case REB_SET_WORD:
+                case REB_SET_PATH:
                     fail (Error_Punctuator_Hit(f));
                 break;
-            case ET_SET_PATH:
-            case ET_SET_WORD:
-                fail (Error_Punctuator_Hit(f));
+                }
             }
 
+            if (f->prior) {
+                switch (f->prior->eval_type) {
+                case ET_FUNCTION:
+                case ET_LOOKBACK:
+                    if (Is_Function_Frame_Fulfilling(f->prior))
+                        fail (Error_Punctuator_Hit(f));
+                    break;
+                }
+            }
+        }
+
+    #if !defined(NDEBUG)
+        //
+        // !!! R3-Alpha had a strange infix "feature":
+        //
         // `10 = add 5 5` is `true`
         // `add 5 5 = 10` is `** Script error: expected logic! not integer!`
         //
         // `5 + 5 = 10` is `true`
         // `10 = 5 + 5` is `** Script error: expected logic! not integer!`
         //
-        // We may consume the `lookahead` parameter, but if we *were* looking
-        // ahead then it suppresses lookahead on all evaluated arguments.
-        // Need a separate variable to track it.
+        // Ren-C rejects this as it does not seem to afford expressiveness
+        // that is compelling enough to warrant it given bad properties:
         //
-        REBUPT lookahead_flags; // `goto finished` would cross if initialized
-        lookahead_flags =
-            (f->eval_type == ET_LOOKBACK)
-                ? DO_FLAG_NO_LOOKAHEAD
-                : DO_FLAG_LOOKAHEAD;
+        // `10 = probe 5 + 5` is `true` ;-- why should PROBE affect it?
+        // `10 = x: 5 + 5` is `true` ;-- why should adding SET-WORD! affect it?
+
+        if (LEGACY(OPTIONS_NO_INFIX_LOOKAHEAD))
+            lookahead_flags =
+                (f->eval_type == ET_LOOKBACK)
+                    ? DO_FLAG_NO_LOOKAHEAD
+                    : DO_FLAG_LOOKAHEAD;
+    #endif
 
         // "not a refinement arg, evaluate normally", won't be modified
         f->refine = m_cast(REBVAL*, BAR_VALUE);
@@ -912,7 +840,6 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
         // just pre-fills all the args with void--which will be overwritten
         // during the argument fulfillment process (unless they turn out to
         // be optional in the invocation).
-        //
         //
         // To get around that, there's a trick.  An out-of-order refinement
         // makes a note in the stack about a parameter and arg position that
@@ -989,7 +916,7 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
                     --f->refine; // not lucky: if in use, this is out of order
 
                     for (; f->refine > DS_AT(f->dsp_orig); --f->refine) {
-                        if (IS_VARARGS(f->refine)) continue; // a pickup
+                        if (!IS_WORD(f->refine)) continue; // non-refinement
                         if (
                             VAL_WORD_SPELLING(f->refine) // canon when pushed
                             == VAL_PARAM_CANON(f->param) // #2258
@@ -1397,8 +1324,8 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
         // second time through, and we were just jumping up to check the
         // parameters in response to a R_REDO_CHECKED; if so, skip this.
         //
-        if (DSP != f->dsp_orig && !IS_FUNCTION(DS_TOP)) {
-            if (!IS_VARARGS(DS_TOP)) {
+        if (DSP != f->dsp_orig) {
+            if (IS_WORD(DS_TOP)) {
                 //
                 // The walk through the arguments didn't fill in any
                 // information for this word, so it was either a duplicate of
@@ -1408,12 +1335,23 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
                 assert(IS_WORD(DS_TOP));
                 fail (Error(RE_BAD_REFINE, DS_TOP));
             }
-            f->param = DS_TOP->payload.varargs.param;
-            f->refine = f->arg = DS_TOP->payload.varargs.arg;
-            assert(IS_LOGIC(f->refine) && VAL_LOGIC(f->refine));
-            DS_DROP;
-            doing_pickups = TRUE;
-            goto continue_arg_loop; // leaves refine, but bumps param+arg
+
+            if (IS_VARARGS(DS_TOP)) {
+                f->param = DS_TOP->payload.varargs.param;
+                f->refine = f->arg = DS_TOP->payload.varargs.arg;
+                assert(IS_LOGIC(f->refine) && VAL_LOGIC(f->refine));
+                DS_DROP;
+                doing_pickups = TRUE;
+                goto continue_arg_loop; // leaves refine, but bumps param+arg
+            }
+
+            assert(
+                IS_FUNCTION(DS_TOP) // chains push these then R_REDO_CHECKED
+                || IS_SET_WORD(DS_TOP) // pending sets should be under these
+                || IS_SET_PATH(DS_TOP) // ^...same
+                || IS_GET_WORD(DS_TOP) // pending gets mutated, e.g. ENFIX
+                || IS_GET_PATH(DS_TOP) // ...should also be underneath
+            );
         }
 
     #if !defined(NDEBUG)
@@ -1590,8 +1528,6 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
     //
     //==////////////////////////////////////////////////////////////////==//
 
-        Drop_Function_Args_For_Frame(f);
-
         // Here we know the function finished and did not throw or exit.  If
         // it has a definitional return we need to type check it--and if it
         // has punctuates we have to squash whatever the last evaluative
@@ -1616,6 +1552,8 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
                 );
         }
 
+        Drop_Function_Args_For_Frame(f); // currently can't error after this
+
         // Calling a function counts as an evaluation *unless* it's quote or
         // semiquote (the generic means for fooling the semiquote? test)
         //
@@ -1627,7 +1565,7 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
         // If we have functions pending to run on the outputs, then do so.
         //
         while (DSP != f->dsp_orig) {
-            assert(IS_FUNCTION(DS_TOP));
+            if (!IS_FUNCTION(DS_TOP)) break; // pending sets/gets
 
             f->eval_type = ET_INERT; // function is over, so don't involve GC
 
@@ -1635,13 +1573,12 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
             if (Apply_Only_Throws(
                 f->out, DS_TOP, &temp, END_CELL
             )) {
+                DS_DROP_TO(f->dsp_orig);
                 goto finished;
             }
 
             DS_DROP;
         }
-
-        assert(DSP == f->dsp_orig);
 
         if (Trace_Flags)
             Trace_Return(FRM_LABEL(f), f->out);
@@ -1669,10 +1606,15 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
 
     assert(!THROWN(f->out)); // should have jumped to exit sooner
 
-    if (IS_END(f->value))
-        goto finished;
+    // SET-WORD! and SET-PATH! jump to `do_next:`, so they don't fall through
+    // to this point.  We'll only get here if an expression completed to
+    // assign -or- if the left hand side of an infix is ready (hence, not
+    // quite yet ready to assign).
 
-    assert(!IS_END(f->value));
+    if (IS_END(f->value)) {
+        Do_Pending_Sets_May_Invalidate_Gotten(f->out, f); // don't care if does
+        goto finished;
+    }
 
     REBUPT eval_type_last;
     eval_type_last = f->eval_type;
@@ -1705,23 +1647,26 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
 
         if (f->eval_type != ET_LOOKBACK && NOT(f->flags & DO_FLAG_TO_END)) {
             f->eval_type = ET_WORD; // restore the ET_WORD, needs to be right
-            goto finished;
+
+            Do_Pending_Sets_May_Invalidate_Gotten(f->out, f);
+            goto finished; // ^-- next cycle can handle f->gotten == NULL
         }
 
     //=//// IT'S INFIX OR WE'RE DOING TO THE END...DISPATCH LIKE WORD /////=//
 
-        START_NEW_EXPRESSION_MAY_THROW(f, goto finished); // Ctrl-C may abort
+        START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
+        // ^-- sets args_evaluate, lookahead_flags, do_count, Ctrl-C may abort
 
-        if (!f->gotten) {// <-- DO_COUNT_BREAKPOINT landing spot
+        if (!f->gotten) { // <-- DO_COUNT_BREAKPOINT landing spot
             REBVAL specified;
             COPY_VALUE(&specified, f->value, f->specifier);
             fail (Error(RE_NOT_BOUND, &specified));
         }
 
-        if (!IS_FUNCTION(f->gotten))
-            goto do_word_in_value_with_gotten; // reuse the work of Get_Var
-
-        SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
+        if (!IS_FUNCTION(f->gotten)) {
+            Do_Pending_Sets_May_Invalidate_Gotten(f->out, f);
+            goto do_word_in_value; // may need to refetch, lookbacks see end
+        }
 
         // If a previous "infix" call had 0 arguments and didn't consume
         // the value before it, assume that means it's a 0-arg barrier
@@ -1731,11 +1676,19 @@ reevaluate: // doesn't advance expression index, so `eval x` starts with `eval`
             if (eval_type_last == ET_LOOKBACK)
                 fail (Error_Infix_Left_Arg_Prohibited(f));
         }
-        else
-            SET_END(f->out);
+        else {
+            Do_Pending_Sets_May_Invalidate_Gotten(f->out, f);
+            if (f->gotten == NULL)
+                goto do_word_in_value; // pay for refetch, lookbacks see end
 
+            SET_END(f->out);
+        }
+
+        SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
         goto do_function_in_gotten;
     }
+
+    Do_Pending_Sets_May_Invalidate_Gotten(f->out, f);
 
     // Continue evaluating rest of block if not just a DO/NEXT
     //

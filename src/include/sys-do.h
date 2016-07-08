@@ -254,23 +254,24 @@ inline static void FETCH_NEXT_ONLY_MAYBE_END(REBFRM *f) {
 // meaningful to say it has a "left hand side" in f->out to give an infix
 // (prefix, etc.) lookback function.
 //
-// However...it can climb the stack and peek at the eval_type of the parent to
-// find SET-WORD! or SET-PATH!s in progress.  They are not products of an
-// evaluation--hence are safe to quote, allowing constructs like `x: ++ 1`
+// However...it can look at the data stack and peek to find SET-WORD! or
+// SET-PATH!s in progress.  They are not products of an evaluation--hence are
+// safe to quote, allowing constructs like `x: ++ 1`
 //
-inline static void Try_Lookback_In_Prior_Frame(
-    REBVAL *out,
-    REBFRM *prior
-){
-    switch (prior->eval_type) {
-    case ET_SET_WORD:
-        COPY_VALUE(out, prior->param, prior->specifier);
-        assert(IS_SET_WORD(out));
-        CLEAR_VAL_FLAG(out, VALUE_FLAG_EVALUATED);
-        prior->eval_type = ET_GET_WORD; // See notes in Do_Core/ET_SET_WORD
-        break;
+inline static void Lookback_For_Set_Word_Or_Set_Path(REBVAL *out, REBFRM *f)
+{
+    if (DSP == f->dsp_orig) {
+        SET_END(out); // some <end> args are able to tolerate absences
+        return;
+    }
 
-    case ET_SET_PATH: {
+    enum Reb_Kind kind = VAL_TYPE(DS_TOP);
+    if (kind == REB_SET_WORD) {
+        *out = *DS_TOP;
+        CLEAR_VAL_FLAG(out, VALUE_FLAG_EVALUATED);
+        VAL_SET_TYPE_BITS(DS_TOP, REB_GET_WORD); // See Do_Core/ET_SET_WORD
+    }
+    else if (kind == REB_SET_PATH) {
         //
         // The purpose of capturing a SET-PATH! on the left of a lookback
         // operation is to set it.  Currently the guarantee required is that
@@ -279,20 +280,113 @@ inline static void Try_Lookback_In_Prior_Frame(
         // are GROUP!s in the path, then it would evaluate twice.  Avoid it
         // by disallowing lookback capture of paths containing GROUP!
         //
-        RELVAL *temp = VAL_ARRAY_AT(prior->param);
+        RELVAL *temp = VAL_ARRAY_AT(DS_TOP);
         for (; NOT_END(temp); ++temp)
             if (IS_GROUP(temp))
                 fail (Error(RE_INFIX_PATH_GROUP, temp));
 
-        COPY_VALUE(out, prior->param, prior->specifier);
-        assert(IS_SET_PATH(out));
+        *out = *DS_TOP;
         CLEAR_VAL_FLAG(out, VALUE_FLAG_EVALUATED);
-        assert(prior->refine == prior->out);
-        prior->refine = NULL; // See notes in Do_Core/ET_SET_PATH
-        break; }
+        VAL_SET_TYPE_BITS(DS_TOP, REB_GET_PATH); // See Do_Core/ET_SET_PATH
+    }
+    else {
+        assert(FALSE); // !!! impossible?
+    }
+}
 
-    default:
-        SET_END(out); // some <end> args are able to tolerate absences
+
+// Note that this operation may change variables such that something that
+// was a FUNCTION! before is no longer, or something that isn't a function
+// becomes one.  Set f->gotten to NULL in cases where it may affect it
+//
+// !!! This temporarily disallows throws from SET-PATH!s.  Longer term, the
+// SET-PATH! will be evaluated into a "sink" and pushed, so left-to-right
+// consistency is maintained, but in the meantime it will be an error if
+// one tries to do `foo/baz/(either condition ['bar] [return 10]): 20`
+//
+inline static void Do_Pending_Sets_May_Invalidate_Gotten(
+    REBVAL *out,
+    REBFRM *f
+) {
+    while (DSP != f->dsp_orig) {
+        switch (VAL_TYPE(DS_TOP)) {
+        case REB_SET_WORD: {
+            REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(DS_TOP, SPECIFIED);
+            *var = *out;
+            if (var == f->gotten)
+                f->gotten = NULL;
+            break; }
+
+        case REB_GET_WORD:
+            //
+            // If the evaluation did a "look back" and captured this SET-WORD!
+            // then whatever it does to the word needs to stick as its value.
+            // It will mutate the eval_type to ET_GET_WORD to tell us to
+            // evaluate to whatever the variable's value is.  (In particular,
+            // this allows ENFIX to do a SET/LOOKBACK on an operator and then
+            // not be undone by overwriting it again.)
+            //
+            *out = *GET_OPT_VAR_MAY_FAIL(DS_TOP, SPECIFIED);
+            break;
+
+        case REB_SET_PATH: {
+            REBVAL hack = *DS_TOP; // can't path eval from data stack, yet
+
+            REBUPT eval_type_saved = f->eval_type;
+            f->eval_type = ET_INERT; // for error handling
+
+            REBVAL temp;
+            if (Do_Path_Throws_Core(
+                &temp, // output location if thrown
+                NULL, // not requesting symbol means refinements not allowed
+                &hack, // param is currently holding SET-PATH! we got in
+                SPECIFIED, // needed to resolve relative array in path
+                out
+            )) {
+                fail (Error_No_Catch_For_Throw(&temp));
+            }
+
+            f->eval_type = eval_type_saved;
+
+            // Arbitrary code just ran.  Assume the worst, that it may have
+            // changed gotten.  (Future model it may be easier to test this.)
+            //
+            f->gotten = NULL;
+
+            // leave VALUE_FLAG_EVALUATED as is
+            break; }
+
+        case REB_GET_PATH: {
+        #if !defined(NDEBUG)
+            REBDSP dsp_before = DSP;
+        #endif
+
+            REBVAL hack = *DS_TOP; // can't path eval from data stack, yet
+
+            REBVAL temp;
+            if (Do_Path_Throws_Core(
+                out, // output location if thrown
+                NULL, // not requesting symbol means refinements not allowed
+                &hack, // param is currently holding SET-PATH! we got in
+                SPECIFIED, // needed to resolve relative array in path
+                NULL // nothing provided to SET, so it's a GET
+            )) {
+                fail (Error_No_Catch_For_Throw(out));
+            }
+
+            // leave VALUE_FLAG_EVALUATED as is
+
+            // We did not pass in a symbol, so not a call... hence we cannot
+            // process refinements.  Should not get any back.
+            //
+            assert(DSP == dsp_before);
+            break; }
+
+        default:
+            assert(FALSE);
+        }
+
+        DS_DROP;
     }
 }
 
@@ -348,7 +442,7 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
 
         if (IS_FUNCTION(child->gotten)) {
             if (child->eval_type == ET_LOOKBACK)
-                Try_Lookback_In_Prior_Frame(out, parent);
+                Lookback_For_Set_Word_Or_Set_Path(out, parent);
             else {
                 assert(child->eval_type == ET_FUNCTION);
             }
