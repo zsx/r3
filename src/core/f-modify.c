@@ -75,6 +75,7 @@ REBCNT Modify_Array(
             REBARR *copy = Copy_Array_At_Shallow(
                 VAL_ARRAY(src_val), VAL_INDEX(src_val), VAL_SPECIFIER(src_val)
             );
+            MANAGE_ARRAY(copy); // !!! Review: worth it to not manage and free?
             src_rel = ARR_HEAD(copy);
             specifier = SPECIFIED; // copy already specified it
         }
