@@ -255,7 +255,7 @@ init-schemes: func [
 
             false ; keep waiting
         ]
-        init: func [port] [
+        init: proc [port] [
             ;;print ["Init" title]
             port/data: copy [] ; The port wake list
         ]
@@ -270,7 +270,7 @@ init-schemes: func [
         title: "File Access"
         name: 'file
         info: system/standard/file-info ; for C enums
-        init: func [port /local path] [
+        init: proc [port /local path] [
             if url? port/spec/ref [
                 parse port/spec/ref [thru #":" 0 2 slash path:]
                 append port/spec compose [path: (to file! path)]
@@ -332,7 +332,7 @@ init-schemes: func [
         title: "Serial Port"
         name: 'serial
         spec: system/standard/port-spec-serial
-        init: func [port /local path speed] [
+        init: proc [port /local path speed] [
             if url? port/spec/ref [
                 parse port/spec/ref
                     [thru #":" 0 2 slash copy path [to slash | end] skip copy speed to end]

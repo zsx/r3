@@ -19,8 +19,12 @@ REBOL [
 assert: func [
     {Ensure conditions are TRUE? if hooked by debugging (see also: VERIFY)}
 
+    return: [<opt> block! blank!]
+        {Always returns void unless /QUIET is used to return failing blocks}
     conditions [block!]
         {Block of conditions to evaluate, void and FALSE? trigger alerts}
+    /quiet
+        {Return failing condition as a BLOCK!, or BLANK! if success}
 ][
     ; ASSERT has no default implementation, but can be HIJACKed by a debug
     ; build with a custom validation or output routine.  (Currently there is
@@ -32,6 +36,8 @@ assert: func [
 ; could not unset these fields.  (make object! [x: ()] fails in R3-Alpha)
 ;
 system/standard/function-meta/description:
+system/standard/function-meta/return-type:
+system/standard/function-meta/return-note:
 system/standard/function-meta/parameter-types:
 system/standard/function-meta/parameter-notes:
 system/standard/specialized-meta/description:
@@ -51,14 +57,17 @@ system/standard/hijacked-meta/hijackee-name:
 
 does: func [
     {A shortcut to define a function that has no arguments or locals.}
-    body [block!] {The body block of the function}
+    return: [function!]
+    body [block!]
+        {The body block of the function}
 ][
-    func [] body
+    func [return: [<opt> any-value!]] body
 ]
 
 
 make-action: func [
     {Internal generator used by FUNCTION and PROCEDURE specializations.}
+    return: [function!]
     generator [function!]
         {Arity-2 "lower"-level function generator to use (e.g. FUNC or PROC)}
     spec [block!]
@@ -132,6 +141,8 @@ dig-function-meta-fields: function [value [function!]] [
     unless meta [
         return construct system/standard/function-meta [
             description: _
+            return_type: _
+            return_note: _
             parameter-types: make frame! :value
             parameter-notes: make frame! :value
         ]
@@ -165,6 +176,26 @@ dig-function-meta-fields: function [value [function!]] [
                 all [fields | copy fields/description]
             ]
         )
+        return-type: (
+            ;
+            ; !!! The optimized native signals the difference between
+            ; "undocumented argument" and "no argument at all" with the
+            ; void vs BLANK! distinction.  This routine needs an overhaul and
+            ; wasn't really written to anticipate the subtlety.  But be
+            ; sensitive to it here.
+            ;
+            temp: select meta 'return-type
+            if all [not set? 'temp | fields | select? fields 'return-type] [
+                temp: copy fields/return-type
+            ]
+            :temp
+        )
+        return-note: (
+            maybe string! any [
+                select meta 'return-note
+                all [fields | copy fields/return-note]
+            ]
+        )
         parameter-types: (
             maybe frame! any [
                 select meta 'parameter-types
@@ -183,9 +214,12 @@ dig-function-meta-fields: function [value [function!]] [
 redescribe: function [
     {Mutate function description with new title and/or new argument notes.}
 
+    return: [function!]
+        {The input function, with its description now updated.}
     spec [block!]
         {Either a string description, or a spec block (without types).}
     value [function!]
+        {(modified) Function whose description is to be updated.}
 ][
     meta: meta-of :value
     notes: _
@@ -196,7 +230,7 @@ redescribe: function [
     ; only manipulate the description.not created unless they are needed by
     ; hitting the required point in the PARSE of the spec.
 
-    on-demand-meta: func [] [
+    on-demand-meta: does [
         case/all [
             not meta [
                 meta: copy system/standard/function-meta
@@ -209,6 +243,7 @@ redescribe: function [
 
             not notes: any [:meta/parameter-notes] [
                 return () ; specialized or adapted, HELP uses original notes
+                pass
             ]
 
             not frame? notes [
@@ -229,7 +264,7 @@ redescribe: function [
     ; but to reuse archetypal ones.  Also to limit the total number of
     ; variations that clients like HELP have to reason about.)
     ;
-    on-demand-notes: func [] [
+    on-demand-notes: does [
         on-demand-meta
 
         if find meta 'parameter-notes [return ()]
@@ -258,7 +293,7 @@ redescribe: function [
             )
         ]
         any [
-            set param: [word! | get-word! | lit-word! | refinement!]
+            set param: [word! | get-word! | lit-word! | refinement! | set-word!]
 
             ; It's legal for the redescribe to name a parameter just to
             ; show it's there for descriptive purposes without adding notes.
@@ -267,19 +302,27 @@ redescribe: function [
             ;
             opt [[set note: string!] (
                 on-demand-meta
-                if (not equal? note {}) or notes [
-                    on-demand-notes
-
-                    unless find notes to word! param [
-                        fail [param "not found in frame to describe"]
+                either (set-word? param) and (param = quote return:) [
+                    meta/return-note: either equal? note {} [
+                        _
+                    ][
+                        copy note
                     ]
+                ][
+                    if (not equal? note {}) or notes [
+                        on-demand-notes
 
-                    actual: first find words-of :value param
-                    unless strict-equal? param actual [
-                        fail [param {doesn't match word type of} actual]
+                        unless find notes to word! param [
+                            fail [param "not found in frame to describe"]
+                        ]
+
+                        actual: first find words-of :value param
+                        unless strict-equal? param actual [
+                            fail [param {doesn't match word type of} actual]
+                        ]
+
+                        notes/(to word! param): if not equal? note {} [note]
                     ]
-
-                    notes/(to word! param): if not equal? note {} [note]
                 ]
             )]
         ]
@@ -475,6 +518,7 @@ infix?: redescribe [
 
 
 set-nfix: function [
+    return: [function!]
     n [integer!]
     name [string!]
     target [any-word! any-path!]
@@ -574,6 +618,7 @@ once-bar: func [
 
 use: func [
     {Defines words local to a block.}
+    return: [<opt> any-value!]
     vars [block! word!] {Local word(s) to the block}
     body [block!] {Block to evaluate}
 ][
@@ -779,6 +824,7 @@ cause-error: func [
 
 ensure: function [
     {Pass through a value only if it matches types (or TRUE?/FALSE? state)}
+    return: [<opt> any-value!]
     types [block! datatype! typeset! logic!]
     arg [any-value!] ;-- not <opt>, so implicitly ensured to be non-void
 ][
@@ -791,4 +837,4 @@ ensure: function [
 ]
 
 
-secure: func ['d] [boot-print "SECURE is disabled"]
+secure: proc ['d] [boot-print "SECURE is disabled"]

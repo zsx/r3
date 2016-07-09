@@ -304,6 +304,8 @@ lib-set: :set ; overwriting lib/set for now
 set: function [
     {Sets a word, path, block of words, or context to specified value(s).}
 
+    return: [<opt> any-value!]
+        {Just chains the input value (unmodified)}
     target [any-word! any-path! block! any-context!]
         {Word, block of words, path, or object to be set (modified)}
     value [<opt> any-value!]
@@ -353,6 +355,7 @@ set: function [
 lib-get: :get
 get: function [
     {Gets the value of a word or path, or values of a context.}
+    return: [<opt> any-value!]
     source
         "Word, path, context to get"
     /opt
@@ -384,6 +387,7 @@ get: function [
 ;
 try: func [
     {Tries to DO a block and returns its value or an error.}
+    return: [<opt> any-value!]
     block [block!]
     /except "On exception, evaluate this code block"
     code [block! function!]
@@ -392,24 +396,40 @@ try: func [
 ]
 
 
-; APPLY is a historically brittle construct, that has been eclipsed by the
-; evolution of the evaluator.  An APPLY filling in arguments is positionally
-; dependent on the order of the refinements in the function spec, while
-; it is now possible to do through alternative mechanisms...e.g. the
-; ability to revoke refinement requests via UNSET! and to evaluate refinement
-; words via parens or get-words in a PATH!.
+; R3-Alpha's APPLY had a historically brittle way of handling refinements,
+; based on their order in the function definition.  e.g. the following would
+; be how to say saying `APPEND/ONLY/DUP A B 2`:
 ;
-; Delegating APPLY to "userspace" incurs cost, but there's not really any good
-; reason for its existence or usage any longer.  So if it's a little slower,
-; that's a good incentive to switch to using the evaluator proper.  It means
-; that C code for APPLY does not have to be maintained, which is trickier code
-; to read and write than this short function.
+;     apply :append [a b none none true true 2]
 ;
-; (It is still lightly optimized as a FUNC with no additional vars in frame)
+; Ren-C's default APPLY construct is based on evaluating a block of code in
+; the frame of a function before running it.  This allows refinements to be
+; specified as TRUE or FALSE and the arguments to be assigned by name.  It
+; also accepts a WORD! or PATH! as the function argument which it fetches,
+; which helps it deliver a better error message labeling the applied function
+; (instead of the stack frame appearing "anonymous"):
+;
+;     apply 'append [
+;         series: a
+;         value: b
+;         only: true
+;         dup: true
+;         count: true
+;     ]
+;
+; For most usages this is better, though it has the downside of becoming tied
+; to the names of parameters at the callsite.  One might not want to remember
+; those, or perhaps just not want to fail if the names are changed.
+;
+; This implementation of R3-ALPHA-APPLY is a stopgap compatibility measure for
+; the positional version.  It shows that such a construct could be written in
+; userspace--even implementing the /ONLY refinement.  This is hoped to be a
+; "design lab" for figuring out what a better positional apply might look like.
 ;
 r3-alpha-apply: function [
     "Apply a function to a reduced block of arguments."
 
+    return: [<opt> any-value!]
     action [function!]
         "Function value to apply"
     block [block!]
@@ -457,7 +477,16 @@ r3-alpha-apply: function [
 ; the body is specifically bound to those variables.  (There is no dynamic
 ; binding in Ren-C)
 ;
-closure: :function
+closure: func [
+    return: [<opt> any-value!]
+    spec
+    body
+][
+    function compose [
+        return: [<opt> any-value!]
+        (spec)
+    ] body
+]
 
 ; FUNC variables are not durable by default, it must be specified explicitly.
 ;
@@ -480,22 +509,32 @@ any-function!: :function!
 any-function?: :function?
 
 native!: function!
-native?: func [f] [all [function? :f | 1 = func-class-of :f]]
+native?: func [f [<opt> any-value!]] [
+    all [function? :f | 1 = func-class-of :f]
+]
 
 ;-- If there were a test for user-written functions, what would it be called?
 ;-- it would be function class 2 ATM
 
 action!: function!
-action?: func [f] [all [function? :f | 3 = func-class-of :f]]
+action?: func [f [<opt> any-value!]] [
+    all [function? :f | 3 = func-class-of :f]
+]
 
 command!: function!
-command?: func [f] [all [function? :f | 4 = func-class-of :f]]
+command?: func [f [<opt> any-value!]] [
+    all [function? :f | 4 = func-class-of :f]
+]
 
 routine!: function!
-routine?: func [f] [all [function? :f | 5 = func-class-of :f]]
+routine?: func [f [<opt> any-value!]] [
+    all [function? :f | 5 = func-class-of :f]
+]
 
 callback!: function!
-callback?: func [f] [all [function? :f | 6 = func-class-of :f]]
+callback?: func [f [<opt> any-value!]] [
+    all [function? :f | 6 = func-class-of :f]
+]
 
 
 ; In Ren-C, MAKE for OBJECT! does not use the "type" slot for parent
@@ -515,6 +554,7 @@ callback?: func [f] [all [function? :f | 6 = func-class-of :f]]
 lib-make: :make
 make: function [
     "Constructs or allocates the specified datatype."
+    return: [any-value!]
     :lookahead [any-value! <...>]
     type [<opt> any-value! <...>]
         "The datatype or an example value"
@@ -750,6 +790,7 @@ set 'r3-legacy* func [<local> if-flags] [
         do: (function [
             {Evaluates a block of source code (variadic <r3-legacy> bridge)}
 
+            return: [<opt> any-value!]
             source [<opt> blank! block! group! string! binary! url! file! tag!
                 error! function!
             ]
@@ -1001,13 +1042,36 @@ set 'r3-legacy* func [<local> if-flags] [
 
         ; R3-Alpha would tolerate blocks in the first position, which were
         ; a feature in Rebol2.  e.g. `func [[throw catch] x y][...]`.  Ren-C
-        ; does not allow this.
+        ; does not allow this.  Also, policy requires a RETURN: annotation to
+        ; say if one returns functions or void in Ren-C--there was no such
+        ; requirement in R3-Alpha.
         ;
         func: (func [
-            {FUNC <r3-legacy>} spec [block!] body [block!]
+            {FUNC <r3-legacy>}
+            return: [function!]
+            spec [block!]
+            body [block!]
         ][
             if block? first spec [spec: next spec]
-            lib/func spec body
+
+            lib/func compose [
+                return: [<opt> any-value!]
+                (spec)
+            ] body
+        ])
+
+        function: (func [
+            {FUNCTION <r3-legacy>}
+            return: [function!]
+            spec [block!]
+            body [block!]
+        ][
+            if block? first spec [spec: next spec]
+
+            lib/function compose [
+                return: [<opt> any-value!]
+                (spec)
+            ] body
         ])
 
         ; In Ren-C, HAS is the arity-1 parallel to OBJECT as arity-2 (similar
@@ -1017,6 +1081,7 @@ set 'r3-legacy* func [<local> if-flags] [
         ;
         has: (func [
             {Shortcut for function with local variables but no arguments.}
+            return: [function!]
             vars [block!] {List of words that are local to the function}
             body [block!] {The body block of the function}
         ][

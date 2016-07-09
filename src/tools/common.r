@@ -199,11 +199,15 @@ binary-to-c: func [
 ; RETURN in it will return from the *caller*.  It will just wind up returning
 ; from *this loop wrapper* (in older Rebols) when the call is finished!
 ;
-for-each-record-NO-RETURN: func [
+for-each-record-NO-RETURN: proc [
     {Iterate a table with a header by creating an object for each row}
-    'record [word!] {Word to set each time to the row made into an object}
-    table [block!] {Table of values with header block as first element}
-    body [block!] {Block to evaluate each time}
+
+    'record [word!]
+        {Word to set each time to the row made into an object}
+    table [block!]
+        {Table of values with header block as first element}
+    body [block!]
+        {Block to evaluate each time}
     /local headings result spec
 ] [
     unless block? first table [

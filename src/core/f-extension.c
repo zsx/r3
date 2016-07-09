@@ -505,10 +505,10 @@ void Make_Command(
         REBVAL *param = FUNC_PARAMS_HEAD(fun);
         for (; NOT_END(param); ++param) {
             if (
-                // !!! this said "not END and not UNSET (no args)"...what is
-                // it actually supposed to be doing with this 3?
-                //
-                (FLAGIT_64(REB_0) != ~VAL_TYPESET_BITS(param))
+                (
+                    VAL_TYPESET_BITS(param)
+                    != ~(FLAGIT_64(REB_0) | FLAGIT_64(REB_FUNCTION)) // default
+                )
                 && (VAL_TYPESET_BITS(param) & ~RXT_ALLOWED_TYPES)
             ) {
                 fail (Error(RE_BAD_FUNC_ARG, param));

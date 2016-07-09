@@ -20,19 +20,18 @@ REBOL [
 
 enfix: _
 
-set/lookback 'enfix function [
+set/lookback 'enfix procedure [
     "Convenience version of SET/LOOKBACK, e.g `+: enfix :add`"
     :target [set-word! set-path!]
     action [function!]
 ][
     set/lookback target :action
 
-    ; return value should never be used...the SET-WORD! or SET-PATH!
+    ; return value should never be needed/used...the SET-WORD! or SET-PATH!
     ; evaluation is converted to a GET when infix quoted on the left.
-    ; however, can't be a procedure because `x: some-proc` is illegal
 ]
 
-default: enfix function [
+default: enfix procedure [
     "Set word or path to a default value if it is not set yet or blank."
     :target [set-word! set-path!]
         "The word"
@@ -42,9 +41,8 @@ default: enfix function [
     unless all [any-value? gotten: get/opt target | not blank? gotten] [
         set target value
     ]
-    ; return value should never be used...the SET-WORD! or SET-PATH!
+    ; return value should never be needed/used...the SET-WORD! or SET-PATH!
     ; evaluation is converted to a GET when infix quoted on the left.
-    ; however, can't be a procedure because `x: some-proc` is illegal
 ]
 
 +: enfix :add

@@ -1404,8 +1404,8 @@ static REB_R If_Unless_Core(REBFRM *frame_, REBOOL trigger) {
 //  
 //  {If TRUE? condition, return branch value; evaluate blocks by default.}
 //  
-//      condition
-//      branch ; [<opt> any-value!]
+//      condition [any-value!]
+//      branch [<opt> any-value!]
 //      /only
 //          "Return block branches literally instead of evaluating them."
 //      /?
@@ -1423,8 +1423,8 @@ REBNATIVE(if)
 //
 //  {If FALSE? condition, return branch value; evaluate blocks by default.}
 //
-//      condition
-//      branch ; [<opt> any-value!]
+//      condition [any-value!]
+//      branch [<opt> any-value!]
 //      /only
 //          "Return block branches literally instead of evaluating them."
 //      /?
@@ -1442,7 +1442,7 @@ REBNATIVE(unless)
 //
 //  {If TRUE condition? first branch, else second; evaluate blocks by default.}
 //
-//      condition
+//      condition [any-value!]
 //      true-branch [<opt> any-value!]
 //      false-branch [<opt> any-value!]
 //      /only "Return block arg instead of evaluating it."
@@ -1531,19 +1531,42 @@ REBNATIVE(unprotect)
 //  ]
 //
 REBNATIVE(return)
-//
-// Note: type checking for RETURN (and for values that "fall out the bottom"
-// of a FUNC-generated function) is in Do_Core.
 {
     PARAM(1, value);
 
-    if (frame_->binding == NULL) // raw native, not a variant FUNCTION made
+    REBVAL *value = ARG(value);
+    REBFRM *f = frame_; // implicit parameter to REBNATIVE()
+
+    if (f->binding == NULL) // raw native, not a variant FUNCTION made
         fail (Error(RE_RETURN_ARCHETYPE));
 
-    *D_OUT = *NAT_VALUE(exit); // see also Make_Thrown_Exit_Value
-    D_OUT->extra.binding = frame_->binding;
+    // The frame this RETURN is being called from may well not be the target
+    // function of the return (that's why it's a "definitional return").  So
+    // examine the binding.  Currently it can be either a FRAME!'s varlist or
+    // a FUNCTION! paramlist.
 
-    CONVERT_NAME_TO_THROWN(D_OUT, ARG(value));
+    REBFUN *target =
+        IS_FUNCTION(ARR_HEAD(f->binding))
+            ? AS_FUNC(f->binding)
+            : AS_FUNC(CTX_KEYLIST(AS_CONTEXT(f->binding)));
+
+    REBVAL *typeset = FUNC_PARAM(target, FUNC_NUM_PARAMS(target));
+    assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
+
+    // Check to make sure the types match.  If it were not done here, then
+    // the error would not point out the bad call...just the function that
+    // wound up catching it.
+    //
+    if (!TYPE_CHECK(typeset, VAL_TYPE(value)))
+        fail (Error_Bad_Return_Type(
+            f->label, // !!! Should climb stack to get real label?
+            VAL_TYPE(value)
+        ));
+
+    *D_OUT = *NAT_VALUE(exit); // see also Make_Thrown_Exit_Value
+    D_OUT->extra.binding = f->binding;
+
+    CONVERT_NAME_TO_THROWN(D_OUT, value);
     return R_OUT_IS_THROWN;
 }
 

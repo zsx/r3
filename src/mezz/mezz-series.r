@@ -419,6 +419,7 @@ alter: func [
 collect-with: func [
     "Evaluate body, and return block of values collected via keep function."
 
+    return: [block!]
     'name [word! lit-word!]
         "Name to which keep function will be assigned (<local> if word!)"
     body [block!]
@@ -433,7 +434,9 @@ collect-with: func [
     output: any [:output make block! 16]
 
     keeper: func [
-        value [<opt> any-value!] /only
+        return: [<opt> any-value!]
+        value [<opt> any-value!]
+        /only
     ][
         output: insert/(if only 'only) output :value
         :value
@@ -445,7 +448,7 @@ collect-with: func [
         ; that word.  FUNC does binding and variable creation so let it
         ; do the work.
         ;
-        eval func reduce [<no-return> name] body :keeper
+        eval func reduce [<no-return> name [function!]] body :keeper
     ][
         ; A lit-word `name` indicates that the word for the keeper already
         ; exists.  Set the variable and DO the body bound as-is.
@@ -527,28 +530,29 @@ printf: func [
     print format :fmt :val
 ]
 
-split: func [
-    "Split a series into pieces; fixed or variable size, fixed number, or at delimiters"
-    series  [any-series!] "The series to split"
-    dlm     [block! integer! char! bitset! any-string!] "Split size, delimiter(s), or rule(s)."
-    /into   "If dlm is an integer, split into n pieces, rather than pieces of length n."
-    /local size piece-size count mk1 mk2 res fill-val add-fill-val
+split: function [
+    "Split series in pieces: fixed/variable size, fixed number, or delimited"
+    series [any-series!]
+        "The series to split"
+    dlm [block! integer! char! bitset! any-string!]
+        "Split size, delimiter(s), or rule(s)."
+    /into
+        "If dlm is integer, split in n pieces rather than pieces of length n."
 ][
-    either all [block? dlm  parse dlm [some integer!]] [
+    either all [block? dlm | parse dlm [some integer!]] [
         map-each len dlm [
             either positive? len [
                 copy/part series series: skip series len
-            ] [
+            ][
                 series: skip series negate len
-                ; return unset so that nothing is added to output
-                ()
+                continue ;-- don't add to output
             ]
         ]
     ][
         size: dlm   ; alias for readability
         res: collect [
             parse series case [
-                all [integer? size  into] [
+                all [integer? size | into] [
                     if size < 1 [cause-error 'Script 'invalid-arg size]
                     count: size - 1
                     piece-size: to integer! round/down divide length series size

@@ -48,6 +48,7 @@ REBOL [
 ;
 unless true = attempt [void? :some-undefined-thing] [
     void?: :unset?
+    void: does []
 
     ; Since it's R3-Alpha or before, go ahead and mention this...
     ;
@@ -88,6 +89,21 @@ unless set? 'blank? [
     blank!: get 'none!
     blank: get 'none
     _: none
+]
+
+unless set? 'proc? [
+    leave: does [
+        do make error! "LEAVE cannot be implemented in usermode R3-Alpha"
+    ]
+
+    ; bypass FUNCTION! return check by using raw MAKE FUNCTION!
+    ;
+    proc: make function! [[spec body][
+        make function! compose/deep [[(spec)][
+            (body)
+            void
+        ]]
+    ]]
 ]
 
 ; ANY-VALUE! is anything that isn't void.  -OPT- ANY-VALUE! is a

@@ -33,16 +33,11 @@ blank: _
 bar: '|
 
 
-; There is no Rebol value representing void, so it cannot be assigned as
-; a word to a literal.  This VOID function is an alternative to `()`
-
-void: func [] [] ;-- DOES not defined yet.
-
-
-eval func [
+eval proc [
     {Make type testing functions (variadic to quote "top-level" words)}
-    :set-word... [[ set-word!]]
-    /local set-word type-name
+    :set-word... [set-word! <...>]
+    <local>
+        set-word type-name
 ][
     while [? set-word: take set-word...] [
         type-name: append (head clear find (spelling-of set-word) {?}) "!"
@@ -124,6 +119,8 @@ eval func [
 ;
 probe: func [
     {Debug print a molded value and returns that same value.}
+    return: [<opt> any-value!]
+        {Same as the input value.}
     value [<opt> any-value!]
         {Value to display.}
 ][
@@ -132,14 +129,13 @@ probe: func [
 ]
 
 
-dump: func [
+dump: proc [
     {Show the name of a value (or block of expressions) with the value itself}
-    return: [<opt> any-value!]
-        {Returns void so as to conveniently "opt-out" of ANY, ALL, etc.}
     'value
-    <local> dump-one item
+    <local>
+        dump-one item
 ][
-    dump-one: func [item][
+    dump-one: proc [item][
         case [
             string? item [
                 print ["---" item "---"] ;-- label it
@@ -174,17 +170,16 @@ dump: func [
     ][
         dump-one value
     ]
-
-    return ()
 ]
 
 
-eval func [
+eval proc [
     {Make reflector functions (variadic to quote "top-level" words)}
-    :set-word... [[ set-word!]]
-    :divider... [[blank!]]
-    :categories... [[string!]]
-    /local set-word categories name
+    :set-word... [set-word! <...>]
+    :divider... [blank! <...>]
+    :categories... [string! <...>]
+    <local>
+        set-word categories name
 ][
     while [any-value? set-word: take set-word...] [
         take divider... ;-- so it doesn't look like we're setting to a string
@@ -196,7 +191,7 @@ eval func [
         set set-word make function! compose/deep [
             [
                 (ajoin [{Returns a copy of the } name { of a } categories {.}])
-                value
+                value [any-value!]
             ][
                 reflect :value (to lit-word! name)
             ]

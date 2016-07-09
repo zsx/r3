@@ -40,63 +40,61 @@ make object! compose [
 
     allowed-flags: _
 
-    process-vector: func [
+    process-vector: procedure [
         flags [block!]
         source [string!]
-        /local test-block exception
-    ] [
+    ][
         log [source]
 
         unless empty? exclude flags allowed-flags [
-            skipped: skipped + 1
+            set 'skipped (skipped + 1)
             log [{ "skipped"^/}]
-            return ()
+            leave
         ]
 
         if error? try [test-block: load source] [
-            test-failures: test-failures + 1
+            set 'test-failures (test-failures + 1)
             log [{ "failed, cannot load test source"^/}]
-            return ()
+            leave
         ]
 
         error? set/opt 'test-block catch-any test-block 'exception
 
         test-block: case [
             exception [rejoin ["failed, " exceptions/:exception]]
-            not logic? get/opt 'test-block ["failed, not a logic value"]
-            :test-block ["succeeded"]
+            not logic? :test-block ["failed, not a logic value"]
+            test-block ["succeeded"]
             true ["failed"]
         ]
 
         recycle
 
         either test-block = "succeeded" [
-            successes: successes + 1
+            set 'successes (successes + 1)
             log [{ "} test-block {"^/}]
-        ] [
-            test-failures: test-failures + 1
+        ][
+            set 'test-failures (test-failures + 1)
             log reduce [{ "} test-block {"^/}]
         ]
     ]
 
     total-tests: 0
 
-    process-tests: func [
+    process-tests: procedure [
         test-sources [block!]
         emit-test [function!]
-        /local value flags
-    ] [
+    ][
         parse test-sources [
             any [
-                set flags block! set value skip (
+                set flags: block! set value: skip (
                     emit-test flags to string! value
                 )
                     |
-                set value file! (log ["^/" mold value "^/^/"])
+                set value: file! (log ["^/" mold value "^/^/"])
                     |
-                'dialect set value string! (
+                'dialect set value: string! (
                     log [value]
-                    dialect-failures: dialect-failures + 1
+                    set 'dialect-failures (dialect-failures + 1)
                 )
             ]
         ]
@@ -201,7 +199,16 @@ make object! compose [
                 last-vector
                 test-sources: find/last/tail test-sources last-vector
             ] [
-                print ["recovering at:" successes + test-failures + crashes + dialect-failures + skipped]
+                print [
+                    "recovering at:"
+                    (
+                        successes
+                        + test-failures
+                        + crashes
+                        + dialect-failures
+                        + skipped
+                    )
+                ]
                 process-tests test-sources :process-vector
                 true
             ]
@@ -215,7 +222,13 @@ make object! compose [
                 "^(line)"
                 "test-checksum: " test-checksum
                 "^(line)"
-                "Total: " successes + test-failures + crashes + dialect-failures + skipped
+                "Total: " (
+                    successes
+                    + test-failures
+                    + crashes
+                    + dialect-failures
+                    + skipped
+                )
                 "^(line)"
                 "Succeeded: " successes
                 "^(line)"

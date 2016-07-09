@@ -28,8 +28,8 @@ do %form-header.r
 do %systems.r
 config: config-system/guess system/options/args
 
-write-if: func [file data] [
-    if data <> attempt [read file][
+write-if: proc [file data] [
+    if data != attempt [read file][
         print ["UPDATE:" file]
         write file data
     ]
@@ -123,11 +123,11 @@ up-word: func [w] [
 
 ;-- Emit Function
 out: make string! 100000
-emit: func [data] [repend out data]
+emit: proc [data] [repend out data]
 
-emit-enum: func [word] [emit [tab to-c-name word "," newline]]
+emit-enum: proc [word] [emit [tab to-c-name word "," newline]]
 
-emit-line: func [prefix word cmt /var /define /code /decl /up1 /local str][
+emit-line: proc [prefix word cmt /var /define /code /decl /up1 /local str][
 
     str: to-c-name word
 
@@ -157,17 +157,17 @@ emit-line: func [prefix word cmt /var /define /code /decl /up1 /local str][
     append out str
 ]
 
-emit-head: func [title [string!] file [file!]] [
+emit-head: proc [title [string!] file [file!]] [
     clear out
     emit form-header/gen title file %make-boot.r
 ]
 
-emit-end: func [/easy] [
+emit-end: proc [/easy] [
     if not easy [remove find/last out #","]
     append out {^};^/}
 ]
 
-remove-tests: func [d] [
+remove-tests: proc [d] [
     while [d: find d #test][remove/part d 2]
 ]
 
@@ -844,13 +844,21 @@ emit {
 
 n: 0
 boot-words: []
-add-word: func [word /skip-if-duplicate /type] [
+add-word: func [
+    ; LEAVE is not available in R3-Alpha compatibility PROC
+    ; RETURN () is not legal in R3-Alpha compatibility FUNC (no RETURN: [...])
+    ; Make it a FUNC and just RETURN blank to appease both
+
+    word
+    /skip-if-duplicate
+    /type
+][
     ;
     ; Horribly inefficient linear search, but MAP! in R3-Alpha is unreliable
     ; and implemented differently, and we want this code to work in it too.
     ;
     if find boot-words word [
-        if skip-if-duplicate [return ()]
+        if skip-if-duplicate [return blank]
         fail ["Duplicate word specified" word]
     ]
 
@@ -864,6 +872,7 @@ add-word: func [word /skip-if-duplicate /type] [
     ; duplicated.  Consider a better way longer term.
     ;
     append boot-words word ;-- was `unless type [...]`
+    return blank
 ]
 
 for-each-record-NO-RETURN type boot-types [
@@ -919,7 +928,7 @@ change/only at-value platform reduce [
 
 ob: has boot-sysobj
 
-make-obj-defs: func [obj prefix depth /selfless /local f] [
+make-obj-defs: proc [obj prefix depth /selfless /local f] [
     uppercase prefix
     emit ["enum " prefix "object {" newline]
 

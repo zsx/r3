@@ -36,7 +36,7 @@ emit-header: func [t f] [emit-out form-header/gen t f %make-headers]
 collapse-whitespace: [some [change some white-space #" " | skip]]
 bind collapse-whitespace c.lexical/grammar
 
-emit-proto: func [proto] [
+emit-proto: proc [proto] [
 
     if find proto "()" [
         print [

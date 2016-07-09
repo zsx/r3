@@ -235,6 +235,8 @@ standard: construct [] [
     ;
     function-meta: construct [] [
         description:
+        return-type:
+        return-note:
         parameter-types:
         parameter-notes:
             _

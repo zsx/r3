@@ -82,7 +82,7 @@ count: func [s c /local n] [
     append output-buffer ")"
 ]
 
-emit-proto: func [
+emit-proto: proc [
     proto
 ] [
 

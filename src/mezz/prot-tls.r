@@ -949,7 +949,7 @@ do-commands: func [
 
 ; TLS scheme
 
-tls-init: func [
+tls-init: proc [
     ctx [object!]
 ] [
     ctx/seq-num-r: 0

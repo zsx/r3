@@ -29,7 +29,7 @@ make object! [
             position: ["{" | {"}] (
                 ; handle string using TRANSCODE
                 success: either error? try [
-                    set/opt 'position second transcode/next position
+                    position: second transcode/next position
                 ] [
                     [end skip]
                 ] [
@@ -53,12 +53,11 @@ make object! [
         ]
     ]
 
-    set 'collect-tests func [
-        collected-tests [block!] {collect the tests here (modified)}
+    set 'collect-tests procedure [
+        collected-tests [block!]
+            {collect the tests here (modified)}
         test-file [file!]
-        /local flags position stop vector value next-position test-sources
-        current-dir
-    ] [
+    ][
         current-dir: what-dir
         print ["file:" mold test-file]
 
@@ -68,19 +67,19 @@ make object! [
                 change-dir first split-path test-file
             ]
             test-sources: read test-file
-        ] [
+        ][
             append collected-tests reduce [
                 test-file 'dialect {^/"failed, cannot read the file"^/}
             ]
             change-dir current-dir
-            return ()
-        ] [
+            leave
+        ][
             change-dir current-dir
             append collected-tests test-file
         ]
 
         flags: copy []
-        unless parse test-sources [
+        rule: [
             any [
                 some whitespace
                     |
@@ -98,7 +97,9 @@ make object! [
                     case [
                         any [
                             error? try [
-                                set/opt [value next-position] transcode/next position
+                                set [value: next-position:] (
+                                    transcode/next position
+                                )
                             ]
                             blank? next-position
                         ] [stop: [:position]]
@@ -118,7 +119,9 @@ make object! [
                     |
                 :next-position
             ]
-        ] [
+        ]
+
+        unless parse test-sources rule [
             append collected-tests reduce [
                 'dialect
                 rejoin [{^/"failed, line: } line-number? position {"^/}]
@@ -126,13 +129,13 @@ make object! [
         ]
     ]
 
-    set 'collect-logs func [
-        collected-logs [block!] {collect the logged results here (modified)}
+    set 'collect-logs function [
+        collected-logs [block!]
+            {collect the logged results here (modified)}
         log-file [file!]
-        /local log-contents last-vector stop value
-    ] [
+    ][
         if error? try [log-contents: read log-file] [
-            make error! rejoin ["Unable to read " mold log-file]
+            fail ["Unable to read " mold log-file]
         ]
 
         parse log-contents [
@@ -141,7 +144,7 @@ make object! [
                 any whitespace
                 [
                     position: "%"
-                    (set/opt [value next-position] transcode/next position)
+                    (set [value: next-position:] transcode/next position)
                     :next-position
                         |
                     ; dialect failure?
@@ -153,7 +156,7 @@ make object! [
                     [
                         end (
                             ; crash found
-                            do make error! "log incomplete!"
+                            fail "log incomplete!"
                         )
                             |
                         {"} copy value to {"} skip
@@ -168,7 +171,7 @@ make object! [
                                     |
                                 "skipped" (value: 'skipped)
                                     |
-                                (do make error! "invalid test result")
+                                (fail "invalid test result")
                             ]
                             append collected-logs reduce [
                                 last-vector
@@ -179,7 +182,7 @@ make object! [
                         |
                     "system/version:" to end (stop: _)
                         |
-                    (do make error! "log file parsing problem")
+                    (fail "log file parsing problem")
                 ] position: stop break
                     |
                 :position

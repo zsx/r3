@@ -27,28 +27,6 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-/*
-    Structure of functions:
-
-        spec - interface spec block
-        body - body code
-        args - args list (see below)
-
-    Args list is a block of word+values:
-
-        word - word, 'word, :word, /word
-        value - typeset! or blank (valid datatypes)
-
-    Args list provides:
-
-        1. specifies arg order, arg kind (e.g. 'word)
-        2. specifies valid datatypes (typesets)
-        3. used for word and type in error output
-        4. used for debugging tools (stack dumps)
-        5. not used for MOLD (spec is used)
-        6. used as a (pseudo) frame of function variables
-
-*/
 
 #include "sys-core.h"
 
@@ -132,13 +110,6 @@ REBARR *List_Func_Typesets(REBVAL *func)
 }
 
 
-inline static void Swap_Values(RELVAL *value1, RELVAL *value2) {
-    REBVAL temp = *KNOWN(value1);
-    *value1 = *KNOWN(value2);
-    *value2 = temp;
-}
-
-
 //
 //  Make_Paramlist_Managed_May_Fail: C
 // 
@@ -186,8 +157,8 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     REBDSP dsp_orig = DSP;
     assert(DS_TOP == DS_AT(dsp_orig));
 
-    RELVAL *definitional_return = NULL;
-    RELVAL *definitional_leave = NULL;
+    REBVAL *definitional_return = NULL;
+    REBVAL *definitional_leave = NULL;
 
     // As we go through the spec block, we push TYPESET! BLOCK! STRING! triples.
     // These will be split out into separate arrays after the process is done.
@@ -215,8 +186,12 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 
     REBOOL refinement_seen = FALSE;
 
-    const RELVAL *item;
-    for (item = VAL_ARRAY_AT(spec); NOT_END(item); item++) {
+    REBFRM f;
+    PUSH_SAFE_ENUMERATOR(&f, spec); // helps deliver better error messages, etc
+
+    while (NOT_END(f.value)) {
+        const RELVAL *item = f.value; // gets "faked", e.g. <return> => RETURN:
+        FETCH_NEXT_ONLY_MAYBE_END(&f); // go ahead and consume next
 
     //=//// STRING! FOR FUNCTION DESCRIPTION OR PARAMETER NOTE ////////////=//
 
@@ -397,13 +372,23 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             DS_PUSH(EMPTY_STRING);
         assert(IS_STRING(DS_TOP));
 
-        // Allow "all datatypes but void".  Note that this is the <opt> sense
-        // of void signal--not the <end> sense, which is controlled by a flag.
+        // By default allow "all datatypes but function and void".  Note that
+        // since void isn't a "datatype" the use of the REB_0 bit is just for
+        // expedience.  Also that there are two senses of void signal...the
+        // typeset REB_0 represents the <opt> sense--not the <end> sense,
+        // which is encoded by TYPESET_FLAG_ENDABLE.
+        //
         // We do not canonize the saved symbol in the paramlist, see #2258.
         //
         DS_PUSH_TRASH;
         REBVAL *typeset = DS_TOP;
-        Val_Init_Typeset(typeset, ~FLAGIT_KIND(REB_0), VAL_WORD_SPELLING(item));
+        Val_Init_Typeset(
+            typeset,
+            (flags & MKF_ANY_VALUE)
+                ? ALL_64
+                : ALL_64 & ~(FLAGIT_64(REB_0) | FLAGIT_64(REB_FUNCTION)),
+            VAL_WORD_SPELLING(item)
+        );
 
         // All these would cancel a definitional return (leave has same idea):
         //
@@ -493,6 +478,8 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             SET_VAL_FLAG(typeset, TYPESET_FLAG_DURABLE);
     }
 
+    DROP_SAFE_ENUMERATOR(&f);
+
     // Go ahead and flesh out the TYPESET! BLOCK! STRING! triples.
     //
     if (IS_TYPESET(DS_TOP))
@@ -518,9 +505,10 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             REBSTR *canon_leave = Canon(SYM_LEAVE);
 
             DS_PUSH_TRASH;
-            definitional_leave = DS_TOP;
             Val_Init_Typeset(DS_TOP, FLAGIT_64(REB_0), canon_leave);
             INIT_VAL_PARAM_CLASS(DS_TOP, PARAM_CLASS_LEAVE);
+            definitional_leave = DS_TOP;
+
             DS_PUSH(EMPTY_BLOCK);
             DS_PUSH(EMPTY_STRING);
         }
@@ -535,10 +523,25 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         if (definitional_return == NULL) { // no RETURN: pure local explicit
             REBSTR *canon_return = Canon(SYM_RETURN);
 
+            // The types in the typeset of a "magic" definitional return are
+            // usually-prohibited typing on a local.  They hold the legal
+            // types for the return.  By default the rules are the same as
+            // for arguments...to help accidentally returning voids or
+            // functions to unsuspecting callers.
+            //
+            // !!! This is an experiment to see what happens.
+            //
             DS_PUSH_TRASH;
+            Val_Init_Typeset(
+                DS_TOP,
+                (flags & MKF_ANY_VALUE)
+                    ? ALL_64
+                    : ALL_64 & ~(FLAGIT_64(REB_0) | FLAGIT_64(REB_FUNCTION)),
+                canon_return
+            );
+            INIT_VAL_PARAM_CLASS(DS_TOP, PARAM_CLASS_RETURN);
             definitional_return = DS_TOP;
-            Val_Init_Typeset(DS_TOP, ALL_64, canon_return);
-            INIT_VAL_PARAM_CLASS(definitional_return, PARAM_CLASS_RETURN);
+
             DS_PUSH(EMPTY_BLOCK);
             DS_PUSH(EMPTY_STRING);
             // no need to move it--it's already at the tail position
@@ -547,9 +550,8 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             assert(VAL_PARAM_CLASS(definitional_return) == PARAM_CLASS_LOCAL);
             INIT_VAL_PARAM_CLASS(definitional_return, PARAM_CLASS_RETURN);
 
-            Swap_Values(DS_TOP - 2, definitional_return);
-            Swap_Values(DS_TOP - 1, definitional_return + 1);
-            Swap_Values(DS_TOP, definitional_return + 2);
+            // definitional_return handled specially when paramlist copied
+            // off of the stack...
         }
         header_bits |= FUNC_FLAG_RETURN;
     }
@@ -584,12 +586,21 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 
         REBVAL *src = DS_AT(dsp_orig + 1) + 3;
 
-        for (; src <= DS_TOP; src += 3, ++dest) {
+        for (; src <= DS_TOP; src += 3) {
             assert(IS_TYPESET(src));
-            *dest = *src;
-
             if (!Try_Add_Binder_Index(&binder, VAL_PARAM_CANON(src), 1020))
                 duplicate = VAL_PARAM_SPELLING(src);
+
+            if (definitional_return && src == definitional_return)
+                continue;
+
+            *dest = *src;
+            ++dest;
+        }
+
+        if (definitional_return) {
+            *dest = *definitional_return;
+            ++dest;
         }
 
         // Must remove binder indexes for all words, even if about to fail
@@ -627,12 +638,14 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //=///////////////////////////////////////////////////////////////////=//
 
     // !!! See notes on FUNCTION-META in %sysobj.r
-    const REBCNT description = 1;
-    const REBCNT parameter_types = 2;
-    const REBCNT parameter_notes = 3;
+    const REBCNT description_index = 1;
+    const REBCNT return_type_index = 2;
+    const REBCNT return_note_index = 3;
+    const REBCNT parameter_types_index = 4;
+    const REBCNT parameter_notes_index = 5;
     REBCTX *meta;
 
-    if (has_description || has_types || has_notes) {
+    if (has_description || has_types || has_notes || (flags & MKF_PUNCTUATES)) {
         meta = Copy_Context_Shallow(VAL_CONTEXT(ROOT_FUNCTION_META));
         MANAGE_ARRAY(CTX_VARLIST(meta));
         ARR_SERIES(paramlist)->link.meta = meta;
@@ -645,7 +658,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //
     if (has_description) {
         assert(IS_STRING(DS_AT(dsp_orig + 3)));
-        *CTX_VAR(meta, 1) = *DS_AT(dsp_orig + 3);
+        *CTX_VAR(meta, description_index) = *DS_AT(dsp_orig + 3);
     }
 
     // Only make `parameter-types` if there were blocks in the spec
@@ -655,29 +668,61 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         SET_ARR_FLAG(types_varlist, ARRAY_FLAG_VARLIST);
         INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(types_varlist), paramlist);
 
-        RELVAL *dest = ARR_HEAD(types_varlist); // rootvar: canon FRAME! value
+        REBVAL *dest = SINK(ARR_HEAD(types_varlist)); // "rootvar"
         VAL_RESET_HEADER(dest, REB_FRAME);
-        dest->payload.any_context.varlist = types_varlist;
+        dest->payload.any_context.varlist = types_varlist; // canon FRAME!
         dest->extra.binding = NULL;
         ++dest;
 
         REBVAL *src = DS_AT(dsp_orig + 2);
         src += 3;
-        for (; src <= DS_TOP; src += 3, ++dest) {
+        for (; src <= DS_TOP; src += 3) {
             assert(IS_BLOCK(src));
+            if (definitional_return && src == definitional_return + 1)
+                continue;
+
             if (VAL_ARRAY_LEN_AT(src) == 0)
                 SET_VOID(dest);
             else
                 *dest = *src;
+            ++dest;
+        }
+
+        if (definitional_return) {
+            //
+            // We put the return note in the top-level meta information, not
+            // on the local itself (the "return-ness" is a distinct property
+            // of the function from what word is used for RETURN:, and it
+            // is possible to use the word RETURN for a local or refinement
+            // argument while having nothing to do with the exit value of
+            // the function.)
+            //
+            if (VAL_ARRAY_LEN_AT(definitional_return + 1) == 0)
+                SET_VOID(CTX_VAR(meta, return_type_index));
+            else
+                *CTX_VAR(meta, return_type_index) = *(definitional_return + 1);
+
+            SET_VOID(dest); // clear the local RETURN: var's description
+            ++dest;
         }
 
         TERM_ARRAY_LEN(types_varlist, num_slots);
         MANAGE_ARRAY(types_varlist);
 
         Val_Init_Context(
-            CTX_VAR(meta, 2), REB_FRAME, AS_CONTEXT(types_varlist)
+            CTX_VAR(meta, parameter_types_index),
+            REB_FRAME,
+            AS_CONTEXT(types_varlist)
         );
     }
+
+    // Enforce BLANK! the return type of all punctuators.  Not to be
+    // confused with returning blank (e.g. a block like [blank!]) and not
+    // to be confused with "no documentation on the matter) e.g. missing
+    // a.k.a. void.  (Should they not be able to have notes either?)
+    //
+    if (flags & MKF_PUNCTUATES)
+        SET_BLANK(CTX_VAR(meta, return_type_index));
 
     // Only make `parameter-notes` if there were strings (besides description)
     //
@@ -686,27 +731,47 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         SET_ARR_FLAG(notes_varlist, ARRAY_FLAG_VARLIST);
         INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(notes_varlist), paramlist);
 
-        RELVAL *dest = ARR_HEAD(notes_varlist); // rootvar: canon FRAME! value
+        REBVAL *dest = SINK(ARR_HEAD(notes_varlist)); // "rootvar"
         VAL_RESET_HEADER(dest, REB_FRAME);
-        dest->payload.any_context.varlist = notes_varlist;
+        dest->payload.any_context.varlist = notes_varlist; // canon FRAME!
         dest->extra.binding = NULL;
         ++dest;
 
         REBVAL *src = DS_AT(dsp_orig + 3);
         src += 3;
-        for (; src <= DS_TOP; src += 3, ++dest) {
+        for (; src <= DS_TOP; src += 3) {
             assert(IS_STRING(src));
+            if (definitional_return && src == definitional_return + 2)
+                continue;
+
             if (SER_LEN(VAL_SERIES(src)) == 0)
                 SET_VOID(dest);
             else
                 *dest = *src;
+            ++dest;
+        }
+
+        if (definitional_return) {
+            //
+            // See remarks on the return type--the RETURN is documented in
+            // the top-level META-OF, not the "incidentally" named RETURN
+            // parameter in the list
+            //
+            if (SER_LEN(VAL_SERIES(definitional_return + 2)) == 0)
+                SET_VOID(CTX_VAR(meta, return_note_index));
+            else
+                *CTX_VAR(meta, return_note_index) = *(definitional_return + 2);
+            SET_VOID(dest);
+            ++dest;
         }
 
         TERM_ARRAY_LEN(notes_varlist, num_slots);
         MANAGE_ARRAY(notes_varlist);
 
         Val_Init_Context(
-            CTX_VAR(meta, 3), REB_FRAME, AS_CONTEXT(notes_varlist)
+            CTX_VAR(meta, parameter_notes_index),
+            REB_FRAME,
+            AS_CONTEXT(notes_varlist)
         );
     }
 
@@ -925,9 +990,11 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 // 
 //     make function! copy/deep reduce [spec body]
 // 
-// Not only does Ren/C's `make function!` already copy the spec and body,
-// but FUNC and CLOS "use the internals to cheat".  They analyze and edit
-// the spec, then potentially build an entity whose full "body" acts like:
+// Ren/C's `make function!` doesn't need to copy the spec (it does not save
+// it--parameter descriptions are in a meta object).  It also copies the body
+// by virtue of the need to relativize it.  They also have "definitional
+// return" constructs so that the body introduces RETURN and LEAVE constructs
+// specific to each function invocation, so the body acts more like:
 // 
 //     return: make function! [
 //         [{Returns a value from a function.} value [<opt> any-value!]]
@@ -936,31 +1003,16 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 //     (body goes here)
 // 
 // This pattern addresses "Definitional Return" in a way that does not
-// technically require building RETURN in as a language keyword in any
-// specific form.  FUNC and CLOS optimize by not internally building
-// or executing the equivalent body, but giving it back from BODY-OF.
-// 
-// NOTES:
-// 
-// The spec and body are copied--even for MAKE FUNCTION!--because:
-// 
-//    (a) It prevents tampering with the spec after it has been analyzed
-//        by Make_Paramlist_Managed().  Such changes to the spec will not be
-//        reflected in the actual behavior of the function.
-// 
-//    (b) The BLOCK! values inside the make-spec may actually be imaging
-//        series at an index position besides the series head.  However,
-//        the REBVAL for a FUNCTION! contains only three REBSER slots--
-//        all in use, with no space for offsets.  A copy must be made
-//        to truncate to the intended spec and body start (unless one
-//        is willing to raise errors on non-head position series :-/)
-// 
-//    (c) Copying the root of the series into a series the user cannot
-//        access makes it possible to "lie" about what the body "above"
-//        is.  This gives FUNC and CLOS the edge to pretend to add
-//        containing code and simulate its effects, while really only
-//        holding onto the body the caller provided.  This trick may
-//        prove useful for other optimizing generators.
+// technically require building RETURN or LEAVE in as a language keyword in
+// any specific form (in the sense that MAKE FUNCTION! does not itself
+// require it, and one can pretend FUNC and PROC don't exist).
+//
+// FUNC and PROC optimize by not internally building or executing the
+// equivalent body, but giving it back from BODY-OF.  This is another benefit
+// of making a copy--since the user cannot access the new root, it makes it
+// possible to "lie" about what the body "above" is.  This gives FUNC and PROC
+// the edge to pretend to add containing code and simulate its effects, while
+// really only holding onto the body the caller provided.
 // 
 // While MAKE FUNCTION! has no RETURN, all functions still have EXIT as a
 // non-definitional alternative.  Ren/C adds a /WITH refinement so it can
@@ -969,10 +1021,6 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 // not having definitional return has several alternate options for generators
 // that wish to use them.
 // 
-// This function will either successfully place a function value into
-// `out` or not return...as a failed check on a function spec is
-// raised as an error.
-//
 REBFUN *Make_Plain_Function_May_Fail(
     const REBVAL *spec,
     const REBVAL *code,
@@ -1536,7 +1584,7 @@ REBNATIVE(func)
     PARAM(2, body);
 
     REBFUN *fun = Make_Plain_Function_May_Fail(
-        ARG(spec), ARG(body), MKF_RETURN | MKF_LEAVE | MKF_KEYWORDS
+        ARG(spec), ARG(body), MKF_RETURN | MKF_KEYWORDS
     );
 
     *D_OUT = *FUNC_VALUE(fun);

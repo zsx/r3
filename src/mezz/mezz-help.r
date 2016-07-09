@@ -118,6 +118,20 @@ spec-of: function [
         new-line back spec true
     ]
 
+    return-type: maybe block! any [
+        select meta 'return-type
+        select original-meta 'return-type
+    ]
+    return-note: maybe string! any [
+        select meta 'return-note
+        select original-meta 'return-note
+    ]
+    if return-type or return-note [
+        append spec quote return:
+        if return-type [append/only spec return-type]
+        if return-note [append spec return-note]
+    ]
+
     types: maybe frame! any [
         select meta 'parameter-types
         select original-meta 'parameter-types
@@ -129,8 +143,8 @@ spec-of: function [
 
     for-each param words-of :value [
         append spec param
-        if type: select types param [append/only spec type]
-        if note: select notes param [append spec note]
+        if any [type: select types param] [append/only spec type]
+        if any [note: select notes param] [append spec note]
     ]
 
     return spec
@@ -373,6 +387,8 @@ help: procedure [
     fields: dig-function-meta-fields :value
 
     description: fields/description
+    return-type: :fields/return-type
+    return-note: fields/return-note
     types: fields/parameter-types
     notes: fields/parameter-notes
 
@@ -454,6 +470,22 @@ help: procedure [
 
             if note [
                 print [[space4 space4 note]]
+            ]
+        ]
+    ]
+
+    ; Always make a note about the return value if there's no explicit
+    ; indication about it being a procedure...even to say it's undocumented.
+    ;
+    ; !!! Should it say "RETURNS: void"?  Concept is that's wasteful.
+    ;
+    unless blank? :return-type [
+        print [newline "RETURNS:" if set? 'return-type [mold return-type]]
+        either return-note [
+            print [[space4 return-note]]
+        ][
+            if not set? 'return-type [
+                print [[space4 "(undocumented)"]]
             ]
         ]
     ]

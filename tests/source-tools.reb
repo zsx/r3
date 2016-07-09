@@ -163,7 +163,7 @@ rebsource: context [
                 emit [malloc (file) (malloc)]
             ]
 
-            emit-proto: function [proto][
+            emit-proto: procedure [proto][
                 if all [
                     'format2015 = proto-parser/style
                     block? proto-parser/data

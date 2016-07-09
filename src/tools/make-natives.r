@@ -24,7 +24,7 @@ verbose: false
 
 unsorted-buffer: make string! 20000
 
-emit-proto: func [proto] [
+emit-proto: proc [proto] [
 
     if all [
         'format2015 = proto-parser/style

@@ -301,6 +301,7 @@ load-ext-module: function [
             cmd-index: 0
             command: func [
                 "Define a new command for an extension."
+                return: [function!]
                 args [integer! block!]
             ][
                 ; (contains module-local variables)

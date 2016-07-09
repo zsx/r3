@@ -540,6 +540,8 @@ static void Init_Natives(void)
     {
         REBCTX *function_meta = Alloc_Context(3);
         Append_Context(function_meta, NULL, Canon(SYM_DESCRIPTION));
+        Append_Context(function_meta, NULL, Canon(SYM_RETURN_TYPE));
+        Append_Context(function_meta, NULL, Canon(SYM_RETURN_NOTE));
         Append_Context(function_meta, NULL, Canon(SYM_PARAMETER_TYPES));
         Append_Context(function_meta, NULL, Canon(SYM_PARAMETER_NOTES));
         REBVAL *rootvar = CTX_VALUE(function_meta);

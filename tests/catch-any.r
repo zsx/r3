@@ -16,6 +16,7 @@ Rebol [
 make object! [
     do-block: func [
         ; helper for catching BREAK, CONTINUE, THROW or QUIT
+        return: [<opt> any-value!]
         block [block!]
         exception [word!]
         /local result
@@ -52,10 +53,14 @@ make object! [
 
     set 'catch-any func [
         {catches any REBOL exception}
+        return: [<opt> any-value!]
         block [block!] {block to evaluate}
         exception [word!] {used to return the exception type}
         /local result
-    ] either rebol/version >= 2.100.0 [[
+    ][
+        ; !!! outdated comment, RETURN/REDO no longer exists, look into what
+        ; this was supposed to be for.  --HF
+
         ; catch RETURN, EXIT and RETURN/REDO
         ; using the DO-BLOCK helper call
         ; the helper call is enclosed in a block
@@ -68,34 +73,12 @@ make object! [
             catch/quit [
                 try [
                     catch [
-                        loop 1 [set/opt 'result do-block block exception]
+                        loop 1 [result: do-block block exception]
                     ]
                 ]
             ]
         ]
-        either get exception [()] [:result]
-    ]] [[
-        error? set/opt 'result catch [
-            error? set/opt 'result loop 1 [
-                error? result: try [
-                    ; RETURN or EXIT
-                    set exception 'return
-                    set/opt 'result do block
-
-                    ; no exception
-                    set exception blank
-                    return get/opt 'result
-                ]
-                ; an error was triggered
-                set exception 'error
-                return result
-            ]
-            ; BREAK
-            set exception 'break
-            return get/opt 'result
-        ]
-        ; THROW
-        set exception 'throw
-        return get/opt 'result
-    ]]
+        if get exception [return ()]
+        return :result
+    ]
 ]

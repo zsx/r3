@@ -101,7 +101,7 @@ void MAKE_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     // code (though round-tripping it via text is not possible in
     // general in any case due to loss of bindings.)
     //
-    REBFUN *fun = Make_Plain_Function_May_Fail(&spec, &body, MKF_NONE);
+    REBFUN *fun = Make_Plain_Function_May_Fail(&spec, &body, MKF_ANY_VALUE);
 
     *out = *FUNC_VALUE(fun);
 }

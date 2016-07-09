@@ -37,6 +37,7 @@ REBOL [
 live-asserts-map: make map! []
 
 assert-debug: function [
+    return: [<opt> any-value!]
     conditions [block!]
         {Conditions to check (or meta instructions if /META)}
     /meta
@@ -78,7 +79,7 @@ assert-debug: function [
                 conditions
             ]
         ]
-        leave
+        return ()
     ]
 
     active: true
@@ -113,7 +114,7 @@ assert-debug: function [
         conditions: pos ;-- move to next expression position and continue
     ]
 
-    () ;-- void result by default
+    return if quiet [blank] ;-- void is return default
 ]
 
 ; !!! If a debug mode were offered, you'd want to be able to put back ASSERT

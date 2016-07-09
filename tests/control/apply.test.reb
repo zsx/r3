@@ -50,18 +50,49 @@
     [1 + 2] = (eval/only :a 1 + 2)
 ]
 
-[void? r3-alpha-apply func [x [<opt> any-value!]] [get/opt 'x] [()]]
-[void? r3-alpha-apply func ['x [<opt> any-value!]] [get/opt 'x] [()]]
-[void? r3-alpha-apply func ['x [<opt> any-value!]] [get/opt 'x] [()]]
-[void? r3-alpha-apply func [x [<opt> any-value!]] [return get/opt 'x] [()]]
-[void? r3-alpha-apply func ['x [<opt> any-value!]] [return get/opt 'x] [()]]
+[
+    void? r3-alpha-apply func [
+        return: [<opt> any-value!]
+        x [<opt> any-value!]
+    ][
+        get/opt 'x
+    ][
+        ()
+    ]
+][
+    void? r3-alpha-apply func [
+        return: [<opt> any-value!]
+        'x [<opt> any-value!]
+    ][
+        get/opt 'x
+    ][
+        ()
+    ]
+][
+    void? r3-alpha-apply func [
+        return: [<opt> any-value!]
+        x [<opt> any-value!]
+    ][
+        return get/opt 'x
+    ][
+        ()
+    ]
+][
+    void? r3-alpha-apply func [
+        return: [<opt> any-value!]
+        'x [<opt> any-value!]
+    ][
+        return get/opt 'x
+    ][
+        ()
+    ]
+]
 [error? r3-alpha-apply func ['x [<opt> any-value!]] [return get/opt 'x] [make error! ""]]
 [
     error? r3-alpha-apply/only func [x [<opt> any-value!]] [
         return get/opt 'x
     ] head insert copy [] make error! ""
-]
-[
+][
     error? r3-alpha-apply/only func ['x [<opt> any-value!]] [
         return get/opt 'x
     ] head insert copy [] make error! ""

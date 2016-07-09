@@ -874,6 +874,8 @@ REBOOL Make_Error_Object_Throws(
 //
 REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
 {
+    assert(code != 0);
+
 #if !defined(NDEBUG)
     //
     // The legacy error mechanism expects us to have exactly three fields
@@ -884,29 +886,21 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
     const REBSYM *arg1_arg2_arg3 = legacy_data;
 #endif
 
-    REBCTX *root_error;
-
-    REBCTX *error;
-    ERROR_VARS *vars; // C struct mirroring fixed portion of error fields
-    REBCNT expected_args;
-
-    REBVAL *message;
-    REBVAL id;
-    REBVAL type;
-
-    assert(code != 0);
-
     if (PG_Boot_Phase < BOOT_ERRORS) {
         Panic_Core(code, NULL, vaptr);
         DEAD_END;
     }
 
     // Safe to initialize the root error now...
-    root_error = VAL_CONTEXT(ROOT_ERROBJ);
 
-    message = Find_Error_For_Code(&id, &type, code);
+    REBCTX *root_error = VAL_CONTEXT(ROOT_ERROBJ);
+
+    REBVAL id;
+    REBVAL type;
+    REBVAL *message = Find_Error_For_Code(&id, &type, code);
     assert(message);
 
+    REBCNT expected_args;
     if (IS_BLOCK(message)) {
         // For a system error coming from a C va_list call, the # of
         // GET-WORD!s in the format block should match the va_list supplied.
@@ -947,6 +941,7 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
     }
 #endif
 
+    REBCTX *error;
     if (expected_args == 0) {
         // If there are no arguments, we don't need to make a new keylist...
         // just a new varlist to hold this instance's settings. (root
@@ -961,10 +956,6 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
     }
     else {
         REBCNT root_len = CTX_LEN(root_error);
-        REBVAL *key;
-        REBVAL *value;
-        const RELVAL *temp;
-        REBSER *keylist;
 
         // Should the error be well-formed, we'll need room for the new
         // expected values *and* their new keys in the keylist.
@@ -982,16 +973,19 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
         TERM_ARRAY_LEN(CTX_VARLIST(error), root_len + expected_args + 1);
         TERM_ARRAY_LEN(CTX_KEYLIST(error), root_len + expected_args + 1);
 
-        key = CTX_KEY(error, root_len) + 1;
-        value = CTX_VAR(error, root_len) + 1;
+        REBVAL *key = CTX_KEY(error, root_len) + 1;
+        REBVAL *value = CTX_VAR(error, root_len) + 1;
 
     #ifdef NDEBUG
-        temp = VAL_ARRAY_HEAD(message);
+        const RELVAL *temp = VAL_ARRAY_HEAD(message);
     #else
         // Will get here even for a parameterless string due to throwing in
         // the extra "arguments" of the __FILE__ and __LINE__
         //
-        temp = IS_STRING(message) ? END_CELL : VAL_ARRAY_HEAD(message);
+        const RELVAL *temp =
+            IS_STRING(message)
+                ? END_CELL
+                : VAL_ARRAY_HEAD(message);
     #endif
 
         while (NOT_END(temp)) {
@@ -1110,7 +1104,9 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
         assert(IS_END(value)); // ...same
     }
 
-    vars = ERR_VARS(error);
+    // C struct mirroring fixed portion of error fields
+    //
+    ERROR_VARS *vars = ERR_VARS(error);
 
     // Set error number:
     SET_INTEGER(&vars->code, code);
@@ -1509,6 +1505,22 @@ REBCTX *Error_Arg_Type(
         &param_word,
         END_CELL
     );
+}
+
+
+//
+//  Error_Bad_Return_Type: C
+//
+REBCTX *Error_Bad_Return_Type(REBSTR *label, enum Reb_Kind kind) {
+    REBVAL label_word;
+    Val_Init_Word(&label_word, REB_WORD, label);
+
+    if (kind == REB_0)
+        return Error(RE_NEEDS_RETURN_VALUE, &label_word, END_CELL);
+
+    REBVAL *datatype = Get_Type(kind);
+    assert(IS_DATATYPE(datatype));
+    return Error(RE_BAD_RETURN_TYPE, &label_word, datatype, END_CELL);
 }
 
 

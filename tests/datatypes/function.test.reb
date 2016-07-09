@@ -270,7 +270,7 @@
 [lf: func ['x] [:x] 30 == lf (10 + 20)]
 [lf: func ['x] [:x] o: context [f: 10] 10 == lf :o/f]
 ; basic test for recursive function! invocation
-[i: 0 countdown: func [n] [if n > 0 [++ i countdown n - 1]] countdown 10 i = 10]
+[i: 0 countdown: proc [n] [if n > 0 [++ i countdown n - 1]] countdown 10 i = 10]
 
 ; In Ren-C's specific binding, a function-local word that escapes the
 ; function's extent cannot be used when re-entering the same function later

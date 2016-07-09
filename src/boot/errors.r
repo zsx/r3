@@ -164,6 +164,9 @@ Script: [
     bad-func-def:       [{invalid function definition:} :arg1]
     bad-func-arg:       [{function argument} :arg1 {is not valid}] ; can be a number
 
+    needs-return-value: [:arg1 {must return value (use PROC or RETURN: <opt>)}]
+    bad-return-type:    [:arg1 {doesn't have RETURN: enabled for} :arg2]
+
     no-refine:          [:arg1 {has no refinement called} :arg2]
     bad-refines:        {incompatible or invalid refinements}
     bad-refine:         [{incompatible or duplicate refinement:} :arg1]

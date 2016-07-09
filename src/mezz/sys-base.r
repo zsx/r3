@@ -28,6 +28,7 @@ action: _ ; for boot only
 
 do*: function [
     {SYS: Called by system for DO on datatypes that require special handling.}
+    return: [<opt> any-value!]
     value [file! url! string! binary! tag!]
     args [logic!]
         "Positional workaround of /ARGS"

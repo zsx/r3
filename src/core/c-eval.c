@@ -39,7 +39,7 @@
 // * Do_Core() is a very long routine.  That is largely on purpose, because it
 //   doesn't contain repeated portions.  If it were broken into functions that
 //   would add overhead for little benefit, and prevent interesting tricks
-//   and optimizations.  Note that it is broken down into sections, and
+//   and optimizations.  Note that it is separated into sections, and
 //   the invariants in each section are made clear with comments and asserts.
 //
 // * The evaluator only moves forward, and it consumes exactly one element
@@ -665,6 +665,9 @@ reevaluate:;
             //
             f->func = NAT_FUNC(eval);
             f->param = FUNC_PARAM(NAT_FUNC(eval), 1);
+
+            f->stackvars = NULL;
+            f->varlist = NULL;
 
             // "DO/NEXT" full expression into the `eval` REBVAR slot
             // (updates index...).  (There is an /ONLY switch to suppress
@@ -1521,36 +1524,39 @@ reevaluate:;
                 goto finished; // stay THROWN and try to exit frames above...
             }
         }
+        else {
+            // Here we know the function finished and did not throw or exit.
+            // If it has a definitional return, we process the type checking
+            // even on values that just "fall out the bottom"...because that
+            // is what the "fake body" would do of a typed definitional
+            // return construct.  And if it has punctuates we have to squash
+            // whatever the last evaluative result was and return no value.
+
+            if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_PUNCTUATES)) {
+                SET_VOID(f->out);
+            }
+            else if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_RETURN)) {
+                f->param = FUNC_PARAM(f->func, FUNC_NUM_PARAMS(f->func));
+                assert(VAL_PARAM_SYM(f->param) == SYM_RETURN);
+
+                // The type bits of the definitional return are not applicable
+                // to the `return` word being associated with a FUNCTION!
+                // vs. an INTEGER! (for instance).  It is where the type
+                // information for the non-existent return function specific
+                // to this call is hidden.
+                //
+                if (!TYPE_CHECK(f->param, VAL_TYPE(f->out))) {
+                    f->param = END_CELL;
+                    fail (Error_Bad_Return_Type(f->label, VAL_TYPE(f->out)));
+                }
+            }
+        }
 
     //==////////////////////////////////////////////////////////////////==//
     //
-    // FUNCTION! CALL COMPLETION (Type Check Result, Throw If Needed)
+    // FUNCTION! CALL COMPLETION
     //
     //==////////////////////////////////////////////////////////////////==//
-
-        // Here we know the function finished and did not throw or exit.  If
-        // it has a definitional return we need to type check it--and if it
-        // has punctuates we have to squash whatever the last evaluative
-        // result was and return no value
-
-        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_PUNCTUATES)) {
-            SET_VOID(f->out);
-        }
-        else if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_RETURN)) {
-            f->param = FUNC_PARAM(f->func, FUNC_NUM_PARAMS(f->func));
-            assert(VAL_PARAM_SYM(f->param) == SYM_RETURN);
-
-            // The type bits of the definitional return are not applicable
-            // to the `return` word being associated with a FUNCTION!
-            // vs. an INTEGER! (for instance).  It is where the type
-            // information for the non-existent return function specific
-            // to this call is hidden.
-            //
-            if (!TYPE_CHECK(f->param, VAL_TYPE(f->out)))
-                fail (Error_Arg_Type(
-                    VAL_PARAM_SPELLING(f->param), f->param, VAL_TYPE(f->out))
-                );
-        }
 
         Drop_Function_Args_For_Frame(f); // currently can't error after this
 

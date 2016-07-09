@@ -79,8 +79,10 @@ types
 title
 ;addr already defined
 
-; !!! See notes on FUNCTION-META in %sysobj.r
+; !!! See notes on FUNCTION-META and SPECIALIZER-META in %sysobj.r
 description
+return-type
+return-note
 parameter-types
 parameter-notes
 specializee

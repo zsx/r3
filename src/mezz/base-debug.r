@@ -16,7 +16,7 @@ REBOL [
     }
 ]
 
-boot-print: function [
+boot-print: procedure [
     "Prints during boot when not quiet."
     data
     /eval
@@ -29,7 +29,7 @@ boot-print: function [
     ]
 ]
 
-loud-print: function [
+loud-print: procedure [
     "Prints during boot when verbose."
     data
     /eval

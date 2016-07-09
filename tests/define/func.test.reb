@@ -1,11 +1,13 @@
 ; functions/define/func.r
 ; recursive safety
 [
-    f: func [] [
+    f: func [return: [function!]] [
         func [x] [
-            if x = 1 [
+            either x = 1 [
                 eval f 2
                 x = 1
+            ][
+                false
             ]
         ]
     ]

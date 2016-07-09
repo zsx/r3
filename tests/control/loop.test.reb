@@ -56,12 +56,14 @@
 [
     f: func [x] [
         loop 1 [
-            if x = 1 [
+            either x = 1 [
                 use [break] [
                     break: 1
                     f 2
                     1 = get/opt 'break
                 ]
+            ][
+                false
             ]
         ]
     ]

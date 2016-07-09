@@ -734,8 +734,8 @@ REBNATIVE(in)
 //  
 //  {Returns true if both values are conditionally true (no "short-circuit")}
 //  
-//      value1
-//      value2
+//      value1 [any-value!]
+//      value2 [any-value!]
 //  ]
 //
 REBNATIVE(and_q)
@@ -752,8 +752,8 @@ REBNATIVE(and_q)
 //
 //  {Returns true if both values are conditionally false (no "short-circuit")}
 //
-//      value1
-//      value2
+//      value1 [any-value!]
+//      value2 [any-value!]
 //  ]
 //
 REBNATIVE(nor_q)
@@ -773,8 +773,8 @@ REBNATIVE(nor_q)
 //
 //  {Returns false if both values are conditionally true (no "short-circuit")}
 //
-//      value1
-//      value2
+//      value1 [any-value!]
+//      value2 [any-value!]
 //  ]
 //
 REBNATIVE(nand_q)
@@ -794,7 +794,8 @@ REBNATIVE(nand_q)
 //  
 //  "Returns the logic complement."
 //  
-//      value "(Only FALSE and NONE return TRUE)"
+//      value [any-value!]
+//          "(Only LOGIC!'s FALSE and BLANK! return TRUE)"
 //  ]
 //
 REBNATIVE(not_q)
@@ -808,8 +809,8 @@ REBNATIVE(not_q)
 //  
 //  {Returns true if either value is conditionally true (no "short-circuit")}
 //  
-//      value1
-//      value2
+//      value1 [any-value!]
+//      value2 [any-value!]
 //  ]
 //
 REBNATIVE(or_q)
@@ -826,8 +827,8 @@ REBNATIVE(or_q)
 //  
 //  {Returns true if only one of the two values is conditionally true.}
 //  
-//      value1
-//      value2
+//      value1 [any-value!]
+//      value2 [any-value!]
 //  ]
 //
 REBNATIVE(xor_q)

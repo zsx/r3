@@ -18,12 +18,9 @@ do %test-framework.r
 ; Example runner for the REBOL/Core tests which chooses
 ; appropriate flags depending on the interpreter version.
 
-do-core-tests: func [
-    <local>
-    flags result log-file summary interpreter-checksum log-file-prefix
-] [
+do-core-tests: procedure [] [
     ; Check if we run R3 or R2.
-    set 'flags pick [
+    flags: pick [
         [#64bit #r3only #r3]
         [#32bit #r2only]
     ] not blank? in system 'catalog

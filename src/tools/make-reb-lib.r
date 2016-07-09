@@ -52,7 +52,7 @@ emit:  func [d] [append repend xlib-buffer d newline]
 emit-rlib: func [d] [append repend rlib-buffer d newline]
 emit-dlib: func [d] [append repend dlib-buffer d newline]
 emit-comment: func [d] [append repend comments-buffer d newline]
-emit-mlib: func [d /nol] [
+emit-mlib: proc [d /nol] [
     repend mlib-buffer d
     if not nol [append mlib-buffer newline]
 ]
@@ -120,7 +120,7 @@ pads: func [start col] [
     head insert/dup str #" " col
 ]
 
-emit-proto: func [
+emit-proto: proc [
     proto
 ] [
 
@@ -168,8 +168,8 @@ process: func [file] [
     proto-parser/process data
 ]
 
-write-if: func [file data] [
-    if data <> attempt [to string! read file][
+write-if: proc [file data] [
+    if data != attempt [to string! read file][
         print ["UPDATE:" file]
         write file data
     ]
