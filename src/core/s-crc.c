@@ -181,12 +181,12 @@ static void Make_CRC32_Table(void);
 // 
 // Fails if datatype cannot be hashed.
 //
-REBCNT Hash_Value(const RELVAL *val, REBCTX *specifier)
+REBCNT Hash_Value(const RELVAL *v, REBCTX *specifier)
 {
     REBCNT ret;
     const REBYTE *name;
 
-    switch(VAL_TYPE(val)) {
+    switch(VAL_TYPE(v)) {
     case REB_0:
         //
         // While a void might technically be hashed, it can't be a value *or*
@@ -202,7 +202,7 @@ REBCNT Hash_Value(const RELVAL *val, REBCTX *specifier)
         break;
 
     case REB_LOGIC:
-        ret = VAL_LOGIC(val) ? 1 : 0;
+        ret = VAL_LOGIC(v) ? 1 : 0;
         break;
 
     case REB_INTEGER:
@@ -211,35 +211,38 @@ REBCNT Hash_Value(const RELVAL *val, REBCTX *specifier)
         // bits collapses -1 with 0 etc.  (If your key k is |k| < 2^32 high
         // bits are 0-informative." -Giulio
         //
-        ret = cast(REBCNT, VAL_INT64(val));
+        ret = cast(REBCNT, VAL_INT64(v));
         break;
 
     case REB_DECIMAL:
     case REB_PERCENT:
         // depends on INT64 sharing the DEC64 bits
-        ret = (VAL_INT64(val) >> 32) ^ (VAL_INT64(val));
+        ret = (VAL_INT64(v) >> 32) ^ (VAL_INT64(v));
         break;
 
     case REB_MONEY:
-        ret = VAL_ALL_BITS(val)[0] ^ VAL_ALL_BITS(val)[1] ^ VAL_ALL_BITS(val)[2];
+        ret = VAL_ALL_BITS(v)[0] ^ VAL_ALL_BITS(v)[1] ^ VAL_ALL_BITS(v)[2];
         break;
 
     case REB_CHAR:
-        ret = LO_CASE(VAL_CHAR(val));
+        ret = LO_CASE(VAL_CHAR(v));
         break;
 
     case REB_PAIR:
-        ret = (VAL_ALL_BITS(val)[0] << 16) ^ (VAL_ALL_BITS(val)[0] >> 16) ^ (VAL_ALL_BITS(val)[1]);
+        ret = (VAL_ALL_BITS(v)[0] << 16)
+            ^ (VAL_ALL_BITS(v)[0] >> 16)
+            ^ (VAL_ALL_BITS(v)[1]);
         break;
 
     case REB_TUPLE:
-        ret = Hash_String(VAL_TUPLE(val), VAL_TUPLE_LEN(val), 1);
+        ret = Hash_String(VAL_TUPLE(v), VAL_TUPLE_LEN(v), 1);
         break;
 
     case REB_TIME:
     case REB_DATE:
-        ret = (REBCNT)(VAL_TIME(val) ^ (VAL_TIME(val) / SEC_SEC));
-        if (IS_DATE(val)) ret ^= VAL_DATE(val).bits;
+        ret = cast(REBCNT, VAL_TIME(v) ^ (VAL_TIME(v) / SEC_SEC));
+        if (IS_DATE(v))
+            ret ^= VAL_DATE(v).bits;
         break;
 
     case REB_BINARY:
@@ -248,7 +251,11 @@ REBCNT Hash_Value(const RELVAL *val, REBCTX *specifier)
     case REB_EMAIL:
     case REB_URL:
     case REB_TAG:
-        ret = Hash_String(VAL_RAW_DATA_AT(val), VAL_LEN_HEAD(val), SER_WIDE(VAL_SERIES(val)));
+        ret = Hash_String(
+            VAL_RAW_DATA_AT(v),
+            VAL_LEN_HEAD(v),
+            SER_WIDE(VAL_SERIES(v))
+        );
         break;
 
     case REB_BLOCK:
@@ -258,18 +265,23 @@ REBCNT Hash_Value(const RELVAL *val, REBCTX *specifier)
     case REB_GET_PATH:
     case REB_LIT_PATH:
         //
-        // Using an array in a map if it is mutable, and then comparing by
-        // value (vs. comparing identity with SAME?), would require making
-        // a deep copy of that array.  This has been considered too expensive.
+        // !!! Lame hash just to get it working.  There will be lots of
+        // collisions.  Intentionally bad to avoid writing something that
+        // is less obviously not thought out.
         //
-        // !!! There could be ways to make this work...such as allowing
-        // a PROTECT/DEEP array to be locked and stay locked as the key...
-        // and then have a lightweight hash of it.  Review if needed.
+        // Whatever hash is used must be able to match lax equality.  So it
+        // could hash all the values case-insensitively, or the first N values,
+        // or something.
         //
-        fail (Error_Invalid_Type(VAL_TYPE(val)));
+        // Note that if there is a way to mutate this array, there will be
+        // problems.  Do not hash mutable arrays unless you are sure hashings
+        // won't cross a mutation.
+        //
+        ret = ARR_LEN(VAL_ARRAY(v));
+        break;
 
     case REB_DATATYPE:
-        name = STR_HEAD(Canon(VAL_TYPE_SYM(val)));
+        name = STR_HEAD(Canon(VAL_TYPE_SYM(v)));
         ret = Hash_Word(name, LEN_BYTES(name));
         break;
 
@@ -282,17 +294,26 @@ REBCNT Hash_Value(const RELVAL *val, REBCTX *specifier)
         //
         // !!! Why not?
         //
-        fail (Error_Invalid_Type(VAL_TYPE(val)));
+        fail (Error_Invalid_Type(VAL_TYPE(v)));
 
     case REB_WORD:
     case REB_SET_WORD:
     case REB_GET_WORD:
     case REB_LIT_WORD:
     case REB_REFINEMENT:
-    case REB_ISSUE:
-        // !!! Review
-        ret = cast(REBCNT, cast(REBUPT, VAL_WORD_CANON(val)) >> 4);
-        break;
+    case REB_ISSUE: {
+        //
+        // Note that the canon symbol may change for a group of word synonyms
+        // if that canon is GC'd--it picks another synonym.  Thus the pointer
+        // of the canon cannot be used as a long term hash.  A case insensitive
+        // hashing of the word spelling itself is needed.
+        //
+        // !!! Should this hash be cached on the words somehow, e.g. in the
+        // data payload before the actual string?
+        //
+        REBSTR *spelling = VAL_WORD_SPELLING(v);
+        ret = Hash_Word(STR_HEAD(spelling), LEN_BYTES(STR_HEAD(spelling)));
+        break; }
 
     case REB_FUNCTION:
         //
@@ -300,7 +321,7 @@ REBCNT Hash_Value(const RELVAL *val, REBCTX *specifier)
         // immutable once created, it is legal to put them in hashes.  The
         // VAL_FUNC is the paramlist series, guaranteed unique per function
         //
-        ret = cast(REBCNT, cast(REBUPT, VAL_FUNC(val)) >> 4);
+        ret = cast(REBCNT, cast(REBUPT, VAL_FUNC(v)) >> 4);
         break;
 
     case REB_FRAME:
@@ -320,7 +341,7 @@ REBCNT Hash_Value(const RELVAL *val, REBCTX *specifier)
         // However, since it was historically allowed it is allowed for
         // all ANY-CONTEXT! types at the moment.
         //
-        ret = cast(REBCNT, cast(REBUPT, VAL_CONTEXT(val)) >> 4);
+        ret = cast(REBCNT, cast(REBUPT, VAL_CONTEXT(v)) >> 4);
         break;
 
     case REB_MAP:
@@ -330,7 +351,7 @@ REBCNT Hash_Value(const RELVAL *val, REBCTX *specifier)
         // (Again this will just find the map by identity, not by comparing
         // the values of one against the values of the other...)
         //
-        ret = cast(REBCNT, cast(REBUPT, VAL_MAP(val)) >> 4);
+        ret = cast(REBCNT, cast(REBUPT, VAL_MAP(v)) >> 4);
         break;
 
     case REB_TASK:
@@ -342,7 +363,7 @@ REBCNT Hash_Value(const RELVAL *val, REBCTX *specifier)
         //
         // !!! Review hashing behavior or needs of these types if necessary.
         //
-        fail (Error_Invalid_Type(VAL_TYPE(val)));
+        fail (Error_Invalid_Type(VAL_TYPE(v)));
 
     default:
         assert(FALSE); // the list above should be comprehensive
@@ -350,7 +371,7 @@ REBCNT Hash_Value(const RELVAL *val, REBCTX *specifier)
 
     if(!crc32_table) Make_CRC32_Table();
 
-    return ret ^ crc32_table[VAL_TYPE(val)];
+    return ret ^ crc32_table[VAL_TYPE(v)];
 }
 
 

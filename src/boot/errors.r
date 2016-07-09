@@ -237,6 +237,8 @@ Script: [
     varargs-make-only:  {MAKE *shared* BLOCK! supported on VARARGS! (not TO)}
     varargs-no-look:    {VARARGS! may only lookahead by 1 if "hard quoted"}
     varargs-take-last:  {VARARGS! does not support TAKE-ing only /LAST item}
+
+    map-key-unlocked:   [{array key must be locked to add to MAP!} :arg1]
 ]
 
 Math: [

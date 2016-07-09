@@ -307,14 +307,10 @@ static REBCNT Find_Map_Entry(
     REBCTX *val_specifier,
     REBOOL cased // case-sensitive if true
 ) {
+    assert(!IS_VOID(key));
+
     REBSER *hashlist = MAP_HASHLIST(map); // can be null
     REBARR *pairlist = MAP_PAIRLIST(map);
-    REBCNT *hashes;
-    REBCNT hash;
-    REBVAL *v;
-    REBCNT n;
-
-    if (IS_BLANK(key)) return 0;
 
     assert(hashlist);
 
@@ -324,15 +320,20 @@ static REBCNT Find_Map_Entry(
         Rehash_Map(map);
     }
 
-    hash = Find_Key_Hashed(
+    REBCNT hash = Find_Key_Hashed(
         pairlist, hashlist, key, key_specifier, 2, cased, 0
     );
-    hashes = SER_HEAD(REBCNT, hashlist);
-    n = hashes[hash];
+
+    REBCNT *hashes = SER_HEAD(REBCNT, hashlist);
+    REBCNT n = hashes[hash];
+
     // n==0 or pairlist[(n-1)*]=~key
 
     // Just a GET of value:
     if (!val) return n;
+
+    if (ANY_ARRAY(key) && !GET_ARR_FLAG(VAL_ARRAY(key), SERIES_FLAG_LOCKED))
+        fail (Error(RE_MAP_KEY_UNLOCKED, key));
 
     // Must set the value:
     if (n) {  // re-set it:
