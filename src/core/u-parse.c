@@ -1334,7 +1334,8 @@ REBNATIVE(subparse)
     //
     //==////////////////////////////////////////////////////////////////==//
 
-        if (--Eval_Count <= 0 || Eval_Signals) {
+        assert(Eval_Count >= 0);
+        if (--Eval_Count == 0) {
             //
             // !!! See notes on other invocations about the questions raised by
             // calls to Do_Signals_Throws() by places that do not have a clear

@@ -671,9 +671,13 @@ enum Reb_Vararg_Op {
 #define IS_WHITE(c) ((c) <= 32 && (White_Chars[c]&1) != 0)
 #define IS_SPACE(c) ((c) <= 32 && (White_Chars[c]&2) != 0)
 
-#define SET_SIGNAL(f) SET_FLAG(Eval_Signals, f)
-#define GET_SIGNAL(f) GET_FLAG(Eval_Signals, f)
-#define CLR_SIGNAL(f) CLR_FLAG(Eval_Signals, f)
+inline static void SET_SIGNAL(REBFLGS f) {
+    SET_FLAG(Eval_Signals, f);
+    Eval_Count = 1;
+}
+
+#define GET_SIGNAL(f) GET_FLAG(Eval_Signals, (f))
+#define CLR_SIGNAL(f) CLR_FLAG(Eval_Signals, (f))
 
 
 #define ALL_BITS    ((REBCNT)(-1))

@@ -87,7 +87,7 @@ act_blk:
         save_port = *D_ARG(1); // save for return
         *D_ARG(1) = *state;
         result = T_Block(ds, action);
-        SET_FLAG(Eval_Signals, SIG_EVENT_PORT);
+        SET_SIGNAL(SIG_EVENT_PORT);
         if (
             action == SYM_INSERT
             || action == SYM_APPEND

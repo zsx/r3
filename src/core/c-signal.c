@@ -56,17 +56,33 @@
 //
 //  Do_Signals_Throws: C
 //
+// !!! R3-Alpha's evaluator loop had a countdown (Eval_Count) which was
+// decremented on every step.  When this counter reached zero, it would call
+// this routine to process any "signals"...which could be requests for
+// garbage collection, network-related, Ctrl-C being hit, etc.
+//
+// It also would check the Eval_Signals mask to see if it was non-zero on
+// every step.  If it was, then it would always call this routine--regardless
+// of the Eval_Count.
+//
+// While a broader review of how signals would work in Ren-C is pending, it
+// seems best to avoid checking two things each step.  So only the Eval_Count
+// is checked, and places that set Eval_Signals set it to 1...to have the
+// same effect as if it were being checked.  Then if the Eval_Signals are
+// not cleared by the end of this routine, it resets the Eval_Count to 1
+// rather than giving it the full EVAL_DOSE of counts until next call.
+//
 // Currently the ability of a signal to THROW comes from the processing of
 // breakpoints.  The RESUME instruction is able to execute code with /DO,
 // and that code may escape from a debug interrupt signal (like Ctrl-C).
 //
 REBOOL Do_Signals_Throws(REBVAL *out)
 {
+    REBOOL thrown = FALSE;
+    SET_VOID(out);
+
     struct Reb_State state;
     REBCTX *error;
-
-    REBCNT sigs;
-    REBCNT mask;
 
 #if !defined(NDEBUG)
     if (!Saved_State && PG_Boot_Phase >= BOOT_MEZZ) {
@@ -79,24 +95,14 @@ REBOOL Do_Signals_Throws(REBVAL *out)
     }
 #endif
 
-    // Accumulate evaluation counter and reset countdown:
-    if (Eval_Count <= 0) {
-        //Debug_Num("Poll:", (REBINT) Eval_Cycles);
-        Eval_Cycles += Eval_Dose - Eval_Count;
-        Eval_Count = Eval_Dose;
-        if (Eval_Limit != 0 && Eval_Cycles > Eval_Limit)
-            Check_Security(Canon(SYM_EVAL), POL_EXEC, 0);
-    }
+    REBCNT mask = Eval_Sigmask;
+    REBCNT sigs = Eval_Signals & mask;
 
-    if (!(Eval_Signals & Eval_Sigmask)) {
-        SET_VOID(out);
-        return FALSE;
-    }
+    if (!sigs) goto done;
 
     // Be careful of signal loops! EG: do not PRINT from here.
-    sigs = Eval_Signals & (mask = Eval_Sigmask);
+
     Eval_Sigmask = 0;   // avoid infinite loop
-    //Debug_Num("Signals:", Eval_Signals);
 
     // Check for recycle signal:
     if (GET_FLAG(sigs, SIG_RECYCLE)) {
@@ -118,9 +124,9 @@ REBOOL Do_Signals_Throws(REBVAL *out)
         Eval_Sigmask = mask;
 
         if (Do_Breakpoint_Throws(out, TRUE, VOID_CELL, FALSE))
-            return TRUE;
+            thrown = TRUE;
 
-        return FALSE;
+        goto done;
     }
 
     // Halting only allowed after MEZZ boot
@@ -134,6 +140,18 @@ REBOOL Do_Signals_Throws(REBVAL *out)
 
     Eval_Sigmask = mask;
 
-    SET_VOID(out);
-    return FALSE;
+done:
+    if (Eval_Signals)
+        Eval_Count = 1; // will call this routine again on next evaluation
+    else {
+        // Accumulate evaluation counter and reset countdown:
+
+        if (Eval_Limit != 0 && Eval_Cycles > Eval_Limit)
+            Check_Security(Canon(SYM_EVAL), POL_EXEC, 0);
+
+        Eval_Cycles += Eval_Dose - Eval_Count;
+        Eval_Count = Eval_Dose;
+    }
+
+    return thrown;
 }

@@ -108,7 +108,7 @@ PVAR REBVAL PG_Va_List_Pending;
 
 // This signal word should be thread-local, but it will not work
 // when implemented that way. Needs research!!!!
-PVAR REBCNT Eval_Signals;   // Signal flags
+PVAR REBFLGS Eval_Signals;   // Signal flags
 
 // Hook called when BREAKPOINT is hit.  It will return TRUE if the breakpoint
 // is quitting, or FALSE if it is continuing.  (Note that if one is HALTing,
@@ -199,8 +199,8 @@ TVAR void *TG_Command_Execution_Context;
 //-- Evaluation variables:
 TVAR REBI64 Eval_Cycles;    // Total evaluation counter (upward)
 TVAR REBI64 Eval_Limit;     // Evaluation limit (set by secure)
-TVAR REBUPT Eval_Count;     // Evaluation counter (downward)
-TVAR REBUPT Eval_Dose;      // Evaluation counter reset value
+TVAR REBINT Eval_Count;     // Evaluation counter (downward)
+TVAR REBCNT Eval_Dose;      // Evaluation counter reset value
 TVAR REBFLGS Eval_Sigmask;   // Masking out signal flags
 
 TVAR REBFLGS Trace_Flags;    // Trace flag
