@@ -213,10 +213,10 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     //
     assert(
         (
-            (f->eval_type == ET_LOOKBACK  || f->eval_type == ET_FUNCTION)
+            (f->eval_type == REB_0_LOOKBACK  || f->eval_type == REB_FUNCTION)
             && (IS_WORD(f->value) || IS_FUNCTION(f->value))
         )
-        || f->eval_type == Eval_Table[VAL_TYPE(f->value)]
+        || f->eval_type == VAL_TYPE(f->value)
     );
 
     assert(f->value);
@@ -226,10 +226,10 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     assert(f->value != f->out);
 
     if (f->gotten != NULL) { // See notes on `f->gotten`
-        if (IS_WORD(f->value)) {
-            REBUPT test_lookback;
+        if (f->eval_type == REB_WORD) {
+            enum Reb_Kind eval_type;
             REBVAL *test_gotten = Get_Var_Core(
-                &test_lookback,
+                &eval_type,
                 f->value,
                 f->specifier,
                 GETVAR_READ_ONLY
@@ -240,11 +240,11 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
             // you probably should be using the INDEXOR-based API.
             //
             assert(test_gotten == f->gotten);
-            if (test_lookback == ET_LOOKBACK)
-                assert(f->eval_type == ET_LOOKBACK);
+            if (eval_type == REB_0_LOOKBACK)
+                assert(f->eval_type == REB_0_LOOKBACK);
         }
-        else
-            assert(IS_FUNCTION(f->value));
+      /*  else
+            assert(IS_FUNCTION(f->value));*/
     }
 }
 
@@ -357,7 +357,7 @@ void Do_Core_Exit_Checks_Debug(REBFRM *f) {
     //
     assert(NOT_END(f->out)); // series END marker shouldn't leak out
     assert(!IS_TRASH_DEBUG(f->out));
-    assert(VAL_TYPE(f->out) < REB_MAX); // cheap check
+    assert(VAL_TYPE(f->out) <= REB_MAX_VOID); // cheap check
 
     if (NOT(THROWN(f->out))) {
         assert(f->label == NULL);

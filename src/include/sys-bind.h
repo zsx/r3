@@ -196,7 +196,7 @@ enum {
 // The GET_OPT_VAR_MAY_FAIL() function takes the conservative default that
 // only const access is needed.  A const pointer to a REBVAL is given back
 // which may be inspected, but the contents not modified.  While a bound
-// variable that is not currently set will return a REB_0 value, trying
+// variable that is not currently set will return a REB_MAX_VOID value, trying
 // to GET_OPT_VAR_MAY_FAIL() on an *unbound* word will raise an error.
 //
 // TRY_GET_OPT_VAR() also provides const access.  But it will return NULL
@@ -228,7 +228,7 @@ enum {
 // as inline so that locations using it can avoid overhead in invocation.
 //
 inline static REBVAL *Get_Var_Core(
-    REBUPT *lookback, // either 1 or 0 (REBUPT to use w/Reb_Frame->eval_type)
+    enum Reb_Kind *eval_type, // REB_LOOKBACK or REB_FUNCTION
     const RELVAL *any_word,
     REBCTX *specifier,
     REBFLGS flags
@@ -327,9 +327,13 @@ inline static REBVAL *Get_Var_Core(
         // evaluator wants to know when it fetches the value for a word
         // if it wants to lookback for infix purposes, if it's a function)
         //
-        *lookback = GET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK);
+        *eval_type = cast(
+            enum Reb_Kind, GET_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK)
+        ); // REB_FUNCTION = 1, REB_0_LOOKBACK = 0
     }
     else {
+        assert(*eval_type == REB_FUNCTION || *eval_type == REB_0_LOOKBACK);
+
         if (GET_VAL_FLAG(key, TYPESET_FLAG_LOCKED)) {
             //
             // The key corresponding to the var being looked up contains
@@ -345,8 +349,10 @@ inline static REBVAL *Get_Var_Core(
         // If we are writing, then we write the state of the lookback boolean
         // but also return what it was before.
 
-        if (*lookback != GET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK)) {
-            //
+        if (
+            GET_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK)
+            != cast(REBOOL, *eval_type)
+        ) {
             // Because infixness is no longer a property of values but of
             // the key in a binding, this creates a problem if you want a
             // local in a function to serve as infix...because the effect
@@ -368,12 +374,12 @@ inline static REBVAL *Get_Var_Core(
             if (Ensure_Keylist_Unique_Invalidated(context))
                 key = CTX_KEY(context, index); // refresh
 
-            if (*lookback)
-                SET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK);
+            if (*eval_type) // 1 = REB_FUNCTION, 0 = REB_0_NO_LOOKBACK
+                SET_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK);
             else
-                CLEAR_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK);
+                CLEAR_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK);
 
-            *lookback = NOT(*lookback); // *effectively* return the *old* state
+            *eval_type = cast(enum Reb_Kind, NOT(cast(REBOOL, *eval_type)));
         }
         else {
             // We didn't have to change the lookback, so it must have matched
@@ -381,7 +387,7 @@ inline static REBVAL *Get_Var_Core(
         }
     }
 
-    assert(*lookback == ET_FUNCTION || *lookback == ET_LOOKBACK);
+    assert(*eval_type == REB_FUNCTION || *eval_type == REB_0_LOOKBACK);
     assert(!THROWN(var));
     return var;
 }
@@ -390,32 +396,32 @@ static inline const REBVAL *GET_OPT_VAR_MAY_FAIL(
     const RELVAL *any_word,
     REBCTX *specifier
 ) {
-    REBUPT dummy;
-    return Get_Var_Core(&dummy, any_word, specifier, 0);
+    enum Reb_Kind eval_type;
+    return Get_Var_Core(&eval_type, any_word, specifier, 0);
 }
 
 static inline const REBVAL *TRY_GET_OPT_VAR(
     const RELVAL *any_word,
     REBCTX *specifier
 ) {
-    REBUPT dummy;
-    return Get_Var_Core(&dummy, any_word, specifier, GETVAR_UNBOUND_OK);
+    enum Reb_Kind eval_type; // unused
+    return Get_Var_Core(&eval_type, any_word, specifier, GETVAR_UNBOUND_OK);
 }
 
 static inline REBVAL *GET_MUTABLE_VAR_MAY_FAIL(
     const RELVAL *any_word,
     REBCTX *specifier
 ) {
-    REBUPT lookback = ET_FUNCTION; // resets infix/postfix/etc. flag
-    return Get_Var_Core(&lookback, any_word, specifier, GETVAR_IS_SETVAR);
+    enum Reb_Kind eval_type = REB_FUNCTION; // reset infix/postfix/etc.
+    return Get_Var_Core(&eval_type, any_word, specifier, GETVAR_IS_SETVAR);
 }
 
 static inline REBVAL *TRY_GET_MUTABLE_VAR(
     const RELVAL *any_word,
     REBCTX *specifier
 ) {
-    REBUPT lookback = ET_FUNCTION; // resets infix/postfix/etc. flag
+    enum Reb_Kind eval_type = REB_FUNCTION; // reset infix/postfix/etc.
     return Get_Var_Core(
-        &lookback, any_word, specifier, GETVAR_IS_SETVAR | GETVAR_UNBOUND_OK
+        &eval_type, any_word, specifier, GETVAR_IS_SETVAR | GETVAR_UNBOUND_OK
     );
 }

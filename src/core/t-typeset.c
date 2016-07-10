@@ -111,6 +111,7 @@ void Init_Typesets(void)
 void Val_Init_Typeset(RELVAL *value, REBU64 bits, REBSTR *opt_name)
 {
     VAL_RESET_HEADER(value, REB_TYPESET);
+    SET_VAL_FLAG(value, TYPESET_FLAG_NO_LOOKBACK); // default
     INIT_TYPESET_NAME(value, opt_name);
     VAL_TYPESET_BITS(value) = bits;
 }
@@ -209,7 +210,7 @@ REBOOL Update_Typeset_Bits_Core(
             // A BLANK! in a typeset spec for functions indicates a willingness
             // to take an optional.  (This was once done with the "UNSET!"
             // datatype, but now that there isn't a user-exposed unset data
-            // type this is not done.)  Still, since REB_0 is available
+            // type this is not done.)  Still, since REB_MAX_VOID is available
             // internally it is used in the type filtering here.
             //
             // func [x [<opt> integer!]] => func [x [_ integer!]]
@@ -220,7 +221,7 @@ REBOOL Update_Typeset_Bits_Core(
             // of ANY-TYPE!, which included UNSET! because it was a datatype
             // in R3-Alpha and Rebol2.
             //
-            TYPE_SET(typeset, REB_0);
+            TYPE_SET(typeset, REB_MAX_VOID);
         }
         else if (IS_DATATYPE(var)) {
             TYPE_SET(typeset, VAL_TYPE_KIND(var));

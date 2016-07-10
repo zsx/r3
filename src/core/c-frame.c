@@ -233,7 +233,7 @@ REBVAL *Append_Context_Core(
     TERM_ARRAY_LEN(keylist, ARR_LEN(keylist));
 
     if (lookback)
-        SET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK);
+        CLEAR_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK);
 
     // Add an unset value to var list
     //
@@ -568,7 +568,7 @@ static void Collect_Context_Inner_Loop(
                     Val_Init_Typeset(
                         typeset,
                         // Allow all datatypes but no void (initially):
-                        ~FLAGIT_KIND(REB_0),
+                        ~FLAGIT_KIND(REB_MAX_VOID),
                         VAL_WORD_SPELLING(value)
                     );
                 }
@@ -1222,12 +1222,12 @@ void Resolve_Context(
                     // would be an infix call).
                     //
                     if (GET_VAL_FLAG(
-                        CTX_KEY(source, m), TYPESET_FLAG_LOOKBACK
+                        CTX_KEY(source, m), TYPESET_FLAG_NO_LOOKBACK
                     )) {
-                        SET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK);
+                        SET_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK);
                     }
                     else
-                        CLEAR_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK);
+                        CLEAR_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK);
                 }
             }
         }
@@ -1244,7 +1244,7 @@ void Resolve_Context(
                     target,
                     0,
                     canon,
-                    GET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK)
+                    NOT(GET_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK))
                 );
                 *var = *CTX_VAR(source, n);
             }

@@ -609,7 +609,7 @@ REBCTX *Alloc_Context_From_Map(REBMAP *map)
             Val_Init_Typeset(
                 key,
                 // all types except void
-                ~FLAGIT_KIND(REB_0),
+                ~FLAGIT_KIND(REB_MAX_VOID),
                 VAL_WORD_SPELLING(mval)
             );
             key++;

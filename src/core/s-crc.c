@@ -187,7 +187,7 @@ REBCNT Hash_Value(const RELVAL *v, REBCTX *specifier)
     const REBYTE *name;
 
     switch(VAL_TYPE(v)) {
-    case REB_0:
+    case REB_MAX_VOID:
         //
         // While a void might technically be hashed, it can't be a value *or*
         // a key in a map.

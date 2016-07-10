@@ -499,23 +499,6 @@ void Make_Command(
 
     Val_Init_Block(FUNC_BODY(fun), body_array); // manages
 
-    // Make sure the command doesn't use any types for which an "RXT" parallel
-    // datatype (to a REB_XXX type) has not been published:
-    {
-        REBVAL *param = FUNC_PARAMS_HEAD(fun);
-        for (; NOT_END(param); ++param) {
-            if (
-                (
-                    VAL_TYPESET_BITS(param)
-                    != ~(FLAGIT_64(REB_0) | FLAGIT_64(REB_FUNCTION)) // default
-                )
-                && (VAL_TYPESET_BITS(param) & ~RXT_ALLOWED_TYPES)
-            ) {
-                fail (Error(RE_BAD_FUNC_ARG, param));
-            }
-        }
-    }
-
     *out = *FUNC_VALUE(fun);
     return;
 
@@ -610,8 +593,12 @@ REB_R Command_Dispatcher(REBFRM *f)
     arg = FRM_ARGS_HEAD(f);
     n = 1; // values start at the rxiargs[1] cell, arbitrary max at rxifrm[7]
     for (; NOT_END(arg); ++arg, ++n) {
-        RXA_TYPE(&rxifrm, n) = Reb_To_RXT[VAL_TYPE(arg)];
-        Value_To_RXI(&rxifrm.rxiargs[n], arg);
+        if (IS_VOID(arg))
+            RXA_TYPE(&rxifrm, n) = 0;
+        else {
+            RXA_TYPE(&rxifrm, n) = Reb_To_RXT[VAL_TYPE(arg)];
+            Value_To_RXI(&rxifrm.rxiargs[n], arg);
+        }
     }
 
     SET_VOID(f->out); // !!! "commands" seriously predated the END marker trick

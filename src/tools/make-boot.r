@@ -203,45 +203,8 @@ for-each-record-NO-RETURN type boot-types [
 emit-end
 
 
-emit {
-
-/***********************************************************************
-**
-*/  const REBET Eval_Table[REB_MAX] =
-/*
-** This table is used to bypass a Do_Core evaluation for certain types.  So
-** if you have `foo [x] [y]`, the DO_NEXT_MAY_THROW macro checks the table
-** and realizes that both [x] and [y] are blocks and have no evaluator
-** behavior, so it set the output value to [x] without calling Do_Core.
-**
-** There is a catch, because infix operators suggest the need to use the
-** dispatch for cases like `foo [x] + [y]`.  So the only way to do the
-** optimization is if *both* the next value and the one after it is inert.
-**
-** Vague empirical tests of release builds show the gains are somewhere
-** around 6%-ish on real code, which is enough to be worth doing.  It does
-** make debugging a little complicated, so it is disabled in the debug
-** build...but only on Linux so that any debug builds run on other platforms
-** can help raise alerts on the problem.
-**
-***********************************************************************/
-^{
-}
-
-for-each-record-NO-RETURN type boot-types [
-    either group? type/class [
-        ; a GROUP! indicates that values of the type have evaluator "behavior"
-        emit-line "" rejoin ["ET_" uppercase to-string type/name] ""
-    ][
-        emit-line "" "ET_INERT" ""
-    ]
-]
-emit-end
-
 
 emit {
-
-
 
 extern const REBPEF Path_Dispatch[REB_MAX];
 
@@ -531,9 +494,7 @@ for-each-record-NO-RETURN type boot-types [
         newline
     ]
 
-    ; Although there is a REB_0 and an IS_VOID() test used internally,
-    ; there is no "UNSET!" datatype.  So only add the type word to the list
-    ; if not 0.
+    ; Type #0 is for internal purposes, it doesn't correspond to a type.
     ;
     if n != 0 [
         append new-types to-word join type/name "!"
@@ -553,13 +514,13 @@ emit {
     LOGICAL(VAL_TYPE(v) != REB_UNSET)
 
 #define IS_ANY_VALUE(v) \
-    LOGICAL(VAL_TYPE(v) != REB_0)
+    LOGICAL(VAL_TYPE(v) != REB_MAX_VOID)
 
 #define IS_SCALAR(v) \
     LOGICAL(VAL_TYPE(v) <= REB_DATE)
 
 #define ANY_SERIES(v) \
-    LOGICAL(VAL_TYPE(v) >= REB_BINARY && VAL_TYPE(v) <= REB_LIT_PATH)
+    LOGICAL(VAL_TYPE(v) >= REB_PATH && VAL_TYPE(v) <= REB_VECTOR)
 
 #define ANY_STRING(v) \
     LOGICAL(VAL_TYPE(v) >= REB_STRING && VAL_TYPE(v) <= REB_TAG)
@@ -567,8 +528,12 @@ emit {
 #define ANY_BINSTR(v) \
     LOGICAL(VAL_TYPE(v) >= REB_BINARY && VAL_TYPE(v) <= REB_TAG)
 
+inline static REBOOL ANY_ARRAY_KIND(enum Reb_Kind k) {
+    return LOGICAL(k >= REB_PATH && k <= REB_BLOCK);
+}
+
 #define ANY_ARRAY(v) \
-    LOGICAL(VAL_TYPE(v) >= REB_BLOCK && VAL_TYPE(v) <= REB_LIT_PATH)
+    ANY_ARRAY_KIND(VAL_TYPE(v))
 
 inline static REBOOL ANY_WORD_KIND(enum Reb_Kind k) {
     return LOGICAL(k >= REB_WORD && k <= REB_ISSUE);
@@ -581,7 +546,7 @@ inline static REBOOL ANY_WORD_KIND(enum Reb_Kind k) {
     LOGICAL(VAL_TYPE(v) >= REB_PATH && VAL_TYPE(v) <= REB_LIT_PATH)
 
 #define ANY_EVAL_BLOCK(v) \
-    LOGICAL(VAL_TYPE(v) >= REB_BLOCK  && VAL_TYPE(v) <= REB_GROUP)
+    LOGICAL(VAL_TYPE(v) == REB_BLOCK || VAL_TYPE(v) == REB_GROUP)
 
 inline static REBOOL ANY_CONTEXT_KIND(enum Reb_Kind k) {
     return LOGICAL(k >= REB_OBJECT && k <= REB_PORT);
@@ -600,14 +565,14 @@ emit {
 ***********************************************************************/
 
 #define TS_NOTHING \
-    (FLAGIT_KIND(REB_0) | FLAGIT_KIND(REB_BLANK))
+    (FLAGIT_KIND(REB_MAX_VOID) | FLAGIT_KIND(REB_BLANK))
 
 // ANY-SOMETHING! is the base "all bits" typeset that just does not include
 // NONE! or a void (review if typesets should be allowed to mention void
 // when not part of a function spec)
 //
 #define TS_SOMETHING \
-    ((FLAGIT_KIND(REB_MAX) - 1) /* all typeset bits */ \
+    ((FLAGIT_KIND(REB_MAX_VOID + 1) - 1) /* all typeset bits */ \
     - TS_NOTHING)
 
 // ANY-VALUE! is slightly more lenient in accepting NONE!, but still does not

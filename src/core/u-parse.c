@@ -154,7 +154,7 @@ static REBOOL Subparse_Throws(
 
     f->arg = f->stackvars;
     f->label = Canon(SYM_SUBPARSE);
-    f->eval_type = ET_FUNCTION;
+    f->eval_type = REB_FUNCTION;
     f->func = NAT_FUNC(subparse);
     f->flags = 0;
     f->param = END_CELL; // informs infix lookahead
@@ -709,7 +709,7 @@ static REBCNT To_Thru(
             }
 
             // Try to match it:
-            if (P_TYPE >= REB_BLOCK) {
+            if (ANY_ARRAY_KIND(P_TYPE)) {
                 if (ANY_ARRAY(rule)) goto bad_target;
                 i = Parse_Next_Array(f, index, rule);
                 if (THROWN(P_OUT))
@@ -1690,9 +1690,6 @@ REBNATIVE(subparse)
         // the entire rule has been satisfied.
 
         FETCH_NEXT_RULE_MAYBE_END(f); // pushed down?
-
-        if (VAL_TYPE(rule) <= REB_0 || VAL_TYPE(rule) >= REB_FUNCTION)
-            fail (Error_Parse_Rule());
 
         begin = P_POS;       // input at beginning of match section
 

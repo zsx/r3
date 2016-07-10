@@ -145,7 +145,7 @@
     inline static REBOOL IS_TRASH_DEBUG(const RELVAL *v) {
         // note this is directly inlined into VAL_TYPE_Debug() below
         return LOGICAL(
-            VAL_TYPE_RAW(v) == REB_0
+            VAL_TYPE_RAW(v) == REB_MAX_VOID
             && NOT(v->header.bits & VOID_FLAG_NOT_TRASH)
         );
     }
@@ -157,7 +157,10 @@
         if (
             (v->header.bits & CELL_MASK)
             && NOT(IS_END_MACRO(v)) // IS_END redundantly checks trash
-            && NOT(kind == REB_0 && NOT(v->header.bits & VOID_FLAG_NOT_TRASH))
+            && NOT(
+                kind == REB_MAX_VOID
+                && NOT(v->header.bits & VOID_FLAG_NOT_TRASH)
+            )
             // ^-- *so* frequent, debug builds hand-inline IS_TRASH_DEBUG()
         ){
             return kind;
@@ -386,7 +389,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     inline static void INIT_CELL_Debug(
         RELVAL *v, const char *file, int line
     ){
-        VAL_RESET_HEADER_COMMON(v, REB_0); // don't set VOID_FLAG_NOT_TRASH
+        VAL_RESET_HEADER_COMMON(v, REB_MAX_VOID); // no VOID_FLAG_NOT_TRASH
         MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
     }
 
@@ -438,11 +441,11 @@ inline static void SET_ZEROED(RELVAL *v, enum Reb_Kind kind) {
     c_cast(const REBVAL*, &PG_Void_Cell[0])
 
 inline static REBOOL IS_VOID(const RELVAL *v)
-    { return LOGICAL(VAL_TYPE(v) == REB_0); } // not a "type", so no IS_0 test
+    { return LOGICAL(VAL_TYPE(v) == REB_MAX_VOID); }
 
 #ifdef NDEBUG
     inline static void SET_VOID(RELVAL *v)
-        { VAL_RESET_HEADER(v, REB_0); }
+        { VAL_RESET_HEADER(v, REB_MAX_VOID); }
 
     #define SET_TRASH_IF_DEBUG(v) \
         NOOP
@@ -460,7 +463,7 @@ inline static REBOOL IS_VOID(const RELVAL *v)
     inline static void Set_Void_Debug(
         RELVAL *v, const char *file, int line
     ){
-        VAL_RESET_HEADER(v, REB_0);
+        VAL_RESET_HEADER(v, REB_MAX_VOID);
         SET_VAL_FLAG(v, VOID_FLAG_NOT_TRASH);
         Set_Track_Payload_Debug(v, file, line);
     }
@@ -468,14 +471,14 @@ inline static REBOOL IS_VOID(const RELVAL *v)
     inline static void Set_Trash_Debug(
         RELVAL *v, const char *file, int line
     ){
-        VAL_RESET_HEADER(v, REB_0); // we don't set VOID_FLAG_NOT_TRASH
+        VAL_RESET_HEADER(v, REB_MAX_VOID); // we don't set VOID_FLAG_NOT_TRASH
         Set_Track_Payload_Debug(v, file, line);
     }
 
     inline static void Set_Trash_Safe_Debug(
         RELVAL *v, const char *file, int line
     ){
-        VAL_RESET_HEADER(v, REB_0);
+        VAL_RESET_HEADER(v, REB_MAX_VOID);
         SET_VAL_FLAG(v, VOID_FLAG_SAFE_TRASH);
         Set_Track_Payload_Debug(v, file, line);
     }
@@ -1507,11 +1510,13 @@ enum {
     //
     TYPESET_FLAG_ENDABLE = (1 << (TYPE_SPECIFIC_BIT + 8)) | TYPESET_FLAG_X,
 
-    // For performance, a cached PROTECTED_OR_LOOKAHEAD or'd flag could make
+    // For performance, a cached PROTECTED_OR_LOOKBACK or'd flag could make
     // it so that each SET doesn't have to clear out the flag.  See
-    // notes on that in variable setting.
+    // notes on that in variable setting.  The negative sense is chosen
+    // so that the TRUE value can mean REB_FUNCTION (chosen at type #1) and
+    // the FALSE value occupies non-value-type REB_0, alias REB_0_LOOKBACK
     //
-    TYPESET_FLAG_LOOKBACK = (1 << (TYPE_SPECIFIC_BIT + 9)) | TYPESET_FLAG_X
+    TYPESET_FLAG_NO_LOOKBACK = (1 << (TYPE_SPECIFIC_BIT + 9)) | TYPESET_FLAG_X
 };
 
 // Operations when typeset is done with a bitset (currently all typesets)

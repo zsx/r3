@@ -197,33 +197,6 @@ void Dump_Stack(REBFRM *f, REBCNT level)
     REBVAL *arg;
     REBVAL *param;
 
-    static const char *mode_strings[] = {
-        "ET_FUNCTION",
-        "ET_LOOKBACK",
-
-        "ET_INERT",
-        "ET_BAR",
-        "ET_LIT_BAR",
-        "ET_WORD",
-        "ET_SET_WORD",
-        "ET_GET_WORD",
-        "ET_LIT_WORD",
-        "ET_GROUP",
-        "ET_PATH",
-        "ET_SET_PATH",
-        "ET_GET_PATH",
-        "ET_LIT_PATH",
-
-        "ET_SAFE_ENUMERATOR",
-
-    #if !defined(NDEBUG)
-        "ET_TRASH",
-    #endif
-        NULL
-    };
-
-    assert(mode_strings[ET_MAX] == NULL);
-
     Debug_Fmt(""); // newline.
 
     if (f == NULL) f = FS_TOP;
@@ -233,10 +206,10 @@ void Dump_Stack(REBFRM *f, REBCNT level)
     }
 
     Debug_Fmt(
-        "STACK[%d](%s) - %s",
+        "STACK[%d](%s) - %d",
         level,
         STR_HEAD(FRM_LABEL(f)),
-        mode_strings[f->eval_type]
+        f->eval_type // note: this is now an ordinary Reb_Kind, stringify it
     );
 
     if (NOT(Is_Any_Function_Frame(f))) {

@@ -139,9 +139,9 @@ static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
             // Ignore existing mutability state so that it may be modified.
             // Most routines should NOT do this!
             //
-            REBUPT lookback; // ignored
+            enum Reb_Kind eval_type; // unused
             val = Get_Var_Core(
-                &lookback,
+                &eval_type,
                 word,
                 SPECIFIED,
                 GETVAR_READ_ONLY
@@ -221,9 +221,9 @@ static int Protect(REBFRM *frame_, REBFLGS flags)
                     // Since we *are* PROTECT we allow ourselves to get mutable
                     // references to even protected values to protect them.
                     //
-                    REBUPT lookback; // ignored
+                    enum Reb_Kind eval_type; // unused
                     var = Get_Var_Core(
-                        &lookback,
+                        &eval_type,
                         item,
                         VAL_SPECIFIER(value),
                         GETVAR_READ_ONLY
@@ -895,7 +895,7 @@ REBNATIVE(do)
     REBVAL *value = ARG(value);
 
     switch (VAL_TYPE(value)) {
-    case REB_0:
+    case REB_MAX_VOID:
         // useful for `do if ...` types of scenarios
         return R_VOID;
 

@@ -189,7 +189,7 @@ inline static void PUSH_SAFE_ENUMERATOR(
     f->gotten = NULL; // tells ET_WORD and ET_GET_WORD they must do a get
     f->index = VAL_INDEX(v) + 1;
     f->specifier = VAL_SPECIFIER(v);
-    f->eval_type = ET_SAFE_ENUMERATOR;
+    f->eval_type = REB_MAX_VOID;
     f->pending = NULL;
     PUSH_CALL(f);
 }
@@ -332,8 +332,8 @@ inline static void Do_Pending_Sets_May_Invalidate_Gotten(
         case REB_SET_PATH: {
             REBVAL hack = *DS_TOP; // can't path eval from data stack, yet
 
-            REBUPT eval_type_saved = f->eval_type;
-            f->eval_type = ET_INERT; // for error handling
+            enum Reb_Kind eval_type_saved = f->eval_type;
+            f->eval_type = REB_MAX_VOID; // for error handling
 
             REBVAL temp;
             if (Do_Path_Throws_Core(
@@ -417,74 +417,75 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
     REBFRM child_frame;
     REBFRM *child = &child_frame;
 
-    child->eval_type = Eval_Table[VAL_TYPE(parent->value)];
+    child->eval_type = VAL_TYPE(parent->value);
 
     // First see if it's one of the three categories we can optimize for
     // that don't necessarily require us to recurse: inert values (like
     // strings and integers and blocks), or a WORD! or GET-WORD!.  The work
     // we do with lookups here will be reused if we can't avoid a frame.
     //
-    switch (child->eval_type) {
-    case ET_WORD: {
-        if (parent->gotten == NULL) {
-            child->gotten = Get_Var_Core(
-                &child->eval_type, // sets to ET_LOOKBACK or ET_FUNCTION
+    if (IS_KIND_INERT(child->eval_type)) {
+        COPY_VALUE(out, parent->value, parent->specifier);
+        CLEAR_VAL_FLAG(out, VALUE_FLAG_EVALUATED);
+    }
+    else {
+        switch (child->eval_type) {
+        case REB_WORD: {
+            if (parent->gotten == NULL) {
+                child->gotten = Get_Var_Core(
+                    &child->eval_type, // sets to ET_LOOKBACK or ET_FUNCTION
+                    parent->value,
+                    parent->specifier,
+                    GETVAR_READ_ONLY
+                );
+            }
+            else {
+                child->eval_type = VAL_TYPE(parent->gotten);
+                child->gotten = parent->gotten;
+                parent->gotten = NULL;
+            }
+
+            if (IS_FUNCTION(child->gotten)) {
+                if (child->eval_type == REB_0_LOOKBACK)
+                    Lookback_For_Set_Word_Or_Set_Path(out, parent);
+                else {
+                    assert(child->eval_type == REB_FUNCTION);
+                }
+                goto no_optimization;
+            }
+
+            if (IS_VOID(child->gotten))
+                fail (Error_No_Value_Core(parent->value, parent->specifier));
+
+            *out = *child->gotten;
+            SET_VAL_FLAG(out, VALUE_FLAG_EVALUATED);
+
+        #if !defined(NDEBUG)
+            if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(out))
+                VAL_SET_TYPE_BITS(out, REB_WORD); // don't reset full header!
+        #endif
+            }
+            break;
+
+        case REB_GET_WORD: {
+            *out = *Get_Var_Core(
+                &child->eval_type, // sets to ET_LOOKBACK or ET_FUNCTION <ignored>
                 parent->value,
                 parent->specifier,
                 GETVAR_READ_ONLY
             );
-        }
-        else {
-            child->eval_type = Eval_Table[VAL_TYPE(parent->gotten)];
-            child->gotten = parent->gotten;
-            parent->gotten = NULL;
-        }
-
-        if (IS_FUNCTION(child->gotten)) {
-            if (child->eval_type == ET_LOOKBACK)
-                Lookback_For_Set_Word_Or_Set_Path(out, parent);
-            else {
-                assert(child->eval_type == ET_FUNCTION);
+            SET_VAL_FLAG(out, VALUE_FLAG_EVALUATED);
             }
+            break;
+
+        default:
+            // Paths, literal functions, set-words, groups... these are all things
+            // that currently need an independent frame from the parent in order
+            // to hold their state.
+            //
+            child->gotten = NULL;
             goto no_optimization;
         }
-
-        if (IS_VOID(child->gotten))
-            fail (Error_No_Value_Core(parent->value, parent->specifier));
-
-        *out = *child->gotten;
-        SET_VAL_FLAG(out, VALUE_FLAG_EVALUATED);
-
-    #if !defined(NDEBUG)
-        if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(out))
-            VAL_SET_TYPE_BITS(out, REB_WORD); // don't reset full header!
-    #endif
-        }
-        break;
-
-    case ET_GET_WORD: {
-        *out = *Get_Var_Core(
-            &child->eval_type, // sets to ET_LOOKBACK or ET_FUNCTION <ignored>
-            parent->value,
-            parent->specifier,
-            GETVAR_READ_ONLY
-        );
-        SET_VAL_FLAG(out, VALUE_FLAG_EVALUATED);
-        }
-        break;
-
-    case ET_INERT:
-        COPY_VALUE(out, parent->value, parent->specifier);
-        CLEAR_VAL_FLAG(out, VALUE_FLAG_EVALUATED);
-        break;
-
-    default:
-        // Paths, literal functions, set-words, groups... these are all things
-        // that currently need an independent frame from the parent in order
-        // to hold their state.
-        //
-        child->gotten = NULL;
-        goto no_optimization;
     }
 
 #if !defined(NDEBUG)
@@ -495,11 +496,11 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
     if (IS_END(parent->value))
         return;
 
-    child->eval_type = Eval_Table[VAL_TYPE(parent->value)];
+    child->eval_type = VAL_TYPE(parent->value);
 
-    if ((flags & DO_FLAG_LOOKAHEAD) && (child->eval_type == ET_WORD)) {
+    if ((flags & DO_FLAG_LOOKAHEAD) && (child->eval_type == REB_WORD)) {
         child->gotten = Get_Var_Core(
-            &child->eval_type, // sets to ET_LOOKBACK or ET_FUNCTION
+            &child->eval_type, // sets to REB_LOOKBACK or REB_FUNCTION
             parent->value,
             parent->specifier,
             GETVAR_READ_ONLY | GETVAR_UNBOUND_OK
@@ -509,12 +510,12 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
         // otherwise we leave it prefetched in f->gotten.  It will be reused
         // on the next Do_Core call.
         //
-        if (child->eval_type == ET_LOOKBACK) {
+        if (child->eval_type == REB_0_LOOKBACK) {
             assert(IS_FUNCTION(child->gotten));
             goto no_optimization;
         }
 
-        child->eval_type = ET_WORD;
+        child->eval_type = REB_WORD;
     }
 
     TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_MAY_THROW", parent, TRUE);
@@ -531,7 +532,7 @@ no_optimization:
 
     Do_Core(child);
 
-    assert(child->eval_type != ET_LOOKBACK);
+    assert(child->eval_type != REB_0_LOOKBACK);
     assert(
         (child->flags & DO_FLAG_VA_LIST)
         || parent->index != child->index
@@ -605,7 +606,7 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     f->flags = 0;
     f->pending = NULL;
     f->gotten = NULL;
-    f->eval_type = Eval_Table[VAL_TYPE(f->value)];
+    f->eval_type = VAL_TYPE(f->value);
 
     DO_NEXT_REFETCH_MAY_THROW(out, f, DO_FLAG_LOOKAHEAD);
 
@@ -658,7 +659,7 @@ inline static REBIXO Do_Array_At_Core(
     f.gotten = NULL; // so ET_WORD and ET_GET_WORD do their own Get_Var
     f.pending = NULL;
 
-    f.eval_type = Eval_Table[VAL_TYPE(f.value)];
+    f.eval_type = VAL_TYPE(f.value);
 
     Do_Core(&f);
 
@@ -850,7 +851,7 @@ inline static REBIXO Do_Va_Core(
 
     f.flags = flags | DO_FLAG_VA_LIST; // see notes in %sys-do.h on why needed
 
-    f.eval_type = Eval_Table[VAL_TYPE(f.value)];
+    f.eval_type = VAL_TYPE(f.value);
 
     Do_Core(&f);
 

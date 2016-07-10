@@ -301,11 +301,11 @@ static void Load_Boot(void)
     if (VAL_LEN_HEAD(&Boot_Block->types) != REB_MAX - 1)
         panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
 
-    // First type should be BLANK! (Note: Init_Symbols() hasn't run yet, so
+    // First type should be FUNCTION! (Note: Init_Symbols() hasn't run yet, so
     // cannot check this via VAL_WORD_SYM())
     //
     if (0 != COMPARE_BYTES(
-        cb_cast("blank!"), VAL_WORD_HEAD(VAL_ARRAY_HEAD(&Boot_Block->types))
+        cb_cast("function!"), VAL_WORD_HEAD(VAL_ARRAY_HEAD(&Boot_Block->types))
     )){
         panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
     }
@@ -910,7 +910,7 @@ static void Init_System_Object(void)
     Val_Init_Object(ROOT_SYSTEM, system);
 
     // Create system/datatypes block.  Start at 1 (REB_BLANK), given that 0
-    // is REB_0 and does not correspond to a value type.
+    // is REB_0_LOOKBACK and does not correspond to a value type.
     //
     value = Get_System(SYS_CATALOG, CAT_DATATYPES);
     array = VAL_ARRAY(value);

@@ -333,7 +333,7 @@ REBTYPE(Decimal)
     REBVAL  *arg;
     REBDEC  d2;
     REBINT  num;
-    enum Reb_Kind type = REB_0; // ?? why initialize this
+    enum Reb_Kind type;
 
     REBDEC d1 = VAL_DECIMAL(val);
 

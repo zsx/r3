@@ -922,9 +922,9 @@ REBNATIVE(set)
     if (!REF(opt) && IS_VOID(ARG(value)))
         fail (Error(RE_NEED_VALUE, ARG(target)));
 
-    REBUPT lookback = REF(lookback);
+    enum Reb_Kind eval_type = REF(lookback) ? REB_0_LOOKBACK : REB_FUNCTION;
 
-    if (lookback) {
+    if (eval_type == REB_0_LOOKBACK) {
         if (!IS_FUNCTION(ARG(value)))
             fail (Error(RE_MISC));
 
@@ -944,7 +944,7 @@ REBNATIVE(set)
     //
     if (ANY_WORD(ARG(target))) {
         *Get_Var_Core(
-                &lookback, ARG(target), SPECIFIED, GETVAR_IS_SETVAR
+                &eval_type, ARG(target), SPECIFIED, GETVAR_IS_SETVAR
             ) = *ARG(value);
         goto return_value_arg;
     }
@@ -953,7 +953,7 @@ REBNATIVE(set)
     // you can't dispatch a lookback from a path, you should be able to set
     // a word in a context to one.
     //
-    if (lookback)
+    if (eval_type == REB_0_LOOKBACK)
         fail (Error(RE_MISC));
 
     if (ANY_PATH(ARG(target))) {
@@ -1199,7 +1199,7 @@ REBNATIVE(type_of)
     PARAM(1, value);
 
     enum Reb_Kind kind = VAL_TYPE(ARG(value));
-    if (kind == REB_0)
+    if (kind == REB_MAX_VOID)
         return R_BLANK;
 
     Val_Init_Datatype(D_OUT, kind);
@@ -1256,15 +1256,15 @@ REBNATIVE(lookback_q)
     REBVAL *source = D_ARG(1);
 
     if (ANY_WORD(source)) {
-        REBUPT lookback;
+        enum Reb_Kind eval_type;
         const REBVAL *var = Get_Var_Core(
-            &lookback, source, SPECIFIED, GETVAR_READ_ONLY // may fail()
+            &eval_type, source, SPECIFIED, GETVAR_READ_ONLY // may fail()
         );
 
         if (!IS_FUNCTION(var))
             return R_FALSE;
 
-        return lookback ? R_TRUE : R_FALSE;
+        return eval_type == REB_0_LOOKBACK ? R_TRUE : R_FALSE;
     }
     else {
         assert(ANY_PATH(source));
@@ -1297,9 +1297,9 @@ REBNATIVE(semiquoted_q)
     // !!! TBD: Enforce this is a function parameter (specific binding branch
     // makes the test different, and easier)
 
-    REBUPT lookback; // unused
+    enum Reb_Kind eval_type; // unused
     const REBVAL *var = Get_Var_Core( // may fail
-        &lookback, ARG(parameter), SPECIFIED, GETVAR_READ_ONLY
+        &eval_type, ARG(parameter), SPECIFIED, GETVAR_READ_ONLY
     );
     return GET_VAL_FLAG(var, VALUE_FLAG_EVALUATED) ? R_FALSE : R_TRUE;
 }

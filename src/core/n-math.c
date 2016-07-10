@@ -401,6 +401,9 @@ REBINT Compare_Modify_Values(RELVAL *a, RELVAL *b, REBINT strictness)
         if (strictness == 1) return 0;
 
         switch (ta) {
+        case REB_MAX_VOID:
+            return 0; // nothing coerces to void
+
         case REB_INTEGER:
             if (tb == REB_DECIMAL || tb == REB_PERCENT) {
                 REBDEC dec_a = cast(REBDEC, VAL_INT64(a));
@@ -462,6 +465,8 @@ REBINT Compare_Modify_Values(RELVAL *a, RELVAL *b, REBINT strictness)
 
         fail (Error(RE_INVALID_COMPARE, Type_Of(a), Type_Of(b)));
     }
+
+    if (ta == REB_MAX_VOID) return 1; // voids always equal
 
 compare:
     // At this point, both args are of the same datatype.

@@ -173,77 +173,8 @@ enum {
 //
 
 
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  EVALUATION TYPES ("ET_XXX")
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// The REB_XXX types are not sequential, but skip by 4 in order to have the
-// low 2 bits clear on all values in the enumeration.  This means faster
-// extraction and comparison without needing to bit-shift, but it also
-// means that a `switch` statement can't be optimized into a jump table--
-// which generally requires contiguous values:
-//
-// http://stackoverflow.com/questions/17061967/c-switch-and-jump-tables
-//
-// By having a table that can quickly convert an `enum Reb_Kind` into a
-// small integer suitable for a switch statement in the evaluator, the
-// optimization can be leveraged.  The special value of "0" is picked for
-// no evaluation behavior, so the table can have a second use as the quick
-// implementation behind the ANY_EVAL macro.  All non-zero values then can
-// mean "has some behavior in the evaluator".
-//
-enum Reb_Eval_Type {
-    ET_FUNCTION = 0, // does double duty as logic FALSE for Get_Var lookback
-    ET_LOOKBACK = 1, // does double duty as logic TRUE for Get_Var lookback
-
-    ET_INERT,
-    ET_BAR,
-    ET_LIT_BAR,
-    ET_WORD,
-    ET_SET_WORD,
-    ET_GET_WORD,
-    ET_LIT_WORD,
-    ET_GROUP,
-    ET_PATH,
-    ET_SET_PATH,
-    ET_GET_PATH,
-    ET_LIT_PATH,
-
-    // !!! Review more efficient way of expressing safe enumerators
-
-    ET_SAFE_ENUMERATOR,
-
-#if !defined(NDEBUG)
-    ET_TRASH,
-#endif
-
-    ET_MAX
-};
-
-#ifdef NDEBUG
-    typedef REBUPT REBET; // native-sized integer is faster in release builds
-#else
-    typedef enum Reb_Eval_Type REBET; // typed enum is better info in debugger
-#endif
-
-// If the type has evaluator behavior (vs. just passing through).  So like
-// WORD!, GROUP!, FUNCTION! (as opposed to BLOCK!, INTEGER!, OBJECT!).
-// The types are not arranged in an order that makes a super fast test easy
-// (though perhaps someday it could be tweaked so that all the evaluated types
-// had a certain bit set?) hence use a small fixed table.
-//
-// Note that this table has 256 entries, of which only those corresponding
-// to having the two lowest bits zero are set.  This is to avoid needing
-// shifting to check if a value is evaluable.  The other storage could be
-// used for properties of the type +1, +2, +3 ... at the cost of a bit of
-// math but reusing the values.  Any integer property could be stored for
-// the evaluables so long as non-evaluables are 0 in this list.
-//
-extern const REBET Eval_Table[REB_MAX];
-
-#define ANY_EVAL(v) LOGICAL(Eval_Table[VAL_TYPE(v)] != ET_INERT)
+#define IS_KIND_INERT(k) \
+    LOGICAL((k) >= REB_BLOCK)
 
 
 union Reb_Frame_Source {
@@ -384,10 +315,7 @@ struct Reb_Frame {
     // the first argument to use waiting in f->out.  Overwriting the eval_type
     // can then clear more "flag state" in a single assignment.
     //
-    // Although it is an enum Reb_Eval_Type, the Reb_Frame structure needs
-    // to be well-defined in its layout.
-    //
-    REBUPT eval_type;
+    enum Reb_Kind eval_type;
 
     // `gotten`
     //

@@ -184,7 +184,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
             context,
             NULL,
             VAL_KEY_SPELLING(key),
-            GET_VAL_FLAG(key, TYPESET_FLAG_LOOKBACK) // !!! needed?  others?
+            NOT(GET_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK)) // !!! others?
         );
     }
 

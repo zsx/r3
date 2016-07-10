@@ -106,9 +106,6 @@
 #define NOT_END_MASK \
     cast(REBUPT, 0x01)
 
-#define GENERAL_VALUE_BIT 4
-#define TYPE_SPECIFIC_BIT 12
-
 // `CELL_MASK`
 //
 // This is for the debug build, to make it safer to use the implementation
@@ -155,6 +152,9 @@
         ((REBUPT)0x04)
 #endif
 
+// v-- BEGIN REBSER AND REBVAL SHARED BITS HERE
+#define REBSER_REBVAL_BIT 3
+
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -187,7 +187,7 @@ enum {
     // starts out manually managed, and then must either become managed or be
     // freed before the evaluation that created it ends).
     //
-    REBSER_REBVAL_FLAG_MANAGED = 1 << (GENERAL_VALUE_BIT + 0),
+    REBSER_REBVAL_FLAG_MANAGED = 1 << (REBSER_REBVAL_BIT + 0),
 
     // `REBSER_REBVAL_FLAG_MARK` is used by the mark-and-sweep of the garbage
     // collector.  Note that the mark is used for other purposes which need to
@@ -202,15 +202,18 @@ enum {
     // the bits by enumerating every series in the series pool during the
     // sweeping phase.)
     //
-    REBSER_REBVAL_FLAG_MARK = 1 << (GENERAL_VALUE_BIT + 1),
+    REBSER_REBVAL_FLAG_MARK = 1 << (REBSER_REBVAL_BIT + 1),
 
     // `REBSER_REBVAL_FLAG_ROOT` indicates this should be treated as a
     // root for GC purposes.  It only means anything on a REBVAL if that
     // REBVAL happens to live in the key slot of a paired REBSER--it should
     // not generally be set otherwise.
     //
-    REBSER_REBVAL_FLAG_ROOT = 1 << (GENERAL_VALUE_BIT + 2),
+    REBSER_REBVAL_FLAG_ROOT = 1 << (REBSER_REBVAL_BIT + 2),
+
+    // v-- BEGIN GENERAL VALUE BITS HERE
 };
+#define GENERAL_VALUE_BIT (REBSER_REBVAL_BIT + 3)
 
 
 
@@ -233,7 +236,7 @@ enum {
     // does not need to store any data in its payload... its data of being
     // true or false is already covered by this header bit.
     //
-    VALUE_FLAG_FALSE = 1 << (GENERAL_VALUE_BIT + 3),
+    VALUE_FLAG_FALSE = 1 << (GENERAL_VALUE_BIT + 0),
 
     // `VALUE_FLAG_LINE`
     //
@@ -246,7 +249,7 @@ enum {
     // !!! The native `new-line` is used set this, which has a somewhat
     // poor name considering its similarity to `newline` the line feed char.
     //
-    VALUE_FLAG_LINE = 1 << (GENERAL_VALUE_BIT + 4),
+    VALUE_FLAG_LINE = 1 << (GENERAL_VALUE_BIT + 1),
 
     // `VALUE_FLAG_THROWN`
     //
@@ -276,7 +279,7 @@ enum {
     //        /* handling code */
     //     }
     //
-    VALUE_FLAG_THROWN = 1 << (GENERAL_VALUE_BIT + 5),
+    VALUE_FLAG_THROWN = 1 << (GENERAL_VALUE_BIT + 2),
 
     // `VALUE_FLAG_RELATIVE` is used to indicate a value that needs to have
     // a specific context added into it before it can have its bits copied
@@ -286,7 +289,7 @@ enum {
     // of a function body must be relative also to the same function if
     // it contains any instances of such relative words.
     //
-    VALUE_FLAG_RELATIVE = 1 << (GENERAL_VALUE_BIT + 6),
+    VALUE_FLAG_RELATIVE = 1 << (GENERAL_VALUE_BIT + 3),
 
     // `VALUE_FLAG_EVALUATED` is a somewhat dodgy-yet-important concept.
     // This is that some functions wish to be sensitive to whether or not
@@ -295,8 +298,11 @@ enum {
     // to be meaningful on arguments in function frames...though it is
     // valid on any result at the moment of taking it from Do_Core().
     //
-    VALUE_FLAG_EVALUATED = 1 << (GENERAL_VALUE_BIT + 7)
+    VALUE_FLAG_EVALUATED = 1 << (GENERAL_VALUE_BIT + 4),
+
+    // v-- BEGIN TYPE SPECIFIC BITS HERE
 };
+#define TYPE_SPECIFIC_BIT (GENERAL_VALUE_BIT + 5)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -810,6 +816,8 @@ struct Reb_Value
 // to be combined with any relative words that are seen later.
 //
 
+#define REB_MAX_VOID REB_MAX // there is no VOID! datatype, use REB_MAX
+
 #ifdef __cplusplus
     struct Reb_Specific_Value : public Reb_Value {
     #if !defined(NDEBUG)
@@ -828,7 +836,8 @@ struct Reb_Value
         //
         Reb_Specific_Value () {
             // doesn't set VOID_FLAG_NOT_TRASH, so this is a trash cell
-            header.bits = REB_0 | CELL_MASK | VALUE_FLAG_WRITABLE_CPP_DEBUG;
+            header.bits
+                = REB_MAX_VOID | CELL_MASK | VALUE_FLAG_WRITABLE_CPP_DEBUG;
         }
     #endif
     };

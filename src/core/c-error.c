@@ -1483,7 +1483,8 @@ REBCTX *Error_Arg_Type(
     REBVAL label_word;
     Val_Init_Word(&label_word, REB_WORD, label);
 
-    if (kind != REB_0) {
+    if (kind != REB_MAX_VOID) {
+        assert(kind != REB_0);
         REBVAL *datatype = Get_Type(kind);
         assert(IS_DATATYPE(datatype));
 
@@ -1496,7 +1497,7 @@ REBCTX *Error_Arg_Type(
         );
     }
 
-    // Although REB_0 is not a type, the typeset bits are used
+    // Although REB_MAX_VOID is not a type, the typeset bits are used
     // to check it.  Since Get_Type() will fail, use another error.
     //
     return Error(
@@ -1515,7 +1516,7 @@ REBCTX *Error_Bad_Return_Type(REBSTR *label, enum Reb_Kind kind) {
     REBVAL label_word;
     Val_Init_Word(&label_word, REB_WORD, label);
 
-    if (kind == REB_0)
+    if (kind == REB_MAX_VOID)
         return Error(RE_NEEDS_RETURN_VALUE, &label_word, END_CELL);
 
     REBVAL *datatype = Get_Type(kind);

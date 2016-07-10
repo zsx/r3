@@ -89,8 +89,8 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
         // it may spawn an entire interactive debugging session via
         // breakpoint before it returns.  It may also FAIL and longjmp out.
         //
-        REBUPT eval_type_saved = f->eval_type;
-        f->eval_type = ET_INERT;
+        enum Reb_Kind eval_type_saved = f->eval_type;
+        f->eval_type = REB_MAX_VOID;
 
         INIT_CELL_IF_DEBUG(&f->cell.eval);
         if (Do_Signals_Throws(SINK(&f->cell.eval))) {
@@ -204,7 +204,7 @@ static inline REBOOL Specialized_Arg(REBVAL *arg) {
 //
 //     f->out*
 //     REBVAL pointer to which the evaluation's result should be written
-//     Can point to uninitialized bits, unless f->eval_type is ET_LOOKBACK,
+//     Can point to uninitialized bits, unless f->eval_type is REB_0_LOOKBACK,
 //     in which case it must be the REBVAL to use as first infix argument
 //
 //     f->gotten
@@ -225,7 +225,7 @@ void Do_Core(REBFRM * const f)
     // APPLY and a DO of a FRAME! both use this same code path.
     //
     if (f->flags & DO_FLAG_APPLYING) {
-        assert(f->eval_type != ET_LOOKBACK); // "APPLY infixedly" not supported
+        assert(f->eval_type != REB_0_LOOKBACK); // "APPLY infix" not supported
         args_evaluate = NOT(f->flags & DO_FLAG_NO_ARGS_EVALUATE);
         lookahead_flags = (f->flags & DO_FLAG_NO_LOOKAHEAD)
             ? DO_FLAG_NO_LOOKAHEAD
@@ -243,12 +243,12 @@ void Do_Core(REBFRM * const f)
     // Check just once (stack level would be constant if checked in a loop).
     //
     // Note that the eval_type can be deceptive; it's preloaded by the caller
-    // and may be something like ET_FUNCTION.  That suggests args pushed
+    // and may be something like REB_FUNCTION.  That suggests args pushed
     // that the error machinery needs to free...but we haven't gotten to the
     // code that does that yet by this point!  Say the frame is inert.
     //
     if (C_STACK_OVERFLOWING(&f)) {
-        f->eval_type = ET_INERT;
+        f->eval_type = REB_MAX_VOID;
         Trap_Stack_Overflow();
     }
 
@@ -286,324 +286,7 @@ reevaluate:;
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
-// [no evaluation] (REB_BLOCK, REB_INTEGER, REB_STRING, etc.)
-//
-// Copy the value's bits to f->out and fetch the next value.
-//
-//==//////////////////////////////////////////////////////////////////////==//
-
-    case ET_INERT:
-        QUOTE_NEXT_REFETCH(f->out, f); // clears VALUE_FLAG_EVALUATED
-        break;
-
-//==//////////////////////////////////////////////////////////////////////==//
-//
-// [BAR! and LIT-BAR!]
-//
-// If an expression barrier is seen in-between expressions (as it will always
-// be if hit in this switch), it evaluates to void.  It only errors in argument
-// fulfillment during the switch case for ANY-FUNCTION!.
-//
-// LIT-BAR! decays into an ordinary BAR! if seen here by the evaluator.
-//
-// Note that natives and dialects frequently do their own interpretation of
-// BAR!--rather than just evaluate it and let it mean something equivalent
-// to an unset.  For instance:
-//
-//     case [false [print "F"] | true [print ["T"]]
-//
-// If CASE did not specially recognize BAR!, it would complain that the
-// "second condition" had no value.  So if you are looking for a BAR! behavior
-// and it's not passing through here, check the construct you are using.
-//
-//==//////////////////////////////////////////////////////////////////////==//
-
-    case ET_BAR:
-        FETCH_NEXT_ONLY_MAYBE_END(f);
-        if (NOT_END(f->value)) {
-            f->eval_type = Eval_Table[VAL_TYPE(f->value)];
-            goto do_next; // quickly process next item, no infix test needed
-        }
-
-        SET_VOID(f->out);
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
-        break;
-
-    case ET_LIT_BAR:
-        SET_BAR(f->out);
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
-        FETCH_NEXT_ONLY_MAYBE_END(f);
-        break;
-
-//==//////////////////////////////////////////////////////////////////////==//
-//
-// [WORD!]
-//
-// A plain word tries to fetch its value through its binding.  It will fail
-// and longjmp out of this stack if the word is unbound (or if the binding is
-// to a variable which is not set).  Should the word look up to a function,
-// then that function will be called by jumping to the ANY-FUNCTION! case.
-//
-//==//////////////////////////////////////////////////////////////////////==//
-
-    case ET_WORD:
-    do_word_in_value:
-        if (f->gotten == NULL) // no work to reuse from failed optimization
-            f->gotten = Get_Var_Core(
-                &f->eval_type, f->value, f->specifier, GETVAR_READ_ONLY
-            );
-
-        // eval_type will be set to either 1 (ET_LOOKBACK) or 0 (ET_FUNCTION)
-
-        if (IS_FUNCTION(f->gotten)) { // before IS_VOID() speeds common case
-
-            SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
-
-            if (f->eval_type != ET_LOOKBACK) { // ordinary "prefix" call
-                assert(f->eval_type == ET_FUNCTION);
-                SET_END(f->out);
-                goto do_function_in_gotten;
-            }
-
-            Lookback_For_Set_Word_Or_Set_Path(f->out, f);
-            goto do_function_in_gotten;
-        }
-
-        if (IS_VOID(f->gotten)) { // need `:x` if `x` is unset
-            f->eval_type = ET_WORD; // we overwrote above, but error needs it
-            fail (Error_No_Value_Core(f->value, f->specifier));
-        }
-
-        *f->out = *f->gotten;
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
-        f->gotten = NULL;
-        FETCH_NEXT_ONLY_MAYBE_END(f);
-
-    #if !defined(NDEBUG)
-        if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(f->out))
-            VAL_SET_TYPE_BITS(f->out, REB_WORD); // don't reset full header!
-    #endif
-        break;
-
-//==//////////////////////////////////////////////////////////////////////==//
-//
-// [SET-WORD!]
-//
-// A chain of `x: y: z: ...` may happen, so there could be any number of
-// SET-WORD!s before the value to assign is found.  Some kind of list needs to
-// be maintained.
-//
-// Recursion is one way to do it--but setting up another frame is expensive.
-// Instead, push the SET-WORD! to the data stack and stay in this frame.  Then
-// handle it via popping when a result is actually found to be stored.
-//
-// Note that nested infix function evaluation might convert the pushed
-// SET-WORD! into a GET-WORD!, e.g. `+: enfix :add` will let ENFIX set `+`
-// however it needs to, and fetch it afterward.
-//
-//==//////////////////////////////////////////////////////////////////////==//
-
-    case ET_SET_WORD:
-        assert(IS_SET_WORD(f->value));
-        DS_PUSH_RELVAL(f->value, f->specifier);
-
-        // ^-- see Do_Pending_Sets_May_Invalidate_Gotten() for real assignment
-
-        FETCH_NEXT_ONLY_MAYBE_END(f);
-        if (IS_END(f->value))
-            fail (Error(RE_NEED_VALUE, DS_TOP)); // e.g. `do [foo:]`
-        f->eval_type = Eval_Table[VAL_TYPE(f->value)];
-        goto do_next;
-
-//==//////////////////////////////////////////////////////////////////////==//
-//
-// [GET-WORD!]
-//
-// A GET-WORD! does no checking for unsets, no dispatch on functions, and
-// will return void if the variable is not set.
-//
-//==//////////////////////////////////////////////////////////////////////==//
-
-    case ET_GET_WORD:
-        *f->out = *GET_OPT_VAR_MAY_FAIL(f->value, f->specifier);
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
-        FETCH_NEXT_ONLY_MAYBE_END(f);
-        break;
-
-//==/////////////////////////////////////////////////////////////////////==//
-//
-// [LIT-WORD!]
-//
-// Note we only want to reset the type bits in the header, not the whole
-// header--because header bits contain information like WORD_FLAG_BOUND.
-//
-//==//////////////////////////////////////////////////////////////////////==//
-
-    case ET_LIT_WORD:
-        QUOTE_NEXT_REFETCH(f->out, f); // we're adding VALUE_FLAG_EVALUATED
-        VAL_SET_TYPE_BITS(f->out, REB_WORD);
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
-        break;
-
-//==//////////////////////////////////////////////////////////////////////==//
-//
-// [GROUP!]
-//
-// If a GROUP! is seen then it generates another call into Do_Core().  The
-// resulting value for this step will be the outcome of that evaluation.
-//
-//==//////////////////////////////////////////////////////////////////////==//
-
-    case ET_GROUP:
-        //
-        // If the source array we are processing that is yielding values is
-        // part of the deep copy of a function body, it's possible that this
-        // GROUP! is a "relative ANY-ARRAY!" that needs the specifier to
-        // resolve the relative any-words and other any-arrays inside it...
-        //
-        if (Do_At_Throws(
-            f->out,
-            VAL_ARRAY(f->value), // the GROUP!'s array
-            VAL_INDEX(f->value), // index in group's REBVAL (may not be head)
-            IS_RELATIVE(f->value)
-                ? f->specifier // if relative, use parent specifier...
-                : VAL_SPECIFIER(const_KNOWN(f->value)) // ...else use child's
-        )) {
-            goto finished;
-        }
-
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
-        FETCH_NEXT_ONLY_MAYBE_END(f);
-        break;
-
-//==//////////////////////////////////////////////////////////////////////==//
-//
-// [PATH!]
-//
-//==//////////////////////////////////////////////////////////////////////==//
-
-    case ET_PATH: {
-        REBSTR *label;
-        if (Do_Path_Throws_Core(
-            f->out,
-            &label, // requesting label says we run functions (not GET-PATH!)
-            f->value,
-            f->specifier,
-            NULL // `setval`: null means don't treat as SET-PATH!
-        )) {
-            goto finished;
-        }
-
-        if (IS_VOID(f->out)) // need `:x/y` if `y` is unset
-            fail (Error_No_Value_Core(f->value, f->specifier));
-
-        if (IS_FUNCTION(f->out)) {
-            f->eval_type = ET_FUNCTION; // paths are never ET_LOOKBACK
-            SET_FRAME_LABEL(f, label);
-
-            // object/func or func/refinements or object/func/refinement
-            //
-            // Because we passed in a label symbol, the path evaluator was
-            // willing to assume we are going to invoke a function if it
-            // is one.  Hence it left any potential refinements on data stack.
-            //
-            assert(DSP >= f->dsp_orig);
-
-            f->cell.eval = *f->out;
-            f->gotten = KNOWN(&f->cell.eval);
-            SET_END(f->out);
-            goto do_function_in_gotten;
-        }
-
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
-        FETCH_NEXT_ONLY_MAYBE_END(f);
-        break;
-    }
-
-//==//////////////////////////////////////////////////////////////////////==//
-//
-// [SET-PATH!]
-//
-// See notes on ET_SET_WORD.  SET-PATH!s are handled in a similar way, by
-// pushing them to the stack, continuing the evaluation in the current frame.
-// This avoids the need to recurse.
-//
-// !!! The evaluation ordering is dictated by the fact that there isn't a
-// separate "evaluate path to target location" and "set target' step.  This
-// is because some targets of assignments (e.g. gob/size/x:) do not correspond
-// to a cell that can be returned; the path operation "encodes as it goes"
-// and requires the value to set as a parameter to Do_Path.  Yet it is
-// counterintuitive given the "left-to-right" nature of the language:
-//
-//     >> foo: make object! [[bar][bar: 10]]
-//
-//     >> foo/(print "left" 'bar): (print "right" 20)
-//     right
-//     left
-//     == 20
-//
-//==//////////////////////////////////////////////////////////////////////==//
-
-    case ET_SET_PATH:
-        assert(IS_SET_PATH(f->value));
-        DS_PUSH_RELVAL(f->value, f->specifier);
-
-        // ^-- see Do_Pending_Sets_May_Invalidate_Gotten() for real assignment
-
-        FETCH_NEXT_ONLY_MAYBE_END(f);
-        if (IS_END(f->value))
-            fail (Error(RE_NEED_VALUE, DS_TOP)); // `do [a/b/c:]` is illegal
-        f->eval_type = Eval_Table[VAL_TYPE(f->value)];
-        goto do_next;
-
-//==//////////////////////////////////////////////////////////////////////==//
-//
-// [GET-PATH!]
-//
-//==//////////////////////////////////////////////////////////////////////==//
-
-    case ET_GET_PATH:
-        //
-        // !!! Should a GET-PATH! be able to call into the evaluator, by
-        // evaluating GROUP!s in the path?  It's clear that `get path`
-        // shouldn't be able to evaluate (a GET should not have side effects).
-        // But perhaps source-level GET-PATH!s can be more liberal, as one can
-        // visibly see the GROUP!s.
-        //
-        if (Do_Path_Throws_Core(
-            f->out,
-            NULL, // not requesting symbol means refinements not allowed
-            f->value,
-            f->specifier,
-            NULL // `setval`: null means don't treat as SET-PATH!
-        )) {
-            goto finished;
-        }
-
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
-        FETCH_NEXT_ONLY_MAYBE_END(f);
-        break;
-
-//==//////////////////////////////////////////////////////////////////////==//
-//
-// [LIT-PATH!]
-//
-// We only set the type, in order to preserve the header bits... (there
-// currently aren't any for ANY-PATH!, but there might be someday.)
-//
-// !!! Aliases a REBSER under two value types, likely bad, see #2233
-//
-//==//////////////////////////////////////////////////////////////////////==//
-
-    case ET_LIT_PATH:
-        QUOTE_NEXT_REFETCH(f->out, f);
-        VAL_SET_TYPE_BITS(f->out, REB_PATH);
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
-        break;
-
-//==//////////////////////////////////////////////////////////////////////==//
-//
-// [FUNCTION!]
+// [FUNCTION!] (lookback or non-lookback)
 //
 // If a function makes it to the SWITCH statement, that means it is either
 // literally a function value in the array (`do compose [(:+) 1 2]`) or is
@@ -616,12 +299,12 @@ reevaluate:;
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
-    case ET_LOOKBACK:
+    case REB_0_LOOKBACK:
         SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value)); // failed optimize
         // f->out must be the infix's left-hand-side arg, may be END
         goto do_function_in_gotten;
 
-    case ET_FUNCTION:
+    case REB_FUNCTION:
         if (f->gotten == NULL) { // literal function in a block
             f->gotten = const_KNOWN(f->value);
             SET_FRAME_LABEL(f, Canon(SYM___ANONYMOUS__)); // nameless literal
@@ -673,12 +356,12 @@ reevaluate:;
             // normal evaluation but it does not apply to the value being
             // retriggered itself, just any arguments it consumes.)
             //
-            if (f->eval_type == ET_LOOKBACK) {
+            if (f->eval_type == REB_0_LOOKBACK) {
                 if (IS_END(f->out))
                     fail (Error_No_Arg(FRM_LABEL(f), f->param));
 
                 f->cell.eval = *f->out;
-                f->eval_type = ET_FUNCTION;
+                f->eval_type = REB_FUNCTION;
                 SET_END(f->out);
             }
             else {
@@ -723,7 +406,7 @@ reevaluate:;
             //
             f->pending = f->value;
             SET_FRAME_VALUE(f, const_KNOWN(&f->cell.eval)); // SPECIFIED
-            f->eval_type = Eval_Table[VAL_TYPE(f->value)];
+            f->eval_type = VAL_TYPE(f->value);
 
             // The f->gotten (if any) was the fetch for the f->value we just
             // put in pending...not the f->value we just set.  Not only is
@@ -761,13 +444,13 @@ reevaluate:;
         // f->out in case that is holding the first argument to an infix
         // function, so f->cell.eval gets used for temporary evaluations.
 
-        assert(f->eval_type == ET_FUNCTION || f->eval_type == ET_LOOKBACK);
+        assert(f->eval_type == REB_FUNCTION || f->eval_type == REB_0_LOOKBACK);
 
         // The f->out slot is guarded while a function is gathering its
         // arguments.  It cannot contain garbage, so it must either be END
         // or a lookback's first argument (which can also be END).
         //
-        assert(IS_END(f->out) || f->eval_type == ET_LOOKBACK);
+        assert(IS_END(f->out) || f->eval_type == REB_0_LOOKBACK);
 
         // If a function doesn't want to act as an argument to a function
         // call or an assignment (e.g. `x: print "don't do this"`) we can
@@ -790,8 +473,8 @@ reevaluate:;
 
             if (f->prior) {
                 switch (f->prior->eval_type) {
-                case ET_FUNCTION:
-                case ET_LOOKBACK:
+                case REB_FUNCTION:
+                case REB_0_LOOKBACK:
                     if (Is_Function_Frame_Fulfilling(f->prior))
                         fail (Error_Punctuator_Hit(f));
                     break;
@@ -817,7 +500,7 @@ reevaluate:;
 
         if (LEGACY(OPTIONS_NO_INFIX_LOOKAHEAD))
             lookahead_flags =
-                (f->eval_type == ET_LOOKBACK)
+                (f->eval_type == REB_0_LOOKBACK)
                     ? DO_FLAG_NO_LOOKAHEAD
                     : DO_FLAG_LOOKAHEAD;
     #endif
@@ -1163,8 +846,8 @@ reevaluate:;
     //=//// REGULAR ARG-OR-REFINEMENT-ARG (consumes a DO/NEXT's worth) ////=//
 
             if (pclass == PARAM_CLASS_NORMAL) {
-                if (f->eval_type == ET_LOOKBACK) {
-                    f->eval_type = ET_FUNCTION;
+                if (f->eval_type == REB_0_LOOKBACK) {
+                    f->eval_type = REB_FUNCTION;
 
                     if (IS_END(f->out)) {
                         if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
@@ -1195,8 +878,8 @@ reevaluate:;
     //=//// HARD QUOTED ARG-OR-REFINEMENT-ARG /////////////////////////////=//
 
             if (pclass == PARAM_CLASS_HARD_QUOTE) {
-                if (f->eval_type == ET_LOOKBACK) {
-                    f->eval_type = ET_FUNCTION;
+                if (f->eval_type == REB_0_LOOKBACK) {
+                    f->eval_type = REB_FUNCTION;
 
                     if (IS_END(f->out)) {
                         if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
@@ -1222,8 +905,8 @@ reevaluate:;
 
             assert(pclass == PARAM_CLASS_SOFT_QUOTE);
 
-            if (f->eval_type == ET_LOOKBACK) {
-                f->eval_type = ET_LOOKBACK;
+            if (f->eval_type == REB_0_LOOKBACK) {
+                f->eval_type = REB_0_LOOKBACK;
 
                 if (IS_END(f->out)) {
                     if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
@@ -1483,7 +1166,7 @@ reevaluate:;
             assert(FALSE);
         }
 
-        assert(f->eval_type == ET_FUNCTION); // shouldn't have changed
+        assert(f->eval_type == REB_FUNCTION); // shouldn't have changed
         assert(NOT_END(f->out)); // should have overwritten
 
     //==////////////////////////////////////////////////////////////////==//
@@ -1572,7 +1255,7 @@ reevaluate:;
         while (DSP != f->dsp_orig) {
             if (!IS_FUNCTION(DS_TOP)) break; // pending sets/gets
 
-            f->eval_type = ET_INERT; // function is over, so don't involve GC
+            f->eval_type = REB_MAX_VOID; // function over, so don't involve GC
 
             REBVAL temp = *f->out; // better safe than sorry, for now?
             if (Apply_Only_Throws(
@@ -1593,14 +1276,327 @@ reevaluate:;
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
-// [ ??? ] => panic
+// [BAR! and LIT-BAR!]
 //
-// All types must match a case in the switch.  This shouldn't happen.
+// If an expression barrier is seen in-between expressions (as it will always
+// be if hit in this switch), it evaluates to void.  It only errors in argument
+// fulfillment during the switch case for ANY-FUNCTION!.
+//
+// LIT-BAR! decays into an ordinary BAR! if seen here by the evaluator.
+//
+// Note that natives and dialects frequently do their own interpretation of
+// BAR!--rather than just evaluate it and let it mean something equivalent
+// to an unset.  For instance:
+//
+//     case [false [print "F"] | true [print ["T"]]
+//
+// If CASE did not specially recognize BAR!, it would complain that the
+// "second condition" had no value.  So if you are looking for a BAR! behavior
+// and it's not passing through here, check the construct you are using.
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case REB_BAR:
+        FETCH_NEXT_ONLY_MAYBE_END(f);
+        if (NOT_END(f->value)) {
+            f->eval_type = VAL_TYPE(f->value);
+            goto do_next; // quickly process next item, no infix test needed
+        }
+
+        SET_VOID(f->out);
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        break;
+
+    case REB_LIT_BAR:
+        SET_BAR(f->out);
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        FETCH_NEXT_ONLY_MAYBE_END(f);
+        break;
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [WORD!]
+//
+// A plain word tries to fetch its value through its binding.  It will fail
+// and longjmp out of this stack if the word is unbound (or if the binding is
+// to a variable which is not set).  Should the word look up to a function,
+// then that function will be called by jumping to the ANY-FUNCTION! case.
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case REB_WORD:
+    do_word_in_value:
+        if (f->gotten == NULL) // no work to reuse from failed optimization
+            f->gotten = Get_Var_Core(
+                &f->eval_type, f->value, f->specifier, GETVAR_READ_ONLY
+            );
+
+        // eval_type will be set to either 1 (REB_0_LOOKBACK) or 0 (REB_FUNCTION)
+
+        if (IS_FUNCTION(f->gotten)) { // before IS_VOID() speeds common case
+
+            SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
+
+            if (f->eval_type != REB_0_LOOKBACK) { // ordinary "prefix" call
+                assert(f->eval_type == REB_FUNCTION);
+                SET_END(f->out);
+                goto do_function_in_gotten;
+            }
+
+            Lookback_For_Set_Word_Or_Set_Path(f->out, f);
+            goto do_function_in_gotten;
+        }
+
+        if (IS_VOID(f->gotten)) { // need `:x` if `x` is unset
+            f->eval_type = REB_WORD; // we overwrote above, but error needs it
+            fail (Error_No_Value_Core(f->value, f->specifier));
+        }
+
+        *f->out = *f->gotten;
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        f->gotten = NULL;
+        FETCH_NEXT_ONLY_MAYBE_END(f);
+
+    #if !defined(NDEBUG)
+        if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(f->out))
+            VAL_SET_TYPE_BITS(f->out, REB_WORD); // don't reset full header!
+    #endif
+        break;
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [SET-WORD!]
+//
+// A chain of `x: y: z: ...` may happen, so there could be any number of
+// SET-WORD!s before the value to assign is found.  Some kind of list needs to
+// be maintained.
+//
+// Recursion is one way to do it--but setting up another frame is expensive.
+// Instead, push the SET-WORD! to the data stack and stay in this frame.  Then
+// handle it via popping when a result is actually found to be stored.
+//
+// Note that nested infix function evaluation might convert the pushed
+// SET-WORD! into a GET-WORD!, e.g. `+: enfix :add` will let ENFIX set `+`
+// however it needs to, and fetch it afterward.
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case REB_SET_WORD:
+        assert(IS_SET_WORD(f->value));
+        DS_PUSH_RELVAL(f->value, f->specifier);
+
+        // ^-- see Do_Pending_Sets_May_Invalidate_Gotten() for real assignment
+
+        FETCH_NEXT_ONLY_MAYBE_END(f);
+        if (IS_END(f->value))
+            fail (Error(RE_NEED_VALUE, DS_TOP)); // e.g. `do [foo:]`
+        f->eval_type = VAL_TYPE(f->value);
+        goto do_next;
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [GET-WORD!]
+//
+// A GET-WORD! does no checking for unsets, no dispatch on functions, and
+// will return void if the variable is not set.
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case REB_GET_WORD:
+        *f->out = *GET_OPT_VAR_MAY_FAIL(f->value, f->specifier);
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        FETCH_NEXT_ONLY_MAYBE_END(f);
+        break;
+
+//==/////////////////////////////////////////////////////////////////////==//
+//
+// [LIT-WORD!]
+//
+// Note we only want to reset the type bits in the header, not the whole
+// header--because header bits contain information like WORD_FLAG_BOUND.
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case REB_LIT_WORD:
+        QUOTE_NEXT_REFETCH(f->out, f); // we're adding VALUE_FLAG_EVALUATED
+        VAL_SET_TYPE_BITS(f->out, REB_WORD);
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        break;
+
+//==//// INERT WORD AND STRING TYPES /////////////////////////////////////==//
+
+    case REB_REFINEMENT:
+    case REB_ISSUE:
+        // ^-- ANY-WORD!
+        goto inert;
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [GROUP!]
+//
+// If a GROUP! is seen then it generates another call into Do_Core().  The
+// resulting value for this step will be the outcome of that evaluation.
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case REB_GROUP:
+        //
+        // If the source array we are processing that is yielding values is
+        // part of the deep copy of a function body, it's possible that this
+        // GROUP! is a "relative ANY-ARRAY!" that needs the specifier to
+        // resolve the relative any-words and other any-arrays inside it...
+        //
+        if (Do_At_Throws(
+            f->out,
+            VAL_ARRAY(f->value), // the GROUP!'s array
+            VAL_INDEX(f->value), // index in group's REBVAL (may not be head)
+            IS_RELATIVE(f->value)
+                ? f->specifier // if relative, use parent specifier...
+                : VAL_SPECIFIER(const_KNOWN(f->value)) // ...else use child's
+        )) {
+            goto finished;
+        }
+
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        FETCH_NEXT_ONLY_MAYBE_END(f);
+        break;
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [PATH!]
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case REB_PATH: {
+        REBSTR *label;
+        if (Do_Path_Throws_Core(
+            f->out,
+            &label, // requesting label says we run functions (not GET-PATH!)
+            f->value,
+            f->specifier,
+            NULL // `setval`: null means don't treat as SET-PATH!
+        )) {
+            goto finished;
+        }
+
+        if (IS_VOID(f->out)) // need `:x/y` if `y` is unset
+            fail (Error_No_Value_Core(f->value, f->specifier));
+
+        if (IS_FUNCTION(f->out)) {
+            f->eval_type = REB_FUNCTION; // paths are never REB_0_LOOKBACK
+            SET_FRAME_LABEL(f, label);
+
+            // object/func or func/refinements or object/func/refinement
+            //
+            // Because we passed in a label symbol, the path evaluator was
+            // willing to assume we are going to invoke a function if it
+            // is one.  Hence it left any potential refinements on data stack.
+            //
+            assert(DSP >= f->dsp_orig);
+
+            f->cell.eval = *f->out;
+            f->gotten = KNOWN(&f->cell.eval);
+            SET_END(f->out);
+            goto do_function_in_gotten;
+        }
+
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        FETCH_NEXT_ONLY_MAYBE_END(f);
+        break;
+    }
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [SET-PATH!]
+//
+// See notes on ET_SET_WORD.  SET-PATH!s are handled in a similar way, by
+// pushing them to the stack, continuing the evaluation in the current frame.
+// This avoids the need to recurse.
+//
+// !!! The evaluation ordering is dictated by the fact that there isn't a
+// separate "evaluate path to target location" and "set target' step.  This
+// is because some targets of assignments (e.g. gob/size/x:) do not correspond
+// to a cell that can be returned; the path operation "encodes as it goes"
+// and requires the value to set as a parameter to Do_Path.  Yet it is
+// counterintuitive given the "left-to-right" nature of the language:
+//
+//     >> foo: make object! [[bar][bar: 10]]
+//
+//     >> foo/(print "left" 'bar): (print "right" 20)
+//     right
+//     left
+//     == 20
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case REB_SET_PATH:
+        assert(IS_SET_PATH(f->value));
+        DS_PUSH_RELVAL(f->value, f->specifier);
+
+        // ^-- see Do_Pending_Sets_May_Invalidate_Gotten() for real assignment
+
+        FETCH_NEXT_ONLY_MAYBE_END(f);
+        if (IS_END(f->value))
+            fail (Error(RE_NEED_VALUE, DS_TOP)); // `do [a/b/c:]` is illegal
+        f->eval_type = VAL_TYPE(f->value);
+        goto do_next;
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [GET-PATH!]
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case REB_GET_PATH:
+        //
+        // !!! Should a GET-PATH! be able to call into the evaluator, by
+        // evaluating GROUP!s in the path?  It's clear that `get path`
+        // shouldn't be able to evaluate (a GET should not have side effects).
+        // But perhaps source-level GET-PATH!s can be more liberal, as one can
+        // visibly see the GROUP!s.
+        //
+        if (Do_Path_Throws_Core(
+            f->out,
+            NULL, // not requesting symbol means refinements not allowed
+            f->value,
+            f->specifier,
+            NULL // `setval`: null means don't treat as SET-PATH!
+        )) {
+            goto finished;
+        }
+
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        FETCH_NEXT_ONLY_MAYBE_END(f);
+        break;
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [LIT-PATH!]
+//
+// We only set the type, in order to preserve the header bits... (there
+// currently aren't any for ANY-PATH!, but there might be someday.)
+//
+// !!! Aliases a REBSER under two value types, likely bad, see #2233
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case REB_LIT_PATH:
+        QUOTE_NEXT_REFETCH(f->out, f);
+        VAL_SET_TYPE_BITS(f->out, REB_PATH);
+        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        break;
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// Treat everything else as inert
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
     default:
-        panic (Error(RE_MISC));
+    inert:
+        assert(f->eval_type < REB_MAX);
+        QUOTE_NEXT_REFETCH(f->out, f); // clears VALUE_FLAG_EVALUATED
+        break;
     }
 
     //==////////////////////////////////////////////////////////////////==//
@@ -1621,10 +1617,10 @@ reevaluate:;
         goto finished;
     }
 
-    REBUPT eval_type_last;
+    enum Reb_Kind eval_type_last;
     eval_type_last = f->eval_type;
 
-    f->eval_type = Eval_Table[VAL_TYPE(f->value)];
+    f->eval_type = VAL_TYPE(f->value);
 
     if (f->flags & DO_FLAG_NO_LOOKAHEAD) {
         //
@@ -1636,13 +1632,13 @@ reevaluate:;
         // currently processing an infix operation.  The currently processing
         // operation is thus given "higher precedence" by this disablement.
     }
-    else if (f->eval_type == ET_WORD) {
+    else if (f->eval_type == REB_WORD) {
 
         // Don't overwrite f->value (if this just a DO/NEXT and it's not
         // infix, we might need to hold it at its position.)
         //
         f->gotten = Get_Var_Core(
-            &f->eval_type, // gets set to ET_LOOKBACK (or ET_FUNCTION if not)
+            &f->eval_type, // gets set to REB_0_LOOKBACK (or REB_FUNCTION if not)
             f->value,
             f->specifier,
             GETVAR_READ_ONLY | GETVAR_UNBOUND_OK
@@ -1650,8 +1646,8 @@ reevaluate:;
 
     //=//// DO/NEXT WON'T RUN MORE CODE UNLESS IT'S AN INFIX FUNCTION /////=//
 
-        if (f->eval_type != ET_LOOKBACK && NOT(f->flags & DO_FLAG_TO_END)) {
-            f->eval_type = ET_WORD; // restore the ET_WORD, needs to be right
+        if (f->eval_type != REB_0_LOOKBACK && NOT(f->flags & DO_FLAG_TO_END)) {
+            f->eval_type = REB_WORD; // restore the ET_WORD, needs to be right
 
             Do_Pending_Sets_May_Invalidate_Gotten(f->out, f);
             goto finished; // ^-- next cycle can handle f->gotten == NULL
@@ -1677,8 +1673,8 @@ reevaluate:;
         // the value before it, assume that means it's a 0-arg barrier
         // that does not want to be the left hand side of another infix.
         //
-        if (f->eval_type == ET_LOOKBACK) {
-            if (eval_type_last == ET_LOOKBACK)
+        if (f->eval_type == REB_0_LOOKBACK) {
+            if (eval_type_last == REB_0_LOOKBACK)
                 fail (Error_Infix_Left_Arg_Prohibited(f));
         }
         else {

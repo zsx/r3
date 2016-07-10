@@ -60,7 +60,7 @@ ATTRIBUTE_NO_RETURN void Panic_Value_Debug(
     fflush(stdout);
 
     switch (VAL_TYPE_RAW(v)) {
-    case REB_0:
+    case REB_MAX_VOID:
     case REB_BLANK:
     case REB_LOGIC:
     case REB_BAR:
@@ -127,14 +127,14 @@ void Assert_Cell_Writable(const RELVAL *v, const char *file, int line)
 //
 //  SET_END_Debug: C
 //
-// Uses REB_MAX instead of just REB_0 for the type, to help cue debugging.
+// Uses REB_0 for the type, to help cue debugging.
 //
 // When SET_END is used, it uses the whole cell.  Implicit termination is
 // done by the raw creation of a Reb_Header in the containing structure.
 //
 void SET_END_Debug(RELVAL *v, const char *file, int line) {
     ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
-    (v)->header.bits = TYPE_SHIFT_LEFT_FOR_HEADER(REB_MAX) | CELL_MASK;
+    (v)->header.bits = TYPE_SHIFT_LEFT_FOR_HEADER(REB_0) | CELL_MASK;
     MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
     Set_Track_Payload_Debug(v, file, line);
 }
@@ -151,7 +151,7 @@ REBOOL IS_END_Debug(const RELVAL *v, const char *file, int line) {
         // Note: a non-writable value could have any bit pattern in the
         // type slot, so we only check for trash in writable ones.
         //
-        && VAL_TYPE_RAW(v) == REB_0
+        && VAL_TYPE_RAW(v) == REB_MAX_VOID
         && NOT(v->header.bits & VOID_FLAG_NOT_TRASH)
         && NOT(v->header.bits & VOID_FLAG_SAFE_TRASH)
     ) {

@@ -1215,7 +1215,7 @@ void Mold_Value(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
     }
 
     switch (VAL_TYPE(value)) {
-    case REB_0:
+    case REB_MAX_VOID:
         // Voids should only be molded in debug scenarios
         Append_Unencoded(ser, "&void");
         break;

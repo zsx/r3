@@ -330,10 +330,11 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 FALSE // `trap`: false means fail vs. return FALSE if error
             );
 
-            // A hard quote can only get a void if it is an <end>.
+            // A hard quote can only get a void if it is an <end>, and that
+            // is not reflected in the typeset but in TYPESET_FLAG_ENDABLE
             //
             if (VAL_PARAM_CLASS(typeset) == PARAM_CLASS_HARD_QUOTE) {
-                if (TYPE_CHECK(typeset, REB_0)) {
+                if (TYPE_CHECK(typeset, REB_MAX_VOID)) {
                     REBVAL param_name;
                     Val_Init_Word(
                         &param_name, REB_WORD, VAL_PARAM_SPELLING(typeset)
@@ -373,9 +374,9 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         assert(IS_STRING(DS_TOP));
 
         // By default allow "all datatypes but function and void".  Note that
-        // since void isn't a "datatype" the use of the REB_0 bit is just for
+        // since void isn't a "datatype" the use of the REB_MAX_VOID bit is for
         // expedience.  Also that there are two senses of void signal...the
-        // typeset REB_0 represents the <opt> sense--not the <end> sense,
+        // typeset REB_MAX_VOID represents <opt> sense, not the <end> sense,
         // which is encoded by TYPESET_FLAG_ENDABLE.
         //
         // We do not canonize the saved symbol in the paramlist, see #2258.
@@ -386,7 +387,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             typeset,
             (flags & MKF_ANY_VALUE)
                 ? ALL_64
-                : ALL_64 & ~(FLAGIT_64(REB_0) | FLAGIT_64(REB_FUNCTION)),
+                : ALL_64 & ~(FLAGIT_64(REB_MAX_VOID) | FLAGIT_64(REB_FUNCTION)),
             VAL_WORD_SPELLING(item)
         );
 
@@ -420,21 +421,24 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 typeset,
                 convert_local ? PARAM_CLASS_LOCAL : PARAM_CLASS_NORMAL
             );
-            if (refinement_seen) VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_0);
+            if (refinement_seen)
+                VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_MAX_VOID);
             break;
 
         case REB_GET_WORD:
             if (convert_local)
                 fail (Error(RE_BAD_FUNC_DEF)); // what's a "quoted local"?
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_HARD_QUOTE);
-            if (refinement_seen) VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_0);
+            if (refinement_seen)
+                VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_MAX_VOID);
             break;
 
         case REB_LIT_WORD:
             if (convert_local)
                 fail (Error(RE_BAD_FUNC_DEF)); // what's a "quoted local"?
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_SOFT_QUOTE);
-            if (refinement_seen) VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_0);
+            if (refinement_seen)
+                VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_MAX_VOID);
             break;
 
         case REB_REFINEMENT:
@@ -505,7 +509,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             REBSTR *canon_leave = Canon(SYM_LEAVE);
 
             DS_PUSH_TRASH;
-            Val_Init_Typeset(DS_TOP, FLAGIT_64(REB_0), canon_leave);
+            Val_Init_Typeset(DS_TOP, FLAGIT_64(REB_MAX_VOID), canon_leave);
             INIT_VAL_PARAM_CLASS(DS_TOP, PARAM_CLASS_LEAVE);
             definitional_leave = DS_TOP;
 
@@ -547,7 +551,9 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 (flags & MKF_ANY_VALUE)
                 || NOT(has_description || has_types || has_notes)
                     ? ALL_64
-                    : ALL_64 & ~(FLAGIT_64(REB_0) | FLAGIT_64(REB_FUNCTION)),
+                    : ALL_64 & ~(
+                        FLAGIT_64(REB_MAX_VOID) | FLAGIT_64(REB_FUNCTION)
+                    ),
                 canon_return
             );
             INIT_VAL_PARAM_CLASS(DS_TOP, PARAM_CLASS_RETURN);
@@ -2088,7 +2094,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
 {
     assert(IS_FUNCTION(f->gotten));
 
-    f->eval_type = ET_FUNCTION;
+    f->eval_type = REB_FUNCTION;
     SET_FRAME_LABEL(f, label);
 
     // We pretend our "input source" has ended.

@@ -579,7 +579,7 @@ static void Mark_Frame_Stack_Deep(void)
     REBFRM *f = TG_Frame_Stack;
 
     for (; f != NULL; f = f->prior) {
-        assert(f->eval_type != ET_TRASH);
+        assert(f->eval_type <= REB_MAX_VOID);
 
         // Should have taken care of reifying all the VALIST on the stack
         // earlier in the recycle process (don't want to create new arrays
@@ -609,7 +609,7 @@ static void Mark_Frame_Stack_Deep(void)
         // left-hand-side of an infix operation.  And SET-PATH! also holds
         // f->out alive across an evaluation.
         //
-        if (Is_Any_Function_Frame(f) || f->eval_type == ET_SET_PATH)
+        if (Is_Any_Function_Frame(f) || f->eval_type == REB_SET_PATH)
             if (!IS_END(f->out) && !IS_VOID_OR_SAFE_TRASH(f->out))
                 Queue_Mark_Value_Deep(f->out); // never NULL
 
@@ -727,6 +727,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
 
     switch (VAL_TYPE(val)) {
         case REB_0:
+        case REB_MAX_VOID:
             //
             // Critical error; the only array that can handle unsets are the
             // varlists of contexts, and they must do so before getting here.
