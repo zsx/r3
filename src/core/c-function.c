@@ -523,18 +523,29 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         if (definitional_return == NULL) { // no RETURN: pure local explicit
             REBSTR *canon_return = Canon(SYM_RETURN);
 
-            // The types in the typeset of a "magic" definitional return are
-            // usually-prohibited typing on a local.  They hold the legal
-            // types for the return.  By default the rules are the same as
-            // for arguments...to help accidentally returning voids or
-            // functions to unsuspecting callers.
+            // !!! The current experiment for dealing with default type
+            // checking on definitional returns is to be somewhat restrictive
+            // if there are *any* documentation notes or typesets on the
+            // function.  Hence:
             //
-            // !!! This is an experiment to see what happens.
+            //     >> foo: func [x] [] ;-- no error, void return allowed
+            //     >> foo: func [{a} x] [] ;-- will error, can't return void
+            //
+            // The idea is that if any effort has been expended on documenting
+            // the interface at all, it has some "public" component...so
+            // problems like leaking arbitrary values (vs. using PROC) are
+            // more likely to be relevant.  Whereas no effort indicates a
+            // likely more ad-hoc experimentation.
+            //
+            // (A "strict" mode, selectable per module, could control this and
+            // other settings.  But the goal is to attempt to define something
+            // that is as broadly usable as possible.)
             //
             DS_PUSH_TRASH;
             Val_Init_Typeset(
                 DS_TOP,
                 (flags & MKF_ANY_VALUE)
+                || NOT(has_description || has_types || has_notes)
                     ? ALL_64
                     : ALL_64 & ~(FLAGIT_64(REB_0) | FLAGIT_64(REB_FUNCTION)),
                 canon_return

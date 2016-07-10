@@ -95,7 +95,7 @@ does: func [
     body [block!]
         {The body block of the function}
 ][
-    func [return: [<opt> any-value!]] body
+    func [] body ;-- no spec documentation permits any return value
 ]
 
 
@@ -108,54 +108,147 @@ make-action: func [
         {Help string (opt) followed by arg words (and opt type and string)}
     body [block!]
         {The body block of the function}
-    /with
-        {Define or use a persistent object (self)}
-    object [object! block! map!]
-        {The object or spec}
-    /extern
-        {Provide explicit list of external words}
-    words [block!]
-        {These words are not local.}
+    <local>
+        new-spec var other
+        new-body exclusions locals defaulters statics
 ][
-    if with [
-        unless object? object [object: has object]
-        body: copy/deep body
-        bind body object
-    ]
+    exclusions: copy []
+    new-spec: make block! length spec
+    new-body: _
+    statics: _
+    defaulters: _
+    var: _
 
-    ; Gather the SET-WORD!s in the body, ignoring some excluded candidates.
+    ;; dump [spec]
+
+    ; Insert <durable> into the spec.  This is based on the belief that
+    ; indefinite duration is a fair user expectation without having to ask.
+    ; Consider the legitimacy of:
     ;
-    words: collect-words/deep/set/ignore body compose [
-        (spec) ;-- ignore the ANY-WORD!s already in the spec block
+    ;    foo: function [x] [y: x * 2 | return func [z] [x + y + z]
+    ;
+    append new-spec <durable>
 
-        (if with [words-of object]) ;-- ignore fields of /WITH object (if any)
+    ; Gather the SET-WORD!s in the body, excluding the collected ANY-WORD!s
+    ; that should not be considered.  Note that COLLECT is not defined by
+    ; this point in the bootstrap.
+    ;
+    ; !!! REVIEW: ignore self too if binding object?
+    ;
+    parse spec [any [
+        if (set? 'var) [
+            set var: any-word! (
+                append exclusions var ;-- exclude args/refines
+                append new-spec var
+            )
+        |
+            set other: [block! | string!] (
+                append/only new-spec other ;-- spec notes or data type blocks
+            )
+        ]
+    |
+        other:
+        [group!] (
+            if not var [
+                fail [
+                    ; <where> spec
+                    ; <near> other
+                    "Default value not paired with argument:" (mold other/1)
+                ]
+            ]
+            unless defaulters [
+                defaulters: copy []
+            ]
+            append defaulters compose/deep [
+                (to set-word! var) default [(reduce other/1)]
+            ]
+        )
+    |
+        (var: void) ;-- everything below this line clears var
+        fail ;-- failing here means rolling over to next rule (<durable>)
+    |
+        <durable> ;-- don't add to new-spec as we already added it
+    |
+        <local>
+        any [set var: word! (other: _) opt set other: group! (
+            append new-spec to set-word! var
+            append exclusions var
+            if other [
+                unless defaulters [
+                    defaulters: copy []
+                ]
+                append defaulters compose/deep [
+                    (to set-word! var) default [(reduce other)]
+                ]
+            ]
+        )]
+        (var: void) ;-- don't consider further GROUP!s or variables
+    |
+        <in> (
+            unless new-body [
+                append exclusions 'self
+                new-body: copy/deep body
+            ]
+        )
+        any [set other: [word! | path!] (bind new-body get other)]
+    |
+        <with> any [set other: [word! | path!] (append exclusions other)]
+    |
+        <static> (
+            unless statics [
+                statics: copy []
+            ]
+            unless new-body [
+                append exclusions 'self
+                new-body: copy/deep body
+            ]
+        )
+        any [
+            set var: word! (other: quote ()) opt set other: group! (
+                append exclusions var
+                append statics compose/only [
+                    (to set-word! var) (other)
+                ]
+            )
+        ]
+        (var: void)
+    |
+        end accept
+    |
+        other: (
+            fail [
+                ; <where> spec
+                ; <near> other
+                "Invalid spec item:" (mold other/1)
+            ]
+        )
+    ]]
 
-        (if with ['self]) ; !!! REVIEW: ignore self too if binding to object?
+    locals: collect-words/deep/set/ignore body exclusions
 
-        (:words) ;-- ignore explicit words given as an argument (if any)
+    ;; dump [{before} statics new-spec exclusions]
+
+    if statics [
+        statics: has statics
+        bind new-body statics
     ]
 
     ; !!! The words that come back from COLLECT-WORDS are all WORD!, but we
     ; need SET-WORD! to specify pure locals to the generators.  Review the
-    ; COLLECT-WORDS interface to efficiently give this result.
+    ; COLLECT-WORDS interface to efficiently give this result, as well as
+    ; a possible COLLECT-WORDS/INTO
     ;
-    spec: copy spec
-
-    ; Insert <durable> into the spec if not already there.  This is
-    ; based on the belief that indefinite duration is a fair user expectation
-    ; without having to ask.  Consider the legitimacy of:
-    ;
-    ;    foo: function [x] [y: x * 2 | return func [z] [x + y + z]
-    ;
-    unless find spec <durable> [
-        insert spec <durable>
+    for-next locals [
+        append new-spec to set-word! locals/1
     ]
 
-    for-next words [
-        append spec to set-word! words/1
-    ]
+    ;; dump [{after} new-spec defaulters]
 
-    generator spec body
+    generator new-spec either defaulters [
+        append/only defaulters as group! any [new-body body]
+    ][
+        any [new-body body]
+    ]
 ]
 
 ;-- These are "redescribed" after REDESCRIBE is created

@@ -128,11 +128,69 @@ factorial: func [n [integer!] /local res] [
 ; via http://www.amyresource.it/AGI/.  It implements the much-requested
 ; (by new users) idea of * and / running before + and - in math expressions.
 ;
-math: function/with [
+math: function [
     {Process expression taking "usual" operator precedence into account.}
-    expr [block!] {Block to evaluate}
-    /only {Translate operators to their prefix calls, but don't execute}
-    /local res recursion
+    expr [block!]
+        {Block to evaluate}
+    /only
+        {Translate operators to their prefix calls, but don't execute}
+
+    <static>
+
+    slash (to-lit-word first [ / ])
+
+    expr-val (_)
+
+    expr-op (_)
+
+    expression  ([
+        term (expr-val: term-val)
+        any [
+            ['+ (expr-op: 'add) | '- (expr-op: 'subtract)]
+            term (expr-val: compose [(expr-op) (expr-val) (term-val)])
+        ]
+    ])
+
+    term-val (_)
+
+    term-op (_)
+
+    term ([
+        pow (term-val: power-val)
+        any [
+            ['* (term-op: 'multiply) | slash (term-op: 'divide)]
+            pow (term-val: compose [(term-op) (term-val) (power-val)])
+        ]
+    ])
+
+    power-val (_)
+
+    pow ([
+        unary (power-val: unary-val)
+        opt ['** unary (power-val: compose [power (power-val) (unary-val)])]
+    ])
+
+    unary-val (_)
+
+    pre-uop (_)
+
+    post-uop (_)
+
+    unary ([
+        (post-uop: pre-uop: [])
+        opt ['- (pre-uop: 'negate)]
+        primary
+        opt ['! (post-uop: 'factorial)]
+        (unary-val: compose [(post-uop) (pre-uop) (prim-val)])
+    ])
+
+    prim-val (_)
+
+    ; WARNING: uses recursion for parens.
+    primary ([
+        set prim-val [any-number! | word!]
+        | set prim-val group! (prim-val: translate to-block :prim-val)
+    ])
 ][
     ; to allow recursive calling, we need to preserve our state
     recursion: reduce [
@@ -148,51 +206,4 @@ math: function/with [
     ] recursion
 
     either only [res] [do res]
-][
-    slash: to-lit-word first [ / ]
-
-    expr-val: expr-op: _
-
-    expression: [
-        term (expr-val: term-val)
-        any [
-            ['+ (expr-op: 'add) | '- (expr-op: 'subtract)]
-            term (expr-val: compose [(expr-op) (expr-val) (term-val)])
-        ]
-    ]
-
-    term-val: term-op: _
-
-    term: [
-        pow (term-val: power-val)
-        any [
-            ['* (term-op: 'multiply) | slash (term-op: 'divide)]
-            pow (term-val: compose [(term-op) (term-val) (power-val)])
-        ]
-    ]
-
-    power-val: _
-
-    pow: [
-        unary (power-val: unary-val)
-        opt ['** unary (power-val: compose [power (power-val) (unary-val)])]
-    ]
-
-    unary-val: pre-uop: post-uop: _
-
-    unary: [
-        (post-uop: pre-uop: [])
-        opt ['- (pre-uop: 'negate)]
-        primary
-        opt ['! (post-uop: 'factorial)]
-        (unary-val: compose [(post-uop) (pre-uop) (prim-val)])
-    ]
-
-    prim-val: _
-
-    ; WARNING: uses recursion for parens.
-    primary: [
-        set prim-val [any-number! | word!]
-        | set prim-val group! (prim-val: translate to-block :prim-val)
-    ]
 ]

@@ -96,7 +96,7 @@ mixin?: func [
 ]
 
 
-load-header: function/with [
+load-header: function [
     "Loads script header object and body binary (not loaded)."
     source [binary! string!]
         "Source code (string! will be UTF-8 encoded)"
@@ -104,6 +104,10 @@ load-header: function/with [
         "Only process header, don't decompress or checksum body"
     /required
         "Script header is required"
+
+    <static>
+
+    non-ws (make bitset! [not 1 - 32])
 ][
     ; This function decodes the script header from the script body.
     ; It checks the header 'checksum and 'compress and 'content options,
@@ -261,8 +265,6 @@ load-header: function/with [
         ensure [binary! block!] rest
         ensure binary! end
     ]
-][
-    non-ws: make bitset! [not 1 - 32]
 ]
 
 

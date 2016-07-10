@@ -1060,17 +1060,34 @@ set 'r3-legacy* func [<local> if-flags] [
             ] body
         ])
 
+        ; The shift in Ren-C is to remove the refinements from FUNCTION.
+        ; Previously /WITH is now handles as the tag <in>
+        ; /EXTERN then takes over the tag <with>
+        ;
         function: (func [
             {FUNCTION <r3-legacy>}
             return: [function!]
             spec [block!]
             body [block!]
+            /with
+                {Define or use a persistent object (self)}
+            object [object! block! map!]
+                {The object or spec}
+            /extern
+                {Provide explicit list of external words}
+            words [block!]
+                {These words are not local.}
         ][
             if block? first spec [spec: next spec]
+
+            if block? object [object: has object]
 
             lib/function compose [
                 return: [<opt> any-value!]
                 (spec)
+                (if with [reduce [<in> object]])
+                (if extern [<with>])
+                (:words)
             ] body
         ])
 

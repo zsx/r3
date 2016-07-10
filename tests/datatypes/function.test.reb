@@ -331,3 +331,31 @@
     p: make o []
     not same? o/f 1 p/f 1
 ]
+
+[
+    o1: make object! [x: {x} o2: make object! [y: {y}]]
+    outer: {outer}
+    n: 20
+
+    f: function [
+        /count
+        n (2)
+        <in> o1 o1/o2
+        <with> outer
+        <static> static (10 + n)
+    ][
+        data: reduce [n x y outer static]
+        return case [
+            n = 0 [reduce [data]]
+            true [
+               append/only (f/count n - 1) data
+            ]
+        ]
+    ]
+
+    f = [
+        [0 "x" "y" "outer" 30]
+        [1 "x" "y" "outer" 30]
+        [2 "x" "y" "outer" 30]
+    ]
+]
