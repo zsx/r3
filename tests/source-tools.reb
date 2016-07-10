@@ -131,7 +131,7 @@ rebsource: context [
                 eol-wsp-check: [
                     wsp-not-eol eol
                     (
-                        eol-wsp: default copy []
+                        eol-wsp: default [copy []]
                         append eol-wsp line-of file-text position
                     )
                 ]
@@ -139,7 +139,7 @@ rebsource: context [
                 malloc-check: [
                     is-identifier "malloc"
                     (
-                        malloc: default copy []
+                        malloc: default [copy []]
                         append malloc line-of file-text position
                     )
                 ]

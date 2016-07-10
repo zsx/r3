@@ -55,6 +55,40 @@ system/standard/hijacked-meta/hijackee-name:
     ()
 
 
+enfix: _
+
+set/lookback quote enfix: proc [
+    "Convenience version of SET/LOOKBACK, e.g `+: enfix :add`"
+    :target [set-word! set-path!]
+    action [function!]
+][
+    set/lookback target :action
+
+    ; return value should never be needed/used...the SET-WORD! or SET-PATH!
+    ; evaluation is converted to a GET when infix quoted on the left.
+]
+
+default: enfix proc [
+    "Set word or path to a default value if it is not set yet or blank."
+    :target [set-word! set-path!]
+        "The word"
+    value [any-value!] ; not <opt> on purpose
+        "Value to set (blocks and 0-arity functions evaluated)"
+    <local>
+        gotten
+][
+    unless all [any-value? gotten: get/opt target | not blank? gotten] [
+        set target either maybe [block! function!] :value [
+            do :value
+        ][
+            :value
+        ]
+    ]
+    ; return value should never be needed/used...the SET-WORD! or SET-PATH!
+    ; evaluation is converted to a GET when infix quoted on the left.
+]
+
+
 does: func [
     {A shortcut to define a function that has no arguments or locals.}
     return: [function!]
