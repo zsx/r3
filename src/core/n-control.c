@@ -727,42 +727,19 @@ was_caught:
         }
         else if (IS_FUNCTION(handler)) {
             //
-            // !!! THIS CAN BE REWRITTEN AS A DO/NEXT via Do_Va_Core()!
-            // There's no reason to have each of these cases when it
-            // could just be one call that either consumes all the
-            // subsequent args or does not.
+            // This calls the function but only does a DO/NEXT.  Hence the
+            // function might be arity 0, arity 1, or arity 2.  If it has
+            // greater arity it will process more arguments.
             //
-            if (
-                VAL_FUNC_NUM_PARAMS(handler) == 0
-                || IS_REFINEMENT(VAL_FUNC_PARAM(handler, 1))
+            if (Apply_Only_Throws(
+                D_OUT,
+                FALSE, // do not alert if handler doesn't consume all args
+                handler,
+                thrown_arg,
+                thrown_name,
+                END_CELL)
             ) {
-                // If the handler is zero arity or takes a first parameter
-                // that is a refinement, call it with no arguments
-                //
-                if (Apply_Only_Throws(D_OUT, handler, END_CELL))
-                    return R_OUT_IS_THROWN;
-            }
-            else if (
-                VAL_FUNC_NUM_PARAMS(handler) == 1
-                || IS_REFINEMENT(VAL_FUNC_PARAM(handler, 2))
-            ) {
-                // If the handler is arity one (with a non-refinement
-                // parameter), or a greater arity with a second parameter that
-                // is a refinement...call it with *just* the thrown value.
-                //
-                if (Apply_Only_Throws(D_OUT, handler, thrown_arg, END_CELL))
-                    return R_OUT_IS_THROWN;
-            }
-            else {
-                // For all other handler signatures, try passing both the
-                // thrown arg and the thrown name.  Let Apply take care of
-                // checking that the arguments are legal for the call.
-                //
-                if (Apply_Only_Throws(
-                    D_OUT, handler, thrown_arg, thrown_name, END_CELL
-                )) {
-                    return R_OUT_IS_THROWN;
-                }
+                return R_OUT_IS_THROWN;
             }
 
             if (REF(q)) return R_TRUE;
@@ -990,6 +967,7 @@ REBNATIVE(do)
         //
         if (Apply_Only_Throws(
             D_OUT,
+            TRUE, // error if not all arguments consumed
             Sys_Func(SYS_CTX_DO_P),
             value,
             REF(args) ? TRUE_VALUE : FALSE_VALUE,
@@ -1376,23 +1354,86 @@ static REB_R If_Unless_Core(REBFRM *frame_, REBOOL trigger) {
     REFINE(3, only);
     REFINE(4, q); //  return TRUE if branch taken, else FALSE
 
-    if (IS_CONDITIONAL_TRUE(ARG(condition)) != trigger) { // don't take branch
-        if (REF(q))
-            return R_FALSE;
-        return R_VOID;
-    }
+    REBVAL *branch = ARG(branch);
 
-    if (REF(only) || !IS_BLOCK(ARG(branch))) { // taking, but no code to run!
+    if (IS_CONDITIONAL_TRUE(ARG(condition)) != trigger) { // don't take branch
+        if (!IS_FUNCTION(branch)) {
+            if (REF(q))
+                return R_FALSE;
+            return R_VOID;
+        }
+
+        // The behavior for functions in the FALSE case is slightly tricky.
+        // If the function is arity-0, it should not be run--just as a branch
+        // for a block should not be run.  *but* if it's arity-1 then it runs
+        // either way, and just gets passed a logic condition.
+        //
+        // (This permits certain constructions like `if condition x else y`,
+        // where `x else y` generates an infix function that takes a LOGIC!)
+        //
+        // Since we can't run the function to find out its arity, we do a
+        // quick scan instead.  If it has at least one normal argument
+        // found before a non-normal one, then request it be run.
+
+        SET_VOID(D_OUT); // default if nothing run (and not /?)
+
+        REBVAL *param = VAL_FUNC_PARAMS_HEAD(branch);
+        for (; NOT_END(param); ++param) {
+            switch (VAL_PARAM_CLASS(param)) {
+            case PARAM_CLASS_LOCAL:
+            case PARAM_CLASS_RETURN:
+            case PARAM_CLASS_LEAVE:
+                continue; // skip.
+
+            case PARAM_CLASS_REFINEMENT:
+                break; // hit before hitting any basic args, so don't call
+
+            case PARAM_CLASS_NORMAL:
+            case PARAM_CLASS_HARD_QUOTE:
+            case PARAM_CLASS_SOFT_QUOTE: {
+                //
+                // At least one argument, see if it'll process a LOGIC!
+                //
+                if (Apply_Only_Throws(
+                    D_OUT,
+                    TRUE, // error if doesn't try to use FALSE (it should!)
+                    branch,
+                    FALSE_VALUE,
+                    END_CELL
+                )) {
+                    return R_OUT_IS_THROWN;
+                }
+                break; }
+
+            default:
+                assert(FALSE);
+            }
+        }
+
         if (REF(q))
-            return R_TRUE;
-        *D_OUT = *ARG(branch);
+            return R_FALSE; // !!! Support this?  It is like having EITHER?
         return R_OUT;
     }
 
-    // Take branch and evaluate block
+    if (REF(only)) {
+        *D_OUT = *branch; // don't run anything if /ONLY, even if it's "code"
+    }
+    else if (IS_BLOCK(branch)) {
+        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, branch))
+            return R_OUT_IS_THROWN;
+    }
+    else if (IS_FUNCTION(branch)) {
+        //
+        // The function is allowed to be arity-0, or arity-1 and called with
+        // a LOGIC! true (which it will ignore if arity 0)
+        //
+        if (Apply_Only_Throws(D_OUT, FALSE, branch, TRUE_VALUE, END_CELL))
+            return R_OUT_IS_THROWN;
+    }
+    else {
+        *D_OUT = *ARG(branch); // it's not code -- nothing to run
+    }
 
-    if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(branch)))
-        return R_OUT_IS_THROWN;
     if (REF(q))
         return R_TRUE;
     return R_OUT;
@@ -1455,20 +1496,25 @@ REBNATIVE(either)
     PARAM(3, false_branch);
     REFINE(4, only);
 
-    if (IS_CONDITIONAL_TRUE(ARG(condition))) {
-        if (REF(only) || !IS_BLOCK(ARG(true_branch))) {
-            *D_OUT = *ARG(true_branch);
-        }
-        else if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(true_branch)))
+    REBVAL *branch;
+    if (IS_CONDITIONAL_TRUE(ARG(condition)))
+        branch = ARG(true_branch);
+    else
+        branch = ARG(false_branch);
+
+    if (REF(only)) {
+        *D_OUT = *branch;
+    }
+    else if (IS_BLOCK(branch)) {
+        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, branch))
             return R_OUT_IS_THROWN;
     }
-    else {
-        if (REF(only) || !IS_BLOCK(ARG(false_branch))) {
-            *D_OUT = *ARG(false_branch);
-        }
-        else if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(false_branch)))
+    else if (IS_FUNCTION(branch)) { // arity-0 only, no args passed to branch
+        if (Apply_Only_Throws(D_OUT, TRUE, branch, END_CELL))
             return R_OUT_IS_THROWN;
     }
+    else
+        *D_OUT = *branch;
 
     return R_OUT;
 }
@@ -1780,28 +1826,15 @@ REBNATIVE(trap)
                 return R_OUT;
             }
             else if (IS_FUNCTION(handler)) {
+                REBVAL arg;
+                Val_Init_Error(&arg, error);
 
-                if (
-                    (VAL_FUNC_NUM_PARAMS(handler) == 0)
-                    || IS_REFINEMENT(VAL_FUNC_PARAM(handler, 1))
-                ) {
-                    // Arity zero handlers (or handlers whose first
-                    // parameter is a refinement) we call without the ERROR!
-                    //
-                    if (Apply_Only_Throws(D_OUT, handler, END_CELL))
-                        return R_OUT_IS_THROWN;
-                }
-                else {
-                    REBVAL arg;
-                    Val_Init_Error(&arg, error);
-
-                    // If the handler takes at least one parameter that
-                    // isn't a refinement, try passing it the ERROR! we
-                    // trapped.  Apply will do argument checking.
-                    //
-                    if (Apply_Only_Throws(D_OUT, handler, &arg, END_CELL))
-                        return R_OUT_IS_THROWN;
-                }
+                // Try passing the handler the ERROR! we trapped.  Passing
+                // FALSE for `fully` means it will not raise an error if
+                // the handler happens to be arity 0.
+                //
+                if (Apply_Only_Throws(D_OUT, FALSE, handler, &arg, END_CELL))
+                    return R_OUT_IS_THROWN;
 
                 if (REF(q)) return R_TRUE;
 

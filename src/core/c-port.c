@@ -175,6 +175,7 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
     //
     if (Apply_Only_Throws(
         &result,
+        TRUE,
         only ? &awake_only : awake,
         port,
         &tmp,

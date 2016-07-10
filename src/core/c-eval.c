@@ -1577,7 +1577,7 @@ reevaluate:;
 
             REBVAL temp = *f->out; // better safe than sorry, for now?
             if (Apply_Only_Throws(
-                f->out, DS_TOP, &temp, END_CELL
+                f->out, TRUE, DS_TOP, &temp, END_CELL
             )) {
                 DS_DROP_TO(f->dsp_orig);
                 goto finished;

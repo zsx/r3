@@ -948,6 +948,7 @@ inline static REBVAL *Sys_Func(REBCNT inum)
 //
 inline static REBOOL Apply_Only_Throws(
     REBVAL *out,
+    REBOOL fully,
     const REBVAL *applicand,
     ...
 ) {
@@ -976,11 +977,10 @@ inline static REBOOL Apply_Only_Throws(
         DO_FLAG_NEXT | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
     );
 
-    if (indexor == VA_LIST_FLAG) {
+    if (fully && indexor == VA_LIST_FLAG) {
         //
-        // Not consuming all the arguments given suggests a problem as far
-        // as this interface is concerned.  To tolerate incomplete states,
-        // use Do_Va_Core() directly.
+        // Not consuming all the arguments given suggests a problem if `fully`
+        // is passed in as TRUE.
         //
         fail (Error(RE_APPLY_TOO_MANY));
     }
@@ -991,7 +991,11 @@ inline static REBOOL Apply_Only_Throws(
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 #endif
 
-    assert(indexor == THROWN_FLAG || indexor == END_FLAG);
+    assert(
+        indexor == THROWN_FLAG
+        || indexor == END_FLAG
+        || (NOT(fully) && indexor == VA_LIST_FLAG)
+    );
     return LOGICAL(indexor == THROWN_FLAG);
 }
 

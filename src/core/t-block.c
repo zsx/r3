@@ -417,6 +417,7 @@ static int Compare_Call(void *thunk, const void *v1, const void *v2)
 
     if (Apply_Only_Throws(
         &result,
+        TRUE,
         sort_flags.compare,
         v1,
         v2,

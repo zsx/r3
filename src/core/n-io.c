@@ -505,7 +505,7 @@ REBNATIVE(wake_up)
 
     value = CTX_VAR(port, STD_PORT_AWAKE);
     if (IS_FUNCTION(value)) {
-        if (Apply_Only_Throws(D_OUT, value, ARG(event), END_CELL))
+        if (Apply_Only_Throws(D_OUT, TRUE, value, ARG(event), END_CELL))
             fail (Error_No_Catch_For_Throw(D_OUT));
 
         if (!(IS_LOGIC(D_OUT) && VAL_LOGIC(D_OUT))) awakened = FALSE;

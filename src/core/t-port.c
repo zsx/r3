@@ -50,7 +50,7 @@ REBINT CT_Port(const RELVAL *a, const RELVAL *b, REBINT mode)
 void MAKE_Port(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
     if (Apply_Only_Throws(
-        out, Sys_Func(SYS_CTX_MAKE_PORT_P), arg, END_CELL
+        out, TRUE, Sys_Func(SYS_CTX_MAKE_PORT_P), arg, END_CELL
     )) {
         // Gave back an unhandled RETURN, BREAK, CONTINUE, etc...
         fail (Error_No_Catch_For_Throw(out));
