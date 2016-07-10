@@ -2006,19 +2006,15 @@ REBNATIVE(subparse)
                     );
 
                     if (Is_Array_Series(P_INPUT)) {
-                        if (count == 0)
-                            SET_BLANK(var);
-                        else {
+                        if (count != 0)
                             COPY_VALUE(
                                 var,
                                 ARR_AT(AS_ARRAY(P_INPUT), begin),
                                 P_INPUT_SPECIFIER
                             );
-                        }
                     }
                     else {
-                        if (count == 0) SET_BLANK(var);
-                        else {
+                        if (count != 0) {
                             i = GET_ANY_CHAR(P_INPUT, begin);
                             if (P_TYPE == REB_BINARY) {
                                 SET_INTEGER(var, i);
