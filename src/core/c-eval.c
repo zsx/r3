@@ -329,98 +329,6 @@ reevaluate:;
 
     //==////////////////////////////////////////////////////////////////==//
     //
-    // FUNCTION! EVAL HANDLING
-    //
-    //==////////////////////////////////////////////////////////////////==//
-
-        // The EVAL "native" is unique because it cannot be a function that
-        // runs "under the evaluator"...because it *is the evaluator itself*.
-        // Hence it is handled in a special way.
-        //
-        if (VAL_FUNC(f->gotten) == NAT_FUNC(eval)) {
-            f->gotten = NULL;
-            FETCH_NEXT_ONLY_MAYBE_END(f);
-
-            // The garbage collector expects f->func to be valid during an
-            // argument fulfillment, and f->param needs to be a typeset in
-            // order to cue Is_Function_Frame_Fulfilling().
-            //
-            f->func = NAT_FUNC(eval);
-            f->param = FUNC_PARAM(NAT_FUNC(eval), 1);
-
-            f->stackvars = NULL;
-            f->varlist = NULL;
-
-            // "DO/NEXT" full expression into the `eval` REBVAR slot
-            // (updates index...).  (There is an /ONLY switch to suppress
-            // normal evaluation but it does not apply to the value being
-            // retriggered itself, just any arguments it consumes.)
-            //
-            if (f->eval_type == REB_0_LOOKBACK) {
-                if (IS_END(f->out))
-                    fail (Error_No_Arg(FRM_LABEL(f), f->param));
-
-                f->cell.eval = *f->out;
-                f->eval_type = REB_FUNCTION;
-                SET_END(f->out);
-            }
-            else {
-                if (IS_END(f->value)) // e.g. `do [eval]`
-                    fail (Error_No_Arg(FRM_LABEL(f), f->param));
-
-                DO_NEXT_REFETCH_MAY_THROW(
-                    SINK(&f->cell.eval), f, DO_FLAG_LOOKAHEAD
-                );
-
-                if (THROWN(&f->cell.eval)) goto finished;
-            }
-
-            // There's only one refinement to EVAL and that is /ONLY.  It can
-            // push one refinement to the stack or none.  The state will
-            // twist up the evaluator for the next evaluation only.
-            //
-            if (DSP > f->dsp_orig) {
-                do {
-                    if (!IS_WORD(DS_TOP))
-                        break;
-
-                    assert(VAL_WORD_SYM(DS_TOP) == SYM_ONLY);
-                    DS_DROP;
-                    args_evaluate = FALSE;
-                    lookahead_flags = DO_FLAG_NO_LOOKAHEAD;
-                } while (DSP > f->dsp_orig);
-            }
-            else
-                args_evaluate = TRUE;
-
-            CLEAR_FRAME_LABEL(f);
-
-            // Save the prefetched f->value for what would be the usual next
-            // item (including if it was an END marker) into f->pending.
-            // Then make f->value the address of the eval result.
-            //
-            // Since the evaluation result is a REBVAL and not a RELVAL, it
-            // is specific.  This means the `f->specifier` (which can only
-            // specify values from the source array) won't ever be applied
-            // to it, since it only comes into play for IS_RELATIVE values.
-            //
-            f->pending = f->value;
-            SET_FRAME_VALUE(f, const_KNOWN(&f->cell.eval)); // SPECIFIED
-            f->eval_type = VAL_TYPE(f->value);
-
-            // The f->gotten (if any) was the fetch for the f->value we just
-            // put in pending...not the f->value we just set.  Not only is
-            // it more expensive to hold onto that cache than to lose it,
-            // but an eval can do anything...so the f->gotten might wind
-            // up being completely different after the eval.  So forget it.
-            //
-            f->gotten = NULL;
-
-            goto reevaluate; // we don't move index!
-        }
-
-    //==////////////////////////////////////////////////////////////////==//
-    //
     // FUNCTION! NORMAL ARGUMENT FULFILLMENT PROCESS
     //
     //==////////////////////////////////////////////////////////////////==//
@@ -1161,6 +1069,20 @@ reevaluate:;
             //
             SET_END(f->out);
             goto execute_func;
+
+        case R_REEVALUATE:
+            args_evaluate = TRUE; // unnecessary?
+            lookahead_flags = DO_FLAG_LOOKAHEAD;
+            Drop_Function_Args_For_Frame(f);
+            CLEAR_FRAME_LABEL(f);
+            goto reevaluate; // we don't move index!
+
+        case R_REEVALUATE_ONLY:
+            args_evaluate = FALSE;
+            lookahead_flags = DO_FLAG_NO_LOOKAHEAD;
+            Drop_Function_Args_For_Frame(f);
+            CLEAR_FRAME_LABEL(f);
+            goto reevaluate; // we don't move index!
 
         default:
             assert(FALSE);

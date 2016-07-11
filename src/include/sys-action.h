@@ -79,7 +79,15 @@ enum {
     // dispatcher from what was originally called.
     //
     R_REDO_CHECKED, // check the types again, fill in exits
-    R_REDO_UNCHECKED // don't bother checking, just run next function in stack
+    R_REDO_UNCHECKED, // don't bother checking, just run next function in stack
+
+    // EVAL is special because it stays at the frame level it is already
+    // running, but re-evaluates.  In order to do this, it must protect its
+    // argument during that evaluation, so it writes into the frame's
+    // "eval cell".
+    //
+    R_REEVALUATE,
+    R_REEVALUATE_ONLY
 };
 typedef REBCNT REB_R;
 

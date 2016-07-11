@@ -1080,7 +1080,7 @@ set 'r3-legacy* func [<local> if-flags] [
         ][
             if block? first spec [spec: next spec]
 
-            if block? object [object: has object]
+            if block? :object [object: has object]
 
             lib/function compose [
                 return: [<opt> any-value!]

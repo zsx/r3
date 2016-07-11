@@ -25,7 +25,7 @@ boot-print: procedure [
     eval: :lib/eval
 
     unless system/options/quiet [
-        print/(if any [eval | semiquoted? 'data] ['eval]) :data
+        print/(if any [eval_BOOT_PRINT | semiquoted? 'data] ['eval]) :data
     ]
 ]
 
@@ -38,6 +38,6 @@ loud-print: procedure [
     eval: :lib/eval
 
     if system/options/flags/verbose [
-        print/(if any [eval | semiquoted? 'data] ['eval]) :data
+        print/(if any [eval_BOOT_PRINT | semiquoted? 'data] ['eval]) :data
     ]
 ]
