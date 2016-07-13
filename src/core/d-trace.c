@@ -105,7 +105,7 @@ void Trace_Line(REBFRM *f)
     if (IS_END(f->value)) {
         Debug_Fmt_("END");
     }
-    else if (f->flags & DO_FLAG_VA_LIST) {
+    else if (f->flags.bits & DO_FLAG_VA_LIST) {
         Debug_Fmt_("VA_LIST_FLAG...");
     }
     else {

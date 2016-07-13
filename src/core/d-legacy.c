@@ -57,7 +57,7 @@ REBOOL In_Legacy_Function_Debug(void)
     //
     REBFRM *frame = FS_TOP;
     for (; frame != NULL; frame = frame->prior) {
-        if (frame->flags & DO_FLAG_VA_LIST)
+        if (frame->flags.bits & DO_FLAG_VA_LIST)
             return FALSE; // no source array to look at
 
         break; // whatever's dispatching here, there is a source array
@@ -91,8 +91,8 @@ REBOOL In_Legacy_Function_Debug(void)
 //
 void Legacy_Convert_Function_Args(REBFRM *f)
 {
-    REBVAL *param = FUNC_PARAMS_HEAD(f->func);
-    REBVAL *arg = FRM_ARGS_HEAD(f);
+    REBVAL *param = FUNC_PARAMS_HEAD(f->underlying);
+    REBVAL *arg = f->args_head;
 
     REBOOL set_blank = FALSE;
 

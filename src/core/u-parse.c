@@ -34,13 +34,13 @@
 #define P_RULE_LVALUE   (f->value) // lvalue
 #define P_RULE_SPECIFIER     (f->specifier)
 
-#define P_INPUT_VALUE       (&f->arg[0])
+#define P_INPUT_VALUE       (&f->args_head[0])
 #define P_TYPE              VAL_TYPE(P_INPUT_VALUE)
 #define P_INPUT             VAL_SERIES(P_INPUT_VALUE)
 #define P_INPUT_SPECIFIER   VAL_SPECIFIER(P_INPUT_VALUE)
 #define P_POS               VAL_INDEX(P_INPUT_VALUE)
 
-#define P_FIND_FLAGS    VAL_INT64(&f->arg[1])
+#define P_FIND_FLAGS    VAL_INT64(&f->args_head[1])
 #define P_HAS_CASE      LOGICAL(P_FIND_FLAGS & AM_FIND_CASE)
 
 #define P_OUT (f->out)
@@ -108,8 +108,8 @@ static REBOOL Subparse_Throws(
 ) {
     REBFRM frame;
     REBFRM *f = &frame;
-    REB_R r;
 
+    assert(IS_END(out));
     assert(ANY_ARRAY(rules));
     assert(ANY_SERIES(input));
 
@@ -142,30 +142,36 @@ static REBOOL Subparse_Throws(
     f->pending = NULL;
     f->gotten = NULL;
 
-    f->stackvars = Push_Ended_Trash_Chunk(2);
+    f->args_head = Push_Ended_Trash_Chunk(2);
     f->varlist = NULL;
 
-    COPY_VALUE(&f->stackvars[0], input, input_specifier);
+    COPY_VALUE(&f->args_head[0], input, input_specifier);
 
     // We always want "case-sensitivity" on binary bytes, vs. treating as
     // case-insensitive bytes for ASCII characters.
     //
-    SET_INTEGER(&f->stackvars[1], find_flags);
+    SET_INTEGER(&f->args_head[1], find_flags);
 
-    f->arg = f->stackvars;
     f->label = Canon(SYM_SUBPARSE);
     f->eval_type = REB_FUNCTION;
     f->func = NAT_FUNC(subparse);
-    f->flags = 0;
+    f->underlying = NAT_FUNC(subparse);
+
+    struct Reb_Header *alias = &f->flags;
+    alias->bits = 0;
+
+    SET_END(&f->cell);
+
     f->param = END_CELL; // informs infix lookahead
+    f->arg = NULL;
     f->refine = NULL;
-    f->cell.subfeed = NULL;
+    f->special = m_cast(REBVAL*, END_CELL);
 
     PUSH_CALL(f);
 
-    SET_TRASH_SAFE(out);
-    r = N_subparse(f);
-    assert(!IS_TRASH_DEBUG(out));
+    REB_R r = N_subparse(f);
+
+    assert(!IS_END(out));
 
     // Can't just drop f->data.stackvars because the debugger may have
     // "reified" the frame into a FRAME!, which means it would now be using
@@ -272,8 +278,8 @@ static void Set_Parse_Series(
     REBFRM *f,
     const REBVAL *any_series
 ) {
-    f->stackvars[0] = *any_series;
-    VAL_INDEX(&f->stackvars[0]) =
+    f->args_head[0] = *any_series;
+    VAL_INDEX(&f->args_head[0]) =
         (VAL_INDEX(any_series) > VAL_LEN_HEAD(any_series))
             ? VAL_LEN_HEAD(any_series)
             : VAL_INDEX(any_series);
@@ -1165,16 +1171,16 @@ static REBCNT Do_Eval_Rule(REBFRM *f)
     // !!! This copies a single value into a block to use as data.  Is there
     // any way this might be avoided?
     //
-    newparse.stackvars = Push_Ended_Trash_Chunk(3);
+    newparse.args_head = Push_Ended_Trash_Chunk(3);
     Val_Init_Block_Index(
-        &newparse.stackvars[0],
+        &newparse.args_head[0],
         Make_Array(1), // !!! "copy the value into its own block"
         0 // position 0
     ); // series (now a REB_BLOCK)
 
-    Append_Value(AS_ARRAY(VAL_SERIES(&newparse.stackvars[0])), &value);
-    SET_INTEGER(&newparse.stackvars[1], P_FIND_FLAGS); // find_flags
-    newparse.arg = newparse.stackvars;
+    Append_Value(AS_ARRAY(VAL_SERIES(&newparse.args_head[0])), &value);
+    SET_INTEGER(&newparse.args_head[1], P_FIND_FLAGS); // find_flags
+    newparse.arg = newparse.args_head;
     newparse.out = P_OUT;
 
     newparse.source.array = f->source.array;
@@ -1183,9 +1189,9 @@ static REBCNT Do_Eval_Rule(REBFRM *f)
     newparse.specifier = P_RULE_SPECIFIER;
 
     {
-    PUSH_GUARD_SERIES(VAL_SERIES(&newparse.stackvars[0]));
+    PUSH_GUARD_SERIES(VAL_SERIES(&newparse.args_head[0]));
     n = Parse_Next_Array(&newparse, P_POS, rule);
-    DROP_GUARD_SERIES(VAL_SERIES(&newparse.stackvars[0]));
+    DROP_GUARD_SERIES(VAL_SERIES(&newparse.args_head[0]));
     }
 
     if (n == THROWN_FLAG)
@@ -1885,7 +1891,7 @@ REBNATIVE(subparse)
                     i = VAL_INT32(P_OUT);
                 }
 
-                SET_TRASH_SAFE(P_OUT);
+                SET_END(P_OUT);
 
                 if (interrupted) { // ACCEPT or REJECT ran
                     P_POS = i;

@@ -956,7 +956,7 @@ inline static REBFRM *CTX_FRAME(REBCTX *c) {
 
 inline static REBVAL *CTX_VARS_HEAD(REBCTX *c) {
     return GET_CTX_FLAG(c, CONTEXT_FLAG_STACK)
-        ? CTX_FRAME(c)->stackvars // if NULL, this will crash
+        ? CTX_FRAME(c)->args_head // if NULL, this will crash
         : SER_AT(REBVAL, ARR_SERIES(CTX_VARLIST(c)), 1);
 }
 
@@ -996,7 +996,7 @@ inline static REBCTX *CTX_META(REBCTX *c) {
 }
 
 inline static REBVAL *CTX_STACKVARS(REBCTX *c) {
-    return CTX_FRAME(c)->stackvars;
+    return CTX_FRAME(c)->args_head;
 }
 
 #define FAIL_IF_LOCKED_CONTEXT(c) \

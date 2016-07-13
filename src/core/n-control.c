@@ -1080,7 +1080,7 @@ REBNATIVE(eval)
 
     REBFRM *f = frame_; // implicit parameter to every dispatcher/native
 
-    f->cell.eval = *ARG(value);
+    f->cell = *ARG(value);
 
     // Save the prefetched f->value for what would be the usual next
     // item (including if it was an END marker) into f->pending.
@@ -1092,7 +1092,7 @@ REBNATIVE(eval)
     // to it, since it only comes into play for IS_RELATIVE values.
     //
     f->pending = f->value;
-    SET_FRAME_VALUE(f, const_KNOWN(&f->cell.eval)); // SPECIFIED
+    SET_FRAME_VALUE(f, &f->cell); // SPECIFIED
     f->eval_type = VAL_TYPE(f->value);
 
     // The f->gotten (if any) was the fetch for the f->value we just

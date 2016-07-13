@@ -2107,7 +2107,8 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
 
     f->dsp_orig = DSP;
 
-    f->flags =
+    struct Reb_Header *alias = &f->flags;
+    alias->bits =
         DO_FLAG_NEXT
         | DO_FLAG_NO_LOOKAHEAD
         | DO_FLAG_NO_ARGS_EVALUATE
@@ -2128,34 +2129,70 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
     SNAP_STATE(&f->state);
 #endif
 
-    // If applying an existing FRAME! there should be no need to push vars
-    // for it...it should have its own space.
-    //
-    if (opt_def) {
+    f->refine = NULL;
+
+    if (opt_def)
         Push_Or_Alloc_Args_For_Underlying_Func(f);
-    }
     else {
-        // f->func and f->binding should already be set
-
-        // !!! This form of execution raises a ton of open questions about
-        // what to do if a frame is used more than once.  Function calls
-        // are allowed to destroy their arguments and will contaminate the
-        // pure locals.  We need to treat this as a "non-specializing
-        // specialization", and push a frame.  The narrow case of frame
-        // reuse needs to be contained to something that a function can only
-        // do to itself--e.g. to facilitate tail recursion, because no caller
-        // but the function itself understands the state of its locals in situ.
-        //
         ASSERT_CONTEXT(AS_CONTEXT(f->varlist));
-        f->stackvars = NULL;
 
-        f->arg = FRM_ARGS_HEAD(f);
-        f->param = FUNC_PARAMS_HEAD(f->func); // !!! Review
+        REBFUN *specializer;
+        f->underlying = Underlying_Function(&specializer, FUNC_VALUE(f->func));
+
+        f->args_head = CTX_VARS_HEAD(AS_CONTEXT(f->varlist));
+
+        if (specializer) {
+            REBCTX *exemplar = VAL_CONTEXT(FUNC_BODY(specializer));
+            f->special = CTX_VARS_HEAD(exemplar);
+        }
+        else
+            f->special = m_cast(REBVAL*, END_CELL); // literal pointer tested
     }
 
-    f->cell.subfeed = NULL;
+    // Ordinary function dispatch does not pre-fill the arguments; they
+    // are left as garbage until the parameter enumeration gets to them.
+    // (The GC can see f->param to know how far the enumeration has
+    // gotten, and avoid tripping on the garbage.)  This helps avoid
+    // double-walking and double-writing.
+    //
+    // However, the user code being run by the APPLY can't get garbage
+    // if it looks at variables in the frame.  Also, it's necessary to
+    // know if the user writes them or not...so making them "write-only"
+    // isn't an option either.  One has to
+    //
+    f->param = FUNC_PARAMS_HEAD(f->underlying);
+    f->arg = f->args_head;
+    while (NOT_END(f->param)) {
+        if (f->special != END_CELL && !IS_VOID(f->special)) {
+            //
+            // !!! Specialized arguments *should* be invisible to the
+            // binding process of the apply.  They have been set and should
+            // not be reset.  Removing them from the binding process is
+            // TBD, so for now if you apply a specialization and change
+            // arguments you shouldn't that is a client error.
+            //
+            assert(!THROWN(f->special));
+            *f->arg = *f->special;
+            ++f->special;
+        }
+        else if (opt_def)
+            SET_VOID(f->arg);
+        else {
+            // just leave it alone
+        }
+
+        ++f->arg;
+        ++f->param;
+    }
+    assert(IS_END(f->param));
 
     if (opt_def) {
+        // In today's implementation, the body must be rebound to the frame.
+        // Ideally if it were read-only (at least), then the opt_def value
+        // should be able to carry a virtual binding into the new context.
+        // That feature is not currently implemented, so this mutates the
+        // bindings on the passed in block...as OBJECTs and other things do
+        //
         Bind_Values_Core(
             VAL_ARRAY_AT(opt_def),
             Context_For_Frame_May_Reify_Core(f),
@@ -2172,8 +2209,19 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
             return R_OUT_IS_THROWN;
         }
     }
+    else {
+        // !!! This form of execution raises a ton of open questions about
+        // what to do if a frame is used more than once.  Function calls
+        // are allowed to destroy their arguments and will contaminate the
+        // pure locals.  We need to treat this as a "non-specializing
+        // specialization", and push a frame.  The narrow case of frame
+        // reuse needs to be contained to something that a function can only
+        // do to itself--e.g. to facilitate tail recursion, because no caller
+        // but the function itself understands the state of its locals in situ.
+    }
 
-    f->refine = NULL;
+    f->special = f->args_head; // do type/refinement checks on existing data
+
     SET_END(f->out);
 
     Do_Core(f);

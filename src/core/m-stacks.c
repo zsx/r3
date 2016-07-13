@@ -416,27 +416,3 @@ REBCTX *Context_For_Frame_May_Reify_Managed(REBFRM *f)
     ASSERT_CONTEXT(context);
     return context;
 }
-
-
-#if !defined(NDEBUG)
-
-//
-//  FRM_ARG_Debug: C
-// 
-// Debug-only version of getting a variable out of a call
-// frame, which asserts if you use an index that is higher
-// than the number of arguments in the frame.
-//
-REBVAL *FRM_ARG_Debug(REBFRM *frame, REBCNT n)
-{
-    REBVAL *var;
-    assert(n != 0 && n <= FRM_NUM_ARGS(frame));
-
-    var = &frame->arg[n - 1];
-    assert(!THROWN(var));
-    assert(NOT(GET_VAL_FLAG(var, VALUE_FLAG_RELATIVE)));
-
-    return var;
-}
-
-#endif

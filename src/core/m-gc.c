@@ -573,9 +573,6 @@ static void Mark_Devices_Deep(void)
 //
 static void Mark_Frame_Stack_Deep(void)
 {
-    // The GC must consider all entries, not just those that have been pushed
-    // into active evaluation.
-    //
     REBFRM *f = TG_Frame_Stack;
 
     for (; f != NULL; f = f->prior) {
@@ -585,38 +582,28 @@ static void Mark_Frame_Stack_Deep(void)
         // earlier in the recycle process (don't want to create new arrays
         // once the recycling has started...)
         //
-        assert(f->index != VA_LIST_FLAG);
+        assert(f->pending != VA_LIST_PENDING);
 
-        // END_FLAG is possible, because the frame could be sitting at the
-        // end of a block when a function runs, e.g. `do [zero-arity]`.
-        // That frame will stay on the stack while the zero-arity
-        // function is running, which could be arbitrarily long...so
-        // a GC could happen.
-        //
-        // !!! FETCH_NEXT could do the array unprotect, and make it possible
-        // to GC the series sooner.
-        //
         ASSERT_ARRAY_MANAGED(f->source.array);
         Queue_Mark_Array_Deep(f->source.array);
 
+        // END is possible, because the frame could be sitting at the end of
+        // a block when a function runs, e.g. `do [zero-arity]`.  That frame
+        // will stay on the stack while the zero-arity function is running.
+        // The array still might be used in an error, so can't GC it.
+        //
         if (f->value && NOT_END(f->value) && Is_Value_Managed(f->value))
             Queue_Mark_Value_Deep(f->value);
 
         if (f->specifier != SPECIFIED)
             Queue_Mark_Context_Deep(f->specifier);
 
-        // Specialization code may run while an f->out is being held as the
-        // left-hand-side of an infix operation.  And SET-PATH! also holds
-        // f->out alive across an evaluation.
+        // For uniformity of assumption, f->out is always maintained as GC safe
         //
-        if (Is_Any_Function_Frame(f) || f->eval_type == REB_SET_PATH)
-            if (!IS_END(f->out) && !IS_VOID_OR_SAFE_TRASH(f->out))
-                Queue_Mark_Value_Deep(f->out); // never NULL
+        if (!IS_END(f->out) && !IS_VOID_OR_SAFE_TRASH(f->out))
+            Queue_Mark_Value_Deep(f->out); // never NULL
 
         if (NOT(Is_Any_Function_Frame(f))) {
-            //
-            // The only fields we protect if no function is pending or running
-            // with this frame is the array and the potentially pending value.
             //
             // Consider something like `eval copy quote (recycle)`, because
             // while evaluating the group it has no anchor anywhere in the
@@ -625,29 +612,25 @@ static void Mark_Frame_Stack_Deep(void)
             continue;
         }
 
+        if (!IS_END(&f->cell) && !IS_VOID_OR_SAFE_TRASH(&f->cell))
+            Queue_Mark_Value_Deep(&f->cell);
+
         Queue_Mark_Array_Deep(FUNC_PARAMLIST(f->func)); // never NULL
         Mark_Series_Only(f->label); // also never NULL
-
-        if (f->func == NAT_FUNC(eval)) {
-            //
-            // EVAL is special because it doesn't use argument lists, it
-            // evaluates directly into the f->cell.  (This should be protected
-            // by the evaluation's f->out into that cell.)
-            //
-            continue;
-        }
 
         // The subfeed may be in use by VARARGS!, and it may be either a
         // context or a single element array.  It will only be valid during
         // the function's actual running.
         //
         if (!Is_Function_Frame_Fulfilling(f)) {
-            if (f->cell.subfeed) {
-                if (GET_ARR_FLAG(f->cell.subfeed, ARRAY_FLAG_VARLIST))
-                    Queue_Mark_Context_Deep(AS_CONTEXT(f->cell.subfeed));
+            if (f->special != END_CELL) {
+                REBARR *subfeed = cast(REBARR*, f->special);
+
+                if (GET_ARR_FLAG(subfeed, ARRAY_FLAG_VARLIST))
+                    Queue_Mark_Context_Deep(AS_CONTEXT(subfeed));
                 else {
-                    assert(ARR_LEN(f->cell.subfeed) == 1);
-                    Queue_Mark_Array_Deep(f->cell.subfeed);
+                    assert(ARR_LEN(subfeed) == 1);
+                    Queue_Mark_Array_Deep(subfeed);
                 }
             }
 
@@ -663,46 +646,49 @@ static void Mark_Frame_Stack_Deep(void)
             }
         }
 
-        // !!! symbols are not currently GC'd, but if they were this would
-        // need to keep the label sym alive!
-        /* Mark_Symbol_Still_In_Use?(f->label_sym); */
-
-        // In the current implementation (under review) functions use
-        // stack-based chunks to gather their arguments, and closures use
-        // ordinary arrays.  If the call mode is pending then
-        // the arglist is under construction, but guaranteed to have all
-        // cells be safe for garbage collection.
+        // Need to keep the label symbol alive for error messages/stacktraces
         //
-        if (f->varlist != NULL) {
-            //
-            // We need to GC protect the values in the varlist no matter what,
-            // but it might not be managed yet (e.g. could still contain END
-            // markers during argument fulfillment).  But if it is managed,
-            // then it needs to be handed to normal GC.
-            //
-            if (IS_ARRAY_MANAGED(f->varlist)) {
-                assert(!IS_TRASH_DEBUG(ARR_AT(f->varlist, 0)));
-                assert(GET_ARR_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
-                Queue_Mark_Context_Deep(AS_CONTEXT(f->varlist));
-            }
-            else {
-                REBCNT num_params = FUNC_NUM_PARAMS(f->func);
-                REBVAL *slot = FRM_ARGS_HEAD(f); // may be stack or dynamic
-                while (num_params != 0) {
-                    if (!IS_END(slot) && !IS_VOID_OR_SAFE_TRASH(slot))
-                        Queue_Mark_Value_Deep(slot);
-                    ++slot;
-                    --num_params;
-                }
-                assert(IS_END(slot));
-            }
+        Mark_Series_Only(f->label);
+
+        // We need to GC protect the values in the args no matter what,
+        // but it might not be managed yet (e.g. could still contain garbage
+        // during argument fulfillment).  But if it is managed, then it needs
+        // to be handed to normal GC.
+        //
+        if (f->varlist != NULL && IS_ARRAY_MANAGED(f->varlist)) {
+            assert(!IS_TRASH_DEBUG(ARR_AT(f->varlist, 0)));
+            assert(GET_ARR_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
+            Queue_Mark_Context_Deep(AS_CONTEXT(f->varlist));
         }
-        else  {
-            // If it's just sequential REBVALs sitting in memory in the chunk
-            // stack, then the chunk stack walk already took care of it.
-            // (the chunk stack can be used for things other than the call
-            // stack, so long as they are stack-like in a call relative way)
+
+        // (Although the above will mark the varlist, it may not mark the
+        // values...because it may be a single element array that merely
+        // points at the stackvars.  Queue_Mark_Context expects stackvars
+        // to be marked separately.)
+
+        // The slots may be stack based or dynamic.  Mark in use but only
+        // as far as parameter filling has gotten (may be garbage bits
+        // past that).  Note END values are possible in the course of
+        // frame fulfillment in the middle of the args, so we go by the
+        // END parameter.
+        //
+        // Refinements need special treatment, and also consideration
+        // of if this is the "doing pickups" or not.  If doing pickups
+        // then skip the cells for pending refinement arguments.
+        //
+        REBVAL *param = FUNC_PARAMS_HEAD(f->underlying);
+        REBVAL *arg = f->args_head; // may be stack or dynamic
+        while (NOT_END(param)) {
+            if (!IS_END(arg) && !IS_VOID_OR_SAFE_TRASH(arg))
+                Queue_Mark_Value_Deep(arg);
+
+            if (param == f->param && !f->doing_pickups)
+                break; // protect arg for current param, but no further
+
+            ++param;
+            ++arg;
         }
+        assert(IS_END(param) ? IS_END(arg) : TRUE); // may not enforce
 
         Propagate_All_GC_Marks();
     }
@@ -1376,7 +1362,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
         REBFRM *f = FS_TOP;
         for (; f != NULL; f = f->prior) {
             const REBOOL truncated = TRUE;
-            if (f->flags & DO_FLAG_VA_LIST)
+            if (f->flags.bits & DO_FLAG_VA_LIST)
                 Reify_Va_To_Array_In_Frame(f, truncated); // see function
         }
     }
@@ -1471,30 +1457,6 @@ REBCNT Recycle_Core(REBOOL shutdown)
             if (NOT_END(*vp) && !IS_VOID_OR_SAFE_TRASH(*vp))
                 Queue_Mark_Value_Deep(*vp);
             Propagate_All_GC_Marks();
-        }
-
-        // Mark chunk stack (non-movable saved arrays of values)
-        {
-            struct Reb_Chunk *chunk = TG_Top_Chunk;
-            while (chunk) {
-                REBVAL *chunk_value = &chunk->values[0];
-                while (
-                    cast(REBYTE*, chunk_value)
-                    < cast(REBYTE*, chunk) + chunk->size.bits
-                ) {
-                    if (
-                        NOT_END(chunk_value)
-                        && !IS_VOID_OR_SAFE_TRASH(chunk_value)
-                    ) {
-                        assert(NOT(
-                            GET_VAL_FLAG(chunk_value, VALUE_FLAG_RELATIVE)
-                        ));
-                        Queue_Mark_Value_Deep(chunk_value);
-                    }
-                    chunk_value++;
-                }
-                chunk = chunk->prev;
-            }
         }
 
         // Mark all root series:

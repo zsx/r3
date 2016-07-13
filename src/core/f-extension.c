@@ -582,22 +582,21 @@ REB_R Command_Dispatcher(REBFRM *f)
     REBCNT n;
     RXIFRM rxifrm;
 
-    REBVAL *arg;
-
     if (FRM_NUM_ARGS(f) >= RXIFRM_MAX_ARGS) // fixed # of rxiargs in struct :-/
         fail (Error(RE_BAD_COMMAND));
 
     // Proxy array of REBVAL to array of RXIARG inside of the RXIFRM.
     //
     RXA_COUNT(&rxifrm) = FRM_NUM_ARGS(f); // count is put into rxiargs[0] cell
-    arg = FRM_ARGS_HEAD(f);
+    f->param = FUNC_PARAMS_HEAD(f->underlying);
+    f->arg = f->args_head;
     n = 1; // values start at the rxiargs[1] cell, arbitrary max at rxifrm[7]
-    for (; NOT_END(arg); ++arg, ++n) {
-        if (IS_VOID(arg))
+    for (; NOT_END(f->param); ++f->param, ++f->arg, ++n) {
+        if (IS_VOID(f->arg))
             RXA_TYPE(&rxifrm, n) = 0;
         else {
-            RXA_TYPE(&rxifrm, n) = Reb_To_RXT[VAL_TYPE(arg)];
-            Value_To_RXI(&rxifrm.rxiargs[n], arg);
+            RXA_TYPE(&rxifrm, n) = Reb_To_RXT[VAL_TYPE(f->arg)];
+            Value_To_RXI(&rxifrm.rxiargs[n], f->arg);
         }
     }
 

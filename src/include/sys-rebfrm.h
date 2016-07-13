@@ -71,8 +71,6 @@
 // The flags are specified either way for clarity.
 //
 enum {
-    DO_FLAG_0 = 0, // unused
-
     // As exposed by the DO native and its /NEXT refinement, a call to the
     // evaluator can either run to the finish from a position in an array
     // or just do one eval.  Rather than achieve execution to the end by
@@ -86,8 +84,8 @@ enum {
     // invariant and especially in light of potential interaction with
     // DO_FLAG_LOOKAHEAD.
     //
-    DO_FLAG_NEXT = 1 << 1,
-    DO_FLAG_TO_END = 1 << 2,
+    DO_FLAG_NEXT = 1 << (REBSER_REBVAL_BIT + 1),
+    DO_FLAG_TO_END = 1 << (REBSER_REBVAL_BIT + 2),
 
     // When we're in mid-dispatch of an infix function, the precedence is such
     // that we don't want to do further infix lookahead while getting the
@@ -98,19 +96,19 @@ enum {
     // to evaluate a form of source input that cannot be backtracked (e.g.
     // a C variable argument list) then it will not be possible to resume.
     //
-    DO_FLAG_LOOKAHEAD = 1 << 3,
-    DO_FLAG_NO_LOOKAHEAD = 1 << 4,
+    DO_FLAG_LOOKAHEAD = 1 << (REBSER_REBVAL_BIT + 3),
+    DO_FLAG_NO_LOOKAHEAD = 1 << (REBSER_REBVAL_BIT + 4),
 
     // Write more comments here when feeling in more of a commenting mood
     //
-    DO_FLAG_ARGS_EVALUATE = 1 << 5,
-    DO_FLAG_NO_ARGS_EVALUATE = 1 << 6,
+    DO_FLAG_ARGS_EVALUATE = 1 << (REBSER_REBVAL_BIT + 5),
+    DO_FLAG_NO_ARGS_EVALUATE = 1 << (REBSER_REBVAL_BIT + 6),
 
     // A pre-built frame can be executed "in-place" without a new allocation.
     // It will be type checked, and also any BAR! parameters will indicate
     // a desire to acquire that argument (permitting partial specialization).
     //
-    DO_FLAG_EXECUTE_FRAME = 1 << 7,
+    DO_FLAG_EXECUTE_FRAME = 1 << (REBSER_REBVAL_BIT + 7),
 
     // Usually VA_LIST_FLAG is enough to tell when there is a source array to
     // examine or not.  However, when the end is reached it is written over
@@ -120,18 +118,18 @@ enum {
     // expression evaluation is complete.  Review to see if they actually
     // would rather know something else, but this is a cheap flag for now.
     //
-    DO_FLAG_VA_LIST = 1 << 8,
+    DO_FLAG_VA_LIST = 1 << (REBSER_REBVAL_BIT + 8),
 
     // While R3-Alpha permitted modifications of an array while it was being
     // executed, Ren-C does not.  It takes a lock if the source is not already
     // read only, and sets it back when Do_Core is finished (or on errors)
     //
-    DO_FLAG_TOOK_FRAME_LOCK = 1 << 9,
+    DO_FLAG_TOOK_FRAME_LOCK = 1 << (REBSER_REBVAL_BIT + 9),
 
     // DO_FLAG_APPLYING is used to indicate that the Do_Core code is entering
     // a situation where the frame was already set up.
     //
-    DO_FLAG_APPLYING = 1 << 10
+    DO_FLAG_APPLYING = 1 << (REBSER_REBVAL_BIT + 10)
 };
 
 
@@ -195,24 +193,23 @@ struct Reb_Frame {
     //
     // `cell`
     //
-    // This is a REBVAL-sized slot which is used for multiple purposes.
-    //
-    // * It is a temporary storage space for evaluations, in order to avoid
-    //   overwriting f->out when the value in it needs to be preserved.
-    //
-    // * It is where the EVAL instruction stores the temporary item that it
+    // * This is where the EVAL instruction stores the temporary item that it
     //   splices into the evaluator feed, e.g. for `eval (first [x:]) 10 + 20`
     //   would be the storage for the `x:` SET-WORD! during the addition.
     //
-    // * During a function call, it is available for other purposes.  One
-    //   current usage is to have it hold a pointer that all variadic
-    //   arguments tied to this frame can share, when they are chaining
-    //   one list of variadic arguments inside of another.
+    // * If a function takes exactly one argument, it is used as the cell
+    //   for that argument.  Functions taking more than one argument are
+    //   free to use it as a GC-safe spot.
     //
-    union {
-        RELVAL eval;
-        REBARR *subfeed; // (see also REBSER.link.subfeed)
-    } cell;
+    REBVAL cell;
+
+    // `flags`
+    //
+    // These are DO_FLAG_XXX or'd together--see their documentation above.
+    // A Reb_Header is used so that it can implicitly terminate `cell`,
+    // giving natives an enumerable single-cell slot if they need it.
+    //
+    struct Reb_Header flags;
 
     // `prior`
     //
@@ -240,12 +237,6 @@ struct Reb_Frame {
     // a final result, due to being GC-safe during function evaluation.
     //
     REBVAL *out;
-
-    // `flags`
-    //
-    // These are DO_FLAG_XXX or'd together--see their documentation above.
-    //
-    REBUPT flags; // type is REBFLGS, but enforce alignment here
 
     // source.array, source.vaptr
     //
@@ -355,6 +346,7 @@ struct Reb_Frame {
     // that function (to examine its function flags, for instance).
     //
     REBFUN *func;
+    REBFUN *underlying;
 
     // `binding`
     //
@@ -373,18 +365,6 @@ struct Reb_Frame {
     // calls--in the release build, it is allowed to be garbage otherwise.
     //
     REBSTR *label;
-
-    // `stackvars`
-    //
-    // For functions without "indefinite extent", the invocation arguments are
-    // stored in the "chunk stack", where allocations are fast, address stable,
-    // and implicitly terminated.  If a function has indefinite extent, this
-    // will be set to NULL.
-    //
-    // This can contain END markers at any position during arg fulfillment,
-    // but must all be non-END when the function actually runs.
-    //
-    REBVAL *stackvars;
 
     // `varlist`
     //
@@ -414,6 +394,21 @@ struct Reb_Frame {
     //
     const RELVAL *param;
 
+    // `args_head`
+    //
+    // For functions without "indefinite extent", the invocation arguments are
+    // stored in the "chunk stack", where allocations are fast, address stable,
+    // and implicitly terminated.  If a function has indefinite extent, this
+    // will be set to NULL.
+    //
+    // This can contain END markers at any position during arg fulfillment,
+    // but must all be non-END when the function actually runs.
+    //
+    // If a function is indefinite extent, this just points to the front of
+    // the head of varlist.
+    //
+    REBVAL *args_head;
+
     // `arg`
     //
     // "arg" is the "actual argument"...which holds the pointer to the
@@ -427,38 +422,59 @@ struct Reb_Frame {
     //
     REBVAL *arg;
 
+    // `special` (acts as `subfeed` during function run)
+    //
+    // The specialized argument parallels arg if non-NULL, and contains the
+    // value to substitute in the case of a specialized call.  Currently if
+    // this is a GROUP! it will be evaluated, although that feature might
+    // be supplanted by use of an adaptation.
+    //
+    // The subfeed holds a pointer that all variadic arguments tied to this
+    // frame can share, when they are chaining one list of variadic arguments
+    // inside of another.
+    //
+    // The two values share this same variable, even though they are different
+    // types.  This is legal because the structure holding header bits is
+    // the same for both, and written through a raw pointer of that type.
+    // Since `special` naturally ends up as END_CELL during argument
+    // enumeration, that is the indicator for "no subfeed" that is used.
+    //
+    REBVAL *special; // may also be REBARR* node--be aware of strict aliasing
+
     // `refine`
     //
     // During parameter fulfillment, this might point to the `arg` slot
     // of a refinement which is having its arguments processed.  Or it may
     // point to another *read-only* value whose content signals information
-    // about how arguments should be handled.  The states are chosen to line
-    // up naturally with tests in the evaluator, so there's a reasoning:.
+    // about how arguments should be handled.  The specific address of the
+    // value can be used to test without typing, but then can also be
+    // checked with conditional truth and falsehood.
     //
-    // * If IS_VOID(), then refinements are being skipped and the arguments
+    // * If VOID_CELL, then refinements are being skipped and the arguments
     //   that follow should not be written to.
     //
-    // * If BLANK!, this is an arg to a refinement that was not used in the
-    //   invocation.  No consumption should be performed, arguments should
+    // * If BLANK_VALUE, this is an arg to a refinement that was not used in
+    //   the invocation.  No consumption should be performed, arguments should
     //   be written as unset, and any non-unset specializations of arguments
     //   should trigger an error.
     //
-    // * If FALSE, this is an arg to a refinement that was used in the
+    // * If FALSE_VALUE, this is an arg to a refinement that was used in the
     //   invocation but has been *revoked*.  It still consumes expressions
     //   from the callsite for each remaining argument, but those expressions
     //   must not evaluate to any value.
     //
-    // * If TRUE the refinement is active but revokable.  So if evaluation
+    // * If IS_TRUE() the refinement is active but revokable.  So if evaluation
     //   produces no value, `refine` must be mutated to be FALSE.
     //
-    // * If BAR!, it's an ordinary arg...and not a refinement.  It will be
-    //   evaluated normally but is not involved with revocation.
+    // * If EMPTY_BLOCK, it's an ordinary arg...and not a refinement.  It will
+    //   be evaluated normally but is not involved with revocation.
     //
     // Because of how this lays out, IS_CONDITIONAL_TRUE() can be used to
     // determine if an argument should be type checked normally...while
     // IS_CONDITIONAL_FALSE() means that the arg's bits must be set to void.
     //
     REBVAL *refine;
+    REBOOL doing_pickups; // want to encode
 
 #if !defined(NDEBUG)
     //

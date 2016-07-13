@@ -143,20 +143,20 @@ inline static void PUSH_CALL(REBFRM *f)
 {
     f->prior = TG_Frame_Stack;
     TG_Frame_Stack = f;
-    if (NOT(f->flags & DO_FLAG_VA_LIST))
+    if (NOT(f->flags.bits & DO_FLAG_VA_LIST))
         if (!GET_ARR_FLAG(f->source.array, SERIES_FLAG_LOCKED)) {
             SET_ARR_FLAG(f->source.array, SERIES_FLAG_LOCKED);
-            f->flags |= DO_FLAG_TOOK_FRAME_LOCK;
+            f->flags.bits |= DO_FLAG_TOOK_FRAME_LOCK;
         }
 }
 
 inline static void UPDATE_EXPRESSION_START(REBFRM *f) {
-    assert(NOT(f->flags & DO_FLAG_VA_LIST));
+    assert(NOT(f->flags.bits & DO_FLAG_VA_LIST));
     f->expr_index = f->index;
 }
 
 inline static void DROP_CALL(REBFRM *f) {
-    if (f->flags & DO_FLAG_TOOK_FRAME_LOCK) {
+    if (f->flags.bits & DO_FLAG_TOOK_FRAME_LOCK) {
         assert(GET_ARR_FLAG(f->source.array, SERIES_FLAG_LOCKED));
         CLEAR_ARR_FLAG(f->source.array, SERIES_FLAG_LOCKED);
     }
@@ -185,12 +185,16 @@ inline static void PUSH_SAFE_ENUMERATOR(
 ) {
     SET_FRAME_VALUE(f, VAL_ARRAY_AT(v));
     f->source.array = VAL_ARRAY(v);
-    f->flags = DO_FLAG_NEXT | DO_FLAG_ARGS_EVALUATE; // !!! review
+
+    struct Reb_Header *alias = &f->flags;
+    alias->bits = DO_FLAG_NEXT | DO_FLAG_ARGS_EVALUATE; // !!! review
+
     f->gotten = NULL; // tells ET_WORD and ET_GET_WORD they must do a get
     f->index = VAL_INDEX(v) + 1;
     f->specifier = VAL_SPECIFIER(v);
     f->eval_type = REB_MAX_VOID;
     f->pending = NULL;
+    f->out = m_cast(REBVAL*, END_CELL); // no out here, but needs to be GC safe
     PUSH_CALL(f);
 }
 
@@ -222,7 +226,12 @@ inline static void PUSH_SAFE_ENUMERATOR(
 inline static void FETCH_NEXT_ONLY_MAYBE_END(REBFRM *f) {
     TRACE_FETCH_DEBUG("FETCH_NEXT_ONLY_MAYBE_END", f, FALSE);
 
-    assert(NOT_END(f->value));
+    // If f->value is pointing to f->cell, it's possible that it may wind up
+    // with an END in it between fetches if f->cell gets reused (as in when
+    // arguments are pushed for a function)
+    //
+    assert(NOT_END(f->value) || f->value == &f->cell);
+
     assert(f->gotten == NULL); // we'd be invalidating it!
 
     if (f->pending == NULL) {
@@ -233,13 +242,13 @@ inline static void FETCH_NEXT_ONLY_MAYBE_END(REBFRM *f) {
         SET_FRAME_VALUE(f, va_arg(*f->source.vaptr, const REBVAL*));
         assert(
             IS_END(f->value)
-            || (IS_VOID(f->value) && NOT((f)->flags & DO_FLAG_ARGS_EVALUATE))
+            || (IS_VOID(f->value) && NOT(f->flags.bits & DO_FLAG_ARGS_EVALUATE))
             || !IS_RELATIVE(f->value)
         );
     }
     else {
         SET_FRAME_VALUE(f, f->pending);
-        if (f->flags & DO_FLAG_VA_LIST)
+        if (f->flags.bits & DO_FLAG_VA_LIST)
             f->pending = VA_LIST_PENDING;
         else
             f->pending = NULL;
@@ -450,6 +459,7 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
                     Lookback_For_Set_Word_Or_Set_Path(out, parent);
                 else {
                     assert(child->eval_type == REB_FUNCTION);
+                    SET_END(out);
                 }
                 goto no_optimization;
             }
@@ -484,6 +494,7 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
             // to hold their state.
             //
             child->gotten = NULL;
+            SET_END(out);
             goto no_optimization;
         }
     }
@@ -523,18 +534,21 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
 
 no_optimization:
     child->out = out;
+
     child->source = parent->source;
     SET_FRAME_VALUE(child, parent->value);
     child->index = parent->index;
     child->specifier = parent->specifier;
-    child->flags = DO_FLAG_ARGS_EVALUATE | DO_FLAG_NEXT | flags;
+
+    struct Reb_Header *alias = &child->flags;
+    alias->bits = DO_FLAG_ARGS_EVALUATE | DO_FLAG_NEXT | flags;
     child->pending = parent->pending;
 
     Do_Core(child);
 
     assert(child->eval_type != REB_0_LOOKBACK);
     assert(
-        (child->flags & DO_FLAG_VA_LIST)
+        (child->flags.bits & DO_FLAG_VA_LIST)
         || parent->index != child->index
         || THROWN(out)
     );
@@ -603,7 +617,10 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     f->source.array = array;
     f->specifier = specifier;
     f->index = index + 1;
-    f->flags = 0;
+
+    struct Reb_Header *alias = &f->flags;
+    alias->bits = 0;
+
     f->pending = NULL;
     f->gotten = NULL;
     f->eval_type = VAL_TYPE(f->value);
@@ -652,10 +669,15 @@ inline static REBIXO Do_Array_At_Core(
         return END_FLAG;
     }
 
+    SET_END(out);
     f.out = out;
+
     f.source.array = array;
     f.specifier = specifier;
-    f.flags = flags;
+
+    struct Reb_Header *alias = &f.flags;
+    alias->bits = flags;
+
     f.gotten = NULL; // so ET_WORD and ET_GET_WORD do their own Get_Var
     f.pending = NULL;
 
@@ -728,7 +750,7 @@ inline static void Reify_Va_To_Array_In_Frame(
 ) {
     REBDSP dsp_orig = DSP;
 
-    assert(f->flags & DO_FLAG_VA_LIST);
+    assert(f->flags.bits & DO_FLAG_VA_LIST);
 
     if (truncated) {
         REBVAL temp;
@@ -761,7 +783,7 @@ inline static void Reify_Va_To_Array_In_Frame(
 
         SET_ARR_FLAG(f->source.array, SERIES_FLAG_LOCKED);
         SET_ARR_FLAG(f->source.array, ARRAY_FLAG_VOIDS_LEGAL);
-        f->flags |= DO_FLAG_TOOK_FRAME_LOCK;
+        f->flags.bits |= DO_FLAG_TOOK_FRAME_LOCK;
     }
     else {
         // The series needs to be locked during Do_Core, but it doesn't have
@@ -780,7 +802,7 @@ inline static void Reify_Va_To_Array_In_Frame(
     // enough information to record the fact that it was a va_list (revisit
     // if there's another reason to know what it was...)
 
-    f->flags &= ~DO_FLAG_VA_LIST;
+    f->flags.bits &= ~DO_FLAG_VA_LIST;
 
     assert(f->pending == VA_LIST_PENDING);
     f->pending = NULL;
@@ -840,7 +862,9 @@ inline static REBIXO Do_Va_Core(
         return END_FLAG;
     }
 
+    SET_END(out);
     f.out = out;
+
 #if !defined(NDEBUG)
     f.index = TRASHED_INDEX;
 #endif
@@ -849,7 +873,8 @@ inline static REBIXO Do_Va_Core(
     f.specifier = SPECIFIED; // va_list values MUST be full REBVAL* already
     f.pending = VA_LIST_PENDING;
 
-    f.flags = flags | DO_FLAG_VA_LIST; // see notes in %sys-do.h on why needed
+    struct Reb_Header *alias = &f.flags;
+    alias->bits = flags | DO_FLAG_VA_LIST; // see definition for why needed
 
     f.eval_type = VAL_TYPE(f.value);
 

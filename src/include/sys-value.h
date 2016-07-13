@@ -2068,7 +2068,10 @@ inline static REBARR **SUBFEED_ADDR_OF_FEED(REBARR *a) {
 
     REBFRM *f = CTX_FRAME(AS_CONTEXT(a));
     assert(f != NULL); // need to check frame independently and error on this
-    return &f->cell.subfeed;
+    if (f->special == END_CELL)
+        f->special = NULL; // lazy conversion, should callers tolerate END_CELL
+
+    return cast(REBARR**, &f->special);
 }
 
 

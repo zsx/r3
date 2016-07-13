@@ -67,7 +67,7 @@ void Dump_Frame_Location(REBFRM *f)
 
     PROBE_MSG(&dump, "Dump_Frame_Location() value");
 
-    if (f->flags & DO_FLAG_VA_LIST) {
+    if (f->flags.bits & DO_FLAG_VA_LIST) {
         //
         // NOTE: This reifies the va_list in the frame, and hence has
         // side effects.  It may need to be commented out if the
@@ -158,16 +158,16 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
     // asking for.  This may or may not be overkill long term, but helps now.
     //
     assert(
-        LOGICAL(f->flags & DO_FLAG_NEXT)
-        != LOGICAL(f->flags & DO_FLAG_TO_END)
+        LOGICAL(f->flags.bits & DO_FLAG_NEXT)
+        != LOGICAL(f->flags.bits & DO_FLAG_TO_END)
     );
     assert(
-        LOGICAL(f->flags & DO_FLAG_LOOKAHEAD)
-        != LOGICAL(f->flags & DO_FLAG_NO_LOOKAHEAD)
+        LOGICAL(f->flags.bits & DO_FLAG_LOOKAHEAD)
+        != LOGICAL(f->flags.bits & DO_FLAG_NO_LOOKAHEAD)
     );
     assert(
-        LOGICAL(f->flags & DO_FLAG_ARGS_EVALUATE)
-        != LOGICAL(f->flags & DO_FLAG_NO_ARGS_EVALUATE)
+        LOGICAL(f->flags.bits & DO_FLAG_ARGS_EVALUATE)
+        != LOGICAL(f->flags.bits & DO_FLAG_NO_ARGS_EVALUATE)
     );
 }
 
@@ -187,9 +187,10 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
 
     /* ASSERT_STATE_BALANCED(&f->state);*/
     assert(f == FS_TOP);
+    assert(f->state.top_chunk == TG_Top_Chunk);
     /* assert(DSP == f->dsp_orig); */ // !!! not true now with push SET-WORD!
 
-    if (f->flags & DO_FLAG_VA_LIST)
+    if (f->flags.bits & DO_FLAG_VA_LIST)
         assert(f->index == TRASHED_INDEX);
     else {
         assert(
@@ -282,8 +283,8 @@ REBUPT Do_Core_Expression_Checks_Debug(REBFRM *f) {
     // for other purposes.  Hence the writability must be re-indicated here
     // before the slot is used each time.
     //
-    if (f->value != &(f->cell.eval))
-        INIT_CELL_IF_DEBUG(&(f->cell.eval));
+    if (f->value != &f->cell)
+        INIT_CELL_IF_DEBUG(&f->cell);
 
     // Trash call variables in debug build to make sure they're not reused.
     // Note that this call frame will *not* be seen by the GC unless it gets
@@ -297,17 +298,17 @@ REBUPT Do_Core_Expression_Checks_Debug(REBFRM *f) {
     f->arg = cast(REBVAL*, 0xDECAFBAD);
     f->refine = cast(REBVAL*, 0xDECAFBAD);
 
-    f->binding = cast(REBARR*, 0xDECAFBAD);
-
-    f->stackvars = cast(REBVAL*, 0xDECAFBAD);
+    f->args_head = cast(REBVAL*, 0xDECAFBAD);
     f->varlist = cast(REBARR*, 0xDECAFBAD);
 
     f->func = cast(REBFUN*, 0xDECAFBAD);
+    f->binding = cast(REBARR*, 0xDECAFBAD);
+    f->underlying = cast(REBFUN*, 0xDECAFBAD);
 
     // Mutate va_list sources into arrays at fairly random moments in the
     // debug build.  It should be able to handle it at any time.
     //
-    if ((f->flags & DO_FLAG_VA_LIST) && SPORADICALLY(50)) {
+    if ((f->flags.bits & DO_FLAG_VA_LIST) && SPORADICALLY(50)) {
         const REBOOL truncated = TRUE;
         Reify_Va_To_Array_In_Frame(f, truncated);
     }
@@ -337,7 +338,7 @@ void Do_Core_Exit_Checks_Debug(REBFRM *f) {
 
     Do_Core_Shared_Checks_Debug(f);
 
-    if (NOT_END(f->value) && NOT(f->flags & DO_FLAG_VA_LIST)) {
+    if (NOT_END(f->value) && NOT(f->flags.bits & DO_FLAG_VA_LIST)) {
         assert(
             (f->index <= ARR_LEN(f->source.array))
             || (
@@ -350,7 +351,7 @@ void Do_Core_Exit_Checks_Debug(REBFRM *f) {
         );
     }
 
-    if (f->flags & DO_FLAG_TO_END)
+    if (f->flags.bits & DO_FLAG_TO_END)
         assert(THROWN(f->out) || IS_END(f->value));
 
     // Function execution should have written *some* actual output value.

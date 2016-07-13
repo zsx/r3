@@ -93,7 +93,7 @@ static inline void CATCH_THROWN(REBVAL *arg_out, REBVAL *thrown) {
 #define FS_TOP (TG_Frame_Stack + 0) // avoid assignment to FS_TOP via + 0
 
 #define FRM_IS_VALIST(f) \
-    LOGICAL((f)->flags & DO_FLAG_VA_LIST)
+    LOGICAL((f)->flags.bits & DO_FLAG_VA_LIST)
 
 inline static REBARR *FRM_ARRAY(REBFRM *f) {
     assert(!FRM_IS_VALIST(f));
@@ -148,30 +148,6 @@ inline static REBCNT FRM_EXPR_INDEX(REBFRM *f) {
 #define PROTECT_FRM_X(f,v) \
     ((f)->refine = (v))
 
-// It's not clear exactly in which situations one might be using this; while
-// it seems that when filling function args you could just assume it hasn't
-// been reified, there may be "pre-reification" in the future, and also a
-// tail call optimization or some other "reuser" of a frame may jump in and
-// reuse a frame that's been reified after its initial "chunk only" state.
-// For now check the flag and don't just assume it's a raw frame.
-//
-// Uses ARR_AT instead of CTX_VAR because the varlist may not be finished.
-//
-inline static REBVAL *FRM_ARGS_HEAD(REBFRM *f) {
-    return f->stackvars != NULL
-        ? &f->stackvars[0]
-        : KNOWN(ARR_AT(f->varlist, 1));
-}
-
-// ARGS is the parameters and refinements
-// 1-based indexing into the arglist (0 slot is for object/function value)
-#ifdef NDEBUG
-    #define FRM_ARG(f,n) \
-        ((f)->arg + (n) - 1)
-#else
-    #define FRM_ARG(f,n) \
-        FRM_ARG_Debug((f), (n)) // checks arg index bound
-#endif
 
 // Note about FRM_NUM_ARGS: A native should generally not detect the arity it
 // was invoked with, (and it doesn't make sense as most implementations get
@@ -181,7 +157,26 @@ inline static REBVAL *FRM_ARGS_HEAD(REBFRM *f) {
 // ID ran.  Consider when reviewing the future of ACTION!.
 //
 #define FRM_NUM_ARGS(f) \
-    cast(REBCNT, FUNC_NUM_PARAMS((f)->func))
+    FUNC_NUM_PARAMS((f)->underlying)
+
+
+// ARGS is the parameters and refinements
+// 1-based indexing into the arglist (0 slot is for object/function value)
+#ifdef NDEBUG
+    #define FRM_ARG(f,n) \
+        ((f)->args_head + (n) - 1)
+#else
+    inline static REBVAL *FRM_ARG(REBFRM *f, REBCNT n) {
+        assert(n != 0 && n <= FRM_NUM_ARGS(f));
+
+        REBVAL *var = &f->args_head[n - 1];
+
+        assert(!THROWN(var));
+        assert(NOT(GET_VAL_FLAG(var, VALUE_FLAG_RELATIVE)));
+        return var;
+    }
+#endif
+
 
 // Quick access functions from natives (or compatible functions that name a
 // Reb_Frame pointer `frame_`) to get some of the common public fields.
@@ -445,6 +440,10 @@ return_and_check:
 // Allocate the series of REBVALs inspected by a function when executed (the
 // values behind D_ARG(1), D_REF(2), etc.)
 //
+// This only allocates space for the arguments, it does not initialize.
+// Do_Core initializes as it goes, and updates f->param so the GC knows how
+// far it has gotten so as not to see garbage.  APPLY has different handling
+//
 // If the function is a specialization, then the parameter list of that
 // specialization will have *fewer* parameters than the full function would.
 // For this reason we push the arguments for the "underlying" function.
@@ -456,9 +455,7 @@ return_and_check:
 //
 // Specializations must "dig" in order to find the underlying function.
 //
-inline static REBFUN *Push_Or_Alloc_Args_For_Underlying_Func(
-    REBFRM *f
-) {
+inline static void Push_Or_Alloc_Args_For_Underlying_Func(REBFRM *f) {
     //
     // We need the actual REBVAL of the function here, and not just the REBFUN.
     // This is true even though you can get an archetype REBVAL from a function
@@ -474,12 +471,11 @@ inline static REBFUN *Push_Or_Alloc_Args_For_Underlying_Func(
     // will not contain END markers.
     //
     REBFUN *specializer;
-    REBFUN *underlying = Underlying_Function(&specializer, f->gotten);
-    REBCNT num_args = FUNC_NUM_PARAMS(underlying);
-    f->param = FUNC_PARAMS_HEAD(underlying);
+    f->underlying = Underlying_Function(&specializer, f->gotten);
 
-    REBVAL *slot;
-    if (IS_FUNC_DURABLE(underlying)) {
+    REBCNT num_args = FUNC_NUM_PARAMS(f->underlying);
+
+    if (IS_FUNC_DURABLE(f->underlying)) { // test f->func instead?
         //
         // !!! It's hoped that stack frames can be "hybrids" with some pooled
         // allocated vars that survive a call, and some that go away when the
@@ -487,7 +483,6 @@ inline static REBFUN *Push_Or_Alloc_Args_For_Underlying_Func(
         // not quite ready--so the classic interpretation is that it's all or
         // nothing (similar to FUNCTION! vs. CLOSURE! in this respect)
         //
-        f->stackvars = NULL;
         f->varlist = Make_Array(num_args + 1);
         TERM_ARRAY_LEN(f->varlist, num_args + 1);
         SET_ARR_FLAG(f->varlist, SERIES_FLAG_FIXED_SIZE);
@@ -496,7 +491,15 @@ inline static REBFUN *Push_Or_Alloc_Args_For_Underlying_Func(
         // !!! Note: Make_Array made the 0 slot an end marker
         //
         SET_TRASH_IF_DEBUG(ARR_AT(f->varlist, 0));
-        f->arg = slot = SINK(ARR_AT(f->varlist, 1));
+        f->args_head = SINK(ARR_AT(f->varlist, 1));
+    }
+    else if (num_args <= 1) {
+        //
+        // If the function takes only one stack parameter, use the eval cell
+        // so that no chunk pushing or popping needs to be involved.
+        //
+        f->args_head = &f->cell;
+        f->varlist = NULL;
     }
     else {
         // We start by allocating the data for the args and locals on the chunk
@@ -509,64 +512,28 @@ inline static REBFUN *Push_Or_Alloc_Args_For_Underlying_Func(
         // put one there.
         //
         f->varlist = NULL;
-        f->stackvars = Push_Ended_Trash_Chunk(num_args);
-        assert(CHUNK_LEN_FROM_VALUES(f->stackvars) == num_args);
-        f->arg = slot = &f->stackvars[0];
+        f->args_head = Push_Ended_Trash_Chunk(num_args);
+        assert(CHUNK_LEN_FROM_VALUES(f->args_head) == num_args);
     }
-
-    // Make_Call does not fill the args in the frame--that's up to Do_Core
-    // and Apply_Block as they go along.  But the frame has to survive
-    // Recycle() during arg fulfillment, slots can't be left uninitialized.
-    // END markers are used in the slots, since the array is being built and
-    // not yet shown to GC--and can be distinguished from "void" which might
-    // be a meaningful value for some specialization forms.
 
     if (specializer) {
         REBCTX *exemplar = VAL_CONTEXT(FUNC_BODY(specializer));
-        REBVAL *special_arg = CTX_VARS_HEAD(exemplar);
-
-        while (num_args) {
-            if (IS_VOID(special_arg)) {
-                if (f->flags & DO_FLAG_APPLYING)
-                    SET_VOID(slot);
-                else
-                    SET_END(slot);
-            }
-            else {
-                *slot = *special_arg;
-            }
-            ++slot;
-            ++special_arg;
-            --num_args;
-        }
-
-        f->flags |= DO_FLAG_EXECUTE_FRAME; // void is "unspecialized" not <opt>
+        f->special = CTX_VARS_HEAD(exemplar);
+        f->flags.bits |= DO_FLAG_EXECUTE_FRAME; // void "unspecialized" not opt
     }
-    else if (f->flags & DO_FLAG_APPLYING) {
-        //
-        // The APPLY code is giving users access to the variables with words,
-        // and they cannot contain END markers.
-        //
-        while (num_args) {
-            SET_VOID(slot);
-            ++slot;
-            --num_args;
-        }
-    }
-    else {
-        while (num_args) { // memset() to 0 empirically slower than this loop
-            SET_END(slot);
-            ++slot;
-            --num_args;
-        }
-    }
-
-    assert(IS_END(slot));
+    else
+        f->special = m_cast(REBVAL*, END_CELL); // literal pointer used as test
 
     f->func = VAL_FUNC(f->gotten);
     f->binding = VAL_BINDING(f->gotten);
 
-    return underlying;
+    // We want the cell to be GC safe; whether it's used by an argument or
+    // not.  If it's being used as an argument then this just gets overwritten
+    // but the 0 case would not initialize it...so cheaper to just set than
+    // to check.  Note that this can only be done after extracting the function
+    // properties, as f->gotten may be f->cell.
+    //
+    SET_END(&f->cell);
 }
 
 
@@ -583,13 +550,29 @@ inline static void Drop_Function_Args_For_Frame_Core(
     REBFRM *f,
     REBOOL drop_chunks
 ) {
-    f->flags &= ~DO_FLAG_EXECUTE_FRAME;
+    f->flags.bits &= ~DO_FLAG_EXECUTE_FRAME;
 
-    if (drop_chunks && f->stackvars) {
-        Drop_Chunk(f->stackvars);
+    if (drop_chunks) {
+        if (f->varlist == NULL) {
+            if (f->args_head != &f->cell)
+                Drop_Chunk(f->args_head);
+
+            goto finished; // nothing else to do...
+        }
+
+        // A varlist may happen even with stackvars...if "singular" (e.g.
+        // it's just a REBSER node for purposes of GC-referencing, but gets
+        // its actual content from the stackvars.
+        //
+        if (ARR_LEN(f->varlist) == 1) {
+            if (f->args_head != &f->cell)
+                Drop_Chunk(f->args_head);
+        }
     }
-
-    if (f->varlist == NULL) goto finished;
+    else {
+        if (f->varlist == NULL)
+            goto finished;
+    }
 
     assert(GET_ARR_FLAG(f->varlist, SERIES_FLAG_ARRAY));
 
@@ -631,7 +614,7 @@ inline static void Drop_Function_Args_For_Frame_Core(
 finished:
 
 #if !defined(NDEBUG)
-    f->stackvars = cast(REBVAL*, 0xDECAFBAD);
+    f->args_head = cast(REBVAL*, 0xDECAFBAD);
     f->varlist = cast(REBARR*, 0xDECAFBAD);
 #endif
 

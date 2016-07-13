@@ -287,11 +287,6 @@ inline static struct Reb_Chunker *CHUNKER_FROM_CHUNK(struct Reb_Chunk *c) {
     );
 }
 
-inline static REBCNT VAL_CONTEXT_STACKVARS_LEN(const RELVAL *v) {
-    assert(ANY_CONTEXT(v));
-    return CHUNK_LEN_FROM_VALUES(CTX_FRAME(VAL_CONTEXT(v))->stackvars);
-}
-
 
 // This doesn't necessarily call Alloc_Mem, because chunks are allocated
 // sequentially inside of "chunker" blocks, in their ordering on the stack.

@@ -231,7 +231,7 @@ handle_subfeed:
         DO_NEXT_REFETCH_MAY_THROW(
             out,
             f,
-            (f->flags & DO_FLAG_LOOKAHEAD)
+            (f->flags.bits & DO_FLAG_LOOKAHEAD)
                 ? DO_FLAG_LOOKAHEAD
                 : DO_FLAG_NO_LOOKAHEAD
         );
@@ -650,7 +650,7 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
             else {
                 Mold_Value(mold, f->value, TRUE);
 
-                if (f->flags & DO_FLAG_VA_LIST)
+                if (f->flags.bits & DO_FLAG_VA_LIST)
                     Append_Unencoded(mold->series, "*C varargs, pending*");
                 else
                     Mold_Array_At(

@@ -355,13 +355,8 @@ REBCNT Find_Action(REBVAL *object, REBSYM action)
 // feature available to users themselves.  So leaning on the evaluator in
 // one way or another is the best course to keep this functionality going.
 //
-// !!! Marked static to avoid casual re-uses, which may not be likely but
-// just to stop more calls from being introduced on accident.
-//
 REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
 {
-    REBIXO indexor;
-
     // Upper bound on the length of the args we might need for a redo
     // invocation is the total number of parameters to the *old* function's
     // invocation (if it had no refinements or locals).
@@ -375,8 +370,8 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
     //
     // !!! See note in function description about arity mismatches.
     //
-    REBVAL *param = FUNC_PARAMS_HEAD(f->func);
-    REBVAL *arg = FRM_ARGS_HEAD(f);
+    f->param = FUNC_PARAMS_HEAD(f->underlying);
+    f->arg = f->args_head;
     REBOOL ignoring = FALSE;
 
     // The first element of our path will be the function, followed by its
@@ -392,8 +387,8 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
     *path = *FUNC_VALUE(func_new);
     ++path;
 
-    for (; NOT_END(param); ++param, ++arg) {
-        enum Reb_Param_Class pclass = VAL_PARAM_CLASS(param);
+    for (; NOT_END(f->param); ++f->param, ++f->arg) {
+        enum Reb_Param_Class pclass = VAL_PARAM_CLASS(f->param);
 
         if (
             pclass == PARAM_CLASS_LOCAL
@@ -404,7 +399,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
         }
 
         if (pclass == PARAM_CLASS_REFINEMENT) {
-            if (IS_CONDITIONAL_FALSE(arg)) {
+            if (IS_CONDITIONAL_FALSE(f->arg)) {
                 //
                 // If the refinement is not in use, do not add it and ignore
                 // args until the next refinement.
@@ -416,7 +411,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
             // In use--and used refinements must be added to the PATH!
             //
             ignoring = FALSE;
-            Val_Init_Word(path, REB_WORD, VAL_PARAM_SPELLING(param));
+            Val_Init_Word(path, REB_WORD, VAL_PARAM_SPELLING(f->param));
             ++path;
             continue;
         }
@@ -426,7 +421,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
         //
         if (ignoring) continue;
 
-        *code = *arg;
+        *code = *f->arg;
         ++code;
     }
 
@@ -439,7 +434,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
     // Invoke DO with the special mode requesting non-evaluation on all
     // args, as they were evaluated the first time around.
     //
-    indexor = Do_Array_At_Core(
+    REBIXO indexor = Do_Array_At_Core(
         f->out,
         &first, // path not in array, will be "virtual" first element
         code_array,
