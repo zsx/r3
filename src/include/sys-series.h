@@ -180,7 +180,18 @@ inline static REBYTE *SER_DATA_RAW(REBSER *s) {
 }
 
 inline static REBYTE *SER_AT_RAW(size_t w, REBSER *s, REBCNT i) {
-    assert(w == SER_WIDE(s));
+#if !defined(NDEBUG)
+    if (w != SER_WIDE(s)) {
+        //
+        // This is usually a sign that the series was GC'd, as opposed to the
+        // caller passing in the wrong width (freeing sets width to 0).  But
+        // give some debug tracking either way.
+        //
+        Debug_Fmt("SER_AT_RAW asked %d on width=%d", w, SER_WIDE(s));
+        Panic_Series(s);
+    }
+#endif
+
     return ((w) * (i)) + ( // v-- inlining of SER_DATA_RAW
         GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)
             ? s->content.dynamic.data
