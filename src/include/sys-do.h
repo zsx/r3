@@ -320,9 +320,9 @@ inline static void Do_Pending_Sets_May_Invalidate_Gotten(
     while (DSP != f->dsp_orig) {
         switch (VAL_TYPE(DS_TOP)) {
         case REB_SET_WORD: {
-            REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(DS_TOP, SPECIFIED);
-            *var = *out;
-            if (var == f->gotten)
+            f->refine = GET_MUTABLE_VAR_MAY_FAIL(DS_TOP, SPECIFIED);
+            *f->refine = *out;
+            if (f->refine == f->gotten)
                 f->gotten = NULL;
             break; }
 
@@ -344,15 +344,14 @@ inline static void Do_Pending_Sets_May_Invalidate_Gotten(
             enum Reb_Kind eval_type_saved = f->eval_type;
             f->eval_type = REB_MAX_VOID; // for error handling
 
-            REBVAL temp;
             if (Do_Path_Throws_Core(
-                &temp, // output location if thrown
+                &f->cell, // output location if thrown
                 NULL, // not requesting symbol means refinements not allowed
                 &hack, // param is currently holding SET-PATH! we got in
                 SPECIFIED, // needed to resolve relative array in path
                 out
             )) {
-                fail (Error_No_Catch_For_Throw(&temp));
+                fail (Error_No_Catch_For_Throw(&f->cell));
             }
 
             f->eval_type = eval_type_saved;

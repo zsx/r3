@@ -123,6 +123,9 @@ inline static REBCNT FRM_EXPR_INDEX(REBFRM *f) {
 #define FRM_OUT(f) \
     cast(REBVAL * const, (f)->out) // writable Lvalue
 
+#define FRM_CELL(f) \
+    (&(f)->cell)
+
 #define FRM_PRIOR(f) \
     ((f)->prior)
 
@@ -182,6 +185,7 @@ inline static REBCNT FRM_EXPR_INDEX(REBFRM *f) {
 // Reb_Frame pointer `frame_`) to get some of the common public fields.
 //
 #define D_OUT       FRM_OUT(frame_)         // GC-safe slot for output value
+#define D_CELL      FRM_CELL(frame_)        // GC-safe cell if > 1 argument
 #define D_ARGC      FRM_NUM_ARGS(frame_)        // count of args+refinements/args
 #define D_ARG(n)    FRM_ARG(frame_, (n))    // pass 1 for first arg
 #define D_REF(n)    IS_CONDITIONAL_TRUE(D_ARG(n))  // REFinement (!REFerence)

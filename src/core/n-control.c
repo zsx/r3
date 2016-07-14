@@ -496,11 +496,8 @@ REBNATIVE(break)
 REBNATIVE(case)
 {
     PARAM(1, block);
-    REFINE(2, all_reused);
+    REFINE(2, all);
     REFINE(3, q);
-
-    REBOOL all = REF(all_reused);
-    REBVAL *temp = ARG(all_reused); // temporary value, GC safe (if needed)
 
     Reb_Enumerator e;
     PUSH_SAFE_ENUMERATOR(&e, ARG(block)); // DO-ing cases could disrupt `block`
@@ -515,13 +512,13 @@ REBNATIVE(case)
 
         // Perform a DO/NEXT's worth of evaluation on a "condition" to test
 
-        DO_NEXT_REFETCH_MAY_THROW(temp, &e, DO_FLAG_LOOKAHEAD);
-        if (THROWN(temp)) {
-            *D_OUT = *temp;
+        DO_NEXT_REFETCH_MAY_THROW(D_CELL, &e, DO_FLAG_LOOKAHEAD);
+        if (THROWN(D_CELL)) {
+            *D_OUT = *D_CELL;
             goto return_thrown;
         }
 
-        if (IS_VOID(temp)) // no void conditions allowed (as with IF)
+        if (IS_VOID(D_CELL)) // no void conditions allowed (as with IF)
             fail (Error(RE_NO_RETURN));
 
         if (IS_END(e.value)) // require conditions and branches in pairs
@@ -539,10 +536,10 @@ REBNATIVE(case)
         //     condition: false
         //     case [condition 10 + 20 true {hello}] ;-- returns {hello}
         //
-        if (IS_CONDITIONAL_FALSE(temp)) {
-            DO_NEXT_REFETCH_MAY_THROW(temp, &e, DO_FLAG_LOOKAHEAD);
-            if (THROWN(temp)) {
-                *D_OUT = *temp;
+        if (IS_CONDITIONAL_FALSE(D_CELL)) {
+            DO_NEXT_REFETCH_MAY_THROW(D_CELL, &e, DO_FLAG_LOOKAHEAD);
+            if (THROWN(D_CELL)) {
+                *D_OUT = *D_CELL;
                 goto return_thrown;
             }
             continue;
@@ -564,7 +561,7 @@ REBNATIVE(case)
             if (DO_VAL_ARRAY_AT_THROWS(D_OUT, D_OUT)) // ok for same src/dest
                 goto return_thrown;
 
-        if (NOT(all)) goto return_matched;
+        if (NOT(REF(all))) goto return_matched;
 
         // keep matching if /ALL
     }
@@ -1699,13 +1696,11 @@ REBNATIVE(switch)
 
     assert(IS_END(D_OUT));
 
-    // Save refinement to boolean to free up call frame slot.  Reuse its
-    // cell as a temporary GC-safe location for holding evaluations.  This
+    // Frame's extra D_CELL is free since the function has > 1 arg.  Reuse it
+    // as a temporary GC-safe location for holding evaluations.  This
     // holds the last test so that `switch 9 [1 ["a"] 2 ["b"] "c"]` is "c".
 
-    REBOOL all = REF(all);
-    REBVAL *fallout = ARG(all);
-    SET_VOID(fallout);
+    SET_VOID(D_CELL); // used for "fallout"
 
     while (NOT_END(e.value)) {
 
@@ -1714,7 +1709,7 @@ REBNATIVE(switch)
         // feature of the last value "falling out" the bottom of the switch
 
         if (IS_BLOCK(e.value)) {
-            SET_VOID(fallout);
+            SET_VOID(D_CELL);
             goto continue_loop;
         }
 
@@ -1726,14 +1721,14 @@ REBNATIVE(switch)
             || IS_GET_WORD(e.value)
             || IS_GET_PATH(e.value)
         ) {
-            if (EVAL_VALUE_CORE_THROWS(fallout, e.value, e.specifier)) {
-                *D_OUT = *fallout;
+            if (EVAL_VALUE_CORE_THROWS(D_CELL, e.value, e.specifier)) {
+                *D_OUT = *D_CELL;
                 goto return_thrown;
             }
             // Note: e.value may have gone stale during DO, must REFETCH
         }
         else
-            COPY_VALUE(fallout, e.value, e.specifier);
+            COPY_VALUE(D_CELL, e.value, e.specifier);
 
         // It's okay that we are letting the comparison change `value`
         // here, because equality is supposed to be transitive.  So if it
@@ -1745,7 +1740,7 @@ REBNATIVE(switch)
         // than copy here, this is a reminder to review the mechanism by
         // which equality is determined--and why it has to mutate.
 
-        if (!Compare_Modify_Values(ARG(value), fallout, REF(strict) ? 1 : 0))
+        if (!Compare_Modify_Values(ARG(value), D_CELL, REF(strict) ? 1 : 0))
             goto continue_loop;
 
         // Skip ahead to try and find a block, to treat as code for the match
@@ -1771,7 +1766,7 @@ REBNATIVE(switch)
 
         // Only keep processing if the /ALL refinement was specified
 
-        if (NOT(all)) goto return_matched;
+        if (NOT(REF(all))) goto return_matched;
 
     continue_loop:
         FETCH_NEXT_ONLY_MAYBE_END(&e);
@@ -1785,7 +1780,7 @@ REBNATIVE(switch)
             goto return_thrown;
     }
     else
-        *D_OUT = *fallout; // let last test value "fall out", might be void
+        *D_OUT = *D_CELL; // let last test value "fall out", might be void
 
 //return_defaulted:
     DROP_SAFE_ENUMERATOR(&e);
