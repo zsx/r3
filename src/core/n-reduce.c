@@ -90,7 +90,9 @@ REBOOL Reduce_Any_Array_Throws(
 //
 //  {Evaluates expressions and returns multiple results.}
 //
-//      value
+//      return: [<opt> any-value!]
+//      value [<opt> any-value!]
+//          {If BLOCK!, expressions are reduced, otherwise single value.}
 //      /into
 //          {Output results into a series with no intermediate storage}
 //      target [any-array!]
@@ -103,6 +105,9 @@ REBNATIVE(reduce)
     PARAM(3, target);
 
     REBVAL *value = ARG(value);
+
+    if (IS_VOID(value))
+        return R_VOID; // !!! Should this be allowed?  (Red allows it)
 
     if (IS_BLOCK(value)) {
         if (REF(into))

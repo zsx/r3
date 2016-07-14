@@ -238,7 +238,7 @@ make-action: func [
     ; COLLECT-WORDS interface to efficiently give this result, as well as
     ; a possible COLLECT-WORDS/INTO
     ;
-    for-next locals [
+    for-skip locals 1 [ ;-- FOR-NEXT not specialized yet
         append new-spec to set-word! locals/1
     ]
 
@@ -565,6 +565,18 @@ parse?: redescribe [
             x
         ]
     ]
+)
+
+for-next: redescribe [
+    "Evaluates a block for each position until the end, using NEXT to skip"
+](
+    specialize 'for-skip [skip: 1]
+)
+
+for-back: redescribe [
+    "Evaluates a block for each position until the start, using BACK to skip"
+](
+    specialize 'for-skip [skip: -1]
 )
 
 

@@ -263,9 +263,10 @@ return_value_arg:
 
 //
 //  also: native [
-//  
+//
 //  {Returns the first value, but also evaluates the second.}
-//  
+//
+//      return: [<opt> any-value!]
 //      value1 [<opt> any-value!]
 //      value2 [<opt> any-value!]
 //  ]
@@ -283,9 +284,12 @@ REBNATIVE(also)
 //
 //  all: native [
 //  
-//  {Shortcut AND. Returns NONE vs. TRUE (or last evaluation if it was TRUE?)}
-//  
-//      block [block!] "Block of expressions"
+//  {Short-circuiting variant of AND, using a block of expressions as input.}
+//
+//      return: [any-value!]
+//          {Product of last evaluation if all TRUE?, else a BLANK! value.}
+//      block [block!]
+//          "Block of expressions.  Void evaluations are ignored."
 //  ]
 //
 REBNATIVE(all)
@@ -332,9 +336,12 @@ REBNATIVE(all)
 //
 //  any: native [
 //  
-//  {Shortcut OR, ignores unsets. Returns the first TRUE? result, or NONE.}
+//  {Short-circuiting version of OR, using a block of expressions as input.}
 //  
-//      block [block!] "Block of expressions"
+//      return: [any-value!]
+//          {The first TRUE? evaluative result, or BLANK! value if all FALSE?}
+//      block [block!]
+//          "Block of expressions.  Void evaluations are ignored."
 //  ]
 //
 REBNATIVE(any)
@@ -379,9 +386,12 @@ REBNATIVE(any)
 //
 //  none: native [
 //
-//  {Shortcut NOR, ignores unsets. Returns TRUE if all FALSE?, or BLANK.}
+//  {Short circuiting version of NOR, using a block of expressions as input.}
 //
-//      block [block!] "Block of expressions"
+//      return: [logic! blank!]
+//          {TRUE if all expressions are FALSE?, or BLANK if any are TRUE?}
+//      block [block!]
+//          "Block of expressions.  Void evaluations are ignored."
 //  ]
 //
 REBNATIVE(none)
@@ -422,7 +432,8 @@ REBNATIVE(none)
 //  attempt: native [
 //  
 //  {Tries to evaluate a block and returns result or NONE on error.}
-//  
+//
+//      return: [<opt> any-value!]
 //      block [block!]
 //  ]
 //
@@ -484,7 +495,9 @@ REBNATIVE(break)
 //  case: native [
 //  
 //  {Evaluates each condition, and when true, evaluates what follows it.}
-//  
+//
+//      return: [<opt> any-value!]
+//          {Void if no cases matched, or last case evaluation (may be void)}
 //      block [block!]
 //          "Block of cases (conditions followed by values)"
 //      /all
@@ -586,7 +599,8 @@ return_thrown:
 //  catch: native [
 //  
 //  {Catches a throw from a block and returns its value.}
-//  
+//
+//      return: [<opt> any-value!]
 //      block [block!] "Block to evaluate"
 //      /name
 //          "Catches a named throw" ;-- should it be called /named ?
@@ -809,8 +823,10 @@ REBNATIVE(throw)
 //
 //  comment: native [
 //
-//  {Ignores the argument value and returns nothing (with no evaluations).}
+//  {Ignores the argument value.}
 //
+//      return: [<opt>]
+//          {Nothing.}
 //      :value [block! any-string! binary! any-scalar!]
 //          "Literal value to be ignored."
 //  ]
@@ -857,7 +873,8 @@ REBNATIVE(continue)
 //  do: native [
 //  
 //  {Evaluates a block of source code (directly or fetched according to type)}
-//  
+//
+//      return: [<opt> any-value!]
 //      source [
 //          <opt> ;-- should DO accept an optional argument (chaining?)
 //          blank! ;-- same question... necessary, or not?
@@ -1461,11 +1478,14 @@ static REB_R If_Unless_Core(REBFRM *frame_, REBOOL trigger) {
 //  if: native [
 //  
 //  {If TRUE? condition, return branch value; evaluate blocks by default.}
-//  
+//
+//      return: [<opt> any-value!]
+//          {Void on FALSE?, branch result if TRUE? condition (may be void)}
 //      condition [any-value!]
 //      branch [<opt> any-value!]
+//          {Evaluated if block, 0-arity function, or arity-1 LOGIC! function}
 //      /only
-//          "Return block branches literally instead of evaluating them."
+//          "Return block/function branches instead of evaluating them."
 //      /?
 //          "Instead of branch result, return LOGIC! of if branch was taken"
 //  ]
@@ -1481,10 +1501,13 @@ REBNATIVE(if)
 //
 //  {If FALSE? condition, return branch value; evaluate blocks by default.}
 //
+//      return: [<opt> any-value!]
+//          {Void on FALSE?, branch result if TRUE? condition (may be void)}
 //      condition [any-value!]
 //      branch [<opt> any-value!]
+//          {Evaluated if block, 0-arity function, or arity-1 LOGIC! function}
 //      /only
-//          "Return block branches literally instead of evaluating them."
+//          "Quote block/function branches instead of evaluating them."
 //      /?
 //          "Instead of branch result, return TRUE? if branch was taken"
 //  ]
@@ -1500,10 +1523,12 @@ REBNATIVE(unless)
 //
 //  {If TRUE condition? first branch, else second; evaluate blocks by default.}
 //
+//      return: [<opt> any-value!]
 //      condition [any-value!]
 //      true-branch [<opt> any-value!]
 //      false-branch [<opt> any-value!]
-//      /only "Return block arg instead of evaluating it."
+//      /only
+//          "Quote block/function branches instead of evaluating them."
 //  ]
 //
 REBNATIVE(either)
@@ -1660,7 +1685,9 @@ REBNATIVE(leave)
 //  switch: native [
 //  
 //  {Selects a choice and evaluates the block that follows it.}
-//  
+//
+//      return: [<opt> any-value!]
+//          {Void if no cases matched, or last case evaluation (may be void)}
 //      value
 //          "Target value"
 //      cases [block!]
@@ -1802,7 +1829,8 @@ return_thrown:
 //  trap: native [
 //  
 //  {Tries to DO a block, trapping error as return value (if one is raised).}
-//  
+//
+//      return: [<opt> any-value!]
 //      block [block!]
 //      /with
 //          "Handle error case with code"

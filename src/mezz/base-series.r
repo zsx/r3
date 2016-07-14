@@ -24,6 +24,7 @@ first: redescribe [
 
 first+: func [
     {Return the FIRST of a series then increment the series index.}
+    return: [<opt> any-value!]
     'word [word!] "Word must refer to a series"
     /local prior
 ][

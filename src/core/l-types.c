@@ -45,6 +45,8 @@ extern const MAKE_FUNC Make_Dispatch[REB_MAX];
 //
 //  {Constructs or allocates the specified datatype.}
 //
+//      return: [any-value!]
+//          {Constructed value.}
 //      type [any-value!]
 //          {The datatype -or- an examplar value of the type to construct}
 //      def [any-value!]

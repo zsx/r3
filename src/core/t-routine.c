@@ -1305,6 +1305,7 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec) {
 //
 //  {Create a bridge for interfacing with arbitrary C code in a DLL}
 //
+//      return: [function!]
 //      lib [library!]
 //          {Library DLL that function lives in (get with MAKE LIBRARY!)}
 //      name [string!]
@@ -1371,6 +1372,7 @@ REBNATIVE(make_routine)
 //
 //  {Create a bridge for interfacing with a C function, by pointer}
 //
+//      return: [function!]
 //      pointer [integer!]
 //          {Raw address of function in memory}
 //      ffi-spec [block!]
@@ -1418,6 +1420,7 @@ REBNATIVE(make_routine_raw)
 //
 //  {Wrap function so it can be called in raw C code with a function pointer.}
 //
+//      return: [function!]
 //      action [function!]
 //          {The existing Rebol function whose functionality is being wrapped}
 //      ffi-spec [block!]

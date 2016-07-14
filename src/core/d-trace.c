@@ -212,9 +212,11 @@ void Trace_Error(const REBVAL *value)
 
 //
 //  trace: native [
+//      <punctuates>
 //
 //  {Enables and disables evaluation tracing and backtrace.}
 //
+//      return: [<opt>]
 //      mode [integer! logic!]
 //      /back {Set mode ON to enable or integer for lines to display}
 //      /function "Traces functions only (less output)"

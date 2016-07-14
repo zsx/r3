@@ -189,7 +189,7 @@ REBNATIVE(stats)
             stats++;
             SET_INTEGER(stats, Eval_Cycles + Eval_Dose - Eval_Count);
             stats++;
-            SET_INTEGER(stats, Eval_Natives);
+            SET_INTEGER(stats, 0); // no such thing as natives, only functions
             stats++;
             SET_INTEGER(stats, Eval_Functions);
 

@@ -713,6 +713,12 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
 
     switch (VAL_TYPE(val)) {
         case REB_0:
+            //
+            // Should not be possible, REB_0 instances should not exist or
+            // be filtered out by caller.
+            //
+            panic (Error(RE_MISC));
+
         case REB_MAX_VOID:
             //
             // Critical error; the only array that can handle unsets are the

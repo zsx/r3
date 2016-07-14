@@ -347,12 +347,18 @@ reevaluate:;
 
     do_function_arglist_in_progress:
 
+        Eval_Functions++; // this isn't free...is it worth tracking?
+
         // Now that we have extracted f->func, we do not have to worry that
         // f->value might have lived in f->cell.eval.  We can't overwrite
         // f->out in case that is holding the first argument to an infix
         // function, so f->cell.eval gets used for temporary evaluations.
 
         assert(f->eval_type == REB_FUNCTION || f->eval_type == REB_0_LOOKBACK);
+
+        f->arg = f->args_head;
+        f->param = FUNC_PARAMS_HEAD(f->underlying);
+        // f->special is END_CELL, f->args_head, or first specialized value
 
         // The f->out slot is guarded while a function is gathering its
         // arguments.  It cannot contain garbage, so it must either be END
@@ -445,10 +451,6 @@ reevaluate:;
 
         f->doing_pickups = FALSE; // still looking for way to encode in refine
 
-        f->arg = f->args_head;
-        f->param = FUNC_PARAMS_HEAD(f->underlying);
-        // f->special is END_CELL, f->arg, or a pointer to specialized values
-
         while (NOT_END(f->param)) {
             pclass = VAL_PARAM_CLASS(f->param);
 
@@ -506,15 +508,7 @@ reevaluate:;
                             goto unspecialized_refinement;
                         }
 
-                        if (args_evaluate && IS_QUOTABLY_SOFT(f->special)) {
-                            if (EVAL_VALUE_THROWS(f->arg, f->special)) {
-                                *f->out = *f->arg;
-                                Abort_Function_Args_For_Frame(f);
-                                goto finished;
-                            }
-                        }
-                        else
-                            *f->arg = *f->special;
+                        *f->arg = *f->special;
                     }
 
                     if (!IS_LOGIC(f->arg))
@@ -675,21 +669,9 @@ reevaluate:;
                     ++f->special;
                 }
                 else {
-                    // The arg came preloaded with a value to use.  Handle soft
-                    // quoting first, in case arg needs evaluation.
+                    *f->arg = *f->special;
 
-                    if (args_evaluate && IS_QUOTABLY_SOFT(f->special)) {
-
-                        if (EVAL_VALUE_THROWS(f->arg, f->special)) {
-                            *f->out = *f->arg;
-                            Abort_Function_Args_For_Frame(f);
-                            goto finished;
-                        }
-                    }
-                    else
-                        *f->arg = *f->special;
-
-                    // Varargs are special, because the type checking doesn't
+                    // Varargs are odd, because the type checking doesn't
                     // actually check the type of the parameter--it's always
                     // a VARARGS!.  Also since the "types accepted" are a lie
                     // (an [integer! <...>] takes VARARGS!, not INTEGER!) then
@@ -1040,10 +1022,8 @@ reevaluate:;
         //
         assert(IS_END(f->out));
 
-        // Any of the below may return f->out as THROWN().  (Note: this used
-        // to do `Eval_Natives++` in the native dispatcher, which now fades
-        // into the background.)  The dispatcher may also push functions to
-        // the data stack which will be used to process the return result.
+        // The dispatcher may push functions to the data stack which will be
+        // used to process the return result.
         //
         REBNAT dispatcher; // goto would cross initialization
         dispatcher = FUNC_DISPATCHER(f->func);
@@ -1156,31 +1136,21 @@ reevaluate:;
             }
         }
         else {
+        #if !defined(NDEBUG)
+            //
             // Here we know the function finished and did not throw or exit.
-            // If it has a definitional return, we process the type checking
-            // even on values that just "fall out the bottom"...because that
-            // is what the "fake body" would do of a typed definitional
-            // return construct.  And if it has punctuates we have to squash
-            // whatever the last evaluative result was and return no value.
-
-            if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_PUNCTUATES)) {
-                SET_VOID(f->out);
-            }
-            else if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_RETURN)) {
-                f->param = FUNC_PARAM(f->func, FUNC_NUM_PARAMS(f->func));
-                assert(VAL_PARAM_SYM(f->param) == SYM_RETURN);
-
-                // The type bits of the definitional return are not applicable
-                // to the `return` word being associated with a FUNCTION!
-                // vs. an INTEGER! (for instance).  It is where the type
-                // information for the non-existent return function specific
-                // to this call is hidden.
-                //
-                if (!TYPE_CHECK(f->param, VAL_TYPE(f->out))) {
-                    f->param = END_CELL;
+            // The Returner_Dispatcher will check this, but we double check
+            // for anything that states it has a RETURN here in the debug
+            // build.  This way we check native return types too...which
+            // are not checked in the release build.
+            //
+            if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_RETURN)) {
+                REBVAL *typeset = FUNC_PARAM(f->func, FUNC_NUM_PARAMS(f->func));
+                assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
+                if (!TYPE_CHECK(typeset, VAL_TYPE(f->out)))
                     fail (Error_Bad_Return_Type(f->label, VAL_TYPE(f->out)));
-                }
             }
+        #endif
         }
 
     //==////////////////////////////////////////////////////////////////==//

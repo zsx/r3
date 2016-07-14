@@ -178,8 +178,10 @@ inline static REB_R Do_Test_For_Maybe(
 //
 //  maybe: native [
 //
-//  {If value passes test (type match, function true) return value, else blank}
+//  {Check value using tests (match types, TRUE? or FALSE?, filter function)}
 //
+//      return: [<opt> any-value!]
+//          {The input value or BLANK! if no match, void if FALSE? and matched}
 //      test [function! datatype! typeset! block! logic!]
 //      value [<opt> any-value!]
 //  ]
@@ -525,7 +527,8 @@ REBNATIVE(collect_words)
 //  get: native [
 //  
 //  {Gets the value of a word or path, or values of a context.}
-//  
+//
+//      return: [<opt> any-value!]
 //      source [blank! any-word! any-path! any-context!]
 //          "Word, path, context to get"
 //      /opt
@@ -613,7 +616,8 @@ REBNATIVE(get)
 //  to-value: native [
 //  
 //  {Turns unset to NONE, with ANY-VALUE! passing through. (See: OPT)}
-//  
+//
+//      return: [any-value!]
 //      value [<opt> any-value!]
 //  ]
 //
@@ -632,8 +636,10 @@ REBNATIVE(to_value)
 //
 //  opt: native [
 //  
-//  {NONEs become unset, all other value types pass through. (See: TO-VALUE)}
-//  
+//  {Convert blanks to optionals. (See Also: TO-VALUE)}
+//
+//      return: [<opt> any-value!]
+//          {void if input was a BLANK!, or original value otherwise}
 //      value [<opt> any-value!]
 //  ]
 //
@@ -889,7 +895,8 @@ REBNATIVE(resolve)
 //  set: native [
 //  
 //  {Sets a word, path, block of words, or context to specified value(s).}
-//  
+//
+//      return: [<opt> any-value!]
 //      target [any-word! any-path! block! any-context!]
 //          {Word, block of words, path, or object to be set (modified)}
 //      value [<opt> any-value!]
@@ -1209,9 +1216,10 @@ REBNATIVE(type_of)
 
 //
 //  unset: native [
-//  
+//
 //  {Unsets the value of a word (in its current context.)}
-//  
+//
+//      return: [<opt>]
 //      target [any-word! block!]
 //          "Word or block of words"
 //  ]
@@ -1564,15 +1572,13 @@ REBNATIVE(void_q)
 //
 //  void: native/body [
 //
-//  "Generates a void value (alternative to `()` or `do []`)"
+//  "Function returning no result (alternative for `()` or `do []`)"
 //
+//      return: [<opt>] ;-- how to say <opt> no-value! ?
 //  ][
 //  ]
 //
 REBNATIVE(void)
-//
-// !!! This may or may not be necessary--not everyone has liked `return ()`,
-// so `return void` may be preferable.
 {
     return R_VOID;
 }

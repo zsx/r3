@@ -439,6 +439,7 @@ REBNATIVE(has_type_q)
 //
 //  {Creates datatype action (for internal usage only).}
 //
+//      return: [blank!]
 //      :verb [set-word! word!]
 //      spec [block!]
 //  ]
@@ -457,8 +458,14 @@ REBNATIVE(action)
 
     REBVAL *spec = ARG(spec);
 
+    #if defined(NDEBUG)
+        REBFLGS flags = MKF_KEYWORDS | MKF_FAKE_RETURN;
+    #else
+        REBFLGS flags = MKF_KEYWORDS | MKF_RETURN; // want to check returns
+    #endif
+
     REBFUN *fun = Make_Function(
-        Make_Paramlist_Managed_May_Fail(spec, MKF_KEYWORDS),
+        Make_Paramlist_Managed_May_Fail(spec, flags),
         &Action_Dispatcher,
         NULL // no underlying function--this is fundamental
     );
@@ -470,7 +477,7 @@ REBNATIVE(action)
     //
     *GET_MUTABLE_VAR_MAY_FAIL(ARG(verb), SPECIFIED) = *FUNC_VALUE(fun);
 
-    return R_VOID; // result won't be used if a function left-quotes SET-WORD!
+    return R_BLANK; // result won't be used if a function left-quotes SET-WORD!
 }
 
 
@@ -629,8 +636,14 @@ static void Init_Natives(void)
         // the Natives table.  The associated C function is provided by a
         // table built in the bootstrap scripts, `Native_C_Funcs`.
 
+    #if defined(NDEBUG)
+        REBFLGS flags = MKF_KEYWORDS | MKF_FAKE_RETURN;
+    #else
+        REBFLGS flags = MKF_KEYWORDS | MKF_RETURN; // want to check returns
+    #endif
+
         REBFUN *fun = Make_Function(
-            Make_Paramlist_Managed_May_Fail(KNOWN(spec), MKF_KEYWORDS),
+            Make_Paramlist_Managed_May_Fail(KNOWN(spec), flags),
             Native_C_Funcs[n], // "dispatcher" is unique to this "native"
             NULL // no underlying function, this is fundamental
         );

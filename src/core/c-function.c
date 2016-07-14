@@ -230,7 +230,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 
         if (IS_TAG(item) && (flags & MKF_KEYWORDS)) {
             if (0 == Compare_String_Vals(item, ROOT_NO_RETURN_TAG, TRUE)) {
-                flags &= ~MKF_RETURN;
+                flags &= ~(MKF_RETURN | MKF_FAKE_RETURN);
             }
             else if (0 == Compare_String_Vals(item, ROOT_NO_LEAVE_TAG, TRUE)) {
                 flags &= ~MKF_LEAVE;
@@ -405,7 +405,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             if (IS_SET_WORD(item))
                 definitional_return = typeset; // RETURN: explicitly tolerated
             else
-                flags &= ~MKF_RETURN;
+                flags &= ~(MKF_RETURN | MKF_FAKE_RETURN);
         }
         else if (STR_SYMBOL(canon) == SYM_LEAVE) {
             assert(definitional_leave == NULL);
@@ -577,6 +577,12 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //
     REBCNT num_slots = (DSP - dsp_orig) / 3;
 
+    // If we pushed a typeset for a return and it's a native, it actually
+    // doesn't want a RETURN: key in the frame.  We'll omit from the copy.
+    //
+    if (definitional_return && (flags & MKF_FAKE_RETURN))
+        --num_slots;
+
     // Must make the function "paramlist" even if "empty", for identity.
     //
     REBARR *paramlist = Make_Array(num_slots);
@@ -616,8 +622,21 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         }
 
         if (definitional_return) {
-            *dest = *definitional_return;
-            ++dest;
+            if (flags & MKF_FAKE_RETURN) {
+                //
+                // This is where you don't actually want a RETURN key in the
+                // function frame (e.g. because it's native code and would be
+                // wasteful and unused).
+                //
+                // !!! The debug build uses real returns, not fake ones.
+                // This means actions and natives have an extra slot.
+                //
+            }
+            else {
+                assert(flags & MKF_RETURN);
+                *dest = *definitional_return;
+                ++dest;
+            }
         }
 
         // Must remove binder indexes for all words, even if about to fail
@@ -719,8 +738,10 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             else
                 *CTX_VAR(meta, return_type_index) = *(definitional_return + 1);
 
-            SET_VOID(dest); // clear the local RETURN: var's description
-            ++dest;
+            if (NOT(flags & MKF_FAKE_RETURN)) {
+                SET_VOID(dest); // clear the local RETURN: var's description
+                ++dest;
+            }
         }
 
         TERM_ARRAY_LEN(types_varlist, num_slots);
@@ -778,8 +799,11 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 SET_VOID(CTX_VAR(meta, return_note_index));
             else
                 *CTX_VAR(meta, return_note_index) = *(definitional_return + 2);
-            SET_VOID(dest);
-            ++dest;
+
+            if (NOT(flags & MKF_FAKE_RETURN)) {
+                SET_VOID(dest);
+                ++dest;
+            }
         }
 
         TERM_ARRAY_LEN(notes_varlist, num_slots);
@@ -874,7 +898,16 @@ REBFUN *Make_Function(
     // Having a level of indirection from the REBVAL bits themself also
     // facilitates the "Hijacker" to change multiple REBVALs behavior.
 
-    ARR_SERIES(body_holder)->misc.dispatcher = dispatcher;
+    if (dispatcher == &Plain_Dispatcher) {
+        if (GET_VAL_FLAG(rootparam, FUNC_FLAG_RETURN))
+            ARR_SERIES(body_holder)->misc.dispatcher = &Returner_Dispatcher;
+        else if (GET_VAL_FLAG(rootparam, FUNC_FLAG_LEAVE))
+            ARR_SERIES(body_holder)->misc.dispatcher = &Voider_Dispatcher;
+        else
+            ARR_SERIES(body_holder)->misc.dispatcher = &Plain_Dispatcher;
+    }
+    else
+        ARR_SERIES(body_holder)->misc.dispatcher = dispatcher;
 
     // To avoid NULL checking when a function is called and looking for the
     // underlying function, put the functions own pointer in if needed
@@ -1048,7 +1081,7 @@ REBFUN *Make_Plain_Function_May_Fail(
 
     REBFUN *fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(spec, flags),
-        &Plain_Dispatcher,
+        &Plain_Dispatcher, // may be overridden?
         NULL // no underlying function, this is fundamental
     );
 
@@ -1428,8 +1461,6 @@ void Clonify_Function(REBVAL *value)
 //
 REB_R Action_Dispatcher(REBFRM *f)
 {
-    Eval_Natives++;
-
     enum Reb_Kind type = VAL_TYPE(FRM_ARG(f, 1));
 
     REBACT subdispatch = Value_Dispatch[type];
@@ -1447,24 +1478,84 @@ REB_R Action_Dispatcher(REBFRM *f)
 //
 REB_R Plain_Dispatcher(REBFRM *f)
 {
-    // In specific binding, we must always reify the frame and get it handed
-    // over to the GC when calling user functions.  This is "costly" but
-    // essential.
-    //
-    REBCTX *frame_ctx = Context_For_Frame_May_Reify_Managed(f);
-
-    Eval_Functions++;
-
     RELVAL *body = FUNC_BODY(f->func);
     assert(IS_BLOCK(body) && IS_RELATIVE(body) && VAL_INDEX(body) == 0);
 
     REB_R r;
-    if (Do_At_Throws(f->out, VAL_ARRAY(body), VAL_INDEX(body), frame_ctx))
-        r = R_OUT_IS_THROWN;
-    else
-        r = R_OUT;
+    if (Do_At_Throws(
+        f->out,
+        VAL_ARRAY(body),
+        VAL_INDEX(body),
+        Context_For_Frame_May_Reify_Managed(f) // necessary in specific binding
+    )){
+        return R_OUT_IS_THROWN;
+    }
 
-    return r;
+    return R_OUT;
+}
+
+
+//
+//  Voider_Dispatcher: C
+//
+// Same as the Plain_Dispatcher, except sets the output value to void.
+// Pushing that code into the dispatcher means there's no need to do flag
+// testing in the main loop.
+//
+REB_R Voider_Dispatcher(REBFRM *f)
+{
+    RELVAL *body = FUNC_BODY(f->func);
+    assert(IS_BLOCK(body) && IS_RELATIVE(body) && VAL_INDEX(body) == 0);
+
+    REB_R r;
+    if (Do_At_Throws(
+        f->out,
+        VAL_ARRAY(body),
+        VAL_INDEX(body),
+        Context_For_Frame_May_Reify_Managed(f) // necessary in specific binding
+    )){
+        return R_OUT_IS_THROWN;
+    }
+
+    return R_VOID;
+}
+
+
+//
+//  Returner_Dispatcher: C
+//
+// Same as the Plain_Dispatcher, except validates that the return type is
+// correct.  (Note that natives do not get this type checking, and they
+// probably shouldn't pay for it except in the debug build.)
+//
+REB_R Returner_Dispatcher(REBFRM *f)
+{
+    RELVAL *body = FUNC_BODY(f->func);
+    assert(IS_BLOCK(body) && IS_RELATIVE(body) && VAL_INDEX(body) == 0);
+
+    REB_R r;
+    if (Do_At_Throws(
+        f->out,
+        VAL_ARRAY(body),
+        VAL_INDEX(body),
+        Context_For_Frame_May_Reify_Managed(f) // necessary in specific binding
+    )){
+        return R_OUT_IS_THROWN;
+    }
+
+    REBVAL *typeset = FUNC_PARAM(f->func, FUNC_NUM_PARAMS(f->func));
+    assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
+
+    // The type bits of the definitional return are not applicable
+    // to the `return` word being associated with a FUNCTION!
+    // vs. an INTEGER! (for instance).  It is where the type
+    // information for the non-existent return function specific
+    // to this call is hidden.
+    //
+    if (!TYPE_CHECK(typeset, VAL_TYPE(f->out)))
+        fail (Error_Bad_Return_Type(f->label, VAL_TYPE(f->out)));
+
+    return R_OUT;
 }
 
 
@@ -1585,7 +1676,8 @@ REB_R Chainer_Dispatcher(REBFRM *f)
 //  func: native [
 //  
 //  "Defines a user function with given spec and body."
-//  
+//
+//      return: [function!]
 //      spec [block!]
 //          {Help string (opt) followed by arg words (and opt type + string)}
 //      body [block!]
@@ -1614,6 +1706,7 @@ REBNATIVE(func)
 //
 //  "Defines a user function with given spec and body and no return result."
 //
+//      return: [function!]
 //      spec [block!]
 //          {Help string (opt) followed by arg words (and opt type + string)}
 //      body [block!]
@@ -1690,6 +1783,7 @@ void Get_If_Word_Or_Path_Arg(
 //
 //  {Create a new function through partial or full specialization of another}
 //
+//      return: [function!]
 //      value [function! any-word! any-path!]
 //          {Function or specifying word (preserves word name for debug info)}
 //      def [block!]
@@ -1725,20 +1819,23 @@ REBNATIVE(specialize)
 //
 //  {Create a processing pipeline of functions that consume the last's result}
 //
+//      return: [function!]
 //      pipeline [block!]
-//      /only
+//          {List of functions to apply.  Reduced by default.}
+//      /quote
+//          {Do not reduce the pipeline--use the values as-is.}
 //  ]
 //
 REBNATIVE(chain)
 {
     PARAM(1, pipeline);
-    REFINE(2, only);
+    REFINE(2, quote);
 
     REBVAL *out = D_OUT; // plan ahead for factoring into Chain_Function(out..
 
     REBVAL *pipeline = ARG(pipeline);
     REBARR *chainees;
-    if (REF(only)) {
+    if (REF(quote)) {
         chainees = COPY_ANY_ARRAY_AT_DEEP_MANAGED(pipeline);
     }
     else {
@@ -1815,6 +1912,7 @@ REBNATIVE(chain)
 //
 //  {Create a variant of a function that preprocesses its arguments}
 //
+//      return: [function!]
 //      adaptee [function! any-word! any-path!]
 //          {Function or specifying word (preserves word name for debug info)}
 //      prelude [block!]
@@ -1922,6 +2020,8 @@ REBNATIVE(adapt)
 //
 //  {Cause all existing references to a function to invoke another function.}
 //
+//      return: [function! blank!]
+//          {Proxy for the original function, BLANK! if hijacked with BLANK!}
 //      victim [function! any-word! any-path!]
 //          {Function value whose references are to be affected.}
 //      hijacker [function! any-word! any-path! blank!]
@@ -2242,6 +2342,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
 //
 //  {Invoke a function with all required arguments specified.}
 //
+//      return: [<opt> any-value!]
 //      value [function! any-word! any-path!]
 //          {Function or specifying word (preserves word name for debug info)}
 //      def [block!]

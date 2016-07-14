@@ -142,7 +142,13 @@ static REBOOL Subparse_Throws(
     f->pending = NULL;
     f->gotten = NULL;
 
+#if defined(NDEBUG)
     f->args_head = Push_Ended_Trash_Chunk(2);
+#else
+    f->args_head = Push_Ended_Trash_Chunk(3); // real RETURN: for natives
+    SET_TRASH_SAFE(&f->args_head[2]);
+#endif
+
     f->varlist = NULL;
 
     COPY_VALUE(&f->args_head[0], input, input_specifier);
@@ -1171,7 +1177,12 @@ static REBCNT Do_Eval_Rule(REBFRM *f)
     // !!! This copies a single value into a block to use as data.  Is there
     // any way this might be avoided?
     //
-    newparse.args_head = Push_Ended_Trash_Chunk(3);
+#if defined(NDEBUG)
+    newparse.args_head = Push_Ended_Trash_Chunk(2);
+#else
+    newparse.args_head = Push_Ended_Trash_Chunk(3); // real RETURN:, checked
+    SET_TRASH_SAFE(&newparse.args_head[2]);
+#endif
     Val_Init_Block_Index(
         &newparse.args_head[0],
         Make_Array(1), // !!! "copy the value into its own block"
@@ -1209,6 +1220,7 @@ static REBCNT Do_Eval_Rule(REBFRM *f)
 //
 //  {Internal support function for PARSE (acts as variadic to consume rules)}
 //
+//      return: [integer! blank!]
 //      input [any-series!]
 //      find-flags [integer!]
 //  ]
@@ -1239,7 +1251,7 @@ REBNATIVE(subparse)
 // Rules are matched until one of these things happens:
 //
 // * A rule fails, and is not then picked up by a later "optional" rule.
-// This returns R_OUT with the value in out as NONE!.
+// This returns R_OUT with the value in out as BLANK!.
 //
 // * You run out of rules to apply without any failures or errors, and the
 // position in the input series is returned.  This may be at the end of

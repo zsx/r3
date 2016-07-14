@@ -525,8 +525,11 @@ REBNATIVE(meta_of)
 //
 //  set-meta: native [
 //
+//      <punctuates>
+//
 //  {Set "meta" object associated with all references to a value.}
 //
+//      return: [<opt>]
 //      value [function! object! module!]
 //      meta [object! blank!]
 //  ]

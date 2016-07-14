@@ -1776,8 +1776,19 @@ inline static REBNAT VAL_FUNC_DISPATCHER(const RELVAL *v)
 inline static REBCTX *VAL_FUNC_META(const RELVAL *v)
     { return ARR_SERIES(v->payload.function.paramlist)->link.meta; }
 
-inline static REBOOL IS_FUNCTION_PLAIN(const RELVAL *v)
-    { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Plain_Dispatcher); }
+inline static REBOOL IS_FUNCTION_PLAIN(const RELVAL *v) {
+    //
+    // !!! Review cases where this is supposed to matter, because they are
+    // probably all bad.  With the death of function categories, code should
+    // be able to treat functions as "black boxes" and not know which of
+    // the dispatchers they run on...with only the dispatch itself caring.
+    //
+    return LOGICAL(
+        VAL_FUNC_DISPATCHER(v) == &Plain_Dispatcher
+        || VAL_FUNC_DISPATCHER(v) == &Voider_Dispatcher
+        || VAL_FUNC_DISPATCHER(v) == &Returner_Dispatcher
+    );
+}
 
 inline static REBOOL IS_FUNCTION_ACTION(const RELVAL *v)
     { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Action_Dispatcher); }

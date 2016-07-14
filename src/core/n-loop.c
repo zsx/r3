@@ -309,83 +309,6 @@ static REBOOL Loop_Number_Throws(
 
 
 //
-//  Loop_Skip: C
-//
-// Provides the core implementation behind FOR-NEXT, FOR-BACK, and FOR-SKIP
-//
-static REB_R Loop_Skip(
-    REBVAL *out,
-    REBVAL *word, // MODIFIED - Must be GC safe!
-    REBINT skip,
-    REBVAL *body // Must be GC safe!
-) {
-    REBOOL q = FALSE; // !!! currently /? option not passed in
-
-    REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word, SPECIFIED);
-
-    // Though we can only iterate on a series, BLANK! is used as a way of
-    // opting out.  This could be useful, e.g. `for-next x (any ...) [...]`
-    //
-    if (IS_BLANK(var))
-        return R_OUT_Q(q);
-
-    if (!ANY_SERIES(var))
-        fail (Error_Invalid_Arg(var));
-
-    // Save the starting var value, assume `word` is a GC protected slot
-    //
-    *word = *var;
-
-    // Starting location when past end with negative skip:
-    //
-    if (skip < 0 && VAL_INDEX(var) >= VAL_LEN_HEAD(var))
-        VAL_INDEX(var) = VAL_LEN_HEAD(var) + skip;
-
-    while (TRUE) {
-        REBINT len = VAL_LEN_HEAD(var); // VAL_LEN_HEAD() always >= 0
-        REBINT index = VAL_INDEX(var); // (may have been set to < 0 below)
-
-        if (index < 0) break;
-        if (index >= len) {
-            if (skip >= 0) break;
-            index = len + skip; // negative
-            if (index < 0) break;
-            VAL_INDEX(var) = index;
-        }
-
-        if (DO_VAL_ARRAY_AT_THROWS(out, body)) {
-            REBOOL stop;
-            if (Catching_Break_Or_Continue(out, &stop)) {
-                if (stop) goto restore_var_and_return;
-
-                goto next_iteration;
-            }
-            return R_OUT_IS_THROWN;
-        }
-
-    next_iteration:
-        //
-        // !!! The code in the body is allowed to modify the var.  However,
-        // R3-Alpha checked to make sure that the type of the var did not
-        // change.  This seemed like an arbitrary limitation and Ren-C
-        // removed it, only checking that it's a series.
-        //
-        if (IS_BLANK(var))
-            return R_OUT_Q(q);
-
-        if (!ANY_SERIES(var))
-            fail (Error_Invalid_Arg(var));
-
-        VAL_INDEX(var) += skip;
-    }
-
-restore_var_and_return:
-    *var = *word;
-    return R_OUT_Q(q);
-}
-
-
-//
 //  Loop_Each: C
 // 
 // Common implementation code of FOR-EACH, REMOVE-EACH, MAP-EACH,
@@ -734,12 +657,18 @@ skip_hidden: ;
 //  for: native [
 //  
 //  {Evaluate a block over a range of values. (See also: REPEAT)}
-//  
-//      'word [word!] "Variable to hold current value"
-//      start [any-series! any-number!] "Starting value"
-//      end [any-series! any-number!] "Ending value"
-//      bump [any-number!] "Amount to skip each time"
-//      body [block!] "Block to evaluate"
+//
+//      return: [<opt> any-value!]
+//      'word [word!]
+//          "Variable to hold current value"
+//      start [any-series! any-number!]
+//          "Starting value"
+//      end [any-series! any-number!]
+//          "Ending value"
+//      bump [any-number!]
+//          "Amount to skip each time"
+//      body [block!]
+//          "Block to evaluate"
 //  ]
 //
 REBNATIVE(for)
@@ -819,77 +748,108 @@ REBNATIVE(for)
 
 
 //
-//  for-next: native [
-//  
-//  "Evaluates a block for each position until the end, using NEXT to skip"
-//  
-//      'word [word!] 
-//          "Word that refers to the series, set to positions in the series"
-//      body [block!]
-//          "Block to evaluate each time"
-//  ]
-//
-REBNATIVE(for_next)
-{
-    PARAM(1, word);
-    PARAM(2, body);
-
-    return Loop_Skip(D_OUT, ARG(word), 1, ARG(body));
-}
-
-
-//
-//  for-back: native [
-//
-//  "Evaluates a block for each position until the start, using BACK to skip"
-//
-//      'word [word!]
-//          "Word that refers to the series, set to positions in the series"
-//      body [block!]
-//          "Block to evaluate each time"
-//  ]
-//
-REBNATIVE(for_back)
-{
-    PARAM(1, word);
-    PARAM(2, body);
-
-    return Loop_Skip(D_OUT, ARG(word), -1, ARG(body));
-}
-
-
-//
 //  for-skip: native [
 //  
 //  "Evaluates a block for periodic values in a series"
-//  
+//
+//      return: [<opt> any-value!]
+//          {Last body result or BREAK value, will also be void if never run}
 //      'word [word!] 
 //          "Word that refers to the series, set to positions in the series"
 //      skip [integer!]
 //          "Number of positions to skip each time"
 //      body [block!]
 //          "Block to evaluate each time"
+//      /?
+//          {Instead of last body result, return TRUE if body ever ran}
 //  ]
 //
 REBNATIVE(for_skip)
+//
+// !!! Should this fail on 0?  It could be that the loop will break for some
+// other reason, and the author didn't wish to special case to rule out zero...
+// generality may dictate allowing it.
 {
     PARAM(1, word);
     PARAM(2, skip);
     PARAM(3, body);
+    REFINE(4, q);
 
-    // !!! Should this fail on 0?  It could be that the loop will break for
-    // some other reason, and the author didn't wish to special case to
-    // rule out zero... generality may dictate allowing it.
+    REBVAL *word = ARG(word);
 
-    return Loop_Skip(D_OUT, ARG(word), Int32(ARG(skip)), ARG(body));
+    REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word, SPECIFIED);
+
+    // Though we can only iterate on a series, BLANK! is used as a way of
+    // opting out.  This could be useful, e.g. `for-next x (any ...) [...]`
+    //
+    if (IS_BLANK(var))
+        return R_OUT_Q(REF(q));
+
+    if (!ANY_SERIES(var))
+        fail (Error_Invalid_Arg(var));
+
+    REBINT skip = Int32(ARG(skip));
+
+    // Save the starting var value, assume `word` is a GC protected slot
+    //
+    *word = *var;
+
+    // Starting location when past end with negative skip:
+    //
+    if (skip < 0 && VAL_INDEX(var) >= VAL_LEN_HEAD(var))
+        VAL_INDEX(var) = VAL_LEN_HEAD(var) + skip;
+
+    while (TRUE) {
+        REBINT len = VAL_LEN_HEAD(var); // VAL_LEN_HEAD() always >= 0
+        REBINT index = VAL_INDEX(var); // (may have been set to < 0 below)
+
+        if (index < 0) break;
+        if (index >= len) {
+            if (skip >= 0) break;
+            index = len + skip; // negative
+            if (index < 0) break;
+            VAL_INDEX(var) = index;
+        }
+
+        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(body))) {
+            REBOOL stop;
+            if (Catching_Break_Or_Continue(D_OUT, &stop)) {
+                if (stop) goto restore_var_and_return;
+
+                goto next_iteration;
+            }
+            return R_OUT_IS_THROWN;
+        }
+
+    next_iteration:
+        //
+        // !!! The code in the body is allowed to modify the var.  However,
+        // R3-Alpha checked to make sure that the type of the var did not
+        // change.  This seemed like an arbitrary limitation and Ren-C
+        // removed it, only checking that it's a series.
+        //
+        if (IS_BLANK(var))
+            return R_OUT_Q(REF(q));
+
+        if (!ANY_SERIES(var))
+            fail (Error_Invalid_Arg(var));
+
+        VAL_INDEX(var) += skip;
+    }
+
+restore_var_and_return:
+    *var = *word;
+    return R_OUT_Q(REF(q));
 }
 
 
 //
 //  forever: native [
 //  
-//  "Evaluates a block endlessly."
-//  
+//  "Evaluates a block endlessly, until an interrupting throw/error/break."
+//
+//      return: [<opt> any-value!]
+//          {Void if plain BREAK, or arbitrary value using BREAK/WITH}
 //      block [block!] "Block to evaluate each time"
 //  ]
 //
@@ -916,7 +876,9 @@ REBNATIVE(forever)
 //  for-each: native [
 //  
 //  "Evaluates a block for each value(s) in a series."
-//  
+//
+//      return: [<opt> any-value!]
+//          {Last body result or BREAK value, will also be void if never run}
 //      'word [word! block!]
 //          "Word or block of words to set each time (local)"
 //      data [any-series! any-context! map! blank!]
@@ -936,9 +898,12 @@ REBNATIVE(for_each)
 //  
 //  {Removes values for each block that returns true; returns removal count.}
 //  
-//      'word [word! block!] "Word or block of words to set each time (local)"
-//      data [any-series!] "The series to traverse (modified)"
-//      body [block!] "Block to evaluate (return TRUE to remove)"
+//      'word [word! block!]
+//          "Word or block of words to set each time (local)"
+//      data [any-series!]
+//          "The series to traverse (modified)"
+//      body [block!]
+//          "Block to evaluate (return TRUE to remove)"
 //  ]
 //
 REBNATIVE(remove_each)
@@ -950,11 +915,16 @@ REBNATIVE(remove_each)
 //
 //  map-each: native [
 //  
-//  {Evaluates a block for each value(s) in a series and returns them as a block.}
-//  
-//      'word [word! block!] "Word or block of words to set each time (local)"
-//      data [block! vector!] "The series to traverse"
-//      body [block!] "Block to evaluate each time"
+//  {Evaluate a block for each value(s) in a series and collect as a block.}
+//
+//      return: [block!]
+//          {Collected block (BREAK/WITH can add a final result to block)}
+//      'word [word! block!]
+//          "Word or block of words to set each time (local)"
+//      data [block! vector!]
+//          "The series to traverse"
+//      body [block!]
+//          "Block to evaluate each time"
 //  ]
 //
 REBNATIVE(map_each)
@@ -967,7 +937,9 @@ REBNATIVE(map_each)
 //  every: native [
 //  
 //  {Returns last TRUE? value if evaluating a block over a series is all TRUE?}
-//  
+//
+//      return: [<opt> any-value!]
+//          {TRUE or BLANK! collected, or BREAK value, TRUE if never run.}
 //      'word [word! block!]
 //          "Word or block of words to set each time (local)"
 //      data [any-series! any-context! map! blank!]
@@ -986,7 +958,9 @@ REBNATIVE(every)
 //  loop: native [
 //  
 //  "Evaluates a block a specified number of times."
-//  
+//
+//      return: [<opt> any-value!]
+//          {Last body result or BREAK value, will also be void if never run}
 //      count [any-number! logic! blank!]
 //          "Repetitions (true loops infinitely, FALSE? doesn't run)"
 //      block [block!]
@@ -1049,11 +1023,15 @@ REBNATIVE(loop)
 //  repeat: native [
 //  
 //  {Evaluates a block a number of times or over a series.}
-//  
-//      'word [word!] "Word to set each time"
+//
+//      return: [<opt> any-value!]
+//          {Last body result or BREAK value, will also be void if never run}
+//      'word [word!]
+//          "Word to set each time"
 //      value [any-number! any-series! blank!]
-//      "Maximum number or series to traverse"
-//      body [block!] "Block to evaluate each time"
+//          "Maximum number or series to traverse"
+//      body [block!]
+//          "Block to evaluate each time"
 //  ]
 //
 REBNATIVE(repeat)
@@ -1101,8 +1079,10 @@ REBNATIVE(repeat)
 //
 //  until: native [
 //  
-//  "Evaluates a block until it is TRUE. "
-//  
+//  "Evaluates a block until it is TRUE?"
+//
+//      return: [<opt> any-value!]
+//          {Last body result or BREAK value.}
 //      block [block!]
 //  ]
 //
@@ -1143,7 +1123,9 @@ REBNATIVE(until)
 //  while: native [
 //  
 //  {While a condition block is TRUE?, evaluates another block.}
-//  
+//
+//      return: [<opt> any-value!]
+//          {Last body result or BREAK value, will also be void if never run}
 //      condition [block!]
 //      body [block!]
 //      /?

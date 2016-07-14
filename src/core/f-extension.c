@@ -522,6 +522,7 @@ bad_func_def:
 //
 //  {Native for creating the FUNCTION! subclass for what was once COMMAND!}
 //
+//      return: [function!]
 //      def [block!]
 //  ]
 //

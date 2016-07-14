@@ -105,6 +105,7 @@ round: action [
 
 random: action [
     {Returns a random value of the same datatype; or shuffles series.}
+    return: [<opt> any-value!]
     value   {Maximum value of result (modified when series)}
     /seed   {Restart or randomize}
     /secure {Returns a cryptographically secure random number}
@@ -185,10 +186,13 @@ length: action [
 
 pick: action [
     {Returns the value at the specified position.}
+    return: [<opt> any-value!]
+        {Picked value, or void if index not present}
     aggregate [
         any-series! map! gob! pair! date! time! tuple! bitset! port! varargs!
     ]
-    index {Index offset, symbol, or other value to use as index}
+    index
+        {Index offset, symbol, or other value to use as index}
 ]
 
 ;-- Series Search
@@ -214,6 +218,7 @@ find: action [
 
 select: action [
     {Searches for a value; returns the value that follows, else void.}
+    return: [<opt> any-value!]
     series [any-series! any-context! map! blank!]
     value [<opt> any-value!]
     /part {Limits the search to a given length or position}
@@ -252,6 +257,7 @@ copy: action [
 
 take: action [
     {Removes and returns one or more elements.}
+    return: [<opt> any-value!]
     series [any-series! port! gob! blank! varargs!] {At position (modified)}
     /part {Specifies a length or end position}
     limit [any-number! any-series! pair! bar!]

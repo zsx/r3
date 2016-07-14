@@ -170,6 +170,7 @@ REBNATIVE(mold)
 //  
 //  "Outputs value to standard output using the PRINT dialect."
 //  
+//      return: [<opt>]
 //      value [any-value!]
 //          "Value or BLOCK! literal in PRINT dialect, newline if any output"
 //      /only

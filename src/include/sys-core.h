@@ -293,7 +293,8 @@ enum {
     MKF_LEAVE       = 1 << 1,   // has definitional LEAVE
     MKF_PUNCTUATES  = 1 << 2,   // generated function can't be used as argument
     MKF_KEYWORDS    = 1 << 3,   // respond to words like <opt>, <no-return>
-    MKF_ANY_VALUE   = 1 << 4    // args and return are [<opt> any-value!]
+    MKF_ANY_VALUE   = 1 << 4,   // args and return are [<opt> any-value!]
+    MKF_FAKE_RETURN = 1 << 5    // has RETURN but not actually in frame
 };
 
 // Modes allowed by FORM
