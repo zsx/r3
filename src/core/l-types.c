@@ -173,11 +173,12 @@ REBNATIVE(make)
             // that has been evaluated, and subfeeds can't be fixed up
             // like this either...disabled for now.
             //
-            REBARR **subfeed_addr = SUBFEED_ADDR_OF_FEED(feed);
-            assert(*subfeed_addr == NULL); // all values should be exhausted
+            REBARR **subfeed_addr;
+            REBOOL is_end = Is_End_Subfeed_Addr_Of_Feed(&subfeed_addr, feed);
+            assert(is_end); // all values should be exhausted
             *subfeed_addr = Make_Singular_Array(D_OUT);
             MANAGE_ARRAY(*subfeed_addr);
-            *SUBFEED_ADDR_OF_FEED(*subfeed_addr) = NULL;
+            Mark_End_Subfeed_Addr_Of_Feed(*subfeed_addr);
         }
 
         return FALSE;

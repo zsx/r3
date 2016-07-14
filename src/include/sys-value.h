@@ -2059,19 +2059,40 @@ inline static REBARR *VAL_VARARGS_ARRAY1(const RELVAL *v) {
 // The subfeed is either the varlist of the frame of another varargs that is
 // being chained at the moment, or the `array1` of another varargs.  To
 // be visible for all instances of the same vararg, it can't live in the
-// payload bits--so it's in the `eval` slot of a frame or the misc slot
+// payload bits--so it's in the `special` slot of a frame or the misc slot
 // of the array1.
 //
-inline static REBARR **SUBFEED_ADDR_OF_FEED(REBARR *a) {
-    if (!GET_ARR_FLAG(a, ARRAY_FLAG_VARLIST))
-        return &ARR_SERIES(a)->link.subfeed;
+inline static REBOOL Is_End_Subfeed_Addr_Of_Feed(
+    REBARR ***addr_out,
+    REBARR *a
+) {
+    if (!GET_ARR_FLAG(a, ARRAY_FLAG_VARLIST)) {
+        *addr_out = &ARR_SERIES(a)->link.subfeed;
+        return LOGICAL(*addr_out == NULL);
+    }
 
     REBFRM *f = CTX_FRAME(AS_CONTEXT(a));
     assert(f != NULL); // need to check frame independently and error on this
-    if (f->special == END_CELL)
-        f->special = NULL; // lazy conversion, should callers tolerate END_CELL
 
-    return cast(REBARR**, &f->special);
+    // Be cautious with the strict aliasing implications of this conversion.
+    //
+    *addr_out = cast(REBARR**, &f->special);
+
+    if (f->special->header.bits & NOT_END_MASK)
+        return FALSE;
+
+    return TRUE;
+}
+
+inline static void Mark_End_Subfeed_Addr_Of_Feed(REBARR *a) {
+    if (!GET_ARR_FLAG(a, ARRAY_FLAG_VARLIST)) {
+        ARR_SERIES(a)->link.subfeed = NULL;
+        return;
+    }
+
+    REBFRM *f = CTX_FRAME(AS_CONTEXT(a));
+    assert(f != NULL); // need to check frame independently and error on this
+    f->special = c_cast(REBVAL*, END_CELL);
 }
 
 

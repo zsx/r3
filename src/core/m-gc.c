@@ -623,7 +623,7 @@ static void Mark_Frame_Stack_Deep(void)
         // the function's actual running.
         //
         if (!Is_Function_Frame_Fulfilling(f)) {
-            if (f->special != END_CELL) {
+            if (f->special->header.bits & NOT_END_MASK) {
                 REBARR *subfeed = cast(REBARR*, f->special);
 
                 if (GET_ARR_FLAG(subfeed, ARRAY_FLAG_VARLIST))
@@ -790,13 +790,15 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                 //
                 Queue_Mark_Array_Deep(VAL_VARARGS_ARRAY1(val));
 
-                REBARR *subfeed
-                    = *SUBFEED_ADDR_OF_FEED(VAL_VARARGS_ARRAY1(val));
-                if (subfeed) {
-                    if (GET_ARR_FLAG(subfeed, ARRAY_FLAG_VARLIST))
-                        Queue_Mark_Context_Deep(AS_CONTEXT(subfeed));
+                REBARR **subfeed_addr;
+                if (!Is_End_Subfeed_Addr_Of_Feed(
+                    &subfeed_addr,
+                    VAL_VARARGS_ARRAY1(val)
+                )) {
+                    if (GET_ARR_FLAG(*subfeed_addr, ARRAY_FLAG_VARLIST))
+                        Queue_Mark_Context_Deep(AS_CONTEXT(*subfeed_addr));
                     else
-                        Queue_Mark_Array_Deep(subfeed);
+                        Queue_Mark_Array_Deep(*subfeed_addr);
                 }
             }
             else {

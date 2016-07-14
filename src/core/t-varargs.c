@@ -73,20 +73,14 @@ REBIXO Do_Vararg_Op_Core(
     REBSTR *opt_label, // symbol of the function invocation param belongs to
     enum Reb_Vararg_Op op
 ) {
-    REBFRM *f;
-    REBIXO indexor = VA_LIST_FLAG;
-
-    REBFRM temp_frame;
-
-    REBARR **subfeed_addr;
-    REBVAL *shared;
+    assert(LOGICAL(out == NULL) == LOGICAL(op == VARARG_OP_TAIL_Q));
 
     enum Reb_Param_Class pclass = VAL_PARAM_CLASS(param);
 
-    assert(LOGICAL(out == NULL) == LOGICAL(op == VARARG_OP_TAIL_Q));
-
     if (op == VARARG_OP_FIRST && pclass != PARAM_CLASS_HARD_QUOTE)
         fail (Error(RE_VARARGS_NO_LOOK)); // lookback needs hard quote
+
+    REBFRM *f;
 
     // If the VARARGS! has a call frame, then ensure that the call frame where
     // the VARARGS! originated is still on the stack.
@@ -120,25 +114,25 @@ REBIXO Do_Vararg_Op_Core(
             opt_label = Canon(SYM_NATIVE); // !!! pick something better
     }
 
+handle_subfeed:;
+
     // We may be in a state where we aren't fetching values from the varargs
     // in our hand, but in a subfeed it is referencing.  This subfeed can
-    // be NULL, the context we recursively feed from, or an array containing
+    // be "END", the context we recursively feed from, or an array containing
     // a single element with the array and index to feed from.
     //
-    // The subfeed is operated on by address because we need to NULL it when
+    // The subfeed is operated on by address because we need to END it when
     // done...and if we encounter a nested varlist to chain in, we set it.
-    //
-    subfeed_addr = SUBFEED_ADDR_OF_FEED(feed);
 
-handle_subfeed:
-    if (*subfeed_addr != NULL) {
+    REBARR **subfeed_addr;
+    if (!Is_End_Subfeed_Addr_Of_Feed(&subfeed_addr, feed)) {
         //
         // Because we're recursing, we could run into trouble if someone
         // tries to chain a varargs into itself, etc.
         //
         if (C_STACK_OVERFLOWING(&op)) Trap_Stack_Overflow();
 
-        indexor = Do_Vararg_Op_Core(
+        REBIXO indexor = Do_Vararg_Op_Core(
             out,
             *subfeed_addr,
             param,
@@ -154,11 +148,13 @@ handle_subfeed:
         // will be seen by all other instances of this VARARGS!) and fall
         // through to getting values from the main feed.
         //
-        *subfeed_addr = NULL;
+        Mark_End_Subfeed_Addr_Of_Feed(feed);
     }
 
     // Reading from the main feed...
 
+    REBFRM temp_frame;
+    REBVAL *shared;
     if (GET_ARR_FLAG(feed, ARRAY_FLAG_VARLIST)) {
         //
         // "Ordinary" case... use the original frame implied by the VARARGS!
@@ -178,7 +174,7 @@ handle_subfeed:
         // MAKE ANY-ARRAY! on a varargs (which reified the varargs into an
         // array during that creation, flattening its entire output).
         //
-        shared = KNOWN(ARR_HEAD(feed)); // 1 element, array or end marker
+        shared = KNOWN(ARR_HEAD(feed)); // 1 element, array or end mark
 
         if (IS_END(shared))
             goto return_end_flag; // exhausted
@@ -312,7 +308,11 @@ handle_subfeed:
     // that the next time this routine is called, this varargs is consulted.
     //
     if (IS_VARARGS(out) && !TYPE_CHECK(param, REB_VARARGS)) {
-        assert(*subfeed_addr == NULL);
+    #if !defined(NDEBUG)
+        REBARR **subfeed_addr_check; // !!! can't simply check for NULL, tbd
+        assert(Is_End_Subfeed_Addr_Of_Feed(&subfeed_addr_check, feed));
+        assert(subfeed_addr_check == subfeed_addr);
+    #endif
 
         if (GET_VAL_FLAG(out, VARARGS_FLAG_NO_FRAME))
             *subfeed_addr = VAL_VARARGS_ARRAY1(out);
@@ -416,7 +416,7 @@ void MAKE_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
         // must initialize subfeed pointer in union before reading from it
         //
-        *SUBFEED_ADDR_OF_FEED(array1) = NULL;
+        Mark_End_Subfeed_Addr_Of_Feed(array1);
 
         VAL_RESET_HEADER(out, REB_VARARGS);
         SET_VAL_FLAG(out, VARARGS_FLAG_NO_FRAME);
@@ -560,7 +560,7 @@ REBINT CT_Varargs(const RELVAL *a, const RELVAL *b, REBINT mode)
 void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
     REBFRM *f;
 
-    REBARR *subfeed;
+    REBARR **subfeed_addr;
 
     assert(IS_VARARGS(value));
 
@@ -576,9 +576,12 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
             goto skip_complex_mold_for_now;
         }
 
-        subfeed = *SUBFEED_ADDR_OF_FEED(VAL_VARARGS_ARRAY1(value));
-        if (subfeed != NULL)
+        if (!Is_End_Subfeed_Addr_Of_Feed(
+            &subfeed_addr,
+            VAL_VARARGS_ARRAY1(value)
+        )) {
             Append_Unencoded(mold->series, "<= (subfeed) <= "); // !!! say more
+        }
 
         if (IS_END(ARR_HEAD(VAL_VARARGS_ARRAY1(value))))
             Append_Unencoded(mold->series, "*exhausted*");
@@ -637,11 +640,12 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
                 goto skip_complex_mold_for_now;
             }
 
-            subfeed = *SUBFEED_ADDR_OF_FEED(
-                CTX_VARLIST(VAL_VARARGS_FRAME_CTX(value)));
-
-            if (subfeed != NULL)
+            if (!Is_End_Subfeed_Addr_Of_Feed(
+                &subfeed_addr,
+                CTX_VARLIST(VAL_VARARGS_FRAME_CTX(value))
+            )){
                 Append_Unencoded(mold->series, "<= (subfeed) <= "); // !!!
+            }
 
             f = CTX_FRAME(VAL_VARARGS_FRAME_CTX(value));
 
