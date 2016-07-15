@@ -136,7 +136,7 @@ REBNATIVE(verify)
 
 
 // Test used iteratively by MAYBE native.  Returns R_BLANK if the test fails,
-// R_OUT if success, or R_OUT_IF_THROWN if a test throws.
+// R_OUT if success, or R_OUT_IS_THROWN if a test throws.
 //
 inline static REB_R Do_Test_For_Maybe(
     REBVAL *out,

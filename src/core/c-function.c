@@ -884,6 +884,35 @@ REBFUN *Make_Function(
     assert(rootparam->payload.function.paramlist == paramlist);
     assert(rootparam->extra.binding == NULL); // archetype
 
+    // Precalculate FUNC_FLAG_BRANCHER
+
+    REBVAL *param = KNOWN(rootparam) + 1;
+    for (; NOT_END(param); ++param) {
+        switch (VAL_PARAM_CLASS(param)) {
+        case PARAM_CLASS_LOCAL:
+        case PARAM_CLASS_RETURN:
+        case PARAM_CLASS_LEAVE:
+            continue; // skip.
+
+        case PARAM_CLASS_REFINEMENT:
+            break; // hit before hitting any basic args, so not a brancher
+
+        case PARAM_CLASS_NORMAL:
+        case PARAM_CLASS_HARD_QUOTE:
+        case PARAM_CLASS_SOFT_QUOTE: {
+            //
+            // At least one argument.  Call it a brancher even if it might
+            // error on LOGIC! or have greater arity, so that the error can
+            // be delivered by the moment of attempted application.
+            //
+            SET_VAL_FLAG(rootparam, FUNC_FLAG_MAYBE_BRANCHER);
+            break; }
+
+        default:
+            assert(FALSE);
+        }
+    }
+
     // The "body" for a function can be any REBVAL.  It doesn't have to be
     // a block--it's anything that the dispatcher might wish to interpret.
     // It is allocated as a "singular" array--packed into sizeof(REBSER)
@@ -1728,6 +1757,70 @@ REBNATIVE(proc)
     );
 
     *D_OUT = *FUNC_VALUE(fun);
+    return R_OUT;
+}
+
+
+//
+//  brancher: native/body [
+//
+//  {Create a function that selects between two values based on a LOGIC!}
+//
+//      return: [function!]
+//      true-branch [any-value!]
+//      false-branch [any-value!]
+//  ][
+//      specialize 'either [
+//          true-branch: true-branch
+//          false-branch: false-branch
+//      ]
+//  ]
+//
+REBNATIVE(brancher)
+//
+// !!! This is a slightly more optimized version of a brancher than could be
+// accomplished in user mode code.  The "equivalent body" doesn't actually
+// behave equivalently because there is no meta information suggesting
+// the result is a specialization, so perhaps there should be a "remove
+// meta" included (?)
+//
+// If this were taken to a next level of optimization for ELSE, it would have
+// to not create series...but a special kind of REBVAL which would morph
+// into a function on demand.  IF and UNLESS could recognize this special
+// value type and treat it like a branch.
+{
+    PARAM(1, true_branch);
+    PARAM(2, false_branch);
+
+    REBARR *branches = Make_Array(2);
+    *ARR_AT(branches, 0) = *ARG(true_branch);
+    *ARR_AT(branches, 1) = *ARG(false_branch);
+    TERM_ARRAY_LEN(branches, 2);
+
+    REBARR *paramlist = Make_Array(2);
+
+    REBVAL *rootkey = SINK(ARR_AT(paramlist, 0));
+    VAL_RESET_HEADER(rootkey, REB_FUNCTION);
+    /* SET_VAL_FLAGS(rootkey, ???); */ // if flags ever needed...
+    rootkey->payload.function.paramlist = paramlist;
+    rootkey->extra.binding = NULL;
+
+    REBVAL *param = SINK(ARR_AT(paramlist, 1));
+    Val_Init_Typeset(param, FLAGIT_64(REB_LOGIC), Canon(SYM_CONDITION));
+    INIT_VAL_PARAM_CLASS(param, PARAM_CLASS_NORMAL);
+
+    MANAGE_ARRAY(paramlist);
+    TERM_ARRAY_LEN(paramlist, 2);
+
+    REBFUN *func = Make_Function(
+        paramlist,
+        &Brancher_Dispatcher,
+        NULL // no underlying function, this is fundamental
+    );
+
+    Val_Init_Block(FUNC_BODY(func), branches);
+
+    *D_OUT = *FUNC_VALUE(func);
     return R_OUT;
 }
 

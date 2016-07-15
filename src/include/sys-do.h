@@ -1083,3 +1083,62 @@ inline static REBOOL EVAL_VALUE_CORE_THROWS(
 
 #define EVAL_VALUE_THROWS(out,value) \
     EVAL_VALUE_CORE_THROWS((out), (value), SPECIFIED)
+
+
+inline static REBOOL Run_Success_Branch_Throws(
+    REBVAL *out,
+    const REBVAL *branch,
+    REBOOL only
+) {
+    assert(branch != out); // !!! review, CASE can perhaps do better...
+
+    if (only) {
+        *out = *branch;
+    }
+    else if (IS_BLOCK(branch)) {
+        if (DO_VAL_ARRAY_AT_THROWS(out, branch))
+            return TRUE;
+    }
+    else if (IS_FUNCTION(branch)) {
+        //
+        // The function is allowed to be arity-0, or arity-1 and called with
+        // a LOGIC! (which it will ignore if arity 0)
+        //
+        if (Apply_Only_Throws(out, FALSE, branch, TRUE_VALUE, END_CELL))
+            return TRUE;
+    }
+    else
+        *out = *branch; // it's not code -- nothing to run
+
+    return FALSE;
+}
+
+
+// A "failing" branch is the untaken branch of an IF, UNLESS, a missed CASE
+// or switch, etc.  This is distinguished from a branch which is simply false,
+// such as the false branch of an EITHER.  As far as an EITHER is concerned,
+// both of its branches are "success".
+//
+inline static REBOOL Maybe_Run_Failed_Branch_Throws(
+    REBVAL *out,
+    const REBVAL *branch,
+    REBOOL only
+) {
+    if (
+        NOT(only)
+        && IS_FUNCTION(branch)
+        && GET_VAL_FLAG(branch, FUNC_FLAG_MAYBE_BRANCHER)
+    ){
+        if (Apply_Only_Throws(
+            out,
+            TRUE, // error even if it doesn't consume the logic! FALSE
+            branch,
+            FALSE_VALUE,
+            END_CELL
+        )) {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}

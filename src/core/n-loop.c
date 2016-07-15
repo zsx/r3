@@ -850,15 +850,16 @@ restore_var_and_return:
 //
 //      return: [<opt> any-value!]
 //          {Void if plain BREAK, or arbitrary value using BREAK/WITH}
-//      block [block!] "Block to evaluate each time"
+//      body [block! function!]
+//          "Block or function to evaluate each time"
 //  ]
 //
 REBNATIVE(forever)
 {
-    PARAM(1, block);
+    PARAM(1, body);
 
     do {
-        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(block))) {
+        if (Run_Success_Branch_Throws(D_OUT, ARG(body), FALSE)) { // !only
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;
@@ -963,14 +964,14 @@ REBNATIVE(every)
 //          {Last body result or BREAK value, will also be void if never run}
 //      count [any-number! logic! blank!]
 //          "Repetitions (true loops infinitely, FALSE? doesn't run)"
-//      block [block!]
-//          "Block to evaluate"
+//      body [block! function!]
+//          "Block to evaluate or function to run (may be a BRANCHER)."
 //  ]
 //
 REBNATIVE(loop)
 {
     PARAM(1, count);
-    PARAM(2, block);
+    PARAM(2, body);
 
     REBI64 count;
 
@@ -995,7 +996,7 @@ REBNATIVE(loop)
         count = Int64(ARG(count));
 
     for (; count > 0; count--) {
-        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(block))) {
+        if (Run_Success_Branch_Throws(D_OUT, ARG(body), FALSE)) { // !only
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;
@@ -1011,6 +1012,12 @@ REBNATIVE(loop)
         //
         goto restart;
     }
+
+    // If the body is a function, it may be a "brancher".  If it is,
+    // then run it and tell it that the condition is not still in effect.
+    //
+    if (Maybe_Run_Failed_Branch_Throws(D_OUT, ARG(body), FALSE))
+        return R_OUT_IS_THROWN;
 
     if (IS_END(D_OUT))
         return R_VOID;
@@ -1083,16 +1090,16 @@ REBNATIVE(repeat)
 //
 //      return: [<opt> any-value!]
 //          {Last body result or BREAK value.}
-//      block [block!]
+//      body [block! function!]
 //  ]
 //
 REBNATIVE(until)
 {
-    PARAM(1, block);
+    PARAM(1, body);
 
     do {
     skip_check:
-        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(block))) {
+        if (Run_Success_Branch_Throws(D_OUT, ARG(body), FALSE)) { // !only
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;
@@ -1115,6 +1122,12 @@ REBNATIVE(until)
 
     } while (IS_CONDITIONAL_FALSE(D_OUT));
 
+    // If the body is a function, it may be a "brancher".  If it is,
+    // then run it and tell it that it reached false.
+    //
+    if (Maybe_Run_Failed_Branch_Throws(D_OUT, ARG(body), FALSE)) // !only
+        return R_OUT_IS_THROWN;
+
     return R_OUT;
 }
 
@@ -1126,8 +1139,8 @@ REBNATIVE(until)
 //
 //      return: [<opt> any-value!]
 //          {Last body result or BREAK value, will also be void if never run}
-//      condition [block!]
-//      body [block!]
+//      condition [block! function!]
+//      body [block! function!]
 //      /?
 //          "Instead of last body result, return LOGIC! of if body ever ran"
 //  ]
@@ -1136,37 +1149,42 @@ REBNATIVE(while)
 {
     PARAM(1, condition);
     PARAM(2, body);
-    REFINE(3, q_reused);
-
-    REBOOL q = VAL_LOGIC(ARG(q_reused));
-    REBVAL *temp = ARG(q_reused); // cell-sized slot taken for GC safety
+    REFINE(3, q);
 
     do {
-        if (DO_VAL_ARRAY_AT_THROWS(temp, ARG(condition))) {
+        if (Run_Success_Branch_Throws(D_CELL, ARG(condition), FALSE)) { // !only
             //
             // A while loop should only look for breaks and continues in its
             // body, not in its condition.  So `while [break] []` is a
             // request to break the enclosing loop (or error if there is
             // nothing to catch that break).  Hence we bubble up the throw.
             //
-            *D_OUT = *temp;
+            *D_OUT = *D_CELL;
             return R_OUT_IS_THROWN;
         }
 
-        if (IS_VOID(temp))
+        if (IS_VOID(D_CELL))
             fail (Error(RE_NO_RETURN));
 
-        if (IS_CONDITIONAL_FALSE(temp))
-            return R_OUT_Q(q);
+        if (IS_CONDITIONAL_FALSE(D_CELL)) {
+            //
+            // If the body is a function, it may be a "brancher".  If it is,
+            // then run it and tell it that the condition has returned false.
+            //
+            if (Maybe_Run_Failed_Branch_Throws(D_OUT, ARG(body), FALSE))
+                return R_OUT_IS_THROWN;
+
+            return R_OUT_Q(REF(q));
+        }
 
         // If this line runs, it will put a non-END marker in D_OUT, which
-        // will signal R_OUT_Q() to TRUE if /looped? (and D_OUT otherwise)
+        // will signal R_OUT_Q() to TRUE if /? (and D_OUT otherwise)
         //
-        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(body))) {
+        if (Run_Success_Branch_Throws(D_OUT, ARG(body), FALSE)) { // !only
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) {
-                    if (q) return R_TRUE;
+                    if (REF(q)) return R_TRUE;
                     return R_OUT;
                 }
                 continue;

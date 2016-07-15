@@ -502,15 +502,18 @@ REBNATIVE(break)
 //          "Block of cases (conditions followed by values)"
 //      /all
 //          {Evaluate all cases (do not stop at first TRUE? case)}
+//      /only
+//          {Do not evaluate block or function branches, return as-is}
 //      /?
 //          "Instead of last case result, return LOGIC! of if any cases ran"
 //  ]
 //
 REBNATIVE(case)
 {
-    PARAM(1, block);
+    PARAM(1, block); // overwritten as scratch space after enumerator init
     REFINE(2, all);
-    REFINE(3, q);
+    REFINE(3, only);
+    REFINE(4, q);
 
     Reb_Enumerator e;
     PUSH_SAFE_ENUMERATOR(&e, ARG(block)); // DO-ing cases could disrupt `block`
@@ -555,6 +558,23 @@ REBNATIVE(case)
                 *D_OUT = *D_CELL;
                 goto return_thrown;
             }
+
+            // Should the slot contain a single arity function taking a logic
+            // (and this not be an /ONLY), then it's treated as a brancher.
+            // It is told it failed the test, and may choose to perform some
+            // action in a response...but the result is discarded.
+            //
+            // Its result is put in the block argument cell, whose contents
+            // and index have been extracted already and aren't used further.
+            // (this might confuse debuggers, but if that's going to be
+            // considered a problem then every native has to be reviewed,
+            // as this is a common space-saving tactic)
+            //
+            if (Maybe_Run_Failed_Branch_Throws(ARG(block), D_CELL, REF(only))) {
+                *D_OUT = *ARG(block);
+                goto return_thrown;
+            }
+
             continue;
         }
 
@@ -566,13 +586,19 @@ REBNATIVE(case)
         //
         // Similar to IF TRUE STUFF, so CASE can act like many IFs at once.
 
-        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_LOOKAHEAD);
-        if (THROWN(D_OUT))
+        DO_NEXT_REFETCH_MAY_THROW(D_CELL, &e, DO_FLAG_LOOKAHEAD);
+        if (THROWN(D_CELL)) {
+            *D_OUT = *D_CELL;
             goto return_thrown;
+        }
 
-        if (IS_BLOCK(D_OUT))
-            if (DO_VAL_ARRAY_AT_THROWS(D_OUT, D_OUT)) // ok for same src/dest
-                goto return_thrown;
+        // !!! Optimization note: if the previous evaluation had gone into
+        // D_OUT directly it could just stay there in some cases; and even
+        // block evaluation doesn't need the copy.  Review how this shared
+        // code might get more efficient if the data were already in D_OUT.
+        //
+        if (Run_Success_Branch_Throws(D_OUT, D_CELL, REF(only)))
+            goto return_thrown;
 
         if (NOT(REF(all))) goto return_matched;
 
@@ -1382,91 +1408,36 @@ REBNATIVE(fail)
 }
 
 
-static REB_R If_Unless_Core(REBFRM *frame_, REBOOL trigger) {
+
+inline static REB_R If_Unless_Core(REBFRM *frame_, REBOOL trigger)
+{
     PARAM(1, condition);
     PARAM(2, branch);
     REFINE(3, only);
     REFINE(4, q); //  return TRUE if branch taken, else FALSE
 
-    REBVAL *branch = ARG(branch);
-
     if (IS_CONDITIONAL_TRUE(ARG(condition)) != trigger) { // don't take branch
-        if (!IS_FUNCTION(branch)) {
-            if (REF(q))
-                return R_FALSE;
-            return R_VOID;
-        }
-
+        //
         // The behavior for functions in the FALSE case is slightly tricky.
         // If the function is arity-0, it should not be run--just as a branch
         // for a block should not be run.  *but* if it's arity-1 then it runs
-        // either way, and just gets passed a logic condition.
+        // either way, and just gets passed FALSE.
         //
         // (This permits certain constructions like `if condition x else y`,
         // where `x else y` generates an infix function that takes a LOGIC!)
         //
-        // Since we can't run the function to find out its arity, we do a
-        // quick scan instead.  If it has at least one normal argument
-        // found before a non-normal one, then request it be run.
+        if (Maybe_Run_Failed_Branch_Throws(D_OUT, ARG(branch), REF(only)))
+            return R_OUT_IS_THROWN;
 
         SET_VOID(D_OUT); // default if nothing run (and not /?)
-
-        REBVAL *param = VAL_FUNC_PARAMS_HEAD(branch);
-        for (; NOT_END(param); ++param) {
-            switch (VAL_PARAM_CLASS(param)) {
-            case PARAM_CLASS_LOCAL:
-            case PARAM_CLASS_RETURN:
-            case PARAM_CLASS_LEAVE:
-                continue; // skip.
-
-            case PARAM_CLASS_REFINEMENT:
-                break; // hit before hitting any basic args, so don't call
-
-            case PARAM_CLASS_NORMAL:
-            case PARAM_CLASS_HARD_QUOTE:
-            case PARAM_CLASS_SOFT_QUOTE: {
-                //
-                // At least one argument, see if it'll process a LOGIC!
-                //
-                if (Apply_Only_Throws(
-                    D_OUT,
-                    TRUE, // error if doesn't try to use FALSE (it should!)
-                    branch,
-                    FALSE_VALUE,
-                    END_CELL
-                )) {
-                    return R_OUT_IS_THROWN;
-                }
-                break; }
-
-            default:
-                assert(FALSE);
-            }
-        }
 
         if (REF(q))
             return R_FALSE; // !!! Support this?  It is like having EITHER?
         return R_OUT;
     }
 
-    if (REF(only)) {
-        *D_OUT = *branch; // don't run anything if /ONLY, even if it's "code"
-    }
-    else if (IS_BLOCK(branch)) {
-        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, branch))
-            return R_OUT_IS_THROWN;
-    }
-    else if (IS_FUNCTION(branch)) {
-        //
-        // The function is allowed to be arity-0, or arity-1 and called with
-        // a LOGIC! true (which it will ignore if arity 0)
-        //
-        if (Apply_Only_Throws(D_OUT, FALSE, branch, TRUE_VALUE, END_CELL))
-            return R_OUT_IS_THROWN;
-    }
-    else {
-        *D_OUT = *ARG(branch); // it's not code -- nothing to run
-    }
+    if (Run_Success_Branch_Throws(D_OUT, ARG(branch), REF(only)))
+        return R_OUT_IS_THROWN;
 
     if (REF(q))
         return R_TRUE;
@@ -1518,6 +1489,28 @@ REBNATIVE(unless)
 }
 
 
+// Shared logic between EITHER and BRANCHER (enfixed as ELSE)
+//
+inline static REB_R Either_Core(
+    REBVAL *out,
+    REBVAL *condition,
+    REBVAL *true_branch,
+    REBVAL *false_branch,
+    REBOOL only
+) {
+    if (IS_CONDITIONAL_TRUE(condition)) {
+        if (Run_Success_Branch_Throws(out, true_branch, only))
+            return R_OUT_IS_THROWN;
+    }
+    else {
+        if (Run_Success_Branch_Throws(out, false_branch, only))
+            return R_OUT_IS_THROWN;
+    }
+
+    return R_OUT;
+}
+
+
 //
 //  either: native [
 //
@@ -1538,27 +1531,35 @@ REBNATIVE(either)
     PARAM(3, false_branch);
     REFINE(4, only);
 
-    REBVAL *branch;
-    if (IS_CONDITIONAL_TRUE(ARG(condition)))
-        branch = ARG(true_branch);
-    else
-        branch = ARG(false_branch);
+    return Either_Core(
+        D_OUT,
+        ARG(condition),
+        ARG(true_branch),
+        ARG(false_branch),
+        REF(only)
+    );
+}
 
-    if (REF(only)) {
-        *D_OUT = *branch;
-    }
-    else if (IS_BLOCK(branch)) {
-        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, branch))
-            return R_OUT_IS_THROWN;
-    }
-    else if (IS_FUNCTION(branch)) { // arity-0 only, no args passed to branch
-        if (Apply_Only_Throws(D_OUT, TRUE, branch, END_CELL))
-            return R_OUT_IS_THROWN;
-    }
-    else
-        *D_OUT = *branch;
 
-    return R_OUT;
+//
+//  Brancher_Dispatcher: C
+//
+// The BRANCHER native is used by ELSE, and basically reuses the logic of the
+// implementation of EITHER.
+//
+REB_R Brancher_Dispatcher(REBFRM *f)
+{
+    REBVAL *condition = FRM_ARG(f, 1);
+
+    REBARR *branches = VAL_ARRAY(FUNC_BODY(f->func));
+    REBVAL *true_branch = KNOWN(ARR_AT(branches, 0));
+    REBVAL *false_branch = KNOWN(ARR_AT(branches, 1));
+
+    // Note: There is no /ONLY switch.  IF cannot pass it through, because
+    // running `IF/ONLY condition [foo] ELSE [bar]` would return the
+    // logic-taking function that ELSE defines.  Just pass FALSE.
+    //
+    return Either_Core(FRM_OUT(f), condition, true_branch, false_branch, FALSE);
 }
 
 

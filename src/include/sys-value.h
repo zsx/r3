@@ -1731,6 +1731,14 @@ enum {
     //
     FUNC_FLAG_PUNCTUATES = (1 << (TYPE_SPECIFIC_BIT + 2)) | FUNC_FLAG_X,
 
+    // A "brancher" is a single arity function that is capable of taking a
+    // LOGIC! value.  Currently testing for this requires a bit of processing
+    // so it is done when the function is made, and then this flag is checked.
+    // It's set even if the function might not take logic or need more
+    // parameters, so that it can be called and cause an error if needed.
+    //
+    FUNC_FLAG_MAYBE_BRANCHER = (1 << (TYPE_SPECIFIC_BIT + 3)) | FUNC_FLAG_X,
+
 #if !defined(NDEBUG)
     //
     // This flag is set on the canon function value when a proxy for a

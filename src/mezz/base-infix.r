@@ -47,24 +47,11 @@ xor+: enfix :xor~
 
 ; ELSE is an experiment to try and allow IF condition [branch1] ELSE [branch2]
 ; For efficiency it uses references to the branches and does not copy them
-; into the body or protect them from mutation.  Also it specializes EITHER,
-; which means it dispatches entirely through native code.
+; into the body or protect them from mutation.  It is supported by the
+; BRANCHER native, which still has the overhead of creating a function at this
+; time but is still speedier than a user function.
 ;
-; Note: There is no /ONLY switch.  IF cannot pass it through, because running
-; `IF/ONLY condition [foo] ELSE [bar]` would return the logic-taking
-; function that ELSE defines.
-;
-else: enfix function [
-    {Create a function that selects between two values based on a LOGIC!}
-    return: [function!]
-    true-branch [any-value!]
-    false-branch [any-value!]
-][
-    specialize 'either [
-        true-branch: true-branch
-        false-branch: false-branch
-    ]
-]
+else: enfix :brancher
 
 
 ; So long as the code wants to stay buildable with R3-Alpha, the mezzanine
