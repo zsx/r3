@@ -264,6 +264,9 @@ inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL *value) {
 //
 //     if (IS_INTEGER(ARG(foo)) && REF(bar)) { ... }
 //
+// Though REF can only be used with a REFINE() declaration, ARG can be used
+// with either.
+//
 // Under the hood `PARAM(1, foo)` and `REFINE(2, bar)` make const structs.
 // In an optimized build, these structures disappear completely, with all
 // addressing done directly into the call frame's cached `arg` pointer.
@@ -283,66 +286,56 @@ inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL *value) {
 // Whether a refinement was used or not at time of call is also cached.
 //
 
-struct Native_Param {
-#if !defined(NDEBUG)
-    enum Reb_Kind kind_cache;
-    REBVAL *arg;
-#endif
-    int num;
-};
-
-struct Native_Refine {
-#if !defined(NDEBUG)
-    REBOOL used_cache;
-    REBVAL *arg;
-#endif
-    int num;
-};
-
 #ifdef NDEBUG
     #define PARAM(n,name) \
-        const struct Native_Param p_##name = {n}
+        static const int p_##name = n
 
     #define REFINE(n,name) \
-        const struct Native_Refine p_##name = {n}
-#else
-    // Capture the argument (and its type) for debug inspection.
-    //
-    #define PARAM(n,name) \
-        const struct Native_Param p_##name = { \
-            VAL_TYPE(FRM_ARG(frame_, (n))), \
-            FRM_ARG(frame_, (n)), \
-            (n) \
-        }
+        static const int p_##name = n
 
-    // As above, do a cache and be tolerant of framelessness.
-    //
-    #define REFINE(n,name) \
-        const struct Native_Refine p_##name = { \
-            IS_CONDITIONAL_TRUE(FRM_ARG(frame_, (n))), \
-            FRM_ARG(frame_, (n)), \
-            (n) \
-        }
-#endif
+    #define ARG(name) \
+        FRM_ARG(frame_, (p_##name))
 
-// Though REF can only be used with a REFINE() declaration, ARG can be used
-// with either.
-//
-#define ARG(name) \
-    FRM_ARG(frame_, (p_##name).num)
+    #define PAR(name) \
+        FUNC_PARAM(frame_->func, (p_##name)) /* a TYPESET! */
 
-#define PAR(name) \
-    FUNC_PARAM(frame_->func, (p_##name).num) // a TYPESET!
-
-#ifdef NDEBUG
     #define REF(name) \
         IS_CONDITIONAL_TRUE(ARG(name))
 #else
-    // An added useless ?: helps check in debug build to make sure we do not
-    // try to use REF() on something defined as PARAM(), but only REFINE()
-    //
+    struct Native_Param {
+        enum Reb_Kind kind_cache;
+        REBVAL *arg;
+        const int num;
+    };
+
+    struct Native_Refine {
+        REBOOL used_cache;
+        REBVAL *arg;
+        const int num;
+    };
+
+    #define PARAM(n,name) \
+        const struct Native_Param p_##name = { \
+            VAL_TYPE(FRM_ARG(frame_, (n))), /* watchlist cache */ \
+            FRM_ARG(frame_, (n)), /* watchlist cache */ \
+            (n) \
+        }
+
+    #define REFINE(n,name) \
+        const struct Native_Refine p_##name = { \
+            IS_CONDITIONAL_TRUE(FRM_ARG(frame_, (n))), /* watchlist cache */ \
+            FRM_ARG(frame_, (n)), /* watchlist cache */ \
+            (n) \
+        }
+
+    #define ARG(name) \
+        FRM_ARG(frame_, (p_##name).num)
+
+    #define PAR(name) \
+        FUNC_PARAM(frame_->func, (p_##name).num) /* a TYPESET! */
+
     #define REF(name) \
-        ((p_##name).used_cache \
+        ((p_##name).used_cache /* used_cache use stops REF() on PARAM()s */ \
             ? IS_CONDITIONAL_TRUE(ARG(name)) \
             : IS_CONDITIONAL_TRUE(ARG(name)))
 #endif
