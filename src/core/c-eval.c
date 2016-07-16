@@ -268,10 +268,7 @@ void Do_Core(REBFRM * const f)
     // This switch is done via contiguous REB_XXX values, in order to
     // facilitate use of a "jump table optimization":
     //
-    // ET_XXX and not just switching on the VAL_TYPE()
-    // (e.g. REB_XXX).  The reason is due to "jump table" optimizing--because
-    // the REB_XXX types are sparse, the switch would be less efficient than
-    // when switching on values that are packed consecutively (e.g. ET_XXX).
+    // http://stackoverflow.com/questions/17061967/c-switch-and-jump-tables
     //
     // Note that infix ("lookback") functions are dispatched *after* the
     // switch...unless DO_FLAG_NO_LOOKAHEAD is set.
@@ -1172,8 +1169,6 @@ reevaluate:;
         while (DSP != f->dsp_orig) {
             if (!IS_FUNCTION(DS_TOP)) break; // pending sets/gets
 
-            f->eval_type = REB_MAX_VOID; // function over, so don't involve GC
-
             REBVAL temp = *f->out; // better safe than sorry, for now?
             if (Apply_Only_Throws(
                 f->out, TRUE, DS_TOP, &temp, END_CELL
@@ -1185,10 +1180,15 @@ reevaluate:;
             DS_DROP;
         }
 
-        Drop_Function_Args_For_Frame(f); // currently can't error after this
-
         if (Trace_Flags)
             Trace_Return(FRM_LABEL(f), f->out);
+
+        // !!! It would technically be possible to drop the arguments before
+        // running chains... and if the chained function were to run *in*
+        // this frame that could be even more optimal.  However, having the
+        // original function still on the stack helps make errors clearer.
+        //
+        Drop_Function_Args_For_Frame(f);
 
         CLEAR_FRAME_LABEL(f);
         break;
