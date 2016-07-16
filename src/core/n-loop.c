@@ -76,51 +76,65 @@ REBOOL Catching_Break_Or_Continue(REBVAL *val, REBOOL *stop)
 
 
 //
-//  Init_Loop: C
-// 
-// Initialize standard for loops (copy block, make context, bind).
-// Spec: WORD or [WORD ...]
-// 
+//  Copy_Body_Deep_Bound_To_New_Context: C
+//
+// Looping constructs which are parameterized by WORD!s to set each time
+// through the loop must copy the body in R3-Alpha's model.  For instance:
+//
+//    for-each [x y] [1 2 3] [print ["this body must be copied for" x y]]
+//
+// The reason is because the context in which X and Y live does not exist
+// prior to the execution of the FOR-EACH.  And if the body were destructively
+// rebound, then this could mutate and disrupt bindings of code that was
+// intended to be reused.
+//
+// (Note that R3-Alpha was somewhat inconsistent on the idea of being
+// sensitive about non-destructively binding arguments in this way.
+// MAKE OBJECT! purposefully mutated bindings in the passed-in block.)
+//
+// The context is effectively an ordinary object, and outlives the loop:
+//
+//     x-word: none
+//     for-each x [1 2 3] [x-word: 'x | break]
+//     get x-word ;-- returns 1
+//
+// !!! Ren-C managed to avoid deep copying function bodies yet still get
+// "specific binding" by means of "relative values" (RELVALs) and specifiers.
+// Extending this approach is hoped to be able to avoid the deep copy.  It
+// may also be that the underlying data of the
+//
+// !!! With stack-backed contexts in Ren-C, it may be the case that the
+// chunk stack is used as backing memory for the loop, so it can be freed
+// when the loop is over and word lookups will error.
+//
 // Note that because we are copying the block in order to rebind it, the
 // ensuing loop code will `Do_At_Throws(out, body, 0);`.  Starting at
 // zero is correct because the duplicate body has already had the
 // items before its VAL_INDEX() omitted.
 //
-static REBARR *Init_Loop(
+static REBARR *Copy_Body_Deep_Bound_To_New_Context(
     REBCTX **context_out,
     const REBVAL *spec,
     REBVAL *body
 ) {
-    REBCTX *context;
-    REBINT len;
-    REBVAL *key;
-    REBVAL *var;
-    REBARR *body_out;
-
-    const RELVAL *item;
-    REBCTX *specifier;
-
     assert(IS_BLOCK(body));
 
-    // For :WORD format, get the var's value:
-    if (IS_GET_WORD(spec))
-        spec = GET_OPT_VAR_MAY_FAIL(spec, SPECIFIED);
+    REBINT len = IS_BLOCK(spec) ? VAL_LEN_AT(spec) : 1;
+    if (len == 0)
+        fail (Error_Invalid_Arg(spec));
 
-    // Hand-make a CONTEXT (done for for speed):
-    len = IS_BLOCK(spec) ? VAL_LEN_AT(spec) : 1;
-    if (len == 0) fail (Error_Invalid_Arg(spec));
-
-    context = Alloc_Context(len);
+    REBCTX *context = Alloc_Context(len);
     TERM_ARRAY_LEN(CTX_VARLIST(context), len + 1);
     TERM_ARRAY_LEN(CTX_KEYLIST(context), len + 1);
 
     VAL_RESET_HEADER(CTX_VALUE(context), REB_OBJECT);
     CTX_VALUE(context)->extra.binding = NULL;
 
-    // Setup for loop:
-    key = CTX_KEYS_HEAD(context);
-    var = CTX_VARS_HEAD(context);
+    REBVAL *key = CTX_KEYS_HEAD(context);
+    REBVAL *var = CTX_VARS_HEAD(context);
 
+    const RELVAL *item;
+    REBCTX *specifier;
     if (IS_BLOCK(spec)) {
         item = VAL_ARRAY_AT(spec);
         specifier = VAL_SPECIFIER(spec);
@@ -130,7 +144,6 @@ static REBARR *Init_Loop(
         specifier = SPECIFIED;
     }
 
-    // Optimally create the FOREACH context:
     while (len-- > 0) {
         if (!IS_WORD(item) && !IS_SET_WORD(item)) {
             FREE_CONTEXT(context);
@@ -140,10 +153,7 @@ static REBARR *Init_Loop(
         Val_Init_Typeset(key, ALL_64, VAL_WORD_SPELLING(item));
         key++;
 
-        // !!! This should likely use the unset-defaulting in Ren-C with the
-        // legacy fallback to NONE!
-        //
-        SET_BLANK(var);
+        SET_VOID(var);
         var++;
 
         ++item;
@@ -152,7 +162,7 @@ static REBARR *Init_Loop(
     assert(IS_END(key)); // set above by TERM_ARRAY_LEN
     assert(IS_END(var)); // ...same
 
-    body_out = Copy_Array_At_Deep_Managed(
+    REBARR *body_out = Copy_Array_At_Deep_Managed(
         VAL_ARRAY(body), VAL_INDEX(body), VAL_SPECIFIER(body)
     );
     Bind_Values_Deep(ARR_HEAD(body_out), context);
@@ -311,8 +321,11 @@ static REBOOL Loop_Number_Throws(
 //
 //  Loop_Each: C
 // 
-// Common implementation code of FOR-EACH, REMOVE-EACH, MAP-EACH,
-// and EVERY.
+// Common implementation code of FOR-EACH, REMOVE-EACH, MAP-EACH, and EVERY.
+//
+// !!! This routine has been slowly clarifying since R3-Alpha, and can
+// likely be factored in a better way...pushing more per-native code into the
+// natives themselves.
 //
 static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
 {
@@ -320,28 +333,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
     PARAM(2, data);
     PARAM(3, body);
 
-    // `vars` context (plus var and key for iterating over it)
-    //
-    REBCTX *context;
-
-    // `data` series and index (where data is the series/object/map/etc. that
-    // the loop is iterating over)
-    //
-    REBVAL *data_value = ARG(data);
-    REBSER *series;
-    REBINT index;   // !!!! should this be REBCNT?
-
-    // The body block must be bound to the loop variables, and the loops do
-    // not mutate them directly.
-    //
-    REBARR *body_copy;
-
-    REBARR *mapped; // output block of mapped-to values (needed for MAP-EACH)
-
-    REBINT tail;
-    REBINT write_index;
-    REBINT read_index;
-    REBVAL *ds;
+    REBVAL *data = ARG(data);
 
     REBOOL stop = FALSE;
     REBOOL every_true = TRUE; // need due to OPTIONS_NONE_INSTEAD_OF_VOIDS
@@ -352,12 +344,20 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
     if (mode == LOOP_EVERY)
         SET_TRUE(D_OUT); // Default output is TRUE, to match ALL MAP-EACH
 
-    if (IS_BLANK(data_value) || IS_VOID(data_value)) return R_OUT;
+    assert(!IS_VOID(data));
+    if (IS_BLANK(data))
+        return R_OUT;
 
-    body_copy = Init_Loop(&context, ARG(vars), ARG(body));
+    REBCTX *context;
+    REBARR *body_copy = Copy_Body_Deep_Bound_To_New_Context(
+        &context,
+        ARG(vars),
+        ARG(body)
+    );
     Val_Init_Object(ARG(vars), context); // keep GC safe
     Val_Init_Block(ARG(body), body_copy); // keep GC safe
 
+    REBARR *mapped;
     if (mode == LOOP_MAP_EACH) {
         // Must be managed *and* saved...because we are accumulating results
         // into it, and those results must be protected from GC
@@ -367,28 +367,27 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
         // to allow inserting the managed values into a single-deep
         // unmanaged series if we *promise* not to go deeper?
 
-        mapped = Make_Array(VAL_LEN_AT(data_value));
+        mapped = Make_Array(VAL_LEN_AT(data));
         MANAGE_ARRAY(mapped);
         PUSH_GUARD_ARRAY(mapped);
     }
 
-    // Get series info:
-    if (ANY_CONTEXT(data_value)) {
-        series = ARR_SERIES(CTX_VARLIST(VAL_CONTEXT(data_value)));
+    // Extract the series and index being enumerated, based on data type
+
+    REBSER *series;
+    REBCNT index;
+    if (ANY_CONTEXT(data)) {
+        series = ARR_SERIES(CTX_VARLIST(VAL_CONTEXT(data)));
         index = 1;
-        //if (context->tail > 3)
-        //  fail (Error_Invalid_Arg(CTX_KEY(context, 3)));
     }
-    else if (IS_MAP(data_value)) {
-        series = VAL_SERIES(data_value);
+    else if (IS_MAP(data)) {
+        series = VAL_SERIES(data);
         index = 0;
-        //if (context->tail > 3)
-        //  fail (Error_Invalid_Arg(CTX_KEY(context, 3)));
     }
     else {
-        series = VAL_SERIES(data_value);
-        index  = VAL_INDEX(data_value);
-        if (index >= cast(REBINT, SER_LEN(series))) {
+        series = VAL_SERIES(data);
+        index = VAL_INDEX(data);
+        if (index >= SER_LEN(series)) {
             if (mode == LOOP_REMOVE_EACH) {
                 SET_INTEGER(D_OUT, 0);
             }
@@ -400,15 +399,19 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
         }
     }
 
-    write_index = index;
+    REBCNT write_index = index;
 
     // Iterate over each value in the data series block:
+
+    REBCNT tail;
     while (index < (tail = SER_LEN(series))) {
         REBCNT i;
         REBCNT j = 0;
 
         REBVAL *key = CTX_KEY(context, 1);
         REBVAL *var = CTX_VAR(context, 1);
+
+        REBCNT read_index;
 
         read_index = index;  // remember starting spot
 
@@ -420,16 +423,16 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                 continue;
             }
 
-            if (ANY_ARRAY(data_value)) {
+            if (ANY_ARRAY(data)) {
                 COPY_VALUE(
                     var,
                     ARR_AT(AS_ARRAY(series), index),
-                    VAL_SPECIFIER(data_value) // !!! always matches series?
+                    VAL_SPECIFIER(data) // !!! always matches series?
                 );
             }
-            else if (ANY_CONTEXT(data_value)) {
+            else if (ANY_CONTEXT(data)) {
                 if (GET_VAL_FLAG(
-                    VAL_CONTEXT_KEY(data_value, index), TYPESET_FLAG_HIDDEN
+                    VAL_CONTEXT_KEY(data, index), TYPESET_FLAG_HIDDEN
                 )) {
                     // Do not evaluate this iteration
                     index++;
@@ -441,7 +444,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                     Val_Init_Word_Bound(
                         var,
                         REB_WORD,
-                        CTX_KEY_SPELLING(VAL_CONTEXT(data_value), index),
+                        CTX_KEY_SPELLING(VAL_CONTEXT(data), index),
                         AS_CONTEXT(series),
                         index
                     );
@@ -466,10 +469,10 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                 }
                 j++;
             }
-            else if (IS_VECTOR(data_value)) {
+            else if (IS_VECTOR(data)) {
                 Set_Vector_Value(var, series, index);
             }
-            else if (IS_MAP(data_value)) {
+            else if (IS_MAP(data)) {
                 //
                 // MAP! does not store RELVALs
                 //
@@ -510,10 +513,10 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                 }
             }
             else { // A string or binary
-                if (IS_BINARY(data_value)) {
+                if (IS_BINARY(data)) {
                     SET_INTEGER(var, (REBI64)(BIN_HEAD(series)[index]));
                 }
-                else if (IS_IMAGE(data_value)) {
+                else if (IS_IMAGE(data)) {
                     Set_Tuple_Pixel(BIN_AT(series, index), var);
                 }
                 else {
@@ -681,15 +684,16 @@ REBNATIVE(for)
 
     REBOOL q = FALSE; // !!! No /q refinement yet, and FOR may be going away
 
-    REBARR *body_copy;
     REBCTX *context;
-    REBVAL *var;
-
-    // Copy body block, make a context, bind loop var to it:
-    body_copy = Init_Loop(&context, ARG(word), ARG(body));
-    var = CTX_VAR(context, 1); // safe: not on stack
+    REBARR *body_copy = Copy_Body_Deep_Bound_To_New_Context(
+        &context,
+        ARG(word),
+        ARG(body)
+    );
     Val_Init_Object(ARG(word), context); // keep GC safe
     Val_Init_Block(ARG(body), body_copy); // keep GC safe
+
+    REBVAL *var = CTX_VAR(context, 1);
 
     if (
         IS_INTEGER(ARG(start))
@@ -754,7 +758,7 @@ REBNATIVE(for)
 //
 //      return: [<opt> any-value!]
 //          {Last body result or BREAK value, will also be void if never run}
-//      'word [word!] 
+//      'word [word! blank!]
 //          "Word that refers to the series, set to positions in the series"
 //      skip [integer!]
 //          "Number of positions to skip each time"
@@ -777,13 +781,13 @@ REBNATIVE(for_skip)
 
     REBVAL *word = ARG(word);
 
-    REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word, SPECIFIED);
-
     // Though we can only iterate on a series, BLANK! is used as a way of
     // opting out.  This could be useful, e.g. `for-next x (any ...) [...]`
     //
-    if (IS_BLANK(var))
+    if (IS_BLANK(word))
         return R_OUT_Q(REF(q));
+
+    REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word, SPECIFIED);
 
     if (!ANY_SERIES(var))
         fail (Error_Invalid_Arg(var));
@@ -1043,37 +1047,43 @@ REBNATIVE(loop)
 //
 REBNATIVE(repeat)
 {
-    REBARR *body;
-    REBCTX *context;
-    REBVAL *var;
-    REBVAL *count = D_ARG(2);
+    PARAM(1, word);
+    PARAM(2, value);
+    PARAM(3, body);
+
+    REBVAL *value = ARG(value);
 
     REBOOL q = FALSE; // !!! No /? passed in at the moment
 
-    if (IS_BLANK(count))
+    if (IS_BLANK(value))
         return q ? R_FALSE : R_VOID;
 
-    if (IS_DECIMAL(count) || IS_PERCENT(count)) {
-        REBI64 i64 = Int64(count);
-        SET_INTEGER(count, i64); // macro! don't get-and-set in same line!
-    }
+    if (IS_DECIMAL(value) || IS_PERCENT(value))
+        SET_INTEGER(value, Int64(value));
 
-    body = Init_Loop(&context, D_ARG(1), D_ARG(3));
-    var = CTX_VAR(context, 1); // safe: not on stack
-    Val_Init_Object(D_ARG(1), context); // keep GC safe
-    Val_Init_Block(D_ARG(3), body); // keep GC safe
+    REBCTX *context;
+    REBARR *body = Copy_Body_Deep_Bound_To_New_Context(
+        &context,
+        ARG(word),
+        ARG(body)
+    );
 
-    if (ANY_SERIES(count)) {
+    REBVAL *var = CTX_VAR(context, 1);
+
+    Val_Init_Object(ARG(word), context); // keep GC safe
+    Val_Init_Block(ARG(body), body); // keep GC safe
+
+    if (ANY_SERIES(value)) {
         if (Loop_Series_Throws(
-            D_OUT, var, body, count, VAL_LEN_HEAD(count) - 1, 1
+            D_OUT, var, body, value, VAL_LEN_HEAD(value) - 1, 1
         )) {
             return R_OUT_IS_THROWN;
         }
 
         return R_OUT_Q(q);
     }
-    else if (IS_INTEGER(count)) {
-        if (Loop_Integer_Throws(D_OUT, var, body, 1, VAL_INT64(count), 1))
+    else if (IS_INTEGER(value)) {
+        if (Loop_Integer_Throws(D_OUT, var, body, 1, VAL_INT64(value), 1))
             return R_OUT_IS_THROWN;
 
         return R_OUT_Q(q);
