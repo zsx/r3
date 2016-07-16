@@ -69,25 +69,24 @@ void MAKE_Pair(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
         return;
     }
 
-    REBD32 x;
-    REBD32 y;
+    REBDEC x;
+    REBDEC y;
 
     if (IS_INTEGER(arg)) {
-        x = cast(REBD32, VAL_INT32(arg));
-        y = cast(REBD32, VAL_INT32(arg));
+        x = VAL_INT32(arg);
+        y = VAL_INT32(arg);
     }
     else if (IS_DECIMAL(arg)) {
-        VAL_RESET_HEADER(out, REB_PAIR);
-        x = cast(REBD32, VAL_DECIMAL(arg));
-        y = cast(REBD32, VAL_DECIMAL(arg));
+        x = VAL_DECIMAL(arg);
+        y = VAL_DECIMAL(arg);
     }
     else if (IS_BLOCK(arg) && VAL_LEN_AT(arg) == 2) {
         RELVAL *item = VAL_ARRAY_AT(arg);
 
         if (IS_INTEGER(item))
-            x = cast(REBD32, VAL_INT64(item));
+            x = cast(REBDEC, VAL_INT64(item));
         else if (IS_DECIMAL(item))
-            x = cast(REBD32, VAL_DECIMAL(item));
+            x = cast(REBDEC, VAL_DECIMAL(item));
         else
             goto bad_make;
 
@@ -96,18 +95,16 @@ void MAKE_Pair(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
             goto bad_make;
 
         if (IS_INTEGER(item))
-            y = cast(REBD32, VAL_INT64(item));
+            y = cast(REBDEC, VAL_INT64(item));
         else if (IS_DECIMAL(item))
-            y = cast(REBD32, VAL_DECIMAL(item));
+            y = cast(REBDEC, VAL_DECIMAL(item));
         else
             goto bad_make;
     }
     else
         goto bad_make;
 
-    VAL_RESET_HEADER(out, REB_PAIR);
-    VAL_PAIR_X(out) = x;
-    VAL_PAIR_Y(out) = y;
+    SET_PAIR(out, x, y);
     return;
 
 bad_make:
@@ -131,7 +128,7 @@ void TO_Pair(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 REBINT Cmp_Pair(const RELVAL *t1, const RELVAL *t2)
 {
-    REBD32  diff;
+    REBDEC diff;
 
     if ((diff = VAL_PAIR_Y(t1) - VAL_PAIR_Y(t2)) == 0)
         diff = VAL_PAIR_X(t1) - VAL_PAIR_X(t2);
@@ -145,33 +142,29 @@ REBINT Cmp_Pair(const RELVAL *t1, const RELVAL *t2)
 void Min_Max_Pair(REBVAL *out, const REBVAL *a, const REBVAL *b, REBOOL maxed)
 {
     REBXYF aa;
-    REBXYF bb;
-    REBXYF *cc;
-
-    if (IS_PAIR(a))
-        aa = VAL_PAIR(a);
+    if (IS_PAIR(a)) {
+        aa.x = VAL_PAIR_X(a);
+        aa.y = VAL_PAIR_Y(a);
+    }
     else if (IS_INTEGER(a))
-        aa.x = aa.y = (REBD32)VAL_INT64(a);
+        aa.x = aa.y = cast(REBDEC, VAL_INT64(a));
     else
         fail (Error_Invalid_Arg(a));
 
-    if (IS_PAIR(b))
-        bb = VAL_PAIR(b);
+    REBXYF bb;
+    if (IS_PAIR(b)) {
+        bb.x = VAL_PAIR_X(b);
+        bb.y = VAL_PAIR_Y(b);
+    }
     else if (IS_INTEGER(b))
-        bb.x = bb.y = (REBD32)VAL_INT64(b);
+        bb.x = bb.y = cast(REBDEC, VAL_INT64(b));
     else
         fail (Error_Invalid_Arg(b));
 
-    VAL_RESET_HEADER(out, REB_PAIR);
-    cc = &VAL_PAIR(out);
-    if (maxed) {
-        cc->x = MAX(aa.x, bb.x);
-        cc->y = MAX(aa.y, bb.y);
-    }
-    else {
-        cc->x = MIN(aa.x, bb.x);
-        cc->y = MIN(aa.y, bb.y);
-    }
+    if (maxed)
+        SET_PAIR(out, MAX(aa.x, bb.x), MAX(aa.y, bb.y));
+    else
+        SET_PAIR(out, MIN(aa.x, bb.x), MIN(aa.y, bb.y));
 }
 
 
@@ -182,7 +175,7 @@ REBINT PD_Pair(REBPVS *pvs)
 {
     const REBVAL *sel = pvs->selector;
     REBINT n = 0;
-    REBD32 dec;
+    REBDEC dec;
 
     if (IS_WORD(sel)) {
         if (VAL_WORD_SYM(sel) == SYM_X)
@@ -203,9 +196,9 @@ REBINT PD_Pair(REBPVS *pvs)
         const REBVAL *setval = pvs->opt_setval;
 
         if (IS_INTEGER(setval))
-            dec = cast(REBD32, VAL_INT64(setval));
+            dec = cast(REBDEC, VAL_INT64(setval));
         else if (IS_DECIMAL(setval))
-            dec = cast(REBD32, VAL_DECIMAL(setval));
+            dec = VAL_DECIMAL(setval);
         else
             fail (Error_Bad_Path_Set(pvs));
 
@@ -225,8 +218,8 @@ REBINT PD_Pair(REBPVS *pvs)
 
 
 static void Get_Math_Arg_For_Pair(
-    REBD32 *x_out,
-    REBD32 *y_out,
+    REBDEC *x_out,
+    REBDEC *y_out,
     REBVAL *arg,
     REBSYM action
 ){
@@ -237,12 +230,12 @@ static void Get_Math_Arg_For_Pair(
         break;
 
     case REB_INTEGER:
-        *x_out = *y_out = cast(REBD32, VAL_INT64(arg));
+        *x_out = *y_out = cast(REBDEC, VAL_INT64(arg));
         break;
 
     case REB_DECIMAL:
     case REB_PERCENT:
-        *x_out = *y_out = cast(REBD32, VAL_DECIMAL(arg));
+        *x_out = *y_out = cast(REBDEC, VAL_DECIMAL(arg));
         break;
 
     default:
@@ -259,13 +252,16 @@ REBTYPE(Pair)
 {
     REBVAL *val = D_ARG(1);
 
-    REBD32 x1 = VAL_PAIR_X(val);
-    REBD32 y1 = VAL_PAIR_Y(val);
+    REBDEC x1 = VAL_PAIR_X(val);
+    REBDEC y1 = VAL_PAIR_Y(val);
 
-    REBD32 x2;
-    REBD32 y2;
+    REBDEC x2;
+    REBDEC y2;
 
     switch (action) {
+
+    case SYM_COPY:
+        goto setPair;
 
     case SYM_ADD:
         Get_Math_Arg_For_Pair(&x2, &y2, D_ARG(2), action);
@@ -294,8 +290,8 @@ REBTYPE(Pair)
             y1 /= y2;
         }
         else {
-            x1 = (REBD32)fmod(x1, x2);
-            y1 = (REBD32)fmod(y1, y2);
+            x1 = cast(REBDEC, fmod(x1, x2));
+            y1 = cast(REBDEC, fmod(y1, y2));
         }
         goto setPair;
 
@@ -318,8 +314,8 @@ REBTYPE(Pair)
             d64 = 1.0L;
             flags |= 1;
         }
-        x1 = cast(REBD32, Round_Dec(x1, flags, d64));
-        y1 = cast(REBD32, Round_Dec(y1, flags, d64));
+        x1 = Round_Dec(x1, flags, d64);
+        y1 = Round_Dec(y1, flags, d64);
         goto setPair; }
 
     case SYM_REVERSE:
@@ -330,8 +326,8 @@ REBTYPE(Pair)
 
     case SYM_RANDOM:
         if (D_REF(2)) fail (Error(RE_BAD_REFINES)); // seed
-        x1 = cast(REBD32, Random_Range(cast(REBINT, x1), D_REF(3)));
-        y1 = cast(REBD32, Random_Range(cast(REBINT, y1), D_REF(3)));
+        x1 = cast(REBDEC, Random_Range(cast(REBINT, x1), D_REF(3)));
+        y1 = cast(REBDEC, Random_Range(cast(REBINT, y1), D_REF(3)));
         goto setPair;
 
     case SYM_PICK: {
@@ -371,9 +367,7 @@ REBTYPE(Pair)
     fail (Error_Illegal_Action(REB_PAIR, action));
 
 setPair:
-    VAL_RESET_HEADER(D_OUT, REB_PAIR);
-    VAL_PAIR_X(D_OUT) = x1;
-    VAL_PAIR_Y(D_OUT) = y1;
+    SET_PAIR(D_OUT, x1, y1);
     return R_OUT;
 }
 

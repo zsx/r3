@@ -246,7 +246,7 @@ reflect: action [
 
 copy: action [
     {Copies a series, object, or other value.}
-    value [blank! any-series! port! map! object! frame! bitset! function!]
+    value [blank! any-series! port! map! object! frame! bitset! function! pair!]
         {At position}
     /part {Limits to a given length or position}
     limit [any-number! any-series! pair!]

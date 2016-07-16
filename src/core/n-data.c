@@ -251,24 +251,17 @@ type_matched:
 //
 REBNATIVE(as_pair)
 {
-    REBVAL *val = D_ARG(1);
+    PARAM(1, x);
+    PARAM(2, y);
 
-    VAL_RESET_HEADER(D_OUT, REB_PAIR);
+    REBVAL *x = ARG(x);
+    REBVAL *y = ARG(y);
 
-    if (IS_INTEGER(val)) {
-        VAL_PAIR_X(D_OUT) = cast(REBD32, VAL_INT64(val));
-    }
-    else {
-        VAL_PAIR_X(D_OUT) = cast(REBD32, VAL_DECIMAL(val));
-    }
-
-    val = D_ARG(2);
-    if (IS_INTEGER(val)) {
-        VAL_PAIR_Y(D_OUT) = cast(REBD32, VAL_INT64(val));
-    }
-    else {
-        VAL_PAIR_Y(D_OUT) = cast(REBD32, VAL_DECIMAL(val));
-    }
+    SET_PAIR(
+        D_OUT,
+        IS_INTEGER(x) ? VAL_INT64(x) : VAL_DECIMAL(x),
+        IS_INTEGER(y) ? VAL_INT64(y) : VAL_DECIMAL(y)
+    );
 
     return R_OUT;
 }

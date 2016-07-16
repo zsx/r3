@@ -687,7 +687,7 @@ union Reb_Value_Payload {
     REBI64 integer;
     REBDEC decimal;
 
-    struct Reb_Pair pair;
+    REBVAL *pair; // actually a "pairing" pointer
     struct Reb_Money money;
     struct Reb_Handle handle;
     struct Reb_Time time;

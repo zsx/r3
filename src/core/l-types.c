@@ -861,23 +861,36 @@ const REBYTE *Scan_URL(const REBYTE *cp, REBCNT len, REBVAL *value)
 // 
 // Scan and convert a pair
 //
-const REBYTE *Scan_Pair(const REBYTE *cp, REBCNT len, REBVAL *value)
+const REBYTE *Scan_Pair(const REBYTE *cp, REBCNT len, REBVAL *out)
 {
-    REBYTE buf[MAX_NUM_LEN+4];
-    const REBYTE *ep = Scan_Dec_Buf(cp, MAX_NUM_LEN, &buf[0]);
-    const REBYTE *xp;
+    REBYTE buf[MAX_NUM_LEN + 4];
 
-    if (!ep) return 0;
-    VAL_PAIR_X(value) = (float)atof((char*)(&buf[0])); //n;
-    if (*ep != 'x' && *ep != 'X') return 0;
+    const REBYTE *ep = Scan_Dec_Buf(cp, MAX_NUM_LEN, &buf[0]);
+    if (!ep) return NULL;
+    if (*ep != 'x' && *ep != 'X') return NULL;
+
+    VAL_RESET_HEADER(out, REB_PAIR);
+    out->payload.pair = Make_Pairing(NULL);
+    VAL_RESET_HEADER(out->payload.pair, REB_DECIMAL);
+    VAL_RESET_HEADER(PAIRING_KEY(out->payload.pair), REB_DECIMAL);
+
+    VAL_PAIR_X(out) = cast(float, atof(cast(char*, &buf[0]))); //n;
     ep++;
 
-    xp = Scan_Dec_Buf(ep, MAX_NUM_LEN, &buf[0]);
-    if (!xp) return 0;
-    VAL_PAIR_Y(value) = (float)atof((char*)(&buf[0])); //n;
+    const REBYTE *xp = Scan_Dec_Buf(ep, MAX_NUM_LEN, &buf[0]);
+    if (!xp) {
+        Free_Pairing(out->payload.pair);
+        return NULL;
+    }
 
-    if (len > (REBCNT)(xp - cp)) return 0;
-    VAL_RESET_HEADER(value, REB_PAIR);
+    VAL_PAIR_Y(out) = cast(float, atof(cast(char*, &buf[0]))); //n;
+
+    if (len > cast(REBCNT, xp - cp)) {
+        Free_Pairing(out->payload.pair);
+        return NULL;
+    }
+
+    Manage_Pairing(out->payload.pair);
     return xp;
 }
 

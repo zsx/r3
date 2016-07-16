@@ -265,9 +265,7 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSTR *name, REBVAL *val)
     case SYM_OFFSET:
         if (VAL_EVENT_TYPE(value) == EVT_KEY || VAL_EVENT_TYPE(value) == EVT_KEY_UP)
             goto is_blank;
-        VAL_RESET_HEADER(val, REB_PAIR);
-        VAL_PAIR_X(val) = (REBD32)VAL_EVENT_X(value);
-        VAL_PAIR_Y(val) = (REBD32)VAL_EVENT_Y(value);
+        SET_PAIR(val, VAL_EVENT_X(value), VAL_EVENT_Y(value));
         break;
 
     case SYM_KEY:
@@ -495,9 +493,7 @@ pick_it:
             return R_OUT;
 
         case EF_OFFSET:
-            VAL_RESET_HEADER(D_OUT, REB_PAIR);
-            VAL_PAIR_X(D_OUT) = VAL_EVENT_X(value);
-            VAL_PAIR_Y(D_OUT) = VAL_EVENT_Y(value);
+            SET_PAIR(D_OUT, VAL_EVENT_X(value), VAL_EVENT_Y(value));
             return R_OUT;
 
         case EF_TIME:

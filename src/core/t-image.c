@@ -974,9 +974,11 @@ REBTYPE(Image)
 
     case SYM_INDEX_OF:
         if (D_REF(2)) {
-            VAL_RESET_HEADER(D_OUT, REB_PAIR);
-            VAL_PAIR_X(D_OUT) = cast(REBD32, index % VAL_IMAGE_WIDE(value));
-            VAL_PAIR_Y(D_OUT) = cast(REBD32, index / VAL_IMAGE_WIDE(value));
+            SET_PAIR(
+                D_OUT,
+                index % VAL_IMAGE_WIDE(value),
+                index / VAL_IMAGE_WIDE(value)
+            );
             return R_OUT;
         }
         else {
@@ -1186,9 +1188,11 @@ REBINT PD_Image(REBPVS *pvs)
         if (!pvs->opt_setval) {
             switch (VAL_WORD_SYM(sel)) {
             case SYM_SIZE:
-                VAL_RESET_HEADER(pvs->store, REB_PAIR);
-                VAL_PAIR_X(pvs->store) = (REBD32)VAL_IMAGE_WIDE(data);
-                VAL_PAIR_Y(pvs->store) = (REBD32)VAL_IMAGE_HIGH(data);
+                SET_PAIR(
+                    pvs->store,
+                    VAL_IMAGE_WIDE(data),
+                    VAL_IMAGE_HIGH(data)
+                );
                 break;
 
             case SYM_RGB:

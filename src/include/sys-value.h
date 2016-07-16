@@ -397,17 +397,6 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
         INIT_CELL_Debug((v), __FILE__, __LINE__)
 #endif
 
-inline static void SET_ZEROED(RELVAL *v, enum Reb_Kind kind) {
-    //
-    // !!! SET_ZEROED is a capturing of a dodgy behavior of R3-Alpha,
-    // which was to assume that clearing the payload of a value and then
-    // setting the header made it the `zero?` of that type.  Review uses.
-    //
-    VAL_RESET_HEADER(v, kind);
-    CLEAR(&v->extra, sizeof(union Reb_Value_Extra));
-    CLEAR(&v->payload, sizeof(union Reb_Value_Payload));
-}
-
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -1085,29 +1074,47 @@ inline static void SET_TUPLE(RELVAL *v, const void *data) {
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// !!! A pair contains two floating point values.  This makes it
-// uncomfortably not able to store two arbitrary INTEGER!s, nor two
-// arbitrary DECIMAL!s.
+// A pair is implemented via a special optimized REBSER node known as
+// a "Pairing".
 //
+
 #define VAL_PAIR(v) \
     ((v)->payload.pair)
 
 #define VAL_PAIR_X(v) \
-    ((v)->payload.pair.x)
+    VAL_DECIMAL(PAIRING_KEY((v)->payload.pair))
 
 #define VAL_PAIR_Y(v) \
-    ((v)->payload.pair.y)
+    VAL_DECIMAL((v)->payload.pair)
 
 #define VAL_PAIR_X_INT(v) \
-    ROUND_TO_INT((v)->payload.pair.x)
+    ROUND_TO_INT(VAL_PAIR_X(v))
 
 #define VAL_PAIR_Y_INT(v) \
-    ROUND_TO_INT((v)->payload.pair.y)
+    ROUND_TO_INT(VAL_PAIR_Y(v))
 
 inline static void SET_PAIR(RELVAL *v, float x, float y) {
     VAL_RESET_HEADER(v, REB_PAIR);
-    VAL_PAIR_X(v) = x;
-    VAL_PAIR_Y(v) = y;
+    v->payload.pair = Make_Pairing(NULL);
+    SET_DECIMAL(PAIRING_KEY((v)->payload.pair), x);
+    SET_DECIMAL((v)->payload.pair, y);
+    Manage_Pairing((v)->payload.pair);
+}
+
+inline static void SET_ZEROED(RELVAL *v, enum Reb_Kind kind) {
+    //
+    // !!! SET_ZEROED is a capturing of a dodgy behavior of R3-Alpha,
+    // which was to assume that clearing the payload of a value and then
+    // setting the header made it the `zero?` of that type.  Review uses.
+    //
+    if (kind == REB_PAIR) {
+        SET_PAIR(v, 0, 0); // !!! inefficient, performs allocation, review
+    }
+    else {
+        VAL_RESET_HEADER(v, kind);
+        CLEAR(&v->extra, sizeof(union Reb_Value_Extra));
+        CLEAR(&v->payload, sizeof(union Reb_Value_Payload));
+    }
 }
 
 

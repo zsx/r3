@@ -1551,9 +1551,10 @@ REB_R Brancher_Dispatcher(REBFRM *f)
 {
     REBVAL *condition = FRM_ARG(f, 1);
 
-    REBARR *branches = VAL_ARRAY(FUNC_BODY(f->func));
-    REBVAL *true_branch = KNOWN(ARR_AT(branches, 0));
-    REBVAL *false_branch = KNOWN(ARR_AT(branches, 1));
+    assert(IS_PAIR(FUNC_BODY(f->func)));
+
+    REBVAL *true_branch = PAIRING_KEY(FUNC_BODY(f->func)->payload.pair);
+    REBVAL *false_branch = FUNC_BODY(f->func)->payload.pair;
 
     // Note: There is no /ONLY switch.  IF cannot pass it through, because
     // running `IF/ONLY condition [foo] ELSE [bar]` would return the

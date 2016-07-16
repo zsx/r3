@@ -1792,12 +1792,8 @@ REBNATIVE(brancher)
     PARAM(1, true_branch);
     PARAM(2, false_branch);
 
-    REBARR *branches = Make_Array(2);
-    *ARR_AT(branches, 0) = *ARG(true_branch);
-    *ARR_AT(branches, 1) = *ARG(false_branch);
-    TERM_ARRAY_LEN(branches, 2);
-
     REBARR *paramlist = Make_Array(2);
+    ARR_SERIES(paramlist)->link.meta = NULL;
 
     REBVAL *rootkey = SINK(ARR_AT(paramlist, 0));
     VAL_RESET_HEADER(rootkey, REB_FUNCTION);
@@ -1818,7 +1814,15 @@ REBNATIVE(brancher)
         NULL // no underlying function, this is fundamental
     );
 
-    Val_Init_Block(FUNC_BODY(func), branches);
+    RELVAL *body = FUNC_BODY(func);
+
+    REBVAL *branches = Make_Pairing(NULL);
+    *PAIRING_KEY(branches) = *ARG(true_branch);
+    *branches = *ARG(false_branch);
+    Manage_Pairing(branches);
+
+    VAL_RESET_HEADER(body, REB_PAIR);
+    body->payload.pair = branches;
 
     *D_OUT = *FUNC_VALUE(func);
     return R_OUT;

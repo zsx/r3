@@ -912,7 +912,14 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
         case REB_TIME:
         case REB_DATE:
         case REB_CHAR:
-        case REB_PAIR:
+            break;
+
+        case REB_PAIR: {
+            REBVAL *key = PAIRING_KEY(val->payload.pair);
+            struct Reb_Header *alias = &key->header; // will be read via REBSER
+            alias->bits |= REBSER_REBVAL_FLAG_MARK;
+            break; }
+
         case REB_TUPLE:
             break;
 
@@ -1150,8 +1157,13 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
             // !!! There used to be a `shutdown` test here, but shouldn't
             // shutdown just not mark anything and GC everything anyway?
 
-            if (series->header.bits & CELL_MASK)
-                Free_Pairing(cast(REBVAL*, series));
+            if (series->header.bits & CELL_MASK) {
+                //
+                // It's a pairing, just two REBVALs worth of bits and nothing
+                // else.  Free the node (Free_Pairing only works on manuals)
+                //
+                Free_Node(SER_POOL, series);
+            }
             else
                 GC_Kill_Series(series);
 
