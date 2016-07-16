@@ -48,12 +48,15 @@ inline static void SER_SET_WIDE(REBSER *s, REBCNT w) {
 // Bias is empty space in front of head:
 //
 
-#define SER_BIAS(s) \
-    cast(REBCNT, ((s)->content.dynamic.bias >> 16) & 0xffff)
+inline static REBCNT SER_BIAS(REBSER *s) {
+    assert(GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC));
+    return cast(REBCNT, ((s)->content.dynamic.bias >> 16) & 0xffff);
+}
 
 #define MAX_SERIES_BIAS 0x1000
 
 inline static void SER_SET_BIAS(REBSER *s, REBCNT bias) {
+    assert(GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC));
     s->content.dynamic.bias =
         (s->content.dynamic.bias & 0xffff) | (bias << 16);
 }

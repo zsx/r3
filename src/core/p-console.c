@@ -73,7 +73,8 @@ static REB_R Console_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             Val_Init_Binary(arg, MAKE_OS_BUFFER(OUT_BUF_SIZE));
         }
         ser = VAL_SERIES(arg);
-        RESET_SERIES(ser);
+        SET_SERIES_LEN(ser, 0);
+        TERM_SERIES(ser);
 
         req->common.data = BIN_HEAD(ser);
         req->length = SER_AVAIL(ser);

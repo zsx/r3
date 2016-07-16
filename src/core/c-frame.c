@@ -1478,8 +1478,6 @@ void Assert_Context_Core(REBCTX *context)
             Panic_Context(context);
         }
 
-        REBCNT len = LEN_BYTES(STR_HEAD(VAL_KEY_CANON(key)));
-
         if (!IS_TYPESET(key)) {
             Debug_Fmt("** Non-typeset in context keys: %d\n", VAL_TYPE(key));
             Panic_Context(context);

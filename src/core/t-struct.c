@@ -220,7 +220,7 @@ static void get_scalar(
         SET_SERIES_LEN(field_1, 1);
         MANAGE_SERIES(field_1);
 
-        REBSTU *sub_stu = Make_Singular_Array(VOID_CELL);
+        REBSTU *sub_stu = Alloc_Singular_Array();
         ARR_SERIES(sub_stu)->link.schema = field_1;
 
         // In this case the structure lives at an offset inside another.
@@ -233,8 +233,8 @@ static void get_scalar(
 
         // With all fields initialized, assign canon value as singular value
         //
-        *ARR_HEAD(stu) = *val;
-        assert(ARR_LEN(sub_stu) == 1);
+        *ARR_HEAD(sub_stu) = *val;
+        TERM_ARRAY_LEN(sub_stu, 1);
         MANAGE_ARRAY(sub_stu);
         }
         break;
@@ -1342,7 +1342,8 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
     MANAGE_ARRAY(schema->spec);
     MANAGE_SERIES(schema->fields);
 
-    REBSTU *stu = Make_Singular_Array(BLANK_VALUE);
+    REBSTU *stu = Alloc_Singular_Array();
+
     MANAGE_SERIES(field_1);
     ARR_SERIES(stu)->link.schema = field_1;
 
@@ -1359,7 +1360,6 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
     out->extra.struct_offset = 0;
 
     *ARR_HEAD(stu) = *out;
-    assert(ARR_LEN(stu) == 1);
     MANAGE_ARRAY(stu);
 }
 

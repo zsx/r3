@@ -1027,9 +1027,9 @@ void Assert_Array_Core(REBARR *array)
         Panic_Array(array);
     }
 
-    REBCNT rest = ARR_SERIES(array)->content.dynamic.rest;
-
     if (GET_ARR_FLAG(array, SERIES_FLAG_HAS_DYNAMIC)) {
+        REBCNT rest = SER_REST(ARR_SERIES(array));
+
 #ifdef __cplusplus
         assert(rest > 0 && rest > i);
         for (; i < rest - 1; ++i, ++value) {

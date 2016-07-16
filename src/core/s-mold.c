@@ -88,10 +88,9 @@ REBSER *Emit(REB_MOLD *mold, const char *fmt, ...)
         switch (*fmt) {
         case 'W': { // Word symbol
             const REBVAL *any_word = va_arg(va, const REBVAL*);
+            REBSTR *spelling = VAL_WORD_SPELLING(any_word);
             Append_UTF8_May_Fail(
-                series,
-                STR_HEAD(VAL_WORD_SPELLING(any_word)),
-                -1
+                series, STR_HEAD(spelling), STR_NUM_BYTES(spelling)
             );
             break;
         }
@@ -122,16 +121,16 @@ REBSER *Emit(REB_MOLD *mold, const char *fmt, ...)
         case '2':   // 2 digit int (for time)
             Append_Int_Pad(series, va_arg(va, REBINT), 2);
             break;
-        case 'T':   // Type name
+        case 'T': {  // Type name
+            const REBYTE *bytes = Get_Type_Name(va_arg(va, REBVAL*));
+            Append_UTF8_May_Fail(series, bytes, LEN_BYTES(bytes));
+            break; }
+        case 'N': {  // Symbol name
+            REBSTR *spelling = va_arg(va, REBSTR*);
             Append_UTF8_May_Fail(
-                series, Get_Type_Name(va_arg(va, REBVAL*)), -1
+                series, STR_HEAD(spelling), STR_NUM_BYTES(spelling)
             );
-            break;
-        case 'N':   // Symbol name
-            Append_UTF8_May_Fail(
-                series, STR_HEAD(va_arg(va, REBSTR*)), -1
-            );
-            break;
+            break; }
         case '+':   // Add #[ if mold/all
             if (GET_MOPT(mold, MOPT_MOLD_ALL)) {
                 Append_Unencoded(series, "#[");
@@ -140,8 +139,9 @@ REBSER *Emit(REB_MOLD *mold, const char *fmt, ...)
             break;
         case 'D':   // Datatype symbol: #[type
             if (ender) {
+                REBSTR *canon = Canon(cast(REBSYM, va_arg(va, int)));
                 Append_UTF8_May_Fail(
-                    series, STR_HEAD(Canon(cast(REBSYM, va_arg(va, int)))), -1
+                    series, STR_HEAD(canon), STR_NUM_BYTES(canon)
                 );
                 Append_Codepoint_Raw(series, ' ');
             }
@@ -651,7 +651,7 @@ void Mold_Array_At(
         Append_Codepoint_Raw(out, sep[1]);
     }
 
-    Remove_Array_Last(MOLD_STACK);
+    TERM_ARRAY_LEN(MOLD_STACK, ARR_LEN(MOLD_STACK) - 1);
 }
 
 
@@ -813,8 +813,10 @@ static void Mold_Typeset(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
         // the typesets, if we are looking at a PARAMLIST or KEYLIST.
         //
         Append_Unencoded(mold->series, "(");
+
+        REBSTR *spelling = VAL_KEY_SPELLING(value);
         Append_UTF8_May_Fail(
-            mold->series, STR_HEAD(VAL_KEY_SPELLING(value)), -1 // LEN_BYTES
+            mold->series, STR_HEAD(spelling), STR_NUM_BYTES(spelling)
         );
         Append_Unencoded(mold->series, ") ");
 
@@ -931,7 +933,7 @@ static void Mold_Map(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
     }
 
     End_Mold(mold);
-    Remove_Array_Last(MOLD_STACK);
+    TERM_ARRAY_LEN(MOLD_STACK, ARR_LEN(MOLD_STACK) - 1);
 }
 
 
@@ -958,10 +960,12 @@ static void Form_Object(const REBVAL *value, REB_MOLD *mold)
     }
 
     // Remove the final newline...but only if WE added something to the buffer
-    if (had_output)
-        Remove_Sequence_Last(mold->series);
+    if (had_output) {
+        SET_SERIES_LEN(mold->series, SER_LEN(mold->series) - 1);
+        TERM_SEQUENCE(mold->series);
+    }
 
-    Remove_Array_Last(MOLD_STACK);
+    TERM_ARRAY_LEN(MOLD_STACK, ARR_LEN(MOLD_STACK) - 1);
 }
 
 
@@ -1073,8 +1077,9 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
 
         New_Indented_Line(mold);
 
+        REBSTR *spelling = VAL_KEY_SPELLING(key);
         Append_UTF8_May_Fail(
-            mold->series, STR_HEAD(VAL_KEY_SPELLING(key)), -1
+            mold->series, STR_HEAD(spelling), STR_NUM_BYTES(spelling)
         );
 
         Append_Unencoded(mold->series, ": ");
@@ -1093,7 +1098,7 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
     Append_Codepoint_Raw(mold->series, ']');
 
     End_Mold(mold);
-    Remove_Array_Last(MOLD_STACK);
+    TERM_ARRAY_LEN(MOLD_STACK, ARR_LEN(MOLD_STACK) - 1);
 }
 
 
@@ -1374,10 +1379,11 @@ void Mold_Value(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
         Mold_Typeset(const_KNOWN(value), mold, molded);
         break;
 
-    case REB_WORD:
-        // This is a high frequency function, so it is optimized.
-        Append_UTF8_May_Fail(ser, STR_HEAD(VAL_WORD_SPELLING(value)), -1);
+    case REB_WORD: { // Note: called often
+        REBSTR *spelling = VAL_WORD_SPELLING(value);
+        Append_UTF8_May_Fail(ser, STR_HEAD(spelling), STR_NUM_BYTES(spelling));
         break;
+        }
 
     case REB_SET_WORD:
         Emit(mold, "W:", value);

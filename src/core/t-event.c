@@ -568,8 +568,10 @@ void Mold_Event(const REBVAL *value, REB_MOLD *mold)
         Get_Event_Var(value, Canon(fields[field]), &val);
         if (!IS_BLANK(&val)) {
             New_Indented_Line(mold);
+
+            REBSTR *canon = Canon(fields[field]);
             Append_UTF8_May_Fail(
-                mold->series, STR_HEAD(Canon(fields[field])), -1
+                mold->series, STR_HEAD(canon), STR_NUM_BYTES(canon)
             );
             Append_Unencoded(mold->series, ": ");
             if (IS_WORD(&val)) Append_Codepoint_Raw(mold->series, '\'');

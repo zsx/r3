@@ -165,7 +165,7 @@ static void Expand_Word_Table(void)
             continue;
         }
 
-        REBINT hash = Hash_Word(STR_HEAD(canon), LEN_BYTES(STR_HEAD(canon)));
+        REBINT hash = Hash_Word(STR_HEAD(canon), STR_NUM_BYTES(canon));
         REBINT skip = (hash & 0x0000FFFF) % new_size;
         if (skip == 0) skip = 1;
         hash = (hash & 0x00FFFF00) % new_size;
@@ -300,31 +300,24 @@ REBSTR *Intern_UTF8_Managed(const REBYTE *utf8, REBCNT len)
 
 new_interning: ; // semicolon needed for statement
 
-    // If possible, try to fit the data into the REBSER node without doing a
-    // separate dynamic allocation.
+    // If possible, the allocation should be fit into a REBSER node with no
+    // separate allocation.  Because automatically doing this is a new
+    // feature, double check with an assert that the behavior matches.
     //
-    REBSTR *intern;
-    if (len + 1 > sizeof(intern->content)) {
-        intern = Make_Series(len + 1, sizeof(REBYTE), MKS_NONE);
-        SET_SERIES_LEN(intern, len);
-    }
-    else {
-        intern = Make_Series(
-            1, // !!! no length stored--size measured by LEN_BYTES(data)
-            sizeof(REBYTE),
-            MKS_NO_DYNAMIC // don't alloc (or free) any data, trust us
-        );
-    }
-    memcpy(BIN_HEAD(intern), utf8, len);
+    REBSTR *intern = Make_Series(len + 1, sizeof(REBYTE), MKS_NONE);
+    if (len + 1 > sizeof(intern->content))
+        assert(GET_SER_FLAG(intern, SERIES_FLAG_HAS_DYNAMIC));
+    else
+        assert(!GET_SER_FLAG(intern, SERIES_FLAG_HAS_DYNAMIC));
 
     // The incoming string isn't always null terminated, e.g. if you are
     // interning `foo` in `foo: bar + 1` it would be colon-terminated.
     //
+    memcpy(BIN_HEAD(intern), utf8, len);
     BIN_HEAD(intern)[len] = '\0';
 
+    SET_SERIES_LEN(intern, len);
     SET_SER_FLAGS(intern, SERIES_FLAG_STRING | SERIES_FLAG_FIXED_SIZE);
-
-    assert(intern->header.bits >> 16 == 0); // SYM_XXX (if any) here later
 
     if (canon == NULL) {
         //
@@ -374,8 +367,15 @@ new_interning: ; // semicolon needed for statement
         // If the canon form had a SYM_XXX for quick comparison of %words.r
         // words in C switch statements, the synonym inherits that number.
         //
-        intern->header.bits |= ((canon->header.bits >> 16) << 16);
+        assert(((intern->header.bits >> 8) & 0xFFFF) == 0);
+        intern->header.bits |= (STR_SYMBOL(canon) << 8);
     }
+
+#if !defined(NDEBUG)
+    REBUPT sym_canon = cast(REBUPT, STR_SYMBOL(STR_CANON(intern)));
+    REBUPT sym = cast(REBUPT, STR_SYMBOL(intern));
+    assert(sym == sym_canon);
+#endif
 
     // Created series must be managed, because if they were not there could
     // be no clear contract on the return result--as it wouldn't be possible
@@ -416,7 +416,9 @@ void GC_Kill_Interning(REBSTR *intern)
     REBSTR* *canons_by_hash = SER_HEAD(REBSER*, PG_Canons_By_Hash);
     assert(canons_by_hash != NULL);
 
-    REBCNT len = LEN_BYTES(STR_HEAD(intern));
+    REBCNT len = STR_NUM_BYTES(intern);
+    assert(len == LEN_BYTES(STR_HEAD(intern)));
+
     REBCNT hash = Hash_Word(STR_HEAD(intern), len);
     REBCNT skip = (hash & 0x0000FFFF) % size;
     if (skip == 0) skip = 1;
@@ -567,12 +569,17 @@ void Init_Symbols(REBARR *words)
 
         REBSTR *name = canon;
         do {
-            // The low bits of the header are reserved for flags, including
-            // those common between singulars and "doubulars".  The symbol
-            // numbers are shifted by 16 bits
+            // The low 8 bits of the header are reserved for flags, including
+            // those common between REBSER nodes and REBVALs.  The high 8 bits
+            // are used for the size if the series has no dynamic content,
+            // and reserved otherwise.  So the shifted-left-by-8 16 bits of
+            // the header are free for the symbol number (could probably use
+            // less than 16 bits, but 8 is insufficient, length %words.r > 256)
             //
-            assert((name->header.bits >> 16) == 0);
-            name->header.bits |= cast(REBUPT, sym << 16);
+            assert(((name->header.bits >> 8) & 0xFFFF) == 0);
+            name->header.bits |= cast(REBUPT, sym << 8);
+            assert(SAME_SYM_NONZERO(STR_SYMBOL(name), sym));
+
             name = name->link.synonym;
         } while (name != canon); // circularly linked list, stop on a cycle
     }

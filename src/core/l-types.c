@@ -166,23 +166,6 @@ REBNATIVE(make)
         } while (TRUE);
 
         Val_Init_Array(D_OUT, kind, Pop_Stack_Values(dsp_orig));
-
-        if (FALSE) {
-            //
-            // !!! If desired, input could be fed back into the varargs
-            // after exhaustion by setting it up with array data as a new
-            // subfeed.  Probably doesn't make sense to re-feed with data
-            // that has been evaluated, and subfeeds can't be fixed up
-            // like this either...disabled for now.
-            //
-            REBARR **subfeed_addr;
-            REBOOL is_end = Is_End_Subfeed_Addr_Of_Feed(&subfeed_addr, feed);
-            assert(is_end); // all values should be exhausted
-            *subfeed_addr = Make_Singular_Array(D_OUT);
-            MANAGE_ARRAY(*subfeed_addr);
-            Mark_End_Subfeed_Addr_Of_Feed(*subfeed_addr);
-        }
-
         return FALSE;
     }
 
@@ -964,26 +947,26 @@ const REBYTE *Scan_Binary(const REBYTE *cp, REBCNT len, REBVAL *value)
 //
 const REBYTE *Scan_Any(
     const REBYTE *cp,
-    REBCNT len,
-    REBVAL *value,
+    REBCNT num_bytes,
+    REBVAL *out,
     enum Reb_Kind type
 ) {
-    REBCNT n;
+    REBSER *s = Append_UTF8_May_Fail(NULL, cp, num_bytes); // NULL means alloc
+
+    REBCNT delined_len;
+    if (BYTE_SIZE(s)) {
+        delined_len = Deline_Bytes(BIN_HEAD(s), SER_LEN(s));
+    } else {
+        delined_len = Deline_Uni(UNI_HEAD(s), SER_LEN(s));
+    }
 
     // We hand it over to management by the GC, but don't run the GC before
     // the source has been scanned and put somewhere safe!
     //
-    Val_Init_Series(value, type, Append_UTF8_May_Fail(0, cp, len));
+    SET_SERIES_LEN(s, delined_len);
+    Val_Init_Series(out, type, s);
 
-    if (VAL_BYTE_SIZE(value)) {
-        n = Deline_Bytes(VAL_BIN(value), VAL_LEN_AT(value));
-    } else {
-        n = Deline_Uni(VAL_UNI(value), VAL_LEN_AT(value));
-    }
-
-    SET_SERIES_LEN(VAL_SERIES(value), n);
-
-    return cp + len;
+    return cp + delined_len;
 }
 
 

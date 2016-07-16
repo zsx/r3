@@ -61,8 +61,7 @@ void MAKE_Library(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     if (!fd)
         fail (Error_Bad_Make(REB_LIBRARY, arg));
 
-    REBARR *singular = Make_Singular_Array(BLANK_VALUE);
-
+    REBARR *singular = Alloc_Singular_Array();
     VAL_RESET_HEADER(ARR_HEAD(singular), REB_LIBRARY);
     ARR_HEAD(singular)->payload.library.singular = singular;
 

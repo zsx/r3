@@ -129,7 +129,7 @@ void Assert_State_Balanced_Debug(
     // this in general for things that may not need "series" overhead,
     // e.g. a contiguous pointer stack.
     //
-    if (GC_Manuals->content.dynamic.len > SER_LEN(GC_Manuals)) {
+    if (s->manuals_len > SER_LEN(GC_Manuals)) {
         Debug_Fmt("!!! Manual series freed from outside of checkpoint !!!");
 
         // Note: Should this ever actually happen, a Panic_Series won't do

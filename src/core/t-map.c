@@ -725,11 +725,7 @@ REBTYPE(Map)
         // !!! Review: should the space for the hashlist be reclaimed?  This
         // clears all the indices but doesn't scale back the size.
         //
-        CLEAR(
-            MAP_HASHLIST(map)->content.dynamic.data,
-            SER_SPACE(MAP_HASHLIST(map))
-        );
-        TERM_SERIES(MAP_HASHLIST(map));
+        Clear_Series(MAP_HASHLIST(map));
 
         Val_Init_Map(D_OUT, map);
         return R_OUT;

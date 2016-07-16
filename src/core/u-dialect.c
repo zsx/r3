@@ -323,7 +323,7 @@ again:
 
         // Repeat did not match, so stop repeating and remove unused output slot:
         if (rept) {
-            Remove_Array_Last(dia->out);
+            TERM_ARRAY_LEN(dia->out, ARR_LEN(dia->out) - 1);
             outp--;
             rept = 0;
             continue;

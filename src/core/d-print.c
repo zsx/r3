@@ -250,7 +250,6 @@ void Display_Backtrace(REBCNT lines)
 
         if (lines == 0) i += 2; // start of next line
         Prin_OS_String(BIN_AT(Trace_Buffer, i), tail - i, OPT_ENC_CRLF_MAYBE);
-        //RESET_SERIES(Trace_Buffer);
     }
     else {
         Out_Str(cb_cast("backtrace not enabled"), 1);
@@ -1019,10 +1018,11 @@ REBOOL Form_Value_Throws(
     if (IS_BLOCK(value))
         PUSH_SAFE_ENUMERATOR(f, value);
     else {
-        REBARR *array = Make_Singular_Array(value);
+        REBARR *array = Alloc_Singular_Array();
+        *ARR_HEAD(array) = *value;
 
         REBVAL blockified_value;
-        Val_Init_Block(&blockified_value, array);
+        Val_Init_Block(&blockified_value, array); // manages
 
         PUSH_SAFE_ENUMERATOR(f, &blockified_value);
     }

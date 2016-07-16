@@ -306,7 +306,12 @@ REBCHR *Val_Str_To_OS_Managed(REBSER **out, REBVAL *val)
         // !!!"Leaks" in the sense that the GC has to take care of this
         MANAGE_SERIES(up);
 
-        n = Decode_UTF8_May_Fail(UNI_HEAD(up), VAL_BIN_AT(val), n, FALSE);
+        n = Decode_UTF8_Negative_If_Latin1(
+            UNI_HEAD(up),
+            VAL_BIN_AT(val),
+            n,
+            FALSE
+        );
         SET_SERIES_LEN(up, abs(n));
         UNI_TERM(up);
 
@@ -454,15 +459,15 @@ REBSER *Make_Series_Codepoint(REBCNT codepoint)
 //
 void Append_Uni_Bytes(REBSER *dst, const REBUNI *src, REBCNT len)
 {
-    REBYTE *bp;
-    REBCNT tail = SER_LEN(dst);
+    REBCNT old_len = SER_LEN(dst);
 
     EXPAND_SERIES_TAIL(dst, len);
+    SET_SERIES_LEN(dst, old_len + len);
 
-    bp = BIN_AT(dst, tail);
+    REBYTE *bp = BIN_AT(dst, old_len);
 
     for (; len > 0; len--)
-        *bp++ = (REBYTE)*src++;
+        *bp++ = cast(REBYTE, *src++);
 
     *bp = 0;
 }
@@ -475,12 +480,12 @@ void Append_Uni_Bytes(REBSER *dst, const REBUNI *src, REBCNT len)
 //
 void Append_Uni_Uni(REBSER *dst, const REBUNI *src, REBCNT len)
 {
-    REBUNI *up;
-    REBCNT tail = SER_LEN(dst);
+    REBCNT old_len = SER_LEN(dst);
 
     EXPAND_SERIES_TAIL(dst, len);
+    SET_SERIES_LEN(dst, old_len + len);
 
-    up = UNI_AT(dst, tail);
+    REBUNI *up = UNI_AT(dst, old_len);
 
     for (; len > 0; len--)
         *up++ = *src++;
@@ -550,25 +555,31 @@ void Append_Int_Pad(REBSER *dst, REBINT num, REBINT digs)
 // 
 // dst = null means make a new string.
 //
-REBSER *Append_UTF8_May_Fail(REBSER *dst, const REBYTE *src, REBINT len)
+REBSER *Append_UTF8_May_Fail(REBSER *dst, const REBYTE *src, REBCNT num_bytes)
 {
     REBSER *ser = BUF_UTF8; // buffer is Unicode width
 
-    if (len < 0) len = LEN_BYTES(src);
+    Resize_Series(ser, num_bytes + 1); // needs at most this many unicode chars
 
-    Resize_Series(ser, len+1); // needs at most this much
+    REBINT len = Decode_UTF8_Negative_If_Latin1(
+        UNI_HEAD(ser),
+        src,
+        num_bytes,
+        FALSE
+    );
 
-    len = Decode_UTF8_May_Fail(UNI_HEAD(ser), src, len, FALSE);
-
-    if (len < 0) {
+    if (len < 0) { // All characters being added are Latin1
         len = -len;
-        if (!dst) dst = Make_Binary(len);
+        if (dst == NULL)
+            dst = Make_Binary(len);
         if (BYTE_SIZE(dst)) {
             Append_Uni_Bytes(dst, UNI_HEAD(ser), len);
             return dst;
         }
-    } else {
-        if (!dst) dst = Make_Unicode(len);
+    }
+    else {
+        if (dst == NULL)
+            dst = Make_Unicode(len);
     }
 
     Append_Uni_Uni(dst, UNI_HEAD(ser), len);
@@ -598,7 +609,7 @@ REBSER *Join_Binary(const REBVAL *blk, REBINT limit)
 
     if (limit < 0) limit = VAL_LEN_AT(blk);
 
-    RESET_TAIL(series);
+    SET_SERIES_LEN(series, 0);
 
     for (val = VAL_ARRAY_AT(blk); limit > 0; val++, limit--) {
         switch (VAL_TYPE(val)) {

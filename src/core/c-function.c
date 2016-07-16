@@ -915,11 +915,11 @@ REBFUN *Make_Function(
 
     // The "body" for a function can be any REBVAL.  It doesn't have to be
     // a block--it's anything that the dispatcher might wish to interpret.
-    // It is allocated as a "singular" array--packed into sizeof(REBSER)
-    // thanks to the END marker trick.
 
-    REBARR *body_holder = Make_Singular_Array(BLANK_VALUE);
+    REBARR *body_holder = Alloc_Singular_Array();
+    SET_BLANK(ARR_HEAD(body_holder));
     MANAGE_ARRAY(body_holder);
+
     rootparam->payload.function.body_holder = body_holder;
 
     // The C function pointer is stored inside the REBSER node for the body.
@@ -975,7 +975,8 @@ REBFUN *Make_Function(
 //
 REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
 {
-    REBARR *varlist = Make_Singular_Array(BLANK_VALUE);
+    REBARR *varlist = Alloc_Singular_Array();
+    SET_BLANK(ARR_HEAD(varlist));
     SET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST);
     MANAGE_ARRAY(varlist);
 

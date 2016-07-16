@@ -2409,6 +2409,7 @@ inline static void SET_GOB(RELVAL *v, REBGOB *g) {
     Guard_Value_Core(v)
 
 inline static void DROP_GUARD_VALUE(RELVAL *v) {
+    assert(GET_SER_FLAG(GC_Value_Guard, SERIES_FLAG_HAS_DYNAMIC));
     assert(v == *SER_LAST(RELVAL*, GC_Value_Guard));
     GC_Value_Guard->content.dynamic.len--;
 }

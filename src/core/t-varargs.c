@@ -411,7 +411,8 @@ void MAKE_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         // incoming ANY-ARRAY!.  This level of indirection means all
         // VARARGS! copied from this will update their indices together.
         //
-        REBARR *array1 = Make_Singular_Array(arg);
+        REBARR *array1 = Alloc_Singular_Array();
+        *ARR_HEAD(array1) = *arg;
         MANAGE_ARRAY(array1);
 
         // must initialize subfeed pointer in union before reading from it

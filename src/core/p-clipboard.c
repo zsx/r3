@@ -146,7 +146,7 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
             // Temp conversion:!!!
             ser = Make_Unicode(len);
-            len = Decode_UTF8_May_Fail(
+            len = Decode_UTF8_Negative_If_Latin1(
                 UNI_HEAD(ser), VAL_BIN_AT(arg), len, FALSE
             );
             len = abs(len);

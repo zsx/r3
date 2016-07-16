@@ -336,17 +336,7 @@ REBCTX *Context_For_Frame_May_Reify_Core(REBFRM *f) {
         context = AS_CONTEXT(f->varlist);
     }
     else {
-        REBSER *series = Make_Series(
-            1, // length report will not come from this, but from end marker
-            sizeof(REBVAL),
-            MKS_NO_DYNAMIC // use the REBVAL in the REBSER--no allocation
-        );
-        SET_SER_FLAG(series, SERIES_FLAG_ARRAY);
-
-        f->varlist = AS_ARRAY(series);
-
-        assert(!GET_ARR_FLAG(f->varlist, SERIES_FLAG_HAS_DYNAMIC));
-        SET_ARR_FLAG(f->varlist, SERIES_FLAG_FIXED_SIZE);
+        f->varlist = Alloc_Singular_Array();
 
         context = AS_CONTEXT(f->varlist);
 

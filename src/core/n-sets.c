@@ -184,7 +184,7 @@ static REBSER *Make_Set_Operation_Series(
             Free_Series(hret);
 
         out_ser = ARR_SERIES(Copy_Array_Shallow(AS_ARRAY(buffer), SPECIFIED));
-        RESET_TAIL(buffer); // required - allow reuse
+        SET_SERIES_LEN(buffer, 0); // required - allow reuse
     }
     else {
         REB_MOLD mo;

@@ -140,11 +140,11 @@ inline static REBCNT SER_LEN(REBSER *s) {
     if (GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC))
         return s->content.dynamic.len;
 
-    if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY))
-        return IS_END(&s->content.values[0]) ? 0 : 1;
+    // Length is stored in the header if it is dynamic, in what would be the
+    // "type" bits were it a value.  The same optimization is available in
+    // that it can just be shifted out.
 
-    assert(FALSE); // !!! currently not supported, length must be implicit
-    return 0;
+    return s->header.bits >> HEADER_TYPE_SHIFT;
 }
 
 inline static void SET_SERIES_LEN(REBSER *s, REBCNT len) {
@@ -154,7 +154,10 @@ inline static void SET_SERIES_LEN(REBSER *s, REBCNT len) {
         s->content.dynamic.len = len;
     }
     else {
-        assert(FALSE); // currently not supported, length must be implicit
+        assert(len < sizeof(s->content));
+        s->header.bits &= ~HEADER_TYPE_MASK;
+        s->header.bits |= cast(REBUPT, len) << HEADER_TYPE_SHIFT;
+        assert(SER_LEN(s) == len);
     }
 }
 
@@ -165,7 +168,8 @@ inline static REBCNT SER_REST(REBSER *s) {
     if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY))
         return 2; // includes info bits acting as trick "terminator"
 
-    return sizeof(s->content);
+    assert(sizeof(s->content) % SER_WIDE(s) == 0);
+    return sizeof(s->content) / SER_WIDE(s);
 }
 
 // Raw access does not demand that the caller know the contained type.  So
@@ -176,7 +180,7 @@ inline static REBYTE *SER_DATA_RAW(REBSER *s) {
     // if updating, also update manual inlining in SER_AT_RAW
     return GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)
         ? s->content.dynamic.data
-        : cast(REBYTE*, &s->content.values[0]);
+        : cast(REBYTE*, &s->content);
 }
 
 inline static REBYTE *SER_AT_RAW(size_t w, REBSER *s, REBCNT i) {
@@ -195,7 +199,7 @@ inline static REBYTE *SER_AT_RAW(size_t w, REBSER *s, REBCNT i) {
     return ((w) * (i)) + ( // v-- inlining of SER_DATA_RAW
         GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)
             ? s->content.dynamic.data
-            : cast(REBYTE*, &s->content.values[0])
+            : cast(REBYTE*, &s->content)
         );
 }
 
@@ -252,22 +256,6 @@ inline static REBVAL *PAIRING_KEY(REBVAL *pairing) {
 }
 
 
-//
-// Series size measurements:
-//
-// SER_TOTAL - bytes of memory allocated (including bias area)
-// SER_SPACE - bytes of series (not including bias area)
-// SER_USED - bytes being used, including terminator
-//
-
-inline static size_t SER_SPACE(REBSER *s) {
-    return SER_REST(s) * SER_WIDE(s);
-}
-
-inline static size_t SER_USED(REBSER *s) {
-    return (SER_LEN(s) + 1) * SER_WIDE(s);
-}
-
 #define SER_FULL(s) \
     (SER_LEN(s) + 1 >= SER_REST(s))
 
@@ -297,32 +285,14 @@ inline static void FAIL_IF_LOCKED_SERIES(REBSER *s) {
 
 inline static void EXPAND_SERIES_TAIL(REBSER *s, REBCNT delta) {
     if (SER_FITS(s, delta))
-        (s)->content.dynamic.len += delta;
+        SET_SERIES_LEN(s, SER_LEN(s) + delta);
     else
         Expand_Series(s, SER_LEN(s), delta);
-}
-
-inline static void RESIZE_SERIES(REBSER *s, REBCNT len) {
-    s->content.dynamic.len = 0;
-    if (!SER_FITS(s, len))
-        Expand_Series(s, SER_LEN(s), len);
-    s->content.dynamic.len = 0;
 }
 
 //
 // Termination
 //
-
-inline static void RESET_TAIL(REBSER *s) {
-    s->content.dynamic.len = 0;
-}
-
-// Clear all and clear to tail:
-//
-inline static void CLEAR_SEQUENCE(REBSER *s) {
-    assert(!Is_Array_Series(s));
-    CLEAR(SER_DATA_RAW(s), SER_SPACE(s));
-}
 
 inline static void TERM_SEQUENCE(REBSER *s) {
     assert(!Is_Array_Series(s));
@@ -450,6 +420,7 @@ static inline void UNMARK_REBSER(REBSER *rebser) {
     Guard_Series_Core(s)
 
 inline static void DROP_GUARD_SERIES(REBSER *s) {
+    assert(GET_SER_FLAG(GC_Series_Guard, SERIES_FLAG_HAS_DYNAMIC));
     assert(s == *SER_LAST(REBSER*, GC_Series_Guard));
     GC_Series_Guard->content.dynamic.len--;
 }
@@ -609,8 +580,13 @@ inline static REBSTR *STR_CANON(REBSTR *str) {
 }
 
 inline static OPT_REBSYM STR_SYMBOL(REBSTR *str) {
-    assert(STR_CANON(str)->header.bits == str->header.bits);
-    return cast(REBSYM, str->header.bits >> 16);
+    REBUPT sym = cast(REBSYM, (str->header.bits >> 8) & 0xFFFF);
+    assert(((STR_CANON(str)->header.bits >> 8) & 0xFFFF) == sym);
+    return cast(REBSYM, sym);
+}
+
+inline static REBCNT STR_NUM_BYTES(REBSTR *str) {
+    return SER_LEN(str); // number of bytes in seris is series length, ATM
 }
 
 inline static REBSTR *Canon(REBSYM sym) {
@@ -709,11 +685,11 @@ inline static REBCNT ARR_LEN(REBARR *a) {
 // up front, to legitimately examine the bits (and decisions on how to init)
 //
 inline static void TERM_ARRAY_LEN(REBARR *a, REBCNT len) {
-    REBCNT rest = ARR_SERIES(a)->content.dynamic.rest;
+    REBCNT rest = SER_REST(ARR_SERIES(a));
     assert(len < rest);
     SET_SERIES_LEN(ARR_SERIES(a), len);
     if (len + 1 == rest)
-        assert(ARR_TAIL(a)->header.bits == 0);
+        assert(IS_END(ARR_TAIL(a)));
     else
         SET_END(ARR_TAIL(a));
 }
@@ -733,10 +709,6 @@ inline static void TERM_SERIES(REBSER *s) {
         memset(SER_AT_RAW(SER_WIDE(s), s, SER_LEN(s)), 0, SER_WIDE(s));
 }
 
-inline static void RESET_SERIES(REBSER *s) {
-    s->content.dynamic.len = 0;
-    TERM_SERIES(s);
-}
 
 // Setting and getting array flags is common enough to want a macro for it
 // vs. having to extract the ARR_SERIES to do it each time.

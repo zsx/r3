@@ -641,9 +641,7 @@ static void ffi_to_rebol(
 
         assert(top->type == FFI_TYPE_STRUCT);
 
-        REBSTU *stu = Make_Singular_Array(VOID_CELL);
-        ARR_SERIES(stu)->link.schema = cast(REBSER*, VAL_HANDLE_DATA(schema));
-        MANAGE_ARRAY(stu);
+        REBSTU *stu = Alloc_Singular_Array();
 
         REBSER *data = Make_Series(top->size, sizeof(REBYTE), MKS_NONE);
         memcpy(SER_HEAD(REBYTE, data), ffi_rvalue, top->size);
@@ -655,7 +653,9 @@ static void ffi_to_rebol(
         out->extra.struct_offset = 0;
 
         *ARR_HEAD(stu) = *out; // save canon value
-        assert(ARR_LEN(stu) == 1); // should be automatic for singulars
+        ARR_SERIES(stu)->link.schema = cast(REBSER*, VAL_HANDLE_DATA(schema));
+        MANAGE_ARRAY(stu);
+
         assert(STU_DATA_BIN(stu) == data);
         return;
     }

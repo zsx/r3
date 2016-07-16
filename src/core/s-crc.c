@@ -184,7 +184,6 @@ static void Make_CRC32_Table(void);
 REBCNT Hash_Value(const RELVAL *v, REBCTX *specifier)
 {
     REBCNT ret;
-    const REBYTE *name;
 
     switch(VAL_TYPE(v)) {
     case REB_MAX_VOID:
@@ -280,10 +279,10 @@ REBCNT Hash_Value(const RELVAL *v, REBCTX *specifier)
         ret = ARR_LEN(VAL_ARRAY(v));
         break;
 
-    case REB_DATATYPE:
-        name = STR_HEAD(Canon(VAL_TYPE_SYM(v)));
-        ret = Hash_Word(name, LEN_BYTES(name));
-        break;
+    case REB_DATATYPE: {
+        REBSTR *canon = Canon(VAL_TYPE_SYM(v));
+        ret = Hash_Word(STR_HEAD(canon), STR_NUM_BYTES(canon));
+        break; }
 
     case REB_BITSET:
     case REB_IMAGE:
@@ -312,7 +311,7 @@ REBCNT Hash_Value(const RELVAL *v, REBCTX *specifier)
         // data payload before the actual string?
         //
         REBSTR *spelling = VAL_WORD_SPELLING(v);
-        ret = Hash_Word(STR_HEAD(spelling), LEN_BYTES(STR_HEAD(spelling)));
+        ret = Hash_Word(STR_HEAD(spelling), STR_NUM_BYTES(spelling));
         break; }
 
     case REB_FUNCTION:
