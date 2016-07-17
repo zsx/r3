@@ -28,6 +28,32 @@
 //
 
 
+//
+// Relative and specific values
+//
+
+inline static REBARR *VAL_BINDING(const RELVAL *v) {
+    assert(
+        ANY_ARRAY(v)
+        || IS_FUNCTION(v)
+        || ANY_CONTEXT(v)
+        || IS_VARARGS(v)
+        || ANY_WORD(v)
+    );
+    return v->extra.binding;
+}
+
+inline static void INIT_RELATIVE(RELVAL *v, REBFUN *func) {
+    assert(GET_VAL_FLAG(v, VALUE_FLAG_RELATIVE));
+    v->extra.binding = FUNC_PARAMLIST(func);
+}
+
+inline static void INIT_SPECIFIC(RELVAL *v, REBCTX *context) {
+    assert(NOT(GET_VAL_FLAG(v, VALUE_FLAG_RELATIVE)));
+    v->extra.binding = CTX_VARLIST(context);
+}
+
+
 //=////////////////////////////////////////////////////////////////////////=//
 //
 //  THROWN status

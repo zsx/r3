@@ -32,53 +32,6 @@
 
 
 //
-//  Make_Array: C
-// 
-// Make a series that is the right size to store REBVALs (and
-// marked for the garbage collector to look into recursively).
-// Terminator included implicitly. Sets TAIL to zero.
-//
-REBARR *Make_Array(REBCNT capacity)
-{
-    REBSER *s = Make_Series(capacity + 1, sizeof(REBVAL), MKS_ARRAY);
-    assert(
-        capacity <= 1
-            ? NOT(GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC))
-            : GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)
-    );
-
-    REBARR *a = AS_ARRAY(s);
-    TERM_ARRAY_LEN(a, 0);
-    return a;
-}
-
-
-
-//
-//  Alloc_Singular_Array: C
-//
-// A singular array is specifically optimized to hold *one* value in a REBSER
-// directly, and stay fixed at that size.  Note that the internal logic of
-// series will give you this optimization even if you don't ask for it if
-// a series or array is small.  However, this allocator adds the fixed size
-// bit and defaults the array to an uninitialized cell with length 1, vs.
-// going through a length 0 step.
-//
-REBARR *Alloc_Singular_Array(void) {
-    REBSER *s = Make_Series(2, sizeof(REBVAL), MKS_ARRAY); // no real 2nd slot
-    assert(NOT(GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)));
-
-    REBARR *a = AS_ARRAY(s);
-    SET_ARR_FLAG(a, SERIES_FLAG_FIXED_SIZE);
-
-    SET_SERIES_LEN(s, 1); // currently needs length bits set
-    assert(IS_END(ARR_TAIL(a)));
-
-    return a;
-}
-
-
-//
 //  Copy_Array_At_Extra_Shallow: C
 // 
 // Shallow copy an array from the given index thru the tail.

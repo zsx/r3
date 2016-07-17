@@ -642,9 +642,23 @@ enum Reb_Vararg_Op {
 
 #include "sys-globals.h"
 
-#include "sys-series.h" // Series accessor routines (used by value accessors)
+#include "sys-value.h" // basic definitions that don't need series accessrors
 
-#include "sys-value.h" // Value accessors
+#include "sys-series.h"
+#include "sys-binary.h"
+#include "sys-string.h"
+
+#include "sys-array.h"
+
+#include "sys-typeset.h"
+#include "sys-context.h"
+#include "sys-function.h"
+#include "sys-word.h"
+
+#include "sys-pair.h"
+#include "sys-map.h"
+
+#include "sys-varargs.h"
 
 #include "sys-stack.h"
 

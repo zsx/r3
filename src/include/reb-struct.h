@@ -28,6 +28,43 @@
 //
 
 
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  LIBRARY! (`struct Reb_Library`)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// A library represents a loaded .DLL or .so file.  This contains native
+// code, which can be executed either through the "COMMAND" method (Rebol
+// extensions) or the FFI interface.
+//
+// !!! The COMMAND method of extension is being deprecated by Ren-C, instead
+// leaning on the idea of writing new natives using the same API that
+// the system uses internally.
+//
+
+inline static void *LIB_FD(REBLIB *l) {
+    return ARR_SERIES(l)->misc.fd; // file descriptor
+}
+
+inline static REBOOL IS_LIB_CLOSED(const REBLIB *l) {
+    return LOGICAL(ARR_SERIES(l)->misc.fd == NULL);
+}
+
+inline static REBCTX *VAL_LIBRARY_META(const RELVAL *v) {
+    return ARR_SERIES(v->payload.library.singular)->link.meta;
+}
+
+inline static REBLIB *VAL_LIBRARY(const RELVAL *v) {
+    return v->payload.library.singular;
+}
+
+inline static void *VAL_LIBRARY_FD(const RELVAL *v) {
+    return LIB_FD(VAL_LIBRARY(v));
+}
+
+
+
 #ifdef HAVE_LIBFFI_AVAILABLE
     #include <ffi.h>
 #else
