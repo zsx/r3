@@ -805,6 +805,7 @@ REBSER *Try_Find_Containing_Series_Debug(const void *p)
             if (NOT(GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC))) {
                 if (p >= &s->content && p < (&s->content + 1))
                     return s;
+                continue;
             }
 
             if (p < cast(void*,
