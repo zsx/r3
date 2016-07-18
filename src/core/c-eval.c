@@ -1195,16 +1195,20 @@ reevaluate:;
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
-// [BAR! and LIT-BAR!]
+// [BAR!]
 //
 // If an expression barrier is seen in-between expressions (as it will always
-// be if hit in this switch), it evaluates to void.  It only errors in argument
-// fulfillment during the switch case for ANY-FUNCTION!.
+// be if hit in this switch), it evaluates to void.  It only errors in
+// argument fulfillment during the switch case for ANY-FUNCTION!.
 //
-// LIT-BAR! decays into an ordinary BAR! if seen here by the evaluator.
+// Note that `DO/NEXT [| | | | 1 + 2]` will skip the bars and yield 3.  This
+// helps give BAR!s their lightweight character.  It also means that code
+// doing DO/NEXTs will not see them as generating voids, which might have
+// a specific meaning to the caller.  (They can check for BAR!s explicitly
+// if they want to give BAR!s a meaning.)
 //
-// Note that natives and dialects frequently do their own interpretation of
-// BAR!--rather than just evaluate it and let it mean something equivalent
+// Note also that natives and dialects frequently do their own interpretation
+// of BAR!--rather than just evaluate it and let it mean something equivalent
 // to an unset.  For instance:
 //
 //     case [false [print "F"] | true [print ["T"]]
@@ -1225,6 +1229,17 @@ reevaluate:;
         SET_VOID(f->out);
         SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
         break;
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [LIT-BAR!]
+//
+// LIT-BAR! decays into an ordinary BAR! if seen here by the evaluator.
+//
+// !!! Considerations of the "lit-bit" proposal would add a literal form
+// for every type, which would make this datatype unnecssary.
+//
+//==//////////////////////////////////////////////////////////////////////==//
 
     case REB_LIT_BAR:
         SET_BAR(f->out);

@@ -94,13 +94,21 @@ REBNATIVE(latin1_q)
 //
 //  {Ensure conditions are TRUE?, even when not debugging (see also: ASSERT)}
 //
-//      conditions [block!]
+//      return: [<opt>]
+//      conditions [logic! block!]
 //          {Block of conditions to evaluate, void and FALSE? trigger alerts}
 //  ]
 //
 REBNATIVE(verify)
 {
     PARAM(1, conditions);
+
+    if (IS_LOGIC(ARG(conditions))) {
+        if (VAL_LOGIC(ARG(conditions)))
+            return R_VOID;
+
+        fail (Error(RE_VERIFY_FAILED, FALSE_VALUE));
+    }
 
     Reb_Enumerator e;
     PUSH_SAFE_ENUMERATOR(&e, ARG(conditions)); // protects conditions during DO

@@ -19,10 +19,10 @@ REBOL [
 assert: func [
     {Ensure conditions are TRUE? if hooked by debugging (see also: VERIFY)}
 
-    return: [<opt> block! blank!]
+    return: [<opt> logic! block!]
         {Always returns void unless /QUIET is used to return failing blocks}
-    conditions [block!]
-        {Block of conditions to evaluate, void and FALSE? trigger alerts}
+    conditions [logic! block!]
+        {Single logic value or block of conditions to evaluate and test TRUE?}
     /quiet
         {Return failing condition as a BLOCK!, or BLANK! if success}
 ][

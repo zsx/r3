@@ -38,12 +38,12 @@ live-asserts-map: make map! []
 
 assert-debug: function [
     return: [<opt> any-value!]
-    conditions [block!]
+    conditions [logic! block!]
         {Conditions to check (or meta instructions if /META)}
-    /meta
-        {Block is enablement and disablement, e.g. [#heavy-checks on]}
     /quiet
         {Return void on success or a BLOCK! of the failure condition if failed}
+    /meta
+        {Block is enablement and disablement, e.g. [#heavy-checks on]}
 ][
     if meta [
         rules: [any [
@@ -82,40 +82,70 @@ assert-debug: function [
         return ()
     ]
 
-    active: true
-    while [not tail? conditions] [
-        if option: maybe [issue! tag!] :conditions/1 [
-            unless any-value? (active: select live-asserts-map option) [
-                ; if not found in the map, go with the default behavior.
-                ; this is disabled for #named tests, and enabled for <tagged>
-                ;
-                active: tag? option
-            ]
+    failure-helper: procedure [
+        expr [logic! block!]
+            {The failing expression (or just FALSE if a LOGIC!)}
+        bad-result [<opt> any-value!]
+            {What the FALSE? or void that triggered failure was}
+        <with> return
+    ][
+        if quiet [
+            ;
+            ; Due to <with> return this imports the return from ASSERT-DEBUG
+            ; overall.  This result is not going to be very useful for a
+            ; plain FALSE return, and a proper logging mechanism would need
+            ; some information about the source location of failure.
+            ;
+            return expr ;-- due to `<with> return`
         ]
 
-        result: do/next conditions quote pos:
-        if active and any [not set? 'result | not :result] [
-            expr: copy conditions pos
-            if quiet [return expr]
-            fail [
-                "Assertion condition returned"
-                (case [
-                    (not set? 'result) "void"
-                        |
-                    (blank? result) "blank"
-                        |
-                    (false? result) "false"
-                ])
-                ":"
-                expr
-            ]
+        fail [
+            "Assertion condition returned"
+             (case [
+                (not set? 'bad-result) "void"
+                    |
+                (blank? bad-result) "blank"
+                    |
+                (false? bad-result) "false"
+            ])
+            ":"
+            expr
         ]
-
-        conditions: pos ;-- move to next expression position and continue
     ]
 
-    return if quiet [blank] ;-- void is return default
+    either logic? conditions [
+        if not conditions [
+            failure-helper false false
+        ]
+    ][
+        ; Otherwise it's a block!
+        active: true
+        while [not tail? conditions] [
+            if option: maybe [issue! tag!] :conditions/1 [
+                unless any-value? (active: select live-asserts-map option) [
+                    ;
+                    ; if not found in the map, go with default behavior.
+                    ; (disabled for #named tests, enabled for <tagged>)
+                    ;
+                    active: tag? option
+                ]
+            ]
+
+            result: do/next conditions quote pos:
+            if active and any [not set? 'result | not :result] [
+                failure-helper (copy/part conditions pos) :result
+            ]
+
+            conditions: pos ;-- move expression position and continue
+
+            ; including BAR!s in the failure report looks messy
+            while [bar? conditions/1] [conditions: next conditions]
+        ]
+    ]
+
+    return if quiet [true] ;-- void is return default
 ]
+
 
 ; !!! If a debug mode were offered, you'd want to be able to put back ASSERT
 ; in such a way as to cost basically nothing.
