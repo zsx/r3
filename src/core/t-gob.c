@@ -695,6 +695,144 @@ REBARR *Gob_To_Array(REBGOB *gob)
 
 
 //
+//  Return_Gob_Pair: C
+//
+static void Return_Gob_Pair(REBVAL *out, REBGOB *gob, REBD32 x, REBD32 y)
+{
+    REBARR *blk = Make_Array(2);
+    Val_Init_Block(out, blk);
+
+    SET_GOB(Alloc_Tail_Array(blk), gob);
+
+    REBVAL *val = Alloc_Tail_Array(blk);
+    VAL_RESET_HEADER(val, REB_PAIR);
+    VAL_PAIR_X(val) = x;
+    VAL_PAIR_Y(val) = y;
+}
+
+
+//
+//  Map_Gob_Inner: C
+//
+// Map a higher level gob coordinate to a lower level.
+// Returns GOB and sets new offset pair.
+//
+static REBGOB *Map_Gob_Inner(REBGOB *gob, REBXYF *offset)
+{
+    REBD32 xo = offset->x;
+    REBD32 yo = offset->y;
+    REBINT n;
+    REBINT len;
+    REBGOB **gop;
+    REBD32 x = 0;
+    REBD32 y = 0;
+    REBINT max_depth = 1000; // avoid infinite loops
+
+    while (GOB_PANE(gob) && (max_depth-- > 0)) {
+        len = GOB_LEN(gob);
+        gop = GOB_HEAD(gob) + len - 1;
+        for (n = 0; n < len; n++, gop--) {
+            if (
+                (xo >= x + GOB_X(*gop)) &&
+                (xo <  x + GOB_X(*gop) + GOB_W(*gop)) &&
+                (yo >= y + GOB_Y(*gop)) &&
+                (yo <  y + GOB_Y(*gop) + GOB_H(*gop))
+            ){
+                x += GOB_X(*gop);
+                y += GOB_Y(*gop);
+                gob = *gop;
+                break;
+            }
+        }
+        if (n >= len) break; // not found
+    }
+
+    offset->x -= x;
+    offset->y -= y;
+
+    return gob;
+}
+
+
+//
+//  map-event: native [
+//
+//  {Returns event with inner-most graphical object and coordinate.}
+//
+//      event [event!]
+//  ]
+//
+REBNATIVE(map_event)
+{
+    PARAM(1, event);
+
+    REBVAL *val = ARG(event);
+    REBGOB *gob = cast(REBGOB*, VAL_EVENT_SER(val));
+    REBXYF xy;
+
+    if (gob && GET_FLAG(VAL_EVENT_FLAGS(val), EVF_HAS_XY)) {
+        xy.x = (REBD32)VAL_EVENT_X(val);
+        xy.y = (REBD32)VAL_EVENT_Y(val);
+        VAL_EVENT_SER(val) = cast(REBSER*, Map_Gob_Inner(gob, &xy));
+        SET_EVENT_XY(val, ROUND_TO_INT(xy.x), ROUND_TO_INT(xy.y));
+    }
+
+    *D_OUT = *ARG(event);
+    return R_OUT;
+}
+
+
+//
+//  map-gob-offset: native [
+//
+//  {Translate gob and offset to deepest gob and offset in it, return as block}
+//
+//      gob [gob!]
+//          "Starting object"
+//      xy [pair!]
+//          "Staring offset"
+//      /reverse
+//          "Translate from deeper gob to top gob."
+//  ]
+//
+REBNATIVE(map_gob_offset)
+{
+    PARAM(1, gob);
+    PARAM(2, xy);
+    REFINE(3, reverse);
+
+    REBGOB *gob = VAL_GOB(ARG(gob));
+    REBD32 xo = VAL_PAIR_X(ARG(xy));
+    REBD32 yo = VAL_PAIR_Y(ARG(xy));
+
+    if (REF(reverse)) {
+        REBINT max_depth = 1000; // avoid infinite loops
+        while (
+            GOB_PARENT(gob)
+            && (max_depth-- > 0)
+            && !GET_GOB_FLAG(gob, GOBF_WINDOW)
+        ){
+            xo += GOB_X(gob);
+            yo += GOB_Y(gob);
+            gob = GOB_PARENT(gob);
+        }
+    }
+    else {
+        REBXYF xy;
+        xy.x = VAL_PAIR_X(ARG(xy));
+        xy.y = VAL_PAIR_Y(ARG(xy));
+        gob = Map_Gob_Inner(gob, &xy);
+        xo = xy.x;
+        yo = xy.y;
+    }
+
+    Return_Gob_Pair(D_OUT, gob, xo, yo);
+
+    return R_OUT;
+}
+
+
+//
 //  Extend_Gob_Core: C
 //
 // !!! R3-Alpha's MAKE has been unified with construction syntax, which has

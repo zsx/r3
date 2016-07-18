@@ -737,118 +737,6 @@ REBNATIVE(in)
 
 
 //
-//  and?: native [
-//  
-//  {Returns true if both values are conditionally true (no "short-circuit")}
-//  
-//      value1 [any-value!]
-//      value2 [any-value!]
-//  ]
-//
-REBNATIVE(and_q)
-{
-    if (IS_CONDITIONAL_TRUE(D_ARG(1)) && IS_CONDITIONAL_TRUE(D_ARG(2)))
-        return R_TRUE;
-    else
-        return R_FALSE;
-}
-
-
-//
-//  nor?: native [
-//
-//  {Returns true if both values are conditionally false (no "short-circuit")}
-//
-//      value1 [any-value!]
-//      value2 [any-value!]
-//  ]
-//
-REBNATIVE(nor_q)
-{
-    PARAM(1, value1);
-    PARAM(2, value2);
-
-    if (IS_CONDITIONAL_FALSE(ARG(value1)) && IS_CONDITIONAL_FALSE(ARG(value2)))
-        return R_TRUE;
-    else
-        return R_FALSE;
-}
-
-
-//
-//  nand?: native [
-//
-//  {Returns false if both values are conditionally true (no "short-circuit")}
-//
-//      value1 [any-value!]
-//      value2 [any-value!]
-//  ]
-//
-REBNATIVE(nand_q)
-{
-    PARAM(1, value1);
-    PARAM(2, value2);
-
-    if (IS_CONDITIONAL_TRUE(ARG(value1)) && IS_CONDITIONAL_TRUE(ARG(value2)))
-        return R_FALSE;
-    else
-        return R_TRUE;
-}
-
-
-//
-//  not?: native [
-//  
-//  "Returns the logic complement."
-//  
-//      value [any-value!]
-//          "(Only LOGIC!'s FALSE and BLANK! return TRUE)"
-//  ]
-//
-REBNATIVE(not_q)
-{
-    return IS_CONDITIONAL_FALSE(D_ARG(1)) ? R_TRUE : R_FALSE;
-}
-
-
-//
-//  or?: native [
-//  
-//  {Returns true if either value is conditionally true (no "short-circuit")}
-//  
-//      value1 [any-value!]
-//      value2 [any-value!]
-//  ]
-//
-REBNATIVE(or_q)
-{
-    if (IS_CONDITIONAL_TRUE(D_ARG(1)) || IS_CONDITIONAL_TRUE(D_ARG(2)))
-        return R_TRUE;
-    else
-        return R_FALSE;
-}
-
-
-//
-//  xor?: native [
-//  
-//  {Returns true if only one of the two values is conditionally true.}
-//  
-//      value1 [any-value!]
-//      value2 [any-value!]
-//  ]
-//
-REBNATIVE(xor_q)
-{
-    // Note: no boolean ^^ in C; normalize to booleans and check unequal
-    if (!IS_CONDITIONAL_TRUE(D_ARG(1)) != !IS_CONDITIONAL_TRUE(D_ARG(2)))
-        return R_TRUE;
-    else
-        return R_FALSE;
-}
-
-
-//
 //  resolve: native [
 //  
 //  {Copy context by setting values in the target from those in the source.}
@@ -1213,6 +1101,38 @@ REBNATIVE(type_of)
     Val_Init_Datatype(D_OUT, kind);
     return R_OUT;
 }
+
+
+//
+//  has-type?: native [
+//
+//  {Checks to see if a value has a type or is in a typeset.}
+//
+//      type [datatype! typeset!]
+//      value [<opt> any-value!]
+//  ]
+//
+REBNATIVE(has_type_q)
+{
+    PARAM(1, type);
+    PARAM(2, value);
+
+    REBVAL *value = ARG(value);
+    REBVAL *type = ARG(type);
+
+    if (IS_DATATYPE(type)) {
+        if (VAL_TYPE(value) == VAL_TYPE_KIND(type))
+            return R_TRUE;
+    }
+    else {
+        assert(IS_TYPESET(type));
+        if (TYPE_CHECK(type, VAL_TYPE(value)))
+            return R_TRUE;
+    }
+
+    return R_FALSE;
+}
+
 
 
 //
@@ -1624,167 +1544,4 @@ REBNATIVE(something_q)
     PARAM(1, value);
 
     return (IS_BLANK(ARG(value)) || IS_VOID(ARG(value))) ? R_FALSE : R_TRUE;
-}
-
-
-//** SERIES ************************************************************
-
-
-//
-//  dump: native [
-//
-//  "Temporary debug dump"
-//
-//      value [<opt> any-value!]
-//  ]
-//
-REBNATIVE(dump)
-{
-#ifdef NDEBUG
-    fail (Error(RE_DEBUG_ONLY));
-#else
-    PARAM(1, value);
-
-    REBVAL *value = ARG(value);
-
-    Dump_Stack(frame_, 0);
-
-    if (ANY_SERIES(value))
-        Dump_Series(VAL_SERIES(value), "=>");
-    else
-        Dump_Values(value, 1);
-
-    *D_OUT = *value;
-    return R_OUT;
-#endif
-}
-
-
-//
-//  Map_Gob_Inner: C
-// 
-// Map a higher level gob coordinate to a lower level.
-// Returns GOB and sets new offset pair.
-//
-static REBGOB *Map_Gob_Inner(REBGOB *gob, REBXYF *offset)
-{
-    REBD32 xo = offset->x;
-    REBD32 yo = offset->y;
-    REBINT n;
-    REBINT len;
-    REBGOB **gop;
-    REBD32 x = 0;
-    REBD32 y = 0;
-    REBINT max_depth = 1000; // avoid infinite loops
-
-    while (GOB_PANE(gob) && (max_depth-- > 0)) {
-        len = GOB_LEN(gob);
-        gop = GOB_HEAD(gob) + len - 1;
-        for (n = 0; n < len; n++, gop--) {
-            if (
-                (xo >= x + GOB_X(*gop)) &&
-                (xo <  x + GOB_X(*gop) + GOB_W(*gop)) &&
-                (yo >= y + GOB_Y(*gop)) &&
-                (yo <  y + GOB_Y(*gop) + GOB_H(*gop))
-            ){
-                x += GOB_X(*gop);
-                y += GOB_Y(*gop);
-                gob = *gop;
-                break;
-            }
-        }
-        if (n >= len) break; // not found
-    }
-
-    offset->x -= x;
-    offset->y -= y;
-
-    return gob;
-}
-
-
-//
-//  map-event: native [
-//  
-//  {Returns event with inner-most graphical object and coordinate.}
-//  
-//      event [event!]
-//  ]
-//
-REBNATIVE(map_event)
-{
-    PARAM(1, event);
-
-    REBVAL *val = ARG(event);
-    REBGOB *gob = cast(REBGOB*, VAL_EVENT_SER(val));
-    REBXYF xy;
-
-    if (gob && GET_FLAG(VAL_EVENT_FLAGS(val), EVF_HAS_XY)) {
-        xy.x = (REBD32)VAL_EVENT_X(val);
-        xy.y = (REBD32)VAL_EVENT_Y(val);
-        VAL_EVENT_SER(val) = cast(REBSER*, Map_Gob_Inner(gob, &xy));
-        SET_EVENT_XY(val, ROUND_TO_INT(xy.x), ROUND_TO_INT(xy.y));
-    }
-
-    *D_OUT = *ARG(event);
-    return R_OUT;
-}
-
-
-//
-//  Return_Gob_Pair: C
-//
-static void Return_Gob_Pair(REBVAL *out, REBGOB *gob, REBD32 x, REBD32 y)
-{
-    REBARR *blk;
-    REBVAL *val;
-
-    blk = Make_Array(2);
-    Val_Init_Block(out, blk);
-    val = Alloc_Tail_Array(blk);
-    SET_GOB(val, gob);
-    val = Alloc_Tail_Array(blk);
-    VAL_RESET_HEADER(val, REB_PAIR);
-    VAL_PAIR_X(val) = x;
-    VAL_PAIR_Y(val) = y;
-}
-
-
-//
-//  map-gob-offset: native [
-//  
-//  {Translates a gob and offset to the deepest gob and offset in it, returned as a block.}
-//  
-//      gob [gob!] "Starting object"
-//      xy [pair!] "Staring offset"
-//      /reverse "Translate from deeper gob to top gob."
-//  ]
-//
-REBNATIVE(map_gob_offset)
-{
-    REBGOB *gob = VAL_GOB(D_ARG(1));
-    REBD32 xo = VAL_PAIR_X(D_ARG(2));
-    REBD32 yo = VAL_PAIR_Y(D_ARG(2));
-
-    if (D_REF(3)) { // reverse
-        REBINT max_depth = 1000; // avoid infinite loops
-        while (GOB_PARENT(gob) && (max_depth-- > 0) &&
-            !GET_GOB_FLAG(gob, GOBF_WINDOW)){
-            xo += GOB_X(gob);
-            yo += GOB_Y(gob);
-            gob = GOB_PARENT(gob);
-        }
-    }
-    else {
-        REBXYF xy;
-        xy.x = VAL_PAIR_X(D_ARG(2));
-        xy.y = VAL_PAIR_Y(D_ARG(2));
-        gob = Map_Gob_Inner(gob, &xy);
-        xo = xy.x;
-        yo = xy.y;
-    }
-
-    Return_Gob_Pair(D_OUT, gob, xo, yo);
-
-    return R_OUT;
 }

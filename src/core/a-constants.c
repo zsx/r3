@@ -52,15 +52,6 @@ const char Str_Panic_Directions[] = {
     "Include the following information in the report:\n\n"
 };
 
-const char Str_Dump[] =
-    "%s Series %x \"%s\":"
-        " wide: %2d"
-        " size: %6d"
-        " bias: %d"
-        " tail: %d"
-        " rest: %d"
-        " flags: %x";
-
 const char * Hex_Digits = "0123456789ABCDEF";
 
 const char * const Esc_Names[] = {

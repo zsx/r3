@@ -27,15 +27,121 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-/*
-**  Symbolic bit logic was experimental - but proved not to add much
-**  value because the overhead of access offset the savings of storage.
-**  It would be better to add a general purpose bit parsing dialect,
-**  somewhat similar to R2's struct datatype.
-*/
 
 #include "sys-core.h"
 #include "sys-deci-funcs.h"
+
+
+//
+//  and?: native [
+//
+//  {Returns true if both values are conditionally true (no "short-circuit")}
+//
+//      value1 [any-value!]
+//      value2 [any-value!]
+//  ]
+//
+REBNATIVE(and_q)
+{
+    if (IS_CONDITIONAL_TRUE(D_ARG(1)) && IS_CONDITIONAL_TRUE(D_ARG(2)))
+        return R_TRUE;
+    else
+        return R_FALSE;
+}
+
+
+//
+//  nor?: native [
+//
+//  {Returns true if both values are conditionally false (no "short-circuit")}
+//
+//      value1 [any-value!]
+//      value2 [any-value!]
+//  ]
+//
+REBNATIVE(nor_q)
+{
+    PARAM(1, value1);
+    PARAM(2, value2);
+
+    if (IS_CONDITIONAL_FALSE(ARG(value1)) && IS_CONDITIONAL_FALSE(ARG(value2)))
+        return R_TRUE;
+    else
+        return R_FALSE;
+}
+
+
+//
+//  nand?: native [
+//
+//  {Returns false if both values are conditionally true (no "short-circuit")}
+//
+//      value1 [any-value!]
+//      value2 [any-value!]
+//  ]
+//
+REBNATIVE(nand_q)
+{
+    PARAM(1, value1);
+    PARAM(2, value2);
+
+    if (IS_CONDITIONAL_TRUE(ARG(value1)) && IS_CONDITIONAL_TRUE(ARG(value2)))
+        return R_FALSE;
+    else
+        return R_TRUE;
+}
+
+
+//
+//  not?: native [
+//
+//  "Returns the logic complement."
+//
+//      value [any-value!]
+//          "(Only LOGIC!'s FALSE and BLANK! return TRUE)"
+//  ]
+//
+REBNATIVE(not_q)
+{
+    return IS_CONDITIONAL_FALSE(D_ARG(1)) ? R_TRUE : R_FALSE;
+}
+
+
+//
+//  or?: native [
+//
+//  {Returns true if either value is conditionally true (no "short-circuit")}
+//
+//      value1 [any-value!]
+//      value2 [any-value!]
+//  ]
+//
+REBNATIVE(or_q)
+{
+    if (IS_CONDITIONAL_TRUE(D_ARG(1)) || IS_CONDITIONAL_TRUE(D_ARG(2)))
+        return R_TRUE;
+    else
+        return R_FALSE;
+}
+
+
+//
+//  xor?: native [
+//
+//  {Returns true if only one of the two values is conditionally true.}
+//
+//      value1 [any-value!]
+//      value2 [any-value!]
+//  ]
+//
+REBNATIVE(xor_q)
+{
+    // Note: no boolean ^^ in C; normalize to booleans and check unequal
+    if (!IS_CONDITIONAL_TRUE(D_ARG(1)) != !IS_CONDITIONAL_TRUE(D_ARG(2)))
+        return R_TRUE;
+    else
+        return R_FALSE;
+}
 
 
 //

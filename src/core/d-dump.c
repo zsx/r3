@@ -46,7 +46,13 @@ void Dump_Series(REBSER *series, const char *memo)
 {
     if (!series) return;
     Debug_Fmt(
-        Str_Dump, //"%s Series %x %s: Wide: %2d Size: %6d - Bias: %d Tail: %d Rest: %d Flags: %x"
+        "%s Series %x \"%s\":"
+            " wide: %2d"
+            " size: %6d"
+            " bias: %d"
+            " tail: %d"
+            " rest: %d"
+            " flags: %x",
         memo,
         series,
         "-", // !label
@@ -115,11 +121,11 @@ void Dump_Bytes(REBYTE *bp, REBCNT limit)
     }
 }
 
+
 //
 //  Dump_Values: C
 // 
-// Print out values in raw hex; If memory is corrupted
-// this function still needs to work.
+// Print values in raw hex; If memory is corrupted this still needs to work.
 //
 void Dump_Values(RELVAL *vp, REBCNT count)
 {
@@ -250,5 +256,37 @@ void Dump_Stack(REBFRM *f, REBCNT level)
     Print("%s %d %x", "test", 1234, 1234);
     getchar();
 #endif
+
+
+
+//
+//  dump: native [
+//
+//  "Temporary debug dump"
+//
+//      value [<opt> any-value!]
+//  ]
+//
+REBNATIVE(dump)
+{
+#ifdef NDEBUG
+    fail (Error(RE_DEBUG_ONLY));
+#else
+    PARAM(1, value);
+
+    REBVAL *value = ARG(value);
+
+    Dump_Stack(frame_, 0);
+
+    if (ANY_SERIES(value))
+        Dump_Series(VAL_SERIES(value), "=>");
+    else
+        Dump_Values(value, 1);
+
+    *D_OUT = *value;
+    return R_OUT;
+#endif
+}
+
 
 #endif

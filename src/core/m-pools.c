@@ -1943,7 +1943,13 @@ void Dump_Series_In_Pool(REBCNT pool_id)
                 || FIND_POOL(SER_TOTAL(s)) == pool_id
             ) {
                 Debug_Fmt(
-                    Str_Dump, //"%s Series %x %s: Wide: %2d Size: %6d - Bias: %d Tail: %d Rest: %d Flags: %x"
+                    "%s Series %x \"%s\":"
+                        " wide: %2d"
+                        " size: %6d"
+                        " bias: %d"
+                        " tail: %d"
+                        " rest: %d"
+                        " flags: %x",
                     "Dump",
                     s,
                     "-", // !label

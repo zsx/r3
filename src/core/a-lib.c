@@ -40,15 +40,6 @@ REBOL_HOST_LIB *Host_Lib;
 #endif
 
 
-//#define DUMP_INIT_SCRIPT
-#ifdef DUMP_INIT_SCRIPT
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <io.h>
-// #include <stdio.h> // !!! No <stdio.h> in Ren-C release builds
-#endif
-
-
 // !!! Most of the Rebol source does not include %reb-lib.h.  As a result
 // REBRXT and RXIARG and RXIFRM are not defined when %tmp-funcs.h is being
 // compiled, so the MAKE PREP process doesn't auto-generate prototypes for
@@ -524,27 +515,17 @@ RL_API int RL_Do_Binary(
     REBCNT key,
     RXIARG *out
 ) {
-    REBSER *text;
-#ifdef DUMP_INIT_SCRIPT
-    int f;
-#endif
     int maybe_rxt; // could be REBRXT, or negative number for error :-/
 
-    text = Decompress(bin, length, -1, FALSE, FALSE);
-    if (!text) return 0;
-    Append_Codepoint_Raw(text, 0);
+    REBSER *utf8 = Decompress(bin, length, -1, FALSE, FALSE);
+    if (!utf8)
+        return 0;
 
-#ifdef DUMP_INIT_SCRIPT
-    f = _open("host-boot.r", _O_CREAT | _O_RDWR, _S_IREAD | _S_IWRITE );
-    _write(f, BIN_HEAD(text), LEN_BYTES(BIN_HEAD(text)));
-    _close(f);
-#endif
+    Append_Codepoint_Raw(utf8, 0);
 
-    PUSH_GUARD_SERIES(text);
-    maybe_rxt = RL_Do_String(exit_status, BIN_HEAD(text), flags, out);
-    DROP_GUARD_SERIES(text);
+    maybe_rxt = RL_Do_String(exit_status, BIN_HEAD(utf8), flags, out);
 
-    Free_Series(text);
+    Free_Series(utf8);
     return maybe_rxt;
 }
 
