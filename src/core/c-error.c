@@ -206,7 +206,7 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
 
     // Drop to the chunk state at the time of Push_Trap
     while (TG_Top_Chunk != s->top_chunk)
-        Drop_Chunk(NULL);
+        Drop_Chunk_Of_Values(NULL);
 
     // If we were in the middle of a Collect_Keys and an error occurs, then
     // the binding lookup table has entries in it that need to be zeroed out.

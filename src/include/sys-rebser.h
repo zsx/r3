@@ -381,6 +381,25 @@ struct Reb_Series {
     //
     struct Reb_Header header;
 
+    // The `link` field is generally used for pointers to something that
+    // when updated, all references to this series would want to be able
+    // to see.
+    //
+    // This field is in the second pointer-sized slot in the REBSER node to
+    // push the `content` so it is 64-bit aligned on 32-bit platforms.  This
+    // is because a REBVAL may be the actual content, and a REBVAL assumes
+    // it is on a 64-bit boundary to start with...in order to position its
+    // "payload" which might need to be 64-bit aligned as well.
+    //
+    union {
+        REBSER *hashlist; // MAP datatype uses this
+        REBARR *keylist; // used by CONTEXT
+        REBARR *subfeed; // for *non-frame* VARARGS! ("array1") shared feed
+        REBSER *schema; // STRUCT uses this (parallels object's keylist)
+        REBCTX *meta; // paramlists and keylists can store a "meta" object
+        REBSTR *synonym; // circularly linked list of othEr-CaSed string forms
+    } link;
+
     union Reb_Series_Content content;
 
     // `info` is the information about the series which needs to be known
@@ -398,19 +417,6 @@ struct Reb_Series {
     // it, while not making any feature specifically require a 64-bit CPU.
     //
     struct Reb_Header info;
-
-    // The `link` field is generally used for pointers to something that
-    // when updated, all references to this series would want to be able
-    // to see.
-    //
-    union {
-        REBSER *hashlist; // MAP datatype uses this
-        REBARR *keylist; // used by CONTEXT
-        REBARR *subfeed; // for *non-frame* VARARGS! ("array1") shared feed
-        REBSER *schema; // STRUCT uses this (parallels object's keylist)
-        REBCTX *meta; // paramlists and keylists can store a "meta" object
-        REBSTR *synonym; // circularly linked list of othEr-CaSed string forms
-    } link;
 
     // The `misc` field is an extra pointer-sized piece of data which is
     // resident in the series node, and hence visible to all REBVALs that

@@ -40,21 +40,33 @@ void Init_Stacks(REBCNT size)
     // one chunk so that the push and drop routines never worry about testing
     // for the empty case.
 
-    TG_Root_Chunker = cast(struct Reb_Chunker*, Alloc_Mem(BASE_CHUNKER_SIZE + CS_CHUNKER_PAYLOAD));
+    TG_Root_Chunker = cast(
+        struct Reb_Chunker*,
+        Alloc_Mem(BASE_CHUNKER_SIZE + CS_CHUNKER_PAYLOAD)
+    );
+
 #if !defined(NDEBUG)
     memset(TG_Root_Chunker, 0xBD, sizeof(struct Reb_Chunker));
 #endif
+
     TG_Root_Chunker->next = NULL;
     TG_Root_Chunker->size = CS_CHUNKER_PAYLOAD;
     TG_Top_Chunk = cast(struct Reb_Chunk*, &TG_Root_Chunker->payload);
     TG_Top_Chunk->prev = NULL;
-    TG_Top_Chunk->size.bits = BASE_CHUNK_SIZE; // zero values for initial chunk
-    TG_Top_Chunk->offset = 0;
+
+    // Zero values for initial chunk, also sets offset to 0 as high bits
+    //
+    Init_Header_Aliased(&TG_Top_Chunk->size_and_offset, BASE_CHUNK_SIZE);
+    assert(CHUNK_OFFSET(TG_Top_Chunk) == 0);
 
     // Implicit termination trick--see VALUE_FLAG_NOT_END and related notes
-    cast(
-        struct Reb_Chunk*, cast(REBYTE*, TG_Top_Chunk) + BASE_CHUNK_SIZE
-    )->size.bits = 0;
+    //
+    Init_Header_Aliased(
+        &cast(
+            struct Reb_Chunk*, cast(REBYTE*, TG_Top_Chunk) + BASE_CHUNK_SIZE
+        )->size_and_offset,
+        0
+    );
     assert(IS_END(&TG_Top_Chunk->values[0]));
 
     // Start the data stack out with just one element in it, and make it an

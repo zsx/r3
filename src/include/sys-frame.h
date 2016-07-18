@@ -535,7 +535,7 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(REBFRM *f) {
         // put one there.
         //
         f->varlist = NULL;
-        f->args_head = Push_Ended_Trash_Chunk(num_args);
+        f->args_head = Push_Value_Chunk_Of_Length(num_args);
         assert(CHUNK_LEN_FROM_VALUES(f->args_head) == num_args);
     }
 
@@ -578,7 +578,7 @@ inline static void Drop_Function_Args_For_Frame_Core(
     if (drop_chunks) {
         if (f->varlist == NULL) {
             if (f->args_head != &f->cell)
-                Drop_Chunk(f->args_head);
+                Drop_Chunk_Of_Values(f->args_head);
 
             goto finished; // nothing else to do...
         }
@@ -589,7 +589,7 @@ inline static void Drop_Function_Args_For_Frame_Core(
         //
         if (ARR_LEN(f->varlist) == 1) {
             if (f->args_head != &f->cell)
-                Drop_Chunk(f->args_head);
+                Drop_Chunk_Of_Values(f->args_head);
         }
     }
     else {

@@ -257,6 +257,7 @@ void Dump_Stack(REBFRM *f, REBCNT level)
     getchar();
 #endif
 
+#endif // DUMP is picked up by scan regardless of #ifdef, must be defined
 
 
 //
@@ -287,6 +288,3 @@ REBNATIVE(dump)
     return R_OUT;
 #endif
 }
-
-
-#endif

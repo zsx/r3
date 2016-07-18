@@ -186,8 +186,7 @@ inline static void PUSH_SAFE_ENUMERATOR(
     SET_FRAME_VALUE(f, VAL_ARRAY_AT(v));
     f->source.array = VAL_ARRAY(v);
 
-    struct Reb_Header *alias = &f->flags;
-    alias->bits = DO_FLAG_NEXT | DO_FLAG_ARGS_EVALUATE; // !!! review
+    Init_Header_Aliased(&f->flags, DO_FLAG_NEXT | DO_FLAG_ARGS_EVALUATE);
 
     f->gotten = NULL; // tells ET_WORD and ET_GET_WORD they must do a get
     f->index = VAL_INDEX(v) + 1;
@@ -539,8 +538,9 @@ no_optimization:
     child->index = parent->index;
     child->specifier = parent->specifier;
 
-    struct Reb_Header *alias = &child->flags;
-    alias->bits = DO_FLAG_ARGS_EVALUATE | DO_FLAG_NEXT | flags;
+    Init_Header_Aliased(
+        &child->flags,  DO_FLAG_ARGS_EVALUATE | DO_FLAG_NEXT | flags
+    );
     child->pending = parent->pending;
 
     Do_Core(child);
@@ -617,8 +617,7 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     f->specifier = specifier;
     f->index = index + 1;
 
-    struct Reb_Header *alias = &f->flags;
-    alias->bits = 0;
+    Init_Header_Aliased(&f->flags, 0); // ??? is this ever looked at?
 
     f->pending = NULL;
     f->gotten = NULL;
@@ -674,8 +673,7 @@ inline static REBIXO Do_Array_At_Core(
     f.source.array = array;
     f.specifier = specifier;
 
-    struct Reb_Header *alias = &f.flags;
-    alias->bits = flags;
+    Init_Header_Aliased(&f.flags, flags); // see notes on definition
 
     f.gotten = NULL; // so ET_WORD and ET_GET_WORD do their own Get_Var
     f.pending = NULL;
@@ -872,8 +870,7 @@ inline static REBIXO Do_Va_Core(
     f.specifier = SPECIFIED; // va_list values MUST be full REBVAL* already
     f.pending = VA_LIST_PENDING;
 
-    struct Reb_Header *alias = &f.flags;
-    alias->bits = flags | DO_FLAG_VA_LIST; // see definition for why needed
+    Init_Header_Aliased(&f.flags, flags | DO_FLAG_VA_LIST); // see notes
 
     f.eval_type = VAL_TYPE(f.value);
 

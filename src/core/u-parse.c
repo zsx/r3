@@ -192,9 +192,9 @@ static REBOOL Subparse_Throws(
     f->gotten = NULL;
 
 #if defined(NDEBUG)
-    f->args_head = Push_Ended_Trash_Chunk(2);
+    f->args_head = Push_Value_Chunk_Of_Length(2);
 #else
-    f->args_head = Push_Ended_Trash_Chunk(3); // real RETURN: for natives
+    f->args_head = Push_Value_Chunk_Of_Length(3); // real RETURN: for natives
     SET_TRASH_SAFE(&f->args_head[2]);
 #endif
 
@@ -212,10 +212,8 @@ static REBOOL Subparse_Throws(
     f->func = NAT_FUNC(subparse);
     f->underlying = NAT_FUNC(subparse);
 
-    struct Reb_Header *alias = &f->flags;
-    alias->bits = 0;
-
-    SET_END(&f->cell);
+    Init_Header_Aliased(&f->flags, 0); // will implicitly terminate f->cell
+    SET_END(&f->cell); // cell must have some form of initialization, though
 
     f->param = END_CELL; // informs infix lookahead
     f->arg = NULL;
@@ -1221,9 +1219,9 @@ static REBCNT Do_Eval_Rule(REBFRM *f)
     REBFRM newparse;
 
 #if defined(NDEBUG)
-    newparse.args_head = Push_Ended_Trash_Chunk(2);
+    newparse.args_head = Push_Value_Chunk_Of_Length(2);
 #else
-    newparse.args_head = Push_Ended_Trash_Chunk(3); // real RETURN:, checked
+    newparse.args_head = Push_Value_Chunk_Of_Length(3); // real RETURN: checked
     SET_TRASH_SAFE(&newparse.args_head[2]);
 #endif
     Val_Init_Block_Index(

@@ -916,8 +916,10 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
 
         case REB_PAIR: {
             REBVAL *key = PAIRING_KEY(val->payload.pair);
-            struct Reb_Header *alias = &key->header; // will be read via REBSER
-            alias->bits |= REBSER_REBVAL_FLAG_MARK;
+            Init_Header_Aliased( // will be read via REBSER
+                &key->header,
+                key->header.bits & REBSER_REBVAL_FLAG_MARK
+            );
             break; }
 
         case REB_TUPLE:

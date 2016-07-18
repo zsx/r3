@@ -52,6 +52,11 @@
 // assuming the allocation they get is as big as they asked for...no more and
 // no less.)
 //
+// !!! While the space usage is very optimized in this model, there was no
+// consideration for intelligent thread safety for allocations and frees.
+// So although code like `tcmalloc` might be slower and have more overhead,
+// it does offer that advantage.
+//
 // R3-Alpha included some code to assist in debugging client code using series
 // such as by initializing the memory to garbage values.  Given the existence
 // of modern tools like Valgrind and Address Sanitizer, Ren-C instead has a
@@ -71,30 +76,29 @@
 //
 //  Alloc_Mem: C
 // 
-// NOTE: Instead of Alloc_Mem, use the ALLOC and ALLOC_N
-// wrapper macros to ensure the memory block being freed matches
-// the appropriate size for the type.
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// NOTE: Instead of Alloc_Mem, use the ALLOC and ALLOC_N wrapper macros to
+// ensure the memory block being freed matches the size for the type.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Alloc_Mem is an interface for a basic memory allocator.  It is coupled with
+// a Free_Mem function that clients must call with the correct size of the
+// memory block to be freed.  It is thus lower-level than malloc()... whose
+// where clients do not need to remember the size of the allocation to pass
+// into free().
 // 
-// ***********************************************************************
-// 
-// Alloc_Mem is an interface for a basic memory allocator.
-// It is coupled with a Free_Mem function that clients must
-// call with the correct size of the memory block to be freed.
-// It is thus lower-level than malloc()... whose memory blocks
-// remember the size of the allocation so you don't need to
-// pass it into free().
-// 
-// One motivation behind using such an allocator in Rebol
-// is to allow it to keep knowledge of how much memory the
-// system is using.  This means it can decide when to trigger a
-// garbage collection, or raise an out-of-memory error before
-// the operating system would, e.g. via 'ulimit':
+// One motivation behind using such an allocator in Rebol is to allow it to
+// keep knowledge of how much memory the system is using.  This means it can
+// decide when to trigger a garbage collection, or raise an out-of-memory error
+// before the operating system would, e.g. via 'ulimit':
 // 
 //     http://stackoverflow.com/questions/1229241/
 // 
-// Finer-grained allocations are done with memory pooling.  But
-// the blocks of memory used by the pools are still acquired
-// using ALLOC_N and FREE_N.
+// Finer-grained allocations are done with memory pooling.  But the blocks of
+// memory used by the pools are still acquired using ALLOC_N and FREE_N, which
+// are interfaces to this routine.
 //
 void *Alloc_Mem(size_t size)
 {
@@ -127,25 +131,34 @@ void *Alloc_Mem(size_t size)
 
 //
 //  Free_Mem: C
-// 
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 // NOTE: Instead of Free_Mem, use the FREE and FREE_N wrapper macros to ensure
 // the memory block being freed matches the appropriate size for the type.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Free_Mem is a wrapper over free(), that subtracts from a total count that
+// Rebol can see how much memory was released.  This information assists in
+// deciding when it is necessary to run a garbage collection, or when to
+// impose a quota.
+//
+// Release builds have no way to check that the correct size is passed in
+// for the allocated unit.  But in debug builds the size is stored with the
+// allocation and checked here.  Also, the pointer is skewed such that if
+// clients try to use a normal free() and bypass Free_Mem it will trigger
+// debug alerts from the C runtime of trying to free a non-head-of-malloc.
+//
+// We also know the host allocator (OS_Alloc_Mem) uses a similar trick.  But
+// since it doesn't require callers to remember the size, it puts a known
+// garbage value for this routine to check for--to give a useful message.
 //
 void Free_Mem(void *mem, size_t size)
 {
 #ifdef NDEBUG
     free(mem);
 #else
-    // In debug builds we will not only be able to assert the correct size...
-    // but if someone tries to use a normal free() and bypass Free_Mem it will
-    // trigger debug alerts from the C runtime of trying to free a
-    // non-head-of-malloc.  This helps in ensuring we get a balanced
-    // PG_Mem_Usage of 0 at the end of the program.
-    //
-    // We also know the host allocator uses a similar trick.  But since it
-    // doesn't need to remember the size, it puts a known garbage value for
-    // us to check for--to give a useful message.
-
     char *ptr = cast(char *, mem) - sizeof(REBI64);
     if (*cast(REBI64 *, ptr) == cast(REBI64, -1020)) {
         Debug_Fmt("** Free_Mem() likely used on OS_Alloc_Mem() memory!");
@@ -326,8 +339,6 @@ void Init_Pools(REBINT scale)
 //
 void Shutdown_Pools(void)
 {
-    REBCNT n;
-
     // Can't use Free_Series() because GC_Manuals couldn't be put in
     // the manuals list...
     //
@@ -337,6 +348,7 @@ void Shutdown_Pools(void)
     REBSEG *seg = Mem_Pools[SER_POOL].segs;
     for (; seg != NULL; seg = seg->next) {
         REBSER *series = cast(REBSER*, seg + 1);
+        REBCNT n;
         for (n = Mem_Pools[SER_POOL].units; n > 0; n--, series++) {
             if (IS_FREE_NODE(series))
                 continue;
@@ -347,12 +359,12 @@ void Shutdown_Pools(void)
     }
 #endif
 
-    for (n = 0; n < MAX_POOLS; n++) {
-        REBPOL *pool = &Mem_Pools[n];
-        REBSEG *seg = pool->segs;
-        REBCNT units = pool->units;
-        REBCNT mem_size = pool->wide * units + sizeof(REBSEG);
+    REBCNT pool_num;
+    for (pool_num = 0; pool_num < MAX_POOLS; pool_num++) {
+        REBPOL *pool = &Mem_Pools[pool_num];
+        REBCNT mem_size = pool->wide * pool->units + sizeof(REBSEG);
 
+        REBSEG *seg = pool->segs;
         while (seg) {
             REBSEG *next = seg->next;
             FREE_N(char, mem_size, cast(char*, seg));
@@ -371,12 +383,6 @@ void Shutdown_Pools(void)
     FREE(REB_STATS, PG_Reb_Stats);
 #endif
 
-    // Rebol's Alloc_Mem() does not save the size of an allocation, so
-    // callers of the Alloc_Free() routine must say how big the memory block
-    // they are freeing is.  This information is used to decide when to GC,
-    // as well as to be able to set boundaries on mem usage without "ulimit".
-    // The tracked number of total memory used should balance to 0 here.
-    //
 #if !defined(NDEBUG)
     if (PG_Mem_Usage != 0) {
         //
@@ -400,38 +406,6 @@ void Shutdown_Pools(void)
     }
 #endif
 }
-
-
-#ifndef POOL_MAP
-//
-//  Find_Pool: C
-// 
-// Given a size, tell us what pool it belongs to.
-//
-static REBCNT Find_Pool(REBCNT size)
-{
-    if (size <= 8) return 0;  // Note: 0 - 8 (and size change for proper modulus)
-    size--;
-    if (size < 16 * MEM_MIN_SIZE) return MEM_TINY_POOL   + (size / MEM_MIN_SIZE);
-    if (size < 32 * MEM_MIN_SIZE) return MEM_SMALL_POOLS-4 + (size / (MEM_MIN_SIZE * 4));
-    if (size <  4 * MEM_BIG_SIZE) return MEM_MID_POOLS   + (size / MEM_BIG_SIZE);
-    return SYSTEM_POOL;
-}
-
-
-//
-//  Check_Pool_Map: C
-// 
-void Check_Pool_Map(void)
-{
-    int n;
-
-    for (n = 0; n <= 4 * MEM_BIG_SIZE + 1; n++)
-        if (FIND_POOL(n) != Find_Pool(n))
-            Debug_Fmt("%d: %d %d", n, FIND_POOL(n), Find_Pool(n));
-}
-*/
-#endif
 
 
 //
@@ -492,42 +466,18 @@ static void Fill_Pool(REBPOL *pool)
 //
 //  Make_Node: C
 // 
-// Allocate a node from a pool.  If the pool has run out of
-// nodes, it will be refilled.
+// Allocate a node from a pool.  If the pool has run out of nodes, it will
+// be refilled.
 // 
-// Note that the node you get back will not be zero-filled
-// in the general case.  BUT *at least one bit of the node
-// will be zero*, and that one bit will *not be in the first
-// pointer-sized object of your node*.  This results from the
-// way that the pools and the node types must cooperate in
-// order to indicate that a node is in a free state when all
-// the nodes of a certain type--freed or not--are being
-// enumerated (e.g. by the garbage collector).
-// 
-// Here's how:
-// 
-// When a pool segment is allocated, it will initialize all
-// the units (which will become REBSERs, REBGOBs, etc.) to
-// zero bytes, *except* for the first pointer-sized thing in
-// each unit.  That is used whenever a unit is in the freed
-// state to indicate the next free unit.  Because the unit
-// has the rest of the bits zero, it can pick the zeroness
-// any one of those bits to signify a free state.  However,
-// when it frees the node then it must set the bit it chose
-// back to zero before freeing.  Except for changes to the
-// first pointer-size slot, a reused unit being handed out
-// via Make_Node will have all the same bits it had when it
-// was freed.
-// 
-// !!! Should a stricter contract be established between the
-// pool and the node type about what location will be used
-// to indicate the free state?  For instance, there's already
-// a prescriptiveness that the first pointer-sized thing can't
-// be used to indicate anything in the free state...why not
-// push that to two and say that freed things always have the
-// second pointer-sized thing be 0?  That would prevent the
-// need for a full zero-fill, at the cost of dictating the
-// layout of the node type's struct a little more.
+// The node will not be zero-filled.  However its header bits will be
+// guaranteed to be zero--which is the same as the state of all freed nodes.
+// Callers likely want to change this to not be zero, so that zero can be
+// used to recognize freed nodes if they enumerate the pool themselves.
+//
+// All nodes are 64-bit aligned.  This way, data allocated in nodes can be
+// structured to know where legal 64-bit alignment points would be.  This
+// is required for correct functioning of some types.  (See notes on
+// alignment in %sys-rebval.h.)
 //
 void *Make_Node(REBCNT pool_id)
 {
@@ -544,10 +494,6 @@ void *Make_Node(REBCNT pool_id)
 
     pool->free--;
 
-    // All nodes must start on 64-bit alignment (so that data allocated in
-    // nodes can be structured in a way to know where legal 64-bit alignment
-    // points would be)
-    //
     assert(cast(REBUPT, node) % sizeof(REBI64) == 0);
     assert(node->header.bits == 0); // client needs to change to non-zero
 
@@ -558,11 +504,9 @@ void *Make_Node(REBCNT pool_id)
 //
 //  Free_Node: C
 // 
-// Free a node, returning it to its pool.  If the nodelist for
-// this pool_id is going to be enumerated, then some bit of
-// the data must be set to 0 prior to freeing in order to
-// distinguish the allocated from free state.  (See notes on
-// Make_Node.)
+// Free a node, returning it to its pool.  Once it is freed, its header will
+// be set to 0.  This will identify the node as not in use to anyone who
+// enumerates the nodes in the pool (such as the garbage collector).
 //
 void Free_Node(REBCNT pool_id, void *pv)
 {
@@ -859,23 +803,19 @@ REBSER *Try_Find_Containing_Series_Debug(const void *p)
 //
 //  Series_Allocation_Unpooled: C
 // 
-// When we want the actual memory accounting for a series, the
-// whole story may not be told by the element size multiplied
-// by the capacity.  The series may have been allocated from
-// a pool where it was rounded up to the pool size, and the
-// elements may not fit evenly in that space.  Or it may have
-// been allocated from the "system pool" via Alloc_Mem, but
-// rounded up to a power of 2.
+// When we want the actual memory accounting for a series, the whole story may
+// not be told by the element size multiplied by the capacity.  The series may
+// have been allocated from a pool where it was rounded up to the pool size,
+// and elements may not fit evenly in that space.  Or it may be allocated from
+// the "system pool" via Alloc_Mem, but rounded up to a power of 2.
 // 
-// (Note: It's necessary to know the size because Free_Mem
-// requires it, as Rebol's allocator doesn't remember the size
-// of system pool allocations for you.  It also needs it in
-// order to keep track of GC boundaries and memory use quotas.)
+// (Note: It's necessary to know the size because Free_Mem requires it, as
+// Rebol's allocator doesn't remember the size of system pool allocations for
+// you.  It also needs it in order to keep track of GC boundaries and memory
+// use quotas.)
 // 
-// Rather than pay for the cost on every series of an "actual
-// allocation size", the optimization choice is to only pay
-// for a "rounded up to power of 2" bit.  (Since there are a
-// LOT of series created in Rebol, each byte is scrutinized.)
+// Rather than pay for the cost on every series of an "actual allocation size",
+// the optimization choice is to only pay for a "rounded up to power of 2" bit.
 //
 REBCNT Series_Allocation_Unpooled(REBSER *series)
 {
@@ -943,23 +883,12 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
     s->do_count = TG_Do_Count;
 #endif
 
-    // The trick which is used to allow s->info to pose as an IS_END() marker
-    // for data traversals inside the series node as REBVAL* has to write to
-    // the info through an aliased pointer to stay on the right side of the
-    // compiler.  Because writing to a `Reb_Series.info` does not naturally
-    // signal memory coherence with accesses through a `Reb_Value.header`
-    // as those are members of different structs.  Creating a generic alias
-    // pointer tells the optimizer all bets are off and any write to the alias
-    // could invalidate any Reb_Header-typed field anywhere...
-    {
-        struct Reb_Header *alias = &s->info;
-        alias->bits = 0; // no NOT_END_MASK, no WRITABLE_MASK_DEBUG set...
-
-        // Make sure it worked (so that if we interpreted the REBSER content
-        // as a REBVAL it would appear terminated if the [1] slot was read.)
-        //
-        assert(IS_END(&s->content.values[1]));
-    }
+    // The info bits must be able to implicitly terminate the `content`,
+    // so that if a REBVAL is in slot [0] then it would appear terminated
+    // if the [1] slot was read.
+    //
+    Init_Header_Aliased(&s->info, 0); // will act as unwritable END marker
+    assert(IS_END(&s->content.values[1])); // test by using Reb_Value pointer
 
     s->content.dynamic.data = NULL;
 

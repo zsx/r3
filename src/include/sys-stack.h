@@ -178,10 +178,10 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Like the data stack, the values living in the chunk stack are protected
-// from garbage collection.
+// Unlike the data stack, values living in the chunk stack are not implicitly
+// protected from garbage collection.
 //
-// Unlike the data stack, the chunk stack allows for the pushing and popping
+// Also, unlike the data stack, the chunk stack allows the pushing and popping
 // of arbitrary-sized arrays of values which will not be relocated during
 // their lifetime.
 //
@@ -207,13 +207,13 @@ struct Reb_Chunker;
 
 struct Reb_Chunker {
     struct Reb_Chunker *next;
-    // use REBUPT to make 'payload' aligned with pointers
-    REBUPT size; // payload size
+    // use REBUPT for `size` so 'payload' is 64-bit aligned on 32-bit platforms
+    REBUPT size;
     REBYTE payload[1];
 };
 
-#define BASE_CHUNKER_SIZE (sizeof(void*) + sizeof(REBUPT))
-#define CS_CHUNKER_PAYLOAD (2048 - BASE_CHUNKER_SIZE)
+#define BASE_CHUNKER_SIZE (sizeof(struct Reb_Chunker*) + sizeof(REBUPT))
+#define CS_CHUNKER_PAYLOAD (4096 - BASE_CHUNKER_SIZE) // 12 bits for offset
 
 
 struct Reb_Chunk;
@@ -227,45 +227,39 @@ struct Reb_Chunk {
     //
     // (REBVALs are multiples of 4 bytes in size on all platforms Rebol
     // will run on, hence the low two bits of a byte size of N REBVALs will
-    // always have the two lowest bits clear.)
+    // always have the two lowest bits clear.  The size of the )
     //
-    struct Reb_Header size;
+    struct Reb_Header size_and_offset;
 
-    // The offset of this chunk in the memory chunker this chunk lives in
-    // (its own size has already been subtracted from the amount)
-    //
-    REBUPT offset;
-
-#if defined(__LP64__) || defined(__LLP64__)
-    //
-    // !!! Sizes above are wasteful compared to theory!  Both the size and
-    // offset could fit into a single REBUPT, so this is wasting a
-    // pointer...saving only 2 pointers per chunk instead of 3 over a full
-    // REBVAL termination.
-    //
-    // However it would be easy enough to get the 3 by masking the REBUPT's
-    // high and low portions on 64-bit, and using a separate REBCNT field
-    // on 32-bit.  This would complicate the code for now, and a previous
-    // field test of a riskier technique showed it to not work on some
-    // machines.  So this is a test to see if this follows the rules.
-    //
-#endif
-
-    // Pointer to the previous chunk.
+    // Pointer to the previous chunk.  As the second pointer in this chunk,
+    // with the chunk 64-bit aligned to start with, it means the values will
+    // be 64-bit aligned on 32-bit platforms.
     //
     struct Reb_Chunk *prev;
 
     // The `values` is an array whose real size exceeds the struct.  (It is
-    // set to a size of one because it cannot be [0] if the sources wind
-    // up being built as C++.)  When the value pointer is given back to the
-    // user, this is how they speak about the chunk itself.
+    // set to a size of one because it cannot be [0] if built with C++.)
+    // When the value pointer is given back to the user, the address of
+    // this array is how they speak about the chunk itself.
     //
-    // See note above about how the next chunk's `prev` pointer serves as
+    // See note above about how the next chunk's `size` header serves as
     // an END marker for this array (which may or may not be necessary for
     // the client's purposes, but function arg lists do make use of it)
     //
     REBVAL values[1];
 };
+
+inline static REBCNT CHUNK_SIZE(struct Reb_Chunk *chunk) {
+    return chunk->size_and_offset.bits & 0x000FFFFF; // top 12 bits are offset
+}
+
+// The offset of this chunk in the memory chunker this chunk lives in
+// (its own size has already been subtracted from the amount).  It gets
+// 12 bits, which accomodates offsets within 4096 bytes.
+//
+inline static REBCNT CHUNK_OFFSET(struct Reb_Chunk *chunk) {
+    return chunk->size_and_offset.bits >> 20; // bottom 20 bits are size
+}
 
 // If we do a sizeof(struct Reb_Chunk) then it includes a value in it that we
 // generally don't want for our math, due to C++ "no zero element array" rule
@@ -277,13 +271,15 @@ struct Reb_Chunk {
         - offsetof(struct Reb_Chunk, values))
 
 #define CHUNK_LEN_FROM_VALUES(v) \
-    ((CHUNK_FROM_VALUES(v)->size.bits - offsetof(struct Reb_Chunk, values)) \
+    ((CHUNK_SIZE(CHUNK_FROM_VALUES(v)) - offsetof(struct Reb_Chunk, values)) \
         / sizeof(REBVAL))
 
 inline static struct Reb_Chunker *CHUNKER_FROM_CHUNK(struct Reb_Chunk *c) {
     return cast(
         struct Reb_Chunker*,
-        cast(REBYTE*, c) - c->offset - offsetof(struct Reb_Chunker, payload)
+        cast(REBYTE*, c)
+            - CHUNK_OFFSET(c)
+            - offsetof(struct Reb_Chunker, payload)
     );
 }
 
@@ -299,11 +295,13 @@ inline static struct Reb_Chunker *CHUNKER_FROM_CHUNK(struct Reb_Chunk *c) {
 // because the low bit of subsequent chunks is set to 0, for data that does
 // double-duty as a END marker.
 //
-inline static REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
+inline static REBVAL* Push_Value_Chunk_Of_Length(REBCNT num_values) {
     const REBCNT size = BASE_CHUNK_SIZE + num_values * sizeof(REBVAL);
+    assert(size % 4 == 0); // low 2 bits must be zero for terminator trick
 
     // an extra Reb_Header is placed at the very end of the array to
     // denote a block terminator without a full REBVAL
+    //
     const REBCNT size_with_terminator = size + sizeof(struct Reb_Header);
 
     struct Reb_Chunker *chunker = CHUNKER_FROM_CHUNK(TG_Top_Chunk);
@@ -313,8 +311,11 @@ inline static REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
     // that TG_Top_Chunk is never NULL, due to the initialization leaving
     // one empty chunk at the beginning and manually destroying it on
     // shutdown (this simplifies Push)
-    const REBCNT payload_left = chunker->size - TG_Top_Chunk->offset
-          - TG_Top_Chunk->size.bits;
+    //
+    const REBCNT payload_left =
+        chunker->size
+            - CHUNK_OFFSET(TG_Top_Chunk)
+            - CHUNK_SIZE(TG_Top_Chunk);
 
     assert(chunker->size >= CS_CHUNKER_PAYLOAD);
 
@@ -326,19 +327,23 @@ inline static REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
         // chunk (whose size will depend upon num_values)
         //
         chunk = cast(struct Reb_Chunk*,
-            cast(REBYTE*, TG_Top_Chunk) + TG_Top_Chunk->size.bits
+            cast(REBYTE*, TG_Top_Chunk) + CHUNK_SIZE(TG_Top_Chunk)
         );
 
         // top's offset accounted for previous chunk, account for ours
         //
-        chunk->offset = TG_Top_Chunk->offset + TG_Top_Chunk->size.bits;
+        REBCNT offset = CHUNK_OFFSET(TG_Top_Chunk) + CHUNK_SIZE(TG_Top_Chunk);
+
+        Init_Header_Aliased(
+            &chunk->size_and_offset,
+            size | (cast(REBUPT, offset) << 20)
+        );
     }
     else { // Topmost chunker has insufficient space
         REBOOL need_alloc = TRUE;
         if (chunker->next) {
             //
-            // Previously allocated chunker exists already, check if it is big
-            // enough
+            // Previously allocated chunker exists, check if it is big enough
             //
             assert(!chunker->next->next);
             if (chunker->next->size >= size_with_terminator)
@@ -347,6 +352,7 @@ inline static REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
                 Free_Mem(chunker->next, chunker->next->size + BASE_CHUNKER_SIZE);
         }
         if (need_alloc) {
+            //
             // No previously allocated chunker...we have to allocate it
             //
             const REBCNT payload_size = BASE_CHUNKER_SIZE
@@ -360,40 +366,20 @@ inline static REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
         assert(chunker->next->size >= size_with_terminator);
 
         chunk = cast(struct Reb_Chunk*, &chunker->next->payload);
-        chunk->offset = 0;
+
+        Init_Header_Aliased(&chunk->size_and_offset, size);
+        assert(CHUNK_OFFSET(chunk) == 0);
     }
 
-    // The size does double duty to terminate the previous chunk's REBVALs
-    // so that a full-sized REBVAL that is largely empty isn't needed to
-    // convey IS_END().  It must yield its lowest two bits as zero to serve
-    // this purpose, so WRITABLE_MASK_DEBUG and NOT_END_MASK will both
-    // be false.  Our chunk should be a multiple of 4 bytes in total size,
-    // but check that here with an assert.
-    //
-    // The memory address for the chunk size matches that of a REBVAL's
-    // `header`, but since a `struct Reb_Chunk` is distinct from a REBVAL
-    // they won't necessarily have write/read coherence, even though the
-    // fields themselves are the same type.  Taking the address of the size
-    // creates a pointer, which without a `restrict` keyword is defined as
-    // being subject to "aliasing".  Hence a write to the pointer could affect
-    // *any* other value of that type.  This is necessary for the trick.
-    {
-        struct Reb_Header *alias = &chunk->size;
-        assert(size % 4 == 0);
-        alias->bits = size;
-    }
 
     // Set size also in next element to 0, so it can serve as a terminator
     // for the data range of this until it gets its real size (if ever)
-    {
-        // See note above RE: aliasing.
-        //
-        struct Reb_Header *alias = &cast(
-            struct Reb_Chunk*,
-            cast(REBYTE*, chunk) + size)->size;
-        alias->bits = 0;
-        assert(IS_END(&chunk->values[num_values]));
-    }
+    //
+    Init_Header_Aliased(
+        &cast(struct Reb_Chunk*, cast(REBYTE*, chunk) + size)->size_and_offset,
+        0
+    );
+    assert(IS_END(&chunk->values[num_values]));
 
     chunk->prev = TG_Top_Chunk;
 
@@ -401,11 +387,9 @@ inline static REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
 
 #if !defined(NDEBUG)
     //
-    // In debug builds we make sure we put in GC-unsafe trash in the chunk.
-    // This helps make sure that the caller fills in the values before a GC
-    // ever actually happens.  (We could set it to void or something
-    // GC-safe, but that might wind up being wasted work if unset is not
-    // what the caller was wanting...so leave it to them.)
+    // Despite the implicit END marker, the caller is responsible for putting
+    // values in the chunk cells.  Noisily enforce this by setting cells to
+    // writable trash in the debug build.
     {
         REBCNT index;
         for (index = 0; index < num_values; index++)
@@ -418,11 +402,11 @@ inline static REBVAL* Push_Ended_Trash_Chunk(REBCNT num_values) {
 }
 
 
-// Free an array of previously pushed REBVALs that are protected by GC.  This
-// only occasionally requires an actual call to Free_Mem(), due to allocating
-// call these arrays sequentially inside of chunks in memory.
+// Free an array of previously pushed REBVALs.  This only occasionally
+// requires an actual call to Free_Mem(), as the chunks are allocated
+// sequentially inside containing allocations.
 //
-inline static void Drop_Chunk(REBVAL *opt_head)
+inline static void Drop_Chunk_Of_Values(REBVAL *opt_head)
 {
     struct Reb_Chunk* chunk = TG_Top_Chunk;
 
@@ -436,7 +420,7 @@ inline static void Drop_Chunk(REBVAL *opt_head)
     // Drop to the prior top chunk
     TG_Top_Chunk = chunk->prev;
 
-    if (chunk->offset == 0) {
+    if (CHUNK_OFFSET(chunk) == 0) {
         // This chunk sits at the head of a chunker.
 
         struct Reb_Chunker *chunker = CHUNKER_FROM_CHUNK(chunk);
@@ -461,7 +445,7 @@ inline static void Drop_Chunk(REBVAL *opt_head)
     memset(
         cast(REBYTE*, chunk) + sizeof(struct Reb_Chunk*),
         0xBD,
-        chunk->size.bits - sizeof(struct Reb_Chunk*)
+        CHUNK_SIZE(chunk) - sizeof(struct Reb_Chunk*)
     );
     assert(IS_END(cast(REBVAL*, chunk)));
 #endif
