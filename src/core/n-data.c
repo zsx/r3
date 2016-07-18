@@ -1452,6 +1452,7 @@ REBNATIVE(false_q)
 //
 //  "Returns the value passed to it without evaluation."
 //
+//      return: [any-value!]
 //      :value [any-value!]
 //  ][
 //      :value

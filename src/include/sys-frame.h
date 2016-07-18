@@ -573,7 +573,7 @@ inline static void Drop_Function_Args_For_Frame_Core(
     REBFRM *f,
     REBOOL drop_chunks
 ) {
-    f->flags.bits &= ~DO_FLAG_EXECUTE_FRAME;
+    f->flags.bits &= ~cast(REBUPT, DO_FLAG_EXECUTE_FRAME);
 
     if (drop_chunks) {
         if (f->varlist == NULL) {

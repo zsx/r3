@@ -1229,10 +1229,14 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static void Mark_Root_Series(void)
                 }
 
                 // It's alive and a root.  Pick up its dependencies deeply.
+                // Note that ENDs are allowed because for instance, a DO
+                // might be executed with the pairing as the OUT slot (since
+                // it is memory guaranteed not to relocate)
                 //
                 MARK_REBSER(s);
                 Queue_Mark_Value_Deep(key);
-                Queue_Mark_Value_Deep(pairing); // allow END?
+                if (!IS_END(pairing))
+                    Queue_Mark_Value_Deep(pairing);
             }
             else {
                 // We have to do the queueing based on whatever type of series

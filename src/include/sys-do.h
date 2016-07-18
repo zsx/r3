@@ -709,7 +709,7 @@ inline static REBIXO Do_Array_At_Core(
 // the caller to bump the value pointer as necessary.  But an index-based
 // interface is likely useful to avoid the bookkeeping required for the caller.
 //
-inline static REBIXO Do_Values_At_Core(
+/*inline static REBIXO Do_Values_At_Core(
     REBVAL *out,
     REBFLGS flags,
     const REBVAL *opt_head,
@@ -717,7 +717,7 @@ inline static REBIXO Do_Values_At_Core(
     REBCNT index
 ) {
     fail (Error(RE_MISC));
-}
+}*/
 
 
 //
@@ -801,7 +801,7 @@ inline static void Reify_Va_To_Array_In_Frame(
     // enough information to record the fact that it was a va_list (revisit
     // if there's another reason to know what it was...)
 
-    f->flags.bits &= ~DO_FLAG_VA_LIST;
+    f->flags.bits &= ~cast(REBUPT, DO_FLAG_VA_LIST);
 
     assert(f->pending == VA_LIST_PENDING);
     f->pending = NULL;

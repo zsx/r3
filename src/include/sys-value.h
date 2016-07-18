@@ -392,6 +392,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
         RELVAL *v, const char *file, int line
     ){
         VAL_RESET_HEADER_COMMON(v, REB_MAX_VOID); // no VOID_FLAG_NOT_TRASH
+        Set_Track_Payload_Debug(v, file, line);
         MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
     }
 
