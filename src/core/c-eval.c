@@ -1265,7 +1265,7 @@ reevaluate:;
                 &f->eval_type, f->value, f->specifier, GETVAR_READ_ONLY
             );
 
-        // eval_type will be set to either 1 (REB_0_LOOKBACK) or 0 (REB_FUNCTION)
+        // eval_type will be set to either REB_0_LOOKBACK or REB_FUNCTION
 
         if (IS_FUNCTION(f->gotten)) { // before IS_VOID() speeds common case
 
@@ -1572,7 +1572,7 @@ reevaluate:;
         // infix, we might need to hold it at its position.)
         //
         f->gotten = Get_Var_Core(
-            &f->eval_type, // gets set to REB_0_LOOKBACK (or REB_FUNCTION if not)
+            &f->eval_type, // always set to REB_0_LOOKBACK or REB_FUNCTION
             f->value,
             f->specifier,
             GETVAR_READ_ONLY | GETVAR_UNBOUND_OK

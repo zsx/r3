@@ -35,7 +35,7 @@ send-chunk: func [port] [
     ;; chunking (which is buggy, see above). So we cannot use chunks >32'000
     ;; for our manual chunking.
     either empty? port/locals [
-        blank
+        _
     ][
         write port take/part port/locals 32'000
     ]
@@ -44,6 +44,7 @@ send-chunk: func [port] [
 handle-request: function [config req] [
     parse to-string req ["get " ["/ " | copy uri: to " "]]
     uri: default "index.html"
+    print ["URI:" uri]
     parse uri [some [thru "."] copy ext to end (type: mime-map/:ext)]
     type: default "application/octet-stream"
     if not exists? file: config/root/:uri [return error-response 404 uri]
@@ -77,12 +78,13 @@ awake-server: func [event /local client] [
 
 serve: func [web-port web-root /local listen-port] [
     listen-port: open join tcp://: web-port
-    listen-port/locals: make object! compose/deep [
-        [config]
-        [config: [root: (web-root)]]
+    listen-port/locals: has compose/deep [
+        config: [root: (web-root)]
     ]
     listen-port/awake: :awake-server
     wait listen-port
 ]
 
 serve 8080 system/options/path
+; vim: set syn=rebol sw=4 ts=4:
+
