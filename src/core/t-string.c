@@ -841,7 +841,10 @@ zero_str:
             } else
                 str_to_char(value, value, index);
         }
-        else Val_Init_Series(value, VAL_TYPE(value), Copy_String_Slimming(ser, index, len));
+        else {
+            enum Reb_Kind kind = VAL_TYPE(value);
+            Val_Init_Series(value, kind, Copy_String_Slimming(ser, index, len));
+        }
         Remove_Series(ser, index, len);
         break;
 
