@@ -57,6 +57,7 @@
 #include "nanovg_gl.h"
 #include "host-draw-api-nanovg.h"
 #include "host-text-api-nanovg.h"
+#include "nvtx.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -438,6 +439,7 @@ static void nvgdrw_image(void* gr, REBYTE* img, REBINT w, REBINT h,REBXYF offset
 	REBXYF image_size = {w, h};
 
 	int image;
+    NVTX_MARK_FUNC_START();
    
 	image = nvgCreateImageRGBA(ctx->nvg, w, h, ctx->key_color_enabled ? NVG_IMAGE_KEY_COLOR : 0, &ctx->key_color, img);
 	nvgSave(ctx->nvg);
@@ -449,10 +451,13 @@ static void nvgdrw_image(void* gr, REBYTE* img, REBINT w, REBINT h,REBXYF offset
 		nvgStroke(ctx->nvg);
 	}
 
+    NVTX_MARK_START("nvgFlush in Image");
 	nvgFlush(ctx->nvg);
+    NVTX_MARK_END();
 
 	nvgDeleteImage(ctx->nvg, image);
 	nvgRestore(ctx->nvg);
+    NVTX_MARK_FUNC_END();
 }
 
 static void nvgdrw_image_filter(void* gr, REBINT type, REBINT mode, REBDEC blur)
@@ -491,6 +496,7 @@ static void nvgdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER
 	REBXYF p[4];
 	REBCNT type;
 	REBCNT n, len = 0;
+    NVTX_MARK_FUNC_START();
 
 //	printf("scaling image size: (%d, %d)\n", w, h);
 	for (n = 0; (type = RL_GET_VALUE(points, n, &a)); n++) {
@@ -531,6 +537,7 @@ static void nvgdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER
 	nvgFlush(ctx->nvg);
 
 	nvgDeleteImage(ctx->nvg, image);
+    NVTX_MARK_FUNC_END();
 }
 
 static void nvgdrw_line(void* gr, REBXYF* p, REBCNT n)
@@ -983,6 +990,7 @@ static void nvgshp_end(void* gr)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	END_NVG_PATH(ctx);
+    NVTX_MARK_FUNC_END();
 	//printf("%s, %d\n", __func__, __LINE__);
 }
 
@@ -1102,6 +1110,7 @@ static void nvgshp_begin(void* gr)
 	ctx->last_x = 0;
 	ctx->last_y = 0;
 	nvgBeginPath(ctx->nvg);
+    NVTX_MARK_FUNC_START();
 }
 
 static void nvgshp_vline(void* gr, REBINT rel, REBDEC y)
@@ -1252,6 +1261,7 @@ static void nvgdrw_gob_draw(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI
 	};
 
 	if (ctx == NULL) return;
+    NVTX_MARK_FUNC_START();
 
 	ctx->offset_x = abs_oft.x;
 	ctx->offset_y = abs_oft.y;
@@ -1277,6 +1287,7 @@ static void nvgdrw_gob_draw(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI
 	RL_DO_COMMANDS(block, 0, &cec_ctx);
 
 	nvgRestore(ctx->nvg);
+    NVTX_MARK_FUNC_END();
 }
 
 REBRDR_DRW draw_nanovg = {

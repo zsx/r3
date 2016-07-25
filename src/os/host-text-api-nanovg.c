@@ -62,6 +62,8 @@
 
 #include "nanovg_gl.h"
 
+#include "nvtx.h"
+
 enum rich_text_mode {
 	RT_DRAW,
 	RT_SIZE
@@ -159,6 +161,7 @@ static void nvg_rt_block_text(void *richtext, void *nvg, REBSER *block)
 	REBCEC ctx;
 	Rich_Text *rt;
 
+    NVTX_MARK_FUNC_START();
 	ctx.envr = richtext;
 	ctx.block = block;
 	ctx.index = 0;
@@ -172,6 +175,7 @@ static void nvg_rt_block_text(void *richtext, void *nvg, REBSER *block)
 	nvgFillColor(rt->nvg, REBCNT_NVG_COLOR(rt->font_spec.color));
 
 	RL_DO_COMMANDS(block, 0, &ctx);
+    NVTX_MARK_FUNC_END();
 }
 
 static char * to_utf8(REBCHR *text)

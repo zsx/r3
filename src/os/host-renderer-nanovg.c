@@ -13,6 +13,8 @@
 #include "host-text-api.h"
 #include "host-draw-api-nanovg.h"
 
+#include "nvtx.h"
+
 //#define NO_FRAME_BUFFER //Nsight seems to ignore drawings to the non-default framebuffer
 
 void paint_image(REBDRW_CTX *ctx, int image, REBINT mode, float alpha,
@@ -224,6 +226,7 @@ static void nanovg_begin_frame(REBDRW_CTX *ctx)
 {
 	//printf("begin frame: %d\n", __LINE__);
 	if (ctx == NULL) return;
+    NVTX_MARK_FUNC_START();
 	SDL_GL_MakeCurrent(ctx->win, ctx->sdl);
 	nvgBeginFrame(ctx->nvg, ctx->ww, ctx->wh, ctx->pixel_ratio);
 	glClearColor(0, 0, 0, 0);
@@ -234,21 +237,28 @@ static void nanovg_begin_frame(REBDRW_CTX *ctx)
 	nvgBeginLayer(ctx->nvg, ctx->win_layer);
 #endif
 	/* Do NOT clear the win_layer, whose content will be reused, as it might only update part of the screen */
+    NVTX_MARK_FUNC_END();
 }
 
 static void nanovg_end_frame(REBDRW_CTX *ctx)
 {
 	if (ctx == NULL) return;
+    NVTX_MARK_FUNC_START();
 #ifndef NO_FRAME_BUFFER
 	nvgEndLayer(ctx->nvg, ctx->win_layer);
 	nvgEndFrame(ctx->nvg);
 #endif
+#ifdef WITH_NVTX
+    nvtxRangePop();
+#endif
+    NVTX_MARK_FUNC_END();
 	//printf("End frame: %d\n", __LINE__);
 }
 
 static void nanovg_blit_frame(REBDRW_CTX *ctx, SDL_Rect *clip)
 {
 	if (ctx == NULL) return;
+    NVTX_MARK_FUNC_START();
 #ifndef NO_FRAME_BUFFER
 	nvgBeginFrame(ctx->nvg, ctx->ww, ctx->wh, ctx->pixel_ratio);
 	glClearColor(0, 0, 0, 0);
@@ -259,6 +269,7 @@ static void nanovg_blit_frame(REBDRW_CTX *ctx, SDL_Rect *clip)
 	//printf("End frame: %d\n", __LINE__);
 	nvgEndFrame(ctx->nvg);
 	SDL_GL_SwapWindow(ctx->win);
+    NVTX_MARK_FUNC_END();
 }
 
 extern REBRDR_DRW draw_nanovg;

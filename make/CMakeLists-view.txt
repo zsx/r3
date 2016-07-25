@@ -20,6 +20,22 @@ if (APPLE)
 	cmake_policy(SET CMP0042 OLD)
 endif ()
 
+if (WIN32 AND R3_WITH_NVTX)
+	set (NVTX_MACRO "WITH_NVTX")
+	set (NVTX_ROOT "C:/Program Files/NVIDIA Corporation/NvToolsExt")
+	set (NVTX_INCLUDE_DIRS "${NVTX_ROOT}/include")
+	if (TO_WINDOWS_X86)
+		set(NVTX_LIB_NAME "nvToolsExt32_1")
+		set(NVTX_DIR_NAME "Win32")
+	else () #x64
+		set(NVTX_LIB_NAME "nvToolsExt64_1")
+		set(NVTX_DIR_NAME "x64")
+	endif ()
+	set (NVTX_LIBS "${NVTX_ROOT}/lib/${NVTX_DIR_NAME}/${NVTX_LIB_NAME}.lib")
+	LIST(APPEND COMMON_MACROS ${NVTX_MACRO})
+endif ()
+
+
 #nanovg
 set (NANOVG_SOURCE
 	${EXTERNAL_DIR}/nanovg/src/nanovg.c
@@ -221,12 +237,14 @@ target_include_directories(libr3_view PUBLIC
 	${SDL_INCLUDE_DIRS}
 	${GLEW_INCLUDE_DIRS}
 	${AGG_INCLUDE_DIRS}
+	${NVTX_INCLUDE_DIRS}
 )
 
 target_compile_definitions(libr3_view PUBLIC
 	${COMMON_MACROS}
 	${GLEW_DEFINITIONS}
 	${AGG_DEFINITIONS}
+	${NVTX_MACRO}
 )
 
 target_compile_definitions(libr3_view_core PUBLIC
@@ -242,5 +260,13 @@ target_link_libraries(r3-view
 	${GLEW_LIBRARIES}
 	${GLEW_LDFLAGS}
 	${AGG_LIBRARIES}
+	${NVTX_LIBS}
 	${LIBS}
 )
+
+if (R3_WITH_NVTX)
+	add_custom_command(TARGET r3-view POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy ${NVTX_ROOT}/bin/${NVTX_DIR_NAME}/${NVTX_LIB_NAME}.dll
+		${CMAKE_CFG_INTDIR}/${NVTX_LIB_NAME}.dll
+		COMMENT "Copying NVTX dll")
+endif ()
