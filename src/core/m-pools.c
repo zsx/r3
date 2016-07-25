@@ -738,7 +738,7 @@ REBSER *Try_Find_Containing_Series_Debug(const void *p)
                 continue;
 
             if (s->header.bits & CELL_MASK) { // a pairing, REBSER is REBVAL[2]
-                if ((p >= s) && (p < s + 1)) {
+                if ((p >= cast(void*, s)) && (p < cast(void*, s + 1))) {
                     printf("pointer found in 'pairing' series");
                     printf("not a real REBSER, no information available");
                     assert(FALSE);
@@ -747,8 +747,12 @@ REBSER *Try_Find_Containing_Series_Debug(const void *p)
             }
 
             if (NOT(GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC))) {
-                if (p >= &s->content && p < (&s->content + 1))
+                if (
+                    p >= cast(void*, &s->content)
+                    && p < cast(void*, &s->content + 1)
+                ){
                     return s;
+                }
                 continue;
             }
 
