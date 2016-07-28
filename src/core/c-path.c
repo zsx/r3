@@ -48,8 +48,6 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
 {
     REBPEF dispatcher;
 
-    REBVAL temp;
-
     // Path must have dispatcher, else return:
     dispatcher = Path_Dispatch[VAL_TYPE(pvs->value)];
     if (!dispatcher) return FALSE; // unwind, then check for errors

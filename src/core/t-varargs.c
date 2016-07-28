@@ -592,8 +592,6 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
     else {
         const RELVAL *varargs_param = VAL_VARARGS_PARAM(value);
 
-        REBVAL param_word;
-
         REBARR *varlist = VAL_BINDING(value);
         if (NOT(IS_ARRAY_MANAGED(varlist))) {
             //

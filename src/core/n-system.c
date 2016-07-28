@@ -161,7 +161,6 @@ REBNATIVE(stats)
 {
     REBI64 n;
     REBCNT flags = 0;
-    REBVAL *stats;
 
     if (D_REF(3)) {
         VAL_TIME(D_OUT) = OS_DELTA_TIME(PG_Boot_Time, 0) * 1000;
@@ -179,10 +178,9 @@ REBNATIVE(stats)
     #ifdef NDEBUG
         fail (Error(RE_DEBUG_ONLY));
     #else
-        stats = Get_System(SYS_STANDARD, STD_STATS);
-        *D_OUT = *stats;
-        if (IS_OBJECT(stats)) {
-            stats = VAL_CONTEXT_VAR(stats, 1);
+        *D_OUT = *Get_System(SYS_STANDARD, STD_STATS);
+        if (IS_OBJECT(D_OUT)) {
+            REBVAL *stats = VAL_CONTEXT_VAR(D_OUT, 1);
 
             VAL_TIME(stats) = OS_DELTA_TIME(PG_Boot_Time, 0) * 1000;
             VAL_RESET_HEADER(stats, REB_TIME);

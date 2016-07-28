@@ -370,7 +370,6 @@ inline static void Do_Pending_Sets_May_Invalidate_Gotten(
 
             REBVAL hack = *DS_TOP; // can't path eval from data stack, yet
 
-            REBVAL temp;
             if (Do_Path_Throws_Core(
                 out, // output location if thrown
                 NULL, // not requesting symbol means refinements not allowed
