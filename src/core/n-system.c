@@ -50,10 +50,10 @@ REBNATIVE(halt)
 //  
 //  {Stop evaluating and return control to command shell or calling script.}
 //  
-//      /with {Yield a result (mapped to an integer if given to shell)}
-//      value [<opt> any-value!] "See: http://en.wikipedia.org/wiki/Exit_status"
-//      /return "(deprecated synonym for /WITH)"
-//      return-value
+//      /with
+//          {Yield a result (mapped to an integer if given to shell)}
+//      value [<opt> any-value!]
+//          "See: http://en.wikipedia.org/wiki/Exit_status"
 //  ]
 //
 REBNATIVE(quit)
@@ -62,20 +62,19 @@ REBNATIVE(quit)
 // the stack.  It uses the value of its own native function as the
 // name of the throw, like `throw/name value :quit`.
 {
-    *D_OUT = *FUNC_VALUE(D_FUNC);
+    REFINE(1, with);
+    PARAM(2, value);
 
-    if (D_REF(1)) {
-        CONVERT_NAME_TO_THROWN(D_OUT, D_ARG(2));
-    }
-    else if (D_REF(3)) {
-        CONVERT_NAME_TO_THROWN(D_OUT, D_ARG(4));
-    }
+    *D_OUT = *NAT_VALUE(quit);
+
+    if (REF(with))
+        CONVERT_NAME_TO_THROWN(D_OUT, ARG(value));
     else {
         // Chosen to do it this way because returning to a calling script it
         // will be no value by default, for parity with BREAK and EXIT without
         // a /WITH.  Long view would have RETURN work this way too: CC#2241
 
-        // (a void will be translated to 0 if it gets caught for the shell)
+        // void translated to 0 if it gets caught for the shell, see #2241
 
         CONVERT_NAME_TO_THROWN(D_OUT, VOID_CELL);
     }
@@ -83,23 +82,32 @@ REBNATIVE(quit)
     return R_OUT_IS_THROWN;
 }
 
+
 //
 //  exit-rebol: native [
 //  
-//  {Stop the current Rebol interpreter.}
+//  {Stop the current Rebol interpreter, cannot be caught by CATCH/QUIT.}
 //  
-//      /with {Yield a result (mapped to an integer if given to shell)}
-//      value [<opt> any-value!] "See: http://en.wikipedia.org/wiki/Exit_status"
+//      /with
+//          {Yield a result (mapped to an integer if given to shell)}
+//      value [<opt> any-value!]
+//          "See: http://en.wikipedia.org/wiki/Exit_status"
 //  ]
 //
 REBNATIVE(exit_rebol)
 {
-    int code = EXIT_SUCCESS;
-    if (D_REF(1)) {
-        code = VAL_INT32(D_ARG(2));
-    }
+    REFINE(1, with);
+    PARAM(2, value);
+
+    int code;
+    if (REF(with))
+        code = VAL_INT32(ARG(value));
+    else
+        code = EXIT_SUCCESS;
+
     exit(code);
 }
+
 
 //
 //  recycle: native [

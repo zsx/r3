@@ -491,7 +491,7 @@ REBNATIVE(resume)
 
     // Throw the instruction with the name of the RESUME function
     //
-    *D_OUT = *FUNC_VALUE(D_FUNC);
+    *D_OUT = *NAT_VALUE(resume);
     CONVERT_NAME_TO_THROWN(D_OUT, &cell);
     return R_OUT_IS_THROWN;
 }

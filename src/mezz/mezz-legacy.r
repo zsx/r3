@@ -1040,6 +1040,25 @@ set 'r3-legacy* func [<local> if-flags] [
         ;
         print: (specialize 'print [eval: true])
 
+        ; QUIT now takes /WITH instead of /RETURN
+        ;
+        quit: (function [
+            {Stop evaluating and return control to command shell or calling script.}
+
+            /with
+                {Yield a result (mapped to an integer if given to shell)}
+            value [<opt> any-value!]
+                "See: http://en.wikipedia.org/wiki/Exit_status"
+            /return
+                "(deprecated synonym for /WITH)"
+            return-value
+        ][
+            apply 'lib/quit [
+                with: any? [with | return]
+                value: case [with [value] return [return-value]]
+            ]
+        ])
+
         ; R3-Alpha would tolerate blocks in the first position, which were
         ; a feature in Rebol2.  e.g. `func [[throw catch] x y][...]`.  Ren-C
         ; does not allow this.  Also, policy requires a RETURN: annotation to

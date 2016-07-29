@@ -483,7 +483,7 @@ REBNATIVE(break)
     REFINE(1, with);
     PARAM(2, value);
 
-    *D_OUT = *FUNC_VALUE(D_FUNC);
+    *D_OUT = *NAT_VALUE(break);
 
     CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : VOID_CELL);
 
@@ -887,7 +887,7 @@ REBNATIVE(continue)
     REFINE(1, with);
     PARAM(2, value);
 
-    *D_OUT = *FUNC_VALUE(D_FUNC);
+    *D_OUT = *NAT_VALUE(continue);
 
     CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : VOID_CELL);
 

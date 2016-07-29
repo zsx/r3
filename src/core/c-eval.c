@@ -299,7 +299,7 @@ reevaluate:;
 //==//////////////////////////////////////////////////////////////////////==//
 
     case REB_0_LOOKBACK:
-        SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value)); // failed optimize
+        SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
         // f->out must be the infix's left-hand-side arg, may be END
         goto do_function_in_gotten;
 
@@ -309,7 +309,7 @@ reevaluate:;
             SET_FRAME_LABEL(f, Canon(SYM___ANONYMOUS__)); // nameless literal
         }
         else
-            SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value)); // failed optimize
+            SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
 
         SET_END(f->out); // needs GC-safe data
 
@@ -785,7 +785,7 @@ reevaluate:;
                         if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                             fail (Error_No_Arg(FRM_LABEL(f), f->param));
 
-                        SET_VOID(f->out);
+                        SET_VOID(f->arg);
                         goto continue_arg_loop;
                     }
 
@@ -817,7 +817,7 @@ reevaluate:;
                         if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                             fail (Error_No_Arg(FRM_LABEL(f), f->param));
 
-                        SET_VOID(f->out);
+                        SET_VOID(f->arg);
                         goto continue_arg_loop;
                     }
 
@@ -844,7 +844,7 @@ reevaluate:;
                     if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                         fail (Error_No_Arg(FRM_LABEL(f), f->param));
 
-                    SET_VOID(f->out);
+                    SET_VOID(f->arg);
                     goto continue_arg_loop;
                 }
 
@@ -1015,7 +1015,7 @@ reevaluate:;
         // includes argument arrays being fulfilled).  This offers extra
         // perks, because it means a recycle/torture will catch you if you
         // try to Do_Core into movable memory...*and* a native can tell if it
-        // has written the out slot yet or not (e.g. WHILE/LOOPED? refinement).
+        // has written the out slot yet or not (e.g. WHILE/? refinement).
         //
         assert(IS_END(f->out));
 
@@ -1028,9 +1028,39 @@ reevaluate:;
         case R_OUT: // put sequentially in switch() for jump-table optimization
             break;
 
-        case R_OUT_IS_THROWN:
+        case R_OUT_IS_THROWN: {
             assert(THROWN(f->out));
-            break;
+
+            if (!IS_FUNCTION(f->out) || VAL_FUNC(f->out) != NAT_FUNC(exit)) {
+                //
+                // Do_Core only catches "definitional exits" to current frame
+                //
+                Abort_Function_Args_For_Frame(f);
+                goto finished;
+            }
+
+            ASSERT_ARRAY(VAL_BINDING(f->out));
+
+            if (VAL_BINDING(f->out) == FUNC_PARAMLIST(f->func)) {
+                //
+                // The most recent instance of a function on the stack (if
+                // any) will catch a FUNCTION! style exit.
+                //
+                CATCH_THROWN(f->out, f->out);
+            }
+            else if (VAL_BINDING(f->out) == f->varlist) {
+                //
+                // This identifies an exit from a *specific* function
+                // invocation.  We'll only match it if we have a reified
+                // frame context.  (Note f->varlist may be null here.)
+                //
+                CATCH_THROWN(f->out, f->out);
+            }
+            else {
+                Abort_Function_Args_For_Frame(f);
+                goto finished; // stay THROWN and try to exit frames above...
+            }
+            break; }
 
         case R_OUT_TRUE_IF_WRITTEN:
             if (IS_END(f->out))
@@ -1092,63 +1122,30 @@ reevaluate:;
             assert(FALSE);
         }
 
-        assert(f->eval_type == REB_FUNCTION); // shouldn't have changed
         assert(NOT_END(f->out)); // should have overwritten
+        assert(NOT(THROWN(f->out))); // throws must be R_OUT_IS_THROWN
+
+        assert(f->eval_type == REB_FUNCTION); // shouldn't have changed
 
     //==////////////////////////////////////////////////////////////////==//
     //
-    // FUNCTION! CATCHING OF EXITs (includes catching RETURN + LEAVE)
+    // DEBUG CHECK RETURN OF ALL FUNCTIONS (not just user functions)
     //
     //==////////////////////////////////////////////////////////////////==//
 
-        if (THROWN(f->out)) {
-            if (!IS_FUNCTION(f->out) || VAL_FUNC(f->out) != NAT_FUNC(exit)) {
-                //
-                // Do_Core only catches "definitional exits" to current frame
-                //
-                Abort_Function_Args_For_Frame(f);
-                goto finished;
-            }
+    // Here we know the function finished and did not throw or exit.
+    // Generally the return type is validated by the Returner_Dispatcher()
+    // with everything else assumed to return the correct type.  But this
+    // double checks any function marked with RETURN in the debug build.
 
-            ASSERT_ARRAY(VAL_BINDING(f->out));
-
-            if (VAL_BINDING(f->out) == FUNC_PARAMLIST(f->func)) {
-                //
-                // The most recent instance of a function on the stack (if
-                // any) will catch a FUNCTION! style exit.
-                //
-                CATCH_THROWN(f->out, f->out);
-            }
-            else if (VAL_BINDING(f->out) == f->varlist) {
-                //
-                // This identifies an exit from a *specific* function
-                // invocation.  We'll only match it if we have a reified
-                // frame context.  (Note f->varlist may be null here.)
-                //
-                CATCH_THROWN(f->out, f->out);
-            }
-            else {
-                Abort_Function_Args_For_Frame(f);
-                goto finished; // stay THROWN and try to exit frames above...
-            }
-        }
-        else {
-        #if !defined(NDEBUG)
-            //
-            // Here we know the function finished and did not throw or exit.
-            // The Returner_Dispatcher will check this, but we double check
-            // for anything that states it has a RETURN here in the debug
-            // build.  This way we check native return types too...which
-            // are not checked in the release build.
-            //
-            if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_RETURN)) {
-                REBVAL *typeset = FUNC_PARAM(f->func, FUNC_NUM_PARAMS(f->func));
-                assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
-                if (!TYPE_CHECK(typeset, VAL_TYPE(f->out)))
-                    fail (Error_Bad_Return_Type(f->label, VAL_TYPE(f->out)));
-            }
-        #endif
-        }
+#if !defined(NDEBUG)
+    if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_RETURN)) {
+        REBVAL *typeset = FUNC_PARAM(f->func, FUNC_NUM_PARAMS(f->func));
+        assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
+        if (!TYPE_CHECK(typeset, VAL_TYPE(f->out)))
+            fail(Error_Bad_Return_Type(f->label, VAL_TYPE(f->out)));
+    }
+#endif
 
     //==////////////////////////////////////////////////////////////////==//
     //

@@ -1,10 +1,11 @@
 ; functions/control/quit.r
 ; In R3, DO of a script provided as a string! code catches QUIT, just as it
 ; would do for scripts in files.
-#r3only
-[42 = do "quit/return 42"]
-#r3only
-[99 = do {do {quit/return 42} 99}]
+
+[42 = do "quit/with 42"]
+
+[99 = do {do {quit/with 42} 99}]
+
 ; Returning of Rebol values from called to calling script via QUIT/return.
 [
     do-script-returning: func [value /local script] [
@@ -23,5 +24,5 @@
         value = do-script-returning value
     ]
 ]
-; bug#2190
-[error? try [catch/quit [attempt [quit]] 1 / 0]]
+
+[#2190 | error? try [catch/quit [attempt [quit]] 1 / 0]]
