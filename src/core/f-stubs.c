@@ -547,42 +547,61 @@ void Val_Init_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
 //
 //  Partial1: C
 // 
-// Process the /part (or /skip) and other length modifying
-// arguments.
+// Process the /part (or /skip) and other length modifying arguments.
 //
-REBINT Partial1(REBVAL *sval, REBVAL *lval)
+// Adjusts the value's index if necessary, and returns the length indicated.
+// Hence if a negative limit is passed in, it will adjust value to the
+// position that negative limit would seek to...and return the length of
+// the span to get to the original index.
+//
+REBCNT Partial1(REBVAL *value, const REBVAL *limit)
 {
+    REBINT is_series = ANY_SERIES(value);
+
+    if (IS_VOID(limit)) { // use current length of the target value
+        if (!is_series)
+            return 1;
+
+        if (VAL_INDEX(value) >= VAL_LEN_HEAD(value))
+            return 0;
+
+        return (VAL_LEN_HEAD(value) - VAL_INDEX(value));
+    }
+
     REBI64 len;
-    REBINT maxlen;
-    REBINT is_ser = ANY_SERIES(sval);
-
-    // If lval is not set or is BAR!, use the current len of the target value:
-    if (IS_VOID(lval) || IS_BAR(lval)) {
-        if (!is_ser) return 1;
-        if (VAL_INDEX(sval) >= VAL_LEN_HEAD(sval)) return 0;
-        return (VAL_LEN_HEAD(sval) - VAL_INDEX(sval));
-    }
-    if (IS_INTEGER(lval) || IS_DECIMAL(lval)) len = Int32(lval);
+    if (IS_INTEGER(limit) || IS_DECIMAL(limit))
+        len = Int32(limit);
     else {
-        if (is_ser && VAL_TYPE(sval) == VAL_TYPE(lval) && VAL_SERIES(sval) == VAL_SERIES(lval))
-            len = (REBINT)VAL_INDEX(lval) - (REBINT)VAL_INDEX(sval);
-        else
-            fail (Error(RE_INVALID_PART, lval));
+        if (
+            !is_series
+            || VAL_TYPE(value) != VAL_TYPE(limit)
+            || VAL_SERIES(value) != VAL_SERIES(limit)
+        ){
+            fail (Error(RE_INVALID_PART, limit));
+        }
+        
+        len = cast(REBINT, VAL_INDEX(limit)) - cast(REBINT, VAL_INDEX(value));
+
     }
 
-    if (is_ser) {
+    if (is_series) {
         // Restrict length to the size available:
         if (len >= 0) {
-            maxlen = (REBINT)VAL_LEN_AT(sval);
-            if (len > maxlen) len = maxlen;
-        } else {
+            REBCNT maxlen = VAL_LEN_AT(value);
+            if (len > cast(REBINT, maxlen))
+                len = maxlen;
+        }
+        else {
             len = -len;
-            if (len > (REBINT)VAL_INDEX(sval)) len = (REBINT)VAL_INDEX(sval);
-            VAL_INDEX(sval) -= (REBCNT)len;
+            if (len > cast(REBINT, VAL_INDEX(value)))
+                len = VAL_INDEX(value);
+            assert(len >= 0);
+            VAL_INDEX(value) -= cast(REBCNT, len);
         }
     }
 
-    return (REBINT)len;
+    assert(len >= 0);
+    return cast(REBCNT, len);
 }
 
 

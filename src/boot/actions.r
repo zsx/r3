@@ -248,11 +248,16 @@ copy: action [
     {Copies a series, object, or other value.}
     value [blank! any-series! port! map! object! frame! bitset! function! pair!]
         {At position}
-    /part {Limits to a given length or position}
+    /part
+        {Limits to a given length or position}
     limit [any-number! any-series! pair!]
-    /deep {Also copies series values within the block}
-    /types {What datatypes to copy}
+    /deep
+        {Also copies series values within the block}
+    /types
+        {What datatypes to copy}
     kinds [typeset! datatype!]
+    /test
+        {Temporary switch for debugging ARM-build anomaly}
 ]
 
 take: action [
