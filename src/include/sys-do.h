@@ -757,7 +757,7 @@ inline static void Reify_Va_To_Array_In_Frame(
 
     if (NOT_END(f->value)) {
         do {
-            DS_PUSH_RELVAL_MAYBE_VOID(f->value, f->specifier);
+            DS_PUSH_RELVAL(f->value, f->specifier); // may be void
             FETCH_NEXT_ONLY_MAYBE_END(f);
         } while (NOT_END(f->value));
 
@@ -774,7 +774,7 @@ inline static void Reify_Va_To_Array_In_Frame(
     }
 
     if (DSP != dsp_orig) {
-        f->source.array = Pop_Stack_Values(dsp_orig);
+        f->source.array = Pop_Stack_Values(dsp_orig); // may contain voids
         MANAGE_ARRAY(f->source.array); // held alive while frame running
 
         SET_ARR_FLAG(f->source.array, SERIES_FLAG_LOCKED);

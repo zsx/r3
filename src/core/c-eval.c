@@ -1004,7 +1004,7 @@ reevaluate:;
         assert(
             IS_END(f->value)
             || (f->flags.bits & DO_FLAG_VA_LIST)
-            || IS_VALUE_IN_ARRAY(f->source.array, f->value)
+            || IS_VALUE_IN_ARRAY_DEBUG(f->source.array, f->value)
         );
 
         if (Trace_Flags) Trace_Func(FRM_LABEL(f), FUNC_VALUE(f->func));

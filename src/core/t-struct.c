@@ -338,7 +338,8 @@ REBARR *Struct_To_Array(REBSTU *stu)
         val = Alloc_Tail_Array(VAL_ARRAY(type_blk));
         if (field->type == FFI_TYPE_STRUCT) {
             REBVAL *nested;
-            DS_PUSH_TRASH_SAFE;
+            DS_PUSH_TRASH;
+            SET_TRASH_SAFE(DS_TOP);
             nested = DS_TOP;
 
             Val_Init_Word(val, REB_WORD, Canon(SYM_STRUCT_X));

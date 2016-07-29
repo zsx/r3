@@ -26,33 +26,40 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// The data stack and chunk stack are two different data structures which
-// are optimized for temporarily storing REBVALs and protecting them from
-// garbage collection.  With the data stack, values are pushed one at a
-// time...while with the chunk stack, an array of value cells of a given
+// The data stack and chunk stack are two different data structures for
+// temporarily storing REBVALs.  With the data stack, values are pushed one
+// at a time...while with the chunk stack, an array of value cells of a given
 // length is returned.
 //
 // A key difference between the two stacks is pointer stability.  Though the
 // data stack can accept any number of pushes and then pop the last N pushes
 // into a series, each push could potentially change the memory address of
-// every value in the stack.  This is because the data stack uses a REBARR
-// series as its implementation.  The chunk stack guarantees that the address
-// of the values in a chunk will stay stable over the course of its lifetime.
+// every other value in the stack.  That's because the data stack is really
+// a REBARR series under the hood.  But the chunk stack is a custom structure,
+// and guarantees that the address of the values in a chunk will stay stable
+// until that chunk is popped.
+//
+// Another difference is that values on the data stack are implicitly GC safe,
+// while clients of the chunk stack needing GC safety must do so manually.
 //
 // Because of their differences, they are applied to different problems:
 //
 // A notable usage of the data stack is by REDUCE and COMPOSE.  They use it
 // as a buffer for values that are being gathered to be inserted into the
 // final array.  It's better to use the data stack as a buffer because it
-// means the precise size of the result can be known before either creating
+// means the size of the accumulated result is known before either creating
 // a new series or inserting /INTO a target.  This prevents wasting space on
 // expansions or resizes and shuffling due to a guessed size.
 //
 // The chunk stack has an important use as the storage for arguments to
 // functions being invoked.  The pointers to these arguments are passed by
 // natives through the stack to other routines, which may take arbitrarily
-// long to return...and may call code involving many pushes and pops.  These
-// pointers must be stable, so using the data stack would not work.
+// long to return...and may call code involving many data stack pushes and
+// pops.  Argument pointers must be stable, so using the data stack would
+// not work.  Also, to efficiently implement argument fulfillment without
+// pre-filling the cells, uninitialized memory is allowed in the chunk stack
+// across potentical garbage collections.  This means implicit GC protection
+// can't be performed, with a subset of valid cells marked by the frame. 
 //
 
 
@@ -85,33 +92,29 @@
 // up against an END it knows to do an expansion.
 //
 
-// (D)ata (S)tack "(P)osition" is an integer index into Rebol's data stack
+// DSP stands for "(D)ata (S)tack "(P)osition", and is the index of the top
+// of the data stack (last valid item in the underlying array)
 //
 #define DSP \
     DS_Index
 
-// Access value at given stack location
+// DS_AT accesses value at given stack location
 //
 #define DS_AT(d) \
     (DS_Movable_Base + (d))
 
-// Most recently pushed item
+// DS_TOP is the most recently pushed item
 //
 #define DS_TOP \
-    DS_AT(DS_Index)
+    DS_AT(DSP)
 
 #if !defined(NDEBUG)
-    #define IS_VALUE_IN_ARRAY(a,v) \
-        (ARR_LEN(a) != 0 && (v) >= ARR_HEAD(a) && (v) < ARR_TAIL(a))
-
     #define IN_DATA_STACK_DEBUG(v) \
-        IS_VALUE_IN_ARRAY(DS_Array, (v))
+        IS_VALUE_IN_ARRAY_DEBUG(DS_Array, (v))
 #endif
 
 //
-// PUSHING: Note the DS_PUSH macros inherit the property of SET_XXX that
-// they use their parameters multiple times.  Don't use with the result of
-// a function call because that function could be called multiple times.
+// PUSHING
 //
 // If you push "unsafe" trash to the stack, it has the benefit of costing
 // nothing extra in a release build for setting the value (as it is just
@@ -123,52 +126,48 @@
 // number of bytes will be sizeof(REBVAL) * STACK_EXPAND_BASIS
 //
 
-#define STACK_EXPAND_BASIS 100
+#define STACK_EXPAND_BASIS 128
 
 #define DS_PUSH_TRASH \
     (++DSP, IS_END(DS_TOP) \
-        ? Expand_Data_Stack_May_Fail(100) \
+        ? Expand_Data_Stack_May_Fail(STACK_EXPAND_BASIS) \
         : SET_TRASH_IF_DEBUG(DS_TOP))
 
-#define DS_PUSH_TRASH_SAFE \
-    (DS_PUSH_TRASH, SET_TRASH_SAFE(DS_TOP), NOOP)
+inline static void DS_PUSH(const REBVAL *v) {
+    ASSERT_VALUE_MANAGED(v); // would fail on END marker
+    DS_PUSH_TRASH;
+    *DS_TOP = *v;
+}
 
-#define DS_PUSH_MAYBE_VOID(v) \
-    (ASSERT_VALUE_MANAGED(v), DS_PUSH_TRASH, *DS_TOP = *(v), NOOP)
+inline static void DS_PUSH_RELVAL(const RELVAL *v, REBCTX *specifier) {
+    ASSERT_VALUE_MANAGED(v); // would fail on END marker
+    DS_PUSH_TRASH;
+    COPY_VALUE(DS_TOP, v, specifier);
+}
 
-#define DS_PUSH(v) \
-    (assert(!IS_VOID(v)), DS_PUSH_MAYBE_VOID(v))
-
-#define DS_PUSH_RELVAL_MAYBE_VOID(v,s) \
-    do { \
-        ASSERT_VALUE_MANAGED(v); \
-        DS_PUSH_TRASH; \
-        COPY_VALUE(DS_TOP, (v), (s)); \
-    } while(0)
-
-// !!! add assert when inlined
-#define DS_PUSH_RELVAL(v,s) \
-    DS_PUSH_RELVAL_MAYBE_VOID((v), (s))
-
-// POPPING AND "DROPPING"
+//
+// POPPING
+//
+// Since it's known that END markers were never pushed, a pop can just leave
+// whatever bits had been previously pushed, dropping only the index.  The
+// only END marker will be the one indicating the tail of the stack.  
+//
 
 #ifdef NDEBUG
     #define DS_DROP \
         (--DS_Index, NOOP)
-#else
-    #define DS_DROP \
-        (SET_TRASH_SAFE(DS_TOP), --DS_Index, NOOP)
-#endif
 
-#ifdef NDEBUG
     #define DS_DROP_TO(dsp) \
         (DS_Index = dsp, NOOP)
 #else
-    #define DS_DROP_TO(dsp) \
-        do { \
-            assert(DSP >= (dsp)); \
-            while (DSP != (dsp)) {DS_DROP;} \
-        } while (0)
+    #define DS_DROP \
+        (SET_TRASH_SAFE(DS_TOP), --DS_Index, NOOP)
+
+    inline static void DS_DROP_TO(REBDSP dsp) {
+        assert(DSP >= dsp);
+        while (DSP != dsp)
+            DS_DROP;
+    }
 #endif
 
 
@@ -322,9 +321,9 @@ inline static REBVAL* Push_Value_Chunk_Of_Length(REBCNT num_values) {
     struct Reb_Chunk *chunk;
     if (payload_left >= size_with_terminator) {
         //
-        // Topmost chunker has space for the chunk *and* a pointer with the
-        // END marker bit (e.g. last bit 0).  So advance past the topmost
-        // chunk (whose size will depend upon num_values)
+        // Topmost chunker has space for the chunk *and* a header to signal
+        // that chunk's END marker.  So advance past the topmost chunk (whose
+        // size will depend upon num_values)
         //
         chunk = cast(struct Reb_Chunk*,
             cast(REBYTE*, TG_Top_Chunk) + CHUNK_SIZE(TG_Top_Chunk)
@@ -474,7 +473,7 @@ inline static void Drop_Chunk_Of_Values(REBVAL *opt_head)
 // This has nothing to do with guarantees in the C standard, and compilers
 // can really put variables at any address they feel like:
 //
-//     http://stackoverflow.com/a/1677482/211160
+// http://stackoverflow.com/a/1677482/211160
 //
 // Additionally, it puts the burden on every recursive or deeply nested
 // routine to sprinkle calls to the C_STACK_OVERFLOWING macro somewhere

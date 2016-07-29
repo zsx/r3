@@ -344,4 +344,7 @@ inline static RELVAL *VAL_ARRAY_TAIL(const RELVAL *v) {
         else
             Assert_Series_Core(s);
     }
+
+    #define IS_VALUE_IN_ARRAY_DEBUG(a,v) \
+        (ARR_LEN(a) != 0 && (v) >= ARR_HEAD(a) && (v) < ARR_TAIL(a))
 #endif
