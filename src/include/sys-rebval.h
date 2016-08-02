@@ -909,40 +909,6 @@ inline static RELVAL *REL(REBVAL *v) {
 #define SPECIFIED NULL
 
 
-// This can be used to turn a RELVAL into a REBVAL.  If the RELVAL is
-// indeed relative and needs to be made specific to be put into the
-// REBVAL, then the specifier is used to do that.  Debug builds assert
-// that the function in the specifier indeed matches the target in
-// the relative value (because relative values in an array may only
-// be relative to the function that deep copied them, and that is the
-// only kind of specifier you can use with them).
-//
-inline static void COPY_VALUE_CORE(
-    REBVAL *dest,
-    const RELVAL *src,
-    REBCTX *specifier
-){
-    if (src->header.bits & VALUE_FLAG_RELATIVE) {
-        dest->header.bits
-            = src->header.bits & ~cast(REBUPT, VALUE_FLAG_RELATIVE);
-        dest->extra.binding = cast(REBARR*, specifier);
-    }
-    else {
-        dest->header = src->header;
-        dest->extra.binding = src->extra.binding;
-    }
-    dest->payload = src->payload;
-}
-
-
-#ifdef NDEBUG
-    #define COPY_VALUE(dest,src,specifier) \
-        COPY_VALUE_CORE(SINK(dest),(src),(specifier))
-#else
-    #define COPY_VALUE(dest,src,specifier) \
-        COPY_VALUE_Debug(SINK(dest),(src),(specifier))
-#endif
-
 #ifdef NDEBUG
     #define ASSERT_NO_RELATIVE(array,deep) NOOP
 #else

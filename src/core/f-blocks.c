@@ -142,9 +142,7 @@ REBARR *Copy_Values_Len_Extra_Shallow(
     REBCNT len,
     REBCNT extra
 ) {
-    REBARR *array;
-
-    array = Make_Array(len + extra + 1);
+    REBARR *array = Make_Array(len + extra + 1);
 
     if (specifier == SPECIFIED) {
     #if !defined(NDEBUG)
@@ -192,11 +190,11 @@ void Clonify_Values_Len_Managed(
     REBOOL deep,
     REBU64 types
 ) {
-    RELVAL *value = head;
-    REBCNT index;
-
     if (C_STACK_OVERFLOWING(&len)) Trap_Stack_Overflow();
 
+    RELVAL *value = head;
+
+    REBCNT index;
     for (index = 0; index < len; index++, value++) {
         //
         // By the rules, if we need to do a deep copy on the source

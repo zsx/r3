@@ -559,7 +559,7 @@ no_optimization:
 }
 
 
-inline static void QUOTE_NEXT_REFETCH(RELVAL *dest, REBFRM *f) {
+inline static void QUOTE_NEXT_REFETCH(REBVAL *dest, REBFRM *f) {
     TRACE_FETCH_DEBUG("QUOTE_NEXT_REFETCH", f, FALSE);
     COPY_VALUE(dest, f->value, f->specifier);
     CLEAR_VAL_FLAG(dest, VALUE_FLAG_EVALUATED);

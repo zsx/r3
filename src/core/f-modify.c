@@ -120,7 +120,7 @@ REBCNT Modify_Array(
         REBINT index = 0;
         for (; index < ilen; ++index, ++dst_idx) {
             COPY_VALUE(
-                ARR_HEAD(dst_arr) + dst_idx,
+                SINK(ARR_HEAD(dst_arr) + dst_idx),
                 src_rel + index,
                 specifier
             );

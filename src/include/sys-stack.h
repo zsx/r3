@@ -139,11 +139,6 @@ inline static void DS_PUSH(const REBVAL *v) {
     *DS_TOP = *v;
 }
 
-inline static void DS_PUSH_RELVAL(const RELVAL *v, REBCTX *specifier) {
-    ASSERT_VALUE_MANAGED(v); // would fail on END marker
-    DS_PUSH_TRASH;
-    COPY_VALUE(DS_TOP, v, specifier);
-}
 
 //
 // POPPING

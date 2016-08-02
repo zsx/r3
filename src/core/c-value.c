@@ -265,52 +265,6 @@ void Assert_No_Relative(REBARR *array, REBOOL deep)
 
 
 //
-//  COPY_VALUE_Debug: C
-//
-// The implementation of COPY_VALUE_CORE is designed to be fairly optimal
-// (since it is being called in lieu of what would have been a memcpy() or
-// plain assignment).  It is left in its raw form as an inline function to
-// to help convey that it is nearly as efficient as an assignment.
-//
-// This adds some verbose checking in the debug build to help debug cases
-// where the relative information bits are incorrect.
-//
-void COPY_VALUE_Debug(
-    REBVAL *dest,
-    const RELVAL *src,
-    REBCTX *specifier
-) {
-    assert(!IS_END(src));
-    assert(!IS_TRASH_DEBUG(src));
-
-#ifdef __cplusplus
-    Assert_Cell_Writable(dest, __FILE__, __LINE__);
-#endif
-
-    if (IS_RELATIVE(src)) {
-        assert(ANY_WORD(src) || ANY_ARRAY(src));
-        if (specifier == SPECIFIED) {
-            Debug_Fmt("Internal Error: Relative item used with SPECIFIED");
-            PROBE_MSG(src, "word or array");
-            PROBE_MSG(FUNC_VALUE(VAL_RELATIVE(src)), "func");
-            assert(FALSE);
-        }
-        else if (
-            VAL_RELATIVE(src)
-            != VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier))
-        ) {
-            Debug_Fmt("Internal Error: Function mismatch in specific binding");
-            PROBE_MSG(src, "word or array");
-            PROBE_MSG(FUNC_VALUE(VAL_RELATIVE(src)), "expected func");
-            PROBE_MSG(CTX_FRAME_FUNC_VALUE(specifier), "actual func");
-            assert(FALSE);
-        }
-    }
-    COPY_VALUE_CORE(dest, src, specifier);
-}
-
-
-//
 //  Probe_Core_Debug: C
 //
 void Probe_Core_Debug(

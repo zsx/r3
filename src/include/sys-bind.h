@@ -425,3 +425,72 @@ static inline REBVAL *TRY_GET_MUTABLE_VAR(
         &eval_type, any_word, specifier, GETVAR_IS_SETVAR | GETVAR_UNBOUND_OK
     );
 }
+
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  COPYING RELATIVE VALUES TO SPECIFIC
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// This can be used to turn a RELVAL into a REBVAL.  If the RELVAL is indeed
+// relative and needs to be made specific to be put into the target, then the
+// specifier is used to do that.
+//
+// It is nearly as fast as just assigning the value directly in the release
+// build, though debug builds assert that the function in the specifier
+// indeed matches the target in the relative value (because relative values
+// in an array may only be relative to the function that deep copied them, and
+// that is the only kind of specifier you can use with them).
+//
+
+inline static void COPY_VALUE(
+    RELVAL *dest, // relative destinations are overwritten with specified value
+    const RELVAL *src,
+    REBCTX *specifier
+) {
+    assert(!IS_END(src));
+    assert(!IS_TRASH_DEBUG(src));
+
+#ifdef __cplusplus
+    Assert_Cell_Writable(dest, __FILE__, __LINE__);
+#endif
+
+    if (IS_RELATIVE(src)) {
+    #if !defined(NDEBUG)
+        assert(ANY_WORD(src) || ANY_ARRAY(src));
+        if (specifier == SPECIFIED) {
+            Debug_Fmt("Internal Error: Relative item used with SPECIFIED");
+            PROBE_MSG(src, "word or array");
+            PROBE_MSG(FUNC_VALUE(VAL_RELATIVE(src)), "func");
+            assert(FALSE);
+        }
+        else if (
+            VAL_RELATIVE(src)
+            != VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier))
+        ){
+            Debug_Fmt("Internal Error: Function mismatch in specific binding");
+            PROBE_MSG(src, "word or array");
+            PROBE_MSG(FUNC_VALUE(VAL_RELATIVE(src)), "expected func");
+            PROBE_MSG(CTX_FRAME_FUNC_VALUE(specifier), "actual func");
+            assert(FALSE);
+        }
+    #endif
+
+        dest->header.bits
+            = src->header.bits & ~cast(REBUPT, VALUE_FLAG_RELATIVE);
+        dest->extra.binding = cast(REBARR*, specifier);
+    }
+    else {
+        dest->header = src->header;
+        dest->extra.binding = src->extra.binding;
+    }
+    dest->payload = src->payload;
+}
+
+inline static void DS_PUSH_RELVAL(const RELVAL *v, REBCTX *specifier) {
+    ASSERT_VALUE_MANAGED(v); // would fail on END marker
+    DS_PUSH_TRASH;
+    COPY_VALUE(DS_TOP, v, specifier);
+}

@@ -1614,11 +1614,7 @@ REB_R Specializer_Dispatcher(REBFRM *f)
 // function.  But instead of running that function's body, it maps the
 // parameters into its own body.  It does this by actually mutating the
 // contents of the shared body series that is held by all the instances
-// of the function.
-//
-// To avoid its mechanical disruption from causing harm to any running
-// instances, all function "bodies" must reserve their [0] slot for the
-// hijacker.
+// of the function--so it contains the original function.
 //
 REB_R Hijacker_Dispatcher(REBFRM *f)
 {
