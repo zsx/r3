@@ -115,7 +115,7 @@ port        port        context context context *       context
 
 gob         gob         *       *       *       *       -
 event       event       *       *       *       *       -
-handle      0           -       -       -       -       -
+handle      handle      -       -       -       -       -
 struct      struct      *       *       *       *       -
 library     library     -       -       -       *       -
 

@@ -124,4 +124,4 @@
 [a: 1 error? try [set 'a 1 / 0] :a =? 1]
 [a: 1 error? try [set/opt 'a 1 / 0] :a =? 1]
 ; bug#2190
-[127 = catch/quit [attempt [catch/quit [1 / 0]] quit/return 127]]
+[127 = catch/quit [attempt [catch/quit [1 / 0]] quit/with 127]]
