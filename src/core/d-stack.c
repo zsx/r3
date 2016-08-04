@@ -237,8 +237,9 @@ REBNATIVE(label_of)
 //
 //  function-of: native [
 //
-//  "Get the ANY-FUNCTION! for a stack level or frame"
+//  "Get the FUNCTION! for a stack level or frame"
 //
+//      return: [function!] 
 //      level [frame! integer!]
 //  ]
 //
@@ -298,7 +299,9 @@ REBNATIVE(backtrace_index)
 //
 //  "Backtrace to find a specific FRAME!, or other queried property."
 //
-//      level [| blank! integer! function! |]
+//      return: [<opt> block! frame!]
+//          "Nothing if printing, if specific level a frame! else block"
+//      level [<end> blank! integer! function! |]
 //          "Stack level to return frame for (blank to list)"
 //      /limit
 //          "Limit the length of the backtrace"
@@ -318,37 +321,30 @@ REBNATIVE(backtrace)
     REFINE(4, brief);
     REFINE(5, only);
 
-    REBCNT number; // stack level number in the loop (no pending frames)
-
-    REBCNT row; // row we're on (includes pending frames and maybe ellipsis)
-    REBCNT max_rows; // The "frames" from /LIMIT, plus one (for ellipsis)
-
-    REBCNT index; // backwards-counting index for slots in backtrace array
-
-    REBOOL first = TRUE; // special check of first frame for "breakpoint 0"
-
-    REBVAL *level = ARG(level); // void if at <end>
+    Check_Security(Canon(SYM_DEBUG), POL_READ, 0);
 
     // Note: Running this code path is *intentionally* redundant with
     // Frame_For_Stack_Level, as a way of keeping the numbers listed in a
     // backtrace lined up with what that routine returns.  This isn't a very
     // performance-critical routine, so it's good to have the doublecheck.
     //
+    REBVAL *level = ARG(level);
     REBOOL get_frame = NOT(IS_VOID(level) || IS_BLANK(level));
-
-    REBARR *backtrace;
-    REBFRM *frame;
-
-    Check_Security(Canon(SYM_DEBUG), POL_READ, 0);
-
-    if (get_frame && (REF(limit) || REF(brief))) {
+    if (get_frame) {
         //
         // /LIMIT assumes that you are returning a list of backtrace items,
         // while specifying a level gives one.  They are mutually exclusive.
         //
-        fail (Error(RE_BAD_REFINES));
+        if (REF(limit) || REF(brief))
+            fail (Error(RE_BAD_REFINES));
+
+        // See notes on handling of breakpoint below for why 0 is accepted.
+        //
+        if (IS_INTEGER(level) && VAL_INT32(level) < 0)
+            fail(Error_Invalid_Arg(level));
     }
 
+    REBCNT max_rows; // The "frames" from /LIMIT, plus one (for ellipsis)
     if (REF(limit)) {
         if (IS_BLANK(ARG(frames)))
             max_rows = MAX_U32; // NONE is no limit--as many frames as possible
@@ -361,57 +357,15 @@ REBNATIVE(backtrace)
     else
         max_rows = 20; // On an 80x25 terminal leaves room to type afterward
 
-    if (get_frame) {
+    REBDSP dsp_orig = DSP; // original stack pointer (for gathered backtrace)
+    
+    REBCNT row = 0; // row we're on (incl. pending frames and maybe ellipsis)
+    REBCNT number = 0; // level label number in the loop(no pending frames)
+    REBOOL first = TRUE; // special check of first frame for "breakpoint 0"
+
+    REBFRM *f;
+    for (f = FS_TOP->prior; f != NULL; f = f->prior) {
         //
-        // See notes on handling of breakpoint below for why 0 is accepted.
-        //
-        if (IS_INTEGER(level) && VAL_INT32(level) < 0)
-            fail (Error_Invalid_Arg(level));
-    }
-    else {
-        // We're going to build our backtrace in reverse.  This is done so
-        // that the most recent stack frames are at the bottom, that way
-        // they don't scroll off the top.  But this is a little harder to
-        // get right, so get a count of how big it will be first.
-        //
-        // !!! This could also be done by over-allocating and then setting
-        // the series bias, though that reaches beneath the series layer
-        // and makes assumptions about the implementation.  And this isn't
-        // *that* complicated, considering.
-        //
-        index = 0;
-        row = 0;
-        for (frame = FS_TOP->prior; frame != NULL; frame = FRM_PRIOR(frame)) {
-            if (!Is_Any_Function_Frame(frame)) continue;
-
-            // index and property, unless /BRIEF in which case it will just
-            // be the property.
-            //
-            ++index;
-            if (!REF(brief))
-                ++index;
-
-            ++row;
-
-            if (row >= max_rows) {
-                //
-                // Past our depth, so this entry is an ellipsis.  Notice that
-                // the base case of `/LIMIT 0` produces max_rows of 1, which
-                // means you will get just an ellipsis row.
-                //
-                break;
-            }
-        }
-
-        backtrace = Make_Array(index);
-        TERM_ARRAY_LEN(backtrace, index);
-    }
-
-    row = 0;
-    number = 0;
-    for (frame = FS_TOP->prior; frame != NULL; frame = frame->prior) {
-        RELVAL *temp;
-
         // Only consider invoked or pending functions in the backtrace.
         //
         // !!! The pending functions aren't actually being "called" yet,
@@ -420,16 +374,16 @@ REBNATIVE(backtrace)
         // be interesting to see GROUP! stack levels that are being
         // executed as well (as they are something like DO).
         //
-        if (NOT(Is_Any_Function_Frame(frame)))
+        if (NOT(Is_Any_Function_Frame(f)))
             continue;
 
-        REBOOL pending = Is_Function_Frame_Fulfilling(frame);
+        REBOOL pending = Is_Function_Frame_Fulfilling(f);
         if (NOT(pending)) {
             if (
                 first
                 && (
-                    FUNC_DISPATCHER(frame->func) == &N_pause
-                    || FUNC_DISPATCHER(frame->func) == &N_breakpoint
+                    FUNC_DISPATCHER(f->func) == &N_pause
+                    || FUNC_DISPATCHER(f->func) == &N_breakpoint
                 )
             ) {
                 // Omitting breakpoints from the list entirely presents a
@@ -460,7 +414,7 @@ REBNATIVE(backtrace)
 
             REBCNT temp_num;
             if (
-                Frame_For_Stack_Level(&temp_num, &temp_val, TRUE) != frame
+                Frame_For_Stack_Level(&temp_num, &temp_val, TRUE) != f
                 || temp_num != number
             ) {
                 Debug_Fmt(
@@ -478,7 +432,7 @@ REBNATIVE(backtrace)
             }
             else {
                 assert(IS_FUNCTION(level));
-                if (frame->func != VAL_FUNC(level))
+                if (f->func != VAL_FUNC(level))
                     continue;
             }
         }
@@ -488,8 +442,9 @@ REBNATIVE(backtrace)
                 // If there's more stack levels to be shown than we were asked
                 // to show, then put an `+ ...` in the list and break.
                 //
-                temp = ARR_AT(backtrace, --index);
-                Val_Init_Word(temp, REB_WORD, Canon(SYM_PLUS));
+                DS_PUSH_TRASH;
+                Val_Init_Word(DS_TOP, REB_WORD, Canon(SYM_PLUS));
+
                 if (!REF(brief)) {
                     //
                     // In the non-/ONLY backtrace, the pairing of the ellipsis
@@ -499,9 +454,9 @@ REBNATIVE(backtrace)
                     //
                     // !!! Review arbitrary symbolic choices.
                     //
-                    temp = ARR_AT(backtrace, --index);
-                    Val_Init_Word(temp, REB_WORD, Canon(SYM_ASTERISK));
-                    SET_VAL_FLAG(temp, VALUE_FLAG_LINE); // put on own line
+                    DS_PUSH_TRASH;
+                    Val_Init_Word(DS_TOP, REB_WORD, Canon(SYM_ASTERISK));
+                    SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE); // put on own line
                 }
                 break;
             }
@@ -516,7 +471,7 @@ REBNATIVE(backtrace)
             Val_Init_Context(
                 D_OUT,
                 REB_FRAME,
-                Context_For_Frame_May_Reify_Managed(frame)
+                Context_For_Frame_May_Reify_Managed(f)
             );
             return R_OUT;
         }
@@ -527,13 +482,14 @@ REBNATIVE(backtrace)
         // !!! Should /BRIEF omit pending frames?  Should it have a less
         // "loaded" name for the refinement?
         //
-        temp = ARR_AT(backtrace, --index);
         if (REF(brief)) {
-            Val_Init_Word(temp, REB_WORD, FRM_LABEL(frame));
+            DS_PUSH_TRASH;
+            Val_Init_Word(DS_TOP, REB_WORD, FRM_LABEL(f));
             continue;
         }
 
-        Val_Init_Block(temp, Make_Where_For_Frame(frame));
+        DS_PUSH_TRASH;
+        Val_Init_Block(DS_TOP, Make_Where_For_Frame(f));
 
         // If building a backtrace, we just keep accumulating results as long
         // as there are stack levels left and the limit hasn't been hit.
@@ -543,7 +499,7 @@ REBNATIVE(backtrace)
         // add it after the props so it will show up before, and give it
         // the newline break marker.
         //
-        temp = ARR_AT(backtrace, --index);
+        DS_PUSH_TRASH;
         if (pending) {
             //
             // You cannot (or should not) switch to inspect a pending frame,
@@ -558,12 +514,12 @@ REBNATIVE(backtrace)
             // dealings with the arguments, however (for instance: not having
             // to initialize not-yet-filled args could be one thing).
             //
-            Val_Init_Word(temp, REB_WORD, Canon(SYM_ASTERISK));
+            Val_Init_Word(DS_TOP, REB_WORD, Canon(SYM_ASTERISK));
         }
         else
-            SET_INTEGER(temp, number);
+            SET_INTEGER(DS_TOP, number);
 
-        SET_VAL_FLAG(temp, VALUE_FLAG_LINE);
+        SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
     }
 
     // If we ran out of stack levels before finding the single one requested
@@ -574,11 +530,9 @@ REBNATIVE(backtrace)
     if (get_frame)
         return R_BLANK;
 
-    // Return accumulated backtrace otherwise.  The reverse filling process
-    // should have exactly used up all the index slots, leaving index at 0.
+    // Return accumulated backtrace otherwise, in the reverse order pushed
     //
-    assert(index == 0);
-    Val_Init_Block(D_OUT, backtrace);
+    Val_Init_Block(D_OUT, Pop_Stack_Values_Reversed(dsp_orig));
     if (REF(only))
         return R_OUT;
 
@@ -653,33 +607,36 @@ REBFRM *Frame_For_Stack_Level(
             //
             continue;
         }
-        if (Is_Function_Frame_Fulfilling(frame))
-            continue;
 
-        if (first) {
-            if (
-                FUNC_DISPATCHER(frame->func) == &N_pause
-                || FUNC_DISPATCHER(frame->func) == N_breakpoint
-            ) {
-                // this is considered the "0".  Return it only if 0 was requested
-                // specifically (you don't "count down to it");
-                //
-                if (IS_INTEGER(level) && num == VAL_INT32(level))
-                    goto return_maybe_set_number_out;
-                else {
-                    first = FALSE;
-                    continue;
+        REBOOL pending = Is_Function_Frame_Fulfilling(frame);
+        if (NOT(pending)) {
+            if (first) {
+                if (
+                    FUNC_DISPATCHER(frame->func) == &N_pause
+                    || FUNC_DISPATCHER(frame->func) == N_breakpoint
+                ) {
+                    // this is considered the "0".  Return it only if 0 was requested
+                    // specifically (you don't "count down to it");
+                    //
+                    if (IS_INTEGER(level) && num == VAL_INT32(level))
+                        goto return_maybe_set_number_out;
+                    else {
+                        first = FALSE;
+                        continue;
+                    }
                 }
-            }
-            else {
-                ++num; // bump up from 0
+                else {
+                    ++num; // bump up from 0
+                }
             }
         }
 
+        first = FALSE;
+
+        if (pending) continue;
+
         if (IS_INTEGER(level) && num == VAL_INT32(level))
             goto return_maybe_set_number_out;
-
-        first = FALSE;
 
         if (IS_VOID(level) || IS_BLANK(level)) {
             //

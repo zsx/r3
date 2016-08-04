@@ -204,15 +204,33 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
 //
 REBARR *Pop_Stack_Values(REBDSP dsp_start)
 {
-    REBCNT len = DSP - dsp_start;
-    RELVAL *values = ARR_AT(DS_Array, dsp_start + 1);
-
-    // Data stack should be fully specified--no relative values
-    //
-    REBARR *array = Copy_Values_Len_Shallow(values, SPECIFIED, len);
+    REBARR *array = Copy_Values_Len_Shallow(
+        DS_AT(dsp_start + 1), // start somewhere in the stack, end at DS_TOP
+        SPECIFIED, // data stack should be fully specified--no relative values
+        DSP - dsp_start // len
+    );
 
     DS_DROP_TO(dsp_start);
     return array;
+}
+
+
+//
+//  Pop_Stack_Values_Reversed: C
+//
+// Pops computed values from the stack to make a new ARRAY, but reverses the
+// data so the last pushed item is the first in the array.
+//
+REBARR *Pop_Stack_Values_Reversed(REBDSP dsp_start)
+{
+    REBARR *array = Copy_Values_Len_Reversed_Shallow(
+        DS_TOP, // start at DS_TOP, work backwards somewhere in the stack
+        SPECIFIED, // data stack should be fully specified--no relative values
+        DSP - dsp_start // len
+    );
+   
+    DS_DROP_TO(dsp_start);
+    return array; 
 }
 
 

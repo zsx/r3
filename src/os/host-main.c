@@ -146,13 +146,13 @@ extern "C" {
 REBARGS Main_Args;
 
 const REBYTE halt_str[] = "[escape]";
-const REBYTE prompt_str[] = "\n>> ";
+const REBYTE prompt_str[] = ">> ";
 const REBYTE result_str[] = "== ";
-const REBYTE why_str[] = "** Note: use WHY? for more error information\n\n";
+const REBYTE why_str[] = "** Note: use WHY? for more error information\n";
 const REBYTE breakpoint_str[] =
-    "** Breakpoint Hit (see BACKTRACE, DEBUG, and RESUME)\n\n";
+    "** Breakpoint Hit (see BACKTRACE, DEBUG, and RESUME)\n";
 const REBYTE interrupted_str[] =
-    "** Execution Interrupted (see BACKTRACE, DEBUG, and RESUME)\n\n";
+    "** Execution Interrupted (see BACKTRACE, DEBUG, and RESUME)\n";
 
 #ifndef REB_CORE
 extern void Init_Windows(void);
@@ -355,20 +355,17 @@ int Do_String(
         // stack level, just the way a body is bound during Make_Function()
         //
         if (at_breakpoint) {
-            REBFRM *frame;
-            REBCTX *frame_ctx;
-
             REBVAL level;
             SET_INTEGER(&level, HG_Stack_Level);
 
-            frame = Frame_For_Stack_Level(NULL, &level, FALSE);
+            REBFRM *frame = Frame_For_Stack_Level(NULL, &level, FALSE);
             assert(frame);
 
             // Need to manage because it may be no words get bound into it,
             // and we're not putting it into a FRAME! value, so it might leak
             // otherwise if it's reified.
             //
-            frame_ctx = Context_For_Frame_May_Reify_Managed(frame);
+            REBCTX *frame_ctx = Context_For_Frame_May_Reify_Managed(frame);
 
             Bind_Values_Deep(ARR_HEAD(code), frame_ctx);
         }
@@ -749,6 +746,7 @@ void Host_Repl(int *exit_status, REBVAL *out, REBOOL at_breakpoint) {
             }
         }
         else {
+            Put_Str(cb_cast("\n"));
             if (at_breakpoint) {
                 //
                 // If we're stopped at a breakpoint, then the REPL has a

@@ -603,12 +603,12 @@ source: make function! [[
             ; to backtrace.  Before investing in that, some usability
             ; experience just needs to be gathered, so compensate.
             ;
-            f: backtrace/at/function (
+            f: function-of backtrace (
                 1 ; if BREAKPOINT, compensate differently (it's called "0")
                 + 1 ; CASE
                 + 1 ; SOURCE
             )
-            f: backtrace/at/function (
+            f: function-of backtrace (
                 arg
                 ; if breakpoint there, bump 0 up to a 1, 1 to a 2, etc.
                 + (either :f == :breakpoint [1] [0])

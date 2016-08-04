@@ -55,8 +55,6 @@ system/standard/hijacked-meta/hijackee-name:
     ()
 
 
-enfix: _
-
 set/lookback quote enfix: proc [
     "Convenience version of SET/LOOKBACK, e.g `+: enfix :add`"
     :target [set-word! set-path!]

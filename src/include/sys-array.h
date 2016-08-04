@@ -207,7 +207,14 @@ inline static REBARR *Alloc_Singular_Array(void) {
 
 
 #define Copy_Values_Len_Shallow(v,s,l) \
-    Copy_Values_Len_Extra_Shallow((v), (s), (l), 0)
+    Copy_Values_Len_Extra_Skip_Shallow((v), (s), (l), 0, 1)
+
+#define Copy_Values_Len_Reversed_Shallow(v,s,l) \
+    Copy_Values_Len_Extra_Skip_Shallow((v), (s), (l), 0, -1)
+
+#define Copy_Values_Len_Extra_Shallow(v, s, l, e) \
+    Copy_Values_Len_Extra_Skip_Shallow((v), (s), (l), (e), 1) 
+
 
 #define Copy_Array_Shallow(a,s) \
     Copy_Array_At_Shallow((a), 0, (s))

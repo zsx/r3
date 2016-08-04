@@ -131,20 +131,21 @@ REBARR *Copy_Array_At_Max_Shallow(
 
 
 //
-//  Copy_Values_Len_Extra_Shallow: C
+//  Copy_Values_Len_Extra_Skip_Shallow: C
 // 
 // Shallow copy the first 'len' values of `head` into a new
 // series created to hold exactly that many entries.
 //
-REBARR *Copy_Values_Len_Extra_Shallow(
+REBARR *Copy_Values_Len_Extra_Skip_Shallow(
     const RELVAL *head,
     REBCTX *specifier,
     REBCNT len,
-    REBCNT extra
+    REBCNT extra,
+    REBINT skip
 ) {
     REBARR *array = Make_Array(len + extra + 1);
 
-    if (specifier == SPECIFIED) {
+    if (specifier == SPECIFIED && skip == 1) {
     #if !defined(NDEBUG)
         REBCNT count = 0;
         const RELVAL *check = head;
@@ -158,7 +159,7 @@ REBARR *Copy_Values_Len_Extra_Shallow(
         REBCNT count = 0;
         const RELVAL *src = head;
         RELVAL *dest = ARR_HEAD(array);
-        for (; count < len; ++count, ++src, ++dest)
+        for (; count < len; ++count, src += skip, ++dest)
             COPY_VALUE(dest, src, specifier);
     }
 

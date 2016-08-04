@@ -305,6 +305,8 @@ return_temp:
 //
 //  "Signal breakpoint to the host (simple variant of PAUSE dialect)"
 //
+//      return: [<opt> any-value!]
+//          "Returns the value passed to RESUME/WITH (or void by default)"
 //  ]
 //
 REBNATIVE(breakpoint)
@@ -333,6 +335,8 @@ REBNATIVE(breakpoint)
 //
 //  "Pause in the debugger before running the provided code"
 //
+//      return: [<opt> any-value!]
+//          "Result of the code evaluation, or RESUME/WITH value if override"
 //      :code [group!] ;-- or LIT-WORD! name or BLOCK! for dialect
 //          "Run the given code if breakpoint does not override"
 //  ]
