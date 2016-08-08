@@ -23,6 +23,7 @@ option(R3_EXTERNAL_FFI "Build with external FFI" OFF)
 option(R3_BUILD_VIEW "Build with view system" OFF)
 option(R3_EXTERNAL_SDL "Build with external SDL2" OFF)
 option(R3_EXTERNAL_GLEW "Build with external GLEW" OFF)
+option(R3_WITH_NVTX "Build with Nvidia Tools Extention Library" OFF)
 
 if (NOT EXISTS ${REBOL})
     message(FATAL_ERROR "${REBOL} doesn't exist, an executable r3 is required")
@@ -70,38 +71,46 @@ else ()
 endif ()
 
 if (R3_OS_ID STREQUAL "0.2.5")
+    set (TO_OSX_X86 TRUE)
     list (APPEND COMMON_MACROS
         TO_OSX_X86
         )
     set(CMAKE_OSX_ARCHITECTURE i386)
 elseif (R3_OS_ID STREQUAL "0.2.40")
+    set (TO_OSX_X64 TRUE)
     list (APPEND COMMON_MACROS
         TO_OSX_X64
         __LP64__
         )
     set(CMAKE_OSX_ARCHITECTURE x86_64)
 elseif (R3_OS_ID STREQUAL "0.3.1")
+    set (TO_WINDOWS_X86 TRUE)
     list (APPEND COMMON_MACROS
         TO_WINDOWS_X86
         )
 elseif (R3_OS_ID STREQUAL "0.3.40")
+    set (TO_WINDOWS_X64 TRUE)
     list (APPEND COMMON_MACROS
         TO_WINDOWS_X64
         __LLP64__
         )
 elseif (R3_OS_ID STREQUAL "0.4.4")
+    set (TO_LINUX_X86 TRUE)
     list (APPEND COMMON_MACROS
         TO_LINUX_X86
         )
 elseif (R3_OS_ID STREQUAL "0.4.20") #linux arm
+    set (TO_LINUX_ARM TRUE)
     list (APPEND COMMON_MACROS
         TO_LINUX_ARM
         )
 elseif (R3_OS_ID STREQUAL "0.4.22") #linux arm64
+    set (TO_LINUX_AARCH64 TRUE)
     list (APPEND COMMON_MACROS
         TO_LINUX_AARCH64
         )
 elseif (R3_OS_ID STREQUAL "0.4.40") #linux x86_64
+    set (TO_LINUX_X64 TRUE)
     list (APPEND COMMON_MACROS
         TO_LINUX_X64
         __LLP64__
