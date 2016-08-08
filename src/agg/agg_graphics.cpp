@@ -33,8 +33,7 @@ extern "C" {
 
 	#include "host-view.h"
 	#include "../include/host-text-api.h"
-
-	void agg_rt_block_text(void *richtext, REBSER *block);
+	#include "../os/host-text-api-agg.h"
 
 	extern void* Rich_Text;
 }
@@ -885,7 +884,7 @@ Reb_Print(
 
 							rt->rt_reset();
                             rt->rt_attach_buffer(m_buf, (int)siz.x, (int)siz.y, m_offset_x, m_offset_y);
-							agg_rt_block_text(rt, attr.block);
+							agg_rt_block_text(rt, NULL, attr.block);
 
 //							RL->print((REBYTE*)"raster text %dx%d %dx%d %dx%d\n", cb.x1,cb.y1,cb.x2,cb.y2,(int)siz.x, (int)siz.y);
 
@@ -1972,7 +1971,7 @@ Reb_Print(
 
 			);
 
-			agg_rt_block_text(rt, block);
+			agg_rt_block_text(rt, NULL, block);
 
 			//force to vectors no matter what was in the dialect block
 			rt->rt_text_mode(2);
