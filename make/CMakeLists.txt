@@ -98,34 +98,41 @@ else ()
 endif ()
 
 if (R3_OS_ID STREQUAL "0.2.5")
+    set (TO_OSX_X86 TRUE)
     list (APPEND COMMON_MACROS
         TO_OSX_X86
         )
     set(CMAKE_OSX_ARCHITECTURE i386)
 elseif (R3_OS_ID STREQUAL "0.2.40")
+    set (TO_OSX_X64 TRUE)
     list (APPEND COMMON_MACROS
         TO_OSX_X64
         __LP64__
         )
     set(CMAKE_OSX_ARCHITECTURE x86_64)
 elseif (R3_OS_ID STREQUAL "0.3.1")
+    set (TO_WINDOWS_X86 TRUE)
     list (APPEND COMMON_MACROS
         TO_WINDOWS_X86
         )
 elseif (R3_OS_ID STREQUAL "0.3.40")
+    set (TO_WINDOWS_X64 TRUE)
     list (APPEND COMMON_MACROS
         TO_WINDOWS_X64
         __LLP64__
         )
 elseif (R3_OS_ID STREQUAL "0.4.4")
+    set (TO_LINUX_X86 TRUE)
     list (APPEND COMMON_MACROS
         TO_LINUX_X86
         )
 elseif (R3_OS_ID STREQUAL "0.4.20") #linux arm
+    set (TO_LINUX_ARM TRUE)
     list (APPEND COMMON_MACROS
         TO_LINUX_ARM
         )
 elseif (R3_OS_ID STREQUAL "0.4.40") #linux x86_64
+    set (TO_LINUX_X64 TRUE)
     list (APPEND COMMON_MACROS
         TO_LINUX_X64
         __LLP64__
@@ -529,7 +536,7 @@ set(EXT_OS_DEPENDS
     ${OS_SOURCE}
     )
 
-if (BUILD_VIEW)
+if (R3_BUILD_VIEW)
     add_custom_command(OUTPUT
         ${EXT_OS_OUTPUT}
         COMMAND ${REBOL} ${TOOLS_DIR}/make-os-ext.r OS_ID=${R3_OS_ID} GFX=1 OUTDIR=${TOP_GENERATED_SRC_DIR}
