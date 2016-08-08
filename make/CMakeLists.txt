@@ -1,4 +1,4 @@
-# vim: ts=2 shiftwidth=2 filetype=CMAKE
+# vim: ts=2 shiftwidth=2 filetype=CMAKE expandtab
 
 #
 # Sample command lines:
@@ -524,7 +524,7 @@ set_source_files_properties(
 
 set(EXT_OS_OUTPUT
     ${TOP_GENERATED_SRC_DIR}/include/host-lib.h
-		${TOP_GENERATED_SRC_DIR}/include/host-table.inc
+        ${TOP_GENERATED_SRC_DIR}/include/host-table.inc
     )
 
 set(EXT_OS_DEPENDS
@@ -581,16 +581,16 @@ endif()
 add_library(libr3_core_core OBJECT ${CORE_SOURCE} ${GENERATED_CORE_SOURCE} ${GENERATED_OS_SOURCE})
 add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> ${OS_SOURCE})
 target_include_directories(libr3_core_core PUBLIC
-		${TOP_GENERATED_SRC_DIR}/include
-		${TOP_SRC_DIR}/include
-		${TOP_SRC_DIR}/codecs
-		${FFI_INCLUDE_DIRS}
-		)
+        ${TOP_GENERATED_SRC_DIR}/include
+        ${TOP_SRC_DIR}/include
+        ${TOP_SRC_DIR}/codecs
+        ${FFI_INCLUDE_DIRS}
+        )
 target_include_directories(r3-core PUBLIC
-		${TOP_GENERATED_SRC_DIR}/include
-		${TOP_SRC_DIR}/include
-		${TOP_SRC_DIR}/codecs
-		)
+        ${TOP_GENERATED_SRC_DIR}/include
+        ${TOP_SRC_DIR}/include
+        ${TOP_SRC_DIR}/codecs
+        )
 target_compile_definitions(libr3_core_core PUBLIC REB_API REB_CORE ${COMMON_MACROS})
 if (WIN32)
     #WINSYS_WIN32 is needed for dev-event.c
