@@ -51,6 +51,8 @@
 #define INCLUDE_EXT_DATA
 #include "host-ext-graphics.h"
 
+#include "nvtx.h"
+
 //***** Constants *****
 
 #define MAX_WINDOWS 64
@@ -254,6 +256,7 @@ REBINT Alloc_Window(REBGOB *gob) {
 
 	if (!gob) return;
 
+    NVTX_MARK_FUNC_START();
 	// Are we asked to open/close/refresh all windows?
 	if (gob == Gob_Root) {  // show none, and show screen-gob
 
@@ -274,11 +277,13 @@ REBINT Alloc_Window(REBGOB *gob) {
 				Draw_Window(0, *gp);
 			}
 		}
+        NVTX_MARK_FUNC_END();
 		return;
 	}
 	// Is it a window gob that needs to be closed?
 	else if (!GOB_PARENT(gob) && GET_GOB_FLAG(gob, GOBF_WINDOW)) {
 		OS_Close_Window(gob);
+        NVTX_MARK_FUNC_END();
 		return;
 	}
 	// Is it a window gob that needs to be opened or refreshed?
@@ -291,6 +296,7 @@ REBINT Alloc_Window(REBGOB *gob) {
 
 	// Otherwise, composite and referesh the gob or all gobs:
 	Draw_Window(0, gob);  // 0 = window parent of gob
+    NVTX_MARK_FUNC_END();
 }
 
 /***********************************************************************
