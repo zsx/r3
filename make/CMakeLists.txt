@@ -211,6 +211,7 @@ set (CORE_SOURCE
     ${CORE_DIR}/d-legacy.c
     ${CORE_DIR}/d-print.c
     ${CORE_DIR}/d-trace.c
+    ${CORE_DIR}/e-zoe.c
     ${CORE_DIR}/f-blocks.c
     ${CORE_DIR}/f-deci.c
     ${CORE_DIR}/f-dtoa.c

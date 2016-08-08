@@ -348,3 +348,17 @@ __LINE__
 arg1
 arg2
 arg3
+
+
+;ZOE add-on
+initial-size
+initial-offset
+placement-zoom
+sticky-zoom
+min-zoom
+max-zoom
+class
+instance
+on-init
+on-draw
+selected?
