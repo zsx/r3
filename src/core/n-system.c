@@ -1557,12 +1557,13 @@ REBNATIVE(do_codec)
             default: /* some decoders might not set this field */
             case 1:
                 ser = Make_Binary(codi.len);
+                memcpy(BIN_HEAD(ser), codi.data, codi.w? (codi.len * codi.w) : codi.len);
                 break;
             case 2:
                 ser = Make_Unicode(codi.len);
+                memcpy(UNI_HEAD(ser), codi.data, codi.w? (codi.len * codi.w) : codi.len);
                 break;
         }
-        memcpy(BIN_HEAD(ser), codi.data, codi.w? (codi.len * codi.w) : codi.len);
         SET_SERIES_LEN(ser, codi.len);
         Val_Init_String(D_OUT, ser);
         break;
