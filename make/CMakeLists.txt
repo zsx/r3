@@ -352,14 +352,14 @@ set(NATIVE_OUTPUT
     ${TOP_GENERATED_SRC_DIR}/boot/tmp-natives.r
     ${TOP_GENERATED_SRC_DIR}/boot/tmp-actions.r
     )
-set(NATIVE_DEPENDS "")
+set(NATIVE_DEPENDS ${CORE_C_SOURCE})
 
 add_custom_command(OUTPUT
     ${NATIVE_OUTPUT}
     COMMAND ${REBOL} ${TOOLS_DIR}/make-natives.r OUTDIR=${TOP_GENERATED_SRC_DIR}
     DEPENDS
     ${REBOL} ${TOOLS_DIR}/make-natives.r
-    ${NTIVE_DEPENDS}
+        ${NATIVE_DEPENDS}
 )
 
 set(HEADER_OUTPUT
@@ -371,7 +371,6 @@ set(HEADER_DEPENDS
     ${TOOLS_DIR}/common.r
     ${TOOLS_DIR}/common-parsers.r
     ${TOOLS_DIR}/form-header.r
-    ${CORE_C_FILES}
     ${NATIVE_OUTPUT}
     )
 
