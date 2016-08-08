@@ -1040,6 +1040,7 @@ REBINT Codec_UTF16(REBCDI *codi, REBOOL little_endian)
             UNI_HEAD(ser), codi->data, codi->len, little_endian, FALSE
         );
         SET_SERIES_LEN(ser, size);
+        MANAGE_SERIES(ser);
         if (size < 0) { //ASCII
             REBSER *dst = Make_Binary((size = -size));
             Append_Uni_Bytes(dst, UNI_HEAD(ser), size);
