@@ -68,6 +68,7 @@ struct REBDRW_CTX {
 	int 		fill_image;
 	int 		stroke_image;
 
+    REBCNT      stroke_color;
 	REBCNT		fill_color; /* passed to text renderer */
 
 	NVGcolor	key_color;

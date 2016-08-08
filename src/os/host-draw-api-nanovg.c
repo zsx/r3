@@ -540,6 +540,45 @@ static void nvgdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER
     NVTX_MARK_FUNC_END();
 }
 
+static void nvgdrw_pen(void* gr, REBCNT col)
+{
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+    ctx->stroke_color = col;
+	if (col){
+		ctx->stroke = TRUE;
+		nvgStrokeColor(ctx->nvg, REBCNT_NVG_COLOR(col));
+	} else {
+		ctx->stroke = FALSE;
+        ((char*)&ctx->stroke_color)[C_A] = 0; //transparent
+		nvgStrokeColor(ctx->nvg, nvgRGBA(255, 255, 255, 0));
+	}
+}
+
+static void nvgdrw_pen_image_with_flags(void* gr, REBYTE* img, REBINT w, REBINT h, int flags)
+{
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+	NVGpaint paint;
+
+	if (ctx->stroke_image != 0) {
+		nvgFlush(ctx->nvg);
+		nvgDeleteImage(ctx->nvg, ctx->stroke_image);
+	}
+
+    if (img == NULL) {
+        ctx->stroke_image = 0;
+        return;
+    }
+
+	ctx->stroke_image = nvgCreateImageRGBA(ctx->nvg, w, h, flags, NULL, img);
+	paint = nvgImagePattern(ctx->nvg, 0, 0, w, h, 0, ctx->stroke_image, 1);
+	nvgStrokePaint(ctx->nvg, paint);
+}
+
+static void nvgdrw_pen_image(void* gr, REBYTE* img, REBINT w, REBINT h)
+{
+    nvgdrw_pen_image_with_flags(gr, img, w, h, NVG_IMAGE_REPEATX | NVG_IMAGE_REPEATY);
+}
+
 static void nvgdrw_line(void* gr, REBXYF* p, REBCNT n)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
@@ -608,8 +647,30 @@ static void nvgdrw_line_join(void* gr, REBINT mode)
 
 static void nvgdrw_line_pattern(void* gr, REBCNT col, REBDEC* patterns)
 {
-	//((agg_graphics*)gr)->agg_line_pattern((col) ? (REBYTE*)&col : NULL, patterns);
-	NOT_IMPLEMENTED;
+	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
+    REBCNT *img = NULL;
+    if (patterns == NULL) {
+        nvgdrw_pen_image(ctx, NULL, 0, 0);
+    } else {
+        int i, j;
+        int width = 0;
+        int offset = 0;
+        REBCNT colors[] = { ctx->stroke_color, col };
+        int idx = 0;
+        for (i = 1; i < patterns[0] + 1; i++) width += patterns[i];
+        img = OS_ALLOC_N(REBCNT, width);
+        for (i = 1; i < patterns[0] + 1; i++) {
+            int j;
+            for (j = 0; j < patterns[i]; j++) img[offset + j] = colors[idx];
+            offset += patterns[i];
+            idx++;
+            idx %= sizeof(colors) / sizeof(colors[0]);
+        }
+        nvgdrw_pen_image_with_flags(ctx, cast(REBYTE*, img), width, 1,
+            NVG_IMAGE_REPEATX | NVG_IMAGE_REPEATY | NVG_IMAGE_SAMPLE_BY_DIST);
+        OS_FREE(img);
+    }
+    ctx->stroke = TRUE;
 }
 
 static void nvgdrw_line_width(void* gr, REBDEC width, REBINT mode)
@@ -640,33 +701,6 @@ static void nvgdrw_matrix(void* gr, REBSER* mtx)
 	if (n != 6) return;
 
 	nvgTransform(ctx->nvg, matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
-}
-
-static void nvgdrw_pen(void* gr, REBCNT col)
-{
-	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
-	if (col){
-		ctx->stroke = TRUE;
-		nvgStrokeColor(ctx->nvg, REBCNT_NVG_COLOR(col));
-	} else {
-		ctx->stroke = FALSE;
-		nvgStrokeColor(ctx->nvg, nvgRGBA(255, 255, 255, 0));
-	}
-}
-
-static void nvgdrw_pen_image(void* gr, REBYTE* img, REBINT w, REBINT h)
-{
-	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
-	NVGpaint paint;
-
-	if (ctx->stroke_image != 0) {
-		nvgFlush(ctx->nvg);
-		nvgDeleteImage(ctx->nvg, ctx->stroke_image);
-	}
-
-	ctx->stroke_image = nvgCreateImageRGBA(ctx->nvg, w, h, 0, NULL, img);
-	paint = nvgImagePattern(ctx->nvg, 0, 0, w, h, 0, ctx->stroke_image, 1);
-	nvgStrokePaint(ctx->nvg, paint);
 }
 
 static void nvgdrw_pop_matrix(void* gr)
