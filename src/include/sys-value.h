@@ -341,7 +341,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
         | NOT_END_MASK | CELL_MASK)
 
 #ifdef NDEBUG
-    #define ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v) \
+    #define ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v,file,line) \
         NOOP
 
     #define MARK_CELL_WRITABLE_IF_CPP_DEBUG(v) \

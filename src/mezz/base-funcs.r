@@ -427,7 +427,7 @@ redescribe: function [
             ;
             opt [[set note: string!] (
                 on-demand-meta
-                either (set-word? param) and (param = quote return:) [
+                either all [set-word? param | equal? param quote return:] [
                     meta/return-note: either equal? note {} [
                         _
                     ][
@@ -534,6 +534,14 @@ all?: redescribe [
     {Shortcut AND, ignores voids. Unlike plain ALL, forces result to LOGIC!}
 ](
     chain [:all :true?]
+)
+
+maybe?: redescribe [
+    {Check value using tests (match types, TRUE? or FALSE?, filter function)}
+    ; return: [logic!] ;-- blocks for type changes not supported yet
+    ;    {TRUE if match, FALSE if no match (use MAYBE to pass through value)}
+](
+    specialize 'maybe [?: true]
 )
 
 find?: redescribe [

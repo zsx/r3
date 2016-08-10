@@ -192,23 +192,23 @@ inline static REB_R Do_Test_For_Maybe(
 //          {The input value or BLANK! if no match, void if FALSE? and matched}
 //      test [function! datatype! typeset! block! logic!]
 //      value [<opt> any-value!]
+//      /?
+//          "Return LOGIC! of match vs. pass-through of value or blank"
 //  ]
 //
 REBNATIVE(maybe)
 {
     PARAM(1, test);
     PARAM(2, value);
-
-    REBVAL *value = ARG(value);
-    if (IS_VOID(value))
-        return R_BLANK;
+    REFINE(3, q);
 
     REBVAL *test = ARG(test);
+    REBVAL *value = ARG(value);
 
     if (IS_LOGIC(test)) {
-        if (VAL_LOGIC(test) == IS_CONDITIONAL_TRUE(value))
+        if (!IS_VOID(test) && VAL_LOGIC(test) == IS_CONDITIONAL_TRUE(value))
             goto type_matched;
-        return R_BLANK;
+        return REF(q) ? R_FALSE : R_BLANK;
     }
 
     REB_R r;
@@ -230,7 +230,13 @@ REBNATIVE(maybe)
     else
         r = Do_Test_For_Maybe(D_OUT, value, test);
 
-    if (r == R_OUT_IS_THROWN || r == R_BLANK)
+    if (r == R_OUT_IS_THROWN)
+        return r;
+
+    if (REF(q))
+        return r == R_BLANK ? R_FALSE : R_TRUE;
+
+    if (r == R_BLANK)
         return r;
 
     assert(r == R_OUT); // must have matched!
@@ -241,7 +247,10 @@ type_matched:
     // void lets routines like ENSURE take advantage of the checking aspect
     // without risking a false positive for BLANK! or FALSE in result use.
     //
-    if (IS_CONDITIONAL_FALSE(value))
+    // Note that in the case of a void passing the test and needing to go
+    // through (e.g. `maybe :void? ()`) will be void also.
+    //
+    if (IS_VOID(value) || IS_CONDITIONAL_FALSE(value))
         return R_VOID;
 
     return R_OUT;

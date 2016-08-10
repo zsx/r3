@@ -453,9 +453,7 @@ inline static void COPY_VALUE(
     assert(!IS_END(src));
     assert(!IS_TRASH_DEBUG(src));
 
-#ifdef __cplusplus
-    Assert_Cell_Writable(dest, __FILE__, __LINE__);
-#endif
+    ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(dest, __FILE__, __LINE__);
 
     if (IS_RELATIVE(src)) {
     #if !defined(NDEBUG)
