@@ -1536,7 +1536,7 @@ void Init_Core(REBARGS *rargs)
     Init_Constants();       // Constant values
     Init_Function_Tags();
     Add_Lib_Keys_R3Alpha_Cant_Make();
-    Init_Func_Profiler(rargs->profile);
+    // Init_Func_Profiler(rargs->profile);
 
     // Run actual code:
     DOUT("Level 4");
@@ -1689,7 +1689,7 @@ void Shutdown_Core(void)
 
     FREE(REB_OPTS, Reb_Opts);
 
-    Shutdown_Func_Profiler();
+    //Shutdown_Func_Profiler();
     // Shutting down the memory manager must be done after all the Free_Mem
     // calls have been made to balance their Alloc_Mem calls.
     //

@@ -341,6 +341,7 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
 
     SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
 
+#if 0
     // Finish the func stats
     {
         struct Reb_Frame *f = FS_TOP;
@@ -349,6 +350,8 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
             Func_Profile_End(f);
         }
     }
+#endif
+
     LONG_JUMP(Saved_State->cpu_state, 1);
 }
 

@@ -19,6 +19,7 @@
 **
 ************************************************************************/
 
+#if 0
 #include <assert.h>
 #include <time.h>
 #include <stdio.h>
@@ -198,3 +199,5 @@ void Shutdown_Func_Profiler(void)
     }
     pfile = NULL;
 }
+
+#endif
