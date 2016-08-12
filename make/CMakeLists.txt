@@ -361,23 +361,44 @@ list(REMOVE_ITEM CORE_C_FILES ${CORE_DIR}/a-lib2.c) #see make-headers.r
 #message("CORE_C_FILES: ${CORE_C_FILES}")
 
 set(NATIVE_OUTPUT
-    ${TOP_SRC_DIR}/boot/tmp-natives.r
-    ${TOP_SRC_DIR}/boot/tmp-actions.r
+    ${TOP_GENERATED_SRC_DIR}/boot/tmp-natives.r
+    ${TOP_GENERATED_SRC_DIR}/boot/tmp-actions.r
     )
-set(NATIVE_DEPENDS "")
+
+set(NATIVE_DEPENDS
+    ${TOP_SRC_DIR}/boot/actions.r
+    ${TOP_SRC_DIR}/boot/types.r
+)
+
+set(TOOL_DEPENDS
+    ${TOOLS_DIR}/common.r
+    ${TOOLS_DIR}/common-parsers.r
+)
+
+#all files with REBNATIVE
+foreach(CORE_C_FILE ${CORE_C_FILES})
+    FILE(STRINGS ${CORE_C_FILE} HAS_NATIVE REGEX "^REBNATIVE\\([a-zA-Z_][a-zA-Z0-9_]*\\)$")
+    #message("HAS_NATIVE in ${CORE_C_FILE}: ${HAS_NATIVE}")
+    if(HAS_NATIVE)
+        #message("${CORE_C_FILE} has natives")
+        list(APPEND NATIVE_DEPENDS ${CORE_C_FILE})
+    endif()
+endforeach()
+#message("NATIVE_DEPENDS: ${NATIVE_DEPENDS}")
 
 add_custom_command(OUTPUT
     ${NATIVE_OUTPUT}
-    COMMAND ${REBOL} ${TOOLS_DIR}/make-natives.r
+    COMMAND ${REBOL} ${TOOLS_DIR}/make-natives.r OUTDIR=${TOP_GENERATED_SRC_DIR}
     DEPENDS
     ${REBOL} ${TOOLS_DIR}/make-natives.r
-    ${NTIVE_DEPENDS}
+    ${TOOL_DEPENDS}
+    ${NATIVE_DEPENDS}
 )
 
 set(HEADER_OUTPUT
-    ${TOP_SRC_DIR}/include/tmp-funcs.h
-    ${TOP_SRC_DIR}/include/tmp-funcargs.h
-    ${TOP_SRC_DIR}/include/tmp-strings.h
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-funcs.h
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-funcargs.h
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-strings.h
     )
 set(HEADER_DEPENDS
     ${TOOLS_DIR}/common.r
@@ -389,9 +410,10 @@ set(HEADER_DEPENDS
 
 add_custom_command(OUTPUT
     ${HEADER_OUTPUT}
-    COMMAND ${REBOL} ${TOOLS_DIR}/make-headers.r
+    COMMAND ${REBOL} ${TOOLS_DIR}/make-headers.r OUTDIR=${TOP_GENERATED_SRC_DIR}
     DEPENDS
     ${TOOLS_DIR}/make-headers.r
+    ${TOOL_DEPENDS}
     ${HEADER_DEPENDS}
     )
 
@@ -438,7 +460,7 @@ set(BOOT_DEPENDS
     ${TOP_SRC_DIR}/boot/typespec.r
     ${TOP_SRC_DIR}/boot/root.r
     ${TOP_SRC_DIR}/boot/task.r
-    ${TOP_SRC_DIR}/boot/ops.r
+    #${TOP_SRC_DIR}/boot/ops.r
 
     # all of the files in boot-files.r
     ${TOP_SRC_DIR}/mezz/base-constants.r
@@ -479,6 +501,7 @@ add_custom_command(OUTPUT
     COMMAND ${REBOL} ${TOOLS_DIR}/make-boot.r OS_ID=${R3_OS_ID} OUTDIR=${TOP_GENERATED_SRC_DIR}
     DEPENDS
     ${TOOLS_DIR}/make-boot.r
+    ${TOOL_DEPENDS}
     ${BOOT_DEPENDS}
     )
 
@@ -495,6 +518,7 @@ add_custom_command(OUTPUT
     COMMAND ${REBOL} ${TOOLS_DIR}/core-ext.r OUTDIR=${TOP_GENERATED_SRC_DIR}
     DEPENDS
     ${TOOLS_DIR}/core-ext.r
+    ${TOOL_DEPENDS}
     ${EXT_CORE_DEPENDS}
     )
 
@@ -517,6 +541,7 @@ add_custom_command(OUTPUT
     COMMAND ${REBOL} ${TOOLS_DIR}/make-reb-lib.r OUTDIR=${TOP_GENERATED_SRC_DIR}
     DEPENDS
     ${TOOLS_DIR}/make-reb-lib.r
+    ${TOOL_DEPENDS}
     ${REB_LIB_DEPENDS}
     )
 
@@ -555,6 +580,7 @@ if (R3_BUILD_VIEW)
         COMMAND ${REBOL} ${TOOLS_DIR}/make-os-ext.r OS_ID=${R3_OS_ID} GFX=1 OUTDIR=${TOP_GENERATED_SRC_DIR}
         DEPENDS
         ${TOOLS_DIR}/make-os-ext.r
+        ${TOOL_DEPENDS}
         ${EXT_OS_DEPENDS}
         )
 else ()
@@ -563,6 +589,7 @@ else ()
         COMMAND ${REBOL} ${TOOLS_DIR}/make-os-ext.r OS_ID=${R3_OS_ID} OUTDIR=${TOP_GENERATED_SRC_DIR}
         DEPENDS
         ${TOOLS_DIR}/make-os-ext.r
+        ${TOOL_DEPENDS}
         ${EXT_OS_DEPENDS}
         )
 endif ()
@@ -603,6 +630,7 @@ target_include_directories(r3-core PUBLIC
         ${TOP_GENERATED_SRC_DIR}/include
         ${TOP_SRC_DIR}/include
         ${TOP_SRC_DIR}/codecs
+        ${FFI_INCLUDE_DIRS}
         )
 target_compile_definitions(libr3_core_core PUBLIC REB_API REB_CORE ${COMMON_MACROS})
 if (WIN32)
