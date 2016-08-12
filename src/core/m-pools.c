@@ -1457,7 +1457,7 @@ void GC_Kill_Series(REBSER *s)
         // nodes themselves...have they never been accounted for, e.g. in
         // R3-Alpha?  If not, they should be...additional sizeof(REBSER)
 
-        if (REB_I32_ADD_OF(GC_Ballast, size, &GC_Ballast))
+        if (GC_Ballast + size > MAX_I32)
             GC_Ballast = MAX_I32;
     }
     else {
@@ -1718,7 +1718,7 @@ void Free_Gob(REBGOB *gob)
 {
     Free_Node(GOB_POOL, gob);
 
-    if (REB_I32_ADD_OF(GC_Ballast, Mem_Pools[GOB_POOL].wide, &GC_Ballast)) {
+    if (GC_Ballast + Mem_Pools[GOB_POOL].wide > MAX_I32) {
         GC_Ballast = MAX_I32;
     }
 
