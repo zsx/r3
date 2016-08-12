@@ -72,7 +72,7 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
 #if !defined(NDEBUG)
     if (Reb_Opts && Reb_Opts->crash_dump) {
         Dump_Info();
-        Dump_Stack(NULL, 0);
+        Dump_Stack(NULL, 0, TRUE);
     }
 #endif
 

@@ -197,7 +197,7 @@ void Dump_Info(void)
 //
 // Prints stack counting levels from the passed in number.  Pass 0 to start.
 //
-void Dump_Stack(REBFRM *f, REBCNT level)
+void Dump_Stack(REBFRM *f, REBCNT level, REBOOL dump_args)
 {
     REBINT n;
     REBVAL *arg;
@@ -211,32 +211,30 @@ void Dump_Stack(REBFRM *f, REBCNT level)
         return;
     }
 
-    Debug_Fmt(
-        "STACK[%d](%s) - %d",
-        level,
-        STR_HEAD(FRM_LABEL(f)),
-        f->eval_type // note: this is now an ordinary Reb_Kind, stringify it
-    );
-
-    if (NOT(Is_Any_Function_Frame(f))) {
-        Debug_Fmt("(no function call pending or in progress)");
-        return;
-    }
-
-    n = 1;
-    arg = FRM_ARG(f, 1);
-    param = FUNC_PARAMS_HEAD(f->func);
-
-    for (; NOT_END(param); ++param, ++arg, ++n) {
-        Debug_Fmt(
-            "    %s: %72r",
-            STR_HEAD(VAL_PARAM_SPELLING(param)),
-            arg
+    for (; f != NULL; f = f->prior) {
+        if (NOT(Is_Any_Function_Frame(f)))
+            continue;
+        printf(
+            "STACK[%d](%s) - %d\n",
+            level,
+            FRM_LABEL(f) ? STR_HEAD(FRM_LABEL(f)) : NULL,
+            f->eval_type // note: this is now an ordinary Reb_Kind, stringify it
         );
-    }
 
-    if (f->prior)
-        Dump_Stack(f->prior, level + 1);
+        if (dump_args) {
+            n = 1;
+            arg = FRM_ARG(f, 1);
+            param = FUNC_PARAMS_HEAD(f->func);
+
+            for (; NOT_END(param); ++param, ++arg, ++n) {
+                Debug_Fmt(
+                    "    %s: %72r",
+                    STR_HEAD(VAL_PARAM_SPELLING(param)),
+                    arg
+                );
+            }
+        }
+    }
 }
 
 #ifdef TEST_PRINT
@@ -277,7 +275,7 @@ REBNATIVE(dump)
 
     REBVAL *value = ARG(value);
 
-    Dump_Stack(frame_, 0);
+    Dump_Stack(frame_, 0, TRUE);
 
     if (ANY_SERIES(value))
         Dump_Series(VAL_SERIES(value), "=>");
