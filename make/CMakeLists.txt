@@ -86,6 +86,7 @@ elseif (UNIX)
     if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
         list (APPEND COMMON_MACROS
             TO_LINUX
+            TO_LINUX_X86
             ENDIAN_LITTLE
             HAS_LL_CONSTS
             )
@@ -133,6 +134,11 @@ elseif (R3_OS_ID STREQUAL "0.4.20") #linux arm
     set (TO_LINUX_ARM TRUE)
     list (APPEND COMMON_MACROS
         TO_LINUX_ARM
+        )
+elseif (R3_OS_ID STREQUAL "0.4.22") #linux arm64
+    set (TO_LINUX_AARCH64 TRUE)
+    list (APPEND COMMON_MACROS
+        TO_LINUX_AARCH64
         )
 elseif (R3_OS_ID STREQUAL "0.4.40") #linux x86_64
     set (TO_LINUX_X64 TRUE)
@@ -359,14 +365,35 @@ set(NATIVE_OUTPUT
     ${TOP_GENERATED_SRC_DIR}/boot/tmp-natives.r
     ${TOP_GENERATED_SRC_DIR}/boot/tmp-actions.r
     )
-set(NATIVE_DEPENDS ${CORE_C_SOURCE})
+
+set(NATIVE_DEPENDS
+    ${TOP_SRC_DIR}/boot/actions.r
+    ${TOP_SRC_DIR}/boot/types.r
+)
+
+set(TOOL_DEPENDS
+    ${TOOLS_DIR}/common.r
+    ${TOOLS_DIR}/common-parsers.r
+)
+
+#all files with REBNATIVE
+foreach(CORE_C_FILE ${CORE_C_FILES})
+    FILE(STRINGS ${CORE_C_FILE} HAS_NATIVE REGEX "^REBNATIVE\\([a-zA-Z_][a-zA-Z0-9_]*\\)$")
+    #message("HAS_NATIVE in ${CORE_C_FILE}: ${HAS_NATIVE}")
+    if(HAS_NATIVE)
+        #message("${CORE_C_FILE} has natives")
+        list(APPEND NATIVE_DEPENDS ${CORE_C_FILE})
+    endif()
+endforeach()
+#message("NATIVE_DEPENDS: ${NATIVE_DEPENDS}")
 
 add_custom_command(OUTPUT
     ${NATIVE_OUTPUT}
     COMMAND ${REBOL} ${TOOLS_DIR}/make-natives.r OUTDIR=${TOP_GENERATED_SRC_DIR}
     DEPENDS
     ${REBOL} ${TOOLS_DIR}/make-natives.r
-        ${NATIVE_DEPENDS}
+    ${TOOL_DEPENDS}
+    ${NATIVE_DEPENDS}
 )
 
 set(HEADER_OUTPUT
@@ -378,6 +405,7 @@ set(HEADER_DEPENDS
     ${TOOLS_DIR}/common.r
     ${TOOLS_DIR}/common-parsers.r
     ${TOOLS_DIR}/form-header.r
+    ${CORE_C_FILES}
     ${NATIVE_OUTPUT}
     )
 
@@ -386,6 +414,7 @@ add_custom_command(OUTPUT
     COMMAND ${REBOL} ${TOOLS_DIR}/make-headers.r OUTDIR=${TOP_GENERATED_SRC_DIR}
     DEPENDS
     ${TOOLS_DIR}/make-headers.r
+    ${TOOL_DEPENDS}
     ${HEADER_DEPENDS}
     )
 
@@ -472,6 +501,7 @@ add_custom_command(OUTPUT
     COMMAND ${REBOL} ${TOOLS_DIR}/make-boot.r OS_ID=${R3_OS_ID} OUTDIR=${TOP_GENERATED_SRC_DIR}
     DEPENDS
     ${TOOLS_DIR}/make-boot.r
+    ${TOOL_DEPENDS}
     ${BOOT_DEPENDS}
     )
 
@@ -488,6 +518,7 @@ add_custom_command(OUTPUT
     COMMAND ${REBOL} ${TOOLS_DIR}/core-ext.r OUTDIR=${TOP_GENERATED_SRC_DIR}
     DEPENDS
     ${TOOLS_DIR}/core-ext.r
+    ${TOOL_DEPENDS}
     ${EXT_CORE_DEPENDS}
     )
 
@@ -510,6 +541,7 @@ add_custom_command(OUTPUT
     COMMAND ${REBOL} ${TOOLS_DIR}/make-reb-lib.r OUTDIR=${TOP_GENERATED_SRC_DIR}
     DEPENDS
     ${TOOLS_DIR}/make-reb-lib.r
+    ${TOOL_DEPENDS}
     ${REB_LIB_DEPENDS}
     )
 
@@ -528,6 +560,7 @@ set_source_files_properties(
     HEADER_FILE_ONLY TRUE
     )
 
+#HOST
 set(EXT_OS_OUTPUT
     ${TOP_GENERATED_SRC_DIR}/include/host-lib.h
     ${TOP_GENERATED_SRC_DIR}/include/host-table.inc
@@ -548,6 +581,7 @@ if (R3_BUILD_VIEW)
         COMMAND ${REBOL} ${TOOLS_DIR}/make-os-ext.r OS_ID=${R3_OS_ID} GFX=1 OUTDIR=${TOP_GENERATED_SRC_DIR}
         DEPENDS
         ${TOOLS_DIR}/make-os-ext.r
+        ${TOOL_DEPENDS}
         ${EXT_OS_DEPENDS}
         )
 else ()
@@ -556,6 +590,7 @@ else ()
         COMMAND ${REBOL} ${TOOLS_DIR}/make-os-ext.r OS_ID=${R3_OS_ID} OUTDIR=${TOP_GENERATED_SRC_DIR}
         DEPENDS
         ${TOOLS_DIR}/make-os-ext.r
+        ${TOOL_DEPENDS}
         ${EXT_OS_DEPENDS}
         )
 endif ()
