@@ -200,6 +200,7 @@ target_include_directories(r3-view PUBLIC
 	${TOP_GENERATED_SRC_DIR}/include
 	${TOP_SRC_DIR}/include
 	${TOP_SRC_DIR}/codecs
+	${FFI_INCLUDE_DIRS}
 )
 
 target_compile_definitions(r3-view PUBLIC
