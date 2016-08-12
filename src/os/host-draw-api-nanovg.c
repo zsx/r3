@@ -652,7 +652,7 @@ static void nvgdrw_line_pattern(void* gr, REBCNT col, REBDEC* patterns)
     if (patterns == NULL) {
         nvgdrw_pen_image(ctx, NULL, 0, 0);
     } else {
-        int i, j;
+        int i;
         int width = 0;
         int offset = 0;
         REBCNT colors[] = { ctx->stroke_color, col };
