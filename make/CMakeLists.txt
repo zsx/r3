@@ -425,7 +425,6 @@ set(BOOT_DEPENDS
     ${TOP_SRC_DIR}/boot/typespec.r
     ${TOP_SRC_DIR}/boot/root.r
     ${TOP_SRC_DIR}/boot/task.r
-    ${TOP_SRC_DIR}/boot/ops.r
 
     # all of the files in boot-files.r
     ${TOP_SRC_DIR}/mezz/base-constants.r
