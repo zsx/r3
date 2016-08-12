@@ -54,7 +54,7 @@
 
 //***** Locals *****
 
-static u32* text_ext_words;
+static REBSTR* text_ext_words;
 
 //**********************************************************************
 //** Helper Functions **************************************************
@@ -138,7 +138,7 @@ static u32* text_ext_words;
     case CMD_TEXT_CARET:
         {
             RXIARG val;
-            u32 *words, *w;
+            REBSTR* *words, **w;
             REBSER *obj;
             REBCNT type;
             REBXYF caret, highlightStart, highlightEnd;
@@ -231,7 +231,7 @@ static u32* text_ext_words;
     case CMD_TEXT_FONT:
         {
             RXIARG val;
-            u32 *words,*w;
+            REBSTR* *words, **w;
             REBSER *obj;
             REBCNT type;
             REBFNT *font = rebol_renderer->text->rt_get_font(ctx->envr);
@@ -260,7 +260,7 @@ static u32* text_ext_words;
                         {
                             case RXT_WORD:
                             {
-                                u32 styleWord = RL_FIND_WORD(text_ext_words,val.i2.int32a);
+                                u32 styleWord = RL_FIND_WORD(text_ext_words,val.sri.series);
                                 if (styleWord) rebol_renderer->text->rt_set_font_styles(font, styleWord);
                             }
                             break;
@@ -273,7 +273,7 @@ static u32* text_ext_words;
                                 u32 styleWord;
                                 for (n = 0; (styleType = RL_GET_VALUE(val.sri.series, n, &styleVal)); n++) {
                                     if (styleType == RXT_WORD) {
-                                        styleWord = RL_FIND_WORD(text_ext_words,styleVal.i2.int32a);
+                                        styleWord = RL_FIND_WORD(text_ext_words,styleVal.sri.series);
                                         if (styleWord) rebol_renderer->text->rt_set_font_styles(font, styleWord);
                                     }
                                 }
@@ -380,7 +380,7 @@ static u32* text_ext_words;
     case CMD_TEXT_PARA:
         {
             RXIARG val;
-            u32 *words,*w;
+            REBSTR **words, **w;
             REBSER *obj;
             REBCNT type;
             REBPRA *para = rebol_renderer->text->rt_get_para(ctx->envr);
@@ -434,12 +434,12 @@ static u32* text_ext_words;
                         break;
                     case W_TEXT_ALIGN:
                         if (type == RXT_WORD) {
-                            para->align = RL_FIND_WORD(text_ext_words,val.i2.int32a);
+                            para->align = RL_FIND_WORD(text_ext_words,val.sri.series);
                         }
                         break;
                     case W_TEXT_VALIGN:
                         if (type == RXT_WORD) {
-                            para->valign = RL_FIND_WORD(text_ext_words,val.i2.int32a);
+                            para->valign = RL_FIND_WORD(text_ext_words,val.sri.series);
                         }
                         break;
                 }
@@ -484,5 +484,5 @@ static u32* text_ext_words;
 	default:
 		return RXR_NO_COMMAND;
 	}
-    return RXR_UNSET;
+    return RXR_VOID;
 }
