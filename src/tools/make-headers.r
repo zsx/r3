@@ -18,7 +18,7 @@ do %common-parsers.r
 
 print "------ Building headers"
 args: parse-args system/options/args
-output-dir: to file! any [args/OUTDIR %../]
+output-dir: fix-win32-path to file! any [args/OUTDIR %../]
 mkdir/deep output-dir/include
 
 r3: system/version > 2.100.0
