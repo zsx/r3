@@ -990,6 +990,12 @@ REBVAL *Make_Pairing(REBCTX *opt_owning_frame) {
     REBVAL *key = cast(REBVAL*, s);
     REBVAL *pairing = key + 1;
 
+#if !defined(NDEBUG)
+    s->guard = cast(int*, malloc(sizeof(*s->guard)));
+    free(s->guard);
+    s->do_count = TG_Do_Count;
+#endif
+
     INIT_CELL_IF_DEBUG(key);
     if (opt_owning_frame) {
         Val_Init_Context(key, REB_FRAME, opt_owning_frame);
