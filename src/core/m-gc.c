@@ -918,7 +918,7 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             REBVAL *key = PAIRING_KEY(val->payload.pair);
             Init_Header_Aliased( // will be read via REBSER
                 &key->header,
-                key->header.bits & REBSER_REBVAL_FLAG_MARK
+                key->header.bits | REBSER_REBVAL_FLAG_MARK
             );
             break; }
 
