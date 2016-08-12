@@ -1,39 +1,43 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Title: Linux Encap Facility
-**  Purpose:
-**      This host routine is used to read out a binary blob stored in
-**      an ELF executable, used for "encapping" a script and its
-**      resources.  Unlike a large constant blob that is compiled into
-**      the data segment requiring a C compiler, encapped data can be
-**      written into an already compiled ELF executable.
-**
-**      Because this method is closely tied to the ELF format, it
-**      cannot be used with systems besides Linux (unless they happen
-**      to also use ELF):
-**
-**      https://en.wikipedia.org/wiki/Executable_and_Linkable_Format
-**
-***********************************************************************/
+//
+//  File: %host-encap.c
+//  Summary: "Linux Encap Facility"
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// This host routine is used to read out a binary blob stored in
+// an ELF executable, used for "encapping" a script and its
+// resources.  Unlike a large constant blob that is compiled into
+// the data segment requiring a C compiler, encapped data can be
+// written into an already compiled ELF executable.
+//
+// Because this method is closely tied to the ELF format, it
+// cannot be used with systems besides Linux (unless they happen
+// to also use ELF):
+//
+// https://en.wikipedia.org/wiki/Executable_and_Linkable_Format
+//
 
 #ifndef __cplusplus
     // See feature_test_macros(7)

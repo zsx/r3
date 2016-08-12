@@ -13,13 +13,13 @@ REBOL [
 
 launch: func [
     {Runs a script as a separate process; return immediately.}
-    script [file! string! none!] "The name of the script"
-    /args arg [string! block! none!] "Arguments to the script"
+    script [file! string! blank!] "The name of the script"
+    /args arg [string! block! blank!] "Arguments to the script"
     /wait "Wait for the process to terminate"
 ][
     if file? script [script: to-local-file clean-path script]
     args: reduce [to-local-file system/options/boot script]
-    unless unset? :arg [append args arg]
+    unless void? :arg [append args arg]
     either wait [call/wait args] [call args]
 ]
 
@@ -28,13 +28,4 @@ wrap: func [
     body [block!] "Block to evaluate"
 ][
     do bind/copy/set body make object! 0
-]
-
-check-set: func [
-    "Set optional value via set-word or set-path, TRUE unless UNSET!"
-
-    'target [set-word! set-path!]
-    value [opt-any-value!]
-][
-    any-value? set/opt target :value
 ]

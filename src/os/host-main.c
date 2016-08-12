@@ -1,48 +1,50 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Additional code modifications and improvements Copyright 2012 Saphirion AG
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Title: Host environment main entry point
-**  Note: OS independent
-**  Author: Carl Sassenrath
-**  Purpose:
-**      Provides the outer environment that calls the REBOL lib.
-**      This module is more or less just an example and includes
-**      a very simple console prompt.
-**
-************************************************************************
-**
-**  WARNING to PROGRAMMERS:
-**
-**      This open source code is strictly managed to maintain
-**      source consistency according to our standards, not yours.
-**
-**      1. Keep code clear and simple.
-**      2. Document odd code, your reasoning, or gotchas.
-**      3. Use our source style for code, indentation, comments, etc.
-**      4. It must work on Win32, Linux, OS X, BSD, big/little endian.
-**      5. Test your code really well before submitting it.
-**
-***********************************************************************/
+//
+//  File: %host-main.c
+//  Summary: "Host environment main entry point"
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// OS independent
+//
+// Provides the outer environment that calls the REBOL lib.
+// This module is more or less just an example and includes
+// a very simple console prompt.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// WARNING to PROGRAMMERS:
+//
+//     This open source code is strictly managed to maintain
+//     source consistency according to our standards, not yours.
+//
+//     1. Keep code clear and simple.
+//     2. Document odd code, your reasoning, or gotchas.
+//     3. Use our source style for code, indentation, comments, etc.
+//     4. It must work on Win32, Linux, OS X, BSD, big/little endian.
+//     5. Test your code really well before submitting it.
+//
 
 #include <stdlib.h>
 #include <string.h>
@@ -78,6 +80,8 @@
     // when Rebol redefines it.  (Rebol defines IS_XXX for all datatypes.)
     //
     #undef IS_ERROR
+    #undef max
+    #undef min
 #endif
 
 
@@ -144,15 +148,11 @@ REBARGS Main_Args;
 const REBYTE halt_str[] = "[escape]";
 const REBYTE prompt_str[] = ">> ";
 const REBYTE result_str[] = "== ";
-const REBYTE why_str[] = "** Note: use WHY? for more error information\n\n";
+const REBYTE why_str[] = "** Note: use WHY? for more error information\n";
 const REBYTE breakpoint_str[] =
-    "** Breakpoint Hit (see BACKTRACE, DEBUG, and RESUME)\n\n";
+    "** Breakpoint Hit (see BACKTRACE, DEBUG, and RESUME)\n";
 const REBYTE interrupted_str[] =
-    "** Execution Interrupted (see BACKTRACE, DEBUG, and RESUME)\n\n";
-
-#ifdef TO_WINDOWS
-HINSTANCE App_Instance = 0;
-#endif
+    "** Execution Interrupted (see BACKTRACE, DEBUG, and RESUME)\n";
 
 #ifndef REB_CORE
 extern void Init_Windows(void);
@@ -163,8 +163,14 @@ extern void OS_Destroy_Graphics(void);
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#ifdef TO_WINDOWS
+    HINSTANCE App_Instance = 0;
+#endif
+
     extern void Init_Core_Ext();
     extern void Shutdown_Core_Ext(void);
+
 #ifdef __cplusplus
 }
 #endif
@@ -218,14 +224,14 @@ REBCNT HG_Stack_Level = 1;
 //
 const REBYTE N_debug_spec[] =
     " {Dialect for interactive debugging, see documentation for details}"
-    " 'value [unset! integer! frame! function! block!]"
+    " 'value [_ integer! frame! function! block!]"
         " {Stack level to inspect or dialect block, or enter debug mode}"
     "";
-REB_R N_debug(struct Reb_Frame *frame_) {
+REB_R N_debug(REBFRM *frame_) {
     PARAM(1, value);
     REBVAL *value = ARG(value);
 
-    if (IS_UNSET(value)) {
+    if (IS_VOID(value)) {
         //
         // e.g. just `>> debug` and [enter] in the console.  Ideally this
         // would shift the REPL into a mode where all commands issued were
@@ -237,7 +243,7 @@ REB_R N_debug(struct Reb_Frame *frame_) {
     }
 
     if (IS_INTEGER(value) || IS_FRAME(value) || IS_FUNCTION(value)) {
-        struct Reb_Frame *frame;
+        REBFRM *frame;
 
         // We pass TRUE here to account for an extra stack level... the one
         // added by DEBUG itself, which presumably should not count.
@@ -265,7 +271,7 @@ modify_with_confidence:
         "feature you want isn't implemented doesn't mean you can't add it!)\n"
     );
 
-    return R_NONE;
+    return R_BLANK;
 }
 
 
@@ -287,8 +293,6 @@ int Do_String(
     const REBYTE *text,
     REBOOL at_breakpoint
 ) {
-    REBARR *code;
-
     struct Reb_State state;
     REBCTX *error;
 
@@ -320,10 +324,10 @@ int Do_String(
 
         Val_Init_Error(out, error);
         *last = *out;
-        return -ERR_NUM(error);
+        return -cast(REBINT, ERR_NUM(error));
     }
 
-    code = Scan_Source(text, LEN_BYTES(text));
+    REBARR *code = Scan_UTF8_Managed(text, LEN_BYTES(text));
 
     // Where code ends up being bound when loaded at the REPL prompt should
     // be more generally configurable.  (It may be, for instance, that one
@@ -340,8 +344,6 @@ int Do_String(
         REBCTX *user_ctx = VAL_CONTEXT(Get_System(SYS_CONTEXTS, CTX_USER));
 
         REBVAL vali;
-        VAL_INIT_WRITABLE_DEBUG(&vali);
-
         SET_INTEGER(&vali, CTX_LEN(user_ctx) + 1);
 
         Bind_Values_All_Deep(ARR_HEAD(code), user_ctx);
@@ -353,21 +355,17 @@ int Do_String(
         // stack level, just the way a body is bound during Make_Function()
         //
         if (at_breakpoint) {
-            struct Reb_Frame *frame;
-            REBCTX *frame_ctx;
-
             REBVAL level;
-            VAL_INIT_WRITABLE_DEBUG(&level);
             SET_INTEGER(&level, HG_Stack_Level);
 
-            frame = Frame_For_Stack_Level(NULL, &level, FALSE);
+            REBFRM *frame = Frame_For_Stack_Level(NULL, &level, FALSE);
             assert(frame);
 
             // Need to manage because it may be no words get bound into it,
             // and we're not putting it into a FRAME! value, so it might leak
             // otherwise if it's reified.
             //
-            frame_ctx = Context_For_Frame_May_Reify(frame, NULL, TRUE);
+            REBCTX *frame_ctx = Context_For_Frame_May_Reify_Managed(frame);
 
             Bind_Values_Deep(ARR_HEAD(code), frame_ctx);
         }
@@ -381,11 +379,11 @@ int Do_String(
         Bind_Values_Deep(ARR_HEAD(code), Lib_Context); */
     }
 
-    if (Do_At_Throws(out, code, 0)) { // `code` is implicitly GC protected
+    if (Do_At_Throws(out, code, 0, SPECIFIED)) { // `code` will be GC protected
         if (at_breakpoint) {
             if (
-                IS_FUNCTION_AND(out, FUNC_CLASS_NATIVE)
-                && VAL_FUNC_CODE(out) == &N_resume
+                IS_FUNCTION(out)
+                && VAL_FUNC_DISPATCHER(out) == &N_resume
             ) {
                 //
                 // This means we're done with the embedded REPL.  We want to
@@ -404,8 +402,8 @@ int Do_String(
             }
 
             if (
-                IS_FUNCTION_AND(out, FUNC_CLASS_NATIVE)
-                && VAL_FUNC_CODE(out) == &N_quit
+                IS_FUNCTION(out)
+                && VAL_FUNC_DISPATCHER(out) == &N_quit
             ) {
                 //
                 // It would be frustrating if the system did not respond to
@@ -424,10 +422,10 @@ int Do_String(
             // now, also EXIT as meaning you want to leave.
             //
             if (
-                IS_FUNCTION_AND(out, FUNC_CLASS_NATIVE)
+                IS_FUNCTION(out)
                 && (
-                    VAL_FUNC_CODE(out) == &N_quit
-                    || VAL_FUNC_CODE(out) == &N_exit
+                    VAL_FUNC_DISPATCHER(out) == &N_quit
+                    || VAL_FUNC_DISPATCHER(out) == &N_exit
                 )
             ) {
                 DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
@@ -447,14 +445,9 @@ int Do_String(
 
 
 REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
-    REBYTE vers[8];
     REBINT startup_rc;
     REBYTE *embedded_script = NULL;
     REBI64 embedded_size = 0;
-
-    const REBYTE debug_str[] = "debug";
-    REBCNT debug_sym;
-    REBCTX *user_context;
 
     Host_Lib = &Host_Lib_Init;
 
@@ -532,21 +525,28 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
     // notes on N_debug regarding why the C code implementing DEBUG is in
     // the host and not part of Rebol Core.)
     //
-    debug_sym = Make_Word(debug_str, LEN_BYTES(debug_str));
-    user_context = VAL_CONTEXT(Get_System(SYS_CONTEXTS, CTX_USER));
+    const REBYTE debug_utf8[] = "debug";
+    REBSTR *debug_name = Intern_UTF8_Managed(debug_utf8, LEN_BYTES(debug_utf8));
+
+    REBCTX *user_context = VAL_CONTEXT(Get_System(SYS_CONTEXTS, CTX_USER));
     if (
-        !Find_Word_In_Context(Lib_Context, debug_sym, TRUE)
-        && !Find_Word_In_Context(user_context, debug_sym, TRUE)
+        0 == Find_Canon_In_Context(Lib_Context, STR_CANON(debug_name), TRUE) &&
+        0 == Find_Canon_In_Context(user_context, STR_CANON(debug_name), TRUE)
     ) {
-        REBARR *spec = Scan_Source(N_debug_spec, LEN_BYTES(N_debug_spec));
+        REBARR *spec_array = Scan_UTF8_Managed(
+            N_debug_spec, LEN_BYTES(N_debug_spec)
+        );
+        REBVAL spec;
+        Val_Init_Block(&spec, spec_array);
 
-        REBVAL debug_native;
-        VAL_INIT_WRITABLE_DEBUG(&debug_native);
+        REBFUN *debug_native = Make_Function(
+            Make_Paramlist_Managed_May_Fail(&spec, MKF_KEYWORDS),
+            &N_debug,
+            NULL // no underlying function, this is fundamental
+        );
 
-        Make_Native(&debug_native, spec, &N_debug, FUNC_CLASS_NATIVE);
-
-        *Append_Context(Lib_Context, 0, debug_sym) = debug_native;
-        *Append_Context(user_context, 0, debug_sym) = debug_native;
+        *Append_Context(Lib_Context, 0, debug_name) = *FUNC_VALUE(debug_native);
+        *Append_Context(user_context, 0, debug_name) = *FUNC_VALUE(debug_native);
     }
     else {
         // It's already there--e.g. someone added REBNATIVE(debug).  Assert
@@ -602,7 +602,6 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
         REBCTX *error;
 
         REBVAL result;
-        VAL_INIT_WRITABLE_DEBUG(&result);
 
         // See notes regarding unix signals and Ctrl-C in main() for why
         // this must be pushed in order to handle potential breaks during
@@ -747,6 +746,7 @@ void Host_Repl(int *exit_status, REBVAL *out, REBOOL at_breakpoint) {
             }
         }
         else {
+            Put_Str(cb_cast("\n"));
             if (at_breakpoint) {
                 //
                 // If we're stopped at a breakpoint, then the REPL has a
@@ -894,7 +894,7 @@ void Host_Repl(int *exit_status, REBVAL *out, REBOOL at_breakpoint) {
             // There was no error.  If the value on top of stack is an unset
             // then nothing will be printed, otherwise print it out.
             //
-            if (!IS_UNSET(out)) {
+            if (!IS_VOID(out)) {
                 Out_Str(result_str, 0); // "=="
                 Out_Value(out, 500, TRUE, 1);
             }
@@ -950,9 +950,6 @@ REBOOL Host_Breakpoint_Quitting_Hook(
     REBVAL *instruction_out,
     REBOOL interrupted
 ) {
-    int exit_status;
-    REBCNT old_stack_level;
-
     // Notify the user that the breakpoint or interruption was hit.
     //
     if (interrupted)
@@ -964,21 +961,19 @@ REBOOL Host_Breakpoint_Quitting_Hook(
     // we resume.  Each new breakpoint nesting hit will default to debugging
     // stack level 1...e.g. the level that called breakpoint.
     //
-    old_stack_level = HG_Stack_Level;
+    REBCNT old_stack_level = HG_Stack_Level;
 
-    {
-        REBVAL level;
-        VAL_INIT_WRITABLE_DEBUG(&level);
-        SET_INTEGER(&level, 1);
+    REBVAL level;
+    SET_INTEGER(&level, 1);
 
-        if (Frame_For_Stack_Level(NULL, &level, FALSE) != NULL)
-            HG_Stack_Level = 1;
-        else
-            HG_Stack_Level = 0; // Happens if you just type "breakpoint"
-    }
+    if (Frame_For_Stack_Level(NULL, &level, FALSE) != NULL)
+        HG_Stack_Level = 1;
+    else
+        HG_Stack_Level = 0; // Happens if you just type "breakpoint"
 
     // Spawn nested REPL.
     //
+    int exit_status;
     Host_Repl(&exit_status, instruction_out, TRUE);
 
     // Restore stack level, which is presumably still valid (there shouldn't
@@ -1039,7 +1034,6 @@ int main(int argc, char **argv_ansi)
 {
     int exit_status;
 
-    REBINT startup_rc;
     REBCHR **argv;
 
     //
@@ -1076,11 +1070,12 @@ int main(int argc, char **argv_ansi)
         REBCTX *error;
 
         REBVAL value;
-        VAL_INIT_WRITABLE_DEBUG(&value);
         SET_END(&value);
         PUSH_GUARD_VALUE(&value); // !!! Out_Value expects value to be GC safe
 
     push_trap:
+        SET_END(&value);
+
         //
         // The R3-Alpha host kit did not have a policy articulated on dealing
         // with the interrupt nature of the SIGINT signals sent by Ctrl-C
@@ -1132,7 +1127,7 @@ cleanup_and_exit:
     // No need to do a "clean" shutdown, as we are about to exit the process
     // (Note: The debug build runs through the clean shutdown anyway!)
     RL_Shutdown(FALSE);
-    Shutdown_Func_Profiler();
+    //Shutdown_Func_Profiler();
 
     return exit_status;
 }

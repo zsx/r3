@@ -16,91 +16,74 @@ REBOL [
     }
 ]
 
-
-; !!! These used to be series natives that leveraged their implementation
-; as a hacked-up re-dispatch to A_PICK.  The method that used was not viable
-; when the call stack got its own data structure.  Given that dispatch was
-; not itself free, the idea of needing to write such helpers as natives
-; "for performance" suggests a faster substitution "macro" construct may
-; be required.  Until then, they are mezzanine.
-
-first: func [
+first: redescribe [
     {Returns the first value of a series.}
-    value
-] [
-    pick value 1
-]
+](
+    specialize 'pick [index: 1]
+)
 
 first+: func [
     {Return the FIRST of a series then increment the series index.}
+    return: [<opt> any-value!]
     'word [word!] "Word must refer to a series"
     /local prior
 ][
     also (pick prior: get word 1) (set word next prior)
 ]
 
-second: func [
+second: redescribe [
     {Returns the second value of a series.}
-    value
-] [
-    pick value 2
-]
+](
+    specialize 'pick [index: 2]
+)
 
-third: func [
+third: redescribe [
     {Returns the third value of a series.}
-    value
-] [
-    pick value 3
-]
+](
+    specialize 'pick [index: 3]
+)
 
-fourth: func [
+fourth: redescribe [
     {Returns the fourth value of a series.}
-    value
-] [
-    pick value 4
-]
+](
+    specialize 'pick [index: 4]
+)
 
-fifth: func [
+fifth: redescribe [
     {Returns the fifth value of a series.}
-    value
-] [
-    pick value 5
-]
+](
+    specialize 'pick [index: 5]
+)
 
-sixth: func [
+sixth: redescribe [
     {Returns the sixth value of a series.}
-    value
-] [
-    pick value 6
-]
+](
+    specialize 'pick [index: 6]
+)
 
-seventh: func [
+seventh: redescribe [
     {Returns the seventh value of a series.}
-    value
-] [
-    pick value 7
-]
+](
+    specialize 'pick [index: 7]
+)
 
-eighth: func [
+eighth: redescribe [
     {Returns the eighth value of a series.}
-    value
-] [
-    pick value 8
-]
+](
+    specialize 'pick [index: 8]
+)
 
-ninth: func [
+ninth: redescribe [
     {Returns the ninth value of a series.}
-    value
-] [
-    pick value 9
-]
+](
+    specialize 'pick [index: 9]
+)
 
-tenth: func [
+tenth: redescribe [
     {Returns the tenth value of a series.}
-    value
-] [
-    pick value 10
-]
+](
+    specialize 'pick [index: 10]
+)
 
 last: func [
     {Returns the last value of a series.}
@@ -137,7 +120,7 @@ repend: func [
     "Appends a reduced value to a series and returns the series head."
     series [any-series! port! map! gob! object! bitset!]
         {Series at point to insert (modified)}
-    value [opt-any-value!] {The value to insert}
+    value [<opt> any-value!] {The value to insert}
     /part {Limits to a given length or position}
     limit [any-number! any-series! pair!]
     /only {Inserts a series as a series}
@@ -145,7 +128,7 @@ repend: func [
     count [any-number! pair!]
 ][
     either any-value? :value [
-        append/part/:only/dup series reduce :value :limit :count
+        append/part/(if only 'only)/dup series reduce :value :limit :count
     ][
         head series ;-- simulating result of appending () returns the head
     ]
@@ -153,8 +136,8 @@ repend: func [
 
 join: func [
     "Concatenates values."
-    value "Base value" [opt-any-value!]
-    rest "Value or block of values" [opt-any-value!]
+    value "Base value" [<opt> any-value!]
+    rest "Value or block of values" [<opt> any-value!]
 ][
     either any-value? :value [
         value: either any-series? :value [copy value] [form :value]

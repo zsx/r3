@@ -1,30 +1,31 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Summary: Lexical Scanner Definitions
-**  Module:  sys-scan.h
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %sys-scan.h
+//  Summary: "Lexical Scanner Definitions"
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 /*
 **  Tokens returned by the scanner.  Keep in sync with boot.r strings area.
@@ -35,22 +36,13 @@ enum Value_Types {
     TOKEN_BLOCK_END,
     TOKEN_PAREN_END,
     TOKEN_WORD,
-    TOKEN_FILLER1, // !!! needed for REB_WORD + (token - TOKEN_WORD) trick
-    TOKEN_FILLER2, // !!! review the necessity of this "adding" on REB_XXXs
-    TOKEN_FILLER3, // !!! see KIND_OF_WORD_FROM_TOKEN
-    TOKEN_SET,
-    TOKEN_FILLER4,
-    TOKEN_FILLER5,
-    TOKEN_FILLER6,
-    TOKEN_GET,
-    TOKEN_FILLER7,
-    TOKEN_FILLER8,
-    TOKEN_FILLER9,
-    TOKEN_LIT,
-    TOKEN_NONE,     // not needed
+    TOKEN_SET, // order matters (see KIND_OF_WORD_FROM_TOKEN)
+    TOKEN_GET, // ^-- same
+    TOKEN_LIT, // ^-- same
+    TOKEN_BLANK, // not needed
     TOKEN_BAR,
     TOKEN_LIT_BAR,
-    TOKEN_LOGIC,    // not needed
+    TOKEN_LOGIC, // not needed
     TOKEN_INTEGER,
     TOKEN_DECIMAL,
     TOKEN_PERCENT,
@@ -161,6 +153,7 @@ enum LEX_SPECIAL_ENUM {             /* The order is important! */
     LEX_SPECIAL_MINUS,              /* 2D - - date, negative number */
     LEX_SPECIAL_TILDE,              /* 7E ~ - complement number */
     LEX_SPECIAL_BAR,                /* 7C | - expression barrier */
+    LEX_SPECIAL_BLANK,              /* 5F _ - blank */
 
                                     /** Any of these can follow - or ~ : */
     LEX_SPECIAL_PERIOD,             /* 2E . - decimal number */

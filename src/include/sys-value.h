@@ -1,6 +1,10 @@
 //
-// Rebol 3 Language Interpreter and Run-time Environment
-// "Ren-C" branch @ https://github.com/metaeducation/ren-c
+//  File: %sys-value.h
+//  Summary: {Accessor Functions for properties of a Rebol Value}
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
 // Copyright 2012-2016 Rebol Open Source Contributors
@@ -22,36 +26,14 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  Summary: Definitions for the Rebol Value Struct (REBVAL) and Helpers
-//  File: %sys-value.h
+// This file provides basic accessors for value types.  Because these
+// accessors operate on REBVAL (or RELVAL) pointers, the inline functions need
+// the complete struct definition available from all the payload types.
 //
-//=////////////////////////////////////////////////////////////////////////=//
+// See notes in %sys-rebval.h for the definition of the REBVAL structure.
 //
-// REBVAL is the structure/union for all Rebol values. It's designed to be
-// four C pointers in size (so 16 bytes on 32-bit platforms and 32 bytes
-// on 64-bit platforms).  Operation will be most efficient with those sizes,
-// and there are checks on boot to ensure that `sizeof(REBVAL)` is the
-// correct value for the platform.  But from a mechanical standpoint, the
-// system should be *able* to work even if the size is different.
-//
-// Of the four 32-or-64-bit slots that each value has, the first is used for
-// the value's "Header".  This includes the data type, such as REB_INTEGER,
-// REB_BLOCK, REB_STRING, etc.  Then there are 8 flags which are for general
-// purposes that could apply equally well to any type of value (including
-// whether the value should have a new-line after it when molded out inside
-// of a block).  There are 8 bits which are custom to each type--for
-// instance whether a key in an object is hidden or not.  Then there are
-// 8 bits currently reserved for future use.
-//
-// The remaining content of the REBVAL struct is the "Payload".  It is the
-// size of three (void*) pointers, and is used to hold whatever bits that
-// are needed for the value type to represent itself.  Perhaps obviously,
-// an arbitrarily long string will not fit into 3*32 bits, or even 3*64 bits!
-// You can fit the data for an INTEGER or DECIMAL in that (at least until
-// they become arbitrary precision) but it's not enough for a generic BLOCK!
-// or a FUNCTION! (for instance).  So those pointers are used to point to
-// things, and often they will point to one or more Rebol Series (see
-// %sys-series.h for an explanation of REBSER, REBARR, REBCTX, and REBMAP.)
+// An attempt is made to group the accessors in sections.  Some functions are
+// defined in %c-value.c for the sake of the grouping.
 //
 // While some REBVALs are in C stack variables, most reside in the allocated
 // memory block for a Rebol series.  The memory block for a series can be
@@ -74,345 +56,45 @@
 // accessed via ARG() will be stable as long as the function is running.
 //
 
-//
-// Note: Forward declarations are in %reb-defs.h
-//
-
-#ifndef VALUE_H
-#define VALUE_H
-
-// The definition of the REBVAL struct has a header followed by a payload.
-// On 32-bit platforms the header is 32 bits, and on 64-bit platforms it is
-// 64-bits.  However, even on 32-bit platforms, some payloads contain 64-bit
-// quantities (doubles or 64-bit integers).  By default, the compiler would
-// pad a payload with one 64-bit quantity and one 32-bit quantity to 128-bits,
-// which would not leave room for the header (if REBVALs are to be 128-bits).
-//
-// So since R3-Alpha, a `#pragma pack` of 4 is requested for this file:
-//
-//     http://stackoverflow.com/questions/3318410/
-//
-// It is restored to the default via `#pragma pack()` at the end of the file.
-// (Note that pack(push) and pack(pop) are not supported by older compilers.)
-//
-// Compilers are free to ignore pragmas (or error on them).  Also, this
-// packing subverts the automatic alignment handling of the compiler.  So if
-// the manually packed structures do not position 64-bit values on 64-bit
-// alignments, there can be problems.  On x86 this is generally just slower
-// reads and writes, but on more esoteric platforms (like the C-to-Javascript
-// translator "emscripten") some instances do not work at all.
-//
-// Hence REBVAL payloads that contain quantities that need 64-bit alignment
-// put those *after* a platform-pointer sized field, even if that field is
-// just padding.  On 32-bit platforms this will pair with the header to make
-// enough space to get to a 64-bit alignment
-//
-// If #pragma pack is disabled, a REBVAL will wind up being 160 bits.  This
-// won't give ideal performance, and will trigger an assertion in
-// Assert_Basics.  But the code *should* be able to work otherwise if that
-// assertion is removed.
-//
-#pragma pack(4)
-
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  VALUE HEADER (`struct Reb_Value_Header`)
+//  DEBUG PROBE AND PANIC
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// The layout of the header corresponds to the following bitfield
-// structure on big endian machines:
+// The PROBE macro can be used in debug builds to mold a REBVAL much like the
+// Rebol `probe` operation.  PROBE_MSG can add a message:
 //
-//    unsigned specific:16;     // flags that can apply to any REBVAL kind
-//    unsigned general:8;       // flags that can apply to any kind of REBVAL
-//    unsigned kind:6;          // underlying system datatype (64 kinds)
-//    unsigned settable:1;      // for debug build only--"formatted" to write
-//    unsigned not_end:1;       // not an end marker
+//     REBVAL *v = Some_Value_Pointer();
 //
-// Due to a desire to be able to assign all the header bits in one go
-// with a native-platform-sized int, this is done with bit masking.
-// Using bitfields would bring in questions of how smart the
-// optimizer is, as well as the endianness of the underlyling machine.
+//     PROBE(v);
+//     PROBE_MSG(v, "the v value debug dump label");
 //
-// We use REBUPT (Rebol's pre-C99 compatibility type for uintptr_t,
-// which is just uintptr_t from C99 on).  Only the low 32 bits are used
-// on 64-bit machines in order to make sure all the features work on
-// 32-bit machines...but could be used for some optimization or caching
-// purpose to enhance the 64-bit build.  No such uses implemented yet.
+// In order to make it easier to find out where a piece of debug spew is
+// coming from, the file and line number will be output as well.
+//
+// PANIC_VALUE causes a crash on a value, while trying to provide information
+// that could identify where that value was assigned.  If it is resident
+// in a series and you are using Address Sanitizer or Valgrind, then it should
+// cause a crash that pinpoints the stack where that array was allocated.
 //
 
-struct Reb_Value_Header {
-    REBUPT bits;
-};
+#if !defined(NDEBUG)
+    #define PROBE(v) \
+        Probe_Core_Debug(NULL, __FILE__, __LINE__, (v))
 
-// `NOT_END_MASK`
-//
-// If set, it means this is *not* an end marker.  The bit has been picked
-// strategically to be in the negative sense, and in the lowest bit position.
-// This means that any even-valued unsigned integer REBUPT value can be used
-// to implicitly signal an end.
-//
-// If this bit is 0, it means that *no other header bits are valid*, as it
-// may contain arbitrary data used for non-REBVAL purposes.
-//
-// Note that the value doing double duty as a number for one purpose and an
-// END marker as another *must* be another REBUPT.  It cannot be a pointer
-// (despite being guaranteed-REBUPT-sized, and despite having a value that
-// is 0 when you mod it by 2.  So-called "type-punning" is unsafe with a
-// likelihood of invoking "undefined behavior", while it's the compiler's
-// responsibility to guarantee that pointers to memory of the same type of
-// data be compatibly read-and-written.
-//
-#define NOT_END_MASK cast(REBUPT, 0x01)
+    #define PROBE_MSG(v, m) \
+        Probe_Core_Debug((m), __FILE__, __LINE__, (v))
 
-#define GENERAL_VALUE_BIT 8
-#define TYPE_SPECIFIC_BIT 16
-
-// `WRITABLE_MASK_DEBUG`
-//
-// This is for the debug build, to make it safer to use the implementation
-// trick of NOT_END_MASK.  It indicates the slot is "REBVAL sized", and can
-// be written into--including to be written with SET_END().
-//
-// It's again a strategic choice--the 2nd lowest bit and in the negative.
-// This means any REBUPT value whose % 4 within a container doing
-// double-duty as an implicit terminator for the contained values can
-// trigger an alert if the values try to overwrite it.
-//
-#ifdef NDEBUG
-    //
-    // Though in the abstract it is desirable to have a way to protect an
-    // individual value from writing even in the release build, this is
-    // a debug-only check...it makes every value header initialization have
-    // to do two writes instead of one (one to format, then later to write
-    // and check that it is properly formatted space)
-    //
-#else
-    // We want to be assured that we are not trying to take the type of a
-    // value that is actually an END marker, because end markers chew out only
-    // one bit--the rest of the REBUPT bits besides the bottom two may be
-    // anything necessary for the purpose.
-    //
-    #define WRITABLE_MASK_DEBUG cast(REBUPT, 0x02)
+    #define PANIC_VALUE(v) \
+        Panic_Value_Debug((v), __FILE__, __LINE__)
 #endif
 
-// The type mask comes up a bit and it's a fairly obvious constant, so this
-// hardcodes it for obviousness.  High 6 bits of the lowest byte.
-//
-#define HEADER_TYPE_MASK cast(REBUPT, 0xFC)
+#define Panic_Value(v) \
+    PANIC_VALUE(v)
 
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  END marker (not a value type, only writes `struct Reb_Value_Flags`)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// Historically Rebol arrays were always one value longer than their maximum
-// content, and this final slot was used for a special REBVAL called END!.
-// Like a null terminator in a C string, it was possible to start from one
-// point in the series and traverse to find the end marker without needing
-// to maintain a count.  Rebol series store their length also--but it's
-// faster and more general to use the terminator.
-//
-// Ren-C changed this so that end is not a data type, but rather seeing a
-// header slot with the lowest bit set to 0.  (See NOT_END_MASK for
-// an explanation of this choice.)  The upshot is that a data structure
-// designed to hold Rebol arrays is able to terminate an array at full
-// capacity with a pointer-sized integer with the lowest 2 bits clear, and
-// use the rest of the bits for other purposes.  (See WRITABLE_MASK_DEBUG
-// for why it's the low 2 bits and not just the lowest bit.)
-//
-// This means not only is a full REBVAL not needed to terminate, the sunk cost
-// of an existing 32-bit or 64-bit number (depending on platform) can be used
-// to avoid needing even 1/4 of a REBVAL for a header to terminate.  (See the
-// `size` field in `struct Reb_Chunk` from %sys-stack.h for a simple example
-// of the technique.)
-//
-// !!! Because Rebol Arrays (REBARR) have both a length and a terminator, it
-// is important to keep these in sync.  R3-Alpha sought to give code the
-// freedom to work with unterminated arrays if the cost of writing terminators
-// was not necessary.  Ren-C pushed back against this to try and be more
-// uniform to get the invariants under control.  A formal balance is still
-// being sought of when terminators will be required and when they will not.
-//
-
-#ifdef NDEBUG
-    #define IS_END(v)       LOGICAL((v)->header.bits % 2 == 0)
-#else
-    #define IS_END(v)       IS_END_Debug(v)
-#endif
-
-#define NOT_END(v)          NOT(IS_END(v))
-
-#ifdef NDEBUG
-    #define SET_END(v)      ((v)->header.bits = 0)
-#else
-    //
-    // The slot we are trying to write into must have at least been formatted
-    // in the debug build VAL_INIT_WRITABLE_DEBUG().  Otherwise it could be a
-    // pointer with its low bit clear, doing double-duty as an IS_END(),
-    // marker...which we cannot overwrite...not even with another END marker.
-    //
-    #define SET_END(v) \
-        (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
-            (v)->header.bits = WRITABLE_MASK_DEBUG | REB_MAX)
-#endif
-
-// Pointer to a global END marker.  Though this global value is allocated to
-// the size of a REBVAL, only the header is initialized.  This means if any
-// of the value payload is accessed, it will trip memory checkers like
-// Valgrind or Address Sanitizer to warn of the mistake.
-//
-#define END_VALUE (&PG_End_Val)
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  GENERAL FLAGS common to every REBVAL
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// The value option flags are 8 individual bitflags which apply to every
-// value of every type.  Due to their scarcity, they are chosen carefully.
-//
-
-enum {
-    // `VALUE_FLAG_FALSE`
-    //
-    // Both NONE! and LOGIC!'s false state are FALSE? ("conditionally false").
-    // All other types are TRUE?.  To make checking FALSE? and TRUE? faster,
-    // this bit is set when creating NONE! or FALSE.  As a result, LOGIC!
-    // does not need to store any data in its payload... its data of being
-    // true or false is already covered by this header bit.
-    //
-    VALUE_FLAG_FALSE = 1 << (GENERAL_VALUE_BIT + 0),
-
-    // `VALUE_FLAG_LINE`
-    //
-    // If the line marker bit is 1, then when the value is molded it will put
-    // a newline before the value.  The logic is a bit more subtle than that,
-    // because an ANY-PATH! could not be LOADed back if this were allowed.
-    // The bit is set initially by what the scanner detects, and then left
-    // to the user's control after that.
-    //
-    // !!! The native `new-line` is used set this, which has a somewhat
-    // poor name considering its similarity to `newline` the line feed char.
-    //
-    VALUE_FLAG_LINE = 1 << (GENERAL_VALUE_BIT + 1),
-
-    // `VALUE_FLAG_THROWN`
-    //
-    // The thrown bit is being phased out, as the concept of a value itself
-    // being "thrown" does not make a lot of sense, compared to the idea
-    // that the evaluator itself is in a "throwing state".  If a thrown bit
-    // can get on a value, then one has to worry about that value getting
-    // copied and showing up somewhere that it doesn't make sense.
-    //
-    // Originally, R3-Alpha did not have a thrown bit on values, rather the
-    // throw itself was represented as a certain kind of ERROR! value.  Ren-C
-    // modifications extended THROW to allow a /NAME that could be a full
-    // REBVAL (instead of a selection from a limited set of words).  This
-    // made it possible to identify a throw by an object, function,
-    // fully bound word, etc.
-    //
-    // But even after the change, the "thrown-ness" was still a property
-    // of the "throw-name REBVAL".  By virtue of being a property on a
-    // value *it could be dropped on the floor and ignored*.  There were
-    // countless examples of this originating in the code.
-    //
-    // As part of the process of stamping out the idea that thrownness comes
-    // from a value, all routines that can potentially return thrown values
-    // have been adapted to return a boolean and adopt the XXX_Throws()
-    // naming convention, so one can write:
-    //
-    //     if (XXX_Throws()) {
-    //        /* handling code */
-    //     }
-    //
-    // This forced every caller to consciously have a code path dealing with
-    // potentially thrown values, reigning in the previous problems.  At
-    // time of writing, the situation is much more under control, and natives
-    // return a flag indicating that they wish to throw a value vs. return
-    // one.  This is checked redundantly against the value bit for now, but
-    // it is likely that the bit will be removed in favor of pushing the
-    // responsibility into the evaluator state.
-    //
-    VALUE_FLAG_THROWN = 1 << (GENERAL_VALUE_BIT + 2),
-
-    // This is a bit used in conjunction with VALUE_FLAG_THROWN, which could
-    // also be folded in to be a model of being in an "exiting state".  The
-    // usage is for definitionally scoped RETURN, RESUME/AT, and EXIT/FROM
-    // where the frame desired to be targeted is marked with this flag.
-    // Currently it is indicated by either the object of the call frame (for
-    // a CLOSURE!) or the paramlist for all other ANY-FUNCTION!.
-    //
-    // !!! WARNING - In the current scheme this will only jump up to the most
-    // recent instantiation of the function, as it does not have unique
-    // identity in relative binding.  When FUNCTION! and its kind are updated
-    // to use a new technique that brings it to parity with CLOSURE! in this
-    // regard, then that will fix this.
-    //
-    VALUE_FLAG_EXIT_FROM = 1 << (GENERAL_VALUE_BIT + 3),
-
-    // `VALUE_FLAG_RELATIVE` is used to indicate a value that needs to have
-    // a specific context added into it before it can have its bits copied
-    // or used for some purposes.  An ANY-WORD! is relative if it refers to
-    // a local or argument of a function, and has its bits resident in the
-    // deep copy of that function's body.  An ANY-ARRAY! in the deep copy
-    // of a function body must be relative also to the same function if
-    // it contains any instances of such relative words.
-    //
-    // !!! The feature of specific binding is a work in progress, and only
-    // bits of the supporting implementation changes are committed into the
-    // master branch at a time.
-    //
-    VALUE_FLAG_RELATIVE = 1 << (GENERAL_VALUE_BIT + 4)
-};
-
-// VALUE_FLAG_XXX flags are applicable to all types.  Type-specific flags are
-// named things like TYPESET_FLAG_XXX or WORD_FLAG_XXX and only apply to the
-// type that they reference.  Both use these XXX_VAL_FLAG accessors.
-//
-#ifdef NDEBUG
-    #define SET_VAL_FLAG(v,f) \
-        ((v)->header.bits |= (f))
-
-    #define GET_VAL_FLAG(v,f) \
-        LOGICAL((v)->header.bits & (f))
-
-    #define CLEAR_VAL_FLAG(v,f) \
-        ((v)->header.bits &= ~cast(REBUPT, (f)))
-#else
-    // For safety in the debug build, all the type-specific flags include
-    // their type as part of the flag.  This type is checked first, and then
-    // masked out to use the single-bit-flag value which is intended.  The
-    // check uses the bits of an exemplar type to identify the category
-    // (e.g. REB_FUNCTION for ANY-FUNCTION!, REB_OBJECT for ANY-CONTEXT!)
-
-    #define SET_VAL_FLAG(v,f) \
-        (Assert_Flags_Are_For_Value((v), (f)), \
-            (v)->header.bits |= ((f) & ~HEADER_TYPE_MASK))
-
-    #define GET_VAL_FLAG(v,f) \
-        (Assert_Flags_Are_For_Value((v), (f)), \
-            LOGICAL((v)->header.bits & ((f) & ~HEADER_TYPE_MASK)))
-
-    #define CLEAR_VAL_FLAG(v,f) \
-        (Assert_Flags_Are_For_Value((v), (f)), \
-            (v)->header.bits &= ~cast(REBUPT, (f) & ~HEADER_TYPE_MASK))
-#endif
-
-//
-// Setting and clearing multiple flags works, so these names make that "clear"
-//
-
-#define SET_VAL_FLAGS(v,f) \
-    SET_VAL_FLAG((v), (f))
-
-#define CLEAR_VAL_FLAGS(v,f) \
-    CLEAR_VAL_FLAG((v), (f))
+#define VAL_ALL_BITS(v) ((v)->payload.all.bits)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -427,918 +109,1146 @@ enum {
 // parameter).  If there were more types, they couldn't be flagged in a
 // typeset that fit in a REBVAL under that constraint.
 //
+// The 64 basic Rebol types ("kinds" of values) are shifted left 2 bits.
+// This makes their range go from 0..251 instead of from 0..63.  Reasoning is
+// that most of the time the types are just used in comparisons, so it's
+// usually cheaper to not shift out the 2 low bits used for END and WRITABLE.
+//
+// But to index into a zero based array with 64 elements, these XXX_0 forms
+// are available to do shifting.  See also REB_MAX_0
+//
 // VAL_TYPE() should obviously not be called on uninitialized memory.  But
 // it should also not be called on an END marker, as those markers only
 // guarantee the low bit as having Rebol-readable-meaning.  In debug builds,
 // this is asserted by VAL_TYPE_Debug.
 //
 
+
+#define FLAGIT_KIND(t) \
+    (cast(REBU64, 1) << (t)) // makes a 64-bit bitflag
+
+// While inline vs. macro doesn't usually matter much, debug builds won't
+// inline this, and it's called *ALL* the time.  Since it doesn't repeat its
+// argument, it's not worth it to make it a function for slowdown caused.
+// Also, don't bother checking using the `cast()` template in C++.
+//
+#define VAL_TYPE_RAW(v) \
+    ((enum Reb_Kind)((v)->header.bits >> HEADER_TYPE_SHIFT))
+
 #ifdef NDEBUG
     #define VAL_TYPE(v) \
-        cast(enum Reb_Kind, (v)->header.bits & HEADER_TYPE_MASK)
+        VAL_TYPE_RAW(v)
 #else
+    enum {
+        VOID_FLAG_NOT_TRASH = (1 << TYPE_SPECIFIC_BIT),
+        VOID_FLAG_SAFE_TRASH = (2 << TYPE_SPECIFIC_BIT)
+    };
+
+    inline static REBOOL IS_TRASH_DEBUG(const RELVAL *v) {
+        // note this is directly inlined into VAL_TYPE_Debug() below
+        return LOGICAL(
+            VAL_TYPE_RAW(v) == REB_MAX_VOID
+            && NOT(v->header.bits & VOID_FLAG_NOT_TRASH)
+        );
+    }
+
+    inline static enum Reb_Kind VAL_TYPE_Debug(
+        const RELVAL *v, const char *file, int line
+    ){
+        enum Reb_Kind kind = VAL_TYPE_RAW(v);
+        if (
+            (v->header.bits & CELL_MASK)
+            && NOT(IS_END_MACRO(v)) // IS_END redundantly checks trash
+            && NOT(
+                kind == REB_MAX_VOID
+                && NOT(v->header.bits & VOID_FLAG_NOT_TRASH)
+            )
+            // ^-- *so* frequent, debug builds hand-inline IS_TRASH_DEBUG()
+        ){
+            return kind;
+        }
+
+        assert(v->header.bits & CELL_MASK);
+        printf("END marker or garbage/trash in VAL_TYPE()\n");
+        fflush(stdout);
+        Panic_Value_Debug(v, file, line);
+    }
+
     #define VAL_TYPE(v) \
         VAL_TYPE_Debug((v), __FILE__, __LINE__)
 #endif
 
-// For the processor's convenience, the 64 basic Rebol types are shifted to
-// the left by 2 bits.  This makes their range go from 0..251 instead of
-// from 0..63.  The choice to do this is because most of the type the types
-// are just used in comparisons or switch statements, and it's cheaper to
-// not have to shift out the 2 low bits that are used for END and WRITABLE
-// flags in the header most of the time.
-//
-// However, to index into a zero based array with 64 elements, the shift
-// needs to be done.  If that's required these defines adjust for the shift.
-// See also REB_MAX_0
-//
-#define KIND_FROM_0(z) cast(enum Reb_Kind, (z) << 2)
-#define TO_0_FROM_KIND(k) (cast(REBCNT, (k)) >> 2)
-#define VAL_TYPE_0(v) TO_0_FROM_KIND(VAL_TYPE(v))
+inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
+    //
+    // Note: Only use if you are sure the new type payload is in sync with
+    // the type and bits (e.g. changing ANY-WORD! to another ANY-WORD!).
+    // Otherwise the value-specific flags might be misinterpreted.
+    //
+    // Use VAL_RESET_HEADER() to set the type AND initialize the flags to 0.
+    //
+    assert(!IS_TRASH_DEBUG(v));
+    (v)->header.bits &= ~HEADER_TYPE_MASK;
+    (v)->header.bits |= TYPE_SHIFT_LEFT_FOR_HEADER(kind);
+}
 
-// SET_TYPE_BITS only sets the type, with other header bits intact.  This
-// should be used when you are sure that the new type payload is in sync with
-// the type and bits (for instance, changing from one ANY-WORD! type to
-// another, the binding needs to be in sync with the header bits)
-//
-// NOTE: The header MUST already be valid and initialized to use this!  For
-// fresh value creation, one wants to use VAL_RESET_HEADER to clear bits and
-// set the type.
-//
-// !!! Is it worth the effort to add a debugging flag into the value to
-// disallow calling this routine if VAL_RESET_HEADER has not been run, or
-// are there too few instances to be worth it and is _BITS enough a hint?
-//
-#define VAL_SET_TYPE_BITS(v,t) \
-    ((v)->header.bits &= ~cast(REBUPT, HEADER_TYPE_MASK), \
-        (v)->header.bits |= (t))
 
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  VALUE FLAGS
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// VALUE_FLAG_XXX flags are applicable to all types.  Type-specific flags are
+// named things like TYPESET_FLAG_XXX or WORD_FLAG_XXX and only apply to the
+// type that they reference.  Both use these XXX_VAL_FLAG accessors.
+//
+
+#ifdef NDEBUG
+    inline static void SET_VAL_FLAGS(RELVAL *v, REBUPT f) {
+        v->header.bits |= f;
+    }
+
+    #define SET_VAL_FLAG(v,f) \
+        SET_VAL_FLAGS((v), (f))
+
+    inline static REBOOL GET_VAL_FLAG(const RELVAL *v, REBUPT f) {
+        return LOGICAL(v->header.bits & f);
+    }
+
+    inline static void CLEAR_VAL_FLAGS(RELVAL *v, REBUPT f) {
+        v->header.bits &= ~f;
+    }
+
+    #define CLEAR_VAL_FLAG(v,f) \
+        CLEAR_VAL_FLAGS((v), (f))
+#else
+    // For safety in the debug build, all the type-specific flags include a
+    // type (or type representing a category) as part of the flag.  This type
+    // is checked first, and then masked out to use the single-bit-flag value
+    // which is intended.
+    //
+    // But flag testing routines are called *a lot*, and debug builds do not
+    // inline functions.  So it's worth doing a sketchy macro so this somewhat
+    // borderline assert doesn't wind up taking up 20% of the debug's runtime.
+    //
+    #define CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG \
+        REBUPT category = f >> HEADER_TYPE_SHIFT; \
+        if (category != REB_0) { \
+            enum Reb_Kind kind = VAL_TYPE(v); \
+            if (kind != category) { \
+                if (category == REB_WORD) \
+                    assert(ANY_WORD_KIND(kind)); \
+                else if (category == REB_OBJECT) \
+                    assert(ANY_CONTEXT_KIND(kind)); \
+                else \
+                    assert(FALSE); \
+            } \
+            f &= ~HEADER_TYPE_MASK; \
+        } \
+
+
+    inline static void SET_VAL_FLAGS(RELVAL *v, REBUPT f) {
+        CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
+        v->header.bits |= f;
+    }
+
+    inline static void SET_VAL_FLAG(RELVAL *v, REBUPT f) {
+        CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
+        assert(f && (f & (f - 1)) == 0); // checks that only one bit is set
+        v->header.bits |= f;
+    }
+
+    inline static REBOOL GET_VAL_FLAG(const RELVAL *v, REBUPT f) {
+        CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
+        return LOGICAL(v->header.bits & f);
+    }
+
+    inline static void CLEAR_VAL_FLAGS(RELVAL *v, REBUPT f) {
+        CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
+        v->header.bits &= ~f;
+    }
+
+    inline static void CLEAR_VAL_FLAG(RELVAL *v, REBUPT f) {
+        CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
+        assert(f && (f & (f - 1)) == 0); // checks that only one bit is set
+        v->header.bits &= ~f;
+    }
+#endif
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  TRACKING PAYLOAD (for types that don't use their payloads)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Some datatypes like NONE! or LOGIC!, or a void cell, can be communicated
+// entirely by their header bits.  Though this "wastes" 3/4 of the space of
+// the value cell, it also means the cell can be written and tested quickly.
+//
+// The release build does not canonize the remaining bits of the payload so
+// they are left as random data.  But the debug build can take advantage of
+// it to store some tracking information about the point and moment of
+// initialization.  This data can be viewed in the debugging watchlist
+// under the `track` component of payload, and is also used by PANIC_VALUE.
+//
+
+#if !defined NDEBUG
+    inline static void Set_Track_Payload_Debug(
+        RELVAL *v, const char *file, int line
+    ){
+        v->payload.track.filename = file;
+        v->payload.track.line = line;
+        v->extra.do_count = TG_Do_Count;
+    }
+
+    inline static const char* VAL_TRACK_FILE(const RELVAL *v)
+        { return v->payload.track.filename; }
+
+    inline static int VAL_TRACK_LINE(const REBVAL *v)
+        { return v->payload.track.line; }
+
+    inline static REBUPT VAL_TRACK_COUNT(const REBVAL *v)
+        { return v->extra.do_count; }
+#endif
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  CELL WRITABILITY AND SETUP
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 // VAL_RESET_HEADER clears out the header and sets it to a new type (and also
 // sets the option bits indicating the value is *not* an END marker, and
 // that the value is a full cell which can be written to).
 //
+// INIT_CELL_IF_DEBUG provides additional "pre-formatting" of a cell.  In C
+// debug builds, this helps by making reads of VAL_TYPE assert to say that
+// it hasn't been set to an actual value yet.  In C++ builds, it goes
+// further--because no writes may be done to cells that haven't been INITed.
+//
+// (The write protection is not checked in the C build, due to the clutter
+// that would be necessary on every `REBVAL value;` declaration to call
+// INIT_CELL_IF_DEBUG().  A constructor does this in C++.  It's considered
+// good enough at the present time, though this may change if the GC needs
+// to explicitly know where values on the stack are...which would mean this
+// would not be a debug-build-only concept.)
+//
+
+#define VAL_RESET_HEADER_COMMON(v,kind) \
+    ((v)->header.bits = TYPE_SHIFT_LEFT_FOR_HEADER(kind) \
+        | NOT_END_MASK | CELL_MASK)
+
 #ifdef NDEBUG
+    #define ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v) \
+        NOOP
+
+    #define MARK_CELL_WRITABLE_IF_CPP_DEBUG(v) \
+        NOOP
+
+    #define MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(v) \
+        NOOP
+
     #define VAL_RESET_HEADER(v,t) \
-        ((v)->header.bits = NOT_END_MASK | (t))
+        VAL_RESET_HEADER_COMMON((v), (t))
+
+    #define INIT_CELL_IF_DEBUG(v) \
+        NOOP
 #else
-    // The debug build includes an extra check that the value we are about
-    // to write the header of is actually a full REBVAL-sized slot...and not
-    // just an implicit END marker that's really doing double-duty as some
-    // internal pointer of a container structure.
-    //
-    #define VAL_RESET_HEADER(v,t) \
-        (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
-            (v)->header.bits = NOT_END_MASK | WRITABLE_MASK_DEBUG | (t))
-#endif
+    #ifdef __cplusplus
+        #define ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v,file,line) \
+            Assert_Cell_Writable((v), (file), (line))
 
-// !!! SET_ZEROED is a macro-capture of a dodgy behavior of R3-Alpha,
-// which was to assume that clearing the payload of a value and then setting
-// the header made it the `zero?` of that type.  Review uses.
-//
-#define SET_ZEROED(v,t) \
-    (VAL_RESET_HEADER((v),(t)), \
-        CLEAR(&(v)->payload, sizeof(union Reb_Value_Payload)))
+        // just adds bit
+        #define MARK_CELL_WRITABLE_IF_CPP_DEBUG(v) \
+            ((v)->header.bits |= VALUE_FLAG_WRITABLE_CPP_DEBUG)
 
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  TRACK payload (not a value type, only in DEBUG)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// `struct Reb_Track` is the value payload in debug builds for any REBVAL
-// whose VAL_TYPE() doesn't need any information beyond the header.  This
-// offers a chance to inject some information into the payload to help
-// know where the value originated.  It is used by TRASH!, UNSET!, NONE!,
-// LOGIC!, and BAR!.
-//
-// In addition to the file and line number where the assignment was made,
-// the "tick count" of the DO loop is also saved.  This means that it can
-// be possible in a repro case to find out which evaluation step produced
-// the value--and at what place in the source.  Repro cases can be set to
-// break on that tick count, if it is deterministic.
-//
-
-// !!! If we're not using TRACK_EMPTY_PAYLOADS, should this POISON_MEMORY()
-// on the payload to catch invalid reads?  Trash values don't hang around
-// that long, except for the values in the extra "->rest" capacity of series.
-// Would that be too many memory poisonings to handle efficiently?
-//
-#define TRACK_EMPTY_PAYLOADS
-
-#if !defined(NDEBUG)
-    #ifdef TRACK_EMPTY_PAYLOADS
-        struct Reb_Track {
-            const char *filename;
-            int line;
-            REBCNT count;
-        };
-
-        #define SET_TRACK_PAYLOAD(v) \
-            ( \
-                (v)->payload.track.filename = __FILE__, \
-                (v)->payload.track.line = __LINE__, \
-                (v)->payload.track.count = TG_Do_Count, \
-                NOOP \
-            )
-
-        #define VAL_TRACK_FILE(v)       ((v)->payload.track.filename)
-        #define VAL_TRACK_LINE(v)       ((v)->payload.track.line)
-        #define VAL_TRACK_COUNT(v)      ((v)->payload.track.count)
+        #define MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(v) \
+            ((v)->header.bits &= ~cast(REBUPT, VALUE_FLAG_WRITABLE_CPP_DEBUG))
     #else
-        #define SET_TRACK_PAYLOAD(v) NOOP
+        #define ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v,file,line) \
+            NOOP
+
+        #define MARK_CELL_WRITABLE_IF_CPP_DEBUG(v) \
+            NOOP
+
+        #define MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(v) \
+            NOOP
     #endif
+
+    inline static void VAL_RESET_HEADER_Debug(
+        RELVAL *v, enum Reb_Kind kind, const char *file, int line
+    ){
+        ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
+        VAL_RESET_HEADER_COMMON(v, kind);
+        MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
+    }
+
+    #define VAL_RESET_HEADER(v,k) \
+        VAL_RESET_HEADER_Debug((v), (k), __FILE__, __LINE__)
+
+    inline static void INIT_CELL_Debug(
+        RELVAL *v, const char *file, int line
+    ){
+        VAL_RESET_HEADER_COMMON(v, REB_MAX_VOID); // no VOID_FLAG_NOT_TRASH
+        Set_Track_Payload_Debug(v, file, line);
+        MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
+    }
+
+    #define INIT_CELL_IF_DEBUG(v) \
+        INIT_CELL_Debug((v), __FILE__, __LINE__)
 #endif
 
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  TRASH! (may use `struct Reb_Track`)
+//  VOID or TRASH
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//     NOTE: In debug builds, Reb_Trash saves the line and file where
-//     the "trashing" of the cell slot happened  See `Reb_Value.track`.
+// Voids are a transient product of evaluation (e.g. the result of `do []`).
+// They cannot be stored in blocks, and if a variable is assigned a void
+// cell then that variable is considered to be "unset".  Void is thus not
+// considered to be a "value type", but a bit pattern used to mark cells
+// as not containing any value at all.
 //
-// Trash is what's written into cells in the debug build when the cell is
-// expected to be overwitten with valid data.  To prevent it from being
+// In the debug build, there is a special flag that if it is not set, the
+// cell is assumed to be "trash".  This is what's used to fill memory that
+// in the release build would be uninitialized data.  To prevent it from being
 // inspected while it's in an invalid state, VAL_TYPE used on a trash value
 // will assert in the debug build.
-//
-// By default, the garbage collector will raise an alert if a TRASH! value
-// is not overwritten by the time it sees it.  But some cases work with
-// GC-visible locations and want the GC to ignore a transitional trash.  For
-// these cases use SET_TRASH_GC_SAFE().
 //
 // IS_TRASH_DEBUG() can be used to test for trash, but in debug builds only.
 // The macros for setting trash will compile in both debug and release builds,
 // though an unsafe trash will be a NOOP in release builds.  (So the "trash"
 // will be uninitialized memory, in that case.)  A safe trash set turns into
-// a SET_UNSET() in release builds.
+// a regular void in release builds.
 //
+// Doesn't need payload...so the debug build adds information in Reb_Track
+// which can be viewed in the debug watchlist (or shown by PANIC_VALUE)
+//
+
+#define VOID_CELL \
+    c_cast(const REBVAL*, &PG_Void_Cell[0])
+
+inline static REBOOL IS_VOID(const RELVAL *v)
+    { return LOGICAL(VAL_TYPE(v) == REB_MAX_VOID); }
+
 #ifdef NDEBUG
-    #define MARK_VAL_UNWRITABLE_DEBUG(v) NOOP
-
-    #define VAL_INIT_WRITABLE_DEBUG(v) NOOP
-
-    #define SET_TRASH_IF_DEBUG(v) NOOP
-
-    #define SET_TRASH_SAFE(v) SET_UNSET(v)
-#else
-    enum {
-        // GC safe trash (UNSET! in release build)
-        //
-        TRASH_FLAG_SAFE = (1 << TYPE_SPECIFIC_BIT) | REB_TRASH
-    };
-
-    // Special type check...we don't want to use a VAL_TYPE() == REB_TRASH
-    // because VAL_TYPE is supposed to assert on trash
-    //
-    #define IS_TRASH_DEBUG(v) \
-        (((v)->header.bits & HEADER_TYPE_MASK) == 0)
-
-    // This particularly virulent form of trashing will make the resultant
-    // cell unable to be used with SET_END() or VAL_RESET_HEADER() until
-    // a SET_TRASH_IF_DEBUG() or SET_TRASH_SAFE() is used to overrule it.
-    //
-    #define MARK_VAL_UNWRITABLE_DEBUG(v) \
-        ((v)->header.bits &= ~cast(REBUPT, WRITABLE_MASK_DEBUG), NOOP)
-
-    // The debug build requires that any value slot that's going to be written
-    // to via VAL_RESET_HEADER() be marked writable.  Series and other value
-    // containers do this automatically, but if you make a REBVAL as a stack
-    // variable then it will have to be done before any write can happen.
-    //
-    // An alignment check to the size of a pointer is commented out due to
-    // being expensive to run on every value in the system, but should be
-    // added under an "intense checks" switch.
-    //
-    #define VAL_INIT_WRITABLE_DEBUG(v) \
-        ( \
-            /* assert(cast(REBUPT, (v)) % sizeof(REBUPT) == 0), */ \
-            (v)->header.bits = NOT_END_MASK | WRITABLE_MASK_DEBUG, \
-            SET_TRACK_PAYLOAD(v) \
-        )
+    inline static void SET_VOID(RELVAL *v)
+        { VAL_RESET_HEADER(v, REB_MAX_VOID); }
 
     #define SET_TRASH_IF_DEBUG(v) \
-        ( \
-            VAL_RESET_HEADER((v), REB_TRASH), \
-            SET_TRACK_PAYLOAD(v) \
-        )
+        NOOP
 
     #define SET_TRASH_SAFE(v) \
-        ( \
-            VAL_RESET_HEADER((v), REB_TRASH), \
-            SET_VAL_FLAG((v), TRASH_FLAG_SAFE), \
-            SET_TRACK_PAYLOAD(v) \
-        )
-#endif
+        SET_VOID(v)
 
+    #define IS_VOID_OR_SAFE_TRASH(v) \
+        IS_VOID(v)
 
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  UNSET! (unit type - fits in header bits, may use `struct Reb_Track`)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// Unset is one of Rebol's two unit types (the other being NONE!).  Whereas
-// integers can be values like 1, 2, 3... and LOGIC! can be true or false,
-// an UNSET! can be only... unset.  Its type is its value.
-//
-// By default, variable lookups that come back as unset will result in an
-// error, and the average user would not be putting them into blocks on
-// purpose.  Hence the Ren-C branch of Rebol3 pushed forward an initiative
-// to make unsets frequently denote an intent to "opt out" of things.  This
-// involved
-//
-// Since they have no data payload, unsets in the debug build use Reb_Track
-// as their structure to show where-and-when they were assigned.  This is
-// helpful because unset is the default initialization value for several
-// constructs.
-//
-
-#ifdef NDEBUG
-    #define SET_UNSET(v) \
-        VAL_RESET_HEADER((v), REB_UNSET)
-
+    inline static REBVAL *SINK(RELVAL *v) {
+        return cast(REBVAL*, v);
+    }
 #else
-    #define SET_UNSET(v) \
-        (VAL_RESET_HEADER((v), REB_UNSET), SET_TRACK_PAYLOAD(v))
-#endif
+    inline static void Set_Void_Debug(
+        RELVAL *v, const char *file, int line
+    ){
+        VAL_RESET_HEADER(v, REB_MAX_VOID);
+        SET_VAL_FLAG(v, VOID_FLAG_NOT_TRASH);
+        Set_Track_Payload_Debug(v, file, line);
+    }
 
-// Pointer to a global protected unset value that can be used when a read-only
-// UNSET! value is needed.
-//
-#define UNSET_VALUE (&PG_Unset_Value[0])
+    inline static void Set_Trash_Debug(
+        RELVAL *v, const char *file, int line
+    ){
+        VAL_RESET_HEADER(v, REB_MAX_VOID); // we don't set VOID_FLAG_NOT_TRASH
+        Set_Track_Payload_Debug(v, file, line);
+    }
 
-// In legacy mode Ren-C still supports the old convention that IFs that don't
-// take the true branch or a WHILE loop that never runs a body return a NONE!
-// value instead of an UNSET!.  To track the locations where this decision is
-// made more easily, SET_UNSET_UNLESS_LEGACY_NONE() is used.
-//
-#ifdef NDEBUG
-    #define SET_UNSET_UNLESS_LEGACY_NONE(v) \
-        SET_UNSET(v) // LEGACY() only available in Debug builds
-#else
-    #define SET_UNSET_UNLESS_LEGACY_NONE(v) \
-        (LEGACY(OPTIONS_NONE_INSTEAD_OF_UNSETS) ? SET_NONE(v) : SET_UNSET(v))
+    inline static void Set_Trash_Safe_Debug(
+        RELVAL *v, const char *file, int line
+    ){
+        VAL_RESET_HEADER(v, REB_MAX_VOID);
+        SET_VAL_FLAG(v, VOID_FLAG_SAFE_TRASH);
+        Set_Track_Payload_Debug(v, file, line);
+    }
+
+    #define SET_VOID(v) \
+        Set_Void_Debug((v), __FILE__, __LINE__)
+
+    #define SET_TRASH_IF_DEBUG(v) \
+        Set_Trash_Debug((v), __FILE__, __LINE__)
+
+    #define SET_TRASH_SAFE(v) \
+        Set_Trash_Safe_Debug((v), __FILE__, __LINE__)
+
+    inline static REBOOL IS_VOID_OR_SAFE_TRASH(const RELVAL *v) {
+        if (IS_TRASH_DEBUG(v) && GET_VAL_FLAG(v, VOID_FLAG_SAFE_TRASH))
+            return TRUE; // only the GC should treat "safe" trash as void
+        if (IS_VOID(v))
+            return TRUE;
+        return FALSE;
+    }
+
+    inline static REBVAL *Sink_Debug(RELVAL *v, const char *file, int line) {
+        //
+        // SINK claims it's okay to cast from RELVAL to REBVAL because the
+        // value is just going to be written to.  Verify that claim in the
+        // debug build by setting to trash as part of the cast.
+        //
+        Set_Trash_Debug(v, file, line);
+        return cast(REBVAL*, v);
+    }
+
+    #define SINK(v) \
+        Sink_Debug((v), __FILE__, __LINE__)
 #endif
 
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  BAR! and LIT-BAR! (fits in header bits, may use `struct Reb_Track`)
+//  BAR! and LIT-BAR!
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// The "expression barrier" is denoted by a lone vertical bar `|`, and it
-// has the special property of being rejected for argument fulfillment, but
-// ignored at interstitial positions.  So:
+// The "expression barrier" is denoted by a lone vertical bar `|`.  It
+// has the special property that literals used directly will be rejected
+// as a source for argument fulfillment.  BAR! that comes from evaluations
+// can be passed as a parameter, however:
 //
 //     append [a b c] | [d e f] print "Hello"   ;-- will cause an error
 //     append [a b c] [d e f] | print "Hello"   ;-- is legal
+//     append [a b c] (|)                       ;-- is legal
+//     append [a b c] '|                        ;-- is legal
 //
-// This makes it similar to an UNSET! in behavior, but given its specialized
-// purpose unlikely to conflict as being needed to be passed as an actual
-// parameter.  Literal unsets in source are treated differently by the
-// evaluator than unsets in variables or coming from the result of a function
-// call, so that `append [a b c] something-that-returns-a-bar` is legal.
-//
-// The other loophole for making barriers is the LIT-BAR!, which can allow
-// passing a BAR! by value.  So `append [a b c] '|` would work.
+// Doesn't need payload...so the debug build adds information in Reb_Track
+// which can be viewed in the debug watchlist (or shown by PANIC_VALUE)
 //
 
 #ifdef NDEBUG
-    #define SET_BAR(v) \
-        VAL_RESET_HEADER((v), REB_BAR)
+    inline static void SET_BAR(RELVAL *v)
+        { VAL_RESET_HEADER(v, REB_BAR); }
 
-    #define SET_LIT_BAR(v) \
-        VAL_RESET_HEADER((v), REB_LIT_BAR)
+    inline static void SET_LIT_BAR(RELVAL *v)
+        { VAL_RESET_HEADER(v, REB_LIT_BAR); }
 #else
+    inline static void SET_BAR_Debug(
+        RELVAL *v, const char *file, int line
+    ){
+        VAL_RESET_HEADER(v, REB_BAR);
+        Set_Track_Payload_Debug(v, file, line);
+    }
+
+    inline static void SET_LIT_BAR_Debug(
+        RELVAL *v, const char *file, int line
+    ){
+        VAL_RESET_HEADER(v, REB_LIT_BAR);
+        Set_Track_Payload_Debug(v, file, line);
+    }
+
     #define SET_BAR(v) \
-        (VAL_RESET_HEADER((v), REB_BAR), SET_TRACK_PAYLOAD(v))
+        SET_BAR_Debug((v), __FILE__, __LINE__)
 
     #define SET_LIT_BAR(v) \
-        (VAL_RESET_HEADER((v), REB_LIT_BAR), SET_TRACK_PAYLOAD(v))
+        SET_LIT_BAR_Debug((v), __FILE__, __LINE__)
 #endif
 
+#define BAR_VALUE (&PG_Bar_Value[0])
+
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  NONE! (unit type - fits in header bits, may use `struct Reb_Track`)
+//  BLANK! (unit type - fits in header bits, may use `struct Reb_Track`)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Unlike UNSET!, none values are inactive.  They do not cause errors
+// Unlike a void cell, blank values are inactive.  They do not cause errors
 // when they are used in situations like the condition of an IF statement.
 // Instead they are considered to be false--like the LOGIC! #[false] value.
-// So none is considered to be the other "conditionally false" value.
+// So blank is considered to be the other "conditionally false" value.
 //
 // Only those two values are conditionally false in Rebol, and testing for
 // conditional truth and falsehood is frequent.  Hence in addition to its
-// type, NONE! also carries a header bit that can be checked for conditional
-// falsehood.
+// type, BLANK! also carries a header bit that can be checked for conditional
+// falsehood, to save on needing to separately test the type.
 //
-// Though having tracking information for a none is less frequently useful
-// than for TRASH! or UNSET!, it's there in debug builds just in case it
-// ever serves a purpose, as the REBVAL payload is not being used.
+// Doesn't need payload...so the debug build adds information in Reb_Track
+// which can be viewed in the debug watchlist (or shown by PANIC_VALUE)
 //
+
+inline static void SET_BLANK_COMMON(RELVAL *v) {
+    v->header.bits = TYPE_SHIFT_LEFT_FOR_HEADER(REB_BLANK) \
+        | VALUE_FLAG_FALSE | NOT_END_MASK | CELL_MASK;
+}
 
 #ifdef NDEBUG
-    #define SET_NONE(v) \
-        ((v)->header.bits = VALUE_FLAG_FALSE | NOT_END_MASK | REB_NONE)
+    #define SET_BLANK(v) \
+        SET_BLANK_COMMON(v)
 #else
-    #define SET_NONE(v) \
-        (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
-            (v)->header.bits = VALUE_FLAG_FALSE | \
-            NOT_END_MASK | WRITABLE_MASK_DEBUG | REB_NONE, \
-        SET_TRACK_PAYLOAD(v))
+    inline static void SET_BLANK_Debug(
+        RELVAL *v, const char *file, int line
+    ){
+        ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
+        SET_BLANK_COMMON(v);
+        MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
+        Set_Track_Payload_Debug(v, file, line);
+    }
+    #define SET_BLANK(v) \
+        SET_BLANK_Debug((v), __FILE__, __LINE__)
 #endif
 
-#define NONE_VALUE (&PG_None_Value[0])
+#define BLANK_VALUE \
+    (&PG_Blank_Value[0])
 
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  LOGIC! (type and value fits in header bits, may use `struct Reb_Track`)
+//  LOGIC! AND "CONDITIONAL TRUTH"
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // A logic can be either true or false.  For purposes of optimization, logical
 // falsehood is indicated by one of the value option bits in the header--as
 // opposed to in the value payload.  This means it can be tested quickly and
-// that a single check can test for both NONE! and logic false.
+// that a single check can test for both BLANK! and logic false.
 //
 // Conditional truth and falsehood allows an interpretation where a NONE!
-// is a "falsey" value as well as logic false.  Unsets are neither
+// is a "falsey" value as well as logic false.  Voids are neither
 // conditionally true nor conditionally false, and so debug builds will
 // complain if you try to determine which it is.  (It likely means a mistake
 // was made in skipping a formal decision-point regarding whether an unset
 // should represent an "opt out" or an error.)
 //
-// Due to no need for payload, it goes ahead and includes a TRACK payload
-// in debug builds.
+// Doesn't need payload...so the debug build adds information in Reb_Track
+// which can be viewed in the debug watchlist (or shown by PANIC_VALUE)
 //
+
+#define FALSE_VALUE \
+    c_cast(const REBVAL*, &PG_False_Value[0])
+
+#define TRUE_VALUE \
+    c_cast(const REBVAL*, &PG_True_Value[0])
+
+inline static void SET_TRUE_COMMON(RELVAL *v) {
+    v->header.bits = TYPE_SHIFT_LEFT_FOR_HEADER(REB_LOGIC) \
+        | NOT_END_MASK | CELL_MASK;
+}
+
+inline static void SET_FALSE_COMMON(RELVAL *v) {
+    v->header.bits = TYPE_SHIFT_LEFT_FOR_HEADER(REB_LOGIC) \
+        | NOT_END_MASK | CELL_MASK | VALUE_FLAG_FALSE;
+}
+
+#define IS_CONDITIONAL_FALSE_COMMON(v) \
+    GET_VAL_FLAG((v), VALUE_FLAG_FALSE)
 
 #ifdef NDEBUG
     #define SET_TRUE(v) \
-        ((v)->header.bits = REB_LOGIC | NOT_END_MASK)
+        SET_TRUE_COMMON(v)
 
     #define SET_FALSE(v) \
-        ((v)->header.bits = REB_LOGIC | NOT_END_MASK \
-            | VALUE_FLAG_FALSE)
+        SET_FALSE_COMMON(v)
+
+    inline static void SET_LOGIC(RELVAL *v, REBOOL b) {
+        if (b)
+            SET_TRUE(v);
+        else
+            SET_FALSE(v);
+    }
+
+    #define IS_CONDITIONAL_FALSE(v) \
+        IS_CONDITIONAL_FALSE_COMMON(v)
 #else
+    inline static void SET_TRUE_Debug(
+        RELVAL *v, const char *file, int line
+    ){
+        ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
+        SET_TRUE_COMMON(v);
+        MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
+        Set_Track_Payload_Debug(v, file, line);
+    }
+
+    inline static void SET_FALSE_Debug(
+        RELVAL *v, const char *file, int line
+    ){
+        ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
+        SET_FALSE_COMMON(v);
+        MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
+        Set_Track_Payload_Debug(v, file, line);
+    }
+
+    inline static void SET_LOGIC_Debug(
+        RELVAL *v, REBOOL b, const char *file, int line
+    ){
+        if (b)
+            SET_TRUE_Debug(v, file, line);
+        else
+            SET_FALSE_Debug(v, file, line);
+    }
+
+    inline static REBOOL IS_CONDITIONAL_FALSE_Debug(
+        const RELVAL *v, const char *file, int line
+    ){
+        if (IS_VOID(v)) {
+            printf("Conditional true/false test on void\n");
+            fflush(stdout);
+            Panic_Value_Debug(v, file, line);
+        }
+        return IS_CONDITIONAL_FALSE_COMMON(v);
+    }
+
     #define SET_TRUE(v) \
-        (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
-            (v)->header.bits = REB_LOGIC | NOT_END_MASK \
-                | WRITABLE_MASK_DEBUG, \
-         SET_TRACK_PAYLOAD(v)) // compound
+        SET_TRUE_Debug((v), __FILE__, __LINE__)
 
     #define SET_FALSE(v) \
-        (Assert_REBVAL_Writable((v), __FILE__, __LINE__), \
-            (v)->header.bits = REB_LOGIC | NOT_END_MASK \
-            | WRITABLE_MASK_DEBUG | VALUE_FLAG_FALSE, \
-         SET_TRACK_PAYLOAD(v))  // compound
+        SET_FALSE_Debug((v), __FILE__, __LINE__)
+
+    #define SET_LOGIC(v,b) \
+        SET_LOGIC_Debug((v), (b), __FILE__, __LINE__)
+
+    #define IS_CONDITIONAL_FALSE(v) \
+        IS_CONDITIONAL_FALSE_Debug((v), __FILE__, __LINE__)
 #endif
 
-#define SET_LOGIC(v,n)  ((n) ? SET_TRUE(v) : SET_FALSE(v))
-#define VAL_LOGIC(v)    NOT(GET_VAL_FLAG((v), VALUE_FLAG_FALSE))
+#define IS_CONDITIONAL_TRUE(v) \
+    NOT(IS_CONDITIONAL_FALSE(v)) // macro gets file + line # in debug build
 
-#ifdef NDEBUG
-    #define IS_CONDITIONAL_FALSE(v) \
-        GET_VAL_FLAG((v), VALUE_FLAG_FALSE)
-#else
-    // In a debug build, we want to make sure that UNSET! is never asked
-    // about its conditional truth or falsehood; it's neither.
-    //
-    #define IS_CONDITIONAL_FALSE(v) \
-        IS_CONDITIONAL_FALSE_Debug(v)
-#endif
-
-#define IS_CONDITIONAL_TRUE(v) NOT(IS_CONDITIONAL_FALSE(v))
-
-#define FALSE_VALUE (&PG_False_Value[0])
-#define TRUE_VALUE (&PG_True_Value[0])
+inline static REBOOL VAL_LOGIC(const RELVAL *v) {
+    assert(IS_LOGIC(v));
+    return NOT(GET_VAL_FLAG((v), VALUE_FLAG_FALSE));
+}
 
 
+//=////////////////////////////////////////////////////////////////////////=//
 //
-// Rebol Symbol
+//  DATATYPE!
 //
-// !!! Historically Rebol used an unsigned 32-bit integer as a "symbol ID".
-// These symbols did not participate in garbage collection and had to be
-// looked up in a table to get their values.  Ren-C is moving toward adapting
-// REBSERs to be able to store words and canon words, as well as GC them.
-// This starts moving the types to be the size of a platform pointer.
+//=////////////////////////////////////////////////////////////////////////=//
 //
-
-typedef REBUPT REBSYM;
-
-
-/***********************************************************************
-**
-**  DATATYPE - Datatype or pseudo-datatype
-**
-**  !!! Consider rename to TYPE! once legacy TYPE? calls have been
-**  converted to TYPE-OF.  Also consider a model where there are
-**  user types, and hence TYPE? may be able to return more than just
-**  one out of a set of 64 things.
-**
-***********************************************************************/
-
-struct Reb_Datatype {
-    enum Reb_Kind kind;
-    REBARR  *spec;
-//  REBINT  min_type;
-//  REBINT  max_type;
-};
-
-#define VAL_TYPE_KIND(v)    ((v)->payload.datatype.kind)
-#define VAL_TYPE_KIND_0(v)  TO_0_FROM_KIND(VAL_TYPE_KIND(v))
-
-#define VAL_TYPE_SPEC(v)    ((v)->payload.datatype.spec)
-
+// Note: R3-Alpha's notion of a datatype has not been revisited very much in
+// Ren-C.  The unimplemented UTYPE! user-defined type concept was removed
+// for simplification, pending a broader review of what was needed.
+//
 // %words.r is arranged so that symbols for types are at the start
-// Although REB_TRASH is 0, the 0 REBCNT used for symbol IDs is reserved
-// for "no symbol".  So there is no symbol for the "fake" type TRASH!
+// Although REB_0 is 0 and the 0 REBCNT used for symbol IDs is reserved
+// for "no symbol"...this is okay, because void is not a value type and
+// should not have a symbol.
 //
-#define IS_KIND_SYM(s)      ((s) < REB_MAX_0 + 1)
-#define KIND_FROM_SYM(s)    cast(enum Reb_Kind, KIND_FROM_0((s) - 1))
+// !!! Consider the naming once all legacy TYPE? calls have been converted
+// to TYPE-OF.  TYPE! may be a better name, though possibly KIND! would be
+// better if user types suggest that TYPE-OF can potentially return some
+// kind of context (might TYPE! be an ANY-CONTEXT!, with properties like
+// MIN-VALUE and MAX-VALUE, for instance).
+//
+
+#define VAL_TYPE_KIND(v) \
+    ((v)->payload.datatype.kind)
+
+#define VAL_TYPE_SPEC(v) \
+    ((v)->payload.datatype.spec)
+
+#define IS_KIND_SYM(s) \
+    ((s) < REB_MAX)
+
+inline static enum Reb_Kind KIND_FROM_SYM(REBSYM s) {
+    assert(IS_KIND_SYM(s));
+    return cast(enum Reb_Kind, cast(int, (s)));
+}
+
 #define SYM_FROM_KIND(k) \
-    (assert((k) < REB_MAX), cast(REBSYM, TO_0_FROM_KIND(k) + 1))
-#define VAL_TYPE_SYM(v)     SYM_FROM_KIND((v)->payload.datatype.kind)
+    cast(REBSYM, cast(enum Reb_Kind, (k)))
 
-//#define   VAL_MIN_TYPE(v) ((v)->payload.datatype.min_type)
-//#define   VAL_MAX_TYPE(v) ((v)->payload.datatype.max_type)
-
-
-/***********************************************************************
-**
-**  NUMBERS - Integer and other simple scalars
-**
-***********************************************************************/
-
-struct Reb_Integer {
-    //
-    // On 32-bit platforms, this payload structure begins after a 32-bit
-    // header...hence not a 64-bit aligned location.  Since a REBUPT is
-    // 32-bits on 32-bit platforms and 64-bit on 64-bit, putting one here
-    // right after the header ensures `value` will be on a 64-bit boundary.
-    //
-    // (At time of writing, this is necessary for the "C-to-Javascript"
-    // emscripten build to work.  It's also likely preferred by x86.)
-    //
-    REBUPT padding;
-
-    REBI64 i64;
-};
-
-#define VAL_INT32(v)    cast(REBINT, (v)->payload.integer.i64)
-
-#ifdef NDEBUG
-    #define VAL_INT64(v)    ((v)->payload.integer.i64)
-#else
-    #define VAL_INT64(v)    (*VAL_INT64_Ptr_Debug(v))
-#endif
-
-#define SET_INTEGER(v,n) \
-    (VAL_RESET_HEADER(v, REB_INTEGER), (v)->payload.integer.i64 = (n))
-
-#define MAX_CHAR        0xffff
-#define VAL_CHAR(v)     ((v)->payload.character)
-#define SET_CHAR(v,n) \
-    (VAL_RESET_HEADER((v), REB_CHAR), VAL_CHAR(v) = (n), NOOP)
-
-#define IS_NUMBER(v) \
-    (VAL_TYPE(v) == REB_INTEGER || VAL_TYPE(v) == REB_DECIMAL)
+#define VAL_TYPE_SYM(v) \
+    SYM_FROM_KIND((v)->payload.datatype.kind)
 
 
-/***********************************************************************
-**
-**  DECIMAL -- Implementation-wise, a 'double'-precision floating
-**  point number in C (typically 64-bit).
-**
-***********************************************************************/
-
-struct Reb_Decimal {
-    //
-    // See notes on Reb_Integer for why this is needed (handles case of when
-    // `value` is 64-bit, and the platform is 32-bit.)
-    //
-    REBUPT padding;
-
-    REBDEC dec;
-};
-
-#ifdef NDEBUG
-    #define VAL_DECIMAL(v)  ((v)->payload.decimal.dec)
-#else
-    #define VAL_DECIMAL(v)  (*VAL_DECIMAL_Ptr_Debug(v))
-#endif
-
-// !!! Several parts of the code want to access the decimal as "bits", where
-// those bits are cast as a 64-bit integer.  This uses casting, which is bad,
-// but even worse was that it used to use the disengaged integer state of
-// the union.  (so it was calling VAL_INTEGER() on a MONEY! or a DECIMAL!).
-// This at least makes it clear what's happening.
+//=////////////////////////////////////////////////////////////////////////=//
 //
+//  CHAR!
+//
+//=////////////////////////////////////////////////////////////////////////=//
+
+#define MAX_CHAR 0xffff
+
+#define VAL_CHAR(v) \
+    ((v)->payload.character)
+
+inline static void SET_CHAR(RELVAL *v, REBUNI uni) {
+    VAL_RESET_HEADER(v, REB_CHAR);
+    VAL_CHAR(v) = uni;
+}
+
+#define SPACE_VALUE \
+    (ROOT_SPACE_CHAR)
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  INTEGER!
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Integers in Rebol were standardized to use a compiler-provided 64-bit
+// value.  This was formally added to the spec in C99, but many compilers
+// supported it before that.
+//
+// !!! 64-bit extensions were added by the "rebolsource" fork, with much of
+// the code still written to operate on 32-bit values.  Since the standard
+// unit of indexing and block length counts remains 32-bit in that 64-bit
+// build at the moment, many lingering references were left that operated
+// on 32-bit values.  To make this clearer, the macros have been renamed
+// to indicate which kind of integer they retrieve.  However, there should
+// be a general review for reasoning, and error handling + overflow logic
+// for these cases.
+//
+
 #ifdef NDEBUG
-    #define VAL_DECIMAL_BITS(v) (*cast(REBI64*, &(v)->payload.decimal.dec))
+    #define VAL_INT64(v) \
+        ((v)->payload.integer)
 #else
-    #define VAL_DECIMAL_BITS(v) (*cast(REBI64*, VAL_DECIMAL_Ptr_Debug(v)))
+    inline static REBI64 *VAL_INT64_Ptr_Debug(const RELVAL *value) {
+        assert(IS_INTEGER(value));
+        return &m_cast(REBVAL*, const_KNOWN(value))->payload.integer;
+    }
+
+    #define VAL_INT64(v) \
+        (*VAL_INT64_Ptr_Debug(v)) // allows lvalue: `VAL_INT64(x) = xxx`
 #endif
 
-#define SET_DECIMAL(v,n) \
-    (VAL_RESET_HEADER(v, REB_DECIMAL), (v)->payload.decimal.dec = (n))
+inline static void SET_INTEGER(RELVAL *v, REBI64 i64) {
+    VAL_RESET_HEADER(v, REB_INTEGER);
+    v->payload.integer = i64;
+}
 
-#define SET_PERCENT(v,n) \
-    (VAL_RESET_HEADER(v, REB_PERCENT), (v)->payload.decimal.dec = (n))
+#define VAL_INT32(v) \
+    cast(REBINT, VAL_INT64(v))
+
+#define VAL_UNT32(v) \
+    cast(REBCNT, VAL_INT64(v))
 
 
-/***********************************************************************
-**
-**  MONEY -- Includes denomination and amount
-**
-**  !!! The naming of "deci" used by MONEY! as "decimal" is a very
-**  bad overlap with DECIMAL! and also not very descriptive of what
-**  the properties of a "deci" are.  Also, to be a useful money
-**  abstraction it should store the currency type, e.g. the three
-**  character ISO 4217 code (~15 bits to store)
-**
-**      https://en.wikipedia.org/wiki/ISO_4217
-**
-***********************************************************************/
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  DECIMAL! and PERCENT!
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Implementation-wise, the decimal type is a `double`-precision floating
+// point number in C (typically 64-bit).  The percent type uses the same
+// payload, and is currently extracted with VAL_DECIMAL() as well.
+//
+// !!! Calling a floating point type "decimal" appears based on Rebol's
+// original desire to use familiar words and avoid jargon.  It has however
+// drawn criticism from those who don't think it correctly conveys floating
+// point behavior, expecting something else.  Red has renamed the type
+// FLOAT! which may be a good idea.
+//
 
-struct Reb_Money {
+#ifdef NDEBUG
+    #define VAL_DECIMAL(v) \
+        ((v)->payload.decimal)
+#else
+    inline static REBDEC *VAL_DECIMAL_Ptr_Debug(const RELVAL *value) {
+        assert(IS_DECIMAL(value) || IS_PERCENT(value));
+        return &m_cast(REBVAL*, const_KNOWN(value))->payload.decimal;
+    }
+    #define VAL_DECIMAL(v) \
+        (*VAL_DECIMAL_Ptr_Debug(v)) // allows lvalue: `VAL_DECIMAL(v) = xxx`
+#endif
+
+inline static void SET_DECIMAL(RELVAL *v, REBDEC d) {
+    VAL_RESET_HEADER(v, REB_DECIMAL);
+    v->payload.decimal = d;
+}
+
+inline static void SET_PERCENT(RELVAL *v, REBDEC d) {
+    VAL_RESET_HEADER(v, REB_PERCENT);
+    v->payload.decimal = d;
+}
+
+// !!! Several parts of the code wanted to access the decimal as "bits" through
+// reinterpreting the bits as a 64-bit integer.  In the general case this is
+// undefined behavior, and should be changed!  (It's better than it was,
+// because it used to use the disengaged integer state of the payload union...
+// calling VAL_INT64() on a MONEY! or a DECIMAL!  At least this documents it.
+
+inline static REBI64 VAL_DECIMAL_BITS(const RELVAL *v) {
+    assert(IS_DECIMAL(v) || IS_PERCENT(v));
+    return *cast(const REBI64*, &v->payload.decimal);
+}
+
+inline static void INIT_DECIMAL_BITS(REBVAL *v, REBI64 bits) {
+    assert(IS_DECIMAL(v) || IS_PERCENT(v));
+    *cast(REBI64*, &v->payload.decimal) = bits;
+}
+
+
+// !!! There was an IS_NUMBER() macro defined in R3-Alpha which only covered
+// REB_INTEGER and REB_DECIMAL.  But ANY-NUMBER! the typeset included PERCENT!
+// so this adds that and gets rid of IS_NUMBER()
+//
+inline static REBOOL ANY_NUMBER(const RELVAL *v) {
+    return LOGICAL(
+        VAL_TYPE(v) == REB_INTEGER
+        || VAL_TYPE(v) == REB_DECIMAL
+        || VAL_TYPE(v) == REB_PERCENT
+    );
+}
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  MONEY!
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// R3-Alpha's MONEY! type is "unitless" currency, such that $10/$10 = $1
+// (and not 1).  This is because the feature in Rebol2 of being able to
+// store the ISO 4217 code (~15 bits) was not included:
+//
+// https://en.wikipedia.org/wiki/ISO_4217
+//
+// According to @Ladislav:
+//
+// "The money datatype is neither a bignum, nor a fixpoint arithmetic.
+//  It actually is unnormalized decimal floating point."
+//
+// !!! The naming of "deci" used by MONEY! as "decimal" is a confusing overlap
+// with DECIMAL!, although that name may be changing also.
+//
+
+inline static deci VAL_MONEY_AMOUNT(const RELVAL *v) {
     deci amount;
-};
+    amount.m0 = v->extra.m0;
+    amount.m1 = v->payload.money.m1;
+    amount.m2 = v->payload.money.m2;
+    amount.s = v->payload.money.s;
+    amount.e = v->payload.money.e;
+    return amount;
+}
 
-#define VAL_MONEY_AMOUNT(v)     ((v)->payload.money.amount)
-#define SET_MONEY_AMOUNT(v,n) \
-    (VAL_RESET_HEADER((v), REB_MONEY), VAL_MONEY_AMOUNT(v) = (n), NOOP)
+inline static void SET_MONEY(RELVAL *v, deci amount) {
+    VAL_RESET_HEADER(v, REB_MONEY);
+    v->extra.m0 = amount.m0;
+    v->payload.money.m1 = amount.m1;
+    v->payload.money.m2 = amount.m2;
+    v->payload.money.s = amount.s;
+    v->payload.money.e = amount.e;
+}
 
 
-/***********************************************************************
-**
-**  DATE and TIME
-**
-***********************************************************************/
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  TIME!
+//
+//=////////////////////////////////////////////////////////////////////////=//
 
-typedef struct reb_ymdz {
-#ifdef ENDIAN_LITTLE
-    REBINT zone:7;  // +/-15:00 res: 0:15
-    REBCNT day:5;
-    REBCNT month:4;
-    REBCNT year:16;
-#else
-    REBCNT year:16;
-    REBCNT month:4;
-    REBCNT day:5;
-    REBINT zone:7;  // +/-15:00 res: 0:15
-#endif
-} REBYMD;
+#define VAL_TIME(v) \
+    ((v)->payload.time.nanoseconds)
 
-typedef union reb_date {
-    REBYMD date;
-    REBCNT bits;
-} REBDAT;
+#define TIME_SEC(n) \
+    (cast(REBI64, n) * 1000000000L)
 
-struct Reb_Time {
-    REBI64 time;    // time in nanoseconds
-    REBDAT date;
-};
+#define MAX_SECONDS \
+    ((cast(REBI64, 1) << 31) - 1)
 
-#define VAL_TIME(v) ((v)->payload.time.time)
-#define TIME_SEC(n) ((REBI64)(n) * 1000000000L)
+#define MAX_HOUR \
+    (MAX_SECONDS / 3600)
 
-#define MAX_SECONDS (((i64)1<<31)-1)
-#define MAX_HOUR    (MAX_SECONDS / 3600)
-#define MAX_TIME    ((REBI64)MAX_HOUR * HR_SEC)
+#define MAX_TIME \
+    (cast(REBI64, MAX_HOUR) * HR_SEC)
 
-#define NANO        1.0e-9
-#define SEC_SEC     ((REBI64)1000000000L)
-#define MIN_SEC     (60 * SEC_SEC)
-#define HR_SEC      (60 * 60 * SEC_SEC)
+#define NANO 1.0e-9
 
-#define SEC_TIME(n)  ((n) * SEC_SEC)
-#define MIN_TIME(n)  ((n) * MIN_SEC)
-#define HOUR_TIME(n) ((n) * HR_SEC)
+#define SEC_SEC \
+    cast(REBI64, 1000000000L)
 
-#define SECS_IN(n) ((n) / SEC_SEC)
-#define VAL_SECS(n) (VAL_TIME(n) / SEC_SEC)
+#define MIN_SEC \
+    (60 * SEC_SEC)
 
-#define DEC_TO_SECS(n) (i64)(((n) + 5.0e-10) * SEC_SEC)
+#define HR_SEC \
+    (60 * 60 * SEC_SEC)
+
+#define SEC_TIME(n) \
+    ((n) * SEC_SEC)
+
+#define MIN_TIME(n) \
+    ((n) * MIN_SEC)
+
+#define HOUR_TIME(n) \
+    ((n) * HR_SEC)
+
+#define SECS_IN(n) \
+    ((n) / SEC_SEC)
+
+#define VAL_SECS(n) \
+    (VAL_TIME(n) / SEC_SEC)
+
+#define DEC_TO_SECS(n) \
+    cast(REBI64, ((n) + 5.0e-10) * SEC_SEC)
 
 #define SECS_IN_DAY 86400
-#define TIME_IN_DAY (SEC_TIME((i64)SECS_IN_DAY))
 
-#define NO_TIME     MIN_I64
+#define TIME_IN_DAY \
+    SEC_TIME(cast(REBI64, SECS_IN_DAY))
 
-#define MAX_YEAR        0x3fff
+#define NO_TIME MIN_I64
 
-#define VAL_DATE(v)     ((v)->payload.time.date)
-#define VAL_YEAR(v)     ((v)->payload.time.date.date.year)
-#define VAL_MONTH(v)    ((v)->payload.time.date.date.month)
-#define VAL_DAY(v)      ((v)->payload.time.date.date.day)
-#define VAL_ZONE(v)     ((v)->payload.time.date.date.zone)
+inline static void SET_TIME(RELVAL *v, REBI64 nanoseconds) {
+    VAL_RESET_HEADER(v, REB_TIME);
+    VAL_TIME(v) = nanoseconds;
+}
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  DATE!
+//
+//=////////////////////////////////////////////////////////////////////////=//
+
+#define VAL_DATE(v) \
+    ((v)->extra.date)
+
+#define MAX_YEAR 0x3fff
+
+#define VAL_YEAR(v) \
+    ((v)->extra.date.date.year)
+
+#define VAL_MONTH(v) \
+    ((v)->extra.date.date.month)
+
+#define VAL_DAY(v) \
+    ((v)->extra.date.date.day)
+
+#define VAL_ZONE(v) \
+    ((v)->extra.date.date.zone)
 
 #define ZONE_MINS 15
-#define ZONE_SECS (ZONE_MINS*60)
-#define MAX_ZONE (15 * (60/ZONE_MINS))
 
-#define SET_TIME(v, t) \
-    (VAL_RESET_HEADER(v, REB_TIME), VAL_TIME(v)=(t))
+#define ZONE_SECS \
+    (ZONE_MINS * 60)
 
-/***********************************************************************
-**
-**  TUPLE
-**
-***********************************************************************/
-
-typedef struct Reb_Tuple {
-    REBYTE tuple[12];
-} REBTUP;
-
-#define VAL_TUPLE(v)        ((v)->payload.tuple.tuple + 1)
-#define VAL_TUPLE_LEN(v)    ((v)->payload.tuple.tuple[0])
-#define VAL_TUPLE_DATA(v)   ((v)->payload.tuple.tuple)
-#define MAX_TUPLE 10
-#define SET_TUPLE(v, t) \
-    (VAL_RESET_HEADER(v, REB_TIME), \
-    memcpy(VAL_TUPLE_DATA(v), t, sizeof(VAL_TUPLE_DATA(v))))
+#define MAX_ZONE \
+    (15 * (60 / ZONE_MINS))
 
 
-
-/***********************************************************************
-**
-**  PAIR
-**
-***********************************************************************/
-
-#define VAL_PAIR(v)     ((v)->payload.pair)
-#define VAL_PAIR_X(v)   ((v)->payload.pair.x)
-#define VAL_PAIR_Y(v)   ((v)->payload.pair.y)
-#define VAL_PAIR_X_INT(v) ROUND_TO_INT((v)->payload.pair.x)
-#define VAL_PAIR_Y_INT(v) ROUND_TO_INT((v)->payload.pair.y)
-
-#define SET_PAIR(v,x,y) \
-    (VAL_RESET_HEADER(v, REB_PAIR),VAL_PAIR_X(v)=(x),VAL_PAIR_Y(v)=(y))
-
-
-/****************************************************************************
-**
-**  ANY-SERIES!
-**
-*****************************************************************************/
-
-union Reb_Binding_Target {
-    REBFUN *relative; // for VALUE_FLAG_RELATIVE
-    REBCTX *specific; // for !VALUE_FLAG_RELATIVE
-};
-
-#define IS_RELATIVE(v) \
-    GET_VAL_FLAG((v), VALUE_FLAG_RELATIVE)
-
-#define IS_SPECIFIC(v) \
-    NOT(IS_RELATIVE(v))
-
+//=////////////////////////////////////////////////////////////////////////=//
 //
-// Only read VAL_RELATIVE and VAL_SPECIFIC through the generic `any_target`.
-// Write via the main payload types (see the notes in Reb_Value_Payload)
+//  TUPLE!
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// TUPLE! is a Rebol2/R3-Alpha concept to fit up to 7 byte-sized integers
+// directly into a value payload without needing to make a series allocation.
+// At source level they would be numbers separated by dots, like `1.2.3.4.5`.
+// This was mainly applied for IP addresses and RGB/RGBA constants, and
+// considered to be a "lightweight"...it would allow PICK and POKE like a
+// series, but did not behave like one due to not having a position.
+//
+// !!! Ren-C challenges the value of the TUPLE! type as defined.  Color
+// literals are often hexadecimal (where BINARY! would do) and IPv6 addresses
+// have a different notation.  It may be that `.` could be used for a more
+// generalized partner to PATH!, where `a.b.1` would be like a/b/1
 //
 
-#define VAL_RELATIVE(v) \
-    (assert(IS_RELATIVE(v)), \
-        (v)->payload.any_target.relative)
+#define MAX_TUPLE \
+    ((sizeof(REBCNT) * 2) - 1) // for same properties on 64-bit and 32-bit
 
-#ifdef NDEBUG
-    #define VAL_SPECIFIC(v)     ((v)->payload.any_target.specific)
-#else
-    #define VAL_SPECIFIC(v)     VAL_SPECIFIC_Debug(v)
-#endif
+#define VAL_TUPLE(v) \
+    ((v)->payload.tuple.tuple + 1)
+
+#define VAL_TUPLE_LEN(v) \
+    ((v)->payload.tuple.tuple[0])
+
+#define VAL_TUPLE_DATA(v) \
+    ((v)->payload.tuple.tuple)
+
+inline static void SET_TUPLE(RELVAL *v, const void *data) {
+    VAL_RESET_HEADER(v, REB_TUPLE);
+    memcpy(VAL_TUPLE_DATA(v), data, sizeof(VAL_TUPLE_DATA(v)));
+}
 
 
-struct Reb_Any_Series {
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  HANDLE! (`struct Reb_Handle`)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Type for holding an arbitrary code or data pointer inside of a Rebol data
+// value.  What kind of function or data is not known to the garbage collector,
+// so it ignores it.
+//
+// !!! Review usages of this type where they occur.
+//
+
+#define VAL_HANDLE_CODE(v) \
+    ((v)->payload.handle.code)
+
+#define VAL_HANDLE_DATA(v) \
+    ((v)->payload.handle.data)
+
+#define VAL_HANDLE_NUMBER(v) \
+    cast(REBUPT, (v)->payload.handle.data)
+
+inline static void SET_HANDLE_CODE(RELVAL *v, CFUNC *code) {
+    VAL_RESET_HEADER(v, REB_HANDLE);
+    VAL_HANDLE_CODE(v) = code;
+}
+
+inline static void SET_HANDLE_DATA(RELVAL *v, void *data) {
+    VAL_RESET_HEADER(v, REB_HANDLE);
+    VAL_HANDLE_DATA(v) = data;
+}
+
+inline static void SET_HANDLE_NUMBER(RELVAL *v, REBUPT number) {
+    VAL_RESET_HEADER(v, REB_HANDLE);
+    VAL_HANDLE_DATA(v) = cast(void*, number);
+}
+
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  EVENT!
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Rebol's events are used for the GUI and for network and I/O.  They are
+// essentially just a union of some structures which are packed so they can
+// fit into a REBVAL's payload size.
+//
+// The available event models are:
+//
+// * EVM_PORT
+// * EVM_OBJECT
+// * EVM_DEVICE
+// * EVM_CALLBACK
+// * EVM_GUI
+//
+
+#define VAL_EVENT_TYPE(v) \
+    ((v)->payload.event.type)
+
+#define VAL_EVENT_FLAGS(v) \
+    ((v)->payload.event.flags)
+
+#define VAL_EVENT_WIN(v) \
+    ((v)->payload.event.win)
+
+#define VAL_EVENT_MODEL(v) \
+    ((v)->payload.event.model)
+
+#define VAL_EVENT_DATA(v) \
+    ((v)->payload.event.data)
+
+#define VAL_EVENT_TIME(v) \
+    ((v)->payload.event.time)
+
+#define VAL_EVENT_REQ(v) \
+    ((v)->extra.eventee.req)
+
+#define VAL_EVENT_SER(v) \
+    ((v)->extra.eventee.ser)
+
+#define IS_EVENT_MODEL(v,f) \
+    (VAL_EVENT_MODEL(v) == (f))
+
+inline static void SET_EVENT_INFO(RELVAL *val, u8 type, u8 flags, u8 win) {
+    VAL_EVENT_TYPE(val) = type;
+    VAL_EVENT_FLAGS(val) = flags;
+    VAL_EVENT_WIN(val) = win;
+}
+
+// Position event data
+
+#define VAL_EVENT_X(v) \
+    cast(REBINT, cast(short, VAL_EVENT_DATA(v) & 0xffff))
+
+#define VAL_EVENT_Y(v) \
+    cast(REBINT, cast(short, (VAL_EVENT_DATA(v) >> 16) & 0xffff))
+
+#define VAL_EVENT_XY(v) \
+    (VAL_EVENT_DATA(v))
+
+inline static void SET_EVENT_XY(RELVAL *v, REBINT x, REBINT y) {
     //
-    // `specifier` is used in ANY-ARRAY! payloads.  It is a pointer to a FRAME!
-    // context which indicates where relatively-bound ANY-WORD! values which
-    // are in the series data can be looked up to get their variable values.
-    // If the array does not contain any relatively bound words then it is
-    // okay for this to be NULL.
+    // !!! "conversion to u32 from REBINT may change the sign of the result"
+    // Hence cast.  Not clear what the intent is.
     //
-    union Reb_Binding_Target target;
+    VAL_EVENT_DATA(v) = cast(u32, ((y << 16) | (x & 0xffff)));
+}
 
-    // `series` represents the actual physical underlying data, which is
-    // essentially a vector of equal-sized items.  The length of the item
-    // (the series "width") is kept within the REBSER abstraction.  See the
-    // file %sys-series.h for notes.
-    //
-    REBSER *series;
+// Key event data
 
-    // `index` is the 0-based position into the series represented by this
-    // ANY-VALUE! (so if it is 0 then that means a Rebol index of 1).
-    //
-    // It is possible that the index could be to a point beyond the range of
-    // the series.  This is intrinsic, because the series can be modified
-    // through other values and not update the others referring to it.  Hence
-    // VAL_INDEX() must be checked, or the routine called with it must.
-    //
-    // !!! Review that it doesn't seem like these checks are being done
-    // in a systemic way.  VAL_LEN_AT() bounds the length at the index
-    // position by the physical length, but VAL_ARRAY_AT() doesn't check.
-    //
-    REBCNT index;
-};
+#define VAL_EVENT_KEY(v) \
+    (VAL_EVENT_DATA(v) & 0xffff)
 
-#define VAL_SPECIFIER(v) \
-    (assert(ANY_ARRAY(v)), VAL_SPECIFIC(v))
+#define VAL_EVENT_KCODE(v) \
+    ((VAL_EVENT_DATA(v) >> 16) & 0xffff)
 
-#define INIT_ARRAY_SPECIFIC(v,context) \
-    (assert(IS_SPECIFIC(v)), \
-        (v)->payload.any_array.target.specific = (context))
+inline static void SET_EVENT_KEY(RELVAL *v, REBCNT k, REBCNT c) {
+    VAL_EVENT_DATA(v) = ((c << 16) + k);
+}
 
-#define INIT_ARRAY_RELATIVE(v,func) \
-    (assert(IS_RELATIVE(v)), \
-        (v)->payload.any_array.target.relative = (func))
 
-#ifdef NDEBUG
-    #define VAL_SERIES(v)   ((v)->payload.any_series.series)
-#else
-    #define VAL_SERIES(v)   VAL_SERIES_Debug(v)
-#endif
-
-#define INIT_VAL_SERIES(v,s) \
-    ((v)->payload.any_series.series = (s))
-
-#define INIT_VAL_ARRAY(v,s) \
-    ((v)->payload.any_series.series = ARR_SERIES(s))
-
-#define VAL_INDEX(v)        ((v)->payload.any_series.index)
-#define VAL_LEN_HEAD(v)     SER_LEN(VAL_SERIES(v))
-#define VAL_LEN_AT(v)       (Val_Series_Len_At(v))
-
-#define IS_EMPTY(v)         (VAL_INDEX(v) >= VAL_LEN_HEAD(v))
-
-#define VAL_RAW_DATA_AT(v) \
-    SER_AT_RAW(SER_WIDE(VAL_SERIES(v)), VAL_SERIES(v), VAL_INDEX(v))
-
-#define VAL_MAP(v) \
-    (assert(IS_MAP(v)), AS_MAP((v)->payload.any_series.series))
-
-// Note: These macros represent things that used to sometimes be functions,
-// and sometimes were not.  They could be done without a function call, but
-// that would then make them unsafe to use with side-effects:
+//=////////////////////////////////////////////////////////////////////////=//
 //
-//     Val_Init_Block(Alloc_Tail_Array(parent), child);
+//  IMAGE!
 //
-// The repetitition of the value parameter would lead to the allocation
-// running multiple times.  Hence we Caps_Words_With_Underscore to name
-// these macros to indicate they are safe by not duplicating their args.
-// If erring on the side of caution and making a function call turns out
-// to be a problem in profiling, then on a case-by-case basis those
-// bottlenecks can be replaced with something more like:
+//=////////////////////////////////////////////////////////////////////////=//
 //
-//     VAL_RESET_HEADER(value, REB_XXX);
-//     ENSURE_SERIES_MANAGED(series);
-//     VAL_SERIES(value) = series;
-//     VAL_INDEX(value) = index;
+// !!! Ren-C's primary goals are to research and pin down fundamentals, where
+// things like IMAGE! would be an extension through a user-defined type
+// vs. being in the core.  The R3-Alpha code has been kept compiling here
+// due to its usage in R3-GUI.
 //
-// (Or perhaps just use proper inlining and support it in those builds.)
 
-#define Val_Init_Series_Index(v,t,s,i) \
-    Val_Init_Series_Index_Core((v), (t), (s), (i))
+// QUAD=(Red, Green, Blue, Alpha)
 
-#define Val_Init_Series(v,t,s) \
-    Val_Init_Series_Index((v), (t), (s), 0)
+#define QUAD_LEN(s) \
+    SER_LEN(s)
 
+#define QUAD_HEAD(s) \
+    SER_DATA_RAW(s)
 
-/***********************************************************************
-**
-**  BINARY! (uses `struct Reb_Any_Series`)
-**
-***********************************************************************/
+#define QUAD_SKIP(s,n) \
+    (QUAD_HEAD(s) + ((n) * 4))
 
-#define VAL_BIN(v)              BIN_HEAD(VAL_SERIES(v))
-#define VAL_BIN_HEAD(v)         BIN_HEAD(VAL_SERIES(v))
-#define VAL_BIN_AT(v)           BIN_AT(VAL_SERIES(v), VAL_INDEX(v))
-#define VAL_BIN_TAIL(v)         BIN_AT(VAL_SERIES(v), VAL_SERIES(v)->tail)
+#define QUAD_TAIL(s) \
+    (QUAD_HEAD(s) + (QUAD_LEN(s) * 4))
 
-// !!! RE: VAL_BIN_AT_HEAD() see remarks on VAL_ARRAY_AT_HEAD()
-//
-#define VAL_BIN_AT_HEAD(v,n)    BIN_AT(VAL_SERIES(v), (n))
+#define IMG_WIDE(s) \
+    ((s)->misc.area.wide)
 
-#define VAL_BYTE_SIZE(v) (BYTE_SIZE(VAL_SERIES(v)))
+#define IMG_HIGH(s) \
+    ((s)->misc.area.high)
 
-#define Val_Init_Binary(v,s) \
-    Val_Init_Series((v), REB_BINARY, (s))
+#define IMG_DATA(s) \
+    SER_DATA_RAW(s)
 
+#define VAL_IMAGE_HEAD(v) \
+    QUAD_HEAD(VAL_SERIES(v))
 
-/***********************************************************************
-**
-**  ANY-STRING! (uses `struct Reb_Any_Series`)
-**
-***********************************************************************/
+#define VAL_IMAGE_TAIL(v) \
+    QUAD_SKIP(VAL_SERIES(v), VAL_LEN_HEAD(v))
 
-#define VAL_STR_IS_ASCII(v) \
-    (VAL_BYTE_SIZE(v) && All_Bytes_ASCII(VAL_BIN_AT(v), VAL_LEN_AT(v)))
+#define VAL_IMAGE_DATA(v) \
+    QUAD_SKIP(VAL_SERIES(v), VAL_INDEX(v))
 
-#define Val_Init_String(v,s) \
-    Val_Init_Series((v), REB_STRING, (s))
+#define VAL_IMAGE_BITS(v) \
+    cast(REBCNT*, VAL_IMAGE_HEAD(v))
 
-#define Val_Init_File(v,s) \
-    Val_Init_Series((v), REB_FILE, (s))
+#define VAL_IMAGE_WIDE(v) \
+    (IMG_WIDE(VAL_SERIES(v)))
 
-#define Val_Init_Tag(v,s) \
-    Val_Init_Series((v), REB_TAG, (s))
+#define VAL_IMAGE_HIGH(v) \
+    (IMG_HIGH(VAL_SERIES(v)))
 
-// Arg is a unicode value:
-#define VAL_UNI(v)      UNI_HEAD(VAL_SERIES(v))
-#define VAL_UNI_HEAD(v) UNI_HEAD(VAL_SERIES(v))
-#define VAL_UNI_AT(v)   UNI_AT(VAL_SERIES(v), VAL_INDEX(v))
-
-#define VAL_ANY_CHAR(v) GET_ANY_CHAR(VAL_SERIES(v), VAL_INDEX(v))
-
-
-/***********************************************************************
-**
-**  ANY-ARRAY! (uses `struct Reb_Any_Series`)
-**
-***********************************************************************/
-
-// These operations do not need to take the value's index position into
-// account; they strictly operate on the array series
-//
-// Must use `(old_style)cast_here` because we may-or-may-not be casting away
-// constness in the process, e.g. a series extracted from a const REBVAL.
-//
-#define VAL_ARRAY(v) \
-    (assert(ANY_ARRAY(v)), AS_ARRAY((v)->payload.any_series.series))
-
-#define VAL_ARRAY_HEAD(v)       ARR_HEAD(VAL_ARRAY(v))
-#define VAL_ARRAY_TAIL(v)       ARR_AT(VAL_ARRAY(v), VAL_ARRAY_LEN_AT(v))
-
-// These array operations take the index position into account.  The use
-// of the word AT with a missing index is a hint that the index is coming
-// from the VAL_INDEX() of the value itself.
-//
-#define VAL_ARRAY_AT(v)         ARR_AT(VAL_ARRAY(v), VAL_INDEX(v))
-#define VAL_ARRAY_LEN_AT(v)     VAL_LEN_AT(v)
-
-// !!! VAL_ARRAY_AT_HEAD() is a leftover from the old definition of
-// VAL_ARRAY_AT().  Unlike SKIP in Rebol, this definition did *not* take
-// the current index position of the value into account.  It rather extracted
-// the array, counted rom the head, and disregarded the index entirely.
-//
-// The best thing to do with it is probably to rewrite the use cases to
-// not need it.  But at least "AT HEAD" helps communicate what the equivalent
-// operation in Rebol would be...and you know it's not just giving back the
-// head because it's taking an index.  So  it looks weird enough to suggest
-// looking here for what the story is.
-//
-#define VAL_ARRAY_AT_HEAD(v,n) \
-    ARR_AT(VAL_ARRAY(v), (n))
-
-#define VAL_TERM_ARRAY(v)       TERM_ARRAY(VAL_ARRAY(v))
-
-#define Val_Init_Array_Index(v,t,a,i) \
-    Val_Init_Series_Index((v), (t), ARR_SERIES(a), (i))
-
-#define Val_Init_Array(v,t,a) \
-    Val_Init_Array_Index((v), (t), (a), 0)
-
-#define Val_Init_Block_Index(v,a,i) \
-    Val_Init_Array_Index((v), REB_BLOCK, (a), (i))
-
-#define Val_Init_Block(v,s) \
-    Val_Init_Block_Index((v), (s), 0)
-
-#define EMPTY_BLOCK     ROOT_EMPTY_BLOCK
-#define EMPTY_ARRAY     VAL_ARRAY(ROOT_EMPTY_BLOCK)
-
-
-/***********************************************************************
-**
-**  IMAGES, QUADS - RGBA
-**
-***********************************************************************/
-
-#define QUAD_LEN(s)         SER_LEN(s)
-
-#define QUAD_HEAD(s)        SER_DATA_RAW(s)
-#define QUAD_SKIP(s,n)      (QUAD_HEAD(s) + ((n) * 4))
-#define QUAD_TAIL(s)        (QUAD_HEAD(s) + (QUAD_LEN(s) * 4))
-
-#define IMG_SIZE(s)         ((s)->misc.size)
-#define IMG_WIDE(s)         ((s)->misc.area.wide)
-#define IMG_HIGH(s)         ((s)->misc.area.high)
-#define IMG_DATA(s)         SER_DATA_RAW(s)
-
-#define VAL_IMAGE_HEAD(v)   QUAD_HEAD(VAL_SERIES(v))
-#define VAL_IMAGE_TAIL(v)   QUAD_SKIP(VAL_SERIES(v), VAL_LEN_HEAD(v))
-#define VAL_IMAGE_DATA(v)   QUAD_SKIP(VAL_SERIES(v), VAL_INDEX(v))
-#define VAL_IMAGE_BITS(v)   cast(REBCNT*, VAL_IMAGE_HEAD(v))
-#define VAL_IMAGE_WIDE(v)   (IMG_WIDE(VAL_SERIES(v)))
-#define VAL_IMAGE_HIGH(v)   (IMG_HIGH(VAL_SERIES(v)))
-#define VAL_IMAGE_LEN(v)    VAL_LEN_AT(v)
+#define VAL_IMAGE_LEN(v) \
+    VAL_LEN_AT(v)
 
 #define Val_Init_Image(v,s) \
     Val_Init_Series((v), REB_IMAGE, (s));
@@ -1354,1304 +1264,41 @@ struct Reb_Any_Series {
         VAL_TUPLE_LEN(t) > 3 ? VAL_TUPLE(t)[3] : 0xff)
 
 
-/***********************************************************************
-**
-**  BIT_SET -- Bit sets
-**
-***********************************************************************/
-
-#define VAL_BITSET(v)   VAL_SERIES(v)
-
-#define VAL_BIT_DATA(v) VAL_BIN(v)
-
-#define SET_BIT(d,n)    ((d)[(n) >> 3] |= (1 << ((n) & 7)))
-#define CLR_BIT(d,n)    ((d)[(n) >> 3] &= ~(1 << ((n) & 7)))
-#define IS_BIT(d,n)     LOGICAL((d)[(n) >> 3] & (1 << ((n) & 7)))
-
-#define Val_Init_Bitset(v,s) \
-    Val_Init_Series((v), REB_BITSET, (s))
-
-
-/***********************************************************************
-**
-**  SYMBOLS -- Used only for symbol tables
-**
-***********************************************************************/
-
-struct Reb_Symbol {
-    REBCNT  canon;  // Index of the canonical (first) word
-    REBCNT  alias;  // Index to next alias form
-    REBCNT  name;   // Index into PG_Word_Names string
-};
-
-// Arg is value:
-#define VAL_SYM_NINDEX(v)   ((v)->payload.symbol.name)
-#define VAL_SYM_NAME(v)     (BIN_HEAD(PG_Word_Names) + VAL_SYM_NINDEX(v))
-#define VAL_SYM_CANON(v)    ((v)->payload.symbol.canon)
-#define VAL_SYM_ALIAS(v)    ((v)->payload.symbol.alias)
-
-// Return the CANON value for a symbol number:
-#define SYMBOL_TO_CANON(sym) \
-    VAL_SYM_CANON(ARR_AT(PG_Word_Table.array, sym))
-
-// Return the CANON value for a word value:
-#define WORD_TO_CANON(w) \
-    VAL_SYM_CANON(ARR_AT(PG_Word_Table.array, VAL_WORD_SYM(w)))
-
-// Is it the same symbol? Quick check, then canon check:
-#define SAME_SYM(s1,s2) \
-    ((s1) == (s2) \
-    || ( \
-        VAL_SYM_CANON(ARR_AT(PG_Word_Table.array, (s1))) \
-        == VAL_SYM_CANON(ARR_AT(PG_Word_Table.array, (s2))) \
-    ))
-
-
-/***********************************************************************
-**
-**  WORDS -- All word related types
-**
-***********************************************************************/
-
-#ifdef NDEBUG
-    #define WORD_FLAG_X 0
-#else
-    #define WORD_FLAG_X REB_WORD // interpreted to mean ANY-WORD!
-#endif
-
-enum {
-    // `WORD_FLAG_BOUND` answers whether a word is bound, but it may be
-    // relatively bound if `VALUE_FLAG_RELATIVE` is set.  In that case, it
-    // does not have a context pointer but rather a function pointer, that
-    // must be combined with more information to get the FRAME! where the
-    // word should actually be looked up.
-    //
-    // If VALUE_FLAG_RELATIVE is set, then WORD_FLAG_BOUND must also be set.
-    //
-    WORD_FLAG_BOUND = (1 << (TYPE_SPECIFIC_BIT + 0)) | WORD_FLAG_X,
-
-    // A special kind of word is used during argument fulfillment to hold
-    // a refinement's word on the data stack, augmented with its param
-    // and argument location.  This helps fulfill "out-of-order" refinement
-    // usages more quickly without having to do two full arglist walks.
-    //
-    WORD_FLAG_PICKUP = (1 << (TYPE_SPECIFIC_BIT + 1)) | WORD_FLAG_X
-};
-
-struct Reb_Binding {
-    //
-    // The context to look in to find the word's value.  It is valid if the
-    // word has been bound, and null otherwise.
-    //
-    // Note that if the ANY-CONTEXT! to which this word is bound is a FRAME!,
-    // then that frame may no longer be on the stack.  Hence the space for
-    // the variable is no longer allocated.  Tracking mechanisms must be used
-    // to make sure the word can keep track of this fact.
-    //
-    // !!! Tracking mechanism is currently under development.
-    //
-    // Also note that the expense involved in doing a lookup to a context
-    // that is a FRAME! is greater than one that is not (such as an OBJECT!)
-    // This is because in the current implementation, the stack must be
-    // walked to find the required frame.
-    //
-    union Reb_Binding_Target target;
-
-    // Index of word in context (if word is bound, e.g. `context` is not NULL)
-    //
-    // !!! Intended logic is that if the index is positive, then the word
-    // is looked for in the context's pooled memory data pointer.  If the
-    // index is negative or 0, then it's assumed to be a stack variable,
-    // and looked up in the call's `stackvars` data.
-    //
-    // But now there are no examples of contexts which have both pooled
-    // and stack memory, and the general issue of mapping the numbers has
-    // not been solved.  However, both pointers are available to a context
-    // so it's awaiting some solution for a reasonably-performing way to
-    // do the mapping from [1 2 3 4 5 6] to [-3 -2 -1 0 1 2] (or whatever)
-    //
-    REBINT index;
-};
-
-union Reb_Any_Word_Place {
-    struct Reb_Binding binding;
-
-    // The order in which refinements are defined in a function spec may
-    // not match the order in which they are mentioned on a path.  As an
-    // efficiency trick, a word on the data stack representing a refinement
-    // usage request is able to store the pointer to its `param` and `arg`
-    // positions, so that they may be returned to after the later-defined
-    // refinement has had its chance to take the earlier fulfillments.
-    //
-    struct {
-        const REBVAL *param;
-        REBVAL *arg;
-    } pickup;
-};
-
-struct Reb_Any_Word {
-    union Reb_Any_Word_Place place;
-
-    // Index of the word's symbol
-    //
-    // Note: Future expansion plans are to have symbol entries tracked by
-    // pointer and garbage collected, likely as series nodes.  A full pointer
-    // sized value is required here.
-    //
-    REBSYM sym;
-};
-
-#define IS_WORD_BOUND(v) \
-    GET_VAL_FLAG((v), WORD_FLAG_BOUND)
-
-#define IS_WORD_UNBOUND(v) \
-    NOT(IS_WORD_BOUND(v))
-
-#define VAL_WORD_SYM(v) \
-    (assert(ANY_WORD(v)), (v)->payload.any_word.sym)
-#define INIT_WORD_SYM(v,s) \
-    (assert(ANY_WORD(v)), (v)->payload.any_word.sym = (s))
-
-#define VAL_WORD_INDEX(v) \
-    (assert(ANY_WORD(v)), (v)->payload.any_word.place.binding.index)
-
-#ifdef NDEBUG
-    #define INIT_WORD_INDEX(v,i) \
-        ((v)->payload.any_word.place.binding.index = (i))
-#else
-    #define INIT_WORD_INDEX(v,i) \
-        INIT_WORD_INDEX_Debug((v),(i))
-#endif
-
-#define VAL_WORD_CONTEXT(v) \
-    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND)), VAL_SPECIFIC(v))
-
-#define VAL_WORD_CONTEXT_MAY_REIFY(v) \
-    (GET_VAL_FLAG((v), VALUE_FLAG_RELATIVE) \
-        ? Context_For_Frame_May_Reify( \
-            Frame_For_Relative_Word((v), FALSE), NULL, TRUE) \
-        : VAL_WORD_CONTEXT(v))
-
-#define INIT_WORD_CONTEXT(v,context) \
-    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND)), \
-        ENSURE_SERIES_MANAGED(CTX_SERIES(context)), \
-        assert(GET_ARR_FLAG(CTX_KEYLIST(context), SERIES_FLAG_MANAGED)), \
-        (v)->payload.any_word.place.binding.target.specific = (context))
-
-#define INIT_WORD_FUNC(v,func) \
-    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND)), \
-        (v)->payload.any_word.place.binding.target.relative = (func))
-
-#define VAL_WORD_FUNC(v) \
-    (assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND)), VAL_RELATIVE(v))
-
-#define IS_SAME_WORD(v, n) \
-    (IS_WORD(v) && VAL_WORD_CANON(v) == n)
-
-#ifdef NDEBUG
-    #define UNBIND_WORD(v) \
-        CLEAR_VAL_FLAGS((v), WORD_FLAG_BOUND | VALUE_FLAG_RELATIVE)
-#else
-    #define UNBIND_WORD(v) \
-        (CLEAR_VAL_FLAGS((v), WORD_FLAG_BOUND | VALUE_FLAG_RELATIVE), \
-        (v)->payload.any_word.place.binding.index = 0)
-#endif
-
-#define VAL_WORD_CANON(v) \
-    VAL_SYM_CANON(ARR_AT(PG_Word_Table.array, VAL_WORD_SYM(v)))
-
-#define VAL_WORD_NAME(v) \
-    VAL_SYM_NAME(ARR_AT(PG_Word_Table.array, VAL_WORD_SYM(v)))
-
-#define VAL_WORD_NAME_STR(v)    BIN_HEAD(VAL_WORD_NAME(v))
-
-
-//=////////////////////////////////////////////////////////////////////////=//
+// In the C++ build, defining this overload that takes a REBVAL* instead of
+// a RELVAL*, and then not defining it...will tell you that you do not need
+// to use COPY_VALUE.  Just say `*dest = *src` if your source is a REBVAL!
 //
-//  TYPESET! (`struct Reb_Typeset`)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// A typeset is a collection of up to 63 types, implemented as a bitset.
-// The 0th type corresponds to REB_TRASH and can be used to indicate another
-// property of the typeset (though no such uses exist yet).
-//
-// !!! The limit of only being able to hold a set of 63 types is a temporary
-// one, as user-defined types will require a different approach.  Hence the
-// best way to look at the bitset for built-in types is as an optimization
-// for type-checking the common parameter cases.
-//
-// Though available to the user to manipulate directly as a TYPESET!, REBVALs
-// of this category have another use in describing the fields of objects
-// ("KEYS") or parameters of function frames ("PARAMS").  When used for that
-// purpose, they not only list the legal types...but also hold a symbol for
-// naming the field or parameter.
-//
-// !!! At present, a TYPESET! created with MAKE TYPESET! cannot set the
-// internal symbol.  Nor can it set the extended flags, though that might
-// someday be allowed with a syntax like:
-//
-//      make typeset! [<hide> <quote> <protect> string! integer!]
-//
-
-enum Reb_Param_Class {
-    PARAM_CLASS_0 = 0, // reserve to catch uninitialized cases
-
-    // `PARAM_CLASS_NORMAL` is cued by an ordinary WORD! in the function spec
-    // to indicate that you would like that argument to be evaluated normally.
-    //
-    //     >> foo: function [a] [print [{a is} a]
-    //
-    //     >> foo 1 + 2
-    //     a is 3
-    //
-    // Special outlier EVAL/ONLY can be used to subvert this:
-    //
-    //     >> eval/only :foo 1 + 2
-    //     a is 1
-    //     ** Script error: + operator is missing an argument
-    //
-    PARAM_CLASS_NORMAL,
-
-    // `PARAM_CLASS_REFINEMENT`
-    //
-    PARAM_CLASS_REFINEMENT,
-
-    // `PARAM_CLASS_HARD_QUOTE` is cued by a GET-WORD! in the function spec
-    // dialect.  It indicates that a single value of  content at the callsite
-    // should be passed through *literally*, without any evaluation:
-    //
-    //     >> foo: function [:a] [print [{a is} a]
-    //
-    //     >> foo 1 + 2
-    //     a is 1
-    //
-    //     >> foo (1 + 2)
-    //     a is (1 + 2)
-    //
-    PARAM_CLASS_HARD_QUOTE, // GET-WORD! in spec
-
-    // `PARAM_CLASS_SOFT_QUOTE` is cued by a LIT-WORD! in the function spec
-    // dialect.  It quotes with the exception of GROUP!, GET-WORD!, and
-    // GET-PATH!...which will be evaluated:
-    //
-    //     >> foo: function ['a] [print [{a is} a]
-    //
-    //     >> foo 1 + 2
-    //     a is 1
-    //
-    //     >> foo (1 + 2)
-    //     a is 3
-    //
-    // Although possible to implement soft quoting with hard quoting, it is
-    // a convenient way to allow callers to "escape" a quoted context when
-    // they need to.
-    //
-    PARAM_CLASS_SOFT_QUOTE,
-
-    // `PARAM_CLASS_PURE_LOCAL` has the disambiguator "pure" on it because
-    // historically Rebol used a refinement named `/local` by convention to
-    // define "locals".  This created the phenomenon of "locals injection"
-    // where callers could actually invoke a function with `foo/local`.
-    // It also gave a sort of "keyword" to the language, and introduced
-    // friction on usage of the name for things like `time/local`.
-    //
-    // Ren-C uses a SET-WORD! in the spec to indicate a pure local which
-    // guarantees that when the function starts, it will be UNSET!.
-    // (There's a "technicality" outlier in the FUNC_FLAG_LEAVE_OR_RETURN
-    // trick, which will put a "magic" REBNATIVE(return) in `return:` slots.
-    // But it gives the illusion that it happens after the function is
-    // started with a fake function body boilerplate shown via BODY-OF.)
-    //
-    // !!! Initially these were indicated with TYPESET_FLAG_HIDDEN.  That
-    // would allow the PARAM_CLASS to fit in just two bits (if there were
-    // no debug-purpose PARAM_CLASS_0) and free up a scarce typeset flag.
-    // But is it the case that hiding and localness should be independent?
-    //
-    PARAM_CLASS_PURE_LOCAL
-};
-
-#define PCLASS_MASK (cast(REBUPT, 0x07) << TYPE_SPECIFIC_BIT)
-
-
-#ifdef NDEBUG
-    #define TYPESET_FLAG_X 0
-#else
-    #define TYPESET_FLAG_X REB_TYPESET // interpreted to mean ANY-TYPESET!
-#endif
-
-// Option flags used with GET_VAL_FLAG().  These describe properties of
-// a value slot when it's constrained to the types in the typeset
-//
-enum {
-    // Can't be changed (set with PROTECT)
-    //
-    TYPESET_FLAG_LOCKED = (1 << (TYPE_SPECIFIC_BIT + 3)) | TYPESET_FLAG_X,
-
-    // Can't be reflected (set with PROTECT/HIDE) or local in spec as `foo:`
-    //
-    TYPESET_FLAG_HIDDEN = (1 << (TYPE_SPECIFIC_BIT + 4)) | TYPESET_FLAG_X,
-
-    // Can't be bound to beyond the current bindings.
-    //
-    // !!! This flag was implied in R3-Alpha by TYPESET_FLAG_HIDDEN.  However,
-    // the movement of SELF out of being a hardcoded keyword in the binding
-    // machinery made it start to be considered as being a by-product of the
-    // generator, and hence a "userspace" word (like definitional return).
-    // To avoid disrupting all object instances with a visible SELF, it was
-    // made hidden...which worked until a bugfix restored the functionality
-    // of checking to not bind to hidden things.  UNBINDABLE is an interim
-    // solution to separate the property of bindability from visibility, as
-    // the SELF solution shakes out--so that SELF may be hidden but bind.
-    //
-    TYPESET_FLAG_UNBINDABLE = (1 << (TYPE_SPECIFIC_BIT + 5)) | TYPESET_FLAG_X,
-
-    // !!! <durable> is the working name for the property of a function
-    // argument or local to have its data survive after the call is over.
-    // Much of the groundwork has been laid to allow this to be specified
-    // individually for each argument, but the feature currently is "all
-    // or nothing"--and implementation-wise corresponds to what R3-Alpha
-    // called CLOSURE!, with the deep-copy-per-call that entails.
-    //
-    // Hence if this property is applied, it will be applied to *all* of
-    // a function's arguments.
-    //
-    TYPESET_FLAG_DURABLE = (1 << (TYPE_SPECIFIC_BIT + 6)) | TYPESET_FLAG_X,
-
-    // !!! This does not need to be on the typeset necessarily.  See the
-    // VARARGS! type for what this is, which is a representation of the
-    // capture of an evaluation position. The type will also be checked but
-    // the value will not be consumed.
-    //
-    // Note the important distinction, that a variadic parameter and taking
-    // a VARARGS! type are different things.  (A function may accept a
-    // variadic number of VARARGS! values, for instance.)
-    //
-    TYPESET_FLAG_VARIADIC = (1 << (TYPE_SPECIFIC_BIT + 7)) | TYPESET_FLAG_X
-
-    // WARNING: + 7 is max type-specific bit!
-};
-
-struct Reb_Typeset {
-    REBSYM sym;         // Symbol (if a key of object or function param)
-
-    // Note: `sym` is first so that the value's 32-bit Reb_Flags header plus
-    // the 32-bit REBCNT will pad `bits` to a REBU64 alignment boundary
-
-    REBU64 bits;        // One bit for each DATATYPE! (use with FLAGIT_64)
-};
-
-// Operations when typeset is done with a bitset (currently all typesets)
-
-#define VAL_TYPESET_BITS(v) ((v)->payload.typeset.bits)
-
-#define TYPE_CHECK(v,n) \
-    LOGICAL(VAL_TYPESET_BITS(v) & FLAGIT_KIND(n))
-
-#define TYPE_SET(v,n) \
-    ((VAL_TYPESET_BITS(v) |= FLAGIT_KIND(n)), NOOP)
-
-#define EQUAL_TYPESET(v,w) \
-    (VAL_TYPESET_BITS(v) == VAL_TYPESET_BITS(w))
-
-
-// Symbol is SYM_0 unless typeset in object keylist or func paramlist
-
-#ifdef NDEBUG
-    #define VAL_TYPESET_SYM(v) ((v)->payload.typeset.sym)
-#else
-    // !!! Due to large reorganizations, it may be that VAL_WORD_SYM and
-    // VAL_TYPESET_SYM calls were swapped.  In the aftermath of reorganization
-    // this check is prudent (until further notice...)
-    #define VAL_TYPESET_SYM(v) (*VAL_TYPESET_SYM_Ptr_Debug(v))
-#endif
-
-#define VAL_TYPESET_CANON(v) \
-    VAL_SYM_CANON(ARR_AT(PG_Word_Table.array, VAL_TYPESET_SYM(v)))
-
-// Word number array (used by Bind_Table):
-#define WORDS_HEAD(w) \
-    SER_HEAD(REBINT, (w))
-
-#define WORDS_LAST(w) \
-    (WORDS_HEAD(w) + SER_LEN(w) - 1) // (tail never zero)
-
-// Useful variation of FLAGIT_64 for marking a type, as they now involve
-// shifting and possible abstraction vs. simply being 0..63
-//
-#define FLAGIT_KIND(t)          (cast(REBU64, 1) << TO_0_FROM_KIND(t))
-
-
-#define VAL_PARAM_CLASS(v) \
-    cast(enum Reb_Param_Class, \
-        ((v)->header.bits & PCLASS_MASK) >> TYPE_SPECIFIC_BIT)
-
-#define INIT_VAL_PARAM_CLASS(v,c) \
-    ((v)->header.bits &= ~PCLASS_MASK, \
-    (v)->header.bits |= ((c) << TYPE_SPECIFIC_BIT))
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// ANY-CONTEXT! (`struct Reb_Any_Context`)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// The Reb_Any_Context is the basic struct used currently for OBJECT!,
-// MODULE!, ERROR!, and PORT!.  It builds upon the context datatype REBCTX,
-// which permits the storage of associated KEYS and VARS.  (See the comments
-// on `struct Reb_Context` that are in %sys-series.h).
-//
-// Contexts coordinate with words, which can have their VAL_WORD_CONTEXT()
-// set to a context's series pointer.  Then they cache the index of that
-// word's symbol in the context's keylist, for a fast lookup to get to the
-// corresponding var.  The key is a typeset which has several EXT flags
-// controlling behaviors like whether the var is protected or hidden.
-//
-// !!! This "caching" mechanism is not actually "just a cache".  Once bound
-// the index is treated as permanent.  This is why objects are "append only"
-// because disruption of the index numbers would break the extant words
-// with index numbers to that position.  Ren-C intends to undo this by
-// paying for the check of the symbol number at the time of lookup, and if
-// it does not match consider it a cache miss and re-lookup...adjusting the
-// index inside of the word.  For efficiency, some objects could be marked
-// as not having this property, but it may be just as efficient to check
-// the symbol match as that bit.
-//
-// Frame key/var indices start at one, and they leave two REBVAL slots open
-// in the 0 spot for other uses.  With an ANY-CONTEXT!, the use for the
-// "ROOTVAR" is to store a canon value image of the ANY-CONTEXT!'s REBVAL
-// itself.  This trick allows a single REBSER* to be passed around rather
-// than the REBVAL struct which is 4x larger, yet still reconstitute the
-// entire REBVAL if it is needed.
-//
-
-struct Reb_Any_Context {
-    //
-    // `varlist` is a Rebol Array that from 1..NUM_VARS contains REBVALs
-    // representing the stored values in the context.
-    //
-    // As with the `paramlist` of a FUNCTION!, the varlist uses the [0]th
-    // element specially.  It stores a copy of the ANY-CONTEXT! value that
-    // refers to itself.
-    //
-    // The `keylist` is held in the varlist's Reb_Series.misc field, and it
-    // may be shared with an arbitrary number of other contexts.  Changing
-    // the keylist involves making a copy if it is shared.
-    //
-    REBCTX *context; // !!! TBD: change to REBARR*, rename as varlist
-
-    // `stackvars` points to values that are resident on the "chunk stack",
-    // where arguments to functions go when they aren't <durable>.  This
-    // is presently only used by FRAME!, but it is conceivable that other
-    // context types might also want stack variables that can be freed
-    // after some point (e.g. after the MAKE OBJECT! [...] body code has run)
-    //
-    REBVAL *stackvars;
-
-    union {
-        REBCTX *spec; // used by REB_MODULE
-
-        // Used by REB_FRAME.  This is the call that corresponded to the
-        // FRAME! at the time it was created.  The pointer becomes invalid if
-        // the call ends, so the flags on the context must be consulted to
-        // see if it indicates the stack is over before using.
-        //
-        // Note: This is technically just a cache, as the stack could be
-        // walked to find it given the frame.
-        //
-        struct Reb_Frame *frame;
-    } more;
-};
-
-#define VAL_CONTEXT(v) \
-    (assert(ANY_CONTEXT(v)), (v)->payload.any_context.context)
-
-#define INIT_VAL_CONTEXT(v,c) \
-    ((v)->payload.any_context.context = (c))
-
-#define VAL_CONTEXT_SPEC(v)         ((v)->payload.any_context.more.spec)
-
-#define VAL_CONTEXT_STACKVARS(v)    ((v)->payload.any_context.stackvars)
-
-#define VAL_CONTEXT_STACKVARS_LEN(v) \
-    (assert(ANY_CONTEXT(v)), \
-        CHUNK_LEN_FROM_VALUES((v)->payload.any_context.stackvars))
-
-#define VAL_CONTEXT_FRAME(v)        ((v)->payload.any_context.more.frame)
-
-// Convenience macros to speak in terms of object values instead of the context
-//
-#define VAL_CONTEXT_VAR(v,n)        CTX_VAR(VAL_CONTEXT(v), (n))
-#define VAL_CONTEXT_KEY(v,n)        CTX_KEY(VAL_CONTEXT(v), (n))
-#define VAL_CONTEXT_KEY_SYM(v,n)    CTX_KEY_SYM(VAL_CONTEXT(v), (n))
-
-// The movement of the SELF word into the domain of the object generators
-// means that an object may wind up having a hidden SELF key (and it may not).
-// Ultimately this key may well occur at any position.  While user code is
-// discouraged from accessing object members by integer index (`pick obj 1`
-// is an error), system code has historically relied upon this.
-//
-// During a transitional period where all MAKE OBJECT! constructs have a
-// "real" SELF key/var in the first position, there needs to be an adjustment
-// to the indexing of some of this system code.  Some of these will be
-// temporary, because not all objects will need a definitional SELF (just as
-// not all functions need a definitional RETURN).  Exactly which require it
-// and which do not remains to be seen, so this macro helps review the + 1
-// more easily than if it were left as just + 1.
-//
-#define SELFISH(n) (n + 1)
-
-#define Val_Init_Object(v,c) \
-    Val_Init_Context((v), REB_OBJECT, (c))
-
-
-/***********************************************************************
-**
-**  MODULES - Code isolation units
-**
-**  http://www.rebol.com/r3/docs/concepts/modules-defining.html
-**
-***********************************************************************/
-
-#define VAL_MOD_SPEC(v)     VAL_CONTEXT_SPEC(v)
-#define VAL_MOD_BODY(v)     VAL_CONTEXT_BODY(v)
-
-#define Val_Init_Module(v,c) \
-    Val_Init_Context((v), REB_MODULE, (c))
-
-
-/***********************************************************************
-**
-**  PORTS - External series interface
-**
-***********************************************************************/
-
-#define Val_Init_Port(v,c) \
-    Val_Init_Context((v), REB_PORT, (c))
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// ERROR! (uses `struct Reb_Any_Context`)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// Errors are a subtype of ANY-CONTEXT! which follow a standard layout.
-// That layout is in %boot/sysobj.r as standard/error.
-//
-// Historically errors could have a maximum of 3 arguments, with the fixed
-// names of `arg1`, `arg2`, and `arg3`.  They would also have a numeric code
-// which would be used to look up a a formatting block, which would contain
-// a block for a message with spots showing where the args were to be inserted
-// into a message.  These message templates can be found in %boot/errors.r
-//
-// Ren-C is exploring the customization of user errors to be able to provide
-// arbitrary named arguments and message templates to use them.  It is
-// a work in progress, but refer to the FAIL native, the corresponding
-// `fail()` C macro inside the source, and the various routines in %c-error.c
-//
-
-#define ERR_VARS(e)     cast(ERROR_VARS*, CTX_VARS_HEAD(e))
-#define ERR_NUM(e)      cast(REBCNT, VAL_INT32(&ERR_VARS(e)->code))
-
-#define VAL_ERR_VARS(v)     ERR_VARS(VAL_CONTEXT(v))
-#define VAL_ERR_NUM(v)      ERR_NUM(VAL_CONTEXT(v))
-
-#define Val_Init_Error(v,c) \
-    Val_Init_Context((v), REB_ERROR, (c))
-
-
-/***********************************************************************
-**
-**  FUNCTIONS - Natives, actions, operators, and user functions
-**
-**  NOTE: make-headers.r will skip specs with the "REBNATIVE(" in them
-**  REBTYPE macros are used and expanded in tmp-funcs.h
-**
-***********************************************************************/
-
-// !!! Functions used to come in several different REB_XXX types, but have
-// been folded all into one REB_FUNCTION with different type-specific-bits.
-// 7 types for now, use 3 bits...hopefully just two bits needed long term.
-
-enum Reb_Func_Class {
-    FUNC_CLASS_0 = 0, // leave invalid to catch not-set-func-classes
-    FUNC_CLASS_NATIVE, // "direct CPU evaluated function"
-    FUNC_CLASS_USER, // "function body is Rebol code"
-    FUNC_CLASS_ACTION, // "datatype native function (standard polymorphic)"
-    FUNC_CLASS_COMMAND, // "special dispatch-based function"
-    FUNC_CLASS_ROUTINE, // "external C function"
-    FUNC_CLASS_CALLBACK, // "function to be called from C"
-    FUNC_CLASS_SPECIALIZED // "specialization of another function"
-};
-
-#define FCLASS_MASK (cast(REBUPT, 0x07) << TYPE_SPECIFIC_BIT)
-
-#ifdef NDEBUG
-    #define FUNC_FLAG_X 0
-#else
-    #define FUNC_FLAG_X REB_FUNCTION // interpreted to mean ANY-FUNCTION!
-#endif
-
-enum {
-    // called with "infix" protocol.  Start at bit 3 to skip FUNC_CLASS bits
-    //
-    FUNC_FLAG_INFIX = (1 << (TYPE_SPECIFIC_BIT + 3)) | FUNC_FLAG_X,
-
-    // function "fakes" a definitionally scoped return (or a "LEAVE"...which
-    // word is determined by the symbol of the *last* parameter)
-    //
-    FUNC_FLAG_LEAVE_OR_RETURN = (1 << (TYPE_SPECIFIC_BIT + 4)) | FUNC_FLAG_X,
-
-#if !defined(NDEBUG)
-    //
-    // TRUE-valued refinements, NONE! for unused args
-    //
-    FUNC_FLAG_LEGACY = (1 << (TYPE_SPECIFIC_BIT + 5)) | FUNC_FLAG_X,
-#endif
-
-    FUNC_FLAG_NO_COMMA // needed for proper comma termination of this list
-};
-
-
-// enums in C have no guaranteed size, yet Rebol wants to use known size
-// types in its interfaces.  Hence REB_R is a REBCNT from reb-c.h (and not
-// this enumerated type containing its legal values).
-enum {
-    R_OUT = 0,
-
-    // See comments on OPT_VALUE_THROWN about the migration of "thrownness"
-    // from being a property signaled to the evaluator.
-    //
-    // R_OUT_IS_THROWN is a test of that signaling mechanism.  It is currently
-    // being kept in parallel with the THROWN() bit and ensured as matching.
-    // Being in the state of doing a stack unwind will likely be knowable
-    // through other mechanisms even once the thrown bit on the value is
-    // gone...so it may not be the case that natives are asked to do their
-    // own separate indication, so this may wind up replaced with R_OUT.  For
-    // the moment it is good as a double-check.
-    //
-    R_OUT_IS_THROWN,
-
-    // !!! These R_ values are somewhat superfluous...and actually inefficient
-    // because they have to be checked by the caller in a switch statement
-    // to take the equivalent action.  They have a slight advantage in
-    // hand-written C code for making it more clear that if you have used
-    // the D_OUT return slot for temporary work that you explicitly want
-    // to specify another result...this cannot be caught by the REB_TRASH
-    // trick for detecting an unwritten D_OUT.
-    //
-    R_UNSET, // => SET_UNSET(D_OUT); return R_OUT;
-    R_NONE, // => SET_NONE(D_OUT); return R_OUT;
-    R_TRUE, // => SET_TRUE(D_OUT); return R_OUT;
-    R_FALSE // => SET_FALSE(D_OUT); return R_OUT;
-};
-typedef REBCNT REB_R;
-
-// NATIVE! function
-typedef REB_R (*REBNAT)(struct Reb_Frame *frame_);
-#define REBNATIVE(n) \
-    REB_R N_##n(struct Reb_Frame *frame_)
-
-// ACTION! function (one per each DATATYPE!)
-typedef REB_R (*REBACT)(struct Reb_Frame *frame_, REBCNT a);
-#define REBTYPE(n) \
-    REB_R T_##n(struct Reb_Frame *frame_, REBCNT action)
-
-// PORT!-action function
-typedef REB_R (*REBPAF)(struct Reb_Frame *frame_, REBCTX *p, REBCNT a);
-
-// COMMAND! function
-typedef REB_R (*CMD_FUNC)(REBCNT n, REBSER *args);
-
-typedef struct Reb_Routine_Info REBRIN;
-
-struct Reb_Function {
-    //
-    // `paramlist` is a Rebol Array whose 1..NUM_PARAMS values are all
-    // TYPESET! values, with an embedded symbol (a.k.a. a "param") as well
-    // as other bits, including the parameter class (PARAM_CLASS).  This
-    // is the list that is processed to produce WORDS-OF and which is
-    // consulted during invocation to fulfill the arguments.
-    //
-    // In addition, its [0]th element contains a FUNCTION! value which is
-    // self-referentially the function itself.  This means that the paramlist
-    // can be passed around as a single pointer from which a whole REBVAL
-    // for the function can be found.
-    //
-    REBFUN *func; // !!! TBD: change to REBARR*, rename as paramlist
-
-    // `spec` is a Rebol Aray which generally contains the information that
-    // was passed to MAKE FUNCTION! to create the `paramlist`.  After the
-    // paramlist has been generated, it is not generally processed by the
-    // code and remains mostly to be scanned by user mode code to make HELP.
-    //
-    REBARR *spec;
-
-    union Reb_Function_Impl {
-        REBNAT code;
-        REBARR *body;
-        REBCNT act;
-        REBRIN *info;
-        REBCTX *special;
-    } impl;
-};
-
-#define VAL_FUNC_CLASS(v) \
-    cast(enum Reb_Func_Class, \
-        ((v)->header.bits & FCLASS_MASK) >> TYPE_SPECIFIC_BIT)
-
-// Could be potentially faster testing of the function class as well as if
-// something is a function, but keeps them together in any case.  So:
-//
-//     IS_NATIVE(f) => IS_FUNCTION_AND(f, FUNC_CLASS_NATIVE)
-//
-// For the time being, this will help avoid mistakes from coders assuming
-// that other function categories are still a separate type.
-//
-#define IS_FUNCTION_AND(v,c) \
-    (IS_FUNCTION(v) && (VAL_FUNC_CLASS(v) == (c)))
-
-#define INIT_VAL_FUNC_CLASS(v,c) \
-    ((v)->header.bits &= ~FCLASS_MASK, \
-    (v)->header.bits |= ((c) << TYPE_SPECIFIC_BIT))
-
-/* argument is of type REBVAL* */
-#ifdef NDEBUG
-    #define VAL_FUNC(v)             ((v)->payload.function.func + 0)
-#else
-    #define VAL_FUNC(v)             VAL_FUNC_Debug(v)
-#endif
-#define VAL_FUNC_SPEC(v)            ((v)->payload.function.spec)
-#define VAL_FUNC_PARAMLIST(v)       FUNC_PARAMLIST(VAL_FUNC(v))
-
-#define VAL_FUNC_NUM_PARAMS(v)      FUNC_NUM_PARAMS(VAL_FUNC(v))
-#define VAL_FUNC_PARAMS_HEAD(v)     FUNC_PARAMS_HEAD(VAL_FUNC(v))
-#define VAL_FUNC_PARAM(v,p)         FUNC_PARAM(VAL_FUNC(v), (p))
-
-#define VAL_FUNC_CODE(v)      ((v)->payload.function.impl.code)
-#define VAL_FUNC_BODY(v)      ((v)->payload.function.impl.body)
-#define VAL_FUNC_ACT(v)       ((v)->payload.function.impl.act)
-#define VAL_FUNC_INFO(v)      ((v)->payload.function.impl.info)
-#define VAL_FUNC_SPECIAL(v)   ((v)->payload.function.impl.special)
-
-// FUNC_FLAG_LEAVE_OR_RETURN functions use RETURN or LEAVE native's function
-// value to give the definitional return its prototype, but overwrite its
-// code pointer to hold the paramlist of the target.
-//
-// Do_Native_Throws() sees when someone tries to execute one of these "native
-// returns"...and instead interprets it as a THROW whose /NAME is the function
-// value.  The paramlist has that value (it's the REBVAL in slot #0)  In this
-// way the illusion of a "new function being created on each call" is given.
-//
-// This is a special case: the body value of the hacked REBVAL of the return
-// is allowed to be inconsistent with the content of the ROOT_RETURN_NATIVE's
-// actual FUNC.  (In the general case, the [0] element of the FUNC must be
-// consistent with the fields of the value holding it.)
-//
-#define VAL_FUNC_EXIT_FROM(v) VAL_FUNC_BODY(v)
-
-// !!! At the moment functions are "all durable" or "none durable" w.r.t. the
-// survival of their arguments and locals after the call.  This corresponds
-// to the CLOSURE! and FUNCTION! distinction for the moment, and brings
-// about two things: specific binding *and* durability.
-//
-#define IS_FUNC_DURABLE(f) \
-    LOGICAL(VAL_FUNC_NUM_PARAMS(f) != 0 \
-        && GET_VAL_FLAG(VAL_FUNC_PARAM((f), 1), TYPESET_FLAG_DURABLE))
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// VARARGS! (`struct Reb_Varargs`)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// A VARARGS! represents a point for parameter gathering inline at the
-// callsite of a function.  The point is located *after* that function has
-// gathered all of its arguments and started running.  It is implemented by
-// holding a reference to a reified FRAME! series, which allows it to find
-// the point of a running evaluation (as well as to safely check for when
-// that call is no longer on the stack, and can't provide data.)
-//
-// A second VARARGS! form is implemented as a thin proxy over an ANY-ARRAY!.
-// This mimics the interface of feeding forward through those arguments, to
-// allow for "parameter packs" that can be passed to variadic functions.
-//
-// When the bits of a payload of a VARARG! are copied from one item to
-// another, they are still maintained in sync.  TAKE-ing a vararg off of one
-// is reflected in the others.  This means that the "indexor" position of
-// the vararg is located through the frame pointer.  If there is no frame,
-// then a single element array (the `array`) holds an ANY-ARRAY! value that
-// is shared between the instances, to reflect the state.
-//
-
-#ifdef NDEBUG
-    #define VARARGS_FLAG_X 0
-#else
-    #define VARARGS_FLAG_X REB_VARARGS
-#endif
-
-enum {
-    // Was made with a call to MAKE VARARGS! with data from an ANY-ARRAY!
-    // If that is the case, it does not use the varargs payload at all,
-    // rather it uses the Reb_Any_Series payload.
-    //
-    VARARGS_FLAG_NO_FRAME = (1 << (TYPE_SPECIFIC_BIT + 0)) | VARARGS_FLAG_X
-};
-
-struct Reb_Varargs {
-    //
-    // This is a FRAME! which was on the stack at the time when the VARARGS!
-    // was created.  However it may no longer be on the stack--and once it is
-    // not, it cannot respond to requests to be advanced.  The frame keeps
-    // a flag to test for this as long as this VARARGS! is GC-managed.
-    //
-    // Note that this frame reuses its EVAL slot to hold a value for any
-    // "sub-varargs" that is being processed, so that is the first place it
-    // looks to get the next item.
-    //
-    union {
-        REBCTX *frame_ctx;
-
-        REBARR *array1; // for MAKE VARARGS! to share a reference on an array
-    } feed;
-
-    // For as long as the VARARGS! can be used, the function it is applying
-    // will be alive.  Assume that the locked paramlist won't move in memory
-    // (evaluation would break if so, anyway) and hold onto the TYPESET!
-    // describing the parameter.  Each time a value is fetched from the EVAL
-    // then type check it for convenience.  Use ANY-VALUE! if not wanted.
-    //
-    // Note: could be a parameter index in the worst case scenario that the
-    // array grew, revisit the rules on holding pointers into paramlists.
-    //
-    const REBVAL *param;
-};
-
-#define VAL_VARARGS_FRAME_CTX(v) ((v)->payload.varargs.feed.frame_ctx)
-#define VAL_VARARGS_ARRAY1(v) ((v)->payload.varargs.feed.array1)
-
-#define VAL_VARARGS_PARAM(v) ((v)->payload.varargs.param)
-
-// The subfeed is either the varlist of the frame of another varargs that is
-// being chained at the moment, or the `array1` of another varargs.  To
-// be visible for all instances of the same vararg, it can't live in the
-// payload bits--so it's in the `eval` slot of a frame or the misc slot
-// of the array1.
-//
-#define SUBFEED_ADDR_OF_FEED(a) \
-    (GET_ARR_FLAG((a), ARRAY_FLAG_CONTEXT_VARLIST) \
-        ? &CTX_FRAME(AS_CONTEXT(a))->cell.subfeed \
-        : &ARR_SERIES(a)->misc.subfeed)
-
-
-/***********************************************************************
-**
-**  HANDLE
-**
-**  Type for holding an arbitrary code or data pointer inside
-**  of a Rebol data value.  What kind of function or data is not
-**  known to the garbage collector, so it ignores it.
-**
-**  !!! Review usages of this type where they occur
-**
-***********************************************************************/
-
-struct Reb_Handle {
-    union {
-        CFUNC *code;
-        void *data;
-    } thing;
-};
-
-#define VAL_HANDLE_CODE(v) \
-    ((v)->payload.handle.thing.code)
-
-#define VAL_HANDLE_DATA(v) \
-    ((v)->payload.handle.thing.data)
-
-#define SET_HANDLE_CODE(v,c) \
-    (VAL_RESET_HEADER((v), REB_HANDLE), VAL_HANDLE_CODE(v) = (c))
-
-#define SET_HANDLE_DATA(v,d) \
-    (VAL_RESET_HEADER((v), REB_HANDLE), VAL_HANDLE_DATA(v) = (d))
-
-// !!! The logic used to be an I32 but now it's folded in as a value flag
-// Usages of this should be reviewed.
-//
-#define VAL_I32(v) ((v)->payload.rebcnt)
-
-
-/***********************************************************************
-**
-**  LIBRARY -- External library management structures
-**
-***********************************************************************/
-
-typedef struct Reb_Library_Handle {
-    void * fd;
-    REBUPT flags;
-} REBLHL; // sizeof(REBLHL) % 8 must equal 0 on both 64-bit and 32-bit builds
-
-struct Reb_Library {
-    REBLHL *handle;
-    REBARR *spec;
-};
-
-#define LIB_FD(v)           ((v)->fd)
-#define LIB_FLAGS(v)        ((v)->flags)
-
-#define VAL_LIB(v)          ((v)->payload.library)
-#define VAL_LIB_SPEC(v)     ((v)->payload.library.spec)
-#define VAL_LIB_HANDLE(v)   ((v)->payload.library.handle)
-#define VAL_LIB_FD(v)       ((v)->payload.library.handle->fd)
-#define VAL_LIB_FLAGS(v)    ((v)->payload.library.handle->flags)
-
-enum {
-    LIB_MARK = 1,       // library was found during GC mark scan.
-    LIB_USED = 1 << 1,
-    LIB_CLOSED = 1 << 2
-};
-
-#define LIB_SET_FLAG(s, f)  (LIB_FLAGS(s) |= (f))
-#define LIB_CLR_FLAG(s, f)  (LIB_FLAGS(s) &= ~(f))
-#define LIB_GET_FLAG(s, f) (LIB_FLAGS(s) &  (f))
-
-#define MARK_LIB(s)    LIB_SET_FLAG(s, LIB_MARK)
-#define UNMARK_LIB(s)  LIB_CLR_FLAG(s, LIB_MARK)
-#define IS_MARK_LIB(s) LIB_GET_FLAG(s, LIB_MARK)
-
-#define USE_LIB(s)     LIB_SET_FLAG(s, LIB_USED)
-#define UNUSE_LIB(s)   LIB_CLR_FLAG(s, LIB_USED)
-#define IS_USED_LIB(s) LIB_GET_FLAG(s, LIB_USED)
-
-#define IS_CLOSED_LIB(s)    LIB_GET_FLAG(s, LIB_CLOSED)
-#define CLOSE_LIB(s)        LIB_SET_FLAG(s, LIB_CLOSED)
-#define OPEN_LIB(s)         LIB_CLR_FLAG(s, LIB_CLOSED)
-
-/***********************************************************************
-**
-**  STRUCT -- C Structures
-**
-***********************************************************************/
-
-typedef struct Reb_Struct {
-    REBARR  *spec;
-    REBSER  *fields;    // fields definition
-    REBSER  *data;
-} REBSTU;
-
-#define VAL_STRUCT(v)           ((v)->payload.structure)
-#define VAL_STRUCT_SPEC(v)      ((v)->payload.structure.spec)
-#define VAL_STRUCT_FIELDS(v)    ((v)->payload.structure.fields)
-#define VAL_STRUCT_DATA(v)      ((v)->payload.structure.data)
-#define VAL_STRUCT_DP(v)        (BIN_HEAD(VAL_STRUCT_DATA(v)))
-
-
-/***********************************************************************
-**
-**  ROUTINE -- External library routine structures
-**
-***********************************************************************/
-struct Reb_Routine_Info {
-    union {
-        struct {
-            REBLHL  *lib;
-            CFUNC *funcptr;
-        } rot;
-        struct {
-            void *closure;
-            REBFUN *func;
-            void *dispatcher;
-        } cb;
-    } info;
-    void    *cif;
-    REBSER  *arg_types; /* index 0 is the return type, */
-    REBARR  *fixed_args;
-    REBARR  *all_args;
-    REBARR  *arg_structs; /* for struct arguments */
-    REBSER  *extra_mem; /* extra memory that needs to be free'ed */
-    REBCNT  flags; // !!! 32-bit...should it use REBFLGS for 64-bit on 64-bit?
-    REBINT  abi;
-
-    REBUPT padding; // sizeof(Reb_Routine_Info) % 8 must be 0 for Make_Node()
-};
-
-typedef REBFUN REBROT;
-
-enum {
-    ROUTINE_MARK = 1,       // routine was found during GC mark scan.
-    ROUTINE_USED = 1 << 1,
-    ROUTINE_CALLBACK = 1 << 2, //this is a callback
-    ROUTINE_VARIADIC = 1 << 3 //this is a FFI function with a va_list interface
-};
-
-/* argument is REBFCN */
-
-#define ROUTINE_SPEC(v)             FUNC_SPEC(v)
-#define ROUTINE_INFO(v)             FUNC_INFO(v)
-#define ROUTINE_PARAMLIST(v)        FUNC_PARAMLIST(v)
-#define ROUTINE_FUNCPTR(v)          (ROUTINE_INFO(v)->info.rot.funcptr)
-#define ROUTINE_LIB(v)              (ROUTINE_INFO(v)->info.rot.lib)
-#define ROUTINE_ABI(v)              (ROUTINE_INFO(v)->abi)
-#define ROUTINE_FFI_ARG_TYPES(v)    (ROUTINE_INFO(v)->arg_types)
-#define ROUTINE_FIXED_ARGS(v)       (ROUTINE_INFO(v)->fixed_args)
-#define ROUTINE_ALL_ARGS(v)         (ROUTINE_INFO(v)->all_args)
-#define ROUTINE_FFI_ARG_STRUCTS(v)  (ROUTINE_INFO(v)->arg_structs)
-#define ROUTINE_EXTRA_MEM(v)        (ROUTINE_INFO(v)->extra_mem)
-#define ROUTINE_CIF(v)              (ROUTINE_INFO(v)->cif)
-#define ROUTINE_RVALUE(v)           VAL_STRUCT(ARR_HEAD(ROUTINE_FFI_ARG_STRUCTS(v)))
-#define ROUTINE_CLOSURE(v)          (ROUTINE_INFO(v)->info.cb.closure)
-#define ROUTINE_DISPATCHER(v)       (ROUTINE_INFO(v)->info.cb.dispatcher)
-#define CALLBACK_FUNC(v)            (ROUTINE_INFO(v)->info.cb.func)
-
-/* argument is REBRIN */
-
-#define RIN_FUNCPTR(v)              ((v)->info.rot.funcptr)
-#define RIN_LIB(v)                  ((v)->info.rot.lib)
-#define RIN_CLOSURE(v)              ((v)->info.cb.closure)
-#define RIN_FUNC(v)                 ((v)->info.cb.func)
-#define RIN_ARGS_STRUCTS(v)         ((v)->arg_structs)
-#define RIN_RVALUE(v)               VAL_STRUCT(ARR_HEAD(RIN_ARGS_STRUCTS(v)))
-
-#define ROUTINE_FLAGS(s)       ((s)->flags)
-#define ROUTINE_SET_FLAG(s, f) (ROUTINE_FLAGS(s) |= (f))
-#define ROUTINE_CLR_FLAG(s, f) (ROUTINE_FLAGS(s) &= ~(f))
-#define ROUTINE_GET_FLAG(s, f) LOGICAL(ROUTINE_FLAGS(s) & (f))
-
-#define IS_CALLBACK_ROUTINE(s) ROUTINE_GET_FLAG(s, ROUTINE_CALLBACK)
-
-/* argument is REBVAL */
-#define VAL_ROUTINE(v)              VAL_FUNC(v)
-#define VAL_ROUTINE_SPEC(v)         VAL_FUNC_SPEC(v)
-#define VAL_ROUTINE_INFO(v)         VAL_FUNC_INFO(v)
-#define VAL_ROUTINE_PARAMLIST(v)    VAL_FUNC_PARAMLIST(v)
-#define VAL_ROUTINE_FUNCPTR(v)      (VAL_ROUTINE_INFO(v)->info.rot.funcptr)
-#define VAL_ROUTINE_LIB(v)          (VAL_ROUTINE_INFO(v)->info.rot.lib)
-#define VAL_ROUTINE_ABI(v)          (VAL_ROUTINE_INFO(v)->abi)
-#define VAL_ROUTINE_FFI_ARG_TYPES(v)    (VAL_ROUTINE_INFO(v)->arg_types)
-#define VAL_ROUTINE_FIXED_ARGS(v)   (VAL_ROUTINE_INFO(v)->fixed_args)
-#define VAL_ROUTINE_ALL_ARGS(v)     (VAL_ROUTINE_INFO(v)->all_args)
-#define VAL_ROUTINE_FFI_ARG_STRUCTS(v)  (VAL_ROUTINE_INFO(v)->arg_structs)
-#define VAL_ROUTINE_EXTRA_MEM(v)    (VAL_ROUTINE_INFO(v)->extra_mem)
-#define VAL_ROUTINE_CIF(v)          (VAL_ROUTINE_INFO(v)->cif)
-
-#define VAL_ROUTINE_RVALUE(v) \
-    VAL_STRUCT(ARR_HEAD(VAL_ROUTINE_INFO(v)->arg_structs))
-
-#define VAL_ROUTINE_CLOSURE(v)      (VAL_ROUTINE_INFO(v)->info.cb.closure)
-#define VAL_ROUTINE_DISPATCHER(v)   (VAL_ROUTINE_INFO(v)->info.cb.dispatcher)
-#define VAL_CALLBACK_FUNC(v)        (VAL_ROUTINE_INFO(v)->info.cb.func)
-
-
-/***********************************************************************
-**
-**  EVENT
-**
-***********************************************************************/
-
-#define VAL_EVENT_TYPE(v)   ((v)->payload.event.type)  //(VAL_EVENT_INFO(v) & 0xff)
-#define VAL_EVENT_FLAGS(v)  ((v)->payload.event.flags) //((VAL_EVENT_INFO(v) >> 16) & 0xff)
-#define VAL_EVENT_WIN(v)    ((v)->payload.event.win)   //((VAL_EVENT_INFO(v) >> 24) & 0xff)
-#define VAL_EVENT_MODEL(v)  ((v)->payload.event.model)
-#define VAL_EVENT_DATA(v)   ((v)->payload.event.data)
-#define VAL_EVENT_TIME(v)   ((v)->payload.event.time)
-#define VAL_EVENT_REQ(v)    ((v)->payload.event.eventee.req)
-
-#define VAL_EVENT_SER(v)    ((v)->payload.event.eventee.ser)
-
-#define IS_EVENT_MODEL(v,f) (VAL_EVENT_MODEL(v) == (f))
-
-#define SET_EVENT_INFO(val, type, flags, win) \
-    VAL_EVENT_TYPE(val)=type, VAL_EVENT_FLAGS(val)=flags, VAL_EVENT_WIN(val)=win
-    //VAL_EVENT_INFO(val) = (type | (flags << 16) | (win << 24))
-
-#define VAL_EVENT_X(v)      ((REBINT) (short) (VAL_EVENT_DATA(v) & 0xffff))
-#define VAL_EVENT_Y(v)      ((REBINT) (short) ((VAL_EVENT_DATA(v) >> 16) & 0xffff))
-#define VAL_EVENT_XY(v)     (VAL_EVENT_DATA(v))
-#define SET_EVENT_XY(v,x,y) VAL_EVENT_DATA(v) = ((y << 16) | (x & 0xffff))
-
-#define VAL_EVENT_KEY(v)    (VAL_EVENT_DATA(v) & 0xffff)
-#define VAL_EVENT_KCODE(v)  ((VAL_EVENT_DATA(v) >> 16) & 0xffff)
-#define SET_EVENT_KEY(v,k,c) VAL_EVENT_DATA(v) = ((c << 16) + k)
-
-#define IS_KEY_EVENT(type)  0
-
-
-/***********************************************************************
-**
-**  GOBS - Graphic Objects
-**
-***********************************************************************/
-
-#pragma pack() // set back to default (was set to 4 at start of file)
-    #include "reb-gob.h"
-#pragma pack(4) // resume packing with 4
-
-struct Reb_Gob {
-    REBGOB *gob;
-    REBCNT index;
-};
-
-#define VAL_GOB(v)          ((v)->payload.gob.gob)
-#define VAL_GOB_INDEX(v)    ((v)->payload.gob.index)
-#define SET_GOB(v,g) \
-    (VAL_RESET_HEADER(v, REB_GOB), VAL_GOB(v) = g, VAL_GOB_INDEX(v) = 0)
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  REBOL VALUE DEFINITION (`struct Reb_Value`)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// The value is defined to have the header first, and then the value.  Having
-// the header come first is taken advantage of by the trick for allowing
-// a single REBUPT-sized value (32-bit on 32 bit builds, 64-bit on 64-bit
-// builds) be examined to determine if a value is an END marker or not.
-//
-// One aspect of having the header before the payload is that on 32-bit
-// platforms, this means that the starting address of the payload is not on
-// a 64-bit alignment boundary.  This means placing a quantity that needs
-// 64-bit alignment at the start of a payload can cause problems on some
-// platforms with strict alignment requirements.
-//
-// (Note: The reason why this can happen at all is due to the #pragma pack(4)
-// that is put in effect at the top of this file.)
-//
-// See Reb_Integer, Reb_Decimal, and Reb_Typeset for examples where the 64-bit
-// quantity is padded by a pointer or pointer-sized-REBUPT to compensate.
-//
-
-// Reb_All is a structure type designed specifically for getting at
-// the underlying bits of whichever union member is in effect inside
-// the Reb_Value_Data.  This is not actually legal, although if types
-// line up in unions it could be possibly be made "more legal":
-//
-//     http://stackoverflow.com/questions/11639947/
-//
-struct Reb_All {
-#if defined(__LP64__) || defined(__LLP64__)
-    REBCNT bits[6];
-#else
-    REBCNT bits[3];
-#endif
-};
-
-#define VAL_ALL_BITS(v) ((v)->payload.all.bits)
-
-union Reb_Value_Payload {
-    struct Reb_All all;
-
-    REBUNI character; // It's CHAR! (for now), but 'char' is a C keyword
-
-    struct Reb_Integer integer;
-    struct Reb_Decimal decimal;
-
-    struct Reb_Pair pair;
-    struct Reb_Money money;
-    struct Reb_Handle handle;
-    struct Reb_Time time;
-    struct Reb_Tuple tuple;
-    struct Reb_Datatype datatype;
-    struct Reb_Typeset typeset;
-
-    // Both Any_Word and Any_Series have a Reb_Binding_Target as the first
-    // item in their payloads.  Since Reb_Value_Payload is a union, C permits
-    // the *reading* of common leading elements from another union member,
-    // even if that wasn't the last union written.  While this has been a
-    // longstanding informal assumption in C, the standard has adopted it:
-    //
-    //     http://stackoverflow.com/a/11996970/211160
-    //
-    // So `any_target` can be used to read the binding target out of either
-    // an ANY-WORD! or ANY-SERIES! payload.  To be on the safe side, *writing*
-    // should likely be specifically through `any_word` or `any_series`.
-    //
-    union Reb_Binding_Target any_target;
-        struct Reb_Any_Word any_word;
-        struct Reb_Any_Series any_series;
-
-    struct Reb_Any_Context any_context;
-
-    struct Reb_Function function;
-
-    struct Reb_Varargs varargs;
-
-    REBCNT rebcnt; // !!! used by extensions, review
-    struct Reb_Library library;
-    struct Reb_Struct structure; // It's STRUCT!, but 'struct' is a C keyword
-
-    struct Reb_Event event;
-    struct Reb_Gob gob;
-
-    struct Reb_Symbol symbol; // internal
-
-#if !defined(NDEBUG) && defined(TRACK_EMPTY_PAYLOADS)
-    struct Reb_Track track; // debug only (for TRASH!, UNSET!, NONE!, LOGIC!)
-#endif
-};
-
-struct Reb_Value
-{
-    struct Reb_Value_Header header;
-    union Reb_Value_Payload payload;
-};
-
-#pragma pack() // set back to default (was set to 4 at start of file)
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  DEBUG PROBING
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// This small macro can be inserted into code to probe a value in debug
-// builds.  It takes a REBVAL* and an optional message:
-//
-//     REBVAL *v = Some_Value_Pointer();
-//
-//     PROBE(v);
-//     PROBE_MSG(v, "some value");
-//
-// In order to make it easier to find out where a piece of debug spew is
-// coming from, the file and line number are included.
-//
-
-#if !defined(NDEBUG)
-    #define PROBE(v) \
-        Probe_Core_Debug(NULL, __FILE__, __LINE__, (v))
-
-    #define PROBE_MSG(v, m) \
-        Probe_Core_Debug((m), __FILE__, __LINE__, (v))
+#ifdef __cplusplus
+void COPY_VALUE_Debug(REBVAL *dest, const REBVAL *src, REBCTX *specifier);
 #endif
 
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  GUARDING
+//  GOB! Graphic Object
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Some REBVALs contain one or more series that need to be guarded.  With
-// PUSH_GUARD_VALUE() it is possible to not worry about what series are in
-// a value, as it will take care of it if there are any.  As with series
-// guarding, the last value guarded must be the first one you DROP_GUARD on.
+// !!! The GOB! is a datatype specific to R3-View.  Its data is a small
+// fixed-size object.  It is linked together by series containing more
+// GOBs and values, and participates in the garbage collection process.
+//
+// The monolithic structure of Rebol had made it desirable to take advantage
+// of the memory pooling to quickly allocate, free, and garbage collect
+// these.  If the GOB! is to become part of an extension mechanism for
+// user-defined types (and hence not present in minimalist configurations)
+// then this would require either exporting the memory pools as part of
+// the service or expecting clients to use malloc or do their own pooling.
 //
 
-#define PUSH_GUARD_VALUE(v) \
-    Guard_Value_Core(v)
+#define VAL_GOB(v) \
+    ((v)->payload.gob.gob)
 
-#define DROP_GUARD_VALUE(v) \
-    do { \
-        GC_Value_Guard->content.dynamic.len--; \
-        assert((v) == cast(REBVAL **, GC_Value_Guard->content.dynamic.data)[ \
-            GC_Value_Guard->content.dynamic.len \
-        ]); \
-    } while (0)
+#define VAL_GOB_INDEX(v) \
+    ((v)->payload.gob.index)
 
-
-#endif // %sys-value.h
+inline static void SET_GOB(RELVAL *v, REBGOB *g) {
+    VAL_RESET_HEADER(v, REB_GOB);
+    VAL_GOB(v) = g;
+    VAL_GOB_INDEX(v) = 0;
+}

@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  t-vector.c
-**  Summary: vector datatype
-**  Section: datatypes
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %t-vector.c
+//  Summary: "vector datatype"
+//  Section: datatypes
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
@@ -159,7 +160,7 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 {
     REBCNT idx = VAL_INDEX(blk);
     REBCNT len = VAL_LEN_AT(blk);
-    REBVAL *val;
+    RELVAL *val;
     REBCNT n = 0;
     REBCNT bits = VECT_TYPE(ser);
     REBI64 i = 0;
@@ -177,7 +178,7 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
                 f = VAL_DECIMAL(val);
                 if (bits <= VTUI64) i = (REBINT)(f);
             }
-            else fail (Error_Invalid_Arg(val));
+            else fail (Error_Invalid_Arg_Core(val, VAL_SPECIFIER(blk)));
             //if (n >= ser->tail) Expand_Vector(ser);
             set_vect(bits, SER_DATA_RAW(ser), n++, i, f);
         }
@@ -198,14 +199,14 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 // 
 // Convert a vector to a block.
 //
-REBARR *Vector_To_Array(REBVAL *vect)
+REBARR *Vector_To_Array(const REBVAL *vect)
 {
     REBCNT len = VAL_LEN_AT(vect);
     REBYTE *data = SER_DATA_RAW(VAL_SERIES(vect));
     REBCNT type = VECT_TYPE(VAL_SERIES(vect));
     REBARR *array = NULL;
     REBCNT n;
-    REBVAL *val;
+    RELVAL *val;
 
     if (len <= 0)
         fail (Error_Invalid_Arg(vect));
@@ -217,8 +218,8 @@ REBARR *Vector_To_Array(REBVAL *vect)
         VAL_INT64(val) = get_vect(type, data, n); // can be int or decimal
     }
 
-    SET_END(val);
-    SET_ARRAY_LEN(array, len);
+    TERM_ARRAY_LEN(array, len);
+    assert(IS_END(val));
 
     return array;
 }
@@ -227,7 +228,7 @@ REBARR *Vector_To_Array(REBVAL *vect)
 //
 //  Compare_Vector: C
 //
-REBINT Compare_Vector(const REBVAL *v1, const REBVAL *v2)
+REBINT Compare_Vector(const RELVAL *v1, const RELVAL *v2)
 {
     REBCNT l1 = VAL_LEN_AT(v1);
     REBCNT l2 = VAL_LEN_AT(v2);
@@ -294,7 +295,7 @@ void Set_Vector_Value(REBVAL *var, REBSER *series, REBCNT index)
 
     if (bits >= VTSF08) {
         VAL_RESET_HEADER(var, REB_DECIMAL);
-        VAL_DECIMAL_BITS(var) = get_vect(bits, data, index);
+        INIT_DECIMAL_BITS(var, get_vect(bits, data, index));
     }
     else {
         VAL_RESET_HEADER(var, REB_INTEGER);
@@ -353,7 +354,7 @@ REBSER *Make_Vector(REBINT type, REBINT sign, REBINT dims, REBINT bits, REBINT s
 //           size:       integer units
 //           init:        block of values
 //
-REBVAL *Make_Vector_Spec(REBVAL *bp, REBVAL *value)
+REBVAL *Make_Vector_Spec(RELVAL *bp, REBCTX *specifier, REBVAL *value)
 {
     REBINT type = -1; // 0 = int,    1 = float
     REBINT sign = -1; // 0 = signed, 1 = unsigned
@@ -364,16 +365,18 @@ REBVAL *Make_Vector_Spec(REBVAL *bp, REBVAL *value)
     REBVAL *iblk = 0;
 
     // UNSIGNED
-    if (IS_WORD(bp) && VAL_WORD_CANON(bp) == SYM_UNSIGNED) {
+    if (IS_WORD(bp) && VAL_WORD_SYM(bp) == SYM_UNSIGNED) {
         sign = 1;
         bp++;
     }
 
     // INTEGER! or DECIMAL!
     if (IS_WORD(bp)) {
-        if (VAL_WORD_CANON(bp) == SYM_FROM_KIND(REB_INTEGER))
+        if (SAME_SYM_NONZERO(VAL_WORD_SYM(bp), SYM_FROM_KIND(REB_INTEGER)))
             type = 0;
-        else if (VAL_WORD_CANON(bp) == SYM_FROM_KIND(REB_DECIMAL)) {
+        else if (
+            SAME_SYM_NONZERO(VAL_WORD_SYM(bp), SYM_FROM_KIND(REB_DECIMAL))
+        ){
             type = 1;
             if (sign > 0) return 0;
         }
@@ -386,7 +389,7 @@ REBVAL *Make_Vector_Spec(REBVAL *bp, REBVAL *value)
 
     // BITS
     if (IS_INTEGER(bp)) {
-        bits = Int32(bp);
+        bits = Int32(KNOWN(bp));
         if (
             (bits == 32 || bits == 64)
             ||
@@ -397,8 +400,8 @@ REBVAL *Make_Vector_Spec(REBVAL *bp, REBVAL *value)
 
     // SIZE
     if (NOT_END(bp) && IS_INTEGER(bp)) {
-        if (Int32(bp) < 0) return 0;
-        size = Int32(bp);
+        if (Int32(KNOWN(bp)) < 0) return 0;
+        size = Int32(KNOWN(bp));
         bp++;
     }
 
@@ -407,7 +410,7 @@ REBVAL *Make_Vector_Spec(REBVAL *bp, REBVAL *value)
         REBCNT len = VAL_LEN_AT(bp);
         if (IS_BINARY(bp) && type == 1) return 0;
         if (len > size) size = len;
-        iblk = bp;
+        iblk = KNOWN(bp);
         bp++;
     }
 
@@ -415,7 +418,7 @@ REBVAL *Make_Vector_Spec(REBVAL *bp, REBVAL *value)
 
     // Index offset:
     if (NOT_END(bp) && IS_INTEGER(bp)) {
-        VAL_INDEX(value) = (Int32s(bp, 1) - 1);
+        VAL_INDEX(value) = (Int32s(KNOWN(bp), 1) - 1);
         bp++;
     }
     else VAL_INDEX(value) = 0;
@@ -437,19 +440,44 @@ REBVAL *Make_Vector_Spec(REBVAL *bp, REBVAL *value)
 
 
 //
-//  MT_Vector: C
+//  MAKE_Vector: C
 //
-REBOOL MT_Vector(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+void MAKE_Vector(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
-    if (Make_Vector_Spec(data, out)) return TRUE;
-    return FALSE;
+    // CASE: make vector! 100
+    if (IS_INTEGER(arg) || IS_DECIMAL(arg)) {
+        REBINT size = Int32s(arg, 0);
+        if (size < 0) goto bad_make;
+        REBSER *ser = Make_Vector(0, 0, 1, 32, size);
+        Val_Init_Vector(out, ser);
+        return;
+    }
+
+    TO_Vector(out, kind, arg); // may fail()
+    return;
+
+bad_make:
+    fail (Error_Bad_Make(kind, arg));
+}
+
+
+//
+//  TO_Vector: C
+//
+void TO_Vector(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    if (IS_BLOCK(arg)) {
+        if (Make_Vector_Spec(VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg), out))
+            return;
+    }
+    fail (Error_Bad_Make(kind, arg));
 }
 
 
 //
 //  CT_Vector: C
 //
-REBINT CT_Vector(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Vector(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     REBINT n = Compare_Vector(a, b);  // needs to be expanded for equality
     if (mode >= 0) {
@@ -495,7 +523,7 @@ REBINT PD_Vector(REBPVS *pvs)
         }
         else {
             VAL_RESET_HEADER(pvs->store, REB_DECIMAL);
-            VAL_DECIMAL_BITS(pvs->store) = get_vect(bits, vp, n - 1); // 64bit
+            INIT_DECIMAL_BITS(pvs->store, get_vect(bits, vp, n - 1)); // 64bit
         }
 
         return PE_USE_STORE;
@@ -539,69 +567,44 @@ REBTYPE(Vector)
 {
     REBVAL *value = D_ARG(1);
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-    REBINT type;
-    REBINT size;
-    REBSER *vect;
     REBSER *ser;
 
-    type = Do_Series_Action(frame_, action, value, arg);
-    if (type >= 0) return type;
+    // Common operations for any series type (length, head, etc.)
+    {
+        REB_R r;
+        if (Series_Common_Action_Returns(&r, frame_, action))
+            return r;
+    }
 
-    if (action != A_MAKE && action != A_TO)
-        vect = VAL_SERIES(value);
-
-    // Check must be in this order (to avoid checking a non-series value);
-    if (action >= A_TAKE && action <= A_SORT)
-        FAIL_IF_LOCKED_SERIES(vect);
+    REBSER *vect = VAL_SERIES(value);
 
     switch (action) {
 
-    case A_PICK:
+    case SYM_PICK:
         Pick_Path(D_OUT, value, arg, NULL);
         return R_OUT;
 
-    case A_POKE:
+    case SYM_POKE:
+        FAIL_IF_LOCKED_SERIES(vect);
         // Third argument to pick path is the
         Pick_Path(D_OUT, value, arg, D_ARG(3));
         *D_OUT = *D_ARG(3);
         return R_OUT;
 
-    case A_MAKE:
-        // We only allow MAKE VECTOR! ...
-        if (!IS_DATATYPE(value)) goto bad_make;
-
-        // CASE: make vector! 100
-        if (IS_INTEGER(arg) || IS_DECIMAL(arg)) {
-            size = Int32s(arg, 0);
-            if (size < 0) goto bad_make;
-            ser = Make_Vector(0, 0, 1, 32, size);
-            Val_Init_Vector(value, ser);
-            break;
-        }
-//      if (IS_NONE(arg)) {
-//          ser = Make_Vector(0, 0, 1, 32, 0);
-//          Val_Init_Vector(value, ser);
-//          break;
-//      }
-        // fall thru
-
-    case A_TO:
-        // CASE: make vector! [...]
-        if (IS_BLOCK(arg) && Make_Vector_Spec(VAL_ARRAY_AT(arg), value)) break;
-        goto bad_make;
-
-    case A_LENGTH:
+    case SYM_LENGTH:
         //bits = 1 << (vect->size & 3);
         SET_INTEGER(D_OUT, SER_LEN(vect));
         return R_OUT;
 
-    case A_COPY:
+    case SYM_COPY:
         ser = Copy_Sequence(vect);
         ser->misc.size = vect->misc.size; // attributes
         Val_Init_Vector(value, ser);
         break;
 
-    case A_RANDOM:
+    case SYM_RANDOM:
+        FAIL_IF_LOCKED_SERIES(vect);
+
         if (D_REF(2) || D_REF(4)) fail (Error(RE_BAD_REFINES)); // /seed /only
         Shuffle_Vector(value, D_REF(3));
         *D_OUT = *D_ARG(1);
@@ -613,9 +616,6 @@ REBTYPE(Vector)
 
     *D_OUT = *value;
     return R_OUT;
-
-bad_make:
-    fail (Error_Bad_Make(REB_VECTOR, arg));
 }
 
 
@@ -644,12 +644,21 @@ void Mold_Vector(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
     }
 
     if (molded) {
-        REBCNT type = (bits >= VTSF08) ? REB_DECIMAL : REB_INTEGER;
+        enum Reb_Kind kind = (bits >= VTSF08) ? REB_DECIMAL : REB_INTEGER;
         Pre_Mold(value, mold);
-        if (!GET_MOPT(mold, MOPT_MOLD_ALL)) Append_Codepoint_Raw(mold->series, '[');
-        if (bits >= VTUI08 && bits <= VTUI64) Append_Unencoded(mold->series, "unsigned ");
-        Emit(mold, "N I I [", type+1, bit_sizes[bits & 3], len);
-        if (len) New_Indented_Line(mold);
+        if (!GET_MOPT(mold, MOPT_MOLD_ALL))
+            Append_Codepoint_Raw(mold->series, '[');
+        if (bits >= VTUI08 && bits <= VTUI64)
+            Append_Unencoded(mold->series, "unsigned ");
+        Emit(
+            mold,
+            "N I I [",
+            Canon(SYM_FROM_KIND(kind)),
+            bit_sizes[bits & 3],
+            len
+        );
+        if (len)
+            New_Indented_Line(mold);
     }
 
     c = 0;

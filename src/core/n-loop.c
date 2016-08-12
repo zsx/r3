@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  n-loop.c
-**  Summary: native functions for loops
-**  Section: natives
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %n-loop.c
+//  Summary: "native functions for loops"
+//  Section: natives
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 #include "sys-int-funcs.h" //REB_I64_ADD_OF
@@ -54,16 +55,16 @@ REBOOL Catching_Break_Or_Continue(REBVAL *val, REBOOL *stop)
 
     // Throw /NAME-s used by CONTINUE and BREAK are the actual native
     // function values of the routines themselves.
-    if (!IS_FUNCTION_AND(val, FUNC_CLASS_NATIVE))
+    if (!IS_FUNCTION(val))
         return FALSE;
 
-    if (VAL_FUNC_CODE(val) == &N_break) {
+    if (VAL_FUNC_DISPATCHER(val) == &N_break) {
         *stop = TRUE; // was BREAK or BREAK/WITH
         CATCH_THROWN(val, val); // will be unset if no /WITH was used
         return TRUE;
     }
 
-    if (VAL_FUNC_CODE(val) == &N_continue) {
+    if (VAL_FUNC_DISPATCHER(val) == &N_continue) {
         *stop = FALSE; // was CONTINUE or CONTINUE/WITH
         CATCH_THROWN(val, val); // will be unset if no /WITH was used
         return TRUE;
@@ -75,74 +76,94 @@ REBOOL Catching_Break_Or_Continue(REBVAL *val, REBOOL *stop)
 
 
 //
-//  Init_Loop: C
-// 
-// Initialize standard for loops (copy block, make context, bind).
-// Spec: WORD or [WORD ...]
-// 
+//  Copy_Body_Deep_Bound_To_New_Context: C
+//
+// Looping constructs which are parameterized by WORD!s to set each time
+// through the loop must copy the body in R3-Alpha's model.  For instance:
+//
+//    for-each [x y] [1 2 3] [print ["this body must be copied for" x y]]
+//
+// The reason is because the context in which X and Y live does not exist
+// prior to the execution of the FOR-EACH.  And if the body were destructively
+// rebound, then this could mutate and disrupt bindings of code that was
+// intended to be reused.
+//
+// (Note that R3-Alpha was somewhat inconsistent on the idea of being
+// sensitive about non-destructively binding arguments in this way.
+// MAKE OBJECT! purposefully mutated bindings in the passed-in block.)
+//
+// The context is effectively an ordinary object, and outlives the loop:
+//
+//     x-word: none
+//     for-each x [1 2 3] [x-word: 'x | break]
+//     get x-word ;-- returns 1
+//
+// !!! Ren-C managed to avoid deep copying function bodies yet still get
+// "specific binding" by means of "relative values" (RELVALs) and specifiers.
+// Extending this approach is hoped to be able to avoid the deep copy.  It
+// may also be that the underlying data of the
+//
+// !!! With stack-backed contexts in Ren-C, it may be the case that the
+// chunk stack is used as backing memory for the loop, so it can be freed
+// when the loop is over and word lookups will error.
+//
 // Note that because we are copying the block in order to rebind it, the
 // ensuing loop code will `Do_At_Throws(out, body, 0);`.  Starting at
 // zero is correct because the duplicate body has already had the
 // items before its VAL_INDEX() omitted.
 //
-static REBARR *Init_Loop(
+static REBARR *Copy_Body_Deep_Bound_To_New_Context(
     REBCTX **context_out,
     const REBVAL *spec,
     REBVAL *body
 ) {
-    REBCTX *context;
-    REBINT len;
-    REBVAL *key;
-    REBVAL *var;
-    REBARR *body_out;
-
     assert(IS_BLOCK(body));
 
-    // For :WORD format, get the var's value:
-    if (IS_GET_WORD(spec)) spec = GET_OPT_VAR_MAY_FAIL(spec);
+    REBINT len = IS_BLOCK(spec) ? VAL_LEN_AT(spec) : 1;
+    if (len == 0)
+        fail (Error_Invalid_Arg(spec));
 
-    // Hand-make a CONTEXT (done for for speed):
-    len = IS_BLOCK(spec) ? VAL_LEN_AT(spec) : 1;
-    if (len == 0) fail (Error_Invalid_Arg(spec));
-
-    context = Alloc_Context(len);
-    SET_ARRAY_LEN(CTX_VARLIST(context), len + 1);
-    SET_ARRAY_LEN(CTX_KEYLIST(context), len + 1);
+    REBCTX *context = Alloc_Context(len);
+    TERM_ARRAY_LEN(CTX_VARLIST(context), len + 1);
+    TERM_ARRAY_LEN(CTX_KEYLIST(context), len + 1);
 
     VAL_RESET_HEADER(CTX_VALUE(context), REB_OBJECT);
-    INIT_CONTEXT_SPEC(context, NULL);
-    CTX_STACKVARS(context) = NULL;
+    CTX_VALUE(context)->extra.binding = NULL;
 
-    // Setup for loop:
-    key = CTX_KEYS_HEAD(context);
-    var = CTX_VARS_HEAD(context);
+    REBVAL *key = CTX_KEYS_HEAD(context);
+    REBVAL *var = CTX_VARS_HEAD(context);
 
-    if (IS_BLOCK(spec)) spec = VAL_ARRAY_AT(spec);
-
-    // Optimally create the FOREACH context:
-    while (len-- > 0) {
-        if (!IS_WORD(spec) && !IS_SET_WORD(spec)) {
-            FREE_CONTEXT(context);
-            fail (Error_Invalid_Arg(spec));
-        }
-
-        Val_Init_Typeset(key, ALL_64, VAL_WORD_SYM(spec));
-        key++;
-
-        // !!! This should likely use the unset-defaulting in Ren-C with the
-        // legacy fallback to NONE!
-        //
-        SET_NONE(var);
-        var++;
-
-        spec++;
+    const RELVAL *item;
+    REBCTX *specifier;
+    if (IS_BLOCK(spec)) {
+        item = VAL_ARRAY_AT(spec);
+        specifier = VAL_SPECIFIER(spec);
+    }
+    else {
+        item = spec;
+        specifier = SPECIFIED;
     }
 
-    SET_END(key);
-    SET_END(var);
+    while (len-- > 0) {
+        if (!IS_WORD(item) && !IS_SET_WORD(item)) {
+            FREE_CONTEXT(context);
+            fail (Error_Invalid_Arg_Core(item, specifier));
+        }
 
-    body_out = Copy_Array_At_Deep_Managed(
-        VAL_ARRAY(body), VAL_INDEX(body)
+        Val_Init_Typeset(key, ALL_64, VAL_WORD_SPELLING(item));
+        key++;
+
+        SET_VOID(var);
+        var++;
+
+        ++item;
+    }
+
+    assert(IS_END(key)); // set above by TERM_ARRAY_LEN
+    assert(IS_END(var)); // ...same
+
+    REBARR *body_out = Copy_Array_At_Deep_Managed(
+        VAL_ARRAY(body), VAL_INDEX(body), VAL_SPECIFIER(body)
     );
     Bind_Values_Deep(ARR_HEAD(body_out), context);
 
@@ -173,12 +194,13 @@ static REBOOL Loop_Series_Throws(
 
     if (ei < 0) ei = 0;
 
-    SET_UNSET_UNLESS_LEGACY_NONE(out); // Default if the loop does not run
-
     for (; (ii > 0) ? si <= ei : si >= ei; si += ii) {
         VAL_INDEX(var) = si;
 
-        if (Do_At_Throws(out, body, 0)) {
+        // loop bodies are copies at the moment, so fully specified; there
+        // may be a point to making it more efficient by not always copying
+        //
+        if (Do_At_Throws(out, body, 0, SPECIFIED)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(out, &stop)) {
                 if (stop) break;
@@ -209,12 +231,10 @@ static REBOOL Loop_Integer_Throws(
 ) {
     VAL_RESET_HEADER(var, REB_INTEGER);
 
-    SET_UNSET_UNLESS_LEGACY_NONE(out); // Default if the loop does not run
-
     while ((incr > 0) ? start <= end : start >= end) {
         VAL_INT64(var) = start;
 
-        if (Do_At_Throws(out, body, 0)) {
+        if (Do_At_Throws(out, body, 0, SPECIFIED)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(out, &stop)) {
                 if (stop) break;
@@ -224,7 +244,9 @@ static REBOOL Loop_Integer_Throws(
         }
 
     next_iteration:
-        if (!IS_INTEGER(var)) fail (Error_Has_Bad_Type(var));
+        if (!IS_INTEGER(var))
+            fail (Error_Invalid_Type(VAL_TYPE(var)));
+
         start = VAL_INT64(var);
 
         if (REB_I64_ADD_OF(start, incr, &start))
@@ -273,12 +295,10 @@ static REBOOL Loop_Number_Throws(
 
     VAL_RESET_HEADER(var, REB_DECIMAL);
 
-    SET_UNSET_UNLESS_LEGACY_NONE(out); // Default if the loop does not run
-
     for (; (i > 0.0) ? s <= e : s >= e; s += i) {
         VAL_DECIMAL(var) = s;
 
-        if (Do_At_Throws(out, body, 0)) {
+        if (Do_At_Throws(out, body, 0, SPECIFIED)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(out, &stop)) {
                 if (stop) break;
@@ -288,7 +308,9 @@ static REBOOL Loop_Number_Throws(
         }
 
     next_iteration:
-        if (!IS_DECIMAL(var)) fail (Error_Has_Bad_Type(var));
+        if (!IS_DECIMAL(var))
+            fail (Error_Invalid_Type(VAL_TYPE(var)));
+
         s = VAL_DECIMAL(var);
     }
 
@@ -297,132 +319,45 @@ static REBOOL Loop_Number_Throws(
 
 
 //
-//  Loop_Skip: C
-//
-// Provides the core implementation behind FOR-NEXT, FOR-BACK, and FOR-SKIP
-//
-static REB_R Loop_Skip(
-    REBVAL *out,
-    REBVAL *word, // MODIFIED - Must be GC safe!
-    REBINT skip,
-    REBVAL *body // Must be GC safe!
-) {
-    REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word);
-
-    SET_UNSET_UNLESS_LEGACY_NONE(out);
-
-    // Though we can only iterate on a series, NONE! is used as a way of
-    // opting out.  This could be useful, e.g. `for-next (any ...) [...]`
-    //
-    // !!! Is this a good case for unset opting out?  (R3-Alpha didn't.)
-    //
-    if (IS_NONE(var))
-        return R_OUT;
-    if (!ANY_SERIES(var))
-        fail (Error_Invalid_Arg(var));
-
-    // Save the starting var value, assume `word` is a GC protected slot
-    //
-    *word = *var;
-
-    // Starting location when past end with negative skip:
-    //
-    if (skip < 0 && VAL_INDEX(var) >= VAL_LEN_HEAD(var))
-        VAL_INDEX(var) = VAL_LEN_HEAD(var) + skip;
-
-    while (TRUE) {
-        REBINT len = VAL_LEN_HEAD(var); // VAL_LEN_HEAD() always >= 0
-        REBINT index = VAL_INDEX(var); // (may have been set to < 0 below)
-
-        if (index < 0) break;
-        if (index >= len) {
-            if (skip >= 0) break;
-            index = len + skip; // negative
-            if (index < 0) break;
-            VAL_INDEX(var) = index;
-        }
-
-        if (DO_VAL_ARRAY_AT_THROWS(out, body)) {
-            REBOOL stop;
-            if (Catching_Break_Or_Continue(out, &stop)) {
-                if (stop) goto restore_var_and_return;
-
-                goto next_iteration;
-            }
-            return R_OUT_IS_THROWN;
-        }
-
-    next_iteration:
-        //
-        // !!! The code in the body is allowed to modify the var.  However,
-        // R3-Alpha checked to make sure that the type of the var did not
-        // change.  This seemed like an arbitrary limitation and Ren-C
-        // removed it, only checking that it's a series.
-        //
-        if (IS_NONE(var))
-            return R_OUT;
-        if (!ANY_SERIES(var))
-            fail (Error_Invalid_Arg(var));
-
-        VAL_INDEX(var) += skip;
-    }
-
-restore_var_and_return:
-    *var = *word;
-    return R_OUT;
-}
-
-
-//
 //  Loop_Each: C
 // 
-// Common implementation code of FOR-EACH, REMOVE-EACH, MAP-EACH,
-// and EVERY.
+// Common implementation code of FOR-EACH, REMOVE-EACH, MAP-EACH, and EVERY.
 //
-static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
+// !!! This routine has been slowly clarifying since R3-Alpha, and can
+// likely be factored in a better way...pushing more per-native code into the
+// natives themselves.
+//
+static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
 {
     PARAM(1, vars);
     PARAM(2, data);
     PARAM(3, body);
 
-    // `vars` context (plus var and key for iterating over it)
-    //
-    REBCTX *context;
-
-    // `data` series and index (where data is the series/object/map/etc. that
-    // the loop is iterating over)
-    //
-    REBVAL *data_value = ARG(data);
-    REBSER *series;
-    REBINT index;   // !!!! should this be REBCNT?
-
-    // The body block must be bound to the loop variables, and the loops do
-    // not mutate them directly.
-    //
-    REBARR *body_copy;
-
-    REBARR *mapped; // output block of mapped-to values (needed for MAP-EACH)
-
-    REBINT tail;
-    REBINT write_index;
-    REBINT read_index;
-    REBVAL *ds;
+    REBVAL *data = ARG(data);
 
     REBOOL stop = FALSE;
-    REBOOL every_true = TRUE; // need due to OPTIONS_NONE_INSTEAD_OF_UNSETS
+    REBOOL every_true = TRUE; // need due to OPTIONS_NONE_INSTEAD_OF_VOIDS
     REBOOL threw = FALSE; // did a non-BREAK or non-CONTINUE throw occur
+
+    REBOOL q = FALSE; // !!! Currently, /? option is not passed in
 
     if (mode == LOOP_EVERY)
         SET_TRUE(D_OUT); // Default output is TRUE, to match ALL MAP-EACH
-    else
-        SET_UNSET_UNLESS_LEGACY_NONE(D_OUT); // Default if loop does not run
 
-    if (IS_NONE(data_value) || IS_UNSET(data_value)) return R_OUT;
+    assert(!IS_VOID(data));
+    if (IS_BLANK(data))
+        return R_OUT;
 
-    body_copy = Init_Loop(&context, ARG(vars), ARG(body));
+    REBCTX *context;
+    REBARR *body_copy = Copy_Body_Deep_Bound_To_New_Context(
+        &context,
+        ARG(vars),
+        ARG(body)
+    );
     Val_Init_Object(ARG(vars), context); // keep GC safe
     Val_Init_Block(ARG(body), body_copy); // keep GC safe
 
+    REBARR *mapped;
     if (mode == LOOP_MAP_EACH) {
         // Must be managed *and* saved...because we are accumulating results
         // into it, and those results must be protected from GC
@@ -432,28 +367,27 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
         // to allow inserting the managed values into a single-deep
         // unmanaged series if we *promise* not to go deeper?
 
-        mapped = Make_Array(VAL_LEN_AT(data_value));
+        mapped = Make_Array(VAL_LEN_AT(data));
         MANAGE_ARRAY(mapped);
         PUSH_GUARD_ARRAY(mapped);
     }
 
-    // Get series info:
-    if (ANY_CONTEXT(data_value)) {
-        series = ARR_SERIES(CTX_VARLIST(VAL_CONTEXT(data_value)));
+    // Extract the series and index being enumerated, based on data type
+
+    REBSER *series;
+    REBCNT index;
+    if (ANY_CONTEXT(data)) {
+        series = ARR_SERIES(CTX_VARLIST(VAL_CONTEXT(data)));
         index = 1;
-        //if (context->tail > 3)
-        //  fail (Error_Invalid_Arg(CTX_KEY(context, 3)));
     }
-    else if (IS_MAP(data_value)) {
-        series = VAL_SERIES(data_value);
+    else if (IS_MAP(data)) {
+        series = VAL_SERIES(data);
         index = 0;
-        //if (context->tail > 3)
-        //  fail (Error_Invalid_Arg(CTX_KEY(context, 3)));
     }
     else {
-        series = VAL_SERIES(data_value);
-        index  = VAL_INDEX(data_value);
-        if (index >= cast(REBINT, SER_LEN(series))) {
+        series = VAL_SERIES(data);
+        index = VAL_INDEX(data);
+        if (index >= SER_LEN(series)) {
             if (mode == LOOP_REMOVE_EACH) {
                 SET_INTEGER(D_OUT, 0);
             }
@@ -461,13 +395,15 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
                 DROP_GUARD_ARRAY(mapped);
                 Val_Init_Block(D_OUT, mapped);
             }
-            return R_OUT;
+            return R_OUT_Q(q);
         }
     }
 
-    write_index = index;
+    REBCNT write_index = index;
 
     // Iterate over each value in the data series block:
+
+    REBCNT tail;
     while (index < (tail = SER_LEN(series))) {
         REBCNT i;
         REBCNT j = 0;
@@ -475,22 +411,28 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
         REBVAL *key = CTX_KEY(context, 1);
         REBVAL *var = CTX_VAR(context, 1);
 
+        REBCNT read_index;
+
         read_index = index;  // remember starting spot
 
         // Set the FOREACH loop variables from the series:
         for (i = 1; !IS_END(key); i++, key++, var++) {
 
             if (index >= tail) {
-                SET_NONE(var);
+                SET_BLANK(var);
                 continue;
             }
 
-            if (ANY_ARRAY(data_value)) {
-                *var = *ARR_AT(AS_ARRAY(series), index);
+            if (ANY_ARRAY(data)) {
+                COPY_VALUE(
+                    var,
+                    ARR_AT(AS_ARRAY(series), index),
+                    VAL_SPECIFIER(data) // !!! always matches series?
+                );
             }
-            else if (ANY_CONTEXT(data_value)) {
+            else if (ANY_CONTEXT(data)) {
                 if (GET_VAL_FLAG(
-                    VAL_CONTEXT_KEY(data_value, index), TYPESET_FLAG_HIDDEN
+                    VAL_CONTEXT_KEY(data, index), TYPESET_FLAG_HIDDEN
                 )) {
                     // Do not evaluate this iteration
                     index++;
@@ -502,7 +444,7 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
                     Val_Init_Word_Bound(
                         var,
                         REB_WORD,
-                        VAL_TYPESET_SYM(VAL_CONTEXT_KEY(data_value, index)),
+                        CTX_KEY_SPELLING(VAL_CONTEXT(data), index),
                         AS_CONTEXT(series),
                         index
                     );
@@ -511,38 +453,56 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
                         index--;
                     }
                 }
-                else if (j == 1)
-                    *var = *ARR_AT(AS_ARRAY(series), index);
+                else if (j == 1) {
+                    COPY_VALUE(
+                        var,
+                        ARR_AT(AS_ARRAY(series), index),
+                        SPECIFIED // !!! it's a varlist
+                    );
+                }
                 else {
                     // !!! Review this error (and this routine...)
                     REBVAL key_name;
-                    VAL_INIT_WRITABLE_DEBUG(&key_name);
+                    Val_Init_Word(&key_name, REB_WORD, VAL_KEY_SPELLING(key));
 
-                    Val_Init_Word(&key_name, REB_WORD, VAL_TYPESET_SYM(key));
                     fail (Error_Invalid_Arg(&key_name));
                 }
                 j++;
             }
-            else if (IS_VECTOR(data_value)) {
+            else if (IS_VECTOR(data)) {
                 Set_Vector_Value(var, series, index);
             }
-            else if (IS_MAP(data_value)) {
-                REBVAL *val = ARR_AT(AS_ARRAY(series), index | 1);
-                if (!IS_UNSET(val)) {
+            else if (IS_MAP(data)) {
+                //
+                // MAP! does not store RELVALs
+                //
+                REBVAL *val = KNOWN(ARR_AT(AS_ARRAY(series), index | 1));
+                if (!IS_VOID(val)) {
                     if (j == 0) {
-                        *var = *ARR_AT(AS_ARRAY(series), index & ~1);
+                        COPY_VALUE(
+                            var,
+                            ARR_AT(AS_ARRAY(series), index & ~1),
+                            SPECIFIED // maps always specified
+                        );
+
                         if (IS_END(var + 1)) index++; // only words
                     }
-                    else if (j == 1)
-                        *var = *ARR_AT(AS_ARRAY(series), index);
+                    else if (j == 1) {
+                        COPY_VALUE(
+                            var,
+                            ARR_AT(AS_ARRAY(series), index),
+                            SPECIFIED // maps always specified
+                        );
+                    }
                     else {
                         // !!! Review this error (and this routine...)
                         REBVAL key_name;
-                        VAL_INIT_WRITABLE_DEBUG(&key_name);
-
                         Val_Init_Word(
-                            &key_name, REB_WORD, VAL_TYPESET_SYM(key)
+                            &key_name,
+                            REB_WORD,
+                            VAL_KEY_SPELLING(key)
                         );
+
                         fail (Error_Invalid_Arg(&key_name));
                     }
                     j++;
@@ -553,10 +513,10 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
                 }
             }
             else { // A string or binary
-                if (IS_BINARY(data_value)) {
+                if (IS_BINARY(data)) {
                     SET_INTEGER(var, (REBI64)(BIN_HEAD(series)[index]));
                 }
-                else if (IS_IMAGE(data_value)) {
+                else if (IS_IMAGE(data)) {
                     Set_Tuple_Pixel(BIN_AT(series, index), var);
                 }
                 else {
@@ -574,7 +534,7 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
             index++;
         }
 
-        if (Do_At_Throws(D_OUT, body_copy, 0)) {
+        if (Do_At_Throws(D_OUT, body_copy, 0, SPECIFIED)) { // copy, specified
             if (!Catching_Break_Or_Continue(D_OUT, &stop)) {
                 // A non-loop throw, we should be bubbling up
                 threw = TRUE;
@@ -591,7 +551,7 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
             break;
         case LOOP_REMOVE_EACH:
             // If FALSE return (or unset), copy values to the write location
-            if (IS_CONDITIONAL_FALSE(D_OUT) || IS_UNSET(D_OUT)) {
+            if (IS_CONDITIONAL_FALSE(D_OUT) || IS_VOID(D_OUT)) {
                 //
                 // memory areas may overlap, so use memmove and not memcpy!
                 //
@@ -608,11 +568,11 @@ static REB_R Loop_Each(struct Reb_Frame *frame_, LOOP_MODE mode)
             }
             break;
         case LOOP_MAP_EACH:
-            // anything that's not an UNSET! will be added to the result
-            if (!IS_UNSET(D_OUT)) Append_Value(mapped, D_OUT);
+            // anything that's not void will be added to the result
+            if (!IS_VOID(D_OUT)) Append_Value(mapped, D_OUT);
             break;
         case LOOP_EVERY:
-            if (IS_UNSET(D_OUT)) {
+            if (IS_VOID(D_OUT)) {
                 // Unsets "opt out" of the vote, as with ANY and ALL
             }
             else
@@ -652,7 +612,7 @@ skip_hidden: ;
     if (LEGACY(OPTIONS_BREAK_WITH_OVERRIDES)) {
         // In legacy R3-ALPHA, BREAK without a provided value did *not*
         // override the result.  It returned the partial results.
-        if (stop && !IS_UNSET(D_OUT))
+        if (stop && !IS_END(D_OUT))
             return R_OUT;
     }
 #endif
@@ -661,18 +621,18 @@ skip_hidden: ;
     case LOOP_FOR_EACH:
         // Returns last body result or /WITH of BREAK (or the /WITH of a
         // CONTINUE if it turned out to be the last iteration)
-        return R_OUT;
+        return R_OUT_Q(q);
 
     case LOOP_REMOVE_EACH:
         // Remove hole (updates tail):
         if (write_index < index)
             Remove_Series(series, write_index, index - write_index);
         SET_INTEGER(D_OUT, index - write_index);
-        return R_OUT;
+        return R_OUT_Q(q);
 
     case LOOP_MAP_EACH:
         Val_Init_Block(D_OUT, mapped);
-        return R_OUT;
+        return R_OUT_Q(q);
 
     case LOOP_EVERY:
         if (threw) return R_OUT_IS_THROWN;
@@ -680,11 +640,11 @@ skip_hidden: ;
         // Result is the cumulative TRUE? state of all the input (with any
         // unsets taken out of the consideration).  The last TRUE? input
         // if all valid and NONE! otherwise.  (Like ALL.)
-        if (!every_true) return R_NONE;
+        if (!every_true) return R_BLANK;
 
         // We want to act like `ALL MAP-EACH ...`, hence we effectively ignore
         // unsets and return TRUE if the last evaluation leaves an unset.
-        if (IS_UNSET(D_OUT)) return R_TRUE;
+        if (IS_VOID(D_OUT)) return R_TRUE;
 
         return R_OUT;
 
@@ -700,12 +660,18 @@ skip_hidden: ;
 //  for: native [
 //  
 //  {Evaluate a block over a range of values. (See also: REPEAT)}
-//  
-//      'word [word!] "Variable to hold current value"
-//      start [any-series! any-number!] "Starting value"
-//      end [any-series! any-number!] "Ending value"
-//      bump [any-number!] "Amount to skip each time"
-//      body [block!] "Block to evaluate"
+//
+//      return: [<opt> any-value!]
+//      'word [word!]
+//          "Variable to hold current value"
+//      start [any-series! any-number!]
+//          "Starting value"
+//      end [any-series! any-number!]
+//          "Ending value"
+//      bump [any-number!]
+//          "Amount to skip each time"
+//      body [block!]
+//          "Block to evaluate"
 //  ]
 //
 REBNATIVE(for)
@@ -716,15 +682,18 @@ REBNATIVE(for)
     PARAM(4, bump);
     PARAM(5, body);
 
-    REBARR *body_copy;
-    REBCTX *context;
-    REBVAL *var;
+    REBOOL q = FALSE; // !!! No /q refinement yet, and FOR may be going away
 
-    // Copy body block, make a context, bind loop var to it:
-    body_copy = Init_Loop(&context, ARG(word), ARG(body));
-    var = CTX_VAR(context, 1); // safe: not on stack
+    REBCTX *context;
+    REBARR *body_copy = Copy_Body_Deep_Bound_To_New_Context(
+        &context,
+        ARG(word),
+        ARG(body)
+    );
     Val_Init_Object(ARG(word), context); // keep GC safe
     Val_Init_Block(ARG(body), body_copy); // keep GC safe
+
+    REBVAL *var = CTX_VAR(context, 1);
 
     if (
         IS_INTEGER(ARG(start))
@@ -778,47 +747,7 @@ REBNATIVE(for)
         }
     }
 
-    return R_OUT;
-}
-
-
-//
-//  for-next: native [
-//  
-//  "Evaluates a block for each position until the end, using NEXT to skip"
-//  
-//      'word [word!] 
-//          "Word that refers to the series, set to positions in the series"
-//      body [block!]
-//          "Block to evaluate each time"
-//  ]
-//
-REBNATIVE(for_next)
-{
-    PARAM(1, word);
-    PARAM(2, body);
-
-    return Loop_Skip(D_OUT, ARG(word), 1, ARG(body));
-}
-
-
-//
-//  for-back: native [
-//
-//  "Evaluates a block for each position until the start, using BACK to skip"
-//
-//      'word [word!]
-//          "Word that refers to the series, set to positions in the series"
-//      body [block!]
-//          "Block to evaluate each time"
-//  ]
-//
-REBNATIVE(for_back)
-{
-    PARAM(1, word);
-    PARAM(2, body);
-
-    return Loop_Skip(D_OUT, ARG(word), -1, ARG(body));
+    return R_OUT_Q(q);
 }
 
 
@@ -826,43 +755,115 @@ REBNATIVE(for_back)
 //  for-skip: native [
 //  
 //  "Evaluates a block for periodic values in a series"
-//  
-//      'word [word!] 
+//
+//      return: [<opt> any-value!]
+//          {Last body result or BREAK value, will also be void if never run}
+//      'word [word! blank!]
 //          "Word that refers to the series, set to positions in the series"
 //      skip [integer!]
 //          "Number of positions to skip each time"
 //      body [block!]
 //          "Block to evaluate each time"
+//      /?
+//          {Instead of last body result, return TRUE if body ever ran}
 //  ]
 //
 REBNATIVE(for_skip)
+//
+// !!! Should this fail on 0?  It could be that the loop will break for some
+// other reason, and the author didn't wish to special case to rule out zero...
+// generality may dictate allowing it.
 {
     PARAM(1, word);
     PARAM(2, skip);
     PARAM(3, body);
+    REFINE(4, q);
 
-    // !!! Should this fail on 0?  It could be that the loop will break for
-    // some other reason, and the author didn't wish to special case to
-    // rule out zero... generality may dictate allowing it.
+    REBVAL *word = ARG(word);
 
-    return Loop_Skip(D_OUT, ARG(word), Int32(ARG(skip)), ARG(body));
+    // Though we can only iterate on a series, BLANK! is used as a way of
+    // opting out.  This could be useful, e.g. `for-next x (any ...) [...]`
+    //
+    if (IS_BLANK(word))
+        return R_OUT_Q(REF(q));
+
+    REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word, SPECIFIED);
+
+    if (!ANY_SERIES(var))
+        fail (Error_Invalid_Arg(var));
+
+    REBINT skip = Int32(ARG(skip));
+
+    // Save the starting var value, assume `word` is a GC protected slot
+    //
+    *word = *var;
+
+    // Starting location when past end with negative skip:
+    //
+    if (skip < 0 && VAL_INDEX(var) >= VAL_LEN_HEAD(var))
+        VAL_INDEX(var) = VAL_LEN_HEAD(var) + skip;
+
+    while (TRUE) {
+        REBINT len = VAL_LEN_HEAD(var); // VAL_LEN_HEAD() always >= 0
+        REBINT index = VAL_INDEX(var); // (may have been set to < 0 below)
+
+        if (index < 0) break;
+        if (index >= len) {
+            if (skip >= 0) break;
+            index = len + skip; // negative
+            if (index < 0) break;
+            VAL_INDEX(var) = index;
+        }
+
+        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(body))) {
+            REBOOL stop;
+            if (Catching_Break_Or_Continue(D_OUT, &stop)) {
+                if (stop) goto restore_var_and_return;
+
+                goto next_iteration;
+            }
+            return R_OUT_IS_THROWN;
+        }
+
+    next_iteration:
+        //
+        // !!! The code in the body is allowed to modify the var.  However,
+        // R3-Alpha checked to make sure that the type of the var did not
+        // change.  This seemed like an arbitrary limitation and Ren-C
+        // removed it, only checking that it's a series.
+        //
+        if (IS_BLANK(var))
+            return R_OUT_Q(REF(q));
+
+        if (!ANY_SERIES(var))
+            fail (Error_Invalid_Arg(var));
+
+        VAL_INDEX(var) += skip;
+    }
+
+restore_var_and_return:
+    *var = *word;
+    return R_OUT_Q(REF(q));
 }
 
 
 //
 //  forever: native [
 //  
-//  "Evaluates a block endlessly."
-//  
-//      body [block!] "Block to evaluate each time"
+//  "Evaluates a block endlessly, until an interrupting throw/error/break."
+//
+//      return: [<opt> any-value!]
+//          {Void if plain BREAK, or arbitrary value using BREAK/WITH}
+//      body [block! function!]
+//          "Block or function to evaluate each time"
 //  ]
 //
 REBNATIVE(forever)
 {
-    REBVAL * const block = D_ARG(1);
+    PARAM(1, body);
 
     do {
-        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, block)) {
+        if (Run_Success_Branch_Throws(D_OUT, ARG(body), FALSE)) { // !only
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;
@@ -880,10 +881,12 @@ REBNATIVE(forever)
 //  for-each: native [
 //  
 //  "Evaluates a block for each value(s) in a series."
-//  
+//
+//      return: [<opt> any-value!]
+//          {Last body result or BREAK value, will also be void if never run}
 //      'word [word! block!]
 //          "Word or block of words to set each time (local)"
-//      data [any-series! any-context! map! none!]
+//      data [any-series! any-context! map! blank!]
 //          "The series to traverse"
 //      body [block!]
 //          "Block to evaluate each time"
@@ -900,9 +903,12 @@ REBNATIVE(for_each)
 //  
 //  {Removes values for each block that returns true; returns removal count.}
 //  
-//      'word [word! block!] "Word or block of words to set each time (local)"
-//      data [any-series!] "The series to traverse (modified)"
-//      body [block!] "Block to evaluate (return TRUE to remove)"
+//      'word [word! block!]
+//          "Word or block of words to set each time (local)"
+//      data [any-series!]
+//          "The series to traverse (modified)"
+//      body [block!]
+//          "Block to evaluate (return TRUE to remove)"
 //  ]
 //
 REBNATIVE(remove_each)
@@ -914,11 +920,16 @@ REBNATIVE(remove_each)
 //
 //  map-each: native [
 //  
-//  {Evaluates a block for each value(s) in a series and returns them as a block.}
-//  
-//      'word [word! block!] "Word or block of words to set each time (local)"
-//      data [block! vector!] "The series to traverse"
-//      body [block!] "Block to evaluate each time"
+//  {Evaluate a block for each value(s) in a series and collect as a block.}
+//
+//      return: [block!]
+//          {Collected block (BREAK/WITH can add a final result to block)}
+//      'word [word! block!]
+//          "Word or block of words to set each time (local)"
+//      data [block! vector!]
+//          "The series to traverse"
+//      body [block!]
+//          "Block to evaluate each time"
 //  ]
 //
 REBNATIVE(map_each)
@@ -931,10 +942,12 @@ REBNATIVE(map_each)
 //  every: native [
 //  
 //  {Returns last TRUE? value if evaluating a block over a series is all TRUE?}
-//  
+//
+//      return: [<opt> any-value!]
+//          {TRUE or BLANK! collected, or BREAK value, TRUE if never run.}
 //      'word [word! block!]
 //          "Word or block of words to set each time (local)"
-//      data [any-series! any-context! map! none!]
+//      data [any-series! any-context! map! blank!]
 //          "The series to traverse"
 //      body [block!]
 //          "Block to evaluate each time"
@@ -950,29 +963,30 @@ REBNATIVE(every)
 //  loop: native [
 //  
 //  "Evaluates a block a specified number of times."
-//  
-//      count [any-number! logic! none!]
+//
+//      return: [<opt> any-value!]
+//          {Last body result or BREAK value, will also be void if never run}
+//      count [any-number! logic! blank!]
 //          "Repetitions (true loops infinitely, FALSE? doesn't run)"
-//      block [block!]
-//          "Block to evaluate"
+//      body [block! function!]
+//          "Block to evaluate or function to run (may be a BRANCHER)."
 //  ]
 //
 REBNATIVE(loop)
 {
     PARAM(1, count);
-    PARAM(2, block);
+    PARAM(2, body);
 
     REBI64 count;
-
-    SET_UNSET_UNLESS_LEGACY_NONE(D_OUT); // Default if the loop does not run
 
     if (IS_CONDITIONAL_FALSE(ARG(count))) {
         //
         // A NONE! or LOGIC! FALSE means don't run the loop at all.
         //
-        return R_OUT;
+        return R_VOID;
     }
-    else if (IS_LOGIC(ARG(count))) {
+
+    if (IS_LOGIC(ARG(count))) {
         //
         // (Must be TRUE).  Run forever.  As a micro-optimization we don't
         // complicate the condition checking in the loop, but seed with a
@@ -986,7 +1000,7 @@ REBNATIVE(loop)
         count = Int64(ARG(count));
 
     for (; count > 0; count--) {
-        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(block))) {
+        if (Run_Success_Branch_Throws(D_OUT, ARG(body), FALSE)) { // !only
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;
@@ -1003,6 +1017,15 @@ REBNATIVE(loop)
         goto restart;
     }
 
+    // If the body is a function, it may be a "brancher".  If it is,
+    // then run it and tell it that the condition is not still in effect.
+    //
+    if (Maybe_Run_Failed_Branch_Throws(D_OUT, ARG(body), FALSE))
+        return R_OUT_IS_THROWN;
+
+    if (IS_END(D_OUT))
+        return R_VOID;
+
     return R_OUT;
 }
 
@@ -1011,71 +1034,82 @@ REBNATIVE(loop)
 //  repeat: native [
 //  
 //  {Evaluates a block a number of times or over a series.}
-//  
-//      'word [word!] "Word to set each time"
-//      value [any-number! any-series! none!] 
-//      "Maximum number or series to traverse"
-//      body [block!] "Block to evaluate each time"
+//
+//      return: [<opt> any-value!]
+//          {Last body result or BREAK value, will also be void if never run}
+//      'word [word!]
+//          "Word to set each time"
+//      value [any-number! any-series! blank!]
+//          "Maximum number or series to traverse"
+//      body [block!]
+//          "Block to evaluate each time"
 //  ]
 //
 REBNATIVE(repeat)
 {
-    REBARR *body;
+    PARAM(1, word);
+    PARAM(2, value);
+    PARAM(3, body);
+
+    REBVAL *value = ARG(value);
+
+    REBOOL q = FALSE; // !!! No /? passed in at the moment
+
+    if (IS_BLANK(value))
+        return q ? R_FALSE : R_VOID;
+
+    if (IS_DECIMAL(value) || IS_PERCENT(value))
+        SET_INTEGER(value, Int64(value));
+
     REBCTX *context;
-    REBVAL *var;
-    REBVAL *count = D_ARG(2);
+    REBARR *body = Copy_Body_Deep_Bound_To_New_Context(
+        &context,
+        ARG(word),
+        ARG(body)
+    );
 
-    if (IS_NONE(count)) {
-        SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
-        return R_OUT;
-    }
+    REBVAL *var = CTX_VAR(context, 1);
 
-    if (IS_DECIMAL(count) || IS_PERCENT(count)) {
-        REBI64 i64 = Int64(count);
-        SET_INTEGER(count, i64); // macro! don't get-and-set in same line!
-    }
+    Val_Init_Object(ARG(word), context); // keep GC safe
+    Val_Init_Block(ARG(body), body); // keep GC safe
 
-    body = Init_Loop(&context, D_ARG(1), D_ARG(3));
-    var = CTX_VAR(context, 1); // safe: not on stack
-    Val_Init_Object(D_ARG(1), context); // keep GC safe
-    Val_Init_Block(D_ARG(3), body); // keep GC safe
-
-    if (ANY_SERIES(count)) {
+    if (ANY_SERIES(value)) {
         if (Loop_Series_Throws(
-            D_OUT, var, body, count, VAL_LEN_HEAD(count) - 1, 1
+            D_OUT, var, body, value, VAL_LEN_HEAD(value) - 1, 1
         )) {
             return R_OUT_IS_THROWN;
         }
 
-        return R_OUT;
+        return R_OUT_Q(q);
     }
-    else if (IS_INTEGER(count)) {
-        if (Loop_Integer_Throws(D_OUT, var, body, 1, VAL_INT64(count), 1))
+    else if (IS_INTEGER(value)) {
+        if (Loop_Integer_Throws(D_OUT, var, body, 1, VAL_INT64(value), 1))
             return R_OUT_IS_THROWN;
 
-        return R_OUT;
+        return R_OUT_Q(q);
     }
 
-    SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
-    return R_OUT;
+    return q ? R_FALSE : R_VOID;
 }
 
 
 //
 //  until: native [
 //  
-//  "Evaluates a block until it is TRUE. "
-//  
-//      block [block!]
+//  "Evaluates a block until it is TRUE?"
+//
+//      return: [<opt> any-value!]
+//          {Last body result or BREAK value.}
+//      body [block! function!]
 //  ]
 //
 REBNATIVE(until)
 {
-    REBVAL * const block = D_ARG(1);
+    PARAM(1, body);
 
     do {
     skip_check:
-        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, block)) {
+        if (Run_Success_Branch_Throws(D_OUT, ARG(body), FALSE)) { // !only
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;
@@ -1086,7 +1120,7 @@ REBNATIVE(until)
                 // expression of breaking an until to say CONTINUE/WITH TRUE,
                 // as BREAK/WITH TRUE says it much better.
                 //
-                if (!IS_UNSET(D_OUT))
+                if (!IS_VOID(D_OUT))
                     fail (Error(RE_BREAK_NOT_CONTINUE));
 
                 goto skip_check;
@@ -1094,9 +1128,15 @@ REBNATIVE(until)
             return R_OUT_IS_THROWN;
         }
 
-        if (IS_UNSET(D_OUT)) fail (Error(RE_NO_RETURN));
+        if (IS_VOID(D_OUT)) fail (Error(RE_NO_RETURN));
 
     } while (IS_CONDITIONAL_FALSE(D_OUT));
+
+    // If the body is a function, it may be a "brancher".  If it is,
+    // then run it and tell it that it reached false.
+    //
+    if (Maybe_Run_Failed_Branch_Throws(D_OUT, ARG(body), FALSE)) // !only
+        return R_OUT_IS_THROWN;
 
     return R_OUT;
 }
@@ -1105,62 +1145,62 @@ REBNATIVE(until)
 //
 //  while: native [
 //  
-//  {While a condition block is TRUE, evaluates another block.}
-//  
-//      condition [block!]
-//      body [block!]
+//  {While a condition block is TRUE?, evaluates another block.}
+//
+//      return: [<opt> any-value!]
+//          {Last body result or BREAK value, will also be void if never run}
+//      condition [block! function!]
+//      body [block! function!]
+//      /?
+//          "Instead of last body result, return LOGIC! of if body ever ran"
 //  ]
 //
 REBNATIVE(while)
 {
     PARAM(1, condition);
     PARAM(2, body);
-
-    // We need to keep the condition and body safe from GC, so we can't
-    // use a D_ARG slot for evaluating the condition (can't overwrite
-    // D_OUT because that's the last loop's value we might return).  Our
-    // temporary value is called "unsafe" because it is not protected
-    // from GC (no need to, as it doesn't need to stay live across eval)
-    //
-    REBVAL unsafe;
-    VAL_INIT_WRITABLE_DEBUG(&unsafe);
-
-    // If the loop body never runs (and condition doesn't error or throw),
-    // we want to return an UNSET!
-    //
-    SET_UNSET_UNLESS_LEGACY_NONE(D_OUT);
+    REFINE(3, q);
 
     do {
-        if (DO_VAL_ARRAY_AT_THROWS(&unsafe, ARG(condition))) {
+        if (Run_Success_Branch_Throws(D_CELL, ARG(condition), FALSE)) { // !only
             //
             // A while loop should only look for breaks and continues in its
             // body, not in its condition.  So `while [break] []` is a
             // request to break the enclosing loop (or error if there is
             // nothing to catch that break).  Hence we bubble up the throw.
             //
-            *D_OUT = unsafe;
+            *D_OUT = *D_CELL;
             return R_OUT_IS_THROWN;
         }
 
-        if (IS_UNSET(&unsafe))
+        if (IS_VOID(D_CELL))
             fail (Error(RE_NO_RETURN));
 
-        if (IS_CONDITIONAL_FALSE(&unsafe)) {
+        if (IS_CONDITIONAL_FALSE(D_CELL)) {
             //
-            // When the condition evaluates to a LOGIC! false or a NONE!,
-            // WHILE returns whatever the last value was that the body
-            // evaluated to (or none if no body evaluations yet).
+            // If the body is a function, it may be a "brancher".  If it is,
+            // then run it and tell it that the condition has returned false.
             //
-            return R_OUT;
+            if (Maybe_Run_Failed_Branch_Throws(D_OUT, ARG(body), FALSE))
+                return R_OUT_IS_THROWN;
+
+            return R_OUT_Q(REF(q));
         }
 
-        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(body))) {
+        // If this line runs, it will put a non-END marker in D_OUT, which
+        // will signal R_OUT_Q() to TRUE if /? (and D_OUT otherwise)
+        //
+        if (Run_Success_Branch_Throws(D_OUT, ARG(body), FALSE)) { // !only
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
-                if (stop) return R_OUT;
+                if (stop) {
+                    if (REF(q)) return R_TRUE;
+                    return R_OUT;
+                }
                 continue;
             }
             return R_OUT_IS_THROWN;
         }
+
     } while (TRUE);
 }

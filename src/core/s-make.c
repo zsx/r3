@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  s-make.c
-**  Summary: binary and unicode string support
-**  Section: strings
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %s-make.c
+//  Summary: "binary and unicode string support"
+//  Section: strings
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
@@ -305,7 +306,12 @@ REBCHR *Val_Str_To_OS_Managed(REBSER **out, REBVAL *val)
         // !!!"Leaks" in the sense that the GC has to take care of this
         MANAGE_SERIES(up);
 
-        n = Decode_UTF8_May_Fail(UNI_HEAD(up), VAL_BIN_AT(val), n, FALSE);
+        n = Decode_UTF8_Negative_If_Latin1(
+            UNI_HEAD(up),
+            VAL_BIN_AT(val),
+            n,
+            FALSE
+        );
         SET_SERIES_LEN(up, abs(n));
         UNI_TERM(up);
 
@@ -322,17 +328,18 @@ REBCHR *Val_Str_To_OS_Managed(REBSER **out, REBVAL *val)
         return cast(REBCHR*, VAL_UNI_AT(val));
     }
 #else
-    if (VAL_STR_IS_ASCII(val)) {
+    if (
+        VAL_BYTE_SIZE(val)
+        && All_Bytes_ASCII(VAL_BIN_AT(val), VAL_LEN_AT(val))
+    ) {
         if (out) *out = VAL_SERIES(val);
 
         // On Linux/Unix we can use ASCII directly (it is valid UTF-8):
         return cast(REBCHR*, VAL_BIN_AT(val));
     }
     else {
-        REBCNT n = VAL_LEN_AT(val);
-
         // !!! "Leaks" in the sense that the GC has to take care of this
-        REBSER *ser = Temp_Bin_Str_Managed(val, 0, &n);
+        REBSER *ser = Temp_Bin_Str_Managed(val, 0, NULL);
 
         if (out) *out = ser;
 
@@ -452,15 +459,15 @@ REBSER *Make_Series_Codepoint(REBCNT codepoint)
 //
 void Append_Uni_Bytes(REBSER *dst, const REBUNI *src, REBCNT len)
 {
-    REBYTE *bp;
-    REBCNT tail = SER_LEN(dst);
+    REBCNT old_len = SER_LEN(dst);
 
     EXPAND_SERIES_TAIL(dst, len);
+    SET_SERIES_LEN(dst, old_len + len);
 
-    bp = BIN_AT(dst, tail);
+    REBYTE *bp = BIN_AT(dst, old_len);
 
     for (; len > 0; len--)
-        *bp++ = (REBYTE)*src++;
+        *bp++ = cast(REBYTE, *src++);
 
     *bp = 0;
 }
@@ -473,12 +480,12 @@ void Append_Uni_Bytes(REBSER *dst, const REBUNI *src, REBCNT len)
 //
 void Append_Uni_Uni(REBSER *dst, const REBUNI *src, REBCNT len)
 {
-    REBUNI *up;
-    REBCNT tail = SER_LEN(dst);
+    REBCNT old_len = SER_LEN(dst);
 
     EXPAND_SERIES_TAIL(dst, len);
+    SET_SERIES_LEN(dst, old_len + len);
 
-    up = UNI_AT(dst, tail);
+    REBUNI *up = UNI_AT(dst, old_len);
 
     for (; len > 0; len--)
         *up++ = *src++;
@@ -548,25 +555,31 @@ void Append_Int_Pad(REBSER *dst, REBINT num, REBINT digs)
 // 
 // dst = null means make a new string.
 //
-REBSER *Append_UTF8_May_Fail(REBSER *dst, const REBYTE *src, REBINT len)
+REBSER *Append_UTF8_May_Fail(REBSER *dst, const REBYTE *src, REBCNT num_bytes)
 {
     REBSER *ser = BUF_UTF8; // buffer is Unicode width
 
-    if (len < 0) len = LEN_BYTES(src);
+    Resize_Series(ser, num_bytes + 1); // needs at most this many unicode chars
 
-    Resize_Series(ser, len+1); // needs at most this much
+    REBINT len = Decode_UTF8_Negative_If_Latin1(
+        UNI_HEAD(ser),
+        src,
+        num_bytes,
+        FALSE
+    );
 
-    len = Decode_UTF8_May_Fail(UNI_HEAD(ser), src, len, FALSE);
-
-    if (len < 0) {
+    if (len < 0) { // All characters being added are Latin1
         len = -len;
-        if (!dst) dst = Make_Binary(len);
+        if (dst == NULL)
+            dst = Make_Binary(len);
         if (BYTE_SIZE(dst)) {
             Append_Uni_Bytes(dst, UNI_HEAD(ser), len);
             return dst;
         }
-    } else {
-        if (!dst) dst = Make_Unicode(len);
+    }
+    else {
+        if (dst == NULL)
+            dst = Make_Unicode(len);
     }
 
     Append_Uni_Uni(dst, UNI_HEAD(ser), len);
@@ -588,7 +601,7 @@ REBSER *Append_UTF8_May_Fail(REBSER *dst, const REBYTE *src, REBINT len)
 REBSER *Join_Binary(const REBVAL *blk, REBINT limit)
 {
     REBSER *series = BYTE_BUF;
-    REBVAL *val;
+    RELVAL *val;
     REBCNT tail = 0;
     REBCNT len;
     REBCNT bl;
@@ -596,14 +609,14 @@ REBSER *Join_Binary(const REBVAL *blk, REBINT limit)
 
     if (limit < 0) limit = VAL_LEN_AT(blk);
 
-    RESET_TAIL(series);
+    SET_SERIES_LEN(series, 0);
 
     for (val = VAL_ARRAY_AT(blk); limit > 0; val++, limit--) {
         switch (VAL_TYPE(val)) {
 
         case REB_INTEGER:
             if (VAL_INT64(val) > cast(i64, 255) || VAL_INT64(val) < 0)
-                fail (Error_Out_Of_Range(val));
+                fail (Error_Out_Of_Range(KNOWN(val)));
             EXPAND_SERIES_TAIL(series, 1);
             *BIN_AT(series, tail) = (REBYTE)VAL_INT32(val);
             break;
@@ -644,7 +657,7 @@ REBSER *Join_Binary(const REBVAL *blk, REBINT limit)
             break;
 
         default:
-            fail (Error_Invalid_Arg(val));
+            fail (Error_Invalid_Arg_Core(val, VAL_SPECIFIER(blk)));
         }
 
         tail = SER_LEN(series);

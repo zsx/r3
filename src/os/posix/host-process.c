@@ -1,34 +1,37 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Title: POSIX Process API
-**  Author: Carl Sassenrath, Richard Smolak, Shixin Zeng
-**  Purpose:
-**      This was originally the file host-lib.c, providing the entire
-**      host API.  When the host routines were broken into smaller
-**      pieces, it made sense that host-lib.c be kept as the largest
-**      set of related routines.  That turned out to be the process
-**      related routines and support for CALL.
-**
-***********************************************************************/
+//
+//  File: %host-process.c
+//  Summary: "POSIX Process API"
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// This was originally the file host-lib.c, providing the entire
+// host API.  When the host routines were broken into smaller
+// pieces, it made sense that host-lib.c be kept as the largest
+// set of related routines.  That turned out to be the process
+// related routines and support for CALL.
+//
 
 #if !defined( __cplusplus) && defined(TO_LINUX)
     // See feature_test_macros(7)
@@ -278,7 +281,7 @@ REBINT OS_Kill(REBINT pid)
 //     16: show
 // 
 // input_type/output_type/err_type:
-//     0: none
+//     0: blank
 //     1: string
 //     2: file
 // 

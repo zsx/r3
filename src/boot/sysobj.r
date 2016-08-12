@@ -19,7 +19,7 @@ REBOL [
 ; Next four fields are updated during build:
 version:  0.0.0
 build:    1
-platform: none
+platform: _
 product:  'core
 
 license: {Copyright 2012 REBOL Technologies
@@ -28,13 +28,18 @@ Licensed under the Apache License, Version 2.0.
 See: http://www.apache.org/licenses/LICENSE-2.0
 }
 
-catalog: context [
+; !!! HAS is defined later, so this uses CONSTRUCT [] [body] instead.
+; MAKE OBJECT! is not used because that is too low-level (no evaluation or
+; collection of fields).  Reconsider if base-funcs should be loaded before
+; the system object here, or if it should be able to work with just the
+; low level MAKE OBJECT! and not use things like `x: y: z: none` etc.
+
+catalog: construct [] [
     ; Static (non-changing) values, blocks, objects
     datatypes: []
-    actions: none
-    natives: none
-    errors: none
-    reflectors: [spec body words values types title addr]
+    actions: _
+    natives: _
+    errors: _
     ; Official list of system/options/flags that can appear.
     ; Must match host reb-args.h enum!
     boot-flags: [
@@ -44,18 +49,18 @@ catalog: context [
     ]
 ]
 
-contexts: context [
+contexts: construct [] [
     root:
     sys:
     lib:
     user:
-        none
+        _
 ]
 
-state: context [
+state: construct [] [
     ; Mutable system state variables
     note: "contains protected hidden fields"
-    policies: context [ ; Security policies
+    policies: construct [] [ ; Security policies
         file:    ; file access
         net:     ; network access
         eval:    ; evaluation limit
@@ -69,39 +74,39 @@ state: context [
             0.0.0
         extension: 2.2.2 ; execute only
     ]
-    last-error: none ; used by WHY?
+    last-error: _ ; used by WHY?
 ]
 
 modules: []
 
-codecs: context []
+codecs: make object! [[][]]
 
-dialects: context [
+dialects: construct [] [
     secure:
     draw:
     effect:
     text:
     rebcode:
-        none
+        _
 ]
 
-schemes: context []
+schemes: make object! [[][]]
 
-ports: context [
+ports: construct [] [
     wait-list: []   ; List of ports to add to 'wait
     input:          ; Port for user input.
     output:         ; Port for user output
     echo:           ; Port for echoing output
     system:         ; Port for system events
-    callback: none  ; Port for callback events
-;   serial: none    ; serial device name block
+    callback: _     ; Port for callback events
+;   serial: _       ; serial device name block
 ]
 
-locale: context [
+locale: construct [] [
     language:   ; Human language locale
     language*:
     locale:
-    locale*: none
+    locale*: _
     months: [
         "January" "February" "March" "April" "May" "June"
         "July" "August" "September" "October" "November" "December"
@@ -111,24 +116,22 @@ locale: context [
     ]
 ]
 
-options: context [  ; Options supplied to REBOL during startup
-    boot:           ; The path to the executable
-    home:           ; Path of home directory
-    path:           ; Where script was started or the startup dir
-        none
+options: construct [] [  ; Options supplied to REBOL during startup
+    boot: _         ; The path to the executable
+    home: _         ; Path of home directory
+    path: _         ; Where script was started or the startup dir
 
-    current-path:   ; Current URL! or FILE! path to use for relative lookups
+    current-path: _ ; Current URL! or FILE! path to use for relative lookups
 
-    flags:          ; Boot flag bits (see system/catalog/boot-flags)
-    script:         ; Filename of script to evaluate
-    args:           ; Command line arguments passed to script
-    do-arg:         ; Set to a block if --do was specified
-    import:         ; imported modules
-    debug:          ; debug flags
-    secure:         ; security policy
-    version:        ; script version needed
-    boot-level:     ; how far to boot up
-        none
+    flags: _        ; Boot flag bits (see system/catalog/boot-flags)
+    script: _       ; Filename of script to evaluate
+    args: _         ; Command line arguments passed to script
+    do-arg: _       ; Set to a block if --do was specified
+    import: _       ; imported modules
+    debug: _        ; debug flags
+    secure: _       ; security policy
+    version: _      ; script version needed
+    boot-level: _   ; how far to boot up
 
     quiet: false    ; do not show startup info (compatibility)
 
@@ -137,51 +140,44 @@ options: context [  ; Options supplied to REBOL during startup
     module-paths: [%./]
     default-suffix: %.reb ; Used by IMPORT if no suffix is provided
     file-types: []
-    result-types: none
+    result-types: _
 
     ; Legacy Behaviors Options (paid attention to only by debug builds)
 
     lit-word-decay: false
     exit-functions-only: false
+    mutable-function-bodies: false
     broken-case-semantics: false
-    refinements-true: false
+    refinements-blank: false
     forever-64-bit-ints: false
     print-forms-everything: false
     break-with-overrides: false
-    none-instead-of-unsets: false
+    none-instead-of-voids: false
     dont-exit-natives: false
     paren-instead-of-group: false
     get-will-get-anything: false
     no-reduce-nested-print: false
     arg1-arg2-arg3-error: false
+    no-infix-lookahead: false
 
     ; These option will only apply if the function which is currently executing
-    ; was created after legacy mode was enabled, and if refinements-true is
+    ; was created after legacy mode was enabled, and if refinements-blank is
     ; set (because that's what marks functions as "legacy" or not")
     ;
     no-switch-evals: false
     no-switch-fallthrough: false
-
-    ; Legacy Options that *cannot* be enabled (due to mezzanine dependency
-    ; on the new behavior).  The points are retained in the code for purpose
-    ; of instruction to those curious about where such a decision is made, or
-    ; even if a motivated individual wanted to change the behavior.  That
-    ; would mean adapting the mezzanine (or finding a way to mark a routine
-    ; as not being in the mezzanine and following a different rule.)
-
-    ;--none at present--
 ]
 
-script: context [
+script: construct [] [
     title:          ; Title string of script
     header:         ; Script header as evaluated
     parent:         ; Script that loaded the current one
     path:           ; Location of the script being evaluated
     args:           ; args passed to script
-        none
+        blank
 ]
 
-standard: context [
+standard: construct [] [
     ; FUNC+PROC implement a native-optimized variant of a function generator.
     ; This is the body template that it provides as the code *equivalent* of
     ; what it is doing (via a more specialized/internal method).  Though
@@ -194,7 +190,19 @@ standard: context [
     ;
     func-body: [
         return: make function! [
-            [{Returns a value from a function.} value [opt-any-value!]]
+            [{Returns a value from a function.} value [<opt> any-value!]]
+            [exit/from/with (context-of 'return) :value]
+        ]
+        leave: make function! [
+            [{Leaves a function, giving no result to the caller.}]
+            [exit/from (context-of 'leave)]
+        ]
+        #BODY
+    ]
+
+    func-no-leave-body: [
+        return: make function! [
+            [{Returns a value from a function.} value [<opt> any-value!]]
             [exit/from/with (context-of 'return) :value]
         ]
         #BODY
@@ -209,38 +217,89 @@ standard: context [
         comment {No return value.}
     ]
 
-    ; A very near-future feature is the ability to have natives supply a
-    ; "source equivalent" implementation body, so you can see what it would
-    ; do if it were not optimized as C code.  This is just a quick test to
-    ; pave the way for BODY-OF to be able to handle such data.
+    ; !!! The PORT! and actor code is deprecated, but this bridges it so
+    ; it doesn't have to build a spec by hand.
     ;
-    quote-body-test: [
-        :value
+    port-actor-spec: [port-actor-parameter [<opt> any-value!]]
+
+    ; !!! The %sysobj.r initialization currently runs natives (notably the
+    ; natives for making objects, and here using COMMENT because it can).
+    ; This means that if the FUNCTION-META information is going to be produced
+    ; from a spec block for natives, it wouldn't be available while the
+    ; natives are getting initialized.
+    ;
+    ; It may be desirable to sort out this dependency by using a construction
+    ; syntax and making this a MAP! or OBJECT! literal.  In the meantime,
+    ; the archetypal context has to be created "by hand" for natives to use,
+    ; with this archetype used by the REDESCRIBE Mezzanine.
+    ;
+    function-meta: construct [] [
+        description:
+        return-type:
+        return-note:
+        parameter-types:
+        parameter-notes:
+            _
     ]
 
-    error: context [ ; Template used for all errors:
-        code: none
+    ; !!! As with FUNCTION-META, this is needed by SPECIALIZE, before
+    ; %sysobj.r has been loaded.  So a copy is built by hand.  Review.
+    ;
+    ; !!! The common case is that specializations will not need to be
+    ; REDESCRIBE'd besides their title.  If they are, then they switch the
+    ; meta archetype to `function-meta` and subset the parameters.  Otherwise
+    ; HELP just follows the `specializee` and gets descriptions there.
+    ;
+    specialized-meta: construct [] [
+        description:
+        specializee:
+        specializee-name:
+            _
+    ]
+
+    adapted-meta: construct [] [
+        description:
+        adaptee:
+        adaptee-name:
+            _
+    ]
+
+    chained-meta: construct [] [
+        description:
+        chainees:
+        chainee-names:
+            _
+    ]
+
+    hijacked-meta: construct [] [
+        description:
+        hijackee:
+        hijackee-name:
+            _
+    ]
+
+    error: construct [] [ ; Template used for all errors:
+        code: _
         type: 'user
-        id:   'message
-        message:
-        near:
-        where:
-            none
+        id: 'message
+        message: _
+        near: _
+        where: _
 
         ; Arguments will be allocated in the context at creation time if
         ; necessary (errors with no arguments will just have a message)
     ]
 
-    script: context [
+    script: construct [] [
         title:
         header:
         parent:
         path:
         args:
-            none
+            blank
     ]
 
-    header: context [
+    header: construct [] [
         title: {Untitled}
         name:
         type:
@@ -254,10 +313,10 @@ standard: context [
 ;       compress:
 ;       exports:
 ;       content:
-            none
+            blank
     ]
 
-    scheme: context [
+    scheme: construct [] [
         name:       ; word of http, ftp, sound, etc.
         title:      ; user-friendly title for the scheme
         spec:       ; custom spec for scheme (if needed)
@@ -266,10 +325,10 @@ standard: context [
 ;       type:       ; bytes, integers, objects, values, block
         actor:      ; standard action handler for scheme port functions
         awake:      ; standard awake handler for this scheme's ports
-            none
+            blank
     ]
 
-    port: context [ ; Port specification object
+    port: construct [] [ ; Port specification object
         spec:       ; published specification of the port
         scheme:     ; scheme object used for this port
         actor:      ; port action handler (script driven)
@@ -278,62 +337,61 @@ standard: context [
         data:       ; data buffer (usually binary or block)
         locals:     ; user-defined storage of local data
 ;       stats:      ; stats on operation (optional)
-            none
+            blank
     ]
 
-    port-spec-head: context [
+    port-spec-head: construct [] [
         title:      ; user-friendly title for port
         scheme:     ; reference to scheme that defines this port
         ref:        ; reference path or url (for errors)
         path:       ; used for files
-           none     ; (extended here)
+           blank    ; (extended here)
     ]
 
-    port-spec-net: make port-spec-head [
-        host: none
+    port-spec-net: construct port-spec-head [
+        host: _
         port-id: 80
-            none
     ]
 
-    port-spec-serial: make port-spec-head [
+    port-spec-serial: construct port-spec-head [
         speed: 115200
         data-size: 8
-        parity: none
+        parity: _
         stop-bits: 1
-        flow-control: none ;not supported on all systems
+        flow-control: _ ;not supported on all systems
     ]
 
-    port-spec-signal: make port-spec-head [
+    port-spec-signal: construct port-spec-head [
         mask: [all]
     ]
 
-    file-info: context [
+    file-info: construct [] [
         name:
         size:
         date:
         type:
-            none
+            blank
     ]
 
-    net-info: context [
+    net-info: construct [] [
         local-ip:
         local-port:
         remote-ip:
         remote-port:
-            none
+            blank
     ]
 
-    extension: context [
+    extension: construct [] [
         lib-base:   ; handle to DLL
         lib-file:   ; file name loaded
         lib-boot:   ; module header and body
         command:    ; command function
         cmd-index:  ; command index counter
         words:      ; symbol references
-            none
+            blank
     ]
 
-    stats: context [ ; port stats
+    stats: construct [] [ ; port stats
         timer:      ; timer (nanos)
         evals:      ; evaluations
         eval-natives:
@@ -346,24 +404,24 @@ standard: context [
         made-blocks:
         made-objects:
         recycles:
-            none
+            blank
     ]
 
-    type-spec: context [
+    type-spec: construct [] [
         title:
         type:
-            none
+            blank
     ]
 
-    utype: none
-    font: none  ; mezz-graphics.h
-    para: none  ; mezz-graphics.h
+    utype: _
+    font: _  ; mezz-graphics.h
+    para: _  ; mezz-graphics.h
 ]
 
-view: context [
-    screen-gob: none
-    handler: none
-    event-port: none
+view: construct [] [
+    screen-gob: _
+    handler: _
+    event-port: _
     event-types: [
         ; Event types. Order dependent for C and REBOL.
         ; Due to fixed C constants, this list cannot be reordered after release!
@@ -442,14 +500,14 @@ view: context [
     ]
 ]
 
-;;stats: none
+;;stats: blank
 
 ;user-license: context [
 ;   name:
 ;   email:
 ;   id:
 ;   message:
-;       none
+;       blank
 ;]
 
 
@@ -500,20 +558,20 @@ view: context [
 ;       data-bits:
 ;       parity:
 ;       stop-bits:
-;           none
+;           blank
 ;       rts-cts: true
 ;       user-data:
 ;       awake:
 
-;   port-flags: context [
+;   port-flags: construct [] [
 ;       direct:
 ;       pass-thru:
 ;       open-append:
 ;       open-new:
-;           none
+;           blank
 ;   ]
 
-;   email: context [ ; Email header object
+;   email: construct [] [ ; Email header object
 ;       To:
 ;       CC:
 ;       BCC:
@@ -529,26 +587,26 @@ view: context [
 ;       MIME-Version:
 ;       Content-Type:
 ;       Content:
-;           none
+;           blank
 ;   ]
 
-;user: context [
+;user: construct [] [
 ;   name:           ; User's name
 ;   email:          ; User's default email address
 ;   home:           ; The HOME environment variable
-;   words: none
+;   words: blank
 ;]
 
-;network: context [
+;network: construct [] [
 ;   host: ""        ; Host name of the user's computer
 ;   host-address: 0.0.0.0 ; Host computer's TCP-IP address
-;   trace: none
+;   trace: blank
 ;]
 
-;console: context [
-;   hide-types: none ; types not to print
-;   history:         ; Log of user inputs
-;   keys: none       ; Keymap for special key
+;console: construct [] [
+;   hide-types: _    ; types not to print
+;   history: _       ; Log of user inputs
+;   keys: _          ; Keymap for special key
 ;   prompt:  {>> }   ; Specifies the prompt
 ;   result:  {== }   ; Specifies result
 ;   escape:  {(escape)} ; Indicates an escape
@@ -558,11 +616,11 @@ view: context [
 ;]
 
 ;           decimal: #"."   ; The character used as the decimal point in decimal and money vals
-;           sig-digits: none    ; Significant digits to use for decimals ; none for normal printing
+;           sig-digits: _    ; Significant digits to use for decimals ; blank for normal printing
 ;           date-sep: #"-"  ; The character used as the date separator
 ;           date-month-num: false   ; True if months are displayed as numbers; False for names
 ;           time-sep: #":"  ; The character used as the time separator
-;   cgi: context [ ; CGI environment variables
+;   cgi: construct [] [ ; CGI environment variables
 ;       server-software:
 ;       server-name:
 ;       gateway-interface:
@@ -579,14 +637,14 @@ view: context [
 ;       remote-user:
 ;       remote-ident:
 ;       Content-Type:           ; cap'd for email header
-;       content-length: none
+;       content-length: blank
 ;       other-headers: []
 ;   ]
 ;   browser-type: 0
 
 ;   trace:          ; True if the --trace flag was specified
-;   help: none      ; True if the --help flags was specified
-;   halt: none      ; halt after script
+;   help: blank      ; True if the --help flags was specified
+;   halt: blank      ; halt after script
 
-;-- Expectation is that evaluation ends in UNSET!, empty parens makes one
+;-- Expectation is that evaluation ends with no result, empty GROUP! does that
 ()

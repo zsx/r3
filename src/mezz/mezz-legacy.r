@@ -1,10 +1,9 @@
 REBOL [
     System: "REBOL [R3] Language Interpreter and Run-time Environment"
     Title: "REBOL 3 Mezzanine: Legacy compatibility"
+    Homepage: https://trello.com/b/l385BE7a/porting-guide
     Rights: {
-        Copyright 1997-2015 REBOL Technologies
-        Copyright 2012-2015 Rebol Open Source Contributors
-
+        Copyright 2012-2016 Rebol Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -12,168 +11,120 @@ REBOL [
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
     Description: {
-        These definitions turn the clock backward for Rebol code that was
-        written prior to Ren/C, e.g. binaries available on rebolsource.net
-        or R3-Alpha binaries from rebol.com.  Some flags which are set
-        which affect the behavior of natives and the evaluator ARE ONLY
-        ENABLED IN DEBUG BUILDS OF REN/C...so be aware of that.
+        These definitions attempt to create a compatibility mode for Ren-C,
+        so that it operates more like R3-Alpha.
 
         Some "legacy" definitions (like `foreach` as synonym of `for-each`)
-        are kept by default for now, possibly indefinitely.  For other
-        changes--such as variations in behavior of natives of the same
-        name--you need to add the following to your code:
+        are enabled by default, and may remain indefinitely.  Other changes
+        may be strictly incompatible: words have been used for different
+        purposes, or variations in natives of the same name.  Hence it is
+        necessary to "re-skin" the environment, by running:
 
             do <r3-legacy>
 
         (Dispatch for this from DO is in the DO* function of %sys-base.r)
 
         This statement will do nothing in older Rebols, since executing a
-        tag evaluates to just a tag.  Note that the current trick will
-        modify the user context directly, and is not module-based...so
-        you really are sort of "backdating" the system globally.  A
-        more selective version that turns features on and off one at
-        a time to ease porting is needed, perhaps like:
+        tag evaluates to just a tag.
+
+        Though as much of the compatibility bridge as possible is sought to
+        be implemented in user code, some flags affect the executable behavior
+        of the evaluator.  To avoid interfering with the native performance of
+        Ren-C, THESE ARE ONLY ENABLED IN DEBUG BUILDS.  Be aware of that.
+
+        Legacy mode is intended to assist in porting efforts to Ren-C, and to
+        exercise the abilities of the language to "flex".  It is not intended
+        as a "supported" operating mode.  Contributions making it work more
+        seamlessly are welcome, but scheduling of improvements to the legacy
+        mode are on a strictly "as-needed" basis.
+    }
+    Notes: {
+        At present it is a one-way street.  Once `do <r3-legacy>` is run,
+        there is no clean "shutdown" of legacy mode to go back to plain Ren-C.
+
+        The current trick will modify the user context directly, and is not
+        module-based...so you really are sort of "backdating" the system
+        globally.  A more selective version that turns features on and off
+        one at a time to ease porting is needed, perhaps like:
 
             do/args <r3-legacy> [
                 new-do: off
                 question-marks: on
             ]
-
-        As always, feedback and improvement welcome.  A porting guide Trello
-        has been started at:
-
-            https://trello.com/b/l385BE7a/porting-guide
     }
 ]
 
-; This identifies if r3-legacy mode is has been turned on, useful mostly only
-; for turning it off again.
+; This identifies if r3-legacy mode is has been turned on, useful mostly
+; to avoid trying to turn it on twice.
 ;
 r3-legacy-mode: off
 
 
-op?: func [
-    "Returns TRUE if the argument is an ANY-FUNCTION? and INFIX?"
-    value [opt-any-value!]
-][
-    either function? :value [:infix? :value] false
-]
-
-
-; GROUP! is a better name than PAREN! for many reasons.  It's a complete word,
-; it's no more characters, it doesn't have the same first two letters as
-; PATH! so it mentally and typographically hashes better from one of the two
-; other array types, it describes the function of what it does in the
-; evaluator (where "BLOCK! blocks evaluation of the contents, the GROUP!
-; does normal evaluation but limits it to the group)...
-;
-; Historically, changing the name of a type was especially burdensome because
-; the name would be encoded when you did a TO-WORD on it, such as in order
-; to perform a SWITCH.  (Rebol2 added TYPE?/WORD to make this convenient.)
-; Now it is possible to use get-words in SWITCH to lookup, so things should
-; be easier.
-;
-; What one uses in one's code is one's own choice.  But the internal canon
-; for the term in Ren-C's code and mezzanine is GROUP!
+; Ren-C *prefers* the use of GROUP! to PAREN!, both likely to remain legal.
+; https://trello.com/c/ANlT44nH
 ;
 paren?: :group?
 paren!: :group!
 to-paren: :to-group
 
 
-; The TYPE?/WORD primitive is adjusted to give back PAREN! as the word if
-; the legacy switch for it is enabled.
+; CONSTRUCT (arity 2) and HAS (arity 1) have arisen as the OBJECT!-making
+; routines, parallel to FUNCTION (arity 2) and DOES (arity 1).  By not being
+; nouns like CONTEXT and OBJECT, they free up those words for other usages.
+; For legacy support, both CONTEXT and OBJECT are just defined to be HAS.
 ;
-; The previous /WORD refinement was common because things like SWITCH
-; statements wanted to operate on the word for the datatype, since in
-; unevaluated contexts INTEGER! would be a WORD! and not a DATATYPE!.  With
-; change to allow lax equality comparisons to see a datatype and its word
-; as being equal, this is not as necessary.  Cases that truly need it can
-; use TO-WORD TYPE-OF.
+; Note: Historically OBJECT was essentially a synonym for CONTEXT with the
+; ability to tolerate a spec of `[a:]` by transforming it to `[a: none].
+; The tolerance of ending with a set-word has been added to CONSTRUCT+HAS
+; so this distinction is no longer required.
 ;
-type?: function [
-    "Returns the datatype of a value <r3-legacy>."
-    value [opt-any-value!]
-    /word "No longer in TYPE-OF, as WORD! and DATATYPE! can be EQUAL?"
-][
-    either word [
-        ;
-        ; For legacy compatibility, type?/word will return PAREN! instead
-        ; of the Ren-C standard GROUP! if the switch is on.
-        ;
-        either all [
-            (word: to-word type-of :value) = 'group!
-            system/options/paren-instead-of-group
-        ] [paren!] [word]
-    ][
-        type-of :value
-    ]
+context: object: :has
+
+
+; General renamings away from non-LOGIC!-ending-in-?-functions
+; https://trello.com/c/DVXmdtIb
+;
+index?: :index-of
+offset?: :offset-of
+sign?: :sign-of
+suffix?: :suffix-of
+
+comment [
+    ; !!! Less common cases still linger as question mark routines that
+    ; don't return LOGIC!, and they seem like they need greater rethinking in
+    ; general. What replaces them (for ones that are kept) might be new.
+    ;
+    encoding?: _
+    file-type?: _
+    speed?: _
+    why?: _
+    info?: _
+    exists?: _
 ]
 
 
-; See also prot-http.r, which has an actor with a LENGTH? "method".  Given
-; how actors work, it cannot be overriden here.
+; Semi-controversial choice to take a noun to avoid "lengthening LENGTH?"
+; https://trello.com/c/4OT7qvdu
+;
 length?: :length
 
-index?: :index-of
 
-offset?: :offset-of
-
-sign?: :sign-of
-
-suffix?: :suffix-of
-
-; While `foreach` may have been comfortable for some as a word, its hard
-; not to see the word `reach` inside of it.  Once you recognize that it's
-; not a word and see it with fresh eyes, it looks bad...and also not part
-; of the family of other -each functions like `remove-each` and `map-each`.
-; The need for the hyphen for `for-each` isn't that bad, but the hyphen
-; does break the rhythm a little bit.  `every` was selected as a
-; near-synonym of `for-each` (with a different return result).
-;
-; Because there is no eager need to retake foreach for any other purpose
-; and it doesn't convey any fundamentally incorrect idea, it is low on
-; the priority list to eliminate completely.  It may be retained as a
-; synonym, and `each` may be considered as well.  The support of synonyms
-; is controversial and should be balanced against the value of standards.
+; FOREACH isn't being taken for anything else, may stay a built-in synonym
+; https://trello.com/c/cxvHGNha
 ;
 foreach: :for-each
 
 
-; Ren-C's FOR-NEXT is a more lenient version of FORALL, which allows you to
-; switch the variable being iterated to any other type of series--NONE will
-; terminate the enumeration, so will reaching the tail.  (R3-Alpha let you
-; switch series, but only if the type matched what you initially started
-; enumerating).
-;
-; Additionally, it adds FOR-BACK to do a reverse enumeration.  Both of these
-; are simply variations of FOR-SKIP with 1 and -1 respectively.
+; FOR-NEXT lets you switch series (unlike FORALL), see also FOR-BACK
+; https://trello.com/c/StCADPIB
 ;
 forall: :for-next
 forskip: :for-skip
 
 
-; The distinctions between Rebol's types is important to articulate.
-; So using the term "BLOCK" generically to mean any composite
-; series--as well as specificially the bracketed block type--is a
-; recipe for confusion.
+; Both in user code and in the C code, good to avoid BLOCK! vs. ANY-BLOCK!
+; https://trello.com/c/lCSdxtux
 ;
-; Importantly: it also makes it difficult to get one's bearings
-; in the C sources.  It's hard to find where exactly the bits are in
-; play that make something a bracketed block...or if that's what you
-; are dealing with at all.  Hence some unique name for the typeclass
-; is needed.
-;
-; The search for a new word for the ANY-BLOCK! superclass went on for
-; a long time.  LIST! was looking like it might have to be the winner,
-; until ARRAY! was deemed more fitting.  The notion that a "Rebol
-; Array" contains "Rebol Values" that can be elements of any type
-; (including other arrays) separates it from the other series classes
-; which can only contain one type of element (codepoints for strings,
-; bytes for binaries, numbers for vector).  In the future those may
-; have more unification under a typeclass of their own, but ARRAY!
-; is for BLOCK!, PAREN!, PATH!, GET-PATH!, SET-PATH!, and LIT-PATH!
-
 any-block!: :any-array!
 any-block?: :any-array?
 
@@ -186,29 +137,26 @@ any-object!: :any-context!
 any-object?: :any-context?
 
 
-; By having typesets prefixed with ANY-*, it helps cement the realization
-; on the user's part that they are not dealing with a concrete type...so
-; even though this is in the function prototype, they will not get back
-; that answer from TYPE-OF, nor could they pass it to MAKE or TO.  Because
-; typsets cannot be returned in that way, they're easier than most things
-; to make synonyms for the old ANY-less variations.
-
+; Typesets containing ANY- helps signal they are not concrete types
+; https://trello.com/c/d0Nw87kp
+;
 number!: :any-number!
 number?: :any-number?
-
 scalar!: :any-scalar!
 scalar?: :any-scalar?
-
 series!: :any-series!
 series?: :any-series?
 
-; ANY-TYPE! had an ambiguity in it, which was that with DATATYPE! around
-; (possibly being renamed to TYPE! but maybe not) it sounded as if it might
-; mean ANY-DATATYPE!--which is more narrow than what it meant to say which
-; is "really, any legal Rebol value, type or otherwise".  So ANY-VALUE! is
-; the better word for that.  Added for backwards compatibility.
+
+; ANY-TYPE! is ambiguous with ANY-DATATYPE!
+; https://trello.com/c/1jTJXB0d
 ;
-any-type!: :opt-any-value!
+; !!! For compatibility to mean "typeset including void", this uses an
+; undocumented internal feature of MAKE TYPESET! which lets voids be put in
+; the set.  This may not wind up being a user-visible feature.
+;
+any-type!: make typeset! [_ any-value!]
+
 
 ; BIND? and BOUND? didn't fit the naming convention of returning LOGIC! if
 ; they end in a question mark.  Also, CONTEXT-OF is more explicit about the
@@ -217,17 +165,6 @@ any-type!: :opt-any-value!
 ;
 bound?: :context-of
 bind?: :context-of
-
-; !!! These less common cases still linger as question mark routines that
-; don't return LOGIC!, and they seem like they need greater rethinking in
-; general. What replaces them (for ones that are kept) might be entirely new.
-
-;encoding?
-;file-type?
-;speed?
-;why?
-;info?
-;exists?
 
 
 ; !!! Technically speaking all frames should be "selfless" in the sense that
@@ -239,6 +176,80 @@ selfless?: func [context [any-context!]] [
     fail {selfless? no longer has meaning (all frames are "selfless")}
 ]
 
+unset!: func [dummy:] [
+    fail/where [
+        {UNSET! is not a datatype in Ren-C.}
+        {You can test with VOID? (), but the TYPE-OF () is a NONE! *value*}
+        {So NONE? TYPE-OF () will be TRUE.}
+    ] 'dummy
+]
+
+unset?: func [dummy:] [
+    fail/where [
+        {UNSET? is reserved in Ren-C for future use}
+        {(Will mean VOID? GET, like R3-Alpha VALUE?, only for WORDs/PATHs}
+        {Use VOID? for a similar test, but be aware there is no UNSET! type}
+        {If running in <r3-legacy> mode, old UNSET? meaning is available}
+    ] 'dummy
+]
+
+value?: func [dummy:] [
+    fail/where [
+        {VALUE? is reserved in Ren-C for future use}
+        {(It will be a shorthand for ANY-VALUE! a.k.a. NOT VOID?)}
+        {SET? is similar to R3-Alpha VALUE?--but SET? only takes words}
+        {If running in <r3-legacy> mode, old VALUE? meaning is available.}
+    ] 'dummy
+]
+
+none-of: :none ;-- reduce mistakes for now by renaming NONE out of the way
+
+none?: none!: none: func [dummy:] [
+    fail/where [
+        {NONE is reserved in Ren-C for future use}
+        {(It will act like NONE-OF, e.g. NONE [a b] => ALL [not a not b])}
+        {_ is now a "BLANK! literal", with BLANK? test and BLANK the word.}
+        {If running in <r3-legacy> mode, old NONE meaning is available.}
+    ] 'dummy
+]
+
+type?: func [dummy:] [
+    fail/where [
+        {TYPE? is reserved in Ren-C for future use}
+        {(Though not fixed in stone, it may replace DATATYPE?)}
+        {TYPE-OF is the current replacement, with no TYPE-OF/WORD}
+        {Use soft quotes, e.g. SWITCH TYPE-OF 1 [:INTEGER! [...]]}
+        {If running in <r3-legacy> mode, old TYPE? meaning is available.}
+    ] 'dummy
+]
+
+found?: func [dummy:] [
+    fail/where [
+        {FOUND? is deprecated in Ren-C, see chained function FIND?}
+        {FOUND? is available if running in <r3-legacy> mode.}
+    ] 'dummy
+]
+
+op?: func [dummy:] [
+    fail/where [
+        {OP? can't work in Ren-C because there are no "infix FUNCTION!s"}
+        {"infixness" is a proerty of a word binding, made via SET/LOOKBACK}
+        {See: LOOKBACK?, INFIX?, PREFIX?, ENDFIX?}
+    ] 'dummy
+]
+
+
+; There were several different strata of equality checks, and one was EQUIV?
+; as well as NOT-EQUIV?.  With changes to make comparisons inside the system
+; indifferent to binding (unless SAME? is used), these have been shaken up
+; instead focusing on getting more foundational comparisons working.
+;
+; These aren't correct but placeholders for putting in the real functionality
+; if it actually matters.
+;
+equiv?: :equal?
+not-equiv?: :not-equal?
+
 
 ; The legacy PRIN construct is equivalent to PRINT/ONLY of a reduced value
 ; (since PRIN of a block would historically execute it).
@@ -246,10 +257,17 @@ selfless?: func [context [any-context!]] [
 prin: function [
     "Print value, no line break, reducing blocks.  <r3-legacy>, use PRINT/ONLY"
 
-    value [opt-any-value!]
+    value [<opt> any-value!]
+    /eval
 ][
-    print/only either block? :value [reduce value] [:value]
+    eval: if any [eval | semiquoted? 'value] ['eval]
+    print/delimit/only/:eval :value space
 ]
+
+; Common debug abbreviations that should be console-only (if anything)
+;
+dt: :delta-time
+dp: :delta-profile
 
 
 ; BREAK/RETURN was supplanted by BREAK/WITH.  The confusing idea of involving
@@ -265,11 +283,11 @@ break: func [
 
     /with
         {Act as if loop body finished current evaluation with a value}
-    value [opt-any-value!]
+    value [<opt> any-value!]
 
     /return ;-- Overrides RETURN!
         {(deprecated: mostly /WITH synonym, use THROW+CATCH if not)}
-    return-value [opt-any-value!]
+    return-value [<opt> any-value!]
 ][
     lib-break/with either return :return-value :value
 ]
@@ -283,27 +301,36 @@ break: func [
 ; meaning and sense)
 ;
 lib-set: :set ; overwriting lib/set for now
-set: func [
+set: function [
     {Sets a word, path, block of words, or context to specified value(s).}
 
+    return: [<opt> any-value!]
+        {Just chains the input value (unmodified)}
     target [any-word! any-path! block! any-context!]
         {Word, block of words, path, or object to be set (modified)}
-    value [opt-any-value!]
+    value [<opt> any-value!]
         "Value or block of values"
     /opt
         "Value is optional, and if no value is provided then unset the word"
     /pad
         {For objects, set remaining words to NONE if block is too short}
+    /lookback
+        {If value is a function, then make the bound word dispatch infix}
     /any
         "Deprecated legacy synonym for /opt"
 ][
-    lib-set/(
-        case [
-            any 'opt ;-- Note: refinement, not native ANY []
-            opt 'opt ;-- Note: refinement, not native OPT
-            'default none
-        ]
-    )/:pad target :value
+    set_ANY: any
+    any: :lib/any
+    set_OPT: opt
+    opt: :lib/opt
+
+    apply 'lib-set [
+        target: target
+        value: :value
+        opt: any? [set_ANY set_OPT]
+        pad: pad
+        lookback: lookback
+    ]
 ]
 
 
@@ -328,10 +355,11 @@ set: func [
 lib-get: :get
 get: function [
     {Gets the value of a word or path, or values of a context.}
+    return: [<opt> any-value!]
     source
         "Word, path, context to get"
     /opt
-        "The source may optionally have no value (allows returning UNSET!)"
+        "The source may optionally have no value (allows returning void)"
     /any
         "Deprecated legacy synonym for /OPT"
 ][
@@ -341,12 +369,12 @@ get: function [
     opt: :lib/opt
 
     either any [
-        none? :source
+        blank? :source
         any-word? :source
         any-path? :source
         any-context? :source
     ][
-        lib-get/(either any [opt_GET any_GET] 'opt none) :source
+        lib-get/(if any [opt_GET any_GET] 'opt) :source
     ][
         if system/options/get-will-get-anything [:source]
         fail ["GET takes ANY-WORD!, ANY-PATH!, ANY-CONTEXT!, not" (:source)]
@@ -354,20 +382,12 @@ get: function [
 ]
 
 
-; In word-space, TRY is very close to ATTEMPT, in having ambiguity about what
-; is done with the error if one happens.  It also has historical baggage with
-; TRY/CATCH constructs. TRAP does not have that, and better parallels CATCH
-; by communicating you seek to "trap errors in this code (with this handler)"
-; Here trapping the error suggests you "caught it in a trap" and it is
-; in the trap (and hence in your possession) to examine.  /WITH is not only
-; shorter than /EXCEPT but it makes much more sense.
-;
-; !!! This may free up TRY for more interesting uses, such as a much shorter
-; word to use for ATTEMPT.  Even so, this is not a priority at this point in
-; time...so TRY is left to linger without needing `do <r3-legacy>`
+; TRAP makes more sense as parallel-to-CATCH, /WITH makes more sense too
+; https://trello.com/c/IbnfBaLI
 ;
 try: func [
     {Tries to DO a block and returns its value or an error.}
+    return: [<opt> any-value!]
     block [block!]
     /except "On exception, evaluate this code block"
     code [block! function!]
@@ -376,158 +396,100 @@ try: func [
 ]
 
 
-; HAS is targeted for use to be the arity-1 parallel to OBJECT as arity-2,
-; (similar to the relationship between DOES and FUNCTION).
+; R3-Alpha's APPLY had a historically brittle way of handling refinements,
+; based on their order in the function definition.  e.g. the following would
+; be how to say saying `APPEND/ONLY/DUP A B 2`:
 ;
-has: func [
-    {A shortcut to define a function that has local variables but no arguments.}
-    vars [block!] {List of words that are local to the function}
-    body [block!] {The body block of the function}
-][
-    func (head insert copy vars /local) body
-]
-
-
-; APPLY is a historically brittle construct, that has been eclipsed by the
-; evolution of the evaluator.  An APPLY filling in arguments is positionally
-; dependent on the order of the refinements in the function spec, while
-; it is now possible to do through alternative mechanisms...e.g. the
-; ability to revoke refinement requests via UNSET! and to evaluate refinement
-; words via parens or get-words in a PATH!.
+;     apply :append [a b none none true true 2]
 ;
-; Delegating APPLY to "userspace" incurs cost, but there's not really any good
-; reason for its existence or usage any longer.  So if it's a little slower,
-; that's a good incentive to switch to using the evaluator proper.  It means
-; that C code for APPLY does not have to be maintained, which is trickier code
-; to read and write than this short function.
+; Ren-C's default APPLY construct is based on evaluating a block of code in
+; the frame of a function before running it.  This allows refinements to be
+; specified as TRUE or FALSE and the arguments to be assigned by name.  It
+; also accepts a WORD! or PATH! as the function argument which it fetches,
+; which helps it deliver a better error message labeling the applied function
+; (instead of the stack frame appearing "anonymous"):
 ;
-; (It is still lightly optimized as a FUNC with no additional vars in frame)
+;     apply 'append [
+;         series: a
+;         value: b
+;         only: true
+;         dup: true
+;         count: true
+;     ]
 ;
-r3-alpha-apply: func [
+; For most usages this is better, though it has the downside of becoming tied
+; to the names of parameters at the callsite.  One might not want to remember
+; those, or perhaps just not want to fail if the names are changed.
+;
+; This implementation of R3-ALPHA-APPLY is a stopgap compatibility measure for
+; the positional version.  It shows that such a construct could be written in
+; userspace--even implementing the /ONLY refinement.  This is hoped to be a
+; "design lab" for figuring out what a better positional apply might look like.
+;
+r3-alpha-apply: function [
     "Apply a function to a reduced block of arguments."
 
-    ; This does not work with infix operations.  It *could* be adapted to
-    ; work, but as a legacy concept it's easier just to say don't do it.
-    func [function!]
+    return: [<opt> any-value!]
+    action [function!]
         "Function value to apply"
     block [block!]
         "Block of args, reduced first (unless /only)"
-    /only ;-- reused as whether we are actively fulfilling args
+    /only
         "Use arg values as-is, do not reduce the block"
 ][
-    block: either only [copy block] [reduce block]
+    frame: make frame! :action
+    params: words-of :action
+    using-args: true
 
-    ; Note: shallow modifying `block` now no longer modifies the original arg
+    while [not tail? block] [
+        arg: either only [
+            also block/1 (block: next block)
+        ][
+            do/next block 'block
+        ]
 
-    ; Since /ONLY has done its job, we reuse it to track whether we are
-    ; using args or a refinement or not...
-
-    only: true
-
-    every param words-of first (func: to-path :func) [
-        case [
-            tail? block [
-                ; We still have more words in the function spec, but no more
-                ; values in the block.  This may be okay (if it's refinements)
-                ; or it might not be okay, but let the main evaluator do the
-                ; error delivery when we DO/NEXT on it if it's a problem.
-
-                break
+        either refinement? params/1 [
+            using-args: set (in frame params/1) true? :arg
+        ][
+            if using-args [
+                set/opt (in frame params/1) :arg
             ]
+        ]
 
-            refinement? param [
-                ; A refinement is considered used if in the block in that
-                ; position slot there is a conditionally true value.  Remember
-                ; whether it was in `only` so we know if we should ignore the
-                ; ensuing refinement args or not.
+        params: next params
+    ]
 
-                if only: take block [
-                    append func to-word param ;-- remember func is a path now
-                ]
-            ]
-
-            only [
-                ; User-mode APPLY is built on top of DO.  It requires knowledge
-                ; of the reduced value of refinements, and DO will reduce also.
-                ; So we need to insert a quote on each arg that we have already
-                ; possibly reduced and don't want to again.
-                ;
-                ; Only do this quote if the argument is evaluative...because
-                ; if it's quoted--either a hard quote or soft quote--then it
-                ; would wind up quoting `quote`...
-                ;
-                ; (Remember that this is a legacy construct with bad positional
-                ; invariants that no one should be using anymore.  Also that
-                ; QUOTE as a NATIVE! will be very optimized.)
-
-                block: next either word? param [
-                    insert block 'quote
-                ][
-                    block
-                ]
-            ]
-
-            'default [
-                ; ignoring (e.g. an unused refinement arg in the block slot)
-                take block
-            ]
+    comment [
+        ;
+        ; Too many arguments was not a problem for R3-alpha's APPLY, it would
+        ; evaluate them all even if not used by the function.  It may or
+        ; may not be better to have it be an error.
+        ;
+        unless tail? block [
+            fail "Too many arguments passed in R3-ALPHA-APPLY block."
         ]
     ]
 
-    block: head block
-
-    also (
-        ; We use ALSO so the result of the DO/NEXT is what we return, while
-        ; we do a check to make sure all the arguments were consumed.
-
-        do/next compose [
-            (func) ;-- actually a path now, with a FUNCTION! in the first slot
-
-            (head block) ;-- args that were needed, all refinement cues gone
-        ] 'block
-    ) unless tail? block [
-        fail "Too many arguments passed in APPLY block for function."
-    ]
+    do frame ;-- voids are optionals
 ]
 
-
-; CLOSURE has been unified with FUNCTION by attacking the two facets that it
-; offers separately.  One is the ability for its arguments and locals to
-; survive the call, which has been recast using the tag `<durable>`.  The
-; other is the specific binding of words in the body to the frame of origin
-; vs to whichever call to the function is on the stack.  That is desired to
-; be pushed as a feature of FUNCTION! that runs at acceptable cost and one
-; never has to ask for.
-;
-; For the moment, the acceptable-cost version is in mid-design, so `<durable>`
-; in the function spec indicates a request for both properties.
+; In Ren-C, FUNCTION's variables have indefinite extent (aka <durable>), and
+; the body is specifically bound to those variables.  (There is no dynamic
+; binding in Ren-C)
 ;
 closure: func [
-    {Defines a closure function with all set-words as locals.}
-    spec [block!]
-        {Help string (opt) followed by arg words (and opt type and string)}
-    body [block!]
-        {The body block of the function}
-    /with
-        {Define or use a persistent object (self)}
-    object [object! block! map!]
-        {The object or spec}
-    /extern
-        {These words are not local}
-    words [block!]
+    return: [<opt> any-value!]
+    spec
+    body
 ][
-    apply :function [
-        spec: compose [<durable> (spec)]
-        body: body
-        if with: with [
-            object: object
-        ]
-        if extern: extern [
-            words: :words
-        ]
-    ]
+    function compose [
+        return: [<opt> any-value!]
+        (spec)
+    ] body
 ]
 
+; FUNC variables are not durable by default, it must be specified explicitly.
+;
 clos: func [
     "Defines a closure function."
     spec [block!]
@@ -547,53 +509,138 @@ any-function!: :function!
 any-function?: :function?
 
 native!: function!
-native?: func [f] [all [function? :f | 1 = func-class-of :f]]
+native?: func [f [<opt> any-value!]] [
+    all [function? :f | 1 = func-class-of :f]
+]
 
 ;-- If there were a test for user-written functions, what would it be called?
 ;-- it would be function class 2 ATM
 
 action!: function!
-action?: func [f] [all [function? :f | 3 = func-class-of :f]]
+action?: func [f [<opt> any-value!]] [
+    all [function? :f | 3 = func-class-of :f]
+]
 
 command!: function!
-command?: func [f] [all [function? :f | 4 = func-class-of :f]]
+command?: func [f [<opt> any-value!]] [
+    all [function? :f | 4 = func-class-of :f]
+]
 
 routine!: function!
-routine?: func [f] [all [function? :f | 5 = func-class-of :f]]
+routine?: func [f [<opt> any-value!]] [
+    all [function? :f | 5 = func-class-of :f]
+]
 
 callback!: function!
-callback?: func [f] [all [function? :f | 6 = func-class-of :f]]
+callback?: func [f [<opt> any-value!]] [
+    all [function? :f | 6 = func-class-of :f]
+]
 
-; To bridge legacy calls to MAKE ROUTINE!, MAKE COMMAND!, and MAKE CALLBACK!
+
+; In Ren-C, MAKE for OBJECT! does not use the "type" slot for parent
+; objects.  You have to use the arity-2 CONSTRUCT to get that behavior.
+; Also, MAKE OBJECT! does not do evaluation--it is a raw creation,
+; and requires a format of a spec block and a body block.
+;
+; Because of the commonality of the alternate interpretation of MAKE, this
+; bridges until further notice.
+;
+; Also: bridge legacy calls to MAKE ROUTINE!, MAKE COMMAND!, and MAKE CALLBACK!
 ; while still letting ROUTINE!, COMMAND!, and CALLBACK! be valid to use in
 ; typesets invokes the new variadic behavior.  This can only work if the
 ; source literally wrote out `make routine!` vs an expression that evaluated
 ; to the routine! datatype (for instance) but should cover most cases.
 ;
-lib-make: :lib/make
-make: func [
+lib-make: :make
+make: function [
     "Constructs or allocates the specified datatype."
-    :lookahead [opt-any-value! <...>]
-    type [opt-any-value! <...>]
+    return: [any-value!]
+    :lookahead [any-value! <...>]
+    type [<opt> any-value! <...>]
         "The datatype or an example value"
-    spec [opt-any-value! <...>]
+    def [<opt> any-value! <...>]
         "Attributes or size of the new value (modified)"
 ][
     switch first lookahead [
         callback! [
-            assert [function! = take type]
-            make-callback take spec
+            verify [function! = take type]
+            def: ensure block! take def
+            ffi-spec: ensure block! first def
+            action: ensure function! reduce second def
+            return make-callback :action ffi-spec
         ]
         routine! [
-            assert [function! = take type]
-            make-routine take spec
+            verify [function! = take type]
+            def: ensure block! take def
+            ffi-spec: ensure block! first def
+            lib: ensure [integer! library!] reduce second def
+            if integer? lib [ ;-- interpreted as raw function pointer
+                return make-routine-raw lib ffi-spec
+            ]
+            name: ensure string! third def
+            return make-routine lib name ffi-spec
         ]
         command! [
-            assert [function! = take type]
-            make-command take spec
+            verify [function! = take type]
+            def: ensure block! take def
+            return make-command def
         ]
-        (lib-make take type take spec)
     ]
+
+    type: take type
+    def: take def
+
+    case [
+        all [
+            :type = object!
+            block? :def
+            not block? first def
+        ][
+            ;
+            ; MAKE OBJECT! [x: ...] vs. MAKE OBJECT! [[spec][body]]
+            ; This old style did evaluation.  Must use a generator
+            ; for that in Ren-C.
+            ;
+            return has :def
+        ]
+
+        any [
+            object? :type | struct? :type | gob? :type
+        ][
+            ;
+            ; For most types in Rebol2 and R3-Alpha, MAKE VALUE [...]
+            ; was equivalent to MAKE TYPE-OF VALUE [...].  But with
+            ; objects, MAKE SOME-OBJECT [...] would interpret the
+            ; some-object as a parent.  This must use a generator
+            ; in Ren-C.
+            ;
+            ; The STRUCT!, GOB!, and EVENT! types had a special 2-arg
+            ; variation as well, which is bridged here.
+            ;
+            return construct :type :def
+        ]
+    ]
+
+    ; R3-Alpha would accept an example value of the type in the first slot.
+    ; This is of questionable utility.
+    ;
+    unless datatype? :type [
+        type: type-of :type
+    ]
+
+    if all [find any-array! :type | any-array? :def] [
+        ;
+        ; MAKE BLOCK! of a BLOCK! was changed in Ren-C to be
+        ; compatible with the construction syntax, so that it lets
+        ; you combine existing array data with an index used for
+        ; aliasing.  It is no longer a synonym for TO ANY-ARRAY!
+        ; that makes a copy of the data at the source index and
+        ; changes the type.  (So use TO if you want that.)
+        ;
+        return to :type :def
+    ]
+
+    lib-make :type :def
 ]
 
 
@@ -601,32 +648,134 @@ make: func [
 ; directly, as that will be a no-op in older Rebols.  Notice the word
 ; is defined in sys-base.r, as it needs to be visible pre-Mezzanine
 ;
-; Legacy mode is specifically intended to assist in porting efforts to
-; Ren-C, not as a permanent operating mode.  While contributions making it
-; work more seamlessly are more than welcome, scheduling of improvements to
-; the legacy mode are on a strictly "as-needed" basis.
+; !!! There are a lot of SET-WORD!s in this routine inside an object append.
+; So it's a good case study of how one can get a very large number of
+; locals if using FUNCTION.  Study.
 ;
-set 'r3-legacy* func [] [
+set 'r3-legacy* func [<local> if-flags] [
 
-    ; There's no clean "shutdown" of legacy mode at this time to go back to
-    ; plain Ren-C.  The code that enables legacy mode also is allowed to use
-    ; Ren-C features, which would not be available if running a second time
-    ; while legacy mode is on.  Hence make running multiple times a no-op.
+    if r3-legacy-mode [return blank]
+
+    ; NOTE: these flags only work in debug builds.  A better availability
+    ; test for the functionality is needed, as these flags may be expired
+    ; at different times on a case-by-case basis.
     ;
-    if r3-legacy-mode [return none]
+    ; (We don't flip these switches until after the above functions have been
+    ; created, so that the shims can use Ren-C features like word-valued
+    ; refinements/etc.)
+    ;
+    system/options/lit-word-decay: true
+    system/options/broken-case-semantics: true
+    system/options/exit-functions-only: true
+    system/options/mutable-function-bodies: true
+    system/options/refinements-blank: true
+    system/options/no-switch-evals: true
+    system/options/no-switch-fallthrough: true
+    system/options/forever-64-bit-ints: true
+    system/options/print-forms-everything: true
+    system/options/break-with-overrides: true
+    system/options/none-instead-of-voids: true
+    system/options/arg1-arg2-arg3-error: true
+    system/options/dont-exit-natives: true
+    system/options/paren-instead-of-group: true
+    system/options/get-will-get-anything: true
+    system/options/no-reduce-nested-print: true
+    system/options/no-infix-lookahead: true
 
     append system/contexts/user compose [
 
-        and: (:and*)
+        ; UNSET! as a reified type does not exist in Ren-C.  There is still
+        ; a "void" state as the result of `do []` or just `()`, and it can be
+        ; passed around transitionally.  Yet this "meta" result cannot be
+        ; stored in blocks.
+        ;
+        ; Over the longer term, UNSET? should be something that takes a word
+        ; or path to tell whether a variable is unset... but that is reserved
+        ; for NOT SET? until legacy is adapted.
+        ;
+        unset?: (:void?)
 
-        or: (:or+)
+        ; Result from TYPE-OF () is a NONE!, so this should allow one to write
+        ; `unset! = type-of ()`.  Also, a NONE! value in a typeset spec is
+        ; used to indicate a willingness to tolerate optional arguments, so
+        ; `foo: func [x [unset! integer!] x][...]` should work in legacy mode
+        ; for making an optional x argument.
+        ;
+        ; Note that with this definition, `datatype? unset!` will fail.
+        ;
+        unset!: _
 
-        xor: (:xor-)
+        ; NONE is reserved for NONE-OF in the future
+        ;
+        none: (:blank)
+        none!: (:blank!)
+        none?: (:blank?)
+
+        ; The bizarre VALUE? function would look up words, return TRUE if they
+        ; were set and FALSE if not.  All other values it returned TRUE.  The
+        ; parameter was not optional, so you couldn't say `value?`.
+        ;
+        value?: (func [
+            {If a word, return whether word is set...otherwise TRUE}
+            value
+        ][
+            either any-word? :value [set? value] [true]
+        ])
+
+        ; Note that TYPE?/WORD is less necessary since SWITCH can soft quote
+        ; https://trello.com/c/fjJb3eR2
+        ;
+        type?: (function [
+            "Returns the datatype of a value <r3-legacy>."
+            value [<opt> any-value!]
+            /word
+        ][
+            case [
+                not word [type-of :value]
+
+                not set? 'value [quote unset!] ;-- https://trello.com/c/rmsTJueg
+
+                blank? :value [quote none!] ;-- https://trello.com/c/vJTaG3w5
+
+                all [
+                    group? :value
+                    system/options/paren-instead-of-group
+                ][
+                    quote paren! ;-- https://trello.com/c/ANlT44nH
+                ]
+
+                'default [to-word type-of :value]
+            ]
+        ])
+
+        found?: (func [
+            "Returns TRUE if value is not NONE."
+            value
+        ][
+            not blank? :value
+        ])
+
+        ; These words do NOT inherit the infixed-ness, and you simply cannot
+        ; set things infix through a plain set-word.  We have to do this
+        ; after the words are appended to the object.
+
+        and: _
+
+        or: _
+
+        xor: _
 
         apply: (:r3-alpha-apply)
 
         ; Not contentious, but trying to excise this ASAP
         funct: (:function)
+
+        op?: (func [
+            "OP? <r3-legacy> behavior which just always returns FALSE"
+            value [<opt> any-value!]
+        ][
+            false
+        ])
 
         ; R3-Alpha and Rebol2's DO was effectively variadic.  If you gave it
         ; a function, it could "reach out" to grab arguments from after the
@@ -641,14 +790,15 @@ set 'r3-legacy* func [] [
         do: (function [
             {Evaluates a block of source code (variadic <r3-legacy> bridge)}
 
-            source [unset! none! block! group! string! binary! url! file! tag!
+            return: [<opt> any-value!]
+            source [<opt> blank! block! group! string! binary! url! file! tag!
                 error! function!
             ]
-            normals [any-type! <...>]
+            normals [any-value! <...>]
                 {Normal variadic parameters if function (<r3-legacy> only)}
-            'softs [any-type! <...>]
+            'softs [any-value! <...>]
                 {Soft-quote variadic parameters if function (<r3-legacy> only)}
-            :hards [any-type! <...>]
+            :hards [any-value! <...>]
                 {Hard-quote variadic parameters if function (<r3-legacy> only)}
             /args
                 {If value is a script, this will set its system/script/args}
@@ -656,7 +806,7 @@ set 'r3-legacy* func [] [
                 "Args passed to a script (normally a string)"
             /next
                 {Do next expression only, return it, update block variable}
-            var [word! none!]
+            var [word! blank!]
                 "Variable updated with new block position"
         ][
             next_DO: next
@@ -665,7 +815,7 @@ set 'r3-legacy* func [] [
             either function? :source [
                 code: reduce [:source]
                 params: words-of :source
-                while [params/1] [
+                while [not tail? params] [
                     append code switch type-of params/1 [
                         :word! [take normals]
                         :lit-word! [take softs]
@@ -690,12 +840,25 @@ set 'r3-legacy* func [] [
             ]
         ])
 
+        ; Ren-C's default is a "lookback" that can see the SET-WORD! to its
+        ; left and examine it.  `x: default 10` instead of `default 'x 10`,
+        ; with the same effect.
+        ;
+        default: (func [
+            "Set a word to a default value if it hasn't been set yet."
+            'word [word! set-word! lit-word!]
+                "The word (use :var for word! values)"
+            value "The value" ; void not allowed on purpose
+        ][
+            unless all [set? word | not blank? get word] [set word :value] :value
+        ])
+
         ; Ren-C removed the "simple parse" functionality, which has been
         ; superseded by SPLIT.  For the legacy parse implementation, add
         ; it back in (more or less) by delegating to split.
         ;
         ; Also, as an experiment Ren-C has been changed so that a successful
-        ; parse returns the input, while an unsuccessful one returns none.
+        ; parse returns the input, while an unsuccessful one returns blank.
         ; Historically PARSE returned LOGIC!, this restores that behavior.
         ;
         parse: (function [
@@ -703,7 +866,7 @@ set 'r3-legacy* func [] [
 
             input [any-series!]
                 "Input series to parse"
-            rules [block! string! none!]
+            rules [block! string! blank!]
                 "Rules (string! is <r3-legacy>, use SPLIT)"
             /case
                 "Uses case-sensitive comparison"
@@ -717,7 +880,7 @@ set 'r3-legacy* func [] [
             all: :lib/all
 
             case [
-                none? rules [
+                blank? rules [
                     split input charset reduce [tab space cr lf]
                 ]
 
@@ -726,22 +889,7 @@ set 'r3-legacy* func [] [
                 ]
 
                 true [
-                    ; This requires system/options/refinements-true to work.
-                    ;
-                    ; Note that the heuristic here is not 100% right,
-                    ; but probably works most of the time.  The goal is
-                    ; to determine when PARSE would have returned true
-                    ; when the new PARSE returns a series on success.  But
-                    ; old parse *could* have returned a series as well with
-                    ; RETURN...if that happens and the RETURN just so
-                    ; happens to be the input, this will return TRUE.
-                    ;
-                    result: lib/parse/:case_PARSE input rules
-                    case [
-                        none? result [false]
-                        same? result input [true]
-                        'default [result]
-                    ]
+                    lib/parse/(if case_PARSE 'case) input rules
                 ]
             ]
         ])
@@ -777,20 +925,20 @@ set 'r3-legacy* func [] [
 
             'vars [word! block!]
                 "Word or block of words to set each time (local)"
-            data [any-series! any-context! map! none!]
+            data [any-series! any-context! map! blank!]
                 "The series to traverse"
             body [block!]
                 "Block to evaluate each time"
         ][
             if any [
                 not block? vars
-                lib/foreach item vars [
+                lib/for-each item vars [
                     if set-word? item [break/with false]
                     true
                 ]
             ][
                 ; a normal FOREACH
-                return lib/foreach :vars data body
+                return lib/for-each :vars data body
             ]
 
             ; Otherwise it's a weird FOREACH.  So handle a block containing at
@@ -830,28 +978,16 @@ set 'r3-legacy* func [] [
         reduce: (function [
             {Evaluates expressions and returns multiple results.}
             value
-            /no-set
-                "Keep set-words as-is. Do not set them."
-            /only
-                "Only evaluate words and paths, not functions"
-            words [block! none!]
-                "Optional words that are not evaluated (keywords)"
             /into
                 {Output results into a series with no intermediate storage}
             target [any-block!]
         ][
             unless block? :value [return :value]
 
-            frame: make frame! :lib/reduce
-
-            frame/value: :value
-            frame/no-set: no-set
-            frame/only: only
-            set/opt 'frame/words :words
-            frame/into: into
-            set/opt 'frame/target :target
-
-            eval frame
+            apply :lib/reduce [
+                | value: :value
+                | if into: into [target: :target]
+            ]
         ])
 
         ; because reduce has been changed but lib/reduce is not in legacy
@@ -874,18 +1010,14 @@ set 'r3-legacy* func [] [
             count [number! pair!]
         ][
             ;-- R3-alpha REPEND with block behavior called out
-
-            frame: make frame! :append
-
-            frame/series: series
-            frame/value: either block? :value [reduce :value] [value]
-            frame/part: part
-            set/opt 'frame/limit :length
-            frame/only: only
-            frame/dup: dup
-            set/opt 'frame/count :count
-
-            eval frame
+            ;
+            apply :append [
+                | series: series
+                | value: either block? :value [reduce :value] [value]
+                | if part: part [limit: length]
+                | only: only
+                | if dup: dup [count: count]
+            ]
         ])
 
         join: (function [
@@ -893,137 +1025,207 @@ set 'r3-legacy* func [] [
             value "Base value"
             rest "Value or block of values"
         ][
-            frame: make frame! :append
-
             ;-- double-inline of R3-alpha `repend value :rest`
-
-            frame/series: either series? :value [copy value] [form :value]
-            frame/value: either block? :rest [reduce :rest] [rest]
-
-            eval frame
+            ;
+            apply :append [
+                | series: either series? :value [copy value] [form :value]
+                | value: either block? :rest [reduce :rest] [rest]
+            ]
         ])
 
-        ; The name STACK is a noun that really suits a variable name, and
-        ; the interim choice for this functionality in Ren-C is "backtrace".
-        ; Because it is a debug-privilege API it might wind up under DEBUG
-        ; or some part of a REFLECT dialect over the long term.
+        ??: (:dump)
+
+        ; To be on the safe side, the PRINT in the box won't do evaluations on
+        ; blocks unless the literal argument itself is a block
         ;
-        ; Several refinements have been renamed or are no longer relevant,
-        ; and it has a zero-arity default.  This wraps what functionality of
-        ; R3-Alpha's STACK corresponds in a terribly inefficient way, which
-        ; will likely never matter because odds are no one used it.
+        print: (specialize 'print [eval: true])
+
+        ; QUIT now takes /WITH instead of /RETURN
         ;
-        ; !!! This routine would require review if anyone finds it of
-        ; actual interest, it's just here to show how it *could* be done.
-        ;
-        stack: (function [
-            "Returns stack backtrace or other values."
-            offset [integer!] "Relative backward offset"
-            /block "Block evaluation position"
-            /word "Function or object name, if known"
-            /func "Function value"
-            /args "Block of args (may be modified)"
-            /size "Current stack size (in value units)"
-            /depth "Stack depth (frames)"
-            /limit "Stack bounds (auto expanding)"
+        quit: (function [
+            {Stop evaluating and return control to command shell or calling script.}
+
+            /with
+                {Yield a result (mapped to an integer if given to shell)}
+            value [<opt> any-value!]
+                "See: http://en.wikipedia.org/wiki/Exit_status"
+            /return
+                "(deprecated synonym for /WITH)"
+            return-value
         ][
-            func_STACK: :func
-            func: :lib/func
-
-            ; Get the full backtrace to start with because we need to filter
-            ;
-            bt: backtrace/limit/:args/(
-                either block 'where none
-            )/(
-                either func_STACK 'function none
-            ) none
-
-            ; The backtrace is going to have STACK in it, in slot number 1.
-            ; But the caller doesn't want to see STACK.  So remove it.
-            ;
-            take/part (find bt 1) 2
-
-            if depth [
-                count: 0
-                for-each item bt [
-                    if integer? item [count: count + 1]
-                ]
-                return count
+            apply 'lib/quit [
+                with: any? [with | return]
+                value: case [with [value] return [return-value]]
             ]
+        ])
 
-            ; Now renumber all the stack entries to bump them down by 1,
-            ; accounting for the removal of stack.  If we find a number
-            ; that is less than the offset requested, strip the remainder.
-            ;
-            for-next bt [
-                unless integer? bt/1 [continue]
+        ; R3-Alpha would tolerate blocks in the first position, which were
+        ; a feature in Rebol2.  e.g. `func [[throw catch] x y][...]`.  Ren-C
+        ; does not allow this.  Also, policy requires a RETURN: annotation to
+        ; say if one returns functions or void in Ren-C--there was no such
+        ; requirement in R3-Alpha.
+        ;
+        func: (func [
+            {FUNC <r3-legacy>}
+            return: [function!]
+            spec [block!]
+            body [block!]
+        ][
+            if block? first spec [spec: next spec]
 
-                bt/1: bt/1 - 1 ;; clears new-line marker, have to reset it
-                new-line bt true
+            lib/func compose [
+                return: [<opt> any-value!]
+                (spec)
+            ] body
+        ])
 
-                if bt/1 < offset [
-                    clear bt
-                    break
-                ]
+        ; The shift in Ren-C is to remove the refinements from FUNCTION.
+        ; Previously /WITH is now handles as the tag <in>
+        ; /EXTERN then takes over the tag <with>
+        ;
+        function: (func [
+            {FUNCTION <r3-legacy>}
+            return: [function!]
+            spec [block!]
+            body [block!]
+            /with
+                {Define or use a persistent object (self)}
+            object [object! block! map!]
+                {The object or spec}
+            /extern
+                {Provide explicit list of external words}
+            words [block!]
+                {These words are not local.}
+        ][
+            if block? first spec [spec: next spec]
+
+            if block? :object [object: has object]
+
+            lib/function compose [
+                return: [<opt> any-value!]
+                (spec)
+                (if with [reduce [<in> object]])
+                (if extern [<with>])
+                (:words)
+            ] body
+        ])
+
+        ; In Ren-C, HAS is the arity-1 parallel to OBJECT as arity-2 (similar
+        ; to the relationship between DOES and FUNCTION).  In Rebol2 and
+        ; R3-Alpha it just broke out locals into their own block when they
+        ; had no arguments.
+        ;
+        has: (func [
+            {Shortcut for function with local variables but no arguments.}
+            return: [function!]
+            vars [block!] {List of words that are local to the function}
+            body [block!] {The body block of the function}
+        ][
+            func (head insert copy vars /local) body
+        ])
+
+        ; CONSTRUCT is now the generalized arity-2 object constructor.  What
+        ; was previously known as CONSTRUCT can be achieved with the /ONLY
+        ; parameter to CONSTRUCT or to HAS.
+        ;
+        ; !!! There's was code inside of Rebol which called "Scan_Net_Header()"
+        ; in order to produce a block out of a STRING! or a BINARY! here.
+        ; That has been moved to scan-net-header, and there was not presumably
+        ; other code that used the feature.
+        ;
+        construct: (func [
+            "Creates an object with scant (safe) evaluation."
+
+            spec [block!]
+                "Specification (modified)"
+            /with
+                "Create from a default object"
+            object [object!]
+                "Default object"
+            /only
+                "Values are kept as-is"
+        ][
+            apply :lib/construct [
+                | spec: either with [object] [[]]
+                | body: spec
+
+                ; It may be necessary to do *some* evaluation here, because
+                ; things like loading module headers would tolerate [x: 'foo]
+                ; as well as [x: foo] for some fields.
+                ;
+                | only: true
             ]
-
-            ; If a singular property was requested, then select it out and
-            ; return it.
-            ;
-            case [
-                any [block func_STACK args] [
-                    prop: select bt offset
-                    return to-value if prop [
-                        second prop
-                    ]
-                ]
-
-                word [
-                    prop: select bt offset
-                    return to-value if prop [
-                        first prop
-                    ]
-                ]
-
-                size [fail "STACK/SIZE no longer supported"]
-
-                limit [fail "STACK/LIMIT no longer supported"]
-            ]
-
-            ; Or by default just return the backtrace/only minus the
-            ; last thing (the above is more a test for backtrace than
-            ; anything...hence very roundabout)
-            ;
-            bt: backtrace/only
-            take/last bt
-            bt
         ])
     ]
 
-    ; NOTE: these flags only work in debug builds.  A better availability
-    ; test for the functionality is needed, as these flags may be expired
-    ; at different times on a case-by-case basis.
+    ; set-infix on PATH! instead of WORD! is still TBD
     ;
-    ; (We don't flip these switches until after the above functions have been
-    ; created, so that the shims can use Ren-C features like word-valued
-    ; refinements/etc.)
+    set-infix (bind 'and system/contexts/user) :and*
+    set-infix (bind 'or system/contexts/user) :or+
+    set-infix (bind 'xor system/contexts/user) :xor+
+
+    if-flags: func [flags [block!] body [block!]] [
+        for-each flag flags [
+            if system/options/(flag) [return do body]
+        ]
+    ]
+
     ;
-    system/options/lit-word-decay: true
-    system/options/broken-case-semantics: true
-    system/options/exit-functions-only: true
-    system/options/refinements-true: true
-    system/options/no-switch-evals: true
-    system/options/no-switch-fallthrough: true
-    system/options/forever-64-bit-ints: true
-    system/options/print-forms-everything: true
-    system/options/break-with-overrides: true
-    system/options/none-instead-of-unsets: true
-    system/options/arg1-arg2-arg3-error: true
-    system/options/dont-exit-natives: true
-    system/options/paren-instead-of-group: true
-    system/options/get-will-get-anything: true
-    system/options/no-reduce-nested-print: true
+    ; The Ren-C invariant for control constructs that don't run their cases
+    ; is to return VOID, not a "NONE!" (BLANK!) as in R3-Alpha.  We assume
+    ; that converting void results from these operations gives compatibility,
+    ; and if it doesn't it's likealy a bigger problem because you can't put
+    ; "unset! literals" (voids) into blocks in the first place.
+    ;
+    ; So make a lot of things like `first: (chain [:first :to-value])`
+    ;
+    if-flags [none-instead-of-voids] [
+        for-each word [
+            first second third fourth fifth sixth seventh eighth ninth tenth
+            select pick
+            if unless either case
+            while foreach loop repeat forall forskip
+        ][
+            append system/contexts/user compose [
+                (to-set-word word)
+                (chain compose [(to-get-word word) :to-value])
+            ]
+        ]
+    ]
+
+    ; SWITCH had several behavior changes--it evaluates GROUP! and GET-WORD!
+    ; and GET-PATH!--and values "fall out" the bottom if there isn't a match
+    ; (and the last item isn't a block).
+    ;
+    ; We'll assume these cases are rare in <r3-legacy> porting, but swap in
+    ; SWITCH for a routine that will FAIL if the cases come up.  A sufficiently
+    ; motivated individual could then make a compatibility construct, but
+    ; probably would rather just change it so their code runs faster.  :-/
+    ;
+    if-flags [no-switch-evals no-switch-fallthrough][
+    append system/contexts/user compose [
+        switch: (
+            chain [
+                adapt 'switch [use [last-was-block] [
+                    last-was-block: false
+                    for-next cases [
+                        if maybe [get-word! get-path! group!] cases/1 [
+                            fail [{SWITCH non-<r3-legacy> evaluates} (cases/1)]
+                        ]
+                        if block? cases/1 [
+                            last-was-block: true
+                        ]
+                    ]
+                    unless last-was-block [
+                        fail [{SWITCH non-<r3-legacy>} last cases {"fallout"}]
+                    ]
+                ]]
+            |
+                :to-value
+            ]
+        )
+    ]]
 
     r3-legacy-mode: on
-    return none
+    return blank
 ]

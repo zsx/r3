@@ -1,39 +1,211 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  l-types.c
-**  Summary: special lexical type converters
-**  Section: lexical
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %l-types.c
+//  Summary: "special lexical type converters"
+//  Section: lexical
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 #include "sys-deci-funcs.h"
 #include "sys-dec-to-char.h"
 #include <errno.h>
 
-typedef REBOOL (*MAKE_FUNC)(REBVAL *, REBVAL *, enum Reb_Kind);
+extern const MAKE_FUNC Make_Dispatch[REB_MAX];
+
+// !!! Actually should be a .inc file, as it includes data declarations
+// Has a repeated prototype in %l-scan.c to avoid double inclusion
+//
 #include "tmp-maketypes.h"
+
+//
+//  make: native [
+//
+//  {Constructs or allocates the specified datatype.}
+//
+//      return: [any-value!]
+//          {Constructed value.}
+//      type [any-value!]
+//          {The datatype -or- an examplar value of the type to construct}
+//      def [any-value!]
+//          {Definition or size of the new value (binding may be modified)}
+//  ]
+//
+REBNATIVE(make)
+{
+    PARAM(1, type);
+    PARAM(2, def);
+
+    REBVAL *type = ARG(type);
+    REBVAL *arg = ARG(def);
+
+#if !defined(NDEBUG)
+    if (IS_GOB(type)) {
+        //
+        // !!! It appears that GOBs had some kind of inheritance mechanism, by
+        // which you would write:
+        //
+        //     gob1: make gob! [...]
+        //     gob2: make gob1 [...]
+        //
+        // The new plan is that MAKE operates on a definition spec, and that
+        // this type slot is always a value or exemplar.  So if the feature
+        // is needed, it should be something like:
+        //
+        //     gob1: make gob! [...]
+        //     gob2: make gob! [gob1 ...]
+        //
+        // Or perhaps not use make at all, but some other operation.
+        //
+        assert(FALSE);
+    }
+    else if (IS_EVENT(type)) {
+        assert(FALSE); // ^-- same for events (?)
+    }
+#endif
+
+    enum Reb_Kind kind;
+    if (IS_DATATYPE(type))
+        kind = VAL_TYPE_KIND(type);
+    else
+        kind = VAL_TYPE(type);
+
+    MAKE_FUNC dispatcher = Make_Dispatch[kind];
+    if (dispatcher == NULL)
+        fail (Error_Bad_Make(kind, arg));
+
+    if (IS_VARARGS(arg)) {
+        //
+        // Converting a VARARGS! to an ANY-ARRAY! involves spooling those
+        // varargs to the end and making an array out of that.  It's not known
+        // how many elements that will be, so they're gathered to the data
+        // stack to find the size, then an array made.  Note that | will stop
+        // a normal or soft-quoted varargs, but a hard-quoted varargs will
+        // grab all the values to the end of the source.
+        //
+        // !!! MAKE should likely not be allowed to THROW in the general
+        // case--especially if it is the implementation of construction
+        // syntax (arbitrary code should not run during LOAD).  Since
+        // vararg spooling may involve evaluation (e.g. to create an array)
+        // it may be a poor fit for the MAKE umbrella.
+        //
+        // Temporarily putting the code here so that the make dispatchers
+        // do not have to bubble up throws, but it is likely that this
+        // should not have been a MAKE operation in the first place.
+        //
+        // !!! This MAKE will be destructive to its input (the varargs will
+        // be fetched and exhausted).  That's not necessarily obvious, but
+        // with a TO conversion it would be even less obvious...
+        //
+        if (dispatcher != &MAKE_Array)
+            fail (Error_Bad_Make(kind, arg));
+
+        const REBVAL *vararg_param;
+        REBVAL *vararg_arg;
+
+        REBVAL fake_param;
+
+        REBARR *feed;
+
+        if (GET_VAL_FLAG(arg, VARARGS_FLAG_NO_FRAME)) {
+            feed = VAL_VARARGS_ARRAY1(arg);
+
+            // Just a vararg created from a block, so no typeset or quoting
+            // settings available.  Make a fake parameter that hard quotes
+            // and takes any type (it will be type checked if in a chain).
+            //
+            Val_Init_Typeset(&fake_param, ALL_64, Canon(SYM_ELLIPSIS));
+            INIT_VAL_PARAM_CLASS(&fake_param, PARAM_CLASS_HARD_QUOTE);
+            vararg_param = &fake_param;
+            vararg_arg = &fake_param; // doesn't matter, just gets flag set
+        }
+        else {
+            feed = CTX_VARLIST(VAL_VARARGS_FRAME_CTX(arg));
+            vararg_param = VAL_VARARGS_PARAM(arg);
+            vararg_arg = VAL_VARARGS_ARG(arg);
+        }
+
+        REBDSP dsp_orig = DSP;
+
+        do {
+            REBIXO indexor = Do_Vararg_Op_Core(
+                D_OUT, feed, vararg_param, vararg_arg, NULL, VARARG_OP_TAKE
+            );
+
+            if (indexor == THROWN_FLAG) {
+                DS_DROP_TO(dsp_orig);
+                return TRUE;
+            }
+            if (indexor == END_FLAG)
+                break;
+            assert(indexor == VA_LIST_FLAG);
+
+            DS_PUSH(D_OUT);
+        } while (TRUE);
+
+        Val_Init_Array(D_OUT, kind, Pop_Stack_Values(dsp_orig));
+        return FALSE;
+    }
+
+    dispatcher(D_OUT, kind, arg); // may fail()
+    return R_OUT;
+}
+
+
+//
+//  to: native [
+//
+//  {Converts to a specified datatype.}
+//
+//      type [any-value!]
+//          {The datatype -or- an exemplar value of the target type}
+//      value [any-value!]
+//          {The source value to convert}
+//  ]
+//
+REBNATIVE(to)
+{
+    PARAM(1, type);
+    PARAM(2, value);
+
+    REBVAL *type = ARG(type);
+    REBVAL *arg = ARG(value);
+
+    enum Reb_Kind kind;
+    if (IS_DATATYPE(type))
+        kind = VAL_TYPE_KIND(type);
+    else
+        kind = VAL_TYPE(type);
+
+    TO_FUNC dispatcher = To_Dispatch[kind];
+    if (dispatcher == NULL)
+        fail (Error_Invalid_Arg(arg));
+
+    dispatcher(D_OUT, kind, arg); // may fail();
+    return R_OUT;
+}
 
 
 //
@@ -362,9 +534,8 @@ const REBYTE *Scan_Money(const REBYTE *cp, REBCNT len, REBVAL *value)
 
     if (*cp == '$') cp++, len--;
     if (len == 0) return 0;
-    VAL_MONEY_AMOUNT(value) = string_to_deci(cp, &end);
+    SET_MONEY(value, string_to_deci(cp, &end));
     if (end != cp + len) return 0;
-    VAL_RESET_HEADER(value, REB_MONEY);
 
     return end;
 
@@ -520,8 +691,14 @@ const REBYTE *Scan_Date(const REBYTE *cp, REBCNT len, REBVAL *value)
         sep = *cp++;
         if (cp >= end) goto end_date;
         cp = Scan_Time(cp, 0, value);
-        if (!IS_TIME(value) || (VAL_TIME(value) < 0) || (VAL_TIME(value) >= TIME_SEC(24 * 60 * 60)))
-            return 0;
+        if (
+            !cp
+            || !IS_TIME(value)
+            || (VAL_TIME(value) < 0)
+            || (VAL_TIME(value) >= TIME_SEC(24 * 60 * 60))
+        ){
+            return NULL;
+        }
     }
 
     if (*cp == sep) cp++;
@@ -596,14 +773,12 @@ const REBYTE *Scan_Email(const REBYTE *cp, REBCNT len, REBVAL *value)
     REBOOL at = FALSE;
     REBUNI n;
 
-    VAL_RESET_HEADER(value, REB_EMAIL);
-    INIT_VAL_SERIES(value, Make_Binary(len));
-    VAL_INDEX(value) = 0;
+    REBSER *series = Make_Binary(len);
 
-    str = VAL_BIN(value);
+    str = BIN_HEAD(series);
     for (; len > 0; len--) {
         if (*cp == '@') {
-            if (at) return 0;
+            if (at) return NULL;
             at = TRUE;
         }
         if (*cp == '%') {
@@ -616,9 +791,9 @@ const REBYTE *Scan_Email(const REBYTE *cp, REBCNT len, REBVAL *value)
     }
     *str = 0;
     if (!at) return 0;
-    SET_SERIES_LEN(VAL_SERIES(value), cast(REBCNT, str - VAL_BIN(value)));
+    SET_SERIES_LEN(series, cast(REBCNT, str - BIN_HEAD(series)));
 
-    MANAGE_SERIES(VAL_SERIES(value));
+    Val_Init_Series(value, REB_EMAIL, series); // manages
 
     return cp;
 }
@@ -631,6 +806,7 @@ const REBYTE *Scan_Email(const REBYTE *cp, REBCNT len, REBVAL *value)
 //
 const REBYTE *Scan_URL(const REBYTE *cp, REBCNT len, REBVAL *value)
 {
+    REBSER *series;
     REBYTE *str;
     REBUNI n;
 
@@ -642,11 +818,9 @@ const REBYTE *Scan_URL(const REBYTE *cp, REBCNT len, REBVAL *value)
 //  if (n >= URL_MAX) return 0;
 //  if (*str != ':') return 0;
 
-    VAL_RESET_HEADER(value, REB_URL);
-    INIT_VAL_SERIES(value, Make_Binary(len));
-    VAL_INDEX(value) = 0;
+    series = Make_Binary(len);
 
-    str = VAL_BIN(value);
+    str = BIN_HEAD(series);
     for (; len > 0; len--) {
         //if (*cp == '%' && len > 2 && Scan_Hex2(cp+1, &n, FALSE)) {
         if (*cp == '%') {
@@ -658,10 +832,9 @@ const REBYTE *Scan_URL(const REBYTE *cp, REBCNT len, REBVAL *value)
         else *str++ = *cp++;
     }
     *str = 0;
-    SET_SERIES_LEN(VAL_SERIES(value), cast(REBCNT, str - VAL_BIN(value)));
+    SET_SERIES_LEN(series, cast(REBCNT, str - BIN_HEAD(series)));
 
-    // All scanned code is assumed to be managed
-    MANAGE_SERIES(VAL_SERIES(value));
+    Val_Init_Series(value, REB_URL, series); // manages
     return cp;
 }
 
@@ -671,23 +844,36 @@ const REBYTE *Scan_URL(const REBYTE *cp, REBCNT len, REBVAL *value)
 // 
 // Scan and convert a pair
 //
-const REBYTE *Scan_Pair(const REBYTE *cp, REBCNT len, REBVAL *value)
+const REBYTE *Scan_Pair(const REBYTE *cp, REBCNT len, REBVAL *out)
 {
-    REBYTE buf[MAX_NUM_LEN+4];
-    const REBYTE *ep = Scan_Dec_Buf(cp, MAX_NUM_LEN, &buf[0]);
-    const REBYTE *xp;
+    REBYTE buf[MAX_NUM_LEN + 4];
 
-    if (!ep) return 0;
-    VAL_PAIR_X(value) = (float)atof((char*)(&buf[0])); //n;
-    if (*ep != 'x' && *ep != 'X') return 0;
+    const REBYTE *ep = Scan_Dec_Buf(cp, MAX_NUM_LEN, &buf[0]);
+    if (!ep) return NULL;
+    if (*ep != 'x' && *ep != 'X') return NULL;
+
+    VAL_RESET_HEADER(out, REB_PAIR);
+    out->payload.pair = Make_Pairing(NULL);
+    VAL_RESET_HEADER(out->payload.pair, REB_DECIMAL);
+    VAL_RESET_HEADER(PAIRING_KEY(out->payload.pair), REB_DECIMAL);
+
+    VAL_PAIR_X(out) = cast(float, atof(cast(char*, &buf[0]))); //n;
     ep++;
 
-    xp = Scan_Dec_Buf(ep, MAX_NUM_LEN, &buf[0]);
-    if (!xp) return 0;
-    VAL_PAIR_Y(value) = (float)atof((char*)(&buf[0])); //n;
+    const REBYTE *xp = Scan_Dec_Buf(ep, MAX_NUM_LEN, &buf[0]);
+    if (!xp) {
+        Free_Pairing(out->payload.pair);
+        return NULL;
+    }
 
-    if (len > (REBCNT)(xp - cp)) return 0;
-    VAL_RESET_HEADER(value, REB_PAIR);
+    VAL_PAIR_Y(out) = cast(float, atof(cast(char*, &buf[0]))); //n;
+
+    if (len > cast(REBCNT, xp - cp)) {
+        Free_Pairing(out->payload.pair);
+        return NULL;
+    }
+
+    Manage_Pairing(out->payload.pair);
     return xp;
 }
 
@@ -761,135 +947,82 @@ const REBYTE *Scan_Binary(const REBYTE *cp, REBCNT len, REBVAL *value)
 //
 const REBYTE *Scan_Any(
     const REBYTE *cp,
-    REBCNT len,
-    REBVAL *value,
+    REBCNT num_bytes,
+    REBVAL *out,
     enum Reb_Kind type
 ) {
-    REBCNT n;
+    REBSER *s = Append_UTF8_May_Fail(NULL, cp, num_bytes); // NULL means alloc
 
-    VAL_RESET_HEADER(value, type);
-    INIT_VAL_SERIES(value, Append_UTF8_May_Fail(0, cp, len));
-    VAL_INDEX(value) = 0;
+    REBCNT delined_len;
+    if (BYTE_SIZE(s)) {
+        delined_len = Deline_Bytes(BIN_HEAD(s), SER_LEN(s));
+    } else {
+        delined_len = Deline_Uni(UNI_HEAD(s), SER_LEN(s));
+    }
 
     // We hand it over to management by the GC, but don't run the GC before
     // the source has been scanned and put somewhere safe!
-    MANAGE_SERIES(VAL_SERIES(value));
+    //
+    SET_SERIES_LEN(s, delined_len);
+    Val_Init_Series(out, type, s);
 
-    if (VAL_BYTE_SIZE(value)) {
-        n = Deline_Bytes(VAL_BIN(value), VAL_LEN_AT(value));
-    } else {
-        n = Deline_Uni(VAL_UNI(value), VAL_LEN_AT(value));
-    }
-
-    SET_SERIES_LEN(VAL_SERIES(value), n);
-
-    return cp + len;
+    return cp + delined_len;
 }
 
 
 //
-//  Construct_Value: C
-// 
-// Lexical datatype constructor. Return TRUE on success.
-// 
-// !!! `out` slot *must* be gc safe !!!
-// 
-// This function makes datatypes that are not normally expressible
-// in unevaluated source code format. The format of the datatype
-// constructor is:
-// 
-//     #[datatype! | keyword spec]
-// 
-// The first item is a datatype word or NONE, FALSE or TRUE. The
-// second part is a specification for the datatype, as a basic
-// type (such as a string) or a block.
-// 
-// Keep in mind that this function is being called as part of the
-// scanner, so optimal performance is critical.
+//  scan-net-header: native [
+//      {Scan an Internet-style header (HTTP, SMTP).}
 //
-REBOOL Construct_Value(REBVAL *out, REBARR *spec)
+//      header [string! binary!]
+//          {Fields with duplicate words will be merged into a block.}
+//  ]
+//
+REBNATIVE(scan_net_header)
+//
+// !!! This routine used to be a feature of CONSTRUCT in R3-Alpha, and was
+// used by %prot-http.r.  The idea was that instead of providing a parent
+// object, a STRING! or BINARY! could be provided which would be turned
+// into a block by this routine.
+//
+// The only reason it seemed to support BINARY! was to optimize the case
+// where the binary only contained ASCII codepoints to dodge a string
+// conversion.
+//
+// It doesn't make much sense to have this coded in C rather than using PARSE
+// It's only being converted into a native to avoid introducing bugs by
+// rewriting it as Rebol in the middle of other changes.
 {
-    REBVAL *val;
-    REBSYM sym;
-    enum Reb_Kind type;
-    MAKE_FUNC func;
+    PARAM(1, header);
 
-    val = ARR_HEAD(spec);
+    REBVAL *header = ARG(header);
 
-    if (!IS_WORD(val)) return FALSE;
+    // Input variables from R3-Alpha REBNATIVE(construct)
+    REBCNT index;
+    REBARR *result;
+    REBSER *temp;
 
-    // Handle the datatype or keyword:
-    sym = VAL_WORD_CANON(val);
-    if (sym > REB_MAX_0) { // >, not >=, because they are one-based
-
-        switch (sym) {
-
-        case SYM_NONE:
-            SET_NONE(out);
-            return TRUE;
-
-        case SYM_FALSE:
-            SET_FALSE(out);
-            return TRUE;
-
-        case SYM_TRUE:
-            SET_TRUE(out);
-            return TRUE;
-
-        default:
-            return FALSE;
-        }
-    }
-
-    type = KIND_FROM_SYM(sym);
-
-    // Check for trivial types:
-    if (type == REB_UNSET) {
-        SET_UNSET(out);
-        return TRUE;
-    }
-    if (type == REB_NONE) {
-        SET_NONE(out);
-        return TRUE;
-    }
-
-    val++;
-    if (IS_END(val)) return FALSE;
-
-    if ((func = Make_Dispatch[TO_0_FROM_KIND(type)])) {
-        // As written today, the creation process may call into the evaluator.
-        // The spec content should not be GC'd during that time.  (This was
-        // previously managed by holding it in the `out` slot, but making
-        // the protection of the spec value come from the destination would
-        // be bad if it were overwritten partway through, then the val
-        // out of the spec referred to again...)
-
-        PUSH_GUARD_ARRAY(spec);
-        if (func(out, val, type)) {
-            DROP_GUARD_ARRAY(spec);
-            return TRUE;
-        }
-        DROP_GUARD_ARRAY(spec);
-    }
-
-    return FALSE;
-}
-
-
-//
-//  Scan_Net_Header: C
-// 
-// Scan an Internet-style header (HTTP, SMTP).
-// Fields with duplicate words will be merged into a block.
-//
-REBARR *Scan_Net_Header(REBARR *header, REBYTE *str)
-{
-    REBYTE *cp = str;
+    // Processing variables from R3-Alpha Scan_Net_Header()
+    REBYTE *str;
+    REBYTE *cp;
     REBYTE *start;
     REBVAL *val;
     REBINT len;
     REBARR *array;
     REBSER *string;
+
+    result = Make_Array(10); // Just a guess at size (use STD_BUF?)
+    Val_Init_Block(D_OUT, result); // Keep safe from GC
+
+    // Convert string if necessary. Store back for GC safety.
+    //
+    temp = Temp_Bin_Str_Managed(header, &index, NULL);
+    INIT_VAL_SERIES(header, temp); // caution: macro copies args!
+
+    // !!! This is assuming the string is in bytes, but what if it was
+    // unicode?  See R3-Alpha source for REBNATIVE(construct) for origin.
+    //
+    cp = VAL_BIN(header) + index;
 
     while (IS_LEX_ANY_SPACE(*cp)) cp++; // skip white space
 
@@ -909,16 +1042,17 @@ REBARR *Scan_Net_Header(REBARR *header, REBYTE *str)
         else break;
 
         if (*cp == ':') {
-            REBSYM sym = Make_Word(start, cp-start);
+            REBSTR *name = Intern_UTF8_Managed(start, cp-start);
+            RELVAL *item;
             cp++;
             // Search if word already present:
-            for (val = ARR_HEAD(header); NOT_END(val); val += 2) {
-                if (VAL_WORD_SYM(val) == sym) {
+            for (item = ARR_HEAD(result); NOT_END(item); item += 2) {
+                if (SAME_STR(VAL_WORD_SPELLING(item), name)) {
                     // Does it already use a block?
-                    if (IS_BLOCK(val+1)) {
+                    if (IS_BLOCK(item + 1)) {
                         // Block of values already exists:
                         val = Alloc_Tail_Array(VAL_ARRAY(val + 1));
-                        SET_NONE(val);
+                        SET_BLANK(val);
                     }
                     else {
                         // Create new block for values:
@@ -928,16 +1062,16 @@ REBARR *Scan_Net_Header(REBARR *header, REBYTE *str)
                         *val2 = val[1];
                         Val_Init_Block(val + 1, array);
                         val = Alloc_Tail_Array(array); // for new value
-                        SET_NONE(val);
+                        SET_BLANK(val);
                     }
                     break;
                 }
             }
-            if (IS_END(val)) {
-                val = Alloc_Tail_Array(header); // add new word
-                Val_Init_Word(val, REB_SET_WORD, sym);
-                val = Alloc_Tail_Array(header); // for new value
-                SET_NONE(val);
+            if (IS_END(item)) {
+                val = Alloc_Tail_Array(result); // add new word
+                Val_Init_Word(val, REB_SET_WORD, name);
+                val = Alloc_Tail_Array(result); // for new value
+                SET_BLANK(val);
             }
         }
         else break;
@@ -985,5 +1119,5 @@ REBARR *Scan_Net_Header(REBARR *header, REBYTE *str)
         Val_Init_String(val, string);
     }
 
-    return header;
+    return R_OUT;
 }

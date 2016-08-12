@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  n-strings.c
-**  Summary: native functions for strings
-**  Section: natives
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %n-strings.c
+//  Summary: "native functions for strings"
+//  Section: natives
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 #include "sys-deci-funcs.h"
@@ -90,13 +91,13 @@
 
 
 // Table of has functions and parameters:
-static struct digest {
+static struct {
     REBYTE *(*digest)(REBYTE *, REBCNT, REBYTE *);
     void (*init)(void *);
     void (*update)(void *, REBYTE *, REBCNT);
     void (*final)(REBYTE *, void *);
     int (*ctxsize)(void);
-    REBSYM index;
+    REBSYM sym;
     REBINT len;
     REBINT hmacblock;
 } digests[] = {
@@ -130,8 +131,10 @@ REBNATIVE(ajoin)
 {
     PARAM(1, block);
 
+    REBVAL *block = ARG(block);
+
     if (Form_Reduce_Throws(
-        D_OUT, VAL_ARRAY(ARG(block)), VAL_INDEX(ARG(block))
+        D_OUT, VAL_ARRAY(block), VAL_INDEX(block), VAL_SPECIFIER(block)
     )) {
         return R_OUT_IS_THROWN;
     }
@@ -152,16 +155,18 @@ REBNATIVE(spelling_of)
 //
 // This is a native implementation of SPELLING-OF from rebol-proposals.
 {
-    REBVAL * const value = D_ARG(1);
+    PARAM(1, value);
+
+    REBVAL *value = ARG(value);
+
     REBSER *series;
 
-    // Shouldn't take binary types...
-    assert(!IS_BINARY(value));
-
     if (ANY_BINSTR(value)) {
+        assert(!IS_BINARY(value)); // Shouldn't accept binary types...
+
         // Grab the data out of all string types, which has no delimiters
         // included (they are added in the forming process)
-
+        //
         series = Copy_String_Slimming(VAL_SERIES(value), VAL_INDEX(value), -1);
     }
     else {
@@ -204,8 +209,11 @@ REBNATIVE(checksum)
     REBSYM sym = SYM_SHA1;
 
     // Method word:
-    if (D_REF(ARG_CHECKSUM_METHOD))
-        sym = VAL_WORD_CANON(D_ARG(ARG_CHECKSUM_WORD));
+    if (D_REF(ARG_CHECKSUM_METHOD)) {
+        sym = VAL_WORD_SYM(D_ARG(ARG_CHECKSUM_WORD));
+        if (sym == SYM_0) // not in %words.r, no SYM_XXX constant
+            fail (Error_Invalid_Arg(D_ARG(ARG_CHECKSUM_WORD)));
+    }
 
     // If method, secure, or key... find matching digest:
     if (D_REF(ARG_CHECKSUM_METHOD) || D_REF(ARG_CHECKSUM_SECURE) || D_REF(ARG_CHECKSUM_KEY)) {
@@ -240,7 +248,7 @@ REBNATIVE(checksum)
 
         for (i = 0; i < sizeof(digests) / sizeof(digests[0]); i++) {
 
-            if (digests[i].index == sym) {
+            if (SAME_SYM_NONZERO(digests[i].sym, sym)) {
                 REBSER *digest = Make_Series(
                     digests[i].len + 1, sizeof(char), MKS_NONE
                 );
@@ -374,71 +382,11 @@ REBNATIVE(decompress)
         len = BIN_LEN(VAL_SERIES(arg));
 
     if (limit && max < 0)
-        return R_NONE; // !!! Should negative limit be an error instead?
+        return R_BLANK; // !!! Should negative limit be an error instead?
 
     Val_Init_Binary(D_OUT, Decompress(
         BIN_HEAD(VAL_SERIES(arg)) + VAL_INDEX(arg), len, max, gzip, only
     ));
-
-    return R_OUT;
-}
-
-
-//
-//  construct: native [
-//  
-//  "Creates an object with scant (safe) evaluation."
-//  
-//      spec [block! string! binary!]
-//          "Specification (modified)"
-//      /with
-//          "Create from a default object"
-//      object [object!]
-//          "Default object"
-//      /only
-//          "Values are kept as-is"
-//  ]
-//
-REBNATIVE(construct)
-{
-    PARAM(1, spec);
-    REFINE(2, with);
-    PARAM(3, object);
-    REFINE(4, only);
-
-    REBVAL *spec_value = ARG(spec);
-    REBCTX *parent = NULL;
-
-    // !!! What is this?
-    //
-    if (IS_STRING(spec_value) || IS_BINARY(spec_value)) {
-        REBCNT index;
-        REBARR *array;
-
-        // Just a guess at size:
-        array = Make_Array(10);     // Use a std BUF_?
-        Val_Init_Block(D_OUT, array); // Keep safe
-
-        // Convert string if necessary. Store back for safety.
-        INIT_VAL_SERIES(
-            spec_value,
-            Temp_Bin_Str_Managed(spec_value, &index, 0)
-        );
-
-        // !!! "Is this what we really want here?" <= but *what is it*?
-        //
-        Scan_Net_Header(array, VAL_BIN(spec_value) + index);
-        spec_value = D_OUT;
-    }
-
-    if (REF(with)) parent = VAL_CONTEXT(ARG(object));
-
-    Val_Init_Object(
-        D_OUT,
-        Construct_Context(
-            REB_OBJECT, VAL_ARRAY_AT(spec_value), REF(only), parent
-        )
-    );
 
     return R_OUT;
 }
@@ -491,7 +439,7 @@ REBNATIVE(enbase)
     REBCNT index;
     REBVAL *arg = D_ARG(1);
 
-    Val_Init_Binary(arg, Temp_Bin_Str_Managed(arg, &index, 0));
+    Val_Init_Binary(arg, Temp_Bin_Str_Managed(arg, &index, NULL));
     VAL_INDEX(arg) = index;
 
     if (D_REF(2)) base = VAL_INT32(D_ARG(3));
@@ -853,8 +801,13 @@ REBNATIVE(to_hex)
     }
     else if (IS_TUPLE(arg)) {
         REBINT n;
-        if (len < 0 || len > 2 * MAX_TUPLE || len > 2 * VAL_TUPLE_LEN(arg))
+        if (
+            len < 0
+            || len > 2 * cast(REBINT, MAX_TUPLE)
+            || len > 2 * VAL_TUPLE_LEN(arg)
+        ){
             len = 2 * VAL_TUPLE_LEN(arg);
+        }
         for (n = 0; n < VAL_TUPLE_LEN(arg); n++)
             buf = Form_Hex2(buf, VAL_TUPLE(arg)[n]);
         for (; n < 3; n++)
@@ -889,13 +842,13 @@ REBNATIVE(find_script)
 
     n = What_UTF(VAL_BIN_AT(arg), VAL_LEN_AT(arg));
 
-    if (n != 0 && n != 8) return R_NONE;  // UTF8 only
+    if (n != 0 && n != 8) return R_BLANK;  // UTF8 only
 
     if (n == 8) VAL_INDEX(arg) += 3;  // BOM8 length
 
     n = Scan_Header(VAL_BIN_AT(arg), VAL_LEN_AT(arg)); // returns offset
 
-    if (n == -1) return R_NONE;
+    if (n == -1) return R_BLANK;
 
     VAL_INDEX(arg) += n;
 
@@ -923,7 +876,7 @@ REBNATIVE(utf_q)
 //
 //  invalid-utf?: native [
 //  
-//  {Checks UTF encoding; if correct, returns none else position of error.}
+//  {Checks UTF encoding; if correct, returns blank else position of error.}
 //  
 //      data [binary!]
 //      /utf "Check encodings other than UTF-8"
@@ -940,7 +893,7 @@ REBNATIVE(invalid_utf_q)
     REBYTE *bp;
 
     bp = Check_UTF8(VAL_BIN_AT(arg), VAL_LEN_AT(arg));
-    if (bp == 0) return R_NONE;
+    if (bp == 0) return R_BLANK;
 
     VAL_INDEX(arg) = bp - VAL_BIN_HEAD(arg);
 

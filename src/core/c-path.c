@@ -1,6 +1,10 @@
 //
-// Rebol 3 Language Interpreter and Run-time Environment
-// "Ren-C" branch @ https://github.com/metaeducation/ren-c
+//  File: %c-path.h
+//  Summary: "Core Path Dispatching and Chaining"
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
 // Copyright 2012-2016 Rebol Open Source Contributors
@@ -22,56 +26,8 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  Summary: Core Path Dispatching and Chaining
-//  File: %c-path.h
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// When a path like `a/(b + c)/d` is evaluated, it moves in steps.  The
-// evaluative result of chaining the prior steps is offered as input to
-// the next step.  The path evaluator `Do_Path_Throws` delegates steps to
-// type-specific "(P)ath (D)ispatchers" with names like PD_Context,
-// PD_Array, etc.
-//
-// R3-Alpha left several open questions about the handling of paths.  One
-// of the trickiest regards the mechanics of how to use a SET-PATH! to
-// write data into native structures when more than one path step is
-// required.  For instance:
-//
-//     >> gob/size
-//     == 10x20
-//
-//     >> gob/size/x: 304
-//     >> gob/size
-//     == 10x304
-//
-// Because GOB! stores its size as packed bits that are not a full PAIR!,
-// the `gob/size` path dispatch can't give back a pointer to a REBVAL* to
-// which later writes will update the GOB!.  It can only give back a
-// temporary value built from its internal bits.  So workarounds are needed,
-// as they are for a similar situation in trying to set values inside of
-// C arrays in STRUCT!.
-//
-// The way the workaround works involves allowing a SET-PATH! to run forward
-// and write into a temporary value.  Then in these cases the temporary
-// REBVAL is observed and used to write back into the native bits before the
-// SET-PATH! evaluation finishes.  This means that it's not currently
-// prohibited for the effect of a SET-PATH! to be writing into a temporary.
-//
-// Further, the `value` slot is writable...even when it is inside of the path
-// that is being dispatched:
-//
-//     >> code: compose [(make set-path! [12-Dec-2012 day]) 1]
-//     == [12-Dec-2012/day: 1]
-//
-//     >> do code
-//
-//     >> probe code
-//     [1-Dec-2012/day: 1]
-//
-// Ren-C has largely punted on resolving these particular questions in order
-// to look at "more interesting" ones.  However, names and functions have
-// been updated during investigation of what was being done.
+// !!! See notes in %sys-path.h regarding the R3-Alpha path dispatch concept
+// and regarding areas that need improvement.
 //
 
 #include "sys-core.h"
@@ -80,7 +36,7 @@
 // However it contains definitions for Path_Dispatch and other things needed
 // by %c-do, so it is included there and an extern used here.
 //
-extern const REBPEF Path_Dispatch[REB_MAX_0];
+extern const REBPEF Path_Dispatch[REB_MAX];
 
 
 //
@@ -92,34 +48,48 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
 {
     REBPEF dispatcher;
 
-    REBVAL temp;
-    VAL_INIT_WRITABLE_DEBUG(&temp);
-
     // Path must have dispatcher, else return:
-    dispatcher = Path_Dispatch[VAL_TYPE_0(pvs->value)];
+    dispatcher = Path_Dispatch[VAL_TYPE(pvs->value)];
     if (!dispatcher) return FALSE; // unwind, then check for errors
 
     pvs->item++;
 
     //Debug_Fmt("Next_Path: %r/%r", pvs->path-1, pvs->path);
 
-    // object/:field case:
-    if (IS_GET_WORD(pvs->item)) {
-        pvs->selector = GET_MUTABLE_VAR_MAY_FAIL(pvs->item);
-        if (IS_UNSET(pvs->selector))
-            fail (Error(RE_NO_VALUE, pvs->item));
+    // Determine the "selector".  See notes on pvs->selector_temp for why
+    // a local variable can't be used for the temporary space.
+    //
+    if (IS_GET_WORD(pvs->item)) { // e.g. object/:field
+        pvs->selector
+            = GET_MUTABLE_VAR_MAY_FAIL(pvs->item, pvs->item_specifier);
+
+        if (IS_VOID(pvs->selector))
+            fail (Error_No_Value_Core(pvs->item, pvs->item_specifier));
+
+        SET_TRASH_IF_DEBUG(&pvs->selector_temp);
     }
     // object/(expr) case:
     else if (IS_GROUP(pvs->item)) {
-        if (DO_VAL_ARRAY_AT_THROWS(&temp, pvs->item)) {
-            *pvs->value = temp;
+        if (Do_At_Throws(
+            &pvs->selector_temp,
+            VAL_ARRAY(pvs->item),
+            VAL_INDEX(pvs->item),
+            IS_RELATIVE(pvs->item)
+                ? pvs->item_specifier // if relative, use parent specifier...
+                : VAL_SPECIFIER(const_KNOWN(pvs->item)) // ...else use child's
+        )) {
+            *pvs->store = pvs->selector_temp;
             return TRUE;
         }
 
-        pvs->selector = &temp;
+        pvs->selector = &pvs->selector_temp;
     }
-    else // object/word and object/value case:
-        pvs->selector = pvs->item;
+    else {
+        // object/word and object/value case:
+        //
+        COPY_VALUE(&pvs->selector_temp, pvs->item, pvs->item_specifier);
+        pvs->selector = &pvs->selector_temp;
+    }
 
     switch (dispatcher(pvs)) {
     case PE_OK:
@@ -133,9 +103,10 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
         break;
 
     case PE_NONE:
-        SET_NONE(pvs->store);
+        SET_BLANK(pvs->store);
     case PE_USE_STORE:
         pvs->value = pvs->store;
+        pvs->value_specifier = SPECIFIED;
         break;
 
     default:
@@ -149,7 +120,7 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
 
 
 //
-//  Do_Path_Throws: C
+//  Do_Path_Throws_Core: C
 //
 // Evaluate an ANY_PATH! REBVAL, starting from the index position of that
 // path value and continuing to the end.
@@ -170,10 +141,11 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
 // !!! Path evaluation is one of the parts of R3-Alpha that has not been
 // vetted very heavily by Ren-C, and needs a review and overhaul.
 //
-REBOOL Do_Path_Throws(
+REBOOL Do_Path_Throws_Core(
     REBVAL *out,
-    REBSYM *label_sym,
-    const REBVAL *path,
+    REBSTR **label_out,
+    const RELVAL *path,
+    REBCTX *specifier,
     REBVAL *opt_setval
 ) {
     REBPVS pvs;
@@ -199,9 +171,9 @@ REBOOL Do_Path_Throws(
     // None of the values passed in can live on the data stack, because
     // they might be relocated during the path evaluation process.
     //
-    assert(!IN_DATA_STACK(out));
-    assert(!IN_DATA_STACK(path));
-    assert(!opt_setval || !IN_DATA_STACK(opt_setval));
+    assert(!IN_DATA_STACK_DEBUG(out));
+    assert(!IN_DATA_STACK_DEBUG(path));
+    assert(!opt_setval || !IN_DATA_STACK_DEBUG(opt_setval));
 
     // Not currently robust for reusing passed in path or value as the output
     assert(out != path && out != opt_setval);
@@ -215,21 +187,43 @@ REBOOL Do_Path_Throws(
     pvs.orig = path;
     pvs.item = VAL_ARRAY_AT(pvs.orig); // may not be starting at head of PATH!
 
+    // The path value that's coming in may be relative (in which case it
+    // needs to use the specifier passed in).  Or it may be specific already,
+    // in which case we should use the specifier in the value to process
+    // its array contents.
+    //
+    if (IS_RELATIVE(path)) {
+    #if !defined(NDEBUG)
+        assert(specifier != SPECIFIED);
+
+        if (VAL_RELATIVE(path) != VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier))) {
+            Debug_Fmt("Specificity mismatch found in path dispatch");
+            PROBE_MSG(path, "expected func");
+            PROBE_MSG(CTX_FRAME_FUNC_VALUE(specifier), "actual func");
+            assert(FALSE);
+        }
+    #endif
+        pvs.item_specifier = specifier;
+    }
+    else pvs.item_specifier = VAL_SPECIFIER(const_KNOWN(path));
+
     // Seed the path evaluation process by looking up the first item (to
     // get a datatype to dispatch on for the later path items)
     //
     if (IS_WORD(pvs.item)) {
-        pvs.value = GET_MUTABLE_VAR_MAY_FAIL(pvs.item);
-        if (IS_UNSET(pvs.value))
-            fail (Error(RE_NO_VALUE, pvs.item));
+        pvs.value = GET_MUTABLE_VAR_MAY_FAIL(pvs.item, pvs.item_specifier);
+        pvs.value_specifier = SPECIFIED;
+        if (IS_VOID(pvs.value))
+            fail (Error_No_Value_Core(pvs.item, pvs.item_specifier));
     }
     else {
-        // !!! Ideally there would be some way to protect pvs.value during
-        // successive path dispatches to make sure it does not get written.
-        // This is semi-dangerously giving pvs.value a reference into the
-        // input path, which should not be modified!
+        // !!! Ideally there would be some way to deal with writes to
+        // temporary locations, like this pvs.value...if a set-path sets
+        // it, then it will be discarded.
 
-        pvs.value = VAL_ARRAY_AT(pvs.orig);
+        COPY_VALUE(pvs.store, VAL_ARRAY_AT(pvs.orig), pvs.item_specifier);
+        pvs.value = pvs.store;
+        pvs.value_specifier = SPECIFIED;
     }
 
     // Start evaluation of path:
@@ -239,7 +233,7 @@ REBOOL Do_Path_Throws(
         //
         // !!! Is this the desired behavior, or should it be an error?
     }
-    else if (Path_Dispatch[VAL_TYPE_0(pvs.value)]) {
+    else if (Path_Dispatch[VAL_TYPE(pvs.value)]) {
         REBOOL threw = Next_Path_Throws(&pvs);
 
         // !!! See comments about why the initialization of out is necessary.
@@ -262,12 +256,23 @@ REBOOL Do_Path_Throws(
 
         // Check for errors:
         if (NOT_END(pvs.item + 1) && !IS_FUNCTION(pvs.value)) {
+            //
             // Only function refinements should get by this line:
-            fail (Error(RE_INVALID_PATH, pvs.orig, pvs.item));
+
+            REBVAL specified_orig;
+            COPY_VALUE(&specified_orig, pvs.orig, specifier);
+
+            REBVAL specified_item;
+            COPY_VALUE(&specified_item, pvs.item, specifier);
+
+            fail (Error(RE_INVALID_PATH, &specified_orig, &specified_item));
         }
     }
-    else if (!IS_FUNCTION(pvs.value))
-        fail (Error(RE_BAD_PATH_TYPE, pvs.orig, Type_Of(pvs.value)));
+    else if (!IS_FUNCTION(pvs.value)) {
+        REBVAL specified;
+        COPY_VALUE(&specified, pvs.orig, specifier);
+        fail (Error(RE_BAD_PATH_TYPE, &specified, Type_Of(pvs.value)));
+    }
 
     if (opt_setval) {
         // If SET then we don't return anything
@@ -276,7 +281,8 @@ REBOOL Do_Path_Throws(
     }
 
     // If storage was not used, then copy final value back to it:
-    if (pvs.value != pvs.store) *pvs.store = *pvs.value;
+    if (pvs.value != pvs.store)
+        COPY_VALUE(pvs.store, pvs.value, pvs.value_specifier);
 
     assert(!THROWN(out));
 
@@ -286,9 +292,8 @@ REBOOL Do_Path_Throws(
         return FALSE;
     }
 
-    if (label_sym) {
+    if (label_out) {
         REBVAL refinement;
-        VAL_INIT_WRITABLE_DEBUG(&refinement);
 
         // When a function is hit, path processing stops as soon as the
         // processed sub-path resolves to a function. The path is still sitting
@@ -296,7 +301,7 @@ REBOOL Do_Path_Throws(
         // this last component in the sub-path is a word naming the function.
         //
         if (IS_WORD(pvs.item)) {
-            *label_sym = VAL_WORD_SYM(pvs.item);
+            *label_out = VAL_WORD_SPELLING(pvs.item);
         }
         else {
             // In rarer cases, the final component (completing the sub-path to
@@ -320,7 +325,7 @@ REBOOL Do_Path_Throws(
             // was ROOT_NONAME, and another was to be the type of the function
             // being executed.  None are fantastic, we do the type for now.
 
-            *label_sym = SYM_FROM_KIND(VAL_TYPE(pvs.value));
+            *label_out = Canon(SYM_FROM_KIND(VAL_TYPE(pvs.value)));
         }
 
         // Move on to the refinements (if any)
@@ -349,40 +354,49 @@ REBOOL Do_Path_Throws(
         // should balance!)
 
         for (; NOT_END(pvs.item); ++pvs.item) { // "the refinements"
-            if (IS_NONE(pvs.item)) continue;
+            if (IS_VOID(pvs.item)) continue;
 
             if (IS_GROUP(pvs.item)) {
+                //
                 // Note it is not legal to use the data stack directly as the
                 // output location for a DO (might be resized)
 
-                if (DO_VAL_ARRAY_AT_THROWS(&refinement, pvs.item)) {
+                if (Do_At_Throws(
+                    &refinement,
+                    VAL_ARRAY(pvs.item),
+                    VAL_INDEX(pvs.item),
+                    IS_RELATIVE(pvs.item)
+                        ? pvs.item_specifier // if relative, use parent's
+                        : VAL_SPECIFIER(const_KNOWN(pvs.item)) // else embedded
+                )) {
                     *out = refinement;
                     DS_DROP_TO(dsp_orig);
                     return TRUE;
                 }
-                if (IS_NONE(&refinement)) continue;
+                if (IS_VOID(&refinement)) continue;
                 DS_PUSH(&refinement);
             }
             else if (IS_GET_WORD(pvs.item)) {
                 DS_PUSH_TRASH;
-                *DS_TOP = *GET_OPT_VAR_MAY_FAIL(pvs.item);
-                if (IS_NONE(DS_TOP)) {
+                *DS_TOP = *GET_OPT_VAR_MAY_FAIL(pvs.item, pvs.item_specifier);
+                if (IS_VOID(DS_TOP)) {
                     DS_DROP;
                     continue;
                 }
             }
-            else DS_PUSH(pvs.item);
+            else DS_PUSH_RELVAL(pvs.item, pvs.item_specifier);
 
             // Whatever we were trying to use as a refinement should now be
             // on the top of the data stack, and only words are legal ATM
             //
-            if (!IS_WORD(DS_TOP))
+            if (!IS_WORD(DS_TOP)) {
                 fail (Error(RE_BAD_REFINE, DS_TOP));
+            }
 
             // Go ahead and canonize the word symbol so we don't have to
             // do it each time in order to get a case-insenstive compare
             //
-            INIT_WORD_SYM(DS_TOP, SYMBOL_TO_CANON(VAL_WORD_SYM(DS_TOP)));
+            INIT_WORD_SPELLING(DS_TOP, VAL_WORD_CANON(DS_TOP));
         }
 
         // To make things easier for processing, reverse the refinements on
@@ -425,7 +439,13 @@ REBOOL Do_Path_Throws(
 //
 REBCTX *Error_Bad_Path_Select(REBPVS *pvs)
 {
-    return Error(RE_INVALID_PATH, pvs->orig, pvs->item);
+    REBVAL orig;
+    COPY_VALUE(&orig, pvs->orig, pvs->item_specifier);
+
+    REBVAL item;
+    COPY_VALUE(&item, pvs->item, pvs->item_specifier);
+
+    return Error(RE_INVALID_PATH, &orig, &item);
 }
 
 
@@ -434,7 +454,13 @@ REBCTX *Error_Bad_Path_Select(REBPVS *pvs)
 //
 REBCTX *Error_Bad_Path_Set(REBPVS *pvs)
 {
-    return Error(RE_BAD_PATH_SET, pvs->orig, pvs->item);
+    REBVAL orig;
+    COPY_VALUE(&orig, pvs->orig, pvs->item_specifier);
+
+    REBVAL item;
+    COPY_VALUE(&item, pvs->item, pvs->item_specifier);
+
+    return Error(RE_BAD_PATH_SET, &orig, &item);
 }
 
 
@@ -443,7 +469,10 @@ REBCTX *Error_Bad_Path_Set(REBPVS *pvs)
 //
 REBCTX *Error_Bad_Path_Range(REBPVS *pvs)
 {
-    return Error_Out_Of_Range(pvs->item);
+    REBVAL item;
+    COPY_VALUE(&item, pvs->item, pvs->item_specifier);
+
+    return Error_Out_Of_Range(&item);
 }
 
 
@@ -452,7 +481,10 @@ REBCTX *Error_Bad_Path_Range(REBPVS *pvs)
 //
 REBCTX *Error_Bad_Path_Field_Set(REBPVS *pvs)
 {
-    return Error(RE_BAD_FIELD_SET, pvs->item, Type_Of(pvs->opt_setval));
+    REBVAL item;
+    COPY_VALUE(&item, pvs->item, pvs->item_specifier);
+
+    return Error(RE_BAD_FIELD_SET, &item, Type_Of(pvs->opt_setval));
 }
 
 
@@ -472,13 +504,14 @@ void Pick_Path(
     REBPEF dispatcher;
 
     pvs.value = value;
+    pvs.value_specifier = SPECIFIED;
     pvs.item = NULL;
     pvs.selector = selector;
     pvs.opt_setval = opt_setval;
     pvs.store = out;        // Temp space for constructed results
 
     // Path must have dispatcher, else return:
-    dispatcher = Path_Dispatch[VAL_TYPE_0(value)];
+    dispatcher = Path_Dispatch[VAL_TYPE(value)];
     if (!dispatcher) return; // unwind, then check for errors
 
     switch (dispatcher(&pvs)) {
@@ -491,9 +524,10 @@ void Pick_Path(
         break;
 
     case PE_NONE:
-        SET_NONE(pvs.store);
+        SET_BLANK(pvs.store);
     case PE_USE_STORE:
         pvs.value = pvs.store;
+        pvs.value_specifier = SPECIFIED;
         break;
 
     default:
@@ -507,17 +541,17 @@ void Pick_Path(
 //
 // Does easy lookup, else just returns the value as is.
 //
-void Get_Simple_Value_Into(REBVAL *out, const REBVAL *val)
+void Get_Simple_Value_Into(REBVAL *out, const RELVAL *val, REBCTX *specifier)
 {
     if (IS_WORD(val) || IS_GET_WORD(val)) {
-        *out = *GET_OPT_VAR_MAY_FAIL(val);
+        *out = *GET_OPT_VAR_MAY_FAIL(val, specifier);
     }
     else if (IS_PATH(val) || IS_GET_PATH(val)) {
-        if (Do_Path_Throws(out, NULL, val, NULL))
+        if (Do_Path_Throws_Core(out, NULL, val, specifier, NULL))
             fail (Error_No_Catch_For_Throw(out));
     }
     else {
-        *out = *val;
+        COPY_VALUE(out, val, specifier);
     }
 }
 
@@ -525,31 +559,47 @@ void Get_Simple_Value_Into(REBVAL *out, const REBVAL *val)
 //
 //  Resolve_Path: C
 //
-// Given a path, return a context and index for its terminal.
+// Given a path, determine if it is ultimately specifying a selection out
+// of a context...and if it is, return that context.  So `a/obj/key` would
+// return the object assocated with obj, while `a/str/1` would return
+// NULL if `str` were a string as it's not an object selection.
 //
-REBCTX *Resolve_Path(REBVAL *path, REBCNT *index)
+// !!! This routine overlaps the logic of Do_Path, and should potentially
+// be a mode of that instead.  It is not very complete, considering that it
+// does not execute GROUP! (and perhaps shouldn't?) and only supports a
+// path that picks contexts out of other contexts, via word selection.
+//
+REBCTX *Resolve_Path(const REBVAL *path, REBCNT *index_out)
 {
-    REBVAL *sel; // selector
-    const REBVAL *val;
-    REBARR *blk;
+    RELVAL *selector;
+    const REBVAL *var;
+    REBARR *array;
     REBCNT i;
 
-    if (VAL_LEN_HEAD(path) < 2) return 0;
-    blk = VAL_ARRAY(path);
-    sel = ARR_HEAD(blk);
-    if (!ANY_WORD(sel)) return 0;
-    val = GET_OPT_VAR_MAY_FAIL(sel);
+    array = VAL_ARRAY(path);
+    selector = ARR_HEAD(array);
 
-    sel = ARR_AT(blk, 1);
-    while (TRUE) {
-        if (!ANY_CONTEXT(val) || !IS_WORD(sel)) return 0;
-        i = Find_Word_In_Context(VAL_CONTEXT(val), VAL_WORD_SYM(sel), FALSE);
-        sel++;
-        if (IS_END(sel)) {
-            *index = i;
-            return VAL_CONTEXT(val);
+    if (IS_END(selector) || !ANY_WORD(selector))
+        return NULL; // !!! only handles heads of paths that are ANY-WORD!
+
+    var = GET_OPT_VAR_MAY_FAIL(selector, VAL_SPECIFIER(path));
+
+    ++selector;
+    if (IS_END(selector))
+        return NULL; // !!! does not handle single-element paths
+
+    while (ANY_CONTEXT(var) && IS_WORD(selector)) {
+        i = Find_Canon_In_Context(
+            VAL_CONTEXT(var), VAL_WORD_CANON(selector), FALSE
+        );
+        ++selector;
+        if (IS_END(selector)) {
+            *index_out = i;
+            return VAL_CONTEXT(var);
         }
+
+        var = CTX_VAR(VAL_CONTEXT(var), i);
     }
 
-    return 0; // never happens
+    DEAD_END;
 }

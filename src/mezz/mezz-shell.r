@@ -22,15 +22,14 @@ mkdir:  :make-dir
 
 cd: func [
     "Change directory (shell shortcut function)."
-    'path [file! word! path! unset! string!]
+    'path [<end> file! word! path! string!]
         "Accepts %file, :variables and just words (as dirs)"
 ][
-    ; !!! to-word necessary as long as OPTIONS_DATATYPE_WORD_STRICT exists
-    switch to-word type-of :path [
-        unset! [print what-dir]
-        file! [change-dir path]
-        string! [change-dir to-rebol-file path]
-        word! path! [change-dir to-file path]
+    switch type-of :path [
+        _ [print what-dir]
+        :file! [change-dir path]
+        :string! [change-dir to-rebol-file path]
+        :word! :path! [change-dir to-file path]
     ]
 ]
 

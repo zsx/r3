@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  t-time.c
-**  Summary: time datatype
-**  Section: datatypes
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %t-time.c
+//  Summary: "time datatype"
+//  Section: datatypes
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
@@ -165,7 +166,7 @@ void Emit_Time(REB_MOLD *mold, const REBVAL *value)
 //
 //  CT_Time: C
 //
-REBINT CT_Time(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Time(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     REBINT num = Cmp_Time(a, b);
     if (mode >= 0)  return (num == 0);
@@ -179,7 +180,7 @@ REBINT CT_Time(const REBVAL *a, const REBVAL *b, REBINT mode)
 // 
 // Returns NO_TIME if error.
 //
-REBI64 Make_Time(REBVAL *val)
+REBI64 Make_Time(const REBVAL *val)
 {
     REBI64 secs = 0;
 
@@ -190,8 +191,9 @@ REBI64 Make_Time(REBVAL *val)
         REBYTE *bp;
         REBCNT len;
         bp = Temp_Byte_Chars_May_Fail(val, MAX_SCAN_TIME, &len, FALSE);
-        if (!Scan_Time(bp, len, val)) goto no_time;
-        secs = VAL_TIME(val);
+        REBVAL temp;
+        if (!Scan_Time(bp, len, &temp)) goto no_time;
+        secs = VAL_TIME(&temp);
     }
     else if (IS_INTEGER(val)) {
         if (VAL_INT64(val) < -MAX_SECONDS || VAL_INT64(val) > MAX_SECONDS)
@@ -206,35 +208,36 @@ REBI64 Make_Time(REBVAL *val)
     else if (ANY_ARRAY(val) && VAL_ARRAY_LEN_AT(val) <= 3) {
         REBOOL neg = FALSE;
         REBI64 i;
+        RELVAL *item;
 
-        val = VAL_ARRAY_AT(val);
+        item = VAL_ARRAY_AT(val);
         if (!IS_INTEGER(val)) goto no_time;
-        i = Int32(val);
+        i = Int32(KNOWN(item));
         if (i < 0) i = -i, neg = TRUE;
         secs = i * 3600;
         if (secs > MAX_SECONDS) goto no_time;
 
-        if (NOT_END(++val)) {
-            if (!IS_INTEGER(val)) goto no_time;
-            if ((i = Int32(val)) < 0) goto no_time;
+        if (NOT_END(++item)) {
+            if (!IS_INTEGER(item)) goto no_time;
+            if ((i = Int32(KNOWN(item))) < 0) goto no_time;
             secs += i * 60;
             if (secs > MAX_SECONDS) goto no_time;
 
-            if (NOT_END(++val)) {
-                if (IS_INTEGER(val)) {
-                    if ((i = Int32(val)) < 0) goto no_time;
+            if (NOT_END(++item)) {
+                if (IS_INTEGER(item)) {
+                    if ((i = Int32(KNOWN(item))) < 0) goto no_time;
                     secs += i;
                     if (secs > MAX_SECONDS) goto no_time;
                 }
-                else if (IS_DECIMAL(val)) {
-                    if (secs + (REBI64)VAL_DECIMAL(val) + 1 > MAX_SECONDS) goto no_time;
+                else if (IS_DECIMAL(item)) {
+                    if (secs + (REBI64)VAL_DECIMAL(item) + 1 > MAX_SECONDS) goto no_time;
                     // added in below
                 }
                 else goto no_time;
             }
         }
         secs *= SEC_SEC;
-        if (IS_DECIMAL(val)) secs += DEC_TO_SECS(VAL_DECIMAL(val));
+        if (IS_DECIMAL(item)) secs += DEC_TO_SECS(VAL_DECIMAL(item));
         if (neg) secs = -secs;
     }
     else
@@ -245,19 +248,26 @@ REBI64 Make_Time(REBVAL *val)
 
 
 //
-//  MT_Time: C
+//  MAKE_Time: C
 //
-REBOOL MT_Time(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+void MAKE_Time(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
 {
-    REBI64 secs = Make_Time(data);
-
-    if (secs == NO_TIME) return FALSE;
+    REBI64 secs = Make_Time(arg);
+    if (secs == NO_TIME)
+        fail (Error_Bad_Make(REB_TIME, arg));
 
     VAL_RESET_HEADER(out, REB_TIME);
     VAL_TIME(out) = secs;
     VAL_DATE(out).bits = 0;
+}
 
-    return TRUE;
+
+//
+//  TO_Time: C
+//
+void TO_Time(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    MAKE_Time(out, kind, arg);
 }
 
 
@@ -266,7 +276,7 @@ REBOOL MT_Time(REBVAL *out, REBVAL *data, enum Reb_Kind type)
 // 
 // Given two times, compare them.
 //
-REBINT Cmp_Time(const REBVAL *v1, const REBVAL *v2)
+REBINT Cmp_Time(const RELVAL *v1, const RELVAL *v2)
 {
     REBI64 t1 = VAL_TIME(v1);
     REBI64 t2 = VAL_TIME(v2);
@@ -292,7 +302,7 @@ REBINT PD_Time(REBPVS *pvs)
     REB_TIMEF tf;
 
     if (IS_WORD(sel)) {
-        switch (VAL_WORD_CANON(sel)) {
+        switch (VAL_WORD_SYM(sel)) {
         case SYM_HOUR:   i = 0; break;
         case SYM_MINUTE: i = 1; break;
         case SYM_SECOND: i = 2; break;
@@ -332,7 +342,7 @@ REBINT PD_Time(REBPVS *pvs)
     else {
         if (IS_INTEGER(setval) || IS_DECIMAL(setval))
             n = Int32s(setval, 0);
-        else if (IS_NONE(setval))
+        else if (IS_BLANK(setval))
             n = 0;
         else
             fail (Error_Bad_Path_Set(pvs));
@@ -386,7 +396,16 @@ REBTYPE(Time)
         arg = D_ARG(2);
     }
 
-    if (IS_BINARY_ACT(action)) {
+    // !!! This used to use IS_BINARY_ACT(), which is not available under
+    // the symbol-based dispatch.  Consider doing another way.
+    //
+    if (
+        action == SYM_ADD
+        || action == SYM_SUBTRACT
+        || action == SYM_MULTIPLY
+        || action == SYM_DIVIDE
+        || action == SYM_REMAINDER
+    ){
         REBINT  type = VAL_TYPE(arg);
 
         assert(arg);
@@ -396,22 +415,22 @@ REBTYPE(Time)
 
             switch (action) {
 
-            case A_ADD:
+            case SYM_ADD:
                 secs = Add_Max(REB_TIME, secs, secs2, MAX_TIME);
                 goto fixTime;
 
-            case A_SUBTRACT:
+            case SYM_SUBTRACT:
                 secs = Add_Max(REB_TIME, secs, -secs2, MAX_TIME);
                 goto fixTime;
 
-            case A_DIVIDE:
+            case SYM_DIVIDE:
                 if (secs2 == 0) fail (Error(RE_ZERO_DIVIDE));
                 //secs /= secs2;
                 VAL_RESET_HEADER(D_OUT, REB_DECIMAL);
                 VAL_DECIMAL(D_OUT) = (REBDEC)secs / (REBDEC)secs2;
                 return R_OUT;
 
-            case A_REMAINDER:
+            case SYM_REMAINDER:
                 if (secs2 == 0) fail (Error(RE_ZERO_DIVIDE));
                 secs %= secs2;
                 goto setTime;
@@ -422,27 +441,27 @@ REBTYPE(Time)
             num = VAL_INT64(arg);
 
             switch(action) {
-            case A_ADD:
+            case SYM_ADD:
                 secs = Add_Max(REB_TIME, secs, num * SEC_SEC, MAX_TIME);
                 goto fixTime;
 
-            case A_SUBTRACT:
+            case SYM_SUBTRACT:
                 secs = Add_Max(REB_TIME, secs, num * -SEC_SEC, MAX_TIME);
                 goto fixTime;
 
-            case A_MULTIPLY:
+            case SYM_MULTIPLY:
                 secs *= num;
                 if (secs < -MAX_TIME || secs > MAX_TIME)
                     fail (Error(RE_TYPE_LIMIT, Get_Type(REB_TIME)));
                 goto setTime;
 
-            case A_DIVIDE:
+            case SYM_DIVIDE:
                 if (num == 0) fail (Error(RE_ZERO_DIVIDE));
                 secs /= num;
                 SET_INTEGER(D_OUT, secs);
                 goto setTime;
 
-            case A_REMAINDER:
+            case SYM_REMAINDER:
                 if (num == 0) fail (Error(RE_ZERO_DIVIDE));
                 secs %= num;
                 goto setTime;
@@ -452,29 +471,29 @@ REBTYPE(Time)
             REBDEC dec = VAL_DECIMAL(arg);
 
             switch(action) {
-            case A_ADD:
+            case SYM_ADD:
                 secs = Add_Max(REB_TIME, secs, (i64)(dec * SEC_SEC), MAX_TIME);
                 goto fixTime;
 
-            case A_SUBTRACT:
+            case SYM_SUBTRACT:
                 secs = Add_Max(REB_TIME, secs, (i64)(dec * -SEC_SEC), MAX_TIME);
                 goto fixTime;
 
-            case A_MULTIPLY:
+            case SYM_MULTIPLY:
                 secs = (REBI64)(secs * dec);
                 goto setTime;
 
-            case A_DIVIDE:
+            case SYM_DIVIDE:
                 if (dec == 0.0) fail (Error(RE_ZERO_DIVIDE));
                 secs = (REBI64)(secs / dec);
                 goto setTime;
 
-//          case A_REMAINDER:
+//          case SYM_REMAINDER:
 //              ld = fmod(ld, VAL_DECIMAL(arg));
 //              goto decTime;
             }
         }
-        else if (type == REB_DATE && action == A_ADD) { // TIME + DATE case
+        else if (type == REB_DATE && action == SYM_ADD) { // TIME + DATE case
             // Swap args and call DATE datatupe:
             *D_ARG(3) = *val; // (temporary location for swap)
             *D_ARG(1) = *arg;
@@ -487,21 +506,21 @@ REBTYPE(Time)
         // unary actions
         switch(action) {
 
-        case A_ODD_Q:
-            DECIDE((SECS_IN(secs) & 1) != 0);
+        case SYM_ODD_Q:
+            return ((SECS_IN(secs) & 1) != 0) ? R_TRUE : R_FALSE;
 
-        case A_EVEN_Q:
-            DECIDE((SECS_IN(secs) & 1) == 0);
+        case SYM_EVEN_Q:
+            return ((SECS_IN(secs) & 1) == 0) ? R_TRUE : R_FALSE;
 
-        case A_NEGATE:
+        case SYM_NEGATE:
             secs = -secs;
             goto setTime;
 
-        case A_ABSOLUTE:
+        case SYM_ABSOLUTE:
             if (secs < 0) secs = -secs;
             goto setTime;
 
-        case A_ROUND:
+        case SYM_ROUND:
             if (D_REF(2)) {
                 arg = D_ARG(3);
                 if (IS_TIME(arg)) {
@@ -531,32 +550,25 @@ REBTYPE(Time)
             }
             goto fixTime;
 
-        case A_RANDOM:
+        case SYM_RANDOM:
             if (D_REF(2)) {
                 Set_Random(secs);
-                return R_UNSET;
+                return R_VOID;
             }
             secs = Random_Range(secs / SEC_SEC, D_REF(3)) * SEC_SEC;
             goto fixTime;
 
-        case A_PICK:
+        case SYM_PICK:
             assert(arg);
 
             Pick_Path(D_OUT, val, arg, 0);
             return R_OUT;
 
-///     case A_POKE:
+///     case SYM_POKE:
 ///         Pick_Path(D_OUT, val, arg, D_ARG(3));
 ///         *D_OUT = *D_ARG(3);
 ///         return R_OUT;
-
-        case A_MAKE:
-        case A_TO:
-            assert(arg);
-
-            secs = Make_Time(arg);
-            if (secs == NO_TIME) fail (Error_Bad_Make(REB_TIME, arg));
-            goto setTime;
+///
         }
     }
     fail (Error_Illegal_Action(REB_TIME, action));
@@ -566,10 +578,4 @@ setTime:
     VAL_TIME(D_OUT) = secs;
     VAL_RESET_HEADER(D_OUT, REB_TIME);
     return R_OUT;
-
-is_false:
-    return R_FALSE;
-
-is_true:
-    return R_TRUE;
 }

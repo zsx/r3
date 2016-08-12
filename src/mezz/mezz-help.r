@@ -11,7 +11,11 @@ REBOL [
     }
 ]
 
-; MOVE THIS INTERNAL FUNC:
+; !!! R3-Alpha labeled this "MOVE THIS INTERNAL FUNC" but it is actually used
+; to search for patterns in HELP when you type in something that isn't bound,
+; so it uses that as a string pattern.  Review how to better factor that
+; (as part of a general help review)
+;
 dump-obj: function [
     "Returns a block of information about an object or port."
     obj [object! port!]
@@ -48,12 +52,10 @@ dump-obj: function [
 
     ; Search for matching strings:
     out: copy []
-    wild: all [value? 'pat string? pat  find pat "*"]
+    wild: all [set? 'pat | string? pat | find pat "*"]
 
     for-each [word val] obj [
-        ; !!! to-word necessary as long as OPTIONS_DATATYPE_WORD_STRICT exists
-        ; (and for this use maybe it would be needed anyway, review to check)
-        type: to-word type-of :val
+        type: type-of :val
 
         str: either any [function? :type object? :type] [
             reform [word mold spec-of :val words-of :val]
@@ -63,7 +65,7 @@ dump-obj: function [
         if any [
             not match
             all [
-                not unset? :val
+                not void? :val
                 either string? :pat [
                     either wild [
                         tail? any [find/any/match str pat pat]
@@ -83,7 +85,7 @@ dump-obj: function [
             append str form-pad type 10 - ((length str) - 15)
             append out reform [
                 "  " str
-                if type <> 'unset! [form-val :val]
+                if type [form-val :val]
                 newline
             ]
         ]
@@ -92,56 +94,106 @@ dump-obj: function [
 ]
 
 
+spec-of: function [
+    {Generate a block which could be used as a "spec block" from a function.}
+
+    value [function!]
+][
+    meta: maybe object! meta-of :value
+
+    specializee: maybe function! select meta 'specializee
+    adaptee: maybe function! select meta 'specializee
+    original-meta: maybe object! any [
+        all [:specializee | meta-of :specializee]
+        all [:adaptee | meta-of :adaptee]
+    ]
+
+    spec: copy []
+
+    if description: maybe string! any [
+        select meta 'description
+        select original-meta 'description
+    ][
+        append spec description
+        new-line back spec true
+    ]
+
+    return-type: maybe block! any [
+        select meta 'return-type
+        select original-meta 'return-type
+    ]
+    return-note: maybe string! any [
+        select meta 'return-note
+        select original-meta 'return-note
+    ]
+    if return-type or return-note [
+        append spec quote return:
+        if return-type [append/only spec return-type]
+        if return-note [append spec return-note]
+    ]
+
+    types: maybe frame! any [
+        select meta 'parameter-types
+        select original-meta 'parameter-types
+    ]
+    notes: maybe frame! any [
+        select meta 'parameter-notes
+        select original-meta 'parameter-notes
+    ]
+
+    for-each param words-of :value [
+        append spec param
+        if any [type: select types param] [append/only spec type]
+        if any [note: select notes param] [append spec note]
+    ]
+
+    return spec
+]
+
+
 title-of: function [
-    {Examines the spec of a value and extracts a summary of it's purpose.}
+    {Extracts a summary of a value's purpose from its "meta" information.}
 
     value [any-value!]
 ][
     switch type-of :value [
         :function! [
-            ;
-            ; Get the first STRING! before any parameter definitions, or
-            ; NONE! if there isn't one.
-
-            for-each item spec-of :value [
-                if string? :item [
-                    return copy item
-                ]
-                if any-word? :item [
-                    return none
-                ]
+            all [
+                object? meta: meta-of :value
+                string? description: select meta 'description
+                copy description
             ]
         ]
 
         :datatype! [
-            ;
-            ; Each datatype should have a help string.
-
             spec: spec-of value
-            return spec/title
+            assert [string? spec] ;-- !!! Consider simplifying "type specs"
+            spec/title
         ]
-    ]
 
-    none
+        (blank)
+    ]
 ]
 
 
-?: help: func [
-    "Prints information about words and values."
-    'word [opt-any-value!]
+help: procedure [
+    "Prints information about words and values (if no args, general help)."
+    'word [<end> any-value!]
     /doc "Open web browser to related documentation."
-    /local value args item type-name types tmp print-args
 ][
-    unless value? 'word [
-        print trim/auto {
-            Use HELP or ? to see built-in info:
+    if not set? 'word [
+        ;
+        ; Was just `>> help` or `do [help]` or similar.
+        ; Print out generic help message.
+        ;
+        print trim/auto copy {
+            Use HELP to see built-in info:
 
                 help insert
-                ? insert
 
             To search within the system, use quotes:
 
-                ? "insert"
+                help "insert"
 
             To browse online web documents:
 
@@ -149,16 +201,16 @@ title-of: function [
 
             To view words and values of a context or object:
 
-                ? lib    - the runtime library
-                ? self   - your user context
-                ? system - the system object
-                ? system/options - special settings
+                help lib    - the runtime library
+                help self   - your user context
+                help system - the system object
+                help system/options - special settings
 
             To see all words of a specific datatype:
 
-                ? object!
-                ? function!
-                ? datatype!
+                help object!
+                help function!
+                help datatype!
 
             Other debug functions:
 
@@ -183,7 +235,7 @@ title-of: function [
                 license - show user license
                 usage - program cmd line options
         }
-        return ()
+        leave
     ]
 
 ;           Word completion:
@@ -208,7 +260,7 @@ title-of: function [
 ;           More information: http://www.rebol.com/docs.html
 
     ; If arg is an undefined word, just make it into a string:
-    if all [word? :word not value? :word] [word: mold :word]
+    if all [word? :word | not set? :word] [word: mold :word]
 
     ; Open the web page for it?
     if all [
@@ -237,28 +289,32 @@ title-of: function [
     ]
 
     ; If arg is a string or datatype! word, search the system:
-    if any [string? :word all [word? :word datatype? get :word]] [
-        if all [word? :word datatype? get :word] [
-            value: spec-of get :word
+    if any [string? :word | all [word? :word | datatype? get :word]] [
+        if all [word? :word | datatype? get :word] [
+            typespec: spec-of get :word
             print [
-                mold :word "is a datatype" newline
-                "It is defined as" either find "aeiou" first value/title ["an"] ["a"] value/title newline
-                "It is of the general type" value/type newline
+                word {is a datatype}
+                    |
+                {It is defined as}
+                    either find "aeiou" first typespec/title ["an"] ["a"]
+                    typespec/title newline
+                    |
+                "It is of the general type" typespec/type
             ]
         ]
-        if any [:word = 'unset! not value? :word] [return ()]
+        if all [word? :word | not set? :word] [leave]
         types: dump-obj/match lib :word
         sort types
         if not empty? types [
             print ["Found these related words:" newline types]
-            return ()
+            leave
         ]
         if all [word? :word datatype? get :word] [
             print ["No values defined for" word]
-            return ()
+            leave
         ]
         print ["No information on" word]
-        return ()
+        leave
     ]
 
     ; Print type name with proper singular article:
@@ -271,103 +327,178 @@ title-of: function [
     ; Print literal values:
     if not any [word? :word path? :word][
         print [mold :word "is" type-name :word]
-        return ()
+        leave
     ]
+
+    ; Functions are not infix in Ren-C, only bindings of words to infix, so
+    ; we have to read the infixness off of the word before GETting it.
 
     ; Get value (may be a function, so handle with ":")
     either path? :word [
+        print ["!!! NOTE: Infix testing not currently supported for paths !!!"]
+        lookback: false
         if any [
             error? set/opt 'value trap [get :word] ;trap reduce [to-get-path word]
-            not value? 'value
+            not set? 'value
         ][
             print ["No information on" word "(path has no value)"]
-            return ()
+            leave
         ]
     ][
+        lookback: lookback? :word
         value: get :word
     ]
     unless function? :value [
         prin [uppercase mold word "is" type-name :value "of value: "]
         print either any [object? value port? value]  [print "" dump-obj value][mold :value]
-        return ()
+        leave
     ]
 
     ; Must be a function...
     ; If it has refinements, strip them:
     ;if path? :word [word: first :word]
 
+    space4: rejoin [space space space space] ;-- use instead of tab
+
     ;-- Print info about function:
-    prin "USAGE:^/^-"
+    print/only [
+        "USAGE:" newline
+        space4]
 
-    args: words-of :value
+    args: _ ;-- plain arguments
+    refinements: _ ;-- refinements and refinement arguments
 
-    ; !!! Historically, HELP would not show anything that happens after a
-    ; /local.  The way it did this was to clear everything after /local
-    ; in the WORDS-OF list.  But with the <local> tag, *the locals do
-    ; not show up in the WORDS-OF list* because the FUNC generator
-    ; converted them all
+    parse words-of :value [
+        copy args any [word! | get-word! | lit-word!]
+        copy refinements any [refinement! | word! | get-word! | lit-word!]
+    ]
+
+    ; Output exemplar calling string, e.g. LEFT + RIGHT or FOO A B C
+    ; !!! Should refinement args be shown for lookback case??
     ;
-    clear find args /local
-
-    either infix? :value [
-        print [args/1 word args/2]
+    either lookback [
+        print [args/1 | uppercase mold word | next args]
     ][
-        ; Test idiom... print "tightly" by going straight to a second level
-        ; of nesting, where | also means space and can serve as a barrier.
-        ; Must FORM/QUOTE args to keep them from trying to be reduced.
-        ;
-        print [[uppercase mold word | form/new/quote args]]
+        print [uppercase mold word | args | refinements]
     ]
 
-    print ajoin [
-        newline "DESCRIPTION:" newline
-        tab any [title-of :value "(undocumented)"] newline
-        tab uppercase mold word " is " type-name :value " value."
-    ]
+    ; Dig deeply, but try to inherit the most specific meta fields available
+    ;
+    fields: dig-function-meta-fields :value
 
-    unless args: find spec-of :value any-word! [return ()]
-    clear find args /local
+    description: fields/description
+    return-type: :fields/return-type
+    return-note: fields/return-note
+    types: fields/parameter-types
+    notes: fields/parameter-notes
 
-    ;-- Print arg lists:
-    print-args: func [label list /extra /local str] [
-        if empty? list [return ()]
-        print label
-        for-each arg list [
-            str: ajoin [tab arg/1]
-            if all [extra word? arg/1] [insert str tab]
-            if arg/2 [append append str " -- " arg/2]
-            if all [arg/3 not refinement? arg/1] [
-                repend str [" (" arg/3 ")"]
-            ]
-            print str
-        ]
-    ]
-
-    use [argl refl ref b v] [
-        argl: copy []
-        refl: copy []
-        ref: b: v: none
-
-        parse args [
-            any [string! | block!]
+    ; For reporting what kind of function this is, don't dig at all--just
+    ; look at the meta information of the function being asked about
+    ;
+    meta: meta-of :value
+    all [
+        original-name: maybe word! (
             any [
-                set word [
-                    ; We omit set-word! as it is a "pure local"
-                    refinement! (ref: true)
-                |   word!
-                |   get-word!
-                |   lit-word!
-                ]
-                (append/only either ref [refl][argl] b: reduce [word none none])
-                any [set v block! (b/3: v) | set v string! (b/2: v)]
+                select meta 'specializee-name
+                select meta 'adaptee-name
+                select meta 'hijackee-name
+            ]
+        )
+        original-name: uppercase mold original-name
+    ]
+
+    specializee: maybe function! select meta 'specializee
+    adaptee: maybe function! select meta 'adaptee
+    chainees: maybe block! select meta 'chainees
+    hijackee: maybe function! select meta 'hijackee
+
+    classification: case [
+        :specializee [
+            either original-name [
+                ajoin [{a specialization of } original-name]
+            ][
+                {a specialized function}
             ]
         ]
 
-        print-args "^/ARGUMENTS:" argl
-        print-args/extra "^/REFINEMENTS:" refl
+        :adaptee [
+            either original-name [
+                ajoin [{an adaptation of } original-name]
+            ][
+                {an adapted function}
+            ]
+        ]
+
+        :chainees [
+            {a chained function}
+        ]
+
+        :hijackee [
+            either original-name [
+                ajoin [{a hijacking of } original-name]
+            ][
+                {a hijacked function}
+            ]
+        ]
+
+        true [
+            {a function}
+        ]
     ]
 
-    () ; return unset
+    print [
+        newline
+            |
+        "DESCRIPTION:" newline
+            |
+        [space4 (any [description | "(undocumented)"])] newline
+            |
+        [space4 (uppercase mold word)] {is} [classification {.}]
+    ]
+
+    print-args: procedure [list /indent-words] [
+        for-each param list [
+            note: maybe string! select notes to-word param
+            type: maybe [block! any-word!] select types to-word param
+
+            ;-- parameter name and type line
+            either all [type | not refinement? param] [
+                print [[space4 param] ["[" type "]"]]
+            ][
+                print [[space4 param]]
+            ]
+
+            if note [
+                print [[space4 space4 note]]
+            ]
+        ]
+    ]
+
+    ; Always make a note about the return value if there's no explicit
+    ; indication about it being a procedure...even to say it's undocumented.
+    ;
+    ; !!! Should it say "RETURNS: void"?  Concept is that's wasteful.
+    ;
+    unless blank? :return-type [
+        print [newline "RETURNS:" if set? 'return-type [mold return-type]]
+        either return-note [
+            print [[space4 return-note]]
+        ][
+            if not set? 'return-type [
+                print [[space4 "(undocumented)"]]
+            ]
+        ]
+    ]
+
+    unless empty? args [
+        print [newline "ARGUMENTS:"]
+        print-args args
+    ]
+
+    unless empty? refinements [
+        print [newline "REFINEMENTS:"]
+        print-args/indent-words refinements
+    ]
 ]
 
 about: func [
@@ -381,7 +512,7 @@ about: func [
 usage: func [
     "Prints command-line arguments."
 ][
-    print trim/auto {
+    print trim/auto copy {
     Command line usage:
 
         REBOL |options| |script| |arguments|
@@ -473,12 +604,12 @@ source: make function! [[
             ; to backtrace.  Before investing in that, some usability
             ; experience just needs to be gathered, so compensate.
             ;
-            f: backtrace/at/function (
+            f: function-of backtrace (
                 1 ; if BREAKPOINT, compensate differently (it's called "0")
                 + 1 ; CASE
                 + 1 ; SOURCE
             )
-            f: backtrace/at/function (
+            f: function-of backtrace (
                 arg
                 ; if breakpoint there, bump 0 up to a 1, 1 to a 2, etc.
                 + (either :f == :breakpoint [1] [0])
@@ -504,11 +635,12 @@ source: make function! [[
     ]
 ]]
 
-what: func [
+what: procedure [
     {Prints a list of known functions.}
-    'name [word! lit-word! unset!] "Optional module name"
-    /args "Show arguments not titles"
-    /local ctx vals arg list size
+    'name [<opt> word! lit-word!]
+        "Optional module name"
+    /args
+        "Show arguments not titles"
 ][
     list: make block! 400
     size: 0
@@ -532,9 +664,8 @@ what: func [
     vals: make string! size
     for-each [word arg] sort/skip list 2 [
         append/dup clear vals #" " size
-        print [head change vals word any [arg ""]]
+        print [head change vals word | :arg]
     ]
-    return ()
 ]
 
 pending: does [
@@ -553,12 +684,12 @@ upgrade: function [
     fail "Automatic upgrade checking is currently not supported."
 ]
 
-why?: function [
+why?: procedure [
     "Explain the last error in more detail."
-    'err [word! path! error! none! unset!] "Optional error value"
+    'err [<opt> word! path! error! blank!] "Optional error value"
 ][
     case [
-        unset? :err [err: none]
+        not set? 'err [err: _]
         word? err [err: get err]
         path? err [err: get err]
     ]
@@ -585,7 +716,6 @@ why?: function [
     ][
         print "No information is available."
     ]
-    return ()
 ]
 
 ; GUI demos not available in Core build
@@ -594,7 +724,7 @@ why?: function [
 ;   "Run R3 demo."
 ;][
 ;   print "Fetching demo..."
-;   if error? err: trap [do http://www.atronixengineering.com/r3/demo.r none][
+;   if error? err: trap [do http://www.atronixengineering.com/r3/demo.r blank][
 ;       either err/id = 'protocol [print "Cannot load demo from web."][do err]
 ;   ]
 ;   return ()

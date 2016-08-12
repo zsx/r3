@@ -1,30 +1,31 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Summary: System Core Include
-**  Module:  sys-core.h
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %sys-core.h
+//  Summary: "System Core Include"
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "reb-config.h"
 
@@ -98,6 +99,9 @@
     #ifdef TO_WINDOWS
     #include <windows.h>
     #undef IS_ERROR
+    #undef max
+    #undef min
+
     #endif
     //#error The target platform must be specified (TO_* define)
 #endif
@@ -108,6 +112,22 @@
 // !!! Is there a more ideal location for these prototypes?
 typedef int cmp_t(void *, const void *, const void *);
 extern void reb_qsort_r(void *a, size_t n, size_t es, void *thunk, cmp_t *cmp);
+
+
+#if defined(NDEBUG)
+    #define TRASH_POINTER_IF_DEBUG(p) \
+        NOOP
+#else
+    #if defined(__cplusplus)
+        template<class T>
+        inline static void TRASH_POINTER_IF_DEBUG(T* &p) {
+            p = reinterpret_cast<T*>(static_cast<REBUPT>(0xDECAFBAD));
+        }
+    #else
+        #define TRASH_POINTER_IF_DEBUG(p) \
+            (p) = cast(void*, 0xDECAFBAD)
+    #endif 
+#endif
 
 
 // Must be defined at the end of reb-c.h, but not *in* reb-c.h so that
@@ -150,39 +170,42 @@ extern void reb_qsort_r(void *a, size_t n, size_t es, void *thunk, cmp_t *cmp);
 // The rest is not necessary to expose to the whole system, but perhaps
 // these two shouldn't be in this specific location.
 //
-typedef void* REBNOD; // Just used for linking free nodes
+typedef struct Reb_Node {
+    struct Reb_Header header; // will be header.bits = 0 if node is free
+
+    struct Reb_Node *next_if_free; // if not free, entire node is available
+
+    // Size of a node must be a multiple of 64-bits.  This is because there
+    // must be a baseline guarantee for node allocations to be able to know
+    // where 64-bit alignment boundaries are.
+    //
+    /*struct REBI64 payload[N];*/
+} REBNOD;
+
+#define IS_FREE_NODE(n) \
+    (cast(struct Reb_Node*, (n))->header.bits == 0)
+
 typedef struct rebol_mem_pool REBPOL;
 
 #include "sys-deci.h"
-#include "sys-value.h"
-#include "sys-series.h"
-#include "sys-scan.h"
-#include "sys-stack.h"
-#include "sys-state.h"
-#include "sys-do.h"
-#include "sys-profile.h"
 
-#include "reb-struct.h"
-
-//#include "reb-net.h"
-#include "tmp-strings.h"
-#include "tmp-funcargs.h"
 #include "tmp-bootdefs.h"
-#include "tmp-boot.h"
-#include "tmp-errnums.h"
-#include "tmp-sysobj.h"
-#include "tmp-sysctx.h"
 
-#include "host-lib.h"
+#include "sys-rebval.h" // REBVAL structure definition
+#include "sys-action.h"
+#include "sys-rebser.h" // REBSER series definition (embeds REBVAL definition)
 
+typedef void (*MAKE_FUNC)(REBVAL*, enum Reb_Kind, const REBVAL*);
+typedef void (*TO_FUNC)(REBVAL*, enum Reb_Kind, const REBVAL*);
 
+#include "sys-scan.h"
+#include "sys-state.h"
+#include "sys-rebfrm.h" // `REBFRM` definition (also used by value)
 
 //-- Port actions (for native port schemes):
 
-#define PORT_ACTIONS A_CREATE  // port actions begin here
-
 typedef struct rebol_port_action_map {
-    const REBCNT action;
+    const REBSYM action;
     const REBPAF func;
 } PORT_ACTION;
 
@@ -209,6 +232,45 @@ typedef struct rebol_mold {
 
 #define Pop_Molded_String_Len(mo,len) \
     Pop_Molded_String_Core((mo), (len))
+
+
+
+/***********************************************************************
+**
+**  Structures
+**
+***********************************************************************/
+
+//-- Measurement Variables:
+typedef struct rebol_stats {
+    REBI64  Series_Memory;
+    REBCNT  Series_Made;
+    REBCNT  Series_Freed;
+    REBCNT  Series_Expanded;
+    REBCNT  Recycle_Counter;
+    REBCNT  Recycle_Series_Total;
+    REBCNT  Recycle_Series;
+    REBI64  Recycle_Prior_Eval;
+    REBCNT  Mark_Count;
+    REBCNT  Free_List_Checked;
+    REBCNT  Blocks;
+    REBCNT  Objects;
+} REB_STATS;
+
+//-- Options of various kinds:
+typedef struct rebol_opts {
+    REBOOL  watch_recycle;
+    REBOOL  watch_series;
+    REBOOL  watch_expand;
+    REBOOL  crash_dump;
+} REB_OPTS;
+
+typedef struct rebol_time_fields {
+    REBCNT h;
+    REBCNT m;
+    REBCNT s;
+    REBCNT n;
+} REB_TIMEF;
 
 
 /***********************************************************************
@@ -239,8 +301,27 @@ enum {
     MKS_POWER_OF_2  = 1 << 1,   // Round size up to a power of 2
     MKS_EXTERNAL    = 1 << 2,   // Uses external pointer--don't alloc data
     MKS_PRESERVE    = 1 << 3,   // "Remake" only (save what data possible)
-    MKS_GC_MANUALS  = 1 << 4,   // used in implementation of series itself
-    MKS_NO_DYNAMIC  = 1 << 5    // Internal series using REBVAL[0] slot
+    MKS_GC_MANUALS  = 1 << 4    // used in implementation of series itself
+};
+
+// Modes allowed by Make_Function:
+enum {
+    MKF_NONE        = 0,        // no special handling (e.g. MAKE FUNCTION!)
+    MKF_RETURN      = 1 << 0,   // has definitional RETURN
+    MKF_LEAVE       = 1 << 1,   // has definitional LEAVE
+    MKF_PUNCTUATES  = 1 << 2,   // generated function can't be used as argument
+    MKF_KEYWORDS    = 1 << 3,   // respond to words like <opt>, <no-return>
+    MKF_ANY_VALUE   = 1 << 4,   // args and return are [<opt> any-value!]
+    MKF_FAKE_RETURN = 1 << 5    // has RETURN but not actually in frame
+};
+
+// Modes allowed by FORM
+enum {
+    FORM_FLAG_ONLY = 0,
+    FORM_FLAG_REDUCE = 1 << 0,
+    FORM_FLAG_NEWLINE_SEQUENTIAL_STRINGS = 1 << 1,
+    FORM_FLAG_NEWLINE_UNLESS_EMPTY = 1 << 2,
+    FORM_FLAG_MOLD = 1 << 3
 };
 
 // Modes allowed by Copy_Block function:
@@ -276,7 +357,7 @@ enum {
 // series and thus has to be checked...
 
 #define TS_NO_GC \
-    (FLAGIT_KIND(REB_UNSET) | FLAGIT_KIND(REB_NONE) | FLAGIT_KIND(REB_LOGIC) \
+    (FLAGIT_KIND(REB_MAX_VOID) | FLAGIT_KIND(REB_BLANK) | FLAGIT_KIND(REB_LOGIC) \
     | FLAGIT_KIND(REB_INTEGER) | FLAGIT_KIND(REB_DECIMAL) \
     | FLAGIT_KIND(REB_PERCENT) | FLAGIT_KIND(REB_MONEY) \
     | FLAGIT_KIND(REB_CHAR) | FLAGIT_KIND(REB_PAIR) | FLAGIT_KIND(REB_TUPLE) \
@@ -285,45 +366,19 @@ enum {
 
 #define TS_GC (~TS_NO_GC)
 
+#define Type_Of(value) \
+    Type_Of_Core(value)
+
+
 // Garbage collection marker function (GC Hook)
 typedef void (*REBMRK)(void);
 
 // Breakpoint hook callback
 typedef REBOOL (*REBBRK)(REBVAL *instruction_out, REBOOL interrupted);
 
-// Modes allowed by Bind related functions:
-enum {
-    BIND_0 = 0, // Only bind the words found in the context.
-    BIND_DEEP = 1 << 1, // Recurse into sub-blocks.
-    BIND_FUNC = 1 << 2 // Recurse into functions.
-};
-
-// The bind table is sparsely hashed, so when it is in use only a few
-// entries get set.  It's cheaper to go through the entries that were
-// made nonzero and zero them out than to reset it.  So after every wave
-// of binding, the binds that were given non-zero values should have been
-// zeroed back out.  This can be enabled to check that invariant.
-//
-#ifdef NDEBUG
-    #define ASSERT_BIND_TABLE_EMPTY
-#else
-    #if 0
-        #define ASSERT_BIND_TABLE_EMPTY Assert_Bind_Table_Empty()
-    #else
-        #define ASSERT_BIND_TABLE_EMPTY
-    #endif
-#endif
-
-// Modes allowed by Collect keys functions:
-enum {
-    COLLECT_ONLY_SET_WORDS = 0,
-    COLLECT_ANY_WORD = 1 << 1,
-    COLLECT_DEEP = 1 << 2,
-    COLLECT_NO_DUP = 1 << 3, // Do not allow dups during collection (for specs)
-    COLLECT_ENSURE_SELF = 1 << 4 // !!! Ensure SYM_SELF in context (temp)
-};
 
 // Flags used for Protect functions
+//
 enum {
     PROT_SET,
     PROT_DEEP,
@@ -340,7 +395,6 @@ enum REB_Mold_Opts {
     MOPT_FILE,          // Molding %file
     MOPT_INDENT,        // Indentation
     MOPT_TIGHT,         // No space between block values
-    MOPT_NO_NONE,       // Do not output UNSET or NONE object vars
     MOPT_EMAIL,         // ?
     MOPT_ONLY,          // Mold/only - no outer block []
     MOPT_LINES,         // add a linefeed between each value
@@ -365,17 +419,6 @@ enum {
     PATH_OPT_UNI_SRC            = 1 << 0, // whether the source series is uni
     PATH_OPT_FORCE_UNI_DEST     = 1 << 1, // even if just latin1 chars, do uni
     PATH_OPT_SRC_IS_DIR         = 1 << 2
-};
-
-// Reflector words (words-of, body-of, etc.)
-enum Reb_Reflectors {
-    OF_BASE,
-    OF_WORDS, // to be compatible with R2
-    OF_BODY,
-    OF_SPEC,
-    OF_VALUES,
-    OF_TYPES,
-    OF_MAX
 };
 
 // Load option flags:
@@ -487,118 +530,6 @@ enum Reb_Vararg_Op {
 
 /***********************************************************************
 **
-**  Macros
-**
-***********************************************************************/
-
-// Generic defines:
-#define ALIGN(s, a) (((s) + (a)-1) & ~((a)-1))
-
-#define MEM_CARE 5              // Lower number for more frequent checks
-
-#define UP_CASE(c) Upper_Cases[c]
-#define LO_CASE(c) Lower_Cases[c]
-#define IS_WHITE(c) ((c) <= 32 && (White_Chars[c]&1) != 0)
-#define IS_SPACE(c) ((c) <= 32 && (White_Chars[c]&2) != 0)
-
-#define SET_SIGNAL(f) SET_FLAG(Eval_Signals, f)
-#define GET_SIGNAL(f) GET_FLAG(Eval_Signals, f)
-#define CLR_SIGNAL(f) CLR_FLAG(Eval_Signals, f)
-
-#define DECIDE(cond) if (cond) goto is_true; else goto is_false
-#define REM2(a, b) ((b)!=-1 ? (a) % (b) : 0)
-
-
-// All THROWN values have two parts: the REBVAL arg being thrown and
-// a REBVAL indicating the /NAME of a labeled throw.  (If the throw was
-// created with plain THROW instead of THROW/NAME then its name is NONE!).
-// You cannot fit both values into a single value's bits of course, but
-// since only one THROWN() value is supposed to exist on the stack at a
-// time the arg part is stored off to the side when one is produced
-// during an evaluation.  It must be processed before another evaluation
-// is performed, and if the GC or DO are ever given a value with a
-// THROWN() bit they will assert!
-//
-// A reason to favor the name as "the main part" is that having the name
-// value ready-at-hand allows easy testing of it to see if it needs
-// to be passed on.  That happens more often than using the arg, which
-// will occur exactly once (when it is caught).
-
-#ifdef NDEBUG
-    #define CONVERT_NAME_TO_THROWN(name,arg,from) \
-        do { \
-            if (from) SET_VAL_FLAG((name), VALUE_FLAG_EXIT_FROM); \
-            SET_VAL_FLAG((name), VALUE_FLAG_THROWN); \
-            (TG_Thrown_Arg = *(arg)); \
-        } while (0)
-
-    #define CATCH_THROWN(arg,thrown) \
-        do { \
-            CLEAR_VAL_FLAG((thrown), VALUE_FLAG_EXIT_FROM); \
-            CLEAR_VAL_FLAG((thrown), VALUE_FLAG_THROWN); \
-            (*(arg) = TG_Thrown_Arg); \
-        } while (0)
-#else
-    #define CONVERT_NAME_TO_THROWN(name,arg,from) \
-        Convert_Name_To_Thrown_Debug(name, arg, from)
-
-    #define CATCH_THROWN(a,t) \
-        Catch_Thrown_Debug(a, t)
-#endif
-
-#define THROWN(v) \
-    GET_VAL_FLAG((v), VALUE_FLAG_THROWN)
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  VARIABLE ACCESS
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// When a word is bound to a context by an index, it becomes a means of
-// reading and writing from a persistent storage location.  We use "variable"
-// or just VAR to refer to REBVAL slots reached via binding in this way.
-// More narrowly, a VAR that represents an argument to a function invocation
-// may be called an ARG (and an ARG's "persistence" is only as long as that
-// function call is on the stack).
-//
-// All variables can be put in a protected state where they cannot be written.
-// This protection status is marked on the KEY of the context.  Again, more
-// narrowly we may refer to a KEY that represents a parameter to a function
-// as a PARAM.
-//
-// The GET_OPT_VAR_MAY_FAIL() function takes the conservative default that
-// only const access is needed.  A const pointer to a REBVAL is given back
-// which may be inspected, but the contents not modified.  While a bound
-// variable that is assigned UNSET! will return a REB_UNSET value, trying
-// to GET_OPT_VAR_MAY_FAIL() on an unbound variable will raise an error.
-//
-// TRY_GET_OPT_VAR() also provides const access.  But it will return NULL
-// instead of fail on unbound variables.
-//
-// GET_MUTABLE_VAR_MAY_FAIL() and TRY_GET_MUTABLE_VAR() offer parallel
-// facilities for getting a non-const REBVAL back.  They will fail if the
-// variable is either unbound -or- marked with OPT_TYPESET_LOCKED to protect
-// them against modification.  The TRY variation will fail quietly by
-// returning NULL.
-//
-
-#define GET_OPT_VAR_MAY_FAIL(w) \
-    c_cast(const REBVAL*, Get_Var_Core((w), FALSE, FALSE))
-
-#define TRY_GET_OPT_VAR(w) \
-    c_cast(const REBVAL*, Get_Var_Core((w), TRUE, FALSE))
-
-#define GET_MUTABLE_VAR_MAY_FAIL(w) \
-    (Get_Var_Core((w), FALSE, TRUE))
-
-#define TRY_GET_MUTABLE_VAR(w) \
-    (Get_Var_Core((w), TRUE, TRUE))
-
-
-/***********************************************************************
-**
 **  ASSERTIONS
 **
 **      Assertions are in debug builds only, and use the conventional
@@ -685,6 +616,113 @@ enum Reb_Vararg_Op {
             Fail_Core(error); \
         } while (0)
 #endif
+
+// See comments on C_STACK_OVERFLOWING, regarding today's flawed mechanism for
+// handling stack overflows (and remarks on how it might be improved).  For
+// now, the only special handling is to use a pre-created error vs. allocating.
+//
+#ifdef NDEBUG
+    #define Trap_Stack_Overflow() \
+        Fail_Core(VAL_CONTEXT(TASK_STACK_ERROR))
+#else
+    #define Trap_Stack_Overflow() \
+        do { \
+            TG_Erroring_C_File = __FILE__; \
+            TG_Erroring_C_Line = __LINE__; \
+            Fail_Core(VAL_CONTEXT(TASK_STACK_ERROR)); \
+        } while (0)
+#endif
+
+
+#include "tmp-funcs.h"
+
+//#include "reb-net.h"
+#include "tmp-strings.h"
+#include "tmp-funcargs.h"
+#include "tmp-boot.h"
+#include "tmp-errnums.h"
+#include "tmp-sysobj.h"
+#include "tmp-sysctx.h"
+
+
+/***********************************************************************
+**
+**  Threaded Global Variables
+**
+***********************************************************************/
+
+// !!! In the R3-Alpha open source release, there had apparently been a switch
+// from the use of global variables to the classification of all globals as
+// being either per-thread (TVAR) or for the whole program (PVAR).  This
+// was apparently intended to use the "thread-local-variable" feature of the
+// compiler.  It used the non-standard `__declspec(thread)`, which as of C11
+// and C++11 is standardized as `thread_local`.
+//
+// Despite this basic work for threading, greater issues were not hammered
+// out.  And so this separation really just caused problems when two different
+// threads wanted to work with the same data (at different times).  Such a
+// feature is better implemented as in the V8 JavaScript engine as "isolates"  
+
+#ifdef __cplusplus
+    #define PVAR extern "C"
+    #define TVAR extern "C"
+#else
+    #define PVAR extern
+    #define TVAR extern
+#endif
+
+#include "sys-globals.h"
+
+#include "sys-value.h" // basic definitions that don't need series accessrors
+
+#include "sys-series.h"
+#include "sys-binary.h"
+#include "sys-string.h"
+
+#include "sys-array.h"
+
+#include "sys-typeset.h"
+#include "sys-context.h"
+#include "sys-function.h"
+#include "sys-word.h"
+
+#include "sys-pair.h"
+#include "sys-map.h"
+
+#include "sys-varargs.h"
+
+#include "sys-stack.h"
+
+#include "sys-frame.h"
+#include "sys-bind.h"
+
+#include "reb-struct.h"
+
+#include "host-lib.h"
+
+/***********************************************************************
+**
+**  Macros
+**
+***********************************************************************/
+
+// Generic defines:
+#define ALIGN(s, a) (((s) + (a)-1) & ~((a)-1))
+
+#define MEM_CARE 5              // Lower number for more frequent checks
+
+#define UP_CASE(c) Upper_Cases[c]
+#define LO_CASE(c) Lower_Cases[c]
+#define IS_WHITE(c) ((c) <= 32 && (White_Chars[c]&1) != 0)
+#define IS_SPACE(c) ((c) <= 32 && (White_Chars[c]&2) != 0)
+
+inline static void SET_SIGNAL(REBFLGS f) {
+    SET_FLAG(Eval_Signals, f);
+    Eval_Count = 1;
+}
+
+#define GET_SIGNAL(f) GET_FLAG(Eval_Signals, (f))
+#define CLR_SIGNAL(f) CLR_FLAG(Eval_Signals, (f))
 
 
 #define ALL_BITS    ((REBCNT)(-1))
@@ -779,7 +817,10 @@ enum Reb_Vararg_Op {
 **
 ***********************************************************************/
 
-#if !defined(NDEBUG)
+#ifdef NDEBUG
+    #define SET_VOID_UNLESS_LEGACY_NONE(v) \
+        SET_VOID(v) // LEGACY() only available in Debug builds
+#else
     #define LEGACY(option) ( \
         (PG_Boot_Phase >= BOOT_ERRORS) \
         && IS_CONDITIONAL_TRUE(Get_System(SYS_OPTIONS, (option))) \
@@ -787,54 +828,20 @@ enum Reb_Vararg_Op {
 
     #define LEGACY_RUNNING(option) \
         (LEGACY(option) && In_Legacy_Function_Debug())
+
+    // In legacy mode Ren-C still supports the old convention that IFs that
+    // don't take the true branch or a WHILE loop that never runs a body
+    // return a BLANK! value instead of no value.  See implementation notes.
+    //
+    #ifdef NDEBUG
+        #define SET_VOID_UNLESS_LEGACY_NONE(v) \
+            SET_VOID(v) // LEGACY() only available in Debug builds
+    #else
+        #define SET_VOID_UNLESS_LEGACY_NONE(v) \
+            SET_VOID_UNLESS_LEGACY_NONE_Debug(v, __FILE__, __LINE__);
+    #endif
+
 #endif
-
-
-/***********************************************************************
-**
-**  Structures
-**
-***********************************************************************/
-
-// Word Table Structure - used to manage hashed word tables (symbol tables).
-typedef struct rebol_word_table
-{
-    REBARR  *array;     // Global block of words
-    REBSER  *hashes;    // Hash table
-//  REBCNT  count;      // Number of units used in hash table
-} WORD_TABLE;
-
-//-- Measurement Variables:
-typedef struct rebol_stats {
-    REBI64  Series_Memory;
-    REBCNT  Series_Made;
-    REBCNT  Series_Freed;
-    REBCNT  Series_Expanded;
-    REBCNT  Recycle_Counter;
-    REBCNT  Recycle_Series_Total;
-    REBCNT  Recycle_Series;
-    REBI64  Recycle_Prior_Eval;
-    REBCNT  Mark_Count;
-    REBCNT  Free_List_Checked;
-    REBCNT  Blocks;
-    REBCNT  Objects;
-} REB_STATS;
-
-//-- Options of various kinds:
-typedef struct rebol_opts {
-    REBOOL  watch_recycle;
-    REBOOL  watch_series;
-    REBOOL  watch_expand;
-    REBOOL  crash_dump;
-} REB_OPTS;
-
-typedef struct rebol_time_fields {
-    REBCNT h;
-    REBCNT m;
-    REBCNT s;
-    REBCNT n;
-} REB_TIMEF;
-
 
 
 /***********************************************************************
@@ -849,22 +856,6 @@ extern const REBACT Value_Dispatch[];
 //extern const REBYTE Upper_Case[];
 //extern const REBYTE Lower_Case[];
 
-
-#include "tmp-funcs.h"
-
-
-/***********************************************************************
-**
-**  Threaded Global Variables
-**
-***********************************************************************/
-
-#ifdef __cplusplus
-    #define PVAR extern "C"
-    #define TVAR extern "C" THREAD
-#else
-    #define PVAR extern
-    #define TVAR extern THREAD
-#endif
-
-#include "sys-globals.h"
+#include "sys-do.h"
+#include "sys-path.h"
+#include "sys-trap.h"

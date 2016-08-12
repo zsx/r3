@@ -28,7 +28,7 @@ to-path: to-set-path: to-get-path: to-lit-path: to-map: to-datatype: to-typeset:
 to-word: to-set-word: to-get-word: to-lit-word: to-refinement: to-issue:
 to-command: to-closure: to-function: to-object: to-module: to-error: to-port: to-gob:
 to-event:
-    none
+    blank
 
 ; Auto-build the functions for the above TO-* words.
 use [word] [
@@ -41,14 +41,12 @@ use [word] [
 
         if all [
             word: in lib word
-            none? get word
+            blank? get word
         ][
-            ; Add doc line only if this build has autodocs:
-            set word func either string? first spec-of :make [
-                reduce [reform ["Converts to" form type "value."] 'value]
-            ][
-                [value]
-            ] compose [to (type) :value]
+            set word make function! compose/deep [
+                [(ajoin ["Converts to" form type "value."]) value]
+                [to (type) :value]
+            ]
         ]
     ]
 ]

@@ -1,6 +1,10 @@
 //
-// Rebol 3 Language Interpreter and Run-time Environment
-// "Ren-C" branch @ https://github.com/metaeducation/ren-c
+//  File: %d-trace.c
+//  Summary: "Tracing Debug Routines"
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
 // Copyright 2012-2016 Rebol Open Source Contributors
@@ -19,11 +23,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  Summary: Tracing Debug Routines
-//  File: %d-trace.c
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -50,7 +49,7 @@
 REBINT Eval_Depth(void)
 {
     REBINT depth = 0;
-    struct Reb_Frame *frame = FS_TOP;
+    REBFRM *frame = FS_TOP;
 
     for (; frame != NULL; frame = FRM_PRIOR(frame), depth++)
         NOOP;
@@ -62,9 +61,9 @@ REBINT Eval_Depth(void)
 //
 //  Frame_At_Depth: C
 //
-struct Reb_Frame *Frame_At_Depth(REBCNT n)
+REBFRM *Frame_At_Depth(REBCNT n)
 {
-    struct Reb_Frame *frame = FS_TOP;
+    REBFRM *frame = FS_TOP;
 
     while (frame) {
         if (n == 0) return frame;
@@ -94,7 +93,7 @@ static REBINT Init_Depth(void)
 //
 //  Trace_Line: C
 //
-void Trace_Line(struct Reb_Frame *f)
+void Trace_Line(REBFRM *f)
 {
     int depth;
 
@@ -103,22 +102,22 @@ void Trace_Line(struct Reb_Frame *f)
 
     CHECK_DEPTH(depth);
 
-    if (f->indexor == END_FLAG) {
-        Debug_Fmt_("END_FLAG...");
+    if (IS_END(f->value)) {
+        Debug_Fmt_("END");
     }
-    else if (f->indexor == VALIST_FLAG) {
-        Debug_Fmt_("VALIST_FLAG...");
+    else if (f->flags.bits & DO_FLAG_VA_LIST) {
+        Debug_Fmt_("VA_LIST_FLAG...");
     }
     else {
-        Debug_Fmt_("%-02d: %50r", cast(REBINT, f->indexor), f->value);
+        Debug_Fmt_("%-02d: %50r", cast(REBINT, f->index), f->value);
     }
 
     if (IS_WORD(f->value) || IS_GET_WORD(f->value)) {
-        const REBVAL *var = GET_OPT_VAR_MAY_FAIL(f->value);
+        const REBVAL *var = GET_OPT_VAR_MAY_FAIL(f->value, f->specifier);
         if (VAL_TYPE(var) < REB_FUNCTION)
             Debug_Fmt_(" : %50r", var);
         else if (VAL_TYPE(var) == REB_FUNCTION) {
-            REBARR *words = List_Func_Words(var);
+            REBARR *words = List_Func_Words(var, FALSE); // no locals
             Debug_Fmt_(" : %s %50m", Get_Type_Name(var), words);
             Free_Array(words);
         }
@@ -145,11 +144,11 @@ void Trace_Line(struct Reb_Frame *f)
 //
 //  Trace_Func: C
 //
-void Trace_Func(REBCNT label_sym, const REBVAL *value)
+void Trace_Func(REBSTR *label, const REBVAL *value)
 {
     int depth;
     CHECK_DEPTH(depth);
-    Debug_Fmt_("--> %s", Get_Sym_Name(label_sym) /* Get_Type_Name(value) */);
+    Debug_Fmt_("--> %s", STR_HEAD(label));
     if (GET_FLAG(Trace_Flags, 1))
         Debug_Values(FRM_ARG(FS_TOP, 1), FRM_NUM_ARGS(FS_TOP), 20);
     else Debug_Line();
@@ -159,11 +158,11 @@ void Trace_Func(REBCNT label_sym, const REBVAL *value)
 //
 //  Trace_Return: C
 //
-void Trace_Return(REBCNT label_sym, const REBVAL *value)
+void Trace_Return(REBSTR *label, const REBVAL *value)
 {
     int depth;
     CHECK_DEPTH(depth);
-    Debug_Fmt_("<-- %s ==", Get_Sym_Name(label_sym));
+    Debug_Fmt_("<-- %s ==", STR_HEAD(label));
     Debug_Values(value, 1, 50);
 }
 
@@ -173,7 +172,7 @@ void Trace_Return(REBCNT label_sym, const REBVAL *value)
 //
 void Trace_Value(
     const char* label, // currently "match" or "input"
-    const REBVAL *value
+    const RELVAL *value
 ) {
     int depth;
     CHECK_DEPTH(depth);
@@ -213,9 +212,11 @@ void Trace_Error(const REBVAL *value)
 
 //
 //  trace: native [
+//      <punctuates>
 //
 //  {Enables and disables evaluation tracing and backtrace.}
 //
+//      return: [<opt>]
 //      mode [integer! logic!]
 //      /back {Set mode ON to enable or integer for lines to display}
 //      /function "Traces functions only (less output)"
@@ -225,7 +226,7 @@ REBNATIVE(trace)
 {
     REBVAL *arg = D_ARG(1);
 
-    Check_Security(SYM_DEBUG, POL_READ, 0);
+    Check_Security(Canon(SYM_DEBUG), POL_READ, 0);
 
     // The /back option: ON and OFF, or INTEGER! for # of lines:
     if (D_REF(2)) { // /back
@@ -237,11 +238,11 @@ REBNATIVE(trace)
             Trace_Flags = 0;
             if (lines < 0) {
                 fail (Error_Invalid_Arg(arg));
-                return R_UNSET;
+                return R_VOID;
             }
 
             Display_Backtrace(cast(REBCNT, lines));
-            return R_UNSET;
+            return R_VOID;
         }
     }
     else Enable_Backtrace(FALSE);
@@ -259,7 +260,7 @@ REBNATIVE(trace)
     }
     else Trace_Flags = 0;
 
-    return R_UNSET;
+    return R_VOID;
 }
 
 
@@ -273,20 +274,18 @@ REBNATIVE(trace)
 // wrong.  This routine hooks the individual fetch and writes at a more
 // fine-grained level than a breakpoint at each DO/NEXT point.
 //
-void Trace_Fetch_Debug(const char* msg, struct Reb_Frame *f, REBOOL after) {
+void Trace_Fetch_Debug(const char* msg, REBFRM *f, REBOOL after) {
     Debug_Fmt(
         "%d - %s : %s",
-        cast(REBCNT, f->indexor),
+        cast(REBCNT, f->index),
         msg,
         after ? "AFTER" : "BEFORE"
     );
-    assert(f->value != NULL || (after && f->indexor == END_FLAG));
-    if (f->value) {
-        if (IS_END(f->value))
-            Debug_Fmt("END shouldn't happen except temporarily in parse");
-        else
-            PROBE(f->value);
-    }
+
+    if (IS_END(f->value))
+        Debug_Fmt("f->value is END");
+    else
+        PROBE(f->value);
 }
 
 #endif

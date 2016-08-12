@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  u-dialect.c
-**  Summary: support for dialecting
-**  Section: utility
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %u-dialect.c
+//  Summary: "support for dialecting"
+//  Section: utility
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 #include "reb-dialect.h"
@@ -64,19 +65,18 @@ static const char *Dia_Fmt = "DELECT - cmd: %s length: %d missed: %d total: %d";
 // Search a block of objects for a given word symbol and
 // return the value for the word. NULL if not found.
 //
-REBVAL *Find_Mutable_In_Contexts(REBSYM sym, REBVAL *where)
+REBVAL *Find_Mutable_In_Contexts(REBSTR *sym, REBVAL *where)
 {
     REBVAL *val;
 
     REBVAL safe;
-    VAL_INIT_WRITABLE_DEBUG(&safe);
 
     for (; NOT_END(where); where++) {
         if (IS_WORD(where)) {
-            val = GET_MUTABLE_VAR_MAY_FAIL(where);
+            val = GET_MUTABLE_VAR_MAY_FAIL(where, SPECIFIED);
         }
         else if (IS_PATH(where)) {
-            if (Do_Path_Throws(&safe, NULL, where, 0))
+            if (Do_Path_Throws_Core(&safe, NULL, where, SPECIFIED, NULL))
                 fail (Error_No_Catch_For_Throw(&safe));
             val = &safe;
         }
@@ -84,7 +84,7 @@ REBVAL *Find_Mutable_In_Contexts(REBSYM sym, REBVAL *where)
             val = where;
 
         if (IS_OBJECT(val)) {
-            val = Find_Word_Value(VAL_CONTEXT(val), sym);
+            val = Select_Canon_In_Context(VAL_CONTEXT(val), STR_CANON(sym));
             if (val) return val;
         }
     }
@@ -105,7 +105,8 @@ static int Find_Command(REBCTX *dialect, REBVAL *word)
     if (IS_WORD_BOUND(word) && dialect == VAL_WORD_CONTEXT(word))
         n = VAL_WORD_INDEX(word);
     else {
-        if ((n = Find_Word_In_Context(dialect, VAL_WORD_SYM(word), FALSE))) {
+        n = Find_Canon_In_Context(dialect, VAL_WORD_CANON(word), FALSE);
+        if (n != 0) {
             CLEAR_VAL_FLAG(word, VALUE_FLAG_RELATIVE);
             SET_VAL_FLAG(word, WORD_FLAG_BOUND);
             INIT_WORD_CONTEXT(word, dialect);
@@ -115,7 +116,7 @@ static int Find_Command(REBCTX *dialect, REBVAL *word)
     }
 
     // If keyword (not command) return negated index:
-    if (IS_NONE(CTX_VAR(dialect, n))) return -n;
+    if (IS_BLANK(CTX_VAR(dialect, n))) return -n;
     return n;
 }
 
@@ -155,10 +156,9 @@ static int Count_Dia_Args(REBVAL *args)
 //
 static REBVAL *Eval_Arg(REBDIA *dia)
 {
-    REBVAL *value = ARR_AT(dia->args, dia->argi);
+    REBVAL *value = KNOWN(ARR_AT(dia->args, dia->argi));
 
     REBVAL safe;
-    VAL_INIT_WRITABLE_DEBUG(&safe);
 
     switch (VAL_TYPE(value)) {
 
@@ -172,12 +172,15 @@ static REBVAL *Eval_Arg(REBDIA *dia)
                 );
                 if (value) break;
             }
-            value = TRY_GET_MUTABLE_VAR(val); // NULL if protected or not found
+
+            // value comes back NULL if protected or not found
+            //
+            value = TRY_GET_MUTABLE_VAR(val, SPECIFIED);
         }
         break;
 
     case REB_PATH:
-        if (Do_Path_Throws(&safe, NULL, value, NULL))
+        if (Do_Path_Throws_Core(&safe, NULL, value, SPECIFIED, NULL))
             fail (Error_No_Catch_For_Throw(&safe));
         if (IS_FUNCTION(&safe)) return NULL;
         DS_PUSH(&safe);
@@ -227,21 +230,21 @@ static REBINT Add_Arg(REBDIA *dia, REBVAL *value)
     REBVAL *outp;
     REBINT rept = 0;
 
-    outp = ARR_AT(dia->out, dia->outi);
+    outp = KNOWN(ARR_AT(dia->out, dia->outi));
 
     // Scan all formal args, looking for one that matches given value:
     for (fargi = dia->fargi;; fargi++) {
 
         //Debug_Fmt("Add_Arg fargi: %d outi: %d", fargi, outi);
 
-        if (IS_END(fargs = ARR_AT(dia->fargs, fargi))) return 0;
+        if (IS_END(fargs = KNOWN(ARR_AT(dia->fargs, fargi)))) return 0;
 
 again:
         // Formal arg can be a word (type or refinement), datatype, or * (repeater):
         if (IS_WORD(fargs)) {
 
             // If word is a datatype name:
-            type = VAL_WORD_CANON(fargs);
+            type = VAL_WORD_SYM(fargs);
             if (type < REB_MAX) {
                 type--; // the type id
             }
@@ -263,7 +266,8 @@ again:
                 }
                 // Is it a typeset?
                 else if (
-                    (temp = TRY_GET_MUTABLE_VAR(fargs)) && IS_TYPESET(temp)
+                    (temp = TRY_GET_MUTABLE_VAR(fargs, SPECIFIED))
+                    && IS_TYPESET(temp)
                 ) {
                     if (TYPE_CHECK(temp, VAL_TYPE(value))) accept = 1;
                 }
@@ -283,16 +287,16 @@ again:
         // Make room for it in the output block:
         if (IS_END(outp)) {
             outp = Alloc_Tail_Array(dia->out);
-            SET_NONE(outp);
-        } else if (!IS_NONE(outp)) {
+            SET_BLANK(outp);
+        } else if (!IS_BLANK(outp)) {
             // There's already an arg in this slot, so skip it...
             if (dia->cmd > dia->default_cmd) outp++;
             if (!rept) continue; // see if there's another farg that will work for it
             // Look for first empty slot:
-            while (NOT_END(outp) && !IS_NONE(outp)) outp++;
+            while (NOT_END(outp) && !IS_BLANK(outp)) outp++;
             if (IS_END(outp)) {
                 outp = Alloc_Tail_Array(dia->out);
-                SET_NONE(outp);
+                SET_BLANK(outp);
             }
         }
 
@@ -319,7 +323,7 @@ again:
 
         // Repeat did not match, so stop repeating and remove unused output slot:
         if (rept) {
-            Remove_Array_Last(dia->out);
+            TERM_ARRAY_LEN(dia->out, ARR_LEN(dia->out) - 1);
             outp--;
             rept = 0;
             continue;
@@ -344,8 +348,8 @@ again:
         break;
 
     case 4: // refinement:
-        dia->fargi = fargs - ARR_HEAD(dia->fargs) + 1;
-        dia->outi = outp - ARR_HEAD(dia->out) + 1;
+        dia->fargi = fargs - KNOWN(ARR_HEAD(dia->fargs)) + 1;
+        dia->outi = outp - KNOWN(ARR_HEAD(dia->out)) + 1;
         *outp = *value;
         return 1;
 
@@ -381,7 +385,7 @@ static REBINT Do_Cmd(REBDIA *dia)
     fargs = CTX_VAR(dia->dialect, dia->cmd);
     if (!IS_BLOCK(fargs)) return -REB_DIALECT_BAD_SPEC;
     dia->fargs = VAL_ARRAY(fargs);
-    fargs = VAL_ARRAY_AT(fargs);
+    fargs = KNOWN(VAL_ARRAY_AT(fargs));
     size = Count_Dia_Args(fargs); // approximate
 
     ser = ARR_SERIES(dia->out);
@@ -400,7 +404,7 @@ static REBINT Do_Cmd(REBDIA *dia)
         Val_Init_Word_Bound(
             val,
             GET_FLAG(dia->flags, RDIA_LIT_CMD) ? REB_LIT_WORD : REB_WORD,
-            CTX_KEY_SYM(dia->dialect, dia->cmd),
+            CTX_KEY_SPELLING(dia->dialect, dia->cmd),
             dia->dialect,
             dia->cmd
         );
@@ -415,7 +419,7 @@ static REBINT Do_Cmd(REBDIA *dia)
         if (!val)
             return -REB_DIALECT_BAD_ARG;
         if (IS_END(val)) break;
-        if (!IS_NONE(val)) {
+        if (!IS_BLANK(val)) {
             //Print("n %d len %d argi %d", n, dia->len, dia->argi);
             err = Add_Arg(dia, val); // 1: good, 0: no-type, -N: error
             if (err == 0) return n; // remainder
@@ -427,7 +431,7 @@ static REBINT Do_Cmd(REBDIA *dia)
     if (dia->cmd > dia->default_cmd) {
         for (n = ARR_LEN(dia->out); n < size; n++) {
             REBVAL *temp = Alloc_Tail_Array(dia->out);
-            SET_NONE(temp);
+            SET_BLANK(temp);
         }
     }
 
@@ -448,7 +452,7 @@ static REBINT Do_Cmd(REBDIA *dia)
 //
 static REBINT Do_Dia(REBDIA *dia)
 {
-    REBVAL *next = ARR_AT(dia->args, dia->argi);
+    REBVAL *next = KNOWN(ARR_AT(dia->args, dia->argi));
     REBVAL *head;
     REBINT err;
 
@@ -524,7 +528,7 @@ REBINT Do_Dialect(REBCTX *dialect, REBARR *block, REBCNT *index, REBARR **out)
     dia.out  = *out;
     SET_FLAG(dia.flags, RDIA_NO_CMD);
 
-    self_index = Find_Word_In_Context(dialect, SYM_SELF, TRUE);
+    self_index = Find_Canon_In_Context(dialect, Canon(SYM_SELF), TRUE);
     dia.default_cmd = self_index == 0 ? 1 : SELFISH(1);
 
     //Print("DSP: %d Dinp: %r - %m", DSP, ARR_AT(block, *index), block);
@@ -538,7 +542,7 @@ REBINT Do_Dialect(REBCTX *dialect, REBARR *block, REBCNT *index, REBARR **out)
         if (dia.missed) {
             Debug_Fmt(
                 Dia_Fmt,
-                Get_Field_Name(dia.dialect, dia.cmd),
+                STR_HEAD(CTX_KEY_SPELLING(dia.dialect, dia.cmd)),
                 ARR_LEN(dia.out),
                 dia.missed,
                 Total_Missed
@@ -594,16 +598,16 @@ REBNATIVE(delect)
     dia.out = VAL_ARRAY(ARG(output));
     dia.outi = VAL_INDEX(ARG(output));
 
-    if (dia.argi >= ARR_LEN(dia.args)) return R_NONE; // end of block
+    if (dia.argi >= ARR_LEN(dia.args)) return R_BLANK; // end of block
 
-    self_index = Find_Word_In_Context(dia.dialect, SYM_SELF, TRUE);
+    self_index = Find_Canon_In_Context(dia.dialect, Canon(SYM_SELF), TRUE);
     dia.default_cmd = self_index == 0 ? 1 : SELFISH(1);
 
     if (REF(in)) {
         dia.contexts = ARG(where);
         if (!IS_BLOCK(dia.contexts))
             fail (Error_Invalid_Arg(dia.contexts));
-        dia.contexts = VAL_ARRAY_AT(dia.contexts);
+        dia.contexts = KNOWN(VAL_ARRAY_AT(dia.contexts));
     }
 
     dsp_orig = DSP;
@@ -631,7 +635,7 @@ REBNATIVE(delect)
         if (dia.missed) {
             Debug_Fmt(
                 Dia_Fmt,
-                Get_Field_Name(dia.dialect, dia.cmd),
+                STR_HEAD(CTX_KEY_SPELLING(dia.dialect, dia.cmd)),
                 ARR_LEN(dia.out),
                 dia.missed,
                 Total_Missed

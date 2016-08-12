@@ -1,4 +1,3 @@
-//
 // This allows for the programmatic triggering of debugger breaks from C
 // code, using `debug_break()`.
 //

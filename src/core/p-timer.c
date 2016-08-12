@@ -1,31 +1,34 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  p-timer.c
-**  Summary: timer port interface
-**  Section: ports
-**  Author:  Carl Sassenrath
-**  Notes:   NOT IMPLEMENTED
-**
-***********************************************************************/
+//
+//  File: %p-timer.c
+//  Summary: "timer port interface"
+//  Section: ports
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// NOT IMPLEMENTED
+//
 /*
     General idea of usage:
 
@@ -44,7 +47,7 @@
 //
 //  Event_Actor: C
 //
-static REB_R Event_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
+static REB_R Event_Actor(REBFRM *frame_, REBCTX *port, REBCNT action)
 {
     REBVAL *spec;
     REBVAL *state;
@@ -67,40 +70,44 @@ static REB_R Event_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 
     switch (action) {
 
-    case A_UPDATE:
-        return R_NONE;
+    case SYM_UPDATE:
+        return R_BLANK;
 
     // Normal block actions done on events:
-    case A_POKE:
+    case SYM_POKE:
         if (!IS_EVENT(D_ARG(3))) fail (Error_Invalid_Arg(D_ARG(3)));
         goto act_blk;
-    case A_INSERT:
-    case A_APPEND:
-    //case A_PATH:      // not allowed: port/foo is port object field access
-    //case A_PATH_SET:  // not allowed: above
+    case SYM_INSERT:
+    case SYM_APPEND:
+    //case SYM_PATH:      // not allowed: port/foo is port object field access
+    //case SYM_PATH_SET:  // not allowed: above
         if (!IS_EVENT(arg)) fail (Error_Invalid_Arg(arg));
-    case A_PICK:
+    case SYM_PICK:
 act_blk:
         save_port = *D_ARG(1); // save for return
         *D_ARG(1) = *state;
         result = T_Block(ds, action);
-        SET_FLAG(Eval_Signals, SIG_EVENT_PORT);
-        if (action == A_INSERT || action == A_APPEND || action == A_REMOVE) {
+        SET_SIGNAL(SIG_EVENT_PORT);
+        if (
+            action == SYM_INSERT
+            || action == SYM_APPEND
+            || action == SYM_REMOVE
+        ){
             *D_OUT = save_port;
             break;
         }
         return result; // return condition
 
-    case A_CLEAR:
+    case SYM_CLEAR:
         RESET_ARRAY(state);
         CLR_FLAG(Eval_Signals, SIG_EVENT_PORT);
         break;
 
-    case A_LENGTH:
+    case SYM_LENGTH:
         SET_INTEGER(D_OUT, VAL_LEN_HEAD(state));
         break;
 
-    case A_OPEN:
+    case SYM_OPEN:
         if (!req) { //!!!
             req = OS_MAKE_DEVREQ(RDI_EVENT);
             SET_OPEN(req);
@@ -121,5 +128,5 @@ act_blk:
 //
 void Init_Timer_Scheme(void)
 {
-    Register_Scheme(SYM_TIMER, 0, Event_Actor);
+    Register_Scheme(SYM_TIMER, Event_Actor);
 }

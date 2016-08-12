@@ -1,34 +1,36 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  t-event.c
-**  Summary: event datatype
-**  Section: datatypes
-**  Author:  Carl Sassenrath
-**  Notes:
-**    Events are kept compact in order to fit into normal 128 bit
-**    values cells. This provides high performance for high frequency
-**    events and also good memory efficiency using standard series.
-**
-***********************************************************************/
+//
+//  File: %t-event.c
+//  Summary: "event datatype"
+//  Section: datatypes
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Events are kept compact in order to fit into normal 128 bit
+// values cells. This provides high performance for high frequency
+// events and also good memory efficiency using standard series.
+//
 
 #include "sys-core.h"
 #include "reb-evtypes.h"
@@ -38,7 +40,7 @@
 //
 //  CT_Event: C
 //
-REBINT CT_Event(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Event(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     REBINT diff = Cmp_Event(a, b);
     if (mode >=0) return diff == 0;
@@ -51,7 +53,7 @@ REBINT CT_Event(const REBVAL *a, const REBVAL *b, REBINT mode)
 // 
 // Given two events, compare them.
 //
-REBINT Cmp_Event(const REBVAL *t1, const REBVAL *t2)
+REBINT Cmp_Event(const RELVAL *t1, const RELVAL *t2)
 {
     REBINT  diff;
 
@@ -70,17 +72,15 @@ REBINT Cmp_Event(const REBVAL *t1, const REBVAL *t2)
 //
 static REBOOL Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val)
 {
-    REBVAL *arg;
+    RELVAL *arg;
     REBINT n;
-    REBCNT w;
 
-    switch (VAL_WORD_CANON(word)) {
-
+    switch (VAL_WORD_SYM(word)) {
     case SYM_TYPE:
         if (!IS_WORD(val) && !IS_LIT_WORD(val)) return FALSE;
         arg = Get_System(SYS_VIEW, VIEW_EVENT_TYPES);
         if (IS_BLOCK(arg)) {
-            w = VAL_WORD_CANON(val);
+            REBSTR *w = VAL_WORD_CANON(val);
             for (n = 0, arg = VAL_ARRAY_HEAD(arg); NOT_END(arg); arg++, n++) {
                 if (IS_WORD(arg) && VAL_WORD_CANON(arg) == w) {
                     VAL_EVENT_TYPE(value) = n;
@@ -100,7 +100,7 @@ static REBOOL Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
             VAL_EVENT_MODEL(value) = EVM_OBJECT;
             VAL_EVENT_SER(value) = ARR_SERIES(CTX_VARLIST(VAL_CONTEXT(val)));
         }
-        else if (IS_NONE(val)) {
+        else if (IS_BLANK(val)) {
             VAL_EVENT_MODEL(value) = EVM_GUI;
         } else return FALSE;
         break;
@@ -155,9 +155,9 @@ static REBOOL Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
     case SYM_FLAGS:
         if (IS_BLOCK(val)) {
             VAL_EVENT_FLAGS(value) &= ~(1<<EVF_DOUBLE | 1<<EVF_CONTROL | 1<<EVF_SHIFT);
-            for (val = VAL_ARRAY_HEAD(val); NOT_END(val); val++)
-                if (IS_WORD(val))
-                    switch (VAL_WORD_CANON(val)) {
+            for (arg = VAL_ARRAY_HEAD(val); NOT_END(arg); arg++)
+                if (IS_WORD(arg))
+                    switch (VAL_WORD_SYM(arg)) {
                         case SYM_CONTROL:
                             SET_FLAG(VAL_EVENT_FLAGS(value), EVF_CONTROL);
                             break;
@@ -183,25 +183,23 @@ static REBOOL Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
 //
 //  Set_Event_Vars: C
 //
-static void Set_Event_Vars(REBVAL *evt, REBVAL *blk)
+void Set_Event_Vars(REBVAL *evt, RELVAL *blk, REBCTX *specifier)
 {
-    REBVAL *var;
-    const REBVAL *val;
-
     while (NOT_END(blk)) {
-        REBVAL safe;
-        VAL_INIT_WRITABLE_DEBUG(&safe);
+        REBVAL var;
+        COPY_VALUE(&var, blk, specifier);
+        ++blk;
 
-        var = blk++;
-        val = blk++;
-        if (IS_END(val))
-            val = NONE_VALUE;
-        else {
-            Get_Simple_Value_Into(&safe, val);
-            val = &safe;
-        }
-        if (!Set_Event_Var(evt, var, val))
-            fail (Error(RE_BAD_FIELD_SET, var, Type_Of(val)));
+        REBVAL val;
+        if (IS_END(blk))
+            SET_BLANK(&val);
+        else
+            Get_Simple_Value_Into(&val, blk, specifier);
+
+        ++blk;
+
+        if (!Set_Event_Var(evt, &var, &val))
+            fail (Error(RE_BAD_FIELD_SET, &var, Type_Of(&val)));
     }
 }
 
@@ -209,19 +207,22 @@ static void Set_Event_Vars(REBVAL *evt, REBVAL *blk)
 //
 //  Get_Event_Var: C
 //
-static REBOOL Get_Event_Var(const REBVAL *value, REBSYM sym, REBVAL *val)
+static REBOOL Get_Event_Var(const REBVAL *value, REBSTR *name, REBVAL *val)
 {
     REBVAL *arg;
     REBREQ *req;
     REBINT n;
 
-    switch (sym) {
-
+    switch (STR_SYMBOL(name)) {
     case SYM_TYPE:
-        if (VAL_EVENT_TYPE(value) == 0) goto is_none;
+        if (VAL_EVENT_TYPE(value) == 0) goto is_blank;
         arg = Get_System(SYS_VIEW, VIEW_EVENT_TYPES);
         if (IS_BLOCK(arg) && VAL_LEN_HEAD(arg) >= EVT_MAX) {
-            *val = *VAL_ARRAY_AT_HEAD(arg, VAL_EVENT_TYPE(value));
+            COPY_VALUE(
+                val,
+                VAL_ARRAY_AT_HEAD(arg, VAL_EVENT_TYPE(value)),
+                VAL_SPECIFIER(arg)
+            );
             break;
         }
         return FALSE;
@@ -246,7 +247,7 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSYM sym, REBVAL *val)
             // assumes EVM_DEVICE
             // Event holds the IO-Request, which has the PORT:
             req = VAL_EVENT_REQ(value);
-            if (!req || !req->port) goto is_none;
+            if (!req || !req->port) goto is_blank;
             Val_Init_Port(val, AS_CONTEXT(cast(REBSER*, req->port)));
         }
         break;
@@ -263,21 +264,23 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSYM sym, REBVAL *val)
 
     case SYM_OFFSET:
         if (VAL_EVENT_TYPE(value) == EVT_KEY || VAL_EVENT_TYPE(value) == EVT_KEY_UP)
-            goto is_none;
-        VAL_RESET_HEADER(val, REB_PAIR);
-        VAL_PAIR_X(val) = (REBD32)VAL_EVENT_X(value);
-        VAL_PAIR_Y(val) = (REBD32)VAL_EVENT_Y(value);
+            goto is_blank;
+        SET_PAIR(val, VAL_EVENT_X(value), VAL_EVENT_Y(value));
         break;
 
     case SYM_KEY:
         if (VAL_EVENT_TYPE(value) != EVT_KEY && VAL_EVENT_TYPE(value) != EVT_KEY_UP)
-            goto is_none;
+            goto is_blank;
         n = VAL_EVENT_DATA(value); // key-words in top 16, chars in lower 16
         if (n & 0xffff0000) {
             arg = Get_System(SYS_VIEW, VIEW_EVENT_KEYS);
             n = (n >> 16) - 1;
             if (IS_BLOCK(arg) && n < cast(REBINT, VAL_LEN_HEAD(arg))) {
-                *val = *VAL_ARRAY_AT_HEAD(arg, n);
+                COPY_VALUE(
+                    val,
+                    VAL_ARRAY_AT_HEAD(arg, n),
+                    VAL_SPECIFIER(arg)
+                );
                 break;
             }
             return FALSE;
@@ -293,30 +296,42 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSYM sym, REBVAL *val)
             REBARR *array = Make_Array(3);
 
             if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_DOUBLE))
-                Val_Init_Word(Alloc_Tail_Array(array), REB_WORD, SYM_DOUBLE);
+                Val_Init_Word(
+                    Alloc_Tail_Array(array),
+                    REB_WORD,
+                    Canon(SYM_DOUBLE)
+                );
 
             if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_CONTROL))
-                Val_Init_Word(Alloc_Tail_Array(array), REB_WORD, SYM_CONTROL);
+                Val_Init_Word(
+                    Alloc_Tail_Array(array),
+                    REB_WORD,
+                    Canon(SYM_CONTROL)
+                );
 
             if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_SHIFT))
-                Val_Init_Word(Alloc_Tail_Array(array), REB_WORD, SYM_SHIFT);
+                Val_Init_Word(
+                    Alloc_Tail_Array(array),
+                    REB_WORD,
+                    Canon(SYM_SHIFT)
+                );
 
             Val_Init_Block(val, array);
         }
         else
-            SET_NONE(val);
+            SET_BLANK(val);
         break;
 
     case SYM_CODE:
         if (VAL_EVENT_TYPE(value) != EVT_KEY && VAL_EVENT_TYPE(value) != EVT_KEY_UP)
-            goto is_none;
+            goto is_blank;
         n = VAL_EVENT_DATA(value); // key-words in top 16, chars in lower 16
         SET_INTEGER(val, n);
         break;
 
     case SYM_DATA:
         // Event holds a file string:
-        if (VAL_EVENT_TYPE(value) != EVT_DROP_FILE) goto is_none;
+        if (VAL_EVENT_TYPE(value) != EVT_DROP_FILE) goto is_blank;
         if (!GET_FLAG(VAL_EVENT_FLAGS(value), EVF_COPIED)) {
             void *str = VAL_EVENT_SER(value);
 
@@ -343,25 +358,37 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSYM sym, REBVAL *val)
 
     return TRUE;
 
-is_none:
-    SET_NONE(val);
+is_blank:
+    SET_BLANK(val);
     return TRUE;
 }
 
 
 //
-//  MT_Event: C
+//  MAKE_Event: C
 //
-REBOOL MT_Event(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
-    if (IS_BLOCK(data)) {
+void MAKE_Event(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    if (IS_BLOCK(arg)) {
         CLEARS(out);
-        Set_Event_Vars(out, VAL_ARRAY_AT(data));
+        INIT_CELL_IF_DEBUG(out);
         VAL_RESET_HEADER(out, REB_EVENT);
-        return TRUE;
+        Set_Event_Vars(
+            out,
+            VAL_ARRAY_AT(arg),
+            VAL_SPECIFIER(arg)
+        );
     }
+    else
+        fail (Error_Unexpected_Type(REB_EVENT, VAL_TYPE(arg)));
+}
 
-    return FALSE;
+
+//
+//  TO_Event: C
+//
+void TO_Event(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    fail (Error_Invalid_Arg(arg));
 }
 
 
@@ -373,7 +400,7 @@ REBINT PD_Event(REBPVS *pvs)
     if (IS_WORD(pvs->selector)) {
         if (!pvs->opt_setval || NOT_END(pvs->item + 1)) {
             if (!Get_Event_Var(
-                pvs->value, VAL_WORD_CANON(pvs->selector), pvs->store
+                KNOWN(pvs->value), VAL_WORD_CANON(pvs->selector), pvs->store
             )) {
                 fail (Error_Bad_Path_Set(pvs));
             }
@@ -381,8 +408,11 @@ REBINT PD_Event(REBPVS *pvs)
             return PE_USE_STORE;
         }
         else {
-            if (!Set_Event_Var(pvs->value, pvs->selector, pvs->opt_setval))
+            if (!Set_Event_Var(
+                KNOWN(pvs->value), pvs->selector, pvs->opt_setval
+            )) {
                 fail (Error_Bad_Path_Set(pvs));
+            }
 
             return PE_OK;
         }
@@ -397,40 +427,9 @@ REBINT PD_Event(REBPVS *pvs)
 //
 REBTYPE(Event)
 {
-    REBVAL *value;
-    REBVAL *arg;
-
-    value = D_ARG(1);
-    arg = D_ARG(2);
-
-    if (action == A_MAKE) {
-        // Clone an existing event?
-        if (IS_EVENT(value)) {
-            *D_OUT = *D_ARG(1);
-            return R_OUT;
-        }
-        else if (IS_DATATYPE(value)) {
-            if (IS_EVENT(arg)) {
-                *D_OUT = *D_ARG(2);
-                return R_OUT;
-            }
-            //fail (Error_Bad_Make(REB_EVENT, value));
-            VAL_RESET_HEADER(D_OUT, REB_EVENT);
-            CLEARS(&(D_OUT->payload.event));
-        }
-        else
-is_arg_error:
-            fail (Error_Unexpected_Type(REB_EVENT, VAL_TYPE(arg)));
-
-        // Initialize GOB from block:
-        if (IS_BLOCK(arg)) Set_Event_Vars(D_OUT, VAL_ARRAY_AT(arg));
-        else goto is_arg_error;
-    }
-    else
-        fail (Error_Illegal_Action(REB_EVENT, action));
-
-    return R_OUT;
+    fail (Error_Illegal_Action(REB_EVENT, action));
 }
+
 
 #ifdef ndef
 //  case A_PATH:
@@ -460,18 +459,18 @@ is_arg_error:
         if (num > 0) index--;
         if (num == 0 || index < 0 || index > EF_DCLICK) {
             if (action == A_POKE) fail (Error_Out_Of_Range(arg));
-            goto is_none;
+            goto is_blank;
         }
 pick_it:
         switch(index) {
         case EF_TYPE:
-            if (VAL_EVENT_TYPE(value) == 0) goto is_none;
+            if (VAL_EVENT_TYPE(value) == 0) goto is_blank;
             arg = Get_System(SYS_VIEW, VIEW_EVENT_TYPES);
             if (IS_BLOCK(arg) && VAL_LEN_HEAD(arg) >= EVT_MAX) {
                 *D_OUT = *VAL_ARRAY_AT_HEAD(arg, VAL_EVENT_TYPE(value));
                 return R_OUT;
             }
-            return R_NONE;
+            return R_BLANK;
 
         case EF_PORT:
             // Most events are for the GUI:
@@ -479,13 +478,13 @@ pick_it:
                 *D_OUT = *Get_System(SYS_VIEW, VIEW_EVENT_PORT);
             else {
                 req = VAL_EVENT_REQ(value);
-                if (!req || !req->port) goto is_none;
+                if (!req || !req->port) goto is_blank;
                 Val_Init_Port(D_OUT, cast(REBSER*, req->port));
             }
             return R_OUT;
 
         case EF_KEY:
-            if (VAL_EVENT_TYPE(value) != EVT_KEY) goto is_none;
+            if (VAL_EVENT_TYPE(value) != EVT_KEY) goto is_blank;
             if (VAL_EVENT_FLAGS(value)) {  // !!!!!!!!!!!!! needs mask
                 VAL_RESET_HEADER(D_OUT, REB_CHAR);
                 VAL_CHAR(D_OUT) = VAL_EVENT_KEY(value) & 0xff;
@@ -494,9 +493,7 @@ pick_it:
             return R_OUT;
 
         case EF_OFFSET:
-            VAL_RESET_HEADER(D_OUT, REB_PAIR);
-            VAL_PAIR_X(D_OUT) = VAL_EVENT_X(value);
-            VAL_PAIR_Y(D_OUT) = VAL_EVENT_Y(value);
+            SET_PAIR(D_OUT, VAL_EVENT_X(value), VAL_EVENT_Y(value));
             return R_OUT;
 
         case EF_TIME:
@@ -558,21 +555,23 @@ void Mold_Event(const REBVAL *value, REB_MOLD *mold)
 {
     REBVAL val;
     REBCNT field;
-    REBCNT fields[] = {
+    REBSYM fields[] = {
         SYM_TYPE, SYM_PORT, SYM_GOB, SYM_OFFSET, SYM_KEY,
-        SYM_FLAGS, SYM_CODE, SYM_DATA, 0
+        SYM_FLAGS, SYM_CODE, SYM_DATA, SYM_0
     };
 
     Pre_Mold(value, mold);
     Append_Codepoint_Raw(mold->series, '[');
     mold->indent++;
 
-    for (field = 0; fields[field]; field++) {
-        Get_Event_Var(value, fields[field], &val);
-        if (!IS_NONE(&val)) {
+    for (field = 0; fields[field] != SYM_0; field++) {
+        Get_Event_Var(value, Canon(fields[field]), &val);
+        if (!IS_BLANK(&val)) {
             New_Indented_Line(mold);
+
+            REBSTR *canon = Canon(fields[field]);
             Append_UTF8_May_Fail(
-                mold->series, Get_Sym_Name(fields[field]), -1
+                mold->series, STR_HEAD(canon), STR_NUM_BYTES(canon)
             );
             Append_Unencoded(mold->series, ": ");
             if (IS_WORD(&val)) Append_Codepoint_Raw(mold->series, '\'');

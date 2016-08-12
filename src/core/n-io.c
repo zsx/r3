@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  n-io.c
-**  Summary: native functions for input and output
-**  Section: natives
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %n-io.c
+//  Summary: "native functions for input and output"
+//  Section: natives
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
@@ -38,7 +39,7 @@
 //  
 //  "Copies console output to a file."
 //  
-//      target [file! none! logic!]
+//      target [file! blank! logic!]
 //  ]
 //
 REBNATIVE(echo)
@@ -67,10 +68,10 @@ REBNATIVE(echo)
 //  
 //  "Converts a value to a human-readable string."
 //  
-//      value [opt-any-value!] "The value to form"
+//      value [<opt> any-value!] "The value to form"
 //      /delimit
 //          "Use a delimiter between expressions that added to the output"
-//      delimiter [none! any-scalar! any-string! block!]
+//      delimiter [blank! any-scalar! any-string! block!]
 //          "Delimiting value (or block of delimiters for each depth)"
 //      /quote
 //          "Do not reduce values in blocks"
@@ -87,10 +88,10 @@ REBNATIVE(form)
     REFINE(5, new);
 
     REBVAL *value = ARG(value);
-    REBVAL *delimiter = ARG(delimiter);
 
     if (REF(new)) {
         REBVAL pending_delimiter;
+        SET_END(&pending_delimiter);
 
         REB_MOLD mo;
         CLEARS(&mo);
@@ -99,20 +100,20 @@ REBNATIVE(form)
         // print logic available programmatically.  Possible outcome is that
         // this would become the new FORM.
 
-        if (!REF(delimit))
-            *delimiter = *ROOT_DEFAULT_PRINT_DELIMITER;
+        REBVAL *delimiter;
+        if (REF(delimit))
+            delimiter = ARG(delimiter);
+        else
+            delimiter = SPACE_VALUE;
 
         Push_Mold(&mo);
 
-        VAL_INIT_WRITABLE_DEBUG(&pending_delimiter);
-        SET_END(&pending_delimiter);
-
-        if (Format_GC_Safe_Value_Throws(
+        if (Form_Value_Throws(
             D_OUT,
             &mo,
             &pending_delimiter,
             value,
-            LOGICAL(!REF(quote) && IS_BLOCK(value)),
+            (REF(quote) || !IS_BLOCK(value) ? 0 : FORM_FLAG_REDUCE),
             delimiter,
             0 // depth
         )) {
@@ -133,7 +134,7 @@ REBNATIVE(form)
 //  
 //  "Converts a value to a REBOL-readable string."
 //  
-//      value [opt-any-value!] "The value to mold"
+//      value [any-value!] "The value to mold"
 //      /only {For a block value, mold only its contents, no outer []}
 //      /all "Use construction syntax"
 //      /flat "No indentation"
@@ -165,17 +166,21 @@ REBNATIVE(mold)
 
 //
 //  print: native [
+//      <punctuates>
 //  
 //  "Outputs value to standard output using the PRINT dialect."
 //  
-//      value [opt-any-value!]
-//          "Literal or BLOCK! in the PRINT dialect, outputs with a newline"
+//      return: [<opt>]
+//      value [any-value!]
+//          "Value or BLOCK! literal in PRINT dialect, newline if any output"
 //      /only
-//          "Don't use dialect--print ANY-VALUE! as-is (no newline)"
+//          "Do not include automatic spacing or newlines"
 //      /delimit
 //          "Use a delimiter between expressions that added to the output"
-//      delimiter [none! any-scalar! any-string! block!]
+//      delimiter [blank! any-scalar! any-string! block!]
 //          "Delimiting value (or block of delimiters for each depth)"
+//      /eval
+//          "Print block using the evaluating dialect (even if not literal)"
 //      /quote
 //          "Do not reduce values in blocks"
 //  ]
@@ -186,29 +191,52 @@ REBNATIVE(print)
     REFINE(2, only);
     REFINE(3, delimit);
     PARAM(4, delimiter);
-    REFINE(5, quote);
+    REFINE(5, eval);
+    REFINE(6, quote);
 
-    // By default, we assume the delimiter is supposed to be a space at the
-    // outermost level and nothing at every level beyond that: [#" " |]
+    REBVAL *value = ARG(value);
+
+    if (IS_VOID(value)) // opt out of printing
+        return R_VOID;
+
+    // Literal blocks passed to PRINT are assumed to be all right to evaluate.
+    // But for safety, `print x` will not run code if x is a block, unless the
+    // /EVAL switch is used.  This helps prevent accidents, confusions, or
+    // security problems if a block gets into a slot that wasn't expecting it.
     //
-    if (!REF(delimit))
-        *ARG(delimiter) = *ROOT_DEFAULT_PRINT_DELIMITER;
+    if (
+        IS_BLOCK(value)
+        && GET_VAL_FLAG(value, VALUE_FLAG_EVALUATED)
+        && NOT(REF(eval))
+    ){
+        fail (Error(RE_PRINT_NEEDS_EVAL));
+    }
 
-    if (Prin_GC_Safe_Value_Throws(
+    const REBVAL *delimiter;
+    if (REF(delimit))
+        delimiter = ARG(delimiter);
+    else if (REF(only))
+        delimiter = BLANK_VALUE;
+    else {
+        // By default, we assume the delimiter is supposed to be a space at the
+        // outermost level and nothing at every level beyond that.
+        //
+        delimiter = SPACE_VALUE;
+    }
+
+    if (Print_Value_Throws(
         D_OUT,
-        ARG(value),
-        ARG(delimiter),
+        value,
+        delimiter,
         0, // `limit`: 0 means do not limit output length
-        FALSE, // `mold`: false means don't, e.g. no "quotes around strings"
-        LOGICAL(!REF(quote) && !REF(only)) // `reduce`: don't if /QUOTE, /ONLY
+        (REF(only) ? FORM_FLAG_ONLY : FORM_FLAG_NEWLINE_SEQUENTIAL_STRINGS)
+            | (!IS_BLOCK(value) || REF(quote) ? 0 : FORM_FLAG_REDUCE)
+            | (REF(only) ? 0 : FORM_FLAG_NEWLINE_UNLESS_EMPTY)
     )) {
         return R_OUT_IS_THROWN;
     }
 
-    if (NOT(REF(only)))
-        Print_OS_Line();
-
-    return R_UNSET;
+    return R_VOID;
 }
 
 
@@ -236,7 +264,7 @@ REBNATIVE(new_line)
     REFINE(4, skip);
     PARAM(5, size);
 
-    REBVAL *value = VAL_ARRAY_AT(ARG(position));
+    RELVAL *value = VAL_ARRAY_AT(ARG(position));
     REBOOL mark = IS_CONDITIONAL_TRUE(ARG(mark));
     REBINT skip = 0;
     REBCNT n;
@@ -326,7 +354,7 @@ REBNATIVE(now)
         VAL_ZONE(ret) = 0;
     }
     else if (D_REF(4)) {    // time
-        //if (dat.time == ???) SET_NONE(ret);
+        //if (dat.time == ???) SET_BLANK(ret);
         VAL_RESET_HEADER(ret, REB_TIME);
     }
     else if (D_REF(5)) {    // zone
@@ -350,47 +378,50 @@ REBNATIVE(now)
 //  
 //  "Waits for a duration, port, or both."
 //  
-//      value [any-number! time! port! block! none!]
+//      value [any-number! time! port! block! blank!]
 //      /all "Returns all in a block"
 //      /only {only check for ports given in the block to this function}
 //  ]
 //
 REBNATIVE(wait)
 {
-    REBVAL *val = D_ARG(1);
+    PARAM(1, value);
+    REFINE(2, all);
+    REFINE(3, only);
+
     REBINT timeout = 0; // in milliseconds
     REBARR *ports = NULL;
     REBINT n = 0;
 
-    SET_NONE(D_OUT);
+    SET_BLANK(D_OUT);
 
-    if (IS_BLOCK(val)) {
+    RELVAL *val;
+    if (IS_BLOCK(ARG(value))) {
         REBVAL unsafe; // temporary not safe from GC
-        VAL_INIT_WRITABLE_DEBUG(&unsafe);
 
-        if (Reduce_Array_Throws(
-            &unsafe, VAL_ARRAY(val), VAL_INDEX(val), FALSE
-        )) {
+        if (Reduce_Any_Array_Throws(&unsafe, ARG(value), FALSE)) {
             *D_OUT = unsafe;
             return R_OUT_IS_THROWN;
         }
 
         ports = VAL_ARRAY(&unsafe);
         for (val = ARR_HEAD(ports); NOT_END(val); val++) { // find timeout
-            if (Pending_Port(val)) n++;
+            if (Pending_Port(KNOWN(val))) n++;
             if (IS_INTEGER(val) || IS_DECIMAL(val)) break;
         }
         if (IS_END(val)) {
-            if (n == 0) return R_NONE; // has no pending ports!
+            if (n == 0) return R_BLANK; // has no pending ports!
             else timeout = ALL_BITS; // no timeout provided
-            // SET_NONE(val); // no timeout -- BUG: unterminated block in GC
+            // SET_BLANK(val); // no timeout -- BUG: unterminated block in GC
         }
     }
+    else
+        val = ARG(value);
 
     if (NOT_END(val)) {
         switch (VAL_TYPE(val)) {
         case REB_INTEGER:
-            timeout = 1000 * Int32(val);
+            timeout = 1000 * Int32(KNOWN(val));
             goto chk_neg;
 
         case REB_DECIMAL:
@@ -400,20 +431,20 @@ REBNATIVE(wait)
         case REB_TIME:
             timeout = (REBINT) (VAL_TIME(val) / (SEC_SEC / 1000));
         chk_neg:
-            if (timeout < 0) fail (Error_Out_Of_Range(val));
+            if (timeout < 0) fail (Error_Out_Of_Range(KNOWN(val)));
             break;
 
         case REB_PORT:
-            if (!Pending_Port(val)) return R_NONE;
+            if (!Pending_Port(KNOWN(val))) return R_BLANK;
             ports = Make_Array(1);
-            Append_Value(ports, val);
+            Append_Value(ports, KNOWN(val));
             // fall thru...
-        case REB_NONE:
+        case REB_BLANK:
             timeout = ALL_BITS; // wait for all windows
             break;
 
         default:
-            fail (Error_Invalid_Arg(val));
+            fail (Error_Invalid_Arg_Core(val, SPECIFIED));
         }
     }
 
@@ -424,17 +455,17 @@ REBNATIVE(wait)
     // Process port events [stack-move]:
     if (!Wait_Ports(ports, timeout, D_REF(3))) {
         Sieve_Ports(NULL); /* just reset the waked list */
-        return R_NONE;
+        return R_BLANK;
     }
-    if (!ports) return R_NONE;
+    if (!ports) return R_BLANK;
 
     // Determine what port(s) waked us:
     Sieve_Ports(ports);
 
-    if (!D_REF(2)) { // not /all ports
+    if (!REF(all)) {
         val = ARR_HEAD(ports);
-        if (IS_PORT(val)) *D_OUT = *val;
-        else SET_NONE(D_OUT);
+        if (IS_PORT(val)) *D_OUT = *KNOWN(val);
+        else SET_BLANK(D_OUT);
     }
 
     return R_OUT;
@@ -465,17 +496,17 @@ REBNATIVE(wake_up)
     if (CTX_LEN(port) < STD_PORT_MAX - 1) panic (Error(RE_MISC));
 
     value = CTX_VAR(port, STD_PORT_ACTOR);
-    if (IS_FUNCTION_AND(value, FUNC_CLASS_NATIVE)) {
+    if (IS_FUNCTION(value)) {
         //
         // We don't pass `value` or `event` in, because we just pass the
         // current call info.  The port action can re-read the arguments.
         //
-        Do_Port_Action(frame_, port, A_UPDATE);
+        Do_Port_Action(frame_, port, SYM_UPDATE);
     }
 
     value = CTX_VAR(port, STD_PORT_AWAKE);
     if (IS_FUNCTION(value)) {
-        if (Apply_Only_Throws(D_OUT, value, ARG(event), END_VALUE))
+        if (Apply_Only_Throws(D_OUT, TRUE, value, ARG(event), END_CELL))
             fail (Error_No_Catch_For_Throw(D_OUT));
 
         if (!(IS_LOGIC(D_OUT) && VAL_LOGIC(D_OUT))) awakened = FALSE;
@@ -553,7 +584,7 @@ REBNATIVE(what_dir)
     if (IS_URL(current_path)) {
         *D_OUT = *current_path;
     }
-    else if (IS_FILE(current_path) || IS_NONE(current_path)) {
+    else if (IS_FILE(current_path) || IS_BLANK(current_path)) {
         len = OS_GET_CURRENT_DIR(&lpath);
 
         // allocates extra for end `/`
@@ -599,19 +630,15 @@ REBNATIVE(change_dir)
         // !!! Should it at least check for a trailing `/`?
     }
     else {
-        REBSER *ser;
-
-        REBVAL val;
-        VAL_INIT_WRITABLE_DEBUG(&val);
-
         assert(IS_FILE(arg));
 
-        ser = Value_To_OS_Path(arg, TRUE);
+        REBSER *ser = Value_To_OS_Path(arg, TRUE);
         if (!ser)
             fail (Error_Invalid_Arg(arg)); // !!! ERROR MSG
 
+        REBVAL val;
         Val_Init_String(&val, ser); // may be unicode or utf-8
-        Check_Security(SYM_FILE, POL_EXEC, &val);
+        Check_Security(Canon(SYM_FILE), POL_EXEC, &val);
 
         if (!OS_SET_CURRENT_DIR(SER_HEAD(REBCHR, ser)))
             fail (Error_Invalid_Arg(arg)); // !!! ERROR MSG
@@ -629,7 +656,7 @@ REBNATIVE(change_dir)
 //  
 //  "Open web browser to a URL or local file."
 //  
-//      url [url! file! none!]
+//      url [url! file! blank!]
 //  ]
 //
 REBNATIVE(browse)
@@ -638,10 +665,10 @@ REBNATIVE(browse)
     REBCHR *url = 0;
     REBVAL *arg = D_ARG(1);
 
-    Check_Security(SYM_BROWSE, POL_EXEC, arg);
+    Check_Security(Canon(SYM_BROWSE), POL_EXEC, arg);
 
-    if (IS_NONE(arg))
-        return R_UNSET;
+    if (IS_BLANK(arg))
+        return R_VOID;
 
     // !!! By passing NULL we don't get backing series to protect!
     url = Val_Str_To_OS_Managed(NULL, arg);
@@ -649,13 +676,13 @@ REBNATIVE(browse)
     r = OS_BROWSE(url, 0);
 
     if (r == 0) {
-        return R_UNSET;
+        return R_VOID;
     } else {
         Make_OS_Error(D_OUT, r);
         fail (Error(RE_CALL_FAIL, D_OUT));
     }
 
-    return R_UNSET;
+    return R_VOID;
 }
 
 
@@ -671,9 +698,12 @@ REBNATIVE(browse)
 //      /console "Runs command with I/O redirected to console"
 //      /shell "Forces command to be run from shell"
 //      /info "Returns process information object"
-//      /input in [string! binary! file! none!] "Redirects stdin to in"
-//      /output out [string! binary! file! none!] "Redirects stdout to out"
-//      /error err [string! binary! file! none!] "Redirects stderr to err"
+//      /input in [string! binary! file! blank!]
+//          "Redirects stdin to in"
+//      /output out [string! binary! file! blank!]
+//          "Redirects stdout to out"
+//      /error err [string! binary! file! blank!]
+//          "Redirects stderr to err"
 //  ]
 //
 REBNATIVE(call)
@@ -751,7 +781,7 @@ REBNATIVE(call)
 
     int exit_code = 0;
 
-    Check_Security(SYM_CALL, POL_EXEC, arg);
+    Check_Security(Canon(SYM_CALL), POL_EXEC, arg);
 
     if (D_REF(2)) flag_wait = TRUE;
     if (D_REF(3)) flag_console = TRUE;
@@ -781,7 +811,7 @@ REBNATIVE(call)
             os_input = SER_HEAD(char, input_ser);
             input_len = SER_LEN(input_ser);
         }
-        else if (IS_NONE(param)) {
+        else if (IS_BLANK(param)) {
             input_type = NONE_TYPE;
         }
         else
@@ -811,7 +841,7 @@ REBNATIVE(call)
             os_output = SER_HEAD(char, output_ser);
             output_len = SER_LEN(output_ser);
         }
-        else if (IS_NONE(param)) {
+        else if (IS_BLANK(param)) {
             output_type = NONE_TYPE;
         }
         else
@@ -838,7 +868,7 @@ REBNATIVE(call)
             os_err = SER_HEAD(char, err_ser);
             err_len = SER_LEN(err_ser);
         }
-        else if (IS_NONE(param)) {
+        else if (IS_BLANK(param)) {
             err_type = NONE_TYPE;
         }
         else
@@ -897,15 +927,15 @@ REBNATIVE(call)
         argv_saved_sers = Make_Series(argc, sizeof(REBSER*), MKS_NONE);
         argv = SER_HEAD(const REBCHR*, argv_ser);
         for (i = 0; i < argc; i ++) {
-            REBVAL *param = VAL_ARRAY_AT_HEAD(arg, i);
+            RELVAL *param = VAL_ARRAY_AT_HEAD(arg, i);
             if (IS_STRING(param)) {
                 REBSER *ser;
-                argv[i] = Val_Str_To_OS_Managed(&ser, param);
+                argv[i] = Val_Str_To_OS_Managed(&ser, KNOWN(param));
                 PUSH_GUARD_SERIES(ser);
                 SER_HEAD(REBSER*, argv_saved_sers)[i] = ser;
             }
             else if (IS_FILE(param)) {
-                REBSER *path = Value_To_OS_Path(param, FALSE);
+                REBSER *path = Value_To_OS_Path(KNOWN(param), FALSE);
                 argv[i] = SER_HEAD(REBCHR, path);
 
                 MANAGE_SERIES(path);
@@ -913,7 +943,7 @@ REBNATIVE(call)
                 SER_HEAD(REBSER*, argv_saved_sers)[i] = path;
             }
             else
-                fail (Error_Invalid_Arg(param));
+                fail (Error_Invalid_Arg_Core(param, VAL_SPECIFIER(arg)));
         }
         argv[argc] = NULL;
     }
@@ -1007,9 +1037,12 @@ REBNATIVE(call)
     if (flag_info) {
         REBCTX *info = Alloc_Context(2);
 
-        SET_INTEGER(Append_Context(info, NULL, SYM_ID), pid);
+        SET_INTEGER(Append_Context(info, NULL, Canon(SYM_ID)), pid);
         if (flag_wait)
-            SET_INTEGER(Append_Context(info, NULL, SYM_EXIT_CODE), exit_code);
+            SET_INTEGER(
+                Append_Context(info, NULL, Canon(SYM_EXIT_CODE)),
+                exit_code
+            );
 
         Val_Init_Object(D_OUT, info);
         return R_OUT;
@@ -1074,7 +1107,7 @@ static REBARR *String_List_To_Array(REBCHR *str)
 //
 REBSER *Block_To_String_List(REBVAL *blk)
 {
-    REBVAL *value;
+    RELVAL *value;
 
     REB_MOLD mo;
     CLEARS(&mo);
@@ -1218,7 +1251,7 @@ REBNATIVE(request_file)
             Val_Init_File(D_OUT, ser);
         }
     } else
-        SET_NONE(D_OUT);
+        SET_BLANK(D_OUT);
 
     OS_FREE(fr.files);
 
@@ -1241,7 +1274,7 @@ REBNATIVE(get_env)
     REBCHR *buf;
     REBVAL *arg = D_ARG(1);
 
-    Check_Security(SYM_ENVR, POL_READ, arg);
+    Check_Security(Canon(SYM_ENVR), POL_READ, arg);
 
     if (ANY_WORD(arg)) Val_Init_String(arg, Copy_Form_Value(arg, 0));
 
@@ -1249,8 +1282,8 @@ REBNATIVE(get_env)
     cmd = Val_Str_To_OS_Managed(NULL, arg);
 
     lenplus = OS_GET_ENV(cmd, NULL, 0);
-    if (lenplus == 0) return R_NONE;
-    if (lenplus < 0) return R_UNSET;
+    if (lenplus == 0) return R_BLANK;
+    if (lenplus < 0) return R_VOID;
 
     // Two copies...is there a better way?
     buf = ALLOC_N(REBCHR, lenplus);
@@ -1268,7 +1301,7 @@ REBNATIVE(get_env)
 //  {Sets the value of an operating system environment variable (for current process).}
 //  
 //      var [any-string! any-word!] "Variable to set"
-//      value [string! none!] "Value to set, or NONE to unset it"
+//      value [string! blank!] "Value to set, or NONE to unset it"
 //  ]
 //
 REBNATIVE(set_env)
@@ -1278,7 +1311,7 @@ REBNATIVE(set_env)
     REBVAL *arg2 = D_ARG(2);
     REBOOL success;
 
-    Check_Security(SYM_ENVR, POL_WRITE, arg1);
+    Check_Security(Canon(SYM_ENVR), POL_WRITE, arg1);
 
     if (ANY_WORD(arg1)) Val_Init_String(arg1, Copy_Form_Value(arg1, 0));
 
@@ -1294,20 +1327,20 @@ REBNATIVE(set_env)
             Val_Init_String(D_OUT, Copy_OS_Str(value, OS_STRLEN(value)));
             return R_OUT;
         }
-        return R_UNSET;
+        return R_VOID;
     }
 
-    if (IS_NONE(arg2)) {
+    if (IS_BLANK(arg2)) {
         success = OS_SET_ENV(cmd, 0);
         if (success)
-            return R_NONE;
-        return R_UNSET;
+            return R_BLANK;
+        return R_VOID;
     }
 
     // is there any checking that native interface has not changed
     // out from under the expectations of the code?
 
-    return R_UNSET;
+    return R_VOID;
 }
 
 
@@ -1350,7 +1383,7 @@ REBNATIVE(access_os)
     REBOOL set = D_REF(2);
     REBVAL *val = D_ARG(3);
 
-    switch (VAL_WORD_CANON(field)) {
+    switch (VAL_WORD_SYM(field)) {
         case SYM_UID:
             if (set) {
                 if (IS_INTEGER(val)) {
@@ -1358,7 +1391,7 @@ REBNATIVE(access_os)
                     if (ret < 0) {
                         switch (ret) {
                             case OS_ENA:
-                                return R_NONE;
+                                return R_BLANK;
 
                             case OS_EPERM:
                                 fail (Error(RE_PERMISSION_DENIED));
@@ -1380,7 +1413,7 @@ REBNATIVE(access_os)
             else {
                 REBINT ret = OS_GET_UID();
                 if (ret < 0) {
-                    return R_NONE;
+                    return R_BLANK;
                 } else {
                     SET_INTEGER(D_OUT, ret);
                     return R_OUT;
@@ -1394,7 +1427,7 @@ REBNATIVE(access_os)
                     if (ret < 0) {
                         switch (ret) {
                             case OS_ENA:
-                                return R_NONE;
+                                return R_BLANK;
 
                             case OS_EPERM:
                                 fail (Error(RE_PERMISSION_DENIED));
@@ -1416,7 +1449,7 @@ REBNATIVE(access_os)
             else {
                 REBINT ret = OS_GET_GID();
                 if (ret < 0) {
-                    return R_NONE;
+                    return R_BLANK;
                 } else {
                     SET_INTEGER(D_OUT, ret);
                     return R_OUT;
@@ -1430,7 +1463,7 @@ REBNATIVE(access_os)
                     if (ret < 0) {
                         switch (ret) {
                             case OS_ENA:
-                                return R_NONE;
+                                return R_BLANK;
 
                             case OS_EPERM:
                                 fail (Error(RE_PERMISSION_DENIED));
@@ -1452,7 +1485,7 @@ REBNATIVE(access_os)
             else {
                 REBINT ret = OS_GET_EUID();
                 if (ret < 0) {
-                    return R_NONE;
+                    return R_BLANK;
                 } else {
                     SET_INTEGER(D_OUT, ret);
                     return R_OUT;
@@ -1466,7 +1499,7 @@ REBNATIVE(access_os)
                     if (ret < 0) {
                         switch (ret) {
                             case OS_ENA:
-                                return R_NONE;
+                                return R_BLANK;
 
                             case OS_EPERM:
                                 fail (Error(RE_PERMISSION_DENIED));
@@ -1488,7 +1521,7 @@ REBNATIVE(access_os)
             else {
                 REBINT ret = OS_GET_EGID();
                 if (ret < 0) {
-                    return R_NONE;
+                    return R_BLANK;
                 } else {
                     SET_INTEGER(D_OUT, ret);
                     return R_OUT;
@@ -1498,20 +1531,23 @@ REBNATIVE(access_os)
         case SYM_PID:
             if (set) {
                 REBINT ret = 0;
-                REBVAL *pid = val;
-                REBVAL *arg = val;
+                RELVAL *pid = val;
+                RELVAL *arg = val;
                 if (IS_INTEGER(val)) {
                     ret = OS_KILL(VAL_INT32(pid));
-                } else if (IS_BLOCK(val)) {
-                    REBVAL *sig = NULL;
+                }
+                else if (IS_BLOCK(val)) {
+                    RELVAL *sig = NULL;
 
                     if (VAL_LEN_AT(val) != 2) fail (Error_Invalid_Arg(val));
 
                     pid = VAL_ARRAY_AT_HEAD(val, 0);
-                    if (!IS_INTEGER(pid)) fail (Error_Invalid_Arg(pid));
+                    if (!IS_INTEGER(pid))
+                        fail (Error_Invalid_Arg_Core(pid, VAL_SPECIFIER(val)));
 
                     sig = VAL_ARRAY_AT_HEAD(val, 1);
-                    if (!IS_INTEGER(sig)) fail (Error_Invalid_Arg(sig));
+                    if (!IS_INTEGER(sig))
+                        fail (Error_Invalid_Arg_Core(sig, VAL_SPECIFIER(val)));
 
                     ret = OS_SEND_SIGNAL(VAL_INT32(pid), VAL_INT32(sig));
                     arg = sig;
@@ -1522,13 +1558,13 @@ REBNATIVE(access_os)
                 if (ret < 0) {
                     switch (ret) {
                         case OS_ENA:
-                            return R_NONE;
+                            return R_BLANK;
 
                         case OS_EPERM:
                             fail (Error(RE_PERMISSION_DENIED));
 
                         case OS_EINVAL:
-                            fail (Error_Invalid_Arg(arg));
+                            fail (Error_Invalid_Arg(KNOWN(arg)));
 
                         case OS_ESRCH:
                             fail (Error(RE_PROCESS_NOT_FOUND, pid));
@@ -1543,7 +1579,7 @@ REBNATIVE(access_os)
             } else {
                 REBINT ret = OS_GET_PID();
                 if (ret < 0) {
-                    return R_NONE;
+                    return R_BLANK;
                 } else {
                     SET_INTEGER(D_OUT, ret);
                     return R_OUT;

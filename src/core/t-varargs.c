@@ -1,6 +1,10 @@
 //
-// Rebol 3 Language Interpreter and Run-time Environment
-// "Ren-C" branch @ https://github.com/metaeducation/ren-c
+//  File: %t-varargs.h
+//  Summary: "Variadic Argument Type and Services"
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2016 Rebol Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
@@ -18,11 +22,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  Summary: Variadic Argument Type and Services
-//  File: %t-varargs.h
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -58,9 +57,9 @@
 //
 // * returns END_FLAG if it reaches the end of an entire input chain
 //
-// * returns VALIST_FLAG if the input is not exhausted
+// * returns VA_LIST_FLAG if the input is not exhausted
 //
-// Note: Returning VALIST_FLAG is probably a lie, since the odds of the
+// Note: Returning VA_LIST_FLAG is probably a lie, since the odds of the
 // underlying varargs being from a FRAME! running on a C `va_list` aren't
 // necessarily that high.  For now it is a good enough signal simply because
 // it is not an index number, so it is an opaque way of saying "there is
@@ -69,24 +68,19 @@
 REBIXO Do_Vararg_Op_Core(
     REBVAL *out,
     REBARR *feed, // may be varlist or 1-element-long array w/shared value
-    const REBVAL *param,
-    REBSYM sym_func, // symbol of the function invocation param belongs to
+    const RELVAL *param,
+    REBVAL *arg, // for updating VALUE_FLAG_EVALUATED
+    REBSTR *opt_label, // symbol of the function invocation param belongs to
     enum Reb_Vararg_Op op
 ) {
-    struct Reb_Frame *f;
-    REBIXO indexor = VALIST_FLAG;
-
-    struct Reb_Frame temp_frame;
-
-    REBARR **subfeed_addr;
-    REBVAL *shared;
+    assert(LOGICAL(out == NULL) == LOGICAL(op == VARARG_OP_TAIL_Q));
 
     enum Reb_Param_Class pclass = VAL_PARAM_CLASS(param);
 
-    assert(LOGICAL(out == NULL) == LOGICAL(op == VARARG_OP_TAIL_Q));
-
     if (op == VARARG_OP_FIRST && pclass != PARAM_CLASS_HARD_QUOTE)
-        fail (Error(RE_VARARGS_NO_LOOK)); // lookahead needs hard quote
+        fail (Error(RE_VARARGS_NO_LOOK)); // lookback needs hard quote
+
+    REBFRM *f;
 
     // If the VARARGS! has a call frame, then ensure that the call frame where
     // the VARARGS! originated is still on the stack.
@@ -96,7 +90,7 @@ REBIXO Do_Vararg_Op_Core(
     // call pointer it first ran with is dead.  There needs to be a solution
     // for other reasons, so use that solution when it's ready.
     //
-    if (GET_ARR_FLAG(feed, ARRAY_FLAG_CONTEXT_VARLIST)) {
+    if (GET_ARR_FLAG(feed, ARRAY_FLAG_VARLIST)) {
         if (
             GET_ARR_FLAG(feed, CONTEXT_FLAG_STACK)
             && !GET_ARR_FLAG(feed, SERIES_FLAG_ACCESSIBLE)
@@ -108,41 +102,42 @@ REBIXO Do_Vararg_Op_Core(
 
         // Take label symbol from context if it hasn't been set yet.
         //
-        if (sym_func == SYM_0)
-            sym_func = FRM_LABEL(f);
+        if (opt_label == NULL)
+            opt_label = FRM_LABEL(f);
     }
     else {
         // If the request was to capture a symbol and the first level wasn't
         // a frame, go ahead and fill in with something so a nested frame
         // doesn't falsely claim to label the function with the parameter.
         //
-        if (sym_func == SYM_0)
-            sym_func = SYM_NATIVE; // !!! pick something better
+        if (opt_label == NULL)
+            opt_label = Canon(SYM_NATIVE); // !!! pick something better
     }
+
+handle_subfeed:;
 
     // We may be in a state where we aren't fetching values from the varargs
     // in our hand, but in a subfeed it is referencing.  This subfeed can
-    // be NULL, the context we recursively feed from, or an array containing
+    // be "END", the context we recursively feed from, or an array containing
     // a single element with the array and index to feed from.
     //
-    // The subfeed is operated on by address because we need to NULL it when
+    // The subfeed is operated on by address because we need to END it when
     // done...and if we encounter a nested varlist to chain in, we set it.
-    //
-    subfeed_addr = SUBFEED_ADDR_OF_FEED(feed);
 
-handle_subfeed:
-    if (*subfeed_addr != NULL) {
+    REBARR **subfeed_addr;
+    if (!Is_End_Subfeed_Addr_Of_Feed(&subfeed_addr, feed)) {
         //
         // Because we're recursing, we could run into trouble if someone
         // tries to chain a varargs into itself, etc.
         //
         if (C_STACK_OVERFLOWING(&op)) Trap_Stack_Overflow();
 
-        indexor = Do_Vararg_Op_Core(
+        REBIXO indexor = Do_Vararg_Op_Core(
             out,
             *subfeed_addr,
             param,
-            sym_func,
+            arg,
+            opt_label,
             op
         );
 
@@ -153,22 +148,24 @@ handle_subfeed:
         // will be seen by all other instances of this VARARGS!) and fall
         // through to getting values from the main feed.
         //
-        *subfeed_addr = NULL;
+        Mark_End_Subfeed_Addr_Of_Feed(feed);
     }
 
     // Reading from the main feed...
 
-    if (GET_ARR_FLAG(feed, ARRAY_FLAG_CONTEXT_VARLIST)) {
+    REBFRM temp_frame;
+    REBVAL *shared;
+    if (GET_ARR_FLAG(feed, ARRAY_FLAG_VARLIST)) {
         //
         // "Ordinary" case... use the original frame implied by the VARARGS!
         // The Reb_Frame isn't a bad pointer, we checked FRAME! is stack-live.
         //
-        if (f->indexor == END_FLAG)
+        if (IS_END(f->value))
             goto return_end_flag;
 
         if (op == VARARG_OP_FIRST) {
-            *out = *f->value;
-            return VALIST_FLAG;
+            COPY_VALUE(out, f->value, f->specifier);
+            return VA_LIST_FLAG;
         }
     }
     else {
@@ -177,10 +174,12 @@ handle_subfeed:
         // MAKE ANY-ARRAY! on a varargs (which reified the varargs into an
         // array during that creation, flattening its entire output).
         //
-        shared = ARR_HEAD(feed);
+        shared = KNOWN(ARR_HEAD(feed)); // 1 element, array or end mark
 
         if (IS_END(shared))
             goto return_end_flag; // exhausted
+
+        assert(IS_BLOCK(shared)); // holds index and data values (specified)
 
         // A proxy call frame is created to feed from the shared array, and
         // its index will be updated (or set to END when exhausted)
@@ -190,19 +189,20 @@ handle_subfeed:
             goto return_end_flag;
         }
 
-        temp_frame.value = VAL_ARRAY_AT(shared);
         if (op == VARARG_OP_FIRST) {
-            *out = *temp_frame.value;
-            return VALIST_FLAG;
+            *out = *KNOWN(VAL_ARRAY_AT(shared)); // no relative values
+            return VA_LIST_FLAG;
         }
 
         // Fill in just enough enformation to call the FETCH-based routines
 
+        temp_frame.value = VAL_ARRAY_AT(shared);
+        temp_frame.specifier = SPECIFIED;
         temp_frame.source.array = VAL_ARRAY(shared);
-        temp_frame.indexor = VAL_INDEX(shared) + 1;
+        temp_frame.index = VAL_INDEX(shared) + 1;
         temp_frame.out = out;
-        temp_frame.eval_fetched = NULL;
-        temp_frame.opt_label_sym = SYM_NATIVE; // !!! lie, shouldn't be used
+        temp_frame.pending = NULL;
+        temp_frame.label = Canon(SYM_NATIVE); // !!! lie, shouldn't be used
 
         f = &temp_frame;
     }
@@ -210,58 +210,69 @@ handle_subfeed:
     // The invariant here is that `c` has been prepared for fetching/doing
     // and has at least one value in it.
     //
-    assert(f->indexor != THROWN_FLAG && f->indexor != END_FLAG);
-    assert(sym_func != SYM_0);
+    assert(NOT_END(f->value));
+    assert(opt_label != NULL);
     assert(op != VARARG_OP_FIRST);
+
+    if (IS_BAR(f->value))
+        goto return_end_flag; // all functions, including varargs, stop at `|`
 
     // Based on the quoting class of the parameter, fulfill the varargs from
     // whatever information was loaded into `c` as the "feed" for values.
     //
     switch (pclass) {
     case PARAM_CLASS_NORMAL:
-        if (IS_BAR(f->value))
-            goto return_end_flag; // normal varargs stop at `|`
-
-        if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
+        if (op == VARARG_OP_TAIL_Q) return VA_LIST_FLAG;
 
         DO_NEXT_REFETCH_MAY_THROW(
             out,
             f,
-            (f->flags & DO_FLAG_LOOKAHEAD)
+            (f->flags.bits & DO_FLAG_LOOKAHEAD)
                 ? DO_FLAG_LOOKAHEAD
                 : DO_FLAG_NO_LOOKAHEAD
         );
 
-        if (f->indexor == THROWN_FLAG)
+        if (THROWN(out))
             return THROWN_FLAG;
+
+        if (GET_VAL_FLAG(out, VALUE_FLAG_EVALUATED))
+            SET_VAL_FLAG(arg, VALUE_FLAG_EVALUATED);
+        else
+            CLEAR_VAL_FLAG(arg, VALUE_FLAG_EVALUATED);
         break;
 
     case PARAM_CLASS_HARD_QUOTE:
-        if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
+        if (op == VARARG_OP_TAIL_Q) return VA_LIST_FLAG;
 
-        QUOTE_NEXT_REFETCH(out, f); // hard quoted varargs consume `|`
+        QUOTE_NEXT_REFETCH(out, f);
+        CLEAR_VAL_FLAG(arg, VALUE_FLAG_EVALUATED);
         break;
 
     case PARAM_CLASS_SOFT_QUOTE:
-        if (IS_BAR(f->value))
-            goto return_end_flag; // soft-quoted varargs stop at `|`
 
         if (
             IS_GROUP(f->value)
             || IS_GET_WORD(f->value)
             || IS_GET_PATH(f->value) // these 3 cases evaluate
         ) {
-            if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
+            if (op == VARARG_OP_TAIL_Q) return VA_LIST_FLAG;
 
-            if (DO_VALUE_THROWS(out, f->value))
+            if (EVAL_VALUE_CORE_THROWS(out, f->value, f->specifier))
                 return THROWN_FLAG;
+
+            if (GET_VAL_FLAG(out, VALUE_FLAG_EVALUATED))
+                SET_VAL_FLAG(arg, VALUE_FLAG_EVALUATED);
+            else
+                CLEAR_VAL_FLAG(arg, VALUE_FLAG_EVALUATED);
 
             FETCH_NEXT_ONLY_MAYBE_END(f);
         }
         else { // not a soft-"exception" case, quote ordinarily
-            if (op == VARARG_OP_TAIL_Q) return VALIST_FLAG;
+            if (op == VARARG_OP_TAIL_Q) return VA_LIST_FLAG;
 
             QUOTE_NEXT_REFETCH(out, f);
+
+            CLEAR_VAL_FLAG(arg, VALUE_FLAG_EVALUATED);
         }
         break;
 
@@ -269,7 +280,7 @@ handle_subfeed:
         assert(FALSE);
     }
 
-    assert(f->indexor != THROWN_FLAG); // should have returned above
+    assert(NOT(THROWN(out))); // should have returned above
 
     // If the `c` we were updating was the stack local call we created just
     // for this function, then the new index status would be lost when this
@@ -277,15 +288,15 @@ handle_subfeed:
     //
     if (f == &temp_frame) {
         assert(ANY_ARRAY(shared));
-        if (f->indexor == END_FLAG)
+        if (IS_END(f->value))
             SET_END(shared); // signal no more to all varargs sharing value
         else {
             // The indexor is "prefetched", so although the temp_frame would
             // be ready to use again we're throwing it away, and need to
             // effectively "undo the prefetch" by taking it down by 1.  The
             //
-            assert(f->indexor > 0);
-            VAL_INDEX(shared) = f->indexor - 1; // update seen by all sharings
+            assert(f->index > 0);
+            VAL_INDEX(shared) = f->index - 1; // update seen by all sharings
         }
     }
 
@@ -297,7 +308,11 @@ handle_subfeed:
     // that the next time this routine is called, this varargs is consulted.
     //
     if (IS_VARARGS(out) && !TYPE_CHECK(param, REB_VARARGS)) {
-        assert(*subfeed_addr == NULL);
+    #if !defined(NDEBUG)
+        REBARR **subfeed_addr_check; // !!! can't simply check for NULL, tbd
+        assert(Is_End_Subfeed_Addr_Of_Feed(&subfeed_addr_check, feed));
+        assert(subfeed_addr_check == subfeed_addr);
+    #endif
 
         if (GET_VAL_FLAG(out, VARARGS_FLAG_NO_FRAME))
             *subfeed_addr = VAL_VARARGS_ARRAY1(out);
@@ -316,9 +331,9 @@ handle_subfeed:
     }
 
     if (!TYPE_CHECK(param, VAL_TYPE(out)))
-        fail (Error_Arg_Type(sym_func, param, Type_Of(out)));
+        fail (Error_Arg_Type(opt_label, param, VAL_TYPE(out)));
 
-    return VALIST_FLAG; // may be at end now, but reflect that at *next* call
+    return VA_LIST_FLAG; // may be at end now, but reflect that at *next* call
 
 return_end_flag:
     if (op != VARARG_OP_TAIL_Q) SET_TRASH_IF_DEBUG(out);
@@ -348,24 +363,21 @@ REBIXO Do_Vararg_Op_May_Throw(
         // With these choices, no errors should be reported which would
         // require a named symbol.  However, we name it `...` anyway.
 
-        REBIXO indexor;
-
         REBVAL fake_param;
-        VAL_INIT_WRITABLE_DEBUG(&fake_param);
-
-        Val_Init_Typeset(&fake_param, ALL_64, SYM_ELLIPSIS); // any type
+        Val_Init_Typeset(&fake_param, ALL_64, Canon(SYM_ELLIPSIS)); // any type
         SET_VAL_FLAG(&fake_param, TYPESET_FLAG_VARIADIC); // pretend <...> tag
         INIT_VAL_PARAM_CLASS(&fake_param, PARAM_CLASS_HARD_QUOTE);
 
-        indexor = Do_Vararg_Op_Core(
+        REBIXO indexor = Do_Vararg_Op_Core(
             out,
             VAL_VARARGS_ARRAY1(varargs), // single-element array w/shared value
             &fake_param,
-            SYM_0, // should never be used, as no errors possible (?)
+            &fake_param, // just need dummy place to write VALUE_FLAG_EVALUATED
+            NULL, // should never be used, as no errors possible (?)
             op
         );
 
-        assert(indexor == END_FLAG || indexor == VALIST_FLAG); // can't throw
+        assert(indexor == END_FLAG || indexor == VA_LIST_FLAG); // can't throw
         return indexor;
     }
 
@@ -377,9 +389,53 @@ REBIXO Do_Vararg_Op_May_Throw(
         out,
         CTX_VARLIST(VAL_VARARGS_FRAME_CTX(varargs)),
         VAL_VARARGS_PARAM(varargs), // distinct from the frame->param!
-        SYM_0, // have it fetch symbol from frame if call is active
+        VAL_VARARGS_ARG(varargs), // may have changed since function started
+        NULL, // have it fetch symbol from frame if call is active
         op
     );
+}
+
+
+//
+//  MAKE_Varargs: C
+//
+void MAKE_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    // With MAKE VARARGS! on an ANY-ARRAY!, the array is the backing store
+    // (shared) that the varargs interface cannot affect, but changes to
+    // the array will change the varargs.
+    //
+    if (ANY_ARRAY(arg)) {
+        //
+        // Make a single-element array to hold a reference+index to the
+        // incoming ANY-ARRAY!.  This level of indirection means all
+        // VARARGS! copied from this will update their indices together.
+        //
+        REBARR *array1 = Alloc_Singular_Array();
+        *ARR_HEAD(array1) = *arg;
+        MANAGE_ARRAY(array1);
+
+        // must initialize subfeed pointer in union before reading from it
+        //
+        Mark_End_Subfeed_Addr_Of_Feed(array1);
+
+        VAL_RESET_HEADER(out, REB_VARARGS);
+        SET_VAL_FLAG(out, VARARGS_FLAG_NO_FRAME);
+        out->extra.binding = array1;
+
+        return;
+    }
+
+    fail (Error_Bad_Make(kind, arg));
+}
+
+
+//
+//  TO_Varargs: C
+//
+void TO_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    fail (Error_Invalid_Arg(arg));
 }
 
 
@@ -396,37 +452,8 @@ REBTYPE(Varargs)
 
     REBIXO indexor;
 
-    if (action == A_MAKE || action == A_TO) {
-        //
-        // With MAKE VARARGS! on an ANY-ARRAY!, the array is the backing store
-        // (shared) that the varargs interface cannot affect, but changes to
-        // the array will change the varargs.
-        //
-        if (action == A_MAKE && ANY_ARRAY(arg)) {
-            //
-            // Make a single-element array to hold a reference+index to the
-            // incoming ANY-ARRAY!.  This level of indirection means all
-            // VARARGS! copied from this will update their indices together.
-            //
-            REBARR *array1 = Make_Singular_Array(arg);
-            MANAGE_ARRAY(array1);
-
-            // must initialize subfeed pointer in union before reading from it
-            //
-            *SUBFEED_ADDR_OF_FEED(array1) = NULL;
-
-            VAL_RESET_HEADER(D_OUT, REB_VARARGS);
-            SET_VAL_FLAG(D_OUT, VARARGS_FLAG_NO_FRAME);
-            VAL_VARARGS_ARRAY1(D_OUT) = array1;
-
-            return R_OUT;
-        }
-
-        fail (Error_Bad_Make(VAL_TYPE(value), value));
-    }
-
     switch (action) {
-    case A_PICK: {
+    case SYM_PICK: {
         if (!IS_INTEGER(arg))
             fail (Error_Invalid_Arg(arg));
 
@@ -434,20 +461,20 @@ REBTYPE(Varargs)
             fail (Error(RE_VARARGS_NO_LOOK));
 
         indexor = Do_Vararg_Op_May_Throw(D_OUT, value, VARARG_OP_FIRST);
-        assert(indexor == VALIST_FLAG || indexor == END_FLAG); // no throw
+        assert(indexor == VA_LIST_FLAG || indexor == END_FLAG); // no throw
         if (indexor == END_FLAG)
-            SET_NONE(D_OUT); // want to be consistent with TAKE
+            SET_BLANK(D_OUT); // want to be consistent with TAKE
 
         return R_OUT;
     }
 
-    case A_TAIL_Q: {
+    case SYM_TAIL_Q: {
         indexor = Do_Vararg_Op_May_Throw(NULL, value, VARARG_OP_TAIL_Q);
-        assert(indexor == VALIST_FLAG || indexor == END_FLAG); // no throw
+        assert(indexor == VA_LIST_FLAG || indexor == END_FLAG); // no throw
         return indexor == END_FLAG ? R_TRUE : R_FALSE;
     }
 
-    case A_TAKE: {
+    case SYM_TAKE: {
         REFINE(2, part);
         PARAM(3, limit);
         REFINE(4, deep); // !!! doesn't seem to be implemented on ANY-ARRAY!
@@ -465,7 +492,7 @@ REBTYPE(Varargs)
                 return R_OUT_IS_THROWN;
 
             if (indexor == END_FLAG)
-                SET_NONE(D_OUT); // currently take returns NONE! if no data
+                SET_VOID(D_OUT); // currently allowed even without an /OPT
 
             return R_OUT;
         }
@@ -509,7 +536,7 @@ REBTYPE(Varargs)
 // Simple comparison function stub (required for every type--rules TBD for
 // levels of "exactness" in equality checking, or sort-stable comparison.)
 //
-REBINT CT_Varargs(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Varargs(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     if (GET_VAL_FLAG(a, VARARGS_FLAG_NO_FRAME)) {
         if (!GET_VAL_FLAG(b, VARARGS_FLAG_NO_FRAME)) return 1;
@@ -532,9 +559,9 @@ REBINT CT_Varargs(const REBVAL *a, const REBVAL *b, REBINT mode)
 // be given when printing these out (they should not "lookahead")
 //
 void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
-    struct Reb_Frame *f;
+    REBFRM *f;
 
-    REBARR *subfeed;
+    REBARR **subfeed_addr;
 
     assert(IS_VARARGS(value));
 
@@ -550,9 +577,12 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
             goto skip_complex_mold_for_now;
         }
 
-        subfeed = *SUBFEED_ADDR_OF_FEED(VAL_VARARGS_ARRAY1(value));
-        if (subfeed != NULL)
+        if (!Is_End_Subfeed_Addr_Of_Feed(
+            &subfeed_addr,
+            VAL_VARARGS_ARRAY1(value)
+        )) {
             Append_Unencoded(mold->series, "<= (subfeed) <= "); // !!! say more
+        }
 
         if (IS_END(ARR_HEAD(VAL_VARARGS_ARRAY1(value))))
             Append_Unencoded(mold->series, "*exhausted*");
@@ -560,12 +590,18 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
             Mold_Value(mold, ARR_HEAD(VAL_VARARGS_ARRAY1(value)), TRUE);
     }
     else {
-        const REBVAL *varargs_param = VAL_VARARGS_PARAM(value);
+        const RELVAL *varargs_param = VAL_VARARGS_PARAM(value);
 
-        REBVAL param_word;
-        VAL_INIT_WRITABLE_DEBUG(&param_word);
-
-        if (
+        REBARR *varlist = VAL_BINDING(value);
+        if (NOT(IS_ARRAY_MANAGED(varlist))) {
+            //
+            // This can happen if you internally try and PROBE() a varargs
+            // item that is residing in the argument slots for a function,
+            // while that function is still fulfilling its arguments.
+            //
+            Append_Unencoded(mold->series, "** varargs frame not fulfilled");
+        }
+        else if (
             GET_CTX_FLAG(VAL_VARARGS_FRAME_CTX(value), CONTEXT_FLAG_STACK) &&
             !GET_CTX_FLAG(VAL_VARARGS_FRAME_CTX(value), SERIES_FLAG_ACCESSIBLE)
         ) {
@@ -591,7 +627,8 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
             };
 
             // Note varargs_param is distinct from f->param!
-            Val_Init_Word(&param_word, kind, VAL_TYPESET_SYM(varargs_param));
+            REBVAL param_word;
+            Val_Init_Word(&param_word, kind, VAL_PARAM_SPELLING(varargs_param));
 
             Mold_Value(mold, &param_word, TRUE);
 
@@ -602,28 +639,25 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
                 goto skip_complex_mold_for_now;
             }
 
-            subfeed = *SUBFEED_ADDR_OF_FEED(
-                CTX_VARLIST(VAL_VARARGS_FRAME_CTX(value)));
-
-            if (subfeed != NULL)
+            if (!Is_End_Subfeed_Addr_Of_Feed(
+                &subfeed_addr,
+                CTX_VARLIST(VAL_VARARGS_FRAME_CTX(value))
+            )){
                 Append_Unencoded(mold->series, "<= (subfeed) <= "); // !!!
+            }
 
             f = CTX_FRAME(VAL_VARARGS_FRAME_CTX(value));
 
-            assert(f->indexor != THROWN_FLAG);
-
-            if (f->value == NULL)
+            if (IS_END(f->value))
                 Append_Unencoded(mold->series, "*exhausted*");
             else {
                 Mold_Value(mold, f->value, TRUE);
 
-                if (f->indexor == VALIST_FLAG)
+                if (f->flags.bits & DO_FLAG_VA_LIST)
                     Append_Unencoded(mold->series, "*C varargs, pending*");
-                else if (f->indexor == END_FLAG)
-                    Append_Unencoded(mold->series, "*end*");
                 else
                     Mold_Array_At(
-                        mold, f->source.array, cast(REBCNT, f->indexor), NULL
+                        mold, f->source.array, cast(REBCNT, f->index), NULL
                     );
             }
         }

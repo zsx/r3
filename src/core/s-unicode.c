@@ -1,32 +1,33 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  s-unicode.c
-**  Summary: unicode support functions
-**  Section: strings
-**  Author:  Carl Sassenrath
-**  Notes:
-**    The top part of this code is from Unicode Inc. The second
-**    part was added by REBOL Technologies.
-**
-***********************************************************************/
+//
+// Rebol 3 Language Interpreter and Run-time Environment
+// "Ren-C" branch @ https://github.com/metaeducation/ren-c
+// REBOL is a trademark of REBOL Technologies
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  Project: Rebol 3 Interpreter and Run-time (Ren-C branch)
+//  Homepage: https://github.com/metaeducation/ren-c/
+//  File: %s-unicode.c
+//  Summary: unicode support functions
+//  Section: strings
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// The top part of this code is from Unicode Inc. The second
+// part was added by REBOL Technologies.
+//
 
 
 /*
@@ -851,8 +852,8 @@ const REBYTE *Back_Scan_UTF8_Char(REBUNI *out, const REBYTE *bp, REBCNT *len)
     if (ch > 0xFFFF) {
         // !!! Not currently supported.
         REBVAL num;
-        VAL_INIT_WRITABLE_DEBUG(&num);
         SET_INTEGER(&num, ch);
+
         fail (Error(RE_CODEPOINT_TOO_HIGH, &num));
     }
 
@@ -862,7 +863,7 @@ const REBYTE *Back_Scan_UTF8_Char(REBUNI *out, const REBYTE *bp, REBCNT *len)
 
 
 //
-//  Decode_UTF8_May_Fail: C
+//  Decode_UTF8_Negative_If_Latin1: C
 // 
 // Decode UTF8 byte string into a 16 bit preallocated array.
 // 
@@ -874,7 +875,7 @@ const REBYTE *Back_Scan_UTF8_Char(REBUNI *out, const REBYTE *bp, REBCNT *len)
 // Returns length in chars (negative if all chars are latin-1).
 // No terminator is added.
 //
-int Decode_UTF8_May_Fail(
+int Decode_UTF8_Negative_If_Latin1(
     REBUNI *dst,
     const REBYTE *src,
     REBCNT len,
@@ -987,7 +988,7 @@ REBSER *Decode_UTF_String(REBYTE *bp, REBCNT len, REBINT utf)
     }
 
     if (utf == 0 || utf == 8) {
-        size = Decode_UTF8_May_Fail(
+        size = Decode_UTF8_Negative_If_Latin1(
             cast(REBUNI*, Reset_Buffer(ser, len)), bp, len, TRUE
         );
     }
@@ -1166,7 +1167,8 @@ int Encode_UTF8_Line(REBSER *dst, REBSER *src, REBCNT idx)
     REBINT n;
     REBYTE buf[8];
 
-    tail = RESET_TAIL(dst);
+    SET_SERIES_LEN(dst, 0);
+    tail = 0;
 
     while (idx < len) {
         if ((c = up[idx]) < 0x80) {
@@ -1227,9 +1229,16 @@ REBSER *Make_UTF8_From_Any_String(
 ) {
     assert(ANY_STRING(value));
 
-    if (!(opts & OPT_ENC_CRLF) && VAL_STR_IS_ASCII(value)) {
+    if (
+        NOT(opts & OPT_ENC_CRLF)
+        && (
+            VAL_BYTE_SIZE(value)
+            && All_Bytes_ASCII(VAL_BIN_AT(value), VAL_LEN_AT(value))
+        )
+    ){
         // We can copy a one-byte-per-character series if it doesn't contain
         // codepoints like 128 - 255 (pure ASCII is valid UTF-8)
+        //
         return Copy_Bytes(VAL_BIN_AT(value), len);
     }
     else {
@@ -1263,7 +1272,6 @@ REBSER *Make_UTF8_From_Any_String(
 //
 REBCNT Strlen_Uni(const REBUNI *up)
 {
-    REBCNT len;
     const char *cp = cast(const char *, up) + 1; // "C"har vs. "U"nicode
     assert(sizeof(REBUNI) == 2);
     assert(cast(REBUPT, up) % 2 == 0);

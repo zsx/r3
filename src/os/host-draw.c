@@ -54,8 +54,8 @@
 
 //***** Locals *****
 
-static u32* draw_ext_words;
-static u32* shape_ext_words;
+static REBSTR* *draw_ext_words;
+static REBSTR* *shape_ext_words;
 
 /***********************************************************************
 **
@@ -224,7 +224,7 @@ static u32* shape_ext_words;
 		return RXR_NO_COMMAND;
 	}
 
-    return RXR_UNSET;
+    return RXR_VOID;
 }
 
 /***********************************************************************
@@ -264,7 +264,7 @@ static u32* shape_ext_words;
 		break;
 
 	case CMD_DRAW_ARROW:
-		rebol_renderer->draw->rebdrw_arrow(ctx->envr, RXA_PAIR(frm, 1), (RXA_TYPE(frm, 2) == RXT_NONE) ? 0 : RXA_COLOR_TUPLE(frm, 2));
+		rebol_renderer->draw->rebdrw_arrow(ctx->envr, RXA_PAIR(frm, 1), (RXA_TYPE(frm, 2) == RXT_BLANK) ? 0 : RXA_COLOR_TUPLE(frm, 2));
 		break;
 
 	case CMD_DRAW_BOX:
@@ -297,7 +297,7 @@ static u32* shape_ext_words;
 			REBXYF p2 = RXA_LOG_PAIR(frm, 2);
 			REBXYF p3 = RXA_LOG_PAIR(frm, 3);
 			REBXYF p4 = RXA_LOG_PAIR(frm, 4);
-			if (RXA_TYPE(frm, 4) == RXT_NONE)
+			if (RXA_TYPE(frm, 4) == RXT_BLANK)
 				rebol_renderer->draw->rebdrw_curve3(ctx->envr, p1, p2, p3);
 			else
 				rebol_renderer->draw->rebdrw_curve4(ctx->envr, p1, p2, p3, p4);
@@ -340,7 +340,7 @@ static u32* shape_ext_words;
 		{
 			REBXYF p3 = RXA_LOG_PAIR(frm, 3);
 			REBXYF p4 = RXA_LOG_PAIR(frm, 4);
-			if (RXA_TYPE(frm, 7) == RXT_NONE)
+			if (RXA_TYPE(frm, 7) == RXT_BLANK)
 				rebol_renderer->draw->rebdrw_reset_gradient_pen(ctx->envr);
 			else
 				rebol_renderer->draw->rebdrw_gradient_pen(
@@ -370,12 +370,12 @@ static u32* shape_ext_words;
             ctx->envr,
             RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 1)) - W_DRAW_NEAREST,
             RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 2)) - W_DRAW_RESIZE,
-            (RXA_TYPE(frm, 3) == RXT_NONE) ? 1.0 : (RXA_TYPE(frm, 3) == RXT_DECIMAL) ? RXA_DEC64(frm, 3) : RXA_INT64(frm, 3)
+            (RXA_TYPE(frm, 3) == RXT_BLANK) ? 1.0 : (RXA_TYPE(frm, 3) == RXT_DECIMAL) ? RXA_DEC64(frm, 3) : RXA_INT64(frm, 3)
         );
         break;
 
     case CMD_DRAW_IMAGE_OPTIONS:
-        rebol_renderer->draw->rebdrw_image_options(ctx->envr, (RXA_TYPE(frm, 1) == RXT_NONE) ? 0 : 1, RXA_COLOR_TUPLE(frm, 1), RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 2)) - W_DRAW_NO_BORDER);
+        rebol_renderer->draw->rebdrw_image_options(ctx->envr, (RXA_TYPE(frm, 1) == RXT_BLANK) ? 0 : 1, RXA_COLOR_TUPLE(frm, 1), RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 2)) - W_DRAW_NO_BORDER);
         break;
 
     case CMD_DRAW_IMAGE_PATTERN:
@@ -422,7 +422,7 @@ static u32* shape_ext_words;
 		break;
 
 	case CMD_DRAW_LINE_PATTERN:
-        if (RXA_TYPE(frm, 2) == RXT_NONE)
+        if (RXA_TYPE(frm, 2) == RXT_BLANK)
             rebol_renderer->draw->rebdrw_line_pattern(ctx->envr, 0, 0);
         else {
             REBSER *patterns = RXA_SERIES(frm, 2);
@@ -611,9 +611,9 @@ static u32* shape_ext_words;
                 p1, // vertex-1
                 p2, // vertex-2
                 p3, // vertex-3
-                (RXA_TYPE(frm, 4) == RXT_NONE) ? 0 : RXA_COLOR_TUPLE(frm, 4), // color-1
-                (RXA_TYPE(frm, 5) == RXT_NONE) ? b : RXA_COLOR_TUPLE(frm, 5), // color-2
-                (RXA_TYPE(frm, 6) == RXT_NONE) ? b : RXA_COLOR_TUPLE(frm, 6), // color-3
+                (RXA_TYPE(frm, 4) == RXT_BLANK) ? 0 : RXA_COLOR_TUPLE(frm, 4), // color-1
+                (RXA_TYPE(frm, 5) == RXT_BLANK) ? b : RXA_COLOR_TUPLE(frm, 5), // color-2
+                (RXA_TYPE(frm, 6) == RXT_BLANK) ? b : RXA_COLOR_TUPLE(frm, 6), // color-3
                 (RXA_TYPE(frm, 7) == RXT_DECIMAL) ? RXA_DEC64(frm, 7) : RXA_INT64(frm, 7) // dilation
             );
         }
@@ -623,5 +623,5 @@ static u32* shape_ext_words;
 		return RXR_NO_COMMAND;
 	}
 
-    return RXR_UNSET;
+    return RXR_VOID;
 }

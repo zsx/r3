@@ -1,6 +1,10 @@
 //
-// Rebol 3 Language Interpreter and Run-time Environment
-// "Ren-C" branch @ https://github.com/metaeducation/ren-c
+//  File: %sys-stack.h
+//  Summary: {Definitions for "Data Stack", "Chunk Stack" and the C stack}
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
 // Copyright 2012-2015 Rebol Open Source Contributors
@@ -22,38 +26,40 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  Summary: Definitions for "Data Stack", "Chunk Stack" and the C stack
-//  File: %sys-stack.h
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// The data stack and chunk stack are two different data structures which
-// are optimized for temporarily storing REBVALs and protecting them from
-// garbage collection.  With the data stack, values are pushed one at a
-// time...while with the chunk stack, an array of value cells of a given
+// The data stack and chunk stack are two different data structures for
+// temporarily storing REBVALs.  With the data stack, values are pushed one
+// at a time...while with the chunk stack, an array of value cells of a given
 // length is returned.
 //
 // A key difference between the two stacks is pointer stability.  Though the
 // data stack can accept any number of pushes and then pop the last N pushes
 // into a series, each push could potentially change the memory address of
-// every value in the stack.  This is because the data stack uses a REBARR
-// series as its implementation.  The chunk stack guarantees that the address
-// of the values in a chunk will stay stable over the course of its lifetime.
+// every other value in the stack.  That's because the data stack is really
+// a REBARR series under the hood.  But the chunk stack is a custom structure,
+// and guarantees that the address of the values in a chunk will stay stable
+// until that chunk is popped.
+//
+// Another difference is that values on the data stack are implicitly GC safe,
+// while clients of the chunk stack needing GC safety must do so manually.
 //
 // Because of their differences, they are applied to different problems:
 //
 // A notable usage of the data stack is by REDUCE and COMPOSE.  They use it
 // as a buffer for values that are being gathered to be inserted into the
 // final array.  It's better to use the data stack as a buffer because it
-// means the precise size of the result can be known before either creating
+// means the size of the accumulated result is known before either creating
 // a new series or inserting /INTO a target.  This prevents wasting space on
 // expansions or resizes and shuffling due to a guessed size.
 //
 // The chunk stack has an important use as the storage for arguments to
 // functions being invoked.  The pointers to these arguments are passed by
 // natives through the stack to other routines, which may take arbitrarily
-// long to return...and may call code involving many pushes and pops.  These
-// pointers must be stable, so using the data stack would not work.
+// long to return...and may call code involving many data stack pushes and
+// pops.  Argument pointers must be stable, so using the data stack would
+// not work.  Also, to efficiently implement argument fulfillment without
+// pre-filling the cells, uninitialized memory is allowed in the chunk stack
+// across potentical garbage collections.  This means implicit GC protection
+// can't be performed, with a subset of valid cells marked by the frame. 
 //
 
 
@@ -86,38 +92,29 @@
 // up against an END it knows to do an expansion.
 //
 
-// A standard integer is currently used to represent the data stack pointer.
-// `unsigned int` instead of a `REBCNT` in order to leverage the native
-// performance of the integer type unconstrained by bit size, as data stack
-// pointers are not stored in REBVALs or similar, and performance in comparing
-// and manipulation is more important than hte size.
+// DSP stands for "(D)ata (S)tack "(P)osition", and is the index of the top
+// of the data stack (last valid item in the underlying array)
 //
-// Note that a value of 0 indicates an empty stack; the [0] entry is made to
-// be alerting trash to trap invalid reads or writes of empty stacks.
-//
-typedef unsigned int REBDSP;
+#define DSP \
+    DS_Index
 
-// (D)ata (S)tack "(P)osition" is an integer index into Rebol's data stack
+// DS_AT accesses value at given stack location
 //
-#define DSP DS_Index
+#define DS_AT(d) \
+    (DS_Movable_Base + (d))
 
-// Access value at given stack location
+// DS_TOP is the most recently pushed item
 //
-#define DS_AT(d) (DS_Movable_Base + (d))
-
-// Most recently pushed item
-//
-#define DS_TOP DS_AT(DS_Index)
+#define DS_TOP \
+    DS_AT(DSP)
 
 #if !defined(NDEBUG)
-    #define IN_DATA_STACK(p) \
-        (ARR_LEN(DS_Array) != 0 && (p) >= DS_AT(0) && (p) <= DS_TOP)
+    #define IN_DATA_STACK_DEBUG(v) \
+        IS_VALUE_IN_ARRAY_DEBUG(DS_Array, (v))
 #endif
 
 //
-// PUSHING: Note the DS_PUSH macros inherit the property of SET_XXX that
-// they use their parameters multiple times.  Don't use with the result of
-// a function call because that function could be called multiple times.
+// PUSHING
 //
 // If you push "unsafe" trash to the stack, it has the benefit of costing
 // nothing extra in a release build for setting the value (as it is just
@@ -129,59 +126,43 @@ typedef unsigned int REBDSP;
 // number of bytes will be sizeof(REBVAL) * STACK_EXPAND_BASIS
 //
 
-#define STACK_EXPAND_BASIS 100
+#define STACK_EXPAND_BASIS 128
 
 #define DS_PUSH_TRASH \
     (++DSP, IS_END(DS_TOP) \
-        ? Expand_Data_Stack_May_Fail(100) \
+        ? Expand_Data_Stack_May_Fail(STACK_EXPAND_BASIS) \
         : SET_TRASH_IF_DEBUG(DS_TOP))
 
-#define DS_PUSH_TRASH_SAFE \
-    (DS_PUSH_TRASH, SET_TRASH_SAFE(DS_TOP), NOOP)
+inline static void DS_PUSH(const REBVAL *v) {
+    ASSERT_VALUE_MANAGED(v); // would fail on END marker
+    DS_PUSH_TRASH;
+    *DS_TOP = *v;
+}
 
-#define DS_PUSH(v) \
-    (ASSERT_VALUE_MANAGED(v), DS_PUSH_TRASH, *DS_TOP = *(v), NOOP)
 
-#define DS_PUSH_UNSET \
-    (DS_PUSH_TRASH, SET_UNSET(DS_TOP), NOOP)
-
-#define DS_PUSH_NONE \
-    (DS_PUSH_TRASH, SET_NONE(DS_TOP), NOOP)
-
-#define DS_PUSH_TRUE \
-    (DS_PUSH_TRASH, SET_TRUE(DS_TOP), NOOP)
-
-#define DS_PUSH_INTEGER(n) \
-    (DS_PUSH_TRASH, SET_INTEGER(DS_TOP, (n)), NOOP)
-
-#define DS_PUSH_DECIMAL(n) \
-    (DS_PUSH_TRASH, SET_DECIMAL(DS_TOP, (n)), NOOP)
-
-// POPPING AND "DROPPING"
+//
+// POPPING
+//
+// Since it's known that END markers were never pushed, a pop can just leave
+// whatever bits had been previously pushed, dropping only the index.  The
+// only END marker will be the one indicating the tail of the stack.  
+//
 
 #ifdef NDEBUG
-    #define DS_DROP (--DS_Index, NOOP)
-#else
     #define DS_DROP \
-        (SET_TRASH_SAFE(DS_TOP), --DS_Index, NOOP)
-#endif
+        (--DS_Index, NOOP)
 
-#define DS_POP_INTO(v) \
-    do { \
-        assert(!IS_TRASH_DEBUG(DS_TOP) || VAL_TRASH_SAFE(DS_TOP)); \
-        *(v) = *DS_TOP; \
-        DS_DROP; \
-    } while (0)
-
-#ifdef NDEBUG
     #define DS_DROP_TO(dsp) \
         (DS_Index = dsp, NOOP)
 #else
-    #define DS_DROP_TO(dsp) \
-        do { \
-            assert(DSP >= (dsp)); \
-            while (DSP != (dsp)) {DS_DROP;} \
-        } while (0)
+    #define DS_DROP \
+        (SET_TRASH_SAFE(DS_TOP), --DS_Index, NOOP)
+
+    inline static void DS_DROP_TO(REBDSP dsp) {
+        assert(DSP >= dsp);
+        while (DSP != dsp)
+            DS_DROP;
+    }
 #endif
 
 
@@ -191,10 +172,10 @@ typedef unsigned int REBDSP;
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Like the data stack, the values living in the chunk stack are protected
-// from garbage collection.
+// Unlike the data stack, values living in the chunk stack are not implicitly
+// protected from garbage collection.
 //
-// Unlike the data stack, the chunk stack allows for the pushing and popping
+// Also, unlike the data stack, the chunk stack allows the pushing and popping
 // of arbitrary-sized arrays of values which will not be relocated during
 // their lifetime.
 //
@@ -220,73 +201,59 @@ struct Reb_Chunker;
 
 struct Reb_Chunker {
     struct Reb_Chunker *next;
-    // use REBUPT to make 'payload' aligned with pointers
-    REBUPT size; // payload size
+    // use REBUPT for `size` so 'payload' is 64-bit aligned on 32-bit platforms
+    REBUPT size;
     REBYTE payload[1];
 };
 
-#define BASE_CHUNKER_SIZE (sizeof(void*) + sizeof(REBUPT))
-#define CS_CHUNKER_PAYLOAD (2048 - BASE_CHUNKER_SIZE)
+#define BASE_CHUNKER_SIZE (sizeof(struct Reb_Chunker*) + sizeof(REBUPT))
+#define CS_CHUNKER_PAYLOAD (4096 - BASE_CHUNKER_SIZE) // 12 bits for offset
 
 
 struct Reb_Chunk;
 
 struct Reb_Chunk {
     //
-    // We start the chunk with a Reb_Value_Header, which has as its `bits`
+    // We start the chunk with a Reb_Header, which has as its `bits`
     // field a REBUPT (unsigned integer size of a pointer).  We are relying
     // on the fact that the low 2 bits of this value is always 0 in order
     // for it to be an implicit END for the value array of the previous chunk.
     //
     // (REBVALs are multiples of 4 bytes in size on all platforms Rebol
     // will run on, hence the low two bits of a byte size of N REBVALs will
-    // always have the two lowest bits clear.)
+    // always have the two lowest bits clear.  The size of the )
     //
-    struct Reb_Value_Header size;
+    struct Reb_Header size_and_offset;
 
-    // The offset of this chunk in the memory chunker this chunk lives in
-    // (its own size has already been subtracted from the amount)
-    //
-    REBUPT offset;
-
-#if defined(__LP64__) || defined(__LLP64__)
-    //
-    // !!! Sizes above are wasteful compared to theory!  Both the size and
-    // offset could fit into a single REBUPT, so this is wasting a
-    // pointer...saving only 2 pointers per chunk instead of 3 over a full
-    // REBVAL termination.
-    //
-    // However it would be easy enough to get the 3 by masking the REBUPT's
-    // high and low portions on 64-bit, and using a separate REBCNT field
-    // on 32-bit.  This would complicate the code for now, and a previous
-    // field test of a riskier technique showed it to not work on some
-    // machines.  So this is a test to see if this follows the rules.
-    //
-#endif
-
-    // If this serves as the backing memory for a context's stackvars then
-    // when the data goes away it is necessary to mark that context as
-    // not having its memory any more.  This cannot be managed purely by the
-    // client, because a fail() can longjmp...and the chunk stack needs enough
-    // information stored to find that series to mark.
-    //
-    REBCTX *opt_context;
-
-    // Pointer to the previous chunk.
+    // Pointer to the previous chunk.  As the second pointer in this chunk,
+    // with the chunk 64-bit aligned to start with, it means the values will
+    // be 64-bit aligned on 32-bit platforms.
     //
     struct Reb_Chunk *prev;
 
     // The `values` is an array whose real size exceeds the struct.  (It is
-    // set to a size of one because it cannot be [0] if the sources wind
-    // up being built as C++.)  When the value pointer is given back to the
-    // user, this is how they speak about the chunk itself.
+    // set to a size of one because it cannot be [0] if built with C++.)
+    // When the value pointer is given back to the user, the address of
+    // this array is how they speak about the chunk itself.
     //
-    // See note above about how the next chunk's `prev` pointer serves as
+    // See note above about how the next chunk's `size` header serves as
     // an END marker for this array (which may or may not be necessary for
     // the client's purposes, but function arg lists do make use of it)
     //
     REBVAL values[1];
 };
+
+inline static REBCNT CHUNK_SIZE(struct Reb_Chunk *chunk) {
+    return chunk->size_and_offset.bits & 0x000FFFFF; // top 12 bits are offset
+}
+
+// The offset of this chunk in the memory chunker this chunk lives in
+// (its own size has already been subtracted from the amount).  It gets
+// 12 bits, which accomodates offsets within 4096 bytes.
+//
+inline static REBCNT CHUNK_OFFSET(struct Reb_Chunk *chunk) {
+    return chunk->size_and_offset.bits >> 20; // bottom 20 bits are size
+}
 
 // If we do a sizeof(struct Reb_Chunk) then it includes a value in it that we
 // generally don't want for our math, due to C++ "no zero element array" rule
@@ -298,8 +265,185 @@ struct Reb_Chunk {
         - offsetof(struct Reb_Chunk, values))
 
 #define CHUNK_LEN_FROM_VALUES(v) \
-    ((CHUNK_FROM_VALUES(v)->size.bits - offsetof(struct Reb_Chunk, values)) \
+    ((CHUNK_SIZE(CHUNK_FROM_VALUES(v)) - offsetof(struct Reb_Chunk, values)) \
         / sizeof(REBVAL))
+
+inline static struct Reb_Chunker *CHUNKER_FROM_CHUNK(struct Reb_Chunk *c) {
+    return cast(
+        struct Reb_Chunker*,
+        cast(REBYTE*, c)
+            - CHUNK_OFFSET(c)
+            - offsetof(struct Reb_Chunker, payload)
+    );
+}
+
+
+// This doesn't necessarily call Alloc_Mem, because chunks are allocated
+// sequentially inside of "chunker" blocks, in their ordering on the stack.
+// Allocation is only required if we need to step into a new chunk (and even
+// then only if we aren't stepping into a chunk that we are reusing from
+// a prior expansion).
+//
+// The "Ended" indicates that there is no need to manually put an end in the
+// `num_values` slot.  Chunks are implicitly terminated by their layout,
+// because the low bit of subsequent chunks is set to 0, for data that does
+// double-duty as a END marker.
+//
+inline static REBVAL* Push_Value_Chunk_Of_Length(REBCNT num_values) {
+    const REBCNT size = BASE_CHUNK_SIZE + num_values * sizeof(REBVAL);
+    assert(size % 4 == 0); // low 2 bits must be zero for terminator trick
+
+    // an extra Reb_Header is placed at the very end of the array to
+    // denote a block terminator without a full REBVAL
+    //
+    const REBCNT size_with_terminator = size + sizeof(struct Reb_Header);
+
+    struct Reb_Chunker *chunker = CHUNKER_FROM_CHUNK(TG_Top_Chunk);
+
+    // Establish invariant where 'chunk' points to a location big enough to
+    // hold the data (with data's size accounted for in chunk_size).  Note
+    // that TG_Top_Chunk is never NULL, due to the initialization leaving
+    // one empty chunk at the beginning and manually destroying it on
+    // shutdown (this simplifies Push)
+    //
+    const REBCNT payload_left =
+        chunker->size
+            - CHUNK_OFFSET(TG_Top_Chunk)
+            - CHUNK_SIZE(TG_Top_Chunk);
+
+    assert(chunker->size >= CS_CHUNKER_PAYLOAD);
+
+    struct Reb_Chunk *chunk;
+    if (payload_left >= size_with_terminator) {
+        //
+        // Topmost chunker has space for the chunk *and* a header to signal
+        // that chunk's END marker.  So advance past the topmost chunk (whose
+        // size will depend upon num_values)
+        //
+        chunk = cast(struct Reb_Chunk*,
+            cast(REBYTE*, TG_Top_Chunk) + CHUNK_SIZE(TG_Top_Chunk)
+        );
+
+        // top's offset accounted for previous chunk, account for ours
+        //
+        REBCNT offset = CHUNK_OFFSET(TG_Top_Chunk) + CHUNK_SIZE(TG_Top_Chunk);
+
+        Init_Header_Aliased(
+            &chunk->size_and_offset,
+            size | (cast(REBUPT, offset) << 20)
+        );
+    }
+    else { // Topmost chunker has insufficient space
+        REBOOL need_alloc = TRUE;
+        if (chunker->next) {
+            //
+            // Previously allocated chunker exists, check if it is big enough
+            //
+            assert(!chunker->next->next);
+            if (chunker->next->size >= size_with_terminator)
+                need_alloc = FALSE;
+            else
+                Free_Mem(chunker->next, chunker->next->size + BASE_CHUNKER_SIZE);
+        }
+        if (need_alloc) {
+            //
+            // No previously allocated chunker...we have to allocate it
+            //
+            const REBCNT payload_size = BASE_CHUNKER_SIZE
+                + (size_with_terminator < CS_CHUNKER_PAYLOAD ?
+                    CS_CHUNKER_PAYLOAD : (size_with_terminator << 1));
+            chunker->next = cast(struct Reb_Chunker*, Alloc_Mem(payload_size));
+            chunker->next->next = NULL;
+            chunker->next->size = payload_size - BASE_CHUNKER_SIZE;
+        }
+
+        assert(chunker->next->size >= size_with_terminator);
+
+        chunk = cast(struct Reb_Chunk*, &chunker->next->payload);
+
+        Init_Header_Aliased(&chunk->size_and_offset, size);
+        assert(CHUNK_OFFSET(chunk) == 0);
+    }
+
+
+    // Set size also in next element to 0, so it can serve as a terminator
+    // for the data range of this until it gets its real size (if ever)
+    //
+    Init_Header_Aliased(
+        &cast(struct Reb_Chunk*, cast(REBYTE*, chunk) + size)->size_and_offset,
+        0
+    );
+    assert(IS_END(&chunk->values[num_values]));
+
+    chunk->prev = TG_Top_Chunk;
+
+    TG_Top_Chunk = chunk;
+
+#if !defined(NDEBUG)
+    //
+    // Despite the implicit END marker, the caller is responsible for putting
+    // values in the chunk cells.  Noisily enforce this by setting cells to
+    // writable trash in the debug build.
+    {
+        REBCNT index;
+        for (index = 0; index < num_values; index++)
+            INIT_CELL_IF_DEBUG(&chunk->values[index]);
+    }
+#endif
+
+    assert(CHUNK_FROM_VALUES(&chunk->values[0]) == chunk);
+    return &chunk->values[0];
+}
+
+
+// Free an array of previously pushed REBVALs.  This only occasionally
+// requires an actual call to Free_Mem(), as the chunks are allocated
+// sequentially inside containing allocations.
+//
+inline static void Drop_Chunk_Of_Values(REBVAL *opt_head)
+{
+    struct Reb_Chunk* chunk = TG_Top_Chunk;
+
+    // Passing in `values` is optional, but a good check to make sure you are
+    // actually dropping the chunk you think you are.  (On an error condition
+    // when dropping chunks to try and restore the top chunk to a previous
+    // state, this information isn't available.)
+    //
+    assert(!opt_head || CHUNK_FROM_VALUES(opt_head) == chunk);
+
+    // Drop to the prior top chunk
+    TG_Top_Chunk = chunk->prev;
+
+    if (CHUNK_OFFSET(chunk) == 0) {
+        // This chunk sits at the head of a chunker.
+
+        struct Reb_Chunker *chunker = CHUNKER_FROM_CHUNK(chunk);
+
+        assert(TG_Top_Chunk);
+
+        // When we've completely emptied a chunker, we check to see if the
+        // chunker after it is still live.  If so, we free it.  But we
+        // want to keep *this* just-emptied chunker alive for overflows if we
+        // rapidly get another push, to avoid Make_Mem()/Free_Mem() costs.
+
+        if (chunker->next) {
+            Free_Mem(chunker->next, chunker->next->size + BASE_CHUNKER_SIZE);
+            chunker->next = NULL;
+        }
+    }
+
+    // In debug builds we poison the memory for the chunk... but not the `prev`
+    // pointer because we expect that to stick around!
+    //
+#if !defined(NDEBUG)
+    memset(
+        cast(REBYTE*, chunk) + sizeof(struct Reb_Chunk*),
+        0xBD,
+        CHUNK_SIZE(chunk) - sizeof(struct Reb_Chunk*)
+    );
+    assert(IS_END(cast(REBVAL*, chunk)));
+#endif
+}
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -324,7 +468,7 @@ struct Reb_Chunk {
 // This has nothing to do with guarantees in the C standard, and compilers
 // can really put variables at any address they feel like:
 //
-//     http://stackoverflow.com/a/1677482/211160
+// http://stackoverflow.com/a/1677482/211160
 //
 // Additionally, it puts the burden on every recursive or deeply nested
 // routine to sprinkle calls to the C_STACK_OVERFLOWING macro somewhere

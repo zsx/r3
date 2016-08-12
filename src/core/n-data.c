@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  n-data.c
-**  Summary: native functions for data and context
-**  Section: natives
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %n-data.c
+//  Summary: "native functions for data and context"
+//  Section: natives
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
@@ -89,117 +90,161 @@ REBNATIVE(latin1_q)
 
 
 //
-//  Is_Type_Of: C
-// 
-// Types can be: word or block. Each element must be either
-// a datatype or a typeset.
+//  verify: native [
 //
-static REBOOL Is_Type_Of(const REBVAL *value, REBVAL *types)
+//  {Ensure conditions are TRUE?, even when not debugging (see also: ASSERT)}
+//
+//      return: [<opt>]
+//      conditions [logic! block!]
+//          {Block of conditions to evaluate, void and FALSE? trigger alerts}
+//  ]
+//
+REBNATIVE(verify)
 {
-    const REBVAL *val;
+    PARAM(1, conditions);
 
-    val = IS_WORD(types) ? GET_OPT_VAR_MAY_FAIL(types) : types;
+    if (IS_LOGIC(ARG(conditions))) {
+        if (VAL_LOGIC(ARG(conditions)))
+            return R_VOID;
 
-    if (IS_DATATYPE(val))
-        return LOGICAL(VAL_TYPE_KIND(val) == VAL_TYPE(value));
-
-    if (IS_TYPESET(val))
-        return LOGICAL(TYPE_CHECK(val, VAL_TYPE(value)));
-
-    if (IS_BLOCK(val)) {
-        for (types = VAL_ARRAY_AT(val); NOT_END(types); types++) {
-            val = IS_WORD(types) ? GET_OPT_VAR_MAY_FAIL(types) : types;
-            if (IS_DATATYPE(val)) {
-                if (VAL_TYPE_KIND(val) == VAL_TYPE(value)) return TRUE;
-            }
-            else if (IS_TYPESET(val)) {
-                if (TYPE_CHECK(val, VAL_TYPE(value))) return TRUE;
-            }
-            else
-                fail (Error(RE_INVALID_TYPE, Type_Of(val)));
-        }
-        return FALSE;
+        fail (Error(RE_VERIFY_FAILED, FALSE_VALUE));
     }
 
-    fail (Error_Invalid_Arg(types));
+    Reb_Enumerator e;
+    PUSH_SAFE_ENUMERATOR(&e, ARG(conditions)); // protects conditions during DO
+
+    while (NOT_END(e.value)) {
+        UPDATE_EXPRESSION_START(&e); // informs the error delivery better
+
+        const RELVAL *start = e.value;
+        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_LOOKAHEAD);
+        if (THROWN(D_OUT)) {
+            DROP_SAFE_ENUMERATOR(&e);
+            return R_OUT_IS_THROWN;
+        }
+
+        if (!IS_VOID(D_OUT) && IS_CONDITIONAL_TRUE(D_OUT))
+            continue;
+
+        REBVAL temp;
+        Val_Init_Block(
+            &temp,
+            Copy_Values_Len_Shallow(start, e.specifier, e.value - start)
+        );
+
+        if (IS_VOID(D_OUT))
+            fail (Error(RE_VERIFY_VOID, &temp));
+
+        fail (Error(RE_VERIFY_FAILED, &temp));
+    }
+
+    DROP_SAFE_ENUMERATOR(&e);
+    return R_VOID;
+}
+
+
+// Test used iteratively by MAYBE native.  Returns R_BLANK if the test fails,
+// R_OUT if success, or R_OUT_IS_THROWN if a test throws.
+//
+inline static REB_R Do_Test_For_Maybe(
+    REBVAL *out,
+    const REBVAL *value,
+    const RELVAL *test
+) {
+    if (IS_DATATYPE(test)) {
+        if (VAL_TYPE_KIND(test) != VAL_TYPE(value))
+            return R_BLANK;
+        *out = *value;
+        return R_OUT;
+    }
+
+    if (IS_TYPESET(test)) {
+        if (!TYPE_CHECK(test, VAL_TYPE(value)))
+            return R_BLANK;
+        *out = *value;
+        return R_OUT;
+    }
+
+    if (IS_FUNCTION(test)) {
+        if (Apply_Only_Throws(out, TRUE, const_KNOWN(test), value, END_CELL))
+            return R_OUT_IS_THROWN;
+
+        if (IS_VOID(out))
+            fail (Error(RE_NO_RETURN));
+
+        if (IS_CONDITIONAL_FALSE(out))
+            return R_BLANK;
+
+        *out = *value;
+        return R_OUT;
+    }
+
+    fail (Error(RE_INVALID_TYPE, Type_Of(test)));
 }
 
 
 //
-//  assert: native [
-//  
-//  {Assert that condition is true, else cause an assertion error.}
-//  
-//      conditions [block!]
-//      /type {Safely check datatypes of variables (words and paths)}
+//  maybe: native [
+//
+//  {Check value using tests (match types, TRUE? or FALSE?, filter function)}
+//
+//      return: [<opt> any-value!]
+//          {The input value or BLANK! if no match, void if FALSE? and matched}
+//      test [function! datatype! typeset! block! logic!]
+//      value [<opt> any-value!]
 //  ]
 //
-REBNATIVE(assert)
-//
-// !!! Should this be a mezzanine routine, built atop ENSURE as a native?
-// Given the existence of ENSURE/TYPE, is ASSERT/TYPE necessary?
+REBNATIVE(maybe)
 {
-    PARAM(1, conditions);
-    REFINE(2, type);
+    PARAM(1, test);
+    PARAM(2, value);
 
-    if (!REF(type)) {
-        REBARR *block = VAL_ARRAY(ARG(conditions));
-        REBIXO indexor = VAL_INDEX(ARG(conditions));
-        REBCNT i;
+    REBVAL *value = ARG(value);
+    if (IS_VOID(value))
+        return R_BLANK;
 
-        while (indexor != END_FLAG) {
-            i = cast(REBCNT, indexor);
+    REBVAL *test = ARG(test);
 
-            DO_NEXT_MAY_THROW(indexor, D_OUT, block, indexor);
-            if (indexor == THROWN_FLAG)
-                return R_OUT_IS_THROWN;
-
-            if (IS_CONDITIONAL_FALSE(D_OUT)) {
-                // !!! Only copies 3 values (and flaky), see CC#2231
-                Val_Init_Block(D_OUT, Copy_Array_At_Max_Shallow(block, i, 3));
-                fail (Error(RE_ASSERT_FAILED, D_OUT));
-            }
-        }
-        SET_TRASH_SAFE(D_OUT);
-    }
-    else {
-        // /types [var1 integer!  var2 [integer! decimal!]]
-        const REBVAL *val;
-        REBVAL *type;
-        REBVAL *value = VAL_ARRAY_AT(ARG(conditions));
-
-        for (; NOT_END(value); value += 2) {
-            if (IS_WORD(value)) {
-                val = GET_OPT_VAR_MAY_FAIL(value);
-            }
-            else if (IS_PATH(value)) {
-                if (Do_Path_Throws(D_OUT, NULL, value, 0))
-                    fail (Error_No_Catch_For_Throw(D_OUT));
-
-                val = D_OUT;
-            }
-            else
-                fail (Error_Invalid_Arg(value));
-
-            type = value+1;
-
-            if (IS_END(type)) fail (Error(RE_MISSING_ARG));
-
-            if (
-                IS_BLOCK(type)
-                || IS_WORD(type)
-                || IS_TYPESET(type)
-                || IS_DATATYPE(type)
-            ) {
-                if (!Is_Type_Of(val, type))
-                    fail (Error(RE_WRONG_TYPE, value));
-            }
-            else
-                fail (Error_Invalid_Arg(type));
-        }
+    if (IS_LOGIC(test)) {
+        if (VAL_LOGIC(test) == IS_CONDITIONAL_TRUE(value))
+            goto type_matched;
+        return R_BLANK;
     }
 
-    return R_UNSET;
+    REB_R r;
+    if (IS_BLOCK(test)) {
+        RELVAL *item;
+        for (item = VAL_ARRAY_AT(test); NOT_END(item); ++item) {
+            r = Do_Test_For_Maybe(
+                D_OUT,
+                value,
+                IS_WORD(item)
+                    ? GET_OPT_VAR_MAY_FAIL(item, VAL_SPECIFIER(test))
+                    : item
+            );
+
+            if (r != R_BLANK)
+                goto type_matched;
+        }
+    }
+    else
+        r = Do_Test_For_Maybe(D_OUT, value, test);
+
+    if (r == R_OUT_IS_THROWN || r == R_BLANK)
+        return r;
+
+    assert(r == R_OUT); // must have matched!
+
+type_matched:
+    // Because there may be usages like `if maybe logic! x [print "logic!"]`,
+    // it would be bad to take in a FALSE and pass back a FALSE.  Returning
+    // void lets routines like ENSURE take advantage of the checking aspect
+    // without risking a false positive for BLANK! or FALSE in result use.
+    //
+    if (IS_CONDITIONAL_FALSE(value))
+        return R_VOID;
+
+    return R_OUT;
 }
 
 
@@ -214,24 +259,17 @@ REBNATIVE(assert)
 //
 REBNATIVE(as_pair)
 {
-    REBVAL *val = D_ARG(1);
+    PARAM(1, x);
+    PARAM(2, y);
 
-    VAL_RESET_HEADER(D_OUT, REB_PAIR);
+    REBVAL *x = ARG(x);
+    REBVAL *y = ARG(y);
 
-    if (IS_INTEGER(val)) {
-        VAL_PAIR_X(D_OUT) = cast(REBD32, VAL_INT64(val));
-    }
-    else {
-        VAL_PAIR_X(D_OUT) = cast(REBD32, VAL_DECIMAL(val));
-    }
-
-    val = D_ARG(2);
-    if (IS_INTEGER(val)) {
-        VAL_PAIR_Y(D_OUT) = cast(REBD32, VAL_INT64(val));
-    }
-    else {
-        VAL_PAIR_Y(D_OUT) = cast(REBD32, VAL_DECIMAL(val));
-    }
+    SET_PAIR(
+        D_OUT,
+        IS_INTEGER(x) ? VAL_INT64(x) : VAL_DECIMAL(x),
+        IS_INTEGER(y) ? VAL_INT64(y) : VAL_DECIMAL(y)
+    );
 
     return R_OUT;
 }
@@ -268,8 +306,7 @@ REBNATIVE(bind)
     REBVAL *value = ARG(value);
     REBVAL *target = ARG(target);
 
-    REBCTX *context = NULL;
-    REBFUN *func = NULL;
+    REBCTX *context;
 
     REBARR *array;
     REBCNT flags = REF(only) ? BIND_0 : BIND_DEEP;
@@ -288,18 +325,13 @@ REBNATIVE(bind)
 
     if (ANY_CONTEXT(target)) {
         //
-        // Get target from an OBJECT!, ERROR!, PORT!, MODULE!
+        // Get target from an OBJECT!, ERROR!, PORT!, MODULE!, FRAME!
         //
-        assert(!IS_FRAME(target)); // !!! not implemented yet
         context = VAL_CONTEXT(target);
     }
     else {
         //
         // Extract target from whatever word we were given
-        //
-        // !!! Should we allow binding into FUNCTION! paramlists?  If not,
-        // why not?  Were it a closure, it would be legal because a closure's
-        // frame is just an object context (at the moment).
         //
         assert(ANY_WORD(target));
         if (IS_WORD_UNBOUND(target))
@@ -309,23 +341,12 @@ REBNATIVE(bind)
         // specific frame, this needs to ensure that the Reb_Frame's data
         // is a real context, not just a chunk of data.
         //
-        context = VAL_WORD_CONTEXT_MAY_REIFY(target);
+        context = VAL_WORD_CONTEXT(target);
     }
 
     if (ANY_WORD(value)) {
         //
         // Bind a single word
-
-        if (func) {
-            //
-            // Note: BIND_ALL has no effect on "frames".
-            //
-            Bind_Stack_Word(func, value); // may fail()
-            *D_OUT = *value;
-            return R_OUT;
-        }
-
-        assert(context);
 
         if (Try_Bind_Word(context, value)) {
             *D_OUT = *value;
@@ -335,7 +356,7 @@ REBNATIVE(bind)
         // not in context, bind/new means add it if it's not.
         //
         if (REF(new) || (IS_SET_WORD(value) && REF(set))) {
-            Append_Context(context, value, 0);
+            Append_Context(context, value, NULL);
             *D_OUT = *value;
             return R_OUT;
         }
@@ -354,30 +375,20 @@ REBNATIVE(bind)
     *D_OUT = *value;
     if (REF(copy)) {
         array = Copy_Array_At_Deep_Managed(
-            VAL_ARRAY(value), VAL_INDEX(value)
+            VAL_ARRAY(value), VAL_INDEX(value), VAL_SPECIFIER(value)
         );
-        INIT_VAL_ARRAY(D_OUT, array);
+        INIT_VAL_ARRAY(D_OUT, array); // warning: macro copies args
     }
     else
         array = VAL_ARRAY(value);
 
-    if (context) {
-        Bind_Values_Core(
-            ARR_HEAD(array),
-            context,
-            bind_types,
-            add_midstream_types,
-            flags
-        );
-    }
-    else {
-        // This code is temporary, but it doesn't have any non-deep option
-        // at this time...
-        //
-        assert(flags & BIND_DEEP);
-        assert(NOT(REF(set)));
-        Bind_Relative_Deep(func, ARR_HEAD(array), TS_ANY_WORD);
-    }
+    Bind_Values_Core(
+        ARR_HEAD(array),
+        context,
+        bind_types,
+        add_midstream_types,
+        flags
+    );
 
     return R_OUT;
 }
@@ -395,7 +406,7 @@ REBNATIVE(context_of)
 {
     PARAM(1, word);
 
-    if (IS_WORD_UNBOUND(ARG(word))) return R_NONE;
+    if (IS_WORD_UNBOUND(ARG(word))) return R_BLANK;
 
     // Requesting the context of a word that is relatively bound may result
     // in that word having a FRAME! incarnated as a REBSER node (if it
@@ -404,7 +415,7 @@ REBNATIVE(context_of)
     // !!! Mechanically it is likely that in the future, all FRAME!s for
     // user functions will be reified from the moment of invocation.
     //
-    *D_OUT = *CTX_VALUE(VAL_WORD_CONTEXT_MAY_REIFY(ARG(word)));
+    *D_OUT = *CTX_VALUE(VAL_WORD_CONTEXT(ARG(word)));
 
     return R_OUT;
 }
@@ -415,12 +426,16 @@ REBNATIVE(context_of)
 //  
 //  "Returns whether a data cell contains a value."
 //  
-//      cell [opt-any-value!]
+//      cell [<opt> any-value!]
 //  ]
 //
 REBNATIVE(any_value_q)
 {
-    return IS_UNSET(D_ARG(1)) ? R_FALSE : R_TRUE;
+    PARAM(1, cell);
+
+    if (IS_VOID(ARG(cell)))
+        return R_FALSE;
+    return R_TRUE;
 }
 
 
@@ -476,8 +491,8 @@ REBNATIVE(collect_words)
 
     REBARR *words;
     REBCNT modes;
-    REBVAL *values = VAL_ARRAY_AT(D_ARG(1));
-    REBVAL *prior_values;
+    RELVAL *values = VAL_ARRAY_AT(D_ARG(1));
+    RELVAL *prior_values;
 
     if (REF(set))
         modes = COLLECT_ONLY_SET_WORDS;
@@ -513,11 +528,12 @@ REBNATIVE(collect_words)
 //  get: native [
 //  
 //  {Gets the value of a word or path, or values of a context.}
-//  
-//      source [none! any-word! any-path! any-context!]
+//
+//      return: [<opt> any-value!]
+//      source [blank! any-word! any-path! any-context!]
 //          "Word, path, context to get"
 //      /opt
-//          "The source may optionally have no value (allows returning UNSET!)"
+//          "Optionally return no value if the source is not SET?"
 //  ]
 //
 REBNATIVE(get)
@@ -531,7 +547,7 @@ REBNATIVE(get)
     REBVAL *source = ARG(source);
 
     if (ANY_WORD(source)) {
-        *D_OUT = *GET_OPT_VAR_MAY_FAIL(source);
+        *D_OUT = *GET_OPT_VAR_MAY_FAIL(source, SPECIFIED);
     }
     else if (ANY_PATH(source)) {
         //
@@ -543,7 +559,7 @@ REBNATIVE(get)
         // Here we DO it, which means that `get 'foo/bar` will act the same
         // as `:foo/bar` for all types.
         //
-        if (Do_Path_Throws(D_OUT, NULL, source, NULL))
+        if (Do_Path_Throws_Core(D_OUT, NULL, source, SPECIFIED, NULL))
             return R_OUT_IS_THROWN;
 
         // !!! Should this prohibit GROUP! evaluations?  Failure to do so
@@ -555,7 +571,7 @@ REBNATIVE(get)
         // !!! This is a questionable feature, a shallow copy of the vars of
         // the context being put into a BLOCK!:
         //
-        //     >> get make object! [a: 10 b: 20]
+        //     >> get make object! [[a b][a: 10 b: 20]]
         //     == [10 20]
         //
         // Certainly an oddity for GET.  Should either be turned into a
@@ -567,7 +583,7 @@ REBNATIVE(get)
         // the LEN including hidden fields which aren't going to be copied.
         //
         REBARR *array = Make_Array(CTX_LEN(VAL_CONTEXT(source)));
-        REBVAL *dest = ARR_HEAD(array);
+        REBVAL *dest = SINK(ARR_HEAD(array));
 
         REBVAL *key = CTX_KEYS_HEAD(VAL_CONTEXT(source));
         REBVAL *var = CTX_VARS_HEAD(VAL_CONTEXT(source));
@@ -582,17 +598,16 @@ REBNATIVE(get)
             ++dest;
         }
 
-        SET_END(dest);
-        SET_ARRAY_LEN(array, dest - ARR_HEAD(array));
+        TERM_ARRAY_LEN(array, cast(RELVAL*, dest) - ARR_HEAD(array));
         Val_Init_Block(D_OUT, array);
     }
     else {
-        assert(IS_NONE(source));
+        assert(IS_BLANK(source));
         *D_OUT = *source;
     }
 
-    if (!REF(opt) && IS_UNSET(D_OUT))
-        fail (Error(RE_NO_VALUE, source));
+    if (!REF(opt) && IS_VOID(D_OUT))
+        fail (Error_No_Value(source));
 
     return R_OUT;
 }
@@ -602,16 +617,17 @@ REBNATIVE(get)
 //  to-value: native [
 //  
 //  {Turns unset to NONE, with ANY-VALUE! passing through. (See: OPT)}
-//  
-//      value [opt-any-value!]
+//
+//      return: [any-value!]
+//      value [<opt> any-value!]
 //  ]
 //
 REBNATIVE(to_value)
 {
     PARAM(1, value);
 
-    if (IS_UNSET(ARG(value)))
-        return R_NONE;
+    if (IS_VOID(ARG(value)))
+        return R_BLANK;
 
     *D_OUT = *ARG(value);
     return R_OUT;
@@ -621,17 +637,19 @@ REBNATIVE(to_value)
 //
 //  opt: native [
 //  
-//  {NONEs become unset, all other value types pass through. (See: TO-VALUE)}
-//  
-//      value [opt-any-value!]
+//  {Convert blanks to optionals. (See Also: TO-VALUE)}
+//
+//      return: [<opt> any-value!]
+//          {void if input was a BLANK!, or original value otherwise}
+//      value [<opt> any-value!]
 //  ]
 //
 REBNATIVE(opt)
 {
     PARAM(1, value);
 
-    if (IS_NONE(ARG(value)))
-        return R_UNSET;
+    if (IS_BLANK(ARG(value)))
+        return R_VOID;
 
     *D_OUT = *ARG(value);
     return R_OUT;
@@ -667,15 +685,18 @@ REBNATIVE(in)
             REBCNT i;
             for (i = VAL_INDEX(val); i < VAL_LEN_HEAD(val); i++) {
                 REBVAL safe;
-                VAL_INIT_WRITABLE_DEBUG(&safe);
 
-                v = VAL_ARRAY_AT_HEAD(val, i);
-                Get_Simple_Value_Into(&safe, v);
+                Get_Simple_Value_Into(
+                    &safe,
+                    VAL_ARRAY_AT_HEAD(val, i),
+                    VAL_SPECIFIER(val)
+                );
+
                 v = &safe;
                 if (IS_OBJECT(v)) {
                     context = VAL_CONTEXT(v);
-                    index = Find_Word_In_Context(
-                        context, VAL_WORD_SYM(word), FALSE
+                    index = Find_Canon_In_Context(
+                        context, VAL_WORD_CANON(word), FALSE
                     );
                     if (index != 0) {
                         CLEAR_VAL_FLAG(word, VALUE_FLAG_RELATIVE);
@@ -687,7 +708,7 @@ REBNATIVE(in)
                     }
                 }
             }
-            return R_NONE;
+            return R_BLANK;
         }
 
         fail (Error_Invalid_Arg(word));
@@ -702,85 +723,16 @@ REBNATIVE(in)
         return R_OUT;
     }
 
-    index = Find_Word_In_Context(context, VAL_WORD_SYM(word), FALSE);
+    index = Find_Canon_In_Context(context, VAL_WORD_CANON(word), FALSE);
     if (index == 0)
-        return R_NONE;
+        return R_BLANK;
 
     VAL_RESET_HEADER(D_OUT, VAL_TYPE(word));
-    INIT_WORD_SYM(D_OUT, VAL_WORD_SYM(word));
+    INIT_WORD_SPELLING(D_OUT, VAL_WORD_SPELLING(word));
     SET_VAL_FLAG(D_OUT, WORD_FLAG_BOUND); // header reset, so not relative
     INIT_WORD_CONTEXT(D_OUT, context);
     INIT_WORD_INDEX(D_OUT, index);
     return R_OUT;
-}
-
-
-//
-//  and?: native [
-//  
-//  {Returns true if both values are conditionally true (no "short-circuit")}
-//  
-//      value1
-//      value2
-//  ]
-//
-REBNATIVE(and_q)
-{
-    if (IS_CONDITIONAL_TRUE(D_ARG(1)) && IS_CONDITIONAL_TRUE(D_ARG(2)))
-        return R_TRUE;
-    else
-        return R_FALSE;
-}
-
-
-//
-//  not?: native [
-//  
-//  "Returns the logic complement."
-//  
-//      value "(Only FALSE and NONE return TRUE)"
-//  ]
-//
-REBNATIVE(not_q)
-{
-    return IS_CONDITIONAL_FALSE(D_ARG(1)) ? R_TRUE : R_FALSE;
-}
-
-
-//
-//  or?: native [
-//  
-//  {Returns true if either value is conditionally true (no "short-circuit")}
-//  
-//      value1
-//      value2
-//  ]
-//
-REBNATIVE(or_q)
-{
-    if (IS_CONDITIONAL_TRUE(D_ARG(1)) || IS_CONDITIONAL_TRUE(D_ARG(2)))
-        return R_TRUE;
-    else
-        return R_FALSE;
-}
-
-
-//
-//  xor?: native [
-//  
-//  {Returns true if only one of the two values is conditionally true.}
-//  
-//      value1
-//      value2
-//  ]
-//
-REBNATIVE(xor_q)
-{
-    // Note: no boolean ^^ in C; normalize to booleans and check unequal
-    if (!IS_CONDITIONAL_TRUE(D_ARG(1)) != !IS_CONDITIONAL_TRUE(D_ARG(2)))
-        return R_TRUE;
-    else
-        return R_FALSE;
 }
 
 
@@ -832,15 +784,18 @@ REBNATIVE(resolve)
 //  set: native [
 //  
 //  {Sets a word, path, block of words, or context to specified value(s).}
-//  
+//
+//      return: [<opt> any-value!]
 //      target [any-word! any-path! block! any-context!]
 //          {Word, block of words, path, or object to be set (modified)}
-//      value [opt-any-value!]
+//      value [<opt> any-value!]
 //          "Value or block of values"
 //      /opt
 //          "Value is optional, and if no value is provided unset the target"
 //      /pad
 //          {For objects, set remaining words to NONE if block is too short}
+//      /lookback
+//          {Function uses evaluator lookahead to "look back" (see SET-INFIX)}
 //  ]
 //
 REBNATIVE(set)
@@ -849,32 +804,63 @@ REBNATIVE(set)
     PARAM(2, value);
     REFINE(3, opt);
     REFINE(4, pad);
+    REFINE(5, lookback);
 
     // Pointers independent from the arguments.  If we change them, they can
     // be reset to point at the original argument again.
     //
-    REBVAL *target = ARG(target);
-    REBVAL *value = ARG(value);
+    RELVAL *target;
+    REBCTX *target_specifier;
+    RELVAL *value;
+    REBCTX *value_specifier;
     REBOOL set_with_block;
 
-    if (!REF(opt) && !IS_SET(value))
-        fail (Error(RE_NEED_VALUE, target));
+    if (!REF(opt) && IS_VOID(ARG(value)))
+        fail (Error(RE_NEED_VALUE, ARG(target)));
+
+    enum Reb_Kind eval_type = REF(lookback) ? REB_0_LOOKBACK : REB_FUNCTION;
+
+    if (eval_type == REB_0_LOOKBACK) {
+        if (!IS_FUNCTION(ARG(value)))
+            fail (Error(RE_MISC));
+
+        // SET-INFIX checks for properties of the function to ensure it is
+        // actually infix, and INFIX? tests specifically for that.  The only
+        // things that should be checked here are to make sure things that
+        // are impossible aren't being requested... e.g. a "look back quote
+        // of a WORD!" (the word can't be quoted because it's evaluated
+        // before the evaluator lookahead that would see the infix function).
+        //
+        // !!! Should arity 0 functions be prohibited?
+    }
 
     // Simple request to set a word variable.  Allows ANY-WORD, which means
     // for instance that `set quote x: (expression)` would mean that the
     // locals gathering facility of FUNCTION would still gather x.
     //
-    if (ANY_WORD(target)) {
-        *GET_MUTABLE_VAR_MAY_FAIL(target) = *value;
+    if (ANY_WORD(ARG(target))) {
+        *Get_Var_Core(
+                &eval_type, ARG(target), SPECIFIED, GETVAR_IS_SETVAR
+            ) = *ARG(value);
         goto return_value_arg;
     }
 
-    if (ANY_PATH(target)) {
-        REBVAL dummy;
-        VAL_INIT_WRITABLE_DEBUG(&dummy);
+    // !!! For starters, just the word form is supported for lookback.  Though
+    // you can't dispatch a lookback from a path, you should be able to set
+    // a word in a context to one.
+    //
+    if (eval_type == REB_0_LOOKBACK)
+        fail (Error(RE_MISC));
 
-        if (Do_Path_Throws(&dummy, NULL, target, value))
+    if (ANY_PATH(ARG(target))) {
+        REBVAL dummy;
+        if (
+            Do_Path_Throws_Core(
+                &dummy, NULL, ARG(target), SPECIFIED, ARG(value)
+            )
+        ) {
             fail (Error_No_Catch_For_Throw(&dummy));
+        }
 
         // If not a throw, then there is no result out of a setting a path,
         // we should return the value we passed in to set with.
@@ -896,8 +882,9 @@ REBNATIVE(set)
     // be recovered again with `value = VAL_ARRAY_AT(ARG(value))` if
     // it is changed.)
     //
-    if ((set_with_block = IS_BLOCK(value))) {
-        value = VAL_ARRAY_AT(value);
+    if ((set_with_block = IS_BLOCK(ARG(value)))) {
+        value = VAL_ARRAY_AT(ARG(value));
+        value_specifier = VAL_SPECIFIER(ARG(value));
 
         // If it's an empty block it's just going to be a no-op, so go ahead
         // and return now so the later code doesn't have to check for it.
@@ -905,8 +892,12 @@ REBNATIVE(set)
         if (IS_END(value))
             goto return_value_arg;
     }
+    else {
+        value = ARG(value);
+        value_specifier = SPECIFIED;
+    }
 
-    if (ANY_CONTEXT(target)) {
+    if (ANY_CONTEXT(ARG(target))) {
         //
         // !!! The functionality of using a block to set ordered arguments
         // in an object depends on a notion of the object retaining a
@@ -915,7 +906,7 @@ REBNATIVE(set)
         // like `set object [a: 0 b: 0 c: 0] 1020` will set all the fields
         // to 1020 is a bit of a strange feature for the primitive.
 
-        REBVAL *key = CTX_KEYS_HEAD(VAL_CONTEXT(target));
+        REBVAL *key = CTX_KEYS_HEAD(VAL_CONTEXT(ARG(target)));
         REBVAL *var;
 
         // To make SET somewhat atomic, before setting any of the object's
@@ -943,11 +934,10 @@ REBNATIVE(set)
             //
             if (!set_with_block) continue;
 
-            if (!REF(opt) && IS_UNSET(value)) {
+            if (!REF(opt) && IS_VOID(value)) {
                 REBVAL key_name;
-                VAL_INIT_WRITABLE_DEBUG(&key_name);
+                Val_Init_Word(&key_name, REB_WORD, VAL_KEY_SPELLING(key));
 
-                Val_Init_Word(&key_name, REB_WORD, VAL_TYPESET_SYM(key));
                 fail (Error(RE_NEED_VALUE, &key_name));
             }
 
@@ -970,8 +960,8 @@ REBNATIVE(set)
 
         // Refresh the key so we can check and skip hidden fields
         //
-        key = CTX_KEYS_HEAD(VAL_CONTEXT(target));
-        var = CTX_VARS_HEAD(VAL_CONTEXT(target));
+        key = CTX_KEYS_HEAD(VAL_CONTEXT(ARG(target)));
+        var = CTX_VARS_HEAD(VAL_CONTEXT(ARG(target)));
 
         // With the assignments validated, set the variables in the object,
         // padding to NONE if requested
@@ -982,10 +972,10 @@ REBNATIVE(set)
 
             if (IS_END(value)) {
                 if (!REF(pad)) break;
-                SET_NONE(var);
+                SET_BLANK(var);
                 continue;
             }
-            *var = *value;
+            COPY_VALUE(var, value, value_specifier);
             if (set_with_block) value++;
         }
 
@@ -994,8 +984,9 @@ REBNATIVE(set)
 
     // Otherwise, it must be a BLOCK!... extract the value at index position
     //
-    assert(IS_BLOCK(target));
-    target = VAL_ARRAY_AT(target);
+    assert(IS_BLOCK(ARG(target)));
+    target = VAL_ARRAY_AT(ARG(target));
+    target_specifier = VAL_SPECIFIER(ARG(target));
 
     // SET should be somewhat atomic.  So if we're setting a block of
     // words and giving an alert on unsets, check for any unsets before
@@ -1003,14 +994,12 @@ REBNATIVE(set)
     //
     if (!REF(opt)) {
         for (; NOT_END(target) && NOT_END(value); target++) {
+            assert(!IS_VOID(value)); // blocks may not contain voids
+
             switch (VAL_TYPE(target)) {
             case REB_WORD:
             case REB_SET_WORD:
             case REB_LIT_WORD:
-                if (!IS_SET(value)) {
-                    assert(set_with_block); // if not, caught earlier...!
-                    fail (Error(RE_NEED_VALUE, target));
-                }
                 break;
 
             case REB_GET_WORD:
@@ -1019,8 +1008,15 @@ REBNATIVE(set)
                 // elements to the same value, it makes a difference if
                 // it's a get-word for the !set_with_block too.
                 //
-                if (!IS_SET(IS_WORD(value) ? GET_OPT_VAR_MAY_FAIL(value) : value))
-                    fail (Error(RE_NEED_VALUE, target));
+                if (IS_WORD(value)) // !!! why just WORD!, and not ANY-WORD!
+                    if (IS_VOID(GET_OPT_VAR_MAY_FAIL(value, value_specifier)))
+                        fail (Error(RE_NEED_VALUE, target));
+                break;
+
+            default:
+                // !!! Error is not caught here, but in the second loop...
+                // Why two passes if the first pass isn't going to screen
+                // for all errors?
                 break;
             }
 
@@ -1041,7 +1037,11 @@ REBNATIVE(set)
     //
     for (; NOT_END(target); target++) {
         if (IS_WORD(target) || IS_SET_WORD(target) || IS_LIT_WORD(target)) {
-            *GET_MUTABLE_VAR_MAY_FAIL(target) = *value;
+            COPY_VALUE(
+                GET_MUTABLE_VAR_MAY_FAIL(target, target_specifier),
+                value,
+                value_specifier
+            );
         }
         else if (IS_GET_WORD(target)) {
             //
@@ -1050,19 +1050,28 @@ REBNATIVE(set)
             // arg handling of get-words as "hard quotes", for instance)
             // Not exactly the same thing, but worth contemplating.
             //
-            *GET_MUTABLE_VAR_MAY_FAIL(target) = IS_WORD(value)
-                ? *GET_OPT_VAR_MAY_FAIL(value)
-                : *value;
+            if (IS_WORD(value)) {
+                *GET_MUTABLE_VAR_MAY_FAIL(target, target_specifier)
+                    = *GET_OPT_VAR_MAY_FAIL(value, value_specifier);
+            }
+            else {
+                COPY_VALUE(
+                    GET_MUTABLE_VAR_MAY_FAIL(target, target_specifier),
+                    value,
+                    value_specifier
+                );
+            }
         }
         else
-            fail (Error_Invalid_Arg(target));
+            fail (Error_Invalid_Arg_Core(target, target_specifier));
 
         if (set_with_block) {
             value++;
             if (IS_END(value)) {
                 if (!REF(pad)) break;
                 set_with_block = FALSE;
-                value = NONE_VALUE;
+                value = BLANK_VALUE;
+                value_specifier = SPECIFIED;
             }
         }
     }
@@ -1078,72 +1087,262 @@ return_value_arg:
 //  
 //  "Returns the datatype of a value."
 //  
-//      value [opt-any-value!]
+//      value [<opt> any-value!]
 //  ]
 //
 REBNATIVE(type_of)
 {
-    enum Reb_Kind type = VAL_TYPE(D_ARG(1));
-    Val_Init_Datatype(D_OUT, type);
+    PARAM(1, value);
+
+    enum Reb_Kind kind = VAL_TYPE(ARG(value));
+    if (kind == REB_MAX_VOID)
+        return R_BLANK;
+
+    Val_Init_Datatype(D_OUT, kind);
     return R_OUT;
 }
 
 
 //
+//  has-type?: native [
+//
+//  {Checks to see if a value has a type or is in a typeset.}
+//
+//      type [datatype! typeset!]
+//      value [<opt> any-value!]
+//  ]
+//
+REBNATIVE(has_type_q)
+{
+    PARAM(1, type);
+    PARAM(2, value);
+
+    REBVAL *value = ARG(value);
+    REBVAL *type = ARG(type);
+
+    if (IS_DATATYPE(type)) {
+        if (VAL_TYPE(value) == VAL_TYPE_KIND(type))
+            return R_TRUE;
+    }
+    else {
+        assert(IS_TYPESET(type));
+        if (TYPE_CHECK(type, VAL_TYPE(value)))
+            return R_TRUE;
+    }
+
+    return R_FALSE;
+}
+
+
+
+//
 //  unset: native [
-//  
+//
 //  {Unsets the value of a word (in its current context.)}
-//  
-//      word [any-word! block!] "Word or block of words"
+//
+//      return: [<opt>]
+//      target [any-word! block!]
+//          "Word or block of words"
 //  ]
 //
 REBNATIVE(unset)
 {
-    REBVAL * const value = D_ARG(1);
-    REBVAL *var;
-    REBVAL *word;
+    PARAM(1, target);
 
-    if (ANY_WORD(value)) {
-        word = value;
+    REBVAL *target = ARG(target);
 
-        if (IS_WORD_UNBOUND(word))
-            fail (Error(RE_NOT_BOUND, word));
-
-        var = GET_MUTABLE_VAR_MAY_FAIL(word);
-        SET_UNSET(var);
+    if (ANY_WORD(target)) {
+        REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(target, SPECIFIED);
+        SET_VOID(var);
+        return R_VOID;
     }
-    else {
-        assert(IS_BLOCK(value));
 
-        for (word = VAL_ARRAY_AT(value); NOT_END(word); word++) {
-            if (!ANY_WORD(word))
-                fail (Error_Invalid_Arg(word));
+    assert(IS_BLOCK(target));
 
-            if (IS_WORD_UNBOUND(word))
-                fail (Error(RE_NOT_BOUND, word));
+    RELVAL *word;
+    for (word = VAL_ARRAY_AT(target); NOT_END(word); ++word) {
+        if (!ANY_WORD(word))
+            fail (Error_Invalid_Arg_Core(word, VAL_SPECIFIER(target)));
 
-            var = GET_MUTABLE_VAR_MAY_FAIL(word);
-            SET_UNSET(var);
-        }
+        REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word, VAL_SPECIFIER(target));
+        SET_VOID(var);
     }
-    return R_UNSET;
+
+    return R_VOID;
 }
 
 
 //
-//  infix?: native [
+//  lookback?: native [
 //  
-//  {Returns TRUE if the function gets its first argument prior to the call}
+//  {TRUE if looks up to a function and gets first argument before the call}
 //  
-//      value [function!]
+//      source [any-word! any-path!]
 //  ]
 //
-REBNATIVE(infix_q)
+REBNATIVE(lookback_q)
 {
-    REBVAL *func = D_ARG(1);
+    REBVAL *source = D_ARG(1);
 
-    assert(IS_FUNCTION(func));
-    if (GET_VAL_FLAG(func, FUNC_FLAG_INFIX))
+    if (ANY_WORD(source)) {
+        enum Reb_Kind eval_type;
+        const REBVAL *var = Get_Var_Core(
+            &eval_type, source, SPECIFIED, GETVAR_READ_ONLY // may fail()
+        );
+
+        if (!IS_FUNCTION(var))
+            return R_FALSE;
+
+        return eval_type == REB_0_LOOKBACK ? R_TRUE : R_FALSE;
+    }
+    else {
+        assert(ANY_PATH(source));
+
+        // Not implemented yet...
+
+        fail (Error(RE_MISC));
+    }
+}
+
+
+//
+//  semiquoted?: native [
+//
+//  {Discern if a function parameter came from an "active" evaluation.}
+//
+//      parameter [word!]
+//  ]
+//
+REBNATIVE(semiquoted_q)
+//
+// This operation is somewhat dodgy.  So even though the flag is carried by
+// all values, and could be generalized in the system somehow to query on
+// anything--we don't.  It's strictly for function parameters, and
+// even then it should be restricted to functions that have labeled
+// themselves as absolutely needing to do this for ergonomic reasons.
+{
+    PARAM(1, parameter);
+
+    // !!! TBD: Enforce this is a function parameter (specific binding branch
+    // makes the test different, and easier)
+
+    enum Reb_Kind eval_type; // unused
+    const REBVAL *var = Get_Var_Core( // may fail
+        &eval_type, ARG(parameter), SPECIFIED, GETVAR_READ_ONLY
+    );
+    return GET_VAL_FLAG(var, VALUE_FLAG_EVALUATED) ? R_FALSE : R_TRUE;
+}
+
+
+//
+//  semiquote: native [
+//
+//  {Marks a function argument to be treated as if it had been literal source}
+//
+//      value [any-value!]
+//  ]
+//
+REBNATIVE(semiquote)
+{
+    PARAM(1, value);
+
+    *D_OUT = *ARG(value);
+
+    // We cannot clear the VALUE_FLAG_EVALUATED bit here and make it stick,
+    // because the bit would just get added back on by Do_Core when the
+    // function finished.  So instead Do_Core recognizes this native
+    // specificially and clears the bit there.
+
+    return R_OUT;
+}
+
+
+//
+//  punctuates?: native [
+//
+//  {Returns true if function (or word looking up to function) is punctuating}
+//
+//      value [function! word!]
+//          {Function or specifying word}
+//  ]
+//
+REBNATIVE(punctuates_q)
+//
+// !!! This function faces the general problem that it cannot substitute for
+// the evaluator's knowledge of punctuation, e.g. if a path evaluates to a
+// <punctuates> function, without risking the running of code.  Since this is
+// likely to be used in lookahead scenarios (e.g. ||) then it's a bad idea to
+// give the impression that it "works on paths".
+{
+    PARAM(1, value);
+
+    REBSTR *sym; // unused here
+    Get_If_Word_Or_Path_Arg(D_OUT, &sym, ARG(value));
+
+    if (!IS_FUNCTION(D_OUT))
+        fail (Error_Unexpected_Type(REB_FUNCTION, VAL_TYPE(D_OUT)));
+
+    return GET_VAL_FLAG(D_OUT, FUNC_FLAG_PUNCTUATES) ? R_TRUE : R_FALSE;
+}
+
+
+//
+//  as: native [
+//
+//  {Aliases the underlying data of one series to act as another of same class}
+//
+//      type [datatype!]
+//      value [any-series!]
+//  ]
+//
+REBNATIVE(as)
+{
+    PARAM(1, type);
+    PARAM(2, value);
+
+    enum Reb_Kind kind = VAL_TYPE_KIND(ARG(type));
+    REBVAL *value = ARG(value);
+
+    switch (kind) {
+    case REB_BLOCK:
+    case REB_GROUP:
+    case REB_PATH:
+    case REB_LIT_PATH:
+    case REB_GET_PATH:
+        if (!ANY_ARRAY(value))
+            fail (Error_Invalid_Arg(value));
+        break;
+
+    case REB_STRING:
+    case REB_TAG:
+    case REB_FILE:
+    case REB_URL:
+        if (!ANY_BINSTR(value) || IS_BINARY(value))
+            fail (Error_Invalid_Arg(value));
+        break;
+    }
+
+    VAL_SET_TYPE_BITS(value, kind);
+    *D_OUT = *value;
+    return R_OUT;
+}
+
+
+//
+//  aliases?: native [
+//
+//  {Return whether or not the underlying data of one value aliases another}
+//
+//     value1 [any-series!]
+//     value2 [any-series!]
+//  ]
+//
+REBNATIVE(aliases_q)
+{
+    PARAM(1, value1);
+    PARAM(2, value2);
+
+    if (VAL_SERIES(ARG(value1)) == VAL_SERIES(ARG(value2)))
         return R_TRUE;
 
     return R_FALSE;
@@ -1151,20 +1350,56 @@ REBNATIVE(infix_q)
 
 
 //
-//  value?: native [
+//  set?: native [
 //  
-//  "Returns TRUE if the word has a value."
+//  "Returns whether a bound word or path is set (!!! shouldn't eval GROUP!s)"
 //  
-//      value
+//      location [any-word! any-path!]
 //  ]
 //
-REBNATIVE(value_q)
+REBNATIVE(set_q)
 {
-    const REBVAL *value = D_ARG(1);
+    PARAM(1, location);
 
-    if (ANY_WORD(value) && !(value = TRY_GET_OPT_VAR(value)))
-        return R_FALSE;
-    if (IS_UNSET(value)) return R_FALSE;
+    REBVAL *location = ARG(location);
+
+    if (ANY_WORD(location)) {
+        //
+        // Note this will fail if unbound
+        //
+        const REBVAL *var = GET_OPT_VAR_MAY_FAIL(location, SPECIFIED);
+        if (IS_VOID(var))
+            return R_FALSE;
+    }
+    else {
+        assert(ANY_PATH(location));
+
+    #if !defined(NDEBUG)
+        REBDSP dsp_orig = DSP;
+    #endif
+
+        // !!! We shouldn't be evaluating but currently the path machinery
+        // doesn't "turn off" GROUP! evaluations for GET-PATH!.  Pick_Path
+        // doesn't have the right interface however.  This is temporary.
+        //
+        VAL_SET_TYPE_BITS(location, REB_GET_PATH);
+
+        REBVAL temp;
+        if (Do_Path_Throws_Core(
+            &temp, NULL, location, VAL_SPECIFIER(location), NULL
+        )) {
+            // !!! Shouldn't be evaluating, much less throwing--so fail
+            //
+            fail (Error_No_Catch_For_Throw(&temp));
+        }
+
+        // We did not pass in a symbol ID
+        //
+        assert(DSP == dsp_orig);
+        if (IS_VOID(&temp))
+            return R_FALSE;
+    }
+
     return R_TRUE;
 }
 
@@ -1172,9 +1407,9 @@ REBNATIVE(value_q)
 //
 //  true?: native/body [
 //
-//  "Returns true if a value can be used as true (errors on UNSET!)."
+//  "Returns true if a value can be used as true."
 //
-//      value [any-value!] ; Note: No [opt-any-value!] - unset! must fail
+//      value [any-value!] ; Note: No [<opt> any-value!] - void must fail
 //  ][
 //      not not :val
 //  ]
@@ -1192,11 +1427,11 @@ REBNATIVE(true_q)
 //
 //  "Returns false if a value is either LOGIC! false or a NONE!."
 //
-//      value [any-value!] ; Note: No [opt-any-value!] - unset! must fail.
+//      value [any-value!] ; Note: No [<opt> any-value!] - void must fail.
 //  ][
 //      either any [
-//          none? :value
-//          value = false
+//          blank? :value
+//          :value = false
 //      ][
 //          true
 //      ][
@@ -1217,7 +1452,8 @@ REBNATIVE(false_q)
 //
 //  "Returns the value passed to it without evaluation."
 //
-//      :value [opt-any-value!]
+//      return: [any-value!]
+//      :value [any-value!]
 //  ][
 //      :value
 //  ]
@@ -1227,20 +1463,59 @@ REBNATIVE(quote)
     PARAM(1, value);
 
     *D_OUT = *ARG(value);
+
+    // We cannot clear the VALUE_FLAG_EVALUATED bit here and make it stick,
+    // because the bit would just get added back on by Do_Core when the
+    // function finished.  So instead Do_Core recognizes this native
+    // specificially and clears the bit there.
+
     return R_OUT;
+}
+
+
+//
+//  void?: native/body [
+//
+//  "Tells you if the argument is not a value (e.g. `void? do []` is TRUE)"
+//
+//      value [<opt> any-value!]
+//  ][
+//      blank? type-of :value
+//  ]
+//
+REBNATIVE(void_q)
+{
+    PARAM(1, value);
+
+    return IS_VOID(ARG(value)) ? R_TRUE : R_FALSE;
+}
+
+
+//
+//  void: native/body [
+//
+//  "Function returning no result (alternative for `()` or `do []`)"
+//
+//      return: [<opt>] ;-- how to say <opt> no-value! ?
+//  ][
+//  ]
+//
+REBNATIVE(void)
+{
+    return R_VOID;
 }
 
 
 //
 //  nothing?: native/body [
 //
-//  "Returns whether a value is either a NONE! or UNSET!"
+//  "Returns TRUE if argument is either a NONE! or no value is passed in"
 //
-//      value [opt-any-value!]
+//      value [<opt> any-value!]
 //  ][
 //      any [
-//          unset? :value
-//          none? :value
+//          void? :value
+//          blank? :value
 //      ]
 //  ]
 //
@@ -1248,20 +1523,20 @@ REBNATIVE(nothing_q)
 {
     PARAM(1, value);
 
-    return (IS_NONE(ARG(value)) || IS_UNSET(ARG(value))) ? R_TRUE : R_FALSE;
+    return (IS_BLANK(ARG(value)) || IS_VOID(ARG(value))) ? R_TRUE : R_FALSE;
 }
 
 
 //
 //  something?: native/body [
 //
-//  "Returns whether a value something besides a NONE! or UNSET!"
+//  "Returns TRUE if a value is passed in and it isn't a NONE!"
 //
-//      value [opt-any-value!]
+//      value [<opt> any-value!]
 //  ][
 //      all [
 //          any-value? :value
-//          not none? value
+//          not blank? value
 //      ]
 //  ]
 //
@@ -1269,187 +1544,5 @@ REBNATIVE(something_q)
 {
     PARAM(1, value);
 
-    return (IS_NONE(ARG(value)) || IS_UNSET(ARG(value))) ? R_FALSE : R_TRUE;
+    return (IS_BLANK(ARG(value)) || IS_VOID(ARG(value))) ? R_FALSE : R_TRUE;
 }
-
-
-//** SERIES ************************************************************
-
-
-//
-//  dump: native [
-//
-//  "Temporary debug dump"
-//
-//      value [opt-any-value!]
-//  ]
-//
-REBNATIVE(dump)
-{
-#ifdef NDEBUG
-    fail (Error(RE_DEBUG_ONLY));
-#else
-    PARAM(1, value);
-
-    REBVAL *value = ARG(value);
-
-    Dump_Stack(frame_, 0);
-
-    if (ANY_SERIES(value))
-        Dump_Series(VAL_SERIES(value), "=>");
-    else
-        Dump_Values(value, 1);
-
-    *D_OUT = *value;
-    return R_OUT;
-#endif
-}
-
-
-//
-//  Map_Gob_Inner: C
-// 
-// Map a higher level gob coordinate to a lower level.
-// Returns GOB and sets new offset pair.
-//
-static REBGOB *Map_Gob_Inner(REBGOB *gob, REBXYF *offset)
-{
-    REBD32 xo = offset->x;
-    REBD32 yo = offset->y;
-    REBINT n;
-    REBINT len;
-    REBGOB **gop;
-    REBD32 x = 0;
-    REBD32 y = 0;
-    REBINT max_depth = 1000; // avoid infinite loops
-
-    while (GOB_PANE(gob) && (max_depth-- > 0)) {
-        len = GOB_LEN(gob);
-        gop = GOB_HEAD(gob) + len - 1;
-        for (n = 0; n < len; n++, gop--) {
-            if (
-                (xo >= x + GOB_X(*gop)) &&
-                (xo <  x + GOB_X(*gop) + GOB_W(*gop)) &&
-                (yo >= y + GOB_Y(*gop)) &&
-                (yo <  y + GOB_Y(*gop) + GOB_H(*gop))
-            ){
-                x += GOB_X(*gop);
-                y += GOB_Y(*gop);
-                gob = *gop;
-                break;
-            }
-        }
-        if (n >= len) break; // not found
-    }
-
-    offset->x -= x;
-    offset->y -= y;
-
-    return gob;
-}
-
-
-//
-//  map-event: native [
-//  
-//  {Returns event with inner-most graphical object and coordinate.}
-//  
-//      event [event!]
-//  ]
-//
-REBNATIVE(map_event)
-{
-    PARAM(1, event);
-
-    REBVAL *val = ARG(event);
-    REBGOB *gob = cast(REBGOB*, VAL_EVENT_SER(val));
-    REBXYF xy;
-
-    if (gob && GET_FLAG(VAL_EVENT_FLAGS(val), EVF_HAS_XY)) {
-        xy.x = (REBD32)VAL_EVENT_X(val);
-        xy.y = (REBD32)VAL_EVENT_Y(val);
-        VAL_EVENT_SER(val) = cast(REBSER*, Map_Gob_Inner(gob, &xy));
-        SET_EVENT_XY(val, ROUND_TO_INT(xy.x), ROUND_TO_INT(xy.y));
-    }
-
-    *D_OUT = *ARG(event);
-    return R_OUT;
-}
-
-
-//
-//  Return_Gob_Pair: C
-//
-static void Return_Gob_Pair(REBVAL *out, REBGOB *gob, REBD32 x, REBD32 y)
-{
-    REBARR *blk;
-    REBVAL *val;
-
-    blk = Make_Array(2);
-    Val_Init_Block(out, blk);
-    val = Alloc_Tail_Array(blk);
-    SET_GOB(val, gob);
-    val = Alloc_Tail_Array(blk);
-    VAL_RESET_HEADER(val, REB_PAIR);
-    VAL_PAIR_X(val) = x;
-    VAL_PAIR_Y(val) = y;
-}
-
-
-//
-//  map-gob-offset: native [
-//  
-//  {Translates a gob and offset to the deepest gob and offset in it, returned as a block.}
-//  
-//      gob [gob!] "Starting object"
-//      xy [pair!] "Staring offset"
-//      /reverse "Translate from deeper gob to top gob."
-//  ]
-//
-REBNATIVE(map_gob_offset)
-{
-    REBGOB *gob = VAL_GOB(D_ARG(1));
-    REBD32 xo = VAL_PAIR_X(D_ARG(2));
-    REBD32 yo = VAL_PAIR_Y(D_ARG(2));
-
-    if (D_REF(3)) { // reverse
-        REBINT max_depth = 1000; // avoid infinite loops
-        while (GOB_PARENT(gob) && (max_depth-- > 0) &&
-            !GET_GOB_FLAG(gob, GOBF_WINDOW)){
-            xo += GOB_X(gob);
-            yo += GOB_Y(gob);
-            gob = GOB_PARENT(gob);
-        }
-    }
-    else {
-        REBXYF xy;
-        xy.x = VAL_PAIR_X(D_ARG(2));
-        xy.y = VAL_PAIR_Y(D_ARG(2));
-        gob = Map_Gob_Inner(gob, &xy);
-        xo = xy.x;
-        yo = xy.y;
-    }
-
-    Return_Gob_Pair(D_OUT, gob, xo, yo);
-
-    return R_OUT;
-}
-
-
-#if !defined(NDEBUG)
-
-
-//
-//  VAL_SERIES_Debug: C
-//
-// Variant of VAL_SERIES() macro for the debug build which checks to ensure
-// that you have an ANY-SERIES! value you're calling it on (or one of the
-// exception types that use REBSERs)
-//
-REBSER *VAL_SERIES_Debug(const REBVAL *v)
-{
-    assert(ANY_SERIES(v) || IS_MAP(v) || IS_VECTOR(v) || IS_IMAGE(v));
-    return (v)->payload.any_series.series;
-}
-
-#endif

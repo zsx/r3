@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  t-integer.c
-**  Summary: integer datatype
-**  Section: datatypes
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %t-integer.c
+//  Summary: "integer datatype"
+//  Section: datatypes
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 #include "sys-deci-funcs.h"
@@ -35,11 +36,57 @@
 //
 //  CT_Integer: C
 //
-REBINT CT_Integer(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Integer(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     if (mode >= 0)  return (VAL_INT64(a) == VAL_INT64(b));
     if (mode == -1) return (VAL_INT64(a) >= VAL_INT64(b));
     return (VAL_INT64(a) > VAL_INT64(b));
+}
+
+
+//
+//  MAKE_Integer: C
+//
+void MAKE_Integer(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    VAL_RESET_HEADER(out, REB_INTEGER);
+
+    if (IS_LOGIC(arg)) {
+        //
+        // !!! Due to Rebol's policies on conditional truth and falsehood,
+        // it refuses to say TO FALSE is 0.  MAKE has shades of meaning
+        // that are more "dialected", e.g. MAKE BLOCK! 10 creates a block
+        // with capacity 10 and not literally `[10]` (or a block with ten
+        // NONE! values in it).  Under that liberal umbrella it decides
+        // that it will make an integer 0 out of FALSE due to it having
+        // fewer seeming "rules" than TO would.
+
+        VAL_INT64(out) = VAL_LOGIC(arg) ? 1 : 0;
+
+        // !!! The same principle could suggest MAKE is not bound by
+        // the "reversibility" requirement and hence could interpret
+        // binaries unsigned by default.  Before getting things any
+        // weirder should probably leave it as is.
+    }
+    else {
+        // use signed logic by default (use TO-INTEGER/UNSIGNED to force
+        // unsigned interpretation or error if that doesn't make sense)
+
+        Value_To_Int64(&VAL_INT64(out), arg, FALSE);
+    }
+}
+
+
+//
+//  TO_Integer: C
+//
+void TO_Integer(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    // use signed logic by default (use TO-INTEGER/UNSIGNED to force
+    // unsigned interpretation or error if that doesn't make sense)
+
+    VAL_RESET_HEADER(out, REB_INTEGER);
+    Value_To_Int64(&VAL_INT64(out), arg, FALSE);
 }
 
 
@@ -186,7 +233,7 @@ void Value_To_Int64(REBI64 *out, const REBVAL *value, REBOOL no_sign)
         // more sense as these would be hexes likely typed in by users,
         // who rarely do 2s-complement math in their head.
 
-        const REBYTE *bp = Get_Word_Name(value);
+        const REBYTE *bp = VAL_WORD_HEAD(value);
         REBCNT len = LEN_BYTES(bp);
 
         if (len > MAX_HEX_LEN) {
@@ -269,11 +316,12 @@ check_sign:
 //
 REBNATIVE(to_integer)
 {
-    REBVAL * const value = D_ARG(1);
+    PARAM(1, value);
+
     REBOOL no_sign = D_REF(2);
 
     VAL_RESET_HEADER(D_OUT, REB_INTEGER);
-    Value_To_Int64(&VAL_INT64(D_OUT), value, no_sign);
+    Value_To_Int64(&VAL_INT64(D_OUT), ARG(value), no_sign);
 
     return R_OUT;
 }
@@ -291,16 +339,24 @@ REBTYPE(Integer)
     REBCNT n;
 
     REBI64 p;
-    REBU64 a, b; // for overflow detection
-    REBCNT a1, a0, b1, b0;
-    REBOOL sgn;
     REBI64 anum;
 
-    if (action != A_MAKE && action != A_TO)
-        num = VAL_INT64(val);
+    num = VAL_INT64(val);
 
-    if (IS_BINARY_ACT(action)) {
-
+    // !!! This used to rely on IS_BINARY_ACT, which is no longer available
+    // in the symbol based dispatch.  Consider doing another way.
+    //
+    if (
+        action == SYM_ADD
+        || action == SYM_SUBTRACT
+        || action == SYM_MULTIPLY
+        || action == SYM_DIVIDE
+        || action == SYM_POWER
+        || action == SYM_AND_T
+        || action == SYM_OR_T
+        || action == SYM_XOR_T
+        || action == SYM_REMAINDER
+    ){
         if (IS_INTEGER(val2)) arg = VAL_INT64(val2);
         else if (IS_CHAR(val2)) arg = VAL_CHAR(val2);
         else {
@@ -308,28 +364,27 @@ REBTYPE(Integer)
             n = 0; // use to flag special case
             switch(action) {
             // Anything added to an integer is same as adding the integer:
-            case A_ADD:
-            case A_MULTIPLY:
+            case SYM_ADD:
+            case SYM_MULTIPLY:
                 // Swap parameter order:
                 *D_OUT = *val2;  // Use as temp workspace
                 *val2 = *val;
                 *val = *D_OUT;
-                return Value_Dispatch[VAL_TYPE_0(val)](frame_, action);
+                return Value_Dispatch[VAL_TYPE(val)](frame_, action);
 
             // Only type valid to subtract from, divide into, is decimal/money:
-            case A_SUBTRACT:
+            case SYM_SUBTRACT:
                 n = 1;
                 /* fall through */
-            case A_DIVIDE:
-            case A_REMAINDER:
-            case A_POWER:
+            case SYM_DIVIDE:
+            case SYM_REMAINDER:
+            case SYM_POWER:
                 if (IS_DECIMAL(val2) || IS_PERCENT(val2)) {
                     SET_DECIMAL(val, (REBDEC)num); // convert main arg
                     return T_Decimal(frame_, action);
                 }
                 if (IS_MONEY(val2)) {
-                    VAL_MONEY_AMOUNT(val) = int_to_deci(VAL_INT64(val));
-                    VAL_RESET_HEADER(val, REB_MONEY);
+                    SET_MONEY(val, int_to_deci(VAL_INT64(val)));
                     return T_Money(frame_, action);
                 }
                 if (n > 0) {
@@ -347,22 +402,22 @@ REBTYPE(Integer)
 
     switch (action) {
 
-    case A_ADD:
+    case SYM_ADD:
         if (REB_I64_ADD_OF(num, arg, &anum)) fail (Error(RE_OVERFLOW));
         num = anum;
         break;
 
-    case A_SUBTRACT:
+    case SYM_SUBTRACT:
         if (REB_I64_SUB_OF(num, arg, &anum)) fail (Error(RE_OVERFLOW));
         num = anum;
         break;
 
-    case A_MULTIPLY:
+    case SYM_MULTIPLY:
         if (REB_I64_MUL_OF(num, arg, &p)) fail (Error(RE_OVERFLOW));
         num = p;
         break;
 
-    case A_DIVIDE:
+    case SYM_DIVIDE:
         if (arg == 0)
             fail (Error(RE_ZERO_DIVIDE));
         if (num == MIN_I64 && arg == -1)
@@ -373,58 +428,57 @@ REBTYPE(Integer)
         }
         // Fall thru
 
-    case A_POWER:
+    case SYM_POWER:
         SET_DECIMAL(val, (REBDEC)num);
         SET_DECIMAL(val2, (REBDEC)arg);
         return T_Decimal(frame_, action);
 
-    case A_REMAINDER:
+    case SYM_REMAINDER:
         if (arg == 0) fail (Error(RE_ZERO_DIVIDE));
-        num = REM2(num, arg);
+        num = (arg != -1) ? (num % arg) : 0; // !!! was macro called REM2 (?)
         break;
 
-    case A_AND_T:
+    case SYM_AND_T:
         num &= arg;
         break;
 
-    case A_OR_T:
+    case SYM_OR_T:
         num |= arg;
         break;
 
-    case A_XOR_T:
+    case SYM_XOR_T:
         num ^= arg;
         break;
 
-    case A_NEGATE:
+    case SYM_NEGATE:
         if (num == MIN_I64) fail (Error(RE_OVERFLOW));
         num = -num;
         break;
 
-    case A_COMPLEMENT:
+    case SYM_COMPLEMENT:
         num = ~num;
         break;
 
-    case A_ABSOLUTE:
+    case SYM_ABSOLUTE:
         if (num == MIN_I64) fail (Error(RE_OVERFLOW));
         if (num < 0) num = -num;
         break;
 
-    case A_EVEN_Q:
+    case SYM_EVEN_Q:
         num = ~num;
-    case A_ODD_Q:
+    case SYM_ODD_Q:
         if (num & 1)
             return R_TRUE;
         return R_FALSE;
 
-    case A_ROUND:
+    case SYM_ROUND:
         val2 = D_ARG(3);
         n = Get_Round_Flags(frame_);
         if (D_REF(2)) { // to
             if (IS_MONEY(val2)) {
-                VAL_MONEY_AMOUNT(D_OUT) = Round_Deci(
+                SET_MONEY(D_OUT, Round_Deci(
                     int_to_deci(num), n, VAL_MONEY_AMOUNT(val2)
-                );
-                VAL_SET_TYPE_BITS(D_OUT, REB_MONEY);
+                ));
                 return R_OUT;
             }
             if (IS_DECIMAL(val2) || IS_PERCENT(val2)) {
@@ -440,10 +494,10 @@ REBTYPE(Integer)
         num = Round_Int(num, n, arg);
         break;
 
-    case A_RANDOM:
+    case SYM_RANDOM:
         if (D_REF(2)) { // seed
             Set_Random(num);
-            return R_UNSET;
+            return R_VOID;
         }
         if (num == 0) break;
         num = Random_Range(num, D_REF(3));  //!!! 64 bits
@@ -453,35 +507,6 @@ REBTYPE(Integer)
 #endif
         break;
 
-    case A_MAKE:
-    case A_TO:
-        val = D_ARG(2);
-        VAL_RESET_HEADER(D_OUT, REB_INTEGER);
-
-        if (action == A_MAKE && IS_LOGIC(val)) {
-            // !!! Due to Rebol's policies on conditional truth and falsehood,
-            // it refuses to say TO FALSE is 0.  MAKE has shades of meaning
-            // that are more "dialected", e.g. MAKE BLOCK! 10 creates a block
-            // with capacity 10 and not literally `[10]` (or a block with ten
-            // NONE! values in it).  Under that liberal umbrella it decides
-            // that it will make an integer 0 out of FALSE due to it having
-            // fewer seeming "rules" than TO would.
-
-            VAL_INT64(D_OUT) = VAL_LOGIC(val) ? 1 : 0;
-
-            // !!! The same principle could suggest MAKE is not bound by
-            // the "reversibility" requirement and hence could interpret
-            // binaries unsigned by default.  Before getting things any
-            // weirder should probably leave it as is.
-        }
-        else {
-            // use signed logic by default (use TO-INTEGER/UNSIGNED to force
-            // unsigned interpretation or error if that doesn't make sense)
-
-            Value_To_Int64(&VAL_INT64(D_OUT), val, FALSE);
-        }
-        return R_OUT;
-
     default:
         fail (Error_Illegal_Action(REB_INTEGER, action));
     }
@@ -489,17 +514,3 @@ REBTYPE(Integer)
     SET_INTEGER(D_OUT, num);
     return R_OUT;
 }
-
-
-#if !defined(NDEBUG)
-
-//
-//  VAL_INT64_Ptr_Debug: C
-//
-REBI64 *VAL_INT64_Ptr_Debug(const REBVAL *value)
-{
-    assert(IS_INTEGER(value));
-    return &m_cast(REBVAL*, value)->payload.integer.i64;
-}
-
-#endif

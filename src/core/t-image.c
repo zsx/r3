@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  t-image.c
-**  Summary: image datatype
-**  Section: datatypes
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %t-image.c
+//  Summary: "image datatype"
+//  Section: datatypes
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
@@ -41,37 +42,200 @@
 //
 //  CT_Image: C
 //
-REBINT CT_Image(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Image(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     if (mode < 0)
         return -1;
-
-    if (mode == 3)
-        return (
-            (VAL_SERIES(a) == VAL_SERIES(b) && VAL_INDEX(a) == VAL_INDEX(b))
-                ? 1
-                : 0
-        );
 
     if (
         VAL_IMAGE_WIDE(a) == VAL_IMAGE_WIDE(a)
         && VAL_IMAGE_HIGH(b) == VAL_IMAGE_HIGH(b)
     ) {
-        return (0 == Cmp_Value(a, b, LOGICAL(mode > 1))) ? 1 : 0;
+        return (0 == Cmp_Value(a, b, LOGICAL(mode == 1))) ? 1 : 0;
     }
 
     return 0;
 }
 
 
-//
-//  MT_Image: C
-//
-REBOOL MT_Image(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+void Copy_Image_Value(REBVAL *out, const REBVAL *arg, REBINT len)
 {
-    if (!Create_Image(data, out, 1)) return FALSE;
-    VAL_RESET_HEADER(out, REB_IMAGE);
-    return TRUE;
+    len = MAX(len, 0); // no negatives
+    len = MIN(len, cast(REBINT, VAL_IMAGE_LEN(arg)));
+
+    REBINT w = VAL_IMAGE_WIDE(arg);
+    w = MAX(w, 1);
+
+    REBINT h;
+    if (len <= w) {
+        h = 1;
+        w = len;
+    }
+    else
+        h = len / w;
+
+    if (w == 0)
+        h = 0;
+
+    REBSER *series = Make_Image(w, h, TRUE);
+    Val_Init_Image(out, series);
+    memcpy(VAL_IMAGE_HEAD(out), VAL_IMAGE_DATA(arg), w * h * 4);
+}
+
+
+//
+//  MAKE_Image: C
+//
+void MAKE_Image(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    if (IS_IMAGE(arg)) {
+        //
+        // make image! img
+        //
+        Copy_Image_Value(out, arg, VAL_IMAGE_LEN(arg));
+    }
+    else if (IS_BLANK(arg) || (IS_BLOCK(arg) && VAL_ARRAY_LEN_AT(arg) == 0)) {
+        //
+        // make image! [] (or none)
+        //
+        Val_Init_Image(out, Make_Image(0, 0, TRUE));
+    }
+    else if (IS_PAIR(arg)) {
+        //
+        // make image! size
+        //
+        REBINT w = VAL_PAIR_X_INT(arg);
+        REBINT h = VAL_PAIR_Y_INT(arg);
+        w = MAX(w, 0);
+        h = MAX(h, 0);
+        Val_Init_Image(out, Make_Image(w, h, TRUE));
+    }
+    else if (IS_BLOCK(arg)) {
+        //
+        // make image! [size rgb alpha index]
+        //
+        RELVAL *item = VAL_ARRAY_AT(arg);
+
+        if (!IS_PAIR(item)) goto bad_make;
+
+        REBINT w = VAL_PAIR_X_INT(item);
+        REBINT h = VAL_PAIR_Y_INT(item);
+        if (w < 0 || h < 0) goto bad_make;
+
+        REBSER *img = Make_Image(w, h, FALSE);
+        if (!img) goto bad_make;
+
+        Val_Init_Image(out, img);
+
+        REBYTE *ip = IMG_DATA(img); // image pointer
+        REBCNT size = w * h;
+
+        ++item;
+
+        if (IS_END(item)) {
+            //
+            // make image! [10x20]... already done
+        }
+        else if (IS_BINARY(item)) {
+
+            // Load image data:
+            Bin_To_RGB(ip, size, VAL_BIN_AT(item), VAL_LEN_AT(item) / 3);
+            ++item;
+
+            // !!! Review handling of END here; was not explicit before and
+            // just fell through the binary and integer tests...
+
+            // Load alpha channel data:
+            if (NOT_END(item) && IS_BINARY(item)) {
+                Bin_To_Alpha(ip, size, VAL_BIN_AT(item), VAL_LEN_AT(item));
+    //          VAL_IMAGE_TRANSP(value)=VITT_ALPHA;
+                ++item;
+            }
+
+            if (NOT_END(item) && IS_INTEGER(item)) {
+                VAL_INDEX(out) = (Int32s(KNOWN(item), 1) - 1);
+                ++item;
+            }
+        }
+        else if (IS_TUPLE(item)) {
+            Fill_Rect(cast(REBCNT*, ip), TO_PIXEL_TUPLE(item), w, w, h, TRUE);
+            ++item;
+            if (IS_INTEGER(item)) {
+                Fill_Alpha_Rect(
+                    cast(REBCNT*, ip), cast(REBYTE, VAL_INT32(item)), w, w, h
+                );
+    //          VAL_IMAGE_TRANSP(value)=VITT_ALPHA;
+                ++item;
+            }
+        }
+        else if (IS_BLOCK(item)) {
+            REBCNT bad_index;
+            if (Array_Has_Non_Tuple(&bad_index, item))
+                fail (Error_Invalid_Arg_Core(
+                    VAL_ARRAY_AT_HEAD(item, bad_index),
+                    IS_SPECIFIC(item)
+                        ? VAL_SPECIFIER(KNOWN(item))
+                        : VAL_SPECIFIER(arg)
+                ));
+
+            Tuples_To_RGBA(
+                ip, size, KNOWN(VAL_ARRAY_AT(item)), VAL_LEN_AT(item)
+            );
+        }
+        else
+            goto bad_make;
+
+        assert(IS_IMAGE(out));
+    }
+    else
+        fail (Error_Invalid_Type(VAL_TYPE(arg)));
+
+    return;
+
+bad_make:
+    fail (Error_Bad_Make(kind, arg));
+}
+
+
+//
+//  TO_Image: C
+//
+void TO_Image(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    if (IS_IMAGE(arg)) {
+        Copy_Image_Value(out, arg, VAL_IMAGE_LEN(arg));
+    }
+    else if (IS_GOB(arg)) {
+        REBSER *series = OS_GOB_TO_IMAGE(VAL_GOB(arg));
+        if (!series)
+            fail (Error_Bad_Make(REB_IMAGE, arg));
+        Val_Init_Image(out, series);
+    }
+    else if (IS_BINARY(arg)) {
+        REBINT diff = VAL_LEN_AT(arg) / 4;
+        if (diff == 0)
+            fail (Error_Bad_Make(REB_IMAGE, arg));
+
+        REBINT w;
+        if (diff < 100) w = diff;
+        else if (diff < 10000) w = 100;
+        else w = 500;
+
+        REBINT h = diff / w;
+        if (w * h < diff) h++; // partial line
+
+        REBSER *series = Make_Image(w, h, TRUE);
+        Val_Init_Image(out, series);
+        Bin_To_RGBA(
+            IMG_DATA(series),
+            w * h,
+            VAL_BIN_AT(arg),
+            VAL_LEN_AT(arg) / 4,
+            FALSE
+        );
+    }
+    else
+        fail (Error_Invalid_Type(VAL_TYPE(arg)));
 }
 
 
@@ -279,7 +443,7 @@ void Bin_To_Alpha(REBYTE *rgba, REBCNT size, REBYTE *bin, REBINT len)
 // TRUE and `index_out` will contain the index position from the head of
 // the array of the non-tuple.  Otherwise returns FALSE.
 //
-REBOOL Array_Has_Non_Tuple(REBCNT *index_out, REBVAL *blk)
+REBOOL Array_Has_Non_Tuple(REBCNT *index_out, RELVAL *blk)
 {
     REBCNT len;
 
@@ -385,7 +549,7 @@ void Mold_Image_Data(const REBVAL *value, REB_MOLD *mold)
 //
 //  Make_Image_Binary: C
 //
-REBSER *Make_Image_Binary(REBVAL *image)
+REBSER *Make_Image_Binary(const REBVAL *image)
 {
     REBSER *ser;
     REBINT len;
@@ -438,88 +602,12 @@ void Clear_Image(REBVAL *img)
 
 
 //
-//  Create_Image: C
-// 
-// Create an image value from components block [pair rgb alpha].
-//
-REBVAL *Create_Image(REBVAL *block, REBVAL *val, REBCNT modes)
-{
-    REBINT w, h;
-    REBYTE *ip; // image pointer
-    REBCNT size;
-    REBSER *img;
-
-    // Check that PAIR is valid:
-    if (!IS_PAIR(block)) return 0;
-    w = VAL_PAIR_X_INT(block);
-    h = VAL_PAIR_Y_INT(block);
-    if (w < 0 || h < 0) return 0;
-
-    img = Make_Image(w, h, FALSE);
-    if (img == 0) return 0;
-    Val_Init_Image(val, img);
-
-    ip = IMG_DATA(img);
-    size = w * h;
-
-    //len = VAL_ARRAY_LEN_AT(arg);
-    block++;
-
-    if (IS_END(block)) return val;
-
-    if (IS_BINARY(block)) {
-
-        // Load image data:
-        Bin_To_RGB(ip, size, VAL_BIN_AT(block), VAL_LEN_AT(block) / 3);
-        block++;
-
-        // !!! Review handling of END here; was not explicit before and
-        // just fell through the binary and integer tests...
-
-        // Load alpha channel data:
-        if (NOT_END(block) && IS_BINARY(block)) {
-            Bin_To_Alpha(ip, size, VAL_BIN_AT(block), VAL_LEN_AT(block));
-//          VAL_IMAGE_TRANSP(value)=VITT_ALPHA;
-            block++;
-        }
-
-        if (NOT_END(block) && IS_INTEGER(block)) {
-            VAL_INDEX(val) = (Int32s(block, 1) - 1);
-            block++;
-        }
-    }
-    else if (IS_TUPLE(block)) {
-        Fill_Rect((REBCNT *)ip, TO_PIXEL_TUPLE(block), w, w, h, TRUE);
-        block++;
-        if (IS_INTEGER(block)) {
-            Fill_Alpha_Rect((REBCNT *)ip, (REBYTE)VAL_INT32(block), w, w, h);
-//          VAL_IMAGE_TRANSP(value)=VITT_ALPHA;
-            block++;
-        }
-    }
-    else if (IS_BLOCK(block)) {
-        REBCNT bad_index;
-        if (Array_Has_Non_Tuple(&bad_index, block))
-            fail (Error_Invalid_Arg(VAL_ARRAY_AT_HEAD(block, bad_index)));
-
-        Tuples_To_RGBA(ip, size, VAL_ARRAY_AT(block), VAL_LEN_AT(block));
-    }
-    else
-        return NULL;
-
-    //if (NOT_END(block)) fail (Error_Invalid_Arg(block));
-
-    return val;
-}
-
-
-//
 //  Modify_Image: C
 // 
 // Insert or change image
 // ACTION value arg /part len /only /dup count
 //
-REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
+REBVAL *Modify_Image(REBFRM *frame_, REBCNT action)
 {
     REBVAL  *value = D_ARG(1);
     REBVAL  *arg   = D_ARG(2);
@@ -540,9 +628,9 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
 
     if (!(w = VAL_IMAGE_WIDE(value))) return value;
 
-    if (action == A_APPEND) {
+    if (action == SYM_APPEND) {
         index = tail;
-        action = A_INSERT;
+        action = SYM_INSERT;
     }
 
     x = index % w; // offset on the line
@@ -552,7 +640,9 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
 
     // Validate that block arg is all tuple values:
     if (IS_BLOCK(arg) && Array_Has_Non_Tuple(&n, arg))
-        fail (Error_Invalid_Arg(VAL_ARRAY_AT_HEAD(arg, n)));
+        fail (Error_Invalid_Arg_Core(
+            VAL_ARRAY_AT_HEAD(arg, n), VAL_SPECIFIER(arg)
+        ));
 
     // Get the /dup refinement. It specifies fill size.
     if (D_REF(6)) {
@@ -566,14 +656,14 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
             dupx = MAX(dupx, 0);
             dupx = MIN(dupx, (REBINT)w - x); // clip dup width
             dupy = MAX(dupy, 0);
-            if (action != A_INSERT)
+            if (action != SYM_INSERT)
                 dupy = MIN(dupy, (REBINT)VAL_IMAGE_HIGH(value) - y);
             else
                 dup = dupy * w;
             if (dupx == 0 || dupy == 0) return value;
         }
         else
-            fail (Error_Has_Bad_Type(count));
+            fail (Error_Invalid_Type(VAL_TYPE(count)));
     }
 
     // Get the /part refinement. Only allowed when arg is a series.
@@ -604,14 +694,14 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
                 partx = MAX(partx, 0);
                 partx = MIN(partx, (REBINT)w - x); // clip part width
                 party = MAX(party, 0);
-                if (action != A_INSERT)
+                if (action != SYM_INSERT)
                     party = MIN(party, (REBINT)VAL_IMAGE_HIGH(value) - y);
                 else
                     part = party * w;
                 if (partx == 0 || party == 0) return value;
             }
             else
-                fail (Error_Has_Bad_Type(len));
+                fail (Error_Invalid_Type(VAL_TYPE(len)));
         }
         else
             fail (Error_Invalid_Arg(arg)); // /part not allowed
@@ -621,7 +711,7 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
             partx = VAL_IMAGE_WIDE(arg);
             party = VAL_IMAGE_HIGH(arg);
             partx = MIN(partx, (REBINT)w - x); // clip part width
-            if (action != A_INSERT)
+            if (action != SYM_INSERT)
                 party = MIN(party, (REBINT)VAL_IMAGE_HIGH(value) - y);
             else
                 part = party * w;
@@ -631,11 +721,11 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
             part = VAL_LEN_AT(arg);
         }
         else if (!IS_INTEGER(arg) && !IS_TUPLE(arg))
-            fail (Error_Has_Bad_Type(arg));
+            fail (Error_Invalid_Type(VAL_TYPE(arg)));
     }
 
     // Expand image data if necessary:
-    if (action == A_INSERT) {
+    if (action == SYM_INSERT) {
         if (index > tail) index = tail;
         Expand_Series(VAL_SERIES(value), index, dup * part);
         RESET_IMAGE(VAL_BIN(value) + (index * 4), dup * part); //length in 'pixels'
@@ -677,14 +767,14 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
         if (index + part > tail) part = tail - index; // clip it
         ip += index * 4;
         for (; dup > 0; dup--, ip += part * 4)
-            Tuples_To_RGBA(ip, part, VAL_ARRAY_AT(arg), part);
+            Tuples_To_RGBA(ip, part, KNOWN(VAL_ARRAY_AT(arg)), part);
     }
     else
-        fail (Error_Has_Bad_Type(arg));
+        fail (Error_Invalid_Type(VAL_TYPE(arg)));
 
     Reset_Height(value);
 
-    if (action == A_APPEND) VAL_INDEX(value) = 0;
+    if (action == SYM_APPEND) VAL_INDEX(value) = 0;
     return value;
 }
 
@@ -695,7 +785,7 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
 // Finds a value in a series and returns the series at the start of it.
 // 
 //      1 image
-//      2 value [opt-any-value!]
+//      2 value [<opt> any-value!]
 //      3 /part {Limits the search to a given length or position.}
 //      4 range [any-number! any-series! port!]
 //      5 /only {ignore alpha value.}
@@ -710,7 +800,7 @@ REBVAL *Modify_Image(struct Reb_Frame *frame_, REBCNT action)
 //     14 /last  {Backwards from end of string.}
 //     15 /reverse {Backwards from the current position.}
 //
-REBVAL *Find_Image(struct Reb_Frame *frame_)
+REBVAL *Find_Image(REBFRM *frame_)
 {
     REBVAL  *value = D_ARG(1);
     REBVAL  *arg   = D_ARG(2);
@@ -724,7 +814,7 @@ REBVAL *Find_Image(struct Reb_Frame *frame_)
     REBYTE  no_refs[10] = {5, 6, 7, 8, 9, 10, 13, 14}; // ref - 1 (invalid refinements)
 
     len = tail - index;
-    if (!len) goto find_none;
+    if (!len) goto find_blank;
 
     for (n = 0; n < 8; n++) // (zero based)
         if (D_REF(no_refs[n]))
@@ -744,21 +834,21 @@ REBVAL *Find_Image(struct Reb_Frame *frame_)
         p = 0;
     }
     else
-        fail (Error_Has_Bad_Type(arg));
+        fail (Error_Invalid_Type(VAL_TYPE(arg)));
 
     // Post process the search (failure or apply /match and /tail):
     if (p) {
         n = (REBCNT)(p - (REBCNT *)VAL_IMAGE_HEAD(value));
         if (D_REF(11)) { // match
-            if (n != (REBINT)index) goto find_none;
+            if (n != (REBINT)index) goto find_blank;
             n++;
         } else if (D_REF(12)) n++; // /tail
         index = n;
         VAL_INDEX(value) = index;
         return value;
     }
-find_none:
-    return NONE_VALUE;
+find_blank:
+    return BLANK_VALUE;
 }
 
 
@@ -843,52 +933,52 @@ REBTYPE(Image)
     REBVAL  *val;
 
     // Clip index if past tail:
-    if (action != A_MAKE && action != A_TO) {
-        series = VAL_SERIES(value);
-        index = VAL_INDEX(value);
-        tail = (REBINT)SER_LEN(series);
-        if (index > tail) index = tail;
-    }
+    series = VAL_SERIES(value);
+    index = VAL_INDEX(value);
+    tail = (REBINT)SER_LEN(series);
+    if (index > tail) index = tail;
 
     // Check must be in this order (to avoid checking a non-series value);
-    if (action >= A_TAKE && action <= A_SORT)
+    if (action >= SYM_TAKE && action <= SYM_SORT)
         FAIL_IF_LOCKED_SERIES(series);
 
     // Dispatch action:
     switch (action) {
 
-    case A_HEAD:
+    case SYM_HEAD:
         VAL_INDEX(value) = 0;
         break;
 
-    case A_TAIL:
+    case SYM_TAIL:
         VAL_INDEX(value) = (REBCNT)tail;
         break;
 
-    case A_HEAD_Q:
-        DECIDE(index == 0);
+    case SYM_HEAD_Q:
+        return (index == 0) ? R_TRUE : R_FALSE;
 
-    case A_TAIL_Q:
-        DECIDE(index >= tail);
+    case SYM_TAIL_Q:
+        return (index >= tail) ? R_TRUE : R_FALSE;
 
-    case A_NEXT:
+    case SYM_NEXT:
         if (index < tail) VAL_INDEX(value)++;
         break;
 
-    case A_BACK:
+    case SYM_BACK:
         if (index > 0) VAL_INDEX(value)--;
         break;
 
-    case A_COMPLEMENT:
+    case SYM_COMPLEMENT:
         series = Complement_Image(value);
         Val_Init_Image(value, series); // use series var not func
         break;
 
-    case A_INDEX_OF:
+    case SYM_INDEX_OF:
         if (D_REF(2)) {
-            VAL_RESET_HEADER(D_OUT, REB_PAIR);
-            VAL_PAIR_X(D_OUT) = cast(REBD32, index % VAL_IMAGE_WIDE(value));
-            VAL_PAIR_Y(D_OUT) = cast(REBD32, index / VAL_IMAGE_WIDE(value));
+            SET_PAIR(
+                D_OUT,
+                index % VAL_IMAGE_WIDE(value),
+                index / VAL_IMAGE_WIDE(value)
+            );
             return R_OUT;
         }
         else {
@@ -896,32 +986,32 @@ REBTYPE(Image)
             return R_OUT;
         }
         // fallthrough
-    case A_LENGTH:
+    case SYM_LENGTH:
         SET_INTEGER(D_OUT, tail > index ? tail - index : 0);
         return R_OUT;
 
-    case A_PICK:
+    case SYM_PICK:
         Pick_Path(D_OUT, value, arg, 0);
         return R_OUT;
 
-    case A_POKE:
+    case SYM_POKE:
         Pick_Path(D_OUT, value, arg, D_ARG(3));
         *D_OUT = *D_ARG(3);
         return R_OUT;
 
-    case A_SKIP:
-    case A_AT:
+    case SYM_SKIP:
+    case SYM_AT:
         // This logic is somewhat complicated by the fact that INTEGER args use
         // base-1 indexing, but PAIR args use base-0.
         if (IS_PAIR(arg)) {
-            if (action == A_AT) action = A_SKIP;
+            if (action == SYM_AT) action = SYM_SKIP;
             diff = (VAL_PAIR_Y_INT(arg) * VAL_IMAGE_WIDE(value) + VAL_PAIR_X_INT(arg)) +
-                ((action == A_SKIP) ? 0 : 1);
+                ((action == SYM_SKIP) ? 0 : 1);
         } else
             diff = Get_Num_From_Arg(arg);
 
         index += diff;
-        if (action == A_SKIP) {
+        if (action == SYM_SKIP) {
             if (IS_LOGIC(arg)) index--;
         } else {
             if (diff > 0) index--; // For at, pick, poke.
@@ -941,7 +1031,7 @@ REBTYPE(Image)
         if (diff == 0 || index < 0 || index >= tail) {
             if (action == A_POKE)
                 fail (Error_Out_Of_Range(arg));
-            goto is_none;
+            goto is_blank;
         }
 
         if (action == A_POKE) {
@@ -975,14 +1065,14 @@ REBTYPE(Image)
         break;
 #endif
 
-    case A_CLEAR:   // clear series
+    case SYM_CLEAR:   // clear series
         if (index < tail) {
             SET_SERIES_LEN(VAL_SERIES(value), cast(REBCNT, index));
             Reset_Height(value);
         }
         break;
 
-    case A_REMOVE:  // remove series /part count
+    case SYM_REMOVE:  // remove series /part count
         if (D_REF(2)) {
             val = D_ARG(3);
             if (IS_INTEGER(val)) {
@@ -992,7 +1082,7 @@ REBTYPE(Image)
                 len = VAL_INDEX(val) - VAL_INDEX(value); // may not be same, is ok
             }
             else
-                fail (Error_Has_Bad_Type(val));
+                fail (Error_Invalid_Type(VAL_TYPE(val)));
         }
         else len = 1;
 
@@ -1003,80 +1093,17 @@ REBTYPE(Image)
         Reset_Height(value);
         break;
 
-    case A_APPEND:
-    case A_INSERT:  // insert ser val /part len /only /dup count
-    case A_CHANGE:  // change ser val /part len /only /dup count
+    case SYM_APPEND:
+    case SYM_INSERT:  // insert ser val /part len /only /dup count
+    case SYM_CHANGE:  // change ser val /part len /only /dup count
         value = Modify_Image(frame_, action); // sets DS_OUT
         break;
 
-    case A_FIND:    // find   ser val /part len /only /case /any /with wild /match /tail
+    case SYM_FIND:    // find   ser val /part len /only /case /any /with wild /match /tail
         Find_Image(frame_); // sets DS_OUT
         break;
 
-    case A_TO:
-        if (IS_IMAGE(arg)) goto makeCopy;
-        else if (IS_GOB(arg)) {
-            //value = Make_Image(ROUND_TO_INT(GOB_W(VAL_GOB(arg))), ROUND_TO_INT(GOB_H(VAL_GOB(arg))));
-            //*D_OUT = *value;
-            series = OS_GOB_TO_IMAGE(VAL_GOB(arg));
-            if (!series) fail (Error_Bad_Make(REB_IMAGE, arg));
-            Val_Init_Image(value, series);
-            break;
-        }
-        else if (IS_BINARY(arg)) {
-            diff = VAL_LEN_AT(arg) / 4;
-            if (diff == 0) fail (Error_Bad_Make(REB_IMAGE, arg));
-            if (diff < 100) w = diff;
-            else if (diff < 10000) w = 100;
-            else w = 500;
-            h = diff / w;
-            if (w * h < diff) h++; // partial line
-            series = Make_Image(w, h, TRUE);
-            Val_Init_Image(value, series);
-            Bin_To_RGBA(
-                IMG_DATA(series),
-                w * h,
-                VAL_BIN_AT(arg),
-                VAL_LEN_AT(arg) / 4,
-                FALSE
-            );
-            break;
-        }
-        fail (Error_Has_Bad_Type(arg));
-
-    case A_MAKE:
-        // make image! img
-        if (IS_IMAGE(arg)) goto makeCopy;
-
-        // make image! [] (or none)
-        if (IS_IMAGE(value) && (IS_NONE(arg) || (IS_BLOCK(arg) && (VAL_ARRAY_LEN_AT(arg) == 0)))) {
-            arg = value;
-            goto makeCopy;
-        }
-
-        // make image! size
-        if (IS_PAIR(arg)) {
-            w = VAL_PAIR_X_INT(arg);
-            h = VAL_PAIR_Y_INT(arg);
-            w = MAX(w, 0);
-            h = MAX(h, 0);
-            series = Make_Image(w, h, TRUE);
-            Val_Init_Image(value, series);
-            break;
-        }
-//      else if (IS_NONE(arg)) {
-//          *value = *Make_Image(0, 0);
-//          CLEAR_IMAGE(VAL_IMAGE_HEAD(value), 0, 0);
-//          break;
-//      }
-        // make image! [size rgb alpha index]
-        else if (IS_BLOCK(arg)) {
-            if (Create_Image(VAL_ARRAY_AT(arg), value, 0)) break;
-        }
-        fail (Error_Has_Bad_Type(arg));
-        break;
-
-    case A_COPY:  // copy series /part len
+    case SYM_COPY:  // copy series /part len
         if (!D_REF(2)) {
             arg = value;
             goto makeCopy;
@@ -1114,25 +1141,14 @@ REBTYPE(Image)
 //          VAL_IMAGE_TRANSP(D_OUT) = VAL_IMAGE_TRANSP(value);
             return R_OUT;
         }
-        fail (Error_Has_Bad_Type(arg));
+        fail (Error_Invalid_Type(VAL_TYPE(arg)));
 
 makeCopy:
         // Src image is arg.
         len = VAL_IMAGE_LEN(arg);
 makeCopy2:
-        len = MAX(len, 0); // no negatives
-        len = MIN(len, (REBINT)VAL_IMAGE_LEN(arg));
-        w = VAL_IMAGE_WIDE(arg);
-        w = MAX(w, 1);
-        if (len <= w) h = 1, w = len;
-        else h = len / w;
-        if (w == 0) h = 0;
-        series = Make_Image(w, h, TRUE);
-        Val_Init_Image(D_OUT, series);
-        memcpy(VAL_IMAGE_HEAD(D_OUT), VAL_IMAGE_DATA(arg), w * h * 4);
-//      VAL_IMAGE_TRANSP(D_OUT) = VAL_IMAGE_TRANSP(arg);
+        Copy_Image_Value(D_OUT, arg, len);
         return R_OUT;
-        break;
 
     default:
         fail (Error_Illegal_Action(VAL_TYPE(value), action));
@@ -1140,12 +1156,6 @@ makeCopy2:
 
     *D_OUT = *value;
     return R_OUT;
-
-is_false:
-    return R_FALSE;
-
-is_true:
-    return R_TRUE;
 }
 
 
@@ -1154,7 +1164,7 @@ is_true:
 //
 REBINT PD_Image(REBPVS *pvs)
 {
-    REBVAL *data = pvs->value;
+    RELVAL *data = pvs->value;
     const REBVAL *sel = pvs->selector;
     const REBVAL *setval;
     REBINT n;
@@ -1176,12 +1186,13 @@ REBINT PD_Image(REBPVS *pvs)
     else if (IS_LOGIC(sel))   n = (VAL_LOGIC(sel) ? 1 : 2);
     else if (IS_WORD(sel)) {
         if (!pvs->opt_setval) {
-            switch (VAL_WORD_CANON(sel)) {
-
+            switch (VAL_WORD_SYM(sel)) {
             case SYM_SIZE:
-                VAL_RESET_HEADER(pvs->store, REB_PAIR);
-                VAL_PAIR_X(pvs->store) = (REBD32)VAL_IMAGE_WIDE(data);
-                VAL_PAIR_Y(pvs->store) = (REBD32)VAL_IMAGE_HIGH(data);
+                SET_PAIR(
+                    pvs->store,
+                    VAL_IMAGE_WIDE(data),
+                    VAL_IMAGE_HIGH(data)
+                );
                 break;
 
             case SYM_RGB:
@@ -1207,8 +1218,7 @@ REBINT PD_Image(REBPVS *pvs)
             FAIL_IF_LOCKED_SERIES(series);
             setval = pvs->opt_setval;
 
-            switch (VAL_WORD_CANON(sel)) {
-
+            switch (VAL_WORD_SYM(sel)) {
             case SYM_SIZE:
                 if (!IS_PAIR(setval) || !VAL_PAIR_X(setval))
                     fail (Error_Bad_Path_Set(pvs));

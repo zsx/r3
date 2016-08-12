@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  p-console.c
-**  Summary: console port interface
-**  Section: ports
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %p-console.c
+//  Summary: "console port interface"
+//  Section: ports
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
@@ -42,7 +43,7 @@
 //
 //  Console_Actor: C
 //
-static REB_R Console_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
+static REB_R Console_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
     REBREQ *req;
     REBINT result;
@@ -58,7 +59,7 @@ static REB_R Console_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action
 
     switch (action) {
 
-    case A_READ:
+    case SYM_READ:
 
         // If not open, open it:
         if (!IS_OPEN(req)) {
@@ -72,9 +73,14 @@ static REB_R Console_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action
             Val_Init_Binary(arg, MAKE_OS_BUFFER(OUT_BUF_SIZE));
         }
         ser = VAL_SERIES(arg);
-        RESET_SERIES(ser);
+        SET_SERIES_LEN(ser, 0);
+        TERM_SERIES(ser);
 
-        req->common.data = BIN_HEAD(ser);
+        // !!! May be a 2-byte wide series on Windows for wide chars, in
+        // which case the length is not bytes??  (Can't use BIN_DATA here
+        // because that asserts width is 1...)
+        //
+        req->common.data = SER_DATA_RAW(ser);
         req->length = SER_AVAIL(ser);
 
 #ifdef nono
@@ -113,16 +119,16 @@ static REB_R Console_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action
         Val_Init_Binary(D_OUT, Copy_Bytes(req->common.data, req->actual));
         break;
 
-    case A_OPEN:
+    case SYM_OPEN:
         SET_OPEN(req);
         break;
 
-    case A_CLOSE:
+    case SYM_CLOSE:
         SET_CLOSED(req);
         //OS_DO_DEVICE(req, RDC_CLOSE);
         break;
 
-    case A_OPEN_Q:
+    case SYM_OPEN_Q:
         if (IS_OPEN(req)) return R_TRUE;
         return R_FALSE;
 
@@ -139,5 +145,5 @@ static REB_R Console_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action
 //
 void Init_Console_Scheme(void)
 {
-    Register_Scheme(SYM_CONSOLE, 0, Console_Actor);
+    Register_Scheme(Canon(SYM_CONSOLE), Console_Actor);
 }

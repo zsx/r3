@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  s-ops.c
-**  Summary: string handling utilities
-**  Section: strings
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %s-ops.c
+//  Summary: "string handling utilities"
+//  Section: strings
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
@@ -167,7 +168,7 @@ REBYTE *Temp_Byte_Chars_May_Fail(
 // instead of managing a created result they could be responsible
 // for freeing it if so.
 //
-REBSER *Temp_Bin_Str_Managed(REBVAL *val, REBCNT *index, REBCNT *length)
+REBSER *Temp_Bin_Str_Managed(const REBVAL *val, REBCNT *index, REBCNT *length)
 {
     REBCNT len = (length && *length) ? *length : VAL_LEN_AT(val);
     REBSER *series;
@@ -181,7 +182,13 @@ REBSER *Temp_Bin_Str_Managed(REBVAL *val, REBCNT *index, REBCNT *length)
     // reallocate under a new width) so consider having an EMPTY_BYTE_STRING
     // like EMPTY_ARRAY which is protected to hand back.
     //
-    if (IS_BINARY(val) || VAL_STR_IS_ASCII(val)) {
+    if (
+        IS_BINARY(val)
+        || (
+            VAL_BYTE_SIZE(val)
+            && All_Bytes_ASCII(VAL_BIN_AT(val), VAL_LEN_AT(val))
+        )
+    ){
         //
         // It's BINARY!, or an ANY-STRING! whose codepoints are all values in
         // ASCII (0x00 => 0x7F), hence not needing any UTF-8 encoding.
@@ -210,9 +217,8 @@ REBSER *Temp_Bin_Str_Managed(REBVAL *val, REBCNT *index, REBCNT *length)
         // model to clean up the series.)
         {
             REBVAL protect;
-            VAL_INIT_WRITABLE_DEBUG(&protect);
-
             Val_Init_String(&protect, series);
+
             Protect_Value(&protect, FLAGIT(PROT_SET));
 
             // just a string...not /DEEP...shouldn't need to Unmark()
@@ -275,16 +281,16 @@ REBSER *Xandor_Binary(REBCNT action, REBVAL *value, REBVAL *arg)
         p2 = BIN_HEAD(series);
 
         switch (action) {
-        case A_AND_T:
+        case SYM_AND_T: // and~
             for (i = 0; i < mt; i++) *p2++ = *p0++ & *p1++;
             CLEAR(p2, t2 - mt);
             return series;
 
-        case A_OR_T:
+        case SYM_OR_T: // or~
             for (i = 0; i < mt; i++) *p2++ = *p0++ | *p1++;
             break;
 
-        case A_XOR_T:
+        case SYM_XOR_T: // xor~
             for (i = 0; i < mt; i++) *p2++ = *p0++ ^ *p1++;
             break;
 
@@ -850,5 +856,5 @@ REBARR *Split_Lines(REBVAL *val)
         SET_VAL_FLAG(val, VALUE_FLAG_LINE);
     }
 
-    return Copy_Array_Shallow(array);
+    return Copy_Array_Shallow(array, SPECIFIED); // no relative values
 }

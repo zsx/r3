@@ -13,7 +13,7 @@ REBOL [
 
 empty?: func [
     {Returns TRUE if empty or NONE, or for series if index is at or beyond its tail.}
-    series [any-series! object! gob! port! bitset! map! none!]
+    series [any-series! object! gob! port! bitset! map! blank!]
 ][
     tail? series
 ]
@@ -24,13 +24,6 @@ offset-of: func [
     series2 [any-series!]
 ][
     subtract index-of series2 index-of series1
-]
-
-found?: func [
-    "Returns TRUE if value is not NONE."
-    value
-][
-    not none? :value
 ]
 
 last?: single?: func [
@@ -68,7 +61,7 @@ remold: func [
     /all  {Mold in serialized format}
     /flat {No indentation}
 ][
-    mold/:only/:all/:flat reduce :value
+    mold/(if only 'only)/(if all 'all)/(if flat 'flat) reduce :value
 ]
 
 charset: func [
@@ -98,8 +91,8 @@ array: func [
     /local block rest
 ][
     if block? size [
-        if tail? rest: next size [rest: none]
-        unless integer? set/opt 'size first size [
+        if tail? rest: next size [rest: _]
+        unless integer? size: first size [
             cause-error 'script 'expect-arg reduce ['array 'size type-of :size]
         ]
     ]
@@ -115,13 +108,13 @@ array: func [
             loop size [block: insert/only block value] ; Called every time
         ]
         'default [
-            insert/dup block either initial [value][none] size
+            insert/dup block either initial [value][_] size
         ]
     ]
     head block
 ]
 
-replace: func [
+replace: function [
     "Replaces a search value with the replace value within the target series."
     target  [any-series!] "Series to replace within (modified)"
     pattern "Value to be replaced (converted if necessary)"
@@ -132,10 +125,11 @@ replace: func [
     /case "Case-sensitive replacement"
     /tail "Return target after the last replacement position"
 
-    /local save-target len value pos do-break
-
     ; Consider adding an /any refinement to use find/any, once that works.
 ][
+    case_REPLACE: case
+    case: :lib/case
+
     save-target: target
 
     ; !!! These conversions being missing seems a problem with FIND the native
@@ -151,7 +145,7 @@ replace: func [
     ; Note that if a FORM actually happens inside of FIND, it could wind up
     ; happening repeatedly in the /ALL case if that happens.
 
-    len: lib/case [
+    len: case [
         ; leave bitset patterns as-is regardless of target type, len = 1
         bitset? :pattern 1
 
@@ -171,7 +165,7 @@ replace: func [
         true 1
     ]
 
-    while [pos: find/:case target :pattern] [
+    while [pos: find/(if case_REPLACE 'case) target :pattern] [
         ; apply replacement if function, or drops pos if not
         ; the parens quarantine function invocation to maximum arity of 1
         (value: replacement pos)
@@ -200,7 +194,7 @@ reword: function [
         "Use values as-is, do not reduce the block, insert block values"
     /escape
         "Choose your own escape char(s) or [begin end] delimiters"
-    char [char! any-string! binary! block! none!]
+    char [char! any-string! binary! block! blank!]
         {Default "$"}
     /into
         "Insert into a buffer instead (returns position after insert)"
@@ -224,7 +218,7 @@ reword: function [
     ; Determine the escape delimiter(s), if any
     ;
     char: to-value :char
-    char-end: none
+    char-end: _
     case/all [
         not escape [char: "$"]
         block? char [
@@ -247,13 +241,13 @@ reword: function [
             empty? char-end  ; If we have char-end, it gets appended to the keys
             for-each [w v] values [
                 ; Key types must match wtype and no unset values allowed
-                if any [unset? :v wtype <> type-of :w] [break/return false]
+                if any [void? :v wtype <> type-of :w] [break/return false]
                 true
             ]
         ] [vals: values]  ; Success, so use it
 
         ; Otherwise, convert keywords to wtype, remove duplicates and empties
-        ; Last duplicate keyword wins; empty keywords + unset + none removed
+        ; Last duplicate keyword wins; empty keywords + unset + blank removed
         ; Any trailing delimiter is added to the end of the key for convenience
         ;
         all [
@@ -262,17 +256,18 @@ reword: function [
         ] [
             while [not tail? values] [
                 w: first+ values  ; Keywords are not evaluated
-                set/opt 'v do/next values 'values
+                v: do/next values 'values
                 if any [set-word? :w lit-word? :w] [w: to word! :w]
                 case [
-                    wtype = type-of :w none
+                    wtype = type-of :w blank
                     wtype <> binary! [w: to wtype :w]
                     any-string? :w [w: to binary! :w]
                     'else [w: to binary! to string! :w]
                 ]
                 unless empty? w [
                     unless empty? char-end [w: append copy w char-end]
-                    poke vals w unless unset? :v [:v]
+                    poke vals w
+                    :v ;-- may be void
                 ]
             ]
         ]
@@ -283,14 +278,15 @@ reword: function [
             for-each [w v] values [  ; for-each can be used on all values types
                 if any [set-word? :w lit-word? :w] [w: to word! :w]
                 case [
-                    wtype = type-of :w none
+                    wtype = type-of :w blank
                     wtype <> binary! [w: to wtype :w]
                     any-string? :w [w: to binary! :w]
                     'else [w: to binary! to string! :w]
                 ]
                 unless empty? w [
                     unless empty? char-end [w: append copy w char-end]
-                    poke vals w unless unset? :v [:v]
+                    poke vals w
+                    :v ;-- may be void
                 ]
             ]
         ]
@@ -304,7 +300,7 @@ reword: function [
 
     ; Convert keyword if the type doesn't match
     ;
-    cword: pick [(w: to wtype w)] wtype <> type-of source
+    cword: to-value pick [(w: to wtype w)] wtype <> type-of source
     set/opt [out: fout:] pick [
         [   ; Convert to string if type combination needs it
             (output: insert output to string! copy/part a b)
@@ -331,10 +327,10 @@ reword: function [
     ][
         ; Starting escape string defined, use regular TO
         if wtype <> type-of char [char: to wtype char]
-        [a: any [to char b: char [escape | none]] to end fout]
+        [a: any [to char b: char [escape | blank]] to end fout]
     ]
 
-    parse/:case_REWORD source rule
+    parse/(if case_REWORD 'case) source rule
 
     ; Return end of output with /into, head otherwise
     either into [output] [head output]
@@ -369,7 +365,7 @@ extract: func [
     width [integer!] "Size of each entry (the skip)"
     /index "Extract from an offset position"
     pos "The position(s)" [any-number! logic! block!]
-    /default "Use a default value instead of none"
+    /default "Use a default value instead of blank"
     value "The value to use (will be called each time if a function)"
     /into "Insert into a buffer instead (returns position after insert)"
     output [any-series!] "The buffer series (modified)"
@@ -384,17 +380,17 @@ extract: func [
     unless index [pos: 1]
     either block? pos [
         unless parse pos [some [any-number! | logic!]] [cause-error 'Script 'invalid-arg reduce [pos]]
-        if unset? :output [output: make series len * length pos]
+        if void? :output [output: make series len * length pos]
         if all [not default any-string? output] [value: copy ""]
         for-skip series width [for-next pos [
-            if none? set/opt 'val pick series pos/1 [set/opt 'val value]
+            if void? val: pick series pos/1 [val: value]
             output: insert/only output :val
         ]]
     ][
-        if unset? :output [output: make series len]
+        if void? :output [output: make series len]
         if all [not default any-string? output] [value: copy ""]
         for-skip series width [
-            if none? set/opt 'val pick series pos [set/opt 'val value]
+            if void? val: pick series pos [val: value]
             output: insert/only output :val
         ]
     ]
@@ -414,15 +410,16 @@ alter: func [
             append series :value true
         ]
     ]
-    found? unless remove (
-        either case [find/case series :value] [find series :value]
-    ) [append series :value]
+    unless? remove (find/(if case ['case]) series :value) [
+        append series :value ;-- returns true if this branch runs, false if not
+    ]
 ]
 
 
 collect-with: func [
     "Evaluate body, and return block of values collected via keep function."
 
+    return: [block!]
     'name [word! lit-word!]
         "Name to which keep function will be assigned (<local> if word!)"
     body [block!]
@@ -437,9 +434,11 @@ collect-with: func [
     output: any [:output make block! 16]
 
     keeper: func [
-        value [opt-any-value!] /only
+        return: [<opt> any-value!]
+        value [<opt> any-value!]
+        /only
     ][
-        output: insert/:only output :value
+        output: insert/(if only 'only) output :value
         :value
     ]
 
@@ -449,7 +448,7 @@ collect-with: func [
         ; that word.  FUNC does binding and variable creation so let it
         ; do the work.
         ;
-        eval func reduce [<no-return> name] body :keeper
+        eval func reduce [<no-return> name [function!]] body :keeper
     ][
         ; A lit-word `name` indicates that the word for the keeper already
         ; exists.  Set the variable and DO the body bound as-is.
@@ -531,28 +530,29 @@ printf: func [
     print format :fmt :val
 ]
 
-split: func [
-    "Split a series into pieces; fixed or variable size, fixed number, or at delimiters"
-    series  [any-series!] "The series to split"
-    dlm     [block! integer! char! bitset! any-string!] "Split size, delimiter(s), or rule(s)."
-    /into   "If dlm is an integer, split into n pieces, rather than pieces of length n."
-    /local size piece-size count mk1 mk2 res fill-val add-fill-val
+split: function [
+    "Split series in pieces: fixed/variable size, fixed number, or delimited"
+    series [any-series!]
+        "The series to split"
+    dlm [block! integer! char! bitset! any-string!]
+        "Split size, delimiter(s), or rule(s)."
+    /into
+        "If dlm is integer, split in n pieces rather than pieces of length n."
 ][
-    either all [block? dlm  parse dlm [some integer!]] [
+    either all [block? dlm | parse dlm [some integer!]] [
         map-each len dlm [
             either positive? len [
                 copy/part series series: skip series len
-            ] [
+            ][
                 series: skip series negate len
-                ; return unset so that nothing is added to output
-                ()
+                continue ;-- don't add to output
             ]
         ]
     ][
         size: dlm   ; alias for readability
         res: collect [
             parse series case [
-                all [integer? size  into] [
+                all [integer? size | into] [
                     if size < 1 [cause-error 'Script 'invalid-arg size]
                     count: size - 1
                     piece-size: to integer! round/down divide length series size
@@ -594,7 +594,7 @@ split: func [
                 case [
                     bitset? dlm [
                         ; ATTEMPT is here because LAST will return NONE for an
-                        ; empty series, and finding none in a bitest is not allowed.
+                        ; empty series, and finding blank in a bitest is not allowed.
                         if attempt [find dlm last series] [add-fill-val]
                     ]
                     char? dlm [
@@ -620,7 +620,7 @@ find-all: function [
     value
     body [block!] "Evaluated for each occurrence"
 ][
-    assert [any-series? orig: get series]
+    verify [any-series? orig: get series]
     while [any [set series find get series :value (set series orig false)]] [
         do body
         ++ (series)

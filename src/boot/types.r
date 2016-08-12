@@ -36,36 +36,41 @@ REBOL [
 
 [name       class       mold    form    path    make    typesets]
 
-trash       0           -       -       -       -       -
-unset       none        -       -       -       *       -
+; 0 is not a real data type.  It is reserved for a kind of "garbage", as well
+; as used internally for REB_0_LOOKBACK...since the evaluator switch statement
+; wants to treat functions that look back differently from function.
+;
+0           0           -       -       -       -       -
 
-;-- Scalars
+function    function    *       -       -       *       -
 
-none        none        +       +       -       *       -
-bar         (none)      +       +       -       *       -
-lit-bar     (none)      +       +       -       *       -
-logic       logic       *       *       -       *       -
-integer     integer     *       *       -       -       [number scalar]
-decimal     decimal     *       *       -       *       [number scalar]
-percent     decimal     *       *       -       *       [number scalar]
-money       money       *       *       -       -       scalar
-char        char        *       f*      -       -       scalar
-pair        pair        *       *       *       *       scalar
-tuple       tuple       *       *       *       *       scalar
-time        time        *       *       *       *       scalar
-date        date        *       *       *       *       -
+bar         unit        +       +       -       *       -
+lit-bar     unit        +       +       -       *       -
 
-;-- Order dependent: next few words
+; ANY-WORD!, order matters (tests like ANY_WORD use >= REB_WORD, <= REB_ISSUE)
+;
+word        word        +       *       -       *       word
+set-word    word        +       *       -       *       word
+get-word    word        +       *       -       *       word
+lit-word    word        +       *       -       *       word
+refinement  word        +       *       -       *       word
+issue       word        +       *       -       *       word
 
-word        (word)      +       *       -       -       word
-set-word    (word)      +       *       -       -       word
-get-word    (word)      +       *       -       -       word
-lit-word    (word)      +       *       -       -       word
-refinement  word        +       *       -       -       word
-issue       word        +       *       -       -       word
+; ANY-ARRAY!, order matters (and contiguous with ANY-SERIES below matters!)
+;
+path        array       *       *       *       *       [series path array]
+set-path    array       *       *       *       *       [series path array]
+get-path    array       *       *       *       *       [series path array]
+lit-path    array       *       *       *       *       [series path array]
+group       array       *       f*      *       *       [series array]
+;
+; ^--above this line MAY have "evaluator behavior", below types are "inert"--v
+;    (basically types are compared as >= REB_BLOCK and not dispatched)
+;
+block       array       *       f*      *       *       [series array]
 
-;-- Series
-
+; ANY-SERIES!, order matters (and contiguous with ANY-ARRAY above matters!)
+;
 binary      string      +       +       *       *       [series]
 string      string      +       f*      *       *       [series string]
 file        string      +       f*      file    *       [series string]
@@ -77,32 +82,44 @@ bitset      bitset      *       *       *       *       -
 image       image       +       +       *       *       [series]
 vector      vector      -       -       *       *       [series]
 
-block       array       *       f*      *       *       [series array]
-group       (array)     *       f*      *       *       [series array]
+; Note: BLANK! is a "unit type" https://en.wikipedia.org/wiki/Unit_type
+;
+blank       unit        +       +       -       *       -
 
-path        (array)     *       *       *       *       [series path array]
-set-path    (array)     *       *       *       *       [series path array]
-get-path    (array)     *       *       *       *       [series path array]
-lit-path    (array)     *       *       *       *       [series path array]
+;-- Scalars
+
+logic       logic       *       *       -       *       -
+integer     integer     *       *       -       *       [number scalar]
+decimal     decimal     *       *       -       *       [number scalar]
+percent     decimal     *       *       -       *       [number scalar]
+money       money       *       *       -       *       scalar
+char        char        *       f*      -       *       scalar
+pair        pair        *       *       *       *       scalar
+tuple       tuple       *       *       *       *       scalar
+time        time        *       *       *       *       scalar
+date        date        *       *       *       *       -
 
 map         map         +       f*      *       *       -
 
 datatype    datatype    +       f*      -       *       -
 typeset     typeset     +       f*      -       *       -
 
-function    (function)  *       -       -       *       function
-
-varargs     varargs     -       -       -       -       -
+varargs     varargs     -       -       -       *       -
 
 object      context     *       f*      *       *       context
-frame       (context)   *       f*      *       *       context
+frame       context     *       f*      *       *       context
 module      context     *       f*      *       *       context
 error       context     +       f+      *       *       context
 task        context     +       +       *       *       context
-port        port        context context context -       context
+port        port        context context context *       context
 
 gob         gob         *       *       *       *       -
 event       event       *       *       *       *       -
 handle      0           -       -       -       -       -
 struct      struct      *       *       *       *       -
-library     library     -       -       -       -       -
+library     library     -       -       -       *       -
+
+; Note that the "void?" state has no associated VOID! datatype.  Internally
+; it uses REB_MAX, but like the REB_0 it stays off the type map.  (REB_0
+; is used for lookback as opposed to void in order to implement an
+; optimization in Get_Var_Core())

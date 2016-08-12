@@ -1,37 +1,39 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Summary: Graphical compositing objects
-**  Module:  reb-gob.h
-**  Author:  Carl Sassenrath
-**  Description:
-**      GOBs are lower-level graphics object used by the compositing
-**      and rendering system. Because a GUI can contain thousands of
-**      GOBs, they are designed and structured to be simple and small.
-**      Note that GOBs are also used for windowing.
-**  Warning:
-**      GOBs are allocated from a special pool and
-**      are accounted for by the standard garbage collector.
-**
-***********************************************************************/
+//
+//  File: %reb-gob.h
+//  Summary: "Graphical compositing objects"
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// GOBs are lower-level graphics object used by the compositing
+// and rendering system. Because a GUI can contain thousands of
+// GOBs, they are designed and structured to be simple and small.
+// Note that GOBs are also used for windowing.
+//
+// GOBs are allocated from a special pool and
+// are accounted for by the standard garbage collector.
+//
 
 // We accept GOB for the moment in Core, but not view in general...
 // Ultimatley GOB represents a category of Ren/C external items that
@@ -42,7 +44,9 @@
 // #include "host-view.h"
 
 enum GOB_FLAGS {        // GOB attribute and option flags
-    GOBF_TOP = 0,       // Top level (window or output image)
+    GOBF_USED = 0,
+    GOBF_MARK,
+    GOBF_TOP,           // Top level (window or output image)
     GOBF_WINDOW,        // Window (parent is OS window reference)
     GOBF_OPAQUE,        // Has no alpha
     GOBF_STATIC,        // Does not change
@@ -96,8 +100,9 @@ enum GOB_DTYPES {       // Userdata types
 
 typedef struct rebol_gob REBGOB;
 
-struct rebol_gob {      // size: 64 bytes!
-    REBCNT flags;       // option flags
+struct rebol_gob {
+    struct Reb_Header header;
+
     REBCNT state;       // state flags
 
     REBSER *pane;       // List of child GOBs
@@ -118,12 +123,11 @@ struct rebol_gob {      // size: 64 bytes!
     REBXYF old_offset;  // prior location
     REBXYF old_size;    // prior size
 
-    // All data types allocated in memory pools need to be a multiple of 64
-    // bits in size.  This padding is added in order to get the 64-bit build
-    // to meet that rule (there's an assert when initializing the pools)
-    //
 #if defined(__LP64__) || defined(__LLP64__)
-    REBCNT padding; // bump from 84 bytes on 64-bit to 88 bytes (11 * 8)
+    //
+    // Depending on how the fields are arranged, this may require padding to
+    // make sure the REBNOD-derived type is a multiple of 64-bits in size.
+    //
 #endif
 };
 #pragma pack()
@@ -165,14 +169,19 @@ typedef struct gob_window {             // Maps gob to window
 
 #define CLEAR_GOB_STATE(g) ((g)->state = 0)
 
-#define SET_GOB_FLAG(g,f)       SET_FLAG((g)->flags, f)
-#define GET_GOB_FLAG(g,f)       GET_FLAG((g)->flags, f)
-#define CLR_GOB_FLAG(g,f)       CLR_FLAG((g)->flags, f)
-#define CLR_GOB_FLAGS(g,f,h)    CLR_FLAGS((g)->flags, f, h)
+#define SET_GOB_FLAG(g,f) \
+    cast(void, (g)->header.bits |= (cast(REBUPT, 1) << (f)))
+
+#define GET_GOB_FLAG(g,f) \
+    LOGICAL((g)->header.bits & (cast(REBUPT, 1) << (f)))
+
+#define CLR_GOB_FLAG(g,f) \
+    cast(void, (g)->header.bits &= ~(cast(REBUPT, 1) << (f)))
+
+
 #define SET_GOB_STATE(g,f)      SET_FLAG((g)->state, f)
 #define GET_GOB_STATE(g,f)      GET_FLAG((g)->state, f)
 #define CLR_GOB_STATE(g,f)      CLR_FLAG((g)->state, f)
-#define CLR_GOB_STATES(g,f,h)   CLR_FLAGS((g)->state, f, h)
 
 #define GOB_ALPHA(g)        ((g)->alpha)
 #define GOB_TYPE(g)         ((g)->ctype)
@@ -214,17 +223,8 @@ typedef struct gob_window {             // Maps gob to window
 #define IS_GOB_STRING(g) (GOB_CONTENT(g) && GOB_TYPE(g) == GOBT_STRING)
 #define IS_GOB_TEXT(g)   (GOB_CONTENT(g) && GOB_TYPE(g) == GOBT_TEXT)
 
-// GC Flags:
-enum {
-    GOB_MARK = 1,       // Gob was found during GC mark scan.
-    GOB_USED = 1<<1     // Gob is used (not free).
-};
-
-#define IS_GOB_MARK(g)  LOGICAL((g)->resv & GOB_MARK)
-#define MARK_GOB(g)     ((g)->resv |= GOB_MARK)
-#define UNMARK_GOB(g)   ((g)->resv &= ~GOB_MARK)
-#define IS_GOB_USED(g)  LOGICAL((g)->resv & GOB_USED)
-#define USE_GOB(g)      ((g)->resv |= GOB_USED)
-#define FREE_GOB(g)     ((g)->resv &= ~GOB_USED)
+#define IS_GOB_MARK(g)  GET_GOB_FLAG((g), GOBF_MARK)
+#define MARK_GOB(g)     SET_GOB_FLAG((g), GOBF_MARK)
+#define UNMARK_GOB(g)   CLR_GOB_FLAG((g), GOBF_MARK)
 
 extern REBGOB *Gob_Root; // Top level GOB (the screen)

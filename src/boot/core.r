@@ -78,13 +78,13 @@ rc4: command [
         crypt-key [binary!] "Crypt key. Have to be provided only for the first time to get stream handle!."
     /stream
         ctx [handle!] "Stream cipher context."
-        data [binary! none!] "Data to encrypt/decrypt. Or NONE to close the cipher stream."
+        data [binary! blank!] "Data to encrypt/decrypt. Or NONE to close the cipher stream."
 ]
 
 rsa-make-key: func [
     "Creates a key object for RSA algorithm."
 ][
-    make object! [
+    has [
         n:          ;modulus
         e:          ;public exponent
         d:          ;private exponent
@@ -93,7 +93,7 @@ rsa-make-key: func [
         dp:         ;CRT exponent 1
         dq:         ;CRT exponent 2
         qinv:       ;CRT coefficient
-        none
+        _
     ]
 ]
 
@@ -104,7 +104,7 @@ rsa: command [
     /decrypt "Decrypts the data (default is to encrypt)"
     /private "Uses an RSA private key (default is a public key)"
     /padding "Selects the type of padding to use"
-        padding-type [word! none!] "Type of padding. Available values: PKCS1 or NONE"
+        padding-type [word! blank!] "Type of padding. Available values: PKCS1 or NONE"
 ]
 
 
@@ -115,12 +115,12 @@ dh-make-key: func [
 ;       size [integer!] "Key length"
 ;       generator [integer!] "Generator number"
 ][
-    make object! [
+    has [
         priv-key:   ;private key
         pub-key:    ;public key
         g:          ;generator
         p:          ;prime modulus
-        none
+        _
     ]
 ]
 
@@ -139,9 +139,9 @@ aes: command [
     "Encrypt/decrypt data using AES algorithm. Returns stream cipher context handle or encrypted/decrypted data."
     /key
         crypt-key [binary!] "Crypt key. Have to be provided only for the first time to get stream handle!."
-        iv [binary! none!] "Optional initialization vector."
+        iv [binary! blank!] "Optional initialization vector."
     /stream
         ctx [handle!] "Stream cipher context."
-        data [binary! none!] "Data to encrypt/decrypt. Or NONE to close the cipher stream."
+        data [binary! blank!] "Data to encrypt/decrypt. Or NONE to close the cipher stream."
     /decrypt "Use the crypt-key for decryption (default is to encrypt)"
 ]

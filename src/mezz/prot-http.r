@@ -9,8 +9,8 @@ REBOL [
         Licensed under the Apache License, Version 2.0
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
-    Name: 'http
-    Type: 'module
+    Name: http
+    Type: module
     File: %prot-http.r
     Version: 0.1.47
     Purpose: {
@@ -42,7 +42,7 @@ idate-to-date: function [date [string!]] [
         if zone = "GMT" [zone: copy "+0"]
         to date! ajoin [day "-" month "-" year "/" time zone]
     ][
-        none
+        blank
     ]
 ]
 
@@ -83,7 +83,7 @@ read-sync-awake: func [event [event!] /local error] [
         ]
         error [
             error: event/port/state/error
-            event/port/state/error: none
+            event/port/state/error: _
             fail error
         ]
     ] [
@@ -147,7 +147,7 @@ make-http-error: func [
     /otherhost new-url [url!]
 ] [
     ; cannot call it "message" because message is the error template.  :-/
-    ; hence when the error is created it has message defined as none, and
+    ; hence when the error is created it has message defined as blank, and
     ; you have to overwrite it if you're doing a custom template, e.g.
     ;
     ;     make error! [message: ["the" :animal "has claws"] animal: "cat"]
@@ -188,9 +188,13 @@ make-http-error: func [
 make-http-request: func [
     "Create an HTTP request (returns string!)"
     method [word! string!] "E.g. GET, HEAD, POST etc."
-    target [file! string!] {In case of string!, no escaping is performed (eg. useful to override escaping etc.). Careful!}
+    target [file! string!]
+        {In case of string!, no escaping is performed.}
+        {(eg. useful to override escaping etc.). Careful!}
     headers [block!] "Request headers (set-word! string! pairs)"
-    content [any-string! binary! none!] {Request contents (Content-Length is created automatically). Empty string not exactly like none.}
+    content [any-string! binary! blank!]
+        {Request contents (Content-Length is created automatically).}
+        {Empty string not exactly like blank.}
     /local result
 ] [
     result: rejoin [
@@ -217,7 +221,7 @@ do-request: func [
 ] [
     spec: port/spec
     info: port/state/info
-    spec/headers: body-of make make object! [
+    spec/headers: body-of construct has [
         Accept: "*/*"
         Accept-Charset: "utf-8"
         Host: either not find [80 443] spec/port-id [
@@ -229,7 +233,7 @@ do-request: func [
     ] spec/headers
     port/state/state: 'doing-request
     info/headers: info/response-line: info/response-parsed: port/data:
-    info/size: info/date: info/name: none
+    info/size: info/date: info/name: blank
     write port/state/connection
     make-http-request spec/method any [spec/path %/]
     ; to file! double encodes any % in the url
@@ -241,7 +245,12 @@ parse-write-dialect: func [port block /local spec debug] [
     parse block [
         opt [ 'headers ( spec/debug: true ) ]
         [set block word! (spec/method: block) | (spec/method: 'post)]
-        opt [set block [file! | url!] (spec/path: block)] [set block block! (spec/headers: block) | (spec/headers: [])] [set block [any-string! | binary!] (spec/content: block) | (spec/content: none)]
+        opt [set block [file! | url!] (spec/path: block)]
+        [set block block! (spec/headers: block) | (spec/headers: [])]
+        [
+            set block [any-string! | binary!] (spec/content: block)
+            | (spec/content: blank)
+        ]
     ]
 ]
 check-response: func [port /local conn res headers d1 d2 line info state awake spec] [
@@ -258,7 +267,17 @@ check-response: func [port /local conn res headers d1 d2 line info state awake s
         d2: find/tail d1 crlf2bin
     ] [
         info/response-line: line: to string! copy/part conn/data d1
-        info/headers: headers: construct/with d1 http-response-headers
+
+        ; !!! In R3-Alpha, CONSTRUCT/WITH allowed passing in data that could
+        ; be a STRING! or a BINARY! which would be interpreted as an HTTP/SMTP
+        ; header.  The code that did it was in a function Scan_Net_Header(),
+        ; that has been extracted into a completely separate native.  It
+        ; should really be rewritten as user code with PARSE here.
+        ;
+        assert [binary? d1]
+        d1: scan-net-header d1
+
+        info/headers: headers: construct/only http-response-headers d1
         info/name: to file! any [spec/path %/]
         if headers/content-length [
             info/size:
@@ -388,7 +407,10 @@ check-response: func [port /local conn res headers d1 d2 line info state awake s
             unless res [res: awake make event! [type: 'ready port: port]]
         ]
         info [
-            info/headers: info/response-line: info/response-parsed: port/data: none
+            info/headers: _
+            info/response-line: _
+            info/response-parsed: _
+            port/data: _
             state/state: 'reading-headers
             read conn
         ]
@@ -404,9 +426,9 @@ crlfbin: #{0D0A}
 crlf2bin: #{0D0A0D0A}
 crlf2: to string! crlf2bin
 http-response-headers: context [
-    Content-Length:
-    Transfer-Encoding:
-    Last-Modified: none
+    Content-Length: _
+    Transfer-Encoding: _
+    Last-Modified: _
 ]
 do-redirect: func [port [port!] new-uri [url! string! file!] /local spec state] [
     spec: port/spec
@@ -421,7 +443,7 @@ do-redirect: func [port [port!] new-uri [url! string! file!] /local spec state] 
             'http [append new-uri [port-id: 80]]
         ]
     ]
-    new-uri: construct/with new-uri port/scheme/spec
+    new-uri: construct/only port/scheme/spec new-uri
     unless find [http https] new-uri/scheme [
         state/error: make-http-error {Redirect to a protocol different from HTTP or HTTPS not supported}
         return state/awake make event! [type: 'error port: port]
@@ -466,7 +488,7 @@ check-data: func [port /local headers res data out chunk-size mk1 mk2 trailer st
                         if parse mk1 [
                             crlfbin (trailer: "") to end | copy trailer to crlf2bin to end
                         ] [
-                            trailer: construct trailer
+                            trailer: has/only trailer
                             append headers body-of trailer
                             state/state: 'ready
                             res: state/awake make event! [type: 'custom port: port code: 0]
@@ -521,18 +543,18 @@ hex-digits: charset "1234567890abcdefABCDEF"
 sys/make-scheme [
     name: 'http
     title: "HyperText Transport Protocol v1.1"
-    spec: make system/standard/port-spec-net [
+    spec: construct system/standard/port-spec-net [
         path: %/
         method: 'get
         headers: []
-        content: none
+        content: _
         timeout: 15
-        debug: none
+        debug: _
     ]
-    info: make system/standard/file-info [
+    info: construct system/standard/file-info [
         response-line:
         response-parsed:
-        headers: none
+        headers: _
     ]
     actor: [
         read: func [
@@ -577,12 +599,12 @@ sys/make-scheme [
             unless port/spec/host [
                 fail make-http-error "Missing host address"
             ]
-            port/state: context [
+            port/state: has [
                 state: 'inited
-                connection:
-                error: none
+                connection: _
+                error: _
                 close?: no
-                info: make port/scheme/info [type: 'file]
+                info: construct port/scheme/info [type: 'file]
                 awake: :port/awake
             ]
             port/state/connection: conn: make port! compose [
@@ -599,15 +621,15 @@ sys/make-scheme [
         open?: func [
             port [port!]
         ] [
-            found? all [port/state open? port/state/connection]
+            all? [port/state open? port/state/connection]
         ]
         close: func [
             port [port!]
         ] [
             if port/state [
                 close port/state/connection
-                port/state/connection/awake: none
-                port/state: none
+                port/state/connection/awake: _
+                port/state: _
             ]
             port
         ]
@@ -626,7 +648,7 @@ sys/make-scheme [
         ] [
             if state: port/state [
                 either error? error: state/error [
-                    state/error: none
+                    state/error: _
                     error
                 ] [
                     state/info
@@ -654,7 +676,7 @@ sys/make-scheme [
 sys/make-scheme/with [
     name: 'https
     title: "Secure HyperText Transport Protocol v1.1"
-    spec: make spec [
+    spec: construct spec [
         port-id: 443
     ]
 ] 'http

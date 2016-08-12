@@ -105,6 +105,7 @@ round: action [
 
 random: action [
     {Returns a random value of the same datatype; or shuffles series.}
+    return: [<opt> any-value!]
     value   {Maximum value of result (modified when series)}
     /seed   {Restart or randomize}
     /secure {Returns a cryptographically secure random number}
@@ -140,7 +141,7 @@ head?: action [
 
 tail?: action [
     {Returns TRUE if series is at or past its end; or empty for other types.}
-    series [any-series! object! gob! port! bitset! map! none! varargs!]
+    series [any-series! object! gob! port! bitset! map! blank! varargs!]
 ]
 
 past?: action [
@@ -172,31 +173,34 @@ at: action [
 
 index-of: action [
     {Returns the current position (index) of the series.}
-    series [any-series! gob! port! none!]
+    series [any-series! gob! port! blank!]
     /xy {Returns index as an XY pair offset}
 ]
 
 length: action [
     {Returns the length (from the current position for series.)}
-    series [any-series! port! map! tuple! bitset! object! gob! struct! any-word! none!]
+    series [any-series! port! map! tuple! bitset! object! gob! struct! any-word! blank!]
 ]
 
 ;-- Series Extraction
 
 pick: action [
     {Returns the value at the specified position.}
+    return: [<opt> any-value!]
+        {Picked value, or void if index not present}
     aggregate [
         any-series! map! gob! pair! date! time! tuple! bitset! port! varargs!
     ]
-    index {Index offset, symbol, or other value to use as index}
+    index
+        {Index offset, symbol, or other value to use as index}
 ]
 
 ;-- Series Search
 
 find: action [
-    {Searches for a value; for series returns where found, else none.}
-    series [any-series! map! gob! port! bitset! typeset! object! none!]
-    value [opt-any-value!]
+    {Searches for a value; for series returns where found, else blank.}
+    series [any-series! any-context! map! gob! bitset! typeset! blank!]
+    value [<opt> any-value!]
     /part {Limits the search to a given length or position}
     limit [any-number! any-series! pair!]
     /only {Treats a series value as only a single value}
@@ -213,9 +217,10 @@ find: action [
 ]
 
 select: action [
-    {Searches for a value; returns the value that follows, else none.}
-    series [any-series! port! map! object! none!]
-    value [opt-any-value!]
+    {Searches for a value; returns the value that follows, else void.}
+    return: [<opt> any-value!]
+    series [any-series! any-context! map! blank!]
+    value [<opt> any-value!]
     /part {Limits the search to a given length or position}
     limit [any-number! any-series! pair!]
     /only {Treats a series value as only a single value}
@@ -233,37 +238,32 @@ select: action [
 
 reflect: action [
     {Returns specific details about a datatype.}
-    value [opt-any-value!]
+    value [<opt> any-value!]
     field [word!] "Such as: spec, body, words, values, title"
 ]
 
 ;-- Making, copying, modifying
 
-make: action [
-    {Constructs or allocates the specified datatype.}
-    type [opt-any-value!] {The datatype or an example value}
-    spec [opt-any-value!] {Attributes or size of the new value (modified)}
-]
-
-to: action [
-    {Converts to a specified datatype.}
-    type [opt-any-value!] {The datatype or example value}
-    spec [opt-any-value!] {The attributes of the new value}
-]
-
 copy: action [
     {Copies a series, object, or other value.}
-    value [any-series! port! map! object! bitset! function!] {At position}
-    /part {Limits to a given length or position}
+    value [blank! any-series! port! map! object! frame! bitset! function! pair!]
+        {At position}
+    /part
+        {Limits to a given length or position}
     limit [any-number! any-series! pair!]
-    /deep {Also copies series values within the block}
-    /types {What datatypes to copy}
+    /deep
+        {Also copies series values within the block}
+    /types
+        {What datatypes to copy}
     kinds [typeset! datatype!]
+    /test
+        {Temporary switch for debugging ARM-build anomaly}
 ]
 
 take: action [
     {Removes and returns one or more elements.}
-    series [any-series! port! gob! none! varargs!] {At position (modified)}
+    return: [<opt> any-value!]
+    series [any-series! port! gob! blank! varargs!] {At position (modified)}
     /part {Specifies a length or end position}
     limit [any-number! any-series! pair! bar!]
     /deep {Also copies series values within the block}
@@ -273,7 +273,7 @@ take: action [
 insert: action [
     {Inserts element(s); for series, returns just past the insert.}
     series [any-series! port! map! gob! object! bitset! port!] {At position (modified)}
-    value [opt-any-value!] {The value to insert}
+    value [<opt> any-value!] {The value to insert}
     /part {Limits to a given length or position}
     limit [any-number! any-series! pair!]
     /only {Only insert a block as a single value (not the contents of the block)}
@@ -283,8 +283,9 @@ insert: action [
 
 append: action [
     {Inserts element(s) at tail; for series, returns head.}
-    series [any-series! port! map! gob! object! bitset!] {Any position (modified)}
-    value [opt-any-value!] {The value to insert}
+    series [any-series! port! map! gob! object! module! bitset!]
+        {Any position (modified)}
+    value [<opt> any-value!] {The value to insert}
     /part {Limits to a given length or position}
     limit [any-number! any-series! pair!]
     /only {Only insert a block as a single value (not the contents of the block)}
@@ -294,7 +295,7 @@ append: action [
 
 remove: action [
     {Removes element(s); returns same position.}
-    series [any-series! map! gob! port! bitset! none!] {At position (modified)}
+    series [any-series! map! gob! port! bitset! blank!] {At position (modified)}
     /part {Removes multiple elements or to a given position}
     limit [any-number! any-series! pair! char!]
     /map {Remove key from map}
@@ -304,7 +305,7 @@ remove: action [
 change: action [
     {Replaces element(s); returns just past the change.}
     series [any-series! gob! port! struct!]{At position (modified)}
-    value [opt-any-value!] {The new value}
+    value [<opt> any-value!] {The new value}
     /part {Limits the amount to change to a given length or position}
     limit [any-number! any-series! pair!]
     /only {Only change a block as a single value (not the contents of the block)}
@@ -316,16 +317,16 @@ poke: action [
     {Replaces an element at a given position.}
     series [any-series! port! map! gob! bitset!] {(modified)}
     index {Index offset, symbol, or other value to use as index}
-    value [opt-any-value!] {The new value (returned)}
+    value [<opt> any-value!] {The new value (returned)}
 ]
 
 clear: action [
     {Removes elements from current position to tail; returns at new tail.}
-    series [any-series! port! map! gob! bitset! none!] {At position (modified)}
+    series [any-series! port! map! gob! bitset! blank!] {At position (modified)}
 ]
 
 trim: action [
-    {Removes spaces from strings or nones from blocks or objects.}
+    {Removes spaces from strings or blanks from blocks or objects.}
     series [any-series! object! error! module!] {Series (modified) or object (made)}
     /head {Removes only from the head}
     /tail {Removes only from the tail}
@@ -400,7 +401,7 @@ read: action [
     /string {Convert UTF and line terminators to standard text string}
     /lines {Convert to block of strings (implies /string)}
 ;   /as {Convert to string using a specified encoding}
-;       encoding [none! any-number!] {UTF number (0 8 16 -16)}
+;       encoding [blank! any-number!] {UTF number (0 8 16 -16)}
 ]
 
 write: action [
@@ -416,7 +417,7 @@ write: action [
         access [block!]
     /lines {Write each value in a block as a separate line}
 ;   /as {Convert string to a specified encoding}
-;       encoding [none! any-number!] {UTF number (0 8 16 -16)}
+;       encoding [blank! any-number!] {UTF number (0 8 16 -16)}
 ]
 
 open?: action [
@@ -428,13 +429,13 @@ query: action [
     {Returns information about a port, file, or URL.}
     target [port! file! url! block!]
     /mode "Get mode information"
-    field [word! none!] "NONE will return valid modes for port type"
+    field [word! blank!] "NONE will return valid modes for port type"
 ]
 
 modify: action [
     {Change mode or control for port or file.}
     target [port! file!]
-    field [word! none!]
+    field [word! blank!]
     value
 ]
 
@@ -449,5 +450,5 @@ rename: action [
     to [port! file! url! block!]
 ]
 
-;-- Expectation is that evaluation ends in UNSET!, empty parens makes one
+;-- Expectation is that evaluation ends with no result, empty GROUP! does that
 ()

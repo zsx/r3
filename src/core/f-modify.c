@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  f-modify.c
-**  Summary: block series modification (insert, append, change)
-**  Section: functional
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %f-modify.c
+//  Summary: "block series modification (insert, append, change)"
+//  Section: functional
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
@@ -48,26 +49,23 @@ REBCNT Modify_Array(
 
     REBINT ilen = 1; // length to be inserted
 
-    REBINT size; // total to insert
+    const RELVAL *src_rel;
+    REBCTX *specifier;
 
-#if !defined(NDEBUG)
-    REBINT index;
-#endif
-
-    if (IS_UNSET(src_val) || dups < 0) {
+    if (IS_VOID(src_val) || dups < 0) {
         // If they are effectively asking for "no action" then all we have
         // to do is return the natural index result for the operation.
         // (APPEND will return 0, insert the tail of the insertion...so index)
 
-        return (action == A_APPEND) ? 0 : dst_idx;
+        return (action == SYM_APPEND) ? 0 : dst_idx;
     }
 
-    if (action == A_APPEND || dst_idx > tail) dst_idx = tail;
+    if (action == SYM_APPEND || dst_idx > tail) dst_idx = tail;
 
     // Check /PART, compute LEN:
     if (!GET_FLAG(flags, AN_ONLY) && ANY_ARRAY(src_val)) {
         // Adjust length of insertion if changing /PART:
-        if (action != A_CHANGE && GET_FLAG(flags, AN_PART))
+        if (action != SYM_CHANGE && GET_FLAG(flags, AN_PART))
             ilen = dst_len;
         else
             ilen = VAL_LEN_AT(src_val);
@@ -75,18 +73,26 @@ REBCNT Modify_Array(
         // Are we modifying ourselves? If so, copy src_val block first:
         if (dst_arr == VAL_ARRAY(src_val)) {
             REBARR *copy = Copy_Array_At_Shallow(
-                VAL_ARRAY(src_val), VAL_INDEX(src_val)
+                VAL_ARRAY(src_val), VAL_INDEX(src_val), VAL_SPECIFIER(src_val)
             );
-            src_val = ARR_HEAD(copy);
+            MANAGE_ARRAY(copy); // !!! Review: worth it to not manage and free?
+            src_rel = ARR_HEAD(copy);
+            specifier = SPECIFIED; // copy already specified it
         }
-        else
-            src_val = VAL_ARRAY_AT(src_val); // skips by VAL_INDEX values
+        else {
+            src_rel = VAL_ARRAY_AT(src_val); // skips by VAL_INDEX values
+            specifier = VAL_SPECIFIER(src_val);
+        }
+    }
+    else {
+        // use passed in RELVAL and specifier
+        src_rel = src_val;
+        specifier = SPECIFIED; // it's a REBVAL, not a RELVAL, so specified
     }
 
-    // Total to insert:
-    size = dups * ilen;
+    REBINT size = dups * ilen; // total to insert
 
-    if (action != A_CHANGE) {
+    if (action != SYM_CHANGE) {
         // Always expand dst_arr for INSERT and APPEND actions:
         Expand_Series(ARR_SERIES(dst_arr), dst_idx, size);
     }
@@ -100,20 +106,29 @@ REBCNT Modify_Array(
         }
     }
 
-    tail = (action == A_APPEND) ? 0 : size + dst_idx;
+    tail = (action == SYM_APPEND) ? 0 : size + dst_idx;
 
 #if !defined(NDEBUG)
-    for (index = 0; index < ilen; index++) {
-        if (GET_ARR_FLAG(dst_arr, SERIES_FLAG_MANAGED))
-            ASSERT_VALUE_MANAGED(&src_val[index]);
+    if (IS_ARRAY_MANAGED(dst_arr)) {
+        REBINT i;
+        for (i = 0; i < ilen; ++i)
+            ASSERT_VALUE_MANAGED(&src_rel[i]);
     }
 #endif
 
     for (; dups > 0; dups--) {
-        memcpy(ARR_HEAD(dst_arr) + dst_idx, src_val, ilen * sizeof(REBVAL));
-        dst_idx += ilen;
+        REBINT index = 0;
+        for (; index < ilen; ++index, ++dst_idx) {
+            COPY_VALUE(
+                SINK(ARR_HEAD(dst_arr) + dst_idx),
+                src_rel + index,
+                specifier
+            );
+        }
     }
-    TERM_ARRAY(dst_arr);
+    TERM_ARRAY_LEN(dst_arr, ARR_LEN(dst_arr));
+
+    ASSERT_ARRAY(dst_arr);
 
     return tail;
 }
@@ -142,13 +157,13 @@ REBCNT Modify_String(
     REBINT limit;
 
     // For INSERT/PART and APPEND/PART
-    if (action != A_CHANGE && GET_FLAG(flags, AN_PART))
+    if (action != SYM_CHANGE && GET_FLAG(flags, AN_PART))
         limit = dst_len; // should be non-negative
     else
         limit = -1;
 
-    if (limit == 0 || dups < 0) return (action == A_APPEND) ? 0 : dst_idx;
-    if (action == A_APPEND || dst_idx > tail) dst_idx = tail;
+    if (limit == 0 || dups < 0) return (action == SYM_APPEND) ? 0 : dst_idx;
+    if (action == SYM_APPEND || dst_idx > tail) dst_idx = tail;
 
     // If the src_val is not a string, then we need to create a string:
     if (GET_FLAG(flags, AN_SERIES)) { // used to indicate a BINARY series
@@ -227,7 +242,7 @@ REBCNT Modify_String(
     // Total to insert:
     size = dups * src_len;
 
-    if (action != A_CHANGE) {
+    if (action != SYM_CHANGE) {
         // Always expand dst_ser for INSERT and APPEND actions:
         Expand_Series(dst_ser, dst_idx, size);
     } else {
@@ -254,5 +269,5 @@ REBCNT Modify_String(
         Free_Series(src_ser);
     }
 
-    return (action == A_APPEND) ? 0 : dst_idx;
+    return (action == SYM_APPEND) ? 0 : dst_idx;
 }

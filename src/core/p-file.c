@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  p-file.c
-**  Summary: file port interface
-**  Section: ports
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %p-file.c
+//  Summary: "file port interface"
+//  Section: ports
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
@@ -124,7 +125,7 @@ void Ret_Query_File(REBCTX *port, REBREQ *file, REBVAL *ret)
     Val_Init_Word(
         CTX_VAR(context, STD_FILE_INFO_TYPE),
         REB_WORD,
-        GET_FLAG(file->modes, RFM_DIR) ? SYM_DIR : SYM_FILE
+        GET_FLAG(file->modes, RFM_DIR) ? Canon(SYM_DIR) : Canon(SYM_FILE)
     );
     SET_INTEGER(
         CTX_VAR(context, STD_FILE_INFO_SIZE), file->special.file.size
@@ -177,7 +178,7 @@ static REBCNT Get_Mode_Id(REBVAL *word)
 {
     REBCNT id = 0;
     if (IS_WORD(word)) {
-        id = Find_Int(&Mode_Syms[0], VAL_WORD_CANON(word));
+        id = Find_Int(&Mode_Syms[0], VAL_WORD_SYM(word));
         if (id == NOT_FOUND) fail (Error_Invalid_Arg(word));
     }
     return id;
@@ -225,9 +226,14 @@ static void Read_File_Port(
     if (args & (AM_READ_STRING | AM_READ_LINES)) {
         REBSER *nser = Decode_UTF_String(BIN_HEAD(ser), file->actual, -1);
         if (nser == NULL) fail (Error(RE_BAD_UTF8));
-        Val_Init_String(out, nser);
 
-        if (args & AM_READ_LINES) Val_Init_Block(out, Split_Lines(out));
+        if (args & AM_READ_LINES) { // wants a BLOCK!, not a STRING!
+            REBVAL temp;
+            Val_Init_String(&temp, nser);
+            Val_Init_Block(out, Split_Lines(&temp));
+        }
+        else
+            Val_Init_String(out, nser);
     }
 }
 
@@ -279,7 +285,6 @@ static void Write_File_Port(REBREQ *file, REBVAL *data, REBCNT len, REBCNT args)
 static REBCNT Set_Length(const REBREQ *file, REBI64 limit)
 {
     REBI64 len;
-    int what_if_it_changed;
 
     // Compute and bound bytes remaining:
     len = file->special.file.size - file->special.file.index; // already read
@@ -319,7 +324,7 @@ static void Set_Seek(REBREQ *file, REBVAL *arg)
 // 
 // Internal port handler for files.
 //
-static REB_R File_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
+static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
     REBVAL *spec;
     REBVAL *path;
@@ -328,7 +333,7 @@ static REB_R File_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
     REBCNT len;
     REBOOL opened = FALSE;  // had to be opened (shortcut case)
 
-    //Print("FILE ACTION: %d", Get_Action_Sym(action));
+    //Print("FILE ACTION: %d", action);
 
     Validate_Port(port, action);
 
@@ -348,7 +353,7 @@ static REB_R File_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 
     switch (action) {
 
-    case A_READ:
+    case SYM_READ:
         args = Find_Refines(frame_, ALL_READ_REFS);
 
         // Handle the READ %file shortcut case:
@@ -375,13 +380,13 @@ static REB_R File_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
             fail (Error_On_Port(RE_READ_ERROR, port, file->error));
         break;
 
-    case A_APPEND:
+    case SYM_APPEND:
         if (!(IS_BINARY(D_ARG(2)) || IS_STRING(D_ARG(2)) || IS_BLOCK(D_ARG(2))))
             fail (Error(RE_INVALID_ARG, D_ARG(2)));
         file->special.file.index = file->special.file.size;
         SET_FLAG(file->modes, RFM_RESEEK);
 
-    case A_WRITE:
+    case SYM_WRITE:
         args = Find_Refines(frame_, ALL_WRITE_REFS);
         spec = D_ARG(2); // data (binary, string, or block)
 
@@ -423,7 +428,7 @@ static REB_R File_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
         if (file->error) fail (Error(RE_WRITE_ERROR, path));
         break;
 
-    case A_OPEN:
+    case SYM_OPEN:
         args = Find_Refines(frame_, ALL_OPEN_REFS);
         // Default file modes if not specified:
         if (!(args & (AM_OPEN_READ | AM_OPEN_WRITE))) args |= (AM_OPEN_READ | AM_OPEN_WRITE);
@@ -431,31 +436,31 @@ static REB_R File_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
         Open_File_Port(port, file, path); // !!! needs to change file modes to R/O if necessary
         break;
 
-    case A_COPY:
+    case SYM_COPY:
         if (!IS_OPEN(file)) fail (Error(RE_NOT_OPEN, path)); // !!! wrong msg
         len = Set_Length(file, D_REF(2) ? VAL_INT64(D_ARG(3)) : -1);
         Read_File_Port(D_OUT, port, file, path, args, len);
         break;
 
-    case A_OPEN_Q:
+    case SYM_OPEN_Q:
         if (IS_OPEN(file)) return R_TRUE;
         return R_FALSE;
 
-    case A_CLOSE:
+    case SYM_CLOSE:
         if (IS_OPEN(file)) {
             OS_DO_DEVICE(file, RDC_CLOSE);
             Cleanup_File(file);
         }
         break;
 
-    case A_DELETE:
+    case SYM_DELETE:
         if (IS_OPEN(file)) fail (Error(RE_NO_DELETE, path));
         Setup_File(file, 0, path);
         if (OS_DO_DEVICE(file, RDC_DELETE) < 0)
             fail (Error(RE_NO_DELETE, path));
         break;
 
-    case A_RENAME:
+    case SYM_RENAME:
         if (IS_OPEN(file)) fail (Error(RE_NO_RENAME, path));
         else {
             REBSER *target;
@@ -472,7 +477,7 @@ static REB_R File_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
         }
         break;
 
-    case A_CREATE:
+    case SYM_CREATE:
         // !!! should it leave file open???
         if (!IS_OPEN(file)) {
             Setup_File(file, AM_OPEN_WRITE | AM_OPEN_NEW, path);
@@ -482,62 +487,66 @@ static REB_R File_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
         }
         break;
 
-    case A_QUERY:
+    case SYM_QUERY:
         if (!IS_OPEN(file)) {
             Setup_File(file, 0, path);
-            if (OS_DO_DEVICE(file, RDC_QUERY) < 0) return R_NONE;
+            if (OS_DO_DEVICE(file, RDC_QUERY) < 0) return R_BLANK;
         }
         Ret_Query_File(port, file, D_OUT);
         // !!! free file path?
         break;
 
-    case A_MODIFY:
+    case SYM_MODIFY:
         Set_Mode_Value(file, Get_Mode_Id(D_ARG(2)), D_ARG(3));
         if (!IS_OPEN(file)) {
             Setup_File(file, 0, path);
-            if (OS_DO_DEVICE(file, RDC_MODIFY) < 0) return R_NONE;
+            if (OS_DO_DEVICE(file, RDC_MODIFY) < 0) return R_BLANK;
         }
         return R_TRUE;
         break;
 
-    case A_INDEX_OF:
+    case SYM_INDEX_OF:
         SET_INTEGER(D_OUT, file->special.file.index + 1);
         break;
 
-    case A_LENGTH:
+    case SYM_LENGTH:
         SET_INTEGER(D_OUT, file->special.file.size - file->special.file.index); // !clip at zero
         break;
 
-    case A_HEAD:
+    case SYM_HEAD:
         file->special.file.index = 0;
         goto seeked;
 
-    case A_TAIL:
+    case SYM_TAIL:
         file->special.file.index = file->special.file.size;
         goto seeked;
 
-    case A_NEXT:
+    case SYM_NEXT:
         file->special.file.index++;
         goto seeked;
 
-    case A_BACK:
+    case SYM_BACK:
         if (file->special.file.index > 0) file->special.file.index--;
         goto seeked;
 
-    case A_SKIP:
+    case SYM_SKIP:
         file->special.file.index += Get_Num_From_Arg(D_ARG(2));
         goto seeked;
 
-    case A_HEAD_Q:
-        DECIDE(file->special.file.index == 0);
+    case SYM_HEAD_Q:
+        return (file->special.file.index == 0) ? R_TRUE : R_FALSE;
 
-    case A_TAIL_Q:
-        DECIDE(file->special.file.index >= file->special.file.size);
+    case SYM_TAIL_Q:
+        return (file->special.file.index >= file->special.file.size)
+            ? R_TRUE
+            : R_FALSE;
 
-    case A_PAST_Q:
-        DECIDE(file->special.file.index > file->special.file.size);
+    case SYM_PAST_Q:
+        return (file->special.file.index > file->special.file.size)
+            ? R_TRUE
+            : R_FALSE;
 
-    case A_CLEAR:
+    case SYM_CLEAR:
         // !! check for write enabled?
         SET_FLAG(file->modes, RFM_RESEEK);
         SET_FLAG(file->modes, RFM_TRUNCATE);
@@ -572,12 +581,6 @@ seeked:
     SET_FLAG(file->modes, RFM_RESEEK);
     *D_OUT = *D_ARG(1);
     return R_OUT;
-
-is_true:
-    return R_TRUE;
-
-is_false:
-    return R_FALSE;
 }
 
 
@@ -590,5 +593,5 @@ is_false:
 //
 void Init_File_Scheme(void)
 {
-    Register_Scheme(SYM_FILE, 0, File_Actor);
+    Register_Scheme(Canon(SYM_FILE), File_Actor);
 }

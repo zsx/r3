@@ -31,7 +31,7 @@ mkdir output-dir/include
 
 do %form-header.r
 
-file-base: make object! load %file-base.r
+file-base: has load %file-base.r
 
 change-dir %../os/
 
@@ -85,7 +85,7 @@ count: func [s c /local n] [
     append output-buffer ")"
 ]
 
-emit-proto: func [
+emit-proto: proc [
     proto
 ] [
 
@@ -140,7 +140,7 @@ emit-proto: func [
 ]
 
 process: func [file] [
-    if verbose [?? file]
+    if verbose [probe [file]]
     data: read the-file: file
     data: to-string data
     proto-parser/emit-proto: :emit-proto

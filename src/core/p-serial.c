@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2013 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  p-serial.c
-**  Summary: serial port interface
-**  Section: ports
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %p-serial.c
+//  Summary: "serial port interface"
+//  Section: ports
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2013 REBOL Technologies
+// Copyright 2013-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 #include "reb-net.h"
@@ -36,12 +37,11 @@
 //
 //  Serial_Actor: C
 //
-static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
+static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
     REBREQ *req;    // IO request
     REBVAL *spec;   // port spec
     REBVAL *arg;    // action argument value
-    REBVAL *val;    // e.g. port number value
     REBINT result;  // IO result
     REBCNT refs;    // refinement argument flags
     REBCNT len;     // generic length
@@ -67,7 +67,7 @@ static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 
         switch (action) {
 
-        case A_OPEN:
+        case SYM_OPEN:
             arg = Obj_Value(spec, STD_PORT_SPEC_SERIAL_PATH);
             if (! (IS_FILE(arg) || IS_STRING(arg) || IS_BINARY(arg)))
                 fail (Error(RE_INVALID_PORT_ARG, arg));
@@ -107,13 +107,13 @@ static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
             req->special.serial.stop_bits = VAL_INT32(arg);
 
             arg = Obj_Value(spec, STD_PORT_SPEC_SERIAL_PARITY);
-            if (IS_NONE(arg)) {
+            if (IS_BLANK(arg)) {
                 req->special.serial.parity = SERIAL_PARITY_NONE;
             } else {
                 if (!IS_WORD(arg))
                     fail (Error(RE_INVALID_PORT_ARG, arg));
 
-                switch (VAL_WORD_CANON(arg)) {
+                switch (VAL_WORD_SYM(arg)) {
                     case SYM_ODD:
                         req->special.serial.parity = SERIAL_PARITY_ODD;
                         break;
@@ -126,13 +126,13 @@ static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
             }
 
             arg = Obj_Value(spec, STD_PORT_SPEC_SERIAL_FLOW_CONTROL);
-            if (IS_NONE(arg)) {
+            if (IS_BLANK(arg)) {
                 req->special.serial.flow_control = SERIAL_FLOW_CONTROL_NONE;
             } else {
                 if (!IS_WORD(arg))
                     fail (Error(RE_INVALID_PORT_ARG, arg));
 
-                switch (VAL_WORD_CANON(arg)) {
+                switch (VAL_WORD_SYM(arg)) {
                     case SYM_HARDWARE:
                         req->special.serial.flow_control = SERIAL_FLOW_CONTROL_HARDWARE;
                         break;
@@ -149,10 +149,10 @@ static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
             SET_OPEN(req);
             return R_OUT;
 
-        case A_CLOSE:
+        case SYM_CLOSE:
             return R_OUT;
 
-        case A_OPEN_Q:
+        case SYM_OPEN_Q:
             return R_FALSE;
 
         default:
@@ -163,7 +163,7 @@ static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
     // Actions for an open socket:
     switch (action) {
 
-    case A_READ:
+    case SYM_READ:
         refs = Find_Refines(frame_, ALL_READ_REFS);
 
         // Setup the read buffer (allocate a buffer if needed):
@@ -198,7 +198,7 @@ static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
         *D_OUT = *arg;
         return R_OUT;
 
-    case A_WRITE:
+    case SYM_WRITE:
         refs = Find_Refines(frame_, ALL_WRITE_REFS);
 
         // Determine length. Clip /PART to size of string if needed.
@@ -220,7 +220,7 @@ static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
         if (result < 0) fail (Error_On_Port(RE_WRITE_ERROR, port, req->error));
         break;
 
-    case A_UPDATE:
+    case SYM_UPDATE:
         // Update the port object after a READ or WRITE operation.
         // This is normally called by the WAKE-UP function.
         arg = CTX_VAR(port, STD_PORT_DATA);
@@ -233,14 +233,14 @@ static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
             }
         }
         else if (req->command == RDC_WRITE) {
-            SET_NONE(arg);  // Write is done.
+            SET_BLANK(arg);  // Write is done.
         }
-        return R_NONE;
+        return R_BLANK;
 
-    case A_OPEN_Q:
+    case SYM_OPEN_Q:
         return R_TRUE;
 
-    case A_CLOSE:
+    case SYM_CLOSE:
         if (IS_OPEN(req)) {
             OS_DO_DEVICE(req, RDC_CLOSE);
             SET_CLOSED(req);
@@ -260,5 +260,5 @@ static REB_R Serial_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 //
 void Init_Serial_Scheme(void)
 {
-    Register_Scheme(SYM_SERIAL, 0, Serial_Actor);
+    Register_Scheme(Canon(SYM_SERIAL), Serial_Actor);
 }

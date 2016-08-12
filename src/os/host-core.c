@@ -1,37 +1,39 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 Saphirion AG
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Title: Core extension. Contains commands not yet migrated to core codebase.
-**  Author: Richard Smolak
-**
-************************************************************************
-**
-**  NOTE to PROGRAMMERS:
-**
-**    1. Keep code clear and simple.
-**    2. Document unusual code, reasoning, or gotchas.
-**    3. Use same style for code, vars, indent(4), comments, etc.
-**    4. Keep in mind Linux, OS X, BSD, big/little endian CPUs.
-**    5. Test everything, then test it again.
-**
-***********************************************************************/
+//
+//  File: %host-core.c
+//  Summary: {Core extension. Contains commands not yet migrated to core codebase.}
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 Saphirion AG
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// NOTE to PROGRAMMERS:
+//
+//   1. Keep code clear and simple.
+//   2. Document unusual code, reasoning, or gotchas.
+//   3. Use same style for code, vars, indent(4), comments, etc.
+//   4. Keep in mind Linux, OS X, BSD, big/little endian CPUs.
+//   5. Test everything, then test it again.
+//
 
 #ifdef TO_WINDOWS
 #include <windows.h>
@@ -65,7 +67,7 @@ extern "C" {
 //REBYTE *encapBuffer = NULL;
 //REBINT encapBufferLen;
 RL_LIB *RL; // Link back to reb-lib from embedded extensions
-static u32 *core_ext_words;
+static REBSTR* *core_ext_words;
 
 //
 //  RXD_Core: C
@@ -96,7 +98,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             RXA_INDEX(frm,1) = 0;
             return RXR_VALUE;
         }
-        return RXR_NONE;
+        return RXR_BLANK;
 */
 
     case CMD_CORE_TO_PNG:
@@ -136,7 +138,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
 
             if (error) {
                 if (buffer != NULL) free(buffer);
-                return RXR_NONE;
+                return RXR_BLANK;
             }
             //RL_Print("buff size: %d\n",buffersize);
             //allocate new binary!
@@ -216,7 +218,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 //set current context
                 ctx = (RC4_CTX*)RXA_HANDLE(frm, 4);
 
-                if (RXA_TYPE(frm, 5) == RXT_NONE) {
+                if (RXA_TYPE(frm, 5) == RXT_BLANK) {
                     //destroy context
                     OS_FREE(ctx);
 
@@ -269,7 +271,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 //set current context
                 ctx = (AES_CTX*)RXA_HANDLE(frm,5);
 
-                if (RXA_TYPE(frm, 6) == RXT_NONE) {
+                if (RXA_TYPE(frm, 6) == RXT_BLANK) {
                     //destroy context
                     OS_FREE(ctx);
 
@@ -286,7 +288,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 dataBuffer = (REBYTE *)RL_SERIES(data, RXI_SER_DATA) + RXA_INDEX(frm, 6);
                 len = RL_SERIES(data, RXI_SER_TAIL) - RXA_INDEX(frm, 6);
 
-                if (len == 0) return RXT_NONE;
+                if (len == 0) return RXT_BLANK;
 
                 //calculate padded length
                 pad_len = (((len - 1) >> 4) << 4) + AES_BLOCKSIZE;
@@ -339,7 +341,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                     data = RXA_SERIES(frm, 3);
                     dataBuffer = (REBYTE *)RL_SERIES(data, RXI_SER_DATA) + RXA_INDEX(frm, 3);
 
-                    if ((RL_SERIES(data, RXI_SER_TAIL) - RXA_INDEX(frm, 3)) < AES_IV_SIZE) return RXR_NONE;
+                    if ((RL_SERIES(data, RXI_SER_TAIL) - RXA_INDEX(frm, 3)) < AES_IV_SIZE) return RXR_BLANK;
 
                     memcpy(iv, dataBuffer, AES_IV_SIZE);
                 }
@@ -356,7 +358,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
 
                 if (len != 128 && len != 256) {
                     OS_FREE(ctx);
-                    return RXR_NONE;
+                    return RXR_BLANK;
                 }
 
                 AES_set_key(
@@ -379,7 +381,8 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
         case CMD_CORE_RSA:
         {
             RXIARG val;
-            u32 *words,*w;
+            REBSTR* *words;
+            REBSTR* *w;
             REBCNT type;
             REBSER *data = RXA_SERIES(frm, 1);
             REBYTE *dataBuffer = (REBYTE *)RL_SERIES(data, RXI_SER_DATA) + RXA_INDEX(frm,1);
@@ -396,7 +399,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             RSA_CTX *rsa_ctx = NULL;
 
             if (RXA_WORD(frm, 5)) { //padding refinement
-                padding = LOGICAL(RXA_TYPE(frm, 6) != RXT_NONE);
+                padding = LOGICAL(RXA_TYPE(frm, 6) != RXT_BLANK);
             }
 
             words = RL_WORDS_OF_OBJECT(obj);
@@ -454,11 +457,11 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
 
             OS_FREE(words);
 
-            if (!n || !e) return RXR_NONE;
+            if (!n || !e) return RXR_BLANK;
 
             if (RXA_WORD(frm, 4)) // private refinement
             {
-                if (!d) return RXR_NONE;
+                if (!d) return RXR_BLANK;
                 RSA_priv_key_new(
                     &rsa_ctx, n, n_len, e, e_len, d, d_len,
                     p, p_len, q, q_len, dp, dp_len, dq, dq_len, qinv, qinv_len
@@ -490,7 +493,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 if (binary_len == -1) {
                     bi_free(rsa_ctx->bi_ctx, data_bi);
                     RSA_free(rsa_ctx);
-                    return RXR_NONE;
+                    return RXR_BLANK;
                 }
             } else {
                 if (
@@ -505,7 +508,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 ) {
                     bi_free(rsa_ctx->bi_ctx, data_bi);
                     RSA_free(rsa_ctx);
-                    return RXR_NONE;
+                    return RXR_BLANK;
                 }
             }
 
@@ -527,7 +530,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             RXIARG val, priv_key, pub_key;
             REBCNT type;
             REBSER *obj = RXA_OBJECT(frm, 1);
-            u32 *words = RL_WORDS_OF_OBJECT(obj);
+            REBSTR* *words = RL_WORDS_OF_OBJECT(obj);
             REBYTE *objData;
 
             memset(&dh_ctx, 0, sizeof(dh_ctx));
@@ -601,7 +604,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             REBCNT type;
             REBSER *obj = RXA_OBJECT(frm, 1);
             REBSER *pub_key = RXA_SERIES(frm, 2);
-            u32 *words = RL_WORDS_OF_OBJECT(obj);
+            REBSTR* *words = RL_WORDS_OF_OBJECT(obj);
             REBYTE *objData;
             REBSER *binary;
             REBYTE *binaryBuffer;
@@ -634,7 +637,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
 
             dh_ctx.gy = (REBYTE *)RL_SERIES(pub_key, RXI_SER_DATA) + RXA_INDEX(frm, 2);
 
-            if (!dh_ctx.p || !dh_ctx.x || !dh_ctx.gy) return RXR_NONE;
+            if (!dh_ctx.p || !dh_ctx.x || !dh_ctx.gy) return RXR_BLANK;
 
             //allocate new binary!
             binary = RL_Make_String(dh_ctx.len, FALSE);
@@ -663,7 +666,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             return RXR_NO_COMMAND;
     }
 
-    return RXR_UNSET;
+    return RXR_VOID;
 }
 
 //
@@ -681,12 +684,6 @@ void Init_Core_Ext()
     // Because %host-main.c wants access to %sys-core.h, it does not include
     // %reb-host.h, and hence can't check these macros.  It's done here
     // instead for now.
-
-    if (!CHECK_STRUCT_ALIGN)
-        OS_CRASH(
-            cb_cast("Init_Core_Ext()"),
-            cb_cast("Incompatible struct alignment")
-        );
 
     // !!! "Second part will become vers[2] < RL_REV on release" (?)
     if (vers[1] != RL_VER || vers[2] != RL_REV)

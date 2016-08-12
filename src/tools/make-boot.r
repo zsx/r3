@@ -29,8 +29,8 @@ do %systems.r
 args: parse-args system/options/args
 config: config-system/guess args/OS_ID
 
-write-if: func [file data] [
-    if data <> attempt [read file][
+write-if: proc [file data] [
+    if data != attempt [read file][
         print ["UPDATE:" file]
         write file data
     ]
@@ -68,7 +68,6 @@ sections: [
     boot-booters
     boot-actions
     boot-natives
-    boot-ops
     boot-typespecs
     boot-errors
     boot-sysobj
@@ -128,11 +127,11 @@ up-word: func [w] [
 
 ;-- Emit Function
 out: make string! 100000
-emit: func [data] [repend out data]
+emit: proc [data] [repend out data]
 
-emit-enum: func [word] [emit [tab to-c-name word "," newline]]
+emit-enum: proc [word] [emit [tab to-c-name word "," newline]]
 
-emit-line: func [prefix word cmt /var /define /code /decl /up1 /local str][
+emit-line: proc [prefix word cmt /var /define /code /decl /up1 /local str][
 
     str: to-c-name word
 
@@ -150,7 +149,7 @@ emit-line: func [prefix word cmt /var /define /code /decl /up1 /local str][
         decl   [rejoin [prefix str cmt]]
         true   [rejoin ["    " prefix str ","]]
     ]
-    if any [code decl] [cmt: none]
+    if any [code decl] [cmt: _]
     if cmt [
         append str space
         case [
@@ -162,17 +161,17 @@ emit-line: func [prefix word cmt /var /define /code /decl /up1 /local str][
     append out str
 ]
 
-emit-head: func [title [string!] file [file!]] [
+emit-head: proc [title [string!] file [file!]] [
     clear out
     emit form-header/gen title file %make-boot.r
 ]
 
-emit-end: func [/easy] [
+emit-end: proc [/easy] [
     if not easy [remove find/last out #","]
     append out {^};^/}
 ]
 
-remove-tests: func [d] [
+remove-tests: proc [d] [
     while [d: find d #test][remove/part d 2]
 ]
 
@@ -192,7 +191,7 @@ emit {
 
 /***********************************************************************
 **
-*/  const REBACT Value_Dispatch[REB_MAX_0] =
+*/  const REBACT Value_Dispatch[REB_MAX] =
 /*
 **      The ACTION dispatch function for each datatype.
 **
@@ -208,90 +207,14 @@ for-each-record-NO-RETURN type boot-types [
 emit-end
 
 
-emit {
-
-//
-// ET_XXX: "Eval Type"
-//
-// The REB_XXX types are not sequential, but skip by 4 in order to have the
-// low 2 bits clear on all values in the enumeration.  This means faster
-// extraction and comparison without needing to bit-shift, but it also
-// means that a `switch` statement can't be optimized into a jump table--
-// which generally requires contiguous values:
-//
-// http://stackoverflow.com/questions/17061967/c-switch-and-jump-tables
-//
-// By having a table that can quickly convert an `enum Reb_Kind` into a
-// small integer suitable for a switch statement in the evaluator, the
-// optimization can be leveraged.  The special value of "0" is picked for
-// no evaluation behavior, so the table can have a second use as the quick
-// implementation behind the ANY_EVAL macro.  All non-zero values then can
-// mean "has some behavior in the evaluator".
-//
-enum ^{
-    ET_NONE = 0,
-}
-
-for-each-record-NO-RETURN type boot-types [
-    if group? type/class [
-        emit-line "ET_" type/name ""
-    ]
-]
-emit-end
-
 
 emit {
+
+extern const REBPEF Path_Dispatch[REB_MAX];
 
 /***********************************************************************
 **
-*/  const REBUPT Eval_Table[REB_MAX] =
-/*
-** This table is used to bypass a Do_Core evaluation for certain types.  So
-** if you have `foo [x] [y]`, the DO_NEXT_MAY_THROW macro checks the table
-** and realizes that both [x] and [y] are blocks and have no evaluator
-** behavior, so it set the output value to [x] without calling Do_Core.
-**
-** There is a catch, because infix operators suggest the need to use the
-** dispatch for cases like `foo [x] + [y]`.  So the only way to do the
-** optimization is if *both* the next value and the one after it is inert.
-**
-** Vague empirical tests of release builds show the gains are somewhere
-** around 6%-ish on real code, which is enough to be worth doing.  It does
-** make debugging a little complicated, so it is disabled in the debug
-** build...but only on Linux so that any debug builds run on other platforms
-** can help raise alerts on the problem.
-**
-** Though there are only 64 basic "kinds" of types, this spaces them out in
-** an array of 256 to avoid needing to do shifting on the type bits.  The
-** REB_XXX types are actually offset by 2 bits due to the special usage of
-** low bits in the header, and to avoid needing to shift on every test or
-** use of a type they are left as 00 which makes the type constants larger
-** but speeds comparisons and usage.
-**
-***********************************************************************/
-^{
-}
-
-for-each-record-NO-RETURN type boot-types [
-    either group? type/class [
-        emit-line "" rejoin ["ET_" uppercase to-string type/name] ""
-    ][
-        emit-line "" "ET_NONE" ""
-    ]
-    loop 3 [emit-line "" "0xAE" "available"]
-]
-emit-end
-
-
-emit {
-
-
-
-extern const REBPEF Path_Dispatch[REB_MAX_0];
-
-/***********************************************************************
-**
-*/  const REBPEF Path_Dispatch[REB_MAX_0] =
+*/  const REBPEF Path_Dispatch[REB_MAX] =
 /*
 **      The path evaluator function for each datatype.
 **
@@ -335,7 +258,7 @@ for-each-record-NO-RETURN type boot-types [
         ; taken care of by make-headers.r, no need to re-emit
         comment [
             emit-line/up1/decl
-                "extern REBOOL MT_" type/class "(REBVAL *, REBVAL *, REBCNT);"
+                "extern REBOOL MAKE_" type/class "(REBVAL *, REBVAL *, REBCNT);"
         ]
         append types-used type/class
     ]
@@ -345,7 +268,7 @@ emit {
 
 /***********************************************************************
 **
-*/  const MAKE_FUNC Make_Dispatch[REB_MAX_0] =
+*/  const MAKE_FUNC Make_Dispatch[REB_MAX] =
 /*
 **      Specifies the make method used for each datatype.
 **
@@ -357,7 +280,32 @@ for-each-record-NO-RETURN type boot-types [
     if group? type/class [type/class: first type/class]
 
     either type/make = '* [
-        emit-line/var "MT_" type/class type/name
+        emit-line/var "MAKE_" type/class type/name
+    ][
+        emit-line "" "0" type/name
+    ]
+]
+
+
+emit {
+^};
+
+
+/***********************************************************************
+**
+*/  const TO_FUNC To_Dispatch[REB_MAX] =
+/*
+**      Specifies the TO method used for each datatype.
+**
+***********************************************************************/
+^{
+}
+
+for-each-record-NO-RETURN type boot-types [
+    if group? type/class [type/class: first type/class]
+
+    either type/make = '* [
+        emit-line/var "TO_" type/class type/name
     ][
         emit-line "" "0" type/name
     ]
@@ -398,7 +346,7 @@ for-each-record-NO-RETURN type boot-types [
 emit {
 /***********************************************************************
 **
-*/  const REBCTF Compare_Types[REB_MAX_0] =
+*/  const REBCTF Compare_Types[REB_MAX] =
 /*
 **      Type comparision functions.
 **
@@ -427,7 +375,7 @@ write inc/tmp-comptypes.h out
 ;emit {
 ;/***********************************************************************
 ;**
-;*/ const MOLD_FUNC Mold_Dispatch[REB_MAX_0] =
+;*/ const MOLD_FUNC Mold_Dispatch[REB_MAX] =
 ;/*
 ;**     The MOLD dispatch function for each datatype.
 ;**
@@ -453,7 +401,7 @@ write inc/tmp-comptypes.h out
 ;emit {
 ;/***********************************************************************
 ;**
-;*/ const MOLD_FUNC Form_Dispatch[REB_MAX_0] =
+;*/ const MOLD_FUNC Form_Dispatch[REB_MAX] =
 ;/*
 ;**     The FORM dispatch function for each datatype.
 ;**
@@ -501,28 +449,20 @@ emit [
 
 datatypes: []
 n: 0
-bits: does [n * 4]
 
 for-each-record-NO-RETURN type boot-types [
     append datatypes type/name
 
-    ; Shift in two lowest bits as 1, both must be true in the lowest byte of
-    ; a value header for it to be a valid REBVAL (that isn't an end marker).
-    ; The other 6 bits are the type.  So we shift
-    ;
-    emit-line "REB_" form reduce [type/name {=} bits] bits
+    emit-line "REB_" form reduce [type/name {=} n] n
 
     n: n + 1
 ]
 
-emit-line "REB_" form reduce ["MAX" {=} bits] bits
+emit-line "REB_" form reduce ["MAX" {=} n] n
 
 emit {    REB_ENUM_NO_DANGLING_COMMA // placeholder so REB_MAX can end in comma
 ^};
 
-// For zero based indexing into arrays without concern for the low bits
-//
-#define REB_MAX_0 (REB_MAX / 4)
 }
 
 emit {
@@ -536,21 +476,33 @@ emit {
 new-types: []
 n: 0
 for-each-record-NO-RETURN type boot-types [
-    append new-types to-word join type/name "!"
+    ;
+    ; make legal C identifier, e.g. lit-word => LIT_WORD
+    ;
+    str: replace/all (uppercase form type/name) #"-" #"_"
 
-    if n = 0 [
-        ; Do not check for VAL_TYPE() == REB_TRASH.  Trying to get the type of
-        ; something that is trash should cause an assert...hence
-        ; IS_TRASH_DEBUG() is a macro that does not go through VAL_TYPE()
-        ;
-        n: n + 1
-        continue
+    ; Emit the IS_INTEGER() / etc. tests for the datatype.  Include IS_VOID()
+    ; because REB_0 is a bit pattern of 0 that is reserved internally and
+    ; kept in value slots when they are considered "unoccupied".  They cannot
+    ; be put in an ANY-ARRAY!, but may be appear transiently during an
+    ; evaluation or serve as a marking in a slot for an ANY-CONTEXT! when a
+    ; field named in that context's spec is present for binding but not
+    ; currently "set".
+    ;
+    ; Use LOGICAL() so that `REBOOL b = IS_INTEGER(value);` passes type
+    ; verification tests in the build (`a == b` is an integer in C, not bool)
+    ;
+    emit [
+        {#define IS_} str "(v)" space
+        "LOGICAL(VAL_TYPE(v)==REB_" str ")"
+        newline
     ]
 
-    str: uppercase form type/name
-    replace/all str #"-" #"_"
-    def: join {#define IS_} [str "(v)" space]
-    emit [def "LOGICAL(VAL_TYPE(v)==REB_" str ")" newline]
+    ; Type #0 is for internal purposes, it doesn't correspond to a type.
+    ;
+    if n != 0 [
+        append new-types to-word join type/name "!"
+    ]
 
     n: n + 1
 ]
@@ -563,13 +515,16 @@ for-each-record-NO-RETURN type boot-types [
 ;
 emit {
 #define IS_SET(v) \
-    LOGICAL(VAL_TYPE(v) > REB_UNSET)
+    LOGICAL(VAL_TYPE(v) != REB_UNSET)
+
+#define IS_ANY_VALUE(v) \
+    LOGICAL(VAL_TYPE(v) != REB_MAX_VOID)
 
 #define IS_SCALAR(v) \
     LOGICAL(VAL_TYPE(v) <= REB_DATE)
 
 #define ANY_SERIES(v) \
-    LOGICAL(VAL_TYPE(v) >= REB_BINARY && VAL_TYPE(v) <= REB_LIT_PATH)
+    LOGICAL(VAL_TYPE(v) >= REB_PATH && VAL_TYPE(v) <= REB_VECTOR)
 
 #define ANY_STRING(v) \
     LOGICAL(VAL_TYPE(v) >= REB_STRING && VAL_TYPE(v) <= REB_TAG)
@@ -577,39 +532,34 @@ emit {
 #define ANY_BINSTR(v) \
     LOGICAL(VAL_TYPE(v) >= REB_BINARY && VAL_TYPE(v) <= REB_TAG)
 
+inline static REBOOL ANY_ARRAY_KIND(enum Reb_Kind k) {
+    return LOGICAL(k >= REB_PATH && k <= REB_BLOCK);
+}
+
 #define ANY_ARRAY(v) \
-    LOGICAL(VAL_TYPE(v) >= REB_BLOCK && VAL_TYPE(v) <= REB_MAP)
+    ANY_ARRAY_KIND(VAL_TYPE(v))
+
+inline static REBOOL ANY_WORD_KIND(enum Reb_Kind k) {
+    return LOGICAL(k >= REB_WORD && k <= REB_ISSUE);
+}
 
 #define ANY_WORD(v) \
-    LOGICAL(VAL_TYPE(v) >= REB_WORD && VAL_TYPE(v) <= REB_ISSUE)
+    ANY_WORD_KIND(VAL_TYPE(v))
 
 #define ANY_PATH(v) \
     LOGICAL(VAL_TYPE(v) >= REB_PATH && VAL_TYPE(v) <= REB_LIT_PATH)
 
 #define ANY_EVAL_BLOCK(v) \
-    LOGICAL(VAL_TYPE(v) >= REB_BLOCK  && VAL_TYPE(v) <= REB_GROUP)
+    LOGICAL(VAL_TYPE(v) == REB_BLOCK || VAL_TYPE(v) == REB_GROUP)
 
-#define ANY_CONTEXT(v) \
-    LOGICAL(VAL_TYPE(v) >= REB_OBJECT && VAL_TYPE(v) <= REB_PORT)
-
-// If the type has evaluator behavior (vs. just passing through).  So like
-// WORD!, GROUP!, FUNCTION! (as opposed to BLOCK!, INTEGER!, OBJECT!).
-// The types are not arranged in an order that makes a super fast test easy
-// (though perhaps someday it could be tweaked so that all the evaluated types
-// had a certain bit set?) hence use a small fixed table.
-//
-// Note that this table has 256 entries, of which only those corresponding
-// to having the two lowest bits zero are set.  This is to avoid needing
-// shifting to check if a value is evaluable.  The other storage could be
-// used for properties of the type +1, +2, +3 ... at the cost of a bit of
-// math but reusing the values.  Any integer property could be stored for
-// the evaluables so long as non-evaluables are 0 in this list.
-//
-extern const REBUPT Eval_Table[REB_MAX];
-
-#define ANY_EVAL(v) LOGICAL(Eval_Table[VAL_TYPE(v)])
+inline static REBOOL ANY_CONTEXT_KIND(enum Reb_Kind k) {
+    return LOGICAL(k >= REB_OBJECT && k <= REB_PORT);
 }
 
+#define ANY_CONTEXT(v) \
+    ANY_CONTEXT_KIND(VAL_TYPE(v))
+
+}
 
 emit {
 /***********************************************************************
@@ -619,20 +569,21 @@ emit {
 ***********************************************************************/
 
 #define TS_NOTHING \
-    (FLAGIT_KIND(REB_UNSET) | FLAGIT_KIND(REB_NONE))
+    (FLAGIT_KIND(REB_MAX_VOID) | FLAGIT_KIND(REB_BLANK))
 
 // ANY-SOMETHING! is the base "all bits" typeset that just does not include
-// UNSET! or NONE!.  TRASH! is a purely internal type, but is removed anyway.
+// NONE! or a void (review if typesets should be allowed to mention void
+// when not part of a function spec)
 //
 #define TS_SOMETHING \
-    ((FLAGIT_KIND(REB_MAX) - 1) /* all typeset bits */ \
-    - TS_NOTHING - FLAGIT_KIND(REB_TRASH))
+    ((FLAGIT_KIND(REB_MAX_VOID + 1) - 1) /* all typeset bits */ \
+    - TS_NOTHING)
 
 // ANY-VALUE! is slightly more lenient in accepting NONE!, but still does not
-// count UNSET! (this is distinct from R3-Alpha's ANY-TYPE!, which is steered
+// count void (this is distinct from R3-Alpha's ANY-TYPE!, which is steered
 // clear from for reasons including that it looks a lot like ANY-DATATYPE!)
 //
-#define TS_VALUE (TS_SOMETHING | FLAGIT_KIND(REB_NONE))
+#define TS_VALUE (TS_SOMETHING | FLAGIT_KIND(REB_BLANK))
 
 }
 
@@ -694,7 +645,7 @@ for-each :rxt-record ext-types [
     either integer? offset [
         emit-line "RXT_" rejoin [type " = " offset] n
     ][
-        emit-line "RXT_" type n
+        emit-line "RXT_" to-string type n
     ]
     n: n + 1
 ]
@@ -711,11 +662,11 @@ emit {
 extern "C" ^{
 #endif
 
-extern const REBRXT Reb_To_RXT[REB_MAX_0];
+extern const REBRXT Reb_To_RXT[REB_MAX];
 
 /***********************************************************************
 **
-*/  const REBRXT Reb_To_RXT[REB_MAX_0] =
+*/  const REBRXT Reb_To_RXT[REB_MAX] =
 /*
 ***********************************************************************/
 ^{
@@ -742,7 +693,7 @@ emit {
 n: 0
 for-each type rxt-types [
     either word? type [emit-line "REB_" type n][
-        emit-line "" "REB_TRASH" n
+        emit-line "" "REB_0" n
     ]
     n: n + 1
 ]
@@ -752,7 +703,7 @@ emit {
 #define RXT_ALLOWED_TYPES (}
 for-each type next rxt-types [
     if word? type [
-        emit replace join "((u64)" uppercase rejoin ["1<<(REB_" type ">>2)) \^/"] #"-" #"_"
+        emit replace join "((u64)" uppercase rejoin ["1<<(REB_" type ")) \^/"] #"-" #"_"
         emit "|"
     ]
 ]
@@ -860,53 +811,60 @@ emit {
     SYM_0 = 0,
 }
 
-n: 1
+n: 0
+boot-words: []
+add-word: func [
+    ; LEAVE is not available in R3-Alpha compatibility PROC
+    ; RETURN () is not legal in R3-Alpha compatibility FUNC (no RETURN: [...])
+    ; Make it a FUNC and just RETURN blank to appease both
+
+    word
+    /skip-if-duplicate
+    /type
+][
+    ;
+    ; Horribly inefficient linear search, but MAP! in R3-Alpha is unreliable
+    ; and implemented differently, and we want this code to work in it too.
+    ;
+    if find boot-words word [
+        if skip-if-duplicate [return blank]
+        fail ["Duplicate word specified" word]
+    ]
+
+    emit-line "SYM_" word reform [n "-" word] ;-- emit-line does ? => _Q, etc.
+    n: n + 1
+
+    ; The types make a SYM_XXX entry, but they're kept in a separate block
+    ; in the boot object (see `boot-types` in `sections`)
+    ;
+    ; !!! Update--temporarily to make word numbering easier, they are
+    ; duplicated.  Consider a better way longer term.
+    ;
+    append boot-words word ;-- was `unless type [...]`
+    return blank
+]
+
 for-each-record-NO-RETURN type boot-types [
-    emit-line "SYM_" join type/name "_type" n
-    n: n + 1
+    if n = 0 [n: n + 1 | continue]
+
+    add-word/type to-word rejoin [to-string type/name "!"]
 ]
 
-boot-words: load %words.r
+wordlist: load %words.r
+replace wordlist '*port-modes* load %modes.r
 
-replace boot-words '*port-modes* load %modes.r
+for-each word wordlist [add-word word]
 
-for-each word boot-words [
-    emit-line "SYM_" word reform [n "-" word]
-    n: n + 1
-]
-emit-end
-
-;-- Generate Action Constants ------------------------------------------------
-
-emit {
-/***********************************************************************
-**
-*/  enum REBOL_Actions
-/*
-**      REBOL datatype action numbers.
-**
-**      Note the correspondence to action numbers that are less than REB_MAX
-**      as the query for the datatype with that enum value.  (INTEGER? etc.)
-**
-***********************************************************************/
-^{
-}
-
-boot-actions: load output-dir/boot/tmp-actions.r
-n: 2 ;-- actions start at 2, for the type checks, skipping TRASH? and END?
-emit-line "A_" "0 = 0" "Unused (would be A_TRASH_Q)"
-for-each word boot-actions [
-    if set-word? :word [
-        emit-line "A_" to word! :word n
-        n: n + 1
+boot-actions: load %tmp-actions.r
+for-each item boot-actions [
+    if set-word? :item [
+        add-word/skip-if-duplicate to-word item ;-- maybe in %words.r already
     ]
 ]
-emit [tab "A_MAX_ACTION" lf "};"]
-emit {
 
-#define IS_BINARY_ACT(a) ((a) <= A_XOR_T)
-}
-print [n "actions"]
+emit-end
+
+print [n "words + actions"]
 
 write inc/tmp-bootdefs.h out
 
@@ -937,9 +895,9 @@ change/only at-value platform reduce [
     any [select third any [find/skip plats version/4 3 []] version/5 ""]
 ]
 
-ob: context boot-sysobj
+ob: has boot-sysobj
 
-make-obj-defs: func [obj prefix depth /selfless /local f] [
+make-obj-defs: proc [obj prefix depth /selfless /local f] [
     uppercase prefix
     emit ["enum " prefix "object {" newline]
 
@@ -949,18 +907,18 @@ make-obj-defs: func [obj prefix depth /selfless /local f] [
         ; at 1, and if there's no "userspace" self in the 1 slot, the first
         ; key has to be...so we make `SYS_CTX_0 = 0` (for instance)
         ;
-        emit-line prefix "0 = 0" none
+        emit-line prefix "0 = 0" blank
     ][
         ; The internal generator currently puts SELF at the start of new
         ; objects in key slot 1, by default.  Eventually MAKE OBJECT! will
         ; have nothing to do with adding SELF, and it will be entirely a
         ; by-product of generators.
         ;
-        emit-line prefix "SELF = 1" none
+        emit-line prefix "SELF = 1" blank
     ]
 
     for-each field words-of obj [
-        emit-line prefix field none
+        emit-line prefix field blank
     ]
     emit [tab uppercase join prefix "MAX^/"]
     emit "};^/^/"
@@ -1025,15 +983,15 @@ emit newline
 
 emit ["enum event_types {" newline]
 for-each field ob/view/event-types [
-    emit-line "EVT_" field none
+    emit-line "EVT_" field blank
 ]
 emit [tab "EVT_MAX^/"]
 emit "};^/^/"
 
 emit ["enum event_keys {" newline]
-emit-line "EVK_" "NONE" none
+emit-line "EVK_" "NONE" blank
 for-each field ob/view/event-keys [
-    emit-line "EVK_" field none
+    emit-line "EVK_" field blank
 ]
 emit [tab "EVK_MAX^/"]
 emit "};^/^/"
@@ -1052,7 +1010,6 @@ write inc/reb-evtypes.h out
 emit-head "Error Structure and Constants" %errnums.h
 
 emit {
-#ifdef VAL_TYPE
 /***********************************************************************
 **
 */  typedef struct REBOL_Error_Vars
@@ -1067,7 +1024,6 @@ for-each word words-of ob/standard/error [
     emit-line/code "REBVAL " word ";"
 ]
 emit {^} ERROR_VARS;
-#endif
 }
 
 emit {
@@ -1118,7 +1074,7 @@ for-each [category info] boot-errors [
 
         code: code + 1
     ]
-    emit-line "RE_" join to word! category "_max" none
+    emit-line "RE_" join to word! category "_max" blank
     emit newline
 ]
 
@@ -1159,7 +1115,7 @@ write inc/tmp-portmodes.h out
 ;-- Add other MEZZ functions:
 mezz-files: load %../mezz/boot-files.r ; base lib, sys, mezz
 
-;append boot-mezz+ none ?? why was this needed?
+;append boot-mezz+ blank ?? why was this needed?
 
 for-each section [boot-base boot-sys boot-mezz] [
     set section make block! 200
@@ -1181,7 +1137,22 @@ for-each file first mezz-files [
 ]
 
 emit-head "Sys Context" %sysctx.h
-sctx: construct boot-sys
+
+; We don't actually want to create the object in the R3-MAKE Rebol, because
+; the constructs are intended to run in the Rebol being built.  But the list
+; of top-level SET-WORD!s is needed.  R3-Alpha used a non-evaluating CONSTRUCT
+; to do this, but Ren-C's non-evaluating construct expects direct alternation
+; of SET-WORD! and unevaluated value (even another SET-WORD!).  So we just
+; gather the top-level set-words manually.
+
+sctx: has collect [
+    for-each item boot-sys [
+        if set-word? :item [
+            keep item
+            keep "stub proxy for %sys-base.r item"
+        ]
+    ]
+]
 
 ; !!! The SYS_CTX has no SELF...it is not produced by the ordinary gathering
 ; constructor, but uses Alloc_Context() directly.  Rather than try and force
@@ -1213,23 +1184,25 @@ boot-booters: load %booters.r
 boot-natives: load output-dir/boot/tmp-natives.r
 
 nats: append copy boot-booters boot-natives
-nat-count: 0
+num-natives: 0
 
 for-each val nats [
     if set-word? val [
-        nat-count: nat-count + 1
+        num-natives: num-natives + 1
     ]
 ]
 
-print [nat-count "natives"]
+print [num-natives "natives"]
 
-emit [newline {const REBNAT Native_Funcs[} nat-count {] = ^{
+emit [newline {REBVAL Natives[NUM_NATIVES];}]
+
+emit [newline {const REBNAT Native_C_Funcs[NUM_NATIVES] = ^{
 }]
 for-each val nats [
     if set-word? val [
         emit-line/code "N_" to word! val ","
     ]
-    ;nat-count: nat-count + 1
+    ;num-natives: num-natives + 1
 ]
 emit-end
 emit newline
@@ -1250,14 +1223,15 @@ emit newline
 boot-typespecs: make block! 100
 specs: load %typespec.r
 for-each type datatypes [
-    append/only boot-typespecs select specs type
+    if type = 0 [continue]
+    verify [spec: select specs type]
+    append/only boot-typespecs spec
 ]
 
 ;-- Create main code section (compressed):
 boot-types: new-types
 boot-root: load %root.r
 boot-task: load %task.r
-boot-ops: load %ops.r
 ;boot-script: load %script.r
 
 write %boot-code.r mold reduce sections
@@ -1313,13 +1287,40 @@ emit-head "Bootstrap Structure and Root Module" %boot.h
 
 emit [
 {
-#define MAX_NATS      } nat-count {
+#define NUM_NATIVES } num-natives {
 #define NAT_UNCOMPRESSED_SIZE } length data {
 #define NAT_COMPRESSED_SIZE } length comp-data {
-#define CHECK_TITLE   } checksum to binary! title {
+#define CHECK_TITLE } checksum to binary! title {
 
-extern const REBYTE Native_Specs[];
-extern const REBNAT Native_Funcs[];
+// Compressed data of the native specifications.  This is uncompressed during
+// boot and executed.
+//
+extern const REBYTE Native_Specs[NAT_COMPRESSED_SIZE];
+
+// Raw C function pointers for natives.
+//
+extern const REBNAT Native_C_Funcs[NUM_NATIVES];
+
+// A canon FUNCTION! REBVAL of the native, accessible by the native's index #.
+//
+extern REBVAL Natives[NUM_NATIVES];
+
+enum Native_Indices ^{
+}
+]
+
+nat-index: 0
+for-each val nats [
+    if set-word? val [
+        emit rejoin ["    N_" to-c-name to word! val {_ID = } nat-index]
+        nat-index: nat-index + 1
+        if nat-index < num-natives [emit {,}]
+        emit newline
+    ]
+]
+
+emit [
+{^};
 
 typedef struct REBOL_Boot_Block ^{
 }

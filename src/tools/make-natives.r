@@ -26,11 +26,9 @@ mkdir/deep output-dir/boot
 
 verbose: false
 
-native-buffer: make string! 200
-action-buffer: make string! 200
-others-buffer: make string! 20000
+unsorted-buffer: make string! 20000
 
-emit-proto: func [proto] [
+emit-proto: proc [proto] [
 
     if all [
         'format2015 = proto-parser/style
@@ -48,9 +46,10 @@ emit-proto: func [proto] [
         line: line-of source.text proto-parser/parse.position
 
         append case [
-            proto-parser/data/1 = (quote native:) [native-buffer]
-            proto-parser/data/1 = (quote action:) [action-buffer]
-            true [others-buffer]
+            ; could do tests here to create special buffer categories to
+            ; put certain natives first or last, etc. (not currently needed)
+            ;
+            true [unsorted-buffer]
         ] rejoin [
             newline newline
             {; !!! DO NOT EDIT HERE! This is generated from }
@@ -63,7 +62,7 @@ emit-proto: func [proto] [
 ]
 
 process: func [file] [
-    if verbose [?? file]
+    if verbose [probe [file]]
     source.text: read join core-folder the-file: file
     if r3 [source.text: deline to-string source.text]
     proto-parser/emit-proto: :emit-proto
@@ -104,21 +103,7 @@ remove-each file files [
 
 for-each file files [process file]
 
-; Need to specifically move `native` and `action` up to the head of the list
-; so that they get created first.
-;
-append output-buffer native-buffer ; native: native [...] must be first
-append output-buffer action-buffer ; action: action [...] must be second
-
-; Then output all the others, ordered by filename
-;
-append output-buffer others-buffer
-
-append output-buffer {
-
-;-- Expectation is that evaluation ends in UNSET!, empty parens makes one
-()
-}
+append output-buffer unsorted-buffer
 
 write output-dir/boot/tmp-natives.r output-buffer
 
@@ -147,29 +132,6 @@ append output-buffer {REBOL [
 }
 
 boot-types: load %../boot/types.r
-n: 0
-for-each-record-NO-RETURN type boot-types [
-    if n == 0 [
-        ;-- We skip TRASH!
-        n: n + 1
-        continue
-    ]
-
-    caps-name: rejoin [(uppercase form type/name) {!}]
-
-    append output-buffer rejoin [
-        type/name "?: action/typecheck" space {[} newline
-        spaced-tab
-            {"} {Returns TRUE if value is of type} space caps-name {"} newline
-        spaced-tab
-            {value [opt-any-value!]} newline
-        {]} space n
-        newline
-        newline
-    ]
-
-    n: n + 1
-]
 
 append output-buffer mold/only load %../boot/actions.r
 

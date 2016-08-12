@@ -44,6 +44,89 @@ REBOL [
     }
 ]
 
+; Bootstrap VOID? into existence
+;
+unless true = attempt [void? :some-undefined-thing] [
+    void?: :unset?
+    void: does []
+
+    ; Since it's R3-Alpha or before, go ahead and mention this...
+    ;
+    default: enfix: does [
+        do make error! rejoin [
+            "The lookback quoting of SET-WORD! and SET-PATH! required by"
+            " ENFIX and DEFAULT are not possible in R3-Alpha"
+        ]
+    ]
+]
+
+
+; Used in function definitions before the mappings
+;
+if void? :any-context! [
+    any-context!: :any-object!
+    any-context?: :any-object?
+]
+
+if void? :set? [
+    set?: func [
+        "Returns whether a bound word has a value (fails if unbound)"
+        any-word [any-word!]
+    ][
+        unless bound? any-word [
+            fail [any-word "is not bound in set?"]
+        ]
+        value? any-word ;-- the "old" meaning of value...
+    ]
+]
+
+unless set? 'verify [
+    verify: :assert ;-- ASSERT may be a no-op in Ren-C, but verify isn't
+]
+
+unless set? 'blank? [
+    blank?: get 'none?
+    blank!: get 'none!
+    blank: get 'none
+    _: none
+]
+
+unless set? 'proc? [
+    leave: does [
+        do make error! "LEAVE cannot be implemented in usermode R3-Alpha"
+    ]
+
+    ; bypass FUNCTION! return check by using raw MAKE FUNCTION!
+    ;
+    proc: make function! [[spec body][
+        make function! compose/deep [[(spec)][
+            (body)
+            void
+        ]]
+    ]]
+]
+
+; ANY-VALUE! is anything that isn't void.  -OPT- ANY-VALUE! is a
+; placeholder for [<opt> ANY-VALUE!]
+;
+either void? :any-value! [
+    any-value!: difference any-type! (make typeset! [unset!])
+    *opt-legacy*: unset!
+    any-value?: func [item [*opt-legacy* any-value!]] [not void? :item]
+][
+    *opt-legacy*: _
+]
+
+; Ren-C replaces the awkward term PAREN! with GROUP!  (Retaining PAREN!
+; for compatibility as pointing to the same datatype).  Older Rebols
+; haven't heard of GROUP!, so establish the reverse compatibility.
+;
+if void? :group? [
+    group?: get 'paren?
+    group!: get 'paren!
+]
+
+
 ; Older versions of Rebol had a different concept of what FUNCTION meant
 ; (an arity-3 variation of FUNC).  Eventually the arity-2 construct that
 ; did locals-gathering by default named FUNCT overtook it, with the name
@@ -52,6 +135,52 @@ REBOL [
 unless (copy/part words-of :function 2) = [spec body] [
     function: :funct
 ]
+
+
+; The HAS routine in Ren-C is used for object creation with no spec, as
+; a parallel between FUNCTION and DOES.  It is favored for this purpose
+; over CONTEXT which is very "noun-like" and may be better for holding
+; a variable that is an ANY-CONTEXT!
+;
+; Additionally, the CONSTRUCT option behaves like MAKE ANY-OBJECT, sort of,
+; as the way of creating objects with parents or otherwise.
+;
+unless (copy/part words-of :has 1) = [body] [
+    has: :context
+
+    construct-legacy: :construct
+
+    construct: function [
+        "Creates an ANY-CONTEXT! instance"
+        spec [datatype! block! any-context!]
+            "Datatype to create, specification, or parent/prototype context"
+        body [block! any-context! none!]
+            "keys and values defining instance contents (bindings modified)"
+        /only
+            "Values are kept as-is"
+    ][
+        either only [
+            if block? spec [spec: make object! spec]
+            construct-legacy/only/with body spec
+        ][
+            if block? spec [
+                ;
+                ; If they supplied a spec block, do a minimal behavior which
+                ; will create a parent object with those fields...then run
+                ; the traditional gathering added onto that using the body
+                ;
+                spec: map-each item spec [
+                    assert [word? :item]
+                    to-set-word item
+                ]
+                append spec none
+                spec: make object! spec
+            ]
+            make spec body
+        ]
+    ]
+]
+
 
 ; A lone vertical bar is an "expression barrier" in Ren-C, but a word character
 ; in other situations.  Having a word behave as a function that returns an
@@ -72,12 +201,10 @@ unless find words-of :set /opt [
     set: func [
         {Sets a word, path, block of words, or context to specified value(s).}
 
-        ;-- Note: any-context! not defined until after migrations
-        target [any-word! any-path! block! any-object!]
+        target [any-word! any-path! block! any-context!]
             {Word, block of words, path, or object to be set (modified)}
 
-        ;-- Note: opt-any-value! not defined until after migrations
-        value [any-type!]
+        value [*opt-legacy* any-value!]
             "Value or block of values"
         /opt
             "Value is optional, and if no value is provided then unset the word"
@@ -89,7 +216,7 @@ unless find words-of :set /opt [
         set_ANY: any
         any: :lib/any ;-- in case it needs to be used
         opt_ANY: opt
-        opt: none ;-- no OPT defined yet, but just in case, keep clear
+        lib-set/any 'opt () ;-- doesn't exist in R3-Alpha
 
         apply :lib-set [target :value (any [opt_ANY set_ANY]) pad]
     ]
@@ -106,20 +233,20 @@ unless find words-of :get /opt [
         source
             "Word, path, context to get"
         /opt
-            "The source may optionally have no value (allows returning UNSET!)"
+            "The source may optionally have no value (allows returning void)"
         /any
             "Deprecated legacy synonym for /OPT"
     ][
         set_ANY: any
         any: :lib/any ;-- in case it needs to be used
         opt_ANY: opt
-        opt: none ;-- no OPT defined yet, but just in case, keep clear
+        lib-set/any 'opt () ;-- doesn't exist in R3-Alpha
 
         apply :lib-get [source (any [opt_ANY set_ANY])]
     ]
 ]
 
-if paren? reduce quote () [
+if group? reduce quote () [
     ;
     ; R3-Alpha would only REDUCE a block and pass through other outputs.
     ; REDUCE in Ren-C (and also in Red) is willing to reduce anything that
@@ -134,7 +261,7 @@ if paren? reduce quote () [
             "Keep set-words as-is. Do not set them."
         /only
             "Only evaluate words and paths, not functions"
-        words [block! none!]
+        words [block! blank!]
             "Optional words that are not evaluated (keywords)"
         /into
             {Output results into a series with no intermediate storage}
@@ -165,21 +292,14 @@ migrations: [
     ;
     for-each <as> :foreach
 
-    ; Ren-C replaces the awkward term PAREN! with GROUP!  (Retaining PAREN!
-    ; for compatibility as pointing to the same datatype).  Older Rebols
-    ; haven't heard of GROUP!, so establish the reverse compatibility.
-    ;
-    group! <as> :paren!
-    group? <as> :paren?
-
     ; Not having category members have the same name as the category
     ; themselves helps both cognition and clarity inside the source of the
     ; implementation.
     ;
     any-array? <as> :any-block?
     any-array! <as> :any-block!
-    any-context? <as> :any-object?
-    any-context! <as> :any-object!
+
+    ; Note: any-context! and any-context? supplied at top of file
 
     ; *all* typesets now ANY-XXX to help distinguish them from concrete types
     ; https://trello.com/c/d0Nw87kp
@@ -191,14 +311,6 @@ migrations: [
     any-number? <as> :number?
     any-number! <as> :number!
 
-    ; ANY-VALUE! is anything that isn't UNSET!.  OPT-ANY-VALUE! is a
-    ; placeholder for [<opt> ANY-VALUE!] or [#opt ANY-VALUE] in function specs,
-    ; a final format has not been picked for the generator to use.
-    ;
-    any-value? <as> (func [item [any-type!]] [not unset? :item])
-    any-value! <as> (difference any-type! (make typeset! [unset!]))
-    opt-any-value! <as> :any-type!
-
     ; Renamings to conform to ?-means-returns-true-false rule
     ; https://trello.com/c/BxLP8Nch
     ;
@@ -207,27 +319,27 @@ migrations: [
     offset? <to> offset-of
     type? <to> type-of
 
-    ; "optional" (a.k.a. UNSET!) handling
+    ; "optional" (a.k.a. void) handling
     opt <as> (func [
-        {NONE! to unset, all other value types pass through.}
-        value [any-type!]
+        {NONE! to a void, all other value types pass through.}
+        value [*opt-legacy* any-value!]
     ][
-        either none? get/opt 'value [()][
+        either blank? get/opt 'value [()][
             get/opt 'value
         ]
     ])
 
     to-value <as> (func [
         {Turns unset to NONE, with ANY-VALUE! passing through. (See: OPT)}
-        value [any-type!]
+        value [*opt-legacy* any-value!]
     ][
-        either unset? get/opt 'value [none][:value]
+        either void? get/opt 'value [blank][:value]
     ])
 
-    something? <as> (func [value [any-type!]] [
+    something? <as> (func [value [*opt-legacy* any-value!]] [
         not any [
-            unset? :value
-            none? :value
+            void? :value
+            blank? :value
         ]
     ])
 
@@ -283,7 +395,7 @@ migrations: [
     or? <as> (func [a b] [true? any [:a :b]])
     or <as> :or ; see above
 
-    xor- <as> :xor
+    xor+ <as> :xor
     xor? <as> (func [a b] [true? any [all [:a (not :b)] all [(not :a) :b]]])
 ]
 
@@ -294,13 +406,13 @@ unless parse migrations [
     some [
         ;-- Note: GROUP! defined during migration, so use PAREN! here
         [set left word! <as> set right [get-word! | paren!]] (
-            unless value? left [
+            unless set? left [
                 set left either paren? right [reduce right] [get right]
             ]
         )
     |
         [set left word! <to> set right word!] (
-            unless value? right [
+            unless set? right [
                 set right get left
                 unset left
             ]

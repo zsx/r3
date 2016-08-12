@@ -10008,7 +10008,7 @@ start_pass_1_quant (j_decompress_ptr cinfo, boolean is_pre_scan)
 
   /* Initialize for desired dithering mode. */
   switch (cinfo->dither_mode) {
-  case JDITHER_NONE:
+  case JDITHER_BLANK:
     if (cinfo->out_color_components == 3)
       cquantize->pub.color_quantize = color_quantize3;
     else

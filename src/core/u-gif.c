@@ -1,32 +1,35 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  u-gif.c
-**  Summary: GIF image format conversion
-**  Section: utility
-**  Notes:
-**    This is an optional part of R3. This file can be replaced by
-**    library function calls into an updated implementation.
-**
-***********************************************************************/
+//
+//  File: %u-gif.c
+//  Summary: "GIF image format conversion"
+//  Section: utility
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// This is an optional part of R3. This file can be replaced by
+// library function calls into an updated implementation.
+//
 
 #include "sys-core.h"
 
@@ -307,7 +310,6 @@ void Decode_GIF_Image(REBCDI *codi)
         Decode_LZW(dp, &cp, colormap, w, h, interlaced);
 
         if(transparency_index >= 0) {
-            int ADD_alpha_key_detection;
             REBYTE *p=colormap+3*transparency_index;
             ///Chroma_Key_Alpha(Temp_Value, (REBCNT)(p[2]|(p[1]<<8)|(p[0]<<16)), BLIT_MODE_COLOR);
         }

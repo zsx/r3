@@ -1,4 +1,3 @@
-//
 // Isolated C source file for making the host table an isolated link entity.
 //
 // Libraries may not wish to include the resulting %host-table.o (or %.obj)

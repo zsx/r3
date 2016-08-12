@@ -1,6 +1,10 @@
 //
-// Rebol 3 Language Interpreter and Run-time Environment
-// "Ren-C" branch @ https://github.com/metaeducation/ren-c
+//  File: %d-legacy.h
+//  Summary: "Legacy Support Routines for Debug Builds"
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2016 Rebol Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
@@ -18,11 +22,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  Summary: Legacy Support Routines for Debug Builds
-//  File: %d-legacy.h
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -56,9 +55,9 @@ REBOOL In_Legacy_Function_Debug(void)
     // Find the first bit of code that's actually running ordinarily in
     // the evaluator, and not just dispatching.
     //
-    struct Reb_Frame *frame = FS_TOP;
+    REBFRM *frame = FS_TOP;
     for (; frame != NULL; frame = frame->prior) {
-        if (frame->flags & DO_FLAG_VALIST)
+        if (frame->flags.bits & DO_FLAG_VA_LIST)
             return FALSE; // no source array to look at
 
         break; // whatever's dispatching here, there is a source array
@@ -77,43 +76,60 @@ REBOOL In_Legacy_Function_Debug(void)
 
 
 //
-//  Legacy_Convert_Function_Args_Debug: C
+//  Legacy_Convert_Function_Args: C
 //
-// R3-Alpha and Rebol2 used TRUE for a refinement and NONE for the argument
-// to a refinement which is not present.  Ren-C provides the name of the
-// argument as a WORD! if for the refinement, and UNSET! for refinement
-// args that are not there.  (This makes chaining work.)
+// R3-Alpha and Rebol2 used BLANK for unused refinements and arguments to
+// a refinement which is not present.  Ren-C uses FALSE for unused refinements
+// and arguments to unused refinements are not set.
 //
 // Could be woven in efficiently, but as it's a debug build only feature it's
 // better to isolate it into a post-phase.  This improves the readability of
 // the mainline code.
 //
-void Legacy_Convert_Function_Args_Debug(struct Reb_Frame *f)
+// Trigger is when OPTIONS_REFINEMENTS_TRUE is set during function creation,
+// which will give it FUNC_FLAG_LEGACY_DEBUG--leading to this being used.
+//
+void Legacy_Convert_Function_Args(REBFRM *f)
 {
-    REBVAL *param = FUNC_PARAMS_HEAD(f->func);
-    REBVAL *arg = FRM_ARGS_HEAD(f);
+    REBVAL *param = FUNC_PARAMS_HEAD(f->underlying);
+    REBVAL *arg = f->args_head;
 
-    REBOOL set_none = FALSE;
+    REBOOL set_blank = FALSE;
 
     for (; NOT_END(param); ++param, ++arg) {
-        if (VAL_PARAM_CLASS(param) == PARAM_CLASS_REFINEMENT) {
-            if (IS_WORD(arg)) {
-                assert(VAL_WORD_SYM(arg) == VAL_TYPESET_SYM(param));
-                SET_TRUE(arg);
-                set_none = FALSE;
-            }
-            else if (IS_NONE(arg)) {
-                set_none = TRUE;
+        switch (VAL_PARAM_CLASS(param)) {
+        case PARAM_CLASS_REFINEMENT:
+            if (IS_LOGIC(arg)) {
+                if (VAL_LOGIC(arg))
+                    set_blank = FALSE;
+                else {
+                    SET_BLANK(arg);
+                    set_blank = TRUE;
+                }
             }
             else assert(FALSE);
-        }
-        else if (VAL_PARAM_CLASS(param) == PARAM_CLASS_PURE_LOCAL)
-            assert(IS_UNSET(arg));
-        else {
-            if (set_none) {
-                assert(IS_UNSET(arg));
-                SET_NONE(arg);
+            break;
+
+        case PARAM_CLASS_LOCAL:
+            assert(IS_VOID(arg)); // keep *pure* locals as void, even in legacy
+            break;
+
+        case PARAM_CLASS_RETURN:
+        case PARAM_CLASS_LEAVE:
+            assert(IS_FUNCTION(arg) || IS_VOID(arg));
+            break;
+
+        case PARAM_CLASS_NORMAL:
+        case PARAM_CLASS_HARD_QUOTE:
+        case PARAM_CLASS_SOFT_QUOTE:
+            if (set_blank) {
+                assert(IS_VOID(arg));
+                SET_BLANK(arg);
             }
+            break;
+
+        default:
+            assert(FALSE);
         }
     }
 }
@@ -147,26 +163,26 @@ REBCTX *Make_Guarded_Arg123_Error(void)
 {
     REBCTX *root_error = VAL_CONTEXT(ROOT_ERROBJ);
     REBCTX *error = Copy_Context_Shallow_Extra(root_error, 3);
-    REBVAL *key;
-    REBVAL *var;
-    REBCNT n;
+
     REBCNT root_len = ARR_LEN(CTX_VARLIST(root_error));
 
     // Update the length to suppress out of bounds assert from CTX_KEY/VAL
     //
-    SET_ARRAY_LEN(CTX_VARLIST(error), root_len + 3);
-    SET_ARRAY_LEN(CTX_KEYLIST(error), root_len + 3);
+    TERM_ARRAY_LEN(CTX_VARLIST(error), root_len + 3);
+    TERM_ARRAY_LEN(CTX_KEYLIST(error), root_len + 3);
 
-    key = CTX_KEY(error, CTX_LEN(root_error) + 1);
-    var = CTX_VAR(error, CTX_LEN(root_error) + 1);
+    REBVAL *key = CTX_KEY(error, CTX_LEN(root_error)) + 1;
+    REBVAL *var = CTX_VAR(error, CTX_LEN(root_error)) + 1;
 
+    REBCNT n;
     for (n = 0; n < 3; n++, key++, var++) {
-        Val_Init_Typeset(key, ALL_64, SYM_ARG1 + n);
-        SET_NONE(var);
+        Val_Init_Typeset(
+            key,
+            ALL_64,
+            Canon(cast(REBSYM, cast(REBCNT, SYM_ARG1) + n))
+        );
+        SET_BLANK(var);
     }
-
-    SET_END(key);
-    SET_END(var);
 
     MANAGE_ARRAY(CTX_VARLIST(error));
     PUSH_GUARD_CONTEXT(error);

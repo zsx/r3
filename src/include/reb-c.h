@@ -1,35 +1,37 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Summary: General C definitions and constants
-**  Module:  reb-c.h
-**  Author:  Carl Sassenrath, Ladislav Mecir
-**  Notes:
-**      Various configuration defines (from reb-config.h):
-**
-**      HAS_LL_CONSTS - compiler allows 1234LL constants
-**      WEIRD_INT_64 - old MSVC typedef for 64 bit int
-**      OS_WIDE_CHAR - the OS uses wide chars (not UTF-8)
-**
-***********************************************************************/
+//
+//  File: %reb-c.h
+//  Summary: "General C definitions and constants"
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Various configuration defines (from reb-config.h):
+//
+// HAS_LL_CONSTS - compiler allows 1234LL constants
+// WEIRD_INT_64 - old MSVC typedef for 64 bit int
+// OS_WIDE_CHAR - the OS uses wide chars (not UTF-8)
+//
 
 
 /***********************************************************************
@@ -690,12 +692,19 @@ typedef u16 REBUNI;
     #define ATTRIBUTE_NO_RETURN __attribute__ ((noreturn))
 #elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
     #define ATTRIBUTE_NO_RETURN _Noreturn
+#elif defined(_MSC_VER)
+    #define ATTRIBUTE_NO_RETURN __declspec(noreturn)
 #else
     #define ATTRIBUTE_NO_RETURN
 #endif
 
 #if __has_builtin(__builtin_unreachable) || GCC_VERSION_AT_LEAST(4, 5)
     #define DEAD_END __builtin_unreachable()
+#elif defined(_MSC_VER)
+    __declspec(noreturn) static inline void msvc_unreachable() {
+        while (TRUE) { }
+    }
+    #define DEAD_END msvc_unreachable()
 #else
     #define DEAD_END
 #endif
@@ -706,6 +715,19 @@ typedef u16 REBUNI;
 **  Useful Macros
 **
 ***********************************************************************/
+
+// Skip to the specified byte but not past the provided end
+// pointer of the byte string.  Return NULL if byte is not found.
+//
+inline static const REBYTE *Skip_To_Byte(
+    const REBYTE *cp,
+    const REBYTE *ep,
+    REBYTE b
+) {
+    while (cp != ep && *cp != b) cp++;
+    if (*cp == b) return cp;
+    return 0;
+}
 
 typedef unsigned int REBFLGS; // Collection of bit flags, CPU optimized
 

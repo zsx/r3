@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  t-money.c
-**  Summary: extended precision datatype
-**  Section: datatypes
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %t-money.c
+//  Summary: "extended precision datatype"
+//  Section: datatypes
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 #include "sys-deci-funcs.h"
@@ -34,22 +35,75 @@
 //
 //  CT_Money: C
 //
-REBINT CT_Money(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Money(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     REBOOL e, g;
 
-    if (mode >= 3) e = deci_is_same(VAL_MONEY_AMOUNT(a), VAL_MONEY_AMOUNT(b));
-    else {
-        e = deci_is_equal(VAL_MONEY_AMOUNT(a), VAL_MONEY_AMOUNT(b));
-        if (mode < 0) {
-            g = deci_is_lesser_or_equal(
-                VAL_MONEY_AMOUNT(b), VAL_MONEY_AMOUNT(a)
-            );
-            if (mode == -1) e = LOGICAL(e || g);
-            else e = LOGICAL(g && !e);
-        }
+    e = deci_is_equal(VAL_MONEY_AMOUNT(a), VAL_MONEY_AMOUNT(b));
+    if (mode < 0) {
+        g = deci_is_lesser_or_equal(
+            VAL_MONEY_AMOUNT(b), VAL_MONEY_AMOUNT(a)
+        );
+        if (mode == -1) e = LOGICAL(e || g);
+        else e = LOGICAL(g && !e);
     }
     return e ? 1 : 0;
+}
+
+
+//
+//  MAKE_Money: C
+//
+void MAKE_Money(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    switch (VAL_TYPE(arg)) {
+    case REB_INTEGER:
+        SET_MONEY(out, int_to_deci(VAL_INT64(arg)));
+        break;
+
+    case REB_DECIMAL:
+    case REB_PERCENT:
+        SET_MONEY(out, decimal_to_deci(VAL_DECIMAL(arg)));
+        break;
+
+    case REB_MONEY:
+        *out = *arg;
+        return;
+
+    case REB_STRING:
+    {
+        const REBYTE *end;
+        REBYTE *str = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_MONEY, 0, FALSE);
+        SET_MONEY(out, string_to_deci(str, &end));
+        if (end == str || *end != 0)
+            goto bad_make;
+        break;
+    }
+
+//      case REB_ISSUE:
+    case REB_BINARY:
+        Bin_To_Money_May_Fail(out, arg);
+        break;
+
+    case REB_LOGIC:
+        SET_MONEY(out, int_to_deci(VAL_LOGIC(arg) ? 1 : 0));
+        break;
+
+    default:
+    bad_make:
+        fail (Error_Bad_Make(REB_MONEY, arg));
+    }
+
+    VAL_RESET_HEADER(out, REB_MONEY);
+}
+
+
+//
+//  TO_Money: C
+//
+void TO_Money(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    MAKE_Money(out, kind, arg);
 }
 
 
@@ -67,7 +121,7 @@ REBINT Emit_Money(const REBVAL *value, REBYTE *buf, REBFLGS opts)
 //
 // Will successfully convert or fail (longjmp) with an error.
 //
-void Bin_To_Money_May_Fail(REBVAL *result, REBVAL *val)
+void Bin_To_Money_May_Fail(REBVAL *result, const REBVAL *val)
 {
     REBCNT len;
     REBYTE buf[MAX_HEX_LEN+4] = {0}; // binary to convert
@@ -77,30 +131,31 @@ void Bin_To_Money_May_Fail(REBVAL *result, REBVAL *val)
         if (len > 12) len = 12;
         memcpy(buf, VAL_BIN_AT(val), len);
     }
-#ifdef removed
-    else if (IS_ISSUE(val)) {
-        //if (!(len = Scan_Hex_Bytes(val, 24, buf))) return FALSE;
-        REBYTE *ap = Get_Word_Name(val);
-        REBYTE *bp = &buf[0];
-        REBCNT alen;
-        REBUNI c;
-        len = LEN_BYTES(ap);  // UTF-8 len
-        if (len & 1) return FALSE; // must have even # of chars
-        len /= 2;
-        if (len > 12) return FALSE; // valid even for UTF-8
-        for (alen = 0; alen < len; alen++) {
-            if (!Scan_Hex2(ap, &c, 0)) return FALSE;
-            *bp++ = (REBYTE)c;
-            ap += 2;
-        }
-    }
-#endif
     else
         fail (Error_Invalid_Arg(val));
 
     memcpy(buf + 12 - len, buf, len); // shift to right side
     memset(buf, 0, 12 - len);
-    VAL_MONEY_AMOUNT(result) = binary_to_deci(buf);
+    SET_MONEY(result, binary_to_deci(buf));
+}
+
+
+static REBVAL *Math_Arg_For_Money(REBVAL *store, REBVAL *arg, REBSYM action)
+{
+    if (IS_MONEY(arg))
+        return arg;
+
+    if (IS_INTEGER(arg)) {
+        SET_MONEY(store, int_to_deci(VAL_INT64(arg)));
+        return store;
+    }
+
+    if (IS_DECIMAL(arg) || IS_PERCENT(arg)) {
+        SET_MONEY(store, decimal_to_deci(VAL_DECIMAL(arg)));
+        return store;
+    }
+
+    fail (Error_Math_Args(REB_MONEY, action));
 }
 
 
@@ -111,155 +166,100 @@ REBTYPE(Money)
 {
     REBVAL *val = D_ARG(1);
     REBVAL *arg;
-    const REBYTE *str;
-    REBINT equal = 1;
 
-    if (IS_BINARY_ACT(action)) {
-        arg = D_ARG(2);
+    switch (action) {
+    case SYM_ADD:
+        arg = Math_Arg_For_Money(D_OUT, D_ARG(2), action);
+        SET_MONEY(D_OUT, deci_add(
+            VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
+        ));
+        break;
 
-        if (IS_MONEY(arg))
-            ;
-        else if (IS_INTEGER(arg)) {
-            VAL_MONEY_AMOUNT(D_OUT) = int_to_deci(VAL_INT64(arg));
-            arg = D_OUT;
-        }
-        else if (IS_DECIMAL(arg) || IS_PERCENT(arg)) {
-            VAL_MONEY_AMOUNT(D_OUT) = decimal_to_deci(VAL_DECIMAL(arg));
-            arg = D_OUT;
+    case SYM_SUBTRACT:
+        arg = Math_Arg_For_Money(D_OUT, D_ARG(2), action);
+        SET_MONEY(D_OUT, deci_subtract(
+            VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
+        ));
+        break;
+
+    case SYM_MULTIPLY:
+        arg = Math_Arg_For_Money(D_OUT, D_ARG(2), action);
+        SET_MONEY(D_OUT, deci_multiply(
+            VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
+        ));
+        break;
+
+    case SYM_DIVIDE:
+        arg = Math_Arg_For_Money(D_OUT, D_ARG(2), action);
+        SET_MONEY(D_OUT, deci_divide(
+            VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
+        ));
+        break;
+
+    case SYM_REMAINDER:
+        arg = Math_Arg_For_Money(D_OUT, D_ARG(2), action);
+        SET_MONEY(D_OUT, deci_mod(
+            VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
+        ));
+        break;
+
+    case SYM_NEGATE:
+        val->payload.money.s = !val->payload.money.s;
+        *D_OUT = *D_ARG(1);
+        return R_OUT;
+
+    case SYM_ABSOLUTE:
+        val->payload.money.s = 0;
+        *D_OUT = *D_ARG(1);
+        return R_OUT;
+
+    case SYM_ROUND: {
+        REFINE(2, to);
+        PARAM(3, scale);
+
+        REBVAL *scale = ARG(scale);
+
+        REBVAL temp;
+        if (REF(to)) {
+            if (IS_INTEGER(scale))
+                SET_MONEY(&temp, int_to_deci(VAL_INT64(scale)));
+            else if (IS_DECIMAL(scale) || IS_PERCENT(scale))
+                SET_MONEY(&temp, decimal_to_deci(VAL_DECIMAL(scale)));
+            else if (IS_MONEY(scale))
+                temp = *scale;
+            else
+                fail (Error_Invalid_Arg(scale));
         }
         else
-            fail (Error_Math_Args(REB_MONEY, action));
+            SET_MONEY(&temp, int_to_deci(0));
 
-        switch (action) {
-        case A_ADD:
-            VAL_MONEY_AMOUNT(D_OUT) = deci_add(
-                VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
-            );
-            break;
-
-        case A_SUBTRACT:
-            VAL_MONEY_AMOUNT(D_OUT) = deci_subtract(
-                VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
-            );
-            break;
-
-        case A_MULTIPLY:
-            VAL_MONEY_AMOUNT(D_OUT) = deci_multiply(
-                VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
-            );
-            break;
-
-        case A_DIVIDE:
-            VAL_MONEY_AMOUNT(D_OUT) = deci_divide(
-                VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
-            );
-            break;
-
-        case A_REMAINDER:
-            VAL_MONEY_AMOUNT(D_OUT) = deci_mod(
-                VAL_MONEY_AMOUNT(val), VAL_MONEY_AMOUNT(arg)
-            );
-            break;
-
-        default:
-            fail (Error_Illegal_Action(REB_MONEY, action));
-        }
-
-        VAL_RESET_HEADER(D_OUT, REB_MONEY);
-        return R_OUT;
-    }
-
-    switch(action) {
-    case A_NEGATE:
-        VAL_MONEY_AMOUNT(val).s = !VAL_MONEY_AMOUNT(val).s;
-        *D_OUT = *D_ARG(1);
-        return R_OUT;
-
-    case A_ABSOLUTE:
-        VAL_MONEY_AMOUNT(val).s = 0;
-        *D_OUT = *D_ARG(1);
-        return R_OUT;
-
-    case A_ROUND:
-        arg = D_ARG(3);
-        if (D_REF(2)) {
-            if (IS_INTEGER(arg))
-                VAL_MONEY_AMOUNT(arg) = int_to_deci(VAL_INT64(arg));
-            else if (IS_DECIMAL(arg) || IS_PERCENT(arg))
-                VAL_MONEY_AMOUNT(arg) = decimal_to_deci(VAL_DECIMAL(arg));
-            else if (!IS_MONEY(arg)) fail (Error_Invalid_Arg(arg));
-        }
-        VAL_MONEY_AMOUNT(D_OUT) = Round_Deci(
+        SET_MONEY(D_OUT, Round_Deci(
             VAL_MONEY_AMOUNT(val),
             Get_Round_Flags(frame_),
-            VAL_MONEY_AMOUNT(arg)
-        );
-        if (D_REF(2)) {
-            if (IS_DECIMAL(arg) || IS_PERCENT(arg)) {
+            VAL_MONEY_AMOUNT(&temp)
+        ));
+
+        if (REF(to)) {
+            if (IS_DECIMAL(scale) || IS_PERCENT(scale)) {
                 REBDEC dec = deci_to_decimal(VAL_MONEY_AMOUNT(D_OUT));
-                VAL_RESET_HEADER(D_OUT, VAL_TYPE(arg));
+                VAL_RESET_HEADER(D_OUT, VAL_TYPE(scale));
                 VAL_DECIMAL(D_OUT) = dec;
                 return R_OUT;
             }
-            if (IS_INTEGER(arg)) {
+            if (IS_INTEGER(scale)) {
                 REBI64 i64 = deci_to_int(VAL_MONEY_AMOUNT(D_OUT));
                 VAL_RESET_HEADER(D_OUT, REB_INTEGER);
                 VAL_INT64(D_OUT) = i64;
                 return R_OUT;
             }
         }
-        break;
+        break; }
 
-    case A_EVEN_Q:
-    case A_ODD_Q:
-        equal = 1 & (REBINT)deci_to_int(VAL_MONEY_AMOUNT(val));
-        if (action == A_EVEN_Q) equal = !equal;
-        if (equal) goto is_true;
-        goto is_false;
-
-    case A_MAKE:
-    case A_TO:
-        arg = D_ARG(2);
-
-        switch (VAL_TYPE(arg)) {
-
-        case REB_INTEGER:
-            VAL_MONEY_AMOUNT(D_OUT) = int_to_deci(VAL_INT64(arg));
-            break;
-
-        case REB_DECIMAL:
-        case REB_PERCENT:
-            VAL_MONEY_AMOUNT(D_OUT) = decimal_to_deci(VAL_DECIMAL(arg));
-            break;
-
-        case REB_MONEY:
-            *D_OUT = *D_ARG(2);
-            return R_OUT;
-
-        case REB_STRING:
-        {
-            const REBYTE *end;
-            str = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_MONEY, 0, FALSE);
-            VAL_MONEY_AMOUNT(D_OUT) = string_to_deci(str, &end);
-            if (end == str || *end != 0) fail (Error_Bad_Make(REB_MONEY, arg));
-            break;
-        }
-
-//      case REB_ISSUE:
-        case REB_BINARY:
-            Bin_To_Money_May_Fail(D_OUT, arg);
-            break;
-
-        case REB_LOGIC:
-            equal = !VAL_LOGIC(arg);
-//      case REB_NONE: // 'equal defaults to 1
-            VAL_MONEY_AMOUNT(D_OUT) = int_to_deci(equal ? 0 : 1);
-            break;
-
-        default:
-            fail (Error_Bad_Make(REB_MONEY, arg));
-        }
-        break;
+    case SYM_EVEN_Q:
+    case SYM_ODD_Q: {
+        REBINT result = 1 & cast(REBINT, deci_to_int(VAL_MONEY_AMOUNT(val)));
+        if (action == SYM_EVEN_Q) result = !result;
+        return result ? R_TRUE : R_FALSE; }
 
     default:
         fail (Error_Illegal_Action(REB_MONEY, action));
@@ -267,8 +267,5 @@ REBTYPE(Money)
 
     VAL_RESET_HEADER(D_OUT, REB_MONEY);
     return R_OUT;
-
-is_true:  return R_TRUE;
-is_false: return R_FALSE;
 }
 

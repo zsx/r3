@@ -1,41 +1,44 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Title: Device: Event handler for Posix
-**  Author: Carl Sassenrath
-**  Purpose:
-**      Processes events to pass to REBOL. Note that events are
-**      used for more than just windowing.
-**
-************************************************************************
-**
-**  NOTE to PROGRAMMERS:
-**
-**    1. Keep code clear and simple.
-**    2. Document unusual code, reasoning, or gotchas.
-**    3. Use same style for code, vars, indent(4), comments, etc.
-**    4. Keep in mind Linux, OS X, BSD, big/little endian CPUs.
-**    5. Test everything, then test it again.
-**
-***********************************************************************/
+//
+//  File: %dev-event.c
+//  Summary: "Device: Event handler for Posix"
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Processes events to pass to REBOL. Note that events are
+// used for more than just windowing.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// NOTE to PROGRAMMERS:
+//
+//   1. Keep code clear and simple.
+//   2. Document unusual code, reasoning, or gotchas.
+//   3. Use same style for code, vars, indent(4), comments, etc.
+//   4. Keep in mind Linux, OS X, BSD, big/little endian CPUs.
+//   5. Test everything, then test it again.
+//
 
 #ifdef REB_CORE //view needs to have its own event implementation
 
@@ -43,6 +46,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/time.h>
+#include <errno.h>
 
 #include "reb-host.h"
 
@@ -95,8 +99,16 @@ DEVICE_CMD Query_Events(REBREQ *req)
 
     result = select(0, 0, 0, 0, &tv);
     if (result < 0) {
-        // !!! set error code
-        printf("ERROR!!!!\n");
+        //
+        // !!! In R3-Alpha this had a TBD that said "set error code" and had a
+        // printf that said "ERROR!!!!".  However this can happen when a
+        // Ctrl-C interrupts a timer on a WAIT.  As a patch this is tolerant
+        // of EINTR, but still returns the error code.  :-/
+        //
+        if (errno == EINTR)
+            return DR_ERROR;
+
+        printf("select() returned -1 in dev-event.c (I/O error!)\n");
         return DR_ERROR;
     }
 

@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  p-dns.c
-**  Summary: DNS port interface
-**  Section: ports
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %p-dns.c
+//  Summary: "DNS port interface"
+//  Section: ports
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 #include "reb-net.h"
@@ -34,7 +35,7 @@
 //
 //  DNS_Actor: C
 //
-static REB_R DNS_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
+static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
     REBVAL *spec;
     REBREQ *sock;
@@ -44,7 +45,6 @@ static REB_R DNS_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
     REBOOL sync = FALSE; // act synchronously
 
     REBVAL tmp;
-    VAL_INIT_WRITABLE_DEBUG(&tmp);
 
     Validate_Port(port, action);
 
@@ -59,7 +59,7 @@ static REB_R DNS_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 
     switch (action) {
 
-    case A_READ:
+    case SYM_READ:
         if (!IS_OPEN(sock)) {
             if (OS_DO_DEVICE(sock, RDC_OPEN))
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, sock->error));
@@ -96,14 +96,19 @@ static REB_R DNS_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
         }
         break;
 
-    case A_PICK:  // FIRST - return result
+    case SYM_PICK:  // FIRST - return result
         if (!IS_OPEN(sock))
             fail (Error_On_Port(RE_NOT_OPEN, port, -12));
 
         len = Get_Num_From_Arg(arg); // Position
 pick:
         if (len == 1) {
-            if (!sock->special.net.host_info || !GET_FLAG(sock->flags, RRF_DONE)) return R_NONE;
+            if (
+                !sock->special.net.host_info
+                || !GET_FLAG(sock->flags, RRF_DONE
+            )) {
+                return R_VOID;
+            }
             if (sock->error) {
                 OS_DO_DEVICE(sock, RDC_CLOSE);
                 fail (Error_On_Port(RE_READ_ERROR, port, sock->error));
@@ -119,21 +124,21 @@ pick:
             fail (Error_Out_Of_Range(arg));
         break;
 
-    case A_OPEN:
+    case SYM_OPEN:
         if (OS_DO_DEVICE(sock, RDC_OPEN))
             fail (Error_On_Port(RE_CANNOT_OPEN, port, -12));
         break;
 
-    case A_CLOSE:
+    case SYM_CLOSE:
         OS_DO_DEVICE(sock, RDC_CLOSE);
         break;
 
-    case A_OPEN_Q:
+    case SYM_OPEN_Q:
         if (IS_OPEN(sock)) return R_TRUE;
         return R_FALSE;
 
-    case A_UPDATE:
-        return R_NONE;
+    case SYM_UPDATE:
+        return R_BLANK;
 
     default:
         fail (Error_Illegal_Action(REB_PORT, action));
@@ -148,5 +153,5 @@ pick:
 //
 void Init_DNS_Scheme(void)
 {
-    Register_Scheme(SYM_DNS, 0, DNS_Actor);
+    Register_Scheme(Canon(SYM_DNS), DNS_Actor);
 }

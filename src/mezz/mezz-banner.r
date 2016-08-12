@@ -43,11 +43,12 @@ make-banner: func [
 sys/boot-banner: make-banner [
     *
     -
-    "REBOL 3.0"
+    "REBOL 3.0 (Ren-C branch)"
     -
     = Copyright: "2012 REBOL Technologies"
-    = "" "All rights reserved."
-    = Website:  "www.REBOL.com"
+    = Copyright: "2012-2016 Rebol Open Source Contributors"
+    = "" "Apache 2.0 License, see LICENSE."
+    = Website:  "http://github.com/metaeducation/ren-c"
     -
     = Version:  system/version
     = Platform: system/platform
@@ -65,14 +66,10 @@ sys/boot-help:
 
   * Sandbox and security are not available.
   * Direct access to TCP HTTP required (no proxies).
-  * Default web browser must be available.
 
 Special functions:
 
-  Demo - run demo launcher (from saphirion.com)
-  Help - show built-in help information
-  Upgrade - check for newer releases
-}
+  Help - show built-in help information}
 
 ;print make-banner boot-banner halt
 ;print boot-help

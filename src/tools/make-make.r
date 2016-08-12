@@ -257,10 +257,10 @@ libr3.lib:	r3.o
 ;** Options and Config
 ;******************************************************************************
 
-file-base: make object! load %file-base.r
-
 do %common.r
 do %systems.r
+
+file-base: has load %file-base.r
 config: config-system/guess system/options/args
 
 print ["Option set for building:" config/id config/os-name]
@@ -284,7 +284,7 @@ unless (
 ) [
 	fail [
 		"make-make.r requires os-specific obj list in file-base.r"
-		"none was provided for" rejoin ["os-" config/os-base]
+        "blank was provided for" rejoin ["os-" config/os-base]
 	]
 ]
 
@@ -306,7 +306,7 @@ output: make string! 10000
 ;** Functions
 ;******************************************************************************
 
-flag?: func ['word] [found? find config/build-flags word]
+flag?: func ['word] [not blank? find config/build-flags word]
 
 macro+: func [
 	"Appends value to end of macro= line"
@@ -416,7 +416,7 @@ unless flag? -SP [ ; Use standard paths:
 if flag? EXE [macro+ BIN_SUFFIX %.exe]
 macro++ CLIB linker-flags
 macro++ RAPI_FLAGS compiler-flags
-macro++ HOST_FLAGS make compiler-flags [PIC: NCM: none]
+macro++ HOST_FLAGS construct compiler-flags [PIC: NCM: _]
 macro+  HOST_FLAGS compiler-flags/f64 ; default for all
 
 if flag? +SC [remove find os-specific-objs 'host-readline.c]

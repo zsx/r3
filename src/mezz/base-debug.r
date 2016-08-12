@@ -16,55 +16,28 @@ REBOL [
     }
 ]
 
-probe: func [
-    {Debug print a molded value and returns that same value.}
-    value [opt-any-value!]
-][
-    print mold :value
-    :value
-]
-
-??: func [
-    {Debug print a word, path, or block of such, followed by its molded value.}
-    'name "Word, path, and block to obtain values."
-    /local out
-][
-    case [
-        any [
-            word? :name
-            path? :name
-        ][
-            print ajoin [name ": " mold name: get :name]
-        ]
-        block? :name [
-            out: make string! 50
-            for-each word name [
-                either any [
-                    word? :word
-                    path? :word
-                ][
-                    repend out [word ": " mold get word "  "]
-                ][
-                    repend out [mold word " "]
-                ]
-            ]
-            print out
-        ]
-        true [probe :name]
-    ]
-    :name
-]
-
-boot-print: func [
+boot-print: procedure [
     "Prints during boot when not quiet."
     data
+    /eval
 ][
-    unless system/options/quiet [print :data]
+    eval_BOOT_PRINT: eval
+    eval: :lib/eval
+
+    unless system/options/quiet [
+        print/(if any [eval_BOOT_PRINT | semiquoted? 'data] ['eval]) :data
+    ]
 ]
 
-loud-print: func [
+loud-print: procedure [
     "Prints during boot when verbose."
     data
+    /eval
 ][
-    if system/options/flags/verbose [print :data]
+    eval_BOOT_PRINT: eval
+    eval: :lib/eval
+
+    if system/options/flags/verbose [
+        print/(if any [eval_BOOT_PRINT | semiquoted? 'data] ['eval]) :data
+    ]
 ]

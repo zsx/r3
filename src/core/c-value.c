@@ -1,6 +1,10 @@
 //
-// Rebol 3 Language Interpreter and Run-time Environment
-// "Ren-C" branch @ https://github.com/metaeducation/ren-c
+//  File: %c-value.c
+//  Summary: "Generic REBVAL Support Services and Debug Routines"
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2016 Rebol Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
@@ -21,14 +25,11 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  Summary: Generic REBVAL Support Services and Debug Routines
-//  File: %c-value.c
+// These are mostly DEBUG-build routines to support the macros and definitions
+// in %sys-value.h.
 //
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// These are routines to support the macros and definitions in %sys-value.h
-// which are not specific to any given type.  For the type-specific code,
-// see files with names like %t-word.c, %t-logic.c, %t-integer.c...
+// These are not specific to any given type.  For the type-specific REBVAL
+// code, see files with names like %t-word.c, %t-logic.c, %t-integer.c...
 //
 
 #include "sys-core.h"
@@ -37,64 +38,61 @@
 #if !defined(NDEBUG)
 
 //
-//  Panic_Value: C
+//  Panic_Value_Debug: C
 //
 // This is a debug-only "error generator", which will hunt through all the
 // series allocations and panic on the series that contains the value (if
 // it can find it).  This will allow those using Address Sanitizer or
 // Valgrind to know a bit more about where the value came from.
 //
-// Additionally, if it happens to be trash, UNSET!, LOGIC!, BAR!, or NONE!
+// Additionally, if it happens to be a void or trash, LOGIC!, BAR!, or NONE!
 // it will dump out where the initialization happened if that information
 // was stored.
 //
-ATTRIBUTE_NO_RETURN void Panic_Value(const REBVAL *value)
-{
-    REBSER *containing = Try_Find_Containing_Series_Debug(value);
+ATTRIBUTE_NO_RETURN void Panic_Value_Debug(
+    const RELVAL *v,
+    const char *file,
+    int line
+) {
+    REBSER *containing = Try_Find_Containing_Series_Debug(v);
 
-#ifdef TRACK_EMPTY_PAYLOADS
-    switch (value->header.bits & HEADER_TYPE_MASK) {
-    case REB_TRASH:
-    case REB_UNSET:
-    case REB_NONE:
+    printf("PANIC VALUE called from %s:%d\n", file, line);
+    fflush(stdout);
+
+    switch (VAL_TYPE_RAW(v)) {
+    case REB_MAX_VOID:
+    case REB_BLANK:
     case REB_LOGIC:
     case REB_BAR:
-        Debug_Fmt(
-            "REBVAL init on tick #%d at %s:%d",
-            value->payload.track.count,
-            value->payload.track.filename,
-            value->payload.track.line
+        printf(
+            "REBVAL init on tick #%d at %s:%d\n",
+            cast(unsigned int, v->extra.do_count),
+            v->payload.track.filename,
+            v->payload.track.line
         );
+        fflush(stdout);
         break;
     }
-#endif
 
-    Debug_Fmt("Kind=%d", cast(int, value->header.bits & HEADER_TYPE_MASK));
+    printf("Kind=%d\n", cast(int, VAL_TYPE_RAW(v)));
+    fflush(stdout);
 
     if (containing) {
-        Debug_Fmt("Containing series for value pointer found, panicking it:");
+        printf("Containing series for value pointer found, panicking it:\n");
+        fflush(stdout);
         Panic_Series(containing);
     }
 
-    Debug_Fmt("No containing series for value...panicking to make stack dump");
+    printf("No containing series for value...panicking to make stack dump:\n");
+    fflush(stdout);
     Panic_Array(EMPTY_ARRAY);
 }
 
 
+#if defined(__cplusplus)
+
 //
-//  Assert_REBVAL_Writable: C
-//
-// If this check fails, then you're either writing to memory you shouldn't,
-// or are writing to an "unformatted" stack value.  For instance:
-//
-//     REBVAL value;
-//     SET_INTEGER(&value, 10);
-//
-// For REBVALs that don't live in series, you need to do:
-//
-//     REBVAL value;
-//     VAL_INIT_WRITABLE_DEBUG(&value);
-//     SET_INTEGER(&value, 10);
+//  Assert_Cell_Writable: C
 //
 // The check helps avoid very bad catastrophies that might ensue if "implicit
 // end markers" could be overwritten.  These are the ENDs that are actually
@@ -103,105 +101,66 @@ ATTRIBUTE_NO_RETURN void Panic_Value(const REBVAL *value)
 //
 // (A fringe benefit is catching writes to other unanticipated locations.)
 //
-void Assert_REBVAL_Writable(REBVAL *v, const char *file, int line)
+void Assert_Cell_Writable(const RELVAL *v, const char *file, int line)
 {
-    if (NOT((v)->header.bits & WRITABLE_MASK_DEBUG)) {
-        Debug_Fmt("Non-writable value found at %s:%d", file, line);
-        Panic_Value(v);
+    // REBVALs should not be written at addresses that do not match the
+    // alignment of the processor.  This checks modulo the size of an unsigned
+    // integer the same size as a platform pointer (REBUPT => uintptr_t)
+    //
+    assert(cast(REBUPT, (v)) % sizeof(REBUPT) == 0);
+
+    if (NOT((v)->header.bits & CELL_MASK)) {
+        printf("Non-cell passed to writing routine\n");
+        fflush(stdout);
+        Panic_Value_Debug(v, file, line);
     }
+    if (NOT((v)->header.bits & VALUE_FLAG_WRITABLE_CPP_DEBUG)) {
+        printf("Non-writable value passed to writing routine\n");
+        fflush(stdout);
+        Panic_Value_Debug(v, file, line);
+    }
+}
+
+#endif
+
+
+//
+//  SET_END_Debug: C
+//
+// Uses REB_0 for the type, to help cue debugging.
+//
+// When SET_END is used, it uses the whole cell.  Implicit termination is
+// done by the raw creation of a Reb_Header in the containing structure.
+//
+void SET_END_Debug(RELVAL *v, const char *file, int line) {
+    ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
+    (v)->header.bits = TYPE_SHIFT_LEFT_FOR_HEADER(REB_0) | CELL_MASK;
+    MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
+    Set_Track_Payload_Debug(v, file, line);
 }
 
 
 //
 //  IS_END_Debug: C
 //
-// The debug build puts REB_MAX in the type slot of a REB_END, to help to
-// distinguish it from the 0 that signifies REB_TRASH.  This means that
-// any writable value can be checked to ensure it is an actual END marker
-// and not "uninitialized".  This trick can only be used so long as REB_MAX
-// is 63 or smaller (ensured by an assertion at startup ATM.
-//
-// Note: a non-writable value (e.g. a pointer) could have any bit pattern in
-// the type slot.  So only check if it's a Rebol-initialized value slot...
-// and then, tolerate "GC safe trash" (an unset in release)
-//
-REBOOL IS_END_Debug(const REBVAL *v) {
+REBOOL IS_END_Debug(const RELVAL *v, const char *file, int line) {
+#ifdef __cplusplus
     if (
-        ((v)->header.bits & WRITABLE_MASK_DEBUG)
-        && ((v)->header.bits & HEADER_TYPE_MASK) == REB_TRASH
-        && NOT(GET_VAL_FLAG((v), TRASH_FLAG_SAFE))
+        (v->header.bits & CELL_MASK)
+        //
+        // Note: a non-writable value could have any bit pattern in the
+        // type slot, so we only check for trash in writable ones.
+        //
+        && VAL_TYPE_RAW(v) == REB_MAX_VOID
+        && NOT(v->header.bits & VOID_FLAG_NOT_TRASH)
+        && NOT(v->header.bits & VOID_FLAG_SAFE_TRASH)
     ) {
-        Debug_Fmt("IS_END() called on value marked as uninitialized (TRASH!)");
-        Panic_Value(v);
+        printf("IS_END() called on value marked as TRASH\n");
+        fflush(stdout);
+        Panic_Value_Debug(v, file, line);
     }
-
-    return LOGICAL((v)->header.bits % 2 == 0);
-}
-
-
-//
-//  IS_CONDITIONAL_FALSE_Debug: C
-//
-// Variant of IS_CONDITIONAL_FALSE() macro for the debug build which checks to
-// ensure you never call it on an UNSET!
-//
-REBOOL IS_CONDITIONAL_FALSE_Debug(const REBVAL *v)
-{
-    if (IS_END(v) || IS_UNSET(v) || IS_TRASH_DEBUG(v)) {
-        Debug_Fmt("Conditional true/false test on END orUNSET or TRASH");
-        Panic_Value(v);
-    }
-
-    return GET_VAL_FLAG(v, VALUE_FLAG_FALSE);
-}
-
-
-//
-//  VAL_TYPE_Debug: C
-//
-// Variant of VAL_TYPE() macro for the debug build which checks to ensure that
-// you never call it on an END marker or on REB_TRASH.
-//
-enum Reb_Kind VAL_TYPE_Debug(const REBVAL *v, const char *file, int line)
-{
-    if (IS_END(v)) {
-        //
-        // Seeing a bit pattern that has the low bit to 0 may be a purposeful
-        // end signal, or it could be something that's garbage data and just
-        // happens to have its zero bit set.  Since half of all possible
-        // bit patterns are even, it's more worth it than usual to point out.
-        //
-        Debug_Fmt("END marker (or garbage) in VAL_TYPE(), %s:%d", file, line);
-        Panic_Value(v);
-    }
-    if (IS_TRASH_DEBUG(v)) {
-        Debug_Fmt("Unexpected TRASH in VAL_TYPE(), %s:%d", file, line);
-        Panic_Value(v);
-    }
-    return cast(enum Reb_Kind, (v)->header.bits & HEADER_TYPE_MASK);
-}
-
-
-//
-//  Assert_Flags_Are_For_Value: C
-//
-// This check is used by GET_VAL_FLAG, SET_VAL_FLAG, CLEAR_VAL_FLAG to avoid
-// accidentally checking or setting a type-specific flag on the wrong type
-// of value in the debug build.
-//
-void Assert_Flags_Are_For_Value(const REBVAL *v, REBUPT f) {
-    if ((f & HEADER_TYPE_MASK) == 0)
-        return; // flag applies to any value (or trash)
-
-    if ((f & HEADER_TYPE_MASK) == REB_FUNCTION) {
-        assert(IS_FUNCTION(v));
-    }
-    else if ((f & HEADER_TYPE_MASK) == REB_OBJECT) {
-        assert(ANY_CONTEXT(v));
-    }
-    else if ((f & HEADER_TYPE_MASK) == REB_WORD) {
-        assert(ANY_WORD(v));
-    }
+#endif
+    return IS_END_MACRO(v);
 }
 
 
@@ -210,46 +169,120 @@ void Assert_Flags_Are_For_Value(const REBVAL *v, REBUPT f) {
 //
 REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
 {
-    assert(IS_SPECIFIC(v));
-    return (v)->payload.any_target.specific;
+    REBCTX *specific;
+
+    assert(NOT(GET_VAL_FLAG(v, VALUE_FLAG_RELATIVE)));
+    assert(
+        ANY_WORD(v)
+        || ANY_ARRAY(v)
+        || IS_VARARGS(v)
+        || IS_FUNCTION(v)
+        || ANY_CONTEXT(v)
+    );
+
+    specific = VAL_SPECIFIC_COMMON(v);
+
+    if (specific != SPECIFIED) {
+        //
+        // Basic sanity check: make sure it's a context at all
+        //
+        if (!GET_CTX_FLAG(specific, ARRAY_FLAG_VARLIST)) {
+            printf("Non-CONTEXT found as specifier in specific value\n");
+            Panic_Series(cast(REBSER*, specific)); // may not be series either
+        }
+
+        // While an ANY-WORD! can be bound specifically to an arbitrary
+        // object, an ANY-ARRAY! only becomes bound specifically to frames.
+        // The keylist for a frame's context should come from a function's
+        // paramlist, which should have a FUNCTION! value in keylist[0]
+        //
+        if (ANY_ARRAY(v))
+            assert(IS_FUNCTION(CTX_ROOTKEY(specific)));
+    }
+
+    return specific;
 }
 
 
 //
 //  INIT_WORD_INDEX_Debug: C
 //
-void INIT_WORD_INDEX_Debug(REBVAL *v, REBCNT i)
+void INIT_WORD_INDEX_Debug(RELVAL *v, REBCNT i)
 {
     assert(ANY_WORD(v));
     assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND));
     if (IS_RELATIVE(v))
         assert(
-            SAME_SYM(VAL_WORD_SYM(v), FUNC_PARAM_SYM(VAL_WORD_FUNC(v), i))
+            VAL_WORD_CANON(v)
+            == VAL_PARAM_CANON(FUNC_PARAM(VAL_WORD_FUNC(v), i))
         );
     else
-        assert(SAME_SYM(
-            VAL_WORD_SYM(v), CTX_KEY_SYM(VAL_WORD_CONTEXT(v), i))
+        assert(
+            VAL_WORD_CANON(v)
+            == CTX_KEY_CANON(VAL_WORD_CONTEXT(KNOWN(v)), i)
         );
-    (v)->payload.any_word.place.binding.index = (i);
+    v->payload.any_word.index = i;
 }
 
 
-//  Probe_Core_Debug: C
 //
-// Debug function for outputting a value.  Done as a function instead of just
-// a macro due to how easy it is with va_lists to order the types of the
-// parameters wrong.  :-/
+//  IS_RELATIVE_Debug: C
+//
+// One should only be testing relvals for their relativeness or specificness,
+// because all REBVAL* should be guaranteed to be speciic!
+//
+REBOOL IS_RELATIVE_Debug(const RELVAL *value)
+{
+    return GET_VAL_FLAG(value, VALUE_FLAG_RELATIVE);
+}
+
+
+//
+//  Assert_No_Relative: C
+//
+// Check to make sure there are no relative values in an array, maybe deeply.
+//
+// !!! What if you have an ANY-ARRAY! inside your array at a position N,
+// but there is a relative value in the VAL_ARRAY() of that value at an
+// index earlier than N?  This currently considers that an error since it
+// checks the whole array...which is more conservative (asserts on more
+// cases).  But should there be a flag to ask to honor the index?
+//
+void Assert_No_Relative(REBARR *array, REBOOL deep)
+{
+    RELVAL *item = ARR_HEAD(array);
+    while (NOT_END(item)) {
+        if (IS_RELATIVE(item)) {
+            Debug_Fmt("Array contained relative item and wasn't supposed to.");
+            PROBE_MSG(item, "relative item");
+            Panic_Array(array);
+        }
+        if (!IS_VOID_OR_SAFE_TRASH(item) && ANY_ARRAY(item) && deep)
+             Assert_No_Relative(VAL_ARRAY(item), deep);
+        ++item;
+    }
+}
+
+
+//
+//  Probe_Core_Debug: C
 //
 void Probe_Core_Debug(
     const char *msg,
     const char *file,
     int line,
-    const REBVAL *val
+    const RELVAL *val
 ) {
     if (msg)
-        Debug_Fmt("\n** PROBE_MSG(\"%s\") %s:%d\n%r\n", msg, file, line, val);
+        printf("\n** PROBE_MSG(\"%s\") ", msg);
     else
-        Debug_Fmt("\n** PROBE() %s:%d\n%r\n", file, line, val);
+        printf("\n** PROBE() ");
+
+    printf("tick %d %s:%d\n", cast(int, TG_Do_Count), file, line);
+
+    fflush(stdout);
+
+    Debug_Fmt("%r\n", val);
 }
 
 #endif

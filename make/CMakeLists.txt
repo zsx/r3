@@ -1,9 +1,39 @@
 # vim: ts=2 shiftwidth=2 filetype=CMAKE expandtab
+
+#
+# Sample command lines:
+#
+#     cd make
+#     mkdir build
+#     cd build
+#     CMake .. -G "Visual Studio 14 Win64" -DR3_OS_ID=0.3.40
+#          -DR3_EXTERNAL_FFI=yes -DR3_CPP=no
+#
+
 cmake_minimum_required (VERSION 2.8)
 
 set (CMAKE_OSX_DEPLOYMENT_TARGET 10.7)
 
 project (Rebol3 C CXX)
+
+
+# Simplify appending flags to the C build settings, C++ settings, or both
+
+macro(add_cxx_flags flags)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${flags}")
+endmacro()
+
+macro(add_c_flags flags)
+    set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS} ${flags}")
+endmacro()
+
+macro(add_c_and_cxx_flags flags)
+    set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS} ${flags}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${flags}")
+endmacro()
+
+
+
 set (TOP_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../src")
 set (TOP_GENERATED_SRC_DIR "${CMAKE_CURRENT_BINARY_DIR}/src")
 set (CORE_DIR "${TOP_SRC_DIR}/core")
@@ -20,6 +50,7 @@ else()
 endif()
 
 option(R3_EXTERNAL_FFI "Build with external FFI" OFF)
+option(R3_CPP "Build C files as C++" OFF)
 option(R3_BUILD_VIEW "Build with view system" OFF)
 option(R3_EXTERNAL_SDL "Build with external SDL2" OFF)
 option(R3_EXTERNAL_GLEW "Build with external GLEW" OFF)
@@ -59,6 +90,7 @@ elseif (UNIX)
     if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
         list (APPEND COMMON_MACROS
             TO_LINUX
+            TO_LINUX_X86
             ENDIAN_LITTLE
             HAS_LL_CONSTS
             )
@@ -119,6 +151,22 @@ endif ()
 
 if (MSVC)
     set (LINK_FLAGS /STACK:4194304)
+
+    # !!! At the moment, there are many places where in the 64-bit build, a
+    # 64-bit integer is used in places where a 32-bit integer is expected.
+    # Ren-C intends to use 64-bit series indices in 64-bit builds, but that
+    # just hasn't been done yet.
+    #
+    # (Note: /WD is "Warning Disable")
+    #
+    add_c_and_cxx_flags(/wd4244) # possible data loss in argument conversion
+    add_c_and_cxx_flags(/wd4267) # possible data loss in initialization
+
+    # MSVC complains if you use old-style functions like `strcpy` instead of
+    # `strcpy_s`.  There should be a review of these cases, but for now they
+    # are allowed as-is
+    #
+    add_c_and_cxx_flags(-D_CRT_SECURE_NO_WARNINGS)
 endif()
 
 if (WIN32 OR CYGWIN)
@@ -206,10 +254,13 @@ set (CORE_SOURCE
     ${CORE_DIR}/c-task.c
     ${CORE_DIR}/c-word.c
     ${CORE_DIR}/c-value.c
+    ${CORE_DIR}/d-break.c
     ${CORE_DIR}/d-crash.c
     ${CORE_DIR}/d-dump.c
+    ${CORE_DIR}/d-eval.c
     ${CORE_DIR}/d-legacy.c
     ${CORE_DIR}/d-print.c
+    ${CORE_DIR}/d-stack.c
     ${CORE_DIR}/d-trace.c
     ${CORE_DIR}/e-zoe.c
     ${CORE_DIR}/f-blocks.c
@@ -310,34 +361,35 @@ list(REMOVE_ITEM CORE_C_FILES ${CORE_DIR}/a-lib2.c) #see make-headers.r
 #message("CORE_C_FILES: ${CORE_C_FILES}")
 
 set(NATIVE_OUTPUT
-    ${TOP_GENERATED_SRC_DIR}/boot/tmp-natives.r
-    ${TOP_GENERATED_SRC_DIR}/boot/tmp-actions.r
+    ${TOP_SRC_DIR}/boot/tmp-natives.r
+    ${TOP_SRC_DIR}/boot/tmp-actions.r
     )
-set(NATIVE_DEPENDS ${CORE_C_SOURCE})
+set(NATIVE_DEPENDS "")
 
 add_custom_command(OUTPUT
     ${NATIVE_OUTPUT}
-    COMMAND ${REBOL} ${TOOLS_DIR}/make-natives.r OUTDIR=${TOP_GENERATED_SRC_DIR}
+    COMMAND ${REBOL} ${TOOLS_DIR}/make-natives.r
     DEPENDS
     ${REBOL} ${TOOLS_DIR}/make-natives.r
-        ${NATIVE_DEPENDS}
+    ${NTIVE_DEPENDS}
 )
 
 set(HEADER_OUTPUT
-    ${TOP_GENERATED_SRC_DIR}/include/tmp-funcs.h
-    ${TOP_GENERATED_SRC_DIR}/include/tmp-funcargs.h
-    ${TOP_GENERATED_SRC_DIR}/include/tmp-strings.h
+    ${TOP_SRC_DIR}/include/tmp-funcs.h
+    ${TOP_SRC_DIR}/include/tmp-funcargs.h
+    ${TOP_SRC_DIR}/include/tmp-strings.h
     )
 set(HEADER_DEPENDS
     ${TOOLS_DIR}/common.r
     ${TOOLS_DIR}/common-parsers.r
     ${TOOLS_DIR}/form-header.r
+    ${CORE_C_FILES}
     ${NATIVE_OUTPUT}
     )
 
 add_custom_command(OUTPUT
     ${HEADER_OUTPUT}
-    COMMAND ${REBOL} ${TOOLS_DIR}/make-headers.r OUTDIR=${TOP_GENERATED_SRC_DIR}
+    COMMAND ${REBOL} ${TOOLS_DIR}/make-headers.r
     DEPENDS
     ${TOOLS_DIR}/make-headers.r
     ${HEADER_DEPENDS}
@@ -469,22 +521,23 @@ add_custom_command(OUTPUT
     )
 
 set (GENERATED_CORE_SOURCE
+    ${NATIVE_OUTPUT}
     ${HEADER_OUTPUT}
     ${BOOT_OUTPUT}
     ${EXT_CORE_OUTPUT}
     ${REB_LIB_OUTPUT}
     )
 
-#HOST
 set_source_files_properties(
     ${TOP_GENERATED_SRC_DIR}/include/host-table.inc
     PROPERTIES
     HEADER_FILE_ONLY TRUE
     )
 
+#HOST
 set(EXT_OS_OUTPUT
     ${TOP_GENERATED_SRC_DIR}/include/host-lib.h
-        ${TOP_GENERATED_SRC_DIR}/include/host-table.inc
+    ${TOP_GENERATED_SRC_DIR}/include/host-table.inc
     )
 
 set(EXT_OS_DEPENDS
@@ -558,7 +611,18 @@ if (WIN32)
 else ()
     target_compile_definitions(r3-core PUBLIC REB_CORE REB_EXE ${COMMON_MACROS})
 endif ()
-set_target_properties(r3-core PROPERTIES LINKER_LANGUAGE C)
+
+# Build as C by default, but there are extra checks if you build as C++
+# NOTE: The library code will not be binary compatible in -debug- builds as
+# C++, so a C++ debug client cannot be used with a C built debug Rebol
+#
+if (R3_CPP)
+    set_property(SOURCE ${CORE_SOURCE} PROPERTY LANGUAGE CXX)
+    set_property(SOURCE ${OS_SOURCE} PROPERTY LANGUAGE CXX)
+    set_property(SOURCE {GENERATED_OS_SOURCE} PROPERTY LANGUAGE CXX)
+    set_target_properties(r3-core PROPERTIES LINKER_LANGUAGE CXX)
+endif()
+
 if (DEFINED LINK_FLAGS)
     set_target_properties(r3-core PROPERTIES LINK_FLAGS ${LINK_FLAGS})
 endif()

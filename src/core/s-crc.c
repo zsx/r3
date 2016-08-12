@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  s-crc.c
-**  Summary: CRC computation
-**  Section: strings
-**  Author:  Carl Sassenrath (REBOL interface sections)
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %s-crc.c
+//  Summary: "CRC computation"
+//  Section: strings
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
@@ -180,22 +181,27 @@ static void Make_CRC32_Table(void);
 // 
 // Fails if datatype cannot be hashed.
 //
-REBCNT Hash_Value(const REBVAL *val)
+REBCNT Hash_Value(const RELVAL *v, REBCTX *specifier)
 {
     REBCNT ret;
-    const REBYTE *name;
 
-    switch(VAL_TYPE(val)) {
+    switch(VAL_TYPE(v)) {
+    case REB_MAX_VOID:
+        //
+        // While a void might technically be hashed, it can't be a value *or*
+        // a key in a map.
+        //
+        assert(FALSE);
+        break;
 
     case REB_BAR:
     case REB_LIT_BAR:
-    case REB_NONE:
-    case REB_UNSET:
+    case REB_BLANK:
         ret = 0;
         break;
 
     case REB_LOGIC:
-        ret = VAL_LOGIC(val) ? 1 : 0;
+        ret = VAL_LOGIC(v) ? 1 : 0;
         break;
 
     case REB_INTEGER:
@@ -204,35 +210,38 @@ REBCNT Hash_Value(const REBVAL *val)
         // bits collapses -1 with 0 etc.  (If your key k is |k| < 2^32 high
         // bits are 0-informative." -Giulio
         //
-        ret = cast(REBCNT, VAL_INT64(val));
+        ret = cast(REBCNT, VAL_INT64(v));
         break;
 
     case REB_DECIMAL:
     case REB_PERCENT:
         // depends on INT64 sharing the DEC64 bits
-        ret = (VAL_INT64(val) >> 32) ^ (VAL_INT64(val));
+        ret = (VAL_INT64(v) >> 32) ^ (VAL_INT64(v));
         break;
 
     case REB_MONEY:
-        ret = VAL_ALL_BITS(val)[0] ^ VAL_ALL_BITS(val)[1] ^ VAL_ALL_BITS(val)[2];
+        ret = VAL_ALL_BITS(v)[0] ^ VAL_ALL_BITS(v)[1] ^ VAL_ALL_BITS(v)[2];
         break;
 
     case REB_CHAR:
-        ret = LO_CASE(VAL_CHAR(val));
+        ret = LO_CASE(VAL_CHAR(v));
         break;
 
     case REB_PAIR:
-        ret = (VAL_ALL_BITS(val)[0] << 16) ^ (VAL_ALL_BITS(val)[0] >> 16) ^ (VAL_ALL_BITS(val)[1]);
+        ret = (VAL_ALL_BITS(v)[0] << 16)
+            ^ (VAL_ALL_BITS(v)[0] >> 16)
+            ^ (VAL_ALL_BITS(v)[1]);
         break;
 
     case REB_TUPLE:
-        ret = Hash_String(VAL_TUPLE(val), VAL_TUPLE_LEN(val), 1);
+        ret = Hash_String(VAL_TUPLE(v), VAL_TUPLE_LEN(v), 1);
         break;
 
     case REB_TIME:
     case REB_DATE:
-        ret = (REBCNT)(VAL_TIME(val) ^ (VAL_TIME(val) / SEC_SEC));
-        if (IS_DATE(val)) ret ^= VAL_DATE(val).bits;
+        ret = cast(REBCNT, VAL_TIME(v) ^ (VAL_TIME(v) / SEC_SEC));
+        if (IS_DATE(v))
+            ret ^= VAL_DATE(v).bits;
         break;
 
     case REB_BINARY:
@@ -241,7 +250,11 @@ REBCNT Hash_Value(const REBVAL *val)
     case REB_EMAIL:
     case REB_URL:
     case REB_TAG:
-        ret = Hash_String(VAL_RAW_DATA_AT(val), VAL_LEN_HEAD(val), SER_WIDE(VAL_SERIES(val)));
+        ret = Hash_String(
+            VAL_RAW_DATA_AT(v),
+            VAL_LEN_HEAD(v),
+            SER_WIDE(VAL_SERIES(v))
+        );
         break;
 
     case REB_BLOCK:
@@ -251,20 +264,25 @@ REBCNT Hash_Value(const REBVAL *val)
     case REB_GET_PATH:
     case REB_LIT_PATH:
         //
-        // Using an array in a map if it is mutable, and then comparing by
-        // value (vs. comparing identity with SAME?), would require making
-        // a deep copy of that array.  This has been considered too expensive.
+        // !!! Lame hash just to get it working.  There will be lots of
+        // collisions.  Intentionally bad to avoid writing something that
+        // is less obviously not thought out.
         //
-        // !!! There could be ways to make this work...such as allowing
-        // a PROTECT/DEEP array to be locked and stay locked as the key...
-        // and then have a lightweight hash of it.  Review if needed.
+        // Whatever hash is used must be able to match lax equality.  So it
+        // could hash all the values case-insensitively, or the first N values,
+        // or something.
         //
-        fail (Error_Has_Bad_Type(val));
-
-    case REB_DATATYPE:
-        name = Get_Sym_Name(VAL_TYPE_SYM(val));
-        ret = Hash_Word(name, LEN_BYTES(name));
+        // Note that if there is a way to mutate this array, there will be
+        // problems.  Do not hash mutable arrays unless you are sure hashings
+        // won't cross a mutation.
+        //
+        ret = ARR_LEN(VAL_ARRAY(v));
         break;
+
+    case REB_DATATYPE: {
+        REBSTR *canon = Canon(VAL_TYPE_SYM(v));
+        ret = Hash_Word(STR_HEAD(canon), STR_NUM_BYTES(canon));
+        break; }
 
     case REB_BITSET:
     case REB_IMAGE:
@@ -275,16 +293,26 @@ REBCNT Hash_Value(const REBVAL *val)
         //
         // !!! Why not?
         //
-        fail (Error_Has_Bad_Type(val));
+        fail (Error_Invalid_Type(VAL_TYPE(v)));
 
     case REB_WORD:
     case REB_SET_WORD:
     case REB_GET_WORD:
     case REB_LIT_WORD:
     case REB_REFINEMENT:
-    case REB_ISSUE:
-        ret = VAL_WORD_CANON(val);
-        break;
+    case REB_ISSUE: {
+        //
+        // Note that the canon symbol may change for a group of word synonyms
+        // if that canon is GC'd--it picks another synonym.  Thus the pointer
+        // of the canon cannot be used as a long term hash.  A case insensitive
+        // hashing of the word spelling itself is needed.
+        //
+        // !!! Should this hash be cached on the words somehow, e.g. in the
+        // data payload before the actual string?
+        //
+        REBSTR *spelling = VAL_WORD_SPELLING(v);
+        ret = Hash_Word(STR_HEAD(spelling), STR_NUM_BYTES(spelling));
+        break; }
 
     case REB_FUNCTION:
         //
@@ -292,14 +320,7 @@ REBCNT Hash_Value(const REBVAL *val)
         // immutable once created, it is legal to put them in hashes.  The
         // VAL_FUNC is the paramlist series, guaranteed unique per function
         //
-        // !!! Callback was not allowed to be hashed before nor was it in
-        // the any function category.  But it had a spec, paramlist, and
-        // routine.  In any case, it wasn't hashed here before.
-        //
-        if (VAL_FUNC_CLASS(val) == FUNC_CLASS_CALLBACK)
-            fail (Error_Has_Bad_Type(val));
-
-        ret = cast(REBCNT, cast(REBUPT, VAL_FUNC(val)) >> 4);
+        ret = cast(REBCNT, cast(REBUPT, VAL_FUNC(v)) >> 4);
         break;
 
     case REB_FRAME:
@@ -319,7 +340,7 @@ REBCNT Hash_Value(const REBVAL *val)
         // However, since it was historically allowed it is allowed for
         // all ANY-CONTEXT! types at the moment.
         //
-        ret = cast(REBCNT, cast(REBUPT, VAL_CONTEXT(val)) >> 4);
+        ret = cast(REBCNT, cast(REBUPT, VAL_CONTEXT(v)) >> 4);
         break;
 
     case REB_MAP:
@@ -329,7 +350,7 @@ REBCNT Hash_Value(const REBVAL *val)
         // (Again this will just find the map by identity, not by comparing
         // the values of one against the values of the other...)
         //
-        ret = cast(REBCNT, cast(REBUPT, VAL_MAP(val)) >> 4);
+        ret = cast(REBCNT, cast(REBUPT, VAL_MAP(v)) >> 4);
         break;
 
     case REB_TASK:
@@ -341,7 +362,7 @@ REBCNT Hash_Value(const REBVAL *val)
         //
         // !!! Review hashing behavior or needs of these types if necessary.
         //
-        fail (Error_Has_Bad_Type(val));
+        fail (Error_Invalid_Type(VAL_TYPE(v)));
 
     default:
         assert(FALSE); // the list above should be comprehensive
@@ -349,7 +370,7 @@ REBCNT Hash_Value(const REBVAL *val)
 
     if(!crc32_table) Make_CRC32_Table();
 
-    return ret ^ crc32_table[VAL_TYPE(val)];
+    return ret ^ crc32_table[VAL_TYPE(v)];
 }
 
 
@@ -364,8 +385,8 @@ REBSER *Make_Hash_Sequence(REBCNT len)
     n = Get_Hash_Prime(len * 2); // best when 2X # of keys
     if (!n) {
         REBVAL temp;
-        VAL_INIT_WRITABLE_DEBUG(&temp);
         SET_INTEGER(&temp, len);
+
         fail (Error(RE_SIZE_LIMIT, &temp));
     }
 
@@ -389,7 +410,12 @@ void Val_Init_Map(REBVAL *out, REBMAP *map)
     if (MAP_HASHLIST(map))
         ENSURE_SERIES_MANAGED(MAP_HASHLIST(map));
 
-    Val_Init_Array(out, REB_MAP, MAP_PAIRLIST(map));
+    ENSURE_ARRAY_MANAGED(MAP_PAIRLIST(map));
+
+    VAL_RESET_HEADER(out, REB_MAP);
+    out->extra.binding = (REBARR*)SPECIFIED; // !!! cast() gripes, investigate
+    out->payload.any_series.series = ARR_SERIES(MAP_PAIRLIST(map));
+    out->payload.any_series.index = 0;
 }
 
 
@@ -407,7 +433,7 @@ REBSER *Hash_Block(const REBVAL *block, REBCNT skip, REBOOL cased)
     REBSER *hashlist;
     REBCNT *hashes;
     REBARR *array = VAL_ARRAY(block);
-    REBVAL *value;
+    RELVAL *value;
 
     // Create the hash array (integer indexes):
     hashlist = Make_Hash_Sequence(VAL_LEN_AT(block));
@@ -421,7 +447,9 @@ REBSER *Hash_Block(const REBVAL *block, REBCNT skip, REBOOL cased)
     while (TRUE) {
         REBCNT skip_index = skip;
 
-        REBCNT hash = Find_Key_Hashed(array, hashlist, value, 1, cased, 0);
+        REBCNT hash = Find_Key_Hashed(
+            array, hashlist, value, VAL_SPECIFIER(block), 1, cased, 0
+        );
         hashes[hash] = (n / skip) + 1;
 
         while (skip_index != 0) {

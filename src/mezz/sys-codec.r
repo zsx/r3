@@ -17,6 +17,40 @@ REBOL [
     }
 ]
 
+;-- Setup Codecs -------------------------------------------------------------
+
+for-each [codec handler] system/codecs [
+    if handle? handler [
+        ; Change boot handle into object:
+        codec: set codec construct [] [
+            entry: handler
+            title: form reduce ["Internal codec for" codec "media type"]
+            name: codec
+            type: 'image!
+            suffixes: select [
+                text [%.txt]
+                utf-16le [%.txt]
+                utf-16be [%.txt]
+                markup [%.html %.htm %.xml %.xsl %.wml %.sgml %.asp %.php %.cgi]
+                bmp  [%.bmp]
+                gif  [%.gif]
+                jpeg [%.jpg %.jpeg]
+                png  [%.png]
+            ] codec
+        ]
+        ; Media-types block format: [.abc .def type ...]
+        append append system/options/file-types codec/suffixes codec/name
+    ]
+]
+
+; Special import case for extensions:
+append system/options/file-types switch/default fourth system/version [
+    3 [[%.rx %.dll extension]]  ; Windows
+    2 [[%.rx %.dylib %.so extension]]  ; OS X
+    4 7 [[%.rx %.so extension]]  ; Other Posix
+] [[%.rx extension]]
+
+
 decode: function [
     {Decodes a series of bytes into the related datatype (e.g. image!).}
     type [word!] {Media type (jpeg, png, etc.)}
@@ -54,6 +88,7 @@ encode: function [
 ]
 
 encoding?: function [
+    ; !!! Functions ending in ? should only return TRUE or FALSE
     "Returns the media codec name for given binary data. (identify)"
     data [binary!]
 ][
@@ -62,7 +97,7 @@ encoding?: function [
             return name
         ]
     ]
-    none
+    blank
 ]
 
 export [decode encode encoding?]

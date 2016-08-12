@@ -39,7 +39,7 @@ emit-header: func [t f] [emit-out form-header/gen t f %make-headers]
 collapse-whitespace: [some [change some white-space #" " | skip]]
 bind collapse-whitespace c.lexical/grammar
 
-emit-proto: func [proto] [
+emit-proto: proc [proto] [
 
     if find proto "()" [
         print [
@@ -87,7 +87,7 @@ emit-proto: func [proto] [
 ]
 
 process: func [file] [
-    if verbose [?? file]
+    if verbose [probe [file]]
     data: read the-file: file
     if r3 [data: deline to-string data]
     proto-parser/emit-proto: :emit-proto
@@ -124,7 +124,7 @@ extern "C" ^{
 // are included in a system-wide header in order to allow recognizing a
 // given native by identity in the C code, e.g.:
 //
-//     if (VAL_FUNC_CODE(native) == &N_parse) { ... }
+//     if (VAL_FUNC_DISPATCHER(native) == &N_parse) { ... }
 //
 }
 

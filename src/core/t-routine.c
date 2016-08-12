@@ -1,142 +1,50 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2014 Atronix Engineering, Inc.
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  t-routine.c
-**  Summary: External Routine Support
-**  Section: datatypes
-**  Author:  Shixin Zeng
-**  Notes:
-**      When Rebol3 was open-sourced in 12-Dec-2012, that version had lost
-**      support for the ROUTINE! type from Rebol2.  It was later
-**      reimplemented by Atronix in their fork via the cross-platform (and
-**      popularly used) Foreign Function Interface library "libffi":
-**
-**          https://en.wikipedia.org/wiki/Libffi
-**
-**      Yet Rebol is very conservative about library dependencies that
-**      introduce their "own build step", due to the complexity introduced.
-**      If one is to build libffi for a particular platform, that requires
-**      having the rather messy GNU autotools installed.  Notice the
-**      `Makefile.am`, `acinclude.m4`, `autogen.sh`, `configure.ac`,
-**      `configure.host`, etc:
-**
-**          https://github.com/atgreen/libffi
-**
-**      Suddenly, you need more than just a C compiler (and a rebol.exe) to
-**      build Rebol.  You now need to have everything to configure and
-**      build libffi.  -OR- it would mean a dependency on a built library
-**      you had to find or get somewhere that was not part of the OS
-**      naturally, which can be a wild goose chase with version
-**      incompatibility.  If you `sudo apt-get libffi`, now you need apt-get
-**      *and* you pull down any dependencies as well!
-**
-**      (Note: Rebol's "just say no" attitude is the heart of the Rebellion:
-**
-**          http://www.rebol.com/cgi-bin/blog.r?view=0497
-**
-**      ...so keeping the core true to this principle is critical.  If this
-**      principle is compromised, the whole point of the project is lost.)
-**
-**      Yet Rebol2 had ROUTINE!.  Red also has ROUTINE!, and is hinging its
-**      story for rapid interoperability on it (you should not have to
-**      wrap and recompile a DLL of C functions just to call them).  Users
-**      want the feature and always ask...and Atronix needs it enough to have
-**      had @ShixinZeng write it!
-**
-**      Regarding the choice of libffi in particular, it's a strong sign to
-**      notice how many other language projects are using it.  Short list
-**      taken from 2015 Wikipedia:
-**
-**          Python, Haskell, Dalvik, F-Script, PyPy, PyObjC, RubyCocoa,
-**          JRuby, Rubinius, MacRuby, gcj, GNU Smalltalk, IcedTea, Cycript,
-**          Pawn, Squeak, Java Native Access, Common Lisp, Racket,
-**          Embeddable Common Lisp and Mozilla.
-**
-**      Rebol could roll its own implementation.  But that takes time and
-**      maintenance, and it's hard to imagine how much better a job could
-**      be done for a C-based foreign function interface on these platforms;
-**      it's light and quite small once built.  So it makes sense to
-**      "extract" libffi's code out of its repo to form one .h and .c file.
-**      They'd live in the Rebol sources and build with the existing process,
-**      with no need for GNU Autotools (which are *particularly* crufty!!!)
-**
-**      Doing such extractions by hand is how Rebol was originally done;
-**      that made it hard to merge updates.  As a more future-proof method,
-**      @HostileFork wrote a make-zlib.r extractor that can take a copy of
-**      the zlib repository and do the work (mostly) automatically.  Going
-**      forward it seems prudent to do the same with libffi and any other
-**      libraries that Rebol co-opts into its turnkey build process.
-**
-**      Until that happens for libffi, not definining HAVE_LIBFFI_AVAILABLE,
-**      will give you a short list of non-functional "stubs".  These can
-**      allow t-routine.c to compile anyway.  That assists with maintenance
-**      of the code and keeping it on the radar, even among those doing core
-**      maintenance who are not building against the FFI.
-**
-**      (Note: Longer term there may be a story by which a feature like
-**      ROUTINE! could be implemented as a third party extension.  There is
-**      short-term thinking trying to facilitate this for GOB! in Ren/C, to
-**      try and open the doors to more type extensions.  That's a hard
-**      problem in itself...and the needs of ROUTINE! are hooked a bit more
-**      tightly into the evaluation loop.  So possibly not happening.)
-**
-***********************************************************************/
+//
+//  File: %t-routine.c
+//  Summary: "Support for calling non-Rebol C functions in DLLs w/Rebol args)"
+//  Section: datatypes
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2014 Atronix Engineering, Inc.
+// Copyright 2014-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// This code was contributed by Atronix Engineering:
+//
+// http://www.atronixengineering.com/downloads/
+//
+// It will only work if your build (-D)efines "-DHAVE_LIBFFI_AVAILABLE".
+//
+// Not defining HAVE_LIBFFI_AVAILABLE will produce a short list of
+// non-working "stubs" that match the interface of <libffi.h>.  These can
+// allow t-routine.c to compile anyway.  That assists with maintenance
+// of the code and keeping it on the radar--even among those doing core
+// coding who are not building against the FFI.
+//
 
 #include "sys-core.h"
 
 #include "mem-pools.h" // low-level memory pool access
 
-#ifdef HAVE_LIBFFI_AVAILABLE
-    #include <ffi.h>
-#else
-    // Non-functional stubs, see notes at top of t-routine.c
-
-    typedef struct _ffi_type
-    {
-        size_t size;
-        unsigned short alignment;
-        unsigned short type;
-        struct _ffi_type **elements;
-    } ffi_type;
-
-    #define FFI_TYPE_VOID       0
-    #define FFI_TYPE_INT        1
-    #define FFI_TYPE_FLOAT      2
-    #define FFI_TYPE_DOUBLE     3
-    #define FFI_TYPE_LONGDOUBLE 4
-    #define FFI_TYPE_UINT8      5
-    #define FFI_TYPE_SINT8      6
-    #define FFI_TYPE_UINT16     7
-    #define FFI_TYPE_SINT16     8
-    #define FFI_TYPE_UINT32     9
-    #define FFI_TYPE_SINT32     10
-    #define FFI_TYPE_UINT64     11
-    #define FFI_TYPE_SINT64     12
-    #define FFI_TYPE_STRUCT     13
-    #define FFI_TYPE_POINTER    14
-    #define FFI_TYPE_COMPLEX    15
-
-    // !!! Heads-up to FFI lib authors: these aren't const definitions.  :-/
-    // Stray modifications could ruin these "constants".  Being const-correct
-    // in the parameter structs for the type arrays would have been nice...
+#if !defined(HAVE_LIBFFI_AVAILABLE)
 
     ffi_type ffi_type_void = { 0, 0, FFI_TYPE_VOID, NULL };
     ffi_type ffi_type_uint8 = { 0, 0, FFI_TYPE_UINT8, NULL };
@@ -151,55 +59,13 @@
     ffi_type ffi_type_double = { 0, 0, FFI_TYPE_DOUBLE, NULL };
     ffi_type ffi_type_pointer = { 0, 0, FFI_TYPE_POINTER, NULL };
 
-    // Switched from an enum to allow Panic w/o complaint
-    typedef int ffi_status;
-    const int FFI_OK = 0;
-    const int FFI_BAD_TYPEDEF = 1;
-    const int FFI_BAD_ABI = 2;
-
-    typedef enum ffi_abi
-    {
-        // !!! The real ffi_abi constants will be different per-platform,
-        // you would not have the full list.  Interestingly, a subsetting
-        // script *might* choose to alter libffi to produce a larger list
-        // vs being full of #ifdefs (though that's rather invasive change
-        // to the libffi code to be maintaining!)
-
-        FFI_FIRST_ABI = 0x0BAD,
-        FFI_WIN64,
-        FFI_STDCALL,
-        FFI_SYSV,
-        FFI_THISCALL,
-        FFI_FASTCALL,
-        FFI_MS_CDECL,
-        FFI_UNIX64,
-        FFI_VFP,
-        FFI_O32,
-        FFI_N32,
-        FFI_N64,
-        FFI_O32_SOFT_FLOAT,
-        FFI_N32_SOFT_FLOAT,
-        FFI_N64_SOFT_FLOAT,
-        FFI_LAST_ABI,
-        FFI_DEFAULT_ABI = FFI_FIRST_ABI
-    } ffi_abi;
-
-    typedef struct {
-        ffi_abi abi;
-        unsigned nargs;
-        ffi_type **arg_types;
-        ffi_type *rtype;
-        unsigned bytes;
-        unsigned flags;
-    } ffi_cif;
-
     ffi_status ffi_prep_cif(
         ffi_cif *cif,
         ffi_abi abi,
         unsigned int nargs,
         ffi_type *rtype,
         ffi_type **atypes
-    ) {
+    ){
         fail (Error(RE_NOT_FFI_BUILD));
     }
 
@@ -210,7 +76,7 @@
         unsigned int ntotalargs,
         ffi_type *rtype,
         ffi_type **atypes
-    ) {
+    ){
         fail (Error(RE_NOT_FFI_BUILD));
     }
 
@@ -219,16 +85,9 @@
         void (*fn)(void),
         void *rvalue,
         void **avalue
-    ) {
+    ){
         fail (Error(RE_NOT_FFI_BUILD));
     }
-
-    // The closure is a "black box" but client code takes the sizeof() to
-    // pass into the alloc routine...
-
-    typedef struct {
-        int stub;
-    } ffi_closure;
 
     void *ffi_closure_alloc(size_t size, void **code) {
         fail (Error(RE_NOT_FFI_BUILD));
@@ -240,717 +99,889 @@
         void (*fun)(ffi_cif *, void *, void **, void *),
         void *user_data,
         void *codeloc
-    ) {
+    ){
         panic (Error(RE_NOT_FFI_BUILD));
     }
 
-    void ffi_closure_free (void *closure) {
+    void ffi_closure_free(void *closure) {
         panic (Error(RE_NOT_FFI_BUILD));
     }
-#endif // HAVE_LIBFFI_AVAILABLE
+#endif
 
-#define QUEUE_EXTRA_MEM(v,p) \
-    do { \
-        *SER_AT(void*, (v)->extra_mem, SER_LEN((v)->extra_mem)) = (p); \
-        EXPAND_SERIES_TAIL((v)->extra_mem, 1);\
-    } while (0)
 
-static ffi_type * struct_type_to_ffi [STRUCT_TYPE_MAX];
-
-static void process_type_block(
-    const REBVAL *out,
-    REBVAL *blk,
-    REBCNT n,
-    REBOOL make
-);
-
-static void init_type_map()
-{
-    if (struct_type_to_ffi[0]) return;
-    struct_type_to_ffi[STRUCT_TYPE_UINT8] = &ffi_type_uint8;
-    struct_type_to_ffi[STRUCT_TYPE_INT8] = &ffi_type_sint8;
-    struct_type_to_ffi[STRUCT_TYPE_UINT16] = &ffi_type_uint16;
-    struct_type_to_ffi[STRUCT_TYPE_INT16] = &ffi_type_sint16;
-    struct_type_to_ffi[STRUCT_TYPE_UINT32] = &ffi_type_uint32;
-    struct_type_to_ffi[STRUCT_TYPE_INT32] = &ffi_type_sint32;
-    struct_type_to_ffi[STRUCT_TYPE_UINT64] = &ffi_type_uint64;
-    struct_type_to_ffi[STRUCT_TYPE_INT64] = &ffi_type_sint64;
-
-    struct_type_to_ffi[STRUCT_TYPE_FLOAT] = &ffi_type_float;
-    struct_type_to_ffi[STRUCT_TYPE_DOUBLE] = &ffi_type_double;
-
-    struct_type_to_ffi[STRUCT_TYPE_POINTER] = &ffi_type_pointer;
-}
-
+// There is a platform-dependent list of legal ABIs which the MAKE-ROUTINE
+// and MAKE-CALLBACK natives take as an option via refinement
 //
-//  CT_Routine: C
-//
-REBINT CT_Routine(const REBVAL *a, const REBVAL *b, REBINT mode)
-{
-    //RL_Print("%s, %d\n", __func__, __LINE__);
-    if (mode >= 0) {
-        return VAL_ROUTINE_INFO(a) == VAL_ROUTINE_INFO(b);
-    }
-    return -1;
-}
+static ffi_abi Abi_From_Word(const REBVAL *word) {
+    switch (VAL_WORD_SYM(word)) {
+    case SYM_DEFAULT:
+        return FFI_DEFAULT_ABI;
 
-//
-//  CT_Callback: C
-//
-REBINT CT_Callback(const REBVAL *a, const REBVAL *b, REBINT mode)
-{
-    //RL_Print("%s, %d\n", __func__, __LINE__);
-    return -1;
-}
+#ifdef X86_WIN64
+    case SYM_WIN64:
+        return FFI_WIN64;
 
-static REBCNT n_struct_fields (REBSER *fields)
-{
-    REBCNT n_fields = 0;
-    REBCNT i = 0;
-    for (i = 0; i < SER_LEN(fields); i ++) {
-        struct Struct_Field *field = SER_AT(struct Struct_Field, fields, i);
-        if (field->type != STRUCT_TYPE_STRUCT) {
-            n_fields += field->dimension;
-        } else {
-            n_fields += n_struct_fields(field->fields);
-        }
-    }
-    return n_fields;
-}
+#elif defined(X86_WIN32) || defined(TO_LINUX_X86) || defined(TO_LINUX_X64)
+    case SYM_STDCALL:
+        return FFI_STDCALL;
 
-static ffi_type* struct_to_ffi(const REBVAL *out, REBSER *fields, REBOOL make)
-{
-    REBCNT i = 0, j = 0;
-    REBCNT n_basic_type = 0;
+    case SYM_SYSV:
+        return FFI_SYSV;
 
-    ffi_type *stype = NULL;
-    //printf("allocated stype at: %p\n", stype);
-    if (make) {//called by Routine constructor
-        stype = OS_ALLOC(ffi_type);
-        QUEUE_EXTRA_MEM(VAL_ROUTINE_INFO(out), stype);
-    } else {
-        REBSER *ser = Make_Series(2, sizeof(ffi_type), MKS_NONE);
-        SET_SER_FLAG(ser, SERIES_FLAG_FIXED_SIZE);
-        stype = SER_HEAD(ffi_type, ser);
-        PUSH_GUARD_SERIES(ser);
+    case SYM_THISCALL:
+        return FFI_THISCALL;
+
+    case SYM_FASTCALL:
+        return FFI_FASTCALL;
+
+#ifdef X86_WIN32
+    case SYM_MS_CDECL:
+        return FFI_MS_CDECL;
+#else
+    case SYM_UNIX64:
+        return FFI_UNIX64;
+#endif //X86_WIN32
+
+#elif defined (TO_LINUX_ARM)
+    case SYM_VFP:
+        return FFI_VFP;
+
+    case SYM_SYSV:
+        return FFI_SYSV;
+
+#elif defined (TO_LINUX_MIPS)
+    case SYM_O32:
+        return FFI_O32;
+
+    case SYM_N32:
+        return FFI_N32;
+
+    case SYM_N64:
+        return FFI_N64;
+
+    case SYM_O32_SOFT_FLOAT:
+        return FFI_O32_SOFT_FLOAT;
+
+    case SYM_N32_SOFT_FLOAT:
+        return FFI_N32_SOFT_FLOAT;
+
+    case SYM_N64_SOFT_FLOAT:
+        return FFI_N64_SOFT_FLOAT;
+#endif //X86_WIN64
     }
 
-    stype->size = stype->alignment = 0;
-    stype->type = FFI_TYPE_STRUCT;
+    fail (Error_Invalid_Arg(word));
+}
 
-    /* one extra for NULL */
-    if (make) {
-        stype->elements = OS_ALLOC_N(ffi_type *, 1 + n_struct_fields(fields));
-        //printf("allocated stype elements at: %p\n", stype->elements);
-        QUEUE_EXTRA_MEM(VAL_ROUTINE_INFO(out), stype->elements);
-    }
-    else {
-        REBSER *ser = Make_Series(
-            2 + n_struct_fields(fields), sizeof(ffi_type *), MKS_NONE
+
+//
+// Writes into `out` a Rebol value representing the "schema", which describes
+// either a basic FFI type or the layout of a STRUCT! (not including data).
+//
+// Ideally this would be an OBJECT! or user-defined type specification of
+// some kind (which is why it's being set up as a value).  However, for
+// now it is either an INTEGER! representing an FFI_TYPE -or- a HANDLE!
+// containing a REBSER* with one Struct_Field definition in it.  (It's in
+// a series in order to allow it to be shared and GC'd among many struct
+// instances, or extracted like this).
+//
+static void Schema_From_Block_May_Fail(
+    REBVAL *schema_out, // => INTEGER! or HANDLE! for struct
+    REBVAL *param_out, // => TYPESET!
+    const REBVAL *blk
+){
+    assert(IS_BLOCK(blk));
+
+    if (VAL_LEN_AT(blk) == 0)
+        fail (Error_Invalid_Arg(blk));
+
+    Val_Init_Typeset(param_out, 0, NULL);
+
+    RELVAL *item = VAL_ARRAY_AT(blk);
+
+    if (IS_WORD(item) && VAL_WORD_SYM(item) == SYM_STRUCT_X) {
+        //
+        // [struct! [...struct definition...]]
+
+        ++item;
+        if (IS_END(item) || !IS_BLOCK(item))
+            fail (Error_Invalid_Arg(blk));
+
+        // Use the block spec to build a temporary structure through the same
+        // machinery that implements `make struct! [...]`
+
+        REBVAL def;
+        COPY_VALUE(&def, item, VAL_SPECIFIER(blk));
+
+        REBVAL temp;
+        MAKE_Struct(&temp, REB_STRUCT, &def); // may fail()
+
+        assert(IS_STRUCT(&temp));
+
+        // We want the schema series (not just the raw Struct_Field*).  This
+        // is because what's needed is a GC-protecting reference, otherwise
+        // it would go bad after temp's REBSTU gets GC'd.
+        //
+        // !!! It should be made possible to create a schema without going
+        // through a struct creation.  There are "raw" structs with no memory,
+        // which would avoid the data series (not the REBSTU array, though)
+        //
+        SET_HANDLE_DATA(
+            schema_out,
+            ARR_SERIES(VAL_STRUCT(&temp))->link.schema
         );
-        SET_SER_FLAG(ser, SERIES_FLAG_FIXED_SIZE);
-        stype->elements = SER_HEAD(ffi_type*, ser);
-        PUSH_GUARD_SERIES(ser);
+
+        // Saying "struct!" is legal would suggest any structure is legal.
+        // However, when the routine is called it gets a chance to look at
+        // the specifics.
+        //
+        // !!! Original code didn't check anything--size checking added.
+        //
+        TYPE_SET(param_out, REB_STRUCT);
+        return;
     }
 
-    for (i = 0; i < SER_LEN(fields); i ++) {
-        struct Struct_Field *field = SER_AT(struct Struct_Field, fields, i);
-        if (field->type == STRUCT_TYPE_REBVAL) {
-            /* don't see a point to pass a rebol value to external functions */
-            fail (Error_Invalid_Arg(out));
-        } else if (field->type != STRUCT_TYPE_STRUCT) {
-            if (struct_type_to_ffi[field->type]) {
-                REBCNT n = 0;
-                for (n = 0; n < field->dimension; n ++) {
-                    stype->elements[j++] = struct_type_to_ffi[field->type];
-                }
-            } else {
-                return NULL;
-            }
-        } else {
-            ffi_type *subtype = struct_to_ffi(out, field->fields, make);
-            if (subtype) {
-                REBCNT n = 0;
-                for (n = 0; n < field->dimension; n ++) {
-                    stype->elements[j++] = subtype;
-                }
-            } else {
-                return NULL;
-            }
+    if (VAL_LEN_AT(blk) != 1)
+        fail (Error_Invalid_Arg(blk));
+
+    if (IS_WORD(item)) {
+        switch (VAL_WORD_SYM(item)) {
+        case SYM_VOID:
+            SET_BLANK(schema_out); // only valid for return types
+            break;
+
+        case SYM_UINT8:
+            SET_INTEGER(schema_out, FFI_TYPE_UINT8);
+            TYPE_SET(param_out, REB_INTEGER);
+            break;
+
+        case SYM_INT8:
+            SET_INTEGER(schema_out, FFI_TYPE_SINT8);
+            TYPE_SET(param_out, REB_INTEGER);
+            break;
+
+        case SYM_UINT16:
+            SET_INTEGER(schema_out, FFI_TYPE_UINT16);
+            TYPE_SET(param_out, REB_INTEGER);
+            break;
+
+        case SYM_INT16:
+            SET_INTEGER(schema_out, FFI_TYPE_SINT16);
+            TYPE_SET(param_out, REB_INTEGER);
+            break;
+
+        case SYM_UINT32:
+            SET_INTEGER(schema_out, FFI_TYPE_UINT32);
+            TYPE_SET(param_out, REB_INTEGER);
+            break;
+
+        case SYM_INT32:
+            SET_INTEGER(schema_out, FFI_TYPE_SINT32);
+            TYPE_SET(param_out, REB_INTEGER);
+            break;
+
+        case SYM_UINT64:
+            SET_INTEGER(schema_out, FFI_TYPE_UINT64);
+            TYPE_SET(param_out, REB_INTEGER);
+            break;
+
+        case SYM_INT64:
+            SET_INTEGER(schema_out, FFI_TYPE_SINT64);
+            TYPE_SET(param_out, REB_INTEGER);
+            break;
+
+        case SYM_FLOAT:
+            SET_INTEGER(schema_out, FFI_TYPE_FLOAT);
+            TYPE_SET(param_out, REB_DECIMAL);
+            break;
+
+        case SYM_DOUBLE:
+            SET_INTEGER(schema_out, FFI_TYPE_DOUBLE);
+            TYPE_SET(param_out, REB_DECIMAL);
+            break;
+
+        case SYM_POINTER:
+            SET_INTEGER(schema_out, FFI_TYPE_POINTER);
+            TYPE_SET(param_out, REB_INTEGER);
+            TYPE_SET(param_out, REB_STRING);
+            TYPE_SET(param_out, REB_BINARY);
+            TYPE_SET(param_out, REB_VECTOR);
+            TYPE_SET(param_out, REB_FUNCTION); // callback
+            break;
+
+        default:
+            fail (Error(RE_MISC));
         }
+        return;
     }
-    stype->elements[j] = NULL;
 
-    return stype;
+    fail (Error_Invalid_Arg(blk));
 }
 
-/* convert the type of "elem", and store it in "out" with index of "idx"
- */
-static REBOOL rebol_type_to_ffi(const REBVAL *out, const REBVAL *elem, REBCNT idx, REBOOL make)
-{
-    ffi_type **args = SER_HEAD(ffi_type*, VAL_ROUTINE_FFI_ARG_TYPES(out));
-    REBVAL *rebol_args = NULL;
-    if (idx) {
-        // when it's first call for return type, all_args has not been initialized yet
-        if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARIADIC)
-            && idx > ARR_LEN(VAL_ROUTINE_FIXED_ARGS(out))) {
-            rebol_args = ARR_HEAD(VAL_ROUTINE_ALL_ARGS(out));
-        }
-        else {
-            rebol_args = ARR_HEAD(VAL_ROUTINE_PARAMLIST(out));
-        }
-    }
 
-    if (IS_WORD(elem)) {
-        REBVAL *temp;
-        switch (VAL_WORD_CANON(elem)) {
-            case SYM_VOID:
-                args[idx] = &ffi_type_void;
-                break;
-            case SYM_UINT8:
-                args[idx] = &ffi_type_uint8;
-                if (idx) TYPE_SET(&rebol_args[idx], REB_INTEGER);
-                break;
-            case SYM_INT8:
-                args[idx] = &ffi_type_sint8;
-                if (idx) TYPE_SET(&rebol_args[idx], REB_INTEGER);
-                break;
-            case SYM_UINT16:
-                args[idx] = &ffi_type_uint16;
-                if (idx) TYPE_SET(&rebol_args[idx], REB_INTEGER);
-                break;
-            case SYM_INT16:
-                args[idx] = &ffi_type_sint16;
-                if (idx) TYPE_SET(&rebol_args[idx], REB_INTEGER);
-                break;
-            case SYM_UINT32:
-                args[idx] = &ffi_type_uint32;
-                if (idx) TYPE_SET(&rebol_args[idx], REB_INTEGER);
-                break;
-            case SYM_INT32:
-                args[idx] = &ffi_type_sint32;
-                if (idx) TYPE_SET(&rebol_args[idx], REB_INTEGER);
-                break;
-            case SYM_UINT64:
-                args[idx] = &ffi_type_uint64;
-                if (idx) TYPE_SET(&rebol_args[idx], REB_INTEGER);
-                break;
-            case SYM_INT64:
-                args[idx] = &ffi_type_sint64;
-                if (idx) TYPE_SET(&rebol_args[idx], REB_INTEGER);
-                break;
-            case SYM_FLOAT:
-                args[idx] = &ffi_type_float;
-                if (idx) TYPE_SET(&rebol_args[idx], REB_DECIMAL);
-                break;
-            case SYM_DOUBLE:
-                args[idx] = &ffi_type_double;
-                if (idx) TYPE_SET(&rebol_args[idx], REB_DECIMAL);
-                break;
-            case SYM_POINTER:
-                args[idx] = &ffi_type_pointer;
-                if (idx) {
-                    TYPE_SET(&rebol_args[idx], REB_INTEGER);
-                    TYPE_SET(&rebol_args[idx], REB_STRING);
-                    TYPE_SET(&rebol_args[idx], REB_BINARY);
-                    TYPE_SET(&rebol_args[idx], REB_VECTOR);
-                    TYPE_SET(&rebol_args[idx], REB_FUNCTION); // !!! callback
-                }
-                break;
-            default:
-                return FALSE;
-        }
-        temp = Alloc_Tail_Array(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
-        SET_NONE(temp);
-    }
-    else if (IS_STRUCT(elem)) {
-        ffi_type *ftype = struct_to_ffi(out, VAL_STRUCT_FIELDS(elem), make);
-        REBVAL *to = NULL;
-        if (ftype) {
-            args[idx] = ftype;
-            if (idx) {
-                TYPE_SET(&rebol_args[idx], REB_STRUCT);
-            }
-        } else {
-            return FALSE;
-        }
-        if (idx == 0) {
-            to = ARR_HEAD(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
-        } else {
-            to = Alloc_Tail_Array(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
-        }
-        Copy_Struct_Val(elem, to); //for callback and return value
-    } else {
-        return FALSE;
-    }
-    return TRUE;
+//
+// According to the libffi documentation, the arguments "must be suitably
+// aligned; it is the caller's responsibility to ensure this".
+//
+// We assume the store's data pointer will have suitable alignment for any
+// type (currently Make_Series() is expected to match malloc() in this way).
+// This will round the offset positions to an alignment appropriate for the
+// type size given.
+//
+// This means sequential arguments in the store may have padding between them.
+//
+inline static void *Expand_And_Align_Core(
+    REBUPT *offset_out,
+    REBCNT align,
+    REBSER *store,
+    REBCNT size
+){
+    REBCNT padding = SER_LEN(store) % align;
+    if (padding != 0)
+        padding = align - padding;
+
+    *offset_out = SER_LEN(store) + padding;
+    EXPAND_SERIES_TAIL(store, padding + size);
+    return SER_DATA_RAW(store) + *offset_out;
 }
 
-/* make a copy of the argument
- * arg referes to return value when idx = 0
- * function args start from idx = 1
- *
- * @ptrs is an array with a length of number of arguments of @rot
- *
- * For FFI_TYPE_POINTER, a temperary pointer could be needed
- * (whose address is returned). ptrs[idx] is the temperary pointer.
- * */
-static void *arg_to_ffi(const REBVAL *rot, REBVAL *arg, REBCNT idx, void **ptrs)
-{
-    ffi_type **args = SER_HEAD(ffi_type*, VAL_ROUTINE_FFI_ARG_TYPES(rot));
-    REBARR *rebol_args;
+inline static void *Expand_And_Align(
+    REBUPT *offset_out,
+    REBSER *store,
+    REBCNT size // assumes align == size
+){
+    return Expand_And_Align_Core(offset_out, size, store, size);
+}
 
-    struct Reb_Frame *frame_ = FS_TOP; // So you can use the D_xxx macros
 
-    if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(rot), ROUTINE_VARIADIC))
-        rebol_args = VAL_ROUTINE_ALL_ARGS(rot);
+//
+// Convert a Rebol value into a bit pattern suitable for the expectations of
+// the FFI for how a C argument would be represented.  (e.g. turn an
+// INTEGER! into the appropriate representation of an `int` in memory.)
+//
+static REBUPT arg_to_ffi(
+    REBSER *store,
+    void *dest,
+    const REBVAL *arg,
+    const REBVAL *schema,
+    const REBVAL *param
+){
+    // Only one of dest or store should be non-NULL.  This allows to write
+    // either to a known pointer of sufficient size (dest) or to a series
+    // that will expand enough to accommodate the data (store).
+    //
+    assert(store == NULL ? dest != NULL : dest == NULL);
+
+#if !defined(NDEBUG)
+    //
+    // If the value being converted has a "name"--e.g. the FFI Routine
+    // interface named it in the spec--then `param` contains that name, for
+    // reporting any errors in the conversion.
+    //
+    // !!! Shouldn't the argument have already had its type checked by the
+    // calling process?
+    //
+    if (param)
+        assert(arg != NULL && IS_TYPESET(param));
     else
-        rebol_args = VAL_ROUTINE_PARAMLIST(rot);
-
-    switch (args[idx]->type) {
-        case FFI_TYPE_UINT8:
-            if (!IS_INTEGER(arg)) {
-                fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
-                ));
-            } else {
-#ifdef BIG_ENDIAN
-                u8 i = (u8) VAL_INT64(arg);
-                memcpy(&VAL_INT64(arg), &i, sizeof(u8));
+        assert(arg == NULL); // return value, so just make space (no arg data)
 #endif
-                return &VAL_INT64(arg);
-            }
 
-        case FFI_TYPE_SINT8:
-            if (!IS_INTEGER(arg)) {
-                fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
-                ));
-            } else {
-#ifdef BIG_ENDIAN
-                i8 i = (i8) VAL_INT64(arg);
-                memcpy(&VAL_INT64(arg), &i, sizeof(i8));
-#endif
-                return &VAL_INT64(arg);
-            }
+    REBFRM *frame_ = FS_TOP; // So you can use the D_xxx macros
 
-        case FFI_TYPE_UINT16:
-            if (!IS_INTEGER(arg)) {
-                fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
-                ));
-            } else {
-#ifdef BIG_ENDIAN
-                u16 i = (u16) VAL_INT64(arg);
-                memcpy(&VAL_INT64(arg), &i, sizeof(u16));
-#endif
-                return &VAL_INT64(arg);
-            }
+    REBUPT offset;
+    if (!dest)
+        offset = 0;
 
-        case FFI_TYPE_SINT16:
-            if (!IS_INTEGER(arg)) {
-                fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
-                ));
-            } else {
-#ifdef BIG_ENDIAN
-                i16 i = (i16) VAL_INT64(arg);
-                memcpy(&VAL_INT64(arg), &i, sizeof(i16));
-#endif
-                return &VAL_INT64(arg);
-            }
-
-        case FFI_TYPE_UINT32:
-            if (!IS_INTEGER(arg)) {
-                fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
-                ));
-            } else {
-#ifdef BIG_ENDIAN
-                u32 i = (u32) VAL_INT64(arg);
-                memcpy(&VAL_INT64(arg), &i, sizeof(u32));
-#endif
-                return &VAL_INT64(arg);
-            }
-
-        case FFI_TYPE_SINT32:
-            if (!IS_INTEGER(arg)) {
-                fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
-                ));
-            } else {
-#ifdef BIG_ENDIAN
-                i32 i = (i32) VAL_INT64(arg);
-                memcpy(&VAL_INT64(arg), &i, sizeof(i32));
-#endif
-                return &VAL_INT64(arg);
-            }
-
-        case FFI_TYPE_UINT64:
-        case FFI_TYPE_SINT64:
-            if (!IS_INTEGER(arg))
-                fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
-                ));
-            return &VAL_INT64(arg);
-
-        case FFI_TYPE_POINTER:
-            switch (VAL_TYPE(arg)) {
-                case REB_INTEGER:
-                    return &VAL_INT64(arg);
-                case REB_STRING:
-                case REB_BINARY:
-                case REB_VECTOR:
-                    ptrs[idx] = VAL_RAW_DATA_AT(arg);
-                    return &ptrs[idx];
-                case REB_FUNCTION:
-                    if (VAL_FUNC_CLASS(arg) != FUNC_CLASS_CALLBACK)
-                        fail (Error(RE_ONLY_CALLBACK_PTR));
-
-                    ptrs[idx] = VAL_ROUTINE_DISPATCHER(arg);
-                    return &ptrs[idx];
-                default:
-                    fail (Error_Arg_Type(
-                        D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
-                    ));
-            }
-
-        case FFI_TYPE_FLOAT:
-            /* hackish, store the signle precision floating point number in a double precision variable */
-            if (!IS_DECIMAL(arg)) {
-                fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
-                ));
-            } else {
-                float a = (float)VAL_DECIMAL(arg);
-                memcpy(&VAL_DECIMAL(arg), &a, sizeof(a));
-                return &VAL_DECIMAL(arg);
-            }
-
-        case FFI_TYPE_DOUBLE:
-            if (!IS_DECIMAL(arg))
-                fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
-                ));
-            return &VAL_DECIMAL(arg);
-
-        case FFI_TYPE_STRUCT:
-            if (idx == 0) {/* returning a struct */
-                Copy_Struct(&VAL_ROUTINE_RVALUE(rot), &VAL_STRUCT(arg));
-            } else {
-                if (!IS_STRUCT(arg))
-                    fail (Error_Arg_Type(
-                        D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
-                    ));
-            }
-            return SER_AT(
-                REBYTE,
-                VAL_STRUCT_DATA_BIN(arg),
-                VAL_STRUCT_OFFSET(arg)
+    if (IS_HANDLE(schema)) {
+        struct Struct_Field *top
+            = SER_HEAD(
+                struct Struct_Field,
+                cast(REBSER*, VAL_HANDLE_DATA(schema))
             );
 
-        case FFI_TYPE_VOID:
-            if (!idx) {
-                return NULL;
-            } else {
-                fail (Error_Arg_Type(
-                    D_LABEL_SYM, ARR_AT(rebol_args, idx), arg
-                ));
-            }
+        assert(top->type == FFI_TYPE_STRUCT);
 
-        default:
-            fail (Error_Invalid_Arg(arg));
+        // !!! In theory a struct has to be aligned to its maximal alignment
+        // needed by a fundamental member.  We'll assume that the largest
+        // is sizeof(void*) here...this may waste some space in the padding
+        // between arguments, but that shouldn't have any semantic effect.
+        //
+        if (!dest)
+            dest = Expand_And_Align_Core(
+                &offset,
+                sizeof(void*),
+                store,
+                top->size
+            );
+
+        if (arg == NULL) {
+            //
+            // Return values don't have an incoming argument to fill into the
+            // calling frame.
+            //
+            return offset;
+        }
+
+        // !!! There wasn't any compatibility checking here before (not even
+        // that the arg was a struct.  :-/  It used a stored STRUCT! from
+        // when the routine was specified to know what the size should be,
+        // and didn't pay attention to the size of the passed-in struct.
+        //
+        // (One reason it didn't use the size of the passed-struct is
+        // because it couldn't do so in the return case where arg was null)
+
+        if (!IS_STRUCT(arg))
+            fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
+
+        if (STU_SIZE(VAL_STRUCT(arg)) != top->size)
+            fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
+
+        memcpy(
+            dest,
+            SER_AT(REBYTE, VAL_STRUCT_DATA_BIN(arg), VAL_STRUCT_OFFSET(arg)),
+            STU_SIZE(VAL_STRUCT(arg))
+        );
+
+        return offset;
     }
 
-    return NULL;
-}
+    assert(IS_INTEGER(schema));
 
-static void prep_rvalue(REBRIN *rin, REBVAL *val)
-{
-    ffi_type *rtype = *SER_HEAD(ffi_type*, rin->arg_types);
+    switch (VAL_INT32(schema)) {
+    case FFI_TYPE_UINT8:{
+        u8 u;
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(u));
+        if (!arg) break;
 
-    switch (rtype->type) {
-        case FFI_TYPE_UINT8:
-        case FFI_TYPE_SINT8:
-        case FFI_TYPE_UINT16:
-        case FFI_TYPE_SINT16:
-        case FFI_TYPE_UINT32:
-        case FFI_TYPE_SINT32:
-        case FFI_TYPE_UINT64:
-        case FFI_TYPE_SINT64:
-        case FFI_TYPE_POINTER:
-            SET_INTEGER(val, 0);
-            break;
-        case FFI_TYPE_FLOAT:
-        case FFI_TYPE_DOUBLE:
-            SET_DECIMAL(val, 0);
-            break;
-        case FFI_TYPE_STRUCT:
-            VAL_RESET_HEADER(val, REB_STRUCT);
-            break;
-        case FFI_TYPE_VOID:
-            SET_UNSET(val);
-            break;
+        if (!IS_INTEGER(arg))
+            fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
+
+        u = cast(u8, VAL_INT64(arg));
+        memcpy(dest, &u, sizeof(u));
+        break;}
+
+    case FFI_TYPE_SINT8:{
+        i8 i;
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(i));
+        if (!arg) break;
+
+        if (!IS_INTEGER(arg))
+            fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
+
+        i = cast(i8, VAL_INT64(arg));
+        memcpy(dest, &i, sizeof(i));
+        break;}
+
+    case FFI_TYPE_UINT16:{
+        u16 u;
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(u));
+        if (!arg) break;
+
+        if (!IS_INTEGER(arg))
+            fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
+
+        u = cast(u16, VAL_INT64(arg));
+        memcpy(dest, &u, sizeof(u));
+        break;}
+
+    case FFI_TYPE_SINT16:{
+        i16 i;
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(i));
+        if (!arg) break;
+
+        if (!IS_INTEGER(arg))
+            fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
+
+        i = cast(i16, VAL_INT64(arg));
+        memcpy(dest, &i, sizeof(i));
+        break;}
+
+    case FFI_TYPE_UINT32:{
+        u32 u;
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(u));
+        if (!arg) break;
+
+        if (!IS_INTEGER(arg))
+            fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
+
+        u = cast(u32, VAL_INT64(arg));
+        memcpy(dest, &u, sizeof(u));
+        break;}
+
+    case FFI_TYPE_SINT32:{
+        i32 i;
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(i));
+        if (!arg) break;
+
+        if (!IS_INTEGER(arg))
+            fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
+
+        i = cast(i32, VAL_INT64(arg));
+        memcpy(dest, &i, sizeof(i));
+        break;}
+
+    case FFI_TYPE_UINT64:
+    case FFI_TYPE_SINT64:{
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(REBI64));
+        if (!arg) break;
+
+        if (!IS_INTEGER(arg))
+            fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
+
+        memcpy(dest, &VAL_INT64(arg), sizeof(REBI64));
+        break;}
+
+    case FFI_TYPE_POINTER:{
+        //
+        // Note: Function pointers and data pointers may not be same size.
+        //
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(void*));
+        if (!arg) break;
+
+        switch (VAL_TYPE(arg)) {
+        case REB_INTEGER:{
+            REBIPT ipt = VAL_INT64(arg); // REBIPT is like C99's intptr_t
+            memcpy(dest, &VAL_INT64(arg), sizeof(void*));
+            break;}
+
+        case REB_STRING:
+        case REB_BINARY:
+        case REB_VECTOR:{
+            // !!! This is a questionable idea, giving out pointers directly
+            // into Rebol series data.  One issue is that the recipient of
+            // the data doesn't know whether to interpret it as REBYTE[] or as
+            // REBUNI[]...because it's passing the raw data of strings which
+            // can be wide or not based on things that have happened in the
+            // lifetime of that string.  Another is that the data may be
+            // relocated in memory if any modifications happen during a
+            // callback...so the memory is not "stable".
+            //
+            REBYTE *raw_ptr = VAL_RAW_DATA_AT(arg);
+            memcpy(dest, &raw_ptr, sizeof(raw_ptr)); // copies a *pointer*!
+            break;}
+
+        case REB_FUNCTION:{
+            if (!GET_RIN_FLAG(VAL_FUNC_ROUTINE(arg), ROUTINE_FLAG_CALLBACK))
+                fail (Error(RE_ONLY_CALLBACK_PTR));
+
+            void* dispatcher = RIN_DISPATCHER(VAL_FUNC_ROUTINE(arg));
+            memcpy(dest, &dispatcher, sizeof(dispatcher));
+            break;}
+
         default:
-            fail (Error_Invalid_Arg(val));
+            fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
+        }
+        break;} // end case FFI_TYPE_POINTER
+
+    case FFI_TYPE_FLOAT:{
+        float f;
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(f));
+        if (!arg) break;
+
+        if (!IS_DECIMAL(arg))
+            fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
+
+        f = cast(float, VAL_DECIMAL(arg));
+        memcpy(dest, &f, sizeof(f));
+        break;}
+
+    case FFI_TYPE_DOUBLE:{
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(double));
+        if (!arg) break;
+
+        if (!IS_DECIMAL(arg))
+            fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
+
+        memcpy(dest, &VAL_DECIMAL(arg), sizeof(double));
+        break;}
+
+    case FFI_TYPE_STRUCT:
+        //
+        // structs should be processed above by the HANDLE! case, not INTEGER!
+        //
+        assert(FALSE);
+    case FFI_TYPE_VOID:
+        //
+        // can't return a meaningful offset for "void"--it's only valid for
+        // return types, so caller should check and not try to pass it in.
+        //
+        assert(FALSE);
+    default:
+        fail (Error_Invalid_Arg(arg));
     }
+
+    return offset;
 }
+
 
 /* convert the return value to rebol
  */
-static void ffi_to_rebol(REBRIN *rin,
-                         ffi_type *ffi_rtype,
-                         void *ffi_rvalue,
-                         REBVAL *rebol_ret)
-{
-    switch (ffi_rtype->type) {
+static void ffi_to_rebol(
+    REBVAL *out,
+    const REBVAL *schema,
+    void *ffi_rvalue
+) {
+    if (IS_HANDLE(schema)) {
+        struct Struct_Field *top
+            = SER_HEAD(
+                struct Struct_Field,
+                cast(REBSER*, VAL_HANDLE_DATA(schema))
+            );
+
+        assert(top->type == FFI_TYPE_STRUCT);
+
+        REBSTU *stu = Alloc_Singular_Array();
+
+        REBSER *data = Make_Series(top->size, sizeof(REBYTE), MKS_NONE);
+        memcpy(SER_HEAD(REBYTE, data), ffi_rvalue, top->size);
+        MANAGE_SERIES(data);
+
+        VAL_RESET_HEADER(out, REB_STRUCT);
+        out->payload.structure.stu = stu;
+        out->payload.structure.data = data;
+        out->extra.struct_offset = 0;
+
+        *ARR_HEAD(stu) = *out; // save canon value
+        ARR_SERIES(stu)->link.schema = cast(REBSER*, VAL_HANDLE_DATA(schema));
+        MANAGE_ARRAY(stu);
+
+        assert(STU_DATA_BIN(stu) == data);
+        return;
+    }
+
+    assert(IS_INTEGER(schema));
+
+    switch (VAL_INT32(schema)) {
     case FFI_TYPE_UINT8:
-        SET_INTEGER(rebol_ret, *cast(u8*, ffi_rvalue));
+        SET_INTEGER(out, *cast(u8*, ffi_rvalue));
         break;
 
     case FFI_TYPE_SINT8:
-        SET_INTEGER(rebol_ret, *cast(i8*, ffi_rvalue));
+        SET_INTEGER(out, *cast(i8*, ffi_rvalue));
         break;
 
     case FFI_TYPE_UINT16:
-        SET_INTEGER(rebol_ret, *cast(u16*, ffi_rvalue));
+        SET_INTEGER(out, *cast(u16*, ffi_rvalue));
         break;
 
     case FFI_TYPE_SINT16:
-        SET_INTEGER(rebol_ret, *cast(i16*, ffi_rvalue));
+        SET_INTEGER(out, *cast(i16*, ffi_rvalue));
         break;
 
     case FFI_TYPE_UINT32:
-        SET_INTEGER(rebol_ret, *cast(u32*, ffi_rvalue));
+        SET_INTEGER(out, *cast(u32*, ffi_rvalue));
         break;
 
     case FFI_TYPE_SINT32:
-        SET_INTEGER(rebol_ret, *cast(i32*, ffi_rvalue));
+        SET_INTEGER(out, *cast(i32*, ffi_rvalue));
         break;
 
     case FFI_TYPE_UINT64:
-        SET_INTEGER(rebol_ret, *cast(u64*, ffi_rvalue));
+        SET_INTEGER(out, *cast(u64*, ffi_rvalue));
         break;
 
     case FFI_TYPE_SINT64:
-        SET_INTEGER(rebol_ret, *cast(i64*, ffi_rvalue));
+        SET_INTEGER(out, *cast(i64*, ffi_rvalue));
         break;
 
     case FFI_TYPE_POINTER:
-        SET_INTEGER(rebol_ret, cast(REBUPT, *cast(void**, ffi_rvalue)));
+        SET_INTEGER(out, cast(REBUPT, *cast(void**, ffi_rvalue)));
         break;
 
     case FFI_TYPE_FLOAT:
-        SET_DECIMAL(rebol_ret, *cast(float*, ffi_rvalue));
+        SET_DECIMAL(out, *cast(float*, ffi_rvalue));
         break;
 
     case FFI_TYPE_DOUBLE:
-        SET_DECIMAL(rebol_ret, *cast(double*, ffi_rvalue));
-        break;
-
-    case FFI_TYPE_STRUCT:
-        VAL_RESET_HEADER(rebol_ret, REB_STRUCT);
-        Copy_Struct(&RIN_RVALUE(rin), &VAL_STRUCT(rebol_ret));
-        memcpy(
-            SER_AT(
-                REBYTE,
-                VAL_STRUCT_DATA_BIN(rebol_ret),
-                VAL_STRUCT_OFFSET(rebol_ret)
-            ),
-            ffi_rvalue,
-            VAL_STRUCT_LEN(rebol_ret)
-        );
+        SET_DECIMAL(out, *cast(double*, ffi_rvalue));
         break;
 
     case FFI_TYPE_VOID:
-        break;
-
+        assert(FALSE); // not covered by generic routine.
     default:
-        fail (Error_Invalid_Arg(rebol_ret));
+        assert(FALSE);
+        //
+        // !!! Was reporting Error_Invalid_Arg on uninitialized `out`
+        //
+        fail (Error(RE_MISC));
     }
 }
 
+
 //
-//  Call_Routine: C
+//  Routine_Dispatcher: C
 //
-void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
+REB_R Routine_Dispatcher(REBFRM *f)
 {
-    REBCNT i = 0;
-    void *rvalue = NULL;
-    REBSER *ser = NULL;
-    void ** ffi_args = NULL;
-    REBINT pop = 0;
-    REBCNT n_fixed = 0; /* number of fixed arguments */
-    REBSER *ffi_args_ptrs = NULL; /* a temprary series to hold pointer parameters */
+    REBRIN *rin = FUNC_ROUTINE(f->func);
 
-    struct Reb_Frame *frame_ = FS_TOP; // So you can use the D_xxx macros
-
-    REBVAL out = *FUNC_VALUE(rot); // REVIEW: why is it done this way?
-
-    // `is_va_list_routine` is optimized out, but hints static analyzer
-    const REBOOL is_va_list_routine
-        = ROUTINE_GET_FLAG(ROUTINE_INFO(rot), ROUTINE_VARIADIC);
-
-    REBVAL *va_values = NULL;
-
-    /* save the saved series stack pointer
-     *
-     *  Temporary series could be allocated in process_type_block, recursively.
-     *  Instead of remembering how many times SAVE_SERIES has called, it's easier to
-     *  just remember the initial pointer and restore it later.
-    **/
-    REBCNT series_guard_tail = SER_LEN(GC_Series_Guard);
-
-    if (ROUTINE_LIB(rot) != NULL) {
-        // lib is NULL when routine is constructed from address directly
-        if (IS_CLOSED_LIB(ROUTINE_LIB(rot)))
+    if (RIN_LIB(rin) == NULL) {
+        //
+        // lib is NULL when routine is constructed from address directly,
+        // so there's nothing to track whether that gets loaded or unloaded
+    }
+    else {
+        if (IS_LIB_CLOSED(RIN_LIB(rin)))
             fail (Error(RE_BAD_LIBRARY));
     }
 
-    if (is_va_list_routine) {
-        va_values = ARR_HEAD(args);
-        if (!IS_BLOCK(va_values))
-            fail (Error_Invalid_Arg(va_values));
+    REBCNT num_fixed = RIN_NUM_FIXED_ARGS(rin);
 
-        // Note: Must subtract 1 because the [0]th element is reserved in
-        // paramlists for the REBVAL of the function itself.
+    REBCNT num_variable;
+    REBDSP dsp_orig = DSP; // variadic args pushed to stack, so save base ptr
+
+    if (NOT(GET_RIN_FLAG(rin, ROUTINE_FLAG_VARIADIC)))
+        num_variable = 0;
+    else {
+        // The function specification should have one extra parameter for
+        // the variadic source ("...")
         //
-        n_fixed = ARR_LEN(ROUTINE_FIXED_ARGS(rot)) - 1;
+        assert(FUNC_NUM_PARAMS(FRM_FUNC(f)) == num_fixed + 1);
 
-        if ((VAL_LEN_AT(va_values) - n_fixed) % 2)
-            fail (Error_Invalid_Arg(va_values));
+        REBVAL *varparam = FUNC_PARAM(FRM_FUNC(f), num_fixed + 1); // 1-based
+        REBVAL *vararg = FRM_ARG(f, num_fixed + 1); // 1-based
+        assert(
+            GET_VAL_FLAG(varparam, TYPESET_FLAG_VARIADIC)
+            && IS_VARARGS(vararg)
+            && !GET_VAL_FLAG(vararg, VARARGS_FLAG_NO_FRAME)
+        );
 
-        ser = Make_Series(
-            n_fixed + (VAL_LEN_AT(va_values) - n_fixed) / 2,
-            sizeof(void *),
-            MKS_NONE
-        );
-    } else if ((SER_LEN(ROUTINE_FFI_ARG_TYPES(rot))) > 1) {
-        ser = Make_Series(
-            SER_LEN(ROUTINE_FFI_ARG_TYPES(rot)) - 1,
-            sizeof(void *),
-            MKS_NONE
-        );
+        // Evaluate the VARARGS! feed of values to the data stack.  This way
+        // they will be available to be counted, to know how big to make the
+        // FFI argument series.
+        //
+        REBARR *feed = CTX_VARLIST(VAL_VARARGS_FRAME_CTX(vararg));
+        do {
+            REBIXO indexor = Do_Vararg_Op_Core(
+                f->out, feed, varparam, vararg, NULL, VARARG_OP_TAKE
+            );
+            if (indexor == THROWN_FLAG) {
+                assert(THROWN(f->out));
+                return R_OUT_IS_THROWN;
+            }
+            if (indexor == END_FLAG)
+                break;
+
+            DS_PUSH(f->out);
+        } while (TRUE);
+
+        // !!! The Atronix va_list interface required a type to be specified
+        // for each argument--achieving what you would get if you used a
+        // C cast on each variadic argument.  Such as:
+        //
+        //     printf reduce ["%d, %f" 10 + 20 [int32] 12.34 [float]]
+        //
+        // While this provides generality, it may be useful to use defaulting
+        // like C's where integer types default to `int` and floating point
+        // types default to `double`.  In the VARARGS!-based syntax it could
+        // offer several possibilities:
+        //
+        //     (printf "%d, %f" (10 + 20) 12.34)
+        //     (printf "%d, %f" [int32 10 + 20] 12.34)
+        //     (printf "%d, %f" [int32] 10 + 20 [float] 12.34)
+        //
+        // For the moment, this is following the idea that there must be
+        // pairings of values and then blocks (though the values are evaluated
+        // expressions).
+        //
+        if ((DSP - dsp_orig) % 2 != 0)
+            fail (Error(RE_MISC));
+
+        num_variable = (DSP - dsp_orig) / 2;
     }
 
-    /* ser is NULL if the routine takes no arguments */
-    if (ser)
-        ffi_args = SER_HEAD(void*, ser);
+    REBCNT num_args = num_fixed + num_variable;
 
-    // must be big enough
+    // The FFI arguments are passed by void*.  Those void pointers point to
+    // transformations of the Rebol arguments into ranges of memory of
+    // various sizes.  This is the backing store for those arguments, which
+    // is appended to for each one.  The memory is freed after the call.
     //
-    ffi_args_ptrs = Make_Series(
-        SER_LEN(ROUTINE_FFI_ARG_TYPES(rot)), sizeof(void *), MKS_NONE
-    );
+    // The offsets array has one element for each argument.  These point at
+    // indexes of where each FFI variable resides.  Offsets are used instead
+    // of pointers in case the store has to be resized, which may move the
+    // base of the series.  Hence the offsets must be mutated into pointers
+    // at the last minute before the FFI call.
+    //
+    REBSER *store = Make_Series(1, sizeof(REBYTE), MKS_NONE);
 
-    if (is_va_list_routine) {
-        REBCNT j = 1;
-        ffi_type **arg_types = NULL;
+    void *ret_offset;
+    if (!IS_BLANK(RIN_RET_SCHEMA(rin))) {
+        ret_offset = cast(void*, arg_to_ffi(
+            store, // ffi-converted arg appended here
+            NULL, // dest pointer must be NULL if store is non-NULL
+            NULL, // arg: none (we're only making space--leave uninitialized)
+            RIN_RET_SCHEMA(rin),
+            NULL // param: none (it's a return value/output)
+        ));
+    };
 
-        // reset length
-        SET_SERIES_LEN(ROUTINE_FFI_ARG_TYPES(rot), n_fixed + 1);
+    REBSER *arg_offsets;
+    if (num_args == 0)
+        arg_offsets = NULL; // don't waste time with the alloc + free
+    else
+        arg_offsets = Make_Series(num_args, sizeof(void*), MKS_NONE);
 
-        ROUTINE_ALL_ARGS(rot) = Copy_Array_Shallow(ROUTINE_FIXED_ARGS(rot));
-        MANAGE_ARRAY(ROUTINE_ALL_ARGS(rot));
+    REBCNT i = 0;
 
-        for (i = 1, j = 1; i < VAL_LEN_HEAD(va_values) + 1; i ++, j ++) {
-            REBVAL *reb_arg = VAL_ARRAY_AT_HEAD(va_values, i - 1);
-            if (i <= n_fixed) { /* fix arguments */
-                if (!TYPE_CHECK(
-                    ARR_AT(ROUTINE_FIXED_ARGS(rot), i),
-                    VAL_TYPE(reb_arg)
-                )) {
-                    fail (Error_Arg_Type(
-                        D_LABEL_SYM,
-                        ARR_AT(ROUTINE_FIXED_ARGS(rot), i),
-                        reb_arg
-                    ));
-                }
-            } else {
-                /* initialize rin->args */
-                REBVAL *reb_type = NULL;
-                REBVAL *v = NULL;
-                if (i == VAL_LEN_HEAD(va_values)) /* type is missing */
-                    fail (Error_Invalid_Arg(reb_arg));
+    // First gather the fixed parameters from the frame (known to be
+    // of correct types--they were checked by Do_Core() before this point.)
+    //
+    for (; i < num_fixed; ++i) {
+        *SER_AT(void*, arg_offsets, i) = cast(void*, arg_to_ffi(
+            store, // ffi-converted arg appended here
+            NULL, // dest pointer must be NULL if store is non-NULL
+            FRM_ARG(f, i + 1), // 1-based
+            RIN_ARG_SCHEMA(rin, i), // 0-based
+            FUNC_PARAM(FRM_FUNC(f), i + 1) // 1-based
+        ));
+    }
 
-                reb_type = VAL_ARRAY_AT_HEAD(va_values, i);
-                if (!IS_BLOCK(reb_type))
-                    fail (Error_Invalid_Arg(reb_type));
+    // If an FFI routine takes a fixed number of arguments, then its Call
+    // InterFace (CIF) can be created just once.  This will be in the RIN_CIF.
+    // However a variadic routine requires a CIF that matches the number
+    // and types of arguments for that specific call.  This CIF variable will
+    // be set to the RIN_CIF if it exists already--or to a dynamically
+    // allocated CIF for the varargs case (which will need to be freed).
+    //
+    REBSER *cif; // one ffi_cif element (in a REBSER for GC on fail())
+    REBSER *args_fftypes; // list of ffi_type* if num_variable > 0
 
-                v = Alloc_Tail_Array(ROUTINE_ALL_ARGS(rot));
-                Val_Init_Typeset(v, 0, SYM_ELLIPSIS); //FIXME, be clear
-                EXPAND_SERIES_TAIL(ROUTINE_FFI_ARG_TYPES(rot), 1);
-
-                process_type_block(&out, reb_type, j, FALSE);
-                i ++;
-            }
-            ffi_args[j - 1] = arg_to_ffi(
-                &out, reb_arg, j, SER_HEAD(void*, ffi_args_ptrs)
-            );
-        }
-        if (ROUTINE_CIF(rot) == NULL) {
-            ROUTINE_CIF(rot) = OS_ALLOC(ffi_cif);
-            QUEUE_EXTRA_MEM(ROUTINE_INFO(rot), ROUTINE_CIF(rot));
-        }
-
-        /* series data could have moved */
-        arg_types = SER_HEAD(ffi_type*, ROUTINE_FFI_ARG_TYPES(rot));
-
-        assert(j == SER_LEN(ROUTINE_FFI_ARG_TYPES(rot)));
-
-        if (FFI_OK != ffi_prep_cif_var(
-                cast(ffi_cif*, ROUTINE_CIF(rot)),
-                cast(ffi_abi, ROUTINE_ABI(rot)),
-                n_fixed, /* number of fixed arguments */
-                j - 1, /* number of all arguments */
-                arg_types[0], /* return type */
-                &arg_types[1]
-        )) {
-            //RL_Print("Couldn't prep CIF_VAR\n");
-            fail (Error_Invalid_Arg(va_values));
-        }
+    if (num_variable == 0) {
+        cif = rin->cif;
     }
     else {
-        for (i = 1; i < SER_LEN(ROUTINE_FFI_ARG_TYPES(rot)); i ++) {
-            ffi_args[i - 1] = arg_to_ffi(
-                &out,
-                ARR_AT(args, i - 1),
-                i,
-                SER_HEAD(void*, ffi_args_ptrs)
+        assert(rin->cif == NULL);
+
+        // CIF creation requires a C array of argument descriptions that is
+        // contiguous across both the fixed and variadic parts.  Start by
+        // filling in the ffi_type*s for all the fixed args.
+        //
+        args_fftypes = Make_Series(
+            num_fixed + num_variable,
+            sizeof(ffi_type*),
+            MKS_NONE
+        );
+
+        for (i = 0; i < num_fixed; ++i)
+            *SER_AT(ffi_type*, args_fftypes, i)
+                = SCHEMA_FFTYPE(RIN_ARG_SCHEMA(rin, i));
+
+        REBDSP dsp;
+        for (dsp = dsp_orig + 1; i < num_args; dsp += 2, ++i) {
+            //
+            // This param is used with the variadic type spec, and is
+            // initialized as it would be for an ordinary FFI argument.  This
+            // means its allowed type flags are set, which is not really
+            // necessary.  Whatever symbol name is used here will be seen
+            // in error reports.
+            //
+            REBVAL schema;
+            REBVAL param;
+            Schema_From_Block_May_Fail(
+                &schema,
+                &param, // sets type bits in param
+                DS_AT(dsp + 1) // will error if this is not a block
             );
+
+            *SER_AT(ffi_type*, args_fftypes, i) = SCHEMA_FFTYPE(&schema);
+
+            INIT_TYPESET_NAME(&param, Canon(SYM_ELLIPSIS));
+
+            *SER_AT(void*, arg_offsets, i) = cast(void*, arg_to_ffi(
+                store, // data appended to store
+                NULL, // dest pointer must be NULL if store is non-NULL
+                DS_AT(dsp), // arg
+                &schema,
+                &param // used for typecheck, VAL_TYPESET_SYM for error msgs
+            ));
+        }
+
+        DS_DROP_TO(dsp_orig); // done w/args (converted to bytes in `store`)
+
+        cif = Make_Series(1, sizeof(ffi_cif), MKS_NONE);
+
+        ffi_status status = ffi_prep_cif_var( // "_var"-iadic prep_cif version
+            SER_HEAD(ffi_cif, cif),
+            RIN_ABI(rin),
+            num_fixed, // just fixed
+            num_args, // fixed plus variable
+            IS_BLANK(RIN_RET_SCHEMA(rin))
+                ? &ffi_type_void
+                : SCHEMA_FFTYPE(RIN_RET_SCHEMA(rin)), // return FFI type
+            SER_HEAD(ffi_type*, args_fftypes) // arguments FFI types
+        );
+
+        if (status != FFI_OK)
+            fail (Error(RE_MISC)); // Couldn't prep CIF_VAR
+    }
+
+    // Now that all the additions to store have been made, we want to change
+    // the offsets of each FFI argument into actual pointers (since the
+    // data won't be relocated)
+    {
+        if (IS_BLANK(RIN_RET_SCHEMA(rin)))
+            ret_offset = NULL;
+        else
+            ret_offset = SER_DATA_RAW(store) + cast(REBUPT, ret_offset);
+
+        REBCNT i;
+        for (i = 0; i < num_args; ++i) {
+            REBUPT off = cast(REBUPT, *SER_AT(void*, arg_offsets, i));
+            assert(off == 0 || off < SER_LEN(store));
+            *SER_AT(void*, arg_offsets, i) = SER_DATA_RAW(store) + off;
         }
     }
 
-    prep_rvalue(ROUTINE_INFO(rot), ret);
-    rvalue = arg_to_ffi(
-        &out, ret, 0, SER_HEAD(void*, ffi_args_ptrs)
-    );
+    // ** THE ACTUAL FFI CALL **
+    //
+    // Note that the "offsets" are now actually pointers.
+    {
+        SET_VOID(&Callback_Error); // !!! guarantee it's already void?
 
-    SET_UNSET(&Callback_Error);
+        ffi_call(
+            SER_HEAD(ffi_cif, cif),
+            RIN_CFUNC(rin),
+            ret_offset, // actually a real pointer now (no longer an offset)
+            (num_args == 0)
+                ? NULL
+                : SER_HEAD(void*, arg_offsets) // also real pointers now
+        );
 
-    ffi_call(
-        cast(ffi_cif*, ROUTINE_CIF(rot)),
-        ROUTINE_FUNCPTR(rot),
-        rvalue,
-        ffi_args
-    );
+        if (!IS_VOID(&Callback_Error))
+            fail (VAL_CONTEXT(&Callback_Error)); // asserts if not ERROR!
+    }
 
-    if (IS_ERROR(&Callback_Error))
-        fail (VAL_CONTEXT(&Callback_Error));
+    if (IS_BLANK(RIN_RET_SCHEMA(rin)))
+        SET_VOID(f->out);
+    else
+        ffi_to_rebol(f->out, RIN_RET_SCHEMA(rin), ret_offset);
 
-    ffi_to_rebol(
-        ROUTINE_INFO(rot),
-        SER_HEAD(ffi_type*, ROUTINE_FFI_ARG_TYPES(rot))[0],
-        rvalue,
-        ret
-    );
+    if (num_args != 0)
+        Free_Series(arg_offsets);
 
-    Free_Series(ffi_args_ptrs);
+    Free_Series(store);
 
-    if (ser) Free_Series(ser);
+    if (num_variable != 0) {
+        Free_Series(cif);
+        Free_Series(args_fftypes);
+    }
 
-    //restore the saved series stack pointer
-    SET_SERIES_LEN(GC_Series_Guard, series_guard_tail);
+    // Note: cannot "throw" a Rebol value across an FFI boundary.
+
+    assert(!THROWN(f->out));
+    return R_OUT;
 }
 
 
@@ -959,75 +990,45 @@ void Call_Routine(REBROT *rot, REBARR *args, REBVAL *ret)
 //
 void Free_Routine(REBRIN *rin)
 {
-    REBCNT n = 0;
-    for (n = 0; n < SER_LEN(rin->extra_mem); n ++) {
-        void *addr = *SER_AT(void*, rin->extra_mem, n);
-        //printf("freeing %p\n", addr);
-        OS_FREE(addr);
-    }
-
-    ROUTINE_CLR_FLAG(rin, ROUTINE_MARK);
-    if (IS_CALLBACK_ROUTINE(rin)) {
+    CLEAR_RIN_FLAG(rin, ROUTINE_FLAG_MARK);
+    if (GET_RIN_FLAG(rin, ROUTINE_FLAG_CALLBACK))
         ffi_closure_free(RIN_CLOSURE(rin));
-    }
-    Free_Node(RIN_POOL, (REBNOD*)rin);
-}
 
-static void process_type_block(const REBVAL *out, REBVAL *blk, REBCNT n, REBOOL make)
-{
-    if (IS_BLOCK(blk)) {
-        REBVAL *t = VAL_ARRAY_AT(blk);
-        if (IS_WORD(t) && VAL_WORD_CANON(t) == SYM_STRUCT_TYPE) {
-            /* followed by struct definition */
-            REBVAL tmp;
-            VAL_INIT_WRITABLE_DEBUG(&tmp);
+    // cif and ffargs are GC-managed, will free themselves
 
-            SET_NONE(&tmp); // GC should not reach uninitialized values
-            PUSH_GUARD_VALUE(&tmp);
-
-            ++ t;
-            if (!IS_BLOCK(t) || VAL_LEN_AT(blk) != 2)
-                fail (Error_Invalid_Arg(blk));
-
-            if (!MT_Struct(&tmp, t, REB_STRUCT))
-                fail (Error_Invalid_Arg(blk));
-
-            if (!rebol_type_to_ffi(out, &tmp, n, make))
-                fail (Error_Invalid_Arg(blk));
-
-            DROP_GUARD_VALUE(&tmp);
-        }
-        else {
-            if (VAL_LEN_AT(blk) != 1)
-                fail (Error_Invalid_Arg(blk));
-
-            if (!rebol_type_to_ffi(out, t, n, make))
-                fail (Error_Invalid_Arg(t));
-        }
-    }
-    else
-        fail (Error_Invalid_Arg(blk));
+    Free_Node(RIN_POOL, rin);
 }
 
 
+//
+// Callbacks allow C code to call Rebol functions.  It does so by creating a
+// stub function pointer that can be passed in slots where C code expected
+// a C function pointer.  When such stubs are triggered, the FFI will call
+// this dispatcher--which was registered using ffi_prep_closure_loc().
+//
+// An example usage of this feature is in %qsort.r, where the C library
+// function qsort() is made to use a custom comparison function that is
+// actually written in Rebol.
+//
 static void callback_dispatcher(
     ffi_cif *cif,
     void *ret,
     void **args,
     void *user_data
-) {
-    REBRIN *rin = (REBRIN*)user_data;
-    REBCNT i = 0;
-    REBARR *array;
-    REBVAL *elem;
+){
+    if (!IS_VOID(&Callback_Error)) // !!!is this possible?
+        return;
 
+    REBRIN *rin = cast(REBRIN*, user_data);
+    assert(!GET_RIN_FLAG(rin, ROUTINE_FLAG_VARIADIC));
+    assert(cif->nargs == RIN_NUM_FIXED_ARGS(rin));
+
+    // We do not want to longjmp() out of the callback if there is an error.
+    // It needs to allow the FFI processing to unwind the stack normally so
+    // that it's in a good state.  Therefore this must trap any fail()s.
+    //
     struct Reb_State state;
     REBCTX *error;
-
-    REBVAL safe;
-    VAL_INIT_WRITABLE_DEBUG(&safe);
-
-    if (IS_ERROR(&Callback_Error)) return;
 
     PUSH_TRAP(&error, &state);
 
@@ -1039,509 +1040,377 @@ static void callback_dispatcher(
         return;
     }
 
-    array = Make_Array(1 + cif->nargs);
-
-    // !!! Currently an array must be managed in order to use it with DO,
-    // because the series could be put into a block of a backtrace.  That
-    // constraint may need to change (for Ren/C++) so this code is set up
-    // so these lines (and the DROP_GUARD) can be deleted if that happens.
+    // Build an array of code to run which represents the call.  The first
+    // item in that array will be the callback function value, and then
+    // the arguments will be the remaining values.
     //
-    MANAGE_ARRAY(array);
-    PUSH_GUARD_ARRAY(array);
+    REBARR *code = Make_Array(1 + cif->nargs);
+    RELVAL *elem = ARR_HEAD(code);
+    *elem = *FUNC_VALUE(RIN_CALLBACK_FUNC(rin));
+    ++elem;
 
-    elem = Alloc_Tail_Array(array);
-    *elem = *FUNC_VALUE(RIN_FUNC(rin));
+    REBCNT i;
+    for (i = 0; i < cif->nargs; ++i, ++elem)
+        ffi_to_rebol(SINK(elem), RIN_ARG_SCHEMA(rin, i), args[i]);
 
-    for (i = 0; i < cif->nargs; i ++) {
-        elem = Alloc_Tail_Array(array);
-        switch (cif->arg_types[i]->type) {
-            case FFI_TYPE_UINT8:
-                SET_INTEGER(elem, *(u8*)args[i]);
-                break;
-            case FFI_TYPE_SINT8:
-                SET_INTEGER(elem, *(i8*)args[i]);
-                break;
-            case FFI_TYPE_UINT16:
-                SET_INTEGER(elem, *(u16*)args[i]);
-                break;
-            case FFI_TYPE_SINT16:
-                SET_INTEGER(elem, *(i16*)args[i]);
-                break;
-            case FFI_TYPE_UINT32:
-                SET_INTEGER(elem, *(u32*)args[i]);
-                break;
-            case FFI_TYPE_SINT32:
-                SET_INTEGER(elem, *(i32*)args[i]);
-                break;
-            case FFI_TYPE_UINT64:
-            case FFI_TYPE_POINTER:
-                SET_INTEGER(elem, *(u64*)args[i]);
-                break;
-            case FFI_TYPE_SINT64:
-                SET_INTEGER(elem, *(i64*)args[i]);
-                break;
-            case FFI_TYPE_STRUCT:
-                if (!IS_STRUCT(ARR_AT(RIN_ARGS_STRUCTS(rin), i + 1)))
-                    fail (Error_Invalid_Arg(ARR_AT(RIN_ARGS_STRUCTS(rin), i + 1)));
+    TERM_ARRAY_LEN(code, 1 + cif->nargs);
+    MANAGE_ARRAY(code); // DO requires managed arrays (guarded while running)
 
-                Copy_Struct_Val(ARR_AT(RIN_ARGS_STRUCTS(rin), i + 1), elem);
-                memcpy(
-                    SER_AT(
-                        REBYTE,
-                        VAL_STRUCT_DATA_BIN(elem),
-                        VAL_STRUCT_OFFSET(elem)
-                    ),
-                    args[i],
-                    VAL_STRUCT_LEN(elem)
-                );
-                break;
-            default:
-                // !!! was fail (Error_Invalid_Arg(elem)), but elem is uninitizalized here
-                fail (Error(RE_MISC));
-        }
+    REBVAL result;
+    if (Do_At_Throws(&result, code, 0, SPECIFIED))
+        fail (Error_No_Catch_For_Throw(&result)); // !!! Tunnel throws out?
+
+    if (cif->rtype->type == FFI_TYPE_VOID)
+        assert(IS_BLANK(RIN_RET_SCHEMA(rin)));
+    else {
+        REBVAL param;
+        Val_Init_Typeset(&param, 0, Canon(SYM_RETURN));
+        arg_to_ffi(
+            NULL, // store must be NULL if dest is non-NULL,
+            ret, // destination pointer
+            &result,
+            RIN_RET_SCHEMA(rin),
+            &param // parameter used for symbol in error only
+        );
     }
-
-    if (Do_At_Throws(&safe, array, 0)) {
-        // !!! Does not check for thrown cases...what should this
-        // do in case of THROW, BREAK, QUIT?
-        fail (Error_No_Catch_For_Throw(&safe));
-    }
-
-    elem = &safe;
-    switch (cif->rtype->type) {
-        case FFI_TYPE_VOID:
-            break;
-        case FFI_TYPE_UINT8:
-            *((u8*)ret) = (u8)VAL_INT64(elem);
-            break;
-        case FFI_TYPE_SINT8:
-            *((i8*)ret) = (i8)VAL_INT64(elem);
-            break;
-        case FFI_TYPE_UINT16:
-            *((u16*)ret) = (u16)VAL_INT64(elem);
-            break;
-        case FFI_TYPE_SINT16:
-            *((i16*)ret) = (i16)VAL_INT64(elem);
-            break;
-        case FFI_TYPE_UINT32:
-            *((u32*)ret) = (u32)VAL_INT64(elem);
-            break;
-        case FFI_TYPE_SINT32:
-            *((i32*)ret) = (i32)VAL_INT64(elem);
-            break;
-        case FFI_TYPE_UINT64:
-        case FFI_TYPE_POINTER:
-            *((u64*)ret) = (u64)VAL_INT64(elem);
-            break;
-        case FFI_TYPE_SINT64:
-            *((i64*)ret) = (i64)VAL_INT64(elem);
-            break;
-        case FFI_TYPE_STRUCT:
-            memcpy(
-                ret,
-                SER_AT(
-                    REBYTE,
-                    VAL_STRUCT_DATA_BIN(elem),
-                    VAL_STRUCT_OFFSET(elem)
-                ),
-                VAL_STRUCT_LEN(elem)
-            );
-            break;
-        default:
-            fail (Error_Invalid_Arg(elem));
-    }
-
-    // !!! Could be a Free_Series if not managed/saved to use with DO
-    DROP_GUARD_ARRAY(array);
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 }
 
 
 //
-//  MT_Routine: C
+//  Alloc_Ffi_Function_For_Spec: C
 // 
-// format:
-// make routine! [[
+// This allocates a REBFUN designed for using with the FFI--though it does
+// not fill in the actual code to call.  That is done by the caller, which
+// needs to be done differently if it runs a C function (routine) or if it
+// makes Rebol code callable as if it were a C function (callback).
+//
+// It has a HANDLE! holding a Routine INfo structure (RIN) which describes
+// the FFI argument types.  For callbacks, this cannot be automatically
+// deduced from the parameters of the Rebol function it wraps--because there
+// are multiple possible mappings (e.g. differently sized C types all of
+// which are passed in from Rebol's INTEGER!)
+//
+// The spec format is a block which is similar to the spec for functions:
+//
+// [
 //     "document"
 //     arg1 [type1 type2] "note"
 //     arg2 [type3] "note"
 //     ...
 //     argn [typen] "note"
 //     return: [type] "note"
-//     abi: word "note"
-// ] lib "name"]
+// ]
 //
-REBOOL MT_Routine(REBVAL *out, REBVAL *data, enum Reb_Func_Class fclass)
-{
-    //RL_Print("%s, %d\n", __func__, __LINE__);
-    ffi_type ** args = NULL;
-    REBVAL *blk = NULL;
-    REBCNT eval_idx = 0; /* for spec block evaluation */
-    REBSER *extra_mem = NULL;
-    REBOOL ret = TRUE;
-    CFUNC *func = NULL;
-    REBCNT n = 1; /* arguments start with the index 1 (return type has a index of 0) */
-    REBCNT has_return = 0;
-    REBCNT has_abi = 0;
-    REBVAL *temp;
+REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec) {
+    assert(IS_BLOCK(ffi_spec));
 
-    if (!IS_BLOCK(data)) {
-        return FALSE;
-    }
+    REBRIN *r = cast(REBRIN*, Make_Node(RIN_POOL));
+    assert(r->header.bits == 0);
+    SET_RIN_FLAG(r, ROUTINE_FLAG_USED); // so pooled node knows it's in use
+    r->abi = FFI_DEFAULT_ABI;
 
-    VAL_RESET_HEADER(out, REB_FUNCTION);
-    INIT_VAL_FUNC_CLASS(out, fclass);
+    INIT_CELL_IF_DEBUG(RIN_RET_SCHEMA(r));
+    SET_BLANK(RIN_RET_SCHEMA(r)); // blank means returns void (the default)
 
-    VAL_ROUTINE_INFO(out) = cast(REBRIN*, Make_Node(RIN_POOL));
-    memset(VAL_ROUTINE_INFO(out), 0, sizeof(REBRIN));
-    ROUTINE_SET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_USED);
+    const REBCNT capacity_guess = 8; // !!! Magic number...why 8? (can grow)
 
-    if (fclass == FUNC_CLASS_CALLBACK) {
-        ROUTINE_SET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_CALLBACK);
-    }
+    REBARR *paramlist = Make_Array(capacity_guess);
 
-#define N_ARGS 8
-
-    VAL_ROUTINE_SPEC(out) = Copy_Array_Shallow(VAL_ARRAY(data));
-    VAL_ROUTINE_FFI_ARG_TYPES(out) =
-        Make_Series(N_ARGS, sizeof(ffi_type*), MKS_NONE);
-    out->payload.function.func = AS_FUNC(Make_Array(N_ARGS));
-
-    // first slot is reserved for the "self", see `struct Reb_Func`
+    // first slot is reserved for the "canon value", see `struct Reb_Function`
     //
-    temp = Alloc_Tail_Array(FUNC_PARAMLIST(out->payload.function.func));
-    *temp = *out;
+    REBVAL *rootparam = Alloc_Tail_Array(paramlist);
 
-    VAL_ROUTINE_FFI_ARG_STRUCTS(out) = Make_Array(N_ARGS);
-    // reserve for returning struct
-    temp = Alloc_Tail_Array(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
-
-    // !!! should this be VAL_INIT_WRITABLE_DEBUG(), e.g. write-only location?
+    // arguments can be complex, defined as structures.  A "schema" is a
+    // REBVAL that holds either an INTEGER! for simple types, or a HANDLE!
+    // for compound ones.
     //
-    SET_NONE(temp);
-
-    VAL_ROUTINE_ABI(out) = FFI_DEFAULT_ABI;
-    VAL_ROUTINE_LIB(out) = NULL;
-
-    extra_mem = Make_Series(N_ARGS, sizeof(void*), MKS_NONE);
-    VAL_ROUTINE_EXTRA_MEM(out) = extra_mem;
-
-    args = SER_HEAD(ffi_type*, VAL_ROUTINE_FFI_ARG_TYPES(out));
-    EXPAND_SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(out), 1); //reserved for return type
-    args[0] = &ffi_type_void; //default return type
-
-    init_type_map();
-
-    blk = VAL_ARRAY_AT(data);
-
-    // For all series we created, we must either free them or hand them over
-    // to be managed by the garbage collector.  (They will be invisible to
-    // the GC prior to giving them over via Manage_Series.)  On the plus
-    // side of making them managed up-front, the GC is responsible for
-    // freeing them if there is an error.  On the downside: if any DO
-    // operation were to run, the series would be candidates for GC if
-    // they are not linked somehow into the transitive closure of the roots.
+    // Note that in order to avoid deep walking the schemas after construction
+    // to convert them from unmanaged to managed, they are managed at the
+    // time of creation.  This means that the array of them has to be
+    // guarded across any evaluations, since the routine being built is not
+    // ready for GC visibility.
     //
-    ENSURE_ARRAY_MANAGED(VAL_ROUTINE_SPEC(out)); // probably already managed
-    MANAGE_SERIES(VAL_ROUTINE_FFI_ARG_TYPES(out));
-    MANAGE_ARRAY(VAL_ROUTINE_PARAMLIST(out));
-    MANAGE_ARRAY(VAL_ROUTINE_FFI_ARG_STRUCTS(out));
-    MANAGE_SERIES(VAL_ROUTINE_EXTRA_MEM(out));
+    // !!! Should the spec analysis be allowed to do evaluation? (it does)
+    //
+    r->args_schemas = Make_Array(capacity_guess);
+    MANAGE_ARRAY(r->args_schemas);
+    PUSH_GUARD_ARRAY(r->args_schemas);
 
-    if (fclass == FUNC_CLASS_ROUTINE) {
-        REBIXO indexor = 0;
+    REBCNT num_fixed = 0; // number of fixed (non-variadic) arguments
 
-        REBVAL lib;
-        VAL_INIT_WRITABLE_DEBUG(&lib);
+    RELVAL *item = VAL_ARRAY_AT(ffi_spec);
+    for (; NOT_END(item); ++item) {
+        if (IS_STRING(item))
+            continue; // !!! TBD: extract FUNC_META information from spec notes
 
-        if (!IS_BLOCK(&blk[0]))
-            fail (Error_Unexpected_Type(REB_BLOCK, VAL_TYPE(&blk[0])));
+        switch (VAL_TYPE(item)) {
+        case REB_WORD:{
+            REBVAL *v = NULL;
+            REBSTR *name = VAL_WORD_SPELLING(item);
 
-        DO_NEXT_MAY_THROW(indexor, &lib, VAL_ARRAY(data), 1);
-        if (indexor == THROWN_FLAG)
-            fail (Error_No_Catch_For_Throw(&lib));
+            if (SAME_STR(name, Canon(SYM_ELLIPSIS))) { // variadic
+                if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC))
+                    fail (Error_Invalid_Arg(KNOWN(item))); // duplicate "..."
 
-        if (IS_INTEGER(&lib)) {
-            if (indexor != END_FLAG)
-                fail (Error_Invalid_Arg(&blk[cast(REBCNT, indexor)]));
+                SET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC);
 
-            //treated as a pointer to the function
-            if (VAL_INT64(&lib) == 0)
-                fail (Error_Invalid_Arg(&lib));
+                REBVAL *param = Alloc_Tail_Array(paramlist);
 
-            // Cannot cast directly to a function pointer from a 64-bit value
-            // on 32-bit systems; first cast to int that holds Unsigned PoinTer
-            VAL_ROUTINE_FUNCPTR(out) = cast(CFUNC*,
-                cast(REBUPT, VAL_INT64(&lib))
-            );
-        } else {
-            REBSER *byte_sized;
-            REBCNT b_index;
-            REBCNT b_len;
-            REBCNT fn_idx = cast(REBCNT, indexor);
-
-            if (!IS_LIBRARY(&lib))
-                fail (Error_Invalid_Arg(&lib));
-
-            if (!IS_STRING(&blk[fn_idx]))
-                fail (Error_Invalid_Arg(&blk[fn_idx]));
-
-            if (NOT_END(&blk[fn_idx + 1]))
-                fail (Error_Invalid_Arg(&blk[fn_idx + 1]));
-
-            VAL_ROUTINE_LIB(out) = VAL_LIB_HANDLE(&lib);
-            if (!VAL_ROUTINE_LIB(out)) {
-                fail (Error_Invalid_Arg(&lib));
-                //RL_Print("lib is not open\n");
+                // Currently the rule is that if VARARGS! is itself a valid
+                // parameter type, then the varargs will not chain.  We want
+                // chaining as opposed to passing the parameter pack to the
+                // C code to process (it wouldn't know what to do with it)
+                //
+                Val_Init_Typeset(
+                    param,
+                    ALL_64 & ~FLAGIT_KIND(REB_VARARGS),
+                    Canon(SYM_VARARGS)
+                );
+                SET_VAL_FLAG(param, TYPESET_FLAG_VARIADIC);
+                INIT_VAL_PARAM_CLASS(param, PARAM_CLASS_NORMAL);
             }
-            TERM_SEQUENCE(VAL_SERIES(&blk[fn_idx]));
+            else { // ordinary argument
+                if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC))
+                    fail (Error_Invalid_Arg(KNOWN(item))); // variadic is final
 
-            // OS_FIND_FUNCTION takes a char* on both Windows and Posix.  The
-            // string that gets here could be REBUNI wide or BYTE_SIZE(), so
-            // make sure it's turned into a char* before passing.
-            //
-            // !!! Should it error if any bytes need to be UTF8 encoded?
-            //
-            b_index = VAL_INDEX(&blk[fn_idx]);
-            b_len = VAL_LEN_AT(&blk[fn_idx]);
-            byte_sized = Temp_Bin_Str_Managed(&blk[fn_idx], &b_index, &b_len);
+                REBVAL *param = Alloc_Tail_Array(paramlist);
 
-            func = OS_FIND_FUNCTION(
-                LIB_FD(VAL_ROUTINE_LIB(out)),
-                SER_HEAD(char, byte_sized)
-            );
+                ++item;
 
-            if (!func) {
-                fail (Error_Invalid_Arg(&blk[fn_idx]));
-                //printf("Couldn't find function: %s\n", VAL_DATA_AT(&blk[2]));
-            } else {
-                VAL_ROUTINE_FUNCPTR(out) = func;
+                REBVAL block;
+                COPY_VALUE(&block, item, VAL_SPECIFIER(ffi_spec));
+
+                Schema_From_Block_May_Fail(
+                    Alloc_Tail_Array(r->args_schemas), // schema (out)
+                    param, // param (out)
+                    &block // block (in)
+                );
+
+                INIT_TYPESET_NAME(param, name);
+                INIT_VAL_PARAM_CLASS(param, PARAM_CLASS_NORMAL);
+                ++num_fixed;
             }
-        }
-    } else if (fclass == FUNC_CLASS_CALLBACK) {
-        REBIXO indexor = 0;
+            break;}
 
-        REBVAL fun;
-        VAL_INIT_WRITABLE_DEBUG(&fun);
+        case REB_SET_WORD:
+            switch (VAL_WORD_SYM(item)) {
+            case SYM_RETURN:{
+                if (!IS_BLANK(RIN_RET_SCHEMA(r)))
+                    fail (Error_Invalid_Arg(KNOWN(item))); // already a RETURN:
 
-        if (!IS_BLOCK(&blk[0]))
-            fail (Error_Invalid_Arg(&blk[0]));
+                ++item;
 
-        DO_NEXT_MAY_THROW(indexor, &fun, VAL_ARRAY(data), 1);
-        if (indexor == THROWN_FLAG)
-            fail (Error_No_Catch_For_Throw(&fun));
+                REBVAL block;
+                COPY_VALUE(&block, item, VAL_SPECIFIER(ffi_spec));
 
-        if (!IS_FUNCTION(&fun))
-            fail (Error_Invalid_Arg(&fun));
-        VAL_CALLBACK_FUNC(out) = VAL_FUNC(&fun);
+                REBVAL param;
+                Schema_From_Block_May_Fail(
+                    RIN_RET_SCHEMA(r),
+                    &param, // dummy (a return/output has no arg to typecheck)
+                    &block
+                );
+                break;}
 
-        if (indexor != END_FLAG)
-            fail (Error_Invalid_Arg(&blk[cast(REBCNT, indexor)]));
-
-        //printf("RIN: %p, func: %p\n", VAL_ROUTINE_INFO(out), &blk[1]);
-    }
-    else
-        assert(FALSE);
-
-    blk = VAL_ARRAY_AT(&blk[0]);
-    for (; NOT_END(blk); blk++) {
-        if (IS_STRING(blk)) {
-            // Notes in the spec, ignore them
-            continue;
-        }
-
-        switch (VAL_TYPE(blk)) {
-            case REB_WORD:
-                {
-                    REBVAL *v = NULL;
-                    if (VAL_WORD_CANON(blk) == SYM_ELLIPSIS) {
-                        if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARIADIC)) {
-                            fail (Error_Invalid_Arg(blk)); /* duplicate ellipsis */
-                        }
-                        ROUTINE_SET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARIADIC);
-                        //Change the argument list to be a block
-                        VAL_ROUTINE_FIXED_ARGS(out) = Copy_Array_Shallow(VAL_ROUTINE_PARAMLIST(out));
-                        MANAGE_ARRAY(VAL_ROUTINE_FIXED_ARGS(out));
-                        Remove_Series(
-                            ARR_SERIES(VAL_ROUTINE_PARAMLIST(out)),
-                            1,
-                            ARR_LEN(VAL_ROUTINE_PARAMLIST(out))
-                        );
-                        v = Alloc_Tail_Array(VAL_ROUTINE_PARAMLIST(out));
-                        Val_Init_Typeset(
-                            v, FLAGIT_KIND(REB_BLOCK), SYM_VARARGS
-                        );
-                    }
-                    else {
-                        if (ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARIADIC)) {
-                            //... has to be the last argument
-                            fail (Error_Invalid_Arg(blk));
-                        }
-                        v = Alloc_Tail_Array(VAL_ROUTINE_PARAMLIST(out));
-                        Val_Init_Typeset(v, 0, VAL_WORD_SYM(blk));
-                        EXPAND_SERIES_TAIL(VAL_ROUTINE_FFI_ARG_TYPES(out), 1);
-
-                        ++ blk;
-                        process_type_block(out, blk, n, TRUE);
-                    }
-
-                    // Function dispatch needs to know whether parameters are
-                    // to be hard quoted, soft quoted, refinements, or
-                    // evaluated.  This is signaled with bits on the typeset.
-                    //
-                    INIT_VAL_PARAM_CLASS(v, PARAM_CLASS_NORMAL);
-                }
-                n ++;
-                break;
-            case REB_SET_WORD:
-                switch (VAL_WORD_CANON(blk)) {
-                    case SYM_ABI:
-                        ++ blk;
-                        if (!IS_WORD(blk) || has_abi > 1)
-                            fail (Error_Invalid_Arg(blk));
-
-                        switch (VAL_WORD_CANON(blk)) {
-                            case SYM_DEFAULT:
-                                VAL_ROUTINE_ABI(out) = FFI_DEFAULT_ABI;
-                                break;
-#ifdef X86_WIN64
-                            case SYM_WIN64:
-                                VAL_ROUTINE_ABI(out) = FFI_WIN64;
-                                break;
-#elif defined(X86_WIN32) || defined(TO_LINUX_X86) || defined(TO_LINUX_X64)
-                            case SYM_STDCALL:
-                                VAL_ROUTINE_ABI(out) = FFI_STDCALL;
-                                break;
-                            case SYM_SYSV:
-                                VAL_ROUTINE_ABI(out) = FFI_SYSV;
-                                break;
-                            case SYM_THISCALL:
-                                VAL_ROUTINE_ABI(out) = FFI_THISCALL;
-                                break;
-                            case SYM_FASTCALL:
-                                VAL_ROUTINE_ABI(out) = FFI_FASTCALL;
-                                break;
-#ifdef X86_WIN32
-                            case SYM_MS_CDECL:
-                                VAL_ROUTINE_ABI(out) = FFI_MS_CDECL;
-                                break;
-#else
-                            case SYM_UNIX64:
-                                VAL_ROUTINE_ABI(out) = FFI_UNIX64;
-                                break;
-#endif //X86_WIN32
-#elif defined (TO_LINUX_ARM)
-                            case SYM_VFP:
-                                VAL_ROUTINE_ABI(out) = FFI_VFP;
-                            case SYM_SYSV:
-                                VAL_ROUTINE_ABI(out) = FFI_SYSV;
-                                break;
-#elif defined (TO_LINUX_MIPS)
-                            case SYM_O32:
-                                VAL_ROUTINE_ABI(out) = FFI_O32;
-                                break;
-                            case SYM_N32:
-                                VAL_RNUTINE_ABI(out) = FFI_N32;
-                                break;
-                            case SYM_N64:
-                                VAL_RNUTINE_ABI(out) = FFI_N64;
-                                break;
-                            case SYM_O32_SOFT_FLOAT:
-                                VAL_ROUTINE_ABI(out) = FFI_O32_SOFT_FLOAT;
-                                break;
-                            case SYM_N32_SOFT_FLOAT:
-                                VAL_RNUTINE_ABI(out) = FFI_N32_SOFT_FLOAT;
-                                break;
-                            case SYM_N64_SOFT_FLOAT:
-                                VAL_RNUTINE_ABI(out) = FFI_N64_SOFT_FLOAT;
-                                break;
-#endif //X86_WIN64
-                            default:
-                                fail (Error_Invalid_Arg(blk));
-                        }
-                        has_abi ++;
-                        break;
-                    case SYM_RETURN:
-                        if (has_return > 1) {
-                            fail (Error_Invalid_Arg(blk));
-                        }
-                        has_return ++;
-                        ++ blk;
-                        process_type_block(out, blk, 0, TRUE);
-                        break;
-                    default:
-                        fail (Error_Invalid_Arg(blk));
-                }
-                break;
             default:
-                fail (Error_Invalid_Arg(blk));
+                fail (Error_Invalid_Arg(KNOWN(item)));
+            }
+            break;
+
+        default:
+            fail (Error_Invalid_Arg(KNOWN(item)));
         }
     }
 
-    if (!ROUTINE_GET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_VARIADIC)) {
-        VAL_ROUTINE_CIF(out) = OS_ALLOC(ffi_cif);
-        //printf("allocated cif at: %p\n", VAL_ROUTINE_CIF(out));
-        QUEUE_EXTRA_MEM(VAL_ROUTINE_INFO(out), VAL_ROUTINE_CIF(out));
+    TERM_ARRAY_LEN(r->args_schemas, num_fixed);
+    ASSERT_ARRAY(r->args_schemas);
 
-        /* series data could have moved */
-        args = SER_HEAD(ffi_type*, VAL_ROUTINE_FFI_ARG_TYPES(out));
+    if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC)) {
+        //
+        // Each individual call needs to use `ffi_prep_cif_var` to make the
+        // proper variadic CIF for that call.
+        //
+        r->cif = NULL;
+        r->args_fftypes = NULL;
+    }
+    else {
+        // The same CIF can be used for every call of the routine if it is
+        // not variadic.  The fftypes array pointer used must stay alive
+        // for the entire the lifetime of the CIF, apparently :-/
+        //
+        r->cif = Make_Series(1, sizeof(ffi_cif), MKS_NONE);
+
+        if (num_fixed == 0)
+            r->args_fftypes = NULL; // 0 size series illegal (others wasteful)
+        else
+            r->args_fftypes = Make_Series(
+                num_fixed, sizeof(ffi_type*), MKS_NONE
+            );
+
+        REBCNT i;
+        for (i = 0; i < num_fixed; ++i)
+            *SER_AT(ffi_type*, r->args_fftypes, i)
+                = SCHEMA_FFTYPE(RIN_ARG_SCHEMA(r, i));
+
         if (
             FFI_OK != ffi_prep_cif(
-                cast(ffi_cif*, VAL_ROUTINE_CIF(out)),
-                cast(ffi_abi, VAL_ROUTINE_ABI(out)),
-                SER_LEN(VAL_ROUTINE_FFI_ARG_TYPES(out)) - 1,
-                args[0],
-                &args[1]
+                SER_HEAD(ffi_cif, r->cif),
+                RIN_ABI(r),
+                num_fixed,
+                IS_BLANK(RIN_RET_SCHEMA(r))
+                    ? &ffi_type_void
+                    : SCHEMA_FFTYPE(RIN_RET_SCHEMA(r)),
+                (r->args_fftypes == NULL)
+                    ? NULL
+                    : SER_HEAD(ffi_type*, r->args_fftypes)
             )
-        ) {
-            //RL_Print("Couldn't prep CIF\n");
-            ret = FALSE;
+        ){
+            fail (Error(RE_MISC)); // !!! Couldn't prep cif...
         }
+
+        MANAGE_SERIES(r->cif);
+        if (r->args_fftypes)
+            MANAGE_SERIES(r->args_fftypes); // must have same lifetime as cif
     }
 
-    if (fclass == FUNC_CLASS_CALLBACK) {
-        VAL_ROUTINE_CLOSURE(out) = ffi_closure_alloc(sizeof(ffi_closure), &VAL_ROUTINE_DISPATCHER(out));
-        if (VAL_ROUTINE_CLOSURE(out) == NULL) {
-            //printf("No memory\n");
-            ret = FALSE;
-        } else {
-            ffi_status status;
+    DROP_GUARD_ARRAY(r->args_schemas);
 
-            status = ffi_prep_closure_loc(
-                cast(ffi_closure*, VAL_ROUTINE_CLOSURE(out)),
-                cast(ffi_cif*, VAL_ROUTINE_CIF(out)),
-                callback_dispatcher,
-                VAL_ROUTINE_INFO(out),
-                VAL_ROUTINE_DISPATCHER(out)
-            );
+    // Now fill in the canon value of the paramlist so it is an actual "REBFUN"
+    //
+    VAL_RESET_HEADER(rootparam, REB_FUNCTION);
+    rootparam->payload.function.paramlist = paramlist;
+    rootparam->extra.binding = NULL;
 
-            if (status != FFI_OK) {
-                //RL_Print("Couldn't prep closure\n");
-                ret = FALSE;
-            }
-        }
-    }
+    // The "body" value of a routine is a handle which points to the routine
+    // info.  This is available to the Routine_Dispatcher when the function
+    // gets called.
+    //
+    MANAGE_ARRAY(paramlist);
+    REBFUN *fun = Make_Function(
+        paramlist,
+        &Routine_Dispatcher,
+        NULL // no underlying function, this is fundamental
+    );
+    SET_HANDLE_DATA(FUNC_BODY(fun), cast(REBRIN*, r));
 
-    //RL_Print("%s, %d, ret = %d\n", __func__, __LINE__, ret);
-    return ret;
+    ARR_SERIES(paramlist)->link.meta = NULL;
+
+    return fun; // still needs to have function or callback info added!
 }
 
 
 //
 //  make-routine: native [
 //
-//  {Native for creating the FUNCTION! for what was once ROUTINE!}
+//  {Create a bridge for interfacing with arbitrary C code in a DLL}
 //
-//      def [block!]
+//      return: [function!]
+//      lib [library!]
+//          {Library DLL that function lives in (get with MAKE LIBRARY!)}
+//      name [string!]
+//          {Linker name of the function in the DLL}
+//      ffi-spec [block!]
+//          {Description of what C argument types the function takes}
+//      /abi
+//          {Specify the Application Binary Interface (vs. using default)}
+//      abi-type [word!]
+//          {'CDECL, 'FASTCALL, 'STDCALL, etc.}
 //  ]
 //
 REBNATIVE(make_routine)
+//
+// !!! Would be nice if this could just take a filename and the lib management
+// was automatic, e.g. no LIBRARY! type.
 {
-    PARAM(1, def);
+    PARAM(1, lib);
+    PARAM(2, name);
+    PARAM(3, ffi_spec);
+    REFINE(4, abi);
+    PARAM(5, abi_type);
 
-    MT_Routine(D_OUT, ARG(def), FUNC_CLASS_ROUTINE);
+    // Make sure library wasn't closed with CLOSE
+    //
+    REBLIB *lib = VAL_LIBRARY(ARG(lib));
+    if (lib == NULL)
+        fail (Error_Invalid_Arg(ARG(lib)));
 
+    // Try to find the C function pointer in the DLL, if it's there.
+    // OS_FIND_FUNCTION takes a char* on both Windows and Posix.  The
+    // string that gets here could be REBUNI wide or BYTE_SIZE(), so
+    // make sure it's turned into a char* before passing.
+    //
+    // !!! Should it error if any bytes need to be UTF8 encoded?
+    //
+    REBVAL *name = ARG(name);
+    REBCNT b_index = VAL_INDEX(name);
+    REBCNT b_len = VAL_LEN_AT(name);
+    REBSER *byte_sized = Temp_Bin_Str_Managed(name, &b_index, &b_len);
+
+    CFUNC *cfunc = OS_FIND_FUNCTION(LIB_FD(lib), SER_HEAD(char, byte_sized));
+    if (!cfunc)
+        fail (Error_Invalid_Arg(ARG(name))); // couldn't find function
+
+    // Process the parameter types into a function, then fill it in
+
+    REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec));
+    REBRIN *r = FUNC_ROUTINE(fun);
+
+    if (REF(abi))
+        r->abi = Abi_From_Word(ARG(abi_type));
+
+    r->code.routine.cfunc = cfunc;
+    r->code.routine.lib = lib;
+
+    *D_OUT = *FUNC_VALUE(fun);
+    return R_OUT;
+}
+
+
+//
+//  make-routine-raw: native [
+//
+//  {Create a bridge for interfacing with a C function, by pointer}
+//
+//      return: [function!]
+//      pointer [integer!]
+//          {Raw address of function in memory}
+//      ffi-spec [block!]
+//          {Description of what C argument types the function takes}
+//      /abi
+//          {Specify the Application Binary Interface (vs. using default)}
+//      abi-type [word!]
+//          {'CDECL, 'FASTCALL, 'STDCALL, etc.}
+//  ]
+//
+REBNATIVE(make_routine_raw)
+//
+// !!! Would be nice if this could just take a filename and the lib management
+// was automatic, e.g. no LIBRARY! type.
+{
+    PARAM(1, pointer);
+    PARAM(2, ffi_spec);
+    REFINE(3, abi);
+    PARAM(4, abi_type);
+
+    // Cannot cast directly to a function pointer from a 64-bit value
+    // on 32-bit systems; first cast to (U)nsigned int that holds (P)oin(T)er
+    //
+    CFUNC *cfunc = cast(CFUNC*, cast(REBUPT, VAL_INT64(ARG(pointer))));
+
+    if (cfunc == NULL)
+        fail (Error_Invalid_Arg(ARG(pointer)));
+
+    REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec));
+    REBRIN *r = FUNC_ROUTINE(fun);
+
+    if (REF(abi))
+        r->abi = Abi_From_Word(ARG(abi_type));
+
+    r->code.routine.cfunc = cfunc;
+    r->code.routine.lib = NULL;
+
+    *D_OUT = *FUNC_VALUE(fun);
     return R_OUT;
 }
 
@@ -1549,16 +1418,54 @@ REBNATIVE(make_routine)
 //
 //  make-callback: native [
 //
-//  {Native for creating the FUNCTION! for what was once CALLBACK!}
+//  {Wrap function so it can be called in raw C code with a function pointer.}
 //
-//      def [block!]
+//      return: [function!]
+//      action [function!]
+//          {The existing Rebol function whose functionality is being wrapped}
+//      ffi-spec [block!]
+//          {Description of what C types each Rebol argument should map to}
+//      /abi
+//          {Specify the Application Binary Interface (vs. using default)}
+//      abi-type [word!]
+//          {'CDECL, 'FASTCALL, 'STDCALL, etc.}
 //  ]
 //
 REBNATIVE(make_callback)
 {
-    PARAM(1, def);
+    PARAM(1, action);
+    PARAM(2, ffi_spec);
+    REFINE(3, abi);
+    PARAM(4, abi_type); // void if absent
 
-    MT_Routine(D_OUT, ARG(def), FUNC_CLASS_CALLBACK);
+    REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec));
+    REBRIN *r = FUNC_ROUTINE(fun);
 
+    if (REF(abi))
+        r->abi = Abi_From_Word(ARG(abi_type));
+
+    RIN_CALLBACK_FUNC(r) = VAL_FUNC(ARG(action));
+
+    r->code.callback.closure = cast(ffi_closure*, ffi_closure_alloc(
+        sizeof(ffi_closure), &RIN_DISPATCHER(r)
+    ));
+
+    if (RIN_CLOSURE(r) == NULL)
+        fail (Error(RE_MISC)); // couldn't allocate closure
+
+    ffi_status status = ffi_prep_closure_loc(
+        RIN_CLOSURE(r),
+        SER_HEAD(ffi_cif, r->cif),
+        callback_dispatcher,
+        r,
+        RIN_DISPATCHER(r)
+    );
+
+    if (status != FFI_OK) 
+        fail (Error(RE_MISC)); // couldn't prep closure
+
+    SET_RIN_FLAG(r, ROUTINE_FLAG_CALLBACK);
+
+    *D_OUT = *FUNC_VALUE(fun);
     return R_OUT;
 }

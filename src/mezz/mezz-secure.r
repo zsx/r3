@@ -11,9 +11,97 @@ REBOL [
     }
 ]
 
-secure: function/with [
+secure: function [
     "Set security policies (use SECURE help for more information)."
-    'policy [word! lit-word! block! unset!] "Set single or multiple policies (or HELP)"
+    return: [<opt> any-value!]
+    'policy [<opt> word! lit-word! block!]
+        "Set single or multiple policies (or HELP)"
+
+    <static>
+
+    ; Permanent values and sub-functions of SECURE:
+
+    acts ([allow ask throw quit])
+
+    assert-policy (
+        func [tst kind arg] [
+            unless tst [cause-error 'access 'security-error reduce [kind arg]]
+        ]
+    )
+
+    make-policy (function [
+        ; Build the policy tuple used by lower level code.
+        target ; "For special cases: eval, memory"
+        pol ; word number or block
+    ][
+        ; Special cases: [eval 100000]
+        if find [eval memory] target [
+            assert-policy any-number? pol target pol
+            limit-usage target pol ; pol is a number here
+            return 3.3.3 ; always quit
+        ]
+        ; The set all case: [file allow]
+        if word? pol [
+            n: find acts pol
+            assert-policy n target pol
+            return (index-of n) - 1 * 1.1.1
+        ]
+        ; Detailed case: [file [allow read throw write]]
+        flags: 0.0.0
+        assert-policy block? pol target pol
+        for-each [act perm] pol [
+            n: find acts act
+            assert-policy n target act
+            m: select [read 1.0.0 write 0.1.0 execute 0.0.1] perm
+            assert-policy m target perm
+            flags: (index-of n) - 1 * m or+ flags
+        ]
+        flags
+    ])
+
+    set-policy (function [
+        ; Set the policy as tuple or block:
+        target
+        pol
+        pol-obj
+    ][
+        case [
+            file? target [
+                val: to-local-file/full target
+                ; This string must have OS-local encoding, because
+                ; the check is done at a lower level of I/O.
+                if system/version/4 != 3 [val: to binary! val]
+                target: 'file
+            ]
+            url? target [val: target  target: 'net]
+        ]
+        old: select pol-obj target
+        assert-policy old target pol
+        either val [
+            ; Convert tuple to block if needed:
+            if tuple? old [old: reduce [target old]]
+            remove/part find old val 2  ; can be in list only once
+            insert old reduce [val pol]
+        ][
+            old: pol
+        ]
+        set in pol-obj target old
+    ])
+
+    word-policy (function [pol][
+        ; Convert lower-level policy tuples to words:
+        if all [pol/1 = pol/2 pol/2 = pol/3][
+            return pick acts 1 + pol/1
+        ]
+        blk: make block! 4
+        n: 1
+        for-each act [read write execute] [
+            repend blk [pick acts 1 + pol/:n act]
+            ++ n
+        ]
+        blk
+    ])
+
 ] append bind [
 
     "Two funcs bound to private system/state/policies with protect/hide after."
@@ -22,7 +110,7 @@ secure: function/with [
 
 ] system/state [
 
-    if unset? :policy [policy: 'help]
+    if void? :policy [policy: 'help]
 
     if policy = 'none [policy: 'allow] ; note: NONE is a word here (like R2)
 
@@ -40,7 +128,7 @@ secure: function/with [
             file  "a file path"
             url   "a file path"
             other "other value, such as integer"
-        ] [print ["  " t "-" d]]
+        ] [print [space space t "-" d]]
         print "Settings for read, write, and execute are also available."
         print "Type: help/doc secure for detailed documentation and examples."
         return ()
@@ -82,95 +170,16 @@ secure: function/with [
 
     ; Set each policy target separately:
     for-each [target pol] policy [
-        assert/type [target [word! file! url!] pol [block! word! integer!]]
+        ensure [word! file! url!] target
+        ensure [block! word! integer!] pol
         set-policy target make-policy target pol pol-obj
     ]
 
     ; ADD: check for policy level reductions!
     set-policies pol-obj
     return ()
-][
-    ; Permanent values and sub-functions of SECURE:
-
-    acts: [allow ask throw quit]
-
-    assert-policy: func [tst kind arg] [unless tst [cause-error 'access 'security-error reduce [kind arg]]]
-
-    make-policy: func [
-        ; Build the policy tuple used by lower level code.
-        target ; "For special cases: eval, memory"
-        pol ; word number or block
-        /local n m flags
-    ][
-        ; Special cases: [eval 100000]
-        if find [eval memory] target [
-            assert-policy any-number? pol target pol
-            limit-usage target pol ; pol is a number here
-            return 3.3.3 ; always quit
-        ]
-        ; The set all case: [file allow]
-        if word? pol [
-            n: find acts pol
-            assert-policy n target pol
-            return (index-of n) - 1 * 1.1.1
-        ]
-        ; Detailed case: [file [allow read throw write]]
-        flags: 0.0.0
-        assert-policy block? pol target pol
-        for-each [act perm] pol [
-            n: find acts act
-            assert-policy n target act
-            m: select [read 1.0.0 write 0.1.0 execute 0.0.1] perm
-            assert-policy m target perm
-            flags: (index-of n) - 1 * m or+ flags
-        ]
-        flags
-    ]
-
-    set-policy: func [
-        ; Set the policy as tuple or block:
-        target
-        pol
-        pol-obj
-        /local val old
-    ][
-        case [
-            file? target [
-                val: to-local-file/full target
-                ; This string must have OS-local encoding, because
-                ; the check is done at a lower level of I/O.
-                if system/version/4 != 3 [val: to binary! val]
-                target: 'file
-            ]
-            url? target [val: target  target: 'net]
-        ]
-        old: select pol-obj target
-        assert-policy old target pol
-        either val [
-            ; Convert tuple to block if needed:
-            if tuple? old [old: reduce [target old]]
-            remove/part find old val 2  ; can be in list only once
-            insert old reduce [val pol]
-        ][
-            old: pol
-        ]
-        set in pol-obj target old
-    ]
-
-    word-policy: func [pol /local blk n][
-        ; Convert lower-level policy tuples to words:
-        if all [pol/1 = pol/2 pol/2 = pol/3][
-            return pick acts 1 + pol/1
-        ]
-        blk: make block! 4
-        n: 1
-        for-each act [read write execute] [
-            repend blk [pick acts 1 + pol/:n act]
-            ++ n
-        ]
-        blk
-    ]
 ]
+
 
 unless system/options/flags/secure-min [
     ; Remove all other access to the policies:

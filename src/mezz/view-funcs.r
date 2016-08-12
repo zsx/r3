@@ -15,17 +15,17 @@ REBOL [
 ; operations.  Normally VID provides the contents for these, but users are
 ; also allowed to build and display their own windows directly.
 
-system/standard/font: context [
+system/standard/font: has [
 	name: "arial"
-	style: none
+	style: _
 	size: 12
 	color: 0.0.0
 	offset: 2x2
 	space: 0x0
-	shadow: none
+	shadow: _
 ]
 
-system/standard/para: context [
+system/standard/para: has [
 	origin: 2x2
 	margin: 2x2
 	indent: 0x0
@@ -44,7 +44,7 @@ view: func [
 	/as-is "Leave window as is. Do not add a parent gob."
 	/local screen tmp xy user-title user-offset user-flags user-handler user-color user-draw user-owner
 ][
-	if not screen: system/view/screen-gob [return none]
+	if not screen: system/view/screen-gob [return _]
 
 	; Convert option block to a map:
 	opts: make map! either options [reduce/no-set opts] [[]]
@@ -95,7 +95,7 @@ view: func [
 						quit
 					]
 					show event/window
-					none ; we handled it
+					_ ; we handled it
 				]
 			]
 		]
@@ -154,7 +154,7 @@ view: func [
 
 unview: func [
 	"Closes a window view."
-	window [object! gob! word! none!] "Window face or GOB. 'all for all. none for last"
+	window [object! gob! word! blank!] "Window face or GOB. 'all for all. none for last"
 	/local screen
 ][
 	screen: system/view/screen-gob
@@ -167,7 +167,7 @@ unview: func [
 	show window ; closes it, none ok
 ]
 
-base-handler: context [
+base-handler: has [
 	name: 'no-name
 	priority: 0
 ]
@@ -206,7 +206,7 @@ handled-events?: func [
 	for-each hand system/view/event-port/locals/handlers [
 		if hand/name = name [return hand]
 	]
-	none
+	_
 ]
 
 do-events: func [
@@ -215,7 +215,7 @@ do-events: func [
 	wait system/view/event-port
 ]
 
-init-view-system: func [
+init-view-system: proc [
 	"Initialize the View subsystem."
 	/local ep
 ][
@@ -230,7 +230,7 @@ init-view-system: func [
 	system/view/event-port: ep
 
 	; Create block of event handlers:
-	ep/locals: context [handlers: copy []]
+	ep/locals: has [handlers: copy []]
 
 	; Global event handler for view system:
 	ep/awake: func [event /local h] [

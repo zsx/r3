@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  t-block.c
-**  Summary: block related datatypes
-**  Section: datatypes
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %t-block.c
+//  Summary: "block related datatypes"
+//  Section: datatypes
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
@@ -33,70 +34,195 @@
 //
 //  CT_Array: C
 // 
-// "Compare Type" dispatcher for the following types:
+// "Compare Type" dispatcher for the following types: (list here to help
+// text searches)
 // 
-//     CT_Block(REBVAL *a, REBVAL *b, REBINT mode)
-//     CT_Group(REBVAL *a, REBVAL *b, REBINT mode)
-//     CT_Path(REBVAL *a, REBVAL *b, REBINT mode)
-//     CT_Set_Path(REBVAL *a, REBVAL *b, REBINT mode)
-//     CT_Get_Path(REBVAL *a, REBVAL *b, REBINT mode)
-//     CT_Lit_Path(REBVAL *a, REBVAL *b, REBINT mode)
+//     CT_Block()
+//     CT_Group()
+//     CT_Path()
+//     CT_Set_Path()
+//     CT_Get_Path()
+//     CT_Lit_Path()
 //
-REBINT CT_Array(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Array(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     REBINT num;
 
-    if (mode == 3)
-        return VAL_SERIES(a) == VAL_SERIES(b) && VAL_INDEX(a) == VAL_INDEX(b);
-
-    num = Cmp_Block(a, b, LOGICAL(mode > 1));
+    num = Cmp_Array(a, b, LOGICAL(mode == 1));
     if (mode >= 0) return (num == 0);
     if (mode == -1) return (num >= 0);
     return (num > 0);
 }
 
-static void No_Nones(REBVAL *arg) {
-    arg = VAL_ARRAY_AT(arg);
-    for (; NOT_END(arg); arg++) {
-        if (IS_NONE(arg)) fail (Error_Invalid_Arg(arg));
+
+//
+//  MAKE_Array: C
+// 
+// "Make Type" dispatcher for the following subtypes:
+// 
+//     MAKE_Block
+//     MAKE_Group
+//     MAKE_Path
+//     MAKE_Set_Path
+//     MAKE_Get_Path
+//     MAKE_Lit_Path
+//
+void MAKE_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    //
+    // `make block! 10` => creates array with certain initial capacity
+    //
+    if (IS_INTEGER(arg) || IS_DECIMAL(arg)) {
+        Val_Init_Array(out, kind, Make_Array(Int32s(arg, 0)));
+        return;
     }
+
+    // !!! See #2263 -- Ren-C has unified MAKE and construction syntax.  A
+    // block parameter to MAKE should be arity 2...the existing array for
+    // the data source, and an offset from that array value's index:
+    //
+    //     >> p1: #[path! [[a b c] 2]]
+    //     == b/c
+    //
+    //     >> head p1
+    //     == a/b/c
+    //
+    //     >> block: [a b c]
+    //     >> p2: make path! compose [(block) 2]
+    //     == b/c
+    //
+    //     >> append block 'd
+    //     == [a b c d]
+    //
+    //     >> p2
+    //     == b/c/d
+    //
+    // !!! This could be eased to not require the index, but without it then
+    // it can be somewhat confusing as to why [[a b c]] is needed instead of
+    // just [a b c] as the construction spec.
+    //
+    if (ANY_ARRAY(arg)) {
+        if (
+            VAL_ARRAY_LEN_AT(arg) != 2
+            || !ANY_ARRAY(VAL_ARRAY_AT(arg))
+            || !IS_INTEGER(VAL_ARRAY_AT(arg) + 1)
+        ) {
+            goto bad_make;
+        }
+
+        RELVAL *any_array = VAL_ARRAY_AT(arg);
+        REBINT index = VAL_INDEX(any_array) + Int32(VAL_ARRAY_AT(arg) + 1) - 1;
+
+        if (index < 0 || index > cast(REBINT, VAL_LEN_HEAD(any_array)))
+            goto bad_make;
+
+        Val_Init_Series_Index_Core(
+            out,
+            kind,
+            ARR_SERIES(VAL_ARRAY(any_array)),
+            index,
+            IS_SPECIFIC(any_array)
+                ? VAL_SPECIFIER(KNOWN(any_array))
+                : VAL_SPECIFIER(arg)
+        );
+
+        // !!! Previously this code would clear line break options on path
+        // elements, using `CLEAR_VAL_FLAG(..., VALUE_FLAG_LINE)`.  But if
+        // arrays are allowed to alias each others contents, the aliasing
+        // via MAKE shouldn't modify the store.  Line marker filtering out of
+        // paths should be part of the MOLDing logic -or- a path with embedded
+        // line markers should use construction syntax to preserve them.
+
+        return;
+    }
+
+    // !!! In R3-Alpha, MAKE and TO handled all cases except INTEGER!
+    // and TYPESET! in the same way.  Ren-C switches MAKE of ANY-ARRAY!
+    // to be special (in order to compatible with construction syntax),
+    // continues the special treatment of INTEGER! by MAKE to mean
+    // a size, and disallows MAKE TYPESET!.  This is a practical matter
+    // of addressing changes in #2263 and keeping legacy working, as
+    // opposed to endorsing any rationale in R3-Alpha's choices.
+    //
+    if (IS_TYPESET(arg))
+        goto bad_make;
+
+    TO_Array(out, kind, arg);
+    return;
+
+bad_make:
+    fail (Error_Bad_Make(kind, arg));
 }
 
 
 //
-//  MT_Array: C
-// 
-// "Make Type" dispatcher for the following subtypes:
-// 
-//     MT_Block
-//     MT_Group
-//     MT_Path
-//     MT_Set_Path
-//     MT_Get_Path
-//     MT_Lit_Path
+//  TO_Array: C
 //
-REBOOL MT_Array(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
-    REBCNT i;
-
-    if (!ANY_ARRAY(data)) return FALSE;
-    if (type >= REB_PATH && type <= REB_LIT_PATH) {
-        REBVAL *head = VAL_ARRAY_HEAD(data);
-        if (IS_END(head) || !ANY_WORD(head))
-            return FALSE;
+void TO_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    if (IS_TYPESET(arg)) {
+        //
+        // This makes a block of types out of a typeset.  Previously it was
+        // restricted to only BLOCK!, now it lets you turn a typeset into
+        // a GROUP! or a PATH!, etc.
+        //
+        Val_Init_Array(out, kind, Typeset_To_Array(arg));
     }
-
-    *out = *data++;
-    VAL_RESET_HEADER(out, type);
-
-    // !!! This did not have special END handling previously, but it would have
-    // taken the 0 branch.  Review if this is sensible.
-    //
-    i = NOT_END(data) && IS_INTEGER(data) ? Int32(data) - 1 : 0;
-
-    if (i > VAL_LEN_HEAD(out)) i = VAL_LEN_HEAD(out); // clip it
-    VAL_INDEX(out) = i;
-    return TRUE;
+    else if (ANY_ARRAY(arg)) {
+        //
+        // `to group! [1 2 3]` etc. -- copy the array data at the index
+        // position and change the type.  (Note: MAKE does not copy the
+        // data, but aliases it under a new kind.)
+        //
+        Val_Init_Array(
+            out,
+            kind,
+            Copy_Values_Len_Shallow(
+                VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg), VAL_ARRAY_LEN_AT(arg)
+            )
+        );
+    }
+    else if (IS_STRING(arg)) {
+        //
+        // `to block! "some string"` historically scans the source, so you
+        // get an unbound code array.  Because the string may contain REBUNI
+        // characters, it may have to be converted to UTF8 before being
+        // used with the scanner.
+        //
+        REBCNT index;
+        REBSER *utf8 = Temp_Bin_Str_Managed(arg, &index, NULL);
+        PUSH_GUARD_SERIES(utf8);
+        Val_Init_Array(
+            out,
+            kind,
+            Scan_UTF8_Managed(BIN_HEAD(utf8), BIN_LEN(utf8))
+        );
+        DROP_GUARD_SERIES(utf8);
+    }
+    else if (IS_BINARY(arg)) {
+        //
+        // `to block! #{00BDAE....}` assumes the binary data is UTF8, and
+        // goes directly to the scanner to make an unbound code array.
+        //
+        Val_Init_Array(
+            out, kind, Scan_UTF8_Managed(VAL_BIN_AT(arg), VAL_LEN_AT(arg))
+        );
+    }
+    else if (IS_MAP(arg)) {
+        Val_Init_Array(out, kind, Map_To_Array(VAL_MAP(arg), 0));
+    }
+    else if (ANY_CONTEXT(arg)) {
+        Val_Init_Array(out, kind, Context_To_Array(VAL_CONTEXT(arg), 3));
+    }
+    else if (IS_VECTOR(arg)) {
+        Val_Init_Array(out, kind, Vector_To_Array(arg));
+    }
+    else {
+        // !!! The general case of not having any special conversion behavior
+        // in R3-Alpha is just to fall through to making a 1-element block
+        // containing the value.  This may seem somewhat random, and an
+        // error may be preferable.
+        //
+        Val_Init_Array(out, kind, Copy_Values_Len_Shallow(arg, SPECIFIED, 1));
+    }
 }
 
 
@@ -125,13 +251,13 @@ REBCNT Find_In_Array(
     REBARR *array,
     REBCNT index,
     REBCNT end,
-    const REBVAL *target,
+    const RELVAL *target,
     REBCNT len,
     REBCNT flags,
     REBINT skip
 ) {
-    REBVAL *value;
-    REBVAL *val;
+    RELVAL *value;
+    RELVAL *val;
     REBCNT cnt;
     REBCNT start = index;
 
@@ -147,7 +273,7 @@ REBCNT Find_In_Array(
         for (; index >= start && index < end; index += skip) {
             value = ARR_AT(array, index);
             if (ANY_WORD(value)) {
-                cnt = (VAL_WORD_SYM(value) == VAL_WORD_SYM(target));
+                cnt = (VAL_WORD_SPELLING(value) == VAL_WORD_SPELLING(target));
                 if (flags & AM_FIND_CASE) {
                     // Must be same type and spelling:
                     if (cnt && VAL_TYPE(value) == VAL_TYPE(target)) return index;
@@ -199,171 +325,18 @@ REBCNT Find_In_Array(
     else {
         for (; index >= start && index < end; index += skip) {
             value = ARR_AT(array, index);
-            if (0 == Cmp_Value(value, target, LOGICAL(flags & AM_FIND_CASE)))
+            if (
+                0 == Cmp_Value(
+                    value, target, LOGICAL(flags & AM_FIND_CASE)
+                )
+            ) {
                 return index;
+            }
+
             if (flags & AM_FIND_MATCH) break;
         }
         return NOT_FOUND;
     }
-}
-
-
-//
-//  Make_Block_Type_Throws: C
-// 
-// Arg can be:
-//     1. integer (length of block)
-//     2. block (copy it)
-//     3. value (convert to a block)
-//
-REBOOL Make_Block_Type_Throws(
-    REBVAL *out,
-    enum Reb_Kind type,
-    REBOOL make,
-    REBVAL *arg
-) {
-    REBCNT len;
-    REBARR *array;
-
-    // make block! [1 2 3]
-    if (ANY_ARRAY(arg)) {
-        len = VAL_ARRAY_LEN_AT(arg);
-        if (len > 0 && type >= REB_PATH && type <= REB_LIT_PATH)
-            No_Nones(arg);
-        array = Copy_Values_Len_Shallow(VAL_ARRAY_AT(arg), len);
-        goto done;
-    }
-
-    if (IS_STRING(arg)) {
-        REBCNT index, len = 0;
-        INIT_VAL_SERIES(arg, Temp_Bin_Str_Managed(arg, &index, &len));
-        array = Scan_Source(VAL_BIN(arg), VAL_LEN_AT(arg));
-        goto done;
-    }
-
-    if (IS_BINARY(arg)) {
-        array = Scan_Source(VAL_BIN_AT(arg), VAL_LEN_AT(arg));
-        goto done;
-    }
-
-    if (IS_MAP(arg)) {
-        array = Map_To_Array(VAL_MAP(arg), 0);
-        goto done;
-    }
-
-    if (ANY_CONTEXT(arg)) {
-        array = Context_To_Array(VAL_CONTEXT(arg), 3);
-        goto done;
-    }
-
-    if (IS_VECTOR(arg)) {
-        array = Vector_To_Array(arg);
-        goto done;
-    }
-
-//  if (make && IS_NONE(arg)) {
-//      array = Make_Array(0);
-//      goto done;
-//  }
-
-    if (IS_VARARGS(arg)) {
-        //
-        // Converting a VARARGS! to an ANY-ARRAY! involves spooling those
-        // varargs to the end and making an array out of that.  It's not known
-        // how many elements that will be, so they're gathered to the data
-        // stack to find the size, then an array made.  Note that | will stop
-        // a normal or soft-quoted varargs, but a hard-quoted varargs will
-        // grab all the values to the end of the source.
-
-        REBDSP dsp_orig = DSP;
-
-        REBARR *feed;
-        REBARR **subfeed_addr;
-
-        const REBVAL *param;
-        REBVAL fake_param;
-        VAL_INIT_WRITABLE_DEBUG(&fake_param);
-
-        // !!! This MAKE will be destructive to its input (the varargs will
-        // be fetched and exhausted).  That's not necessarily obvious, but
-        // with a TO conversion it would be even less obvious...
-        //
-        if (!make)
-            fail (Error(RE_VARARGS_MAKE_ONLY));
-
-        if (GET_VAL_FLAG(arg, VARARGS_FLAG_NO_FRAME)) {
-            feed = VAL_VARARGS_ARRAY1(arg);
-
-            // Just a vararg created from a block, so no typeset or quoting
-            // settings available.  Make a fake parameter that hard quotes
-            // and takes any type (it will be type checked if in a chain).
-            //
-            Val_Init_Typeset(&fake_param, ALL_64, SYM_ELLIPSIS);
-            INIT_VAL_PARAM_CLASS(&fake_param, PARAM_CLASS_HARD_QUOTE);
-            param = &fake_param;
-        }
-        else {
-            feed = CTX_VARLIST(VAL_VARARGS_FRAME_CTX(arg));
-            param = VAL_VARARGS_PARAM(arg);
-        }
-
-        do {
-            REBIXO indexor = Do_Vararg_Op_Core(
-                out, feed, param, SYM_0, VARARG_OP_TAKE
-            );
-
-            if (indexor == THROWN_FLAG) {
-                DS_DROP_TO(dsp_orig);
-                return TRUE;
-            }
-            if (indexor == END_FLAG)
-                break;
-            assert(indexor == VALIST_FLAG);
-
-            DS_PUSH(out);
-        } while (TRUE);
-
-        Val_Init_Array(out, type, Pop_Stack_Values(dsp_orig));
-
-        if (FALSE) {
-            //
-            // !!! If desired, input could be fed back into the varargs
-            // after exhaustion by setting it up with array data as a new
-            // subfeed.  Probably doesn't make sense to re-feed with data
-            // that has been evaluated, and subfeeds can't be fixed up
-            // like this either...disabled for now.
-            //
-            subfeed_addr = SUBFEED_ADDR_OF_FEED(feed);
-            assert(*subfeed_addr == NULL); // all values should be exhausted
-            *subfeed_addr = Make_Singular_Array(out);
-            MANAGE_ARRAY(*subfeed_addr);
-            *SUBFEED_ADDR_OF_FEED(*subfeed_addr) = NULL;
-        }
-
-        return FALSE;
-    }
-
-    // to block! typset
-    if (!make && IS_TYPESET(arg) && type == REB_BLOCK) {
-        Val_Init_Array(out, type, Typeset_To_Array(arg));
-        return FALSE;
-    }
-
-    if (make) {
-        // make block! 10
-        if (IS_INTEGER(arg) || IS_DECIMAL(arg)) {
-            len = Int32s(arg, 0);
-            Val_Init_Array(out, type, Make_Array(len));
-            return FALSE;
-        }
-        fail (Error_Invalid_Arg(arg));
-    }
-
-    array = Copy_Values_Len_Shallow(arg, 1);
-
-done:
-    Val_Init_Array(out, type, array);
-    return FALSE;
 }
 
 
@@ -386,14 +359,14 @@ static int Compare_Val(void *thunk, const void *v1, const void *v2)
 
     if (sort_flags.reverse)
         return Cmp_Value(
-            cast(const REBVAL*, v2) + sort_flags.offset,
-            cast(const REBVAL*, v1) + sort_flags.offset,
+            cast(const RELVAL*, v2) + sort_flags.offset,
+            cast(const RELVAL*, v1) + sort_flags.offset,
             sort_flags.cased
         );
     else
         return Cmp_Value(
-            cast(const REBVAL*, v1) + sort_flags.offset,
-            cast(const REBVAL*, v2) + sort_flags.offset,
+            cast(const RELVAL*, v1) + sort_flags.offset,
+            cast(const RELVAL*, v2) + sort_flags.offset,
             sort_flags.cased
         );
 
@@ -411,12 +384,11 @@ static int Compare_Val(void *thunk, const void *v1, const void *v2)
 //
 static int Compare_Call(void *thunk, const void *v1, const void *v2)
 {
-    REBVAL *args = NULL;
+    RELVAL *args = NULL;
     REBINT tristate = -1;
     const void *tmp = NULL;
 
     REBVAL result;
-    VAL_INIT_WRITABLE_DEBUG(&result);
 
     if (!sort_flags.reverse) { /*swap v1 and v2 */
         tmp = v1;
@@ -425,30 +397,31 @@ static int Compare_Call(void *thunk, const void *v1, const void *v2)
     }
 
     args = ARR_AT(VAL_FUNC_PARAMLIST(sort_flags.compare), 1);
-    if (NOT_END(args) && !TYPE_CHECK(args, VAL_TYPE(cast(const REBVAL*, v1)))) {
+    if (NOT_END(args) && !TYPE_CHECK(args, VAL_TYPE(cast(const RELVAL*, v1)))) {
         fail (Error(
             RE_EXPECT_ARG,
             Type_Of(sort_flags.compare),
             args,
-            Type_Of(cast(const REBVAL*, v1))
+            Type_Of(cast(const RELVAL*, v1))
         ));
     }
     ++ args;
-    if (NOT_END(args) && !TYPE_CHECK(args, VAL_TYPE(cast(const REBVAL*, v2)))) {
+    if (NOT_END(args) && !TYPE_CHECK(args, VAL_TYPE(cast(const RELVAL*, v2)))) {
         fail (Error(
             RE_EXPECT_ARG,
             Type_Of(sort_flags.compare),
             args,
-            Type_Of(cast(const REBVAL*, v2))
+            Type_Of(cast(const RELVAL*, v2))
         ));
     }
 
     if (Apply_Only_Throws(
         &result,
+        TRUE,
         sort_flags.compare,
         v1,
         v2,
-        END_VALUE
+        END_CELL
     )) {
         fail (Error_No_Catch_For_Throw(&result));
     }
@@ -511,7 +484,7 @@ static void Sort_Block(
     if (len <= 1) return;
 
     // Skip factor:
-    if (!IS_UNSET(skipv)) {
+    if (!IS_VOID(skipv)) {
         skip = Get_Num_From_Arg(skipv);
         if (skip <= 0 || len % skip != 0 || skip > len)
             fail (Error_Out_Of_Range(skipv));
@@ -535,13 +508,13 @@ static void Sort_Block(
 //
 static void Trim_Array(REBARR *array, REBCNT index, REBCNT flags)
 {
-    REBVAL *head = ARR_HEAD(array);
+    RELVAL *head = ARR_HEAD(array);
     REBCNT out = index;
     REBCNT end = ARR_LEN(array);
 
     if (flags & AM_TRIM_TAIL) {
         for (; end >= (index + 1); end--) {
-            if (VAL_TYPE(head + end - 1) > REB_NONE) break;
+            if (VAL_TYPE(head + end - 1) > REB_BLANK) break;
         }
         Remove_Series(ARR_SERIES(array), end, ARR_LEN(array) - end);
         if (!(flags & AM_TRIM_HEAD) || index >= end) return;
@@ -549,14 +522,18 @@ static void Trim_Array(REBARR *array, REBCNT index, REBCNT flags)
 
     if (flags & AM_TRIM_HEAD) {
         for (; index < end; index++) {
-            if (VAL_TYPE(head + index) > REB_NONE) break;
+            if (VAL_TYPE(head + index) > REB_BLANK) break;
         }
         Remove_Series(ARR_SERIES(array), out, index - out);
     }
 
     if (flags == 0) {
         for (; index < end; index++) {
-            if (VAL_TYPE(head + index) > REB_NONE) {
+            if (VAL_TYPE(head + index) > REB_BLANK) {
+                //
+                // Rare case of legal RELVAL bit copying... from one slot in
+                // an array to another in that same array.
+                //
                 *ARR_AT(array, out) = head[index];
                 out++;
             }
@@ -574,8 +551,12 @@ void Shuffle_Block(REBVAL *value, REBOOL secure)
     REBCNT n;
     REBCNT k;
     REBCNT idx = VAL_INDEX(value);
-    REBVAL *data = VAL_ARRAY_HEAD(value);
-    REBVAL swap;
+    RELVAL *data = VAL_ARRAY_HEAD(value);
+
+    // Rare case where RELVAL bit copying is okay...between spots in the
+    // same array.
+    //
+    RELVAL swap;
 
     for (n = VAL_LEN_AT(value); n > 1;) {
         k = idx + (REBCNT)Random_Int(secure) % n;
@@ -631,7 +612,7 @@ REBINT PD_Array(REBPVS *pvs)
 
     if (n < 0 || cast(REBCNT, n) >= VAL_LEN_HEAD(pvs->value)) {
         if (pvs->opt_setval)
-            fail(Error_Bad_Path_Select(pvs));
+            fail (Error_Bad_Path_Select(pvs));
 
         return PE_NONE;
     }
@@ -639,7 +620,20 @@ REBINT PD_Array(REBPVS *pvs)
     if (pvs->opt_setval)
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(pvs->value));
 
+    pvs->value_specifier = IS_SPECIFIC(pvs->value)
+        ? VAL_SPECIFIER(const_KNOWN(pvs->value))
+        : pvs->value_specifier;
+
     pvs->value = VAL_ARRAY_AT_HEAD(pvs->value, n);
+
+#if !defined(NDEBUG)
+    if (pvs->value_specifier == SPECIFIED && IS_RELATIVE(pvs->value)) {
+        Debug_Fmt("Relative value found in PD_Array with no specifier");
+        PROBE_MSG(pvs->value, "the value");
+        Panic_Array(VAL_ARRAY(pvs->value));
+        assert(FALSE);
+    }
+#endif
 
     return PE_SET_IF_END;
 }
@@ -648,14 +642,23 @@ REBINT PD_Array(REBPVS *pvs)
 //
 //  Pick_Block: C
 //
-REBVAL *Pick_Block(const REBVAL *block, const REBVAL *selector)
+// Fills out with void if no pick.
+//
+RELVAL *Pick_Block(REBVAL *out, const REBVAL *block, const REBVAL *selector)
 {
     REBINT n = 0;
 
     n = Get_Num_From_Arg(selector);
     n += VAL_INDEX(block) - 1;
-    if (n < 0 || cast(REBCNT, n) >= VAL_LEN_HEAD(block)) return 0;
-    return VAL_ARRAY_AT_HEAD(block, n);
+    if (n < 0 || cast(REBCNT, n) >= VAL_LEN_HEAD(block)) {
+        SET_VOID(out);
+        return NULL;
+    }
+    else {
+        RELVAL *slot = VAL_ARRAY_AT_HEAD(block, n);
+        COPY_VALUE(out, slot, VAL_SPECIFIER(block));
+        return slot;
+    }
 }
 
 
@@ -673,184 +676,145 @@ REBVAL *Pick_Block(const REBVAL *block, const REBVAL *selector)
 //
 REBTYPE(Array)
 {
-    REBVAL  *value = D_ARG(1);
-    REBVAL  *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-    REBARR *array;
-    REBINT  index;
-    REBINT  tail;
-    REBINT  len;
-    REBCNT  args;
-    REBCNT  ret;
+    REBVAL *value = D_ARG(1);
+    REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
-    REBVAL val;
-    VAL_INIT_WRITABLE_DEBUG(&val);
-
-    // Support for port: OPEN [scheme: ...], READ [ ], etc.
-    if (action >= PORT_ACTIONS && IS_BLOCK(value))
-        return T_Port(frame_, action);
-
-    // Most common series actions:  !!! speed this up!
-    len = Do_Series_Action(frame_, action, value, arg);
-    if (len >= 0) return len; // return code
-
-    // Special case (to avoid fetch of index and tail below):
-    if (action == A_MAKE || action == A_TO) {
-        //
-        // make block! ...
-        // to block! ...
-        //
-        if (
-            Make_Block_Type_Throws(
-                value, // out
-                IS_DATATYPE(value)
-                    ? VAL_TYPE_KIND(value)
-                    : VAL_TYPE(value), // type
-                LOGICAL(action == A_MAKE), // make? (as opposed to to?)
-                arg // size, block to copy, or value to convert
-            )
-        ) {
-            *D_OUT = *value;
-            return R_OUT_IS_THROWN;
-        }
-
-        if (ANY_PATH(value)) {
-            // Get rid of any line break options on the path's elements
-            REBVAL *clear = VAL_ARRAY_HEAD(value);
-            for (; NOT_END(clear); clear++) {
-                CLEAR_VAL_FLAG(clear, VALUE_FLAG_LINE);
-            }
-        }
-        *D_OUT = *value;
-        return R_OUT;
+    // Common operations for any series type (length, head, etc.)
+    {
+        REB_R r;
+        if (Series_Common_Action_Returns(&r, frame_, action))
+            return r;
     }
 
-    index = cast(REBINT, VAL_INDEX(value));
-    tail  = cast(REBINT, VAL_LEN_HEAD(value));
-    array = VAL_ARRAY(value);
-
-    // Check must be in this order (to avoid checking a non-series value);
-    if (action >= A_TAKE && action <= A_SORT)
-        FAIL_IF_LOCKED_ARRAY(array);
+    // NOTE: Partial1() used below can mutate VAL_INDEX(value), be aware :-/
+    //
+    REBARR *array = VAL_ARRAY(value);
+    REBINT index = cast(REBINT, VAL_INDEX(value));
+    REBCTX *specifier = VAL_SPECIFIER(value);
 
     switch (action) {
-
-    //-- Picking:
-
-#ifdef REMOVE_THIS
-
-//CHANGE SELECT TO USE PD_BLOCK?
-
-    case A_PATH:
-        if (IS_INTEGER(arg)) {
-            action = A_PICK;
-            goto repick;
-        }
-        // block/select case:
-        ret = Find_In_Array_Simple(array, index, arg);
-        goto select_val;
-
-    case A_PATH_SET:
-        action = A_POKE;
-        // no SELECT case allowed !!!!
-#endif
-
-    case A_POKE:
-    case A_PICK:
-repick:
-        value = Pick_Block(value, arg);
-        if (action == A_PICK) {
-            if (!value) goto is_none;
-            *D_OUT = *value;
+    case SYM_POKE:
+    case SYM_PICK: {
+        RELVAL *slot;
+    pick_using_arg:
+        slot = Pick_Block(D_OUT, value, arg);
+        if (action == SYM_PICK) {
+            if (IS_VOID(D_OUT)) {
+                assert(!slot);
+                return R_VOID;
+            }
         } else {
-            if (!value) fail (Error_Out_Of_Range(arg));
+            FAIL_IF_LOCKED_ARRAY(array);
+            if (IS_VOID(D_OUT)) {
+                assert(!slot);
+                fail (Error_Out_Of_Range(arg));
+            }
             arg = D_ARG(3);
-            *value = *arg;
+            *slot = *arg;
             *D_OUT = *arg;
         }
         return R_OUT;
+    }
 
-/*
-        len = Get_Num_From_Arg(arg); // Position
-        index += len;
-        if (len > 0) index--;
-        if (len == 0 || index < 0 || index >= tail) {
-            if (action == A_PICK) goto is_none;
-            fail (Error_Out_Of_Range(arg));
-        }
-        if (action == A_PICK) {
-pick_it:
-            *D_OUT = ARR_HEAD(array)[index];
-            return R_OUT;
-        }
-        arg = D_ARG(3);
-        *D_OUT = *arg;
-        ARR_HEAD(array)[index] = *arg;
-        return R_OUT;
-*/
+    case SYM_TAKE: {
+        REFINE(2, part);
+        PARAM(3, limit);
+        REFINE(4, deep);
+        REFINE(5, last);
 
-    case A_TAKE:
-        // take/part:
-        if (D_REF(2)) {
-            len = Partial1(value, D_ARG(3));
-            if (len == 0) {
-zero_blk:
-                Val_Init_Block(D_OUT, Make_Array(0));
-                return R_OUT;
-            }
+        REBINT len;
+
+        FAIL_IF_LOCKED_ARRAY(array);
+
+        if (REF(part)) {
+            len = Partial1(value, ARG(limit));
+            if (len == 0)
+                goto return_empty_block;
         } else
             len = 1;
 
         index = VAL_INDEX(value); // /part can change index
-        // take/last:
-        if (D_REF(5)) index = tail - len;
-        if (index < 0 || index >= tail) {
-            if (!D_REF(2)) goto is_none;
-            goto zero_blk;
+
+        if (REF(last))
+            index = VAL_LEN_HEAD(value) - len;
+
+        if (index < 0 || index >= cast(REBINT, VAL_LEN_HEAD(value))) {
+            if (!REF(part))
+                return R_VOID;
+
+            goto return_empty_block;
         }
 
         // if no /part, just return value, else return block:
-        if (!D_REF(2))
-            *D_OUT = ARR_HEAD(array)[index];
+        if (!REF(part)) {
+            COPY_VALUE(D_OUT, &ARR_HEAD(array)[index], specifier);
+        }
         else
             Val_Init_Block(
-                D_OUT, Copy_Array_At_Max_Shallow(array, index, len)
+                D_OUT, Copy_Array_At_Max_Shallow(array, index, specifier, len)
             );
         Remove_Series(ARR_SERIES(array), index, len);
         return R_OUT;
+    }
 
     //-- Search:
 
-    case A_FIND:
-    case A_SELECT:
-        args = Find_Refines(frame_, ALL_FIND_REFS);
+    case SYM_FIND:
+    case SYM_SELECT: {
+        REBCNT args = Find_Refines(frame_, ALL_FIND_REFS);
+        REBINT len = ANY_ARRAY(arg) ? VAL_ARRAY_LEN_AT(arg) : 1;
 
-        len = ANY_ARRAY(arg) ? VAL_ARRAY_LEN_AT(arg) : 1;
-        if (args & AM_FIND_PART) tail = Partial1(value, D_ARG(ARG_FIND_LIMIT));
+        REBCNT ret;
+        REBINT limit;
+
+        if (args & AM_FIND_PART)
+            limit = Partial1(value, D_ARG(ARG_FIND_LIMIT));
+        else
+            limit = cast(REBINT, VAL_LEN_HEAD(value));
+
         ret = 1;
         if (args & AM_FIND_SKIP) ret = Int32s(D_ARG(ARG_FIND_SIZE), 1);
-        ret = Find_In_Array(array, index, tail, arg, len, args, ret);
+        ret = Find_In_Array(array, index, limit, arg, len, args, ret);
 
-        if (ret >= (REBCNT)tail) goto is_none;
+        if (ret >= cast(REBCNT, limit)) {
+            if (action == SYM_FIND) return R_BLANK;
+            return R_VOID;
+        }
         if (args & AM_FIND_ONLY) len = 1;
-        if (action == A_FIND) {
+        if (action == SYM_FIND) {
             if (args & (AM_FIND_TAIL | AM_FIND_MATCH)) ret += len;
             VAL_INDEX(value) = ret;
+            *D_OUT = *value;
         }
         else {
             ret += len;
-            if (ret >= (REBCNT)tail) goto is_none;
-            value = ARR_AT(array, ret);
+            if (ret >= cast(REBCNT, limit)) {
+                if (action == SYM_FIND) return R_BLANK;
+                return R_VOID;
+            }
+            COPY_VALUE(D_OUT, ARR_AT(array, ret), specifier);
         }
-        break;
+        return R_OUT;
+    }
 
     //-- Modification:
-    case A_APPEND:
-    case A_INSERT:
-    case A_CHANGE:
+    case SYM_APPEND:
+    case SYM_INSERT:
+    case SYM_CHANGE: {
+        REBCNT args = 0;
+
         // Length of target (may modify index): (arg can be anything)
-        len = Partial1((action == A_CHANGE) ? value : arg, D_ARG(AN_LIMIT));
+        //
+        REBINT len = Partial1(
+            (action == SYM_CHANGE)
+                ? value
+                : arg,
+            D_ARG(AN_LIMIT)
+        );
+
+        FAIL_IF_LOCKED_ARRAY(array);
         index = VAL_INDEX(value);
-        args = 0;
+
         if (D_REF(AN_ONLY)) SET_FLAG(args, AN_ONLY);
         if (D_REF(AN_PART)) SET_FLAG(args, AN_PART);
         index = Modify_Array(
@@ -863,85 +827,126 @@ zero_blk:
             D_REF(AN_DUP) ? Int32(D_ARG(AN_COUNT)) : 1
         );
         VAL_INDEX(value) = index;
-        break;
+        *D_OUT = *value;
+        return R_OUT;
+    }
 
-    case A_CLEAR:
-        if (index < tail) {
+    case SYM_CLEAR: {
+        FAIL_IF_LOCKED_ARRAY(array);
+        if (index < cast(REBINT, VAL_LEN_HEAD(value))) {
             if (index == 0) Reset_Array(array);
             else {
                 SET_END(ARR_AT(array, index));
                 SET_SERIES_LEN(VAL_SERIES(value), cast(REBCNT, index));
             }
         }
-        break;
+        *D_OUT = *value;
+        return R_OUT;
+    }
 
     //-- Creation:
 
-    case A_COPY: // /PART len /DEEP /TYPES kinds
-    {
+    case SYM_COPY: {
+        REFINE(2, part);
+        PARAM(3, limit);
+        REFINE(4, deep);
+        REFINE(5, types);
+        PARAM(6, kinds);
+        REFINE(7, test); // temporary for debugging ARM build anomaly
+
         REBU64 types = 0;
-        if (D_REF(ARG_COPY_DEEP)) {
-            types |= D_REF(ARG_COPY_TYPES) ? 0 : TS_STD_SERIES;
+
+        if (REF(deep))
+            types |= REF(types) ? 0 : TS_STD_SERIES;
+        
+        if (REF(types)) {
+            if (IS_DATATYPE(ARG(kinds)))
+                types |= FLAGIT_KIND(VAL_TYPE(ARG(kinds)));
+            else
+                types |= VAL_TYPESET_BITS(ARG(kinds));
         }
-        if D_REF(ARG_COPY_TYPES) {
-            arg = D_ARG(ARG_COPY_KINDS);
-            if (IS_DATATYPE(arg)) types |= FLAGIT_KIND(VAL_TYPE(arg));
-            else types |= VAL_TYPESET_BITS(arg);
+
+        if (REF(test)) {
+            Debug_Fmt("Diagnostics for:");
+            Debug_Fmt("https://github.com/metaeducation/ren-c/issues/283");
+            if (REF(part))
+                Debug_Fmt("limit %r", VAL_INT32(ARG(limit)));
+            Debug_Fmt("at %d", VAL_INDEX(value));
+            Debug_Fmt("partial %d", Partial1(value, ARG(limit)));
+           
+            REBCNT tail = VAL_INDEX(value) + Partial1(value, ARG(limit));
+            Debug_Fmt("tail %d", tail);
         }
-        len = Partial1(value, D_ARG(ARG_COPY_LIMIT));
-        INIT_VAL_ARRAY(value, Copy_Array_Core_Managed(
+
+        REBARR *copy = Copy_Array_Core_Managed(
             array,
             VAL_INDEX(value), // at
-            VAL_INDEX(value) + len, // tail
+            specifier,
+            VAL_INDEX(value) + Partial1(value, ARG(limit)), // tail
             0, // extra
-            D_REF(ARG_COPY_DEEP), // deep
+            REF(deep), // deep
             types // types
-        ));
-        VAL_INDEX(value) = 0;
+        );
+        Val_Init_Array(D_OUT, VAL_TYPE(value), copy);
+        return R_OUT;
     }
-        break;
 
     //-- Special actions:
 
-    case A_TRIM:
-        args = Find_Refines(frame_, ALL_TRIM_REFS);
+    case SYM_TRIM: {
+        REBCNT args = Find_Refines(frame_, ALL_TRIM_REFS);
+        FAIL_IF_LOCKED_ARRAY(array);
+
         if (args & ~(AM_TRIM_HEAD|AM_TRIM_TAIL)) fail (Error(RE_BAD_REFINES));
         Trim_Array(array, index, args);
-        break;
+        *D_OUT = *value;
+        return R_OUT;
+    }
 
-    case A_SWAP:
+    case SYM_SWAP: {
         if (!ANY_ARRAY(arg))
             fail (Error_Invalid_Arg(arg));
 
-        // value should have been checked by the action number (sorted by
-        // modifying/not modifying), so just check the argument for protect
-        //
-        // !!! Is relying on action numbers a good idea in general?
-        //
+        FAIL_IF_LOCKED_ARRAY(array);
         FAIL_IF_LOCKED_ARRAY(VAL_ARRAY(arg));
 
-        if (index < tail && VAL_INDEX(arg) < VAL_LEN_HEAD(arg)) {
-            val = *VAL_ARRAY_AT(value);
+        if (
+            index < cast(REBINT, VAL_LEN_HEAD(value))
+            && VAL_INDEX(arg) < VAL_LEN_HEAD(arg)
+        ) {
+            // RELVAL bits can be copied within the same array
+            //
+            RELVAL temp = *VAL_ARRAY_AT(value);
             *VAL_ARRAY_AT(value) = *VAL_ARRAY_AT(arg);
-            *VAL_ARRAY_AT(arg) = val;
+            *VAL_ARRAY_AT(arg) = temp;
         }
-        value = 0;
-        break;
+        *D_OUT = *D_ARG(1);
+        return R_OUT;
+    }
 
-    case A_REVERSE:
-        len = Partial1(value, D_ARG(3));
-        if (len == 0) break;
-        value = VAL_ARRAY_AT(value);
-        arg = value + len - 1;
-        for (len /= 2; len > 0; len--) {
-            val = *value;
-            *value++ = *arg;
-            *arg-- = val;
+    case SYM_REVERSE: {
+        REBINT len = Partial1(value, D_ARG(3));
+
+        FAIL_IF_LOCKED_ARRAY(array);
+
+        if (len != 0) {
+            //
+            // RELVAL bits may be copied from slots within the same array
+            //
+            RELVAL *front = VAL_ARRAY_AT(value);
+            RELVAL *back = front + len - 1;
+            for (len /= 2; len > 0; len--) {
+                RELVAL temp = *front;
+                *front++ = *back;
+                *back-- = temp;
+            }
         }
-        value = 0;
-        break;
+        *D_OUT = *D_ARG(1);
+        return R_OUT;
+    }
 
-    case A_SORT:
+    case SYM_SORT: {
+        FAIL_IF_LOCKED_ARRAY(array);
         Sort_Block(
             value,
             D_REF(2),   // case sensitive
@@ -951,36 +956,52 @@ zero_blk:
             D_REF(9),   // all fields
             D_REF(10)   // reverse
         );
-        break;
-
-    case A_RANDOM:
-        if (!IS_BLOCK(value)) fail (Error_Illegal_Action(VAL_TYPE(value), action));
-        if (D_REF(2)) fail (Error(RE_BAD_REFINES)); // seed
-        if (D_REF(4)) { // /only
-            if (index >= tail) goto is_none;
-            len = (REBCNT)Random_Int(D_REF(3)) % (tail - index);  // /secure
-            arg = D_ARG(2); // pass to pick
-            SET_INTEGER(arg, len+1);
-            action = A_PICK;
-            goto repick;
-        }
-        Shuffle_Block(value, D_REF(3));
-        break;
-
-    default:
-        fail (Error_Illegal_Action(VAL_TYPE(value), action));
-    }
-
-    if (!value) {
-        *D_OUT = *D_ARG(1);
+        *D_OUT = *value;
         return R_OUT;
     }
 
-    *D_OUT = *value;
-    return R_OUT;
+    case SYM_RANDOM: {
+        REFINE(2, seed);
+        REFINE(3, secure);
+        REFINE(4, only);
 
-is_none:
-    return R_NONE;
+        if (REF(seed)) fail (Error(RE_BAD_REFINES));
+
+        if (REF(only)) { // pick an element out of the array
+            if (index >= cast(REBINT, VAL_LEN_HEAD(value)))
+                return R_BLANK;
+
+            SET_INTEGER(
+                ARG(seed),
+                1 + (Random_Int(REF(secure)) % (VAL_LEN_HEAD(value) - index))
+            );
+            arg = ARG(seed); // argument to pick
+            action = SYM_PICK;
+            goto pick_using_arg;
+        }
+
+        Shuffle_Block(value, REF(secure));
+        *D_OUT = *value;
+        return R_OUT;
+    }
+
+    default:
+        break; // fallthrough to error
+    }
+
+    // If it wasn't one of the block actions, fall through and let the port
+    // system try.  OPEN [scheme: ...], READ [ ], etc.
+    //
+    // !!! This used to be done by sensing explicitly what a "port action"
+    // was, but that involved checking if the action was in a numeric range.
+    // The symbol-based action dispatch is more open-ended.  Trying this
+    // to see how it works.
+
+    return T_Port(frame_, action);
+
+return_empty_block:
+    Val_Init_Block(D_OUT, Make_Array(0));
+    return R_OUT;
 }
 
 
@@ -991,29 +1012,53 @@ is_none:
 //
 void Assert_Array_Core(REBARR *array)
 {
-    REBCNT len;
-
     // Basic integrity checks (series is not marked free, etc.)  Note that
     // we don't use ASSERT_SERIES the macro here, because that checks to
     // see if the series is an array...and if so, would call this routine
     //
     Assert_Series_Core(ARR_SERIES(array));
 
-    if (!Is_Array_Series(ARR_SERIES(array)))
+    if (NOT(GET_ARR_FLAG(array, SERIES_FLAG_ARRAY))) {
+        printf("Assert_Array called on series without SERIES_FLAG_ARRAY\n");
         Panic_Array(array);
+    }
 
-    for (len = 0; len < ARR_LEN(array); len++) {
-        REBVAL *value = ARR_AT(array, len);
-
+    RELVAL *value = ARR_HEAD(array);
+    REBCNT i;
+    for (i = 0; i < ARR_LEN(array); ++i, ++value) {
         if (IS_END(value)) {
-            // Premature end
+            printf("Premature END found in Assert_Array\n");
+            printf("At index %d, length is %d\n", i, ARR_LEN(array));
+            fflush(stdout);
             Panic_Array(array);
         }
     }
 
-    if (NOT_END(ARR_AT(array, ARR_LEN(array)))) {
-        // Not legal to not have an END! at all
+    if (NOT_END(value)) {
+        printf("END missing in Assert_Array, length is %d\n", ARR_LEN(array));
+        fflush(stdout);
         Panic_Array(array);
     }
+
+    if (GET_ARR_FLAG(array, SERIES_FLAG_HAS_DYNAMIC)) {
+        REBCNT rest = SER_REST(ARR_SERIES(array));
+
+#ifdef __cplusplus
+        assert(rest > 0 && rest > i);
+        for (; i < rest - 1; ++i, ++value) {
+            if (NOT(value->header.bits & VALUE_FLAG_WRITABLE_CPP_DEBUG)) {
+                printf("Unwritable cell found in array rest capacity\n");
+                fflush(stdout);
+                Panic_Array(array);
+            }
+        }
+        assert(value == ARR_AT(array, rest - 1));
+#endif
+        if (ARR_AT(array, rest - 1)->header.bits != 0) {
+            printf("Implicit termination/unwritable END missing from array\n");
+            fflush(stdout);
+        }
+    }
+
 }
 #endif

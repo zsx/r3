@@ -1,50 +1,34 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  f-blocks.c
-**  Summary: primary block series support functions
-**  Section: functional
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %f-blocks.c
+//  Summary: "primary block series support functions"
+//  Section: functional
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
-
-
-//
-//  Make_Array: C
-// 
-// Make a series that is the right size to store REBVALs (and
-// marked for the garbage collector to look into recursively).
-// Terminator included implicitly. Sets TAIL to zero.
-//
-REBARR *Make_Array(REBCNT capacity)
-{
-    REBSER *series = Make_Series(capacity + 1, sizeof(REBVAL), MKS_ARRAY);
-    REBARR *array = AS_ARRAY(series);
-    SET_END(ARR_HEAD(array));
-
-    return array;
-}
 
 
 //
@@ -57,6 +41,7 @@ REBARR *Make_Array(REBCNT capacity)
 REBARR *Copy_Array_At_Extra_Shallow(
     REBARR *original,
     REBCNT index,
+    REBCTX *specifier,
     REBCNT extra
 ) {
     REBCNT len = ARR_LEN(original);
@@ -67,10 +52,33 @@ REBARR *Copy_Array_At_Extra_Shallow(
     len -= index;
     copy = Make_Array(len + extra + 1);
 
-    memcpy(ARR_HEAD(copy), ARR_AT(original, index), len * sizeof(REBVAL));
+    if (specifier == SPECIFIED) {
+        //
+        // We can just bit-copy a fully specified array.  By its definition
+        // it may not contain any RELVALs.  But in the debug build, double
+        // check that...
+        //
+    #if !defined(NDEBUG)
+        RELVAL *check = ARR_AT(original, index);
+        REBCNT count = 0;
+        for (; count < len; ++count)
+            assert(IS_SPECIFIC(check));
+    #endif
 
-    SET_ARRAY_LEN(copy, len);
-    TERM_ARRAY(copy);
+        memcpy(ARR_HEAD(copy), ARR_AT(original, index), len * sizeof(REBVAL));
+    }
+    else {
+        // Any RELVALs will have to be handled.  Review if a memcpy with
+        // a touch-up phase is faster, or if there is any less naive way.
+        //
+        RELVAL *src = ARR_AT(original, index);
+        REBVAL *dest = KNOWN(ARR_HEAD(copy));
+        REBCNT count = 0;
+        for (; count < len; ++count, ++dest, ++src)
+            COPY_VALUE(dest, src, specifier);
+    }
+
+    TERM_ARRAY_LEN(copy, len);
 
     return copy;
 }
@@ -82,8 +90,12 @@ REBARR *Copy_Array_At_Extra_Shallow(
 // Shallow copy an array from the given index for given maximum
 // length (clipping if it exceeds the array length)
 //
-REBARR *Copy_Array_At_Max_Shallow(REBARR *original, REBCNT index, REBCNT max)
-{
+REBARR *Copy_Array_At_Max_Shallow(
+    REBARR *original,
+    REBCNT index,
+    REBCTX *specifier,
+    REBCNT max
+) {
     REBARR *copy;
 
     if (index > ARR_LEN(original))
@@ -94,34 +106,64 @@ REBARR *Copy_Array_At_Max_Shallow(REBARR *original, REBCNT index, REBCNT max)
 
     copy = Make_Array(max + 1);
 
-    memcpy(ARR_HEAD(copy), ARR_AT(original, index), max * sizeof(REBVAL));
+    if (specifier == SPECIFIED) {
+    #if !defined(NDEBUG)
+        REBCNT count = 0;
+        const RELVAL *check = ARR_AT(original, index);
+        for (; count < max; ++count, ++check) {
+            assert(IS_SPECIFIC(check));
+        }
+    #endif
+        memcpy(ARR_HEAD(copy), ARR_AT(original, index), max * sizeof(REBVAL));
+    }
+    else {
+        REBCNT count = 0;
+        const RELVAL *src = ARR_AT(original, index);
+        RELVAL *dest = ARR_HEAD(copy);
+        for (; count < max; ++count, ++src, ++dest)
+            COPY_VALUE(dest, src, specifier);
+    }
 
-    SET_ARRAY_LEN(copy, max);
-    TERM_ARRAY(copy);
+    TERM_ARRAY_LEN(copy, max);
 
     return copy;
 }
 
 
 //
-//  Copy_Values_Len_Extra_Shallow: C
+//  Copy_Values_Len_Extra_Skip_Shallow: C
 // 
 // Shallow copy the first 'len' values of `head` into a new
 // series created to hold exactly that many entries.
 //
-REBARR *Copy_Values_Len_Extra_Shallow(
-    const REBVAL *head,
+REBARR *Copy_Values_Len_Extra_Skip_Shallow(
+    const RELVAL *head,
+    REBCTX *specifier,
     REBCNT len,
-    REBCNT extra
+    REBCNT extra,
+    REBINT skip
 ) {
-    REBARR *array;
+    REBARR *array = Make_Array(len + extra + 1);
 
-    array = Make_Array(len + extra + 1);
+    if (specifier == SPECIFIED && skip == 1) {
+    #if !defined(NDEBUG)
+        REBCNT count = 0;
+        const RELVAL *check = head;
+        for (; count < len; ++count, ++check) {
+            assert(IS_SPECIFIC(check));
+        }
+    #endif
+        memcpy(ARR_HEAD(array), head, len * sizeof(REBVAL));
+    }
+    else {
+        REBCNT count = 0;
+        const RELVAL *src = head;
+        RELVAL *dest = ARR_HEAD(array);
+        for (; count < len; ++count, src += skip, ++dest)
+            COPY_VALUE(dest, src, specifier);
+    }
 
-    memcpy(ARR_HEAD(array), head, len * sizeof(REBVAL));
-
-    SET_ARRAY_LEN(array, len);
-    TERM_ARRAY(array);
+    TERM_ARRAY_LEN(array, len);
 
     return array;
 }
@@ -143,16 +185,17 @@ REBARR *Copy_Values_Len_Extra_Shallow(
 // are in an array, and assert that they are managed.)
 //
 void Clonify_Values_Len_Managed(
-    REBVAL *head,
+    RELVAL *head,
+    REBCTX *specifier,
     REBCNT len,
     REBOOL deep,
     REBU64 types
 ) {
-    REBVAL *value = head;
-    REBCNT index;
-
     if (C_STACK_OVERFLOWING(&len)) Trap_Stack_Overflow();
 
+    RELVAL *value = head;
+
+    REBCNT index;
     for (index = 0; index < len; index++, value++) {
         //
         // By the rules, if we need to do a deep copy on the source
@@ -162,28 +205,58 @@ void Clonify_Values_Len_Managed(
         ASSERT_VALUE_MANAGED(value);
 
         if (types & FLAGIT_KIND(VAL_TYPE(value)) & TS_SERIES_OBJ) {
-            //
+        #if !defined(NDEBUG)
+            REBOOL legacy = FALSE;
+        #endif
+
             // Objects and series get shallow copied at minimum
             //
             REBSER *series;
             if (ANY_CONTEXT(value)) {
-                assert(!IS_FRAME(value)); // !!! Don't exist yet...
-                INIT_VAL_CONTEXT(
-                    value,
-                    Copy_Context_Shallow(VAL_CONTEXT(value))
+            #if !defined(NDEBUG)
+                legacy = GET_ARR_FLAG(
+                    CTX_VARLIST(VAL_CONTEXT(value)),
+                    SERIES_FLAG_LEGACY
                 );
+            #endif
+
+                assert(!IS_FRAME(value)); // !!! Don't exist yet...
+                value->payload.any_context.varlist =
+                    CTX_VARLIST(Copy_Context_Shallow(VAL_CONTEXT(value)));
                 series = ARR_SERIES(CTX_VARLIST(VAL_CONTEXT(value)));
             }
             else {
                 if (Is_Array_Series(VAL_SERIES(value))) {
+                #if !defined(NDEBUG)
+                    legacy = GET_ARR_FLAG(VAL_ARRAY(value), SERIES_FLAG_LEGACY);
+                #endif
+
                     series = ARR_SERIES(
-                        Copy_Array_Shallow(VAL_ARRAY(value))
+                        Copy_Array_Shallow(
+                            VAL_ARRAY(value),
+                            IS_SPECIFIC(value)
+                                ? VAL_SPECIFIER(KNOWN(value))
+                                : specifier
+                        )
                     );
+
+                    INIT_VAL_ARRAY(value, AS_ARRAY(series)); // copies args
+
+                    // If it was relative, then copying with a specifier
+                    // means it isn't relative any more.
+                    //
+                    INIT_SPECIFIC(value, SPECIFIED);
                 }
-                else
+                else {
                     series = Copy_Sequence(VAL_SERIES(value));
-                INIT_VAL_SERIES(value, series);
+                    INIT_VAL_SERIES(value, series);
+                }
             }
+
+        #if !defined(NDEBUG)
+            if (legacy) // propagate legacy
+                SET_SER_FLAG(series, SERIES_FLAG_LEGACY);
+        #endif
 
             MANAGE_SERIES(series);
 
@@ -192,9 +265,17 @@ void Clonify_Values_Len_Managed(
             // If we're going to copy deeply, we go back over the shallow
             // copied series and "clonify" the values in it.
             //
+            // Since we had to get rid of the relative bindings in the
+            // shallow copy, we can pass in SPECIFIED here...but the recursion
+            // in Clonify_Values will be threading through any updated specificity
+            // through to the new values.
+            //
             if (types & FLAGIT_KIND(VAL_TYPE(value)) & TS_ARRAYS_OBJ) {
                 Clonify_Values_Len_Managed(
                      ARR_HEAD(AS_ARRAY(series)),
+                     IS_SPECIFIC(value)
+                        ? VAL_SPECIFIER(KNOWN(value))
+                        : specifier,
                      VAL_LEN_HEAD(value),
                      deep,
                      types
@@ -204,12 +285,16 @@ void Clonify_Values_Len_Managed(
         else if (
             types & FLAGIT_KIND(VAL_TYPE(value)) & FLAGIT_KIND(REB_FUNCTION)
         ) {
-            Clonify_Function(value);
+            Clonify_Function(KNOWN(value)); // functions never "relative"
         }
         else {
             // The value is not on our radar as needing to be processed,
             // so leave it as-is.
         }
+
+        // Value shouldn't be relative after the above processing.
+        //
+        assert(!IS_RELATIVE(value));
     }
 }
 
@@ -225,6 +310,7 @@ void Clonify_Values_Len_Managed(
 REBARR *Copy_Array_Core_Managed(
     REBARR *original,
     REBCNT index,
+    REBCTX *specifier,
     REBCNT tail,
     REBCNT extra,
     REBOOL deep,
@@ -240,13 +326,13 @@ REBARR *Copy_Array_Core_Managed(
     }
     else {
         copy = Copy_Values_Len_Extra_Shallow(
-            ARR_AT(original, index), tail - index, extra
+            ARR_AT(original, index), specifier, tail - index, extra
         );
         MANAGE_ARRAY(copy);
 
-        if (types != 0)
+        if (types != 0) // the copy above should have specified top level
             Clonify_Values_Len_Managed(
-                ARR_HEAD(copy), ARR_LEN(copy), deep, types
+                ARR_HEAD(copy), SPECIFIED, ARR_LEN(copy), deep, types
             );
     }
 
@@ -256,12 +342,13 @@ REBARR *Copy_Array_Core_Managed(
     // `[switch 1 [2]]` in it (for instance) then when that code is used to
     // make a function body, the `[switch 1 [2]]` in that body will also
     // be marked legacy.  Then if it runs, the SWITCH can dispatch to return
-    // none instead of the Ren-C behavior of returning `2`.
+    // blank instead of the Ren-C behavior of returning `2`.
     //
     if (GET_ARR_FLAG(original, SERIES_FLAG_LEGACY))
         SET_ARR_FLAG(copy, SERIES_FLAG_LEGACY);
 #endif
 
+    ASSERT_NO_RELATIVE(copy, deep);
     return copy;
 }
 
@@ -283,16 +370,76 @@ REBARR *Copy_Array_Core_Managed(
 REBARR *Copy_Array_At_Extra_Deep_Managed(
     REBARR *original,
     REBCNT index,
+    REBCTX *specifier,
     REBCNT extra
 ) {
-    return Copy_Array_Core_Managed(
+    REBARR *copy = Copy_Array_Core_Managed(
         original,
         index, // at
+        specifier,
         ARR_LEN(original), // tail
         extra, // extra
         TRUE, // deep
         TS_SERIES & ~TS_NOT_COPIED // types
     );
+
+    return copy;
+}
+
+
+//
+//  Copy_Rerelativized_Array_Deep_Managed: C
+//
+// The invariant of copying in general is that when you are done with the
+// copy, there are no relative values in that copy.  One exception to this
+// is the deep copy required to make a relative function body in the first
+// place (which it currently does in two passes--a normal deep copy followed
+// by a relative binding).  The other exception is when a relativized
+// function body is copied to make another relativized function body.
+//
+// This is specialized logic for the latter case.  It's constrained enough
+// to be simple (all relative values are known to be relative to the same
+// function), and the feature is questionable anyway.  So it's best not to
+// further complicate ordinary copying with a parameterization to copy
+// and change all the relative binding information from one function's
+// paramlist to another.
+//
+REBARR *Copy_Rerelativized_Array_Deep_Managed(
+    REBARR *original,
+    REBFUN *before, // references to `before` will be changed to `after`
+    REBFUN *after
+) {
+    REBARR *copy = Make_Array(ARR_LEN(original));
+    RELVAL *src = ARR_HEAD(original);
+    RELVAL *dest = ARR_HEAD(copy);
+
+    for (; NOT_END(src); ++src, ++dest) {
+        if (!IS_RELATIVE(src)) {
+            *dest = *src;
+            continue;
+        }
+
+        assert(VAL_RELATIVE(src) == before);
+        if (ANY_ARRAY(src)) {
+            *dest = *src; // !!! could copy just fields not overwritten
+            dest->payload.any_series.series = ARR_SERIES(
+                Copy_Rerelativized_Array_Deep_Managed(
+                    VAL_ARRAY(src), before, after
+                )
+            );
+            INIT_RELATIVE(dest, after);
+        }
+        else {
+            assert(ANY_WORD(src));
+            *dest = *src; // !!! could copy just fields not overwritten
+            INIT_WORD_FUNC(dest, after);
+        }
+    }
+
+    TERM_ARRAY_LEN(copy, ARR_LEN(original));
+    MANAGE_ARRAY(copy);
+
+    return copy;
 }
 
 
@@ -308,14 +455,9 @@ REBARR *Copy_Array_At_Extra_Deep_Managed(
 //
 REBVAL *Alloc_Tail_Array(REBARR *array)
 {
-    REBVAL *tail;
-
     EXPAND_SERIES_TAIL(ARR_SERIES(array), 1);
-    tail = ARR_TAIL(array);
-    SET_END(tail);
-
-    SET_TRASH_IF_DEBUG(tail - 1); // No-op in release builds
-    return tail - 1;
+    TERM_ARRAY_LEN(array, ARR_LEN(array));
+    return SINK(ARR_LAST(array));
 }
 
 
@@ -332,14 +474,16 @@ REBVAL *Alloc_Tail_Array(REBARR *array)
 // series for the spec, body, and paramlist...the spec and body are blocks,
 // and so recursion would be found when the blocks were output.)
 //
-REBCNT Find_Same_Array(REBARR *search_values, const REBVAL *value)
+REBCNT Find_Same_Array(REBARR *search_values, const RELVAL *value)
 {
     REBCNT index = 0;
     REBARR *array;
-    REBVAL *other;
+    RELVAL *other;
 
-    if (ANY_ARRAY(value) || IS_MAP(value))
+    if (ANY_ARRAY(value))
         array = VAL_ARRAY(value);
+    else if (IS_MAP(value))
+        array = MAP_PAIRLIST(VAL_MAP(value));
     else if (ANY_CONTEXT(value))
         array = CTX_VARLIST(VAL_CONTEXT(value));
     else {
@@ -351,8 +495,12 @@ REBCNT Find_Same_Array(REBARR *search_values, const REBVAL *value)
 
     other = ARR_HEAD(search_values);
     for (; NOT_END(other); other++, index++) {
-        if (ANY_ARRAY(other) || IS_MAP(other)) {
+        if (ANY_ARRAY(other)) {
             if (array == VAL_ARRAY(other))
+                return index;
+        }
+        else if (IS_MAP(other)) {
+            if (array == MAP_PAIRLIST(VAL_MAP(other)))
                 return index;
         }
         else if (ANY_CONTEXT(other)) {
@@ -366,6 +514,23 @@ REBCNT Find_Same_Array(REBARR *search_values, const REBVAL *value)
 
 
 //
+//  Unmark_Array: C
+//
+void Unmark_Array(REBARR *array)
+{
+    if (!IS_REBSER_MARKED(ARR_SERIES(array)))
+        return; // avoid loop
+
+    UNMARK_REBSER(ARR_SERIES(array));
+
+    RELVAL *val;
+    for (val = ARR_HEAD(array); NOT_END(val); ++val)
+        if (ANY_ARRAY(val))
+            Unmark(val);
+}
+
+
+//
 //  Unmark: C
 // 
 // Clear the recusion markers for series and object trees.
@@ -373,7 +538,7 @@ REBCNT Find_Same_Array(REBARR *search_values, const REBVAL *value)
 // Note: these markers are also used for GC. Functions that
 // call this must not be able to trigger GC!
 //
-void Unmark(REBVAL *val)
+void Unmark(RELVAL *val)
 {
     REBARR *array;
 
@@ -386,15 +551,10 @@ void Unmark(REBVAL *val)
         //
         assert(
             !ANY_SERIES(val)
-            || !GET_SER_FLAG(VAL_SERIES(val), SERIES_FLAG_MARK)
+            || !IS_REBSER_MARKED(VAL_SERIES(val))
         );
         return;
     }
 
-    if (!GET_ARR_FLAG(array, SERIES_FLAG_MARK)) return; // avoid loop
-
-    CLEAR_ARR_FLAG(array, SERIES_FLAG_MARK);
-
-    for (val = ARR_HEAD(array); NOT_END(val); val++)
-        Unmark(val);
+    Unmark_Array(array);
 }

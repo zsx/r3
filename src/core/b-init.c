@@ -1,51 +1,62 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  b-init.c
-**  Summary: initialization functions
-**  Section: bootstrap
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %b-init.c
+//  Summary: "initialization functions"
+//  Section: bootstrap
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// The primary routine for starting up Rebol is Init_Core().  It runs the
+// bootstrap in phases, based on processing various portions of the data in
+// %boot-code.r (which is the aggregated code from the %mezz/*.r files, that
+// is packed into one file as part of the build preparation)
+//
+// As part of an effort to lock down the memory usage, Ren-C added a parallel
+// Shutdown_Core() routine which would gracefully exit Rebol, with assurances
+// that all accounting was done correctly.  This includes being sure that the
+// number used to track memory usage for triggering garbage collections would
+// balance back out to exactly zero.
+//
+// (Release builds can instead close only vital resources like files, and
+// trust the OS exit() to reclaim memory more quickly.  However Ren-C's goal
+// is to be usable as a library that may be initialized and shutdown within
+// a process that's not exiting, so the ability to clean up is important.)
+//
+
 
 #include "sys-core.h"
 #include "mem-pools.h"
 
 #define EVAL_DOSE 10000
 
-// Boot Vars used locally:
-static  REBCNT  Native_Count;
-static  REBCNT  Native_Limit;
-static  REBCNT  Action_Count;
-static  REBCNT  Action_Marker;
-static const REBNAT *Native_Functions;
-static  BOOT_BLK *Boot_Block;
-
-
 #ifdef WATCH_BOOT
-#define DOUT(s) puts(s)
+    #define DOUT(s) puts(s)
 #else
-#define DOUT(s)
+    #define DOUT(s)
 #endif
+
+static BOOT_BLK *Boot_Block; // loaded from %boot-code.r
 
 
 //
@@ -53,47 +64,38 @@ static  BOOT_BLK *Boot_Block;
 //
 static void Assert_Basics(void)
 {
-#if !defined(NDEBUG)
-    #if defined(__LP64__) || defined(__LLP64__)
-        const char *fmt = "%lu %s\n";
-    #else
-        const char *fmt = "%u %s\n";
-    #endif
+#if !defined(NDEBUG) && defined(SHOW_SIZEOFS)
+    //
+    // For debugging ports to some systems
+    //
+#if defined(__LP64__) || defined(__LLP64__)
+    const char *fmt = "%lu %s\n";
+#else
+    const char *fmt = "%u %s\n";
 #endif
 
-    REBVAL dummy;
+    union Reb_Value_Payload *dummy_payload;
 
-#if !defined(NDEBUG)
-    #if defined(SHOW_SIZEOFS)
-        union Reb_Value_Payload *dummy_payload;
-    #endif
-
-    #if defined(SHOW_SIZEOFS)
-        //
-        // For debugging ports to some systems
-        //
-        printf(fmt, sizeof(dummy_payload->any_word), "any_word");
-        printf(fmt, sizeof(dummy_payload->any_series), "any_series");
-        printf(fmt, sizeof(dummy_payload->integer), "integer");
-        printf(fmt, sizeof(dummy_payload->decimal), "decimal");
-        printf(fmt, sizeof(dummy_payload->character), "char");
-        printf(fmt, sizeof(dummy_payload->datatype), "datatype");
-        printf(fmt, sizeof(dummy_payload->typeset), "typeset");
-        printf(fmt, sizeof(dummy_payload->symbol), "symbol");
-        printf(fmt, sizeof(dummy_payload->time), "time");
-        printf(fmt, sizeof(dummy_payload->tuple), "tuple");
-        printf(fmt, sizeof(dummy_payload->function), "function");
-        printf(fmt, sizeof(dummy_payload->any_context), "any_context");
-        printf(fmt, sizeof(dummy_payload->pair), "pair");
-        printf(fmt, sizeof(dummy_payload->event), "event");
-        printf(fmt, sizeof(dummy_payload->library), "library");
-        printf(fmt, sizeof(dummy_payload->structure), "struct");
-        printf(fmt, sizeof(dummy_payload->gob), "gob");
-        printf(fmt, sizeof(dummy_payload->money), "money");
-        printf(fmt, sizeof(dummy_payload->handle), "handle");
-        printf(fmt, sizeof(dummy_payload->all), "all");
-        fflush(stdout);
-    #endif
+    printf(fmt, sizeof(dummy_payload->any_word), "any_word");
+    printf(fmt, sizeof(dummy_payload->any_series), "any_series");
+    printf(fmt, sizeof(dummy_payload->integer), "integer");
+    printf(fmt, sizeof(dummy_payload->decimal), "decimal");
+    printf(fmt, sizeof(dummy_payload->character), "char");
+    printf(fmt, sizeof(dummy_payload->datatype), "datatype");
+    printf(fmt, sizeof(dummy_payload->typeset), "typeset");
+    printf(fmt, sizeof(dummy_payload->time), "time");
+    printf(fmt, sizeof(dummy_payload->tuple), "tuple");
+    printf(fmt, sizeof(dummy_payload->function), "function");
+    printf(fmt, sizeof(dummy_payload->any_context), "any_context");
+    printf(fmt, sizeof(dummy_payload->pair), "pair");
+    printf(fmt, sizeof(dummy_payload->event), "event");
+    printf(fmt, sizeof(dummy_payload->library), "library");
+    printf(fmt, sizeof(dummy_payload->structure), "struct");
+    printf(fmt, sizeof(dummy_payload->gob), "gob");
+    printf(fmt, sizeof(dummy_payload->money), "money");
+    printf(fmt, sizeof(dummy_payload->handle), "handle");
+    printf(fmt, sizeof(dummy_payload->all), "all");
+    fflush(stdout);
 #endif
 
     // Although the system is designed to be able to function with REBVAL at
@@ -107,11 +109,11 @@ static void Assert_Basics(void)
     // and keep running.
     //
     if (sizeof(void *) == 8) {
-        if (sizeof(REBVAL) != 32)
+        if (sizeof(REBVAL) != 32 || sizeof(REBEVT) != 32)
             panic (Error(RE_REBVAL_ALIGNMENT));
     }
     else {
-        if (sizeof(REBVAL) != 16)
+        if (sizeof(REBVAL) != 16 || sizeof(REBEVT) != 16)
             panic (Error(RE_REBVAL_ALIGNMENT));
     }
 
@@ -142,30 +144,17 @@ static void Assert_Basics(void)
     if (sizeof(REBDAT) != 4)
         panic (Error(RE_BAD_SIZE));
 
-    // Deep copies of Any_Word in function bodies can be marked as relative to
-    // that function.  Care must be taken to put together the right context
-    // information with the relative value to look up the variable, and it's
-    // important not to "leak" the bit patterns of these relative words when
-    // copying the values elsewhere.  Hence both the words *and* an ANY-ARRAY!
-    // that may be carrying them need to be "derelativized" before copying.
-    // Both carry binding targets that can be relative or specific, and
-    // these should be at the same offset inside the value for fast processing.
-    //
-    if (
-        offsetof(struct Reb_Any_Word, place)
-            + offsetof(union Reb_Any_Word_Place, binding)
-            + offsetof(struct Reb_Binding, target)
-        != offsetof(struct Reb_Any_Series, target)
-    ) {
-        panic (Error(RE_MISC));
-    }
-
     // The REBSER is designed to place the `info` bits exactly after a REBVAL
     // so they can do double-duty as also a terminator for that REBVAL when
     // enumerated as an ARRAY.
     //
-    if (offsetof(struct Reb_Series, info) != sizeof(REBVAL))
+    if (
+        offsetof(struct Reb_Series, info)
+            - offsetof(struct Reb_Series, content)
+        != sizeof(REBVAL)
+    ){
         panic (Error(RE_MISC));
+    }
 
     // Check special return values used "in-band" in an unsigned integer that
     // is otherwise used for indices.  Make sure they don't overlap.
@@ -201,7 +190,6 @@ static void Assert_Basics(void)
     assert(sizeof(REBI64) == 8);
     assert(sizeof(REBSER) % 8 == 0);
     assert(sizeof(REBGOB) % 8 == 0);
-    assert(sizeof(REBLHL) % 8 == 0);
     assert(sizeof(REBRIN) % 8 == 0);
 }
 
@@ -224,23 +212,22 @@ static void Print_Banner(REBARGS *rargs)
 // Bind and evaluate a global block.
 // Rebind:
 //     0: bind set into sys or lib
-//    -1: bind shallow into sys (for NATIVE and ACTION)
+//    -1: bind shallow into sys (for ACTION)
 //     1: add new words to LIB, bind/deep to LIB
 //     2: add new words to SYS, bind/deep to LIB
 // 
-// Expects result to be UNSET!
+// Expects result to be void
 //
 static void Do_Global_Block(
     REBARR *block,
     REBCNT index,
     REBINT rebind,
-    REBVAL *opt_toplevel_word // ACTION or NATIVE, bound words
+    REBVAL *opt_toplevel_word
 ) {
-    REBVAL *item = ARR_AT(block, index);
+    RELVAL *item = ARR_AT(block, index);
     struct Reb_State state;
 
     REBVAL result;
-    VAL_INIT_WRITABLE_DEBUG(&result);
 
     Bind_Values_Set_Midstream_Shallow(
         item, rebind > 1 ? Sys_Context : Lib_Context
@@ -250,25 +237,25 @@ static void Do_Global_Block(
     if (rebind > 0) Bind_Values_Deep(item, Lib_Context);
     if (rebind > 1) Bind_Values_Deep(item, Sys_Context);
 
-    // !!! The words NATIVE and ACTION were bound but paths would not bind.
-    // So you could do `native [spec]` but not `native/xxx [spec]`
+    // !!! In the block, ACTION words are bound but paths would not bind.
+    // So you could do `action [spec]` but not `action/xxx [spec]`
     // because in the later case, it wouldn't have descended into the path
     // to bind `native`.  This is apparently intentional to avoid binding
     // deeply in the system context.
     //
     // Here we hackily walk over all the paths and look for any that start
-    // with the symbol of the passed in word (SYM_ACTION, SYM_NATIVE) and
-    // just overwrite the word with the bound vesion.  :-/  Review.
+    // with the symbol of the passed in word (SYM_ACTION) and just overwrite
+    // the word with the bound vesion.  :-/  Review.
     //
     if (opt_toplevel_word) {
         item = ARR_AT(block, index);
         for (; NOT_END(item); item++) {
             if (IS_PATH(item)) {
-                REBVAL *path_item = VAL_ARRAY_HEAD(item);
+                RELVAL *path_item = VAL_ARRAY_HEAD(item);
                 if (
                     IS_WORD(path_item) && (
-                        VAL_WORD_SYM(path_item)
-                        == VAL_WORD_SYM(opt_toplevel_word)
+                        VAL_WORD_SPELLING(path_item)
+                        == VAL_WORD_SPELLING(opt_toplevel_word)
                     )
                 ) {
                     // Steal binding, but keep the same word type
@@ -283,12 +270,12 @@ static void Do_Global_Block(
 
     SNAP_STATE(&state);
 
-    if (Do_At_Throws(&result, block, index))
+    if (Do_At_Throws(&result, block, index, SPECIFIED))
         panic (Error_No_Catch_For_Throw(&result));
 
     ASSERT_STATE_BALANCED(&state);
 
-    if (!IS_UNSET(&result))
+    if (!IS_VOID(&result))
         panic (Error(RE_MISC));
 }
 
@@ -302,23 +289,20 @@ static void Do_Global_Block(
 //
 static void Load_Boot(void)
 {
-    REBARR *boot;
-    REBSER *text;
-
     // Decompress binary data in Native_Specs to get the textual source
     // of the function specs for the native routines into `boot` series.
     //
     // (Native_Specs array is in b-boot.c, auto-generated by make-boot.r)
 
-    text = Decompress(
+    REBSER *utf8 = Decompress(
         Native_Specs, NAT_COMPRESSED_SIZE, NAT_UNCOMPRESSED_SIZE, FALSE, FALSE
     );
 
-    if (!text || (SER_LEN(text) != NAT_UNCOMPRESSED_SIZE))
+    if (!utf8 || SER_LEN(utf8) != NAT_UNCOMPRESSED_SIZE)
         panic (Error(RE_BOOT_DATA));
 
-    boot = Scan_Source(BIN_HEAD(text), NAT_UNCOMPRESSED_SIZE);
-    Free_Series(text);
+    REBARR *boot = Scan_UTF8_Managed(BIN_HEAD(utf8), NAT_UNCOMPRESSED_SIZE);
+    Free_Series(utf8);
 
     // Do not let it get GC'd
     //
@@ -326,29 +310,33 @@ static void Load_Boot(void)
 
     Boot_Block = cast(BOOT_BLK *, VAL_ARRAY_HEAD(ARR_HEAD(boot)));
 
-    if (VAL_LEN_HEAD(&Boot_Block->types) != REB_MAX_0)
+    // There should be a datatype word for every REB_XXX type except REB_0
+    //
+    if (VAL_LEN_HEAD(&Boot_Block->types) != REB_MAX - 1)
         panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
-    if (VAL_WORD_SYM(VAL_ARRAY_HEAD(&Boot_Block->types)) != SYM_TRASH_TYPE)
-        panic (Error(RE_BAD_TRASH_TYPE));
+
+    // First type should be FUNCTION! (Note: Init_Symbols() hasn't run yet, so
+    // cannot check this via VAL_WORD_SYM())
+    //
+    if (0 != COMPARE_BYTES(
+        cb_cast("function!"), VAL_WORD_HEAD(VAL_ARRAY_HEAD(&Boot_Block->types))
+    )){
+        panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
+    }
 
     // Create low-level string pointers (used by RS_ constants):
     {
-        REBYTE *cp;
-        REBINT i;
-
         PG_Boot_Strs = ALLOC_N(REBYTE *, RS_MAX);
         *ROOT_STRINGS = Boot_Block->strings;
-        cp = VAL_BIN(ROOT_STRINGS);
+
+        REBYTE *cp = VAL_BIN(ROOT_STRINGS);
+        REBINT i;
         for (i = 0; i < RS_MAX; i++) {
             PG_Boot_Strs[i] = cp;
             while (*cp++);
         }
     }
 
-    if (COMPARE_BYTES(cb_cast("trash!"), Get_Sym_Name(SYM_TRASH_TYPE)) != 0)
-        panic (Error(RE_BAD_TRASH_CANON));
-    if (COMPARE_BYTES(cb_cast("true"), Get_Sym_Name(SYM_TRUE)) != 0)
-        panic (Error(RE_BAD_TRUE_CANON));
     if (COMPARE_BYTES(cb_cast("newline"), BOOT_STR(RS_SCAN, 1)) != 0)
         panic (Error(RE_BAD_BOOT_STRING));
 }
@@ -361,17 +349,32 @@ static void Load_Boot(void)
 //
 static void Init_Datatypes(void)
 {
-    REBVAL *word = VAL_ARRAY_HEAD(&Boot_Block->types);
+    RELVAL *word = VAL_ARRAY_HEAD(&Boot_Block->types);
     REBARR *specs = VAL_ARRAY(&Boot_Block->typespecs);
-    REBVAL *value;
+
     REBINT n;
 
-    for (n = 0; NOT_END(word); word++, n++) {
-        assert(n < REB_MAX_0);
-        value = Append_Context(Lib_Context, word, 0);
+    for (n = 1; NOT_END(word); word++, n++) {
+        assert(n < REB_MAX);
+
+        REBVAL *value = Append_Context(Lib_Context, KNOWN(word), NULL);
         VAL_RESET_HEADER(value, REB_DATATYPE);
-        VAL_TYPE_KIND(value) = KIND_FROM_0(n);
-        VAL_TYPE_SPEC(value) = VAL_ARRAY(ARR_AT(specs, n));
+        VAL_TYPE_KIND(value) = cast(enum Reb_Kind, n);
+        VAL_TYPE_SPEC(value) = VAL_ARRAY(ARR_AT(specs, n - 1));
+
+        // !!! The system depends on these definitions, as they are used by
+        // Get_Type and Type_Of.  Although it is convenient to be able to
+        // get a REBVAL of a type and not have to worry about its lifetime
+        // management or stack-allocate the value and fill it, that's
+        // probably not a frequent enough need to justify putting it in
+        // a public slot and either leave it mutable (dangerous) or lock it
+        // (inflexible).  Better to create a new type value each time.
+        //
+        // (Another possibility would be to use the "datatypes catalog",
+        // which appears to copy this subset out from the Lib_Context.)
+        //
+        assert(value == Get_Type(cast(enum Reb_Kind, n)));
+        SET_VAL_FLAG(CTX_KEY(Lib_Context, 1), TYPESET_FLAG_LOCKED);
     }
 }
 
@@ -389,70 +392,25 @@ static void Init_Constants(void)
     REBVAL *value;
     extern const double pi1;
 
-    value = Append_Context(Lib_Context, 0, SYM_NONE);
-    SET_NONE(value);
-    assert(IS_NONE(value));
+    value = Append_Context(Lib_Context, 0, Canon(SYM_BLANK));
+    SET_BLANK(value);
+    assert(IS_BLANK(value));
     assert(IS_CONDITIONAL_FALSE(value));
 
-    value = Append_Context(Lib_Context, 0, SYM_TRUE);
+    value = Append_Context(Lib_Context, 0, Canon(SYM_TRUE));
     SET_TRUE(value);
     assert(VAL_LOGIC(value));
     assert(IS_CONDITIONAL_TRUE(value));
 
-    value = Append_Context(Lib_Context, 0, SYM_FALSE);
+    value = Append_Context(Lib_Context, 0, Canon(SYM_FALSE));
     SET_FALSE(value);
     assert(!VAL_LOGIC(value));
     assert(IS_CONDITIONAL_FALSE(value));
 
-    value = Append_Context(Lib_Context, 0, SYM_PI);
+    value = Append_Context(Lib_Context, 0, Canon(SYM_PI));
     SET_DECIMAL(value, pi1);
     assert(IS_DECIMAL(value));
     assert(IS_CONDITIONAL_TRUE(value));
-}
-
-
-//
-//  native: native [
-//
-//  {Creates native function (for internal usage only).}
-//
-//      spec [block!]
-//      /body
-//          {Equivalent body of Rebol code matching native's implementation}
-//      code [block!]
-//  ]
-//
-REBNATIVE(native)
-//
-// The `native` native is searched for explicitly by %make-natives.r and put
-// in first place for initialization.  This is a special bootstrap function
-// created manually within the C code, as it cannot "run to create itself".
-//
-// !!! The body is currently commentary only.  It should be stored somewhere;
-// there is no room for it in the REBVAL, and there may be a purpose for the
-// series "extra" bits of generic series other than this.  So the place to
-// put it would likely be a table of "native sources" off to the side.
-{
-    PARAM(1, spec);
-    REFINE(2, body);
-    PARAM(3, code);
-
-    if (
-        (Native_Limit != 0 || !*Native_Functions)
-        && (Native_Count >= Native_Limit)
-    ) {
-        fail (Error(RE_MAX_NATIVES));
-    }
-
-    Make_Native(
-        D_OUT,
-        VAL_ARRAY(ARG(spec)),
-        *Native_Functions++,
-        FUNC_CLASS_NATIVE
-    );
-
-    Native_Count++;
-    return R_OUT;
 }
 
 
@@ -461,8 +419,9 @@ REBNATIVE(native)
 //
 //  {Creates datatype action (for internal usage only).}
 //
+//      return: [blank!]
+//      :verb [set-word! word!]
 //      spec [block!]
-//      /typecheck type [integer! datatype!]
 //  ]
 //
 REBNATIVE(action)
@@ -470,116 +429,138 @@ REBNATIVE(action)
 // The `action` native is searched for explicitly by %make-natives.r and put
 // in second place for initialization (after the `native` native).
 //
-// If /TYPECHECK is used then you can get a fast checker for a datatype:
-//
-//     string?: action/typecheck [value [opt-any-value!]] string!
-//
-// Because words are not bound to the datatypes at the time of action building
-// it accepts integer numbers for bootstrapping.
+// It is designed to be a lookback binding that quotes its first argument,
+// so when you write FOO: ACTION [...], the FOO: gets quoted to be the verb.
+// The SET/LOOKBACK is done by the bootstrap, after the natives are loaded.
 {
-    PARAM(1, spec);
-    REFINE(2, typecheck);
-    PARAM(3, type);
+    PARAM(1, verb);
+    PARAM(2, spec);
 
-    if (Action_Count >= A_MAX_ACTION) panic (Error(RE_ACTION_OVERFLOW));
+    REBVAL *spec = ARG(spec);
 
-    // The boot generation process is set up so that the action numbers will
-    // conveniently line up to match the type checks to keep the numbers
-    // from overlapping with actions, but the refinement makes it more clear
-    // exactly what is going on.
-    //
-    if (REF(typecheck)) {
-        if (IS_INTEGER(ARG(type)))
-            assert(VAL_INT32(ARG(type)) == cast(REBINT, Action_Count));
-        else {
-            // !!! Originally this was written to take datatypes, then that
-            // didn't work.  It was changed to INTEGER! with the datatype
-            // left for future need (do users need to create ACTIONs like
-            // this?)  But should it be changed to take a symbol instead
-            // (quoted perhaps?) of the type so the boot reads better?
-            //
-            assert(IS_DATATYPE(ARG(type)));
-            fail (Error(RE_MISC));
-        }
-    }
+    #if defined(NDEBUG)
+        REBFLGS flags = MKF_KEYWORDS | MKF_FAKE_RETURN;
+    #else
+        REBFLGS flags = MKF_KEYWORDS | MKF_RETURN; // want to check returns
+    #endif
 
-    Make_Native(
-        D_OUT,
-        VAL_ARRAY(ARG(spec)),
-        cast(REBNAT, cast(REBUPT, Action_Count)),
-        FUNC_CLASS_ACTION
+    REBFUN *fun = Make_Function(
+        Make_Paramlist_Managed_May_Fail(spec, flags),
+        &Action_Dispatcher,
+        NULL // no underlying function--this is fundamental
     );
 
-    Action_Count++;
-    return R_OUT;
+    *FUNC_BODY(fun) = *ARG(verb);
+
+    // A lookback quoting function that quotes a SET-WORD! on its left is
+    // responsible for setting the value if it wants it to change.
+    //
+    *GET_MUTABLE_VAR_MAY_FAIL(ARG(verb), SPECIFIED) = *FUNC_VALUE(fun);
+
+    return R_BLANK; // result won't be used if a function left-quotes SET-WORD!
 }
 
 
 //
-//  context: native [
-//  
-//  "Defines a unique object."
-//  
-//      spec [block!] "Object words and values (modified)"
-//  ]
+//  Add_Lib_Keys_R3Alpha_Cant_Make: C
 //
-REBNATIVE(context)
+// In order for the bootstrap to assign values to library words, they have to
+// exist in the bootstrap context.  The way they get into the context is by
+// a scan for top-level SET-WORD!s in the %sys-xxx.r and %mezz-xxx.r files.
 //
-// The spec block has already been bound to Lib_Context, to
-// allow any embedded values and functions to evaluate.
-// 
-// Note: Overlaps code in REBTYPE(Context)'s A_MAKE handling
+// However, R3-Alpha doesn't allow set-words like /: and <=:  The words can
+// be gotten with `pick [/] 1` or similar, but they cannot be SET because
+// there's nothing in the context to bind them to...since no SET-WORD! was
+// picked up in the scan.
+//
+// As a workaround, this just adds the words to the context manually.  Then,
+// however the words are created, it will be possible to bind them and set
+// them to things.
+//
+// !!! Even as Ren-C becomes more permissive in letting SET-WORDs for these
+// items be created, they should not be seen by %make-boot.r so long as the
+// code expects to be bootstrapped with R3-Alpha.  This is because as part
+// of the bootstrap, the code is loaded/processed and molded out as one
+// giant file.  Ren-C being able to read `=>:` would not be able to help
+// retroactively make old R3-Alphas read it too.
+//
+static void Add_Lib_Keys_R3Alpha_Cant_Make(void)
 {
-    PARAM(1, spec);
+    const char *names[] = {
+        "<",
+        ">",
 
-    REBVAL dummy; // doesn't need GC-safety for this use (at time of writing)
-    VAL_INIT_WRITABLE_DEBUG(&dummy);
+        "<=", // less than or equal to
+        "=>", // no current system meaning
 
-    Val_Init_Object(
-        D_OUT,
-        Make_Selfish_Context_Detect(
-            REB_OBJECT, // kind
-            NULL, // spec
-            NULL, // body
-            VAL_ARRAY_HEAD(ARG(spec)), // values to scan for toplevel SET_WORDs
-            NULL // parent
-        )
-    );
+        ">=", // greater than or equal to
+        "=<",
 
-    // !!! This mutates the bindings of the spec block passed in, should it
-    // be making a copy instead (at least by default, perhaps with performance
-    // junkies saying `object/bind` or something like that?
-    //
-    Bind_Values_Deep(VAL_ARRAY_HEAD(ARG(spec)), VAL_CONTEXT(D_OUT));
+        "<>", // may ultimately be targeted for empty tag in Ren-C
 
-    // The evaluative result of running the spec is ignored and done into a
-    // scratch cell, but needs to be returned if a throw happens.
-    //
-    if (DO_VAL_ARRAY_AT_THROWS(&dummy, ARG(spec))) {
-        *D_OUT = dummy;
-        return R_OUT_IS_THROWN;
+        "->", // FUNCTION-style lambda ("reaches in")
+        "<-", // FUNC-style lambda ("reaches out"),
+
+        "|>", // Evaluate to next single expression, but do ones afterward
+        "<|", // Evaluate to previous expression, but do rest (like ALSO)
+
+        "/",
+        "//", // is remainder in R3-Alpha, not ideal
+
+        NULL
+    };
+
+    REBINT i = 0;
+    while (names[i]) {
+        REBSTR *str = Intern_UTF8_Managed(cb_cast(names[i]), strlen(names[i]));
+        REBVAL *val = Append_Context(Lib_Context, NULL, str);
+        SET_VOID(val); // functions will fill in (no-op, since void already)
+        ++i;
     }
-
-    // On success, return the object (common case)
-    //
-    return R_OUT;
 }
 
 
 //
-//  Init_Ops: C
+//  Init_Function_Tags: C
 //
-static void Init_Ops(void)
+// FUNC and PROC search for these tags, like <opt> and <local>.  They are
+// natives and run during bootstrap, so these string comparisons are
+// needed.
+//
+// !!! It didn't seem there was a "compare UTF8 byte array to arbitrary
+// decoded REB_TAG which may or may not be REBUNI" routine, but there was
+// an easy way to compare tags to each other.  So pre-fabricating these was
+// quick, but a better solution should be reviewed in terms of an overall
+// string and UTF8 rethinking.
+//
+static void Init_Function_Tags(void)
 {
-    REBVAL *word;
-    REBVAL *val;
+    struct {
+        const char *name;
+        REBVAL *slot;
+    } tags[] = {
+        "no-return", ROOT_NO_RETURN_TAG,
+        "no-leave", ROOT_NO_LEAVE_TAG,
+        "punctuates", ROOT_PUNCTUATES_TAG,
+        "...", ROOT_ELLIPSIS_TAG,
+        "opt", ROOT_OPT_TAG,
+        "end", ROOT_END_TAG,
+        "local", ROOT_LOCAL_TAG,
+        "durable", ROOT_DURABLE_TAG,
+        NULL, NULL
+    };
 
-    for (word = VAL_ARRAY_HEAD(&Boot_Block->ops); NOT_END(word); word++) {
-        // Append the operator name to the lib frame:
-        val = Append_Context(Lib_Context, word, 0);
-
-        // leave UNSET!, functions will be filled in later...
-        cast(void, cast(REBUPT, val));
+    REBINT i = 0;
+    while (tags[i].name) {
+        Val_Init_Tag(
+            tags[i].slot,
+            Append_UTF8_May_Fail(
+                NULL, cb_cast(tags[i].name), strlen(tags[i].name)
+            )
+        );
+        SET_SER_FLAG(VAL_SERIES(tags[i].slot), SERIES_FLAG_FIXED_SIZE);
+        SET_SER_FLAG(VAL_SERIES(tags[i].slot), SERIES_FLAG_LOCKED);
+        ++i;
     }
 }
 
@@ -587,101 +568,174 @@ static void Init_Ops(void)
 //
 //  Init_Natives: C
 // 
-// Create native functions.
+// Create native functions.  In R3-Alpha this would go as far as actually
+// creating a NATIVE native by hand, and then run code that would call that
+// native for each function.  Ren-C depends on having the native table
+// initialized to run the evaluator (for instance to test functions against
+// the RETURN native's FUNC signature in definitional returns).  So it
+// "fakes it" just by calling a C function for each item...and there is no
+// actual "native native".
+//
+// If there *were* a REBNATIVE(native) this would be its spec:
+//
+//  native: native [
+//      spec [block!]
+//      /body
+//          {Body of user code matching native's behavior (for documentation)}
+//      code [block!]
+//  ]
 //
 static void Init_Natives(void)
 {
-    REBVAL *item = VAL_ARRAY_HEAD(&Boot_Block->natives);
-    REBVAL *val;
-    REBVAL *native_word;
+    // !!! See notes on FUNCTION-META in %sysobj.r
+    {
+        REBCTX *function_meta = Alloc_Context(3);
+        Append_Context(function_meta, NULL, Canon(SYM_DESCRIPTION));
+        Append_Context(function_meta, NULL, Canon(SYM_RETURN_TYPE));
+        Append_Context(function_meta, NULL, Canon(SYM_RETURN_NOTE));
+        Append_Context(function_meta, NULL, Canon(SYM_PARAMETER_TYPES));
+        Append_Context(function_meta, NULL, Canon(SYM_PARAMETER_NOTES));
+        REBVAL *rootvar = CTX_VALUE(function_meta);
+        VAL_RESET_HEADER(rootvar, REB_OBJECT);
+        rootvar->extra.binding = NULL;
+        Val_Init_Object(ROOT_FUNCTION_META, function_meta);
+    }
+
+    // !!! Same, we want to have SPECIALIZE before %sysobj.r loaded
+    {
+        REBCTX *specialized_meta = Alloc_Context(3);
+        Append_Context(specialized_meta, NULL, Canon(SYM_DESCRIPTION));
+        Append_Context(specialized_meta, NULL, Canon(SYM_SPECIALIZEE));
+        Append_Context(specialized_meta, NULL, Canon(SYM_SPECIALIZEE_NAME));
+        REBVAL *rootvar = CTX_VALUE(specialized_meta);
+        VAL_RESET_HEADER(rootvar, REB_OBJECT);
+        rootvar->extra.binding = NULL;
+        Val_Init_Object(ROOT_SPECIALIZED_META, specialized_meta);
+    }
+
+    RELVAL *item = VAL_ARRAY_HEAD(&Boot_Block->natives);
+    REBCNT n = 0;
     REBVAL *action_word;
 
-    Action_Count = 1; // Skip A_TRASH_Q
-    Native_Count = 0;
-    Native_Limit = MAX_NATS;
-    Native_Functions = Native_Funcs;
+    while (NOT_END(item)) {
+        if (n >= NUM_NATIVES)
+            fail (Error(RE_MAX_NATIVES));
 
-    // Construct first native, which is the NATIVE function creator itself:
+        // Each entry should be one of these forms:
+        //
+        //    some-name: native [spec content]
+        //
+        //    some-name: native/body [spec content] [equivalent user code]
+        //
+        // If more refinements are added, this code will have to be made
+        // more sophisticated.
+        //
+        // Though the manual building of this table is not as nice as running
+        // the evaluator, the evaluator makes comparisons against native
+        // values.  Having all natives loaded fully before ever running
+        // Do_Core() helps with stability and invariants.
+
+        // Get the name the native will be started at with in Lib_Context
+        //
+        if (!IS_SET_WORD(item))
+            panic (Error(RE_NATIVE_BOOT));
+
+        REBVAL *name = KNOWN(item);
+        ++item;
+
+        // See if it's being invoked with NATIVE or NATIVE/BODY
+        //
+        REBOOL has_body;
+        if (IS_WORD(item)) {
+            if (VAL_WORD_SYM(item) != SYM_NATIVE)
+                panic (Error(RE_NATIVE_BOOT));
+            has_body = FALSE;
+        }
+        else {
+            if (
+                !IS_PATH(item)
+                || VAL_LEN_HEAD(item) != 2
+                || !IS_WORD(ARR_HEAD(VAL_ARRAY(item)))
+                || VAL_WORD_SYM(ARR_HEAD(VAL_ARRAY(item))) != SYM_NATIVE
+                || !IS_WORD(ARR_AT(VAL_ARRAY(item), 1))
+                || VAL_WORD_SYM(ARR_AT(VAL_ARRAY(item), 1)) != SYM_BODY
+            ) {
+                panic (Error(RE_NATIVE_BOOT));
+            }
+            has_body = TRUE;
+        }
+        ++item;
+
+        // Grab the spec, and turn any <opt> into _ (the spec processor is low
+        // level and does not understand <opt>)
+        //
+        if (!IS_BLOCK(item))
+            panic (Error(RE_NATIVE_BOOT));
+
+        REBVAL *spec = KNOWN(item);
+        assert(VAL_INDEX(spec) == 0); // must be at head (we don't copy)
+        ++item;
+
+        // With the components extracted, generate the native and add it to
+        // the Natives table.  The associated C function is provided by a
+        // table built in the bootstrap scripts, `Native_C_Funcs`.
+
+    #if defined(NDEBUG)
+        REBFLGS flags = MKF_KEYWORDS | MKF_FAKE_RETURN;
+    #else
+        REBFLGS flags = MKF_KEYWORDS | MKF_RETURN; // want to check returns
+    #endif
+
+        REBFUN *fun = Make_Function(
+            Make_Paramlist_Managed_May_Fail(KNOWN(spec), flags),
+            Native_C_Funcs[n], // "dispatcher" is unique to this "native"
+            NULL // no underlying function, this is fundamental
+        );
+
+        // If a user-equivalent body was provided, we save it in the native's
+        // REBVAL for later lookup.
+        //
+        if (has_body) {
+            if (!IS_BLOCK(item))
+                panic (Error(RE_NATIVE_BOOT));
+            *FUNC_BODY(fun) = *KNOWN(item); // !!! handle relative?
+            ++item;
+        }
+
+        Natives[n] = *FUNC_VALUE(fun);
+
+        // Append the native to the Lib_Context under the name given.  Do
+        // special case SET/LOOKBACK=TRUE (using Append_Context_Core) so
+        // that SOME-ACTION: ACTION [...] allows ACTION to see the SOME-ACTION
+        // symbol, and know to use it.
+        //
+        if (VAL_WORD_SYM(name) == SYM_ACTION) {
+            *Append_Context_Core(Lib_Context, name, 0, TRUE) = Natives[n];
+             action_word = name; // was bound by Append_Context_Core
+        }
+        else
+            *Append_Context(Lib_Context, name, 0) = Natives[n];
+
+        ++n;
+    }
+
+    if (n != NUM_NATIVES)
+        fail (Error(RE_NATIVE_BOOT));
+
+    // Should have found and bound `action:` among the natives
     //
-    //     native: native [spec [block!]]
-    //
-    if (!IS_SET_WORD(item) || VAL_WORD_SYM(item) != SYM_NATIVE)
+    if (!action_word)
         panic (Error(RE_NATIVE_BOOT));
 
-    val = Append_Context(Lib_Context, item, 0);
-    native_word = item; // bound
-
-    item++; // skip `native:`
-    assert(IS_WORD(item) && VAL_WORD_SYM(item) == SYM_NATIVE);
-    item++; // skip `native` so we're on the `[spec [block!]]`
-    Make_Native(
-        val, VAL_ARRAY(item), *Native_Functions++, FUNC_CLASS_NATIVE
-    );
-    Native_Count++;
-    item++; // skip spec
-
-    // Construct second native, which is the ACTION function creator:
+    // With the natives registered (including ACTION), it's now safe to
+    // run the evaluator to register the actions.
     //
-    //     action: native [spec [block!]]
-    //
-    if (!IS_SET_WORD(item) || VAL_WORD_SYM(item) != SYM_ACTION)
-        panic (Error(RE_NATIVE_BOOT));
-
-    val = Append_Context(Lib_Context, item, 0);
-    action_word = item; // bound
-
-    item++; // skip `action:`
-    assert(IS_WORD(item) && VAL_WORD_SYM(item) == SYM_NATIVE);
-    item++; // skip `native`
-    Make_Native(
-        val, VAL_ARRAY(item), *Native_Functions++, FUNC_CLASS_NATIVE
-    );
-    Native_Count++;
-    item++; // skip spec
-
-    // Save index for action words.  This is used by Get_Action_Sym().  We have
-    // to subtract tone to account for our skipped TRASH? which should not be
-    // exposed to the user.
-    //
-    Action_Marker = CTX_LEN(Lib_Context);
     Do_Global_Block(VAL_ARRAY(&Boot_Block->actions), 0, -1, action_word);
 
     // Sanity check the symbol transformation
     //
-    if (0 != strcmp("open", cs_cast(Get_Sym_Name(Get_Action_Sym(A_OPEN)))))
+    if (0 != strcmp("open", cs_cast(STR_HEAD(Canon(SYM_OPEN)))))
         panic (Error(RE_NATIVE_BOOT));
-
-    // Do native construction, but start from after NATIVE: and ACTION: as we
-    // built those by hand
-    //
-    Do_Global_Block(
-        VAL_ARRAY(&Boot_Block->natives),
-        item - VAL_ARRAY_HEAD(&Boot_Block->natives),
-        -1,
-        native_word
-    );
-}
-
-
-//
-//  Get_Action_Sym: C
-// 
-// Return the word symbol for a given Action number.
-//
-REBCNT Get_Action_Sym(REBCNT action)
-{
-    return CTX_KEY_SYM(Lib_Context, Action_Marker + action);
-}
-
-
-//
-//  Get_Action_Value: C
-// 
-// Return the value (function) for a given Action number.
-//
-REBVAL *Get_Action_Value(REBCNT action)
-{
-    return CTX_VAR(Lib_Context, Action_Marker + action);
 }
 
 
@@ -713,25 +767,23 @@ static void Init_Root_Context(void)
     //
     /*Free_Array(CTX_KEYLIST(root));*/
     /*INIT_CTX_KEYLIST_UNIQUE(root, NULL);*/ // can't use with NULL
-    ARR_SERIES(CTX_VARLIST(root))->misc.keylist = NULL;
+    ARR_SERIES(CTX_VARLIST(root))->link.keylist = NULL;
     MANAGE_ARRAY(CTX_VARLIST(root));
 
     // !!! Also no `stackvars` (or `spec`, not yet implemented); revisit
     //
     VAL_RESET_HEADER(CTX_VALUE(root), REB_OBJECT);
-    VAL_CONTEXT_SPEC(CTX_VALUE(root)) = NULL;
-    VAL_CONTEXT_STACKVARS(CTX_VALUE(root)) = NULL;
+    CTX_VALUE(root)->extra.binding = NULL;
 
-    // Set all other values to NONE:
+    // Set all other values to blank
     {
         REBINT n = 1;
         REBVAL *var = CTX_VARS_HEAD(root);
-        for (; n < ROOT_MAX; n++, var++) SET_NONE(var);
-        SET_END(var);
-        SET_ARRAY_LEN(CTX_VARLIST(root), ROOT_MAX);
+        for (; n < ROOT_MAX; n++, var++) SET_BLANK(var);
+        TERM_ARRAY_LEN(CTX_VARLIST(root), ROOT_MAX);
     }
 
-    // These values are simple isolated UNSET, NONE, TRUE, and FALSE values
+    // These values are simple isolated VOID, NONE, TRUE, and FALSE values
     // that can be used in lieu of initializing them.  They are initialized
     // as two-element series in order to ensure that their address is not
     // treated as an array.  They are unsettable (in debug builds), to avoid
@@ -742,36 +794,32 @@ static void Init_Root_Context(void)
     // the root set.  Should that change, they could be explicitly added
     // to the GC's root set.
 
-    VAL_INIT_WRITABLE_DEBUG(&PG_Unset_Value[0]);
-    SET_UNSET(&PG_Unset_Value[0]);
-    VAL_INIT_WRITABLE_DEBUG(&PG_Unset_Value[1]);
-    SET_TRASH_IF_DEBUG(&PG_Unset_Value[1]);
-    MARK_VAL_UNWRITABLE_DEBUG(&PG_Unset_Value[1]);
+    SET_VOID(&PG_Void_Cell[0]);
+    SET_TRASH_IF_DEBUG(&PG_Void_Cell[1]);
+    MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(&PG_Void_Cell[1]);
 
-    VAL_INIT_WRITABLE_DEBUG(&PG_None_Value[0]);
-    SET_NONE(&PG_None_Value[0]);
-    VAL_INIT_WRITABLE_DEBUG(&PG_None_Value[1]);
-    SET_TRASH_IF_DEBUG(&PG_None_Value[1]);
-    MARK_VAL_UNWRITABLE_DEBUG(&PG_None_Value[1]);
+    SET_BLANK(&PG_Blank_Value[0]);
+    SET_TRASH_IF_DEBUG(&PG_Blank_Value[1]);
+    MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(&PG_Blank_Value[1]);
 
-    VAL_INIT_WRITABLE_DEBUG(&PG_False_Value[0]);
+    SET_BAR(&PG_Bar_Value[0]);
+    SET_TRASH_IF_DEBUG(&PG_Bar_Value[1]);
+    MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(&PG_Bar_Value[1]);
+
     SET_FALSE(&PG_False_Value[0]);
-    VAL_INIT_WRITABLE_DEBUG(&PG_False_Value[1]);
     SET_TRASH_IF_DEBUG(&PG_False_Value[1]);
-    MARK_VAL_UNWRITABLE_DEBUG(&PG_False_Value[1]);
+    MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(&PG_False_Value[1]);
 
-    VAL_INIT_WRITABLE_DEBUG(&PG_True_Value[0]);
     SET_TRUE(&PG_True_Value[0]);
-    VAL_INIT_WRITABLE_DEBUG(&PG_True_Value[1]);
     SET_TRASH_IF_DEBUG(&PG_True_Value[1]);
-    MARK_VAL_UNWRITABLE_DEBUG(&PG_True_Value[1]);
+    MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(&PG_True_Value[1]);
 
     // We can't actually put an end value in the middle of a block, so we poke
     // this one into a program global.  It is not legal to bit-copy an
     // END (you always use SET_END), so we can make it unwritable.
     //
-    PG_End_Val.header.bits = 0; // read-only end
-    assert(IS_END(END_VALUE)); // sanity check that it took
+    PG_End_Cell.header.bits = 0; // read-only end
+    assert(IS_END(END_CELL)); // sanity check that it took
 
     // The EMPTY_BLOCK provides EMPTY_ARRAY.  It is locked for protection.
     //
@@ -779,37 +827,16 @@ static void Init_Root_Context(void)
     SET_SER_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SERIES_FLAG_LOCKED);
     SET_SER_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SERIES_FLAG_FIXED_SIZE);
 
-    // Used by FUNC and PROC generators - RETURN: & LEAVE:
-    //
-    Val_Init_Word(ROOT_RETURN_SET_WORD, REB_SET_WORD, SYM_RETURN);
-    Val_Init_Word(ROOT_LEAVE_SET_WORD, REB_SET_WORD, SYM_LEAVE);
-
-    // Make a series that's just [return:], that is made often in function
-    // spec blocks (when the original spec was just []).  Unlike the paramlist
-    // a function spec doesn't need unique mutable identity, so a shared
-    // series saves on allocation time and space...do the same for [leave:]
-    //
-    Val_Init_Block(ROOT_RETURN_BLOCK, Make_Array(1));
-    Append_Value(VAL_ARRAY(ROOT_RETURN_BLOCK), ROOT_RETURN_SET_WORD);
-    SET_ARR_FLAG(VAL_ARRAY(ROOT_RETURN_BLOCK), SERIES_FLAG_LOCKED);
-    SET_ARR_FLAG(VAL_ARRAY(ROOT_RETURN_BLOCK), SERIES_FLAG_FIXED_SIZE);
-
-    Val_Init_Block(ROOT_LEAVE_BLOCK, Make_Array(1));
-    Append_Value(VAL_ARRAY(ROOT_LEAVE_BLOCK), ROOT_LEAVE_SET_WORD);
-    SET_ARR_FLAG(VAL_ARRAY(ROOT_LEAVE_BLOCK), SERIES_FLAG_LOCKED);
-    SET_ARR_FLAG(VAL_ARRAY(ROOT_LEAVE_BLOCK), SERIES_FLAG_FIXED_SIZE);
+    REBSER *empty_series = Make_Binary(1);
+    *BIN_AT(empty_series, 0) = '\0';
+    Val_Init_String(ROOT_EMPTY_STRING, empty_series);
+    SET_SER_FLAG(VAL_SERIES(ROOT_EMPTY_STRING), SERIES_FLAG_LOCKED);
+    SET_SER_FLAG(VAL_SERIES(ROOT_EMPTY_STRING), SERIES_FLAG_FIXED_SIZE);
 
     // Used by REBNATIVE(print)
     //
-    Val_Init_Block(ROOT_DEFAULT_PRINT_DELIMITER, Make_Array(2));
-    SET_CHAR(VAL_ARRAY_HEAD(ROOT_DEFAULT_PRINT_DELIMITER), ' ');
-    SET_BAR(VAL_ARRAY_AT_HEAD(ROOT_DEFAULT_PRINT_DELIMITER, 1));
-    SET_END(VAL_ARRAY_AT_HEAD(ROOT_DEFAULT_PRINT_DELIMITER, 2));
-    SET_ARRAY_LEN(VAL_ARRAY(ROOT_DEFAULT_PRINT_DELIMITER), 2);
-    SET_ARR_FLAG(VAL_ARRAY(ROOT_DEFAULT_PRINT_DELIMITER), SERIES_FLAG_LOCKED);
-    SET_ARR_FLAG(
-        VAL_ARRAY(ROOT_DEFAULT_PRINT_DELIMITER), SERIES_FLAG_FIXED_SIZE
-    );
+    SET_CHAR(ROOT_SPACE_CHAR, ' ');
+    MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(ROOT_SPACE_CHAR);
 
     // Can't ASSERT_CONTEXT here; no keylist yet...
 }
@@ -858,23 +885,21 @@ static void Init_Task_Context(void)
     //
     /*Free_Array(CTX_KEYLIST(task));*/
     /*INIT_CTX_KEYLIST_UNIQUE(task, NULL);*/ // can't use with NULL
-    ARR_SERIES(CTX_VARLIST(task))->misc.keylist = NULL;
+    ARR_SERIES(CTX_VARLIST(task))->link.keylist = NULL;
 
     MANAGE_ARRAY(CTX_VARLIST(task));
 
     // !!! Also no `body` (or `spec`, not yet implemented); revisit
     //
     VAL_RESET_HEADER(CTX_VALUE(task), REB_OBJECT);
-    VAL_CONTEXT_SPEC(CTX_VALUE(task)) = NULL;
-    VAL_CONTEXT_STACKVARS(CTX_VALUE(task)) = NULL;
+    CTX_VALUE(task)->extra.binding = NULL;
 
     // Set all other values to NONE:
     {
         REBINT n = 1;
         REBVAL *var = CTX_VARS_HEAD(task);
-        for (; n < TASK_MAX; n++, var++) SET_NONE(var);
-        SET_END(var);
-        SET_ARRAY_LEN(CTX_VARLIST(task), TASK_MAX);
+        for (; n < TASK_MAX; n++, var++) SET_BLANK(var);
+        TERM_ARRAY_LEN(CTX_VARLIST(task), TASK_MAX);
     }
 
     // Initialize a few fields:
@@ -884,7 +909,6 @@ static void Init_Task_Context(void)
     // The thrown arg is not intended to ever be around long enough to be
     // seen by the GC.
     //
-    VAL_INIT_WRITABLE_DEBUG(&TG_Thrown_Arg);
     SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
 
     // Can't ASSERT_CONTEXT here; no keylist yet...
@@ -900,19 +924,10 @@ static void Init_Task_Context(void)
 //
 static void Init_System_Object(void)
 {
-    REBCTX *system;
-    REBARR *array;
-    REBVAL *value;
-    REBCNT n;
-
-    REBVAL result;
-    VAL_INIT_WRITABLE_DEBUG(&result);
-
     // Create the system object from the sysobj block (defined in %sysobj.r)
     //
-    system = Make_Selfish_Context_Detect(
+    REBCTX *system = Make_Selfish_Context_Detect(
         REB_OBJECT, // type
-        NULL, // spec
         NULL, // body
         VAL_ARRAY_HEAD(&Boot_Block->sysobj), // scan for toplevel set-words
         NULL // parent
@@ -924,48 +939,51 @@ static void Init_System_Object(void)
     //
     Bind_Values_Shallow(VAL_ARRAY_HEAD(&Boot_Block->sysobj), system);
 
-    // Evaluate the block (will eval CONTEXTs within).  Expects UNSET!.
+    // Evaluate the block (will eval CONTEXTs within).  Expects void result.
     //
+    REBVAL result;
     if (DO_VAL_ARRAY_AT_THROWS(&result, &Boot_Block->sysobj))
         panic (Error_No_Catch_For_Throw(&result));
-    if (!IS_UNSET(&result))
+    if (!IS_VOID(&result))
         panic (Error(RE_MISC));
 
     // Create a global value for it.  (This is why we are able to say `system`
     // and have it bound in lines like `sys: system/contexts/sys`)
     //
-    value = Append_Context(Lib_Context, 0, SYM_SYSTEM);
-    Val_Init_Object(value, system);
+    Val_Init_Object(
+        Append_Context(Lib_Context, NULL, Canon(SYM_SYSTEM)),
+        system
+    );
 
     // We also add the system object under the root, to ensure it can't be
     // garbage collected and be able to access it from the C code.  (Someone
-    // could say `system: none` in the Lib_Context and then it would be a
+    // could say `system: blank` in the Lib_Context and then it would be a
     // candidate for garbage collection otherwise!)
     //
     Val_Init_Object(ROOT_SYSTEM, system);
 
-    // Create system/datatypes block
+    // Create system/datatypes block.  Start at 1 (REB_BLANK), given that 0
+    // is REB_0_LOOKBACK and does not correspond to a value type.
     //
-    value = Get_System(SYS_CATALOG, CAT_DATATYPES);
-    array = VAL_ARRAY(value);
-    Extend_Series(ARR_SERIES(array), REB_MAX_0 - 1);
-    for (n = 1; n <= REB_MAX_0; n++) {
+    REBARR *array = VAL_ARRAY(Get_System(SYS_CATALOG, CAT_DATATYPES));
+    Extend_Series(ARR_SERIES(array), REB_MAX - 1);
+
+    REBCNT n;
+    for (n = 1; n < REB_MAX; n++) {
         Append_Value(array, CTX_VAR(Lib_Context, n));
     }
 
     // Create system/catalog/actions block
     //
-    value = Get_System(SYS_CATALOG, CAT_ACTIONS);
     Val_Init_Block(
-        value,
+        Get_System(SYS_CATALOG, CAT_ACTIONS),
         Collect_Set_Words(VAL_ARRAY_HEAD(&Boot_Block->actions))
     );
 
     // Create system/catalog/natives block
     //
-    value = Get_System(SYS_CATALOG, CAT_NATIVES);
     Val_Init_Block(
-        value,
+        Get_System(SYS_CATALOG, CAT_NATIVES),
         Collect_Set_Words(VAL_ARRAY_HEAD(&Boot_Block->natives))
     );
 
@@ -973,12 +991,10 @@ static void Init_System_Object(void)
     //
     {
         REBCTX *codecs = Alloc_Context(10);
-
-        value = Get_System(SYS_CODECS, 0);
+        SET_BLANK(CTX_ROOTKEY(codecs));
         VAL_RESET_HEADER(CTX_VALUE(codecs), REB_OBJECT);
-        INIT_CONTEXT_SPEC(codecs, NULL);
-        CTX_STACKVARS(codecs) = NULL;
-        Val_Init_Object(value, codecs);
+        CTX_VALUE(codecs)->extra.binding = NULL;
+        Val_Init_Object(Get_System(SYS_CODECS, 0), codecs);
     }
 }
 
@@ -986,19 +1002,25 @@ static void Init_System_Object(void)
 //
 //  Init_Contexts_Object: C
 //
+// This sets up the system/contexts object.
+//
+// !!! One of the critical areas in R3-Alpha that was not hammered out
+// completely was the question of how the binding process gets started, and
+// how contexts might inherit or relate.
+//
+// However, the basic model for bootstrap is that the "user context" is the
+// default area for new code evaluation.  It starts out as a copy of an
+// initial state set up in the lib context.  When native routines or other
+// content gets overwritten in the user context, it can be borrowed back
+// from `system/contexts/lib` (typically aliased as "lib" in the user context).
+//
 static void Init_Contexts_Object(void)
 {
-    REBVAL *value;
-
-    value = Get_System(SYS_CONTEXTS, CTX_SYS);
-    Val_Init_Object(value, Sys_Context);
-
-    value = Get_System(SYS_CONTEXTS, CTX_LIB);
-    Val_Init_Object(value, Lib_Context);
-
-    value = Get_System(SYS_CONTEXTS, CTX_USER);  // default for new code evaluation
-    Val_Init_Object(value, Lib_Context);
+    Val_Init_Object(Get_System(SYS_CONTEXTS, CTX_SYS), Sys_Context);
+    Val_Init_Object(Get_System(SYS_CONTEXTS, CTX_LIB), Lib_Context);
+    Val_Init_Object(Get_System(SYS_CONTEXTS, CTX_USER), Lib_Context);
 }
+
 
 //
 //  Codec_Text: C
@@ -1142,7 +1164,7 @@ REBINT Codec_UTF16BE(REBCDI *codi)
 void Register_Codec(const REBYTE *name, codo dispatcher)
 {
     REBVAL *value = Get_System(SYS_CODECS, 0);
-    REBSYM sym = Make_Word(name, LEN_BYTES(name));
+    REBSTR *sym = Intern_UTF8_Managed(name, LEN_BYTES(name));
 
     value = Append_Context(VAL_CONTEXT(value), 0, sym);
     SET_HANDLE_CODE(value, cast(CFUNC*, dispatcher));
@@ -1174,23 +1196,24 @@ static void Set_Option_String(REBCHR *str, REBCNT field)
 }
 
 
-static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
+static REBSTR *Set_Option_Word(REBCHR *str, REBCNT field)
 {
-    REBVAL *val;
-    REBYTE *bp;
-    REBYTE buf[40]; // option words always short ASCII strings
-    REBCNT n = 0;
+    if (!str) return NULL;
 
-    if (str) {
-        n = OS_STRLEN(str); // WC correct
-        if (n > 38) return 0;
-        bp = &buf[0];
-        while ((*bp++ = cast(REBYTE, OS_CH_VALUE(*(str++))))); // clips unicode
-        n = Make_Word(buf, n);
-        val = Get_System(SYS_OPTIONS, field);
-        Val_Init_Word(val, REB_WORD, n);
-    }
-    return n;
+    REBYTE buf[40]; // option words always short ASCII strings
+
+    REBCNT len = OS_STRLEN(str); // WC correct
+    assert(len <= 38);
+
+    REBYTE *bp = &buf[0];
+    while ((*bp++ = cast(REBYTE, OS_CH_VALUE(*(str++))))); // clips unicode
+
+    REBSTR *name = Intern_UTF8_Managed(buf, len);
+
+    REBVAL *val = Get_System(SYS_OPTIONS, field);
+    Val_Init_Word(val, REB_WORD, name);
+
+    return name;
 }
 
 
@@ -1202,6 +1225,7 @@ static REBCNT Set_Option_Word(REBCHR *str, REBCNT field)
 static void Init_Main_Args(REBARGS *rargs)
 {
     REBVAL *val;
+    RELVAL *item;
     REBARR *array;
     REBCHR *data;
     REBCNT n;
@@ -1209,9 +1233,10 @@ static void Init_Main_Args(REBARGS *rargs)
     array = Make_Array(3);
     n = 2; // skip first flag (ROF_EXT)
     val = Get_System(SYS_CATALOG, CAT_BOOT_FLAGS);
-    for (val = VAL_ARRAY_HEAD(val); NOT_END(val); val++) {
-        CLEAR_VAL_FLAG(val, VALUE_FLAG_LINE);
-        if (rargs->options & n) Append_Value(array, val);
+    for (item = VAL_ARRAY_HEAD(val); NOT_END(item); item++) {
+        CLEAR_VAL_FLAG(item, VALUE_FLAG_LINE);
+        if (rargs->options & n)
+            Append_Value(array, KNOWN(item)); // no relatives in BOOT_FLAGS (?)
         n <<= 1;
     }
     val = Alloc_Tail_Array(array);
@@ -1253,7 +1278,11 @@ static void Init_Main_Args(REBARGS *rargs)
         Val_Init_File(val, ser);
     }
 
-    n = Set_Option_Word(rargs->boot, OPTIONS_BOOT_LEVEL);
+    REBSTR *name = Set_Option_Word(rargs->boot, OPTIONS_BOOT_LEVEL);
+    if (name != NULL)
+        n = cast(REBCNT, STR_SYMBOL(name));
+    else
+        n = 0;
     if (n >= SYM_BASE && n <= SYM_MODS)
         PG_Boot_Level = n - SYM_BASE; // 0 - 3
 
@@ -1263,12 +1292,11 @@ static void Init_Main_Args(REBARGS *rargs)
         // n == number_of_args + 1
         array = Make_Array(n);
         Val_Init_Block(Get_System(SYS_OPTIONS, OPTIONS_ARGS), array);
-        SET_ARRAY_LEN(array, n - 1);
+        TERM_ARRAY_LEN(array, n - 1);
         for (n = 0; (data = rargs->args[n]); ++n)
             Val_Init_String(
                 ARR_AT(array, n), Copy_OS_Str(data, OS_STRLEN(data))
             );
-        TERM_ARRAY(array);
     }
 
     Set_Option_String(rargs->debug, OPTIONS_DEBUG);
@@ -1334,7 +1362,6 @@ void Init_Task(void)
     Init_Task_Context();    // Special REBOL values per task
 
     Init_Raw_Print();
-    Init_Words(TRUE);
     Init_Stacks(STACK_MIN/4);
     Init_Scanner();
     Init_Mold(MIN_COMMON/4);
@@ -1360,58 +1387,34 @@ void Init_Year(void)
 //
 //  Init_Core: C
 // 
-// Initialize the interpreter core.  The initialization will
-// either succeed or "panic".
+// Initialize the interpreter core.
+//
+// !!! This will either succeed or "panic".  Panic currently triggers an exit
+// to the OS.  The code is not currently written to be able to cleanly shut
+// down from a partial initialization.  (It should be.)
+//
+// The phases of initialization are tracked by PG_Boot_Phase.  Some system
+// functions are unavailable at certain phases.
 // 
-// !!! Panic currently triggers an exit to the OS.  Offering a
-// hook to cleanly fail would be ideal--but the code is not
-// currently written to be able to cleanly shut down from a
-// partial initialization.
+// Though most of the initialization is run as C code, some portions are run
+// in Rebol.  For instance, ACTION is a function registered very early on in
+// the boot process, which is run from within a block to register more
+// functions.
 // 
-// The phases of initialization are tracked by PG_Boot_Phase.
-// Some system functions are unavailable at certain phases.
-// 
-// Though most of the initialization is run as C code, some
-// portions are run in Rebol.  Small bits are run during the
-// loading of natives and actions (for instance, NATIVE and
-// ACTION are functions that are registered very early on in
-// the booting process, which are run during boot to register
-// each of the natives and actions).
-// 
-// At the tail of the initialization, `finish_init_core` is run.
-// This Rebol function lives in %sys-start.r, and it should be
-// "host agnostic".  Hence it should not assume things about
-// command-line switches (or even that there is a command line!)
-// Converting the code that made such assumptions is an
-// ongoing process.
+// At the tail of the initialization, `finish_init_core` is run.  This Rebol
+// function lives in %sys-start.r.   It should be "host agnostic" and not
+// assume things about command-line switches (or even that there is a command
+// line!)  Converting the code that made such assumptions ongoing.
 //
 void Init_Core(REBARGS *rargs)
 {
-    REBCTX *error;
-    struct Reb_State state;
-    REBARR *keylist;
-
-    // !!! These need to find a new home, and preferably a way to be read
-    // as constants declared in Rebol files.  Hasn't been done yet due to
-    // a desire to keep this as an obvious TBD for remembering to do it
-    // right, but also to protect the values from changing.
-    //
-    const REBYTE no_return[] = "no-return";
-    const REBYTE ellipsis[] = "...";
-    const REBYTE infix[] = "infix";
-    const REBYTE local[] = "local";
-    const REBYTE durable[] = "durable";
-
-    REBVAL result;
-    VAL_INIT_WRITABLE_DEBUG(&result);
-
 #if defined(TEST_EARLY_BOOT_PANIC)
     // This is a good place to test if the "pre-booting panic" is working.
     // It should be unable to present a format string, only the error code.
-    panic (Error(RE_NO_VALUE, NONE_VALUE));
+    panic (Error(RE_NO_VALUE, BLANK_VALUE));
 #elif defined(TEST_EARLY_BOOT_FAIL)
     // A fail should have the same behavior as a panic at this boot phase.
-    fail (Error(RE_NO_VALUE, NONE_VALUE));
+    fail (Error(RE_NO_VALUE, BLANK_VALUE));
 #endif
 
     DOUT("Main init");
@@ -1460,7 +1463,7 @@ void Init_Core(REBARGS *rargs)
     Init_Char_Cases();
     Init_CRC();             // For word hashing
     Set_Random(0);
-    Init_Words(FALSE);      // Symbol table
+    Init_Words();
     Init_Stacks(STACK_MIN * 4);
     Init_Scanner();
     Init_Mold(MIN_COMMON);  // Output buffer
@@ -1474,8 +1477,7 @@ void Init_Core(REBARGS *rargs)
     MANAGE_ARRAY(CTX_VARLIST(Lib_Context));
 
     VAL_RESET_HEADER(CTX_VALUE(Lib_Context), REB_OBJECT);
-    INIT_CONTEXT_SPEC(Lib_Context, NULL);
-    CTX_STACKVARS(Lib_Context) = NULL;
+    CTX_VALUE(Lib_Context)->extra.binding = NULL;
 
     // Must manage, else Expand_Context() looks like a leak
     //
@@ -1483,40 +1485,62 @@ void Init_Core(REBARGS *rargs)
     MANAGE_ARRAY(CTX_VARLIST(Sys_Context));
 
     VAL_RESET_HEADER(CTX_VALUE(Sys_Context), REB_OBJECT);
-    INIT_CONTEXT_SPEC(Sys_Context, NULL);
-    CTX_STACKVARS(Sys_Context) = NULL;
+    CTX_VALUE(Sys_Context)->extra.binding = NULL;
 
     DOUT("Level 2");
-    Load_Boot();            // Protected strings now available
+
+    Load_Boot();
+
+    // Data in %boot-code.r now available as Boot_Block.  This includes the
+    // type list, word list, error message templates, system object, etc.
+
+    Init_Symbols(VAL_ARRAY(&Boot_Block->words));
+
+    // STR_SYMBOL(), VAL_WORD_SYM() and Canon(SYM_XXX) now available
+
     PG_Boot_Phase = BOOT_LOADED;
     //Debug_Str(BOOT_STR(RS_INFO,0)); // Booting...
 
     // Get the words of the ROOT context (to avoid it being an exception case)
     //
-    keylist = Collect_Keylist_Managed(
-        NULL, VAL_ARRAY_HEAD(&Boot_Block->root), NULL, COLLECT_ANY_WORD);
-    INIT_CTX_KEYLIST_UNIQUE(PG_Root_Context, keylist);
+    REBARR *root_keylist = Collect_Keylist_Managed(
+        NULL,
+        VAL_ARRAY_HEAD(&Boot_Block->root),
+        NULL,
+        COLLECT_ANY_WORD
+    );
+    INIT_CTX_KEYLIST_UNIQUE(PG_Root_Context, root_keylist);
     ASSERT_CONTEXT(PG_Root_Context);
+
+    ARR_SERIES(CTX_VARLIST(PG_Root_Context))->header.bits
+        |= REBSER_REBVAL_FLAG_ROOT;
 
     // Get the words of the TASK context (to avoid it being an exception case)
     //
-    keylist = Collect_Keylist_Managed(
-        NULL, VAL_ARRAY_HEAD(&Boot_Block->task), NULL, COLLECT_ANY_WORD
+    REBARR *task_keylist = Collect_Keylist_Managed(
+        NULL,
+        VAL_ARRAY_HEAD(&Boot_Block->task),
+        NULL,
+        COLLECT_ANY_WORD
     );
-    INIT_CTX_KEYLIST_UNIQUE(TG_Task_Context, keylist);
+    INIT_CTX_KEYLIST_UNIQUE(TG_Task_Context, task_keylist);
     ASSERT_CONTEXT(TG_Task_Context);
+
+    ARR_SERIES(CTX_VARLIST(TG_Task_Context))->header.bits
+        |= REBSER_REBVAL_FLAG_ROOT;
 
     // Create main values:
     DOUT("Level 3");
     Init_Datatypes();       // Create REBOL datatypes
     Init_Typesets();        // Create standard typesets
     Init_Constants();       // Constant values
+    Init_Function_Tags();
+    Add_Lib_Keys_R3Alpha_Cant_Make();
     Init_Func_Profiler(rargs->profile);
 
     // Run actual code:
     DOUT("Level 4");
-    Init_Natives();         // Built-in native functions
-    Init_Ops();             // Built-in operators
+    Init_Natives();
     Init_System_Object();
     Init_Contexts_Object();
     Init_Main_Args(rargs);
@@ -1524,69 +1548,25 @@ void Init_Core(REBARGS *rargs)
     Init_Codecs();
     Init_Errors(&Boot_Block->errors); // Needs system/standard/error object
 
-    VAL_INIT_WRITABLE_DEBUG(&Callback_Error); // format for "writable" check
-    SET_UNSET(&Callback_Error);
+    SET_VOID(&Callback_Error);
 
     PG_Boot_Phase = BOOT_ERRORS;
 
 #if defined(TEST_MID_BOOT_PANIC)
     // At this point panics should be able to present the full message.
-    panic (Error(RE_NO_VALUE, NONE_VALUE));
+    panic (Error(RE_NO_VALUE, BLANK_VALUE));
 #elif defined(TEST_MID_BOOT_FAIL)
     // With no PUSH_TRAP yet, fail should give a localized assert in a debug
     // build but act like panic does in a release build.
-    fail (Error(RE_NO_VALUE, NONE_VALUE));
+    fail (Error(RE_NO_VALUE, BLANK_VALUE));
 #endif
-
-    // Although the goal is for the core not to depend on any specific
-    // "keywords", there are some native-optimized generators that are not
-    // conceptually "part of the core".  Hence, they rely on some keywords,
-    // but a dissatisfied user could rewrite them with different ones
-    // (at only a cost in performance).
-    //
-    // We need these tags around to compare to the tags we find in function
-    // specs.  There may be a better place to put them or a better way to do
-    // it, but it didn't seem there was a "compare UTF8 byte array to
-    // arbitrary decoded REB_TAG which may or may not be REBUNI" routine.
-
-    Val_Init_Tag(
-        ROOT_NO_RETURN_TAG,
-        Append_UTF8_May_Fail(NULL, no_return, LEN_BYTES(no_return))
-    );
-    SET_SER_FLAG(VAL_SERIES(ROOT_NO_RETURN_TAG), SERIES_FLAG_FIXED_SIZE);
-    SET_SER_FLAG(VAL_SERIES(ROOT_NO_RETURN_TAG), SERIES_FLAG_LOCKED);
-
-    Val_Init_Tag(
-        ROOT_ELLIPSIS_TAG,
-        Append_UTF8_May_Fail(NULL, ellipsis, LEN_BYTES(ellipsis))
-    );
-    SET_SER_FLAG(VAL_SERIES(ROOT_ELLIPSIS_TAG), SERIES_FLAG_FIXED_SIZE);
-    SET_SER_FLAG(VAL_SERIES(ROOT_ELLIPSIS_TAG), SERIES_FLAG_LOCKED);
-
-    Val_Init_Tag(
-        ROOT_INFIX_TAG,
-        Append_UTF8_May_Fail(NULL, infix, LEN_BYTES(infix))
-    );
-    SET_SER_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SERIES_FLAG_FIXED_SIZE);
-    SET_SER_FLAG(VAL_SERIES(ROOT_INFIX_TAG), SERIES_FLAG_LOCKED);
-
-    Val_Init_Tag(
-        ROOT_LOCAL_TAG,
-        Append_UTF8_May_Fail(NULL, local, LEN_BYTES(local))
-    );
-    SET_SER_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SERIES_FLAG_FIXED_SIZE);
-    SET_SER_FLAG(VAL_SERIES(ROOT_LOCAL_TAG), SERIES_FLAG_LOCKED);
-
-    Val_Init_Tag(
-        ROOT_DURABLE_TAG,
-        Append_UTF8_May_Fail(NULL, durable, LEN_BYTES(durable))
-    );
-    SET_SER_FLAG(VAL_SERIES(ROOT_DURABLE_TAG), SERIES_FLAG_FIXED_SIZE);
-    SET_SER_FLAG(VAL_SERIES(ROOT_DURABLE_TAG), SERIES_FLAG_LOCKED);
 
     // Special pre-made errors:
     Val_Init_Error(TASK_STACK_ERROR, Error(RE_STACK_OVERFLOW));
     Val_Init_Error(TASK_HALT_ERROR, Error(RE_HALT));
+
+    REBCTX *error;
+    struct Reb_State state;
 
     // With error trapping enabled, set up to catch them if they happen.
     PUSH_UNHALTABLE_TRAP(&error, &state);
@@ -1596,7 +1576,6 @@ void Init_Core(REBARGS *rargs)
 
     if (error) {
         REBVAL temp;
-        VAL_INIT_WRITABLE_DEBUG(&temp);
         Val_Init_Error(&temp, error);
 
         // You shouldn't be able to halt during Init_Core() startup.
@@ -1623,14 +1602,15 @@ void Init_Core(REBARGS *rargs)
     *CTX_VAR(Sys_Context, SYS_CTX_BOOT_PROT) = Boot_Block->protocols;
 
     // No longer needs protecting:
-    SET_NONE(ROOT_BOOT);
+    SET_BLANK(ROOT_BOOT);
     Boot_Block = NULL;
     PG_Boot_Phase = BOOT_MEZZ;
 
     assert(DSP == 0 && FS_TOP == NULL);
 
+    REBVAL result;
     if (Apply_Only_Throws(
-        &result, Sys_Func(SYS_CTX_FINISH_INIT_CORE), END_VALUE
+        &result, TRUE, Sys_Func(SYS_CTX_FINISH_INIT_CORE), END_CELL
     )) {
         // Note: You shouldn't be able to throw any uncaught values during
         // Init_Core() startup, including throws implementing QUIT or EXIT.
@@ -1639,10 +1619,10 @@ void Init_Core(REBARGS *rargs)
     }
 
     // Success of the 'finish-init-core' Rebol code is signified by returning
-    // a UNSET! (all other return results indicate an error state)
+    // void (all other return results indicate an error state)
 
-    if (!IS_UNSET(&result)) {
-        Debug_Fmt("** 'finish-init-core' returned non-none!: %r", &result);
+    if (!IS_VOID(&result)) {
+        Debug_Fmt("** 'finish-init-core' returned value: %r", &result);
         panic (Error(RE_MISC));
     }
 
@@ -1685,7 +1665,7 @@ void Shutdown_Core(void)
     // Run Recycle, but the TRUE flag indicates we want every series
     // that is managed to be freed.  (Only unmanaged should be left.)
     //
-    Recycle_Core(TRUE, NULL);
+    Recycle_Core(TRUE);
 
     FREE_N(REBYTE*, RS_MAX, PG_Boot_Strs);
 
@@ -1695,6 +1675,11 @@ void Shutdown_Core(void)
     Shutdown_Mold();
     Shutdown_Scanner();
     Shutdown_Char_Cases();
+
+    assert(PG_Num_Canon_Slots_In_Use - PG_Num_Canon_Deleteds == 0);
+    Free_Series(PG_Canons_By_Hash);
+    Free_Series(PG_Symbol_Canons);
+
     Shutdown_GC();
 
     // !!! Need to review the relationship between Open_StdIO (which the host

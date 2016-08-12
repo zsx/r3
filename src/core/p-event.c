@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  p-event.c
-**  Summary: event port interface
-**  Section: ports
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %p-event.c
+//  Summary: "event port interface"
+//  Section: ports
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 /*
   Basics:
 
@@ -73,15 +74,11 @@ REBREQ *req;        //!!! move this global
 //
 REBVAL *Append_Event(void)
 {
-    REBVAL *port;
-    REBVAL *value;
-    REBVAL *state;
-
-    port = Get_System(SYS_PORTS, PORTS_SYSTEM);
+    REBVAL *port = Get_System(SYS_PORTS, PORTS_SYSTEM);
     if (!IS_PORT(port)) return 0; // verify it is a port object
 
     // Get queue block:
-    state = VAL_CONTEXT_VAR(port, STD_PORT_STATE);
+    REBVAL *state = VAL_CONTEXT_VAR(port, STD_PORT_STATE);
     if (!IS_BLOCK(state)) return 0;
 
     // Append to tail if room:
@@ -93,11 +90,10 @@ REBVAL *Append_Event(void)
             //RL_Print("event queue increased to :%d\n", SER_REST(VAL_SERIES(state)));
         }
     }
-    SET_SERIES_LEN(VAL_SERIES(state), VAL_LEN_HEAD(state) + 1);
-    value = VAL_ARRAY_TAIL(state);
-    SET_END(value);
-    value--;
-    SET_NONE(value);
+    TERM_ARRAY_LEN(VAL_ARRAY(state), VAL_LEN_HEAD(state) + 1);
+
+    REBVAL *value = SINK(ARR_LAST(VAL_ARRAY(state)));
+    SET_BLANK(value);
 
     //Dump_Series(VAL_SERIES(state), "state");
     //Print("Tail: %d %d", VAL_LEN_HEAD(state), nn++);
@@ -114,7 +110,7 @@ REBVAL *Append_Event(void)
 REBVAL *Find_Last_Event(REBINT model, REBINT type)
 {
     REBVAL *port;
-    REBVAL *value;
+    RELVAL *value;
     REBVAL *state;
 
     port = Get_System(SYS_PORTS, PORTS_SYSTEM);
@@ -128,7 +124,7 @@ REBVAL *Find_Last_Event(REBINT model, REBINT type)
     for (; value >= VAL_ARRAY_HEAD(state); --value) {
         if (VAL_EVENT_MODEL(value) == model) {
             if (VAL_EVENT_TYPE(value) == type) {
-                return value;
+                return KNOWN(value);
             } else {
                 return NULL;
             }
@@ -143,7 +139,7 @@ REBVAL *Find_Last_Event(REBINT model, REBINT type)
 // 
 // Internal port handler for events.
 //
-static REB_R Event_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
+static REB_R Event_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
     REBVAL *spec;
     REBVAL *state;
@@ -166,41 +162,45 @@ static REB_R Event_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 
     switch (action) {
 
-    case A_UPDATE:
-        return R_NONE;
+    case SYM_UPDATE:
+        return R_BLANK;
 
     // Normal block actions done on events:
-    case A_POKE:
+    case SYM_POKE:
         if (!IS_EVENT(D_ARG(3))) fail (Error_Invalid_Arg(D_ARG(3)));
         goto act_blk;
-    case A_INSERT:
-    case A_APPEND:
+    case SYM_INSERT:
+    case SYM_APPEND:
     //case A_PATH:      // not allowed: port/foo is port object field access
     //case A_PATH_SET:  // not allowed: above
         if (!IS_EVENT(arg)) fail (Error_Invalid_Arg(arg));
-    case A_PICK:
+    case SYM_PICK:
 act_blk:
         save_port = *D_ARG(1); // save for return
         *D_ARG(1) = *state;
         result = T_Array(frame_, action);
         SET_SIGNAL(SIG_EVENT_PORT);
-        if (action == A_INSERT || action == A_APPEND || action == A_REMOVE) {
+        if (
+            action == SYM_INSERT
+            || action == SYM_APPEND
+            || action == SYM_REMOVE
+        ){
             *D_OUT = save_port;
             break;
         }
         return result; // return condition
 
-    case A_CLEAR:
+    case SYM_CLEAR:
         SET_SERIES_LEN(VAL_SERIES(state), 0);
-        VAL_TERM_ARRAY(state);
+        TERM_ARRAY_LEN(VAL_ARRAY(state), VAL_LEN_HEAD(state));
         CLR_SIGNAL(SIG_EVENT_PORT);
         break;
 
-    case A_LENGTH:
+    case SYM_LENGTH:
         SET_INTEGER(D_OUT, VAL_LEN_HEAD(state));
         break;
 
-    case A_OPEN:
+    case SYM_OPEN:
         if (!req) { //!!!
             req = OS_MAKE_DEVREQ(RDI_EVENT);
             if (req) {
@@ -210,7 +210,7 @@ act_blk:
         }
         break;
 
-    case A_CLOSE:
+    case SYM_CLOSE:
         OS_ABORT_DEVICE(req);
         OS_DO_DEVICE(req, RDC_CLOSE);
         // free req!!!
@@ -218,7 +218,7 @@ act_blk:
         req = 0;
         break;
 
-    case A_FIND: // add it
+    case SYM_FIND: // add it
 
     default:
         fail (Error_Illegal_Action(REB_PORT, action));
@@ -234,9 +234,9 @@ act_blk:
 void Init_Event_Scheme(void)
 {
     req = 0; // move to port struct
-    Register_Scheme(SYM_SYSTEM, 0, Event_Actor);
-    Register_Scheme(SYM_EVENT, 0, Event_Actor);
-    Register_Scheme(SYM_CALLBACK, 0, Event_Actor);
+    Register_Scheme(Canon(SYM_SYSTEM), Event_Actor);
+    Register_Scheme(Canon(SYM_EVENT), Event_Actor);
+    Register_Scheme(Canon(SYM_CALLBACK), Event_Actor);
 }
 
 

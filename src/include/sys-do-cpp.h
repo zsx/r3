@@ -1,6 +1,10 @@
 //
-// Rebol 3 Language Interpreter and Run-time Environment
-// "Ren-C" branch @ https://github.com/metaeducation/ren-c
+//  File: %sys-do-cpp.h
+//  Summary: "Optional C++ Checking Classes for %sys-do.h"
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2016 Rebol Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
@@ -18,11 +22,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  Summary: Optional C++ Checking Classes for %sys-do.h
-//  File: %sys-do-cpp.h
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -69,19 +68,16 @@ class Reb_Indexor {
     static constexpr const char* array_index_name = "(array index)";
     static constexpr const char* end_name = "END_FLAG";
     static constexpr const char* thrown_name = "THROWN_FLAG";
-    static constexpr const char* valist_name = "VALIST_FLAG";
-    static constexpr const char* valist_incomplete_name
-        = "VALIST_INCOMPLETE";
+    static constexpr const char* valist_name = "VA_LIST_FLAG";
+
 
     void Update_Name() {
         if (d->bits == END_FLAG)
             d->name = end_name;
         else if (d->bits == THROWN_FLAG)
             d->name = thrown_name;
-        else if (d->bits == VALIST_FLAG)
+        else if (d->bits == VA_LIST_FLAG)
             d->name = valist_name;
-        else if (d->bits == VALIST_INCOMPLETE_FLAG)
-            d->name = valist_incomplete_name;
         else
             d->name = array_index_name;
     }
@@ -129,7 +125,7 @@ public:
     explicit operator REBCNT() const {
         assert(
             d->bits != END_FLAG && d->bits != THROWN_FLAG &&
-            d->bits != VALIST_FLAG && d->bits != VALIST_INCOMPLETE_FLAG
+            d->bits != VA_LIST_FLAG
         );
         return d->bits;
     }

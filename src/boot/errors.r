@@ -63,9 +63,6 @@ Internal: [
     bad-boot-type-block: {boot block is wrong size}
     max-natives:        {too many natives}
     action-overflow:    {more actions than we should have}
-    bad-trash-canon:    {TRASH! was not found}
-    bad-true-canon:     {TRUE was not found}
-    bad-trash-type:     {the TRASH! word is not correct}
     rebval-alignment:   {sizeof(REBVAL) not 4x 32-bits or 4x 64-bits}
     pool-alignment:     {Memory pool width not 64-bit aligned}
 
@@ -93,6 +90,7 @@ Internal: [
     debug-only:         {Feature available only in DEBUG builds}
 
     host-no-breakpoint: {Interpreter host code has no breakpoint handler}
+    no-current-pause:   {No current PAUSE or BREAKPOINT instruction in effect}
 
     invalid-exit:       {Frame does not exist on the stack to EXIT from}
 ]
@@ -121,15 +119,31 @@ Script: [
 
     no-arg:             [:arg1 {is missing its} :arg2 {argument}]
     expect-arg:         [:arg1 {does not allow} :arg2 {for its} :arg3 {argument}]
+    arg-required:       [:arg1 {requires} :arg2 {argument to not be void}]
     expect-val:         [{expected} :arg1 {not} :arg2]
     expect-type:        [:arg1 :arg2 {field must be of type} :arg3]
     cannot-use:         [{cannot use} :arg1 {on} :arg2 {value}]
+
     apply-too-many:     {Too many values in processed argument block of APPLY.}
-    local-injection:    [{Attempt to inject value to local} :arg1 {in} :arg2]
+    apply-has-changed:  {APPLY takes frame def block (or see r3-alpha-apply)}
+    apply-non-function: [:arg1 {needs to be a function for APPLY/SPECIALIZE}]
+
+    print-needs-eval:   {PRINT needs /EVAL to process non-literal blocks}
+
+    hijack-blank:       {Hijacked function was captured but no body given yet}
 
     expression-barrier: {Expression barrier hit while processing arguments}
     bar-hit-mid-case:   {Expression barrier hit in middle of CASE pairing}
+    punctuator-hit:     [:arg1 {punctuates and can't be passed as an argument}]
+    no-infix-left-arg:  [:arg1 {isn't allowed 1st argument from previous call}]
+    infix-quote-late:   [:arg1 {was evaluated and can't be lookback quoted}]
+    infix-quote-set:    [:arg1 {can only be hard-quoted with lookback}]
 
+    infix-path-group:   [:arg1 {GROUP! can't be in a lookback quoted PATH!}]
+
+    hard-quote-void:    [:arg1 {is hard quoted and can't be optionally void}]
+
+    reduce-made-void:   {Expression in REDUCE evaluated to void}
     break-not-continue: {Use BREAK/WITH when body is the breaking condition}
 
     ; !!! Temporary errors while faulty constructs are still outstanding
@@ -137,9 +151,7 @@ Script: [
     use-eval-for-eval:  {Use EVAL or APPLY to call functions arity > 0, not DO}
     use-fail-for-error: [{Use FAIL (not THROW or DO) to raise} :arg1]
     use-split-simple:   {Use SPLIT (instead of PARSE) for "simple" parsing}
-    apply-has-changed:  {APPLY takes frame def block (or see r3-alpha-apply)}
 
-    apply-non-function: [:arg1 {needs to be a function for APPLY/SPECIALIZE}]
     limited-fail-input: {FAIL requires complex expressions to be in a GROUP!}
 
     invalid-arg:        [{invalid argument:} :arg1]
@@ -152,10 +164,15 @@ Script: [
     bad-func-def:       [{invalid function definition:} :arg1]
     bad-func-arg:       [{function argument} :arg1 {is not valid}] ; can be a number
 
+    needs-return-value: [:arg1 {must return value (use PROC or RETURN: <opt>)}]
+    bad-return-type:    [:arg1 {doesn't have RETURN: enabled for} :arg2]
+
     no-refine:          [:arg1 {has no refinement called} :arg2]
     bad-refines:        {incompatible or invalid refinements}
     bad-refine:         [{incompatible or duplicate refinement:} :arg1]
-    bad-refine-revoke:  {refinement's args must be either all unset or all set}
+    argument-revoked:   [:arg1 {refinement revoked, cannot supply} :arg2]
+    bad-refine-revoke:  [:arg1 {refinement in use, can't be revoked by} :arg2]
+    non-logic-refine:   [:arg1 {refinement must be LOGIC!, not} :arg2]
 
     invalid-path:       [{cannot access} :arg2 {in path} :arg1]
     bad-path-type:      [{path} :arg1 {is not valid for} :arg2 {type}]
@@ -170,8 +187,9 @@ Script: [
     too-long:           {content too long}
     invalid-chars:      {contains invalid characters}
     invalid-compare:    [{cannot compare} :arg1 {with} :arg2]
-    assert-failed:      [{assertion failed for:} :arg1]
-    wrong-type:         [{datatype assertion failed for:} :arg1]
+
+    verify-void:        [{verification condition void at:} :arg1]
+    verify-failed:      [{verification failed for:} :arg1]
 
     invalid-part:       [{invalid /part count:} :arg1]
     type-limit:         [:arg1 {overflow/underflow}]
@@ -183,7 +201,7 @@ Script: [
     no-catch-named:     [{Missing CATCH for THROW of} :arg1 {with /NAME:} :arg2]
 
     locked-word:        [{variable} :arg1 {locked by PROTECT - cannot modify}]
-    locked:             {value or series locked by PROTECT - cannot modify}
+    locked:             {value or series locked - cannot modify}
     hidden:             {not allowed - would expose or modify hidden values}
     bad-bad:            [:arg1 {error:} :arg2]
 
@@ -195,12 +213,14 @@ Script: [
     dialect:            [{incorrect} :arg1 {dialect usage at:} :arg2]
     bad-command:        {invalid command format (extension function)}
 
-    parse-rule:         [{PARSE - invalid rule or usage of rule:} :arg1]
-    parse-end:          [{PARSE - unexpected end of rule after:} :arg1]
+    return-archetype:   {RETURN called with no generator providing it in use}
+    leave-archetype:    {LEAVE called with no generator providing it in use}
+
+    parse-rule:         {PARSE - invalid rule or usage of rule}
+    parse-end:          {PARSE - unexpected end of rule}
     parse-variable:     [{PARSE - expected a variable, not:} :arg1]
     parse-command:      [{PARSE - command cannot be used as variable:} :arg1]
     parse-series:       [{PARSE - input must be a series:} :arg1]
-    parse-non-logic:    [{Non-logic PARSE? result:} :arg1 {use PARSE instead}]
 
     not-ffi-build:      {This Rebol build wasn't linked with libffi features}
     bad-library:        {bad library (already closed?)}
@@ -220,6 +240,8 @@ Script: [
     varargs-make-only:  {MAKE *shared* BLOCK! supported on VARARGS! (not TO)}
     varargs-no-look:    {VARARGS! may only lookahead by 1 if "hard quoted"}
     varargs-take-last:  {VARARGS! does not support TAKE-ing only /LAST item}
+
+    map-key-unlocked:   [{array key must be locked to add to MAP!} :arg1]
 ]
 
 Math: [

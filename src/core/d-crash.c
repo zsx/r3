@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  d-crash.c
-**  Summary: low level crash output
-**  Section: debug
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %d-crash.c
+//  Summary: "low level crash output"
+//  Section: debug
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
@@ -153,15 +154,13 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
         REB_MOLD mo;
         REBSER *bytes;
 
-        REBVAL error;
-        VAL_INIT_WRITABLE_DEBUG(&error);
-
         CLEARS(&mo);
         SET_FLAG(mo.opts, MOPT_LIMIT);
         mo.limit = PANIC_BUF_SIZE - strlen(message); // codepoints, not bytes
 
         Push_Mold(&mo);
 
+        REBVAL error;
         if (opt_error) {
             assert(!vaptr);
             Val_Init_Error(&error, opt_error);
@@ -182,6 +181,18 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
 
         Free_Series(bytes);
     }
+
+#if !defined(NDEBUG)
+    //
+    // In a debug build, we'd like to try and cause a break so as not to lose
+    // the state of the panic, which would happen if we called out to the
+    // host kit's exit routine...
+    //
+    printf("%s\n", Str_Panic_Title);
+    printf("%s\n", message);
+    fflush(stdout);
+    debug_break(); // see %debug_break.h
+#endif
 
     OS_CRASH(cb_cast(Str_Panic_Title), cb_cast(message));
 

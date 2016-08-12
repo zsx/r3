@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  p-net.c
-**  Summary: network port interface
-**  Section: ports
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %p-net.c
+//  Summary: "network port interface"
+//  Section: ports
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
@@ -96,8 +97,8 @@ static void Accept_New_Port(REBVAL *out, REBCTX *port, REBREQ *sock)
     port = Copy_Context_Shallow(port);
     Val_Init_Port(out, port); // Also for GC protect
 
-    SET_NONE(CTX_VAR(port, STD_PORT_DATA)); // just to be sure.
-    SET_NONE(CTX_VAR(port, STD_PORT_STATE)); // just to be sure.
+    SET_BLANK(CTX_VAR(port, STD_PORT_DATA)); // just to be sure.
+    SET_BLANK(CTX_VAR(port, STD_PORT_STATE)); // just to be sure.
 
     // Copy over the new sock data:
     sock = cast(REBREQ*, Use_Port_State(port, RDI_NET, sizeof(*sock)));
@@ -111,9 +112,9 @@ static void Accept_New_Port(REBVAL *out, REBCTX *port, REBREQ *sock)
 //  Transport_Actor: C
 //
 static REB_R Transport_Actor(
-    struct Reb_Frame *frame_,
+    REBFRM *frame_,
     REBCTX *port,
-    REBCNT action,
+    REBSYM action,
     enum Transport_Types proto
 ) {
     REBREQ *sock;   // IO request
@@ -148,7 +149,7 @@ static REB_R Transport_Actor(
 
         switch (action) {   // Ordered by frequency
 
-        case A_OPEN:
+        case SYM_OPEN:
 
             arg = Obj_Value(spec, STD_PORT_SPEC_NET_HOST);
             val = Obj_Value(spec, STD_PORT_SPEC_NET_PORT_ID);
@@ -175,7 +176,7 @@ static REB_R Transport_Actor(
             }
 
             // No host, must be a LISTEN socket:
-            else if (IS_NONE(arg)) {
+            else if (IS_BLANK(arg)) {
                 SET_FLAG(sock->modes, RST_LISTEN);
                 sock->common.data = 0; // where ACCEPT requests are queued
                 sock->special.net.local_port = IS_INTEGER(val) ? VAL_INT32(val) : 8000;
@@ -184,13 +185,13 @@ static REB_R Transport_Actor(
             else
                 fail (Error_On_Port(RE_INVALID_SPEC, port, -10));
 
-        case A_CLOSE:
+        case SYM_CLOSE:
             return R_OUT;
 
-        case A_OPEN_Q:
+        case SYM_OPEN_Q:
             return R_FALSE;
 
-        case A_UPDATE:  // allowed after a close
+        case SYM_UPDATE:  // allowed after a close
             break;
 
         default:
@@ -201,7 +202,7 @@ static REB_R Transport_Actor(
     // Actions for an open socket:
     switch (action) {   // Ordered by frequency
 
-    case A_UPDATE:
+    case SYM_UPDATE:
         // Update the port object after a READ or WRITE operation.
         // This is normally called by the WAKE-UP function.
         arg = CTX_VAR(port, STD_PORT_DATA);
@@ -214,11 +215,11 @@ static REB_R Transport_Actor(
             }
         }
         else if (sock->command == RDC_WRITE) {
-            SET_NONE(arg);  // Write is done.
+            SET_BLANK(arg);  // Write is done.
         }
-        return R_NONE;
+        return R_BLANK;
 
-    case A_READ:
+    case SYM_READ:
         // Read data into a buffer, expanding the buffer if needed.
         // If no length is given, program must stop it at some point.
         refs = Find_Refines(frame_, ALL_READ_REFS);
@@ -252,7 +253,7 @@ static REB_R Transport_Actor(
         if (result < 0) fail (Error_On_Port(RE_READ_ERROR, port, sock->error));
         break;
 
-    case A_WRITE:
+    case SYM_WRITE:
         // Write the entire argument string to the network.
         // The lower level write code continues until done.
 
@@ -278,10 +279,10 @@ static REB_R Transport_Actor(
         //Print("(write length %d)", len);
         result = OS_DO_DEVICE(sock, RDC_WRITE); // send can happen immediately
         if (result < 0) fail (Error_On_Port(RE_WRITE_ERROR, port, sock->error));
-        if (result == DR_DONE) SET_NONE(CTX_VAR(port, STD_PORT_DATA));
+        if (result == DR_DONE) SET_BLANK(CTX_VAR(port, STD_PORT_DATA));
         break;
 
-    case A_PICK:
+    case SYM_PICK:
         // FIRST server-port returns new port connection.
         len = Get_Num_From_Arg(arg); // Position
         if (len == 1 && GET_FLAG(sock->modes, RST_LISTEN) && sock->common.data)
@@ -290,37 +291,37 @@ static REB_R Transport_Actor(
             fail (Error_Out_Of_Range(arg));
         break;
 
-    case A_QUERY:
+    case SYM_QUERY:
         // Get specific information - the scheme's info object.
         // Special notation allows just getting part of the info.
         Ret_Query_Net(port, sock, D_OUT);
         break;
 
-    case A_OPEN_Q:
+    case SYM_OPEN_Q:
         // Connect for clients, bind for servers:
         if (sock->state & ((1<<RSM_CONNECT) | (1<<RSM_BIND))) return R_TRUE;
         return R_FALSE;
 
-    case A_CLOSE:
+    case SYM_CLOSE:
         if (IS_OPEN(sock)) {
             OS_DO_DEVICE(sock, RDC_CLOSE);
             SET_CLOSED(sock);
         }
         break;
 
-    case A_LENGTH:
+    case SYM_LENGTH:
         arg = CTX_VAR(port, STD_PORT_DATA);
         len = ANY_SERIES(arg) ? VAL_LEN_HEAD(arg) : 0;
         SET_INTEGER(D_OUT, len);
         break;
 
-    case A_OPEN:
+    case SYM_OPEN:
         result = OS_DO_DEVICE(sock, RDC_CONNECT);
         if (result < 0)
             fail (Error_On_Port(RE_NO_CONNECT, port, sock->error));
         break;
 
-    case A_DELETE: // Temporary to TEST error handler!
+    case SYM_DELETE: // Temporary to TEST error handler!
         {
             REBVAL *event = Append_Event();     // sets signal
             VAL_RESET_HEADER(event, REB_EVENT); // has more space, if needed
@@ -340,7 +341,7 @@ static REB_R Transport_Actor(
 //
 //  TCP_Actor: C
 //
-static REB_R TCP_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
+static REB_R TCP_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
     return Transport_Actor(frame_, port, action, TRANSPORT_TCP);
 }
@@ -348,7 +349,7 @@ static REB_R TCP_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 //
 //  UDP_Actor: C
 //
-static REB_R UDP_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
+static REB_R UDP_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
     return Transport_Actor(frame_, port, action, TRANSPORT_UDP);
 }
@@ -358,12 +359,13 @@ static REB_R UDP_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 //
 void Init_TCP_Scheme(void)
 {
-    Register_Scheme(SYM_TCP, 0, TCP_Actor);
+    Register_Scheme(Canon(SYM_TCP), TCP_Actor);
 }
+
 //
 //  Init_UDP_Scheme: C
 //
 void Init_UDP_Scheme(void)
 {
-    Register_Scheme(SYM_UDP, 0, UDP_Actor);
+    Register_Scheme(Canon(SYM_UDP), UDP_Actor);
 }

@@ -1,34 +1,36 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  t-date.c
-**  Summary: date datatype
-**  Section: datatypes
-**  Author:  Carl Sassenrath
-**  Notes:
-**    Date and time are stored in UTC format with an optional timezone.
-**    The zone must be added when a date is exported or imported, but not
-**    when date computations are performed.
-**
-***********************************************************************/
+//
+//  File: %t-date.c
+//  Summary: "date datatype"
+//  Section: datatypes
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Date and time are stored in UTC format with an optional timezone.
+// The zone must be added when a date is exported or imported, but not
+// when date computations are performed.
+//
 #include "sys-core.h"
 
 
@@ -70,10 +72,10 @@ void Set_Date(REBVAL *val, REBOL_DAT *dat)
 //
 //  CT_Date: C
 //
-REBINT CT_Date(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Date(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     REBINT num = Cmp_Date(a, b);
-    if (mode >= 2)
+    if (mode == 1)
         return VAL_DATE(a).bits == VAL_DATE(b).bits && VAL_TIME(a) == VAL_TIME(b);
     if (mode >= 0)  return (num == 0);
     if (mode == -1) return (num >= 0);
@@ -388,7 +390,7 @@ void Subtract_Date(REBVAL *d1, REBVAL *d2, REBVAL *result)
 //
 //  Cmp_Date: C
 //
-REBINT Cmp_Date(const REBVAL *d1, const REBVAL *d2)
+REBINT Cmp_Date(const RELVAL *d1, const RELVAL *d2)
 {
     REBINT diff;
 
@@ -400,70 +402,102 @@ REBINT Cmp_Date(const REBVAL *d1, const REBVAL *d2)
 
 
 //
-//  MT_Date: C
-// 
-// Given a block of values, construct a date datatype.
+//  MAKE_Date: C
 //
-REBOOL MT_Date(REBVAL *val, REBVAL *arg, enum Reb_Kind type)
-{
-    REBI64 secs = NO_TIME;
-    REBINT tz = 0;
-    REBDAT date;
-    REBCNT year, month, day;
-
+void MAKE_Date(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
     if (IS_DATE(arg)) {
-        *val = *arg;
-        return TRUE;
+        *out = *arg;
+        return;
     }
 
-    if (!IS_INTEGER(arg)) return FALSE;
-    day = Int32s(arg++, 1);
-    if (!IS_INTEGER(arg)) return FALSE;
-    month = Int32s(arg++, 1);
-    if (!IS_INTEGER(arg)) return FALSE;
-    if (day > 99) {
-        year = day;
-        day = Int32s(arg++, 1);
-    } else
-        year = Int32s(arg++, 0);
-
-    if (month < 1 || month > 12) return FALSE;
-
-    if (year > MAX_YEAR || day < 1 || day > Month_Max_Days[month-1])
-        return FALSE;
-
-    // Check February for leap year or century:
-    if (month == 2 && day == 29) {
-        if (((year % 4) != 0) ||        // not leap year
-            ((year % 100) == 0 &&       // century?
-            (year % 400) != 0)) return FALSE; // not leap century
+    if (IS_STRING(arg)) {
+        REBCNT len;
+        REBYTE *bp = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_DATE, &len, FALSE);
+        if (!Scan_Date(bp, len, out))
+            goto bad_make;
+        return;
     }
 
-    day--;
-    month--;
+    if (ANY_ARRAY(arg) && VAL_ARRAY_LEN_AT(arg) >= 3) {
+        REBI64 secs = NO_TIME;
+        REBINT tz = 0;
+        REBDAT date;
+        REBCNT year, month, day;
 
-    if (IS_TIME(arg)) {
-        secs = VAL_TIME(arg);
-        arg++;
+        const RELVAL *item = VAL_ARRAY_AT(arg);
+        if (!IS_INTEGER(item))
+            goto bad_make;
+        day = Int32s(item, 1);
+
+        ++item;
+        if (!IS_INTEGER(item))
+            goto bad_make;
+        month = Int32s(item, 1);
+
+        ++item;
+        if (!IS_INTEGER(item))
+            goto bad_make;
+
+        if (day > 99) {
+            year = day;
+            day = Int32s(item, 1);
+            ++item;
+        }
+        else {
+            year = Int32s(item, 0);
+            ++item;
+        }
+
+        if (month < 1 || month > 12)
+            goto bad_make;
+
+        if (year > MAX_YEAR || day < 1 || day > Month_Max_Days[month-1])
+            goto bad_make;
+
+        // Check February for leap year or century:
+        if (month == 2 && day == 29) {
+            if (((year % 4) != 0) ||        // not leap year
+                ((year % 100) == 0 &&       // century?
+                (year % 400) != 0)) goto bad_make; // not leap century
+        }
+
+        day--;
+        month--;
+
+        if (IS_TIME(item)) {
+            secs = VAL_TIME(item);
+            ++item;
+        }
+
+        if (IS_TIME(item)) {
+            tz = cast(REBINT, VAL_TIME(item) / (ZONE_MINS * MIN_SEC));
+            if (tz < -MAX_ZONE || tz > MAX_ZONE)
+                fail (Error_Out_Of_Range(const_KNOWN(item)));
+            ++item;
+        }
+
+        if (NOT_END(item)) goto bad_make;
+
+        Normalize_Time(&secs, &day);
+        date = Normalize_Date(day, month, year, tz);
+
+        VAL_RESET_HEADER(out, REB_DATE);
+        VAL_DATE(out) = date;
+        VAL_TIME(out) = secs;
+        Adjust_Date_Zone(out, TRUE);
+        return;
     }
 
-    if (IS_TIME(arg)) {
-        tz = (REBINT)(VAL_TIME(arg) / (ZONE_MINS * MIN_SEC));
-        if (tz < -MAX_ZONE || tz > MAX_ZONE) fail (Error_Out_Of_Range(arg));
-        arg++;
-    }
+bad_make:
+    fail (Error_Bad_Make(REB_DATE, arg));
+}
 
-    if (NOT_END(arg)) return FALSE;
 
-    Normalize_Time(&secs, &day);
-    date = Normalize_Date(day, month, year, tz);
-
-    VAL_RESET_HEADER(val, REB_DATE);
-    VAL_DATE(val) = date;
-    VAL_TIME(val) = secs;
-    Adjust_Date_Zone(val, TRUE);
-
-    return TRUE;
+//
+//  TO_Date: C
+//
+void TO_Date(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    MAKE_Date(out, kind, arg);
 }
 
 
@@ -472,35 +506,27 @@ REBOOL MT_Date(REBVAL *val, REBVAL *arg, enum Reb_Kind type)
 //
 REBINT PD_Date(REBPVS *pvs)
 {
-    const REBVAL *sel = pvs->selector;
-    REBVAL *value = pvs->value;
-    const REBVAL *setval;
-
-    REBINT i;
-    REBINT n;
-    REBI64 secs;
-    REBINT tz;
-    REBDAT date;
-    REBCNT day, month, year;
-    REBINT num;
-    REB_TIMEF time;
-
+    REBVAL *value = KNOWN(pvs->value);
     assert(IS_DATE(value));
 
     // Extract the components of the input
     //
-    date = VAL_DATE(value);
-    day = VAL_DAY(value) - 1;
-    month = VAL_MONTH(value) - 1;
-    year = VAL_YEAR(value);
-    secs = VAL_TIME(value);
-    tz = VAL_ZONE(value);
+    REBDAT date = VAL_DATE(value);
+    REBCNT day = VAL_DAY(value) - 1;
+    REBCNT month = VAL_MONTH(value) - 1;
+    REBCNT year = VAL_YEAR(value);
 
+    REBI64 secs = VAL_TIME(value);
+    REBINT tz = VAL_ZONE(value);
+
+    REBINT i;
+
+    const REBVAL *sel = pvs->selector;
     if (IS_WORD(sel)) {
         //
         // !!! Wouldn't it be clearer if this turned indices into symbols?
         //
-        switch (VAL_WORD_CANON(sel)) {
+        switch (VAL_WORD_SYM(sel)) {
         case SYM_YEAR:  i = 0; break;
         case SYM_MONTH: i = 1; break;
         case SYM_DAY:   i = 2; break;
@@ -525,20 +551,23 @@ REBINT PD_Date(REBPVS *pvs)
     }
     else fail (Error_Bad_Path_Select(pvs));
 
+    REB_TIMEF time;
     if (i > 8) Split_Time(secs, &time);
 
-    if (!(setval = pvs->opt_setval)) {
+    const REBVAL *setval = pvs->opt_setval;
+    if (setval == NULL) {
         //
         // Adapt the date value that came in to get the return result.  Put
         // the existing value in the store, and adjust its time zone if
         // not aleady adusted.
         //
         REBVAL *store = pvs->store;
-        if (pvs->value != store)
-            *store = *pvs->value;
+        if (value != store)
+            *store = *value;
 
         if (i != 8) Adjust_Date_Zone(store, FALSE);
 
+        REBINT num;
         switch(i) {
         case 0:
             num = year;
@@ -601,9 +630,11 @@ REBINT PD_Date(REBPVS *pvs)
         // done by changing the components that need to change which were
         // extracted, and building a new date out of the parts.
 
+        REBINT n;
+
         if (IS_INTEGER(setval) || IS_DECIMAL(setval))
             n = Int32s(setval, 0);
-        else if (IS_NONE(setval))
+        else if (IS_BLANK(setval))
             n = 0;
         else if (IS_TIME(setval) && (i == 3 || i == 4))
             NOOP;
@@ -623,7 +654,7 @@ REBINT PD_Date(REBPVS *pvs)
             break;
         case 3:
             // time
-            if (IS_NONE(setval)) {
+            if (IS_BLANK(setval)) {
                 secs = NO_TIME;
                 tz = 0;
                 break;
@@ -686,7 +717,7 @@ REBINT PD_Date(REBPVS *pvs)
         VAL_RESET_HEADER(pvs->value, REB_DATE);
         VAL_DATE(pvs->value) = date;
         VAL_TIME(pvs->value) = secs;
-        Adjust_Date_Zone(pvs->value, TRUE);
+        Adjust_Date_Zone(KNOWN(pvs->value), TRUE);
 
         return PE_OK;
     }
@@ -707,46 +738,43 @@ REBTYPE(Date)
     REBINT  num;
 
     val = D_ARG(1);
-    if (IS_DATE(val)) {
-        date  = VAL_DATE(val);
-        day   = VAL_DAY(val) - 1;
-        month = VAL_MONTH(val) - 1;
-        year  = VAL_YEAR(val);
-        tz    = VAL_ZONE(val);
-        secs  = VAL_TIME(val);
-    }
-    else if (!(IS_DATATYPE(val) && (action == A_MAKE || action == A_TO)))
-        fail (Error_Invalid_Arg(val));
+    assert(IS_DATE(val));
+    date  = VAL_DATE(val);
+    day   = VAL_DAY(val) - 1;
+    month = VAL_MONTH(val) - 1;
+    year  = VAL_YEAR(val);
+    tz    = VAL_ZONE(val);
+    secs  = VAL_TIME(val);
 
     if (D_ARGC > 1) arg = D_ARG(2);
 
-    if (IS_BINARY_ACT(action)) {
+    if (action == SYM_SUBTRACT || action == SYM_ADD) {
         REBINT  type = VAL_TYPE(arg);
 
         if (type == REB_DATE) {
-            if (action == A_SUBTRACT) {
+            if (action == SYM_SUBTRACT) {
                 num = Diff_Date(date, VAL_DATE(arg));
                 goto ret_int;
             }
         }
         else if (type == REB_TIME) {
             if (secs == NO_TIME) secs = 0;
-            if (action == A_ADD) {
+            if (action == SYM_ADD) {
                 secs += VAL_TIME(arg);
                 goto fixTime;
             }
-            if (action == A_SUBTRACT) {
+            if (action == SYM_SUBTRACT) {
                 secs -= VAL_TIME(arg);
                 goto fixTime;
             }
         }
         else if (type == REB_INTEGER) {
             num = Int32(arg);
-            if (action == A_ADD) {
+            if (action == SYM_ADD) {
                 day += num;
                 goto fixDate;
             }
-            if (action == A_SUBTRACT) {
+            if (action == SYM_SUBTRACT) {
                 day -= num;
                 goto fixDate;
             }
@@ -754,11 +782,11 @@ REBTYPE(Date)
         else if (type == REB_DECIMAL) {
             REBDEC dec = Dec64(arg);
             if (secs == NO_TIME) secs = 0;
-            if (action == A_ADD) {
+            if (action == SYM_ADD) {
                 secs += (REBI64)(dec * TIME_IN_DAY);
                 goto fixTime;
             }
-            if (action == A_SUBTRACT) {
+            if (action == SYM_SUBTRACT) {
                 secs -= (REBI64)(dec * TIME_IN_DAY);
                 goto fixTime;
             }
@@ -766,46 +794,23 @@ REBTYPE(Date)
     }
     else {
         switch(action) {
-        case A_EVEN_Q:
-            day = ~day;
-        case A_ODD_Q:
-            DECIDE((day & 1) == 0);
+        case SYM_EVEN_Q:
+            return ((~day) & 1) == 0 ? R_TRUE : R_FALSE;
 
-        case A_PICK:
+        case SYM_ODD_Q:
+            return (day & 1) == 0 ? R_TRUE : R_FALSE;
+
+        case SYM_PICK:
             assert(D_ARGC > 1);
             Pick_Path(D_OUT, val, arg, 0);
             return R_OUT;
 
-///     case A_POKE:
+///     case SYM_POKE:
 ///         Pick_Path(D_OUT, val, arg, D_ARG(3));
 ///         *D_OUT = *D_ARG(3);
 ///         return R_OUT;
 
-        case A_MAKE:
-        case A_TO:
-            assert(D_ARGC > 1);
-            if (IS_DATE(arg)) {
-                val = arg;
-                goto ret_val;
-            }
-            if (IS_STRING(arg)) {
-                REBYTE *bp;
-                REBCNT len;
-                bp = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_DATE, &len, FALSE);
-                if (Scan_Date(bp, len, D_OUT)) return R_OUT;
-            }
-            else if (ANY_ARRAY(arg) && VAL_ARRAY_LEN_AT(arg) >= 3) {
-                if (MT_Date(D_OUT, VAL_ARRAY_AT(arg), REB_DATE)) {
-                    return R_OUT;
-                }
-            }
-//          else if (IS_NONE(arg)) {
-//              secs = nsec = day = month = year = tz = 0;
-//              goto fixTime;
-//          }
-            fail (Error_Bad_Make(REB_DATE, arg));
-
-        case A_RANDOM: {
+        case SYM_RANDOM: {
             REFINE(2, seed);
             REFINE(3, secure);
             // !!! "needs further definition ?  random/zero" <-- ?
@@ -821,7 +826,7 @@ REBTYPE(Date)
                     + (cast(REBI64, Julian_Date(date)) << 32)
                     + secs
                 );
-                return R_UNSET;
+                return R_VOID;
             }
 
             if (year == 0) break;
@@ -836,7 +841,7 @@ REBTYPE(Date)
             goto fixDate;
         }
 
-        case A_ABSOLUTE:
+        case SYM_ABSOLUTE:
             goto setDate;
         }
     }
@@ -857,14 +862,4 @@ setDate:
 ret_int:
     SET_INTEGER(D_OUT, num);
     return R_OUT;
-
-ret_val:
-    *D_OUT = *val;
-    return R_OUT;
-
-is_false:
-    return R_FALSE;
-
-is_true:
-    return R_TRUE;
 }

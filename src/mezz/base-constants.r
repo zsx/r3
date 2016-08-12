@@ -48,7 +48,6 @@ lf:        newline
 crlf:      "^M^J"
 
 ;-- Function synonyms:
-q: :quit
 not: :not?
 !: :not?
 min: :minimum

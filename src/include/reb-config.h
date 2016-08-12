@@ -1,52 +1,54 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Summary: General build configuration
-**  Module:  reb-config.h
-**  Author:  Carl Sassenrath
-**  Notes:
-**      This is the first file included.  It is included by both
-**      reb-host.h and sys-core.h, and all Rebol code can include
-**      one (and only one) of those...based on whether the file is
-**      part of the core or in the "host".
-**
-**      Many of the flags controlling the build (such as
-**      the TO_<target> definitions) come from -DTO_<target> in the
-**      compiler command-line.  These command lines are generally
-**      produced automatically, based on the build that is picked
-**      from %systems.r.
-**
-**      However, some flags require the preprocessor's help to
-**      decide if they are relevant, for instance if they involve
-**      detecting features of the compiler while it's running.
-**      Or they may adjust a feature so narrowly that putting it
-**      into the system configuration would seem unnecessary.
-**
-**      Over time, this file should be balanced and adjusted with
-**      %systems.r in order to make the most convenient and clear
-**      build process.  If there is difficulty in making a build
-**      work on a system, use that as an opportunity to reflect
-**      how to make this better.
-**
-***********************************************************************/
+//
+//  File: %reb-config.h
+//  Summary: "General build configuration"
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// This is the first file included.  It is included by both
+// reb-host.h and sys-core.h, and all Rebol code can include
+// one (and only one) of those...based on whether the file is
+// part of the core or in the "host".
+//
+// Many of the flags controlling the build (such as
+// the TO_<target> definitions) come from -DTO_<target> in the
+// compiler command-line.  These command lines are generally
+// produced automatically, based on the build that is picked
+// from %systems.r.
+//
+// However, some flags require the preprocessor's help to
+// decide if they are relevant, for instance if they involve
+// detecting features of the compiler while it's running.
+// Or they may adjust a feature so narrowly that putting it
+// into the system configuration would seem unnecessary.
+//
+// Over time, this file should be balanced and adjusted with
+// %systems.r in order to make the most convenient and clear
+// build process.  If there is difficulty in making a build
+// work on a system, use that as an opportunity to reflect
+// how to make this better.
+//
 
 
 /** Primary Configuration **********************************************
@@ -81,11 +83,6 @@ Special internal defines used by RT, not Host-Kit developers:
 */
 
 //* Common *************************************************************
-
-// !!! Threading support is largely unimplemented, but this switch was
-// to enable threads.
-#define THREADED
-#define THREAD
 
 
 #ifdef REB_EXE
@@ -132,13 +129,6 @@ Special internal defines used by RT, not Host-Kit developers:
     #define HAS_ASYNC_DNS           // supports it
 
     #define NO_TTY_ATTRIBUTES       // used in read-line.c
-
-    #ifdef THREADED
-        #ifndef __MINGW32__
-            #undef THREAD
-            #define THREAD __declspec(thread)
-        #endif
-    #endif
 
     // Used when we build REBOL as a DLL:
     #define API_EXPORT __declspec(dllexport)

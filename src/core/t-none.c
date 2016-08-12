@@ -1,38 +1,39 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  t-none.c
-**  Summary: none datatype
-**  Section: datatypes
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %t-none.c
+//  Summary: "none (blank) datatype"
+//  Section: datatypes
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
 //
-//  CT_None: C
+//  CT_Unit: C
 //
-REBINT CT_None(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Unit(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     if (mode >= 0) return (VAL_TYPE(a) == VAL_TYPE(b));
     return -1;
@@ -40,49 +41,50 @@ REBINT CT_None(const REBVAL *a, const REBVAL *b, REBINT mode)
 
 
 //
-//  MT_None: C
+//  MAKE_Unit: C
 //
-REBOOL MT_None(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
-    VAL_RESET_HEADER(out, type);
-    return TRUE;
+void MAKE_Unit(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    VAL_RESET_HEADER(out, kind);
+}
+
+
+//
+//  TO_Unit: C
+//
+void TO_Unit(REBVAL *out, enum Reb_Kind kind, const REBVAL *data) {
+    VAL_RESET_HEADER(out, kind);
 }
 
 
 //
 //  REBTYPE: C
-// 
-// ALSO used for unset!
 //
-REBTYPE(None)
+REBTYPE(Unit)
 {
     REBVAL *val = D_ARG(1);
+    assert(!IS_VOID(val));
 
     switch (action) {
+    case SYM_TAIL_Q:
+        return R_TRUE;
 
-    case A_MAKE:
-    case A_TO:
-        if (IS_DATATYPE(val))
-            return VAL_TYPE_KIND(val) == REB_NONE ? R_NONE : R_UNSET;
-        else
-            return IS_NONE(val) ? R_NONE : R_UNSET;
+    case SYM_INDEX_OF:
+    case SYM_LENGTH:
+    case SYM_SELECT:
+    case SYM_FIND:
+    case SYM_REMOVE:
+    case SYM_CLEAR:
+    case SYM_TAKE:
+        return R_BLANK;
 
-    case A_TAIL_Q:
-        if (IS_NONE(val)) return R_TRUE;
-        goto trap_it;
+    case SYM_COPY:
+        if (IS_BLANK(val))
+            return R_BLANK; // perhaps allow COPY on any type, as well.
+        break;
 
-    case A_INDEX_OF:
-    case A_LENGTH:
-    case A_SELECT:
-    case A_FIND:
-    case A_REMOVE:
-    case A_CLEAR:
-    case A_TAKE:
-        if (IS_NONE(val)) return R_NONE;
     default:
-    trap_it:
-        fail (Error_Illegal_Action(VAL_TYPE(val), action));
+        break;
     }
 
-    return R_OUT;
+    fail (Error_Illegal_Action(VAL_TYPE(val), action));
 }

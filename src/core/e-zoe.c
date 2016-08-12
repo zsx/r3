@@ -21,20 +21,20 @@ static REB_R do_call_widget_method(
     REBVAL *method = NULL;
 
     if (class_) { //see if user specifies a class to look for
-        n = Find_Word_In_Context(VAL_CONTEXT(klass), handler, FALSE);
+        n = Find_Canon_In_Context(VAL_CONTEXT(klass), Canon(handler), FALSE);
         if (n) {
             method = VAL_CONTEXT_VAR(klass, n);
         }
     } else {// see if the instance has the method
-        n = Find_Word_In_Context(instance, handler, FALSE);
+        n = Find_Canon_In_Context(instance, Canon(handler), FALSE);
         if (n) {
             method = CTX_VAR(instance, n);
         } else {// see if the class has the method
-            n = Find_Word_In_Context(instance, SYM_CLASS, FALSE);
+            n = Find_Canon_In_Context(instance, Canon(SYM_CLASS), FALSE);
             if (n) {
                 klass = CTX_VAR(instance, n);
                 if (IS_OBJECT(klass)) {
-                    n = Find_Word_In_Context(VAL_CONTEXT(klass), handler, FALSE);
+                    n = Find_Canon_In_Context(VAL_CONTEXT(klass), Canon(handler), FALSE);
                     if (n) method = VAL_CONTEXT_VAR(klass, n);
                 }
             }
@@ -48,25 +48,22 @@ static REB_R do_call_widget_method(
             REBOOL thrown;
             REBVAL old_instance;
 
-            VAL_INIT_WRITABLE_DEBUG(&old_instance);
-
             PUSH_TRAP(&error, &state);
             if (error) {
                 Val_Init_Object(VAL_CONTEXT_VAR(klass, n), VAL_CONTEXT(&old_instance));
                 fail (error);
             }
             if (klass) {
-                n = Find_Word_In_Context(VAL_CONTEXT(klass), SYM_INSTANCE, FALSE);
+                n = Find_Canon_In_Context(VAL_CONTEXT(klass), Canon(SYM_INSTANCE), FALSE);
                 if (n) {
                     old_instance = *VAL_CONTEXT_VAR(klass, n);
                     Val_Init_Object(VAL_CONTEXT_VAR(klass, n), instance);
                 }
             }
-            VAL_INIT_WRITABLE_DEBUG(out);
             if (param) {
-                thrown = Apply_Only_Throws(out, method, extra, END_VALUE);
+                thrown = Apply_Only_Throws(out, TRUE, method, extra, END_CELL);
             } else {
-                thrown = Apply_Only_Throws(out, method, END_VALUE);
+                thrown = Apply_Only_Throws(out, TRUE, method, END_CELL);
             }
             if (klass) {
                 *VAL_CONTEXT_VAR(klass, n) = old_instance;
@@ -75,10 +72,10 @@ static REB_R do_call_widget_method(
             return thrown? R_OUT_IS_THROWN : R_OUT;
         }
         else {
-            return R_UNSET;
+            return R_OUT_VOID_IF_UNWRITTEN;
         }
     } else {
-        return R_UNSET;
+        return R_OUT_VOID_IF_UNWRITTEN;
     }
 
 }
@@ -105,7 +102,7 @@ static REB_R do_zoom(REBVAL *out,
         gob = *SER_HEAD(REBGOB*, pane);
 	    if (GOB_DTYPE(gob) == GOBD_OBJECT) {
             REBCTX *data = AS_CONTEXT(GOB_DATA(gob));
-            REBCNT n = Find_Word_In_Context(data, SYM_PLACEMENT_ZOOM, FALSE);
+            REBCNT n = Find_Canon_In_Context(data, Canon(SYM_PLACEMENT_ZOOM), FALSE);
             if (n) {
                 REBVAL *placement = CTX_VAR(data, n);
                 if (IS_INTEGER(placement)
@@ -119,7 +116,7 @@ static REB_R do_zoom(REBVAL *out,
                         zoom_x = VAL_PAIR_X(zoom) / VAL_INT64(placement);
                         zoom_y = VAL_PAIR_Y(zoom) / VAL_INT64(placement);
                     }
-                    n = Find_Word_In_Context(data, SYM_INITIAL_OFFSET, FALSE);
+                    n = Find_Canon_In_Context(data, Canon(SYM_INITIAL_OFFSET), FALSE);
                     if (n) {
                         REBVAL *init_offset = CTX_VAR(data, n);
                         if (IS_PAIR(init_offset)) {
@@ -140,7 +137,7 @@ static REB_R do_zoom(REBVAL *out,
                         // fail: init-offset not found
                     }
                     // gob/size: gob/data/init-size * zoom / (gob/data/placement-zoom)
-                    n = Find_Word_In_Context(data, SYM_INITIAL_SIZE, FALSE);
+                    n = Find_Canon_In_Context(data, Canon(SYM_INITIAL_SIZE), FALSE);
                     if (n) {
                         REBVAL *init_size = CTX_VAR(data, n);
                         if (IS_PAIR(init_size)) {
@@ -157,7 +154,7 @@ static REB_R do_zoom(REBVAL *out,
 
                     if (sticky) {
                         //gob/sticky-zoom: zoom/x / gob/data/placement-zoom
-                        n = Find_Word_In_Context(data, SYM_STICKY_ZOOM, FALSE);
+                        n = Find_Canon_In_Context(data, Canon(SYM_STICKY_ZOOM), FALSE);
                         if (n) SET_DECIMAL(CTX_VAR(data, n), zoom_x);
                     }
 
@@ -189,7 +186,7 @@ static REB_R do_zoom(REBVAL *out,
 
     Free_Series(pane);
 
-    return R_UNSET;
+    return R_OUT_VOID_IF_UNWRITTEN;
 }
 
 //
@@ -242,7 +239,7 @@ REBNATIVE(zoe_call_widget_method)
     PARAM(6, klass);
 
     return do_call_widget_method(D_OUT,
-                               VAL_WORD_CANON(ARG(handler)), VAL_CONTEXT(ARG(instance)),
+                               VAL_WORD_SYM(ARG(handler)), VAL_CONTEXT(ARG(instance)),
                                REF(param), ARG(extra),
                                REF(class_), ARG(klass));
 }
@@ -252,14 +249,14 @@ static REB_R do_draw_widget(REBVAL *out, REBGOB *gob, REBDEC zoom, REBOOL redraw
     if (level != 0) {//skip first
         if (GOB_DTYPE(gob) == GOBD_OBJECT) {
             REBCTX *data = AS_CONTEXT(GOB_DATA(gob));
-            REBCNT n = Find_Word_In_Context(data, SYM_SELECTED_Q, FALSE);
+            REBCNT n = Find_Canon_In_Context(data, Canon(SYM_SELECTED_Q), FALSE);
             if (n) {
                 if (!VAL_LOGIC(CTX_VAR(data, n))) { // not selected?
                     if (redraw) {
-                        n = Find_Word_In_Context(data, SYM_MIN_ZOOM, FALSE);
+                        n = Find_Canon_In_Context(data, Canon(SYM_MIN_ZOOM), FALSE);
                         if (n) {
                             REBDEC min_zoom = VAL_DECIMAL(CTX_VAR(data, n));
-                            n = Find_Word_In_Context(data, SYM_MAX_ZOOM, FALSE);
+                            n = Find_Canon_In_Context(data, Canon(SYM_MAX_ZOOM), FALSE);
                             if (n) {
                                 REBDEC max_zoom = VAL_DECIMAL(CTX_VAR(data, n));
                                 if (zoom < min_zoom || zoom > max_zoom) {
@@ -273,7 +270,7 @@ static REB_R do_draw_widget(REBVAL *out, REBGOB *gob, REBDEC zoom, REBOOL redraw
                     }
 
                     // unless none? in gob/data 'color [gob/color: gob/data/color] ;for LED widget
-                    n = Find_Word_In_Context(data, SYM_COLOR, FALSE);
+                    n = Find_Canon_In_Context(data, Canon(SYM_COLOR), FALSE);
                     if (n) {
                         REBVAL *color = CTX_VAR(data, n);
 
@@ -284,13 +281,13 @@ static REB_R do_draw_widget(REBVAL *out, REBGOB *gob, REBDEC zoom, REBOOL redraw
                             Set_Pixel_Tuple((REBYTE*)&GOB_CONTENT(gob), color);
                             if (VAL_TUPLE_LEN(color) < 4 || VAL_TUPLE(color)[3] == 0)
                                 SET_GOB_OPAQUE(gob);
-                        } else if (IS_NONE(color)) {
+                        } else if (IS_VOID(color)) {
                             SET_GOB_TYPE(gob, GOBT_NONE);
                         }
                     }
 
 					// unless none? in gob/data 'draw [gob/draw: bind/only compose/only gob/data/draw import 'draw] ;for most other widgets
-                    n = Find_Word_In_Context(data, SYM_DRAW, FALSE);
+                    n = Find_Canon_In_Context(data, Canon(SYM_DRAW), FALSE);
                     if (n) {
                         REBVAL *draw = CTX_VAR(data, n);
                         REBVAL *modules = VAL_CONTEXT_VAR(ROOT_SYSTEM, SYS_MODULES);
@@ -298,7 +295,7 @@ static REB_R do_draw_widget(REBVAL *out, REBGOB *gob, REBDEC zoom, REBOOL redraw
                         REBVAL word_draw;
                         REBCNT draw_index;
 
-                        Val_Init_Word(&word_draw, REB_WORD, SYM_DRAW);
+                        Val_Init_Word(&word_draw, REB_WORD, Canon(SYM_DRAW));
 
                         //find/skip sys/modules 'draw 3
                         draw_index = Find_In_Array(VAL_ARRAY(modules), 0, VAL_LEN_HEAD(modules), &word_draw, 1, 0, 3);
@@ -310,7 +307,7 @@ static REB_R do_draw_widget(REBVAL *out, REBGOB *gob, REBDEC zoom, REBOOL redraw
                         assert(context != NULL);
 
                         //compose/only draw
-                        if (R_OUT_IS_THROWN == Compose_Values_Throws(out, VAL_ARRAY_AT(draw), FALSE, TRUE, FALSE)) {
+                        if (R_OUT_IS_THROWN == Compose_Any_Array_Throws(out, VAL_ARRAY_AT(draw), FALSE, TRUE, FALSE)) {
                             return R_OUT_IS_THROWN;
                         }
 
@@ -324,7 +321,7 @@ static REB_R do_draw_widget(REBVAL *out, REBGOB *gob, REBDEC zoom, REBOOL redraw
                         if (IS_BLOCK(draw)) {
                             SET_GOB_TYPE(gob, GOBT_DRAW);
                             GOB_CONTENT(gob) = VAL_SERIES(draw);
-                        } else if (IS_NONE(draw)) {
+                        } else if (IS_VOID(draw)) {
                             SET_GOB_TYPE(gob, GOBT_NONE);
                         }
                     }
@@ -362,6 +359,5 @@ REBNATIVE(zoe_draw_widget)
     REFINE(3, skip_first);
     REFINE(4, redraw);
     
-    VAL_INIT_WRITABLE_DEBUG(D_OUT);
     return do_draw_widget(D_OUT, VAL_GOB(ARG(gob)), VAL_PAIR_X(ARG(zoom)), REF(redraw), REF(skip_first) ? 0 : 1);
 }

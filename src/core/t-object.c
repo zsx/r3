@@ -1,47 +1,38 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  t-object.c
-**  Summary: object datatype
-**  Section: datatypes
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %t-object.c
+//  Summary: "object datatype"
+//  Section: datatypes
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
 
-static REBOOL Same_Context(const REBVAL *val, const REBVAL *arg)
-{
-    if (
-        VAL_TYPE(arg) == VAL_TYPE(val) &&
-        //VAL_CONTEXT_SPEC(val) == VAL_CONTEXT_SPEC(arg) &&
-        VAL_CONTEXT(val) == VAL_CONTEXT(arg)
-    ) return TRUE;
-    return FALSE;
-}
 
-
-static REBOOL Equal_Context(const REBVAL *val, const REBVAL *arg)
+static REBOOL Equal_Context(const RELVAL *val, const RELVAL *arg)
 {
     REBCTX *f1;
     REBCTX *f2;
@@ -72,8 +63,8 @@ static REBOOL Equal_Context(const REBVAL *val, const REBVAL *arg)
     var2 = CTX_VARS_HEAD(f2);
 
     // Compare each entry, in order.  This order dependence suggests that
-    // an object made with `make object! [a: 1 b: 2]` will not compare equal
-    // to `make object! [b: 1 a: 2]`.  Although Rebol does not allow
+    // an object made with `make object! [[a b][a: 1 b: 2]]` will not be equal
+    // to `make object! [[b a][b: 1 a: 2]]`.  Although Rebol does not allow
     // positional picking out of objects, it does allow positional setting
     // currently (which it likely should not), hence they are functionally
     // distinct for now.  Yet those two should probably be `equal?`.
@@ -103,7 +94,7 @@ static REBOOL Equal_Context(const REBVAL *val, const REBVAL *arg)
         // objects to consider themselves to be equal (but which do not
         // count in comparison of the typesets)
         //
-        if (VAL_TYPESET_CANON(key1) != VAL_TYPESET_CANON(key2))
+        if (VAL_KEY_CANON(key1) != VAL_KEY_CANON(key2))
             return FALSE;
 
         // !!! A comment here said "Use Compare_Modify_Values();"...but it
@@ -132,17 +123,12 @@ static REBOOL Equal_Context(const REBVAL *val, const REBVAL *arg)
 
 static void Append_To_Context(REBCTX *context, REBVAL *arg)
 {
-    REBCNT i, len;
-    REBVAL *word;
-    REBVAL *key;
-    REBINT *binds; // for binding table
-
     // Can be a word:
     if (ANY_WORD(arg)) {
-        if (!Find_Word_In_Context(context, VAL_WORD_SYM(arg), TRUE)) {
+        if (0 == Find_Canon_In_Context(context, VAL_WORD_CANON(arg), TRUE)) {
             Expand_Context(context, 1); // copy word table also
-            Append_Context(context, 0, VAL_WORD_SYM(arg));
-            // val is UNSET
+            Append_Context(context, 0, VAL_WORD_SPELLING(arg));
+            // default of Append_Context is that arg's value is void
         }
         return;
     }
@@ -150,59 +136,65 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
     if (!IS_BLOCK(arg)) fail (Error_Invalid_Arg(arg));
 
     // Process word/value argument block:
-    arg = VAL_ARRAY_AT(arg);
 
-    // Use binding table
-    binds = WORDS_HEAD(Bind_Table);
+    RELVAL *item = VAL_ARRAY_AT(arg);
+
+    struct Reb_Binder binder;
+    INIT_BINDER(&binder);
 
     Collect_Keys_Start(COLLECT_ANY_WORD);
 
     // Setup binding table with obj words.  Binding table is empty so don't
     // bother checking for duplicates.
     //
-    Collect_Context_Keys(context, FALSE);
+    Collect_Context_Keys(&binder, context, FALSE);
 
     // Examine word/value argument block
-    for (word = arg; NOT_END(word); word += 2) {
-        REBCNT canon;
 
+    RELVAL *word;
+    for (word = item; NOT_END(word); word += 2) {
         if (!IS_WORD(word) && !IS_SET_WORD(word))
-            fail (Error_Invalid_Arg(word));
+            fail (Error_Invalid_Arg_Core(word, VAL_SPECIFIER(arg)));
 
-        canon = VAL_WORD_CANON(word);
+        REBSTR *canon = VAL_WORD_CANON(word);
 
-        if (binds[canon] == 0) {
+        if (Try_Add_Binder_Index(&binder, canon, ARR_LEN(BUF_COLLECT))) {
             //
-            // Not already collected, so add it...
+            // Wasn't already collected...so we added it...
             //
-            binds[canon] = ARR_LEN(BUF_COLLECT);
             EXPAND_SERIES_TAIL(ARR_SERIES(BUF_COLLECT), 1);
             Val_Init_Typeset(
-                ARR_LAST(BUF_COLLECT), ALL_64, VAL_WORD_SYM(word)
+                ARR_LAST(BUF_COLLECT), ALL_64, VAL_WORD_SPELLING(word)
             );
         }
         if (IS_END(word + 1)) break; // fix bug#708
     }
 
-    TERM_ARRAY(BUF_COLLECT);
+    TERM_ARRAY_LEN(BUF_COLLECT, ARR_LEN(BUF_COLLECT));
 
     // Append new words to obj
     //
-    len = CTX_LEN(context) + 1;
+    REBCNT len = CTX_LEN(context) + 1;
     Expand_Context(context, ARR_LEN(BUF_COLLECT) - len);
+
+    RELVAL *key;
     for (key = ARR_AT(BUF_COLLECT, len); NOT_END(key); key++) {
         assert(IS_TYPESET(key));
-        Append_Context(context, NULL, VAL_TYPESET_SYM(key));
+        Append_Context_Core(
+            context,
+            NULL,
+            VAL_KEY_SPELLING(key),
+            NOT(GET_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK)) // !!! others?
+        );
     }
 
     // Set new values to obj words
-    for (word = arg; NOT_END(word); word += 2) {
-        REBVAL *key;
-        REBVAL *var;
+    for (word = item; NOT_END(word); word += 2) {
+        REBCNT i = Try_Get_Binder_Index(&binder, VAL_WORD_CANON(word));
+        assert(i != 0);
 
-        i = binds[VAL_WORD_CANON(word)];
-        var = CTX_VAR(context, i);
-        key = CTX_KEY(context, i);
+        REBVAL *key = CTX_KEY(context, i);
+        REBVAL *var = CTX_VAR(context, i);
 
         if (GET_VAL_FLAG(key, TYPESET_FLAG_LOCKED))
             fail (Error_Protected_Key(key));
@@ -210,14 +202,19 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
         if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
             fail (Error(RE_HIDDEN));
 
-        if (IS_END(word + 1)) SET_NONE(var);
-        else *var = word[1];
+        if (IS_END(word + 1)) {
+            SET_BLANK(var);
+            break; // fix bug#708
+        }
+        else
+            COPY_VALUE(var, &word[1], VAL_SPECIFIER(arg));
 
-        if (IS_END(word + 1)) break; // fix bug#708
     }
 
     // release binding table
-    Collect_Keys_End();
+    Collect_Keys_End(&binder);
+
+    SHUTDOWN_BINDER(&binder);
 }
 
 
@@ -231,20 +228,18 @@ static REBCTX *Trim_Context(REBCTX *context)
     REBVAL *key_new;
 
     // First pass: determine size of new context to create by subtracting out
-    // any UNSET!, NONE!, or hidden fields
+    // any void (unset fields), NONE!, or hidden fields
     //
     key = CTX_KEYS_HEAD(context);
     var = CTX_VARS_HEAD(context);
     for (; NOT_END(var); var++, key++) {
-        if (VAL_TYPE(var) > REB_NONE && !GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
+        if (VAL_TYPE(var) > REB_BLANK && !GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
             copy_count++;
     }
 
     // Create new context based on the size found
     //
     context_new = Alloc_Context(copy_count);
-    VAL_CONTEXT_SPEC(CTX_VALUE(context_new)) = NULL;
-    VAL_CONTEXT_STACKVARS(CTX_VALUE(context_new)) = NULL;
 
     // Second pass: copy the values that were not skipped in the first pass
     //
@@ -253,7 +248,7 @@ static REBCTX *Trim_Context(REBCTX *context)
     var_new = CTX_VARS_HEAD(context_new);
     key_new = CTX_KEYS_HEAD(context_new);
     for (; NOT_END(var); var++, key++) {
-        if (VAL_TYPE(var) > REB_NONE && !GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
+        if (VAL_TYPE(var) > REB_BLANK && !GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
             *var_new++ = *var;
             *key_new++ = *key;
         }
@@ -261,10 +256,8 @@ static REBCTX *Trim_Context(REBCTX *context)
 
     // Terminate the new context
     //
-    SET_END(var_new);
-    SET_END(key_new);
-    SET_ARRAY_LEN(CTX_VARLIST(context_new), copy_count + 1);
-    SET_ARRAY_LEN(CTX_KEYLIST(context_new), copy_count + 1);
+    TERM_ARRAY_LEN(CTX_VARLIST(context_new), copy_count + 1);
+    TERM_ARRAY_LEN(CTX_KEYLIST(context_new), copy_count + 1);
 
     return context_new;
 }
@@ -273,38 +266,175 @@ static REBCTX *Trim_Context(REBCTX *context)
 //
 //  CT_Context: C
 //
-REBINT CT_Context(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Context(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     if (mode < 0) return -1;
-    if (mode == 3) return Same_Context(a, b) ? 1 : 0;
     return Equal_Context(a, b) ? 1 : 0;
 }
 
 
 //
-//  MT_Context: C
+//  MAKE_Context: C
 //
-REBOOL MT_Context(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+void MAKE_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
-    REBCTX *context;
-    if (!IS_BLOCK(data)) return FALSE;
+    if (kind == REB_FRAME) {
+        //
+        // !!! Current experiment for making frames lets you give it
+        // a FUNCTION! only.
+        //
+        if (!IS_FUNCTION(arg))
+            fail (Error_Bad_Make(kind, arg));
 
-    context = Construct_Context(type, VAL_ARRAY_AT(data), FALSE, NULL);
+        // In order to have the frame survive the call to MAKE and be
+        // returned to the user it can't be stack allocated, because it
+        // would immediately become useless.  Allocate dynamically.
+        //
+        Val_Init_Context(out, REB_FRAME, Make_Frame_For_Function(arg));
 
-    Val_Init_Context(out, type, context);
-
-    if (type == REB_ERROR) {
-        REBVAL result;
-        VAL_INIT_WRITABLE_DEBUG(&result);
-
-        if (Make_Error_Object_Throws(&result, out)) {
-            *out = result;
-            return FALSE;
-        }
-        assert(IS_ERROR(&result));
-        *out = result;
+        // The frame's keylist is the same as the function's paramlist, and
+        // the [0] canon value of that array can be used to find the
+        // archetype of the function.  But if the `arg` is a RETURN with a
+        // binding in the REBVAL to where to return from, that unique
+        // instance information must be carried in the REBVAL of the context.
+        //
+        assert(VAL_BINDING(out) == VAL_BINDING(arg));
+        return;
     }
-    return TRUE;
+
+    if (kind == REB_OBJECT && IS_BLANK(arg)) {
+        //
+        // Special case (necessary?) to return an empty object.
+        //
+        Val_Init_Object(
+            out,
+            Construct_Context(
+                REB_OBJECT,
+                NULL, // head
+                SPECIFIED,
+                NULL
+            )
+        );
+        return;
+    }
+
+    if (kind == REB_OBJECT && IS_BLOCK(arg)) {
+        //
+        // Simple object creation with no evaluation, so all values are
+        // handled "as-is".  Should have a spec block and a body block.
+        //
+        // Note: In %r3-legacy.r, the old evaluative MAKE OBJECT! is
+        // done by redefining MAKE itself, and calling the CONSTRUCT
+        // generator if the make def is not the [[spec][body]] format.
+
+        if (
+            VAL_LEN_AT(arg) != 2
+            || !IS_BLOCK(VAL_ARRAY_AT(arg)) // spec
+            || !IS_BLOCK(VAL_ARRAY_AT(arg) + 1) // body
+        ) {
+            fail (Error_Bad_Make(kind, arg));
+        }
+
+        // !!! Spec block is currently ignored, but required.
+
+        Val_Init_Object(
+            out,
+            Construct_Context(
+                REB_OBJECT,
+                VAL_ARRAY_AT(VAL_ARRAY_AT(arg) + 1),
+                VAL_SPECIFIER(arg),
+                NULL // no parent
+            )
+        );
+
+        return;
+    }
+
+    // make error! [....]
+    //
+    // arg is block/string, but let Make_Error_Object_Throws do the
+    // type checking.
+    //
+    if (kind == REB_ERROR) {
+        //
+        // !!! Evaluation should not happen during a make.  FAIL should
+        // be the primitive that does the evaluations, and then call
+        // into this with the reduced block.
+        //
+        if (Make_Error_Object_Throws(out, arg, NULL))
+            fail (Error_No_Catch_For_Throw(out));
+
+        return;
+    }
+
+    // `make object! 10` - currently not prohibited for any context type
+    //
+    if (ANY_NUMBER(arg)) {
+        REBINT n = Int32s(arg, 0);
+
+        // !!! Temporary!  Ultimately SELF will be a user protocol.
+        // We use Make_Selfish_Context while MAKE is filling in for
+        // what will be responsibility of the generators, just to
+        // get "completely fake SELF" out of index slot [0]
+        //
+        REBCTX *context = Make_Selfish_Context_Detect(
+            kind, // type
+            NULL, // body
+            END_CELL, // scan for toplevel set-words, empty
+            NULL // parent
+        );
+
+        // !!! Allocation when SELF is not the responsibility of MAKE
+        // will be more basic and look like this.
+        //
+        /* context = Alloc_Context(n);
+        VAL_RESET_HEADER(CTX_VALUE(context), target);
+        CTX_SPEC(context) = NULL;
+        CTX_BODY(context) = NULL; */
+        Val_Init_Context(out, kind, context);
+
+        return;
+    }
+
+    // make object! map!
+    if (IS_MAP(arg)) {
+        REBCTX *context = Alloc_Context_From_Map(VAL_MAP(arg));
+        Val_Init_Context(out, kind, context);
+        return;
+    }
+
+    fail (Error_Bad_Make(kind, arg));
+}
+
+
+//
+//  TO_Context: C
+//
+void TO_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    if (kind == REB_ERROR) {
+        //
+        // arg is checked to be block or string
+        //
+        if (Make_Error_Object_Throws(out, arg, NULL))
+            fail (Error_No_Catch_For_Throw(out));
+        return;
+    }
+
+    if (kind == REB_OBJECT) {
+        if (IS_ERROR(arg)) {
+            if (VAL_ERR_NUM(arg) < 100)
+                fail (Error_Invalid_Arg(arg)); // !!! ???
+        }
+
+        // !!! Contexts hold canon values now that are typed, this init
+        // will assert--a TO conversion would thus need to copy the varlist
+        //
+        Val_Init_Object(out, VAL_CONTEXT(arg));
+        return;
+    }
+
+    fail (Error_Bad_Make(kind, arg));
 }
 
 
@@ -317,12 +447,22 @@ REBINT PD_Context(REBPVS *pvs)
     REBCTX *context = VAL_CONTEXT(pvs->value);
 
     if (IS_WORD(pvs->selector)) {
-        n = Find_Word_In_Context(context, VAL_WORD_SYM(pvs->selector), FALSE);
+        n = Find_Canon_In_Context(context, VAL_WORD_CANON(pvs->selector), FALSE);
     }
     else fail (Error_Bad_Path_Select(pvs));
 
-    if (n == 0)
+    if (n == 0) {
+        //
+        // !!! The logic for allowing a GET-PATH! to be void if it's the last
+        // lookup that fails here is hacked in, but desirable for parity
+        // with the behavior of GET-WORD!
+        //
+        if (IS_GET_PATH(pvs->orig) && IS_END(pvs->item + 1)) {
+            SET_VOID(pvs->store);
+            return PE_USE_STORE;
+        }
         fail (Error_Bad_Path_Select(pvs));
+    }
 
     if (
         pvs->opt_setval
@@ -333,7 +473,96 @@ REBINT PD_Context(REBPVS *pvs)
     }
 
     pvs->value = CTX_VAR(context, n);
+    pvs->value_specifier = SPECIFIED;
+
     return PE_SET_IF_END;
+}
+
+
+//
+//  meta-of: native [
+//
+//  {Get a reference to the "meta" object associated with a value.}
+//
+//      value [function! object! module!]
+//  ]
+//
+REBNATIVE(meta_of)
+//
+// The first implementation of linking a "meta object" to another object
+// originates from the original module system--where it was called the
+// "module spec".  By moving it out of object REBVALs to the misc field of
+// a keylist, it becomes possible to change the meta object and have that
+// change seen by all references.
+//
+// As modules are still the first client of this meta information, it works
+// a similar way.  It is mutable by all references by default, unless
+// it is protected.
+//
+// !!! This feature is under development and expected to extend to functions
+// and possibly other types of values--both as the meta information, and
+// as being able to have the meta information.
+{
+    PARAM(1, value);
+
+    REBVAL *value = ARG(value);
+
+    REBCTX *meta;
+    if (IS_FUNCTION(value))
+        meta = VAL_FUNC_META(value);
+    else {
+        assert(ANY_CONTEXT(value));
+        meta = VAL_CONTEXT_META(value);
+    }
+
+    if (!meta) return R_BLANK;
+
+    Val_Init_Object(D_OUT, meta);
+    return R_OUT;
+}
+
+
+//
+//  set-meta: native [
+//
+//      <punctuates>
+//
+//  {Set "meta" object associated with all references to a value.}
+//
+//      return: [<opt>]
+//      value [function! object! module!]
+//      meta [object! blank!]
+//  ]
+//
+REBNATIVE(set_meta)
+//
+// !!! You cannot currently put meta information onto a FRAME!, because the
+// slot where the meta information would go is where the meta information
+// would live for the function--since frames use a functions "paramlist"
+// as their keylist.  Types taken are deliberately narrow for the moment.
+{
+    PARAM(1, value);
+    PARAM(2, meta);
+
+    REBCTX *meta;
+    if (ANY_CONTEXT(ARG(meta))) {
+        meta = VAL_CONTEXT(ARG(meta));
+    }
+    else {
+        assert(IS_BLANK(ARG(meta)));
+        meta = NULL;
+    }
+
+    REBVAL *value = ARG(value);
+
+    if (IS_FUNCTION(value))
+        ARR_SERIES(VAL_FUNC_PARAMLIST(value))->link.meta = meta;
+    else {
+        assert(ANY_CONTEXT(value));
+        INIT_CONTEXT_META(VAL_CONTEXT(value), meta);
+    }
+
+    return R_VOID;
 }
 
 
@@ -347,238 +576,23 @@ REBTYPE(Context)
     REBVAL *value = D_ARG(1);
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     REBCTX *context;
-    REBCTX *src_context;
-    enum Reb_Kind target;
 
     switch (action) {
-
-    case A_MAKE:
-        //
-        // `make object! | error! | module!`; first parameter must be either
-        // a datatype or a type exemplar.
-        //
-        // !!! For objects historically, the "type exemplar" parameter was
-        // also the parent... this is not the long term answer.  For the
-        // future, `make (make object! [a: 10]) [b: 20]` will give the same
-        // result back as `make object! [b: 20]`, with parents specified to
-        // generators like `o: object [<parent> p] [...]`
-        //
-        if (!IS_DATATYPE(value) && !ANY_CONTEXT(value))
-            fail (Error_Bad_Make(VAL_TYPE(value), value));
-
-        if (IS_DATATYPE(value)) {
-            target = VAL_TYPE_KIND(value);
-            src_context = NULL;
-        }
-        else {
-            target = VAL_TYPE(value);
-            src_context = VAL_CONTEXT(value);
-        }
-
-        if (target == REB_FRAME) {
-            REBARR *varlist;
-            REBCNT n;
-            REBVAL *var;
-
-            // !!! Current experiment for making frames lets you give it
-            // a FUNCTION! only.
-            //
-            if (!IS_FUNCTION(arg))
-                fail (Error_Bad_Make(target, arg));
-
-            // In order to have the frame survive the call to MAKE and be
-            // returned to the user it can't be stack allocated, because it
-            // would immediately become useless.  Allocate dynamically.
-            //
-            Val_Init_Context(
-                D_OUT, REB_FRAME, Make_Frame_For_Function(VAL_FUNC(arg))
-            );
-
-            return R_OUT;
-        }
-
-        if (target == REB_OBJECT && (IS_BLOCK(arg) || IS_NONE(arg))) {
-            //
-            // make object! [init]
-            //
-            // First we scan the object for top-level set words in
-            // order to make an appropriately sized context.  Then
-            // we put it into an object in D_OUT to GC protect it.
-            //
-            context = Make_Selfish_Context_Detect(
-                REB_OBJECT, // type
-                NULL, // spec
-                NULL, // body
-                // scan for toplevel set-words
-                IS_NONE(arg) ? END_VALUE : VAL_ARRAY_AT(arg),
-                src_context // parent
-            );
-            Val_Init_Object(D_OUT, context);
-
-            if (!IS_NONE(arg)) {
-                REBVAL dummy;
-                VAL_INIT_WRITABLE_DEBUG(&dummy);
-
-                // !!! This binds the actual arg data, not a copy of it
-                // (functions make a copy of the body they are passed to
-                // be rebound).  This seems wrong.
-                //
-                Bind_Values_Deep(VAL_ARRAY_AT(arg), context);
-
-                // Do the block into scratch space (we ignore the result,
-                // unless it is thrown in which case it must be returned.
-                //
-                if (DO_VAL_ARRAY_AT_THROWS(&dummy, arg)) {
-                    *D_OUT = dummy;
-                    return R_OUT_IS_THROWN;
-                }
-            }
-
-            return R_OUT;
-        }
-
-        // make parent-object object
-        //
-        if ((target == REB_OBJECT) && IS_OBJECT(value) && IS_OBJECT(arg)) {
-            //
-            // !!! Again, the presumption that the result of a merge is to
-            // be selfish should not be hardcoded in the C, but part of
-            // the generator choice by the person doing the derivation.
-            //
-            context = Merge_Contexts_Selfish(src_context, VAL_CONTEXT(arg));
-            Val_Init_Object(D_OUT, context);
-            return R_OUT;
-        }
-
-        // make error! [....]
-        //
-        // arg is block/string, but let Make_Error_Object_Throws do the
-        // type checking.
-        //
-        if (target == REB_ERROR) {
-            if (Make_Error_Object_Throws(D_OUT, arg))
-                return R_OUT_IS_THROWN;
-            return R_OUT;
-        }
-
-        // `make object! 10` - currently not prohibited for any context type
-        //
-        if (IS_NUMBER(arg)) {
-            REBINT n = Int32s(arg, 0);
-
-            // !!! Temporary!  Ultimately SELF will be a user protocol.
-            // We use Make_Selfish_Context while MAKE is filling in for
-            // what will be responsibility of the generators, just to
-            // get "completely fake SELF" out of index slot [0]
-            //
-            context = Make_Selfish_Context_Detect(
-                target, // type
-                NULL, // spec
-                NULL, // body
-                END_VALUE, // scan for toplevel set-words, empty
-                NULL // parent
-            );
-
-            // !!! Allocation when SELF is not the responsibility of MAKE
-            // will be more basic and look like this.
-            //
-            /* context = Alloc_Context(n);
-            VAL_RESET_HEADER(CTX_VALUE(context), target);
-            CTX_SPEC(context) = NULL;
-            CTX_BODY(context) = NULL; */
-            Val_Init_Context(D_OUT, target, context);
-            return R_OUT;
-        }
-
-        // make object! map!
-        if (IS_MAP(arg)) {
-            context = Alloc_Context_From_Map(VAL_MAP(arg));
-            Val_Init_Context(D_OUT, target, context);
-            return R_OUT;
-        }
-        fail (Error_Bad_Make(target, arg));
-
-    case A_TO:
-        target = IS_DATATYPE(value)
-            ? VAL_TYPE_KIND(value)
-            : VAL_TYPE(value);
-
-        // special conversions to object! | error! | module!
-        if (target == REB_ERROR) {
-            // arg is block/string, returns value
-            if (Make_Error_Object_Throws(D_OUT, arg))
-                return R_OUT_IS_THROWN;
-            return R_OUT;
-        }
-        else if (target == REB_OBJECT) {
-            if (IS_ERROR(arg)) {
-                if (VAL_ERR_NUM(arg) < 100) fail (Error_Invalid_Arg(arg));
-                context = VAL_CONTEXT(arg);
-                break; // returns context
-            }
-            Val_Init_Object(D_OUT, VAL_CONTEXT(arg));
-            return R_OUT;
-        }
-        else if (target == REB_MODULE) {
-            REBVAL *item;
-            if (!IS_BLOCK(arg))
-                fail (Error_Bad_Make(REB_MODULE, arg));
-
-            item = VAL_ARRAY_AT(arg);
-
-            // Called from `make-module*`, as `to module! reduce [spec obj]`
-            //
-            // item[0] should be module spec
-            // item[1] should be module object
-            //
-            if (IS_END(item) || IS_END(item + 1))
-                fail (Error_Bad_Make(REB_MODULE, arg));
-            if (!IS_OBJECT(item))
-                fail (Error_Invalid_Arg(item));
-            if (!IS_OBJECT(item + 1))
-                fail (Error_Invalid_Arg(item + 1));
-
-            // !!! We must make a shallow copy of the context, otherwise there
-            // is no way to change the context type to module without wrecking
-            // the object passed in.
-
-            context = Copy_Context_Shallow(VAL_CONTEXT(item + 1));
-            VAL_CONTEXT_SPEC(CTX_VALUE(context)) = VAL_CONTEXT(item);
-            assert(VAL_CONTEXT_STACKVARS(CTX_VALUE(context)) == NULL);
-            VAL_RESET_HEADER(CTX_VALUE(context), REB_MODULE);
-
-            // !!! Again, not how this should be done but... if there is a
-            // self we set it to the module we just made.  (Here we tolerate
-            // it if there wasn't one in the object copied from.)
-            //
-            {
-                REBCNT self_index = Find_Word_In_Context(context, SYM_SELF, TRUE);
-                if (self_index != 0) {
-                    assert(CTX_KEY_CANON(context, self_index) == SYM_SELF);
-                    *CTX_VAR(context, self_index) = *CTX_VALUE(context);
-                }
-            }
-
-            Val_Init_Module(D_OUT, context);
-            return R_OUT;
-        }
-        fail (Error_Bad_Make(target, arg));
-
-    case A_APPEND:
+    case SYM_APPEND:
         FAIL_IF_LOCKED_CONTEXT(VAL_CONTEXT(value));
-        if (!IS_OBJECT(value))
+        if (!IS_OBJECT(value) && !IS_MODULE(value))
             fail (Error_Illegal_Action(VAL_TYPE(value), action));
         Append_To_Context(VAL_CONTEXT(value), arg);
         *D_OUT = *D_ARG(1);
         return R_OUT;
 
-    case A_LENGTH:
+    case SYM_LENGTH:
         if (!IS_OBJECT(value))
             fail (Error_Illegal_Action(VAL_TYPE(value), action));
         SET_INTEGER(D_OUT, CTX_LEN(VAL_CONTEXT(value)));
         return R_OUT;
 
-    case A_COPY:
+    case SYM_COPY:
         // Note: words are not copied and bindings not changed!
     {
         REBU64 types = 0;
@@ -592,14 +606,15 @@ REBTYPE(Context)
             else types |= VAL_TYPESET_BITS(arg);
         }
         context = AS_CONTEXT(
-            Copy_Array_Shallow(CTX_VARLIST(VAL_CONTEXT(value)))
+            Copy_Array_Shallow(CTX_VARLIST(VAL_CONTEXT(value)), SPECIFIED)
         );
         INIT_CTX_KEYLIST_SHARED(context, CTX_KEYLIST(VAL_CONTEXT(value)));
-        SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST);
-        INIT_VAL_CONTEXT(CTX_VALUE(context), context);
+        SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_VARLIST);
+        CTX_VALUE(context)->payload.any_context.varlist = CTX_VARLIST(context);
         if (types != 0) {
             Clonify_Values_Len_Managed(
                 CTX_VARS_HEAD(context),
+                SPECIFIED,
                 CTX_LEN(context),
                 D_REF(ARG_COPY_DEEP),
                 types
@@ -609,52 +624,43 @@ REBTYPE(Context)
         return R_OUT;
     }
 
-    case A_SELECT:
-    case A_FIND: {
-        REBINT n;
-
+    case SYM_SELECT:
+    case SYM_FIND: {
         if (!IS_WORD(arg))
-            return R_NONE;
+            return R_BLANK;
 
-        n = Find_Word_In_Context(VAL_CONTEXT(value), VAL_WORD_SYM(arg), FALSE);
+        REBCNT n = Find_Canon_In_Context(
+            VAL_CONTEXT(value), VAL_WORD_CANON(arg), FALSE
+        );
 
-        if (n <= 0)
-            return R_NONE;
+        if (n == 0)
+            return R_BLANK;
 
         if (cast(REBCNT, n) > CTX_LEN(VAL_CONTEXT(value)))
-            return R_NONE;
+            return R_BLANK;
 
-        if (action == A_FIND) return R_TRUE;
+        if (action == SYM_FIND) return R_TRUE;
 
         *D_OUT = *CTX_VAR(VAL_CONTEXT(value), n);
         return R_OUT;
     }
 
-    case A_REFLECT:
-        action = What_Reflector(arg); // zero on error
-        if (action == OF_SPEC) {
-            //
-            // !!! Rename to META-OF
-            //
-            // We do not return this by copy because it belongs to the user
-            // constructs to manage.  If they wish to PROTECT it they may,
-            // but what we give back here can be modified.
-            //
-            Val_Init_Object(D_OUT, VAL_CONTEXT_SPEC(value));
-            return R_OUT;
+    case SYM_REFLECT: {
+        REBSYM sym = VAL_WORD_SYM(arg);
+        REBCNT reflector;
+
+        switch (sym) {
+        case SYM_WORDS: reflector = 1; break;
+        case SYM_VALUES: reflector = 2; break;
+        case SYM_BODY: reflector = 3; break;
+        default:
+            fail (Error_Cannot_Reflect(VAL_TYPE(value), arg));
         }
 
-        // Adjust for compatibility with PICK:
-        if (action == OF_VALUES) action = 2;
-        else if (action == OF_BODY) action = 3;
+        Val_Init_Block(D_OUT, Context_To_Array(VAL_CONTEXT(value), reflector));
+        return R_OUT; }
 
-        if (action < 1 || action > 3)
-            fail (Error_Cannot_Reflect(VAL_TYPE(value), arg));
-
-        Val_Init_Block(D_OUT, Context_To_Array(VAL_CONTEXT(value), action));
-        return R_OUT;
-
-    case A_TRIM:
+    case SYM_TRIM:
         if (Find_Refines(frame_, ALL_TRIM_REFS)) {
             // no refinements are allowed
             fail (Error(RE_BAD_REFINES));
@@ -666,13 +672,201 @@ REBTYPE(Context)
         );
         return R_OUT;
 
-    case A_TAIL_Q:
+    case SYM_TAIL_Q:
         if (IS_OBJECT(value)) {
-            SET_LOGIC(D_OUT, CTX_LEN(VAL_CONTEXT(value)) == 0);
+            SET_LOGIC(D_OUT, LOGICAL(CTX_LEN(VAL_CONTEXT(value)) == 0));
             return R_OUT;
         }
         fail (Error_Illegal_Action(VAL_TYPE(value), action));
     }
 
     fail (Error_Illegal_Action(VAL_TYPE(value), action));
+}
+
+
+//
+//  construct: native [
+//
+//  "Creates an ANY-CONTEXT! instance"
+//
+//      spec [datatype! block! any-context!]
+//          "Datatype to create, specification, or parent/prototype context"
+//      body [block! any-context! blank!]
+//          "keys and values defining instance contents (bindings modified)"
+//      /only
+//          "Values are kept as-is"
+//  ]
+//
+REBNATIVE(construct)
+//
+// CONSTRUCT in Ren-C is an effective replacement for what MAKE ANY-OBJECT!
+// was able to do in Rebol2 and R3-Alpha.  It takes a spec that can be an
+// ANY-CONTEXT! datatype, or it can be a parent ANY-CONTEXT!, or a block that
+// represents a "spec".
+//
+// !!! This assumes you want a SELF defined.  The entire concept of SELF
+// needs heavy review, but at minimum this needs a <no-self> override to
+// match the <no-return> for functions.
+//
+// !!! This mutates the bindings of the body block passed in, should it
+// be making a copy instead (at least by default, perhaps with performance
+// junkies saying `construct/rebind` or something like that?
+{
+    PARAM(1, spec);
+    PARAM(2, body);
+    REFINE(3, only);
+
+    REBVAL *spec = ARG(spec);
+    REBVAL *body = ARG(body);
+    REBCTX *parent = NULL;
+
+    enum Reb_Kind target;
+    REBCTX *context;
+
+    if (IS_STRUCT(spec)) {
+        //
+        // !!! Compatibility for `MAKE struct [...]` from Atronix R3.  There
+        // isn't any real "inheritance management" for structs but it allows
+        // the re-use of the structure's field definitions, so it is a means
+        // of saving on memory (?)
+        //
+        REBSTU *stu = Copy_Struct_Managed(VAL_STRUCT(spec));
+
+        *D_OUT = *STU_VALUE(stu);
+
+        // !!! Comment said "only accept value initialization"
+        //
+        Init_Struct_Fields(D_OUT, body);
+        return R_OUT;
+    }
+    else if (IS_GOB(spec)) {
+        //
+        // !!! Compatibility for `MAKE gob [...]` or `MAKE gob NxN` from
+        // R3-Alpha GUI.  Start by copying the gob (minus pane and parent),
+        // then apply delta to its properties from arg.  Doesn't save memory,
+        // or keep any parent linkage--could be done in user code as a copy
+        // and then apply the difference.
+        //
+        REBGOB *gob = Make_Gob();
+        *gob = *VAL_GOB(spec);
+        gob->pane = NULL;
+        gob->parent = NULL;
+
+        if (!IS_BLOCK(body))
+            fail (Error_Bad_Make(REB_GOB, body));
+
+        Extend_Gob_Core(gob, body);
+        SET_GOB(D_OUT, gob);
+        return R_OUT;
+    }
+    else if (IS_EVENT(spec)) {
+        //
+        // !!! As with GOB!, the 2-argument form of MAKE-ing an event is just
+        // a shorthand for copy-and-apply.  Could be user code.
+        //
+        if (!IS_BLOCK(body))
+            fail (Error_Bad_Make(REB_EVENT, body));
+
+        *D_OUT = *spec; // !!! This is a very "shallow" clone of the event
+        Set_Event_Vars(
+            D_OUT,
+            VAL_ARRAY_AT(body),
+            VAL_SPECIFIER(body)
+        );
+        return R_OUT;
+    }
+    else if (ANY_CONTEXT(spec)) {
+        parent = VAL_CONTEXT(spec);
+        target = VAL_TYPE(spec);
+    }
+    else if (IS_DATATYPE(spec)) {
+        //
+        // Should this be supported, or just assume OBJECT! ?  There are
+        // problems trying to create a FRAME! without a function (for
+        // instance), and making an ERROR! from scratch is currently dangerous
+        // as well though you can derive them.
+        //
+        fail (Error(RE_MISC));
+    }
+    else {
+        assert(IS_BLOCK(spec));
+        target = REB_OBJECT;
+    }
+
+    // This parallels the code originally in CONSTRUCT.  Run it if the /ONLY
+    // refinement was passed in.
+    //
+    if (REF(only)) {
+        Val_Init_Object(
+            D_OUT,
+            Construct_Context(
+                REB_OBJECT,
+                VAL_ARRAY_AT(body),
+                VAL_SPECIFIER(body),
+                parent
+            )
+        );
+        return R_OUT;
+    }
+
+    // This code came from REBTYPE(Context) for implementing MAKE OBJECT!.
+    // Now that MAKE ANY-CONTEXT! has been pulled back, it no longer does
+    // any evaluation or creates SELF fields.  It also obeys the rule that
+    // the first argument is an exemplar of the type to create only, bringing
+    // uniformity to MAKE.
+    //
+    if (
+        (target == REB_OBJECT || target == REB_MODULE)
+        && (IS_BLOCK(body) || IS_BLANK(body))) {
+
+        // First we scan the object for top-level set words in
+        // order to make an appropriately sized context.  Then
+        // we put it into an object in D_OUT to GC protect it.
+        //
+        context = Make_Selfish_Context_Detect(
+            target, // type
+            NULL, // body
+            // scan for toplevel set-words
+            IS_BLANK(body) ? END_CELL : VAL_ARRAY_AT(body),
+            parent
+        );
+        Val_Init_Object(D_OUT, context);
+
+        if (!IS_BLANK(body)) {
+            //
+            // !!! This binds the actual body data, not a copy of it
+            // (functions make a copy of the body they are passed to
+            // be rebound).  This seems wrong.
+            //
+            Bind_Values_Deep(VAL_ARRAY_AT(body), context);
+
+            // Do the block into scratch space (we ignore the result,
+            // unless it is thrown in which case it must be returned.
+            //
+            REBVAL dummy;
+            if (DO_VAL_ARRAY_AT_THROWS(&dummy, body)) {
+                *D_OUT = dummy;
+                return R_OUT_IS_THROWN;
+            }
+        }
+
+        return R_OUT;
+    }
+
+    // "multiple inheritance" case when both spec and body are objects.
+    //
+    // !!! As with most R3-Alpha concepts, this needs review.
+    //
+    if ((target == REB_OBJECT) && parent && IS_OBJECT(body)) {
+        //
+        // !!! Again, the presumption that the result of a merge is to
+        // be selfish should not be hardcoded in the C, but part of
+        // the generator choice by the person doing the derivation.
+        //
+        context = Merge_Contexts_Selfish(parent, VAL_CONTEXT(body));
+        Val_Init_Object(D_OUT, context);
+        return R_OUT;
+    }
+
+    fail (Error(RE_MISC));
 }

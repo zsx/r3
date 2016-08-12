@@ -58,7 +58,7 @@ decode-key-value-text: function [
 
     meta: make block! []
     
-    if not parse/all text data-fields [
+    if not parse text data-fields [
         fail [
             {Expected key value format on line} (line-of text position)
             {and lines must end with newline.}
@@ -78,7 +78,7 @@ decode-lines: function [
     pattern: compose/only [(line-prefix)]
     if not empty? indent [append pattern compose/only [opt (indent)]]
     line: [pos: pattern rest: (rest: remove/part pos rest) :rest thru newline]
-    if not parse/all text [any line] [
+    if not parse text [any line] [
         fail [
             {Expected line} (line-of text pos)
             {to begin with} (mold line-prefix)
@@ -125,11 +125,11 @@ line-of: function [
         position: at text position
     ]
 
-    line: none
+    line: _
 
     count-line: [(line: 1 + any [line 0])]
 
-    parse/all copy/part text next position [
+    parse copy/part text next position [
         any [to newline skip count-line] skip count-line
     ]
 
@@ -157,7 +157,7 @@ load-until-blank: function [
 
     rebol-value: parsing-at x [
         res: any [attempt [load-next x] []]
-        either empty? res [none] [second res]
+        either empty? res [blank] [second res]
     ]
 
     terminator: [opt wsp newline opt wsp newline]
@@ -171,7 +171,7 @@ load-until-blank: function [
         values: load copy/part text position
         reduce [values position]
     ][
-        none
+        blank
     ]
 ]
 
@@ -179,7 +179,8 @@ load-until-blank: function [
 parsing-at: func [
     {Defines a rule which evaluates a block for the next input position, fails otherwise.}
     'word [word!] {Word set to input position (will be local).}
-    block [block!] {Block to evaluate. Return next input position, or none/false.}
+    block [block!]
+        {Block to evaluate. Return next input position, or blank/false.}
     /end {Drop the default tail check (allows evaluation at the tail).}
 ] [
     use [result position][
@@ -197,16 +198,17 @@ parsing-at: func [
 
 proto-parser: context [
 
-    emit-fileheader: none
-    emit-proto: none
-    proto-prefix: none
-    parse.position: none
-    notes: none
-    lines: none
-    proto.id: none
-    proto.arg.1: none
-    data: none
-    style: none
+    emit-fileheader: _
+    emit-proto: _
+    proto-prefix: _
+    parse.position: _
+    notes: _
+    lines: _
+    proto.id: _
+    proto.arg.1: _
+    data: _
+    style: _
+    eoh: _ ; End of file header.
 
     process: func [text] [parse text grammar/rule]
 
@@ -218,17 +220,18 @@ proto-parser: context [
         ]
 
         fileheader: [
-            (style: data: none)
+            (style: data: _)
             doubleslashed-lines
-            and is-format2016-fileheader
+            and is-format201603-fileheader
+            eoh:
             (
-                style: 'format2016
-                emit-fileheader
+                style: 'format201603
+                emit-fileheader data
             )
         ]
 
         segment: [
-            (style: proto.id: proto.arg.1: none)
+            (style: proto.id: proto.arg.1: _)
             format2015-func-section
             | other-segment
         ]
@@ -250,16 +253,18 @@ proto-parser: context [
 
         doubleslashed-lines: [copy lines some ["//" thru newline]]
 
-        is-format2016-fileheader: parsing-at position [
+        is-format201603-fileheader: parsing-at position [
             either all [
                 lines: attempt [decode-lines lines {//} { }]
+                parse lines [copy data to {=///} to end]
+                data: attempt [load-until-blank trim/auto data]
                 data: attempt [
-                    decode-key-value-text trim/auto second split lines [{=///} thru {=//}]
+                    either set-word? first data/1 [data/1][blank]
                 ]
             ][
                 position ; Success.
             ][
-                none
+                blank
             ]
         ]
 
@@ -272,13 +277,13 @@ proto-parser: context [
                         notes: data/2
                         data/1
                     ][
-                        none
+                        blank
                     ]
                 ]
             ][
                 position ; Success.
             ][
-                none
+                blank
             ]
         ]
 

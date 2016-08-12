@@ -1,32 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  Copyright 2014 Atronix Engineering, Inc.
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  p-signal.c
-**  Summary: signal port interface
-**  Section: ports
-**  Author:  Shixin Zeng
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %p-signal.c
+//  Summary: "signal port interface"
+//  Section: ports
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2014 Atronix Engineering, Inc.
+// Copyright 2014-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
@@ -47,31 +47,28 @@ static void update(REBREQ *req, REBINT len, REBVAL *arg)
     for (i = 0; i < len; i ++) {
         REBCTX *obj = Alloc_Context(8);
         REBVAL *val = Append_Context(
-            obj, NULL, Make_Word(signal_no, LEN_BYTES(signal_no))
+            obj, NULL, Intern_UTF8_Managed(signal_no, LEN_BYTES(signal_no))
         );
         SET_INTEGER(val, sig[i].si_signo);
 
         val = Append_Context(
-            obj, NULL, Make_Word(code, LEN_BYTES(code))
+            obj, NULL, Intern_UTF8_Managed(code, LEN_BYTES(code))
         );
         SET_INTEGER(val, sig[i].si_code);
         val = Append_Context(
-            obj, NULL, Make_Word(source_pid, LEN_BYTES(source_pid))
+            obj, NULL, Intern_UTF8_Managed(source_pid, LEN_BYTES(source_pid))
         );
         SET_INTEGER(val, sig[i].si_pid);
         val = Append_Context(
-            obj, NULL, Make_Word(source_uid, LEN_BYTES(source_uid))
+            obj, NULL, Intern_UTF8_Managed(source_uid, LEN_BYTES(source_uid))
         );
         SET_INTEGER(val, sig[i].si_uid);
 
         // context[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
         //
-        VAL_INIT_WRITABLE_DEBUG(CTX_VALUE(obj));
         VAL_RESET_HEADER(CTX_VALUE(obj), REB_OBJECT);
 
-        CTX_VALUE(obj)->payload.any_context.context = obj;
-        VAL_CONTEXT_SPEC(CTX_VALUE(obj)) = NULL;
-        VAL_CONTEXT_STACKVARS(CTX_VALUE(obj)) = NULL;
+        CTX_VALUE(obj)->payload.any_context.varlist = CTX_VARLIST(obj);
 
         val = Alloc_Tail_Array(VAL_ARRAY(arg));
         Val_Init_Object(val, obj);
@@ -80,9 +77,9 @@ static void update(REBREQ *req, REBINT len, REBVAL *arg)
     req->actual = 0; /* avoid duplicate updates */
 }
 
-static int sig_word_num(REBVAL *word)
+static int sig_word_num(REBSTR *canon)
 {
-    switch (VAL_WORD_CANON(word)) {
+    switch (STR_SYMBOL(canon)) {
         case SYM_SIGALRM:
             return SIGALRM;
         case SYM_SIGABRT:
@@ -143,15 +140,19 @@ static int sig_word_num(REBVAL *word)
             return SIGXCPU;
         case SYM_SIGXFSZ:
             return SIGXFSZ;
-        default:
-            fail (Error(RE_INVALID_SPEC, word));
+        default: {
+            REBVAL word;
+            Val_Init_Word(&word, REB_WORD, canon);
+
+            fail (Error(RE_INVALID_SPEC, &word));
+        }
     }
 }
 
 //
 //  Signal_Actor: C
 //
-static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
+static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
     REBREQ *req;
     REBINT result;
@@ -160,7 +161,7 @@ static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
     REBSER *ser;
     REBVAL *spec;
     REBVAL *val;
-    REBVAL *sig;
+    RELVAL *sig;
 
     Validate_Port(port, action);
 
@@ -169,8 +170,8 @@ static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 
     if (!IS_OPEN(req)) {
         switch (action) {
-            case A_READ:
-            case A_OPEN:
+            case SYM_READ:
+            case SYM_OPEN:
                 val = Obj_Value(spec, STD_PORT_SPEC_SIGNAL_MASK);
                 if (!IS_BLOCK(val))
                     fail (Error(RE_INVALID_SPEC, val));
@@ -179,7 +180,7 @@ static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
                 for(sig = VAL_ARRAY_AT_HEAD(val, 0); NOT_END(sig); sig ++) {
                     if (IS_WORD(sig)) {
                         /* handle the special word "ALL" */
-                        if (VAL_WORD_CANON(sig) == SYM_ALL) {
+                        if (VAL_WORD_SYM(sig) == SYM_ALL) {
                             if (sigfillset(&req->special.signal.mask) < 0) {
                                 // !!! Needs better error
                                 fail (Error(RE_INVALID_SPEC, sig));
@@ -187,8 +188,14 @@ static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
                             break;
                         }
 
-                        if (sigaddset(&req->special.signal.mask, sig_word_num(sig)) < 0)
+                        if (
+                            sigaddset(
+                                &req->special.signal.mask,
+                                sig_word_num(VAL_WORD_CANON(sig))
+                            ) < 0
+                        ) {
                             fail (Error(RE_INVALID_SPEC, sig));
+                        }
                     }
                     else
                         fail (Error(RE_INVALID_SPEC, sig));
@@ -196,19 +203,19 @@ static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 
                 if (OS_DO_DEVICE(req, RDC_OPEN))
                     fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
-                if (action == A_OPEN) {
+                if (action == SYM_OPEN) {
                     *D_OUT = *D_ARG(1); // port
                     return R_OUT;
                 }
                 break;
 
-            case A_CLOSE:
+            case SYM_CLOSE:
                 return R_OUT;
 
-            case A_OPEN_Q:
+            case SYM_OPEN_Q:
                 return R_FALSE;
 
-            case A_UPDATE:  // allowed after a close
+            case SYM_UPDATE:  // allowed after a close
                 break;
 
             default:
@@ -217,7 +224,7 @@ static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
     }
 
     switch (action) {
-        case A_UPDATE:
+        case SYM_UPDATE:
             // Update the port object after a READ or WRITE operation.
             // This is normally called by the WAKE-UP function.
             arg = CTX_VAR(port, STD_PORT_DATA);
@@ -227,9 +234,9 @@ static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
                     update(req, len, arg);
                 }
             }
-            return R_NONE;
+            return R_BLANK;
 
-        case A_READ:
+        case SYM_READ:
             // This device is opened on the READ:
             // Issue the read request:
             arg = CTX_VAR(port, STD_PORT_DATA);
@@ -257,18 +264,18 @@ static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
                 return R_OUT;
             } else {
                 Free_Series(ser);
-                return R_NONE;
+                return R_BLANK;
             }
 
-        case A_CLOSE:
+        case SYM_CLOSE:
             OS_DO_DEVICE(req, RDC_CLOSE);
             *D_OUT = *D_ARG(1);
             return R_OUT;
 
-        case A_OPEN_Q:
+        case SYM_OPEN_Q:
             return R_TRUE;
 
-        case A_OPEN:
+        case SYM_OPEN:
             fail (Error(RE_ALREADY_OPEN, D_ARG(1)));
 
         default:
@@ -284,7 +291,7 @@ static REB_R Signal_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 //
 void Init_Signal_Scheme(void)
 {
-    Register_Scheme(SYM_SIGNAL, 0, Signal_Actor);
+    Register_Scheme(Canon(SYM_SIGNAL), Signal_Actor);
 }
 
 #endif //HAS_POSIX_SIGNAL

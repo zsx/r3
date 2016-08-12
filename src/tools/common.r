@@ -54,21 +54,21 @@ to-c-name: function [
         ; Take care of special cases of singular symbols
 
         ; Used specifically by t-routine.c to make SYM_ELLIPSIS
-        ... ["ellipsis"]
+        ... [copy "ellipsis"]
 
         ; Used to make SYM_HYPHEN which is needed by `charset [#"A" - #"Z"]`
-        - ["hyphen"]
+        - [copy "hyphen"]
 
         ; Used by u-dialect apparently
-        * ["asterisk"]
+        * [copy "asterisk"]
 
         ; None of these are used at present, but included in case
-        . ["period"]
-        ? ["question"]
-        ! ["exclamation"]
-        + ["plus"]
-        ~ ["tilde"]
-        | ["bar"]
+        . [copy "period"]
+        ? [copy "question"]
+        ! [copy "exclamation"]
+        + [copy "plus"]
+        ~ [copy "tilde"]
+        | [copy "bar"]
     ][
         ; If these symbols occur composite in a longer word, they use a
         ; shorthand; e.g. `true?` => `true_q`
@@ -199,11 +199,15 @@ binary-to-c: func [
 ; RETURN in it will return from the *caller*.  It will just wind up returning
 ; from *this loop wrapper* (in older Rebols) when the call is finished!
 ;
-for-each-record-NO-RETURN: func [
+for-each-record-NO-RETURN: proc [
     {Iterate a table with a header by creating an object for each row}
-    'record [word!] {Word to set each time to the row made into an object}
-    table [block!] {Table of values with header block as first element}
-    body [block!] {Block to evaluate each time}
+
+    'record [word!]
+        {Word to set each time to the row made into an object}
+    table [block!]
+        {Table of values with header block as first element}
+    body [block!]
+        {Block to evaluate each time}
     /local headings result spec
 ] [
     unless block? first table [
@@ -218,7 +222,10 @@ for-each-record-NO-RETURN: func [
 
     table: next table
 
-    set/opt quote result: while [not empty? table] [
+    ; Note: this code must run in R3-Alpha, so can't just use `result:`
+    ; like in Ren-C (which will unset the variable if VOID? argument)
+    ;
+    set/opt (quote result:) while [not empty? table] [
         if (length headings) > (length table) [
             fail {Element count isn't even multiple of header count}
         ]
@@ -231,7 +238,7 @@ for-each-record-NO-RETURN: func [
             ]
         ]
 
-        set record make object! spec
+        set record has spec
 
         do body
     ]
@@ -240,8 +247,8 @@ for-each-record-NO-RETURN: func [
 ]
 
 find-record-unique: func [
-    {Get a record in a table as an object, error if duplicate, none if absent}
-    ;; return: [object! none!]
+    {Get a record in a table as an object, error if duplicate, blank if absent}
+    ;; return: [object! blank!]
     table [block!] {Table of values with header block as first element}
     key [word!] {Object key to search for a match on}
     value {Value that the looked up key must be uniquely equal to}
@@ -251,7 +258,7 @@ find-record-unique: func [
         fail [key {not found in table headers:} (first table)]
     ]
 
-    result: none
+    result: _
     for-each-record-NO-RETURN rec table [
         unless value = select rec key [continue]
 

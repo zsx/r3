@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  s-mold.c
-**  Summary: value to string conversion
-**  Section: strings
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %s-mold.c
+//  Summary: "value to string conversion"
+//  Section: strings
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 //#define   INCLUDE_TYPE_NAMES      // include the value names table
 #include "sys-core.h"
@@ -85,13 +86,15 @@ REBSER *Emit(REB_MOLD *mold, const char *fmt, ...)
 
     for (; *fmt; fmt++) {
         switch (*fmt) {
-        case 'W':   // Word symbol
+        case 'W': { // Word symbol
+            const REBVAL *any_word = va_arg(va, const REBVAL*);
+            REBSTR *spelling = VAL_WORD_SPELLING(any_word);
             Append_UTF8_May_Fail(
-                series,
-                Get_Word_Name(va_arg(va, const REBVAL*)),
-                -1
+                series, STR_HEAD(spelling), STR_NUM_BYTES(spelling)
             );
             break;
+        }
+
         case 'V':   // Value
             Mold_Value(mold, va_arg(va, const REBVAL*), TRUE);
             break;
@@ -118,14 +121,16 @@ REBSER *Emit(REB_MOLD *mold, const char *fmt, ...)
         case '2':   // 2 digit int (for time)
             Append_Int_Pad(series, va_arg(va, REBINT), 2);
             break;
-        case 'T':   // Type name
+        case 'T': {  // Type name
+            const REBYTE *bytes = Get_Type_Name(va_arg(va, REBVAL*));
+            Append_UTF8_May_Fail(series, bytes, LEN_BYTES(bytes));
+            break; }
+        case 'N': {  // Symbol name
+            REBSTR *spelling = va_arg(va, REBSTR*);
             Append_UTF8_May_Fail(
-                series, Get_Type_Name(va_arg(va, REBVAL*)), -1
+                series, STR_HEAD(spelling), STR_NUM_BYTES(spelling)
             );
-            break;
-        case 'N':   // Symbol name
-            Append_UTF8_May_Fail(series, Get_Sym_Name(va_arg(va, REBCNT)), -1);
-            break;
+            break; }
         case '+':   // Add #[ if mold/all
             if (GET_MOPT(mold, MOPT_MOLD_ALL)) {
                 Append_Unencoded(series, "#[");
@@ -134,8 +139,9 @@ REBSER *Emit(REB_MOLD *mold, const char *fmt, ...)
             break;
         case 'D':   // Datatype symbol: #[type
             if (ender) {
+                REBSTR *canon = Canon(cast(REBSYM, va_arg(va, int)));
                 Append_UTF8_May_Fail(
-                    series, Get_Sym_Name(va_arg(va, REBCNT)), -1
+                    series, STR_HEAD(canon), STR_NUM_BYTES(canon)
                 );
                 Append_Codepoint_Raw(series, ' ');
             }
@@ -214,7 +220,7 @@ REBUNI *Prep_Uni_Series(REB_MOLD *mold, REBCNT len)
 // 
 // Emit the initial datatype function, depending on /ALL option
 //
-void Pre_Mold(const REBVAL *value, REB_MOLD *mold)
+void Pre_Mold(const RELVAL *value, REB_MOLD *mold)
 {
     Emit(mold, GET_MOPT(mold, MOPT_MOLD_ALL) ? "#[T " : "make T ", value);
 }
@@ -237,7 +243,7 @@ void End_Mold(REB_MOLD *mold)
 // For series that has an index, add the index for mold/all.
 // Add closing block.
 //
-void Post_Mold(const REBVAL *value, REB_MOLD *mold)
+void Post_Mold(const RELVAL *value, REB_MOLD *mold)
 {
     if (VAL_INDEX(value)) {
         Append_Codepoint_Raw(mold->series, ' ');
@@ -594,7 +600,7 @@ void Mold_Array_At(
     REBSER *out = mold->series;
     REBOOL line_flag = FALSE; // newline was part of block
     REBOOL had_lines = FALSE;
-    REBVAL *value = ARR_AT(array, index);
+    RELVAL *value = ARR_AT(array, index);
 
     if (!sep) sep = "[]";
 
@@ -609,14 +615,15 @@ void Mold_Array_At(
         return;
     }
 
-    value = Alloc_Tail_Array(MOLD_STACK);
-
     // We don't want to use Val_Init_Block because it will create an implicit
     // managed value, and the incoming series may be from an unmanaged source
     // !!! Review how to avoid needing to put the series into a value
-    VAL_RESET_HEADER(value, REB_BLOCK);
-    INIT_VAL_ARRAY(value, array);
-    VAL_INDEX(value) = 0;
+    {
+        REBVAL *temp = Alloc_Tail_Array(MOLD_STACK);
+        VAL_RESET_HEADER(temp, REB_BLOCK);
+        INIT_VAL_ARRAY(temp, array); // copies args
+        VAL_INDEX(temp) = 0;
+    }
 
     if (sep[1]) {
         Append_Codepoint_Raw(out, sep[0]);
@@ -644,11 +651,11 @@ void Mold_Array_At(
         Append_Codepoint_Raw(out, sep[1]);
     }
 
-    Remove_Array_Last(MOLD_STACK);
+    TERM_ARRAY_LEN(MOLD_STACK, ARR_LEN(MOLD_STACK) - 1);
 }
 
 
-static void Mold_Block(const REBVAL *value, REB_MOLD *mold)
+static void Mold_Block(const RELVAL *value, REB_MOLD *mold)
 {
     const char *sep;
     REBOOL all = GET_MOPT(mold, MOPT_MOLD_ALL);
@@ -674,8 +681,10 @@ static void Mold_Block(const REBVAL *value, REB_MOLD *mold)
         Pre_Mold(value, mold); // #[block! part
         //if (over) Append_Unencoded(mold->series, "[]");
         //else
+        Append_Codepoint_Raw(mold->series, '[');
         Mold_Array_At(mold, VAL_ARRAY(value), 0, 0);
         Post_Mold(value, mold);
+        Append_Codepoint_Raw(mold->series, ']');
     }
     else
     {
@@ -721,7 +730,7 @@ static void Mold_Block(const REBVAL *value, REB_MOLD *mold)
     }
 }
 
-static void Mold_Simple_Block(REB_MOLD *mold, REBVAL *block, REBCNT len)
+static void Mold_Simple_Block(REB_MOLD *mold, RELVAL *block, REBCNT len)
 {
     // Simple molder for error locations. Series must be valid.
     // Max length in chars must be provided.
@@ -751,19 +760,17 @@ static void Form_Array_At(
     // Form a series (part_mold means mold non-string values):
     REBINT n;
     REBINT len = ARR_LEN(array) - index;
-    REBVAL *val;
-    REBVAL *wval;
 
     if (len < 0) len = 0;
 
     for (n = 0; n < len;) {
-        val = ARR_AT(array, index + n);
-        wval = 0;
+        RELVAL *val = ARR_AT(array, index + n);
+        REBVAL *wval = NULL;
         if (context && (IS_WORD(val) || IS_GET_WORD(val))) {
-            wval = Find_Word_Value(context, VAL_WORD_SYM(val));
+            wval = Select_Canon_In_Context(context, VAL_WORD_CANON(val));
             if (wval) val = wval;
         }
-        Mold_Value(mold, val, LOGICAL(wval != 0));
+        Mold_Value(mold, val, LOGICAL(wval != NULL));
         n++;
         if (GET_MOPT(mold, MOPT_LINES)) {
             Append_Codepoint_Raw(mold->series, LF);
@@ -773,8 +780,9 @@ static void Form_Array_At(
             if (n < len && SER_LEN(mold->series)
                 && *UNI_LAST(mold->series) != LF
                 && !GET_MOPT(mold, MOPT_TIGHT)
-            )
+            ){
                 Append_Codepoint_Raw(mold->series, ' ');
+            }
         }
     }
 }
@@ -799,14 +807,16 @@ static void Mold_Typeset(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
     }
 
 #if !defined(NDEBUG)
-    if (VAL_TYPESET_SYM(value) != SYM_0) {
+    if (VAL_KEY_SPELLING(value) != NULL) {
         //
         // In debug builds we're probably more interested in the symbol than
         // the typesets, if we are looking at a PARAMLIST or KEYLIST.
         //
         Append_Unencoded(mold->series, "(");
+
+        REBSTR *spelling = VAL_KEY_SPELLING(value);
         Append_UTF8_May_Fail(
-            mold->series, Get_Sym_Name(VAL_TYPESET_SYM(value)), -1 // LEN_BYTES
+            mold->series, STR_HEAD(spelling), STR_NUM_BYTES(spelling)
         );
         Append_Unencoded(mold->series, ") ");
 
@@ -821,9 +831,9 @@ static void Mold_Typeset(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 #endif
 
     // Convert bits to types (we can make this more efficient !!)
-    for (n = 0; n < REB_MAX_0; n++) {
-        if (TYPE_CHECK(value, n)) {
-            Emit(mold, "+DN ", SYM_DATATYPE_TYPE, n + 1);
+    for (n = 0; n < REB_MAX; n++) {
+        if (TYPE_CHECK(value, cast(enum Reb_Kind, n))) {
+            Emit(mold, "+DN ", SYM_DATATYPE_X, Canon(cast(REBSYM, n + 1)));
         }
     }
     Trim_Tail(mold->series, ' ');
@@ -845,11 +855,16 @@ static void Mold_Function(const REBVAL *value, REB_MOLD *mold)
 
     Append_Codepoint_Raw(mold->series, '[');
 
-    // !!! ??
-    /* "& ~(1<<MOPT_MOLD_ALL)); // Never literalize it (/all)." */
-    Mold_Array_At(mold, VAL_FUNC_SPEC(value), 0, 0);
+    // !!! The system is no longer keeping the spec of functions, in order
+    // to focus on a generalized "meta info object" service.  MOLD of
+    // functions temporarily uses the word list as a substitute (which
+    // drops types)
+    //
+    REBARR *words_list = List_Func_Words(value, TRUE); // show pure locals
+    Mold_Array_At(mold, words_list, 0, 0);
+    Free_Array(words_list);
 
-    if (VAL_FUNC_CLASS(value) == FUNC_CLASS_USER) {
+    if (IS_FUNCTION_PLAIN(value)) {
         //
         // MOLD is an example of user-facing code that needs to be complicit
         // in the "lie" about the effective bodies of the functions made
@@ -862,6 +877,20 @@ static void Mold_Function(const REBVAL *value, REB_MOLD *mold)
 
         if (is_fake) Free_Array(body); // was shallow copy
     }
+    else if (IS_FUNCTION_SPECIALIZER(value)) {
+        //
+        // !!! Interim form of looking at specialized functions... show
+        // the frame
+        //
+        //     >> source first
+        //     first: make function! [[aggregate index] [
+        //         aggregate: $void
+        //         index: 1
+        //     ]]
+        //
+        REBVAL *exemplar = KNOWN(VAL_FUNC_BODY(value));
+        Mold_Value(mold, exemplar, TRUE);
+    }
 
     Append_Codepoint_Raw(mold->series, ']');
     End_Mold(mold);
@@ -870,8 +899,8 @@ static void Mold_Function(const REBVAL *value, REB_MOLD *mold)
 
 static void Mold_Map(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 {
-    REBARR *mapser = VAL_ARRAY(value);
-    REBVAL *val;
+    REBARR *mapser = MAP_PAIRLIST(VAL_MAP(value));
+    RELVAL *val;
 
     // Prevent endless mold loop:
     if (Find_Same_Array(MOLD_STACK, value) != NOT_FOUND) {
@@ -885,10 +914,12 @@ static void Mold_Map(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
         Append_Codepoint_Raw(mold->series, '[');
     }
 
-    // Mold all non-UNSET! entries
+    // Mold all entries that are set.  As with contexts, void values are not
+    // valid entries but indicate the absence of a value.
+    //
     mold->indent++;
     for (val = ARR_HEAD(mapser); NOT_END(val) && NOT_END(val+1); val += 2) {
-        if (!IS_UNSET(val + 1)) {
+        if (!IS_VOID(val + 1)) {
             if (molded) New_Indented_Line(mold);
             Emit(mold, "V V", val, val+1);
             if (!molded) Append_Codepoint_Raw(mold->series, '\n');
@@ -902,7 +933,7 @@ static void Mold_Map(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
     }
 
     End_Mold(mold);
-    Remove_Array_Last(MOLD_STACK);
+    TERM_ARRAY_LEN(MOLD_STACK, ARR_LEN(MOLD_STACK) - 1);
 }
 
 
@@ -924,35 +955,39 @@ static void Form_Object(const REBVAL *value, REB_MOLD *mold)
     for (; !IS_END(key); key++, var++) {
         if (!GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
             had_output = TRUE;
-            Emit(mold, "N: V\n", VAL_TYPESET_SYM(key), var);
+            Emit(mold, "N: V\n", VAL_KEY_SPELLING(key), var);
         }
     }
 
     // Remove the final newline...but only if WE added something to the buffer
-    if (had_output)
-        Remove_Sequence_Last(mold->series);
+    if (had_output) {
+        SET_SERIES_LEN(mold->series, SER_LEN(mold->series) - 1);
+        TERM_SEQUENCE(mold->series);
+    }
 
-    Remove_Array_Last(MOLD_STACK);
+    TERM_ARRAY_LEN(MOLD_STACK, ARR_LEN(MOLD_STACK) - 1);
 }
 
 
 static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
 {
-    REBVAL *key = CTX_KEYS_HEAD(VAL_CONTEXT(value));
+    REBVAL *keys_head = CTX_KEYS_HEAD(VAL_CONTEXT(value));
+    REBVAL *vars_head;
+    REBVAL *key;
     REBVAL *var;
 
     if (
         !GET_CTX_FLAG(VAL_CONTEXT(value), CONTEXT_FLAG_STACK) ||
         GET_CTX_FLAG(VAL_CONTEXT(value), SERIES_FLAG_ACCESSIBLE)
     ) {
-        var = CTX_VARS_HEAD(VAL_CONTEXT(value));
+        vars_head = CTX_VARS_HEAD(VAL_CONTEXT(value));
     }
     else {
         // If something like a function call has gone of the stack, the data
         // for the vars will no longer be available.  The keys should still
         // be good, however.
         //
-        var = NULL;
+        vars_head = NULL;
     }
 
     Pre_Mold(value, mold);
@@ -966,39 +1001,104 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
     }
 
     Append_Value(MOLD_STACK, value);
+    mold->indent++;
+
+    // !!! New experimental Ren-C code for the [[spec][body]] format of the
+    // non-evaluative MAKE OBJECT!.
+
+    // First loop: spec block.  This is difficult because unlike functions,
+    // objects are dynamically modified with new members added.  If the spec
+    // were captured with strings and other data in it as separate from the
+    // "keylist" information, it would have to be updated to reflect newly
+    // added fields in order to be able to run a corresponding MAKE OBJECT!.
+    //
+    // To get things started, we aren't saving the original spec that made
+    // the object...but regenerate one from the keylist.  If this were done
+    // with functions, they would "forget" their help strings in MOLDing.
+
+    New_Indented_Line(mold);
+    Append_Codepoint_Raw(mold->series, '[');
+
+    key = keys_head;
+    var = vars_head;
+
+    for (; !IS_END(key); var ? (++key, ++var) : ++key) {
+        if (key != keys_head)
+            Append_Codepoint_Raw(mold->series, ' ');
+
+        // !!! Feature of hidden words in object specs not yet implemented,
+        // but if it paralleled how function specs work it would be SET-WORD!
+        //
+        REBVAL any_word;
+        Val_Init_Word(
+            &any_word,
+            GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN) ? REB_SET_WORD : REB_WORD,
+            VAL_KEY_SPELLING(key)
+        );
+        Mold_Value(mold, &any_word, TRUE);
+    }
+
+    Append_Codepoint_Raw(mold->series, ']');
+    New_Indented_Line(mold);
+    Append_Codepoint_Raw(mold->series, '[');
 
     mold->indent++;
+
+    key = keys_head;
+    var = vars_head;
+
     for (; !IS_END(key); var ? (++key, ++var) : ++key) {
-        if (
-            !GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)
-            && (
-                !var ||
-                ((VAL_TYPE(var) > REB_NONE) || !GET_MOPT(mold, MOPT_NO_NONE))
-            )
-        ){
-            New_Indented_Line(mold);
+        if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
+            continue; // !!! Should hidden fields be in molded view?
 
-            Append_UTF8_May_Fail(
-                mold->series, Get_Sym_Name(VAL_TYPESET_SYM(key)), -1
-            );
-
-            Append_Unencoded(mold->series, ": ");
-
-            if (var) {
-                if (IS_WORD(var) && !GET_MOPT(mold, MOPT_MOLD_ALL))
-                    Append_Codepoint_Raw(mold->series, '\'');
-                Mold_Value(mold, var, TRUE);
+        if (var) {
+            //
+            // There's no way to show a value for unset variables.  They are
+            // covered by being present in "spec" and absent from the "body".
+            //
+            // !!! The way FRAME! is currently implemented, it is possible to
+            // see "safe trash" when processing natives...because a native
+            // can legally use its argument slots as evaluation destinations.
+            // And it's possible to have an unsafe trash if the argument is
+            // a pending frame.  Because the debugger is a work in progress
+            // it's not known exactly how to handle this...for now, be
+            // very conservative and just allow the molding of objects which
+            // have safe trash set as if the variable is unset.
+            //
+            if (IS_FRAME(value)) {
+                if (IS_VOID_OR_SAFE_TRASH(var))
+                    continue;
             }
-            else
-                Append_Unencoded(mold->series, ": --optimized out--");
+            else {
+                if (IS_VOID(value))
+                    continue;
+            }
         }
+
+        New_Indented_Line(mold);
+
+        REBSTR *spelling = VAL_KEY_SPELLING(key);
+        Append_UTF8_May_Fail(
+            mold->series, STR_HEAD(spelling), STR_NUM_BYTES(spelling)
+        );
+
+        Append_Unencoded(mold->series, ": ");
+
+        if (var)
+            Mold_Value(mold, var, TRUE);
+        else
+            Append_Unencoded(mold->series, ": --optimized out--");
     }
+
+    mold->indent--;
+    New_Indented_Line(mold);
+    Append_Codepoint_Raw(mold->series, ']');
     mold->indent--;
     New_Indented_Line(mold);
     Append_Codepoint_Raw(mold->series, ']');
 
     End_Mold(mold);
-    Remove_Array_Last(MOLD_STACK);
+    TERM_ARRAY_LEN(MOLD_STACK, ARR_LEN(MOLD_STACK) - 1);
 }
 
 
@@ -1030,7 +1130,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 
     // Form: ** Where: function
     value = &vars->where;
-    if (VAL_TYPE(value) > REB_NONE) {
+    if (VAL_TYPE(value) > REB_BLANK) {
         Append_Codepoint_Raw(mold->series, '\n');
         Append_Boot_Str(mold->series, RS_ERRS+2);
         Mold_Value(mold, value, FALSE);
@@ -1038,7 +1138,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 
     // Form: ** Near: location
     value = &vars->nearest;
-    if (VAL_TYPE(value) > REB_NONE) {
+    if (VAL_TYPE(value) > REB_BLANK) {
         Append_Codepoint_Raw(mold->series, '\n');
         Append_Boot_Str(mold->series, RS_ERRS+3);
         if (IS_STRING(value)) // special case: source file line number
@@ -1062,7 +1162,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 // 
 // Mold or form any value to string series tail.
 //
-void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
+void Mold_Value(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
 {
     REBYTE buf[60];
     REBINT len;
@@ -1114,15 +1214,17 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
 
         // Special format for ALL string series when not at head:
         if (GET_MOPT(mold, MOPT_MOLD_ALL) && VAL_INDEX(value) != 0) {
-            Mold_All_String(value, mold);
+            Mold_All_String(const_KNOWN(value), mold);
             return;
         }
     }
 
-    // if (IS_END(value)) => used to do the same as UNSET!, does this come up?
-    assert(NOT_END(value));
-
     switch (VAL_TYPE(value)) {
+    case REB_MAX_VOID:
+        // Voids should only be molded in debug scenarios
+        Append_Unencoded(ser, "&void");
+        break;
+
     case REB_BAR:
         Append_Unencoded(ser, "|");
         break;
@@ -1131,15 +1233,12 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
         Append_Unencoded(ser, "'|");
         break;
 
-    case REB_NONE:
-        Emit(mold, "+N", SYM_NONE);
+    case REB_BLANK:
+        Append_Unencoded(ser, "_");
         break;
 
     case REB_LOGIC:
-//      if (!molded || !VAL_LOGIC_WORDS(value) || !GET_MOPT(mold, MOPT_MOLD_ALL))
-            Emit(mold, "+N", VAL_LOGIC(value) ? SYM_TRUE : SYM_FALSE);
-//      else
-//          Mold_Logic(mold, value);
+        Emit(mold, "+N", VAL_LOGIC(value) ? Canon(SYM_TRUE) : Canon(SYM_FALSE));
         break;
 
     case REB_INTEGER:
@@ -1153,7 +1252,7 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
         goto append;
 
     case REB_MONEY:
-        len = Emit_Money(value, buf, mold->opts);
+        len = Emit_Money(const_KNOWN(value), buf, mold->opts);
         goto append;
 
     case REB_CHAR:
@@ -1172,29 +1271,29 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
         break;
 
     case REB_TUPLE:
-        len = Emit_Tuple(value, buf);
+        len = Emit_Tuple(const_KNOWN(value), buf);
         goto append;
 
     case REB_TIME:
         //len = Emit_Time(value, buf, Punctuation[GET_MOPT(mold, MOPT_COMMA_PT) ? PUNCT_COMMA : PUNCT_DOT]);
-        Emit_Time(mold, value);
+        Emit_Time(mold, const_KNOWN(value));
         break;
 
     case REB_DATE:
-        Emit_Date(mold, value);
+        Emit_Date(mold, const_KNOWN(value));
         break;
 
     case REB_STRING:
         // FORM happens in top section.
-        Mold_String_Series(value, mold);
+        Mold_String_Series(const_KNOWN(value), mold);
         break;
 
     case REB_BINARY:
         if (GET_MOPT(mold, MOPT_MOLD_ALL) && VAL_INDEX(value) != 0) {
-            Mold_All_String(value, mold);
+            Mold_All_String(const_KNOWN(value), mold);
             return;
         }
-        Mold_Binary(value, mold);
+        Mold_Binary(const_KNOWN(value), mold);
         break;
 
     case REB_FILE:
@@ -1202,20 +1301,20 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
             Append_Unencoded(ser, "%\"\"");
             break;
         }
-        Mold_File(value, mold);
+        Mold_File(const_KNOWN(value), mold);
         break;
 
     case REB_EMAIL:
     case REB_URL:
-        Mold_Url(value, mold);
+        Mold_Url(const_KNOWN(value), mold);
         break;
 
     case REB_TAG:
         if (GET_MOPT(mold, MOPT_MOLD_ALL) && VAL_INDEX(value) != 0) {
-            Mold_All_String(value, mold);
+            Mold_All_String(const_KNOWN(value), mold);
             return;
         }
-        Mold_Tag(value, mold);
+        Mold_Tag(const_KNOWN(value), mold);
         break;
 
 //      Mold_Issue(value, mold);
@@ -1223,7 +1322,7 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
 
     case REB_BITSET:
         Pre_Mold(value, mold); // #[bitset! or make bitset!
-        Mold_Bitset(value, mold);
+        Mold_Bitset(const_KNOWN(value), mold);
         End_Mold(mold);
         break;
 
@@ -1231,12 +1330,12 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
         Pre_Mold(value, mold);
         if (!GET_MOPT(mold, MOPT_MOLD_ALL)) {
             Append_Codepoint_Raw(ser, '[');
-            Mold_Image_Data(value, mold);
+            Mold_Image_Data(const_KNOWN(value), mold);
             Append_Codepoint_Raw(ser, ']');
             End_Mold(mold);
         }
         else {
-            REBVAL val = *value;
+            REBVAL val = *const_KNOWN(value);
             VAL_INDEX(&val) = 0; // mold all of it
             Mold_Image_Data(&val, mold);
             Post_Mold(value, mold);
@@ -1259,32 +1358,32 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
         break;
 
     case REB_VECTOR:
-        Mold_Vector(value, mold, molded);
+        Mold_Vector(const_KNOWN(value), mold, molded);
         break;
 
     case REB_DATATYPE: {
-        REBSYM sym = VAL_TYPE_SYM(value);
+        REBSTR *name = Canon(VAL_TYPE_SYM(value));
     #if !defined(NDEBUG)
         if (LEGACY(OPTIONS_PAREN_INSTEAD_OF_GROUP)) {
             if (VAL_TYPE_KIND(value) == REB_GROUP)
-                sym = SYM_PAREN_X; // e_Xclamation point (GROUP!)
+                name = Canon(SYM_PAREN_X); // e_Xclamation point (GROUP!)
         }
     #endif
         if (!molded)
-            Emit(mold, "N", sym);
+            Emit(mold, "N", name);
         else
-            Emit(mold, "+DN", SYM_DATATYPE_TYPE, sym);
-        break;
-    }
+            Emit(mold, "+DN", SYM_DATATYPE_X, name);
+        break; }
 
     case REB_TYPESET:
-        Mold_Typeset(value, mold, molded);
+        Mold_Typeset(const_KNOWN(value), mold, molded);
         break;
 
-    case REB_WORD:
-        // This is a high frequency function, so it is optimized.
-        Append_UTF8_May_Fail(ser, Get_Sym_Name(VAL_WORD_SYM(value)), -1);
+    case REB_WORD: { // Note: called often
+        REBSTR *spelling = VAL_WORD_SPELLING(value);
+        Append_UTF8_May_Fail(ser, STR_HEAD(spelling), STR_NUM_BYTES(spelling));
         break;
+        }
 
     case REB_SET_WORD:
         Emit(mold, "W:", value);
@@ -1307,31 +1406,31 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
         break;
 
     case REB_FUNCTION:
-        Mold_Function(value, mold);
+        Mold_Function(const_KNOWN(value), mold);
         break;
 
     case REB_VARARGS:
-        Mold_Varargs(value, mold);
+        Mold_Varargs(const_KNOWN(value), mold);
         break;
 
     case REB_OBJECT:
     case REB_MODULE:
     case REB_PORT:
     case REB_FRAME:
-        if (!molded) Form_Object(value, mold);
-        else Mold_Object(value, mold);
+        if (!molded) Form_Object(const_KNOWN(value), mold);
+        else Mold_Object(const_KNOWN(value), mold);
         break;
 
     case REB_TASK:
-        Mold_Object(value, mold); //// | (1<<MOPT_NO_NONE));
+        Mold_Object(const_KNOWN(value), mold);
         break;
 
     case REB_ERROR:
-        Mold_Error(value, mold, molded);
+        Mold_Error(const_KNOWN(value), mold, molded);
         break;
 
     case REB_MAP:
-        Mold_Map(value, mold, molded);
+        Mold_Map(const_KNOWN(value), mold, molded);
         break;
 
     case REB_GOB:
@@ -1346,38 +1445,33 @@ void Mold_Value(REB_MOLD *mold, const REBVAL *value, REBOOL molded)
         break;
 
     case REB_EVENT:
-        Mold_Event(value, mold);
+        Mold_Event(const_KNOWN(value), mold);
         break;
 
     case REB_STRUCT:
     {
         REBARR *array;
         Pre_Mold(value, mold);
-        array = Struct_To_Array(&VAL_STRUCT(value));
+        array = Struct_To_Array(VAL_STRUCT(value));
         Mold_Array_At(mold, array, 0, 0);
         End_Mold(mold);
     }
         break;
 
-    case REB_LIBRARY:
+    case REB_LIBRARY: {
         Pre_Mold(value, mold);
 
-        DS_PUSH_NONE;
-        *DS_TOP = *ARR_HEAD(VAL_LIB_SPEC(value));
-        Mold_File(DS_TOP, mold);
-        DS_DROP;
+        REBCTX *meta = VAL_LIBRARY_META(value);
+        if (meta)
+            Mold_Object(CTX_VALUE(meta), mold);
 
         End_Mold(mold);
-        break;
+        break; }
 
     case REB_HANDLE:
         // Value has no printable form, so just print its name.
         if (!molded) Emit(mold, "?T?", value);
         else Emit(mold, "+T", value);
-        break;
-
-    case REB_UNSET:
-        if (molded) Emit(mold, "+T", value);
         break;
 
     default:
@@ -1398,7 +1492,7 @@ check_and_return:
 // 
 // Form a value based on the mold opts provided.
 //
-REBSER *Copy_Form_Value(const REBVAL *value, REBFLGS opts)
+REBSER *Copy_Form_Value(const RELVAL *value, REBFLGS opts)
 {
     REB_MOLD mo;
     CLEARS(&mo);
@@ -1432,8 +1526,12 @@ REBSER *Copy_Mold_Value(const REBVAL *value, REBFLGS opts)
 // 
 // Reduce a block and then form each value into a string REBVAL.
 //
-REBOOL Form_Reduce_Throws(REBVAL *out, REBARR *block, REBCNT index)
-{
+REBOOL Form_Reduce_Throws(
+    REBVAL *out,
+    REBARR *block,
+    REBCNT index,
+    REBCTX *specifier
+) {
     REBIXO indexor = index;
 
     REB_MOLD mo;
@@ -1442,7 +1540,7 @@ REBOOL Form_Reduce_Throws(REBVAL *out, REBARR *block, REBCNT index)
     Push_Mold(&mo);
 
     while (indexor != END_FLAG) {
-        DO_NEXT_MAY_THROW(indexor, out, block, indexor);
+        indexor = DO_NEXT_MAY_THROW(out, block, indexor, specifier);
         if (indexor == THROWN_FLAG)
             return TRUE;
 
@@ -1460,7 +1558,7 @@ REBOOL Form_Reduce_Throws(REBVAL *out, REBARR *block, REBCNT index)
 //
 REBSER *Form_Tight_Block(const REBVAL *blk)
 {
-    REBVAL *val;
+    RELVAL *val;
 
     REB_MOLD mo;
     CLEARS(&mo);

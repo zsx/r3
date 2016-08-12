@@ -1,30 +1,31 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Summary: Program and Thread Globals
-**  Module:  sys-globals.h
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %sys-globals.h
+//  Summary: "Program and Thread Globals"
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 //-- Bootstrap variables:
 PVAR REBINT PG_Boot_Phase;  // To know how far in the boot we are.
@@ -47,9 +48,21 @@ PVAR REBYTE **PG_Boot_Strs; // Special strings in boot.r (RS_ constants)
 PVAR REBU64 PG_Mem_Usage;   // Overall memory used
 PVAR REBU64 PG_Mem_Limit;   // Memory limit set by SECURE
 
-//-- Symbol Table:
-PVAR REBSER *PG_Word_Names; // Holds all word strings. Never removed.
-PVAR WORD_TABLE PG_Word_Table; // Symbol values accessed by hash
+// In Ren-C, words are REBSER nodes (REBSTR subtype).  They may be GC'd (unless
+// they are in the %words.r list, in which case their canon forms are
+// protected in order to do SYM_XXX switch statements in the C source, etc.)
+//
+// There is a global hash table which accelerates finding a word's REBSER
+// node from a UTF-8 source string.  Entries are added to it when new canon
+// forms of words are created, and removed when they are GC'd.  It is scaled
+// according to the total number of canons in the system.
+//
+PVAR REBSTR *PG_Symbol_Canons; // Canon symbol pointers for words in %words.r
+PVAR REBSTR *PG_Canons_By_Hash; // Canon REBSER pointers indexed by hash
+PVAR REBCNT PG_Num_Canon_Slots_In_Use; // Total canon hash slots (+ deleteds)
+#if !defined(NDEBUG)
+    PVAR REBCNT PG_Num_Canon_Deleteds; // Deleted canon hash slots "in use"
+#endif
 
 //-- Main contexts:
 PVAR REBCTX *PG_Root_Context; // Frame that holds Root_Vars
@@ -74,25 +87,28 @@ PVAR REB_OPTS *Reb_Opts;
     PVAR REBOOL PG_Always_Malloc;   // For memory-related troubleshooting
 #endif
 
-// These are some canon UNSET, NONE, TRUE, and FALSE values.  They are here
-// in two-element arrays in order that those using them don't accidentally
+// These are some canon BLANK, TRUE, and FALSE values (and void/end cells).
+// In two-element arrays in order that those using them don't accidentally
 // pass them to routines that will increment the pointer as if they are
 // arrays--they are singular values, and the second element is set to
 // be trash to trap any unwanted access.
 //
-PVAR struct Reb_Value PG_Unset_Value[2];
-PVAR struct Reb_Value PG_None_Value[2];
-PVAR struct Reb_Value PG_False_Value[2];
-PVAR struct Reb_Value PG_True_Value[2];
-PVAR struct Reb_Value PG_End_Val;
+PVAR REBVAL PG_End_Cell;
+PVAR REBVAL PG_Void_Cell[2];
+
+PVAR REBVAL PG_Blank_Value[2];
+PVAR REBVAL PG_Bar_Value[2];
+PVAR REBVAL PG_False_Value[2];
+PVAR REBVAL PG_True_Value[2];
+
+// Special (but standards-legal) REBVAL* used in the `pending` field of a frame
+// to indicate it fetches its values from a C va_list.
+//
+PVAR REBVAL PG_Va_List_Pending;
 
 // This signal word should be thread-local, but it will not work
 // when implemented that way. Needs research!!!!
-PVAR REBCNT Eval_Signals;   // Signal flags
-
-PVAR REBFUN *PG_Eval_Func; // EVAL native func (never GC'd)
-PVAR REBFUN *PG_Return_Func; // RETURN native func (never GC'd)
-PVAR REBFUN *PG_Leave_Func; // LEAVE native func (never GC'd)
+PVAR REBFLGS Eval_Signals;   // Signal flags
 
 // Hook called when BREAKPOINT is hit.  It will return TRUE if the breakpoint
 // is quitting, or FALSE if it is continuing.  (Note that if one is HALTing,
@@ -135,7 +151,7 @@ TVAR REBUPT Stack_Limit;    // Limit address for CPU stack.
     // used for many purposes...including setting breakpoints in routines
     // other than Do_Next that are contingent on a certain "tick" elapsing.
     //
-    TVAR REBCNT TG_Do_Count;
+    TVAR REBUPT TG_Do_Count;
 #endif
 
 // Each time Do_Core is called a Reb_Frame* is pushed to the "frame stack".
@@ -145,7 +161,7 @@ TVAR REBUPT Stack_Limit;    // Limit address for CPU stack.
 // be filtered to get an understanding of something like a "backtrace of
 // currently running functions".
 //
-TVAR struct Reb_Frame *TG_Frame_Stack;
+TVAR REBFRM *TG_Frame_Stack;
 
 //-- Evaluation stack:
 TVAR REBARR *DS_Array;
@@ -182,8 +198,8 @@ TVAR void *TG_Command_Execution_Context;
 //-- Evaluation variables:
 TVAR REBI64 Eval_Cycles;    // Total evaluation counter (upward)
 TVAR REBI64 Eval_Limit;     // Evaluation limit (set by secure)
-TVAR REBUPT Eval_Count;     // Evaluation counter (downward)
-TVAR REBUPT Eval_Dose;      // Evaluation counter reset value
+TVAR REBINT Eval_Count;     // Evaluation counter (downward)
+TVAR REBCNT Eval_Dose;      // Evaluation counter reset value
 TVAR REBFLGS Eval_Sigmask;   // Masking out signal flags
 
 TVAR REBFLGS Trace_Flags;    // Trace flag
@@ -192,10 +208,6 @@ TVAR REBINT Trace_Depth;    // Tracks trace indentation
 TVAR REBCNT Trace_Limit;    // Backtrace buffering limit
 TVAR REBSER *Trace_Buffer;  // Holds backtrace lines
 
-TVAR REBI64 Eval_Natives;
 TVAR REBI64 Eval_Functions;
-
-//-- Other per thread globals:
-TVAR REBSER *Bind_Table;    // Used to quickly bind words to contexts
 
 TVAR REBVAL Callback_Error; //Error produced by callback!, note it's not callback://

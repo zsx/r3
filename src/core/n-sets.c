@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  n-sets.c
-**  Summary: native functions for data sets
-**  Section: natives
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %n-sets.c
+//  Summary: "native functions for data sets"
+//  Section: natives
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
@@ -116,7 +117,7 @@ static REBSER *Make_Set_Operation_Series(
         // and extending Find_Key to FIND on the value itself w/o the hash.
 
         do {
-            REBSER *ser = VAL_SERIES(val1); // val1 and val2 swapped 2nd pass!
+            REBARR *array1 = VAL_ARRAY(val1); // val1 and val2 swapped 2nd pass!
 
             // Check what is in series1 but not in series2
             //
@@ -126,23 +127,35 @@ static REBSER *Make_Set_Operation_Series(
             // Iterate over first series
             //
             i = VAL_INDEX(val1);
-            for (; i < SER_LEN(ser); i += skip) {
-                REBVAL *item = ARR_AT(AS_ARRAY(ser), i);
+            for (; i < ARR_LEN(array1); i += skip) {
+                RELVAL *item = ARR_AT(array1, i);
                 if (flags & SOP_FLAG_CHECK) {
                     h = Find_Key_Hashed(
-                        VAL_ARRAY(val2), hser, item, skip, cased, 1
+                        VAL_ARRAY(val2),
+                        hser,
+                        item,
+                        VAL_SPECIFIER(val1),
+                        skip,
+                        cased,
+                        1
                     );
                     h = (h >= 0);
                     if (flags & SOP_FLAG_INVERT) h = !h;
                 }
                 if (h) {
                     Find_Key_Hashed(
-                        AS_ARRAY(buffer), hret, item, skip, cased, 2
+                        AS_ARRAY(buffer),
+                        hret,
+                        item,
+                        VAL_SPECIFIER(val1),
+                        skip,
+                        cased,
+                        2
                     );
                 }
             }
 
-            if (i != SER_LEN(ser)) {
+            if (i != ARR_LEN(array1)) {
                 //
                 // In the current philosophy, the semantics of what to do
                 // with things like `intersect/skip [1 2 3] [7] 2` is too
@@ -170,8 +183,8 @@ static REBSER *Make_Set_Operation_Series(
         if (hret)
             Free_Series(hret);
 
-        out_ser = ARR_SERIES(Copy_Array_Shallow(AS_ARRAY(buffer)));
-        RESET_TAIL(buffer); // required - allow reuse
+        out_ser = ARR_SERIES(Copy_Array_Shallow(AS_ARRAY(buffer), SPECIFIED));
+        SET_SERIES_LEN(buffer, 0); // required - allow reuse
     }
     else {
         REB_MOLD mo;
@@ -291,7 +304,7 @@ REBNATIVE(difference)
         if (VAL_TYPE(val1) != VAL_TYPE(val2))
             fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
-        Val_Init_Bitset(D_OUT, Xandor_Binary(A_XOR_T, val1, val2));
+        Val_Init_Bitset(D_OUT, Xandor_Binary(SYM_XOR_T, val1, val2));
         return R_OUT;
     }
 
@@ -409,7 +422,7 @@ REBNATIVE(intersect)
         if (VAL_TYPE(val1) != VAL_TYPE(val2))
             fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
-        Val_Init_Bitset(D_OUT, Xandor_Binary(A_AND_T, val1, val2));
+        Val_Init_Bitset(D_OUT, Xandor_Binary(SYM_AND_T, val1, val2));
         return R_OUT;
     }
 
@@ -467,7 +480,7 @@ REBNATIVE(union)
         if (VAL_TYPE(val1) != VAL_TYPE(val2))
             fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
-        Val_Init_Bitset(D_OUT, Xandor_Binary(A_OR_T, val1, val2));
+        Val_Init_Bitset(D_OUT, Xandor_Binary(SYM_OR_T, val1, val2));
         return R_OUT;
     }
 

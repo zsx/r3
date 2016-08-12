@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  t-string.c
-**  Summary: string related datatypes
-**  Section: datatypes
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %t-string.c
+//  Summary: "string related datatypes"
+//  Section: datatypes
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 #include "sys-deci-funcs.h"
@@ -35,18 +36,11 @@
 //
 //  CT_String: C
 //
-REBINT CT_String(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_String(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     REBINT num;
 
-    if (mode == 3)
-        return (
-            (VAL_SERIES(a) == VAL_SERIES(b) && VAL_INDEX(a) == VAL_INDEX(b))
-            ? 1
-            : 0
-        );
-
-    num = Compare_String_Vals(a, b, NOT(mode > 1));
+    num = Compare_String_Vals(a, b, NOT(mode == 1));
 
     if (mode >= 0) return (num == 0) ? 1 : 0;
     if (mode == -1) return (num >= 0) ? 1 : 0;
@@ -211,7 +205,7 @@ static REBCNT find_string(
 }
 
 
-static REBSER *make_string(REBVAL *arg, REBOOL make)
+static REBSER *make_string(const REBVAL *arg, REBOOL make)
 {
     REBSER *ser = 0;
 
@@ -242,7 +236,6 @@ static REBSER *make_string(REBVAL *arg, REBOOL make)
     // MAKE/TO <type> <any-word>
     else if (ANY_WORD(arg)) {
         ser = Copy_Mold_Value(arg, 0 /* opts... MOPT_0? */);
-        //ser = Append_UTF8_May_Fail(0, Get_Word_Name(arg), -1);
     }
     // MAKE/TO <type> #"A"
     else if (IS_CHAR(arg)) {
@@ -250,7 +243,7 @@ static REBSER *make_string(REBVAL *arg, REBOOL make)
         Append_Codepoint_Raw(ser, VAL_CHAR(arg));
     }
     // MAKE/TO <type> <any-value>
-//  else if (IS_NONE(arg)) {
+//  else if (IS_BLANK(arg)) {
 //      ser = Make_Binary(0);
 //  }
     else
@@ -260,7 +253,7 @@ static REBSER *make_string(REBVAL *arg, REBOOL make)
 }
 
 
-static REBSER *Make_Binary_BE64(REBVAL *arg)
+static REBSER *Make_Binary_BE64(const REBVAL *arg)
 {
     REBSER *ser = Make_Binary(9);
     REBI64 n;
@@ -286,7 +279,7 @@ static REBSER *Make_Binary_BE64(REBVAL *arg)
 }
 
 
-static REBSER *make_binary(REBVAL *arg, REBOOL make)
+static REBSER *make_binary(const REBVAL *arg, REBOOL make)
 {
     REBSER *ser;
 
@@ -356,24 +349,69 @@ static REBSER *make_binary(REBVAL *arg, REBOOL make)
 
 
 //
-//  MT_String: C
+//  MAKE_String: C
 //
-REBOOL MT_String(REBVAL *out, REBVAL *data, enum Reb_Kind type)
+void MAKE_String(REBVAL *out, enum Reb_Kind kind, const REBVAL *def) {
+    if (IS_BLOCK(def)) {
+        //
+        // The construction syntax for making strings or binaries that are
+        // preloaded with an offset into the data is #[binary [#{0001} 2]].
+        // In R3-Alpha make definitions didn't have to be a single value
+        // (they are for compatibility between construction syntax and MAKE
+        // in Ren-C).  So the positional syntax was #[binary! #{0001} 2]...
+        // while #[binary [#{0001} 2]] would join the pieces together in order
+        // to produce #{000102}.  That behavior is not available in Ren-C.
+
+        if (VAL_ARRAY_LEN_AT(def) != 2)
+            goto bad_make;
+
+        RELVAL *any_binstr = VAL_ARRAY_AT(def);
+        if (!ANY_BINSTR(any_binstr))
+            goto bad_make;
+        if (IS_BINARY(any_binstr) != LOGICAL(kind == REB_BINARY))
+            goto bad_make;
+
+        RELVAL *index = VAL_ARRAY_AT(def) + 1;
+        if (!IS_INTEGER(index))
+            goto bad_make;
+
+        REBINT i = Int32(index) - 1 + VAL_INDEX(any_binstr);
+        if (i < 0 || i > cast(REBINT, VAL_LEN_AT(any_binstr)))
+            goto bad_make;
+
+        Val_Init_Series_Index(out, kind, VAL_SERIES(any_binstr), i);
+        return;
+    }
+
+    REBSER *ser; // goto would cross initialization
+    ser = (kind != REB_BINARY)
+        ? make_string(def, TRUE)
+        : make_binary(def, TRUE);
+
+    if (!ser)
+        goto bad_make;
+
+    Val_Init_Series_Index(out, kind, ser, 0);
+    return;
+
+bad_make:
+    fail (Error_Bad_Make(kind, def));
+}
+
+
+//
+//  TO_String: C
+//
+void TO_String(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
-    REBCNT i;
+    REBSER *ser = (kind != REB_BINARY)
+        ? make_string(arg, FALSE)
+        : make_binary(arg, FALSE);
 
-    if (!ANY_BINSTR(data)) return FALSE;
-    *out = *data++;
-    VAL_RESET_HEADER(out, type);
+    if (!ser)
+        fail (Error_Invalid_Arg(arg));
 
-    // !!! This did not have special END handling previously, but it would have
-    // taken the 0 branch.  Review if this is sensible.
-    //
-    i = NOT_END(data) && IS_INTEGER(data) ? Int32(data) - 1 : 0;
-
-    if (i > VAL_LEN_HEAD(out)) i = VAL_LEN_HEAD(out); // clip it
-    VAL_INDEX(out) = i;
-    return TRUE;
+    Val_Init_Series(out, kind, ser);
 }
 
 
@@ -448,14 +486,13 @@ static void Sort_String(
     REBCNT skip = 1;
     REBCNT size = 1;
     REBCNT thunk = 0;
-    int (*sfunc)(const void *v1, const void *v2);
 
     // Determine length of sort:
     len = Partial(string, 0, part);
     if (len <= 1) return;
 
     // Skip factor:
-    if (!IS_UNSET(skipv)) {
+    if (!IS_VOID(skipv)) {
         skip = Get_Num_From_Arg(skipv);
         if (skip <= 0 || len % skip != 0 || skip > len)
             fail (Error_Invalid_Arg(skipv));
@@ -575,7 +612,7 @@ REBINT PD_File(REBPVS *pvs)
     if (pvs->opt_setval)
         fail (Error_Bad_Path_Set(pvs));
 
-    ser = Copy_Sequence_At_Position(pvs->value);
+    ser = Copy_Sequence_At_Position(KNOWN(pvs->value));
 
     // This makes sure there's always a "/" at the end of the file before
     // appending new material via a selector:
@@ -637,32 +674,28 @@ REBTYPE(String)
     REBCNT  args;
     REBCNT  ret;
 
-    if ((IS_FILE(value) || IS_URL(value)) && action >= PORT_ACTIONS) {
-        return T_Port(frame_, action);
+    // Common operations for any series type (length, head, etc.)
+    {
+        REB_R r;
+        if (Series_Common_Action_Returns(&r, frame_, action))
+            return r;
     }
-
-    len = Do_Series_Action(frame_, action, value, arg);
-    if (len >= 0) return len;
 
     // Common setup code for all actions:
-    if (action != A_MAKE && action != A_TO) {
-        index = cast(REBINT, VAL_INDEX(value));
-        tail = cast(REBINT, VAL_LEN_HEAD(value));
-    }
-
-    // Check must be in this order (to avoid checking a non-series value);
-    if (action >= A_TAKE && action <= A_SORT)
-        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+    index = cast(REBINT, VAL_INDEX(value));
+    tail = cast(REBINT, VAL_LEN_HEAD(value));
 
     switch (action) {
 
     //-- Modification:
-    case A_APPEND:
-    case A_INSERT:
-    case A_CHANGE:
+    case SYM_APPEND:
+    case SYM_INSERT:
+    case SYM_CHANGE:
+        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+
         //Modify_String(action, value, arg);
         // Length of target (may modify index): (arg can be anything)
-        len = Partial1((action == A_CHANGE) ? value : arg, D_ARG(AN_LIMIT));
+        len = Partial1((action == SYM_CHANGE) ? value : arg, D_ARG(AN_LIMIT));
         index = VAL_INDEX(value);
         args = 0;
         if (IS_BINARY(value)) SET_FLAG(args, AN_SERIES); // special purpose
@@ -673,10 +706,10 @@ REBTYPE(String)
         break;
 
     //-- Search:
-    case A_SELECT:
+    case SYM_SELECT:
         ret = ALL_SELECT_REFS;
         goto find;
-    case A_FIND:
+    case SYM_FIND:
         ret = ALL_FIND_REFS;
 find:
         args = Find_Refines(frame_, ret);
@@ -710,16 +743,16 @@ find:
 
         ret = find_string(VAL_SERIES(value), index, tail, arg, len, args, ret);
 
-        if (ret >= (REBCNT)tail) goto is_none;
+        if (ret >= (REBCNT)tail) return R_BLANK;
         if (args & AM_FIND_ONLY) len = 1;
 
-        if (action == A_FIND) {
+        if (action == SYM_FIND) {
             if (args & (AM_FIND_TAIL | AM_FIND_MATCH)) ret += len;
             VAL_INDEX(value) = ret;
         }
         else {
             ret++;
-            if (ret >= (REBCNT)tail) goto is_none;
+            if (ret >= (REBCNT)tail) return R_BLANK;
             if (IS_BINARY(value)) {
                 SET_INTEGER(value, *BIN_AT(VAL_SERIES(value), ret));
             }
@@ -729,17 +762,18 @@ find:
         break;
 
     //-- Picking:
-    case A_PICK:
-    case A_POKE:
+    case SYM_POKE:
+        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+    case SYM_PICK:
         len = Get_Num_From_Arg(arg); // Position
         //if (len > 0) index--;
         if (REB_I32_SUB_OF(len, 1, &len)
             || REB_I32_ADD_OF(index, len, &index)
             || index < 0 || index >= tail) {
-            if (action == A_PICK) goto is_none;
+            if (action == SYM_PICK) return R_BLANK;
             fail (Error_Out_Of_Range(arg));
         }
-        if (action == A_PICK) {
+        if (action == SYM_PICK) {
 pick_it:
             if (IS_BINARY(value)) {
                 SET_INTEGER(D_OUT, *VAL_BIN_AT_HEAD(value, index));
@@ -776,7 +810,9 @@ pick_it:
         }
         break;
 
-    case A_TAKE:
+    case SYM_TAKE:
+        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+
         if (D_REF(2)) {
             len = Partial(value, 0, D_ARG(3));
             if (len == 0) {
@@ -792,7 +828,7 @@ zero_str:
         // take/last:
         if (D_REF(5)) index = tail - len;
         if (index < 0 || index >= tail) {
-            if (!D_REF(2)) goto is_none;
+            if (!D_REF(2)) return R_BLANK;
             goto zero_str;
         }
 
@@ -804,11 +840,16 @@ zero_str:
             } else
                 str_to_char(value, value, index);
         }
-        else Val_Init_Series(value, VAL_TYPE(value), Copy_String_Slimming(ser, index, len));
+        else {
+            enum Reb_Kind kind = VAL_TYPE(value);
+            Val_Init_Series(value, kind, Copy_String_Slimming(ser, index, len));
+        }
         Remove_Series(ser, index, len);
         break;
 
-    case A_CLEAR:
+    case SYM_CLEAR:
+        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+
         if (index < tail) {
             if (index == 0) Reset_Series(VAL_SERIES(value));
             else {
@@ -820,31 +861,16 @@ zero_str:
 
     //-- Creation:
 
-    case A_COPY:
+    case SYM_COPY:
         len = Partial(value, 0, D_ARG(3)); // Can modify value index.
         ser = Copy_String_Slimming(VAL_SERIES(value), VAL_INDEX(value), len);
         goto ser_exit;
 
-    case A_MAKE:
-    case A_TO:
-        // Determine the datatype to create:
-        type = VAL_TYPE(value);
-        if (type == REB_DATATYPE) type = VAL_TYPE_KIND(value);
-
-        if (IS_NONE(arg)) fail (Error_Bad_Make(type, arg));
-
-        ser = (type != REB_BINARY)
-            ? make_string(arg, LOGICAL(action == A_MAKE))
-            : make_binary(arg, LOGICAL(action == A_MAKE));
-
-        if (ser) goto str_exit;
-        fail (Error_Invalid_Arg(arg));
-
     //-- Bitwise:
 
-    case A_AND_T:
-    case A_OR_T:
-    case A_XOR_T:
+    case SYM_AND_T:
+    case SYM_OR_T:
+    case SYM_XOR_T:
         if (!IS_BINARY(arg)) fail (Error_Invalid_Arg(arg));
 
         if (VAL_INDEX(value) > VAL_LEN_HEAD(value))
@@ -856,14 +882,16 @@ zero_str:
         ser = Xandor_Binary(action, value, arg);
         goto ser_exit;
 
-    case A_COMPLEMENT:
+    case SYM_COMPLEMENT:
         if (!IS_BINARY(value)) fail (Error_Invalid_Arg(value));
         ser = Complement_Binary(value);
         goto ser_exit;
 
     //-- Special actions:
 
-    case A_TRIM:
+    case SYM_TRIM:
+        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+
         // Check for valid arg combinations:
         args = Find_Refines(frame_, ALL_TRIM_REFS);
         if (
@@ -878,7 +906,9 @@ zero_str:
         Trim_String(VAL_SERIES(value), VAL_INDEX(value), VAL_LEN_AT(value), args, D_ARG(ARG_TRIM_STR));
         break;
 
-    case A_SWAP:
+    case SYM_SWAP:
+        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+
         if (VAL_TYPE(value) != VAL_TYPE(arg))
             fail (Error(RE_NOT_SAME_TYPE));
 
@@ -888,12 +918,16 @@ zero_str:
             swap_chars(value, arg);
         break;
 
-    case A_REVERSE:
+    case SYM_REVERSE:
+        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+
         len = Partial(value, 0, D_ARG(3));
         if (len > 0) reverse_string(value, len);
         break;
 
-    case A_SORT:
+    case SYM_SORT:
+        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+
         Sort_String(
             value,
             D_REF(2),   // case sensitive
@@ -905,7 +939,9 @@ zero_str:
         );
         break;
 
-    case A_RANDOM:
+    case SYM_RANDOM:
+        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+
         if (D_REF(2)) { // /seed
             //
             // Use the string contents as a seed.  R3-Alpha would try and
@@ -923,11 +959,11 @@ zero_str:
                     VAL_LEN_AT(value) * SER_WIDE(VAL_SERIES(value))
                 )
             );
-            return R_UNSET;
+            return R_VOID;
         }
 
         if (D_REF(4)) { // /only
-            if (index >= tail) goto is_none;
+            if (index >= tail) return R_BLANK;
             index += (REBCNT)Random_Int(D_REF(3)) % (tail - index);  // /secure
             goto pick_it;
         }
@@ -935,6 +971,11 @@ zero_str:
         break;
 
     default:
+        // Let the port system try the action, e.g. OPEN %foo.txt
+        //
+        if ((IS_FILE(value) || IS_URL(value)))
+            return T_Port(frame_, action);
+
         fail (Error_Illegal_Action(VAL_TYPE(value), action));
     }
 
@@ -943,10 +984,6 @@ zero_str:
 
 ser_exit:
     type = VAL_TYPE(value);
-str_exit:
     Val_Init_Series(D_OUT, type, ser);
     return R_OUT;
-
-is_none:
-    return R_NONE;
 }

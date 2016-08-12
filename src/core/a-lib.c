@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  a-lib.c
-**  Summary: exported REBOL library functions
-**  Section: environment
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %a-lib.c
+//  Summary: "exported REBOL library functions"
+//  Section: environment
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 #include "reb-dialect.h"
@@ -39,15 +40,6 @@ REBOL_HOST_LIB *Host_Lib;
 #endif
 
 
-//#define DUMP_INIT_SCRIPT
-#ifdef DUMP_INIT_SCRIPT
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <io.h>
-// #include <stdio.h> // !!! No <stdio.h> in Ren-C release builds
-#endif
-
-
 // !!! Most of the Rebol source does not include %reb-lib.h.  As a result
 // REBRXT and RXIARG and RXIFRM are not defined when %tmp-funcs.h is being
 // compiled, so the MAKE PREP process doesn't auto-generate prototypes for
@@ -57,7 +49,14 @@ REBOL_HOST_LIB *Host_Lib;
 // the burden of keeping these in sync manually is for the best.
 //
 #include "reb-lib.h"
-extern const REBRXT Reb_To_RXT[REB_MAX_0];
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+extern const REBRXT Reb_To_RXT[REB_MAX];
+#if defined(__cplusplus)
+}
+#endif
 extern void Value_To_RXI(RXIARG *arg, const REBVAL *val); // f-extension.c
 extern void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type); // f-extension.c
 extern void RXI_To_Block(RXIFRM *frm, REBVAL *out); // f-extension.c
@@ -164,7 +163,6 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
     int error_num;
 
     REBVAL result;
-    VAL_INIT_WRITABLE_DEBUG(&result);
 
     if (bin) {
         ser = Decompress(bin, len, -1, FALSE, FALSE);
@@ -246,7 +244,7 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
     }
 
     if (Apply_Only_Throws(
-        &result, Sys_Func(SYS_CTX_FINISH_RL_START), END_VALUE
+        &result, TRUE, Sys_Func(SYS_CTX_FINISH_RL_START), END_CELL
     )) {
         #if !defined(NDEBUG)
             if (LEGACY(OPTIONS_EXIT_FUNCTIONS_ONLY))
@@ -254,9 +252,9 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
         #endif
 
         if (
-            IS_FUNCTION_AND(&result, FUNC_CLASS_NATIVE) && (
-                VAL_FUNC_CODE(&result) == &N_quit
-                || VAL_FUNC_CODE(&result) == &N_exit
+            IS_FUNCTION(&result) && (
+                VAL_FUNC_DISPATCHER(&result) == &N_quit
+                || VAL_FUNC_DISPATCHER(&result) == &N_exit
             )
         ) {
             int status;
@@ -277,10 +275,10 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
     // The convention in the API was to return 0 for success.  We use the
-    // convention (as for FINISH_INIT_CORE) that any non-UNSET! result from
+    // convention (as for FINISH_INIT_CORE) that any stray value result from
     // FINISH_RL_START indicates something went wrong.
 
-    if (IS_UNSET(&result))
+    if (IS_VOID(&result))
         error_num = 0; // no error
     else {
         assert(FALSE); // should not happen (raise an error instead)
@@ -423,18 +421,13 @@ RL_API int RL_Do_String(
     REBCNT flags,
     RXIARG *out
 ) {
-    REBARR *code;
-
-    struct Reb_State state;
-    REBCTX *error;
-
-    REBVAL result;
-    VAL_INIT_WRITABLE_DEBUG(&result);
-
     // assumes it can only be run at the topmost level where
     // the data stack is completely empty.
     //
     assert(DSP == 0);
+
+    struct Reb_State state;
+    REBCTX *error;
 
     PUSH_UNHALTABLE_TRAP(&error, &state);
 
@@ -454,11 +447,10 @@ RL_API int RL_Do_String(
         else
             DS_PUSH(last);
 
-        return -ERR_NUM(error);
+        return -cast(int, ERR_NUM(error));
     }
 
-    code = Scan_Source(text, LEN_BYTES(text));
-    PUSH_GUARD_ARRAY(code);
+    REBARR *code = Scan_UTF8_Managed(text, LEN_BYTES(text));
 
     // Bind into lib or user spaces?
     if (flags) {
@@ -470,20 +462,18 @@ RL_API int RL_Do_String(
         REBCTX *user = VAL_CONTEXT(Get_System(SYS_CONTEXTS, CTX_USER));
 
         REBVAL vali;
-        VAL_INIT_WRITABLE_DEBUG(&vali);
         SET_INTEGER(&vali, CTX_LEN(user) + 1);
 
         Bind_Values_All_Deep(ARR_HEAD(code), user);
         Resolve_Context(user, Lib_Context, &vali, FALSE, FALSE);
     }
 
-    if (Do_At_Throws(&result, code, 0)) {
-        DROP_GUARD_ARRAY(code);
-
+    REBVAL result;
+    if (Do_At_Throws(&result, code, 0, SPECIFIED)) { // implicitly guarded
         if (
-            IS_FUNCTION_AND(&result, FUNC_CLASS_NATIVE) && (
-                VAL_FUNC_CODE(&result) == &N_quit
-                || VAL_FUNC_CODE(&result) == &N_exit
+            IS_FUNCTION(&result) && (
+                VAL_FUNC_DISPATCHER(&result) == &N_quit
+                || VAL_FUNC_DISPATCHER(&result) == &N_exit
             )
         ) {
             CATCH_THROWN(&result, &result);
@@ -496,8 +486,6 @@ RL_API int RL_Do_String(
         fail (Error_No_Catch_For_Throw(&result));
     }
 
-    DROP_GUARD_ARRAY(code);
-
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
     if (out)
@@ -505,7 +493,7 @@ RL_API int RL_Do_String(
     else
         DS_PUSH(&result);
 
-    return Reb_To_RXT[VAL_TYPE_0(&result)];
+    return Reb_To_RXT[VAL_TYPE(&result)];
 }
 
 
@@ -534,27 +522,17 @@ RL_API int RL_Do_Binary(
     REBCNT key,
     RXIARG *out
 ) {
-    REBSER *text;
-#ifdef DUMP_INIT_SCRIPT
-    int f;
-#endif
     int maybe_rxt; // could be REBRXT, or negative number for error :-/
 
-    text = Decompress(bin, length, -1, FALSE, FALSE);
-    if (!text) return 0;
-    Append_Codepoint_Raw(text, 0);
+    REBSER *utf8 = Decompress(bin, length, -1, FALSE, FALSE);
+    if (!utf8)
+        return 0;
 
-#ifdef DUMP_INIT_SCRIPT
-    f = _open("host-boot.r", _O_CREAT | _O_RDWR, _S_IREAD | _S_IWRITE );
-    _write(f, BIN_HEAD(text), LEN_BYTES(BIN_HEAD(text)));
-    _close(f);
-#endif
+    Append_Codepoint_Raw(utf8, 0);
 
-    PUSH_GUARD_SERIES(text);
-    maybe_rxt = RL_Do_String(exit_status, BIN_HEAD(text), flags, out);
-    DROP_GUARD_SERIES(text);
+    maybe_rxt = RL_Do_String(exit_status, BIN_HEAD(utf8), flags, out);
 
-    Free_Series(text);
+    Free_Series(utf8);
     return maybe_rxt;
 }
 
@@ -598,16 +576,25 @@ RL_API void RL_Do_Commands(REBARR *array, REBCNT flags, REBCEC *cec)
     REBIXO indexor; // "index -or- a flag"
 
     REBVAL result;
-    VAL_INIT_WRITABLE_DEBUG(&result);
 
     cec_before = TG_Command_Execution_Context;
     TG_Command_Execution_Context = cec; // push
+
+    // !!! In a general sense, passing in any old array (that might be in
+    // the body of a function) will not work here to pass in SPECIFIED
+    // because it will not find locals.  If a block is completely constructed
+    // at runtime through RL_Api calls, it should however have all specific
+    // words and blocks.  If this is not the case (and it is important)
+    // then dynamic scoping could be used to try matching the words to
+    // the most recent call to the function they're in on the stack...but
+    // hopefully it won't be needed.
 
     indexor = Do_Array_At_Core(
         &result,
         NULL, // `first`: NULL means start at array head (no injected head)
         array,
         0, // start evaluating at index 0
+        SPECIFIED, // !!! see notes above
         DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
     );
 
@@ -662,14 +649,22 @@ RL_API void RL_Print(const REBYTE *fmt, ...)
 //     To avoid environment problems, this function only appends
 //     to the event queue (no auto-expand). So if the queue is full
 //
+// !!! Note to whom it may concern: REBEVT would now be 100% compatible with
+// a REB_EVENT REBVAL if there was a way of setting the header bits in the
+// places that generate them.
+//
 RL_API int RL_Event(REBEVT *evt)
 {
     REBVAL *event = Append_Event();     // sets signal
 
     if (event) {                        // null if no room left in series
         VAL_RESET_HEADER(event, REB_EVENT); // has more space, if needed
-        event->payload.event = *evt;
-
+        event->extra.eventee = evt->eventee;
+        event->payload.event.type = evt->type;
+        event->payload.event.flags = evt->flags;
+        event->payload.event.win = evt->win;
+        event->payload.event.model = evt->model;
+        event->payload.event.data = evt->data;
         return 1;
     }
 
@@ -695,7 +690,12 @@ RL_API int RL_Update_Event(REBEVT *evt)
     REBVAL *event = Find_Last_Event(evt->model, evt->type);
 
     if (event) {
-        event->payload.event = *evt;
+        event->extra.eventee = evt->eventee;
+        event->payload.event.type = evt->type;
+        event->payload.event.flags = evt->flags;
+        event->payload.event.win = evt->win;
+        event->payload.event.model = evt->model;
+        event->payload.event.data = evt->data;
         return 1;
     }
 
@@ -743,7 +743,7 @@ RL_API REBEVT *RL_Find_Event (REBINT model, REBINT type)
 {
     REBVAL * val = Find_Last_Event(model, type);
     if (val != NULL) {
-        return &val->payload.event;
+        return cast(REBEVT*, val); // should be compatible!
     }
     return NULL;
 }
@@ -982,9 +982,9 @@ RL_API int RL_Get_UTF8_String(REBSER *series, u32 index, REBYTE **str)
 //     If the word is new (not found in master symbol table)
 //     it will be added and the new word identifier is returned.
 //
-RL_API u32 RL_Map_Word(REBYTE *string)
+RL_API REBSTR *RL_Map_Word(REBYTE *string)
 {
-    return Make_Word(string, LEN_BYTES(string));
+    return Intern_UTF8_Managed(string, LEN_BYTES(string));
 }
 
 
@@ -1003,20 +1003,19 @@ RL_API u32 RL_Map_Word(REBYTE *string)
 //     If the input block contains non-words, they will be skipped.
 //     The array is allocated with OS_ALLOC and you can OS_FREE it any time.
 //
-RL_API u32 *RL_Map_Words(REBARR *array)
+RL_API REBSTR* *RL_Map_Words(REBARR *array)
 {
+    RELVAL *val = ARR_HEAD(array);
+    REBSTR* *words = OS_ALLOC_N(REBSTR*, ARR_LEN(array) + 2);
+
     REBCNT i = 1;
-    u32 *words;
-    REBVAL *val = ARR_HEAD(array);
-
-    words = OS_ALLOC_N(u32, ARR_LEN(array) + 2);
-
     for (; NOT_END(val); val++) {
-        if (ANY_WORD(val)) words[i++] = VAL_WORD_CANON(val);
+        if (ANY_WORD(val))
+            words[i++] = VAL_WORD_SPELLING(val);
     }
 
-    words[0] = i;
-    words[i] = 0;
+    words[0] = cast(REBSTR*, cast(REBUPT, i));
+    words[i] = NULL;
 
     return words;
 }
@@ -1038,13 +1037,10 @@ RL_API u32 *RL_Map_Words(REBARR *array)
 //     the returned string may have different spelling/casing than expected.
 //     The string is allocated with OS_ALLOC and you can OS_FREE it any time.
 //
-RL_API REBYTE *RL_Word_String(u32 word)
+RL_API REBYTE *RL_Word_String(REBSTR *word)
 {
-    REBYTE *s1, *s2;
-    // !!This code should use a function from c-words.c (but nothing perfect yet.)
-    if (word == 0 || word >= ARR_LEN(PG_Word_Table.array)) return 0;
-    s1 = VAL_SYM_NAME(ARR_AT(PG_Word_Table.array, word));
-    s2 = OS_ALLOC_N(REBYTE, LEN_BYTES(s1) + 1);
+    const REBYTE *s1 = STR_HEAD(word);
+    REBYTE *s2 = OS_ALLOC_N(REBYTE, LEN_BYTES(s1) + 1);
     COPY_BYTES(s2, s1, LEN_BYTES(s1) + 1);
     return s2;
 }
@@ -1063,13 +1059,13 @@ RL_API REBYTE *RL_Word_String(u32 word)
 // Notes:
 //     The first element of the word array is the length of the array.
 //
-RL_API u32 RL_Find_Word(u32 *words, u32 word)
+RL_API u32 RL_Find_Word(REBSTR* *words, REBSTR *word)
 {
     REBCNT n = 0;
 
     if (words == 0) return 0;
 
-    for (n = 1; n < words[0]; n++) {
+    for (n = 1; n < cast(REBUPT, words[0]); n++) {
         if (words[n] == word) return n;
     }
     return 0;
@@ -1163,11 +1159,11 @@ RL_API u32 RL_Set_Char(REBSER *series, u32 index, u32 chr)
 //
 RL_API int RL_Get_Value(REBARR *array, u32 index, RXIARG *result)
 {
-    REBVAL *value;
+    RELVAL *value;
     if (index >= ARR_LEN(array)) return 0;
     value = ARR_AT(array, index);
-    Value_To_RXI(result, value);
-    return Reb_To_RXT[VAL_TYPE_0(value)];
+    Value_To_RXI(result, KNOWN(value)); // !!! Only have array, no specifier!
+    return Reb_To_RXT[VAL_TYPE(value)];
 }
 
 
@@ -1187,7 +1183,6 @@ RL_API int RL_Get_Value(REBARR *array, u32 index, RXIARG *result)
 RL_API REBOOL RL_Set_Value(REBARR *array, u32 index, RXIARG val, int type)
 {
     REBVAL value;
-    VAL_INIT_WRITABLE_DEBUG(&value);
     RXI_To_Value(&value, &val, type);
 
     if (index >= ARR_LEN(array)) {
@@ -1214,30 +1209,26 @@ RL_API REBOOL RL_Set_Value(REBARR *array, u32 index, RXIARG val, int type)
 //     Returns a word array similar to MAP_WORDS().
 //     The array is allocated with OS_ALLOC. You can OS_FREE it any time.
 //
-RL_API u32 *RL_Words_Of_Object(REBSER *obj)
+RL_API REBSTR* *RL_Words_Of_Object(REBSER *obj)
 {
-    REBCNT index;
-    u32 *syms;
-    REBVAL *key;
     REBCTX *context = AS_CONTEXT(obj);
-
-    key = CTX_KEYS_HEAD(context);
 
     // We don't include hidden keys (e.g. SELF), but terminate by 0.
     // Conservative estimate that there are no hidden keys, add one.
     //
-    syms = OS_ALLOC_N(u32, CTX_LEN(context) + 1);
+    REBSTR* *syms = OS_ALLOC_N(REBSTR*, CTX_LEN(context) + 1);
 
-    index = 0;
+    REBCNT index = 0;
+    REBVAL *key = CTX_KEYS_HEAD(context);
     for (; NOT_END(key); key++) {
         if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
             continue;
 
-        syms[index] = VAL_TYPESET_CANON(key);
+        syms[index] = VAL_KEY_CANON(key);
         index++;
     }
 
-    syms[index] = SYM_0; // Null terminate
+    syms[index] = NULL; // Null terminate
 
     return syms;
 }
@@ -1255,14 +1246,19 @@ RL_API u32 *RL_Words_Of_Object(REBSER *obj)
 //     word - global word identifier (integer)
 //     result - gets set to the value of the field
 //
-RL_API int RL_Get_Field(REBSER *obj, u32 word, RXIARG *result)
+RL_API int RL_Get_Field(REBSER *obj, REBSTR *word, RXIARG *result)
 {
+    if (word == NULL) return 0; // used to react to SYM_0 by returning 0
+
     REBCTX *context = AS_CONTEXT(obj);
-    REBVAL *value;
-    if (!(word = Find_Word_In_Context(context, word, FALSE))) return 0;
-    value = CTX_VAR(context, word);
+
+    REBCNT index = Find_Canon_In_Context(context, STR_CANON(word), FALSE);
+    if (index == 0) return 0;
+
+    REBVAL *value = CTX_VAR(context, index);
     Value_To_RXI(result, value);
-    return Reb_To_RXT[VAL_TYPE_0(value)];
+
+    return Reb_To_RXT[VAL_TYPE(value)];
 }
 
 
@@ -1279,17 +1275,17 @@ RL_API int RL_Get_Field(REBSER *obj, u32 word, RXIARG *result)
 //     val  - new value for field
 //     type - datatype of value
 //
-RL_API int RL_Set_Field(REBSER *obj, u32 word_id, RXIARG val, int type)
+RL_API int RL_Set_Field(REBSER *obj, REBSTR *word_id, RXIARG val, int type)
 {
     REBCTX *context = AS_CONTEXT(obj);
 
-    word_id = Find_Word_In_Context(context, word_id, FALSE);
-    if (word_id == 0) return 0;
+    REBCNT index = Find_Canon_In_Context(context, STR_CANON(word_id), FALSE);
+    if (index == 0) return 0;
 
-    if (GET_VAL_FLAG(CTX_KEY(context, word_id), TYPESET_FLAG_LOCKED))
+    if (GET_VAL_FLAG(CTX_KEY(context, index), TYPESET_FLAG_LOCKED))
         return 0;
 
-    RXI_To_Value(CTX_VAR(context, word_id), &val, type);
+    RXI_To_Value(CTX_VAR(context, index), &val, type);
 
     return type;
 }

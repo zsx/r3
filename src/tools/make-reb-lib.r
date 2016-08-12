@@ -58,7 +58,7 @@ emit:  func [d] [append repend xlib-buffer d newline]
 emit-rlib: func [d] [append repend rlib-buffer d newline]
 emit-dlib: func [d] [append repend dlib-buffer d newline]
 emit-comment: func [d] [append repend comments-buffer d newline]
-emit-mlib: func [d /nol] [
+emit-mlib: proc [d /nol] [
     repend mlib-buffer d
     if not nol [append mlib-buffer newline]
 ]
@@ -121,11 +121,12 @@ gen-doc: func [name proto text] [
 ]
 
 pads: func [start col] [
+    str: copy ""
     col: col - offset-of start tail start
-    head insert/dup clear "" #" " col
+    head insert/dup str #" " col
 ]
 
-emit-proto: func [
+emit-proto: proc [
     proto
 ] [
 
@@ -164,7 +165,7 @@ emit-proto: func [
 ]
 
 process: func [file] [
-    if verbose [?? file]
+    if verbose [probe [file]]
     data: read the-file: file
     data: to-string data
 
@@ -173,8 +174,8 @@ process: func [file] [
     proto-parser/process data
 ]
 
-write-if: func [file data] [
-    if data <> attempt [to string! read file][
+write-if: proc [file data] [
+    if data != attempt [to string! read file][
         print ["UPDATE:" file]
         write file data
     ]
@@ -235,26 +236,6 @@ form-header/gen "REBOL Host and Extension API" %reb-lib.r %make-reb-lib.r
 #define RL_REV } ver/2 {
 #define RL_UPD } ver/3 {
 
-// Compatiblity with the lib requires that structs are aligned using the same
-// method. This is concrete, not abstract. The macro below uses struct
-// sizes to inform the developer that something is wrong.
-#if defined(__LP64__) || defined(__LLP64__)
-
-#ifdef HAS_POSIX_SIGNAL
-    #define CHECK_STRUCT_ALIGN (sizeof(REBREQ) == 196 && sizeof(REBEVT) == 16)
-#else
-    #define CHECK_STRUCT_ALIGN (sizeof(REBREQ) == 100 && sizeof(REBEVT) == 16)
-#endif //HAS_POSIX_SIGNAL
-
-#else // !defined(__LP64__) && !defined(__LLP64__)
-
-#ifdef HAS_POSIX_SIGNAL
-    #define CHECK_STRUCT_ALIGN (sizeof(REBREQ) == 180 && sizeof(REBEVT) == 12)
-#else
-    #define CHECK_STRUCT_ALIGN (sizeof(REBREQ) == 80 && sizeof(REBEVT) == 12)
-#endif //HAS_POSIX_SIGNAL
-
-#endif
 
 // Function entry points for reb-lib (used for MACROS below):}
 rlib-buffer

@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  p-clipboard.c
-**  Summary: clipboard port interface
-**  Section: ports
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %p-clipboard.c
+//  Summary: "clipboard port interface"
+//  Section: ports
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
@@ -33,7 +34,7 @@
 //
 //  Clipboard_Actor: C
 //
-static REB_R Clipboard_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
+static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
     REBREQ *req;
     REBINT result;
@@ -49,14 +50,14 @@ static REB_R Clipboard_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT acti
     req = cast(REBREQ*, Use_Port_State(port, RDI_CLIPBOARD, sizeof(REBREQ)));
 
     switch (action) {
-    case A_UPDATE:
+    case SYM_UPDATE:
         // Update the port object after a READ or WRITE operation.
         // This is normally called by the WAKE-UP function.
         arg = CTX_VAR(port, STD_PORT_DATA);
         if (req->command == RDC_READ) {
             // this could be executed twice:
             // once for an event READ, once for the CLOSE following the READ
-            if (!req->common.data) return R_NONE;
+            if (!req->common.data) return R_BLANK;
             len = req->actual;
             if (GET_FLAG(req->flags, RRF_WIDE)) {
                 // convert to UTF8, so that it can be converted back to string!
@@ -77,11 +78,11 @@ static REB_R Clipboard_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT acti
             req->common.data = 0;
         }
         else if (req->command == RDC_WRITE) {
-            SET_NONE(arg);  // Write is done.
+            SET_BLANK(arg);  // Write is done.
         }
-        return R_NONE;
+        return R_BLANK;
 
-    case A_READ:
+    case SYM_READ:
         // This device is opened on the READ:
         if (!IS_OPEN(req)) {
             if (OS_DO_DEVICE(req, RDC_OPEN))
@@ -91,7 +92,7 @@ static REB_R Clipboard_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT acti
         CLR_FLAG(req->flags, RRF_WIDE); // allow byte or wide chars
         result = OS_DO_DEVICE(req, RDC_READ);
         if (result < 0) fail (Error_On_Port(RE_READ_ERROR, port, req->error));
-        if (result > 0) return R_NONE; /* pending */
+        if (result > 0) return R_BLANK; /* pending */
 
         // Copy and set the string result:
         arg = CTX_VAR(port, STD_PORT_DATA);
@@ -116,7 +117,7 @@ static REB_R Clipboard_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT acti
         *D_OUT = *arg;
         return R_OUT;
 
-    case A_WRITE:
+    case SYM_WRITE:
         if (!IS_STRING(arg) && !IS_BINARY(arg))
             fail (Error(RE_INVALID_PORT_ARG, arg));
         // This device is opened on the WRITE:
@@ -145,7 +146,7 @@ static REB_R Clipboard_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT acti
 
             // Temp conversion:!!!
             ser = Make_Unicode(len);
-            len = Decode_UTF8_May_Fail(
+            len = Decode_UTF8_Negative_If_Latin1(
                 UNI_HEAD(ser), VAL_BIN_AT(arg), len, FALSE
             );
             len = abs(len);
@@ -170,22 +171,22 @@ static REB_R Clipboard_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT acti
         req->actual = 0;
 
         result = OS_DO_DEVICE(req, RDC_WRITE);
-        SET_NONE(CTX_VAR(port, STD_PORT_DATA)); // GC can collect it
+        SET_BLANK(CTX_VAR(port, STD_PORT_DATA)); // GC can collect it
 
         if (result < 0) fail (Error_On_Port(RE_WRITE_ERROR, port, req->error));
-        //if (result == DR_DONE) SET_NONE(CTX_VAR(port, STD_PORT_DATA));
+        //if (result == DR_DONE) SET_BLANK(CTX_VAR(port, STD_PORT_DATA));
         break;
 
-    case A_OPEN:
+    case SYM_OPEN:
         if (OS_DO_DEVICE(req, RDC_OPEN))
             fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
         break;
 
-    case A_CLOSE:
+    case SYM_CLOSE:
         OS_DO_DEVICE(req, RDC_CLOSE);
         break;
 
-    case A_OPEN_Q:
+    case SYM_OPEN_Q:
         if (IS_OPEN(req)) return R_TRUE;
         return R_FALSE;
 
@@ -203,5 +204,5 @@ static REB_R Clipboard_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT acti
 //
 void Init_Clipboard_Scheme(void)
 {
-    Register_Scheme(SYM_CLIPBOARD, 0, Clipboard_Actor);
+    Register_Scheme(Canon(SYM_CLIPBOARD), Clipboard_Actor);
 }

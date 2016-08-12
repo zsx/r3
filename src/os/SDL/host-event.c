@@ -310,7 +310,8 @@ void dispatch (SDL_Event *evt)
                         gob = SDL_GetWindowData(win, "GOB");
                         if (gob != NULL && !GET_GOB_FLAG(gob, GOBF_MINIMIZE)) {
                             SET_GOB_FLAG(gob, GOBF_MINIMIZE);
-                            CLR_GOB_FLAGS(gob, GOBF_RESTORE, GOBF_MAXIMIZE);
+                            CLR_GOB_FLAG(gob, GOBF_RESTORE);
+                            CLR_GOB_FLAG(gob, GOBF_MAXIMIZE);
                             CLR_GOB_FLAG(gob, GOBF_FULLSCREEN);
                         }
                     }
@@ -322,7 +323,8 @@ void dispatch (SDL_Event *evt)
                         gob = SDL_GetWindowData(win, "GOB");
                         if (gob != NULL && !GET_GOB_FLAG(gob, GOBF_MAXIMIZE)) {
                             SET_GOB_FLAG(gob, GOBF_MAXIMIZE);
-                            CLR_GOB_FLAGS(gob, GOBF_RESTORE, GOBF_MINIMIZE);
+                            CLR_GOB_FLAG(gob, GOBF_RESTORE);
+                            CLR_GOB_FLAG(gob, GOBF_MINIMIZE);
                             CLR_GOB_FLAG(gob, GOBF_FULLSCREEN);
                         }
                     }
@@ -334,7 +336,8 @@ void dispatch (SDL_Event *evt)
                         gob = SDL_GetWindowData(win, "GOB");
                         if (gob != NULL && !GET_GOB_FLAG(gob, GOBF_RESTORE)) {
                             SET_GOB_FLAG(gob, GOBF_RESTORE);
-                            CLR_GOB_FLAGS(gob, GOBF_MAXIMIZE, GOBF_MINIMIZE);
+                            CLR_GOB_FLAG(gob, GOBF_MAXIMIZE);
+                            CLR_GOB_FLAG(gob, GOBF_MINIMIZE);
                             CLR_GOB_FLAG(gob, GOBF_FULLSCREEN);
                         }
                     }

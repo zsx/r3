@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  p-dir.c
-**  Summary: file directory port interface
-**  Section: ports
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %p-dir.c
+//  Summary: "file directory port interface"
+//  Section: ports
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
@@ -48,7 +49,7 @@ static int Read_Dir(REBREQ *dir, REBARR *files)
     REBSER *name;
     REBREQ file;
 
-    SET_ARRAY_LEN(files, 0);
+    TERM_ARRAY_LEN(files, 0);
     CLEARS(&file);
 
     // Temporary filename storage; native OS API character size (REBCHR) varies
@@ -165,7 +166,7 @@ static void Init_Dir_Path(REBREQ *dir, REBVAL *path, REBINT wild, REBCNT policy)
 // 
 // Internal port handler for file directories.
 //
-static REB_R Dir_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
+static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
     REBVAL *spec;
     REBVAL *path;
@@ -200,7 +201,7 @@ static REB_R Dir_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
 
     switch (action) {
 
-    case A_READ:
+    case SYM_READ:
         //Trap_Security(flags[POL_READ], POL_READ, path);
         args = Find_Refines(frame_, ALL_READ_REFS);
         if (!IS_BLOCK(state)) {     // !!! ignores /SKIP and /PART, for now
@@ -211,7 +212,7 @@ static REB_R Dir_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
             if (result < 0)
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, dir.error));
             *D_OUT = *state;
-            SET_NONE(state);
+            SET_BLANK(state);
         }
         else {
             // !!! This copies the strings in the block, shallowly.  What is
@@ -221,6 +222,7 @@ static REB_R Dir_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
                 Copy_Array_Core_Managed(
                     VAL_ARRAY(state),
                     0, // at
+                    VAL_SPECIFIER(state),
                     VAL_ARRAY_LEN_AT(state), // tail
                     0, // extra
                     FALSE, // !deep
@@ -230,7 +232,7 @@ static REB_R Dir_Actor(struct Reb_Frame *frame_, REBCTX *port, REBCNT action)
         }
         break;
 
-    case A_CREATE:
+    case SYM_CREATE:
         //Trap_Security(flags[POL_WRITE], POL_WRITE, path);
         if (IS_BLOCK(state)) fail (Error(RE_ALREADY_OPEN, path));
 create:
@@ -238,15 +240,15 @@ create:
         result = OS_DO_DEVICE(&dir, RDC_CREATE);
         ///OS_FREE(dir.file.path);
         if (result < 0) fail (Error(RE_NO_CREATE, path));
-        if (action == A_CREATE) {
+        if (action == SYM_CREATE) {
             // !!! Used to return D_ARG(2), but create is single arity.  :-/
             *D_OUT = *D_ARG(1);
             return R_OUT;
         }
-        SET_NONE(state);
+        SET_BLANK(state);
         break;
 
-    case A_RENAME:
+    case SYM_RENAME:
         if (IS_BLOCK(state)) fail (Error(RE_ALREADY_OPEN, path));
         else {
             REBSER *target;
@@ -262,9 +264,9 @@ create:
         }
         break;
 
-    case A_DELETE:
+    case SYM_DELETE:
         //Trap_Security(flags[POL_WRITE], POL_WRITE, path);
-        SET_NONE(state);
+        SET_BLANK(state);
         Init_Dir_Path(&dir, path, 0, POL_WRITE);
         // !!! add *.r deletion
         // !!! add recursive delete (?)
@@ -275,7 +277,7 @@ create:
         *D_OUT = *D_ARG(1);
         return R_OUT;
 
-    case A_OPEN:
+    case SYM_OPEN:
         // !! If open fails, what if user does a READ w/o checking for error?
         if (IS_BLOCK(state)) fail (Error(RE_ALREADY_OPEN, path));
         //Trap_Security(flags[POL_READ], POL_READ, path);
@@ -289,26 +291,26 @@ create:
         if (result < 0) fail (Error_On_Port(RE_CANNOT_OPEN, port, dir.error));
         break;
 
-    case A_OPEN_Q:
+    case SYM_OPEN_Q:
         if (IS_BLOCK(state)) return R_TRUE;
         return R_FALSE;
 
-    case A_CLOSE:
-        SET_NONE(state);
+    case SYM_CLOSE:
+        SET_BLANK(state);
         break;
 
-    case A_QUERY:
+    case SYM_QUERY:
         //Trap_Security(flags[POL_READ], POL_READ, path);
-        SET_NONE(state);
+        SET_BLANK(state);
         Init_Dir_Path(&dir, path, -1, REMOVE_TAIL_SLASH | POL_READ);
-        if (OS_DO_DEVICE(&dir, RDC_QUERY) < 0) return R_NONE;
+        if (OS_DO_DEVICE(&dir, RDC_QUERY) < 0) return R_BLANK;
         Ret_Query_File(port, &dir, D_OUT);
         ///OS_FREE(dir.file.path);
         break;
 
     //-- Port Series Actions (only called if opened as a port)
 
-    case A_LENGTH:
+    case SYM_LENGTH:
         len = IS_BLOCK(state) ? VAL_ARRAY_LEN_AT(state) : 0;
         SET_INTEGER(D_OUT, len);
         break;
@@ -326,5 +328,5 @@ create:
 //
 void Init_Dir_Scheme(void)
 {
-    Register_Scheme(SYM_DIR, 0, Dir_Actor);
+    Register_Scheme(Canon(SYM_DIR), Dir_Actor);
 }

@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  t-char.c
-**  Summary: character datatype
-**  Section: datatypes
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %t-char.c
+//  Summary: "character datatype"
+//  Section: datatypes
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
@@ -33,12 +34,12 @@
 //
 //  CT_Char: C
 //
-REBINT CT_Char(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Char(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     REBINT num;
 
     if (mode >= 0) {
-        if (mode < 2)
+        if (mode == 0)
             num = LO_CASE(VAL_CHAR(a)) - LO_CASE(VAL_CHAR(b));
         else
             num = VAL_CHAR(a) - VAL_CHAR(b);
@@ -52,33 +53,115 @@ REBINT CT_Char(const REBVAL *a, const REBVAL *b, REBINT mode)
 
 
 //
+//  MAKE_Char: C
+//
+void MAKE_Char(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    REBUNI uni;
+
+    switch(VAL_TYPE(arg)) {
+    case REB_CHAR:
+        uni = VAL_CHAR(arg);
+        break;
+
+    case REB_INTEGER:
+    case REB_DECIMAL:
+        {
+        REBINT n = Int32(arg);
+        if (n > MAX_UNI || n < 0) goto bad_make;
+        uni = n;
+        }
+        break;
+
+    case REB_BINARY:
+        {
+        const REBYTE *bp = VAL_BIN(arg);
+        REBCNT len = VAL_LEN_AT(arg);
+        if (len == 0) goto bad_make;
+        if (*bp <= 0x80) {
+            if (len != 1)
+                goto bad_make;
+
+            uni = *bp;
+        }
+        else {
+            --len;
+            bp = Back_Scan_UTF8_Char(&uni, bp, &len);
+            if (!bp || len != 0) // must be valid UTF8 and consume all data
+                goto bad_make;
+        }
+        } // case REB_BINARY
+        break;
+
+#ifdef removed
+//      case REB_ISSUE:
+        // Scan 8 or 16 bit hex str, will throw on error...
+        REBINT n = Scan_Hex_Value(
+            VAL_RAW_DATA_AT(arg), VAL_LEN_AT(arg), !VAL_BYTE_SIZE(arg)
+        );
+        if (n > MAX_UNI || n < 0) goto bad_make;
+        chr = n;
+        break;
+#endif
+
+    case REB_STRING:
+        if (VAL_INDEX(arg) >= VAL_LEN_HEAD(arg))
+            goto bad_make;
+        uni = GET_ANY_CHAR(VAL_SERIES(arg), VAL_INDEX(arg));
+        break;
+
+    default:
+    bad_make:
+        fail (Error_Bad_Make(REB_CHAR, arg));
+    }
+
+    SET_CHAR(out, uni);
+}
+
+
+//
+//  TO_Char: C
+//
+void TO_Char(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    MAKE_Char(out, kind, arg);
+}
+
+
+static REBINT Math_Arg_For_Char(REBVAL *arg, REBSYM action)
+{
+    switch (VAL_TYPE(arg)) {
+    case REB_CHAR:
+        return VAL_CHAR(arg);
+
+    case REB_INTEGER:
+        return VAL_INT32(arg);
+
+    case REB_DECIMAL:
+        return cast(REBINT, VAL_DECIMAL(arg));
+    }
+
+    fail (Error_Math_Args(REB_CHAR, action));
+}
+
+
+//
 //  REBTYPE: C
 //
 REBTYPE(Char)
 {
-    REBUNI chr = VAL_CHAR(D_ARG(1));
-    REBINT  arg;
-    REBVAL  *val;
-
-    if (IS_BINARY_ACT(action)) {
-        val = D_ARG(2);
-        if (IS_CHAR(val))
-            arg = VAL_CHAR(val);
-        else if (IS_INTEGER(val))
-            arg = VAL_INT32(val);
-        else if (IS_DECIMAL(val))
-            arg = (REBINT)VAL_DECIMAL(val);
-        else
-            fail (Error_Math_Args(REB_CHAR, action));
-    }
+    REBCNT chr = VAL_CHAR(D_ARG(1)); // !!! Larger than REBCHR for math ops?
+    REBINT arg;
 
     switch (action) {
 
-    case A_ADD:
+    case SYM_ADD:
+        arg = Math_Arg_For_Char(D_ARG(2), action);
         chr += cast(REBUNI, arg);
         break;
 
-    case A_SUBTRACT:
+    case SYM_SUBTRACT:
+        arg = Math_Arg_For_Char(D_ARG(2), action);
         chr -= cast(REBUNI, arg);
         if (IS_CHAR(D_ARG(2))) {
             SET_INTEGER(D_OUT, chr);
@@ -86,116 +169,55 @@ REBTYPE(Char)
         }
         break;
 
-    case A_MULTIPLY:
+    case SYM_MULTIPLY:
+        arg = Math_Arg_For_Char(D_ARG(2), action);
         chr *= arg;
         break;
 
-    case A_DIVIDE:
+    case SYM_DIVIDE:
+        arg = Math_Arg_For_Char(D_ARG(2), action);
         if (arg == 0) fail (Error(RE_ZERO_DIVIDE));
         chr /= arg;
         break;
 
-    case A_REMAINDER:
+    case SYM_REMAINDER:
+        arg = Math_Arg_For_Char(D_ARG(2), action);
         if (arg == 0) fail (Error(RE_ZERO_DIVIDE));
         chr %= arg;
         break;
 
-    case A_AND_T:
+    case SYM_AND_T:
+        arg = Math_Arg_For_Char(D_ARG(2), action);
         chr &= cast(REBUNI, arg);
         break;
 
-    case A_OR_T:
+    case SYM_OR_T:
+        arg = Math_Arg_For_Char(D_ARG(2), action);
         chr |= cast(REBUNI, arg);
         break;
 
-    case A_XOR_T:
+    case SYM_XOR_T:
+        arg = Math_Arg_For_Char(D_ARG(2), action);
         chr ^= cast(REBUNI, arg);
         break;
 
-    case A_NEGATE:
-        chr = cast(REBUNI, -chr);
-        break;
-
-    case A_COMPLEMENT:
+    case SYM_COMPLEMENT:
         chr = cast(REBUNI, ~chr);
         break;
 
-    case A_EVEN_Q:
-        chr = cast(REBUNI, ~chr);
-    case A_ODD_Q:
-        DECIDE(chr & 1);
+    case SYM_EVEN_Q:
+        return (cast(REBUNI, ~chr) & 1) ? R_TRUE : R_FALSE;
 
-    case A_RANDOM:  //!!! needs further definition ?  random/zero
+    case SYM_ODD_Q:
+        return (chr & 1) ? R_TRUE : R_FALSE;
+
+    case SYM_RANDOM:  //!!! needs further definition ?  random/zero
         if (D_REF(2)) { // /seed
             Set_Random(chr);
-            return R_UNSET;
+            return R_VOID;
         }
         if (chr == 0) break;
         chr = (REBUNI)(1 + ((REBCNT)Random_Int(D_REF(3)) % chr)); // /secure
-        break;
-
-    case A_MAKE:
-    case A_TO:
-        val = D_ARG(2);
-
-        switch(VAL_TYPE(val)) {
-        case REB_CHAR:
-            chr = VAL_CHAR(val);
-            break;
-
-        case REB_INTEGER:
-        case REB_DECIMAL:
-            arg = Int32(val);
-            if (arg > MAX_UNI || arg < 0) goto bad_make;
-            chr = arg;
-            break;
-
-        case REB_BINARY:
-        {
-            const REBYTE *bp = VAL_BIN(val);
-            arg = VAL_LEN_AT(val);
-            if (arg == 0) goto bad_make;
-            if (*bp > 0x80) {
-                // !!! This test is presumably redundant - temporarily left
-                // in as a check to see if its presence here detected
-                // anything differently that Scan_UTF8_Char wouldn't.
-                REBOOL redundant_legal = Legal_UTF8_Char(bp, arg);
-
-                if (!Back_Scan_UTF8_Char(&chr, bp, NULL)) {
-                    assert(!redundant_legal);
-                    goto bad_make;
-                }
-                if (!redundant_legal) {
-                    assert(FALSE);
-                    goto bad_make;
-                }
-            }
-            else
-                chr = *bp;
-        }
-            break;
-
-#ifdef removed
-//      case REB_ISSUE:
-            // Scan 8 or 16 bit hex str, will throw on error...
-            arg = Scan_Hex_Value(
-                VAL_RAW_DATA_AT(val), VAL_LEN_AT(val), !VAL_BYTE_SIZE(val)
-            );
-            if (arg > MAX_UNI || arg < 0) goto bad_make;
-            chr = arg;
-            break;
-#endif
-
-        case REB_STRING:
-            if (VAL_INDEX(val) >= VAL_LEN_HEAD(val))
-                fail (Error_Bad_Make(REB_CHAR, val));
-            chr = GET_ANY_CHAR(VAL_SERIES(val), VAL_INDEX(val));
-            break;
-
-        default:
-bad_make:
-        fail (Error_Bad_Make(REB_CHAR, val));
-    }
         break;
 
     default:
@@ -206,11 +228,5 @@ bad_make:
         fail (Error(RE_TYPE_LIMIT, Get_Type(REB_CHAR)));
     SET_CHAR(D_OUT, chr);
     return R_OUT;
-
-is_false:
-    return R_FALSE;
-
-is_true:
-    return R_TRUE;
 }
 

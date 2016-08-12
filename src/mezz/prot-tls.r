@@ -1,10 +1,10 @@
 REBOL [
-    title: "REBOL 3 TLSv1.0 protocol scheme"
-    name: 'tls
-    type: 'module
-    author: rights: "Richard 'Cyphre' Smolak"
-    version: 0.6.1
-    todo: {
+    Title: "REBOL 3 TLSv1.0 protocol scheme"
+    Name: tls
+    Type: module
+    Author: "Richard 'Cyphre' Smolak"
+    Version: 0.6.1
+    Todo: {
         -cached sessions
         -automagic cert data lookup
         -add more cipher suites (based on DSA, 3DES, ECDH, ECDHE, ECDSA, SHA256, SHA384 ...)
@@ -16,9 +16,7 @@ REBOL [
 
 ; support functions
 
-debug:
-;:print
-none
+debug: (comment [:print] blank)
 
 emit: func [
     ctx [object!]
@@ -46,7 +44,7 @@ make-tls-error: func [
     ]
 ]
 
-cipher-suites: make object! [
+cipher-suites: has [
     TLS_RSA_WITH_RC4_128_MD5:               #{00 04}
     TLS_RSA_WITH_RC4_128_SHA:               #{00 05}
     TLS_RSA_WITH_AES_128_CBC_SHA:           #{00 2F}
@@ -135,7 +133,7 @@ parse-asn: func [
                             (either constructed? ["constructed"] ["primitive"])
                             (index-of data)
                             (size)
-                            #[none]
+                            _
                         ]
                     ]
                     mode: 'type
@@ -153,7 +151,7 @@ parse-asn: func [
                                 (either constructed? ["constructed"] ["primitive"])
                                 (index-of data)
                                 (size)
-                                (either constructed? [none] [val])
+                                (either constructed? [blank] [val])
                             ]
                         ]
                         if constructed? [
@@ -226,9 +224,9 @@ update-proto-state: func [
 ] [
     debug [ctx/protocol-state "->" new-state write-state]
     either any [
-        none? ctx/protocol-state
+        blank? ctx/protocol-state
         all [
-            next-state: get-next-proto-state/:write-state ctx
+            next-state: get-next-proto-state/(if write-state 'write-state) ctx
             find next-state new-state
         ]
     ] [
@@ -334,11 +332,11 @@ client-key-exchange: func [
     ctx/client-mac-key: copy/part ctx/key-block ctx/hash-size
     ctx/server-mac-key: copy/part skip ctx/key-block ctx/hash-size ctx/hash-size
     ctx/client-crypt-key: copy/part skip ctx/key-block 2 * ctx/hash-size ctx/crypt-size
-    ctx/server-crypt-key: copy/part skip ctx/key-block 2 * ctx/hash-size + ctx/crypt-size ctx/crypt-size
+    ctx/server-crypt-key: copy/part skip ctx/key-block (2 * ctx/hash-size) + ctx/crypt-size ctx/crypt-size
 
     if ctx/block-size [
         ctx/client-iv: copy/part skip ctx/key-block 2 * (ctx/hash-size + ctx/crypt-size) ctx/block-size
-        ctx/server-iv: copy/part skip ctx/key-block 2 * (ctx/hash-size + ctx/crypt-size) + ctx/block-size ctx/block-size
+        ctx/server-iv: copy/part skip ctx/key-block (2 * (ctx/hash-size + ctx/crypt-size)) + ctx/block-size ctx/block-size
     ]
 
     append ctx/handshake-messages copy at ctx/msg beg + 6
@@ -441,7 +439,7 @@ encrypt-data: func [
 
     if ctx/block-size [
         ; add the padding data in CBC mode
-        padding: ctx/block-size - (1 + (length data) // ctx/block-size)
+        padding: ctx/block-size - ((1 + (length data)) // ctx/block-size)
         len: 1 + padding
         append data head insert/dup make binary! len to-bin padding 1 len
     ]
@@ -566,7 +564,7 @@ parse-messages: func [
         if ctx/block-size [
             ; deal with padding in CBC mode
             data: copy/part data (
-                (length data) - 1 - (to-integer/unsigned last data)
+                ((length data) - 1) - (to-integer/unsigned last data)
             )
             debug ["depadding..."]
         ]
@@ -606,7 +604,12 @@ parse-messages: func [
                             session-id: copy/part at msg-content 34 msg-content/33
                             cipher-suite: copy/part at msg-content 34 + msg-content/33 2
                             compression-method-length: first at msg-content 36 + msg-content/33
-                            compression-method: either compression-method-length = 0 [none] [copy/part at msg-content 37 + msg-content/33 compression-method-length]
+                            compression-method:
+                                either compression-method-length = 0 [blank] [
+                                    copy/part
+                                        at msg-content 37 + msg-content/33
+                                        compression-method-length
+                                ]
                         ]
                         ctx/cipher-suite: msg-obj/cipher-suite
 
@@ -863,14 +866,14 @@ prf: func [
         len mid s-1 s-2 a p-sha1 p-md5
 ] [
     len: length secret
-    mid: to integer! .5 * (len + either odd? len [1] [0])
+    mid: to integer! (.5 * (len + either odd? len [1] [0]))
 
     s-1: copy/part secret mid
     s-2: copy at secret mid + either odd? len [0] [1]
 
     seed: rejoin [#{} label seed]
 
-    p-md5: clear #{}
+    p-md5: copy #{}
     a: seed ; A(0)
     while [output-length > length p-md5] [
         a: checksum/method/key a 'md5 decode 'text s-1 ; A(n)
@@ -878,26 +881,37 @@ prf: func [
 
     ]
 
-    p-sha1: clear #{}
+    p-sha1: copy #{}
     a: seed ; A(0)
     while [output-length > length p-sha1] [
         a: checksum/method/key a 'sha1 decode 'text s-2 ; A(n)
         append p-sha1 checksum/method/key rejoin [a seed] 'sha1 decode 'text s-2
     ]
-    return ((copy/part p-md5 output-length) xor- copy/part p-sha1 output-length)
+    return ((copy/part p-md5 output-length) xor+ copy/part p-sha1 output-length)
 ]
 
 make-key-block: func [
     ctx [object!]
 ] [
-    ctx/key-block: prf ctx/master-secret "key expansion" rejoin [ctx/server-random ctx/client-random] ctx/hash-size + ctx/crypt-size + (either ctx/block-size [ctx/iv-size] [0]) * 2
+    ctx/key-block: prf
+        ctx/master-secret
+        "key expansion"
+        rejoin [ctx/server-random ctx/client-random]
+        (
+            (ctx/hash-size + ctx/crypt-size)
+            + (either ctx/block-size [ctx/iv-size] [0])
+        ) * 2
 ]
 
 make-master-secret: func [
     ctx [object!]
     pre-master-secret [binary!]
 ] [
-    ctx/master-secret: prf pre-master-secret "master secret" rejoin [ctx/client-random ctx/server-random] 48
+    ctx/master-secret: prf
+        pre-master-secret
+        "master secret"
+        rejoin [ctx/client-random ctx/server-random]
+        48
 ]
 
 do-commands: func [
@@ -924,7 +938,7 @@ do-commands: func [
         ]
     ]
     debug ["writing bytes:" length ctx/msg]
-    ctx/resp: clear []
+    ctx/resp: copy []
     write ctx/connection ctx/msg
 
     unless no-wait [
@@ -935,21 +949,21 @@ do-commands: func [
 
 ; TLS scheme
 
-tls-init: func [
+tls-init: proc [
     ctx [object!]
 ] [
     ctx/seq-num-r: 0
     ctx/seq-num-w: 0
-    ctx/protocol-state: none
+    ctx/protocol-state: _
     ctx/encrypted?: false
 
     switch ctx/crypt-method [
         rc4 [
             if ctx/encrypt-stream [
-                ctx/encrypt-stream: rc4/stream ctx/encrypt-stream none
+                ctx/encrypt-stream: rc4/stream ctx/encrypt-stream blank
             ]
             if ctx/decrypt-stream [
-                ctx/decrypt-stream: rc4/stream ctx/decrypt-stream none
+                ctx/decrypt-stream: rc4/stream ctx/decrypt-stream blank
             ]
         ]
     ]
@@ -1016,7 +1030,7 @@ tls-awake: function [event [event!]] [
         not port/data
     ] [
         ; reset the data field when interleaving port r/w states
-        tls-port/data: none
+        tls-port/data: _
     ]
 
     switch/default event/type [
@@ -1064,7 +1078,7 @@ tls-awake: function [event [event!]] [
                                 unless tls-port/data [tls-port/data: clear tls-port/state/port-data]
                                 append tls-port/data msg/content
                                 application?: true
-                                msg/type: none
+                                msg/type: _
                             ]
                         ]
                     ]
@@ -1102,7 +1116,7 @@ tls-awake: function [event [event!]] [
 sys/make-scheme [
     name: 'tls
     title: "TLS protocol v1.0"
-    spec: make system/standard/port-spec-net []
+    spec: construct system/standard/port-spec-net []
     actor: [
         read: func [
             port [port!]
@@ -1114,7 +1128,7 @@ sys/make-scheme [
             return port
         ]
 
-        write: func [port [port!] value [opt-any-value!]] [
+        write: func [port [port!] value [<opt> any-value!]] [
             if find [encrypted-handshake application] port/state/protocol-state [
                 do-commands/no-wait port/state compose [
                     application (value)
@@ -1132,13 +1146,13 @@ sys/make-scheme [
             port/state: context [
                 data-buffer: make binary! 32000
                 port-data: make binary! 32000
-                resp: none
+                resp: _
 
                 version: #{03 01} ; protocol version used
 
                 server?: false
 
-                protocol-state: none
+                protocol-state: _
 
                 key-method:
 
@@ -1150,7 +1164,7 @@ sys/make-scheme [
                 block-size:
                 iv-size:
 
-                cipher-suite: none
+                cipher-suite: blank
 
 
                 client-crypt-key:
@@ -1158,7 +1172,7 @@ sys/make-scheme [
                 client-iv:
                 server-crypt-key:
                 server-mac-key:
-                server-iv: none
+                server-iv: blank
 
                 seq-num-r: 0
                 seq-num-w: 0
@@ -1171,11 +1185,11 @@ sys/make-scheme [
                 client-random: server-random: pre-master-secret: master-secret:
                 key-block:
                 certificate: pub-key: pub-exp:
-                dh-key: dh-pub: none
+                dh-key: dh-pub: blank
 
-                encrypt-stream: decrypt-stream: none
+                encrypt-stream: decrypt-stream: blank
 
-                connection: none
+                connection: _
             ]
 
             port/state/connection: conn: make port! [
@@ -1193,7 +1207,7 @@ sys/make-scheme [
             port
         ]
         open?: func [port [port!]] [
-            found? all [port/state open? port/state/connection]
+            all? [port/state open? port/state/connection]
         ]
         close: func [port [port!] /local ctx] [
             unless port/state [return port]
@@ -1216,25 +1230,25 @@ sys/make-scheme [
             switch port/state/crypt-method [
                 rc4 [
                     if port/state/encrypt-stream [
-                        rc4/stream port/state/encrypt-stream none
+                        rc4/stream port/state/encrypt-stream blank
                     ]
                     if port/state/decrypt-stream [
-                        rc4/stream port/state/decrypt-stream none
+                        rc4/stream port/state/decrypt-stream blank
                     ]
                 ]
                 aes [
                     if port/state/encrypt-stream [
-                        aes/stream port/state/encrypt-stream none
+                        aes/stream port/state/encrypt-stream blank
                     ]
                     if port/state/decrypt-stream [
-                        aes/stream port/state/decrypt-stream none
+                        aes/stream port/state/decrypt-stream blank
                     ]
                 ]
             ]
 
             debug "TLS/TCP port closed"
-            port/state/connection/awake: none
-            port/state: none
+            port/state/connection/awake: blank
+            port/state: blank
             port
         ]
         copy: func [port [port!]] [

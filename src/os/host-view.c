@@ -81,7 +81,7 @@ void *Rich_Text;
 //***** Locals *****
 static REBXYF Zero_Pair = {0, 0};
 static REBOOL Custom_Cursor = FALSE;
-static u32* graphics_ext_words;
+static REBSTR* *graphics_ext_words;
 
 /***********************************************************************
 **
@@ -521,7 +521,7 @@ REBINT Alloc_Window(REBGOB *gob) {
                     RXA_PAIR(frm, 1).y = y;
                     RXA_TYPE(frm, 1) = RXT_PAIR;
                 } else {
-                    RXA_TYPE(frm, 1) = RXT_NONE;
+                    RXA_TYPE(frm, 1) = RXT_BLANK;
                 }
                 return RXR_VALUE;
 			
@@ -598,5 +598,5 @@ REBINT Alloc_Window(REBGOB *gob) {
         default:
             return RXR_NO_COMMAND;
     }
-    return RXR_UNSET;
+    return RXR_VOID;
 }

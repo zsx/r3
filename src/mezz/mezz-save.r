@@ -28,7 +28,8 @@ mold64: function [
 
 save: function [
     {Saves a value, block, or other data to a file, URL, binary, or string.}
-    where [file! url! binary! string! none!] {Where to save (suffix determines encoding)}
+    where [file! url! binary! string! blank!]
+        {Where to save (suffix determines encoding)}
     value {Value(s) to save}
     /header
         {Provide a REBOL header block (or output non-code datatypes)}
@@ -49,7 +50,7 @@ save: function [
     all: :lib/all
     length: :lib/length
 
-    ; Default `method` and `header-data` to none
+    ; Default `method` and `header-data` to blank
     method: any [:method]
     header-data: any [:header-data]
 
@@ -84,11 +85,11 @@ save: function [
 
         ; Make it an object if it's not already (ok to ignore overhead):
         header-data: either object? :header-data [
-            ; clean out the words set to none
+            ; clean out the words set to blank
             trim :header-data
         ][
             ; standard/header intentionally not used
-            construct :header-data
+            has/only :header-data
         ]
 
         if compress [ ; Make the header option match
@@ -111,11 +112,11 @@ save: function [
             append header-data reduce [(quote length:) (true)]
         ]
 
-        unless compress: true? find (select header-data 'options) 'compress [
-            method: none
+        unless compress: find? (select header-data 'options) 'compress [
+            method: _
         ]
 
-        length_SAVE: true? select header-data 'length
+        length_SAVE: maybe integer! select header-data 'length
         header-data: body-of header-data
     ]
 
@@ -155,7 +156,7 @@ save: function [
             write where data
         ]
 
-        none? where [
+        blank? where [
             ; just return the UTF-8 binary
             data
         ]
@@ -169,17 +170,17 @@ save: function [
 
 #test [
     data: [1 1.2 10:20 "test" user@example.com [sub block]]
-    probe to string! save none []
-    probe to string! save none data
-    probe to string! save/header none data [title: "my code"]
-    probe to string! save/compress none [] true
-    probe to string! save/compress none data true
-    probe to string! save/compress none data 'script
-    probe to string! save/header/compress none data [title: "my code"] true
-    probe to string! save/header/compress none data [title: "my code"] 'script
-    probe to string! save/header none data [title: "my code" options: [compress]]
-    probe to string! save/header/compress none data [title: "my code" options: [compress]] none
-    probe to string! save/header none data [title: "my code" checksum: true]
+    probe to string! save blank []
+    probe to string! save blank data
+    probe to string! save/header blank data [title: "my code"]
+    probe to string! save/compress blank [] true
+    probe to string! save/compress blank data true
+    probe to string! save/compress blank data 'script
+    probe to string! save/header/compress blank data [title: "my code"] true
+    probe to string! save/header/compress blank data [title: "my code"] 'script
+    probe to string! save/header blank data [title: "my code" options: [compress]]
+    probe to string! save/header/compress blank data [title: "my code" options: [compress]] blank
+    probe to string! save/header blank data [title: "my code" checksum: true]
     halt
     ; more needed
 ]

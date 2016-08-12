@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  t-datatype.c
-**  Summary: datatype datatype
-**  Section: datatypes
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %t-datatype.c
+//  Summary: "datatype datatype"
+//  Section: datatypes
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
@@ -33,7 +34,7 @@
 //
 //  CT_Datatype: C
 //
-REBINT CT_Datatype(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Datatype(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     if (mode >= 0) return (VAL_TYPE_KIND(a) == VAL_TYPE_KIND(b));
     return -1;
@@ -41,18 +42,27 @@ REBINT CT_Datatype(const REBVAL *a, const REBVAL *b, REBINT mode)
 
 
 //
-//  MT_Datatype: C
+//  MAKE_Datatype: C
 //
-REBOOL MT_Datatype(REBVAL *out, REBVAL *data, enum Reb_Kind type)
-{
-    REBSYM sym;
-    if (!IS_WORD(data)) return FALSE;
-    sym = VAL_WORD_CANON(data);
-    if (sym > REB_MAX_0) return FALSE;
+void MAKE_Datatype(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    if (!IS_WORD(arg))
+        fail (Error_Bad_Make(kind, arg));
+
+    REBSYM sym = VAL_WORD_SYM(arg);
+    if (sym == SYM_0 || sym > SYM_FROM_KIND(REB_MAX))
+        fail (Error_Bad_Make(kind, arg));
+
     VAL_RESET_HEADER(out, REB_DATATYPE);
     VAL_TYPE_KIND(out) = KIND_FROM_SYM(sym);
     VAL_TYPE_SPEC(out) = 0;
-    return TRUE;
+}
+
+
+//
+//  TO_Datatype: C
+//
+void TO_Datatype(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    MAKE_Datatype(out, kind, arg);
 }
 
 
@@ -63,25 +73,18 @@ REBTYPE(Datatype)
 {
     REBVAL *value = D_ARG(1);
     REBVAL *arg = D_ARG(2);
-    REBACT act;
     enum Reb_Kind kind = VAL_TYPE_KIND(value);
-    REBINT n;
 
     switch (action) {
 
-    case A_REFLECT:
-        n = What_Reflector(arg); // zero on error
-        if (n == OF_SPEC) {
+    case SYM_REFLECT: {
+        REBSYM sym = VAL_WORD_SYM(arg);
+        if (sym == SYM_SPEC) {
             //
             // The "type specs" were loaded as an array, but this reflector
             // wants to give back an object.  Combine the array with the
             // standard object that mirrors its field order.
             //
-            REBVAL *var;
-            REBVAL *key;
-
-            REBVAL *value;
-
             REBCTX *context = Copy_Context_Shallow(
                 VAL_CONTEXT(Get_System(SYS_STANDARD, STD_TYPE_SPEC))
             );
@@ -89,43 +92,34 @@ REBTYPE(Datatype)
 
             assert(CTX_TYPE(context) == REB_OBJECT);
 
-            key = CTX_KEYS_HEAD(context);
-            var = CTX_VARS_HEAD(context);
+            REBVAL *var = CTX_VARS_HEAD(context);
+            REBVAL *key = CTX_KEYS_HEAD(context);
 
             // !!! Account for the "invisible" self key in the current
             // stop-gap implementation of self, still default on MAKE OBJECT!s
             //
-            assert(VAL_TYPESET_SYM(key) == SYM_SELF);
+            assert(VAL_KEY_SYM(key) == SYM_SELF);
             ++key; ++var;
 
-            value = ARR_HEAD(
+            RELVAL *value = ARR_HEAD(
                 VAL_TYPE_SPEC(CTX_VAR(Lib_Context, SYM_FROM_KIND(kind)))
             );
 
             for (; NOT_END(var); ++var, ++key) {
-                if (IS_END(value)) SET_NONE(var);
-                else *var = *value++;
+                if (IS_END(value)) SET_BLANK(var);
+                else {
+                    // typespec array does not contain relative values
+                    //
+                    COPY_VALUE(var, value, SPECIFIED);
+                    ++value;
+                }
             }
 
             Val_Init_Object(D_OUT, context);
         }
         else
             fail (Error_Cannot_Reflect(VAL_TYPE(value), arg));
-        break;
-
-    case A_MAKE:
-    case A_TO:
-        if (kind != REB_DATATYPE) {
-            act = Value_Dispatch[TO_0_FROM_KIND(kind)];
-            if (act) return act(frame_, action);
-            //return R_NONE;
-            fail (Error_Bad_Make(kind, arg));
-        }
-        // if (IS_NONE(arg)) return R_NONE;
-        if (MT_Datatype(D_OUT, arg, REB_DATATYPE))
-            break;
-
-        fail (Error_Bad_Make(REB_DATATYPE, arg));
+        break;}
 
     default:
         fail (Error_Illegal_Action(REB_DATATYPE, action));

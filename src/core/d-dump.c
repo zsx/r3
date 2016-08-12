@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  d-dump.c
-**  Summary: various debug output functions
-**  Section: debug
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %d-dump.c
+//  Summary: "various debug output functions"
+//  Section: debug
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 //#include <stdio.h> // !!! No <stdio.h> in Ren-C release builds
 
@@ -45,7 +46,13 @@ void Dump_Series(REBSER *series, const char *memo)
 {
     if (!series) return;
     Debug_Fmt(
-        Str_Dump, //"%s Series %x %s: Wide: %2d Size: %6d - Bias: %d Tail: %d Rest: %d Flags: %x"
+        "%s Series %x \"%s\":"
+            " wide: %2d"
+            " size: %6d"
+            " bias: %d"
+            " tail: %d"
+            " rest: %d"
+            " flags: %x",
         memo,
         series,
         "-", // !label
@@ -114,13 +121,13 @@ void Dump_Bytes(REBYTE *bp, REBCNT limit)
     }
 }
 
+
 //
 //  Dump_Values: C
 // 
-// Print out values in raw hex; If memory is corrupted
-// this function still needs to work.
+// Print values in raw hex; If memory is corrupted this still needs to work.
 //
-void Dump_Values(REBVAL *vp, REBCNT count)
+void Dump_Values(RELVAL *vp, REBCNT count)
 {
     REBYTE buf[2048];
     REBYTE *cp;
@@ -130,7 +137,7 @@ void Dump_Values(REBVAL *vp, REBCNT count)
 
     cp = buf;
     for (l = 0; l < count; l++) {
-        REBVAL *val = (REBVAL*)bp;
+        REBVAL *val = cast(REBVAL*, bp);
         cp = Form_Hex_Pad(cp, l, 8);
 
         *cp++ = ':';
@@ -147,9 +154,11 @@ void Dump_Values(REBVAL *vp, REBCNT count)
             *cp++ = ' ';
         }
         n = 0;
-        if (IS_WORD((REBVAL*)val) || IS_GET_WORD((REBVAL*)val) || IS_SET_WORD((REBVAL*)val)) {
-            const char * name = cs_cast(Get_Word_Name((REBVAL*)val));
-            n = snprintf(s_cast(cp), sizeof(buf) - (cp - buf), " (%s)", name);
+        if (IS_WORD(val) || IS_GET_WORD(val) || IS_SET_WORD(val)) {
+            const REBYTE *name = STR_HEAD(VAL_WORD_SPELLING(val));
+            n = snprintf(
+                s_cast(cp), sizeof(buf) - (cp - buf), " (%s)", cs_cast(name)
+            );
         }
 
         *(cp + n) = 0;
@@ -188,22 +197,11 @@ void Dump_Info(void)
 //
 // Prints stack counting levels from the passed in number.  Pass 0 to start.
 //
-void Dump_Stack(struct Reb_Frame *f, REBCNT level)
+void Dump_Stack(REBFRM *f, REBCNT level)
 {
     REBINT n;
     REBVAL *arg;
     REBVAL *param;
-
-    static const char *mode_strings[] = {
-        "CALL_MODE_GUARD_ARRAY_ONLY",
-        "CALL_MODE_ARGS",
-        "CALL_MODE_REFINEMENT_PICKUP",
-        "CALL_MODE_FUNCTION",
-        "CALL_MODE_THROW_PENDING",
-        NULL
-    };
-
-    assert(mode_strings[CALL_MODE_MAX] == NULL);
 
     Debug_Fmt(""); // newline.
 
@@ -214,13 +212,13 @@ void Dump_Stack(struct Reb_Frame *f, REBCNT level)
     }
 
     Debug_Fmt(
-        "STACK[%d](%s) - %s",
+        "STACK[%d](%s) - %d",
         level,
-        Get_Sym_Name(FRM_LABEL(f)),
-        mode_strings[f->mode]
+        STR_HEAD(FRM_LABEL(f)),
+        f->eval_type // note: this is now an ordinary Reb_Kind, stringify it
     );
 
-    if (f->mode == CALL_MODE_GUARD_ARRAY_ONLY) {
+    if (NOT(Is_Any_Function_Frame(f))) {
         Debug_Fmt("(no function call pending or in progress)");
         return;
     }
@@ -232,7 +230,7 @@ void Dump_Stack(struct Reb_Frame *f, REBCNT level)
     for (; NOT_END(param); ++param, ++arg, ++n) {
         Debug_Fmt(
             "    %s: %72r",
-            Get_Sym_Name(VAL_TYPESET_SYM(param)),
+            STR_HEAD(VAL_PARAM_SPELLING(param)),
             arg
         );
     }
@@ -259,4 +257,34 @@ void Dump_Stack(struct Reb_Frame *f, REBCNT level)
     getchar();
 #endif
 
+#endif // DUMP is picked up by scan regardless of #ifdef, must be defined
+
+
+//
+//  dump: native [
+//
+//  "Temporary debug dump"
+//
+//      value [<opt> any-value!]
+//  ]
+//
+REBNATIVE(dump)
+{
+#ifdef NDEBUG
+    fail (Error(RE_DEBUG_ONLY));
+#else
+    PARAM(1, value);
+
+    REBVAL *value = ARG(value);
+
+    Dump_Stack(frame_, 0);
+
+    if (ANY_SERIES(value))
+        Dump_Series(VAL_SERIES(value), "=>");
+    else
+        Dump_Values(value, 1);
+
+    *D_OUT = *value;
+    return R_OUT;
 #endif
+}

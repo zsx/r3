@@ -152,15 +152,15 @@ extern void Draw_Window(REBGOB *wingob, REBGOB *gob);
     else
         title = "REBOL Window";
 
-	if (GET_FLAGS(gob->flags, GOBF_NO_TITLE, GOBF_NO_BORDER)) {
+	if (GET_GOB_FLAG(gob, GOBF_NO_TITLE) && GET_GOB_FLAG(gob, GOBF_NO_BORDER)) {
 		flags |= SDL_WINDOW_BORDERLESS;
-	} else if (GET_FLAG(gob->flags, GOBF_FULLSCREEN)) {
+	} else if (GET_GOB_FLAG(gob, GOBF_FULLSCREEN)) {
 		flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
-	} else if (GET_FLAG(gob->flags, GOBF_RESIZE)) {
+	} else if (GET_GOB_FLAG(gob, GOBF_RESIZE)) {
 		flags |= SDL_WINDOW_RESIZABLE;
-	} else if (GET_FLAG(gob->flags, GOBF_MAXIMIZE)) {
+	} else if (GET_GOB_FLAG(gob, GOBF_MAXIMIZE)) {
 		flags |= SDL_WINDOW_MAXIMIZED;
-	} else if (GET_FLAG(gob->flags, GOBF_MINIMIZE)) {
+	} else if (GET_GOB_FLAG(gob, GOBF_MINIMIZE)) {
 		flags |= SDL_WINDOW_MINIMIZED;
 	}
 	printf("Opening a window at: %dx%d, %dx%d, owner gob: 0x%p\n", x, y, w, h, parent_gob);
@@ -222,7 +222,8 @@ extern void Draw_Window(REBGOB *wingob, REBGOB *gob);
 	if (win) {
 		SDL_DestroyWindow(win);
 	}
-	CLR_GOB_STATES(gob, GOBS_OPEN, GOBS_ACTIVE);
+    CLR_GOB_STATE(gob, GOBS_OPEN);
+    CLR_GOB_STATE(gob, GOBS_ACTIVE);
 	Free_Window(gob);
 	printf("window of gob %p is closed\n", gob);
 }

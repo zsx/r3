@@ -1,40 +1,51 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  t-function.c
-**  Summary: function related datatypes
-**  Section: datatypes
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %t-function.c
+//  Summary: "function related datatypes"
+//  Section: datatypes
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 
-static REBOOL Same_Func(const REBVAL *val, const REBVAL *arg)
+static REBOOL Same_Func(const RELVAL *val, const RELVAL *arg)
 {
-    if (VAL_TYPE(val) == VAL_TYPE(arg) &&
-        VAL_FUNC_SPEC(val) == VAL_FUNC_SPEC(arg) &&
-        VAL_FUNC_PARAMLIST(val) == VAL_FUNC_PARAMLIST(arg) &&
-        VAL_FUNC_CODE(val) == VAL_FUNC_CODE(arg)) return TRUE;
+    assert(IS_FUNCTION(val) && IS_FUNCTION(arg));
+
+    if (VAL_FUNC_PARAMLIST(val) == VAL_FUNC_PARAMLIST(arg)) {
+        assert(VAL_FUNC_DISPATCHER(val) == VAL_FUNC_DISPATCHER(arg));
+        assert(VAL_FUNC_BODY(val) == VAL_FUNC_BODY(arg));
+
+        // All functions that have the same paramlist are not necessarily the
+        // "same function".  For instance, every RETURN shares a common
+        // paramlist, but the binding is different in the REBVAL instances
+        // in order to know where to "exit from".
+
+        return LOGICAL(VAL_BINDING(val) == VAL_BINDING(arg));
+    }
+
     return FALSE;
 }
 
@@ -42,7 +53,7 @@ static REBOOL Same_Func(const REBVAL *val, const REBVAL *arg)
 //
 //  CT_Function: C
 //
-REBINT CT_Function(const REBVAL *a, const REBVAL *b, REBINT mode)
+REBINT CT_Function(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     if (mode >= 0) return Same_Func(a, b) ? 1 : 0;
     return -1;
@@ -50,7 +61,7 @@ REBINT CT_Function(const REBVAL *a, const REBVAL *b, REBINT mode)
 
 
 //
-//  MT_Function: C
+//  MAKE_Function: C
 // 
 // For REB_FUNCTION and "make spec", there is a function spec block and then
 // a block of Rebol code implementing that function.  In that case we expect
@@ -65,35 +76,46 @@ REBINT CT_Function(const REBVAL *a, const REBVAL *b, REBINT mode)
 // 
 // See notes in Make_Command() regarding that mechanism and meaning.
 //
-REBOOL MT_Function(REBVAL *out, REBVAL *def, enum Reb_Kind kind)
+void MAKE_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
+    assert(kind == REB_FUNCTION);
+
+    if (
+        !IS_BLOCK(arg)
+        || VAL_LEN_AT(arg) != 2
+        || !IS_BLOCK(VAL_ARRAY_AT(arg))
+        || !IS_BLOCK(VAL_ARRAY_AT(arg) + 1)
+    ){
+        fail (Error_Bad_Make(kind, arg));
+    }
+
+    REBVAL spec;
+    COPY_VALUE(&spec, VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg));
+
+    REBVAL body;
+    COPY_VALUE(&body, VAL_ARRAY_AT(arg) + 1, VAL_SPECIFIER(arg));
+
     // Spec-constructed functions do *not* have definitional returns
     // added automatically.  They are part of the generators.  So the
     // behavior comes--as with any other generator--from the projected
     // code (though round-tripping it via text is not possible in
     // general in any case due to loss of bindings.)
     //
-    const REBOOL has_return = FALSE;
-    const REBOOL returns_unset = FALSE;
+    REBFUN *fun = Make_Plain_Function_May_Fail(&spec, &body, MKF_ANY_VALUE);
 
-    REBVAL *spec;
-    REBVAL *body;
+    *out = *FUNC_VALUE(fun);
+}
 
-    assert(kind == REB_FUNCTION);
 
-    if (!IS_BLOCK(def)) return FALSE;
-    if (VAL_LEN_AT(def) != 2) return FALSE;
-
-    spec = VAL_ARRAY_AT_HEAD(def, 0);
-    if (!IS_BLOCK(spec)) return FALSE;
-
-    body = VAL_ARRAY_AT_HEAD(def, 1);
-    if (!IS_BLOCK(body)) return FALSE;
-
-    Make_Function(out, returns_unset, spec, body, has_return);
-
-    // We only get here if Make() doesn't raise an error...
-    return TRUE;
+//
+//  TO_Function: C
+//
+void TO_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    // `to function! foo` is meaningless (and should not be given meaning,
+    // because `to function! [print "DOES exists for this, for instance"]`
+    //
+    fail (Error_Invalid_Arg(arg));
 }
 
 
@@ -106,21 +128,7 @@ REBTYPE(Function)
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
     switch (action) {
-    case A_TO:
-        // `to function! foo` is meaningless (and should not be given meaning,
-        // because `to function! [print "DOES exists for this, for instance"]`
-        break;
-
-    case A_MAKE:
-        if (!IS_DATATYPE(value)) fail (Error_Invalid_Arg(value));
-
-        // MT_Function checks for `[[spec] [body]]` arg if function/closure
-        // and for `[[spec] extension command-num]` if command
-        if (!MT_Function(D_OUT, arg, VAL_TYPE_KIND(value)))
-            fail (Error_Bad_Make(VAL_TYPE_KIND(value), arg));
-        return R_OUT;
-
-    case A_COPY:
+    case SYM_COPY:
         // !!! The R3-Alpha theory was that functions could modify "their
         // bodies" while running, effectively accruing state that one might
         // want to snapshot.  See notes on Clonify_Function about why this
@@ -129,123 +137,82 @@ REBTYPE(Function)
         Clonify_Function(D_OUT);
         return R_OUT;
 
-    case A_REFLECT:
-        if (
-            VAL_FUNC_CLASS(value) == FUNC_CLASS_CALLBACK
-            && VAL_WORD_CANON(arg) == SYM_ADDR
-        ) {
-            // !!! Temp...there was no OF_SPEC when integrating MT_XXXs
-            //
-            SET_INTEGER(D_OUT, cast(REBUPT, VAL_ROUTINE_DISPATCHER(value)));
-            return R_OUT;
-        }
+    case SYM_REFLECT: {
+        REBSYM sym = VAL_WORD_SYM(arg);
 
-        if (
-            VAL_FUNC_CLASS(value) == FUNC_CLASS_ROUTINE
-            && VAL_WORD_CANON(arg) == SYM_ADDR
-        ) {
-            // !!! Same as above, temporary while exploring solutions.
-            //
-            SET_INTEGER(D_OUT, cast(REBUPT, VAL_ROUTINE_FUNCPTR(value)));
-            return R_OUT;
-        }
-
-        switch (What_Reflector(arg)) {
-        case OF_WORDS:
-            Val_Init_Block(D_OUT, List_Func_Words(value));
-            return R_OUT;
-
-        case OF_BODY:
-            switch (VAL_FUNC_CLASS(value)) {
-            case FUNC_CLASS_NATIVE: {
-                if (VAL_FUNC_CODE(value) == &N_quote) {
-                    //
-                    // !!! Should be able to give "equivalent" body of code for
-                    // some native functions.  /body already being passed to
-                    // a few natives in definitions, just need a place to save
-                    // the information (improve native table).
-                    //
-                    Val_Init_Array(
-                        D_OUT,
-                        REB_GROUP,
-                        Copy_Array_Deep_Managed(
-                            VAL_ARRAY(Get_System(
-                                SYS_STANDARD,
-                                STD_QUOTE_BODY_TEST
-                            ))
-                        ));
-                }
-                else {
-                    SET_HANDLE_CODE(D_OUT, cast(CFUNC*, VAL_FUNC_CODE(value)));
-                }
-
+        switch (sym) {
+        case SYM_ADDR:
+            if (
+                IS_FUNCTION_RIN(value)
+                && GET_RIN_FLAG(VAL_FUNC_ROUTINE(value), ROUTINE_FLAG_CALLBACK)
+            ) {
+                SET_INTEGER(
+                    D_OUT, cast(REBUPT, RIN_DISPATCHER(VAL_FUNC_ROUTINE(value)))
+                );
                 return R_OUT;
             }
-
-            case FUNC_CLASS_ACTION: {
-                SET_INTEGER(D_OUT, VAL_FUNC_ACT(value));
+            if (
+                IS_FUNCTION_RIN(value)
+                && !GET_RIN_FLAG(VAL_FUNC_ROUTINE(value), ROUTINE_FLAG_CALLBACK)
+            ) {
+                SET_INTEGER(
+                    D_OUT, cast(REBUPT, RIN_CFUNC(VAL_FUNC_ROUTINE(value)))
+                );
                 return R_OUT;
             }
+            break;
 
-            case FUNC_CLASS_USER: {
+        case SYM_WORDS:
+            Val_Init_Block(D_OUT, List_Func_Words(value, FALSE)); // no locals
+            return R_OUT;
+
+        case SYM_BODY:
+            if (IS_FUNCTION_HIJACKER(value))
+                fail (Error(RE_MISC)); // body corrupt, need to recurse
+
+            if (IS_FUNCTION_PLAIN(value)) {
                 //
                 // BODY-OF is an example of user-facing code that needs to be
                 // complicit in the "lie" about the effective bodies of the
-                // functions made by the optimized generators FUNC and PROC...
+                // functions made by the optimized generators FUNC and PROC.
+                //
+                // Note that since the function body contains relative arrays
+                // and words, there needs to be some frame to specify them
+                // before a specific REBVAL can be made.  Usually that's the
+                // frame of the running instance of the function...but because
+                // we're reflecting data out of it, we have to either unbind
+                // them or make up a frame.  Making up a frame that acts like
+                // it's off the stack and the variables are dead is easiest
+                // for now...but long term perhaps unbinding them is better,
+                // though this is "more informative".  See #2221.
 
                 REBOOL is_fake;
                 REBARR *body = Get_Maybe_Fake_Func_Body(&is_fake, value);
-                Val_Init_Block(D_OUT, Copy_Array_Deep_Managed(body));
+                Val_Init_Block(
+                    D_OUT,
+                    Copy_Array_Deep_Managed(
+                        body,
+                        Make_Expired_Frame_Ctx_Managed(VAL_FUNC(value))
+                    )
+                );
 
-                if (IS_FUNC_DURABLE(value)) {
-                    // See #2221 for why durable body copies unbind locals
-                    Unbind_Values_Core(
-                        VAL_ARRAY_HEAD(D_OUT),
-                        AS_CONTEXT(VAL_FUNC_PARAMLIST(value)),
-                        TRUE
-                    );
-                }
                 if (is_fake) Free_Array(body); // was shallow copy
                 return R_OUT;
             }
 
-            case FUNC_CLASS_COMMAND: {
-                SET_INTEGER(D_OUT, 0);
-                return R_OUT;
-            }
-
-            case FUNC_CLASS_ROUTINE: {
-                SET_INTEGER(D_OUT, 0);
-                return R_OUT;
-            }
-
-            case FUNC_CLASS_CALLBACK: {
-                Val_Init_Array(D_OUT, REB_BLOCK, VAL_FUNC_BODY(value));
-                return R_OUT;
-            }
-
-            case FUNC_CLASS_SPECIALIZED:
-                //
-                // Just a FRAME! (turned into a BLOCK! by mezzanine BODY-OF)
-                //
-                Val_Init_Context(D_OUT, REB_FRAME, VAL_FUNC_SPECIAL(value));
-                return R_OUT;
-
-            default:
-                assert(FALSE);
-                return R_NONE;
-            }
-            break;
-
-        case OF_SPEC:
-            Val_Init_Block(
-                D_OUT, Copy_Array_Deep_Managed(VAL_FUNC_SPEC(value))
+            // For other function types, leak internal guts and hope for
+            // the best, temporarily.
+            //
+            Val_Init_Array(
+                D_OUT,
+                REB_BLOCK,
+                Copy_Array_Deep_Managed(
+                    VAL_ARRAY(VAL_FUNC_BODY(value)), SPECIFIED
+                )
             );
-
-            Unbind_Values_Deep(VAL_ARRAY_HEAD(D_OUT));
             return R_OUT;
 
-        case OF_TYPES: {
+        case SYM_TYPES: {
             REBARR *copy = Make_Array(VAL_FUNC_NUM_PARAMS(value));
             REBVAL *param;
             REBVAL *typeset;
@@ -256,14 +223,14 @@ REBTYPE(Function)
             // that symbol out before giving it back.
             //
             param = VAL_FUNC_PARAMS_HEAD(value);
-            typeset = ARR_HEAD(copy);
+            typeset = SINK(ARR_HEAD(copy));
             for (; NOT_END(param); param++, typeset++) {
-                assert(VAL_TYPESET_SYM(param) != SYM_0);
+                assert(VAL_PARAM_SPELLING(param) != NULL);
                 *typeset = *param;
-                VAL_TYPESET_SYM(typeset) = SYM_0;
+                INIT_TYPESET_NAME(typeset, NULL);
             }
-            SET_END(typeset);
-            SET_ARRAY_LEN(copy, VAL_FUNC_NUM_PARAMS(value));
+            TERM_ARRAY_LEN(copy, VAL_FUNC_NUM_PARAMS(value));
+            assert(IS_END(typeset));
 
             Val_Init_Block(D_OUT, copy);
             return R_OUT;
@@ -272,7 +239,7 @@ REBTYPE(Function)
         default:
             fail (Error_Cannot_Reflect(VAL_TYPE(value), arg));
         }
-        break;
+        break; }
     }
 
     fail (Error_Illegal_Action(VAL_TYPE(value), action));
@@ -288,9 +255,38 @@ REBTYPE(Function)
 //  ]
 //
 REBNATIVE(func_class_of)
+//
+// !!! The concept of the VAL_FUNC_CLASS was killed, because functions get
+// their classification by way of their dispatch pointers.  Generally
+// speaking, functions should be a "black box" to user code, and it's only
+// at the "meta" level that a function would choose to expose whether it
+// is something like a specialization or an adaptation...but that would be
+// purely documentary, and could lie.
 {
     PARAM(1, func);
 
-    SET_INTEGER(D_OUT, VAL_FUNC_CLASS(ARG(func)));
+    REBVAL *value = ARG(func);
+    REBCNT n;
+
+    if (IS_FUNCTION_PLAIN(value))
+        n = 2;
+    else if (IS_FUNCTION_ACTION(value))
+        n = 3;
+    else if (IS_FUNCTION_COMMAND(value))
+        n = 4;
+    else if (IS_FUNCTION_RIN(value)) {
+        if (!GET_RIN_FLAG(VAL_FUNC_ROUTINE(value), ROUTINE_FLAG_CALLBACK))
+            n = 5;
+        else
+            n = 6;
+    }
+    else if (IS_FUNCTION_SPECIALIZER(value))
+        n = 7;
+    else {
+        // !!! A shaky guess, but assume native if none of the above.
+        n = 1;
+    }
+
+    SET_INTEGER(D_OUT, n);
     return R_OUT;
 }

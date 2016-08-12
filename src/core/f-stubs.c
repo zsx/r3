@@ -1,31 +1,32 @@
-/***********************************************************************
-**
-**  REBOL [R3] Language Interpreter and Run-time Environment
-**
-**  Copyright 2012 REBOL Technologies
-**  REBOL is a trademark of REBOL Technologies
-**
-**  Licensed under the Apache License, Version 2.0 (the "License");
-**  you may not use this file except in compliance with the License.
-**  You may obtain a copy of the License at
-**
-**  http://www.apache.org/licenses/LICENSE-2.0
-**
-**  Unless required by applicable law or agreed to in writing, software
-**  distributed under the License is distributed on an "AS IS" BASIS,
-**  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-**  See the License for the specific language governing permissions and
-**  limitations under the License.
-**
-************************************************************************
-**
-**  Module:  f-stubs.c
-**  Summary: miscellaneous little functions
-**  Section: functional
-**  Author:  Carl Sassenrath
-**  Notes:
-**
-***********************************************************************/
+//
+//  File: %f-stubs.c
+//  Summary: "miscellaneous little functions"
+//  Section: functional
+//  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
+//  Homepage: https://github.com/metaeducation/ren-c/
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Copyright 2012 REBOL Technologies
+// Copyright 2012-2016 Rebol Open Source Contributors
+// REBOL is a trademark of REBOL Technologies
+//
+// See README.md and CREDITS.md for more information.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
 
 #include "sys-core.h"
 #include "sys-deci-funcs.h"
@@ -104,32 +105,41 @@ REBINT Get_Num_From_Arg(const REBVAL *val)
 //
 REBINT Float_Int16(REBD32 f)
 {
-    if (fabs(f) > (REBD32)(0x7FFF)) {
-        DS_PUSH_DECIMAL(f);
-        fail (Error_Out_Of_Range(DS_TOP));
+    if (fabs(f) > cast(REBD32, 0x7FFF)) {
+        REBVAL temp;
+        SET_DECIMAL(&temp, f);
+
+        fail (Error_Out_Of_Range(&temp));
     }
-    return (REBINT)f;
+    return cast(REBINT, f);
 }
 
 
 //
 //  Int32: C
 //
-REBINT Int32(const REBVAL *val)
+REBINT Int32(const RELVAL *val)
 {
-    REBINT n = 0;
-
     if (IS_DECIMAL(val)) {
         if (VAL_DECIMAL(val) > MAX_I32 || VAL_DECIMAL(val) < MIN_I32)
-            fail (Error_Out_Of_Range(val));
-        n = (REBINT)VAL_DECIMAL(val);
-    } else {
-        if (VAL_INT64(val) > (i64)MAX_I32 || VAL_INT64(val) < (i64)MIN_I32)
-            fail (Error_Out_Of_Range(val));
-        n = VAL_INT32(val);
+            goto out_of_range;
+
+        return cast(REBINT, VAL_DECIMAL(val));
     }
 
-    return n;
+    assert(IS_INTEGER(val));
+
+    if (
+        VAL_INT64(val) > cast(i64, MAX_I32)
+        || VAL_INT64(val) < cast(i64, MIN_I32)
+    ) {
+        goto out_of_range;
+    }
+
+    return VAL_INT32(val);
+
+out_of_range:
+    fail (Error_Out_Of_Range(const_KNOWN(val)));
 }
 
 
@@ -142,18 +152,20 @@ REBINT Int32(const REBVAL *val)
 //     1: >  0
 //    -1: <  0
 //
-REBINT Int32s(const REBVAL *val, REBINT sign)
+REBINT Int32s(const RELVAL *val, REBINT sign)
 {
-    REBINT n = 0;
+    REBINT n;
 
     if (IS_DECIMAL(val)) {
         if (VAL_DECIMAL(val) > MAX_I32 || VAL_DECIMAL(val) < MIN_I32)
-            fail (Error_Out_Of_Range(val));
+            goto out_of_range;
 
-        n = (REBINT)VAL_DECIMAL(val);
+        n = cast(REBINT, VAL_DECIMAL(val));
     } else {
-        if (VAL_INT64(val) > (i64)MAX_I32 || VAL_INT64(val) < (i64)MIN_I32)
-            fail (Error_Out_Of_Range(val));
+        assert(IS_INTEGER(val));
+
+        if (VAL_INT64(val) > cast(i64, MAX_I32))
+            goto out_of_range;
 
         n = VAL_INT32(val);
     }
@@ -161,12 +173,13 @@ REBINT Int32s(const REBVAL *val, REBINT sign)
     // More efficient to use positive sense:
     if (
         (sign == 0 && n >= 0) ||
-        (sign >  0 && n >  0) ||
-        (sign <  0 && n <  0)
+        (sign > 0 && n > 0) ||
+        (sign < 0 && n < 0)
     )
         return n;
 
-    fail (Error_Out_Of_Range(val));
+out_of_range:
+    fail (Error_Out_Of_Range(const_KNOWN(val)));
 }
 
 
@@ -253,7 +266,7 @@ REBINT Int8u(const REBVAL *val)
 // Scans the stack for function refinements that have been
 // specified in the mask (each as a bit) and are being used.
 //
-REBCNT Find_Refines(struct Reb_Frame *frame_, REBCNT mask)
+REBCNT Find_Refines(REBFRM *frame_, REBCNT mask)
 {
     REBINT n;
     REBCNT result = 0;
@@ -271,9 +284,10 @@ REBCNT Find_Refines(struct Reb_Frame *frame_, REBCNT mask)
 //
 //  Val_Init_Datatype: C
 //
-void Val_Init_Datatype(REBVAL *value, enum Reb_Kind kind)
+void Val_Init_Datatype(REBVAL *out, enum Reb_Kind kind)
 {
-    *value = *CTX_VAR(Lib_Context, SYM_FROM_KIND(kind));
+    assert(kind > REB_0 && kind < REB_MAX);
+    *out = *CTX_VAR(Lib_Context, SYM_FROM_KIND(kind));
 }
 
 
@@ -285,17 +299,18 @@ void Val_Init_Datatype(REBVAL *value, enum Reb_Kind kind)
 //
 REBVAL *Get_Type(enum Reb_Kind kind)
 {
+    assert(kind > REB_0 && kind < REB_MAX);
     return CTX_VAR(Lib_Context, SYM_FROM_KIND(kind));
 }
 
 
 //
-//  Type_Of: C
+//  Type_Of_Core: C
 // 
 // Returns the datatype value for the given value.
 // The datatypes are all at the head of the context.
 //
-REBVAL *Type_Of(const REBVAL *value)
+REBVAL *Type_Of_Core(const RELVAL *value)
 {
     return CTX_VAR(Lib_Context, SYM_FROM_KIND(VAL_TYPE(value)));
 }
@@ -309,7 +324,7 @@ REBVAL *Type_Of(const REBVAL *value)
 const REBYTE *Get_Field_Name(REBCTX *context, REBCNT index)
 {
     assert(index <= CTX_LEN(context));
-    return Get_Sym_Name(CTX_KEY_SYM(context, index));
+    return STR_HEAD(CTX_KEY_SPELLING(context, index));
 }
 
 
@@ -334,7 +349,7 @@ REBVAL *Get_Object(const REBVAL *any_context, REBCNT index)
 {
     REBCTX *context = VAL_CONTEXT(any_context);
 
-    assert(GET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST));
+    assert(GET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_VARLIST));
     assert(index <= CTX_LEN(context));
     return CTX_VAR(context, index);
 }
@@ -383,7 +398,7 @@ REBVAL *Get_System(REBCNT i1, REBCNT i2)
     obj = CTX_VAR(VAL_CONTEXT(ROOT_SYSTEM), i1);
     if (i2 == 0) return obj;
     assert(IS_OBJECT(obj));
-    return Get_Field(VAL_CONTEXT(obj), i2);
+    return CTX_VAR(VAL_CONTEXT(obj), i2);
 }
 
 
@@ -409,7 +424,8 @@ void Val_Init_Series_Index_Core(
     REBVAL *value,
     enum Reb_Kind type,
     REBSER *series,
-    REBCNT index
+    REBCNT index,
+    REBCTX *specifier
 ) {
     assert(series);
     ENSURE_SERIES_MANAGED(series);
@@ -432,8 +448,20 @@ void Val_Init_Series_Index_Core(
     }
 
     VAL_RESET_HEADER(value, type);
-    INIT_VAL_SERIES(value, series);
+    value->payload.any_series.series = series;
     VAL_INDEX(value) = index;
+    INIT_SPECIFIC(value, specifier);
+
+#if !defined(NDEBUG)
+    if (Is_Array_Series(series) && specifier == SPECIFIED) {
+        //
+        // If a SPECIFIED is used for an array, then that top level of the
+        // array cannot have any relative values in it.  Catch it here vs.
+        // waiting until a later assertion.
+        //
+        ASSERT_NO_RELATIVE(AS_ARRAY(series), FALSE);
+    }
+#endif
 }
 
 
@@ -452,7 +480,7 @@ void Set_Tuple(REBVAL *value, REBYTE *bytes, REBCNT len)
 
 
 //
-//  Val_Init_Context: C
+//  Val_Init_Context_Core: C
 //
 // Common routine for initializing OBJECT, MODULE!, PORT!, and ERROR!
 //
@@ -460,7 +488,7 @@ void Set_Tuple(REBVAL *value, REBYTE *bytes, REBCNT len)
 // is its canon form from a single pointer...the REBVAL sitting in the 0 slot
 // of the context's varlist.
 //
-void Val_Init_Context(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
+void Val_Init_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
     //
     // In a debug build we check to make sure the type of the embedded value
     // matches the type of what is intended (so someone who thinks they are
@@ -481,19 +509,15 @@ void Val_Init_Context(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
         Panic_Context(context);
     }
 
-    assert(GET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_CONTEXT_VARLIST));
+    assert(GET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_VARLIST));
 
-    // !!! Historically spec is a frame of an object for a "module spec",
-    // may want to use another word of that and make a block "spec"
+    if (IS_FRAME(CTX_VALUE(context)))
+        assert(IS_FUNCTION(CTX_FRAME_FUNC_VALUE(context)));
+
+    // !!! Currently only a context can serve as the "meta" information,
+    // though the interface may expand.
     //
-    if (IS_FRAME(CTX_VALUE(context))) {
-        assert(IS_FUNCTION(FUNC_VALUE(CTX_FRAME_FUNC(context))));
-    }
-    else
-        assert(
-            NOT(CTX_SPEC(context))
-            || ANY_CONTEXT(CTX_VALUE(CTX_SPEC(context)))
-        );
+    assert(!CTX_META(context) || ANY_CONTEXT(CTX_VALUE(CTX_META(context))));
 #endif
 
     // Some contexts (stack frames in particular) start out unmanaged, and
@@ -521,69 +545,63 @@ void Val_Init_Context(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
 
 
 //
-//  Val_Series_Len_At: C
-// 
-// Get length of an ANY-SERIES! value, taking the current index into account.
-// Avoid negative values.
-//
-REBCNT Val_Series_Len_At(const REBVAL *value)
-{
-    if (VAL_INDEX(value) >= VAL_LEN_HEAD(value)) return 0;
-    return VAL_LEN_HEAD(value) - VAL_INDEX(value);
-}
-
-
-//
-//  Val_Byte_Len: C
-// 
-// Get length of series in bytes.
-//
-REBCNT Val_Byte_Len(const REBVAL *value)
-{
-    if (VAL_INDEX(value) >= VAL_LEN_HEAD(value)) return 0;
-    return (VAL_LEN_HEAD(value) - VAL_INDEX(value)) * SER_WIDE(VAL_SERIES(value));
-}
-
-
-//
 //  Partial1: C
 // 
-// Process the /part (or /skip) and other length modifying
-// arguments.
+// Process the /part (or /skip) and other length modifying arguments.
 //
-REBINT Partial1(REBVAL *sval, REBVAL *lval)
+// Adjusts the value's index if necessary, and returns the length indicated.
+// Hence if a negative limit is passed in, it will adjust value to the
+// position that negative limit would seek to...and return the length of
+// the span to get to the original index.
+//
+REBCNT Partial1(REBVAL *value, const REBVAL *limit)
 {
+    REBINT is_series = ANY_SERIES(value);
+
+    if (IS_VOID(limit)) { // use current length of the target value
+        if (!is_series)
+            return 1;
+
+        if (VAL_INDEX(value) >= VAL_LEN_HEAD(value))
+            return 0;
+
+        return (VAL_LEN_HEAD(value) - VAL_INDEX(value));
+    }
+
     REBI64 len;
-    REBINT maxlen;
-    REBINT is_ser = ANY_SERIES(sval);
-
-    // If lval is not set or is BAR!, use the current len of the target value:
-    if (IS_UNSET(lval) || IS_BAR(lval)) {
-        if (!is_ser) return 1;
-        if (VAL_INDEX(sval) >= VAL_LEN_HEAD(sval)) return 0;
-        return (VAL_LEN_HEAD(sval) - VAL_INDEX(sval));
-    }
-    if (IS_INTEGER(lval) || IS_DECIMAL(lval)) len = Int32(lval);
+    if (IS_INTEGER(limit) || IS_DECIMAL(limit))
+        len = Int32(limit);
     else {
-        if (is_ser && VAL_TYPE(sval) == VAL_TYPE(lval) && VAL_SERIES(sval) == VAL_SERIES(lval))
-            len = (REBINT)VAL_INDEX(lval) - (REBINT)VAL_INDEX(sval);
-        else
-            fail (Error(RE_INVALID_PART, lval));
+        if (
+            !is_series
+            || VAL_TYPE(value) != VAL_TYPE(limit)
+            || VAL_SERIES(value) != VAL_SERIES(limit)
+        ){
+            fail (Error(RE_INVALID_PART, limit));
+        }
+        
+        len = cast(REBINT, VAL_INDEX(limit)) - cast(REBINT, VAL_INDEX(value));
+
     }
 
-    if (is_ser) {
+    if (is_series) {
         // Restrict length to the size available:
         if (len >= 0) {
-            maxlen = (REBINT)VAL_LEN_AT(sval);
-            if (len > maxlen) len = maxlen;
-        } else {
+            REBCNT maxlen = VAL_LEN_AT(value);
+            if (len > cast(REBINT, maxlen))
+                len = maxlen;
+        }
+        else {
             len = -len;
-            if (len > (REBINT)VAL_INDEX(sval)) len = (REBINT)VAL_INDEX(sval);
-            VAL_INDEX(sval) -= (REBCNT)len;
+            if (len > cast(REBINT, VAL_INDEX(value)))
+                len = VAL_INDEX(value);
+            assert(len >= 0);
+            VAL_INDEX(value) -= cast(REBCNT, len);
         }
     }
 
-    return (REBINT)len;
+    assert(len >= 0);
+    return cast(REBCNT, len);
 }
 
 
@@ -593,7 +611,7 @@ REBINT Partial1(REBVAL *sval, REBVAL *lval)
 // Args:
 //     aval: target value
 //     bval: argument to modify target (optional)
-//     lval: length value (or none)
+//     lval: length value (or blank)
 // 
 // Determine the length of a /PART value. It can be:
 //     1. integer or decimal
@@ -610,7 +628,7 @@ REBINT Partial(REBVAL *aval, REBVAL *bval, REBVAL *lval)
     REBINT maxlen;
 
     // If lval is unset, use the current len of the target value:
-    if (IS_UNSET(lval)) {
+    if (IS_VOID(lval)) {
         val = (bval && ANY_SERIES(bval)) ? bval : aval;
         if (VAL_INDEX(val) >= VAL_LEN_HEAD(val)) return 0;
         return (VAL_LEN_HEAD(val) - VAL_INDEX(val));
@@ -698,7 +716,7 @@ i64 Add_Max(enum Reb_Kind type, i64 n, i64 m, i64 maxi)
 {
     i64 r = n + m;
     if (r < -maxi || r > maxi) {
-        if (type != REB_TRASH) fail (Error(RE_TYPE_LIMIT, Get_Type(type)));
+        if (type != REB_0) fail (Error(RE_TYPE_LIMIT, Get_Type(type)));
         r = r > 0 ? maxi : -maxi;
     }
     return r;
@@ -733,41 +751,21 @@ void Make_OS_Error(REBVAL *out, int errnum)
 // 
 // Scan a block, collecting all of its SET words as a block.
 //
-REBARR *Collect_Set_Words(REBVAL *val)
+REBARR *Collect_Set_Words(RELVAL *val)
 {
     REBCNT count = 0;
-    REBVAL *val2 = val;
-    REBARR *array;
+    RELVAL *val2 = val;
 
     for (; NOT_END(val); val++) if (IS_SET_WORD(val)) count++;
     val = val2;
 
-    array = Make_Array(count);
+    REBARR *array = Make_Array(count);
     val2 = ARR_HEAD(array);
     for (; NOT_END(val); val++) {
         if (IS_SET_WORD(val))
-            Val_Init_Word(val2++, REB_WORD, VAL_WORD_SYM(val));
+            Val_Init_Word(val2++, REB_WORD, VAL_WORD_SPELLING(val));
     }
-    SET_END(val2);
-    SET_ARRAY_LEN(array, count);
+    TERM_ARRAY_LEN(array, count);
 
     return array;
-}
-
-
-//
-//  What_Reflector: C
-//
-REBINT What_Reflector(REBVAL *word)
-{
-    if (IS_WORD(word)) {
-        switch (VAL_WORD_SYM(word)) {
-        case SYM_SPEC:   return OF_SPEC;
-        case SYM_BODY:   return OF_BODY;
-        case SYM_WORDS:  return OF_WORDS;
-        case SYM_VALUES: return OF_VALUES;
-        case SYM_TYPES:  return OF_TYPES;
-        }
-    }
-    return 0;
 }

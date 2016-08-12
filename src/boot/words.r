@@ -18,7 +18,6 @@ REBOL [
 any-nothing! ;-- signal typesets start (SYM_ANY_NOTHING_X hardcoded reference)
 any-something!
 any-value!
-opt-any-value! ;-- temporary until <opt> or #opt or similar are settled
 any-word!
 any-path!
 any-number!
@@ -37,6 +36,9 @@ datatypes
 ; this list is applied, so you only see typesets in this file.
 ;-----------------------------------------------------------------------------
 
+; !!! Kept for functionality of #[none] in the loader for <r3-legacy>
+none
+
 ; For the moment, TO-WORD of a datatype is willing to canonize a datatype
 ; as a word.  Long term, that specialization is not desirable because it
 ; is effectively building keywords deep into the system.  Better would be
@@ -50,7 +52,7 @@ paren!
 native
 action
 self
-none
+blank
 true
 false
 on
@@ -75,6 +77,18 @@ words
 values
 types
 title
+;addr already defined
+
+condition ; used by BRANCHER to name the argument of the generated function
+
+; !!! See notes on FUNCTION-META and SPECIALIZER-META in %sysobj.r
+description
+return-type
+return-note
+parameter-types
+parameter-notes
+specializee
+specializee-name
 
 x
 y
@@ -128,6 +142,8 @@ quit
 ;return ;-- covered by parse below
 leave ;-- for PROC
 continue
+
+subparse ;-- recursions of parse use this for REBNATIVE(subparse) in backtrace
 
 ; PARSE - These words must not be reserved above!!  The range of consecutive
 ; index numbers are used by PARSE to detect keywords.
@@ -326,10 +342,6 @@ pid
 ;call/info
 id
 exit-code
-
-; used by APPLY as a signal that the user is knowingly not starting the frame
-; definition block with a SET-WORD!, so they know it's a new APPLY
-comment
 
 ; used when a function is executed but not looked up through a word binding
 ; (product of literal or evaluation) so no name is known for it

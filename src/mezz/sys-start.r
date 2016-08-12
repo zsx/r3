@@ -32,7 +32,7 @@ REBOL [
     }
 ]
 
-finish-init-core: func [
+finish-init-core: proc [
     "Completes the boot sequence for Ren/C core."
     /local tmp
 ] bind [ ; context is system/options
@@ -58,7 +58,7 @@ finish-init-core: func [
     ; Set the "boot-level"
     ; !!! Is this something the user needs to be concerned with?
     ;
-    assert [none? boot-level]
+    assert [blank? boot-level]
     boot-level: 'full
 
     ; It was a stated goal at one point that it should be possible to protect
@@ -67,14 +67,10 @@ finish-init-core: func [
     ;
     comment [if :lib/secure [protect-system-object]]
 
-    ; returning anything but UNSET! would cause a "panic" error (quits)
-    ;
-    return ()
-
 ] system/options
 
 
-finish-rl-start: func [
+finish-rl-start: proc [
     "Loads extras, handles args, security, scripts (should be host-specific)."
     /local file script-path script-args code
 ] bind [ ; context is: system/options
@@ -119,7 +115,7 @@ finish-rl-start: func [
             [all [get opt to get act get opt]]
         ]
     ]
-    ; version, import, secure are all of valid type or none
+    ; version, import, secure are all of valid type or blank
 
     if flags/verbose [print self]
 
@@ -150,7 +146,7 @@ finish-rl-start: func [
         if boot-host [
             loud-print "Init host code..."
             do load boot-host
-            boot-host: none
+            boot-host: _
         ]
     ]
 
@@ -175,13 +171,13 @@ finish-rl-start: func [
     ; Import module?
     if import [lib/import import]
 
-    unless none? boot-embedded [
+    unless blank? boot-embedded [
         code: load/header/type boot-embedded 'unbound
         ;boot-print ["executing embedded script:" mold code]
-        system/script: make system/standard/script [
+        system/script: construct system/standard/script [
             title: select first code 'title
             header: first code
-            parent: none
+            parent: _
             path: what-dir
             args: script-args
         ]
@@ -201,18 +197,22 @@ finish-rl-start: func [
         ; !!! Would be nice to use DO for this section. !!!
         ; NOTE: We can't use DO here because it calls the code it does with CATCH/quit
         ;   and we shouldn't catch QUIT in the top-level script, we should just quit.
+
         ; script-path holds: [dir file] for script
-        assert/type [script-path [block!] script-path/1 [file!] script-path/2 [file!]]
+        ensure block! script-path
+        ensure file! script-path/1
+        ensure file! script-path/2
+
         ; /path dir is where our script gets started.
         change-dir first script-path
         either exists? second script-path [
             boot-print ["Evaluating:" script]
             code: load/header/type second script-path 'unbound
             ; update system/script (Make into a function?)
-            system/script: make system/standard/script [
+            system/script: construct system/standard/script [
                 title: select first code 'title
                 header: first code
-                parent: none
+                parent: _
                 path: what-dir
                 args: script-args
             ]
@@ -233,8 +233,4 @@ finish-rl-start: func [
     ]
 
     finish-rl-start: 'done
-
-    ; returning anything but UNSET! would cause a "panic" error (quits)
-    ;
-    return ()
 ] system/options

@@ -47,7 +47,7 @@ make-port*: func [
             spec: port/spec
         ]
         true [
-            return none
+            return blank
         ]
     ]
 
@@ -58,8 +58,8 @@ make-port*: func [
     ][cause-error 'access 'no-scheme name]
 
     ; Create the port with the correct scheme spec:
-    port: make system/standard/port []
-    port/spec: make any [scheme/spec system/standard/port-spec-head] spec
+    port: construct system/standard/port []
+    port/spec: construct any [scheme/spec system/standard/port-spec-head] spec
     port/spec/scheme: name
     port/scheme: scheme
 
@@ -77,7 +77,7 @@ make-port*: func [
     port
 ]
 
-*parse-url: make object! [
+*parse-url: has [
     digit:       make bitset! "0123456789"
     digits:      [1 5 digit]
     alpha-num:   make bitset! [#"a" - #"z" #"A" - #"Z" #"0" - #"9"]
@@ -85,7 +85,7 @@ make-port*: func [
     path-char:   insert copy alpha-num "/=+-_.;:&$@%*',~?| []()^"" ; !!! note: space allowed
     user-char:   insert copy alpha-num "=+-_.;&$%*,'#|"
     pass-char:   complement make bitset! "^/ ^-@"
-    s1: s2: none ; in R3, input datatype is preserved - these are now URL strings!
+    s1: s2: _ ; in R3, input datatype is preserved - these are now URL strings!
     out: []
     emit: func ['w v] [reduce/into [to set-word! w if :v [to string! :v]] tail out]
 
@@ -157,7 +157,7 @@ make-port*: func [
     ]
 ]
 
-decode-url: none ; used by sys funcs, defined above, set below
+decode-url: _ ; used by sys funcs, defined above, set below
 
 ;-- Native Schemes -----------------------------------------------------------
 
@@ -170,7 +170,7 @@ make-scheme: func [
     with: either with [get in system/schemes scheme][system/standard/scheme]
     unless with [cause-error 'access 'no-scheme scheme]
 
-    def: make with def
+    def: construct with def
     ;print ["Scheme:" def/name]
     unless def/name [cause-error 'access 'no-scheme-name def]
     set-scheme def
@@ -219,7 +219,7 @@ init-schemes: func [
             waked: sport/data ; The wake list (pending awakes)
 
             if only [
-                unless block? ports [return none] ;short cut for a pause
+                unless block? ports [return blank] ;short cut for a pause
             ]
 
             ; Process all events (even if no awake ports).
@@ -230,7 +230,7 @@ init-schemes: func [
                 event: first event-list
                 port: event/port
                 either any [
-                    none? only
+                    not only
                     find ports port
                 ][
                     remove event-list ;avoid event overflow caused by wake-up recursively calling into wait
@@ -246,7 +246,7 @@ init-schemes: func [
             ]
 
             ; No wake ports (just a timer), return now.
-            unless block? ports [return none]
+            unless block? ports [return blank]
 
             ; Are any of the requested ports awake?
             for-next ports [
@@ -255,7 +255,7 @@ init-schemes: func [
 
             false ; keep waiting
         ]
-        init: func [port] [
+        init: proc [port] [
             ;;print ["Init" title]
             port/data: copy [] ; The port wake list
         ]
@@ -270,7 +270,7 @@ init-schemes: func [
         title: "File Access"
         name: 'file
         info: system/standard/file-info ; for C enums
-        init: func [port /local path] [
+        init: proc [port /local path] [
             if url? port/spec/ref [
                 parse port/spec/ref [thru #":" 0 2 slash path:]
                 append port/spec compose [path: (to file! path)]
@@ -332,7 +332,7 @@ init-schemes: func [
         title: "Serial Port"
         name: 'serial
         spec: system/standard/port-spec-serial
-        init: func [port /local path speed] [
+        init: proc [port /local path speed] [
             if url? port/spec/ref [
                 parse port/spec/ref
                     [thru #":" 0 2 slash copy path [to slash | end] skip copy speed to end]

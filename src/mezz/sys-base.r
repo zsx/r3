@@ -23,26 +23,31 @@ REBOL [
 ;-- SYS context definition begins here --
 ;   WARNING: ORDER DEPENDENT part of context (accessed from C code)
 
-native: none ; for boot only
-action: none ; for boot only
+native: _ ; for boot only
+action: _ ; for boot only
 
 do*: function [
     {SYS: Called by system for DO on datatypes that require special handling.}
+    return: [<opt> any-value!]
     value [file! url! string! binary! tag!]
-    arg [opt-any-value!]
+    args [logic!]
+        "Positional workaround of /ARGS"
+    arg [any-value!]
         "Args passed as system/script/args to a script (normally a string)"
-    var [unset! word!]
+    next [logic!]
+        "Positional workaround of /NEXT"
+    var [blank! word!]
         "If do next expression only, variable updated with new block position"
 ][
     ; !!! These were refinements on the original DO* which were called from
     ; the system using positional order.  Under the Ren-C model you cannot
-    ; select refinements positionally.  It would be *possible* to keep these
-    ; going as refinements and have the system build a path to make a call,
-    ; but using UNSET! as the signal is easier.  Refinement names configured
-    ; here for ease but revisit (also revisit using word "next")
+    ; select refinements positionally, nor can you pass "void" cells.  It
+    ; would be *possible* to keep these going as refinements and have the
+    ; system build a path to make a call, but this is easier.  Revisit this
+    ; (also revisit the use of the word "next")
     ;
-    args: any-value? :arg
-    next: any-value? :var
+    arg: either args [arg] [void]
+    var: either next [var] [void]
 
     ; This code is only called for urls, files, strings, and tags.
     ; DO of functions, blocks, paths, and other do-able types is done in the
@@ -68,9 +73,6 @@ do*: function [
 
         ; Convert value into a URL!
         value: switch/default value [
-            ; Special proposals
-            <proposals> [https://raw.githubusercontent.com/hostilefork/rebol-proposals/master/all-proposals.reb]
-
             ; Encodings and data formats
             <json> [http://reb4.me/r3/json.reb]
             <xml> [http://reb4.me/r3/altxml.reb]
@@ -100,7 +102,7 @@ do*: function [
     ; Load the data, first so it will error before change-dir
     data: load/header/type value 'unbound ; unbound so DO-NEEDS runs before INTERN
     ; Get the header and advance 'data to the code position
-    hdr: first+ data  ; object or none
+    hdr: first+ data  ; object or blank
     ; data is a block! here, with the header object in the first position back
     is-module: 'module = select hdr 'type
 
@@ -131,7 +133,7 @@ do*: function [
 
         ; Make the new script object
         scr: system/script  ; and save old one
-        system/script: make system/standard/script [
+        system/script: construct system/standard/script [
             title: select hdr 'title
             header: hdr
             parent: :scr
@@ -141,9 +143,9 @@ do*: function [
 
         ; Print out the script info
         boot-print [
-            (either is-module "Module:" "Script:")  mold select hdr 'title
-            "Version:" select hdr 'version
-            "Date:" select hdr 'date
+            (either is-module "Module:" "Script:") select hdr 'title
+                "Version:" opt select hdr 'version
+                "Date:" opt select hdr 'date
         ]
 
         also (
@@ -172,11 +174,11 @@ do*: function [
 ; MOVE some of these to SYSTEM?
 boot-banner: ajoin ["REBOL 3.0 A" system/version/3 " " system/build newline]
 boot-help: "Boot-sys level - no extra features."
-boot-host: none ; any host add-ons to the lib (binary)
-boot-mezz: none ; built-in mezz code (put here on boot)
-boot-prot: none ; built-in boot protocols
-boot-exts: none ; boot extension list
-boot-embedded: none ; embedded script
+boot-host: _ ; any host add-ons to the lib (binary)
+boot-mezz: _ ; built-in mezz code (put here on boot)
+boot-prot: _ ; built-in boot protocols
+boot-exts: _ ; boot extension list
+boot-embedded: _ ; embedded script
 
 export: func [
     "Low level export of values (e.g. functions) to lib."
