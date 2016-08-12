@@ -290,3 +290,26 @@ parse-args: func [
 	]
 	ret
 ]
+
+fix-win32-path: func [
+	path [file!]
+	/local letter colon
+][
+    if 3 != fourth system/version [return path] ;non-windows system
+
+    drive: first path
+    colon: second path
+
+    if all [
+    	any [
+	    all [#"A" <= drive #"Z" >= drive] 
+	    all [#"a" <= drive #"z" >= drive] 
+	]
+	#":" = colon
+    ][
+    	insert path #"/"
+	remove skip path 2 ;remove ":"
+    ]
+
+    path
+]

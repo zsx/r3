@@ -40,12 +40,13 @@ write-if: proc [file data] [
 
 change-dir %../boot/
 ;dir: %../core/temp/  ; temporary definition
-output-dir: to file! any [args/OUTDIR %../]
+output-dir: fix-win32-path to file! any [args/OUTDIR %../]
 mkdir/deep output-dir/include
 mkdir/deep output-dir/boot
 mkdir/deep output-dir/core
 inc: output-dir/include
 src: output-dir/core
+boot: output-dir/boot
 
 version: load %version.r
 version/4: config/id/2
@@ -842,7 +843,7 @@ replace wordlist '*port-modes* load %modes.r
 
 for-each word wordlist [add-word word]
 
-boot-actions: load output-dir/boot/tmp-actions.r
+boot-actions: load boot/tmp-actions.r
 for-each item boot-actions [
     if set-word? :item [
         add-word/skip-if-duplicate to-word item ;-- maybe in %words.r already
@@ -1168,7 +1169,7 @@ emit {
 
 externs: make string! 2000
 boot-booters: load %booters.r
-boot-natives: load output-dir/boot/tmp-natives.r
+boot-natives: load boot/tmp-natives.r
 
 nats: append copy boot-booters boot-natives
 num-natives: 0
@@ -1221,7 +1222,7 @@ boot-root: load %root.r
 boot-task: load %task.r
 ;boot-script: load %script.r
 
-write %boot-code.r mold reduce sections
+write boot/boot-code.r mold reduce sections
 data: mold/flat reduce sections
 insert data reduce ["; Copyright (C) REBOL Technologies " now newline]
 insert tail data make char! 0 ; scanner requires zero termination

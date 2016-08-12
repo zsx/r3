@@ -26,7 +26,7 @@ do %systems.r
 
 args: parse-args system/options/args
 config: config-system/guess args/OS_ID
-output-dir: to file! any [args/OUTDIR %../]
+output-dir: fix-win32-path to file! any [args/OUTDIR %../]
 mkdir output-dir/include
 
 do %form-header.r
