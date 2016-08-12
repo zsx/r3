@@ -9,151 +9,140 @@
 #include "host-view.h"
 #include "host-compositor.h"
 
-static REBCNT keycode_to_event[] = {
-    SDLK_AC_HOME,       EVK_HOME,
-    SDLK_HOME,          EVK_HOME,
-    SDLK_LEFT,          EVK_LEFT,
-    SDLK_UP,            EVK_UP,
-    SDLK_RIGHT,         EVK_RIGHT,
-    SDLK_DOWN,          EVK_DOWN,
-    SDLK_PAGEUP,        EVK_PAGE_UP,
-    SDLK_PAGEDOWN,      EVK_PAGE_DOWN,
-    SDLK_END,           EVK_END,
-    SDLK_INSERT,        EVK_INSERT,
-    SDLK_DELETE,        EVK_DELETE,
+static struct SDL_REBEVT_Pair {
+    SDL_Keycode keycode;
+    REBCNT key_event;
+} keycode_to_event[] = {
+    {SDLK_AC_HOME,       EVK_HOME},
+    {SDLK_HOME,          EVK_HOME},
+    {SDLK_LEFT,          EVK_LEFT},
+    {SDLK_UP,            EVK_UP},
+    {SDLK_RIGHT,         EVK_RIGHT},
+    {SDLK_DOWN,          EVK_DOWN},
+    {SDLK_PAGEUP,        EVK_PAGE_UP},
+    {SDLK_PAGEDOWN,      EVK_PAGE_DOWN},
+    {SDLK_END,           EVK_END},
+    {SDLK_INSERT,        EVK_INSERT},
+    {SDLK_DELETE,        EVK_DELETE},
 
-    SDLK_F1,            EVK_F1,
-    SDLK_F2,            EVK_F2,
-    SDLK_F3,            EVK_F3,
-    SDLK_F4,            EVK_F4,
-    SDLK_F5,            EVK_F5,
-    SDLK_F6,            EVK_F6,
-    SDLK_F7,            EVK_F7,
-    SDLK_F8,            EVK_F8,
-    SDLK_F9,            EVK_F9,
-    SDLK_F10,           EVK_F10,
-    SDLK_F11,           EVK_F11,
-    SDLK_F12,           EVK_F12,
-    0x0,                0
+    {SDLK_F1,            EVK_F1},
+    {SDLK_F2,            EVK_F2},
+    {SDLK_F3,            EVK_F3},
+    {SDLK_F4,            EVK_F4},
+    {SDLK_F5,            EVK_F5},
+    {SDLK_F6,            EVK_F6},
+    {SDLK_F7,            EVK_F7},
+    {SDLK_F8,            EVK_F8},
+    {SDLK_F9,            EVK_F9},
+    {SDLK_F10,           EVK_F10},
+    {SDLK_F11,           EVK_F11},
+    {SDLK_F12,           EVK_F12},
+    { 0x0,                0 }
 };
 
-static REBCNT keycode_to_char[] = {
-//SDL_Keycode,    char,     SHIFT,     CAP,     CAP+SHIFT
-    SDLK_0,        '0',     ')',     '0',     ')',
-    SDLK_1,        '1',     '!',    '1',    '!',
-    SDLK_2,        '2',    '@',    '2',    '@',
-    SDLK_3,        '3',    '#',    '3',    '#',
-    SDLK_4,        '4',    '$',    '4',    '$',
-    SDLK_5,        '5',    '%',    '5',    '%',
-    SDLK_6,        '6',    '^',    '6',    '^',
-    SDLK_7,        '7',    '&',    '7',    '&',
-    SDLK_8,        '8',    '*',    '8',    '*',
-    SDLK_9,        '9',    '(',    '9',    '(',
-    SDLK_a,        'a',    'A',    'A',    'a',
-    SDLK_b,        'b',    'B',    'B',    'b',
-    SDLK_c,        'c',    'C',    'C',    'c',
-    SDLK_d,        'd',    'D',    'D',    'd',
-    SDLK_e,        'e',    'E',    'E',    'e',
-    SDLK_f,        'f',    'F',    'F',    'f',
-    SDLK_g,        'g',    'G',    'G',    'g',
-    SDLK_h,        'h',    'H',    'H',    'h',
-    SDLK_i,        'i',    'I',    'I',    'i',
-    SDLK_j,        'j',    'J',    'J',    'j',
-    SDLK_k,        'k',    'K',    'K',    'k',
-    SDLK_l,        'l',    'L',    'L',    'l',
-    SDLK_m,        'm',    'M',    'M',    'm',
-    SDLK_n,        'n',    'N',    'N',    'n',
-    SDLK_o,        'o',    'O',    'O',    'o',
-    SDLK_p,        'p',    'P',    'P',    'p',
-    SDLK_q,        'q',    'Q',    'Q',    'q',
-    SDLK_r,        'r',    'R',    'R',    'r',
-    SDLK_s,        's',    'S',    'S',    's',
-    SDLK_t,        't',    'T',    'T',    't',
-    SDLK_u,        'u',    'U',    'U',    'u',
-    SDLK_v,        'v',    'V',    'V',    'v',
-    SDLK_w,        'w',    'W',    'W',    'w',
-    SDLK_x,        'x',    'X',    'X',    'x',
-    SDLK_y,        'y',    'Y',    'Y',    'y',
-    SDLK_z,        'z',    'Z',    'Z',    'z',
-    SDLK_SPACE,    ' ',    ' ',    ' ',    ' ',
-    SDLK_COMMA,    ',',    '<',    ',',    '<',
-    SDLK_PERIOD,   '.',    '>',    '.',    '>',
-    SDLK_SLASH,    '/',    '?',    '/',    '?',
-    SDLK_MINUS,    '-',    '_',    '-',    '_',
-    SDLK_EQUALS,   '=',    '+',    '=',    '+',
-    SDLK_SEMICOLON, ';',    ':',    ';',    ':',
-    SDLK_QUOTE,    '\'',    '"',    '\'',    '"',
-    SDLK_LEFTBRACKET, '[', '{', '[', '{',
-    SDLK_RIGHTBRACKET, ']', '}', ']', '}',
-    SDLK_BACKSLASH,    '\\', '|', '\\',    '|',
-    SDLK_BACKQUOTE, '`',  '~',    '`',    '~',
-    SDLK_MINUS,   '-',    '_',    '-',    '_',
-    SDLK_EQUALS,  '=',    '+',    '=',    '+',
-    SDLK_BACKSPACE, '\b', '\b',   '\b',   '\b',
-    SDLK_ESCAPE,  '\033', '\033', '\033',    '\033',
-    SDLK_KP_0,    '0',    '0',    '0',    '0',
-    SDLK_KP_1,    '1',    '1',    '1',    '1',
-    SDLK_KP_2,    '2',    '2',    '2',    '2',
-    SDLK_KP_3,    '3',    '3',    '3',    '3',
-    SDLK_KP_4,    '4',    '4',    '4',    '4',
-    SDLK_KP_5,    '5',    '5',    '5',    '5',
-    SDLK_KP_6,    '6',    '6',    '6',    '6',
-    SDLK_KP_7,    '7',    '7',    '7',    '7',
-    SDLK_KP_8,    '8',    '8',    '8',    '8',
-    SDLK_KP_9,    '9',    '9',    '9',    '9',
-    SDLK_KP_BACKSPACE,     '\b', '\b', '\b', '\b',
-    SDLK_KP_ENTER,    '\r', '\r', '\r',     '\r',
-    SDLK_KP_PLUS,    '+', '+',     '+',     '+',
-    SDLK_KP_MINUS,    '-', '-',     '-',     '-',
-    SDLK_KP_MULTIPLY, '*', '*', '*',     '*',
-    SDLK_KP_DIVIDE,    '/', '/',     '/',     '/',
-    SDLK_KP_PERIOD,    '.', '.',     '.',     '.',
-    SDLK_RETURN,    '\r', '\r',    '\r',    '\r',
-    SDLK_RETURN2,    '\r', '\r',    '\r',    '\r',
-    SDLK_TAB,    '\t',    '\t',    '\t',    '\t',
-    0x0,        0,        0,        0,        0,
+ static struct SDL_REBYTE_Pair {
+    SDL_Keycode keycode;
+    REBCNT charactor;
+    REBCNT with_shift;
+    REBCNT with_cap;
+    REBCNT with_cap_shift;
+ } keycode_to_char[] = {
+     //SDL_Keycode,    char,     SHIFT,     CAP,     CAP+SHIFT
+     { SDLK_0,        '0',     ')',     '0',     ')' },
+     { SDLK_1,        '1',     '!',    '1',    '!' },
+     { SDLK_2,        '2',    '@',    '2',    '@' },
+     { SDLK_3,        '3',    '#',    '3',    '#' },
+     { SDLK_4,        '4',    '$',    '4',    '$' },
+     { SDLK_5,        '5',    '%',    '5',    '%' },
+     { SDLK_6,        '6',    '^',    '6',    '^' },
+     { SDLK_7,        '7',    '&',    '7',    '&' },
+     { SDLK_8,        '8',    '*',    '8',    '*' },
+     { SDLK_9,        '9',    '(',    '9',    '(' },
+     { SDLK_a,        'a',    'A',    'A',    'a' },
+     { SDLK_b,        'b',    'B',    'B',    'b' },
+     { SDLK_c,        'c',    'C',    'C',    'c' },
+     { SDLK_d,        'd',    'D',    'D',    'd' },
+     { SDLK_e,        'e',    'E',    'E',    'e' },
+     { SDLK_f,        'f',    'F',    'F',    'f' },
+     { SDLK_g,        'g',    'G',    'G',    'g' },
+     { SDLK_h,        'h',    'H',    'H',    'h' },
+     { SDLK_i,        'i',    'I',    'I',    'i' },
+     { SDLK_j,        'j',    'J',    'J',    'j' },
+     { SDLK_k,        'k',    'K',    'K',    'k' },
+     { SDLK_l,        'l',    'L',    'L',    'l' },
+     { SDLK_m,        'm',    'M',    'M',    'm' },
+     { SDLK_n,        'n',    'N',    'N',    'n' },
+     { SDLK_o,        'o',    'O',    'O',    'o' },
+     { SDLK_p,        'p',    'P',    'P',    'p' },
+     { SDLK_q,        'q',    'Q',    'Q',    'q' },
+     { SDLK_r,        'r',    'R',    'R',    'r' },
+     { SDLK_s,        's',    'S',    'S',    's' },
+     { SDLK_t,        't',    'T',    'T',    't' },
+     { SDLK_u,        'u',    'U',    'U',    'u' },
+     { SDLK_v,        'v',    'V',    'V',    'v' },
+     { SDLK_w,        'w',    'W',    'W',    'w' },
+     { SDLK_x,        'x',    'X',    'X',    'x' },
+     { SDLK_y,        'y',    'Y',    'Y',    'y' },
+     { SDLK_z,        'z',    'Z',    'Z',    'z' },
+     { SDLK_SPACE,    ' ',    ' ',    ' ',    ' ' },
+     { SDLK_COMMA,    ',',    '<',    ',',    '<' },
+     { SDLK_PERIOD,   '.',    '>',    '.',    '>' },
+     { SDLK_SLASH,    '/',    '?',    '/',    '?' },
+     { SDLK_MINUS,    '-',    '_',    '-',    '_' },
+     { SDLK_EQUALS,   '=',    '+',    '=',    '+' },
+     { SDLK_SEMICOLON, ';',    ':',    ';',    ':' },
+     { SDLK_QUOTE,    '\'',    '"',    '\'',    '"' },
+     { SDLK_LEFTBRACKET, '[', '{', '[', '{' },
+     { SDLK_RIGHTBRACKET, ']', '}', ']', '}' },
+     { SDLK_BACKSLASH,    '\\', '|', '\\',    '|' },
+     { SDLK_BACKQUOTE, '`',  '~',    '`',    '~' },
+     { SDLK_MINUS,   '-',    '_',    '-',    '_' },
+     { SDLK_EQUALS,  '=',    '+',    '=',    '+' },
+     { SDLK_BACKSPACE, '\b', '\b',   '\b',   '\b' },
+     { SDLK_ESCAPE,  '\033', '\033', '\033',    '\033' },
+     { SDLK_KP_0,    '0',    '0',    '0',    '0' },
+     { SDLK_KP_1,    '1',    '1',    '1',    '1' },
+     { SDLK_KP_2,    '2',    '2',    '2',    '2' },
+     { SDLK_KP_3,    '3',    '3',    '3',    '3' },
+     { SDLK_KP_4,    '4',    '4',    '4',    '4' },
+     { SDLK_KP_5,    '5',    '5',    '5',    '5' },
+     { SDLK_KP_6,    '6',    '6',    '6',    '6' },
+     { SDLK_KP_7,    '7',    '7',    '7',    '7' },
+     { SDLK_KP_8,    '8',    '8',    '8',    '8' },
+     { SDLK_KP_9,    '9',    '9',    '9',    '9' },
+     { SDLK_KP_BACKSPACE,     '\b', '\b', '\b', '\b' },
+     { SDLK_KP_ENTER,    '\r', '\r', '\r',     '\r' },
+     { SDLK_KP_PLUS,    '+', '+',     '+',     '+' },
+     { SDLK_KP_MINUS,    '-', '-',     '-',     '-' },
+     { SDLK_KP_MULTIPLY, '*', '*', '*',     '*' },
+     { SDLK_KP_DIVIDE,    '/', '/',     '/',     '/' },
+     { SDLK_KP_PERIOD,    '.', '.',     '.',     '.' },
+     { SDLK_RETURN,    '\r', '\r',    '\r',    '\r' },
+     { SDLK_RETURN2,    '\r', '\r',    '\r',    '\r' },
+     { SDLK_TAB,    '\t',    '\t',    '\t',    '\t' },
+     { 0x0,        0,        0,        0,        0 } 
 };
 
 void Init_Host_Event()
 {
     int i, j;
     /* sort keycode ascendantly */
-    for(i = 0; keycode_to_event[i]; i += 2) {
-        for(j = i + 2; keycode_to_event[j]; j += 2) {
-            if (keycode_to_event[i] > keycode_to_event[j]) {
-                REBCNT key = keycode_to_event[i];
+    for(i = 0; keycode_to_event[i].keycode; i ++) {
+        for(j = i + 1; keycode_to_event[j].keycode; j ++) {
+            if (keycode_to_event[i].keycode > keycode_to_event[j].keycode) {
+                struct SDL_REBEVT_Pair tmp = keycode_to_event[i];
                 keycode_to_event[i] = keycode_to_event[j];
-                keycode_to_event[j] = key;
-
-                key = keycode_to_event[i + 1];
-                keycode_to_event[i + 1] = keycode_to_event[j + 1];
-                keycode_to_event[j + 1] = key;
+                keycode_to_event[j] = tmp;
             }
         }
     }
 
-    for(i = 0; keycode_to_char[i]; i += 5) {
-        for(j = i + 5; keycode_to_char[j]; j += 5) {
-            if (keycode_to_char[i] > keycode_to_char[j]) {
-                REBCNT key = keycode_to_char[i];
+    for(i = 0; keycode_to_char[i].keycode; i ++) {
+        for(j = i + 1; keycode_to_char[j].keycode; j ++) {
+            if (keycode_to_char[i].keycode > keycode_to_char[j].keycode) {
+                struct SDL_REBYTE_Pair tmp = keycode_to_char[i];
                 keycode_to_char[i] = keycode_to_char[j];
-                keycode_to_char[j] = key;
-
-                key = keycode_to_char[i + 1];
-                keycode_to_char[i + 1] = keycode_to_char[j + 1];
-                keycode_to_char[j + 1] = key;
-
-                key = keycode_to_char[i + 2];
-                keycode_to_char[i + 2] = keycode_to_char[j + 2];
-                keycode_to_char[j + 2] = key;
-
-                key = keycode_to_char[i + 3];
-                keycode_to_char[i + 3] = keycode_to_char[j + 3];
-                keycode_to_char[j + 3] = key;
-
-                key = keycode_to_char[i + 4];
-                keycode_to_char[i + 4] = keycode_to_char[j + 4];
-                keycode_to_char[j + 4] = key;
+                keycode_to_char[j] = tmp;
             }
         }
     }
@@ -389,21 +378,21 @@ void dispatch (SDL_Event *evt)
                 if (gob != NULL) {
                     SDL_Keycode keycode = evt->key.keysym.sym;
                     SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "unprocessed keycode: 0x%x", keycode);
-                    for (i = 0; keycode_to_event[i] && keycode > keycode_to_event[i]; i += 2);
-                    if (keycode == keycode_to_event[i]) {
-                        key = keycode_to_event[i + 1] << 16;
+                    for (i = 0; keycode_to_event[i].keycode && keycode > keycode_to_event[i].keycode; i ++);
+                    if (keycode == keycode_to_event[i].keycode) {
+                        key = keycode_to_event[i + 1].key_event << 16;
                     } else {
-                        for (i = 0; keycode_to_char[i] && keycode > keycode_to_char[i]; i += 5);
-                        if (keycode == keycode_to_char[i]) {
+                        for (i = 0; keycode_to_char[i].keycode && keycode > keycode_to_char[i].keycode; i ++);
+                        if (keycode == keycode_to_char[i].keycode) {
                             SDL_Keymod mod = SDL_GetModState();
                             if (mod & KMOD_SHIFT && mod & KMOD_CAPS) {
-                                key = keycode_to_char[i + 4];
+                                key = keycode_to_char[i].with_cap_shift;
                             } else if (mod & KMOD_CAPS) {
-                                key = keycode_to_char[i + 3];
+                                key = keycode_to_char[i].with_cap;
                             } else if (mod & KMOD_SHIFT) {
-                                key = keycode_to_char[i + 2];
+                                key = keycode_to_char[i].with_shift;
                             } else {
-                                key = keycode_to_char[i + 1];
+                                key = keycode_to_char[i].charactor;
                             }
                         }
                     }
