@@ -41,6 +41,7 @@
 REBOOL Reduce_Any_Array_Throws(
     REBVAL *out,
     REBVAL *any_array,
+    REBOOL no_set,
     REBOOL into
 ) {
     REBDSP dsp_orig = DSP;
@@ -50,6 +51,11 @@ REBOOL Reduce_Any_Array_Throws(
 
     while (NOT_END(e.value)) {
         UPDATE_EXPRESSION_START(&e); // informs the error delivery better
+        if (no_set && IS_SET_WORD(e.value)) {
+            DS_PUSH(e.value);
+            FETCH_NEXT_ONLY_MAYBE_END(&e);
+            continue;
+        }
 
         REBVAL reduced;
         DO_NEXT_REFETCH_MAY_THROW(&reduced, &e, DO_FLAG_LOOKAHEAD);
@@ -93,6 +99,8 @@ REBOOL Reduce_Any_Array_Throws(
 //      return: [<opt> any-value!]
 //      value [<opt> any-value!]
 //          {If BLOCK!, expressions are reduced, otherwise single value.}
+//      /no-set
+//          {Keep set-words as-is. Do not set them.}
 //      /into
 //          {Output results into a series with no intermediate storage}
 //      target [any-array!]
@@ -101,8 +109,9 @@ REBOOL Reduce_Any_Array_Throws(
 REBNATIVE(reduce)
 {
     PARAM(1, value);
-    REFINE(2, into);
-    PARAM(3, target);
+    REFINE(2, no_set);
+    REFINE(3, into);
+    PARAM(4, target);
 
     REBVAL *value = ARG(value);
 
@@ -113,7 +122,7 @@ REBNATIVE(reduce)
         if (REF(into))
             *D_OUT = *ARG(target);
 
-        if (Reduce_Any_Array_Throws(D_OUT, value, REF(into))) {
+        if (Reduce_Any_Array_Throws(D_OUT, value, REF(no_set), REF(into))) {
             return R_OUT_IS_THROWN;
         }
 
