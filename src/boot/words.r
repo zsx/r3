@@ -80,6 +80,7 @@ title
 ;addr already defined
 
 condition ; used by BRANCHER to name the argument of the generated function
+value ; used by TYPECHECKER to name the argument of the generated function
 
 ; !!! See notes on FUNCTION-META and SPECIALIZER-META in %sysobj.r
 description

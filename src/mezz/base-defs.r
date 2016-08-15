@@ -37,17 +37,30 @@ eval proc [
     {Make type testing functions (variadic to quote "top-level" words)}
     :set-word... [set-word! <...>]
     <local>
-        set-word type-name
+        set-word type-name tester meta
 ][
     while [? set-word: take set-word...] [
         type-name: append (head clear find (spelling-of set-word) {?}) "!"
-        set set-word specialize 'has-type? compose [
-            type: (bind (to word! type-name) set-word)
+        tester: typechecker (get bind (to word! type-name) set-word)
+        set set-word :tester
+
+        ; The TYPECHECKER generator doesn't have make meta information by
+        ; default, so it leaves it up to the user code.  Note REDESCRIBE is
+        ; not defined yet, so this just makes the meta object directly.
+        ;
+        meta: copy system/standard/function-meta
+        meta/description: form reduce [
+            {Returns TRUE if the value is a} type-name
         ]
+        meta/return-type: [logic!]
+        set-meta :tester meta 
     ]
 ]
     ; This list consumed by the variadic evaluation, up to the | barrier
-    ; Each makes a specialization, XXX: SPECIALIZE 'HAS-TYPE? [TYPE: XXX!]
+    ; Each makes a specialization, `XXX: TYPECHECKER XXX!`.  A special
+    ; generator is used vs. something like a specialization of a HAS-TYPE?
+    ; function...because the generated dispatcher can be more optimized...
+    ; and type checking is quite common.
     ;
     blank?:
     bar?:

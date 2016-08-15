@@ -368,7 +368,6 @@ redescribe: function [
 
             not notes: any [:meta/parameter-notes] [
                 return () ; specialized or adapted, HELP uses original notes
-                pass
             ]
 
             not frame? notes [

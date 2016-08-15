@@ -1112,37 +1112,6 @@ REBNATIVE(type_of)
 }
 
 
-//
-//  has-type?: native [
-//
-//  {Checks to see if a value has a type or is in a typeset.}
-//
-//      type [datatype! typeset!]
-//      value [<opt> any-value!]
-//  ]
-//
-REBNATIVE(has_type_q)
-{
-    PARAM(1, type);
-    PARAM(2, value);
-
-    REBVAL *value = ARG(value);
-    REBVAL *type = ARG(type);
-
-    if (IS_DATATYPE(type)) {
-        if (VAL_TYPE(value) == VAL_TYPE_KIND(type))
-            return R_TRUE;
-    }
-    else {
-        assert(IS_TYPESET(type));
-        if (TYPE_CHECK(type, VAL_TYPE(value)))
-            return R_TRUE;
-    }
-
-    return R_FALSE;
-}
-
-
 
 //
 //  unset: native [
