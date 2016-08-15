@@ -137,7 +137,7 @@ static void Init_Dir_Path(REBREQ *dir, REBVAL *path, REBINT wild, REBCNT policy)
         OS_CH_EQUAL(dir->special.file.path[len-1], '/')
         || OS_CH_EQUAL(dir->special.file.path[len-1], '\\')
     ) {
-        if (policy & REMOVE_TAIL_SLASH) {
+        if ((policy & REMOVE_TAIL_SLASH) && len > 1) {
             dir->special.file.path[len-1] = OS_MAKE_CH('\0');
         }
         else {

@@ -1461,7 +1461,7 @@ REBNATIVE(make_callback)
         RIN_DISPATCHER(r)
     );
 
-    if (status != FFI_OK) 
+    if (status != FFI_OK)
         fail (Error(RE_MISC)); // couldn't prep closure
 
     SET_RIN_FLAG(r, ROUTINE_FLAG_CALLBACK);
