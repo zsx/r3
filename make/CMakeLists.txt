@@ -223,13 +223,16 @@ else ()
     set (FFI_LIBRARIES ffi_s)
 endif ()
 
+if (R3_WITH_TCC)
+    set (COMMON_MACROS ${COMMON_MACROS} WITH_TCC)
+endif ()
+
 #CORE
 set (CORE_SOURCE
     ${CORE_DIR}/a-constants.c
     ${CORE_DIR}/a-globals.c
     ${CORE_DIR}/a-lib.c
     ${CORE_DIR}/a-stubs.c
-    ${CORE_GENERATED_DIR}/b-boot.c
     ${CORE_DIR}/b-init.c
     ${CORE_DIR}/c-bind.c
     ${CORE_DIR}/c-do.c
@@ -511,6 +514,7 @@ set (GENERATED_CORE_SOURCE
     ${BOOT_OUTPUT}
     ${EXT_CORE_OUTPUT}
     ${REB_LIB_OUTPUT}
+    ${CORE_GENERATED_DIR}/b-boot.c
     )
 
 #HOST
