@@ -588,6 +588,7 @@ target_include_directories(r3-core PUBLIC
         ${TOP_GENERATED_SRC_DIR}/include
         ${TOP_SRC_DIR}/include
         ${TOP_SRC_DIR}/codecs
+        ${FFI_INCLUDE_DIRS}
         )
 target_compile_definitions(libr3_core_core PUBLIC REB_API REB_CORE ${COMMON_MACROS})
 if (WIN32)
