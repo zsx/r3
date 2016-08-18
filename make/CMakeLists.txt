@@ -1,4 +1,4 @@
-# vim: ts=2 shiftwidth=2 filetype=CMAKE expandtab
+# vim: ts=4 shiftwidth=4 filetype=CMAKE expandtab
 
 #
 # Sample command lines:
