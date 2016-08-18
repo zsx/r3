@@ -203,13 +203,18 @@ REBTYPE(Function)
             // For other function types, leak internal guts and hope for
             // the best, temporarily.
             //
-            Val_Init_Array(
-                D_OUT,
-                REB_BLOCK,
-                Copy_Array_Deep_Managed(
-                    VAL_ARRAY(VAL_FUNC_BODY(value)), SPECIFIED
-                )
-            );
+            if (IS_BLOCK(VAL_FUNC_BODY(value))) {
+                Val_Init_Array(
+                    D_OUT,
+                    REB_BLOCK,
+                    Copy_Array_Deep_Managed(
+                        VAL_ARRAY(VAL_FUNC_BODY(value)), SPECIFIED
+                    )
+                );
+            }
+            else {
+                SET_BLANK(D_OUT);
+            }
             return R_OUT;
 
         case SYM_TYPES: {
