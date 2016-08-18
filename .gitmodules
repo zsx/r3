@@ -1,3 +1,6 @@
 [submodule "external/libffi"]
 	path = external/libffi
 	url = git://github.com/atgreen/libffi.git
+[submodule "external/tcc"]
+	path = external/tcc
+	url = git://repo.or.cz/tinycc.git

@@ -359,3 +359,9 @@ __LINE__
 arg1
 arg2
 arg3
+
+include
+source
+library-path
+runtime-path
+options

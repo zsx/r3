@@ -12,8 +12,6 @@
 
 cmake_minimum_required (VERSION 2.8)
 
-set (CMAKE_OSX_DEPLOYMENT_TARGET 10.7)
-
 project (Rebol3 C CXX)
 
 
@@ -43,6 +41,8 @@ set (AGG_DIR "${TOP_SRC_DIR}/agg")
 set (TOOLS_DIR "${TOP_SRC_DIR}/tools")
 set (EXTERNAL_DIR "${TOP_SRC_DIR}/../external")
 set (FFI_DIR "${EXTERNAL_DIR}/libffi")
+set (TCC_DIR "${EXTERNAL_DIR}/tcc")
+
 if(CMAKE_HOST_WIN32)
     set (REBOL "${CMAKE_CURRENT_BINARY_DIR}/r3-make.exe")
 else()
@@ -51,6 +51,7 @@ endif()
 
 option(R3_EXTERNAL_FFI "Build with external FFI" OFF)
 option(R3_CPP "Build C files as C++" OFF)
+option(R3_WITH_TCC "Build with libtcc" OFF)
 
 if (NOT EXISTS ${REBOL})
     message(FATAL_ERROR "${REBOL} doesn't exist, an executable r3 is required")
@@ -264,6 +265,7 @@ set (CORE_SOURCE
     ${CORE_DIR}/d-print.c
     ${CORE_DIR}/d-stack.c
     ${CORE_DIR}/d-trace.c
+    ${CORE_DIR}/e-func-symbols.c
     ${CORE_DIR}/f-blocks.c
     ${CORE_DIR}/f-deci.c
     ${CORE_DIR}/f-dtoa.c
@@ -288,6 +290,7 @@ set (CORE_SOURCE
     ${CORE_DIR}/n-io.c
     ${CORE_DIR}/n-loop.c
     ${CORE_DIR}/n-math.c
+    ${CORE_DIR}/n-native.c
     ${CORE_DIR}/n-reduce.c
     ${CORE_DIR}/n-sets.c
     ${CORE_DIR}/n-strings.c
@@ -553,6 +556,84 @@ set (GENERATED_CORE_SOURCE
     ${CORE_GENERATED_DIR}/b-boot.c
     )
 
+if (R3_WITH_TCC)
+    if (XCODE) #Xcode has problem with EXCLUDE_FROM_ALL
+        add_subdirectory(${TCC_DIR} ${CMAKE_CURRENT_BINARY_DIR}/tcc)
+    else ()
+      add_subdirectory(${TCC_DIR} ${CMAKE_CURRENT_BINARY_DIR}/tcc EXCLUDE_FROM_ALL)
+      #add_subdirectory(${TCC_DIR} ${CMAKE_CURRENT_BINARY_DIR}/tcc)
+    endif ()
+    list (APPEND LIBS libtcc)
+    list (APPEND INC ${TCC_DIR})
+
+    set (TCC_ARGS "")
+    foreach (macro ${COMMON_MACROS})
+        list(APPEND TCC_ARGS "-D${macro}")
+    endforeach(macro)
+    foreach (macro ${FFI_INCLUDE_DIRS})
+        list(APPEND TCC_ARGS "-I${macro}")
+    endforeach(macro)
+
+    string (TOLOWER "${CMAKE_BUILD_TYPE}" build_type)
+
+    if ("${build_type}" STREQUAL "debug")
+        set(tcc_c_flags "${CMAKE_C_FLAGS_DEBUG}")
+    elseif ("${build_type}" STREQUAL "minsizerel")
+        set(tcc_c_flags "${CMAKE_C_FLAGS_MINSIZEREL}")
+    elseif ("${build_type}" STREQUAL "relwithdebinfo")
+        set(tcc_c_flags "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
+    elseif ("${build_type}" STREQUAL "release")
+        set(tcc_c_flags "${CMAKE_C_FLAGS_RELEASE}")
+    else ()
+        message ("ERROR!!!!!!!!!!!!${build_type}!!!")
+    endif ()
+
+    #flags needs to be a list
+    string(REGEX MATCH "[-/][DI][ \t]*[^ \t]+" interested "${tcc_c_flags}")
+    string(REGEX REPLACE "[-/]([DI])[ \t]*" "-\\1" no_spaces "${interested}")
+
+    string(REGEX REPLACE "[ \t]+" ";" tcc_c_flag_list "${no_spaces}")
+    #message("cflags: ${tcc_c_flag_list}")
+
+    set (SYS_CORE_PREP ${TOP_GENERATED_SRC_DIR}/include/sys-core.i)
+    set (SYS_CORE_HEADER ${TOP_SRC_DIR}/include/sys-core.h)
+    get_target_property(TCC_EXE tcc LOCATION)
+    #set (TCC_EXE ${CMAKE_CURRENT_BINARY_DIR}/tcc/tcc${CMAKE_EXECUTABLE_SUFFIX})
+
+    if (WIN32)
+        list(APPEND tcc_c_flag_list "-I${TCC_DIR}/win32/include")
+        list(APPEND tcc_c_flag_list "-DPVAR=TVAR -DTVAR=\"extern __attribute__((dllimport))\"")
+    endif ()
+
+    list(APPEND tcc_c_flag_list "-DREN_C_STDIO_OK") #allow stdio.h
+    message("cflags: ${tcc_c_flags}")
+
+    add_custom_command(OUTPUT
+        ${SYS_CORE_PREP}
+        COMMAND ${TCC_EXE} -E -dD -o ${SYS_CORE_PREP} ${SYS_CORE_HEADER} -I${TCC_DIR}/include -I${TOP_GENERATED_SRC_DIR}/include -I${TOP_SRC_DIR}/include -I${TOP_SRC_DIR}/codecs ${TCC_ARGS} ${tcc_c_flag_list}
+        DEPENDS
+        tcc
+        libtcc1
+        ${TOOLS_DIR}/make-embedded-header.r
+        ${CMAKE_CURRENT_BINARY_DIR}/tcc/tcc
+        ${BOOT_OUTPUT}
+        ${HEADER_OUTPUT}
+        ${SYS_CORE_HEADER}
+        ${TOP_GENERATED_SRC_DIR}/include/host-lib.h
+        )
+
+    add_custom_command(OUTPUT
+        ${CORE_GENERATED_DIR}/e-embedded-header.c
+        COMMAND ${REBOL} ${TOOLS_DIR}/make-embedded-header.r OUTDIR=${TOP_GENERATED_SRC_DIR}
+        DEPENDS
+        ${TOOLS_DIR}/make-embedded-header.r
+        ${SYS_CORE_PREP}
+        )
+
+    list (APPEND GENERATED_CORE_SOURCE ${CORE_GENERATED_DIR}/e-embedded-header.c)
+
+endif()
+
 #HOST
 set_source_files_properties(
     ${TOP_GENERATED_SRC_DIR}/include/host-table.inc
@@ -621,17 +702,20 @@ if(NOT (MSVC_IDE OR XCODE))
 endif()
 add_library(libr3_core_core OBJECT ${CORE_SOURCE} ${GENERATED_CORE_SOURCE} ${GENERATED_OS_SOURCE})
 add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> ${OS_SOURCE})
+
 target_include_directories(libr3_core_core PUBLIC
         ${TOP_GENERATED_SRC_DIR}/include
         ${TOP_SRC_DIR}/include
         ${TOP_SRC_DIR}/codecs
         ${FFI_INCLUDE_DIRS}
+        ${INC}
         )
 target_include_directories(r3-core PUBLIC
         ${TOP_GENERATED_SRC_DIR}/include
         ${TOP_SRC_DIR}/include
         ${TOP_SRC_DIR}/codecs
         ${FFI_INCLUDE_DIRS}
+        ${INC}
         )
 target_compile_definitions(libr3_core_core PUBLIC REB_API REB_CORE ${COMMON_MACROS})
 if (WIN32)
