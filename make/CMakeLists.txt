@@ -101,6 +101,7 @@ if (R3_OS_ID STREQUAL "0.2.5")
     set (TO_OSX_X86 TRUE)
     list (APPEND COMMON_MACROS
         TO_OSX_X86
+        TRAP_IS_INT3
         )
     set(CMAKE_OSX_ARCHITECTURE i386)
 elseif (R3_OS_ID STREQUAL "0.2.40")
@@ -108,6 +109,7 @@ elseif (R3_OS_ID STREQUAL "0.2.40")
     list (APPEND COMMON_MACROS
         TO_OSX_X64
         __LP64__
+        TRAP_IS_INT3
         )
     set(CMAKE_OSX_ARCHITECTURE x86_64)
 elseif (R3_OS_ID STREQUAL "0.3.1")
@@ -125,6 +127,7 @@ elseif (R3_OS_ID STREQUAL "0.4.4")
     set (TO_LINUX_X86 TRUE)
     list (APPEND COMMON_MACROS
         TO_LINUX_X86
+        TRAP_IS_INT3
         )
 elseif (R3_OS_ID STREQUAL "0.4.20") #linux arm
     set (TO_LINUX_ARM TRUE)
@@ -136,6 +139,7 @@ elseif (R3_OS_ID STREQUAL "0.4.40") #linux x86_64
     list (APPEND COMMON_MACROS
         TO_LINUX_X64
         __LLP64__
+        TRAP_IS_INT3
         )
 endif ()
 
@@ -526,7 +530,7 @@ set_source_files_properties(
 
 set(EXT_OS_OUTPUT
     ${TOP_GENERATED_SRC_DIR}/include/host-lib.h
-        ${TOP_GENERATED_SRC_DIR}/include/host-table.inc
+    ${TOP_GENERATED_SRC_DIR}/include/host-table.inc
     )
 
 set(EXT_OS_DEPENDS
