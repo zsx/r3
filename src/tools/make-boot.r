@@ -1069,7 +1069,7 @@ for-each [category info] boot-errors [
 emit-end
 
 emit {
-#define RE_USER 1000 // Hardcoded, update in %make-boot.r
+#define RE_USER 10000 // Hardcoded, update in %make-boot.r
 
 #define RE_INTERNAL_FIRST RE_MISC // GENERATED! update in %make-boot.r
 #define RE_MAX RE_COMMAND_MAX // GENERATED! update in %make-boot.r

@@ -34,7 +34,7 @@ Internal: [
     ; use sophisticated REBVALs as arguments, because it may be too early
     ; in the boot process for them to be molded properly.
     ;
-    code: 100
+    code: 1000
     type: "internal"
 
     ; Because adding an error code has the overhead of modifying this file and
@@ -96,7 +96,7 @@ Internal: [
 ]
 
 Syntax: [
-    code: 200
+    code: 2000
     type: "syntax error"
     invalid:            [{invalid} :arg1 {--} :arg2]
     missing:            [{missing} :arg2 {at} :arg1]
@@ -109,7 +109,7 @@ Syntax: [
 ]
 
 Script: [
-    code: 300
+    code: 3000
     type: "script error"
 
     no-value:           [:arg1 {has no value}]
@@ -243,7 +243,7 @@ Script: [
 ]
 
 Math: [
-    code: 400
+    code: 4000
     type: "math error"
 
     zero-divide:        {attempt to divide by zero}
@@ -256,7 +256,7 @@ Math: [
 ]
 
 Access: [
-    code: 500
+    code: 5000
     type: "access error"
 
     locked-word:        [{variable} :arg1 {locked by PROTECT - cannot modify}]
@@ -320,7 +320,7 @@ Access: [
 ]
 
 Command: [
-    code: 600
+    code: 6000
     type: "command error"
     bad-cmd-args:       ["Bad command arguments"]
     no-cmd:             ["No command"]
@@ -343,4 +343,4 @@ Command: [
 ; If new category added, be sure to update RE_MAX in %make-boot.r
 ; (currently RE_COMMAND_MAX because `Command: [...]` is the last category)
 
-; Note that 1000 is the hardcoded constant in %make-boot.r used for RE_USER
+; Note that 10000 is the hardcoded constant in %make-boot.r used for RE_USER
