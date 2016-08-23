@@ -821,11 +821,16 @@ module: func [
     ; To try and standardize the variance, Ren-C does not accept LIT-WORD!
     ; in these slots.
     ;
+    ; !!! Although this is a goal, it creates some friction.  Backing off of
+    ; it temporarily.
+    ;
     if lit-word? spec/name [
-        fail ["Ren-C module Name:" (spec/name) "must be WORD!, not LIT-WORD!"]
+        spec/name: as word! spec/name
+        ;fail ["Ren-C module Name:" (spec/name) "must be WORD!, not LIT-WORD!"]
     ]
     if lit-word? spec/type [
-        fail ["Ren-C module Type:" (spec/name) "must be WORD!, not LIT-WORD!"]
+        spec/type: as word! spec/type
+        ;fail ["Ren-C module Type:" (spec/type) "must be WORD!, not LIT-WORD!"]
     ]
 
     ; Validate the important fields of header:

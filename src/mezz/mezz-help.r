@@ -685,7 +685,7 @@ upgrade: function [
 
 why?: procedure [
     "Explain the last error in more detail."
-    'err [<opt> word! path! error! blank!] "Optional error value"
+    'err [<end> word! path! error! blank!] "Optional error value"
 ][
     case [
         not set? 'err [err: _]

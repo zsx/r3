@@ -653,9 +653,10 @@ REBNATIVE(change_dir)
 
 //
 //  browse: native [
-//  
+//
 //  "Open web browser to a URL or local file."
-//  
+//
+//      return: [<opt>]
 //      url [url! file! blank!]
 //  ]
 //
