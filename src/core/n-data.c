@@ -1270,7 +1270,7 @@ REBNATIVE(punctuates_q)
 //  {Aliases the underlying data of one series to act as another of same class}
 //
 //      type [datatype!]
-//      value [any-series!]
+//      value [any-series! any-word!]
 //  ]
 //
 REBNATIVE(as)
@@ -1296,6 +1296,16 @@ REBNATIVE(as)
     case REB_FILE:
     case REB_URL:
         if (!ANY_BINSTR(value) || IS_BINARY(value))
+            fail (Error_Invalid_Arg(value));
+        break;
+
+    case REB_WORD:
+    case REB_GET_WORD:
+    case REB_SET_WORD:
+    case REB_LIT_WORD:
+    case REB_ISSUE:
+    case REB_REFINEMENT:
+        if (!ANY_WORD(value))
             fail (Error_Invalid_Arg(value));
         break;
     }
