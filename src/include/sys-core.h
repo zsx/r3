@@ -673,8 +673,12 @@ enum Reb_Vararg_Op {
     #define PVAR extern "C"
     #define TVAR extern "C"
 #else
+#if !defined(PVAR)
     #define PVAR extern
+#endif
+#if !defined(TVAR)
     #define TVAR extern
+#endif
 #endif
 
 #include "sys-globals.h"
