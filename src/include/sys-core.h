@@ -672,8 +672,18 @@ enum Reb_Vararg_Op {
     #define PVAR extern "C"
     #define TVAR extern "C"
 #else
-    #define PVAR extern
-    #define TVAR extern
+    // When being preprocessed by TCC and combined with the user - native
+    // code, all global variables need to be declared
+    // `extern __attribute__((dllimport))` on Windows, or incorrect code
+    // will be generated for dereferences.  Hence these definitions for
+    // PVAR and TVAR allow for overriding at the compiler command line.
+    //
+    #if !defined(PVAR)
+        #define PVAR extern
+    #endif
+    #if !defined(TVAR)
+        #define TVAR extern
+    #endif
 #endif
 
 #include "sys-globals.h"

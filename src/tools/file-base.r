@@ -81,6 +81,7 @@ core: [
     n-io.c
     n-loop.c
     n-math.c
+    n-native.c
     n-reduce.c
     n-sets.c
     n-strings.c
