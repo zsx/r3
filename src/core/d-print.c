@@ -548,32 +548,31 @@ void Debug_Values(const RELVAL *value, REBCNT count, REBCNT limit)
 //
 void Debug_Buf(const char *fmt, va_list *vaptr)
 {
-    REBCNT len;
-    REBCNT sub;
-    REBCNT n;
-    REBSER *bytes;
     REBINT disabled = GC_Disabled;
-    REB_MOLD mo;
-    CLEARS(&mo);
-
     GC_Disabled = 1;
 
+    REB_MOLD mo;
+    CLEARS(&mo);
     Push_Mold(&mo);
 
     Form_Args_Core(&mo, fmt, vaptr);
 
-    bytes = Pop_Molded_UTF8(&mo);
+    REBSER *bytes = Pop_Molded_UTF8(&mo);
 
     // Don't send the Debug_String routine more than 1024 bytes at a time,
     // but chunk it to 1024 byte sections.
     //
     // !!! What's the rationale for this?
     //
-    len = SER_LEN(bytes);
-    for (n = 0; n < len; n += sub) {
-        sub = len - n;
-        if (sub > 1024) sub = 1024;
+    REBCNT len = SER_LEN(bytes);
+
+    REBCNT n = 0;
+    while (n < len) {
+        REBCNT sub = len - n;
+        if (sub > 1024)
+            sub = 1024;
         Debug_String(BIN_AT(bytes, n), sub, FALSE, 0);
+        n += sub;
     }
 
     Free_Series(bytes);

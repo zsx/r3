@@ -50,8 +50,6 @@ const struct {
     REBSYM sym;
     REBU64 bits;
 } Typesets[] = {
-    {SYM_ANY_NOTHING_X, TS_NOTHING},
-    {SYM_ANY_SOMETHING_X, TS_SOMETHING},
     {SYM_ANY_VALUE_X, TS_VALUE},
     {SYM_ANY_WORD_X, TS_WORD},
     {SYM_ANY_PATH_X, TS_PATH},
@@ -167,8 +165,8 @@ REBOOL Update_Typeset_Bits_Core(
                 TYPE_SET(typeset, KIND_FROM_SYM(sym));
                 continue;
             }
-            else if (sym >= SYM_ANY_NOTHING_X && sym < SYM_DATATYPES)
-                var = ARR_AT(types, sym - SYM_ANY_NOTHING_X);
+            else if (sym >= SYM_ANY_VALUE_X && sym < SYM_DATATYPES)
+                var = ARR_AT(types, sym - SYM_ANY_VALUE_X);
         }
 
         if (!var) var = item;

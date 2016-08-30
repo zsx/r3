@@ -15,9 +15,7 @@ REBOL [
     }
 ]
 
-any-nothing! ;-- signal typesets start (SYM_ANY_NOTHING_X hardcoded reference)
-any-something!
-any-value!
+any-value! ;-- signal typesets start (SYM_ANY_VALUE_X hardcoded reference)
 any-word!
 any-path!
 any-number!
@@ -25,7 +23,7 @@ any-scalar!
 any-series!
 any-string!
 any-context!
-any-array! ;-- replacement for any-block! that doesn't conflate with "block"
+any-array! ;-- replacement for ANY-BLOCK! that doesn't conflate with BLOCK!
 
 ;-----------------------------------------------------------------------------
 ; Signal that every earlier numbered symbol is for a typeset or datatype...
