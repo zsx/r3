@@ -296,7 +296,7 @@ dlib-buffer
 
 write-if reb-ext-defs out
 
-write-if %../reb-lib-doc.txt comments-buffer
+write-if output-dir/reb-lib-doc.txt comments-buffer
 
 ;ask "Done"
 print "   "
