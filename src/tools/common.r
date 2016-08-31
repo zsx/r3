@@ -282,7 +282,7 @@ parse-args: func [
 	args: any [args copy []]
 	unless block? args [args: split args [some " "]]
 	foreach a args [
-		if found? idx: find a #"=" [
+		if to logic! idx: find a #"=" [
 			name: to word! copy/part a (index-of idx) - 1
 			value: copy next idx
 			append ret reduce [name value]
