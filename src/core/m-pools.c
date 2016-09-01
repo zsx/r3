@@ -1440,31 +1440,57 @@ void GC_Kill_Series(REBSER *s)
         if (Prior_Expand[n] == s) Prior_Expand[n] = 0;
     }
 
-    if (
-        GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)
-        && !GET_SER_FLAG(s, SERIES_FLAG_EXTERNAL)
-    ) {
-        REBCNT size = SER_TOTAL(s);
+    if (GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)) {
+        if (GET_SER_FLAG(s, SERIES_FLAG_EXTERNAL)) {
+            //
+            // External series have their REBSER GC'd when Rebol doesn't need it,
+            // but the data pointer itself is not one that Rebol allocated
+            // !!! Should the external owner be told about the GC/free event?
+        }
+        else {
+            REBCNT size = SER_TOTAL(s);
 
-        REBYTE wide = SER_WIDE(s);
-        REBCNT bias = SER_BIAS(s);
-        s->content.dynamic.data -= wide * bias;
-        Free_Unbiased_Series_Data(
-            s->content.dynamic.data,
-            Series_Allocation_Unpooled(s)
-        );
+            REBYTE wide = SER_WIDE(s);
+            REBCNT bias = SER_BIAS(s);
+            s->content.dynamic.data -= wide * bias;
+            Free_Unbiased_Series_Data(
+                s->content.dynamic.data,
+                Series_Allocation_Unpooled(s)
+            );
 
-        // !!! This indicates reclaiming of the space, but not for the series
-        // nodes themselves...have they never been accounted for, e.g. in
-        // R3-Alpha?  If not, they should be...additional sizeof(REBSER)
+            // !!! This indicates reclaiming of the space, not for the series
+            // nodes themselves...have they never been accounted for, e.g. in
+            // R3-Alpha?  If not, they should be...additional sizeof(REBSER),
+            // also tracking overhead for that.  Review the question of how
+            // the GC watermarks interact with Alloc_Mem and the "higher
+            // level" allocations.
 
-        if (REB_I32_ADD_OF(GC_Ballast, size, &GC_Ballast))
-            GC_Ballast = MAX_I32;
+            if (REB_I32_ADD_OF(GC_Ballast, size, &GC_Ballast))
+                GC_Ballast = MAX_I32;
+        }
     }
     else {
-        // External series have their REBSER GC'd when Rebol doesn't need it,
-        // but the data pointer itself is not one that Rebol allocated
-        // !!! Should the external owner be told about the GC/free event?
+        assert(!GET_SER_FLAG(s, SERIES_FLAG_EXTERNAL));
+
+        // Special GC processing for HANDLE! when the handle is implemented as
+        // a singular array, so that if the handle represents a resource, it
+        // may be freed.
+        //
+        // Note that not all singular arrays containing a HANDLE! should be
+        // interpreted that when the array is freed the handle is freed (!)
+        // Only when the handle array pointer in the freed singular
+        // handle matches the REBARR being freed.  (It may have been just a
+        // singular array that happened to contain a handle, otherwise, as
+        // opposed to the specific singular made for the handle's GC awareness)
+
+        if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY)) {
+            RELVAL *v = ARR_HEAD(AS_ARRAY(s));
+            if (NOT_END(v) && IS_HANDLE(v)) {
+                if (v->extra.singular == AS_ARRAY(s)) {
+                    (s->misc.cleaner)(KNOWN(v));
+                }
+            }
+        }
     }
 
     s->info.bits = 0; // includes width

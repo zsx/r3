@@ -519,6 +519,9 @@ struct Reb_Varargs {
     REBVAL *arg;
 };
 
+// Note that the ->extra field of the REBVAL may contain a singular REBARR
+// that is leveraged for its GC-awareness.
+//
 struct Reb_Handle {
     CFUNC *code;
     void *data;
@@ -664,6 +667,14 @@ union Reb_Value_Extra {
     union Reb_Eventee eventee;
 
     unsigned m0:32; // !!! significand, lowest part - see notes on Reb_Money
+
+    // There are two types of HANDLE!, and one version leverages the GC-aware
+    // ability of a REBSER to know when no references to the handle exist and
+    // call a cleanup function.  The GC-aware variant allocates a "singular"
+    // array, which is the exact size of a REBSER and carries the canon data.
+    // If the cheaper kind that's just raw data and no callback, this is NULL.
+    //
+    REBARR *singular;
 
 #if !defined(NDEBUG)
     REBUPT do_count; // used by track payloads

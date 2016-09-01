@@ -1165,7 +1165,11 @@ void Register_Codec(const REBYTE *name, codo dispatcher)
     REBSTR *sym = Intern_UTF8_Managed(name, LEN_BYTES(name));
 
     value = Append_Context(VAL_CONTEXT(value), 0, sym);
-    SET_HANDLE_CODE(value, cast(CFUNC*, dispatcher));
+    Init_Handle_Simple(
+        value,
+        cast(CFUNC*, dispatcher), // code
+        NULL // data
+    );
 }
 
 

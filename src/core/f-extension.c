@@ -295,7 +295,11 @@ void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type)
         break;
 
     case RXT_HANDLE:
-        SET_HANDLE_DATA(val, arg->addr);
+        Init_Handle_Simple(
+            val,
+            NULL, // code
+            arg->addr // data
+        );
         break;
 
     case RXT_IMAGE:
@@ -372,46 +376,47 @@ REBNATIVE(load_extension)
     REFINE(2, dispatch);
     PARAM(3, function);
 
-    REBCHR *name;
-    void *dll;
-    REBCNT error;
-    REBYTE *code;
-    CFUNC *info; // INFO_FUNC
-    REBCTX *context;
-    REBVAL *val = D_ARG(1);
-    REBEXT *ext;
-    CFUNC *call; // RXICAL
+    REBVAL *val = ARG(name);
+
     REBSER *src;
+    CFUNC *call; // RXICAL
+    void *dll;
 
     //Check_Security(SYM_EXTENSION, POL_EXEC, val);
 
-    if (!REF(dispatch)) { // No /dispatch, use the DLL file:
+    if (!REF(dispatch)) { // use the DLL file
 
         if (!IS_FILE(val)) fail (Error_Invalid_Arg(val));
 
         // !!! By passing NULL we don't get backing series to protect!
-        name = Val_Str_To_OS_Managed(NULL, val);
+        REBCHR *name = Val_Str_To_OS_Managed(NULL, val);
 
         // Try to load the DLL file:
-        if (!(dll = OS_OPEN_LIBRARY(name, &error))) {
+        REBCNT err_num;
+        if (!(dll = OS_OPEN_LIBRARY(name, &err_num))) {
             fail (Error(RE_NO_EXTENSION, val));
         }
 
-        // Call its info() function for header and code body:
-        info = OS_FIND_FUNCTION(dll, cs_cast(BOOT_STR(RS_EXTENSION, 0)));
+        // Call its INFO_FUNC info() function for header and code body:
+
+        CFUNC *info = OS_FIND_FUNCTION(
+            dll,
+            cs_cast(BOOT_STR(RS_EXTENSION, 0))
+        );
         if (!info){
             OS_CLOSE_LIBRARY(dll);
             fail (Error(RE_BAD_EXTENSION, val));
         }
 
         // Obtain info string as UTF8:
+        REBYTE *code;
         if (!(code = cast(INFO_FUNC*, info)(0, Extension_Lib()))) {
             OS_CLOSE_LIBRARY(dll);
             fail (Error(RE_EXTENSION_INIT, val));
         }
 
         // Import the string into REBOL-land:
-        src = Copy_Bytes(code, -1); // Nursery protected
+        src = Copy_Bytes(code, -1);
         call = OS_FIND_FUNCTION(
             dll, cs_cast(BOOT_STR(RS_EXTENSION, 2))
         ); // zero is allowed
@@ -419,31 +424,34 @@ REBNATIVE(load_extension)
     else {
         // Hosted extension:
         src = VAL_SERIES(val);
-        call = VAL_HANDLE_CODE(D_ARG(3));
+        call = VAL_HANDLE_CODE(ARG(function));
         dll = 0;
     }
 
-    ext = &Ext_List[Ext_Next];
+    REBEXT *ext = &Ext_List[Ext_Next];
     CLEARS(ext);
     ext->call = cast(RXICAL, call);
     ext->dll = dll;
     ext->index = Ext_Next++;
 
     // Extension return: dll, info, filename
-    context = Copy_Context_Shallow(
+    REBCTX *context = Copy_Context_Shallow(
         VAL_CONTEXT(Get_System(SYS_STANDARD, STD_EXTENSION))
     );
-    Val_Init_Object(D_OUT, context);
 
     // Set extension fields needed:
-    val = CTX_VAR(context, STD_EXTENSION_LIB_BASE);
-    SET_HANDLE_NUMBER(val, ext->index);
+    Init_Handle_Simple(
+        CTX_VAR(context, STD_EXTENSION_LIB_BASE),
+        NULL, // code
+        cast(void*, cast(REBUPT, ext->index)) // data
+    );
 
-    if (!D_REF(2))
-        *CTX_VAR(context, STD_EXTENSION_LIB_FILE) = *D_ARG(1);
+    if (!REF(dispatch))
+        *CTX_VAR(context, STD_EXTENSION_LIB_FILE) = *ARG(name);
 
     Val_Init_Binary(CTX_VAR(context, STD_EXTENSION_LIB_BOOT), src);
 
+    Val_Init_Object(D_OUT, context);
     return R_OUT;
 }
 
@@ -472,7 +480,7 @@ void Make_Command(
         REBEXT *rebext;
         REBVAL *handle = VAL_CONTEXT_VAR(extension, SELFISH(1));
         if (!IS_HANDLE(handle)) goto bad_func_def;
-        rebext = &Ext_List[VAL_HANDLE_NUMBER(handle)];
+        rebext = &Ext_List[cast(REBUPT, VAL_HANDLE_DATA(handle))];
         if (!rebext || !rebext->call) goto bad_func_def;
     }
 
@@ -576,7 +584,7 @@ REB_R Command_Dispatcher(REBFRM *f)
     //
     REBVAL *data = KNOWN(VAL_ARRAY_HEAD(FUNC_BODY(f->func)));
     REBEXT *handler = &Ext_List[
-        VAL_HANDLE_NUMBER(VAL_CONTEXT_VAR(data, SELFISH(1)))
+        cast(REBUPT, VAL_HANDLE_DATA(VAL_CONTEXT_VAR(data, SELFISH(1))))
     ];
     REBCNT cmd_num = cast(REBCNT, Int32(data + 1));
 

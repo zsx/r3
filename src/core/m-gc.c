@@ -736,6 +736,21 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             break;
 
         case REB_HANDLE:
+            //
+            // See %sys-handle.h for an explanation of the two different types
+            // of HANDLE!; one uses a singular REBSER to participate in GC
+            // and another is just an opaque pointer with no GC hook.
+            //
+            if (val->extra.singular) {
+            #if !defined(NDEBUG)
+                assert(ARR_LEN(val->extra.singular) == 1);
+                RELVAL *h = ARR_HEAD(val->extra.singular);
+                assert(IS_HANDLE(h));
+                assert(h->extra.singular == val->extra.singular);
+            #endif
+
+                Mark_Series_Only(ARR_SERIES(val->extra.singular));
+            }
             break;
 
         case REB_DATATYPE:

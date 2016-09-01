@@ -437,6 +437,7 @@ struct Reb_Series {
             REBINT high:16;
             REBINT low:16;
         } bind_index; // canon words hold index for binding--demo sharing 2
+        CLEANUP_FUNC cleaner; // some HANDLE!s use this for GC finalization
     } misc;
 
 #if !defined(NDEBUG)

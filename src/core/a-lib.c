@@ -357,7 +357,11 @@ RL_API void *RL_Extend(const REBYTE *source, RXICAL call)
     value = Alloc_Tail_Array(array);
     Val_Init_Binary(value, Copy_Bytes(source, -1)); // UTF-8
     value = Alloc_Tail_Array(array);
-    SET_HANDLE_CODE(value, cast(CFUNC*, call));
+    Init_Handle_Simple(
+        value,
+        cast(CFUNC*, call), // code
+        NULL // data
+    );
 
     return Extension_Lib();
 }

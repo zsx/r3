@@ -1071,44 +1071,6 @@ inline static void SET_TUPLE(RELVAL *v, const void *data) {
 }
 
 
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  HANDLE! (`struct Reb_Handle`)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// Type for holding an arbitrary code or data pointer inside of a Rebol data
-// value.  What kind of function or data is not known to the garbage collector,
-// so it ignores it.
-//
-// !!! Review usages of this type where they occur.
-//
-
-#define VAL_HANDLE_CODE(v) \
-    ((v)->payload.handle.code)
-
-#define VAL_HANDLE_DATA(v) \
-    ((v)->payload.handle.data)
-
-#define VAL_HANDLE_NUMBER(v) \
-    cast(REBUPT, (v)->payload.handle.data)
-
-inline static void SET_HANDLE_CODE(RELVAL *v, CFUNC *code) {
-    VAL_RESET_HEADER(v, REB_HANDLE);
-    VAL_HANDLE_CODE(v) = code;
-}
-
-inline static void SET_HANDLE_DATA(RELVAL *v, void *data) {
-    VAL_RESET_HEADER(v, REB_HANDLE);
-    VAL_HANDLE_DATA(v) = data;
-}
-
-inline static void SET_HANDLE_NUMBER(RELVAL *v, REBUPT number) {
-    VAL_RESET_HEADER(v, REB_HANDLE);
-    VAL_HANDLE_DATA(v) = cast(void*, number);
-}
-
-
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
