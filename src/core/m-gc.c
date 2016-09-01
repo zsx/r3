@@ -1115,58 +1115,107 @@ static void Mark_Array_Deep_Core(REBARR *array)
 //
 //  Sweep_Series: C
 // 
-// Scans all series in all segments that are part of the
-// SER_POOL.  If a series had its lifetime management
-// delegated to the garbage collector with MANAGE_SERIES(),
-// then if it didn't get "marked" as live during the marking
-// phase then free it.
-// 
-// The current exception is that any GC-managed series that has
-// been marked with the SER_KEEP flag will not be freed--unless
-// this sweep call is during shutdown.  During shutdown, those
-// kept series will be freed as well.
-// 
-// !!! Review the idea of SER_KEEP, as it is a lot like
-// Guard_Series (which was deleted).  Although SER_KEEP offers a
-// less inefficient way to flag a series as protected from the
-// garbage collector, it can be put on and left for an arbitrary
-// amount of time...making it seem contentious with the idea of
-// delegating it to the garbage collector in the first place.
+// Scans all series nodes (REBSER structs) in all segments that are part of
+// the SER_POOL.  If a series had its lifetime management delegated to the
+// garbage collector with MANAGE_SERIES(), then if it didn't get "marked" as
+// live during the marking phase then free it.
 //
 ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
 {
     REBCNT count = 0;
 
+    // Optimization here depends on SWITCH of the concrete values of bits.
+    //
+    assert(
+        (NOT_END_MASK == 0x1)
+        && (CELL_MASK == 0x2)
+        && (REBSER_REBVAL_FLAG_MANAGED == 0x4)
+    );
+
     REBSEG *seg;
-    for (seg = Mem_Pools[SER_POOL].segs; seg; seg = seg->next) {
-        REBSER *series = cast(REBSER *, seg + 1);
+    for (seg = Mem_Pools[SER_POOL].segs; seg != NULL; seg = seg->next) {
+        REBSER *s = cast(REBSER*, seg + 1);
         REBCNT n;
-        for (n = Mem_Pools[SER_POOL].units; n > 0; n--, series++) {
-            if (IS_FREE_NODE(series))
-                continue;
-
-            if (!IS_SERIES_MANAGED(series))
-                continue;
-
-            if (IS_REBSER_MARKED(series)) {
-                UNMARK_REBSER(series);
-                continue;
-            }
-
-            // !!! There used to be a `shutdown` test here, but shouldn't
-            // shutdown just not mark anything and GC everything anyway?
-
-            if (series->header.bits & CELL_MASK) {
+        for (n = Mem_Pools[SER_POOL].units; n > 0; --n, ++s) {
+            switch (s->header.bits & 0x7) {
+            case 0:
+                // Marked as an end, but not marked as a cell.  Only way this
+                // should be able to happen is if this is a free node with
+                // all header bits set to 0.
                 //
-                // It's a pairing, just two REBVALs worth of bits and nothing
-                // else.  Free the node (Free_Pairing only works on manuals)
-                //
-                Free_Node(SER_POOL, series);
-            }
-            else
-                GC_Kill_Series(series);
+                assert(IS_FREE_NODE(s));
+                break;
 
-            count++;
+            case 1:
+                // Doesn't have CELL_MASK set, but not marked as an END.  This
+                // is the state series start out in as unmanaged, where the
+                // not end bit is merely indicating "not free". 
+                //
+                assert(!IS_SERIES_MANAGED(s));
+                break;
+
+            case 2:
+                // CELL_MASK set and it's an END, REBSER_REBVAL_FLAG_MANAGED
+                // is not set.  That's an "unmanaged pairing" whose key is
+                // an END, which occurs in some API tracking cases.  It's a
+                // REBSER node, but *not* a "series".
+                //
+                assert(!IS_SERIES_MANAGED(s));
+                break;
+
+            case 3:
+                // CELL_MASK set and it's not an end, and also not managed.
+                // So this is a pairing with some value key that is not
+                // GC managed.  Skip it.
+                //
+                assert(!IS_SERIES_MANAGED(s));
+                break;
+            
+            case 4:
+                // A managed REBSER which has no cell mask and is marked as
+                // an END.  This currently doesn't happen, because the not end
+                // bit is set on series at creation time so the header isn't
+                // all zero bits (which would be free).  But this could signal
+                // some special condition in the future. 
+                //
+                assert(FALSE);
+                break;
+
+            case 5:
+                // A managed REBSER which has no cell mask and is marked as
+                // *not* an END.  This is the typical signature of what one
+                // would call an "ordinary managed REBSER".  If it's marked,
+                // leave it alone...else kill it.
+                //
+                assert(IS_SERIES_MANAGED(s));
+                if (IS_REBSER_MARKED(s))
+                    UNMARK_REBSER(s);
+                else {
+                    GC_Kill_Series(s);
+                    ++count;
+                }
+                break;
+
+            case 6:
+                // The CELL_MASK is set, and it's an END, and it's managed.
+                // Assume this is impossible until a case is found.
+                //
+                assert(FALSE);
+                break;
+
+            case 7:
+                // CELL_MASK is set, so it's a pairing...and the key is not
+                // an END, and it's managed.  Mark bit should be heeded. 
+                //
+                assert(IS_SERIES_MANAGED(s));
+                if (IS_REBSER_MARKED(s))
+                    UNMARK_REBSER(s);
+                else {
+                    Free_Node(SER_POOL, s); // Free_Pairing is for manuals
+                    ++count;
+                }
+                break;
+            }
         }
     }
 

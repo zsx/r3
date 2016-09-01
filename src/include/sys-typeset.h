@@ -26,11 +26,11 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// A typeset is a collection of up to 63 types, implemented as a bitset.
-// The 0th type corresponds to REB_TRASH and can be used to indicate another
-// property of the typeset (though no such uses exist yet).
+// A typeset is a collection of up to 62 of the REB_XXX types, implemented as
+// a 64-bit bitset.  The bits for REB_0 and REB_MAX_VOID can be used for
+// special purposes, as these are not actual legal datatypes.
 //
-// !!! The limit of only being able to hold a set of 63 types is a temporary
+// !!! The limit of only being able to hold a set of 62 types is a temporary
 // one, as user-defined types will require a different approach.  Hence the
 // best way to look at the bitset for built-in types is as an optimization
 // for type-checking the common parameter cases.
@@ -39,7 +39,9 @@
 // of this category have another use in describing the fields of objects
 // ("KEYS") or parameters of function frames ("PARAMS").  When used for that
 // purpose, they not only list the legal types...but also hold a symbol for
-// naming the field or parameter.
+// naming the field or parameter.  R3-Alpha made these a special kind of WORD!
+// called an "unword", but they lack bindings and have more technically
+// in common with the evolving requirements of typesets.
 //
 // !!! At present, a TYPESET! created with MAKE TYPESET! cannot set the
 // internal symbol.  Nor can it set the extended flags, though that might
@@ -68,7 +70,7 @@ enum Reb_Param_Class {
     PARAM_CLASS_NORMAL = 0x01,
 
     // `PARAM_CLASS_HARD_QUOTE` is cued by a GET-WORD! in the function spec
-    // dialect.  It indicates that a single value of  content at the callsite
+    // dialect.  It indicates that a single value of content at the callsite
     // should be passed through *literally*, without any evaluation:
     //
     //     >> foo: function [:a] [print [{a is} a]

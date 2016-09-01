@@ -837,24 +837,25 @@ REBCNT Series_Allocation_Unpooled(REBSER *series)
 //
 //  Make_Series: C
 // 
-// Make a series of a given length and width (unit size).
-// Small series will be allocated from a REBOL pool.
+// Make a series of a given capacity and width (unit size).
+// If the data is tiny enough, it will be fit into the series node itself.
+// Small series will be allocated from a memory pool.
 // Large series will be allocated from system memory.
-// A width of zero is not allowed.
+// The series will be zero length to start with.
 //
-REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
+REBSER *Make_Series(REBCNT capacity, REBYTE wide, REBCNT flags)
 {
     // PRESERVE flag only makes sense for Remake_Series, where there is
     // previous data to be kept.
     assert(!(flags & MKS_PRESERVE));
-    assert(wide != 0 && length != 0);
+    assert(wide != 0 && capacity != 0); // not allowed
 
-    if (cast(REBU64, length) * wide > MAX_I32)
-        fail (Error_No_Memory(cast(REBU64, length) * wide));
+    if (cast(REBU64, capacity) * wide > MAX_I32)
+        fail (Error_No_Memory(cast(REBU64, capacity) * wide));
 
 #if !defined(NDEBUG)
     PG_Reb_Stats->Series_Made++;
-    PG_Reb_Stats->Series_Memory += length * wide;
+    PG_Reb_Stats->Series_Memory += capacity * wide;
 #endif
 
     REBSER *s = cast(REBSER*, Make_Node(SER_POOL));
@@ -903,11 +904,11 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
         //
         SER_SET_WIDE(s, wide);
         SET_SER_FLAGS(s, SERIES_FLAG_EXTERNAL | SERIES_FLAG_HAS_DYNAMIC);
-        s->content.dynamic.rest = length;
+        s->content.dynamic.rest = capacity;
     }
-    else if ((flags & MKS_ARRAY) && length <= 2) {
+    else if ((flags & MKS_ARRAY) && capacity <= 2) {
         //
-        // An array requested of "length 2" actually means one cell of data
+        // An array requested of capacity 2 actually means one cell of data
         // and one cell that can serve as an END marker.  The invariant that
         // is guaranteed is that the final slot will already be written as
         // an END, and that the caller must never write it...hence it can
@@ -918,16 +919,16 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
         SET_SER_FLAG(s, SERIES_FLAG_ARRAY);
         INIT_CELL_IF_DEBUG(&s->content.values[0]);
     }
-    else if (length * wide <= sizeof(s->content)) {
+    else if (capacity * wide <= sizeof(s->content)) {
         SER_SET_WIDE(s, wide);
         assert(!GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC));
     }
     else {
         // Allocate the actual data blob that holds the series elements
 
-        if (!Series_Data_Alloc(s, length, wide, flags)) {
+        if (!Series_Data_Alloc(s, capacity, wide, flags)) {
             Free_Node(SER_POOL, s);
-            fail (Error_No_Memory(length * wide));
+            fail (Error_No_Memory(capacity * wide));
         }
 
         // <<IMPORTANT>> - The capacity that will be given back as the ->rest

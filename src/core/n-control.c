@@ -1308,8 +1308,6 @@ REBNATIVE(fail)
         // `error/key-name`.  Another option would be something like:
         //
         //     fail/with [{The key} :key-name {is invalid}] [key-name: key]
-        //
-        // But for the moment, this
 
         RELVAL *item = VAL_ARRAY_AT(reason);
 

@@ -64,15 +64,6 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// The layout of the header corresponds to the following bitfield
-// structure on big endian machines:
-//
-//    unsigned specific:16;     // flags that are specific to this REBVAL kind
-//    unsigned general:8;       // flags that can apply to any kind of REBVAL
-//    unsigned kind:6;          // underlying system datatype (64 kinds)
-//    unsigned settable:1;      // for debug build only--"formatted" to write
-//    unsigned not_end:1;       // not an end marker
-//
 // Due to a desire to be able to assign all the header bits in one go
 // with a native-platform-sized int, this is done with bit masking.
 // Using bitfields would bring in questions of how smart the
@@ -104,7 +95,7 @@
 // data be compatibly read-and-written.
 //
 #define NOT_END_MASK \
-    cast(REBUPT, 0x01)
+    ((REBUPT)0x01) // <-- don't use `cast()`...superfluous here, slows debug
 
 // `CELL_MASK`
 //
@@ -125,35 +116,8 @@
 #define CELL_MASK \
     ((REBUPT)0x02) // <-- don't use `cast()`...superfluous here, slows debug
 
-// The type is stored in the highest bits so that a single right shift
-// operation (which zero fills from the left) can get the 6-bit type.
-//
-// !!! The 64-bit build would need to use a larger number if it wanted to
-// find a use for its extra 32-bits, which would have to be both masked and
-// shifted (the way types used to be...)
-//
-#define HEADER_TYPE_SHIFT 26
-
-#define TYPE_SHIFT_LEFT_FOR_HEADER(kind) \
-    (((REBUPT)kind) << HEADER_TYPE_SHIFT) // need cast! see also VAL_TYPE_RAW
-
-#define HEADER_TYPE_MASK ((REBUPT)(0x3F) << HEADER_TYPE_SHIFT)
-
-// In debug builds, there's an additional property checked on cell writes
-// where values can be marked as unwritable.  There would be cost to checking
-// this in the release build, so it is not intended as a "feature"--just to
-// help avoid damaging things like the global BLANK_VALUE.
-//
-// This is only checkable under C++, because stack REBVALs would not get the
-// flag implicitly in C...and manual initialization would clutter the code.
-//
-#if !defined(NDEBUG) && defined(__cplusplus)
-    #define VALUE_FLAG_WRITABLE_CPP_DEBUG \
-        ((REBUPT)0x04)
-#endif
-
 // v-- BEGIN REBSER AND REBVAL SHARED BITS HERE
-#define REBSER_REBVAL_BIT 3
+#define REBSER_REBVAL_BIT 2
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -213,6 +177,7 @@ enum {
 
     // v-- BEGIN GENERAL VALUE BITS HERE
 };
+
 #define GENERAL_VALUE_BIT (REBSER_REBVAL_BIT + 3)
 
 
@@ -302,7 +267,36 @@ enum {
 
     // v-- BEGIN TYPE SPECIFIC BITS HERE
 };
-#define TYPE_SPECIFIC_BIT (GENERAL_VALUE_BIT + 5)
+
+// In debug builds, there's an additional property checked on cell writes
+// where values can be marked as unwritable.  There would be cost to checking
+// this in the release build, so it is not intended as a "feature"--just to
+// help avoid damaging things like the global BLANK_VALUE.
+//
+// This is only checkable under C++, because stack REBVALs would not get the
+// flag implicitly in C...and manual initialization would clutter the code.
+//
+#if !defined(NDEBUG) && defined(__cplusplus)
+    #define VALUE_FLAG_WRITABLE_CPP_DEBUG \
+        ((REBUPT)(1 << (GENERAL_VALUE_BIT + 5)))
+#endif
+
+
+#define TYPE_SPECIFIC_BIT (GENERAL_VALUE_BIT + 6)
+
+// The type is stored in the highest bits so that a single right shift
+// operation (which zero fills from the left) can get the 6-bit type.
+//
+// !!! The 64-bit build would need to use a larger number if it wanted to
+// find a use for its extra 32-bits, which would have to be both masked and
+// shifted (the way types used to be...)
+//
+#define HEADER_TYPE_SHIFT 26
+
+#define TYPE_SHIFT_LEFT_FOR_HEADER(kind) \
+    (((REBUPT)kind) << HEADER_TYPE_SHIFT) // need cast! see also VAL_TYPE_RAW
+
+#define HEADER_TYPE_MASK ((REBUPT)(0x3F) << HEADER_TYPE_SHIFT)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -532,7 +526,7 @@ struct Reb_Handle {
 
 
 // Meta information in singular->link.meta
-// Fild descriptor in singular->misc.fd
+// File descriptor in singular->misc.fd
 //
 struct Reb_Library {
     REBARR *singular; // singular array holding this library value
@@ -618,8 +612,8 @@ struct Reb_All {
 // writing, this is necessary for the "C-to-Javascript" emscripten build to
 // work.  It's also likely preferred by x86.
 //
-// (Note: The reason why error-causing alignments an happen at all is due to
-// the #pragma pack(4) that is put in effect at the top of this file.)
+// (Note: The reason why error-causing alignments were ever possible at all
+// was due to a #pragma pack(4) that was used in R3-Alpha...Ren-C removed it.)
 //
 
 union Reb_Value_Extra {
@@ -680,7 +674,7 @@ union Reb_Value_Payload {
     struct Reb_All all;
 
 #if !defined(NDEBUG)
-    struct Reb_Track track; // debug only (for void/trash, NONE!, LOGIC!, BAR!)
+    struct Reb_Track track; // debug only for void/trash, BLANK!, LOGIC!, BAR!
 #endif
 
     REBUNI character; // It's CHAR! (for now), but 'char' is a C keyword

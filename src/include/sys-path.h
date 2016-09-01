@@ -138,7 +138,7 @@ struct Reb_Path_Value_State {
     // of the path, so most setters should check `IS_END(pvs->item + 1)`
     // before setting.
     //
-    // !!! See notes in %c-path.c about why the path dispatch is more
+    // !!! See notes at top of file about why the path dispatch is more
     // complicated than simply being able to only pass the setval to the last
     // item being dispatched (which would be cleaner, but some cases must
     // look ahead with alternate handling).

@@ -122,15 +122,11 @@
 // little bit complicated.  This is due to the optimization that allows data
 // which is sizeof(REBVAL) or smaller to fit directly inside the series node.
 //
-// If a series is dynamically allocated out of the memory pools, then its
-// data doesn't live in the REBSER node.  Without the data itself taking up
-// space, there's room for a length in the node.
-//
 // If a series is not "dynamic" (e.g. has a full pooled allocation) then its
-// length is stored in the `misc` field -unless- it is an ARRAY of values.
-// If it is an array then it is assumed that even length 0 arrays might want
-// to use the misc field for other purposes.  Hence the length is derived from
-// the presence or absence of an END marker in the first slot.
+// length is stored in the header...where the "type" bits would be if it
+// were a REBVAL.  But if a series is dynamically allocated out of the memory
+// pools, then without the data itself taking up the "content", there's room
+// for a length in the node.
 //
 
 #define SER_WIDE(s) \
