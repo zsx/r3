@@ -111,6 +111,7 @@ Syntax: [
 Script: [
     code: 300
     type: "script error"
+
     no-value:           [:arg1 {has no value}]
     need-value:         [:arg1 {needs a value}]
     not-bound:          [:arg1 {word is not bound to a context}]
@@ -182,7 +183,6 @@ Script: [
 
     past-end:           {out of range or past end}
     missing-arg:        {missing a required argument or refinement}
-    out-of-range:       [{value out of range:} :arg1]
     too-short:          {content too short (or just whitespace)}
     too-long:           {content too long}
     invalid-chars:      {contains invalid characters}
@@ -192,17 +192,12 @@ Script: [
     verify-failed:      [{verification failed for:} :arg1]
 
     invalid-part:       [{invalid /part count:} :arg1]
-    type-limit:         [:arg1 {overflow/underflow}]
-    size-limit:         [{maximum limit reached:} :arg1]
 
     no-return:          {block did not return a value}
     block-lines:        {expected block of lines}
     no-catch:           [{Missing CATCH for THROW of} :arg1]
     no-catch-named:     [{Missing CATCH for THROW of} :arg1 {with /NAME:} :arg2]
 
-    locked-word:        [{variable} :arg1 {locked by PROTECT - cannot modify}]
-    locked:             {value or series locked - cannot modify}
-    hidden:             {not allowed - would expose or modify hidden values}
     bad-bad:            [:arg1 {error:} :arg2]
 
     bad-make-arg:       [{cannot MAKE/TO} :arg1 {from:} :arg2]
@@ -242,19 +237,31 @@ Script: [
     varargs-take-last:  {VARARGS! does not support TAKE-ing only /LAST item}
 
     map-key-unlocked:   [{array key must be locked to add to MAP!} :arg1]
+
+    block-conditional:  [{Literal block used as conditional} :arg1]
+    block-switch:       [{Literal block used as switch value} :arg1]
 ]
 
 Math: [
     code: 400
     type: "math error"
+
     zero-divide:        {attempt to divide by zero}
     overflow:           {math or number overflow}
     positive:           {positive number required}
+
+    type-limit:         [:arg1 {overflow/underflow}]
+    size-limit:         [{maximum limit reached:} :arg1]
+    out-of-range:       [{value out of range:} :arg1]
 ]
 
 Access: [
     code: 500
     type: "access error"
+
+    locked-word:        [{variable} :arg1 {locked by PROTECT - cannot modify}]
+    locked:             {value or series locked - cannot modify}
+    hidden:             {not allowed - would expose or modify hidden values}
 
     cannot-open:        [{cannot open:} :arg1 {reason:} :arg2]
     not-open:           [{port is not open:} :arg1]

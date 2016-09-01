@@ -715,6 +715,21 @@ inline static void SET_FALSE_COMMON(RELVAL *v) {
 #define IS_CONDITIONAL_TRUE(v) \
     NOT(IS_CONDITIONAL_FALSE(v)) // macro gets file + line # in debug build
 
+// Although a BLOCK! value is true, some constructs are safer by not allowing
+// literal blocks.  e.g. `if [x] [print "this is not safe"`.  The evaluated
+// bit can let these instances be distinguished.  Note that making *all*
+// evaluations safe would be limiting, e.g. `foo: any [false-thing []]`.
+//
+inline static REBOOL IS_CONDITIONAL_TRUE_SAFE(const REBVAL *v) {
+    if (IS_BLOCK(v)) {
+        if (GET_VAL_FLAG(v, VALUE_FLAG_EVALUATED))
+            return TRUE;
+
+        fail (Error(RE_BLOCK_CONDITIONAL, v));
+    }
+    return IS_CONDITIONAL_TRUE(v);
+}
+
 inline static REBOOL VAL_LOGIC(const RELVAL *v) {
     assert(IS_LOGIC(v));
     return NOT(GET_VAL_FLAG((v), VALUE_FLAG_FALSE));

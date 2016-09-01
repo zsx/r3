@@ -356,7 +356,7 @@ REBNATIVE(any)
         return R_BLANK;
     }
 
-    // Note: although `all []` is TRUE, `any []` is NONE!.  This sides with
+    // Note: although `all []` is TRUE, `any []` is BLANK!.  This sides with
     // general usage as "Were all of these things not false?" as opposed to
     // "Were any of these things true?".  Also, `FALSE OR X OR Y` shows it
     // as the "unit" for OR, matching `TRUE AND X AND Y` as the seed that
@@ -552,7 +552,12 @@ REBNATIVE(case)
         //     condition: false
         //     case [condition 10 + 20 true {hello}] ;-- returns {hello}
         //
-        if (IS_CONDITIONAL_FALSE(D_CELL)) {
+        // This uses the safe form, so you can't say `case [[x] [y]]` because
+        // the [x] condition is a literal block.  However you can say
+        // `foo: [x] | case [foo [y]]`, since it is evaluated, or use a
+        // GROUP! as in `case [([x]) [y]]`.
+        //
+        if (NOT(IS_CONDITIONAL_TRUE_SAFE(D_CELL))) {
             DO_NEXT_REFETCH_MAY_THROW(D_CELL, &e, DO_FLAG_LOOKAHEAD);
             if (THROWN(D_CELL)) {
                 *D_OUT = *D_CELL;
@@ -1414,7 +1419,11 @@ inline static REB_R If_Unless_Core(REBFRM *frame_, REBOOL trigger)
     REFINE(3, only);
     REFINE(4, q); //  return TRUE if branch taken, else FALSE
 
-    if (IS_CONDITIONAL_TRUE(ARG(condition)) != trigger) { // don't take branch
+    // Test is "safe", e.g. literal blocks aren't allowed, `if [x] [...]`
+    //
+    if (IS_CONDITIONAL_TRUE_SAFE(ARG(condition)) != trigger) {
+        //
+        // Don't take the branch.
         //
         // The behavior for functions in the FALSE case is slightly tricky.
         // If the function is arity-0, it should not be run--just as a branch
@@ -1496,7 +1505,7 @@ inline static REB_R Either_Core(
     REBVAL *false_branch,
     REBOOL only
 ) {
-    if (IS_CONDITIONAL_TRUE(condition)) {
+    if (IS_CONDITIONAL_TRUE_SAFE(condition)) { // SAFE means no literal blocks
         if (Run_Success_Branch_Throws(out, true_branch, only))
             return R_OUT_IS_THROWN;
     }
@@ -1688,7 +1697,7 @@ REBNATIVE(leave)
 //
 //      return: [<opt> any-value!]
 //          {Void if no cases matched, or last case evaluation (may be void)}
-//      value
+//      value [any-value!]
 //          "Target value"
 //      cases [block!]
 //          "Block of cases to check"
@@ -1722,6 +1731,14 @@ REBNATIVE(switch)
     // But here SWITCH also lets END indicate no matching cases ran yet.
 
     assert(IS_END(D_OUT));
+
+    REBVAL *value = ARG(value);
+
+    // For safety, notice if someone wrote `switch [x] [...]` with a literal
+    // block in source, as that is likely a mistake.
+    //
+    if (IS_BLOCK(value) && !GET_VAL_FLAG(value, VALUE_FLAG_EVALUATED))
+        fail (Error(RE_BLOCK_SWITCH, value));
 
     // Frame's extra D_CELL is free since the function has > 1 arg.  Reuse it
     // as a temporary GC-safe location for holding evaluations.  This
