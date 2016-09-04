@@ -425,37 +425,53 @@ REBNATIVE(debase)
 //
 //  enbase: native [
 //  
-//  {Encodes a string into a binary-coded string (BASE-64 default).}
-//  
-//      value [binary! string!] "If string, will be UTF8 encoded"
-//      /base "Binary base to use"
-//      base-value [integer!] "The base to convert to: 64, 16, or 2"
+//  {Encodes data into a binary, hexadecimal, or base-64 ASCII string.}
+//
+//      return: [string!]
+//      value [binary! string!]
+//          "If string, will be UTF8 encoded"
+//      /base
+//          "Binary base to use (BASE-64 default)"
+//      base-value [integer!]
+//          "The base to convert to: 64, 16, or 2"
 //  ]
 //
 REBNATIVE(enbase)
 {
-    REBINT base = 64;
-    REBSER *ser;
+    PARAM(1, value);
+    REFINE(2, base);
+    PARAM(3, base_value);
+
+    REBINT base;
+    if (REF(base))
+        base = VAL_INT32(ARG(base_value));
+    else
+        base = 64;
+
+    REBVAL *arg = ARG(value);
+
+    // Will convert STRING!s to UTF-8 if necessary. 
+    //
     REBCNT index;
-    REBVAL *arg = D_ARG(1);
+    REBSER *temp = Temp_Bin_Str_Managed(arg, &index, NULL);
+    Val_Init_Series_Index(arg, REB_BINARY, temp, index);
 
-    Val_Init_Binary(arg, Temp_Bin_Str_Managed(arg, &index, NULL));
-    VAL_INDEX(arg) = index;
-
-    if (D_REF(2)) base = VAL_INT32(D_ARG(3));
-
+    REBSER *ser;
     switch (base) {
     case 64:
         ser = Encode_Base64(arg, 0, FALSE);
         break;
+
     case 16:
         ser = Encode_Base16(arg, 0, FALSE);
         break;
+
     case 2:
         ser = Encode_Base2(arg, 0, FALSE);
         break;
+
     default:
-        fail (Error_Invalid_Arg(D_ARG(3)));
+        fail (Error_Invalid_Arg(ARG(base_value)));
     }
 
     Val_Init_String(D_OUT, ser);
