@@ -734,7 +734,8 @@ find:
         else {
             if (IS_CHAR(arg) || IS_BITSET(arg)) len = 1;
             else if (!ANY_STRING(arg)) {
-                Val_Init_String(arg, Copy_Form_Value(arg, 0));
+                REBSER *copy = Copy_Form_Value(arg, 0);
+                Val_Init_String(arg, copy);
             }
         }
 

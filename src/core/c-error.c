@@ -1244,10 +1244,10 @@ REBCTX *Error_Bad_Func_Def(const REBVAL *spec, const REBVAL *body)
     // error that existed before refactoring code out of MAKE_Function().
 
     REBARR *array = Make_Array(2);
-    REBVAL def;
-
     Append_Value(array, spec);
     Append_Value(array, body);
+    
+    REBVAL def;
     Val_Init_Block(&def, array);
     return Error(RE_BAD_FUNC_DEF, &def, END_CELL);
 }

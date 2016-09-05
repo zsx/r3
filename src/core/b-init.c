@@ -1190,9 +1190,8 @@ static void Init_Codecs(void)
 
 static void Set_Option_String(REBCHR *str, REBCNT field)
 {
-    REBVAL *val;
     if (str) {
-        val = Get_System(SYS_OPTIONS, field);
+        REBVAL *val = Get_System(SYS_OPTIONS, field);
         Val_Init_String(val, Copy_OS_Str(str, OS_STRLEN(str)));
     }
 }

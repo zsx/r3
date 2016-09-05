@@ -1270,25 +1270,27 @@ REBNATIVE(request_file)
 //
 REBNATIVE(get_env)
 {
-    REBCHR *cmd;
-    REBINT lenplus;
-    REBCHR *buf;
-    REBVAL *arg = D_ARG(1);
+    PARAM(1, var);
 
-    Check_Security(Canon(SYM_ENVR), POL_READ, arg);
+    REBVAL *var = ARG(var);
 
-    if (ANY_WORD(arg)) Val_Init_String(arg, Copy_Form_Value(arg, 0));
+    Check_Security(Canon(SYM_ENVR), POL_READ, var);
+
+    if (ANY_WORD(var)) {
+        REBSER *copy = Copy_Form_Value(var, 0);
+        Val_Init_String(var, copy);
+    }
 
     // !!! By passing NULL we don't get backing series to protect!
-    cmd = Val_Str_To_OS_Managed(NULL, arg);
+    REBCHR *os_var = Val_Str_To_OS_Managed(NULL, var);
 
-    lenplus = OS_GET_ENV(cmd, NULL, 0);
+    REBINT lenplus = OS_GET_ENV(os_var, NULL, 0);
     if (lenplus == 0) return R_BLANK;
     if (lenplus < 0) return R_VOID;
 
     // Two copies...is there a better way?
-    buf = ALLOC_N(REBCHR, lenplus);
-    OS_GET_ENV(cmd, buf, lenplus);
+    REBCHR *buf = ALLOC_N(REBCHR, lenplus);
+    OS_GET_ENV(os_var, buf, lenplus);
     Val_Init_String(D_OUT, Copy_OS_Str(buf, lenplus - 1));
     FREE_N(REBCHR, lenplus, buf);
 
@@ -1299,48 +1301,47 @@ REBNATIVE(get_env)
 //
 //  set-env: native [
 //  
-//  {Sets the value of an operating system environment variable (for current process).}
+//  {Sets value of operating system environment variable for current process.}
 //  
-//      var [any-string! any-word!] "Variable to set"
-//      value [string! blank!] "Value to set, or NONE to unset it"
+//      var [any-string! any-word!]
+//          "Variable to set"
+//      value [string! blank!]
+//          "Value to set, or a BLANK! to unset it"
 //  ]
 //
 REBNATIVE(set_env)
 {
-    REBCHR *cmd;
-    REBVAL *arg1 = D_ARG(1);
-    REBVAL *arg2 = D_ARG(2);
-    REBOOL success;
+    PARAM(1, var);
+    PARAM(2, value);
 
-    Check_Security(Canon(SYM_ENVR), POL_WRITE, arg1);
+    REBVAL *var = ARG(var);
+    REBVAL *value = ARG(value);
 
-    if (ANY_WORD(arg1)) Val_Init_String(arg1, Copy_Form_Value(arg1, 0));
+    Check_Security(Canon(SYM_ENVR), POL_WRITE, var);
+
+    if (ANY_WORD(var)) {
+        REBSER *copy = Copy_Form_Value(var, 0);
+        Val_Init_String(var, copy);
+    }
 
     // !!! By passing NULL we don't get backing series to protect!
-    cmd = Val_Str_To_OS_Managed(NULL, arg1);
+    REBCHR *os_var = Val_Str_To_OS_Managed(NULL, var);
 
-    if (ANY_STRING(arg2)) {
+    if (ANY_STRING(value)) {
         // !!! By passing NULL we don't get backing series to protect!
-        REBCHR *value = Val_Str_To_OS_Managed(NULL, arg2);
-        success = OS_SET_ENV(cmd, value);
-        if (success) {
+        REBCHR *os_value = Val_Str_To_OS_Managed(NULL, value);
+        if (OS_SET_ENV(os_var, os_value)) {
             // What function could reuse arg2 as-is?
-            Val_Init_String(D_OUT, Copy_OS_Str(value, OS_STRLEN(value)));
+            Val_Init_String(D_OUT, Copy_OS_Str(os_value, OS_STRLEN(os_value)));
             return R_OUT;
         }
         return R_VOID;
     }
 
-    if (IS_BLANK(arg2)) {
-        success = OS_SET_ENV(cmd, 0);
-        if (success)
-            return R_BLANK;
-        return R_VOID;
-    }
+    assert(IS_BLANK(value));
 
-    // is there any checking that native interface has not changed
-    // out from under the expectations of the code?
-
+    if (OS_SET_ENV(os_var, NULL))
+        return R_BLANK;
     return R_VOID;
 }
 

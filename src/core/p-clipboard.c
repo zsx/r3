@@ -137,9 +137,8 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         if (SER_WIDE(VAL_SERIES(arg)) == 1) {
 #ifdef ARG_STRINGS_ALLOWED
             if (!All_Bytes_ASCII(VAL_BIN_AT(arg), len)) {
-                Val_Init_String(
-                    arg, Copy_Bytes_To_Unicode(VAL_BIN_AT(arg), len)
-                );
+                REBSER *copy = Copy_Bytes_To_Unicode(VAL_BIN_AT(arg), len);
+                Val_Init_String(arg, copy);
             } else
                 req->common.data = VAL_BIN_AT(arg);
 #endif
