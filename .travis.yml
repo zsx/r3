@@ -11,25 +11,35 @@ language: c
 
 compiler:
     - gcc
-    - g++
+    - clang
 
 env:
     matrix:
         # Linux x86, release
-        - OS_ID=0.4.4 REL=1
+        - OS_ID=0.4.4 BUILD_TYPE=RELEASE R3_CPP=0
+        # Linux x86, release
+        - OS_ID=0.4.4 BUILD_TYPE=RELEASE R3_CPP=1
         # Linux x64, debug
-        - OS_ID=0.4.40
+        - OS_ID=0.4.40 BUILD_TYPE=DEBUG R3_CPP=0
+        # Linux x64, debug
+        - OS_ID=0.4.40 BUILD_TYPE=DEBUG R3_CPP=1
         # Linux x64, release
-        - OS_ID=0.4.40 REL=1
+        - OS_ID=0.4.40 BUILD_TYPE=RELEASE R3_CPP=0
+        # Linux x64, release
+        - OS_ID=0.4.40 BUILD_TYPE=RELEASE R3_CPP=1
 
         # Windows x86, release
-        - OS_ID=0.3.1 REL=1 TOOLS=i686-w64-mingw32-
+        #- OS_ID=0.3.1 REL=1 TOOLS=i686-w64-mingw32-
         # Windows x64, release
-        - OS_ID=0.3.40 REL=1 TOOLS=x86_64-w64-mingw32-
+        #- OS_ID=0.3.40 REL=1 TOOLS=x86_64-w64-mingw32-
 
 # Force new container-based infrastructure.
 # Ref: http://docs.travis-ci.com/user/migrating-from-legacy/
-sudo: false
+#sudo: false
+sudo: required
+
+dist: trusty
+
 
 addons:
     apt:
@@ -38,9 +48,6 @@ addons:
             # build for 64b):
             - gcc-multilib
             - g++-multilib
-
-            # For running the 32b bootstrap rebol ("r3-make") on a 64b host:
-            - libc6:i386
 
             # For cross-compiling to Windows.
             - binutils-mingw-w64-i686
@@ -54,25 +61,29 @@ addons:
 
 install:
     # Fetch a Rebol bootstrap binary, which is needed for building Rebol.
-    - wget http://www.rebol.com/r3/downloads/r3-a111-4-2.tar.gz
-    - tar xvzf r3-a111-4-2.tar.gz
-    - cp r3 make/r3-make
+    #- wget http://www.rebol.com/r3/downloads/r3-a111-4-2.tar.gz
+    #- tar xvzf r3-a111-4-2.tar.gz
+    - wget http://www.rebolsource.net/downloads/experimental/r3-linux-x64-gbf237fc-static
+    - cp r3-linux-x64-gbf237fc-static make/r3-make
+    - chmod +x make/r3-make
 
 script:
     - cd make/
     # If REL is defined and not empty, we do a release build by compiling with
     # NDEBUG defined. (`${parameter+alt_value}` is a Bash-ism documented as:
     # "if parameter set, use alt_value, else use null string.")
-    - export CC="${TOOLS}${CC}${REL+ -DNDEBUG}"
+    #- export CC="${TOOLS}${CC}${REL+ -DNDEBUG}"
     # We have to set REBOL_TOOL explicitly to circumvent the automatic r3-make
     # filename inference, as we always use a Linux r3-make, even when
     # cross-compiling to Windows.
-    - make -f makefile.boot REBOL_TOOL=r3-make OS_ID="${OS_ID}" CC="${CC}"
+    #- make -f makefile.boot REBOL_TOOL=r3-make OS_ID="${OS_ID}" CC="${CC}"
+    - cmake -DR3_OS_ID="${OS_ID}" -DR3_EXTERNAL_FFI=0 -DR3_CPP="${R3_CPP}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" -DR3_WITH_TCC=1 -G "Unix Makefiles"
+    - make r3-core VERBOSE=1
     # A minimal sanity check that the built R3 does _something_. Eventually, we
     # should run the full test suite.
 
     # Run once but don't pipe output, in case it prints out useful crash msg
-    - if [ "${OS_ID}" = "0.4.40" ]; then ./r3 --do 'print {OK}'; fi
+    - if [ "${OS_ID}" = "0.4.40" ]; then ./r3-core --do 'print {OK}'; fi
 
     # Run a second time with piped output to return success/faiure to Travis
-    - if [ "${OS_ID}" = "0.4.40" ]; then ./r3 --do 'print {OK}' | grep OK; fi
+    - if [ "${OS_ID}" = "0.4.40" ]; then ./r3-core --do 'print {OK}' | grep OK; fi
