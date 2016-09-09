@@ -16,9 +16,6 @@
 //
 #define I_AM_QSORT_R
 
-// When qsort_r is defined, it will actually wind up being named reb_qsort_r.
-#define qsort_r reb_qsort_r
-
 
 /*-
  * Copyright (c) 1992, 1993
@@ -59,6 +56,10 @@ __FBSDID("$FreeBSD$");
 */
 
 #include <stdlib.h>
+
+// When qsort_r is defined, it will actually wind up being named reb_qsort_r.
+// Define this after including <stdlib.h> to avoid the prototype being declared as extern "C"
+#define qsort_r reb_qsort_r
 
 #ifdef I_AM_QSORT_R
 typedef int      cmp_t(void *, const void *, const void *);
