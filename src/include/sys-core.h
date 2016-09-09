@@ -123,6 +123,9 @@ extern void reb_qsort_r(void *a, size_t n, size_t es, void *thunk, cmp_t *cmp);
         inline static void TRASH_POINTER_IF_DEBUG(T* &p) {
             p = reinterpret_cast<T*>(static_cast<REBUPT>(0xDECAFBAD));
         }
+    #elif defined(__LP64__) || defined(__LLP64__)
+        #define TRASH_POINTER_IF_DEBUG(p) \
+            (p) = cast(void*, 0xDECAFBADLL)
     #else
         #define TRASH_POINTER_IF_DEBUG(p) \
             (p) = cast(void*, 0xDECAFBAD)
