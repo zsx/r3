@@ -10805,6 +10805,7 @@ extern "C" {
 #endif
 
 extern void Init_JPEG_Codec(void);
+extern REBINT Codec_JPEG_Image(REBCDI *codi);
 
 #ifdef __cplusplus
 }
