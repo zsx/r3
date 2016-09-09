@@ -427,7 +427,7 @@ set_source_files_properties(
     HEADER_FILE_ONLY TRUE
     )
 
-set(BOOT_OUTPUT
+set (BOOT_HEADER
     ${TOP_GENERATED_SRC_DIR}/include/tmp-evaltypes.inc
     ${TOP_GENERATED_SRC_DIR}/include/tmp-maketypes.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-comptypes.h
@@ -442,6 +442,9 @@ set(BOOT_OUTPUT
     ${TOP_GENERATED_SRC_DIR}/include/tmp-portmodes.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-sysctx.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-boot.h
+    )
+set(BOOT_OUTPUT
+    ${BOOT_HEADER}
     ${CORE_GENERATED_DIR}/b-boot.c
     )
 set(BOOT_DEPENDS
@@ -549,11 +552,14 @@ add_custom_command(OUTPUT
     )
 
 set (GENERATED_CORE_SOURCE
-    ${HEADER_OUTPUT}
-    ${BOOT_OUTPUT}
-    ${EXT_CORE_OUTPUT}
-    ${REB_LIB_OUTPUT}
     ${CORE_GENERATED_DIR}/b-boot.c
+    )
+
+set (GENERATED_CORE_HEADER
+    ${HEADER_OUTPUT}
+    ${REB_LIB_OUTPUT}
+    ${BOOT_HEADER}
+    ${EXT_CORE_OUTPUT}
     )
 
 if (R3_WITH_TCC)
@@ -700,7 +706,7 @@ if(NOT (MSVC_IDE OR XCODE))
         COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/clean-generated.cmake
         )
 endif()
-add_library(libr3_core_core OBJECT ${CORE_SOURCE} ${GENERATED_CORE_SOURCE} ${GENERATED_OS_SOURCE})
+add_library(libr3_core_core OBJECT ${CORE_SOURCE} ${GENERATED_CORE_SOURCE} ${GENERATED_CORE_HEADER} ${GENERATED_OS_SOURCE})
 add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> ${OS_SOURCE})
 
 target_include_directories(libr3_core_core PUBLIC
@@ -731,6 +737,7 @@ endif ()
 #
 if (R3_CPP)
     set_property(SOURCE ${CORE_SOURCE} PROPERTY LANGUAGE CXX)
+    set_property(SOURCE ${GENERATED_CORE_SOURCE} PROPERTY LANGUAGE CXX)
     set_property(SOURCE ${OS_SOURCE} PROPERTY LANGUAGE CXX)
     set_property(SOURCE {GENERATED_OS_SOURCE} PROPERTY LANGUAGE CXX)
     set_target_properties(r3-core PROPERTIES LINKER_LANGUAGE CXX)
