@@ -88,8 +88,9 @@ script:
     # Run a second time with piped output to return success/faiure to Travis
     - if [ "${OS_ID}" = "0.4.40" ]; then ./r3-core --do 'print {OK}' | grep OK; fi
 
-    cp ./r3-core r3-core-${OS_ID}-${BUILD_TYPE}-CPP${CPP}
-    cp tcc/libtcc1.a tcc/libtcc1.a-${OS_ID}-${BUILD_TYPE}-CPP${CPP}
+    # Rename files before uploading
+    - cp ./r3-core r3-core-${OS_ID}-${BUILD_TYPE}-CPP${CPP}
+    - cp tcc/libtcc1.a tcc/libtcc1.a-${OS_ID}-${BUILD_TYPE}-CPP${CPP}
 
 deploy:
   provider: releases
