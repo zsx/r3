@@ -87,3 +87,12 @@ script:
 
     # Run a second time with piped output to return success/faiure to Travis
     - if [ "${OS_ID}" = "0.4.40" ]; then ./r3-core --do 'print {OK}' | grep OK; fi
+
+deploy:
+  provider: releases
+  api_key:
+    secure: V6a5VzBv+ut3hKZKMmnuY4Urzc4QA/EBcfarve837q+7p9QgDseiuW93yUVys7LacIl8D6y13m71QBxzG6LC9WnttNgfy+PfyrMbWfaMvg9zLQQ1jTGKWjW6Fn4/xyU0NYyrjvgxW2itQ4/r9r0lcmKHbsAcm/ZhvLzg4o3dnc0=
+  file: r3-core
+  on:
+    repo: zsx/r3
+    branch: user-native
