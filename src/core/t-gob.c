@@ -625,7 +625,7 @@ static void Set_GOB_Vars(REBGOB *gob, const RELVAL *blk, REBCTX *specifier)
             fail (Error(RE_EXPECT_VAL, Get_Type(REB_SET_WORD), Type_Of(&var)));
 
         if (IS_END(blk))
-            fail (Error(RE_NEED_VALUE, var));
+            fail (Error(RE_NEED_VALUE, &var));
 
         REBVAL val;
         COPY_VALUE(&val, blk, specifier);
