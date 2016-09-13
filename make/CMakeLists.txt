@@ -43,6 +43,7 @@ set (AGG_DIR "${TOP_SRC_DIR}/agg")
 set (TOOLS_DIR "${TOP_SRC_DIR}/tools")
 set (EXTERNAL_DIR "${TOP_SRC_DIR}/../external")
 set (FFI_DIR "${EXTERNAL_DIR}/libffi")
+
 if(CMAKE_HOST_WIN32)
     set (REBOL "${CMAKE_CURRENT_BINARY_DIR}/r3-make.exe")
 else()
@@ -424,7 +425,7 @@ set_source_files_properties(
     HEADER_FILE_ONLY TRUE
     )
 
-set(BOOT_OUTPUT
+set (BOOT_HEADER
     ${TOP_GENERATED_SRC_DIR}/include/tmp-evaltypes.inc
     ${TOP_GENERATED_SRC_DIR}/include/tmp-maketypes.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-comptypes.h
@@ -439,6 +440,9 @@ set(BOOT_OUTPUT
     ${TOP_GENERATED_SRC_DIR}/include/tmp-portmodes.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-sysctx.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-boot.h
+    )
+set(BOOT_OUTPUT
+    ${BOOT_HEADER}
     ${CORE_GENERATED_DIR}/b-boot.c
     )
 set(BOOT_DEPENDS
@@ -546,11 +550,14 @@ add_custom_command(OUTPUT
     )
 
 set (GENERATED_CORE_SOURCE
-    ${HEADER_OUTPUT}
-    ${BOOT_OUTPUT}
-    ${EXT_CORE_OUTPUT}
-    ${REB_LIB_OUTPUT}
     ${CORE_GENERATED_DIR}/b-boot.c
+    )
+
+set (GENERATED_CORE_HEADER
+    ${HEADER_OUTPUT}
+    ${REB_LIB_OUTPUT}
+    ${BOOT_HEADER}
+    ${EXT_CORE_OUTPUT}
     )
 
 #HOST
@@ -609,7 +616,7 @@ set (OS_SOURCE
     )
 
 set (GENERATED_OS_SOURCE
-    ${EXT_OS_OUTPUT}
+    ${TOP_GENERATED_SRC_DIR}/include/host-table.inc
     )
 
 if(NOT (MSVC_IDE OR XCODE))
@@ -619,19 +626,22 @@ if(NOT (MSVC_IDE OR XCODE))
         COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/clean-generated.cmake
         )
 endif()
-add_library(libr3_core_core OBJECT ${CORE_SOURCE} ${GENERATED_CORE_SOURCE} ${GENERATED_OS_SOURCE})
+add_library(libr3_core_core OBJECT ${CORE_SOURCE} ${GENERATED_CORE_SOURCE} ${GENERATED_CORE_HEADER} ${GENERATED_OS_SOURCE})
 add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> ${OS_SOURCE})
+
 target_include_directories(libr3_core_core PUBLIC
         ${TOP_GENERATED_SRC_DIR}/include
         ${TOP_SRC_DIR}/include
         ${TOP_SRC_DIR}/codecs
         ${FFI_INCLUDE_DIRS}
+        ${INC}
         )
 target_include_directories(r3-core PUBLIC
         ${TOP_GENERATED_SRC_DIR}/include
         ${TOP_SRC_DIR}/include
         ${TOP_SRC_DIR}/codecs
         ${FFI_INCLUDE_DIRS}
+        ${INC}
         )
 target_compile_definitions(libr3_core_core PUBLIC REB_API REB_CORE ${COMMON_MACROS})
 if (WIN32)
@@ -641,16 +651,34 @@ else ()
     target_compile_definitions(r3-core PUBLIC REB_CORE REB_EXE ${COMMON_MACROS})
 endif ()
 
+set (EXTRA_C_FLAGS "")
+set (R3_CORE_SOURCE
+    ${CORE_SOURCE}
+    ${GENERATED_CORE_SOURCE}
+    ${OS_SOURCE}
+    ${GENERATED_OS_SOURCE}
+    )
 # Build as C by default, but there are extra checks if you build as C++
 # NOTE: The library code will not be binary compatible in -debug- builds as
 # C++, so a C++ debug client cannot be used with a C built debug Rebol
 #
 if (R3_CPP)
-    set_property(SOURCE ${CORE_SOURCE} PROPERTY LANGUAGE CXX)
-    set_property(SOURCE ${OS_SOURCE} PROPERTY LANGUAGE CXX)
-    set_property(SOURCE {GENERATED_OS_SOURCE} PROPERTY LANGUAGE CXX)
+    set_property(SOURCE ${R3_CORE_SOURCE} PROPERTY LANGUAGE CXX)
+    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+        #to get rid of this clang warning:
+        #warning: treating 'c' input as 'c++' when in C++ mode, this behavior is deprecated
+        set(EXTRA_C_FLAGS "${EXTRA_C_FLAGS} -x c++")
+        #warning: 50 enumeration values not handled in switch: 'REB_0', 'REB_FUNCTION', 'REB_BAR'... [-Wswitch]
+        set(EXTRA_C_FLAGS "${EXTRA_C_FLAGS} -Wno-switch")
+    endif ()
     set_target_properties(r3-core PROPERTIES LINKER_LANGUAGE CXX)
+else ()
+    if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+        set(EXTRA_C_FLAGS "${EXTRA_C_FLAGS} -Wno-switch")
+    endif()
 endif()
+#message("Extra compile flags: ${EXTRA_C_FLAGS}")
+set_property(SOURCE ${R3_CORE_SOURCE} PROPERTY COMPILE_FLAGS ${EXTRA_C_FLAGS})
 
 if (DEFINED LINK_FLAGS)
     set_target_properties(r3-core PROPERTIES LINK_FLAGS ${LINK_FLAGS})
