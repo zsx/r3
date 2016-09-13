@@ -696,7 +696,7 @@ set (OS_SOURCE
     )
 
 set (GENERATED_OS_SOURCE
-    ${EXT_OS_OUTPUT}
+    ${TOP_GENERATED_SRC_DIR}/include/host-table.inc
     )
 
 if(NOT (MSVC_IDE OR XCODE))
@@ -731,17 +731,34 @@ else ()
     target_compile_definitions(r3-core PUBLIC REB_CORE REB_EXE ${COMMON_MACROS})
 endif ()
 
+set (EXTRA_C_FLAGS "")
+set (R3_CORE_SOURCE
+    ${CORE_SOURCE}
+    ${GENERATED_CORE_SOURCE}
+    ${OS_SOURCE}
+    ${GENERATED_OS_SOURCE}
+    )
 # Build as C by default, but there are extra checks if you build as C++
 # NOTE: The library code will not be binary compatible in -debug- builds as
 # C++, so a C++ debug client cannot be used with a C built debug Rebol
 #
 if (R3_CPP)
-    set_property(SOURCE ${CORE_SOURCE} PROPERTY LANGUAGE CXX)
-    set_property(SOURCE ${GENERATED_CORE_SOURCE} PROPERTY LANGUAGE CXX)
-    set_property(SOURCE ${OS_SOURCE} PROPERTY LANGUAGE CXX)
-    set_property(SOURCE {GENERATED_OS_SOURCE} PROPERTY LANGUAGE CXX)
+    set_property(SOURCE ${R3_CORE_SOURCE} PROPERTY LANGUAGE CXX)
+    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+        #to get rid of this clang warning:
+        #warning: treating 'c' input as 'c++' when in C++ mode, this behavior is deprecated
+        set(EXTRA_C_FLAGS "${EXTRA_C_FLAGS} -x c++")
+        #warning: 50 enumeration values not handled in switch: 'REB_0', 'REB_FUNCTION', 'REB_BAR'... [-Wswitch]
+        set(EXTRA_C_FLAGS "${EXTRA_C_FLAGS} -Wno-switch")
+    endif ()
     set_target_properties(r3-core PROPERTIES LINKER_LANGUAGE CXX)
+else ()
+    if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+        set(EXTRA_C_FLAGS "${EXTRA_C_FLAGS} -Wno-switch")
+    endif()
 endif()
+message("Extra compile flags: ${EXTRA_C_FLAGS}")
+set_property(SOURCE ${R3_CORE_SOURCE} PROPERTY COMPILE_FLAGS ${EXTRA_C_FLAGS})
 
 if (DEFINED LINK_FLAGS)
     set_target_properties(r3-core PROPERTIES LINK_FLAGS ${LINK_FLAGS})
