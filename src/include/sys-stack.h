@@ -221,7 +221,7 @@ struct Reb_Chunk {
     //
     // (REBVALs are multiples of 4 bytes in size on all platforms Rebol
     // will run on, hence the low two bits of a byte size of N REBVALs will
-    // always have the two lowest bits clear.  The size of the )
+    // always have the two lowest bits clear.)
     //
     struct Reb_Header size_and_offset;
 
@@ -240,7 +240,11 @@ struct Reb_Chunk {
     // an END marker for this array (which may or may not be necessary for
     // the client's purposes, but function arg lists do make use of it)
     //
-    REBVAL values[1];
+    // These are actually non-relative values, but REBVAL has a constructor
+    // and that interferes with the use of offsetof in the C++ build.  So
+    // RELVAL is chosen as a POD-type to use in the structure.
+    //
+    RELVAL values[1];
 };
 
 inline static REBCNT CHUNK_SIZE(struct Reb_Chunk *chunk) {
@@ -392,7 +396,7 @@ inline static REBVAL* Push_Value_Chunk_Of_Length(REBCNT num_values) {
 #endif
 
     assert(CHUNK_FROM_VALUES(&chunk->values[0]) == chunk);
-    return &chunk->values[0];
+    return KNOWN(&chunk->values[0]);
 }
 
 
