@@ -48,20 +48,50 @@ matrix:
           env: OS_ID=0.4.40 BUILD_TYPE=RELEASE R3_CPP=1
 
         # Windows x86, release
-        #- OS_ID=0.3.1 REL=1 TOOLS=i686-w64-mingw32-
+        - os: linux
+          sudo: required
+          dist: trusty
+          env: OS_ID=0.3.1 EXE_SUFFIX=.exe BUILD_TYPE=RELEASE R3_CPP=0 EXTRA_CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=Toolchain-cross-mingw32-linux.cmake"
+        # Windows x86, debug
+        - os: linux
+          sudo: required
+          dist: trusty
+          env: OS_ID=0.3.1 EXE_SUFFIX=.exe BUILD_TYPE=DEBUG R3_CPP=0 EXTRA_CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=Toolchain-cross-mingw32-linux.cmake"
         # Windows x64, release
-        #- OS_ID=0.3.40 REL=1 TOOLS=x86_64-w64-mingw32-
+        - os: linux
+          sudo: required
+          dist: trusty
+          env: OS_ID=0.3.40 EXE_SUFFIX=.exe BUILD_TYPE=RELEASE R3_CPP=0 EXTRA_CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=Toolchain-cross-mingw64-linux.cmake"
+        # Windows x64, debug
+        - os: linux
+          sudo: required
+          dist: trusty
+          env: OS_ID=0.3.40 EXE_SUFFIX=.exe BUILD_TYPE=DEBUG R3_CPP=0 EXTRA_CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=Toolchain-cross-mingw64-linux.cmake"
+        # OSX x86
         - os: osx
-          osx_image: xcode7.2
+          osx_image: xcode8
           env: OS_ID=0.2.5 BUILD_TYPE=RELEASE R3_CPP=0
         - os: osx
-          osx_image: xcode7.2
+          osx_image: xcode8
           env: OS_ID=0.2.5 BUILD_TYPE=RELEASE R3_CPP=1
         - os: osx
-          osx_image: xcode7.2
+          osx_image: xcode8
+          env: OS_ID=0.2.5 BUILD_TYPE=DEBUG R3_CPP=0
+        - os: osx
+          osx_image: xcode8
+          env: OS_ID=0.2.5 BUILD_TYPE=DEBUG R3_CPP=1
+        # OSX x64
+        - os: osx
+          osx_image: xcode8
+          env: OS_ID=0.2.40 BUILD_TYPE=RELEASE R3_CPP=0
+        - os: osx
+          osx_image: xcode8
+          env: OS_ID=0.2.40 BUILD_TYPE=RELEASE R3_CPP=1
+        - os: osx
+          osx_image: xcode8
           env: OS_ID=0.2.40 BUILD_TYPE=DEBUG R3_CPP=0
         - os: osx
-          osx_image: xcode7.2
+          osx_image: xcode8
           env: OS_ID=0.2.40 BUILD_TYPE=DEBUG R3_CPP=1
 
 addons:
@@ -81,10 +111,6 @@ addons:
             - g++-mingw-w64-x86-64
             - mingw-w64
 
-before_install:
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install cmake; fi
-
 install:
     # Fetch a Rebol bootstrap binary, which is needed for building Rebol.
     #- wget http://www.rebol.com/r3/downloads/r3-a111-4-2.tar.gz
@@ -95,15 +121,10 @@ install:
 
 script:
     - cd make/
-    # If REL is defined and not empty, we do a release build by compiling with
-    # NDEBUG defined. (`${parameter+alt_value}` is a Bash-ism documented as:
-    # "if parameter set, use alt_value, else use null string.")
-    #- export CC="${TOOLS}${CC}${REL+ -DNDEBUG}"
-    # We have to set REBOL_TOOL explicitly to circumvent the automatic r3-make
-    # filename inference, as we always use a Linux r3-make, even when
-    # cross-compiling to Windows.
-    #- make -f makefile.boot REBOL_TOOL=r3-make OS_ID="${OS_ID}" CC="${CC}"
-    - cmake -DR3_OS_ID="${OS_ID}" -DR3_EXTERNAL_FFI=0 -DR3_CPP="${R3_CPP}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" -DR3_WITH_TCC=1 -G "Unix Makefiles"
+    #compile tcc as a cross-compiler
+    - if [ "${OS_ID}" = "0.3.1" ]; then mkdir tcc-build && cd tcc-build && cmake -DTCC_BUILD_WIN32=1 -G "Unix Makefiles" ../../external/tcc && make i386-w64-mingw32-tcc i386-w64-mingw32-libtcc1 VERBOSE=1 && cp i386-w64-mingw32-tcc ../cross-tcc && cp i386-w64-mingw32-libtcc1.a ../cross-libtcc1.a && cd .. && rm -fr tcc-build; fi
+    - if [ "${OS_ID}" = "0.3.40" ]; then mkdir tcc-build && cd tcc-build && cmake -DTCC_BUILD_WIN64=1 -G "Unix Makefiles" ../../external/tcc && make x86_64-w64-mingw32-tcc x86_64-w64-mingw32-libtcc1 VERBOSE=1 && cp x86_64-w64-mingw32-tcc ../cross-tcc && cp x86_64-w64-mingw32-libtcc1.a ../cross-libtcc1.a && cd .. && rm -fr tcc-build; fi
+    - cmake -DR3_OS_ID="${OS_ID}" -DR3_EXTERNAL_FFI=0 -DR3_CPP="${R3_CPP}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" -DR3_WITH_TCC=1 -G "Unix Makefiles" "${EXTRA_CMAKE_ARGS}"
     - make r3-core VERBOSE=1
     # A minimal sanity check that the built R3 does _something_. Eventually, we
     # should run the full test suite.
@@ -114,15 +135,18 @@ script:
     # Run a second time with piped output to return success/faiure to Travis
     - if [ "${OS_ID}" = "0.4.40" ]; then ./r3-core --do 'print {OK}' | grep OK; fi
 
+    # overwriting libtcc1.a with the cross-compiled version
+    - if [ "${OS_ID}" = "0.3.1" -o "${OS_ID}" = "0.3.40" ]; then cp cross-libtcc1.a tcc/libtcc1.a; fi
+
     # Rename files before uploading
-    - zip r3-core-${TRAVIS_COMMIT}-${OS_ID}-${BUILD_TYPE}-CPP${R3_CPP}.zip r3-core tcc/libtcc1.a
+    - zip r3-core-${OS_ID}-${TRAVIS_COMMIT}-${BUILD_TYPE}-CPP${R3_CPP}.zip r3-core${EXE_SUFFIX} tcc/libtcc1.a
 
 deploy:
   provider: releases
   api_key:
     secure: V6a5VzBv+ut3hKZKMmnuY4Urzc4QA/EBcfarve837q+7p9QgDseiuW93yUVys7LacIl8D6y13m71QBxzG6LC9WnttNgfy+PfyrMbWfaMvg9zLQQ1jTGKWjW6Fn4/xyU0NYyrjvgxW2itQ4/r9r0lcmKHbsAcm/ZhvLzg4o3dnc0=
   file:
-      - r3-core-${TRAVIS_COMMIT}-${OS_ID}-${BUILD_TYPE}-CPP${R3_CPP}.zip
+      - r3-core-${OS_ID}-${TRAVIS_COMMIT}-${BUILD_TYPE}-CPP${R3_CPP}.zip
   skip_cleanup: true #or, Travis CI deletes all the files created during the build
   on:
     tags: true

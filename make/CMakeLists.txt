@@ -591,7 +591,7 @@ if (R3_WITH_TCC)
     elseif ("${build_type}" STREQUAL "release")
         set(tcc_c_flags "${CMAKE_C_FLAGS_RELEASE}")
     else ()
-        message ("ERROR!!!!!!!!!!!!${build_type}!!!")
+        message (FATAL_ERROR "Unknown CMAKE_BUILD_TYPE: ${build_type}")
     endif ()
 
     #flags needs to be a list
@@ -603,12 +603,22 @@ if (R3_WITH_TCC)
 
     set (SYS_CORE_PREP ${TOP_GENERATED_SRC_DIR}/include/sys-core.i)
     set (SYS_CORE_HEADER ${TOP_SRC_DIR}/include/sys-core.h)
-    get_target_property(TCC_EXE tcc LOCATION)
-    #set (TCC_EXE ${CMAKE_CURRENT_BINARY_DIR}/tcc/tcc${CMAKE_EXECUTABLE_SUFFIX})
+
+    set (TCC_DEPENDS "libtcc")
+    message("HOST: ${CMAKE_HOST_SYSTEM} SYSTEM: ${CMAKE_SYSTEM}")
+    if ("${CMAKE_HOST_SYSTEM}" STREQUAL "${CMAKE_SYSTEM}") #native build
+        get_target_property(TCC_EXE tcc LOCATION)
+        list(APPEND TCC_DEPENDS "tcc;libtcc1")
+    else () #cross-compile
+        set(TCC_EXE ${CMAKE_CURRENT_BINARY_DIR}/cross-tcc)
+        if (NOT EXISTS ${TCC_EXE})
+            message (FATAL_ERROR "Can't find tcc at: ${TCC_EXE}")
+        endif ()
+    endif ()
 
     if (WIN32)
         list(APPEND tcc_c_flag_list "-I${TCC_DIR}/win32/include")
-        list(APPEND tcc_c_flag_list "-DPVAR=TVAR -DTVAR=\"extern __attribute__((dllimport))\"")
+        list(APPEND tcc_c_flag_list "-DPVAR=TVAR;-DTVAR=extern __attribute__((dllimport))")
     endif ()
 
     list(APPEND tcc_c_flag_list "-DREN_C_STDIO_OK") #allow stdio.h
@@ -618,14 +628,13 @@ if (R3_WITH_TCC)
         ${SYS_CORE_PREP}
         COMMAND ${TCC_EXE} -E -dD -o ${SYS_CORE_PREP} ${SYS_CORE_HEADER} -I${TCC_DIR}/include -I${TOP_GENERATED_SRC_DIR}/include -I${TOP_SRC_DIR}/include -I${TOP_SRC_DIR}/codecs ${TCC_ARGS} ${tcc_c_flag_list}
         DEPENDS
-        tcc
-        libtcc1
+        ${TCC_DEPENDS}
         ${TOOLS_DIR}/make-embedded-header.r
-        ${CMAKE_CURRENT_BINARY_DIR}/tcc/tcc
         ${BOOT_OUTPUT}
         ${HEADER_OUTPUT}
         ${SYS_CORE_HEADER}
         ${TOP_GENERATED_SRC_DIR}/include/host-lib.h
+        VERBATIM
         )
 
     add_custom_command(OUTPUT
