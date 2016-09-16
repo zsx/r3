@@ -344,16 +344,18 @@ void Shutdown_Pools(void)
 
 #if !defined(NDEBUG)
     REBSEG *seg = Mem_Pools[SER_POOL].segs;
-    for (; seg != NULL; seg = seg->next) {
+    for(; seg != NULL; seg = seg->next) {
         REBSER *series = cast(REBSER*, seg + 1);
         REBCNT n;
         for (n = Mem_Pools[SER_POOL].units; n > 0; n--, series++) {
+            UNPOISON_MEMORY(series, sizeof(REBSER));
             if (IS_FREE_NODE(series))
                 continue;
 
             printf("Leaked series at shutdown");
             Panic_Series(series);
         }
+        UNPOISON_MEMORY(seg, sizeof(REBSEG)); // for access to seg->next
     }
 #endif
 
@@ -364,7 +366,9 @@ void Shutdown_Pools(void)
 
         REBSEG *seg = pool->segs;
         while (seg) {
-            REBSEG *next = seg->next;
+            REBSEG *next;
+            UNPOISON_MEMORY(seg, sizeof(REBSEG)); // for access to seg->next
+            next = seg->next;
             FREE_N(char, mem_size, cast(char*, seg));
             seg = next;
         }

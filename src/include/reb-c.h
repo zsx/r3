@@ -631,10 +631,10 @@ typedef u16 REBUNI;
     // <IMPORTANT> Address sanitizer's memory poisoning must not have two
     // threads both poisoning/unpoisoning the same addresses at the same time.
 
-    #define POISON_MEMORY(reg, mem_size)
+    #define POISON_MEMORY(reg, mem_size) \
         ASAN_POISON_MEMORY_REGION(reg, mem_size)
 
-    #define UNPOISON_MEMORY(reg, mem_size)
+    #define UNPOISON_MEMORY(reg, mem_size) \
         ASAN_UNPOISON_MEMORY_REGION(reg, mem_size)
 #else
     // !!! @HostileFork wrote a tiny C++ "poor man's memory poisoner" that
