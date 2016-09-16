@@ -15,13 +15,19 @@ matrix:
         - os: linux
           sudo: required
           dist: trusty
-          env: OS_ID=0.4.4 BUILD_TYPE=RELEASE R3_CPP=0
+          env: OS_ID=0.4.4 BUILD_TYPE=RELEASE R3_CPP=0 CFLAGS=-m32 CXXFLAGS=-m32 EXTRA_CMAKE_ARGS="-DCMAKE_ASM_FLAGS=-m32"
 
-        # Linux x86, release, build with CPP
+        # Linux x86, debug
         - os: linux
           sudo: required
           dist: trusty
-          env: OS_ID=0.4.4 BUILD_TYPE=RELEASE R3_CPP=1
+          env: OS_ID=0.4.4 BUILD_TYPE=DEBUG R3_CPP=0 CFLAGS=-m32 CXXFLAGS=-m32 EXTRA_CMAKE_ARGS="-DCMAKE_ASM_FLAGS=-m32"
+
+        # Linux x86, debug, build with CPP
+        - os: linux
+          sudo: required
+          dist: trusty
+          env: OS_ID=0.4.4 BUILD_TYPE=DEBUG R3_CPP=1 CFLAGS=-m32 CXXFLAGS=-m32 EXTRA_CMAKE_ARGS="-DCMAKE_ASM_FLAGS=-m32"
 
         # Linux x64, debug
         - os: linux
@@ -41,12 +47,6 @@ matrix:
           dist: trusty
           env: OS_ID=0.4.40 BUILD_TYPE=RELEASE R3_CPP=0
 
-        # Linux x64, release, build with CPP
-        - os: linux
-          sudo: required
-          dist: trusty
-          env: OS_ID=0.4.40 BUILD_TYPE=RELEASE R3_CPP=1
-
         # Windows x86, release
         - os: linux
           sudo: required
@@ -57,6 +57,11 @@ matrix:
           sudo: required
           dist: trusty
           env: OS_ID=0.3.1 EXE_SUFFIX=.exe BUILD_TYPE=DEBUG R3_CPP=0 EXTRA_CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=Toolchain-cross-mingw32-linux.cmake"
+        # Windows x86, debug, CPP
+        - os: linux
+          sudo: required
+          dist: trusty
+          env: OS_ID=0.3.1 EXE_SUFFIX=.exe BUILD_TYPE=DEBUG R3_CPP=1 EXTRA_CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=Toolchain-cross-mingw32-linux.cmake"
         # Windows x64, release
         - os: linux
           sudo: required
@@ -67,26 +72,25 @@ matrix:
           sudo: required
           dist: trusty
           env: OS_ID=0.3.40 EXE_SUFFIX=.exe BUILD_TYPE=DEBUG R3_CPP=0 EXTRA_CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=Toolchain-cross-mingw64-linux.cmake"
+        # Windows x64, debug, CPP
+        - os: linux
+          sudo: required
+          dist: trusty
+          env: OS_ID=0.3.40 EXE_SUFFIX=.exe BUILD_TYPE=DEBUG R3_CPP=1 EXTRA_CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=Toolchain-cross-mingw64-linux.cmake"
         # OSX x86
         - os: osx
           osx_image: xcode8
-          env: OS_ID=0.2.5 BUILD_TYPE=RELEASE R3_CPP=0
+          env: OS_ID=0.2.5 BUILD_TYPE=RELEASE R3_CPP=0 EXTRA_CMAKE_ARGS="-DCMAKE_OSX_ARCHITECTURES=i386"
         - os: osx
           osx_image: xcode8
-          env: OS_ID=0.2.5 BUILD_TYPE=RELEASE R3_CPP=1
+          env: OS_ID=0.2.5 BUILD_TYPE=DEBUG R3_CPP=0 EXTRA_CMAKE_ARGS="-DCMAKE_OSX_ARCHITECTURES=i386"
         - os: osx
           osx_image: xcode8
-          env: OS_ID=0.2.5 BUILD_TYPE=DEBUG R3_CPP=0
-        - os: osx
-          osx_image: xcode8
-          env: OS_ID=0.2.5 BUILD_TYPE=DEBUG R3_CPP=1
+          env: OS_ID=0.2.5 BUILD_TYPE=DEBUG R3_CPP=1 EXTRA_CMAKE_ARGS="-DCMAKE_OSX_ARCHITECTURES=i386"
         # OSX x64
         - os: osx
           osx_image: xcode8
           env: OS_ID=0.2.40 BUILD_TYPE=RELEASE R3_CPP=0
-        - os: osx
-          osx_image: xcode8
-          env: OS_ID=0.2.40 BUILD_TYPE=RELEASE R3_CPP=1
         - os: osx
           osx_image: xcode8
           env: OS_ID=0.2.40 BUILD_TYPE=DEBUG R3_CPP=0
