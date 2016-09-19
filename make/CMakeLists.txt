@@ -621,7 +621,7 @@ if (R3_WITH_TCC)
         list(APPEND tcc_c_flag_list "-DPVAR=TVAR;-DTVAR=extern __attribute__((dllimport))")
     endif ()
 
-    list(APPEND tcc_c_flag_list "-DREN_C_STDIO_OK") #allow stdio.h
+    list(APPEND tcc_c_flag_list "-DREN_C_STDIO_OK;-UHAVE_ASAN_INTERFACE_H") #allow stdio.h
     message("cflags: ${tcc_c_flags}")
 
     add_custom_command(OUTPUT
