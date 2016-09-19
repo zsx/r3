@@ -80,13 +80,13 @@ matrix:
         # OSX x86
         - os: osx
           osx_image: xcode8
-          env: OS_ID=0.2.5 BUILD_TYPE=RELEASE R3_CPP=0 EXTRA_CMAKE_ARGS="-DCMAKE_OSX_ARCHITECTURES=i386"
+          env: OS_ID=0.2.5 BUILD_TYPE=RELEASE R3_CPP=0 EXTRA_CMAKE_ARGS="-DCMAKE_OSX_ARCHITECTURES=i386 -DCMAKE_ASM_FLAGS=\"-arch i386\""
         - os: osx
           osx_image: xcode8
-          env: OS_ID=0.2.5 BUILD_TYPE=DEBUG R3_CPP=0 EXTRA_CMAKE_ARGS="-DCMAKE_OSX_ARCHITECTURES=i386"
+          env: OS_ID=0.2.5 BUILD_TYPE=DEBUG R3_CPP=0 EXTRA_CMAKE_ARGS="-DCMAKE_OSX_ARCHITECTURES=i386 -DCMAKE_ASM_FLAGS=\"-arch i386\""
         - os: osx
           osx_image: xcode8
-          env: OS_ID=0.2.5 BUILD_TYPE=DEBUG R3_CPP=1 EXTRA_CMAKE_ARGS="-DCMAKE_OSX_ARCHITECTURES=i386"
+          env: OS_ID=0.2.5 BUILD_TYPE=DEBUG R3_CPP=1 EXTRA_CMAKE_ARGS="-DCMAKE_OSX_ARCHITECTURES=i386 -DCMAKE_ASM_FLAGS=\"-arch i386\""
         # OSX x64
         - os: osx
           osx_image: xcode8
