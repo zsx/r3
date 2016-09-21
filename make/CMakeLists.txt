@@ -607,7 +607,12 @@ if (R3_WITH_TCC)
     set (TCC_DEPENDS "libtcc")
     message("HOST: ${CMAKE_HOST_SYSTEM} SYSTEM: ${CMAKE_SYSTEM}")
     if ("${CMAKE_HOST_SYSTEM}" STREQUAL "${CMAKE_SYSTEM}") #native build
-        get_target_property(TCC_EXE tcc LOCATION)
+        #
+        # Using `get_target_property(TCC_EXE tcc LOCATION)` causes an error
+        # Explained at https://cmake.org/cmake/help/v3.0/policy/CMP0026.html
+        #
+        set(TCC_EXE "tcc")
+
         list(APPEND TCC_DEPENDS "tcc;libtcc1")
     else () #cross-compile
         set(TCC_EXE ${CMAKE_CURRENT_BINARY_DIR}/cross-tcc)
