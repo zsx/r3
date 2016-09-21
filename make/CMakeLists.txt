@@ -720,6 +720,23 @@ if(NOT (MSVC_IDE OR XCODE))
         COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/clean-generated.cmake
         )
 endif()
+
+#get rid of '-rdynamic' option at link stage
+#Do not add flags to export symbols from executables without the ENABLE_EXPORTS target property.
+#https://cmake.org/cmake/help/v3.4/policy/CMP0065.html
+if (POLICY CMP0065)
+  cmake_policy(SET CMP0065 NEW)
+else ()
+    if (LINUX)
+        if (CMAKE_COMILER_IS_GNUCC)
+            set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
+        endif()
+        if (CMAKE_COMILER_IS_GNUCXX)
+            set(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "")
+        endif ()
+    endif (LINUX)
+endif ()
+
 add_library(libr3_core_core OBJECT ${CORE_SOURCE} ${GENERATED_CORE_SOURCE} ${GENERATED_CORE_HEADER} ${GENERATED_OS_SOURCE})
 add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> ${OS_SOURCE})
 
