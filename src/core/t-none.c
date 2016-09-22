@@ -88,3 +88,24 @@ REBTYPE(Unit)
 
     fail (Error_Illegal_Action(VAL_TYPE(val), action));
 }
+
+
+//
+//  CT_Handle: C
+//
+REBINT CT_Handle(const RELVAL *a, const RELVAL *b, REBINT mode)
+{
+    // Would it be meaningful to allow user code to compare HANDLE!?
+    //
+    fail (Error(RE_MISC));
+}
+
+
+
+//
+// REBTYPE: C
+//
+REBTYPE(Handle)
+{
+    fail(Error_Illegal_Action(REB_HANDLE, action));
+}

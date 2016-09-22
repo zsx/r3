@@ -113,16 +113,21 @@ static REBCNT find_string(
     REBCNT index,
     REBCNT end,
     REBVAL *target,
-    REBCNT len,
+    REBCNT target_len,
     REBCNT flags,
     REBINT skip
 ) {
+    assert(end >= index);
+    
+    if (target_len > end - index) // series not long enough to have target
+        return NOT_FOUND;
+
     REBCNT start = index;
 
     if (flags & (AM_FIND_REVERSE | AM_FIND_LAST)) {
         skip = -1;
         start = 0;
-        if (flags & AM_FIND_LAST) index = end - len;
+        if (flags & AM_FIND_LAST) index = end - target_len;
         else index--;
     }
 
@@ -137,7 +142,7 @@ static REBCNT find_string(
                 series,
                 start,
                 VAL_BIN_AT(target),
-                len,
+                target_len,
                 NOT(GET_FLAG(flags, ARG_FIND_CASE - 1)),
                 GET_FLAG(flags, ARG_FIND_MATCH - 1)
             );
@@ -151,7 +156,7 @@ static REBCNT find_string(
                 skip,
                 VAL_SERIES(target),
                 VAL_INDEX(target),
-                len,
+                target_len,
                 flags & (AM_FIND_MATCH|AM_FIND_CASE)
             );
         }
@@ -162,7 +167,7 @@ static REBCNT find_string(
             series,
             start,
             VAL_BIN_AT(target),
-            len,
+            target_len,
             uncase, // "don't treat case insensitively"
             GET_FLAG(flags, ARG_FIND_MATCH - 1)
         );
@@ -729,7 +734,8 @@ find:
         else {
             if (IS_CHAR(arg) || IS_BITSET(arg)) len = 1;
             else if (!ANY_STRING(arg)) {
-                Val_Init_String(arg, Copy_Form_Value(arg, 0));
+                REBSER *copy = Copy_Form_Value(arg, 0);
+                Val_Init_String(arg, copy);
             }
         }
 

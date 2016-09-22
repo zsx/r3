@@ -1062,7 +1062,7 @@ REBNATIVE(repeat)
         SET_INTEGER(value, Int64(value));
 
     REBCTX *context;
-    REBARR *body = Copy_Body_Deep_Bound_To_New_Context(
+    REBARR *copy = Copy_Body_Deep_Bound_To_New_Context(
         &context,
         ARG(word),
         ARG(body)
@@ -1071,11 +1071,11 @@ REBNATIVE(repeat)
     REBVAL *var = CTX_VAR(context, 1);
 
     Val_Init_Object(ARG(word), context); // keep GC safe
-    Val_Init_Block(ARG(body), body); // keep GC safe
+    Val_Init_Block(ARG(body), copy); // keep GC safe
 
     if (ANY_SERIES(value)) {
         if (Loop_Series_Throws(
-            D_OUT, var, body, value, VAL_LEN_HEAD(value) - 1, 1
+            D_OUT, var, copy, value, VAL_LEN_HEAD(value) - 1, 1
         )) {
             return R_OUT_IS_THROWN;
         }
@@ -1083,7 +1083,7 @@ REBNATIVE(repeat)
         return R_OUT_Q(q);
     }
     else if (IS_INTEGER(value)) {
-        if (Loop_Integer_Throws(D_OUT, var, body, 1, VAL_INT64(value), 1))
+        if (Loop_Integer_Throws(D_OUT, var, copy, 1, VAL_INT64(value), 1))
             return R_OUT_IS_THROWN;
 
         return R_OUT_Q(q);

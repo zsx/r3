@@ -11,12 +11,14 @@ REBOL [
     }
 ]
 
-clean-path: func [
-    "Returns new directory path with //, . and .. processed."
+
+clean-path: function [
+    "Returns new directory path with `//` `.` and `..` processed."
     file [file! url! string!]
-    /only "Do not prepend current directory"
-    /dir "Add a trailing / if missing"
-    /local out cnt f
+    /only
+        "Do not prepend current directory"
+    /dir
+        "Add a trailing / if missing"
 ][
     case [
         any [only not file? file] [file: copy file]
@@ -58,13 +60,16 @@ clean-path: func [
         ]
     ]
 
-    if all [#"/" = last out #"/" <> last file] [remove back tail out]
+    if all [#"/" = last out | #"/" <> last file] [remove back tail out]
     reverse out
 ]
 
+
 input: function [
     {Inputs a string from the console. New-line character is removed.}
-;   /hide "Mask input with a * character"
+    return: [string!]
+;   /hide
+;       "Mask input with a * character"
 ][
     if any [
         not port? system/ports/input
@@ -72,41 +77,53 @@ input: function [
     ][
         system/ports/input: open [scheme: 'console]
     ]
+
     line: to-string read system/ports/input
     trim/with line newline
     line
 ]
 
-ask: func [
+
+ask: function [
     "Ask the user for input."
-    question [any-series!] "Prompt to user"
-    /hide "mask input with *"
+    return: [string!]
+    question [any-series!]
+        "Prompt to user"
+    /hide
+        "mask input with *"
 ][
     prin question
     trim either hide [input/hide] [input]
 ]
 
-confirm: func [
+
+confirm: function [
     "Confirms a user choice."
-    question [any-series!] "Prompt to user"
-    /with choices [string! block!]
-    /local response
+    return: [logic!]
+    question [any-series!]
+        "Prompt to user"
+    /with
+    choices [string! block!]
 ][
-    if all [block? choices 2 < length choices] [
+    if all [block? choices | 2 < length choices] [
         cause-error 'script 'invalid-arg mold choices
     ]
+
     response: ask question
+
     unless with [choices: [["y" "yes"] ["n" "no"]]]
-    case [ ; returned
+
+    case [
         empty? choices [true]
-        string? choices [if find/match response choices [true]]
-        2 > length choices [if find/match response first choices [true]]
-        find first choices response [true]
-        find second choices response [false]
+        string? choices [find?/match response choices]
+        2 > length choices [find?/match response first choices]
+        find? first choices response [true]
+        find? second choices response [false]
     ]
 ]
 
-list-dir: func [
+
+list-dir: procedure [
     "Print contents of a directory (ls)."
     'path [<end> file! word! path! string!]
         "Accepts %file, :variables, and just words (as dirs)"
@@ -115,9 +132,11 @@ list-dir: func [
     /d "Dirs only"
 ;   /t "Time order"
     /r "Recursive"
-    /i indent
-    /local files save-dir info
+    /i "Indent"
+        indent
 ][
+    indent: default ""
+
     save-dir: what-dir
 
     unless file? save-dir [
@@ -132,15 +151,20 @@ list-dir: func [
     ]
 
     if r [l: true]
-    unless l [l: make string! 62] ; approx width
-    indent: any [:indent ""]
-    files: attempt [read %./]
-    if not files [print ["Not found:" :path] change-dir save-dir exit]
+    unless l [l: make string! 62] ; approx width    
+    
+    if not (files: attempt [read %./]) [
+        print ["Not found:" :path]
+        change-dir save-dir
+        leave
+    ]
+    
     for-each file files [
         if any [
-            all [f dir? file]
-            all [d not dir? file]
+            all [f | dir? file]
+            all [d | not dir? file]
         ][continue]
+
         either string? l [
             append l file
             append/dup l #" " 15 - remainder length l 15
@@ -149,18 +173,21 @@ list-dir: func [
             info: get query file
             change info second split-path info/1
             printf [indent 16 -8 #" " 24 #" " 6] info
-            if all [r dir? file] [
+            if all [r | dir? file] [
                 list-dir/l/r/i :file join indent "    "
             ]
         ]
     ]
-    if all [string? l not empty? l] [print l]
+    
+    if all [string? l | not empty? l] [print l]
+    
     change-dir save-dir
-    exit
 ]
 
-undirize: func [
+
+undirize: function [
     {Returns a copy of the path with any trailing "/" removed.}
+    return: [file! string! url!]
     path [file! string! url!]
 ][
     path: copy path
@@ -168,33 +195,53 @@ undirize: func [
     path
 ]
 
-in-dir: func [
+
+in-dir: function [
     "Evaluate a block while in a directory."
-    dir [file!] "Directory to change to (changed back after)"
-    block [block!] "Block to evaluate"
-    /local old-dir
-] [
+    return: [<opt> any-value!]
+    dir [file!]
+        "Directory to change to (changed back after)"
+    block [block!]
+        "Block to evaluate"
+][
     old-dir: what-dir
     change-dir dir
-    also do block change-dir old-dir
-] ; You don't want the block to be done if the change-dir fails, for safety.
 
-to-relative-file: func [
-    "Returns the relative portion of a file if in a subdirectory, or the original if not."
-    file [file! string!] "File to check (local if string!)"
-    /no-copy "Don't copy, just reference"
-    /as-rebol "Convert to REBOL-style filename if not"
-    /as-local "Convert to local-style filename if not"
-] [
+    ; You don't want the block to be done if the change-dir fails, for safety.
+
+    also do block change-dir old-dir
+]
+
+
+to-relative-file: function [
+    "Returns relative portion of a file if in subdirectory, original if not."
+    return: [file! string!]
+    file [file! string!]
+        "File to check (local if string!)"
+    /no-copy
+        "Don't copy, just reference"
+    /as-rebol
+        "Convert to REBOL-style filename if not"
+    /as-local
+        "Convert to local-style filename if not"
+][
     either string? file [ ; Local file
         ; Note: to-local-file drops trailing / in R2, not in R3
         ; if tmp: find/match file to-local-file what-dir [file: next tmp]
-        file: any [find/match file to-local-file what-dir  file]
-        if as-rebol [file: to-rebol-file file  no-copy: true]
-    ] [
-        file: any [find/match file what-dir  file]
-        if as-local [file: to-local-file file  no-copy: true]
+        file: any [find/match file to-local-file what-dir | file]
+        if as-rebol [
+            file: to-rebol-file file
+            no-copy: true
+        ]
+    ][
+        file: any [find/match file what-dir | file]
+        if as-local [
+            file: to-local-file file
+            no-copy: true
+        ]
     ]
+
     unless no-copy [file: copy file]
+    
     file
 ]

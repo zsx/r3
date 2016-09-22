@@ -15,6 +15,8 @@
 //     + integrates iOS ARM64 patch (an un-processed PR as of 21-Dec-2015)
 //     + __inline__ moved to beginning of declarations (suppresses warning)
 //     + tabs converted to spaces
+//     + Nullified __builtin_trap for compilers not supporting it (TinyCC)
+//     + Added a macros for compilers not defining __i386__ or __x86_64__ (TinyCC)
 //
 
 /* Copyright (c) 2011-2015, Scott Tsai
@@ -58,13 +60,21 @@
 extern "C" {
 #endif
 
+#ifndef __has_builtin
+    #define __has_builtin(x) 0
+#endif
+
+#if !__has_builtin(__builtin_trap) && !defined(__GNUC__)
+#define __builtin_trap()
+#endif
+
     enum {
         /* gcc optimizers consider code after __builtin_trap() dead.
          * Making __builtin_trap() unsuitable for breaking into the debugger */
         DEBUG_BREAK_PREFER_BUILTIN_TRAP_TO_SIGTRAP = 0
     };
 
-#if defined(__i386__) || defined(__x86_64__)
+#if defined(__i386__) || defined(__x86_64__) || defined(TRAP_IS_INT3)
     enum { HAVE_TRAP_INSTRUCTION = 1 };
     __attribute__((gnu_inline, always_inline))
     __inline__ static void trap_instruction(void)

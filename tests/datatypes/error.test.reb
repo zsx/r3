@@ -2,13 +2,27 @@
 [error? try [1 / 0]]
 [not error? 1]
 [error! = type-of try [1 / 0]]
+
 ; error evaluation
 [error? do head insert copy [] try [1 / 0]]
+
 ; error that does not exist in the SCRIPT category--all of whose ids are
 ; reserved by the system and must be formed from mezzanine/user code in
 ; accordance with the structure the system would form.  Hence, illegal.
+;
 [try/except [make error! [type: 'script id: 'nonexistent-id]] [true]]
+
+; triggered errors should not be assignable
+;
+[a: 1 error? try [a: 1 / 0] :a =? 1]
+[a: 1 error? try [set 'a 1 / 0] :a =? 1]
+[a: 1 error? try [set/opt 'a 1 / 0] :a =? 1]
+
+; bug#2190
+[127 = catch/quit [attempt [catch/quit [1 / 0]] quit/with 127]]
+
 ; error types that should be predefined
+
 [error? make error! [type: 'syntax id: 'invalid]]
 [error? make error! [type: 'syntax id: 'missing]]
 [error? make error! [type: 'syntax id: 'no-header]]
@@ -17,6 +31,7 @@
 [error? make error! [type: 'syntax id: 'malconstruct]]
 [error? make error! [type: 'syntax id: 'bad-char]]
 [error? make error! [type: 'syntax id: 'needs]]
+
 [error? make error! [type: 'script id: 'no-value]]
 [error? make error! [type: 'script id: 'need-value]]
 [error? make error! [type: 'script id: 'not-bound]]
@@ -45,7 +60,6 @@
 [error? make error! [type: 'script id: 'dup-vars]]
 [error? make error! [type: 'script id: 'past-end]]
 [error? make error! [type: 'script id: 'missing-arg]]
-[error? make error! [type: 'script id: 'out-of-range]]
 [error? make error! [type: 'script id: 'too-short]]
 [error? make error! [type: 'script id: 'too-long]]
 [error? make error! [type: 'script id: 'invalid-chars]]
@@ -53,16 +67,10 @@
 [error? make error! [type: 'script id: 'verify-failed]]
 [error? make error! [type: 'script id: 'verify-void]]
 [error? make error! [type: 'script id: 'invalid-part]]
-[error? make error! [type: 'script id: 'type-limit]]
-[error? make error! [type: 'script id: 'size-limit]]
 [error? make error! [type: 'script id: 'no-return]]
 [error? make error! [type: 'script id: 'block-lines]]
-[error? make error! [type: 'script id: 'locked-word]]
-[error? make error! [type: 'script id: 'locked]]
-[error? make error! [type: 'script id: 'hidden]]
 [error? make error! [type: 'script id: 'bad-bad]]
 [error? make error! [type: 'script id: 'bad-make-arg]]
-[error? make error! [type: 'internal id: 'bad-utf8]]
 [error? make error! [type: 'script id: 'wrong-denom]]
 [error? make error! [type: 'script id: 'bad-compression]]
 [error? make error! [type: 'script id: 'dialect]]
@@ -72,9 +80,17 @@
 [error? make error! [type: 'script id: 'parse-variable]]
 [error? make error! [type: 'script id: 'parse-command]]
 [error? make error! [type: 'script id: 'parse-series]]
+
 [error? make error! [type: 'math id: 'zero-divide]]
 [error? make error! [type: 'math id: 'overflow]]
 [error? make error! [type: 'math id: 'positive]]
+[error? make error! [type: 'math id: 'type-limit]]
+[error? make error! [type: 'math id: 'size-limit]]
+[error? make error! [type: 'math id: 'out-of-range]]
+
+[error? make error! [type: 'access id: 'locked-word]]
+[error? make error! [type: 'access id: 'locked]]
+[error? make error! [type: 'access id: 'hidden]]
 [error? make error! [type: 'access id: 'cannot-open]]
 [error? make error! [type: 'access id: 'not-open]]
 [error? make error! [type: 'access id: 'already-open]]
@@ -93,7 +109,6 @@
 [error? make error! [type: 'access id: 'write-error]]
 [error? make error! [type: 'access id: 'read-error]]
 [error? make error! [type: 'access id: 'read-only]]
-[error? make error! [type: 'internal id: 'no-buffer]]
 [error? make error! [type: 'access id: 'timeout]]
 [error? make error! [type: 'access id: 'no-create]]
 [error? make error! [type: 'access id: 'no-delete]]
@@ -109,7 +124,10 @@
 [error? make error! [type: 'access id: 'bad-extension]]
 [error? make error! [type: 'access id: 'extension-init]]
 [error? make error! [type: 'access id: 'call-fail]]
+
 [error? make error! [type: 'user id: 'message]]
+
+[error? make error! [type: 'internal id: 'no-buffer]]
 [error? make error! [type: 'internal id: 'bad-path]]
 [error? make error! [type: 'internal id: 'not-here]]
 [error? make error! [type: 'internal id: 'no-memory]]
@@ -119,9 +137,4 @@
 [error? make error! [type: 'internal id: 'limit-hit]]
 [error? make error! [type: 'internal id: 'bad-sys-func]]
 [error? make error! [type: 'internal id: 'not-done]]
-; triggered errors should not be assignable
-[a: 1 error? try [a: 1 / 0] :a =? 1]
-[a: 1 error? try [set 'a 1 / 0] :a =? 1]
-[a: 1 error? try [set/opt 'a 1 / 0] :a =? 1]
-; bug#2190
-[127 = catch/quit [attempt [catch/quit [1 / 0]] quit/return 127]]
+[error? make error! [type: 'internal id: 'bad-utf8]]

@@ -830,10 +830,22 @@ static void Mold_Typeset(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
     }
 #endif
 
-    // Convert bits to types (we can make this more efficient !!)
-    for (n = 0; n < REB_MAX; n++) {
+    assert(!TYPE_CHECK(value, REB_0)); // REB_0 is used for internal purposes
+
+    // Note that although REB_MAX_VOID is used as an implementation detail for
+    // special typesets in function paramlists or context keys to indicate
+    // <opt>-style optionality, the "absence of a type" is not generally legal
+    // in user typesets.  Only legal "key" typesets (that have symbols).
+    //
+    assert(
+        !TYPE_CHECK(value, REB_MAX_VOID) || VAL_KEY_SPELLING(value) != NULL
+    );
+
+    // Convert bits to types.  
+    //
+    for (n = REB_0 + 1; n < REB_MAX; n++) {
         if (TYPE_CHECK(value, cast(enum Reb_Kind, n))) {
-            Emit(mold, "+DN ", SYM_DATATYPE_X, Canon(cast(REBSYM, n + 1)));
+            Emit(mold, "+DN ", SYM_DATATYPE_X, Canon(cast(REBSYM, n)));
         }
     }
     Trim_Tail(mold->series, ' ');
@@ -1624,7 +1636,7 @@ void Push_Mold(REB_MOLD *mold)
         Expand_Series(mold->series, mold->start, mold->reserve);
         SET_SERIES_LEN(mold->series, mold->start);
     }
-    else if (SER_REST(mold->series) > MAX_COMMON) {
+    else if (SER_REST(mold->series) - SER_LEN(mold->series) > MAX_COMMON) {
         //
         // If the "extra" space in the series has gotten to be excessive (due
         // to some particularly large mold), back off the space.  But preserve
@@ -1632,7 +1644,10 @@ void Push_Mold(REB_MOLD *mold)
         // ->start index in the stack!
         //
         Remake_Series(
-            mold->series, MIN_COMMON, SER_WIDE(mold->series), MKS_PRESERVE
+            mold->series,
+            SER_LEN(mold->series) + MIN_COMMON,
+            SER_WIDE(mold->series),
+            MKS_PRESERVE
         );
     }
 
@@ -1743,14 +1758,12 @@ REBSER *Pop_Molded_String_Core(REB_MOLD *mold, REBCNT len)
 //
 REBSER *Pop_Molded_UTF8(REB_MOLD *mold)
 {
-    REBSER *bytes;
-
-    assert(mold->series);
+    assert(SER_LEN(mold->series) >= mold->start);
 
     ASSERT_SERIES_TERM(mold->series);
     Throttle_Mold(mold);
 
-    bytes = Make_UTF8_Binary(
+    REBSER *bytes = Make_UTF8_Binary(
         UNI_AT(mold->series, mold->start),
         SER_LEN(mold->series) - mold->start,
         0,

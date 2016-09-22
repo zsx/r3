@@ -226,9 +226,10 @@ static void Schema_From_Block_May_Fail(
         // through a struct creation.  There are "raw" structs with no memory,
         // which would avoid the data series (not the REBSTU array, though)
         //
-        SET_HANDLE_DATA(
+        Init_Handle_Simple(
             schema_out,
-            ARR_SERIES(VAL_STRUCT(&temp))->link.schema
+            NULL, // code
+            ARR_SERIES(VAL_STRUCT(&temp))->link.schema // data
         );
 
         // Saying "struct!" is legal would suggest any structure is legal.
@@ -1292,7 +1293,11 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec) {
         &Routine_Dispatcher,
         NULL // no underlying function, this is fundamental
     );
-    SET_HANDLE_DATA(FUNC_BODY(fun), cast(REBRIN*, r));
+    Init_Handle_Simple(
+        FUNC_BODY(fun),
+        NULL, // code
+        cast(REBRIN*, r) // data
+    );
 
     ARR_SERIES(paramlist)->link.meta = NULL;
 
@@ -1461,7 +1466,7 @@ REBNATIVE(make_callback)
         RIN_DISPATCHER(r)
     );
 
-    if (status != FFI_OK) 
+    if (status != FFI_OK)
         fail (Error(RE_MISC)); // couldn't prep closure
 
     SET_RIN_FLAG(r, ROUTINE_FLAG_CALLBACK);

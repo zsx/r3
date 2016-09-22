@@ -995,38 +995,23 @@ REBNATIVE(scan_net_header)
 {
     PARAM(1, header);
 
-    REBVAL *header = ARG(header);
-
-    // Input variables from R3-Alpha REBNATIVE(construct)
-    REBCNT index;
-    REBARR *result;
-    REBSER *temp;
-
-    // Processing variables from R3-Alpha Scan_Net_Header()
-    REBYTE *str;
-    REBYTE *cp;
-    REBYTE *start;
-    REBVAL *val;
-    REBINT len;
-    REBARR *array;
-    REBSER *string;
-
-    result = Make_Array(10); // Just a guess at size (use STD_BUF?)
-    Val_Init_Block(D_OUT, result); // Keep safe from GC
+    REBARR *result = Make_Array(10); // Just a guess at size (use STD_BUF?)
 
     // Convert string if necessary. Store back for GC safety.
     //
-    temp = Temp_Bin_Str_Managed(header, &index, NULL);
-    INIT_VAL_SERIES(header, temp); // caution: macro copies args!
+    REBVAL *header = ARG(header);
+    REBCNT index;
+    REBSER *utf8 = Temp_Bin_Str_Managed(header, &index, NULL);
+    INIT_VAL_SERIES(header, utf8); // GC protect, unnecessary?
 
-    // !!! This is assuming the string is in bytes, but what if it was
-    // unicode?  See R3-Alpha source for REBNATIVE(construct) for origin.
-    //
-    cp = VAL_BIN(header) + index;
+    REBYTE *cp = BIN_HEAD(utf8) + index;
 
     while (IS_LEX_ANY_SPACE(*cp)) cp++; // skip white space
 
-    while (1) {
+    REBYTE *start;
+    REBINT len;
+
+    while (TRUE) {
         // Scan valid word:
         if (IS_LEX_WORD(*cp)) {
             start = cp;
@@ -1041,42 +1026,45 @@ REBNATIVE(scan_net_header)
         }
         else break;
 
-        if (*cp == ':') {
-            REBSTR *name = Intern_UTF8_Managed(start, cp-start);
-            RELVAL *item;
-            cp++;
-            // Search if word already present:
-            for (item = ARR_HEAD(result); NOT_END(item); item += 2) {
-                if (SAME_STR(VAL_WORD_SPELLING(item), name)) {
-                    // Does it already use a block?
-                    if (IS_BLOCK(item + 1)) {
-                        // Block of values already exists:
-                        val = Alloc_Tail_Array(VAL_ARRAY(val + 1));
-                        SET_BLANK(val);
-                    }
-                    else {
-                        // Create new block for values:
-                        REBVAL *val2;
-                        array = Make_Array(2);
-                        val2 = Alloc_Tail_Array(array); // prior value
-                        *val2 = val[1];
-                        Val_Init_Block(val + 1, array);
-                        val = Alloc_Tail_Array(array); // for new value
-                        SET_BLANK(val);
-                    }
-                    break;
+        if (*cp != ':')
+            break;
+
+        REBVAL *val;
+
+        REBSTR *name = Intern_UTF8_Managed(start, cp - start);
+        RELVAL *item;
+
+        cp++;
+        // Search if word already present:
+        for (item = ARR_HEAD(result); NOT_END(item); item += 2) {
+            assert(IS_STRING(item + 1) || IS_BLOCK(item + 1));
+            if (SAME_STR(VAL_WORD_SPELLING(item), name)) {
+                // Does it already use a block?
+                if (IS_BLOCK(item + 1)) {
+                    // Block of values already exists:
+                    val = Alloc_Tail_Array(VAL_ARRAY(item + 1));
                 }
-            }
-            if (IS_END(item)) {
-                val = Alloc_Tail_Array(result); // add new word
-                Val_Init_Word(val, REB_SET_WORD, name);
-                val = Alloc_Tail_Array(result); // for new value
-                SET_BLANK(val);
+                else {
+                    // Create new block for values:
+                    REBARR *array = Make_Array(2);
+                    COPY_VALUE(
+                        Alloc_Tail_Array(array),
+                        item + 1, // prior value
+                        SPECIFIED // no relative values added
+                    );
+                    val = Alloc_Tail_Array(array);
+                    SET_TRASH_SAFE(val); // can't be unsafe for Val_Init_Block
+                    Val_Init_Block(item + 1, array);
+                }
+                break;
             }
         }
-        else break;
 
-        // Get value:
+        if (IS_END(item)) { // didn't break, add space for new word/value
+            Val_Init_Word(Alloc_Tail_Array(result), REB_SET_WORD, name);
+            val = Alloc_Tail_Array(result);
+        }
+
         while (IS_LEX_SPACE(*cp)) cp++;
         start = cp;
         len = 0;
@@ -1099,9 +1087,9 @@ REBNATIVE(scan_net_header)
         }
 
         // Create string value (ignoring lines and indents):
-        string = Make_Binary(len);
+        REBSER *string = Make_Binary(len);
         SET_SERIES_LEN(string, len);
-        str = BIN_HEAD(string);
+        REBYTE *str = BIN_HEAD(string);
         cp = start;
         // Code below *MUST* mirror that above:
         while (!ANY_CR_LF_END(*cp)) *str++ = *cp++;
@@ -1115,9 +1103,10 @@ REBNATIVE(scan_net_header)
             }
             else break;
         }
-        *str = 0;
+        *str = '\0';
         Val_Init_String(val, string);
     }
 
+    Val_Init_Block(D_OUT, result);
     return R_OUT;
 }

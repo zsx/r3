@@ -235,9 +235,9 @@ static void Bind_Relative_Inner_Loop(
             if (n != 0) {
                 //
                 // Word's canon symbol is in frame.  Relatively bind it.
-                // (clear out existing header flags first).
+                // (clear out existing binding flags first).
                 //
-                VAL_RESET_HEADER(value, VAL_TYPE(value));
+                UNBIND_WORD(value);
                 SET_VAL_FLAGS(value, WORD_FLAG_BOUND | VALUE_FLAG_RELATIVE);
                 INIT_WORD_FUNC(value, AS_FUNC(paramlist)); // incomplete func
                 INIT_WORD_INDEX(value, n);

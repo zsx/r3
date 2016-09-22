@@ -228,9 +228,9 @@ REBARR *Pop_Stack_Values_Reversed(REBDSP dsp_start)
         SPECIFIED, // data stack should be fully specified--no relative values
         DSP - dsp_start // len
     );
-   
+
     DS_DROP_TO(dsp_start);
-    return array; 
+    return array;
 }
 
 

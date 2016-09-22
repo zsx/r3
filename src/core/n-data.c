@@ -192,23 +192,23 @@ inline static REB_R Do_Test_For_Maybe(
 //          {The input value or BLANK! if no match, void if FALSE? and matched}
 //      test [function! datatype! typeset! block! logic!]
 //      value [<opt> any-value!]
+//      /?
+//          "Return LOGIC! of match vs. pass-through of value or blank"
 //  ]
 //
 REBNATIVE(maybe)
 {
     PARAM(1, test);
     PARAM(2, value);
-
-    REBVAL *value = ARG(value);
-    if (IS_VOID(value))
-        return R_BLANK;
+    REFINE(3, q);
 
     REBVAL *test = ARG(test);
+    REBVAL *value = ARG(value);
 
     if (IS_LOGIC(test)) {
-        if (VAL_LOGIC(test) == IS_CONDITIONAL_TRUE(value))
+        if (!IS_VOID(test) && VAL_LOGIC(test) == IS_CONDITIONAL_TRUE(value))
             goto type_matched;
-        return R_BLANK;
+        return REF(q) ? R_FALSE : R_BLANK;
     }
 
     REB_R r;
@@ -230,7 +230,13 @@ REBNATIVE(maybe)
     else
         r = Do_Test_For_Maybe(D_OUT, value, test);
 
-    if (r == R_OUT_IS_THROWN || r == R_BLANK)
+    if (r == R_OUT_IS_THROWN)
+        return r;
+
+    if (REF(q))
+        return r == R_BLANK ? R_FALSE : R_TRUE;
+
+    if (r == R_BLANK)
         return r;
 
     assert(r == R_OUT); // must have matched!
@@ -241,7 +247,10 @@ type_matched:
     // void lets routines like ENSURE take advantage of the checking aspect
     // without risking a false positive for BLANK! or FALSE in result use.
     //
-    if (IS_CONDITIONAL_FALSE(value))
+    // Note that in the case of a void passing the test and needing to go
+    // through (e.g. `maybe :void? ()`) will be void also.
+    //
+    if (IS_VOID(value) || IS_CONDITIONAL_FALSE(value))
         return R_VOID;
 
     return R_OUT;
@@ -1103,37 +1112,6 @@ REBNATIVE(type_of)
 }
 
 
-//
-//  has-type?: native [
-//
-//  {Checks to see if a value has a type or is in a typeset.}
-//
-//      type [datatype! typeset!]
-//      value [<opt> any-value!]
-//  ]
-//
-REBNATIVE(has_type_q)
-{
-    PARAM(1, type);
-    PARAM(2, value);
-
-    REBVAL *value = ARG(value);
-    REBVAL *type = ARG(type);
-
-    if (IS_DATATYPE(type)) {
-        if (VAL_TYPE(value) == VAL_TYPE_KIND(type))
-            return R_TRUE;
-    }
-    else {
-        assert(IS_TYPESET(type));
-        if (TYPE_CHECK(type, VAL_TYPE(value)))
-            return R_TRUE;
-    }
-
-    return R_FALSE;
-}
-
-
 
 //
 //  unset: native [
@@ -1292,7 +1270,7 @@ REBNATIVE(punctuates_q)
 //  {Aliases the underlying data of one series to act as another of same class}
 //
 //      type [datatype!]
-//      value [any-series!]
+//      value [any-series! any-word!]
 //  ]
 //
 REBNATIVE(as)
@@ -1318,6 +1296,16 @@ REBNATIVE(as)
     case REB_FILE:
     case REB_URL:
         if (!ANY_BINSTR(value) || IS_BINARY(value))
+            fail (Error_Invalid_Arg(value));
+        break;
+
+    case REB_WORD:
+    case REB_GET_WORD:
+    case REB_SET_WORD:
+    case REB_LIT_WORD:
+    case REB_ISSUE:
+    case REB_REFINEMENT:
+        if (!ANY_WORD(value))
             fail (Error_Invalid_Arg(value));
         break;
     }

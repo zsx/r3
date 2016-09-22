@@ -408,7 +408,7 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
     assert(CTX_KEY_SYM(categories, 1) == SYM_SELF);
 
     // Find the correct catalog category
-    n = code / 100; // 0 for Special, 1 for Internal...
+    n = code / 1000; // 0 for Special, 1 for Internal...
     if (SELFISH(n + 1) > CTX_LEN(categories)) // 1-based, not 0 based
         return NULL;
 
@@ -421,7 +421,7 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
     assert(CTX_KEY_SYM(category, 1) == SYM_SELF);
 
     // Find the correct template in the catalog category (see %errors.r)
-    n = code % 100; // 0-based order within category
+    n = code % 1000; // 0-based order within category
     if (SELFISH(n + 2) > CTX_LEN(category)) // 1-based (CODE: TYPE:)
         return NULL;
 
@@ -431,7 +431,7 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
         return NULL;
     }
     assert(
-        (code / 100) * 100
+        (code / 1000) * 1000
         == cast(REBCNT, VAL_INT32(CTX_VAR(category, SELFISH(1))))
     );
 
@@ -453,12 +453,12 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
     Val_Init_Word(
         type_out,
         REB_WORD,
-        CTX_KEY_SPELLING(categories, SELFISH((code / 100) + 1))
+        CTX_KEY_SPELLING(categories, SELFISH((code / 1000) + 1))
     );
     Val_Init_Word(
         id_out,
         REB_WORD,
-        CTX_KEY_SPELLING(category, SELFISH((code % 100) + 3))
+        CTX_KEY_SPELLING(category, SELFISH((code % 1000) + 3))
     );
 
     return message;
@@ -1256,10 +1256,10 @@ REBCTX *Error_Bad_Func_Def(const REBVAL *spec, const REBVAL *body)
     // error that existed before refactoring code out of MAKE_Function().
 
     REBARR *array = Make_Array(2);
-    REBVAL def;
-
     Append_Value(array, spec);
     Append_Value(array, body);
+    
+    REBVAL def;
     Val_Init_Block(&def, array);
     return Error(RE_BAD_FUNC_DEF, &def, END_CELL);
 }

@@ -1492,14 +1492,11 @@ void Clonify_Function(REBVAL *value)
 REB_R Action_Dispatcher(REBFRM *f)
 {
     enum Reb_Kind type = VAL_TYPE(FRM_ARG(f, 1));
+    REBSYM sym = STR_SYMBOL(VAL_WORD_SPELLING(FUNC_BODY(f->func)));
+    assert(sym != SYM_0);
 
     REBACT subdispatch = Value_Dispatch[type];
-    if (subdispatch == NULL)
-        fail (Error_Illegal_Action(
-            type, STR_SYMBOL(VAL_WORD_CANON(FUNC_BODY(f->func)))
-        ));
-
-    return subdispatch(f, STR_SYMBOL(VAL_WORD_CANON(FUNC_BODY(f->func))));
+    return subdispatch(f, sym);
 }
 
 
@@ -1521,6 +1518,32 @@ REB_R Plain_Dispatcher(REBFRM *f)
     }
 
     return R_OUT;
+}
+
+
+//
+//  Datatype_Checker_Dispatcher: C
+//
+REB_R Datatype_Checker_Dispatcher(REBFRM *f)
+{
+    RELVAL *datatype = FUNC_BODY(f->func);
+    assert(IS_DATATYPE(datatype));
+    if (VAL_TYPE(FRM_ARG(f, 1)) == VAL_TYPE_KIND(datatype))
+        return R_TRUE;
+    return R_FALSE;
+}
+
+
+//
+//  Typeset_Checker_Dispatcher: C
+//
+REB_R Typeset_Checker_Dispatcher(REBFRM *f)
+{
+    RELVAL *typeset = FUNC_BODY(f->func);
+    assert(IS_TYPESET(typeset));
+    if (TYPE_CHECK(typeset, VAL_TYPE(FRM_ARG(f, 1))))
+        return R_TRUE;
+    return R_FALSE;
 }
 
 
@@ -1993,6 +2016,55 @@ REBNATIVE(chain)
 
     *D_OUT = *FUNC_VALUE(fun);
     assert(VAL_BINDING(D_OUT) == NULL);
+
+    return R_OUT;
+}
+
+
+//
+//  typechecker: native [
+//
+//  {Function generator for an optimized typechecking routine.}
+//
+//      return: [function!]
+//      type [datatype! typeset!]
+//  ]
+//
+REBNATIVE(typechecker)
+{
+    PARAM(1, type);
+    REFINE(2, opt);
+
+    REBVAL *type = ARG(type);
+
+    REBARR *paramlist = Make_Array(2);
+    
+    REBVAL *archetype = Alloc_Tail_Array(paramlist);
+    VAL_RESET_HEADER(archetype, REB_FUNCTION);
+    archetype->payload.function.paramlist = paramlist;
+    archetype->extra.binding = NULL;
+
+    REBVAL *param = Alloc_Tail_Array(paramlist);
+    Val_Init_Typeset(param, ALL_64, Canon(SYM_VALUE));
+    INIT_VAL_PARAM_CLASS(param, PARAM_CLASS_NORMAL);
+    
+    MANAGE_ARRAY(paramlist);
+
+    REBFUN *fun = Make_Function(
+        paramlist,
+        IS_DATATYPE(type)
+            ? &Datatype_Checker_Dispatcher
+            : &Typeset_Checker_Dispatcher,
+        NULL // this is fundamental (no distinct underlying function)
+    );
+
+    *FUNC_BODY(fun) = *type;
+
+    // for now, no help...use REDESCRIBE
+
+    ARR_SERIES(paramlist)->link.meta = NULL;
+
+    *D_OUT = *FUNC_VALUE(fun);
 
     return R_OUT;
 }

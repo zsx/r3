@@ -65,7 +65,8 @@ void Collapsify_Array(REBARR *array, REBCTX *specifier, REBCNT limit)
                 limit
             );
 
-            Val_Init_Array_Index(item, VAL_TYPE(item), copy, 0); // at 0 now
+            enum Reb_Kind kind = VAL_TYPE(item);
+            Val_Init_Array_Index(item, kind, copy, 0); // at 0 now
             assert(IS_SPECIFIC(item));
             assert(!GET_VAL_FLAG(item, VALUE_FLAG_LINE)); // should be cleared
         }

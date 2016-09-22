@@ -193,6 +193,9 @@ typedef struct rebol_mem_pool REBPOL;
 
 #include "sys-rebval.h" // REBVAL structure definition
 #include "sys-action.h"
+
+typedef void (*CLEANUP_FUNC)(const REBVAL*); // for some HANDLE!s GC callback
+
 #include "sys-rebser.h" // REBSER series definition (embeds REBVAL definition)
 
 typedef void (*MAKE_FUNC)(REBVAL*, enum Reb_Kind, const REBVAL*);
@@ -680,6 +683,8 @@ enum Reb_Vararg_Op {
 #include "sys-string.h"
 
 #include "sys-array.h"
+
+#include "sys-handle.h"
 
 #include "sys-typeset.h"
 #include "sys-context.h"

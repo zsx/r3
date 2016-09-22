@@ -837,24 +837,25 @@ REBCNT Series_Allocation_Unpooled(REBSER *series)
 //
 //  Make_Series: C
 // 
-// Make a series of a given length and width (unit size).
-// Small series will be allocated from a REBOL pool.
+// Make a series of a given capacity and width (unit size).
+// If the data is tiny enough, it will be fit into the series node itself.
+// Small series will be allocated from a memory pool.
 // Large series will be allocated from system memory.
-// A width of zero is not allowed.
+// The series will be zero length to start with.
 //
-REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
+REBSER *Make_Series(REBCNT capacity, REBYTE wide, REBCNT flags)
 {
     // PRESERVE flag only makes sense for Remake_Series, where there is
     // previous data to be kept.
     assert(!(flags & MKS_PRESERVE));
-    assert(wide != 0 && length != 0);
+    assert(wide != 0 && capacity != 0); // not allowed
 
-    if (cast(REBU64, length) * wide > MAX_I32)
-        fail (Error_No_Memory(cast(REBU64, length) * wide));
+    if (cast(REBU64, capacity) * wide > MAX_I32)
+        fail (Error_No_Memory(cast(REBU64, capacity) * wide));
 
 #if !defined(NDEBUG)
     PG_Reb_Stats->Series_Made++;
-    PG_Reb_Stats->Series_Memory += length * wide;
+    PG_Reb_Stats->Series_Memory += capacity * wide;
 #endif
 
     REBSER *s = cast(REBSER*, Make_Node(SER_POOL));
@@ -903,11 +904,11 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
         //
         SER_SET_WIDE(s, wide);
         SET_SER_FLAGS(s, SERIES_FLAG_EXTERNAL | SERIES_FLAG_HAS_DYNAMIC);
-        s->content.dynamic.rest = length;
+        s->content.dynamic.rest = capacity;
     }
-    else if ((flags & MKS_ARRAY) && length <= 2) {
+    else if ((flags & MKS_ARRAY) && capacity <= 2) {
         //
-        // An array requested of "length 2" actually means one cell of data
+        // An array requested of capacity 2 actually means one cell of data
         // and one cell that can serve as an END marker.  The invariant that
         // is guaranteed is that the final slot will already be written as
         // an END, and that the caller must never write it...hence it can
@@ -918,16 +919,16 @@ REBSER *Make_Series(REBCNT length, REBYTE wide, REBCNT flags)
         SET_SER_FLAG(s, SERIES_FLAG_ARRAY);
         INIT_CELL_IF_DEBUG(&s->content.values[0]);
     }
-    else if (length * wide <= sizeof(s->content)) {
+    else if (capacity * wide <= sizeof(s->content)) {
         SER_SET_WIDE(s, wide);
         assert(!GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC));
     }
     else {
         // Allocate the actual data blob that holds the series elements
 
-        if (!Series_Data_Alloc(s, length, wide, flags)) {
+        if (!Series_Data_Alloc(s, capacity, wide, flags)) {
             Free_Node(SER_POOL, s);
-            fail (Error_No_Memory(length * wide));
+            fail (Error_No_Memory(capacity * wide));
         }
 
         // <<IMPORTANT>> - The capacity that will be given back as the ->rest
@@ -1445,31 +1446,57 @@ void GC_Kill_Series(REBSER *s)
         if (Prior_Expand[n] == s) Prior_Expand[n] = 0;
     }
 
-    if (
-        GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)
-        && !GET_SER_FLAG(s, SERIES_FLAG_EXTERNAL)
-    ) {
-        REBCNT size = SER_TOTAL(s);
+    if (GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)) {
+        if (GET_SER_FLAG(s, SERIES_FLAG_EXTERNAL)) {
+            //
+            // External series have their REBSER GC'd when Rebol doesn't need it,
+            // but the data pointer itself is not one that Rebol allocated
+            // !!! Should the external owner be told about the GC/free event?
+        }
+        else {
+            REBCNT size = SER_TOTAL(s);
 
-        REBYTE wide = SER_WIDE(s);
-        REBCNT bias = SER_BIAS(s);
-        s->content.dynamic.data -= wide * bias;
-        Free_Unbiased_Series_Data(
-            s->content.dynamic.data,
-            Series_Allocation_Unpooled(s)
-        );
+            REBYTE wide = SER_WIDE(s);
+            REBCNT bias = SER_BIAS(s);
+            s->content.dynamic.data -= wide * bias;
+            Free_Unbiased_Series_Data(
+                s->content.dynamic.data,
+                Series_Allocation_Unpooled(s)
+            );
 
-        // !!! This indicates reclaiming of the space, but not for the series
-        // nodes themselves...have they never been accounted for, e.g. in
-        // R3-Alpha?  If not, they should be...additional sizeof(REBSER)
+            // !!! This indicates reclaiming of the space, not for the series
+            // nodes themselves...have they never been accounted for, e.g. in
+            // R3-Alpha?  If not, they should be...additional sizeof(REBSER),
+            // also tracking overhead for that.  Review the question of how
+            // the GC watermarks interact with Alloc_Mem and the "higher
+            // level" allocations.
 
-        if (GC_Ballast + size > MAX_I32)
-            GC_Ballast = MAX_I32;
+            if (REB_I32_ADD_OF(GC_Ballast, size, &GC_Ballast))
+                GC_Ballast = MAX_I32;
+        }
     }
     else {
-        // External series have their REBSER GC'd when Rebol doesn't need it,
-        // but the data pointer itself is not one that Rebol allocated
-        // !!! Should the external owner be told about the GC/free event?
+        assert(!GET_SER_FLAG(s, SERIES_FLAG_EXTERNAL));
+
+        // Special GC processing for HANDLE! when the handle is implemented as
+        // a singular array, so that if the handle represents a resource, it
+        // may be freed.
+        //
+        // Note that not all singular arrays containing a HANDLE! should be
+        // interpreted that when the array is freed the handle is freed (!)
+        // Only when the handle array pointer in the freed singular
+        // handle matches the REBARR being freed.  (It may have been just a
+        // singular array that happened to contain a handle, otherwise, as
+        // opposed to the specific singular made for the handle's GC awareness)
+
+        if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY)) {
+            RELVAL *v = ARR_HEAD(AS_ARRAY(s));
+            if (NOT_END(v) && IS_HANDLE(v)) {
+                if (v->extra.singular == AS_ARRAY(s)) {
+                    (s->misc.cleaner)(KNOWN(v));
+                }
+            }
+        }
     }
 
     s->info.bits = 0; // includes width

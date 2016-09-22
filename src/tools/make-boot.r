@@ -569,23 +569,10 @@ emit {
 **
 ***********************************************************************/
 
-#define TS_NOTHING \
-    (FLAGIT_KIND(REB_MAX_VOID) | FLAGIT_KIND(REB_BLANK))
-
-// ANY-SOMETHING! is the base "all bits" typeset that just does not include
-// NONE! or a void (review if typesets should be allowed to mention void
-// when not part of a function spec)
+// User-facing typesets, such as ANY-VALUE!, do not include void (absence of
+// a value) nor the internal "REB_0" type
 //
-#define TS_SOMETHING \
-    ((FLAGIT_KIND(REB_MAX_VOID + 1) - 1) /* all typeset bits */ \
-    - TS_NOTHING)
-
-// ANY-VALUE! is slightly more lenient in accepting NONE!, but still does not
-// count void (this is distinct from R3-Alpha's ANY-TYPE!, which is steered
-// clear from for reasons including that it looks a lot like ANY-DATATYPE!)
-//
-#define TS_VALUE (TS_SOMETHING | FLAGIT_KIND(REB_BLANK))
-
+#define TS_VALUE ((FLAGIT_KIND(REB_MAX_VOID - 1) - 1) - FLAGIT_KIND(REB_0))
 }
 
 typeset-sets: []
@@ -1082,7 +1069,7 @@ for-each [category info] boot-errors [
 emit-end
 
 emit {
-#define RE_USER 1000 // Hardcoded, update in %make-boot.r
+#define RE_USER 10000 // Hardcoded, update in %make-boot.r
 
 #define RE_INTERNAL_FIRST RE_MISC // GENERATED! update in %make-boot.r
 #define RE_MAX RE_COMMAND_MAX // GENERATED! update in %make-boot.r

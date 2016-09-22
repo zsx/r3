@@ -595,9 +595,19 @@ do-needs: function [
     ; Import the modules:
     mods: map-each [name vers hash] mods [
         ; Import the module
-        mod: (import/version/check/:no-share/:no-lib/:no-user
-            name (opt vers) (opt hash)
-        )
+        mod: apply 'import [
+            module: name
+            
+            version: true
+            ver: opt vers
+            
+            check: true 
+            sum: opt hash
+            
+            no-share: no-share
+            no-lib: no-lib
+            no-user: no-user
+        ]
 
         ; Collect any mixins into the object (if we are doing that)
         if all [any-value? :mixins mixin? mod] [

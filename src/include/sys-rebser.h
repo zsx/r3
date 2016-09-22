@@ -32,7 +32,8 @@
 //
 // Every string and block in REBOL has a REBSER, and the code implementing
 // them is reused in many places where Rebol needs a general-purpose
-// dynamically growing structure.
+// dynamically growing structure.  It is also used for fixed size structures
+// which would like to participate in garbage collection.
 //
 // The REBSER is fixed-size, and is allocated as a "node" from a memory pool.
 // That pool quickly grants and releases memory ranges that are sizeof(REBSER)
@@ -65,7 +66,8 @@
 //
 // Singulars have widespread applications in the system, notably the
 // efficient implementation of FRAME!.  They also narrow the gap in overhead
-// between COMPOSE [A (B) C] vs. REDUCE ['A B 'C] to nearly nothing.
+// between COMPOSE [A (B) C] vs. REDUCE ['A B 'C] such that the memory cost
+// of the array is about the same as just having another value in the array.
 //
 // Pair REBSERs are allocated from the REBSER pool instead of their own to
 // help exchange a common "currency" of allocation size more efficiently.
@@ -403,10 +405,7 @@ struct Reb_Series {
     union Reb_Series_Content content;
 
     // `info` is the information about the series which needs to be known
-    // even if it is not using a dynamic allocation.  So even if the alloc
-    // size, length, and bias aren't relevant...the series flags need to
-    // be known...including the flag of whether this is a dynamic series
-    // node or not!
+    // even if it is not using a dynamic allocation.
     //
     // The lowest 2 bits of info are required to be 0 when used with the trick
     // of implicitly terminating series data.  See SERIES_FLAG_0_IS_FALSE and
@@ -438,6 +437,7 @@ struct Reb_Series {
             REBINT high:16;
             REBINT low:16;
         } bind_index; // canon words hold index for binding--demo sharing 2
+        CLEANUP_FUNC cleaner; // some HANDLE!s use this for GC finalization
     } misc;
 
 #if !defined(NDEBUG)

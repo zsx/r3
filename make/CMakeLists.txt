@@ -52,9 +52,6 @@ endif()
 option(R3_EXTERNAL_FFI "Build with external FFI" OFF)
 option(R3_CPP "Build C files as C++" OFF)
 option(R3_BUILD_VIEW "Build with view system" OFF)
-option(R3_EXTERNAL_SDL "Build with external SDL2" OFF)
-option(R3_EXTERNAL_GLEW "Build with external GLEW" OFF)
-option(R3_WITH_NVTX "Build with Nvidia Tools Extention Library" OFF)
 
 if (NOT EXISTS ${REBOL})
     message(FATAL_ERROR "${REBOL} doesn't exist, an executable r3 is required")
@@ -106,6 +103,7 @@ if (R3_OS_ID STREQUAL "0.2.5")
     set (TO_OSX_X86 TRUE)
     list (APPEND COMMON_MACROS
         TO_OSX_X86
+        TRAP_IS_INT3
         )
     set(CMAKE_OSX_ARCHITECTURE i386)
 elseif (R3_OS_ID STREQUAL "0.2.40")
@@ -113,6 +111,7 @@ elseif (R3_OS_ID STREQUAL "0.2.40")
     list (APPEND COMMON_MACROS
         TO_OSX_X64
         __LP64__
+        TRAP_IS_INT3
         )
     set(CMAKE_OSX_ARCHITECTURE x86_64)
 elseif (R3_OS_ID STREQUAL "0.3.1")
@@ -130,6 +129,7 @@ elseif (R3_OS_ID STREQUAL "0.4.4")
     set (TO_LINUX_X86 TRUE)
     list (APPEND COMMON_MACROS
         TO_LINUX_X86
+        TRAP_IS_INT3
         )
 elseif (R3_OS_ID STREQUAL "0.4.20") #linux arm
     set (TO_LINUX_ARM TRUE)
@@ -146,6 +146,7 @@ elseif (R3_OS_ID STREQUAL "0.4.40") #linux x86_64
     list (APPEND COMMON_MACROS
         TO_LINUX_X64
         __LLP64__
+        TRAP_IS_INT3
         )
 endif ()
 
@@ -249,7 +250,6 @@ set (CORE_SOURCE
     ${CORE_DIR}/c-function.c
     ${CORE_DIR}/c-path.c
     ${CORE_DIR}/c-port.c
-    ${CORE_DIR}/c-profile.c
     ${CORE_DIR}/c-signal.c
     ${CORE_DIR}/c-task.c
     ${CORE_DIR}/c-word.c
@@ -262,7 +262,6 @@ set (CORE_SOURCE
     ${CORE_DIR}/d-print.c
     ${CORE_DIR}/d-stack.c
     ${CORE_DIR}/d-trace.c
-    ${CORE_DIR}/e-zoe.c
     ${CORE_DIR}/f-blocks.c
     ${CORE_DIR}/f-deci.c
     ${CORE_DIR}/f-dtoa.c
@@ -460,7 +459,6 @@ set(BOOT_DEPENDS
     ${TOP_SRC_DIR}/boot/typespec.r
     ${TOP_SRC_DIR}/boot/root.r
     ${TOP_SRC_DIR}/boot/task.r
-    #${TOP_SRC_DIR}/boot/ops.r
 
     # all of the files in boot-files.r
     ${TOP_SRC_DIR}/mezz/base-constants.r
@@ -546,11 +544,11 @@ add_custom_command(OUTPUT
     )
 
 set (GENERATED_CORE_SOURCE
-    ${NATIVE_OUTPUT}
     ${HEADER_OUTPUT}
     ${BOOT_OUTPUT}
     ${EXT_CORE_OUTPUT}
     ${REB_LIB_OUTPUT}
+    ${CORE_GENERATED_DIR}/b-boot.c
     )
 
 set_source_files_properties(

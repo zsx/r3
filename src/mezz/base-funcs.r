@@ -368,7 +368,6 @@ redescribe: function [
 
             not notes: any [:meta/parameter-notes] [
                 return () ; specialized or adapted, HELP uses original notes
-                pass
             ]
 
             not frame? notes [
@@ -427,7 +426,7 @@ redescribe: function [
             ;
             opt [[set note: string!] (
                 on-demand-meta
-                either (set-word? param) and (param = quote return:) [
+                either all [set-word? param | equal? param quote return:] [
                     meta/return-note: either equal? note {} [
                         _
                     ][
@@ -534,6 +533,14 @@ all?: redescribe [
     {Shortcut AND, ignores voids. Unlike plain ALL, forces result to LOGIC!}
 ](
     chain [:all :true?]
+)
+
+maybe?: redescribe [
+    {Check value using tests (match types, TRUE? or FALSE?, filter function)}
+    ; return: [logic!] ;-- blocks for type changes not supported yet
+    ;    {TRUE if match, FALSE if no match (use MAYBE to pass through value)}
+](
+    specialize 'maybe [?: true]
 )
 
 find?: redescribe [
@@ -814,11 +821,16 @@ module: func [
     ; To try and standardize the variance, Ren-C does not accept LIT-WORD!
     ; in these slots.
     ;
+    ; !!! Although this is a goal, it creates some friction.  Backing off of
+    ; it temporarily.
+    ;
     if lit-word? spec/name [
-        fail ["Ren-C module Name:" (spec/name) "must be WORD!, not LIT-WORD!"]
+        spec/name: as word! spec/name
+        ;fail ["Ren-C module Name:" (spec/name) "must be WORD!, not LIT-WORD!"]
     ]
     if lit-word? spec/type [
-        fail ["Ren-C module Type:" (spec/name) "must be WORD!, not LIT-WORD!"]
+        spec/type: as word! spec/type
+        ;fail ["Ren-C module Type:" (spec/type) "must be WORD!, not LIT-WORD!"]
     ]
 
     ; Validate the important fields of header:

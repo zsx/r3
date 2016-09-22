@@ -1167,7 +1167,11 @@ void Register_Codec(const REBYTE *name, codo dispatcher)
     REBSTR *sym = Intern_UTF8_Managed(name, LEN_BYTES(name));
 
     value = Append_Context(VAL_CONTEXT(value), 0, sym);
-    SET_HANDLE_CODE(value, cast(CFUNC*, dispatcher));
+    Init_Handle_Simple(
+        value,
+        cast(CFUNC*, dispatcher), // code
+        NULL // data
+    );
 }
 
 
@@ -1188,9 +1192,8 @@ static void Init_Codecs(void)
 
 static void Set_Option_String(REBCHR *str, REBCNT field)
 {
-    REBVAL *val;
     if (str) {
-        val = Get_System(SYS_OPTIONS, field);
+        REBVAL *val = Get_System(SYS_OPTIONS, field);
         Val_Init_String(val, Copy_OS_Str(str, OS_STRLEN(str)));
     }
 }

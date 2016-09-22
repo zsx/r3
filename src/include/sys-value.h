@@ -341,7 +341,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
         | NOT_END_MASK | CELL_MASK)
 
 #ifdef NDEBUG
-    #define ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v) \
+    #define ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v,file,line) \
         NOOP
 
     #define MARK_CELL_WRITABLE_IF_CPP_DEBUG(v) \
@@ -715,6 +715,21 @@ inline static void SET_FALSE_COMMON(RELVAL *v) {
 #define IS_CONDITIONAL_TRUE(v) \
     NOT(IS_CONDITIONAL_FALSE(v)) // macro gets file + line # in debug build
 
+// Although a BLOCK! value is true, some constructs are safer by not allowing
+// literal blocks.  e.g. `if [x] [print "this is not safe"`.  The evaluated
+// bit can let these instances be distinguished.  Note that making *all*
+// evaluations safe would be limiting, e.g. `foo: any [false-thing []]`.
+//
+inline static REBOOL IS_CONDITIONAL_TRUE_SAFE(const REBVAL *v) {
+    if (IS_BLOCK(v)) {
+        if (GET_VAL_FLAG(v, VALUE_FLAG_EVALUATED))
+            return TRUE;
+
+        fail (Error(RE_BLOCK_CONDITIONAL, v));
+    }
+    return IS_CONDITIONAL_TRUE(v);
+}
+
 inline static REBOOL VAL_LOGIC(const RELVAL *v) {
     assert(IS_LOGIC(v));
     return NOT(GET_VAL_FLAG((v), VALUE_FLAG_FALSE));
@@ -1068,44 +1083,6 @@ inline static void SET_TIME(RELVAL *v, REBI64 nanoseconds) {
 inline static void SET_TUPLE(RELVAL *v, const void *data) {
     VAL_RESET_HEADER(v, REB_TUPLE);
     memcpy(VAL_TUPLE_DATA(v), data, sizeof(VAL_TUPLE_DATA(v)));
-}
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  HANDLE! (`struct Reb_Handle`)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// Type for holding an arbitrary code or data pointer inside of a Rebol data
-// value.  What kind of function or data is not known to the garbage collector,
-// so it ignores it.
-//
-// !!! Review usages of this type where they occur.
-//
-
-#define VAL_HANDLE_CODE(v) \
-    ((v)->payload.handle.code)
-
-#define VAL_HANDLE_DATA(v) \
-    ((v)->payload.handle.data)
-
-#define VAL_HANDLE_NUMBER(v) \
-    cast(REBUPT, (v)->payload.handle.data)
-
-inline static void SET_HANDLE_CODE(RELVAL *v, CFUNC *code) {
-    VAL_RESET_HEADER(v, REB_HANDLE);
-    VAL_HANDLE_CODE(v) = code;
-}
-
-inline static void SET_HANDLE_DATA(RELVAL *v, void *data) {
-    VAL_RESET_HEADER(v, REB_HANDLE);
-    VAL_HANDLE_DATA(v) = data;
-}
-
-inline static void SET_HANDLE_NUMBER(RELVAL *v, REBUPT number) {
-    VAL_RESET_HEADER(v, REB_HANDLE);
-    VAL_HANDLE_DATA(v) = cast(void*, number);
 }
 
 
