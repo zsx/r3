@@ -572,7 +572,7 @@ emit {
 // User-facing typesets, such as ANY-VALUE!, do not include void (absence of
 // a value) nor the internal "REB_0" type
 //
-#define TS_VALUE ((FLAGIT_KIND(REB_MAX_VOID - 1) - 1) - FLAGIT_KIND(REB_0))
+#define TS_VALUE ((FLAGIT_KIND(REB_MAX_VOID) - 1) - FLAGIT_KIND(REB_0))
 }
 
 typeset-sets: []
