@@ -1142,7 +1142,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 
     // Form: ** Where: function
     value = &vars->where;
-    if (VAL_TYPE(value) > REB_BLANK) {
+    if (VAL_TYPE(value) != REB_BLANK) {
         Append_Codepoint_Raw(mold->series, '\n');
         Append_Boot_Str(mold->series, RS_ERRS+2);
         Mold_Value(mold, value, FALSE);
@@ -1150,7 +1150,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 
     // Form: ** Near: location
     value = &vars->nearest;
-    if (VAL_TYPE(value) > REB_BLANK) {
+    if (VAL_TYPE(value) != REB_BLANK) {
         Append_Codepoint_Raw(mold->series, '\n');
         Append_Boot_Str(mold->series, RS_ERRS+3);
         if (IS_STRING(value)) // special case: source file line number
