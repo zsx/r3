@@ -589,10 +589,10 @@ REBINT PD_String(REBPVS *pvs)
 
 
 //
-//  PD_File: C
+//  File_Or_Url_Path_Dispatch: C
 //
-// Path dispatch when the left hand side has evaluated to a FILE!.  This
-// must be done through evaluations, because a literal file consumes
+// Path dispatch when the left hand side has evaluated to a FILE! or URL!.
+// This must be done through evaluations, because a literal file consumes
 // slashes as its literal form:
 //
 //     >> type-of quote %foo/bar
@@ -605,19 +605,12 @@ REBINT PD_String(REBPVS *pvs)
 //     >> x/bar
 //     == %foo/bar ;-- a FILE!
 //
-REBINT PD_File(REBPVS *pvs)
+REBSER *File_Or_Url_Path_Dispatch(REBPVS *pvs)
 {
-    REBSER *ser;
-    REBCNT skip;
-    REBCNT len;
-    REBUNI c;
-    REB_MOLD mo;
-    CLEARS(&mo);
-
     if (pvs->opt_setval)
-        fail (Error_Bad_Path_Set(pvs));
+        fail(Error_Bad_Path_Set(pvs));
 
-    ser = Copy_Sequence_At_Position(KNOWN(pvs->value));
+    REBSER *ser = Copy_Sequence_At_Position(KNOWN(pvs->value));
 
     // This makes sure there's always a "/" at the end of the file before
     // appending new material via a selector:
@@ -626,11 +619,17 @@ REBINT PD_File(REBPVS *pvs)
     //     >> (x)/("bar")
     //     == %foo/bar
     //
-    len = SER_LEN(ser);
-    if (len > 0) c = GET_ANY_CHAR(ser, len - 1);
-    if (len == 0 || c != '/') Append_Codepoint_Raw(ser, '/');
+    REBUNI ch_last;
+    REBCNT len = SER_LEN(ser);
+    if (len > 0)
+        ch_last = GET_ANY_CHAR(ser, len - 1);
+    if (len == 0 || ch_last != '/')
+        Append_Codepoint_Raw(ser, '/');
 
+    REB_MOLD mo;
+    CLEARS(&mo);
     Push_Mold(&mo);
+
     Mold_Value(&mo, pvs->selector, FALSE);
 
     // The `skip` logic here regarding slashes and backslashes is apparently
@@ -643,8 +642,8 @@ REBINT PD_File(REBPVS *pvs)
     // !!! Review if this makes sense under a larger philosophy of string
     // path composition.
     //
-    c = GET_ANY_CHAR(mo.series, mo.start);
-    skip = (c == '/' || c == '\\') ? 1 : 0;
+    REBUNI ch_start = GET_ANY_CHAR(mo.series, mo.start);
+    REBCNT skip = (ch_start == '/' || ch_start == '\\') ? 1 : 0;
 
     // !!! Would be nice if there was a better way of doing this that didn't
     // involve reaching into mo.start and mo.series.
@@ -658,8 +657,28 @@ REBINT PD_File(REBPVS *pvs)
 
     Drop_Mold(&mo);
 
-    Val_Init_Series(pvs->store, VAL_TYPE(pvs->value), ser);
+    return ser;
+}
 
+
+//
+//  PD_File: C
+//
+REBINT PD_File(REBPVS *pvs) {
+    assert(VAL_TYPE(pvs->value) == REB_FILE);
+    REBSER *ser = File_Or_Url_Path_Dispatch(pvs);
+    Val_Init_Series(pvs->store, REB_FILE, ser);
+    return PE_USE_STORE;
+}
+
+
+//
+//  PD_Url: C
+//
+REBINT PD_Url(REBPVS *pvs) {
+    assert(VAL_TYPE(pvs->value) == REB_URL);
+    REBSER *ser = File_Or_Url_Path_Dispatch(pvs);
+    Val_Init_Series(pvs->store, REB_URL, ser);
     return PE_USE_STORE;
 }
 
