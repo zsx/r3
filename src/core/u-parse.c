@@ -1793,16 +1793,14 @@ REBNATIVE(subparse)
                     }
                     else quoted = subrule;
 
-                    if (0 == Cmp_Value(
-                        ARR_AT(AS_ARRAY(P_INPUT), P_POS),
-                        quoted,
-                        P_HAS_CASE
-                    )) {
-                        i = P_POS + 1;
-                    }
-                    else {
+                    RELVAL *cmp = ARR_AT(AS_ARRAY(P_INPUT), P_POS);
+
+                    if (IS_END(cmp))
                         i = NOT_FOUND;
-                    }
+                    else if (0 == Cmp_Value(cmp, quoted, P_HAS_CASE))
+                        i = P_POS + 1;
+                    else
+                        i = NOT_FOUND;
                     break;
                 }
 
