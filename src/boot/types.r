@@ -75,7 +75,7 @@ binary      string      +       +       *       *       [series]
 string      string      +       f*      *       *       [series string]
 file        string      +       f*      file    *       [series string]
 email       string      +       f*      *       *       [series string]
-url         string      +       f*      file    *       [series string]
+url         string      +       f*      url     *       [series string]
 tag         string      +       +       *       *       [series string]
 
 bitset      bitset      *       *       *       *       -
