@@ -113,3 +113,25 @@
     ; currently disallowed..."would expose or modify hidden values"
     error? try [append o [self: 1]]
 ]
+[
+    o: make object! []
+    o = trim make object! [i: _]
+]
+[
+    o: make object! [a: 1]
+    o = trim make object! [a: 1 i: _]
+]
+[
+    o: make object! [a: 1]
+    o = trim make object! [i: _ a: 1]
+]
+[
+    o: make object! [a: 1]
+    o = trim make object! [i: _ a: 1 j: _]
+]
+[
+    ;trim doesn't modify object
+    o: make object! [i: _]
+    trim o
+    o = make object! [i: _]
+]
