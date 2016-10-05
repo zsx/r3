@@ -32,7 +32,6 @@
 //
 // This module provides the functions that REBOL calls
 // to interface to the native (host) operating system.
-// REBOL accesses these functions through the structure
 // defined in host-lib.h (auto-generated, do not modify).
 //
 // compile with -DUNICODE for Win32 wide char API
@@ -66,6 +65,8 @@
 
 #ifndef REB_CORE
 REBSER* Gob_To_Image(REBGOB *gob);
+void OS_Destroy_Graphics(void);
+
 #endif
 
 //used to detect non-modal OS dialogs
@@ -293,7 +294,6 @@ REBINT OS_Config(int id, REBYTE *result)
 
     return 0;
 }
-
 
 //
 //  OS_Exit: C
@@ -1341,6 +1341,7 @@ REBSER *OS_GOB_To_Image(REBGOB *gob)
 //     FALSE - if REBOL string is used (no dealloc needed)
 // 
 // Note: REBOL strings are allowed to contain nulls.
+//      This function is used by host-text-api-agg, and required to have a C linkage
 //
 REBOOL As_OS_Str(REBSER *series, REBCHR **string)
 {

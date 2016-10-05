@@ -234,7 +234,7 @@ void dispatch (SDL_Event *evt)
                     SDL_Log("Window %d shown", evt->window.windowID);
                     win = SDL_GetWindowFromID(evt->window.windowID);
                     if (win) {
-                        gob = SDL_GetWindowData(win, "GOB");
+                        gob = cast(REBGOB*, SDL_GetWindowData(win, "GOB"));
                         if (gob != NULL && GET_GOB_FLAG(gob, GOBF_HIDDEN)) {
                             CLR_GOB_FLAG(gob, GOBF_HIDDEN);
                         }
@@ -244,7 +244,7 @@ void dispatch (SDL_Event *evt)
                     SDL_Log("Window %d hidden", evt->window.windowID);
                     win = SDL_GetWindowFromID(evt->window.windowID);
                     if (win) {
-                        gob = SDL_GetWindowData(win, "GOB");
+                        gob = cast(REBGOB*, SDL_GetWindowData(win, "GOB"));
                         if (gob != NULL && !GET_GOB_FLAG(gob, GOBF_HIDDEN)) {
                             SET_GOB_FLAG(gob, GOBF_HIDDEN);
                         }
@@ -254,7 +254,7 @@ void dispatch (SDL_Event *evt)
                     SDL_Log("Window %d exposed", evt->window.windowID);
                     win = SDL_GetWindowFromID(evt->window.windowID);
                     if (win) {
-                        gob = SDL_GetWindowData(win, "GOB");
+                        gob = cast(REBGOB*, SDL_GetWindowData(win, "GOB"));
                         if (gob != NULL) rebcmp_blit(GOB_COMPOSITOR(gob));
                     }
                     break;
@@ -264,7 +264,7 @@ void dispatch (SDL_Event *evt)
                             evt->window.data2);
                     win = SDL_GetWindowFromID(evt->window.windowID);
                     if (win) {
-                        gob = SDL_GetWindowData(win, "GOB");
+                        gob = cast(REBGOB*, SDL_GetWindowData(win, "GOB"));
                         if (gob != NULL) {
                             gob->offset.x = ROUND_TO_INT(PHYS_COORD_X(evt->window.data1));
                             gob->offset.y = ROUND_TO_INT(PHYS_COORD_Y(evt->window.data2));
@@ -280,7 +280,7 @@ void dispatch (SDL_Event *evt)
                             evt->window.data2);
                     win = SDL_GetWindowFromID(evt->window.windowID);
                     if (win) {
-                        gob = SDL_GetWindowData(win, "GOB");
+                        gob = cast(REBGOB*, SDL_GetWindowData(win, "GOB"));
                         if (gob != NULL) {
                             gob->size.x = ROUND_TO_INT(PHYS_COORD_X(evt->window.data1));
                             gob->size.y = ROUND_TO_INT(PHYS_COORD_Y(evt->window.data2));
@@ -296,7 +296,7 @@ void dispatch (SDL_Event *evt)
                     SDL_Log("Window %d minimized", evt->window.windowID);
                     win = SDL_GetWindowFromID(evt->window.windowID);
                     if (win) {
-                        gob = SDL_GetWindowData(win, "GOB");
+                        gob = cast(REBGOB*, SDL_GetWindowData(win, "GOB"));
                         if (gob != NULL && !GET_GOB_FLAG(gob, GOBF_MINIMIZE)) {
                             SET_GOB_FLAG(gob, GOBF_MINIMIZE);
                             CLR_GOB_FLAG(gob, GOBF_RESTORE);
@@ -309,7 +309,7 @@ void dispatch (SDL_Event *evt)
                     SDL_Log("Window %d maximized", evt->window.windowID);
                     win = SDL_GetWindowFromID(evt->window.windowID);
                     if (win) {
-                        gob = SDL_GetWindowData(win, "GOB");
+                        gob = cast(REBGOB*, SDL_GetWindowData(win, "GOB"));
                         if (gob != NULL && !GET_GOB_FLAG(gob, GOBF_MAXIMIZE)) {
                             SET_GOB_FLAG(gob, GOBF_MAXIMIZE);
                             CLR_GOB_FLAG(gob, GOBF_RESTORE);
@@ -322,7 +322,7 @@ void dispatch (SDL_Event *evt)
                     SDL_Log("Window %d restored", evt->window.windowID);
                     win = SDL_GetWindowFromID(evt->window.windowID);
                     if (win) {
-                        gob = SDL_GetWindowData(win, "GOB");
+                        gob = cast(REBGOB*, SDL_GetWindowData(win, "GOB"));
                         if (gob != NULL && !GET_GOB_FLAG(gob, GOBF_RESTORE)) {
                             SET_GOB_FLAG(gob, GOBF_RESTORE);
                             CLR_GOB_FLAG(gob, GOBF_MAXIMIZE);
@@ -350,7 +350,7 @@ void dispatch (SDL_Event *evt)
                     SDL_Log("Window %d closed", evt->window.windowID);
                     win = SDL_GetWindowFromID(evt->window.windowID);
                     if (win) {
-                        gob = SDL_GetWindowData(win, "GOB");
+                        gob = cast(REBGOB*, SDL_GetWindowData(win, "GOB"));
                         if (gob != NULL)
                             Add_Event_XY(gob, EVT_CLOSE, 0, 0);
                     }
@@ -374,7 +374,7 @@ void dispatch (SDL_Event *evt)
                 if (!win) {
                     return;
                 }
-                gob = SDL_GetWindowData(win, "GOB");
+                gob = cast(REBGOB*, SDL_GetWindowData(win, "GOB"));
                 if (gob != NULL) {
                     SDL_Keycode keycode = evt->key.keysym.sym;
                     SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "unprocessed keycode: 0x%x", keycode);
@@ -411,7 +411,7 @@ void dispatch (SDL_Event *evt)
             SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Text Input: %s", evt->text.text);
             {
                 win = SDL_GetWindowFromID(evt->text.windowID);
-                gob = SDL_GetWindowData(win, "GOB");
+                gob = cast(REBGOB*, SDL_GetWindowData(win, "GOB"));
                 if (gob) {
                     int i = 0;
                     for (i = 0; i < strlen(evt->text.text); i++) {
@@ -424,7 +424,7 @@ void dispatch (SDL_Event *evt)
         case SDL_MOUSEBUTTONDOWN:
         case SDL_MOUSEBUTTONUP:
             win = SDL_GetWindowFromID(evt->button.windowID);
-            gob = SDL_GetWindowData(win, "GOB");
+            gob = cast(REBGOB*, SDL_GetWindowData(win, "GOB"));
             if (gob != NULL) {
                 REBFLGS flags = state_to_flags(0);
                 int id = 0;
@@ -451,7 +451,7 @@ void dispatch (SDL_Event *evt)
 
         case SDL_MOUSEWHEEL:
             win = SDL_GetWindowFromID(evt->wheel.windowID);
-            gob = SDL_GetWindowData(win, "GOB");
+            gob = cast(REBGOB*, SDL_GetWindowData(win, "GOB"));
             if (gob != NULL) {
                 int flags = state_to_flags(0);
                 SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Wheel event");
@@ -461,7 +461,7 @@ void dispatch (SDL_Event *evt)
             break;
         case SDL_MOUSEMOTION:
             win = SDL_GetWindowFromID(evt->motion.windowID);
-            gob = SDL_GetWindowData(win, "GOB");
+            gob = cast(REBGOB*, SDL_GetWindowData(win, "GOB"));
             if (gob != NULL) {
                 int flags = state_to_flags(0);
                 SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "motion event");
@@ -472,7 +472,7 @@ void dispatch (SDL_Event *evt)
         case SDL_MULTIGESTURE:
             win = SDL_GetMouseFocus();
             if (win) {
-                gob = SDL_GetWindowData(win, "GOB");
+                gob = cast(REBGOB*, SDL_GetWindowData(win, "GOB"));
             } else {
                 SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Invalid win: %p", win);
             }

@@ -36,27 +36,29 @@
 **
 ***********************************************************************/
 
-extern void* rebcmp_create(REBGOB* rootGob, REBGOB* gob);
+typedef struct REBCMP_CTX REBCMP_CTX;
 
-extern void rebcmp_destroy(void* context);
+extern REBCMP_CTX* rebcmp_create(REBGOB* rootGob, REBGOB* gob);
+
+extern void rebcmp_destroy(REBCMP_CTX* context);
 
 //extern REBSER* Gob_To_Image(REBGOB *gob);
 
-extern void rebcmp_compose(void* context, REBGOB* winGob, REBGOB* gob, char *buf);
+extern void rebcmp_compose(REBCMP_CTX* context, REBGOB* winGob, REBGOB* gob, char *buf);
 
-extern void rebcmp_blit(void* context);
+extern void rebcmp_blit(REBCMP_CTX* context);
 
-extern REBYTE* rebcmp_get_buffer(void* context);
+extern REBYTE* rebcmp_get_buffer(REBCMP_CTX* context);
 
-extern void rebcmp_release_buffer(void* context);
+extern void rebcmp_release_buffer(REBCMP_CTX* context);
 
-extern REBOOL rebcmp_resize_buffer(void* context, REBGOB* winGob);
+extern REBOOL rebcmp_resize_buffer(REBCMP_CTX* context, REBGOB* winGob);
 
 //extern REBINT Draw_Image(REBSER *image, REBSER *block);
 
 //extern REBINT Effect_Image(REBSER *image, REBSER *block);
 
 void* Find_Window(REBGOB *gob);
-void* Find_Compositor(REBGOB *gob);
-#define GOB_HWIN(gob)	(Find_Window(gob))
+REBCMP_CTX* Find_Compositor(REBGOB *gob);
+#define GOB_HWIN(gob)	(cast(SDL_Window*, Find_Window(gob)))
 #define GOB_COMPOSITOR(gob)	(Find_Compositor(gob)) //gets handle to window's compositor

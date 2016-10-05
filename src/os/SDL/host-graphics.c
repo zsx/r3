@@ -42,6 +42,9 @@
 #include "reb-host.h"
 #include "host-view.h"
 #include "host-ext-graphics.h"
+#include "host-ext-draw.h"
+#include "host-ext-shape.h"
+#include "host-ext-text.h"
 #include "SDL.h"
 
 #ifdef TO_LINUX
@@ -57,11 +60,6 @@ RXIEXT int RXD_Graphics(int cmd, RXIFRM *frm, REBCEC *data);
 RXIEXT int RXD_Draw(int cmd, RXIFRM *frm, REBCEC *ctx);
 RXIEXT int RXD_Shape(int cmd, RXIFRM *frm, REBCEC *ctx);
 RXIEXT int RXD_Text(int cmd, RXIFRM *frm, REBCEC *ctx);
-
-extern const unsigned char RX_graphics[];
-extern const unsigned char RX_draw[];
-extern const unsigned char RX_shape[];
-extern const unsigned char RX_text[];
 
 extern void Init_Host_Event();
 extern void Host_Crash(const char *reason);
@@ -119,8 +117,8 @@ static int get_work_area(Display *display, METRIC_TYPE type)
 {
 	   Atom     actual_type;
 	   int      actual_format;
-	   long     nitems;
-	   long     bytes;
+	   unsigned long     nitems;
+	   unsigned long     bytes;
 	   long     *data = NULL;
 	   int 		status;
 	   int 		index = 0;
@@ -221,8 +219,8 @@ static int get_work_area(Display *display, METRIC_TYPE type)
        int dot, mm;
 	   Atom     actual_type;
 	   int      actual_format;
-	   long     nitems;
-	   long     bytes;
+	   unsigned long     nitems;
+	   unsigned long     bytes;
 	   long     *data = NULL;
 	   int      status;
 	   int 		i;

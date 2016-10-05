@@ -143,7 +143,7 @@ REBINT Alloc_Window(REBGOB *gob) {
 
 /***********************************************************************
 **
-*/	void* Find_Compositor(REBGOB *gob)
+*/	REBCMP_CTX* Find_Compositor(REBGOB *gob)
 /*
 **	Return compositor handle of given gob.
 **
@@ -183,12 +183,12 @@ REBINT Alloc_Window(REBGOB *gob) {
 **
 ***********************************************************************/
 {
-	void *compositor;
+	REBCMP_CTX *compositor;
 	REBOOL changed;
 	compositor = GOB_COMPOSITOR(gob);
 	changed = rebcmp_resize_buffer(compositor, gob);
 	if (redraw){
-		rebcmp_compose(compositor, gob, gob, FALSE);
+		rebcmp_compose(compositor, gob, gob, NULL);
 		rebcmp_blit(compositor);
 	}
 	return changed;
@@ -203,7 +203,7 @@ REBINT Alloc_Window(REBGOB *gob) {
 **
 ***********************************************************************/
 {
-	void *compositor;
+	REBCMP_CTX *compositor;
 
 	if (!wingob) {
 		wingob = gob;
@@ -229,7 +229,7 @@ REBINT Alloc_Window(REBGOB *gob) {
 #else
 	//render and blit the GOB
 	compositor = GOB_COMPOSITOR(wingob);
-	rebcmp_compose(compositor, wingob, gob, FALSE);
+	rebcmp_compose(compositor, wingob, gob, NULL);
 	rebcmp_blit(compositor);
 #endif
 }
@@ -310,7 +310,7 @@ REBINT Alloc_Window(REBGOB *gob) {
 {
 	REBINT w,h;
 	REBSER* img;
-	void* cp;
+	REBCMP_CTX* cp;
 	REBGOB* topgob;
 
 	w = (REBINT)GOB_LOG_W(gob);
@@ -324,7 +324,7 @@ REBINT Alloc_Window(REBGOB *gob) {
 		topgob = GOB_PARENT(topgob);
 
 	cp = rebcmp_create(Gob_Root, gob);
-	rebcmp_compose(cp, topgob, gob, (REBYTE *)RL_SERIES(img, RXI_SER_DATA));
+	rebcmp_compose(cp, topgob, gob, cast(char*, RL_SERIES(img, RXI_SER_DATA)));
 
 	rebcmp_destroy(cp);
 
@@ -549,7 +549,7 @@ REBINT Alloc_Window(REBGOB *gob) {
         case CMD_GRAPHICS_CURSOR:
 			{
                 REBUPT n = 0;
-                REBSER *image = 0;
+                REBYTE *image = 0;
 
                 if (RXA_TYPE(frm, 1) == RXT_IMAGE) {
                     image = RXA_IMAGE_BITS(frm,1);

@@ -42,6 +42,9 @@
 
 #include "reb-host.h"
 
+#ifndef REB_CORE
+void OS_Destroy_Graphics(void);
+#endif
 
 //
 //  OS_Exit: C

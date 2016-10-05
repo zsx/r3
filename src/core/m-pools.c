@@ -488,6 +488,7 @@ void *Make_Node(REBCNT pool_id)
 
     REBNOD *node = pool->first;
 
+    if (node == cast(REBNOD*, 0x7fffea5be8e8)) debug_break();
     UNPOISON_MEMORY(node, pool->wide);
 
     pool->first = node->next_if_free;
@@ -532,6 +533,7 @@ void Free_Node(REBCNT pool_id, void *pv)
     node->next_if_free = NULL;
 
     POISON_MEMORY(node, pool->wide);
+    if (node == cast(REBNOD*, 0x7fffea5be8e8)) debug_break();
 
     pool->free++;
 }
@@ -1462,6 +1464,7 @@ void GC_Kill_Series(REBSER *s)
 
             REBYTE wide = SER_WIDE(s);
             REBCNT bias = SER_BIAS(s);
+            i32 ballast = 0;
             s->content.dynamic.data -= wide * bias;
             Free_Unbiased_Series_Data(
                 s->content.dynamic.data,
@@ -1475,8 +1478,10 @@ void GC_Kill_Series(REBSER *s)
             // the GC watermarks interact with Alloc_Mem and the "higher
             // level" allocations.
 
-            if (REB_I32_ADD_OF(GC_Ballast, size, &GC_Ballast))
+            if (REB_I32_ADD_OF(GC_Ballast, size, &ballast))
                 GC_Ballast = MAX_I32;
+
+            GC_Ballast = ballast;
         }
     }
     else {

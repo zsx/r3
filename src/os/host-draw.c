@@ -375,7 +375,7 @@ static REBSTR* *shape_ext_words;
         break;
 
     case CMD_DRAW_IMAGE_OPTIONS:
-        rebol_renderer->draw->rebdrw_image_options(ctx->envr, (RXA_TYPE(frm, 1) == RXT_BLANK) ? 0 : 1, RXA_COLOR_TUPLE(frm, 1), RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 2)) - W_DRAW_NO_BORDER);
+        rebol_renderer->draw->rebdrw_image_options(ctx->envr, LOGICAL(RXA_TYPE(frm, 1) != RXT_BLANK), RXA_COLOR_TUPLE(frm, 1), RL_FIND_WORD(draw_ext_words , RXA_WORD(frm, 2)) - W_DRAW_NO_BORDER);
         break;
 
     case CMD_DRAW_IMAGE_PATTERN:
@@ -397,7 +397,7 @@ static REBSTR* *shape_ext_words;
 
 			if (m < 2) return RXR_BAD_ARGS;
 
-			pts = malloc(sizeof(REBXYF) * m);
+			pts = cast(REBXYF*, malloc(sizeof(REBXYF) * m));
 			for (n = 0, m = 0; (type = RL_GET_VALUE(blk, n, &val)); n++, m++) {
 				if (type == RXT_PAIR) {
 					REBXYF p = RXI_LOG_PAIR(val);

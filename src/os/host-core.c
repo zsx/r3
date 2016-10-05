@@ -486,7 +486,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                     rsa_ctx,
                     dataBuffer,
                     binaryBuffer,
-                    RXA_WORD(frm, 4),
+                    RXA_WORD(frm, 4) == NULL,
                     padding ? 1 : 0
                 );
 
@@ -502,7 +502,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                         dataBuffer,
                         data_len,
                         binaryBuffer,
-                        RXA_WORD(frm, 4),
+                        RXA_WORD(frm, 4) == NULL,
                         padding ? 1 : 0
                     )
                 ) {

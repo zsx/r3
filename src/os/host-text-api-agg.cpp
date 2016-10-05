@@ -38,24 +38,22 @@
 
 #include "../agg/agg_graphics.h"
 
-extern "C" {
 #include "host-view.h"
 #include "host-renderer.h"
 #include "host-draw-api.h"
 #include "host-draw-api-agg.h"
 #include "host-text-api.h"
 #include "host-text-api-agg.h"
-}
 
 #include "../agg/agg_truetype_text.h"
 using namespace agg;
 
-extern "C" void* Rich_Text;
+AGGAPI void* Rich_Text;
 
-extern "C" REBOOL As_OS_Str(REBSER *series, REBCHR **string);
-extern "C" REBOOL As_UTF32_Str(REBSER *series, REBCHR **string);
+AGGAPI REBOOL As_OS_Str(REBSER *series, REBCHR **string);
+AGGAPI REBOOL As_UTF32_Str(REBSER *series, REBCHR **string);
 
-extern "C" void agg_rt_block_text(void *richtext, void * draw_ctx, REBSER *block)
+AGGAPI void agg_rt_block_text(void *richtext, void * draw_ctx, REBSER *block)
 {
 	REBCEC ctx;
 
@@ -66,7 +64,7 @@ extern "C" void agg_rt_block_text(void *richtext, void * draw_ctx, REBSER *block
 	RL_DO_COMMANDS(block, 0, &ctx);
 }
 
-extern "C" REBINT agg_rt_gob_text(REBGOB *gob, REBDRW_CTX *draw_ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz)
+AGGAPI REBINT agg_rt_gob_text(REBGOB *gob, REBDRW_CTX *draw_ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz)
 {
 	if (GET_GOB_FLAG(gob, GOBF_WINDOW)) return 0; //don't render window title text
 
@@ -110,7 +108,7 @@ extern "C" REBINT agg_rt_gob_text(REBGOB *gob, REBDRW_CTX *draw_ctx, REBXYI abs_
 	return rt->rt_draw_text(DRAW_TEXT, &oft);
 }
 
-extern "C" void* agg_create_rich_text()
+AGGAPI void* agg_create_rich_text()
 {
 #ifdef AGG_WIN32_FONTS
 	return (void*)new rich_text(GetDC( NULL ));
@@ -120,11 +118,11 @@ return (void*)new rich_text();
 #endif
 }
 
-extern "C" void agg_destroy_rich_text(void* rt)
+AGGAPI void agg_destroy_rich_text(void* rt)
 {
    delete (rich_text*)rt;
 }
-extern "C" int agg_rt_init(REBRDR_TXT *txt)
+AGGAPI int agg_rt_init(REBRDR_TXT *txt)
 {
 	txt->rich_text = Rich_Text = agg_create_rich_text();
 	if (txt->rich_text) return 0;
@@ -132,31 +130,31 @@ extern "C" int agg_rt_init(REBRDR_TXT *txt)
 	return -1;
 }
 
-extern "C" void agg_rt_fini(REBRDR_TXT *txt)
+AGGAPI void agg_rt_fini(REBRDR_TXT *txt)
 {
 	if (!txt) return;
 	agg_destroy_rich_text(txt->rich_text);
 }
 
-extern "C" void agg_rt_anti_alias(void* rt, REBINT mode)
+AGGAPI void agg_rt_anti_alias(void* rt, REBINT mode)
 {
 	((rich_text*)rt)->rt_text_mode(mode);
 }
 
-extern "C" void agg_rt_bold(void* rt, REBINT state)
+AGGAPI void agg_rt_bold(void* rt, REBINT state)
 {
 	font* font = ((rich_text*)rt)->rt_get_font();
 	font->bold = state;
 	((rich_text*)rt)->rt_push();
 }
 
-extern "C" void agg_rt_caret(void* rt, REBXYF* caret, REBXYF* highlightStart, REBXYF highlightEnd)
+AGGAPI void agg_rt_caret(void* rt, REBXYF* caret, REBXYF* highlightStart, REBXYF highlightEnd)
 {
 	if (highlightStart) ((rich_text*)rt)->rt_set_hinfo(*highlightStart,highlightEnd);
 	if (caret) ((rich_text*)rt)->rt_set_caret(*caret);
 }
 
-extern "C" void agg_rt_center(void* rt)
+AGGAPI void agg_rt_center(void* rt)
 {
 	para* par = ((rich_text*)rt)->rt_get_para();
 	par->align = W_TEXT_CENTER;
@@ -164,7 +162,7 @@ extern "C" void agg_rt_center(void* rt)
 	((rich_text*)rt)->rt_push();
 }
 
-extern "C" void agg_rt_color(void* rt, REBCNT color)
+AGGAPI void agg_rt_color(void* rt, REBCNT color)
 {
 	font* font = ((rich_text*)rt)->rt_get_font();
 	font->color = color;
@@ -172,43 +170,43 @@ extern "C" void agg_rt_color(void* rt, REBCNT color)
 	((rich_text*)rt)->rt_color_change();
 }
 
-extern "C" void agg_rt_drop(void* rt, REBINT number)
+AGGAPI void agg_rt_drop(void* rt, REBINT number)
 {
 	((rich_text*)rt)->rt_drop(number);
 }
 
-extern "C" void agg_rt_font(void* rt, REBFNT* fnt)
+AGGAPI void agg_rt_font(void* rt, REBFNT* fnt)
 {
 	((rich_text*)rt)->rt_set_font((font*)fnt);
 	((rich_text*)rt)->rt_push();
 }
 
-extern "C" void agg_rt_font_size(void* rt, REBINT size)
+AGGAPI void agg_rt_font_size(void* rt, REBINT size)
 {
 	font* font = ((rich_text*)rt)->rt_get_font();
 	font->size = size;
 	((rich_text*)rt)->rt_push();
 }
 
-extern "C" void* agg_rt_get_font(void* rt)
+AGGAPI REBFNT* agg_rt_get_font(void* rt)
 {
-	return (void*)((rich_text*)rt)->rt_get_font();
+	return ((rich_text*)rt)->rt_get_font();
 }
 
 
-extern "C" void* agg_rt_get_para(void* rt)
+AGGAPI REBPRA* agg_rt_get_para(void* rt)
 {
-	return (void*)((rich_text*)rt)->rt_get_para();
+	return ((rich_text*)rt)->rt_get_para();
 }
 
-extern "C" void agg_rt_italic(void* rt, REBINT state)
+AGGAPI void agg_rt_italic(void* rt, REBINT state)
 {
 	font* font = ((rich_text*)rt)->rt_get_font();
 	font->italic = state;
 	((rich_text*)rt)->rt_push();
 }
 
-extern "C" void agg_rt_left(void* rt)
+AGGAPI void agg_rt_left(void* rt)
 {
 	para* par = ((rich_text*)rt)->rt_get_para();
 	par->align = W_TEXT_LEFT;
@@ -216,19 +214,19 @@ extern "C" void agg_rt_left(void* rt)
 	((rich_text*)rt)->rt_push();
 }
 
-extern "C" void agg_rt_newline(void* rt, REBINT index)
+AGGAPI void agg_rt_newline(void* rt, REBINT index)
 {
 	((rich_text*)rt)->rt_set_text((REBCHR*)"\n", TRUE);
 	((rich_text*)rt)->rt_push(index);
 }
 
-extern "C" void agg_rt_para(void* rt, REBPRA* pra)
+AGGAPI void agg_rt_para(void* rt, REBPRA* pra)
 {
 	((rich_text*)rt)->rt_set_para((para*)pra);
 	((rich_text*)rt)->rt_push();
 }
 
-extern "C" void agg_rt_right(void* rt)
+AGGAPI void agg_rt_right(void* rt)
 {
 	para* par = ((rich_text*)rt)->rt_get_para();
 	par->align = W_TEXT_RIGHT;
@@ -236,7 +234,7 @@ extern "C" void agg_rt_right(void* rt)
 	((rich_text*)rt)->rt_push();
 }
 
-extern "C" void agg_rt_scroll(void* rt, REBXYF offset)
+AGGAPI void agg_rt_scroll(void* rt, REBXYF offset)
 {
 	para* par = ((rich_text*)rt)->rt_get_para();
 	par->scroll_x = offset.x;
@@ -245,7 +243,7 @@ extern "C" void agg_rt_scroll(void* rt, REBXYF offset)
 	((rich_text*)rt)->rt_push();
 }
 
-extern "C" void agg_rt_shadow(void* rt, REBXYF d, REBCNT color, REBINT blur)
+AGGAPI void agg_rt_shadow(void* rt, REBXYF d, REBCNT color, REBINT blur)
 {
 	font* font = ((rich_text*)rt)->rt_get_font();
 
@@ -258,7 +256,7 @@ extern "C" void agg_rt_shadow(void* rt, REBXYF d, REBCNT color, REBINT blur)
 	((rich_text*)rt)->rt_push();
 }
 
-extern "C" void agg_rt_set_font_styles(REBFNT* fnt_, u32 word){
+AGGAPI void agg_rt_set_font_styles(REBFNT* fnt_, u32 word){
 	font *fnt = (font*)fnt_;
 switch (word){
     case W_TEXT_BOLD:
@@ -279,7 +277,7 @@ switch (word){
 }
 }
 
-extern "C" void agg_rt_size_text(void* rt, REBGOB* gob, REBXYF* size)
+AGGAPI void agg_rt_size_text(void* rt, REBGOB* gob, REBXYF* size)
 {
 REBCHR* str;
 REBOOL dealloc;
@@ -307,7 +305,7 @@ REBOOL dealloc;
 	((rich_text*)rt)->rt_size_text(size);
 }
 
-extern "C" void agg_rt_text(void* rt, REBSER* text, REBINT index)
+AGGAPI void agg_rt_text(void* rt, REBSER* text, REBINT index)
 {
 	REBCHR* str;
 #ifdef TO_WINDOWS
@@ -321,14 +319,14 @@ extern "C" void agg_rt_text(void* rt, REBSER* text, REBINT index)
 ((rich_text*)rt)->rt_push(index);
 }
 
-extern "C" void agg_rt_underline(void* rt, REBINT state)
+AGGAPI void agg_rt_underline(void* rt, REBINT state)
 {
 	font* font = ((rich_text*)rt)->rt_get_font();
 	font->underline = state;
 	((rich_text*)rt)->rt_push();
 }
 
-extern "C" void agg_rt_offset_to_caret(void* rt, REBGOB *gob, REBXYF xy, REBINT *element, REBINT *position)
+AGGAPI void agg_rt_offset_to_caret(void* rt, REBGOB *gob, REBXYF xy, REBINT *element, REBINT *position)
 {
 REBCHR* str;
 REBOOL dealloc;
@@ -356,7 +354,7 @@ REBOOL dealloc;
 	((rich_text*)rt)->rt_offset_to_caret(xy, element, position);
 }
 
-extern "C" void agg_rt_caret_to_offset(void* rt, REBGOB *gob, REBXYF* xy, REBINT element, REBINT position)
+AGGAPI void agg_rt_caret_to_offset(void* rt, REBGOB *gob, REBXYF* xy, REBINT element, REBINT position)
 {
 REBCHR* str;
 REBOOL dealloc;

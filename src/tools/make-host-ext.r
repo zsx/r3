@@ -118,15 +118,18 @@ emit-file: func [
         emit "};^/^/"
     ]
 
-    emit "#ifdef INCLUDE_EXT_DATA^/"
     code: append trim/head mold/only/flat source newline
     append code to-char 0 ; null terminator may be required
     emit [
-        "const unsigned char RX_" name "[] = {^/"
+        "extern const unsigned char RX_" name "[]^/"
+    	"#ifdef INCLUDE_EXT_DATA^/"
+	"	= {^/"
         binary-to-c to-binary code
-        "};^/^/"
+        "}^/"
+    	"#endif^/"
+
+	";^/^/"
     ]
-    emit "#endif^/"
 
     write rejoin [output-dir/include %/ file %.h] out
 

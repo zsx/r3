@@ -99,73 +99,44 @@ namespace agg
 		REBXYI hEnd;
 	} HINFO;
 
-	typedef struct font {
-		REBCHR *name;
-		REBCNT name_free;
-		REBINT bold;
-		REBINT italic;
-		REBINT underline;
-		REBINT size;
-		REBCNT color;
-		REBINT offset_x;
-		REBINT offset_y;
-		REBINT space_x;
-		REBINT space_y;
-		REBINT shadow_x;
-		REBINT shadow_y;
-		REBYTE* shadow_color;
-		REBINT shadow_blur;
-
+	typedef struct font : public REBOL_FONT {
 		~font() {
 			delete [] shadow_color;
 		}
 
-		font() :
-			name(FONT_NAME), //"Arial"
-			name_free(FALSE),
-			bold(0),
-			italic(0),
-			underline(0),
-			size(LOG_COORD_Y(12)),
-			offset_x(2),
-			offset_y(2),
-			space_x(0),
-			space_y(0),
-			shadow_x(0),
-			shadow_y(0),
-			shadow_blur(0)
-		{
+		font() {
+            name = FONT_NAME; //"Arial"
+            name_free = false;
+            bold = 0;
+            italic = 0;
+            underline = 0;
+            size = LOG_COORD_Y(12);
+            offset_x = 2;
+            offset_y = 2;
+            space_x = 0;
+            space_y = 0;
+            shadow_x = 0;
+            shadow_y = 0;
+            shadow_blur = 0;
 			shadow_color = new unsigned char [4];
 		}
 	} FONT;
 
-	typedef struct para {
-		int origin_x;
-		int origin_y;
-		int margin_x;
-		int margin_y;
-		int indent_x;
-		int indent_y;
-		int tabs;
-		int wrap;
-		float scroll_x;
-		float scroll_y;
-		int align;
-		int valign;
-		para():
-			tabs(40),
-			wrap(1),
-			origin_x(2),
-			origin_y(2),
-			margin_x(2),
-			margin_y(2),
-			indent_x(0),
-			indent_y(0),
-			scroll_x(0),
-			scroll_y(0),
-			align(W_TEXT_LEFT),
-			valign(W_TEXT_TOP)
+	typedef struct para : public REBPRA {
+		para()
 		{
+			tabs = 40;
+			wrap = 1;
+			origin_x = 2;
+			origin_y = 2;
+			margin_x = 2;
+			margin_y = 2;
+			indent_x = 0;
+			indent_y = 0;
+			scroll_x = 0;
+			scroll_y = 0;
+			align = W_TEXT_LEFT;
+            valign = W_TEXT_TOP;
 		}
 	} PARA;
 

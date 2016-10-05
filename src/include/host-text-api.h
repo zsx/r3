@@ -69,10 +69,12 @@ typedef struct REBOL_PARA {
 		REBINT valign;
 } REBPRA;
 
+struct REBDRW_CTX;
+
 struct REBRDR_TXT {
 	void *rich_text;
 	int (*init) (REBRDR_TXT *);
-	void (*fini) ();
+	void (*fini) (REBRDR_TXT *);
 	void* (*create_rich_text)();
 	void (*destroy_rich_text)(void *rt);
 	void (*rt_anti_alias)(void* rt, REBINT mode);
@@ -83,8 +85,8 @@ struct REBRDR_TXT {
 	void (*rt_drop)(void* rt, REBINT number);
 	void (*rt_font)(void* rt, REBFNT* font);
 	void (*rt_font_size)(void* rt, REBINT size);
-	void* (*rt_get_font)(void* rt);
-	void* (*rt_get_para)(void* rt);
+	REBFNT* (*rt_get_font)(void* rt);
+	REBPRA* (*rt_get_para)(void* rt);
 	void (*rt_italic)(void* rt, REBINT state);
 	void (*rt_left)(void* rt);
 	void (*rt_newline)(void* rt, REBINT index);

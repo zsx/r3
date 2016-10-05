@@ -1,5 +1,9 @@
 # vim: ts=2 shiftwidth=2 filetype=CMAKE
 
+option(R3_EXTERNAL_SDL "Build with external SDL2" OFF)
+option(R3_EXTERNAL_GLEW "Build with external GLEW" OFF)
+option(R3_WITH_NVTX "Build with Nvidia Tools Extention Library" OFF)
+
 if (WIN32)
 	set (AGG_DEFINITIONS AGG_WIN32_FONTS)
 	list(APPEND LIBS "OpenGL32")
@@ -172,7 +176,16 @@ add_executable(r3-view
 	${OS_SOURCE}
 	${GENERATED_OS_SOURCE}
 )
-SET_TARGET_PROPERTIES(r3-view PROPERTIES LINKER_LANGUAGE C)
+if (R3_CPP)
+	set_property(SOURCE
+			${VIEW_SOURCE}
+			${WIN_SYS_SOURCE}
+			${NANOVG_SOURCE}
+			PROPERTY LANGUAGE CXX)
+	set_target_properties(r3-view PROPERTIES LINKER_LANGUAGE CXX)
+else ()
+	set_target_properties(r3-view PROPERTIES LINKER_LANGUAGE C)
+endif()
 
 target_include_directories(libr3_view_core PUBLIC
 	${TOP_GENERATED_SRC_DIR}/include
@@ -220,13 +233,12 @@ target_compile_definitions(libr3_win_sys PUBLIC
 )
 
 if (DEFINED SDL_CFLAGS OR DEFINED GLEW_CFLAGS)
-	set_target_properties(libr3_win_sys PROPERTIES COMPILE_FLAGS
-		${SDL_CFLAGS}
-		${GLEW_CFLAGS}
+	message("SDL_CFLAGS: ${SDL_CFLAGS}, GLEW_CFLAGS: ${GLEW_CFLAGS}")
+	target_compile_options(libr3_win_sys PUBLIC
+		"${SDL_CFLAGS};${GLEW_CFLAGS}"
 		)
-	set_target_properties(libr3_view PROPERTIES COMPILE_FLAGS
-		${SDL_CFLAGS}
-		${GLEW_CFLAGS}
+	target_compile_options(libr3_view PUBLIC
+		"${SDL_CFLAGS};${GLEW_CFLAGS}"
 		)
 endif()
 

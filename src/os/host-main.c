@@ -508,7 +508,7 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
         PROCESS_INFORMATION procinfo;
         ZeroMemory(&startinfo, sizeof(startinfo));
         startinfo.cb = sizeof(startinfo);
-        if (!CreateProcess(NULL, argv[0], NULL, NULL, FALSE, dwCreationFlags, NULL, NULL, &startinfo, &procinfo))
+        if (!CreateProcess(NULL, cast(LPTSTR, argv[0]), NULL, NULL, FALSE, dwCreationFlags, NULL, NULL, &startinfo, &procinfo))
             MessageBox(0, L"CreateProcess() failed :(", L"", 0);
         exit(0);
     }

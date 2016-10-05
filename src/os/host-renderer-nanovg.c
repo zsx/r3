@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 
 #include <SDL.h>
 #include <GL/glew.h>
@@ -24,14 +25,14 @@ void paint_image(REBDRW_CTX *ctx, int image, REBINT mode, float alpha,
 #define PAINT_LAYER(ctx, layer, paint_mode, alpha, clip_oft, clip_size) 	\
 	do {												\
 		REBXYF img_oft = {0, 0};						\
-		REBXYF img_size = {ctx->ww, ctx->wh};			\
+		REBXYF img_size = {cast(float, ctx->ww), cast(float, ctx->wh)};			\
 		paint_image(ctx, (layer)->image, paint_mode, alpha, img_oft, img_size, clip_oft, clip_size);\
 	} while (0)
 
 #define PAINT_LAYER_FULL(ctx, layer, paint_mode) 	\
 	do {												\
 		REBXYF clip_oft = {0, 0};						\
-		REBXYF clip_size = {ctx->ww, ctx->wh};			\
+		REBXYF clip_size = {cast(float, ctx->ww), cast(float, ctx->wh)};			\
 		PAINT_LAYER(ctx, layer, paint_mode, 1.0f, clip_oft, clip_size);\
 	} while (0)
 
@@ -40,7 +41,7 @@ static int sdl_gl_swap_interval = 0;
 static int nanovg_init(REBRDR *renderer)
 {
 	SDL_Window *dummy_win = NULL;
-	SDL_GLContext *gl_ctx = NULL;
+	SDL_GLContext gl_ctx = NULL;
 	GLenum glew_err;
 	const char *s_int = NULL;
 	char *s_end = NULL;
@@ -275,6 +276,28 @@ static void nanovg_blit_frame(REBDRW_CTX *ctx, SDL_Rect *clip)
 extern REBRDR_DRW draw_nanovg;
 extern REBRDR_TXT text_nanovg;
 
+#ifdef __cplusplus
+static REBRDR init_nvg_rdr () {
+    REBRDR rdr;
+
+    memset(&rdr, 0, sizeof(rdr));
+
+    rdr.name = "NANOVG";
+    rdr.init = nanovg_init;
+    rdr.fini = NULL;
+    rdr.begin_frame = nanovg_begin_frame;
+    rdr.blit_frame = nanovg_blit_frame;
+    rdr.create_draw_context = nanovg_create_draw_context;
+    rdr.resize_draw_context = nanovg_resize_draw_context;
+    rdr.destroy_draw_context = nanovg_destroy_draw_context;
+    rdr.draw = &draw_nanovg;
+    rdr.text = &text_nanovg;
+    rdr.default_SDL_win_flags = SDL_WINDOW_OPENGL;
+
+    return rdr;
+}
+REBRDR rebrdr_nanovg = init_nvg_rdr();
+#else
 REBRDR rebrdr_nanovg = {
 	.name = "NANOVG",
 	.init = nanovg_init,
@@ -290,3 +313,4 @@ REBRDR rebrdr_nanovg = {
 	.text = &text_nanovg,
 	.default_SDL_win_flags = SDL_WINDOW_OPENGL
 };
+#endif

@@ -644,6 +644,8 @@ make: function [
         return to :type :def
     ]
 
+
+    ;print ["type:" mold :type "def:" mold :def]
     lib-make :type :def
 ]
 

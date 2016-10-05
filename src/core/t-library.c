@@ -92,6 +92,12 @@ REBTYPE(Library)
 
     // unary actions
     switch(action) {
+        case SYM_OPEN:
+        case SYM_TO:
+            if (IS_DATATYPE(val)) {// only accept "make library! file"
+                MAKE_Library(D_OUT, REB_LIBRARY, arg);
+                return R_OUT;
+            }
         case SYM_CLOSE:
             OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(val));
             ARR_SERIES(VAL_LIBRARY(val))->misc.fd = NULL;

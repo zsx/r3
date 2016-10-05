@@ -132,10 +132,11 @@ struct rebol_gob {
 };
 #pragma pack()
 
+typedef struct REBCMP_CTX REBCMP_CTX;
 typedef struct gob_window {             // Maps gob to window
     REBGOB *gob;
     void* win;
-    void* compositor;
+    REBCMP_CTX* compositor;
 } REBGOBWINDOWS;
 
 #define GOB_X(g)        ((g)->offset.x)

@@ -405,7 +405,7 @@ static REBCNT Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
     REBCNT flags = P_FIND_FLAGS | AM_FIND_MATCH | AM_FIND_TAIL;
 
     if (Trace_Level) {
-        Trace_Value("input", rule);
+        Trace_Value("match", rule);
 
         // !!! This used STR_AT (obsolete) but it's not clear that this is
         // necessarily a byte sized series.  Switched to BIN_AT, which will
@@ -555,13 +555,13 @@ static REBCNT Parse_Array_One_Rule_Core(
     RELVAL *item = ARR_AT(array, pos);
 
     if (Trace_Level) {
-        Trace_Value("input", rule);
+        Trace_Value("match", rule);
         if (IS_END(item)) {
             const char *end_str = "** END **";
             Trace_String(cb_cast(end_str), strlen(end_str));
         }
         else
-            Trace_Value("match", item);
+            Trace_Value("input", item);
     }
 
     if (IS_END(item)) {
@@ -1211,7 +1211,7 @@ static REBCNT Do_Eval_Rule(REBFRM *f)
     }
 
     if (IS_BLANK(rule))
-        return (VAL_TYPE(&value) > REB_BLANK) ? NOT_FOUND : P_POS;
+        return (VAL_TYPE(&value) != REB_BLANK) ? NOT_FOUND : P_POS;
 
     // !!! This copies a single value into a block to use as data.  Is there
     // any way this might be avoided?

@@ -69,6 +69,10 @@ endif()
 message("Building Rebol 3 for OS_ID: ${R3_OS_ID}")
 
 set(COMMON_MACROS REB_EXE)
+if (R3_CPP)
+  list(APPEND COMMON_MACROS R3_CPP)
+endif ()
+
 if (WIN32)
     list (APPEND COMMON_MACROS
         WIN32

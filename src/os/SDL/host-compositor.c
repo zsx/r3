@@ -53,10 +53,7 @@
 #include "host-draw-api.h"
 #include "host-text-api.h"
 
-void* Find_Window(REBGOB *gob);
-
-//***** Macros *****
-#define GOB_HWIN(gob)	(Find_Window(gob))
+#include "host-compositor.h"
 
 typedef struct {
 	REBINT left;
@@ -69,14 +66,14 @@ typedef struct {
 //are used internally by the compositor API.
 //None of the values should be accessed directly from external code.
 //The structure can be extended/modified according to the specific backend needs.
-typedef struct {
+struct REBCMP_CTX {
 	REBGOB 		*Win_Gob;
 	REBGOB 		*Root_Gob;
 	REBXYF 		absOffset;
 	SDL_Window 	*win;
 	SDL_Rect	clip;
 	REBDRW_CTX 	*draw_ctx;
-} REBCMP_CTX;
+};
 
 /***********************************************************************
 **
@@ -109,7 +106,7 @@ typedef struct {
 
 /***********************************************************************
 **
-*/ void* rebcmp_create(REBGOB* rootGob, REBGOB* gob)
+*/ REBCMP_CTX* rebcmp_create(REBGOB* rootGob, REBGOB* gob)
 /*
 **	Create new Compositor instance.
 **
@@ -129,7 +126,7 @@ typedef struct {
 	ctx->Win_Gob = gob;
 
 	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "creating ctx %p, gob %p, rootGob: %p (%dx%d)\n", ctx, gob, rootGob, GOB_LOG_W_INT(rootGob), GOB_LOG_H_INT(rootGob));
-	ctx->win = GOB_HWIN(gob);
+	ctx->win = cast(SDL_Window *, GOB_HWIN(gob));
 
 	ctx->draw_ctx = rebol_renderer->create_draw_context(ctx->win, w, h);
 
@@ -312,9 +309,11 @@ typedef struct {
 
 	if (!SDL_RectEmpty(&ctx->clip))
 	{
-		rebol_renderer->begin_frame(ctx->draw_ctx);
+        if (rebol_renderer->begin_frame)
+            rebol_renderer->begin_frame(ctx->draw_ctx);
 		process_gobs(ctx, winGob);
-		rebol_renderer->end_frame(ctx->draw_ctx);
+        if (rebol_renderer->end_frame)
+            rebol_renderer->end_frame(ctx->draw_ctx);
 	}
 
 	//update old GOB area

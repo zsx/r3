@@ -96,6 +96,7 @@
 // DONE flag - do not scan the series; it has no links.
 //
 
+#define REN_C_STDIO_OK
 #include "sys-core.h"
 
 #include "mem-pools.h" // low-level memory pool access
@@ -191,11 +192,13 @@ inline static void Queue_Mark_Context_Deep(REBCTX *c) {
 static void Queue_Mark_Routine_Deep(REBRIN *r);
 
 inline static void Queue_Mark_Function_Deep(REBFUN *f) {
+    if (f == cast(REBFUN *, 0x7fffea5be898)) debug_break();
     Queue_Mark_Array_Deep(FUNC_PARAMLIST(f));
 
     // Need to queue the mark of the array for the body--as trying
     // to mark the "singular" value directly could infinite loop.
     //
+    if (FUNC_VALUE(f)->payload.function.body_holder == cast(REBARR*, 0x7fffea5be8e8)) debug_break();
     Queue_Mark_Array_Deep(FUNC_VALUE(f)->payload.function.body_holder);
 
     if (FUNC_META(f) != NULL)
@@ -1644,6 +1647,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
 //
 REBCNT Recycle(void)
 {
+    printf("Recycle begins\n");
     // Default to not passing the `shutdown` flag.
     return Recycle_Core(FALSE);
 }

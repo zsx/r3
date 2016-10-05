@@ -24,6 +24,12 @@
 
 #include "reb-host.h"
 
+#ifndef R3_CPP
+#define AGGAPI AGGAPI
+#else
+#define AGGAPI extern
+#endif
+
 //basic api
 #include "agg_scanline_p.h"
 #include "agg_scanline_u.h"

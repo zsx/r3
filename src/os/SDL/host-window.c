@@ -50,7 +50,6 @@
 // Externs
 extern REBGOBWINDOWS *Gob_Windows;
 extern void Free_Window(REBGOB *gob);
-extern void* Find_Compositor(REBGOB *gob);
 extern REBINT Alloc_Window(REBGOB *gob);
 extern void Draw_Window(REBGOB *wingob, REBGOB *gob);
 
@@ -116,7 +115,7 @@ extern void Draw_Window(REBGOB *wingob, REBGOB *gob);
 		SDL_SetWindowSize(win, gob->size.x, gob->size.y);
 	}
 
-	SDL_UpdateWindowSurface(win);
+	//SDL_UpdateWindowSurface(win);
 }
 
 /***********************************************************************
@@ -137,7 +136,7 @@ extern void Draw_Window(REBGOB *wingob, REBGOB *gob);
 	REBINT h = GOB_LOG_H_INT(gob);
 
 	SDL_Window *win = NULL;
-	REBYTE *title;
+	char *title;
 	REBYTE os_string = FALSE;
 	Uint32 flags;
 	REBGOB *parent_gob = GOB_TMP_OWNER(gob);
@@ -148,7 +147,7 @@ extern void Draw_Window(REBGOB *wingob, REBGOB *gob);
 	windex = Alloc_Window(gob);
 
 	if (IS_GOB_STRING(gob))
-		RL_Get_UTF8_String(GOB_CONTENT(gob), 0, &title);
+		RL_Get_UTF8_String(GOB_CONTENT(gob), 0, cast(REBYTE**, &title));
     else
         title = "REBOL Window";
 

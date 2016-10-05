@@ -112,6 +112,7 @@ void Val_Init_Typeset(RELVAL *value, REBU64 bits, REBSTR *opt_name)
     SET_VAL_FLAG(value, TYPESET_FLAG_NO_LOOKBACK); // default
     INIT_TYPESET_NAME(value, opt_name);
     VAL_TYPESET_BITS(value) = bits;
+    //VAL_SET_DO_COUNT(value);
 }
 
 

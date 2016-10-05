@@ -28,7 +28,9 @@
 
 #if defined(AGG_WIN32_FONTS) || defined(AGG_FREETYPE)
 
+#ifndef R3_CPP
 extern "C" {
+#endif
 	typedef struct REBDRW_CTX REBDRW_CTX;
 
 	#include "host-view.h"
@@ -36,7 +38,9 @@ extern "C" {
 	#include "../os/host-text-api-agg.h"
 
 	extern void* Rich_Text;
+#ifndef R3_CPP
 }
+#endif
 
 #include "agg_truetype_text.h"
 

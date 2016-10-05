@@ -73,6 +73,8 @@ REBUPT RL_Series(REBSER *ser, REBCNT what);
 #define IMG_WIDE(s) ((s) & 0xffff)
 #define IMG_HIGH(s) ((s) >> 16)
 
+#define XYF(x, y) {cast(float, (x)), cast(float, (y))}
+
 static void nvgdrw_add_poly_vertex (void* gr, REBXYF p)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
@@ -120,14 +122,14 @@ static void nvgdrw_anti_alias(void* gr, REBINT mode)
 #define PAINT_LAYER(ctx, layer, paint_mode, alpha, clip_oft, clip_size) 	\
 	do {												\
 		REBXYF img_oft = {0, 0};						\
-		REBXYF img_size = {ctx->ww, ctx->wh};			\
+		REBXYF img_size = XYF(ctx->ww, ctx->wh);			\
 		paint_image(ctx, (layer)->image, paint_mode, alpha, img_oft, img_size, clip_oft, clip_size);\
 	} while (0)
 
 #define PAINT_LAYER_FULL(ctx, layer, paint_mode) 	\
 	do {												\
 		REBXYF clip_oft = {0, 0};						\
-		REBXYF clip_size = {ctx->ww, ctx->wh};			\
+		REBXYF clip_size = XYF(ctx->ww, ctx->wh);			\
 		PAINT_LAYER(ctx, layer, paint_mode, 1.0f, clip_oft, clip_size);\
 	} while (0)
 
@@ -433,10 +435,10 @@ void paint_image(REBDRW_CTX *ctx, int image, REBINT mode, float alpha,
 	nvgFill(ctx->nvg);
 }
 
-static void nvgdrw_image(void* gr, REBYTE* img, REBINT w, REBINT h,REBXYF offset)
+static void nvgdrw_image(void* gr, REBYTE* img, REBINT w, REBINT h, REBXYF offset)
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
-	REBXYF image_size = {w, h};
+    REBXYF image_size = XYF(w, h);
 
 	int image;
     NVTX_MARK_FUNC_START();
@@ -490,7 +492,6 @@ static void nvgdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER
 {
 	REBDRW_CTX* ctx = (REBDRW_CTX *)gr;
 	int image = -1;
-	NVGpaint paint;
 
 	RXIARG a;
 	REBXYF p[4];
@@ -999,7 +1000,7 @@ static void nvgshp_arc(void* gr, REBINT rel, REBXYF p, REBXYF r, REBDEC ang, REB
 
 	/* draw the arc */
 	{
-		REBXYF c = { cx, cy };
+		REBXYF c = XYF( cx, cy );
 		elliptical_arc(ctx->nvg, c, r, theta, theta + delta, TRUE);
 	}
 
@@ -1260,9 +1261,9 @@ static void nvgdrw_gob_image(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXY
 	NVGcontext *nvg = NULL;
 
 	REBINT paint_mode = (GOB_ALPHA(gob) == 255) ? NVG_COPY : NVG_SOURCE_OVER;
-	REBXYF image_size = {w, h};
-	REBXYF clip_oft = {clip_top.x, clip_top.y};
-	REBXYF clip_size = {clip_bottom.x - clip_top.x, clip_bottom.y - clip_bottom.y};
+	REBXYF image_size = XYF(w, h);
+	REBXYF clip_oft = XYF(clip_top.x, clip_top.y);
+	REBXYF clip_size = XYF(clip_bottom.x - clip_top.x, clip_bottom.y - clip_bottom.y);
 
 	if (ctx == NULL) return;
 	nvg = ctx->nvg;
@@ -1288,11 +1289,11 @@ static void nvgdrw_gob_draw(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI
 	REBCEC cec_ctx;
 	REBSER *block = (REBSER *)GOB_CONTENT(gob);
 
-	REBXYF clip_oft = {clip_top.x, clip_top.y};
-	REBXYF clip_size = {
+	REBXYF clip_oft = XYF(clip_top.x, clip_top.y);
+	REBXYF clip_size = XYF(
 		clip_bottom.x - clip_top.x,
 		clip_bottom.y - clip_top.y
-	};
+	);
 
 	if (ctx == NULL) return;
     NVTX_MARK_FUNC_START();
@@ -1324,6 +1325,81 @@ static void nvgdrw_gob_draw(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBXYI
     NVTX_MARK_FUNC_END();
 }
 
+#ifdef __cplusplus
+static const REBRDR_DRW init_nvg_drw()
+{
+    REBRDR_DRW rdr;
+
+    memset(&rdr, 0, sizeof(rdr));
+
+	rdr.rebdrw_add_poly_vertex = nvgdrw_add_poly_vertex;
+	rdr.rebdrw_add_spline_vertex = nvgdrw_add_spline_vertex;
+	rdr.rebdrw_anti_alias = nvgdrw_anti_alias;
+	rdr.rebdrw_arc = nvgdrw_arc;
+	rdr.rebdrw_arrow = nvgdrw_arrow;
+	rdr.rebdrw_begin_poly = nvgdrw_begin_poly;
+	rdr.rebdrw_begin_spline = nvgdrw_begin_spline;
+	rdr.rebdrw_box = nvgdrw_box;
+	rdr.rebdrw_circle = nvgdrw_circle;
+	rdr.rebdrw_clip = nvgdrw_clip;
+	rdr.rebdrw_curve3 = nvgdrw_curve3;
+	rdr.rebdrw_curve4 = nvgdrw_curve4;
+	rdr.rebdrw_ellipse = nvgdrw_ellipse;
+	rdr.rebdrw_end_poly = nvgdrw_end_poly;
+	rdr.rebdrw_end_spline = nvgdrw_end_spline;
+	rdr.rebdrw_fill_pen = nvgdrw_fill_pen;
+	rdr.rebdrw_fill_pen_image = nvgdrw_fill_pen_image;
+	rdr.rebdrw_fill_rule = nvgdrw_fill_rule;
+	rdr.rebdrw_gamma = nvgdrw_gamma;
+	rdr.rebdrw_gob_color = nvgdrw_gob_color;
+	rdr.rebdrw_gob_draw = nvgdrw_gob_draw;
+	rdr.rebdrw_gob_image = nvgdrw_gob_image;
+	rdr.rebdrw_gradient_pen = nvgdrw_gradient_pen;
+	rdr.rebdrw_invert_matrix = nvgdrw_invert_matrix;
+	rdr.rebdrw_image = nvgdrw_image;
+	rdr.rebdrw_image_filter = nvgdrw_image_filter;
+	rdr.rebdrw_image_options = nvgdrw_image_options;
+	rdr.rebdrw_image_scale = nvgdrw_image_scale;
+	rdr.rebdrw_image_pattern = nvgdrw_image_pattern;
+	rdr.rebdrw_line = nvgdrw_line;
+	rdr.rebdrw_line_cap = nvgdrw_line_cap;
+	rdr.rebdrw_line_join = nvgdrw_line_join;
+	rdr.rebdrw_line_pattern = nvgdrw_line_pattern;
+	rdr.rebdrw_line_width = nvgdrw_line_width;
+	rdr.rebdrw_matrix = nvgdrw_matrix;
+	rdr.rebdrw_pen = nvgdrw_pen;
+	rdr.rebdrw_pen_image = nvgdrw_pen_image;
+	rdr.rebdrw_pop_matrix = nvgdrw_pop_matrix;
+	rdr.rebdrw_push_matrix = nvgdrw_push_matrix;
+	rdr.rebdrw_reset_gradient_pen = nvgdrw_reset_gradient_pen;
+	rdr.rebdrw_reset_matrix = nvgdrw_reset_matrix;
+	rdr.rebdrw_rotate = nvgdrw_rotate;
+	rdr.rebdrw_scale = nvgdrw_scale;
+	rdr.rebdrw_to_image = nvgdrw_to_image;
+	rdr.rebdrw_skew = nvgdrw_skew;
+	rdr.rebdrw_text = nvgdrw_text;
+	rdr.rebdrw_transform = nvgdrw_transform;
+	rdr.rebdrw_translate = nvgdrw_translate;
+	rdr.rebdrw_triangle = nvgdrw_triangle;
+
+	rdr.rebshp_arc = nvgshp_arc;
+	rdr.rebshp_close = nvgshp_close;
+	rdr.rebshp_hline = nvgshp_hline;
+	rdr.rebshp_line = nvgshp_line;
+	rdr.rebshp_move = nvgshp_move;
+	rdr.rebshp_begin = nvgshp_begin;
+	rdr.rebshp_end = nvgshp_end;
+	rdr.rebshp_vline = nvgshp_vline;
+	rdr.rebshp_curv = nvgshp_curv;
+	rdr.rebshp_curve = nvgshp_curve;
+	rdr.rebshp_qcurv = nvgshp_qcurv;
+    rdr.rebshp_qcurve = nvgshp_qcurve;
+
+    return rdr;
+}
+
+REBRDR_DRW draw_nanovg = init_nvg_drw();
+#else
 REBRDR_DRW draw_nanovg = {
 	.rebdrw_add_poly_vertex = nvgdrw_add_poly_vertex,
 	.rebdrw_add_spline_vertex = nvgdrw_add_spline_vertex,
@@ -1388,3 +1464,5 @@ REBRDR_DRW draw_nanovg = {
 	.rebshp_qcurv = nvgshp_qcurv,
 	.rebshp_qcurve = nvgshp_qcurve
 };
+
+#endif

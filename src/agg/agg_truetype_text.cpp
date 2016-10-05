@@ -24,7 +24,10 @@
 
 #include "agg_graphics.h"
 
+#ifndef R3_CPP
 extern "C" {
+#endif
+
 #include "host-view.h"
 
 unsigned char *find_font_path(
@@ -33,7 +36,11 @@ unsigned char *find_font_path(
 		unsigned char italic,
 		unsigned char size);
 
+#ifndef R3_CPP
 }
+#endif
+
+#include "host-text-api.h"
 
 #include "agg_truetype_text.h"
 

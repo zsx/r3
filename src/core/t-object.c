@@ -233,13 +233,16 @@ static REBCTX *Trim_Context(REBCTX *context)
     key = CTX_KEYS_HEAD(context);
     var = CTX_VARS_HEAD(context);
     for (; NOT_END(var); var++, key++) {
-        if (VAL_TYPE(var) > REB_BLANK && !GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
+        if (VAL_TYPE(var) != REB_BLANK && !GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
             copy_count++;
     }
 
     // Create new context based on the size found
     //
     context_new = Alloc_Context(copy_count);
+
+    // Make it pass ASSERT_CONTEXT
+    VAL_RESET_HEADER(CTX_VALUE(context_new), VAL_TYPE(CTX_VALUE(context)));
 
     // Second pass: copy the values that were not skipped in the first pass
     //
@@ -248,7 +251,7 @@ static REBCTX *Trim_Context(REBCTX *context)
     var_new = CTX_VARS_HEAD(context_new);
     key_new = CTX_KEYS_HEAD(context_new);
     for (; NOT_END(var); var++, key++) {
-        if (VAL_TYPE(var) > REB_BLANK && !GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
+        if (VAL_TYPE(var) != REB_BLANK && !GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
             *var_new++ = *var;
             *key_new++ = *key;
         }

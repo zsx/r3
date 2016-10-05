@@ -146,7 +146,8 @@ void Bind_Values_Core(
 
     key = CTX_KEYS_HEAD(context);
     for (; NOT_END(key); key++)
-        Remove_Binder_Index(&binder, VAL_KEY_CANON(key));
+        if (!GET_VAL_FLAG(key, TYPESET_FLAG_UNBINDABLE))
+            Remove_Binder_Index(&binder, VAL_KEY_CANON(key));
 
     SHUTDOWN_BINDER(&binder);
 }

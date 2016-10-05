@@ -52,7 +52,7 @@ REBOOL Reduce_Any_Array_Throws(
     while (NOT_END(e.value)) {
         UPDATE_EXPRESSION_START(&e); // informs the error delivery better
         if (no_set && IS_SET_WORD(e.value)) {
-            DS_PUSH(e.value);
+            DS_PUSH(const_KNOWN(e.value));
             FETCH_NEXT_ONLY_MAYBE_END(&e);
             continue;
         }

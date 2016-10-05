@@ -355,6 +355,9 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 
     #define INIT_CELL_IF_DEBUG(v) \
         NOOP
+
+    #define VAL_SET_DO_COUNT(v) \
+        NOOP
 #else
     #ifdef __cplusplus
         #define ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v,file,line) \
@@ -384,6 +387,8 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
         VAL_RESET_HEADER_COMMON(v, kind);
         MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
     }
+
+    #define VAL_SET_DO_COUNT(v) ((v)->extra.do_count = TG_Do_Count)
 
     #define VAL_RESET_HEADER(v,k) \
         VAL_RESET_HEADER_Debug((v), (k), __FILE__, __LINE__)

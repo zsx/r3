@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 
 #include "reb-host.h"
 #include "host-renderer.h"
@@ -98,7 +99,32 @@ static void agg_blit_frame(REBDRW_CTX *ctx, SDL_Rect *clip)
 extern REBRDR_DRW draw_agg;
 extern REBRDR_TXT text_agg;
 
+#ifdef __cplusplus
+static REBRDR init_agg_rdr()
+{
+    REBRDR rdr;
+
+    memset(&rdr, 0, sizeof(rdr));
+
+    rdr.name = "AGG";
+    rdr.init = agg_init;
+    rdr.fini = NULL;
+    rdr.begin_frame = agg_begin_frame;
+    rdr.end_frame = agg_end_frame;
+    rdr.blit_frame = agg_blit_frame;
+    rdr.create_draw_context = agg_create_draw_context;
+    rdr.resize_draw_context = agg_resize_draw_context;
+    rdr.destroy_draw_context = agg_destroy_draw_context;
+
+    rdr.draw = &draw_agg;
+    rdr.text = &text_agg;
+
+    return rdr;
+}
+REBRDR rebrdr_agg = init_agg_rdr();
+#else
 REBRDR rebrdr_agg = {
+
 	.name = "AGG",
 	.init = agg_init,
 	.fini = NULL,
@@ -112,3 +138,4 @@ REBRDR rebrdr_agg = {
 	.draw = &draw_agg,
 	.text = &text_agg
 };
+#endif

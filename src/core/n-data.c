@@ -391,6 +391,7 @@ REBNATIVE(bind)
     else
         array = VAL_ARRAY(value);
 
+    //if (TG_Do_Count >= 28385) debug_break();
     Bind_Values_Core(
         ARR_HEAD(array),
         context,

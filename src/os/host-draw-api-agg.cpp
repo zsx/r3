@@ -38,56 +38,54 @@
 
 #include "../agg/agg_graphics.h"
 
-extern "C" {
 #include "host-view.h"
 #include "host-renderer.h"
 #include "host-draw-api.h"
 #include "host-draw-api-agg.h"
-}
 
 using namespace agg;
 
 //#undef IS_ERROR
 
-extern "C" REBUPT RL_Series(REBSER *ser, REBCNT what);
+AGGAPI REBUPT RL_Series(REBSER *ser, REBCNT what);
 
-extern "C" void aggdrw_add_poly_vertex (void* gr, REBXYF p)
+AGGAPI void aggdrw_add_poly_vertex (void* gr, REBXYF p)
 {
 	((agg_graphics*)gr)->agg_add_vertex(p.x, p.y);
 }
 
-extern "C" void aggdrw_add_spline_vertex(void* gr, REBXYF p)
+AGGAPI void aggdrw_add_spline_vertex(void* gr, REBXYF p)
 {
 	((agg_graphics*)gr)->agg_add_vertex(p.x, p.y);
 }
 
-extern "C" void aggdrw_anti_alias(void* gr, REBINT mode)
+AGGAPI void aggdrw_anti_alias(void* gr, REBINT mode)
 {
 	((agg_graphics*)gr)->agg_anti_alias(mode!=0);
 }
 
-extern "C" void aggdrw_arc(void* gr, REBXYF c, REBXYF r, REBDEC ang1, REBDEC ang2, REBINT closed)
+AGGAPI void aggdrw_arc(void* gr, REBXYF c, REBXYF r, REBDEC ang1, REBDEC ang2, REBINT closed)
 {
 	((agg_graphics*)gr)->agg_arc(c.x, c.y, r.x, r.y, ang1, ang2, closed);
 }
 
-extern "C" void aggdrw_arrow(void* gr, REBXYF mode, REBCNT col)
+AGGAPI void aggdrw_arrow(void* gr, REBXYF mode, REBCNT col)
 {
 	((agg_graphics*)gr)->agg_arrows((col) ? (REBYTE*)&col : NULL, (REBINT)mode.x, (REBINT)mode.y);
 }
 
-extern "C" void aggdrw_begin_poly (void* gr, REBXYF p)
+AGGAPI void aggdrw_begin_poly (void* gr, REBXYF p)
 {
 	((agg_graphics*)gr)->agg_begin_poly(p.x, p.y);
 }
 
-extern "C" void aggdrw_begin_spline(void* gr, REBXYF p)
+AGGAPI void aggdrw_begin_spline(void* gr, REBXYF p)
 {
 	((agg_graphics*)gr)->agg_begin_poly(p.x, p.y);
 }
 
 
-extern "C" void aggdrw_box(void* gr, REBXYF p1, REBXYF p2, REBDEC r)
+AGGAPI void aggdrw_box(void* gr, REBXYF p1, REBXYF p2, REBDEC r)
 {
 	if (r) {
 		((agg_graphics*)gr)->agg_rounded_rect(p1.x, p1.y, p2.x, p2.y, r);
@@ -96,49 +94,49 @@ extern "C" void aggdrw_box(void* gr, REBXYF p1, REBXYF p2, REBDEC r)
 	}
 }
 
-extern "C" void aggdrw_circle(void* gr, REBXYF p, REBXYF r)
+AGGAPI void aggdrw_circle(void* gr, REBXYF p, REBXYF r)
 {
 	((agg_graphics*)gr)->agg_ellipse(p.x, p.y, r.x, r.y);
 }
 
-extern "C" void aggdrw_clip(void* gr, REBXYF p1, REBXYF p2)
+AGGAPI void aggdrw_clip(void* gr, REBXYF p1, REBXYF p2)
 {
 	((agg_graphics*)gr)->agg_set_clip(p1.x, p1.y, p2.x, p2.y);
 }
 
-extern "C" void aggdrw_curve3(void* gr, REBXYF p1, REBXYF p2, REBXYF p3)
+AGGAPI void aggdrw_curve3(void* gr, REBXYF p1, REBXYF p2, REBXYF p3)
 {
 	((agg_graphics*)gr)->agg_curve3(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
 }
 
-extern "C" void aggdrw_curve4(void* gr, REBXYF p1, REBXYF p2, REBXYF p3, REBXYF p4)
+AGGAPI void aggdrw_curve4(void* gr, REBXYF p1, REBXYF p2, REBXYF p3, REBXYF p4)
 {
 	((agg_graphics*)gr)->agg_curve4(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y);
 }
 								
-extern "C" REBINT aggdrw_effect(void* gr, REBXYI* p1, REBXYI* p2, REBSER* block)
+AGGAPI REBINT aggdrw_effect(void* gr, REBXYI* p1, REBXYI* p2, REBSER* block)
 {
 	return 0;
 }
 
-extern "C" void aggdrw_ellipse(void* gr, REBXYF p1, REBXYF p2)
+AGGAPI void aggdrw_ellipse(void* gr, REBXYF p1, REBXYF p2)
 {
 	REBDEC rx = p2.x / 2;
 	REBDEC ry = p2.y / 2;
 	((agg_graphics*)gr)->agg_ellipse(p1.x + rx, p1.y + ry, rx, ry);
 }
 
-extern "C" void aggdrw_end_poly (void* gr)
+AGGAPI void aggdrw_end_poly (void* gr)
 {
 	((agg_graphics*)gr)->agg_end_poly();
 }
 
-extern "C" void aggdrw_end_spline (void* gr, REBINT step, REBINT closed)
+AGGAPI void aggdrw_end_spline (void* gr, REBINT step, REBINT closed)
 {
 	((agg_graphics*)gr)->agg_end_bspline(step, closed);
 }
 
-extern "C" void aggdrw_fill_pen(void* gr, REBCNT col)
+AGGAPI void aggdrw_fill_pen(void* gr, REBCNT col)
 {
 	if (col)
 		((agg_graphics*)gr)->agg_fill_pen(((REBYTE*)&col)[0], ((REBYTE*)&col)[1], ((REBYTE*)&col)[2], ((REBYTE*)&col)[3]);
@@ -147,25 +145,25 @@ extern "C" void aggdrw_fill_pen(void* gr, REBCNT col)
 
 }
 
-extern "C" void aggdrw_fill_pen_image(void* gr, REBYTE* img, REBINT w, REBINT h)
+AGGAPI void aggdrw_fill_pen_image(void* gr, REBYTE* img, REBINT w, REBINT h)
 {
 #ifndef AGG_OPENGL	
 	((agg_graphics*)gr)->agg_fill_pen(0, 0, 0, 255, img, w, h);
 #endif
 }
 
-extern "C" void aggdrw_fill_rule(void* gr, REBINT mode)
+AGGAPI void aggdrw_fill_rule(void* gr, REBINT mode)
 {
     if (mode >= W_DRAW_EVEN_ODD && mode <= W_DRAW_NON_ZERO)
     ((agg_graphics*)gr)->agg_fill_rule((agg::filling_rule_e)mode);
 }
 
-extern "C" void aggdrw_gamma(void* gr, REBDEC gamma)
+AGGAPI void aggdrw_gamma(void* gr, REBDEC gamma)
 {
 	((agg_graphics*)gr)->agg_set_gamma(gamma);
 }
 
-extern "C" void aggdrw_gradient_pen(void* gr, REBINT gradtype, REBINT mode, REBXYF oft, REBXYF range, REBDEC angle, REBXYF scale, REBSER* colors){
+AGGAPI void aggdrw_gradient_pen(void* gr, REBINT gradtype, REBINT mode, REBXYF oft, REBXYF range, REBDEC angle, REBXYF scale, REBSER* colors){
 #ifndef AGG_OPENGL
 unsigned char colorTuples[256*4+1] = {2, 0,0,0,255, 0,0,0,255, 255,255,255,255}; //max number of color tuples is 256 + one length information char
 	REBDEC offsets[256] = {0.0 , 0.0, 1.0};
@@ -201,12 +199,12 @@ colorTuples[0] = MAX(2, (k - 5) / 4);
 #endif		
 }
 
-extern "C" void aggdrw_invert_matrix(void* gr)
+AGGAPI void aggdrw_invert_matrix(void* gr)
 {
 	((agg_graphics*)gr)->agg_invert_mtx();
 }
 
-extern "C" void aggdrw_image(void* gr, REBYTE* img, REBINT w, REBINT h,REBXYF offset)
+AGGAPI void aggdrw_image(void* gr, REBYTE* img, REBINT w, REBINT h,REBXYF offset)
 {
 #ifndef AGG_OPENGL
 	if (log_size.x == 1 && log_size.y == 1)
@@ -223,12 +221,12 @@ extern "C" void aggdrw_image(void* gr, REBYTE* img, REBINT w, REBINT h,REBXYF of
 #endif
 }
 
-extern "C" void aggdrw_image_filter(void* gr, REBINT type, REBINT mode, REBDEC blur)
+AGGAPI void aggdrw_image_filter(void* gr, REBINT type, REBINT mode, REBDEC blur)
 {
 	((agg_graphics*)gr)->agg_image_filter(type, mode, blur);
 }
 
-extern "C" void aggdrw_image_options(void* gr, REBOOL keyColorEnabled, REBCNT keyCol, REBINT border)
+AGGAPI void aggdrw_image_options(void* gr, REBOOL keyColorEnabled, REBCNT keyCol, REBINT border)
 {
     if (keyCol)
     ((agg_graphics*)gr)->agg_image_options(((REBYTE*)&keyCol)[0], ((REBYTE*)&keyCol)[1], ((REBYTE*)&keyCol)[2], ((REBYTE*)&keyCol)[3], border);
@@ -236,14 +234,14 @@ else
     ((agg_graphics*)gr)->agg_image_options(0,0,0,0, border);
 }
 
-extern "C" void aggdrw_image_pattern(void* gr, REBINT mode, REBXYF offset, REBXYF size){
+AGGAPI void aggdrw_image_pattern(void* gr, REBINT mode, REBXYF offset, REBXYF size){
 if (mode)
     ((agg_graphics*)gr)->agg_image_pattern(mode,offset.x,offset.y,size.x,size.y);
 else
     ((agg_graphics*)gr)->agg_image_pattern(0,0,0,0,0);
 }
 
-extern "C" void aggdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER* points)
+AGGAPI void aggdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER* points)
 {
 #ifndef AGG_OPENGL	
 		RXIARG a;
@@ -289,23 +287,23 @@ extern "C" void aggdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, RE
 #endif
 }
 
-extern "C" void aggdrw_line(void* gr, REBXYF* p, REBCNT n)
+AGGAPI void aggdrw_line(void* gr, REBXYF* p, REBCNT n)
 {
 	((agg_graphics*)gr)->agg_line(p, n);
 }
 
-extern "C" void aggdrw_line_cap(void* gr, REBINT mode)
+AGGAPI void aggdrw_line_cap(void* gr, REBINT mode)
 {
 	((agg_graphics*)gr)->agg_stroke_cap((line_cap_e)mode);
 }
 
-extern "C" void aggdrw_line_join(void* gr, REBINT mode)
+AGGAPI void aggdrw_line_join(void* gr, REBINT mode)
 {
 	((agg_graphics*)gr)->agg_stroke_join((line_join_e)mode);
 	((agg_graphics*)gr)->agg_dash_join((line_join_e)mode);
 }
 
-extern "C" void aggdrw_line_pattern(void* gr, REBCNT col, REBDEC* patterns)
+AGGAPI void aggdrw_line_pattern(void* gr, REBCNT col, REBDEC* patterns)
 {
     if (col != 0 && patterns != NULL) {
         size_t len = static_cast<size_t>(patterns[0]) + 1;
@@ -319,12 +317,12 @@ extern "C" void aggdrw_line_pattern(void* gr, REBCNT col, REBDEC* patterns)
     }
 }
 
-extern "C" void aggdrw_line_width(void* gr, REBDEC width, REBINT mode)
+AGGAPI void aggdrw_line_width(void* gr, REBDEC width, REBINT mode)
 {
 	((agg_graphics*)gr)->agg_line_width(width, mode);
 }
 
-extern "C" void aggdrw_matrix(void* gr, REBSER* mtx)
+AGGAPI void aggdrw_matrix(void* gr, REBSER* mtx)
 {
 		RXIARG val;
 		REBCNT type;
@@ -347,7 +345,7 @@ extern "C" void aggdrw_matrix(void* gr, REBSER* mtx)
     delete[] matrix;
 }
 
-extern "C" void aggdrw_pen(void* gr, REBCNT col)
+AGGAPI void aggdrw_pen(void* gr, REBCNT col)
 {
 	if (col)
 		((agg_graphics*)gr)->agg_pen(((REBYTE*)&col)[0], ((REBYTE*)&col)[1], ((REBYTE*)&col)[2], ((REBYTE*)&col)[3]);
@@ -356,66 +354,66 @@ extern "C" void aggdrw_pen(void* gr, REBCNT col)
 
 }
 
-extern "C" void aggdrw_pen_image(void* gr, REBYTE* img, REBINT w, REBINT h)
+AGGAPI void aggdrw_pen_image(void* gr, REBYTE* img, REBINT w, REBINT h)
 {
 #ifndef AGG_OPENGL	
 	((agg_graphics*)gr)->agg_pen(0, 0, 0, 255, img, w, h);
 #endif
 }
 
-extern "C" void aggdrw_pop_matrix(void* gr)
+AGGAPI void aggdrw_pop_matrix(void* gr)
 {
 	((agg_graphics*)gr)->agg_pop_mtx();
 }
 
-extern "C" void aggdrw_push_matrix(void* gr)
+AGGAPI void aggdrw_push_matrix(void* gr)
 {
 	((agg_graphics*)gr)->agg_push_mtx();
 }
 
-extern "C" void aggdrw_reset_gradient_pen(void* gr)
+AGGAPI void aggdrw_reset_gradient_pen(void* gr)
 {
 	((agg_graphics*)gr)->agg_reset_gradient_pen();
 }
 
-extern "C" void aggdrw_reset_matrix(void* gr)
+AGGAPI void aggdrw_reset_matrix(void* gr)
 {
 	((agg_graphics*)gr)->agg_reset_mtx();
 }
 
-extern "C" void aggdrw_rotate(void* gr, REBDEC ang)
+AGGAPI void aggdrw_rotate(void* gr, REBDEC ang)
 {
 	((agg_graphics*)gr)->agg_rotate(ang);
 }
 
-extern "C" void aggdrw_scale(void* gr, REBXYF sc)
+AGGAPI void aggdrw_scale(void* gr, REBXYF sc)
 {
 	((agg_graphics*)gr)->agg_scale(sc.x, sc.y);
 }
 
-extern "C" void aggdrw_skew(void* gr, REBXYF angle)
+AGGAPI void aggdrw_skew(void* gr, REBXYF angle)
 {
 	((agg_graphics*)gr)->agg_skew(angle.x, angle.y);
 }
 #if defined(AGG_WIN32_FONTS) || defined(AGG_FREETYPE)
-extern "C" void aggdrw_text(void* gr, REBINT mode, REBXYF* p1, REBXYF* p2, REBSER* block)
+AGGAPI void aggdrw_text(void* gr, REBINT mode, REBXYF* p1, REBXYF* p2, REBSER* block)
 {
 #ifndef AGG_OPENGL	
 	((agg_graphics*)gr)->agg_text(mode, p1, p2, block);
 #endif
 }
 #endif
-extern "C" void aggdrw_transform(void* gr, REBDEC ang, REBXYF ctr, REBXYF sc, REBXYF oft)
+AGGAPI void aggdrw_transform(void* gr, REBDEC ang, REBXYF ctr, REBXYF sc, REBXYF oft)
 {
 	((agg_graphics*)gr)->agg_transform(ang, ctr.x, ctr.y, sc.x, sc.y, oft.x, oft.y);
 }
 
-extern "C" void aggdrw_translate(void* gr, REBXYF p)
+AGGAPI void aggdrw_translate(void* gr, REBXYF p)
 {
 	((agg_graphics*)gr)->agg_translate(p.x, p.y);
 }
 
-extern "C" void aggdrw_triangle(void* gr, REBXYF p1, REBXYF p2, REBXYF p3, REBCNT c1, REBCNT c2, REBCNT c3, REBDEC dilation)
+AGGAPI void aggdrw_triangle(void* gr, REBXYF p1, REBXYF p2, REBXYF p3, REBCNT c1, REBCNT c2, REBCNT c3, REBDEC dilation)
 {
 #ifndef AGG_OPENGL	
 	((agg_graphics*)gr)->agg_gtriangle(p1, p2, p3, (c1) ? (REBYTE*)&c1 : NULL, (REBYTE*)&c2, (REBYTE*)&c3, dilation);
@@ -424,67 +422,67 @@ extern "C" void aggdrw_triangle(void* gr, REBXYF p1, REBXYF p2, REBXYF p3, REBCN
 
 
 //SHAPE functions
-extern "C" void aggshp_arc(void* gr, REBINT rel, REBXYF p, REBXYF r, REBDEC ang, REBINT sweep, REBINT large)
+AGGAPI void aggshp_arc(void* gr, REBINT rel, REBXYF p, REBXYF r, REBDEC ang, REBINT sweep, REBINT large)
 {
 	((agg_graphics*)gr)->agg_path_arc(rel, r.x, r.y, ang, large, sweep, p.x, p.y);
 }
 
-extern "C" void aggshp_close(void* gr)
+AGGAPI void aggshp_close(void* gr)
 {
 	((agg_graphics*)gr)->agg_path_close();
 }
 
-extern "C" void aggshp_curv(void* gr, REBINT rel, REBXYF p1, REBXYF p2)
+AGGAPI void aggshp_curv(void* gr, REBINT rel, REBXYF p1, REBXYF p2)
 {
 	((agg_graphics*)gr)->agg_path_cubic_curve_to(rel, p1.x, p1.y, p2.x, p2.y);
 }
 
-extern "C" void aggshp_curve(void* gr, REBINT rel, REBXYF p1,REBXYF p2, REBXYF p3)
+AGGAPI void aggshp_curve(void* gr, REBINT rel, REBXYF p1,REBXYF p2, REBXYF p3)
 {
 	((agg_graphics*)gr)->agg_path_cubic_curve(rel, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
 }
 
-extern "C" void aggshp_hline(void* gr, REBINT rel, REBDEC x)
+AGGAPI void aggshp_hline(void* gr, REBINT rel, REBDEC x)
 {
 	((agg_graphics*)gr)->agg_path_hline(rel, x);
 }
 
-extern "C" void aggshp_line(void* gr, REBINT rel, REBXYF p)
+AGGAPI void aggshp_line(void* gr, REBINT rel, REBXYF p)
 {
 	((agg_graphics*)gr)->agg_path_line(rel, p.x, p.y);
 }
 
-extern "C" void aggshp_move(void* gr, REBINT rel, REBXYF p)
+AGGAPI void aggshp_move(void* gr, REBINT rel, REBXYF p)
 {
 	((agg_graphics*)gr)->agg_path_move(rel, p.x, p.y);
 }
 
-extern "C" void aggshp_begin(void* gr)
+AGGAPI void aggshp_begin(void* gr)
 {
 	((agg_graphics*)gr)->agg_begin_path();
 }
 
-extern "C" void aggshp_end(void* gr)
+AGGAPI void aggshp_end(void* gr)
 {
 }
 
-extern "C" void aggshp_vline(void* gr, REBINT rel, REBDEC y)
+AGGAPI void aggshp_vline(void* gr, REBINT rel, REBDEC y)
 {
 	((agg_graphics*)gr)->agg_path_vline(rel, y);
 }
 
-extern "C" void aggshp_qcurv(void* gr, REBINT rel, REBXYF p)
+AGGAPI void aggshp_qcurv(void* gr, REBINT rel, REBXYF p)
 {
 	((agg_graphics*)gr)->agg_path_quadratic_curve_to(rel, p.x, p.y);
 }
 
-extern "C" void aggshp_qcurve(void* gr, REBINT rel, REBXYF p1, REBXYF p2)
+AGGAPI void aggshp_qcurve(void* gr, REBINT rel, REBXYF p1, REBXYF p2)
 {
 	((agg_graphics*)gr)->agg_path_quadratic_curve(rel, p1.x, p1.y, p2.x, p2.y);
 }
 
 
-extern "C" void aggdrw_to_image(REBYTE *image, REBINT w, REBINT h, REBSER *block)
+AGGAPI void aggdrw_to_image(REBYTE *image, REBINT w, REBINT h, REBSER *block)
 {
 	REBCEC ctx;
 	REBSER *args = 0;
@@ -507,7 +505,7 @@ extern "C" void aggdrw_to_image(REBYTE *image, REBINT w, REBINT h, REBSER *block
 delete graphics;
 }
 
-extern "C" void aggdrw_gob_color(REBGOB *gob, REBDRW_CTX *draw_ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz)
+AGGAPI void aggdrw_gob_color(REBGOB *gob, REBDRW_CTX *draw_ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz)
 {
 	REBYTE *buf;
 	REBXYI buf_size;
@@ -529,7 +527,7 @@ extern "C" void aggdrw_gob_color(REBGOB *gob, REBDRW_CTX *draw_ctx, REBXYI abs_o
 		rb_win.blend_bar(abs_oft.x, abs_oft.y, abs_oft.x+GOB_LOG_W_INT(gob), abs_oft.y+GOB_LOG_H_INT(gob), agg::rgba8(color[C_R], color[C_G], color[C_B], color[C_A]), GOB_ALPHA(gob));
 }
 
-extern "C" void aggdrw_gob_image(REBGOB *gob, REBDRW_CTX *draw_ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz)
+AGGAPI void aggdrw_gob_image(REBGOB *gob, REBDRW_CTX *draw_ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz)
 {
 	//FIXME: temporary hack for getting image w,h
 	u16* d = (u16*)GOB_CONTENT(gob);
@@ -563,7 +561,7 @@ extern "C" void aggdrw_gob_image(REBGOB *gob, REBDRW_CTX *draw_ctx, REBXYI abs_o
 		rb_win.blend_from(pixf_img,0,abs_oft.x,abs_oft.y, GOB_ALPHA(gob));
 }
 
-extern "C" void aggdrw_gob_draw(REBGOB *gob, REBDRW_CTX *draw_ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz)
+AGGAPI void aggdrw_gob_draw(REBGOB *gob, REBDRW_CTX *draw_ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz)
 {
 	REBCEC ctx;
 	agg_graphics *graphics;

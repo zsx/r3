@@ -101,17 +101,17 @@ static void update_font(Rich_Text *rt)
 {
 	int font_id;
 #if TO_WINDOWS
-	int len = Strlen_Uni(rt->font_spec.name);
+	REBCNT len = OS_STRLEN(rt->font_spec.name);
 	int utf8_len = RL_Length_As_UTF8(rt->font_spec.name, len, TRUE, FALSE);
-	char *full = malloc(utf8_len + EXTRA_CHAR_FOR_FONT_NAME + 1);
+    char *full = cast(char*, malloc(utf8_len + EXTRA_CHAR_FOR_FONT_NAME + 1));
 
 	if (!full) return;
 
-	RL_Encode_UTF8(full, utf8_len, rt->font_spec.name, &len, TRUE, FALSE);
+	RL_Encode_UTF8(cast(REBYTE*, full), utf8_len, rt->font_spec.name, &len, TRUE, FALSE);
 #else
 	int len = strlen(rt->font_spec.name);
 	int utf8_len = len;
-	char *full = malloc(utf8_len + EXTRA_CHAR_FOR_FONT_NAME + 1);
+	char *full = cast(char*, malloc(utf8_len + EXTRA_CHAR_FOR_FONT_NAME + 1));
 	if (!full) return;
 
 	strcpy(full, rt->font_spec.name);
@@ -142,8 +142,8 @@ static void update_font(Rich_Text *rt)
 #endif
 		font_id = nvgCreateFont(rt->nvg, full, "C:\\Users\\user\\work\\zoe.git\\fonts\\DejaVuSans.ttf");
 #elif AGG_FONTCONFIG
-		char * font_path = find_font_path(rt->font_spec.name, rt->font_spec.bold, rt->font_spec.italic, rt->font_spec.size);
-		font_id = nvgCreateFont(rt->nvg, full, font_path);
+		unsigned char * font_path = find_font_path(cast(unsigned char*, rt->font_spec.name), rt->font_spec.bold, rt->font_spec.italic, rt->font_spec.size);
+		font_id = nvgCreateFont(rt->nvg, full, cast(const char*, font_path));
 #endif
 	}
 
@@ -168,7 +168,7 @@ static void nvg_rt_block_text(void *richtext, void *nvg, REBSER *block)
 
 	rt = (Rich_Text*)richtext;
 	
-	if (nvg != NULL && rt->nvg == NULL) rt->nvg = nvg;
+	if (nvg != NULL && rt->nvg == NULL) rt->nvg = cast(NVGcontext*, nvg);
 
 	update_font(rt);
 	nvgFontSize(rt->nvg, rt->font_spec.size);
@@ -181,14 +181,14 @@ static void nvg_rt_block_text(void *richtext, void *nvg, REBSER *block)
 static char * to_utf8(REBCHR *text)
 {
 	char *utf8;
-	int len;
+	REBCNT len;
 	int utf8_len;
 
-	len = Strlen_Uni(text); 	/* FIXME: do not used unexposed core functions */
+	len = OS_STRLEN(text); 	/* FIXME: do not used unexposed core functions */
 	utf8_len = RL_Length_As_UTF8(text, len, TRUE, FALSE);
 	if (utf8_len == 0) 	return 0;
-	utf8 = malloc(utf8_len + 1);
-	RL_Encode_UTF8(utf8, utf8_len, text, &len, TRUE, FALSE);
+	utf8 = cast(char*, malloc(utf8_len + 1));
+	RL_Encode_UTF8(cast(REBYTE*, utf8), utf8_len, text, &len, TRUE, FALSE);
     utf8[utf8_len] = '\0';
 
     return utf8;
@@ -207,7 +207,7 @@ static REBINT nvg_rt_gob_text(REBGOB *gob, REBDRW_CTX *ctx, REBXYI abs_oft, REBX
 	nvgReset(ctx->nvg);
 //	nvgScissor(ctx->nvg, clip_top.x, clip_top.y, clip_bottom.x - clip_top.x, clip_bottom.y - clip_top.y);
 
-	rt = rebol_renderer->text->rich_text;
+    rt = cast(Rich_Text*, rebol_renderer->text->rich_text);
 	if (!rt) return 0;
 
 	rt->nvg = ctx->nvg;
@@ -247,7 +247,7 @@ void nvg_text(REBDRW_CTX *draw_ctx, int mode, REBXYF *p1, REBXYF *p2, REBSER *bl
 
 static void* nvg_create_rich_text()
 {
-	Rich_Text * rt = malloc(sizeof(Rich_Text));
+	Rich_Text * rt = cast(Rich_Text*, malloc(sizeof(Rich_Text)));
 	if (!rt) return NULL;
 
 	memset(rt, 0, sizeof(rt));
@@ -346,14 +346,14 @@ static void nvg_rt_font_size(void* rt, REBINT size)
 	nvgFontSize(ctx->nvg, size);
 }
 
-static void* nvg_rt_get_font(void* rt)
+static REBFNT* nvg_rt_get_font(void* rt)
 {
 	Rich_Text *ctx = (Rich_Text*) rt;
 	return &ctx->font_spec;
 }
 
 
-static void* nvg_rt_get_para(void* rt)
+static REBPRA* nvg_rt_get_para(void* rt)
 {
 	Rich_Text *ctx = (Rich_Text*)rt;
 	return &ctx->para_spec;
@@ -481,8 +481,8 @@ static void nvg_rt_size_text(void* rt, REBGOB* gob, REBXYF* size)
 static void nvg_rt_text(void* rt, REBSER* text, REBINT index)
 {
 	Rich_Text *ctx = (Rich_Text*)rt;
-	unsigned char *utf8 = NULL;
-	int utf8_n_char = RL_Get_UTF8_String(text, 0, &utf8);
+	char *utf8 = NULL;
+	int utf8_n_char = RL_Get_UTF8_String(text, 0, cast(REBYTE**, &utf8));
 	if (!utf8 || utf8_n_char <= 0) return;
 	if (ctx->mode == RT_DRAW) {
 		if (ctx->w > 0) {
@@ -496,7 +496,7 @@ static void nvg_rt_text(void* rt, REBSER* text, REBINT index)
 
 			if (max_nrows <= 0) return;
 
-			rows = malloc(sizeof(NVGtextRow) * max_nrows);
+			rows = cast(NVGtextRow*, malloc(sizeof(NVGtextRow) * max_nrows));
 			if (rows == NULL) return;
 
 			nrows = nvgTextBreakLines(ctx->nvg, utf8, NULL, ctx->w, rows, max_nrows);
@@ -615,6 +615,47 @@ static void nvg_rt_caret_to_offset(void* rt, REBGOB *gob, REBXYF* xy, REBINT ele
 #endif
 }
 
+#ifdef __cplusplus
+static REBRDR_TXT init_nvg_text() {
+    REBRDR_TXT rdr;
+
+    memset(&rdr, 0, sizeof(rdr));
+
+    rdr.init = nvg_rt_init;
+    rdr.fini = nvg_rt_fini;
+    rdr.create_rich_text = nvg_create_rich_text;
+    rdr.destroy_rich_text = nvg_destroy_rich_text;
+    rdr.rt_anti_alias = nvg_rt_anti_alias;
+    rdr.rt_bold = nvg_rt_bold;
+    rdr.rt_caret = nvg_rt_caret;
+    rdr.rt_center = nvg_rt_center;
+    rdr.rt_color = nvg_rt_color;
+    rdr.rt_drop = nvg_rt_drop;
+    rdr.rt_font = nvg_rt_font;
+    rdr.rt_font_size = nvg_rt_font_size;
+    rdr.rt_get_font = nvg_rt_get_font;
+    rdr.rt_get_para = nvg_rt_get_para;
+    rdr.rt_italic = nvg_rt_italic;
+    rdr.rt_left = nvg_rt_left;
+    rdr.rt_newline = nvg_rt_newline;
+    rdr.rt_para = nvg_rt_para;
+    rdr.rt_right = nvg_rt_right;
+    rdr.rt_scroll = nvg_rt_scroll;
+    rdr.rt_shadow = nvg_rt_shadow;
+    rdr.rt_set_font_styles = nvg_rt_set_font_styles;
+    rdr.rt_size_text = nvg_rt_size_text;
+    rdr.rt_text = nvg_rt_text;
+    rdr.rt_underline = nvg_rt_underline;
+    rdr.rt_offset_to_caret = nvg_rt_offset_to_caret;
+    rdr.rt_caret_to_offset = nvg_rt_caret_to_offset;
+    rdr.rt_gob_text = nvg_rt_gob_text;
+    rdr.rt_block_text = nvg_rt_block_text;
+
+    return rdr;
+}
+struct REBRDR_TXT text_nanovg = init_nvg_text();
+
+#else
 struct REBRDR_TXT text_nanovg = {
 	.init = nvg_rt_init,
 	.fini = nvg_rt_fini,
@@ -646,3 +687,5 @@ struct REBRDR_TXT text_nanovg = {
 	.rt_gob_text = nvg_rt_gob_text,
 	.rt_block_text = nvg_rt_block_text
 };
+
+#endif

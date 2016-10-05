@@ -1,38 +1,30 @@
-#ifdef __cplusplus
-extern "C" {
-#endif
+AGGAPI void* agg_create_rich_text();
+AGGAPI void agg_destroy_rich_text(void* rt);
+AGGAPI int agg_rt_init(REBRDR_TXT *txt);
+AGGAPI void agg_rt_fini(REBRDR_TXT *txt);
+AGGAPI void agg_rt_anti_alias(void* rt, REBINT mode);
+AGGAPI void agg_rt_bold(void* rt, REBINT state);
+AGGAPI void agg_rt_caret(void* rt, REBXYF* caret, REBXYF* highlightStart, REBXYF highlightEnd);
+AGGAPI void agg_rt_center(void* rt);
+AGGAPI void agg_rt_color(void* rt, REBCNT col);
+AGGAPI void agg_rt_drop(void* rt, REBINT number);
+AGGAPI void agg_rt_font(void* rt, REBFNT* font);
+AGGAPI void agg_rt_font_size(void* rt, REBINT size);
+AGGAPI REBFNT* agg_rt_get_font(void* rt);
+AGGAPI REBPRA* agg_rt_get_para(void* rt);
+AGGAPI void agg_rt_italic(void* rt, REBINT state);
+AGGAPI void agg_rt_left(void* rt);
+AGGAPI void agg_rt_newline(void* rt, REBINT index);
+AGGAPI void agg_rt_para(void* rt, REBPRA* para);
+AGGAPI void agg_rt_right(void* rt);
+AGGAPI void agg_rt_scroll(void* rt, REBXYF offset);
+AGGAPI void agg_rt_shadow(void* rt, REBXYF d, REBCNT color, REBINT blur);
+AGGAPI void agg_rt_set_font_styles(REBFNT* font, u32 word);
+AGGAPI void agg_rt_size_text(void* rt, REBGOB* gob, REBXYF* size);
+AGGAPI void agg_rt_text(void* gr, REBSER* text, REBINT index);
+AGGAPI void agg_rt_underline(void* rt, REBINT state);
 
-extern void* agg_create_rich_text();
-extern void agg_destroy_rich_text(void* rt);
-extern int agg_rt_init(REBRDR_TXT *txt);
-extern void agg_rt_fini(REBRDR_TXT *txt);
-extern void agg_rt_anti_alias(void* rt, REBINT mode);
-extern void agg_rt_bold(void* rt, REBINT state);
-extern void agg_rt_caret(void* rt, REBXYF* caret, REBXYF* highlightStart, REBXYF highlightEnd);
-extern void agg_rt_center(void* rt);
-extern void agg_rt_color(void* rt, REBCNT col);
-extern void agg_rt_drop(void* rt, REBINT number);
-extern void agg_rt_font(void* rt, REBFNT* font);
-extern void agg_rt_font_size(void* rt, REBINT size);
-extern void* agg_rt_get_font(void* rt);
-extern void* agg_rt_get_para(void* rt);
-extern void agg_rt_italic(void* rt, REBINT state);
-extern void agg_rt_left(void* rt);
-extern void agg_rt_newline(void* rt, REBINT index);
-extern void agg_rt_para(void* rt, REBPRA* para);
-extern void agg_rt_right(void* rt);
-extern void agg_rt_scroll(void* rt, REBXYF offset);
-extern void agg_rt_shadow(void* rt, REBXYF d, REBCNT color, REBINT blur);
-extern void agg_rt_set_font_styles(REBFNT* font, u32 word);
-extern void agg_rt_size_text(void* rt, REBGOB* gob, REBXYF* size);
-extern void agg_rt_text(void* gr, REBSER* text, REBINT index);
-extern void agg_rt_underline(void* rt, REBINT state);
-
-extern void agg_rt_offset_to_caret(void* rt, REBGOB *gob, REBXYF xy, REBINT *element, REBINT *position);
-extern void agg_rt_caret_to_offset(void* rt, REBGOB *gob, REBXYF* xy, REBINT element, REBINT position);
-extern REBINT agg_rt_gob_text(REBGOB *gob, REBDRW_CTX *draw_ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz);
-extern void agg_rt_block_text(void *rt, void *draw_ctx, REBSER *block);
-
-#ifdef __cplusplus
-}
-#endif
+AGGAPI void agg_rt_offset_to_caret(void* rt, REBGOB *gob, REBXYF xy, REBINT *element, REBINT *position);
+AGGAPI void agg_rt_caret_to_offset(void* rt, REBGOB *gob, REBXYF* xy, REBINT element, REBINT position);
+AGGAPI REBINT agg_rt_gob_text(REBGOB *gob, REBDRW_CTX *draw_ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz);
+AGGAPI void agg_rt_block_text(void *rt, void *draw_ctx, REBSER *block);

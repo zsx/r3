@@ -5,10 +5,17 @@ extern "C" {
 #include <string.h>
 #include <fontconfig/fontconfig.h>
 
-	void RL_Print(char *fmt, ...);//output just for testing
+	//void RL_Print(char *fmt, ...);//output just for testing
 }
 
-extern "C" unsigned char *find_font_path(
+
+extern
+
+#ifndef R3_CPP
+ "C" 
+#endif
+
+unsigned char *find_font_path(
 	const unsigned char* family,
 	unsigned char bold,
 	unsigned char italic,
