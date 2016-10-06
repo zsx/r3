@@ -1274,6 +1274,22 @@ reevaluate:;
         if (IS_END(f->value))
             fail (Error(RE_NEED_VALUE, DS_TOP)); // e.g. `do [foo:]`
         f->eval_type = VAL_TYPE(f->value);
+
+    #if !defined(NDEBUG)
+        //
+        // !!! In R3-Alpha `10 = 5 + 5` would be an error due to lookahead
+        // suppression from `=`, so it reads as `(10 = 5) + 5`.  However
+        // `10 = x: 5 + 5` would not be an error, as the SET-WORD! caused a
+        // recursion in the evaluator.  For efficiency in Ren-C, SET-WORD!s do
+        // not bear the overhead of state of a recursion.  If it were desired
+        // for seeing a SET-WORD! to override the lookahead suppression, that
+        // would need to be done explicitly.
+        //
+        if (LEGACY(OPTIONS_SETS_UNSUPPRESS_LOOKAHEAD)) {
+            f->flags.bits &= ~DO_FLAG_NO_LOOKAHEAD;
+            f->flags.bits |= DO_FLAG_LOOKAHEAD;
+        }
+    #endif
         goto do_next;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1422,6 +1438,16 @@ reevaluate:;
         if (IS_END(f->value))
             fail (Error(RE_NEED_VALUE, DS_TOP)); // `do [a/b/c:]` is illegal
         f->eval_type = VAL_TYPE(f->value);
+
+#if !defined(NDEBUG)
+        //
+        // !!! See remarks on REB_SET_WORD
+        //
+        if (LEGACY(OPTIONS_SETS_UNSUPPRESS_LOOKAHEAD)) {
+            f->flags.bits &= ~DO_FLAG_NO_LOOKAHEAD;
+            f->flags.bits |= DO_FLAG_LOOKAHEAD;
+        }
+#endif
         goto do_next;
 
 //==//////////////////////////////////////////////////////////////////////==//
