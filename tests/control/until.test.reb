@@ -31,9 +31,9 @@
         num2: 0
         until [
             num3: num3 + 1
-            1 < num2: num2 + 1
+            1 < (num2: num2 + 1)
         ]
-        4 < num1: num1 + 1
+        4 < (num1: num1 + 1)
     ]
     10 = num3
 ]

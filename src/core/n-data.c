@@ -1236,35 +1236,6 @@ REBNATIVE(semiquote)
 
 
 //
-//  punctuates?: native [
-//
-//  {Returns true if function (or word looking up to function) is punctuating}
-//
-//      value [function! word!]
-//          {Function or specifying word}
-//  ]
-//
-REBNATIVE(punctuates_q)
-//
-// !!! This function faces the general problem that it cannot substitute for
-// the evaluator's knowledge of punctuation, e.g. if a path evaluates to a
-// <punctuates> function, without risking the running of code.  Since this is
-// likely to be used in lookahead scenarios (e.g. ||) then it's a bad idea to
-// give the impression that it "works on paths".
-{
-    PARAM(1, value);
-
-    REBSTR *sym; // unused here
-    Get_If_Word_Or_Path_Arg(D_OUT, &sym, ARG(value));
-
-    if (!IS_FUNCTION(D_OUT))
-        fail (Error_Unexpected_Type(REB_FUNCTION, VAL_TYPE(D_OUT)));
-
-    return GET_VAL_FLAG(D_OUT, FUNC_FLAG_PUNCTUATES) ? R_TRUE : R_FALSE;
-}
-
-
-//
 //  as: native [
 //
 //  {Aliases the underlying data of one series to act as another of same class}

@@ -397,6 +397,159 @@ inline static void Do_Pending_Sets_May_Invalidate_Gotten(
 }
 
 
+// Getting an a-priori answer for any argument fulfillment on whether that
+// argument is the last one to the function is not necessarily easy in the
+// general case, due to the way refinements and specializations affect the
+// answer.  But it only needs to be known occasionally, when encountering an
+// enfixed function that has a deferred left-hand side.  Since it can't be
+// precomputed, this routine does the computation when needed.
+//
+// Falsification can be returned fairly quickly, based on finding *any*
+// subsequent argument.  And the true case is generally quick as well, since
+// it occurs at the end of the arguments.
+//
+inline static REBOOL Fulfilling_Last_Argument(struct Reb_Frame *f) {
+    if (NOT(f->eval_type == REB_FUNCTION || f->eval_type == REB_0_LOOKBACK))
+        return FALSE;
+
+    // Function may be on the stack and calling the evaluator after its args
+    // have already been fulfilled.
+    //
+    if (!Is_Function_Frame_Fulfilling(f))
+        return FALSE;
+
+    const REBVAL *special = f->special;
+    assert(special != f->arg); // only true if R_REDO_CHECKED (has all args)
+
+    const RELVAL *param = f->param;
+    ++param; // special was already bumped if needed by Do_Core()
+
+    assert(
+        f->refine == EMPTY_BLOCK // just an ordinary argument
+        || IS_CONDITIONAL_TRUE(f->refine) // refinement arg hasn't been revoked
+        || f->refine == FALSE_VALUE // arg to revoked refinement (must be void)
+    );
+
+    // We may be currently fulfilling a refinement's arguments, but that's not
+    // relevant.  All we're interested in are *subsequent* refinements, and
+    // whether they are in use and have unspecialized arguments.  Note that
+    // "subsequent refinements" may actually occur prior to our current
+    // position in the traversal, e.g. in `foo/baz/bar a b c` we may be
+    // fulfilling /BAZ first, even though it may come after /BAR in the
+    // definition (with /BAR needing to be "picked up".)
+    //
+    const REBVAL *pickup = EMPTY_BLOCK;
+
+    while (NOT_END(param)) {
+        switch (VAL_PARAM_CLASS(param)) {
+        case PARAM_CLASS_LOCAL:
+        case PARAM_CLASS_RETURN:
+        case PARAM_CLASS_LEAVE:
+            // just skip locals (they're not arguments fulfilled at callsite)
+            if (special != END_CELL)
+                ++special;
+            break;
+        
+        case PARAM_CLASS_REFINEMENT:
+            if (f->dsp_orig == DSP)
+                return TRUE; // no refinements left to consider or pick up
+
+            if (pickup != NULL && pickup != EMPTY_BLOCK) {
+                assert(IS_VARARGS(pickup));
+                goto next_pickup; // finished a pickup, so find next one
+            }
+
+            // If we weren't doing a pickup, then we may hit a refinement that
+            // is going to be in use in the original traversal (these will be
+            // WORD! on the stack).  First see if it was specialized TRUE/FALSE
+
+            if (special != END_CELL) {
+                if (IS_VOID(special))
+                    ++special; // unspecialized refinement, fall through
+                else {
+                    if (!IS_LOGIC(special))
+                        fail (Error_Non_Logic_Refinement(f));
+
+                    if (IS_CONDITIONAL_TRUE(special))
+                        pickup = EMPTY_BLOCK;
+                    else
+                        pickup = NULL;
+
+                    ++special;
+                    goto next_param;
+                }
+            }
+
+            // If the refinement isn't specialized, go ahead and look on the
+            // stack to see if it was part of the invocation (via path, pushed
+            // a word to the stack).
+
+            pickup = DS_TOP;
+            do {
+                if (IS_WORD(pickup)) {
+                    if (VAL_PARAM_CANON(param) == VAL_WORD_SPELLING(pickup)) {
+                        pickup = EMPTY_BLOCK; // found, but not a "pickup"
+                        goto next_param;
+                    }
+                }
+                else
+                    assert(IS_VARARGS(pickup)); // for later pickups
+
+                --pickup;
+            } while (pickup != DS_AT(f->dsp_orig));
+
+            pickup = NULL; // refinement not in use
+            break;
+
+        case PARAM_CLASS_NORMAL:
+        case PARAM_CLASS_HARD_QUOTE:
+        case PARAM_CLASS_SOFT_QUOTE:
+            if (pickup) { // "in use"
+                if (special == END_CELL)
+                    return FALSE; // no specialization, so this is another arg!
+
+                if (IS_VOID(special))
+                    return FALSE; // specialization w/this arg unspecialized!
+
+                ++special; // specialized argument, skip it...
+            }
+            else { // "not used"
+                if (special != END_CELL)
+                    ++special;
+            }
+            break;
+
+        default:
+            assert(FALSE);
+        }
+
+    next_param:
+        ++param;
+    }
+
+    if (pickup != EMPTY_BLOCK) { // get previous pickup candidate (or bottom)
+    next_pickup:
+        assert(IS_VARARGS(pickup));
+        --pickup;
+    }
+    else
+        pickup = DS_TOP; // get first pickup candidate (may be stack bottom)
+
+    // Figure out if candidate is actual pickup, and keep stepping backwards
+    // in the stack until it is exhausted or pickup is found.
+    //
+    for (; pickup > DS_AT(f->dsp_orig); --pickup) {
+        if (IS_VARARGS(pickup)) {
+            param = pickup->payload.varargs.param;
+            goto next_param;
+        }
+        assert(IS_WORD(pickup));
+    }
+
+    return TRUE; // never found another arg to be fulfilled after current
+}
+
+
 //
 // DO_NEXT_REFETCH_MAY_THROW provides some slick optimization for the
 // evaluator, by taking the simpler cases which can be done without a nested
@@ -520,10 +673,18 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
         //
         if (child->eval_type == REB_0_LOOKBACK) {
             assert(IS_FUNCTION(child->gotten));
-            goto no_optimization;
-        }
 
-        child->eval_type = REB_WORD;
+            // Run the lookback if we can't afford to defer it -or- if it's
+            // not the kind that is deferred.
+            if (
+                !GET_VAL_FLAG(child->gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG)
+                || NOT(Fulfilling_Last_Argument(parent))
+            ) {
+                goto no_optimization;
+            }
+        }
+        else
+            child->eval_type = REB_WORD;
     }
 
     TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_MAY_THROW", parent, TRUE);
@@ -544,7 +705,11 @@ no_optimization:
 
     Do_Core(child);
 
-    assert(child->eval_type != REB_0_LOOKBACK);
+    // It is technically possible to wind up with child->eval_type as
+    // REB_0_LOOKBACK here if a lookback's first argument does not allow
+    // lookahead.  e.g. `print 1 + 2 <| print 1 + 7` wishes to print 3
+    // and then 8, rather than print 8 and then evaluate
+
     assert(
         (child->flags.bits & DO_FLAG_VA_LIST)
         || parent->index != child->index

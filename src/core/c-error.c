@@ -1160,20 +1160,6 @@ REBCTX *Error(REBCNT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
 
 
 //
-//  Error_Punctuator_Hit: C
-//
-// A punctuator is a "lookahead arity 0 operation", which has special handling
-// such that it cannot be passed as an argument to a function.  Note that
-// f->label_sym must contain the symbol of the punctuator rejecting the call.
-//
-REBCTX *Error_Punctuator_Hit(REBFRM *f) {
-    REBVAL punctuator_name;
-    Val_Init_Word(&punctuator_name, REB_WORD, f->label);
-    fail (Error(RE_PUNCTUATOR_HIT, &punctuator_name));
-}
-
-
-//
 //  Error_Lookback_Quote_Too_Late: C
 //
 // You can't have infix operators as `(1 + 2) infix-op 3 4 5` which quote
@@ -1194,29 +1180,6 @@ REBCTX *Error_Lookback_Quote_Too_Late(REBFRM *f) {
 //
 REBCTX *Error_Lookback_Quote_Set_Soft(REBFRM *f) {
     fail (Error(RE_INFIX_QUOTE_SET, f->out, END_CELL));
-}
-
-
-//
-//  Error_Infix_Left_Arg_Prohibited: C
-//
-// This error happens when an attempt is made to use an arity-0 lookback
-// binding as a left-hand argument to an infix function.  The reason it is
-// given such a strange meaning is that the bit is available (what else would
-// an arity-0 lookback function do differently from an arity-0 prefix one?)
-// and because being able to stop being consumed from the right is something
-// only arity-0 functions can accomplish, because if they had args then it
-// would be the args receiving the infix.
-//
-// !!! The symbol of the function causing the block is not available at the
-// time of the error, which means the message reports the failing function.
-// This could be improved heuristically, but it's not 100% guaranteed to be
-// able to step back in an array to see it--since there may be no array.
-//
-REBCTX *Error_Infix_Left_Arg_Prohibited(REBFRM *f) {
-    REBVAL infix_name;
-    Val_Init_Word(&infix_name, REB_WORD, f->label);
-    fail (Error(RE_NO_INFIX_LEFT_ARG, &infix_name, END_CELL));
 }
 
 

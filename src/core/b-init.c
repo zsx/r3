@@ -541,12 +541,12 @@ static void Init_Function_Tags(void)
     } tags[] = {
         "no-return", ROOT_NO_RETURN_TAG,
         "no-leave", ROOT_NO_LEAVE_TAG,
-        "punctuates", ROOT_PUNCTUATES_TAG,
         "...", ROOT_ELLIPSIS_TAG,
         "opt", ROOT_OPT_TAG,
         "end", ROOT_END_TAG,
         "local", ROOT_LOCAL_TAG,
         "durable", ROOT_DURABLE_TAG,
+        "defer", ROOT_DEFER_TAG,
         NULL, NULL
     };
 

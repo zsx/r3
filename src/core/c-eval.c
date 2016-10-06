@@ -123,9 +123,6 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
     if (Start_New_Expression_Throws(f)) \
         g; \
     args_evaluate = NOT((f)->flags.bits & DO_FLAG_NO_ARGS_EVALUATE); \
-    lookahead_flags = ((f)->flags.bits & DO_FLAG_NO_LOOKAHEAD) \
-        ? DO_FLAG_NO_LOOKAHEAD \
-        : DO_FLAG_LOOKAHEAD; \
 
 #ifdef NDEBUG
     #define START_NEW_EXPRESSION_MAY_THROW(f,g) \
@@ -215,16 +212,12 @@ void Do_Core(REBFRM * const f)
 #endif
 
     REBOOL args_evaluate; // set on every iteration (varargs do, EVAL/ONLY...)
-    REBUPT lookahead_flags; // ^-- same, currently not independent EVAL switch
 
     // APPLY and a DO of a FRAME! both use this same code path.
     //
     if (f->flags.bits & DO_FLAG_APPLYING) {
         assert(f->eval_type != REB_0_LOOKBACK); // "APPLY infix" not supported
         args_evaluate = NOT(f->flags.bits & DO_FLAG_NO_ARGS_EVALUATE);
-        lookahead_flags = (f->flags.bits & DO_FLAG_NO_LOOKAHEAD)
-            ? DO_FLAG_NO_LOOKAHEAD
-            : DO_FLAG_LOOKAHEAD;
         goto do_function_arglist_in_progress;
     }
 
@@ -276,7 +269,7 @@ void Do_Core(REBFRM * const f)
 do_next:;
 
     START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
-    // ^-- sets args_evaluate, lookahead_flags, do_count, Ctrl-C may abort
+    // ^-- sets args_evaluate, do_count, Ctrl-C may abort
 
 reevaluate:;
     //
@@ -363,59 +356,6 @@ reevaluate:;
         //
         assert(IS_END(f->out) || f->eval_type == REB_0_LOOKBACK);
 
-        // If a function doesn't want to act as an argument to a function
-        // call or an assignment (e.g. `x: print "don't do this"`) we can
-        // stop it by looking at the frame above.  Note that if a function
-        // frame is running but not fulfilling arguments, that just means
-        // that this is being used in the implementation.
-        //
-        // Must be positioned here to apply to infix, and also so that the
-        // f->param field is initialized (checked by error machinery)
-        //
-        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_PUNCTUATES)) {
-            if (DSP != f->dsp_orig) {
-                switch(VAL_TYPE(DS_TOP)) {
-                case REB_SET_WORD:
-                case REB_SET_PATH:
-                    fail (Error_Punctuator_Hit(f));
-                break;
-                }
-            }
-
-            if (f->prior) {
-                switch (f->prior->eval_type) {
-                case REB_FUNCTION:
-                case REB_0_LOOKBACK:
-                    if (Is_Function_Frame_Fulfilling(f->prior))
-                        fail (Error_Punctuator_Hit(f));
-                    break;
-                }
-            }
-        }
-
-    #if !defined(NDEBUG)
-        //
-        // !!! R3-Alpha had a strange infix "feature":
-        //
-        // `10 = add 5 5` is `true`
-        // `add 5 5 = 10` is `** Script error: expected logic! not integer!`
-        //
-        // `5 + 5 = 10` is `true`
-        // `10 = 5 + 5` is `** Script error: expected logic! not integer!`
-        //
-        // Ren-C rejects this as it does not seem to afford expressiveness
-        // that is compelling enough to warrant it given bad properties:
-        //
-        // `10 = probe 5 + 5` is `true` ;-- why should PROBE affect it?
-        // `10 = x: 5 + 5` is `true` ;-- why should adding SET-WORD! affect it?
-
-        if (LEGACY(OPTIONS_NO_INFIX_LOOKAHEAD))
-            lookahead_flags =
-                (f->eval_type == REB_0_LOOKBACK)
-                    ? DO_FLAG_NO_LOOKAHEAD
-                    : DO_FLAG_LOOKAHEAD;
-    #endif
-
         // "not a refinement arg, evaluate normally", won't be modified
         f->refine = m_cast(REBVAL*, EMPTY_BLOCK);
 
@@ -453,12 +393,12 @@ reevaluate:;
 
     //=//// A /REFINEMENT ARG /////////////////////////////////////////////=//
 
-            // Refinements are checked for first for a reason.  This is to
+            // Refinements are checked first for a reason.  This is to
             // short-circuit based on the `doing_pickups` flag before redoing
             // fulfillments on arguments that have already been handled.
             //
             // The reason an argument might have already been handled is
-            // because refinements have to reach back and be revisited after
+            // that some refinements have to reach back and be revisited after
             // the original parameter walk.  They can't be fulfilled in a
             // single pass because these two calls mean different things:
             //
@@ -793,7 +733,21 @@ reevaluate:;
                     SET_END(f->out);
                 }
                 else if (args_evaluate) {
-                    DO_NEXT_REFETCH_MAY_THROW(f->arg, f, lookahead_flags);
+                    //
+                    // The default for evaluated parameters is to do normal
+                    // infix lookahead, e.g. `square 1 + 2` would pass 3
+                    // to a single-arity function "square".  But if the
+                    // argument to square is declared <defer>, it will act as
+                    // `(square 1) + 2`, by not applying lookahead to
+                    // see the + during the argument evaluation.
+                    //
+                    DO_NEXT_REFETCH_MAY_THROW(
+                        f->arg,
+                        f,
+                        (GET_VAL_FLAG(f->param, TYPESET_FLAG_DEFER)
+                            ? DO_FLAG_NO_LOOKAHEAD
+                            : DO_FLAG_LOOKAHEAD)
+                    );
 
                     if (THROWN(f->arg)) {
                         *f->out = *f->arg;
@@ -1106,14 +1060,12 @@ reevaluate:;
 
         case R_REEVALUATE:
             args_evaluate = TRUE; // unnecessary?
-            lookahead_flags = DO_FLAG_LOOKAHEAD;
             Drop_Function_Args_For_Frame(f);
             CLEAR_FRAME_LABEL(f);
             goto reevaluate; // we don't move index!
 
         case R_REEVALUATE_ONLY:
             args_evaluate = FALSE;
-            lookahead_flags = DO_FLAG_NO_LOOKAHEAD;
             Drop_Function_Args_For_Frame(f);
             CLEAR_FRAME_LABEL(f);
             goto reevaluate; // we don't move index!
@@ -1540,16 +1492,18 @@ reevaluate:;
 
     // SET-WORD! and SET-PATH! jump to `do_next:`, so they don't fall through
     // to this point.  We'll only get here if an expression completed to
-    // assign -or- if the left hand side of an infix is ready (hence, not
-    // quite yet ready to assign).
+    // assign -or- if the left hand side of an infix is ready.
+    //
+    // Ordinarily having the left side of an infix is not enough. `x: 1 + 2`
+    // does not want to push the X:, then get a 1, then assign the 1...it
+    // needs to wait.  But if the first argument of the infix is <defer>,
+    // e.g. `x: 1 + 2 <| ...`, then the <| wants to flush its SETs before
+    // running vs. setting them to its own result.
 
     if (IS_END(f->value)) {
         Do_Pending_Sets_May_Invalidate_Gotten(f->out, f); // don't care if does
         goto finished;
     }
-
-    enum Reb_Kind eval_type_last;
-    eval_type_last = f->eval_type;
 
     f->eval_type = VAL_TYPE(f->value);
 
@@ -1590,7 +1544,7 @@ reevaluate:;
     //=//// IT'S INFIX OR WE'RE DOING TO THE END...DISPATCH LIKE WORD /////=//
 
         START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
-        // ^-- sets args_evaluate, lookahead_flags, do_count, Ctrl-C may abort
+        // ^-- sets args_evaluate, do_count, Ctrl-C may abort
 
         if (!f->gotten) { // <-- DO_COUNT_BREAKPOINT landing spot
             REBVAL specified;
@@ -1603,13 +1557,38 @@ reevaluate:;
             goto do_word_in_value; // may need to refetch, lookbacks see end
         }
 
-        // If a previous "infix" call had 0 arguments and didn't consume
-        // the value before it, assume that means it's a 0-arg barrier
-        // that does not want to be the left hand side of another infix.
-        //
         if (f->eval_type == REB_0_LOOKBACK) {
-            if (eval_type_last == REB_0_LOOKBACK)
-                fail (Error_Infix_Left_Arg_Prohibited(f));
+            if (GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG)) {
+                if (f->prior && Fulfilling_Last_Argument(f->prior)) {
+                    //
+                    // This is the special case; we have a lookback function
+                    // pending but it wants to defer its first argument as
+                    // long as possible--and we're on the last parameter of
+                    // some function.  Skip the "lookahead" and let whoever
+                    // is gathering arguments (or whoever's above them) finish
+                    // the expression before taking the pending operation.
+                }
+                else {
+                    // The lookback would like to defer but there's no complete
+                    // expression to defer it to.  This means we've got to
+                    // close out the pending sets and use the argument as-is.
+                    //
+                    Do_Pending_Sets_May_Invalidate_Gotten(f->out, f);
+                    if (f->gotten == NULL)
+                        goto do_word_in_value; // pay for refetch
+
+                    SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
+                    goto do_function_in_gotten;
+                }
+            }
+            else {
+                // Don't defer and don't flush the sets... we want to set any
+                // pending SET-WORD!s or SET-PATH!s to the *result* of this
+                // lookback expression.
+                //
+                SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
+                goto do_function_in_gotten;
+            }
         }
         else {
             Do_Pending_Sets_May_Invalidate_Gotten(f->out, f);
@@ -1617,10 +1596,9 @@ reevaluate:;
                 goto do_word_in_value; // pay for refetch, lookbacks see end
 
             SET_END(f->out);
+            SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
+            goto do_function_in_gotten;
         }
-
-        SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
-        goto do_function_in_gotten;
     }
 
     Do_Pending_Sets_May_Invalidate_Gotten(f->out, f);

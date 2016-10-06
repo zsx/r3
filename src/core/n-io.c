@@ -166,7 +166,6 @@ REBNATIVE(mold)
 
 //
 //  print: native [
-//      <punctuates>
 //  
 //  "Outputs value to standard output using the PRINT dialect."
 //  

@@ -135,8 +135,6 @@ Script: [
 
     expression-barrier: {Expression barrier hit while processing arguments}
     bar-hit-mid-case:   {Expression barrier hit in middle of CASE pairing}
-    punctuator-hit:     [:arg1 {punctuates and can't be passed as an argument}]
-    no-infix-left-arg:  [:arg1 {isn't allowed 1st argument from previous call}]
     infix-quote-late:   [:arg1 {was evaluated and can't be lookback quoted}]
     infix-quote-set:    [:arg1 {can only be hard-quoted with lookback}]
 

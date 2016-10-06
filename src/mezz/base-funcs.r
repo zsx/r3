@@ -713,27 +713,36 @@ lambda: function [
     ]
 ]
 
-
 left-bar: func [
     {Expression barrier that evaluates to left side but executes right.}
-    left [<opt> any-value!]
+    return: [<opt> any-value!]
+        {Evaluative result of `left`.}
+    left [<defer> <opt> <end> any-value!]
+        {A single complete expression on the left.}
     right [<opt> any-value! <...>]
+        {Any number of expressions on the right.}
 ][
     while [not tail? right] [take right]
     :left
 ]
 
 right-bar: func [
-    <punctuates>
     {Expression barrier that evaluates to first expression on right.}
+    return: [<opt> any-value!]
+        {Evaluative result of first of the right expressions.}
+    left [<defer> <opt> <end> any-value!]
+        {A single complete expression on the left.}
     right [<opt> any-value! <...>]
+        {Any number of expressions on the right.}
 ][
     also take right (while [not tail? right] [take right])
 ]
 
+
 once-bar: func [
-    <punctuates>
     {Expression barrier that's willing to only run one expression after it}
+    return: [<opt> any-value!]
+    left [<defer> <opt> <end> any-value!]
     right [<opt> any-value! <...>]
     :lookahead [any-value! <...>]
     look:
@@ -741,19 +750,13 @@ once-bar: func [
     also take right (
         unless any [
             tail? right
+                |
             bar? look: first lookahead
-            all [
-                find [word! function!] type-of :look
-                punctuates? :look
-            ]
+                |
+            '|| = look ;-- hack...recognize selfs
         ][
-            ; Can't tell if a PATH! is punctuating w/o risking execution.
-            ; Be conservative. <punctuating> might not be the attribute
-            ; sought after anyway, e.g. `1 + 2 || 3 + 4 print "Hi"` probably
-            ; ought to be an error.  "barrier-like" may be the quality.
-            ;
             fail [
-                "|| expected punctuating expression, found" :look
+                "|| expected single expression, found residual of" :look
             ]
         ]
     )

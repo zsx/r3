@@ -216,6 +216,20 @@ enum Reb_Param_Class {
 //
 #define TYPESET_FLAG_NO_LOOKBACK TYPESET_FLAG(9)
 
+// R3-Alpha's notion of infix OP!s would make the right hand argument enter
+// a special mode in which further infix processing was not done.  This
+// meant that `1 + 2 * 3`, when fulfilling the 2 for the right side of +,
+// would "blind" itself so that it would not chain forward and see the `* 3`.
+// This gave rise to a distinct behavior from `1 + multiply 2 3`.
+//
+// Ren-C decouples this property so that it may be applied to any parameter,
+// and calls it "defer".  Additionally, the property when applied to the
+// left hand side of a lookback ("enfixed") function, means it will be as
+// lazy as possible and try making the most complete expression on the left
+// it can before executing.
+//
+#define TYPESET_FLAG_DEFER TYPESET_FLAG(10)
+
 
 // Operations when typeset is done with a bitset (currently all typesets)
 

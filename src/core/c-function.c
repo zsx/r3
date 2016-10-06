@@ -149,8 +149,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     assert(ANY_ARRAY(spec));
 
     REBUPT header_bits = 0;
-    if (flags & MKF_PUNCTUATES)
-        header_bits |= FUNC_FLAG_PUNCTUATES;
 
     REBOOL durable = FALSE;
 
@@ -226,7 +224,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             continue;
         }
 
-    //=//// TAGS LIKE <local>, <no-return>, <punctuates>, etc. ////////////=//
+    //=//// WHOLE-FUNCTION TAGS LIKE <local>, <no-return> etc. ////////////=//
 
         if (IS_TAG(item) && (flags & MKF_KEYWORDS)) {
             if (0 == Compare_String_Vals(item, ROOT_NO_RETURN_TAG, TRUE)) {
@@ -234,11 +232,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             }
             else if (0 == Compare_String_Vals(item, ROOT_NO_LEAVE_TAG, TRUE)) {
                 flags &= ~MKF_LEAVE;
-            }
-            else if (
-                0 == Compare_String_Vals(item, ROOT_PUNCTUATES_TAG, TRUE)
-            ) {
-                header_bits |= FUNC_FLAG_PUNCTUATES;
             }
             else if (0 == Compare_String_Vals(item, ROOT_LOCAL_TAG, TRUE)) {
                 convert_local = TRUE;
@@ -344,13 +337,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             }
 
             has_types = TRUE;
-            continue;
-        }
-
-    //=//// BAR! AS LOW-LEVEL MAKE FUNCTION! SIGNAL FOR <punctuates> //////=//
-
-        if (IS_BAR(item)) { // !!! Review this notational choice
-            header_bits |= FUNC_FLAG_PUNCTUATES;
             continue;
         }
 
@@ -681,7 +667,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     const REBCNT parameter_notes_index = 5;
     REBCTX *meta;
 
-    if (has_description || has_types || has_notes || (flags & MKF_PUNCTUATES)) {
+    if (has_description || has_types || has_notes) {
         meta = Copy_Context_Shallow(VAL_CONTEXT(ROOT_FUNCTION_META));
         MANAGE_ARRAY(CTX_VARLIST(meta));
         ARR_SERIES(paramlist)->link.meta = meta;
@@ -753,14 +739,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             AS_CONTEXT(types_varlist)
         );
     }
-
-    // Enforce BLANK! the return type of all punctuators.  Not to be
-    // confused with returning blank (e.g. a block like [blank!]) and not
-    // to be confused with "no documentation on the matter) e.g. missing
-    // a.k.a. void.  (Should they not be able to have notes either?)
-    //
-    if (flags & MKF_PUNCTUATES)
-        SET_BLANK(CTX_VAR(meta, return_type_index));
 
     // Only make `parameter-notes` if there were strings (besides description)
     //
@@ -884,18 +862,31 @@ REBFUN *Make_Function(
     assert(rootparam->payload.function.paramlist == paramlist);
     assert(rootparam->extra.binding == NULL); // archetype
 
-    // Precalculate FUNC_FLAG_BRANCHER
+    // Precalculate FUNC_FLAG_BRANCHER and FUNC_FLAG_DEFERS_LOOKBACK_ARG
+    //
+    // Note that these flags are only relevant for *un-refined-calls*.  There
+    // are no lookback function calls via PATH! and brancher dispatch is done
+    // from a raw function value.  HOWEVER: specialization does come into play
+    // because it may change what the first "real" argument is.  But again,
+    // we're only interested in specialization's removal of *non-refinement*
+    // arguments.  Looking at the surface interface is good enough--that is
+    // what will be relevant after the specializations are accounted for.
 
+    REBOOL is_first = TRUE;
     REBVAL *param = KNOWN(rootparam) + 1;
     for (; NOT_END(param); ++param) {
         switch (VAL_PARAM_CLASS(param)) {
         case PARAM_CLASS_LOCAL:
         case PARAM_CLASS_RETURN:
         case PARAM_CLASS_LEAVE:
-            continue; // skip.
+            break; // skip.
 
         case PARAM_CLASS_REFINEMENT:
-            break; // hit before hitting any basic args, so not a brancher
+            //
+            // hit before hitting any basic args, so not a brancher, and not
+            // a candidate for deferring lookback arguments.
+            //
+            goto done_caching;
 
         case PARAM_CLASS_NORMAL:
         case PARAM_CLASS_HARD_QUOTE:
@@ -906,12 +897,18 @@ REBFUN *Make_Function(
             // be delivered by the moment of attempted application.
             //
             SET_VAL_FLAG(rootparam, FUNC_FLAG_MAYBE_BRANCHER);
-            break; }
+
+            if (GET_VAL_FLAG(param, TYPESET_FLAG_DEFER))
+                SET_VAL_FLAG(rootparam, FUNC_FLAG_DEFERS_LOOKBACK_ARG);
+
+            goto done_caching; }
 
         default:
             assert(FALSE);
         }
     }
+
+done_caching:;
 
     // The "body" for a function can be any REBVAL.  It doesn't have to be
     // a block--it's anything that the dispatcher might wish to interpret.
@@ -1770,7 +1767,7 @@ REBNATIVE(proc)
     PARAM(2, body);
 
     REBFUN *fun = Make_Plain_Function_May_Fail(
-        ARG(spec), ARG(body), MKF_LEAVE | MKF_PUNCTUATES | MKF_KEYWORDS
+        ARG(spec), ARG(body), MKF_LEAVE | MKF_KEYWORDS
     );
 
     *D_OUT = *FUNC_VALUE(fun);

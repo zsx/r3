@@ -425,9 +425,7 @@ struct Reb_Frame {
     // `special` (acts as `subfeed` during function run)
     //
     // The specialized argument parallels arg if non-NULL, and contains the
-    // value to substitute in the case of a specialized call.  Currently if
-    // this is a GROUP! it will be evaluated, although that feature might
-    // be supplanted by use of an adaptation.
+    // value to substitute in the case of a specialized call.
     //
     // The subfeed holds a pointer that all variadic arguments tied to this
     // frame can share, when they are chaining one list of variadic arguments

@@ -118,24 +118,20 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
 //
 #define FUNC_FLAG_LEAVE FUNC_FLAG(1)
 
-// A function may act as a barrier on its left (so that it cannot act
-// as an input argument to another function).
-//
-// Given the "greedy" nature of infix, a function with arguments cannot
-// be stopped from infix consumption on its right--because the arguments
-// would consume them.  Only a function with no arguments is able to
-// trigger an error when used as a left argument.  This is the ability
-// given to lookback 0 arity functions, known as "punctuators".
-//
-#define FUNC_FLAG_PUNCTUATES FUNC_FLAG(2)
-
 // A "brancher" is a single arity function that is capable of taking a
 // LOGIC! value.  Currently testing for this requires a bit of processing
 // so it is done when the function is made, and then this flag is checked.
 // It's set even if the function might not take logic or need more
 // parameters, so that it can be called and cause an error if needed.
 //
-#define FUNC_FLAG_MAYBE_BRANCHER FUNC_FLAG(3)
+#define FUNC_FLAG_MAYBE_BRANCHER FUNC_FLAG(2)
+
+// As with MAYBE_BRANCHER, the DEFERS_LOOKBACK_ARG flag is a cached property,
+// which tells you whether a function defers its first real argument when
+// used as a lookback.  Because lookback dispatches cannot use refinements
+// at this time, the answer is static for invocation via a plain word.
+// 
+#define FUNC_FLAG_DEFERS_LOOKBACK_ARG FUNC_FLAG(3)
 
 #if !defined(NDEBUG)
     //

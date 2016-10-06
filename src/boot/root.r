@@ -31,12 +31,12 @@ space-char      ; a value that is a space CHAR!
 
 no-return-tag   ; func w/o definitional return, ignores non-definitional ones
 no-leave-tag    ; func w/o definitional leave, ignores non-definitional ones
-punctuates-tag  ; function's result cannot be used as a function argument
 ellipsis-tag    ; FUNC+PROC use as alternative to [[]] to mark varargs
 opt-tag         ; FUNC+PROC use as alternative to _ to mark optional void? args
 end-tag         ; FUNC+PROC use as alternative to | to mark endable args
 local-tag       ; marks the beginning of a list of "pure locals"
 durable-tag     ; !!! In progress - argument word lookup survives call ending
+defer-tag       ; Argument suppresses evaluator lookahead or lookback
 
 ;; !!! See notes on FUNCTION-META in %sysobj.r
 
