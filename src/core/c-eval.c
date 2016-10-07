@@ -304,7 +304,7 @@ reevaluate:;
         else
             SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
 
-        SET_END(f->out); // needs GC-safe data
+        SET_END(f->out); // clear out any previous result (needs GC-safe data)
 
     do_function_in_gotten:
         assert(IS_FUNCTION(f->gotten));
@@ -350,13 +350,16 @@ reevaluate:;
         f->param = FUNC_PARAMS_HEAD(f->underlying);
         // f->special is END_CELL, f->args_head, or first specialized value
 
-        // The f->out slot is guarded while a function is gathering its
-        // arguments.  It cannot contain garbage, so it must either be END
-        // or a lookback's first argument (which can also be END).
+        // Same as check before switch.  (do_function_arglist_in_progress:
+        // might have a goto from another point, so we check it again here)
         //
         assert(IS_END(f->out) || f->eval_type == REB_0_LOOKBACK);
 
-        // "not a refinement arg, evaluate normally", won't be modified
+        // f->refine is either the refinement currently being fulfilled or
+        // special values indicating other signals.  See %sys-rebfrm.h for the
+        // full list.  We start with EMPTY_BLOCK, a read-only signal meaning
+        // "not a refinement arg, evaluate normally".
+        //
         f->refine = m_cast(REBVAL*, EMPTY_BLOCK);
 
     //==////////////////////////////////////////////////////////////////==//
@@ -367,7 +370,7 @@ reevaluate:;
 
         // This loop goes through the parameter and argument slots.  Based on
         // the parameter type, it may be necessary to "consume" an expression
-        // from values that come after the invokation point.  But not all
+        // from values that come after the invocation point.  But not all
         // params will consume arguments for all calls.  See notes below.
         //
         // For this one body of code to be able to handle both function
@@ -381,8 +384,9 @@ reevaluate:;
         // makes a note in the stack about a parameter and arg position that
         // it sees that it will need to come back to.  It pokes those two
         // pointers into extra space in the refinement's word on the stack,
-        // since that word isn't using its binding.  See WORD_FLAG_PICKUP for
-        // the type of WORD! that is used to implement this.
+        // since that word isn't using its binding.  A REB_VARARGS value is
+        // used to track this (since it holds a symbol and cache of the
+        // parameter and argument position).
 
         enum Reb_Param_Class pclass; // gotos would cross it if inside loop
 

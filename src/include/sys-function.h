@@ -235,3 +235,20 @@ inline static REBOOL IS_FUNC_DURABLE(REBFUN *f) {
 
 #define NAT_FUNC(name) \
     VAL_FUNC(NAT_VALUE(name))
+
+
+
+// Gets a system function with tolerance of it not being a function.
+//
+// (Extraction of a feature that formerly was part of a dedicated dual
+// function to Apply_Func_Throws (Do_Sys_Func_Throws())
+//
+inline static REBVAL *Sys_Func(REBCNT inum)
+{
+    REBVAL *value = CTX_VAR(Sys_Context, inum);
+
+    if (!IS_FUNCTION(value))
+        fail(Error(RE_BAD_SYS_FUNC, value));
+
+    return value;
+}

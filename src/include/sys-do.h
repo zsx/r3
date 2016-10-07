@@ -32,11 +32,10 @@
 // written such that a longjmp up to a failure handler above it can run
 // safely and clean up even though intermediate stacks have vanished.
 //
-// Ren-C can not only run the evaluator across a REBSER-style series of
-// input based on index, it can also fetch those values from a standard C
-// array of REBVAL[].  Alternately, it can enumerate through C's `va_list`,
-// providing the ability to pass pointers as REBVAL* to comma-separated input
-// at the source level.
+// Ren-C can run the evaluator across a REBARR-style series of input based on
+// index.  It can also enumerate through C's `va_list`, providing the ability
+// to pass pointers as REBVAL* to comma-separated input at the source level.
+// (Someday it may fetch values from a standard C array of REBVAL[] as well.) 
 //
 // To provide even greater flexibility, it allows the very first element's
 // pointer in an evaluation to come from an arbitrary source.  It doesn't
@@ -1117,21 +1116,6 @@ inline static REBOOL Do_Va_Throws(REBVAL *out, ...)
 
     assert(indexor == THROWN_FLAG || indexor == END_FLAG);
     return LOGICAL(indexor == THROWN_FLAG);
-}
-
-
-// Gets a system function with tolerance of it not being a function.
-//
-// (Extraction of a feature that formerly was part of a dedicated dual
-// function to Apply_Func_Throws (Do_Sys_Func_Throws())
-//
-inline static REBVAL *Sys_Func(REBCNT inum)
-{
-    REBVAL *value = CTX_VAR(Sys_Context, inum);
-
-    if (!IS_FUNCTION(value)) fail (Error(RE_BAD_SYS_FUNC, value));
-
-    return value;
 }
 
 

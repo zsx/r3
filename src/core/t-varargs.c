@@ -207,7 +207,7 @@ handle_subfeed:;
         f = &temp_frame;
     }
 
-    // The invariant here is that `c` has been prepared for fetching/doing
+    // The invariant here is that `f` has been prepared for fetching/doing
     // and has at least one value in it.
     //
     assert(NOT_END(f->value));
