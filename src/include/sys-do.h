@@ -186,7 +186,7 @@ inline static void PUSH_SAFE_ENUMERATOR(
     SET_FRAME_VALUE(f, VAL_ARRAY_AT(v));
     f->source.array = VAL_ARRAY(v);
 
-    Init_Header_Aliased(&f->flags, DO_FLAG_NEXT | DO_FLAG_ARGS_EVALUATE);
+    Init_Header_Aliased(&f->flags, DO_FLAG_NORMAL);
 
     f->gotten = NULL; // tells ET_WORD and ET_GET_WORD they must do a get
     f->index = VAL_INDEX(v) + 1;
@@ -241,7 +241,7 @@ inline static void FETCH_NEXT_ONLY_MAYBE_END(REBFRM *f) {
         SET_FRAME_VALUE(f, va_arg(*f->source.vaptr, const REBVAL*));
         assert(
             IS_END(f->value)
-            || (IS_VOID(f->value) && NOT(f->flags.bits & DO_FLAG_ARGS_EVALUATE))
+            || (IS_VOID(f->value) && (f->flags.bits & DO_FLAG_NO_ARGS_EVALUATE))
             || !IS_RELATIVE(f->value)
         );
     }
@@ -659,7 +659,7 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
 
     child->eval_type = VAL_TYPE(parent->value);
 
-    if ((flags & DO_FLAG_LOOKAHEAD) && (child->eval_type == REB_WORD)) {
+    if (NOT(flags & DO_FLAG_NO_LOOKAHEAD) && (child->eval_type == REB_WORD)) {
         child->gotten = Get_Var_Core(
             &child->eval_type, // sets to REB_LOOKBACK or REB_FUNCTION
             parent->value,
@@ -697,10 +697,7 @@ no_optimization:
     SET_FRAME_VALUE(child, parent->value);
     child->index = parent->index;
     child->specifier = parent->specifier;
-
-    Init_Header_Aliased(
-        &child->flags,  DO_FLAG_ARGS_EVALUATE | DO_FLAG_NEXT | flags
-    );
+    child->flags.bits = flags;
     child->pending = parent->pending;
 
     Do_Core(child);
@@ -787,7 +784,7 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     f->gotten = NULL;
     f->eval_type = VAL_TYPE(f->value);
 
-    DO_NEXT_REFETCH_MAY_THROW(out, f, DO_FLAG_LOOKAHEAD);
+    DO_NEXT_REFETCH_MAY_THROW(out, f, DO_FLAG_NORMAL);
 
     if (THROWN(out))
         return THROWN_FLAG;
@@ -986,8 +983,8 @@ inline static void Reify_Va_To_Array_In_Frame(
 // not be in the arglist can be accomplished using `opt_first` to put that
 // function into the optional first position.  To instruct the evaluator not
 // to do any evaluation on the values supplied as arguments after that
-// (corresponding to R3-Alpha's APPLY/ONLY) then DO_FLAG_EVAL_ONLY should be
-// used--otherwise they will be evaluated normally.
+// (corresponding to R3-Alpha's APPLY/ONLY) then DO_FLAG_NO_ARGS_EVALUATE
+// should be used--otherwise they will be evaluated normally.
 //
 // NOTE: Ren-C no longer supports the built-in ability to supply refinements
 // positionally, due to the brittleness of this approach (for both system
@@ -1075,7 +1072,7 @@ inline static REBOOL Do_Va_Throws(REBVAL *out, ...)
         out,
         NULL, // opt_first
         &va,
-        DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
+        DO_FLAG_TO_END
     );
 
     va_end(va);
@@ -1160,7 +1157,7 @@ inline static REBOOL Apply_Only_Throws(
         out,
         applicand, // opt_first
         &va,
-        DO_FLAG_NEXT | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
+        DO_FLAG_NO_ARGS_EVALUATE
     );
 
     if (fully && indexor == VA_LIST_FLAG) {
@@ -1199,7 +1196,7 @@ inline static REBOOL Do_At_Throws(
             array,
             index,
             specifier,
-            DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
+            DO_FLAG_TO_END
         )
     );
 }
@@ -1237,7 +1234,7 @@ inline static REBOOL EVAL_VALUE_CORE_THROWS(
             EMPTY_ARRAY,
             0,
             specifier,
-            DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
+            DO_FLAG_TO_END
         )
     );
 }

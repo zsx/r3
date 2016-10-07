@@ -305,7 +305,7 @@ REBNATIVE(all)
     }
 
     do {
-        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_LOOKAHEAD);
+        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_NORMAL);
         if (THROWN(D_OUT)) {
             DROP_SAFE_ENUMERATOR(&e);
             return R_OUT_IS_THROWN;
@@ -363,7 +363,7 @@ REBNATIVE(any)
     // doesn't affect the outcome of the chain.
 
     do {
-        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_LOOKAHEAD);
+        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_NORMAL);
         if (THROWN(D_OUT)) {
             DROP_SAFE_ENUMERATOR(&e);
             return R_OUT_IS_THROWN;
@@ -408,7 +408,7 @@ REBNATIVE(none)
         return R_TRUE;
 
     do {
-        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_LOOKAHEAD);
+        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_NORMAL);
         if (THROWN(D_OUT)) {
             DROP_SAFE_ENUMERATOR(&e);
             return R_OUT_IS_THROWN;
@@ -528,7 +528,7 @@ REBNATIVE(case)
 
         // Perform a DO/NEXT's worth of evaluation on a "condition" to test
 
-        DO_NEXT_REFETCH_MAY_THROW(D_CELL, &e, DO_FLAG_LOOKAHEAD);
+        DO_NEXT_REFETCH_MAY_THROW(D_CELL, &e, DO_FLAG_NORMAL);
         if (THROWN(D_CELL)) {
             *D_OUT = *D_CELL;
             goto return_thrown;
@@ -558,7 +558,7 @@ REBNATIVE(case)
         // GROUP! as in `case [([x]) [y]]`.
         //
         if (NOT(IS_CONDITIONAL_TRUE_SAFE(D_CELL))) {
-            DO_NEXT_REFETCH_MAY_THROW(D_CELL, &e, DO_FLAG_LOOKAHEAD);
+            DO_NEXT_REFETCH_MAY_THROW(D_CELL, &e, DO_FLAG_NORMAL);
             if (THROWN(D_CELL)) {
                 *D_OUT = *D_CELL;
                 goto return_thrown;
@@ -591,7 +591,7 @@ REBNATIVE(case)
         //
         // Similar to IF TRUE STUFF, so CASE can act like many IFs at once.
 
-        DO_NEXT_REFETCH_MAY_THROW(D_CELL, &e, DO_FLAG_LOOKAHEAD);
+        DO_NEXT_REFETCH_MAY_THROW(D_CELL, &e, DO_FLAG_NORMAL);
         if (THROWN(D_CELL)) {
             *D_OUT = *D_CELL;
             goto return_thrown;

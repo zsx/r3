@@ -66,11 +66,14 @@
 // DO_FLAGS
 //
 // Used by low level routines, these flags specify behaviors which are
-// exposed at a higher level through EVAL, EVAL/ONLY, and EVAL/NOFIX
-//
-// The flags are specified either way for clarity.
+// exposed at a higher level through EVAL
 //
 enum {
+    // The default for a DO operation is just a single DO/NEXT, where args
+    // to functions are evaluated (vs. quoted), and lookahead is enabled.
+    //
+    DO_FLAG_NORMAL = 0,
+
     // As exposed by the DO native and its /NEXT refinement, a call to the
     // evaluator can either run to the finish from a position in an array
     // or just do one eval.  Rather than achieve execution to the end by
@@ -81,11 +84,9 @@ enum {
     // However: since running to the end follows a different code path than
     // performing DO/NEXT several times, it is important to ensure they
     // achieve equivalent results.  There are nuances to preserve this
-    // invariant and especially in light of potential interaction with
-    // DO_FLAG_LOOKAHEAD.
+    // invariant and especially in light of interaction with lookahead.
     //
-    DO_FLAG_NEXT = 1 << (REBSER_REBVAL_BIT + 1),
-    DO_FLAG_TO_END = 1 << (REBSER_REBVAL_BIT + 2),
+    DO_FLAG_TO_END = 1 << (REBSER_REBVAL_BIT + 1),
 
     // When we're in mid-dispatch of an infix function, the precedence is such
     // that we don't want to do further infix lookahead while getting the
@@ -96,19 +97,21 @@ enum {
     // to evaluate a form of source input that cannot be backtracked (e.g.
     // a C variable argument list) then it will not be possible to resume.
     //
-    DO_FLAG_LOOKAHEAD = 1 << (REBSER_REBVAL_BIT + 3),
-    DO_FLAG_NO_LOOKAHEAD = 1 << (REBSER_REBVAL_BIT + 4),
+    DO_FLAG_NO_LOOKAHEAD = 1 << (REBSER_REBVAL_BIT + 2),
 
-    // Write more comments here when feeling in more of a commenting mood
+    // Sometimes a DO operation has already calculated values, and does not
+    // want to interpret them again.  e.g. the call to the function wishes
+    // to use a precalculated WORD! value, and not look up that word as a
+    // variable.  This is common when calling Rebol functions from C code
+    // when the parameters are known, or what R3-Alpha called "APPLY/ONLY"
     //
-    DO_FLAG_ARGS_EVALUATE = 1 << (REBSER_REBVAL_BIT + 5),
-    DO_FLAG_NO_ARGS_EVALUATE = 1 << (REBSER_REBVAL_BIT + 6),
+    DO_FLAG_NO_ARGS_EVALUATE = 1 << (REBSER_REBVAL_BIT + 3),
 
     // A pre-built frame can be executed "in-place" without a new allocation.
     // It will be type checked, and also any BAR! parameters will indicate
     // a desire to acquire that argument (permitting partial specialization).
     //
-    DO_FLAG_EXECUTE_FRAME = 1 << (REBSER_REBVAL_BIT + 7),
+    DO_FLAG_EXECUTE_FRAME = 1 << (REBSER_REBVAL_BIT + 4),
 
     // Usually VA_LIST_FLAG is enough to tell when there is a source array to
     // examine or not.  However, when the end is reached it is written over
@@ -118,18 +121,18 @@ enum {
     // expression evaluation is complete.  Review to see if they actually
     // would rather know something else, but this is a cheap flag for now.
     //
-    DO_FLAG_VA_LIST = 1 << (REBSER_REBVAL_BIT + 8),
+    DO_FLAG_VA_LIST = 1 << (REBSER_REBVAL_BIT + 5),
 
     // While R3-Alpha permitted modifications of an array while it was being
     // executed, Ren-C does not.  It takes a lock if the source is not already
     // read only, and sets it back when Do_Core is finished (or on errors)
     //
-    DO_FLAG_TOOK_FRAME_LOCK = 1 << (REBSER_REBVAL_BIT + 9),
+    DO_FLAG_TOOK_FRAME_LOCK = 1 << (REBSER_REBVAL_BIT + 6),
 
     // DO_FLAG_APPLYING is used to indicate that the Do_Core code is entering
     // a situation where the frame was already set up.
     //
-    DO_FLAG_APPLYING = 1 << (REBSER_REBVAL_BIT + 10)
+    DO_FLAG_APPLYING = 1 << (REBSER_REBVAL_BIT + 7)
 };
 
 

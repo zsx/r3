@@ -117,7 +117,7 @@ REBNATIVE(verify)
         UPDATE_EXPRESSION_START(&e); // informs the error delivery better
 
         const RELVAL *start = e.value;
-        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_LOOKAHEAD);
+        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_NORMAL);
         if (THROWN(D_OUT)) {
             DROP_SAFE_ENUMERATOR(&e);
             return R_OUT_IS_THROWN;

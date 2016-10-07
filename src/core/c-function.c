@@ -2369,8 +2369,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
 
     struct Reb_Header *alias = &f->flags;
     alias->bits =
-        DO_FLAG_NEXT
-        | DO_FLAG_NO_LOOKAHEAD
+        DO_FLAG_NO_LOOKAHEAD
         | DO_FLAG_NO_ARGS_EVALUATE
         | DO_FLAG_APPLYING;
 

@@ -227,9 +227,9 @@ handle_subfeed:;
         DO_NEXT_REFETCH_MAY_THROW(
             out,
             f,
-            (f->flags.bits & DO_FLAG_LOOKAHEAD)
-                ? DO_FLAG_LOOKAHEAD
-                : DO_FLAG_NO_LOOKAHEAD
+            (f->flags.bits & DO_FLAG_NO_LOOKAHEAD)
+                ? DO_FLAG_NO_LOOKAHEAD
+                : 0
         );
 
         if (THROWN(out))

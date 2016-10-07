@@ -746,7 +746,7 @@ reevaluate:;
                         f,
                         (GET_VAL_FLAG(f->param, TYPESET_FLAG_DEFER)
                             ? DO_FLAG_NO_LOOKAHEAD
-                            : DO_FLAG_LOOKAHEAD)
+                            : 0)
                     );
 
                     if (THROWN(f->arg)) {
@@ -1285,10 +1285,8 @@ reevaluate:;
         // for seeing a SET-WORD! to override the lookahead suppression, that
         // would need to be done explicitly.
         //
-        if (LEGACY(OPTIONS_SETS_UNSUPPRESS_LOOKAHEAD)) {
+        if (LEGACY(OPTIONS_SETS_UNSUPPRESS_LOOKAHEAD))
             f->flags.bits &= ~DO_FLAG_NO_LOOKAHEAD;
-            f->flags.bits |= DO_FLAG_LOOKAHEAD;
-        }
     #endif
         goto do_next;
 
@@ -1443,10 +1441,8 @@ reevaluate:;
         //
         // !!! See remarks on REB_SET_WORD
         //
-        if (LEGACY(OPTIONS_SETS_UNSUPPRESS_LOOKAHEAD)) {
+        if (LEGACY(OPTIONS_SETS_UNSUPPRESS_LOOKAHEAD))
             f->flags.bits &= ~DO_FLAG_NO_LOOKAHEAD;
-            f->flags.bits |= DO_FLAG_LOOKAHEAD;
-        }
 #endif
         goto do_next;
 
@@ -1535,13 +1531,7 @@ reevaluate:;
 
     if (f->flags.bits & DO_FLAG_NO_LOOKAHEAD) {
         //
-        // Don't do infix lookahead if asked *not* to look.  It's not typical
-        // to be requested by callers (there is already no infix lookahead
-        // by using DO_FLAG_EVAL_ONLY, so those cases don't need to ask.)
-        //
-        // However, recursive cases of DO disable infix dispatch if they are
-        // currently processing an infix operation.  The currently processing
-        // operation is thus given "higher precedence" by this disablement.
+        // Don't do infix lookahead if asked *not* to look.  See also: <defer>
     }
     else if (f->eval_type == REB_WORD) {
 

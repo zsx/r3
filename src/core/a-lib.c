@@ -599,7 +599,7 @@ RL_API void RL_Do_Commands(REBARR *array, REBCNT flags, REBCEC *cec)
         array,
         0, // start evaluating at index 0
         SPECIFIED, // !!! see notes above
-        DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
+        DO_FLAG_TO_END
     );
 
     TG_Command_Execution_Context = cec_before; // pop

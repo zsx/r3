@@ -52,7 +52,7 @@ REBOOL Reduce_Any_Array_Throws(
         UPDATE_EXPRESSION_START(&e); // informs the error delivery better
 
         REBVAL reduced;
-        DO_NEXT_REFETCH_MAY_THROW(&reduced, &e, DO_FLAG_LOOKAHEAD);
+        DO_NEXT_REFETCH_MAY_THROW(&reduced, &e, DO_FLAG_NORMAL);
         if (THROWN(&reduced)) {
             *out = reduced;
             DS_DROP_TO(dsp_orig);

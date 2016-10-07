@@ -1030,7 +1030,7 @@ REBOOL Form_Value_Throws(
 
         const RELVAL *item = f->value;
         if (flags & FORM_FLAG_REDUCE) {
-            DO_NEXT_REFETCH_MAY_THROW(out, f, DO_FLAG_LOOKAHEAD);
+            DO_NEXT_REFETCH_MAY_THROW(out, f, DO_FLAG_NORMAL);
             if (THROWN(out))
                 goto return_thrown;
 
