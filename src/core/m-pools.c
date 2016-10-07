@@ -972,6 +972,9 @@ REBSER *Make_Series(REBCNT capacity, REBYTE wide, REBCNT flags)
     assert(NOT(s->info.bits & NOT_END_MASK));
     assert(NOT(s->info.bits & CELL_MASK));
     assert(SER_LEN(s) == 0);
+    assert(NOT(REGION_IS_POISONED(s, sizeof(REBSER))));
+    if (GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC))
+        assert(NOT(REGION_IS_POISONED(s->content.dynamic.data, SER_TOTAL(s))));
     return s;
 }
 

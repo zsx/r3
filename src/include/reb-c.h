@@ -636,6 +636,9 @@ typedef u16 REBUNI;
 
     #define UNPOISON_MEMORY(reg, mem_size) \
         ASAN_UNPOISON_MEMORY_REGION(reg, mem_size)
+
+    #define ADDRESS_IS_POISONED(reg) __asan_address_is_poisoned(reg)
+    #define REGION_IS_POISONED(reg, size) __asan_region_is_poisoned(reg, size)
 #else
     // !!! @HostileFork wrote a tiny C++ "poor man's memory poisoner" that
     // uses XOR to poison bits and then unpoison them back.  This might be
@@ -645,6 +648,9 @@ typedef u16 REBUNI;
     #define POISON_MEMORY(reg, mem_size) NOOP
 
     #define UNPOISON_MEMORY(reg, mem_size) NOOP
+
+    #define REGION_IS_POISONED(reg, size) 0
+    #define ADDRESS_IS_POISONED(reg) 0
 #endif
 
 
