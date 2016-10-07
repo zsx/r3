@@ -1575,7 +1575,10 @@ reevaluate:;
 
         if (f->eval_type == REB_0_LOOKBACK) {
             if (GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG)) {
-                if (f->prior && Fulfilling_Last_Argument(f->prior)) {
+                if (
+                    (f->flags.bits & DO_FLAG_VARIADIC_TAKE)
+                    || (f->prior && Fulfilling_Last_Argument(f->prior))
+                ) {
                     //
                     // This is the special case; we have a lookback function
                     // pending but it wants to defer its first argument as

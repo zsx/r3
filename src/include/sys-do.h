@@ -504,6 +504,21 @@ inline static REBOOL Fulfilling_Last_Argument(struct Reb_Frame *f) {
         case PARAM_CLASS_NORMAL:
         case PARAM_CLASS_HARD_QUOTE:
         case PARAM_CLASS_SOFT_QUOTE:
+            if (GET_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC)) {
+                //
+                // Subsequent variadic parameters do not count; they will
+                // always report themselves a "last argument".  So if foo has
+                // one normal parameter and then a variadic parameter, then
+                // `foo "normal" |> ...` will defer the operator as
+                // `(foo "normal") |> ...` even though there are potentially
+                // more variadic arguments, because the deferring operator
+                // will be seen as an <end> by the variadic.
+                //
+                if (special != END_CELL)
+                    ++special;
+                goto next_param;
+            }
+
             if (pickup) { // "in use"
                 if (special == END_CELL)
                     return FALSE; // no specialization, so this is another arg!
@@ -678,7 +693,10 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
             // not the kind that is deferred.
             if (
                 !GET_VAL_FLAG(child->gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG)
-                || NOT(Fulfilling_Last_Argument(parent))
+                || (
+                    NOT(flags & DO_FLAG_VARIADIC_TAKE)
+                    && NOT(Fulfilling_Last_Argument(parent))
+                )
             ) {
                 goto no_optimization;
             }

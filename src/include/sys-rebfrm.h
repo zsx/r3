@@ -132,7 +132,14 @@ enum {
     // DO_FLAG_APPLYING is used to indicate that the Do_Core code is entering
     // a situation where the frame was already set up.
     //
-    DO_FLAG_APPLYING = 1 << (REBSER_REBVAL_BIT + 7)
+    DO_FLAG_APPLYING = 1 << (REBSER_REBVAL_BIT + 7),
+
+    // When a variadic operation is on the left hand side of a deferred
+    // lookback operation, it needs to inform the evaluator that the take is
+    // variadic, so it knows to defer.  Consider `summation 1 2 3 |> 100`
+    // should be `(summation 1 2 3) |> 100` and not `summation 1 2 (3 |> 100)`
+    //
+    DO_FLAG_VARIADIC_TAKE = 1 << (REBSER_REBVAL_BIT + 8)
 };
 
 

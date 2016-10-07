@@ -217,6 +217,41 @@ handle_subfeed:;
     if (IS_BAR(f->value))
         goto return_end_flag; // all functions, including varargs, stop at `|`
 
+    // When a variadic argument is being TAKE-n, a deferred left hand side
+    // argument needs to be seen as the end of variadic input.  Otherwise,
+    // `summation 1 2 3 |> 100` would act as `summation 1 2 (3 |> 100)`.
+    // A deferred operator needs to act somewhat as an expression barrier.
+    //
+    // Besides reporting an END here, it's also necessary for the function
+    // Fulfilling_Last_Argument() to always report TRUE when a variadic
+    // parameter is being processed.
+    //
+    if (IS_WORD(f->value)) {
+        //
+        // !!! "f" frame is eval_type REB_FUNCTION and we can't disrupt that.
+        // If we were going to reuse this fetch then we'd have to build a
+        // child frame and call Do_Core() instead of DO_NEXT_REFETCH_MAY_THROW
+        // because it would be child->eval_type and child->gotten we pre-set
+        //
+        enum Reb_Kind child_eval_type;
+        REBVAL *child_gotten = Get_Var_Core(
+            &child_eval_type, // always set to REB_0_LOOKBACK or REB_FUNCTION
+            f->value,
+            f->specifier,
+            GETVAR_READ_ONLY | GETVAR_UNBOUND_OK
+        );
+
+        if (!child_gotten || !IS_FUNCTION(child_gotten)) {
+            assert(child_eval_type == REB_FUNCTION);
+            /* child_eval_type = REB_WORD; */ // reset, keep fetched f->gotten
+        }
+        else {
+            if (child_eval_type == REB_0_LOOKBACK)
+                if (GET_VAL_FLAG(child_gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG))
+                    goto return_end_flag;
+        }
+    }
+
     // Based on the quoting class of the parameter, fulfill the varargs from
     // whatever information was loaded into `c` as the "feed" for values.
     //
@@ -227,9 +262,10 @@ handle_subfeed:;
         DO_NEXT_REFETCH_MAY_THROW(
             out,
             f,
-            (f->flags.bits & DO_FLAG_NO_LOOKAHEAD)
+            DO_FLAG_VARIADIC_TAKE |
+            ((f->flags.bits & DO_FLAG_NO_LOOKAHEAD)
                 ? DO_FLAG_NO_LOOKAHEAD
-                : 0
+                : 0)
         );
 
         if (THROWN(out))
