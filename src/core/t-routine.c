@@ -750,11 +750,9 @@ REB_R Routine_Dispatcher(REBFRM *f)
         //
         assert(FUNC_NUM_PARAMS(FRM_FUNC(f)) == num_fixed + 1);
 
-        REBVAL *varparam = FUNC_PARAM(FRM_FUNC(f), num_fixed + 1); // 1-based
         REBVAL *vararg = FRM_ARG(f, num_fixed + 1); // 1-based
         assert(
-            GET_VAL_FLAG(varparam, TYPESET_FLAG_VARIADIC)
-            && IS_VARARGS(vararg)
+            IS_VARARGS(vararg)
             && !GET_VAL_FLAG(vararg, VARARGS_FLAG_NO_FRAME)
         );
 
@@ -762,10 +760,9 @@ REB_R Routine_Dispatcher(REBFRM *f)
         // they will be available to be counted, to know how big to make the
         // FFI argument series.
         //
-        REBARR *feed = CTX_VARLIST(VAL_VARARGS_FRAME_CTX(vararg));
         do {
-            REBIXO indexor = Do_Vararg_Op_Core(
-                f->out, feed, varparam, vararg, NULL, VARARG_OP_TAKE
+            REBIXO indexor = Do_Vararg_Op_May_Throw(
+                f->out, vararg, VARARG_OP_TAKE
             );
             if (indexor == THROWN_FLAG) {
                 assert(THROWN(f->out));

@@ -432,22 +432,15 @@ struct Reb_Frame {
     //
     REBVAL *arg;
 
-    // `special` (acts as `subfeed` during function run)
+    // `special`
     //
     // The specialized argument parallels arg if non-NULL, and contains the
-    // value to substitute in the case of a specialized call.
+    // value to substitute in the case of a specialized call.  It is END_CELL
+    // if no specialization in effect, and parallels arg (so it may be
+    // incremented on a common code path) if arguments are just being checked
+    // vs. fulfilled.
     //
-    // The subfeed holds a pointer that all variadic arguments tied to this
-    // frame can share, when they are chaining one list of variadic arguments
-    // inside of another.
-    //
-    // The two values share this same variable, even though they are different
-    // types.  This is legal because the structure holding header bits is
-    // the same for both, and written through a raw pointer of that type.
-    // Since `special` naturally ends up as END_CELL during argument
-    // enumeration, that is the indicator for "no subfeed" that is used.
-    //
-    REBVAL *special; // may also be REBARR* node--be aware of strict aliasing
+    REBVAL *special;
 
     // `refine`
     //

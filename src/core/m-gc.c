@@ -618,23 +618,12 @@ static void Mark_Frame_Stack_Deep(void)
         Queue_Mark_Array_Deep(FUNC_PARAMLIST(f->func)); // never NULL
         Mark_Series_Only(f->label); // also never NULL
 
-        // The subfeed may be in use by VARARGS!, and it may be either a
-        // context or a single element array.  It will only be valid during
-        // the function's actual running.
-        //
         if (!Is_Function_Frame_Fulfilling(f)) {
-            if (f->special->header.bits & NOT_END_MASK) {
-                REBARR *subfeed = cast(REBARR*, f->special);
-
-                if (GET_ARR_FLAG(subfeed, ARRAY_FLAG_VARLIST))
-                    Queue_Mark_Context_Deep(AS_CONTEXT(subfeed));
-                else {
-                    assert(ARR_LEN(subfeed) == 1);
-                    Queue_Mark_Array_Deep(subfeed);
-                }
-            }
-
             assert(IS_END(f->param)); // indicates function is running
+
+            // refine and special can be used to GC protect an arbitrary
+            // value while a function is running, currently.  (A more
+            // important purpose may come up...) 
 
             if (
                 f->refine // currently allowed to be NULL
@@ -643,6 +632,15 @@ static void Mark_Frame_Stack_Deep(void)
                 && Is_Value_Managed(f->refine)
             ) {
                 Queue_Mark_Value_Deep(f->refine);
+            }
+
+            if (
+                f->special
+                && !IS_END(f->special)
+                && !IS_VOID_OR_SAFE_TRASH(f->special)
+                && Is_Value_Managed(f->special)
+            ) {
+                Queue_Mark_Value_Deep(f->special);
             }
         }
 
@@ -810,17 +808,6 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                 // MAKE ARRAY! - which fits compactly in a REBSER.
                 //
                 Queue_Mark_Array_Deep(VAL_VARARGS_ARRAY1(val));
-
-                REBARR **subfeed_addr;
-                if (!Is_End_Subfeed_Addr_Of_Feed(
-                    &subfeed_addr,
-                    VAL_VARARGS_ARRAY1(val)
-                )) {
-                    if (GET_ARR_FLAG(*subfeed_addr, ARRAY_FLAG_VARLIST))
-                        Queue_Mark_Context_Deep(AS_CONTEXT(*subfeed_addr));
-                    else
-                        Queue_Mark_Array_Deep(*subfeed_addr);
-                }
             }
             else {
                 //
@@ -839,9 +826,6 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                         Queue_Mark_Context_Deep(context);
                     }
                 }
-
-                // If there's a frame with a subfeed to protect from GC, and
-                // the frame is still good, it will do it already.
             }
             break;
         }
