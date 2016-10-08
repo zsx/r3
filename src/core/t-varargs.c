@@ -36,7 +36,7 @@
 
 
 //
-//  Do_Vararg_Op_Core: C
+//  Do_Vararg_Op_May_Throw: C
 //
 // Service routine for working with a VARARGS!.  Supports TAKE-ing or just
 // returning whether it's at the end or not.  The TAKE is not actually a
@@ -156,7 +156,6 @@ REBIXO Do_Vararg_Op_May_Throw(
 
         f = CTX_FRAME(context);
 
-        //
         // "Ordinary" case... use the original frame implied by the VARARGS!
         // The Reb_Frame isn't a bad pointer, we checked FRAME! is stack-live.
         //

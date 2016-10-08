@@ -166,6 +166,49 @@ static inline void Abort_Function_Args_For_Frame(REBFRM *f) {
 
 
 //
+// These specific REBVAL pointers are used to indicate states in f->refine
+// regarding argument gathering.
+//
+// * If VOID_CELL, then refinements are being skipped and the arguments
+//   that follow should not be written to.
+//
+// * If BLANK_VALUE, this is an arg to a refinement that was not used in
+//   the invocation.  No consumption should be performed, arguments should
+//   be written as unset, and any non-unset specializations of arguments
+//   should trigger an error.
+//
+// * If FALSE_VALUE, this is an arg to a refinement that was used in the
+//   invocation but has been *revoked*.  It still consumes expressions
+//   from the callsite for each remaining argument, but those expressions
+//   must not evaluate to any value.
+//
+// * If IS_LOGIC() and TRUE the refinement is active but revokable--and
+//   f->refine really corresponds to the f->arg of the refinement slot.  So
+//   if evaluation produces no value, `refine` must be mutated to be FALSE.
+//
+// * If EMPTY_BLOCK, it's an ordinary arg...and not a refinement.  It will
+//   be evaluated normally but is not involved with revocation.
+//
+// * If EMPTY_STRING, the evaluator's next argument fulfillment is the
+//   left-hand argument of a lookback operation.  After that fulfillment,
+//   it will be transitioned to EMPTY_BLOCK.
+//
+// Because of how this lays out, IS_CONDITIONAL_TRUE() can be used to
+// determine if an argument should be type checked normally...while
+// IS_CONDITIONAL_FALSE() means that the arg's bits must be set to void.
+//
+// These special values are all pointers to read-only cells, but are cast to
+// mutable in order to be held in the same pointer that might write to a
+// refinement to revoke it.
+//
+#define SKIPPING_REFINEMENTS m_cast(REBVAL*, VOID_CELL)
+#define ARG_TO_UNUSED_REFINEMENT m_cast(REBVAL*, BLANK_VALUE)
+#define ARG_TO_REVOKED_REFINEMENT m_cast(REBVAL*, FALSE_VALUE)
+#define ORDINARY_ARG m_cast(REBVAL*, EMPTY_BLOCK)
+#define LOOKBACK_ARG m_cast(REBVAL*, EMPTY_STRING)
+
+
+//
 //  Do_Core: C
 //
 // While this routine looks very complex, it's actually not that difficult
@@ -218,6 +261,7 @@ void Do_Core(REBFRM * const f)
     if (f->flags.bits & DO_FLAG_APPLYING) {
         assert(f->eval_type != REB_0_LOOKBACK); // "APPLY infix" not supported
         args_evaluate = NOT(f->flags.bits & DO_FLAG_NO_ARGS_EVALUATE);
+        f->refine = ORDINARY_ARG;
         goto do_function_arglist_in_progress;
     }
 
@@ -294,6 +338,8 @@ reevaluate:;
     case REB_0_LOOKBACK:
         SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
         // f->out must be the infix's left-hand-side arg, may be END
+        
+        f->refine = LOOKBACK_ARG;
         goto do_function_in_gotten;
 
     case REB_FUNCTION:
@@ -305,6 +351,7 @@ reevaluate:;
             SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
 
         SET_END(f->out); // clear out any previous result (needs GC-safe data)
+        f->refine = ORDINARY_ARG;
 
     do_function_in_gotten:
         assert(IS_FUNCTION(f->gotten));
@@ -344,7 +391,21 @@ reevaluate:;
         // f->out in case that is holding the first argument to an infix
         // function, so f->cell.eval gets used for temporary evaluations.
 
-        assert(f->eval_type == REB_FUNCTION || f->eval_type == REB_0_LOOKBACK);
+    #if !defined(NDEBUG)
+        //
+        // f->refine is either the refinement currently being fulfilled or
+        // special values indicating other signals.  See %sys-rebfrm.h for the
+        // full list.  We start with EMPTY_BLOCK, a read-only signal meaning
+        // "not a refinement arg, evaluate normally"...unless it is a lookback
+        // in which case we start with EMPTY_STRING.
+        //
+        if (f->eval_type == REB_FUNCTION)
+            assert(f->refine == ORDINARY_ARG);
+        else if (f->eval_type == REB_0_LOOKBACK)
+            assert(f->refine == LOOKBACK_ARG);
+        else
+            assert(FALSE);
+    #endif
 
         f->arg = f->args_head;
         f->param = FUNC_PARAMS_HEAD(f->underlying);
@@ -354,13 +415,6 @@ reevaluate:;
         // might have a goto from another point, so we check it again here)
         //
         assert(IS_END(f->out) || f->eval_type == REB_0_LOOKBACK);
-
-        // f->refine is either the refinement currently being fulfilled or
-        // special values indicating other signals.  See %sys-rebfrm.h for the
-        // full list.  We start with EMPTY_BLOCK, a read-only signal meaning
-        // "not a refinement arg, evaluate normally".
-        //
-        f->refine = m_cast(REBVAL*, EMPTY_BLOCK);
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -458,7 +512,7 @@ reevaluate:;
                     if (IS_CONDITIONAL_TRUE(f->arg))
                         f->refine = f->arg; // remember so we can revoke!
                     else
-                        f->refine = BLANK_VALUE; // (read-only)
+                        f->refine = ARG_TO_UNUSED_REFINEMENT; // (read-only)
 
                     ++f->special;
                     goto continue_arg_loop;
@@ -470,7 +524,7 @@ reevaluate:;
 
                 if (f->dsp_orig == DSP) { // no refinements left on stack
                     SET_FALSE(f->arg);
-                    f->refine = BLANK_VALUE; // "don't consume args, ever"
+                    f->refine = ARG_TO_UNUSED_REFINEMENT; // "don't consume"
                     goto continue_arg_loop;
                 }
 
@@ -510,7 +564,7 @@ reevaluate:;
 
                         SET_TRUE(f->arg); // marks refinement used
                         // "consume args later" (promise not to change)
-                        f->refine = m_cast(REBVAL*, VOID_CELL);
+                        f->refine = SKIPPING_REFINEMENTS;
                         goto continue_arg_loop;
                     }
                 }
@@ -518,7 +572,7 @@ reevaluate:;
                 // Wasn't in the path and not specialized, so not present
                 //
                 SET_FALSE(f->arg);
-                f->refine = BLANK_VALUE; // "don't consume args, ever"
+                f->refine = ARG_TO_UNUSED_REFINEMENT; // "don't consume"
                 goto continue_arg_loop;
             }
 
@@ -584,7 +638,7 @@ reevaluate:;
 
     //=//// IF COMING BACK TO REFINEMENT ARGS LATER, MOVE ON FOR NOW //////=//
 
-            if (f->refine == VOID_CELL) {
+            if (f->refine == SKIPPING_REFINEMENTS) {
                 if (f->special != END_CELL)
                     ++f->special;
                 goto continue_arg_loop;
@@ -658,7 +712,7 @@ reevaluate:;
             // Unspecialized arguments that do not consume do not need any
             // further processing or checking.  void will always be fine.
             //
-            if (f->refine == BLANK_VALUE) {
+            if (f->refine == ARG_TO_UNUSED_REFINEMENT) {
                 SET_VOID(f->arg);
                 goto continue_arg_loop;
             }
@@ -722,8 +776,8 @@ reevaluate:;
     //=//// REGULAR ARG-OR-REFINEMENT-ARG (consumes a DO/NEXT's worth) ////=//
 
             if (pclass == PARAM_CLASS_NORMAL) {
-                if (f->eval_type == REB_0_LOOKBACK) {
-                    f->eval_type = REB_FUNCTION;
+                if (f->refine == LOOKBACK_ARG) {
+                    f->refine = ORDINARY_ARG;
 
                     if (IS_END(f->out)) {
                         if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
@@ -768,8 +822,8 @@ reevaluate:;
     //=//// HARD QUOTED ARG-OR-REFINEMENT-ARG /////////////////////////////=//
 
             if (pclass == PARAM_CLASS_HARD_QUOTE) {
-                if (f->eval_type == REB_0_LOOKBACK) {
-                    f->eval_type = REB_FUNCTION;
+                if (f->refine == LOOKBACK_ARG) {
+                    f->refine = ORDINARY_ARG;
 
                     if (IS_END(f->out)) {
                         if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
@@ -795,8 +849,8 @@ reevaluate:;
 
             assert(pclass == PARAM_CLASS_SOFT_QUOTE);
 
-            if (f->eval_type == REB_0_LOOKBACK) {
-                f->eval_type = REB_0_LOOKBACK;
+            if (f->refine == LOOKBACK_ARG) {
+                f->refine = ORDINARY_ARG;
 
                 if (IS_END(f->out)) {
                     if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
@@ -844,16 +898,26 @@ reevaluate:;
             // information about the mode (see `Reb_Frame.refine` in %sys-do.h)
             //
             assert(
-                f->refine == EMPTY_BLOCK || // f->arg ordinary function arg
-                f->refine == BLANK_VALUE || // f->arg is never-used refinment
-                f->refine == FALSE_VALUE || // revoked, no further changes
+                f->refine == ORDINARY_ARG ||
+                f->refine == LOOKBACK_ARG ||
+                f->refine == ARG_TO_UNUSED_REFINEMENT ||
+                f->refine == ARG_TO_REVOKED_REFINEMENT ||
                 (IS_LOGIC(f->refine) && IS_CONDITIONAL_TRUE(f->refine)) // used
             );
 
             if (IS_VOID(f->arg)) {
-                if (f->refine == EMPTY_BLOCK) {
+                if (IS_LOGIC(f->refine)) {
                     //
-                    // fall through to check ordinary arg for if <opt> is ok
+                    // We can only revoke the refinement if this is the 1st
+                    // refinement arg.  If it's a later arg, then the first
+                    // didn't trigger revocation, or refine wouldn't be WORD!
+                    //
+                    if (f->refine + 1 != f->arg)
+                        fail(Error_Bad_Refine_Revoke(f));
+
+                    SET_FALSE(f->refine); // can't re-enable...
+                    f->refine = ARG_TO_REVOKED_REFINEMENT;
+                    goto continue_arg_loop; // don't type check for optionality
                 }
                 else if (IS_CONDITIONAL_FALSE(f->refine)) {
                     //
@@ -864,18 +928,12 @@ reevaluate:;
                     goto continue_arg_loop;
                 }
                 else {
-                    assert(IS_LOGIC(f->refine));
-
-                    // We can only revoke the refinement if this is the 1st
-                    // refinement arg.  If it's a later arg, then the first
-                    // didn't trigger revocation, or refine wouldn't be WORD!
+                    // fall through to check arg for if <opt> is ok
                     //
-                    if (f->refine + 1 != f->arg)
-                        fail (Error_Bad_Refine_Revoke(f));
-
-                    SET_FALSE(f->refine);
-                    f->refine = m_cast(REBVAL*, FALSE_VALUE); // can't reenable
-                    goto continue_arg_loop; // don't type check for optionality
+                    assert(
+                        f->refine == ORDINARY_ARG
+                        || f->refine == LOOKBACK_ARG
+                    );
                 }
             }
             else {
@@ -1051,6 +1109,12 @@ reevaluate:;
         case R_REDO_CHECKED:
             SET_END(f->out);
             f->special = f->args_head;
+            if (f->eval_type == REB_FUNCTION)
+                f->refine = ORDINARY_ARG; // no gathering, but need for assert
+            else {
+                assert(f->eval_type == REB_0_LOOKBACK);
+                f->refine = LOOKBACK_ARG; // no gathering, but need for assert
+            }
             goto do_function_arglist_in_progress;
 
         case R_REDO_UNCHECKED:
@@ -1081,7 +1145,10 @@ reevaluate:;
         assert(NOT_END(f->out)); // should have overwritten
         assert(NOT(THROWN(f->out))); // throws must be R_OUT_IS_THROWN
 
-        assert(f->eval_type == REB_FUNCTION); // shouldn't have changed
+        assert(
+            f->eval_type == REB_FUNCTION
+            || f->eval_type == REB_0_LOOKBACK
+        ); // shouldn't have changed
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -1227,10 +1294,12 @@ reevaluate:;
             if (f->eval_type != REB_0_LOOKBACK) { // ordinary "prefix" call
                 assert(f->eval_type == REB_FUNCTION);
                 SET_END(f->out);
+                f->refine = ORDINARY_ARG;
                 goto do_function_in_gotten;
             }
 
             Lookback_For_Set_Word_Or_Set_Path(f->out, f);
+            f->refine = LOOKBACK_ARG;
             goto do_function_in_gotten;
         }
 
@@ -1398,6 +1467,7 @@ reevaluate:;
             f->cell = *f->out;
             f->gotten = &f->cell;
             SET_END(f->out);
+            f->refine = ORDINARY_ARG;
             goto do_function_in_gotten;
         }
 
@@ -1601,6 +1671,7 @@ reevaluate:;
                         goto do_word_in_value; // pay for refetch
 
                     SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
+                    f->refine = LOOKBACK_ARG;
                     goto do_function_in_gotten;
                 }
             }
@@ -1610,6 +1681,7 @@ reevaluate:;
                 // lookback expression.
                 //
                 SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
+                f->refine = LOOKBACK_ARG;
                 goto do_function_in_gotten;
             }
         }
@@ -1620,6 +1692,7 @@ reevaluate:;
 
             SET_END(f->out);
             SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
+            f->refine = ORDINARY_ARG;
             goto do_function_in_gotten;
         }
     }
