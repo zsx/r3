@@ -553,20 +553,17 @@ static void Mark_Devices_Deep(void)
 //
 //  Mark_Frame_Stack_Deep: C
 // 
-// Mark all function call frames.  In addition to containing the
-// arguments that are referred to by pointer during a function
-// invocation (acquired via D_ARG(N) calls), it is able to point
-// to an arbitrary stable memory location for D_OUT.  This may
-// be giving awareness to the GC of a variable on the C stack
-// (for example).  This also keeps the function value itself
-// live, as well as the "label" word and "where" block value.
-// 
-// Note that prior to a function invocation, the output value
-// slot is written with "safe" TRASH.  This helps the evaluator
-// catch cases of when a function dispatch doesn't consciously
-// write any value into the output in debug builds.  The GC is
-// willing to overlook this safe trash, however, and it will just
-// be an UNSET! in the release build.
+// Mark values being kept live by all call frames.  If a function is running,
+// then this will keep the function itself live, as well as the arguments.
+// There is also an "out" slot--which may point to an arbitrary REBVAL cell
+// on the C stack.  The out slot is initialized to an END marker at the
+// start of every function call, so that it won't be uninitialized bits
+// which would crash the GC...but it must be turned into a value (or a void)
+// by the time the function is finished running.
+//
+// Since function argument slots are not pre-initialized, how far the function
+// has gotten in its fulfillment must be taken into account.  Only those
+// argument slots through points of fulfillment may be GC protected.
 // 
 // This should be called at the top level, and not from inside a
 // Propagate_All_GC_Marks().  All marks will be propagated.

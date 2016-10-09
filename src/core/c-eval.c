@@ -204,7 +204,7 @@ static inline void Abort_Function_Args_For_Frame(REBFRM *f) {
 // refinement to revoke it.  Note that since literal pointers are used, tests
 // like `f->refine == BLANK_VALUE` are faster than `IS_BLANK(f->refine)`.
 //
-#define SKIPPING_REFINEMENTS m_cast(REBVAL*, VOID_CELL)
+#define SKIPPING_REFINEMENT_ARGS m_cast(REBVAL*, VOID_CELL)
 #define ARG_TO_UNUSED_REFINEMENT m_cast(REBVAL*, BLANK_VALUE)
 #define ARG_TO_REVOKED_REFINEMENT m_cast(REBVAL*, FALSE_VALUE)
 #define ORDINARY_ARG m_cast(REBVAL*, EMPTY_BLOCK)
@@ -561,7 +561,7 @@ reevaluate:;
 
                         SET_TRUE(f->arg); // marks refinement used
                         // "consume args later" (promise not to change)
-                        f->refine = SKIPPING_REFINEMENTS;
+                        f->refine = SKIPPING_REFINEMENT_ARGS;
                         goto continue_arg_loop;
                     }
                 }
@@ -635,7 +635,16 @@ reevaluate:;
 
     //=//// IF COMING BACK TO REFINEMENT ARGS LATER, MOVE ON FOR NOW //////=//
 
-            if (f->refine == SKIPPING_REFINEMENTS) {
+            if (f->refine == SKIPPING_REFINEMENT_ARGS) {
+                //
+                // The GC will protect values up through how far we have
+                // enumerated, so the argument slot cannot be uninitialized
+                // bits once we pass it.  Use a safe trash so that the debug
+                // build will be able to tell if we don't come back and
+                // overwrite it correctly during the pickups phase.
+                //
+                SET_TRASH_SAFE(f->arg);
+
                 if (f->special != END_CELL)
                     ++f->special;
                 goto continue_arg_loop;
