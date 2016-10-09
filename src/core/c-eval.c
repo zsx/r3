@@ -166,8 +166,14 @@ static inline void Abort_Function_Args_For_Frame(REBFRM *f) {
 
 
 //
-// These specific REBVAL pointers are used to indicate states in f->refine
-// regarding argument gathering.
+// f->refine is a bit tricky.  If it IS_LOGIC() and TRUE, then this means that
+// a refinement is active but revokable, having its arguments gathered.  So
+// it actually points to the f->arg of the active refinement slot.  If
+// evaluation of an argument in this state produces no value, the refinement
+// must be revoked, and its value mutated to be FALSE.
+//
+// But all the other values that f->refine can hold are read-only pointers
+// that signal something about the argument gathering state:
 //
 // * If VOID_CELL, then refinements are being skipped and the arguments
 //   that follow should not be written to.
@@ -182,10 +188,6 @@ static inline void Abort_Function_Args_For_Frame(REBFRM *f) {
 //   from the callsite for each remaining argument, but those expressions
 //   must not evaluate to any value.
 //
-// * If IS_LOGIC() and TRUE the refinement is active but revokable--and
-//   f->refine really corresponds to the f->arg of the refinement slot.  So
-//   if evaluation produces no value, `refine` must be mutated to be FALSE.
-//
 // * If EMPTY_BLOCK, it's an ordinary arg...and not a refinement.  It will
 //   be evaluated normally but is not involved with revocation.
 //
@@ -199,7 +201,8 @@ static inline void Abort_Function_Args_For_Frame(REBFRM *f) {
 //
 // These special values are all pointers to read-only cells, but are cast to
 // mutable in order to be held in the same pointer that might write to a
-// refinement to revoke it.
+// refinement to revoke it.  Note that since literal pointers are used, tests
+// like `f->refine == BLANK_VALUE` are faster than `IS_BLANK(f->refine)`.
 //
 #define SKIPPING_REFINEMENTS m_cast(REBVAL*, VOID_CELL)
 #define ARG_TO_UNUSED_REFINEMENT m_cast(REBVAL*, BLANK_VALUE)
@@ -392,17 +395,10 @@ reevaluate:;
         // function, so f->cell.eval gets used for temporary evaluations.
 
     #if !defined(NDEBUG)
-        //
-        // f->refine is either the refinement currently being fulfilled or
-        // special values indicating other signals.  See %sys-rebfrm.h for the
-        // full list.  We start with EMPTY_BLOCK, a read-only signal meaning
-        // "not a refinement arg, evaluate normally"...unless it is a lookback
-        // in which case we start with EMPTY_STRING.
-        //
         if (f->eval_type == REB_FUNCTION)
             assert(f->refine == ORDINARY_ARG);
         else if (f->eval_type == REB_0_LOOKBACK)
-            assert(f->refine == LOOKBACK_ARG);
+            assert(f->refine == LOOKBACK_ARG); // transitions to ORDINARY_ARG
         else
             assert(FALSE);
     #endif
@@ -422,25 +418,21 @@ reevaluate:;
     //
     //==////////////////////////////////////////////////////////////////==//
 
-        // This loop goes through the parameter and argument slots.  Based on
-        // the parameter type, it may be necessary to "consume" an expression
-        // from values that come after the invocation point.  But not all
-        // params will consume arguments for all calls.  See notes below.
+        // This loop goes through the parameter and argument slots.  Though
+        // the argument slots must be protected from garbage collection once
+        // they are filled, they start out uninitialized.  (The GC has access
+        // to the frame list, so it can examine f->arg and avoid trying to
+        // protect slots that come after it.)
         //
-        // For this one body of code to be able to handle both function
-        // specialization and ordinary invocation, the void type is used as
-        // a signal to have "unspecialized" behavior.  Hence a normal call
-        // just pre-fills all the args with void--which will be overwritten
-        // during the argument fulfillment process (unless they turn out to
-        // be optional in the invocation).
+        // Based on the parameter type, it may be necessary to "consume" an
+        // expression from values that come after the invocation point.  But
+        // not all params will consume arguments for all calls.
         //
-        // To get around that, there's a trick.  An out-of-order refinement
-        // makes a note in the stack about a parameter and arg position that
-        // it sees that it will need to come back to.  It pokes those two
-        // pointers into extra space in the refinement's word on the stack,
-        // since that word isn't using its binding.  A REB_VARARGS value is
-        // used to track this (since it holds a symbol and cache of the
-        // parameter and argument position).
+        // This one body of code to is able to handle both function
+        // specialization and ordinary invocation.  f->special is used to
+        // either step through a list of specialized values (with void as a
+        // signal of no specialization), to step through the arguments if
+        // they are just being type checked, or END_CELL otherwise.
 
         enum Reb_Param_Class pclass; // gotos would cross it if inside loop
 
@@ -465,13 +457,18 @@ reevaluate:;
             //     foo/b/d (1 + 2) (3 + 4) (5 + 6)
             //     foo/d/b (1 + 2) (3 + 4) (5 + 6)
             //
-            // The order of refinements in the definition (b d) might not match
+            // The order of refinements in the definition (b d) may not match
             // what order the refinements are invoked in the path.  This means
             // the "visitation order" of the parameters while walking across
             // parameters in the array might not match the "consumption order"
             // of the expressions that are being fetched from the callsite.
+            //
             // Hence refinements are targeted to be revisited by "pickups"
-            // after the initial parameter walk.
+            // after the initial parameter walk.  An out-of-order refinement
+            // makes a note in the stack about a parameter and arg position
+            // it sees that it will need to come back to.  A REB_VARARGS value
+            // is used to track this (since it holds a symbol and cache of the
+            // parameter and argument position).
 
             if (pclass == PARAM_CLASS_REFINEMENT) {
 
@@ -910,7 +907,7 @@ reevaluate:;
                     //
                     // We can only revoke the refinement if this is the 1st
                     // refinement arg.  If it's a later arg, then the first
-                    // didn't trigger revocation, or refine wouldn't be WORD!
+                    // didn't trigger revocation, or refine wouldn't be logic.
                     //
                     if (f->refine + 1 != f->arg)
                         fail(Error_Bad_Refine_Revoke(f));
