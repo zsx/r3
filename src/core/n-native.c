@@ -166,49 +166,185 @@ static void cleanup(const REBVAL *val)
     tcc_delete(cast(TCCState*, val->payload.handle.data));
 }
 
+
+//
+//  Pending_Native_Dispatcher: C
+//
+// The MAKE-NATIVE command doesn't actually compile the function directly.
+// Instead the source code is held onto, so that several user natives can
+// be compiled together by COMPILE.
+//
+// However, as a convenience, calling a pending user native will trigger a
+// simple COMPILE for just that one function, using default options.
+//
+REB_R Pending_Native_Dispatcher(REBFRM *f) {
+    REBARR *array = Make_Array(1);
+    Append_Value(array, FUNC_VALUE(f->func));
+
+    REBVAL natives;
+    Val_Init_Block(&natives, array);
+
+    if (Do_Va_Throws(f->out, NAT_VALUE(compile), &natives, END_CELL))
+        return R_OUT_IS_THROWN;
+
+    return R_OUT;
+}
+
 #endif
 
 
 //
 //  make-native: native [
 //
-//  {Parse the spec and create user native}
-//      specs [block!] {
-//              Pair of [name spec] that are in the form of:
-//              name [any-string!] {C function name that implements this native, in the form of "N_xxx"}
-//              spec [block!] "The spec of the native"
-//          }
-//      source [any-string!] "C source of the native implementation"
-//      /opt
-//      flags [block!]
-//      {
-//          The block supports the following dialect:
-//          include [block! path!] "include path"
-//          define [block!] {define preprocessor symbols, in the form of "VAR=VAL" or "VAR"}
-//          debug "Add debuging information to the generated code?"
-//      }
+//  {Create a "user native" function compiled from C source}
+//
+//      return: [function!]
+//          "Function value, will be compiled on demand or by COMPILE-NATIVE"
+//      spec [block!]
+//          "The spec of the native"
+//      source [string!]
+//          "C source of the native implementation"
+//      /linkname
+//          "Provide a specific linker name"
+//      name [string!]
+//          "Legal C identifier (default will be auto-generated)"
 //  ]
 //
 REBNATIVE(make_native)
 {
+    PARAM(1, spec);
+    PARAM(2, source);
+    REFINE(3, linkname);
+    PARAM(4, name);
+    
+#if !defined(WITH_TCC)
+    fail (Error(RE_NOT_TCC_BUILD));
+#else
+    REBVAL *source = ARG(source);
+
+    if (VAL_LEN_AT(source) == 0)
+        fail (Error(RE_TCC_EMPTY_SOURCE));
+    
+    REBFUN *fun = Make_Function(
+        Make_Paramlist_Managed_May_Fail(ARG(spec), MKF_NONE),
+        &Pending_Native_Dispatcher, // will be replaced e.g. by COMPILE-NATIVE
+        NULL // no underlying function, this is fundamental
+    );
+
+    REBARR *info = Make_Array(3); // [source name tcc_state]
+
+    if (GET_SER_FLAG(VAL_SERIES(source), SERIES_FLAG_LOCKED))
+        Append_Value(info, source); // no need to copy it...
+    else {
+        // have to copy it (might change before compile-natives is called)
+        //
+        Val_Init_String(
+            Alloc_Tail_Array(info),
+            Copy_String_Slimming(
+                VAL_SERIES(source),
+                VAL_INDEX(source),
+                VAL_LEN_AT(source)
+            )
+        );
+    }
+
+    if (REF(linkname)) {
+        REBVAL *name = ARG(name);
+
+        if (GET_SER_FLAG(VAL_SERIES(name), SERIES_FLAG_LOCKED))
+            Append_Value(info, name);
+        else {
+            Val_Init_String(
+                Alloc_Tail_Array(info),
+                Copy_String_Slimming(
+                    VAL_SERIES(name),
+                    VAL_INDEX(name),
+                    VAL_LEN_AT(name)
+                )
+            );
+        }
+    }
+    else {
+        // Auto-generate a linker name based on the numeric value of the
+        // function pointer.  Just "N_" followed by the hexadecimal value.
+        // So 2 chars per byte, plus 2 for "N_", and account for the
+        // terminator (even though it's set implicitly).
+
+        REBCNT len = 2 + sizeof(REBFUN*) * 2;
+        REBSER *bin = Make_Binary(len + 1);
+        const char *src = cast(const char*, &fun);
+        REBYTE *dest = BIN_HEAD(bin);
+        
+        *dest ='N';
+        ++dest;
+        *dest = '_';
+        ++dest;
+
+        REBCNT n = 0;
+        while (n < sizeof(REBFUN*)) {
+            Form_Hex2(dest, *src); // terminates each time
+            ++src;
+            dest += 2;
+            ++n;
+        }
+        SET_SERIES_LEN(bin, len);
+        TERM_SERIES(bin);
+
+        Val_Init_String(Alloc_Tail_Array(info), bin);
+    }
+
+    SET_BLANK(Alloc_Tail_Array(info)); // no TCC_State, yet...
+
+    Val_Init_Block(FUNC_BODY(fun), info);
+
+    // We need to remember this is a user native, because we won't over the
+    // long run be able to tell it is when the dispatcher is replaced with an
+    // arbitrary compiled function pointer!
+    //
+    SET_VAL_FLAG(FUNC_VALUE(fun), FUNC_FLAG_USER_NATIVE);
+
+    *D_OUT = *FUNC_VALUE(fun);
+    return R_OUT;
+#endif
+}
+
+
+//
+//  compile: native [
+//
+//  {Compiles one or more native functions at the same time, with options.}
+//
+//      return: [<opt>]
+//      natives [block!]
+//          {Functions from MAKE-NATIVE or STRING!s of code.}
+//      /options
+//      flags [block!]
+//      {
+//          The block supports the following dialect:
+//          include [block! path!]
+//              "include path"
+//          define [block!]
+//              {define preprocessor symbols as "VAR=VAL" or "VAR"}
+//          debug
+//              "Add debugging information to the generated code?"
+//      }
+//  ]
+//
+REBNATIVE(compile)
+{
 #if !defined(WITH_TCC)
     fail(Error(RE_NOT_TCC_BUILD));
 #else
-    PARAM(1, specs);
-    PARAM(2, source);
-    REFINE(3, opt);
-    PARAM(4, flags);
+    PARAM(1, natives);
+    REFINE(2, options);
+    PARAM(3, flags);
+
+    REBVAL *natives = ARG(natives);
 
     REBOOL debug = FALSE; // !!! not implemented yet
 
-    if (VAL_LEN_AT(ARG(specs)) == 0)
+    if (VAL_LEN_AT(ARG(natives)) == 0)
         fail(Error(RE_TCC_EMPTY_SPEC));
-
-    if (VAL_LEN_AT(ARG(specs)) % 2 != 0) // specs must be [name spec] pairs
-        fail(Error(RE_TCC_INVALID_SPEC_LENGTH, ARG(specs)));
-
-    if (VAL_LEN_AT(ARG(source)) == 0)
-        fail(Error(RE_TCC_EMPTY_SOURCE));
 
     RELVAL *spec = NULL;
     RELVAL *inc = NULL;
@@ -217,7 +353,7 @@ REBNATIVE(make_native)
     RELVAL *options = NULL;
     RELVAL *rundir = NULL;
 
-    if (REF(opt)) {
+    if (REF(options)) {
         RELVAL *val = VAL_ARRAY_AT(ARG(flags));
 
         for (; NOT_END(val); ++val) {
@@ -294,14 +430,103 @@ REBNATIVE(make_native)
     //
     Append_Unencoded(mo.series, "\n# 0 \"user-source\" 1\n");
 
+    REBDSP dsp_orig = DSP;
+
     // The user code is added next
     //
-    Append_String(
-        mo.series,
-        VAL_SERIES(ARG(source)),
-        VAL_INDEX(ARG(source)),
-        VAL_LEN_AT(ARG(source))
-    );
+    RELVAL *item;
+    for (item = VAL_ARRAY_AT(natives); NOT_END(item); ++item) {
+        const RELVAL *var = item;
+        if (IS_WORD(item) || IS_GET_WORD(item)) {
+            var = GET_OPT_VAR_MAY_FAIL(item, VAL_SPECIFIER(natives));
+            if (IS_VOID(var))
+                fail (Error_No_Value_Core(item, VAL_SPECIFIER(natives)));
+        }
+
+        if (IS_FUNCTION(var)) {
+            assert(GET_VAL_FLAG(var, FUNC_FLAG_USER_NATIVE));
+
+            // Remember this function, because we're going to need to come
+            // back and fill in its dispatcher and TCC_State after the
+            // compilation...
+            //
+            DS_PUSH(const_KNOWN(var));
+
+            RELVAL *info = VAL_FUNC_BODY(var);
+            RELVAL *source = VAL_ARRAY_AT_HEAD(info, 0);
+            RELVAL *name = VAL_ARRAY_AT_HEAD(info, 1);
+
+            Append_Unencoded(mo.series, "REB_R ");
+            Append_String(
+                mo.series,
+                VAL_SERIES(name),
+                VAL_INDEX(name),
+                VAL_LEN_AT(name)
+            );
+            Append_Unencoded(mo.series, "(REBFRM *frame_)\n{\n");
+
+            REBVAL *param = VAL_FUNC_PARAMS_HEAD(var);
+            REBCNT num = 1;
+            for (; NOT_END(param); ++param) {
+                REBSTR *spelling = VAL_PARAM_SPELLING(param);
+
+                enum Reb_Param_Class pclass = VAL_PARAM_CLASS(param);
+                switch (pclass) {
+                case PARAM_CLASS_LOCAL:
+                case PARAM_CLASS_RETURN:
+                case PARAM_CLASS_LEAVE:
+                    assert(FALSE); // natives shouldn't generally use these...
+                    break;
+
+                case PARAM_CLASS_REFINEMENT:
+                case PARAM_CLASS_NORMAL:
+                case PARAM_CLASS_SOFT_QUOTE:
+                case PARAM_CLASS_HARD_QUOTE:
+                    Append_Unencoded(mo.series, "    ");
+                    if (pclass == PARAM_CLASS_REFINEMENT)
+                        Append_Unencoded(mo.series, "REFINE(");
+                    else
+                        Append_Unencoded(mo.series, "PARAM(");
+                    Append_Int(mo.series, num);
+                    ++num;
+                    Append_Unencoded(mo.series, ", ");
+                    Append_Unencoded(mo.series, cs_cast(STR_HEAD(spelling)));
+                    Append_Unencoded(mo.series, ");\n");
+                    break;
+
+                default:
+                    assert(FALSE);
+                }
+            }
+            if (num != 1)
+                Append_Unencoded(mo.series, "\n");
+
+            Append_String(
+                mo.series,
+                VAL_SERIES(source),
+                VAL_INDEX(source),
+                VAL_LEN_AT(source)
+            );
+            Append_Unencoded(mo.series, "\n}\n\n");
+        }
+        else if (IS_STRING(var)) {
+            //
+            // A string is treated as just a fragment of code.  This allows
+            // for writing things like C functions or macros that are shared
+            // between multiple user natives.
+            //
+            Append_String(
+                mo.series,
+                VAL_SERIES(var),
+                VAL_INDEX(var),
+                VAL_LEN_AT(var)
+            );
+            Append_Unencoded(mo.series, "\n"); 
+        }
+        else {
+            assert(FALSE);
+        }
+    }
 
     REBSER *combined_src = Pop_Molded_UTF8(&mo);
 
@@ -325,7 +550,7 @@ REBNATIVE(make_native)
         fail (Error(RE_TCC_OUTPUT_TYPE));
 
     if (tcc_compile_string(state, CHAR_HEAD(combined_src)) < 0)
-        fail (Error(RE_TCC_COMPILE, ARG(source)));
+        fail (Error(RE_TCC_COMPILE, natives));
 
     Free_Series(combined_src);
 
@@ -337,7 +562,7 @@ REBNATIVE(make_native)
     //
     const void **sym = &rebol_symbols[0];
     for (; *sym != NULL; sym += 2) {
-        if (tcc_add_symbol(state, cast(char*, *sym), *(sym + 1)) < 0)
+        if (tcc_add_symbol(state, cast(const char*, *sym), *(sym + 1)) < 0)
             fail (Error(RE_TCC_RELOCATE));
     }
 
@@ -356,8 +581,6 @@ REBNATIVE(make_native)
     if (tcc_relocate(state, TCC_RELOCATE_AUTO) < 0)
         fail(Error(RE_TCC_RELOCATE));
 
-    REBARR *natives = Make_Array(VAL_LEN_AT(ARG(specs)) / 2);
-
     REBVAL handle;
     Init_Handle_Managed(
         &handle,
@@ -366,32 +589,36 @@ REBNATIVE(make_native)
         cleanup // called upon GC
     );
 
-    RELVAL *item;
-    for (item = VAL_ARRAY_AT(ARG(specs)); NOT_END(item); ++item) {
-        if (!IS_STRING(item))
-            fail(Error(RE_TCC_INVALID_NAME, item));
+    // With compilation complete, find the matching linker names and get
+    // their function pointers to substitute in for the dispatcher.
+    //
+    while (DSP != dsp_orig) {
+        REBVAL *var = DS_TOP;
 
-        const char* c_name = CHAR_HEAD(VAL_SERIES(item));
-        ++item;
+        assert(IS_FUNCTION(var));
+        assert(GET_VAL_FLAG(var, FUNC_FLAG_USER_NATIVE));
 
-        if (!IS_BLOCK(item))
-            fail (Error(RE_MALCONSTRUCT, item));
+        RELVAL *info = VAL_FUNC_BODY(var);
+        RELVAL *name = VAL_ARRAY_AT_HEAD(info, 1);
+        RELVAL *stored_state = VAL_ARRAY_AT_HEAD(info, 2);
 
-        REBNAT c_func = cast(REBNAT, tcc_get_symbol(state, c_name));
-        if (!c_func)
-            fail(Error(RE_TCC_SYM_NOT_FOUND, (item - 1)));
+        REBCNT index;
+        REBSER *utf8 = Temp_Bin_Str_Managed(name, &index, 0);
 
-        REBFUN *fun = Make_Function(
-            Make_Paramlist_Managed_May_Fail(KNOWN(item), 0),
-            c_func, // "dispatcher" is unique to this "native"
-            NULL // no underlying function, this is fundamental
+        REBNAT c_func = cast(
+            REBNAT,
+            tcc_get_symbol(state, cs_cast(BIN_AT(utf8, index)))
         );
-        Append_Value(natives, FUNC_VALUE(fun));
-        RELVAL *body = FUNC_BODY(fun);
-        *body = handle;
+
+        if (!c_func)
+            fail(Error(RE_TCC_SYM_NOT_FOUND, name));
+
+        FUNC_DISPATCHER(VAL_FUNC(var)) = c_func;
+        *stored_state = handle;
+
+        DS_DROP;
     }
 
-    Val_Init_Block(D_OUT, natives);
-    return R_OUT;
+    return R_VOID;
 #endif
 }

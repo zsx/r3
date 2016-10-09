@@ -1223,7 +1223,7 @@ REBSER *Make_UTF8_Binary(
 // series must be either freed or handed to the GC.
 //
 REBSER *Make_UTF8_From_Any_String(
-    const REBVAL *value,
+    const RELVAL *value,
     REBCNT len,
     REBFLGS opts
 ) {

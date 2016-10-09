@@ -244,7 +244,6 @@ Script: [
     tcc-invalid-library-path: [{Library path expects a block or a path:} :arg1]
     tcc-invalid-runtime-path: [{Runtime library path expects a block or a path:} :arg1]
     tcc-empty-spec:    	{Spec for natives must not be empty}
-    tcc-invalid-spec-length: [{Spec length for natives must be an even number:} :arg1]
     tcc-empty-source:    {Source for natives must not be empty}
     tcc-construction:    {TCC failed to create a TCC context}
     tcc-set-options:     {TCC failed to set TCC options}

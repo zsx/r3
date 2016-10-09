@@ -2,30 +2,32 @@ REBOL [
     Title: {Initial test for user natives by @ShixinZeng}
 ]
 
-c-fib: first make-native/opt [
-    "N_c_fib" [
-        "nth Fibonacci Number"
-        n [integer!]
-    ]
-] {
-    REBNATIVE(c_fib) {
-        PARAM(1, n);
+c-fib: make-native [
+   "nth Fibonacci Number"
+   n [integer!]
+]{
+    int n = VAL_INT64(ARG(n));
 
-        int i = VAL_INT64(ARG(n));
-        int i0 = 0, i1 = 1;
-        //MARK_CELL_WRITABLE_IF_CPP_DEBUG(D_OUT);
-        if (i < 0) SET_INTEGER(D_OUT, -1);
-        if (i <= 1) SET_INTEGER(D_OUT, i);
-        while (-- i > 0) {
-            int t = i1;
-            i1 = i1 + i0;
-            i0 = t;
-        }
-        SET_INTEGER(D_OUT, i1);
-        D_OUT->header.bits |= 1 << (GENERAL_VALUE_BIT + 5);
-        return R_OUT;
+    if (n < zero) { SET_INTEGER(D_OUT, -1); return R_OUT; }
+    if (n <= one) { SET_INTEGER(D_OUT, n); return R_OUT; }
+
+    int i0 = zero;
+    int i1 = one;
+    while (n > one) {
+        int t = i1;
+        i1 = i1 + i0;
+        i0 = t;
+        --n;
     }
-} compose [
+    SET_INTEGER(D_OUT, i1);
+    return R_OUT;
+}
+
+compile/options [
+    "const int zero = 0;"
+    "const int one = 1;"
+    c-fib
+] compose [
     runtime-path (join first split-path system/options/boot %tcc)
 ]
 
@@ -45,7 +47,7 @@ fib: func [
     i1
 ]
 
-print ["fib 30:" c-fib 30]
+print ["c-fib 30:" c-fib 30]
 print ["fib 30:" fib 30]
 
 n-loop: 10000

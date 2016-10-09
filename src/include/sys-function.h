@@ -133,6 +133,14 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
 // 
 #define FUNC_FLAG_DEFERS_LOOKBACK_ARG FUNC_FLAG(3)
 
+// The COMPILE-NATIVES command wants to operate on user natives, and be able
+// to recompile unchanged natives as part of a unit even after they were
+// initially compiled.  But since that replaces their dispatcher with an
+// arbitrary function, they can't be recognized to know they have the specific
+// body structure of a user native.  So this flag is used.
+//
+#define FUNC_FLAG_USER_NATIVE FUNC_FLAG(4)
+
 #if !defined(NDEBUG)
     //
     // This flag is set on the canon function value when a proxy for a
@@ -141,12 +149,12 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
     // function implementation after digging through the layers...because
     // proxies must have new (cloned) paramlists but use the original bodies.
     //
-    #define FUNC_FLAG_PROXY_DEBUG FUNC_FLAG(4)
+    #define FUNC_FLAG_PROXY_DEBUG FUNC_FLAG(5)
 
     // BLANK! ("none!") for unused refinements instead of FALSE
     // Also, BLANK! for args of unused refinements instead of not set
     //
-    #define FUNC_FLAG_LEGACY_DEBUG FUNC_FLAG(5)
+    #define FUNC_FLAG_LEGACY_DEBUG FUNC_FLAG(6)
 #endif
 
 
