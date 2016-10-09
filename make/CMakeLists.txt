@@ -30,7 +30,10 @@ macro(add_c_and_cxx_flags flags)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${flags}")
 endmacro()
 
-
+#Only interpret if() arguments as variables or keywords when unquoted
+if (POLICY CMP0054)
+  cmake_policy(SET CMP0054 NEW)
+endif ()
 
 set (TOP_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../src")
 set (TOP_GENERATED_SRC_DIR "${CMAKE_CURRENT_BINARY_DIR}/src")
