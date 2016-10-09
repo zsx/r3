@@ -50,6 +50,15 @@
 #include "sys-core.h"
 
 #if defined(WITH_TCC)
+//
+// libtcc provides the following functions:
+//
+// https://github.com/metaeducation/tcc/blob/mob/libtcc.h
+//
+// For a very simple example of usage of libtcc, see:
+//
+// https://github.com/metaeducation/tcc/blob/mob/tests/libtcc_test.c
+//
 #include "libtcc.h"
 
 extern const REBYTE core_header_source[];
@@ -162,11 +171,11 @@ static void cleanup(const REBVAL *val)
 
 //
 //  make-native: native [
-//  
+//
 //  {Parse the spec and create user native}
 //      specs [block!] {
 //              Pair of [name spec] that are in the form of:
-//              name [any-string!] {C function name that implements this native, in the form of "N_xxx"} 
+//              name [any-string!] {C function name that implements this native, in the form of "N_xxx"}
 //              spec [block!] "The spec of the native"
 //          }
 //      source [any-string!] "C source of the native implementation"
@@ -261,61 +270,61 @@ REBNATIVE(make_native)
         }
     }
 
-    REBCNT head_len = strlen(cs_cast(core_header_source));
-
-    // The prolog resets the line number count to 0 where the user source
-    // starts, in order to give more meaningful line numbers in errors
+    // Using the "hot" mold buffer allows us to build the combined source in
+    // memory that is generally preallocated.  This makes it not necessary
+    // to say in advance how large the buffer needs to be.  However, currently
+    // the mold buffer is REBUNI wide characters, while TCC expects ASCII.
+    // Hence it has to be "popped" as UTF8 into a fresh series.
     //
-    const char *prolog = "\n# 0 \"user-source\" 1\n";
-
-    const char* c_src = CHAR_HEAD(VAL_SERIES(ARG(source)));
-    REBCNT src_len = strlen(c_src);
-
-    REBSER *combined_src = Make_Series(
-        src_len + head_len + strlen(prolog) + 1, 1, MKS_NONE
-    );
+    // !!! Future plans are to use "UTF-8 Everywhere", which would mean the
+    // mold buffer's data could be used directly.
+    //
+    // !!! Investigate how much UTF-8 support there is in TCC for strings/etc
+    //
+    REB_MOLD mo;
+    CLEARS(&mo);
+    Push_Mold(&mo);
 
     // The core_header_source is %sys-core.h with all include files expanded
     //
-    Append_Series(combined_src, core_header_source, head_len);
+    Append_Unencoded(mo.series, cs_cast(core_header_source));
 
-    Append_Series(combined_src, cb_cast(prolog), strlen(prolog));
-
-    // The user native source gets added on, including +1 for terminator
+    // This prolog resets the line number count to 0 where the user source
+    // starts, in order to give more meaningful line numbers in errors
     //
-    Append_Series(combined_src, cb_cast(c_src), src_len + 1);
+    Append_Unencoded(mo.series, "\n# 0 \"user-source\" 1\n");
 
-    TCCState *TCC_state = tcc_new();
-    if (!TCC_state)
+    // The user code is added next
+    //
+    Append_String(
+        mo.series,
+        VAL_SERIES(ARG(source)),
+        VAL_INDEX(ARG(source)),
+        VAL_LEN_AT(ARG(source))
+    );
+
+    REBSER *combined_src = Pop_Molded_UTF8(&mo);
+
+    TCCState *state = tcc_new();
+    if (!state)
         fail(Error(RE_TCC_CONSTRUCTION));
 
-    REBARR *singular = Alloc_Singular_Array();
-    ARR_SERIES(singular)->misc.cleaner = cleanup;
-
-    RELVAL *v = ARR_HEAD(singular);
-    VAL_RESET_HEADER(v, REB_HANDLE);
-    v->extra.singular = singular;
-    v->payload.handle.code = NULL;
-    v->payload.handle.data = TCC_state;
-
-    MANAGE_ARRAY(singular);
-
-    tcc_set_error_func(TCC_state, NULL, tcc_error_report);
+    tcc_set_error_func(state, NULL, tcc_error_report);
 
     if (options) {
-        if (tcc_set_options(TCC_state, CHAR_HEAD(VAL_SERIES(options))) < 0)
+        if (tcc_set_options(state, CHAR_HEAD(VAL_SERIES(options))) < 0)
             fail (Error(RE_TCC_SET_OPTIONS));
     }
 
-    REBCTX * err = NULL;
+    REBCTX *err = NULL;
 
-    if ((err = add_path(TCC_state, inc, tcc_add_include_path, RE_TCC_INCLUDE)))
+    if ((err = add_path(state, inc, tcc_add_include_path, RE_TCC_INCLUDE)))
         fail (err);
 
-    if (tcc_set_output_type(TCC_state, TCC_OUTPUT_MEMORY) < 0)
+    if (tcc_set_output_type(state, TCC_OUTPUT_MEMORY) < 0)
         fail (Error(RE_TCC_OUTPUT_TYPE));
 
-    if (tcc_compile_string(TCC_state, CHAR_HEAD(combined_src)) < 0)
+    if (tcc_compile_string(state, CHAR_HEAD(combined_src)) < 0)
         fail (Error(RE_TCC_COMPILE, ARG(source)));
 
     Free_Series(combined_src);
@@ -328,39 +337,47 @@ REBNATIVE(make_native)
     //
     const void **sym = &rebol_symbols[0];
     for (; *sym != NULL; sym += 2) {
-        if (tcc_add_symbol(TCC_state, cast(char*, *sym), *(sym + 1)) < 0)
+        if (tcc_add_symbol(state, cast(char*, *sym), *(sym + 1)) < 0)
             fail (Error(RE_TCC_RELOCATE));
     }
 
     if ((err = add_path(
-        TCC_state, libdir, tcc_add_library_path, RE_TCC_LIBRARY_PATH
+        state, libdir, tcc_add_library_path, RE_TCC_LIBRARY_PATH
     ))) {
         fail (err);
     }
 
-    if ((err = add_path(TCC_state, lib, tcc_add_library, RE_TCC_LIBRARY)))
+    if ((err = add_path(state, lib, tcc_add_library, RE_TCC_LIBRARY)))
         fail(err);
 
     if (rundir)
-        do_set_path(TCC_state, rundir, tcc_set_lib_path);
+        do_set_path(state, rundir, tcc_set_lib_path);
 
-    if (tcc_relocate(TCC_state, TCC_RELOCATE_AUTO) < 0)
+    if (tcc_relocate(state, TCC_RELOCATE_AUTO) < 0)
         fail(Error(RE_TCC_RELOCATE));
 
     REBARR *natives = Make_Array(VAL_LEN_AT(ARG(specs)) / 2);
+
+    REBVAL handle;
+    Init_Handle_Managed(
+        &handle,
+        NULL, // no "code" pointer
+        state, // "data" pointer
+        cleanup // called upon GC
+    );
 
     RELVAL *item;
     for (item = VAL_ARRAY_AT(ARG(specs)); NOT_END(item); ++item) {
         if (!IS_STRING(item))
             fail(Error(RE_TCC_INVALID_NAME, item));
-            
+
         const char* c_name = CHAR_HEAD(VAL_SERIES(item));
         ++item;
 
         if (!IS_BLOCK(item))
             fail (Error(RE_MALCONSTRUCT, item));
-                
-        REBNAT c_func = cast(REBNAT, tcc_get_symbol(TCC_state, c_name));
+
+        REBNAT c_func = cast(REBNAT, tcc_get_symbol(state, c_name));
         if (!c_func)
             fail(Error(RE_TCC_SYM_NOT_FOUND, (item - 1)));
 
@@ -371,8 +388,7 @@ REBNATIVE(make_native)
         );
         Append_Value(natives, FUNC_VALUE(fun));
         RELVAL *body = FUNC_BODY(fun);
-        VAL_RESET_HEADER(body, REB_HANDLE);
-        body->extra.singular = singular;
+        *body = handle;
     }
 
     Val_Init_Block(D_OUT, natives);
