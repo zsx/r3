@@ -184,10 +184,22 @@ REB_R Pending_Native_Dispatcher(REBFRM *f) {
     REBVAL natives;
     Val_Init_Block(&natives, array);
 
+    assert(FUNC_DISPATCHER(f->func) == &Pending_Native_Dispatcher);
+
     if (Do_Va_Throws(f->out, NAT_VALUE(compile), &natives, END_CELL))
         return R_OUT_IS_THROWN;
 
-    return R_OUT;
+    // Today's COMPILE doesn't return a result on success (just fails on
+    // errors), but if it changes to return one consider what to do with it.
+    //
+    assert(IS_VOID(f->out));
+
+    // Now that it's compiled, it should have replaced the dispatcher with a
+    // function pointer that lives in the TCC_State.  Use REDO, and don't
+    // bother re-checking the argument types.
+    //
+    assert(FUNC_DISPATCHER(f->func) != &Pending_Native_Dispatcher);
+    return R_REDO_UNCHECKED;
 }
 
 #endif
