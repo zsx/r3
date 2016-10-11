@@ -1275,13 +1275,23 @@ static void Init_Main_Args(REBARGS *rargs)
         Val_Init_File(val, ser);
     }
 
-    REBSTR *name = Set_Option_Word(rargs->boot, OPTIONS_BOOT_LEVEL);
-    if (name != NULL)
-        n = cast(REBCNT, STR_SYMBOL(name));
-    else
-        n = 0;
-    if (n >= SYM_BASE && n <= SYM_MODS)
-        PG_Boot_Level = n - SYM_BASE; // 0 - 3
+    if (rargs->boot != NULL) {
+        REBSTR *name = Set_Option_Word(rargs->boot, OPTIONS_BOOT_LEVEL);
+        REBSYM sym = STR_SYMBOL(name);
+        switch (sym) {
+        case SYM_BASE:
+            PG_Boot_Level = 0;
+            break;
+        case SYM_SYS:
+            PG_Boot_Level = 1;
+            break;
+        case SYM_MODS:
+            PG_Boot_Level = 2;
+            break;
+        default:
+            assert(FALSE); // !!! Review this "boot level" R3-Alpha idea
+        }
+    }
 
     if (rargs->args) {
         n = 0;
@@ -1296,9 +1306,12 @@ static void Init_Main_Args(REBARGS *rargs)
             );
     }
 
-    Set_Option_String(rargs->debug, OPTIONS_DEBUG);
-    Set_Option_String(rargs->version, OPTIONS_VERSION);
-    Set_Option_String(rargs->import, OPTIONS_IMPORT);
+    if (rargs->debug)
+        Set_Option_String(rargs->debug, OPTIONS_DEBUG);
+    if (rargs->version)
+        Set_Option_String(rargs->version, OPTIONS_VERSION);
+    if (rargs->import)
+        Set_Option_String(rargs->import, OPTIONS_IMPORT);
 
     // !!! The argument to --do exists in REBCHR* form in rargs->do_arg,
     // hence platform-specific encoding.  The host_main.c executes the --do
@@ -1307,9 +1320,12 @@ static void Init_Main_Args(REBARGS *rargs)
     // "do-arg" variable in the system/options context...if a client of the
     // library has a --do option and wants to expose it, then it will have
     // to do so itself.  We'll leave this non-INTERN'd block here for now.
-    Set_Option_String(rargs->do_arg, OPTIONS_DO_ARG);
+    //
+    if (rargs->do_arg)
+        Set_Option_String(rargs->do_arg, OPTIONS_DO_ARG);
 
-    Set_Option_Word(rargs->secure, OPTIONS_SECURE);
+    if (rargs->secure)
+        Set_Option_Word(rargs->secure, OPTIONS_SECURE);
 
     if ((data = OS_GET_LOCALE(0))) {
         val = Get_System(SYS_LOCALE, LOCALE_LANGUAGE);
