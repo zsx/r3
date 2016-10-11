@@ -730,7 +730,7 @@ reevaluate:;
                 // It is not possible to gather variadic lookback arguments.
                 // SET/LOOKBACK should prohibit functions w/variadic 1st args.
                 //
-                assert(!GET_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC);
+                assert(!GET_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC));
 
                 if (IS_END(f->out)) {
                     if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
