@@ -767,11 +767,11 @@ reevaluate:;
                 goto continue_arg_loop;
             }
 
-            // Literal expression barriers cannot be consumed in normal
-            // evaluation, even if the argument takes a BAR!.  It must come
-            // through non-literal means(e.g. `quote '|` or `first [|]`)
+            // Literal expression barriers cannot be consumed, even if the
+            // argument takes a BAR!, or even if there is quoting.
+            // It must come through other means (e.g. `'|` or `first [|]`)
             //
-            if (args_evaluate && IS_BAR(f->value)) {
+            if (IS_BAR(f->value)) {
                 if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                     fail (Error(RE_EXPRESSION_BARRIER));
 
