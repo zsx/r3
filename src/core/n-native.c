@@ -216,7 +216,7 @@ REB_R Pending_Native_Dispatcher(REBFRM *f) {
 //  {Create a "user native" function compiled from C source}
 //
 //      return: [function!]
-//          "Function value, will be compiled on demand or by COMPILE-NATIVE"
+//          "Function value, will be compiled on demand or by COMPILE"
 //      spec [block!]
 //          "The spec of the native"
 //      source [string!]
@@ -244,7 +244,7 @@ REBNATIVE(make_native)
     
     REBFUN *fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(ARG(spec), MKF_NONE),
-        &Pending_Native_Dispatcher, // will be replaced e.g. by COMPILE-NATIVE
+        &Pending_Native_Dispatcher, // will be replaced e.g. by COMPILE
         NULL // no underlying function, this is fundamental
     );
 
@@ -253,7 +253,7 @@ REBNATIVE(make_native)
     if (GET_SER_FLAG(VAL_SERIES(source), SERIES_FLAG_LOCKED))
         Append_Value(info, source); // no need to copy it...
     else {
-        // have to copy it (might change before compile-natives is called)
+        // have to copy it (might change before COMPILE is called)
         //
         Val_Init_String(
             Alloc_Tail_Array(info),

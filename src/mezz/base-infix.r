@@ -184,6 +184,22 @@ xor+: enfix func [arg1 [any-value!] arg2 [<defer> any-value!]] [
 ]
 
 
+; Postfix operator for asking the most existential question of Rebol...is it
+; a Rebol value at all?  (non-void)
+;
+; !!! Originally in Rebol2 and R3-Alpha, ? was a synonym for HELP, which seems
+; wasteful for the language as a whole when it's easy enough to type HELP.
+; Postfix was not initially considered, because there was no ability of
+; enfixed operators to force the left hand side of expressions to be as
+; maximal as possible.  Hence `while [take blk ?] [...]` would ask if blk was
+; void, not `take blk`.  So it was tried as a prefix operator, which wound
+; up looking somewhat junky.
+
+?: enfix function [arg [<defer> <opt> any-value!]] [
+    any-value? :arg
+]
+
+
 ; ELSE is an experiment to try and allow IF condition [branch1] ELSE [branch2]
 ; For efficiency it uses references to the branches and does not copy them
 ; into the body or protect them from mutation.  It is supported by the

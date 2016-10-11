@@ -723,6 +723,49 @@ reevaluate:;
                 goto continue_arg_loop;
             }
 
+    //=//// IF LOOKBACK, THEN USE PREVIOUS EXPRESSION RESULT FOR ARG //////=//
+
+            if (f->refine == LOOKBACK_ARG) {
+                //
+                // It is not possible to gather variadic lookback arguments.
+                // SET/LOOKBACK should prohibit functions w/variadic 1st args.
+                //
+                assert(!GET_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC);
+
+                if (IS_END(f->out)) {
+                    if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
+                        fail (Error_No_Arg(FRM_LABEL(f), f->param));
+                    SET_VOID(f->arg);
+                    goto continue_arg_loop;
+                }
+
+                switch (pclass) {
+                case PARAM_CLASS_NORMAL:
+                    break;
+
+                case PARAM_CLASS_HARD_QUOTE:
+                    if (GET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED))
+                        fail (Error_Lookback_Quote_Too_Late(f));
+                    break;
+
+                case PARAM_CLASS_SOFT_QUOTE:
+                    if (GET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED))
+                        fail (Error_Lookback_Quote_Too_Late(f));
+                    if (IS_SET_WORD(f->out) || IS_SET_PATH(f->out))
+                        fail (Error_Lookback_Quote_Set_Soft(f));
+                    break;
+
+                default:
+                    assert(FALSE);
+                }
+
+                f->refine = ORDINARY_ARG;
+
+                *f->arg = *f->out;
+                SET_END(f->out);
+                goto check_arg;
+            }
+
     //=//// VARIADIC ARG (doesn't consume anything *yet*) /////////////////=//
 
             // Evaluation argument "hook" parameters (marked in MAKE FUNCTION!
@@ -757,6 +800,11 @@ reevaluate:;
 
     //=//// AFTER THIS, PARAMS CONSUME FROM CALLSITE IF NOT APPLY ////////=//
 
+            assert(
+                f->refine == ORDINARY_ARG
+                || IS_LOGIC(f->refine) && IS_CONDITIONAL_TRUE(f->refine)
+            );
+
     //=//// ERROR ON END MARKER, BAR! IF APPLICABLE //////////////////////=//
 
             if (IS_END(f->value)) {
@@ -779,116 +827,71 @@ reevaluate:;
                 goto continue_arg_loop;
             }
 
-    //=//// REGULAR ARG-OR-REFINEMENT-ARG (consumes a DO/NEXT's worth) ////=//
+   //=//// IF EVAL/ONLY SEMANTICS, TAKE NEXT ARG WITHOUT EVALUATION //////=//
 
-            if (pclass == PARAM_CLASS_NORMAL) {
-                if (f->refine == LOOKBACK_ARG) {
-                    f->refine = ORDINARY_ARG;
-
-                    if (IS_END(f->out)) {
-                        if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
-                            fail (Error_No_Arg(FRM_LABEL(f), f->param));
-
-                        SET_VOID(f->arg);
-                        goto continue_arg_loop;
-                    }
-
-                    *f->arg = *f->out;
-                    SET_END(f->out);
-                }
-                else if (args_evaluate) {
-                    //
-                    // The default for evaluated parameters is to do normal
-                    // infix lookahead, e.g. `square 1 + 2` would pass 3
-                    // to a single-arity function "square".  But if the
-                    // argument to square is declared <defer>, it will act as
-                    // `(square 1) + 2`, by not applying lookahead to
-                    // see the + during the argument evaluation.
-                    //
-                    DO_NEXT_REFETCH_MAY_THROW(
-                        f->arg,
-                        f,
-                        (GET_VAL_FLAG(f->param, TYPESET_FLAG_DEFER)
-                            ? DO_FLAG_NO_LOOKAHEAD
-                            : 0)
-                    );
-
-                    if (THROWN(f->arg)) {
-                        *f->out = *f->arg;
-                        Abort_Function_Args_For_Frame(f);
-                        goto finished;
-                    }
-                }
-                else
-                    QUOTE_NEXT_REFETCH(f->arg, f); // no VALUE_FLAG_EVALUATED
-
+            if (!args_evaluate) {
+                QUOTE_NEXT_REFETCH(f->arg, f); // non-VALUE_FLAG_EVALUATED
                 goto check_arg;
             }
+
+            switch (pclass) {
+
+   //=//// REGULAR ARG-OR-REFINEMENT-ARG (consumes a DO/NEXT's worth) ////=//
+
+            case PARAM_CLASS_NORMAL:
+                //
+                // The default for evaluated parameters is to do normal
+                // infix lookahead, e.g. `square 1 + 2` would pass 3
+                // to a single-arity function "square".  But if the
+                // argument to square is declared <defer>, it will act as
+                // `(square 1) + 2`, by not applying lookahead to
+                // see the + during the argument evaluation.
+                //
+                DO_NEXT_REFETCH_MAY_THROW(
+                    f->arg,
+                    f,
+                    (GET_VAL_FLAG(f->param, TYPESET_FLAG_DEFER)
+                        ? DO_FLAG_NO_LOOKAHEAD
+                        : 0)
+                );
+
+                if (THROWN(f->arg)) {
+                    *f->out = *f->arg;
+                    Abort_Function_Args_For_Frame(f);
+                    goto finished;
+                }
+                break;
 
     //=//// HARD QUOTED ARG-OR-REFINEMENT-ARG /////////////////////////////=//
 
-            if (pclass == PARAM_CLASS_HARD_QUOTE) {
-                if (f->refine == LOOKBACK_ARG) {
-                    f->refine = ORDINARY_ARG;
-
-                    if (IS_END(f->out)) {
-                        if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
-                            fail (Error_No_Arg(FRM_LABEL(f), f->param));
-
-                        SET_VOID(f->arg);
-                        goto continue_arg_loop;
-                    }
-
-                    if (GET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED))
-                        fail (Error_Lookback_Quote_Too_Late(f));
-
-                    *f->arg = *f->out;
-                    SET_END(f->out);
-                }
-                else
-                    QUOTE_NEXT_REFETCH(f->arg, f); // non-VALUE_FLAG_EVALUATED
-
-                goto check_arg;
-            }
+            case PARAM_CLASS_HARD_QUOTE:
+                QUOTE_NEXT_REFETCH(f->arg, f); // non-VALUE_FLAG_EVALUATED
+                break;
 
     //=//// SOFT QUOTED ARG-OR-REFINEMENT-ARG  ////////////////////////////=//
 
-            assert(pclass == PARAM_CLASS_SOFT_QUOTE);
-
-            if (f->refine == LOOKBACK_ARG) {
-                f->refine = ORDINARY_ARG;
-
-                if (IS_END(f->out)) {
-                    if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
-                        fail (Error_No_Arg(FRM_LABEL(f), f->param));
-
-                    SET_VOID(f->arg);
-                    goto continue_arg_loop;
+            case PARAM_CLASS_SOFT_QUOTE:
+                if (!IS_QUOTABLY_SOFT(f->value)) {
+                    QUOTE_NEXT_REFETCH(f->arg, f); // non-VALUE_FLAG_EVALUATED
+                    goto check_arg;
                 }
 
-                if (GET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED))
-                    fail (Error_Lookback_Quote_Too_Late(f));
-
-                if (IS_SET_WORD(f->out) || IS_SET_PATH(f->out))
-                    fail (Error_Lookback_Quote_Set_Soft(f));
-
-                *f->arg = *f->out;
-                SET_END(f->out);
-            }
-            else if (args_evaluate && IS_QUOTABLY_SOFT(f->value)) {
                 if (EVAL_VALUE_CORE_THROWS(f->arg, f->value, f->specifier)) {
                     *f->out = *f->arg;
                     Abort_Function_Args_For_Frame(f);
                     goto finished;
                 }
+
                 FETCH_NEXT_ONLY_MAYBE_END(f);
-            }
-            else
-                QUOTE_NEXT_REFETCH(f->arg, f); // non-VALUE_FLAG_EVALUATED
+                break;
+
+            default:
+                assert(FALSE);
+        }
 
     //=//// TYPE CHECKING FOR (MOST) ARGS AT END OF ARG LOOP //////////////=//
 
-        check_arg:
+        check_arg:;
 
             // Some arguments can be fulfilled and skip type checking or
             // take care of it themselves.  But normal args pass through

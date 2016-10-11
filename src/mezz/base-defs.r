@@ -39,7 +39,7 @@ eval proc [
     <local>
         set-word type-name tester meta
 ][
-    while [? set-word: take set-word...] [
+    while [any-value? set-word: take set-word...] [
         type-name: append (head clear find (spelling-of set-word) {?}) "!"
         tester: typechecker (get bind (to word! type-name) set-word)
         set set-word :tester

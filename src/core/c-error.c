@@ -258,12 +258,12 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
 //
 //  Fail_Core: C
 // 
-// Cause a "trap" of an error by longjmp'ing to the enclosing
-// PUSH_TRAP or PUSH_TRAP_ANY.  Although the error being passed
-// may not be something that strictly represents an error
-// condition (e.g. a BREAK or CONTINUE or THROW), if it gets
-// passed to this routine then it has not been caught by its
-// intended recipient, and is being treated as an error.
+// Cause a "trap" of an error by longjmp'ing to the enclosing PUSH_TRAP (or
+// PUSH_UNHALTABLE_TRAP).  Note that these failures interrupt code mid-stream,
+// so if a Rebol function is running it will not make it to the point of
+// returning the result value.  This distinguishes the "fail" mechanic from
+// the "throw" mechanic, which has to bubble up a THROWN() value through
+// D_OUT (used to implement BREAK, CONTINUE, RETURN, LEAVE...)
 //
 ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
 {
@@ -271,20 +271,21 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
     assert(CTX_TYPE(error) == REB_ERROR);
 
 #if !defined(NDEBUG)
+    //
     // All calls to Fail_Core should originate from the `fail` macro,
     // which in the debug build sets TG_Erroring_C_File and TG_Erroring_C_Line.
     // Any error creations as arguments to that fail should have picked
     // it up, and we now need to NULL it out so other Make_Error calls
     // that are not inside of a fail invocation don't get confused and
     // have the wrong information
-
+    //
     assert(TG_Erroring_C_File);
     TG_Erroring_C_File = NULL;
 
     // If we raise the error we'll lose the stack, and if it's an early
     // error we always want to see it (do not use ATTEMPT or TRY on
     // purpose in Init_Core()...)
-
+    //
     if (PG_Boot_Phase < BOOT_DONE) {
         REBVAL error_value;
 
@@ -296,10 +297,11 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
 #endif
 
     if (!Saved_State) {
+        //
         // There should be a PUSH_TRAP of some kind in effect if a `fail` can
         // ever be run, so mention that before panicking.  The error contains
         // arguments and information, however, so that should be the panic
-
+        //
         Debug_Fmt("*** NO \"SAVED STATE\" - PLEASE MENTION THIS FACT! ***");
         panic (error);
     }
@@ -332,13 +334,13 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
     TG_Frame_Stack = f; // TG_Frame_Stack is writable FS_TOP
 
     // We pass the error as a context rather than as a value.
-
+    //
     Saved_State->error = error;
 
     // If a THROWN() was being processed up the stack when the error was
     // raised, then it had the thrown argument set.  Trash it in debug
     // builds.  (The value will not be kept alive, it is not seen by GC)
-
+    //
     SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
 
     LONG_JUMP(Saved_State->cpu_state, 1);

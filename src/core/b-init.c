@@ -1190,17 +1190,13 @@ static void Init_Codecs(void)
 
 static void Set_Option_String(REBCHR *str, REBCNT field)
 {
-    if (str) {
-        REBVAL *val = Get_System(SYS_OPTIONS, field);
-        Val_Init_String(val, Copy_OS_Str(str, OS_STRLEN(str)));
-    }
+    REBVAL *val = Get_System(SYS_OPTIONS, field);
+    Val_Init_String(val, Copy_OS_Str(str, OS_STRLEN(str)));
 }
 
 
 static REBSTR *Set_Option_Word(REBCHR *str, REBCNT field)
 {
-    if (!str) return NULL;
-
     REBYTE buf[40]; // option words always short ASCII strings
 
     REBCNT len = OS_STRLEN(str); // WC correct

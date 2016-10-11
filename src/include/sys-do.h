@@ -491,8 +491,13 @@ inline static REBOOL Fulfilling_Last_Argument(struct Reb_Frame *f) {
                         goto next_param;
                     }
                 }
-                else
-                    assert(IS_VARARGS(pickup)); // for later pickups
+                else {
+                    assert(
+                        IS_VARARGS(pickup) // for later pickups
+                        || IS_SET_WORD(pickup) // pending SET-WORD!
+                        || IS_SET_PATH(pickup) // pending SET-PATH!
+                    );
+                }
 
                 --pickup;
             } while (pickup != DS_AT(f->dsp_orig));
@@ -541,13 +546,13 @@ inline static REBOOL Fulfilling_Last_Argument(struct Reb_Frame *f) {
         ++param;
     }
 
-    if (pickup != EMPTY_BLOCK) { // get previous pickup candidate (or bottom)
+    if (pickup == NULL || pickup == EMPTY_BLOCK)
+        pickup = DS_TOP; // get first pickup candidate (may be stack bottom)
+    else {
     next_pickup:
         assert(IS_VARARGS(pickup));
-        --pickup;
+        --pickup; // get previous pickup candidate (or bottom)
     }
-    else
-        pickup = DS_TOP; // get first pickup candidate (may be stack bottom)
 
     // Figure out if candidate is actual pickup, and keep stepping backwards
     // in the stack until it is exhausted or pickup is found.
@@ -557,7 +562,11 @@ inline static REBOOL Fulfilling_Last_Argument(struct Reb_Frame *f) {
             param = pickup->payload.varargs.param;
             goto next_param;
         }
-        assert(IS_WORD(pickup));
+        assert(
+            IS_WORD(pickup)
+            || IS_SET_WORD(pickup)
+            || IS_SET_PATH(pickup)
+        );
     }
 
     return TRUE; // never found another arg to be fulfilled after current
