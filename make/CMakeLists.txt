@@ -562,6 +562,7 @@ set (GENERATED_CORE_HEADER
     )
 
 if (R3_WITH_TCC)
+    enable_language(ASM)
     if (XCODE) #Xcode has problem with EXCLUDE_FROM_ALL
         add_subdirectory(${TCC_DIR} ${CMAKE_CURRENT_BINARY_DIR}/tcc)
     else ()
@@ -612,13 +613,14 @@ if (R3_WITH_TCC)
         #
         set(TCC_EXE "tcc")
 
-        list(APPEND TCC_DEPENDS "tcc;libtcc1")
+        list(APPEND TCC_DEPENDS "tcc")
     else () #cross-compile
         set(TCC_EXE ${CMAKE_CURRENT_BINARY_DIR}/cross-tcc)
         if (NOT EXISTS ${TCC_EXE})
             message (FATAL_ERROR "Can't find tcc at: ${TCC_EXE}")
         endif ()
     endif ()
+    list(APPEND TCC_DEPENDS "r3_libtcc1")
 
     if (WIN32)
         list(APPEND tcc_c_flag_list "-I${TCC_DIR}/win32/include")
@@ -737,7 +739,12 @@ else ()
 endif ()
 
 add_library(libr3_core_core OBJECT ${CORE_SOURCE} ${GENERATED_CORE_SOURCE} ${GENERATED_CORE_HEADER} ${GENERATED_OS_SOURCE})
-add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> ${OS_SOURCE})
+
+if(R3_WITH_TCC)
+    add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> $<TARGET_OBJECTS:r3_libtcc1> ${OS_SOURCE})
+else()
+    add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> ${OS_SOURCE})
+endif()
 
 target_include_directories(libr3_core_core PUBLIC
         ${TOP_GENERATED_SRC_DIR}/include

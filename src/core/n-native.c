@@ -63,6 +63,11 @@
 
 extern const REBYTE core_header_source[];
 extern const void *rebol_symbols[];
+extern
+#ifdef __cplusplus
+"C"
+#endif
+const void *r3_libtcc1_symbols[];
 
 #define CHAR_HEAD(x) cs_cast(BIN_HEAD(x))
 
@@ -576,6 +581,13 @@ REBNATIVE(compile)
     for (; *sym != NULL; sym += 2) {
         if (tcc_add_symbol(state, cast(const char*, *sym), *(sym + 1)) < 0)
             fail (Error(RE_TCC_RELOCATE));
+    }
+
+    // Add symbols in libtcc1, to avoid bundling with libtcc1.a
+    sym = &r3_libtcc1_symbols[0];
+    for (; *sym != NULL; sym += 2) {
+        if (tcc_add_symbol(state, cast(const char*, *sym), *(sym + 1)) < 0)
+            fail(Error(RE_TCC_RELOCATE));
     }
 
     if ((err = add_path(
