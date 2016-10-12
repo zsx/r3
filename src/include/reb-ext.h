@@ -77,47 +77,25 @@
 #include "reb-defs.h"
 #include "ext-types.h"
 
+// !!! Going forward in terms of the "RL_" API (for those who do not have
+// access to the sensitive internal details of the interpreter), it will only
+// speak in terms of REBVALs.  So instead of proxying the volatile stack-based
+// `struct Reb_Frame *`, the same protections as of a FRAME! will be given
+// in the evaluator.  (e.g. Through the REBVAL it will be possible to tell if
+// the frame is off the stack and `fail()` instead of crashing.)
+//
+// (Right now this concept is in its early stages, so there are still direct
+// exports of subclasses of REBSER and other things that are too bit fiddly
+// to be putting in the non-internal API.  This will be adapted over time as
+// the API develops.)
+//
+// Note that REBVAL is "opaque" as far as the RL_API clients know, and they
+// can only extract and adjust properties through the API.  However, these
+// pointers are to legitimate REBVALs.
+//
+typedef REBVAL RXIARG;
+typedef REBVAL RXIFRM;
 
-// Value structure (for passing args to and from):
-typedef union rxi_arg_val {
-    void *addr;
-    i64 int64;
-    double dec64;
-    REBXYF pair;
-    REBYTE bytes[8];
-    struct {
-        i32 int32a;
-        i32 int32b;
-    } i2;
-    struct {
-        REBD32 dec32a;
-        REBD32 dec32b;
-    } d2;
-    struct {
-        REBSER *series;
-        u32 index;
-    } sri;
-    REBSER *context; // !!! never assigned, seems to expect `series` overlap
-    struct {
-        REBSER *image;
-        int width:16;
-        int height:16;
-    } iwh;
-} RXIARG;
-
-// For direct access to arg array:
-#define RXI_COUNT(a)    (a[0].bytes[0])
-#define RXI_TYPE(a,n)   (a[0].bytes[n])
-#define RXI_COLOR_TUPLE(a) \
-    (TO_RGBA_COLOR(a.bytes[1], a.bytes[2], a.bytes[3], a.bytes[0] > 3 \
-        ? a.bytes[4] \
-        : 0xff)) //always RGBA order
-
-// Command function call frame:
-#define RXIFRM_MAX_ARGS 8
-typedef struct rxi_cmd_frame {
-    RXIARG rxiargs[RXIFRM_MAX_ARGS]; // arg values (64 bits each)
-} RXIFRM;
 
 typedef struct rxi_cmd_context {
     void *envr;     // for holding a reference to your environment
@@ -126,42 +104,85 @@ typedef struct rxi_cmd_context {
 } REBCEC;
 
 typedef unsigned char REBRXT;
-typedef int (*RXICAL)(int cmd, RXIFRM *args, REBCEC *ctx);
+typedef int (*RXICAL)(int cmd, const REBVAL *frame, REBCEC *ctx);
 
 
-// Access macros (indirect access via RXIFRM pointer):
-#define RXA_ARG(f,n)    ((f)->rxiargs[n])
-#define RXA_COUNT(f)    (RXA_ARG(f,0).bytes[0]) // number of args
-#define RXA_TYPE(f,n)   (RXA_ARG(f,0).bytes[n]) // types (of first 7 args)
-#define RXA_REF(f,n)    (RXA_ARG(f,n).i2.int32a)
+#define RXA_COUNT(f) \
+    RL_FRM_NUM_ARGS(f)
 
-#define RXA_INT64(f,n)  (RXA_ARG(f,n).int64)
-#define RXA_INT32(f,n)  (i32)(RXA_ARG(f,n).int64)
-#define RXA_DEC64(f,n)  (RXA_ARG(f,n).dec64)
-#define RXA_LOGIC(f,n)  (RXA_ARG(f,n).i2.int32a)
-#define RXA_CHAR(f,n)   (RXA_ARG(f,n).i2.int32a)
-#define RXA_TIME(f,n)   (RXA_ARG(f,n).int64)
-#define RXA_DATE(f,n)   (RXA_ARG(f,n).i2.int32a)
-#define RXA_WORD(f,n)   (RXA_ARG(f,n).i2.int32a)
-#define RXA_LOG_PAIR(f,n) \
-    {LOG_COORD_X(RXA_ARG(f,n).pair.x), LOG_COORD_Y(RXA_ARG(f,n).pair.y)}
-#define RXA_PAIR(f,n)   (RXA_ARG(f,n).pair)
-#define RXA_TUPLE(f,n)  (RXA_ARG(f,n).bytes)
-#define RXA_SERIES(f,n) (RXA_ARG(f,n).sri.series)
-#define RXA_INDEX(f,n)  (RXA_ARG(f,n).sri.index)
-#define RXA_HANDLE(f,n) (RXA_ARG(f,n).addr)
-#define RXA_OBJECT(f,n) (RXA_ARG(f,n).context)
-#define RXA_MODULE(f,n) (RXA_ARG(f,n).context)
-#define RXA_IMAGE(f,n)  (RXA_ARG(f,n).iwh.image)
+#define RXA_ARG(f,n) \
+    RL_FRM_ARG((f), (n))
+
+#define RXA_REF(f,n) \
+    RL_VAL_LOGIC(RL_FRM_ARG((f), (n)))
+    
+#define RXA_TYPE(f,n) \
+    RL_VAL_TYPE(RL_FRM_ARG((f), (n)))
+
+#define RXA_INT64(f,n) \
+    RL_VAL_INT64(RL_FRM_ARG((f), (n)))
+
+#define RXA_INT32(f,n) \
+    RL_VAL_INT32(RL_FRM_ARG((f), (n)))
+
+#define RXA_DEC64(f,n) \
+    RL_VAL_DECIMAL(RL_FRM_ARG((f), (n)))
+
+#define RXA_LOGIC(f,n) \
+    RL_VAL_LOGIC(RL_FRM_ARG((f), (n)))
+
+#define RXA_CHAR(f,n) \
+    RL_VAL_CHAR(RL_FRM_ARG((f), (n)))
+
+#define RXA_TIME(f,n) \
+    RL_VAL_TIME(RL_FRM_ARG((f), (n)))
+
+#define RXA_DATE(f,n) \
+    RL_VAL_DATE(RL_FRM_ARG((f), (n)))
+
+// !!! See notes on RL_Val_Word_Canon_Or_Logic
+#define RXA_WORD(f,n) \
+    RL_VAL_WORD_CANON_OR_LOGIC(RL_FRM_ARG((f), (n)))
+
+#define RXA_PAIR(f,n) \
+    RL_FRM_ARG((f), (n)) // no "pair" object, just return the value
+
+#define RXA_TUPLE(f,n) \
+    RL_VAL_TUPLE_DATA(RL_FRM_ARG((f), (n)))
+
+#define RXA_SERIES(f,n) \
+    RL_VAL_SERIES(RL_FRM_ARG((f), (n)))
+
+#define RXA_INDEX(f,n) \
+    RL_VAL_INDEX(RL_FRM_ARG((f), (n)))
+
+#define RXA_HANDLE(f,n) \
+    RL_VAL_HANDLE_DATA(RL_FRM_ARG((f), (n)))
+
+#define RXA_OBJECT(f,n) \
+    RL_VAL_CONTEXT(RL_FRM_ARG((f), (n)))
+
+#define RXA_IMAGE(f,n) \
+    RL_VAL_SERIES(RL_FRM_ARG((f), (n)))
+
 #define RXA_IMAGE_BITS(f,n) \
-    cast(REBYTE *, RL_SERIES((RXA_ARG(f,n).iwh.image), RXI_SER_DATA))
-#define RXA_IMAGE_WIDTH(f,n)  (RXA_ARG(f,n).iwh.width)
-#define RXA_IMAGE_HEIGHT(f,n) (RXA_ARG(f,n).iwh.height)
+    cast(REBYTE*, RL_SERIES(RXA_IMAGE(f,n), RXI_SER_DATA))
+
+#define RXA_IMAGE_WIDTH(f,n) \
+    RL_VAL_IMAGE_WIDE(RL_FRM_ARG((f), (n)))
+
+#define RXA_IMAGE_HEIGHT(f,n) \
+    RL_VAL_IMAGE_HIGH(RL_FRM_ARG((f), (n)))
+    
 #define RXA_COLOR_TUPLE(f,n) \
     (TO_RGBA_COLOR(RXA_TUPLE(f,n)[1], RXA_TUPLE(f,n)[2], RXA_TUPLE(f,n)[3], \
         RXA_TUPLE(f,n)[0] > 3 ? RXA_TUPLE(f,n)[4] : 0xff)) //always RGBA order
 
-#define RXI_LOG_PAIR(v) {LOG_COORD_X(v.pair.x) , LOG_COORD_Y(v.pair.y)}
+#define RXI_LOG_PAIR(v) \
+    {LOG_COORD_X(RL_VAL_PAIR_X_FLOAT(v)), LOG_COORD_Y(RL_VAL_PAIR_Y_FLOAT(v))}
+
+#define RXA_LOG_PAIR(f,n) \
+    RXI_LOG_PAIR(RL_FRM_ARG((f), (n)))
 
 // Command function return values:
 enum rxi_return {
@@ -171,7 +192,6 @@ enum rxi_return {
     RXR_FALSE,
 
     RXR_VALUE,
-    RXR_BLOCK,
     RXR_ERROR,
     RXR_BAD_ARGS,
     RXR_NO_COMMAND,

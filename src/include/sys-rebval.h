@@ -111,15 +111,17 @@
 // trick of NOT_END_MASK.  It indicates the slot is "REBVAL sized", and can
 // be written into--including to be written with SET_END().
 //
+// Originally it was just for the debug build, to make it safer to use the
+// implementation trick of NOT_END_MASK (so that clients would not try to write
+// a full REBVAL onto a "double-duty" END marker.)  Then it became useful for
+// the release build as well, to distinguish "doubular" REBSER nodes (holders
+// for two REBVALs in the same pool as ordinary REBSERs) from an ordinary
+// REBSER node, as they will have the cell mask clear in their node header.
+//
 // It's again a strategic choice--the 2nd lowest bit and in the negative.
 // This means any REBUPT value whose % 4 within a container doing
 // double-duty as an implicit terminator for the contained values can
 // trigger an alert if the values try to overwrite it.
-//
-// Because this is set on *all* writable value cells, it means that it can
-// also be used to distinguish "doubular" REBSER nodes (holders for two
-// REBVALs in the same pool as ordinary REBSERs) from an ordinary REBSER
-// node, as they will have the cell mask clear.
 //
 #define CELL_MASK \
     ((REBUPT)0x02) // <-- don't use `cast()`...superfluous here, slows debug

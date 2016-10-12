@@ -67,7 +67,7 @@ static REBSTR* *core_ext_words;
 // 
 // Core command extension dispatcher.
 //
-RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
+RXIEXT int RXD_Core(int cmd, const REBVAL *frm, REBCEC *data)
 {
     switch (cmd) {
 
@@ -120,7 +120,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             error = lodepng_encode(
                 &buffer, &buffersize,
                 cast(REBYTE *, RL_SERIES(
-                    RXA_ARG(frm,1).iwh.image, RXI_SER_DATA)
+                    RL_VAL_SERIES(RL_FRM_ARG(frm, 1)), RXI_SER_DATA)
                 ),
                 w, h,
                 &state
@@ -143,62 +143,13 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             RL_SET_SERIES_LEN(binary, buffersize);
 
             //setup returned binary! value
-            RXA_TYPE(frm,1) = RXT_BINARY;
-            RXA_SERIES(frm,1) = binary;
-            RXA_INDEX(frm,1) = 0;
+            RL_VAL_RESET(RL_FRM_ARG(frm, 1), RXT_BINARY);
+            RL_INIT_VAL_SERIES(RL_FRM_ARG(frm, 1), binary);
+            RL_INIT_VAL_INDEX(RL_FRM_ARG(frm, 1), 0);
             free(buffer);
             return RXR_VALUE;
         }
         break;
-
-/*
-    No GUI in Ren/C or Rebol Core
-
-    case CMD_CORE_REQ_DIR:
-        {
-#ifdef TO_WINDOWS
-            REBCHR *title;
-            REBSER *string;
-            REBCHR *stringBuffer;
-            REBCHR *path = NULL;
-            REBOOL osTitle = FALSE;
-            REBOOL osPath = FALSE;
-
-            //allocate new string!
-            string = RL_Make_String(MAX_PATH, TRUE);
-            stringBuffer = (REBCHR*)RL_SERIES(string, RXI_SER_DATA);
-
-
-            if (RXA_TYPE(frm, 2) == RXT_STRING) {
-                osTitle = As_OS_Str(RXA_SERIES(frm, 2),  (REBCHR**)&title);
-            } else {
-                title = L"Please, select a directory...";
-            }
-
-            if (RXA_TYPE(frm, 4) == RXT_STRING) {
-                osPath = As_OS_Str(RXA_SERIES(frm, 4),  (REBCHR**)&path);
-            }
-
-            if (OS_Request_Dir(title , &stringBuffer, path)){
-                //hack! - will set the tail to string length
-                *((REBCNT*)(string+1)) = OS_STRLEN(stringBuffer);
-
-                RXA_TYPE(frm, 1) = RXT_STRING;
-                RXA_SERIES(frm,1) = string;
-                RXA_INDEX(frm,1) = 0;
-            } else {
-                RXA_TYPE(frm, 1) = RXT_NONE;
-            }
-
-            //don't let the strings leak!
-            if (osTitle) OS_FREE(title);
-            if (osPath) OS_FREE(path);
-
-            return RXR_VALUE;
-#endif
-        }
-        break;
-*/
 
         case CMD_CORE_RC4:
         {
@@ -214,13 +165,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 if (RXA_TYPE(frm, 5) == RXT_BLANK) {
                     //destroy context
                     OS_FREE(ctx);
-
-                    // is an integer, and using 1 instead of TRUE helps with a
-                    // build setting that differentiates int from REBOOL
-                    //
-                    RXA_LOGIC(frm, 1) = 1;
-                    RXA_TYPE(frm, 1) = RXT_LOGIC;
-                    return RXR_VALUE;
+                    return RXR_TRUE;
                 }
 
                 //get data
@@ -242,8 +187,8 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                     RL_SERIES(key, RXI_SER_TAIL) - RXA_INDEX(frm, 2)
                 );
 
-                RXA_TYPE(frm, 1) = RXT_HANDLE;
-                RXA_HANDLE(frm,1) = ctx;
+                RL_VAL_RESET(RL_FRM_ARG(frm, 1), RXT_HANDLE);
+                RL_SET_HANDLE_DATA(RL_FRM_ARG(frm, 1), ctx);
             }
 
             return RXR_VALUE;
@@ -267,13 +212,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 if (RXA_TYPE(frm, 6) == RXT_BLANK) {
                     //destroy context
                     OS_FREE(ctx);
-
-                    // is an integer, and using 1 instead of TRUE helps with a
-                    // build setting that differentiates int from REBOOL
-                    //
-                    RXA_LOGIC(frm, 1) = 1;
-                    RXA_TYPE(frm, 1) = RXT_LOGIC;
-                    return RXR_VALUE;
+                    return RXR_TRUE;
                 }
 
                 //get data
@@ -320,10 +259,9 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 RL_SET_SERIES_LEN(binaryOut, pad_len);
 
                 //setup returned binary! value
-                RXA_TYPE(frm, 1) = RXT_BINARY;
-                RXA_SERIES(frm, 1) = binaryOut;
-                RXA_INDEX(frm, 1) = 0;
-
+                RL_VAL_RESET(RL_FRM_ARG(frm, 1), RXT_BINARY);
+                RL_INIT_VAL_SERIES(RL_FRM_ARG(frm, 1), binaryOut);
+                RL_INIT_VAL_INDEX(RL_FRM_ARG(frm, 1), 0);
             }
             else if (RXA_TYPE(frm, 2) == RXT_BINARY)
             {
@@ -364,8 +302,8 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 if (RXA_WORD(frm, 7)) // decrypt refinement
                     AES_convert_key(ctx);
 
-                RXA_TYPE(frm, 1) = RXT_HANDLE;
-                RXA_HANDLE(frm,1) = ctx;
+                RL_VAL_RESET(RL_FRM_ARG(frm, 1), RXT_HANDLE);
+                RL_SET_HANDLE_DATA(RL_FRM_ARG(frm, 1), ctx);
             }
 
             return RXR_VALUE;
@@ -389,7 +327,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             bigint *data_bi;
             RSA_CTX *rsa_ctx = NULL;
 
-            if (RXA_WORD(frm, 5)) { //padding refinement
+            if (RXA_REF(frm, 5)) { //padding refinement
                 padding = LOGICAL(RXA_TYPE(frm, 6) != RXT_BLANK);
             }
 
@@ -400,12 +338,12 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             {
                 if (type == RXT_BINARY){
                     objData = cast(REBYTE *, RL_SERIES(
-                        val.sri.series, RXI_SER_DATA)
-                    ) + val.sri.index;
+                        RL_VAL_SERIES(&val), RXI_SER_DATA)
+                    ) + RL_VAL_INDEX(&val);
 
                     objData_len =
-                        RL_SERIES(val.sri.series, RXI_SER_TAIL)
-                        - val.sri.index;
+                        RL_SERIES(RL_VAL_SERIES(&val), RXI_SER_TAIL)
+                        - RL_VAL_INDEX(&val);
 
                     switch (RL_FIND_WORD(core_ext_words, *w))
                     {
@@ -450,7 +388,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
 
             if (!n || !e) return RXR_BLANK;
 
-            if (RXA_WORD(frm, 4)) // private refinement
+            if (RXA_REF(frm, 4)) // private refinement
             {
                 if (!d) return RXR_BLANK;
                 RSA_priv_key_new(
@@ -467,7 +405,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             data_bi = bi_import(bi_ctx, dataBuffer, data_len);
 
             //allocate new binary!
-            binary = RL_Make_String(binary_len, FALSE);
+            binary = RL_MAKE_STRING(binary_len, FALSE);
             binaryBuffer = (REBYTE *)RL_SERIES(binary, RXI_SER_DATA);
 
             if (RXA_WORD(frm, 3)) // decrypt refinement
@@ -477,7 +415,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                     rsa_ctx,
                     dataBuffer,
                     binaryBuffer,
-                    RXA_WORD(frm, 4),
+                    (RXA_WORD(frm, 4) != NULL) ? 1 : 0,
                     padding ? 1 : 0
                 );
 
@@ -493,7 +431,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                         dataBuffer,
                         data_len,
                         binaryBuffer,
-                        RXA_WORD(frm, 4),
+                        (RXA_WORD(frm, 4) != NULL) ? 1 : 0,
                         padding ? 1 : 0
                     )
                 ) {
@@ -506,9 +444,9 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             RL_SET_SERIES_LEN(binary, binary_len);
 
             //setup returned binary! value
-            RXA_TYPE(frm,1) = RXT_BINARY;
-            RXA_SERIES(frm,1) = binary;
-            RXA_INDEX(frm,1) = 0;
+            RL_VAL_RESET(RL_FRM_ARG(frm, 1), RXT_BINARY);
+            RL_INIT_VAL_SERIES(RL_FRM_ARG(frm, 1), binary);
+            RL_INIT_VAL_INDEX(RL_FRM_ARG(frm, 1), 0);
             bi_free(rsa_ctx->bi_ctx, data_bi);
             RSA_free(rsa_ctx);
             return RXR_VALUE;
@@ -532,23 +470,23 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 if (type == RXT_BINARY)
                 {
                     objData = cast(REBYTE*, RL_SERIES(
-                        val.sri.series, RXI_SER_DATA
-                    )) + val.sri.index;
+                        RL_VAL_SERIES(&val), RXI_SER_DATA
+                    )) + RL_VAL_INDEX(&val);
 
                     switch (RL_FIND_WORD(core_ext_words, *w))
                     {
                         case W_CORE_P:
                             dh_ctx.p = objData;
                             dh_ctx.len = RL_SERIES(
-                                val.sri.series, RXI_SER_TAIL
-                            ) - val.sri.index;
+                                RL_VAL_SERIES(&val), RXI_SER_TAIL
+                            ) - RL_VAL_INDEX(&val);
                             break;
 
                         case W_CORE_G:
                             dh_ctx.g = objData;
                             dh_ctx.glen = RL_SERIES(
-                                val.sri.series, RXI_SER_TAIL
-                            ) - val.sri.index;
+                                RL_VAL_SERIES(&val), RXI_SER_TAIL
+                            ) - RL_VAL_INDEX(&val);
                             break;
                     }
                 }
@@ -559,32 +497,34 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
 
             if (!dh_ctx.p || !dh_ctx.g) break;
 
-            //allocate new binary! blocks for priv/pub keys
-            priv_key.sri.series =
-                RL_Make_String(dh_ctx.len, FALSE);
-            priv_key.sri.index = 0;
-
+            // allocate new binary! block for private key
+            //
+            RL_VAL_RESET(&priv_key, RXT_BINARY);
+            RL_INIT_VAL_SERIES(&priv_key, RL_MAKE_STRING(dh_ctx.len, FALSE));
+            RL_INIT_VAL_INDEX(&priv_key, 0);
             dh_ctx.x = cast(REBYTE*, RL_SERIES(
-                priv_key.sri.series, RXI_SER_DATA)
+                RL_VAL_SERIES(&priv_key), RXI_SER_DATA)
             );
             memset(dh_ctx.x, 0, dh_ctx.len);
-            RL_SET_SERIES_LEN(priv_key.sri.series, dh_ctx.len);
+            RL_SET_SERIES_LEN(RL_VAL_SERIES(&priv_key), dh_ctx.len);
 
-            pub_key.sri.series = RL_Make_String(dh_ctx.len, FALSE);
-            pub_key.sri.index = 0;
-
+            // allocate new binary! block for public key
+            //
+            RL_VAL_RESET(&pub_key, RXT_BINARY);
+            RL_INIT_VAL_SERIES(&pub_key, RL_Make_String(dh_ctx.len, FALSE));
+            RL_INIT_VAL_INDEX(&pub_key, 0);
             dh_ctx.gx = cast(REBYTE*, RL_SERIES(
-                pub_key.sri.series, RXI_SER_DATA)
+                RL_VAL_SERIES(&pub_key), RXI_SER_DATA)
             );
             memset(dh_ctx.gx, 0, dh_ctx.len);
-            RL_SET_SERIES_LEN(pub_key.sri.series, dh_ctx.len);
+            RL_SET_SERIES_LEN(RL_VAL_SERIES(&pub_key), dh_ctx.len);
 
             //generate keys
             DH_generate_key(&dh_ctx);
 
             //set the object fields
-            RL_Set_Field(obj, core_ext_words[W_CORE_PRIV_KEY], priv_key, RXT_BINARY);
-            RL_Set_Field(obj, core_ext_words[W_CORE_PUB_KEY], pub_key, RXT_BINARY);
+            RL_SET_FIELD(obj, core_ext_words[W_CORE_PRIV_KEY], priv_key, RXT_BINARY);
+            RL_SET_FIELD(obj, core_ext_words[W_CORE_PUB_KEY], pub_key, RXT_BINARY);
 
             break;
         }
@@ -610,16 +550,16 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 if (type == RXT_BINARY)
                 {
                     objData = cast(REBYTE *, RL_SERIES(
-                        val.sri.series, RXI_SER_DATA)
-                    ) + val.sri.index;
+                        RL_VAL_SERIES(&val), RXI_SER_DATA)
+                    ) + RL_VAL_INDEX(&val);
 
                     switch(RL_FIND_WORD(core_ext_words, *w))
                     {
                         case W_CORE_P:
                             dh_ctx.p = objData;
                             dh_ctx.len = RL_SERIES(
-                                val.sri.series, RXI_SER_TAIL
-                            ) - val.sri.index;
+                                RL_VAL_SERIES(&val), RXI_SER_TAIL
+                            ) - RL_VAL_INDEX(&val);
                             break;
                         case W_CORE_PRIV_KEY:
                             dh_ctx.x = objData;
@@ -648,9 +588,9 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
 
 
             //setup returned binary! value
-            RXA_TYPE(frm,1) = RXT_BINARY;
-            RXA_SERIES(frm,1) = binary;
-            RXA_INDEX(frm,1) = 0;
+            RL_VAL_RESET(RL_FRM_ARG(frm, 1), RXT_BINARY);
+            RL_INIT_VAL_SERIES(RL_FRM_ARG(frm, 1), binary);
+            RL_INIT_VAL_INDEX(RL_FRM_ARG(frm, 1), 0);
             return RXR_VALUE;
         }
 
@@ -664,6 +604,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
 
     return RXR_VOID;
 }
+
 
 //
 //  Init_Core_Ext: C

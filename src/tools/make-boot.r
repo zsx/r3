@@ -651,6 +651,7 @@ extern "C" ^{
 #endif
 
 extern const REBRXT Reb_To_RXT[REB_MAX];
+extern const enum Reb_Kind RXT_To_Reb[RXT_MAX];
 
 /***********************************************************************
 **

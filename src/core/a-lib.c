@@ -54,13 +54,11 @@ REBOL_HOST_LIB *Host_Lib;
 extern "C" {
 #endif
 extern const REBRXT Reb_To_RXT[REB_MAX];
+extern const enum Reb_Kind RXT_To_Reb[RXT_MAX];
+
 #if defined(__cplusplus)
 }
 #endif
-extern void Value_To_RXI(RXIARG *arg, const REBVAL *val); // f-extension.c
-extern void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type); // f-extension.c
-extern void RXI_To_Block(RXIFRM *frm, REBVAL *out); // f-extension.c
-
 
 //
 //  RL_Version: C
@@ -425,8 +423,10 @@ RL_API int RL_Do_String(
     int *exit_status,
     const REBYTE *text,
     REBCNT flags,
-    RXIARG *out
+    REBVAL *out
 ) {
+    INIT_CELL_IF_DEBUG(out);
+
     // assumes it can only be run at the topmost level where
     // the data stack is completely empty.
     //
@@ -448,11 +448,7 @@ RL_API int RL_Do_String(
         if (ERR_NUM(error) == RE_HALT)
             return -1; // !!! Revisit hardcoded #
 
-        if (out)
-            Value_To_RXI(out, last);
-        else
-            DS_PUSH(last);
-
+        *out = *last;
         return -cast(int, ERR_NUM(error));
     }
 
@@ -494,12 +490,11 @@ RL_API int RL_Do_String(
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
-    if (out)
-        Value_To_RXI(out, &result);
-    else
-        DS_PUSH(&result);
+    *out = result;
 
-    return Reb_To_RXT[VAL_TYPE(&result)];
+    return IS_VOID(&result)
+        ? 0
+        : Reb_To_RXT[VAL_TYPE(&result)];
 }
 
 
@@ -526,7 +521,7 @@ RL_API int RL_Do_Binary(
     REBINT length,
     REBCNT flags,
     REBCNT key,
-    RXIARG *out
+    REBVAL *out
 ) {
     int maybe_rxt; // could be REBRXT, or negative number for error :-/
 
@@ -545,9 +540,9 @@ RL_API int RL_Do_Binary(
 
 //
 //  RL_Do_Commands: C
-// 
+//
 // Evaluate a block with a command context passed in.
-// 
+//
 // Returns:
 //     Nothing
 // Arguments:
@@ -1095,13 +1090,15 @@ RL_API u32 RL_Set_Char(REBSER *series, u32 index, u32 chr)
 //     index - index of the value in the block (zero based)
 //     result - set to the value of the field
 //
-RL_API int RL_Get_Value(REBARR *array, u32 index, RXIARG *result)
+RL_API int RL_Get_Value(REBARR *array, u32 index, REBVAL *result)
 {
     RELVAL *value;
     if (index >= ARR_LEN(array)) return 0;
     value = ARR_AT(array, index);
-    Value_To_RXI(result, KNOWN(value)); // !!! Only have array, no specifier!
-    return Reb_To_RXT[VAL_TYPE(value)];
+    *result = *KNOWN(value); // !!! Only have array, no specifier!
+    return IS_VOID(value)
+        ? 0
+        : Reb_To_RXT[VAL_TYPE(value)];
 }
 
 
@@ -1118,11 +1115,8 @@ RL_API int RL_Get_Value(REBARR *array, u32 index, RXIARG *result)
 //     val  - new value for field
 //     type - datatype of value
 //
-RL_API REBOOL RL_Set_Value(REBARR *array, u32 index, RXIARG val, int type)
+RL_API REBOOL RL_Set_Value(REBARR *array, u32 index, REBVAL value, int type)
 {
-    REBVAL value;
-    RXI_To_Value(&value, &val, type);
-
     if (index >= ARR_LEN(array)) {
         Append_Value(array, &value);
         return TRUE;
@@ -1184,7 +1178,7 @@ RL_API REBSTR* *RL_Words_Of_Object(REBSER *obj)
 //     word - global word identifier (integer)
 //     result - gets set to the value of the field
 //
-RL_API int RL_Get_Field(REBSER *obj, REBSTR *word, RXIARG *result)
+RL_API REBRXT RL_Get_Field(REBSER *obj, REBSTR *word, REBVAL *result)
 {
     if (word == NULL) return 0; // used to react to SYM_0 by returning 0
 
@@ -1193,10 +1187,11 @@ RL_API int RL_Get_Field(REBSER *obj, REBSTR *word, RXIARG *result)
     REBCNT index = Find_Canon_In_Context(context, STR_CANON(word), FALSE);
     if (index == 0) return 0;
 
-    REBVAL *value = CTX_VAR(context, index);
-    Value_To_RXI(result, value);
+    *result = *CTX_VAR(context, index);
 
-    return Reb_To_RXT[VAL_TYPE(value)];
+    return IS_VOID(result)
+        ? 0
+        : Reb_To_RXT[VAL_TYPE(result)];
 }
 
 
@@ -1213,7 +1208,7 @@ RL_API int RL_Get_Field(REBSER *obj, REBSTR *word, RXIARG *result)
 //     val  - new value for field
 //     type - datatype of value
 //
-RL_API int RL_Set_Field(REBSER *obj, REBSTR *word_id, RXIARG val, int type)
+RL_API int RL_Set_Field(REBSER *obj, REBSTR *word_id, REBVAL val, int type)
 {
     REBCTX *context = AS_CONTEXT(obj);
 
@@ -1223,7 +1218,7 @@ RL_API int RL_Set_Field(REBSER *obj, REBSTR *word_id, RXIARG val, int type)
     if (GET_VAL_FLAG(CTX_KEY(context, index), TYPESET_FLAG_LOCKED))
         return 0;
 
-    RXI_To_Value(CTX_VAR(context, index), &val, type);
+    *CTX_VAR(context, index) = val;
 
     return type;
 }
@@ -1302,6 +1297,271 @@ RL_API REBCNT RL_Encode_UTF8(
         (unicode ? OPT_ENC_UNISRC : 0) | (crlf_to_lf ? OPT_ENC_CRLF : 0)
     );
 }
+
+
+//
+// !!! These routines are exports of the macros and inline functions which
+// rely upon internal definitions that RL_XXX clients are not expected to have
+// available.  While this implementation file can see inside the definitions
+// of `struct Reb_Value`, the caller has an opaque definition.
+//
+// These are transitional as part of trying to get rid of RXIARG, RXIFRM, and
+// COMMAND! in general.  Though it is not a good "API design" to just take
+// any internal function you find yourself needing in a client and export it
+// here with "RL_" in front of the name, it's at least understandable--and
+// not really introducing any routines that don't already have to exist and
+// be tested.
+//
+// However, long term the external "C" user API will not speak about REBSERs.
+// It will operate purely on the level of REBVAL*, where those values will
+// either be individually managed (as "pairings" under GC control) or have
+// their lifetime controlled other ways.  That layer of API is of secondary
+// importance to refining the internal API (also used by "user natives")
+// as well as the Ren-Cpp API...although it will use several of the same
+// mechanisms that Ren-Cpp does to achieve its goals.
+//
+
+inline static REBFRM *Extract_Live_Rebfrm_May_Fail(const REBVAL *frame) {
+    if (!IS_FRAME(frame))
+        fail(Error(RE_MISC)); // !!! improve
+
+    REBCTX *frame_ctx = VAL_CONTEXT(frame);
+    if (GET_CTX_FLAG(frame_ctx, CONTEXT_FLAG_STACK))
+        if (!GET_CTX_FLAG(frame_ctx, SERIES_FLAG_ACCESSIBLE))
+            fail (Error(RE_MISC)); // !!! improve
+
+    REBFRM *f = CTX_FRAME(frame_ctx);
+    assert(Is_Any_Function_Frame(f));
+    assert(NOT(Is_Function_Frame_Fulfilling(f)));
+    return f;
+}
+
+
+//
+//  RL_Frm_Num_Args: C
+//
+RL_API REBCNT RL_Frm_Num_Args(const REBVAL *frame) {
+    REBFRM *f = Extract_Live_Rebfrm_May_Fail(frame);
+    return FRM_NUM_ARGS(f);
+}
+
+//
+//  RL_Frm_Arg: C
+//
+RL_API REBVAL *RL_Frm_Arg(const REBVAL *frame, REBCNT n) {
+    REBFRM *f = Extract_Live_Rebfrm_May_Fail(frame);
+    return FRM_ARG(f, n);
+}
+
+//
+//  RL_Val_Logic: C
+//
+RL_API REBOOL RL_Val_Logic(const REBVAL *v) {
+    return VAL_LOGIC(v);
+}
+
+//
+//  RL_Val_Type: C
+//
+// !!! Among the few concepts from the original host kit API that may make
+// sense, it could be a good idea to abstract numbers for datatypes from the
+// REB_XXX numbering scheme.  So for the moment, REBRXT is being kept as is.
+//
+RL_API REBRXT RL_Val_Type(const REBVAL *v) {
+    return IS_VOID(v)
+        ? 0
+        : Reb_To_RXT[VAL_TYPE(v)];
+}
+
+
+//
+//  RL_Val_Reset: C
+//
+RL_API void RL_Val_Reset(REBVAL *v, REBRXT rxt) {
+    INIT_CELL_IF_DEBUG(v);
+    if (rxt == 0)
+        SET_VOID(v);
+    else
+        VAL_RESET_HEADER(v, RXT_To_Reb[rxt]);
+}
+
+
+//
+//  RL_Val_Update_Header: C
+//
+RL_API void RL_Val_Update_Header(REBVAL *v, REBRXT rxt) {
+    if (rxt == 0)
+        SET_VOID(v);
+    else
+        VAL_RESET_HEADER(v, RXT_To_Reb[rxt]);
+}
+
+
+//
+//  RL_Val_Int64: C
+//
+RL_API REBI64 RL_Val_Int64(const REBVAL *v) {
+    return VAL_INT64(v);
+}
+
+//
+//  RL_Val_Int32: C
+//
+RL_API REBINT RL_Val_Int32(const REBVAL *v) {
+    return VAL_INT32(v);
+}
+
+//
+//  RL_Val_Decimal: C
+//
+RL_API REBDEC RL_Val_Decimal(const REBVAL *v) {
+    return VAL_DECIMAL(v);
+}
+
+//
+//  RL_Val_Char: C
+//
+RL_API REBUNI RL_Val_Char(const REBVAL *v) {
+    return VAL_CHAR(v);
+}
+
+//
+//  RL_Val_Time: C
+//
+RL_API REBI64 RL_Val_Time(const REBVAL *v) {
+    return VAL_TIME(v);
+}
+
+//
+//  RL_Val_Date: C
+//
+RL_API REBINT RL_Val_Date(const REBVAL *v) {
+    return VAL_ALL_BITS(v)[2]; // !!! This is what RXIARGs did.
+}
+
+//
+//  RL_Val_Word_Canon: C
+//
+RL_API REBSTR *RL_Val_Word_Canon(const REBVAL *v) {
+    return VAL_WORD_CANON(v);
+}
+
+
+//  RL_Val_Word_Canon_Or_Logic: C
+//
+// !!! RXA_WORD() was additionally used to test for refinements, and wound up
+// working "on accident".  :-/  Temporary bridge for compatibility:
+// give back a bogus non-NULL pointer.
+//
+// Can't do inline function definitions at the point of RXA_WORD(),
+// only macros, so having another entry point is the safest way until
+// RXA_* is deprecated and deleted.
+//
+RL_API REBSTR *RL_Val_Word_Canon_Or_Logic(const REBVAL *v) {
+    if (VAL_TYPE(v) == REB_LOGIC)
+        return VAL_LOGIC(v) ? Canon(SYM_LOGIC_X) : NULL;
+
+    return RL_Val_Word_Canon(v);
+}
+
+//
+//  RL_Val_Tuple_Data: C
+//
+RL_API REBYTE *RL_Val_Tuple_Data(const REBVAL *v) {
+    return VAL_TUPLE_DATA(m_cast(REBVAL*, v));
+}
+
+//
+//  RL_Val_Series: C
+//
+RL_API REBSER *RL_Val_Series(const REBVAL *v) {
+    return VAL_SERIES(v);
+}
+
+//
+//  RL_Init_Val_Series: C
+//
+RL_API void RL_Init_Val_Series(REBVAL *v, REBSER *s) {
+    INIT_VAL_SERIES(v, s);
+}
+
+//
+//  RL_Val_Index: C
+//
+RL_API REBCNT RL_Val_Index(const REBVAL *v) {
+    return VAL_INDEX(v);
+}
+
+//
+//  RL_Init_Val_Index: C
+//
+RL_API void RL_Init_Val_Index(REBVAL *v, REBCNT i) {
+    VAL_INDEX(v) = i;
+}
+
+//
+//  RL_Val_Handle_Data: C
+//
+RL_API void *RL_Val_Handle_Data(const REBVAL *v) {
+    return VAL_HANDLE_DATA(v);
+}
+
+//
+//  RL_Set_Handle_Data: C
+//
+RL_API void RL_Set_Handle_Data(REBVAL *v, void *p) {
+    v->extra.singular = NULL; // !!! only support "dumb" handles for now
+    SET_HANDLE_DATA(v, p);
+}
+
+//
+//  RL_Val_Context: C
+//
+RL_API REBSER *RL_Val_Context(const REBVAL *v) {
+    return ARR_SERIES(CTX_VARLIST(VAL_CONTEXT(v)));
+}
+
+//
+//  RL_Val_Image_Wide: C
+//
+RL_API REBCNT RL_Val_Image_Wide(const REBVAL *v) {
+    return VAL_IMAGE_WIDE(v);
+}
+
+//
+//  RL_Val_Image_High: C
+//
+RL_API REBCNT RL_Val_Image_High(const REBVAL *v) {
+    return VAL_IMAGE_HIGH(v);
+}
+
+//
+//  RL_Val_Pair_X_Float: C
+//
+// !!! Pairs in R3-Alpha were not actually pairs of arbitrary values; but
+// they were pairs of floats.  This meant their precision did not match either
+// 64-bit integers or 64-bit decimals, because you can't fit two of those in
+// one REBVAL and still have room for a header.  Ren-C changed the mechanics
+// so that two actual values were efficiently stored in a PAIR! via a special
+// kind of GC-able series node (with no further allocation).  Hence you can
+// tell the difference between 1x2, 1.0x2.0, 1x2.0, 1.0x2, etc.
+//
+// Yet the R3-Alpha external interface did not make this distinction, so this
+// API is for compatibility with those extracting floats.
+//
+RL_API float RL_Val_Pair_X_Float(const REBVAL *v) {
+    return VAL_PAIR_X(v);
+}
+
+//
+//  RL_Val_Pair_Y_Float: C
+//
+// !!! See notes on RL_Val_Pair_X_Float
+//
+RL_API float RL_Val_Pair_Y_Float(const REBVAL *v) {
+    return VAL_PAIR_Y(v);
+}
+
 
 
 #include "reb-lib-lib.h"

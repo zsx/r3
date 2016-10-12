@@ -145,6 +145,17 @@
     typedef void REBARR;
     typedef void REBOBJ;
     typedef void REBSTR;
+    typedef void REBFRM;
+
+    // !!! The previous definition of RXIARG let them be stack-instantiated,
+    // and as such their size needed to be known.  However, the API version
+    // of REBVAL* is seeking to use GC cells, not stack ones.  This is a
+    // stopgap until all the routines are changed to speak in pointers,
+    // so callers can allocate stack storage in the meantime...
+    //
+    typedef struct {
+        char opaque[sizeof(REBUPT) * 4];
+    } REBVAL;
 #endif
 
 
