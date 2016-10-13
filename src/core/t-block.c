@@ -514,7 +514,7 @@ static void Trim_Array(REBARR *array, REBCNT index, REBCNT flags)
 
     if (flags & AM_TRIM_TAIL) {
         for (; end >= (index + 1); end--) {
-            if (VAL_TYPE(head + end - 1) > REB_BLANK) break;
+            if (VAL_TYPE(head + end - 1) != REB_BLANK) break;
         }
         Remove_Series(ARR_SERIES(array), end, ARR_LEN(array) - end);
         if (!(flags & AM_TRIM_HEAD) || index >= end) return;
@@ -522,14 +522,14 @@ static void Trim_Array(REBARR *array, REBCNT index, REBCNT flags)
 
     if (flags & AM_TRIM_HEAD) {
         for (; index < end; index++) {
-            if (VAL_TYPE(head + index) > REB_BLANK) break;
+            if (VAL_TYPE(head + index) != REB_BLANK) break;
         }
         Remove_Series(ARR_SERIES(array), out, index - out);
     }
 
     if (flags == 0) {
         for (; index < end; index++) {
-            if (VAL_TYPE(head + index) > REB_BLANK) {
+            if (VAL_TYPE(head + index) != REB_BLANK) {
                 //
                 // Rare case of legal RELVAL bit copying... from one slot in
                 // an array to another in that same array.
