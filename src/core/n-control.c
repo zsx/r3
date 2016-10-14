@@ -1206,7 +1206,7 @@ void Make_Thrown_Exit_Value(
 
         #if !defined(NDEBUG)
             if (LEGACY(OPTIONS_DONT_EXIT_NATIVES))
-                if (NOT(IS_FUNCTION_PLAIN(FUNC_VALUE(f->func))))
+                if (NOT(IS_FUNCTION_INTERPRETED(FUNC_VALUE(f->func))))
                     continue; // R3-Alpha would exit the first user function
         #endif
 

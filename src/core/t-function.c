@@ -101,7 +101,9 @@ void MAKE_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     // code (though round-tripping it via text is not possible in
     // general in any case due to loss of bindings.)
     //
-    REBFUN *fun = Make_Plain_Function_May_Fail(&spec, &body, MKF_ANY_VALUE);
+    REBFUN *fun = Make_Interpreted_Function_May_Fail(
+        &spec, &body, MKF_ANY_VALUE
+    );
 
     *out = *FUNC_VALUE(fun);
 }
@@ -170,7 +172,7 @@ REBTYPE(Function)
             if (IS_FUNCTION_HIJACKER(value))
                 fail (Error(RE_MISC)); // body corrupt, need to recurse
 
-            if (IS_FUNCTION_PLAIN(value)) {
+            if (IS_FUNCTION_INTERPRETED(value)) {
                 //
                 // BODY-OF is an example of user-facing code that needs to be
                 // complicit in the "lie" about the effective bodies of the
@@ -273,7 +275,7 @@ REBNATIVE(func_class_of)
     REBVAL *value = ARG(func);
     REBCNT n;
 
-    if (IS_FUNCTION_PLAIN(value))
+    if (IS_FUNCTION_INTERPRETED(value))
         n = 2;
     else if (IS_FUNCTION_ACTION(value))
         n = 3;

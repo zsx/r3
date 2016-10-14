@@ -924,16 +924,7 @@ done_caching:;
     // Having a level of indirection from the REBVAL bits themself also
     // facilitates the "Hijacker" to change multiple REBVALs behavior.
 
-    if (dispatcher == &Plain_Dispatcher) {
-        if (GET_VAL_FLAG(rootparam, FUNC_FLAG_RETURN))
-            ARR_SERIES(body_holder)->misc.dispatcher = &Returner_Dispatcher;
-        else if (GET_VAL_FLAG(rootparam, FUNC_FLAG_LEAVE))
-            ARR_SERIES(body_holder)->misc.dispatcher = &Voider_Dispatcher;
-        else
-            ARR_SERIES(body_holder)->misc.dispatcher = &Plain_Dispatcher;
-    }
-    else
-        ARR_SERIES(body_holder)->misc.dispatcher = dispatcher;
+    ARR_SERIES(body_holder)->misc.dispatcher = dispatcher;
 
     // To avoid NULL checking when a function is called and looking for the
     // underlying function, put the functions own pointer in if needed
@@ -1010,7 +1001,7 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
     REBARR *fake_body;
     REBVAL *example = NULL;
 
-    assert(IS_FUNCTION(func) && IS_FUNCTION_PLAIN(func));
+    assert(IS_FUNCTION(func) && IS_FUNCTION_INTERPRETED(func));
 
     REBCNT body_index;
     if (GET_VAL_FLAG(func, FUNC_FLAG_RETURN)) {
@@ -1058,7 +1049,7 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 
 
 //
-//  Make_Plain_Function_May_Fail: C
+//  Make_Interpreted_Function_May_Fail: C
 // 
 // This is the support routine behind `MAKE FUNCTION!`, FUNC, and PROC.
 //
@@ -1098,33 +1089,66 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 // not having definitional return has several alternate options for generators
 // that wish to use them.
 // 
-REBFUN *Make_Plain_Function_May_Fail(
+REBFUN *Make_Interpreted_Function_May_Fail(
     const REBVAL *spec,
     const REBVAL *code,
-    REBFLGS flags
+    REBFLGS mkf_flags // MKF_RETURN, MKF_LEAVE, etc.
 ) {
-    if (!IS_BLOCK(spec) || !IS_BLOCK(code))
-        fail (Error_Bad_Func_Def(spec, code));
+    assert(IS_BLOCK(spec));
+    assert(IS_BLOCK(code));
 
     REBFUN *fun = Make_Function(
-        Make_Paramlist_Managed_May_Fail(spec, flags),
-        &Plain_Dispatcher, // may be overridden?
+        Make_Paramlist_Managed_May_Fail(spec, mkf_flags),
+        &Noop_Dispatcher, // will be overwritten if non-NULL body
         NULL // no underlying function, this is fundamental
     );
 
-    // We need to copy the body in order to relativize its references to
-    // args and locals to refer to the parameter list.  Future implementations
-    // might be able to "image" the bindings virtually, and not require this
-    // copy if the input code is read-only.
+    // We look at the *actual* function flags; e.g. the person may have used
+    // the FUNC generator (with MKF_RETURN) but then named a parameter RETURN
+    // which overrides it, so the value won't have FUNC_FLAG_RETURN.
     //
-    REBARR *body_array =
-        (VAL_ARRAY_LEN_AT(code) == 0)
-            ? EMPTY_ARRAY // just reuse empty array if empty, no copy
-            : Copy_And_Bind_Relative_Deep_Managed(
-                code,
-                FUNC_PARAMLIST(fun),
-                TS_ANY_WORD
-            );
+    REBVAL *value = FUNC_VALUE(fun);
+
+    REBARR *body_array;
+    if (VAL_ARRAY_LEN_AT(code) == 0) {
+        if (GET_VAL_FLAG(value, FUNC_FLAG_RETURN)) {
+            //
+            // Since we're bypassing type checking in the dispatcher for
+            // speed, we need to make sure that the return type allows void
+            // (which is all the Noop dispatcher will return).  If not, we
+            // don't want to fail here (it would reveal the optimization)...
+            // just fall back on the Returner_Dispatcher instead.
+            //
+            REBVAL *typeset = FUNC_PARAM(fun, FUNC_NUM_PARAMS(fun));
+            assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
+            if (!TYPE_CHECK(typeset, REB_MAX_VOID))
+                FUNC_DISPATCHER(fun) = &Returner_Dispatcher;
+        }
+
+        body_array = EMPTY_ARRAY; // just reuse empty array if empty, no copy
+    }
+    else {
+        // Body is not empty, so we need to pick the right dispatcher based
+        // on how the output value is to be handled.
+        //
+        if (GET_VAL_FLAG(value, FUNC_FLAG_RETURN))
+            FUNC_DISPATCHER(fun) = &Returner_Dispatcher; // type checks f->out
+        else if (GET_VAL_FLAG(value, FUNC_FLAG_LEAVE))
+            FUNC_DISPATCHER(fun) = &Voider_Dispatcher; // forces f->out void
+        else
+            FUNC_DISPATCHER(fun) = &Unchecked_Dispatcher; // leaves f->out
+
+        // We need to copy the body in order to relativize its references to
+        // args and locals to refer to the parameter list.  Future work
+        // might be able to "image" the bindings virtually, and not require
+        // this to be copied if the input code is read-only.
+        //
+        body_array = Copy_And_Bind_Relative_Deep_Managed(
+            code,
+            FUNC_PARAMLIST(fun),
+            TS_ANY_WORD
+        );
+    }
 
     // We need to do a raw initialization of this block RELVAL because it is
     // relative to a function.  (Val_Init_Block assumes all specific values)
@@ -1164,9 +1188,6 @@ REBFUN *Make_Plain_Function_May_Fail(
     // each of these views compares uniquely, there's only one series behind
     // it...hence the series must be read only to keep modifying a view
     // that seems to have one identity but then affecting another.
-    //
-    // !!! The above is true in the specific-binding branch, but the rule
-    // is applied to pre-specific-binding to prepare it for that future.
     //
     // !!! This protection needs to be system level, as the user is able to
     // unprotect conventional protection via UNPROTECT.
@@ -1385,53 +1406,48 @@ REBOOL Specialize_Function_Throws(
 //
 //  Clonify_Function: C
 // 
-// The "Clonify" interface takes in a raw duplicate value that one
-// wishes to mutate in-place into a full-fledged copy of the value
-// it is a clone of.  This interface can be more efficient than a
-// "source in, dest out" copy...and clarifies the dangers when the
-// source and destination are the same.
+// (A "Clonify" interface takes in a raw duplicate value that one wishes to
+// mutate in-place into a full-fledged copy of the value it is a clone of.
+// This interface can be more efficient than a "source in, dest out" copy...
+// and clarifies the dangers when the source and destination are the same.)
+//
+// !!! Function bodies in R3-Alpha were mutable.  This meant that you could
+// effectively have static data in cases like:
+//
+//     foo: does [static: [] | append static 1]
+//
+// Hence, it was meaningful to be able to COPY a function; because that copy
+// would get any such static state snapshotted at wherever it was in time.
+//
+// Ren-C eliminated this idea.  But functions are still copied in the special
+// case of object "member functions", so that each "derived" object will
+// have functions with bindings to its specific context variables.  Some
+// plans are in the work to use function REBVAL's `binding` parameter to
+// make a lighter-weight way of connecting methods to objects without actually
+// needing to mutate the archetypal REBFUN to do so ("virtual binding").
 //
 void Clonify_Function(REBVAL *value)
 {
-    // !!! Conceptually the only types it currently makes sense to speak of
-    // copying are functions and closures.  Though the concept is a little
-    // bit "fuzzy"...the idea is that the series which are reachable from
-    // their body series by a deep copy would be their "state".  Hence
-    // as a function runs, its "state" can change.  One can thus define
-    // a copy as snapshotting that "state".  This has been the classic
-    // interpretation that Rebol has taken.
+    assert(IS_FUNCTION(value));
 
-    // !!! However, in R3-Alpha a closure's "archetype" (e.g. the one made
-    // by `clos [a] [print a]`) never operates on its body directly... it
-    // is copied each time.  And there is no way at present to get a
-    // reference to a closure "instance" (an ANY-FUNCTION value with the
-    // copied body in it).  This has carried over to <durable> for now.
-
-    // !!! This leaves only one function type that is mechanically
-    // clonable at all... the non-durable FUNCTION!.  While the behavior is
-    // questionable, for now we will suspend disbelief and preserve what
-    // R3-Alpha did until a clear resolution.
-
-    if (!IS_FUNCTION(value) || !IS_FUNCTION_PLAIN(value))
+    // Function compositions point downwards through their layers in a linked
+    // list.  Each step in the chain has identity, and we need a copied
+    // identity for all steps that require a copy and everything *above* it.
+    // So for instance, although R3-Alpha did not see a need to copy natives,
+    // if you ADAPT a native with code, the adapting Rebol code may need to
+    // take into account new bindings to a derived object...just as the body
+    // to an interpreted function would.
+    //
+    // !!! For the moment, this work is not done...and only functions that
+    // are raw interpreted functions are cloned.  That means old code will
+    // stay compatible but new features won't necessarily work the same way
+    // with object binding.  All of this needs to be rethought in light of
+    // "virtual binding" anyway!
+    //
+    if (!IS_FUNCTION_INTERPRETED(value))
         return;
-
-    if (IS_FUNC_DURABLE(VAL_FUNC(value)))
-        return;
-
-    // No need to modify the spec or header.  But we do need to copy the
-    // identifying parameter series, so that the copied function has a
-    // unique identity on the stack from the one it is copying.  Otherwise
-    // two calls on the stack would be seen as recursions of the same
-    // function, sharing each others "stack relative locals".
 
     REBFUN *original_fun = VAL_FUNC(value);
-
-    // Ordinary copying would need to derelatavize all the relative values,
-    // but copying the function to make it the body of another function
-    // requires it to be "re-relativized"--all the relative references that
-    // indicated the original function have to be changed to indicate the
-    // new function.
-    //
     REBARR *paramlist = Copy_Array_Shallow(
         FUNC_PARAMLIST(original_fun),
         SPECIFIED
@@ -1441,7 +1457,7 @@ void Clonify_Function(REBVAL *value)
 
     REBFUN *new_fun = Make_Function(
         paramlist,
-        &Plain_Dispatcher,
+        FUNC_DISPATCHER(original_fun),
         NULL // no underlying function, this is fundamental
     );
 
@@ -1451,11 +1467,9 @@ void Clonify_Function(REBVAL *value)
 
     RELVAL *body = FUNC_BODY(new_fun);
 
-    // Since we rebind the body, we need to instruct the Plain_Dispatcher
+    // Since we rebind the body, we need to instruct the interpreted dispatcher
     // that it's o.k. to tell the frame lookup that it can find variables
-    // under the "new paramlist".  However, in specific binding where
-    // bodies are not copied, you would preserve the "underlying" paramlist
-    // in this slot
+    // under the "new paramlist".
     //
     VAL_RESET_HEADER(body, REB_BLOCK);
     INIT_VAL_ARRAY(
@@ -1498,9 +1512,60 @@ REB_R Action_Dispatcher(REBFRM *f)
 
 
 //
-//  Plain_Dispatcher: C
+//  Noop_Dispatcher: C
 //
-REB_R Plain_Dispatcher(REBFRM *f)
+// If a function's body is an empty block, rather than bother running the
+// equivalent of `DO []` and generating a frame for specific binding, this
+// just returns void.  What makes this a semi-interesting optimization is
+// for functions like ASSERT whose default implementation is an empty block,
+// but intended to be hijacked in "debug mode" with an implementation.  So
+// you can minimize the cost of instrumentation hooks.
+//
+REB_R Noop_Dispatcher(REBFRM *f)
+{
+    return R_VOID;
+}
+
+
+//
+//  Datatype_Checker_Dispatcher: C
+//
+// Dispatcher used by TYPECHECKER generator for when argument is a datatype.
+//
+REB_R Datatype_Checker_Dispatcher(REBFRM *f)
+{
+    RELVAL *datatype = FUNC_BODY(f->func);
+    assert(IS_DATATYPE(datatype));
+    if (VAL_TYPE(FRM_ARG(f, 1)) == VAL_TYPE_KIND(datatype))
+        return R_TRUE;
+    return R_FALSE;
+}
+
+
+//
+//  Typeset_Checker_Dispatcher: C
+//
+// Dispatcher used by TYPECHECKER generator for when argument is a typeset.
+//
+REB_R Typeset_Checker_Dispatcher(REBFRM *f)
+{
+    RELVAL *typeset = FUNC_BODY(f->func);
+    assert(IS_TYPESET(typeset));
+    if (TYPE_CHECK(typeset, VAL_TYPE(FRM_ARG(f, 1))))
+        return R_TRUE;
+    return R_FALSE;
+}
+
+
+
+//
+//  Unchecked_Dispatcher: C
+//
+// This is the default MAKE FUNCTION! dispatcher for interpreted functions
+// (whose body is a block that runs through DO []).  There is no return type
+// checking done on these simple functions.
+//
+REB_R Unchecked_Dispatcher(REBFRM *f)
 {
     RELVAL *body = FUNC_BODY(f->func);
     assert(IS_BLOCK(body) && IS_RELATIVE(body) && VAL_INDEX(body) == 0);
@@ -1519,35 +1584,9 @@ REB_R Plain_Dispatcher(REBFRM *f)
 
 
 //
-//  Datatype_Checker_Dispatcher: C
-//
-REB_R Datatype_Checker_Dispatcher(REBFRM *f)
-{
-    RELVAL *datatype = FUNC_BODY(f->func);
-    assert(IS_DATATYPE(datatype));
-    if (VAL_TYPE(FRM_ARG(f, 1)) == VAL_TYPE_KIND(datatype))
-        return R_TRUE;
-    return R_FALSE;
-}
-
-
-//
-//  Typeset_Checker_Dispatcher: C
-//
-REB_R Typeset_Checker_Dispatcher(REBFRM *f)
-{
-    RELVAL *typeset = FUNC_BODY(f->func);
-    assert(IS_TYPESET(typeset));
-    if (TYPE_CHECK(typeset, VAL_TYPE(FRM_ARG(f, 1))))
-        return R_TRUE;
-    return R_FALSE;
-}
-
-
-//
 //  Voider_Dispatcher: C
 //
-// Same as the Plain_Dispatcher, except sets the output value to void.
+// Variant of Unchecked_Dispatcher, except sets the output value to void.
 // Pushing that code into the dispatcher means there's no need to do flag
 // testing in the main loop.
 //
@@ -1572,7 +1611,7 @@ REB_R Voider_Dispatcher(REBFRM *f)
 //
 //  Returner_Dispatcher: C
 //
-// Same as the Plain_Dispatcher, except validates that the return type is
+// Contrasts with the Unchecked_Dispatcher since it ensures the return type is
 // correct.  (Note that natives do not get this type checking, and they
 // probably shouldn't pay for it except in the debug build.)
 //
@@ -1656,6 +1695,8 @@ REB_R Hijacker_Dispatcher(REBFRM *f)
 //
 //  Adapter_Dispatcher: C
 //
+// Dispatcher used by ADAPT.
+//
 REB_R Adapter_Dispatcher(REBFRM *f)
 {
     REBCTX *frame_ctx = Context_For_Frame_May_Reify_Managed(f);
@@ -1689,6 +1730,8 @@ REB_R Adapter_Dispatcher(REBFRM *f)
 
 //
 //  Chainer_Dispatcher: C
+//
+// Dispatcher used by CHAIN.
 //
 REB_R Chainer_Dispatcher(REBFRM *f)
 {
@@ -1735,7 +1778,7 @@ REBNATIVE(func)
     PARAM(1, spec);
     PARAM(2, body);
 
-    REBFUN *fun = Make_Plain_Function_May_Fail(
+    REBFUN *fun = Make_Interpreted_Function_May_Fail(
         ARG(spec), ARG(body), MKF_RETURN | MKF_KEYWORDS
     );
 
@@ -1766,7 +1809,7 @@ REBNATIVE(proc)
     PARAM(1, spec);
     PARAM(2, body);
 
-    REBFUN *fun = Make_Plain_Function_May_Fail(
+    REBFUN *fun = Make_Interpreted_Function_May_Fail(
         ARG(spec), ARG(body), MKF_LEAVE | MKF_KEYWORDS
     );
 

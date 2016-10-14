@@ -90,12 +90,12 @@ const void *rebol_symbols [] = {
     SYM_FUNC(Make_Function), // c-function.c
     SYM_FUNC(Make_Expired_Frame_Ctx_Managed), // c-function.c
     SYM_FUNC(Get_Maybe_Fake_Func_Body), // c-function.c
-    SYM_FUNC(Make_Plain_Function_May_Fail), // c-function.c
+    SYM_FUNC(Make_Interpreted_Function_May_Fail), // c-function.c
     SYM_FUNC(Make_Frame_For_Function), // c-function.c
     SYM_FUNC(Specialize_Function_Throws), // c-function.c
     SYM_FUNC(Clonify_Function), // c-function.c
     SYM_FUNC(Action_Dispatcher), // c-function.c
-    SYM_FUNC(Plain_Dispatcher), // c-function.c
+    SYM_FUNC(Unchecked_Dispatcher), // c-function.c
     SYM_FUNC(Voider_Dispatcher), // c-function.c
     SYM_FUNC(Returner_Dispatcher), // c-function.c
     SYM_FUNC(Specializer_Dispatcher), // c-function.c

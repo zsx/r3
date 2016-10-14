@@ -876,7 +876,7 @@ static void Mold_Function(const REBVAL *value, REB_MOLD *mold)
     Mold_Array_At(mold, words_list, 0, 0);
     Free_Array(words_list);
 
-    if (IS_FUNCTION_PLAIN(value)) {
+    if (IS_FUNCTION_INTERPRETED(value)) {
         //
         // MOLD is an example of user-facing code that needs to be complicit
         // in the "lie" about the effective bodies of the functions made

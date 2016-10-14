@@ -281,9 +281,11 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
     if (IS_VOID(&result))
         error_num = 0; // no error
     else {
-        assert(FALSE); // should not happen (raise an error instead)
         Debug_Fmt("** finish-rl-start returned non-NONE!:");
         Debug_Fmt("%r", &result);
+
+        assert(FALSE); // should not happen (raise an error instead)
+
         error_num = RE_MISC;
     }
 

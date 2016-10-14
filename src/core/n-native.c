@@ -538,7 +538,7 @@ REBNATIVE(compile)
                 VAL_INDEX(var),
                 VAL_LEN_AT(var)
             );
-            Append_Unencoded(mo.series, "\n"); 
+            Append_Unencoded(mo.series, "\n");
         }
         else {
             assert(FALSE);
