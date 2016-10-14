@@ -719,7 +719,8 @@ REBTYPE(String)
 
         //Modify_String(action, value, arg);
         // Length of target (may modify index): (arg can be anything)
-        len = Partial1((action == SYM_CHANGE) ? value : arg, D_ARG(AN_LIMIT));
+
+        Partial1((action == SYM_CHANGE) ? value : arg, D_ARG(AN_LIMIT), cast(REBCNT*, &len));
         index = VAL_INDEX(value);
         args = 0;
         if (IS_BINARY(value)) SET_FLAG(args, AN_SERIES); // special purpose

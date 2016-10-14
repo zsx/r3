@@ -636,6 +636,7 @@ REBTYPE(Map)
     REBINT n;
     REBMAP *map = VAL_MAP(val);
     REBCNT  args;
+    REBCNT tail;
 
     switch (action) {
 
@@ -675,12 +676,13 @@ REBTYPE(Map)
             n = Int32(D_ARG(AN_COUNT));
             if (n <= 0) break;
         }
+        Partial1(arg, D_ARG(AN_LIMIT), &tail);
         Append_Map(
             map,
             VAL_ARRAY(arg),
             VAL_INDEX(arg),
             VAL_SPECIFIER(arg),
-            Partial1(arg, D_ARG(AN_LIMIT))
+            tail
         );
         return R_OUT;
 

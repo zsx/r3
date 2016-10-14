@@ -551,21 +551,24 @@ void Val_Init_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
 //
 // Adjusts the value's index if necessary, and returns the length indicated.
 // Hence if a negative limit is passed in, it will adjust value to the
-// position that negative limit would seek to...and return the length of
+// position that negative limit would seek to...and save the length of
 // the span to get to the original index.
 //
-REBCNT Partial1(REBVAL *value, const REBVAL *limit)
+void Partial1(REBVAL *value, const REBVAL *limit, REBCNT *span)
 {
     REBINT is_series = ANY_SERIES(value);
 
     if (IS_VOID(limit)) { // use current length of the target value
-        if (!is_series)
-            return 1;
-
-        if (VAL_INDEX(value) >= VAL_LEN_HEAD(value))
-            return 0;
-
-        return (VAL_LEN_HEAD(value) - VAL_INDEX(value));
+        if (!is_series) {
+            *span = 1;
+        }
+        else if (VAL_INDEX(value) >= VAL_LEN_HEAD(value)) {
+            *span = 0;
+        }
+        else {
+            *span = (VAL_LEN_HEAD(value) - VAL_INDEX(value));
+        }
+        return;
     }
 
     REBI64 len;
@@ -601,7 +604,7 @@ REBCNT Partial1(REBVAL *value, const REBVAL *limit)
     }
 
     assert(len >= 0);
-    return cast(REBCNT, len);
+    *span = cast(REBCNT, len);
 }
 
 

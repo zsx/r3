@@ -205,9 +205,10 @@ REBNATIVE(checksum)
     REBVAL *arg = D_ARG(ARG_CHECKSUM_DATA);
     REBYTE *data = VAL_RAW_DATA_AT(arg);
     REBCNT wide = SER_WIDE(VAL_SERIES(arg));
-    REBCNT len = Partial1(arg, D_ARG(ARG_CHECKSUM_SIZE));
+    REBCNT len = 0;
     REBSYM sym = SYM_SHA1;
 
+    Partial1(arg, D_ARG(ARG_CHECKSUM_SIZE), &len);
     // Method word:
     if (D_REF(ARG_CHECKSUM_METHOD)) {
         sym = VAL_WORD_SYM(D_ARG(ARG_CHECKSUM_WORD));
@@ -343,7 +344,7 @@ REBNATIVE(compress)
     REBCNT index;
     REBCNT len;
 
-    len = Partial1(D_ARG(1), D_ARG(3));
+    Partial1(D_ARG(1), D_ARG(3), &len);
 
     ser = Temp_Bin_Str_Managed(D_ARG(1), &index, &len);
 
@@ -374,7 +375,7 @@ REBNATIVE(decompress)
     REBINT max = limit ? Int32s(D_ARG(6), 1) : -1;
     REBOOL only = D_REF(7);
 
-    len = Partial1(D_ARG(1), D_ARG(3));
+    Partial1(D_ARG(1), D_ARG(3), &len);
 
     // This truncation rule used to be in Decompress, which passed len
     // in as an extra parameter.  This was the only call that used it.
