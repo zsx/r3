@@ -110,6 +110,13 @@ REBARR *List_Func_Typesets(REBVAL *func)
 }
 
 
+enum Reb_Spec_Mode {
+    SPEC_MODE_NORMAL, // words are arguments
+    SPEC_MODE_LOCAL, // words are locals
+    SPEC_MODE_WITH // words are "extern"
+};
+
+
 //
 //  Make_Paramlist_Managed_May_Fail: C
 // 
@@ -175,12 +182,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     REBOOL has_types = FALSE;
     REBOOL has_notes = FALSE;
 
-    // Trickier case: when the `func` or `proc` natives are used, they
-    // must read the given spec the way a user-space generator might.
-    // They must decide whether to add a specially handled RETURN
-    // local, which will be given a tricky "native" definitional return
-    //
-    REBOOL convert_local = FALSE;
+    enum Reb_Spec_Mode mode = SPEC_MODE_NORMAL;
 
     REBOOL refinement_seen = FALSE;
 
@@ -194,6 +196,14 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //=//// STRING! FOR FUNCTION DESCRIPTION OR PARAMETER NOTE ////////////=//
 
         if (IS_STRING(item)) {
+            //
+            // Consider `[<with> some-extern "description of that extern"]` to
+            // be purely commentary for the implementation, and don't include
+            // it in the meta info.
+            //
+            if (mode == SPEC_MODE_WITH)
+                continue;
+
             if (IS_TYPESET(DS_TOP))
                 DS_PUSH(EMPTY_BLOCK); // need a block to be in position
 
@@ -224,17 +234,14 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             continue;
         }
 
-    //=//// WHOLE-FUNCTION TAGS LIKE <local>, <no-return> etc. ////////////=//
+    //=//// TOP-LEVEL SPEC TAGS LIKE <local>, <with> etc. /////////////////=//
 
         if (IS_TAG(item) && (flags & MKF_KEYWORDS)) {
-            if (0 == Compare_String_Vals(item, ROOT_NO_RETURN_TAG, TRUE)) {
-                flags &= ~(MKF_RETURN | MKF_FAKE_RETURN);
-            }
-            else if (0 == Compare_String_Vals(item, ROOT_NO_LEAVE_TAG, TRUE)) {
-                flags &= ~MKF_LEAVE;
+            if (0 == Compare_String_Vals(item, ROOT_WITH_TAG, TRUE)) {
+                mode = SPEC_MODE_WITH;
             }
             else if (0 == Compare_String_Vals(item, ROOT_LOCAL_TAG, TRUE)) {
-                convert_local = TRUE;
+                mode = SPEC_MODE_LOCAL;
             }
             else if (0 == Compare_String_Vals(item, ROOT_DURABLE_TAG, TRUE)) {
                 //
@@ -261,6 +268,19 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         if (IS_BLOCK(item)) {
             if (IS_BLOCK(DS_TOP))
                 fail (Error(RE_BAD_FUNC_DEF, item)); // two blocks of types (!)
+
+            // You currently can't say `<local> x [integer!]`, because they
+            // are always void when the function runs.  You can't say
+            // `<with> x [integer!]` because "externs" don't have param slots
+            // to store the type in.
+            //
+            // !!! A type constraint on a <with> parameter might be useful,
+            // though--and could be achieved by adding a type checker into
+            // the body of the function.  However, that would be more holistic
+            // than this generation of just a paramlist.  Consider for future.
+            //
+            if (mode != SPEC_MODE_NORMAL)
+                fail (Error(RE_BAD_FUNC_DEF, item));
 
             // Save the block for parameter types.
             //
@@ -345,9 +365,19 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         if (!ANY_WORD(item))
             fail (Error(RE_BAD_FUNC_DEF, item));
 
-        // Make sure symbol not already in the parameter list, and then mark
-        // in the hash table that it is present.  Any non-zero value is ok.
+        // !!! If you say [<with> x /foo y] the <with> terminates and a
+        // refinement is started.  Same w/<local>.  Is this a good idea?
+        // Note that historically, help hides any refinements that appear
+        // behind a /local, but this feature has no parallel in Ren-C.
         //
+        if (mode != SPEC_MODE_NORMAL) {
+            if (IS_REFINEMENT(item)) {
+                mode = SPEC_MODE_NORMAL;
+            }
+            else if (!IS_WORD(item) && !IS_SET_WORD(item))
+                fail (Error(RE_BAD_FUNC_DEF, item));
+        }
+
         REBSTR *canon = VAL_WORD_CANON(item);
 
         // In rhythm of TYPESET! BLOCK! STRING! we want to be on a string spot
@@ -380,12 +410,13 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         // All these would cancel a definitional return (leave has same idea):
         //
         //     func [return [integer!]]
-        //     func [/value return]
-        //     func [/local return] ;-- /local is not special in Ren-C
+        //     func [/refinement return]
+        //     func [<local> return]
+        //     func [<with> return]
         //
         // ...although `return:` is explicitly tolerated ATM for compatibility
         // (despite violating the "pure locals are NULL" premise)
-
+        //
         if (STR_SYMBOL(canon) == SYM_RETURN) {
             assert(definitional_return == NULL);
             if (IS_SET_WORD(item))
@@ -401,27 +432,42 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 flags &= ~MKF_LEAVE;
         }
 
+        if (mode == SPEC_MODE_WITH && !IS_SET_WORD(item)) {
+            //
+            // Because FUNC does not do any locals gathering by default, the
+            // main purpose of <with> is for instructing it not to do the
+            // definitional returns.  However, it also makes changing between
+            // FUNC and FUNCTION more fluid.
+            //
+            // !!! If you write something like `func [x <with> x] [...]` that
+            // should be sanity checked with an error...TBD.
+            //
+            DS_DROP; // forge the typeset, used in `definitional_return` case
+            continue;
+        }
+
         switch (VAL_TYPE(item)) {
         case REB_WORD:
+            assert(mode != SPEC_MODE_WITH); // should have continued...
             INIT_VAL_PARAM_CLASS(
                 typeset,
-                convert_local ? PARAM_CLASS_LOCAL : PARAM_CLASS_NORMAL
+                (mode == SPEC_MODE_LOCAL)
+                    ? PARAM_CLASS_LOCAL
+                    : PARAM_CLASS_NORMAL
             );
             if (refinement_seen)
                 VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_MAX_VOID);
             break;
 
         case REB_GET_WORD:
-            if (convert_local)
-                fail (Error(RE_BAD_FUNC_DEF)); // what's a "quoted local"?
+            assert(mode == SPEC_MODE_NORMAL);
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_HARD_QUOTE);
             if (refinement_seen)
                 VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_MAX_VOID);
             break;
 
         case REB_LIT_WORD:
-            if (convert_local)
-                fail (Error(RE_BAD_FUNC_DEF)); // what's a "quoted local"?
+            assert(mode == SPEC_MODE_NORMAL);
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_SOFT_QUOTE);
             if (refinement_seen)
                 VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_MAX_VOID);
@@ -435,17 +481,10 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             // They are checked for TRUE or FALSE but this is done literally
             // by the code.  This means that every refinement has some spare
             // bits available in it for another purpose.
-
-            // A refinement signals us to stop doing the locals conversion.
-            // Historically, help hides any refinements that appear behind a
-            // /local, so presumably it would do the same with <local>...
-            // but this feature does not currently exist in Ren-C.
-            //
-            convert_local = FALSE;
             break;
 
         case REB_SET_WORD:
-            // tolerate as-is if convert_local
+            // tolerate as-is if in <local> or <with> mode...
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_LOCAL);
             //
             // !!! Typeset bits of pure locals also not currently used,

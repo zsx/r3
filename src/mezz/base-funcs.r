@@ -190,7 +190,11 @@ make-action: func [
         )
         any [set other: [word! | path!] (bind new-body get other)]
     |
-        <with> any [set other: [word! | path!] (append exclusions other)]
+        <with> any [
+            set other: [word! | path!] (append exclusions other)
+        |
+            string! ;-- skip over as commentary
+        ]
     |
         <static> (
             unless statics [
@@ -773,14 +777,14 @@ use: func [
     ; body may have RETURN words with bindings in them already that we do
     ; not want to disturb with the definitional bindings in the new code.
     ; So that means either using MAKE FUNCTION! (which wouldn't disrupt
-    ; RETURN bindings) or using the more friendly FUNC with <no-return>
+    ; RETURN bindings) or using the more friendly FUNC and `<with> return`
     ; (they do the same thing, just FUNC is arity-2)
     ;
     ; <durable> is used so that the data for the locals will still be
     ; available if any of the words leak out and are accessed after the
     ; execution is finished.
     ;
-    eval func compose [<durable> <no-return> /local (vars)] body
+    eval func compose [<durable> <local> (vars) <with> return] body
 ]
 
 ; Shorthand helper for CONSTRUCT (similar to DOES for FUNCTION).

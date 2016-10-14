@@ -29,8 +29,7 @@ space-char      ; a value that is a space CHAR!
 ;; Tags used in the native-optimized versions of user-function-generators
 ;; FUNC and PROC
 
-no-return-tag   ; func w/o definitional return, ignores non-definitional ones
-no-leave-tag    ; func w/o definitional leave, ignores non-definitional ones
+with-tag        ; <with> for no locals gather (disables RETURN/LEAVE in FUNC)
 ellipsis-tag    ; FUNC+PROC use as alternative to [[]] to mark varargs
 opt-tag         ; FUNC+PROC use as alternative to _ to mark optional void? args
 end-tag         ; FUNC+PROC use as alternative to | to mark endable args

@@ -521,11 +521,7 @@ static void Add_Lib_Keys_R3Alpha_Cant_Make(void)
 
 
 //
-//  Init_Function_Tags: C
-//
-// FUNC and PROC search for these tags, like <opt> and <local>.  They are
-// natives and run during bootstrap, so these string comparisons are
-// needed.
+// Init_Function_Tag: C
 //
 // !!! It didn't seem there was a "compare UTF8 byte array to arbitrary
 // decoded REB_TAG which may or may not be REBUNI" routine, but there was
@@ -533,35 +529,35 @@ static void Add_Lib_Keys_R3Alpha_Cant_Make(void)
 // quick, but a better solution should be reviewed in terms of an overall
 // string and UTF8 rethinking.
 //
+static void Init_Function_Tag(const char *name, REBVAL *slot)
+{
+    Val_Init_Tag(
+        slot,
+        Append_UTF8_May_Fail(NULL, cb_cast(name), strlen(name))
+    );
+    SET_SER_FLAG(VAL_SERIES(slot), SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAG(VAL_SERIES(slot), SERIES_FLAG_LOCKED);
+}
+
+
+//
+//  Init_Function_Tags: C
+//
+// FUNC and PROC search for these tags, like <opt> and <local>.  They are
+// natives and run during bootstrap, so these string comparisons are
+// needed.  This routine does not use a table directly, because the slots
+// it initializes are not constants...and older TCCs don't support local
+// struct arrays of that form.
+//
 static void Init_Function_Tags(void)
 {
-    struct {
-        const char *name;
-        REBVAL *slot;
-    } tags[] = {
-        "no-return", ROOT_NO_RETURN_TAG,
-        "no-leave", ROOT_NO_LEAVE_TAG,
-        "...", ROOT_ELLIPSIS_TAG,
-        "opt", ROOT_OPT_TAG,
-        "end", ROOT_END_TAG,
-        "local", ROOT_LOCAL_TAG,
-        "durable", ROOT_DURABLE_TAG,
-        "defer", ROOT_DEFER_TAG,
-        NULL, NULL
-    };
-
-    REBINT i = 0;
-    while (tags[i].name) {
-        Val_Init_Tag(
-            tags[i].slot,
-            Append_UTF8_May_Fail(
-                NULL, cb_cast(tags[i].name), strlen(tags[i].name)
-            )
-        );
-        SET_SER_FLAG(VAL_SERIES(tags[i].slot), SERIES_FLAG_FIXED_SIZE);
-        SET_SER_FLAG(VAL_SERIES(tags[i].slot), SERIES_FLAG_LOCKED);
-        ++i;
-    }
+    Init_Function_Tag("with", ROOT_WITH_TAG);
+    Init_Function_Tag("...", ROOT_ELLIPSIS_TAG);
+    Init_Function_Tag("opt", ROOT_OPT_TAG);
+    Init_Function_Tag("end", ROOT_END_TAG);
+    Init_Function_Tag("local", ROOT_LOCAL_TAG);
+    Init_Function_Tag("durable", ROOT_DURABLE_TAG);
+    Init_Function_Tag("defer", ROOT_DEFER_TAG);
 }
 
 

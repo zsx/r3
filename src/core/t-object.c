@@ -706,8 +706,8 @@ REBNATIVE(construct)
 // represents a "spec".
 //
 // !!! This assumes you want a SELF defined.  The entire concept of SELF
-// needs heavy review, but at minimum this needs a <no-self> override to
-// match the <no-return> for functions.
+// needs heavy review, but at minimum this needs an override to match the
+// `<with> return` or `<with> local` for functions.
 //
 // !!! This mutates the bindings of the body block passed in, should it
 // be making a copy instead (at least by default, perhaps with performance
