@@ -256,8 +256,6 @@ copy: action [
     /types
         {What datatypes to copy}
     kinds [typeset! datatype!]
-    /test
-        {Temporary switch for debugging ARM-build anomaly}
 ]
 
 take: action [

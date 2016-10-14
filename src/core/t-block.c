@@ -852,9 +852,11 @@ REBTYPE(Array)
         REFINE(4, deep);
         REFINE(5, types);
         PARAM(6, kinds);
-        REFINE(7, test); // temporary for debugging ARM build anomaly
 
         REBU64 types = 0;
+        REBCNT tail = 0;
+        index = VAL_INDEX(value);
+        tail = index + Partial1(value, ARG(limit));
 
         if (REF(deep))
             types |= REF(types) ? 0 : TS_STD_SERIES;
@@ -866,23 +868,11 @@ REBTYPE(Array)
                 types |= VAL_TYPESET_BITS(ARG(kinds));
         }
 
-        if (REF(test)) {
-            Debug_Fmt("Diagnostics for:");
-            Debug_Fmt("https://github.com/metaeducation/ren-c/issues/283");
-            if (REF(part))
-                Debug_Fmt("limit %r", VAL_INT32(ARG(limit)));
-            Debug_Fmt("at %d", VAL_INDEX(value));
-            Debug_Fmt("partial %d", Partial1(value, ARG(limit)));
-           
-            REBCNT tail = VAL_INDEX(value) + Partial1(value, ARG(limit));
-            Debug_Fmt("tail %d", tail);
-        }
-
         REBARR *copy = Copy_Array_Core_Managed(
             array,
             VAL_INDEX(value), // at
             specifier,
-            VAL_INDEX(value) + Partial1(value, ARG(limit)), // tail
+            tail, // tail
             0, // extra
             REF(deep), // deep
             types // types
