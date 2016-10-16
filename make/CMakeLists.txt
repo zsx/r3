@@ -103,6 +103,14 @@ elseif ("${OS_MAJOR}" STREQUAL "4")
         HAS_LL_CONSTS
         )
     set(LIBS m dl)
+elseif ("${OS_MAJOR}" STREQUAL "13")
+    set (TO_ANDROID TRUE)
+    list (APPEND COMMON_MACROS
+        TO_ANDROID
+        ENDIAN_LITTLE
+        HAS_LL_CONSTS
+        )
+    set(LIBS m dl)
 else ()
     message(FATAL_ERROR "Unsupported system")
 endif ()
@@ -152,6 +160,12 @@ elseif (R3_OS_ID STREQUAL "0.4.40") #linux x86_64
     list (APPEND COMMON_MACROS
         TO_LINUX_X64
         __LP64__
+        )
+elseif (R3_OS_ID STREQUAL "0.13.2") #android5 arm
+    set (TO_ANDROID5 TRUE)
+    set (TO_ANDROID5_ARM TRUE)
+    list (APPEND COMMON_MACROS
+        TO_ANDROID_ARM
         )
 endif ()
 
@@ -807,6 +821,9 @@ if (DEFINED LINK_FLAGS)
     set_target_properties(r3-core PROPERTIES LINK_FLAGS ${LINK_FLAGS})
 endif()
 
+if (TO_ANDROID5)
+    list(APPEND LIBS "-fPIC -fPIE")
+endif ()
 target_link_libraries(r3-core ${LIBS} ${FFI_LIBRARIES})
 
 if (NOT R3_EXTERNAL_FFI)
