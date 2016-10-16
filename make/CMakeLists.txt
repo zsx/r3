@@ -71,8 +71,22 @@ if (NOT DEFINED R3_OS_ID)
 endif()
 message("Building Rebol 3 for OS_ID: ${R3_OS_ID}")
 
+string(REPLACE "." ";" OS_ID_LIST ${R3_OS_ID})
+list(GET OS_ID_LIST 1 OS_MAJOR)
+list(GET OS_ID_LIST 2 OS_MINOR)
+message("OS: ${OS_MAJOR}.${OS_MINOR}")
+if (NOT DEFINED OS_MAJOR OR NOT DEFINED OS_MINOR)
+    message(FATAL_ERROR "Unrecognized R3_OS_ID: ${R3_OS_ID}")
+endif()
 set(COMMON_MACROS REB_EXE)
-if (WIN32)
+if ("${OS_MAJOR}" STREQUAL "2")
+    set (TO_OSX TRUE)
+    list (APPEND COMMON_MACROS
+        ENDIAN_LITTLE
+        HAS_LL_CONSTS
+        )
+elseif ("${OS_MAJOR}" STREQUAL "3")
+    set (TO_WINDOWS TRUE)
     list (APPEND COMMON_MACROS
         WIN32
         TO_WINDOWS
@@ -81,22 +95,14 @@ if (WIN32)
         _UNICODE
         )
     set(LIBS wsock32 comdlg32)
-elseif (APPLE)
+elseif ("${OS_MAJOR}" STREQUAL "4")
+    set (TO_LINUX TRUE)
     list (APPEND COMMON_MACROS
+        TO_LINUX
         ENDIAN_LITTLE
         HAS_LL_CONSTS
         )
-elseif (UNIX)
-    if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-        list (APPEND COMMON_MACROS
-            TO_LINUX
-            ENDIAN_LITTLE
-            HAS_LL_CONSTS
-            )
-        set(LIBS m dl)
-    else ()
-        message(FATAL_ERROR "Unsupported Unix system: ${CMAKE_SYSTEM_NAME}")
-    endif ()
+    set(LIBS m dl)
 else ()
     message(FATAL_ERROR "Unsupported system")
 endif ()
@@ -169,7 +175,7 @@ if (MSVC)
     add_c_and_cxx_flags(-D_CRT_SECURE_NO_WARNINGS)
 endif()
 
-if (WIN32 OR CYGWIN)
+if (TO_WINDOWS)
     set (CORE_PLATFORM_SOURCE
         ${OS_DIR}/windows/host-lib.c
         ${OS_DIR}/windows/dev-stdio.c
@@ -197,7 +203,7 @@ else ()
         ${OS_DIR}/posix/host-thread.c
         ${OS_DIR}/posix/host-time.c
         )
-    if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    if (TO_LINUX)
         set (CORE_PLATFORM_SOURCE ${CORE_PLATFORM_SOURCE}
             # Linux has support for ELF format encapping
             ${OS_DIR}/linux/host-encap.c
@@ -622,7 +628,7 @@ if (R3_WITH_TCC)
     endif ()
     list(APPEND TCC_DEPENDS "r3_libtcc1")
 
-    if (WIN32)
+    if (TO_WINDOWS)
         list(APPEND tcc_c_flag_list "-I${TCC_DIR}/win32/include")
         list(APPEND tcc_c_flag_list "-DPVAR=TVAR;-DTVAR=extern __attribute__((dllimport))")
     endif ()
@@ -761,7 +767,7 @@ target_include_directories(r3-core PUBLIC
         ${INC}
         )
 target_compile_definitions(libr3_core_core PUBLIC REB_API REB_CORE ${COMMON_MACROS})
-if (WIN32)
+if (TO_WINDOWS)
     #WINSYS_WIN32 is needed for dev-event.c
     target_compile_definitions(r3-core PUBLIC REB_CORE REB_EXE WINSYS_WIN32 ${COMMON_MACROS})
 else ()
