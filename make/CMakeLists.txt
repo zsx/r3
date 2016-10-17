@@ -639,12 +639,22 @@ if (R3_WITH_TCC)
         if (NOT EXISTS ${TCC_EXE})
             message (FATAL_ERROR "Can't find tcc at: ${TCC_EXE}")
         endif ()
+        list(APPEND tcc_c_flag_list "-nostdlib")
     endif ()
     list(APPEND TCC_DEPENDS "r3_libtcc1")
 
     if (TO_WINDOWS)
         list(APPEND tcc_c_flag_list "-I${TCC_DIR}/win32/include")
         list(APPEND tcc_c_flag_list "-DPVAR=TVAR;-DTVAR=extern __attribute__((dllimport))")
+    elseif(TO_ANDROID)
+        list(APPEND tcc_c_flag_list "-I${ANDROID_SYSROOT}/usr/include")
+
+        #FIXME: pretend to be GCC, or it will fail:
+        #In file included from ../src/include/sys-core.h:54:
+        #In file included from /opt/android-ndk/platforms/android-16/arch-arm/usr/include/stdlib.h:31:
+        #/opt/android-ndk/platforms/android-16/arch-arm/usr/include/sys/cdefs.h:277: error: #error "No function renaming possible"
+        #Not sure what problem it could cause, but it worked for %tests/misc/fib.r
+        list(APPEND tcc_c_flag_list "-D__GNUC__")
     endif ()
 
     list(APPEND tcc_c_flag_list "-DREN_C_STDIO_OK;-UHAVE_ASAN_INTERFACE_H") #allow stdio.h
