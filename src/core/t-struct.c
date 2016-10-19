@@ -1061,7 +1061,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
     REBUPT raw_addr = 0;
 
     RELVAL *item = VAL_ARRAY_AT(arg);
-    if (IS_BLOCK(item)) {
+    if (NOT_END(item) && IS_BLOCK(item)) {
         //
         // !!! This would suggest raw-size, raw-addr, or extern can be leading
         // in the struct definition, perhaps as:
