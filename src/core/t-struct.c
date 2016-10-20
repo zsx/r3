@@ -1348,6 +1348,10 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
 
     REBSTU *stu = Alloc_Singular_Array();
 
+    // Set it to blank so the Kill_Series can be called upon in case of error thrown
+    // before it is fully constructed.
+    SET_BLANK(ARR_HEAD(stu));
+
     MANAGE_SERIES(field_1);
     ARR_SERIES(stu)->link.schema = field_1;
 
