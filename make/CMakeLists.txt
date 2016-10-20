@@ -214,7 +214,6 @@ else ()
         ${OS_DIR}/posix/host-error.c
         ${OS_DIR}/posix/host-library.c
         ${OS_DIR}/posix/host-process.c
-        ${OS_DIR}/posix/host-thread.c
         ${OS_DIR}/posix/host-time.c
         )
     if (TO_LINUX)
