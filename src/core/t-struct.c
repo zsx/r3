@@ -713,8 +713,11 @@ static REBSER *make_ext_storage(
     REBINT raw_size,
     REBUPT raw_addr
 ) {
-    if (raw_size >= 0 && raw_size != cast(REBINT, len))
-        fail (Error(RE_INVALID_DATA));
+    if (raw_size >= 0 && raw_size != cast(REBINT, len)) {
+        REBVAL i;
+        SET_INTEGER(&i, raw_size);
+        fail (Error(RE_INVALID_DATA, &i));
+    }
 
     REBSER *ser = Make_Series(
         len + 1, // include term. !!! not included otherwise (?)
