@@ -909,6 +909,7 @@ REBSER *Make_Series(REBCNT capacity, REBYTE wide, REBCNT flags)
         SER_SET_WIDE(s, wide);
         SET_SER_FLAGS(s, SERIES_FLAG_EXTERNAL | SERIES_FLAG_HAS_DYNAMIC);
         s->content.dynamic.rest = capacity;
+        s->content.dynamic.len = 0;
     }
     else if ((flags & MKS_ARRAY) && capacity <= 2) {
         //
