@@ -1433,10 +1433,6 @@ void Mold_Value(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
         else Mold_Object(const_KNOWN(value), mold);
         break;
 
-    case REB_TASK:
-        Mold_Object(const_KNOWN(value), mold);
-        break;
-
     case REB_ERROR:
         Mold_Error(const_KNOWN(value), mold, molded);
         break;

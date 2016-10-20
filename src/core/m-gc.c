@@ -754,9 +754,6 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
                 Queue_Mark_Array_Deep(VAL_TYPE_SPEC(val));
             break;
 
-        case REB_TASK: // not yet implemented
-            fail (Error(RE_MISC));
-
         case REB_OBJECT:
         case REB_MODULE:
         case REB_PORT:

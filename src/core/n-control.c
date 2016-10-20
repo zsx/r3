@@ -1089,13 +1089,10 @@ REBNATIVE(do)
 
         f->varlist = CTX_VARLIST(VAL_CONTEXT(value)); // need w/NULL def
 
-        return Apply_Frame_Core(f, Canon(SYM___ANONYMOUS__), NULL);
-    }
+        return Apply_Frame_Core(f, Canon(SYM___ANONYMOUS__), NULL); }
 
-    case REB_TASK:
-        Do_Task(value);
-        *D_OUT = *value;
-        return R_OUT;
+    default:
+        break;
     }
 
     // Note: it is not possible to write a wrapper function in Rebol

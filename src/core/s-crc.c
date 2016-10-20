@@ -353,7 +353,6 @@ REBCNT Hash_Value(const RELVAL *v, REBCTX *specifier)
         ret = cast(REBCNT, cast(REBUPT, VAL_MAP(v)) >> 4);
         break;
 
-    case REB_TASK:
     case REB_GOB:
     case REB_EVENT:
     case REB_HANDLE:

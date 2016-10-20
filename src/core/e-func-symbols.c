@@ -129,7 +129,6 @@ const void *rebol_symbols [] = {
     SYM_FUNC(Init_Ports), // c-port.c
     SYM_FUNC(Shutdown_Ports), // c-port.c
     SYM_FUNC(Do_Signals_Throws), // c-signal.c
-    SYM_FUNC(Do_Task), // c-task.c
 #if defined(__cplusplus) && !defined(NDEBUG)
     SYM_FUNC(Assert_Cell_Writable), // c-value.c
 #endif

@@ -20,15 +20,6 @@ map: func [
 ]
 
 
-task: func [
-    {Creates a task.}
-    spec [block!] {Name or spec block}
-    body [block!] {The body block of the task}
-][
-    make task! copy/deep reduce [spec body]
-]
-
-
 body-of: function [
     value [any-value!]
 ][

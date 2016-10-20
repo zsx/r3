@@ -36,7 +36,6 @@ core: [
     c-path.c
     c-port.c
     c-signal.c
-    c-task.c
     c-value.c
     c-word.c
 
@@ -228,7 +227,6 @@ os-posix: [
     + posix/host-error.c
     + posix/host-library.c
     + posix/host-process.c
-    + posix/host-thread.c
     + posix/host-time.c
 ]
 
@@ -252,7 +250,6 @@ os-osx: [
     + posix/host-error.c
     + posix/host-library.c
     + posix/host-process.c
-    + posix/host-thread.c
     + posix/host-time.c
 ]
 
@@ -277,7 +274,6 @@ os-linux: [
     + posix/host-error.c
     + posix/host-library.c
     + posix/host-process.c
-    + posix/host-thread.c
     + posix/host-time.c
 
     ; Linux has some kind of MIME-based opening vs. posix /usr/bin/open
@@ -314,7 +310,6 @@ os-android: [
     + posix/host-error.c
     + posix/host-library.c
     + posix/host-process.c
-    + posix/host-thread.c
     + posix/host-time.c
 
     ; Android  has some kind of MIME-based opening vs. posix /usr/bin/open

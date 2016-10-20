@@ -105,7 +105,6 @@ eval proc [
     frame?:
     module?:
     error?:
-    task?:
     port?:
     gob?:
     event?:
