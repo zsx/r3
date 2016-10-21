@@ -747,8 +747,7 @@ static REBSER *make_ext_storage(
 static void Parse_Field_Type_May_Fail(
     struct Struct_Field *field,
     REBVAL *spec,
-    REBVAL *inner,
-    REBVAL **init
+    REBVAL *inner
 ){
     RELVAL *val = VAL_ARRAY_AT(spec);
 
@@ -826,7 +825,7 @@ static void Parse_Field_Type_May_Fail(
                 field->type = FFI_TYPE_STRUCT;
                 field->fields = VAL_STRUCT_FIELDLIST(inner);
                 field->spec = VAL_STRUCT_SPEC(inner);
-                *init = inner; // a shortcut for struct intialization
+                field->fftype = VAL_STRUCT_SCHEMA(inner)->fftype;
             }
             else
                 fail (Error_Unexpected_Type(REB_BLOCK, VAL_TYPE(val)));
@@ -850,7 +849,8 @@ static void Parse_Field_Type_May_Fail(
         field->type = FFI_TYPE_STRUCT;
         field->fields = VAL_STRUCT_FIELDLIST(val);
         field->spec = VAL_STRUCT_SPEC(val);
-        COPY_VALUE(*init, val, VAL_SPECIFIER(spec));
+        field->fftype = VAL_STRUCT_SCHEMA(val)->fftype;
+        COPY_VALUE(inner, val, VAL_SPECIFIER(spec));
     }
     else
         fail (Error_Invalid_Type(VAL_TYPE(val)));
@@ -1123,13 +1123,15 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
         REBVAL spec;
         COPY_VALUE(&spec, item, VAL_SPECIFIER(arg));
 
-        REBVAL inner;
-        SET_BLANK(&inner);
-        PUSH_GUARD_VALUE(&inner);
+        //REBVAL inner;
+        //SET_BLANK(&inner);
+        //PUSH_GUARD_VALUE(&inner);
 
-        REBVAL *init = NULL; // for result to save in data
+        REBVAL init; // for result to save in data
+        SET_BLANK(&init);
+        PUSH_GUARD_VALUE(&init);
 
-        Parse_Field_Type_May_Fail(field, &spec, &inner, &init);
+        Parse_Field_Type_May_Fail(field, &spec, &init);
 
         u64 step = 0;
 
@@ -1146,10 +1148,6 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
             EXPAND_SERIES_TAIL(data_bin, step);
 
         if (expect_init) {
-            REBVAL safe; // result of reduce or do (GC saved during eval)
-
-            init = &safe;
-
             if (IS_END(item))
                fail (Error_Invalid_Arg(arg));
 
@@ -1157,20 +1155,20 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
                 REBVAL specified;
                 COPY_VALUE(&specified, item, VAL_SPECIFIER(arg));
 
-                if (Reduce_Any_Array_Throws(init, &specified, FALSE))
-                    fail (Error_No_Catch_For_Throw(init));
+                if (Reduce_Any_Array_Throws(&init, &specified, FALSE))
+                    fail (Error_No_Catch_For_Throw(&init));
 
                 ++item;
             }
             else {
                 eval_idx = DO_NEXT_MAY_THROW(
-                    init,
+                    &init,
                     VAL_ARRAY(arg),
                     item - VAL_ARRAY_AT(arg),
                     VAL_SPECIFIER(arg)
                 );
                 if (eval_idx == THROWN_FLAG)
-                    fail (Error_No_Catch_For_Throw(init));
+                    fail (Error_No_Catch_For_Throw(&init));
 
                 if (eval_idx == END_FLAG)
                     item = VAL_ARRAY_TAIL(arg);
@@ -1179,8 +1177,8 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
             }
 
             if (field->is_array) {
-                if (IS_INTEGER(init)) { // interpreted as a C pointer
-                    void *ptr = cast(void *, cast(REBUPT, VAL_INT64(init)));
+                if (IS_INTEGER(&init)) { // interpreted as a C pointer
+                    void *ptr = cast(void *, cast(REBUPT, VAL_INT64(&init)));
 
                     // assume valid pointer to enough space
                     memcpy(
@@ -1189,11 +1187,11 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
                         field->size * field->dimension
                     );
                 }
-                else if (IS_BLOCK(init)) {
+                else if (IS_BLOCK(&init)) {
                     REBCNT n = 0;
 
-                    if (VAL_LEN_AT(init) != field->dimension)
-                        fail (Error_Invalid_Arg(init));
+                    if (VAL_LEN_AT(&init) != field->dimension)
+                        fail (Error_Invalid_Arg(&init));
 
                     // assign
                     for (n = 0; n < field->dimension; n ++) {
@@ -1202,7 +1200,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
                             offset,
                             field,
                             n,
-                            KNOWN(VAL_ARRAY_AT_HEAD(init, n))
+                            KNOWN(VAL_ARRAY_AT_HEAD(&init, n))
                         )) {
                             //RL_Print("Failed to assign element value\n");
                             fail (Error(RE_MISC));
@@ -1214,7 +1212,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
             }
             else {
                 // scalar
-                if (!assign_scalar_core(data_bin, offset, field, 0, init)) {
+                if (!assign_scalar_core(data_bin, offset, field, 0, &init)) {
                     //RL_Print("Failed to assign scalar value\n");
                     fail (Error(RE_MISC));
                 }
@@ -1230,7 +1228,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
                             data_bin,
                             cast(REBCNT, offset) + n * field->size
                         ),
-                        BIN_HEAD(VAL_STRUCT_DATA_BIN(init)),
+                        BIN_HEAD(VAL_STRUCT_DATA_BIN(&init)),
                         field->size
                     );
                 }
@@ -1269,7 +1267,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
 
         ++ field_idx;
 
-        DROP_GUARD_VALUE(&inner);
+        DROP_GUARD_VALUE(&init);
     }
 
     schema->size = offset; // now we know the total size so save it
