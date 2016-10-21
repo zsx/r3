@@ -214,7 +214,7 @@ static void get_scalar(
         // are to uniquely carry an ffi_type freed when they are GC'd
         //
         REBSER *field_1 = Make_Series(
-            sizeof(struct Struct_Field), 1, MKS_NONE
+            1, sizeof(struct Struct_Field), MKS_NONE
         );
         *SER_HEAD(struct Struct_Field, field_1) = *field;
         SET_SERIES_LEN(field_1, 1);
