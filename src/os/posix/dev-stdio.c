@@ -29,16 +29,6 @@
 // Provides basic I/O streams support for redirection and
 // opening a console window if necessary.
 //
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// NOTE to PROGRAMMERS:
-//
-//   1. Keep code clear and simple.
-//   2. Document unusual code, reasoning, or gotchas.
-//   3. Use same style for code, vars, indent(4), comments, etc.
-//   4. Keep in mind Linux, OS X, BSD, big/little endian CPUs.
-//   5. Test everything, then test it again.
-//
 
 #include <stdio.h>
 #include <fcntl.h>

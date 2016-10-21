@@ -22,10 +22,6 @@ REBOL [
     }
 ]
 
-; The most existential question of Rebol...is it a Rebol value?  (non-void)
-
-?: :any-value?
-
 
 ; Words for BLANK! and BAR!, for those who don't like symbols
 
