@@ -1549,13 +1549,10 @@ REBTYPE(Struct)
 {
     REBVAL *val;
     REBVAL *arg;
-    REBVAL *ret;
 
     val = D_ARG(1);
 
-    ret = D_OUT;
-
-    SET_VOID(ret);
+    SET_VOID(D_OUT);
     // unary actions
     switch(action) {
         case SYM_CHANGE:
@@ -1572,6 +1569,7 @@ REBTYPE(Struct)
                     BIN_HEAD(VAL_SERIES(arg)),
                     BIN_LEN(VAL_STRUCT_DATA_BIN(val))
                 );
+                *D_OUT = *val;
             }
             break;
 
@@ -1581,11 +1579,11 @@ REBTYPE(Struct)
                 switch (VAL_WORD_SYM(arg)) {
                     case SYM_VALUES:
                         fail_if_non_accessible(val);
-                        Val_Init_Binary(ret, Copy_Sequence_At_Len(VAL_STRUCT_DATA_BIN(val), VAL_STRUCT_OFFSET(val), VAL_STRUCT_SIZE(val)));
+                        Val_Init_Binary(D_OUT, Copy_Sequence_At_Len(VAL_STRUCT_DATA_BIN(val), VAL_STRUCT_OFFSET(val), VAL_STRUCT_SIZE(val)));
                         break;
                     case SYM_SPEC:
                         Val_Init_Block(
-                            ret,
+                            D_OUT,
                             Copy_Array_Deep_Managed(
                                 VAL_STRUCT_SPEC(val), SPECIFIED
                             )
@@ -1594,7 +1592,7 @@ REBTYPE(Struct)
                         break;
                     case SYM_ADDR:
                         SET_INTEGER(
-                            ret,
+                            D_OUT,
                             cast(REBUPT, SER_AT(
                                 REBYTE,
                                 VAL_STRUCT_DATA_BIN(val),
@@ -1609,7 +1607,7 @@ REBTYPE(Struct)
             break;
 
         case SYM_LENGTH:
-            SET_INTEGER(ret, SER_LEN(VAL_STRUCT_DATA_BIN(val)));
+            SET_INTEGER(D_OUT, SER_LEN(VAL_STRUCT_DATA_BIN(val)));
             break;
         default:
             fail (Error_Illegal_Action(REB_STRUCT, action));
