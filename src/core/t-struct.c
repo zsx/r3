@@ -431,7 +431,7 @@ static REBOOL assign_scalar_core(
         offset + field->offset + n * field->size
     );
 
-    u64 i = 0;
+    i64 i = 0;
     double d = 0;
 
     if (field->is_rebval) {
@@ -453,14 +453,14 @@ static REBOOL assign_scalar_core(
                 fail (Error_Invalid_Type(VAL_TYPE(val)));
 
             d = VAL_DECIMAL(val);
-            i = (u64) d;
+            i = (i64) d;
             break;
         case REB_INTEGER:
             if (kind != REB_INTEGER && kind != REB_DECIMAL)
                 if (field->type != FFI_TYPE_POINTER)
                     fail (Error_Invalid_Type(VAL_TYPE(val)));
 
-            i = (u64) VAL_INT64(val);
+            i =  VAL_INT64(val);
             d = (double)i;
             break;
         case REB_STRUCT:
@@ -473,30 +473,47 @@ static REBOOL assign_scalar_core(
 
     switch (field->type) {
         case FFI_TYPE_SINT8:
+            if (i > 0x7f || i < -128)
+                fail(Error(RE_OVERFLOW));
             *(i8*)data = (i8)i;
             break;
         case FFI_TYPE_UINT8:
+            if (i > 0xff || i < 0)
+                fail(Error(RE_OVERFLOW));
             *(u8*)data = (u8)i;
             break;
         case FFI_TYPE_SINT16:
+            if (i > 0x7fff || i < -0x8000)
+                fail(Error(RE_OVERFLOW));
             *(i16*)data = (i16)i;
             break;
         case FFI_TYPE_UINT16:
+            if (i > 0xffff || i < 0)
+                fail(Error(RE_OVERFLOW));
             *(u16*)data = (u16)i;
             break;
         case FFI_TYPE_SINT32:
+            if (i > 0x7fffffff || i < -0x80000000LL)
+                fail(Error(RE_OVERFLOW));
             *(i32*)data = (i32)i;
             break;
         case FFI_TYPE_UINT32:
+            if (i > 0xffffffffU || i < 0)
+                fail(Error(RE_OVERFLOW));
             *(u32*)data = (u32)i;
             break;
         case FFI_TYPE_SINT64:
+            /* never overflow */
             *(i64*)data = (i64)i;
             break;
         case FFI_TYPE_UINT64:
+            if (i < 0)
+                fail(Error(RE_OVERFLOW));
             *(u64*)data = (u64)i;
             break;
         case FFI_TYPE_POINTER:
+            if (sizeof(void*) < 8 && i > 0xffffffff)
+                fail(Error(RE_OVERFLOW));
             *cast(void**, data) = cast(void*, cast(REBUPT, i));
             break;
         case FFI_TYPE_FLOAT:
