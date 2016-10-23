@@ -46,6 +46,10 @@ struct Reb_Func {
 #endif
 
 inline static REBARR *FUNC_PARAMLIST(REBFUN *f) {
+#if !defined(NDEBUG)
+    if (!GET_ARR_FLAG(&f->paramlist, ARRAY_FLAG_PARAMLIST))
+        Panic_Array(&f->paramlist);
+#endif
     return &f->paramlist;
 }
 

@@ -212,15 +212,14 @@ inline static void Queue_Mark_Anything_Deep(REBSER *s) {
     if (IS_REBSER_MARKED(s))
         return;
 
-    // !!! Temporary: Does not support functions yet, so don't use a function
-    // as a GC root!
-
-    if (GET_SER_FLAG(s, ARRAY_FLAG_VARLIST))
-        Queue_Mark_Context_Deep(AS_CONTEXT(s));
-  /*  else if (GET_SER_FLAG(s, ARRAY_FLAG_PARAMLIST))
-        Queue_Mark_Function_Deep(AS_FUNC(s));
-    else */ if (Is_Array_Series(s))
-        Queue_Mark_Array_Deep(AS_ARRAY(s));
+    if (Is_Array_Series(s)) {
+        if (GET_SER_FLAG(s, ARRAY_FLAG_VARLIST))
+            Queue_Mark_Context_Deep(AS_CONTEXT(s));
+        else if (GET_SER_FLAG(s, ARRAY_FLAG_PARAMLIST))
+            Queue_Mark_Function_Deep(AS_FUNC(s));
+        else
+            Queue_Mark_Array_Deep(AS_ARRAY(s));
+    }
     else
         MARK_REBSER(s);
 }
@@ -1213,6 +1212,48 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
     }
 
     return count;
+}
+
+
+//
+//  Snapshot_All_Functions: C
+//
+// This routine can be used to get a list of all the functions in the system
+// at a given moment in time.  Be sure to protect this array from GC when
+// enumerating if there is any chance the GC might run (e.g. if user code
+// is called to process the function list)
+//
+ATTRIBUTE_NO_SANITIZE_ADDRESS REBARR *Snapshot_All_Functions(void)
+{
+    REBDSP dsp_orig = DSP;
+
+    REBSEG *seg;
+    for (seg = Mem_Pools[SER_POOL].segs; seg != NULL; seg = seg->next) {
+        REBSER *s = cast(REBSER*, seg + 1);
+        REBCNT n;
+        for (n = Mem_Pools[SER_POOL].units; n > 0; --n, ++s) {
+            switch (s->header.bits & 0x7) {
+            case 5:
+                // A managed REBSER which has no cell mask and is marked as
+                // *not* an END.  This is the typical signature of what one
+                // would call an "ordinary managed REBSER".  (For the meanings
+                // of other bits, see Sweep_Series.)
+                //
+                assert(IS_SERIES_MANAGED(s));
+                if (
+                    Is_Array_Series(s)
+                    && GET_SER_FLAG(s, ARRAY_FLAG_PARAMLIST)
+                ){
+                    REBVAL *v = KNOWN(ARR_HEAD(AS_ARRAY(s)));
+                    assert(IS_FUNCTION(v));
+                    DS_PUSH(v);
+                }
+                break;
+            }
+        }
+    }
+
+    return Pop_Stack_Values(dsp_orig);
 }
 
 

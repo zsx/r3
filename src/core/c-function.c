@@ -837,6 +837,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //
     DS_DROP_TO(dsp_orig);
 
+    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     return paramlist;
 }
 
@@ -1405,6 +1406,7 @@ REBOOL Specialize_Function_Throws(
     }
 
     REBARR *paramlist = Pop_Stack_Values(dsp_orig);
+    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
 
     RELVAL *rootparam = ARR_HEAD(paramlist);
@@ -1491,6 +1493,7 @@ void Clonify_Function(REBVAL *value)
         FUNC_PARAMLIST(original_fun),
         SPECIFIED
     );
+    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
     ARR_HEAD(paramlist)->payload.function.paramlist = paramlist;
 
@@ -1900,9 +1903,10 @@ REBNATIVE(brancher)
     REBVAL *param = SINK(ARR_AT(paramlist, 1));
     Val_Init_Typeset(param, FLAGIT_64(REB_LOGIC), Canon(SYM_CONDITION));
     INIT_VAL_PARAM_CLASS(param, PARAM_CLASS_NORMAL);
-
-    MANAGE_ARRAY(paramlist);
     TERM_ARRAY_LEN(paramlist, 2);
+
+    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
+    MANAGE_ARRAY(paramlist);
 
     REBFUN *func = Make_Function(
         paramlist,
@@ -2061,6 +2065,7 @@ REBNATIVE(chain)
         VAL_FUNC_PARAMLIST(ARR_HEAD(chainees)), SPECIFIED
     );
     ARR_HEAD(paramlist)->payload.function.paramlist = paramlist;
+    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
 
     REBFUN *specializer;
@@ -2117,7 +2122,7 @@ REBNATIVE(typechecker)
     REBVAL *type = ARG(type);
 
     REBARR *paramlist = Make_Array(2);
-    
+
     REBVAL *archetype = Alloc_Tail_Array(paramlist);
     VAL_RESET_HEADER(archetype, REB_FUNCTION);
     archetype->payload.function.paramlist = paramlist;
@@ -2126,7 +2131,8 @@ REBNATIVE(typechecker)
     REBVAL *param = Alloc_Tail_Array(paramlist);
     Val_Init_Typeset(param, ALL_64, Canon(SYM_VALUE));
     INIT_VAL_PARAM_CLASS(param, PARAM_CLASS_NORMAL);
-    
+
+    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
 
     REBFUN *fun = Make_Function(
@@ -2205,6 +2211,7 @@ REBNATIVE(adapt)
         VAL_FUNC_PARAMLIST(adaptee), SPECIFIED
     );
     ARR_HEAD(paramlist)->payload.function.paramlist = paramlist;
+    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
 
     REBFUN *fun = Make_Function(
@@ -2338,6 +2345,7 @@ REBNATIVE(hijack)
         ARR_HEAD(proxy_paramlist)->payload.function.paramlist
             = proxy_paramlist;
         ARR_SERIES(proxy_paramlist)->link.meta = VAL_FUNC_META(victim);
+        SET_ARR_FLAG(proxy_paramlist, ARRAY_FLAG_PARAMLIST);
 
         // If the proxy had a body, then that body will be bound relative
         // to the original paramlist that's getting hijacked.  So when the

@@ -384,6 +384,32 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
         series = VAL_SERIES(data);
         index = 0;
     }
+    else if (IS_DATATYPE(data)) {
+        //
+        // !!! Snapshotting the state is not particularly efficient.  However,
+        // bulletproofing an enumeration of the system against possible GC
+        // would be difficult.  And this is really just a debug/instrumentation
+        // feature anyway.
+        //
+        // !!! Note also the issue that in order for the GC to be willing to
+        // protect the values in the array with a guard, it must be managed.
+        // This is a questionable requirement--and it means we can't just
+        // Free_Array() when we're done with the enumeration.  Consider
+        // loosening this requirement (there are other places that would
+        // benefit from it being looser).
+        //
+        switch (VAL_TYPE_KIND(data)) {
+        case REB_FUNCTION:
+            series = ARR_SERIES(Snapshot_All_Functions());
+            index = 0;
+            MANAGE_ARRAY(AS_ARRAY(series));
+            PUSH_GUARD_ARRAY(AS_ARRAY(series));
+            break;
+
+        default:
+            fail (Error(RE_MISC));
+        }
+    }
     else {
         series = VAL_SERIES(data);
         index = VAL_INDEX(data);
@@ -428,6 +454,13 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                     var,
                     ARR_AT(AS_ARRAY(series), index),
                     VAL_SPECIFIER(data) // !!! always matches series?
+                );
+            }
+            else if (IS_DATATYPE(data)) {
+                COPY_VALUE(
+                    var,
+                    ARR_AT(AS_ARRAY(series), index),
+                    SPECIFIED // array generated via data stack, all specific
                 );
             }
             else if (ANY_CONTEXT(data)) {
@@ -512,17 +545,16 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                     goto skip_hidden;
                 }
             }
-            else { // A string or binary
-                if (IS_BINARY(data)) {
-                    SET_INTEGER(var, (REBI64)(BIN_HEAD(series)[index]));
-                }
-                else if (IS_IMAGE(data)) {
-                    Set_Tuple_Pixel(BIN_AT(series, index), var);
-                }
-                else {
-                    VAL_RESET_HEADER(var, REB_CHAR);
-                    VAL_CHAR(var) = GET_ANY_CHAR(series, index);
-                }
+            else if (IS_BINARY(data)) {
+                SET_INTEGER(var, (REBI64)(BIN_HEAD(series)[index]));
+            }
+            else if (IS_IMAGE(data)) {
+                Set_Tuple_Pixel(BIN_AT(series, index), var);
+            }
+            else {
+                assert(IS_STRING(data));
+                VAL_RESET_HEADER(var, REB_CHAR);
+                VAL_CHAR(var) = GET_ANY_CHAR(series, index);
             }
             index++;
         }
@@ -588,6 +620,9 @@ skip_hidden: ;
     }
 
     if (mode == LOOP_MAP_EACH) DROP_GUARD_ARRAY(mapped);
+    
+    if (IS_DATATYPE(data))
+        DROP_GUARD_SERIES(series);
 
     if (threw) {
         // a non-BREAK and non-CONTINUE throw overrides any other return
@@ -886,7 +921,7 @@ REBNATIVE(forever)
 //          {Last body result or BREAK value, will also be void if never run}
 //      'word [word! block!]
 //          "Word or block of words to set each time (local)"
-//      data [any-series! any-context! map! blank!]
+//      data [any-series! any-context! map! blank! datatype!]
 //          "The series to traverse"
 //      body [block!]
 //          "Block to evaluate each time"
@@ -947,7 +982,7 @@ REBNATIVE(map_each)
 //          {TRUE or BLANK! collected, or BREAK value, TRUE if never run.}
 //      'word [word! block!]
 //          "Word or block of words to set each time (local)"
-//      data [any-series! any-context! map! blank!]
+//      data [any-series! any-context! map! blank! datatype!]
 //          "The series to traverse"
 //      body [block!]
 //          "Block to evaluate each time"
