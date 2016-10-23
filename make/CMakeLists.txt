@@ -261,7 +261,6 @@ set (CORE_SOURCE
     ${CORE_DIR}/a-constants.c
     ${CORE_DIR}/a-globals.c
     ${CORE_DIR}/a-lib.c
-    ${CORE_DIR}/a-stubs.c
     ${CORE_DIR}/b-init.c
     ${CORE_DIR}/c-bind.c
     ${CORE_DIR}/c-do.c
@@ -304,10 +303,14 @@ set (CORE_SOURCE
     ${CORE_DIR}/m-stacks.c
     ${CORE_DIR}/n-control.c
     ${CORE_DIR}/n-data.c
+    ${CORE_DIR}/n-do.c
+    ${CORE_DIR}/n-error.c
+    ${CORE_DIR}/n-function.c
     ${CORE_DIR}/n-io.c
     ${CORE_DIR}/n-loop.c
     ${CORE_DIR}/n-math.c
     ${CORE_DIR}/n-native.c
+    ${CORE_DIR}/n-protect.c
     ${CORE_DIR}/n-reduce.c
     ${CORE_DIR}/n-sets.c
     ${CORE_DIR}/n-strings.c

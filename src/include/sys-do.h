@@ -1283,6 +1283,28 @@ inline static REBOOL Run_Success_Branch_Throws(
 }
 
 
+// Shared logic between EITHER and BRANCHER (BRANCHER is enfixed as ELSE)
+//
+inline static REB_R Either_Core(
+    REBVAL *out,
+    REBVAL *condition,
+    REBVAL *true_branch,
+    REBVAL *false_branch,
+    REBOOL only
+) {
+    if (IS_CONDITIONAL_TRUE_SAFE(condition)) { // SAFE means no literal blocks
+        if (Run_Success_Branch_Throws(out, true_branch, only))
+            return R_OUT_IS_THROWN;
+    }
+    else {
+        if (Run_Success_Branch_Throws(out, false_branch, only))
+            return R_OUT_IS_THROWN;
+    }
+
+    return R_OUT;
+}
+
+
 // A "failing" branch is the untaken branch of an IF, UNLESS, a missed CASE
 // or switch, etc.  This is distinguished from a branch which is simply false,
 // such as the false branch of an EITHER.  As far as an EITHER is concerned,

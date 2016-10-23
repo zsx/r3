@@ -20,7 +20,6 @@ core: [
     a-constants.c
     a-globals.c
     a-lib.c
-    a-stubs.c
 
     ; (B)oot
     b-boot.c
@@ -77,10 +76,14 @@ core: [
     ; (N)atives
     n-control.c
     n-data.c
+    n-do.c
+    n-error.c
+    n-function.c
     n-io.c
     n-loop.c
     n-math.c
     n-native.c
+    n-protect.c
     n-reduce.c
     n-sets.c
     n-strings.c

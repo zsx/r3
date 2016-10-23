@@ -76,6 +76,60 @@ REBOOL Catching_Break_Or_Continue(REBVAL *val, REBOOL *stop)
 
 
 //
+//  break: native [
+//  
+//  {Exit the current iteration of a loop and stop iterating further.}
+//  
+//      /with
+//          {Act as if loop body finished current evaluation with a value}
+//      value [<opt> any-value!]
+//  ]
+//
+REBNATIVE(break)
+//
+// BREAK is implemented via a THROWN() value that bubbles up through
+// the stack.  It uses the value of its own native function as the
+// name of the throw, like `throw/name value :break`.
+{
+    REFINE(1, with);
+    PARAM(2, value);
+
+    *D_OUT = *NAT_VALUE(break);
+
+    CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : VOID_CELL);
+
+    return R_OUT_IS_THROWN;
+}
+
+
+//
+//  continue: native [
+//  
+//  "Throws control back to top of loop for next iteration."
+//  
+//      /with
+//          {Act as if loop body finished current evaluation with a value}
+//      value [<opt> any-value!]
+//  ]
+//
+REBNATIVE(continue)
+//
+// CONTINUE is implemented via a THROWN() value that bubbles up through
+// the stack.  It uses the value of its own native function as the
+// name of the throw, like `throw/name value :continue`.
+{
+    REFINE(1, with);
+    PARAM(2, value);
+
+    *D_OUT = *NAT_VALUE(continue);
+
+    CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : VOID_CELL);
+
+    return R_OUT_IS_THROWN;
+}
+
+
+//
 //  Copy_Body_Deep_Bound_To_New_Context: C
 //
 // Looping constructs which are parameterized by WORD!s to set each time
