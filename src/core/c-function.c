@@ -938,7 +938,7 @@ REBFUN *Make_Function(
             //
             SET_VAL_FLAG(rootparam, FUNC_FLAG_MAYBE_BRANCHER);
 
-            if (GET_VAL_FLAG(param, TYPESET_FLAG_DEFER))
+            if (!GET_VAL_FLAG(param, TYPESET_FLAG_TIGHT))
                 SET_VAL_FLAG(rootparam, FUNC_FLAG_DEFERS_LOOKBACK_ARG);
 
             goto done_caching; }

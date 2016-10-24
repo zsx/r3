@@ -721,7 +721,7 @@ left-bar: func [
     {Expression barrier that evaluates to left side but executes right.}
     return: [<opt> any-value!]
         {Evaluative result of `left`.}
-    left [<defer> <opt> <end> any-value!]
+    left [<opt> <end> any-value!]
         {A single complete expression on the left.}
     right [<opt> any-value! <...>]
         {Any number of expressions on the right.}
@@ -734,7 +734,7 @@ right-bar: func [
     {Expression barrier that evaluates to first expression on right.}
     return: [<opt> any-value!]
         {Evaluative result of first of the right expressions.}
-    left [<defer> <opt> <end> any-value!]
+    left [<opt> <end> any-value!]
         {A single complete expression on the left.}
     right [<opt> any-value! <...>]
         {Any number of expressions on the right.}
@@ -746,7 +746,7 @@ right-bar: func [
 once-bar: func [
     {Expression barrier that's willing to only run one expression after it}
     return: [<opt> any-value!]
-    left [<defer> <opt> <end> any-value!]
+    left [<opt> <end> any-value!]
     right [<opt> any-value! <...>]
     :lookahead [any-value! <...>]
     look:

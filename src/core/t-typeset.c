@@ -190,13 +190,13 @@ REBOOL Update_Typeset_Bits_Core(
         }
         else if (
             keywords && IS_TAG(item) && (
-                0 == Compare_String_Vals(item, ROOT_DEFER_TAG, TRUE)
+                0 == Compare_String_Vals(item, ROOT_TIGHT_TAG, TRUE)
             )
         ) {
             // Makes enfixed first arguments "lazy" and other arguments will
             // use the DO_FLAG_NO_LOOKAHEAD.
             // 
-            SET_VAL_FLAG(typeset, TYPESET_FLAG_DEFER);
+            SET_VAL_FLAG(typeset, TYPESET_FLAG_TIGHT);
         }
         else if (
             IS_BAR(item) || (keywords && IS_TAG(item) && (

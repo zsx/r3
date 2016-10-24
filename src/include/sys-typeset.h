@@ -216,19 +216,21 @@ enum Reb_Param_Class {
 //
 #define TYPESET_FLAG_NO_LOOKBACK TYPESET_FLAG(9)
 
-// R3-Alpha's notion of infix OP!s would make the right hand argument enter
-// a special mode in which further infix processing was not done.  This
-// meant that `1 + 2 * 3`, when fulfilling the 2 for the right side of +,
-// would "blind" itself so that it would not chain forward and see the `* 3`.
-// This gave rise to a distinct behavior from `1 + multiply 2 3`.
+// R3-Alpha's notion of infix OP!s changed the way parameters were gathered.
+// On the right hand side, the argument was evaluated in a special mode in
+// which further infix processing was not done.  This meant that `1 + 2 * 3`,
+// when fulfilling the 2 for the right side of +, would "blind" itself so
+// that it would not chain forward and see the `* 3`.  This gave rise to a
+// distinct behavior from `1 + multiply 2 3`.  A similar kind of "tightness"
+// would happen with the left hand side, where `add 1 2 * 3` would be
+// aggressive and evaluate it as `add 1 (2 * 3)` and not `(add 1 2) * 3`.
 //
 // Ren-C decouples this property so that it may be applied to any parameter,
-// and calls it "defer".  Additionally, the property when applied to the
-// left hand side of a lookback ("enfixed") function, means it will be as
-// lazy as possible and try making the most complete expression on the left
-// it can before executing.
+// and calls it "tight".  By default, however, expressions are completed as
+// far as they can be on both the left and right hand side of enfixed
+// expressions.
 //
-#define TYPESET_FLAG_DEFER TYPESET_FLAG(10)
+#define TYPESET_FLAG_TIGHT TYPESET_FLAG(10)
 
 
 // Operations when typeset is done with a bitset (currently all typesets)
@@ -280,4 +282,16 @@ inline static enum Reb_Param_Class VAL_PARAM_CLASS(const RELVAL *v) {
 inline static void INIT_VAL_PARAM_CLASS(RELVAL *v, enum Reb_Param_Class c) {
     v->header.bits &= ~PCLASS_MASK;
     v->header.bits |= cast(REBUPT, c << TYPE_SPECIFIC_BIT);
+
+    // !!! The "<tight>" mechanism is likely to be ultimately deprecated,
+    // and quoting will replace it.  For now, though, the only kinds of
+    // quoting you can accomplish on the left-hand side of an enfixed
+    // operation need tight semantics.  Otherwise, even if ELSE wants its
+    // first parameter to be a hard-quoted block, then `if x [] else []`
+    // will see (if x []) as a completed expression before ELSE gets the
+    // chance to quote the block.  To avoid having to mark quoted args
+    // as tight explicitly, do it implicitly for now.
+    //
+    if (c & PCLASS_ANY_QUOTE_MASK)
+        SET_VAL_FLAG(v, TYPESET_FLAG_TIGHT);
 }

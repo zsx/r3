@@ -328,8 +328,8 @@ REBNATIVE(typechecker)
 //  {Create a function that selects between two values based on a LOGIC!}
 //
 //      return: [function!]
-//      true-branch [any-value!]
-//      false-branch [any-value!]
+//      :true-branch [block!]
+//      :false-branch [block!]
 //  ][
 //      specialize 'either [
 //          true-branch: true-branch
@@ -349,6 +349,12 @@ REBNATIVE(brancher)
 // to not create series...but a special kind of REBVAL which would morph
 // into a function on demand.  IF and UNLESS could recognize this special
 // value type and treat it like a branch.
+//
+// !!! Currently it is limited to hard quoted BLOCK!s based on the
+// limitations of left-handed enfixed functions w.r.t. quoting.  This is
+// based on the assumption that in the long run, <tight> will not exist; and
+// a function wanting to pull the trick ELSE is with its left hand side will
+// have to use some kind of quoting.
 {
     PARAM(1, true_branch);
     PARAM(2, false_branch);

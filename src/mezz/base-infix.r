@@ -58,128 +58,176 @@ right-flag: bind (pick make block! "|>" 1) context-of 'lambda
 ; While Ren-C has no particular concept of "infix OP!s" as a unique datatype,
 ; a function which is arity-2 and bound lookback to a variable acts similarly. 
 ; Yet the default is to obey the same lookahead rules as prefix operations
-; historically applied.
+; historically applied.  Also, the left hand argument will be evaluated as
+; complete an expression as it can.
 ;
-; That would mean that `1 * add 1 2 * 3` behaves the same as `1 * 1 + 2 * 3`.
-; To override this and act like ((1 * 1) + 2) * 3) it's necessary for the
-; second argument to infix to avoid looking ahead for further lookback
-; functions.  This is a per-parameter user-controllable property in Ren-C.
+; The <tight> annotation is long-term likely a legacy-only property, which
+; requests as *minimal* a complete expression on a slot as possible.  So if 
+; you have SOME-INFIX with tight parameters on the left and the right it
+; would see:
+;
+;     add 1 2 some-infix add 1 2 + 10
+;
+; and interpret it as:
+;
+;     add 1 (2 some-infix add 1 2) + 10
+;
+; Whereas if the arguments were not tight, it would see this as:
+;
+;     (add 1 2) some-infix (add 1 2 + 10)
+;
+; For the moment while the features settle, the operators "in the box" are
+; all wrapped to behave with tight left and right arguments.  Long term the
+; feature is theorized to be unnecessary.
 ;
 
-+: enfix func [arg1 [any-value!] arg2 [<defer> any-value!]] [
++: enfix func [arg1 [<tight> any-value!] arg2 [<tight> any-value!]] [
     add :arg1 :arg2
 ]
 
--: enfix func [arg1 [any-value!] arg2 [<defer> any-value!]] [
+-: enfix func [arg1 [<tight> any-value!] arg2 [<tight> any-value!]] [
     subtract :arg1 :arg2
 ]
 
-*: enfix func [arg1 [any-value!] arg2 [<defer> any-value!]] [
+*: enfix func [arg1 [<tight> any-value!] arg2 [<tight> any-value!]] [
     multiply :arg1 :arg2
 ]
 
-**: enfix func [arg1 [any-value!] arg2 [<defer> any-value!]] [
+**: enfix func [arg1 [<tight> any-value!] arg2 [<tight> any-value!]] [
     power :arg1 :arg2
 ]
 
-set/lookback dv func [arg1 [any-value!] arg2 [<defer> any-value!]] [
+set/lookback dv func [arg1 [<tight> any-value!] arg2 [<tight> any-value!]] [
     divide :arg1 :arg2
 ]
 
-set/lookback dvdv func [arg1 [any-value!] arg2 [<defer> any-value!]] [
+set/lookback dvdv func [arg1 [<tight> any-value!] arg2 [<tight> any-value!]] [
     remainder :arg1 :arg2
 ]
 
-
-; As a break from history, it was considered comparisons in Ren-C force
-; "complete expressions" on their left by deferring the left-hand argument,
-; while consuming arbitrarily long chains of infix on their right.  This
-; permits `10 = 5 + 5` to work the same as `10 = probe 5 + 5`, or even
-; `add 2 8 = 5 + 5`.  However, it would mean that `x: 1 = var` would not
-; assign x the result of the comparison, because `x: 1` is a complete
-; expression.  Similarly `not x = 5` would mean `(not x) = 5`.  While a
-; potentially interesting consideration for the future, the historical
-; invariant is preserved in these versions of the operators.
-
-=: enfix func [arg1 [<opt> any-value!] arg2 [<defer> <opt> any-value!]] [
+=: enfix func [
+    arg1 [<tight> <opt> any-value!]
+    arg2 [<tight> <opt> any-value!]
+][
     equal? :arg1 :arg2
 ]
 
-=?: enfix func [arg1 [<opt> any-value!] arg2 [<defer> <opt> any-value!]] [
+=?: enfix func [
+    arg1 [<tight> <opt> any-value!]
+    arg2 [<tight> <opt> any-value!]
+][
     same? :arg1 :arg2
 ]
 
-==: enfix func [arg1 [<opt> any-value!] arg2 [<defer> <opt> any-value!]] [
+==: enfix func [
+    arg1 [<tight> <opt> any-value!]
+    arg2 [<tight> <opt> any-value!]
+][
     strict-equal? :arg1 :arg2
 ]
 
-!=: enfix func [arg1 [<opt> any-value!] arg2 [<defer> <opt> any-value!]] [
-    not-equal? :arg1 :arg2
-]
-
-!==: enfix func [arg1 [<opt> any-value!] arg2 [<defer> <opt> any-value!]] [
-    strict-not-equal? :arg1 :arg2
-]
-
-set/lookback should-be-empty-tag func [
-    arg1 [<opt> any-value!]
-    arg2 [<defer> <opt> any-value!]
+!=: enfix func [
+    arg1 [<tight> <opt> any-value!]
+    arg2 [<tight> <opt> any-value!]
 ][
     not-equal? :arg1 :arg2
 ]
 
-set/lookback lt func [arg1 [any-value!] arg2 [<defer> any-value!]] [
+!==: enfix func [
+    arg1 [<tight> <opt> any-value!]
+    arg2 [<tight> <opt> any-value!]
+][
+    strict-not-equal? :arg1 :arg2
+]
+
+set/lookback should-be-empty-tag func [
+    arg1 [<tight> <opt> any-value!]
+    arg2 [<tight> <opt> any-value!]
+][
+    not-equal? :arg1 :arg2
+]
+
+set/lookback lt func [
+    arg1 [<tight> any-value!]
+    arg2 [<tight> any-value!]
+][
     lesser? :arg1 :arg2
 ]
 
-set/lookback lteq func [arg1 [any-value!] arg2 [<defer> any-value!]] [
+set/lookback lteq func [
+    arg1 [<tight> any-value!]
+    arg2 [<tight> any-value!]
+][
     lesser-or-equal? :arg1 :arg2
 ]
 
-set/lookback gt func [arg1 [any-value!] arg2 [<defer> any-value!]] [
+set/lookback gt func [
+    arg1 [<tight> any-value!]
+    arg2 [<tight> any-value!]
+][
     greater? :arg1 :arg2
 ]
 
-set/lookback gteq func [arg1 [any-value!] arg2 [<defer> any-value!]] [
+set/lookback gteq func [
+    arg1 [<tight> any-value!]
+    arg2 [<tight> any-value!]
+][
     greater-or-equal? :arg1 :arg2
 ]
 
-
-; The AND, OR, XOR behavior is being changed so radically that it's worth
-; asking what the best rule is.  Are they more like math operators or like
-; comparison operators?  Compatibility doesn't apply here, as Ren-C has
-; basically retaken the undecorated forms for LOGIC! and not bitwise math.
-; But using the compatible infix deferment of right-hand side for now.
-
-and: enfix func [arg1 [any-value!] arg2 [<defer> any-value!]] [
+and: enfix func [
+    arg1 [<tight> any-value!]
+    arg2 [<tight> any-value!]
+][
     and? :arg1 :arg2
 ]
 
-or: enfix func [arg1 [any-value!] arg2 [<defer> any-value!]] [
+or: enfix func [
+    arg1 [<tight> any-value!]
+    arg2 [<tight> any-value!]
+][
     or? :arg1 :arg2
 ]
 
-xor: enfix func [arg1 [any-value!] arg2 [<defer> any-value!]] [
+xor: enfix func [
+    arg1 [<tight> any-value!]
+    arg2 [<tight> any-value!]
+][
     xor? :arg1 :arg2
 ]
 
-nor: enfix func [arg1 [any-value!] arg2 [<defer> any-value!]] [
+nor: enfix func [
+    arg1 [<tight> any-value!]
+    arg2 [<tight> any-value!]
+][
     nor? :arg1 :arg2
 ]
 
-nand: enfix func [arg1 [any-value!] arg2 [<defer> any-value!]] [
+nand: enfix func [
+    arg1 [<tight> any-value!]
+    arg2 [<tight> any-value!]
+][
     nand? :arg1 :arg2
 ]
 
-and*: enfix func [arg1 [any-value!] arg2 [<defer> any-value!]] [
+and*: enfix func [
+    arg1 [<tight> any-value!]
+    arg2 [<tight> any-value!]
+][
     and~ :arg1 :arg2
 ]
 
-or+: enfix func [arg1 [any-value!] arg2 [<defer> any-value!]] [
+or+: enfix func [
+    arg1 [<tight> any-value!]
+    arg2 [<tight> any-value!]
+][
     or~ :arg1 :arg2
 ]
 
-xor+: enfix func [arg1 [any-value!] arg2 [<defer> any-value!]] [
+xor+: enfix func [
+    arg1 [<tight> any-value!]
+    arg2 [<tight> any-value!]
+][
     xor~ :arg1 :arg2
 ]
 
@@ -193,11 +241,9 @@ xor+: enfix func [arg1 [any-value!] arg2 [<defer> any-value!]] [
 ; enfixed operators to force the left hand side of expressions to be as
 ; maximal as possible.  Hence `while [take blk ?] [...]` would ask if blk was
 ; void, not `take blk`.  So it was tried as a prefix operator, which wound
-; up looking somewhat junky.
+; up looking somewhat junky...now it's being tried as working postfix.
 
-?: enfix function [arg [<defer> <opt> any-value!]] [
-    any-value? :arg
-]
+?: enfix :any-value?
 
 
 ; ELSE is an experiment to try and allow IF condition [branch1] ELSE [branch2]
@@ -216,9 +262,8 @@ set/lookback left-arrow (specialize :lambda [only: true])
 
 
 ; These usermode expression-barrier like constructs may not necessarily use
-; their left-hand arguments...however by being enfixed and declaring their
-; left-hand argument to be "<defer>" they are able to force complete
-; expressions to their left.
+; their left-hand arguments...however by being enfixed and not having <tight>
+; first args, they are able to force complete expressions to their left.
 
 set/lookback left-flag :left-bar
 set/lookback right-flag :right-bar

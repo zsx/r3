@@ -145,7 +145,7 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
 #endif
 
 
-static inline void Type_Check_Arg_For_Param_May_Fail(REBFRM * f) {
+static inline void Type_Check_Arg_For_Param_May_Fail(REBFRM *f) {
     if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg)))
         fail (Error_Arg_Type(FRM_LABEL(f), f->param, VAL_TYPE(f->arg)));
 }
@@ -843,14 +843,14 @@ reevaluate:;
                 // The default for evaluated parameters is to do normal
                 // infix lookahead, e.g. `square 1 + 2` would pass 3
                 // to a single-arity function "square".  But if the
-                // argument to square is declared <defer>, it will act as
+                // argument to square is declared <tight>, it will act as
                 // `(square 1) + 2`, by not applying lookahead to
                 // see the + during the argument evaluation.
                 //
                 DO_NEXT_REFETCH_MAY_THROW(
                     f->arg,
                     f,
-                    (GET_VAL_FLAG(f->param, TYPESET_FLAG_DEFER)
+                    (GET_VAL_FLAG(f->param, TYPESET_FLAG_TIGHT)
                         ? DO_FLAG_NO_LOOKAHEAD
                         : 0)
                 );
@@ -1520,13 +1520,13 @@ reevaluate:;
             fail (Error(RE_NEED_VALUE, DS_TOP)); // `do [a/b/c:]` is illegal
         f->eval_type = VAL_TYPE(f->value);
 
-#if !defined(NDEBUG)
+    #if !defined(NDEBUG)
         //
         // !!! See remarks on REB_SET_WORD
         //
         if (LEGACY(OPTIONS_SETS_UNSUPPRESS_LOOKAHEAD))
             f->flags.bits &= ~DO_FLAG_NO_LOOKAHEAD;
-#endif
+    #endif
         goto do_next;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1599,11 +1599,9 @@ reevaluate:;
     // to this point.  We'll only get here if an expression completed to
     // assign -or- if the left hand side of an infix is ready.
     //
-    // Ordinarily having the left side of an infix is not enough. `x: 1 + 2`
-    // does not want to push the X:, then get a 1, then assign the 1...it
-    // needs to wait.  But if the first argument of the infix is <defer>,
-    // e.g. `x: 1 + 2 <| ...`, then the <| wants to flush its SETs before
-    // running vs. setting them to its own result.
+    // `x: 1 + 2` does not want to push the X:, then get a 1, then assign the
+    // 1...it needs to wait.  The pending sets are not flushed until the
+    // infix operation has finished. 
 
     if (IS_END(f->value)) {
         Do_Pending_Sets_May_Invalidate_Gotten(f->out, f); // don't care if does
@@ -1614,7 +1612,7 @@ reevaluate:;
 
     if (f->flags.bits & DO_FLAG_NO_LOOKAHEAD) {
         //
-        // Don't do infix lookahead if asked *not* to look.  See also: <defer>
+        // Don't do infix lookahead if asked *not* to look.  See also: <tight>
     }
     else if (f->eval_type == REB_WORD) {
 
@@ -1657,32 +1655,19 @@ reevaluate:;
         }
 
         if (f->eval_type == REB_0_LOOKBACK) {
-            if (GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG)) {
-                if (
+            if (
+                GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG)
+                && (
                     (f->flags.bits & DO_FLAG_VARIADIC_TAKE)
                     || (f->prior && Fulfilling_Last_Argument(f->prior))
-                ) {
-                    //
-                    // This is the special case; we have a lookback function
-                    // pending but it wants to defer its first argument as
-                    // long as possible--and we're on the last parameter of
-                    // some function.  Skip the "lookahead" and let whoever
-                    // is gathering arguments (or whoever's above them) finish
-                    // the expression before taking the pending operation.
-                }
-                else {
-                    // The lookback would like to defer but there's no complete
-                    // expression to defer it to.  This means we've got to
-                    // close out the pending sets and use the argument as-is.
-                    //
-                    Do_Pending_Sets_May_Invalidate_Gotten(f->out, f);
-                    if (f->gotten == NULL)
-                        goto do_word_in_value; // pay for refetch
-
-                    SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
-                    f->refine = LOOKBACK_ARG;
-                    goto do_function_in_gotten;
-                }
+                )
+            ){
+                // This is the special case; we have a lookback function
+                // pending but it wants to defer its first argument as
+                // long as possible--and we're on the last parameter of
+                // some function.  Skip the "lookahead" and let whoever
+                // is gathering arguments (or whoever's above them) finish
+                // the expression before taking the pending operation.
             }
             else {
                 // Don't defer and don't flush the sets... we want to set any

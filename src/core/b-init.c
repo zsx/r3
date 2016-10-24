@@ -557,7 +557,7 @@ static void Init_Function_Tags(void)
     Init_Function_Tag("end", ROOT_END_TAG);
     Init_Function_Tag("local", ROOT_LOCAL_TAG);
     Init_Function_Tag("durable", ROOT_DURABLE_TAG);
-    Init_Function_Tag("defer", ROOT_DEFER_TAG);
+    Init_Function_Tag("tight", ROOT_TIGHT_TAG);
 }
 
 
