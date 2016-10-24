@@ -313,7 +313,7 @@ void RXI_To_Value(REBVAL *val, const RXIARG *arg, REBRXT type)
         break;
 
     default:
-        fail(Error(RE_BAD_CMD_ARGS));
+        fail (Error(RE_BAD_CMD_ARGS));
     }
 
     return;

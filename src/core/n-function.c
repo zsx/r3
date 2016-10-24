@@ -118,12 +118,12 @@ void Make_Thrown_Exit_Value(
     if (IS_INTEGER(level)) {
         REBCNT count = VAL_INT32(level);
         if (count <= 0)
-            fail(Error(RE_INVALID_EXIT));
+            fail (Error(RE_INVALID_EXIT));
 
         REBFRM *f = frame->prior;
         for (; TRUE; f = f->prior) {
             if (f == NULL)
-                fail(Error(RE_INVALID_EXIT));
+                fail (Error(RE_INVALID_EXIT));
 
             if (NOT(Is_Any_Function_Frame(f))) continue; // only exit functions
 
@@ -217,7 +217,7 @@ REBNATIVE(return)
     REBFRM *f = frame_; // implicit parameter to REBNATIVE()
 
     if (f->binding == NULL) // raw native, not a variant FUNCTION made
-        fail(Error(RE_RETURN_ARCHETYPE));
+        fail (Error(RE_RETURN_ARCHETYPE));
 
     // The frame this RETURN is being called from may well not be the target
     // function of the return (that's why it's a "definitional return").  So
@@ -237,7 +237,7 @@ REBNATIVE(return)
     // wound up catching it.
     //
     if (!TYPE_CHECK(typeset, VAL_TYPE(value)))
-        fail(Error_Bad_Return_Type(
+        fail (Error_Bad_Return_Type(
             f->label, // !!! Should climb stack to get real label?
             VAL_TYPE(value)
         ));
@@ -262,7 +262,7 @@ REBNATIVE(leave)
 // See notes on REBNATIVE(return)
 {
     if (frame_->binding == NULL) // raw native, not a variant PROCEDURE made
-        fail(Error(RE_RETURN_ARCHETYPE));
+        fail (Error(RE_RETURN_ARCHETYPE));
 
     *D_OUT = *NAT_VALUE(exit); // see also Make_Thrown_Exit_Value
     D_OUT->extra.binding = frame_->binding;
@@ -418,7 +418,7 @@ REBNATIVE(specialize)
     Get_If_Word_Or_Path_Arg(&specializee, &opt_name, ARG(value));
 
     if (!IS_FUNCTION(&specializee))
-        fail(Error(RE_APPLY_NON_FUNCTION, ARG(value))); // for APPLY too
+        fail (Error(RE_APPLY_NON_FUNCTION, ARG(value))); // for APPLY too
 
     if (Specialize_Function_Throws(D_OUT, &specializee, opt_name, ARG(def)))
         return R_OUT_IS_THROWN;
@@ -468,7 +468,7 @@ REBNATIVE(chain)
     REBVAL *check = first;
     while (NOT_END(check)) {
         if (!IS_FUNCTION(check))
-            fail(Error_Invalid_Arg(check));
+            fail (Error_Invalid_Arg(check));
         ++check;
     }
 
@@ -543,7 +543,7 @@ REBNATIVE(adapt)
     REBSTR *opt_adaptee_name;
     Get_If_Word_Or_Path_Arg(D_OUT, &opt_adaptee_name, adaptee);
     if (!IS_FUNCTION(D_OUT))
-        fail(Error(RE_APPLY_NON_FUNCTION, adaptee));
+        fail (Error(RE_APPLY_NON_FUNCTION, adaptee));
 
     *adaptee = *D_OUT;
 
@@ -662,7 +662,7 @@ REBNATIVE(hijack)
     );
     REBVAL *victim = &victim_value;
     if (!IS_FUNCTION(victim))
-        fail(Error(RE_MISC));
+        fail (Error(RE_MISC));
 
     REBVAL hijacker_value;
     REBSTR *opt_hijacker_name;
@@ -671,14 +671,14 @@ REBNATIVE(hijack)
     );
     REBVAL *hijacker = &hijacker_value;
     if (!IS_FUNCTION(hijacker) && !IS_BLANK(hijacker))
-        fail(Error(RE_MISC));
+        fail (Error(RE_MISC));
 
     // !!! Should hijacking a function with itself be a no-op?  One could make
     // an argument from semantics that the effect of replacing something with
     // itself is not to change anything, but erroring may give a sanity check.
     //
     if (!IS_BLANK(hijacker) && VAL_FUNC(victim) == VAL_FUNC(hijacker))
-        fail(Error(RE_MISC));
+        fail (Error(RE_MISC));
 
     if (IS_FUNCTION_HIJACKER(victim) && IS_BLANK(VAL_FUNC_BODY(victim))) {
         //
@@ -691,7 +691,7 @@ REBNATIVE(hijack)
         // that no new proxy could be made.
 
         if (IS_BLANK(hijacker))
-            fail(Error(RE_MISC)); // !!! Allow re-blanking a blank?
+            fail (Error(RE_MISC)); // !!! Allow re-blanking a blank?
 
         SET_BLANK(D_OUT);
     }

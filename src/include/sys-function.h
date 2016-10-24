@@ -261,7 +261,7 @@ inline static REBVAL *Sys_Func(REBCNT inum)
     REBVAL *value = CTX_VAR(Sys_Context, inum);
 
     if (!IS_FUNCTION(value))
-        fail(Error(RE_BAD_SYS_FUNC, value));
+        fail (Error(RE_BAD_SYS_FUNC, value));
 
     return value;
 }

@@ -474,32 +474,32 @@ static REBOOL assign_scalar_core(
     switch (field->type) {
         case FFI_TYPE_SINT8:
             if (i > 0x7f || i < -128)
-                fail(Error(RE_OVERFLOW));
+                fail (Error(RE_OVERFLOW));
             *(i8*)data = (i8)i;
             break;
         case FFI_TYPE_UINT8:
             if (i > 0xff || i < 0)
-                fail(Error(RE_OVERFLOW));
+                fail (Error(RE_OVERFLOW));
             *(u8*)data = (u8)i;
             break;
         case FFI_TYPE_SINT16:
             if (i > 0x7fff || i < -0x8000)
-                fail(Error(RE_OVERFLOW));
+                fail (Error(RE_OVERFLOW));
             *(i16*)data = (i16)i;
             break;
         case FFI_TYPE_UINT16:
             if (i > 0xffff || i < 0)
-                fail(Error(RE_OVERFLOW));
+                fail (Error(RE_OVERFLOW));
             *(u16*)data = (u16)i;
             break;
         case FFI_TYPE_SINT32:
             if (i > 0x7fffffff || i < -0x80000000LL)
-                fail(Error(RE_OVERFLOW));
+                fail (Error(RE_OVERFLOW));
             *(i32*)data = (i32)i;
             break;
         case FFI_TYPE_UINT32:
             if (i > 0xffffffffU || i < 0)
-                fail(Error(RE_OVERFLOW));
+                fail (Error(RE_OVERFLOW));
             *(u32*)data = (u32)i;
             break;
         case FFI_TYPE_SINT64:
@@ -508,12 +508,12 @@ static REBOOL assign_scalar_core(
             break;
         case FFI_TYPE_UINT64:
             if (i < 0)
-                fail(Error(RE_OVERFLOW));
+                fail (Error(RE_OVERFLOW));
             *(u64*)data = (u64)i;
             break;
         case FFI_TYPE_POINTER:
             if (sizeof(void*) < 8 && i > 0xffffffff)
-                fail(Error(RE_OVERFLOW));
+                fail (Error(RE_OVERFLOW));
             *cast(void**, data) = cast(void*, cast(REBUPT, i));
             break;
         case FFI_TYPE_FLOAT:

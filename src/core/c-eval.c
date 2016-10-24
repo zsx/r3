@@ -922,7 +922,7 @@ reevaluate:;
                     // didn't trigger revocation, or refine wouldn't be logic.
                     //
                     if (f->refine + 1 != f->arg)
-                        fail(Error_Bad_Refine_Revoke(f));
+                        fail (Error_Bad_Refine_Revoke(f));
 
                     SET_FALSE(f->refine); // can't re-enable...
                     f->refine = ARG_TO_REVOKED_REFINEMENT;
@@ -1175,7 +1175,7 @@ reevaluate:;
         REBVAL *typeset = FUNC_PARAM(f->func, FUNC_NUM_PARAMS(f->func));
         assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
         if (!TYPE_CHECK(typeset, VAL_TYPE(f->out)))
-            fail(Error_Bad_Return_Type(f->label, VAL_TYPE(f->out)));
+            fail (Error_Bad_Return_Type(f->label, VAL_TYPE(f->out)));
     }
 #endif
 

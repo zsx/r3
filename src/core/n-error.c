@@ -96,7 +96,7 @@ REBNATIVE(trap)
                 return R_OUT;
             }
 
-            panic(Error(RE_MISC)); // should not be possible (type-checking)
+            panic (Error(RE_MISC)); // should not be possible (type-checking)
         }
 
         if (REF(q)) return R_TRUE;

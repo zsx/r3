@@ -494,7 +494,7 @@ REBNATIVE(switch)
     // block in source, as that is likely a mistake.
     //
     if (IS_BLOCK(value) && !GET_VAL_FLAG(value, VALUE_FLAG_EVALUATED))
-        fail(Error(RE_BLOCK_SWITCH, value));
+        fail (Error(RE_BLOCK_SWITCH, value));
 
     // Frame's extra D_CELL is free since the function has > 1 arg.  Reuse it
     // as a temporary GC-safe location for holding evaluations.  This

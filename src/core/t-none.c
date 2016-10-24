@@ -107,5 +107,5 @@ REBINT CT_Handle(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 REBTYPE(Handle)
 {
-    fail(Error_Illegal_Action(REB_HANDLE, action));
+    fail (Error_Illegal_Action(REB_HANDLE, action));
 }

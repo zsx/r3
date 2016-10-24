@@ -320,7 +320,7 @@ REBNATIVE(apply)
     //
     if (NOT_END(first_def)) {
         if (!IS_SET_WORD(first_def) && !IS_BAR(first_def)) {
-            fail(Error(RE_APPLY_HAS_CHANGED));
+            fail (Error(RE_APPLY_HAS_CHANGED));
         }
     }
 #endif
@@ -335,7 +335,7 @@ REBNATIVE(apply)
         name = Canon(SYM___ANONYMOUS__); // Do_Core requires non-NULL symbol
 
     if (!IS_FUNCTION(D_OUT))
-        fail(Error(RE_APPLY_NON_FUNCTION, ARG(value))); // for SPECIALIZE too
+        fail (Error(RE_APPLY_NON_FUNCTION, ARG(value))); // for SPECIALIZE too
 
     f->gotten = D_OUT;
     f->out = D_OUT;

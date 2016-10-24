@@ -78,7 +78,7 @@ static void tcc_error_report(void *ignored, const char *msg)
     REBSER *ser = Make_Binary(strlen(msg) + 2);
     Append_Series(ser, cb_cast(msg), strlen(msg));
     Val_Init_String(&err, ser);
-    fail(Error(RE_TCC_ERROR_WARN, &err));
+    fail (Error(RE_TCC_ERROR_WARN, &err));
 }
 
 
@@ -350,7 +350,7 @@ REBNATIVE(make_native)
 REBNATIVE(compile)
 {
 #if !defined(WITH_TCC)
-    fail(Error(RE_NOT_TCC_BUILD));
+    fail (Error(RE_NOT_TCC_BUILD));
 #else
     PARAM(1, natives);
     REFINE(2, options);
@@ -361,7 +361,7 @@ REBNATIVE(compile)
     REBOOL debug = FALSE; // !!! not implemented yet
 
     if (VAL_LEN_AT(ARG(natives)) == 0)
-        fail(Error(RE_TCC_EMPTY_SPEC));
+        fail (Error(RE_TCC_EMPTY_SPEC));
 
     RELVAL *spec = NULL;
     RELVAL *inc = NULL;
@@ -375,13 +375,13 @@ REBNATIVE(compile)
 
         for (; NOT_END(val); ++val) {
             if (!IS_WORD(val))
-                fail(Error(RE_TCC_EXPECT_WORD, val));
+                fail (Error(RE_TCC_EXPECT_WORD, val));
 
             switch (VAL_WORD_SYM(val)) {
             case SYM_INCLUDE:
                 ++val;
                 if (!(IS_BLOCK(val) || IS_FILE(val) || ANY_STRING(val)))
-                    fail(Error(RE_TCC_INVALID_INCLUDE, val));
+                    fail (Error(RE_TCC_INVALID_INCLUDE, val));
                 inc = val;
                 break;
 
@@ -392,33 +392,33 @@ REBNATIVE(compile)
             case SYM_OPTIONS:
                 ++val;
                 if (!ANY_STRING(val) || !VAL_BYTE_SIZE(val))
-                    fail(Error(RE_TCC_INVALID_OPTIONS, val));
+                    fail (Error(RE_TCC_INVALID_OPTIONS, val));
                 options = val;
                 break;
 
             case SYM_RUNTIME_PATH:
                 ++val;
                 if (!(IS_FILE(val) || IS_STRING(val)))
-                    fail(Error(RE_TCC_INVALID_LIBRARY_PATH, val));
+                    fail (Error(RE_TCC_INVALID_LIBRARY_PATH, val));
                 rundir = val;
                 break;
 
             case SYM_LIBRARY_PATH:
                 ++val;
                 if (!(IS_BLOCK(val) || IS_FILE(val) || ANY_STRING(val)))
-                    fail(Error(RE_TCC_INVALID_LIBRARY_PATH, val));
+                    fail (Error(RE_TCC_INVALID_LIBRARY_PATH, val));
                 libdir = val;
                 break;
 
             case SYM_LIBRARY:
                 ++val;
                 if (!(IS_BLOCK(val) || IS_FILE(val) || ANY_STRING(val)))
-                    fail(Error(RE_TCC_INVALID_LIBRARY, val));
+                    fail (Error(RE_TCC_INVALID_LIBRARY, val));
                 lib = val;
                 break;
 
             default:
-                fail(Error(RE_TCC_NOT_SUPPORTED_OPT, val));
+                fail (Error(RE_TCC_NOT_SUPPORTED_OPT, val));
             }
         }
     }
@@ -549,7 +549,7 @@ REBNATIVE(compile)
 
     TCCState *state = tcc_new();
     if (!state)
-        fail(Error(RE_TCC_CONSTRUCTION));
+        fail (Error(RE_TCC_CONSTRUCTION));
 
     tcc_set_error_func(state, NULL, tcc_error_report);
 
@@ -587,7 +587,7 @@ REBNATIVE(compile)
     sym = &r3_libtcc1_symbols[0];
     for (; *sym != NULL; sym += 2) {
         if (tcc_add_symbol(state, cast(const char*, *sym), *(sym + 1)) < 0)
-            fail(Error(RE_TCC_RELOCATE));
+            fail (Error(RE_TCC_RELOCATE));
     }
 
     if ((err = add_path(
@@ -603,7 +603,7 @@ REBNATIVE(compile)
         do_set_path(state, rundir, tcc_set_lib_path);
 
     if (tcc_relocate(state, TCC_RELOCATE_AUTO) < 0)
-        fail(Error(RE_TCC_RELOCATE));
+        fail (Error(RE_TCC_RELOCATE));
 
     REBVAL handle;
     Init_Handle_Managed(
@@ -635,7 +635,7 @@ REBNATIVE(compile)
         );
 
         if (!c_func)
-            fail(Error(RE_TCC_SYM_NOT_FOUND, name));
+            fail (Error(RE_TCC_SYM_NOT_FOUND, name));
 
         FUNC_DISPATCHER(VAL_FUNC(var)) = c_func;
         *stored_state = handle;

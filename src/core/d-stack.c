@@ -342,7 +342,7 @@ REBNATIVE(backtrace)
         // See notes on handling of breakpoint below for why 0 is accepted.
         //
         if (IS_INTEGER(level) && VAL_INT32(level) < 0)
-            fail(Error_Invalid_Arg(level));
+            fail (Error_Invalid_Arg(level));
     }
 
     REBCNT max_rows; // The "frames" from /LIMIT, plus one (for ellipsis)

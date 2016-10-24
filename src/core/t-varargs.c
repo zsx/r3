@@ -137,7 +137,7 @@ REBIXO Do_Vararg_Op_May_Throw(
         pclass = VAL_PARAM_CLASS(param);
 
         if (op == VARARG_OP_FIRST && pclass != PARAM_CLASS_HARD_QUOTE)
-            fail(Error(RE_VARARGS_NO_LOOK)); // lookahead needs hard quote
+            fail (Error(RE_VARARGS_NO_LOOK)); // lookahead needs hard quote
 
         // If the VARARGS! has a call frame, then ensure that the call frame where
         // the VARARGS! originated is still on the stack.
@@ -151,7 +151,7 @@ REBIXO Do_Vararg_Op_May_Throw(
             GET_CTX_FLAG(context, CONTEXT_FLAG_STACK)
             && !GET_CTX_FLAG(context, SERIES_FLAG_ACCESSIBLE)
         ) {
-            fail(Error(RE_VARARGS_NO_STACK));
+            fail (Error(RE_VARARGS_NO_STACK));
         }
 
         f = CTX_FRAME(context);

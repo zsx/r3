@@ -608,7 +608,7 @@ REBINT PD_String(REBPVS *pvs)
 REBSER *File_Or_Url_Path_Dispatch(REBPVS *pvs)
 {
     if (pvs->opt_setval)
-        fail(Error_Bad_Path_Set(pvs));
+        fail (Error_Bad_Path_Set(pvs));
 
     REBSER *ser = Copy_Sequence_At_Position(KNOWN(pvs->value));
 
