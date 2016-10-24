@@ -38,19 +38,27 @@
 // REB_BLOCK, REB_STRING, etc.  Then there are 8 flags which are for general
 // purposes that could apply equally well to any type of value (including
 // whether the value should have a new-line after it when molded out inside
-// of a block).  There are 8 bits which are custom to each type--for
-// instance whether a key in an object is hidden or not.  Then there are
-// 8 bits currently reserved for future use.
+// of a block).  Then there are 16 bits which are custom to each type (for
+// instance whether a key in an object is hidden or not).
 //
-// The remaining content of the REBVAL struct is the "Payload".  It is the
-// size of three (void*) pointers, and is used to hold whatever bits that
-// are needed for the value type to represent itself.  Perhaps obviously,
-// an arbitrarily long string will not fit into 3*32 bits, or even 3*64 bits!
-// You can fit the data for an INTEGER or DECIMAL in that (at least until
-// they become arbitrary precision) but it's not enough for a generic BLOCK!
-// or a FUNCTION! (for instance).  So those pointers are used to point to
-// things, and often they will point to one or more Rebol Series (see
-// %sys-series.h for an explanation of REBSER, REBARR, REBCTX, and REBMAP.)
+// Perhaps obviously, an arbitrarily long string will not fit into 3*32 bits,
+// or even 3*64 bits!  You can fit the data for an INTEGER or DECIMAL in that
+// (at least until they become arbitrary precision) but it's not enough for
+// a generic BLOCK! or a FUNCTION! (for instance).  So the remaining bits
+// often they will point to one or more Rebol Series (see %sys-series.h for
+// an explanation of REBSER, REBARR, REBCTX, and REBMAP.)
+//
+// So the next part of the structure is the "Extra".  This is the size of one
+// pointer, which sits immediately after the header (that's also the size of
+// one pointer).
+//
+// This sets things up for the "Payload"--which is the size of two pointers.
+// It is broken into a separate structure at this position so that on 32-bit
+// platforms, it can be aligned on a 64-bit boundary (assuming the REBVAL's
+// starting pointer was aligned on a 64-bit boundary to start with).  This is
+// important for 64-bit value processing on 32-bit platforms, which will
+// either be slow or crash if reads of 64-bit floating points/etc. are done
+// on unaligned locations.
 //
 
 //
@@ -578,11 +586,7 @@ struct Reb_Gob {
 //     http://stackoverflow.com/questions/11639947/
 //
 struct Reb_All {
-#if defined(__LP64__) || defined(__LLP64__)
-    REBCNT bits[4];
-#else
-    REBCNT bits[2];
-#endif
+    REBUPT bits[2];
 };
 
 

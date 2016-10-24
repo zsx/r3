@@ -23,6 +23,14 @@ REBOL [
 ]
 
 
+; !!! The long term goal for Ren-C is that UNTIL and WHILE both be arity-2 and
+; inversions of each other, with LOOP-UNTIL and LOOP-WHILE being arity-1.
+; To avoid rocking the boat in the default distribution, this is changed here.
+;
+until-2: :until
+until: :loop-until
+
+
 ; Words for BLANK! and BAR!, for those who don't like symbols
 
 blank: _

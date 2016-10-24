@@ -1182,17 +1182,7 @@ REBNATIVE(repeat)
 }
 
 
-//
-//  until: native [
-//  
-//  "Evaluates a block until it is TRUE?"
-//
-//      return: [<opt> any-value!]
-//          {Last body result or BREAK value.}
-//      body [block! function!]
-//  ]
-//
-REBNATIVE(until)
+inline static REB_R Loop_While_Until_Core(REBFRM *frame_, REBOOL trigger)
 {
     PARAM(1, body);
 
@@ -1219,7 +1209,7 @@ REBNATIVE(until)
 
         if (IS_VOID(D_OUT)) fail (Error(RE_NO_RETURN));
 
-    } while (IS_CONDITIONAL_FALSE(D_OUT));
+    } while (IS_CONDITIONAL_TRUE(D_OUT) == trigger);
 
     // If the body is a function, it may be a "brancher".  If it is,
     // then run it and tell it that it reached false.
@@ -1232,26 +1222,50 @@ REBNATIVE(until)
 
 
 //
-//  while: native [
+//  loop-while: native [
 //  
-//  {While a condition block is TRUE?, evaluates another block.}
+//  "Evaluates a block while it is TRUE?"
 //
 //      return: [<opt> any-value!]
-//          {Last body result or BREAK value, will also be void if never run}
-//      condition [block! function!]
+//          {Last body result or BREAK value.}
 //      body [block! function!]
-//      /?
-//          "Instead of last body result, return LOGIC! of if body ever ran"
 //  ]
 //
-REBNATIVE(while)
+REBNATIVE(loop_while)
+{
+    return Loop_While_Until_Core(frame_, TRUE);
+}
+
+
+//
+//  loop-until: native [
+//  
+//  "Evaluates a block until it is TRUE?"
+//
+//      return: [<opt> any-value!]
+//          {Last body result or BREAK value.}
+//      body [block! function!]
+//  ]
+//
+REBNATIVE(loop_until)
+//
+// !!! This function is redefined to UNTIL in the boot sequence, for
+// compatibility with R3-Alpha.  This will be the default distribution until
+// further notice.
+{
+    return Loop_While_Until_Core(frame_, FALSE);
+}
+
+
+inline static REB_R While_Until_Core(REBFRM *frame_, REBOOL trigger)
 {
     PARAM(1, condition);
     PARAM(2, body);
     REFINE(3, q);
 
     do {
-        if (Run_Success_Branch_Throws(D_CELL, ARG(condition), FALSE)) { // !only
+        const REBOOL only = FALSE;
+        if (Run_Success_Branch_Throws(D_CELL, ARG(condition), only)) {
             //
             // A while loop should only look for breaks and continues in its
             // body, not in its condition.  So `while [break] []` is a
@@ -1265,7 +1279,7 @@ REBNATIVE(while)
         if (IS_VOID(D_CELL))
             fail (Error(RE_NO_RETURN));
 
-        if (IS_CONDITIONAL_FALSE(D_CELL)) {
+        if (IS_CONDITIONAL_TRUE(D_CELL) != trigger) {
             //
             // If the body is a function, it may be a "brancher".  If it is,
             // then run it and tell it that the condition has returned false.
@@ -1292,4 +1306,46 @@ REBNATIVE(while)
         }
 
     } while (TRUE);
+}
+
+
+//
+//  while: native [
+//  
+//  {While a condition block is TRUE?, evaluates another block.}
+//
+//      return: [<opt> any-value!]
+//          {Last body result or BREAK value, will also be void if never run}
+//      condition [block! function!]
+//      body [block! function!]
+//      /?
+//          "Instead of last body result, return LOGIC! of if body ever ran"
+//  ]
+//
+REBNATIVE(while)
+{
+    return While_Until_Core(frame_, TRUE);
+}
+
+
+//
+//  until: native [
+//  
+//  {Until a condition block is TRUE?, evaluates another block.}
+//
+//      return: [<opt> any-value!]
+//          {Last body result or BREAK value, will also be void if never run}
+//      condition [block! function!]
+//      body [block! function!]
+//      /?
+//          "Instead of last body result, return LOGIC! of if body ever ran"
+//  ]
+//
+REBNATIVE(until)
+//
+// !!! This arity-2 form of UNTIL is aliased to UNTIL-2 in the bootstrap, and
+// then overwritten with the arity-1 form (LOOP-UNTIL).  Though less useful
+// and less clear, this will be the default state until further notice.
+{
+    return While_Until_Core(frame_, FALSE);
 }
