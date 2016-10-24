@@ -27,30 +27,8 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-/*
-    A map is a SERIES that can also include a hash table for faster lookup.
-
-    The hashing method used here is the same as that used for the
-    REBOL symbol table, with the exception that this method must
-    also store the value of the symbol (not just its word).
-
-    The structure of the series header for a map is the same as other
-    series, except that the opt series field is a pointer to a REBCNT
-    series, the hash table.
-
-    The hash table is an array of REBCNT integers that are index values
-    into the map series. NOTE: They are one-based to avoid 0 which is an
-    empty slot.
-
-    Each value in the map consists of a word followed by its value.
-
-    These functions are also used hashing SET operations (e.g. UNION).
-
-    The series/tail / 2 is the number of values stored.
-
-    The hash-series/tail is a prime number that is use for computing
-    slots in the hash table.
-*/
+// See %sys-map.h for an explanation of the map structure.
+//
 
 #include "sys-core.h"
 
@@ -73,8 +51,7 @@ REBINT CT_Map(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 static REBMAP *Make_Map(REBCNT capacity)
 {
-    REBARR *array = Make_Array((capacity * 2) + 1); // + 1 for terminator
-    REBMAP *map = AS_MAP(array);
+    REBMAP *map = AS_MAP(Make_Array(capacity * 2));
 
     MAP_HASHLIST(map) = Make_Hash_Sequence(capacity);
 
@@ -104,20 +81,10 @@ REBINT Find_Key_Hashed(
     REBOOL cased,
     REBYTE mode
 ) {
-    REBCNT *hashes;
-    REBCNT skip;
-    REBCNT hash;
-    // a 'zombie' is a key with void value, that may be overwritten
-    REBCNT zombie;
-    REBCNT uncased;
-    REBCNT len;
-    REBCNT n;
-    RELVAL *val;
-
-    // Compute hash for value:
-    len = SER_LEN(hashlist);
+    REBCNT len = SER_LEN(hashlist);
     assert(len > 0);
-    hash = Hash_Value(key, specifier);
+    
+    REBCNT hash = Hash_Value(key, specifier);
 
     // The REBCNT[] hash array size is chosen to try and make a large enough
     // table relative to the data that collisions will be hopefully not
@@ -126,20 +93,27 @@ REBINT Find_Key_Hashed(
     // another hash bucket until the searched for key is found or a 0
     // entry in the hashlist is found.
     //
-    // It is not--by inspection--completely clear how this is guaranteed to
-    // terminate in finding the value with no false negatives.  One would hope
-    // that something about the logic works that two hashings which wound up
-    // overwriting the same buckets could only in a worst case scenario force
-    // one another to visit all the positions.  Review to make sure this
-    // method actually does have a coherent logic behind it.
-    // EDIT: if len and skip are co-primes is guaranteed that repeatedly adding skip (and subtracting len when needed) all positions are visited. -- @giuliolunati
-    skip = hash % (len - 1) + 1;
-    // 1 <= skip < len, and len is prime, so skip and len are co-prime.
+    // Note: if len and skip are co-primes is guaranteed that repeatedly
+    // adding skip (and subtracting len when needed) all positions are
+    // visited.  1 <= skip < len, and len is prime, so this is guaranteed.
+    
+    REBCNT skip = hash % (len - 1) + 1;
+
     hash = hash % len;
-    zombie = len; // zombie not yet encountered
+
+    // a 'zombie' is a key with void value, that may be overwritten.  Set to
+    // len to indicate zombie not yet encountered.
+    //
+    REBCNT zombie = len;
+
+    REBCNT uncased = len; // uncased match not yet encountered
+
     // Scan hash table for match:
-    uncased = len; // uncased match not yet encountered
-    hashes = SER_HEAD(REBCNT, hashlist);
+
+    REBCNT *hashes = SER_HEAD(REBCNT, hashlist);
+    REBCNT n;
+    RELVAL *val;
+
     if (ANY_WORD(key)) {
         while ((n = hashes[hash])) {
             val = ARR_AT(array, (n - 1) * wide);
@@ -230,20 +204,17 @@ REBINT Find_Key_Hashed(
 //
 static void Rehash_Map(REBMAP *map)
 {
-    REBVAL *key;
-    REBCNT n;
-    REBCNT *hashes;
-    REBARR *pairlist;
     REBSER *hashlist = MAP_HASHLIST(map);
 
     if (!hashlist) return;
 
-    hashes = SER_HEAD(REBCNT, hashlist);
-    pairlist = MAP_PAIRLIST(map);
+    REBCNT *hashes = SER_HEAD(REBCNT, hashlist);
+    REBARR *pairlist = MAP_PAIRLIST(map);
 
-    key = KNOWN(ARR_HEAD(pairlist));
+    REBVAL *key = KNOWN(ARR_HEAD(pairlist));
+    REBCNT n;
+
     for (n = 0; n < ARR_LEN(pairlist); n += 2, key += 2) {
-        REBCNT hash;
         const REBOOL cased = TRUE; // cased=TRUE is always fine
 
         if (IS_VOID(key + 1)) {
@@ -255,7 +226,7 @@ static void Rehash_Map(REBMAP *map)
             SET_ARRAY_LEN_NOTERM(pairlist, ARR_LEN(pairlist) - 2);
         }
 
-        hash = Find_Key_Hashed(
+        REBCNT hash = Find_Key_Hashed(
             pairlist, hashlist, key, SPECIFIED, 2, cased, 0
         );
         hashes[hash] = n / 2 + 1;
@@ -354,31 +325,10 @@ static REBCNT Find_Map_Entry(
 
 
 //
-//  Length_Map: C
-//
-REBINT Length_Map(REBMAP *map)
-{
-    REBCNT n, c = 0;
-    REBVAL *v = KNOWN(ARR_HEAD(MAP_PAIRLIST(map)));
-
-    for (n = 0; !IS_END(v); n += 2, v += 2) {
-        if (!IS_BLANK(v + 1)) c++; // must have non-blank value (!!! void?)
-    }
-
-    assert(n == ARR_LEN(MAP_PAIRLIST(map)));
-
-    return c;
-}
-
-
-//
 //  PD_Map: C
 //
 REBINT PD_Map(REBPVS *pvs)
 {
-    REBVAL *val;
-    REBINT n;
-
     REBOOL setting = LOGICAL(pvs->opt_setval && IS_END(pvs->item + 1));
 
     assert(IS_MAP(pvs->value));
@@ -389,7 +339,7 @@ REBINT PD_Map(REBPVS *pvs)
     if (IS_BLANK(pvs->selector))
         return PE_NONE;
 
-    n = Find_Map_Entry(
+    REBINT n = Find_Map_Entry(
         VAL_MAP(pvs->value),
         pvs->selector,
         SPECIFIED,
@@ -401,7 +351,9 @@ REBINT PD_Map(REBPVS *pvs)
     if (n == 0)
         return PE_NONE;
 
-    val = KNOWN(ARR_AT(MAP_PAIRLIST(VAL_MAP(pvs->value)), ((n - 1) * 2) + 1));
+    REBVAL *val = KNOWN(
+        ARR_AT(MAP_PAIRLIST(VAL_MAP(pvs->value)), ((n - 1) * 2) + 1)
+    );
     if (IS_VOID(val))
         return PE_NONE;
 
@@ -522,25 +474,16 @@ void TO_Map(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 REBARR *Map_To_Array(REBMAP *map, REBINT what)
 {
-    REBVAL *val;
-    REBCNT cnt = 0;
-    REBARR *array;
-    REBVAL *dest;
-
-    // Count number of set entries:
-    //
-    val = KNOWN(ARR_HEAD(MAP_PAIRLIST(map)));
-    for (; NOT_END(val) && NOT_END(val + 1); val += 2) {
-        if (!IS_BLANK(val + 1)) cnt++; // must have non-blank value !!! void?
-    }
+    REBCNT count = Length_Map(map);
 
     // Copy entries to new block:
     //
-    array = Make_Array(cnt * ((what == 0) ? 2 : 1));
-    dest = SINK(ARR_HEAD(array));
-    val = KNOWN(ARR_HEAD(MAP_PAIRLIST(map)));
-    for (; NOT_END(val) && NOT_END(val+1); val += 2) {
-        if (!IS_BLANK(val + 1)) {
+    REBARR *array = Make_Array(count * ((what == 0) ? 2 : 1));
+    REBVAL *dest = SINK(ARR_HEAD(array));
+    REBVAL *val = KNOWN(ARR_HEAD(MAP_PAIRLIST(map)));
+    for (; NOT_END(val); val += 2) {
+        assert(NOT_END(val + 1));
+        if (!IS_VOID(val + 1)) {
             if (what <= 0) *dest++ = val[0];
             if (what >= 0) *dest++ = val[1];
         }
@@ -581,28 +524,32 @@ REBMAP *Mutate_Array_Into_Map(REBARR *array)
 //
 REBCTX *Alloc_Context_From_Map(REBMAP *map)
 {
-    REBCNT cnt = 0;
-    REBVAL *mval;
+    // Doesn't use Length_Map because it only wants to consider words.
+    //
+    // !!! Should this fail() if any of the keys aren't words?  It seems
+    // a bit haphazard to have `make object! make map! [x 10 <y> 20]` and
+    // just throw out the <y> 20 case...
 
-    REBCTX *context;
-    REBVAL *key;
-    REBVAL *var;
+    REBVAL *mval = KNOWN(ARR_HEAD(MAP_PAIRLIST(map)));
+    REBCNT count = 0;
 
-    // Count number of set entries:
-    mval = KNOWN(ARR_HEAD(MAP_PAIRLIST(map)));
-    for (; NOT_END(mval) && NOT_END(mval + 1); mval += 2) {
-        if (ANY_WORD(mval) && !IS_BLANK(mval + 1)) cnt++;
+    for (; NOT_END(mval); mval += 2) {
+        assert(NOT_END(mval + 1));
+        if (ANY_WORD(mval) && !IS_VOID(mval + 1))
+            ++count;
     }
 
     // See Alloc_Context() - cannot use it directly because no Collect_Words
-    context = Alloc_Context(cnt);
-    key = CTX_KEYS_HEAD(context);
-    var = CTX_VARS_HEAD(context);
+
+    REBCTX *context = Alloc_Context(count);
+    REBVAL *key = CTX_KEYS_HEAD(context);
+    REBVAL *var = CTX_VARS_HEAD(context);
 
     mval = KNOWN(ARR_HEAD(MAP_PAIRLIST(map)));
 
-    for (; NOT_END(mval) && NOT_END(mval + 1); mval += 2) {
-        if (ANY_WORD(mval) && !IS_BLANK(mval + 1)) {
+    for (; NOT_END(mval); mval += 2) {
+        assert(NOT_END(mval + 1));
+        if (ANY_WORD(mval) && !IS_VOID(mval + 1)) {
             // !!! Used to leave SET_WORD typed values here... but why?
             // (Objects did not make use of the set-word vs. other distinctions
             // that function specs did.)
@@ -617,10 +564,13 @@ REBCTX *Alloc_Context_From_Map(REBMAP *map)
         }
     }
 
-    TERM_ARRAY_LEN(CTX_VARLIST(context), cnt + 1);
-    TERM_ARRAY_LEN(CTX_KEYLIST(context), cnt + 1);
+    TERM_ARRAY_LEN(CTX_VARLIST(context), count + 1);
+    TERM_ARRAY_LEN(CTX_KEYLIST(context), count + 1);
     assert(IS_END(key));
     assert(IS_END(var));
+
+    VAL_RESET_HEADER(CTX_VALUE(context), REB_OBJECT);
+    CTX_VALUE(context)->extra.binding = NULL;
 
     return context;
 }
