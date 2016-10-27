@@ -258,7 +258,7 @@ not-equiv?: :not-equal?
 ; The legacy PRIN construct is equivalent to PRINT/ONLY of a reduced value
 ; (since PRIN of a block would historically execute it).
 ;
-prin: function [
+prin: procedure [
     "Print value, no line break, reducing blocks.  <r3-legacy>, use PRINT/ONLY"
 
     value [<opt> any-value!]

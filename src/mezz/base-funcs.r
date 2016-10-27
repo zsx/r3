@@ -75,7 +75,7 @@ default: enfix proc [
     <local>
         gotten
 ][
-    unless all [any-value? gotten: get/opt target | not blank? gotten] [
+    unless all [any-value? gotten: get/opt target | not blank? :gotten] [
         set target either maybe [block! function!] :value [
             do :value
         ][

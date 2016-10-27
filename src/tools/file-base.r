@@ -28,9 +28,9 @@ core: [
     ; (C)ore
     c-bind.c
     c-do.c
+    c-context.c
     c-error.c
     c-eval.c
-    c-frame.c
     c-function.c
     c-path.c
     c-port.c
@@ -114,6 +114,7 @@ core: [
 
     ; (T)ypes
     t-bitset.c
+    t-blank.c
     t-block.c
     t-char.c
     t-datatype.c
@@ -128,7 +129,6 @@ core: [
     t-logic.c
     t-map.c
     t-money.c
-    t-none.c
     t-object.c
     t-pair.c
     t-port.c
@@ -170,9 +170,6 @@ core: [
 made: [
     make-boot.r         core/b-boot.c
     make-headers.r      include/tmp-funcs.h
-
-; Ren/C is core sources with no graphics.  See Atronix R3/View repository.
-;   make-host-ext.r     include/host-ext-graphics.h
 
     core-ext.r          include/host-ext-core.h
 
@@ -295,6 +292,7 @@ os-linux: [
     ; Linux supports siginfo_t-style signals
     linux/dev-signal.c
 ]
+
 ; cloned from os-linux TODO: check'n'fix !!
 os-android: [ 
     + generic/host-memory.c
@@ -331,63 +329,14 @@ os-android: [
     ; Android don't supports siginfo_t-style signals
     ; linux/dev-signal.c
 ]
+
 boot-files: [
     version.r
-
-; Ren/C is core sources with no graphics.  See Atronix R3/View repository.
-;
-;   graphics.r
-;   draw.r
-;   shape.r
-;   text.r
 ]
 
 mezz-files: [
-; The old style prot-http.r seems to have been replaced, was commented out.
-;
-;   prot-http.r
-
-; Ren/C is core sources with no graphics.  See Atronix R3/View repository.
-;
-;   view-colors.r
-;   view-funcs.r
+    ;-- There were some of these in the R3/View build
 ]
-
-; Ren/C is core sources with no graphics.  See Atronix R3/View repository.
-; (Additionally, Ren/C cannot have any .cpp files as a dependency...though
-; it can build as C++ it should not require it)
-;
-;agg-files: [
-;   agg_arc.cpp
-;   agg_arrowhead.cpp
-;   agg_bezier_arc.cpp
-;   agg_bspline.cpp
-;   agg_curves.cpp
-;   agg_image_filters.cpp
-;   agg_line_aa_basics.cpp
-;   agg_path_storage.cpp
-;   agg_rasterizer_scanline_aa.cpp
-;   agg_rounded_rect.cpp
-;   agg_sqrt_tables.cpp
-;   agg_trans_affine.cpp
-;   agg_trans_single_path.cpp
-;   agg_vcgen_bspline.cpp
-;   agg_vcgen_contour.cpp
-;   agg_vcgen_dash.cpp
-;   agg_vcgen_markers_term.cpp
-;   agg_vcgen_smooth_poly1.cpp
-;   agg_vcgen_stroke.cpp
-;   agg_vpgen_segmentator.cpp
-;   agg_compo.cpp
-;   agg_graphics.cpp
-;   agg_font_freetype.cpp
-;   agg_font_win32_tt.cpp
-;   agg_truetype_text.cpp
-;   agg_effects.cpp
-;   compositor.cpp
-;   graphics.cpp
-;   rich_text.cpp
-;]
 
 tools: [
     make-host-init.r

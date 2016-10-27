@@ -263,10 +263,10 @@ set (CORE_SOURCE
     ${CORE_DIR}/a-lib.c
     ${CORE_DIR}/b-init.c
     ${CORE_DIR}/c-bind.c
+    ${CORE_DIR}/c-context.c
     ${CORE_DIR}/c-do.c
     ${CORE_DIR}/c-eval.c
     ${CORE_DIR}/c-error.c
-    ${CORE_DIR}/c-frame.c
     ${CORE_DIR}/c-function.c
     ${CORE_DIR}/c-path.c
     ${CORE_DIR}/c-port.c
@@ -334,6 +334,7 @@ set (CORE_SOURCE
     ${CORE_DIR}/s-trim.c
     ${CORE_DIR}/s-unicode.c
     ${CORE_DIR}/t-bitset.c
+    ${CORE_DIR}/t-blank.c
     ${CORE_DIR}/t-block.c
     ${CORE_DIR}/t-char.c
     ${CORE_DIR}/t-datatype.c
@@ -348,7 +349,6 @@ set (CORE_SOURCE
     ${CORE_DIR}/t-logic.c
     ${CORE_DIR}/t-map.c
     ${CORE_DIR}/t-money.c
-    ${CORE_DIR}/t-none.c
     ${CORE_DIR}/t-object.c
     ${CORE_DIR}/t-pair.c
     ${CORE_DIR}/t-port.c
