@@ -204,7 +204,7 @@ load-header: function [
             case [
                 find hdr/options 'compress [
                     ; skip whitespace after header
-                    rest: any [find rest non-ws rest]
+                    rest: any [find rest non-ws | rest]
 
                     ; automatic detection of compression type
                     unless rest: any [
@@ -220,12 +220,12 @@ load-header: function [
                         return 'bad-compress
                     ]
 
-                    if all [sum sum != checksum/secure rest] [
+                    if all [sum | sum != checksum/secure rest] [
                         return 'bad-checksum
                     ]
                 ] ; else assumed not compressed
 
-                all [sum sum != checksum/secure/part rest end] [
+                all [sum | sum != checksum/secure/part rest end] [
                     return 'bad-checksum
                 ]
             ]
@@ -349,11 +349,11 @@ load-boot-exts: function [
 
             not word? :hdr/name [hdr/name: _]
 
-            not any [hdr/name find hdr/options 'private] [
+            not any [hdr/name | find hdr/options 'private] [
                 hdr/options: append any [hdr/options make block! 1] 'private
             ]
 
-            delay: all [hdr/name find hdr/options 'delay] [ ; load it later
+            delay: all [hdr/name | find hdr/options 'delay] [ ; load it later
                 mod: reduce [hdr ext]
             ]
 
@@ -454,13 +454,10 @@ load: function [
         ]
 
         ;-- What type of file? Decode it too:
-        any [file? source url? source] [
+        maybe? [file! url!] source [
             sftype: file-type? source
             ftype: case [
-                all [
-                    any-value? :ftype 'unbound = ftype
-                    any-value? :sftype 'extension = sftype
-                ] [sftype]
+                all [:ftype = 'unbound | :sftype = 'extension] [sftype]
                 type [ftype]
                 'default [sftype]
             ]
@@ -470,7 +467,7 @@ load: function [
         void? :data [data: source]
 
         ;-- Is it not source code? Then return it now:
-        any [block? data not find [0 extension unbound] any [:ftype 0]] [
+        any [block? data | not find [0 extension unbound] any [:ftype 0]] [
             ; !!! "due to make-boot issue with #[none]" <-- What?
             return data ; directory, image, txt, markup, etc.
         ]
@@ -493,8 +490,10 @@ load: function [
 
         ;-- Bind code to user context:
         not any [
-            all [any-value? :ftype 'unbound = ftype]
+            'unbound = :ftype ;-- may be void
+                |
             'module = select hdr 'type
+                |
             find select hdr 'options 'unbound
         ][
             data: intern data
@@ -610,7 +609,7 @@ do-needs: function [
         ]
 
         ; Collect any mixins into the object (if we are doing that)
-        if all [any-value? :mixins mixin? mod] [
+        if all [any-value? :mixins | mixin? mod] [
             resolve/extend/only mixins mod select meta-of mod 'exports
         ]
         mod
@@ -688,7 +687,7 @@ load-module: function [
         binary? source [data: source]
         string? source [data: to binary! source]
 
-        any [file? source url? source] [
+        any [file? source | url? source] [
             tmp: file-type? source
             case [ ; Return blank if read or load-extension fails
                 not tmp [
@@ -1000,7 +999,7 @@ import: function [
             ]
         ]
 
-        any [file? module url? module] [
+        any [file? module | url? module] [
             cause-error 'access 'cannot-open reduce [module "not found or not valid"]
         ]
     ]
@@ -1037,70 +1036,3 @@ import: function [
 
 
 export [load import]
-
-
-#test [
-test: [
-    [
-        write %test-emb.r {123^/[REBOL [title: "embed"] 1 2 3]^/123^/}
-        [1 2 3] = xload/header/type %test-emb.r 'unbound
-    ]
-][  ; General function:
-    [[1 2 3] = xload ["1" "2" "3"]]
-    [[] = xload " "]
-    [1 = xload "1"]
-    [[1] = xload "[1]"]
-    [[1 2 3] = xload "1 2 3"]
-    [[1 2 3] = xload/type "1 2 3" blank]
-    [[1 2 3] = xload "rebol [] 1 2 3"]
-    [
-        d: xload/header "rebol [] 1 2 3"
-        all [object? first d [1 2 3] = next d]
-    ]
-    [[rebol [] 1 2 3] = xload/all "rebol [] 1 2 3"]
-
-    ; File variations:
-    [equal? read %./ xload %./]
-    [
-        write %test.txt s: "test of text"
-        s = xload %test.txt
-    ]
-    [
-        write %test.html "<h1>test</h1>"
-        [<h1> "test" </h1>] = xload %test.html
-    ]
-    [
-        save %test2.r 1
-        1 = xload %test1.r
-    ]
-    [
-        save %test2.r [1 2]
-        [1 2] = xload %test2.r
-    ]
-    [
-        save/header %test.r [1 2 3] [title: "Test"]
-        [1 2 3] = xload %test.r
-    ]
-    [
-        save/header %test-checksum.r [1 2 3] [checksum: true]
-        ;print read/string %test-checksum.r
-        [1 2 3] = xload %test-checksum.r
-    ]
-    [
-        save/header %test-checksum.r [1 2 3] [checksum: true compress: true]
-        ;print read/string %test-checksum.r
-        [1 2 3] = xload %test-checksum.r
-    ]
-    [
-        save/header %test-checksum.r [1 2 3] [checksum: script compress: true]
-        ;print read/string %test-checksum.r
-        [1 2 3] = xload %test-checksum.r
-    ]
-    [
-        write %test-emb.r {123^/[REBOL [title: "embed"] 1 2 3]^/123^/}
-        [1 2 3] = probe xload/header %test-emb.r
-    ]
-]
-for-each t test [print either do t ['ok] [join "FAILED:" mold t] print ""]
-halt
-]

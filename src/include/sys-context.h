@@ -333,6 +333,39 @@ inline static REBVAL *CTX_FRAME_FUNC_VALUE(REBCTX *c) {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
+// COMMON INLINES (macro-like)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// By putting these functions in a header file, they can be inlined by the
+// compiler, rather than add an extra layer of function call.
+//
+
+inline static REBCTX *Copy_Context_Shallow(REBCTX *src) {
+    return Copy_Context_Shallow_Extra(src, 0);
+}
+
+// Returns true if the keylist had to be changed to make it unique.
+//
+inline static REBOOL Ensure_Keylist_Unique_Invalidated(REBCTX *context)
+{
+    return Expand_Context_Keylist_Core(context, 0);
+}
+
+// Most common appending is not concerned with lookahead bit (e.g. whether the
+// key is infix).  Generally only an issue when copying.
+//
+inline static REBVAL *Append_Context(
+    REBCTX *context,
+    RELVAL *any_word,
+    REBSTR *name
+) {
+    return Append_Context_Core(context, any_word, name, FALSE);
+}
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
 // ERROR! (uses `struct Reb_Any_Context`)
 //
 //=////////////////////////////////////////////////////////////////////////=//

@@ -126,7 +126,6 @@
 %convert/load.test.reb
 %convert/mold.test.reb
 %convert/to.test.reb
-%datatype/as-pair.test.reb
 %define/func.test.reb
 %convert/to-hex.test.reb
 %file/clean-path.test.reb
