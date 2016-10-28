@@ -205,9 +205,6 @@ find: action [
     limit [any-number! any-series! pair!]
     /only {Treats a series value as only a single value}
     /case {Characters are case-sensitive}
-    /any  {Enables the * and ? wildcards}
-    /with {Allows custom wildcards}
-    wild [string!] "Specifies alternates for * and ?"
     /skip {Treat the series as records of fixed size}
     size [integer!]
     /last {Backwards from end of series}
@@ -225,9 +222,6 @@ select: action [
     limit [any-number! any-series! pair!]
     /only {Treats a series value as only a single value}
     /case {Characters are case-sensitive}
-    /any  {Enables the * and ? wildcards}
-    /with {Allows custom wildcards}
-    wild [string!] "Specifies alternates for * and ?"
     /skip {Treat the series as records of fixed size}
     size [integer!]
     /last {Backwards from end of series}

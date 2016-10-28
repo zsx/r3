@@ -752,8 +752,16 @@ find:
             }
         }
         else {
-            if (IS_CHAR(arg) || IS_BITSET(arg)) len = 1;
-            else if (!ANY_STRING(arg)) {
+            if (IS_CHAR(arg) || IS_BITSET(arg))
+                len = 1;
+            else if (!IS_STRING(arg)) {
+                //
+                // !! This FORM creates a temporary value that is then handed
+                // over to the GC.  Not only could the temporary value be
+                // unmanaged (and freed), a more efficient matching could
+                // be done e.g. of `FIND "<abc...z>" <abc...z>` without having
+                // to create an entire series just to include the delimiters.
+                // 
                 REBSER *copy = Copy_Form_Value(arg, 0);
                 Val_Init_String(arg, copy);
             }
