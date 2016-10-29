@@ -110,7 +110,6 @@ const void *rebol_symbols [] = {
     SYM_FUNC(Error_Bad_Path_Set), // c-path.c
     SYM_FUNC(Error_Bad_Path_Range), // c-path.c
     SYM_FUNC(Error_Bad_Path_Field_Set), // c-path.c
-    SYM_FUNC(Pick_Path), // c-path.c
     SYM_FUNC(Get_Simple_Value_Into), // c-path.c
     SYM_FUNC(Resolve_Path), // c-path.c
     SYM_FUNC(Is_Port_Open), // c-port.c

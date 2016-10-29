@@ -489,55 +489,65 @@ REBINT CT_Vector(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 
 //
-//  PD_Vector: C
+//  Pick_Vector: C
 //
-REBINT PD_Vector(REBPVS *pvs)
-{
-    const REBVAL *setval;
-    REBSER *vect;
+void Pick_Vector(REBVAL *out, const REBVAL *value, const REBVAL *picker) {
+    REBSER *vect = VAL_SERIES(value);
+
     REBINT n;
-    REBINT bits;
-    REBYTE *vp;
-    REBI64 i;
-    REBDEC f;
-
-    if (IS_INTEGER(pvs->selector) || IS_DECIMAL(pvs->selector))
-        n = Int32(pvs->selector);
+    if (IS_INTEGER(picker) || IS_DECIMAL(picker))
+        n = Int32(picker);
     else
-        fail (Error_Bad_Path_Select(pvs));
+        fail (Error_Invalid_Arg(picker));
 
-    n += VAL_INDEX(pvs->value);
-    vect = VAL_SERIES(pvs->value);
-    vp = SER_DATA_RAW(vect);
-    bits = VECT_TYPE(vect);
+    n += VAL_INDEX(value);
 
-    if (!(setval = pvs->opt_setval)) {
-
-        // Check range:
-        if (n <= 0 || cast(REBCNT, n) > SER_LEN(vect)) return PE_NONE;
-
-        // Get element value:
-        if (bits < VTSF08) {
-            VAL_RESET_HEADER(pvs->store, REB_INTEGER);
-            VAL_INT64(pvs->store) = get_vect(bits, vp, n - 1); // 64 bits
-        }
-        else {
-            VAL_RESET_HEADER(pvs->store, REB_DECIMAL);
-            INIT_DECIMAL_BITS(pvs->store, get_vect(bits, vp, n - 1)); // 64bit
-        }
-
-        return PE_USE_STORE;
+    if (n <= 0 || cast(REBCNT, n) > SER_LEN(vect)) {
+        SET_VOID(out); // out of range of vector data
+        return;
     }
 
-    //--- Set Value...
+    REBYTE *vp = SER_DATA_RAW(vect);
+    REBINT bits = VECT_TYPE(vect);
+
+    if (bits < VTSF08)
+        SET_INTEGER(out, get_vect(bits, vp, n - 1)); // 64-bit
+    else
+        SET_DECIMAL(out, get_vect(bits, vp, n - 1)); // 64-bit
+}
+
+
+//
+//  Poke_Vector: C
+//
+void Poke_Vector_Fail_If_Locked(
+    REBVAL *value,
+    const REBVAL *picker,
+    const REBVAL *poke
+) {
+    REBSER *vect = VAL_SERIES(value);
     FAIL_IF_LOCKED_SERIES(vect);
 
-    if (n <= 0 || cast(REBCNT, n) > SER_LEN(vect))
-        fail (Error_Bad_Path_Range(pvs));
+    REBINT n;
+    if (IS_INTEGER(picker) || IS_DECIMAL(picker))
+        n = Int32(picker);
+    else
+        fail (Error_Invalid_Arg(picker));
 
-    if (IS_INTEGER(setval)) {
-        i = VAL_INT64(setval);
-        if (bits > VTUI64) f = cast(REBDEC, i);
+    n += VAL_INDEX(value);
+
+    if (n <= 0 || cast(REBCNT, n) > SER_LEN(vect))
+        fail (Error_Out_Of_Range(picker));
+
+    REBYTE *vp = SER_DATA_RAW(vect);
+    REBINT bits = VECT_TYPE(vect);
+
+    REBI64 i;
+    REBDEC f;
+    if (IS_INTEGER(poke)) {
+        i = VAL_INT64(poke);
+        if (bits > VTUI64)
+            f = cast(REBDEC, i);
         else {
             // !!! REVIEW: f was not set in this case; compiler caught the
             // unused parameter.  So fill with distinctive garbage to make it
@@ -545,18 +555,33 @@ REBINT PD_Vector(REBPVS *pvs)
             f = -646.699;
         }
     }
-    else if (IS_DECIMAL(setval)) {
-        f = VAL_DECIMAL(setval);
+    else if (IS_DECIMAL(poke)) {
+        f = VAL_DECIMAL(poke);
         if (bits <= VTUI64)
             i = cast(REBINT, f);
-        else
-            fail (Error_Bad_Path_Set(pvs));
     }
-    else fail (Error_Bad_Path_Set(pvs));
+    else fail (Error_Invalid_Arg(poke));
 
-    set_vect(bits, vp, n-1, i, f);
+    set_vect(bits, vp, n - 1, i, f);
+}
 
-    return PE_OK;
+
+//
+//  PD_Vector: C
+//
+// Path dispatch acts like PICK for GET-PATH! and POKE for SET-PATH!
+//
+REBINT PD_Vector(REBPVS *pvs)
+{
+    if (pvs->opt_setval) {
+        Poke_Vector_Fail_If_Locked(
+            KNOWN(pvs->value), pvs->selector, pvs->opt_setval
+        );
+        return PE_OK;
+    }
+
+    Pick_Vector(pvs->store, KNOWN(pvs->value), pvs->selector);
+    return PE_USE_STORE;
 }
 
 
@@ -581,13 +606,11 @@ REBTYPE(Vector)
     switch (action) {
 
     case SYM_PICK:
-        Pick_Path(D_OUT, value, arg, NULL);
+        Pick_Vector(D_OUT, value, arg);
         return R_OUT;
 
     case SYM_POKE:
-        FAIL_IF_LOCKED_SERIES(vect);
-        // Third argument to pick path is the
-        Pick_Path(D_OUT, value, arg, D_ARG(3));
+        Poke_Vector_Fail_If_Locked(value, arg, D_ARG(3));
         *D_OUT = *D_ARG(3);
         return R_OUT;
 

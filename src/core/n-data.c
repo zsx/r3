@@ -1338,8 +1338,7 @@ REBNATIVE(set_q)
     #endif
 
         // !!! We shouldn't be evaluating but currently the path machinery
-        // doesn't "turn off" GROUP! evaluations for GET-PATH!.  Pick_Path
-        // doesn't have the right interface however.  This is temporary.
+        // doesn't "turn off" GROUP! evaluations for GET-PATH!.
         //
         VAL_SET_TYPE_BITS(location, REB_GET_PATH);
 
