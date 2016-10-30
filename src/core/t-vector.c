@@ -512,8 +512,10 @@ void Pick_Vector(REBVAL *out, const REBVAL *value, const REBVAL *picker) {
 
     if (bits < VTSF08)
         SET_INTEGER(out, get_vect(bits, vp, n - 1)); // 64-bit
-    else
-        SET_DECIMAL(out, get_vect(bits, vp, n - 1)); // 64-bit
+    else {
+        VAL_RESET_HEADER(out, REB_DECIMAL);
+        INIT_DECIMAL_BITS(out, get_vect(bits, vp, n - 1)); // 64-bit
+    }
 }
 
 
