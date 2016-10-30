@@ -1141,8 +1141,7 @@ REBOOL Form_Value_Throws(
                 // The mold didn't add anything, so roll back and don't
                 // update the pending delimiter.
                 //
-                SET_UNI_LEN(mold->series, rollback_point);
-                UNI_TERM(mold->series);
+                TERM_UNI_LEN(mold->series, rollback_point);
                 SET_BLANK(pending_delimiter);
             }
             else {

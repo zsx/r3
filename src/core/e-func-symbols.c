@@ -305,7 +305,7 @@ const void *rebol_symbols [] = {
     SYM_FUNC(Copy_Sequence_At_Position), // m-series.c
     SYM_FUNC(Remove_Series), // m-series.c
     SYM_FUNC(Unbias_Series), // m-series.c
-    SYM_FUNC(Reset_Series), // m-series.c
+    SYM_FUNC(Reset_Sequence), // m-series.c
     SYM_FUNC(Reset_Array), // m-series.c
     SYM_FUNC(Clear_Series), // m-series.c
     SYM_FUNC(Resize_Series), // m-series.c

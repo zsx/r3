@@ -295,8 +295,7 @@ REBNATIVE(checksum)
                     digests[i].digest(data, len, BIN_HEAD(digest));
                 }
 
-                SET_SERIES_LEN(digest, digests[i].len);
-                TERM_SEQUENCE(digest);
+                TERM_BIN_LEN(digest, digests[i].len);
                 Val_Init_Binary(D_OUT, digest);
 
                 return 0;

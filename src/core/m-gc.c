@@ -152,15 +152,13 @@ static void Push_Array_Marked_Deep(REBARR *array)
     // set by calling macro (helps catch direct calls of this function)
     assert(IS_REBSER_MARKED(ARR_SERIES(array)));
 
-    // Add series to the end of the mark stack series and update terminator
+    // Add series to the end of the mark stack series
 
     if (SER_FULL(GC_Mark_Stack)) Extend_Series(GC_Mark_Stack, 8);
 
     *SER_AT(REBARR*, GC_Mark_Stack, SER_LEN(GC_Mark_Stack)) = array;
 
-    SET_SERIES_LEN(GC_Mark_Stack, SER_LEN(GC_Mark_Stack) + 1);
-
-    *SER_AT(REBARR*, GC_Mark_Stack, SER_LEN(GC_Mark_Stack)) = NULL;
+    SET_SERIES_LEN(GC_Mark_Stack, SER_LEN(GC_Mark_Stack) + 1); // unterminated
 }
 
 
@@ -1425,10 +1423,12 @@ static void Propagate_All_GC_Marks(void)
         //
         REBARR *array = *SER_AT(REBARR*, GC_Mark_Stack, SER_LEN(GC_Mark_Stack));
 
-        // Drop the series we are processing off the tail, as we could be
-        // queuing more of them (hence increasing the tail).
+        // Termination is not required in the release build (the length is
+        // enough to know where it ends).  But overwrite with trash in debug.
         //
-        *SER_AT(REBARR*, GC_Mark_Stack, SER_LEN(GC_Mark_Stack)) = NULL;
+        TRASH_POINTER_IF_DEBUG(
+            *SER_AT(REBARR*, GC_Mark_Stack, SER_LEN(GC_Mark_Stack))
+        );
 
         Mark_Array_Deep_Core(array);
     }

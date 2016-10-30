@@ -706,9 +706,9 @@ void Mold_Vector(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 
     if (len) {
         //
-        // remove final space
+        // remove final space (overwritten with terminator)
         //
-        SET_SERIES_LEN(mold->series, SER_LEN(mold->series) - 1);
+        TERM_UNI_LEN(mold->series, UNI_LEN(mold->series) - 1);
     }
 
     if (molded) {

@@ -71,8 +71,13 @@ inline static REBCNT BIN_LEN(REBSER *s) {
     return SER_LEN(s);
 }
 
-inline static void SET_BIN_END(REBSER *s, REBCNT n) {
-    *BIN_AT(s, n) = 0;
+inline static void TERM_BIN(REBSER *s) {
+    BIN_HEAD(s)[SER_LEN(s)] = 0;
+}
+
+inline static void TERM_BIN_LEN(REBSER *s, REBCNT len) {
+    SET_SERIES_LEN(s, len);
+    BIN_HEAD(s)[len] = 0;
 }
 
 

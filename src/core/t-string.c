@@ -324,8 +324,7 @@ static REBSER *make_binary(const REBVAL *arg, REBOOL make)
     // MAKE/TO BINARY! <char!>
     case REB_CHAR:
         ser = Make_Binary(6);
-        SET_SERIES_LEN(ser, Encode_UTF8_Char(BIN_HEAD(ser), VAL_CHAR(arg)));
-        TERM_SEQUENCE(ser);
+        TERM_SEQUENCE_LEN(ser, Encode_UTF8_Char(BIN_HEAD(ser), VAL_CHAR(arg)));
         break;
 
     // MAKE/TO BINARY! <bitset!>
@@ -340,9 +339,8 @@ static REBSER *make_binary(const REBVAL *arg, REBOOL make)
 
     case REB_MONEY:
         ser = Make_Binary(12);
-        SET_SERIES_LEN(ser, 12);
         deci_to_binary(BIN_HEAD(ser), VAL_MONEY_AMOUNT(arg));
-        BIN_HEAD(ser)[12] = 0;
+        TERM_SEQUENCE_LEN(ser, 12);
         break;
 
     default:
@@ -885,11 +883,10 @@ zero_str:
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
 
         if (index < tail) {
-            if (index == 0) Reset_Series(VAL_SERIES(value));
-            else {
-                SET_SERIES_LEN(VAL_SERIES(value), cast(REBCNT, index));
-                TERM_SEQUENCE(VAL_SERIES(value));
-            }
+            if (index == 0)
+                Reset_Sequence(VAL_SERIES(value));
+            else
+                TERM_SEQUENCE_LEN(VAL_SERIES(value), cast(REBCNT, index));
         }
         break;
 

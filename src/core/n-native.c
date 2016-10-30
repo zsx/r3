@@ -304,8 +304,7 @@ REBNATIVE(make_native)
             dest += 2;
             ++n;
         }
-        SET_SERIES_LEN(bin, len);
-        TERM_SERIES(bin);
+        TERM_BIN_LEN(bin, len);
 
         Val_Init_String(Alloc_Tail_Array(info), bin);
     }

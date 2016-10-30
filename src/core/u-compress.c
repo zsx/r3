@@ -149,8 +149,7 @@ REBSER *Compress(
     if (ret != Z_STREAM_END)
         fail (Error_Compression(&strm, ret));
 
-    SET_BIN_END(output, buf_size - strm.avail_out);
-    SET_SERIES_LEN(output, buf_size - strm.avail_out);
+    TERM_BIN_LEN(output, buf_size - strm.avail_out);
 
     if (gzip) {
         //
@@ -365,8 +364,7 @@ REBSER *Decompress(
         strm.avail_out += buf_size - old_size;
     }
 
-    SET_BIN_END(output, strm.total_out);
-    SET_SERIES_LEN(output, strm.total_out);
+    TERM_BIN_LEN(output, strm.total_out);
 
     // !!! Trim if more than 1K extra capacity, review logic
     //

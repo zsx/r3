@@ -473,7 +473,7 @@ static const REBYTE *Scan_Quote_Push_Mold(
 
     if (scan_state) scan_state->line_count += lines;
 
-    UNI_TERM(mo->series);
+    TERM_UNI(mo->series);
 
     return src;
 }
@@ -548,7 +548,7 @@ const REBYTE *Scan_Item_Push_Mold(
 
     if (*src && *src == term) src++;
 
-    UNI_TERM(mo->series);
+    TERM_UNI(mo->series);
 
     return src;
 }

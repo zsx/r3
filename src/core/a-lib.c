@@ -803,6 +803,8 @@ RL_API REBSER *RL_Make_String(u32 size, REBOOL unicode)
 //
 //          *((REBCNT*)(binary+1)) = buffersize;
 //
+//     Does not have any termination behavior.
+//
 RL_API void RL_Set_Series_Len(REBSER* series, REBCNT len)
 {
     SET_SERIES_LEN(series, len);

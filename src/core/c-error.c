@@ -232,8 +232,7 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
     SET_SERIES_LEN(GC_Series_Guard, s->series_guard_len);
     SET_SERIES_LEN(GC_Value_Guard, s->value_guard_len);
     TG_Frame_Stack = s->frame;
-    SET_SERIES_LEN(UNI_BUF, s->uni_buf_len);
-    TERM_SERIES(UNI_BUF); // see remarks on termination in Pop/Drop Molds
+    TERM_SEQUENCE_LEN(UNI_BUF, s->uni_buf_len);
 
 #if !defined(NDEBUG)
     //

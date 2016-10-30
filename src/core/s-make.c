@@ -81,14 +81,12 @@ REBSER *Make_Unicode(REBCNT length)
 //
 REBSER *Copy_Bytes(const REBYTE *src, REBINT len)
 {
-    REBSER *dst;
+    if (len < 0)
+        len = LEN_BYTES(src);
 
-    if (len < 0) len = LEN_BYTES(src);
-
-    dst = Make_Binary(len);
+    REBSER *dst = Make_Binary(len);
     memcpy(BIN_HEAD(dst), src, len);
-    SET_SERIES_LEN(dst, len);
-    TERM_SEQUENCE(dst);
+    TERM_SEQUENCE_LEN(dst, len);
 
     return dst;
 }
@@ -102,19 +100,13 @@ REBSER *Copy_Bytes(const REBYTE *src, REBINT len)
 //
 REBSER *Copy_Bytes_To_Unicode(REBYTE *src, REBINT len)
 {
-    REBSER *series;
-    REBUNI *dst;
+    REBSER *series = Make_Unicode(len);
+    REBUNI *dst = UNI_HEAD(series);
 
-    series = Make_Unicode(len);
-    dst = UNI_HEAD(series);
-    SET_SERIES_LEN(series, len);
+    for (; len > 0; len--)
+        *dst++ = cast(REBUNI, *src++);
 
-    for (; len > 0; len--) {
-        *dst++ = (REBUNI)(*src++);
-    }
-
-    UNI_TERM(series);
-
+    TERM_UNI_LEN(series, len);
     return series;
 }
 
@@ -145,6 +137,7 @@ REBSER *Copy_Wide_Str(void *src, REBINT len)
         while (len-- > 0) *bp++ = (REBYTE)*str++;
         *bp = 0;
     }
+    ASSERT_SERIES_TERM(dst);
     return dst;
 }
 
@@ -252,25 +245,27 @@ cp_same:
 //
 REBSER *Copy_String_Slimming(REBSER *src, REBCNT index, REBINT length)
 {
-    REBUNI *up;
     REBYTE wide = 1;
-    REBSER *dst;
-    REBINT n;
 
-    if (length < 0) length = SER_LEN(src) - index;
+    if (length < 0)
+        length = SER_LEN(src) - index;
 
     // Can it be slimmed down?
     if (!BYTE_SIZE(src)) {
-        up = UNI_AT(src, index);
+        REBUNI *up = UNI_AT(src, index);
+
+        REBINT n;
         for (n = 0; n < length; n++)
-            if (up[n] > 0xff) break;
-        if (n < length) wide = sizeof(REBUNI);
+            if (up[n] > 0xff)
+                break;
+
+        if (n < length)
+            wide = sizeof(REBUNI);
     }
 
-    dst = Make_Series(length + 1, wide, MKS_NONE);
+    REBSER *dst = Make_Series(length + 1, wide, MKS_NONE);
     Insert_String(dst, 0, src, index, length, TRUE);
-    SET_SERIES_LEN(dst, length);
-    TERM_SEQUENCE(dst);
+    TERM_SEQUENCE_LEN(dst, length);
 
     return dst;
 }
@@ -312,8 +307,7 @@ REBCHR *Val_Str_To_OS_Managed(REBSER **out, REBVAL *val)
             n,
             FALSE
         );
-        SET_SERIES_LEN(up, abs(n));
-        UNI_TERM(up);
+        TERM_UNI_LEN(up, abs(n));
 
         if (out) *out = up;
 
@@ -415,12 +409,12 @@ REBSER *Append_Codepoint_Raw(REBSER *dst, REBCNT codepoint)
     if (BYTE_SIZE(dst)) {
         assert(codepoint < (1 << 8));
         *BIN_AT(dst, tail) = cast(REBYTE, codepoint);
-        TERM_SEQUENCE(dst);
+        TERM_BIN(dst);
     }
     else {
         assert(codepoint < (1 << 16));
         *UNI_AT(dst, tail) = cast(REBUNI, codepoint);
-        UNI_TERM(dst);
+        TERM_UNI(dst);
     }
 
     return dst;
@@ -601,19 +595,17 @@ REBSER *Append_UTF8_May_Fail(REBSER *dst, const REBYTE *src, REBCNT num_bytes)
 REBSER *Join_Binary(const REBVAL *blk, REBINT limit)
 {
     REBSER *series = BYTE_BUF;
-    RELVAL *val;
-    REBCNT tail = 0;
-    REBCNT len;
-    REBCNT bl;
-    void *bp;
 
-    if (limit < 0) limit = VAL_LEN_AT(blk);
+    REBCNT tail = 0;
+
+    if (limit < 0)
+        limit = VAL_LEN_AT(blk);
 
     SET_SERIES_LEN(series, 0);
 
+    RELVAL *val;
     for (val = VAL_ARRAY_AT(blk); limit > 0; val++, limit--) {
         switch (VAL_TYPE(val)) {
-
         case REB_INTEGER:
             if (VAL_INT64(val) > cast(i64, 255) || VAL_INT64(val) < 0)
                 fail (Error_Out_Of_Range(KNOWN(val)));
@@ -621,22 +613,27 @@ REBSER *Join_Binary(const REBVAL *blk, REBINT limit)
             *BIN_AT(series, tail) = (REBYTE)VAL_INT32(val);
             break;
 
-        case REB_BINARY:
-            len = VAL_LEN_AT(val);
+        case REB_BINARY: {
+            REBCNT len = VAL_LEN_AT(val);
             EXPAND_SERIES_TAIL(series, len);
             memcpy(BIN_AT(series, tail), VAL_BIN_AT(val), len);
-            break;
+            break; }
 
         case REB_STRING:
         case REB_FILE:
         case REB_EMAIL:
         case REB_URL:
-        case REB_TAG:
-            len = VAL_LEN_AT(val);
-            bp = VAL_BYTE_SIZE(val) ? VAL_BIN_AT(val) : (REBYTE*)VAL_UNI_AT(val);
-            bl = Length_As_UTF8(
+        case REB_TAG: {
+            REBCNT len = VAL_LEN_AT(val);
+            
+            void *bp = VAL_BYTE_SIZE(val)
+                ? VAL_BIN_AT(val)
+                : (REBYTE*)VAL_UNI_AT(val);
+            
+            REBCNT bl = Length_As_UTF8(
                 bp, len, VAL_BYTE_SIZE(val) ? 0 : OPT_ENC_UNISRC
             );
+            
             EXPAND_SERIES_TAIL(series, bl);
             SET_SERIES_LEN(
                 series,
@@ -648,13 +645,14 @@ REBSER *Join_Binary(const REBVAL *blk, REBINT limit)
                     VAL_BYTE_SIZE(val) ? 0 : OPT_ENC_UNISRC
                 )
             );
-            break;
+            break; }
 
-        case REB_CHAR:
+        case REB_CHAR: {
             EXPAND_SERIES_TAIL(series, 6);
-            len = Encode_UTF8_Char(BIN_AT(series, tail), VAL_CHAR(val));
+            REBCNT len =
+                Encode_UTF8_Char(BIN_AT(series, tail), VAL_CHAR(val));
             SET_SERIES_LEN(series, tail + len);
-            break;
+            break; }
 
         default:
             fail (Error_Invalid_Arg_Core(val, VAL_SPECIFIER(blk)));
@@ -663,7 +661,7 @@ REBSER *Join_Binary(const REBVAL *blk, REBINT limit)
         tail = SER_LEN(series);
     }
 
-    SET_BIN_END(series, tail);
+    *BIN_AT(series, tail) = 0;
 
     return series;  // SHARED FORM SERIES!
 }

@@ -314,9 +314,8 @@ new_interning: ; // semicolon needed for statement
     // interning `foo` in `foo: bar + 1` it would be colon-terminated.
     //
     memcpy(BIN_HEAD(intern), utf8, len);
-    BIN_HEAD(intern)[len] = '\0';
+    TERM_SEQUENCE_LEN(intern, len);
 
-    SET_SERIES_LEN(intern, len);
     SET_SER_FLAGS(intern, SERIES_FLAG_STRING | SERIES_FLAG_FIXED_SIZE);
 
     if (canon == NULL) {

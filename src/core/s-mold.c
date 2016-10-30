@@ -360,7 +360,6 @@ static REBUNI *Emit_Uni_Char(REBUNI *up, REBUNI chr, REBOOL parened)
 static void Mold_Uni_Char(REBSER *dst, REBUNI chr, REBOOL molded, REBOOL parened)
 {
     REBCNT tail = SER_LEN(dst);
-    REBUNI *up;
 
     if (!molded) {
         EXPAND_SERIES_TAIL(dst, 1);
@@ -368,14 +367,16 @@ static void Mold_Uni_Char(REBSER *dst, REBUNI chr, REBOOL molded, REBOOL parened
     }
     else {
         EXPAND_SERIES_TAIL(dst, 10); // worst case: #"^(1234)"
-        up = UNI_AT(dst, tail);
+        
+        REBUNI *up = UNI_AT(dst, tail);
         *up++ = '#';
         *up++ = '"';
         up = Emit_Uni_Char(up, chr, parened);
         *up++ = '"';
+        
         SET_SERIES_LEN(dst, up - UNI_HEAD(dst));
     }
-    UNI_TERM(dst);
+    TERM_UNI(dst);
 }
 
 static void Mold_String_Series(const REBVAL *value, REB_MOLD *mold)
@@ -1730,15 +1731,13 @@ REBSER *Pop_Molded_String_Core(REB_MOLD *mold, REBCNT len)
             : len
     );
 
-    SET_SERIES_LEN(mold->series, mold->start);
-
     // Though the protocol of Mold_Value does terminate, it only does so if
     // it adds content to the buffer.  If we did not terminate when we
     // reset the size, then these no-op molds (e.g. mold of "") would leave
     // whatever value in the terminator spot was there.  This could be
     // addressed by making no-op molds terminate.
     //
-    UNI_TERM(mold->series);
+    TERM_UNI_LEN(mold->series, mold->start);
 
     mold->series = NULL;
 
@@ -1767,8 +1766,7 @@ REBSER *Pop_Molded_UTF8(REB_MOLD *mold)
     );
     assert(BYTE_SIZE(bytes));
 
-    SET_SERIES_LEN(mold->series, mold->start);
-    UNI_TERM(mold->series);
+    TERM_UNI_LEN(mold->series, mold->start);
 
     mold->series = NULL;
     return bytes;
@@ -1811,8 +1809,7 @@ void Drop_Mold_Core(REB_MOLD *mold, REBFLGS not_pushed_ok)
     //
     NOTE_SERIES_MAYBE_TERM(mold->series);
 
-    SET_SERIES_LEN(mold->series, mold->start);
-    UNI_TERM(mold->series); // see remarks in Pop_Molded_String
+    TERM_UNI_LEN(mold->series, mold->start); // see Pop_Molded_String() notes
 
     mold->series = NULL;
 }

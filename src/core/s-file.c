@@ -110,8 +110,7 @@ REBSER *To_REBOL_Path(const void *p, REBCNT len, REBFLGS flags)
     if ((flags & PATH_OPT_SRC_IS_DIR) && c != '/') {  // watch for %/c/ case
         SET_ANY_CHAR(dst, n++, '/');
     }
-    SET_SERIES_LEN(dst, n);
-    TERM_SEQUENCE(dst);
+    TERM_SEQUENCE_LEN(dst, n);
 
 #ifdef TO_WINDOWS
     // Change C:/ to /C/ (and C:X to /C/X):
@@ -260,8 +259,7 @@ REBSER *To_Local_Path(const void *p, REBCNT len, REBOOL unicode, REBOOL full)
     }
     out[n] = 0;
     SET_SERIES_LEN(dst, n);
-//  TERM_SEQUENCE(dst);
-//  Debug_Uni(dst);
+    ASSERT_SERIES_TERM(dst);
 
     return dst;
 }
