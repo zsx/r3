@@ -335,6 +335,16 @@ static void Queue_Mark_Field_Deep(
     REBSER *data_bin,
     REBCNT offset
 ){
+
+    // These series are backing stores for the `ffi_type` data that
+    // is needed to use the struct with the FFI api.
+    //
+    if (field->fftype) {
+        assert(field->fields_fftype_ptrs != NULL);
+        Mark_Series_Only(field->fftype);
+        Mark_Series_Only(field->fields_fftype_ptrs);
+    }
+
     if (field->is_rebval) {
         //
         // !!! The FFI apparently can tunnel REBVALs through to callbacks.
@@ -1007,12 +1017,6 @@ void Queue_Mark_Value_Deep(const RELVAL *val)
             // The symbol needs to be GC protected, but only fields have them
 
             assert(VAL_STRUCT_SCHEMA(val)->name == NULL);
-
-            // These series are backing stores for the `ffi_type` data that
-            // is needed to use the struct with the FFI api.
-            //
-            Mark_Series_Only(VAL_STRUCT_SCHEMA(val)->fftype);
-            Mark_Series_Only(VAL_STRUCT_SCHEMA(val)->fields_fftype_ptrs);
 
             // Recursively mark the schema and any nested structures (or
             // REBVAL-typed fields, specially recognized by the interface)
