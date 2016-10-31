@@ -59,7 +59,7 @@ REBNATIVE(echo)
             fail (Error(RE_CANNOT_OPEN, val));
     }
 
-    return R_OUT;
+    return R_VOID;
 }
 
 
