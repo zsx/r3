@@ -422,7 +422,7 @@ static void Queue_Mark_Routine_Deep(REBRIN *r)
         REBSER *schema = cast(REBSER*, VAL_HANDLE_DATA(&r->ret_schema));
         Mark_Series_Only(schema);
         Queue_Mark_Field_Deep(
-            *SER_HEAD(struct Struct_Field*, schema), NULL, 0
+            SER_HEAD(struct Struct_Field, schema), NULL, 0
         );
     }
     else // special, allows NONE (e.g. void return)
@@ -436,7 +436,7 @@ static void Queue_Mark_Routine_Deep(REBRIN *r)
                 = cast(REBSER*, VAL_HANDLE_DATA(ARR_AT(r->args_schemas, n)));
             Mark_Series_Only(schema);
             Queue_Mark_Field_Deep(
-                *SER_HEAD(struct Struct_Field*, schema), NULL, 0
+                SER_HEAD(struct Struct_Field, schema), NULL, 0
             );
         }
         else
