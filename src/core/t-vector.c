@@ -520,7 +520,7 @@ void Pick_Vector(REBVAL *out, const REBVAL *value, const REBVAL *picker) {
 
 
 //
-//  Poke_Vector: C
+//  Poke_Vector_Fail_If_Locked: C
 //
 void Poke_Vector_Fail_If_Locked(
     REBVAL *value,

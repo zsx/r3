@@ -27,10 +27,20 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// WARNING WARNING WARNING
-// This is highly tuned code that should only be modified by experts
-// who fully understand its design. It is very easy to create odd
-// side effects so please be careful and extensively test all changes!
+// Rebol's lexical scanner was implemented as hand-coded C, as opposed to
+// using a more formal grammar and generator.  This makes the behavior hard
+// to formalize, though some attempts have been made to do so:
+//
+// http://rgchris.github.io/Rebol-Notation/
+//
+// Because Red is implemented using Rebol, it has a more abstract definition
+// in the sense that it uses PARSE rules:
+//
+// https://github.com/red/red/blob/master/lexer.r
+//
+// It would likely be desirable to bring more formalism and generativeness
+// to Rebol's scanner; though the current method of implementation was
+// ostensibly chosen for performance.
 //
 
 #include "sys-core.h"
@@ -39,13 +49,6 @@
 //
 extern const MAKE_FUNC Make_Dispatch[REB_MAX];
 
-
-// In UTF8 C0, C1, F5, and FF are invalid.
-#ifdef USE_UNICODE
-#define LEX_UTFE LEX_DEFAULT
-#else
-#define LEX_UTFE LEX_WORD
-#endif
 
 //
 // Maps each character to its lexical attributes, using
@@ -202,11 +205,7 @@ const REBYTE Lex_Map[256] =
     LEX_WORD,LEX_WORD,LEX_WORD,LEX_WORD,
 
     /* Alternate Chars */
-#ifdef USE_UNICODE
     LEX_WORD,LEX_WORD,LEX_WORD,LEX_WORD,
-#else
-    LEX_DEFAULT,LEX_WORD,LEX_WORD,LEX_WORD, /* A0 (a space) */
-#endif
     LEX_WORD,LEX_WORD,LEX_WORD,LEX_WORD,
     LEX_WORD,LEX_WORD,LEX_WORD,LEX_WORD,
     LEX_WORD,LEX_WORD,LEX_WORD,LEX_WORD,

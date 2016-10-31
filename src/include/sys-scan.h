@@ -169,6 +169,14 @@ enum LEX_SPECIAL_ENUM {             /* The order is important! */
 */
 #define LEX_DEFAULT (LEX_DELIMIT|LEX_DELIMIT_SPACE)     /* control chars = spaces */
 
+// In UTF8 C0, C1, F5, and FF are invalid.  Ostensibly set to default because
+// it's not necessary to use a bit for a special designation, since they
+// should not occur.
+//
+// !!! If a bit is free, should it be used for errors in the debug build?
+//
+#define LEX_UTFE LEX_DEFAULT
+
 /*
 **  Characters not allowed in Words
 */
