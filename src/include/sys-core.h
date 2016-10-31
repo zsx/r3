@@ -638,6 +638,7 @@ enum Reb_Vararg_Op {
         } while (0)
 #endif
 
+struct Struct_Field; //forward declaration to avoid conflict in Prepare_Field_For_FFI
 
 #include "tmp-funcs.h"
 

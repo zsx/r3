@@ -155,7 +155,12 @@ static void get_scalar(
 
     switch (field->type) {
     case FFI_TYPE_UINT8:
-        SET_INTEGER(val, *cast(u8*, data));
+        if (field->is_rebval) {
+            assert(field->size == sizeof(REBVAL));
+            memcpy(val, data, sizeof(REBVAL));
+        } else {
+            SET_INTEGER(val, *cast(u8*, data));
+        }
         break;
 
     case FFI_TYPE_SINT8:
@@ -195,13 +200,7 @@ static void get_scalar(
         break;
 
     case FFI_TYPE_POINTER:
-        if (field->is_rebval) {
-            assert(field->size == sizeof(REBVAL));
-            assert(field->dimension == 4);
-            memcpy(val, data, sizeof(REBVAL));
-        }
-        else
-            SET_INTEGER(val, cast(REBUPT, *cast(void**, data)));
+        SET_INTEGER(val, cast(REBUPT, *cast(void**, data)));
         break;
 
     case FFI_TYPE_STRUCT:
@@ -369,7 +368,7 @@ REBARR *Struct_To_Array(REBSTU *stu)
         }
 
         /* optional initialization */
-        if (field->dimension > 1) {
+        if (field->is_array) {
             REBARR *dim = Make_Array(1);
             REBCNT n = 0;
             val = Alloc_Tail_Array(array);
@@ -435,9 +434,7 @@ static REBOOL assign_scalar_core(
     double d = 0;
 
     if (field->is_rebval) {
-        assert(FALSE); // need to actually adjust for correct n
-        assert(field->type == FFI_TYPE_POINTER);
-        assert(field->dimension % 4 == 0);
+        assert(field->type == FFI_TYPE_UINT8);
         assert(field->size == sizeof(REBVAL));
         memcpy(data, val, sizeof(REBVAL));
         return TRUE;
@@ -843,6 +840,7 @@ static void Parse_Field_Type_May_Fail(
                 field->fields = VAL_STRUCT_FIELDLIST(inner);
                 field->spec = VAL_STRUCT_SPEC(inner);
                 field->fftype = VAL_STRUCT_SCHEMA(inner)->fftype;
+                field->fields_fftype_ptrs = VAL_STRUCT_SCHEMA(inner)->fields_fftype_ptrs;
             }
             else
                 fail (Error_Unexpected_Type(REB_BLOCK, VAL_TYPE(val)));
@@ -850,8 +848,8 @@ static void Parse_Field_Type_May_Fail(
 
         case SYM_REBVAL:
             field->is_rebval = TRUE;
-            field->type = FFI_TYPE_POINTER;
-            field->size = sizeof(void*); // multiplied by 4 at the end
+            field->type = FFI_TYPE_UINT8;
+            field->size = sizeof(REBVAL);
             break;
 
         default:
@@ -867,6 +865,7 @@ static void Parse_Field_Type_May_Fail(
         field->fields = VAL_STRUCT_FIELDLIST(val);
         field->spec = VAL_STRUCT_SPEC(val);
         field->fftype = VAL_STRUCT_SCHEMA(val)->fftype;
+        field->fields_fftype_ptrs = VAL_STRUCT_SCHEMA(val)->fields_fftype_ptrs;
         COPY_VALUE(inner, val, VAL_SPECIFIER(spec));
     }
     else
@@ -903,9 +902,6 @@ static void Parse_Field_Type_May_Fail(
     }
     else
         fail (Error_Invalid_Type(VAL_TYPE(val)));
-
-    if (field->is_rebval)
-        field->dimension = field->dimension * 4;
 }
 
 
@@ -928,7 +924,13 @@ static REBCNT Total_Struct_Dimensionality(REBSER *fields)
         struct Struct_Field *field = SER_AT(struct Struct_Field, fields, i);
 
         if (field->type != FFI_TYPE_STRUCT)
-            n_fields += field->dimension;
+            //
+            // The ffi type of a REBVAL field is faked by ffi_type_uint8 arrays
+            // External function should treat it as opaque.
+            //
+            n_fields += field->is_rebval?
+                field->dimension * sizeof(REBVAL)
+                : field->dimension;
         else
             n_fields += Total_Struct_Dimensionality(field->fields);
     }
@@ -1027,6 +1029,77 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
     }
 }
 
+//
+//  Prepare_Field_For_FFI: C
+//
+// The main reason structs exist is so that they can be used with the FFI,
+// and the FFI requires you to set up a "ffi_type" C struct describing
+// each datatype. This is a helper function that sets up proper ffi_type.
+// There are stock types for the primitives, but each structure needs its
+// own.
+//
+void Prepare_Field_For_FFI(struct Struct_Field *schema)
+{
+    if (schema->fftype) {
+        assert(schema->fields_fftype_ptrs != NULL);
+        return;
+    }
+
+    schema->fftype = Make_Series(1, sizeof(ffi_type), MKS_NONE);
+    SET_SER_FLAG(schema->fftype, SERIES_FLAG_FIXED_SIZE);
+    ffi_type *fftype = SER_HEAD(ffi_type, schema->fftype);
+
+    fftype->size = 0;
+    fftype->alignment = 0;
+    fftype->type = FFI_TYPE_STRUCT;
+
+    schema->fields_fftype_ptrs = Make_Series(
+        Total_Struct_Dimensionality(schema->fields) + 1, // 1 for null at end
+        sizeof(ffi_type*),
+        MKS_NONE
+    );
+    SET_SER_FLAG(schema->fields_fftype_ptrs, SERIES_FLAG_FIXED_SIZE);
+    fftype->elements = SER_HEAD(ffi_type*, schema->fields_fftype_ptrs);
+
+    REBCNT j = 0;
+    REBCNT i;
+    for (i = 0; i < SER_LEN(schema->fields); ++i) {
+        struct Struct_Field *field
+            = SER_AT(struct Struct_Field, schema->fields, i);
+
+        if (field->is_rebval) {
+            assert(field->size == sizeof(REBVAL));
+            /* The sole purpose of REBVAL in a struct! is passing it to an external function
+             * which proxies it to a callback! as a means to pass an arbitrary REBVAL to callback! */
+            REBCNT n = 0;
+            for (n = 0; n < field->dimension * sizeof(REBVAL); ++n) {
+                fftype->elements[j++] = &ffi_type_uint8;
+            }
+        }
+        else if (field->type == FFI_TYPE_STRUCT) {
+            REBCNT n = 0;
+            for (n = 0; n < field->dimension; ++n) {
+                Prepare_Field_For_FFI(field);
+                fftype->elements[j++] = SER_HEAD(ffi_type, field->fftype);
+            }
+        }
+        else {
+            REBSTR *sym; // dummy
+            enum Reb_Kind kind; // dummy
+            ffi_type* field_fftype
+                = Get_FFType_Enum_Info(&sym, &kind, field->type);
+
+            REBCNT n;
+            for (n = 0; n < field->dimension; ++n) {
+                fftype->elements[j++] = field_fftype;
+            }
+        }
+    }
+    fftype->elements[j] = NULL;
+
+    MANAGE_SERIES(schema->fields_fftype_ptrs);
+    MANAGE_SERIES(schema->fftype);
+}
 
 //
 //  MAKE_Struct: C
@@ -1067,6 +1140,8 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
     schema->fields = Make_Series(
         max_fields, sizeof(struct Struct_Field), MKS_NONE
     );
+    schema->fftype = NULL;
+    schema->fields_fftype_ptrs = NULL;
 
     // `schema->size =` ...don't know until after the fields are made
 
@@ -1115,6 +1190,8 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
             field_idx
         );
         field->offset = (REBCNT)offset;
+        field->fftype = NULL;
+        field->fields_fftype_ptrs = NULL;
 
         // Must be a word or a set-word, with set-words initializing
 
@@ -1251,8 +1328,6 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
                 }
             }
             else if (field->is_rebval) {
-                assert(FALSE); // needs work
-
                 REBCNT n = 0;
                 for (n = 0; n < field->dimension; n ++) {
                     if (!assign_scalar(
@@ -1289,75 +1364,10 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
 
     schema->size = offset; // now we know the total size so save it
 
-
-//
-// SET UP FOR FFI
-//
-
-    // The reason structs exist at all is so that they can be used with the
-    // FFI, and the FFI requires you to set up a "ffi_type" C struct describing
-    // each datatype.  There are stock types for the primitives, but each
-    // structure needs its own.  We build the ffi_type at the same time as
-    // the structure.
-    //
-    schema->fftype = Make_Series(1, sizeof(ffi_type), MKS_NONE);
-    SET_SER_FLAG(schema->fftype, SERIES_FLAG_FIXED_SIZE);
-    ffi_type *fftype = SER_HEAD(ffi_type, schema->fftype);
-
-    fftype->size = 0;
-    fftype->alignment = 0;
-    fftype->type = FFI_TYPE_STRUCT;
-
-    schema->fields_fftype_ptrs = Make_Series(
-        Total_Struct_Dimensionality(schema->fields) + 1, // 1 for null at end
-        sizeof(ffi_type*),
-        MKS_NONE
-    );
-    SET_SER_FLAG(schema->fields_fftype_ptrs, SERIES_FLAG_FIXED_SIZE);
-    fftype->elements = SER_HEAD(ffi_type*, schema->fields_fftype_ptrs);
-
-    REBCNT j = 0;
-    REBCNT i;
-    for (i = 0; i < SER_LEN(schema->fields); ++i) {
-        struct Struct_Field *field
-            = SER_AT(struct Struct_Field, schema->fields, i);
-
-        if (field->is_rebval) {
-            //
-            // "don't see a point to pass a rebol value to external functions"
-            //
-            // !!! ^-- What if the value is being passed through and will
-            // come back via a callback?
-            //
-            fail (Error(RE_MISC));
-        }
-        else if (field->type == FFI_TYPE_STRUCT) {
-            REBCNT n = 0;
-            for (n = 0; n < field->dimension; ++n) {
-                fftype->elements[j++] = SER_HEAD(ffi_type, field->fftype);
-            }
-        }
-        else {
-            REBSTR *sym; // dummy
-            enum Reb_Kind kind; // dummy
-            ffi_type* field_fftype
-                = Get_FFType_Enum_Info(&sym, &kind, field->type);
-
-            REBCNT n;
-            for (n = 0; n < field->dimension; ++n) {
-                fftype->elements[j++] = field_fftype;
-            }
-        }
-    }
-    fftype->elements[j] = NULL;
-
-
 //
 // FINALIZE VALUE
 //
 
-    MANAGE_SERIES(schema->fields_fftype_ptrs);
-    MANAGE_SERIES(schema->fftype);
     MANAGE_ARRAY(schema->spec);
     MANAGE_SERIES(schema->fields);
 

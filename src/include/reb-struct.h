@@ -400,6 +400,7 @@ inline static void* SCHEMA_FFTYPE_CORE(const RELVAL *schema) {
                 struct Struct_Field,
                 cast(REBSER*, VAL_HANDLE_DATA(schema))
             );
+        Prepare_Field_For_FFI(field);
         return SER_HEAD(ffi_type, field->fftype);
     }
 

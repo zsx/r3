@@ -343,22 +343,28 @@ static void Queue_Mark_Field_Deep(
         // "live", and there may be an array of them...so they are marked
         // much as a REBARR would.
         //
-        assert(field->type == FFI_TYPE_POINTER);
-        assert(field->dimension % 4 == 0);
+        assert(field->type == FFI_TYPE_UINT8);
         assert(field->size == sizeof(REBVAL));
 
         REBCNT i;
-        for (i = 0; i < field->dimension; i += 4) {
-            REBVAL *value = cast(REBVAL*,
-                SER_AT(
-                    REBYTE,
-                    data_bin,
-                    offset + field->offset + i * field->size
-                )
-            );
+        for (i = 0; i < field->dimension; i ++) {
+            if (field->done){
+                REBVAL value;
+                const REBYTE *blob = SER_AT(
+                     REBYTE,
+                     data_bin,
+                     offset + field->offset + i * field->size
+                );
 
-            if (field->done)
-                Queue_Mark_Value_Deep(value);
+                //
+                // Because data in the struct is densely packed, "blob"
+                // might not be well aligned for access as a REBVAL. Copying
+                // its content to a REBVAL for access.
+                //
+                memcpy(&value, blob, sizeof(REBVAL));
+
+                Queue_Mark_Value_Deep(&value);
+            }
         }
     }
     else if (field->type == FFI_TYPE_STRUCT) {
