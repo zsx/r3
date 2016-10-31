@@ -380,6 +380,7 @@ open: action [
 
 close: action [
     {Closes a port/library.}
+    return: [<opt> any-value!]
     port [port! library!]
 ]
 
