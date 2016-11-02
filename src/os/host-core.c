@@ -374,8 +374,6 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
         case CMD_CORE_RSA:
         {
             RXIARG val;
-            REBSTR* *words;
-            REBSTR* *w;
             REBCNT type;
             REBSER *data = RXA_SERIES(frm, 1);
             REBYTE *dataBuffer = (REBYTE *)RL_SERIES(data, RXI_SER_DATA) + RXA_INDEX(frm,1);
@@ -395,10 +393,10 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 padding = LOGICAL(RXA_TYPE(frm, 6) != RXT_BLANK);
             }
 
-            words = RL_WORDS_OF_OBJECT(obj);
-            w = words;
+            REBSTR** words = RL_WORDS_OF_OBJECT(obj);
+            REBSTR** w = words;
 
-            while ((type = RL_GET_FIELD(obj, w[0], &val)))
+            while ((type = RL_GET_FIELD(obj, *w, &val)))
             {
                 if (type == RXT_BINARY){
                     objData = cast(REBYTE *, RL_SERIES(
@@ -409,7 +407,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                         RL_SERIES(val.sri.series, RXI_SER_TAIL)
                         - val.sri.index;
 
-                    switch(RL_FIND_WORD(core_ext_words,w[0]))
+                    switch (RL_FIND_WORD(core_ext_words, *w))
                     {
                         case W_CORE_N:
                             n = objData;
@@ -445,7 +443,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                             break;
                     }
                 }
-                w++;
+                ++w;
             }
 
             OS_FREE(words);
@@ -505,7 +503,6 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 }
             }
 
-            //hack! - will set the tail to buffersize
             RL_SET_SERIES_LEN(binary, binary_len);
 
             //setup returned binary! value
@@ -522,13 +519,15 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             DH_CTX dh_ctx;
             RXIARG val, priv_key, pub_key;
             REBCNT type;
-            REBSER *obj = RXA_OBJECT(frm, 1);
-            REBSTR* *words = RL_WORDS_OF_OBJECT(obj);
+            REBSER *obj = RXA_OBJECT(frm, 1);            
             REBYTE *objData;
 
             memset(&dh_ctx, 0, sizeof(dh_ctx));
 
-            while ((type = RL_GET_FIELD(obj, words[0], &val)))
+            REBSTR** words = RL_WORDS_OF_OBJECT(obj);
+            REBSTR** w = words;
+
+            while ((type = RL_GET_FIELD(obj, *w, &val)))
             {
                 if (type == RXT_BINARY)
                 {
@@ -536,7 +535,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                         val.sri.series, RXI_SER_DATA
                     )) + val.sri.index;
 
-                    switch(RL_FIND_WORD(core_ext_words,words[0]))
+                    switch (RL_FIND_WORD(core_ext_words, *w))
                     {
                         case W_CORE_P:
                             dh_ctx.p = objData;
@@ -553,8 +552,10 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                             break;
                     }
                 }
-                words++;
+                ++w;
             }
+
+            OS_FREE(words);
 
             if (!dh_ctx.p || !dh_ctx.g) break;
 
@@ -567,8 +568,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 priv_key.sri.series, RXI_SER_DATA)
             );
             memset(dh_ctx.x, 0, dh_ctx.len);
-            //hack! - will set the tail to key size
-            *cast(REBCNT*, cast(void**, priv_key.sri.series) + 1) = dh_ctx.len;
+            RL_SET_SERIES_LEN(priv_key.sri.series, dh_ctx.len);
 
             pub_key.sri.series = RL_Make_String(dh_ctx.len, FALSE);
             pub_key.sri.index = 0;
@@ -577,8 +577,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                 pub_key.sri.series, RXI_SER_DATA)
             );
             memset(dh_ctx.gx, 0, dh_ctx.len);
-            //hack! - will set the tail to key size
-            *cast(REBCNT*, cast(void**, pub_key.sri.series) + 1) = dh_ctx.len;
+            RL_SET_SERIES_LEN(pub_key.sri.series, dh_ctx.len);
 
             //generate keys
             DH_generate_key(&dh_ctx);
@@ -597,14 +596,16 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
             REBCNT type;
             REBSER *obj = RXA_OBJECT(frm, 1);
             REBSER *pub_key = RXA_SERIES(frm, 2);
-            REBSTR* *words = RL_WORDS_OF_OBJECT(obj);
             REBYTE *objData;
             REBSER *binary;
             REBYTE *binaryBuffer;
 
             memset(&dh_ctx, 0, sizeof(dh_ctx));
 
-            while ((type = RL_GET_FIELD(obj, words[0], &val)))
+            REBSTR** words = RL_WORDS_OF_OBJECT(obj);
+            REBSTR** w = words;
+
+            while ((type = RL_GET_FIELD(obj, *w, &val)))
             {
                 if (type == RXT_BINARY)
                 {
@@ -612,7 +613,7 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                         val.sri.series, RXI_SER_DATA)
                     ) + val.sri.index;
 
-                    switch(RL_FIND_WORD(core_ext_words,words[0]))
+                    switch(RL_FIND_WORD(core_ext_words, *w))
                     {
                         case W_CORE_P:
                             dh_ctx.p = objData;
@@ -625,8 +626,10 @@ RXIEXT int RXD_Core(int cmd, RXIFRM *frm, REBCEC *data)
                             break;
                     }
                 }
-                words++;
+                ++w;
             }
+
+            OS_FREE(words);
 
             dh_ctx.gy = (REBYTE *)RL_SERIES(pub_key, RXI_SER_DATA) + RXA_INDEX(frm, 2);
 
