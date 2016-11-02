@@ -437,7 +437,7 @@ do-redirect: func [port [port!] new-uri [url! string! file!] /local spec state] 
         new-uri: to url! ajoin [spec/scheme "://" spec/host new-uri]
     ]
     new-uri: decode-url new-uri
-    unless select new-uri 'port-id [
+    unless find new-uri 'port-id [
         switch new-uri/scheme [
             'https [append new-uri [port-id: 443]]
             'http [append new-uri [port-id: 80]]
