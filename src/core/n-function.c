@@ -859,17 +859,17 @@ REBNATIVE(tighten)
     if (underlying != original)
         fail (Error(RE_INVALID_TIGHTEN));
 
-    // Copy the paramlist, which serves as the function's unique identity (the
-    // body can be reused as-is)
-    //
+    assert(specializer == NULL);
+
+    // Copy the paramlist, which serves as the function's unique identity,
+    // and set the tight flag on all the parameters.
+
     REBARR *paramlist = Copy_Array_Shallow(
         FUNC_PARAMLIST(original),
         SPECIFIED // no relative values in parameter lists
     );
     SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST); // flags not auto-copied
 
-    // Now set the tight flag on all the parameters.
-    //
     RELVAL *param = ARR_AT(paramlist, 1); // first parameter (0 is FUNCTION!)
     for (; NOT_END(param); ++param)
         SET_VAL_FLAG(param, TYPESET_FLAG_TIGHT);
@@ -887,24 +887,67 @@ REBNATIVE(tighten)
     //
     ARR_SERIES(paramlist)->misc.underlying = AS_FUNC(paramlist);
 
-    assert(IS_FUNCTION(ARR_AT(paramlist, 0))); // canon value, must update
-    ARR_AT(paramlist, 0)->payload.function.paramlist = paramlist;
+    // The body can't be reused directly, even for natives--because that is how
+    // HIJACK and other dispatch manipulators can alter function behavior
+    // without changing their identity.
+    //
+    REBARR *body_holder = Alloc_Singular_Array();
+    ARR_SERIES(body_holder)->misc.dispatcher = FUNC_DISPATCHER(original);
+    /* ARR_SERIES(body_holder)->link not used at this time */
+
+    RELVAL *body = ARR_HEAD(body_holder);
+
+    // Interpreted functions actually hold a relativized block as their body.
+    // This relativization is with respect to their own paramlist.  So a new
+    // body has to be made for them, re-relativized to the new identity.
+    if (
+        IS_FUNCTION_INTERPRETED(ARG(action))
+        && !IS_BLANK(FUNC_BODY(original)) // Noop_Dispatcher uses blanks
+    ) {
+        assert(IS_BLOCK(FUNC_BODY(original)));
+        assert(VAL_RELATIVE(FUNC_BODY(original)) == original);
+
+        VAL_RESET_HEADER(body, REB_BLOCK);
+        INIT_VAL_ARRAY(
+            body,
+            Copy_Rerelativized_Array_Deep_Managed(
+                VAL_ARRAY(FUNC_BODY(original)),
+                original,
+                AS_FUNC(paramlist)
+            )
+        );
+        VAL_INDEX(body) = 0;
+
+        SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
+        INIT_RELATIVE(body, AS_FUNC(paramlist));
+    }
+    else
+        *body = *FUNC_BODY(original);
+
+    REBVAL *archetype = KNOWN(ARR_AT(paramlist, 0)); // must update
+    assert(IS_FUNCTION(archetype));
+
+    archetype->payload.function.paramlist = paramlist;
     MANAGE_ARRAY(paramlist);
+
+    archetype->payload.function.body_holder = body_holder;
+    MANAGE_ARRAY(body_holder);
+
+    assert(archetype->extra.binding == NULL);
 
     // The function should not indicate any longer that it defers lookback
     // arguments (this flag is calculated from <tight> annotations in
     // Make_Function())
     //
-    CLEAR_VAL_FLAG(ARR_AT(paramlist, 0), FUNC_FLAG_DEFERS_LOOKBACK_ARG);
+    CLEAR_VAL_FLAG(archetype, FUNC_FLAG_DEFERS_LOOKBACK_ARG);
 
-    *D_OUT = *KNOWN(ARR_AT(paramlist, 0)); // canon value we just updated
+    *D_OUT = *archetype;
 
     // Currently esoteric case if someone chose to tighten a definitional
     // return, so `return 1 + 2` would return 1 instead of 3.  Would need to
     // preserve the binding of the incoming value, which is never present in
     // the canon value of the function.
     //
-    assert(D_OUT->extra.binding == NULL);
     D_OUT->extra.binding = ARG(action)->extra.binding;
 
     return R_OUT;
