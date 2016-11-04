@@ -302,6 +302,7 @@ set (CORE_SOURCE
     ${CORE_DIR}/m-series.c
     ${CORE_DIR}/m-stacks.c
     ${CORE_DIR}/n-control.c
+    ${CORE_DIR}/n-crypt.c
     ${CORE_DIR}/n-data.c
     ${CORE_DIR}/n-do.c
     ${CORE_DIR}/n-error.c
@@ -529,23 +530,6 @@ add_custom_command(OUTPUT
     ${TOOLS_DIR}/make-boot.r
     ${TOOL_DEPENDS}
     ${BOOT_DEPENDS}
-    )
-
-set(EXT_CORE_OUTPUT
-    ${TOP_GENERATED_SRC_DIR}/include/host-ext-core.h
-    )
-
-set(EXT_CORE_DEPENDS
-    ${TOP_SRC_DIR}/boot/core.r
-    )
-
-add_custom_command(OUTPUT
-    ${EXT_CORE_OUTPUT}
-    COMMAND ${REBOL} ${TOOLS_DIR}/core-ext.r OUTDIR=${TOP_GENERATED_SRC_DIR}
-    DEPENDS
-    ${TOOLS_DIR}/core-ext.r
-    ${TOOL_DEPENDS}
-    ${EXT_CORE_DEPENDS}
     )
 
 set(REB_LIB_OUTPUT

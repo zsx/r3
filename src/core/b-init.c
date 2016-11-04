@@ -1598,6 +1598,7 @@ void Init_Core(REBARGS *rargs)
     }
 
     Init_Year();
+    Init_Crypto();
 
     // Initialize mezzanine functions:
     DOUT("Level 5");
@@ -1677,6 +1678,7 @@ void Shutdown_Core(void)
 
     FREE_N(REBYTE*, RS_MAX, PG_Boot_Strs);
 
+    Shutdown_Crypto();
     Shutdown_Ports();
     Shutdown_Event_Scheme();
     Shutdown_CRC();

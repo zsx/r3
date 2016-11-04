@@ -365,3 +365,20 @@ source
 library-path
 runtime-path
 options
+
+; !!! Used by %n-crypt.c ... used to make a hacky symbol table, now just
+; hackily forces symbol numbers into the executable for what it uses.  Bad,
+; but not as bad as what it's replacing...
+
+n
+e
+d
+p
+q
+dp
+dq
+qinv
+priv-key
+pub-key
+g
+pkcs1

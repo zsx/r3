@@ -1369,3 +1369,71 @@ REBINT PD_Image(REBPVS *pvs)
     Pick_Image(pvs->store, KNOWN(pvs->value), pvs->selector);
     return PE_USE_STORE;
 }
+
+
+// !!! This didn't really have anywhere to go.  It came from %host-core.c,
+// and it's not part of the historical PNG code, but apparently Saphirion
+// found a problem with that in terms of saving (saving only?) which they
+// added in lodepng for.  This is unfortunate as lodepng repeats deflate
+// code already available in Zlib.
+
+#include "png/lodepng.h"
+
+//
+//  to-png: native [
+//
+//  "Save an image to PNG format"
+//
+//      image [image!]
+// ]
+//
+REBNATIVE(to_png)
+{
+    PARAM(1, image);
+
+    REBVAL *image = ARG(image);
+
+    LodePNGState state;
+    lodepng_state_init(&state);
+
+    // "disable autopilot"
+    state.encoder.auto_convert = LAC_NO;
+    
+    // input format
+    state.info_raw.colortype = LCT_RGBA;
+    state.info_raw.bitdepth = 8;
+    
+    // output format
+    state.info_png.color.colortype = LCT_RGBA;
+    state.info_png.color.bitdepth = 8;
+
+    size_t buffersize;
+    REBYTE *buffer = NULL;
+    
+    REBINT w = VAL_IMAGE_WIDE(image);
+    REBINT h = VAL_IMAGE_HIGH(image);
+    
+    unsigned error = lodepng_encode(
+        &buffer, // freed with free()...so must be allocated via malloc() ?
+        &buffersize,
+        SER_DATA_RAW(VAL_SERIES(image)),
+        w,
+        h,
+        &state
+    );
+
+    lodepng_state_cleanup(&state);
+
+    if (error != 0) {
+        if (buffer != NULL) free(buffer);
+        return R_BLANK;
+    }
+
+    REBSER *binary = Make_Binary(buffersize);    
+    memcpy(SER_DATA_RAW(binary), buffer, buffersize);
+    SET_SERIES_LEN(binary, buffersize);
+    free(buffer);
+
+    Val_Init_Binary(D_OUT, binary);    
+    return R_OUT;
+}

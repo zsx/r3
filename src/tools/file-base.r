@@ -75,6 +75,7 @@ core: [
 
     ; (N)atives
     n-control.c
+    n-crypt.c
     n-data.c
     n-do.c
     n-error.c
@@ -171,8 +172,6 @@ made: [
     make-boot.r         core/b-boot.c
     make-headers.r      include/tmp-funcs.h
 
-    core-ext.r          include/host-ext-core.h
-
     make-host-init.r    include/host-init.h
     make-os-ext.r       include/host-lib.h
     make-reb-lib.r      include/reb-lib.h
@@ -191,7 +190,6 @@ os: [
     host-args.c
     + host-device.c
     host-stdio.c
-    host-core.c
     host-table.c
     dev-net.c
     dev-dns.c

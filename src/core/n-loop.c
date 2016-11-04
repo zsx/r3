@@ -397,6 +397,8 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
 
     if (mode == LOOP_EVERY)
         SET_TRUE(D_OUT); // Default output is TRUE, to match ALL MAP-EACH
+    else
+        SET_VOID(D_OUT); // Default output is void, for "body never ran"
 
     assert(!IS_VOID(data));
     if (IS_BLANK(data))

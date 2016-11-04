@@ -1230,18 +1230,18 @@ sys/make-scheme [
             switch port/state/crypt-method [
                 rc4 [
                     if port/state/encrypt-stream [
-                        rc4/stream port/state/encrypt-stream blank
+                        port/state/encrypt-stream: _ ;-- will be GC'd
                     ]
                     if port/state/decrypt-stream [
-                        rc4/stream port/state/decrypt-stream blank
+                        port/state/decrypt-stream: _ ;-- will be GC'd
                     ]
                 ]
                 aes [
                     if port/state/encrypt-stream [
-                        aes/stream port/state/encrypt-stream blank
+                        port/state/encrypt-stream: _ ;-- will be GC'd
                     ]
                     if port/state/decrypt-stream [
-                        aes/stream port/state/decrypt-stream blank
+                        port/state/decrypt-stream: _ ;-- will be GC'd
                     ]
                 ]
             ]

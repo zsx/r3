@@ -97,11 +97,6 @@
 // inteface Ren Garden is the flagship console for Ren-C, so that is where
 // most investment will be made.)
 //
-// It is not possible (currently) for the same file to include %host-lib.h
-// and %sys-core.h.  So the linkage needed to load the host function table
-// has been moved to %host-core.c, with a few prototypes inlined here by
-// hand in order to allow this file to compile.
-//
 #include "sys-core.h"
 #ifdef __cplusplus
 extern "C" {
@@ -167,9 +162,6 @@ extern "C" {
 #ifdef TO_WINDOWS
     HINSTANCE App_Instance = 0;
 #endif
-
-    extern void Init_Core_Ext();
-    extern void Shutdown_Core_Ext(void);
 
 #ifdef __cplusplus
 }
@@ -470,11 +462,6 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
 
     if (startup_rc == 1) Host_Crash("Host-lib wrong size");
     if (startup_rc == 2) Host_Crash("Host-lib wrong version/checksum");
-
-    // Initialize core extension commands.  (This also checks struct alignment
-    // and versioning, because it has access to the RL_XXX macros)
-    //
-    Init_Core_Ext();
 
 #ifdef TEST_EXTENSIONS
     Init_Ext_Test();
@@ -912,7 +899,6 @@ void Host_Quit() {
 #ifndef REB_CORE
     OS_Destroy_Graphics();
 #endif
-    Shutdown_Core_Ext();
 }
 
 

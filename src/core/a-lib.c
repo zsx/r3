@@ -71,8 +71,17 @@ extern const enum Reb_Kind RXT_To_Reb[RXT_MAX];
 //     vers - a byte array to hold the version info. First byte is length,
 //         followed by version, revision, update, system, variation.
 // Notes:
-//     This function can be called before any other initialization
-//     to determine version compatiblity with the caller.
+//     In the original RL_API, this function was to be called before any other
+//     initialization to determine version compatiblity with the caller.
+//     With the massive changes in Ren-C and the lack of RL_API clients, this
+//     check is low priority.  This is how it was originally done:
+//
+//          REBYTE vers[8];
+//          vers[0] = 5; // len
+//          RL_Version(&vers[0]);
+//
+//          if (vers[1] != RL_VER || vers[2] != RL_REV)
+//              OS_CRASH(cb_cast("Incompatible reb-lib DLL"));
 //
 RL_API void RL_Version(REBYTE vers[])
 {

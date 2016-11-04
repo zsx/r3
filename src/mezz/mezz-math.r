@@ -11,6 +11,38 @@ REBOL [
     }
 ]
 
+rsa-make-key: func [
+    "Creates a key object for RSA algorithm."
+][
+    has [
+        n:          ;modulus
+        e:          ;public exponent
+        d:          ;private exponent
+        p:          ;prime num 1
+        q:          ;prime num 2
+        dp:         ;CRT exponent 1
+        dq:         ;CRT exponent 2
+        qinv:       ;CRT coefficient
+        _
+    ]
+]
+
+dh-make-key: func [
+    "Creates a key object for Diffie-Hellman algorithm."
+;NOT YET IMPLEMENTED
+;   /generate
+;       size [integer!] "Key length"
+;       generator [integer!] "Generator number"
+][
+    has [
+        priv-key:   ;private key
+        pub-key:    ;public key
+        g:          ;generator
+        p:          ;prime modulus
+        _
+    ]
+]
+
 ; ++ and -- were previously used to take a quoted word and increment
 ; it.  They were ordinary prefix operations
 
