@@ -51,7 +51,7 @@ REBOL_HOST_LIB *Host_Lib;
 #include "reb-lib.h"
 
 static REBRXT Reb_To_RXT[REB_MAX];
-static Reb_Kind RXT_To_Reb[RXT_MAX];
+static enum Reb_Kind RXT_To_Reb[RXT_MAX];
 
 
 //
@@ -112,8 +112,13 @@ RL_API int RL_Init(REBARGS *rargs, void *lib)
     // less hassle to have them built on initialization.
 
     REBCNT n;
-    for (n = 0; n < REB_MAX; ++n)
+    for (n = 0; n < REB_MAX; ++n) {
+        //
+        // Though statics are initialized to 0, this makes it more explicit,
+        // as well as deterministic if there's an Init/Shutdown/Init...
+        //
         Reb_To_RXT[n] = 0; // default that some types have no exported RXT_
+    }
 
     // REB_BAR unsupported?
     // REB_LIT_BAR unsupported?    
