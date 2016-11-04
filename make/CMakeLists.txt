@@ -453,8 +453,6 @@ set (BOOT_HEADER
     ${TOP_GENERATED_SRC_DIR}/include/tmp-maketypes.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-comptypes.h
     ${TOP_GENERATED_SRC_DIR}/include/reb-types.h
-    ${TOP_GENERATED_SRC_DIR}/include/ext-types.h
-    ${TOP_GENERATED_SRC_DIR}/include/tmp-exttypes.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-bootdefs.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-sysobj.h
     ${TOP_GENERATED_SRC_DIR}/include/reb-dialect.h
@@ -472,7 +470,6 @@ set(BOOT_DEPENDS
     # all of the files loaded by make-boot.r
     ${TOP_SRC_DIR}/boot/version.r
     ${TOP_SRC_DIR}/boot/types.r
-    ${TOP_SRC_DIR}/boot/types-ext.r
     ${TOP_SRC_DIR}/boot/strings.r
     ${TOP_SRC_DIR}/boot/errors.r
     ${TOP_SRC_DIR}/boot/words.r

@@ -52,7 +52,6 @@ src/boot/tmp-*
 
 src/core/b-boot.c
 
-src/include/ext-types.h
 src/include/host-ext-*
 src/include/host-init.h
 src/include/host-lib.h

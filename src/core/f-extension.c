@@ -36,7 +36,7 @@
 
 #include "sys-core.h"
 
-#include "reb-ext.h" // includes copy of ext-types.h
+#include "reb-ext.h"
 #include "reb-evtypes.h"
 
 #include "reb-lib.h"
@@ -50,9 +50,6 @@ typedef struct reb_ext {
     int  index;                 // Index in extension table
     int  object;                // extension object reference
 } REBEXT;
-
-#include "tmp-exttypes.h"
-
 
 // !!!! The list below should not be hardcoded, but until someone
 // needs a lot of extensions, it will do fine.

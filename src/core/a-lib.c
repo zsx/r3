@@ -50,15 +50,9 @@ REBOL_HOST_LIB *Host_Lib;
 //
 #include "reb-lib.h"
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-extern const REBRXT Reb_To_RXT[REB_MAX];
-extern const enum Reb_Kind RXT_To_Reb[RXT_MAX];
+static REBRXT Reb_To_RXT[REB_MAX];
+static Reb_Kind RXT_To_Reb[RXT_MAX];
 
-#if defined(__cplusplus)
-}
-#endif
 
 //
 //  RL_Version: C
@@ -114,17 +108,89 @@ RL_API void RL_Version(REBYTE vers[])
 //
 RL_API int RL_Init(REBARGS *rargs, void *lib)
 {
-    int marker;
-    REBUPT bounds;
-    const char *env_legacy = NULL;
+    // These tables used to be built by overcomplicated Rebol scripts.  It's
+    // less hassle to have them built on initialization.
 
-    Host_Lib = cast(REBOL_HOST_LIB *, lib);
+    REBCNT n;
+    for (n = 0; n < REB_MAX; ++n)
+        Reb_To_RXT[n] = 0; // default that some types have no exported RXT_
 
-    if (Host_Lib->size < HOST_LIB_SIZE) return 1;
-    if (((HOST_LIB_VER << 16) + HOST_LIB_SUM) != Host_Lib->ver_sum) return 2;
+    // REB_BAR unsupported?
+    // REB_LIT_BAR unsupported?    
+    Reb_To_RXT[REB_WORD] = RXT_WORD;
+    Reb_To_RXT[REB_SET_WORD] = RXT_SET_WORD;
+    Reb_To_RXT[REB_GET_WORD] = RXT_GET_WORD;
+    Reb_To_RXT[REB_LIT_WORD] = RXT_GET_WORD;
+    Reb_To_RXT[REB_REFINEMENT] = RXT_REFINEMENT;
+    Reb_To_RXT[REB_ISSUE] = RXT_ISSUE;
+    Reb_To_RXT[REB_PATH] = RXT_PATH;
+    Reb_To_RXT[REB_SET_PATH] = RXT_SET_PATH;
+    Reb_To_RXT[REB_GET_PATH] = RXT_GET_PATH;
+    Reb_To_RXT[REB_LIT_PATH] = RXT_LIT_PATH;
+    Reb_To_RXT[REB_GROUP] = RXT_GROUP;
+    Reb_To_RXT[REB_BLOCK] = RXT_BLOCK;
+    Reb_To_RXT[REB_BINARY] = RXT_BINARY;
+    Reb_To_RXT[REB_STRING] = RXT_STRING;
+    Reb_To_RXT[REB_FILE] = RXT_FILE;
+    Reb_To_RXT[REB_EMAIL] = RXT_EMAIL;
+    Reb_To_RXT[REB_URL] = RXT_URL;
+    Reb_To_RXT[REB_BITSET] = RXT_BITSET;
+    Reb_To_RXT[REB_IMAGE] = RXT_IMAGE;
+    Reb_To_RXT[REB_VECTOR] = RXT_VECTOR;
+    Reb_To_RXT[REB_BLANK] = RXT_BLANK;
+    Reb_To_RXT[REB_LOGIC] = RXT_LOGIC;
+    Reb_To_RXT[REB_INTEGER] = RXT_INTEGER;
+    Reb_To_RXT[REB_DECIMAL] = RXT_DECIMAL;
+    Reb_To_RXT[REB_PERCENT] = RXT_PERCENT;
+    // REB_MONEY unsupported?
+    Reb_To_RXT[REB_CHAR] = RXT_CHAR;
+    Reb_To_RXT[REB_PAIR] = RXT_PAIR;
+    Reb_To_RXT[REB_TUPLE] = RXT_TUPLE;
+    Reb_To_RXT[REB_TIME] = RXT_TIME;
+    Reb_To_RXT[REB_DATE] = RXT_DATE;
+    // REB_MAP unsupported?
+    // REB_DATATYPE unsupported?
+    // REB_TYPESET unsupported?
+    // REB_VARARGS unsupported?
+    Reb_To_RXT[REB_OBJECT] = RXT_OBJECT;
+    // REB_FRAME unsupported?
+    Reb_To_RXT[REB_MODULE] = RXT_MODULE;
+    // REB_ERROR unsupported?
+    // REB_PORT unsupported?
+    Reb_To_RXT[REB_GOB] = RXT_GOB;
+    // REB_EVENT unsupported?
+    Reb_To_RXT[REB_HANDLE] = RXT_HANDLE;
+    // REB_STRUCT unsupported?
+    // REB_LIBRARY unsupported?
 
-    bounds = (REBUPT)OS_CONFIG(1, 0);
-    if (bounds == 0) bounds = (REBUPT)STACK_BOUNDS;
+    for (n = 0; n < REB_MAX; ++n)
+        RXT_To_Reb[Reb_To_RXT[n]] = cast(enum Reb_Kind, n); // reverse lookup
+
+    // The RL_XXX API functions are stored like a C++ vtable, so they are
+    // function pointers inside of a struct.  It's not completely obvious
+    // what the applications of this are...theoretically it could be for
+    // namespacing, or using multiple different versions of the API in a
+    // single codebase, etc.  But all known clients use macros against a
+    // global "RL" rebol library, so it's not clear what the advantage is
+    // over just exporting C functions.
+
+    Host_Lib = cast(REBOL_HOST_LIB*, lib);
+
+    if (Host_Lib->size < HOST_LIB_SIZE)
+        return 1;
+
+    if (((HOST_LIB_VER << 16) + HOST_LIB_SUM) != Host_Lib->ver_sum)
+        return 2;
+
+    // See C_STACK_OVERFLOWING for remarks on this non-standard technique
+    // of stack overflow detection.  Note that each thread would have its
+    // own stack address limits, so this has to be updated for threading.
+
+    int marker; // used to measure variable order
+    REBUPT bounds; // this is checked vs. marker
+    bounds = cast(REBUPT, OS_CONFIG(1, 0));
+    if (bounds == 0)
+        bounds = cast(REBUPT, STACK_BOUNDS);
 
 #ifdef OS_STACK_GROWS_UP
     Stack_Limit = (REBUPT)(&marker) + bounds;
