@@ -1286,6 +1286,17 @@ REBCTX *Error_Invalid_Arg(const REBVAL *value) {
 
 
 //
+//  Error_Bad_Func_Def_Core: C
+//
+REBCTX *Error_Bad_Func_Def_Core(const RELVAL *item, REBCTX *specifier)
+{
+    REBVAL specific;
+    COPY_VALUE(&specific, item, specifier);
+    return Error(RE_BAD_FUNC_DEF, &specific);
+}
+
+
+//
 //  Error_Bad_Refine_Revoke: C
 //
 // We may have to search for the refinement, so we always do (speed of error

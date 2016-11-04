@@ -258,7 +258,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 durable = TRUE;
             }
             else
-                fail (Error(RE_BAD_FUNC_DEF, item));
+                fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
 
             continue;
         }
@@ -266,8 +266,8 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //=//// BLOCK! OF TYPES TO MAKE TYPESET FROM (PLUS PARAMETER TAGS) ////=//
 
         if (IS_BLOCK(item)) {
-            if (IS_BLOCK(DS_TOP))
-                fail (Error(RE_BAD_FUNC_DEF, item)); // two blocks of types (!)
+            if (IS_BLOCK(DS_TOP)) // two blocks of types!
+                fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
 
             // You currently can't say `<local> x [integer!]`, because they
             // are always void when the function runs.  You can't say
@@ -280,7 +280,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             // than this generation of just a paramlist.  Consider for future.
             //
             if (mode != SPEC_MODE_NORMAL)
-                fail (Error(RE_BAD_FUNC_DEF, item));
+                fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
 
             // Save the block for parameter types.
             //
@@ -305,9 +305,10 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                     // No typesets pushed yet, so this is a block before any
                     // parameters have been named.  This was legal in Rebol2
                     // for e.g. `func [[catch] x y][...]`, and R3-Alpha
-                    // ignored it.  Ren-C only tolerates this in <r3-legacy>
+                    // ignored it.  Ren-C only tolerates this in <r3-legacy>,
+                    // (with the tolerance implemented in compatibility FUNC)
                     //
-                    fail (Error(RE_BAD_FUNC_DEF, item));
+                    fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
                 }
 
                 assert(IS_TYPESET(DS_TOP - 2));
@@ -315,7 +316,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 
                 assert(IS_BLOCK(DS_TOP - 1));
                 if (VAL_ARRAY(DS_TOP - 1) != EMPTY_ARRAY)
-                    fail (Error(RE_BAD_FUNC_DEF, item));
+                    fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
 
                 Val_Init_Block(
                     DS_TOP - 1,
@@ -363,7 +364,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //=//// ANY-WORD! PARAMETERS THEMSELVES (MAKE TYPESETS w/SYMBOL) //////=//
 
         if (!ANY_WORD(item))
-            fail (Error(RE_BAD_FUNC_DEF, item));
+            fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
 
         // !!! If you say [<with> x /foo y] the <with> terminates and a
         // refinement is started.  Same w/<local>.  Is this a good idea?
@@ -375,7 +376,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 mode = SPEC_MODE_NORMAL;
             }
             else if (!IS_WORD(item) && !IS_SET_WORD(item))
-                fail (Error(RE_BAD_FUNC_DEF, item));
+                fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
         }
 
         REBSTR *canon = VAL_WORD_CANON(item);
@@ -494,7 +495,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             break;
 
         default:
-            fail (Error(RE_BAD_FUNC_DEF, item));
+            fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
         }
         assert(VAL_PARAM_CLASS(typeset) != PARAM_CLASS_0);
 
