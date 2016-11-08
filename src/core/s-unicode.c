@@ -707,32 +707,43 @@ ConversionResult ConvertUTF8toUTF32 (
 //
 //  What_UTF: C
 // 
-// Tell us what UTF encoding the string has. Negative for LE.
+// Tell us what UTF encoding the byte stream has, as integer # of bits.
+// 0 is unknown, negative for Little Endian.
+//
+// !!! Currently only uses the Byte-Order-Mark for detection (which is not
+// necessarily present)
+//
+// !!! Note that UTF8 is not prescribed to have a byte order mark by the
+// standard.  Writing routines will not add it by default, hence if it is
+// present it is to be considered part of the in-band data stream...so that
+// reading and writing back out will preserve the input.
 //
 REBINT What_UTF(REBYTE *bp, REBCNT len)
 {
-    // UTF8:
-    if (len >= 3 && bp[0] == 0xef && bp[1] == 0xbb && bp[2] == 0xbf) return 8;
+    if (len >= 3 && bp[0] == 0xef && bp[1] == 0xbb && bp[2] == 0xbf)
+        return 8; // UTF8 (endian agnostic)
 
     if (len >= 2) {
+        if (bp[0] == 0xfe && bp[1] == 0xff)
+            return 16; // UTF16 big endian
 
-        // UTF16:
-        if (bp[0] == 0xfe && bp[1] == 0xff) return 16;
-
-        // Either UTF16 or 32:
         if (bp[0] == 0xff && bp[1] == 0xfe) {
-            if (len >= 4 && bp[2] == 0 && bp[3] == 0) return -32;
-            return -16;
+            if (len >= 4 && bp[2] == 0 && bp[3] == 0)
+                return -32; // UTF32 little endian
+            return -16; // UTF16 little endian
         }
 
-        // UTF32
-        if (len >= 4 && bp[0] == 0 && bp[1] == 0 && bp[2] == 0xfe && bp[3] == 0xff)
-            return 32;
+        if (
+            len >= 4
+            && bp[0] == 0 && bp[1] == 0 && bp[2] == 0xfe && bp[3] == 0xff
+        ){
+            return 32; // UTF32 big endian
+        }
     }
 
-    // Unknown:
-    return 0;
+    return 0; // unknown
 }
+
 
 //
 //  Legal_UTF8_Char: C
@@ -765,8 +776,8 @@ REBYTE *Check_UTF8(REBYTE *str, REBCNT len)
 
 
 //
-//  Back_Scan_UTF8_Char: C
-// 
+//  Back_Scan_UTF8_Char_Core: C
+//
 // Converts a single UTF8 code-point and returns the position *at the
 // the last byte of the character's data*.  (This differs from the usual
 // `Scan_XXX` interface of returning the position after the scanned
@@ -792,31 +803,30 @@ REBYTE *Check_UTF8(REBYTE *str, REBCNT len)
 // the number of "extra" bytes the UTF8 has beyond a single byte character.
 // This allows for decrement-style loops such as the above.
 // 
-// Though the machinery can decode a UTF32 32-bit codepoint, the interface
-// uses a 16-bit REBUNI (due to that being all that Rebol supports at this
-// time).  If a codepoint that won't fit in 16-bits is found, it will raise
-// an error vs. return NULL.  This makes it clear that the problem is not
-// with the data itself being malformed (the usual assumption of callers)
-// but rather a limit of the implementation.
-// 
 // Prescans source for null, and will not return code point 0.
 // 
 // If failure due to insufficient data or malformed bytes, then NULL is
 // returned (len is not advanced).
 //
-const REBYTE *Back_Scan_UTF8_Char(REBUNI *out, const REBYTE *bp, REBCNT *len)
-{
+const REBYTE *Back_Scan_UTF8_Char_Core(
+    unsigned long *out, // "UTF32" is defined as unsigned long above
+    const REBYTE *bp,
+    REBCNT *len
+) {
+    *out = 0;
+
     const UTF8 *source = bp;
-    UTF32 ch = 0;
     REBCNT trail = trailingBytesForUTF8[*source];
 
     // Check that we have enough valid source bytes:
     if (len) {
-        if (trail + 1 > *len) return NULL;
+        if (trail + 1 > *len)
+            return NULL;
     }
     else if (trail != 0) {
         do {
-            if (source[trail] < 0x80) return NULL;
+            if (source[trail] < 0x80)
+                return NULL;
         } while (--trail != 0);
 
         trail = trailingBytesForUTF8[*source];
@@ -826,38 +836,37 @@ const REBYTE *Back_Scan_UTF8_Char(REBUNI *out, const REBYTE *bp, REBCNT *len)
     // if (!isLegalUTF8(source, slen+1)) return 0;
 
     switch (trail) {
-        case 5: ch += *source++; ch <<= 6;
-        case 4: ch += *source++; ch <<= 6;
-        case 3: ch += *source++; ch <<= 6;
-        case 2: ch += *source++; ch <<= 6;
-        case 1: ch += *source++; ch <<= 6;
-        case 0: ch += *source++;
+        case 5: *out += *source++; *out <<= 6;
+        case 4: *out += *source++; *out <<= 6;
+        case 3: *out += *source++; *out <<= 6;
+        case 2: *out += *source++; *out <<= 6;
+        case 1: *out += *source++; *out <<= 6;
+        case 0: *out += *source++;
     }
-    ch -= offsetsFromUTF8[trail];
+    *out -= offsetsFromUTF8[trail];
 
     // UTF-16 surrogate values are illegal in UTF-32, and anything
     // over Plane 17 (> 0x10FFFF) is illegal.
-    if (ch > UNI_MAX_LEGAL_UTF32) return NULL;
-    if (ch >= UNI_SUR_HIGH_START && ch <= UNI_SUR_LOW_END) return NULL;
+    //
+    // !!! Is this still relevant, in a system that is fully UTF8 based?
+    //
+    if (*out > UNI_MAX_LEGAL_UTF32)
+        return NULL;
+    if (*out >= UNI_SUR_HIGH_START && *out <= UNI_SUR_LOW_END)
+        return NULL;
 
-    if (len) *len -= trail;
+    if (len)
+        *len -= trail;
 
     // !!! Original implementation used 0 as a return value to indicate a
     // decoding failure.  However, 0 is a legal UTF8 codepoint, and also
     // Rebol strings are able to store NUL characters (they track a length
     // and are not zero-terminated.)  Should this be legal?
-    assert(ch != 0);
-    if (ch == 0) return NULL;
+    //
+    assert(*out != 0);
+    if (*out == 0)
+        return NULL;
 
-    if (ch > 0xFFFF) {
-        // !!! Not currently supported.
-        REBVAL num;
-        SET_INTEGER(&num, ch);
-
-        fail (Error(RE_CODEPOINT_TOO_HIGH, &num));
-    }
-
-    *out = ch;
     return bp + trail;
 }
 
@@ -891,7 +900,8 @@ int Decode_UTF8_Negative_If_Latin1(
                 fail (Error(RE_BAD_UTF8));
 
             if (ch > 0xff) flag = 1;
-        } if (ch == CR && crlf_to_lf) {
+        }
+        else if (ch == CR && crlf_to_lf) {
             if (src[1] == LF) continue;
             ch = LF;
         }
@@ -899,6 +909,84 @@ int Decode_UTF8_Negative_If_Latin1(
     }
 
     return (dst - start) * flag;
+}
+
+
+//
+//  Decode_UTF8_Maybe_Astral_Throws: C
+//
+// Prior to formal support for unicode codepoints higher than 0xFFFF, this
+// routine allows a handler to be called for high codepoints that can return
+// something to substitute into the string instead.  Whereas typical UTF8
+// decoding knows an upper bound on the total string length, this does not...
+// so the interface must allow for resizing the buffer.
+//
+REBOOL Decode_UTF8_Maybe_Astral_Throws(
+    REBVAL *out_if_thrown,
+    REBSER *dst,
+    const REBYTE *src,
+    REBCNT len,
+    REBOOL crlf_to_lf,
+    const REBVAL *handler
+) {
+    assert(SER_WIDE(dst) == sizeof(REBUNI)); // Append_Codepoint_Raw is used
+
+    UTF32 ch;
+
+    for (; len > 0; len--, src++) {
+        if ((ch = *src) >= 0x80) {
+            if (!(src = Back_Scan_UTF8_Char_Core(&ch, src, &len)))
+                fail (Error(RE_BAD_UTF8));
+
+            if (ch > 0xFFFF) { // too big to fit in today's REBUNI
+                REBVAL item;
+                if (IS_FUNCTION(handler)) {
+                    REBVAL a;
+                    SET_INTEGER(&a, ch); // CHAR! only holds 16-bit for now
+
+                    // Try passing the handler the codepoint value.  Passing
+                    // FALSE for `fully` means it will not raise an error if
+                    // the handler happens to be arity 0.
+                    //
+                    if (Apply_Only_Throws(&item, FALSE, handler, &a, END_CELL))
+                        return TRUE;
+                }
+                else
+                    item = *handler;
+
+                switch (VAL_TYPE(&item)) {
+                case REB_MAX_VOID:
+                case REB_BLANK:
+                    break; // tolerate void or blank as meaning nothing
+
+                case REB_CHAR:
+                    Append_Codepoint_Raw(dst, VAL_CHAR(&item));
+                    break;
+
+                case REB_STRING:
+                    Append_String(
+                        dst,
+                        VAL_SERIES(&item),
+                        VAL_INDEX(&item),
+                        VAL_LEN_AT(&item)
+                    );
+                    break;
+
+                default:
+                    fail (Error_Invalid_Arg(&item));
+                }
+
+                continue;
+            }
+        }
+        else if (ch == CR && crlf_to_lf) {
+            if (src[1] == LF) continue;
+            ch = LF;
+        }
+        Append_Codepoint_Raw(dst, ch);
+    }
+
+    return FALSE; // no throw
 }
 
 

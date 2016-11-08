@@ -203,7 +203,6 @@ typedef void (*CLEANUP_FUNC)(const REBVAL*); // for some HANDLE!s GC callback
 typedef void (*MAKE_FUNC)(REBVAL*, enum Reb_Kind, const REBVAL*);
 typedef void (*TO_FUNC)(REBVAL*, enum Reb_Kind, const REBVAL*);
 
-#include "sys-scan.h"
 #include "sys-state.h"
 #include "sys-rebfrm.h" // `REBFRM` definition (also used by value)
 
@@ -712,6 +711,8 @@ struct Struct_Field; //forward declaration to avoid conflict in Prepare_Field_Fo
 
 #include "sys-frame.h"
 #include "sys-bind.h"
+
+#include "sys-scan.h"
 
 #include "reb-struct.h"
 
