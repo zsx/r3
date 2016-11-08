@@ -186,7 +186,7 @@ TVAR struct Reb_State *Saved_State; // Saved state for Catch (CPU state, etc.)
     TVAR const char *TG_Erroring_C_File;
     TVAR int TG_Erroring_C_Line;
 
-    TVAR REBFLGS TG_Pushing_Mold; // Push_Mold should not directly recurse
+    TVAR REBOOL TG_Pushing_Mold; // Push_Mold should not directly recurse
 #endif
 
 // !!! There is a desire at callsites which invoke COMMAND! to "tunnel

@@ -139,7 +139,6 @@ core: [
     t-time.c
     t-tuple.c
     t-typeset.c
-    t-utype.c
     t-varargs.c
     t-vector.c
     t-word.c
@@ -242,6 +241,7 @@ os-osx: [
     posix/dev-stdio.c
     posix/dev-event.c
     posix/dev-file.c
+    posix/dev-serial.c
 
     + posix/host-browse.c
     + posix/host-config.c
@@ -281,11 +281,11 @@ os-linux: [
     ; not be using X11 as a dependency (probably)
     posix/dev-event.c
 
+    ; dev-serial should work on Linux and posix
+    posix/dev-serial.c
+
     ; Linux has support for ELF format encapping
     + linux/host-encap.c
-
-    ; There is a Linux serial device
-    linux/dev-serial.c
 
     ; Linux supports siginfo_t-style signals
     linux/dev-signal.c
@@ -318,11 +318,11 @@ os-android: [
     ; not be using X11 as a dependency (probably)
     posix/dev-event.c
 
+    ; Serial should work on Android too
+    posix/dev-serial.c
+
     ; Android has support for ELF format encapping
     + linux/host-encap.c
-
-    ; There is a Android serial device
-    linux/dev-serial.c
 
     ; Android don't supports siginfo_t-style signals
     ; linux/dev-signal.c

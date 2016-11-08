@@ -1751,3 +1751,15 @@ void Check_Security(REBSTR *sym, REBCNT policy, REBVAL *value)
     flags = Security_Policy(sym, value);
     Trap_Security(flags[policy], sym, value);
 }
+
+
+//
+//  Make_OS_Error: C
+//
+void Make_OS_Error(REBVAL *out, int errnum)
+{
+    REBCHR str[100];
+
+    OS_FORM_ERROR(errnum, str, 100);
+    Val_Init_String(out, Copy_OS_Str(str, OS_STRLEN(str)));
+}

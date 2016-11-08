@@ -169,8 +169,6 @@ REBOOL IS_END_Debug(const RELVAL *v, const char *file, int line) {
 //
 REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
 {
-    REBCTX *specific;
-
     assert(NOT(GET_VAL_FLAG(v, VALUE_FLAG_RELATIVE)));
     assert(
         ANY_WORD(v)
@@ -180,7 +178,7 @@ REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
         || ANY_CONTEXT(v)
     );
 
-    specific = VAL_SPECIFIC_COMMON(v);
+    REBCTX *specific = VAL_SPECIFIC_COMMON(v);
 
     if (specific != SPECIFIED) {
         //

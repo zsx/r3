@@ -432,7 +432,7 @@ void TO_String(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //          {Value to convert to a string.}
 //      /astral
 //          {Provide special handling for codepoints bigger than 0xFFFF}
-//      handler [function! string! char!]
+//      handler [function! string! char! blank!]
 //          {If function, receives integer argument of large codepoint value}
 //  ]
 //

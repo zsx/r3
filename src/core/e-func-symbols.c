@@ -215,7 +215,6 @@ const void *rebol_symbols [] = {
     SYM_FUNC(Destroy_External_Storage), // f-series.c
     SYM_FUNC(REBCNT_To_Bytes), // f-stubs.c
     SYM_FUNC(Bytes_To_REBCNT), // f-stubs.c
-    SYM_FUNC(Find_Int), // f-stubs.c
     SYM_FUNC(Get_Num_From_Arg), // f-stubs.c
     SYM_FUNC(Float_Int16), // f-stubs.c
     SYM_FUNC(Int32), // f-stubs.c
@@ -228,9 +227,6 @@ const void *rebol_symbols [] = {
     SYM_FUNC(Val_Init_Datatype), // f-stubs.c
     SYM_FUNC(Get_Type), // f-stubs.c
     SYM_FUNC(Type_Of_Core), // f-stubs.c
-    SYM_FUNC(Get_Field_Name), // f-stubs.c
-    SYM_FUNC(Get_Field), // f-stubs.c
-    SYM_FUNC(Get_Object), // f-stubs.c
     SYM_FUNC(In_Object), // f-stubs.c
     SYM_FUNC(Get_System), // f-stubs.c
     SYM_FUNC(Get_System_Int), // f-stubs.c
@@ -240,7 +236,6 @@ const void *rebol_symbols [] = {
     SYM_FUNC(Partial1), // f-stubs.c
     SYM_FUNC(Partial), // f-stubs.c
     SYM_FUNC(Clip_Int), // f-stubs.c
-    SYM_FUNC(memswapl), // f-stubs.c
     SYM_FUNC(Add_Max), // f-stubs.c
     SYM_FUNC(Mul_Max), // f-stubs.c
     SYM_FUNC(Make_OS_Error), // f-stubs.c

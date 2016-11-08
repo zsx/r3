@@ -215,14 +215,12 @@ else ()
         ${OS_DIR}/posix/host-library.c
         ${OS_DIR}/posix/host-process.c
         ${OS_DIR}/posix/host-time.c
+        ${OS_DIR}/posix/dev-serial.c
         )
     if (TO_LINUX)
         set (CORE_PLATFORM_SOURCE ${CORE_PLATFORM_SOURCE}
             # Linux has support for ELF format encapping
             ${OS_DIR}/linux/host-encap.c
-
-            # There is a Linux serial device
-            ${OS_DIR}/linux/dev-serial.c
 
             # Linux supports siginfo_t-style signals
             ${OS_DIR}/linux/dev-signal.c
@@ -359,7 +357,6 @@ set (CORE_SOURCE
     ${CORE_DIR}/t-time.c
     ${CORE_DIR}/t-tuple.c
     ${CORE_DIR}/t-typeset.c
-    ${CORE_DIR}/t-utype.c
     ${CORE_DIR}/t-varargs.c
     ${CORE_DIR}/t-vector.c
     ${CORE_DIR}/t-word.c

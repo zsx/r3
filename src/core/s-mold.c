@@ -1781,7 +1781,7 @@ REBSER *Pop_Molded_UTF8(REB_MOLD *mold)
 // information in the mold has done its job and Pop_Molded_String() is not
 // required, just call this to drop back to the state of the last push.
 //
-void Drop_Mold_Core(REB_MOLD *mold, REBFLGS not_pushed_ok)
+void Drop_Mold_Core(REB_MOLD *mold, REBOOL not_pushed_ok)
 {
     // The tokenizer can often identify tokens to load by their start and end
     // pointers in the UTF8 data it is loading alone.  However, scanning

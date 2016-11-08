@@ -29,9 +29,16 @@
 //
 
 #include "sys-core.h"
-#include "reb-dialect.h"
+
+// !!! Most of the Rebol source does not include %reb-ext.h.  As a result
+// REBRXT and RXIARG and RXIFRM are not defined when %tmp-funcs.h is being
+// compiled, so the MAKE PREP process doesn't auto-generate prototypes for
+// these functions.
+//
+// Rather than try and define RX* for all of the core to include, assume that
+// the burden of keeping these in sync manually is for the best.
+//
 #include "reb-ext.h"
-#include "reb-evtypes.h"
 
 // Linkage back to HOST functions. Needed when we compile as a DLL
 // in order to use the OS_* macro functions.
@@ -40,18 +47,11 @@ REBOL_HOST_LIB *Host_Lib;
 #endif
 
 
-// !!! Most of the Rebol source does not include %reb-lib.h.  As a result
-// REBRXT and RXIARG and RXIFRM are not defined when %tmp-funcs.h is being
-// compiled, so the MAKE PREP process doesn't auto-generate prototypes for
-// these functions.
-//
-// Rather than try and define RX* for all of the core to include, assume that
-// the burden of keeping these in sync manually is for the best.
-//
-#include "reb-lib.h"
-
 static REBRXT Reb_To_RXT[REB_MAX];
 static enum Reb_Kind RXT_To_Reb[RXT_MAX];
+
+
+#include "reb-lib.h" // forward definitions needed for "extern C" linkage
 
 
 //
@@ -910,39 +910,6 @@ RL_API REBSER *RL_Make_Image(u32 width, u32 height)
 
 
 //
-//  RL_Protect_GC: C
-// 
-// Protect memory from garbage collection.
-// 
-// Returns:
-//     nothing
-// Arguments:
-//     series - a series to protect (block, string, image, ...)
-//     flags - set to 1 to protect, 0 to unprotect
-// Notes:
-//     You should only use this function when absolutely necessary,
-//     because it bypasses garbage collection for the specified series.
-//     Meaning: if you protect a series, it will never be freed.
-//     Also, you only need this function if you allocate several series
-//     such as strings, blocks, images, etc. within the same command
-//     and you don't store those references somewhere where the GC can
-//     find them, such as in an existing block or object (variable).
-//
-RL_API void RL_Protect_GC(REBSER *series, u32 flags)
-{
-    // !!! With series flags in short supply, this undesirable routine
-    // was removed along with SER_KEEP.  (Note that it is not possible
-    // to simply flip off the SERIES_FLAG_MANAGED bit, because there is more
-    // involved in tracking the managed state than just that bit.)
-    //
-    // For the purpose intended by this routine, use the GC_Mark_Hook (or
-    // its hopeful improved successors.)
-
-    panic (Error(RE_MISC));
-}
-
-
-//
 //  RL_Get_String: C
 // 
 // Obtain a pointer into a string (bytes or unicode).
@@ -1641,7 +1608,6 @@ RL_API float RL_Val_Pair_X_Float(const REBVAL *v) {
 RL_API float RL_Val_Pair_Y_Float(const REBVAL *v) {
     return VAL_PAIR_Y(v);
 }
-
 
 
 #include "reb-lib-lib.h"
