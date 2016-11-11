@@ -213,13 +213,16 @@ REBNATIVE(maybe)
 
     REB_R r;
     if (IS_BLOCK(test)) {
-        RELVAL *item;
+        const RELVAL *item;
         for (item = VAL_ARRAY_AT(test); NOT_END(item); ++item) {
             r = Do_Test_For_Maybe(
                 D_OUT,
                 value,
                 IS_WORD(item)
-                    ? GET_OPT_VAR_MAY_FAIL(item, VAL_SPECIFIER(test))
+                    ? cast(
+                        const RELVAL*,
+                        GET_OPT_VAR_MAY_FAIL(item, VAL_SPECIFIER(test))
+                    ) // cast needed for gcc/g++ 2.95 (bug)
                     : item
             );
 

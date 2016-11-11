@@ -985,7 +985,7 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
         //
         const RELVAL *temp =
             IS_STRING(message)
-                ? END_CELL
+                ? cast(const RELVAL*, END_CELL) // needed by gcc/g++ 2.95 (bug)
                 : VAL_ARRAY_HEAD(message);
     #endif
 

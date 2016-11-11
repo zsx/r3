@@ -828,7 +828,9 @@ REBNATIVE(construct)
             target, // type
             NULL, // body
             // scan for toplevel set-words
-            IS_BLANK(body) ? END_CELL : VAL_ARRAY_AT(body),
+            IS_BLANK(body)
+                ? cast(const RELVAL*, END_CELL) // needed by gcc/g++ 2.95 (bug)
+                : VAL_ARRAY_AT(body),
             parent
         );
         Val_Init_Object(D_OUT, context);

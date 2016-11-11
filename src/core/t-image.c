@@ -28,6 +28,13 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 
+// lodepng uses the C++ iostream fail, but in the standard namespace, which
+// interferes with Ren-C's definition of the fail() macro.  It has to be
+// included before %sys-core.h.  See REBNATIVE(to_png) below for the only
+// usage of lodepng (added by Saphirion, due to bugs in the existing PNG code)
+//
+#include "png/lodepng.h"
+
 #include "sys-core.h"
 
 #define CLEAR_IMAGE(p, x, y) memset(p, 0, x * y * sizeof(u32))
@@ -1376,8 +1383,6 @@ REBINT PD_Image(REBPVS *pvs)
 // found a problem with that in terms of saving (saving only?) which they
 // added in lodepng for.  This is unfortunate as lodepng repeats deflate
 // code already available in Zlib.
-
-#include "png/lodepng.h"
 
 //
 //  to-png: native [

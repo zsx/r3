@@ -88,9 +88,19 @@
     #include <stdio.h>
 
     // This header file brings in the ability to trigger a programmatic
-    // breakpoint in C code, by calling `debug_break();`
+    // breakpoint in C code, by calling `debug_break();`  It is not supported
+    // by HaikuOS R1, so instead kick into an infinite loop which can be
+    // broken and stepped out of in the debugger.
     //
-    #include "debugbreak.h"
+    #if defined(TO_HAIKU)
+        inline static int debug_break() {
+            int x = 0;
+            while (1) { ++x; }
+            x = 0; // set next statement in debugger to here
+        }
+    #else
+        #include "debugbreak.h"
+    #endif
 #endif
 
 // Special OS-specific definitions:

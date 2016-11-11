@@ -873,16 +873,16 @@ REBCTX *Construct_Context(
         opt_parent // parent
     );
 
-    const RELVAL *value = head ? head : END_CELL;
+    if (head == NULL)
+        return context;
 
-    if (head) Bind_Values_Shallow(head, context);
+    Bind_Values_Shallow(head, context);
 
+    const RELVAL *value = head;
     for (; NOT_END(value); value += 2) {
         //
         // !!! Objects are a rewrite in progress; error messages need to
         // be improved.
-
-        REBVAL *var;
 
         if (!IS_SET_WORD(value))
             fail (Error(RE_INVALID_TYPE, Type_Of(value)));
@@ -892,8 +892,7 @@ REBCTX *Construct_Context(
 
         assert(!IS_SET_WORD(value + 1)); // TBD: support set words!
 
-        var = GET_MUTABLE_VAR_MAY_FAIL(value, specifier);
-
+        REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(value, specifier);
         COPY_VALUE(var, value + 1, specifier);
     }
 
