@@ -138,8 +138,6 @@ TVAR REBSER *GC_Value_Guard; // A stack of protected series (removed by pop)
 PVAR REBSER *GC_Mark_Stack; // Series pending to mark their reachables as live
 TVAR REBSER **Prior_Expand; // Track prior series expansions (acceleration)
 
-TVAR REBMRK GC_Mark_Hook;   // Mark hook (set by Ren/C host to mark values)
-
 // These manually-managed series must either be freed with Free_Series()
 // or handed over to the GC at certain synchronized points, else they
 // would represent a memory leak in the release build.

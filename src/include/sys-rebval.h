@@ -570,6 +570,8 @@ struct Reb_Struct {
     REBSER *data; // binary data series (may be shared with other structs)
 };
 
+struct Struct_Field; // forward decl avoids conflict in Prepare_Field_For_FFI
+
 typedef REBARR REBSTU;
 
 #include "reb-gob.h"

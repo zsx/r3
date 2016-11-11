@@ -226,7 +226,7 @@ const void *rebol_symbols [] = {
     SYM_FUNC(Find_Refines), // f-stubs.c
     SYM_FUNC(Val_Init_Datatype), // f-stubs.c
     SYM_FUNC(Get_Type), // f-stubs.c
-    SYM_FUNC(Type_Of_Core), // f-stubs.c
+    SYM_FUNC(Type_Of), // f-stubs.c
     SYM_FUNC(In_Object), // f-stubs.c
     SYM_FUNC(Get_System), // f-stubs.c
     SYM_FUNC(Get_System_Int), // f-stubs.c
@@ -263,7 +263,6 @@ const void *rebol_symbols [] = {
     SYM_FUNC(Scan_Tuple), // l-types.c
     SYM_FUNC(Scan_Binary), // l-types.c
     SYM_FUNC(Scan_Any), // l-types.c
-    SYM_FUNC(Queue_Mark_Value_Deep), // m-gc.c
     SYM_FUNC(Recycle_Core), // m-gc.c
     SYM_FUNC(Recycle), // m-gc.c
     SYM_FUNC(Guard_Series_Core), // m-gc.c
@@ -809,8 +808,6 @@ const void *rebol_symbols [] = {
     SYM_DATA(GC_Value_Guard),
     SYM_DATA(GC_Mark_Stack),
     SYM_DATA(Prior_Expand),
-
-    SYM_DATA(GC_Mark_Hook),
 
     SYM_DATA(GC_Manuals),
 

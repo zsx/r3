@@ -292,12 +292,12 @@ REBVAL *Get_Type(enum Reb_Kind kind)
 
 
 //
-//  Type_Of_Core: C
+//  Type_Of: C
 // 
 // Returns the datatype value for the given value.
 // The datatypes are all at the head of the context.
 //
-REBVAL *Type_Of_Core(const RELVAL *value)
+REBVAL *Type_Of(const RELVAL *value)
 {
     return CTX_VAR(Lib_Context, SYM_FROM_KIND(VAL_TYPE(value)));
 }

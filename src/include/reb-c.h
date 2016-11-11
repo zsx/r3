@@ -34,16 +34,13 @@
 //
 
 
-/***********************************************************************
-**
-**  CASTING MACROS
-**
-**      The following code and explanation is taken from the article
-**      "Casts for the Masses (in C)":
-**
-**      http://blog.hostilefork.com/c-casts-for-the-masses/
-**
-***********************************************************************/
+//
+// CASTING MACROS
+//
+// The following code and explanation is from "Casts for the Masses (in C)":
+//
+// http://blog.hostilefork.com/c-casts-for-the-masses/
+//
 
 #if !defined(__cplusplus)
     /* These macros are easier-to-spot variants of the parentheses cast.
@@ -142,6 +139,9 @@
 #endif
 
 
+//
+// NOOP a.k.a. VOID GENERATOR
+//
 // Creating a void value conveniently is useful for a few reasons.  One is
 // that it can serve as a NO-OP and suppress a compiler warning you might
 // get if you try to use just ';' to do it.  Another is that there is a
@@ -154,7 +154,8 @@
 // for the type (as used in types like LPVOID)
 
 #ifndef NOOP
-    #define NOOP cast(void, 0)
+    #define NOOP \
+        ((void)(0))
 #endif
 
 
@@ -250,7 +251,6 @@ typedef unsigned long   REBUPT;     // unsigned counterpart of void*
 #define MIN_I64 ((i64)I64_C(0x8000000000000000)) //compiler treats the hex literal as unsigned without casting
 
 #endif
-/* C-code types */
 
 #define MAX_U32 U32_C(0xffffffff)
 #define MAX_U64 U64_C(0xffffffffffffffff)
@@ -372,10 +372,6 @@ typedef unsigned long   REBUPT;     // unsigned counterpart of void*
 typedef i8 REBOOL8; // Small for struct packing (memory optimization vs CPU)
 
 
-#ifndef DEF_UINT        // some systems define it, don't define it again
-typedef unsigned int    uint;
-#endif
-
 
 // Used for cases where we need 64 bits, even in 32 bit mode.
 // (Note: compatible with FILETIME used in Windows)
@@ -443,28 +439,26 @@ enum {
 #define LDIV_T          lldiv_t
 
 
-/***********************************************************************
-**
-**  C FUNCTION TYPE (__cdecl)
-**
-**      Note that you *CANNOT* cast something like a `void *` to
-**      (or from) a function pointer.  Pointers to functions are not
-**      guaranteed to be the same size as to data, in either C or C++.
-**      A compiler might count the number of functions in your program,
-**      find less than 255, and use bytes for function pointers:
-**
-**          http://stackoverflow.com/questions/3941793/
-**
-**      So if you want something to hold either a function pointer or
-**      a data pointer, you have to implement that as a union...and
-**      know what you're doing when writing and reading it.
-**
-**      For info on the difference between __stdcall and __cdecl:
-**
-**          http://stackoverflow.com/questions/3404372/
-**
-***********************************************************************/
-
+//
+// C FUNCTION TYPE (__cdecl)
+//
+// Note that you *CANNOT* cast something like a `void *` to (or from) a
+// function pointer.  Pointers to functions are not guaranteed to be the same
+// size as to data, in either C or C++.  A compiler might count the number of
+// functions in your program, find less than 255, and use bytes for function
+// pointers:
+//
+// http://stackoverflow.com/questions/3941793/
+//
+// So if you want something to hold either a function pointer or a data
+// pointer, you have to implement that as a union...and know what you're doing
+// when writing and reading it.
+//
+// For info on the difference between __stdcall and __cdecl:
+//
+// http://stackoverflow.com/questions/3404372/
+//
+//
 #ifdef TO_WINDOWS
     typedef void (__cdecl CFUNC)(void);
 #else
@@ -472,24 +466,20 @@ enum {
 #endif
 
 
-/***********************************************************************
-**
-**  TESTING IF A NUMBER IS FINITE
-**
-**      C89 and C++98 had no standard way of testing for if a number
-**      was finite or not.  Windows and POSIX came up with their
-**      own methods.  Finally it was standardized in C99 and C++11:
-**
-**          http://en.cppreference.com/w/cpp/numeric/math/isfinite
-**
-**      The name was changed to `isfinite()`.  And conforming C99
-**      and C++11 compilers can omit the old versions, so one cannot
-**      necessarily fall back on the old versions still being there.
-**      Yet the old versions don't have isfinite, so those have to
-**      be worked around here as well.
-**
-***********************************************************************/
-
+//
+// TESTING IF A NUMBER IS FINITE
+//
+// C89 and C++98 had no standard way of testing for if a number was finite or
+// not.  Windows and POSIX came up with their own methods.  Finally it was
+// standardized in C99 and C++11:
+//
+// http://en.cppreference.com/w/cpp/numeric/math/isfinite
+//
+// The name was changed to `isfinite()`.  And conforming C99 and C++11
+// compilers can omit the old versions, so one cannot necessarily fall back on
+// the old versions still being there.  Yet the old versions don't have
+// isfinite(), so those have to be worked around here as well.
+//
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
     // C99 or later
     #define FINITE isfinite
@@ -506,66 +496,60 @@ enum {
 #endif
 
 
-/***********************************************************************
-**
-**  UNICODE CHARACTER TYPE
-**
-**      REBUNI is a two-byte UCS-2 representation of a Unicode codepoint.
-**      Some routines once errantly conflated wchar_t with REBUNI, but
-**      a wchar_t is not 2 bytes on all platforms (it's 4 on GCC in
-**      64-bit Linux, for instance).  Routines for handling UCS-2 must be
-**      custom coded or come from a library.  (For example: you can't use
-**      wcslen() so Strlen_Uni() is implemented inside of Rebol.)
-**
-**      Rebol is able to have its strings start out as UCS-1, with a
-**      single byte per character.  For that it uses REBYTEs.  But when
-**      you insert something requiring a higher codepoint, it goes
-**      to UCS-2 with REBUNI and will not go back (at time of writing).
-**
-**      !!! BEWARE that several lower level routines don't do this
-**      widening, so be sure that you check which are which.
-**
-**      Longer term, Rebol should seek to align with Red's Unicode
-**      strategy, which would go further to UCS-4:
-**
-**      http://www.red-lang.org/2012/09/plan-for-unicode-support.html
-** 
-***********************************************************************/
+//
+// UNICODE CHARACTER TYPE
+//
+// REBUNI is a two-byte UCS-2 representation of a Unicode codepoint.  Some
+// routines once errantly conflated wchar_t with REBUNI, but a wchar_t is not
+// 2 bytes on all platforms (it's 4 on GCC in 64-bit Linux, for instance).
+// Routines for handling UCS-2 must be custom-coded or come from a library.
+// (For example: you can't use wcslen() so Strlen_Uni() is implemented inside
+// of Rebol.)
+//
+// Rebol is able to have its strings start out as UCS-1, with a single byte
+// per character.  For that it uses REBYTEs.  But when you insert something
+// requiring a higher codepoint, it goes to UCS-2 with REBUNI and will not go
+// back (at time of writing).
+//
+// !!! BEWARE that several lower level routines don't do this widening, so be
+// sure that you check which are which.
+//
+// Longer term, the growth of emoji usage in Internet communication has led
+// to supporting higher "astral" codepoints as being a priority.  This means
+// either being able to "double-widen" to UCS-4, as is Red's strategy:
+//
+// http://www.red-lang.org/2012/09/plan-for-unicode-support.html
+//
+// Or it could also mean shifting to "UTF-8 everywhere":
+//
+// http://utf8everywhere.org
+//
 
 typedef u16 REBUNI;
 
-#define MAX_UNI ((1 << (8 * sizeof(REBUNI))) - 1)
+#define MAX_UNI \
+    ((1 << (8 * sizeof(REBUNI))) - 1)
 
 
-/***********************************************************************
-**
-**  MEMORY ALLOCATION AND FREEING MACROS
-**
-**      Rebol's internal memory management is done based on a pooled
-**      model, which use Alloc_Mem and Free_Mem instead of calling
-**      malloc directly.  (See the comments on those routines for
-**      explanations of why this makes sense--even in an age of
-**      modern thread-safe allocators--due to Rebol's ability to
-**      exploit extra data in its pool block when a series grows.)
-**
-**      Since Free_Mem requires the caller to pass in the size of
-**      the memory being freed, it can be tricky.  These macros are
-**      are modeled after C++'s new/delete and new[]/delete[], and
-**      allocations take either a type or a type and a length.  The
-**      size calculation is done automatically, and the result is
-**      cast to the appropriate type.  The deallocations also take
-**      a type and do the calculations.
-**
-**      In a C++11 build, an extra check is done to ensure the type
-**      you pass in a FREE or FREE_N lines up with the type of
-**      pointer being passed in to be freed.
-**
-**      Note: ALLOC_N/FREE_N used to be called ALLOC_ARRAY/FREE_ARRAY.
-**      But with the change of Rebol's ANY-BLOCK! to ANY-ARRAY! the
-**      ARRAY term has a more important use.  So this uses N to mean
-**      "allocate N items contiguously".
-**
-***********************************************************************/
+//
+// MEMORY ALLOCATION AND FREEING MACROS
+//
+// Rebol's internal memory management is done based on a pooled model, which
+// use Alloc_Mem and Free_Mem instead of calling malloc directly.  (See the
+// comments on those routines for explanations of why this was done--even in
+// an age of modern thread-safe allocators--due to Rebol's ability to exploit
+// extra data in its pool block when a series grows.)
+//
+// Since Free_Mem requires the caller to pass in the size of the memory being
+// freed, it can be tricky.  These macros are modeled after C++'s new/delete
+// and new[]/delete[], and allocations take either a type or a type and a
+// length.  The size calculation is done automatically, and the result is cast
+// to the appropriate type.  The deallocations also take a type and do the
+// calculations.
+//
+// In a C++11 build, an extra check is done to ensure the type you pass in a
+// FREE or FREE_N lines up with the type of pointer being freed.
+//
 
 #define ALLOC(t) \
     cast(t *, Alloc_Mem(sizeof(t)))
@@ -607,13 +591,15 @@ typedef u16 REBUNI;
         Free_Mem((p), sizeof(t) * (n))
 #endif
 
-// Memory clearing macros:
-#define CLEAR(m, s)     memset((void*)(m), 0, s)
-#define CLEARS(m)       memset((void*)(m), 0, sizeof(*m))
+#define CLEAR(m, s) \
+    memset((void*)(m), 0, s)
+
+#define CLEARS(m) \
+    memset((void*)(m), 0, sizeof(*m))
 
 
 //
-// MEMORY POISONING
+// MEMORY POISONING and POINTER TRASHING
 //
 // If one wishes to indicate a region of memory as being "off-limits", modern
 // tools like Address Sanitizer allow instrumented builds to augment reads
@@ -624,6 +610,10 @@ typedef u16 REBUNI;
 // contain some good data.  (Or it is merely desirable to avoid freeing and
 // then re-allocating them for performance reasons, yet a debug build still
 // would prefer to intercept accesses as if they were freed.)
+//
+// Also, in order to overwrite a pointer with garbage, the historical method
+// of using 0xBADF00D or 0xDECAFBAD is formalized with TRASH_POINTER_IF_DEBUG.
+// This makes the instances easier to find and standardizes how it is done.
 //
 #ifdef HAVE_ASAN_INTERFACE_H
     #include <sanitizer/asan_interface.h>
@@ -642,9 +632,29 @@ typedef u16 REBUNI;
     // useful to instrument C++-based DEBUG builds on platforms that did not
     // have address sanitizer (if that ever becomes interesting).
 
-    #define POISON_MEMORY(reg, mem_size) NOOP
+    #define POISON_MEMORY(reg, mem_size) \
+        NOOP
 
-    #define UNPOISON_MEMORY(reg, mem_size) NOOP
+    #define UNPOISON_MEMORY(reg, mem_size) \
+        NOOP
+#endif
+
+#ifdef NDEBUG
+    #define TRASH_POINTER_IF_DEBUG(p) \
+        NOOP
+#else
+    #if defined(__cplusplus)
+        template<class T>
+        inline static void TRASH_POINTER_IF_DEBUG(T* &p) {
+            p = reinterpret_cast<T*>(static_cast<REBUPT>(0xDECAFBAD));
+        }
+    #elif defined(__LP64__) || defined(__LLP64__)
+        #define TRASH_POINTER_IF_DEBUG(p) \
+            (p) = cast(void*, 0xDECAFBADLL)
+    #else
+        #define TRASH_POINTER_IF_DEBUG(p) \
+            (p) = cast(void*, 0xDECAFBAD)
+    #endif
 #endif
 
 

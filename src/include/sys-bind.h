@@ -492,3 +492,51 @@ inline static void DS_PUSH_RELVAL(const RELVAL *v, REBCTX *specifier) {
     DS_PUSH_TRASH;
     COPY_VALUE(DS_TOP, v, specifier);
 }
+
+
+//
+// BINDING CONVENIENCE MACROS
+//
+// WARNING: Don't pass these routines something like a singular REBVAL* (such
+// as a REB_BLOCK) which you wish to have bound.  You must pass its *contents*
+// as an array...as the plural "values" in the name implies!
+//
+// So don't do this:
+//
+//     REBVAL *block = ARG(block);
+//     REBVAL *something = ARG(next_arg_after_block);
+//     Bind_Values_Deep(block, context);
+//
+// What will happen is that the block will be treated as an array of values
+// and get incremented.  In the above case it would reach to the next argument
+// and bind it too (likely crashing at some point not too long after that).
+//
+// Instead write:
+//
+//     Bind_Values_Deep(VAL_ARRAY_HEAD(block), context);
+//
+// That will pass the address of the first value element of the block's
+// contents.  You could use a later value element, but note that the interface
+// as written doesn't have a length limit.  So although you can control where
+// it starts, it will keep binding until it hits an END_CELL.
+//
+
+#define Bind_Values_Deep(values,context) \
+    Bind_Values_Core((values), (context), TS_ANY_WORD, 0, BIND_DEEP)
+
+#define Bind_Values_All_Deep(values,context) \
+    Bind_Values_Core((values), (context), TS_ANY_WORD, TS_ANY_WORD, BIND_DEEP)
+
+#define Bind_Values_Shallow(values, context) \
+    Bind_Values_Core((values), (context), TS_ANY_WORD, 0, BIND_0)
+
+// Gave this a complex name to warn of its peculiarities.  Calling with
+// just BIND_SET is shallow and tricky because the set words must occur
+// before the uses (to be applied to bindings of those uses)!
+//
+#define Bind_Values_Set_Midstream_Shallow(values, context) \
+    Bind_Values_Core( \
+        (values), (context), TS_ANY_WORD, FLAGIT_KIND(REB_SET_WORD), BIND_0)
+
+#define Unbind_Values_Deep(values) \
+    Unbind_Values_Core((values), NULL, TRUE)

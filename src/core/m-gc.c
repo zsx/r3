@@ -162,6 +162,7 @@ static void Push_Array_Marked_Deep(REBARR *array)
 }
 
 
+static void Queue_Mark_Value_Deep(const RELVAL *val);
 static void Propagate_All_GC_Marks(void);
 
 #ifndef NDEBUG
@@ -705,11 +706,8 @@ static void Mark_Frame_Stack_Deep(void)
 
 //
 //  Queue_Mark_Value_Deep: C
-// 
-// This routine is not marked `static` because it is needed by
-// Ren/C++ in order to implement its GC_Mark_Hook.
 //
-void Queue_Mark_Value_Deep(const RELVAL *val)
+static void Queue_Mark_Value_Deep(const RELVAL *val)
 {
     REBSER *ser = NULL;
 
@@ -1585,17 +1583,6 @@ REBCNT Recycle_Core(REBOOL shutdown)
             Queue_Mark_Value_Deep(&Callback_Error);
         }
         Propagate_All_GC_Marks();
-
-        // !!! This hook point is an interim measure for letting a host
-        // mark REBVALs that it is holding onto which are not contained in
-        // series.  It is motivated by Ren/C++, which wraps REBVALs in
-        // `ren::Value` class instances, and is able to enumerate the
-        // "live" classes (they "die" when the destructor runs).
-        //
-        if (GC_Mark_Hook) {
-            (*GC_Mark_Hook)();
-            Propagate_All_GC_Marks();
-        }
 
         // Mark all devices:
         Mark_Devices_Deep();

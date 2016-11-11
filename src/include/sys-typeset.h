@@ -295,3 +295,48 @@ inline static void INIT_VAL_PARAM_CLASS(RELVAL *v, enum Reb_Param_Class c) {
     if (c & PCLASS_ANY_QUOTE_MASK)
         SET_VAL_FLAG(v, TYPESET_FLAG_TIGHT);
 }
+
+
+// Macros for defining full bit masks
+
+#define ALL_BITS \
+    ((REBCNT)(-1))
+
+#ifdef HAS_LL_CONSTS
+    #define ALL_64 \
+        ((REBU64)0xffffffffffffffffLL)
+#else
+    #define ALL_64 \
+        ((REBU64)0xffffffffffffffffL)
+#endif
+
+
+// !!! R3-Alpha made frequent use of these predefined typesets.  In Ren-C
+// they have been called into question, as to exactly how copying mechanics
+// should work...whether a FUNCTION! should be duplicated when an object
+// is made with one in its fields, for instance.
+ 
+#define TS_NOT_COPIED \
+    (FLAGIT_KIND(REB_IMAGE) \
+    | FLAGIT_KIND(REB_VECTOR) \
+    | FLAGIT_KIND(REB_PORT))
+
+#define TS_STD_SERIES \
+    (TS_SERIES & ~TS_NOT_COPIED)
+
+#define TS_SERIES_OBJ \
+    ((TS_SERIES | TS_CONTEXT) & ~TS_NOT_COPIED)
+
+#define TS_ARRAYS_OBJ \
+    ((TS_ARRAY | TS_CONTEXT) & ~TS_NOT_COPIED)
+
+#define TS_CLONE \
+    ((TS_SERIES | FLAGIT_KIND(REB_FUNCTION)) & ~TS_NOT_COPIED)
+
+#define TS_ANY_WORD \
+    (FLAGIT_KIND(REB_WORD) \
+    | FLAGIT_KIND(REB_SET_WORD) \
+    | FLAGIT_KIND(REB_GET_WORD) \
+    | FLAGIT_KIND(REB_REFINEMENT) \
+    | FLAGIT_KIND(REB_LIT_WORD) \
+    | FLAGIT_KIND(REB_ISSUE))
