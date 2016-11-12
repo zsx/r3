@@ -1546,6 +1546,7 @@ void Clonify_Function(REBVAL *value)
 REB_R Action_Dispatcher(REBFRM *f)
 {
     enum Reb_Kind type = VAL_TYPE(FRM_ARG(f, 1));
+    assert(type < REB_MAX); // actions should not allow void first arguments
     REBSYM sym = STR_SYMBOL(VAL_WORD_SPELLING(FUNC_BODY(f->func)));
     assert(sym != SYM_0);
 

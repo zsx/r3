@@ -756,6 +756,12 @@ REB_R Routine_Dispatcher(REBFRM *f)
             && !GET_VAL_FLAG(vararg, VARARGS_FLAG_NO_FRAME)
         );
 
+        // The variadic REBVAL that was constructed contains a frame pointer.
+        // If GC sees this, it has to be managed.  It could not be managed
+        // while the frame was being constructed, so we do it here.
+        //
+        MANAGE_VARARGS_FRAME_CTX(vararg);
+
         // Evaluate the VARARGS! feed of values to the data stack.  This way
         // they will be available to be counted, to know how big to make the
         // FFI argument series.
@@ -1284,6 +1290,7 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec) {
     // info.  This is available to the Routine_Dispatcher when the function
     // gets called.
     //
+    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
     REBFUN *fun = Make_Function(
         paramlist,

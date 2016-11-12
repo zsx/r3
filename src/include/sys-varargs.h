@@ -67,6 +67,12 @@ inline static const REBVAL *VAL_VARARGS_PARAM(const RELVAL *v)
 inline static REBVAL *VAL_VARARGS_ARG(const RELVAL *v)
     { return v->payload.varargs.arg; }
 
+inline static void MANAGE_VARARGS_FRAME_CTX(RELVAL *v) {
+    assert(GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST));
+    ASSERT_ARRAY_MANAGED(CTX_KEYLIST(AS_CONTEXT(v->extra.binding))); // always
+    MANAGE_ARRAY(CTX_VARLIST(AS_CONTEXT(v->extra.binding)));
+}
+
 inline static REBCTX *VAL_VARARGS_FRAME_CTX(const RELVAL *v) {
     ASSERT_ARRAY_MANAGED(v->extra.binding);
     assert(GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST));

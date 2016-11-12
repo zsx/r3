@@ -790,6 +790,12 @@ reevaluate:;
                 // arg slots).  To help cue that it's not necessarily a
                 // completed context yet, we store it as an array type.
                 //
+                // Since we are putting the frame context into a REBVAL that
+                // may have an indefinite lifetime, it will need to be managed.
+                // We can't manage it *yet* because the frame is only partly
+                // constructed, so that's currently the job of dispatchers that
+                // allow variadic arguments.
+                //
                 Context_For_Frame_May_Reify_Core(f);
                 f->arg->extra.binding = f->varlist;
 

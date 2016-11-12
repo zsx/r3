@@ -232,7 +232,7 @@ select: action [
 
 reflect: action [
     {Returns specific details about a datatype.}
-    value [<opt> any-value!]
+    value [any-value!]
     field [word!] "Such as: spec, body, words, values, title"
 ]
 
