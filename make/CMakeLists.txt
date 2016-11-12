@@ -279,7 +279,7 @@ set (CORE_SOURCE
     ${CORE_DIR}/d-print.c
     ${CORE_DIR}/d-stack.c
     ${CORE_DIR}/d-trace.c
-    ${CORE_DIR}/e-func-symbols.c
+    ${CORE_GENERATED_DIR}/tmp-symbols.c
     ${CORE_DIR}/f-blocks.c
     ${CORE_DIR}/f-deci.c
     ${CORE_DIR}/f-dtoa.c
@@ -421,6 +421,7 @@ set(HEADER_OUTPUT
     ${TOP_GENERATED_SRC_DIR}/include/tmp-funcs.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-funcargs.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-strings.h
+    ${CORE_GENERATED_DIR}/tmp-symbols.c
     )
 set(HEADER_DEPENDS
     ${TOOLS_DIR}/common.r
@@ -428,6 +429,7 @@ set(HEADER_DEPENDS
     ${TOOLS_DIR}/form-header.r
     ${CORE_C_FILES}
     ${NATIVE_OUTPUT}
+    ${BOOT_OUTPUT}
     )
 
 add_custom_command(OUTPUT
