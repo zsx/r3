@@ -1249,7 +1249,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
                 REBVAL specified;
                 COPY_VALUE(&specified, item, VAL_SPECIFIER(arg));
 
-                if (Reduce_Any_Array_Throws(&init, &specified, FALSE))
+                if (Reduce_Any_Array_Throws(&init, &specified, FALSE, FALSE))
                     fail (Error_No_Catch_For_Throw(&init));
 
                 ++item;

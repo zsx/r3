@@ -1056,9 +1056,6 @@ void Queue_Mark_Named_Value_Deep(const RELVAL *val, const char *name, const void
                 Queue_Mark_Array_Deep(VAL_TYPE_SPEC(val), val, "<spec>", dump);
             break;
 
-        case REB_TASK: // not yet implemented
-            fail (Error(RE_MISC));
-
         case REB_OBJECT:
         case REB_MODULE:
         case REB_PORT:
@@ -1107,17 +1104,6 @@ void Queue_Mark_Named_Value_Deep(const RELVAL *val, const char *name, const void
                 // MAKE ARRAY! - which fits compactly in a REBSER.
                 //
                 Queue_Mark_Array_Deep(VAL_VARARGS_ARRAY1(val), val, "<varargs-array1>", dump);
-
-                REBARR **subfeed_addr;
-                if (!Is_End_Subfeed_Addr_Of_Feed(
-                    &subfeed_addr,
-                    VAL_VARARGS_ARRAY1(val)
-                )) {
-                    if (GET_ARR_FLAG(*subfeed_addr, ARRAY_FLAG_VARLIST))
-                        Queue_Mark_Context_Deep(AS_CONTEXT(*subfeed_addr), VAL_VARARGS_ARRAY1(val), "<subfeed_addr>", dump);
-                    else
-                        Queue_Mark_Array_Deep(*subfeed_addr,  VAL_VARARGS_ARRAY1(val), "<subfeed_addr>", dump);
-                }
             }
             else {
                 //
@@ -1136,9 +1122,6 @@ void Queue_Mark_Named_Value_Deep(const RELVAL *val, const char *name, const void
                         Queue_Mark_Context_Deep(context, val, "<binding>", dump);
                     }
                 }
-
-                // If there's a frame with a subfeed to protect from GC, and
-                // the frame is still good, it will do it already.
             }
             break;
         }
@@ -1572,6 +1555,46 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
     return count;
 }
 
+//
+//  Snapshot_All_Functions: C
+//
+// This routine can be used to get a list of all the functions in the system
+// at a given moment in time.  Be sure to protect this array from GC when
+// enumerating if there is any chance the GC might run (e.g. if user code
+// is called to process the function list)
+//
+ATTRIBUTE_NO_SANITIZE_ADDRESS REBARR *Snapshot_All_Functions(void)
+{
+    REBDSP dsp_orig = DSP;
+
+    REBSEG *seg;
+    for (seg = Mem_Pools[SER_POOL].segs; seg != NULL; seg = seg->next) {
+        REBSER *s = cast(REBSER*, seg + 1);
+        REBCNT n;
+        for (n = Mem_Pools[SER_POOL].units; n > 0; --n, ++s) {
+            switch (s->header.bits & 0x7) {
+            case 5:
+                // A managed REBSER which has no cell mask and is marked as
+                // *not* an END.  This is the typical signature of what one
+                // would call an "ordinary managed REBSER".  (For the meanings
+                // of other bits, see Sweep_Series.)
+                //
+                assert(IS_SERIES_MANAGED(s));
+                if (
+                    Is_Array_Series(s)
+                    && GET_SER_FLAG(s, ARRAY_FLAG_PARAMLIST)
+                ){
+                    REBVAL *v = KNOWN(ARR_HEAD(AS_ARRAY(s)));
+                    assert(IS_FUNCTION(v));
+                    DS_PUSH(v);
+                }
+                break;
+            }
+        }
+    }
+
+    return Pop_Stack_Values(dsp_orig);
+}
 
 //
 //  Mark_Root_Series: C
@@ -1950,17 +1973,6 @@ REBCNT Recycle_Core(REBOOL shutdown, REBMDP *dump)
             Queue_Mark_Value_Deep(&Callback_Error, "Callback-error", NULL, dump);
         }
         Propagate_All_GC_Marks(dump);
-
-        // !!! This hook point is an interim measure for letting a host
-        // mark REBVALs that it is holding onto which are not contained in
-        // series.  It is motivated by Ren/C++, which wraps REBVALs in
-        // `ren::Value` class instances, and is able to enumerate the
-        // "live" classes (they "die" when the destructor runs).
-        //
-        if (GC_Mark_Hook) {
-            (*GC_Mark_Hook)();
-            Propagate_All_GC_Marks(dump);
-        }
 
         // Mark all devices:
         Dump_Mem_Comment(dump, "Dumping all devices!");
