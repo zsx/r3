@@ -22,9 +22,13 @@ REBOL [
     }
 ]
 
-; The most existential question of Rebol...is it a Rebol value?  (non-void)
 
-?: :any-value?
+; !!! The long term goal for Ren-C is that UNTIL and WHILE both be arity-2 and
+; inversions of each other, with LOOP-UNTIL and LOOP-WHILE being arity-1.
+; To avoid rocking the boat in the default distribution, this is changed here.
+;
+until-2: :until
+until: :loop-until
 
 
 ; Words for BLANK! and BAR!, for those who don't like symbols
@@ -39,7 +43,7 @@ eval proc [
     <local>
         set-word type-name tester meta
 ][
-    while [? set-word: take set-word...] [
+    while [any-value? set-word: take set-word...] [
         type-name: append (head clear find (spelling-of set-word) {?}) "!"
         tester: typechecker (get bind (to word! type-name) set-word)
         set set-word :tester
@@ -105,7 +109,6 @@ eval proc [
     frame?:
     module?:
     error?:
-    task?:
     port?:
     gob?:
     event?:

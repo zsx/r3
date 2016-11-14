@@ -1,6 +1,6 @@
 //
 //  File: %sys-core.h
-//  Summary: "System Core Include"
+//  Summary: "Single Complete Include File for Using the Internal Api"
 //  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
@@ -26,15 +26,43 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
+// This is the main include file used in the implementation of the core.
+//
+// * It defines all the data types and structures used by the auto-generated
+//   function prototypes.  This includes the obvious REBINT, REBVAL, REBSER.
+//   It also includes any enumerated type parameters to functions which are
+//   shared between various C files.
+//
+// * With those types defined, it includes %tmp-funcs.h - which is basically
+//   all the non-inline "internal API" functions.  This list of function
+//   prototypes is generated automatically by a Rebol script that scans the
+//   %.c files during the build process. 
+//
+// * Next it starts including various headers in a specific order.  These
+//   build on the data definitions and call into the internal API.  Since they
+//   are often inline functions and not macros, the complete prototypes and
+//   data definitions they use must have already been defined.
+//
+// %sys-core.h is supposed to be platform-agnostic.  All the code which would
+// include something like <windows.h> would be linked in as "host code".  Yet
+// if a file wishes to include %sys-core.h and <windows.h>, it should do:
+//
+//     #define UNICODE // enable unicode OS API in windows.h
+//     #include <windows.h>
+//
+//     /* #include any non-Rebol windows dependencies here */
+//
+//     #undef IS_ERROR // means something different
+//     #undef max // same
+//     #undef min // same
+//
+//     #include "sys-core.h"
+//
 
 #include "reb-config.h"
 
-// Set as compiler symbol flags:
-//#define UNICODE               // enable unicode OS API (windows)
-
 // Internal configuration:
 #define REB_DEF                 // kernel definitions and structs
-//#define SER_LABELS         // enable identifier labels for series
 #define STACK_MIN   4000        // data stack increment size
 #define STACK_LIMIT 400000      // data stack max (6.4MB)
 #define MIN_COMMON 10000        // min size of common buffer
@@ -42,7 +70,6 @@
 #define MAX_NUM_LEN 64          // As many numeric digits we will accept on input
 #define MAX_SAFE_SERIES 5       // quanitity of most recent series to not GC.
 #define MAX_EXPAND_LIST 5       // number of series-1 in Prior_Expand list
-#define USE_UNICODE 1           // scanner uses unicode
 #define UNICODE_CASES 0x2E00    // size of unicode folding table
 #define HAS_SHA1                // allow it
 #define HAS_MD5                 // allow it
@@ -53,25 +80,46 @@
 #include <string.h>
 #include <setjmp.h>
 #include <math.h>
-#include <assert.h>
 #include <stddef.h>     // for offsetof()
 
+
+//
+// ASSERTIONS
+//
+// Assertions are in debug builds only, and use the conventional standard C
+// assert macro.  The code inside the assert will be removed if the flag
+// NDEBUG is defined to indicate "NoDEBUGging".  While negative logic is
+// counter-intuitive (e.g. `#ifndef NDEBUG` vs. `#ifdef DEBUG`) it's the
+// standard and is the least of evils:
+//
+// http://stackoverflow.com/a/17241278/211160
+//
+// Assertions should mostly be used as a kind of "traffic cone" when working
+// on new code (or analyzing a bug you're trying to trigger in development).
+// It's preferable to update the design via static typing or otherwise as the
+// code hardens.
+//
+#include <assert.h>
+
+
+//
+// DISABLE STDIO.H IN RELEASE BUILD
+//
+// The core build of Rebol seeks to not be dependent on stdio.h.  The premise
+// was to be free of historical baggage of the implementation of things like
+// printf and to speak alternative protocols.  Hence it is decoupled from the
+// "host".  (There are other choices related to this decoupling, such as not
+// assuming the allocator is malloc())
+//
+// The alternative interface spoken (Host Kit) is questionable, and generally
+// the only known hosts are "fat" and wind up including things like printf
+// anyway.  However, the idea of not setting printf in stone and replacing it
+// with Rebol's string logic is reasonable.
+//
+// These definitions will help catch uses of <stdio.h> in the release build,
+// and give a hopefully informative error.
+//
 #ifdef NDEBUG
-    //
-    // The core build of Rebol seeks to not be dependent on stdio.h.  The
-    // premise was to be free of historical baggage of the implementation
-    // of things like printf and to speak alternative protocols.  Hence
-    // it is decoupled from the "host".  (There are other choices related
-    // to this decoupling, such as not assuming the allocator is malloc())
-    //
-    // The alternative interface spoken (Host Kit) is questionable, and
-    // generally the only known hosts are "fat" and wind up including
-    // things like printf anyway.  However, the idea of not setting printf in
-    // stone and replacing it with Rebol's string logic is reasonable.
-    //
-    // These definitions will help catch uses of <stdio.h> in the release
-    // build, and give a hopefully informative error.
-    //
     #if !defined(REN_C_STDIO_OK)
         #define printf dont_include_stdio_h
         #define fprintf dont_include_stdio_h
@@ -87,47 +135,41 @@
     // release build should catch if any of these aren't #if !defined(NDEBUG)
     //
     #include <stdio.h>
-
-    // This header file brings in the ability to trigger a programmatic
-    // breakpoint in C code, by calling `debug_break();`
-    //
-    #include "debugbreak.h"
 #endif
 
-// Special OS-specific definitions:
-#ifdef OS_DEFS
-    #ifdef TO_WINDOWS
-    #include <windows.h>
-    #undef IS_ERROR
-    #undef max
-    #undef min
 
+//
+// PROGRAMMATIC C BREAKPOINT
+//
+// This header file brings in the ability to trigger a programmatic breakpoint
+// in C code, by calling `debug_break();`  It is not supported by HaikuOS R1,
+// so instead kick into an infinite loop which can be broken and stepped out
+// of in the debugger.
+//
+#if !defined(NDEBUG)
+    #if defined(TO_HAIKU)
+        inline static int debug_break() {
+            int x = 0;
+            while (1) { ++x; }
+            x = 0; // set next statement in debugger to here
+        }
+    #else
+        #include "debugbreak.h"
     #endif
-    //#error The target platform must be specified (TO_* define)
 #endif
 
-// Local includes:
+
+// The %reb-c.h file includes something like C99's <stdint.h> for setting up
+// a basis for concrete data type sizes, which define the Rebol basic types
+// (such as REBOOL, REBYTE, REBU64, etc.)  It also contains some other helpful
+// macros and tools for C programming.
+//
 #include "reb-c.h"
+
 
 // !!! Is there a more ideal location for these prototypes?
 typedef int cmp_t(void *, const void *, const void *);
 extern void reb_qsort_r(void *a, size_t n, size_t es, void *thunk, cmp_t *cmp);
-
-
-#if defined(NDEBUG)
-    #define TRASH_POINTER_IF_DEBUG(p) \
-        NOOP
-#else
-    #if defined(__cplusplus)
-        template<class T>
-        inline static void TRASH_POINTER_IF_DEBUG(T* &p) {
-            p = reinterpret_cast<T*>(static_cast<REBUPT>(0xDECAFBAD));
-        }
-    #else
-        #define TRASH_POINTER_IF_DEBUG(p) \
-            (p) = cast(void*, 0xDECAFBAD)
-    #endif 
-#endif
 
 
 // Must be defined at the end of reb-c.h, but not *in* reb-c.h so that
@@ -201,7 +243,6 @@ typedef void (*CLEANUP_FUNC)(const REBVAL*); // for some HANDLE!s GC callback
 typedef void (*MAKE_FUNC)(REBVAL*, enum Reb_Kind, const REBVAL*);
 typedef void (*TO_FUNC)(REBVAL*, enum Reb_Kind, const REBVAL*);
 
-#include "sys-scan.h"
 #include "sys-state.h"
 #include "sys-rebfrm.h" // `REBFRM` definition (also used by value)
 
@@ -312,10 +353,9 @@ enum {
     MKF_NONE        = 0,        // no special handling (e.g. MAKE FUNCTION!)
     MKF_RETURN      = 1 << 0,   // has definitional RETURN
     MKF_LEAVE       = 1 << 1,   // has definitional LEAVE
-    MKF_PUNCTUATES  = 1 << 2,   // generated function can't be used as argument
-    MKF_KEYWORDS    = 1 << 3,   // respond to words like <opt>, <no-return>
-    MKF_ANY_VALUE   = 1 << 4,   // args and return are [<opt> any-value!]
-    MKF_FAKE_RETURN = 1 << 5    // has RETURN but not actually in frame
+    MKF_KEYWORDS    = 1 << 2,   // respond to tags like <opt>, <with>, <local>
+    MKF_ANY_VALUE   = 1 << 3,   // args and return are [<opt> any-value!]
+    MKF_FAKE_RETURN = 1 << 4    // has RETURN but not actually in frame
 };
 
 // Modes allowed by FORM
@@ -338,43 +378,6 @@ enum {
     COPY_SAME = 16
 };
 
-#define TS_NOT_COPIED \
-    (FLAGIT_KIND(REB_IMAGE) | FLAGIT_KIND(REB_VECTOR) \
-    | FLAGIT_KIND(REB_TASK) | FLAGIT_KIND(REB_PORT))
-
-#define TS_STD_SERIES (TS_SERIES & ~TS_NOT_COPIED)
-#define TS_SERIES_OBJ ((TS_SERIES | TS_CONTEXT) & ~TS_NOT_COPIED)
-#define TS_ARRAYS_OBJ ((TS_ARRAY | TS_CONTEXT) & ~TS_NOT_COPIED)
-
-#define TS_CLONE ((TS_SERIES | FLAGIT_KIND(REB_FUNCTION)) & ~TS_NOT_COPIED)
-
-#define TS_ANY_WORD \
-    (FLAGIT_KIND(REB_WORD) | FLAGIT_KIND(REB_SET_WORD) | \
-    FLAGIT_KIND(REB_GET_WORD) | FLAGIT_KIND(REB_REFINEMENT) | \
-    FLAGIT_KIND(REB_LIT_WORD) | FLAGIT_KIND(REB_ISSUE))
-
-// These are the types which have no need to be seen by the GC.  Note that
-// this list may change--for instance if garbage collection is added for
-// symbols, then word types and typesets would have to be checked too.  Some
-// are counterintuitive, for instance DATATYPE! contains a SPEC that is a
-// series and thus has to be checked...
-
-#define TS_NO_GC \
-    (FLAGIT_KIND(REB_MAX_VOID) | FLAGIT_KIND(REB_BLANK) | FLAGIT_KIND(REB_LOGIC) \
-    | FLAGIT_KIND(REB_INTEGER) | FLAGIT_KIND(REB_DECIMAL) \
-    | FLAGIT_KIND(REB_PERCENT) | FLAGIT_KIND(REB_MONEY) \
-    | FLAGIT_KIND(REB_CHAR) | FLAGIT_KIND(REB_PAIR) | FLAGIT_KIND(REB_TUPLE) \
-    | FLAGIT_KIND(REB_TIME) | FLAGIT_KIND(REB_DATE) \
-    | FLAGIT_KIND(REB_TYPESET) | TS_WORD | FLAGIT_KIND(REB_HANDLE))
-
-#define TS_GC (~TS_NO_GC)
-
-#define Type_Of(value) \
-    Type_Of_Core(value)
-
-
-// Garbage collection marker function (GC Hook)
-typedef void (*REBMRK)(void);
 
 // Breakpoint hook callback
 typedef REBOOL (*REBBRK)(REBVAL *instruction_out, REBOOL interrupted);
@@ -524,6 +527,10 @@ enum encoding_opts {
 // VARARG!.  They integrate with Do_Core()'s limitations in the prefetch
 // evaluator--such as to having one unit of lookahead.
 //
+// While it might seem natural for this to live in %sys-varargs.h, the enum
+// type is used by a function prototype in %tmp-funcs.h...hence it must be
+// defined before that is included.
+//
 enum Reb_Vararg_Op {
     VARARG_OP_TAIL_Q, // tail?
     VARARG_OP_FIRST, // "lookahead"
@@ -531,115 +538,27 @@ enum Reb_Vararg_Op {
 };
 
 
-/***********************************************************************
-**
-**  ASSERTIONS
-**
-**      Assertions are in debug builds only, and use the conventional
-**      standard C assert macro.  The code inside the assert will be
-**      removed if the flag NDEBUG is defined to indicate "NoDEBUGging".
-**      While negative logic is counter-intuitive (e.g. `#ifndef NDEBUG`
-**      vs. `#ifdef DEBUG`) it's the standard and is the least of evils:
-**
-**          http://stackoverflow.com/a/17241278/211160
-**
-**      Assertions should mostly be used as a kind of "traffic cone"
-**      when working on new code (or analyzing a bug you're trying to
-**      trigger in development).  It's preferable to update the design
-**      via static typing or otherwise as the code hardens.
-**
-***********************************************************************/
 
-// Included via #include <assert.h> at top of file
-
-
-/***********************************************************************
-**
-**  ERROR HANDLING
-**
-**      Rebol has two different ways of raising errors.  One that is
-**      "trappable" from Rebol code by PUSH_TRAP (used by the `trap`
-**      native), called `fail`:
-**
-**          if (Foo_Type(foo) == BAD_FOO) {
-**              fail (Error_Bad_Foo_Operation(...));
-**
-**              // this line will never be reached, because it
-**              // longjmp'd up the stack where execution continues
-**          }
-**
-**      The other also takes an pointer to a REBVAL that is REB_ERROR
-**      and will terminate the system using it as a message, if the
-**      system hsa progressed to the point where messages are loaded:
-**
-**          if (Foo_Type(foo_critical) == BAD_FOO) {
-**              panic (Error_Bad_Foo_Operation(...));
-**
-**              // this line will never be reached, because it had
-*               // a "panic" and exited the process with a message
-**          }
-**
-**      These are macros that in debug builds will capture the file
-**      and line numbers, and add them to the error object itself.
-**      A "cute" trick was once used to eliminate the need for
-**      parentheses to make them look more "keyword-like".  However
-**      the trick had some bad properties and merely using a space
-**      and having them be lowercase seems close enough.
-**
-**      Errors that originate from C code are created via Make_Error,
-**      and are defined in %errors.r.  These definitions contain a
-**      formatted message template, showing how the arguments will
-**      be displayed when the error is printed.
-**
-***********************************************************************/
-
-#ifdef NDEBUG
-    // We don't want release builds to have to pay for the parameter
-    // passing cost *or* the string table cost of having a list of all
-    // the files and line numbers for all the places that originate
-    // errors...
-
-    #define panic(error) \
-        Panic_Core(0, (error), NULL)
-
-    #define fail(error) \
-        Fail_Core(error)
-#else
-    #define panic(error) \
-        do { \
-            TG_Erroring_C_File = __FILE__; \
-            TG_Erroring_C_Line = __LINE__; \
-            Panic_Core(0, (error), NULL); \
-        } while (0)
-
-    #define fail(error) \
-        do { \
-            TG_Erroring_C_File = __FILE__; \
-            TG_Erroring_C_Line = __LINE__; \
-            Fail_Core(error); \
-        } while (0)
-#endif
-
-// See comments on C_STACK_OVERFLOWING, regarding today's flawed mechanism for
-// handling stack overflows (and remarks on how it might be improved).  For
-// now, the only special handling is to use a pre-created error vs. allocating.
+//=////////////////////////////////////////////////////////////////////////=//
 //
-#ifdef NDEBUG
-    #define Trap_Stack_Overflow() \
-        Fail_Core(VAL_CONTEXT(TASK_STACK_ERROR))
-#else
-    #define Trap_Stack_Overflow() \
-        do { \
-            TG_Erroring_C_File = __FILE__; \
-            TG_Erroring_C_Line = __LINE__; \
-            Fail_Core(VAL_CONTEXT(TASK_STACK_ERROR)); \
-        } while (0)
-#endif
-
-
+// #INCLUDE THE AUTO-GENERATED FUNCTION PROTOTYPES FOR THE INTERNAL API
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// All the prior definitions and includes built up to this.  That's to have
+// enough of the structs, enumerated types, and typedefs set up to define
+// the function prototypes for all the functions shared between the %.c files.
+//
+// The somewhat-awkward requirement to have all the definitions up-front for
+// all the prototypes, instead of defining them in a hierarchy, comes from
+// the automated method of prototype generation.  If they were defined more
+// naturally in individual includes, it could be cleaner...at the cost of
+// needing to update prototypes separately from the definitions.
+//
+// See %tools/make-headers.r for the generation of this list.
+//
 #include "tmp-funcs.h"
 
-//#include "reb-net.h"
 #include "tmp-strings.h"
 #include "tmp-funcargs.h"
 #include "tmp-boot.h"
@@ -670,11 +589,23 @@ enum Reb_Vararg_Op {
     #define PVAR extern "C"
     #define TVAR extern "C"
 #else
-    #define PVAR extern
-    #define TVAR extern
+    // When being preprocessed by TCC and combined with the user - native
+    // code, all global variables need to be declared
+    // `extern __attribute__((dllimport))` on Windows, or incorrect code
+    // will be generated for dereferences.  Hence these definitions for
+    // PVAR and TVAR allow for overriding at the compiler command line.
+    //
+    #if !defined(PVAR)
+        #define PVAR extern
+    #endif
+    #if !defined(TVAR)
+        #define TVAR extern
+    #endif
 #endif
 
 #include "sys-globals.h"
+
+#include "sys-trap.h" // includes PUSH_TRAP, fail(), and panic() macros
 
 #include "sys-value.h" // basic definitions that don't need series accessrors
 
@@ -700,6 +631,8 @@ enum Reb_Vararg_Op {
 
 #include "sys-frame.h"
 #include "sys-bind.h"
+
+#include "sys-scan.h"
 
 #include "reb-struct.h"
 
@@ -730,13 +663,6 @@ inline static void SET_SIGNAL(REBFLGS f) {
 #define CLR_SIGNAL(f) CLR_FLAG(Eval_Signals, (f))
 
 
-#define ALL_BITS    ((REBCNT)(-1))
-#ifdef HAS_LL_CONSTS
-#define ALL_64      ((REBU64)0xffffffffffffffffLL)
-#else
-#define ALL_64      ((REBU64)0xffffffffffffffffL)
-#endif
-
 #define BOOT_STR(c,i) c_cast(const REBYTE *, PG_Boot_Strs[(c) + (i)])
 
 //-- Temporary Buffers
@@ -749,59 +675,6 @@ inline static void SET_SIGNAL(REBFLGS f) {
 #define BYTE_BUF        VAL_SERIES(TASK_BYTE_BUF)
 #define UNI_BUF        VAL_SERIES(TASK_UNI_BUF)
 #define BUF_UTF8        VAL_SERIES(TASK_BUF_UTF8)
-
-
-/***********************************************************************
-**
-**  BINDING CONVENIENCE MACROS
-**
-**      ** WARNING ** -- Don't pass these routines something like a
-**      singular REBVAL* (such as a REB_BLOCK) which you wish to have
-**      bound.  You must pass its *contents* as an array...as the
-**      deliberately-long-name implies!
-**
-**      So don't do this:
-**
-**          REBVAL *block = D_ARG(1);
-**          REBVAL *something = D_ARG(2);
-**          Bind_Values_Deep(block, context);
-**
-**      What will happen is that the block will be treated as an
-**      array of values and get incremented.  In the above case it
-**      would reach to the next argument and bind it too (while
-**      likely crashing at some point not too long after that).
-**
-**      Instead write:
-**
-**          Bind_Values_Deep(VAL_ARRAY_HEAD(block), context);
-**
-**      That will pass the address of the first value element of
-**      the block's contents.  You could use a later value element,
-**      but note that the interface as written doesn't have a length
-**      limit.  So although you can control where it starts, it will
-**      keep binding until it hits an END flagged value.
-**
-***********************************************************************/
-
-#define Bind_Values_Deep(values,context) \
-    Bind_Values_Core((values), (context), TS_ANY_WORD, 0, BIND_DEEP)
-
-#define Bind_Values_All_Deep(values,context) \
-    Bind_Values_Core((values), (context), TS_ANY_WORD, TS_ANY_WORD, BIND_DEEP)
-
-#define Bind_Values_Shallow(values, context) \
-    Bind_Values_Core((values), (context), TS_ANY_WORD, 0, BIND_0)
-
-// Gave this a complex name to warn of its peculiarities.  Calling with
-// just BIND_SET is shallow and tricky because the set words must occur
-// before the uses (to be applied to bindings of those uses)!
-//
-#define Bind_Values_Set_Midstream_Shallow(values, context) \
-    Bind_Values_Core( \
-        (values), (context), TS_ANY_WORD, FLAGIT_KIND(REB_SET_WORD), BIND_0)
-
-#define Unbind_Values_Deep(values) \
-    Unbind_Values_Core((values), NULL, TRUE)
 
 
 /***********************************************************************
@@ -863,4 +736,3 @@ extern const REBACT Value_Dispatch[];
 
 #include "sys-do.h"
 #include "sys-path.h"
-#include "sys-trap.h"

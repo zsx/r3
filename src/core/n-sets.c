@@ -238,7 +238,7 @@ static REBSER *Make_Set_Operation_Series(
                         SER_LEN(mo.series), // tail
                         skip, // skip
                         cased ? AM_FIND_CASE : 0 // flags
-	    )
+        )
                 ) {
                     Append_String(mo.series, ser, i, skip);
                 }

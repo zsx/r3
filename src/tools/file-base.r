@@ -20,7 +20,6 @@ core: [
     a-constants.c
     a-globals.c
     a-lib.c
-    a-stubs.c
 
     ; (B)oot
     b-boot.c
@@ -29,15 +28,14 @@ core: [
     ; (C)ore
     c-bind.c
     c-do.c
+    c-context.c
     c-error.c
     c-eval.c
-    c-frame.c
     c-function.c
     c-path.c
     c-port.c
     c-profile.c
     c-signal.c
-    c-task.c
     c-value.c
     c-word.c
 
@@ -78,10 +76,16 @@ core: [
 
     ; (N)atives
     n-control.c
+    n-crypt.c
     n-data.c
+    n-do.c
+    n-error.c
+    n-function.c
     n-io.c
     n-loop.c
     n-math.c
+    n-native.c
+    n-protect.c
     n-reduce.c
     n-sets.c
     n-strings.c
@@ -112,6 +116,7 @@ core: [
 
     ; (T)ypes
     t-bitset.c
+    t-blank.c
     t-block.c
     t-char.c
     t-datatype.c
@@ -126,7 +131,6 @@ core: [
     t-logic.c
     t-map.c
     t-money.c
-    t-none.c
     t-object.c
     t-pair.c
     t-port.c
@@ -136,7 +140,6 @@ core: [
     t-time.c
     t-tuple.c
     t-typeset.c
-    t-utype.c
     t-varargs.c
     t-vector.c
     t-word.c
@@ -169,11 +172,6 @@ made: [
     make-boot.r         core/b-boot.c
     make-headers.r      include/tmp-funcs.h
 
-; Ren/C is core sources with no graphics.  See Atronix R3/View repository.
-;   make-host-ext.r     include/host-ext-graphics.h
-
-    core-ext.r          include/host-ext-core.h
-
     make-host-init.r    include/host-init.h
     make-os-ext.r       include/host-lib.h
     make-reb-lib.r      include/reb-lib.h
@@ -192,7 +190,6 @@ os: [
     host-args.c
     + host-device.c
     host-stdio.c
-    host-core.c
     host-table.c
     dev-net.c
     dev-dns.c
@@ -227,7 +224,6 @@ os-posix: [
     + posix/host-error.c
     + posix/host-library.c
     + posix/host-process.c
-    + posix/host-thread.c
     + posix/host-time.c
 ]
 
@@ -245,13 +241,13 @@ os-osx: [
     posix/dev-stdio.c
     posix/dev-event.c
     posix/dev-file.c
+    posix/dev-serial.c
 
     + posix/host-browse.c
     + posix/host-config.c
     + posix/host-error.c
     + posix/host-library.c
     + posix/host-process.c
-    + posix/host-thread.c
     + posix/host-time.c
 ]
 
@@ -276,7 +272,6 @@ os-linux: [
     + posix/host-error.c
     + posix/host-library.c
     + posix/host-process.c
-    + posix/host-thread.c
     + posix/host-time.c
 
     ; Linux has some kind of MIME-based opening vs. posix /usr/bin/open
@@ -286,15 +281,16 @@ os-linux: [
     ; not be using X11 as a dependency (probably)
     posix/dev-event.c
 
+    ; dev-serial should work on Linux and posix
+    posix/dev-serial.c
+
     ; Linux has support for ELF format encapping
     + linux/host-encap.c
-
-    ; There is a Linux serial device
-    linux/dev-serial.c
 
     ; Linux supports siginfo_t-style signals
     linux/dev-signal.c
 ]
+
 ; cloned from os-linux TODO: check'n'fix !!
 os-android: [ 
     + generic/host-memory.c
@@ -313,7 +309,6 @@ os-android: [
     + posix/host-error.c
     + posix/host-library.c
     + posix/host-process.c
-    + posix/host-thread.c
     + posix/host-time.c
 
     ; Android  has some kind of MIME-based opening vs. posix /usr/bin/open
@@ -323,72 +318,23 @@ os-android: [
     ; not be using X11 as a dependency (probably)
     posix/dev-event.c
 
+    ; Serial should work on Android too
+    posix/dev-serial.c
+
     ; Android has support for ELF format encapping
     + linux/host-encap.c
-
-    ; There is a Android serial device
-    linux/dev-serial.c
 
     ; Android don't supports siginfo_t-style signals
     ; linux/dev-signal.c
 ]
+
 boot-files: [
     version.r
-
-; Ren/C is core sources with no graphics.  See Atronix R3/View repository.
-;
-;   graphics.r
-;   draw.r
-;   shape.r
-;   text.r
 ]
 
 mezz-files: [
-; The old style prot-http.r seems to have been replaced, was commented out.
-;
-;   prot-http.r
-
-; Ren/C is core sources with no graphics.  See Atronix R3/View repository.
-;
-;   view-colors.r
-;   view-funcs.r
+    ;-- There were some of these in the R3/View build
 ]
-
-; Ren/C is core sources with no graphics.  See Atronix R3/View repository.
-; (Additionally, Ren/C cannot have any .cpp files as a dependency...though
-; it can build as C++ it should not require it)
-;
-;agg-files: [
-;   agg_arc.cpp
-;   agg_arrowhead.cpp
-;   agg_bezier_arc.cpp
-;   agg_bspline.cpp
-;   agg_curves.cpp
-;   agg_image_filters.cpp
-;   agg_line_aa_basics.cpp
-;   agg_path_storage.cpp
-;   agg_rasterizer_scanline_aa.cpp
-;   agg_rounded_rect.cpp
-;   agg_sqrt_tables.cpp
-;   agg_trans_affine.cpp
-;   agg_trans_single_path.cpp
-;   agg_vcgen_bspline.cpp
-;   agg_vcgen_contour.cpp
-;   agg_vcgen_dash.cpp
-;   agg_vcgen_markers_term.cpp
-;   agg_vcgen_smooth_poly1.cpp
-;   agg_vcgen_stroke.cpp
-;   agg_vpgen_segmentator.cpp
-;   agg_compo.cpp
-;   agg_graphics.cpp
-;   agg_font_freetype.cpp
-;   agg_font_win32_tt.cpp
-;   agg_truetype_text.cpp
-;   agg_effects.cpp
-;   compositor.cpp
-;   graphics.cpp
-;   rich_text.cpp
-;]
 
 tools: [
     make-host-init.r

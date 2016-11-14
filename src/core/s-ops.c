@@ -168,7 +168,7 @@ REBYTE *Temp_Byte_Chars_May_Fail(
 // instead of managing a created result they could be responsible
 // for freeing it if so.
 //
-REBSER *Temp_Bin_Str_Managed(const REBVAL *val, REBCNT *index, REBCNT *length)
+REBSER *Temp_Bin_Str_Managed(const RELVAL *val, REBCNT *index, REBCNT *length)
 {
     REBCNT len = (length && *length) ? *length : VAL_LEN_AT(val);
     REBSER *series;
@@ -352,77 +352,6 @@ void Shuffle_String(REBVAL *value, REBOOL secure)
         SET_ANY_CHAR(series, k, GET_ANY_CHAR(series, n + idx));
         SET_ANY_CHAR(series, n + idx, swap);
     }
-}
-
-
-/*
-#define SEED_LEN 10
-static REBYTE seed_str[SEED_LEN] = {
-    249, 52, 217, 38, 207, 59, 216, 52, 222, 61 // xor "Sassenrath" #{AA55..}
-};
-//      kp = seed_str; // Any seed constant.
-//      klen = SEED_LEN;
-*/
-
-//
-//  Cloak: C
-// 
-// Simple data scrambler. Quality depends on the key length.
-// Result is made in place (data string).
-// 
-// The key (kp) is passed as a REBVAL or REBYTE (when klen is !0).
-//
-REBOOL Cloak(REBOOL decode, REBYTE *cp, REBCNT dlen, REBYTE *kp, REBCNT klen, REBOOL as_is)
-{
-    REBCNT i, n;
-    REBYTE src[20];
-    REBYTE dst[20];
-
-    if (dlen == 0) return TRUE;
-
-    // Decode KEY as VALUE field (binary, string, or integer)
-    if (klen == 0) {
-        REBVAL *val = (REBVAL*)kp;
-        REBSER *ser;
-
-        switch (VAL_TYPE(val)) {
-        case REB_BINARY:
-            kp = VAL_BIN_AT(val);
-            klen = VAL_LEN_AT(val);
-            break;
-        case REB_STRING:
-            ser = Temp_Bin_Str_Managed(val, &i, &klen);
-            kp = BIN_AT(ser, i);
-            break;
-        case REB_INTEGER:
-            INT_TO_STR(VAL_INT64(val), dst);
-            klen = LEN_BYTES(dst);
-            as_is = FALSE;
-            break;
-        }
-
-        if (klen == 0) return FALSE;
-    }
-
-    if (!as_is) {
-        for (i = 0; i < 20; i++) src[i] = kp[i % klen];
-        SHA1(src, 20, dst);
-        klen = 20;
-        kp = dst;
-    }
-
-    if (decode)
-        for (i = dlen-1; i > 0; i--) cp[i] ^= cp[i-1] ^ kp[i % klen];
-
-    // Change starting byte based all other bytes.
-    n = 0xa5;
-    for (i = 1; i < dlen; i++) n += cp[i];
-    cp[0] ^= (REBYTE)n;
-
-    if (!decode)
-        for (i = 1; i < dlen; i++) cp[i] ^= cp[i-1] ^ kp[i % klen];
-
-    return TRUE;
 }
 
 
@@ -668,8 +597,10 @@ REBSER *Entab_Unicode(REBUNI *bp, REBCNT index, REBCNT len, REBINT tabsize)
         }
     }
 
-    SET_SERIES_LEN(mo.series, mo.start + cast(REBCNT, dp - UNI_AT(mo.series, mo.start)));
-    UNI_TERM(mo.series);
+    TERM_UNI_LEN(
+        mo.series,
+        mo.start + cast(REBCNT, dp - UNI_AT(mo.series, mo.start))
+    );
 
     return Pop_Molded_String(&mo);
 }
@@ -757,8 +688,10 @@ REBSER *Detab_Unicode(REBUNI *bp, REBCNT index, REBCNT len, REBINT tabsize)
         *dp++ = c;
     }
 
-    SET_SERIES_LEN(mo.series, mo.start + cast(REBCNT, dp - UNI_AT(mo.series, mo.start)));
-    UNI_TERM(mo.series);
+    TERM_UNI_LEN(
+        mo.series,
+        mo.start + cast(REBCNT, dp - UNI_AT(mo.series, mo.start))
+    );
 
     return Pop_Molded_String(&mo);
 }

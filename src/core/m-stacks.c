@@ -319,7 +319,7 @@ REBFUN *Underlying_Function_Debug(
     // what was originally a body made for another function.  In that case,
     // the frame needs to be "for that", so it is the underlying function.
 
-    if (IS_FUNCTION_PLAIN(value)) {
+    if (IS_FUNCTION_INTERPRETED(value)) {
         RELVAL *body = VAL_FUNC_BODY(value);
         assert(IS_RELATIVE(body));
         return VAL_RELATIVE(body);
@@ -409,7 +409,7 @@ REBCTX *Context_For_Frame_May_Reify_Core(REBFRM *f) {
     // possible in the debugger anyway.)  For now, protect unless it's a
     // user function.
     //
-    if (NOT(IS_FUNCTION_PLAIN(FUNC_VALUE(f->func))))
+    if (NOT(IS_FUNCTION_INTERPRETED(FUNC_VALUE(f->func))))
         SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_LOCKED);
 
     return context;

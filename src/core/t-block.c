@@ -480,7 +480,7 @@ static void Sort_Block(
     if (IS_FUNCTION(compv)) sort_flags.compare = compv;
 
     // Determine length of sort:
-    len = Partial1(block, part);
+    Partial1(block, part, &len);
     if (len <= 1) return;
 
     // Skip factor:
@@ -722,12 +722,12 @@ REBTYPE(Array)
         REFINE(4, deep);
         REFINE(5, last);
 
-        REBINT len;
+        REBCNT len;
 
         FAIL_IF_LOCKED_ARRAY(array);
 
         if (REF(part)) {
-            len = Partial1(value, ARG(limit));
+            Partial1(value, ARG(limit), &len);
             if (len == 0)
                 goto return_empty_block;
         } else
@@ -765,18 +765,18 @@ REBTYPE(Array)
         REBINT len = ANY_ARRAY(arg) ? VAL_ARRAY_LEN_AT(arg) : 1;
 
         REBCNT ret;
-        REBINT limit;
+        REBCNT limit;
 
         if (args & AM_FIND_PART)
-            limit = Partial1(value, D_ARG(ARG_FIND_LIMIT));
+            Partial1(value, D_ARG(ARG_FIND_LIMIT), &limit);
         else
-            limit = cast(REBINT, VAL_LEN_HEAD(value));
+            limit = VAL_LEN_HEAD(value);
 
         ret = 1;
         if (args & AM_FIND_SKIP) ret = Int32s(D_ARG(ARG_FIND_SIZE), 1);
         ret = Find_In_Array(array, index, limit, arg, len, args, ret);
 
-        if (ret >= cast(REBCNT, limit)) {
+        if (ret >= limit) {
             if (action == SYM_FIND) return R_BLANK;
             return R_VOID;
         }
@@ -788,7 +788,7 @@ REBTYPE(Array)
         }
         else {
             ret += len;
-            if (ret >= cast(REBCNT, limit)) {
+            if (ret >= limit) {
                 if (action == SYM_FIND) return R_BLANK;
                 return R_VOID;
             }
@@ -805,11 +805,13 @@ REBTYPE(Array)
 
         // Length of target (may modify index): (arg can be anything)
         //
-        REBINT len = Partial1(
+        REBCNT len;
+        Partial1(
             (action == SYM_CHANGE)
                 ? value
                 : arg,
-            D_ARG(AN_LIMIT)
+            D_ARG(AN_LIMIT),
+            &len
         );
 
         FAIL_IF_LOCKED_ARRAY(array);
@@ -852,9 +854,12 @@ REBTYPE(Array)
         REFINE(4, deep);
         REFINE(5, types);
         PARAM(6, kinds);
-        REFINE(7, test); // temporary for debugging ARM build anomaly
 
         REBU64 types = 0;
+        REBCNT tail = 0;
+        index = VAL_INDEX(value);
+        Partial1(value, ARG(limit), &tail);
+        tail += index;
 
         if (REF(deep))
             types |= REF(types) ? 0 : TS_STD_SERIES;
@@ -866,23 +871,11 @@ REBTYPE(Array)
                 types |= VAL_TYPESET_BITS(ARG(kinds));
         }
 
-        if (REF(test)) {
-            Debug_Fmt("Diagnostics for:");
-            Debug_Fmt("https://github.com/metaeducation/ren-c/issues/283");
-            if (REF(part))
-                Debug_Fmt("limit %r", VAL_INT32(ARG(limit)));
-            Debug_Fmt("at %d", VAL_INDEX(value));
-            Debug_Fmt("partial %d", Partial1(value, ARG(limit)));
-           
-            REBCNT tail = VAL_INDEX(value) + Partial1(value, ARG(limit));
-            Debug_Fmt("tail %d", tail);
-        }
-
         REBARR *copy = Copy_Array_Core_Managed(
             array,
             VAL_INDEX(value), // at
             specifier,
-            VAL_INDEX(value) + Partial1(value, ARG(limit)), // tail
+            tail, // tail
             0, // extra
             REF(deep), // deep
             types // types
@@ -925,7 +918,8 @@ REBTYPE(Array)
     }
 
     case SYM_REVERSE: {
-        REBINT len = Partial1(value, D_ARG(3));
+        REBCNT len;
+        Partial1(value, D_ARG(3), &len);
 
         FAIL_IF_LOCKED_ARRAY(array);
 

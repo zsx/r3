@@ -174,57 +174,86 @@ REBINT Cmp_Tuple(const RELVAL *t1, const RELVAL *t2)
 
 
 //
+//  Pick_Tuple: C
+//
+void Pick_Tuple(REBVAL *out, const REBVAL *value, const REBVAL *picker)
+{
+    const REBYTE *dat = VAL_TUPLE(value);
+
+    REBINT len = VAL_TUPLE_LEN(value);
+    if (len < 3)
+        len = 3;
+
+    REBINT n = Get_Num_From_Arg(picker);
+    if (n > 0 && n <= len)
+        SET_INTEGER(out, dat[n - 1]);
+    else
+        SET_VOID(out);
+}
+
+
+//
+//  Poke_Tuple_Immediate: C
+//
+// !!! Note: In the current implementation, tuples are immediate values.
+// So a POKE only changes the `value` in your hand.
+//
+void Poke_Tuple_Immediate(
+    REBVAL *value,
+    const REBVAL *picker,
+    const REBVAL *poke
+) {
+    REBYTE *dat = VAL_TUPLE(value);
+
+    REBINT len = VAL_TUPLE_LEN(value);
+    if (len < 3)
+        len = 3;
+
+    REBINT n = Get_Num_From_Arg(picker);
+    if (n <= 0 || n > cast(REBINT, MAX_TUPLE))
+        fail (Error_Out_Of_Range(picker));
+
+    REBINT i;
+    if (IS_INTEGER(poke) || IS_DECIMAL(poke))
+        i = Int32(poke);
+    else if (IS_BLANK(poke)) {
+        n--;
+        CLEAR(dat + n, MAX_TUPLE - n);
+        VAL_TUPLE_LEN(value) = n;
+        return;
+    }
+    else
+        fail (Error_Invalid_Arg(poke));
+
+    if (i < 0)
+        i = 0;
+    else if (i > 255)
+        i = 255;
+
+    dat[n - 1] = i;
+    if (n > len)
+        VAL_TUPLE_LEN(value) = n;
+}
+
+
+//
 //  PD_Tuple: C
 // 
-// Implements PATH and SET_PATH for tuple.
-// Sets DS_TOP if found. Always returns 0.
-//
 REBINT PD_Tuple(REBPVS *pvs)
 {
-    const REBVAL *setval;
-    REBINT n;
-    REBINT i;
-    REBYTE *dat;
-    REBINT len;
-
-    dat = VAL_TUPLE(pvs->value);
-    len = VAL_TUPLE_LEN(pvs->value);
-
-    if (len < 3) { len = 3; }
-
-    n = Get_Num_From_Arg(pvs->selector);
-
-    if ((setval = pvs->opt_setval)) {
-        if (n <= 0 || n > cast(REBINT, MAX_TUPLE))
-            fail (Error_Bad_Path_Select(pvs));
-
-        if (IS_INTEGER(setval) || IS_DECIMAL(setval))
-            i = Int32(setval);
-        else if (IS_BLANK(setval)) {
-            n--;
-            CLEAR(dat + n, MAX_TUPLE - n);
-            VAL_TUPLE_LEN(pvs->value) = n;
-            return PE_OK;
-        }
-        else
-            fail (Error_Bad_Path_Set(pvs));
-
-        if (i < 0) i = 0;
-        else if (i > 255) i = 255;
-
-        dat[n - 1] = i;
-        if (n > len)
-            VAL_TUPLE_LEN(pvs->value) = n;
-
+    if (pvs->opt_setval) {
+        //
+        // !!! Is this a good idea?  It means `x: 10.10.10 | y: (x/2: 20)` does
+        // result in y being 10.20.10, but x is unchanged.
+        //
+        Poke_Tuple_Immediate(
+            KNOWN(pvs->value), pvs->selector, pvs->opt_setval
+        );
         return PE_OK;
     }
-    else {
-        if (n > 0 && n <= len) {
-            SET_INTEGER(pvs->store, dat[n - 1]);
-            return PE_USE_STORE;
-        }
-        else return PE_NONE;
-    }
+
+    Pick_Tuple(pvs->store, KNOWN(pvs->value), pvs->selector);
+    return PE_USE_STORE;
 }
 
 
@@ -392,13 +421,16 @@ REBTYPE(Tuple)
         return R_OUT;
 
     case SYM_PICK:
-        Pick_Path(D_OUT, value, arg, 0);
+        Pick_Tuple(D_OUT, value, arg);
         return R_OUT;
 
-/// case SYM_POKE:
-///     Pick_Path(D_OUT, value, arg, D_ARG(3));
-///     *D_OUT = *D_ARG(3);
-///     return R_OUT;
+    // !!! TUPLE! is an immediate value at the current time, and does not
+    // support POKE.  But see PD_Tuple for notes on its behavior with SET-PATH!
+    //
+    /*case SYM_POKE:
+        Poke_Tuple_Immediate(value, arg, D_ARG(3));
+        *D_OUT = *D_ARG(3);
+        return R_OUT;*/
 
     case SYM_REVERSE:
         if (D_REF(2)) {

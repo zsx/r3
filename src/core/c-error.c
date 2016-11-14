@@ -232,8 +232,7 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
     SET_SERIES_LEN(GC_Series_Guard, s->series_guard_len);
     SET_SERIES_LEN(GC_Value_Guard, s->value_guard_len);
     TG_Frame_Stack = s->frame;
-    SET_SERIES_LEN(UNI_BUF, s->uni_buf_len);
-    TERM_SERIES(UNI_BUF); // see remarks on termination in Pop/Drop Molds
+    TERM_SEQUENCE_LEN(UNI_BUF, s->uni_buf_len);
 
 #if !defined(NDEBUG)
     //
@@ -258,12 +257,12 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
 //
 //  Fail_Core: C
 // 
-// Cause a "trap" of an error by longjmp'ing to the enclosing
-// PUSH_TRAP or PUSH_TRAP_ANY.  Although the error being passed
-// may not be something that strictly represents an error
-// condition (e.g. a BREAK or CONTINUE or THROW), if it gets
-// passed to this routine then it has not been caught by its
-// intended recipient, and is being treated as an error.
+// Cause a "trap" of an error by longjmp'ing to the enclosing PUSH_TRAP (or
+// PUSH_UNHALTABLE_TRAP).  Note that these failures interrupt code mid-stream,
+// so if a Rebol function is running it will not make it to the point of
+// returning the result value.  This distinguishes the "fail" mechanic from
+// the "throw" mechanic, which has to bubble up a THROWN() value through
+// D_OUT (used to implement BREAK, CONTINUE, RETURN, LEAVE...)
 //
 ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
 {
@@ -271,20 +270,21 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
     assert(CTX_TYPE(error) == REB_ERROR);
 
 #if !defined(NDEBUG)
+    //
     // All calls to Fail_Core should originate from the `fail` macro,
     // which in the debug build sets TG_Erroring_C_File and TG_Erroring_C_Line.
     // Any error creations as arguments to that fail should have picked
     // it up, and we now need to NULL it out so other Make_Error calls
     // that are not inside of a fail invocation don't get confused and
     // have the wrong information
-
+    //
     assert(TG_Erroring_C_File);
     TG_Erroring_C_File = NULL;
 
     // If we raise the error we'll lose the stack, and if it's an early
     // error we always want to see it (do not use ATTEMPT or TRY on
     // purpose in Init_Core()...)
-
+    //
     if (PG_Boot_Phase < BOOT_DONE) {
         REBVAL error_value;
 
@@ -296,10 +296,11 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
 #endif
 
     if (!Saved_State) {
+        //
         // There should be a PUSH_TRAP of some kind in effect if a `fail` can
         // ever be run, so mention that before panicking.  The error contains
         // arguments and information, however, so that should be the panic
-
+        //
         Debug_Fmt("*** NO \"SAVED STATE\" - PLEASE MENTION THIS FACT! ***");
         panic (error);
     }
@@ -332,13 +333,13 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
     TG_Frame_Stack = f; // TG_Frame_Stack is writable FS_TOP
 
     // We pass the error as a context rather than as a value.
-
+    //
     Saved_State->error = error;
 
     // If a THROWN() was being processed up the stack when the error was
     // raised, then it had the thrown argument set.  Trash it in debug
     // builds.  (The value will not be kept alive, it is not seen by GC)
-
+    //
     SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
 
 #if 0
@@ -995,7 +996,7 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
         //
         const RELVAL *temp =
             IS_STRING(message)
-                ? END_CELL
+                ? cast(const RELVAL*, END_CELL) // needed by gcc/g++ 2.95 (bug)
                 : VAL_ARRAY_HEAD(message);
     #endif
 
@@ -1172,20 +1173,6 @@ REBCTX *Error(REBCNT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
 
 
 //
-//  Error_Punctuator_Hit: C
-//
-// A punctuator is a "lookahead arity 0 operation", which has special handling
-// such that it cannot be passed as an argument to a function.  Note that
-// f->label_sym must contain the symbol of the punctuator rejecting the call.
-//
-REBCTX *Error_Punctuator_Hit(REBFRM *f) {
-    REBVAL punctuator_name;
-    Val_Init_Word(&punctuator_name, REB_WORD, f->label);
-    fail (Error(RE_PUNCTUATOR_HIT, &punctuator_name));
-}
-
-
-//
 //  Error_Lookback_Quote_Too_Late: C
 //
 // You can't have infix operators as `(1 + 2) infix-op 3 4 5` which quote
@@ -1206,29 +1193,6 @@ REBCTX *Error_Lookback_Quote_Too_Late(REBFRM *f) {
 //
 REBCTX *Error_Lookback_Quote_Set_Soft(REBFRM *f) {
     fail (Error(RE_INFIX_QUOTE_SET, f->out, END_CELL));
-}
-
-
-//
-//  Error_Infix_Left_Arg_Prohibited: C
-//
-// This error happens when an attempt is made to use an arity-0 lookback
-// binding as a left-hand argument to an infix function.  The reason it is
-// given such a strange meaning is that the bit is available (what else would
-// an arity-0 lookback function do differently from an arity-0 prefix one?)
-// and because being able to stop being consumed from the right is something
-// only arity-0 functions can accomplish, because if they had args then it
-// would be the args receiving the infix.
-//
-// !!! The symbol of the function causing the block is not available at the
-// time of the error, which means the message reports the failing function.
-// This could be improved heuristically, but it's not 100% guaranteed to be
-// able to step back in an array to see it--since there may be no array.
-//
-REBCTX *Error_Infix_Left_Arg_Prohibited(REBFRM *f) {
-    REBVAL infix_name;
-    Val_Init_Word(&infix_name, REB_WORD, f->label);
-    fail (Error(RE_NO_INFIX_LEFT_ARG, &infix_name, END_CELL));
 }
 
 
@@ -1330,6 +1294,17 @@ REBCTX *Error_Invalid_Arg_Core(const RELVAL *value, REBCTX *specifier)
 //
 REBCTX *Error_Invalid_Arg(const REBVAL *value) {
     return Error_Invalid_Arg_Core(value, SPECIFIED);
+}
+
+
+//
+//  Error_Bad_Func_Def_Core: C
+//
+REBCTX *Error_Bad_Func_Def_Core(const RELVAL *item, REBCTX *specifier)
+{
+    REBVAL specific;
+    COPY_VALUE(&specific, item, specifier);
+    return Error(RE_BAD_FUNC_DEF, &specific);
 }
 
 
@@ -1787,4 +1762,16 @@ void Check_Security(REBSTR *sym, REBCNT policy, REBVAL *value)
 
     flags = Security_Policy(sym, value);
     Trap_Security(flags[policy], sym, value);
+}
+
+
+//
+//  Make_OS_Error: C
+//
+void Make_OS_Error(REBVAL *out, int errnum)
+{
+    REBCHR str[100];
+
+    OS_FORM_ERROR(errnum, str, 100);
+    Val_Init_String(out, Copy_OS_Str(str, OS_STRLEN(str)));
 }

@@ -212,53 +212,59 @@ void Trace_Error(const REBVAL *value)
 
 //
 //  trace: native [
-//      <punctuates>
 //
 //  {Enables and disables evaluation tracing and backtrace.}
 //
 //      return: [<opt>]
 //      mode [integer! logic!]
-//      /back {Set mode ON to enable or integer for lines to display}
-//      /function "Traces functions only (less output)"
+//      /back
+//          {Set mode ON to enable or integer for lines to display}
+//      /function
+//          "Traces functions only (less output)"
 //  ]
 //
 REBNATIVE(trace)
 {
-    REBVAL *arg = D_ARG(1);
+    PARAM(1, mode);
+    REFINE(2, back);
+    REFINE(3, function);
+
+    REBVAL *mode = ARG(mode);
 
     Check_Security(Canon(SYM_DEBUG), POL_READ, 0);
 
     // The /back option: ON and OFF, or INTEGER! for # of lines:
-    if (D_REF(2)) { // /back
-        if (IS_LOGIC(arg)) {
-            Enable_Backtrace(VAL_LOGIC(arg));
+    if (REF(back)) {
+        if (IS_LOGIC(mode)) {
+            Enable_Backtrace(VAL_LOGIC(mode));
         }
-        else if (IS_INTEGER(arg)) {
-            REBINT lines = Int32(arg);
+        else if (IS_INTEGER(mode)) {
+            REBINT lines = Int32(mode);
             Trace_Flags = 0;
-            if (lines < 0) {
-                fail (Error_Invalid_Arg(arg));
-                return R_VOID;
-            }
+            if (lines < 0)
+                fail (Error_Invalid_Arg(mode));
 
             Display_Backtrace(cast(REBCNT, lines));
             return R_VOID;
         }
     }
-    else Enable_Backtrace(FALSE);
+    else
+        Enable_Backtrace(FALSE);
 
     // Set the trace level:
-    if (IS_LOGIC(arg)) {
-        Trace_Level = VAL_LOGIC(arg) ? 100000 : 0;
-    }
-    else Trace_Level = Int32(arg);
+    if (IS_LOGIC(mode))
+        Trace_Level = VAL_LOGIC(mode) ? 100000 : 0;
+    else
+        Trace_Level = Int32(mode);
 
     if (Trace_Level) {
         Trace_Flags = 1;
-        if (D_REF(3)) SET_FLAG(Trace_Flags, 1); // function
+        if (REF(function))
+            SET_FLAG(Trace_Flags, 1);
         Trace_Depth = Eval_Depth() - 1; // subtract current TRACE frame
     }
-    else Trace_Flags = 0;
+    else
+        Trace_Flags = 0;
 
     return R_VOID;
 }

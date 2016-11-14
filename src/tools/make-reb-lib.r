@@ -145,9 +145,11 @@ emit-proto: proc [
         fn.name.upper: uppercase copy fn.name
         fn.name.lower: lowercase copy find/tail fn.name preface
 
-        emit-dlib [tab fn.name ","]
+        emit-dlib [spaced-tab fn.name ","]
 
-        emit-rlib [tab fn.declarations "(*" fn.name.lower ")" pos.lparen ";"]
+        emit-rlib [
+            spaced-tab fn.declarations "(*" fn.name.lower ")" pos.lparen ";"
+        ]
 
         args: count pos.lparen #","
         mlib.tail: tail mlib-buffer
@@ -159,7 +161,11 @@ emit-proto: proc [
 
         emit-mlib ["/*^/**^-" proto "^/**^/" comment-text "*/" newline]
 
-        gen-doc fn.name proto comment-text
+        ; !!! Documentation of RL_Api is currently a low priority.
+        ;
+        comment [
+            gen-doc fn.name proto comment-text
+        ]
 
         proto-count: proto-count + 1
     ]
@@ -254,7 +260,7 @@ extern "C" ^{
 
 RXIEXT const char *RX_Init(int opts, RL_LIB *lib);
 RXIEXT int RX_Quit(int opts);
-RXIEXT int RX_Call(int cmd, RXIFRM *frm, void *data);
+RXIEXT int RX_Call(int cmd, const REBVAL *frm, void *data);
 
 // The macros below will require this base pointer:
 extern RL_LIB *RL;  // is passed to the RX_Init() function

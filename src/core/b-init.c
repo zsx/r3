@@ -521,11 +521,7 @@ static void Add_Lib_Keys_R3Alpha_Cant_Make(void)
 
 
 //
-//  Init_Function_Tags: C
-//
-// FUNC and PROC search for these tags, like <opt> and <local>.  They are
-// natives and run during bootstrap, so these string comparisons are
-// needed.
+// Init_Function_Tag: C
 //
 // !!! It didn't seem there was a "compare UTF8 byte array to arbitrary
 // decoded REB_TAG which may or may not be REBUNI" routine, but there was
@@ -533,35 +529,35 @@ static void Add_Lib_Keys_R3Alpha_Cant_Make(void)
 // quick, but a better solution should be reviewed in terms of an overall
 // string and UTF8 rethinking.
 //
+static void Init_Function_Tag(const char *name, REBVAL *slot)
+{
+    Val_Init_Tag(
+        slot,
+        Append_UTF8_May_Fail(NULL, cb_cast(name), strlen(name))
+    );
+    SET_SER_FLAG(VAL_SERIES(slot), SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAG(VAL_SERIES(slot), SERIES_FLAG_LOCKED);
+}
+
+
+//
+//  Init_Function_Tags: C
+//
+// FUNC and PROC search for these tags, like <opt> and <local>.  They are
+// natives and run during bootstrap, so these string comparisons are
+// needed.  This routine does not use a table directly, because the slots
+// it initializes are not constants...and older TCCs don't support local
+// struct arrays of that form.
+//
 static void Init_Function_Tags(void)
 {
-    struct {
-        const char *name;
-        REBVAL *slot;
-    } tags[] = {
-        "no-return", ROOT_NO_RETURN_TAG,
-        "no-leave", ROOT_NO_LEAVE_TAG,
-        "punctuates", ROOT_PUNCTUATES_TAG,
-        "...", ROOT_ELLIPSIS_TAG,
-        "opt", ROOT_OPT_TAG,
-        "end", ROOT_END_TAG,
-        "local", ROOT_LOCAL_TAG,
-        "durable", ROOT_DURABLE_TAG,
-        NULL, NULL
-    };
-
-    REBINT i = 0;
-    while (tags[i].name) {
-        Val_Init_Tag(
-            tags[i].slot,
-            Append_UTF8_May_Fail(
-                NULL, cb_cast(tags[i].name), strlen(tags[i].name)
-            )
-        );
-        SET_SER_FLAG(VAL_SERIES(tags[i].slot), SERIES_FLAG_FIXED_SIZE);
-        SET_SER_FLAG(VAL_SERIES(tags[i].slot), SERIES_FLAG_LOCKED);
-        ++i;
-    }
+    Init_Function_Tag("with", ROOT_WITH_TAG);
+    Init_Function_Tag("...", ROOT_ELLIPSIS_TAG);
+    Init_Function_Tag("opt", ROOT_OPT_TAG);
+    Init_Function_Tag("end", ROOT_END_TAG);
+    Init_Function_Tag("local", ROOT_LOCAL_TAG);
+    Init_Function_Tag("durable", ROOT_DURABLE_TAG);
+    Init_Function_Tag("tight", ROOT_TIGHT_TAG);
 }
 
 
@@ -1192,17 +1188,13 @@ static void Init_Codecs(void)
 
 static void Set_Option_String(REBCHR *str, REBCNT field)
 {
-    if (str) {
-        REBVAL *val = Get_System(SYS_OPTIONS, field);
-        Val_Init_String(val, Copy_OS_Str(str, OS_STRLEN(str)));
-    }
+    REBVAL *val = Get_System(SYS_OPTIONS, field);
+    Val_Init_String(val, Copy_OS_Str(str, OS_STRLEN(str)));
 }
 
 
 static REBSTR *Set_Option_Word(REBCHR *str, REBCNT field)
 {
-    if (!str) return NULL;
-
     REBYTE buf[40]; // option words always short ASCII strings
 
     REBCNT len = OS_STRLEN(str); // WC correct
@@ -1281,13 +1273,23 @@ static void Init_Main_Args(REBARGS *rargs)
         Val_Init_File(val, ser);
     }
 
-    REBSTR *name = Set_Option_Word(rargs->boot, OPTIONS_BOOT_LEVEL);
-    if (name != NULL)
-        n = cast(REBCNT, STR_SYMBOL(name));
-    else
-        n = 0;
-    if (n >= SYM_BASE && n <= SYM_MODS)
-        PG_Boot_Level = n - SYM_BASE; // 0 - 3
+    if (rargs->boot != NULL) {
+        REBSTR *name = Set_Option_Word(rargs->boot, OPTIONS_BOOT_LEVEL);
+        REBSYM sym = STR_SYMBOL(name);
+        switch (sym) {
+        case SYM_BASE:
+            PG_Boot_Level = 0;
+            break;
+        case SYM_SYS:
+            PG_Boot_Level = 1;
+            break;
+        case SYM_MODS:
+            PG_Boot_Level = 2;
+            break;
+        default:
+            assert(FALSE); // !!! Review this "boot level" R3-Alpha idea
+        }
+    }
 
     if (rargs->args) {
         n = 0;
@@ -1302,9 +1304,12 @@ static void Init_Main_Args(REBARGS *rargs)
             );
     }
 
-    Set_Option_String(rargs->debug, OPTIONS_DEBUG);
-    Set_Option_String(rargs->version, OPTIONS_VERSION);
-    Set_Option_String(rargs->import, OPTIONS_IMPORT);
+    if (rargs->debug)
+        Set_Option_String(rargs->debug, OPTIONS_DEBUG);
+    if (rargs->version)
+        Set_Option_String(rargs->version, OPTIONS_VERSION);
+    if (rargs->import)
+        Set_Option_String(rargs->import, OPTIONS_IMPORT);
 
     // !!! The argument to --do exists in REBCHR* form in rargs->do_arg,
     // hence platform-specific encoding.  The host_main.c executes the --do
@@ -1313,9 +1318,12 @@ static void Init_Main_Args(REBARGS *rargs)
     // "do-arg" variable in the system/options context...if a client of the
     // library has a --do option and wants to expose it, then it will have
     // to do so itself.  We'll leave this non-INTERN'd block here for now.
-    Set_Option_String(rargs->do_arg, OPTIONS_DO_ARG);
+    //
+    if (rargs->do_arg)
+        Set_Option_String(rargs->do_arg, OPTIONS_DO_ARG);
 
-    Set_Option_Word(rargs->secure, OPTIONS_SECURE);
+    if (rargs->secure)
+        Set_Option_Word(rargs->secure, OPTIONS_SECURE);
 
     if ((data = OS_GET_LOCALE(0))) {
         val = Get_System(SYS_LOCALE, LOCALE_LANGUAGE);
@@ -1593,6 +1601,7 @@ void Init_Core(REBARGS *rargs)
     }
 
     Init_Year();
+    Init_Crypto();
 
     // Initialize mezzanine functions:
     DOUT("Level 5");
@@ -1672,6 +1681,7 @@ void Shutdown_Core(void)
 
     FREE_N(REBYTE*, RS_MAX, PG_Boot_Strs);
 
+    Shutdown_Crypto();
     Shutdown_Ports();
     Shutdown_Event_Scheme();
     Shutdown_CRC();

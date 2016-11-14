@@ -152,23 +152,6 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
     // bothering to invoke Do_Core().
     //
     assert(NOT_END(f->value));
-
-    // The DO_FLAGs were decided to come in pairs for clarity, to make sure
-    // that each callsite of the core routines was clear on what it was
-    // asking for.  This may or may not be overkill long term, but helps now.
-    //
-    assert(
-        LOGICAL(f->flags.bits & DO_FLAG_NEXT)
-        != LOGICAL(f->flags.bits & DO_FLAG_TO_END)
-    );
-    assert(
-        LOGICAL(f->flags.bits & DO_FLAG_LOOKAHEAD)
-        != LOGICAL(f->flags.bits & DO_FLAG_NO_LOOKAHEAD)
-    );
-    assert(
-        LOGICAL(f->flags.bits & DO_FLAG_ARGS_EVALUATE)
-        != LOGICAL(f->flags.bits & DO_FLAG_NO_ARGS_EVALUATE)
-    );
 }
 
 

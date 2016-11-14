@@ -11,6 +11,7 @@ REBOL [
     }
 ]
 
+
 ; !!! R3-Alpha labeled this "MOVE THIS INTERNAL FUNC" but it is actually used
 ; to search for patterns in HELP when you type in something that isn't bound,
 ; so it uses that as a string pattern.  Review how to better factor that
@@ -501,17 +502,20 @@ help: procedure [
     ]
 ]
 
-about: func [
+
+about: procedure [
     "Information about REBOL"
 ][
     print make-banner sys/boot-banner
 ]
 
-;       --cgi (-c)       Load CGI utiliy module and modes
 
-usage: func [
+
+usage: procedure [
     "Prints command-line arguments."
 ][
+;       --cgi (-c)       Load CGI utiliy module and modes
+
     print trim/auto copy {
     Command line usage:
 
@@ -551,11 +555,13 @@ usage: func [
     }
 ]
 
-license: func [
+
+license: procedure [
     "Prints the REBOL/core license agreement."
 ][
     print system/license
 ]
+
 
 ; !!! MAKE is used here to deliberately avoid the use of an abstraction,
 ; because of the adaptation of SOURCE to be willing to take an index that
@@ -635,6 +641,7 @@ source: make function! [[
     ]
 ]]
 
+
 what: procedure [
     {Prints a list of known functions.}
     'name [<opt> word! lit-word!]
@@ -668,21 +675,25 @@ what: procedure [
     ]
 ]
 
+
 pending: does [
     comment "temp function"
     print "Pending implementation."
 ]
+
 
 say-browser: does [
     comment "temp function"
     print "Opening web browser..."
 ]
 
-upgrade: function [
+
+upgrade: procedure [
     "Check for newer versions (update REBOL)."
 ][
     fail "Automatic upgrade checking is currently not supported."
 ]
+
 
 why?: procedure [
     "Explain the last error in more detail."
@@ -717,6 +728,7 @@ why?: procedure [
         print "No information is available."
     ]
 ]
+
 
 ; GUI demos not available in Core build
 ;

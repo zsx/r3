@@ -67,6 +67,12 @@ inline static const REBVAL *VAL_VARARGS_PARAM(const RELVAL *v)
 inline static REBVAL *VAL_VARARGS_ARG(const RELVAL *v)
     { return v->payload.varargs.arg; }
 
+inline static void MANAGE_VARARGS_FRAME_CTX(RELVAL *v) {
+    assert(GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST));
+    ASSERT_ARRAY_MANAGED(CTX_KEYLIST(AS_CONTEXT(v->extra.binding))); // always
+    MANAGE_ARRAY(CTX_VARLIST(AS_CONTEXT(v->extra.binding)));
+}
+
 inline static REBCTX *VAL_VARARGS_FRAME_CTX(const RELVAL *v) {
     ASSERT_ARRAY_MANAGED(v->extra.binding);
     assert(GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST));
@@ -76,44 +82,4 @@ inline static REBCTX *VAL_VARARGS_FRAME_CTX(const RELVAL *v) {
 inline static REBARR *VAL_VARARGS_ARRAY1(const RELVAL *v) {
     assert(!GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST));
     return v->extra.binding;
-}
-
-
-// The subfeed is either the varlist of the frame of another varargs that is
-// being chained at the moment, or the `array1` of another varargs.  To
-// be visible for all instances of the same vararg, it can't live in the
-// payload bits--so it's in the `special` slot of a frame or the misc slot
-// of the array1.
-//
-inline static REBOOL Is_End_Subfeed_Addr_Of_Feed(
-    REBARR ***addr_out,
-    REBARR *a
-) {
-    if (!GET_ARR_FLAG(a, ARRAY_FLAG_VARLIST)) {
-        *addr_out = &ARR_SERIES(a)->link.subfeed;
-        return LOGICAL(*addr_out == NULL);
-    }
-
-    REBFRM *f = CTX_FRAME(AS_CONTEXT(a));
-    assert(f != NULL); // need to check frame independently and error on this
-
-    // Be cautious with the strict aliasing implications of this conversion.
-    //
-    *addr_out = cast(REBARR**, &f->special);
-
-    if (f->special->header.bits & NOT_END_MASK)
-        return FALSE;
-
-    return TRUE;
-}
-
-inline static void Mark_End_Subfeed_Addr_Of_Feed(REBARR *a) {
-    if (!GET_ARR_FLAG(a, ARRAY_FLAG_VARLIST)) {
-        ARR_SERIES(a)->link.subfeed = NULL;
-        return;
-    }
-
-    REBFRM *f = CTX_FRAME(AS_CONTEXT(a));
-    assert(f != NULL); // need to check frame independently and error on this
-    f->special = c_cast(REBVAL*, END_CELL);
 }

@@ -155,7 +155,12 @@ static void get_scalar(
 
     switch (field->type) {
     case FFI_TYPE_UINT8:
-        SET_INTEGER(val, *cast(u8*, data));
+        if (field->is_rebval) {
+            assert(field->size == sizeof(REBVAL));
+            memcpy(val, data, sizeof(REBVAL));
+        } else {
+            SET_INTEGER(val, *cast(u8*, data));
+        }
         break;
 
     case FFI_TYPE_SINT8:
@@ -195,13 +200,7 @@ static void get_scalar(
         break;
 
     case FFI_TYPE_POINTER:
-        if (field->is_rebval) {
-            assert(field->size == sizeof(REBVAL));
-            assert(field->dimension == 4);
-            memcpy(val, data, sizeof(REBVAL));
-        }
-        else
-            SET_INTEGER(val, cast(REBUPT, *cast(void**, data)));
+        SET_INTEGER(val, cast(REBUPT, *cast(void**, data)));
         break;
 
     case FFI_TYPE_STRUCT:
@@ -214,7 +213,7 @@ static void get_scalar(
         // are to uniquely carry an ffi_type freed when they are GC'd
         //
         REBSER *field_1 = Make_Series(
-            sizeof(struct Struct_Field), 1, MKS_NONE
+            1, sizeof(struct Struct_Field), MKS_NONE
         );
         *SER_HEAD(struct Struct_Field, field_1) = *field;
         SET_SERIES_LEN(field_1, 1);
@@ -369,7 +368,7 @@ REBARR *Struct_To_Array(REBSTU *stu)
         }
 
         /* optional initialization */
-        if (field->dimension > 1) {
+        if (field->is_array) {
             REBARR *dim = Make_Array(1);
             REBCNT n = 0;
             val = Alloc_Tail_Array(array);
@@ -431,13 +430,11 @@ static REBOOL assign_scalar_core(
         offset + field->offset + n * field->size
     );
 
-    u64 i = 0;
+    i64 i = 0;
     double d = 0;
 
     if (field->is_rebval) {
-        assert(FALSE); // need to actually adjust for correct n
-        assert(field->type == FFI_TYPE_POINTER);
-        assert(field->dimension % 4 == 0);
+        assert(field->type == FFI_TYPE_UINT8);
         assert(field->size == sizeof(REBVAL));
         memcpy(data, val, sizeof(REBVAL));
         return TRUE;
@@ -453,14 +450,14 @@ static REBOOL assign_scalar_core(
                 fail (Error_Invalid_Type(VAL_TYPE(val)));
 
             d = VAL_DECIMAL(val);
-            i = (u64) d;
+            i = (i64) d;
             break;
         case REB_INTEGER:
             if (kind != REB_INTEGER && kind != REB_DECIMAL)
                 if (field->type != FFI_TYPE_POINTER)
                     fail (Error_Invalid_Type(VAL_TYPE(val)));
 
-            i = (u64) VAL_INT64(val);
+            i =  VAL_INT64(val);
             d = (double)i;
             break;
         case REB_STRUCT:
@@ -473,30 +470,47 @@ static REBOOL assign_scalar_core(
 
     switch (field->type) {
         case FFI_TYPE_SINT8:
+            if (i > 0x7f || i < -128)
+                fail (Error(RE_OVERFLOW));
             *(i8*)data = (i8)i;
             break;
         case FFI_TYPE_UINT8:
+            if (i > 0xff || i < 0)
+                fail (Error(RE_OVERFLOW));
             *(u8*)data = (u8)i;
             break;
         case FFI_TYPE_SINT16:
+            if (i > 0x7fff || i < -0x8000)
+                fail (Error(RE_OVERFLOW));
             *(i16*)data = (i16)i;
             break;
         case FFI_TYPE_UINT16:
+            if (i > 0xffff || i < 0)
+                fail (Error(RE_OVERFLOW));
             *(u16*)data = (u16)i;
             break;
         case FFI_TYPE_SINT32:
+            if (i > 0x7fffffff || i < -0x80000000LL)
+                fail (Error(RE_OVERFLOW));
             *(i32*)data = (i32)i;
             break;
         case FFI_TYPE_UINT32:
+            if (i > 0xffffffffU || i < 0)
+                fail (Error(RE_OVERFLOW));
             *(u32*)data = (u32)i;
             break;
         case FFI_TYPE_SINT64:
+            /* never overflow */
             *(i64*)data = (i64)i;
             break;
         case FFI_TYPE_UINT64:
+            if (i < 0)
+                fail (Error(RE_OVERFLOW));
             *(u64*)data = (u64)i;
             break;
         case FFI_TYPE_POINTER:
+            if (sizeof(void*) < 8 && i > 0xffffffff)
+                fail (Error(RE_OVERFLOW));
             *cast(void**, data) = cast(void*, cast(REBUPT, i));
             break;
         case FFI_TYPE_FLOAT:
@@ -713,8 +727,11 @@ static REBSER *make_ext_storage(
     REBINT raw_size,
     REBUPT raw_addr
 ) {
-    if (raw_size >= 0 && raw_size != cast(REBINT, len))
-        fail (Error(RE_INVALID_DATA));
+    if (raw_size >= 0 && raw_size != cast(REBINT, len)) {
+        REBVAL i;
+        SET_INTEGER(&i, raw_size);
+        fail (Error(RE_INVALID_DATA, &i));
+    }
 
     REBSER *ser = Make_Series(
         len + 1, // include term. !!! not included otherwise (?)
@@ -744,8 +761,7 @@ static REBSER *make_ext_storage(
 static void Parse_Field_Type_May_Fail(
     struct Struct_Field *field,
     REBVAL *spec,
-    REBVAL *inner,
-    REBVAL **init
+    REBVAL *inner
 ){
     RELVAL *val = VAL_ARRAY_AT(spec);
 
@@ -823,7 +839,8 @@ static void Parse_Field_Type_May_Fail(
                 field->type = FFI_TYPE_STRUCT;
                 field->fields = VAL_STRUCT_FIELDLIST(inner);
                 field->spec = VAL_STRUCT_SPEC(inner);
-                *init = inner; // a shortcut for struct intialization
+                field->fftype = VAL_STRUCT_SCHEMA(inner)->fftype;
+                field->fields_fftype_ptrs = VAL_STRUCT_SCHEMA(inner)->fields_fftype_ptrs;
             }
             else
                 fail (Error_Unexpected_Type(REB_BLOCK, VAL_TYPE(val)));
@@ -831,8 +848,8 @@ static void Parse_Field_Type_May_Fail(
 
         case SYM_REBVAL:
             field->is_rebval = TRUE;
-            field->type = FFI_TYPE_POINTER;
-            field->size = sizeof(void*); // multiplied by 4 at the end
+            field->type = FFI_TYPE_UINT8;
+            field->size = sizeof(REBVAL);
             break;
 
         default:
@@ -847,7 +864,9 @@ static void Parse_Field_Type_May_Fail(
         field->type = FFI_TYPE_STRUCT;
         field->fields = VAL_STRUCT_FIELDLIST(val);
         field->spec = VAL_STRUCT_SPEC(val);
-        COPY_VALUE(*init, val, VAL_SPECIFIER(spec));
+        field->fftype = VAL_STRUCT_SCHEMA(val)->fftype;
+        field->fields_fftype_ptrs = VAL_STRUCT_SCHEMA(val)->fields_fftype_ptrs;
+        COPY_VALUE(inner, val, VAL_SPECIFIER(spec));
     }
     else
         fail (Error_Invalid_Type(VAL_TYPE(val)));
@@ -883,9 +902,6 @@ static void Parse_Field_Type_May_Fail(
     }
     else
         fail (Error_Invalid_Type(VAL_TYPE(val)));
-
-    if (field->is_rebval)
-        field->dimension = field->dimension * 4;
 }
 
 
@@ -908,7 +924,13 @@ static REBCNT Total_Struct_Dimensionality(REBSER *fields)
         struct Struct_Field *field = SER_AT(struct Struct_Field, fields, i);
 
         if (field->type != FFI_TYPE_STRUCT)
-            n_fields += field->dimension;
+            //
+            // The ffi type of a REBVAL field is faked by ffi_type_uint8 arrays
+            // External function should treat it as opaque.
+            //
+            n_fields += field->is_rebval?
+                field->dimension * sizeof(REBVAL)
+                : field->dimension;
         else
             n_fields += Total_Struct_Dimensionality(field->fields);
     }
@@ -1007,6 +1029,77 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
     }
 }
 
+//
+//  Prepare_Field_For_FFI: C
+//
+// The main reason structs exist is so that they can be used with the FFI,
+// and the FFI requires you to set up a "ffi_type" C struct describing
+// each datatype. This is a helper function that sets up proper ffi_type.
+// There are stock types for the primitives, but each structure needs its
+// own.
+//
+void Prepare_Field_For_FFI(struct Struct_Field *schema)
+{
+    if (schema->fftype) {
+        assert(schema->fields_fftype_ptrs != NULL);
+        return;
+    }
+
+    schema->fftype = Make_Series(1, sizeof(ffi_type), MKS_NONE);
+    SET_SER_FLAG(schema->fftype, SERIES_FLAG_FIXED_SIZE);
+    ffi_type *fftype = SER_HEAD(ffi_type, schema->fftype);
+
+    fftype->size = 0;
+    fftype->alignment = 0;
+    fftype->type = FFI_TYPE_STRUCT;
+
+    schema->fields_fftype_ptrs = Make_Series(
+        Total_Struct_Dimensionality(schema->fields) + 1, // 1 for null at end
+        sizeof(ffi_type*),
+        MKS_NONE
+    );
+    SET_SER_FLAG(schema->fields_fftype_ptrs, SERIES_FLAG_FIXED_SIZE);
+    fftype->elements = SER_HEAD(ffi_type*, schema->fields_fftype_ptrs);
+
+    REBCNT j = 0;
+    REBCNT i;
+    for (i = 0; i < SER_LEN(schema->fields); ++i) {
+        struct Struct_Field *field
+            = SER_AT(struct Struct_Field, schema->fields, i);
+
+        if (field->is_rebval) {
+            assert(field->size == sizeof(REBVAL));
+            /* The sole purpose of REBVAL in a struct! is passing it to an external function
+             * which proxies it to a callback! as a means to pass an arbitrary REBVAL to callback! */
+            REBCNT n = 0;
+            for (n = 0; n < field->dimension * sizeof(REBVAL); ++n) {
+                fftype->elements[j++] = &ffi_type_uint8;
+            }
+        }
+        else if (field->type == FFI_TYPE_STRUCT) {
+            REBCNT n = 0;
+            for (n = 0; n < field->dimension; ++n) {
+                Prepare_Field_For_FFI(field);
+                fftype->elements[j++] = SER_HEAD(ffi_type, field->fftype);
+            }
+        }
+        else {
+            REBSTR *sym; // dummy
+            enum Reb_Kind kind; // dummy
+            ffi_type* field_fftype
+                = Get_FFType_Enum_Info(&sym, &kind, field->type);
+
+            REBCNT n;
+            for (n = 0; n < field->dimension; ++n) {
+                fftype->elements[j++] = field_fftype;
+            }
+        }
+    }
+    fftype->elements[j] = NULL;
+
+    MANAGE_SERIES(schema->fields_fftype_ptrs);
+    MANAGE_SERIES(schema->fftype);
+}
 
 //
 //  MAKE_Struct: C
@@ -1047,6 +1140,8 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
     schema->fields = Make_Series(
         max_fields, sizeof(struct Struct_Field), MKS_NONE
     );
+    schema->fftype = NULL;
+    schema->fields_fftype_ptrs = NULL;
 
     // `schema->size =` ...don't know until after the fields are made
 
@@ -1061,7 +1156,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
     REBUPT raw_addr = 0;
 
     RELVAL *item = VAL_ARRAY_AT(arg);
-    if (IS_BLOCK(item)) {
+    if (NOT_END(item) && IS_BLOCK(item)) {
         //
         // !!! This would suggest raw-size, raw-addr, or extern can be leading
         // in the struct definition, perhaps as:
@@ -1095,6 +1190,8 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
             field_idx
         );
         field->offset = (REBCNT)offset;
+        field->fftype = NULL;
+        field->fields_fftype_ptrs = NULL;
 
         // Must be a word or a set-word, with set-words initializing
 
@@ -1120,13 +1217,15 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
         REBVAL spec;
         COPY_VALUE(&spec, item, VAL_SPECIFIER(arg));
 
-        REBVAL inner;
-        SET_BLANK(&inner);
-        PUSH_GUARD_VALUE(&inner);
+        //REBVAL inner;
+        //SET_BLANK(&inner);
+        //PUSH_GUARD_VALUE(&inner);
 
-        REBVAL *init = NULL; // for result to save in data
+        REBVAL init; // for result to save in data
+        SET_BLANK(&init);
+        PUSH_GUARD_VALUE(&init);
 
-        Parse_Field_Type_May_Fail(field, &spec, &inner, &init);
+        Parse_Field_Type_May_Fail(field, &spec, &init);
 
         u64 step = 0;
 
@@ -1143,10 +1242,6 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
             EXPAND_SERIES_TAIL(data_bin, step);
 
         if (expect_init) {
-            REBVAL safe; // result of reduce or do (GC saved during eval)
-
-            init = &safe;
-
             if (IS_END(item))
                fail (Error_Invalid_Arg(arg));
 
@@ -1154,20 +1249,20 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
                 REBVAL specified;
                 COPY_VALUE(&specified, item, VAL_SPECIFIER(arg));
 
-                if (Reduce_Any_Array_Throws(init, &specified, FALSE, FALSE))
-                    fail (Error_No_Catch_For_Throw(init));
+                if (Reduce_Any_Array_Throws(&init, &specified, FALSE))
+                    fail (Error_No_Catch_For_Throw(&init));
 
                 ++item;
             }
             else {
                 eval_idx = DO_NEXT_MAY_THROW(
-                    init,
+                    &init,
                     VAL_ARRAY(arg),
                     item - VAL_ARRAY_AT(arg),
                     VAL_SPECIFIER(arg)
                 );
                 if (eval_idx == THROWN_FLAG)
-                    fail (Error_No_Catch_For_Throw(init));
+                    fail (Error_No_Catch_For_Throw(&init));
 
                 if (eval_idx == END_FLAG)
                     item = VAL_ARRAY_TAIL(arg);
@@ -1176,8 +1271,8 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
             }
 
             if (field->is_array) {
-                if (IS_INTEGER(init)) { // interpreted as a C pointer
-                    void *ptr = cast(void *, cast(REBUPT, VAL_INT64(init)));
+                if (IS_INTEGER(&init)) { // interpreted as a C pointer
+                    void *ptr = cast(void *, cast(REBUPT, VAL_INT64(&init)));
 
                     // assume valid pointer to enough space
                     memcpy(
@@ -1186,11 +1281,11 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
                         field->size * field->dimension
                     );
                 }
-                else if (IS_BLOCK(init)) {
+                else if (IS_BLOCK(&init)) {
                     REBCNT n = 0;
 
-                    if (VAL_LEN_AT(init) != field->dimension)
-                        fail (Error_Invalid_Arg(init));
+                    if (VAL_LEN_AT(&init) != field->dimension)
+                        fail (Error_Invalid_Arg(&init));
 
                     // assign
                     for (n = 0; n < field->dimension; n ++) {
@@ -1199,7 +1294,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
                             offset,
                             field,
                             n,
-                            KNOWN(VAL_ARRAY_AT_HEAD(init, n))
+                            KNOWN(VAL_ARRAY_AT_HEAD(&init, n))
                         )) {
                             //RL_Print("Failed to assign element value\n");
                             fail (Error(RE_MISC));
@@ -1211,7 +1306,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
             }
             else {
                 // scalar
-                if (!assign_scalar_core(data_bin, offset, field, 0, init)) {
+                if (!assign_scalar_core(data_bin, offset, field, 0, &init)) {
                     //RL_Print("Failed to assign scalar value\n");
                     fail (Error(RE_MISC));
                 }
@@ -1227,14 +1322,12 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
                             data_bin,
                             cast(REBCNT, offset) + n * field->size
                         ),
-                        BIN_HEAD(VAL_STRUCT_DATA_BIN(init)),
+                        BIN_HEAD(VAL_STRUCT_DATA_BIN(&init)),
                         field->size
                     );
                 }
             }
             else if (field->is_rebval) {
-                assert(FALSE); // needs work
-
                 REBCNT n = 0;
                 for (n = 0; n < field->dimension; n ++) {
                     if (!assign_scalar(
@@ -1266,84 +1359,23 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
 
         ++ field_idx;
 
-        DROP_GUARD_VALUE(&inner);
+        DROP_GUARD_VALUE(&init);
     }
 
     schema->size = offset; // now we know the total size so save it
-
-
-//
-// SET UP FOR FFI
-//
-
-    // The reason structs exist at all is so that they can be used with the
-    // FFI, and the FFI requires you to set up a "ffi_type" C struct describing
-    // each datatype.  There are stock types for the primitives, but each
-    // structure needs its own.  We build the ffi_type at the same time as
-    // the structure.
-    //
-    schema->fftype = Make_Series(1, sizeof(ffi_type), MKS_NONE);
-    SET_SER_FLAG(schema->fftype, SERIES_FLAG_FIXED_SIZE);
-    ffi_type *fftype = SER_HEAD(ffi_type, schema->fftype);
-
-    fftype->size = 0;
-    fftype->alignment = 0;
-    fftype->type = FFI_TYPE_STRUCT;
-
-    schema->fields_fftype_ptrs = Make_Series(
-        Total_Struct_Dimensionality(schema->fields) + 1, // 1 for null at end
-        sizeof(ffi_type*),
-        MKS_NONE
-    );
-    SET_SER_FLAG(schema->fields_fftype_ptrs, SERIES_FLAG_FIXED_SIZE);
-    fftype->elements = SER_HEAD(ffi_type*, schema->fields_fftype_ptrs);
-
-    REBCNT j = 0;
-    REBCNT i;
-    for (i = 0; i < SER_LEN(schema->fields); ++i) {
-        struct Struct_Field *field
-            = SER_AT(struct Struct_Field, schema->fields, i);
-
-        if (field->is_rebval) {
-            //
-            // "don't see a point to pass a rebol value to external functions"
-            //
-            // !!! ^-- What if the value is being passed through and will
-            // come back via a callback?
-            //
-            fail (Error(RE_MISC));
-        }
-        else if (field->type == FFI_TYPE_STRUCT) {
-            REBCNT n = 0;
-            for (n = 0; n < field->dimension; ++n) {
-                fftype->elements[j++] = SER_HEAD(ffi_type, field->fftype);
-            }
-        }
-        else {
-            REBSTR *sym; // dummy
-            enum Reb_Kind kind; // dummy
-            ffi_type* field_fftype
-                = Get_FFType_Enum_Info(&sym, &kind, field->type);
-
-            REBCNT n;
-            for (n = 0; n < field->dimension; ++n) {
-                fftype->elements[j++] = field_fftype;
-            }
-        }
-    }
-    fftype->elements[j] = NULL;
-
 
 //
 // FINALIZE VALUE
 //
 
-    MANAGE_SERIES(schema->fields_fftype_ptrs);
-    MANAGE_SERIES(schema->fftype);
     MANAGE_ARRAY(schema->spec);
     MANAGE_SERIES(schema->fields);
 
     REBSTU *stu = Alloc_Singular_Array();
+
+    // Set it to blank so the Kill_Series can be called upon in case of error thrown
+    // before it is fully constructed.
+    SET_BLANK(ARR_HEAD(stu));
 
     MANAGE_SERIES(field_1);
     ARR_SERIES(stu)->link.schema = field_1;
@@ -1544,13 +1576,10 @@ REBTYPE(Struct)
 {
     REBVAL *val;
     REBVAL *arg;
-    REBVAL *ret;
 
     val = D_ARG(1);
 
-    ret = D_OUT;
-
-    SET_VOID(ret);
+    SET_VOID(D_OUT);
     // unary actions
     switch(action) {
         case SYM_CHANGE:
@@ -1567,6 +1596,7 @@ REBTYPE(Struct)
                     BIN_HEAD(VAL_SERIES(arg)),
                     BIN_LEN(VAL_STRUCT_DATA_BIN(val))
                 );
+                *D_OUT = *val;
             }
             break;
 
@@ -1576,11 +1606,11 @@ REBTYPE(Struct)
                 switch (VAL_WORD_SYM(arg)) {
                     case SYM_VALUES:
                         fail_if_non_accessible(val);
-                        Val_Init_Binary(ret, Copy_Sequence_At_Len(VAL_STRUCT_DATA_BIN(val), VAL_STRUCT_OFFSET(val), VAL_STRUCT_SIZE(val)));
+                        Val_Init_Binary(D_OUT, Copy_Sequence_At_Len(VAL_STRUCT_DATA_BIN(val), VAL_STRUCT_OFFSET(val), VAL_STRUCT_SIZE(val)));
                         break;
                     case SYM_SPEC:
                         Val_Init_Block(
-                            ret,
+                            D_OUT,
                             Copy_Array_Deep_Managed(
                                 VAL_STRUCT_SPEC(val), SPECIFIED
                             )
@@ -1589,7 +1619,7 @@ REBTYPE(Struct)
                         break;
                     case SYM_ADDR:
                         SET_INTEGER(
-                            ret,
+                            D_OUT,
                             cast(REBUPT, SER_AT(
                                 REBYTE,
                                 VAL_STRUCT_DATA_BIN(val),
@@ -1604,7 +1634,7 @@ REBTYPE(Struct)
             break;
 
         case SYM_LENGTH:
-            SET_INTEGER(ret, SER_LEN(VAL_STRUCT_DATA_BIN(val)));
+            SET_INTEGER(D_OUT, SER_LEN(VAL_STRUCT_DATA_BIN(val)));
             break;
         default:
             fail (Error_Illegal_Action(REB_STRUCT, action));

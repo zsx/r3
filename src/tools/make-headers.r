@@ -194,7 +194,7 @@ make-arg-enums: func [word] [
     refs: copy []
     ; Gather arg words:
     for-each w first def [
-        if any-word? w [
+        if all [any-word? w | not set-word? w] [
             append args uw: uppercase replace/all form to word! w #"-" #"_"
             if refinement? w [append refs uw  w: to word! w]
         ]

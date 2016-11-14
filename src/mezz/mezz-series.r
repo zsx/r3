@@ -448,7 +448,7 @@ collect-with: func [
         ; that word.  FUNC does binding and variable creation so let it
         ; do the work.
         ;
-        eval func reduce [<no-return> name [function!]] body :keeper
+        eval func compose [(name) [function!] <with> return] body :keeper
     ][
         ; A lit-word `name` indicates that the word for the keeper already
         ; exists.  Set the variable and DO the body bound as-is.

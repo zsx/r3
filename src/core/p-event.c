@@ -191,8 +191,7 @@ act_blk:
         return result; // return condition
 
     case SYM_CLEAR:
-        SET_SERIES_LEN(VAL_SERIES(state), 0);
-        TERM_ARRAY_LEN(VAL_ARRAY(state), VAL_LEN_HEAD(state));
+        TERM_ARRAY_LEN(VAL_ARRAY(state), 0);
         CLR_SIGNAL(SIG_EVENT_PORT);
         break;
 

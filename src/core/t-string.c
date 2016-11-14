@@ -210,16 +210,12 @@ static REBCNT find_string(
 }
 
 
-static REBSER *make_string(const REBVAL *arg, REBOOL make)
+static REBSER *MAKE_TO_String_Common(const REBVAL *arg)
 {
     REBSER *ser = 0;
 
-    // MAKE <type> 123
-    if (make && (IS_INTEGER(arg) || IS_DECIMAL(arg))) {
-        ser = Make_Binary(Int32s(arg, 0));
-    }
     // MAKE/TO <type> <binary!>
-    else if (IS_BINARY(arg)) {
+    if (IS_BINARY(arg)) {
         REBYTE *bp = VAL_BIN_AT(arg);
         REBCNT len = VAL_LEN_AT(arg);
         switch (What_UTF(bp, len)) {
@@ -247,12 +243,8 @@ static REBSER *make_string(const REBVAL *arg, REBOOL make)
         ser = (VAL_CHAR(arg) > 0xff) ? Make_Unicode(2) : Make_Binary(2);
         Append_Codepoint_Raw(ser, VAL_CHAR(arg));
     }
-    // MAKE/TO <type> <any-value>
-//  else if (IS_BLANK(arg)) {
-//      ser = Make_Binary(0);
-//  }
     else
-        ser = Copy_Form_Value(arg, 1<<MOPT_TIGHT);
+        ser = Copy_Form_Value(arg, 1 << MOPT_TIGHT);
 
     return ser;
 }
@@ -324,8 +316,7 @@ static REBSER *make_binary(const REBVAL *arg, REBOOL make)
     // MAKE/TO BINARY! <char!>
     case REB_CHAR:
         ser = Make_Binary(6);
-        SET_SERIES_LEN(ser, Encode_UTF8_Char(BIN_HEAD(ser), VAL_CHAR(arg)));
-        TERM_SEQUENCE(ser);
+        TERM_SEQUENCE_LEN(ser, Encode_UTF8_Char(BIN_HEAD(ser), VAL_CHAR(arg)));
         break;
 
     // MAKE/TO BINARY! <bitset!>
@@ -340,9 +331,8 @@ static REBSER *make_binary(const REBVAL *arg, REBOOL make)
 
     case REB_MONEY:
         ser = Make_Binary(12);
-        SET_SERIES_LEN(ser, 12);
         deci_to_binary(BIN_HEAD(ser), VAL_MONEY_AMOUNT(arg));
-        BIN_HEAD(ser)[12] = 0;
+        TERM_SEQUENCE_LEN(ser, 12);
         break;
 
     default:
@@ -357,7 +347,18 @@ static REBSER *make_binary(const REBVAL *arg, REBOOL make)
 //  MAKE_String: C
 //
 void MAKE_String(REBVAL *out, enum Reb_Kind kind, const REBVAL *def) {
-    if (IS_BLOCK(def)) {
+    REBSER *ser; // goto would cross initialization
+
+    if (IS_INTEGER(def)) {
+        //
+        // !!! R3-Alpha tolerated decimal, e.g. `make string! 3.14`, which
+        // is semantically nebulous (round up, down?) and generally bad.
+        //
+        ser = Make_Binary(Int32s(def, 0));
+        Val_Init_Series(out, kind, ser);
+        return;
+    }
+    else if (IS_BLOCK(def)) {
         //
         // The construction syntax for making strings or binaries that are
         // preloaded with an offset into the data is #[binary [#{0001} 2]].
@@ -388,10 +389,10 @@ void MAKE_String(REBVAL *out, enum Reb_Kind kind, const REBVAL *def) {
         return;
     }
 
-    REBSER *ser; // goto would cross initialization
-    ser = (kind != REB_BINARY)
-        ? make_string(def, TRUE)
-        : make_binary(def, TRUE);
+    if (kind == REB_BINARY)
+        ser = make_binary(def, TRUE);
+    else
+        ser = MAKE_TO_String_Common(def);
 
     if (!ser)
         goto bad_make;
@@ -409,14 +410,69 @@ bad_make:
 //
 void TO_String(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
-    REBSER *ser = (kind != REB_BINARY)
-        ? make_string(arg, FALSE)
-        : make_binary(arg, FALSE);
+    REBSER *ser;
+    if (kind == REB_BINARY)
+        ser = make_binary(arg, FALSE);
+    else
+        ser = MAKE_TO_String_Common(arg);
 
     if (!ser)
         fail (Error_Invalid_Arg(arg));
 
     Val_Init_Series(out, kind, ser);
+}
+
+
+//
+//  to-string: native [
+//
+//  {Like TO STRING! but with additional options.}
+//
+//      value [any-value!]
+//          {Value to convert to a string.}
+//      /astral
+//          {Provide special handling for codepoints bigger than 0xFFFF}
+//      handler [function! string! char! blank!]
+//          {If function, receives integer argument of large codepoint value}
+//  ]
+//
+REBNATIVE(to_string)
+{
+    PARAM(1, value);
+    REFINE(2, astral);
+    PARAM(3, handler);
+
+    REBVAL *value = ARG(value);
+
+    if (!REF(astral) || !IS_BINARY(value)) {
+        TO_String(D_OUT, REB_STRING, value); // just act like TO STRING!
+        return R_OUT;
+    }
+
+    // Ordinarily, UTF8 decoding is done into the unicode buffer.  The number
+    // of unicode codepoints is guaranteed to be <= the number of UTF8 bytes,
+    // so the length is used as a conservative bound.  Since we don't know
+    // how many astral codepoints there are, it's not easy to know the size
+    // in advance.  So the series may be expanded multiple times.
+    //
+    REBSER *ser = Make_Unicode(VAL_LEN_AT(value));
+    if (Decode_UTF8_Maybe_Astral_Throws(
+        D_OUT,
+        ser,
+        VAL_BIN_AT(value),
+        VAL_LEN_AT(value),
+        TRUE, // cr/lf => lf conversion is done by TO_String (review)
+        ARG(handler)
+    )){
+        return R_OUT_IS_THROWN;
+    }
+
+    // !!! Note also that since this conversion does not go through the
+    // unicode buffer, so it's not copied out with "slimming" if it turns out
+    // to not contain wide chars.
+
+    Val_Init_String(D_OUT, ser);
+    return R_OUT;
 }
 
 
@@ -608,7 +664,7 @@ REBINT PD_String(REBPVS *pvs)
 REBSER *File_Or_Url_Path_Dispatch(REBPVS *pvs)
 {
     if (pvs->opt_setval)
-        fail(Error_Bad_Path_Set(pvs));
+        fail (Error_Bad_Path_Set(pvs));
 
     REBSER *ser = Copy_Sequence_At_Position(KNOWN(pvs->value));
 
@@ -719,7 +775,8 @@ REBTYPE(String)
 
         //Modify_String(action, value, arg);
         // Length of target (may modify index): (arg can be anything)
-        len = Partial1((action == SYM_CHANGE) ? value : arg, D_ARG(AN_LIMIT));
+
+        Partial1((action == SYM_CHANGE) ? value : arg, D_ARG(AN_LIMIT), cast(REBCNT*, &len));
         index = VAL_INDEX(value);
         args = 0;
         if (IS_BINARY(value)) SET_FLAG(args, AN_SERIES); // special purpose
@@ -751,8 +808,16 @@ find:
             }
         }
         else {
-            if (IS_CHAR(arg) || IS_BITSET(arg)) len = 1;
-            else if (!ANY_STRING(arg)) {
+            if (IS_CHAR(arg) || IS_BITSET(arg))
+                len = 1;
+            else if (!IS_STRING(arg)) {
+                //
+                // !! This FORM creates a temporary value that is then handed
+                // over to the GC.  Not only could the temporary value be
+                // unmanaged (and freed), a more efficient matching could
+                // be done e.g. of `FIND "<abc...z>" <abc...z>` without having
+                // to create an entire series just to include the delimiters.
+                // 
                 REBSER *copy = Copy_Form_Value(arg, 0);
                 Val_Init_String(arg, copy);
             }
@@ -876,11 +941,10 @@ zero_str:
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
 
         if (index < tail) {
-            if (index == 0) Reset_Series(VAL_SERIES(value));
-            else {
-                SET_SERIES_LEN(VAL_SERIES(value), cast(REBCNT, index));
-                TERM_SEQUENCE(VAL_SERIES(value));
-            }
+            if (index == 0)
+                Reset_Sequence(VAL_SERIES(value));
+            else
+                TERM_SEQUENCE_LEN(VAL_SERIES(value), cast(REBCNT, index));
         }
         break;
 

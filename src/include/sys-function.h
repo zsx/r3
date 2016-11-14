@@ -46,6 +46,10 @@ struct Reb_Func {
 #endif
 
 inline static REBARR *FUNC_PARAMLIST(REBFUN *f) {
+#if !defined(NDEBUG)
+    if (!GET_ARR_FLAG(&f->paramlist, ARRAY_FLAG_PARAMLIST))
+        Panic_Array(&f->paramlist);
+#endif
     return &f->paramlist;
 }
 
@@ -118,24 +122,28 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
 //
 #define FUNC_FLAG_LEAVE FUNC_FLAG(1)
 
-// A function may act as a barrier on its left (so that it cannot act
-// as an input argument to another function).
-//
-// Given the "greedy" nature of infix, a function with arguments cannot
-// be stopped from infix consumption on its right--because the arguments
-// would consume them.  Only a function with no arguments is able to
-// trigger an error when used as a left argument.  This is the ability
-// given to lookback 0 arity functions, known as "punctuators".
-//
-#define FUNC_FLAG_PUNCTUATES FUNC_FLAG(2)
-
 // A "brancher" is a single arity function that is capable of taking a
 // LOGIC! value.  Currently testing for this requires a bit of processing
 // so it is done when the function is made, and then this flag is checked.
 // It's set even if the function might not take logic or need more
 // parameters, so that it can be called and cause an error if needed.
 //
-#define FUNC_FLAG_MAYBE_BRANCHER FUNC_FLAG(3)
+#define FUNC_FLAG_MAYBE_BRANCHER FUNC_FLAG(2)
+
+// As with MAYBE_BRANCHER, the DEFERS_LOOKBACK_ARG flag is a cached property,
+// which tells you whether a function defers its first real argument when
+// used as a lookback.  Because lookback dispatches cannot use refinements
+// at this time, the answer is static for invocation via a plain word.
+// 
+#define FUNC_FLAG_DEFERS_LOOKBACK_ARG FUNC_FLAG(3)
+
+// The COMPILE-NATIVES command wants to operate on user natives, and be able
+// to recompile unchanged natives as part of a unit even after they were
+// initially compiled.  But since that replaces their dispatcher with an
+// arbitrary function, they can't be recognized to know they have the specific
+// body structure of a user native.  So this flag is used.
+//
+#define FUNC_FLAG_USER_NATIVE FUNC_FLAG(4)
 
 #if !defined(NDEBUG)
     //
@@ -145,12 +153,12 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
     // function implementation after digging through the layers...because
     // proxies must have new (cloned) paramlists but use the original bodies.
     //
-    #define FUNC_FLAG_PROXY_DEBUG FUNC_FLAG(4)
+    #define FUNC_FLAG_PROXY_DEBUG FUNC_FLAG(5)
 
     // BLANK! ("none!") for unused refinements instead of FALSE
     // Also, BLANK! for args of unused refinements instead of not set
     //
-    #define FUNC_FLAG_LEGACY_DEBUG FUNC_FLAG(5)
+    #define FUNC_FLAG_LEGACY_DEBUG FUNC_FLAG(6)
 #endif
 
 
@@ -180,7 +188,7 @@ inline static REBNAT VAL_FUNC_DISPATCHER(const RELVAL *v)
 inline static REBCTX *VAL_FUNC_META(const RELVAL *v)
     { return ARR_SERIES(v->payload.function.paramlist)->link.meta; }
 
-inline static REBOOL IS_FUNCTION_PLAIN(const RELVAL *v) {
+inline static REBOOL IS_FUNCTION_INTERPRETED(const RELVAL *v) {
     //
     // !!! Review cases where this is supposed to matter, because they are
     // probably all bad.  With the death of function categories, code should
@@ -188,7 +196,8 @@ inline static REBOOL IS_FUNCTION_PLAIN(const RELVAL *v) {
     // the dispatchers they run on...with only the dispatch itself caring.
     //
     return LOGICAL(
-        VAL_FUNC_DISPATCHER(v) == &Plain_Dispatcher
+        VAL_FUNC_DISPATCHER(v) == &Noop_Dispatcher
+        || VAL_FUNC_DISPATCHER(v) == &Unchecked_Dispatcher
         || VAL_FUNC_DISPATCHER(v) == &Voider_Dispatcher
         || VAL_FUNC_DISPATCHER(v) == &Returner_Dispatcher
     );
@@ -239,3 +248,20 @@ inline static REBOOL IS_FUNC_DURABLE(REBFUN *f) {
 
 #define NAT_FUNC(name) \
     VAL_FUNC(NAT_VALUE(name))
+
+
+
+// Gets a system function with tolerance of it not being a function.
+//
+// (Extraction of a feature that formerly was part of a dedicated dual
+// function to Apply_Func_Throws (Do_Sys_Func_Throws())
+//
+inline static REBVAL *Sys_Func(REBCNT inum)
+{
+    REBVAL *value = CTX_VAR(Sys_Context, inum);
+
+    if (!IS_FUNCTION(value))
+        fail (Error(RE_BAD_SYS_FUNC, value));
+
+    return value;
+}

@@ -279,6 +279,11 @@ inline static void TERM_SEQUENCE(REBSER *s) {
     memset(SER_AT_RAW(SER_WIDE(s), s, SER_LEN(s)), 0, SER_WIDE(s));
 }
 
+inline static void TERM_SEQUENCE_LEN(REBSER *s, REBCNT len) {
+    SET_SERIES_LEN(s, len);
+    TERM_SEQUENCE(s);
+}
+
 #ifdef NDEBUG
     #define ASSERT_SERIES_TERM(s) \
         NOOP

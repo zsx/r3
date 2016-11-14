@@ -172,29 +172,6 @@ REBINT Mode_Syms[] = {
 
 
 //
-//  Get_Mode_Id: C
-//
-static REBCNT Get_Mode_Id(REBVAL *word)
-{
-    REBCNT id = 0;
-    if (IS_WORD(word)) {
-        id = Find_Int(&Mode_Syms[0], VAL_WORD_SYM(word));
-        if (id == NOT_FOUND) fail (Error_Invalid_Arg(word));
-    }
-    return id;
-}
-
-
-//
-//  Set_Mode_Value: C
-//
-static REBCNT Set_Mode_Value(REBREQ *file, REBCNT mode, REBVAL *val)
-{
-    return 0;
-}
-
-
-//
 //  Read_File_Port: C
 // 
 // Read from a file port.
@@ -497,7 +474,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         break;
 
     case SYM_MODIFY:
-        Set_Mode_Value(file, Get_Mode_Id(D_ARG(2)), D_ARG(3));
+        // !!! Set_Mode_Value() was called here, but a no-op in R3-Alpha
         if (!IS_OPEN(file)) {
             Setup_File(file, 0, path);
             if (OS_DO_DEVICE(file, RDC_MODIFY) < 0) return R_BLANK;

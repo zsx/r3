@@ -216,6 +216,22 @@ enum Reb_Param_Class {
 //
 #define TYPESET_FLAG_NO_LOOKBACK TYPESET_FLAG(9)
 
+// R3-Alpha's notion of infix OP!s changed the way parameters were gathered.
+// On the right hand side, the argument was evaluated in a special mode in
+// which further infix processing was not done.  This meant that `1 + 2 * 3`,
+// when fulfilling the 2 for the right side of +, would "blind" itself so
+// that it would not chain forward and see the `* 3`.  This gave rise to a
+// distinct behavior from `1 + multiply 2 3`.  A similar kind of "tightness"
+// would happen with the left hand side, where `add 1 2 * 3` would be
+// aggressive and evaluate it as `add 1 (2 * 3)` and not `(add 1 2) * 3`.
+//
+// Ren-C decouples this property so that it may be applied to any parameter,
+// and calls it "tight".  By default, however, expressions are completed as
+// far as they can be on both the left and right hand side of enfixed
+// expressions.
+//
+#define TYPESET_FLAG_TIGHT TYPESET_FLAG(10)
+
 
 // Operations when typeset is done with a bitset (currently all typesets)
 
@@ -266,4 +282,61 @@ inline static enum Reb_Param_Class VAL_PARAM_CLASS(const RELVAL *v) {
 inline static void INIT_VAL_PARAM_CLASS(RELVAL *v, enum Reb_Param_Class c) {
     v->header.bits &= ~PCLASS_MASK;
     v->header.bits |= cast(REBUPT, c << TYPE_SPECIFIC_BIT);
+
+    // !!! The "<tight>" mechanism is likely to be ultimately deprecated,
+    // and quoting will replace it.  For now, though, the only kinds of
+    // quoting you can accomplish on the left-hand side of an enfixed
+    // operation need tight semantics.  Otherwise, even if ELSE wants its
+    // first parameter to be a hard-quoted block, then `if x [] else []`
+    // will see (if x []) as a completed expression before ELSE gets the
+    // chance to quote the block.  To avoid having to mark quoted args
+    // as tight explicitly, do it implicitly for now.
+    //
+    if (c & PCLASS_ANY_QUOTE_MASK)
+        SET_VAL_FLAG(v, TYPESET_FLAG_TIGHT);
 }
+
+
+// Macros for defining full bit masks
+
+#define ALL_BITS \
+    ((REBCNT)(-1))
+
+#ifdef HAS_LL_CONSTS
+    #define ALL_64 \
+        ((REBU64)0xffffffffffffffffLL)
+#else
+    #define ALL_64 \
+        ((REBU64)0xffffffffffffffffL)
+#endif
+
+
+// !!! R3-Alpha made frequent use of these predefined typesets.  In Ren-C
+// they have been called into question, as to exactly how copying mechanics
+// should work...whether a FUNCTION! should be duplicated when an object
+// is made with one in its fields, for instance.
+ 
+#define TS_NOT_COPIED \
+    (FLAGIT_KIND(REB_IMAGE) \
+    | FLAGIT_KIND(REB_VECTOR) \
+    | FLAGIT_KIND(REB_PORT))
+
+#define TS_STD_SERIES \
+    (TS_SERIES & ~TS_NOT_COPIED)
+
+#define TS_SERIES_OBJ \
+    ((TS_SERIES | TS_CONTEXT) & ~TS_NOT_COPIED)
+
+#define TS_ARRAYS_OBJ \
+    ((TS_ARRAY | TS_CONTEXT) & ~TS_NOT_COPIED)
+
+#define TS_CLONE \
+    ((TS_SERIES | FLAGIT_KIND(REB_FUNCTION)) & ~TS_NOT_COPIED)
+
+#define TS_ANY_WORD \
+    (FLAGIT_KIND(REB_WORD) \
+    | FLAGIT_KIND(REB_SET_WORD) \
+    | FLAGIT_KIND(REB_GET_WORD) \
+    | FLAGIT_KIND(REB_REFINEMENT) \
+    | FLAGIT_KIND(REB_LIT_WORD) \
+    | FLAGIT_KIND(REB_ISSUE))

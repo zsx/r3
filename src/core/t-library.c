@@ -99,8 +99,10 @@ REBTYPE(Library)
                 return R_OUT;
             }
         case SYM_CLOSE:
-            OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(val));
-            ARR_SERIES(VAL_LIBRARY(val))->misc.fd = NULL;
+            if (VAL_LIBRARY_FD(val)) {// allow to CLOSE an already closed library!
+                OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(val));
+                ARR_SERIES(VAL_LIBRARY(val))->misc.fd = NULL;
+            }
             return R_VOID;
     }
 

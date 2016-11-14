@@ -489,54 +489,6 @@ REBCTX *Error_Bad_Path_Field_Set(REBPVS *pvs)
 
 
 //
-//  Pick_Path: C
-//
-// Lightweight version of Do_Path used for A_PICK actions.
-// Does not do GROUP! evaluation, hence not designed to throw.
-//
-void Pick_Path(
-    REBVAL *out,
-    REBVAL *value,
-    const REBVAL *selector,
-    const REBVAL *opt_setval
-) {
-    REBPVS pvs;
-    REBPEF dispatcher;
-
-    pvs.value = value;
-    pvs.value_specifier = SPECIFIED;
-    pvs.item = NULL;
-    pvs.selector = selector;
-    pvs.opt_setval = opt_setval;
-    pvs.store = out;        // Temp space for constructed results
-
-    // Path must have dispatcher, else return:
-    dispatcher = Path_Dispatch[VAL_TYPE(value)];
-    if (!dispatcher) return; // unwind, then check for errors
-
-    switch (dispatcher(&pvs)) {
-    case PE_OK:
-        break;
-
-    case PE_SET_IF_END: // !!! Said "only sets if end of path", but no check?
-        if (pvs.opt_setval)
-            *pvs.value = *pvs.opt_setval;
-        break;
-
-    case PE_NONE:
-        SET_BLANK(pvs.store);
-    case PE_USE_STORE:
-        pvs.value = pvs.store;
-        pvs.value_specifier = SPECIFIED;
-        break;
-
-    default:
-        assert(FALSE);
-    }
-}
-
-
-//
 //  Get_Simple_Value_Into: C
 //
 // Does easy lookup, else just returns the value as is.

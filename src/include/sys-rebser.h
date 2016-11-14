@@ -152,6 +152,13 @@ enum {
     //
     STRING_FLAG_CANON = 1 << 4,
 
+    // `ARRAY_FLAG_PARAMLIST` uses the same bit as STRING_FLAG_CANON, so the
+    // meaning depends on whether the SERIES_FLAG_ARRAY or SERIES_FLAG_STRING
+    // bit is set.  This indicates the array is the parameter list of a
+    // FUNCTION! (the first element will be a canon value of the function)
+    //
+    ARRAY_FLAG_PARAMLIST = 1 << 4,
+
     // `SERIES_FLAG_ARRAY` indicates that this is a series of REBVAL values,
     // and suitable for using as the payload of an ANY-ARRAY! value.  When a
     // series carries this bit, that means that if it is also SER_MANAGED
@@ -396,7 +403,6 @@ struct Reb_Series {
     union {
         REBSER *hashlist; // MAP datatype uses this
         REBARR *keylist; // used by CONTEXT
-        REBARR *subfeed; // for *non-frame* VARARGS! ("array1") shared feed
         REBSER *schema; // STRUCT uses this (parallels object's keylist)
         REBCTX *meta; // paramlists and keylists can store a "meta" object
         REBSTR *synonym; // circularly linked list of othEr-CaSed string forms

@@ -164,7 +164,7 @@ REBTYPE(Word)
         while (TRUE) {
             REBUNI ch;
             if (!(bp = Back_Scan_UTF8_Char(&ch, bp, &len)))
-                fail(Error(RE_BAD_UTF8));
+                fail (Error(RE_BAD_UTF8));
             if (ch == 0)
                 break;
         }

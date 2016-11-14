@@ -528,8 +528,6 @@ REBNATIVE(meta_of)
 //
 //  set-meta: native [
 //
-//      <punctuates>
-//
 //  {Set "meta" object associated with all references to a value.}
 //
 //      return: [<opt>]
@@ -708,8 +706,8 @@ REBNATIVE(construct)
 // represents a "spec".
 //
 // !!! This assumes you want a SELF defined.  The entire concept of SELF
-// needs heavy review, but at minimum this needs a <no-self> override to
-// match the <no-return> for functions.
+// needs heavy review, but at minimum this needs an override to match the
+// `<with> return` or `<with> local` for functions.
 //
 // !!! This mutates the bindings of the body block passed in, should it
 // be making a copy instead (at least by default, perhaps with performance
@@ -830,7 +828,9 @@ REBNATIVE(construct)
             target, // type
             NULL, // body
             // scan for toplevel set-words
-            IS_BLANK(body) ? END_CELL : VAL_ARRAY_AT(body),
+            IS_BLANK(body)
+                ? cast(const RELVAL*, END_CELL) // needed by gcc/g++ 2.95 (bug)
+                : VAL_ARRAY_AT(body),
             parent
         );
         Val_Init_Object(D_OUT, context);

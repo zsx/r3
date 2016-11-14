@@ -149,8 +149,7 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
                 UNI_HEAD(ser), VAL_BIN_AT(arg), len, FALSE
             );
             len = abs(len);
-            SET_SERIES_LEN(ser, len);
-            UNI_TERM(ser);
+            TERM_UNI_LEN(ser, len);
             Val_Init_String(arg, ser);
             req->common.data = cast(REBYTE*, UNI_HEAD(ser));
             SET_FLAG(req->flags, RRF_WIDE);

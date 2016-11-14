@@ -324,7 +324,7 @@ static void Print_Parse_Index(REBFRM *f) {
 
 //
 //  Set_Parse_Series: C
-// 
+//
 // Change the series, ensuring the index is not past the end.
 //
 static void Set_Parse_Series(
@@ -346,10 +346,10 @@ static void Set_Parse_Series(
 
 //
 //  Get_Parse_Value: C
-// 
+//
 // Gets the value of a word (when not a command) or path.  Returns all other
 // values as-is.
-// 
+//
 // !!! Because path evaluation does not necessarily wind up pointing to a
 // variable that exists in memory, a derived value may be created.  R3-Alpha
 // would push these on the stack without any corresponding drops, leading
@@ -395,9 +395,9 @@ static const RELVAL *Get_Parse_Value(
 
 //
 //  Parse_String_One_Rule: C
-// 
+//
 // Match the next rule in the string ruleset.
-// 
+//
 // If it matches, return the index just past it.
 // Otherwise return NOT_FOUND.
 //
@@ -536,7 +536,7 @@ static REBCNT Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
 
 //
 //  Parse_Array_One_Rule_Core: C
-// 
+//
 // Used for parsing ANY-ARRAY! to match the next rule in the ruleset.  If it
 // matches, return the index just past it. Otherwise, return zero.
 //
@@ -1081,7 +1081,7 @@ static REBCNT To_Thru_Non_Block_Rule(
 //
 // "Evaluate the input as a code block. Advance input if rule succeeds. Return
 // new index or failure.
-// 
+//
 // Examples:
 //     do skip
 //     do end
@@ -1092,7 +1092,7 @@ static REBCNT To_Thru_Non_Block_Rule(
 //     do datatype!
 //     do quote 123
 //     do into [...]
-// 
+//
 // Problem: cannot write:  set var do datatype!"
 //
 // !!! The proposal and its intent should be reviewed; the code here has been
@@ -1143,7 +1143,7 @@ static REBCNT Do_Eval_Rule(REBFRM *f)
                 fail (Error_Parse_End());
 
             if (IS_GROUP(rule)) {
-                // might GC
+                // might GC ... !!! why is QUOTE evaluating something?
                 if (Do_At_Throws(
                     &save, VAL_ARRAY(rule), VAL_INDEX(rule), P_RULE_SPECIFIER
                 )) {
@@ -1609,6 +1609,8 @@ REBNATIVE(subparse)
                 // word - some other variable
                 if (IS_WORD(P_RULE)) {
                     rule = GET_OPT_VAR_MAY_FAIL(P_RULE, P_RULE_SPECIFIER);
+                    if (IS_VOID(rule))
+                        fail (Error_No_Value_Core(P_RULE, P_RULE_SPECIFIER));
                 }
                 else {
                     // rule can still be 'word or /word
@@ -1667,7 +1669,7 @@ REBNATIVE(subparse)
 
         // All cases should have either set `rule` by this point or continued
         //
-        assert(rule != NULL);
+        assert(rule != NULL && !IS_VOID(rule));
 
         if (IS_GROUP(rule)) {
             REBVAL evaluated;
@@ -1777,27 +1779,11 @@ REBNATIVE(subparse)
                         FETCH_NEXT_RULE_MAYBE_END(f);
                     }
 
-                    const RELVAL *quoted;
-                    if (IS_GROUP(subrule)) {
-                        // might GC
-                        if (Do_At_Throws(
-                            &save,
-                            VAL_ARRAY(subrule),
-                            VAL_INDEX(subrule),
-                            P_RULE_SPECIFIER
-                        )) {
-                            *P_OUT = save;
-                            return R_OUT_IS_THROWN;
-                        }
-                        quoted = &save;
-                    }
-                    else quoted = subrule;
-
                     RELVAL *cmp = ARR_AT(AS_ARRAY(P_INPUT), P_POS);
 
                     if (IS_END(cmp))
                         i = NOT_FOUND;
-                    else if (0 == Cmp_Value(cmp, quoted, P_HAS_CASE))
+                    else if (0 == Cmp_Value(cmp, subrule, P_HAS_CASE))
                         i = P_POS + 1;
                     else
                         i = NOT_FOUND;

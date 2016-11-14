@@ -360,16 +360,25 @@ arg1
 arg2
 arg3
 
+include
+source
+library-path
+runtime-path
+options
 
-;ZOE add-on
-initial-size
-initial-offset
-placement-zoom
-sticky-zoom
-min-zoom
-max-zoom
-class
-instance
-on-init
-on-draw
-selected?
+; !!! Used by %n-crypt.c ... used to make a hacky symbol table, now just
+; hackily forces symbol numbers into the executable for what it uses.  Bad,
+; but not as bad as what it's replacing...
+
+n
+e
+d
+p
+q
+dp
+dq
+qinv
+priv-key
+pub-key
+g
+pkcs1

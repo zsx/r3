@@ -502,15 +502,14 @@ void TO_Date(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
 
 
 //
-//  PD_Date: C
+//  Pick_Or_Poke_Date: C
 //
-REBINT PD_Date(REBPVS *pvs)
-{
-    REBVAL *value = KNOWN(pvs->value);
-    assert(IS_DATE(value));
-
-    // Extract the components of the input
-    //
+void Pick_Or_Poke_Date(
+    REBVAL *opt_out,
+    REBVAL *value,
+    const REBVAL *picker,
+    const REBVAL *opt_poke
+) {
     REBDAT date = VAL_DATE(value);
     REBCNT day = VAL_DAY(value) - 1;
     REBCNT month = VAL_MONTH(value) - 1;
@@ -519,208 +518,254 @@ REBINT PD_Date(REBPVS *pvs)
     REBI64 secs = VAL_TIME(value);
     REBINT tz = VAL_ZONE(value);
 
-    REBINT i;
-
-    const REBVAL *sel = pvs->selector;
-    if (IS_WORD(sel)) {
-        //
-        // !!! Wouldn't it be clearer if this turned indices into symbols?
-        //
-        switch (VAL_WORD_SYM(sel)) {
-        case SYM_YEAR:  i = 0; break;
-        case SYM_MONTH: i = 1; break;
-        case SYM_DAY:   i = 2; break;
-        case SYM_TIME:  i = 3; break;
-        case SYM_ZONE:  i = 4; break;
-        case SYM_DATE:  i = 5; break;
-        case SYM_WEEKDAY: i = 6; break;
-        case SYM_JULIAN:
-        case SYM_YEARDAY: i = 7; break;
-        case SYM_UTC:    i = 8; break;
-        case SYM_HOUR:   i = 9; break;
-        case SYM_MINUTE: i = 10; break;
-        case SYM_SECOND: i = 11; break;
+    REBSYM sym;
+    if (IS_WORD(picker)) {
+        sym = VAL_WORD_SYM(picker); // error later if SYM_0 or not a match
+    }
+    else if (IS_INTEGER(picker)) {
+        switch (Int32(picker)) {
+        case 1: sym = SYM_YEAR; break;
+        case 2: sym = SYM_MONTH; break;
+        case 3: sym = SYM_DAY; break;
+        case 4: sym = SYM_TIME; break;
+        case 5: sym = SYM_ZONE; break;
+        case 6: sym = SYM_DATE; break;
+        case 7: sym = SYM_WEEKDAY; break;
+        case 8: sym = SYM_JULIAN; break; // a.k.a. SYM_YEARDAY
+        case 9: sym = SYM_UTC; break;
+        case 10: sym = SYM_HOUR; break;
+        case 11: sym = SYM_MINUTE; break;
+        case 12: sym = SYM_SECOND; break;
         default:
-            fail (Error_Bad_Path_Select(pvs));
+            fail (Error_Invalid_Arg(picker));
         }
     }
-    else if (IS_INTEGER(sel)) {
-        i = Int32(sel) - 1;
-        if (i < 0 || i > 8)
-            fail (Error_Bad_Path_Select(pvs));
-    }
-    else fail (Error_Bad_Path_Select(pvs));
+    else fail (Error_Invalid_Arg(picker));
 
-    REB_TIMEF time;
-    if (i > 8) Split_Time(secs, &time);
+    REB_TIMEF time; // only pay for split into this if needed...
 
-    const REBVAL *setval = pvs->opt_setval;
-    if (setval == NULL) {
-        //
-        // Adapt the date value that came in to get the return result.  Put
-        // the existing value in the store, and adjust its time zone if
-        // not aleady adusted.
-        //
-        REBVAL *store = pvs->store;
-        if (value != store)
-            *store = *value;
+    if (opt_poke == NULL) {
+        assert(opt_out != NULL);
+        *opt_out = *value;
 
-        if (i != 8) Adjust_Date_Zone(store, FALSE);
+        if (sym != SYM_UTC) Adjust_Date_Zone(opt_out, FALSE);
 
-        REBINT num;
-        switch(i) {
-        case 0:
-            num = year;
+        switch (sym) {
+        case SYM_YEAR:
+            SET_INTEGER(opt_out, year);
             break;
-        case 1:
-            num = month + 1;
+
+        case SYM_MONTH:
+            SET_INTEGER(opt_out, month + 1);
             break;
-        case 2:
-            num = day + 1;
+
+        case SYM_DAY:
+            SET_INTEGER(opt_out, day + 1);
             break;
-        case 3:
-            if (secs == NO_TIME) return PE_NONE;
-            VAL_RESET_HEADER(store, REB_TIME);
-            return PE_USE_STORE;
-        case 4:
-            if (secs == NO_TIME) return PE_NONE;
-            VAL_TIME(store) = cast(i64, tz) * ZONE_MINS * MIN_SEC;
-            VAL_RESET_HEADER(store, REB_TIME);
-            return PE_USE_STORE;
-        case 5:
-            // date
-            VAL_TIME(store) = NO_TIME;
-            VAL_ZONE(store) = 0;
-            return PE_USE_STORE;
-        case 6:
-            // weekday
-            num = Week_Day(date);
+
+        case SYM_TIME:
+            if (secs == NO_TIME)
+                SET_VOID(opt_out);
+            else
+                VAL_RESET_HEADER(opt_out, REB_TIME);
             break;
-        case 7:
-            // yearday
-            num = cast(REBINT, Julian_Date(date));
-            break;
-        case 8:
-            // utc
-            VAL_ZONE(store) = 0;
-            return PE_USE_STORE;
-        case 9:
-            num = time.h;
-            break;
-        case 10:
-            num = time.m;
-            break;
-        case 11:
-            if (time.n == 0) num = time.s;
+
+        case SYM_ZONE:
+            if (secs == NO_TIME)
+                SET_VOID(opt_out);
             else {
-                SET_DECIMAL(store, cast(REBDEC, time.s) + (time.n * NANO));
-                return PE_USE_STORE;
+                VAL_TIME(opt_out) = cast(i64, tz) * ZONE_MINS * MIN_SEC;
+                VAL_RESET_HEADER(opt_out, REB_TIME);
             }
             break;
 
-        default:
-            return PE_NONE;
-        }
+        case SYM_DATE:
+            VAL_TIME(opt_out) = NO_TIME;
+            VAL_ZONE(opt_out) = 0;
+            break;
 
-        SET_INTEGER(store, num);
-        return PE_USE_STORE;
+        case SYM_WEEKDAY:
+            SET_INTEGER(opt_out, Week_Day(date));
+            break;
+
+        case SYM_JULIAN:
+        case SYM_YEARDAY:
+            SET_INTEGER(opt_out, cast(REBINT, Julian_Date(date)));
+            break;
+
+        case SYM_UTC:
+            VAL_ZONE(opt_out) = 0;
+            break;
+
+        case SYM_HOUR:
+            Split_Time(secs, &time);
+            SET_INTEGER(opt_out, time.h);
+            break;
+
+        case SYM_MINUTE:
+            Split_Time(secs, &time);
+            SET_INTEGER(opt_out, time.m);
+            break;
+
+        case SYM_SECOND:
+            Split_Time(secs, &time);
+            if (time.n == 0)
+                SET_INTEGER(opt_out, time.s);
+            else
+                SET_DECIMAL(opt_out, cast(REBDEC, time.s) + (time.n * NANO));
+            break;
+
+        default:
+            SET_VOID(opt_out); // "out of range" PICK semantics
+        }
     }
     else {
+        assert(opt_out == NULL);
+
         // Here the desire is to modify the incoming date directly.  This is
         // done by changing the components that need to change which were
         // extracted, and building a new date out of the parts.
 
         REBINT n;
-
-        if (IS_INTEGER(setval) || IS_DECIMAL(setval))
-            n = Int32s(setval, 0);
-        else if (IS_BLANK(setval))
+        if (IS_INTEGER(opt_poke) || IS_DECIMAL(opt_poke))
+            n = Int32s(opt_poke, 0);
+        else if (IS_BLANK(opt_poke))
             n = 0;
-        else if (IS_TIME(setval) && (i == 3 || i == 4))
+        else if (IS_TIME(opt_poke) && (sym == SYM_TIME || sym == SYM_ZONE))
             NOOP;
-        else if (IS_DATE(setval) && (i == 3 || i == 5))
+        else if (IS_DATE(opt_poke) && (sym == SYM_TIME || sym == SYM_ZONE))
             NOOP;
-        else fail (Error_Bad_Path_Field_Set(pvs));
+        else fail (Error_Invalid_Arg(opt_poke));
 
-        switch(i) {
-        case 0:
+        switch (sym) {
+        case SYM_YEAR:
             year = n;
             break;
-        case 1:
+
+        case SYM_MONTH:
             month = n - 1;
             break;
-        case 2:
+
+        case SYM_DAY:
             day = n - 1;
             break;
-        case 3:
-            // time
-            if (IS_BLANK(setval)) {
+
+        case SYM_TIME:
+            if (IS_BLANK(opt_poke)) {
                 secs = NO_TIME;
                 tz = 0;
                 break;
             }
-            else if (IS_TIME(setval) || IS_DATE(setval))
-                secs = VAL_TIME(setval);
-            else if (IS_INTEGER(setval))
+            else if (IS_TIME(opt_poke) || IS_DATE(opt_poke))
+                secs = VAL_TIME(opt_poke);
+            else if (IS_INTEGER(opt_poke))
                 secs = n * SEC_SEC;
-            else if (IS_DECIMAL(setval))
-                secs = DEC_TO_SECS(VAL_DECIMAL(setval));
+            else if (IS_DECIMAL(opt_poke))
+                secs = DEC_TO_SECS(VAL_DECIMAL(opt_poke));
             else
-                fail (Error_Bad_Path_Field_Set(pvs));
+                fail (Error_Invalid_Arg(opt_poke));
             break;
-        case 4:
-            // zone
-            if (IS_TIME(setval))
-                tz = (REBINT)(VAL_TIME(setval) / (ZONE_MINS * MIN_SEC));
-            else if (IS_DATE(setval))
-                tz = VAL_ZONE(setval);
+
+        case SYM_ZONE:
+            if (IS_TIME(opt_poke))
+                tz = cast(REBINT, VAL_TIME(opt_poke) / (ZONE_MINS * MIN_SEC));
+            else if (IS_DATE(opt_poke))
+                tz = VAL_ZONE(opt_poke);
             else tz = n * (60 / ZONE_MINS);
             if (tz > MAX_ZONE || tz < -MAX_ZONE)
-                fail (Error_Bad_Path_Range(pvs));
+                fail (Error_Out_Of_Range(opt_poke));
             break;
-        case 5:
-            // date
-            if (!IS_DATE(setval))
-                fail (Error_Bad_Path_Field_Set(pvs));
-            date = VAL_DATE(setval);
-            goto set_date;
-        case 9:
+
+        case SYM_JULIAN:
+        case SYM_WEEKDAY:
+        case SYM_UTC:
+            fail (Error_Invalid_Arg(picker));
+
+        case SYM_DATE:
+            if (!IS_DATE(opt_poke))
+                fail (Error_Invalid_Arg(opt_poke));
+            date = VAL_DATE(opt_poke);
+            goto set_without_normalize;
+
+        case SYM_HOUR:
+            Split_Time(secs, &time);
             time.h = n;
             secs = Join_Time(&time, FALSE);
             break;
-        case 10:
+
+        case SYM_MINUTE:
+            Split_Time(secs, &time);
             time.m = n;
             secs = Join_Time(&time, FALSE);
             break;
-        case 11:
-            if (IS_INTEGER(setval)) {
+
+        case SYM_SECOND:
+            Split_Time(secs, &time);
+            if (IS_INTEGER(opt_poke)) {
                 time.s = n;
                 time.n = 0;
             }
             else {
                 //if (f < 0.0) fail (Error_Out_Of_Range(setval));
-                time.s = cast(REBINT, VAL_DECIMAL(setval));
+                time.s = cast(REBINT, VAL_DECIMAL(opt_poke));
                 time.n = cast(REBINT,
-                    (VAL_DECIMAL(setval) - time.s) * SEC_SEC);
+                    (VAL_DECIMAL(opt_poke) - time.s) * SEC_SEC);
             }
             secs = Join_Time(&time, FALSE);
             break;
 
         default:
-            fail (Error_Bad_Path_Set(pvs));
+            fail (Error_Invalid_Arg(picker));
         }
 
         Normalize_Time(&secs, &day);
         date = Normalize_Date(day, month, year, tz);
 
-    set_date:
-        VAL_RESET_HEADER(pvs->value, REB_DATE);
-        VAL_DATE(pvs->value) = date;
-        VAL_TIME(pvs->value) = secs;
-        Adjust_Date_Zone(KNOWN(pvs->value), TRUE);
+    set_without_normalize:
+        VAL_RESET_HEADER(value, REB_DATE);
+        VAL_DATE(value) = date;
+        VAL_TIME(value) = secs;
+        Adjust_Date_Zone(value, TRUE);
+    }
+}
 
+
+inline static void Pick_Date(
+    REBVAL *out,
+    const REBVAL *value,
+    const REBVAL *picker
+) {
+    Pick_Or_Poke_Date(out, m_cast(REBVAL*, value), picker, NULL);
+}
+
+
+inline static void Poke_Date_Immediate(
+    REBVAL *value,
+    const REBVAL *picker,
+    const REBVAL *poke
+) {
+    Pick_Or_Poke_Date(NULL, value, picker, poke);
+}
+
+
+//
+//  PD_Date: C
+//
+REBINT PD_Date(REBPVS *pvs)
+{
+    if (pvs->opt_setval) {
+        //
+        // !!! SET-PATH! in R3-Alpha could be used on DATE! even though it
+        // was an immediate value.  It would thus modify the evaluated value,
+        // while not affecting the original (unless it was a literal value
+        // in source)
+        //
+        Poke_Date_Immediate(KNOWN(pvs->value), pvs->selector, pvs->opt_setval);
         return PE_OK;
     }
+
+    Pick_Date(pvs->store, KNOWN(pvs->value), pvs->selector);
+    return PE_USE_STORE;
 }
 
 
@@ -802,13 +847,17 @@ REBTYPE(Date)
 
         case SYM_PICK:
             assert(D_ARGC > 1);
-            Pick_Path(D_OUT, val, arg, 0);
+            Pick_Date(D_OUT, val, arg);
             return R_OUT;
 
-///     case SYM_POKE:
-///         Pick_Path(D_OUT, val, arg, D_ARG(3));
-///         *D_OUT = *D_ARG(3);
-///         return R_OUT;
+        // !!! Because DATE! is an immediate value, POKE is not offered as it
+        // would not actually modify a variable (just the evaluative temporary
+        // from fetching the variable).  But see SET-PATH! notes in PD_Date.
+
+        /* case SYM_POKE:
+            Poke_Date_Immediate(D_OUT, val, arg, D_ARG(3));
+            *D_OUT = *D_ARG(3);
+            return R_OUT;*/
 
         case SYM_RANDOM: {
             REFINE(2, seed);

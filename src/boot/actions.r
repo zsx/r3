@@ -205,9 +205,6 @@ find: action [
     limit [any-number! any-series! pair!]
     /only {Treats a series value as only a single value}
     /case {Characters are case-sensitive}
-    /any  {Enables the * and ? wildcards}
-    /with {Allows custom wildcards}
-    wild [string!] "Specifies alternates for * and ?"
     /skip {Treat the series as records of fixed size}
     size [integer!]
     /last {Backwards from end of series}
@@ -225,9 +222,6 @@ select: action [
     limit [any-number! any-series! pair!]
     /only {Treats a series value as only a single value}
     /case {Characters are case-sensitive}
-    /any  {Enables the * and ? wildcards}
-    /with {Allows custom wildcards}
-    wild [string!] "Specifies alternates for * and ?"
     /skip {Treat the series as records of fixed size}
     size [integer!]
     /last {Backwards from end of series}
@@ -238,7 +232,7 @@ select: action [
 
 reflect: action [
     {Returns specific details about a datatype.}
-    value [<opt> any-value!]
+    value [any-value!]
     field [word!] "Such as: spec, body, words, values, title"
 ]
 
@@ -256,8 +250,6 @@ copy: action [
     /types
         {What datatypes to copy}
     kinds [typeset! datatype!]
-    /test
-        {Temporary switch for debugging ARM-build anomaly}
 ]
 
 take: action [
@@ -388,6 +380,7 @@ open: action [
 
 close: action [
     {Closes a port/library.}
+    return: [<opt> any-value!]
     port [port! library!]
 ]
 

@@ -31,15 +31,6 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// NOTE to PROGRAMMERS:
-//
-//   1. Keep code clear and simple.
-//   2. Document unusual code, reasoning, or gotchas.
-//   3. Use same style for code, vars, indent(4), comments, etc.
-//   4. Keep in mind Linux, OS X, BSD, big/little endian CPUs.
-//   5. Test everything, then test it again.
-//
-
 // !!! Unlike on Linux/Posix, the basic Win32 API is able to support
 // a clipboard device in a non-graphical build without an added
 // dependency.  For this reason, the Rebol core build included the
@@ -48,6 +39,7 @@
 // Ren/C needs to improve the way that per-platform code can be
 // included in a static build to not rely on this table the way
 // hostkit does.
+//
 
 #include <stdio.h>
 

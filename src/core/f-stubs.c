@@ -58,19 +58,6 @@ REBCNT Bytes_To_REBCNT(const REBYTE * const in)
 
 
 //
-//  Find_Int: C
-//
-REBCNT Find_Int(REBINT *array, REBINT num)
-{
-    REBCNT n;
-
-    for (n = 0; array[n] && array[n] != num; n++);
-    if (array[n]) return n;
-    return NOT_FOUND;
-}
-
-
-//
 //  Get_Num_From_Arg: C
 // 
 // Get the amount to skip or pick.
@@ -305,53 +292,14 @@ REBVAL *Get_Type(enum Reb_Kind kind)
 
 
 //
-//  Type_Of_Core: C
+//  Type_Of: C
 // 
 // Returns the datatype value for the given value.
 // The datatypes are all at the head of the context.
 //
-REBVAL *Type_Of_Core(const RELVAL *value)
+REBVAL *Type_Of(const RELVAL *value)
 {
     return CTX_VAR(Lib_Context, SYM_FROM_KIND(VAL_TYPE(value)));
-}
-
-
-//
-//  Get_Field_Name: C
-// 
-// Get the name of a field of an object.
-//
-const REBYTE *Get_Field_Name(REBCTX *context, REBCNT index)
-{
-    assert(index <= CTX_LEN(context));
-    return STR_HEAD(CTX_KEY_SPELLING(context, index));
-}
-
-
-//
-//  Get_Field: C
-// 
-// Get an instance variable from an object series.
-//
-REBVAL *Get_Field(REBCTX *context, REBCNT index)
-{
-    assert(index <= CTX_LEN(context));
-    return CTX_VAR(context, index);
-}
-
-
-//
-//  Get_Object: C
-// 
-// Get an instance variable from an ANY-CONTEXT! value.
-//
-REBVAL *Get_Object(const REBVAL *any_context, REBCNT index)
-{
-    REBCTX *context = VAL_CONTEXT(any_context);
-
-    assert(GET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_VARLIST));
-    assert(index <= CTX_LEN(context));
-    return CTX_VAR(context, index);
 }
 
 
@@ -551,21 +499,24 @@ void Val_Init_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
 //
 // Adjusts the value's index if necessary, and returns the length indicated.
 // Hence if a negative limit is passed in, it will adjust value to the
-// position that negative limit would seek to...and return the length of
+// position that negative limit would seek to...and save the length of
 // the span to get to the original index.
 //
-REBCNT Partial1(REBVAL *value, const REBVAL *limit)
+void Partial1(REBVAL *value, const REBVAL *limit, REBCNT *span)
 {
-    REBINT is_series = ANY_SERIES(value);
+    REBOOL is_series = ANY_SERIES(value);
 
     if (IS_VOID(limit)) { // use current length of the target value
-        if (!is_series)
-            return 1;
-
-        if (VAL_INDEX(value) >= VAL_LEN_HEAD(value))
-            return 0;
-
-        return (VAL_LEN_HEAD(value) - VAL_INDEX(value));
+        if (!is_series) {
+            *span = 1;
+        }
+        else if (VAL_INDEX(value) >= VAL_LEN_HEAD(value)) {
+            *span = 0;
+        }
+        else {
+            *span = (VAL_LEN_HEAD(value) - VAL_INDEX(value));
+        }
+        return;
     }
 
     REBI64 len;
@@ -601,7 +552,7 @@ REBCNT Partial1(REBVAL *value, const REBVAL *limit)
     }
 
     assert(len >= 0);
-    return cast(REBCNT, len);
+    *span = cast(REBCNT, len);
 }
 
 
@@ -688,26 +639,6 @@ int Clip_Int(int val, int mini, int maxi)
     return val;
 }
 
-//
-//  memswapl: C
-// 
-// For long integer memory units, not chars. It is assumed that
-// the len is an exact modulo of long.
-//
-void memswapl(void *m1, void *m2, size_t len)
-{
-    long t, *a, *b;
-
-    a = cast(long*, m1);
-    b = cast(long*, m2);
-    len /= sizeof(long);
-    while (len--) {
-        t = *b;
-        *b++ = *a;
-        *a++ = t;
-    }
-}
-
 
 //
 //  Add_Max: C
@@ -731,18 +662,6 @@ int Mul_Max(enum Reb_Kind type, i64 n, i64 m, i64 maxi)
     i64 r = n * m;
     if (r < -maxi || r > maxi) fail (Error(RE_TYPE_LIMIT, Get_Type(type)));
     return (int)r;
-}
-
-
-//
-//  Make_OS_Error: C
-//
-void Make_OS_Error(REBVAL *out, int errnum)
-{
-    REBCHR str[100];
-
-    OS_FORM_ERROR(errnum, str, 100);
-    Val_Init_String(out, Copy_OS_Str(str, OS_STRLEN(str)));
 }
 
 

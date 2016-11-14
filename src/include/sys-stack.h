@@ -505,3 +505,6 @@ inline static void Drop_Chunk_Of_Values(REBVAL *opt_head)
 
 #define STACK_BOUNDS (4*1024*1000) // note: need a better way to set it !!
 // Also: made somewhat smaller than linker setting to allow trapping it
+
+#define Trap_Stack_Overflow() \
+    fail (VAL_CONTEXT(TASK_STACK_ERROR));

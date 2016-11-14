@@ -290,91 +290,126 @@ REBINT Cmp_Time(const RELVAL *v1, const RELVAL *v2)
 
 
 //
-//  PD_Time: C
+//  Pick_Time: C
 //
-REBINT PD_Time(REBPVS *pvs)
+void Pick_Time(REBVAL *out, const REBVAL *value, const REBVAL *picker)
 {
-    const REBVAL *sel = pvs->selector;
-    const REBVAL *setval;
     REBINT i;
-    REBINT n;
-    REBDEC f;
-    REB_TIMEF tf;
-
-    if (IS_WORD(sel)) {
-        switch (VAL_WORD_SYM(sel)) {
+    if (IS_WORD(picker)) {
+        switch (VAL_WORD_SYM(picker)) {
         case SYM_HOUR:   i = 0; break;
         case SYM_MINUTE: i = 1; break;
         case SYM_SECOND: i = 2; break;
         default:
-            fail (Error_Bad_Path_Select(pvs));
+            fail (Error_Invalid_Arg(picker));
         }
     }
-    else if (IS_INTEGER(sel))
-        i = VAL_INT32(sel) - 1;
+    else if (IS_INTEGER(picker))
+        i = VAL_INT32(picker) - 1;
     else
-        fail (Error_Bad_Path_Select(pvs));
+        fail (Error_Invalid_Arg(picker));
 
-    Split_Time(VAL_TIME(pvs->value), &tf); // loses sign
+    REB_TIMEF tf;
+    Split_Time(VAL_TIME(value), &tf); // loses sign
 
-    if (!(setval = pvs->opt_setval)) {
-        REBVAL *store = pvs->store;
-
-        switch(i) {
-        case 0: // hours
-            SET_INTEGER(store, tf.h);
-            break;
-        case 1:
-            SET_INTEGER(store, tf.m);
-            break;
-        case 2:
-            if (tf.n == 0)
-                SET_INTEGER(store, tf.s);
-            else
-                SET_DECIMAL(store, cast(REBDEC, tf.s) + (tf.n * NANO));
-            break;
-        default:
-            return PE_NONE;
-        }
-
-        return PE_USE_STORE;
-    }
-    else {
-        if (IS_INTEGER(setval) || IS_DECIMAL(setval))
-            n = Int32s(setval, 0);
-        else if (IS_BLANK(setval))
-            n = 0;
+    switch(i) {
+    case 0: // hours
+        SET_INTEGER(out, tf.h);
+        break;
+    case 1: // minutes
+        SET_INTEGER(out, tf.m);
+        break;
+    case 2: // seconds
+        if (tf.n == 0)
+            SET_INTEGER(out, tf.s);
         else
-            fail (Error_Bad_Path_Set(pvs));
+            SET_DECIMAL(out, cast(REBDEC, tf.s) + (tf.n * NANO));
+        break;
+    default:
+        SET_VOID(out); // "out of range" behavior for pick
+    }
+}
 
-        switch(i) {
-        case 0:
-            tf.h = n;
-            break;
-        case 1:
-            tf.m = n;
-            break;
-        case 2:
-            if (IS_DECIMAL(setval)) {
-                f = VAL_DECIMAL(setval);
-                if (f < 0.0)
-                    fail (Error_Out_Of_Range(setval));
 
-                tf.s = cast(REBINT, f);
-                tf.n = cast(REBINT, (f - tf.s) * SEC_SEC);
-            }
-            else {
-                tf.s = n;
-                tf.n = 0;
-            }
-            break;
+//
+//  Poke_Time_Immediate: C
+//
+void Poke_Time_Immediate(
+    REBVAL *value,
+    const REBVAL *picker,
+    const REBVAL *poke
+) {
+    REBINT i;
+    if (IS_WORD(picker)) {
+        switch (VAL_WORD_SYM(picker)) {
+        case SYM_HOUR:   i = 0; break;
+        case SYM_MINUTE: i = 1; break;
+        case SYM_SECOND: i = 2; break;
         default:
-            fail (Error_Bad_Path_Select(pvs));
+            fail (Error_Invalid_Arg(picker));
         }
+    }
+    else if (IS_INTEGER(picker))
+        i = VAL_INT32(picker) - 1;
+    else
+        fail (Error_Invalid_Arg(picker));
 
-        VAL_TIME(pvs->value) = Join_Time(&tf, FALSE);
+    REB_TIMEF tf;
+    Split_Time(VAL_TIME(value), &tf); // loses sign
+
+    REBINT n;
+    if (IS_INTEGER(poke) || IS_DECIMAL(poke))
+        n = Int32s(poke, 0);
+    else if (IS_BLANK(poke))
+        n = 0;
+    else
+        fail (Error_Invalid_Arg(poke));
+
+    switch(i) {
+    case 0:
+        tf.h = n;
+        break;
+    case 1:
+        tf.m = n;
+        break;
+    case 2:
+        if (IS_DECIMAL(poke)) {
+            REBDEC f = VAL_DECIMAL(poke);
+            if (f < 0.0)
+                fail (Error_Out_Of_Range(poke));
+
+            tf.s = cast(REBINT, f);
+            tf.n = cast(REBINT, (f - tf.s) * SEC_SEC);
+        }
+        else {
+            tf.s = n;
+            tf.n = 0;
+        }
+        break;
+    default:
+        fail (Error_Invalid_Arg(picker));
+    }
+
+    VAL_TIME(value) = Join_Time(&tf, FALSE);
+}
+
+
+//
+//  PD_Time: C
+//
+REBINT PD_Time(REBPVS *pvs)
+{
+    if (pvs->opt_setval) {
+        //
+        // !!! Since TIME! is an immediate value, allowing a SET-PATH! will
+        // modify the result of the expression but not the source.
+        //
+        Poke_Time_Immediate(KNOWN(pvs->value), pvs->selector, pvs->opt_setval);
         return PE_OK;
     }
+
+    Pick_Time(pvs->store, KNOWN(pvs->value), pvs->selector);
+    return PE_USE_STORE;
 }
 
 
@@ -559,16 +594,17 @@ REBTYPE(Time)
             goto fixTime;
 
         case SYM_PICK:
-            assert(arg);
-
-            Pick_Path(D_OUT, val, arg, 0);
+            Pick_Time(D_OUT, val, arg);
             return R_OUT;
 
-///     case SYM_POKE:
-///         Pick_Path(D_OUT, val, arg, D_ARG(3));
-///         *D_OUT = *D_ARG(3);
-///         return R_OUT;
-///
+        // !!! TIME! is currently immediate, which means that if you poke
+        // a value it will modify that value directly; this will appear
+        // to have no effect on variables.  But SET-PATH! does it, see PT_Time
+
+        /* case SYM_POKE:
+            Poke_Time_Immediate(val, arg, D_ARG(3));
+            *D_OUT = *D_ARG(3);
+            return R_OUT;*/
         }
     }
     fail (Error_Illegal_Action(REB_TIME, action));

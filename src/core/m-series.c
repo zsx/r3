@@ -148,8 +148,7 @@ REBSER *Copy_Sequence(REBSER *original)
         SER_DATA_RAW(original),
         len * SER_WIDE(original)
     );
-    SET_SERIES_LEN(copy, SER_LEN(original));
-    TERM_SERIES(copy);
+    TERM_SEQUENCE_LEN(copy, SER_LEN(original));
     return copy;
 }
 
@@ -174,8 +173,7 @@ REBSER *Copy_Sequence_At_Len(REBSER *original, REBCNT index, REBCNT len)
         SER_DATA_RAW(original) + index * SER_WIDE(original),
         (len + 1) * SER_WIDE(original)
     );
-    SET_SERIES_LEN(copy, len);
-    TERM_SEQUENCE(copy);
+    TERM_SEQUENCE_LEN(copy, len);
     return copy;
 }
 
@@ -310,21 +308,21 @@ void Unbias_Series(REBSER *s, REBOOL keep)
 
 
 //
-//  Reset_Series: C
+//  Reset_Sequence: C
 // 
 // Reset series to empty. Reset bias, tail, and termination.
 // The tail is reset to zero.
 //
-void Reset_Series(REBSER *s)
+void Reset_Sequence(REBSER *s)
 {
     assert(!Is_Array_Series(s));
     if (GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)) {
         Unbias_Series(s, FALSE);
         s->content.dynamic.len = 0;
+        TERM_SEQUENCE(s);
     }
     else
-        SET_SERIES_LEN(s, 0);
-    TERM_SERIES(s);
+        TERM_SEQUENCE_LEN(s, 0);
 }
 
 
@@ -426,8 +424,7 @@ REBSER *Copy_Buffer(REBSER *buf, REBCNT index, void *end)
         SER_DATA_RAW(buf) + index * SER_WIDE(buf),
         SER_WIDE(buf) * len
     );
-    SET_SERIES_LEN(copy, len);
-    TERM_SEQUENCE(copy);
+    TERM_SEQUENCE_LEN(copy, len);
 
     return copy;
 }

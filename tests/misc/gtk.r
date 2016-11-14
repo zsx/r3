@@ -185,6 +185,7 @@ init-gtk: function [app] [
 ]
 
 mk-cb: func [
+    return: [function!]
     args [block!]
     body [block!]
     /local r-args arg a tmp-func

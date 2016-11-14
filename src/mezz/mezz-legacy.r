@@ -258,7 +258,7 @@ not-equiv?: :not-equal?
 ; The legacy PRIN construct is equivalent to PRINT/ONLY of a reduced value
 ; (since PRIN of a block would historically execute it).
 ;
-prin: function [
+prin: procedure [
     "Print value, no line break, reducing blocks.  <r3-legacy>, use PRINT/ONLY"
 
     value [<opt> any-value!]
@@ -670,23 +670,25 @@ set 'r3-legacy* func [<local> if-flags] [
     ; created, so that the shims can use Ren-C features like word-valued
     ; refinements/etc.)
     ;
-    system/options/lit-word-decay: true
-    system/options/broken-case-semantics: true
-    system/options/exit-functions-only: true
-    system/options/mutable-function-bodies: true
-    system/options/refinements-blank: true
-    system/options/no-switch-evals: true
-    system/options/no-switch-fallthrough: true
-    system/options/forever-64-bit-ints: true
-    system/options/print-forms-everything: true
-    system/options/break-with-overrides: true
-    system/options/none-instead-of-voids: true
-    system/options/arg1-arg2-arg3-error: true
-    system/options/dont-exit-natives: true
-    system/options/paren-instead-of-group: true
-    system/options/get-will-get-anything: true
-    system/options/no-reduce-nested-print: true
-    system/options/no-infix-lookahead: true
+    do in system/options [
+        lit-word-decay: true
+        broken-case-semantics: true
+        exit-functions-only: true
+        mutable-function-bodies: true
+        refinements-blank: true
+        no-switch-evals: true
+        no-switch-fallthrough: true
+        forever-64-bit-ints: true
+        print-forms-everything: true
+        break-with-overrides: true
+        none-instead-of-voids: true
+        arg1-arg2-arg3-error: true
+        dont-exit-natives: true
+        paren-instead-of-group: true
+        get-will-get-anything: true
+        no-reduce-nested-print: true
+        sets-unsuppress-lookahead: true
+    ]
 
     append system/contexts/user compose [
 

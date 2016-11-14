@@ -123,9 +123,6 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
     if (Start_New_Expression_Throws(f)) \
         g; \
     args_evaluate = NOT((f)->flags.bits & DO_FLAG_NO_ARGS_EVALUATE); \
-    lookahead_flags = ((f)->flags.bits & DO_FLAG_NO_LOOKAHEAD) \
-        ? DO_FLAG_NO_LOOKAHEAD \
-        : DO_FLAG_LOOKAHEAD; \
 
 #ifdef NDEBUG
     #define START_NEW_EXPRESSION_MAY_THROW(f,g) \
@@ -148,7 +145,7 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
 #endif
 
 
-static inline void Type_Check_Arg_For_Param_May_Fail(REBFRM * f) {
+static inline void Type_Check_Arg_For_Param_May_Fail(REBFRM *f) {
     if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg)))
         fail (Error_Arg_Type(FRM_LABEL(f), f->param, VAL_TYPE(f->arg)));
 }
@@ -166,6 +163,52 @@ static inline void Abort_Function_Args_For_Frame(REBFRM *f) {
     //
     DS_DROP_TO(f->dsp_orig);
 }
+
+
+//
+// f->refine is a bit tricky.  If it IS_LOGIC() and TRUE, then this means that
+// a refinement is active but revokable, having its arguments gathered.  So
+// it actually points to the f->arg of the active refinement slot.  If
+// evaluation of an argument in this state produces no value, the refinement
+// must be revoked, and its value mutated to be FALSE.
+//
+// But all the other values that f->refine can hold are read-only pointers
+// that signal something about the argument gathering state:
+//
+// * If VOID_CELL, then refinements are being skipped and the arguments
+//   that follow should not be written to.
+//
+// * If BLANK_VALUE, this is an arg to a refinement that was not used in
+//   the invocation.  No consumption should be performed, arguments should
+//   be written as unset, and any non-unset specializations of arguments
+//   should trigger an error.
+//
+// * If FALSE_VALUE, this is an arg to a refinement that was used in the
+//   invocation but has been *revoked*.  It still consumes expressions
+//   from the callsite for each remaining argument, but those expressions
+//   must not evaluate to any value.
+//
+// * If EMPTY_BLOCK, it's an ordinary arg...and not a refinement.  It will
+//   be evaluated normally but is not involved with revocation.
+//
+// * If EMPTY_STRING, the evaluator's next argument fulfillment is the
+//   left-hand argument of a lookback operation.  After that fulfillment,
+//   it will be transitioned to EMPTY_BLOCK.
+//
+// Because of how this lays out, IS_CONDITIONAL_TRUE() can be used to
+// determine if an argument should be type checked normally...while
+// IS_CONDITIONAL_FALSE() means that the arg's bits must be set to void.
+//
+// These special values are all pointers to read-only cells, but are cast to
+// mutable in order to be held in the same pointer that might write to a
+// refinement to revoke it.  Note that since literal pointers are used, tests
+// like `f->refine == BLANK_VALUE` are faster than `IS_BLANK(f->refine)`.
+//
+#define SKIPPING_REFINEMENT_ARGS m_cast(REBVAL*, VOID_CELL)
+#define ARG_TO_UNUSED_REFINEMENT m_cast(REBVAL*, BLANK_VALUE)
+#define ARG_TO_REVOKED_REFINEMENT m_cast(REBVAL*, FALSE_VALUE)
+#define ORDINARY_ARG m_cast(REBVAL*, EMPTY_BLOCK)
+#define LOOKBACK_ARG m_cast(REBVAL*, EMPTY_STRING)
 
 
 //
@@ -215,16 +258,13 @@ void Do_Core(REBFRM * const f)
 #endif
 
     REBOOL args_evaluate; // set on every iteration (varargs do, EVAL/ONLY...)
-    REBUPT lookahead_flags; // ^-- same, currently not independent EVAL switch
 
     // APPLY and a DO of a FRAME! both use this same code path.
     //
     if (f->flags.bits & DO_FLAG_APPLYING) {
         assert(f->eval_type != REB_0_LOOKBACK); // "APPLY infix" not supported
         args_evaluate = NOT(f->flags.bits & DO_FLAG_NO_ARGS_EVALUATE);
-        lookahead_flags = (f->flags.bits & DO_FLAG_NO_LOOKAHEAD)
-            ? DO_FLAG_NO_LOOKAHEAD
-            : DO_FLAG_LOOKAHEAD;
+        f->refine = ORDINARY_ARG;
         goto do_function_arglist_in_progress;
     }
 
@@ -276,7 +316,7 @@ void Do_Core(REBFRM * const f)
 do_next:;
 
     START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
-    // ^-- sets args_evaluate, lookahead_flags, do_count, Ctrl-C may abort
+    // ^-- sets args_evaluate, do_count, Ctrl-C may abort
 
 reevaluate:;
     //
@@ -301,6 +341,8 @@ reevaluate:;
     case REB_0_LOOKBACK:
         SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
         // f->out must be the infix's left-hand-side arg, may be END
+        
+        f->refine = LOOKBACK_ARG;
         goto do_function_in_gotten;
 
     case REB_FUNCTION:
@@ -311,7 +353,8 @@ reevaluate:;
         else
             SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
 
-        SET_END(f->out); // needs GC-safe data
+        SET_END(f->out); // clear out any previous result (needs GC-safe data)
+        f->refine = ORDINARY_ARG;
 
     do_function_in_gotten:
         assert(IS_FUNCTION(f->gotten));
@@ -351,73 +394,23 @@ reevaluate:;
         // f->out in case that is holding the first argument to an infix
         // function, so f->cell.eval gets used for temporary evaluations.
 
-        assert(f->eval_type == REB_FUNCTION || f->eval_type == REB_0_LOOKBACK);
+    #if !defined(NDEBUG)
+        if (f->eval_type == REB_FUNCTION)
+            assert(f->refine == ORDINARY_ARG);
+        else if (f->eval_type == REB_0_LOOKBACK)
+            assert(f->refine == LOOKBACK_ARG); // transitions to ORDINARY_ARG
+        else
+            assert(FALSE);
+    #endif
 
         f->arg = f->args_head;
         f->param = FUNC_PARAMS_HEAD(f->underlying);
         // f->special is END_CELL, f->args_head, or first specialized value
 
-        // The f->out slot is guarded while a function is gathering its
-        // arguments.  It cannot contain garbage, so it must either be END
-        // or a lookback's first argument (which can also be END).
+        // Same as check before switch.  (do_function_arglist_in_progress:
+        // might have a goto from another point, so we check it again here)
         //
         assert(IS_END(f->out) || f->eval_type == REB_0_LOOKBACK);
-
-        // If a function doesn't want to act as an argument to a function
-        // call or an assignment (e.g. `x: print "don't do this"`) we can
-        // stop it by looking at the frame above.  Note that if a function
-        // frame is running but not fulfilling arguments, that just means
-        // that this is being used in the implementation.
-        //
-        // Must be positioned here to apply to infix, and also so that the
-        // f->param field is initialized (checked by error machinery)
-        //
-        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_PUNCTUATES)) {
-            if (DSP != f->dsp_orig) {
-                switch(VAL_TYPE(DS_TOP)) {
-                case REB_SET_WORD:
-                case REB_SET_PATH:
-                    fail (Error_Punctuator_Hit(f));
-                break;
-                }
-            }
-
-            if (f->prior) {
-                switch (f->prior->eval_type) {
-                case REB_FUNCTION:
-                case REB_0_LOOKBACK:
-                    if (Is_Function_Frame_Fulfilling(f->prior))
-                        fail (Error_Punctuator_Hit(f));
-                    break;
-                }
-            }
-        }
-
-    #if !defined(NDEBUG)
-        //
-        // !!! R3-Alpha had a strange infix "feature":
-        //
-        // `10 = add 5 5` is `true`
-        // `add 5 5 = 10` is `** Script error: expected logic! not integer!`
-        //
-        // `5 + 5 = 10` is `true`
-        // `10 = 5 + 5` is `** Script error: expected logic! not integer!`
-        //
-        // Ren-C rejects this as it does not seem to afford expressiveness
-        // that is compelling enough to warrant it given bad properties:
-        //
-        // `10 = probe 5 + 5` is `true` ;-- why should PROBE affect it?
-        // `10 = x: 5 + 5` is `true` ;-- why should adding SET-WORD! affect it?
-
-        if (LEGACY(OPTIONS_NO_INFIX_LOOKAHEAD))
-            lookahead_flags =
-                (f->eval_type == REB_0_LOOKBACK)
-                    ? DO_FLAG_NO_LOOKAHEAD
-                    : DO_FLAG_LOOKAHEAD;
-    #endif
-
-        // "not a refinement arg, evaluate normally", won't be modified
-        f->refine = m_cast(REBVAL*, EMPTY_BLOCK);
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -425,24 +418,21 @@ reevaluate:;
     //
     //==////////////////////////////////////////////////////////////////==//
 
-        // This loop goes through the parameter and argument slots.  Based on
-        // the parameter type, it may be necessary to "consume" an expression
-        // from values that come after the invokation point.  But not all
-        // params will consume arguments for all calls.  See notes below.
+        // This loop goes through the parameter and argument slots.  Though
+        // the argument slots must be protected from garbage collection once
+        // they are filled, they start out uninitialized.  (The GC has access
+        // to the frame list, so it can examine f->arg and avoid trying to
+        // protect slots that come after it.)
         //
-        // For this one body of code to be able to handle both function
-        // specialization and ordinary invocation, the void type is used as
-        // a signal to have "unspecialized" behavior.  Hence a normal call
-        // just pre-fills all the args with void--which will be overwritten
-        // during the argument fulfillment process (unless they turn out to
-        // be optional in the invocation).
+        // Based on the parameter type, it may be necessary to "consume" an
+        // expression from values that come after the invocation point.  But
+        // not all params will consume arguments for all calls.
         //
-        // To get around that, there's a trick.  An out-of-order refinement
-        // makes a note in the stack about a parameter and arg position that
-        // it sees that it will need to come back to.  It pokes those two
-        // pointers into extra space in the refinement's word on the stack,
-        // since that word isn't using its binding.  See WORD_FLAG_PICKUP for
-        // the type of WORD! that is used to implement this.
+        // This one body of code to is able to handle both function
+        // specialization and ordinary invocation.  f->special is used to
+        // either step through a list of specialized values (with void as a
+        // signal of no specialization), to step through the arguments if
+        // they are just being type checked, or END_CELL otherwise.
 
         enum Reb_Param_Class pclass; // gotos would cross it if inside loop
 
@@ -453,12 +443,12 @@ reevaluate:;
 
     //=//// A /REFINEMENT ARG /////////////////////////////////////////////=//
 
-            // Refinements are checked for first for a reason.  This is to
+            // Refinements are checked first for a reason.  This is to
             // short-circuit based on the `doing_pickups` flag before redoing
             // fulfillments on arguments that have already been handled.
             //
             // The reason an argument might have already been handled is
-            // because refinements have to reach back and be revisited after
+            // that some refinements have to reach back and be revisited after
             // the original parameter walk.  They can't be fulfilled in a
             // single pass because these two calls mean different things:
             //
@@ -467,13 +457,18 @@ reevaluate:;
             //     foo/b/d (1 + 2) (3 + 4) (5 + 6)
             //     foo/d/b (1 + 2) (3 + 4) (5 + 6)
             //
-            // The order of refinements in the definition (b d) might not match
+            // The order of refinements in the definition (b d) may not match
             // what order the refinements are invoked in the path.  This means
             // the "visitation order" of the parameters while walking across
             // parameters in the array might not match the "consumption order"
             // of the expressions that are being fetched from the callsite.
+            //
             // Hence refinements are targeted to be revisited by "pickups"
-            // after the initial parameter walk.
+            // after the initial parameter walk.  An out-of-order refinement
+            // makes a note in the stack about a parameter and arg position
+            // it sees that it will need to come back to.  A REB_VARARGS value
+            // is used to track this (since it holds a symbol and cache of the
+            // parameter and argument position).
 
             if (pclass == PARAM_CLASS_REFINEMENT) {
 
@@ -514,7 +509,7 @@ reevaluate:;
                     if (IS_CONDITIONAL_TRUE(f->arg))
                         f->refine = f->arg; // remember so we can revoke!
                     else
-                        f->refine = BLANK_VALUE; // (read-only)
+                        f->refine = ARG_TO_UNUSED_REFINEMENT; // (read-only)
 
                     ++f->special;
                     goto continue_arg_loop;
@@ -526,7 +521,7 @@ reevaluate:;
 
                 if (f->dsp_orig == DSP) { // no refinements left on stack
                     SET_FALSE(f->arg);
-                    f->refine = BLANK_VALUE; // "don't consume args, ever"
+                    f->refine = ARG_TO_UNUSED_REFINEMENT; // "don't consume"
                     goto continue_arg_loop;
                 }
 
@@ -566,7 +561,7 @@ reevaluate:;
 
                         SET_TRUE(f->arg); // marks refinement used
                         // "consume args later" (promise not to change)
-                        f->refine = m_cast(REBVAL*, VOID_CELL);
+                        f->refine = SKIPPING_REFINEMENT_ARGS;
                         goto continue_arg_loop;
                     }
                 }
@@ -574,7 +569,7 @@ reevaluate:;
                 // Wasn't in the path and not specialized, so not present
                 //
                 SET_FALSE(f->arg);
-                f->refine = BLANK_VALUE; // "don't consume args, ever"
+                f->refine = ARG_TO_UNUSED_REFINEMENT; // "don't consume"
                 goto continue_arg_loop;
             }
 
@@ -640,7 +635,16 @@ reevaluate:;
 
     //=//// IF COMING BACK TO REFINEMENT ARGS LATER, MOVE ON FOR NOW //////=//
 
-            if (f->refine == VOID_CELL) {
+            if (f->refine == SKIPPING_REFINEMENT_ARGS) {
+                //
+                // The GC will protect values up through how far we have
+                // enumerated, so the argument slot cannot be uninitialized
+                // bits once we pass it.  Use a safe trash so that the debug
+                // build will be able to tell if we don't come back and
+                // overwrite it correctly during the pickups phase.
+                //
+                SET_TRASH_SAFE(f->arg);
+
                 if (f->special != END_CELL)
                     ++f->special;
                 goto continue_arg_loop;
@@ -714,9 +718,52 @@ reevaluate:;
             // Unspecialized arguments that do not consume do not need any
             // further processing or checking.  void will always be fine.
             //
-            if (f->refine == BLANK_VALUE) {
+            if (f->refine == ARG_TO_UNUSED_REFINEMENT) {
                 SET_VOID(f->arg);
                 goto continue_arg_loop;
+            }
+
+    //=//// IF LOOKBACK, THEN USE PREVIOUS EXPRESSION RESULT FOR ARG //////=//
+
+            if (f->refine == LOOKBACK_ARG) {
+                //
+                // It is not possible to gather variadic lookback arguments.
+                // SET/LOOKBACK should prohibit functions w/variadic 1st args.
+                //
+                assert(!GET_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC));
+
+                if (IS_END(f->out)) {
+                    if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
+                        fail (Error_No_Arg(FRM_LABEL(f), f->param));
+                    SET_VOID(f->arg);
+                    goto continue_arg_loop;
+                }
+
+                switch (pclass) {
+                case PARAM_CLASS_NORMAL:
+                    break;
+
+                case PARAM_CLASS_HARD_QUOTE:
+                    if (GET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED))
+                        fail (Error_Lookback_Quote_Too_Late(f));
+                    break;
+
+                case PARAM_CLASS_SOFT_QUOTE:
+                    if (GET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED))
+                        fail (Error_Lookback_Quote_Too_Late(f));
+                    if (IS_SET_WORD(f->out) || IS_SET_PATH(f->out))
+                        fail (Error_Lookback_Quote_Set_Soft(f));
+                    break;
+
+                default:
+                    assert(FALSE);
+                }
+
+                f->refine = ORDINARY_ARG;
+
+                *f->arg = *f->out;
+                SET_END(f->out);
+                goto check_arg;
             }
 
     //=//// VARIADIC ARG (doesn't consume anything *yet*) /////////////////=//
@@ -743,6 +790,12 @@ reevaluate:;
                 // arg slots).  To help cue that it's not necessarily a
                 // completed context yet, we store it as an array type.
                 //
+                // Since we are putting the frame context into a REBVAL that
+                // may have an indefinite lifetime, it will need to be managed.
+                // We can't manage it *yet* because the frame is only partly
+                // constructed, so that's currently the job of dispatchers that
+                // allow variadic arguments.
+                //
                 Context_For_Frame_May_Reify_Core(f);
                 f->arg->extra.binding = f->varlist;
 
@@ -752,6 +805,11 @@ reevaluate:;
             }
 
     //=//// AFTER THIS, PARAMS CONSUME FROM CALLSITE IF NOT APPLY ////////=//
+
+            assert(
+                f->refine == ORDINARY_ARG
+                || IS_LOGIC(f->refine) && IS_CONDITIONAL_TRUE(f->refine)
+            );
 
     //=//// ERROR ON END MARKER, BAR! IF APPLICABLE //////////////////////=//
 
@@ -763,11 +821,11 @@ reevaluate:;
                 goto continue_arg_loop;
             }
 
-            // Literal expression barriers cannot be consumed in normal
-            // evaluation, even if the argument takes a BAR!.  It must come
-            // through non-literal means(e.g. `quote '|` or `first [|]`)
+            // Literal expression barriers cannot be consumed, even if the
+            // argument takes a BAR!, or even if there is quoting.
+            // It must come through other means (e.g. `'|` or `first [|]`)
             //
-            if (args_evaluate && IS_BAR(f->value)) {
+            if (IS_BAR(f->value)) {
                 if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                     fail (Error(RE_EXPRESSION_BARRIER));
 
@@ -775,102 +833,71 @@ reevaluate:;
                 goto continue_arg_loop;
             }
 
-    //=//// REGULAR ARG-OR-REFINEMENT-ARG (consumes a DO/NEXT's worth) ////=//
+   //=//// IF EVAL/ONLY SEMANTICS, TAKE NEXT ARG WITHOUT EVALUATION //////=//
 
-            if (pclass == PARAM_CLASS_NORMAL) {
-                if (f->eval_type == REB_0_LOOKBACK) {
-                    f->eval_type = REB_FUNCTION;
-
-                    if (IS_END(f->out)) {
-                        if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
-                            fail (Error_No_Arg(FRM_LABEL(f), f->param));
-
-                        SET_VOID(f->arg);
-                        goto continue_arg_loop;
-                    }
-
-                    *f->arg = *f->out;
-                    SET_END(f->out);
-                }
-                else if (args_evaluate) {
-                    DO_NEXT_REFETCH_MAY_THROW(f->arg, f, lookahead_flags);
-
-                    if (THROWN(f->arg)) {
-                        *f->out = *f->arg;
-                        Abort_Function_Args_For_Frame(f);
-                        goto finished;
-                    }
-                }
-                else
-                    QUOTE_NEXT_REFETCH(f->arg, f); // no VALUE_FLAG_EVALUATED
-
+            if (!args_evaluate) {
+                QUOTE_NEXT_REFETCH(f->arg, f); // non-VALUE_FLAG_EVALUATED
                 goto check_arg;
             }
+
+            switch (pclass) {
+
+   //=//// REGULAR ARG-OR-REFINEMENT-ARG (consumes a DO/NEXT's worth) ////=//
+
+            case PARAM_CLASS_NORMAL:
+                //
+                // The default for evaluated parameters is to do normal
+                // infix lookahead, e.g. `square 1 + 2` would pass 3
+                // to a single-arity function "square".  But if the
+                // argument to square is declared <tight>, it will act as
+                // `(square 1) + 2`, by not applying lookahead to
+                // see the + during the argument evaluation.
+                //
+                DO_NEXT_REFETCH_MAY_THROW(
+                    f->arg,
+                    f,
+                    (GET_VAL_FLAG(f->param, TYPESET_FLAG_TIGHT)
+                        ? DO_FLAG_NO_LOOKAHEAD
+                        : 0)
+                );
+
+                if (THROWN(f->arg)) {
+                    *f->out = *f->arg;
+                    Abort_Function_Args_For_Frame(f);
+                    goto finished;
+                }
+                break;
 
     //=//// HARD QUOTED ARG-OR-REFINEMENT-ARG /////////////////////////////=//
 
-            if (pclass == PARAM_CLASS_HARD_QUOTE) {
-                if (f->eval_type == REB_0_LOOKBACK) {
-                    f->eval_type = REB_FUNCTION;
-
-                    if (IS_END(f->out)) {
-                        if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
-                            fail (Error_No_Arg(FRM_LABEL(f), f->param));
-
-                        SET_VOID(f->arg);
-                        goto continue_arg_loop;
-                    }
-
-                    if (GET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED))
-                        fail (Error_Lookback_Quote_Too_Late(f));
-
-                    *f->arg = *f->out;
-                    SET_END(f->out);
-                }
-                else
-                    QUOTE_NEXT_REFETCH(f->arg, f); // non-VALUE_FLAG_EVALUATED
-
-                goto check_arg;
-            }
+            case PARAM_CLASS_HARD_QUOTE:
+                QUOTE_NEXT_REFETCH(f->arg, f); // non-VALUE_FLAG_EVALUATED
+                break;
 
     //=//// SOFT QUOTED ARG-OR-REFINEMENT-ARG  ////////////////////////////=//
 
-            assert(pclass == PARAM_CLASS_SOFT_QUOTE);
-
-            if (f->eval_type == REB_0_LOOKBACK) {
-                f->eval_type = REB_0_LOOKBACK;
-
-                if (IS_END(f->out)) {
-                    if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
-                        fail (Error_No_Arg(FRM_LABEL(f), f->param));
-
-                    SET_VOID(f->arg);
-                    goto continue_arg_loop;
+            case PARAM_CLASS_SOFT_QUOTE:
+                if (!IS_QUOTABLY_SOFT(f->value)) {
+                    QUOTE_NEXT_REFETCH(f->arg, f); // non-VALUE_FLAG_EVALUATED
+                    goto check_arg;
                 }
 
-                if (GET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED))
-                    fail (Error_Lookback_Quote_Too_Late(f));
-
-                if (IS_SET_WORD(f->out) || IS_SET_PATH(f->out))
-                    fail (Error_Lookback_Quote_Set_Soft(f));
-
-                *f->arg = *f->out;
-                SET_END(f->out);
-            }
-            else if (args_evaluate && IS_QUOTABLY_SOFT(f->value)) {
                 if (EVAL_VALUE_CORE_THROWS(f->arg, f->value, f->specifier)) {
                     *f->out = *f->arg;
                     Abort_Function_Args_For_Frame(f);
                     goto finished;
                 }
+
                 FETCH_NEXT_ONLY_MAYBE_END(f);
-            }
-            else
-                QUOTE_NEXT_REFETCH(f->arg, f); // non-VALUE_FLAG_EVALUATED
+                break;
+
+            default:
+                assert(FALSE);
+        }
 
     //=//// TYPE CHECKING FOR (MOST) ARGS AT END OF ARG LOOP //////////////=//
 
-        check_arg:
+        check_arg:;
 
             // Some arguments can be fulfilled and skip type checking or
             // take care of it themselves.  But normal args pass through
@@ -886,16 +913,26 @@ reevaluate:;
             // information about the mode (see `Reb_Frame.refine` in %sys-do.h)
             //
             assert(
-                f->refine == EMPTY_BLOCK || // f->arg ordinary function arg
-                f->refine == BLANK_VALUE || // f->arg is never-used refinment
-                f->refine == FALSE_VALUE || // revoked, no further changes
+                f->refine == ORDINARY_ARG ||
+                f->refine == LOOKBACK_ARG ||
+                f->refine == ARG_TO_UNUSED_REFINEMENT ||
+                f->refine == ARG_TO_REVOKED_REFINEMENT ||
                 (IS_LOGIC(f->refine) && IS_CONDITIONAL_TRUE(f->refine)) // used
             );
 
             if (IS_VOID(f->arg)) {
-                if (f->refine == EMPTY_BLOCK) {
+                if (IS_LOGIC(f->refine)) {
                     //
-                    // fall through to check ordinary arg for if <opt> is ok
+                    // We can only revoke the refinement if this is the 1st
+                    // refinement arg.  If it's a later arg, then the first
+                    // didn't trigger revocation, or refine wouldn't be logic.
+                    //
+                    if (f->refine + 1 != f->arg)
+                        fail (Error_Bad_Refine_Revoke(f));
+
+                    SET_FALSE(f->refine); // can't re-enable...
+                    f->refine = ARG_TO_REVOKED_REFINEMENT;
+                    goto continue_arg_loop; // don't type check for optionality
                 }
                 else if (IS_CONDITIONAL_FALSE(f->refine)) {
                     //
@@ -906,18 +943,12 @@ reevaluate:;
                     goto continue_arg_loop;
                 }
                 else {
-                    assert(IS_LOGIC(f->refine));
-
-                    // We can only revoke the refinement if this is the 1st
-                    // refinement arg.  If it's a later arg, then the first
-                    // didn't trigger revocation, or refine wouldn't be WORD!
+                    // fall through to check arg for if <opt> is ok
                     //
-                    if (f->refine + 1 != f->arg)
-                        fail (Error_Bad_Refine_Revoke(f));
-
-                    SET_FALSE(f->refine);
-                    f->refine = m_cast(REBVAL*, FALSE_VALUE); // can't reenable
-                    goto continue_arg_loop; // don't type check for optionality
+                    assert(
+                        f->refine == ORDINARY_ARG
+                        || f->refine == LOOKBACK_ARG
+                    );
                 }
             }
             else {
@@ -1093,6 +1124,12 @@ reevaluate:;
         case R_REDO_CHECKED:
             SET_END(f->out);
             f->special = f->args_head;
+            if (f->eval_type == REB_FUNCTION)
+                f->refine = ORDINARY_ARG; // no gathering, but need for assert
+            else {
+                assert(f->eval_type == REB_0_LOOKBACK);
+                f->refine = LOOKBACK_ARG; // no gathering, but need for assert
+            }
             goto do_function_arglist_in_progress;
 
         case R_REDO_UNCHECKED:
@@ -1106,14 +1143,12 @@ reevaluate:;
 
         case R_REEVALUATE:
             args_evaluate = TRUE; // unnecessary?
-            lookahead_flags = DO_FLAG_LOOKAHEAD;
             Drop_Function_Args_For_Frame(f);
             CLEAR_FRAME_LABEL(f);
             goto reevaluate; // we don't move index!
 
         case R_REEVALUATE_ONLY:
             args_evaluate = FALSE;
-            lookahead_flags = DO_FLAG_NO_LOOKAHEAD;
             Drop_Function_Args_For_Frame(f);
             CLEAR_FRAME_LABEL(f);
             goto reevaluate; // we don't move index!
@@ -1125,7 +1160,10 @@ reevaluate:;
         assert(NOT_END(f->out)); // should have overwritten
         assert(NOT(THROWN(f->out))); // throws must be R_OUT_IS_THROWN
 
-        assert(f->eval_type == REB_FUNCTION); // shouldn't have changed
+        assert(
+            f->eval_type == REB_FUNCTION
+            || f->eval_type == REB_0_LOOKBACK
+        ); // shouldn't have changed
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -1143,7 +1181,7 @@ reevaluate:;
         REBVAL *typeset = FUNC_PARAM(f->func, FUNC_NUM_PARAMS(f->func));
         assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
         if (!TYPE_CHECK(typeset, VAL_TYPE(f->out)))
-            fail(Error_Bad_Return_Type(f->label, VAL_TYPE(f->out)));
+            fail (Error_Bad_Return_Type(f->label, VAL_TYPE(f->out)));
     }
 #endif
 
@@ -1271,10 +1309,12 @@ reevaluate:;
             if (f->eval_type != REB_0_LOOKBACK) { // ordinary "prefix" call
                 assert(f->eval_type == REB_FUNCTION);
                 SET_END(f->out);
+                f->refine = ORDINARY_ARG;
                 goto do_function_in_gotten;
             }
 
             Lookback_For_Set_Word_Or_Set_Path(f->out, f);
+            f->refine = LOOKBACK_ARG;
             goto do_function_in_gotten;
         }
 
@@ -1322,6 +1362,20 @@ reevaluate:;
         if (IS_END(f->value))
             fail (Error(RE_NEED_VALUE, DS_TOP)); // e.g. `do [foo:]`
         f->eval_type = VAL_TYPE(f->value);
+
+    #if !defined(NDEBUG)
+        //
+        // !!! In R3-Alpha `10 = 5 + 5` would be an error due to lookahead
+        // suppression from `=`, so it reads as `(10 = 5) + 5`.  However
+        // `10 = x: 5 + 5` would not be an error, as the SET-WORD! caused a
+        // recursion in the evaluator.  For efficiency in Ren-C, SET-WORD!s do
+        // not bear the overhead of state of a recursion.  If it were desired
+        // for seeing a SET-WORD! to override the lookahead suppression, that
+        // would need to be done explicitly.
+        //
+        if (LEGACY(OPTIONS_SETS_UNSUPPRESS_LOOKAHEAD))
+            f->flags.bits &= ~DO_FLAG_NO_LOOKAHEAD;
+    #endif
         goto do_next;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1428,6 +1482,7 @@ reevaluate:;
             f->cell = *f->out;
             f->gotten = &f->cell;
             SET_END(f->out);
+            f->refine = ORDINARY_ARG;
             goto do_function_in_gotten;
         }
 
@@ -1470,6 +1525,14 @@ reevaluate:;
         if (IS_END(f->value))
             fail (Error(RE_NEED_VALUE, DS_TOP)); // `do [a/b/c:]` is illegal
         f->eval_type = VAL_TYPE(f->value);
+
+    #if !defined(NDEBUG)
+        //
+        // !!! See remarks on REB_SET_WORD
+        //
+        if (LEGACY(OPTIONS_SETS_UNSUPPRESS_LOOKAHEAD))
+            f->flags.bits &= ~DO_FLAG_NO_LOOKAHEAD;
+    #endif
         goto do_next;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1540,28 +1603,22 @@ reevaluate:;
 
     // SET-WORD! and SET-PATH! jump to `do_next:`, so they don't fall through
     // to this point.  We'll only get here if an expression completed to
-    // assign -or- if the left hand side of an infix is ready (hence, not
-    // quite yet ready to assign).
+    // assign -or- if the left hand side of an infix is ready.
+    //
+    // `x: 1 + 2` does not want to push the X:, then get a 1, then assign the
+    // 1...it needs to wait.  The pending sets are not flushed until the
+    // infix operation has finished. 
 
     if (IS_END(f->value)) {
         Do_Pending_Sets_May_Invalidate_Gotten(f->out, f); // don't care if does
         goto finished;
     }
 
-    enum Reb_Kind eval_type_last;
-    eval_type_last = f->eval_type;
-
     f->eval_type = VAL_TYPE(f->value);
 
     if (f->flags.bits & DO_FLAG_NO_LOOKAHEAD) {
         //
-        // Don't do infix lookahead if asked *not* to look.  It's not typical
-        // to be requested by callers (there is already no infix lookahead
-        // by using DO_FLAG_EVAL_ONLY, so those cases don't need to ask.)
-        //
-        // However, recursive cases of DO disable infix dispatch if they are
-        // currently processing an infix operation.  The currently processing
-        // operation is thus given "higher precedence" by this disablement.
+        // Don't do infix lookahead if asked *not* to look.  See also: <tight>
     }
     else if (f->eval_type == REB_WORD) {
 
@@ -1590,7 +1647,7 @@ reevaluate:;
     //=//// IT'S INFIX OR WE'RE DOING TO THE END...DISPATCH LIKE WORD /////=//
 
         START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
-        // ^-- sets args_evaluate, lookahead_flags, do_count, Ctrl-C may abort
+        // ^-- sets args_evaluate, do_count, Ctrl-C may abort
 
         if (!f->gotten) { // <-- DO_COUNT_BREAKPOINT landing spot
             REBVAL specified;
@@ -1603,13 +1660,30 @@ reevaluate:;
             goto do_word_in_value; // may need to refetch, lookbacks see end
         }
 
-        // If a previous "infix" call had 0 arguments and didn't consume
-        // the value before it, assume that means it's a 0-arg barrier
-        // that does not want to be the left hand side of another infix.
-        //
         if (f->eval_type == REB_0_LOOKBACK) {
-            if (eval_type_last == REB_0_LOOKBACK)
-                fail (Error_Infix_Left_Arg_Prohibited(f));
+            if (
+                GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG)
+                && (
+                    (f->flags.bits & DO_FLAG_VARIADIC_TAKE)
+                    || (f->prior && Fulfilling_Last_Argument(f->prior))
+                )
+            ){
+                // This is the special case; we have a lookback function
+                // pending but it wants to defer its first argument as
+                // long as possible--and we're on the last parameter of
+                // some function.  Skip the "lookahead" and let whoever
+                // is gathering arguments (or whoever's above them) finish
+                // the expression before taking the pending operation.
+            }
+            else {
+                // Don't defer and don't flush the sets... we want to set any
+                // pending SET-WORD!s or SET-PATH!s to the *result* of this
+                // lookback expression.
+                //
+                SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
+                f->refine = LOOKBACK_ARG;
+                goto do_function_in_gotten;
+            }
         }
         else {
             Do_Pending_Sets_May_Invalidate_Gotten(f->out, f);
@@ -1617,10 +1691,10 @@ reevaluate:;
                 goto do_word_in_value; // pay for refetch, lookbacks see end
 
             SET_END(f->out);
+            SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
+            f->refine = ORDINARY_ARG;
+            goto do_function_in_gotten;
         }
-
-        SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
-        goto do_function_in_gotten;
     }
 
     Do_Pending_Sets_May_Invalidate_Gotten(f->out, f);

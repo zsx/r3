@@ -43,10 +43,13 @@
 //
 REBNATIVE(and_q)
 {
-    if (IS_CONDITIONAL_TRUE(D_ARG(1)) && IS_CONDITIONAL_TRUE(D_ARG(2)))
+    PARAM(1, value1);
+    PARAM(2, value2);
+
+    if (IS_CONDITIONAL_TRUE(ARG(value1)) && IS_CONDITIONAL_TRUE(ARG(value2)))
         return R_TRUE;
-    else
-        return R_FALSE;
+
+    return R_FALSE;
 }
 
 
@@ -66,8 +69,8 @@ REBNATIVE(nor_q)
 
     if (IS_CONDITIONAL_FALSE(ARG(value1)) && IS_CONDITIONAL_FALSE(ARG(value2)))
         return R_TRUE;
-    else
-        return R_FALSE;
+
+    return R_FALSE;
 }
 
 
@@ -87,8 +90,8 @@ REBNATIVE(nand_q)
 
     if (IS_CONDITIONAL_TRUE(ARG(value1)) && IS_CONDITIONAL_TRUE(ARG(value2)))
         return R_FALSE;
-    else
-        return R_TRUE;
+
+    return R_TRUE;
 }
 
 
@@ -118,10 +121,13 @@ REBNATIVE(not_q)
 //
 REBNATIVE(or_q)
 {
-    if (IS_CONDITIONAL_TRUE(D_ARG(1)) || IS_CONDITIONAL_TRUE(D_ARG(2)))
+    PARAM(1, value1);
+    PARAM(2, value2);
+
+    if (IS_CONDITIONAL_TRUE(ARG(value1)) || IS_CONDITIONAL_TRUE(ARG(value2)))
         return R_TRUE;
-    else
-        return R_FALSE;
+
+    return R_FALSE;
 }
 
 
@@ -136,11 +142,15 @@ REBNATIVE(or_q)
 //
 REBNATIVE(xor_q)
 {
+    PARAM(1, value1);
+    PARAM(2, value2);
+
     // Note: no boolean ^^ in C; normalize to booleans and check unequal
-    if (!IS_CONDITIONAL_TRUE(D_ARG(1)) != !IS_CONDITIONAL_TRUE(D_ARG(2)))
+    //
+    if (!IS_CONDITIONAL_TRUE(ARG(value1)) != !IS_CONDITIONAL_TRUE(ARG(value2)))
         return R_TRUE;
-    else
-        return R_FALSE;
+
+    return R_FALSE;
 }
 
 

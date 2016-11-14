@@ -1,4 +1,4 @@
-# vim: ts=2 shiftwidth=2 filetype=CMAKE expandtab
+# vim: ts=4 shiftwidth=4 filetype=cmake expandtab
 
 #
 # Sample command lines:
@@ -11,8 +11,6 @@
 #
 
 cmake_minimum_required (VERSION 2.8)
-
-set (CMAKE_OSX_DEPLOYMENT_TARGET 10.7)
 
 project (Rebol3 C CXX)
 
@@ -32,7 +30,10 @@ macro(add_c_and_cxx_flags flags)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${flags}")
 endmacro()
 
-
+#Only interpret if() arguments as variables or keywords when unquoted
+if (POLICY CMP0054)
+  cmake_policy(SET CMP0054 NEW)
+endif ()
 
 set (TOP_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../src")
 set (TOP_GENERATED_SRC_DIR "${CMAKE_CURRENT_BINARY_DIR}/src")
@@ -43,6 +44,8 @@ set (AGG_DIR "${TOP_SRC_DIR}/agg")
 set (TOOLS_DIR "${TOP_SRC_DIR}/tools")
 set (EXTERNAL_DIR "${TOP_SRC_DIR}/../external")
 set (FFI_DIR "${EXTERNAL_DIR}/libffi")
+set (TCC_DIR "${EXTERNAL_DIR}/tcc")
+
 if(CMAKE_HOST_WIN32)
     set (REBOL "${CMAKE_CURRENT_BINARY_DIR}/r3-make.exe")
 else()
@@ -51,6 +54,7 @@ endif()
 
 option(R3_EXTERNAL_FFI "Build with external FFI" OFF)
 option(R3_CPP "Build C files as C++" OFF)
+option(R3_WITH_TCC "Build with libtcc" OFF)
 option(R3_BUILD_VIEW "Build with view system" OFF)
 
 if (NOT EXISTS ${REBOL})
@@ -68,12 +72,22 @@ if (NOT DEFINED R3_OS_ID)
 endif()
 message("Building Rebol 3 for OS_ID: ${R3_OS_ID}")
 
+string(REPLACE "." ";" OS_ID_LIST ${R3_OS_ID})
+list(GET OS_ID_LIST 1 OS_MAJOR)
+list(GET OS_ID_LIST 2 OS_MINOR)
+message("OS: ${OS_MAJOR}.${OS_MINOR}")
+if (NOT DEFINED OS_MAJOR OR NOT DEFINED OS_MINOR)
+    message(FATAL_ERROR "Unrecognized R3_OS_ID: ${R3_OS_ID}")
+endif()
 set(COMMON_MACROS REB_EXE)
-if (R3_CPP)
-  list(APPEND COMMON_MACROS R3_CPP)
-endif ()
-
-if (WIN32)
+if ("${OS_MAJOR}" STREQUAL "2")
+    set (TO_OSX TRUE)
+    list (APPEND COMMON_MACROS
+        ENDIAN_LITTLE
+        HAS_LL_CONSTS
+        )
+elseif ("${OS_MAJOR}" STREQUAL "3")
+    set (TO_WINDOWS TRUE)
     list (APPEND COMMON_MACROS
         WIN32
         TO_WINDOWS
@@ -82,23 +96,22 @@ if (WIN32)
         _UNICODE
         )
     set(LIBS wsock32 comdlg32)
-elseif (APPLE)
+elseif ("${OS_MAJOR}" STREQUAL "4")
+    set (TO_LINUX TRUE)
     list (APPEND COMMON_MACROS
+        TO_LINUX
         ENDIAN_LITTLE
         HAS_LL_CONSTS
         )
-elseif (UNIX)
-    if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-        list (APPEND COMMON_MACROS
-            TO_LINUX
-            TO_LINUX_X86
-            ENDIAN_LITTLE
-            HAS_LL_CONSTS
-            )
-        set(LIBS m dl)
-    else ()
-        message(FATAL_ERROR "Unsupported Unix system: ${CMAKE_SYSTEM_NAME}")
-    endif ()
+    set(LIBS m dl)
+elseif ("${OS_MAJOR}" STREQUAL "13")
+    set (TO_ANDROID TRUE)
+    list (APPEND COMMON_MACROS
+        TO_ANDROID
+        ENDIAN_LITTLE
+        HAS_LL_CONSTS
+        )
+    set(LIBS m dl)
 else ()
     message(FATAL_ERROR "Unsupported system")
 endif ()
@@ -107,7 +120,6 @@ if (R3_OS_ID STREQUAL "0.2.5")
     set (TO_OSX_X86 TRUE)
     list (APPEND COMMON_MACROS
         TO_OSX_X86
-        TRAP_IS_INT3
         )
     set(CMAKE_OSX_ARCHITECTURE i386)
 elseif (R3_OS_ID STREQUAL "0.2.40")
@@ -115,7 +127,6 @@ elseif (R3_OS_ID STREQUAL "0.2.40")
     list (APPEND COMMON_MACROS
         TO_OSX_X64
         __LP64__
-        TRAP_IS_INT3
         )
     set(CMAKE_OSX_ARCHITECTURE x86_64)
 elseif (R3_OS_ID STREQUAL "0.3.1")
@@ -133,7 +144,6 @@ elseif (R3_OS_ID STREQUAL "0.4.4")
     set (TO_LINUX_X86 TRUE)
     list (APPEND COMMON_MACROS
         TO_LINUX_X86
-        TRAP_IS_INT3
         )
 elseif (R3_OS_ID STREQUAL "0.4.20") #linux arm
     set (TO_LINUX_ARM TRUE)
@@ -144,13 +154,19 @@ elseif (R3_OS_ID STREQUAL "0.4.22") #linux arm64
     set (TO_LINUX_AARCH64 TRUE)
     list (APPEND COMMON_MACROS
         TO_LINUX_AARCH64
+        __LP64__
         )
 elseif (R3_OS_ID STREQUAL "0.4.40") #linux x86_64
     set (TO_LINUX_X64 TRUE)
     list (APPEND COMMON_MACROS
         TO_LINUX_X64
-        __LLP64__
-        TRAP_IS_INT3
+        __LP64__
+        )
+elseif (R3_OS_ID STREQUAL "0.13.2") #android5 arm
+    set (TO_ANDROID5 TRUE)
+    set (TO_ANDROID5_ARM TRUE)
+    list (APPEND COMMON_MACROS
+        TO_ANDROID_ARM
         )
 endif ()
 
@@ -174,7 +190,7 @@ if (MSVC)
     add_c_and_cxx_flags(-D_CRT_SECURE_NO_WARNINGS)
 endif()
 
-if (WIN32 OR CYGWIN)
+if (TO_WINDOWS)
     set (CORE_PLATFORM_SOURCE
         ${OS_DIR}/windows/host-lib.c
         ${OS_DIR}/windows/dev-stdio.c
@@ -199,16 +215,13 @@ else ()
         ${OS_DIR}/posix/host-error.c
         ${OS_DIR}/posix/host-library.c
         ${OS_DIR}/posix/host-process.c
-        ${OS_DIR}/posix/host-thread.c
         ${OS_DIR}/posix/host-time.c
+        ${OS_DIR}/posix/dev-serial.c
         )
-    if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    if (TO_LINUX)
         set (CORE_PLATFORM_SOURCE ${CORE_PLATFORM_SOURCE}
             # Linux has support for ELF format encapping
             ${OS_DIR}/linux/host-encap.c
-
-            # There is a Linux serial device
-            ${OS_DIR}/linux/dev-serial.c
 
             # Linux supports siginfo_t-style signals
             ${OS_DIR}/linux/dev-signal.c
@@ -238,24 +251,25 @@ else ()
     set (FFI_LIBRARIES ffi_s)
 endif ()
 
+if (R3_WITH_TCC)
+    set (COMMON_MACROS ${COMMON_MACROS} WITH_TCC)
+endif ()
+
 #CORE
 set (CORE_SOURCE
     ${CORE_DIR}/a-constants.c
     ${CORE_DIR}/a-globals.c
     ${CORE_DIR}/a-lib.c
-    ${CORE_DIR}/a-stubs.c
-    ${CORE_GENERATED_DIR}/b-boot.c
     ${CORE_DIR}/b-init.c
     ${CORE_DIR}/c-bind.c
+    ${CORE_DIR}/c-context.c
     ${CORE_DIR}/c-do.c
     ${CORE_DIR}/c-eval.c
     ${CORE_DIR}/c-error.c
-    ${CORE_DIR}/c-frame.c
     ${CORE_DIR}/c-function.c
     ${CORE_DIR}/c-path.c
     ${CORE_DIR}/c-port.c
     ${CORE_DIR}/c-signal.c
-    ${CORE_DIR}/c-task.c
     ${CORE_DIR}/c-word.c
     ${CORE_DIR}/c-value.c
     ${CORE_DIR}/d-break.c
@@ -266,6 +280,7 @@ set (CORE_SOURCE
     ${CORE_DIR}/d-print.c
     ${CORE_DIR}/d-stack.c
     ${CORE_DIR}/d-trace.c
+    ${CORE_DIR}/e-func-symbols.c
     ${CORE_DIR}/f-blocks.c
     ${CORE_DIR}/f-deci.c
     ${CORE_DIR}/f-dtoa.c
@@ -286,10 +301,16 @@ set (CORE_SOURCE
     ${CORE_DIR}/m-series.c
     ${CORE_DIR}/m-stacks.c
     ${CORE_DIR}/n-control.c
+    ${CORE_DIR}/n-crypt.c
     ${CORE_DIR}/n-data.c
+    ${CORE_DIR}/n-do.c
+    ${CORE_DIR}/n-error.c
+    ${CORE_DIR}/n-function.c
     ${CORE_DIR}/n-io.c
     ${CORE_DIR}/n-loop.c
     ${CORE_DIR}/n-math.c
+    ${CORE_DIR}/n-native.c
+    ${CORE_DIR}/n-protect.c
     ${CORE_DIR}/n-reduce.c
     ${CORE_DIR}/n-sets.c
     ${CORE_DIR}/n-strings.c
@@ -313,6 +334,7 @@ set (CORE_SOURCE
     ${CORE_DIR}/s-trim.c
     ${CORE_DIR}/s-unicode.c
     ${CORE_DIR}/t-bitset.c
+    ${CORE_DIR}/t-blank.c
     ${CORE_DIR}/t-block.c
     ${CORE_DIR}/t-char.c
     ${CORE_DIR}/t-datatype.c
@@ -327,7 +349,6 @@ set (CORE_SOURCE
     ${CORE_DIR}/t-logic.c
     ${CORE_DIR}/t-map.c
     ${CORE_DIR}/t-money.c
-    ${CORE_DIR}/t-none.c
     ${CORE_DIR}/t-object.c
     ${CORE_DIR}/t-pair.c
     ${CORE_DIR}/t-port.c
@@ -337,7 +358,6 @@ set (CORE_SOURCE
     ${CORE_DIR}/t-time.c
     ${CORE_DIR}/t-tuple.c
     ${CORE_DIR}/t-typeset.c
-    ${CORE_DIR}/t-utype.c
     ${CORE_DIR}/t-varargs.c
     ${CORE_DIR}/t-vector.c
     ${CORE_DIR}/t-word.c
@@ -426,13 +446,11 @@ set_source_files_properties(
     HEADER_FILE_ONLY TRUE
     )
 
-set(BOOT_OUTPUT
+set (BOOT_HEADER
     ${TOP_GENERATED_SRC_DIR}/include/tmp-evaltypes.inc
     ${TOP_GENERATED_SRC_DIR}/include/tmp-maketypes.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-comptypes.h
     ${TOP_GENERATED_SRC_DIR}/include/reb-types.h
-    ${TOP_GENERATED_SRC_DIR}/include/ext-types.h
-    ${TOP_GENERATED_SRC_DIR}/include/tmp-exttypes.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-bootdefs.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-sysobj.h
     ${TOP_GENERATED_SRC_DIR}/include/reb-dialect.h
@@ -441,13 +459,15 @@ set(BOOT_OUTPUT
     ${TOP_GENERATED_SRC_DIR}/include/tmp-portmodes.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-sysctx.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-boot.h
+    )
+set(BOOT_OUTPUT
+    ${BOOT_HEADER}
     ${CORE_GENERATED_DIR}/b-boot.c
     )
 set(BOOT_DEPENDS
     # all of the files loaded by make-boot.r
     ${TOP_SRC_DIR}/boot/version.r
     ${TOP_SRC_DIR}/boot/types.r
-    ${TOP_SRC_DIR}/boot/types-ext.r
     ${TOP_SRC_DIR}/boot/strings.r
     ${TOP_SRC_DIR}/boot/errors.r
     ${TOP_SRC_DIR}/boot/words.r
@@ -507,23 +527,6 @@ add_custom_command(OUTPUT
     ${BOOT_DEPENDS}
     )
 
-set(EXT_CORE_OUTPUT
-    ${TOP_GENERATED_SRC_DIR}/include/host-ext-core.h
-    )
-
-set(EXT_CORE_DEPENDS
-    ${TOP_SRC_DIR}/boot/core.r
-    )
-
-add_custom_command(OUTPUT
-    ${EXT_CORE_OUTPUT}
-    COMMAND ${REBOL} ${TOOLS_DIR}/core-ext.r OUTDIR=${TOP_GENERATED_SRC_DIR}
-    DEPENDS
-    ${TOOLS_DIR}/core-ext.r
-    ${TOOL_DEPENDS}
-    ${EXT_CORE_DEPENDS}
-    )
-
 set(REB_LIB_OUTPUT
     ${TOP_GENERATED_SRC_DIR}/include/reb-lib.h
     ${TOP_GENERATED_SRC_DIR}/include/reb-lib-lib.h
@@ -548,13 +551,120 @@ add_custom_command(OUTPUT
     )
 
 set (GENERATED_CORE_SOURCE
-    ${HEADER_OUTPUT}
-    ${BOOT_OUTPUT}
-    ${EXT_CORE_OUTPUT}
-    ${REB_LIB_OUTPUT}
     ${CORE_GENERATED_DIR}/b-boot.c
     )
 
+set (GENERATED_CORE_HEADER
+    ${HEADER_OUTPUT}
+    ${REB_LIB_OUTPUT}
+    ${BOOT_HEADER}
+    ${EXT_CORE_OUTPUT}
+    )
+
+if (R3_WITH_TCC)
+    enable_language(ASM)
+    if (XCODE) #Xcode has problem with EXCLUDE_FROM_ALL
+        add_subdirectory(${TCC_DIR} ${CMAKE_CURRENT_BINARY_DIR}/tcc)
+    else ()
+      add_subdirectory(${TCC_DIR} ${CMAKE_CURRENT_BINARY_DIR}/tcc EXCLUDE_FROM_ALL)
+      #add_subdirectory(${TCC_DIR} ${CMAKE_CURRENT_BINARY_DIR}/tcc)
+    endif ()
+    list (APPEND INC ${TCC_DIR})
+
+    set (TCC_ARGS "")
+    foreach (macro ${COMMON_MACROS})
+        list(APPEND TCC_ARGS "-D${macro}")
+    endforeach(macro)
+    foreach (macro ${FFI_INCLUDE_DIRS})
+        list(APPEND TCC_ARGS "-I${macro}")
+    endforeach(macro)
+
+    string (TOLOWER "${CMAKE_BUILD_TYPE}" build_type)
+
+    if ("${build_type}" STREQUAL "debug")
+        set(tcc_c_flags "${CMAKE_C_FLAGS_DEBUG}")
+    elseif ("${build_type}" STREQUAL "minsizerel")
+        set(tcc_c_flags "${CMAKE_C_FLAGS_MINSIZEREL}")
+    elseif ("${build_type}" STREQUAL "relwithdebinfo")
+        set(tcc_c_flags "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
+    elseif ("${build_type}" STREQUAL "release")
+        set(tcc_c_flags "${CMAKE_C_FLAGS_RELEASE}")
+    else ()
+        message (FATAL_ERROR "Unknown CMAKE_BUILD_TYPE: ${build_type}")
+    endif ()
+
+    #flags needs to be a list
+    string(REGEX MATCH "[-/][DI][ \t]*[^ \t]+" interested "${tcc_c_flags}")
+    string(REGEX REPLACE "[-/]([DI])[ \t]*" "-\\1" no_spaces "${interested}")
+
+    string(REGEX REPLACE "[ \t]+" ";" tcc_c_flag_list "${no_spaces}")
+    #message("cflags: ${tcc_c_flag_list}")
+
+    set (SYS_CORE_PREP ${TOP_GENERATED_SRC_DIR}/include/sys-core.i)
+    set (SYS_CORE_HEADER ${TOP_SRC_DIR}/include/sys-core.h)
+
+    set (TCC_DEPENDS "libtcc")
+    message("HOST: ${CMAKE_HOST_SYSTEM} SYSTEM: ${CMAKE_SYSTEM}")
+    if ("${CMAKE_HOST_SYSTEM}" STREQUAL "${CMAKE_SYSTEM}") #native build
+        #
+        # Using `get_target_property(TCC_EXE tcc LOCATION)` causes an error
+        # Explained at https://cmake.org/cmake/help/v3.0/policy/CMP0026.html
+        #
+        set(TCC_EXE "tcc")
+
+        list(APPEND TCC_DEPENDS "tcc")
+    else () #cross-compile
+        set(TCC_EXE ${CMAKE_CURRENT_BINARY_DIR}/cross-tcc)
+        if (NOT EXISTS ${TCC_EXE})
+            message (FATAL_ERROR "Can't find tcc at: ${TCC_EXE}")
+        endif ()
+        list(APPEND tcc_c_flag_list "-nostdlib")
+    endif ()
+    list(APPEND TCC_DEPENDS "r3_libtcc1")
+
+    if (TO_WINDOWS)
+        list(APPEND tcc_c_flag_list "-I${TCC_DIR}/win32/include")
+        list(APPEND tcc_c_flag_list "-DPVAR=TVAR;-DTVAR=extern __attribute__((dllimport))")
+    elseif(TO_ANDROID)
+        list(APPEND tcc_c_flag_list "-I${ANDROID_SYSROOT}/usr/include")
+
+        #FIXME: pretend to be GCC, or it will fail:
+        #In file included from ../src/include/sys-core.h:54:
+        #In file included from /opt/android-ndk/platforms/android-16/arch-arm/usr/include/stdlib.h:31:
+        #/opt/android-ndk/platforms/android-16/arch-arm/usr/include/sys/cdefs.h:277: error: #error "No function renaming possible"
+        #Not sure what problem it could cause, but it worked for %tests/misc/fib.r
+        list(APPEND tcc_c_flag_list "-D__GNUC__")
+    endif ()
+
+    list(APPEND tcc_c_flag_list "-DREN_C_STDIO_OK;-UHAVE_ASAN_INTERFACE_H") #allow stdio.h
+    message("cflags: ${tcc_c_flags}")
+
+    add_custom_command(OUTPUT
+        ${SYS_CORE_PREP}
+        COMMAND ${TCC_EXE} -E -dD -o ${SYS_CORE_PREP} ${SYS_CORE_HEADER} -I${TCC_DIR}/include -I${TOP_GENERATED_SRC_DIR}/include -I${TOP_SRC_DIR}/include -I${TOP_SRC_DIR}/codecs ${TCC_ARGS} ${tcc_c_flag_list}
+        DEPENDS
+        ${TCC_DEPENDS}
+        ${TOOLS_DIR}/make-embedded-header.r
+        ${BOOT_OUTPUT}
+        ${HEADER_OUTPUT}
+        ${SYS_CORE_HEADER}
+        ${TOP_GENERATED_SRC_DIR}/include/host-lib.h
+        VERBATIM
+        )
+
+    add_custom_command(OUTPUT
+        ${CORE_GENERATED_DIR}/e-embedded-header.c
+        COMMAND ${REBOL} ${TOOLS_DIR}/make-embedded-header.r OUTDIR=${TOP_GENERATED_SRC_DIR}
+        DEPENDS
+        ${TOOLS_DIR}/make-embedded-header.r
+        ${SYS_CORE_PREP}
+        )
+
+    list (APPEND GENERATED_CORE_SOURCE ${CORE_GENERATED_DIR}/e-embedded-header.c)
+
+endif()
+
+#HOST
 set_source_files_properties(
     ${TOP_GENERATED_SRC_DIR}/include/host-table.inc
     PROPERTIES
@@ -601,7 +711,6 @@ set (OS_SOURCE
     ${OS_DIR}/host-args.c
     ${OS_DIR}/host-device.c
     ${OS_DIR}/host-stdio.c
-    ${OS_DIR}/host-core.c
     ${OS_DIR}/host-table.c
     ${OS_DIR}/dev-net.c
     ${OS_DIR}/dev-dns.c
@@ -610,7 +719,7 @@ set (OS_SOURCE
     )
 
 set (GENERATED_OS_SOURCE
-    ${EXT_OS_OUTPUT}
+    ${TOP_GENERATED_SRC_DIR}/include/host-table.inc
     )
 
 if(NOT (MSVC_IDE OR XCODE))
@@ -620,48 +729,91 @@ if(NOT (MSVC_IDE OR XCODE))
         COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/clean-generated.cmake
         )
 endif()
-add_library(libr3_core_core OBJECT ${CORE_SOURCE} ${GENERATED_CORE_SOURCE} ${GENERATED_OS_SOURCE})
-add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> ${OS_SOURCE})
+
+#get rid of '-rdynamic' option at link stage
+#Do not add flags to export symbols from executables without the ENABLE_EXPORTS target property.
+#https://cmake.org/cmake/help/v3.4/policy/CMP0065.html
+if (POLICY CMP0065)
+  cmake_policy(SET CMP0065 NEW)
+else ()
+    if (LINUX)
+        if (CMAKE_COMILER_IS_GNUCC)
+            set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
+        endif()
+        if (CMAKE_COMILER_IS_GNUCXX)
+            set(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "")
+        endif ()
+    endif (LINUX)
+endif ()
+
+add_library(libr3_core_core OBJECT ${CORE_SOURCE} ${GENERATED_CORE_SOURCE} ${GENERATED_CORE_HEADER} ${GENERATED_OS_SOURCE})
+
+if(R3_WITH_TCC)
+    add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> $<TARGET_OBJECTS:r3_libtcc1> $<TARGET_OBJECTS:libtcc> ${OS_SOURCE})
+else()
+    add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> ${OS_SOURCE})
+endif()
+
 target_include_directories(libr3_core_core PUBLIC
         ${TOP_GENERATED_SRC_DIR}/include
         ${TOP_SRC_DIR}/include
         ${TOP_SRC_DIR}/codecs
         ${FFI_INCLUDE_DIRS}
+        ${INC}
         )
 target_include_directories(r3-core PUBLIC
         ${TOP_GENERATED_SRC_DIR}/include
         ${TOP_SRC_DIR}/include
         ${TOP_SRC_DIR}/codecs
         ${FFI_INCLUDE_DIRS}
+        ${INC}
         )
 target_compile_definitions(libr3_core_core PUBLIC REB_API REB_CORE ${COMMON_MACROS})
-if (WIN32)
+if (TO_WINDOWS)
     #WINSYS_WIN32 is needed for dev-event.c
     target_compile_definitions(r3-core PUBLIC REB_CORE REB_EXE WINSYS_WIN32 ${COMMON_MACROS})
 else ()
     target_compile_definitions(r3-core PUBLIC REB_CORE REB_EXE ${COMMON_MACROS})
 endif ()
 
+set (EXTRA_C_FLAGS "")
+set (R3_CORE_SOURCE
+    ${CORE_SOURCE}
+    ${GENERATED_CORE_SOURCE}
+    ${OS_SOURCE}
+    ${GENERATED_OS_SOURCE}
+    )
 # Build as C by default, but there are extra checks if you build as C++
 # NOTE: The library code will not be binary compatible in -debug- builds as
 # C++, so a C++ debug client cannot be used with a C built debug Rebol
 #
 if (R3_CPP)
-    set_property(SOURCE ${CORE_SOURCE} PROPERTY LANGUAGE CXX)
-    set_property(SOURCE ${OS_SOURCE} PROPERTY LANGUAGE CXX)
-    set_property(SOURCE {GENERATED_OS_SOURCE} PROPERTY LANGUAGE CXX)
+    set_property(SOURCE ${R3_CORE_SOURCE} PROPERTY LANGUAGE CXX)
+    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+        #to get rid of this clang warning:
+        #warning: treating 'c' input as 'c++' when in C++ mode, this behavior is deprecated
+        set(EXTRA_C_FLAGS "${EXTRA_C_FLAGS} -x c++")
+        #warning: 50 enumeration values not handled in switch: 'REB_0', 'REB_FUNCTION', 'REB_BAR'... [-Wswitch]
+        set(EXTRA_C_FLAGS "${EXTRA_C_FLAGS} -Wno-switch")
+    endif ()
     set_target_properties(r3-core PROPERTIES LINKER_LANGUAGE CXX)
+else ()
+    if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+        set(EXTRA_C_FLAGS "${EXTRA_C_FLAGS} -Wno-switch")
+    endif()
 endif()
+message("Extra compile flags: ${EXTRA_C_FLAGS}")
+set_property(SOURCE ${R3_CORE_SOURCE} PROPERTY COMPILE_FLAGS ${EXTRA_C_FLAGS})
 
 if (DEFINED LINK_FLAGS)
     set_target_properties(r3-core PROPERTIES LINK_FLAGS ${LINK_FLAGS})
 endif()
 
-target_link_libraries(r3-core ${LIBS} ${FFI_LIBRARIES})
+if (TO_ANDROID5)
+    list(APPEND LIBS "-fPIC -fPIE")
+endif ()
 
-if (NOT R3_EXTERNAL_FFI)
-    add_dependencies(r3-core ffi_s)
-endif()
+target_link_libraries(r3-core ${LIBS} ${FFI_LIBRARIES})
 
 if (R3_BUILD_VIEW)
     include(CMakeLists-view.txt)

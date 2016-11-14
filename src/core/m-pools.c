@@ -911,6 +911,7 @@ REBSER *Make_Series(REBCNT capacity, REBYTE wide, REBCNT flags)
         SER_SET_WIDE(s, wide);
         SET_SER_FLAGS(s, SERIES_FLAG_EXTERNAL | SERIES_FLAG_HAS_DYNAMIC);
         s->content.dynamic.rest = capacity;
+        s->content.dynamic.len = 0;
     }
     else if ((flags & MKS_ARRAY) && capacity <= 2) {
         //
@@ -1522,45 +1523,13 @@ void GC_Kill_Series(REBSER *s)
 }
 
 
-//
-//  Free_Series: C
-// 
-// Free a series, returning its memory for reuse.  You can only
-// call this on series that are not managed by the GC.
-//
-void Free_Series(REBSER *s)
+inline static void Drop_Manual_Series(REBSER *s)
 {
     REBSER ** const last_ptr
         = &cast(REBSER**, GC_Manuals->content.dynamic.data)[
             GC_Manuals->content.dynamic.len - 1
         ];
 
-#if !defined(NDEBUG)
-    //
-    // If a series has already been freed, we'll find out about that
-    // below indirectly, so better in the debug build to get a clearer
-    // error that won't be conflated with a possible tracking problem
-    //
-    if (IS_FREE_NODE(s)) {
-        Debug_Fmt("Trying to Free_Series() on an already freed series");
-        Panic_Series(s);
-    }
-
-    // We can only free a series that is not under management by the
-    // garbage collector
-    //
-    if (IS_SERIES_MANAGED(s)) {
-        Debug_Fmt("Trying to Free_Series() on a series managed by GC.");
-        Panic_Series(s);
-    }
-
-    // Update the do count to be the count on which the series was freed
-    //
-    s->do_count = TG_Do_Count;
-#endif
-
-    // Note: Code repeated in Manage_Series()
-    //
     assert(GC_Manuals->content.dynamic.len >= 1);
     if (*last_ptr != s) {
         //
@@ -1589,6 +1558,42 @@ void Free_Series(REBSER *s)
     // !!! Should GC_Manuals ever shrink or save memory?
     //
     GC_Manuals->content.dynamic.len--;
+}
+
+
+//
+//  Free_Series: C
+// 
+// Free a series, returning its memory for reuse.  You can only
+// call this on series that are not managed by the GC.
+//
+void Free_Series(REBSER *s)
+{
+#if !defined(NDEBUG)
+    //
+    // If a series has already been freed, we'll find out about that
+    // below indirectly, so better in the debug build to get a clearer
+    // error that won't be conflated with a possible tracking problem
+    //
+    if (IS_FREE_NODE(s)) {
+        Debug_Fmt("Trying to Free_Series() on an already freed series");
+        Panic_Series(s);
+    }
+
+    // We can only free a series that is not under management by the
+    // garbage collector
+    //
+    if (IS_SERIES_MANAGED(s)) {
+        Debug_Fmt("Trying to Free_Series() on a series managed by GC.");
+        Panic_Series(s);
+    }
+
+    // Update the do count to be the count on which the series was freed
+    //
+    s->do_count = TG_Do_Count;
+#endif
+
+    Drop_Manual_Series(s);
 
     // With bookkeeping done, use the same routine the GC uses to free
     //
@@ -1678,46 +1683,18 @@ void Widen_String(REBSER *s, REBOOL preserve)
 // containing that series.  When these copies are made, it's
 // no longer safe to assume it's okay to free the original.
 //
-void Manage_Series(REBSER *series)
+void Manage_Series(REBSER *s)
 {
-    REBSER ** const last_ptr
-        = &cast(REBSER**, GC_Manuals->content.dynamic.data)[
-            GC_Manuals->content.dynamic.len - 1
-        ];
-
 #if !defined(NDEBUG)
-    if (IS_SERIES_MANAGED(series)) {
+    if (IS_SERIES_MANAGED(s)) {
         Debug_Fmt("Attempt to manage already managed series");
-        Panic_Series(series);
+        Panic_Series(s);
     }
 #endif
 
-    series->header.bits |= REBSER_REBVAL_FLAG_MANAGED;
+    s->header.bits |= REBSER_REBVAL_FLAG_MANAGED;
 
-    // Note: Code repeated in Free_Series()
-    //
-    assert(GC_Manuals->content.dynamic.len >= 1);
-    if (*last_ptr != series) {
-        //
-        // If the series is not the last manually added series, then
-        // find where it is, then move the last manually added series
-        // to that position to preserve it when we chop off the tail
-        // (instead of keeping the series we want to free).
-        //
-        REBSER **current_ptr = last_ptr - 1;
-        while (*current_ptr != series) {
-            assert(
-                current_ptr
-                > cast(REBSER**, GC_Manuals->content.dynamic.data)
-            );
-            --current_ptr;
-        }
-        *current_ptr = *last_ptr;
-    }
-
-    // !!! Should GC_Manuals ever shrink or save memory?
-    //
-    GC_Manuals->content.dynamic.len--;
+    Drop_Manual_Series(s);
 }
 
 

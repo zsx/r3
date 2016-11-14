@@ -89,7 +89,7 @@ static void Bind_Values_Inner_Loop(
         }
         else if (
             IS_FUNCTION(value)
-            && IS_FUNCTION_PLAIN(value)
+            && IS_FUNCTION_INTERPRETED(value)
             && (flags & BIND_FUNC)
         ) {
             // !!! Likely-to-be deprecated functionality--rebinding inside the
@@ -343,7 +343,7 @@ void Rebind_Values_Deep(
                 );
             }
         }
-        else if (IS_FUNCTION(value) && IS_FUNCTION_PLAIN(value)) {
+        else if (IS_FUNCTION(value) && IS_FUNCTION_INTERPRETED(value)) {
             //
             // !!! Extremely questionable feature--walking into function
             // bodies and changing them.  This R3-Alpha concept was largely

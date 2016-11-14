@@ -75,7 +75,7 @@ default: enfix proc [
     <local>
         gotten
 ][
-    unless all [any-value? gotten: get/opt target | not blank? gotten] [
+    unless all [any-value? gotten: get/opt target | not blank? :gotten] [
         set target either maybe [block! function!] :value [
             do :value
         ][
@@ -190,7 +190,11 @@ make-action: func [
         )
         any [set other: [word! | path!] (bind new-body get other)]
     |
-        <with> any [set other: [word! | path!] (append exclusions other)]
+        <with> any [
+            set other: [word! | path!] (append exclusions other)
+        |
+            string! ;-- skip over as commentary
+        ]
     |
         <static> (
             unless statics [
@@ -351,9 +355,8 @@ redescribe: function [
 
     ; For efficiency, objects are only created on demand by hitting the
     ; required point in the PARSE.  Hence `redescribe [] :foo` will not tamper
-    ; with the meta information at all, while `reescribe [{stuff}] :foo` will
-    ; only manipulate the description.not created unless they are needed by
-    ; hitting the required point in the PARSE of the spec.
+    ; with the meta information at all, while `redescribe [{stuff}] :foo` will
+    ; only manipulate the description.
 
     on-demand-meta: does [
         case/all [
@@ -713,27 +716,36 @@ lambda: function [
     ]
 ]
 
-
 left-bar: func [
     {Expression barrier that evaluates to left side but executes right.}
-    left [<opt> any-value!]
+    return: [<opt> any-value!]
+        {Evaluative result of `left`.}
+    left [<opt> <end> any-value!]
+        {A single complete expression on the left.}
     right [<opt> any-value! <...>]
+        {Any number of expressions on the right.}
 ][
     while [not tail? right] [take right]
     :left
 ]
 
 right-bar: func [
-    <punctuates>
     {Expression barrier that evaluates to first expression on right.}
+    return: [<opt> any-value!]
+        {Evaluative result of first of the right expressions.}
+    left [<opt> <end> any-value!]
+        {A single complete expression on the left.}
     right [<opt> any-value! <...>]
+        {Any number of expressions on the right.}
 ][
     also take right (while [not tail? right] [take right])
 ]
 
+
 once-bar: func [
-    <punctuates>
     {Expression barrier that's willing to only run one expression after it}
+    return: [<opt> any-value!]
+    left [<opt> <end> any-value!]
     right [<opt> any-value! <...>]
     :lookahead [any-value! <...>]
     look:
@@ -741,19 +753,13 @@ once-bar: func [
     also take right (
         unless any [
             tail? right
+                |
             bar? look: first lookahead
-            all [
-                find [word! function!] type-of :look
-                punctuates? :look
-            ]
+                |
+            '|| = look ;-- hack...recognize selfs
         ][
-            ; Can't tell if a PATH! is punctuating w/o risking execution.
-            ; Be conservative. <punctuating> might not be the attribute
-            ; sought after anyway, e.g. `1 + 2 || 3 + 4 print "Hi"` probably
-            ; ought to be an error.  "barrier-like" may be the quality.
-            ;
             fail [
-                "|| expected punctuating expression, found" :look
+                "|| expected single expression, found residual of" :look
             ]
         ]
     )
@@ -770,14 +776,14 @@ use: func [
     ; body may have RETURN words with bindings in them already that we do
     ; not want to disturb with the definitional bindings in the new code.
     ; So that means either using MAKE FUNCTION! (which wouldn't disrupt
-    ; RETURN bindings) or using the more friendly FUNC with <no-return>
+    ; RETURN bindings) or using the more friendly FUNC and `<with> return`
     ; (they do the same thing, just FUNC is arity-2)
     ;
     ; <durable> is used so that the data for the locals will still be
     ; available if any of the words leak out and are accessed after the
     ; execution is finished.
     ;
-    eval func compose [<durable> <no-return> /local (vars)] body
+    eval func compose [<durable> <local> (vars) <with> return] body
 ]
 
 ; Shorthand helper for CONSTRUCT (similar to DOES for FUNCTION).

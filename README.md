@@ -61,6 +61,10 @@ of Rebol's GitHub.
 
 ## Building
 
+There are currently two build systems in Ren-C: plain make files for basic features, and CMake for extended features.
+
+* With plain make files
+
 First get the sources -- from cloning the repository with `git`, or downloading a ZIP:
 
 https://github.com/metaeducation/ren-c/archive/master.zip
@@ -82,6 +86,9 @@ https://github.com/metaeducation/ren-c/blob/master/make/makefile.boot
 *(Note: Ren-C's build process cannot be performed with Rebol2.  It requires R3-Alpha
 or Ren-C itself.  However, it can build using an old pre-open-source R3-Alpha A111.)*
 
+* With CMake
+
+Please see https://github.com/metaeducation/ren-c/wiki/Building-Ren-C-with-CMake
 
 [100]: https://raw.githubusercontent.com/metaeducation/ren-c/master/ren-c-logo.png
 [101]: https://travis-ci.org/metaeducation/ren-c.svg?branch=master

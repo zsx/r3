@@ -105,10 +105,7 @@ REBSER *Compress(
     REBOOL gzip,
     REBOOL raw
 ) {
-    REBCNT buf_size;
-    REBSER *output;
     int ret;
-    z_stream strm;
 
     assert(BYTE_SIZE(input)); // must be BINARY!
 
@@ -116,6 +113,7 @@ REBSER *Compress(
     // if you want it to pick what the library author considers the "worth it"
     // tradeoff of time to generally suggest.
     //
+    z_stream strm;
     strm.zalloc = Z_NULL;
     strm.zfree = Z_NULL;
     strm.opaque = Z_NULL;
@@ -136,12 +134,12 @@ REBSER *Compress(
 
     // http://stackoverflow.com/a/4938401/211160
     //
-    buf_size = deflateBound(&strm, len);
+    REBCNT buf_size = deflateBound(&strm, len);
 
     strm.avail_in = len;
     strm.next_in = BIN_HEAD(input) + index;
 
-    output = Make_Binary(buf_size);
+    REBSER *output = Make_Binary(buf_size);
     strm.avail_out = buf_size;
     strm.next_out = BIN_HEAD(output);
 
@@ -151,8 +149,7 @@ REBSER *Compress(
     if (ret != Z_STREAM_END)
         fail (Error_Compression(&strm, ret));
 
-    SET_BIN_END(output, buf_size - strm.avail_out);
-    SET_SERIES_LEN(output, buf_size - strm.avail_out);
+    TERM_BIN_LEN(output, buf_size - strm.avail_out);
 
     if (gzip) {
         //
@@ -210,19 +207,15 @@ REBSER *Decompress(
     REBOOL gzip,
     REBOOL raw
 ) {
-    struct Reb_State state;
-    REBCTX *error;
-
-    REBCNT buf_size;
-    REBSER *output;
     int ret;
-    z_stream strm;
 
+    z_stream strm;
     strm.zalloc = Z_NULL;
     strm.zfree = Z_NULL;
     strm.opaque = Z_NULL;
     strm.total_out = 0;
 
+    REBCNT buf_size;
     if (gzip || !raw) {
         //
         // Both gzip and Rebol's envelope have the size living in the last
@@ -296,6 +289,9 @@ REBSER *Decompress(
     // Since we do the trap anyway, this is the way we handle explicit errors
     // called in the code below also.
     //
+    struct Reb_State state;
+    REBCTX *error;
+
     PUSH_UNHALTABLE_TRAP(&error, &state);
 
 // The first time through the following code 'error' will be NULL, but...
@@ -311,7 +307,7 @@ REBSER *Decompress(
 
     // Since the initialization succeeded, go ahead and make the output buffer
     //
-    output = Make_Binary(buf_size);
+    REBSER *output = Make_Binary(buf_size);
     strm.avail_out = buf_size;
     strm.next_out = BIN_HEAD(output);
 
@@ -331,47 +327,44 @@ REBSER *Decompress(
             break;
         }
 
-        if (ret == Z_OK) {
-            //
-            // Still more data to come.  Use remaining data amount to guess
-            // size to add.
-            //
-            REBCNT old_size = buf_size;
-
-            if (max >= 0 && buf_size >= cast(REBCNT, max)) {
-                REBVAL temp;
-                SET_INTEGER(&temp, max);
-
-                // NOTE: You can hit this on 'make prep' without doing a full
-                // rebuild.  'make clean' and build again, it should go away.
-                //
-                fail (Error(RE_SIZE_LIMIT, &temp));
-            }
-
-            buf_size = buf_size + strm.avail_in * 3;
-            if (max >= 0 && buf_size > cast(REBCNT, max))
-                buf_size = max;
-
-            assert(strm.avail_out == 0); // !!! is this guaranteed?
-            assert(
-                strm.next_out == BIN_HEAD(output) + old_size - strm.avail_out
-            );
-
-            Extend_Series(output, buf_size - old_size);
-
-            // Extending keeps the content but may realloc the pointer, so
-            // put it at the same spot to keep writing to
-            //
-            strm.next_out = BIN_HEAD(output) + old_size - strm.avail_out;
-
-            strm.avail_out += buf_size - old_size;
-        }
-        else
+        if (ret != Z_OK)
             fail (Error_Compression(&strm, ret));
+
+        // Still more data to come.  Use remaining data amount to guess
+        // size to add.
+        //
+        REBCNT old_size = buf_size;
+
+        if (max >= 0 && buf_size >= cast(REBCNT, max)) {
+            REBVAL temp;
+            SET_INTEGER(&temp, max);
+
+            // NOTE: You can hit this on 'make prep' without doing a full
+            // rebuild.  'make clean' and build again, it should go away.
+            //
+            fail (Error(RE_SIZE_LIMIT, &temp));
+        }
+
+        buf_size = buf_size + strm.avail_in * 3;
+        if (max >= 0 && buf_size > cast(REBCNT, max))
+            buf_size = max;
+
+        assert(strm.avail_out == 0); // !!! is this guaranteed?
+        assert(
+            strm.next_out == BIN_HEAD(output) + old_size - strm.avail_out
+        );
+
+        Extend_Series(output, buf_size - old_size);
+
+        // Extending keeps the content but may realloc the pointer, so
+        // put it at the same spot to keep writing to
+        //
+        strm.next_out = BIN_HEAD(output) + old_size - strm.avail_out;
+
+        strm.avail_out += buf_size - old_size;
     }
 
-    SET_BIN_END(output, strm.total_out);
-    SET_SERIES_LEN(output, strm.total_out);
+    TERM_BIN_LEN(output, strm.total_out);
 
     // !!! Trim if more than 1K extra capacity, review logic
     //

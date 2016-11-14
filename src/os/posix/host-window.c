@@ -30,20 +30,10 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// NOTE to PROGRAMMERS:
+// WARNING: The function declarations here cannot be modified without also
+// modifying those found in the other OS host-lib files!  Do not even modify
+// the argument names.
 //
-//   1. Keep code clear and simple.
-//   2. Document unusual code, reasoning, or gotchas.
-//   3. Use same style for code, vars, indent(4), comments, etc.
-//   4. Keep in mind Linux, OS X, BSD, big/little endian CPUs.
-//   5. Test everything, then test it again.
-//
-
-/* WARNING:
-**     The function declarations here cannot be modified without
-**     also modifying those found in the other OS host-lib files!
-**     Do not even modify the argument names.
-*/
 
 #include <stdlib.h>
 #include <stdio.h>

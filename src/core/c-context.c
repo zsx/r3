@@ -1,6 +1,6 @@
 //
-//  File: %c-frame.c
-//  Summary: "frame management"
+//  File: %c-context.c
+//  Summary: "Management routines for ANY-CONTEXT! key/value storage"
 //  Section: core
 //  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
 //  Homepage: https://github.com/metaeducation/ren-c/
@@ -27,63 +27,42 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-/*
-        This structure is used for:
-
-            1. Modules
-            2. Objects
-            3. Function frame (arguments)
-            4. Closures
-
-        A frame is a block that begins with a special FRAME! value
-        (a datatype that links to the frame word list). That value
-        (SELF) is followed by the values of the words for the frame.
-
-        FRAME BLOCK:                            WORD LIST:
-        +----------------------------+          +----------------------------+
-        |    Frame Datatype Value    |--Series->|         SELF word          |
-        +----------------------------+          +----------------------------+
-        |          Value 1           |          |          Word 1            |
-        +----------------------------+          +----------------------------+
-        |          Value 2           |          |          Word 2            |
-        +----------------------------+          +----------------------------+
-        |          Value ...         |          |          Word ...          |
-        +----------------------------+          +----------------------------+
-
-        The word list holds word datatype values of the structure:
-
-                Type:   word, 'word, :word, word:, /word
-                Symbol: actual symbol
-                Canon:  canonical symbol
-                Typeset: index of the value's typeset, or zero
-
-        This list is used for binding, evaluation, type checking, and
-        can also be used for molding.
-
-        When a frame is cloned, only the value block itself need be
-        created. The word list remains the same. For functions, the
-        value block can be pushed on the stack.
-
-        Frame creation patterns:
-
-            1. Function specification to frame. Spec is scanned for
-            words and datatypes, from which the word list is created.
-            Closures are identical.
-
-            2. Object specification to frame. Spec is scanned for
-            word definitions and merged with parent defintions. An
-            option is to allow the words to be typed.
-
-            3. Module words to frame. They are not normally known in
-            advance, they are collected during the global binding of a
-            newly loaded block. This requires either preallocation of
-            the module frame, or some kind of special scan to track
-            the new words.
-
-            4. Special frames, such as system natives and actions
-            may be created by specific block scans and appending to
-            a given frame.
-*/
+// Contexts are two arrays of equal length, which are linked together to
+// describe "object-like" things (lists of TYPESET! keys and corresponding
+// variable values).  They are used by OBJECT!, PORT!, FRAME!, etc.
+//
+// The REBCTX* is how contexts are passed around as a single pointer.  This
+// pointer is actually just an array REBSER which represents the variable
+// values.  The keylist can be reached through the ->link field of that
+// REBSER, and the [0] value of the variable array is a "canon instance" of
+// whatever kind of REBVAL the context represents.
+//
+//
+//      VARLIST ARRAY:                ---Link-> KEYLIST ARRAY:
+//      +----------------------------+          +----------------------------+
+//      +          "ROOTVAR"         |          |          "ROOTKEY"         |
+//      |  Canon ANY-CONTEXT! Value  |          | Canon FUNCTION!, or blank  |
+//      +----------------------------+          +----------------------------+
+//      |          Value 1           |          |    Typeset w/symbol 1      |
+//      +----------------------------+          +----------------------------+
+//      |          Value 2           |          |    Typeset w/symbol 2      |
+//      +----------------------------+          +----------------------------+
+//      |          Value ...         |          |    Typeset w/symbol 3 ...  |
+//      +----------------------------+          +----------------------------+
+//
+// While R3-Alpha used a special kind of WORD! known as an "unword" for the
+// keys, Ren-C uses a special kind of TYPESET! which can also hold a symbol.
+// The reason is that keylists are common to function paramlists and objects,
+// and typesets are more complex than words (and destined to become even
+// moreso with user defined types).  So it's better to take the small detail
+// of storing a symbol in a typeset rather than try and enhance words to have
+// typeset features.
+//
+// Keylists can be shared between objects, and if the context represents a
+// call FRAME! then the keylist is actually the paramlist of that function
+// being called.  If the keylist is not for a function, then the [0] cell
+// (a.k.a. "ROOTKEY") is currently not used--and set to a BLANK!.
+//
 
 #include "sys-core.h"
 
@@ -166,17 +145,6 @@ REBOOL Expand_Context_Keylist_Core(REBCTX *context, REBCNT delta)
     TERM_ARRAY_LEN(keylist, ARR_LEN(keylist));
 
     return FALSE;
-}
-
-
-//
-//  Ensure_Keylist_Unique_Invalidated: C
-//
-// Returns true if the keylist had to be changed to make it unique.
-//
-REBOOL Ensure_Keylist_Unique_Invalidated(REBCTX *context)
-{
-    return Expand_Context_Keylist_Core(context, 0);
 }
 
 
@@ -272,17 +240,6 @@ REBVAL *Append_Context_Core(
 
 
 //
-//  Append_Context: C
-//
-// Most common appending is not concerned with lookahead bit (e.g. whether the
-// key is infix).  Generally only an issue when copying.
-//
-REBVAL *Append_Context(REBCTX *context, RELVAL *any_word, REBSTR *name) {
-    return Append_Context_Core(context, any_word, name, FALSE);
-}
-
-
-//
 //  Copy_Context_Shallow_Extra: C
 //
 // Makes a copy of a context.  If no extra storage space is requested, then
@@ -322,16 +279,6 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
     INIT_CONTEXT_META(dest, meta); // will be placed on new keylist
 
     return dest;
-}
-
-
-//
-//  Copy_Context_Shallow: C
-//
-// !!! Make this a macro when there's a place to put it.
-//
-REBCTX *Copy_Context_Shallow(REBCTX *src) {
-    return Copy_Context_Shallow_Extra(src, 0);
 }
 
 
@@ -778,7 +725,7 @@ void Rebind_Context_Deep(
 //
 // This routine will *always* make a context with a SELF.  This lacks the
 // nuance that is expected of the generators, which will have an equivalent
-// to <no-return>.
+// to `<with> return` or `<with> leave` to suppress it.
 //
 REBCTX *Make_Selfish_Context_Detect(
     enum Reb_Kind kind,
@@ -926,16 +873,16 @@ REBCTX *Construct_Context(
         opt_parent // parent
     );
 
-    const RELVAL *value = head ? head : END_CELL;
+    if (head == NULL)
+        return context;
 
-    if (head) Bind_Values_Shallow(head, context);
+    Bind_Values_Shallow(head, context);
 
+    const RELVAL *value = head;
     for (; NOT_END(value); value += 2) {
         //
         // !!! Objects are a rewrite in progress; error messages need to
         // be improved.
-
-        REBVAL *var;
 
         if (!IS_SET_WORD(value))
             fail (Error(RE_INVALID_TYPE, Type_Of(value)));
@@ -945,8 +892,7 @@ REBCTX *Construct_Context(
 
         assert(!IS_SET_WORD(value + 1)); // TBD: support set words!
 
-        var = GET_MUTABLE_VAR_MAY_FAIL(value, specifier);
-
+        REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(value, specifier);
         COPY_VALUE(var, value + 1, specifier);
     }
 

@@ -110,6 +110,13 @@ REBARR *List_Func_Typesets(REBVAL *func)
 }
 
 
+enum Reb_Spec_Mode {
+    SPEC_MODE_NORMAL, // words are arguments
+    SPEC_MODE_LOCAL, // words are locals
+    SPEC_MODE_WITH // words are "extern"
+};
+
+
 //
 //  Make_Paramlist_Managed_May_Fail: C
 // 
@@ -149,8 +156,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     assert(ANY_ARRAY(spec));
 
     REBUPT header_bits = 0;
-    if (flags & MKF_PUNCTUATES)
-        header_bits |= FUNC_FLAG_PUNCTUATES;
 
     REBOOL durable = FALSE;
 
@@ -177,12 +182,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     REBOOL has_types = FALSE;
     REBOOL has_notes = FALSE;
 
-    // Trickier case: when the `func` or `proc` natives are used, they
-    // must read the given spec the way a user-space generator might.
-    // They must decide whether to add a specially handled RETURN
-    // local, which will be given a tricky "native" definitional return
-    //
-    REBOOL convert_local = FALSE;
+    enum Reb_Spec_Mode mode = SPEC_MODE_NORMAL;
 
     REBOOL refinement_seen = FALSE;
 
@@ -196,6 +196,14 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //=//// STRING! FOR FUNCTION DESCRIPTION OR PARAMETER NOTE ////////////=//
 
         if (IS_STRING(item)) {
+            //
+            // Consider `[<with> some-extern "description of that extern"]` to
+            // be purely commentary for the implementation, and don't include
+            // it in the meta info.
+            //
+            if (mode == SPEC_MODE_WITH)
+                continue;
+
             if (IS_TYPESET(DS_TOP))
                 DS_PUSH(EMPTY_BLOCK); // need a block to be in position
 
@@ -226,22 +234,14 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             continue;
         }
 
-    //=//// TAGS LIKE <local>, <no-return>, <punctuates>, etc. ////////////=//
+    //=//// TOP-LEVEL SPEC TAGS LIKE <local>, <with> etc. /////////////////=//
 
         if (IS_TAG(item) && (flags & MKF_KEYWORDS)) {
-            if (0 == Compare_String_Vals(item, ROOT_NO_RETURN_TAG, TRUE)) {
-                flags &= ~(MKF_RETURN | MKF_FAKE_RETURN);
-            }
-            else if (0 == Compare_String_Vals(item, ROOT_NO_LEAVE_TAG, TRUE)) {
-                flags &= ~MKF_LEAVE;
-            }
-            else if (
-                0 == Compare_String_Vals(item, ROOT_PUNCTUATES_TAG, TRUE)
-            ) {
-                header_bits |= FUNC_FLAG_PUNCTUATES;
+            if (0 == Compare_String_Vals(item, ROOT_WITH_TAG, TRUE)) {
+                mode = SPEC_MODE_WITH;
             }
             else if (0 == Compare_String_Vals(item, ROOT_LOCAL_TAG, TRUE)) {
-                convert_local = TRUE;
+                mode = SPEC_MODE_LOCAL;
             }
             else if (0 == Compare_String_Vals(item, ROOT_DURABLE_TAG, TRUE)) {
                 //
@@ -258,7 +258,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 durable = TRUE;
             }
             else
-                fail (Error(RE_BAD_FUNC_DEF, item));
+                fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
 
             continue;
         }
@@ -266,8 +266,21 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //=//// BLOCK! OF TYPES TO MAKE TYPESET FROM (PLUS PARAMETER TAGS) ////=//
 
         if (IS_BLOCK(item)) {
-            if (IS_BLOCK(DS_TOP))
-                fail (Error(RE_BAD_FUNC_DEF, item)); // two blocks of types (!)
+            if (IS_BLOCK(DS_TOP)) // two blocks of types!
+                fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
+
+            // You currently can't say `<local> x [integer!]`, because they
+            // are always void when the function runs.  You can't say
+            // `<with> x [integer!]` because "externs" don't have param slots
+            // to store the type in.
+            //
+            // !!! A type constraint on a <with> parameter might be useful,
+            // though--and could be achieved by adding a type checker into
+            // the body of the function.  However, that would be more holistic
+            // than this generation of just a paramlist.  Consider for future.
+            //
+            if (mode != SPEC_MODE_NORMAL)
+                fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
 
             // Save the block for parameter types.
             //
@@ -292,9 +305,10 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                     // No typesets pushed yet, so this is a block before any
                     // parameters have been named.  This was legal in Rebol2
                     // for e.g. `func [[catch] x y][...]`, and R3-Alpha
-                    // ignored it.  Ren-C only tolerates this in <r3-legacy>
+                    // ignored it.  Ren-C only tolerates this in <r3-legacy>,
+                    // (with the tolerance implemented in compatibility FUNC)
                     //
-                    fail (Error(RE_BAD_FUNC_DEF, item));
+                    fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
                 }
 
                 assert(IS_TYPESET(DS_TOP - 2));
@@ -302,7 +316,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 
                 assert(IS_BLOCK(DS_TOP - 1));
                 if (VAL_ARRAY(DS_TOP - 1) != EMPTY_ARRAY)
-                    fail (Error(RE_BAD_FUNC_DEF, item));
+                    fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
 
                 Val_Init_Block(
                     DS_TOP - 1,
@@ -347,21 +361,24 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             continue;
         }
 
-    //=//// BAR! AS LOW-LEVEL MAKE FUNCTION! SIGNAL FOR <punctuates> //////=//
-
-        if (IS_BAR(item)) { // !!! Review this notational choice
-            header_bits |= FUNC_FLAG_PUNCTUATES;
-            continue;
-        }
-
     //=//// ANY-WORD! PARAMETERS THEMSELVES (MAKE TYPESETS w/SYMBOL) //////=//
 
         if (!ANY_WORD(item))
-            fail (Error(RE_BAD_FUNC_DEF, item));
+            fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
 
-        // Make sure symbol not already in the parameter list, and then mark
-        // in the hash table that it is present.  Any non-zero value is ok.
+        // !!! If you say [<with> x /foo y] the <with> terminates and a
+        // refinement is started.  Same w/<local>.  Is this a good idea?
+        // Note that historically, help hides any refinements that appear
+        // behind a /local, but this feature has no parallel in Ren-C.
         //
+        if (mode != SPEC_MODE_NORMAL) {
+            if (IS_REFINEMENT(item)) {
+                mode = SPEC_MODE_NORMAL;
+            }
+            else if (!IS_WORD(item) && !IS_SET_WORD(item))
+                fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
+        }
+
         REBSTR *canon = VAL_WORD_CANON(item);
 
         // In rhythm of TYPESET! BLOCK! STRING! we want to be on a string spot
@@ -394,12 +411,13 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         // All these would cancel a definitional return (leave has same idea):
         //
         //     func [return [integer!]]
-        //     func [/value return]
-        //     func [/local return] ;-- /local is not special in Ren-C
+        //     func [/refinement return]
+        //     func [<local> return]
+        //     func [<with> return]
         //
         // ...although `return:` is explicitly tolerated ATM for compatibility
         // (despite violating the "pure locals are NULL" premise)
-
+        //
         if (STR_SYMBOL(canon) == SYM_RETURN) {
             assert(definitional_return == NULL);
             if (IS_SET_WORD(item))
@@ -415,27 +433,42 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 flags &= ~MKF_LEAVE;
         }
 
+        if (mode == SPEC_MODE_WITH && !IS_SET_WORD(item)) {
+            //
+            // Because FUNC does not do any locals gathering by default, the
+            // main purpose of <with> is for instructing it not to do the
+            // definitional returns.  However, it also makes changing between
+            // FUNC and FUNCTION more fluid.
+            //
+            // !!! If you write something like `func [x <with> x] [...]` that
+            // should be sanity checked with an error...TBD.
+            //
+            DS_DROP; // forge the typeset, used in `definitional_return` case
+            continue;
+        }
+
         switch (VAL_TYPE(item)) {
         case REB_WORD:
+            assert(mode != SPEC_MODE_WITH); // should have continued...
             INIT_VAL_PARAM_CLASS(
                 typeset,
-                convert_local ? PARAM_CLASS_LOCAL : PARAM_CLASS_NORMAL
+                (mode == SPEC_MODE_LOCAL)
+                    ? PARAM_CLASS_LOCAL
+                    : PARAM_CLASS_NORMAL
             );
             if (refinement_seen)
                 VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_MAX_VOID);
             break;
 
         case REB_GET_WORD:
-            if (convert_local)
-                fail (Error(RE_BAD_FUNC_DEF)); // what's a "quoted local"?
+            assert(mode == SPEC_MODE_NORMAL);
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_HARD_QUOTE);
             if (refinement_seen)
                 VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_MAX_VOID);
             break;
 
         case REB_LIT_WORD:
-            if (convert_local)
-                fail (Error(RE_BAD_FUNC_DEF)); // what's a "quoted local"?
+            assert(mode == SPEC_MODE_NORMAL);
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_SOFT_QUOTE);
             if (refinement_seen)
                 VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_MAX_VOID);
@@ -449,17 +482,10 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             // They are checked for TRUE or FALSE but this is done literally
             // by the code.  This means that every refinement has some spare
             // bits available in it for another purpose.
-
-            // A refinement signals us to stop doing the locals conversion.
-            // Historically, help hides any refinements that appear behind a
-            // /local, so presumably it would do the same with <local>...
-            // but this feature does not currently exist in Ren-C.
-            //
-            convert_local = FALSE;
             break;
 
         case REB_SET_WORD:
-            // tolerate as-is if convert_local
+            // tolerate as-is if in <local> or <with> mode...
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_LOCAL);
             //
             // !!! Typeset bits of pure locals also not currently used,
@@ -469,7 +495,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             break;
 
         default:
-            fail (Error(RE_BAD_FUNC_DEF, item));
+            fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
         }
         assert(VAL_PARAM_CLASS(typeset) != PARAM_CLASS_0);
 
@@ -681,7 +707,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     const REBCNT parameter_notes_index = 5;
     REBCTX *meta;
 
-    if (has_description || has_types || has_notes || (flags & MKF_PUNCTUATES)) {
+    if (has_description || has_types || has_notes) {
         meta = Copy_Context_Shallow(VAL_CONTEXT(ROOT_FUNCTION_META));
         MANAGE_ARRAY(CTX_VARLIST(meta));
         ARR_SERIES(paramlist)->link.meta = meta;
@@ -754,14 +780,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         );
     }
 
-    // Enforce BLANK! the return type of all punctuators.  Not to be
-    // confused with returning blank (e.g. a block like [blank!]) and not
-    // to be confused with "no documentation on the matter) e.g. missing
-    // a.k.a. void.  (Should they not be able to have notes either?)
-    //
-    if (flags & MKF_PUNCTUATES)
-        SET_BLANK(CTX_VAR(meta, return_type_index));
-
     // Only make `parameter-notes` if there were strings (besides description)
     //
     if (has_notes) {
@@ -820,6 +838,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //
     DS_DROP_TO(dsp_orig);
 
+    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     return paramlist;
 }
 
@@ -884,18 +903,31 @@ REBFUN *Make_Function(
     assert(rootparam->payload.function.paramlist == paramlist);
     assert(rootparam->extra.binding == NULL); // archetype
 
-    // Precalculate FUNC_FLAG_BRANCHER
+    // Precalculate FUNC_FLAG_BRANCHER and FUNC_FLAG_DEFERS_LOOKBACK_ARG
+    //
+    // Note that these flags are only relevant for *un-refined-calls*.  There
+    // are no lookback function calls via PATH! and brancher dispatch is done
+    // from a raw function value.  HOWEVER: specialization does come into play
+    // because it may change what the first "real" argument is.  But again,
+    // we're only interested in specialization's removal of *non-refinement*
+    // arguments.  Looking at the surface interface is good enough--that is
+    // what will be relevant after the specializations are accounted for.
 
+    REBOOL is_first = TRUE;
     REBVAL *param = KNOWN(rootparam) + 1;
     for (; NOT_END(param); ++param) {
         switch (VAL_PARAM_CLASS(param)) {
         case PARAM_CLASS_LOCAL:
         case PARAM_CLASS_RETURN:
         case PARAM_CLASS_LEAVE:
-            continue; // skip.
+            break; // skip.
 
         case PARAM_CLASS_REFINEMENT:
-            break; // hit before hitting any basic args, so not a brancher
+            //
+            // hit before hitting any basic args, so not a brancher, and not
+            // a candidate for deferring lookback arguments.
+            //
+            goto done_caching;
 
         case PARAM_CLASS_NORMAL:
         case PARAM_CLASS_HARD_QUOTE:
@@ -906,12 +938,18 @@ REBFUN *Make_Function(
             // be delivered by the moment of attempted application.
             //
             SET_VAL_FLAG(rootparam, FUNC_FLAG_MAYBE_BRANCHER);
-            break; }
+
+            if (!GET_VAL_FLAG(param, TYPESET_FLAG_TIGHT))
+                SET_VAL_FLAG(rootparam, FUNC_FLAG_DEFERS_LOOKBACK_ARG);
+
+            goto done_caching; }
 
         default:
             assert(FALSE);
         }
     }
+
+done_caching:;
 
     // The "body" for a function can be any REBVAL.  It doesn't have to be
     // a block--it's anything that the dispatcher might wish to interpret.
@@ -927,16 +965,7 @@ REBFUN *Make_Function(
     // Having a level of indirection from the REBVAL bits themself also
     // facilitates the "Hijacker" to change multiple REBVALs behavior.
 
-    if (dispatcher == &Plain_Dispatcher) {
-        if (GET_VAL_FLAG(rootparam, FUNC_FLAG_RETURN))
-            ARR_SERIES(body_holder)->misc.dispatcher = &Returner_Dispatcher;
-        else if (GET_VAL_FLAG(rootparam, FUNC_FLAG_LEAVE))
-            ARR_SERIES(body_holder)->misc.dispatcher = &Voider_Dispatcher;
-        else
-            ARR_SERIES(body_holder)->misc.dispatcher = &Plain_Dispatcher;
-    }
-    else
-        ARR_SERIES(body_holder)->misc.dispatcher = dispatcher;
+    ARR_SERIES(body_holder)->misc.dispatcher = dispatcher;
 
     // To avoid NULL checking when a function is called and looking for the
     // underlying function, put the functions own pointer in if needed
@@ -1013,7 +1042,7 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
     REBARR *fake_body;
     REBVAL *example = NULL;
 
-    assert(IS_FUNCTION(func) && IS_FUNCTION_PLAIN(func));
+    assert(IS_FUNCTION(func) && IS_FUNCTION_INTERPRETED(func));
 
     REBCNT body_index;
     if (GET_VAL_FLAG(func, FUNC_FLAG_RETURN)) {
@@ -1061,7 +1090,7 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 
 
 //
-//  Make_Plain_Function_May_Fail: C
+//  Make_Interpreted_Function_May_Fail: C
 // 
 // This is the support routine behind `MAKE FUNCTION!`, FUNC, and PROC.
 //
@@ -1101,33 +1130,66 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 // not having definitional return has several alternate options for generators
 // that wish to use them.
 // 
-REBFUN *Make_Plain_Function_May_Fail(
+REBFUN *Make_Interpreted_Function_May_Fail(
     const REBVAL *spec,
     const REBVAL *code,
-    REBFLGS flags
+    REBFLGS mkf_flags // MKF_RETURN, MKF_LEAVE, etc.
 ) {
-    if (!IS_BLOCK(spec) || !IS_BLOCK(code))
-        fail (Error_Bad_Func_Def(spec, code));
+    assert(IS_BLOCK(spec));
+    assert(IS_BLOCK(code));
 
     REBFUN *fun = Make_Function(
-        Make_Paramlist_Managed_May_Fail(spec, flags),
-        &Plain_Dispatcher, // may be overridden?
+        Make_Paramlist_Managed_May_Fail(spec, mkf_flags),
+        &Noop_Dispatcher, // will be overwritten if non-NULL body
         NULL // no underlying function, this is fundamental
     );
 
-    // We need to copy the body in order to relativize its references to
-    // args and locals to refer to the parameter list.  Future implementations
-    // might be able to "image" the bindings virtually, and not require this
-    // copy if the input code is read-only.
+    // We look at the *actual* function flags; e.g. the person may have used
+    // the FUNC generator (with MKF_RETURN) but then named a parameter RETURN
+    // which overrides it, so the value won't have FUNC_FLAG_RETURN.
     //
-    REBARR *body_array =
-        (VAL_ARRAY_LEN_AT(code) == 0)
-            ? EMPTY_ARRAY // just reuse empty array if empty, no copy
-            : Copy_And_Bind_Relative_Deep_Managed(
-                code,
-                FUNC_PARAMLIST(fun),
-                TS_ANY_WORD
-            );
+    REBVAL *value = FUNC_VALUE(fun);
+
+    REBARR *body_array;
+    if (VAL_ARRAY_LEN_AT(code) == 0) {
+        if (GET_VAL_FLAG(value, FUNC_FLAG_RETURN)) {
+            //
+            // Since we're bypassing type checking in the dispatcher for
+            // speed, we need to make sure that the return type allows void
+            // (which is all the Noop dispatcher will return).  If not, we
+            // don't want to fail here (it would reveal the optimization)...
+            // just fall back on the Returner_Dispatcher instead.
+            //
+            REBVAL *typeset = FUNC_PARAM(fun, FUNC_NUM_PARAMS(fun));
+            assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
+            if (!TYPE_CHECK(typeset, REB_MAX_VOID))
+                FUNC_DISPATCHER(fun) = &Returner_Dispatcher;
+        }
+
+        body_array = EMPTY_ARRAY; // just reuse empty array if empty, no copy
+    }
+    else {
+        // Body is not empty, so we need to pick the right dispatcher based
+        // on how the output value is to be handled.
+        //
+        if (GET_VAL_FLAG(value, FUNC_FLAG_RETURN))
+            FUNC_DISPATCHER(fun) = &Returner_Dispatcher; // type checks f->out
+        else if (GET_VAL_FLAG(value, FUNC_FLAG_LEAVE))
+            FUNC_DISPATCHER(fun) = &Voider_Dispatcher; // forces f->out void
+        else
+            FUNC_DISPATCHER(fun) = &Unchecked_Dispatcher; // leaves f->out
+
+        // We need to copy the body in order to relativize its references to
+        // args and locals to refer to the parameter list.  Future work
+        // might be able to "image" the bindings virtually, and not require
+        // this to be copied if the input code is read-only.
+        //
+        body_array = Copy_And_Bind_Relative_Deep_Managed(
+            code,
+            FUNC_PARAMLIST(fun),
+            TS_ANY_WORD
+        );
+    }
 
     // We need to do a raw initialization of this block RELVAL because it is
     // relative to a function.  (Val_Init_Block assumes all specific values)
@@ -1167,9 +1229,6 @@ REBFUN *Make_Plain_Function_May_Fail(
     // each of these views compares uniquely, there's only one series behind
     // it...hence the series must be read only to keep modifying a view
     // that seems to have one identity but then affecting another.
-    //
-    // !!! The above is true in the specific-binding branch, but the rule
-    // is applied to pre-specific-binding to prepare it for that future.
     //
     // !!! This protection needs to be system level, as the user is able to
     // unprotect conventional protection via UNPROTECT.
@@ -1348,6 +1407,7 @@ REBOOL Specialize_Function_Throws(
     }
 
     REBARR *paramlist = Pop_Stack_Values(dsp_orig);
+    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
 
     RELVAL *rootparam = ARR_HEAD(paramlist);
@@ -1388,63 +1448,59 @@ REBOOL Specialize_Function_Throws(
 //
 //  Clonify_Function: C
 // 
-// The "Clonify" interface takes in a raw duplicate value that one
-// wishes to mutate in-place into a full-fledged copy of the value
-// it is a clone of.  This interface can be more efficient than a
-// "source in, dest out" copy...and clarifies the dangers when the
-// source and destination are the same.
+// (A "Clonify" interface takes in a raw duplicate value that one wishes to
+// mutate in-place into a full-fledged copy of the value it is a clone of.
+// This interface can be more efficient than a "source in, dest out" copy...
+// and clarifies the dangers when the source and destination are the same.)
+//
+// !!! Function bodies in R3-Alpha were mutable.  This meant that you could
+// effectively have static data in cases like:
+//
+//     foo: does [static: [] | append static 1]
+//
+// Hence, it was meaningful to be able to COPY a function; because that copy
+// would get any such static state snapshotted at wherever it was in time.
+//
+// Ren-C eliminated this idea.  But functions are still copied in the special
+// case of object "member functions", so that each "derived" object will
+// have functions with bindings to its specific context variables.  Some
+// plans are in the work to use function REBVAL's `binding` parameter to
+// make a lighter-weight way of connecting methods to objects without actually
+// needing to mutate the archetypal REBFUN to do so ("virtual binding").
 //
 void Clonify_Function(REBVAL *value)
 {
-    // !!! Conceptually the only types it currently makes sense to speak of
-    // copying are functions and closures.  Though the concept is a little
-    // bit "fuzzy"...the idea is that the series which are reachable from
-    // their body series by a deep copy would be their "state".  Hence
-    // as a function runs, its "state" can change.  One can thus define
-    // a copy as snapshotting that "state".  This has been the classic
-    // interpretation that Rebol has taken.
+    assert(IS_FUNCTION(value));
 
-    // !!! However, in R3-Alpha a closure's "archetype" (e.g. the one made
-    // by `clos [a] [print a]`) never operates on its body directly... it
-    // is copied each time.  And there is no way at present to get a
-    // reference to a closure "instance" (an ANY-FUNCTION value with the
-    // copied body in it).  This has carried over to <durable> for now.
-
-    // !!! This leaves only one function type that is mechanically
-    // clonable at all... the non-durable FUNCTION!.  While the behavior is
-    // questionable, for now we will suspend disbelief and preserve what
-    // R3-Alpha did until a clear resolution.
-
-    if (!IS_FUNCTION(value) || !IS_FUNCTION_PLAIN(value))
+    // Function compositions point downwards through their layers in a linked
+    // list.  Each step in the chain has identity, and we need a copied
+    // identity for all steps that require a copy and everything *above* it.
+    // So for instance, although R3-Alpha did not see a need to copy natives,
+    // if you ADAPT a native with code, the adapting Rebol code may need to
+    // take into account new bindings to a derived object...just as the body
+    // to an interpreted function would.
+    //
+    // !!! For the moment, this work is not done...and only functions that
+    // are raw interpreted functions are cloned.  That means old code will
+    // stay compatible but new features won't necessarily work the same way
+    // with object binding.  All of this needs to be rethought in light of
+    // "virtual binding" anyway!
+    //
+    if (!IS_FUNCTION_INTERPRETED(value))
         return;
-
-    if (IS_FUNC_DURABLE(VAL_FUNC(value)))
-        return;
-
-    // No need to modify the spec or header.  But we do need to copy the
-    // identifying parameter series, so that the copied function has a
-    // unique identity on the stack from the one it is copying.  Otherwise
-    // two calls on the stack would be seen as recursions of the same
-    // function, sharing each others "stack relative locals".
 
     REBFUN *original_fun = VAL_FUNC(value);
-
-    // Ordinary copying would need to derelatavize all the relative values,
-    // but copying the function to make it the body of another function
-    // requires it to be "re-relativized"--all the relative references that
-    // indicated the original function have to be changed to indicate the
-    // new function.
-    //
     REBARR *paramlist = Copy_Array_Shallow(
         FUNC_PARAMLIST(original_fun),
         SPECIFIED
     );
+    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
     ARR_HEAD(paramlist)->payload.function.paramlist = paramlist;
 
     REBFUN *new_fun = Make_Function(
         paramlist,
-        &Plain_Dispatcher,
+        FUNC_DISPATCHER(original_fun),
         NULL // no underlying function, this is fundamental
     );
 
@@ -1454,11 +1510,9 @@ void Clonify_Function(REBVAL *value)
 
     RELVAL *body = FUNC_BODY(new_fun);
 
-    // Since we rebind the body, we need to instruct the Plain_Dispatcher
+    // Since we rebind the body, we need to instruct the interpreted dispatcher
     // that it's o.k. to tell the frame lookup that it can find variables
-    // under the "new paramlist".  However, in specific binding where
-    // bodies are not copied, you would preserve the "underlying" paramlist
-    // in this slot
+    // under the "new paramlist".
     //
     VAL_RESET_HEADER(body, REB_BLOCK);
     INIT_VAL_ARRAY(
@@ -1492,6 +1546,7 @@ void Clonify_Function(REBVAL *value)
 REB_R Action_Dispatcher(REBFRM *f)
 {
     enum Reb_Kind type = VAL_TYPE(FRM_ARG(f, 1));
+    assert(type < REB_MAX); // actions should not allow void first arguments
     REBSYM sym = STR_SYMBOL(VAL_WORD_SPELLING(FUNC_BODY(f->func)));
     assert(sym != SYM_0);
 
@@ -1501,9 +1556,59 @@ REB_R Action_Dispatcher(REBFRM *f)
 
 
 //
-//  Plain_Dispatcher: C
+//  Noop_Dispatcher: C
 //
-REB_R Plain_Dispatcher(REBFRM *f)
+// If a function's body is an empty block, rather than bother running the
+// equivalent of `DO []` and generating a frame for specific binding, this
+// just returns void.  What makes this a semi-interesting optimization is
+// for functions like ASSERT whose default implementation is an empty block,
+// but intended to be hijacked in "debug mode" with an implementation.  So
+// you can minimize the cost of instrumentation hooks.
+//
+REB_R Noop_Dispatcher(REBFRM *f)
+{
+    return R_VOID;
+}
+
+
+//
+//  Datatype_Checker_Dispatcher: C
+//
+// Dispatcher used by TYPECHECKER generator for when argument is a datatype.
+//
+REB_R Datatype_Checker_Dispatcher(REBFRM *f)
+{
+    RELVAL *datatype = FUNC_BODY(f->func);
+    assert(IS_DATATYPE(datatype));
+    if (VAL_TYPE(FRM_ARG(f, 1)) == VAL_TYPE_KIND(datatype))
+        return R_TRUE;
+    return R_FALSE;
+}
+
+
+//
+//  Typeset_Checker_Dispatcher: C
+//
+// Dispatcher used by TYPECHECKER generator for when argument is a typeset.
+//
+REB_R Typeset_Checker_Dispatcher(REBFRM *f)
+{
+    RELVAL *typeset = FUNC_BODY(f->func);
+    assert(IS_TYPESET(typeset));
+    if (TYPE_CHECK(typeset, VAL_TYPE(FRM_ARG(f, 1))))
+        return R_TRUE;
+    return R_FALSE;
+}
+
+
+//
+//  Unchecked_Dispatcher: C
+//
+// This is the default MAKE FUNCTION! dispatcher for interpreted functions
+// (whose body is a block that runs through DO []).  There is no return type
+// checking done on these simple functions.
+//
+REB_R Unchecked_Dispatcher(REBFRM *f)
 {
     RELVAL *body = FUNC_BODY(f->func);
     assert(IS_BLOCK(body) && IS_RELATIVE(body) && VAL_INDEX(body) == 0);
@@ -1522,35 +1627,9 @@ REB_R Plain_Dispatcher(REBFRM *f)
 
 
 //
-//  Datatype_Checker_Dispatcher: C
-//
-REB_R Datatype_Checker_Dispatcher(REBFRM *f)
-{
-    RELVAL *datatype = FUNC_BODY(f->func);
-    assert(IS_DATATYPE(datatype));
-    if (VAL_TYPE(FRM_ARG(f, 1)) == VAL_TYPE_KIND(datatype))
-        return R_TRUE;
-    return R_FALSE;
-}
-
-
-//
-//  Typeset_Checker_Dispatcher: C
-//
-REB_R Typeset_Checker_Dispatcher(REBFRM *f)
-{
-    RELVAL *typeset = FUNC_BODY(f->func);
-    assert(IS_TYPESET(typeset));
-    if (TYPE_CHECK(typeset, VAL_TYPE(FRM_ARG(f, 1))))
-        return R_TRUE;
-    return R_FALSE;
-}
-
-
-//
 //  Voider_Dispatcher: C
 //
-// Same as the Plain_Dispatcher, except sets the output value to void.
+// Variant of Unchecked_Dispatcher, except sets the output value to void.
 // Pushing that code into the dispatcher means there's no need to do flag
 // testing in the main loop.
 //
@@ -1575,7 +1654,7 @@ REB_R Voider_Dispatcher(REBFRM *f)
 //
 //  Returner_Dispatcher: C
 //
-// Same as the Plain_Dispatcher, except validates that the return type is
+// Contrasts with the Unchecked_Dispatcher since it ensures the return type is
 // correct.  (Note that natives do not get this type checking, and they
 // probably shouldn't pay for it except in the debug build.)
 //
@@ -1606,6 +1685,35 @@ REB_R Returner_Dispatcher(REBFRM *f)
         fail (Error_Bad_Return_Type(f->label, VAL_TYPE(f->out)));
 
     return R_OUT;
+}
+
+
+//
+//  Brancher_Dispatcher: C
+//
+// The BRANCHER native is used by ELSE, and basically reuses the logic of the
+// implementation of EITHER.
+//
+REB_R Brancher_Dispatcher(REBFRM *f)
+{
+    REBVAL *condition = FRM_ARG(f, 1);
+
+    assert(IS_PAIR(FUNC_BODY(f->func)));
+
+    REBVAL *true_branch = PAIRING_KEY(FUNC_BODY(f->func)->payload.pair);
+    REBVAL *false_branch = FUNC_BODY(f->func)->payload.pair;
+
+    // Note: There is no /ONLY switch.  IF cannot pass it through, because
+    // running `IF/ONLY condition [foo] ELSE [bar]` would return the
+    // logic-taking function that ELSE defines.  Just pass FALSE.
+    //
+    return Either_Core(
+        FRM_OUT(f),
+        condition,
+        true_branch,
+        false_branch,
+        FALSE
+    );
 }
 
 
@@ -1659,6 +1767,8 @@ REB_R Hijacker_Dispatcher(REBFRM *f)
 //
 //  Adapter_Dispatcher: C
 //
+// Dispatcher used by ADAPT.
+//
 REB_R Adapter_Dispatcher(REBFRM *f)
 {
     REBCTX *frame_ctx = Context_For_Frame_May_Reify_Managed(f);
@@ -1693,6 +1803,8 @@ REB_R Adapter_Dispatcher(REBFRM *f)
 //
 //  Chainer_Dispatcher: C
 //
+// Dispatcher used by CHAIN.
+//
 REB_R Chainer_Dispatcher(REBFRM *f)
 {
     REBVAL *pipeline = KNOWN(FUNC_BODY(f->func)); // array of functions
@@ -1715,134 +1827,6 @@ REB_R Chainer_Dispatcher(REBFRM *f)
     f->binding = VAL_BINDING(value);
 
     return R_REDO_UNCHECKED; // signatures should match
-}
-
-
-//
-//  func: native [
-//  
-//  "Defines a user function with given spec and body."
-//
-//      return: [function!]
-//      spec [block!]
-//          {Help string (opt) followed by arg words (and opt type + string)}
-//      body [block!]
-//          "The body block of the function"
-//  ]
-//
-REBNATIVE(func)
-//
-// Native optimized implementation of a "definitional return" function
-// generator.  See comments on Make_Function_May_Fail for full notes.
-{
-    PARAM(1, spec);
-    PARAM(2, body);
-
-    REBFUN *fun = Make_Plain_Function_May_Fail(
-        ARG(spec), ARG(body), MKF_RETURN | MKF_KEYWORDS
-    );
-
-    *D_OUT = *FUNC_VALUE(fun);
-    return R_OUT;
-}
-
-
-//
-//  proc: native [
-//
-//  "Defines a user function with given spec and body and no return result."
-//
-//      return: [function!]
-//      spec [block!]
-//          {Help string (opt) followed by arg words (and opt type + string)}
-//      body [block!]
-//          "The body block of the function, use LEAVE to exit"
-//  ]
-//
-REBNATIVE(proc)
-//
-// Short for "PROCedure"; inspired by the Pascal language's discernment in
-// terminology of a routine that returns a value vs. one that does not.
-// Provides convenient interface similar to FUNC that will not accidentally
-// leak values to the caller.
-{
-    PARAM(1, spec);
-    PARAM(2, body);
-
-    REBFUN *fun = Make_Plain_Function_May_Fail(
-        ARG(spec), ARG(body), MKF_LEAVE | MKF_PUNCTUATES | MKF_KEYWORDS
-    );
-
-    *D_OUT = *FUNC_VALUE(fun);
-    return R_OUT;
-}
-
-
-//
-//  brancher: native/body [
-//
-//  {Create a function that selects between two values based on a LOGIC!}
-//
-//      return: [function!]
-//      true-branch [any-value!]
-//      false-branch [any-value!]
-//  ][
-//      specialize 'either [
-//          true-branch: true-branch
-//          false-branch: false-branch
-//      ]
-//  ]
-//
-REBNATIVE(brancher)
-//
-// !!! This is a slightly more optimized version of a brancher than could be
-// accomplished in user mode code.  The "equivalent body" doesn't actually
-// behave equivalently because there is no meta information suggesting
-// the result is a specialization, so perhaps there should be a "remove
-// meta" included (?)
-//
-// If this were taken to a next level of optimization for ELSE, it would have
-// to not create series...but a special kind of REBVAL which would morph
-// into a function on demand.  IF and UNLESS could recognize this special
-// value type and treat it like a branch.
-{
-    PARAM(1, true_branch);
-    PARAM(2, false_branch);
-
-    REBARR *paramlist = Make_Array(2);
-    ARR_SERIES(paramlist)->link.meta = NULL;
-
-    REBVAL *rootkey = SINK(ARR_AT(paramlist, 0));
-    VAL_RESET_HEADER(rootkey, REB_FUNCTION);
-    /* SET_VAL_FLAGS(rootkey, ???); */ // if flags ever needed...
-    rootkey->payload.function.paramlist = paramlist;
-    rootkey->extra.binding = NULL;
-
-    REBVAL *param = SINK(ARR_AT(paramlist, 1));
-    Val_Init_Typeset(param, FLAGIT_64(REB_LOGIC), Canon(SYM_CONDITION));
-    INIT_VAL_PARAM_CLASS(param, PARAM_CLASS_NORMAL);
-
-    MANAGE_ARRAY(paramlist);
-    TERM_ARRAY_LEN(paramlist, 2);
-
-    REBFUN *func = Make_Function(
-        paramlist,
-        &Brancher_Dispatcher,
-        NULL // no underlying function, this is fundamental
-    );
-
-    RELVAL *body = FUNC_BODY(func);
-
-    REBVAL *branches = Make_Pairing(NULL);
-    *PAIRING_KEY(branches) = *ARG(true_branch);
-    *branches = *ARG(false_branch);
-    Manage_Pairing(branches);
-
-    VAL_RESET_HEADER(body, REB_PAIR);
-    body->payload.pair = branches;
-
-    *D_OUT = *FUNC_VALUE(func);
-    return R_OUT;
 }
 
 
@@ -1893,441 +1877,6 @@ void Get_If_Word_Or_Path_Arg(
 
 
 //
-//  specialize: native [
-//
-//  {Create a new function through partial or full specialization of another}
-//
-//      return: [function!]
-//      value [function! any-word! any-path!]
-//          {Function or specifying word (preserves word name for debug info)}
-//      def [block!]
-//          {Definition for FRAME! fields for args and refinements}
-//  ]
-//
-REBNATIVE(specialize)
-{
-    PARAM(1, value);
-    PARAM(2, def);
-
-    REBSTR *opt_name;
-
-    // We don't limit to taking a FUNCTION! value directly, because that loses
-    // the symbol (for debugging, errors, etc.)  If caller passes a WORD!
-    // then we lookup the variable to get the function, but save the symbol.
-    //
-    REBVAL specializee;
-    Get_If_Word_Or_Path_Arg(&specializee, &opt_name, ARG(value));
-
-    if (!IS_FUNCTION(&specializee))
-        fail (Error(RE_APPLY_NON_FUNCTION, ARG(value))); // for APPLY too
-
-    if (Specialize_Function_Throws(D_OUT, &specializee, opt_name, ARG(def)))
-        return R_OUT_IS_THROWN;
-
-    return R_OUT;
-}
-
-
-//
-//  chain: native [
-//
-//  {Create a processing pipeline of functions that consume the last's result}
-//
-//      return: [function!]
-//      pipeline [block!]
-//          {List of functions to apply.  Reduced by default.}
-//      /quote
-//          {Do not reduce the pipeline--use the values as-is.}
-//  ]
-//
-REBNATIVE(chain)
-{
-    PARAM(1, pipeline);
-    REFINE(2, quote);
-
-    REBVAL *out = D_OUT; // plan ahead for factoring into Chain_Function(out..
-
-    REBVAL *pipeline = ARG(pipeline);
-    REBARR *chainees;
-    if (REF(quote)) {
-        chainees = COPY_ANY_ARRAY_AT_DEEP_MANAGED(pipeline);
-    }
-    else {
-        if (Reduce_Any_Array_Throws(out, pipeline, FALSE, FALSE))
-            return R_OUT_IS_THROWN;
-
-        chainees = VAL_ARRAY(out); // should be all specific values
-        ASSERT_ARRAY_MANAGED(chainees);
-    }
-
-    REBVAL *first = KNOWN(ARR_HEAD(chainees));
-
-    // !!! Current validation is that all are functions.  Should there be other
-    // checks?  (That inputs match outputs in the chain?)  Should it be
-    // a dialect and allow things other than functions?
-    //
-    REBVAL *check = first;
-    while (NOT_END(check)) {
-        if (!IS_FUNCTION(check))
-            fail (Error_Invalid_Arg(check));
-        ++check;
-    }
-
-    // The paramlist needs to be unique to designate this function, but
-    // will be identical typesets to the first function in the chain.  It's
-    // [0] element must identify the function we're creating vs the original,
-    // however.
-    //
-    REBARR *paramlist = Copy_Array_Shallow(
-        VAL_FUNC_PARAMLIST(ARR_HEAD(chainees)), SPECIFIED
-    );
-    ARR_HEAD(paramlist)->payload.function.paramlist = paramlist;
-    MANAGE_ARRAY(paramlist);
-
-    REBFUN *specializer;
-    REBFUN *underlying = Underlying_Function(&specializer, first);
-
-    REBFUN *fun = Make_Function(
-        paramlist,
-        &Chainer_Dispatcher,
-        specializer != NULL ? specializer : underlying // cache in paramlist
-    );
-
-    // "body" is the chainees array, available to the dispatcher when called
-    //
-    Val_Init_Block(FUNC_BODY(fun), chainees);
-
-    // See %sysobj.r for `specialized-meta:` object template
-
-    REBVAL *std_meta = Get_System(SYS_STANDARD, STD_CHAINED_META);
-    REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(std_meta));
-
-    assert(IS_VOID(CTX_VAR(meta, SELFISH(1)))); // no description by default
-    Val_Init_Block(CTX_VAR(meta, SELFISH(2)), chainees);
-    //
-    // !!! There could be a system for preserving names in the chain, by
-    // accepting lit-words instead of functions--or even by reading the
-    // GET-WORD!s in the block.  Consider for the future.
-    //
-    assert(IS_VOID(CTX_VAR(meta, SELFISH(3))));
-
-    MANAGE_ARRAY(CTX_VARLIST(meta));
-    ARR_SERIES(paramlist)->link.meta = meta;
-
-    *D_OUT = *FUNC_VALUE(fun);
-    assert(VAL_BINDING(D_OUT) == NULL);
-
-    return R_OUT;
-}
-
-
-//
-//  typechecker: native [
-//
-//  {Function generator for an optimized typechecking routine.}
-//
-//      return: [function!]
-//      type [datatype! typeset!]
-//  ]
-//
-REBNATIVE(typechecker)
-{
-    PARAM(1, type);
-    REFINE(2, opt);
-
-    REBVAL *type = ARG(type);
-
-    REBARR *paramlist = Make_Array(2);
-    
-    REBVAL *archetype = Alloc_Tail_Array(paramlist);
-    VAL_RESET_HEADER(archetype, REB_FUNCTION);
-    archetype->payload.function.paramlist = paramlist;
-    archetype->extra.binding = NULL;
-
-    REBVAL *param = Alloc_Tail_Array(paramlist);
-    Val_Init_Typeset(param, ALL_64, Canon(SYM_VALUE));
-    INIT_VAL_PARAM_CLASS(param, PARAM_CLASS_NORMAL);
-    
-    MANAGE_ARRAY(paramlist);
-
-    REBFUN *fun = Make_Function(
-        paramlist,
-        IS_DATATYPE(type)
-            ? &Datatype_Checker_Dispatcher
-            : &Typeset_Checker_Dispatcher,
-        NULL // this is fundamental (no distinct underlying function)
-    );
-
-    *FUNC_BODY(fun) = *type;
-
-    // for now, no help...use REDESCRIBE
-
-    ARR_SERIES(paramlist)->link.meta = NULL;
-
-    *D_OUT = *FUNC_VALUE(fun);
-
-    return R_OUT;
-}
-
-
-//
-//  adapt: native [
-//
-//  {Create a variant of a function that preprocesses its arguments}
-//
-//      return: [function!]
-//      adaptee [function! any-word! any-path!]
-//          {Function or specifying word (preserves word name for debug info)}
-//      prelude [block!]
-//          {Code to run in constructed frame before adapted function runs}
-//  ]
-//
-REBNATIVE(adapt)
-{
-    PARAM(1, adaptee);
-    PARAM(2, prelude);
-
-    REBVAL *adaptee = ARG(adaptee);
-
-    REBSTR *opt_adaptee_name;
-    Get_If_Word_Or_Path_Arg(D_OUT, &opt_adaptee_name, adaptee);
-    if (!IS_FUNCTION(D_OUT))
-        fail (Error(RE_APPLY_NON_FUNCTION, adaptee));
-
-    *adaptee = *D_OUT;
-
-    // For the binding to be correct, the indices that the words use must be
-    // the right ones for the frame pushed.  So if you adapt a specialization
-    // that has one parameter, and the function that underlies that has
-    // 10 parameters and the one parameter you're adapting to is it's 10th
-    // and not its 1st...that has to be taken into account.
-    //
-    // Hence you must bind relative to that deeper function...e.g. the function
-    // behind the frame of the specialization which gets pushed.
-    //
-    REBFUN *specializer;
-    REBFUN *underlying = Underlying_Function(&specializer, adaptee);
-
-    // !!! In a future branch it may be possible that specific binding allows
-    // a read-only input to be "viewed" with a relative binding, and no copy
-    // would need be made if input was R/O.  For now, we copy to relativize.
-    //
-    REBARR *prelude = Copy_And_Bind_Relative_Deep_Managed(
-        ARG(prelude),
-        FUNC_PARAMLIST(underlying),
-        TS_ANY_WORD
-    );
-
-    // The paramlist needs to be unique to designate this function, but
-    // will be identical typesets to the original.  It's [0] element must
-    // identify the function we're creating vs the original, however.
-    //
-    REBARR *paramlist = Copy_Array_Shallow(
-        VAL_FUNC_PARAMLIST(adaptee), SPECIFIED
-    );
-    ARR_HEAD(paramlist)->payload.function.paramlist = paramlist;
-    MANAGE_ARRAY(paramlist);
-
-    REBFUN *fun = Make_Function(
-        paramlist,
-        &Adapter_Dispatcher,
-        specializer != NULL ? specializer : underlying // cache in paramlist
-    );
-
-    // We need to store the 2 values describing the adaptation so that the
-    // dispatcher knows what to do when it gets called and inspects FUNC_BODY.
-    //
-    // [0] is the prelude BLOCK!, [1] is the FUNCTION! we've adapted.
-    //
-    REBARR *adaptation = Make_Array(2);
-
-    REBVAL *block = Alloc_Tail_Array(adaptation);
-    VAL_RESET_HEADER(block, REB_BLOCK);
-    INIT_VAL_ARRAY(block, prelude);
-    VAL_INDEX(block) = 0;
-    SET_VAL_FLAG(block, VALUE_FLAG_RELATIVE);
-    INIT_RELATIVE(block, underlying);
-
-    Append_Value(adaptation, adaptee);
-
-    RELVAL *body = FUNC_BODY(fun);
-    VAL_RESET_HEADER(body, REB_BLOCK);
-    INIT_VAL_ARRAY(body, adaptation);
-    VAL_INDEX(body) = 0;
-    SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
-    INIT_RELATIVE(body, underlying);
-    MANAGE_ARRAY(adaptation);
-
-    // See %sysobj.r for `specialized-meta:` object template
-
-    REBVAL *example = Get_System(SYS_STANDARD, STD_ADAPTED_META);
-
-    REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(example));
-    assert(IS_VOID(CTX_VAR(meta, SELFISH(1)))); // no description by default
-    *CTX_VAR(meta, SELFISH(2)) = *adaptee;
-    if (opt_adaptee_name != NULL)
-        Val_Init_Word(CTX_VAR(meta, SELFISH(3)), REB_WORD, opt_adaptee_name);
-
-    MANAGE_ARRAY(CTX_VARLIST(meta));
-    ARR_SERIES(paramlist)->link.meta = meta;
-
-    *D_OUT = *FUNC_VALUE(fun);
-    assert(VAL_BINDING(D_OUT) == NULL);
-
-    return R_OUT;
-}
-
-
-//
-//  hijack: native [
-//
-//  {Cause all existing references to a function to invoke another function.}
-//
-//      return: [function! blank!]
-//          {Proxy for the original function, BLANK! if hijacked with BLANK!}
-//      victim [function! any-word! any-path!]
-//          {Function value whose references are to be affected.}
-//      hijacker [function! any-word! any-path! blank!]
-//          {The function to run in its place or BLANK! to extract prior code.}
-//  ]
-//
-REBNATIVE(hijack)
-//
-// !!! Should the parameters be checked for baseline compatibility, or just
-// let all failures happen at the moment of trying to run the hijack?
-// As it is, one might not require a perfectly compatible interface,
-// and be tolerant if the refinements don't line up...just fail if any
-// case of trying to use unaligned refinements happens.
-//
-{
-    PARAM(1, victim);
-    PARAM(2, hijacker);
-
-    REBVAL victim_value;
-    REBSTR *opt_victim_name;
-    Get_If_Word_Or_Path_Arg(
-        &victim_value, &opt_victim_name, ARG(victim)
-    );
-    REBVAL *victim = &victim_value;
-    if (!IS_FUNCTION(victim))
-        fail (Error(RE_MISC));
-
-    REBVAL hijacker_value;
-    REBSTR *opt_hijacker_name;
-    Get_If_Word_Or_Path_Arg(
-        &hijacker_value, &opt_hijacker_name, ARG(hijacker)
-    );
-    REBVAL *hijacker = &hijacker_value;
-    if (!IS_FUNCTION(hijacker) && !IS_BLANK(hijacker))
-        fail (Error(RE_MISC));
-
-    // !!! Should hijacking a function with itself be a no-op?  One could make
-    // an argument from semantics that the effect of replacing something with
-    // itself is not to change anything, but erroring may give a sanity check.
-    //
-    if (!IS_BLANK(hijacker) && VAL_FUNC(victim) == VAL_FUNC(hijacker))
-        fail (Error(RE_MISC));
-
-    if (IS_FUNCTION_HIJACKER(victim) && IS_BLANK(VAL_FUNC_BODY(victim))) {
-        //
-        // If the victim is a "blank hijackee", it was generated by a previous
-        // hijack call.  This was likely for the purposes of getting a proxy
-        // for the function to use in the hijacker's implementation itself.
-        //
-        // We don't bother copying the paramlist to proxy it again--just poke
-        // the value into the paramlist directly, and return blank to signify
-        // that no new proxy could be made.
-
-        if (IS_BLANK(hijacker))
-            fail (Error(RE_MISC)); // !!! Allow re-blanking a blank?
-
-        SET_BLANK(D_OUT);
-    }
-    else {
-        // For non-blank victims, the return value will be a proxy for that
-        // victim.  This proxy must have a different paramlist from the
-        // original victim being hijacked (otherwise, calling it would call
-        // the hijacker too).  So it's a copy.
-
-        REBFUN *victim_underlying
-            = ARR_SERIES(victim->payload.function.paramlist)->misc.underlying;
-
-        REBARR *proxy_paramlist = Copy_Array_Deep_Managed(
-            victim->payload.function.paramlist,
-            SPECIFIED // !!! Note: not actually "deep", just typesets
-        );
-        ARR_HEAD(proxy_paramlist)->payload.function.paramlist
-            = proxy_paramlist;
-        ARR_SERIES(proxy_paramlist)->link.meta = VAL_FUNC_META(victim);
-
-        // If the proxy had a body, then that body will be bound relative
-        // to the original paramlist that's getting hijacked.  So when the
-        // proxy is called, we want the frame pushed to be relative to
-        // whatever underlied the function...even if it was foundational
-        // so `victim_underlying = VAL_FUNC(victim)`
-
-        REBFUN *proxy = Make_Function(
-            proxy_paramlist,
-            FUNC_DISPATCHER(VAL_FUNC(victim)),
-            victim_underlying
-        );
-
-        // The victim's body is overwritten below to hold the hijacker.  Copy
-        // the REBVAL bits first.
-
-        *FUNC_BODY(proxy) = *VAL_FUNC_BODY(victim);
-
-        *D_OUT = *FUNC_VALUE(proxy);
-        D_OUT->extra.binding = VAL_BINDING(victim);
-
-    #if !defined(NDEBUG)
-        SET_VAL_FLAG(FUNC_VALUE(proxy), FUNC_FLAG_PROXY_DEBUG);
-
-        REBFUN *specializer;
-        Underlying_Function(&specializer, D_OUT); // double-check underlying
-    #endif
-    }
-
-    // With the return value settled, do the actual hijacking.  The "body"
-    // payload of a hijacker is the replacement function value itself.
-    //
-    // Note we don't want to disrupt the underlying function from whatever it
-    // was before, because derived compositions cached that.  It will not
-    // match the hijacker, so it won't be able to directly use the frame
-    // which is built, and will have to build a new frame in the dispatcher.
-
-    *VAL_FUNC_BODY(victim) = *hijacker;
-    ARR_SERIES(victim->payload.function.body_holder)->misc.dispatcher
-        = &Hijacker_Dispatcher;
-
-    victim->extra.binding = NULL; // old exit binding extracted for proxy
-
-    *ARR_HEAD(VAL_FUNC_PARAMLIST(victim)) = *victim; // update rootparam
-
-    // Update the meta information on the function to indicate it's hijacked
-    // See %sysobj.r for `hijacked-meta:` object template
-
-    REBVAL *std_meta = Get_System(SYS_STANDARD, STD_HIJACKED_META);
-    REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(std_meta));
-
-    assert(IS_VOID(CTX_VAR(meta, SELFISH(1)))); // no description by default
-    *CTX_VAR(meta, SELFISH(2)) = *D_OUT;
-    if (opt_victim_name != NULL)
-        Val_Init_Word(CTX_VAR(meta, SELFISH(3)), REB_WORD, opt_victim_name);
-
-    MANAGE_ARRAY(CTX_VARLIST(meta));
-    ARR_SERIES(VAL_FUNC_PARAMLIST(victim))->link.meta = meta;
-
-#if !defined(NDEBUG)
-    REBFUN *specializer;
-    Underlying_Function(&specializer, victim); // double-check underlying
-#endif
-
-    return R_OUT;
-}
-
-
-//
 //  Apply_Frame_Core: C
 //
 // Work in progress to factor out common code used by DO and APPLY.  Needs
@@ -2372,8 +1921,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
 
     struct Reb_Header *alias = &f->flags;
     alias->bits =
-        DO_FLAG_NEXT
-        | DO_FLAG_NO_LOOKAHEAD
+        DO_FLAG_NO_LOOKAHEAD
         | DO_FLAG_NO_ARGS_EVALUATE
         | DO_FLAG_APPLYING;
 
@@ -2497,59 +2045,4 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
     assert(IS_END(f->value)); // we started at END_FLAG, can only throw
 
     return R_OUT;
-}
-
-
-//
-//  apply: native [
-//
-//  {Invoke a function with all required arguments specified.}
-//
-//      return: [<opt> any-value!]
-//      value [function! any-word! any-path!]
-//          {Function or specifying word (preserves word name for debug info)}
-//      def [block!]
-//          {Frame definition block (will be bound and evaluated)}
-//  ]
-//
-REBNATIVE(apply)
-{
-    PARAM(1, value);
-    PARAM(2, def);
-
-    REBVAL *def = ARG(def);
-
-    REBFRM frame;
-    REBFRM *f = &frame;
-
-#if !defined(NDEBUG)
-    RELVAL *first_def = VAL_ARRAY_AT(def);
-
-    // !!! Because APPLY has changed, help warn legacy usages by alerting
-    // if the first element of the block is not a SET-WORD!.  A BAR! can
-    // subvert the warning: `apply :foo [| comment {This is a new APPLY} ...]`
-    //
-    if (NOT_END(first_def)) {
-        if (!IS_SET_WORD(first_def) && !IS_BAR(first_def)) {
-            fail (Error(RE_APPLY_HAS_CHANGED));
-        }
-    }
-#endif
-
-    // We don't limit to taking a FUNCTION! value directly, because that loses
-    // the symbol (for debugging, errors, etc.)  If caller passes a WORD!
-    // then we lookup the variable to get the function, but save the symbol.
-    //
-    REBSTR *name;
-    Get_If_Word_Or_Path_Arg(D_OUT, &name, ARG(value));
-    if (name == NULL)
-        name = Canon(SYM___ANONYMOUS__); // Do_Core requires non-NULL symbol
-
-    if (!IS_FUNCTION(D_OUT))
-        fail (Error(RE_APPLY_NON_FUNCTION, ARG(value))); // for SPECIALIZE too
-
-    f->gotten = D_OUT;
-    f->out = D_OUT;
-
-    return Apply_Frame_Core(f, name, def);
 }

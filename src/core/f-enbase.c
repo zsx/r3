@@ -212,6 +212,7 @@ static REBSER *Decode_Base2(const REBYTE **src, REBCNT len, REBYTE delim)
 
     *bp = 0;
     SET_SERIES_LEN(ser, bp - BIN_HEAD(ser));
+    ASSERT_SERIES_TERM(ser);
     return ser;
 
 err:
@@ -256,6 +257,7 @@ static REBSER *Decode_Base16(const REBYTE **src, REBCNT len, REBYTE delim)
 
     *bp = 0;
     SET_SERIES_LEN(ser, bp - BIN_HEAD(ser));
+    ASSERT_SERIES_TERM(ser);
     return ser;
 
 err:
@@ -333,6 +335,7 @@ static REBSER *Decode_Base64(const REBYTE **src, REBCNT len, REBYTE delim)
 
     *bp = 0;
     SET_SERIES_LEN(ser, bp - BIN_HEAD(ser));
+    ASSERT_SERIES_TERM(ser);
     return ser;
 
 err:
@@ -397,9 +400,8 @@ REBSER *Encode_Base2(const REBVAL *value, REBSER *series, REBOOL brk)
     series = Prep_String(series, &p, 8 * len + 2 * (len / 8) + 4);
 
     // If the input series was zero length, return empty series
-    if (!len) {
-        SET_SERIES_LEN(series, 0);
-        TERM_SEQUENCE(series);
+    if (len == 0) {
+        TERM_SEQUENCE_LEN(series, 0);
         return series;
     }
 
@@ -421,6 +423,7 @@ REBSER *Encode_Base2(const REBVAL *value, REBSER *series, REBOOL brk)
     if (*(p-1) != LF && len > 9 && brk) *p++ = LF;
 
     SET_SERIES_LEN(series, cast(REBCNT, p - BIN_HEAD(series)));
+    ASSERT_SERIES_TERM(series);
     return series;
 }
 
@@ -445,9 +448,8 @@ REBSER *Encode_Base16(const REBVAL *value, REBSER *series, REBOOL brk)
     // (Note: tail not properly set yet)
 
     // If the input series was zero length, return empty series
-    if (!len) {
-        SET_SERIES_LEN(series, 0);
-        TERM_SEQUENCE(series);
+    if (len == 0) {
+        TERM_SEQUENCE_LEN(series, 0);
         return series;
     }
 
@@ -461,7 +463,7 @@ REBSER *Encode_Base16(const REBVAL *value, REBSER *series, REBOOL brk)
     *bp = 0;
 
     SET_SERIES_LEN(series, cast(REBCNT, bp - BIN_HEAD(series)));
-
+    ASSERT_SERIES_TERM(series);
     return series;
 }
 
@@ -485,9 +487,8 @@ REBSER *Encode_Base64(const REBVAL *value, REBSER *series, REBOOL brk)
     series = Prep_String (series, &p, 4 * len / 3 + 2 * (len / 32) + 5);
 
     // If the input series was zero length, return empty series
-    if (!len) {
-        SET_SERIES_LEN(series, 0);
-        TERM_SEQUENCE(series);
+    if (len == 0) {
+        TERM_SEQUENCE_LEN(series, 0);
         return series;
     }
 
@@ -525,6 +526,6 @@ REBSER *Encode_Base64(const REBVAL *value, REBSER *series, REBOOL brk)
     // !!! "4 * (int) (len % 3 ? (len / 3) + 1 : len / 3);" ...?
     //
     SET_SERIES_LEN(series, cast(REBCNT, p - BIN_HEAD(series)));
-
+    ASSERT_SERIES_TERM(series);
     return series;
 }

@@ -3,6 +3,7 @@ REBOL [
     Title: "Infix operator symbol definitions"
     Rights: {
         Copyright 2012 REBOL Technologies
+        Copyright 2012-2016 Rebol Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -10,39 +11,122 @@ REBOL [
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
     Purpose: {
-        This defines some infix operators.
+        When a variable is set to a function value with SET, there is an option
+        to designate that particular binding as /LOOKBACK.  This means that
+        when the function is invoked through that variable, its first argument
+        will come from the left hand side--before the invoking WORD!.
 
-        See ops.r for how the "weird" words that have to be done through
-        a tricky SET manage to have bindings in the lib context, even
-        though they aren't picked up here as SET-WORD!.
+        If the function has two parameters, this gives the effect of what
+        Rebol2 called an "OP!" (infix operator).  However, Ren-C's choice to
+        make this a separate flag to SET means it does not require a new
+        datatype.  Any FUNCTION! of any arity can be used, and it will just
+        get its first argument from the left, with the rest from the right.
+        
+        This file sets up the common "enfixed" operators.
     }
 ]
 
+; Due to Rebol's complex division of lexical space, operations like `<` have
+; needed special rules in the scanner code.  These rules may have permitted
+; use of the WORD! form, but made the SET-WORD! forms illegal (e.g. `<:`).
+;
+; Ren-C allows more of these things, but if they were used in this file it
+; could not be read by R3-Alpha; which is used to process this file for
+; bootstrap.  So it brings the operators into existence in %b-init.c in
+; the function Add_Lib_Keys_R3Alpha_Cant_Make().
+; 
+; These hacks are used to get the properly bound WORD!s.  Note that FIRST,
+; LOAD, INTERN etc. are not in the definition order at this point...so
+; PICK MAKE BLOCK! is used.
+;
+; Note also the unsets for these at the bottom of the file for "cleanliness."
 
-+: enfix :add
--: enfix :subtract
-*: enfix :multiply
+lt: (pick [<] 1)
+lteq: (pick [<=] 1)
+gt: (pick [>] 1)
+gteq: (pick [>=] 1)
+dv: (pick [/] 1) ;-- "slash" is the character #"/"
+dvdv: (pick [//] 1)
+should-be-empty-tag: (pick [<>] 1)
+
+right-arrow: bind (pick make block! "->" 1) context-of 'lambda
+left-arrow: bind (pick make block! "<-" 1) context-of 'lambda
+left-flag: bind (pick make block! "<|" 1) context-of 'lambda
+right-flag: bind (pick make block! "|>" 1) context-of 'lambda
 
 
-**: enfix :power
-=: enfix :equal?
-=?: enfix :same?
-==: enfix :strict-equal?
-!=: enfix :not-equal?
+; While Ren-C has no particular concept of "infix OP!s" as a unique datatype,
+; a function which is arity-2 and bound lookback to a variable acts similarly. 
+; Yet the default is to obey the same lookahead rules as prefix operations
+; historically applied.  Also, the left hand argument will be evaluated as
+; complete an expression as it can.
+;
+; The <tight> annotation is long-term likely a legacy-only property, which
+; requests as *minimal* a complete expression on a slot as possible.  So if 
+; you have SOME-INFIX with tight parameters on the left and the right it
+; would see:
+;
+;     add 1 2 some-infix add 1 2 + 10
+;
+; and interpret it as:
+;
+;     add 1 (2 some-infix add 1 2) + 10
+;
+; Whereas if the arguments were not tight, it would see this as:
+;
+;     (add 1 2) some-infix (add 1 2 + 10)
+;
+; For the moment while the features settle, the operators "in the box" are
+; all wrapped to behave with tight left and right arguments.  Long term the
+; feature is theorized to be unnecessary.
+;
 
-!==: enfix :strict-not-equal?
++: enfix tighten :add
+-: enfix tighten :subtract
+*: enfix tighten :multiply
+**: enfix tighten :power
 
-||: enfix :once-bar ;-- not mechanically infix (it's ENDFIX?)
+set/lookback dv tighten :divide
+set/lookback dvdv tighten :remainder
 
-and: enfix :and?
-or: enfix :or?
-xor: enfix :xor?
-nor: enfix :nor?
-nand: enfix :nand?
+=: enfix tighten :equal?
+=?: enfix tighten :same?
 
-and*: enfix :and~
-or+: enfix :or~
-xor+: enfix :xor~
+==: enfix tighten :strict-equal?
+!=: enfix tighten :not-equal?
+!==: enfix tighten :strict-not-equal?
+
+set/lookback should-be-empty-tag tighten :not-equal?
+
+set/lookback lt tighten :lesser?
+set/lookback lteq tighten :lesser-or-equal?
+
+set/lookback gt tighten :greater?
+set/lookback gteq tighten :greater-or-equal?
+
+and: enfix tighten :and?
+or: enfix tighten :or?
+xor: enfix tighten :xor?
+nor: enfix tighten :nor?
+
+nand: enfix tighten :nand?
+and*: enfix tighten :and~
+or+: enfix tighten :or~
+xor+: enfix tighten :xor~
+
+
+; Postfix operator for asking the most existential question of Rebol...is it
+; a Rebol value at all?  (non-void)
+;
+; !!! Originally in Rebol2 and R3-Alpha, ? was a synonym for HELP, which seems
+; wasteful for the language as a whole when it's easy enough to type HELP.
+; Postfix was not initially considered, because there was no ability of
+; enfixed operators to force the left hand side of expressions to be as
+; maximal as possible.  Hence `while [take blk ?] [...]` would ask if blk was
+; void, not `take blk`.  So it was tried as a prefix operator, which wound
+; up looking somewhat junky...now it's being tried as working postfix.
+
+?: enfix :any-value?
 
 
 ; ELSE is an experiment to try and allow IF condition [branch1] ELSE [branch2]
@@ -54,31 +138,33 @@ xor+: enfix :xor~
 else: enfix :brancher
 
 
-; So long as the code wants to stay buildable with R3-Alpha, the mezzanine
-; cannot use -> or <-, nor even mention them as words.  So this hack is likely
-; to be around for quite a long time.  FIRST, LOAD, INTERN etc. are not
-; in the definition order at this point...so PICK MAKE BLOCK! is used.
+; Lambdas are experimental quick function generators via a symbol
 ;
-
-set/lookback (pick [/] 1) :divide
-set/lookback (pick [//] 1) :remainder
-
-set/lookback (pick [<>] 1) :not-equal?
-
-set/lookback (pick [<] 1) :lesser?
-set/lookback (pick [<=] 1) :lesser-or-equal?
-set/lookback (pick [>] 1) :greater?
-set/lookback (pick [>=] 1) :greater-or-equal?
-
-right-arrow: bind (pick make block! "->" 1) context-of 'lambda
-left-arrow: bind (pick make block! "<-" 1) context-of 'lambda
-left-flag: bind (pick make block! "<|" 1) context-of 'lambda
-right-flag: bind (pick make block! "|>" 1) context-of 'lambda
-
 set/lookback right-arrow :lambda
 set/lookback left-arrow (specialize :lambda [only: true])
+
+
+; These usermode expression-barrier like constructs may not necessarily use
+; their left-hand arguments...however by being enfixed and not having <tight>
+; first args, they are able to force complete expressions to their left.
+
 set/lookback left-flag :left-bar
-set right-flag :right-bar ;-- not mechanically infix (punctuator)
+set/lookback right-flag :right-bar
+||: enfix :once-bar
 
 
-right-arrow: left-arrow: left-flag: right-flag: () ; don't leave stray defs
+; Clean up the words used to hold things that can't be made SET-WORD!s (or
+; perhaps even words) in R3-Alpha
+
+lt:
+lteq:
+gt:
+gteq:
+dv:
+dvdv:
+should-be-empty-tag:
+right-arrow:
+left-arrow:
+left-flag:
+right-flag:
+    ()

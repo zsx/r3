@@ -440,7 +440,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
         code_array,
         0, // index
         SPECIFIED, // reusing existing REBVAL arguments, no relative values
-        DO_FLAG_TO_END | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
+        DO_FLAG_NO_ARGS_EVALUATE
     );
 
     if (indexor != THROWN_FLAG && indexor != END_FLAG) {

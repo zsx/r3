@@ -144,9 +144,15 @@ inline static void SET_UNI_LEN(REBSER *s, REBCNT len) {
 #define UNI_LAST(s) \
     SER_LAST(REBUNI, (s))
 
-inline static void UNI_TERM(REBSER *s) {
-    *UNI_TAIL(s) = 0;
+inline static void TERM_UNI(REBSER *s) {
+    UNI_HEAD(s)[SER_LEN(s)] = 0;
 }
+
+inline static void TERM_UNI_LEN(REBSER *s, REBCNT len) {
+    SET_SERIES_LEN(s, len);
+    UNI_HEAD(s)[len] = 0;
+}
+
 
 //
 // Get a char, from either byte or unicode string:

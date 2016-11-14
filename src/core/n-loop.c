@@ -76,6 +76,60 @@ REBOOL Catching_Break_Or_Continue(REBVAL *val, REBOOL *stop)
 
 
 //
+//  break: native [
+//  
+//  {Exit the current iteration of a loop and stop iterating further.}
+//  
+//      /with
+//          {Act as if loop body finished current evaluation with a value}
+//      value [<opt> any-value!]
+//  ]
+//
+REBNATIVE(break)
+//
+// BREAK is implemented via a THROWN() value that bubbles up through
+// the stack.  It uses the value of its own native function as the
+// name of the throw, like `throw/name value :break`.
+{
+    REFINE(1, with);
+    PARAM(2, value);
+
+    *D_OUT = *NAT_VALUE(break);
+
+    CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : VOID_CELL);
+
+    return R_OUT_IS_THROWN;
+}
+
+
+//
+//  continue: native [
+//  
+//  "Throws control back to top of loop for next iteration."
+//  
+//      /with
+//          {Act as if loop body finished current evaluation with a value}
+//      value [<opt> any-value!]
+//  ]
+//
+REBNATIVE(continue)
+//
+// CONTINUE is implemented via a THROWN() value that bubbles up through
+// the stack.  It uses the value of its own native function as the
+// name of the throw, like `throw/name value :continue`.
+{
+    REFINE(1, with);
+    PARAM(2, value);
+
+    *D_OUT = *NAT_VALUE(continue);
+
+    CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : VOID_CELL);
+
+    return R_OUT_IS_THROWN;
+}
+
+
+//
 //  Copy_Body_Deep_Bound_To_New_Context: C
 //
 // Looping constructs which are parameterized by WORD!s to set each time
@@ -343,6 +397,8 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
 
     if (mode == LOOP_EVERY)
         SET_TRUE(D_OUT); // Default output is TRUE, to match ALL MAP-EACH
+    else
+        SET_VOID(D_OUT); // Default output is void, for "body never ran"
 
     assert(!IS_VOID(data));
     if (IS_BLANK(data))
@@ -383,6 +439,32 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
     else if (IS_MAP(data)) {
         series = VAL_SERIES(data);
         index = 0;
+    }
+    else if (IS_DATATYPE(data)) {
+        //
+        // !!! Snapshotting the state is not particularly efficient.  However,
+        // bulletproofing an enumeration of the system against possible GC
+        // would be difficult.  And this is really just a debug/instrumentation
+        // feature anyway.
+        //
+        // !!! Note also the issue that in order for the GC to be willing to
+        // protect the values in the array with a guard, it must be managed.
+        // This is a questionable requirement--and it means we can't just
+        // Free_Array() when we're done with the enumeration.  Consider
+        // loosening this requirement (there are other places that would
+        // benefit from it being looser).
+        //
+        switch (VAL_TYPE_KIND(data)) {
+        case REB_FUNCTION:
+            series = ARR_SERIES(Snapshot_All_Functions());
+            index = 0;
+            MANAGE_ARRAY(AS_ARRAY(series));
+            PUSH_GUARD_ARRAY(AS_ARRAY(series));
+            break;
+
+        default:
+            fail (Error(RE_MISC));
+        }
     }
     else {
         series = VAL_SERIES(data);
@@ -428,6 +510,13 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                     var,
                     ARR_AT(AS_ARRAY(series), index),
                     VAL_SPECIFIER(data) // !!! always matches series?
+                );
+            }
+            else if (IS_DATATYPE(data)) {
+                COPY_VALUE(
+                    var,
+                    ARR_AT(AS_ARRAY(series), index),
+                    SPECIFIED // array generated via data stack, all specific
                 );
             }
             else if (ANY_CONTEXT(data)) {
@@ -512,17 +601,16 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                     goto skip_hidden;
                 }
             }
-            else { // A string or binary
-                if (IS_BINARY(data)) {
-                    SET_INTEGER(var, (REBI64)(BIN_HEAD(series)[index]));
-                }
-                else if (IS_IMAGE(data)) {
-                    Set_Tuple_Pixel(BIN_AT(series, index), var);
-                }
-                else {
-                    VAL_RESET_HEADER(var, REB_CHAR);
-                    VAL_CHAR(var) = GET_ANY_CHAR(series, index);
-                }
+            else if (IS_BINARY(data)) {
+                SET_INTEGER(var, (REBI64)(BIN_HEAD(series)[index]));
+            }
+            else if (IS_IMAGE(data)) {
+                Set_Tuple_Pixel(BIN_AT(series, index), var);
+            }
+            else {
+                assert(IS_STRING(data));
+                VAL_RESET_HEADER(var, REB_CHAR);
+                VAL_CHAR(var) = GET_ANY_CHAR(series, index);
             }
             index++;
         }
@@ -588,6 +676,9 @@ skip_hidden: ;
     }
 
     if (mode == LOOP_MAP_EACH) DROP_GUARD_ARRAY(mapped);
+    
+    if (IS_DATATYPE(data))
+        DROP_GUARD_SERIES(series);
 
     if (threw) {
         // a non-BREAK and non-CONTINUE throw overrides any other return
@@ -886,7 +977,7 @@ REBNATIVE(forever)
 //          {Last body result or BREAK value, will also be void if never run}
 //      'word [word! block!]
 //          "Word or block of words to set each time (local)"
-//      data [any-series! any-context! map! blank!]
+//      data [any-series! any-context! map! blank! datatype!]
 //          "The series to traverse"
 //      body [block!]
 //          "Block to evaluate each time"
@@ -947,7 +1038,7 @@ REBNATIVE(map_each)
 //          {TRUE or BLANK! collected, or BREAK value, TRUE if never run.}
 //      'word [word! block!]
 //          "Word or block of words to set each time (local)"
-//      data [any-series! any-context! map! blank!]
+//      data [any-series! any-context! map! blank! datatype!]
 //          "The series to traverse"
 //      body [block!]
 //          "Block to evaluate each time"
@@ -1093,17 +1184,7 @@ REBNATIVE(repeat)
 }
 
 
-//
-//  until: native [
-//  
-//  "Evaluates a block until it is TRUE?"
-//
-//      return: [<opt> any-value!]
-//          {Last body result or BREAK value.}
-//      body [block! function!]
-//  ]
-//
-REBNATIVE(until)
+inline static REB_R Loop_While_Until_Core(REBFRM *frame_, REBOOL trigger)
 {
     PARAM(1, body);
 
@@ -1130,7 +1211,7 @@ REBNATIVE(until)
 
         if (IS_VOID(D_OUT)) fail (Error(RE_NO_RETURN));
 
-    } while (IS_CONDITIONAL_FALSE(D_OUT));
+    } while (IS_CONDITIONAL_TRUE(D_OUT) == trigger);
 
     // If the body is a function, it may be a "brancher".  If it is,
     // then run it and tell it that it reached false.
@@ -1143,26 +1224,50 @@ REBNATIVE(until)
 
 
 //
-//  while: native [
+//  loop-while: native [
 //  
-//  {While a condition block is TRUE?, evaluates another block.}
+//  "Evaluates a block while it is TRUE?"
 //
 //      return: [<opt> any-value!]
-//          {Last body result or BREAK value, will also be void if never run}
-//      condition [block! function!]
+//          {Last body result or BREAK value.}
 //      body [block! function!]
-//      /?
-//          "Instead of last body result, return LOGIC! of if body ever ran"
 //  ]
 //
-REBNATIVE(while)
+REBNATIVE(loop_while)
+{
+    return Loop_While_Until_Core(frame_, TRUE);
+}
+
+
+//
+//  loop-until: native [
+//  
+//  "Evaluates a block until it is TRUE?"
+//
+//      return: [<opt> any-value!]
+//          {Last body result or BREAK value.}
+//      body [block! function!]
+//  ]
+//
+REBNATIVE(loop_until)
+//
+// !!! This function is redefined to UNTIL in the boot sequence, for
+// compatibility with R3-Alpha.  This will be the default distribution until
+// further notice.
+{
+    return Loop_While_Until_Core(frame_, FALSE);
+}
+
+
+inline static REB_R While_Until_Core(REBFRM *frame_, REBOOL trigger)
 {
     PARAM(1, condition);
     PARAM(2, body);
     REFINE(3, q);
 
     do {
-        if (Run_Success_Branch_Throws(D_CELL, ARG(condition), FALSE)) { // !only
+        const REBOOL only = FALSE;
+        if (Run_Success_Branch_Throws(D_CELL, ARG(condition), only)) {
             //
             // A while loop should only look for breaks and continues in its
             // body, not in its condition.  So `while [break] []` is a
@@ -1176,7 +1281,7 @@ REBNATIVE(while)
         if (IS_VOID(D_CELL))
             fail (Error(RE_NO_RETURN));
 
-        if (IS_CONDITIONAL_FALSE(D_CELL)) {
+        if (IS_CONDITIONAL_TRUE(D_CELL) != trigger) {
             //
             // If the body is a function, it may be a "brancher".  If it is,
             // then run it and tell it that the condition has returned false.
@@ -1203,4 +1308,46 @@ REBNATIVE(while)
         }
 
     } while (TRUE);
+}
+
+
+//
+//  while: native [
+//  
+//  {While a condition block is TRUE?, evaluates another block.}
+//
+//      return: [<opt> any-value!]
+//          {Last body result or BREAK value, will also be void if never run}
+//      condition [block! function!]
+//      body [block! function!]
+//      /?
+//          "Instead of last body result, return LOGIC! of if body ever ran"
+//  ]
+//
+REBNATIVE(while)
+{
+    return While_Until_Core(frame_, TRUE);
+}
+
+
+//
+//  until: native [
+//  
+//  {Until a condition block is TRUE?, evaluates another block.}
+//
+//      return: [<opt> any-value!]
+//          {Last body result or BREAK value, will also be void if never run}
+//      condition [block! function!]
+//      body [block! function!]
+//      /?
+//          "Instead of last body result, return LOGIC! of if body ever ran"
+//  ]
+//
+REBNATIVE(until)
+//
+// !!! This arity-2 form of UNTIL is aliased to UNTIL-2 in the bootstrap, and
+// then overwritten with the arity-1 form (LOOP-UNTIL).  Though less useful
+// and less clear, this will be the default state until further notice.
+{
+    return While_Until_Core(frame_, FALSE);
 }

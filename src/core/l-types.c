@@ -102,8 +102,7 @@ REBNATIVE(make)
         // varargs to the end and making an array out of that.  It's not known
         // how many elements that will be, so they're gathered to the data
         // stack to find the size, then an array made.  Note that | will stop
-        // a normal or soft-quoted varargs, but a hard-quoted varargs will
-        // grab all the values to the end of the source.
+        // varargs gathering.
         //
         // !!! MAKE should likely not be allowed to THROW in the general
         // case--especially if it is the implementation of construction
@@ -122,37 +121,10 @@ REBNATIVE(make)
         if (dispatcher != &MAKE_Array)
             fail (Error_Bad_Make(kind, arg));
 
-        const REBVAL *vararg_param;
-        REBVAL *vararg_arg;
-
-        REBVAL fake_param;
-
-        REBARR *feed;
-
-        if (GET_VAL_FLAG(arg, VARARGS_FLAG_NO_FRAME)) {
-            feed = VAL_VARARGS_ARRAY1(arg);
-
-            // Just a vararg created from a block, so no typeset or quoting
-            // settings available.  Make a fake parameter that hard quotes
-            // and takes any type (it will be type checked if in a chain).
-            //
-            Val_Init_Typeset(&fake_param, ALL_64, Canon(SYM_ELLIPSIS));
-            INIT_VAL_PARAM_CLASS(&fake_param, PARAM_CLASS_HARD_QUOTE);
-            vararg_param = &fake_param;
-            vararg_arg = &fake_param; // doesn't matter, just gets flag set
-        }
-        else {
-            feed = CTX_VARLIST(VAL_VARARGS_FRAME_CTX(arg));
-            vararg_param = VAL_VARARGS_PARAM(arg);
-            vararg_arg = VAL_VARARGS_ARG(arg);
-        }
-
         REBDSP dsp_orig = DSP;
 
         do {
-            REBIXO indexor = Do_Vararg_Op_Core(
-                D_OUT, feed, vararg_param, vararg_arg, NULL, VARARG_OP_TAKE
-            );
+            REBIXO indexor = Do_Vararg_Op_May_Throw(D_OUT, arg, VARARG_OP_TAKE);
 
             if (indexor == THROWN_FLAG) {
                 DS_DROP_TO(dsp_orig);

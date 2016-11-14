@@ -117,7 +117,7 @@ REBNATIVE(verify)
         UPDATE_EXPRESSION_START(&e); // informs the error delivery better
 
         const RELVAL *start = e.value;
-        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_LOOKAHEAD);
+        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_NORMAL);
         if (THROWN(D_OUT)) {
             DROP_SAFE_ENUMERATOR(&e);
             return R_OUT_IS_THROWN;
@@ -213,13 +213,16 @@ REBNATIVE(maybe)
 
     REB_R r;
     if (IS_BLOCK(test)) {
-        RELVAL *item;
+        const RELVAL *item;
         for (item = VAL_ARRAY_AT(test); NOT_END(item); ++item) {
             r = Do_Test_For_Maybe(
                 D_OUT,
                 value,
                 IS_WORD(item)
-                    ? GET_OPT_VAR_MAY_FAIL(item, VAL_SPECIFIER(test))
+                    ? cast(
+                        const RELVAL*,
+                        GET_OPT_VAR_MAY_FAIL(item, VAL_SPECIFIER(test))
+                    ) // cast needed for gcc/g++ 2.95 (bug)
                     : item
             );
 
@@ -1237,35 +1240,6 @@ REBNATIVE(semiquote)
 
 
 //
-//  punctuates?: native [
-//
-//  {Returns true if function (or word looking up to function) is punctuating}
-//
-//      value [function! word!]
-//          {Function or specifying word}
-//  ]
-//
-REBNATIVE(punctuates_q)
-//
-// !!! This function faces the general problem that it cannot substitute for
-// the evaluator's knowledge of punctuation, e.g. if a path evaluates to a
-// <punctuates> function, without risking the running of code.  Since this is
-// likely to be used in lookahead scenarios (e.g. ||) then it's a bad idea to
-// give the impression that it "works on paths".
-{
-    PARAM(1, value);
-
-    REBSTR *sym; // unused here
-    Get_If_Word_Or_Path_Arg(D_OUT, &sym, ARG(value));
-
-    if (!IS_FUNCTION(D_OUT))
-        fail (Error_Unexpected_Type(REB_FUNCTION, VAL_TYPE(D_OUT)));
-
-    return GET_VAL_FLAG(D_OUT, FUNC_FLAG_PUNCTUATES) ? R_TRUE : R_FALSE;
-}
-
-
-//
 //  as: native [
 //
 //  {Aliases the underlying data of one series to act as another of same class}
@@ -1368,8 +1342,7 @@ REBNATIVE(set_q)
     #endif
 
         // !!! We shouldn't be evaluating but currently the path machinery
-        // doesn't "turn off" GROUP! evaluations for GET-PATH!.  Pick_Path
-        // doesn't have the right interface however.  This is temporary.
+        // doesn't "turn off" GROUP! evaluations for GET-PATH!.
         //
         VAL_SET_TYPE_BITS(location, REB_GET_PATH);
 

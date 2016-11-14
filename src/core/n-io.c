@@ -36,30 +36,40 @@
 
 //
 //  echo: native [
-//  
+//
 //  "Copies console output to a file."
-//  
+//
+//      return: [<opt>]
 //      target [file! blank! logic!]
 //  ]
 //
 REBNATIVE(echo)
 {
-    REBVAL *val = D_ARG(1);
-    REBSER *ser = 0;
+    PARAM(1, target);
 
-    Echo_File(0);
+    REBVAL *val = ARG(target);
 
+    Echo_File(NULL);
+
+    REBSER *ser = NULL;
     if (IS_FILE(val))
         ser = Value_To_OS_Path(val, TRUE);
     else if (IS_LOGIC(val) && VAL_LOGIC(val))
         ser = To_Local_Path("output.txt", 10, FALSE, TRUE);
+    else
+        ser = NULL;
 
     if (ser) {
         if (!Echo_File(SER_HEAD(REBCHR, ser)))
             fail (Error(RE_CANNOT_OPEN, val));
+
+        // !!! It appears Echo_File makes a device request which should not
+        // hold the filename string live (or copy if it wants to?)
+        //
+        Free_Series(ser);
     }
 
-    return R_OUT;
+    return R_VOID;
 }
 
 
@@ -166,7 +176,6 @@ REBNATIVE(mold)
 
 //
 //  print: native [
-//      <punctuates>
 //  
 //  "Outputs value to standard output using the PRINT dialect."
 //  

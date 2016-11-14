@@ -1,6 +1,6 @@
 //
-//  File: %t-none.c
-//  Summary: "none (blank) datatype"
+//  File: %t-blank.c
+//  Summary: "Blank datatype"
 //  Section: datatypes
 //  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
 //  Homepage: https://github.com/metaeducation/ren-c/
@@ -107,5 +107,5 @@ REBINT CT_Handle(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 REBTYPE(Handle)
 {
-    fail(Error_Illegal_Action(REB_HANDLE, action));
+    fail (Error_Illegal_Action(REB_HANDLE, action));
 }

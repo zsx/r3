@@ -32,11 +32,10 @@
 // written such that a longjmp up to a failure handler above it can run
 // safely and clean up even though intermediate stacks have vanished.
 //
-// Ren-C can not only run the evaluator across a REBSER-style series of
-// input based on index, it can also fetch those values from a standard C
-// array of REBVAL[].  Alternately, it can enumerate through C's `va_list`,
-// providing the ability to pass pointers as REBVAL* to comma-separated input
-// at the source level.
+// Ren-C can run the evaluator across a REBARR-style series of input based on
+// index.  It can also enumerate through C's `va_list`, providing the ability
+// to pass pointers as REBVAL* to comma-separated input at the source level.
+// (Someday it may fetch values from a standard C array of REBVAL[] as well.) 
 //
 // To provide even greater flexibility, it allows the very first element's
 // pointer in an evaluation to come from an arbitrary source.  It doesn't
@@ -186,7 +185,7 @@ inline static void PUSH_SAFE_ENUMERATOR(
     SET_FRAME_VALUE(f, VAL_ARRAY_AT(v));
     f->source.array = VAL_ARRAY(v);
 
-    Init_Header_Aliased(&f->flags, DO_FLAG_NEXT | DO_FLAG_ARGS_EVALUATE);
+    Init_Header_Aliased(&f->flags, DO_FLAG_NORMAL);
 
     f->gotten = NULL; // tells ET_WORD and ET_GET_WORD they must do a get
     f->index = VAL_INDEX(v) + 1;
@@ -241,7 +240,7 @@ inline static void FETCH_NEXT_ONLY_MAYBE_END(REBFRM *f) {
         SET_FRAME_VALUE(f, va_arg(*f->source.vaptr, const REBVAL*));
         assert(
             IS_END(f->value)
-            || (IS_VOID(f->value) && NOT(f->flags.bits & DO_FLAG_ARGS_EVALUATE))
+            || (IS_VOID(f->value) && (f->flags.bits & DO_FLAG_NO_ARGS_EVALUATE))
             || !IS_RELATIVE(f->value)
         );
     }
@@ -397,6 +396,183 @@ inline static void Do_Pending_Sets_May_Invalidate_Gotten(
 }
 
 
+// Getting an a-priori answer for any argument fulfillment on whether that
+// argument is the last one to the function is not necessarily easy in the
+// general case, due to the way refinements and specializations affect the
+// answer.  But it only needs to be known occasionally, when encountering an
+// enfixed function that has a deferred left-hand side.  Since it can't be
+// precomputed, this routine does the computation when needed.
+//
+// Falsification can be returned fairly quickly, based on finding *any*
+// subsequent argument.  And the true case is generally quick as well, since
+// it occurs at the end of the arguments.
+//
+inline static REBOOL Fulfilling_Last_Argument(struct Reb_Frame *f) {
+    if (NOT(f->eval_type == REB_FUNCTION || f->eval_type == REB_0_LOOKBACK))
+        return FALSE;
+
+    // Function may be on the stack and calling the evaluator after its args
+    // have already been fulfilled.
+    //
+    if (!Is_Function_Frame_Fulfilling(f))
+        return FALSE;
+
+    const REBVAL *special = f->special;
+    assert(special != f->arg); // only true if R_REDO_CHECKED (has all args)
+
+    const RELVAL *param = f->param;
+    ++param; // special was already bumped if needed by Do_Core()
+
+    assert(
+        f->refine == EMPTY_BLOCK // just an ordinary argument
+        || IS_CONDITIONAL_TRUE(f->refine) // refinement arg hasn't been revoked
+        || f->refine == FALSE_VALUE // arg to revoked refinement (must be void)
+    );
+
+    // We may be currently fulfilling a refinement's arguments, but that's not
+    // relevant.  All we're interested in are *subsequent* refinements, and
+    // whether they are in use and have unspecialized arguments.  Note that
+    // "subsequent refinements" may actually occur prior to our current
+    // position in the traversal, e.g. in `foo/baz/bar a b c` we may be
+    // fulfilling /BAZ first, even though it may come after /BAR in the
+    // definition (with /BAR needing to be "picked up".)
+    //
+    const REBVAL *pickup = EMPTY_BLOCK;
+
+    while (NOT_END(param)) {
+        switch (VAL_PARAM_CLASS(param)) {
+        case PARAM_CLASS_LOCAL:
+        case PARAM_CLASS_RETURN:
+        case PARAM_CLASS_LEAVE:
+            // just skip locals (they're not arguments fulfilled at callsite)
+            if (special != END_CELL)
+                ++special;
+            break;
+        
+        case PARAM_CLASS_REFINEMENT:
+            if (f->dsp_orig == DSP)
+                return TRUE; // no refinements left to consider or pick up
+
+            if (pickup != NULL && pickup != EMPTY_BLOCK) {
+                assert(IS_VARARGS(pickup));
+                goto next_pickup; // finished a pickup, so find next one
+            }
+
+            // If we weren't doing a pickup, then we may hit a refinement that
+            // is going to be in use in the original traversal (these will be
+            // WORD! on the stack).  First see if it was specialized TRUE/FALSE
+
+            if (special != END_CELL) {
+                if (IS_VOID(special))
+                    ++special; // unspecialized refinement, fall through
+                else {
+                    if (!IS_LOGIC(special))
+                        fail (Error_Non_Logic_Refinement(f));
+
+                    if (IS_CONDITIONAL_TRUE(special))
+                        pickup = EMPTY_BLOCK;
+                    else
+                        pickup = NULL;
+
+                    ++special;
+                    goto next_param;
+                }
+            }
+
+            // If the refinement isn't specialized, go ahead and look on the
+            // stack to see if it was part of the invocation (via path, pushed
+            // a word to the stack).
+
+            pickup = DS_TOP;
+            do {
+                if (IS_WORD(pickup)) {
+                    if (VAL_PARAM_CANON(param) == VAL_WORD_SPELLING(pickup)) {
+                        pickup = EMPTY_BLOCK; // found, but not a "pickup"
+                        goto next_param;
+                    }
+                }
+                else {
+                    assert(
+                        IS_VARARGS(pickup) // for later pickups
+                        || IS_SET_WORD(pickup) // pending SET-WORD!
+                        || IS_SET_PATH(pickup) // pending SET-PATH!
+                    );
+                }
+
+                --pickup;
+            } while (pickup != DS_AT(f->dsp_orig));
+
+            pickup = NULL; // refinement not in use
+            break;
+
+        case PARAM_CLASS_NORMAL:
+        case PARAM_CLASS_HARD_QUOTE:
+        case PARAM_CLASS_SOFT_QUOTE:
+            if (GET_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC)) {
+                //
+                // Subsequent variadic parameters do not count; they will
+                // always report themselves a "last argument".  So if foo has
+                // one normal parameter and then a variadic parameter, then
+                // `foo "normal" |> ...` will defer the operator as
+                // `(foo "normal") |> ...` even though there are potentially
+                // more variadic arguments, because the deferring operator
+                // will be seen as an <end> by the variadic.
+                //
+                if (special != END_CELL)
+                    ++special;
+                goto next_param;
+            }
+
+            if (pickup) { // "in use"
+                if (special == END_CELL)
+                    return FALSE; // no specialization, so this is another arg!
+
+                if (IS_VOID(special))
+                    return FALSE; // specialization w/this arg unspecialized!
+
+                ++special; // specialized argument, skip it...
+            }
+            else { // "not used"
+                if (special != END_CELL)
+                    ++special;
+            }
+            break;
+
+        default:
+            assert(FALSE);
+        }
+
+    next_param:
+        ++param;
+    }
+
+    if (pickup == NULL || pickup == EMPTY_BLOCK)
+        pickup = DS_TOP; // get first pickup candidate (may be stack bottom)
+    else {
+    next_pickup:
+        assert(IS_VARARGS(pickup));
+        --pickup; // get previous pickup candidate (or bottom)
+    }
+
+    // Figure out if candidate is actual pickup, and keep stepping backwards
+    // in the stack until it is exhausted or pickup is found.
+    //
+    for (; pickup > DS_AT(f->dsp_orig); --pickup) {
+        if (IS_VARARGS(pickup)) {
+            param = pickup->payload.varargs.param;
+            goto next_param;
+        }
+        assert(
+            IS_WORD(pickup)
+            || IS_SET_WORD(pickup)
+            || IS_SET_PATH(pickup)
+        );
+    }
+
+    return TRUE; // never found another arg to be fulfilled after current
+}
+
+
 //
 // DO_NEXT_REFETCH_MAY_THROW provides some slick optimization for the
 // evaluator, by taking the simpler cases which can be done without a nested
@@ -506,7 +682,7 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
 
     child->eval_type = VAL_TYPE(parent->value);
 
-    if ((flags & DO_FLAG_LOOKAHEAD) && (child->eval_type == REB_WORD)) {
+    if (NOT(flags & DO_FLAG_NO_LOOKAHEAD) && (child->eval_type == REB_WORD)) {
         child->gotten = Get_Var_Core(
             &child->eval_type, // sets to REB_LOOKBACK or REB_FUNCTION
             parent->value,
@@ -520,10 +696,21 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
         //
         if (child->eval_type == REB_0_LOOKBACK) {
             assert(IS_FUNCTION(child->gotten));
-            goto no_optimization;
-        }
 
-        child->eval_type = REB_WORD;
+            // Run the lookback if we can't afford to defer it -or- if it's
+            // not the kind that is deferred.
+            if (
+                !GET_VAL_FLAG(child->gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG)
+                || (
+                    NOT(flags & DO_FLAG_VARIADIC_TAKE)
+                    && NOT(Fulfilling_Last_Argument(parent))
+                )
+            ) {
+                goto no_optimization;
+            }
+        }
+        else
+            child->eval_type = REB_WORD;
     }
 
     TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_MAY_THROW", parent, TRUE);
@@ -536,15 +723,16 @@ no_optimization:
     SET_FRAME_VALUE(child, parent->value);
     child->index = parent->index;
     child->specifier = parent->specifier;
-
-    Init_Header_Aliased(
-        &child->flags,  DO_FLAG_ARGS_EVALUATE | DO_FLAG_NEXT | flags
-    );
+    child->flags.bits = flags;
     child->pending = parent->pending;
 
     Do_Core(child);
 
-    assert(child->eval_type != REB_0_LOOKBACK);
+    // It is technically possible to wind up with child->eval_type as
+    // REB_0_LOOKBACK here if a lookback's first argument does not allow
+    // lookahead.  e.g. `print 1 + 2 <| print 1 + 7` wishes to print 3
+    // and then 8, rather than print 8 and then evaluate
+
     assert(
         (child->flags.bits & DO_FLAG_VA_LIST)
         || parent->index != child->index
@@ -622,7 +810,7 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     f->gotten = NULL;
     f->eval_type = VAL_TYPE(f->value);
 
-    DO_NEXT_REFETCH_MAY_THROW(out, f, DO_FLAG_LOOKAHEAD);
+    DO_NEXT_REFETCH_MAY_THROW(out, f, DO_FLAG_NORMAL);
 
     if (THROWN(out))
         return THROWN_FLAG;
@@ -821,8 +1009,8 @@ inline static void Reify_Va_To_Array_In_Frame(
 // not be in the arglist can be accomplished using `opt_first` to put that
 // function into the optional first position.  To instruct the evaluator not
 // to do any evaluation on the values supplied as arguments after that
-// (corresponding to R3-Alpha's APPLY/ONLY) then DO_FLAG_EVAL_ONLY should be
-// used--otherwise they will be evaluated normally.
+// (corresponding to R3-Alpha's APPLY/ONLY) then DO_FLAG_NO_ARGS_EVALUATE
+// should be used--otherwise they will be evaluated normally.
 //
 // NOTE: Ren-C no longer supports the built-in ability to supply refinements
 // positionally, due to the brittleness of this approach (for both system
@@ -910,7 +1098,7 @@ inline static REBOOL Do_Va_Throws(REBVAL *out, ...)
         out,
         NULL, // opt_first
         &va,
-        DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
+        DO_FLAG_TO_END
     );
 
     va_end(va);
@@ -937,21 +1125,6 @@ inline static REBOOL Do_Va_Throws(REBVAL *out, ...)
 
     assert(indexor == THROWN_FLAG || indexor == END_FLAG);
     return LOGICAL(indexor == THROWN_FLAG);
-}
-
-
-// Gets a system function with tolerance of it not being a function.
-//
-// (Extraction of a feature that formerly was part of a dedicated dual
-// function to Apply_Func_Throws (Do_Sys_Func_Throws())
-//
-inline static REBVAL *Sys_Func(REBCNT inum)
-{
-    REBVAL *value = CTX_VAR(Sys_Context, inum);
-
-    if (!IS_FUNCTION(value)) fail (Error(RE_BAD_SYS_FUNC, value));
-
-    return value;
 }
 
 
@@ -995,7 +1168,7 @@ inline static REBOOL Apply_Only_Throws(
         out,
         applicand, // opt_first
         &va,
-        DO_FLAG_NEXT | DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
+        DO_FLAG_NO_ARGS_EVALUATE
     );
 
     if (fully && indexor == VA_LIST_FLAG) {
@@ -1034,7 +1207,7 @@ inline static REBOOL Do_At_Throws(
             array,
             index,
             specifier,
-            DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
+            DO_FLAG_TO_END
         )
     );
 }
@@ -1072,7 +1245,7 @@ inline static REBOOL EVAL_VALUE_CORE_THROWS(
             EMPTY_ARRAY,
             0,
             specifier,
-            DO_FLAG_TO_END | DO_FLAG_ARGS_EVALUATE | DO_FLAG_LOOKAHEAD
+            DO_FLAG_TO_END
         )
     );
 }
@@ -1107,6 +1280,28 @@ inline static REBOOL Run_Success_Branch_Throws(
         *out = *branch; // it's not code -- nothing to run
 
     return FALSE;
+}
+
+
+// Shared logic between EITHER and BRANCHER (BRANCHER is enfixed as ELSE)
+//
+inline static REB_R Either_Core(
+    REBVAL *out,
+    REBVAL *condition,
+    REBVAL *true_branch,
+    REBVAL *false_branch,
+    REBOOL only
+) {
+    if (IS_CONDITIONAL_TRUE_SAFE(condition)) { // SAFE means no literal blocks
+        if (Run_Success_Branch_Throws(out, true_branch, only))
+            return R_OUT_IS_THROWN;
+    }
+    else {
+        if (Run_Success_Branch_Throws(out, false_branch, only))
+            return R_OUT_IS_THROWN;
+    }
+
+    return R_OUT;
 }
 
 

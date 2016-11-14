@@ -253,3 +253,69 @@ inline static void DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(struct Reb_State *s) {
     #define ASSERT_STATE_BALANCED(s) \
         Assert_State_Balanced_Debug((s), __FILE__, __LINE__)
 #endif
+
+
+//
+// PANIC AND FAIL
+//
+// The fail() macro implements a form of error which is "trappable" with the
+// macros above:
+//
+//     if (Foo_Type(foo) == BAD_FOO) {
+//         fail (Error_Bad_Foo_Operation(...));
+//
+//         /* this line will never be reached, because it
+//            longjmp'd up the stack where execution continues */
+//     }
+//
+// The other also takes an pointer to a context for a REB_ERROR, and will
+// terminate the system using it as a message, if the system has progressed to
+// the point where messages are loaded:
+//
+//     if (Foo_Type(foo_critical) == BAD_FOO) {
+//         panic (Error_Bad_Foo_Operation(...));
+//
+//         /* this line will never be reached, because it
+//            immediately exited the process with a message */
+//     }
+//
+// These are macros that in debug builds will capture the file and line
+// numbers, and add them to the error object itself.
+//
+// Errors that originate from C code are created via Make_Error, and are
+// defined in %errors.r.  These definitions contain a formatted message
+// template, showing how the arguments will be displayed in FORMing.
+//
+// NOTE: It's desired that there be a space in `fail (...)` and `panic (...)`
+// to help make them seem more "keyword-like" and bring attention to the fact
+// that they are 'noreturn' calls.
+//
+
+#ifdef NDEBUG
+    //
+    // We don't want release builds to have to pay for the parameter
+    // passing cost *or* the string table cost of having a list of all
+    // the files and line numbers for all the places that originate
+    // errors...
+
+    #define panic(error) \
+        Panic_Core(0, (error), NULL)
+
+    #define fail(error) \
+        Fail_Core(error)
+#else
+    #define panic(error) \
+        do { \
+            TG_Erroring_C_File = __FILE__; \
+            TG_Erroring_C_Line = __LINE__; \
+            Panic_Core(0, (error), NULL); \
+        } while (0)
+
+    #define fail(error) \
+        do { \
+            TG_Erroring_C_File = __FILE__; \
+            TG_Erroring_C_Line = __LINE__; \
+            Fail_Core(error); \
+        } while (0)
+#endif
+

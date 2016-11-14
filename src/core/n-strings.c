@@ -205,9 +205,10 @@ REBNATIVE(checksum)
     REBVAL *arg = D_ARG(ARG_CHECKSUM_DATA);
     REBYTE *data = VAL_RAW_DATA_AT(arg);
     REBCNT wide = SER_WIDE(VAL_SERIES(arg));
-    REBCNT len = Partial1(arg, D_ARG(ARG_CHECKSUM_SIZE));
+    REBCNT len = 0;
     REBSYM sym = SYM_SHA1;
 
+    Partial1(arg, D_ARG(ARG_CHECKSUM_SIZE), &len);
     // Method word:
     if (D_REF(ARG_CHECKSUM_METHOD)) {
         sym = VAL_WORD_SYM(D_ARG(ARG_CHECKSUM_WORD));
@@ -294,8 +295,7 @@ REBNATIVE(checksum)
                     digests[i].digest(data, len, BIN_HEAD(digest));
                 }
 
-                SET_SERIES_LEN(digest, digests[i].len);
-                TERM_SEQUENCE(digest);
+                TERM_BIN_LEN(digest, digests[i].len);
                 Val_Init_Binary(D_OUT, digest);
 
                 return 0;
@@ -343,7 +343,7 @@ REBNATIVE(compress)
     REBCNT index;
     REBCNT len;
 
-    len = Partial1(D_ARG(1), D_ARG(3));
+    Partial1(D_ARG(1), D_ARG(3), &len);
 
     ser = Temp_Bin_Str_Managed(D_ARG(1), &index, &len);
 
@@ -374,7 +374,7 @@ REBNATIVE(decompress)
     REBINT max = limit ? Int32s(D_ARG(6), 1) : -1;
     REBOOL only = D_REF(7);
 
-    len = Partial1(D_ARG(1), D_ARG(3));
+    Partial1(D_ARG(1), D_ARG(3), &len);
 
     // This truncation rule used to be in Decompress, which passed len
     // in as an extra parameter.  This was the only call that used it.
@@ -476,70 +476,6 @@ REBNATIVE(enbase)
 
     Val_Init_String(D_OUT, ser);
 
-    return R_OUT;
-}
-
-
-//
-//  decloak: native [
-//  
-//  {Decodes a binary string scrambled previously by encloak.}
-//  
-//      data [binary!] "Binary series to descramble (modified)"
-//      key [string! binary! integer!] "Encryption key or pass phrase"
-//      /with "Use a string! key as-is (do not generate hash)"
-//  ]
-//
-REBNATIVE(decloak)
-{
-    PARAM(1, data);
-    PARAM(2, key);
-    REFINE(3, with);
-
-    if (!Cloak(
-        TRUE,
-        VAL_BIN_AT(ARG(data)),
-        VAL_LEN_AT(ARG(data)),
-        cast(REBYTE*, ARG(key)),
-        0,
-        REF(with)
-    )) {
-        fail (Error_Invalid_Arg(ARG(key)));
-    }
-
-    *D_OUT = *ARG(data);
-    return R_OUT;
-}
-
-
-//
-//  encloak: native [
-//  
-//  "Scrambles a binary string based on a key."
-//  
-//      data [binary!] "Binary series to scramble (modified)"
-//      key [string! binary! integer!] "Encryption key or pass phrase"
-//      /with "Use a string! key as-is (do not generate hash)"
-//  ]
-//
-REBNATIVE(encloak)
-{
-    PARAM(1, data);
-    PARAM(2, key);
-    REFINE(3, with);
-
-    if (!Cloak(
-        FALSE,
-        VAL_BIN_AT(ARG(data)),
-        VAL_LEN_AT(ARG(data)),
-        cast(REBYTE*, ARG(key)),
-        0,
-        REF(with))
-    ) {
-        fail (Error_Invalid_Arg(ARG(key)));
-    }
-
-    *D_OUT = *ARG(data);
     return R_OUT;
 }
 

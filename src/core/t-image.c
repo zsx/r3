@@ -28,6 +28,13 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 
+// lodepng uses the C++ iostream fail, but in the standard namespace, which
+// interferes with Ren-C's definition of the fail() macro.  It has to be
+// included before %sys-core.h.  See REBNATIVE(to_png) below for the only
+// usage of lodepng (added by Saphirion, due to bugs in the existing PNG code)
+//
+#include "png/lodepng.h"
+
 #include "sys-core.h"
 
 #define CLEAR_IMAGE(p, x, y) memset(p, 0, x * y * sizeof(u32))
@@ -991,11 +998,11 @@ REBTYPE(Image)
         return R_OUT;
 
     case SYM_PICK:
-        Pick_Path(D_OUT, value, arg, 0);
+        Pick_Image(D_OUT, value, arg);
         return R_OUT;
 
     case SYM_POKE:
-        Pick_Path(D_OUT, value, arg, D_ARG(3));
+        Poke_Image_Fail_If_Locked(value, arg, D_ARG(3));
         *D_OUT = *D_ARG(3);
         return R_OUT;
 
@@ -1159,177 +1166,279 @@ makeCopy2:
 }
 
 
+inline static REBOOL Adjust_Image_Pick_Index_Is_Valid(
+    REBINT *index, // gets adjusted
+    const REBVAL *value, // image
+    const REBVAL *picker
+) {
+    REBINT n;
+    if (IS_PAIR(picker)) {
+        n = (
+            VAL_PAIR_Y_INT(picker) * VAL_IMAGE_WIDE(value)
+            + VAL_PAIR_X_INT(picker)
+        ) + 1;
+    }
+    else if (IS_INTEGER(picker))
+        n = VAL_INT32(picker);
+    else if (IS_DECIMAL(picker))
+        n = cast(REBINT, VAL_DECIMAL(picker));
+    else if (IS_LOGIC(picker))
+        n = VAL_LOGIC(picker) ? 1 : 2;
+    else
+        fail (Error_Invalid_Arg(picker));
+
+    *index += n;
+    if (n > 0)
+        (*index)--;
+
+    if (n == 0 || *index < 0 || *index >= cast(REBINT, VAL_LEN_HEAD(value)))
+        return FALSE; // out of range
+
+    return TRUE;
+}
+
+
+//
+//  Pick_Image: C
+//
+void Pick_Image(REBVAL *out, const REBVAL *value, const REBVAL *picker)
+{
+    REBSER *series = VAL_SERIES(value);
+
+    REBINT index = cast(REBINT, VAL_INDEX(value));
+    REBINT len = VAL_LEN_HEAD(value) - index;
+    len = MAX(len, 0);
+
+    REBYTE *src = VAL_IMAGE_DATA(value);
+
+    if (IS_WORD(picker)) {
+        switch (VAL_WORD_SYM(picker)) {
+        case SYM_SIZE:
+            SET_PAIR(
+                out,
+                VAL_IMAGE_WIDE(value),
+                VAL_IMAGE_HIGH(value)
+            );
+            break;
+
+        case SYM_RGB: {
+            REBSER *nser = Make_Binary(len * 3);
+            SET_SERIES_LEN(nser, len * 3);
+            RGB_To_Bin(QUAD_HEAD(nser), src, len, FALSE);
+            Val_Init_Binary(out, nser);
+            break; }
+
+        case SYM_ALPHA: {
+            REBSER *nser = Make_Binary(len);
+            SET_SERIES_LEN(nser, len);
+            Alpha_To_Bin(QUAD_HEAD(nser), src, len);
+            Val_Init_Binary(out, nser);
+            break; }
+
+        default:
+            fail (Error_Invalid_Arg(picker));
+        }
+        return;
+    }
+
+    if (Adjust_Image_Pick_Index_Is_Valid(&index, value, picker))
+        Set_Tuple_Pixel(QUAD_SKIP(series, index), out);
+    else
+        SET_VOID(out);
+}
+
+
+//
+//  Poke_Image_Fail_If_Locked: C
+//
+void Poke_Image_Fail_If_Locked(
+    REBVAL *value,
+    const REBVAL *picker,
+    const REBVAL *poke
+) {
+    REBSER *series = VAL_SERIES(value);
+    FAIL_IF_LOCKED_SERIES(series);
+
+    REBINT index = cast(REBINT, VAL_INDEX(value));
+    REBINT len = VAL_LEN_HEAD(value) - index;
+    len = MAX(len, 0);
+
+    REBYTE *src = VAL_IMAGE_DATA(value);
+
+    if (IS_WORD(picker)) {
+        switch (VAL_WORD_SYM(picker)) {
+        case SYM_SIZE:
+            if (!IS_PAIR(poke) || !VAL_PAIR_X(poke))
+                fail (Error_Invalid_Arg(poke));
+
+            VAL_IMAGE_WIDE(value) = VAL_PAIR_X_INT(poke);
+            VAL_IMAGE_HIGH(value) = MIN(
+                VAL_PAIR_Y_INT(poke),
+                cast(REBINT, VAL_LEN_HEAD(value) / VAL_PAIR_X_INT(poke))
+            );
+            break;
+
+        case SYM_RGB:
+            if (IS_TUPLE(poke)) {
+                Fill_Line(
+                    cast(REBCNT*, src), TO_PIXEL_TUPLE(poke), len, TRUE
+                );
+            } else if (IS_INTEGER(poke)) {
+                REBINT byte = VAL_INT32(poke);
+                if (byte < 0 || byte > 255)
+                    fail (Error_Out_Of_Range(poke));
+
+                Fill_Line(
+                    cast(REBCNT*, src),
+                    TO_PIXEL_COLOR(byte, byte, byte, 0xFF),
+                    len,
+                    TRUE
+                );
+            }
+            else if (IS_BINARY(poke)) {
+                Bin_To_RGB(
+                    src,
+                    len,
+                    VAL_BIN_AT(poke),
+                    VAL_LEN_AT(poke) / 3
+                );
+            }
+            else
+                fail (Error_Invalid_Arg(poke));
+            break;
+
+        case SYM_ALPHA:
+            if (IS_INTEGER(poke)) {
+                REBINT n = VAL_INT32(poke);
+                if (n < 0 || n > 255)
+                    fail (Error_Out_Of_Range(poke));
+
+                Fill_Alpha_Line(src, cast(REBYTE, n), len);
+            }
+            else if (IS_BINARY(poke)) {
+                Bin_To_Alpha(
+                    src,
+                    len,
+                    VAL_BIN_AT(poke),
+                    VAL_LEN_AT(poke)
+                );
+            }
+            else
+                fail (Error_Invalid_Arg(poke));
+            break;
+
+        default:
+            fail (Error_Invalid_Arg(picker));
+        }
+        return;
+    }
+
+    if (!Adjust_Image_Pick_Index_Is_Valid(&index, value, picker))
+        fail (Error_Out_Of_Range(picker));
+
+    if (IS_TUPLE(poke)) { // set whole pixel
+        Set_Pixel_Tuple(QUAD_SKIP(series, index), poke);
+        return;
+    }
+
+    // set the alpha only
+
+    REBINT alpha;
+    if (
+        IS_INTEGER(poke)
+        && VAL_INT64(poke) > 0
+        && VAL_INT64(poke) < 255
+    ) {
+        alpha = VAL_INT32(poke);
+    }
+    else if (IS_CHAR(poke))
+        alpha = VAL_CHAR(poke);
+    else
+        fail (Error_Out_Of_Range(poke));
+
+    REBCNT *dp = cast(REBCNT*, QUAD_SKIP(series, index));
+    *dp = (*dp & 0xffffff) | (alpha << 24);
+}
+
+
 //
 //  PD_Image: C
 //
 REBINT PD_Image(REBPVS *pvs)
 {
-    RELVAL *data = pvs->value;
-    const REBVAL *sel = pvs->selector;
-    const REBVAL *setval;
-    REBINT n;
-    REBINT len;
-    REBYTE *src;
-    REBSER *nser;
-    REBCNT *dp;
-
-    REBSER *series = VAL_SERIES(data);
-    REBINT index = cast(REBINT, VAL_INDEX(data));
-
-    len = VAL_LEN_HEAD(data) - index;
-    len = MAX(len, 0);
-    src = VAL_IMAGE_DATA(data);
-
-    if (IS_PAIR(sel)) n = (VAL_PAIR_Y_INT(sel) * VAL_IMAGE_WIDE(data) + VAL_PAIR_X_INT(sel)) + 1;
-    else if (IS_INTEGER(sel)) n = VAL_INT32(sel);
-    else if (IS_DECIMAL(sel)) n = (REBINT)VAL_DECIMAL(sel);
-    else if (IS_LOGIC(sel))   n = (VAL_LOGIC(sel) ? 1 : 2);
-    else if (IS_WORD(sel)) {
-        if (!pvs->opt_setval) {
-            switch (VAL_WORD_SYM(sel)) {
-            case SYM_SIZE:
-                SET_PAIR(
-                    pvs->store,
-                    VAL_IMAGE_WIDE(data),
-                    VAL_IMAGE_HIGH(data)
-                );
-                break;
-
-            case SYM_RGB:
-                nser = Make_Binary(len * 3);
-                SET_SERIES_LEN(nser, len * 3);
-                RGB_To_Bin(QUAD_HEAD(nser), src, len, FALSE);
-                Val_Init_Binary(pvs->store, nser);
-                break;
-
-            case SYM_ALPHA:
-                nser = Make_Binary(len);
-                SET_SERIES_LEN(nser, len);
-                Alpha_To_Bin(QUAD_HEAD(nser), src, len);
-                Val_Init_Binary(pvs->store, nser);
-                break;
-
-            default:
-                fail (Error_Bad_Path_Select(pvs));
-            }
-            return PE_USE_STORE;
-        }
-        else {
-            FAIL_IF_LOCKED_SERIES(series);
-            setval = pvs->opt_setval;
-
-            switch (VAL_WORD_SYM(sel)) {
-            case SYM_SIZE:
-                if (!IS_PAIR(setval) || !VAL_PAIR_X(setval))
-                    fail (Error_Bad_Path_Set(pvs));
-
-                VAL_IMAGE_WIDE(data) = VAL_PAIR_X_INT(setval);
-                VAL_IMAGE_HIGH(data) = MIN(
-                    VAL_PAIR_Y_INT(setval),
-                    cast(REBINT, VAL_LEN_HEAD(data) / VAL_PAIR_X_INT(setval))
-                );
-                break;
-
-            case SYM_RGB:
-                if (IS_TUPLE(setval)) {
-                    Fill_Line(
-                        cast(REBCNT*, src), TO_PIXEL_TUPLE(setval), len, TRUE
-                    );
-                } else if (IS_INTEGER(setval)) {
-                    n = VAL_INT32(setval);
-                    if (n < 0 || n > 255)
-                        fail (Error_Bad_Path_Range(pvs));
-
-                    Fill_Line(
-                        cast(REBCNT*, src),
-                        TO_PIXEL_COLOR(n,n,n,0xFF),
-                        len,
-                        TRUE
-                    );
-                }
-                else if (IS_BINARY(setval)) {
-                    Bin_To_RGB(
-                        src,
-                        len,
-                        VAL_BIN_AT(setval),
-                        VAL_LEN_AT(setval) / 3
-                    );
-                }
-                else
-                    fail (Error_Bad_Path_Set(pvs));
-                break;
-
-            case SYM_ALPHA:
-                if (IS_INTEGER(setval)) {
-                    n = VAL_INT32(setval);
-                    if (n < 0 || n > 255)
-                        fail (Error_Bad_Path_Range(pvs));
-
-                    Fill_Alpha_Line(src, (REBYTE)n, len);
-                }
-                else if (IS_BINARY(setval)) {
-                    Bin_To_Alpha(
-                        src,
-                        len,
-                        VAL_BIN_AT(setval),
-                        VAL_LEN_AT(setval)
-                    );
-                }
-                else
-                    fail (Error_Bad_Path_Set(pvs));
-                break;
-
-            default:
-                fail (Error_Bad_Path_Select(pvs));
-            }
-            return PE_OK;
-        }
-    }
-    else
-        fail (Error_Bad_Path_Select(pvs));
-
-    // Handle index path:
-    index += n;
-    if (n > 0) index--;
-
-    // Out of range:
-    if (n == 0 || index < 0 || index >= cast(REBINT, SER_LEN(series))) {
-        if (pvs->opt_setval)
-            fail (Error_Bad_Path_Set(pvs));
-
-        return PE_NONE;
-    }
-
-    // Get the pixel:
-    if (!pvs->opt_setval) {
-        Set_Tuple_Pixel(QUAD_SKIP(series, index), pvs->store);
-        return PE_USE_STORE;
-    }
-
-    FAIL_IF_LOCKED_SERIES(series);
-    setval = pvs->opt_setval;
-
-    // Set the pixel:
-    if (IS_TUPLE(setval)) {
-        assert(IS_IMAGE(data)); // there was an && clause in this if before
-        Set_Pixel_Tuple(QUAD_SKIP(series, index), setval);
+    if (pvs->opt_setval) {
+        Poke_Image_Fail_If_Locked(
+            KNOWN(pvs->value), pvs->selector, pvs->opt_setval
+        );
         return PE_OK;
     }
 
-    // Set the alpha only:
-    if (
-        IS_INTEGER(setval)
-        && VAL_INT64(setval) > 0
-        && VAL_INT64(setval) < 255
-    ) {
-        n = VAL_INT32(setval);
-    }
-    else if (IS_CHAR(setval))
-        n = VAL_CHAR(setval);
-    else
-        fail (Error_Bad_Path_Range(pvs));
+    Pick_Image(pvs->store, KNOWN(pvs->value), pvs->selector);
+    return PE_USE_STORE;
+}
 
-    dp = cast(REBCNT*, QUAD_SKIP(series, index));
-    *dp = (*dp & 0xffffff) | (n << 24);
-    return PE_OK;
+
+// !!! This didn't really have anywhere to go.  It came from %host-core.c,
+// and it's not part of the historical PNG code, but apparently Saphirion
+// found a problem with that in terms of saving (saving only?) which they
+// added in lodepng for.  This is unfortunate as lodepng repeats deflate
+// code already available in Zlib.
+
+//
+//  to-png: native [
+//
+//  "Save an image to PNG format"
+//
+//      image [image!]
+// ]
+//
+REBNATIVE(to_png)
+{
+    PARAM(1, image);
+
+    REBVAL *image = ARG(image);
+
+    LodePNGState state;
+    lodepng_state_init(&state);
+
+    // "disable autopilot"
+    state.encoder.auto_convert = LAC_NO;
+    
+    // input format
+    state.info_raw.colortype = LCT_RGBA;
+    state.info_raw.bitdepth = 8;
+    
+    // output format
+    state.info_png.color.colortype = LCT_RGBA;
+    state.info_png.color.bitdepth = 8;
+
+    size_t buffersize;
+    REBYTE *buffer = NULL;
+    
+    REBINT w = VAL_IMAGE_WIDE(image);
+    REBINT h = VAL_IMAGE_HIGH(image);
+    
+    unsigned error = lodepng_encode(
+        &buffer, // freed with free()...so must be allocated via malloc() ?
+        &buffersize,
+        SER_DATA_RAW(VAL_SERIES(image)),
+        w,
+        h,
+        &state
+    );
+
+    lodepng_state_cleanup(&state);
+
+    if (error != 0) {
+        if (buffer != NULL) free(buffer);
+        return R_BLANK;
+    }
+
+    REBSER *binary = Make_Binary(buffersize);    
+    memcpy(SER_DATA_RAW(binary), buffer, buffersize);
+    SET_SERIES_LEN(binary, buffersize);
+    free(buffer);
+
+    Val_Init_Binary(D_OUT, binary);    
+    return R_OUT;
 }

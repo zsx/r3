@@ -1030,7 +1030,7 @@ REBOOL Form_Value_Throws(
 
         const RELVAL *item = f->value;
         if (flags & FORM_FLAG_REDUCE) {
-            DO_NEXT_REFETCH_MAY_THROW(out, f, DO_FLAG_LOOKAHEAD);
+            DO_NEXT_REFETCH_MAY_THROW(out, f, DO_FLAG_NORMAL);
             if (THROWN(out))
                 goto return_thrown;
 
@@ -1141,8 +1141,7 @@ REBOOL Form_Value_Throws(
                 // The mold didn't add anything, so roll back and don't
                 // update the pending delimiter.
                 //
-                SET_UNI_LEN(mold->series, rollback_point);
-                UNI_TERM(mold->series);
+                TERM_UNI_LEN(mold->series, rollback_point);
                 SET_BLANK(pending_delimiter);
             }
             else {

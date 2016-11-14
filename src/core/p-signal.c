@@ -247,7 +247,7 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             result = OS_DO_DEVICE(req, RDC_READ);
             if (result < 0) {
                 Free_Series(ser);
-                fail(Error_On_Port(RE_READ_ERROR, port, req->error));
+                fail (Error_On_Port(RE_READ_ERROR, port, req->error));
             }
 
             arg = CTX_VAR(port, STD_PORT_DATA);
