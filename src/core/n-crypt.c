@@ -37,14 +37,15 @@
 // particularly secure) ENCLOAK and DECLOAK operations from R3-Alpha.
 //
 
-#include "sys-core.h"
-
 #include "rc4/rc4.h"
 #include "rsa/rsa.h" // defines gCryptProv and rng_fd (used in Init/Shutdown)
 #include "dh/dh.h"
 #include "aes/aes.h"
 
-
+#ifdef IS_ERROR
+#undef IS_ERROR //winerror.h defines this, so undef it to avoid the warning
+#endif
+#include "sys-core.h"
 
 //
 //  Init_Crypto: C
