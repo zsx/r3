@@ -466,7 +466,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
 // NOTE: stack must already be setup correctly for action, and
 // the caller must cleanup the stack.
 //
-int Do_Port_Action(REBFRM *frame_, REBCTX *port, REBSYM action)
+REB_R Do_Port_Action(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
     assert(GET_ARR_FLAG(CTX_VARLIST(port), ARRAY_FLAG_VARLIST));
 

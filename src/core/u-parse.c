@@ -1912,7 +1912,7 @@ REBNATIVE(subparse)
                 // i may be THROWN_FLAG
             }
 
-            if (i == THROWN_FLAG) return THROWN_FLAG;
+            if (i == THROWN_FLAG) return R_OUT_IS_THROWN;
 
             // Necessary for special cases like: some [to end]
             // i: indicates new index or failure of the match, but

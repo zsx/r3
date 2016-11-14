@@ -31,33 +31,32 @@
 #include "sys-core.h"
 
 
-static int Check_Char_Range(REBVAL *val, REBINT limit)
+static REBOOL Check_Char_Range(REBVAL *val, REBINT limit)
 {
-    REBCNT len;
-
     if (IS_CHAR(val)) {
-        if (VAL_CHAR(val) > limit) return R_FALSE;
-        return R_TRUE;
+        if (VAL_CHAR(val) > limit) return FALSE;
+        return TRUE;
     }
 
     if (IS_INTEGER(val)) {
-        if (VAL_INT64(val) > limit) return R_FALSE;
-        return R_TRUE;
+        if (VAL_INT64(val) > limit) return FALSE;
+        return TRUE;
     }
 
-    len = VAL_LEN_AT(val);
+    REBCNT len = VAL_LEN_AT(val);
     if (VAL_BYTE_SIZE(val)) {
         REBYTE *bp = VAL_BIN_AT(val);
-        if (limit == 0xff) return R_TRUE; // by definition
+        if (limit == 0xff) return TRUE; // by definition
         for (; len > 0; len--, bp++)
-            if (*bp > limit) return R_FALSE;
-    } else {
+            if (*bp > limit) return FALSE;
+    }
+    else {
         REBUNI *up = VAL_UNI_AT(val);
         for (; len > 0; len--, up++)
-            if (*up > limit) return R_FALSE;
+            if (*up > limit) return FALSE;
     }
 
-    return R_TRUE;
+    return TRUE;
 }
 
 
@@ -71,7 +70,7 @@ static int Check_Char_Range(REBVAL *val, REBINT limit)
 //
 REBNATIVE(ascii_q)
 {
-    return Check_Char_Range(D_ARG(1), 0x7f);
+    return R_FROM_BOOL(Check_Char_Range(D_ARG(1), 0x7f));
 }
 
 
@@ -85,7 +84,7 @@ REBNATIVE(ascii_q)
 //
 REBNATIVE(latin1_q)
 {
-    return Check_Char_Range(D_ARG(1), 0xff);
+    return R_FROM_BOOL(Check_Char_Range(D_ARG(1), 0xff));
 }
 
 
@@ -1311,27 +1310,19 @@ REBNATIVE(aliases_q)
 }
 
 
+// Common routine for both SET? and UNSET?  Note that location is modified
+// into a GET-PATH! value if it is originally a path (okay for the natives,
+// since they can modify values in their frames.)
 //
-//  set?: native [
-//  
-//  "Returns whether a bound word or path is set (!!! shouldn't eval GROUP!s)"
-//  
-//      location [any-word! any-path!]
-//  ]
-//
-REBNATIVE(set_q)
+inline static REBOOL Is_Set_Modifies(REBVAL *location)
 {
-    PARAM(1, location);
-
-    REBVAL *location = ARG(location);
-
     if (ANY_WORD(location)) {
         //
         // Note this will fail if unbound
         //
         const REBVAL *var = GET_OPT_VAR_MAY_FAIL(location, SPECIFIED);
         if (IS_VOID(var))
-            return R_FALSE;
+            return FALSE;
     }
     else {
         assert(ANY_PATH(location));
@@ -1358,10 +1349,46 @@ REBNATIVE(set_q)
         //
         assert(DSP == dsp_orig);
         if (IS_VOID(&temp))
-            return R_FALSE;
+            return FALSE;
     }
 
-    return R_TRUE;
+    return TRUE;
+}
+
+
+//
+//  set?: native/body [
+//  
+//  "Whether a bound word or path is set (!!! shouldn't eval GROUP!s)"
+//  
+//      location [any-word! any-path!]
+//  ][
+//      any-value? get/opt location
+//  ]
+//
+REBNATIVE(set_q)
+{
+    PARAM(1, location);
+
+    return R_FROM_BOOL(Is_Set_Modifies(ARG(location)));
+}
+
+
+//
+//  unset?: native/body [
+//  
+//  "Whether a bound word or path is unset (!!! shouldn't eval GROUP!s)"
+//  
+//      location [any-word! any-path!]
+//  ][
+//      void? get/opt location
+//  ]
+//
+REBNATIVE(unset_q)
+{
+    PARAM(1, location);
+
+    return R_FROM_BOOL(NOT(Is_Set_Modifies(ARG(location))));
 }
 
 
@@ -1379,7 +1406,7 @@ REBNATIVE(true_q)
 {
     PARAM(1, value);
 
-    return IS_CONDITIONAL_TRUE(ARG(value)) ? R_TRUE : R_FALSE;
+    return R_FROM_BOOL(IS_CONDITIONAL_TRUE(ARG(value)));
 }
 
 
@@ -1404,7 +1431,7 @@ REBNATIVE(false_q)
 {
     PARAM(1, value);
 
-    return IS_CONDITIONAL_FALSE(ARG(value)) ? R_TRUE : R_FALSE;
+    return R_FROM_BOOL(IS_CONDITIONAL_FALSE(ARG(value)));
 }
 
 
@@ -1448,7 +1475,7 @@ REBNATIVE(void_q)
 {
     PARAM(1, value);
 
-    return IS_VOID(ARG(value)) ? R_TRUE : R_FALSE;
+    return R_FROM_BOOL(IS_VOID(ARG(value)));
 }
 
 
@@ -1484,7 +1511,9 @@ REBNATIVE(nothing_q)
 {
     PARAM(1, value);
 
-    return (IS_BLANK(ARG(value)) || IS_VOID(ARG(value))) ? R_TRUE : R_FALSE;
+    return R_FROM_BOOL(
+        LOGICAL(IS_BLANK(ARG(value)) || IS_VOID(ARG(value)))
+    );
 }
 
 
@@ -1505,5 +1534,7 @@ REBNATIVE(something_q)
 {
     PARAM(1, value);
 
-    return (IS_BLANK(ARG(value)) || IS_VOID(ARG(value))) ? R_FALSE : R_TRUE;
+    return R_FROM_BOOL(
+        NOT(IS_BLANK(ARG(value)) || IS_VOID(ARG(value)))
+    );
 }

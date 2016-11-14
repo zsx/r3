@@ -298,7 +298,7 @@ REBNATIVE(checksum)
                 TERM_BIN_LEN(digest, digests[i].len);
                 Val_Init_Binary(D_OUT, digest);
 
-                return 0;
+                return R_OUT;
             }
         }
 

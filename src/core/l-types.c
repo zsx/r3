@@ -128,7 +128,7 @@ REBNATIVE(make)
 
             if (indexor == THROWN_FLAG) {
                 DS_DROP_TO(dsp_orig);
-                return TRUE;
+                return R_OUT_IS_THROWN;
             }
             if (indexor == END_FLAG)
                 break;
@@ -138,7 +138,7 @@ REBNATIVE(make)
         } while (TRUE);
 
         Val_Init_Array(D_OUT, kind, Pop_Stack_Values(dsp_orig));
-        return FALSE;
+        return R_OUT;
     }
 
     dispatcher(D_OUT, kind, arg); // may fail()
