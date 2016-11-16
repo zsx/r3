@@ -252,7 +252,7 @@ int main(int argc, char **argv)
 		&& (
 			!Main_Args.script // no script was provided
 			|| n  < 0         // script halted or had error
-			|| Main_Args.options & RO_HALT  // --halt option
+			|| (Main_Args.options & RO_HALT)  // --halt option
 		)
 	){
 		n = 0;  // reset error code (but should be able to set it below too!)

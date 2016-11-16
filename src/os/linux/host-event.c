@@ -718,7 +718,7 @@ static void handle_key(XEvent *ev, REBGOB *gob)
 			key = key_string[0]; /* FIXME, key_string could be longer than 1 */
 		}
 		/* map control characters */
-		if (flags & (1 << EVF_CONTROL)
+		if ((flags & (1 << EVF_CONTROL))
 			&& !(flags & (1 << EVF_SHIFT))) {
 			if (key >= 'A' && key <= '_') {
 				key = key - 'A' + 1;
