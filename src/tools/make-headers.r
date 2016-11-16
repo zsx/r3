@@ -150,7 +150,10 @@ emit-out {
 //
 }
 
-files: sort read %./
+file-base: has load %../tools/file-base.r
+files: map-each file file-base/core [
+    either not find/match form file {../} [to file! form file][()]
+]
 
 ;do
 [
