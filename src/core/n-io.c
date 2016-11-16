@@ -325,58 +325,97 @@ REBNATIVE(new_line_q)
 //  
 //  "Returns current date and time with timezone adjustment."
 //  
-//      /year "Returns year only"
-//      /month "Returns month only"
-//      /day "Returns day of the month only"
-//      /time "Returns time only"
-//      /zone "Returns time zone offset from UCT (GMT) only"
-//      /date "Returns date only"
-//      /weekday {Returns day of the week as integer (Monday is day 1)}
-//      /yearday "Returns day of the year (Julian)"
-//      /precise "High precision time"
-//      /utc "Universal time (no zone)"
+//      /year
+//          "Returns year only"
+//      /month
+//          "Returns month only"
+//      /day
+//          "Returns day of the month only"
+//      /time
+//          "Returns time only"
+//      /zone
+//          "Returns time zone offset from UCT (GMT) only"
+//      /date
+//          "Returns date only"
+//      /weekday
+//          {Returns day of the week as integer (Monday is day 1)}
+//      /yearday
+//          "Returns day of the year (Julian)"
+//      /precise
+//          "High precision time"
+//      /utc
+//          "Universal time (no zone)"
 //  ]
 //
 REBNATIVE(now)
 {
-    REBOL_DAT dat;
-    REBINT n = -1;
+    REFINE(1, year);
+    REFINE(2, month);
+    REFINE(3, day);
+    REFINE(4, time);
+    REFINE(5, zone);
+    REFINE(6, date);
+    REFINE(7, weekday);
+    REFINE(8, yearday);
+    REFINE(9, precise);
+    REFINE(10, utc);
+
     REBVAL *ret = D_OUT;
+    OS_GET_TIME(D_OUT);
 
-    OS_GET_TIME(&dat);
-    if (!D_REF(9)) dat.nano = 0; // Not /precise
-    Set_Date(ret, &dat);
-    Current_Year = dat.year;
-
-    if (D_REF(10)) { // UTC
+    if (NOT(REF(precise))) {
+        //
+        // The "time" field is measured in nanoseconds, and the historical
+        // meaning of not using precise measurement was to use only the
+        // seconds portion (with the nanoseconds set to 0).  This achieves
+        // that by extracting the seconds and then multiplying by nanoseconds.
+        // 
+        VAL_TIME(ret) = TIME_SEC(VAL_SECS(ret));
+    }
+    
+    if (REF(utc)) {
         VAL_ZONE(ret) = 0;
     }
     else {
-        if (D_REF(1) || D_REF(2) || D_REF(3) || D_REF(4)
-            || D_REF(6) || D_REF(7) || D_REF(8))
-            Adjust_Date_Zone(ret, FALSE); // Add time zone, adjust date and time
+        if (
+            REF(year)
+            || REF(month)
+            || REF(day)
+            || REF(time)
+            || REF(date)
+            || REF(weekday)
+            || REF(yearday)
+        ){
+            Adjust_Date_Zone(ret, FALSE); // Add time zone, adjust date/time
+        }
     }
 
-    // Check for /date, /time, /zone
-    if (D_REF(6)) {         // date
+    REBINT n = -1;
+
+    if (REF(date)) {
         VAL_TIME(ret) = NO_TIME;
         VAL_ZONE(ret) = 0;
     }
-    else if (D_REF(4)) {    // time
-        //if (dat.time == ???) SET_BLANK(ret);
+    else if (REF(time)) {
         VAL_RESET_HEADER(ret, REB_TIME);
     }
-    else if (D_REF(5)) {    // zone
+    else if (REF(zone)) {
         VAL_RESET_HEADER(ret, REB_TIME);
         VAL_TIME(ret) = VAL_ZONE(ret) * ZONE_MINS * MIN_SEC;
     }
-    else if (D_REF(7)) n = Week_Day(VAL_DATE(ret));
-    else if (D_REF(8)) n = Julian_Date(VAL_DATE(ret));
-    else if (D_REF(1)) n = VAL_YEAR(ret);
-    else if (D_REF(2)) n = VAL_MONTH(ret);
-    else if (D_REF(3)) n = VAL_DAY(ret);
+    else if (REF(weekday))
+        n = Week_Day(VAL_DATE(ret));
+    else if (REF(yearday))
+        n = Julian_Date(VAL_DATE(ret));
+    else if (REF(year))
+        n = VAL_YEAR(ret);
+    else if (REF(month))
+        n = VAL_MONTH(ret);
+    else if (REF(day))
+        n = VAL_DAY(ret);
 
-    if (n > 0) SET_INTEGER(ret, n);
+    if (n > 0)
+        SET_INTEGER(ret, n);
 
     return R_OUT;
 }

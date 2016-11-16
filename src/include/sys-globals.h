@@ -80,7 +80,6 @@ PVAR REBUNI *Lower_Cases;
 PVAR REBYTE *PG_Pool_Map;   // Memory pool size map (created on boot)
 
 PVAR REBI64 PG_Boot_Time;   // Counter when boot started
-PVAR REBINT Current_Year;
 PVAR REB_OPTS *Reb_Opts;
 
 #ifndef NDEBUG

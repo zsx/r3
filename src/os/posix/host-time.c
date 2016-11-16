@@ -91,20 +91,19 @@ static int Get_Timezone(struct tm *local_tm)
 // Convert local format of system time into standard date
 // and time structure (for date/time and file timestamps).
 //
-void Convert_Date(time_t *stime, REBOL_DAT *dat, long zone)
+void Convert_Date(REBVAL *out, time_t *stime, long usec)
 {
-    struct tm *time;
+    struct tm *time = gmtime(stime);
 
-    CLEARS(dat);
-
-    time = gmtime(stime);
-
-    dat->year  = time->tm_year + 1900;
-    dat->month = time->tm_mon + 1;
-    dat->day   = time->tm_mday;
-    dat->time  = time->tm_hour * 3600 + time->tm_min * 60 + time->tm_sec;
-    dat->nano  = 0;
-    dat->zone  = Get_Timezone(time);
+    RL_Init_Date(
+        out,
+        time->tm_year + 1900, // year
+        time->tm_mon + 1, // month
+        time->tm_mday, // day
+        time->tm_hour * 3600 + time->tm_min * 60 + time->tm_sec, // "time"
+        usec * 1000, // nano
+        Get_Timezone(time) // zone
+    );
 }
 
 
@@ -113,15 +112,14 @@ void Convert_Date(time_t *stime, REBOL_DAT *dat, long zone)
 // 
 // Get the current system date/time in UTC plus zone offset (mins).
 //
-void OS_Get_Time(REBOL_DAT *dat)
+void OS_Get_Time(REBVAL *out)
 {
     struct timeval tv;
     time_t stime;
 
     gettimeofday(&tv, 0); // (tz field obsolete)
     stime = tv.tv_sec;
-    Convert_Date(&stime, dat, -1);
-    dat->nano  = tv.tv_usec * 1000;
+    Convert_Date(out, &stime, tv.tv_usec);
 }
 
 
@@ -156,14 +154,15 @@ i64 OS_Delta_Time(i64 base, int flags)
 // Convert file.time to REBOL date/time format.
 // Time zone is UTC.
 //
-void OS_File_Time(REBREQ *file, REBOL_DAT *dat)
+void OS_File_Time(REBVAL *out, REBREQ *file)
 {
     if (sizeof(time_t) > sizeof(file->special.file.time.l)) {
         REBI64 t = file->special.file.time.l;
         t |= cast(REBI64, file->special.file.time.h) << 32;
-        Convert_Date(cast(time_t*, &t), dat, 0);
-    } else {
-        Convert_Date(cast(time_t *, &file->special.file.time.l), dat, 0);
+        Convert_Date(out, cast(time_t*, &t), 0);
+    }
+    else {
+        Convert_Date(out, cast(time_t *, &file->special.file.time.l), 0);
     }
 }
 

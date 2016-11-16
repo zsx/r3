@@ -53,23 +53,6 @@ void Set_Date_UTC(REBVAL *val, REBINT y, REBINT m, REBINT d, REBI64 t, REBINT z)
 
 
 //
-//  Set_Date: C
-// 
-// Convert OS date struct to REBOL value struct.
-// NOTE: Input zone is in minutes.
-//
-void Set_Date(REBVAL *val, REBOL_DAT *dat)
-{
-    VAL_YEAR(val)  = dat->year;
-    VAL_MONTH(val) = dat->month;
-    VAL_DAY(val)   = dat->day;
-    VAL_ZONE(val)  = dat->zone / ZONE_MINS;
-    VAL_TIME(val)  = TIME_SEC(dat->time) + dat->nano;
-    VAL_RESET_HEADER(val, REB_DATE);
-}
-
-
-//
 //  CT_Date: C
 //
 REBINT CT_Date(const RELVAL *a, const RELVAL *b, REBINT mode)

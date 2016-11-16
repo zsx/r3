@@ -12,7 +12,6 @@ const void *rebol_symbols [] = {
     SYM_FUNC(Codec_UTF16BE), // b-init.c
     SYM_FUNC(Register_Codec), // b-init.c
     SYM_FUNC(Init_Task), // b-init.c
-    SYM_FUNC(Init_Year), // b-init.c
     SYM_FUNC(Init_Core), // b-init.c
     SYM_FUNC(Shutdown_Core), // b-init.c
     SYM_FUNC(Bind_Values_Core), // c-bind.c
@@ -479,7 +478,6 @@ const void *rebol_symbols [] = {
     SYM_FUNC(MAKE_Datatype), // t-datatype.c
     SYM_FUNC(TO_Datatype), // t-datatype.c
     SYM_FUNC(Set_Date_UTC), // t-date.c
-    SYM_FUNC(Set_Date), // t-date.c
     SYM_FUNC(CT_Date), // t-date.c
     SYM_FUNC(Emit_Date), // t-date.c
     SYM_FUNC(Julian_Date), // t-date.c
@@ -768,7 +766,6 @@ const void *rebol_symbols [] = {
     SYM_DATA(PG_Pool_Map),
 
     SYM_DATA(PG_Boot_Time),
-    SYM_DATA(Current_Year),
     SYM_DATA(Reb_Opts),
 
 #ifndef NDEBUG
