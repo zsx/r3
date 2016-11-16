@@ -128,7 +128,7 @@ REBNATIVE(make)
 
             if (indexor == THROWN_FLAG) {
                 DS_DROP_TO(dsp_orig);
-                return TRUE;
+                return R_OUT_IS_THROWN;
             }
             if (indexor == END_FLAG)
                 break;
@@ -138,7 +138,7 @@ REBNATIVE(make)
         } while (TRUE);
 
         Val_Init_Array(D_OUT, kind, Pop_Stack_Values(dsp_orig));
-        return FALSE;
+        return R_OUT;
     }
 
     dispatcher(D_OUT, kind, arg); // may fail()
@@ -510,44 +510,6 @@ const REBYTE *Scan_Money(const REBYTE *cp, REBCNT len, REBVAL *value)
     if (end != cp + len) return 0;
 
     return end;
-
-#ifdef ndef
-    REBYTE *bp = cp;
-    REBYTE buf[MAX_NUM_LEN+8];
-    REBYTE *ep = buf;
-    REBCNT n = 0;
-    REBOOL dig = FALSE;
-
-    if (*cp == '+') cp++;
-    else if (*cp == '-') *ep++ = *cp++;
-
-    if (*cp != '$') {
-        for (; Upper_Case[*cp] >= 'A' && Upper_Case[*cp] <= 'Z' && n < 3; cp++, n++) {
-            VAL_MONEY_DENOM(value)[n] = Upper_Case[*cp];
-        }
-        if (*cp != '$' || n > 3) return 0;
-        VAL_MONEY_DENOM(value)[n] = 0;
-    } else VAL_MONEY_DENOM(value)[0] = 0;
-    cp++;
-
-    while (ep < buf+MAX_NUM_LEN && (IS_LEX_NUMBER(*cp) || *cp == '\''))
-        if (*cp != '\'') *ep++ = *cp++, dig=1;
-        else cp++;
-    if (*cp == ',' || *cp == '.') cp++;
-    *ep++ = '.';
-    while (ep < buf+MAX_NUM_LEN && (IS_LEX_NUMBER(*cp) || *cp == '\''))
-        if (*cp != '\'') *ep++ = *cp++, dig=1;
-        else cp++;
-    if (!dig) return 0;
-    if (ep >= buf+MAX_NUM_LEN) return 0;
-    *ep = 0;
-
-    if ((REBCNT)(cp-bp) != len) return 0;
-    VAL_RESET_HEADER(value, REB_MONEY);
-    VAL_MONEY_AMOUNT(value) = atof((char*)(&buf[0]));
-    if (fabs(VAL_MONEY_AMOUNT(value)) == HUGE_VAL) fail (Error(RE_OVERFLOW));
-    return cp;
-#endif
 }
 
 
@@ -558,31 +520,34 @@ const REBYTE *Scan_Money(const REBYTE *cp, REBCNT len, REBVAL *value)
 //
 const REBYTE *Scan_Date(const REBYTE *cp, REBCNT len, REBVAL *value)
 {
-    const REBYTE *ep;
     const REBYTE *end = cp + len;
-    REBINT num;
-    REBINT day;
-    REBINT month;
-    REBINT year;
-    REBINT tz = 0;
-    REBYTE sep;
-    REBCNT size;
 
     // Skip spaces:
     for (; *cp == ' ' && cp != end; cp++);
 
     // Skip day name, comma, and spaces:
+    const REBYTE *ep;
     for (ep = cp; *ep != ',' && ep != end; ep++);
     if (ep != end) {
         cp = ep + 1;
         while (*cp == ' ' && cp != end) cp++;
     }
-    if (cp == end) return 0;
+    if (cp == end)
+        return NULL;
+
+    REBINT num;
 
     // Day or 4-digit year:
     ep = Grab_Int(cp, &num);
-    if (num < 0) return 0;
-    size = (REBCNT)(ep - cp);
+    if (num < 0)
+        return NULL;
+
+    REBINT day;
+    REBINT month;
+    REBINT year;
+    REBINT tz = 0;
+
+    REBCNT size = cast(REBCNT, ep - cp);
     if (size >= 4) {
         // year is set in this branch (we know because day is 0)
         // Ex: 2009/04/20/19:00:00+0:00
@@ -599,69 +564,111 @@ const REBYTE *Scan_Date(const REBYTE *cp, REBCNT len, REBVAL *value)
         // how it connects with year being set or not.  Suppress warning.
         year = MIN_I32; // !!! Garbage, should not be read.
     }
-    else return NULL;
+    else
+        return NULL;
 
     cp = ep;
 
     // Determine field separator:
-    if (*cp != '/' && *cp != '-' && *cp != '.' && *cp != ' ') return 0;
-    sep = *cp++;
+    if (*cp != '/' && *cp != '-' && *cp != '.' && *cp != ' ')
+        return NULL;
+
+    REBYTE sep = *cp++;
 
     // Month as number or name:
     ep = Grab_Int(cp, &num);
-    if (num < 0) return 0;
-    size = (REBCNT)(ep - cp);
-    if (size > 0) month = num;  // got a number
-    else {      // must be a word
-        for (ep = cp; IS_LEX_WORD(*ep); ep++); // scan word
-        size = (REBCNT)(ep - cp);
-        if (size < 3) return 0;
+    if (num < 0)
+        return NULL;
+
+    size = cast(REBCNT, ep - cp);
+
+    if (size > 0)
+        month = num; // got a number
+    else { // must be a word
+        for (ep = cp; IS_LEX_WORD(*ep); ep++)
+            NOOP; // scan word
+
+        size = cast(REBCNT, ep - cp);
+        if (size < 3)
+            return NULL;
+
         for (num = 0; num < 12; num++) {
-            if (!Compare_Bytes(cb_cast(Month_Names[num]), cp, size, TRUE)) break;
+            if (!Compare_Bytes(cb_cast(Month_Names[num]), cp, size, TRUE))
+                break;
         }
         month = num + 1;
     }
-    if (month < 1 || month > 12) return 0;
+
+    if (month < 1 || month > 12)
+        return NULL;
+
     cp = ep;
-    if (*cp++ != sep) return 0;
+    if (*cp++ != sep)
+        return NULL;
 
     // Year or day (if year was first):
     ep = Grab_Int(cp, &num);
-    if (*cp == '-' || num < 0) return 0;
-    size = (REBCNT)(ep - cp);
-    if (!size) return 0;
+    if (*cp == '-' || num < 0)
+        return NULL;
+
+    size = cast(REBCNT, ep - cp);
+    if (size == 0)
+        return NULL;
 
     if (day == 0) {
         // year already set, but day hasn't been
         day = num;
     }
     else {
-        // day has been set, but year hasn't been
-
-        // Allow shorthand form (e.g. /96) ranging +49,-51 years
-        //      (so in year 2050 a 0 -> 2000 not 2100)
-        if (size >= 3) year = num;
+        // day has been set, but year hasn't been.
+        if (size >= 3)
+            year = num;
         else {
-            year = (Current_Year / 100) * 100 + num;
-            if (year - Current_Year > 50) year -=100;
-            else if (year - Current_Year < -50) year += 100;
+            // !!! Originally this allowed shorthands, so that 96 = 1996, etc.
+            //
+            //     if (num >= 70)
+            //         year = 1900 + num;
+            //     else
+            //         year = 2000 + num;
+            //
+            // It was trickier than that, because it actually used the current
+            // year (from the clock) to guess what the short year meant.  That
+            // made it so the scanner would scan the same source code
+            // differently based on the clock, which is bad.  By allowing
+            // short dates to be turned into their short year equivalents, the
+            // user code can parse such dates and fix them up after the fact
+            // according to their requirements, `if date/year < 100 [...]`
+            // 
+            year = num;
         }
     }
-    if (year > MAX_YEAR || day < 1 || day > Month_Max_Days[month-1]) return 0;
+
+    if (year > MAX_YEAR || day < 1 || day > Month_Max_Days[month-1])
+        return NULL;
+
     // Check February for leap year or century:
     if (month == 2 && day == 29) {
-        if (((year % 4) != 0) ||        // not leap year
+        if (
+            ((year % 4) != 0) ||        // not leap year
             ((year % 100) == 0 &&       // century?
-            (year % 400) != 0)) return 0; // not leap century
+            (year % 400) != 0)
+        ){
+            return NULL; // not leap century
+        }
     }
 
     cp = ep;
     VAL_TIME(value) = NO_TIME;
-    if (cp >= end) goto end_date;
+    
+    if (cp >= end)
+        goto end_date;
 
     if (*cp == '/' || *cp == ' ') {
         sep = *cp++;
-        if (cp >= end) goto end_date;
+        
+        if (cp >= end)
+            goto end_date;
+
         cp = Scan_Time(cp, 0, value);
         if (
             !cp
@@ -677,28 +684,46 @@ const REBYTE *Scan_Date(const REBYTE *cp, REBCNT len, REBVAL *value)
 
     // Time zone can be 12:30 or 1230 (optional hour indicator)
     if (*cp == '-' || *cp == '+') {
-        if (cp >= end) goto end_date;
-        ep = Grab_Int(cp+1, &num);
-        if (ep-cp == 0) return 0;
+        if (cp >= end)
+            goto end_date;
+
+        ep = Grab_Int(cp + 1, &num);
+        if (ep - cp == 0)
+            return NULL;
+
         if (*ep != ':') {
-            int h, m;
-            if (num < -1500 || num > 1500) return 0;
-            h = (num / 100);
-            m = (num - (h * 100));
+            if (num < -1500 || num > 1500)
+                return NULL;
+
+            int h = (num / 100);
+            int m = (num - (h * 100));
+
             tz = (h * 60 + m) / ZONE_MINS;
-        } else {
-            if (num < -15 || num > 15) return 0;
-            tz = num * (60/ZONE_MINS);
+        }
+        else {
+            if (num < -15 || num > 15)
+                return NULL;
+
+            tz = num * (60 / ZONE_MINS);
+
             if (*ep == ':') {
-                ep = Grab_Int(ep+1, &num);
-                if (num % ZONE_MINS != 0) return 0;
+                ep = Grab_Int(ep + 1, &num);
+                if (num % ZONE_MINS != 0)
+                    return NULL;
+
                 tz += num / ZONE_MINS;
             }
         }
-        if (ep != end) return 0;
-        if (*cp == '-') tz = -tz;
+
+        if (ep != end)
+            return NULL;
+
+        if (*cp == '-')
+            tz = -tz;
+
         cp = ep;
     }
+
 end_date:
     Set_Date_UTC(value, year, month, day, VAL_TIME(value), tz);
     return cp;

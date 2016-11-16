@@ -92,20 +92,6 @@ static void Cleanup_File(REBREQ *file)
 
 
 //
-//  Set_File_Date: C
-// 
-// Set a value with the UTC date of a file.
-//
-static void Set_File_Date(REBREQ *file, REBVAL *val)
-{
-    REBOL_DAT dat;
-
-    OS_FILE_TIME(file, &dat);
-    Set_Date(val, &dat);
-}
-
-
-//
 //  Ret_Query_File: C
 // 
 // Query file and set RET value to resulting STD_FILE_INFO object.
@@ -113,13 +99,11 @@ static void Set_File_Date(REBREQ *file, REBVAL *val)
 void Ret_Query_File(REBCTX *port, REBREQ *file, REBVAL *ret)
 {
     REBVAL *info = In_Object(port, STD_PORT_SCHEME, STD_SCHEME_INFO, 0);
-    REBCTX *context;
-    REBSER *ser;
 
     if (!info || !IS_OBJECT(info))
         fail (Error_On_Port(RE_INVALID_SPEC, port, -10));
 
-    context = Copy_Context_Shallow(VAL_CONTEXT(info));
+    REBCTX *context = Copy_Context_Shallow(VAL_CONTEXT(info));
 
     Val_Init_Object(ret, context);
     Val_Init_Word(
@@ -130,9 +114,9 @@ void Ret_Query_File(REBCTX *port, REBREQ *file, REBVAL *ret)
     SET_INTEGER(
         CTX_VAR(context, STD_FILE_INFO_SIZE), file->special.file.size
     );
-    Set_File_Date(file, CTX_VAR(context, STD_FILE_INFO_DATE));
+    OS_FILE_TIME(CTX_VAR(context, STD_FILE_INFO_DATE), file);
 
-    ser = To_REBOL_Path(
+    REBSER *ser = To_REBOL_Path(
         file->special.file.path, 0, (OS_WIDE ? PATH_OPT_UNI_SRC : 0)
     );
 

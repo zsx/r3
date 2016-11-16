@@ -98,6 +98,16 @@ enum GOB_DTYPES {       // Userdata types
 
 #pragma pack(4)
 
+// These packed values for Rebol pairs are "X and Y coordinates" as "F"loat.
+// (For PAIR! in Ren-C, actual pairing series are used, which
+// can hold two values at full REBVAL precision (either integer or decimal)
+
+typedef struct {
+    float x;
+    float y;
+} REBXYF;
+
+
 typedef struct rebol_gob REBGOB;
 
 struct rebol_gob {

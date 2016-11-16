@@ -141,30 +141,38 @@ REBINT Cmp_Pair(const RELVAL *t1, const RELVAL *t2)
 //
 void Min_Max_Pair(REBVAL *out, const REBVAL *a, const REBVAL *b, REBOOL maxed)
 {
-    REBXYF aa;
+    // !!! This used to use REBXYF (a structure containing "X" and "Y" as
+    // floats).  It's not clear why floats would be preferred here, and
+    // also not clear what the types should be if they were mixed (INTEGER!
+    // vs. DECIMAL! for the X or Y).  REBXYF is now a structure only used
+    // in GOB! so it is taken out of mention here.
+
+    float ax;
+    float ay;
     if (IS_PAIR(a)) {
-        aa.x = VAL_PAIR_X(a);
-        aa.y = VAL_PAIR_Y(a);
+        ax = VAL_PAIR_X(a);
+        ay = VAL_PAIR_Y(a);
     }
     else if (IS_INTEGER(a))
-        aa.x = aa.y = cast(REBDEC, VAL_INT64(a));
+        ax = ay = cast(REBDEC, VAL_INT64(a));
     else
         fail (Error_Invalid_Arg(a));
 
-    REBXYF bb;
+    float bx;
+    float by;
     if (IS_PAIR(b)) {
-        bb.x = VAL_PAIR_X(b);
-        bb.y = VAL_PAIR_Y(b);
+        bx = VAL_PAIR_X(b);
+        by = VAL_PAIR_Y(b);
     }
     else if (IS_INTEGER(b))
-        bb.x = bb.y = cast(REBDEC, VAL_INT64(b));
+        bx = by = cast(REBDEC, VAL_INT64(b));
     else
         fail (Error_Invalid_Arg(b));
 
     if (maxed)
-        SET_PAIR(out, MAX(aa.x, bb.x), MAX(aa.y, bb.y));
+        SET_PAIR(out, MAX(ax, bx), MAX(ay, by));
     else
-        SET_PAIR(out, MIN(aa.x, bb.x), MIN(aa.y, bb.y));
+        SET_PAIR(out, MIN(ax, bx), MIN(ay, by));
 }
 
 

@@ -1679,6 +1679,41 @@ RL_API float RL_Val_Pair_Y_Float(const REBVAL *v) {
     return VAL_PAIR_Y(v);
 }
 
+//
+//  RL_Init_Date: C
+//
+// There was a data structure called a REBOL_DAT in R3-Alpha which was defined
+// in %reb-defs.h, and it appeared in the host callbacks to be used in
+// `os_get_time()` and `os_file_time()`.  This allowed the host to pass back
+// date information without actually knowing how to construct a date REBVAL.
+//
+// Today "host code" (which may all become "port code") is expected to either
+// be able to speak in terms of Rebol values through linkage to the internal
+// API or the more minimal RL_Api.  Either way, it should be able to make
+// REBVALs corresponding to dates...even if that means making a string of
+// the date to load and then RL_Do_String() to produce the value.
+//
+// This routine is a quick replacement for the format of the struct, as a
+// temporary measure while it is considered whether things like os_get_time()
+// will have access to the full internal API or not.
+//
+RL_API void RL_Init_Date(
+    REBVAL *out,
+    int year,
+    int month,
+    int day,
+    int time,
+    int nano,
+    int zone
+) {
+    VAL_RESET_HEADER(out, REB_DATE);
+    VAL_YEAR(out)  = year;
+    VAL_MONTH(out) = month;
+    VAL_DAY(out) = day;
+    VAL_ZONE(out) = zone / ZONE_MINS;
+    VAL_TIME(out) = TIME_SEC(time) + nano;
+}
+
 
 #include "reb-lib-lib.h"
 

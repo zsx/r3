@@ -29,11 +29,35 @@
 //
 
 
-// enums in C have no guaranteed size, yet Rebol wants to use known size
-// types in its interfaces.  Hence REB_R is a REBCNT from reb-c.h (and not
-// this enumerated type containing its legal values).
-enum {
-    R_OUT = 0,
+// !!! Originally, REB_R was a REBCNT from reb-c.h (not this enumerated type
+// containing its legal values).  That's because enums in C have no guaranteed
+// size, yet Rebol wants to use known size types in its interfaces.
+//
+// However, there are other enums in %tmp-funcs.h, and the potential for bugs
+// is too high to not let the C++ build check the types.  So for now, REB_R
+// uses this enum.
+//
+enum Reb_Result {
+    // Returning boolean results is specially chosen as the 0 and 1 values,
+    // so that a logic result can just be cast, as with R_FROM_BOOL().
+    // See remarks on REBOOL about how it is ensured that TRUE is 1, and
+    // that this is the standard for C++ bool conversion:
+    //
+    // http://stackoverflow.com/questions/2725044/
+    //
+    R_FALSE = 0, // => SET_FALSE(D_OUT); return R_OUT;
+    R_TRUE = 1, // => SET_TRUE(D_OUT); return R_OUT;
+
+    // Void and blank are also common results.
+    //
+    R_VOID, // => SET_VOID(D_OUT); return R_OUT;
+    R_BLANK, // => SET_BLANK(D_OUT); return R_OUT;
+
+    // This means that the value in D_OUT is to be used as the return result.
+    // Note that value starts as an END, and must be written to some other
+    // value before this return can be used (checked by assert in debug build)
+    //
+    R_OUT,
 
     // See comments on OPT_VALUE_THROWN about the migration of "thrownness"
     // from being a property signaled to the evaluator.
@@ -61,19 +85,6 @@ enum {
     //
     R_OUT_VOID_IF_UNWRITTEN,
 
-    // !!! These R_ values are somewhat superfluous...and actually inefficient
-    // because they have to be checked by the caller in a switch statement
-    // to take the equivalent action.  They have a slight advantage in
-    // hand-written C code for making it more clear that if you have used
-    // the D_OUT return slot for temporary work that you explicitly want
-    // to specify another result...this cannot be caught by the REB_TRASH
-    // trick for detecting an unwritten D_OUT.
-    //
-    R_VOID, // => SET_VOID(D_OUT); return R_OUT;
-    R_BLANK, // => SET_BLANK(D_OUT); return R_OUT;
-    R_TRUE, // => SET_TRUE(D_OUT); return R_OUT;
-    R_FALSE, // => SET_FALSE(D_OUT); return R_OUT;
-
     // If Do_Core gets back an R_REDO from a dispatcher, it will re-execute
     // the f->func in the frame.  This function may be changed by the
     // dispatcher from what was originally called.
@@ -89,7 +100,7 @@ enum {
     R_REEVALUATE,
     R_REEVALUATE_ONLY
 };
-typedef REBCNT REB_R;
+typedef enum Reb_Result REB_R;
 
 // Convenience function for getting behaviors like WHILE/LOOPED?", and
 // doing the default thing--assuming END is being left in the D_OUT slot if
@@ -98,6 +109,12 @@ typedef REBCNT REB_R;
 inline static REB_R R_OUT_Q(REBOOL q) {
     if (q) return R_OUT_TRUE_IF_WRITTEN;
     return R_OUT_VOID_IF_UNWRITTEN;
+}
+
+// Specially chosen 0 and 1 values for R_FALSE and R_TRUE enable this. 
+//
+inline static REB_R R_FROM_BOOL(REBOOL b) {
+    return cast(REB_R, b);
 }
 
 // R3-Alpha's concept was that all words got persistent integer values, which

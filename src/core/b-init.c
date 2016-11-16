@@ -1384,18 +1384,6 @@ void Init_Task(void)
 
 
 //
-//  Init_Year: C
-//
-void Init_Year(void)
-{
-    REBOL_DAT dat;
-
-    OS_GET_TIME(&dat);
-    Current_Year = dat.year;
-}
-
-
-//
 //  Init_Core: C
 // 
 // Initialize the interpreter core.
@@ -1600,7 +1588,6 @@ void Init_Core(REBARGS *rargs)
         panic (Error(RE_MISC));
     }
 
-    Init_Year();
     Init_Crypto();
 
     // Initialize mezzanine functions:

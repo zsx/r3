@@ -26,8 +26,16 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// This file is used by internal and external C code. It
-// should not depend on many other header files prior to it.
+// This file is used by internal and external C code.  It should not depend
+// on any other include files before it.
+//
+// If REB_DEF is defined, it expects full definitions of the structures behind
+// REBVAL and REBSER.  If not, then it treats them opaquely.  The reason this
+// is done in a single file with an #ifdef as opposed to just doing the
+// opaque definitions in %reb-ext.h (and not including %reb-defs.h there) is
+// because of %a-lib.c - which wants to use the non-opaque definitions to
+// implement the API while still having the various enums in %reb-ext.h
+// available to the compiler.
 //
 
 #ifndef REB_DEFS_H  // due to sequences within the lib build itself
@@ -159,8 +167,6 @@
 #endif
 
 
-#pragma pack(4)
-
 struct Reb_Header {
     REBUPT bits;
 };
@@ -205,37 +211,6 @@ inline static void Init_Header_Aliased(struct Reb_Header *alias, REBUPT bits)
     alias->bits = bits; // write from generic pointer to `struct Reb_Header`
 }
 
-
-// X/Y coordinate pair as floats:
-struct Reb_Pair {
-    float x;
-    float y;
-};
-
-// !!! Use this instead of struct Reb_Pair when all integer pairs are gone?
-// (Apparently PAIR went through an int-to-float transition at some point)
-/* typedef struct Reb_Pair REBPAR; */
-
-// !!! Temporary name for Reb_Pair "X and Y as floats"
-typedef struct Reb_Pair REBXYF;
-
-// X/Y coordinate pair as integers:
-typedef struct rebol_xy_int {
-    int x;
-    int y;
-} REBXYI;
-
-// Standard date and time:
-typedef struct rebol_dat {
-    int year;
-    int month;
-    int day;
-    int time;
-    int nano;
-    int zone;
-} REBOL_DAT;  // not same as REBDAT
-
-#pragma pack()
 
 typedef struct Reb_Mem_Dump REBMDP;
 

@@ -1050,14 +1050,33 @@ reevaluate:;
         //
         assert(IS_END(f->out));
 
+        // Cases should be in enum order for jump-table optimization
+        // (R_FALSE first, R_TRUE second, etc.)
+        //
         // The dispatcher may push functions to the data stack which will be
-        // used to process the return result.
+        // used to process the return result after the switch.
         //
         REBNAT dispatcher; // goto would cross initialization
         dispatcher = FUNC_DISPATCHER(f->func);
         switch (dispatcher(f)) {
-        case R_OUT: // put sequentially in switch() for jump-table optimization
+        case R_FALSE:
+            SET_FALSE(f->out);
             break;
+
+        case R_TRUE:
+            SET_TRUE(f->out);
+            break;
+
+        case R_VOID:
+            SET_VOID(f->out);
+            break;
+
+        case R_BLANK:
+            SET_BLANK(f->out);
+            break;
+
+        case R_OUT:
+            break; // checked as NOT_END() after switch()
 
         case R_OUT_IS_THROWN: {
             assert(THROWN(f->out));
@@ -1103,22 +1122,6 @@ reevaluate:;
         case R_OUT_VOID_IF_UNWRITTEN:
             if (IS_END(f->out))
                 SET_VOID(f->out);
-            break;
-
-        case R_BLANK:
-            SET_BLANK(f->out);
-            break;
-
-        case R_VOID:
-            SET_VOID(f->out);
-            break;
-
-        case R_TRUE:
-            SET_TRUE(f->out);
-            break;
-
-        case R_FALSE:
-            SET_FALSE(f->out);
             break;
 
         case R_REDO_CHECKED:

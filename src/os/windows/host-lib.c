@@ -72,14 +72,17 @@ static void *Task_Ready;
 // Convert local format of system time into standard date
 // and time structure.
 //
-void Convert_Date(SYSTEMTIME *stime, REBOL_DAT *dat, long zone)
+void Convert_Date(REBVAL *out, long zone, const SYSTEMTIME *stime)
 {
-    dat->year  = stime->wYear;
-    dat->month = stime->wMonth;
-    dat->day   = stime->wDay;
-    dat->time  = stime->wHour * 3600 + stime->wMinute * 60 + stime->wSecond;
-    dat->nano  = 1000000 * stime->wMilliseconds;
-    dat->zone  = zone;
+    RL_Init_Date(
+        out,
+        stime->wYear, // year
+        stime->wMonth, // month
+        stime->wDay, // day
+        stime->wHour * 3600 + stime->wMinute * 60 + stime->wSecond, // "time"
+        1000000 * stime->wMilliseconds, // nano
+        zone
+    );
 }
 
 //
@@ -476,7 +479,7 @@ REBCHR *OS_List_Env(void)
 // 
 // Get the current system date/time in UTC plus zone offset (mins).
 //
-void OS_Get_Time(REBOL_DAT *dat)
+void OS_Get_Time(REBVAL *out)
 {
     SYSTEMTIME stime;
     TIME_ZONE_INFORMATION tzone;
@@ -486,7 +489,7 @@ void OS_Get_Time(REBOL_DAT *dat)
     if (TIME_ZONE_ID_DAYLIGHT == GetTimeZoneInformation(&tzone))
         tzone.Bias += tzone.DaylightBias;
 
-    Convert_Date(&stime, dat, -tzone.Bias);
+    Convert_Date(out, -tzone.Bias, &stime);
 }
 
 
@@ -554,7 +557,7 @@ REBOOL OS_Set_Current_Dir(REBCHR *path)
 // Convert file.time to REBOL date/time format.
 // Time zone is UTC.
 //
-void OS_File_Time(REBREQ *file, REBOL_DAT *dat)
+void OS_File_Time(REBVAL *out, REBREQ *file)
 {
     SYSTEMTIME stime;
     TIME_ZONE_INFORMATION tzone;
@@ -563,7 +566,7 @@ void OS_File_Time(REBREQ *file, REBOL_DAT *dat)
         tzone.Bias += tzone.DaylightBias;
 
     FileTimeToSystemTime(cast(FILETIME *, &file->special.file.time), &stime);
-    Convert_Date(&stime, dat, -tzone.Bias);
+    Convert_Date(out, -tzone.Bias, &stime);
 }
 
 

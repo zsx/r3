@@ -179,16 +179,7 @@ newline
 {#define HOST_LIB_SIZE} space proto-count newline
 
 {
-
-// Function signature typically used to provide the callback for
-// starting a thread, e.g. with beginthread()
-
 // !!! SEE **WARNING** BEFORE EDITING
-#ifdef WIN32
-    typedef void (__cdecl THREADFUNC)(void *);
-#else
-    typedef void (THREADFUNC)(void *);
-#endif
 
 #ifdef __cplusplus
 extern "C" ^{

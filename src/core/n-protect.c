@@ -178,7 +178,7 @@ static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
 // 
 // Protect takes a HIDE parameter as #5.
 //
-static int Protect(REBFRM *frame_, REBFLGS flags)
+static REB_R Protect(REBFRM *frame_, REBFLGS flags)
 {
     PARAM(1, value);
     REFINE(2, deep);
