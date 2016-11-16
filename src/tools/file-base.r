@@ -15,6 +15,8 @@ REBOL [
     }
 ]
 
+; NOTE: In the following file list, a (+) preceding a file is indicative that
+; the file is generated.
 core: [
     ; (A)???
     a-constants.c
@@ -22,7 +24,7 @@ core: [
     a-lib.c
 
     ; (B)oot
-    b-boot.c
+    + b-boot.c
     b-init.c
 
     ; (C)ore

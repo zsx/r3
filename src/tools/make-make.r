@@ -287,6 +287,10 @@ unless (
 	]
 ]
 
+; The + sign is sued to tell the make-header.r script that the file is generated
+; we don't care it here
+remove-each item file-base/core [item = '+]
+
 ; The + sign is used to tell the make-os-ext.r script to scan a host kit file
 ; for headers (the way make-headers.r does).  But we don't care about that
 ; here in make-make.r... so remove any + signs we find before processing.
