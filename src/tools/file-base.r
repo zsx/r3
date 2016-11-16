@@ -36,7 +36,7 @@ core: [
     c-function.c
     c-path.c
     c-port.c
-    c-profile.c
+    ;c-profile.c ;not implemented
     c-signal.c
     c-value.c
     c-word.c
