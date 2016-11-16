@@ -45,6 +45,12 @@ setup() {
 			NAME="r3-armv7-view-$timestamp-$(revision)"
 			RELNAME="r3-armv7hf-view-linux"
 			;;
+		aarch64)
+			EXE="r3-view-linux"
+			MK="makefile-aarch64"
+			NAME="r3-aarch64-view-$timestamp-$(revision)"
+			RELNAME="r3-aarch64-view-linux"
+			;;
 		*)
 			echo "unsupported platform $1"
 			exit 1

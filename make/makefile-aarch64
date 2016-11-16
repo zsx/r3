@@ -4,8 +4,11 @@ OS_ID?= 0.4.22
 BIT=
 EXTRA_VIEW_CFLAGS=-DUSE_GTK_FILECHOOSER -DUSE_XSHM
 LIBFFI_A=libffi.$(MAKEFILE)/lib/libffi.a
+PKG_CONFIG=pkg-config
 
 MD=makefiles
+
+TOOLS=~/work/gcc-linaro-4.9-2014.11-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-
 
 include $(MD)/common-defs
 include $(MD)/linux-common-defs

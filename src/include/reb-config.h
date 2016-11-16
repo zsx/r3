@@ -171,6 +171,15 @@ These are now obsolete (as of A107) and should be removed:
 #define HAS_LL_CONSTS
 #endif
 
+#ifdef TO_LINUX_AARCH64				// Linux/AARCH64
+#define TO_LINUX
+#define ENDIAN_LITTLE
+#define HAS_LL_CONSTS
+#ifndef __LP64__
+#define __LP64__
+#endif
+#endif
+
 #ifdef TO_LINUX_MIPS
 #define TO_LINUX
 #define ENDIAN_LITTLE
