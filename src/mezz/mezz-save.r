@@ -167,20 +167,3 @@ save: function [
         ]
     ]
 ]
-
-#test [
-    data: [1 1.2 10:20 "test" user@example.com [sub block]]
-    probe to string! save blank []
-    probe to string! save blank data
-    probe to string! save/header blank data [title: "my code"]
-    probe to string! save/compress blank [] true
-    probe to string! save/compress blank data true
-    probe to string! save/compress blank data 'script
-    probe to string! save/header/compress blank data [title: "my code"] true
-    probe to string! save/header/compress blank data [title: "my code"] 'script
-    probe to string! save/header blank data [title: "my code" options: [compress]]
-    probe to string! save/header/compress blank data [title: "my code" options: [compress]] blank
-    probe to string! save/header blank data [title: "my code" checksum: true]
-    halt
-    ; more needed
-]

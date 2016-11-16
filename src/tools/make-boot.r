@@ -29,12 +29,6 @@ do %systems.r
 args: parse-args system/options/args
 config: config-system/guess args/OS_ID
 
-write-if: proc [file data] [
-    if data != attempt [read file][
-        print ["UPDATE:" file]
-        write file data
-    ]
-]
 
 ;-- SETUP --------------------------------------------------------------
 
@@ -78,8 +72,6 @@ sections: [
     boot-protocols
 ;   boot-script
 ]
-
-include-protocols: false      ; include protocols in build
 
 ; Args passed: platform, product
 ;
@@ -170,10 +162,6 @@ emit-head: proc [title [string!] file [file!]] [
 emit-end: proc [/easy] [
     if not easy [remove find/last out #","]
     append out {^};^/}
-]
-
-remove-tests: proc [d] [
-    while [d: find d #test][remove/part d 2]
 ]
 
 ;----------------------------------------------------------------------------
@@ -367,68 +355,6 @@ write inc/tmp-comptypes.h out
 
 ;----------------------------------------------------------------------------
 ;
-; Moldtypes.h - Dispatchers for Mold and Form
-;
-;----------------------------------------------------------------------------
-
-;emit-head "Mold Dispatchers"
-;
-;emit {
-;/***********************************************************************
-;**
-;*/ const MOLD_FUNC Mold_Dispatch[REB_MAX] =
-;/*
-;**     The MOLD dispatch function for each datatype.
-;**
-;***********************************************************************/
-;^{
-;}
-;
-;for-each-record-NO-RETURN type boot-types [
-;   if group? type/class [type/class: first type/class]
-;
-;   f: "Mold_"
-;   switch/default type/mold [
-;       * [t: type/class]
-;       + [t: type/name]
-;       - [t: 0]
-;   ][t: uppercase/part form type/mold 1]
-;   emit [tab "case " uppercase join "REB_" type/name ":" tab "\\" t]
-;   emit newline
-;   ;emit-line/var f t type/name
-;]
-;emit-end
-;
-;emit {
-;/***********************************************************************
-;**
-;*/ const MOLD_FUNC Form_Dispatch[REB_MAX] =
-;/*
-;**     The FORM dispatch function for each datatype.
-;**
-;***********************************************************************/
-;^{
-;}
-;for-each-record-NO-RETURN type boot-types [
-;   if group? type/class [type/class: first type/class]
-;   f: "Mold_"
-;   switch/default type/form [
-;       *  [t: type/class]
-;       f* [t: type/class f: "Form_"]
-;       +  [t: type/name]
-;       f+ [t: type/name f: "Form_"]
-;       -  [t: 0]
-;   ][t: uppercase/part form type/mold 1]
-;   emit [tab "case " uppercase join "REB_" type/name ":" tab "\\" t]
-;   emit newline
-;   ;emit-line/var f t type/name
-;]
-;emit-end
-;
-;write inc/tmp-moldtypes.h out
-
-;----------------------------------------------------------------------------
-;
 ; Bootdefs.h - Boot include file
 ;
 ;----------------------------------------------------------------------------
@@ -515,9 +441,6 @@ for-each-record-NO-RETURN type boot-types [
 ; !!! Consider ways of making this more robust.
 ;
 emit {
-#define IS_SET(v) \
-    LOGICAL(VAL_TYPE(v) != REB_UNSET)
-
 #define IS_ANY_VALUE(v) \
     LOGICAL(VAL_TYPE(v) != REB_MAX_VOID)
 
@@ -596,7 +519,7 @@ for-each [ts types] typeset-sets [
     append remove back tail out ")^/"
 ]
 
-write-if inc/reb-types.h out
+write inc/reb-types.h out
 
 
 ;----------------------------------------------------------------------------
@@ -1003,7 +926,6 @@ for-each section [boot-base boot-sys boot-mezz] [
     for-each file first mezz-files [
         append get section load join %../mezz/ file
     ]
-    remove-tests get section
 
     ;-- Expectation is that section does not return result; GROUP! makes unset
     append get section [()]

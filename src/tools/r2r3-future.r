@@ -91,19 +91,18 @@ unless set? 'blank? [
     _: none
 ]
 
-unless set? 'proc? [
+unless set? 'proc [
     leave: does [
         do make error! "LEAVE cannot be implemented in usermode R3-Alpha"
     ]
 
-    ; bypass FUNCTION! return check by using raw MAKE FUNCTION!
-    ;
-    proc: make function! [[spec body][
-        make function! compose/deep [[(spec)][
-            (body)
-            void
-        ]]
-    ]]
+    proc: func [spec body] [
+        func spec compose [(body) void]
+    ]
+
+    procedure: func [spec body] [
+        function spec compose [(body) void]
+    ]
 ]
 
 ; ANY-VALUE! is anything that isn't void.  -OPT- ANY-VALUE! is a
@@ -291,6 +290,7 @@ migrations: [
     ; to write loop wrappers, given lack of definitionally scoped return
     ;
     for-each <as> :foreach
+    for-next <as> :forall
 
     ; Not having category members have the same name as the category
     ; themselves helps both cognition and clarity inside the source of the
