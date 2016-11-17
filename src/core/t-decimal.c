@@ -168,16 +168,15 @@ void MAKE_Decimal(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
 
     case REB_STRING:
         {
-        REBYTE *bp;
         REBCNT len;
-        bp = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_DECIMAL, &len, FALSE);
+        REBYTE *bp = Temp_Byte_Chars_May_Fail(
+            arg, MAX_SCAN_DECIMAL, &len, FALSE
+        );
 
-        VAL_RESET_HEADER(out, kind);
-        if (!Scan_Decimal(
-            &d, bp, len, LOGICAL(kind != REB_PERCENT)
-        )) {
+        if (NULL == Scan_Decimal(out, bp, len, LOGICAL(kind != REB_PERCENT)))
             goto bad_make;
-        }
+
+        d = VAL_DECIMAL(out); // may need to divide if percent, fall through
         break;
         }
 
@@ -186,19 +185,6 @@ void MAKE_Decimal(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         VAL_RESET_HEADER(out, kind);
         d = VAL_DECIMAL(out);
         break;
-
-#ifdef removed
-//          case REB_ISSUE:
-    {
-        REBYTE *bp;
-        REBCNT len;
-        bp = Temp_Byte_Chars_May_Fail(arg, MAX_HEX_LEN, &len, FALSE);
-        if (Scan_Hex(&VAL_INT64(out), bp, len, len) == 0)
-            fail (Error_Bad_Make(REB_DECIMAL, val));
-        d = VAL_DECIMAL(out);
-        break;
-    }
-#endif
 
     default:
         if (ANY_ARRAY(arg) && VAL_ARRAY_LEN_AT(arg) == 2) {

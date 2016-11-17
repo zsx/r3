@@ -71,7 +71,7 @@ void MAKE_Tuple(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
     if (IS_STRING(arg) || IS_URL(arg)) {
         REBCNT len;
         REBYTE *ap = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_TUPLE, &len, FALSE);
-        if (Scan_Tuple(ap, len, out))
+        if (Scan_Tuple(out, ap, len) != NULL)
             return;
         goto bad_arg;
     }

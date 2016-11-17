@@ -64,7 +64,8 @@ void MAKE_Pair(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
         REBYTE *bp
             = Temp_Byte_Chars_May_Fail(arg, VAL_LEN_AT(arg), &len, FALSE);
 
-        if (!Scan_Pair(bp, len, out)) goto bad_make;
+        if (NULL == Scan_Pair(out, bp, len))
+            goto bad_make;
 
         return;
     }

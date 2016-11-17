@@ -1576,8 +1576,7 @@ static REBARR *Scan_Array(
 
         case TOKEN_INTEGER:     // or start of DATE
             if (*ep != '/' || mode_char == '/') {
-                VAL_RESET_HEADER(value, REB_INTEGER);
-                if (!Scan_Integer(&VAL_INT64(value), bp, len))
+                if (NULL == Scan_Integer(value, bp, len))
                     goto syntax_error;
             }
             else {              // A / and not in block
@@ -1585,21 +1584,21 @@ static REBARR *Scan_Array(
                 while (*ep == '/' || IS_LEX_NOT_DELIMIT(*ep)) ep++;
                 scan_state->begin = ep;
                 len = (REBCNT)(ep - bp);
-                if (ep != Scan_Date(bp, len, value)) goto syntax_error;
+                if (ep != Scan_Date(value, bp, len))
+                    goto syntax_error;
             }
             break;
 
         case TOKEN_DECIMAL:
         case TOKEN_PERCENT:
             // Do not allow 1.2/abc:
-            VAL_RESET_HEADER(value, REB_DECIMAL);
             if (
                 *ep == '/'
-                || !Scan_Decimal(&VAL_DECIMAL(value), bp, len, FALSE)
+                || (NULL == Scan_Decimal(value, bp, len, FALSE))
             ) {
                 goto syntax_error;
             }
-            if (bp[len-1] == '%') {
+            if (bp[len - 1] == '%') {
                 VAL_RESET_HEADER(value, REB_PERCENT);
                 VAL_DECIMAL(value) /= 100.0;
             }
@@ -1607,19 +1606,23 @@ static REBARR *Scan_Array(
 
         case TOKEN_MONEY:
             // Do not allow $1/$2:
-            if (*ep == '/') {ep++; goto syntax_error;}
-            if (!Scan_Money(bp, len, value)) goto syntax_error;
+            if (*ep == '/') {
+                ++ep;
+                goto syntax_error;
+            }
+            if (!Scan_Money(value, bp, len))
+                goto syntax_error;
             break;
 
         case TOKEN_TIME:
             if (bp[len-1] == ':' && mode_char == '/') { // could be path/10: set
-                VAL_RESET_HEADER(value, REB_INTEGER);
-                if (!Scan_Integer(&VAL_INT64(value), bp, len - 1))
+                if (NULL == Scan_Integer(value, bp, len - 1))
                     goto syntax_error;
                 scan_state->end--;  // put ':' back on end but not beginning
                 break;
             }
-            if (ep != Scan_Time(bp, len, value)) goto syntax_error;
+            if (ep != Scan_Time(value, bp, len))
+                goto syntax_error;
             break;
 
         case TOKEN_DATE:
@@ -1633,7 +1636,8 @@ static REBARR *Scan_Array(
                 }
                 scan_state->begin = ep;  // End point extended to cover time
             }
-            if (ep != Scan_Date(bp, len, value)) goto syntax_error;
+            if (ep != Scan_Date(value, bp, len))
+                goto syntax_error;
             break;
 
         case TOKEN_CHAR:
@@ -1649,31 +1653,32 @@ static REBARR *Scan_Array(
             break;
 
         case TOKEN_BINARY:
-            Scan_Binary(bp, len, value);
+            Scan_Binary(value, bp, len);
             break;
 
         case TOKEN_PAIR:
-            Scan_Pair(bp, len, value);
+            Scan_Pair(value, bp, len);
             break;
 
         case TOKEN_TUPLE:
-            if (!Scan_Tuple(bp, len, value)) goto syntax_error;
+            if (NULL == Scan_Tuple(value, bp, len))
+                goto syntax_error;
             break;
 
         case TOKEN_FILE:
-            Scan_File(bp, len, value);
+            Scan_File(value, bp, len);
             break;
 
         case TOKEN_EMAIL:
-            Scan_Email(bp, len, value);
+            Scan_Email(value, bp, len);
             break;
 
         case TOKEN_URL:
-            Scan_URL(bp, len, value);
+            Scan_URL(value, bp, len);
             break;
 
         case TOKEN_TAG:
-            Scan_Any(bp+1, len-2, value, REB_TAG);
+            Scan_Any(value, bp + 1, len - 2, REB_TAG);
             break;
 
         case TOKEN_CONSTRUCT:

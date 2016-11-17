@@ -192,26 +192,34 @@ REBNATIVE(to)
 // Note, this function relies on LEX_WORD lex values having a LEX_VALUE
 // field of zero, except for hex values.
 //
-const REBYTE *Scan_Hex(REBI64 *out, const REBYTE *cp, REBCNT minlen, REBCNT maxlen)
-{
-    REBYTE lex;
+const REBYTE *Scan_Hex(
+    REBVAL *out,
+    const REBYTE *cp,
+    REBCNT minlen,
+    REBCNT maxlen
+) {
+    SET_TRASH_IF_DEBUG(out);
+
+    if (maxlen > MAX_HEX_LEN)
+        return NULL;
+
+    REBI64 i = 0;
     REBCNT cnt = 0;
-
-    if (maxlen > MAX_HEX_LEN) return NULL;
-
-    *out = 0;
+    REBYTE lex;
     while ((lex = Lex_Map[*cp]) > LEX_WORD) {
         REBYTE v;
         if (++cnt > maxlen) return NULL;
         v = cast(REBYTE, lex & LEX_VALUE); // char num encoded into lex
         if (!v && lex < LEX_NUMBER)
             return NULL;  // invalid char (word but no val)
-        *out = (*out << 4) + v;
+        i = (i << 4) + v;
         cp++;
     }
 
-    if (cnt < minlen) return 0;
+    if (cnt < minlen)
+        return NULL;
 
+    SET_INTEGER(out, i);
     return cp;
 }
 
@@ -256,38 +264,6 @@ REBOOL Scan_Hex2(const REBYTE *bp, REBUNI *n, REBOOL unicode)
 
 
 //
-//  Scan_Hex_Bytes: C
-// 
-// Low level conversion of hex chars into binary bytes.
-// Returns the number of bytes in binary.
-//
-REBINT Scan_Hex_Bytes(REBVAL *val, REBCNT maxlen, REBYTE *out)
-{
-    REBYTE b, n = 0;
-    REBCNT cnt;
-    REBYTE lex;
-    REBCNT len;
-    REBUNI c;
-    REBYTE *start = out;
-
-    len = VAL_LEN_AT(val);
-    if (len > maxlen) return 0;
-
-    for (cnt = 0; cnt < len; cnt++) {
-        c = GET_ANY_CHAR(VAL_SERIES(val), VAL_INDEX(val)+cnt);
-        if (c > 127) return 0;
-        lex = Lex_Map[c];
-        b = (REBYTE)(lex & LEX_VALUE);   /* char num encoded into lex */
-        if (!b && lex < LEX_NUMBER) return 0;  /* invalid char (word but no val) */
-        if ((cnt + len) & 1) *out++ = (n << 4) + b; // cnt + len deals with odd # of chars
-        else n = b & 15;
-    }
-
-    return (out - start);
-}
-
-
-//
 //  Scan_Hex_Value: C
 // 
 // Given a string, scan it as hex. Chars can be 8 or 16 bit.
@@ -327,54 +303,84 @@ bad_hex:
 //
 //  Scan_Dec_Buf: C
 // 
-// Validate a decimal number. Return on first invalid char
-// (or end). Return zero if not valid.
-// 
-// len: max size of buffer (must be MAX_NUM_LEN or larger).
-// 
+// Validate a decimal number. Return on first invalid char (or end).
+// Returns NULL if not valid.
+//
 // Scan is valid for 1 1.2 1,2 1'234.5 1x 1.2x 1% 1.2% etc.
 //
-const REBYTE *Scan_Dec_Buf(const REBYTE *cp, REBCNT len, REBYTE *buf)
-{
-    REBYTE *bp = buf;
-    REBYTE *be = bp + len - 1;
-    REBOOL dig = FALSE;   /* flag that a digit was present */
+// !!! Is this redundant with Scan_Decimal?  Appears to be similar code.
+//
+const REBYTE *Scan_Dec_Buf(
+    REBYTE *out,
+    const REBYTE *cp,
+    REBCNT len // max size of buffer
+) {
+    assert(len >= MAX_NUM_LEN);
 
-    if (*cp == '+' || *cp == '-') *bp++ = *cp++;
-    while (IS_LEX_NUMBER(*cp) || *cp == '\'')
+    REBYTE *bp = out;
+    REBYTE *be = bp + len - 1;
+
+    if (*cp == '+' || *cp == '-')
+        *bp++ = *cp++;
+
+    REBOOL digit_present = FALSE;
+    while (IS_LEX_NUMBER(*cp) || *cp == '\'') {
         if (*cp != '\'') {
             *bp++ = *cp++;
-            if (bp >= be) return 0;
-            dig = TRUE;
+            if (bp >= be)
+                return NULL;
+            digit_present = TRUE;
         }
-        else cp++;
-    if (*cp == ',' || *cp == '.') cp++;
-    *bp++ = '.';
-    if (bp >= be) return 0;
-    while (IS_LEX_NUMBER(*cp) || *cp == '\'')
-        if (*cp != '\'') {
-            *bp++ = *cp++;
-            if (bp >= be) return 0;
-            dig = TRUE;
-        }
-        else cp++;
-    if (!dig) return 0;
-    if (*cp == 'E' || *cp == 'e') {
-            *bp++ = *cp++;
-            if (bp >= be) return 0;
-            dig = FALSE;
-            if (*cp == '-' || *cp == '+') {
-                *bp++ = *cp++;
-                if (bp >= be) return 0;
-            }
-            while (IS_LEX_NUMBER(*cp)) {
-                *bp++ = *cp++;
-                if (bp >= be) return 0;
-                dig = TRUE;
-            }
-            if (!dig) return 0;
+        else
+            ++cp;
     }
-    *bp = 0;
+
+    if (*cp == ',' || *cp == '.')
+        cp++;
+
+    *bp++ = '.';
+    if (bp >= be)
+        return NULL;
+
+    while (IS_LEX_NUMBER(*cp) || *cp == '\'') {
+        if (*cp != '\'') {
+            *bp++ = *cp++;
+            if (bp >= be)
+                return NULL;
+            digit_present = TRUE;
+        }
+        else
+            ++cp;
+    }
+
+    if (NOT(digit_present))
+        return NULL;
+
+    if (*cp == 'E' || *cp == 'e') {
+        *bp++ = *cp++;
+        if (bp >= be)
+            return NULL;
+
+        digit_present = FALSE;
+
+        if (*cp == '-' || *cp == '+') {
+            *bp++ = *cp++;
+            if (bp >= be)
+                return NULL;
+        }
+
+        while (IS_LEX_NUMBER(*cp)) {
+            *bp++ = *cp++;
+            if (bp >= be)
+                return NULL;
+            digit_present = TRUE;
+        }
+
+        if (NOT(digit_present))
+            return NULL;
+    }
+
+    *bp = '\0';
     return cp;
 }
 
@@ -384,55 +390,90 @@ const REBYTE *Scan_Dec_Buf(const REBYTE *cp, REBCNT len, REBYTE *buf)
 // 
 // Scan and convert a decimal value.  Return zero if error.
 //
-const REBYTE *Scan_Decimal(REBDEC *out, const REBYTE *cp, REBCNT len, REBOOL dec_only)
-{
-    const REBYTE *bp = cp;
-    REBYTE buf[MAX_NUM_LEN+4];
+const REBYTE *Scan_Decimal(
+    REBVAL *out,
+    const REBYTE *cp,
+    REBCNT len,
+    REBOOL dec_only
+) {
+    SET_TRASH_IF_DEBUG(out);
+
+    REBYTE buf[MAX_NUM_LEN + 4];
     REBYTE *ep = buf;
-    REBOOL dig = FALSE;   /* flag that a digit was present */
-    const char *se;
+    if (len > MAX_NUM_LEN)
+        return NULL;
 
-    if (len > MAX_NUM_LEN) return 0;
+    const REBYTE *bp = cp;
 
-    if (*cp == '+' || *cp == '-') *ep++ = *cp++;
-    while (IS_LEX_NUMBER(*cp) || *cp == '\'')
+    if (*cp == '+' || *cp == '-')
+        *ep++ = *cp++;
+
+    REBOOL digit_present = FALSE;
+
+    while (IS_LEX_NUMBER(*cp) || *cp == '\'') {
         if (*cp != '\'') {
             *ep++ = *cp++;
-            dig = TRUE;
+            digit_present = TRUE;
         }
-        else cp++;
-    if (*cp == ',' || *cp == '.') cp++;
+        else
+            ++cp;
+    }
+
+    if (*cp == ',' || *cp == '.')
+        ++cp;
+
     *ep++ = '.';
-    while (IS_LEX_NUMBER(*cp) || *cp == '\'')
+
+    while (IS_LEX_NUMBER(*cp) || *cp == '\'') {
         if (*cp != '\'') {
             *ep++ = *cp++;
-            dig = TRUE;
+            digit_present = TRUE;
         }
-        else cp++;
-    if (!dig) return 0;
+        else
+            ++cp;
+    }
+
+    if (NOT(digit_present))
+        return NULL;
+
     if (*cp == 'E' || *cp == 'e') {
+        *ep++ = *cp++;
+        digit_present = FALSE;
+        
+        if (*cp == '-' || *cp == '+')
             *ep++ = *cp++;
-            dig = FALSE;
-            if (*cp == '-' || *cp == '+')
-                *ep++ = *cp++;
-            while (IS_LEX_NUMBER(*cp)) {
-                *ep++ = *cp++;
-                dig= TRUE;
-            }
-            if (!dig) return 0;
+
+        while (IS_LEX_NUMBER(*cp)) {
+            *ep++ = *cp++;
+            digit_present = TRUE;
+        }
+
+        if (NOT(digit_present))
+            return NULL;
     }
+
     if (*cp == '%') {
-        if (dec_only) return 0;
-        cp++; // ignore it
+        if (dec_only)
+            return NULL;
+
+        ++cp; // ignore it
     }
-    *ep = 0;
 
-    if ((REBCNT)(cp-bp) != len) return 0;
+    *ep = '\0';
 
-    // !!! need check for NaN, and INF
-    *out = STRTOD(s_cast(buf), &se);
+    if (cast(REBCNT, cp - bp) != len)
+        return NULL;
 
-    if (fabs(*out) == HUGE_VAL) fail (Error(RE_OVERFLOW));
+    VAL_RESET_HEADER(out, REB_DECIMAL);
+
+    const char *se;
+    VAL_DECIMAL(out) = STRTOD(s_cast(buf), &se);
+
+    // !!! TBD: need check for NaN, and INF
+
+    if (fabs(VAL_DECIMAL(out)) == HUGE_VAL)
+        fail (Error(RE_OVERFLOW));
+
     return cp;
 }
 
@@ -443,44 +484,66 @@ const REBYTE *Scan_Decimal(REBDEC *out, const REBYTE *cp, REBCNT len, REBOOL dec
 // Scan and convert an integer value.  Return zero if error.
 // Allow preceding + - and any combination of ' marks.
 //
-const REBYTE *Scan_Integer(REBI64 *out, const REBYTE *cp, REBCNT len)
+const REBYTE *Scan_Integer(REBVAL *out, const REBYTE *cp, REBCNT len)
 {
-    REBINT num = (REBINT)len;
-    REBYTE buf[MAX_NUM_LEN+4];
-    REBYTE *bp;
-    REBOOL neg = FALSE;
+    SET_TRASH_IF_DEBUG(out);
 
     // Super-fast conversion of zero and one (most common cases):
-    if (num == 1) {
-        if (*cp == '0') {*out = 0; return cp + 1;}
-        if (*cp == '1') {*out = 1; return cp + 1;}
+    if (len == 1) {
+        if (*cp == '0') {
+            SET_INTEGER(out, 0);
+            return cp + 1;
+        }
+        if (*cp == '1') {
+            SET_INTEGER(out, 1);
+            return cp + 1;
+         }
     }
 
-    if (len > MAX_NUM_LEN) return NULL; // prevent buffer overflow
+    REBYTE buf[MAX_NUM_LEN + 4];
+    if (len > MAX_NUM_LEN)
+        return NULL; // prevent buffer overflow
 
-    bp = buf;
+    REBYTE *bp = buf;
+
+    REBOOL neg = FALSE;
+
+    REBINT num = cast(REBINT, len);
 
     // Strip leading signs:
-    if (*cp == '-') *bp++ = *cp++, num--, neg = TRUE;
-    else if (*cp == '+') cp++, num--;
+    if (*cp == '-') {
+        *bp++ = *cp++;
+        --num;
+        neg = TRUE;
+    }
+    else if (*cp == '+') {
+        ++cp;
+        --num;
+    }
 
     // Remove leading zeros:
     for (; num > 0; num--) {
-        if (*cp == '0' || *cp == '\'') cp++;
-        else break;
+        if (*cp == '0' || *cp == '\'')
+            ++cp;
+        else
+            break;
     }
 
     // Copy all digits, except ' :
     for (; num > 0; num--) {
-        if (*cp >= '0' && *cp <= '9') *bp++ = *cp++;
-        else if (*cp == '\'') cp++;
-        else return NULL;
+        if (*cp >= '0' && *cp <= '9')
+            *bp++ = *cp++;
+        else if (*cp == '\'')
+            ++cp;
+        else
+            return NULL;
     }
-    *bp = 0;
+    *bp = '\0';
 
     // Too many digits?
     len = bp - &buf[0];
-    if (neg) len--;
+    if (neg)
+        --len;
     if (len > 19) {
         // !!! magic number :-( How does it relate to MAX_INT_LEN (also magic)
         return NULL;
@@ -488,9 +551,16 @@ const REBYTE *Scan_Integer(REBI64 *out, const REBYTE *cp, REBCNT len)
 
     // Convert, check, and return:
     errno = 0;
-    *out = CHR_TO_INT(buf);
-    if (errno != 0) return NULL; //overflow
-    if ((*out > 0 && neg) || (*out < 0 && !neg)) return NULL;
+
+    VAL_RESET_HEADER(out, REB_INTEGER);
+
+    VAL_INT64(out) = CHR_TO_INT(buf);
+    if (errno != 0)
+        return NULL; // overflow
+
+    if ((VAL_INT64(out) > 0 && neg) || (VAL_INT64(out) < 0 && !neg))
+        return NULL;
+
     return cp;
 }
 
@@ -500,13 +570,15 @@ const REBYTE *Scan_Integer(REBI64 *out, const REBYTE *cp, REBCNT len)
 // 
 // Scan and convert money.  Return zero if error.
 //
-const REBYTE *Scan_Money(const REBYTE *cp, REBCNT len, REBVAL *value)
+const REBYTE *Scan_Money(REBVAL *out, const REBYTE *cp, REBCNT len)
 {
+    SET_TRASH_IF_DEBUG(out);
+
     const REBYTE *end;
 
     if (*cp == '$') cp++, len--;
     if (len == 0) return 0;
-    SET_MONEY(value, string_to_deci(cp, &end));
+    SET_MONEY(out, string_to_deci(cp, &end));
     if (end != cp + len) return 0;
 
     return end;
@@ -518,8 +590,10 @@ const REBYTE *Scan_Money(const REBYTE *cp, REBCNT len, REBVAL *value)
 // 
 // Scan and convert a date. Also can include a time and zone.
 //
-const REBYTE *Scan_Date(const REBYTE *cp, REBCNT len, REBVAL *value)
+const REBYTE *Scan_Date(REBVAL *out, const REBYTE *cp, REBCNT len)
 {
+    SET_TRASH_IF_DEBUG(out);
+
     const REBYTE *end = cp + len;
 
     // Skip spaces:
@@ -658,7 +732,7 @@ const REBYTE *Scan_Date(const REBYTE *cp, REBCNT len, REBVAL *value)
     }
 
     cp = ep;
-    VAL_TIME(value) = NO_TIME;
+    VAL_TIME(out) = NO_TIME;
     
     if (cp >= end)
         goto end_date;
@@ -669,12 +743,12 @@ const REBYTE *Scan_Date(const REBYTE *cp, REBCNT len, REBVAL *value)
         if (cp >= end)
             goto end_date;
 
-        cp = Scan_Time(cp, 0, value);
+        cp = Scan_Time(out, cp, 0);
         if (
-            !cp
-            || !IS_TIME(value)
-            || (VAL_TIME(value) < 0)
-            || (VAL_TIME(value) >= TIME_SEC(24 * 60 * 60))
+            cp == NULL
+            || !IS_TIME(out)
+            || (VAL_TIME(out) < 0)
+            || (VAL_TIME(out) >= TIME_SEC(24 * 60 * 60))
         ){
             return NULL;
         }
@@ -725,7 +799,7 @@ const REBYTE *Scan_Date(const REBYTE *cp, REBCNT len, REBVAL *value)
     }
 
 end_date:
-    Set_Date_UTC(value, year, month, day, VAL_TIME(value), tz);
+    Set_Date_UTC(out, year, month, day, VAL_TIME(out), tz);
     return cp;
 }
 
@@ -735,26 +809,38 @@ end_date:
 // 
 // Scan and convert a file name.
 //
-const REBYTE *Scan_File(const REBYTE *cp, REBCNT len, REBVAL *value)
+const REBYTE *Scan_File(REBVAL *out, const REBYTE *cp, REBCNT len)
 {
-    REBUNI term = 0;
-    const REBYTE *invalid = cb_cast(":;()[]\"");
-    REB_MOLD mo;
-    CLEARS(&mo);
+    SET_TRASH_IF_DEBUG(out);
 
-    if (*cp == '%') cp++, len--;
+    if (*cp == '%') {
+        cp++;
+        len--;
+    }
+
+    REBUNI term = 0;
+    const REBYTE *invalid;
     if (*cp == '"') {
         cp++;
         len--;
         term = '"';
         invalid = cb_cast(":;\"");
     }
-    cp = Scan_Item_Push_Mold(&mo, cp, cp+len, term, invalid);
-    if (cp)
-        Val_Init_File(value, Pop_Molded_String(&mo));
-    else
-        Drop_Mold(&mo);
+    else {
+        term = 0;
+        invalid = cb_cast(":;()[]\"");
+    }
 
+    REB_MOLD mo;
+    CLEARS(&mo);
+
+    cp = Scan_Item_Push_Mold(&mo, cp, cp + len, term, invalid);
+    if (cp == NULL) {
+        Drop_Mold(&mo);
+        return NULL;
+    }
+
+    Val_Init_File(out, Pop_Molded_String(&mo));
     return cp;
 }
 
@@ -764,34 +850,38 @@ const REBYTE *Scan_File(const REBYTE *cp, REBCNT len, REBVAL *value)
 // 
 // Scan and convert email.
 //
-const REBYTE *Scan_Email(const REBYTE *cp, REBCNT len, REBVAL *value)
+const REBYTE *Scan_Email(REBVAL *out, const REBYTE *cp, REBCNT len)
 {
-    REBYTE *str;
-    REBOOL at = FALSE;
-    REBUNI n;
+    SET_TRASH_IF_DEBUG(out);
 
     REBSER *series = Make_Binary(len);
 
-    str = BIN_HEAD(series);
+    REBOOL at = FALSE;
+    REBYTE *str = BIN_HEAD(series);
     for (; len > 0; len--) {
         if (*cp == '@') {
             if (at) return NULL;
             at = TRUE;
         }
+
         if (*cp == '%') {
-            if (len <= 2 || !Scan_Hex2(cp+1, &n, FALSE)) return 0;
-            *str++ = (REBYTE)n;
+            REBUNI n;
+            if (len <= 2 || !Scan_Hex2(cp + 1, &n, FALSE))
+                return NULL;
+            *str++ = cast(REBYTE, n);
             cp += 3;
             len -= 2;
         }
-        else *str++ = *cp++;
+        else
+            *str++ = *cp++;
     }
     *str = 0;
-    if (!at) return 0;
+    if (!at)
+        return NULL;
+
     SET_SERIES_LEN(series, cast(REBCNT, str - BIN_HEAD(series)));
 
-    Val_Init_Series(value, REB_EMAIL, series); // manages
-
+    Val_Init_Series(out, REB_EMAIL, series); // manages
     return cp;
 }
 
@@ -801,11 +891,9 @@ const REBYTE *Scan_Email(const REBYTE *cp, REBCNT len, REBVAL *value)
 // 
 // Scan and convert a URL.
 //
-const REBYTE *Scan_URL(const REBYTE *cp, REBCNT len, REBVAL *value)
+const REBYTE *Scan_URL(REBVAL *out, const REBYTE *cp, REBCNT len)
 {
-    REBSER *series;
-    REBYTE *str;
-    REBUNI n;
+    SET_TRASH_IF_DEBUG(out);
 
 //  !!! Need to check for any possible scheme followed by ':'
 
@@ -815,23 +903,27 @@ const REBYTE *Scan_URL(const REBYTE *cp, REBCNT len, REBVAL *value)
 //  if (n >= URL_MAX) return 0;
 //  if (*str != ':') return 0;
 
-    series = Make_Binary(len);
+    REBSER *series = Make_Binary(len);
 
-    str = BIN_HEAD(series);
+    REBYTE *str = BIN_HEAD(series);
     for (; len > 0; len--) {
         //if (*cp == '%' && len > 2 && Scan_Hex2(cp+1, &n, FALSE)) {
         if (*cp == '%') {
-            if (len <= 2 || !Scan_Hex2(cp+1, &n, FALSE)) return 0;
-            *str++ = (REBYTE)n;
+            REBUNI n;
+            if (len <= 2 || !Scan_Hex2(cp + 1, &n, FALSE))
+                return NULL;
+
+            *str++ = cast(REBYTE, n);
             cp += 3;
             len -= 2;
         }
-        else *str++ = *cp++;
+        else
+            *str++ = *cp++;
     }
     *str = 0;
     SET_SERIES_LEN(series, cast(REBCNT, str - BIN_HEAD(series)));
 
-    Val_Init_Series(value, REB_URL, series); // manages
+    Val_Init_Series(out, REB_URL, series); // manages
     return cp;
 }
 
@@ -841,13 +933,17 @@ const REBYTE *Scan_URL(const REBYTE *cp, REBCNT len, REBVAL *value)
 // 
 // Scan and convert a pair
 //
-const REBYTE *Scan_Pair(const REBYTE *cp, REBCNT len, REBVAL *out)
+const REBYTE *Scan_Pair(REBVAL *out, const REBYTE *cp, REBCNT len)
 {
+    SET_TRASH_IF_DEBUG(out);
+
     REBYTE buf[MAX_NUM_LEN + 4];
 
-    const REBYTE *ep = Scan_Dec_Buf(cp, MAX_NUM_LEN, &buf[0]);
-    if (!ep) return NULL;
-    if (*ep != 'x' && *ep != 'X') return NULL;
+    const REBYTE *ep = Scan_Dec_Buf(&buf[0], cp, MAX_NUM_LEN);
+    if (ep == NULL)
+        return NULL;
+    if (*ep != 'x' && *ep != 'X')
+        return NULL;
 
     VAL_RESET_HEADER(out, REB_PAIR);
     out->payload.pair = Make_Pairing(NULL);
@@ -857,7 +953,7 @@ const REBYTE *Scan_Pair(const REBYTE *cp, REBCNT len, REBVAL *out)
     VAL_PAIR_X(out) = cast(float, atof(cast(char*, &buf[0]))); //n;
     ep++;
 
-    const REBYTE *xp = Scan_Dec_Buf(ep, MAX_NUM_LEN, &buf[0]);
+    const REBYTE *xp = Scan_Dec_Buf(&buf[0], ep, MAX_NUM_LEN);
     if (!xp) {
         Free_Pairing(out->payload.pair);
         return NULL;
@@ -880,29 +976,46 @@ const REBYTE *Scan_Pair(const REBYTE *cp, REBCNT len, REBVAL *out)
 // 
 // Scan and convert a tuple.
 //
-const REBYTE *Scan_Tuple(const REBYTE *cp, REBCNT len, REBVAL *value)
+const REBYTE *Scan_Tuple(REBVAL *out, const REBYTE *cp, REBCNT len)
 {
+    SET_TRASH_IF_DEBUG(out);
+
+    if (len == 0)
+        return NULL;
+
     const REBYTE *ep;
-    REBYTE *tp;
     REBCNT size = 1;
     REBINT n;
-
-    if (len == 0) return 0;
-    for (n = (REBINT)len, ep = cp; n > 0; n--, ep++)  // count '.'
-        if (*ep == '.') size++;
-    if (size > MAX_TUPLE) return 0;
-    if (size < 3) size = 3;
-    VAL_TUPLE_LEN(value) = (REBYTE)size;
-    tp = VAL_TUPLE(value);
-    memset(tp, 0, sizeof(REBTUP)-2);
-    for (ep = cp; len > (REBCNT)(ep - cp); ep++) {
-        ep = Grab_Int(ep, &n);
-        if (n < 0 || n > 255) return 0;
-        *tp++ = (REBYTE)n;
-        if (*ep != '.') break;
+    for (n = cast(REBINT, len), ep = cp; n > 0; n--, ep++) { // count '.'
+        if (*ep == '.')
+            ++size;
     }
-    if (len > (REBCNT)(ep - cp)) return 0;
-    VAL_RESET_HEADER(value, REB_TUPLE);
+
+    if (size > MAX_TUPLE)
+        return NULL;
+
+    if (size < 3)
+        size = 3;
+
+    VAL_RESET_HEADER(out, REB_TUPLE);
+    VAL_TUPLE_LEN(out) = cast(REBYTE, size);
+
+    REBYTE *tp = VAL_TUPLE(out);
+    memset(tp, 0, sizeof(REBTUP) - 2);
+
+    for (ep = cp; len > cast(REBCNT, ep - cp); ++ep) {
+        ep = Grab_Int(ep, &n);
+        if (n < 0 || n > 255)
+            return NULL;
+
+        *tp++ = cast(REBYTE, n);
+        if (*ep != '.')
+            break;
+    }
+
+    if (len > cast(REBCNT, ep - cp))
+        return NULL;
+
     return ep;
 }
 
@@ -912,26 +1025,33 @@ const REBYTE *Scan_Tuple(const REBYTE *cp, REBCNT len, REBVAL *value)
 // 
 // Scan and convert binary strings.
 //
-const REBYTE *Scan_Binary(const REBYTE *cp, REBCNT len, REBVAL *value)
+const REBYTE *Scan_Binary(REBVAL *out, const REBYTE *cp, REBCNT len)
 {
-    const REBYTE *ep;
+    SET_TRASH_IF_DEBUG(out);
+
     REBINT base = 16;
 
     if (*cp != '#') {
-        ep = Grab_Int(cp, &base);
-        if (cp == ep || *ep != '#') return 0;
-        len -= (REBCNT)(ep - cp);
+        const REBYTE *ep = Grab_Int(cp, &base);
+        if (cp == ep || *ep != '#')
+            return NULL;
+        len -= cast(REBCNT, ep - cp);
         cp = ep;
     }
+
     cp++;  // skip #
-    if (*cp++ != '{') return 0;
+    if (*cp++ != '{')
+        return NULL;
+    
     len -= 2;
 
-    cp = Decode_Binary(value, cp, len, base, '}');
-    if (!cp) return 0;
+    cp = Decode_Binary(out, cp, len, base, '}');
+    if (cp == NULL)
+        return NULL;
 
     cp = Skip_To_Byte(cp, cp + len, '}');
-    if (!cp) return 0; // series will be gc'd
+    if (cp == NULL)
+        return NULL; // series will be gc'd
 
     return cp;
 }
@@ -943,11 +1063,13 @@ const REBYTE *Scan_Binary(const REBYTE *cp, REBCNT len, REBVAL *value)
 // Scan any string that does not require special decoding.
 //
 const REBYTE *Scan_Any(
+    REBVAL *out,
     const REBYTE *cp,
     REBCNT num_bytes,
-    REBVAL *out,
     enum Reb_Kind type
 ) {
+    SET_TRASH_IF_DEBUG(out);
+
     REBSER *s = Append_UTF8_May_Fail(NULL, cp, num_bytes); // NULL means alloc
 
     REBCNT delined_len;

@@ -75,53 +75,93 @@ REBI64 Join_Time(REB_TIMEF *tf, REBOOL neg)
 // 
 // Scan string and convert to time.  Return zero if error.
 //
-const REBYTE *Scan_Time(const REBYTE *cp, REBCNT len, REBVAL *value)
+const REBYTE *Scan_Time(REBVAL *out, const REBYTE *cp, REBCNT len)
 {
-    const REBYTE  *sp;
-    REBYTE  merid = '\0';
-    REBOOL  neg = FALSE;
-    REBINT  part1, part2, part3 = -1;
-    REBINT  part4 = -1;
+    SET_TRASH_IF_DEBUG(out);
 
-    if (*cp == '-') cp++, neg = TRUE;
-    else if (*cp == '+') cp++;
+    REBOOL neg;
+    if (*cp == '-') {
+        ++cp;
+        neg = TRUE;
+    }
+    else if (*cp == '+') {
+        ++cp;
+        neg = FALSE;
+    }
+    else
+        neg = FALSE;
 
-    if (*cp == '-' || *cp == '+') return 0; // small hole: --1:23
+    if (*cp == '-' || *cp == '+')
+        return NULL; // small hole: --1:23
 
     // Can be:
     //    HH:MM       as part1:part2
     //    HH:MM:SS    as part1:part2:part3
     //    HH:MM:SS.DD as part1:part2:part3.part4
     //    MM:SS.DD    as part1:part2.part4
+
+    REBINT part1 = -1;
     cp = Grab_Int(cp, &part1);
-    if (part1 > MAX_HOUR) return 0;
-    if (*cp++ != ':') return 0;
+    if (part1 > MAX_HOUR)
+        return NULL;
+
+    if (*cp++ != ':')
+        return NULL;
+
+    const REBYTE *sp;
+    
+    REBINT part2 = -1;        
     sp = Grab_Int(cp, &part2);
-    if (part2 < 0 || sp == cp) return 0;
+    if (part2 < 0 || sp == cp)
+        return NULL;
+
     cp = sp;
+
+    REBINT part3 = -1;
     if (*cp == ':') {   // optional seconds
         sp = cp + 1;
         cp = Grab_Int(sp, &part3);
-        if (part3 < 0 || cp == sp) return 0;  //part3 = -1;
+        if (part3 < 0 || cp == sp)
+            return NULL;
     }
+
+    REBINT part4 = -1;
     if (*cp == '.' || *cp == ',') {
         sp = ++cp;
         cp = Grab_Int_Scale(sp, &part4, 9);
-        if (part4 == 0) part4 = -1;
+        if (part4 == 0)
+            part4 = -1;
     }
-    if ((UP_CASE(*cp) == 'A' || UP_CASE(*cp) == 'P') && (UP_CASE(cp[1]) == 'M')) {
+
+    REBYTE merid;
+    if (
+        (UP_CASE(*cp) == 'A' || UP_CASE(*cp) == 'P')
+        && (UP_CASE(cp[1]) == 'M')
+    ){
         merid = cast(REBYTE, UP_CASE(*cp));
         cp += 2;
     }
+    else
+        merid = '\0';
 
-    if (part3 >= 0 || part4 < 0) {  // HH:MM mode
+    VAL_RESET_HEADER(out, REB_TIME);
+
+    if (part3 >= 0 || part4 < 0) { // HH:MM mode
         if (merid != '\0') {
-            if (part1 > 12) return 0;
-            if (part1 == 12) part1 = 0;
-            if (merid == 'P') part1 += 12;
+            if (part1 > 12)
+                return NULL;
+
+            if (part1 == 12)
+                part1 = 0;
+
+            if (merid == 'P')
+                part1 += 12;
         }
-        if (part3 < 0) part3 = 0;
-        VAL_TIME(value) = HOUR_TIME(part1) + MIN_TIME(part2) + SEC_TIME(part3);
+
+        if (part3 < 0)
+            part3 = 0;
+
+        VAL_TIME(out) = HOUR_TIME(part1) + MIN_TIME(part2) + SEC_TIME(part3);
     }
     else {
         // MM:SS mode
@@ -129,13 +169,14 @@ const REBYTE *Scan_Time(const REBYTE *cp, REBCNT len, REBVAL *value)
         if (merid != '\0')
             return NULL; // no AM/PM for minutes
 
-        VAL_TIME(value) = MIN_TIME(part1) + SEC_TIME(part2);
+        VAL_TIME(out) = MIN_TIME(part1) + SEC_TIME(part2);
     }
 
-    if (part4 > 0) VAL_TIME(value) += part4;
+    if (part4 > 0)
+        VAL_TIME(out) += part4;
 
-    if (neg) VAL_TIME(value) = -VAL_TIME(value);
-    VAL_RESET_HEADER(value, REB_TIME);
+    if (neg)
+        VAL_TIME(out) = -VAL_TIME(out);
 
     return cp;
 }
@@ -188,11 +229,11 @@ REBI64 Make_Time(const REBVAL *val)
         secs = VAL_TIME(val);
     }
     else if (IS_STRING(val)) {
-        REBYTE *bp;
         REBCNT len;
-        bp = Temp_Byte_Chars_May_Fail(val, MAX_SCAN_TIME, &len, FALSE);
+        REBYTE *bp = Temp_Byte_Chars_May_Fail(val, MAX_SCAN_TIME, &len, FALSE);
         REBVAL temp;
-        if (!Scan_Time(bp, len, &temp)) goto no_time;
+        if (!Scan_Time(&temp, bp, len))
+            goto no_time;
         secs = VAL_TIME(&temp);
     }
     else if (IS_INTEGER(val)) {

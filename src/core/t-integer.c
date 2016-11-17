@@ -49,8 +49,6 @@ REBINT CT_Integer(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 void MAKE_Integer(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
-    VAL_RESET_HEADER(out, REB_INTEGER);
-
     if (IS_LOGIC(arg)) {
         //
         // !!! Due to Rebol's policies on conditional truth and falsehood,
@@ -61,7 +59,10 @@ void MAKE_Integer(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         // that it will make an integer 0 out of FALSE due to it having
         // fewer seeming "rules" than TO would.
 
-        VAL_INT64(out) = VAL_LOGIC(arg) ? 1 : 0;
+        if (VAL_LOGIC(arg))
+            SET_INTEGER(out, 1);
+        else
+            SET_INTEGER(out, 0);
 
         // !!! The same principle could suggest MAKE is not bound by
         // the "reversibility" requirement and hence could interpret
@@ -72,7 +73,7 @@ void MAKE_Integer(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         // use signed logic by default (use TO-INTEGER/UNSIGNED to force
         // unsigned interpretation or error if that doesn't make sense)
 
-        Value_To_Int64(&VAL_INT64(out), arg, FALSE);
+        Value_To_Int64(out, arg, FALSE);
     }
 }
 
@@ -85,8 +86,7 @@ void TO_Integer(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     // use signed logic by default (use TO-INTEGER/UNSIGNED to force
     // unsigned interpretation or error if that doesn't make sense)
 
-    VAL_RESET_HEADER(out, REB_INTEGER);
-    Value_To_Int64(&VAL_INT64(out), arg, FALSE);
+    Value_To_Int64(out, arg, FALSE);
 }
 
 
@@ -107,24 +107,24 @@ void TO_Integer(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 // 
 // If a type is added or removed, update REBNATIVE(to_integer)'s spec
 //
-void Value_To_Int64(REBI64 *out, const REBVAL *value, REBOOL no_sign)
+void Value_To_Int64(REBVAL *out, const REBVAL *value, REBOOL no_sign)
 {
     // !!! Code extracted from REBTYPE(Integer)'s A_MAKE and A_TO cases
     // Use SWITCH instead of IF chain? (was written w/ANY_STR test)
 
     if (IS_INTEGER(value)) {
-        *out = VAL_INT64(value);
+        *out = *value;
         goto check_sign;
     }
     if (IS_DECIMAL(value) || IS_PERCENT(value)) {
         if (VAL_DECIMAL(value) < MIN_D64 || VAL_DECIMAL(value) >= MAX_D64)
             fail (Error(RE_OVERFLOW));
 
-        *out = cast(REBI64, VAL_DECIMAL(value));
+        SET_INTEGER(out, cast(REBI64, VAL_DECIMAL(value)));
         goto check_sign;
     }
     else if (IS_MONEY(value)) {
-        *out = deci_to_int(VAL_MONEY_AMOUNT(value));
+        SET_INTEGER(out, deci_to_int(VAL_MONEY_AMOUNT(value)));
         goto check_sign;
     }
     else if (IS_BINARY(value)) { // must be before ANY_STRING() test...
@@ -157,76 +157,97 @@ void Value_To_Int64(REBI64 *out, const REBVAL *value, REBOOL no_sign)
         REBINT fill;
 
     #if !defined(NDEBUG)
+        //
         // This is what R3-Alpha did.
+        //
         if (LEGACY(OPTIONS_FOREVER_64_BIT_INTS)) {
-            *out = 0;
+            REBI64 i = 0;
             if (n > sizeof(REBI64)) n = sizeof(REBI64);
             for (; n; n--, bp++)
-                *out = cast(REBI64, (cast(REBU64, *out) << 8) | *bp);
+                i = cast(REBI64, (cast(REBU64, i) << 8) | *bp);
+            
+            SET_INTEGER(out, i);
 
             // There was no TO-INTEGER/UNSIGNED in R3-Alpha, so even if
             // running in compatibility mode we can check the sign if used.
+            //
             goto check_sign;
         }
     #endif
 
         if (n == 0) {
+            //
             // !!! Should #{} empty binary be 0 or error?  (Historically, 0)
-            *out = 0;
+            //
+            SET_INTEGER(out, 0);
             return;
         }
 
         // default signedness interpretation to high-bit of first byte, but
         // override if the function was called with `no_sign`
+        //
         negative = no_sign ? FALSE : LOGICAL(*bp >= 0x80);
 
         // Consume any leading 0x00 bytes (or 0xFF if negative)
+        //
         while (n != 0 && *bp == (negative ? 0xFF : 0x00)) {
-            bp++; n--;
+            ++bp;
+            --n;
         }
 
         // If we were consuming 0xFFs and passed to a byte that didn't have
         // its high bit set, we overstepped our bounds!  Go back one.
+        //
         if (negative && n > 0 && *bp < 0x80) {
-            bp--; n++;
+            --bp;
+            ++n;
         }
 
         // All 0x00 bytes must mean 0 (or all 0xFF means -1 if negative)
+        //
         if (n == 0) {
             if (negative) {
                 assert(!no_sign);
-                *out = -1;
+                SET_INTEGER(out, -1);
             } else
-                *out = 0;
+                SET_INTEGER(out, 0);
             return;
         }
 
         // Not using BigNums (yet) so max representation is 8 bytes after
         // leading 0x00 or 0xFF stripped away
+        //
         if (n > 8)
             fail (Error(RE_OUT_OF_RANGE, value));
 
+        REBI64 i = 0;
+
         // Pad out to make sure any missing upper bytes match sign
         for (fill = n; fill < 8; fill++)
-            *out = cast(REBI64,
-                (cast(REBU64, *out) << 8) | (negative ? 0xFF : 0x00)
+            i = cast(REBI64,
+                (cast(REBU64, i) << 8) | (negative ? 0xFF : 0x00)
             );
 
         // Use binary data bytes to fill in the up-to-8 lower bytes
+        //
         while (n != 0) {
-            *out = cast(REBI64, (cast(REBU64, *out) << 8) | *bp);
+            i = cast(REBI64, (cast(REBU64, i) << 8) | *bp);
             bp++;
             n--;
         }
 
-        if (no_sign && *out < 0) {
+        if (no_sign && i < 0) {
+            //
             // bits may become signed via shift due to 63-bit limit
+            //
             fail (Error(RE_OUT_OF_RANGE, value));
         }
 
+        SET_INTEGER(out, i);
         return;
     }
     else if (IS_ISSUE(value)) {
+        //
         // Like converting a binary, except uses a string of codepoints
         // from the word name conversion.  Does not allow for signed
         // interpretations, e.g. #FFFF => 65535, not -1.  Unsigned makes
@@ -246,24 +267,26 @@ void Value_To_Int64(REBI64 *out, const REBVAL *value, REBOOL no_sign)
 
         // !!! Unlike binary, always assumes unsigned (should it?).  Yet still
         // might run afoul of 64-bit range limit.
-        if (*out < 0)
+        //
+        if (VAL_INT64(out) < 0)
             fail (Error(RE_OUT_OF_RANGE, value));
 
         return;
     }
     else if (ANY_STRING(value)) {
-        REBYTE *bp;
         REBCNT len;
-        REBDEC dec;
-        bp = Temp_Byte_Chars_May_Fail(value, VAL_LEN_AT(value), &len, FALSE);
+        REBYTE *bp = Temp_Byte_Chars_May_Fail(
+            value, VAL_LEN_AT(value), &len, FALSE
+        );
         if (
             memchr(bp, '.', len)
             || memchr(bp, 'e', len)
             || memchr(bp, 'E', len)
         ) {
-            if (Scan_Decimal(&dec, bp, len, TRUE)) {
-                if (dec < MAX_I64 && dec >= MIN_I64) {
-                    *out = cast(REBI64, dec);
+            REBVAL d;
+            if (Scan_Decimal(&d, bp, len, TRUE)) {
+                if (VAL_DECIMAL(&d) < MAX_I64 && VAL_DECIMAL(&d) >= MIN_I64) {
+                    SET_INTEGER(out, cast(REBI64, VAL_DECIMAL(&d)));
                     goto check_sign;
                 }
 
@@ -276,27 +299,26 @@ void Value_To_Int64(REBI64 *out, const REBVAL *value, REBOOL no_sign)
         fail (Error_Bad_Make(REB_INTEGER, value));
     }
     else if (IS_LOGIC(value)) {
+        //
         // Rebol's choice is that no integer is uniquely representative of
         // "falsehood" condition, e.g. `if 0 [print "this prints"]`.  So to
         // say TO FALSE is 0 would be disingenuous.
-
+        //
         fail (Error_Bad_Make(REB_INTEGER, value));
     }
     else if (IS_CHAR(value)) {
-        *out = VAL_CHAR(value);
-        assert(*out >= 0);
+        SET_INTEGER(out, VAL_CHAR(value)); // always unsigned
         return;
     }
     else if (IS_TIME(value)) {
-        *out = SECS_IN(VAL_TIME(value));
-        assert(*out >= 0);
+        SET_INTEGER(out, SECS_IN(VAL_TIME(value))); // always unsigned
         return;
     }
     else
         fail (Error_Bad_Make(REB_INTEGER, value));
 
 check_sign:
-    if (no_sign && *out < 0)
+    if (no_sign && VAL_INT64(out) < 0)
         fail (Error(RE_POSITIVE));
 }
 
@@ -317,11 +339,9 @@ check_sign:
 REBNATIVE(to_integer)
 {
     PARAM(1, value);
+    REFINE(2, unsigned);
 
-    REBOOL no_sign = D_REF(2);
-
-    VAL_RESET_HEADER(D_OUT, REB_INTEGER);
-    Value_To_Int64(&VAL_INT64(D_OUT), ARG(value), no_sign);
+    Value_To_Int64(D_OUT, ARG(value), REF(unsigned));
 
     return R_OUT;
 }
