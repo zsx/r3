@@ -101,12 +101,11 @@ emit-directive: func [
     process-conditional directive proto-parser/parse.position :emit-fsymb fsymbol-buffer
 ]
 
-process-conditional: func [
+process-conditional: procedure [
     directive
     dir-position
     emit [function!]
     buffer
-    /local position
 ][
     emit [
         directive

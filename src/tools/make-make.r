@@ -311,11 +311,10 @@ output: make string! 10000
 
 flag?: func ['word] [not blank? find config/build-flags word]
 
-macro+: func [
+macro+: procedure [
 	"Appends value to end of macro= line"
 	'name
 	value
-	/local n a
 ][
 	n: rejoin [newline name]
 	value: form value
@@ -329,7 +328,6 @@ macro+: func [
 	][
 		print ajoin ["Cannot find " name "= definition"]
 	]
-	true ;; for ren-c compatibility: func must return value
 ]
 
 macro++: func ['name obj [object!] /local out] [
