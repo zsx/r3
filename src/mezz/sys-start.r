@@ -32,10 +32,10 @@ REBOL [
     }
 ]
 
-finish-init-core: proc [
-    "Completes the boot sequence for Ren/C core."
-    /local tmp
-] bind [ ; context is system/options
+finish-init-core: procedure [
+    "Completes the boot sequence for Ren-C core."
+    <in> system/options
+][
 
     ; For now, we consider initializing the port schemes to be "part of the
     ; core function".  Longer term, it may be the host's responsibility to
@@ -66,15 +66,14 @@ finish-init-core: proc [
     ; commented out, so the state of that feature is unknown.
     ;
     comment [if :lib/secure [protect-system-object]]
+]
 
-] system/options
 
-
-finish-rl-start: proc [
+finish-rl-start: procedure [
     "Loads extras, handles args, security, scripts (should be host-specific)."
-    /local file script-path script-args code
-] bind [ ; context is: system/options
-
+    <in> system/options
+    <with> boot-mezz boot-host
+][
     ;-- Print minimal identification banner if needed:
     if all [
         not quiet
@@ -233,4 +232,4 @@ finish-rl-start: proc [
     ]
 
     finish-rl-start: 'done
-] system/options
+]

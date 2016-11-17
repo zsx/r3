@@ -188,7 +188,15 @@ make-action: func [
                 new-body: copy/deep body
             ]
         )
-        any [set other: [word! | path!] (bind new-body get other)]
+        any [
+            set other: [word! | path!] (
+                other: ensure any-context! get other
+                bind new-body other
+                for-each [key val] other [
+                    append exclusions key
+                ]
+            )
+        ]
     |
         <with> any [
             set other: [word! | path!] (append exclusions other)
