@@ -522,7 +522,12 @@ static REBCNT Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
         //
         REBVAL dummy;
         if (Do_At_Throws(
-            &dummy, VAL_ARRAY(rule), VAL_INDEX(rule), P_RULE_SPECIFIER
+            &dummy,
+            VAL_ARRAY(rule),
+            VAL_INDEX(rule),
+            IS_SPECIFIC(rule)
+                ? VAL_SPECIFIER(const_KNOWN(rule))
+                : P_RULE_SPECIFIER
         )) {
             *P_OUT = dummy;
             return THROWN_FLAG;
@@ -607,7 +612,12 @@ static REBCNT Parse_Array_One_Rule_Core(
         //
         REBVAL dummy;
         if (Do_At_Throws(
-            &dummy, VAL_ARRAY(rule), VAL_INDEX(rule), P_RULE_SPECIFIER
+            &dummy,
+            VAL_ARRAY(rule),
+            VAL_INDEX(rule),
+            IS_SPECIFIC(rule)
+                ? VAL_SPECIFIER(const_KNOWN(rule))
+                : P_RULE_SPECIFIER
         )) {
             *P_OUT = dummy;
             return THROWN_FLAG;
@@ -1145,7 +1155,12 @@ static REBCNT Do_Eval_Rule(REBFRM *f)
             if (IS_GROUP(rule)) {
                 // might GC ... !!! why is QUOTE evaluating something?
                 if (Do_At_Throws(
-                    &save, VAL_ARRAY(rule), VAL_INDEX(rule), P_RULE_SPECIFIER
+                    &save,
+                    VAL_ARRAY(rule),
+                    VAL_INDEX(rule),
+                    IS_SPECIFIC(rule)
+                        ? VAL_SPECIFIER(const_KNOWN(rule))
+                        : P_RULE_SPECIFIER
                 )) {
                     *P_OUT = save;
                     return THROWN_FLAG;
@@ -1674,7 +1689,12 @@ REBNATIVE(subparse)
         if (IS_GROUP(rule)) {
             REBVAL evaluated;
             if (Do_At_Throws( // might GC
-                &evaluated, VAL_ARRAY(rule), VAL_INDEX(rule), P_RULE_SPECIFIER
+                &evaluated,
+                VAL_ARRAY(rule),
+                VAL_INDEX(rule),
+                IS_SPECIFIC(rule)
+                    ? VAL_SPECIFIER(const_KNOWN(rule))
+                    : P_RULE_SPECIFIER
             )) {
                 *P_OUT = evaluated;
                 return R_OUT_IS_THROWN;

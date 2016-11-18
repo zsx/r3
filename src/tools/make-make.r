@@ -19,9 +19,9 @@ REBOL [
     ]
 ]
 
-path-host:   %../os/
-path-make:   %../../make/
-path-incl:   %../../src/include/
+path-host: %../os/
+path-make: %../../make/
+path-incl: %../../src/include/
 
 ;******************************************************************************
 
@@ -267,12 +267,14 @@ print ["Option set for building:" config/id config/os-name]
 ; Words are cleaner-looking in the table, and hyphens look better (and are
 ; easier to type).  But we need a string, and one that C can accept and not
 ; think you're doing subtraction.  Transform it (e.g. osx-64 => "TO_OSX_X64")
+;
 to-base-def: rejoin [{TO_} uppercase to-string config/os-base]
 to-name-def: rejoin [
     {TO_} replace/all (uppercase to-string config/os-name) {-} {_}
 ]
 
-; Make plat id string:
+; Make plat id string
+;
 plat-id: form config/id/2
 if tail? next plat-id [insert plat-id #"0"]
 append plat-id config/id/3
@@ -287,14 +289,15 @@ unless (
     ]
 ]
 
-; The + sign is sued to tell the make-header.r script that the file is generated
-; we don't care it here
+; The + sign is sued to tell the make-header.r script that the file is
+; generated.  We don't care about that here
+;
 remove-each item file-base/core [item = '+]
 
 ; The + sign is used to tell the make-os-ext.r script to scan a host kit file
 ; for headers (the way make-headers.r does).  But we don't care about that
 ; here in make-make.r... so remove any + signs we find before processing.
-
+;
 remove-each item file-base/os [item = '+]
 remove-each item os-specific-objs [item = '+]
 
@@ -303,6 +306,7 @@ make-dir outdir
 make-dir outdir/objs
 
 output: make string! 10000
+emit: func [d] [repend output d]
 
 ;******************************************************************************
 ;** Functions
@@ -342,9 +346,6 @@ macro++: function ['name obj [object!]] [
     ]
     macro+ (name) out
 ]
-
-
-emit: func [d] [repend output d]
 
 
 to-obj: function [
