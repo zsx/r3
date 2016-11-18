@@ -200,12 +200,12 @@ file-base: has load %../tools/file-base.r
 
 ;prefix the generated file paths with output-dir/core
 parse file-base/core [
-	any [
-		to '+ mark: (
-			poke mark 2 join output-dir/core [%/ mark/2]
-			remove mark ;remove '+
-		)
-	]
+    any [
+        to '+ mark: (
+            poke mark 2 join output-dir/core [%/ mark/2]
+            remove mark ;remove '+
+        )
+    ]
 ]
 
 files: map-each file file-base/core [

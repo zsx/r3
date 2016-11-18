@@ -1,22 +1,22 @@
 REBOL [
-	System: "REBOL [R3] Language Interpreter and Run-time Environment"
-	Title: "Make the R3 Core Makefile"
-	Rights: {
-		Copyright 2012 REBOL Technologies
-		REBOL is a trademark of REBOL Technologies
-	}
-	License: {
-		Licensed under the Apache License, Version 2.0
-		See: http://www.apache.org/licenses/LICENSE-2.0
-	}
-	Author: "Carl Sassenrath"
-	Purpose: {
-		Build a new makefile for a given platform.
-	}
-	Note: [
-		"This runs relative to ../tools directory."
-		"Make OS-specific changes to the systems.r file."
-	]
+    System: "REBOL [R3] Language Interpreter and Run-time Environment"
+    Title: "Make the R3 Core Makefile"
+    Rights: {
+        Copyright 2012 REBOL Technologies
+        REBOL is a trademark of REBOL Technologies
+    }
+    License: {
+        Licensed under the Apache License, Version 2.0
+        See: http://www.apache.org/licenses/LICENSE-2.0
+    }
+    Author: "Carl Sassenrath"
+    Purpose: {
+        Build a new makefile for a given platform.
+    }
+    Note: [
+        "This runs relative to ../tools directory."
+        "Make OS-specific changes to the systems.r file."
+    ]
 ]
 
 path-host:   %../os/
@@ -37,35 +37,35 @@ makefile-head:
 # capabilities, it is not tracked by version control.  So to kick off the
 # process you need to use the tracked bootstrap makefile:
 #
-#	make -f makefile.boot
+#     make -f makefile.boot
 #
 # See the comments in %makefile.boot for more information on the workings of
 # %make-make.r and what the version numbers mean.  This generated file is a
 # superset of the functionality in %makefile.boot, however.  So you can
 # retarget simply by typing:
 #
-#    make make OS_ID=0.4.3
+#     make make OS_ID=0.4.3
 #
 # To cross-compile using a different toolchain and include files:
 #
-#    $TOOLS - should point to bin where gcc is found
-#    $INCL  - should point to the dir for includes
+#     $TOOLS - should point to bin where gcc is found
+#     $INCL  - should point to the dir for includes
 #
 # Example make:
 #
-#    make TOOLS=~/amiga/amiga/bin/ppc-amigaos- INCL=/SDK/newlib/include
+#     make TOOLS=~/amiga/amiga/bin/ppc-amigaos- INCL=/SDK/newlib/include
 #
 # !!! Efforts to be able to have Rebol build itself in absence of a make
 # tool are being considered.  Please come chime in on chat if you are
 # interested in that and other projects, or need support while building:
 #
-#	http://rebolsource.net/go/chat-faq
+# http://rebolsource.net/go/chat-faq
 #
 
 # For the build toolchain:
-CC=	$(TOOLS)gcc
-NM=	$(TOOLS)nm
-STRIP=	$(TOOLS)strip
+CC= $(TOOLS)gcc
+NM= $(TOOLS)nm
+STRIP= $(TOOLS)strip
 
 # CP allows different copy progs:
 CP=
@@ -89,7 +89,7 @@ TO_OS_NAME?=
 OS_ID?=
 BIN_SUFFIX=
 RAPI_FLAGS=
-HOST_FLAGS=	-DREB_EXE
+HOST_FLAGS= -DREB_EXE
 RLIB_FLAGS=
 
 # Flags for core and for host:
@@ -107,10 +107,10 @@ R3= $(CD)$(R3_TARGET) -qs
 
 ### Build targets:
 top:
-	$(MAKE) $(R3_TARGET)
+    $(MAKE) $(R3_TARGET)
 
 update:
-	-cd $(UP)/; cvs -q update src
+    -cd $(UP)/; cvs -q update src
 
 # Uses "phony target" %make that should never be the name of a file in
 # this directory, hence, it will always regenerate if the make target
@@ -125,67 +125,67 @@ update:
 # someday.  Maybe.
 
 make: $(REBOL_TOOL)
-	$(REBOL) $T/make-make.r $(OS_ID)
+    $(REBOL) $T/make-make.r $(OS_ID)
 
 clean:
-	@-rm -rf $(R3_TARGET) libr3.so objs/
+    @-rm -rf $(R3_TARGET) libr3.so objs/
 
 all:
-	$(MAKE) clean
-	$(MAKE) prep
-	$(MAKE) $(R3_TARGET)
-	$(MAKE) lib
-	$(MAKE) host$(BIN_SUFFIX)
+    $(MAKE) clean
+    $(MAKE) prep
+    $(MAKE) $(R3_TARGET)
+    $(MAKE) lib
+    $(MAKE) host$(BIN_SUFFIX)
 
 prep: $(REBOL_TOOL)
-	$(REBOL) $T/make-natives.r
-	$(REBOL) $T/make-headers.r
-	$(REBOL) $T/make-boot.r $(OS_ID)
-	$(REBOL) $T/make-host-init.r
-	$(REBOL) $T/make-os-ext.r
-	$(REBOL) $T/make-host-ext.r
-	$(REBOL) $T/make-reb-lib.r
+    $(REBOL) $T/make-natives.r
+    $(REBOL) $T/make-headers.r
+    $(REBOL) $T/make-boot.r $(OS_ID)
+    $(REBOL) $T/make-host-init.r
+    $(REBOL) $T/make-os-ext.r
+    $(REBOL) $T/make-host-ext.r
+    $(REBOL) $T/make-reb-lib.r
 
 zlib:
-	$(REBOL) $T/make-zlib.r	
+    $(REBOL) $T/make-zlib.r
 
 ### Provide more info if make fails due to no local Rebol build tool:
 tmps: $S/include/tmp-bootdefs.h
 
 $S/include/tmp-bootdefs.h: $(REBOL_TOOL)
-	$(MAKE) prep
+    $(MAKE) prep
 
 $(REBOL_TOOL):
-	$(MAKE) -f makefile.boot $(REBOL_TOOL)
+    $(MAKE) -f makefile.boot $(REBOL_TOOL)
 
 ### Post build actions
 purge:
-	-rm libr3.*
-	-rm host$(BIN_SUFFIX)
-	$(MAKE) lib
-	$(MAKE) host$(BIN_SUFFIX)
+    -rm libr3.*
+    -rm host$(BIN_SUFFIX)
+    $(MAKE) lib
+    $(MAKE) host$(BIN_SUFFIX)
 
 test:
-	$(CP) $(R3_TARGET) $(UP)/src/tests/
-	$(R3) $S/tests/test.r
+    $(CP) $(R3_TARGET) $(UP)/src/tests/
+    $(R3) $S/tests/test.r
 
 install:
-	sudo cp $(R3_TARGET) /usr/local/bin
+    sudo cp $(R3_TARGET) /usr/local/bin
 
 ship:
-	$(R3) $S/tools/upload.r
+    $(R3) $S/tools/upload.r
 
-build:	libr3.so
-	$(R3) $S/tools/make-build.r
+build: libr3.so
+    $(R3) $S/tools/make-build.r
 
 cln:
-	rm libr3.* r3.o
+    rm libr3.* r3.o
 
 check:
-	$(STRIP) -s -o r3.s $(R3_TARGET)
-	$(STRIP) -x -o r3.x $(R3_TARGET)
-	$(STRIP) -X -o r3.X $(R3_TARGET)
-	$(LS) r3*
+    $(STRIP) -s -o r3.s $(R3_TARGET)
+    $(STRIP) -x -o r3.x $(R3_TARGET)
+    $(STRIP) -X -o r3.X $(R3_TARGET)
+    $(LS) r3*
 
 }
 
@@ -194,62 +194,62 @@ check:
 makefile-link: {
 # Directly linked r3 executable:
 $(R3_TARGET): tmps objs $(OBJS) $(HOST)
-	$(CC) -o $(R3_TARGET) $(OBJS) $(HOST) $(CLIB)
-	$(STRIP) $(R3_TARGET)
-	-$(NM) -a $(R3_TARGET)
-	$(LS) $(R3_TARGET)
+    $(CC) -o $(R3_TARGET) $(OBJS) $(HOST) $(CLIB)
+    $(STRIP) $(R3_TARGET)
+    -$(NM) -a $(R3_TARGET)
+    $(LS) $(R3_TARGET)
 
 objs:
-	mkdir -p objs
+    mkdir -p objs
 }
 
 makefile-so: {
-lib:	libr3.so
+lib: libr3.so
 
 # PUBLIC: Shared library:
 # NOTE: Did not use "-Wl,-soname,libr3.so" because won't find .so in local dir.
-libr3.so:	$(OBJS)
-	$(CC) -o libr3.so -shared $(OBJS) $(CLIB)
-	$(STRIP) libr3.so
-	-$(NM) -D libr3.so
-	-$(NM) -a libr3.so | grep "Do_"
-	$(LS) libr3.so
+libr3.so: $(OBJS)
+    $(CC) -o libr3.so -shared $(OBJS) $(CLIB)
+    $(STRIP) libr3.so
+    -$(NM) -D libr3.so
+    -$(NM) -a libr3.so | grep "Do_"
+    $(LS) libr3.so
 
 # PUBLIC: Host using the shared lib:
-host$(BIN_SUFFIX):	$(HOST)
-	$(CC) -o host$(BIN_SUFFIX) $(HOST) libr3.so $(CLIB)
-	$(STRIP) host$(BIN_SUFFIX)
-	$(LS) host$(BIN_SUFFIX)
-	echo "export LD_LIBRARY_PATH=.:$LD_LIBRARY_PATH"
+host$(BIN_SUFFIX): $(HOST)
+    $(CC) -o host$(BIN_SUFFIX) $(HOST) libr3.so $(CLIB)
+    $(STRIP) host$(BIN_SUFFIX)
+    $(LS) host$(BIN_SUFFIX)
+    echo "export LD_LIBRARY_PATH=.:$LD_LIBRARY_PATH"
 }
 
 makefile-dyn: {
-lib:	libr3.dylib
+lib: libr3.dylib
 
 # Private static library (to be used below for OSX):
-libr3.dylib:	$(OBJS)
-	ld -r -o r3.o $(OBJS)
-	$(CC) -dynamiclib -o libr3.dylib r3.o $(CLIB)
-	$(STRIP) -x libr3.dylib
-	-$(NM) -D libr3.dylib
-	-$(NM) -a libr3.dylib | grep "Do_"
-	$(LS) libr3.dylib
+libr3.dylib: $(OBJS)
+    ld -r -o r3.o $(OBJS)
+    $(CC) -dynamiclib -o libr3.dylib r3.o $(CLIB)
+    $(STRIP) -x libr3.dylib
+    -$(NM) -D libr3.dylib
+    -$(NM) -a libr3.dylib | grep "Do_"
+    $(LS) libr3.dylib
 
 # PUBLIC: Host using the shared lib:
-host$(BIN_SUFFIX):	$(HOST)
-	$(CC) -o host$(BIN_SUFFIX) $(HOST) libr3.dylib $(CLIB)
-	$(STRIP) host$(BIN_SUFFIX)
-	$(LS) host$(BIN_SUFFIX)
-	echo "export LD_LIBRARY_PATH=.:$LD_LIBRARY_PATH"
+host$(BIN_SUFFIX): $(HOST)
+    $(CC) -o host$(BIN_SUFFIX) $(HOST) libr3.dylib $(CLIB)
+    $(STRIP) host$(BIN_SUFFIX)
+    $(LS) host$(BIN_SUFFIX)
+    echo "export LD_LIBRARY_PATH=.:$LD_LIBRARY_PATH"
 }
 
 not-used: {
 # PUBLIC: Static library (to distrirbute) -- does not work!
-libr3.lib:	r3.o
-	ld -static -r -o libr3.lib r3.o
-	$(STRIP) libr3.lib
-	-$(NM) -a libr3.lib | grep "Do_"
-	$(LS) libr3.lib
+libr3.lib: r3.o
+    ld -static -r -o libr3.lib r3.o
+    $(STRIP) libr3.lib
+    -$(NM) -a libr3.lib | grep "Do_"
+    $(LS) libr3.lib
 }
 
 ;******************************************************************************
@@ -269,7 +269,7 @@ print ["Option set for building:" config/id config/os-name]
 ; think you're doing subtraction.  Transform it (e.g. osx-64 => "TO_OSX_X64")
 to-base-def: rejoin [{TO_} uppercase to-string config/os-base]
 to-name-def: rejoin [
-	{TO_} replace/all (uppercase to-string config/os-name) {-} {_}
+    {TO_} replace/all (uppercase to-string config/os-name) {-} {_}
 ]
 
 ; Make plat id string:
@@ -281,10 +281,10 @@ append plat-id config/id/3
 unless (
     os-specific-objs: select file-base to word! rejoin ["os-" config/os-base]
 ) [
-	fail [
-		"make-make.r requires os-specific obj list in file-base.r"
+    fail [
+        "make-make.r requires os-specific obj list in file-base.r"
         "blank was provided for" rejoin ["os-" config/os-base]
-	]
+    ]
 ]
 
 ; The + sign is sued to tell the make-header.r script that the file is generated
@@ -302,7 +302,6 @@ outdir: path-make
 make-dir outdir
 make-dir outdir/objs
 
-nl2: "^/^/"
 output: make string! 10000
 
 ;******************************************************************************
@@ -311,93 +310,104 @@ output: make string! 10000
 
 flag?: func ['word] [not blank? find config/build-flags word]
 
+
 macro+: procedure [
-	"Appends value to end of macro= line"
-	'name
-	value
+    "Appends value to end of macro= line"
+    'name
+    value
 ][
-	n: rejoin [newline name]
-	value: form value
-	unless parse makefile-head [
-		any [
-			thru n opt [
-				any space ["=" | "?="] to newline
-				insert #" " insert value to end
-			]
-		]
-	][
-		print ajoin ["Cannot find " name "= definition"]
-	]
+    n: rejoin [newline name]
+    value: form value
+    unless parse makefile-head [
+        any [
+            thru n opt [
+                any space ["=" | "?="] to newline
+                insert space insert value to end
+            ]
+        ]
+    ][
+        print ajoin ["Cannot find" space name "= definition"]
+    ]
 ]
 
-macro++: func ['name obj [object!] /local out] [
-	out: make string! 10
-	for-each n words-of obj [
-		all [
-			obj/:n
-			flag? (n)
-			repend out [space obj/:n]
-		]
-	]
-	macro+ (name) out
+
+macro++: function ['name obj [object!]] [
+    out: make string! 10
+    for-each n words-of obj [
+        all [
+            obj/:n
+            flag? (n)
+            repend out [space obj/:n]
+        ]
+    ]
+    macro+ (name) out
 ]
+
 
 emit: func [d] [repend output d]
 
-pad: func [str] [head insert/dup copy "" " " 16 - length str]
 
-to-obj: func [
-	"Create .o object filename (with no dir path)."
-	file
+to-obj: function [
+    "Create .o object filename (with no dir path)."
+    file
 ][
-	;?? file
+    ;?? file
 
-	; Use of split path to remove directory had been commented out, but
-	; was re-added to incorporate the paths on codecs in a stop-gap measure
-	; to use make-make.r with Atronix repo
+    ; Use of split path to remove directory had been commented out, but
+    ; was re-added to incorporate the paths on codecs in a stop-gap measure
+    ; to use make-make.r with Atronix repo
 
-	file: (comment [to-file file] second split-path to-file file)
-	head change back tail file "o"
+    file: (comment [to-file file] second split-path to-file file)
+    head change back tail file "o"
 ]
 
-emit-obj-files: func [
-	"Output a line-wrapped list of object files."
-	files [block!]
-	/local cnt
+
+emit-obj-files: function [
+    "Output a line-wrapped list of object files."
+    files [block!]
 ][
-	cnt: 1
-	for-each file files [
-		file: to-obj file
-		emit [%objs/ file " "]
-		if (cnt // 4) = 0 [emit "\^/^-"]
-		cnt: cnt + 1
-	]
-	if tab = last output [clear skip tail output -3]
-	emit nl2
+    cnt: 1
+    pending: _
+    for-each file files [
+        if pending [
+            emit pending
+            pending: _
+        ]
+
+        file: to-obj file
+        emit [%objs/ file space]
+        
+        if (cnt // 4) = 0 [
+            pending: rejoin ["\" newline spaced-tab]
+        ]
+        cnt: cnt + 1
+    ]
+    emit [newline newline]
 ]
 
-emit-file-deps: func [
-	"Emit compiler and file dependency lines."
-	files
-	;flags
-	/dir path  ; from path
-	/local obj
+
+emit-file-deps: function [
+    "Emit compiler and file dependency lines."
+    files
+    /dir path  ; from path
 ][
-	for-each src files [
-		obj: to-obj src
-		src: rejoin pick [["$R/" src]["$S/" path src]] not dir
-		emit [
-			%objs/ obj ":" pad obj src
-			newline tab
-			"$(CC) "
-			src " "
-			;flags " "
-			pick ["$(RFLAGS)" "$(HFLAGS)"] not dir
-			" -o " %objs/ obj ; " " src
-			nl2
-		]
-	]
+    for-each src files [
+        obj: to-obj src
+        src: rejoin pick [["$R/" src]["$S/" path src]] not dir
+        emit [
+            %objs/ obj ":" space src
+            newline spaced-tab
+            "$(CC) "
+            src space
+            ;flags space
+            pick ["$(RFLAGS)" "$(HFLAGS)"] not dir
+            space "-o" space %objs/ obj ; space src
+            newline
+            newline
+        ]
+    ]
 ]
+
 
 ;******************************************************************************
 ;** Build
@@ -412,8 +422,8 @@ macro+ OS_ID config/id
 macro+ LS pick ["dir" "ls -l"] flag? DIR
 macro+ CP pick [copy cp] flag? COP
 unless flag? -SP [ ; Use standard paths:
-	macro+ UP ".."
-	macro+ CD "./"
+    macro+ UP ".."
+    macro+ CD "./"
 ]
 if flag? EXE [macro+ BIN_SUFFIX %.exe]
 macro++ CLIB linker-flags
@@ -424,16 +434,16 @@ macro+  HOST_FLAGS compiler-flags/f64 ; default for all
 if flag? +SC [remove find os-specific-objs 'host-readline.c]
 
 emit makefile-head
-emit ["OBJS =" tab]
+emit ["OBJS =" space]
 emit-obj-files file-base/core
-emit ["HOST =" tab]
+emit ["HOST =" space]
 emit-obj-files append copy file-base/os os-specific-objs
 emit makefile-link
 emit get pick [makefile-dyn makefile-so] config/id/2 = 2
 emit {
 ### File build targets:
 b-boot.c: $(SRC)/boot/boot.r
-	$(REBOL) -sqw $(SRC)/tools/make-boot.r
+    $(REBOL) -sqw $(SRC)/tools/make-boot.r
 }
 emit newline
 
@@ -442,6 +452,16 @@ emit-file-deps file-base/core
 emit-file-deps/dir file-base/os %os/
 emit-file-deps/dir os-specific-objs %os/
 
-;print copy/part output 300 halt
-print ["Created:" outdir/makefile]
+; Unfortunately, GNU make requires you use tab characters to indent, as part
+; of the file format.  This code uses 4 spaces instead, but then converts to
+; tabs at the last minute--so this Rebol source file doesn't need to have
+; actual tab characters in it.
+;
+if find output tab [
+    print copy/part find output tab 100
+    fail "tab character discovered in makefile prior to space=>tab conversion"
+]
+replace/all output spaced-tab tab
+
 write outdir/makefile output
+print ["Created:" outdir/makefile]
