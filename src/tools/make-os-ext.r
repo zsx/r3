@@ -120,10 +120,11 @@ emit-proto: proc [
         fn.name.upper: uppercase copy fn.name
         fn.name.lower: lowercase copy fn.name
 
-        append host-lib-instance reduce [tab fn.name "," newline]
+        append host-lib-instance reduce [spaced-tab fn.name "," newline]
 
         append host-lib-struct reduce [
-            tab fn.declarations "(*" fn.name.lower ")" pos.lparen ";" newline
+            spaced-tab fn.declarations "(*" fn.name.lower ")" pos.lparen ";"
+            newline
         ]
 
         args: count pos.lparen #","

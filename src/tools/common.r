@@ -30,6 +30,10 @@ do %r2r3-future.r
 
 spaced-tab: rejoin [space space space space]
 
+tab-char: #"^-" ;-- only GNU Makefiles require this...
+tab: does [
+    fail "Don't generate files with tabs in them, use SPACED-TAB"
+]
 
 to-c-name: function [
     {Take a Rebol value and transliterate it as a (likely) valid C identifier.}

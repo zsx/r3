@@ -324,19 +324,19 @@ make-arg-enums: func [word] [
 
     ; Argument numbers:
     emit-out ["enum act_" word "_arg {"]
-    emit-out [tab "ARG_" uword "_0,"]
-    for-each w args [emit-out [tab "ARG_" uword "_" w ","]]
-    emit-out [tab "ARG_" uword "_MAX"]
+    emit-out [spaced-tab "ARG_" uword "_0,"]
+    for-each w args [emit-out [spaced-tab "ARG_" uword "_" w ","]]
+    emit-out [spaced-tab "ARG_" uword "_MAX"]
     emit-out "};^/"
 
     ; Argument bitmask:
     n: 0
     emit-out ["enum act_" word "_mask {"]
     for-each w args [
-        emit-out [tab "AM_" uword "_" w " = 1 << " n ","]
+        emit-out [spaced-tab "AM_" uword "_" w " = 1 << " n ","]
         n: n + 1
     ]
-    emit-out [tab "AM_" uword "_MAX"]
+    emit-out [spaced-tab "AM_" uword "_MAX"]
     emit-out "};^/"
 
     repend output-buffer ["#define ALL_" uword "_REFS ("]

@@ -335,7 +335,7 @@ macro+: procedure [
 ]
 
 
-macro++: function ['name obj [object!]] [
+macro++: procedure ['name obj [object!]] [
     out: make string! 10
     for-each n words-of obj [
         all [
@@ -458,11 +458,11 @@ emit-file-deps/dir os-specific-objs %os/
 ; tabs at the last minute--so this Rebol source file doesn't need to have
 ; actual tab characters in it.
 ;
-if find output tab [
-    print copy/part find output tab 100
+if find output tab-char [
+    print copy/part find output tab-char 100
     fail "tab character discovered in makefile prior to space=>tab conversion"
 ]
-replace/all output spaced-tab tab
+replace/all output spaced-tab tab-char
 
 write outdir/makefile output
 print ["Created:" outdir/makefile]

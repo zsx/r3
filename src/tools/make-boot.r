@@ -122,7 +122,7 @@ up-word: func [w] [
 out: make string! 100000
 emit: proc [data] [repend out data]
 
-emit-enum: proc [word] [emit [tab to-c-name word "," newline]]
+emit-enum: proc [word] [emit [spaced-tab to-c-name word "," newline]]
 
 emit-line: proc [prefix word cmt /var /define /code /decl /up1 /local str][
 
@@ -597,8 +597,8 @@ for-each [cat msgs] boot-errors [
     ]
 ]
 
-emit ["#define RS_MAX" tab n lf]
-emit ["#define RS_SIZE" tab length out lf]
+emit ["#define RS_MAX" space n newline]
+emit ["#define RS_SIZE" space length out newline]
 boot-strings: to-binary code
 
 ;-- Generate Canonical Words (must follow datatypes above!) ------------------
@@ -724,7 +724,7 @@ make-obj-defs: proc [obj prefix depth /selfless /local f] [
     for-each field words-of obj [
         emit-line prefix field blank
     ]
-    emit [tab uppercase join prefix "MAX^/"]
+    emit [spaced-tab uppercase join prefix "MAX^/"]
     emit "};^/^/"
 
     if depth > 1 [
@@ -789,7 +789,7 @@ emit ["enum event_types {" newline]
 for-each field ob/view/event-types [
     emit-line "EVT_" field blank
 ]
-emit [tab "EVT_MAX^/"]
+emit [spaced-tab "EVT_MAX^/"]
 emit "};^/^/"
 
 emit ["enum event_keys {" newline]
@@ -797,7 +797,7 @@ emit-line "EVK_" "NONE" blank
 for-each field ob/view/event-keys [
     emit-line "EVK_" field blank
 ]
-emit [tab "EVK_MAX^/"]
+emit [spaced-tab "EVK_MAX^/"]
 emit "};^/^/"
 
 write inc/reb-evtypes.h out
