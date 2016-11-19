@@ -1022,19 +1022,19 @@ static void Init_Contexts_Object(void)
 //
 //  Codec_Text: C
 //
-REBINT Codec_Text(REBCDI *codi)
+REBINT Codec_Text(int action, REBCDI *codi)
 {
     codi->error = 0;
 
-    if (codi->action == CODI_ACT_IDENTIFY) {
+    if (action == CODI_ACT_IDENTIFY) {
         return CODI_CHECK; // error code is inverted result
     }
 
-    if (codi->action == CODI_ACT_DECODE) {
+    if (action == CODI_ACT_DECODE) {
         return CODI_TEXT;
     }
 
-    if (codi->action == CODI_ACT_ENCODE) {
+    if (action == CODI_ACT_ENCODE) {
         return CODI_BINARY;
     }
 
@@ -1045,15 +1045,15 @@ REBINT Codec_Text(REBCDI *codi)
 //
 //  Codec_UTF16: C
 //
-REBINT Codec_UTF16(REBCDI *codi, REBOOL little_endian)
+REBINT Codec_UTF16(int action, REBCDI *codi, REBOOL little_endian)
 {
     codi->error = 0;
 
-    if (codi->action == CODI_ACT_IDENTIFY) {
+    if (action == CODI_ACT_IDENTIFY) {
         return CODI_CHECK; // error code is inverted result
     }
 
-    if (codi->action == CODI_ACT_DECODE) {
+    if (action == CODI_ACT_DECODE) {
         REBSER *ser = Make_Unicode(codi->len);
         REBINT size = Decode_UTF16(
             UNI_HEAD(ser), codi->data, codi->len, little_endian, FALSE
@@ -1070,7 +1070,7 @@ REBINT Codec_UTF16(REBCDI *codi, REBOOL little_endian)
         return CODI_TEXT;
     }
 
-    if (codi->action == CODI_ACT_ENCODE) {
+    if (action == CODI_ACT_ENCODE) {
         u16 * data = ALLOC_N(u16, codi->len);
         if (codi->w == 1) {
             /* in ASCII */
@@ -1136,18 +1136,18 @@ REBINT Codec_UTF16(REBCDI *codi, REBOOL little_endian)
 //
 //  Codec_UTF16LE: C
 //
-REBINT Codec_UTF16LE(REBCDI *codi)
+REBINT Codec_UTF16LE(int action, REBCDI *codi)
 {
-    return Codec_UTF16(codi, TRUE);
+    return Codec_UTF16(action, codi, TRUE);
 }
 
 
 //
 //  Codec_UTF16BE: C
 //
-REBINT Codec_UTF16BE(REBCDI *codi)
+REBINT Codec_UTF16BE(int action, REBCDI *codi)
 {
-    return Codec_UTF16(codi, FALSE);
+    return Codec_UTF16(action, codi, FALSE);
 }
 
 
@@ -1158,10 +1158,12 @@ REBINT Codec_UTF16BE(REBCDI *codi)
 //
 void Register_Codec(const REBYTE *name, codo dispatcher)
 {
-    REBVAL *value = Get_System(SYS_CODECS, 0);
     REBSTR *sym = Intern_UTF8_Managed(name, LEN_BYTES(name));
 
-    value = Append_Context(VAL_CONTEXT(value), 0, sym);
+    REBVAL *value = Append_Context(
+        VAL_CONTEXT(Get_System(SYS_CODECS, 0)), 0, sym
+    );
+
     Init_Handle_Simple(
         value,
         cast(CFUNC*, dispatcher), // code

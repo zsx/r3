@@ -388,36 +388,93 @@ REBNATIVE(check)
 //  
 //  {Evaluate a CODEC function to encode or decode media types.}
 //  
-//      handle [handle!] "Internal link to codec"
-//      action [word!] "Decode, encode, identify"
+//      handle [handle!]
+//          "Internal link to codec"
+//      action [word!]
+//          "Decode, encode, identify"
 //      data [binary! image! string!]
 //  ]
 //
 REBNATIVE(do_codec)
 {
-    REBCDI codi;
-    REBVAL *val;
-    REBINT result;
-    REBSER *ser;
+    PARAM(1, handle);
+    PARAM(2, action);
+    PARAM(3, data);
 
+    codo fun = cast(codo, VAL_HANDLE_CODE(ARG(handle)));
+
+    REBCDI codi;
     CLEAR(&codi, sizeof(codi));
 
-    codi.action = CODI_ACT_DECODE;
+    REBVAL *val = ARG(data);
 
-    val = D_ARG(3);
+    switch (VAL_WORD_SYM(ARG(action))) {
+    case SYM_IDENTIFY: {
+        if (!IS_BINARY(val))
+            fail (Error(RE_INVALID_ARG, val));
+        
+        codi.data = VAL_BIN_AT(val);
+        codi.len  = VAL_LEN_AT(val);
 
-    switch (VAL_WORD_SYM(D_ARG(2))) {
+        REBINT result = fun(CODI_ACT_IDENTIFY, &codi);
+        if (codi.error != 0) {
+            if (result == CODI_CHECK)
+                return R_FALSE;
+        
+            fail (Error(RE_BAD_MEDIA));
+        }
 
-    case SYM_IDENTIFY:
-        codi.action = CODI_ACT_IDENTIFY;
-    case SYM_DECODE:
-        if (!IS_BINARY(val)) fail (Error(RE_INVALID_ARG, val));
-        codi.data = VAL_BIN_AT(D_ARG(3));
-        codi.len  = VAL_LEN_AT(D_ARG(3));
-        break;
+        assert(result == CODI_CHECK);
+        return R_TRUE; }
 
-    case SYM_ENCODE:
-        codi.action = CODI_ACT_ENCODE;
+    case SYM_DECODE: {
+        if (!IS_BINARY(val))
+            fail (Error(RE_INVALID_ARG, val));
+        
+        codi.data = VAL_BIN_AT(val);
+        codi.len  = VAL_LEN_AT(val);
+
+        REBINT result = fun(CODI_ACT_DECODE, &codi);
+        assert(result != CODI_CHECK);
+
+        if (codi.error != 0)
+            fail (Error(RE_BAD_MEDIA));
+
+        if (result == CODI_TEXT) {
+            REBSER *ser;
+            switch (codi.w) {
+                default: // some decoders might not set this field
+                case 1:
+                    ser = Make_Binary(codi.len);
+                    break;
+                case 2:
+                    ser = Make_Unicode(codi.len);
+                    break;
+            }
+            memcpy(
+                BIN_HEAD(ser),
+                codi.data,
+                codi.w ? (codi.len * codi.w) : codi.len
+            );
+            SET_SERIES_LEN(ser, codi.len);
+            Val_Init_String(D_OUT, ser);
+            return R_OUT;
+        }
+        
+        if (result == CODI_IMAGE) {
+            REBSER *ser = Make_Image(codi.w, codi.h, TRUE);
+            memcpy(IMG_DATA(ser), codi.extra.bits, codi.w * codi.h * 4);
+
+            // See notice in reb-codec.h on reb_codec_image
+            FREE_N(u32, codi.w * codi.h, codi.extra.bits);
+
+            Val_Init_Image(D_OUT, ser);
+            return R_OUT;
+        }
+        
+        fail (Error(RE_BAD_MEDIA)); }
+
+    case SYM_ENCODE: {
         if (IS_IMAGE(val)) {
             codi.extra.bits = VAL_IMAGE_BITS(val);
             codi.w = VAL_IMAGE_WIDE(val);
@@ -431,43 +488,17 @@ REBNATIVE(do_codec)
         }
         else
             fail (Error(RE_INVALID_ARG, val));
-        break;
 
-    default:
-        fail (Error(RE_INVALID_ARG, D_ARG(2)));
-    }
+        REBINT result = fun(CODI_ACT_ENCODE, &codi);
+        assert(result != CODI_CHECK);
 
-    // Nasty alias, but it must be done:
-    // !!! add a check to validate the handle as a codec!!!!
-    result = cast(codo, VAL_HANDLE_CODE(D_ARG(1)))(&codi);
+        if (codi.error != 0)
+            fail (Error(RE_BAD_MEDIA));
 
-    if (codi.error != 0) {
-        if (result == CODI_CHECK) return R_FALSE;
-        fail (Error(RE_BAD_MEDIA)); // need better!!!
-    }
+        if (result != CODI_BINARY)
+            fail (Error(RE_BAD_MEDIA)); // all encodings must make binaries
 
-    switch (result) {
-
-    case CODI_CHECK:
-        return R_TRUE;
-
-    case CODI_TEXT: //used on decode
-        switch (codi.w) {
-            default: /* some decoders might not set this field */
-            case 1:
-                ser = Make_Binary(codi.len);
-                break;
-            case 2:
-                ser = Make_Unicode(codi.len);
-                break;
-        }
-        memcpy(BIN_HEAD(ser), codi.data, codi.w? (codi.len * codi.w) : codi.len);
-        SET_SERIES_LEN(ser, codi.len);
-        Val_Init_String(D_OUT, ser);
-        break;
-
-    case CODI_BINARY: //used on encode
-        ser = Make_Binary(codi.len);
+        REBSER *ser = Make_Binary(codi.len);
         SET_SERIES_LEN(ser, codi.len);
 
         // optimize for pass-thru decoders, which leave codi.data NULL
@@ -476,31 +507,21 @@ REBNATIVE(do_codec)
             codi.data ? codi.data : codi.extra.other,
             codi.len
         );
-        Val_Init_Binary(D_OUT, ser);
 
-        //don't free the text binary input buffer during decode (it's the 3rd arg value in fact)
+        // don't free the text binary input buffer during decode
+        // (it's the 3rd arg value in fact)
         // See notice in reb-codec.h on reb_codec_image
-        if (codi.data) {
+        //
+        if (codi.data)
             FREE_N(REBYTE, codi.len, codi.data);
-        }
-        break;
 
-    case CODI_IMAGE: //used on decode
-        ser = Make_Image(codi.w, codi.h, TRUE); // Puts it into RETURN stack position
-        memcpy(IMG_DATA(ser), codi.extra.bits, codi.w * codi.h * 4);
-        Val_Init_Image(D_OUT, ser);
-
-        // See notice in reb-codec.h on reb_codec_image
-        FREE_N(u32, codi.w * codi.h, codi.extra.bits);
-        break;
-
-    case CODI_BLOCK:
-        Val_Init_Block(D_OUT, AS_ARRAY(cast(REBSER*, codi.extra.other)));
-        break;
+        Val_Init_Binary(D_OUT, ser);
+        return R_OUT; }
 
     default:
-        fail (Error(RE_BAD_MEDIA)); // need better!!!
+        fail (Error(RE_INVALID_ARG, ARG(action)));
     }
 
-    return R_OUT;
+    assert(FALSE);
+    fail (Error(RE_MISC));
 }

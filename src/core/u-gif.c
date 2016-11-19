@@ -211,7 +211,7 @@ void Decode_LZW(REBCNT *data, REBYTE **cpp, REBYTE *colortab, REBINT w, REBINT h
 // Error:  Code in codi->error
 // Return: Success as TRUE or FALSE
 //
-void Decode_GIF_Image(REBCDI *codi)
+void Decode_GIF_Image(REBOOL identify, REBCDI *codi)
 {
     REBINT  w, h;
     REBINT  transparency_index;
@@ -230,7 +230,7 @@ void Decode_GIF_Image(REBCDI *codi)
         codi->error = CODI_ERR_SIGNATURE;
         return;
     }
-    if (codi->action == CODI_ACT_IDENTIFY) return; // no error means success
+    if (identify) return; // no error means success
 
     global_colors = 0;
     global_colormap = (unsigned char *) NULL;
@@ -325,17 +325,17 @@ void Decode_GIF_Image(REBCDI *codi)
 //
 //  Codec_GIF_Image: C
 //
-REBINT Codec_GIF_Image(REBCDI *codi)
+REBINT Codec_GIF_Image(int action, REBCDI *codi)
 {
     codi->error = 0;
 
-    if (codi->action == CODI_ACT_IDENTIFY) {
-        Decode_GIF_Image(codi);
+    if (action == CODI_ACT_IDENTIFY) {
+        Decode_GIF_Image(TRUE, codi);
         return CODI_CHECK; // error code is inverted result
     }
 
-    if (codi->action == CODI_ACT_DECODE) {
-        Decode_GIF_Image(codi);
+    if (action == CODI_ACT_DECODE) {
+        Decode_GIF_Image(FALSE, codi);
         return CODI_IMAGE;
     }
 

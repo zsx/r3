@@ -49,6 +49,7 @@
 #include "reb-evtypes.h"
 #include "reb-net.h"
 #include "reb-filereq.h"
+#include "reb-codec.h"
 
 #include "reb-gob.h"
 #include "reb-lib.h"
@@ -58,6 +59,21 @@
 // allocator.  In order to match the signature of Alloc_Mem() and malloc(),
 // we include it for the moment, but a more formal policy decision on "what
 // parameter types are legal in the host API" would be ideal.
+//
 #include <stdlib.h>
 
 #include "host-lib.h"
+
+#ifdef STRICT_BOOL_COMPILER_TEST
+    //
+    // %reb-host.h is often used in third party code that was not written to
+    // use REBOOL.  Hence the definitions of TRUE and FALSE used in the "fake"
+    // build will trip it up.  We substitute in normal definitions for this
+    // file.  See explanations of this test in %reb-c.h for more information.
+    //
+    #undef TRUE
+    #undef FALSE
+    #define TRUE 1
+    #define FALSE 0
+#endif
+

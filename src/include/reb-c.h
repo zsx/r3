@@ -749,13 +749,21 @@ typedef unsigned int REBFLGS; // Collection of bit flags, CPU optimized
 #define CLR_FLAG(v,f)       cast(void, (v) &= ~(1u << (f)))
 #define CLR_FLAGS(v,f,g)    cast(void, (v) &= ~((1u << (f)) | (1u << (g))))
 
+
+// It is common for MIN and MAX to be defined in C to macros; and equally
+// common to assume that undefining them and redefining them to something
+// that acts like one would expect is "probably ok".  :-/
+//
+#undef MIN
+#undef MAX
 #ifdef min
-#define MIN(a,b) min(a,b)
-#define MAX(a,b) max(a,b)
+    #define MIN(a,b) min(a,b)
+    #define MAX(a,b) max(a,b)
 #else
-#define MIN(a,b) (((a) < (b)) ? (a) : (b))
-#define MAX(a,b) (((a) > (b)) ? (a) : (b))
+    #define MIN(a,b) (((a) < (b)) ? (a) : (b))
+    #define MAX(a,b) (((a) > (b)) ? (a) : (b))
 #endif
+
 
 // Byte string functions:
 // Use these when you semantically are talking about unsigned REBYTEs
