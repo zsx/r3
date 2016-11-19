@@ -946,7 +946,7 @@ const REBYTE *Scan_Pair(REBVAL *out, const REBYTE *cp, REBCNT len)
         return NULL;
 
     VAL_RESET_HEADER(out, REB_PAIR);
-    out->payload.pair = Make_Pairing(NULL);
+    out->payload.pair = Alloc_Pairing(NULL);
     VAL_RESET_HEADER(out->payload.pair, REB_DECIMAL);
     VAL_RESET_HEADER(PAIRING_KEY(out->payload.pair), REB_DECIMAL);
 

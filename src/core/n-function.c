@@ -384,7 +384,7 @@ REBNATIVE(brancher)
 
     RELVAL *body = FUNC_BODY(func);
 
-    REBVAL *branches = Make_Pairing(NULL);
+    REBVAL *branches = Alloc_Pairing(NULL);
     *PAIRING_KEY(branches) = *ARG(true_branch);
     *branches = *ARG(false_branch);
     Manage_Pairing(branches);

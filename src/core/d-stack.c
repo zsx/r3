@@ -674,6 +674,27 @@ return_maybe_set_number_out:
 
 
 //
+//  Is_Context_Running_Or_Pending: C
+//
+REBOOL Is_Context_Running_Or_Pending(REBCTX *frame_ctx)
+{
+    if (GET_CTX_FLAG(frame_ctx, CONTEXT_FLAG_STACK))
+        if (!GET_CTX_FLAG(frame_ctx, SERIES_FLAG_ACCESSIBLE))
+            return FALSE;
+
+    REBFRM *f = CTX_FRAME(frame_ctx);
+
+    if (NOT(Is_Any_Function_Frame(f)))
+        return FALSE;
+
+    if (Is_Function_Frame_Fulfilling(f))
+        return FALSE;
+
+    return TRUE;
+}
+
+
+//
 //  running?: native [
 //
 //  "Returns TRUE if a FRAME! is on the stack and executing (arguments done)."

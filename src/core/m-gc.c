@@ -1305,14 +1305,18 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static void Mark_Root_Series(void)
                 // (Note: This does not have anything to do with the lifetime
                 // of the FRAME! value itself, which could be indefinite.)
                 //
+                // !!! Does it need to check for pending?  Could it be set
+                // up such that you can't make an owning frame that's in
+                // a pending state?
+                //
                 REBVAL *key = cast(REBVAL*, s);
                 REBVAL *pairing = key + 1;
                 if (
                     IS_FRAME(key)
                     && GET_VAL_FLAG(key, ANY_CONTEXT_FLAG_OWNS_PAIRED)
-                    /*&& !Is_Context_Running_Or_Pending(VAL_CONTEXT(key))*/
+                    && !Is_Context_Running_Or_Pending(VAL_CONTEXT(key))
                 ){
-                    Free_Pairing(key); // don't consider a root
+                    Free_Pairing(pairing); // don't consider a root
                     continue;
                 }
 
@@ -1500,14 +1504,13 @@ REBCNT Recycle_Core(REBOOL shutdown)
     TERM_ARRAY_LEN(BUF_COLLECT, ARR_LEN(BUF_COLLECT));
 
     // MARKING PHASE: the "root set" from which we determine the liveness
-    // (or deadness) of a series.  If we are shutting down, we are freeing
-    // *all* of the series that are managed by the garbage collector, so
-    // we don't mark anything as live.
+    // (or deadness) of a series.  If we are shutting down, we do not mark
+    // several categories of series...but we do need to run the root marking.
+    // (In particular because that is when pairing series whose lifetimes
+    // are bound to frames will be freed, if the frame is expired.)
     //
-    // !!! Should a root set be "frozen" that's not cleaned out until shutdown
-    // time?  There used to be a SERIES_FLAG_KEEP, which was removed due
-    // to its usages being bad (and having few flags at the time).  It could
-    // be reintroduced in a more limited fashion for this purpose.
+    Mark_Root_Series();
+    Propagate_All_GC_Marks();
 
     if (!shutdown) {
         //
@@ -1572,10 +1575,6 @@ REBCNT Recycle_Core(REBOOL shutdown)
                 Queue_Mark_Value_Deep(*vp);
             Propagate_All_GC_Marks();
         }
-
-        // Mark all root series:
-        //
-        Mark_Root_Series();
 
         // Mark potential error object from callback!
         if (!IS_VOID_OR_SAFE_TRASH(&Callback_Error)) {

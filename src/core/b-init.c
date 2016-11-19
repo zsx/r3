@@ -333,7 +333,8 @@ static void Load_Boot(void)
         REBINT i;
         for (i = 0; i < RS_MAX; i++) {
             PG_Boot_Strs[i] = cp;
-            while (*cp++);
+            while (*cp++)
+                NOOP;
         }
     }
 
@@ -1637,20 +1638,19 @@ void Init_Core(REBARGS *rargs)
 //
 //  Shutdown_Core: C
 // 
-// The goal of Shutdown_Core() is to release all memory and
-// resources that the interpreter has accrued since Init_Core().
+// The goal of Shutdown_Core() is to release all memory and resources that the
+// interpreter has accrued since Init_Core().  This is a good "sanity check"
+// that there aren't unaccounted-for leaks (or semantic errors which such
+// leaks may indicate).
+//
+// Also, being able to clean up is important for a library...which might be
+// initialized and shut down multiple times in the same program run.  But
+// clients wishing a speedy exit may force an exit to the OS instead of doing
+// a clean shut down.  (Note: There still might be some system resources
+// that need to be waited on, such as asynchronous writes.)
 // 
-// Clients may wish to force an exit to the OS instead of calling
-// Shutdown_Core in a release build, in order to save time.  It
-// should be noted that when used as a library this doesn't
-// necessarily work, because Rebol may be initialized and shut
-// down multiple times during a program run.
-// 
-// Using a tool like Valgrind or Leak Sanitizer, it is possible
-// to verify that all the allocations have indeed been freed.
-// Being able to have a report that they have is a good sanity
-// check on not just the memory lost by leaks, but the semantic
-// errors and bugs that such leaks may indicate.
+// While some leaks are detected by the debug build during shutdown, even more
+// can be found with a tool like Valgrind or Address Sanitizer.
 //
 void Shutdown_Core(void)
 {
@@ -1660,7 +1660,14 @@ void Shutdown_Core(void)
 
     // Run Recycle, but the TRUE flag indicates we want every series
     // that is managed to be freed.  (Only unmanaged should be left.)
+    // We remove the only two root contexts that the Init_Core process added
+    // -however- there may be other roots.  But by this point, the roots
+    // created by Alloc_Pairing() with an owning context should be freed.
     //
+    ARR_SERIES(CTX_VARLIST(PG_Root_Context))->header.bits
+        &= (~REBSER_REBVAL_FLAG_ROOT);
+    ARR_SERIES(CTX_VARLIST(TG_Task_Context))->header.bits
+        &= (~REBSER_REBVAL_FLAG_ROOT);
     Recycle_Core(TRUE);
 
     FREE_N(REBYTE*, RS_MAX, PG_Boot_Strs);

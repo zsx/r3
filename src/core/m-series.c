@@ -497,11 +497,16 @@ ATTRIBUTE_NO_RETURN void Panic_Series_Debug(
     // during mold and other times.
     //
     printf("\n\n*** Panic_Series() in %s at line %d\n", file, line);
-    if (IS_FREE_NODE(series))
-        printf("Likely freed ");
+    if (IS_SERIES_MANAGED(series))
+        printf("managed");
     else
-        printf("Likely created ");
-    printf("during evaluator tick: %d\n", cast(REBCNT, series->do_count));
+        printf("unmanaged");
+    printf(" series was likely ");
+    if (IS_FREE_NODE(series))
+        printf("freed");
+    else
+        printf("created");
+    printf(" during evaluator tick: %d\n", cast(REBCNT, series->do_count));
     fflush(stdout);
 
     if (*series->guard == 1020) // should make valgrind or asan alert
