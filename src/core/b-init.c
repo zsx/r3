@@ -156,13 +156,6 @@ static void Assert_Basics(void)
         panic (Error(RE_MISC));
     }
 
-    // Check special return values used "in-band" in an unsigned integer that
-    // is otherwise used for indices.  Make sure they don't overlap.
-    //
-    assert(THROWN_FLAG != END_FLAG);
-    assert(NOT_FOUND != END_FLAG);
-    assert(NOT_FOUND != THROWN_FLAG);
-
     // The END marker logic currently uses REB_MAX for the type bits.  That's
     // okay up until the REB_MAX bumps to 256.  If you hit this then some
     // other value needs to be chosen in the debug build to represent the
@@ -170,13 +163,6 @@ static void Assert_Basics(void)
     // you'd like to catch IS_END() tests on trash.)
     //
     assert(REB_MAX < 256);
-
-    // The "Indexor" type in the C++ build has some added checking to make
-    // sure that the special values used for indicating THROWN_FLAG or
-    // END_FLAG etc. don't leak out into the REBCNT stored in things like
-    // blocks.  We want the C++ class to be the same size as the C build.
-    //
-    assert(sizeof(REBIXO) == sizeof(REBUPT));
 
     // Types that are used for memory pooled allocations are required to be
     // multiples of 8 bytes in size.  This way it's possible to reliably align

@@ -1267,7 +1267,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
                 if (eval_idx == END_FLAG)
                     item = VAL_ARRAY_TAIL(arg);
                 else
-                    item = VAL_ARRAY_AT_HEAD(item, eval_idx);
+                    item = VAL_ARRAY_AT_HEAD(item, cast(REBCNT, eval_idx));
             }
 
             if (field->is_array) {

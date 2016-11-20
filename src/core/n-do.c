@@ -136,12 +136,10 @@ REBNATIVE(do)
     case REB_BLOCK:
     case REB_GROUP:
         if (REF(next)) {
-            REBIXO indexor = VAL_INDEX(value);
-
-            indexor = DO_NEXT_MAY_THROW(
+            REBIXO indexor = DO_NEXT_MAY_THROW(
                 D_OUT,
                 VAL_ARRAY(value),
-                indexor,
+                VAL_INDEX(value),
                 VAL_SPECIFIER(value)
             );
 

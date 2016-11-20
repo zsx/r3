@@ -77,53 +77,7 @@
     struct Reb_Frame; // Non-GC'd raw call frame, see %sys-frame.h
     typedef struct Reb_Frame REBFRM;
 
-    // The C build simply defines a REBIXO as a synonym for a pointer-sized int.
-    // In the C++ build, the indexor is a more restrictive class...which redefines
-    // a subset of operations for integers but does *not* implicitly cast to one
-    // Hence if a THROWN_FLAG, END_FLAG, VA_LIST_FLAG etc. is used with integer
-    // math or put into an `int` variable accidentally, this will be caught.
-    //
-    // Because indexors are not stored in REBVALs or places where memory usage
-    // outweighs the concern of the native performance, they use `REBUPT`
-    // instead of REBCNT.  The C++ build maintains that size for its class too.
-    //
-    // !!! The feature is now selectively enabled, temporarily in order to make
-    // the binding in Ren-Cpp binary compatible regardless of whether the build
-    // was done with C or C++
-    //
-
     struct Reb_Binder; // used as argument in %tmp-funcs.h, needs forward decl
-
-    #define END_FLAG 0x80000000  // end of block as index
-    #define THROWN_FLAG (END_FLAG - 0x75) // throw as an index
-
-    // The VA_LIST_FLAG is the index used when a C va_list pointer is the input.
-    // Because access to a `va_list` is strictly increasing through va_arg(),
-    // there is no way to track an index; fetches are indexed automatically
-    // and sequentially without possibility for mutation of the list.  Should
-    // this index be used it will always be the index of a DO_NEXT until either
-    // an END_FLAG or a THROWN_FLAG is reached.
-    //
-    #define VA_LIST_FLAG (END_FLAG - 0xBD)
-
-    // This is used internally in frames in the debug build when the index
-    // does not apply (e.g. END, THROWN, VA_LIST)
-    //
-    #if !defined(NDEBUG)
-        #define TRASHED_INDEX (END_FLAG - 0xAE)
-    #endif
-
-    #if defined(NDEBUG) || !defined(__cplusplus) || (__cplusplus < 201103L)
-        typedef REBUPT REBIXO;
-    #else
-        #include "sys-do-cpp.h"
-
-        #if 0
-            typedef Reb_Indexor REBIXO;
-        #else
-            typedef REBUPT REBIXO;
-        #endif
-    #endif
 
     struct Reb_Path_Value_State;
     typedef struct Reb_Path_Value_State REBPVS;

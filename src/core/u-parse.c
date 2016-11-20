@@ -399,9 +399,10 @@ static const RELVAL *Get_Parse_Value(
 // Match the next rule in the string ruleset.
 //
 // If it matches, return the index just past it.
-// Otherwise return NOT_FOUND.
+// Otherwise return END_FLAG.
+// May also return THROWN_FLAG.
 //
-static REBCNT Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
+static REBIXO Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
     REBCNT flags = P_FIND_FLAGS | AM_FIND_MATCH | AM_FIND_TAIL;
 
     if (Trace_Level) {
@@ -415,7 +416,7 @@ static REBCNT Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
     }
 
     if (P_POS >= SER_LEN(P_INPUT))
-        return NOT_FOUND;
+        return END_FLAG;
 
     switch (VAL_TYPE(rule)) {
     case REB_BLANK:
@@ -437,7 +438,7 @@ static REBCNT Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
                 return P_POS + 1;
             }
         }
-        return NOT_FOUND;
+        return END_FLAG;
 
     case REB_EMAIL:
     case REB_STRING:
@@ -453,6 +454,8 @@ static REBCNT Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
             VAL_LEN_AT(rule),
             flags
         );
+        if (index == NOT_FOUND)
+            return END_FLAG;
         return index; }
 
     case REB_TAG:
@@ -474,6 +477,8 @@ static REBCNT Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
             flags
         );
         Free_Series(formed);
+        if (index == NOT_FOUND)
+            return END_FLAG;
         return index; }
 
     case REB_BITSET:
@@ -485,7 +490,7 @@ static REBCNT Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
         )) {
             return P_POS + 1;
         }
-        return NOT_FOUND;
+        return END_FLAG;
 
     case REB_BLOCK: {
         //
@@ -509,7 +514,7 @@ static REBCNT Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
         // !!! ignore "interrupted"? (e.g. ACCEPT or REJECT ran)
 
         if (IS_BLANK(P_OUT))
-            return NOT_FOUND;
+            return END_FLAG;
 
         return VAL_INT32(P_OUT); }
 
@@ -551,7 +556,7 @@ static REBCNT Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
 // that is held by the frame.
 //
 //
-static REBCNT Parse_Array_One_Rule_Core(
+static REBIXO Parse_Array_One_Rule_Core(
     REBFRM *f,
     REBCNT pos,
     const RELVAL *rule
@@ -576,7 +581,7 @@ static REBCNT Parse_Array_One_Rule_Core(
         // The other cases would assert if fed an END marker as item.
         //
         if (!IS_BLANK(rule) && !IS_BLOCK(rule))
-            return NOT_FOUND;
+            return END_FLAG;
     }
 
     switch (VAL_TYPE(rule)) {
@@ -586,22 +591,22 @@ static REBCNT Parse_Array_One_Rule_Core(
     case REB_DATATYPE:
         if (VAL_TYPE(item) == VAL_TYPE_KIND(rule)) // specific datatype match
             return pos + 1;
-        return NOT_FOUND;
+        return END_FLAG;
 
     case REB_TYPESET:
         if (TYPE_CHECK(rule, VAL_TYPE(item))) // type was found in the typeset
             return pos + 1;
-        return NOT_FOUND;
+        return END_FLAG;
 
     case REB_LIT_WORD:
         if (IS_WORD(item) && (VAL_WORD_CANON(item) == VAL_WORD_CANON(rule)))
             return pos + 1;
-        return NOT_FOUND;
+        return END_FLAG;
 
     case REB_LIT_PATH:
         if (IS_PATH(item) && Cmp_Array(item, rule, FALSE) == 0)
             return pos + 1;
-        return NOT_FOUND;
+        return END_FLAG;
 
     case REB_GROUP: {
         //
@@ -654,7 +659,7 @@ static REBCNT Parse_Array_One_Rule_Core(
         P_POS = pos_before; // restore input position
 
         if (IS_BLANK(P_OUT))
-            return NOT_FOUND;
+            return END_FLAG;
 
         assert(IS_INTEGER(P_OUT));
         return VAL_INT32(P_OUT); }
@@ -669,7 +674,7 @@ static REBCNT Parse_Array_One_Rule_Core(
     if (Cmp_Value(item, rule, P_HAS_CASE) == 0)
         return pos + 1;
 
-    return NOT_FOUND;
+    return END_FLAG;
 }
 
 
@@ -678,7 +683,7 @@ static REBCNT Parse_Array_One_Rule_Core(
 // of the parse, this is the version used in the main loop.  To_Thru uses
 // the random access variation.
 //
-inline static REBCNT Parse_Array_One_Rule(REBFRM *f, const RELVAL *rule) {
+inline static REBIXO Parse_Array_One_Rule(REBFRM *f, const RELVAL *rule) {
     return Parse_Array_One_Rule_Core(f, P_POS, rule);
 }
 
@@ -694,7 +699,7 @@ inline static REBCNT Parse_Array_One_Rule(REBFRM *f, const RELVAL *rule) {
 // !!! This routine from R3-Alpha is fairly circuitous.  As with the rest of
 // the code, it gets clarified in small steps.
 //
-static REBCNT To_Thru_Block_Rule(
+static REBIXO To_Thru_Block_Rule(
     REBFRM *f,
     const RELVAL *rule_block,
     REBOOL is_thru
@@ -760,12 +765,14 @@ static REBCNT To_Thru_Block_Rule(
                 if (ANY_ARRAY(rule))
                     fail (Error_Parse_Rule());
 
-                REBCNT i = Parse_Array_One_Rule_Core(f, pos, rule);
-                if (THROWN(P_OUT))
+                REBIXO i = Parse_Array_One_Rule_Core(f, pos, rule);
+                if (i == THROWN_FLAG) {
+                    assert(THROWN(P_OUT));
                     return THROWN_FLAG;
+                }
 
-                if (i != NOT_FOUND) {
-                    pos = i;
+                if (i != END_FLAG) {
+                    pos = cast(REBCNT, i);
                     if (!is_thru) pos--; // passed it, so back up if only TO...
                     goto found;
                 }
@@ -921,7 +928,7 @@ static REBCNT To_Thru_Block_Rule(
                 fail (Error_Parse_Rule());
         }
     }
-    return NOT_FOUND;
+    return END_FLAG;
 
 found:
     if (NOT_END(blk + 1) && IS_GROUP(blk + 1)) {
@@ -945,7 +952,7 @@ found:
 //
 //  To_Thru_Non_Block_Rule: C
 //
-static REBCNT To_Thru_Non_Block_Rule(
+static REBIXO To_Thru_Non_Block_Rule(
     REBFRM *f,
     const RELVAL *rule,
     REBOOL is_thru
@@ -1000,7 +1007,12 @@ static REBCNT To_Thru_Non_Block_Rule(
             1
         );
 
-        if (i != NOT_FOUND && is_thru) i++;
+        if (i == NOT_FOUND)
+            return END_FLAG;
+
+        if (is_thru)
+            return i + 1;
+
         return i;
     }
 
@@ -1010,6 +1022,7 @@ static REBCNT To_Thru_Non_Block_Rule(
         if (!IS_STRING(rule) && !IS_BINARY(rule)) {
             // !!! Can this be optimized not to use COPY?
             REBSER *formed = Copy_Form_Value(rule, 0);
+            REBCNT form_len = SER_LEN(formed);
             REBCNT i = Find_Str_Str(
                 P_INPUT,
                 0,
@@ -1018,14 +1031,19 @@ static REBCNT To_Thru_Non_Block_Rule(
                 1,
                 formed,
                 0,
-                SER_LEN(formed),
+                form_len,
                 (P_FIND_FLAGS & AM_FIND_CASE)
                     ? AM_FIND_CASE
                     : 0
             );
-            if (i != NOT_FOUND && is_thru)
-                i += SER_LEN(formed);
             Free_Series(formed);
+
+            if (i == NOT_FOUND)
+                return END_FLAG;
+
+            if (is_thru)
+                return i + form_len;
+
             return i;
         }
 
@@ -1042,8 +1060,13 @@ static REBCNT To_Thru_Non_Block_Rule(
                 ? AM_FIND_CASE
                 : 0
         );
-        if (i != NOT_FOUND && is_thru)
-            i += VAL_LEN_AT(rule);
+
+        if (i == NOT_FOUND)
+            return END_FLAG;
+
+        if (is_thru)
+            return i + VAL_LEN_AT(rule);
+
         return i;
     }
 
@@ -1059,7 +1082,13 @@ static REBCNT To_Thru_Non_Block_Rule(
                 ? AM_FIND_CASE
                 : 0
         );
-        if (i != NOT_FOUND && is_thru) i++;
+
+        if (i == NOT_FOUND)
+            return END_FLAG;
+
+        if (is_thru)
+            return i + 1;
+
         return i;
     }
 
@@ -1075,7 +1104,13 @@ static REBCNT To_Thru_Non_Block_Rule(
                 ? AM_FIND_CASE
                 : 0
         );
-        if (i != NOT_FOUND && is_thru) i++;
+
+        if (i == NOT_FOUND)
+            return END_FLAG;
+
+        if (is_thru)
+            return i + 1;
+
         return i;
     }
 
@@ -1109,10 +1144,9 @@ static REBCNT To_Thru_Non_Block_Rule(
 // adapted to keep it compiling in Ren-C but it has atrophied, and could
 // certainly be done a better way.
 //
-static REBCNT Do_Eval_Rule(REBFRM *f)
+static REBIXO Do_Eval_Rule(REBFRM *f)
 {
     const RELVAL *rule = P_RULE;
-    REBCNT n;
     REBVAL save; // REVIEW: Could this just reuse value?
 
     // First, check for end of input
@@ -1121,7 +1155,7 @@ static REBCNT Do_Eval_Rule(REBFRM *f)
         if (IS_WORD(rule) && VAL_CMD(rule) == SYM_END)
             return P_POS;
 
-        return NOT_FOUND;
+        return END_FLAG;
     }
 
     // Evaluate next expression, stop processing if BREAK/RETURN/QUIT/THROW...
@@ -1138,12 +1172,12 @@ static REBCNT Do_Eval_Rule(REBFRM *f)
     // Get variable or command:
     if (IS_WORD(rule)) {
 
-        n = VAL_CMD(rule);
+        REBSYM cmd = VAL_CMD(rule);
 
-        if (n == SYM_SKIP)
-            return IS_VOID(&value) ? NOT_FOUND : P_POS;
+        if (cmd == SYM_SKIP)
+            return IS_VOID(&value) ? END_FLAG : P_POS;
 
-        if (n == SYM_QUOTE) {
+        if (cmd == SYM_QUOTE) {
             /* rule = rule + 1; */ // was this.
             assert(rule + 1 == P_RULE);
             rule = P_RULE;
@@ -1168,7 +1202,7 @@ static REBCNT Do_Eval_Rule(REBFRM *f)
                 rule = &save;
             }
         }
-        else if (n == SYM_INTO) {
+        else if (cmd == SYM_INTO) {
             REBOOL interrupted;
 
             /* rule = rule + 1; */ // was this.
@@ -1185,7 +1219,7 @@ static REBCNT Do_Eval_Rule(REBFRM *f)
                 fail (Error_Parse_Rule());
 
             if (!ANY_BINSTR(&value) && !ANY_ARRAY(&value))
-                return NOT_FOUND;
+                return END_FLAG;
 
             if (Subparse_Throws(
                 &interrupted,
@@ -1201,14 +1235,14 @@ static REBCNT Do_Eval_Rule(REBFRM *f)
 
             // !!! ignore interrupted?  (e.g. ACCEPT or REJECT ran)
 
-            if (IS_BLANK(P_OUT)) return NOT_FOUND;
+            if (IS_BLANK(P_OUT)) return END_FLAG;
             assert(IS_INTEGER(P_OUT));
 
             if (VAL_UNT32(P_OUT) == VAL_LEN_HEAD(&value)) return P_POS;
 
-            return NOT_FOUND;
+            return END_FLAG;
         }
-        else if (n > 0)
+        else if (cmd != SYM_0)
             fail (Error_Parse_Rule());
         else
             rule = Get_Parse_Value(&save, rule, P_RULE_SPECIFIER); // variable
@@ -1226,7 +1260,7 @@ static REBCNT Do_Eval_Rule(REBFRM *f)
     }
 
     if (IS_BLANK(rule))
-        return (VAL_TYPE(&value) > REB_BLANK) ? NOT_FOUND : P_POS;
+        return (VAL_TYPE(&value) > REB_BLANK) ? END_FLAG : P_POS;
 
     // !!! This copies a single value into a block to use as data.  Is there
     // any way this might be avoided?
@@ -1255,6 +1289,7 @@ static REBCNT Do_Eval_Rule(REBFRM *f)
     newparse.value = rule;
     newparse.specifier = P_RULE_SPECIFIER;
 
+    REBIXO n;
     {
     PUSH_GUARD_SERIES(VAL_SERIES(&newparse.args_head[0]));
     n = Parse_Array_One_Rule(&newparse, rule);
@@ -1264,8 +1299,8 @@ static REBCNT Do_Eval_Rule(REBFRM *f)
     if (n == THROWN_FLAG)
         return THROWN_FLAG;
 
-    if (n == NOT_FOUND)
-        return NOT_FOUND;
+    if (n == END_FLAG)
+        return END_FLAG;
 
     return P_POS;
 }
@@ -1749,7 +1784,7 @@ REBNATIVE(subparse)
             if (IS_BAR(rule))
                 fail (Error_Parse_Rule()); // !!! Is this possible?
 
-            REBCNT i; // temp index point
+            REBIXO i; // temp index point
 
             if (IS_WORD(rule)) {
                 REBSYM cmd = VAL_CMD(rule);
@@ -1758,12 +1793,12 @@ REBNATIVE(subparse)
                 case SYM_SKIP:
                     i = (P_POS < SER_LEN(P_INPUT))
                         ? P_POS + 1
-                        : NOT_FOUND;
+                        : END_FLAG;
                     break;
 
                 case SYM_END:
                     i = (P_POS < SER_LEN(P_INPUT))
-                        ? NOT_FOUND
+                        ? END_FLAG
                         : SER_LEN(P_INPUT);
                     break;
 
@@ -1802,11 +1837,11 @@ REBNATIVE(subparse)
                     RELVAL *cmp = ARR_AT(AS_ARRAY(P_INPUT), P_POS);
 
                     if (IS_END(cmp))
-                        i = NOT_FOUND;
+                        i = END_FLAG;
                     else if (0 == Cmp_Value(cmp, subrule, P_HAS_CASE))
                         i = P_POS + 1;
                     else
-                        i = NOT_FOUND;
+                        i = END_FLAG;
                     break;
                 }
 
@@ -1830,7 +1865,7 @@ REBNATIVE(subparse)
                         IS_END(into)
                         || (!ANY_BINSTR(into) && !ANY_ARRAY(into))
                     ){
-                        i = NOT_FOUND;
+                        i = END_FLAG;
                         break;
                     }
 
@@ -1850,14 +1885,14 @@ REBNATIVE(subparse)
                     // !!! ignore interrupted? (e.g. ACCEPT or REJECT ran)
 
                     if (IS_BLANK(P_OUT)) {
-                        i = NOT_FOUND;
+                        i = END_FLAG;
                         break;
                     }
 
                     assert(IS_INTEGER(P_OUT));
 
                     if (VAL_UNT32(P_OUT) != VAL_LEN_HEAD(into)) {
-                        i = NOT_FOUND;
+                        i = END_FLAG;
                         break;
                     }
 
@@ -1908,7 +1943,7 @@ REBNATIVE(subparse)
                 // Non-breaking out of loop instances of match or not.
 
                 if (IS_BLANK(P_OUT))
-                    i = NOT_FOUND;
+                    i = END_FLAG;
                 else {
                     assert(IS_INTEGER(P_OUT));
                     i = VAL_INT32(P_OUT);
@@ -1917,7 +1952,11 @@ REBNATIVE(subparse)
                 SET_END(P_OUT);
 
                 if (interrupted) { // ACCEPT or REJECT ran
-                    P_POS = i;
+                    assert(i != THROWN_FLAG);
+                    if (i == END_FLAG)
+                        P_POS = NOT_FOUND;
+                    else
+                        P_POS = cast(REBCNT, i);
                     break;
                 }
             }
@@ -1939,7 +1978,7 @@ REBNATIVE(subparse)
             // that does not mean failure of the rule, because optional
             // matches can still succeed, if if the last match failed.
             //
-            if (i != NOT_FOUND) {
+            if (i != END_FLAG) {
                 count++; // may overflow to negative
 
                 if (count < 0)
@@ -1959,15 +1998,15 @@ REBNATIVE(subparse)
                 if (count < mincount) {
                     P_POS = NOT_FOUND; // was not enough
                 }
-                else if (i != NOT_FOUND) {
-                    P_POS = i;
+                else if (i != END_FLAG) {
+                    P_POS = cast(REBCNT, i);
                 }
                 else {
                     // just keep index as is.
                 }
                 break;
             }
-            P_POS = i;
+            P_POS = cast(REBCNT, i);
         }
 
         if (P_POS > SER_LEN(P_INPUT))

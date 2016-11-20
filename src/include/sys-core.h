@@ -245,6 +245,7 @@ typedef void (*TO_FUNC)(REBVAL*, enum Reb_Kind, const REBVAL*);
 
 #include "sys-state.h"
 #include "sys-rebfrm.h" // `REBFRM` definition (also used by value)
+#include "sys-indexor.h" // REBIXO definition
 
 //-- Port actions (for native port schemes):
 
@@ -272,7 +273,7 @@ typedef struct rebol_mold {
     Drop_Mold_Core((mo), FALSE)
 
 #define Pop_Molded_String(mo) \
-    Pop_Molded_String_Core((mo), END_FLAG)
+    Pop_Molded_String_Core((mo), UNKNOWN)
 
 #define Pop_Molded_String_Len(mo,len) \
     Pop_Molded_String_Core((mo), (len))
@@ -438,8 +439,7 @@ enum {
 };
 
 // General constants:
-#define NOT_FOUND ((REBCNT)-1)
-#define UNKNOWN   ((REBCNT)-1)
+
 #define LF 10
 #define CR 13
 #define TAB '\t'
