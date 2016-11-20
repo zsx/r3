@@ -1886,17 +1886,20 @@ REBNATIVE(subparse)
 
                     if (IS_BLANK(P_OUT)) {
                         i = END_FLAG;
-                        break;
+                    }
+                    else {
+                        assert(IS_INTEGER(P_OUT));
+                        if (VAL_UNT32(P_OUT) != VAL_LEN_HEAD(into))
+                            i = END_FLAG;
+                        else
+                            i = P_POS + 1;
                     }
 
-                    assert(IS_INTEGER(P_OUT));
-
-                    if (VAL_UNT32(P_OUT) != VAL_LEN_HEAD(into)) {
-                        i = END_FLAG;
-                        break;
-                    }
-
-                    i = P_POS + 1;
+                    // subparse wasn't final answer on P_OUT, so the slot
+                    // will be reused.  (It's expected to be END in the next
+                    // call to subparse.)
+                    //
+                    SET_END(P_OUT);
                     break;
                 }
 
