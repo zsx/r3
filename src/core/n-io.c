@@ -1236,15 +1236,32 @@ static REBARR *File_List_To_Array(const REBCHR *str)
 //  
 //  {Asks user to select a file and returns full file path (or block of paths).}
 //  
-//      /save "File save mode"
-//      /multi {Allows multiple file selection, returned as a block}
-//      /file name [file!] "Default file name or directory"
-//      /title text [string!] "Window title"
-//      /filter list [block!] "Block of filters (filter-name filter)"
+//      /save
+//          "File save mode"
+//      /multi
+//          {Allows multiple file selection, returned as a block}
+//      /file
+//      name [file!]
+//          "Default file name or directory"
+//      /title
+//      text [string!]
+//          "Window title"
+//      /filter
+//      list [block!]
+//          "Block of filters (filter-name filter)"
 //  ]
 //
 REBNATIVE(request_file)
 {
+    REFINE(1, save);
+    REFINE(2, multi);
+    REFINE(3, file);
+    PARAM(4, name);
+    REFINE(5, title);
+    PARAM(5, text);
+    REFINE(6, filter);
+    PARAM(7, list);
+
     // !!! This routine used to have an ENABLE_GC and DISABLE_GC
     // reference.  It is not clear what that was protecting, but
     // this code should be reviewed with GC "torture mode", and
@@ -1258,17 +1275,20 @@ REBNATIVE(request_file)
     fr.len = MAX_FILE_REQ_BUF/sizeof(REBCHR) - 2;
     fr.files[0] = OS_MAKE_CH('\0');
 
-    if (D_REF(ARG_REQUEST_FILE_SAVE)) SET_FLAG(fr.flags, FRF_SAVE);
-    if (D_REF(ARG_REQUEST_FILE_MULTI)) SET_FLAG(fr.flags, FRF_MULTI);
+    if (REF(save))
+        SET_FLAG(fr.flags, FRF_SAVE);
+    if (REF(multi))
+        SET_FLAG(fr.flags, FRF_MULTI);
 
-    if (D_REF(ARG_REQUEST_FILE_FILE)) {
-        REBSER *ser = Value_To_OS_Path(D_ARG(ARG_REQUEST_FILE_NAME), TRUE);
+    if (REF(file)) {
+        REBSER *ser = Value_To_OS_Path(ARG(name), TRUE);
         REBINT n = SER_LEN(ser);
 
         fr.dir = SER_HEAD(REBCHR, ser);
 
-        if (OS_CH_VALUE(fr.dir[n-1]) != OS_DIR_SEP) {
-            if (n+2 > fr.len) n = fr.len - 2;
+        if (OS_CH_VALUE(fr.dir[n - 1]) != OS_DIR_SEP) {
+            if (n + 2 > fr.len)
+                n = fr.len - 2;
             OS_STRNCPY(
                 cast(REBCHR*, fr.files),
                 SER_HEAD(REBCHR, ser),
@@ -1278,14 +1298,14 @@ REBNATIVE(request_file)
         }
     }
 
-    if (D_REF(ARG_REQUEST_FILE_FILTER)) {
-        REBSER *ser = Block_To_String_List(D_ARG(ARG_REQUEST_FILE_LIST));
+    if (REF(filter)) {
+        REBSER *ser = Block_To_String_List(ARG(list));
         fr.filter = SER_HEAD(REBCHR, ser);
     }
 
-    if (D_REF(ARG_REQUEST_FILE_TITLE)) {
+    if (REF(title)) {
         // !!! By passing NULL we don't get backing series to protect!
-        fr.title = Val_Str_To_OS_Managed(NULL, D_ARG(ARG_REQUEST_FILE_TEXT));
+        fr.title = Val_Str_To_OS_Managed(NULL, ARG(text));
     }
 
     if (OS_REQUEST_FILE(&fr)) {

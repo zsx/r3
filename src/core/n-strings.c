@@ -188,131 +188,159 @@ REBNATIVE(spelling_of)
 //  
 //  "Computes a checksum, CRC, or hash."
 //  
-//      data [binary!] "Bytes to checksum"
-//      /part limit "Length of data"
-//      /tcp "Returns an Internet TCP 16-bit checksum"
-//      /secure "Returns a cryptographically secure checksum"
-//      /hash "Returns a hash value"
-//      size [integer!] "Size of the hash table"
-//      /method "Method to use"
-//      word [word!] "Methods: SHA1 MD5 CRC32"
-//      /key "Returns keyed HMAC value"
-//      key-value [any-string!] "Key to use"
+//      data [binary!]
+//          "Bytes to checksum"
+//      /part
+//      limit
+//          "Length of data"
+//      /tcp
+//          "Returns an Internet TCP 16-bit checksum"
+//      /secure
+//          "Returns a cryptographically secure checksum"
+//      /hash
+//          "Returns a hash value"
+//      size [integer!]
+//          "Size of the hash table"
+//      /method
+//          "Method to use"
+//      word [word!]
+//          "Methods: SHA1 MD5 CRC32"
+//      /key
+//          "Returns keyed HMAC value"
+//      key-value [any-string!]
+//          "Key to use"
 //  ]
 //
 REBNATIVE(checksum)
 {
-    REBVAL *arg = D_ARG(ARG_CHECKSUM_DATA);
+    PARAM(1, data);
+    REFINE(2, part);
+    PARAM(3, limit);
+    REFINE(4, tcp);
+    REFINE(5, secure);
+    REFINE(6, hash);
+    PARAM(7, size);
+    REFINE(8, method);
+    PARAM(9, word);
+    REFINE(10, key);
+    PARAM(11, key_value);
+
+    REBVAL *arg = ARG(data);
     REBYTE *data = VAL_RAW_DATA_AT(arg);
     REBCNT wide = SER_WIDE(VAL_SERIES(arg));
     REBCNT len = 0;
-    REBSYM sym = SYM_SHA1;
 
-    Partial1(arg, D_ARG(ARG_CHECKSUM_SIZE), &len);
-    // Method word:
-    if (D_REF(ARG_CHECKSUM_METHOD)) {
-        sym = VAL_WORD_SYM(D_ARG(ARG_CHECKSUM_WORD));
+    Partial1(arg, ARG(size), &len);
+
+    REBSYM sym;
+    if (REF(method)) {
+        sym = VAL_WORD_SYM(ARG(word));
         if (sym == SYM_0) // not in %words.r, no SYM_XXX constant
-            fail (Error_Invalid_Arg(D_ARG(ARG_CHECKSUM_WORD)));
+            fail (Error_Invalid_Arg(ARG(word)));
     }
+    else
+        sym = SYM_SHA1;
 
     // If method, secure, or key... find matching digest:
-    if (D_REF(ARG_CHECKSUM_METHOD) || D_REF(ARG_CHECKSUM_SECURE) || D_REF(ARG_CHECKSUM_KEY)) {
-        REBCNT i;
-
+    if (REF(method) || REF(secure) || REF(key)) {
         if (sym == SYM_CRC32) {
+            if (REF(secure) || REF(key))
+                fail (Error(RE_BAD_REFINES));
+
             // The CRC32() routine returns an unsigned 32-bit number and uses
             // the full range of values.  Yet Rebol chose to export this as
             // a signed integer via checksum.  Perhaps (?) to generate a value
             // that could also be used by Rebol2, as it only had 32-bit
             // signed INTEGER! available.
-
-            REBINT crc32;
-            if (D_REF(ARG_CHECKSUM_SECURE) || D_REF(ARG_CHECKSUM_KEY))
-                fail (Error(RE_BAD_REFINES));
-            crc32 = cast(REBINT, CRC32(data, len));
+            //
+            REBINT crc32 = cast(REBINT, CRC32(data, len));
             SET_INTEGER(D_OUT, crc32);
             return R_OUT;
         }
 
         if (sym == SYM_ADLER32) {
+            if (REF(secure) || REF(key))
+                fail (Error(RE_BAD_REFINES));
+
             // adler32() is a Saphirion addition since 64-bit INTEGER! was
             // available in Rebol3, and did not convert the unsigned result
             // of the adler calculation to a signed integer.
-
+            //
             uLong adler = z_adler32(0L, data, len);
-            if (D_REF(ARG_CHECKSUM_SECURE) || D_REF(ARG_CHECKSUM_KEY))
-                fail (Error(RE_BAD_REFINES));
             SET_INTEGER(D_OUT, adler);
             return R_OUT;
         }
 
+        REBCNT i;
         for (i = 0; i < sizeof(digests) / sizeof(digests[0]); i++) {
+            if (!SAME_SYM_NONZERO(digests[i].sym, sym))
+                continue;
 
-            if (SAME_SYM_NONZERO(digests[i].sym, sym)) {
-                REBSER *digest = Make_Series(
-                    digests[i].len + 1, sizeof(char), MKS_NONE
-                );
+            REBSER *digest = Make_Series(
+                digests[i].len + 1, sizeof(char), MKS_NONE
+            );
 
-                if (D_REF(ARG_CHECKSUM_KEY)) {
-                    REBYTE tmpdigest[20];       // Size must be max of all digest[].len;
-                    REBYTE ipad[64],opad[64];   // Size must be max of all digest[].hmacblock;
-                    char *ctx = ALLOC_N(char, digests[i].ctxsize());
-                    REBVAL *key = D_ARG(ARG_CHECKSUM_KEY_VALUE);
-                    REBYTE *keycp = VAL_BIN_AT(key);
-                    int keylen = VAL_LEN_AT(key);
-                    int blocklen = digests[i].hmacblock;
-                    REBINT j;
+            if (NOT(REF(key)))
+                digests[i].digest(data, len, BIN_HEAD(digest));
+            else {
+                REBVAL *key = ARG(key_value);
+                
+                int blocklen = digests[i].hmacblock;
 
-                    if (keylen > blocklen) {
-                        digests[i].digest(keycp,keylen,tmpdigest);
-                        keycp = tmpdigest;
-                        keylen = digests[i].len;
-                    }
-
-                    memset(ipad, 0, blocklen);
-                    memset(opad, 0, blocklen);
-                    memcpy(ipad, keycp, keylen);
-                    memcpy(opad, keycp, keylen);
-
-                    for (j = 0; j < blocklen; j++) {
-                        ipad[j]^=0x36;
-                        opad[j]^=0x5c;
-                    }
-
-                    digests[i].init(ctx);
-                    digests[i].update(ctx,ipad,blocklen);
-                    digests[i].update(ctx, data, len);
-                    digests[i].final(tmpdigest,ctx);
-                    digests[i].init(ctx);
-                    digests[i].update(ctx,opad,blocklen);
-                    digests[i].update(ctx,tmpdigest,digests[i].len);
-                    digests[i].final(BIN_HEAD(digest),ctx);
-
-                    FREE_N(char, digests[i].ctxsize(), ctx);
-
-                } else {
-                    digests[i].digest(data, len, BIN_HEAD(digest));
+                REBYTE tmpdigest[20]; // size must be max of all digest[].len
+                REBYTE *keycp = VAL_BIN_AT(key);
+                int keylen = VAL_LEN_AT(key);
+                if (keylen > blocklen) {
+                    digests[i].digest(keycp,keylen,tmpdigest);
+                    keycp = tmpdigest;
+                    keylen = digests[i].len;
                 }
 
-                TERM_BIN_LEN(digest, digests[i].len);
-                Val_Init_Binary(D_OUT, digest);
+                REBYTE ipad[64]; // size must be max of all digest[].hmacblock
+                memset(ipad, 0, blocklen);
+                memcpy(ipad, keycp, keylen);
 
-                return R_OUT;
+                REBYTE opad[64]; // size must be max of all digest[].hmacblock
+                memset(opad, 0, blocklen);
+                memcpy(opad, keycp, keylen);
+
+                REBINT j;
+                for (j = 0; j < blocklen; j++) {
+                    ipad[j] ^= 0x36; // !!! why do people write this kind of
+                    opad[j] ^= 0x5c; // thing without a comment? !!! :-(
+                }
+
+                char *ctx = ALLOC_N(char, digests[i].ctxsize());
+                digests[i].init(ctx);
+                digests[i].update(ctx,ipad,blocklen);
+                digests[i].update(ctx, data, len);
+                digests[i].final(tmpdigest,ctx);
+                digests[i].init(ctx);
+                digests[i].update(ctx,opad,blocklen);
+                digests[i].update(ctx,tmpdigest,digests[i].len);
+                digests[i].final(BIN_HEAD(digest),ctx);
+
+                FREE_N(char, digests[i].ctxsize(), ctx);
             }
+
+            TERM_BIN_LEN(digest, digests[i].len);
+            Val_Init_Binary(D_OUT, digest);
+
+            return R_OUT;
         }
 
-        fail (Error_Invalid_Arg(D_ARG(ARG_CHECKSUM_WORD)));
+        fail (Error_Invalid_Arg(ARG(word)));
     }
-    else if (D_REF(ARG_CHECKSUM_TCP)) { // /tcp
+    else if (REF(tcp)) {
         REBINT ipc = Compute_IPC(data, len);
         SET_INTEGER(D_OUT, ipc);
     }
-    else if (D_REF(ARG_CHECKSUM_HASH)) {  // /hash
-        REBINT hash;
-        REBINT sum = VAL_INT32(D_ARG(ARG_CHECKSUM_SIZE)); // /size
-        if (sum <= 1) sum = 1;
-        hash = Hash_String(data, len, wide) % sum;
+    else if (REF(hash)) {
+        REBINT sum = VAL_INT32(ARG(size));
+        if (sum <= 1)
+            sum = 1;
+
+        REBINT hash = Hash_String(data, len, wide) % sum;
         SET_INTEGER(D_OUT, hash);
     }
     else {

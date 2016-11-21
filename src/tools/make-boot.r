@@ -1,6 +1,7 @@
 REBOL [
     System: "REBOL [R3] Language Interpreter and Run-time Environment"
     Title: "Make primary boot files"
+    File: %make-boot.r ;-- used by EMIT-HEADER to indicate emitting script
     Rights: {
         Copyright 2012 REBOL Technologies
         REBOL is a trademark of REBOL Technologies
@@ -22,6 +23,7 @@ REBOL [
 print "--- Make Boot : System Embedded Script ---"
 
 do %common.r
+do %common-emitter.r
 
 do %form-header.r
 
@@ -109,83 +111,6 @@ build: context [features: [help-strings]]
 ;build: platform-data/builds/:product
 
 
-;;
-;; EMIT FUNCTIONS
-;;
-
-out: make string! 100000
-
-emit: proc [data] [repend out data]
-
-unemit: proc [
-    data [char!]
-][
-    if data != last out [
-        probe skip (tail out) -100
-        fail ["UNEMIT did not match" data "as the last piece of input"]
-    ]
-    assert [data = last out]
-    take/last out
-]
-
-emit-line: proc [data /indent] [
-    unless any [tail? out | newline = last out] [
-        probe skip (tail out) -100
-        fail "EMIT-LINE should always start a new line"
-    ]
-    data: reduce data
-    if find data newline [
-        probe data
-        fail "data passed to EMIT-LINE should not contain embedded newlines"
-    ]
-    if indent [emit spaced-tab]
-    emit data
-    emit newline
-]
-
-emit-item: proc [
-    {Emits an indented identifier and comma for enums and initializer lists}
-    name
-        {Will be converted using TO-C-NAME which joins BLOCK! and forms WORD!}
-    /upper
-        {Make the name uppercase -after- the conversion using TO-C-NAME (!)}
-    /assign
-        {Give the item an assigned value}
-    num [integer!]
-][
-    name: to-c-name name
-    if upper [uppercase name]
-    either assign [
-        emit-line/indent [name space "=" num ","]
-    ][
-        emit-line/indent [name ","]
-    ]
-
-    ; NOTE: standard C++ and C do not like commas on the last item in lists, 
-    ; so they are removed with EMIT-END, by taking the last comma out of the
-    ; emit buffer.
-]
-
-emit-annotation: procedure [
-    {Adds a C++ "//"-style comment to the end of the last line emitted.}
-    note [word! string! integer!]
-][
-    unemit newline
-    emit [space "//" space note newline]
-] 
-
-emit-head: proc [title [string!] file [file!]] [
-    clear out
-    emit form-header/gen title file %make-boot.r
-]
-
-emit-end: proc [] [
-    remove find/last out #","
-    emit-line ["};"]
-    emit newline
-]
-
-
 ;----------------------------------------------------------------------------
 ;
 ; Evaltypes.h - Evaluation Dispatch Maps
@@ -195,7 +120,7 @@ emit-end: proc [] [
 boot-types: load %types.r
 
 
-emit-head "Evaluation Maps" %evaltypes.h
+emit-header "Evaluation Maps" %evaltypes.h
 
 
 emit {
@@ -254,7 +179,7 @@ for-each-record type boot-types [
 ]
 emit-end
 
-write inc/tmp-evaltypes.inc out
+write-emitted inc/tmp-evaltypes.inc
 
 
 ;----------------------------------------------------------------------------
@@ -263,7 +188,7 @@ write inc/tmp-evaltypes.inc out
 ;
 ;----------------------------------------------------------------------------
 
-emit-head "Datatype Makers" %maketypes.h
+emit-header "Datatype Makers" %maketypes.h
 emit newline
 
 types-used: []
@@ -326,7 +251,7 @@ for-each-record type boot-types [
 ]
 emit-end
 
-write inc/tmp-maketypes.h out
+write-emitted inc/tmp-maketypes.h
 
 
 ;----------------------------------------------------------------------------
@@ -335,7 +260,7 @@ write inc/tmp-maketypes.h out
 ;
 ;----------------------------------------------------------------------------
 
-emit-head "Datatype Comparison Functions" %comptypes.h
+emit-header "Datatype Comparison Functions" %comptypes.h
 emit newline
 
 types-used: []
@@ -373,7 +298,7 @@ for-each-record type boot-types [
 ]
 emit-end
 
-write inc/tmp-comptypes.h out
+write-emitted inc/tmp-comptypes.h
 
 
 ;----------------------------------------------------------------------------
@@ -382,7 +307,7 @@ write inc/tmp-comptypes.h out
 ;
 ;----------------------------------------------------------------------------
 
-emit-head "Datatype Definitions" %reb-types.h
+emit-header "Datatype Definitions" %reb-types.h
 
 emit {
 /***********************************************************************
@@ -533,7 +458,7 @@ for-each [ts types] typeset-sets [
     emit [")" newline]
 ]
 
-write inc/reb-types.h out
+write-emitted inc/reb-types.h
 
 
 ;----------------------------------------------------------------------------
@@ -542,7 +467,7 @@ write inc/reb-types.h out
 ;
 ;----------------------------------------------------------------------------
 
-emit-head "Boot Definitions" %bootdefs.h
+emit-header "Boot Definitions" %bootdefs.h
 
 emit-line [{#define REBOL_VER} space (version/1)]
 emit-line [{#define REBOL_REV} space (version/2)]
@@ -689,7 +614,7 @@ emit-end
 
 print [n "words + actions"]
 
-write inc/tmp-bootdefs.h out
+write-emitted inc/tmp-bootdefs.h
 
 ;----------------------------------------------------------------------------
 ;
@@ -697,7 +622,7 @@ write inc/tmp-bootdefs.h out
 ;
 ;----------------------------------------------------------------------------
 
-emit-head "System Object" %sysobj.h
+emit-header "System Object" %sysobj.h
 emit newline
 
 at-value: func ['field] [next find boot-sysobj to-set-word field]
@@ -771,11 +696,11 @@ make-obj-defs ob/options "OPTIONS_" 4
 make-obj-defs ob/locale "LOCALE_" 4
 make-obj-defs ob/view "VIEW_" 4
 
-write inc/tmp-sysobj.h out
+write-emitted inc/tmp-sysobj.h
 
 ;----------------------------------------------------------------------------
 
-emit-head "Dialects" %reb-dialect.h
+emit-header "Dialects" %reb-dialect.h
 emit {
 enum REBOL_dialect_error {
     REB_DIALECT_END = 0,    // End of dialect block
@@ -791,7 +716,7 @@ make-obj-defs ob/dialects "DIALECTS_" 4
 
 emit-line {#define DIALECT_LIT_CMD 0x1000}
 
-write inc/reb-dialect.h out
+write-emitted inc/reb-dialect.h
 
 
 ;----------------------------------------------------------------------------
@@ -800,7 +725,7 @@ write inc/reb-dialect.h out
 ;
 ;----------------------------------------------------------------------------
 
-emit-head "Event Types" %reb-evtypes.h
+emit-header "Event Types" %reb-evtypes.h
 emit newline
 
 emit-line ["enum event_types {"]
@@ -818,7 +743,7 @@ for-each field ob/view/event-keys [
 emit-item "EVK_MAX"
 emit-end
 
-write inc/reb-evtypes.h out
+write-emitted inc/reb-evtypes.h
 
 
 ;----------------------------------------------------------------------------
@@ -829,7 +754,7 @@ write inc/reb-evtypes.h out
 
 ;-- Error Structure ----------------------------------------------------------
 
-emit-head "Error Structure and Constants" %errnums.h
+emit-header "Error Structure and Constants" %errnums.h
 
 emit {
 /***********************************************************************
@@ -914,11 +839,11 @@ emit-annotation {GENERATED! update in %make-boot.r}
 emit-line {#define RE_MAX RE_COMMAND_MAX}
 emit-annotation {GENERATED! update in %make-boot.r}
 
-write inc/tmp-errnums.h out
+write-emitted inc/tmp-errnums.h
 
 ;-------------------------------------------------------------------------
 
-emit-head "Port Modes" %port-modes.h
+emit-header "Port Modes" %port-modes.h
 
 data: load %modes.r
 
@@ -930,7 +855,7 @@ for-each word data [
 ]
 emit-end
 
-write inc/tmp-portmodes.h out
+write-emitted inc/tmp-portmodes.h
 
 ;----------------------------------------------------------------------------
 ;
@@ -961,7 +886,7 @@ for-each file first mezz-files [
     append/only append/only boot-protocols m/2 skip m 2
 ]
 
-emit-head "Sys Context" %sysctx.h
+emit-header "Sys Context" %sysctx.h
 
 ; We don't actually want to create the object in the R3-MAKE Rebol, because
 ; the constructs are intended to run in the Rebol being built.  But the list
@@ -986,7 +911,7 @@ sctx: has collect [
 ;
 make-obj-defs/selfless sctx "SYS_CTX_" 1
 
-write inc/tmp-sysctx.h out
+write-emitted inc/tmp-sysctx.h
 
 
 ;----------------------------------------------------------------------------
@@ -998,7 +923,7 @@ write inc/tmp-sysctx.h out
 ;-- Build b-boot.c output file -------------------------------------------------
 
 
-emit-head "Natives and Bootstrap" %b-boot.c
+emit-header "Natives and Bootstrap" %b-boot.c
 emit newline
 emit-line {#include "sys-core.h"}
 emit newline
@@ -1071,7 +996,7 @@ emit-line ["const REBYTE Native_Specs[NAT_COMPRESSED_SIZE] = {"]
 emit binary-to-c comp-data
 emit-line "};" ;-- EMIT-END would erase the last comma, but there's no extra
 
-write src/b-boot.c out
+write-emitted src/b-boot.c
 
 ;-- Output stats:
 print [
@@ -1087,7 +1012,7 @@ print [
 ;
 ;----------------------------------------------------------------------------
 
-emit-head "Bootstrap Structure and Root Module" %boot.h
+emit-header "Bootstrap Structure and Root Module" %boot.h
 
 emit newline
 
@@ -1188,5 +1113,4 @@ for-each word boot-task [
 ]
 emit-line ["#define TASK_MAX" space n]
 
-write inc/tmp-boot.h out
-
+write-emitted inc/tmp-boot.h

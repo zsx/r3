@@ -329,6 +329,13 @@ uppercase-of: func [
     uppercase form value
 ]
 
+lowercase-of: func [
+    {Copying variant of LOWERCASE, also FORMs words}
+    value [string! word!]
+][
+    lowercase form value
+]
+
 propercase: func [value] [uppercase/part (copy value) 1]
 
 propercase-of: func [
