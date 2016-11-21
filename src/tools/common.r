@@ -38,8 +38,8 @@ tab: does [
 to-c-name: function [
     {Take a Rebol value and transliterate it as a (likely) valid C identifier.}
 
-    value
-        {Any Rebol value (will be FORM'd before processing)}
+    value [string! block! word!]
+        {Will be converted to a string (via REJOIN if BLOCK!)}
     /scope
         {See scope rules: http://stackoverflow.com/questions/228783/}
     word [word!]
@@ -52,7 +52,7 @@ to-c-name: function [
         #"_"
     ]
 
-    string: form value
+    string: either block? :value [rejoin value][form value]
 
     string: switch/default attempt [to-word string] [
         ; Take care of special cases of singular symbols
@@ -161,7 +161,7 @@ to-c-name: function [
 
 
 ; http://stackoverflow.com/questions/11488616/
-binary-to-c: func [
+binary-to-c: function [
     {Converts a binary to a string of C source that represents an initializer
     for a character array.  To be "strict" C standard compatible, we do not
     use a string literal due to length limits (509 characters in C89, and
@@ -169,9 +169,7 @@ binary-to-c: func [
     '{0xYY, ...}' with 8 bytes per line}
 
     data [binary!]
-    ; !!! Add variable name to produce entire 'const char *name = {...};' ?
-     /local out str comma-count
-] [
+][
     out: make string! 6 * (length data)
     while [not tail? data] [
         append out spaced-tab
@@ -197,13 +195,14 @@ binary-to-c: func [
     out
 ]
 
+
+; !!! WARNING: Bootstrap needs to stay working with R3-Alpha.  So don't
+; assume this is safe for using with RETURN...because under R3-Alpha that
+; will basically act as a BREAK, returning from the FOR-EACH-RECORD but not
+; respecting the intention of the RETURN at the callsite.  (Used to have
+; the alarmist name FOR-EACH-RECORD-NO-RETURN, but that was overkill.)
 ;
-; Rebol needs to bootstrap using old versions prior to having definitionally
-; scoped returns implemented.  Hence don't assume passing a body with
-; RETURN in it will return from the *caller*.  It will just wind up returning
-; from *this loop wrapper* (in older Rebols) when the call is finished!
-;
-for-each-record-NO-RETURN: proc [
+for-each-record: procedure [
     {Iterate a table with a header by creating an object for each row}
 
     'record [word!]
@@ -212,11 +211,11 @@ for-each-record-NO-RETURN: proc [
         {Table of values with header block as first element}
     body [block!]
         {Block to evaluate each time}
-    /local headings result spec
-] [
+][
     unless block? first table [
         fail {Table of records does not start with a header block}
     ]
+
     headings: map-each word first table [
         unless word? word [
             fail [{Heading} word {is not a word}]
@@ -226,10 +225,7 @@ for-each-record-NO-RETURN: proc [
 
     table: next table
 
-    ; Note: this code must run in R3-Alpha, so can't just use `result:`
-    ; like in Ren-C (which will unset the variable if VOID? argument)
-    ;
-    set/opt (quote result:) while [not empty? table] [
+    while [not tail? table] [
         if (length headings) > (length table) [
             fail {Element count isn't even multiple of header count}
         ]
@@ -247,23 +243,29 @@ for-each-record-NO-RETURN: proc [
         do body
     ]
 
-    :result
+    ; In Ren-C, to return a result this would have to be marked as returning
+    ; an optional value...but that syntax would confuse R3-Alpha, which this
+    ; has to run under.  So we just don't bother returning a result.
 ]
 
-find-record-unique: func [
+
+find-record-unique: function [
     {Get a record in a table as an object, error if duplicate, blank if absent}
+    
     ;; return: [object! blank!]
-    table [block!] {Table of values with header block as first element}
-    key [word!] {Object key to search for a match on}
-    value {Value that the looked up key must be uniquely equal to}
-    /local rec result
-] [
+    table [block!]
+        {Table of values with header block as first element}
+    key [word!]
+        {Object key to search for a match on}
+    value
+        {Value that the looked up key must be uniquely equal to}
+][
     unless find first table key [
         fail [key {not found in table headers:} (first table)]
     ]
 
     result: _
-    for-each-record-NO-RETURN rec table [
+    for-each-record rec table [
         unless value = select rec key [continue]
 
         if result [
@@ -272,32 +274,34 @@ find-record-unique: func [
 
         result: rec
 
-        ; RETURN won't work.  We could break, but walk whole table to verify
-        ; that it is well-formed.  (Here, correctness is more important.)
+        ; RETURN won't work when running under R3-Alpha.  We could break, but
+        ; walk whole table to verify that it is well-formed.  (Correctness is
+        ; more important.)
     ]
     result
 ]
 
+
 parse-args: func [
-	args ;args in form of "NAME=VALUE"
-	/local a name value ret
+    args ;args in form of "NAME=VALUE"
+    /local a name value ret
 ][
-	ret: make block! 4
-	args: any [args copy []]
-	unless block? args [args: split args [some " "]]
-	foreach a args [
-		if to logic! idx: find a #"=" [
-			name: to word! copy/part a (index-of idx) - 1
-			value: copy next idx
-			append ret reduce [name value]
-		]
-	]
-	ret
+    ret: make block! 4
+    args: any [args copy []]
+    unless block? args [args: split args [some " "]]
+    foreach a args [
+        if to logic! idx: find a #"=" [
+            name: to word! copy/part a (index-of idx) - 1
+            value: copy next idx
+            append ret reduce [name value]
+        ]
+    ]
+    ret
 ]
 
 fix-win32-path: func [
-	path [file!]
-	/local letter colon
+    path [file!]
+    /local letter colon
 ][
     if 3 != fourth system/version [return path] ;non-windows system
 
@@ -305,15 +309,32 @@ fix-win32-path: func [
     colon: second path
 
     if all [
-    	any [
-	    all [#"A" <= drive #"Z" >= drive] 
-	    all [#"a" <= drive #"z" >= drive] 
-	]
-	#":" = colon
+        any [
+        all [#"A" <= drive #"Z" >= drive] 
+        all [#"a" <= drive #"z" >= drive] 
+    ]
+    #":" = colon
     ][
-    	insert path #"/"
-	remove skip path 2 ;remove ":"
+        insert path #"/"
+    remove skip path 2 ;remove ":"
     ]
 
     path
 ]
+
+uppercase-of: func [
+    {Copying variant of UPPERCASE, also FORMs words}
+    value [string! word!]
+][
+    uppercase form value
+]
+
+propercase: func [value] [uppercase/part (copy value) 1]
+
+propercase-of: func [
+    {Make a copy of a string with just the first character uppercase}
+    value [string! word!]
+][
+    propercase form value
+]
+

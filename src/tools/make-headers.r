@@ -148,7 +148,12 @@ emit-header "Function Prototypes" %funcs.h
 emit-fsymb form-header/gen "Function Symbols" fsymbol-file %make-headers.r
 emit-fsymb {#include "sys-core.h"
 
-#define SYM_FUNC(x) #x, cast(void*, x)
+// Note that cast() macro causes problems here with clang for some reason.
+//
+// !!! Also, void pointers and function pointers are not guaranteed to be
+// the same size, even if TCC assumes so for these symbol purposes.
+//
+#define SYM_FUNC(x) #x, ((void*)x)
 #define SYM_DATA(x) #x, &x
 
 const void *rebol_symbols [] = ^{}
