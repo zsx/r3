@@ -432,19 +432,20 @@ static REBCNT Find_Str_Char_Old(
     REBUNI c2,
     REBCNT flags
 ) {
-    REBUNI c1;
-    REBOOL uncase = NOT(GET_FLAG(flags, ARG_FIND_CASE - 1)); // case insensitive
+    REBOOL uncase = NOT(flags & AM_FIND_CASE); // case insensitive
 
     if (uncase && c2 < UNICODE_CASES) c2 = LO_CASE(c2);
 
     for (; index >= head && index < tail; index += skip) {
+        REBUNI c1 = GET_ANY_CHAR(ser, index);
+        if (uncase && c1 < UNICODE_CASES)
+            c1 = LO_CASE(c1);
 
-        c1 = GET_ANY_CHAR(ser, index);
-        if (uncase && c1 < UNICODE_CASES) c1 = LO_CASE(c1);
+        if (c1 == c2)
+            return index;
 
-        if (c1 == c2) return index;
-
-        if GET_FLAG(flags, ARG_FIND_MATCH-1) break;
+        if (flags & AM_FIND_MATCH)
+            break;
     }
 
     return NOT_FOUND;
@@ -688,23 +689,25 @@ return_index:
 // 
 // Flags are set according to ALL_FIND_REFS
 //
-REBCNT Find_Str_Bitset(REBSER *ser, REBCNT head, REBCNT index, REBCNT tail, REBINT skip, REBSER *bset, REBCNT flags)
-{
-    REBUNI c1;
-    REBOOL uncase = NOT(GET_FLAG(flags, ARG_FIND_CASE - 1)); // case insensitive
+REBCNT Find_Str_Bitset(
+    REBSER *ser,
+    REBCNT head,
+    REBCNT index,
+    REBCNT tail,
+    REBINT skip,
+    REBSER *bset,
+    REBCNT flags
+) {
+    REBOOL uncase = NOT(flags & AM_FIND_CASE); // case insensitive
 
     for (; index >= head && index < tail; index += skip) {
+        REBUNI c1 = GET_ANY_CHAR(ser, index);
 
-        c1 = GET_ANY_CHAR(ser, index);
+        if (Check_Bit(bset, c1, uncase))
+            return index;
 
-        //if (uncase && c1 < UNICODE_CASES) {
-        //  if (Check_Bit(bset, LO_CASE(c1)) || Check_Bit(bset, UP_CASE(c1)))
-        //      return index;
-        //}
-        //else
-        if (Check_Bit(bset, c1, uncase)) return index;
-
-        if (flags & AM_FIND_MATCH) break;
+        if (flags & AM_FIND_MATCH)
+            break;
     }
 
     return NOT_FOUND;

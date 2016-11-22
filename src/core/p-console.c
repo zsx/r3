@@ -59,7 +59,8 @@ static REB_R Console_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     switch (action) {
 
-    case SYM_READ:
+    case SYM_READ: {
+        INCLUDE_PARAMS_OF_READ;
 
         // If not open, open it:
         if (!IS_OPEN(req)) {
@@ -83,45 +84,18 @@ static REB_R Console_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         req->common.data = SER_DATA_RAW(ser);
         req->length = SER_AVAIL(ser);
 
-#ifdef nono
-        // Is the buffer large enough?
-        req->length = SER_AVAIL(ser); // space available
-        if (req->length < OUT_BUF_SIZE/2) Extend_Series(ser, OUT_BUF_SIZE);
-        req->length = SER_AVAIL(ser);
-
-        // Don't make buffer too large:  Bug #174   ?????
-        if (req->length > 1024) req->length = 1024;  //???
-        req->common.data = BIN_TAIL(ser); // write at tail  //???
-        if (SER_LEN(ser) == 0) req->actual = 0;  //???
-#endif
-
         result = OS_DO_DEVICE(req, RDC_READ);
         if (result < 0) fail (Error_On_Port(RE_READ_ERROR, port, req->error));
 
-#ifdef nono
-        // Does not belong here!!
-        // Remove or replace CRs:
-        result = 0;
-        for (n = 0; n < req->actual; n++) {
-            chr = GET_ANY_CHAR(ser, n);
-            if (chr == CR) {
-                chr = LF;
-                // Skip LF if it follows:
-                if ((n+1) < req->actual &&
-                    LF == GET_ANY_CHAR(ser, n+1)) n++;
-            }
-            SET_ANY_CHAR(ser, result, chr);
-            result++;
-        }
-#endif
         // !!! Among many confusions in this file, it said "Another copy???"
         //Val_Init_String(D_OUT, Copy_OS_Str(ser->data, result));
         Val_Init_Binary(D_OUT, Copy_Bytes(req->common.data, req->actual));
-        break;
+        break; }
 
-    case SYM_OPEN:
+    case SYM_OPEN: {
+        INCLUDE_PARAMS_OF_OPEN;
         SET_OPEN(req);
-        break;
+        break; }
 
     case SYM_CLOSE:
         SET_CLOSED(req);

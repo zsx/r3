@@ -596,15 +596,16 @@ REBTYPE(Map)
         return R_OUT;
 
     case SYM_FIND:
-    case SYM_SELECT:
-        args = Find_Refines(frame_, ALL_FIND_REFS);
+    case SYM_SELECT: {
+        INCLUDE_PARAMS_OF_FIND;
+
         n = Find_Map_Entry(
             map,
             arg,
             SPECIFIED,
             NULL,
             SPECIFIED,
-            LOGICAL(args & AM_FIND_CASE)
+            REF(case)
         );
         if (n == 0) {
             return action == SYM_FIND ? R_BLANK : R_VOID;
@@ -614,19 +615,22 @@ REBTYPE(Map)
             return action == SYM_FIND ? R_BLANK : R_VOID;
         }
         if (action == SYM_FIND) *D_OUT = *val;
-        return R_OUT;
+        return R_OUT; }
 
     case SYM_INSERT:
-    case SYM_APPEND:
+    case SYM_APPEND: {
+        INCLUDE_PARAMS_OF_INSERT;
+
         FAIL_IF_LOCKED_ARRAY(MAP_PAIRLIST(map));
 
-        if (!IS_BLOCK(arg)) fail (Error_Invalid_Arg(val));
+        if (!IS_BLOCK(arg))
+            fail (Error_Invalid_Arg(val));
         *D_OUT = *val;
-        if (D_REF(AN_DUP)) {
-            n = Int32(D_ARG(AN_COUNT));
+        if (REF(dup)) {
+            n = Int32(ARG(count));
             if (n <= 0) break;
         }
-        Partial1(arg, D_ARG(AN_LIMIT), &tail);
+        Partial1(arg, ARG(limit), &tail);
         Append_Map(
             map,
             VAL_ARRAY(arg),
@@ -634,19 +638,21 @@ REBTYPE(Map)
             VAL_SPECIFIER(arg),
             tail
         );
-        return R_OUT;
+        return R_OUT; }
 
-    case SYM_REMOVE:
+    case SYM_REMOVE: {
+        INCLUDE_PARAMS_OF_REMOVE;
+
         FAIL_IF_LOCKED_ARRAY(MAP_PAIRLIST(map));
 
-        if (!D_REF(4)) { // /MAP
+        if (NOT(REF(map)))
             fail (Error_Illegal_Action(REB_MAP, action));
-        }
+
         *D_OUT = *val;
         Find_Map_Entry(
             map, D_ARG(5), SPECIFIED, VOID_CELL, SPECIFIED, TRUE
         );
-        return R_OUT;
+        return R_OUT; }
 
     case SYM_POKE:  // CHECK all pokes!!! to be sure they check args now !!!
         FAIL_IF_LOCKED_ARRAY(MAP_PAIRLIST(map));
@@ -661,13 +667,14 @@ REBTYPE(Map)
         SET_INTEGER(D_OUT, Length_Map(map));
         return R_OUT;
 
-    case SYM_COPY:
+    case SYM_COPY: {
+        INCLUDE_PARAMS_OF_COPY;
         //
         // !!! the copying map case should probably not be a MAKE case, but
         // implemented here as copy.
         //
         MAKE_Map(D_OUT, REB_MAP, val); // may fail()
-        return R_OUT;
+        return R_OUT; }
 
     case SYM_CLEAR:
         FAIL_IF_LOCKED_ARRAY(MAP_PAIRLIST(map));

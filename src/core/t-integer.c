@@ -338,8 +338,7 @@ check_sign:
 //
 REBNATIVE(to_integer)
 {
-    PARAM(1, value);
-    REFINE(2, unsigned);
+    INCLUDE_PARAMS_OF_TO_INTEGER;
 
     Value_To_Int64(D_OUT, ARG(value), REF(unsigned));
 
@@ -491,41 +490,55 @@ REBTYPE(Integer)
             return R_TRUE;
         return R_FALSE;
 
-    case SYM_ROUND:
-        val2 = D_ARG(3);
-        n = Get_Round_Flags(frame_);
-        if (D_REF(2)) { // to
+    case SYM_ROUND: {
+        INCLUDE_PARAMS_OF_ROUND;
+
+        REBFLGS flags = (
+            (REF(to) ? RF_TO : 0)
+            | (REF(even) ? RF_EVEN : 0)
+            | (REF(down) ? RF_DOWN : 0)
+            | (REF(half_down) ? RF_HALF_DOWN : 0)
+            | (REF(floor) ? RF_FLOOR : 0)
+            | (REF(ceiling) ? RF_CEILING : 0)
+            | (REF(half_ceiling) ? RF_HALF_CEILING : 0)
+        );
+
+        val2 = ARG(scale);
+        if (REF(to)) {
             if (IS_MONEY(val2)) {
                 SET_MONEY(D_OUT, Round_Deci(
-                    int_to_deci(num), n, VAL_MONEY_AMOUNT(val2)
+                    int_to_deci(num), flags, VAL_MONEY_AMOUNT(val2)
                 ));
                 return R_OUT;
             }
             if (IS_DECIMAL(val2) || IS_PERCENT(val2)) {
-                REBDEC dec = Round_Dec(cast(REBDEC, num), n, VAL_DECIMAL(val2));
+                REBDEC dec = Round_Dec(
+                    cast(REBDEC, num), flags, VAL_DECIMAL(val2)
+                );
                 VAL_RESET_HEADER(D_OUT, VAL_TYPE(val2));
                 VAL_DECIMAL(D_OUT) = dec;
                 return R_OUT;
             }
-            if (IS_TIME(val2)) fail (Error_Invalid_Arg(val2));
+            if (IS_TIME(val2))
+                fail (Error_Invalid_Arg(val2));
             arg = VAL_INT64(val2);
         }
-        else arg = 0L;
-        num = Round_Int(num, n, arg);
-        break;
+        else
+            arg = 0L;
+        num = Round_Int(num, flags, arg);
+        break; }
 
-    case SYM_RANDOM:
-        if (D_REF(2)) { // seed
+    case SYM_RANDOM: {
+        INCLUDE_PARAMS_OF_RANDOM;
+
+        if (REF(seed)) {
             Set_Random(num);
             return R_VOID;
         }
-        if (num == 0) break;
-        num = Random_Range(num, D_REF(3));  //!!! 64 bits
-#ifdef OLD_METHOD
-        if (num < 0)  num = -(1 + (REBI64)(arg % -num));
-        else          num =   1 + (REBI64)(arg % num);
-#endif
-        break;
+        if (num == 0)
+            break;
+        num = Random_Range(num, REF(secure));  // !!! 64 bits
+        break; }
 
     default:
         fail (Error_Illegal_Action(REB_INTEGER, action));

@@ -397,23 +397,16 @@ REBTYPE(Tuple)
         goto ret_value;
     }
     if (action == SYM_RANDOM) {
-        if (D_REF(2)) fail (Error(RE_BAD_REFINES)); // seed
-        for (;len > 0; len--, vp++) {
+        INCLUDE_PARAMS_OF_RANDOM;
+        if (REF(seed))
+            fail (Error(RE_BAD_REFINES));
+        for (; len > 0; len--, vp++) {
             if (*vp)
-                *vp = (REBYTE)(Random_Int(D_REF(3)) % (1+*vp));
+                *vp = cast(REBYTE, Random_Int(REF(secure)) % (1 + *vp));
         }
         goto ret_value;
     }
-/*
-    if (action == A_ZEROQ) {
-        for (;len > 0; len--, vp++) {
-            if (*vp != 0)
-                goto is_false;
-        }
-        goto is_true;
-    }
-*/
-    //a = 1; //???
+
     switch (action) {
     case SYM_LENGTH:
         len = MAX(len, 3);
@@ -432,9 +425,11 @@ REBTYPE(Tuple)
         *D_OUT = *D_ARG(3);
         return R_OUT;*/
 
-    case SYM_REVERSE:
-        if (D_REF(2)) {
-            len = Get_Num_From_Arg(D_ARG(3));
+    case SYM_REVERSE: {
+        INCLUDE_PARAMS_OF_REVERSE;
+
+        if (REF(part)) {
+            len = Get_Num_From_Arg(ARG(limit));
             len = MIN(len, VAL_TUPLE_LEN(value));
         }
         if (len > 0) {
@@ -446,7 +441,7 @@ REBTYPE(Tuple)
                 vp[i] = a;
             }
         }
-        goto ret_value;
+        goto ret_value; }
 /*
   poke_it:
         a = Get_Num_From_Arg(arg);

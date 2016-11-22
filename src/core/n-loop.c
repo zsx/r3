@@ -91,8 +91,7 @@ REBNATIVE(break)
 // the stack.  It uses the value of its own native function as the
 // name of the throw, like `throw/name value :break`.
 {
-    REFINE(1, with);
-    PARAM(2, value);
+    INCLUDE_PARAMS_OF_BREAK;
 
     *D_OUT = *NAT_VALUE(break);
 
@@ -118,8 +117,7 @@ REBNATIVE(continue)
 // the stack.  It uses the value of its own native function as the
 // name of the throw, like `throw/name value :continue`.
 {
-    REFINE(1, with);
-    PARAM(2, value);
+    INCLUDE_PARAMS_OF_CONTINUE;
 
     *D_OUT = *NAT_VALUE(continue);
 
@@ -383,9 +381,7 @@ static REBOOL Loop_Number_Throws(
 //
 static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
 {
-    PARAM(1, vars);
-    PARAM(2, data);
-    PARAM(3, body);
+    INCLUDE_PARAMS_OF_FOR_EACH;
 
     REBVAL *data = ARG(data);
 
@@ -767,11 +763,7 @@ skip_hidden: ;
 //
 REBNATIVE(for)
 {
-    PARAM(1, word);
-    PARAM(2, start);
-    PARAM(3, end);
-    PARAM(4, bump);
-    PARAM(5, body);
+    INCLUDE_PARAMS_OF_FOR;
 
     REBOOL q = FALSE; // !!! No /q refinement yet, and FOR may be going away
 
@@ -865,10 +857,7 @@ REBNATIVE(for_skip)
 // other reason, and the author didn't wish to special case to rule out zero...
 // generality may dictate allowing it.
 {
-    PARAM(1, word);
-    PARAM(2, skip);
-    PARAM(3, body);
-    REFINE(4, q);
+    INCLUDE_PARAMS_OF_FOR_SKIP; // ? is renamed as "q"
 
     REBVAL *word = ARG(word);
 
@@ -951,10 +940,11 @@ restore_var_and_return:
 //
 REBNATIVE(forever)
 {
-    PARAM(1, body);
+    INCLUDE_PARAMS_OF_FOREVER;
 
     do {
-        if (Run_Success_Branch_Throws(D_OUT, ARG(body), FALSE)) { // !only
+        const REBOOL only = FALSE;
+        if (Run_Success_Branch_Throws(D_OUT, ARG(body), only)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;
@@ -975,7 +965,7 @@ REBNATIVE(forever)
 //
 //      return: [<opt> any-value!]
 //          {Last body result or BREAK value, will also be void if never run}
-//      'word [word! block!]
+//      'vars [word! block!]
 //          "Word or block of words to set each time (local)"
 //      data [any-series! any-context! map! blank! datatype!]
 //          "The series to traverse"
@@ -994,7 +984,7 @@ REBNATIVE(for_each)
 //  
 //  {Removes values for each block that returns true; returns removal count.}
 //  
-//      'word [word! block!]
+//      'vars [word! block!]
 //          "Word or block of words to set each time (local)"
 //      data [any-series!]
 //          "The series to traverse (modified)"
@@ -1015,7 +1005,7 @@ REBNATIVE(remove_each)
 //
 //      return: [block!]
 //          {Collected block (BREAK/WITH can add a final result to block)}
-//      'word [word! block!]
+//      'vars [word! block!]
 //          "Word or block of words to set each time (local)"
 //      data [block! vector!]
 //          "The series to traverse"
@@ -1036,7 +1026,7 @@ REBNATIVE(map_each)
 //
 //      return: [<opt> any-value!]
 //          {TRUE or BLANK! collected, or BREAK value, TRUE if never run.}
-//      'word [word! block!]
+//      'vars [word! block!]
 //          "Word or block of words to set each time (local)"
 //      data [any-series! any-context! map! blank! datatype!]
 //          "The series to traverse"
@@ -1065,8 +1055,7 @@ REBNATIVE(every)
 //
 REBNATIVE(loop)
 {
-    PARAM(1, count);
-    PARAM(2, body);
+    INCLUDE_PARAMS_OF_LOOP;
 
     REBI64 count;
 
@@ -1091,7 +1080,8 @@ REBNATIVE(loop)
         count = Int64(ARG(count));
 
     for (; count > 0; count--) {
-        if (Run_Success_Branch_Throws(D_OUT, ARG(body), FALSE)) { // !only
+        const REBOOL only = FALSE;
+        if (Run_Success_Branch_Throws(D_OUT, ARG(body), only)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;
@@ -1138,9 +1128,7 @@ REBNATIVE(loop)
 //
 REBNATIVE(repeat)
 {
-    PARAM(1, word);
-    PARAM(2, value);
-    PARAM(3, body);
+    INCLUDE_PARAMS_OF_REPEAT;
 
     REBVAL *value = ARG(value);
 
@@ -1184,13 +1172,16 @@ REBNATIVE(repeat)
 }
 
 
+// Common code for LOOP-WHILE & LOOP-UNTIL (same frame param layout)
+//
 inline static REB_R Loop_While_Until_Core(REBFRM *frame_, REBOOL trigger)
 {
-    PARAM(1, body);
+    INCLUDE_PARAMS_OF_LOOP_WHILE;
 
     do {
-    skip_check:
-        if (Run_Success_Branch_Throws(D_OUT, ARG(body), FALSE)) { // !only
+    skip_check:;
+        const REBOOL only = FALSE;
+        if (Run_Success_Branch_Throws(D_OUT, ARG(body), only)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;
@@ -1259,14 +1250,15 @@ REBNATIVE(loop_until)
 }
 
 
+// Common code for WHILE & UNTIL (same frame param layout)
+//
 inline static REB_R While_Until_Core(REBFRM *frame_, REBOOL trigger)
 {
-    PARAM(1, condition);
-    PARAM(2, body);
-    REFINE(3, q);
+    INCLUDE_PARAMS_OF_WHILE; // ? is renamed as "q"
+
+    const REBOOL only = FALSE; // while/only [cond] [body] is meaningless
 
     do {
-        const REBOOL only = FALSE;
         if (Run_Success_Branch_Throws(D_CELL, ARG(condition), only)) {
             //
             // A while loop should only look for breaks and continues in its
@@ -1295,7 +1287,7 @@ inline static REB_R While_Until_Core(REBFRM *frame_, REBOOL trigger)
         // If this line runs, it will put a non-END marker in D_OUT, which
         // will signal R_OUT_Q() to TRUE if /? (and D_OUT otherwise)
         //
-        if (Run_Success_Branch_Throws(D_OUT, ARG(body), FALSE)) { // !only
+        if (Run_Success_Branch_Throws(D_OUT, ARG(body), only)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) {

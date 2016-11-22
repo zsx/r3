@@ -143,8 +143,8 @@ static REBCNT find_string(
                 start,
                 VAL_BIN_AT(target),
                 target_len,
-                NOT(GET_FLAG(flags, ARG_FIND_CASE - 1)),
-                GET_FLAG(flags, ARG_FIND_MATCH - 1)
+                NOT(flags & AM_FIND_CASE),
+                LOGICAL(flags & AM_FIND_MATCH)
             );
         }
         else {
@@ -169,7 +169,7 @@ static REBCNT find_string(
             VAL_BIN_AT(target),
             target_len,
             uncase, // "don't treat case insensitively"
-            GET_FLAG(flags, ARG_FIND_MATCH - 1)
+            LOGICAL(flags & AM_FIND_MATCH)
         );
     }
     else if (IS_CHAR(target)) {
@@ -438,13 +438,11 @@ void TO_String(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 REBNATIVE(to_string)
 {
-    PARAM(1, value);
-    REFINE(2, astral);
-    PARAM(3, handler);
+    INCLUDE_PARAMS_OF_TO_STRING;
 
     REBVAL *value = ARG(value);
 
-    if (!REF(astral) || !IS_BINARY(value)) {
+    if (NOT(REF(astral)) || NOT(IS_BINARY(value))) {
         TO_String(D_OUT, REB_STRING, value); // just act like TO STRING!
         return R_OUT;
     }
@@ -751,8 +749,6 @@ REBTYPE(String)
     REBINT  len;
     REBSER  *ser;
     enum Reb_Kind type;
-    REBCNT  args;
-    REBCNT  ret;
 
     // Common operations for any series type (length, head, etc.)
     {
@@ -770,33 +766,48 @@ REBTYPE(String)
     //-- Modification:
     case SYM_APPEND:
     case SYM_INSERT:
-    case SYM_CHANGE:
+    case SYM_CHANGE: {
+        INCLUDE_PARAMS_OF_INSERT;
+
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
 
-        //Modify_String(action, value, arg);
-        // Length of target (may modify index): (arg can be anything)
-
-        Partial1((action == SYM_CHANGE) ? value : arg, D_ARG(AN_LIMIT), cast(REBCNT*, &len));
+        Partial1((action == SYM_CHANGE) ? value : arg, ARG(limit), cast(REBCNT*, &len));
         index = VAL_INDEX(value);
-        args = 0;
-        if (IS_BINARY(value)) SET_FLAG(args, AN_SERIES); // special purpose
-        if (D_REF(AN_PART)) SET_FLAG(args, AN_PART);
-        index = Modify_String(action, VAL_SERIES(value), index, arg, args, len, D_REF(AN_DUP) ? Int32(D_ARG(AN_COUNT)) : 1);
+        
+        REBFLGS flags = 0;
+        if (IS_BINARY(value))
+            flags |= AM_BINARY_SERIES;
+        if (REF(part))
+            flags |= AM_PART;
+        index = Modify_String(
+            action,
+            VAL_SERIES(value),
+            index,
+            arg,
+            flags,
+            len,
+            REF(dup) ? Int32(ARG(count)) : 1
+        );
         ENSURE_SERIES_MANAGED(VAL_SERIES(value));
         VAL_INDEX(value) = index;
-        break;
+        break; }
 
     //-- Search:
     case SYM_SELECT:
-        ret = ALL_SELECT_REFS;
-        goto find;
-    case SYM_FIND:
-        ret = ALL_FIND_REFS;
-find:
-        args = Find_Refines(frame_, ret);
+    case SYM_FIND: {
+        INCLUDE_PARAMS_OF_FIND;
+
+        REBFLGS flags = (
+            (REF(only) ? AM_FIND_ONLY : 0)
+            | (REF(match) ? AM_FIND_MATCH : 0)
+            | (REF(reverse) ? AM_FIND_REVERSE : 0)
+            | (REF(case) ? AM_FIND_CASE : 0)
+            | (REF(last) ? AM_FIND_LAST : 0)
+            | (REF(tail) ? AM_FIND_TAIL : 0)
+        );
 
         if (IS_BINARY(value)) {
-            args |= AM_FIND_CASE;
+            flags |= AM_FIND_CASE;
 
             if (!IS_BINARY(arg) && !IS_INTEGER(arg) && !IS_BITSET(arg))
                 fail (Error(RE_NOT_SAME_TYPE));
@@ -825,19 +836,28 @@ find:
 
         if (ANY_BINSTR(arg)) len = VAL_LEN_AT(arg);
 
-        if (args & AM_FIND_PART)
-            tail = Partial(value, 0, D_ARG(ARG_FIND_LIMIT));
-        ret = 1; // skip size
-        if (args & AM_FIND_SKIP)
-            ret = Partial(value, 0, D_ARG(ARG_FIND_SIZE));
+        if (REF(part))
+            tail = Partial(value, 0, ARG(limit));
 
-        ret = find_string(VAL_SERIES(value), index, tail, arg, len, args, ret);
+        REBCNT skip;
+        if (REF(skip))
+            skip = Partial(value, 0, ARG(size));
+        else
+            skip = 1;
 
-        if (ret >= (REBCNT)tail) return R_BLANK;
-        if (args & AM_FIND_ONLY) len = 1;
+        REBCNT ret = find_string(
+            VAL_SERIES(value), index, tail, arg, len, flags, skip
+        );
+
+        if (ret >= (REBCNT)tail)
+            return R_BLANK;
+
+        if (REF(only))
+            len = 1;
 
         if (action == SYM_FIND) {
-            if (args & (AM_FIND_TAIL | AM_FIND_MATCH)) ret += len;
+            if (REF(tail) || REF(match))
+                ret += len;
             VAL_INDEX(value) = ret;
         }
         else {
@@ -849,7 +869,7 @@ find:
             else
                 str_to_char(value, value, ret);
         }
-        break;
+        break; }
 
     //-- Picking:
     case SYM_POKE:
@@ -900,31 +920,36 @@ pick_it:
         }
         break;
 
-    case SYM_TAKE:
+    case SYM_TAKE: {
+        INCLUDE_PARAMS_OF_TAKE;
+
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
 
-        if (D_REF(2)) {
-            len = Partial(value, 0, D_ARG(3));
+        if (REF(part)) {
+            len = Partial(value, 0, ARG(limit));
             if (len == 0) {
-zero_str:
+        zero_str:
                 Val_Init_Series(D_OUT, VAL_TYPE(value), Make_Binary(0));
                 return R_OUT;
             }
         } else
             len = 1;
 
-        index = VAL_INDEX(value); // /part can change index
+        index = VAL_INDEX(value); // /PART can change index
 
-        // take/last:
-        if (D_REF(5)) index = tail - len;
+        if (REF(last))
+            index = tail - len;
         if (index < 0 || index >= tail) {
-            if (!D_REF(2)) return R_BLANK;
+            if (NOT(REF(part)))
+                return R_BLANK;
             goto zero_str;
         }
 
         ser = VAL_SERIES(value);
-        // if no /part, just return value, else return string:
-        if (!D_REF(2)) {
+
+        // if no /PART, just return value, else return string
+        //
+        if (NOT(REF(part))) {
             if (IS_BINARY(value)) {
                 SET_INTEGER(value, *VAL_BIN_AT_HEAD(value, index));
             } else
@@ -935,7 +960,7 @@ zero_str:
             Val_Init_Series(value, kind, Copy_String_Slimming(ser, index, len));
         }
         Remove_Series(ser, index, len);
-        break;
+        break; }
 
     case SYM_CLEAR:
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
@@ -950,10 +975,11 @@ zero_str:
 
     //-- Creation:
 
-    case SYM_COPY:
-        len = Partial(value, 0, D_ARG(3)); // Can modify value index.
+    case SYM_COPY: {
+        INCLUDE_PARAMS_OF_COPY;
+        len = Partial(value, 0, ARG(limit)); // Can modify value index.
         ser = Copy_String_Slimming(VAL_SERIES(value), VAL_INDEX(value), len);
-        goto ser_exit;
+        goto ser_exit; }
 
     //-- Bitwise:
 
@@ -978,22 +1004,37 @@ zero_str:
 
     //-- Special actions:
 
-    case SYM_TRIM:
+    case SYM_TRIM: {
+        INCLUDE_PARAMS_OF_TRIM;
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
 
-        // Check for valid arg combinations:
-        args = Find_Refines(frame_, ALL_TRIM_REFS);
-        if (
-            ((args & (AM_TRIM_ALL | AM_TRIM_WITH)) &&
-            (args & (AM_TRIM_HEAD | AM_TRIM_TAIL | AM_TRIM_LINES | AM_TRIM_AUTO))) ||
-            ((args & AM_TRIM_AUTO) &&
-            (args & (AM_TRIM_HEAD | AM_TRIM_TAIL | AM_TRIM_LINES | AM_TRIM_ALL | AM_TRIM_WITH)))
-        ) {
-            fail (Error(RE_BAD_REFINES));
-        }
+        ser = VAL_SERIES(value);
 
-        Trim_String(VAL_SERIES(value), VAL_INDEX(value), VAL_LEN_AT(value), args, D_ARG(ARG_TRIM_STR));
-        break;
+        if (REF(all) || REF(with)) {
+            if (REF(head) || REF(tail) || REF(lines) || REF(auto))
+                fail (Error(RE_BAD_REFINES));
+
+            Whitespace_Replace_With(ser, index, tail, ARG(str));
+        }
+        else if (REF(auto)) {
+            if (REF(head) || REF(tail) || REF(lines) || REF(all) || REF(with))
+                fail (Error(RE_BAD_REFINES));
+
+            Trim_String_Auto(ser, index, tail);
+        }
+        else if (REF(lines)) {
+            Trim_String_Lines(ser, index, tail);
+        }
+        else {
+            Trim_String_Head_Tail(
+                ser,
+                index,
+                tail,
+                REF(head),
+                REF(tail)
+            );
+        }
+        break; }
 
     case SYM_SWAP:
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
@@ -1014,24 +1055,28 @@ zero_str:
         if (len > 0) reverse_string(value, len);
         break;
 
-    case SYM_SORT:
+    case SYM_SORT: {
+        INCLUDE_PARAMS_OF_SORT;
+
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
 
         Sort_String(
             value,
-            D_REF(2),   // case sensitive
-            D_ARG(4),   // skip size
-            D_ARG(6),   // comparator
-            D_ARG(8),   // part-length
-            D_REF(9),   // all fields
-            D_REF(10)   // reverse
+            REF(case),
+            ARG(size), // skip size (void if not /SKIP)
+            ARG(comparator), // (void if not /COMPARE)
+            ARG(limit),   // (void if not /PART)
+            REF(all),
+            REF(reverse)
         );
-        break;
+        break; }
 
-    case SYM_RANDOM:
+    case SYM_RANDOM: {
+        INCLUDE_PARAMS_OF_RANDOM;
+
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
 
-        if (D_REF(2)) { // /seed
+        if (REF(seed)) {
             //
             // Use the string contents as a seed.  R3-Alpha would try and
             // treat it as byte-sized hence only take half the data into
@@ -1051,13 +1096,13 @@ zero_str:
             return R_VOID;
         }
 
-        if (D_REF(4)) { // /only
+        if (REF(only)) {
             if (index >= tail) return R_BLANK;
-            index += (REBCNT)Random_Int(D_REF(3)) % (tail - index);  // /secure
+            index += (REBCNT)Random_Int(REF(secure)) % (tail - index);
             goto pick_it;
         }
-        Shuffle_String(value, D_REF(3));  // /secure
-        break;
+        Shuffle_String(value, REF(secure));
+        break; }
 
     default:
         // Let the port system try the action, e.g. OPEN %foo.txt

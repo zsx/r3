@@ -201,14 +201,13 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     switch (action) {
 
-    case SYM_READ:
-        //Trap_Security(flags[POL_READ], POL_READ, path);
-        args = Find_Refines(frame_, ALL_READ_REFS);
+    case SYM_READ: {
+        INCLUDE_PARAMS_OF_READ;
+
         if (!IS_BLOCK(state)) {     // !!! ignores /SKIP and /PART, for now
             Init_Dir_Path(&dir, path, 1, POL_READ);
             Val_Init_Block(state, Make_Array(7)); // initial guess
             result = Read_Dir(&dir, VAL_ARRAY(state));
-            ///OS_FREE(dir.file.path);
             if (result < 0)
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, dir.error));
             *D_OUT = *state;
@@ -230,18 +229,19 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
                 )
             );
         }
-        break;
+        break; }
 
     case SYM_CREATE:
-        //Trap_Security(flags[POL_WRITE], POL_WRITE, path);
-        if (IS_BLOCK(state)) fail (Error(RE_ALREADY_OPEN, path));
-create:
-        Init_Dir_Path(&dir, path, 0, POL_WRITE | REMOVE_TAIL_SLASH); // Sets RFM_DIR too
+        if (IS_BLOCK(state))
+            fail (Error(RE_ALREADY_OPEN, path));
+    create:
+        Init_Dir_Path(
+            &dir, path, 0, POL_WRITE | REMOVE_TAIL_SLASH
+        ); // Sets RFM_DIR too
         result = OS_DO_DEVICE(&dir, RDC_CREATE);
-        ///OS_FREE(dir.file.path);
-        if (result < 0) fail (Error(RE_NO_CREATE, path));
+        if (result < 0)
+            fail (Error(RE_NO_CREATE, path));
         if (action == SYM_CREATE) {
-            // !!! Used to return D_ARG(2), but create is single arity.  :-/
             *D_OUT = *D_ARG(1);
             return R_OUT;
         }
@@ -277,19 +277,23 @@ create:
         *D_OUT = *D_ARG(1);
         return R_OUT;
 
-    case SYM_OPEN:
+    case SYM_OPEN: {
+        INCLUDE_PARAMS_OF_OPEN;
+
         // !! If open fails, what if user does a READ w/o checking for error?
-        if (IS_BLOCK(state)) fail (Error(RE_ALREADY_OPEN, path));
-        //Trap_Security(flags[POL_READ], POL_READ, path);
-        args = Find_Refines(frame_, ALL_OPEN_REFS);
-        if (args & AM_OPEN_NEW) goto create;
-        //if (args & ~AM_OPEN_READ) fail (Error(RE_INVALID_SPEC, path));
+        if (IS_BLOCK(state))
+            fail (Error(RE_ALREADY_OPEN, path));
+         
+        if (REF(new))
+            goto create;
+
         Val_Init_Block(state, Make_Array(7));
         Init_Dir_Path(&dir, path, 1, POL_READ);
         result = Read_Dir(&dir, VAL_ARRAY(state));
-        ///OS_FREE(dir.file.path);
-        if (result < 0) fail (Error_On_Port(RE_CANNOT_OPEN, port, dir.error));
-        break;
+
+        if (result < 0)
+            fail (Error_On_Port(RE_CANNOT_OPEN, port, dir.error));
+        break; }
 
     case SYM_OPEN_Q:
         if (IS_BLOCK(state)) return R_TRUE;

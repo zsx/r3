@@ -1483,7 +1483,7 @@ RL_API REBI64 RL_Val_Time(const REBVAL *v) {
 //  RL_Val_Date: C
 //
 RL_API REBINT RL_Val_Date(const REBVAL *v) {
-    return VAL_ALL_BITS(v)[2]; // !!! This is what RXIARGs did.
+    return VAL_DATE(v).bits; // !!! Is this right?
 }
 
 //

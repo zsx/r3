@@ -299,77 +299,70 @@ write output-dir/core/:fsymbol-file fsymbol-buffer
 
 ;-------------------------------------------------------------------------
 
-emit-header "Action Argument Enums" %func-args.h
+emit-header "PARAM() and REFINE() Automatic Macros" %func-args.h
 
-action-list: load output-dir/boot/tmp-actions.r
-
-make-arg-enums: func [word [word!]] [
+emit-include-params-macro: procedure [word [word!] paramlist [block!]] [
     ;
-    ; Search file for definition.  Will be `action-name: action [paramlist]`
+    ; start emitting what will be a multi line macro (backslash as last
+    ; character on line is how macros span multiple lines in C).
     ;
-    def: find action-list to-set-word word
-    def: next def
-    assert ['action = def/1]
-    def: next def
-    assert [block? def/1]
-
-    uword: uppercase to-c-name word
-    word: lowercase-of uword
+    emit-line [
+        {#define} space "INCLUDE_PARAMS_OF_" (uppercase to-c-name word)
+        space "\"
+    ]
 
     ; Collect the argument and refinements, converted to their "C names"
     ; (so dashes become underscores, * becomes _P, etc.)
     ;
-    args: copy []
-    refs: copy []
-    for-each w first def [
-        if all [any-word? w | not set-word? w] [
-            append args (uppercase to-c-name to-word w)
-            if refinement? w [
-                append refs (uppercase to-c-name to-word w)
+    n: 1
+    for-each item paramlist [
+        if all [any-word? item | not set-word? item] [
+            param-name: switch/default to-word item [
+                ? [copy "q"]
+            ][
+                to-c-name to-word item
             ]
+
+            which: either refinement? item ["REFINE"] ["PARAM"]
+            emit-line/indent [
+                which "(" n "," space param-name ");" space "\"
+            ]
+            n: n + 1
         ]
     ]
 
-    ; Argument numbers:
-    emit-line ["enum act_" word "_arg {"]
-    emit-line/indent ["ARG_" uword "_0,"]
-    for-each w args [emit-line/indent ["ARG_" uword "_" w ","]]
-    emit-line/indent [spaced-tab "ARG_" uword "_MAX"]
-    emit-line "};"
-    emit newline
-
-    ; Argument bitmask:
-    n: 0
-    emit-line ["enum act_" word "_mask {"]
-    for-each w args [
-        emit-line/indent ["AM_" uword "_" w " = 1 << " n ","]
-        n: n + 1
-    ]
-    emit-line/indent ["AM_" uword "_MAX"]
-    emit-line "};"
-    emit newline
-
-    emit ["#define ALL_" uword "_REFS ("]
-    for-each w refs [
-        emit ["AM_" uword "_" w "|"]
-    ]
-    unemit #"|"
-    emit [")" newline]
+    ; Get rid of trailing \ for multi-line macro continuation.
+    unemit newline
+    unemit #"\"
     emit newline
 ]
 
-for-each word [
-    copy
-    find
-    select
-    insert
-    trim
-    open
-    read
-    write
-] [make-arg-enums word]
+action-list: load output-dir/boot/tmp-actions.r
 
-write-emitted output-dir/include/tmp-funcargs.h
+; Search file for definition.  Will be `action-name: action [paramlist]`
+;
+for-next action-list [
+    if 'action = action-list/2 [
+        assert [set-word? action-list/1]
+        emit-include-params-macro (to-word action-list/1) (action-list/3)
+        emit newline
+    ]
+]
+
+native-list: load output-dir/boot/tmp-natives.r
+
+for-next native-list [
+    if any [
+        'native = native-list/2
+        all [path? native-list/2 | 'native = first native-list/2]
+    ][
+        assert [set-word? native-list/1]
+        emit-include-params-macro (to-word native-list/1) (native-list/3)
+        emit newline
+    ]
+]
+
+write-emitted output-dir/include/tmp-paramlists.h
 
 
 ;-------------------------------------------------------------------------

@@ -211,14 +211,16 @@ REBTYPE(Char)
     case SYM_ODD_Q:
         return (chr & 1) ? R_TRUE : R_FALSE;
 
-    case SYM_RANDOM:  //!!! needs further definition ?  random/zero
-        if (D_REF(2)) { // /seed
+    case SYM_RANDOM: {
+        INCLUDE_PARAMS_OF_RANDOM;
+
+        if (REF(seed)) {
             Set_Random(chr);
             return R_VOID;
         }
         if (chr == 0) break;
-        chr = (REBUNI)(1 + ((REBCNT)Random_Int(D_REF(3)) % chr)); // /secure
-        break;
+        chr = cast(REBUNI, 1 + cast(REBCNT, Random_Int(REF(secure)) % chr));
+        break; }
 
     default:
         fail (Error_Illegal_Action(REB_CHAR, action));

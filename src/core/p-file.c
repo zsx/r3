@@ -42,17 +42,17 @@
 // 
 // Convert native action refinements to file modes.
 //
-static void Setup_File(REBREQ *file, REBCNT args, REBVAL *path)
+static void Setup_File(REBREQ *file, REBFLGS flags, REBVAL *path)
 {
     REBSER *ser;
 
-    if (args & AM_OPEN_WRITE) SET_FLAG(file->modes, RFM_WRITE);
-    if (args & AM_OPEN_READ) SET_FLAG(file->modes, RFM_READ);
-    if (args & AM_OPEN_SEEK) SET_FLAG(file->modes, RFM_SEEK);
+    if (flags & AM_OPEN_WRITE) SET_FLAG(file->modes, RFM_WRITE);
+    if (flags & AM_OPEN_READ) SET_FLAG(file->modes, RFM_READ);
+    if (flags & AM_OPEN_SEEK) SET_FLAG(file->modes, RFM_SEEK);
 
-    if (args & AM_OPEN_NEW) {
+    if (flags & AM_OPEN_NEW) {
         SET_FLAG(file->modes, RFM_NEW);
-        if (!(args & AM_OPEN_WRITE))
+        if (NOT(flags & AM_OPEN_WRITE))
             fail (Error(RE_BAD_FILE_MODE, path));
     }
 
@@ -165,30 +165,30 @@ static void Read_File_Port(
     REBCTX *port,
     REBREQ *file,
     REBVAL *path,
-    REBCNT args,
+    REBFLGS flags,
     REBCNT len
 ) {
-    REBSER *ser;
-
-    // Allocate read result buffer:
-    ser = Make_Binary(len);
-    Val_Init_Binary(out, ser); //??? what if already set?
+    REBSER *ser = Make_Binary(len); // read result buffer
+    Val_Init_Binary(out, ser);
 
     // Do the read, check for errors:
     file->common.data = BIN_HEAD(ser);
     file->length = len;
     if (OS_DO_DEVICE(file, RDC_READ) < 0)
         fail (Error_On_Port(RE_READ_ERROR, port, file->error));
+    
     SET_SERIES_LEN(ser, file->actual);
     TERM_SEQUENCE(ser);
 
     // Convert to string or block of strings.
     // NOTE: This code is incorrect for files read in chunks!!!
-    if (args & (AM_READ_STRING | AM_READ_LINES)) {
+    //
+    if (flags & (AM_READ_STRING | AM_READ_LINES)) {
         REBSER *nser = Decode_UTF_String(BIN_HEAD(ser), file->actual, -1);
-        if (nser == NULL) fail (Error(RE_BAD_UTF8));
+        if (nser == NULL)
+            fail (Error(RE_BAD_UTF8));
 
-        if (args & AM_READ_LINES) { // wants a BLOCK!, not a STRING!
+        if (flags & AM_READ_LINES) { // wants a BLOCK!, not a STRING!
             REBVAL temp;
             Val_Init_String(&temp, nser);
             Val_Init_Block(out, Split_Lines(&temp));
@@ -202,7 +202,7 @@ static void Read_File_Port(
 //
 //  Write_File_Port: C
 //
-static void Write_File_Port(REBREQ *file, REBVAL *data, REBCNT len, REBCNT args)
+static void Write_File_Port(REBREQ *file, REBVAL *data, REBCNT len, REBOOL lines)
 {
     REBSER *ser;
 
@@ -213,9 +213,8 @@ static void Write_File_Port(REBREQ *file, REBVAL *data, REBCNT len, REBCNT args)
         REB_MOLD mo;
         CLEARS(&mo);
         Push_Mold(&mo);
-        if (args & AM_WRITE_LINES) {
+        if (lines)
             mo.opts = 1 << MOPT_LINES;
-        }
         Mold_Value(&mo, data, FALSE);
         Val_Init_String(data, Pop_Molded_String(&mo)); // fall to next section
         len = VAL_LEN_HEAD(data);
@@ -314,23 +313,29 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     switch (action) {
 
-    case SYM_READ:
-        args = Find_Refines(frame_, ALL_READ_REFS);
+    case SYM_READ: {
+        INCLUDE_PARAMS_OF_READ;
+
+        REBFLGS flags = (
+            (REF(lines) ? AM_READ_LINES : 0)
+            | (REF(string) ? AM_READ_STRING : 0)
+        );
 
         // Handle the READ %file shortcut case:
         if (!IS_OPEN(file)) {
             REBCNT nargs = AM_OPEN_READ;
-            if (args & AM_READ_SEEK) nargs |= AM_OPEN_SEEK;
+            if (REF(seek))
+                nargs |= AM_OPEN_SEEK;
             Setup_File(file, nargs, path);
             Open_File_Port(port, file, path);
             opened = TRUE;
         }
 
-        if (args & AM_READ_SEEK) Set_Seek(file, D_ARG(ARG_READ_INDEX));
-        len = Set_Length(
-            file, D_REF(ARG_READ_PART) ? VAL_INT64(D_ARG(ARG_READ_LIMIT)) : -1
-        );
-        Read_File_Port(D_OUT, port, file, path, args, len);
+        if (REF(seek))
+            Set_Seek(file, ARG(index));
+
+        len = Set_Length(file, REF(part) ? VAL_INT64(ARG(limit)) : -1);
+        Read_File_Port(D_OUT, port, file, path, flags, len);
 
         if (opened) {
             OS_DO_DEVICE(file, RDC_CLOSE);
@@ -339,7 +344,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         if (file->error)
             fail (Error_On_Port(RE_READ_ERROR, port, file->error));
-        break;
+        break; }
 
     case SYM_APPEND:
         if (!(IS_BINARY(D_ARG(2)) || IS_STRING(D_ARG(2)) || IS_BLOCK(D_ARG(2))))
@@ -347,15 +352,18 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         file->special.file.index = file->special.file.size;
         SET_FLAG(file->modes, RFM_RESEEK);
 
-    case SYM_WRITE:
-        args = Find_Refines(frame_, ALL_WRITE_REFS);
+    case SYM_WRITE: {
+        INCLUDE_PARAMS_OF_WRITE;
+
         spec = D_ARG(2); // data (binary, string, or block)
 
         // Handle the READ %file shortcut case:
         if (!IS_OPEN(file)) {
             REBCNT nargs = AM_OPEN_WRITE;
-            if (args & AM_WRITE_SEEK || args & AM_WRITE_APPEND) nargs |= AM_OPEN_SEEK;
-            else nargs |= AM_OPEN_NEW;
+            if (REF(seek) || REF(append))
+                nargs |= AM_OPEN_SEEK;
+            else
+                nargs |= AM_OPEN_NEW;
             Setup_File(file, nargs, path);
             Open_File_Port(port, file, path);
             opened = TRUE;
@@ -365,21 +373,21 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
                 fail (Error(RE_READ_ONLY, path));
         }
 
-        // Setup for /append or /seek:
-        if (args & AM_WRITE_APPEND) {
+        if (REF(append)) {
             file->special.file.index = -1; // append
             SET_FLAG(file->modes, RFM_RESEEK);
         }
-        if (args & AM_WRITE_SEEK) Set_Seek(file, D_ARG(ARG_WRITE_INDEX));
+        if (REF(seek))
+            Set_Seek(file, ARG(index));
 
         // Determine length. Clip /PART to size of string if needed.
         len = VAL_LEN_AT(spec);
-        if (args & AM_WRITE_PART) {
-            REBCNT n = Int32s(D_ARG(ARG_WRITE_LIMIT), 0);
+        if (REF(part)) {
+            REBCNT n = Int32s(ARG(limit), 0);
             if (n <= len) len = n;
         }
 
-        Write_File_Port(file, spec, len, args);
+        Write_File_Port(file, spec, len, REF(lines));
 
         if (opened) {
             OS_DO_DEVICE(file, RDC_CLOSE);
@@ -387,21 +395,32 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         }
 
         if (file->error) fail (Error(RE_WRITE_ERROR, path));
-        break;
+        break; }
 
-    case SYM_OPEN:
-        args = Find_Refines(frame_, ALL_OPEN_REFS);
-        // Default file modes if not specified:
-        if (!(args & (AM_OPEN_READ | AM_OPEN_WRITE))) args |= (AM_OPEN_READ | AM_OPEN_WRITE);
-        Setup_File(file, args, path);
-        Open_File_Port(port, file, path); // !!! needs to change file modes to R/O if necessary
-        break;
+    case SYM_OPEN: {
+        INCLUDE_PARAMS_OF_OPEN;
+        REBFLGS flags = (
+            (REF(new) ? AM_OPEN_NEW : 0)
+            | (REF(read) || NOT(REF(write)) ? AM_OPEN_READ : 0)
+            | (REF(write) || NOT(REF(read)) ? AM_OPEN_WRITE : 0)
+            | (REF(seek) ? AM_OPEN_SEEK : 0)
+            | (REF(allow) ? AM_OPEN_ALLOW : 0)
+        );
+        Setup_File(file, flags, path);
+        
+        // !!! need to change file modes to R/O if necessary
 
-    case SYM_COPY:
-        if (!IS_OPEN(file)) fail (Error(RE_NOT_OPEN, path)); // !!! wrong msg
-        len = Set_Length(file, D_REF(2) ? VAL_INT64(D_ARG(3)) : -1);
-        Read_File_Port(D_OUT, port, file, path, args, len);
-        break;
+        Open_File_Port(port, file, path);
+        break; }
+
+    case SYM_COPY: {
+        INCLUDE_PARAMS_OF_COPY;
+        if (!IS_OPEN(file))
+            fail (Error(RE_NOT_OPEN, path)); // !!! wrong msg
+        len = Set_Length(file, REF(part) ? VAL_INT64(ARG(limit)) : -1);
+        REBFLGS flags = 0;
+        Read_File_Port(D_OUT, port, file, path, flags, len);
+        break; }
 
     case SYM_OPEN_Q:
         if (IS_OPEN(file)) return R_TRUE;

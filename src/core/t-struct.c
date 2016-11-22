@@ -1647,22 +1647,25 @@ REBTYPE(Struct)
 //  destroy-struct-storage: native [
 //
 //  {Destroy the external memory associated the struct}
-//      s   [struct!]
-//      /free func [function!] {Specify the function to free the memory}
+//
+//      struct [struct!]
+//      /free
+//          {Specify the function to free the memory}
+//      free-func [function!]
 //  ]
 //
 REBNATIVE(destroy_struct_storage)
 {
-    PARAM(1, val);
-    REFINE(2, free_q);
-    PARAM(3, free_func);
+    INCLUDE_PARAMS_OF_DESTROY_STRUCT_STORAGE;
 
-    if (REF(free_q)) {
+    if (REF(free)) {
         if (IS_FUNCTION_RIN(ARG(free_func)))
             fail (Error(RE_FREE_NEEDS_ROUTINE));
     }
 
-    return Destroy_External_Storage(D_OUT,
-                                    VAL_STRUCT_DATA_BIN(ARG(val)),
-                                    REF(free_q)? ARG(free_func) : NULL);
+    return Destroy_External_Storage(
+        D_OUT,
+        VAL_STRUCT_DATA_BIN(ARG(struct)),
+        REF(free) ? ARG(free_func) : NULL
+    );
 }

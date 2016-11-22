@@ -612,14 +612,16 @@ void Clear_Image(REBVAL *img)
 //  Modify_Image: C
 // 
 // Insert or change image
-// ACTION value arg /part len /only /dup count
 //
 REBVAL *Modify_Image(REBFRM *frame_, REBCNT action)
 {
-    REBVAL  *value = D_ARG(1);
-    REBVAL  *arg   = D_ARG(2);
-    REBVAL  *len   = D_ARG(4);
-    REBVAL  *count = D_ARG(7);
+    INCLUDE_PARAMS_OF_INSERT; // currently must have same frame as CHANGE
+
+    REBVAL  *value = ARG(series); // !!! confusing, very old (unused?) code!
+    REBVAL  *arg   = ARG(value);
+    REBVAL  *len   = ARG(limit); // void if no /PART
+    REBVAL  *count = ARG(count); // void if no /DUP
+
     REBINT  part = 1; // /part len
     REBINT  partx, party;
     REBINT  dup = 1;  // /dup count
@@ -643,7 +645,8 @@ REBVAL *Modify_Image(REBFRM *frame_, REBCNT action)
     x = index % w; // offset on the line
     y = index / w; // offset line
 
-    if (D_REF(5)) only = TRUE;
+    if (REF(only))
+        only = TRUE;
 
     // Validate that block arg is all tuple values:
     if (IS_BLOCK(arg) && Array_Has_Non_Tuple(&n, arg))
@@ -651,13 +654,13 @@ REBVAL *Modify_Image(REBFRM *frame_, REBCNT action)
             VAL_ARRAY_AT_HEAD(arg, n), VAL_SPECIFIER(arg)
         ));
 
-    // Get the /dup refinement. It specifies fill size.
-    if (D_REF(6)) {
+    if (REF(dup)) { // "it specifies fill size"
         if (IS_INTEGER(count)) {
             dup = VAL_INT32(count);
             dup = MAX(dup, 0);
             if (dup == 0) return value;
-        } else if (IS_PAIR(count)) { // rectangular dup
+        }
+        else if (IS_PAIR(count)) { // rectangular dup
             dupx = VAL_PAIR_X_INT(count);
             dupy = VAL_PAIR_Y_INT(count);
             dupx = MAX(dupx, 0);
@@ -673,8 +676,7 @@ REBVAL *Modify_Image(REBFRM *frame_, REBCNT action)
             fail (Error_Invalid_Type(VAL_TYPE(count)));
     }
 
-    // Get the /part refinement. Only allowed when arg is a series.
-    if (D_REF(3)) {
+    if (REF(part)) { // only allowed when arg is a series
         if (IS_BINARY(arg)) {
             if (IS_INTEGER(len)) {
                 part = VAL_INT32(len);
@@ -683,18 +685,21 @@ REBVAL *Modify_Image(REBFRM *frame_, REBCNT action)
             } else
                 fail (Error_Invalid_Arg(len));
             part = MAX(part, 0);
-        } else if (IS_IMAGE(arg)) {
+        }
+        else if (IS_IMAGE(arg)) {
             if (IS_INTEGER(len)) {
                 part = VAL_INT32(len);
                 part = MAX(part, 0);
-            } else if (IS_IMAGE(len)) {
+            }
+            else if (IS_IMAGE(len)) {
                 if (!VAL_IMAGE_WIDE(len)) fail (Error_Invalid_Arg(len));
                 partx = VAL_INDEX(len) - VAL_INDEX(arg);
                 party = partx / VAL_IMAGE_WIDE(len);
                 party = MAX(party, 1);
                 partx = MIN(partx, (REBINT)VAL_IMAGE_WIDE(arg));
                 goto len_compute;
-            } else if (IS_PAIR(len)) {
+            }
+            else if (IS_PAIR(len)) {
                 partx = VAL_PAIR_X_INT(len);
                 party = VAL_PAIR_Y_INT(len);
             len_compute:
@@ -722,9 +727,11 @@ REBVAL *Modify_Image(REBFRM *frame_, REBCNT action)
                 party = MIN(party, (REBINT)VAL_IMAGE_HIGH(value) - y);
             else
                 part = party * w;
-        } else if (IS_BINARY(arg)) {
+        }
+        else if (IS_BINARY(arg)) {
             part = VAL_LEN_AT(arg) / 4;
-        } else if (IS_BLOCK(arg)) {
+        }
+        else if (IS_BLOCK(arg)) {
             part = VAL_LEN_AT(arg);
         }
         else if (!IS_INTEGER(arg) && !IS_TUPLE(arg))
@@ -765,12 +772,14 @@ REBVAL *Modify_Image(REBFRM *frame_, REBCNT action)
         }
     } else if (IS_IMAGE(arg)) {
         Copy_Rect_Data(value, x, y, partx, party, arg, 0, 0); // dst dx dy w h src sx sy
-    } else if (IS_BINARY(arg)) {
+    }
+    else if (IS_BINARY(arg)) {
         if (index + part > tail) part = tail - index; // clip it
         ip += index * 4;
         for (; dup > 0; dup--, ip += part * 4)
             Bin_To_RGBA(ip, part, VAL_BIN_AT(arg), part, only);
-    } else if (IS_BLOCK(arg)) {
+    }
+    else if (IS_BLOCK(arg)) {
         if (index + part > tail) part = tail - index; // clip it
         ip += index * 4;
         for (; dup > 0; dup--, ip += part * 4)
@@ -789,55 +798,50 @@ REBVAL *Modify_Image(REBFRM *frame_, REBCNT action)
 //
 //  Find_Image: C
 // 
-// Finds a value in a series and returns the series at the start of it.
-// 
-//      1 image
-//      2 value [<opt> any-value!]
-//      3 /part {Limits the search to a given length or position.}
-//      4 range [any-number! any-series! port!]
-//      5 /only {ignore alpha value.}
-//      6 /case - ignored
-//      7 /any  - ignored
-//      8 /with - ignored
-//      9 wild  - ignored
-//     10 /skip - ignored
-//     11 size  - ignored
-//     12 /match {Performs comparison and returns the tail of the match.}
-//     13 /tail  {Returns the end of the string.}
-//     14 /last  {Backwards from end of string.}
-//     15 /reverse {Backwards from the current position.}
+// Finds a value in a series and returns the series at the start of it.  For
+// parameters of FIND, see the action definition.
+//
+// !!! old and very broken code, untested and probably (hopefully) not
+// used by R3-View... (?)
 //
 REBVAL *Find_Image(REBFRM *frame_)
 {
-    REBVAL  *value = D_ARG(1);
-    REBVAL  *arg   = D_ARG(2);
+    INCLUDE_PARAMS_OF_FIND;
+
+    REBVAL  *value = ARG(series);
+    REBVAL  *arg = ARG(value);
     REBCNT  index = VAL_INDEX(value);
     REBCNT  tail = VAL_LEN_HEAD(value);
-    REBCNT  len;
     REBCNT  *ip = (REBCNT *)VAL_IMAGE_DATA(value); // NOTE ints not bytes
     REBCNT  *p;
     REBINT  n;
-    REBOOL  only = FALSE;
-    REBYTE  no_refs[10] = {5, 6, 7, 8, 9, 10, 13, 14}; // ref - 1 (invalid refinements)
 
-    len = tail - index;
-    if (!len) goto find_blank;
+    REBCNT len = tail - index;
+    if (len == 0)
+        return BLANK_VALUE;
 
-    for (n = 0; n < 8; n++) // (zero based)
-        if (D_REF(no_refs[n]))
-            fail (Error(RE_BAD_REFINE));
+    // !!! There is a general problem with refinements and actions in R3-Alpha
+    // in terms of reporting when a refinement was ignored.  This is a
+    // problem that archetype-based dispatch will need to address.
+    //
+    if (REF(case) || REF(skip) || REF(last) || REF(match))
+        fail (Error(RE_BAD_REFINE));
 
+    REBOOL only = FALSE;
     if (IS_TUPLE(arg)) {
         only = LOGICAL(VAL_TUPLE_LEN(arg) < 4);
-        if (D_REF(5)) only = TRUE; // /only flag
+        if (REF(only)) only = TRUE;
         p = Find_Color(ip, TO_PIXEL_TUPLE(arg), len, only);
-    } else if (IS_INTEGER(arg)) {
+    }
+    else if (IS_INTEGER(arg)) {
         n = VAL_INT32(arg);
         if (n < 0 || n > 255) fail (Error_Out_Of_Range(arg));
         p = Find_Alpha(ip, n, len);
-    } else if (IS_IMAGE(arg)) {
+    }
+    else if (IS_IMAGE(arg)) {
         p = 0;
-    } else if (IS_BINARY(arg)) {
+    }
+    else if (IS_BINARY(arg)) {
         p = 0;
     }
     else
@@ -846,15 +850,15 @@ REBVAL *Find_Image(REBFRM *frame_)
     // Post process the search (failure or apply /match and /tail):
     if (p) {
         n = (REBCNT)(p - (REBCNT *)VAL_IMAGE_HEAD(value));
-        if (D_REF(11)) { // match
-            if (n != (REBINT)index) goto find_blank;
+        if (REF(match)) {
+            if (n != (REBINT)index)
+                return BLANK_VALUE;
             n++;
-        } else if (D_REF(12)) n++; // /tail
+        } else if (REF(tail)) n++;
         index = n;
         VAL_INDEX(value) = index;
         return value;
     }
-find_blank:
     return BLANK_VALUE;
 }
 
@@ -979,8 +983,10 @@ REBTYPE(Image)
         Val_Init_Image(value, series); // use series var not func
         break;
 
-    case SYM_INDEX_OF:
-        if (D_REF(2)) {
+    case SYM_INDEX_OF: {
+        INCLUDE_PARAMS_OF_INDEX_OF;
+
+        if (REF(xy)) {
             SET_PAIR(
                 D_OUT,
                 index % VAL_IMAGE_WIDE(value),
@@ -991,7 +997,7 @@ REBTYPE(Image)
         else {
             SET_INTEGER(D_OUT, index + 1);
             return R_OUT;
-        }
+        }}
         // fallthrough
     case SYM_LENGTH:
         SET_INTEGER(D_OUT, tail > index ? tail - index : 0);
@@ -1079,14 +1085,18 @@ REBTYPE(Image)
         }
         break;
 
-    case SYM_REMOVE:  // remove series /part count
-        if (D_REF(2)) {
-            val = D_ARG(3);
+    case SYM_REMOVE: {
+        INCLUDE_PARAMS_OF_REMOVE;
+
+        if (REF(part)) {
+            val = ARG(limit);
             if (IS_INTEGER(val)) {
                 len = VAL_INT32(val);
-            } else if (IS_IMAGE(val)) {
-                if (!VAL_IMAGE_WIDE(val)) fail (Error_Invalid_Arg(val));
-                len = VAL_INDEX(val) - VAL_INDEX(value); // may not be same, is ok
+            }
+            else if (IS_IMAGE(val)) {
+                if (!VAL_IMAGE_WIDE(val))
+                    fail (Error_Invalid_Arg(val));
+                len = VAL_INDEX(val) - VAL_INDEX(value); // not same is ok
             }
             else
                 fail (Error_Invalid_Type(VAL_TYPE(val)));
@@ -1098,7 +1108,7 @@ REBTYPE(Image)
             Remove_Series(series, VAL_INDEX(value), len);
         }
         Reset_Height(value);
-        break;
+        break; }
 
     case SYM_APPEND:
     case SYM_INSERT:  // insert ser val /part len /only /dup count
@@ -1106,16 +1116,18 @@ REBTYPE(Image)
         value = Modify_Image(frame_, action); // sets DS_OUT
         break;
 
-    case SYM_FIND:    // find   ser val /part len /only /case /any /with wild /match /tail
+    case SYM_FIND:
         Find_Image(frame_); // sets DS_OUT
         break;
 
-    case SYM_COPY:  // copy series /part len
-        if (!D_REF(2)) {
+    case SYM_COPY: {
+        INCLUDE_PARAMS_OF_COPY;
+
+        if (NOT(REF(part))) {
             arg = value;
             goto makeCopy;
         }
-        arg = D_ARG(3); // can be image, integer, pair.
+        arg = ARG(limit); // can be image, integer, pair.
         if (IS_IMAGE(arg)) {
             if (VAL_SERIES(arg) != VAL_SERIES(value))
                 fail (Error_Invalid_Arg(arg));
@@ -1155,7 +1167,7 @@ makeCopy:
         len = VAL_IMAGE_LEN(arg);
 makeCopy2:
         Copy_Image_Value(D_OUT, arg, len);
-        return R_OUT;
+        return R_OUT; }
 
     default:
         fail (Error_Illegal_Action(VAL_TYPE(value), action));
@@ -1394,7 +1406,7 @@ REBINT PD_Image(REBPVS *pvs)
 //
 REBNATIVE(to_png)
 {
-    PARAM(1, image);
+    INCLUDE_PARAMS_OF_TO_PNG;
 
     REBVAL *image = ARG(image);
 

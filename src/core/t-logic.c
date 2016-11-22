@@ -43,8 +43,7 @@
 //
 REBNATIVE(and_q)
 {
-    PARAM(1, value1);
-    PARAM(2, value2);
+    INCLUDE_PARAMS_OF_AND_Q;
 
     if (IS_CONDITIONAL_TRUE(ARG(value1)) && IS_CONDITIONAL_TRUE(ARG(value2)))
         return R_TRUE;
@@ -64,8 +63,7 @@ REBNATIVE(and_q)
 //
 REBNATIVE(nor_q)
 {
-    PARAM(1, value1);
-    PARAM(2, value2);
+    INCLUDE_PARAMS_OF_NOR_Q;
 
     if (IS_CONDITIONAL_FALSE(ARG(value1)) && IS_CONDITIONAL_FALSE(ARG(value2)))
         return R_TRUE;
@@ -85,8 +83,7 @@ REBNATIVE(nor_q)
 //
 REBNATIVE(nand_q)
 {
-    PARAM(1, value1);
-    PARAM(2, value2);
+    INCLUDE_PARAMS_OF_NAND_Q;
 
     return R_FROM_BOOL(LOGICAL(
         IS_CONDITIONAL_TRUE(ARG(value1)) && IS_CONDITIONAL_TRUE(ARG(value2))
@@ -105,7 +102,7 @@ REBNATIVE(nand_q)
 //
 REBNATIVE(not_q)
 {
-    PARAM(1, value);
+    INCLUDE_PARAMS_OF_NOT_Q;
 
     return R_FROM_BOOL(IS_CONDITIONAL_FALSE(ARG(value)));
 }
@@ -122,8 +119,7 @@ REBNATIVE(not_q)
 //
 REBNATIVE(or_q)
 {
-    PARAM(1, value1);
-    PARAM(2, value2);
+    INCLUDE_PARAMS_OF_OR_Q;
 
     return R_FROM_BOOL(LOGICAL(
         IS_CONDITIONAL_TRUE(ARG(value1)) || IS_CONDITIONAL_TRUE(ARG(value2))
@@ -142,8 +138,7 @@ REBNATIVE(or_q)
 //
 REBNATIVE(xor_q)
 {
-    PARAM(1, value1);
-    PARAM(2, value2);
+    INCLUDE_PARAMS_OF_XOR_Q;
 
     // Note: no boolean ^^ in C; normalize to booleans and check unequal
     //
@@ -247,15 +242,17 @@ REBTYPE(Logic)
         val1 = NOT(val1);
         break;
 
-    case SYM_RANDOM:
-        if (D_REF(2)) { // /seed
+    case SYM_RANDOM: {
+        INCLUDE_PARAMS_OF_RANDOM;
+
+        if (REF(seed)) {
             // random/seed false restarts; true randomizes
             Set_Random(val1 ? (REBINT)OS_DELTA_TIME(0, 0) : 1);
             return R_VOID;
         }
-        if (Random_Int(D_REF(3)) & 1) // /secure
+        if (Random_Int(REF(secure)) & 1)
             return R_TRUE;
-        return R_FALSE;
+        return R_FALSE; }
 
     default:
         fail (Error_Illegal_Action(REB_LOGIC, action));

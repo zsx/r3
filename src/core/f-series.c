@@ -113,14 +113,15 @@ REBOOL Series_Common_Action_Returns(
         *r = R_OUT;
         return TRUE; // handled
 
-    case SYM_REMOVE:
-        // /PART length
+    case SYM_REMOVE: {
+        INCLUDE_PARAMS_OF_REMOVE;
+
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
-        len = D_REF(2) ? Partial(value, 0, D_ARG(3)) : 1;
+        len = REF(part) ? Partial(value, 0, ARG(limit)) : 1;
         index = cast(REBINT, VAL_INDEX(value));
         if (index < tail && len != 0)
             Remove_Series(VAL_SERIES(value), VAL_INDEX(value), len);
-        break;
+        break; }
 
     case SYM_ADD:         // Join_Strings(value, arg);
     case SYM_SUBTRACT:    // "test this" - 10

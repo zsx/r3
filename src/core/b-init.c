@@ -420,8 +420,7 @@ REBNATIVE(action)
 // so when you write FOO: ACTION [...], the FOO: gets quoted to be the verb.
 // The SET/LOOKBACK is done by the bootstrap, after the natives are loaded.
 {
-    PARAM(1, verb);
-    PARAM(2, spec);
+    INCLUDE_PARAMS_OF_ACTION;
 
     REBVAL *spec = ARG(spec);
 

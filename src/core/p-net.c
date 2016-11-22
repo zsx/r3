@@ -219,10 +219,11 @@ static REB_R Transport_Actor(
         }
         return R_BLANK;
 
-    case SYM_READ:
+    case SYM_READ: {
+        INCLUDE_PARAMS_OF_READ;
+
         // Read data into a buffer, expanding the buffer if needed.
         // If no length is given, program must stop it at some point.
-        refs = Find_Refines(frame_, ALL_READ_REFS);
         if (
             !GET_FLAG(sock->modes, RST_UDP)
             && !GET_FLAG(sock->state, RSM_CONNECT)
@@ -250,23 +251,28 @@ static REB_R Transport_Actor(
 
         //Print("(max read length %d)", sock->length);
         result = OS_DO_DEVICE(sock, RDC_READ); // recv can happen immediately
-        if (result < 0) fail (Error_On_Port(RE_READ_ERROR, port, sock->error));
-        break;
+        if (result < 0)
+            fail (Error_On_Port(RE_READ_ERROR, port, sock->error));
+        break; }
 
-    case SYM_WRITE:
+    case SYM_WRITE: {
+        INCLUDE_PARAMS_OF_WRITE;
+
         // Write the entire argument string to the network.
         // The lower level write code continues until done.
 
-        refs = Find_Refines(frame_, ALL_WRITE_REFS);
-        if (!GET_FLAG(sock->modes, RST_UDP)
-            && !GET_FLAG(sock->state, RSM_CONNECT))
+        if (
+            !GET_FLAG(sock->modes, RST_UDP)
+            && !GET_FLAG(sock->state, RSM_CONNECT)
+        ){
             fail (Error_On_Port(RE_NOT_CONNECTED, port, -15));
+        }
 
         // Determine length. Clip /PART to size of string if needed.
         spec = D_ARG(2);
         len = VAL_LEN_AT(spec);
-        if (refs & AM_WRITE_PART) {
-            REBCNT n = Int32s(D_ARG(ARG_WRITE_LIMIT), 0);
+        if (REF(part)) {
+            REBCNT n = Int32s(ARG(limit), 0);
             if (n <= len) len = n;
         }
 
@@ -278,9 +284,12 @@ static REB_R Transport_Actor(
 
         //Print("(write length %d)", len);
         result = OS_DO_DEVICE(sock, RDC_WRITE); // send can happen immediately
-        if (result < 0) fail (Error_On_Port(RE_WRITE_ERROR, port, sock->error));
-        if (result == DR_DONE) SET_BLANK(CTX_VAR(port, STD_PORT_DATA));
-        break;
+        if (result < 0)
+            fail (Error_On_Port(RE_WRITE_ERROR, port, sock->error));
+        
+        if (result == DR_DONE)
+            SET_BLANK(CTX_VAR(port, STD_PORT_DATA));
+        break; }
 
     case SYM_PICK:
         // FIRST server-port returns new port connection.

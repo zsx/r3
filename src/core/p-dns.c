@@ -59,7 +59,9 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     switch (action) {
 
-    case SYM_READ:
+    case SYM_READ: {
+        INCLUDE_PARAMS_OF_READ;
+
         if (!IS_OPEN(sock)) {
             if (OS_DO_DEVICE(sock, RDC_OPEN))
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, sock->error));
@@ -97,7 +99,7 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             len = 1;
             goto pick;
         }
-        break;
+        break; }
 
     case SYM_PICK:  // FIRST - return result
         if (!IS_OPEN(sock))
@@ -127,10 +129,11 @@ pick:
             fail (Error_Out_Of_Range(arg));
         break;
 
-    case SYM_OPEN:
+    case SYM_OPEN: {
+        INCLUDE_PARAMS_OF_OPEN;
         if (OS_DO_DEVICE(sock, RDC_OPEN))
             fail (Error_On_Port(RE_CANNOT_OPEN, port, -12));
-        break;
+        break; }
 
     case SYM_CLOSE:
         OS_DO_DEVICE(sock, RDC_CLOSE);

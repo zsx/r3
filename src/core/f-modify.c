@@ -41,7 +41,7 @@ REBCNT Modify_Array(
     REBARR *dst_arr,        // target
     REBCNT dst_idx,         // position
     const REBVAL *src_val,  // source
-    REBCNT flags,           // AN_ONLY, AN_PART
+    REBCNT flags,           // AM_ONLY, AM_PART
     REBINT dst_len,         // length to remove
     REBINT dups             // dup count
 ) {
@@ -63,9 +63,9 @@ REBCNT Modify_Array(
     if (action == SYM_APPEND || dst_idx > tail) dst_idx = tail;
 
     // Check /PART, compute LEN:
-    if (!GET_FLAG(flags, AN_ONLY) && ANY_ARRAY(src_val)) {
+    if (NOT(flags & AM_ONLY) && ANY_ARRAY(src_val)) {
         // Adjust length of insertion if changing /PART:
-        if (action != SYM_CHANGE && GET_FLAG(flags, AN_PART))
+        if (action != SYM_CHANGE && (flags & AM_PART))
             ilen = dst_len;
         else
             ilen = VAL_LEN_AT(src_val);
@@ -99,7 +99,7 @@ REBCNT Modify_Array(
     else {
         if (size > dst_len)
             Expand_Series(ARR_SERIES(dst_arr), dst_idx, size-dst_len);
-        else if (size < dst_len && GET_FLAG(flags, AN_PART))
+        else if (size < dst_len && (flags & AM_PART))
             Remove_Series(ARR_SERIES(dst_arr), dst_idx, dst_len-size);
         else if (size + dst_idx > tail) {
             EXPAND_SERIES_TAIL(ARR_SERIES(dst_arr), size - (tail - dst_idx));
@@ -144,7 +144,7 @@ REBCNT Modify_String(
     REBSER *dst_ser,        // target
     REBCNT dst_idx,         // position
     const REBVAL *src_val,  // source
-    REBFLGS flags,          // AN_PART
+    REBFLGS flags,          // AM_PART, AM_BINARY_SERIES
     REBINT dst_len,         // length to remove
     REBINT dups             // dup count
 ) {
@@ -157,7 +157,7 @@ REBCNT Modify_String(
     REBINT limit;
 
     // For INSERT/PART and APPEND/PART
-    if (action != SYM_CHANGE && GET_FLAG(flags, AN_PART))
+    if (action != SYM_CHANGE && (flags & AM_PART))
         limit = dst_len; // should be non-negative
     else
         limit = -1;
@@ -166,7 +166,7 @@ REBCNT Modify_String(
     if (action == SYM_APPEND || dst_idx > tail) dst_idx = tail;
 
     // If the src_val is not a string, then we need to create a string:
-    if (GET_FLAG(flags, AN_SERIES)) { // used to indicate a BINARY series
+    if (flags & AM_BINARY_SERIES) {
         if (IS_INTEGER(src_val)) {
             src_ser = Make_Series_Codepoint(Int8u(src_val));
             needs_free = TRUE;
@@ -248,7 +248,7 @@ REBCNT Modify_String(
     } else {
         if (size > dst_len)
             Expand_Series(dst_ser, dst_idx, size - dst_len);
-        else if (size < dst_len && GET_FLAG(flags, AN_PART))
+        else if (size < dst_len && (flags & AM_PART))
             Remove_Series(dst_ser, dst_idx, dst_len - size);
         else if (size + dst_idx > tail) {
             EXPAND_SERIES_TAIL(dst_ser, size - (tail - dst_idx));

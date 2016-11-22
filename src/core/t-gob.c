@@ -768,7 +768,7 @@ static REBGOB *Map_Gob_Inner(REBGOB *gob, REBXYF *offset)
 //
 REBNATIVE(map_event)
 {
-    PARAM(1, event);
+    INCLUDE_PARAMS_OF_MAP_EVENT;
 
     REBVAL *val = ARG(event);
     REBGOB *gob = cast(REBGOB*, VAL_EVENT_SER(val));
@@ -801,9 +801,7 @@ REBNATIVE(map_event)
 //
 REBNATIVE(map_gob_offset)
 {
-    PARAM(1, gob);
-    PARAM(2, xy);
-    REFINE(3, reverse);
+    INCLUDE_PARAMS_OF_MAP_GOB_OFFSET;
 
     REBGOB *gob = VAL_GOB(ARG(gob));
     REBD32 xo = VAL_PAIR_X(ARG(xy));
@@ -1005,56 +1003,65 @@ REBTYPE(Gob)
     case SYM_POKE:
         index += Get_Num_From_Arg(arg) - 1;
         arg = D_ARG(3);
-    case SYM_CHANGE:
-        if (!IS_GOB(arg)) goto is_arg_error;
-        if (!GOB_PANE(gob) || index >= tail) fail (Error(RE_PAST_END));
-        if (
-            action == SYM_CHANGE
-            && (D_REF(AN_PART) || D_REF(AN_ONLY) || D_REF(AN_DUP))
-        ) {
+        // fallthrough
+    case SYM_CHANGE: {
+        INCLUDE_PARAMS_OF_CHANGE;
+
+        if (!IS_GOB(arg))
+            goto is_arg_error;
+        if (!GOB_PANE(gob) || index >= tail)
+            fail (Error(RE_PAST_END));
+        if (action == SYM_CHANGE && (REF(part) || REF(only) || REF(dup)))
             fail (Error(RE_NOT_DONE));
-        }
+        
         Insert_Gobs(gob, arg, index, 1, FALSE);
-        //ngob = *GOB_AT(gob, index);
-        //GOB_PARENT(ngob) = 0;
-        //*GOB_AT(gob, index) = VAL_GOB(arg);
         if (action == SYM_POKE) {
             *D_OUT = *arg;
             return R_OUT;
         }
         index++;
-        goto set_index;
+        goto set_index; }
 
     case SYM_APPEND:
         index = tail;
-    case SYM_INSERT:
-        if (D_REF(AN_PART) || D_REF(AN_ONLY) || D_REF(AN_DUP))
+    case SYM_INSERT: {
+        INCLUDE_PARAMS_OF_INSERT;
+
+        if (REF(part) || REF(only) || REF(dup))
             fail (Error(RE_NOT_DONE));
-        if (IS_GOB(arg)) len = 1;
+
+        if (IS_GOB(arg)) {
+            len = 1;
+        }
         else if (IS_BLOCK(arg)) {
             len = VAL_ARRAY_LEN_AT(arg);
             arg = KNOWN(VAL_ARRAY_AT(arg)); // !!! REVIEW
         }
-        else goto is_arg_error;
+        else
+            goto is_arg_error;
+        
         Insert_Gobs(gob, arg, index, len, FALSE);
-        break;
+        break; }
 
     case SYM_CLEAR:
         if (tail > index) Remove_Gobs(gob, index, tail - index);
         break;
 
-    case SYM_REMOVE:
-        // /PART length
-        len = D_REF(2) ? Get_Num_From_Arg(D_ARG(3)) : 1;
+    case SYM_REMOVE: {
+        INCLUDE_PARAMS_OF_REMOVE;
+
+        len = REF(part) ? Get_Num_From_Arg(ARG(limit)) : 1;
         if (index + len > tail) len = tail - index;
         if (index < tail && len != 0) Remove_Gobs(gob, index, len);
-        break;
+        break; }
 
-    case SYM_TAKE:
-        len = D_REF(2) ? Get_Num_From_Arg(D_ARG(3)) : 1;
+    case SYM_TAKE: {
+        INCLUDE_PARAMS_OF_TAKE;
+
+        len = REF(part) ? Get_Num_From_Arg(ARG(limit)) : 1;
         if (index + len > tail) len = tail - index;
         if (index >= tail) goto is_blank;
-        if (!D_REF(2)) { // just one value
+        if (NOT(REF(part))) { // just one value
             VAL_RESET_HEADER(D_OUT, REB_GOB);
             VAL_GOB(D_OUT) = *GOB_AT(gob, index);
             VAL_GOB_INDEX(D_OUT) = 0;
@@ -1065,7 +1072,7 @@ REBTYPE(Gob)
             Val_Init_Block(D_OUT, Pane_To_Array(gob, index, len));
             Remove_Gobs(gob, index, len);
         }
-        return R_OUT;
+        return R_OUT; }
 
     case SYM_NEXT:
         if (index < tail) index++;

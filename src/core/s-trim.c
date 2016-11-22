@@ -38,14 +38,18 @@ static REBOOL find_in_uni(REBUNI *up, REBINT len, REBUNI c)
 
 
 //
-//  replace_with: C
+//  Whitespace_Replace_With: C
 // 
 // Replace whitespace chars that match WITH string.
 // 
 // Resulting string is always smaller than it was to start.
 //
-static void replace_with(REBSER *ser, REBCNT index, REBCNT tail, REBVAL *with)
-{
+void Whitespace_Replace_With(
+    REBSER *ser,
+    REBCNT index,
+    REBCNT tail,
+    const REBVAL *with
+) {
     #define MAX_WITH 32
     REBCNT wlen;
     REBUNI with_chars[MAX_WITH];    // chars to be trimmed
@@ -98,7 +102,7 @@ static void replace_with(REBSER *ser, REBCNT index, REBCNT tail, REBVAL *with)
 
 
 //
-//  trim_auto: C
+//  Trim_String_Auto: C
 // 
 // Skip any blank lines and then determine indent of
 // first line and make the rest align with it.
@@ -106,7 +110,7 @@ static void replace_with(REBSER *ser, REBCNT index, REBCNT tail, REBVAL *with)
 // BUG!!! If the indentation uses TABS, then it could
 // fill past the source pointer!
 //
-static void trim_auto(REBSER *ser, REBCNT index, REBCNT tail)
+void Trim_String_Auto(REBSER *ser, REBCNT index, REBCNT tail)
 {
     REBCNT out = index;
     REBCNT line;
@@ -159,11 +163,11 @@ static void trim_auto(REBSER *ser, REBCNT index, REBCNT tail)
 
 
 //
-//  trim_lines: C
+//  Trim_String_Lines: C
 // 
 // Remove all newlines and extra space.
 //
-static void trim_lines(REBSER *ser, REBCNT index, REBCNT tail)
+void Trim_String_Lines(REBSER *ser, REBCNT index, REBCNT tail)
 {
     REBINT pad = 1; // used to allow a single space
     REBUNI uc;
@@ -195,13 +199,18 @@ static void trim_lines(REBSER *ser, REBCNT index, REBCNT tail)
 
 
 //
-//  trim_head_tail: C
+//  Trim_String_Head_Tail: C
 // 
 // Trim from head and tail of each line, trim any leading or
 // trailing lines as well, leaving one at the end if present
 //
-static void trim_head_tail(REBSER *ser, REBCNT index, REBCNT tail, REBOOL h, REBOOL t)
-{
+void Trim_String_Head_Tail(
+    REBSER *ser,
+    REBCNT index,
+    REBCNT tail,
+    REBOOL h,
+    REBOOL t
+) {
     REBCNT out = index;
     REBOOL append_line_feed = FALSE;
     REBUNI uc;
@@ -267,35 +276,4 @@ static void trim_head_tail(REBSER *ser, REBCNT index, REBCNT tail, REBOOL h, REB
 
     SET_ANY_CHAR(ser, out, 0);
     SET_SERIES_LEN(ser, out);
-}
-
-
-//
-//  Trim_String: C
-//
-void Trim_String(REBSER *ser, REBCNT index, REBCNT len, REBCNT flags, REBVAL *with)
-{
-    REBCNT tail = index + len;
-
-    // /all or /with
-    if (flags & (AM_TRIM_ALL | AM_TRIM_WITH)) {
-        replace_with(ser, index, tail, with);
-    }
-    // /auto option
-    else if (flags & AM_TRIM_AUTO) {
-        trim_auto(ser, index, tail);
-    }
-    // /lines option
-    else if (flags & AM_TRIM_LINES) {
-        trim_lines(ser, index, tail);
-    }
-    else {
-        trim_head_tail(
-            ser,
-            index,
-            tail,
-            LOGICAL(flags & AM_TRIM_HEAD),
-            LOGICAL(flags & AM_TRIM_TAIL)
-        );
-    }
 }

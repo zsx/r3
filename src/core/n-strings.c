@@ -129,7 +129,7 @@ static struct {
 //
 REBNATIVE(ajoin)
 {
-    PARAM(1, block);
+    INCLUDE_PARAMS_OF_AJOIN;
 
     REBVAL *block = ARG(block);
 
@@ -152,10 +152,8 @@ REBNATIVE(ajoin)
 //  ]
 //
 REBNATIVE(spelling_of)
-//
-// This is a native implementation of SPELLING-OF from rebol-proposals.
 {
-    PARAM(1, value);
+    INCLUDE_PARAMS_OF_SPELLING_OF;
 
     REBVAL *value = ARG(value);
 
@@ -213,17 +211,7 @@ REBNATIVE(spelling_of)
 //
 REBNATIVE(checksum)
 {
-    PARAM(1, data);
-    REFINE(2, part);
-    PARAM(3, limit);
-    REFINE(4, tcp);
-    REFINE(5, secure);
-    REFINE(6, hash);
-    PARAM(7, size);
-    REFINE(8, method);
-    PARAM(9, word);
-    REFINE(10, key);
-    PARAM(11, key_value);
+    INCLUDE_PARAMS_OF_CHECKSUM;
 
     REBVAL *arg = ARG(data);
     REBYTE *data = VAL_RAW_DATA_AT(arg);
@@ -356,26 +344,30 @@ REBNATIVE(checksum)
 //  compress: native [
 //  
 //  "Compresses a string series and returns it."
-//  
-//      data [binary! string!] "If string, it will be UTF8 encoded"
-//      /part limit "Length of data (elements)"
-//      /gzip "Use GZIP checksum"
-//      /only {Do not store header or envelope information ("raw")}
+//
+//      return: [binary!]
+//      data [binary! string!]
+//          "If string, it will be UTF8 encoded"
+//      /part
+//      limit
+//          "Length of data (elements)"
+//      /gzip
+//          "Use GZIP checksum"
+//      /only
+//          {Do not store header or envelope information ("raw")}
 //  ]
 //
 REBNATIVE(compress)
 {
-    const REBOOL gzip = D_REF(4);
-    const REBOOL only = D_REF(5);
-    REBSER *ser;
-    REBCNT index;
+    INCLUDE_PARAMS_OF_COMPRESS;
+
     REBCNT len;
+    Partial1(ARG(data), ARG(limit), &len);
 
-    Partial1(D_ARG(1), D_ARG(3), &len);
+    REBCNT index;
+    REBSER *ser = Temp_Bin_Str_Managed(ARG(data), &index, &len);
 
-    ser = Temp_Bin_Str_Managed(D_ARG(1), &index, &len);
-
-    Val_Init_Binary(D_OUT, Compress(ser, index, len, gzip, only));
+    Val_Init_Binary(D_OUT, Compress(ser, index, len, REF(gzip), REF(only)));
 
     return R_OUT;
 }
@@ -384,36 +376,54 @@ REBNATIVE(compress)
 //
 //  decompress: native [
 //  
-//  "Decompresses data. Result is binary."
-//  
-//      data [binary!] "Data to decompress"
-//      /part lim "Length of compressed data (must match end marker)"
-//      /gzip "Use GZIP checksum"
-//      /limit size "Error out if result is larger than this"
-//      /only {Do not look for header or envelope information ("raw")}
+//  "Decompresses data."
+//
+//      return: [binary!]
+//      data [binary!]
+//          "Data to decompress"
+//      /part
+//      lim ;-- /limit was a legacy name for a refinement
+//          "Length of compressed data (must match end marker)"
+//      /gzip
+//          "Use GZIP checksum"
+//      /limit
+//      max
+//          "Error out if result is larger than this"
+//      /only
+//          {Do not look for header or envelope information ("raw")}
 //  ]
 //
 REBNATIVE(decompress)
 {
-    REBVAL *arg = D_ARG(1);
-    REBCNT len;
-    REBOOL gzip = D_REF(4);
-    REBOOL limit = D_REF(5);
-    REBINT max = limit ? Int32s(D_ARG(6), 1) : -1;
-    REBOOL only = D_REF(7);
+    INCLUDE_PARAMS_OF_DECOMPRESS;
 
-    Partial1(D_ARG(1), D_ARG(3), &len);
+    REBVAL *data = ARG(data);
+    
+    REBINT max;
+    if (REF(limit)) {
+        max = Int32s(ARG(max), 1);
+        if (max < 0)
+            return R_BLANK; // !!! Should negative limit be an error instead?
+    }
+    else
+        max = -1;
+
+    REBCNT len;
+    Partial1(data, ARG(lim), &len);
 
     // This truncation rule used to be in Decompress, which passed len
     // in as an extra parameter.  This was the only call that used it.
-    if (len > BIN_LEN(VAL_SERIES(arg)))
-        len = BIN_LEN(VAL_SERIES(arg));
+    //
+    if (len > BIN_LEN(VAL_SERIES(data)))
+        len = BIN_LEN(VAL_SERIES(data));
 
-    if (limit && max < 0)
-        return R_BLANK; // !!! Should negative limit be an error instead?
 
     Val_Init_Binary(D_OUT, Decompress(
-        BIN_HEAD(VAL_SERIES(arg)) + VAL_INDEX(arg), len, max, gzip, only
+        BIN_HEAD(VAL_SERIES(data)) + VAL_INDEX(data),
+        len,
+        max,
+        REF(gzip),
+        REF(only)
     ));
 
     return R_OUT;
@@ -424,27 +434,33 @@ REBNATIVE(decompress)
 //  debase: native [
 //  
 //  {Decodes binary-coded string (BASE-64 default) to binary value.}
-//  
-//      value [binary! string!] "The string to decode"
-//      /base "Binary base to use"
-//      base-value [integer!] "The base to convert from: 64, 16, or 2"
+//
+//      return: [binary!]
+//          ;-- Comment said "we don't know the encoding" of the return binary
+//      value [binary! string!]
+//          "The string to decode"
+//      /base
+//          "Binary base to use"
+//      base-value [integer!]
+//          "The base to convert from: 64, 16, or 2"
 //  ]
 //
 REBNATIVE(debase)
-//
-// BINARY is returned. We don't know the encoding.
 {
-    REBINT base = 64;
-    REBSER *ser;
+    INCLUDE_PARAMS_OF_DEBASE;
+
     REBCNT index;
     REBCNT len = 0;
+    REBSER *ser = Temp_Bin_Str_Managed(ARG(value), &index, &len);
 
-    ser = Temp_Bin_Str_Managed(D_ARG(1), &index, &len);
-
-    if (D_REF(2)) base = VAL_INT32(D_ARG(3)); // /base
+    REBINT base = 64;
+    if (REF(base))
+        base = VAL_INT32(ARG(base_value));
+    else
+        base = 64;
 
     if (!Decode_Binary(D_OUT, BIN_AT(ser, index), len, base, 0))
-        fail (Error(RE_INVALID_DATA, D_ARG(1)));
+        fail (Error(RE_INVALID_DATA, ARG(value)));
 
     return R_OUT;
 }
@@ -466,9 +482,7 @@ REBNATIVE(debase)
 //
 REBNATIVE(enbase)
 {
-    PARAM(1, value);
-    REFINE(2, base);
-    PARAM(3, base_value);
+    INCLUDE_PARAMS_OF_ENBASE;
 
     REBINT base;
     if (REF(base))
@@ -518,7 +532,7 @@ REBNATIVE(enbase)
 //
 REBNATIVE(dehex)
 {
-    PARAM(1, value);
+    INCLUDE_PARAMS_OF_DEHEX;
 
     REBCNT len = VAL_LEN_AT(ARG(value));
     REBUNI uni;
@@ -589,25 +603,26 @@ REBNATIVE(dehex)
 //  
 //  {Converts string terminators to standard format, e.g. CRLF to LF.}
 //  
-//      string [any-string!] "(modified)"
+//      string [any-string!]
+//          "Will be modified (unless /LINES used)"
 //      /lines 
-//      {Return block of lines (works for LF, CR, CR-LF endings) (no modify)}
+//          {Return block of lines (works for LF, CR, CR-LF endings)}
 //  ]
 //
 REBNATIVE(deline)
 {
-    PARAM(1, string);
-    REFINE(2, lines);
+    INCLUDE_PARAMS_OF_DELINE;
 
     REBVAL *val = ARG(string);
-    REBINT len = VAL_LEN_AT(val);
-    REBINT n;
 
     if (REF(lines)) {
         Val_Init_Block(D_OUT, Split_Lines(val));
         return R_OUT;
     }
 
+    REBINT len = VAL_LEN_AT(val);
+    
+    REBINT n;
     if (VAL_BYTE_SIZE(val)) {
         REBYTE *bp = VAL_BIN_AT(val);
         n = Deline_Bytes(bp, len);
@@ -632,10 +647,8 @@ REBNATIVE(deline)
 //  ]
 //
 REBNATIVE(enline)
-//
-// Convert LF to CRLF or native format.
 {
-    PARAM(1, series);
+    INCLUDE_PARAMS_OF_ENLINE;
 
     REBVAL *val = ARG(series);
     REBSER *ser = VAL_SERIES(val);
@@ -657,23 +670,28 @@ REBNATIVE(enline)
 //  
 //  "Converts spaces to tabs (default tab size is 4)."
 //  
-//      string [any-string!] "(modified)"
-//      /size "Specifies the number of spaces per tab"
+//      string [any-string!]
+//          "(modified)"
+//      /size
+//          "Specifies the number of spaces per tab"
 //      number [integer!]
 //  ]
 //
 REBNATIVE(entab)
-//
-// Modifies input.
 {
-    REBVAL *val = D_ARG(1);
-    REBINT tabsize = TAB_SIZE;
-    REBSER *ser;
+    INCLUDE_PARAMS_OF_ENTAB;
+
+    REBVAL *val = ARG(string);
+
     REBCNT len = VAL_LEN_AT(val);
 
-    if (D_REF(2)) tabsize = Int32s(D_ARG(3), 1);
+    REBINT tabsize;
+    if (REF(size))
+        tabsize = Int32s(ARG(number), 1);
+    else
+        tabsize = TAB_SIZE;
 
-    // Set up the copy buffer:
+    REBSER *ser;
     if (VAL_BYTE_SIZE(val))
         ser = Entab_Bytes(VAL_BIN(val), VAL_INDEX(val), len, tabsize);
     else
@@ -690,21 +708,28 @@ REBNATIVE(entab)
 //  
 //  "Converts tabs to spaces (default tab size is 4)."
 //  
-//      string [any-string!] "(modified)"
-//      /size "Specifies the number of spaces per tab"
+//      string [any-string!]
+//          "(modified)"
+//      /size
+//          "Specifies the number of spaces per tab"
 //      number [integer!]
 //  ]
 //
 REBNATIVE(detab)
 {
-    REBVAL *val = D_ARG(1);
-    REBINT tabsize = TAB_SIZE;
-    REBSER *ser;
+    INCLUDE_PARAMS_OF_DETAB;
+
+    REBVAL *val = ARG(string);
+
     REBCNT len = VAL_LEN_AT(val);
 
-    if (D_REF(2)) tabsize = Int32s(D_ARG(3), 1);
+    REBINT tabsize;
+    if (REF(size))
+        tabsize = Int32s(ARG(number), 1);
+    else
+        tabsize = TAB_SIZE;
 
-    // Set up the copy buffer:
+    REBSER *ser;
     if (VAL_BYTE_SIZE(val))
         ser = Detab_Bytes(VAL_BIN(val), VAL_INDEX(val), len, tabsize);
     else
@@ -721,14 +746,18 @@ REBNATIVE(detab)
 //  
 //  "Converts string of characters to lowercase."
 //  
-//      string [any-string! char!] "(modified if series)"
-//      /part "Limits to a given length or position"
+//      string [any-string! char!]
+//          "(modified if series)"
+//      /part
+//          "Limits to a given length or position"
 //      limit [any-number! any-string!]
 //  ]
 //
 REBNATIVE(lowercase)
 {
-    Change_Case(D_OUT, D_ARG(1), D_ARG(3), FALSE);
+    INCLUDE_PARAMS_OF_LOWERCASE;
+
+    Change_Case(D_OUT, ARG(string), ARG(limit), FALSE);
     return R_OUT;
 }
 
@@ -738,14 +767,18 @@ REBNATIVE(lowercase)
 //  
 //  "Converts string of characters to uppercase."
 //  
-//      string [any-string! char!] "(modified if series)"
-//      /part "Limits to a given length or position"
+//      string [any-string! char!]
+//          "(modified if series)"
+//      /part
+//          "Limits to a given length or position"
 //      limit [any-number! any-string!]
 //  ]
 //
 REBNATIVE(uppercase)
 {
-    Change_Case(D_OUT, D_ARG(1), D_ARG(3), TRUE);
+    INCLUDE_PARAMS_OF_UPPERCASE;
+
+    Change_Case(D_OUT, ARG(string), ARG(limit), TRUE);
     return R_OUT;
 }
 
@@ -755,28 +788,36 @@ REBNATIVE(uppercase)
 //  
 //  {Converts numeric value to a hex issue! datatype (with leading # and 0's).}
 //  
-//      value [integer! tuple!] "Value to be converted"
-//      /size "Specify number of hex digits in result"
+//      value [integer! tuple!]
+//          "Value to be converted"
+//      /size
+//          "Specify number of hex digits in result"
 //      len [integer!]
 //  ]
 //
 REBNATIVE(to_hex)
 {
-    REBVAL *arg = D_ARG(1);
+    INCLUDE_PARAMS_OF_TO_HEX;
+
+    REBVAL *arg = ARG(value);
+
+    REBYTE buffer[(MAX_TUPLE * 2) + 4];  // largest value possible
+
+    REBYTE *buf = &buffer[0];
+
     REBINT len;
-//  REBSER *series;
-    REBYTE buffer[MAX_TUPLE*2+4];  // largest value possible
-    REBYTE *buf;
-
-    buf = &buffer[0];
-
-    len = -1;
-    if (D_REF(2)) { // /size
-        len = (REBINT) VAL_INT64(D_ARG(3));
-        if (len < 0) fail (Error_Invalid_Arg(D_ARG(3)));
+    if (REF(size)) {
+        len = cast(REBINT, VAL_INT64(ARG(len)));
+        if (len < 0)
+            fail (Error_Invalid_Arg(ARG(len)));
     }
-    if (IS_INTEGER(arg)) { // || IS_DECIMAL(arg)) {
-        if (len < 0 || len > MAX_HEX_LEN) len = MAX_HEX_LEN;
+    else
+        len = -1;
+
+    if (IS_INTEGER(arg)) {
+        if (len < 0 || len > MAX_HEX_LEN)
+            len = MAX_HEX_LEN;
+
         Form_Hex_Pad(buf, VAL_INT64(arg), len);
     }
     else if (IS_TUPLE(arg)) {
@@ -797,8 +838,6 @@ REBNATIVE(to_hex)
     else
         fail (Error_Invalid_Arg(arg));
 
-//  SER_LEN(series) = len;
-//  Val_Init_Series(D_OUT, REB_ISSUE, series);
     Val_Init_Word(D_OUT, REB_ISSUE, Scan_Issue(&buffer[0], len));
 
     return R_OUT;
@@ -815,22 +854,23 @@ REBNATIVE(to_hex)
 //
 REBNATIVE(find_script)
 {
-    PARAM(1, script);
+    INCLUDE_PARAMS_OF_FIND_SCRIPT;
 
     REBVAL *arg = ARG(script);
-    REBINT n;
 
-    n = What_UTF(VAL_BIN_AT(arg), VAL_LEN_AT(arg));
+    REBINT n = What_UTF(VAL_BIN_AT(arg), VAL_LEN_AT(arg));
 
-    if (n != 0 && n != 8) return R_BLANK;  // UTF8 only
+    if (n != 0 && n != 8)
+        return R_BLANK;  // UTF8 only
 
-    if (n == 8) VAL_INDEX(arg) += 3;  // BOM8 length
+    if (n == 8)
+        VAL_INDEX(arg) += 3;  // BOM8 length
 
-    n = Scan_Header(VAL_BIN_AT(arg), VAL_LEN_AT(arg)); // returns offset
+    REBINT offset = Scan_Header(VAL_BIN_AT(arg), VAL_LEN_AT(arg));
+    if (offset == -1)
+        return R_BLANK;
 
-    if (n == -1) return R_BLANK;
-
-    VAL_INDEX(arg) += n;
+    VAL_INDEX(arg) += offset;
 
     *D_OUT = *ARG(script);
     return R_OUT;
@@ -847,7 +887,9 @@ REBNATIVE(find_script)
 //
 REBNATIVE(utf_q)
 {
-    REBINT utf = What_UTF(VAL_BIN_AT(D_ARG(1)), VAL_LEN_AT(D_ARG(1)));
+    INCLUDE_PARAMS_OF_UTF_Q;
+
+    REBINT utf = What_UTF(VAL_BIN_AT(ARG(data)), VAL_LEN_AT(ARG(data)));
     SET_INTEGER(D_OUT, utf);
     return R_OUT;
 }
@@ -859,21 +901,21 @@ REBNATIVE(utf_q)
 //  {Checks UTF encoding; if correct, returns blank else position of error.}
 //  
 //      data [binary!]
-//      /utf "Check encodings other than UTF-8"
-//      num [integer!] "Bit size - positive for BE negative for LE"
+//      /utf
+//          "Check encodings other than UTF-8"
+//      num [integer!]
+//          "Bit size - positive for BE negative for LE"
 //  ]
 //
 REBNATIVE(invalid_utf_q)
 {
-    PARAM(1, data);
-    REFINE(2, utf);
-    PARAM(3, num);
+    INCLUDE_PARAMS_OF_INVALID_UTF_Q;
 
     REBVAL *arg = ARG(data);
-    REBYTE *bp;
 
-    bp = Check_UTF8(VAL_BIN_AT(arg), VAL_LEN_AT(arg));
-    if (bp == 0) return R_BLANK;
+    REBYTE *bp = Check_UTF8(VAL_BIN_AT(arg), VAL_LEN_AT(arg));
+    if (bp == 0)
+        return R_BLANK;
 
     VAL_INDEX(arg) = bp - VAL_BIN_HEAD(arg);
 

@@ -279,11 +279,7 @@ static REBSER *Make_Set_Operation_Series(
 //
 REBNATIVE(difference)
 {
-    PARAM(1, series1);
-    PARAM(2, series2);
-    REFINE(3, case);
-    REFINE(4, skip);
-    PARAM(5, size);
+    INCLUDE_PARAMS_OF_DIFFERENCE;
 
     REBVAL *val1 = ARG(series1);
     REBVAL *val2 = ARG(series2);
@@ -350,11 +346,7 @@ REBNATIVE(difference)
 //
 REBNATIVE(exclude)
 {
-    PARAM(1, series);
-    PARAM(2, exclusions);
-    REFINE(3, case);
-    REFINE(4, skip);
-    PARAM(5, size);
+    INCLUDE_PARAMS_OF_EXCLUDE;
 
     REBVAL *val1 = ARG(series);
     REBVAL *val2 = ARG(exclusions);
@@ -409,11 +401,7 @@ REBNATIVE(exclude)
 //
 REBNATIVE(intersect)
 {
-    PARAM(1, series1);
-    PARAM(2, series2);
-    REFINE(3, case);
-    REFINE(4, skip);
-    PARAM(5, size);
+    INCLUDE_PARAMS_OF_INTERSECT;
 
     REBVAL *val1 = ARG(series1);
     REBVAL *val2 = ARG(series2);
@@ -467,11 +455,7 @@ REBNATIVE(intersect)
 //
 REBNATIVE(union)
 {
-    PARAM(1, series1);
-    PARAM(2, series2);
-    REFINE(3, case);
-    REFINE(4, skip);
-    PARAM(5, size);
+    INCLUDE_PARAMS_OF_UNION;
 
     REBVAL *val1 = ARG(series1);
     REBVAL *val2 = ARG(series2);
@@ -524,10 +508,7 @@ REBNATIVE(union)
 //
 REBNATIVE(unique)
 {
-    PARAM(1, series);
-    REFINE(2, case);
-    REFINE(3, skip);
-    PARAM(4, size);
+    INCLUDE_PARAMS_OF_UNIQUE;
 
     REBVAL *val = ARG(series);
 

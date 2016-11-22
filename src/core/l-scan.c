@@ -1997,18 +1997,19 @@ void Shutdown_Scanner(void)
 //  
 //  {Translates UTF-8 binary source to values. Returns [value binary].}
 //  
-//      source [binary!] "Must be Unicode UTF-8 encoded"
-//      /next {Translate next complete value (blocks as single value)}
-//      /only "Translate only a single value (blocks dissected)"
-//      /error {Do not cause errors - return error object as value in place}
+//      source [binary!]
+//          "Must be Unicode UTF-8 encoded"
+//      /next
+//          {Translate next complete value (blocks as single value)}
+//      /only
+//          "Translate only a single value (blocks dissected)"
+//      /relax
+//          {Do not cause errors - return error object as value in place}
 //  ]
 //
 REBNATIVE(transcode)
 {
-    PARAM(1, source);
-    REFINE(2, next);
-    REFINE(3, only);
-    REFINE(4, relax);
+    INCLUDE_PARAMS_OF_TRANSCODE;
 
     SCAN_STATE scan_state;
 

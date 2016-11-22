@@ -196,7 +196,7 @@ REBNATIVE(where_of)
 // !!! This routine should probably be used to get the information for the
 // where of an error, which should likely be out-of-band.
 {
-    PARAM(1, level);
+    INCLUDE_PARAMS_OF_WHERE_OF;
 
     REBFRM *frame = Frame_For_Stack_Level(NULL, ARG(level), TRUE);
     if (frame == NULL)
@@ -217,7 +217,7 @@ REBNATIVE(where_of)
 //
 REBNATIVE(label_of)
 {
-    PARAM(1, level);
+    INCLUDE_PARAMS_OF_LABEL_OF;
 
     REBFRM *frame = Frame_For_Stack_Level(NULL, ARG(level), TRUE);
 
@@ -246,7 +246,7 @@ REBNATIVE(label_of)
 //
 REBNATIVE(function_of)
 {
-    PARAM(1, level);
+    INCLUDE_PARAMS_OF_FUNCTION_OF;
 
     REBVAL *level = ARG(level);
 
@@ -282,7 +282,7 @@ REBNATIVE(function_of)
 //
 REBNATIVE(backtrace_index)
 {
-    PARAM(1, level);
+    INCLUDE_PARAMS_OF_BACKTRACE_INDEX;
 
     REBCNT number;
 
@@ -316,11 +316,7 @@ REBNATIVE(backtrace_index)
 //
 REBNATIVE(backtrace)
 {
-    PARAM(1, level);
-    REFINE(2, limit);
-    PARAM(3, frames);
-    REFINE(4, brief);
-    REFINE(5, only);
+    INCLUDE_PARAMS_OF_BACKTRACE;
 
     Check_Security(Canon(SYM_DEBUG), POL_READ, 0);
 
@@ -446,7 +442,7 @@ REBNATIVE(backtrace)
                 DS_PUSH_TRASH;
                 Val_Init_Word(DS_TOP, REB_WORD, Canon(SYM_PLUS));
 
-                if (!REF(brief)) {
+                if (NOT(REF(brief))) {
                     //
                     // In the non-/ONLY backtrace, the pairing of the ellipsis
                     // with a plus is used in order to keep the "record size"
@@ -704,7 +700,7 @@ REBOOL Is_Context_Running_Or_Pending(REBCTX *frame_ctx)
 //
 REBNATIVE(running_q)
 {
-    PARAM(1, frame);
+    INCLUDE_PARAMS_OF_RUNNING_Q;
 
     REBCTX *frame_ctx = VAL_CONTEXT(ARG(frame));
     if (GET_CTX_FLAG(frame_ctx, CONTEXT_FLAG_STACK))
@@ -733,7 +729,7 @@ REBNATIVE(running_q)
 //
 REBNATIVE(pending_q)
 {
-    PARAM(1, frame);
+    INCLUDE_PARAMS_OF_PENDING_Q;
 
     REBCTX *frame_ctx = VAL_CONTEXT(ARG(frame));
     if (GET_CTX_FLAG(frame_ctx, CONTEXT_FLAG_STACK))

@@ -111,7 +111,7 @@ static void cleanup_rc4_ctx(const REBVAL *val)
 //  "Encrypt/decrypt data (modifies) using RC4 algorithm."
 //
 //      return: [handle!]
-//          "Returns stream cipher context handle.
+//          "Returns stream cipher context handle."
 //      /key
 //          "Provided only for the first time to get stream HANDLE!"
 //      crypt-key [binary!]
@@ -125,11 +125,7 @@ static void cleanup_rc4_ctx(const REBVAL *val)
 //
 REBNATIVE(rc4)
 {
-    REFINE(1, key);
-    PARAM(2, crypt_key);
-    REFINE(3, stream);
-    PARAM(4, ctx);
-    PARAM(5, data);
+    INCLUDE_PARAMS_OF_RC4;
 
     if (IS_HANDLE(ARG(ctx))) {
         REBVAL *data = ARG(data);
@@ -182,12 +178,7 @@ REBNATIVE(rc4)
 //
 REBNATIVE(rsa)
 {
-    PARAM(1, data);
-    PARAM(2, key_object);
-    REFINE(3, decrypt);
-    REFINE(4, private);
-    REFINE(5, padding);
-    PARAM(6, padding_type);
+    INCLUDE_PARAMS_OF_RSA;
 
     REBOOL padding;
     if (REF(padding))
@@ -355,7 +346,7 @@ REBNATIVE(rsa)
 //
 REBNATIVE(dh_generate_key)
 {
-    PARAM(1, obj);
+    INCLUDE_PARAMS_OF_DH_GENERATE_KEY;
 
     DH_CTX dh_ctx;
     memset(&dh_ctx, 0, sizeof(dh_ctx));
@@ -432,8 +423,7 @@ REBNATIVE(dh_generate_key)
 //
 REBNATIVE(dh_compute_key)
 {
-    PARAM(1, obj);
-    PARAM(2, public_key);
+    INCLUDE_PARAMS_OF_DH_COMPUTE_KEY;
 
     DH_CTX dh_ctx;
     memset(&dh_ctx, 0, sizeof(dh_ctx));
@@ -517,13 +507,7 @@ static void cleanup_aes_ctx(const REBVAL *val)
 //
 REBNATIVE(aes)
 {
-    REFINE(1, key);
-    PARAM(2, crypt_key);
-    PARAM(3, iv);
-    REFINE(4, stream);
-    PARAM(5, ctx);
-    PARAM(6, data);
-    REFINE(7, decrypt);
+    INCLUDE_PARAMS_OF_AES;
     
     if (IS_HANDLE(ARG(ctx))) {
         AES_CTX *aes_ctx = cast(AES_CTX*, VAL_HANDLE_DATA(ARG(ctx)));
@@ -722,9 +706,7 @@ REBOOL Cloak(
 //
 REBNATIVE(decloak)
 {
-    PARAM(1, data);
-    PARAM(2, key);
-    REFINE(3, with);
+    INCLUDE_PARAMS_OF_DECLOAK;
      
     if (!Cloak(
         TRUE,
@@ -757,9 +739,7 @@ REBNATIVE(decloak)
 //
 REBNATIVE(encloak)
 {
-    PARAM(1, data);
-    PARAM(2, key);
-    REFINE(3, with);
+    INCLUDE_PARAMS_OF_ENCLOAK;
 
     if (!Cloak(
         FALSE,

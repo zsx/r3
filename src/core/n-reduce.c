@@ -100,9 +100,7 @@ REBOOL Reduce_Any_Array_Throws(
 //
 REBNATIVE(reduce)
 {
-    PARAM(1, value);
-    REFINE(2, into);
-    PARAM(3, target);
+    INCLUDE_PARAMS_OF_REDUCE;
 
     REBVAL *value = ARG(value);
 
@@ -129,7 +127,7 @@ REBNATIVE(reduce)
     if (EVAL_VALUE_THROWS(D_OUT, value))
         return R_OUT_IS_THROWN;
 
-    if (!REF(into))
+    if (NOT(REF(into)))
         return R_OUT; // just return the evaluated item if no /INTO target
 
     REBVAL *into = ARG(target);
@@ -303,11 +301,7 @@ REBOOL Compose_Any_Array_Throws(
 //
 REBNATIVE(compose)
 {
-    PARAM(1, value);
-    REFINE(2, deep);
-    REFINE(3, only);
-    REFINE(4, into);
-    PARAM(5, out);
+    INCLUDE_PARAMS_OF_COMPOSE;
 
     // !!! Should 'compose quote (a (1 + 2) b)' give back '(a 3 b)' ?
     // What about 'compose quote a/(1 + 2)/b' ?

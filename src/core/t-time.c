@@ -596,43 +596,57 @@ REBTYPE(Time)
             if (secs < 0) secs = -secs;
             goto setTime;
 
-        case SYM_ROUND:
-            if (D_REF(2)) {
-                arg = D_ARG(3);
+        case SYM_ROUND: {
+            INCLUDE_PARAMS_OF_ROUND;
+
+            REBFLGS flags = (
+                (REF(to) ? RF_TO : 0)
+                | (REF(even) ? RF_EVEN : 0)
+                | (REF(down) ? RF_DOWN : 0)
+                | (REF(half_down) ? RF_HALF_DOWN : 0)
+                | (REF(floor) ? RF_FLOOR : 0)
+                | (REF(ceiling) ? RF_CEILING : 0)
+                | (REF(half_ceiling) ? RF_HALF_CEILING : 0)
+            );
+
+            if (REF(to)) {
+                arg = ARG(scale);
                 if (IS_TIME(arg)) {
-                    secs = Round_Int(secs, Get_Round_Flags(frame_), VAL_TIME(arg));
+                    secs = Round_Int(secs, flags, VAL_TIME(arg));
                 }
                 else if (IS_DECIMAL(arg)) {
                     VAL_DECIMAL(arg) = Round_Dec(
                         cast(REBDEC, secs),
-                        Get_Round_Flags(frame_),
+                        flags,
                         Dec64(arg) * SEC_SEC
                     );
                     VAL_DECIMAL(arg) /= SEC_SEC;
                     VAL_RESET_HEADER(arg, REB_DECIMAL);
-                    *D_OUT = *D_ARG(3);
+                    *D_OUT = *ARG(scale);
                     return R_OUT;
                 }
                 else if (IS_INTEGER(arg)) {
                     VAL_INT64(arg) = Round_Int(secs, 1, Int32(arg) * SEC_SEC) / SEC_SEC;
                     VAL_RESET_HEADER(arg, REB_INTEGER);
-                    *D_OUT = *D_ARG(3);
+                    *D_OUT = *ARG(scale);
                     return R_OUT;
                 }
                 else fail (Error_Invalid_Arg(arg));
             }
             else {
-                secs = Round_Int(secs, Get_Round_Flags(frame_) | 1, SEC_SEC);
+                secs = Round_Int(secs, flags | RF_TO, SEC_SEC);
             }
-            goto fixTime;
+            goto fixTime; }
 
-        case SYM_RANDOM:
-            if (D_REF(2)) {
+        case SYM_RANDOM: {
+            INCLUDE_PARAMS_OF_RANDOM;
+
+            if (REF(seed)) {
                 Set_Random(secs);
                 return R_VOID;
             }
-            secs = Random_Range(secs / SEC_SEC, D_REF(3)) * SEC_SEC;
-            goto fixTime;
+            secs = Random_Range(secs / SEC_SEC, REF(secure)) * SEC_SEC;
+            goto fixTime; }
 
         case SYM_PICK:
             Pick_Time(D_OUT, val, arg);

@@ -569,9 +569,12 @@ REBTYPE(Bitset)
     // Add AND, OR, XOR
 
     case SYM_PICK:
-    case SYM_FIND:
-        if (!Check_Bits(VAL_SERIES(value), arg, D_REF(ARG_FIND_CASE))) return R_BLANK;
+    case SYM_FIND: {
+        INCLUDE_PARAMS_OF_FIND; // is PICK guaranteed to have CASE at same pos
+        if (!Check_Bits(VAL_SERIES(value), arg, REF(case)))
+            return R_BLANK;
         return R_TRUE;
+    }
 
     case SYM_COMPLEMENT:
     case SYM_NEGATE:
@@ -594,12 +597,20 @@ set_bits:
         if (Set_Bits(VAL_SERIES(value), arg, diff)) break;
         fail (Error_Invalid_Arg(arg));
 
-    case SYM_REMOVE:  // #"a" "abc"  remove/part bs "abcd"  yuk: /part ?
-        if (!D_REF(2)) fail (Error(RE_MISSING_ARG)); // /part required
-        if (Set_Bits(VAL_SERIES(value), D_ARG(3), FALSE)) break;
-        fail (Error_Invalid_Arg(D_ARG(3)));
+    case SYM_REMOVE: {
+        INCLUDE_PARAMS_OF_REMOVE;
 
-    case SYM_COPY:
+        if (NOT(REF(part)))
+            fail (Error(RE_MISSING_ARG));
+
+        if (Set_Bits(VAL_SERIES(value), ARG(limit), FALSE))
+            break;
+
+        fail (Error_Invalid_Arg(ARG(limit))); }
+
+    case SYM_COPY: {
+        INCLUDE_PARAMS_OF_COPY;
+
         Val_Init_Series_Index(
             D_OUT,
             REB_BITSET,
@@ -607,7 +618,7 @@ set_bits:
             VAL_INDEX(value)
         );
         INIT_BITS_NOT(VAL_SERIES(D_OUT), BITS_NOT(VAL_SERIES(value)));
-        return R_OUT;
+        return R_OUT; }
 
     case SYM_LENGTH:
         len = VAL_LEN_HEAD(value) * 8;

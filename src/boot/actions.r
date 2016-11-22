@@ -199,6 +199,7 @@ pick: action [
 
 find: action [
     {Searches for a value; for series returns where found, else blank.}
+    return: [any-series! blank! logic!]
     series [any-series! any-context! map! gob! bitset! typeset! blank!]
     value [<opt> any-value!]
     /part {Limits the search to a given length or position}
@@ -226,6 +227,9 @@ select: action [
     size [integer!]
     /last {Backwards from end of series}
     /reverse {Backwards from the current position}
+    /tail ;-- for frame compatibility with FIND
+    /match ;-- for frame compatibility with FIND
+
 ]
 
 ;;;;!!! MATCH

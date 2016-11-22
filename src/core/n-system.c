@@ -62,8 +62,7 @@ REBNATIVE(quit)
 // the stack.  It uses the value of its own native function as the
 // name of the throw, like `throw/name value :quit`.
 {
-    REFINE(1, with);
-    PARAM(2, value);
+    INCLUDE_PARAMS_OF_QUIT;
 
     *D_OUT = *NAT_VALUE(quit);
 
@@ -96,8 +95,7 @@ REBNATIVE(quit)
 //
 REBNATIVE(exit_rebol)
 {
-    REFINE(1, with);
-    PARAM(2, value);
+    INCLUDE_PARAMS_OF_EXIT_REBOL;
 
     int code;
     if (REF(with))
@@ -114,38 +112,42 @@ REBNATIVE(exit_rebol)
 //  
 //  "Recycles unused memory."
 //  
-//      /off "Disable auto-recycling"
-//      /on "Enable auto-recycling"
-//      /ballast "Trigger for auto-recycle (memory used)"
+//      /off
+//          "Disable auto-recycling"
+//      /on
+//          "Enable auto-recycling"
+//      /ballast
+//          "Trigger for auto-recycle (memory used)"
 //      size [integer!]
-//      /torture "Constant recycle (for internal debugging)"
+//      /torture
+//          "Constant recycle (for internal debugging)"
 //  ]
 //
 REBNATIVE(recycle)
 {
-    REBCNT count;
+    INCLUDE_PARAMS_OF_RECYCLE;
 
-    if (D_REF(1)) { // /off
+    if (REF(off)) {
         GC_Active = FALSE;
         return R_VOID;
     }
 
-    if (D_REF(2)) {// /on
+    if (REF(on)) {
         GC_Active = TRUE;
         VAL_INT64(TASK_BALLAST) = VAL_INT32(TASK_MAX_BALLAST);
     }
 
-    if (D_REF(3)) {// /ballast
-        *TASK_MAX_BALLAST = *D_ARG(4);
+    if (REF(ballast)) {
+        *TASK_MAX_BALLAST = *ARG(size);
         VAL_INT64(TASK_BALLAST) = VAL_INT32(TASK_MAX_BALLAST);
     }
 
-    if (D_REF(5)) { // torture
+    if (REF(torture)) {
         GC_Active = TRUE;
         VAL_INT64(TASK_BALLAST) = 0;
     }
 
-    count = Recycle();
+    REBCNT count = Recycle();
 
     SET_INTEGER(D_OUT, count);
     return R_OUT;
@@ -157,35 +159,40 @@ REBNATIVE(recycle)
 //  
 //  {Provides status and statistics information about the interpreter.}
 //  
-//      /show "Print formatted results to console"
-//      /profile "Returns profiler object"
-//      /timer "High resolution time difference from start"
-//      /evals "Number of values evaluated by interpreter"
-//      /dump-series pool-id [integer!] 
-//      "Dump all series in pool pool-id, -1 for all pools"
+//      /show
+//          "Print formatted results to console"
+//      /profile
+//          "Returns profiler object"
+//      /timer
+//          "High resolution time difference from start"
+//      /evals
+//          "Number of values evaluated by interpreter"
+//      /dump-series
+//          "Dump all series in pool"
+//      pool-id [integer!]
+//          "-1 for all pools"
 //  ]
 //
 REBNATIVE(stats)
 {
-    REBI64 n;
-    REBCNT flags = 0;
+    INCLUDE_PARAMS_OF_STATS;
 
-    if (D_REF(3)) {
+    if (REF(timer)) {
         VAL_TIME(D_OUT) = OS_DELTA_TIME(PG_Boot_Time, 0) * 1000;
         VAL_RESET_HEADER(D_OUT, REB_TIME);
         return R_OUT;
     }
 
-    if (D_REF(4)) {
-        n = Eval_Cycles + Eval_Dose - Eval_Count;
+    if (REF(evals)) {
+        REBI64 n = Eval_Cycles + Eval_Dose - Eval_Count;
         SET_INTEGER(D_OUT, n);
         return R_OUT;
     }
 
-    if (D_REF(2)) {
-    #ifdef NDEBUG
-        fail (Error(RE_DEBUG_ONLY));
-    #else
+#ifdef NDEBUG
+    fail (Error(RE_DEBUG_ONLY));
+#else
+    if (REF(profile)) {
         *D_OUT = *Get_System(SYS_STANDARD, STD_STATS);
         if (IS_OBJECT(D_OUT)) {
             REBVAL *stats = VAL_CONTEXT_VAR(D_OUT, 1);
@@ -218,27 +225,26 @@ REBNATIVE(stats)
             stats++;
             SET_INTEGER(stats, PG_Reb_Stats->Recycle_Counter);
         }
-    #endif
 
         return R_OUT;
     }
 
-#ifdef NDEBUG
-    fail (Error(RE_DEBUG_ONLY));
-#else
-    if (D_REF(5)) {
-        REBVAL *pool_id = D_ARG(6);
+    if (REF(dump_series)) {
+        REBVAL *pool_id = ARG(pool_id);
         Dump_Series_In_Pool(VAL_INT32(pool_id));
         return R_BLANK;
     }
 
-    if (D_REF(1)) flags = 3;
-    n = Inspect_Series(flags);
-#endif
+    REBCNT flags;
+    if (REF(show))
+        flags = 3;
+    else
+        flags = 0;
 
-    SET_INTEGER(D_OUT, n);
+    SET_INTEGER(D_OUT, Inspect_Series(flags));
 
     return R_OUT;
+#endif
 }
 
 
@@ -255,17 +261,17 @@ const char *evoke_help = "Evoke values:\n"
 //  
 //  "Special guru meditations. (Not for beginners.)"
 //  
-//      chant [word! block! integer!] "Single or block of words ('? to list)"
+//      chant [word! block! integer!]
+//          "Single or block of words ('? to list)"
 //  ]
 //
 REBNATIVE(evoke)
 {
+    INCLUDE_PARAMS_OF_EVOKE;
+
 #ifdef NDEBUG
     fail (Error(RE_DEBUG_ONLY));
 #else
-
-    PARAM(1, chant);
-
     RELVAL *arg = ARG(chant);
     REBCNT len;
 
@@ -322,20 +328,30 @@ REBNATIVE(evoke)
 //  
 //  "Set a usage limit only once (used for SECURE)."
 //  
-//      field [word!] "eval (count) or memory (bytes)"
+//      field [word!]
+//          "eval (count) or memory (bytes)"
 //      limit [any-number!]
 //  ]
 //
 REBNATIVE(limit_usage)
 {
-    REBSYM sym = VAL_WORD_SYM(D_ARG(1));
+    INCLUDE_PARAMS_OF_LIMIT_USAGE;
 
-    // Only gets set once:
+    REBSYM sym = VAL_WORD_SYM(ARG(field));
+
+    // !!! comment said "Only gets set once"...why?
+    //
     if (sym == SYM_EVAL) {
-        if (Eval_Limit == 0) Eval_Limit = Int64(D_ARG(2));
-    } else if (sym == SYM_MEMORY) {
-        if (PG_Mem_Limit == 0) PG_Mem_Limit = Int64(D_ARG(2));
+        if (Eval_Limit == 0)
+            Eval_Limit = Int64(ARG(limit));
     }
+    else if (sym == SYM_MEMORY) {
+        if (PG_Mem_Limit == 0)
+            PG_Mem_Limit = Int64(ARG(limit));
+    }
+    else
+        fail (Error_Invalid_Arg(ARG(field)));
+
     return R_VOID;
 }
 
@@ -358,7 +374,7 @@ REBNATIVE(check)
 // assert rather than replicating code here that can "tolerate" a bad series.
 // Review the necessity of this native.
 {
-    PARAM(1, value);
+    INCLUDE_PARAMS_OF_CHECK;
 
 #ifdef NDEBUG
     fail (Error(RE_DEBUG_ONLY));
@@ -397,9 +413,7 @@ REBNATIVE(check)
 //
 REBNATIVE(do_codec)
 {
-    PARAM(1, handle);
-    PARAM(2, action);
-    PARAM(3, data);
+    INCLUDE_PARAMS_OF_DO_CODEC;
 
     codo fun = cast(codo, VAL_HANDLE_CODE(ARG(handle)));
 

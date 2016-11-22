@@ -253,7 +253,7 @@ REBCNT Find_In_Array(
     REBCNT end,
     const RELVAL *target,
     REBCNT len,
-    REBCNT flags,
+    REBFLGS flags,
     REBINT skip
 ) {
     RELVAL *value;
@@ -502,48 +502,6 @@ static void Sort_Block(
 
 
 //
-//  Trim_Array: C
-// 
-// See Trim_String().
-//
-static void Trim_Array(REBARR *array, REBCNT index, REBCNT flags)
-{
-    RELVAL *head = ARR_HEAD(array);
-    REBCNT out = index;
-    REBCNT end = ARR_LEN(array);
-
-    if (flags & AM_TRIM_TAIL) {
-        for (; end >= (index + 1); end--) {
-            if (VAL_TYPE(head + end - 1) != REB_BLANK) break;
-        }
-        Remove_Series(ARR_SERIES(array), end, ARR_LEN(array) - end);
-        if (!(flags & AM_TRIM_HEAD) || index >= end) return;
-    }
-
-    if (flags & AM_TRIM_HEAD) {
-        for (; index < end; index++) {
-            if (VAL_TYPE(head + index) != REB_BLANK) break;
-        }
-        Remove_Series(ARR_SERIES(array), out, index - out);
-    }
-
-    if (flags == 0) {
-        for (; index < end; index++) {
-            if (VAL_TYPE(head + index) != REB_BLANK) {
-                //
-                // Rare case of legal RELVAL bit copying... from one slot in
-                // an array to another in that same array.
-                //
-                *ARR_AT(array, out) = head[index];
-                out++;
-            }
-        }
-        Remove_Series(ARR_SERIES(array), out, end - out);
-    }
-}
-
-
-//
 //  Shuffle_Block: C
 //
 void Shuffle_Block(REBVAL *value, REBOOL secure)
@@ -717,10 +675,7 @@ REBTYPE(Array)
     }
 
     case SYM_TAKE: {
-        REFINE(2, part);
-        PARAM(3, limit);
-        REFINE(4, deep);
-        REFINE(5, last);
+        INCLUDE_PARAMS_OF_TAKE;
 
         REBCNT len;
 
@@ -739,20 +694,19 @@ REBTYPE(Array)
             index = VAL_LEN_HEAD(value) - len;
 
         if (index < 0 || index >= cast(REBINT, VAL_LEN_HEAD(value))) {
-            if (!REF(part))
+            if (NOT(REF(part)))
                 return R_VOID;
 
             goto return_empty_block;
         }
 
-        // if no /part, just return value, else return block:
-        if (!REF(part)) {
-            COPY_VALUE(D_OUT, &ARR_HEAD(array)[index], specifier);
-        }
-        else
+        if (REF(part))
             Val_Init_Block(
                 D_OUT, Copy_Array_At_Max_Shallow(array, index, specifier, len)
             );
+        else
+            COPY_VALUE(D_OUT, &ARR_HEAD(array)[index], specifier);
+
         Remove_Series(ARR_SERIES(array), index, len);
         return R_OUT;
     }
@@ -761,35 +715,49 @@ REBTYPE(Array)
 
     case SYM_FIND:
     case SYM_SELECT: {
-        REBCNT args = Find_Refines(frame_, ALL_FIND_REFS);
+        INCLUDE_PARAMS_OF_FIND;
+
         REBINT len = ANY_ARRAY(arg) ? VAL_ARRAY_LEN_AT(arg) : 1;
 
-        REBCNT ret;
         REBCNT limit;
-
-        if (args & AM_FIND_PART)
-            Partial1(value, D_ARG(ARG_FIND_LIMIT), &limit);
+        if (REF(part))
+            Partial1(value, ARG(limit), &limit);
         else
             limit = VAL_LEN_HEAD(value);
 
-        ret = 1;
-        if (args & AM_FIND_SKIP) ret = Int32s(D_ARG(ARG_FIND_SIZE), 1);
-        ret = Find_In_Array(array, index, limit, arg, len, args, ret);
+        REBFLGS flags = (
+            (REF(only) ? AM_FIND_ONLY : 0)
+            | (REF(match) ? AM_FIND_MATCH : 0)
+            | (REF(reverse) ? AM_FIND_REVERSE : 0)
+            | (REF(case) ? AM_FIND_CASE : 0)
+        );
+
+        REBCNT skip = REF(skip) ? Int32s(ARG(size), 1) : 1;
+
+        REBCNT ret = Find_In_Array(
+            array, index, limit, arg, len, flags, skip
+        );
 
         if (ret >= limit) {
-            if (action == SYM_FIND) return R_BLANK;
+            if (action == SYM_FIND)
+                return R_BLANK;
             return R_VOID;
         }
-        if (args & AM_FIND_ONLY) len = 1;
+
+        if (REF(only))
+            len = 1;
+
         if (action == SYM_FIND) {
-            if (args & (AM_FIND_TAIL | AM_FIND_MATCH)) ret += len;
+            if (REF(tail) || REF(match))
+                ret += len;
             VAL_INDEX(value) = ret;
             *D_OUT = *value;
         }
         else {
             ret += len;
             if (ret >= limit) {
-                if (action == SYM_FIND) return R_BLANK;
+                if (action == SYM_FIND)
+                    return R_BLANK;
                 return R_VOID;
             }
             COPY_VALUE(D_OUT, ARR_AT(array, ret), specifier);
@@ -801,7 +769,7 @@ REBTYPE(Array)
     case SYM_APPEND:
     case SYM_INSERT:
     case SYM_CHANGE: {
-        REBCNT args = 0;
+        INCLUDE_PARAMS_OF_INSERT;
 
         // Length of target (may modify index): (arg can be anything)
         //
@@ -810,23 +778,27 @@ REBTYPE(Array)
             (action == SYM_CHANGE)
                 ? value
                 : arg,
-            D_ARG(AN_LIMIT),
+            ARG(limit),
             &len
         );
 
         FAIL_IF_LOCKED_ARRAY(array);
         index = VAL_INDEX(value);
 
-        if (D_REF(AN_ONLY)) SET_FLAG(args, AN_ONLY);
-        if (D_REF(AN_PART)) SET_FLAG(args, AN_PART);
+        REBFLGS flags = 0;
+        if (REF(only))
+            flags |= AM_ONLY;
+        if (REF(part))
+            flags |= AM_PART;
+
         index = Modify_Array(
             action,
             array,
             index,
             arg,
-            args,
+            flags,
             len,
-            D_REF(AN_DUP) ? Int32(D_ARG(AN_COUNT)) : 1
+            REF(dup) ? Int32(ARG(count)) : 1
         );
         VAL_INDEX(value) = index;
         *D_OUT = *value;
@@ -849,11 +821,7 @@ REBTYPE(Array)
     //-- Creation:
 
     case SYM_COPY: {
-        REFINE(2, part);
-        PARAM(3, limit);
-        REFINE(4, deep);
-        REFINE(5, types);
-        PARAM(6, kinds);
+        INCLUDE_PARAMS_OF_COPY;
 
         REBU64 types = 0;
         REBCNT tail = 0;
@@ -887,11 +855,47 @@ REBTYPE(Array)
     //-- Special actions:
 
     case SYM_TRIM: {
-        REBCNT args = Find_Refines(frame_, ALL_TRIM_REFS);
+        INCLUDE_PARAMS_OF_TRIM;
         FAIL_IF_LOCKED_ARRAY(array);
 
-        if (args & ~(AM_TRIM_HEAD|AM_TRIM_TAIL)) fail (Error(RE_BAD_REFINES));
-        Trim_Array(array, index, args);
+        if (REF(auto) || REF(with) || REF(all) || REF(lines))
+            fail (Error(RE_BAD_REFINES));
+
+        RELVAL *head = ARR_HEAD(array);
+        REBCNT out = index;
+        REBCNT end = ARR_LEN(array);
+
+        if (REF(tail)) {
+            for (; end >= (index + 1); end--) {
+                if (VAL_TYPE(head + end - 1) != REB_BLANK)
+                    break;
+            }
+            Remove_Series(ARR_SERIES(array), end, ARR_LEN(array) - end);
+
+            // if (!(flags & AM_TRIM_HEAD) || index >= end) return;
+        }
+
+        if (REF(head)) {
+            for (; index < end; index++) {
+                if (VAL_TYPE(head + index) != REB_BLANK) break;
+            }
+            Remove_Series(ARR_SERIES(array), out, index - out);
+        }
+
+        if (NOT(REF(head) || REF(tail))) {
+            for (; index < end; index++) {
+                if (VAL_TYPE(head + index) != REB_BLANK) {
+                    //
+                    // Rare case of legal RELVAL bit copying... from one slot
+                    // in an array to another in that same array.
+                    //
+                    *ARR_AT(array, out) = head[index];
+                    out++;
+                }
+            }
+            Remove_Series(ARR_SERIES(array), out, end - out);
+        }
+
         *D_OUT = *value;
         return R_OUT;
     }
@@ -940,26 +944,27 @@ REBTYPE(Array)
     }
 
     case SYM_SORT: {
+        INCLUDE_PARAMS_OF_SORT;
+
         FAIL_IF_LOCKED_ARRAY(array);
         Sort_Block(
             value,
-            D_REF(2),   // case sensitive
-            D_ARG(4),   // skip size
-            D_ARG(6),   // comparator
-            D_ARG(8),   // part-length
-            D_REF(9),   // all fields
-            D_REF(10)   // reverse
+            REF(case),
+            ARG(size), // skip size (may be void if no /SKIP)
+            ARG(comparator), // (may be void if no /COMPARE)
+            ARG(limit), // (may be void if no /PART)
+            REF(all),
+            REF(reverse)
         );
         *D_OUT = *value;
         return R_OUT;
     }
 
     case SYM_RANDOM: {
-        REFINE(2, seed);
-        REFINE(3, secure);
-        REFINE(4, only);
+        INCLUDE_PARAMS_OF_RANDOM;
 
-        if (REF(seed)) fail (Error(RE_BAD_REFINES));
+        if (REF(seed))
+            fail (Error(RE_BAD_REFINES));
 
         if (REF(only)) { // pick an element out of the array
             if (index >= cast(REBINT, VAL_LEN_HEAD(value)))

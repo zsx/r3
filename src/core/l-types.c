@@ -55,8 +55,7 @@ extern const MAKE_FUNC Make_Dispatch[REB_MAX];
 //
 REBNATIVE(make)
 {
-    PARAM(1, type);
-    PARAM(2, def);
+    INCLUDE_PARAMS_OF_MAKE;
 
     REBVAL *type = ARG(type);
     REBVAL *arg = ARG(def);
@@ -159,8 +158,7 @@ REBNATIVE(make)
 //
 REBNATIVE(to)
 {
-    PARAM(1, type);
-    PARAM(2, value);
+    INCLUDE_PARAMS_OF_TO;
 
     REBVAL *type = ARG(type);
     REBVAL *arg = ARG(value);
@@ -1112,7 +1110,7 @@ REBNATIVE(scan_net_header)
 // It's only being converted into a native to avoid introducing bugs by
 // rewriting it as Rebol in the middle of other changes.
 {
-    PARAM(1, header);
+    INCLUDE_PARAMS_OF_SCAN_NET_HEADER;
 
     REBARR *result = Make_Array(10); // Just a guess at size (use STD_BUF?)
 

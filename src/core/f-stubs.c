@@ -248,27 +248,6 @@ REBINT Int8u(const REBVAL *val)
 
 
 //
-//  Find_Refines: C
-// 
-// Scans the stack for function refinements that have been
-// specified in the mask (each as a bit) and are being used.
-//
-REBCNT Find_Refines(REBFRM *frame_, REBCNT mask)
-{
-    REBINT n;
-    REBCNT result = 0;
-
-    REBINT max = D_ARGC;
-
-    for (n = 0; n < max; n++) {
-        if ((mask & (1 << n) && D_REF(n + 1)))
-            result |= 1 << n;
-    }
-    return result;
-}
-
-
-//
 //  Val_Init_Datatype: C
 //
 void Val_Init_Datatype(REBVAL *out, enum Reb_Kind kind)

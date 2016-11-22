@@ -214,8 +214,17 @@ REBTYPE(Money)
         return R_OUT;
 
     case SYM_ROUND: {
-        REFINE(2, to);
-        PARAM(3, scale);
+        INCLUDE_PARAMS_OF_ROUND;
+
+        REBFLGS flags = (
+            (REF(to) ? RF_TO : 0)
+            | (REF(even) ? RF_EVEN : 0)
+            | (REF(down) ? RF_DOWN : 0)
+            | (REF(half_down) ? RF_HALF_DOWN : 0)
+            | (REF(floor) ? RF_FLOOR : 0)
+            | (REF(ceiling) ? RF_CEILING : 0)
+            | (REF(half_ceiling) ? RF_HALF_CEILING : 0)
+        );
 
         REBVAL *scale = ARG(scale);
 
@@ -235,7 +244,7 @@ REBTYPE(Money)
 
         SET_MONEY(D_OUT, Round_Deci(
             VAL_MONEY_AMOUNT(val),
-            Get_Round_Flags(frame_),
+            flags,
             VAL_MONEY_AMOUNT(&temp)
         ));
 

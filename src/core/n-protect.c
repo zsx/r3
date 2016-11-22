@@ -167,23 +167,13 @@ static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
 
 
 //
-//  Protect: C
+//  Protect_Unprotect_Core: C
 // 
 // Common arguments between protect and unprotect:
 // 
-//     1: value
-//     2: /deep  - recursive
-//     3: /words  - list of words
-//     4: /values - list of values
-// 
-// Protect takes a HIDE parameter as #5.
-//
-static REB_R Protect(REBFRM *frame_, REBFLGS flags)
+static REB_R Protect_Unprotect_Core(REBFRM *frame_, REBFLGS flags)
 {
-    PARAM(1, value);
-    REFINE(2, deep);
-    REFINE(3, words);
-    REFINE(4, values);
+    INCLUDE_PARAMS_OF_PROTECT;
 
     REBVAL *value = ARG(value);
 
@@ -267,27 +257,28 @@ return_value_arg:
 //  {Protect a series or a variable from being modified.}
 //  
 //      value [word! any-series! bitset! map! object! module!]
-//      /deep "Protect all sub-series/objects as well"
-//      /words "Process list as words (and path words)"
-//      /values "Process list of values (implied GET)"
-//      /hide "Hide variables (avoid binding and lookup)"
+//      /deep
+//          "Protect all sub-series/objects as well"
+//      /words
+//          "Process list as words (and path words)"
+//      /values
+//          "Process list of values (implied GET)"
+//      /hide
+//          "Hide variables (avoid binding and lookup)"
 //  ]
 //
 REBNATIVE(protect)
 {
-    PARAM(1, value);
-    REFINE(2, deep);
-    REFINE(3, words);
-    REFINE(4, values);
-    REFINE(5, hide);
+    INCLUDE_PARAMS_OF_PROTECT;
 
     REBFLGS flags = FLAGIT(PROT_SET);
 
-    if (REF(hide)) SET_FLAG(flags, PROT_HIDE);
-    else SET_FLAG(flags, PROT_WORD); // there is no unhide
+    if (REF(hide))
+        SET_FLAG(flags, PROT_HIDE);
+    else
+        SET_FLAG(flags, PROT_WORD); // there is no unhide
 
-    // accesses arguments 1 - 4
-    return Protect(frame_, flags);
+    return Protect_Unprotect_Core(frame_, flags);
 }
 
 
@@ -297,13 +288,22 @@ REBNATIVE(protect)
 //  {Unprotect a series or a variable (it can again be modified).}
 //  
 //      value [word! any-series! bitset! map! object! module!]
-//      /deep "Protect all sub-series as well"
-//      /words "Block is a list of words"
-//      /values "Process list of values (implied GET)"
+//      /deep
+//          "Protect all sub-series as well"
+//      /words
+//          "Block is a list of words"
+//      /values
+//          "Process list of values (implied GET)"
+//      /hide
+//          "HACK to make PROTECT and UNPROTECT have the same signature"
 //  ]
 //
 REBNATIVE(unprotect)
 {
-    // accesses arguments 1 - 4
-    return Protect(frame_, FLAGIT(PROT_WORD));
+    INCLUDE_PARAMS_OF_UNPROTECT;
+
+    if (REF(hide))
+        fail (Error(RE_MISC));
+
+    return Protect_Unprotect_Core(frame_, FLAGIT(PROT_WORD));
 }

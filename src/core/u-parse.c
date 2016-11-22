@@ -2121,7 +2121,7 @@ REBNATIVE(subparse)
 
                 if (flags & (PF_INSERT | PF_CHANGE)) {
                     count = (flags & PF_INSERT) ? 0 : count;
-                    REBCNT mod_flags = (flags & PF_INSERT) ? 0 : (1<<AN_PART);
+                    REBCNT mod_flags = (flags & PF_INSERT) ? 0 : AM_PART;
 
                     if (IS_END(P_RULE))
                         fail (Error_Parse_End());
@@ -2130,7 +2130,7 @@ REBNATIVE(subparse)
                         REBSYM cmd = VAL_CMD(P_RULE);
                         switch (cmd) {
                         case SYM_ONLY:
-                            mod_flags |= (1<<AN_ONLY);
+                            mod_flags |= AM_ONLY;
                             FETCH_NEXT_RULE_MAYBE_END(f);
                             if (IS_END(P_RULE))
                                 fail (Error_Parse_End());
@@ -2173,7 +2173,7 @@ REBNATIVE(subparse)
                         COPY_VALUE(&specified, rule, P_RULE_SPECIFIER);
 
                         if (P_TYPE == REB_BINARY)
-                            mod_flags |= (1 << AN_SERIES); // special flag
+                            mod_flags |= AM_BINARY_SERIES;
 
                         P_POS = Modify_String(
                             (flags & PF_CHANGE) ? SYM_CHANGE : SYM_INSERT,
@@ -2235,9 +2235,7 @@ REBNATIVE(subparse)
 //
 REBNATIVE(parse)
 {
-    PARAM(1, input);
-    PARAM(2, rules);
-    REFINE(3, case);
+    INCLUDE_PARAMS_OF_PARSE;
 
     REBVAL *rules = ARG(rules);
 

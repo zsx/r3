@@ -87,9 +87,7 @@ REBNATIVE(load_extension)
 // quit() - cleanup anything needed
 // call() - dispatch a native
 {
-    PARAM(1, name);
-    REFINE(2, dispatch);
-    PARAM(3, function);
+    INCLUDE_PARAMS_OF_LOAD_EXTENSION;
 
     REBVAL *val = ARG(name);
 
@@ -99,7 +97,7 @@ REBNATIVE(load_extension)
 
     //Check_Security(SYM_EXTENSION, POL_EXEC, val);
 
-    if (!REF(dispatch)) { // use the DLL file
+    if (NOT(REF(dispatch))) { // use the DLL file
 
         if (!IS_FILE(val)) fail (Error_Invalid_Arg(val));
 
@@ -161,7 +159,7 @@ REBNATIVE(load_extension)
         cast(void*, cast(REBUPT, ext->index)) // data
     );
 
-    if (!REF(dispatch))
+    if (NOT(REF(dispatch)))
         *CTX_VAR(context, STD_EXTENSION_LIB_FILE) = *ARG(name);
 
     Val_Init_Binary(CTX_VAR(context, STD_EXTENSION_LIB_BOOT), src);
@@ -251,7 +249,7 @@ bad_func_def:
 //
 REBNATIVE(make_command)
 {
-    PARAM(1, def);
+    INCLUDE_PARAMS_OF_MAKE_COMMAND;
 
     REBVAL *def = ARG(def);
 

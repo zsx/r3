@@ -82,7 +82,9 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         }
         return R_BLANK;
 
-    case SYM_READ:
+    case SYM_READ: {
+        INCLUDE_PARAMS_OF_READ;
+
         // This device is opened on the READ:
         if (!IS_OPEN(req)) {
             if (OS_DO_DEVICE(req, RDC_OPEN))
@@ -115,23 +117,24 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         }
 
         *D_OUT = *arg;
-        return R_OUT;
+        return R_OUT; }
 
-    case SYM_WRITE:
+    case SYM_WRITE: {
+        INCLUDE_PARAMS_OF_WRITE;
+
         if (!IS_STRING(arg) && !IS_BINARY(arg))
             fail (Error(RE_INVALID_PORT_ARG, arg));
+        
         // This device is opened on the WRITE:
         if (!IS_OPEN(req)) {
             if (OS_DO_DEVICE(req, RDC_OPEN))
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
         }
 
-        refs = Find_Refines(frame_, ALL_WRITE_REFS);
-
         // Handle /part refinement:
         len = VAL_LEN_AT(arg);
-        if (refs & AM_WRITE_PART && VAL_INT32(D_ARG(ARG_WRITE_LIMIT)) < len)
-            len = VAL_INT32(D_ARG(ARG_WRITE_LIMIT));
+        if (REF(part) && VAL_INT32(ARG(limit)) < len)
+            len = VAL_INT32(ARG(limit));
 
         // If bytes, see if we can fit it:
         if (SER_WIDE(VAL_SERIES(arg)) == 1) {
@@ -173,12 +176,13 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         if (result < 0) fail (Error_On_Port(RE_WRITE_ERROR, port, req->error));
         //if (result == DR_DONE) SET_BLANK(CTX_VAR(port, STD_PORT_DATA));
-        break;
+        break; }
 
-    case SYM_OPEN:
+    case SYM_OPEN: {
+        INCLUDE_PARAMS_OF_OPEN;
         if (OS_DO_DEVICE(req, RDC_OPEN))
             fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
-        break;
+        break; }
 
     case SYM_CLOSE:
         OS_DO_DEVICE(req, RDC_CLOSE);
