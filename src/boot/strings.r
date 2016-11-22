@@ -14,9 +14,9 @@ REBOL [
         of the system. This section is unique, because it constructs a
         single C string that contains all the specified strings below.
         This is done to eliminate series headers required for normal
-        REBOL strings. The strings are referenced using Boot_Strs[RS_*]
-        where * is the set-word (and is zero based). For example:
-        RS_SCAN+3 refers to "end-of-paren"
+        REBOL strings. The strings are referenced using BOOT_STR(RS_*,
+        index) where * is the set-word (and the index is zero based).
+        For example: BOOT_STR(RS_SCAN, 3) refers to "group-end"
     }
 ]
 
