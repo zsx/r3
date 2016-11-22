@@ -163,8 +163,8 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     // Actions for an open socket:
     switch (action) {
 
-    case SYM_READ:
-        refs = Find_Refines(frame_, ALL_READ_REFS);
+    case SYM_READ: {
+        INCLUDE_PARAMS_OF_READ;
 
         // Setup the read buffer (allocate a buffer if needed):
         arg = CTX_VAR(port, STD_PORT_DATA);
@@ -196,16 +196,16 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         printf("\n");
 #endif
         *D_OUT = *arg;
-        return R_OUT;
+        return R_OUT; }
 
-    case SYM_WRITE:
-        refs = Find_Refines(frame_, ALL_WRITE_REFS);
+    case SYM_WRITE: {
+        INCLUDE_PARAMS_OF_WRITE;
 
         // Determine length. Clip /PART to size of string if needed.
         spec = D_ARG(2);
         len = VAL_LEN_AT(spec);
-        if (refs & AM_WRITE_PART) {
-            REBCNT n = Int32s(D_ARG(ARG_WRITE_LIMIT), 0);
+        if (REF(part)) {
+            REBCNT n = Int32s(ARG(limit), 0);
             if (n <= len) len = n;
         }
 
@@ -218,7 +218,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         //Print("(write length %d)", len);
         result = OS_DO_DEVICE(req, RDC_WRITE); // send can happen immediately
         if (result < 0) fail (Error_On_Port(RE_WRITE_ERROR, port, req->error));
-        break;
+        break; }
 
     case SYM_UPDATE:
         // Update the port object after a READ or WRITE operation.

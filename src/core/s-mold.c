@@ -1549,7 +1549,12 @@ REBOOL Form_Reduce_Throws(
     Push_Mold(&mo);
 
     while (indexor != END_FLAG) {
-        indexor = DO_NEXT_MAY_THROW(out, block, indexor, specifier);
+        indexor = DO_NEXT_MAY_THROW(
+            out,
+            block,
+            cast(REBCNT, indexor), // cast ok (isn't END_FLAG or THROWN_FLAG)
+            specifier
+        );
         if (indexor == THROWN_FLAG)
             return TRUE;
 
@@ -1717,7 +1722,7 @@ REBSER *Pop_Molded_String_Core(REB_MOLD *mold, REBCNT len)
     Throttle_Mold(mold);
 
     assert(
-        (len == END_FLAG) || (len <= SER_LEN(mold->series) - mold->start)
+        (len == UNKNOWN) || (len <= SER_LEN(mold->series) - mold->start)
     );
 
     // The copy process looks at the characters in range and will make a
@@ -1726,7 +1731,7 @@ REBSER *Pop_Molded_String_Core(REB_MOLD *mold, REBCNT len)
     string = Copy_String_Slimming(
         mold->series,
         mold->start,
-        (len == END_FLAG)
+        (len == UNKNOWN)
             ? SER_LEN(mold->series) - mold->start
             : len
     );

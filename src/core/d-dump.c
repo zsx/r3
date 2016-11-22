@@ -268,11 +268,11 @@ void Dump_Stack(REBFRM *f, REBCNT level, REBOOL dump_args)
 //
 REBNATIVE(dump)
 {
+    INCLUDE_PARAMS_OF_DUMP;
+
 #ifdef NDEBUG
     fail (Error(RE_DEBUG_ONLY));
 #else
-    PARAM(1, value);
-
     REBVAL *value = ARG(value);
 
     Dump_Stack(frame_, 0, TRUE);

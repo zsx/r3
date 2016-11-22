@@ -106,14 +106,15 @@ static void Arc_Trans(REBVAL *out, const REBVAL *value, REBOOL degrees, REBCNT k
 //  
 //  "Returns the trigonometric cosine."
 //  
-//      value [any-number!] "In degrees by default"
-//      /radians "Value is specified in radians"
+//      value [any-number!]
+//          "In degrees by default"
+//      /radians
+//          "Value is specified in radians"
 //  ]
 //
 REBNATIVE(cosine)
 {
-    PARAM(1, value);
-    REFINE(2, radians);
+    INCLUDE_PARAMS_OF_COSINE;
 
     REBDEC dval = cos(Trig_Value(ARG(value), NOT(REF(radians)), COSINE));
     if (fabs(dval) < DBL_EPSILON) dval = 0.0;
@@ -127,14 +128,15 @@ REBNATIVE(cosine)
 //  
 //  "Returns the trigonometric sine."
 //  
-//      value [any-number!] "In degrees by default"
-//      /radians "Value is specified in radians"
+//      value [any-number!]
+//          "In degrees by default"
+//      /radians
+//          "Value is specified in radians"
 //  ]
 //
 REBNATIVE(sine)
 {
-    PARAM(1, value);
-    REFINE(2, radians);
+    INCLUDE_PARAMS_OF_SINE;
 
     REBDEC dval = sin(Trig_Value(ARG(value), NOT(REF(radians)), SINE));
     if (fabs(dval) < DBL_EPSILON) dval = 0.0;
@@ -148,14 +150,15 @@ REBNATIVE(sine)
 //  
 //  "Returns the trigonometric tangent."
 //  
-//      value [any-number!] "In degrees by default"
-//      /radians "Value is specified in radians"
+//      value [any-number!]
+//          "In degrees by default"
+//      /radians
+//          "Value is specified in radians"
 //  ]
 //
 REBNATIVE(tangent)
 {
-    PARAM(1, value);
-    REFINE(2, radians);
+    INCLUDE_PARAMS_OF_TANGENT;
 
     REBDEC dval = Trig_Value(ARG(value), NOT(REF(radians)), TANGENT);
     if (Eq_Decimal(fabs(dval), pi1 / 2.0)) fail (Error(RE_OVERFLOW));
@@ -170,13 +173,13 @@ REBNATIVE(tangent)
 //  {Returns the trigonometric arccosine (in degrees by default).}
 //  
 //      value [any-number!]
-//      /radians "Returns result in radians"
+//      /radians
+//          "Returns result in radians"
 //  ]
 //
 REBNATIVE(arccosine)
 {
-    PARAM(1, value);
-    REFINE(2, radians);
+    INCLUDE_PARAMS_OF_ARCCOSINE;
 
     Arc_Trans(D_OUT, ARG(value), NOT(REF(radians)), COSINE);
     return R_OUT;
@@ -189,13 +192,13 @@ REBNATIVE(arccosine)
 //  {Returns the trigonometric arcsine (in degrees by default).}
 //  
 //      value [any-number!]
-//      /radians "Returns result in radians"
+//      /radians
+//          "Returns result in radians"
 //  ]
 //
 REBNATIVE(arcsine)
 {
-    PARAM(1, value);
-    REFINE(2, radians);
+    INCLUDE_PARAMS_OF_ARCSINE;
 
     Arc_Trans(D_OUT, ARG(value), NOT(REF(radians)), SINE);
     return R_OUT;
@@ -208,13 +211,13 @@ REBNATIVE(arcsine)
 //  {Returns the trigonometric arctangent (in degrees by default).}
 //  
 //      value [any-number!]
-//      /radians "Returns result in radians"
+//      /radians
+//          "Returns result in radians"
 //  ]
 //
 REBNATIVE(arctangent)
 {
-    PARAM(1, value);
-    REFINE(2, radians);
+    INCLUDE_PARAMS_OF_ARCTANGENT;
 
     Arc_Trans(D_OUT, ARG(value), NOT(REF(radians)), TANGENT);
     return R_OUT;
@@ -231,7 +234,9 @@ REBNATIVE(arctangent)
 //
 REBNATIVE(exp)
 {
-    REBDEC  dval = AS_DECIMAL(D_ARG(1));
+    INCLUDE_PARAMS_OF_EXP;
+
+    REBDEC dval = AS_DECIMAL(ARG(power));
     static REBDEC eps = EPS;
 
     dval = pow(eps, dval);
@@ -251,7 +256,9 @@ REBNATIVE(exp)
 //
 REBNATIVE(log_10)
 {
-    REBDEC dval = AS_DECIMAL(D_ARG(1));
+    INCLUDE_PARAMS_OF_LOG_10;
+
+    REBDEC dval = AS_DECIMAL(ARG(value));
     if (dval <= 0) fail (Error(RE_POSITIVE));
     SET_DECIMAL(D_OUT, log10(dval));
     return R_OUT;
@@ -268,7 +275,9 @@ REBNATIVE(log_10)
 //
 REBNATIVE(log_2)
 {
-    REBDEC dval = AS_DECIMAL(D_ARG(1));
+    INCLUDE_PARAMS_OF_LOG_2;
+
+    REBDEC dval = AS_DECIMAL(ARG(value));
     if (dval <= 0) fail (Error(RE_POSITIVE));
     SET_DECIMAL(D_OUT, log(dval) / LOG2);
     return R_OUT;
@@ -285,7 +294,9 @@ REBNATIVE(log_2)
 //
 REBNATIVE(log_e)
 {
-    REBDEC dval = AS_DECIMAL(D_ARG(1));
+    INCLUDE_PARAMS_OF_LOG_E;
+
+    REBDEC dval = AS_DECIMAL(ARG(value));
     if (dval <= 0) fail (Error(RE_POSITIVE));
     SET_DECIMAL(D_OUT, log(dval));
     return R_OUT;
@@ -302,7 +313,9 @@ REBNATIVE(log_e)
 //
 REBNATIVE(square_root)
 {
-    REBDEC dval = AS_DECIMAL(D_ARG(1));
+    INCLUDE_PARAMS_OF_SQUARE_ROOT;
+
+    REBDEC dval = AS_DECIMAL(ARG(value));
     if (dval < 0) fail (Error(RE_POSITIVE));
     SET_DECIMAL(D_OUT, sqrt(dval));
     return R_OUT;
@@ -339,9 +352,7 @@ REBNATIVE(square_root)
 //
 REBNATIVE(shift)
 {
-    PARAM(1, value);
-    PARAM(2, bits);
-    REFINE(3, logical);
+    INCLUDE_PARAMS_OF_SHIFT;
 
     REBI64 b = VAL_INT64(ARG(bits));
     REBVAL *a = ARG(value);
@@ -521,8 +532,7 @@ compare:
 //
 REBNATIVE(equal_q)
 {
-    PARAM(1, value1);
-    PARAM(2, value2);
+    INCLUDE_PARAMS_OF_EQUAL_Q;
 
     if (Compare_Modify_Values(ARG(value1), ARG(value2), 0))
         return R_TRUE;
@@ -542,8 +552,7 @@ REBNATIVE(equal_q)
 //
 REBNATIVE(not_equal_q)
 {
-    PARAM(1, value1);
-    PARAM(2, value2);
+    INCLUDE_PARAMS_OF_NOT_EQUAL_Q;
 
     if (Compare_Modify_Values(ARG(value1), ARG(value2), 0))
         return R_FALSE;
@@ -563,8 +572,7 @@ REBNATIVE(not_equal_q)
 //
 REBNATIVE(strict_equal_q)
 {
-    PARAM(1, value1);
-    PARAM(2, value2);
+    INCLUDE_PARAMS_OF_STRICT_EQUAL_Q;
 
     if (Compare_Modify_Values(ARG(value1), ARG(value2), 1))
         return R_TRUE;
@@ -584,8 +592,7 @@ REBNATIVE(strict_equal_q)
 //
 REBNATIVE(strict_not_equal_q)
 {
-    PARAM(1, value1);
-    PARAM(2, value2);
+    INCLUDE_PARAMS_OF_STRICT_NOT_EQUAL_Q;
 
     if (Compare_Modify_Values(ARG(value1), ARG(value2), 1))
         return R_FALSE;
@@ -611,8 +618,7 @@ REBNATIVE(same_q)
 // Rather than incur a cost for all comparisons, this handles the issue
 // specially for those types which support it.
 {
-    PARAM(1, value1);
-    PARAM(2, value2);
+    INCLUDE_PARAMS_OF_SAME_Q;
 
     REBVAL *value1 = ARG(value1);
     REBVAL *value2 = ARG(value2);
@@ -720,8 +726,7 @@ REBNATIVE(same_q)
 //
 REBNATIVE(lesser_q)
 {
-    PARAM(1, value1);
-    PARAM(2, value2);
+    INCLUDE_PARAMS_OF_LESSER_Q;
 
     if (Compare_Modify_Values(ARG(value1), ARG(value2), -1))
         return R_FALSE;
@@ -740,8 +745,7 @@ REBNATIVE(lesser_q)
 //
 REBNATIVE(lesser_or_equal_q)
 {
-    PARAM(1, value1);
-    PARAM(2, value2);
+    INCLUDE_PARAMS_OF_LESSER_OR_EQUAL_Q;
 
     if (Compare_Modify_Values(ARG(value1), ARG(value2), -2))
         return R_FALSE;
@@ -760,8 +764,7 @@ REBNATIVE(lesser_or_equal_q)
 //
 REBNATIVE(greater_q)
 {
-    PARAM(1, value1);
-    PARAM(2, value2);
+    INCLUDE_PARAMS_OF_GREATER_Q;
 
     if (Compare_Modify_Values(ARG(value1), ARG(value2), -2))
         return R_TRUE;
@@ -780,8 +783,7 @@ REBNATIVE(greater_q)
 //
 REBNATIVE(greater_or_equal_q)
 {
-    PARAM(1, value1);
-    PARAM(2, value2);
+    INCLUDE_PARAMS_OF_GREATER_OR_EQUAL_Q;
 
     if (Compare_Modify_Values(ARG(value1), ARG(value2), -1))
         return R_TRUE;
@@ -801,8 +803,7 @@ REBNATIVE(greater_or_equal_q)
 //
 REBNATIVE(maximum)
 {
-    PARAM(1, value1);
-    PARAM(2, value2);
+    INCLUDE_PARAMS_OF_MAXIMUM;
 
     const REBVAL *value1 = ARG(value1);
     const REBVAL *value2 = ARG(value2);
@@ -833,8 +834,7 @@ REBNATIVE(maximum)
 //
 REBNATIVE(minimum)
 {
-    PARAM(1, value1);
-    PARAM(2, value2);
+    INCLUDE_PARAMS_OF_MINIMUM;
 
     const REBVAL *value1 = ARG(value1);
     const REBVAL *value2 = ARG(value2);
@@ -865,7 +865,7 @@ REBNATIVE(minimum)
 //
 REBNATIVE(negative_q)
 {
-    PARAM(1, number);
+    INCLUDE_PARAMS_OF_NEGATIVE_Q;
 
     REBVAL zero;
     SET_ZEROED(&zero, VAL_TYPE(ARG(number)));
@@ -887,7 +887,7 @@ REBNATIVE(negative_q)
 //
 REBNATIVE(positive_q)
 {
-    PARAM(1, number);
+    INCLUDE_PARAMS_OF_POSITIVE_Q;
 
     REBVAL zero;
     SET_ZEROED(&zero, VAL_TYPE(ARG(number)));
@@ -909,7 +909,7 @@ REBNATIVE(positive_q)
 //
 REBNATIVE(zero_q)
 {
-    PARAM(1, value);
+    INCLUDE_PARAMS_OF_ZERO_Q;
 
     enum Reb_Kind type = VAL_TYPE(ARG(value));
 

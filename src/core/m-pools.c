@@ -488,7 +488,6 @@ void *Make_Node(REBCNT pool_id)
 
     REBNOD *node = pool->first;
 
-    if (node == cast(REBNOD*, 0x7fffea5be8e8)) debug_break();
     UNPOISON_MEMORY(node, pool->wide);
 
     pool->first = node->next_if_free;
@@ -981,9 +980,9 @@ REBSER *Make_Series(REBCNT capacity, REBYTE wide, REBCNT flags)
 
 
 //
-//  Make_Pairing: C
+//  Alloc_Pairing: C
 //
-// Make a paired set of values.  The "key" is in the cell *before* the
+// Allocate a paired set of values.  The "key" is in the cell *before* the
 // returned pointer.
 //
 // Because pairings are created in large numbers and left outstanding, they
@@ -994,12 +993,14 @@ REBSER *Make_Series(REBCNT capacity, REBYTE wide, REBCNT flags)
 //
 // However, untracked/unmanaged pairings have a special ability.  It's
 // possible for them to be "owned" by a FRAME!, which sits in the first cell.
+// This provides an alternate mechanism for plain C code to do cleanup besides
+// handlers based on PUSH_TRAP().
 //
-REBVAL *Make_Pairing(REBCTX *opt_owning_frame) {
+REBVAL *Alloc_Pairing(REBCTX *opt_owning_frame) {
     REBSER *s = cast(REBSER*, Make_Node(SER_POOL)); // 2x REBVAL size
 
     REBVAL *key = cast(REBVAL*, s);
-    REBVAL *pairing = key + 1;
+    REBVAL *paired = key + 1;
 
 #if !defined(NDEBUG)
     s->guard = cast(int*, malloc(sizeof(*s->guard)));
@@ -1010,15 +1011,30 @@ REBVAL *Make_Pairing(REBCTX *opt_owning_frame) {
     INIT_CELL_IF_DEBUG(key);
     if (opt_owning_frame) {
         Val_Init_Context(key, REB_FRAME, opt_owning_frame);
-        SET_VAL_FLAG(key, ANY_CONTEXT_FLAG_OWNS_PAIRED);
+        SET_VAL_FLAGS(
+            key, ANY_CONTEXT_FLAG_OWNS_PAIRED | REBSER_REBVAL_FLAG_ROOT
+        );
     }
-    else
-        SET_VOID(key); // won't signal GC, header is not purely 0
+    else {
+        // Client will need to put *something* in the key slot (accessed with
+        // PAIRING_KEY).  Whatever they end up writing should be acceptable
+        // to avoid a GC, since the header is not purely 0...and it works out
+        // that all "ordinary" values will just act as unmanaged metadata.
+        //
+        SET_TRASH_IF_DEBUG(key);
+    }
 
-    INIT_CELL_IF_DEBUG(pairing);
-    SET_BLANK(pairing); // default for AnyValue in Ren-Cpp, so same here
+    INIT_CELL_IF_DEBUG(paired);
+    SET_TRASH_IF_DEBUG(paired);
 
-    return pairing;
+#if !defined(NDEBUG)
+    s->guard = cast(int*, malloc(sizeof(*s->guard)));
+    free(s->guard);
+
+    s->do_count = TG_Do_Count;
+#endif
+
+    return paired;
 }
 
 
@@ -1044,7 +1060,12 @@ void Free_Pairing(REBVAL *paired) {
     REBVAL *key = PAIRING_KEY(paired);
     assert(!GET_VAL_FLAG(key, REBSER_REBVAL_FLAG_MANAGED));
     REBSER *series = cast(REBSER*, key);
+    SET_TRASH_IF_DEBUG(paired);
     Free_Node(SER_POOL, series);
+
+#if !defined(NDEBUG)
+    series->do_count = TG_Do_Count;
+#endif
 }
 
 
@@ -1439,10 +1460,6 @@ void GC_Kill_Series(REBSER *s)
     assert(!IS_FREE_NODE(s));
     assert(NOT(s->header.bits & CELL_MASK)); // use Free_Paired
 
-#if !defined(NDEBUG)
-    PG_Reb_Stats->Series_Freed++;
-#endif
-
     // Special handling for adjusting canons.  (REVIEW: do this by keeping the
     // symbol REBSERs in their own pools, and letting that pool's sweeper
     // do it instead of checking all series for it)
@@ -1520,6 +1537,14 @@ void GC_Kill_Series(REBSER *s)
 
     // GC may no longer be necessary:
     if (GC_Ballast > 0) CLR_SIGNAL(SIG_RECYCLE);
+
+#if !defined(NDEBUG)
+    PG_Reb_Stats->Series_Freed++;
+
+    // Update the do count to be the count on which the series was freed
+    //
+    s->do_count = TG_Do_Count;
+#endif
 }
 
 
@@ -1587,10 +1612,6 @@ void Free_Series(REBSER *s)
         Debug_Fmt("Trying to Free_Series() on a series managed by GC.");
         Panic_Series(s);
     }
-
-    // Update the do count to be the count on which the series was freed
-    //
-    s->do_count = TG_Do_Count;
 #endif
 
     Drop_Manual_Series(s);

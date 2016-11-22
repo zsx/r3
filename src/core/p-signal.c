@@ -275,8 +275,10 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         case SYM_OPEN_Q:
             return R_TRUE;
 
-        case SYM_OPEN:
+        case SYM_OPEN: {
+            INCLUDE_PARAMS_OF_OPEN;
             fail (Error(RE_ALREADY_OPEN, D_ARG(1)));
+        }
 
         default:
             fail (Error_Illegal_Action(REB_PORT, action));

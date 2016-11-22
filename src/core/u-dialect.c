@@ -578,12 +578,7 @@ REBINT Do_Dialect(REBCTX *dialect, REBARR *block, REBCNT *index, REBARR **out)
 //
 REBNATIVE(delect)
 {
-    PARAM(1, dialect);
-    PARAM(2, input);
-    PARAM(3, output);
-    REFINE(4, in);
-    PARAM(5, where);
-    REFINE(6, all);
+    INCLUDE_PARAMS_OF_DELECT;
 
     REBDIA dia;
     REBINT err;

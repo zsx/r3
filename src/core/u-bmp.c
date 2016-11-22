@@ -281,7 +281,7 @@ void Unmap_Bytes(void *srcp, REBYTE **dstp, const char *map) {
 // Error:  Code in codi->error
 // Return: Success as TRUE or FALSE
 //
-static void Decode_BMP_Image(REBCDI *codi)
+static void Decode_BMP_Image(REBOOL identify, REBCDI *codi)
 {
     REBINT              i, j, x, y, c;
     REBINT              colors, compression, bitcount;
@@ -300,7 +300,7 @@ static void Decode_BMP_Image(REBCDI *codi)
         codi->error = CODI_ERR_SIGNATURE;
         return;
     }
-    if (codi->action == CODI_ACT_IDENTIFY) return; // no error means success
+    if (identify) return; // no error means success
 
     tp = cp;
     Map_Bytes(&bmih, &cp, mapBITMAPINFOHEADER);
@@ -574,21 +574,21 @@ static void Encode_BMP_Image(REBCDI *codi)
 //
 //  Codec_BMP_Image: C
 //
-REBINT Codec_BMP_Image(REBCDI *codi)
+REBINT Codec_BMP_Image(int action, REBCDI *codi)
 {
     codi->error = 0;
 
-    if (codi->action == CODI_ACT_IDENTIFY) {
-        Decode_BMP_Image(codi);
+    if (action == CODI_ACT_IDENTIFY) {
+        Decode_BMP_Image(TRUE, codi);
         return CODI_CHECK; // error code is inverted result
     }
 
-    if (codi->action == CODI_ACT_DECODE) {
-        Decode_BMP_Image(codi);
+    if (action == CODI_ACT_DECODE) {
+        Decode_BMP_Image(FALSE, codi);
         return CODI_IMAGE;
     }
 
-    if (codi->action == CODI_ACT_ENCODE) {
+    if (action == CODI_ACT_ENCODE) {
         Encode_BMP_Image(codi);
         return CODI_BINARY;
     }

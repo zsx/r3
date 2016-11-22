@@ -506,7 +506,7 @@ REBNATIVE(meta_of)
 // and possibly other types of values--both as the meta information, and
 // as being able to have the meta information.
 {
-    PARAM(1, value);
+    INCLUDE_PARAMS_OF_META_OF;
 
     REBVAL *value = ARG(value);
 
@@ -542,8 +542,7 @@ REBNATIVE(set_meta)
 // would live for the function--since frames use a functions "paramlist"
 // as their keylist.  Types taken are deliberately narrow for the moment.
 {
-    PARAM(1, value);
-    PARAM(2, meta);
+    INCLUDE_PARAMS_OF_SET_META;
 
     REBCTX *meta;
     if (ANY_CONTEXT(ARG(meta))) {
@@ -593,37 +592,40 @@ REBTYPE(Context)
         SET_INTEGER(D_OUT, CTX_LEN(VAL_CONTEXT(value)));
         return R_OUT;
 
-    case SYM_COPY:
-        // Note: words are not copied and bindings not changed!
-    {
+    case SYM_COPY: { // Note: words are not copied and bindings not changed!
+        INCLUDE_PARAMS_OF_COPY;
+
+        if (REF(part))
+            fail (Error(RE_BAD_REFINES));
+
         REBU64 types = 0;
-        if (D_REF(ARG_COPY_PART)) fail (Error(RE_BAD_REFINES));
-        if (D_REF(ARG_COPY_DEEP)) {
-            types |= D_REF(ARG_COPY_TYPES) ? 0 : TS_STD_SERIES;
+        if (REF(deep))
+            types |= REF(types) ? 0 : TS_STD_SERIES;
+        if (REF(types)) {
+            if (IS_DATATYPE(ARG(kinds)))
+                types |= FLAGIT_KIND(VAL_TYPE_KIND(ARG(kinds)));
+            else
+                types |= VAL_TYPESET_BITS(ARG(kinds));
         }
-        if (D_REF(ARG_COPY_TYPES)) {
-            arg = D_ARG(ARG_COPY_KINDS);
-            if (IS_DATATYPE(arg)) types |= FLAGIT_KIND(VAL_TYPE_KIND(arg));
-            else types |= VAL_TYPESET_BITS(arg);
-        }
+
         context = AS_CONTEXT(
             Copy_Array_Shallow(CTX_VARLIST(VAL_CONTEXT(value)), SPECIFIED)
         );
         INIT_CTX_KEYLIST_SHARED(context, CTX_KEYLIST(VAL_CONTEXT(value)));
         SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_VARLIST);
         CTX_VALUE(context)->payload.any_context.varlist = CTX_VARLIST(context);
+        
         if (types != 0) {
             Clonify_Values_Len_Managed(
                 CTX_VARS_HEAD(context),
                 SPECIFIED,
                 CTX_LEN(context),
-                D_REF(ARG_COPY_DEEP),
+                REF(deep),
                 types
             );
         }
         Val_Init_Context(D_OUT, VAL_TYPE(value), context);
-        return R_OUT;
-    }
+        return R_OUT; }
 
     case SYM_SELECT:
     case SYM_FIND: {
@@ -661,17 +663,21 @@ REBTYPE(Context)
         Val_Init_Block(D_OUT, Context_To_Array(VAL_CONTEXT(value), reflector));
         return R_OUT; }
 
-    case SYM_TRIM:
-        if (Find_Refines(frame_, ALL_TRIM_REFS)) {
-            // no refinements are allowed
+    case SYM_TRIM: {
+        INCLUDE_PARAMS_OF_TRIM;
+        if (
+            REF(head) || REF(tail)
+            || REF(auto) || REF(with) || REF(all) || REF(lines)
+        ){
             fail (Error(RE_BAD_REFINES));
         }
+
         Val_Init_Context(
             D_OUT,
             VAL_TYPE(value),
             Trim_Context(VAL_CONTEXT(value))
         );
-        return R_OUT;
+        return R_OUT; }
 
     case SYM_TAIL_Q:
         if (IS_OBJECT(value)) {
@@ -713,9 +719,7 @@ REBNATIVE(construct)
 // be making a copy instead (at least by default, perhaps with performance
 // junkies saying `construct/rebind` or something like that?
 {
-    PARAM(1, spec);
-    PARAM(2, body);
-    REFINE(3, only);
+    INCLUDE_PARAMS_OF_CONSTRUCT;
 
     REBVAL *spec = ARG(spec);
     REBVAL *body = ARG(body);

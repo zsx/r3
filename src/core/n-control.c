@@ -50,15 +50,12 @@
 #include "sys-core.h"
 
 
-// Shared logic for IF and UNLESS
+// Shared logic for IF and UNLESS (they have the same frame params layout)
 //
 inline static REB_R If_Unless_Core(REBFRM *frame_, REBOOL trigger)
 {
-    PARAM(1, condition);
-    PARAM(2, branch);
-    REFINE(3, only);
-    REFINE(4, q); //  return TRUE if branch taken, else FALSE
-
+    INCLUDE_PARAMS_OF_IF;  // ? is renamed as "q"
+    
     // Test is "safe", e.g. literal blocks aren't allowed, `if [x] [...]`
     //
     if (IS_CONDITIONAL_TRUE_SAFE(ARG(condition)) != trigger) {
@@ -150,10 +147,7 @@ REBNATIVE(unless)
 //
 REBNATIVE(either)
 {
-    PARAM(1, condition);
-    PARAM(2, true_branch);
-    PARAM(3, false_branch);
-    REFINE(4, only);
+    INCLUDE_PARAMS_OF_EITHER;
 
     return Either_Core(
         D_OUT,
@@ -178,7 +172,7 @@ REBNATIVE(either)
 //
 REBNATIVE(all)
 {
-    PARAM(1, block);
+    INCLUDE_PARAMS_OF_ALL;
 
     Reb_Enumerator e;
     PUSH_SAFE_ENUMERATOR(&e, ARG(block)); // DO-ing code could disrupt `block`
@@ -230,7 +224,7 @@ REBNATIVE(all)
 //
 REBNATIVE(any)
 {
-    PARAM(1, block);
+    INCLUDE_PARAMS_OF_ANY;
 
     Reb_Enumerator e;
     PUSH_SAFE_ENUMERATOR(&e, ARG(block)); // DO-ing code could disrupt `block`
@@ -283,7 +277,7 @@ REBNATIVE(none)
 // !!! In order to reduce confusion and accidents in the near term, the
 // %mezz-legacy.r renames this to NONE-OF and makes NONE report an error.
 {
-    PARAM(1, block);
+    INCLUDE_PARAMS_OF_NONE;
 
     Reb_Enumerator e;
     PUSH_SAFE_ENUMERATOR(&e, ARG(block)); // DO-ing code could disrupt `block`
@@ -331,13 +325,13 @@ REBNATIVE(none)
 //
 REBNATIVE(case)
 {
-    PARAM(1, block); // overwritten as scratch space after enumerator init
-    REFINE(2, all);
-    REFINE(3, only);
-    REFINE(4, q);
+    INCLUDE_PARAMS_OF_CASE; // ? is renamed as "q"
 
     Reb_Enumerator e;
     PUSH_SAFE_ENUMERATOR(&e, ARG(block)); // DO-ing cases could disrupt `block`
+
+    // With the block argument pushed in the enumerator, that frame slot is
+    // available for scratch space in the rest of the routine.
 
     while (NOT_END(e.value)) {
         UPDATE_EXPRESSION_START(&e); // informs the error delivery better
@@ -459,7 +453,7 @@ return_thrown:
 //          "Block of cases to check"
 //      /default
 //          "Default case if no others found"
-//      case
+//      default-case
 //          "Block to execute (or value to return)"
 //      /all
 //          "Evaluate all matches (not just first one)"
@@ -471,13 +465,7 @@ return_thrown:
 //
 REBNATIVE(switch)
 {
-    PARAM(1, value);
-    PARAM(2, cases);
-    REFINE(3, default);
-    PARAM(4, default_case);
-    REFINE(5, all);
-    REFINE(6, strict);
-    REFINE(7, q);
+    INCLUDE_PARAMS_OF_SWITCH; // ? is renamed as "q"
 
     Reb_Enumerator e;
     PUSH_SAFE_ENUMERATOR(&e, ARG(cases)); // DO-ing matches may disrupt `cases`
@@ -627,14 +615,7 @@ REBNATIVE(catch)
 // it (you have to CATCH/ANY/QUIT).  Currently the label for quitting is the
 // NATIVE! function value for QUIT.
 {
-    PARAM(1, block);
-    REFINE(2, name);
-    PARAM(3, names);
-    REFINE(4, quit);
-    REFINE(5, any);
-    REFINE(6, with);
-    PARAM(7, handler);
-    REFINE(8, q);
+    INCLUDE_PARAMS_OF_CATCH; // ? is renamed as "q"
 
     // /ANY would override /NAME, so point out the potential confusion
     //
@@ -791,9 +772,7 @@ REBNATIVE(throw)
 //
 // !!! Should parameters be /NAMED and NAME ?
 {
-    PARAM(1, value);
-    REFINE(2, name);
-    PARAM(3, name_value);
+    INCLUDE_PARAMS_OF_THROW;
 
     REBVAL *value = ARG(value);
 

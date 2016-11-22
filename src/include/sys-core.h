@@ -245,6 +245,7 @@ typedef void (*TO_FUNC)(REBVAL*, enum Reb_Kind, const REBVAL*);
 
 #include "sys-state.h"
 #include "sys-rebfrm.h" // `REBFRM` definition (also used by value)
+#include "sys-indexor.h" // REBIXO definition
 
 //-- Port actions (for native port schemes):
 
@@ -272,7 +273,7 @@ typedef struct rebol_mold {
     Drop_Mold_Core((mo), FALSE)
 
 #define Pop_Molded_String(mo) \
-    Pop_Molded_String_Core((mo), END_FLAG)
+    Pop_Molded_String_Core((mo), UNKNOWN)
 
 #define Pop_Molded_String_Len(mo,len) \
     Pop_Molded_String_Core((mo), (len))
@@ -438,23 +439,47 @@ enum {
 };
 
 // General constants:
-#define NOT_FOUND ((REBCNT)-1)
-#define UNKNOWN   ((REBCNT)-1)
+
 #define LF 10
 #define CR 13
 #define TAB '\t'
 #define CRLF "\r\n"
 #define TAB_SIZE 4
 
-// Move this:
-enum Insert_Arg_Nums {
-    AN_SERIES = 1,
-    AN_VALUE,
-    AN_PART,
-    AN_LIMIT,
-    AN_ONLY,
-    AN_DUP,
-    AN_COUNT
+// Move these things:
+enum act_modify_mask {
+    AM_BINARY_SERIES = 1 << 0,
+    AM_PART = 1 << 1,
+    AM_ONLY = 1 << 2
+};
+enum act_find_mask {
+    AM_FIND_ONLY = 1 << 0,
+    AM_FIND_CASE = 1 << 1,
+    AM_FIND_LAST = 1 << 2,
+    AM_FIND_REVERSE = 1 << 3,
+    AM_FIND_TAIL = 1 << 4,
+    AM_FIND_MATCH = 1 << 5
+};
+enum act_read_mask {
+    AM_READ_STRING = 1 << 0,
+    AM_READ_LINES = 1 << 1
+};
+enum act_open_mask {
+    AM_OPEN_NEW = 1 << 0,
+    AM_OPEN_READ = 1 << 1,
+    AM_OPEN_WRITE = 1 << 2,
+    AM_OPEN_SEEK = 1 << 3,
+    AM_OPEN_ALLOW = 1 << 4
+};
+// Rounding flags (passed as refinements to ROUND function):
+enum {
+    RF_TO = 1 << 0,
+    RF_EVEN = 1 << 1,
+    RF_DOWN = 1 << 2,
+    RF_HALF_DOWN = 1 << 3,
+    RF_FLOOR = 1 << 4,
+    RF_CEILING = 1 << 5,
+    RF_HALF_CEILING = 1 << 6
 };
 
 enum rebol_signals {
@@ -560,7 +585,15 @@ enum Reb_Vararg_Op {
 #include "tmp-funcs.h"
 
 #include "tmp-strings.h"
-#include "tmp-funcargs.h"
+
+// %tmp-paramlists.h is the file that contains macros for natives and actions
+// that map their argument names to indices in the frame.  This defines the
+// macros like INCLUDE_ARGS_FOR_INSERT which then allow you to naturally
+// write things like REF(part) and ARG(limit), instead of the brittle integer
+// based system used in R3-Alpha such as D_REF(7) and D_ARG(3).
+//
+#include "tmp-paramlists.h"
+
 #include "tmp-boot.h"
 #include "tmp-errnums.h"
 #include "tmp-sysobj.h"

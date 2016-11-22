@@ -220,7 +220,8 @@ const REBYTE N_debug_spec[] =
         " {Stack level to inspect or dialect block, or enter debug mode}"
     "";
 REB_R N_debug(REBFRM *frame_) {
-    PARAM(1, value);
+    PARAM(1, value); // no automatic INCLUDE_PARAMS_OF_XXX for manual native
+
     REBVAL *value = ARG(value);
 
     if (IS_VOID(value)) {

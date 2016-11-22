@@ -93,7 +93,7 @@ emit-file: func [
     src: source
     while [src: find src set-word!] [
         if all [
-            <no-export> <> first back src
+            <no-export> != first back src
             find [command func function funct] src/2
         ][
             append exported-words to-word src/1
@@ -106,29 +106,36 @@ emit-file: func [
         insert exports exported-words
     ]
 
-    for-each word words [emit [tab "CMD_" prefix #"_" replace/all form-name word "'" "_LIT"  ",^/"]]
-    emit [tab "CMD_" prefix "_MAX" newline]
-    emit "};^/^/"
+    for-each word words [
+        emit [
+            spaced-tab
+            "CMD_" prefix #"_" replace/all form-name word "'" "_LIT"  ","
+            newline
+        ]
+    ]
+    emit [spaced-tab "CMD_MAX" newline]
+    emit ["};" newline newline]
 
     if src: select source to-set-word 'words [
-        emit ["enum " name "_words {^/"]
-        emit [tab "W_" prefix "_0,^/"]
-        for-each word src [emit [tab "W_" prefix #"_" form-name word ",^/"]]
-        emit [tab "W_" prefix "_MAX" newline]
-        emit "};^/^/"
+        emit ["enum " name "_words {" newline]
+        emit [spaced-tab "W_" prefix "_0," newline]
+        for-each word src [
+            emit [spaced-tab "W_" prefix #"_" form-name word "," newline]
+        ]
+        emit [spaced-tab "W_MAX" newline]
+        emit ["};" newline newline]
     ]
 
     code: append trim/head mold/only/flat source newline
     append code to-char 0 ; null terminator may be required
     emit [
-        "extern const unsigned char RX_" name "[]^/"
-    	"#ifdef INCLUDE_EXT_DATA^/"
-	"	= {^/"
+        "extern const unsigned char RX_" name "[]" newline
+    	"#ifdef INCLUDE_EXT_DATA=" newline
+	"	= {" newline
         binary-to-c to-binary code
-        "}^/"
-    	"#endif^/"
-
-	";^/^/"
+        "}" newline
+        "#endif" newline
+        ";" newline
     ]
 
     write rejoin [output-dir/include %/ file %.h] out

@@ -53,8 +53,7 @@
 //
 REBNATIVE(eval)
 {
-    PARAM(1, value);
-    REFINE(2, only);
+    INCLUDE_PARAMS_OF_EVAL;
 
     REBFRM *f = frame_; // implicit parameter to every dispatcher/native
 
@@ -111,20 +110,16 @@ REBNATIVE(eval)
 //      /next
 //          {Do next expression only, return it, update block variable}
 //      var [any-word! blank!]
-//          "Variable updated with new block position"
+//          "If not blank, then a variable updated with new block position"
 //  ]
 //
 REBNATIVE(do)
 {
-    PARAM(1, value);
-    REFINE(2, args);
-    PARAM(3, arg);
-    REFINE(4, next);
-    PARAM(5, var); // if BLANK!, DO/NEXT only but no var update
+    INCLUDE_PARAMS_OF_DO;
 
-    REBVAL *value = ARG(value);
+    REBVAL *source = ARG(source);
 
-    switch (VAL_TYPE(value)) {
+    switch (VAL_TYPE(source)) {
     case REB_MAX_VOID:
         // useful for `do if ...` types of scenarios
         return R_VOID;
@@ -136,25 +131,21 @@ REBNATIVE(do)
     case REB_BLOCK:
     case REB_GROUP:
         if (REF(next)) {
-            REBIXO indexor = VAL_INDEX(value);
-
-            indexor = DO_NEXT_MAY_THROW(
+            REBIXO indexor = DO_NEXT_MAY_THROW(
                 D_OUT,
-                VAL_ARRAY(value),
-                indexor,
-                VAL_SPECIFIER(value)
+                VAL_ARRAY(source),
+                VAL_INDEX(source),
+                VAL_SPECIFIER(source)
             );
 
             if (indexor == THROWN_FLAG) {
+                //
                 // the throw should make the value irrelevant, but if caught
                 // then have it indicate the start of the thrown expression
-
-                // !!! What if the block was mutated, and D_ARG(1) is no
-                // longer actually the expression that started the throw?
-
+                //
                 if (!IS_BLANK(ARG(var))) {
                     *GET_MUTABLE_VAR_MAY_FAIL(ARG(var), SPECIFIED)
-                        = *value;
+                        = *source;
                 }
 
                 return R_OUT_IS_THROWN;
@@ -171,18 +162,18 @@ REBNATIVE(do)
                 // recover the series again...you'd have to save it.
                 //
                 if (indexor == END_FLAG)
-                    VAL_INDEX(value) = VAL_LEN_HEAD(value);
+                    VAL_INDEX(source) = VAL_LEN_HEAD(source);
                 else
-                    VAL_INDEX(value) = cast(REBCNT, indexor);
+                    VAL_INDEX(source) = cast(REBCNT, indexor);
 
                 *GET_MUTABLE_VAR_MAY_FAIL(ARG(var), SPECIFIED)
-                    = *ARG(value);
+                    = *ARG(source);
             }
 
             return R_OUT;
         }
 
-        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, value))
+        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, source))
             return R_OUT_IS_THROWN;
 
         return R_OUT;
@@ -199,7 +190,7 @@ REBNATIVE(do)
             D_OUT,
             TRUE, // error if not all arguments consumed
             Sys_Func(SYS_CTX_DO_P),
-            value,
+            source,
             REF(args) ? TRUE_VALUE : FALSE_VALUE,
             REF(args) ? ARG(arg) : BLANK_VALUE, // can't put void in block
             REF(next) ? TRUE_VALUE : FALSE_VALUE,
@@ -218,14 +209,14 @@ REBNATIVE(do)
         // does.  However DO of an ERROR! would have to raise an error
         // anyway, so it might as well raise the one it is given.
         //
-        fail (VAL_CONTEXT(value));
+        fail (VAL_CONTEXT(source));
 
     case REB_FUNCTION: {
         //
         // Ren-C will only run arity 0 functions from DO, otherwise EVAL
         // must be used.  Look for the first non-local parameter to tell.
         //
-        REBVAL *param = FUNC_PARAMS_HEAD(VAL_FUNC(value));
+        REBVAL *param = FUNC_PARAMS_HEAD(VAL_FUNC(source));
         while (
             NOT_END(param)
             && (VAL_PARAM_CLASS(param) == PARAM_CLASS_LOCAL)
@@ -235,7 +226,7 @@ REBNATIVE(do)
         if (NOT_END(param))
             fail (Error(RE_USE_EVAL_FOR_EVAL));
 
-        if (EVAL_VALUE_THROWS(D_OUT, value))
+        if (EVAL_VALUE_THROWS(D_OUT, source))
             return R_OUT_IS_THROWN;
         return R_OUT;
     }
@@ -258,7 +249,7 @@ REBNATIVE(do)
         // is for" flavor.
         //
         assert(!GET_ARR_FLAG(
-            CTX_VARLIST(VAL_CONTEXT(value)), CONTEXT_FLAG_STACK)
+            CTX_VARLIST(VAL_CONTEXT(source)), CONTEXT_FLAG_STACK)
         );
 
         REBFRM frame;
@@ -268,11 +259,11 @@ REBNATIVE(do)
         // arguments to be filled in.
         //
         f->out = D_OUT;
-        f->gotten = CTX_FRAME_FUNC_VALUE(VAL_CONTEXT(value));
+        f->gotten = CTX_FRAME_FUNC_VALUE(VAL_CONTEXT(source));
         f->func = VAL_FUNC(f->gotten);
-        f->binding = VAL_BINDING(value);
+        f->binding = VAL_BINDING(source);
 
-        f->varlist = CTX_VARLIST(VAL_CONTEXT(value)); // need w/NULL def
+        f->varlist = CTX_VARLIST(VAL_CONTEXT(source)); // need w/NULL def
 
         return Apply_Frame_Core(f, Canon(SYM___ANONYMOUS__), NULL); }
 
@@ -303,8 +294,7 @@ REBNATIVE(do)
 //
 REBNATIVE(apply)
 {
-    PARAM(1, value);
-    PARAM(2, def);
+    INCLUDE_PARAMS_OF_APPLY;
 
     REBVAL *def = ARG(def);
 
@@ -356,8 +346,7 @@ REBNATIVE(apply)
 //
 REBNATIVE(also)
 {
-    PARAM(1, value1);
-    PARAM(2, value2);
+    INCLUDE_PARAMS_OF_ALSO;
 
     *D_OUT = *ARG(value1);
     return R_OUT;
@@ -377,7 +366,7 @@ REBNATIVE(also)
 //
 REBNATIVE(comment)
 {
-    PARAM(1, value);
+    INCLUDE_PARAMS_OF_COMMENT;
 
     // All the work was already done (at the cost of setting up
     // state that would just have to be torn down).

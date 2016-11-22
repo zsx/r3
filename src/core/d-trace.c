@@ -225,9 +225,7 @@ void Trace_Error(const REBVAL *value)
 //
 REBNATIVE(trace)
 {
-    PARAM(1, mode);
-    REFINE(2, back);
-    REFINE(3, function);
+    INCLUDE_PARAMS_OF_TRACE;
 
     REBVAL *mode = ARG(mode);
 

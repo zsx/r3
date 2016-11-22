@@ -199,7 +199,8 @@ act_blk:
         SET_INTEGER(D_OUT, VAL_LEN_HEAD(state));
         break;
 
-    case SYM_OPEN:
+    case SYM_OPEN: {
+        INCLUDE_PARAMS_OF_OPEN;
         if (!req) { //!!!
             req = OS_MAKE_DEVREQ(RDI_EVENT);
             if (req) {
@@ -207,7 +208,7 @@ act_blk:
                 OS_DO_DEVICE(req, RDC_CONNECT);     // stays queued
             }
         }
-        break;
+        break; }
 
     case SYM_CLOSE:
         OS_ABORT_DEVICE(req);

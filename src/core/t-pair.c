@@ -64,7 +64,8 @@ void MAKE_Pair(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
         REBYTE *bp
             = Temp_Byte_Chars_May_Fail(arg, VAL_LEN_AT(arg), &len, FALSE);
 
-        if (!Scan_Pair(bp, len, out)) goto bad_make;
+        if (NULL == Scan_Pair(out, bp, len))
+            goto bad_make;
 
         return;
     }
@@ -268,8 +269,10 @@ REBTYPE(Pair)
 
     switch (action) {
 
-    case SYM_COPY:
+    case SYM_COPY: {
+        INCLUDE_PARAMS_OF_COPY;
         goto setPair;
+    }
 
     case SYM_ADD:
         Get_Math_Arg_For_Pair(&x2, &y2, D_ARG(2), action);
@@ -314,16 +317,26 @@ REBTYPE(Pair)
         goto setPair;
 
     case SYM_ROUND: {
-        REBDEC d64;
-        REBFLGS flags = Get_Round_Flags(frame_);
-        if (D_REF(2))
-            d64 = Dec64(D_ARG(3));
-        else {
-            d64 = 1.0L;
-            flags |= 1;
+        INCLUDE_PARAMS_OF_ROUND;
+
+        REBFLGS flags = (
+            (REF(to) ? RF_TO : 0)
+            | (REF(even) ? RF_EVEN : 0)
+            | (REF(down) ? RF_DOWN : 0)
+            | (REF(half_down) ? RF_HALF_DOWN : 0)
+            | (REF(floor) ? RF_FLOOR : 0)
+            | (REF(ceiling) ? RF_CEILING : 0)
+            | (REF(half_ceiling) ? RF_HALF_CEILING : 0)
+        );
+
+        if (REF(to)) {
+            x1 = Round_Dec(x1, flags, Dec64(ARG(scale)));
+            y1 = Round_Dec(y1, flags, Dec64(ARG(scale)));
         }
-        x1 = Round_Dec(x1, flags, d64);
-        y1 = Round_Dec(y1, flags, d64);
+        else {
+            x1 = Round_Dec(x1, flags | RF_TO, 1.0L);
+            y1 = Round_Dec(y1, flags | RF_TO, 1.0L);
+        }
         goto setPair; }
 
     case SYM_REVERSE:
@@ -332,11 +345,15 @@ REBTYPE(Pair)
         y1 = x2;
         goto setPair;
 
-    case SYM_RANDOM:
-        if (D_REF(2)) fail (Error(RE_BAD_REFINES)); // seed
-        x1 = cast(REBDEC, Random_Range(cast(REBINT, x1), D_REF(3)));
-        y1 = cast(REBDEC, Random_Range(cast(REBINT, y1), D_REF(3)));
-        goto setPair;
+    case SYM_RANDOM: {
+        INCLUDE_PARAMS_OF_RANDOM;
+
+        if (REF(seed))
+            fail (Error(RE_BAD_REFINES));
+
+        x1 = cast(REBDEC, Random_Range(cast(REBINT, x1), REF(secure)));
+        y1 = cast(REBDEC, Random_Range(cast(REBINT, y1), REF(secure)));
+        goto setPair; }
 
     case SYM_PICK: {
         REBVAL *arg = D_ARG(2);

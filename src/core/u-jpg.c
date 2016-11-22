@@ -1,22 +1,38 @@
+// %sys-jpg.h appears to be a mostly unmodified third-party file.  The defines
+// are used to configure it.
+//
 #define JPEG_INTERNALS
 #define NO_GETENV
-#include "reb-config.h"
-#include "reb-c.h"
-#include <setjmp.h>
 #include "sys-jpg.h"
 
-#ifdef STRICT_BOOL_COMPILER_TEST
-    //
-    // This is third party code that is not written to use REBOOL, and hence
-    // the definitions of TRUE and FALSE used in the "fake" build will trip
-    // it up.  We substitute in normal definitions for this file.  See
-    // the explanations of this test in %reb-c.h for more information.
-    //
-    #undef TRUE
-    #undef FALSE
-    #define TRUE 1
-    #define FALSE 0
-#endif
+// setjmp and longjmp are used as the error reporting hook.  It's not clear
+// if this choice was made by Rebol or if the original file used it.
+//
+#include <setjmp.h>
+
+// !!! In R3-Alpha, it was possible to write a codec that was not dependent on
+// the RL_API in %reb-host.h (or the "internal API", which didn't exist
+// formally but was effectively what you got by including %sys-core.h).
+// Instead the interface to the codec was abstract to the byte-level, which
+// meant Rebol types had to be proxied into "pure" C types, the codec would
+// run and then proxy back into Rebol types again.
+//
+// Ren-C does not force all extension code to Rebol to include everything
+// (such as the definition of the full Reb_Value struct and all its
+// dependencies) but extensions or plugins are expected to be linked to
+// the RL_API.  This covers many things, such as transferring managed platform
+// independent strings back and forth, etc.
+//
+// These routines seem to be of somewhat old origin in the 90s.  Although
+// the main code has not been retrofitted to use REBINTs or REBOOLs or things
+// from %reb-c.h, it does depend on TO_PIXEL_COLOR to get the pixel bits
+// right across platforms, as well as needing a stable 32-bit integer type
+// from u32.  If the code were sync'd, then it may be updated by someone
+// else to not need these dependencies...and %reb-host.h inclusion could
+// be moved to the bottom of the file.
+//
+#include "reb-host.h"
+
 
 /*
  * jdatasrc.c
@@ -10783,29 +10799,25 @@ jinit_phuff_decoder (j_decompress_ptr cinfo)
 #endif /* D_PROGRESSIVE_SUPPORTED */
 
 
-/***********************************************************************
-**
-** REBOL Interface (keep it minimal)
-**
-** The JPEG codec does not include sys-core.h, so it doesn't pick up
-** the prototype of Init_JPEG_Codec which is generated from make-headers.r
-** (made b/c its definition appears in a starred comment box).  It's
-** the only codec that does this.  Should no codecs include sys-core?
-**
-***********************************************************************/
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Original comment said: "REBOL Interface (keep it minimal)"
+//
+// The JPEG codec does not include sys-core.h, so it doesn't pick up
+// the prototype of Init_JPEG_Codec which is generated from make-headers.r
+// (made b/c its definition appears in a starred comment box).  It's
+// the only codec that does this.  Should no codecs include sys-core?
+//
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#ifndef CODI_DEFINED
-    #include "reb-codec.h"
-    void *Alloc_Mem(size_t size);
-    void Register_Codec(const REBYTE *name, codo dispatcher);
-#endif
+    void *Alloc_Mem(size_t size); // used by ALLOC_N below
 
-extern void Init_JPEG_Codec(void);
-extern REBINT Codec_JPEG_Image(REBCDI *codi);
+    void Register_Codec(const REBYTE *name, codo dispatcher);
+    void Init_JPEG_Codec(void);
+    REBINT Codec_JPEG_Image(int action, REBCDI *codi);
 
 #ifdef __cplusplus
 }
@@ -10815,26 +10827,27 @@ extern REBINT Codec_JPEG_Image(REBCDI *codi);
 //
 //  Codec_JPEG_Image: C
 //
-REBINT Codec_JPEG_Image(REBCDI *codi)
+REBINT Codec_JPEG_Image(int action, REBCDI *codi)
 {
     codi->error = 0;
 
     // Handle JPEG error throw:
     if (setjmp(jpeg_state)) {
         codi->error = CODI_ERR_BAD_DATA; // generic
-        if (codi->action == CODI_ACT_IDENTIFY) return CODI_CHECK;
+        if (action == CODI_ACT_IDENTIFY)
+            return CODI_CHECK;
         return CODI_ERROR;
     }
 
-    if (codi->action == CODI_ACT_IDENTIFY) {
+    if (action == CODI_ACT_IDENTIFY) {
         int w, h;
-        jpeg_info(s_cast(codi->data), codi->len, &w, &h); // will throw errors
+        jpeg_info(s_cast(codi->data), codi->len, &w, &h); // may longjmp above
         return CODI_CHECK;
     }
 
-    if (codi->action == CODI_ACT_DECODE) {
+    if (action == CODI_ACT_DECODE) {
         int w, h;
-        jpeg_info(s_cast(codi->data), codi->len, &w, &h);
+        jpeg_info(s_cast(codi->data), codi->len, &w, &h); // also may longjmp
         codi->extra.bits = ALLOC_N(u32, w * h);
         jpeg_load(s_cast(codi->data), codi->len, cast(char*, codi->extra.bits));
         codi->w = w;

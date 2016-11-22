@@ -181,8 +181,10 @@ other-flags: context [
 
 ; A little bit of sanity-checking on the systems table
 use [rec unknown-flags] [
-    ; !!! See notes about NO-RETURN in the loop wrapper definition.
-    for-each-record-NO-RETURN rec systems [
+    ;
+    ; !!! See notes about RETURN from FOR-EACH-RECORD in its definition.
+    ;
+    for-each-record rec systems [
         assert [tuple? rec/id]
         assert [(to-string rec/os-name) == (lowercase to-string rec/os-name)]
         assert [(to-string rec/os-base) == (lowercase to-string rec/os-base)]

@@ -214,7 +214,6 @@ inline static REBCNT FRM_EXPR_INDEX(REBFRM *f) {
 #define D_CELL      FRM_CELL(frame_)        // GC-safe cell if > 1 argument
 #define D_ARGC      FRM_NUM_ARGS(frame_)        // count of args+refinements/args
 #define D_ARG(n)    FRM_ARG(frame_, (n))    // pass 1 for first arg
-#define D_REF(n)    IS_CONDITIONAL_TRUE(D_ARG(n))  // REFinement (!REFerence)
 #define D_FUNC      FRM_FUNC(frame_)        // REBVAL* of running function
 #define D_LABEL_SYM FRM_LABEL(frame_)       // symbol or placeholder for call
 #define D_DSP_ORIG  FRM_DSP_ORIG(frame_)    // Original data stack pointer
@@ -281,9 +280,12 @@ inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL *value) {
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // These accessors are designed to make it convenient for natives written in
-// C to access their arguments and refinements.  They are able to bind to the
-// implicit Reb_Frame* passed to every REBNATIVE() and read the information
-// out cleanly, like this:
+// C to access their arguments and refinements.  (They are what is behind the
+// implementation of the INCLUDE_PARAMS_OF_XXX macros that are used in
+// natives.)
+//
+// They are able to bind to the implicit Reb_Frame* passed to every
+// REBNATIVE() and read the information out cleanly, like this:
 //
 //     PARAM(1, foo);
 //     REFINE(2, bar);
@@ -461,7 +463,7 @@ return_and_check:
 
 
 // Allocate the series of REBVALs inspected by a function when executed (the
-// values behind D_ARG(1), D_REF(2), etc.)
+// values behind ARG(name), REF(name), D_ARG(3),  etc.)
 //
 // This only allocates space for the arguments, it does not initialize.
 // Do_Core initializes as it goes, and updates f->param so the GC knows how

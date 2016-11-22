@@ -56,8 +56,7 @@ REBNATIVE(func)
 // Native optimized implementation of a "definitional return" function
 // generator.  See comments on Make_Function_May_Fail for full notes.
 {
-    PARAM(1, spec);
-    PARAM(2, body);
+    INCLUDE_PARAMS_OF_FUNC;
 
     REBFUN *fun = Make_Interpreted_Function_May_Fail(
         ARG(spec), ARG(body), MKF_RETURN | MKF_KEYWORDS
@@ -87,8 +86,7 @@ REBNATIVE(proc)
 // Provides convenient interface similar to FUNC that will not accidentally
 // leak values to the caller.
 {
-    PARAM(1, spec);
-    PARAM(2, body);
+    INCLUDE_PARAMS_OF_PROC;
 
     REBFUN *fun = Make_Interpreted_Function_May_Fail(
         ARG(spec), ARG(body), MKF_LEAVE | MKF_KEYWORDS
@@ -185,10 +183,7 @@ REBNATIVE(exit)
 // BACKTRACE number is a bit low-level, and perhaps should be restricted to
 // a debugging mode (though it is a useful tool in "code golf").
 {
-    REFINE(1, with);
-    PARAM(2, value);
-    REFINE(3, from);
-    PARAM(4, level);
+    INCLUDE_PARAMS_OF_EXIT;
 
     if (NOT(REF(from)))
         SET_INTEGER(ARG(level), 1); // default--exit one function stack level
@@ -211,7 +206,7 @@ REBNATIVE(exit)
 //
 REBNATIVE(return)
 {
-    PARAM(1, value);
+    INCLUDE_PARAMS_OF_RETURN;
 
     REBVAL *value = ARG(value);
     REBFRM *f = frame_; // implicit parameter to REBNATIVE()
@@ -283,8 +278,7 @@ REBNATIVE(leave)
 //
 REBNATIVE(typechecker)
 {
-    PARAM(1, type);
-    REFINE(2, opt);
+    INCLUDE_PARAMS_OF_TYPECHECKER;
 
     REBVAL *type = ARG(type);
 
@@ -356,8 +350,7 @@ REBNATIVE(brancher)
 // a function wanting to pull the trick ELSE is with its left hand side will
 // have to use some kind of quoting.
 {
-    PARAM(1, true_branch);
-    PARAM(2, false_branch);
+    INCLUDE_PARAMS_OF_BRANCHER;
 
     REBARR *paramlist = Make_Array(2);
     ARR_SERIES(paramlist)->link.meta = NULL;
@@ -384,7 +377,7 @@ REBNATIVE(brancher)
 
     RELVAL *body = FUNC_BODY(func);
 
-    REBVAL *branches = Make_Pairing(NULL);
+    REBVAL *branches = Alloc_Pairing(NULL);
     *PAIRING_KEY(branches) = *ARG(true_branch);
     *branches = *ARG(false_branch);
     Manage_Pairing(branches);
@@ -411,8 +404,7 @@ REBNATIVE(brancher)
 //
 REBNATIVE(specialize)
 {
-    PARAM(1, value);
-    PARAM(2, def);
+    INCLUDE_PARAMS_OF_SPECIALIZE;
 
     REBSTR *opt_name;
 
@@ -447,8 +439,7 @@ REBNATIVE(specialize)
 //
 REBNATIVE(chain)
 {
-    PARAM(1, pipeline);
-    REFINE(2, quote);
+    INCLUDE_PARAMS_OF_CHAIN;
 
     REBVAL *out = D_OUT; // plan ahead for factoring into Chain_Function(out..
 
@@ -541,8 +532,7 @@ REBNATIVE(chain)
 //
 REBNATIVE(adapt)
 {
-    PARAM(1, adaptee);
-    PARAM(2, prelude);
+    INCLUDE_PARAMS_OF_ADAPT;
 
     REBVAL *adaptee = ARG(adaptee);
 
@@ -658,8 +648,7 @@ REBNATIVE(hijack)
 // case of trying to use unaligned refinements happens.
 //
 {
-    PARAM(1, victim);
-    PARAM(2, hijacker);
+    INCLUDE_PARAMS_OF_HIJACK;
 
     REBVAL victim_value;
     REBSTR *opt_victim_name;
@@ -796,7 +785,7 @@ REBNATIVE(hijack)
 //
 REBNATIVE(variadic_q)
 {
-    PARAM(1, func);
+    INCLUDE_PARAMS_OF_VARIADIC_Q;
 
     REBVAL *param = VAL_FUNC_PARAMS_HEAD(ARG(func));
     for (; NOT_END(param); ++param) {
@@ -838,7 +827,7 @@ REBNATIVE(tighten)
 //
 // But also, the parameter types and help notes are kept in sync.
 {
-    PARAM(1, action);
+    INCLUDE_PARAMS_OF_TIGHTEN;
 
     REBFUN *original = VAL_FUNC(ARG(action));
 

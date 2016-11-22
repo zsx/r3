@@ -70,7 +70,9 @@ static REBOOL Check_Char_Range(REBVAL *val, REBINT limit)
 //
 REBNATIVE(ascii_q)
 {
-    return R_FROM_BOOL(Check_Char_Range(D_ARG(1), 0x7f));
+    INCLUDE_PARAMS_OF_ASCII_Q;
+
+    return R_FROM_BOOL(Check_Char_Range(ARG(value), 0x7f));
 }
 
 
@@ -84,7 +86,9 @@ REBNATIVE(ascii_q)
 //
 REBNATIVE(latin1_q)
 {
-    return R_FROM_BOOL(Check_Char_Range(D_ARG(1), 0xff));
+    INCLUDE_PARAMS_OF_LATIN1_Q;
+
+    return R_FROM_BOOL(Check_Char_Range(ARG(value), 0xff));
 }
 
 
@@ -100,7 +104,7 @@ REBNATIVE(latin1_q)
 //
 REBNATIVE(verify)
 {
-    PARAM(1, conditions);
+    INCLUDE_PARAMS_OF_VERIFY;
 
     if (IS_LOGIC(ARG(conditions))) {
         if (VAL_LOGIC(ARG(conditions)))
@@ -197,9 +201,7 @@ inline static REB_R Do_Test_For_Maybe(
 //
 REBNATIVE(maybe)
 {
-    PARAM(1, test);
-    PARAM(2, value);
-    REFINE(3, q);
+    INCLUDE_PARAMS_OF_MAYBE; // ? is renamed as "q"
 
     REBVAL *test = ARG(test);
     REBVAL *value = ARG(value);
@@ -270,8 +272,7 @@ type_matched:
 //
 REBNATIVE(as_pair)
 {
-    PARAM(1, x);
-    PARAM(2, y);
+    INCLUDE_PARAMS_OF_AS_PAIR;
 
     REBVAL *x = ARG(x);
     REBVAL *y = ARG(y);
@@ -307,12 +308,7 @@ REBNATIVE(as_pair)
 //
 REBNATIVE(bind)
 {
-    PARAM(1, value);
-    PARAM(2, target);
-    REFINE(3, copy);
-    REFINE(4, only);
-    REFINE(5, new);
-    REFINE(6, set);
+    INCLUDE_PARAMS_OF_BIND;
 
     REBVAL *value = ARG(value);
     REBVAL *target = ARG(target);
@@ -416,7 +412,7 @@ REBNATIVE(bind)
 //
 REBNATIVE(context_of)
 {
-    PARAM(1, word);
+    INCLUDE_PARAMS_OF_CONTEXT_OF;
 
     if (IS_WORD_UNBOUND(ARG(word))) return R_BLANK;
 
@@ -443,7 +439,7 @@ REBNATIVE(context_of)
 //
 REBNATIVE(any_value_q)
 {
-    PARAM(1, cell);
+    INCLUDE_PARAMS_OF_ANY_VALUE_Q;
 
     if (IS_VOID(ARG(cell)))
         return R_FALSE;
@@ -456,14 +452,15 @@ REBNATIVE(any_value_q)
 //  
 //  "Unbinds words from context."
 //  
-//      word [block! any-word!] "A word or block (modified) (returned)"
-//      /deep "Process nested blocks"
+//      word [block! any-word!]
+//          "A word or block (modified) (returned)"
+//      /deep
+//          "Process nested blocks"
 //  ]
 //
 REBNATIVE(unbind)
 {
-    PARAM(1, word);
-    REFINE(2, deep);
+    INCLUDE_PARAMS_OF_UNBIND;
 
     REBVAL *word = ARG(word);
 
@@ -495,15 +492,11 @@ REBNATIVE(unbind)
 //
 REBNATIVE(collect_words)
 {
-    PARAM(1, block);
-    REFINE(2, deep);
-    REFINE(3, set);
-    REFINE(4, ignore);
-    PARAM(5, hidden);
+    INCLUDE_PARAMS_OF_COLLECT_WORDS;
 
     REBARR *words;
     REBCNT modes;
-    RELVAL *values = VAL_ARRAY_AT(D_ARG(1));
+    RELVAL *values = VAL_ARRAY_AT(ARG(block));
     RELVAL *prior_values;
 
     if (REF(set))
@@ -553,8 +546,7 @@ REBNATIVE(get)
 // !!! Review if handling ANY-CONTEXT! is a good idea, or if that should be
 // an independent reflector like VALUES-OF.
 {
-    PARAM(1, source);
-    REFINE(2, opt);
+    INCLUDE_PARAMS_OF_GET;
 
     REBVAL *source = ARG(source);
 
@@ -618,7 +610,7 @@ REBNATIVE(get)
         *D_OUT = *source;
     }
 
-    if (!REF(opt) && IS_VOID(D_OUT))
+    if (NOT(REF(opt)) && IS_VOID(D_OUT))
         fail (Error_No_Value(source));
 
     return R_OUT;
@@ -636,7 +628,7 @@ REBNATIVE(get)
 //
 REBNATIVE(to_value)
 {
-    PARAM(1, value);
+    INCLUDE_PARAMS_OF_TO_VALUE;
 
     if (IS_VOID(ARG(value)))
         return R_BLANK;
@@ -658,7 +650,7 @@ REBNATIVE(to_value)
 //
 REBNATIVE(opt)
 {
-    PARAM(1, value);
+    INCLUDE_PARAMS_OF_OPT;
 
     if (IS_BLANK(ARG(value)))
         return R_VOID;
@@ -682,8 +674,7 @@ REBNATIVE(in)
 // !!! The argument names here are bad... not necessarily a context and not
 // necessarily a word.  `code` or `source` to be bound in a `target`, perhaps?
 {
-    PARAM(1, context);
-    PARAM(2, word);
+    INCLUDE_PARAMS_OF_IN;
 
     REBVAL *val = ARG(context); // object, error, port, block
     REBVAL *word = ARG(word);
@@ -767,12 +758,7 @@ REBNATIVE(in)
 //
 REBNATIVE(resolve)
 {
-    PARAM(1, target);
-    PARAM(2, source);
-    REFINE(3, only);
-    PARAM(4, from);
-    REFINE(5, all);
-    REFINE(6, extend);
+    INCLUDE_PARAMS_OF_RESOLVE;
 
     if (IS_INTEGER(ARG(from))) {
         // check range and sign
@@ -812,11 +798,7 @@ REBNATIVE(resolve)
 //
 REBNATIVE(set)
 {
-    PARAM(1, target);
-    PARAM(2, value);
-    REFINE(3, opt);
-    REFINE(4, pad);
-    REFINE(5, lookback);
+    INCLUDE_PARAMS_OF_SET;
 
     // Pointers independent from the arguments.  If we change them, they can
     // be reset to point at the original argument again.
@@ -827,7 +809,7 @@ REBNATIVE(set)
     REBCTX *value_specifier;
     REBOOL set_with_block;
 
-    if (!REF(opt) && IS_VOID(ARG(value)))
+    if (NOT(REF(opt)) && IS_VOID(ARG(value)))
         fail (Error(RE_NEED_VALUE, ARG(target)));
 
     enum Reb_Kind eval_type = REF(lookback) ? REB_0_LOOKBACK : REB_FUNCTION;
@@ -946,7 +928,7 @@ REBNATIVE(set)
             //
             if (!set_with_block) continue;
 
-            if (!REF(opt) && IS_VOID(value)) {
+            if (NOT(REF(opt)) && IS_VOID(value)) {
                 REBVAL key_name;
                 Val_Init_Word(&key_name, REB_WORD, VAL_KEY_SPELLING(key));
 
@@ -983,7 +965,8 @@ REBNATIVE(set)
                 continue;
 
             if (IS_END(value)) {
-                if (!REF(pad)) break;
+                if (NOT(REF(pad)))
+                    break;
                 SET_BLANK(var);
                 continue;
             }
@@ -1004,7 +987,7 @@ REBNATIVE(set)
     // words and giving an alert on unsets, check for any unsets before
     // setting half the values and interrupting.
     //
-    if (!REF(opt)) {
+    if (NOT(REF(opt))) {
         for (; NOT_END(target) && NOT_END(value); target++) {
             assert(!IS_VOID(value)); // blocks may not contain voids
 
@@ -1080,7 +1063,8 @@ REBNATIVE(set)
         if (set_with_block) {
             value++;
             if (IS_END(value)) {
-                if (!REF(pad)) break;
+                if (NOT(REF(pad)))
+                    break;
                 set_with_block = FALSE;
                 value = BLANK_VALUE;
                 value_specifier = SPECIFIED;
@@ -1104,7 +1088,7 @@ return_value_arg:
 //
 REBNATIVE(type_of)
 {
-    PARAM(1, value);
+    INCLUDE_PARAMS_OF_TYPE_OF;
 
     enum Reb_Kind kind = VAL_TYPE(ARG(value));
     if (kind == REB_MAX_VOID)
@@ -1128,7 +1112,7 @@ REBNATIVE(type_of)
 //
 REBNATIVE(unset)
 {
-    PARAM(1, target);
+    INCLUDE_PARAMS_OF_UNSET;
 
     REBVAL *target = ARG(target);
 
@@ -1163,7 +1147,9 @@ REBNATIVE(unset)
 //
 REBNATIVE(lookback_q)
 {
-    REBVAL *source = D_ARG(1);
+    INCLUDE_PARAMS_OF_LOOKBACK_Q;
+
+    REBVAL *source = ARG(source);
 
     if (ANY_WORD(source)) {
         enum Reb_Kind eval_type;
@@ -1202,7 +1188,7 @@ REBNATIVE(semiquoted_q)
 // even then it should be restricted to functions that have labeled
 // themselves as absolutely needing to do this for ergonomic reasons.
 {
-    PARAM(1, parameter);
+    INCLUDE_PARAMS_OF_SEMIQUOTED_Q;
 
     // !!! TBD: Enforce this is a function parameter (specific binding branch
     // makes the test different, and easier)
@@ -1225,7 +1211,7 @@ REBNATIVE(semiquoted_q)
 //
 REBNATIVE(semiquote)
 {
-    PARAM(1, value);
+    INCLUDE_PARAMS_OF_SEMIQUOTE;
 
     *D_OUT = *ARG(value);
 
@@ -1249,8 +1235,7 @@ REBNATIVE(semiquote)
 //
 REBNATIVE(as)
 {
-    PARAM(1, type);
-    PARAM(2, value);
+    INCLUDE_PARAMS_OF_AS;
 
     enum Reb_Kind kind = VAL_TYPE_KIND(ARG(type));
     REBVAL *value = ARG(value);
@@ -1301,8 +1286,7 @@ REBNATIVE(as)
 //
 REBNATIVE(aliases_q)
 {
-    PARAM(1, value1);
-    PARAM(2, value2);
+    INCLUDE_PARAMS_OF_ALIASES_Q;
 
     if (VAL_SERIES(ARG(value1)) == VAL_SERIES(ARG(value2)))
         return R_TRUE;
@@ -1369,7 +1353,7 @@ inline static REBOOL Is_Set_Modifies(REBVAL *location)
 //
 REBNATIVE(set_q)
 {
-    PARAM(1, location);
+    INCLUDE_PARAMS_OF_SET_Q;
 
     return R_FROM_BOOL(Is_Set_Modifies(ARG(location)));
 }
@@ -1387,7 +1371,7 @@ REBNATIVE(set_q)
 //
 REBNATIVE(unset_q)
 {
-    PARAM(1, location);
+    INCLUDE_PARAMS_OF_UNSET_Q;
 
     return R_FROM_BOOL(NOT(Is_Set_Modifies(ARG(location))));
 }
@@ -1405,7 +1389,7 @@ REBNATIVE(unset_q)
 //
 REBNATIVE(true_q)
 {
-    PARAM(1, value);
+    INCLUDE_PARAMS_OF_TRUE_Q;
 
     return R_FROM_BOOL(IS_CONDITIONAL_TRUE(ARG(value)));
 }
@@ -1430,7 +1414,7 @@ REBNATIVE(true_q)
 //
 REBNATIVE(false_q)
 {
-    PARAM(1, value);
+    INCLUDE_PARAMS_OF_FALSE_Q;
 
     return R_FROM_BOOL(IS_CONDITIONAL_FALSE(ARG(value)));
 }
@@ -1449,7 +1433,7 @@ REBNATIVE(false_q)
 //
 REBNATIVE(quote)
 {
-    PARAM(1, value);
+    INCLUDE_PARAMS_OF_QUOTE;
 
     *D_OUT = *ARG(value);
 
@@ -1474,7 +1458,7 @@ REBNATIVE(quote)
 //
 REBNATIVE(void_q)
 {
-    PARAM(1, value);
+    INCLUDE_PARAMS_OF_VOID_Q;
 
     return R_FROM_BOOL(IS_VOID(ARG(value)));
 }
@@ -1510,7 +1494,7 @@ REBNATIVE(void)
 //
 REBNATIVE(nothing_q)
 {
-    PARAM(1, value);
+    INCLUDE_PARAMS_OF_NOTHING_Q;
 
     return R_FROM_BOOL(
         LOGICAL(IS_BLANK(ARG(value)) || IS_VOID(ARG(value)))
@@ -1533,7 +1517,7 @@ REBNATIVE(nothing_q)
 //
 REBNATIVE(something_q)
 {
-    PARAM(1, value);
+    INCLUDE_PARAMS_OF_SOMETHING_Q;
 
     return R_FROM_BOOL(
         NOT(IS_BLANK(ARG(value)) || IS_VOID(ARG(value)))

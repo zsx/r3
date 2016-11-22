@@ -77,10 +77,11 @@ REBTYPE(Unit)
     case SYM_TAKE:
         return R_BLANK;
 
-    case SYM_COPY:
+    case SYM_COPY: {
+        INCLUDE_PARAMS_OF_COPY;
         if (IS_BLANK(val))
             return R_BLANK; // perhaps allow COPY on any type, as well.
-        break;
+        break; }
 
     default:
         break;

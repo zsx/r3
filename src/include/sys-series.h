@@ -41,7 +41,7 @@
 //   alternative, so the ambiguity has stuck.
 //
 // This file regards the first meaning of the word "series" and covers the
-// low-level implementation details of a REBSER and its variants.  For info
+// low-level implementation details of a REBSER and its subclasses.  For info
 // about the higher-level ANY-SERIES! value type and its embedded index,
 // see %sys-value.h in the definition of `struct Reb_Any_Series`.
 //

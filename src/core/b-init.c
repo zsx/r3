@@ -156,13 +156,6 @@ static void Assert_Basics(void)
         panic (Error(RE_MISC));
     }
 
-    // Check special return values used "in-band" in an unsigned integer that
-    // is otherwise used for indices.  Make sure they don't overlap.
-    //
-    assert(THROWN_FLAG != END_FLAG);
-    assert(NOT_FOUND != END_FLAG);
-    assert(NOT_FOUND != THROWN_FLAG);
-
     // The END marker logic currently uses REB_MAX for the type bits.  That's
     // okay up until the REB_MAX bumps to 256.  If you hit this then some
     // other value needs to be chosen in the debug build to represent the
@@ -170,13 +163,6 @@ static void Assert_Basics(void)
     // you'd like to catch IS_END() tests on trash.)
     //
     assert(REB_MAX < 256);
-
-    // The "Indexor" type in the C++ build has some added checking to make
-    // sure that the special values used for indicating THROWN_FLAG or
-    // END_FLAG etc. don't leak out into the REBCNT stored in things like
-    // blocks.  We want the C++ class to be the same size as the C build.
-    //
-    assert(sizeof(REBIXO) == sizeof(REBUPT));
 
     // Types that are used for memory pooled allocations are required to be
     // multiples of 8 bytes in size.  This way it's possible to reliably align
@@ -333,7 +319,8 @@ static void Load_Boot(void)
         REBINT i;
         for (i = 0; i < RS_MAX; i++) {
             PG_Boot_Strs[i] = cp;
-            while (*cp++);
+            while (*cp++)
+                NOOP;
         }
     }
 
@@ -433,8 +420,7 @@ REBNATIVE(action)
 // so when you write FOO: ACTION [...], the FOO: gets quoted to be the verb.
 // The SET/LOOKBACK is done by the bootstrap, after the natives are loaded.
 {
-    PARAM(1, verb);
-    PARAM(2, spec);
+    INCLUDE_PARAMS_OF_ACTION;
 
     REBVAL *spec = ARG(spec);
 
@@ -1021,19 +1007,19 @@ static void Init_Contexts_Object(void)
 //
 //  Codec_Text: C
 //
-REBINT Codec_Text(REBCDI *codi)
+REBINT Codec_Text(int action, REBCDI *codi)
 {
     codi->error = 0;
 
-    if (codi->action == CODI_ACT_IDENTIFY) {
+    if (action == CODI_ACT_IDENTIFY) {
         return CODI_CHECK; // error code is inverted result
     }
 
-    if (codi->action == CODI_ACT_DECODE) {
+    if (action == CODI_ACT_DECODE) {
         return CODI_TEXT;
     }
 
-    if (codi->action == CODI_ACT_ENCODE) {
+    if (action == CODI_ACT_ENCODE) {
         return CODI_BINARY;
     }
 
@@ -1044,15 +1030,15 @@ REBINT Codec_Text(REBCDI *codi)
 //
 //  Codec_UTF16: C
 //
-REBINT Codec_UTF16(REBCDI *codi, REBOOL little_endian)
+REBINT Codec_UTF16(int action, REBCDI *codi, REBOOL little_endian)
 {
     codi->error = 0;
 
-    if (codi->action == CODI_ACT_IDENTIFY) {
+    if (action == CODI_ACT_IDENTIFY) {
         return CODI_CHECK; // error code is inverted result
     }
 
-    if (codi->action == CODI_ACT_DECODE) {
+    if (action == CODI_ACT_DECODE) {
         REBSER *ser = Make_Unicode(codi->len);
         REBINT size = Decode_UTF16(
             UNI_HEAD(ser), codi->data, codi->len, little_endian, FALSE
@@ -1070,7 +1056,7 @@ REBINT Codec_UTF16(REBCDI *codi, REBOOL little_endian)
         return CODI_TEXT;
     }
 
-    if (codi->action == CODI_ACT_ENCODE) {
+    if (action == CODI_ACT_ENCODE) {
         u16 * data = ALLOC_N(u16, codi->len);
         codi->data = cast(unsigned char*, data);
         if (codi->w == 1) {
@@ -1137,18 +1123,18 @@ REBINT Codec_UTF16(REBCDI *codi, REBOOL little_endian)
 //
 //  Codec_UTF16LE: C
 //
-REBINT Codec_UTF16LE(REBCDI *codi)
+REBINT Codec_UTF16LE(int action, REBCDI *codi)
 {
-    return Codec_UTF16(codi, TRUE);
+    return Codec_UTF16(action, codi, TRUE);
 }
 
 
 //
 //  Codec_UTF16BE: C
 //
-REBINT Codec_UTF16BE(REBCDI *codi)
+REBINT Codec_UTF16BE(int action, REBCDI *codi)
 {
-    return Codec_UTF16(codi, FALSE);
+    return Codec_UTF16(action, codi, FALSE);
 }
 
 
@@ -1159,10 +1145,12 @@ REBINT Codec_UTF16BE(REBCDI *codi)
 //
 void Register_Codec(const REBYTE *name, codo dispatcher)
 {
-    REBVAL *value = Get_System(SYS_CODECS, 0);
     REBSTR *sym = Intern_UTF8_Managed(name, LEN_BYTES(name));
 
-    value = Append_Context(VAL_CONTEXT(value), 0, sym);
+    REBVAL *value = Append_Context(
+        VAL_CONTEXT(Get_System(SYS_CODECS, 0)), 0, sym
+    );
+
     Init_Handle_Simple(
         value,
         cast(CFUNC*, dispatcher), // code
@@ -1535,7 +1523,6 @@ void Init_Core(REBARGS *rargs)
     Init_Constants();       // Constant values
     Init_Function_Tags();
     Add_Lib_Keys_R3Alpha_Cant_Make();
-    // Init_Func_Profiler(rargs->profile);
 
     // Run actual code:
     DOUT("Level 4");
@@ -1640,20 +1627,19 @@ void Init_Core(REBARGS *rargs)
 //
 //  Shutdown_Core: C
 // 
-// The goal of Shutdown_Core() is to release all memory and
-// resources that the interpreter has accrued since Init_Core().
+// The goal of Shutdown_Core() is to release all memory and resources that the
+// interpreter has accrued since Init_Core().  This is a good "sanity check"
+// that there aren't unaccounted-for leaks (or semantic errors which such
+// leaks may indicate).
+//
+// Also, being able to clean up is important for a library...which might be
+// initialized and shut down multiple times in the same program run.  But
+// clients wishing a speedy exit may force an exit to the OS instead of doing
+// a clean shut down.  (Note: There still might be some system resources
+// that need to be waited on, such as asynchronous writes.)
 // 
-// Clients may wish to force an exit to the OS instead of calling
-// Shutdown_Core in a release build, in order to save time.  It
-// should be noted that when used as a library this doesn't
-// necessarily work, because Rebol may be initialized and shut
-// down multiple times during a program run.
-// 
-// Using a tool like Valgrind or Leak Sanitizer, it is possible
-// to verify that all the allocations have indeed been freed.
-// Being able to have a report that they have is a good sanity
-// check on not just the memory lost by leaks, but the semantic
-// errors and bugs that such leaks may indicate.
+// While some leaks are detected by the debug build during shutdown, even more
+// can be found with a tool like Valgrind or Address Sanitizer.
 //
 void Shutdown_Core(void)
 {
@@ -1663,7 +1649,14 @@ void Shutdown_Core(void)
 
     // Run Recycle, but the TRUE flag indicates we want every series
     // that is managed to be freed.  (Only unmanaged should be left.)
+    // We remove the only two root contexts that the Init_Core process added
+    // -however- there may be other roots.  But by this point, the roots
+    // created by Alloc_Pairing() with an owning context should be freed.
     //
+    ARR_SERIES(CTX_VARLIST(PG_Root_Context))->header.bits
+        &= (~REBSER_REBVAL_FLAG_ROOT);
+    ARR_SERIES(CTX_VARLIST(TG_Task_Context))->header.bits
+        &= (~REBSER_REBVAL_FLAG_ROOT);
     Recycle_Core(TRUE, NULL);
 
     FREE_N(REBYTE*, RS_MAX, PG_Boot_Strs);
@@ -1689,7 +1682,6 @@ void Shutdown_Core(void)
 
     FREE(REB_OPTS, Reb_Opts);
 
-    //Shutdown_Func_Profiler();
     // Shutting down the memory manager must be done after all the Free_Mem
     // calls have been made to balance their Alloc_Mem calls.
     //

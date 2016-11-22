@@ -343,7 +343,7 @@ REBNATIVE(breakpoint)
 //
 REBNATIVE(pause)
 {
-    PARAM(1, code);
+    INCLUDE_PARAMS_OF_PAUSE;
 
     if (Do_Breakpoint_Throws(
         D_OUT,
@@ -389,12 +389,7 @@ REBNATIVE(resume)
 // each host doesn't have to rewrite interpretation in the hook--they only
 // need to recognize a RESUME throw and pass the argument back.
 {
-    REFINE(1, with);
-    PARAM(2, value);
-    REFINE(3, do);
-    PARAM(4, code);
-    REFINE(5, at);
-    PARAM(6, level);
+    INCLUDE_PARAMS_OF_RESUME;
 
     REBARR *instruction;
 

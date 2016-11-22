@@ -54,10 +54,7 @@
 //
 REBNATIVE(trap)
 {
-    PARAM(1, block);
-    REFINE(2, with);
-    PARAM(3, handler);
-    REFINE(4, q);
+    INCLUDE_PARAMS_OF_TRAP; // ? is renamed as "q"
 
     struct Reb_State state;
     REBCTX *error;
@@ -144,9 +141,7 @@ REBNATIVE(trap)
 //
 REBNATIVE(fail)
 {
-    PARAM(1, reason);
-    REFINE(2, where);
-    PARAM(3, location);
+    INCLUDE_PARAMS_OF_FAIL;
 
     REBVAL *reason = ARG(reason);
 
@@ -275,7 +270,9 @@ REBNATIVE(fail)
 //
 REBNATIVE(attempt)
 {
-    REBVAL *block = D_ARG(1);
+    INCLUDE_PARAMS_OF_ATTEMPT;
+
+    REBVAL *block = ARG(block);
 
     struct Reb_State state;
     REBCTX *error;

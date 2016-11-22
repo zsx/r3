@@ -1,6 +1,7 @@
 REBOL [
     System: "REBOL [R3] Language Interpreter and Run-time Environment"
     Title: "Generate auto headers"
+    File: %make-headers.r ;-- used by EMIT-HEADER to indicate emitting script
     Rights: {
         Copyright 2012 REBOL Technologies
         REBOL is a trademark of REBOL Technologies
@@ -14,7 +15,9 @@ REBOL [
 ]
 
 do %common.r
+do %common-emitter.r
 do %common-parsers.r
+do %form-header.r
 
 print "------ Building headers"
 args: parse-args system/options/args
@@ -29,14 +32,7 @@ check-duplicates: true
 prototypes: make block! 10000 ; get pick [map! hash!] r3 1000
 has-duplicates: false
 
-do %form-header.r
-
 change-dir %../core/
-
-emit-out: func [d] [append repend output-buffer d newline]
-emit-rlib: func [d] [append repend rlib d newline]
-emit-header: func [t f] [emit-out form-header/gen t f %make-headers]
-emit-fsymb: func [x] [append repend fsymbol-buffer x newline]
 
 collapse-whitespace: [some [change some white-space #" " | skip]]
 bind collapse-whitespace c.lexical/grammar
@@ -82,7 +78,7 @@ emit-proto: proc [proto] [
         either find proto "RL_API" [
             emit-rlib ["extern " proto "; // " the-file]
         ][
-            emit-out ["extern " proto "; // " the-file]
+            emit-line ["extern " proto "; // " the-file]
             either "REBTYPE" = proto-parser/proto.id [
                emit-fsymb ["    SYM_FUNC(T_" proto-parser/proto.arg.1 "), // " the-file]
             ][
@@ -93,20 +89,16 @@ emit-proto: proc [proto] [
     ]
 ]
 
-emit-directive: func [
-    directive
-    /local position
-][
-    process-conditional directive proto-parser/parse.position :emit-out output-buffer
+emit-directive: procedure [directive] [
+    process-conditional directive proto-parser/parse.position :emit-line buf-emit
     process-conditional directive proto-parser/parse.position :emit-fsymb fsymbol-buffer
 ]
 
-process-conditional: func [
+process-conditional: procedure [
     directive
     dir-position
     emit [function!]
     buffer
-    /local position
 ][
     emit [
         directive
@@ -135,26 +127,33 @@ process: func [file] [
 
 rlib: form-header/gen "REBOL Interface Library" %reb-lib.h %make-headers.r
 append rlib newline
+emit-rlib: func [d] [append repend rlib d newline]
 
 
 ;-------------------------------------------------------------------------
 
 proto-count: 0
-output-buffer: make string! 20000
-fsymbol-buffer: make string! 20000
+
 fsymbol-file: %tmp-symbols.c
+fsymbol-buffer: make string! 20000
+emit-fsymb: func [x] [append repend fsymbol-buffer x newline]
 
 emit-header "Function Prototypes" %funcs.h
 
 emit-fsymb form-header/gen "Function Symbols" fsymbol-file %make-headers.r
 emit-fsymb {#include "sys-core.h"
 
-#define SYM_FUNC(x) #x, cast(void*, x)
+// Note that cast() macro causes problems here with clang for some reason.
+//
+// !!! Also, void pointers and function pointers are not guaranteed to be
+// the same size, even if TCC assumes so for these symbol purposes.
+//
+#define SYM_FUNC(x) #x, ((void*)x)
 #define SYM_DATA(x) #x, &x
 
 const void *rebol_symbols [] = ^{}
 
-emit-out {
+emit {
 // When building as C++, the linkage on these functions should be done without
 // "name mangling" so that library clients will not notice a difference
 // between a C++ build and a C build.
@@ -174,6 +173,7 @@ extern "C" ^{
 //     if (VAL_FUNC_DISPATCHER(native) == &N_parse) { ... }
 //
 }
+emit newline
 
 boot-booters: load %../boot/booters.r
 boot-natives: load output-dir/boot/tmp-natives.r
@@ -182,11 +182,11 @@ nats: append copy boot-booters boot-natives
 
 for-each val nats [
     if set-word? val [
-        emit-out rejoin ["REBNATIVE(" to-c-name (to word! val) ");"]
+        emit-line rejoin ["REBNATIVE(" to-c-name (to word! val) ");"]
     ]
 ]
 
-emit-out {
+emit {
 
 //
 // Other Prototypes: These are the functions that are scanned for in the %.c
@@ -196,17 +196,18 @@ emit-out {
 // by the scan.)
 //
 }
+emit newline
 
 file-base: has load %../tools/file-base.r
 
 ;prefix the generated file paths with output-dir/core
 parse file-base/core [
-	any [
-		to '+ mark: (
-			poke mark 2 join output-dir/core [%/ mark/2]
-			remove mark ;remove '+
-		)
-	]
+    any [
+        to '+ mark: (
+            poke mark 2 join output-dir/core [%/ mark/2]
+            remove mark ;remove '+
+        )
+    ]
 ]
 
 files: map-each file file-base/core [
@@ -228,13 +229,12 @@ for-each file files [
     ][process file]
 ]
 
-emit-out {
-#ifdef __cplusplus
-^}
-#endif
-}
+emit newline
+emit-line "#ifdef __cplusplus"
+emit-line "}"
+emit-line "#endif"
 
-write output-dir/include/tmp-funcs.h output-buffer
+write-emitted output-dir/include/tmp-funcs.h
 
 print [proto-count "function prototypes"]
 ;wait 1
@@ -299,82 +299,73 @@ write output-dir/core/:fsymbol-file fsymbol-buffer
 
 ;-------------------------------------------------------------------------
 
-clear output-buffer
+emit-header "PARAM() and REFINE() Automatic Macros" %func-args.h
 
-emit-header "Function Argument Enums" %func-args.h
+emit-include-params-macro: procedure [word [word!] paramlist [block!]] [
+    ;
+    ; start emitting what will be a multi line macro (backslash as last
+    ; character on line is how macros span multiple lines in C).
+    ;
+    emit-line [
+        {#define} space "INCLUDE_PARAMS_OF_" (uppercase to-c-name word)
+        space "\"
+    ]
 
-action-list: load output-dir/boot/tmp-actions.r
+    ; Collect the argument and refinements, converted to their "C names"
+    ; (so dashes become underscores, * becomes _P, etc.)
+    ;
+    n: 1
+    for-each item paramlist [
+        if all [any-word? item | not set-word? item] [
+            param-name: switch/default to-word item [
+                ? [copy "q"]
+            ][
+                to-c-name to-word item
+            ]
 
-make-arg-enums: func [word] [
-    ; Search file for definition:
-    def: find action-list to-set-word word
-    def: skip def 2
-    args: copy []
-    refs: copy []
-    ; Gather arg words:
-    for-each w first def [
-        if all [any-word? w | not set-word? w] [
-            append args uw: uppercase replace/all form to word! w #"-" #"_"
-            if refinement? w [append refs uw  w: to word! w]
+            which: either refinement? item ["REFINE"] ["PARAM"]
+            emit-line/indent [
+                which "(" n "," space param-name ");" space "\"
+            ]
+            n: n + 1
         ]
     ]
 
-    uword: uppercase form word
-    replace/all uword #"-" #"_"
-    word: lowercase copy uword
-
-    ; Argument numbers:
-    emit-out ["enum act_" word "_arg {"]
-    emit-out [tab "ARG_" uword "_0,"]
-    for-each w args [emit-out [tab "ARG_" uword "_" w ","]]
-    emit-out [tab "ARG_" uword "_MAX"]
-    emit-out "};^/"
-
-    ; Argument bitmask:
-    n: 0
-    emit-out ["enum act_" word "_mask {"]
-    for-each w args [
-        emit-out [tab "AM_" uword "_" w " = 1 << " n ","]
-        n: n + 1
-    ]
-    emit-out [tab "AM_" uword "_MAX"]
-    emit-out "};^/"
-
-    repend output-buffer ["#define ALL_" uword "_REFS ("]
-    for-each w refs [
-        repend output-buffer ["AM_" uword "_" w "|"]
-    ]
-    remove back tail output-buffer
-    append output-buffer ")^/^/"
-
-    ;?? output-buffer halt
+    ; Get rid of trailing \ for multi-line macro continuation.
+    unemit newline
+    unemit #"\"
+    emit newline
 ]
 
-for-each word [
-    copy
-    find
-    select
-    insert
-    trim
-    open
-    read
-    write
-] [make-arg-enums word]
+action-list: load output-dir/boot/tmp-actions.r
 
-action-list: load output-dir/boot/tmp-natives.r
+; Search file for definition.  Will be `action-name: action [paramlist]`
+;
+for-next action-list [
+    if 'action = action-list/2 [
+        assert [set-word? action-list/1]
+        emit-include-params-macro (to-word action-list/1) (action-list/3)
+        emit newline
+    ]
+]
 
-for-each word [
-    checksum
-    request-file
-] [make-arg-enums word]
+native-list: load output-dir/boot/tmp-natives.r
 
-;?? output-buffer
-write output-dir/include/tmp-funcargs.h output-buffer
+for-next native-list [
+    if any [
+        'native = native-list/2
+        all [path? native-list/2 | 'native = first native-list/2]
+    ][
+        assert [set-word? native-list/1]
+        emit-include-params-macro (to-word native-list/1) (native-list/3)
+        emit newline
+    ]
+]
+
+write-emitted output-dir/include/tmp-paramlists.h
 
 
 ;-------------------------------------------------------------------------
-
-clear output-buffer
 
 emit-header "REBOL Constants Strings" %str-consts.h
 
@@ -389,12 +380,12 @@ parse data [
             ;replace constd "const" "extern"
             insert constd "extern "
             append trim/tail constd #";"
-            emit-out constd
+            emit-line constd
         )
     ]
 ]
 
-write output-dir/include/tmp-strings.h output-buffer
+write-emitted output-dir/include/tmp-strings.h
 
 if any [has-duplicates verbose] [
     print "** NOTE ABOVE PROBLEM!"

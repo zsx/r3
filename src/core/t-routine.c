@@ -1332,11 +1332,7 @@ REBNATIVE(make_routine)
 // !!! Would be nice if this could just take a filename and the lib management
 // was automatic, e.g. no LIBRARY! type.
 {
-    PARAM(1, lib);
-    PARAM(2, name);
-    PARAM(3, ffi_spec);
-    REFINE(4, abi);
-    PARAM(5, abi_type);
+    INCLUDE_PARAMS_OF_MAKE_ROUTINE;
 
     // Make sure library wasn't closed with CLOSE
     //
@@ -1397,10 +1393,7 @@ REBNATIVE(make_routine_raw)
 // !!! Would be nice if this could just take a filename and the lib management
 // was automatic, e.g. no LIBRARY! type.
 {
-    PARAM(1, pointer);
-    PARAM(2, ffi_spec);
-    REFINE(3, abi);
-    PARAM(4, abi_type);
+    INCLUDE_PARAMS_OF_MAKE_ROUTINE_RAW;
 
     // Cannot cast directly to a function pointer from a 64-bit value
     // on 32-bit systems; first cast to (U)nsigned int that holds (P)oin(T)er
@@ -1442,10 +1435,7 @@ REBNATIVE(make_routine_raw)
 //
 REBNATIVE(make_callback)
 {
-    PARAM(1, action);
-    PARAM(2, ffi_spec);
-    REFINE(3, abi);
-    PARAM(4, abi_type); // void if absent
+    INCLUDE_PARAMS_OF_MAKE_CALLBACK;
 
     REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec));
     REBRIN *r = FUNC_ROUTINE(fun);

@@ -382,18 +382,17 @@ REBTYPE(Varargs)
     }
 
     case SYM_TAKE: {
-        REFINE(2, part);
-        PARAM(3, limit);
-        REFINE(4, deep); // !!! doesn't seem to be implemented on ANY-ARRAY!
-        REFINE(5, last);
+        INCLUDE_PARAMS_OF_TAKE;
 
         REBDSP dsp_orig = DSP;
         REBINT limit;
 
-        if (REF(deep)) fail (Error(RE_MISC));
-        if (REF(last)) fail (Error(RE_VARARGS_TAKE_LAST));
+        if (REF(deep))
+            fail (Error(RE_MISC));
+        if (REF(last))
+            fail (Error(RE_VARARGS_TAKE_LAST));
 
-        if (!REF(part)) {
+        if (NOT(REF(part))) {
             indexor = Do_Vararg_Op_May_Throw(D_OUT, value, VARARG_OP_TAKE);
             if (indexor == THROWN_FLAG)
                 return R_OUT_IS_THROWN;

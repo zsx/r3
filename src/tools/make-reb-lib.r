@@ -52,13 +52,11 @@ xlib-buffer: make string! 20000
 rlib-buffer: make string! 1000
 mlib-buffer: make string! 1000
 dlib-buffer: make string! 1000
-comments-buffer: make string! 1000
 xsum-buffer: make string! 1000
 
-emit:  func [d] [append repend xlib-buffer d newline]
+emit: func [d] [append repend xlib-buffer d newline]
 emit-rlib: func [d] [append repend rlib-buffer d newline]
 emit-dlib: func [d] [append repend dlib-buffer d newline]
-emit-comment: func [d] [append repend comments-buffer d newline]
 emit-mlib: proc [d /nol] [
     repend mlib-buffer d
     if not nol [append mlib-buffer newline]
@@ -83,42 +81,6 @@ in-sub: func [text pattern /local position] [
         remove position
         insert position " - "
     ]
-]
-
-gen-doc: func [name proto text] [
-    replace/all text "**" "  "
-    replace/all text "/*" "  "
-    replace/all text "*/" "  "
-    trim text
-    append text newline
-
-    insert find text "Arguments:" "^/:"
-    bb: beg: find/tail text "Arguments:"
-    insert any [find bb "notes:" tail bb] newline
-    while [
-        all [
-            beg: find beg " - "
-            positive? offset-of beg any [find beg "notes:" tail beg]
-        ]
-    ][
-        insert beg </tt>
-        insert find/tail/reverse beg newline {<br><tt class=word>}
-        beg: find/tail beg " - "
-    ]
-
-    beg: insert bb { - } ;<div style="white-space: pre;">}
-    remove find beg newline
-    remove/part find beg "<br>" 4 ; extra <br>
-
-    remove find text "^/Returns:"
-    in-sub text "Returns:"
-    in-sub text "Notes:"
-
-    insert text reduce [
-        ":Function: - " <tt class=word> proto </tt>
-        "^/^/:Summary: - "
-    ]
-    emit-comment ["===" name newline newline text]
 ]
 
 pads: func [start col] [
@@ -159,12 +121,12 @@ emit-proto: proc [
         comment-text: proto-parser/notes
         encode-lines comment-text {**} { }
 
-        emit-mlib ["/*^/**^-" proto "^/**^/" comment-text "*/" newline]
-
-        ; !!! Documentation of RL_Api is currently a low priority.
-        ;
-        comment [
-            gen-doc fn.name proto comment-text
+        emit-mlib [
+            "/*" newline
+            "**" space space proto newline
+            "**" newline
+            comment-text
+            "*/" newline
         ]
 
         proto-count: proto-count + 1
@@ -181,49 +143,10 @@ process: func [file] [
     proto-parser/process data
 ]
 
-write-if: proc [file data] [
-    if data != attempt [to string! read file][
-        print ["UPDATE:" file]
-        write file data
-    ]
-]
-
 ;-----------------------------------------------------------------------------
 
 emit-rlib {
 typedef struct rebol_ext_api ^{}
-
-emit-comment [{Host/Extension API
-
-=r3
-
-=*Updated for A} ver/3 { on } now/date {
-
-=*Describes the functions of reb-lib, the REBOL API (both the DLL and extension library.)
-
-=!This document is auto-generated and changes should not be made within this wiki.
-
-=note WARNING: PRELIMINARY Documentation
-
-=*This API is under development and subject to change. Various functions may be moved, removed, renamed, enhanced, etc.
-
-Also note: the formatting of this document will be enhanced in future revisions.
-
-=/note
-
-==Concept
-
-The REBOL API provides common API functions needed by the Host-Kit and also by
-REBOL extension modules. This interface is commonly referred to as "reb-lib".
-
-There are two methods of linking to this code:
-
-*Direct calls as you would use functions within any DLL.
-
-*Indirect calls through a set of macros (that use a structure pointer to the library.)
-
-==Functions
-}]
 
 ;-----------------------------------------------------------------------------
 
@@ -287,7 +210,7 @@ xlib-buffer
 }
 ]
 
-write-if reb-ext-lib out
+write reb-ext-lib out
 
 ;-----------------------------------------------------------------------------
 
@@ -300,9 +223,7 @@ dlib-buffer
 }
 ]
 
-write-if reb-ext-defs out
-
-write-if output-dir/reb-lib-doc.txt comments-buffer
+write reb-ext-defs out
 
 ;ask "Done"
 print "   "

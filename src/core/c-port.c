@@ -597,7 +597,7 @@ void Register_Scheme(REBSTR *name, REBPAF fun)
 //
 REBNATIVE(set_scheme)
 {
-    PARAM(1, scheme);
+    INCLUDE_PARAMS_OF_SET_SCHEME;
 
     REBVAL *name = Obj_Value(ARG(scheme), STD_SCHEME_NAME);
     if (!IS_WORD(name))

@@ -157,7 +157,7 @@ load-header: function [
         set/opt [key: rest:] transcode/only data blank
 
         ; get header block
-        set/opt [hdr: rest:] transcode/next/error rest blank
+        set/opt [hdr: rest:] transcode/next/relax rest blank
 
         not block? :hdr [
             ; header block is incomplete

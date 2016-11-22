@@ -229,10 +229,7 @@ REB_R Pending_Native_Dispatcher(REBFRM *f) {
 //
 REBNATIVE(make_native)
 {
-    PARAM(1, spec);
-    PARAM(2, source);
-    REFINE(3, linkname);
-    PARAM(4, name);
+    INCLUDE_PARAMS_OF_MAKE_NATIVE;
     
 #if !defined(WITH_TCC)
     fail (Error(RE_NOT_TCC_BUILD));
@@ -348,13 +345,11 @@ REBNATIVE(make_native)
 //
 REBNATIVE(compile)
 {
+    INCLUDE_PARAMS_OF_COMPILE;
+
 #if !defined(WITH_TCC)
     fail (Error(RE_NOT_TCC_BUILD));
 #else
-    PARAM(1, natives);
-    REFINE(2, options);
-    PARAM(3, flags);
-
     REBVAL *natives = ARG(natives);
 
     REBOOL debug = FALSE; // !!! not implemented yet

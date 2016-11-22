@@ -130,14 +130,17 @@ REBTYPE(Function)
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
     switch (action) {
-    case SYM_COPY:
+    case SYM_COPY: {
+        INCLUDE_PARAMS_OF_COPY;
+
         // !!! The R3-Alpha theory was that functions could modify "their
         // bodies" while running, effectively accruing state that one might
         // want to snapshot.  See notes on Clonify_Function about why this
         // idea may be incorrect.
+        //
         *D_OUT = *value;
         Clonify_Function(D_OUT);
-        return R_OUT;
+        return R_OUT; }
 
     case SYM_REFLECT: {
         REBSYM sym = VAL_WORD_SYM(arg);
@@ -270,7 +273,7 @@ REBNATIVE(func_class_of)
 // is something like a specialization or an adaptation...but that would be
 // purely documentary, and could lie.
 {
-    PARAM(1, func);
+    INCLUDE_PARAMS_OF_FUNC_CLASS_OF;
 
     REBVAL *value = ARG(func);
     REBCNT n;

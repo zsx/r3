@@ -45,7 +45,7 @@
 //
 REBNATIVE(echo)
 {
-    PARAM(1, target);
+    INCLUDE_PARAMS_OF_ECHO;
 
     REBVAL *val = ARG(target);
 
@@ -91,11 +91,7 @@ REBNATIVE(echo)
 //
 REBNATIVE(form)
 {
-    PARAM(1, value);
-    REFINE(2, delimit);
-    PARAM(3, delimiter);
-    REFINE(4, quote);
-    REFINE(5, new);
+    INCLUDE_PARAMS_OF_FORM;
 
     REBVAL *value = ARG(value);
 
@@ -144,18 +140,19 @@ REBNATIVE(form)
 //  
 //  "Converts a value to a REBOL-readable string."
 //  
-//      value [any-value!] "The value to mold"
-//      /only {For a block value, mold only its contents, no outer []}
-//      /all "Use construction syntax"
-//      /flat "No indentation"
+//      value [any-value!]
+//          "The value to mold"
+//      /only
+//          {For a block value, mold only its contents, no outer []}
+//      /all
+//          "Use construction syntax"
+//      /flat
+//          "No indentation"
 //  ]
 //
 REBNATIVE(mold)
 {
-    PARAM(1, value);
-    REFINE(2, only);
-    REFINE(3, all);
-    REFINE(4, flat);
+    INCLUDE_PARAMS_OF_MOLD;
 
     REB_MOLD mo;
     CLEARS(&mo);
@@ -196,12 +193,7 @@ REBNATIVE(mold)
 //
 REBNATIVE(print)
 {
-    PARAM(1, value);
-    REFINE(2, only);
-    REFINE(3, delimit);
-    PARAM(4, delimiter);
-    REFINE(5, eval);
-    REFINE(6, quote);
+    INCLUDE_PARAMS_OF_PRINT;
 
     REBVAL *value = ARG(value);
 
@@ -267,11 +259,7 @@ REBNATIVE(print)
 //
 REBNATIVE(new_line)
 {
-    PARAM(1, position);
-    PARAM(2, mark);
-    REFINE(3, all);
-    REFINE(4, skip);
-    PARAM(5, size);
+    INCLUDE_PARAMS_OF_NEW_LINE;
 
     RELVAL *value = VAL_ARRAY_AT(ARG(position));
     REBOOL mark = IS_CONDITIONAL_TRUE(ARG(mark));
@@ -311,7 +299,7 @@ REBNATIVE(new_line)
 //
 REBNATIVE(new_line_q)
 {
-    PARAM(1, position);
+    INCLUDE_PARAMS_OF_NEW_LINE_Q;
 
     if (GET_VAL_FLAG(VAL_ARRAY_AT(ARG(position)), VALUE_FLAG_LINE))
         return R_TRUE;
@@ -427,15 +415,15 @@ REBNATIVE(now)
 //  "Waits for a duration, port, or both."
 //  
 //      value [any-number! time! port! block! blank!]
-//      /all "Returns all in a block"
-//      /only {only check for ports given in the block to this function}
+//      /all
+//          "Returns all in a block"
+//      /only
+//          {only check for ports given in the block to this function}
 //  ]
 //
 REBNATIVE(wait)
 {
-    PARAM(1, value);
-    REFINE(2, all);
-    REFINE(3, only);
+    INCLUDE_PARAMS_OF_WAIT;
 
     REBINT timeout = 0; // in milliseconds
     REBARR *ports = NULL;
@@ -501,8 +489,8 @@ REBNATIVE(wait)
     if (ports) Val_Init_Block(D_OUT, ports);
 
     // Process port events [stack-move]:
-    if (!Wait_Ports(ports, timeout, D_REF(3))) {
-        Sieve_Ports(NULL); /* just reset the waked list */
+    if (!Wait_Ports(ports, timeout, REF(only))) {
+        Sieve_Ports(NULL); // just reset the waked list
         return R_BLANK;
     }
     if (!ports) return R_BLANK;
@@ -510,7 +498,7 @@ REBNATIVE(wait)
     // Determine what port(s) waked us:
     Sieve_Ports(ports);
 
-    if (!REF(all)) {
+    if (NOT(REF(all))) {
         val = ARR_HEAD(ports);
         if (IS_PORT(val)) *D_OUT = *KNOWN(val);
         else SET_BLANK(D_OUT);
@@ -534,8 +522,7 @@ REBNATIVE(wake_up)
 // Calls port update for native actors.
 // Calls port awake function.
 {
-    PARAM(1, port);
-    PARAM(2, event);
+    INCLUDE_PARAMS_OF_WAKE_UP;
 
     REBCTX *port = VAL_CONTEXT(ARG(port));
     REBOOL awakened = TRUE; // start by assuming success
@@ -575,13 +562,15 @@ REBNATIVE(wake_up)
 //
 REBNATIVE(to_rebol_file)
 {
-    REBVAL *arg = D_ARG(1);
-    REBSER *ser;
+    INCLUDE_PARAMS_OF_TO_REBOL_FILE;
 
-    ser = Value_To_REBOL_Path(arg, FALSE);
-    if (!ser) fail (Error_Invalid_Arg(arg));
+    REBVAL *arg = ARG(path);
+    
+    REBSER *ser = Value_To_REBOL_Path(arg, FALSE);
+    if (ser == NULL)
+        fail (Error_Invalid_Arg(arg));
+    
     Val_Init_File(D_OUT, ser);
-
     return R_OUT;
 }
 
@@ -592,18 +581,21 @@ REBNATIVE(to_rebol_file)
 //  {Converts a REBOL file path to the local system file path.}
 //  
 //      path [file! string!]
-//      /full {Prepends current dir for full path (for relative paths only)}
+//      /full
+//          {Prepends current dir for full path (for relative paths only)}
 //  ]
 //
 REBNATIVE(to_local_file)
 {
-    REBVAL *arg = D_ARG(1);
-    REBSER *ser;
+    INCLUDE_PARAMS_OF_TO_LOCAL_FILE;
 
-    ser = Value_To_Local_Path(arg, D_REF(2));
-    if (!ser) fail (Error_Invalid_Arg(arg));
+    REBVAL *arg = ARG(path);
+    
+    REBSER *ser = Value_To_Local_Path(arg, REF(full));
+    if (ser == NULL)
+        fail (Error_Invalid_Arg(arg));
+
     Val_Init_String(D_OUT, ser);
-
     return R_OUT;
 }
 
@@ -665,7 +657,7 @@ REBNATIVE(what_dir)
 //
 REBNATIVE(change_dir)
 {
-    PARAM(1, path);
+    INCLUDE_PARAMS_OF_CHANGE_DIR;
 
     REBVAL *arg = ARG(path);
     REBVAL *current_path = Get_System(SYS_OPTIONS, OPTIONS_CURRENT_PATH);
@@ -705,58 +697,70 @@ REBNATIVE(change_dir)
 //  "Open web browser to a URL or local file."
 //
 //      return: [<opt>]
-//      url [url! file! blank!]
+//      location [url! file! blank!]
 //  ]
 //
 REBNATIVE(browse)
 {
-    REBINT r;
-    REBCHR *url = 0;
-    REBVAL *arg = D_ARG(1);
+    INCLUDE_PARAMS_OF_BROWSE;
 
-    Check_Security(Canon(SYM_BROWSE), POL_EXEC, arg);
+    REBVAL *location = ARG(location);
 
-    if (IS_BLANK(arg))
+    Check_Security(Canon(SYM_BROWSE), POL_EXEC, location);
+
+    if (IS_BLANK(location))
         return R_VOID;
 
     // !!! By passing NULL we don't get backing series to protect!
-    url = Val_Str_To_OS_Managed(NULL, arg);
+    //
+    REBCHR *url = Val_Str_To_OS_Managed(NULL, location);
 
-    r = OS_BROWSE(url, 0);
+    REBINT r = OS_BROWSE(url, 0);
 
-    if (r == 0) {
-        return R_VOID;
-    } else {
+    if (r != 0) {
         Make_OS_Error(D_OUT, r);
         fail (Error(RE_CALL_FAIL, D_OUT));
     }
 
     return R_VOID;
+
 }
 
 
 //
 //  call: native [
 //  
-//  "Run another program; return immediately."
+//  "Run another program; return immediately (unless /WAIT)."
 //  
 //      command [string! block! file!] 
-//      {An OS-local command line (quoted as necessary), a block with arguments, or an executable file}
-//      
-//      /wait "Wait for command to terminate before returning"
-//      /console "Runs command with I/O redirected to console"
-//      /shell "Forces command to be run from shell"
-//      /info "Returns process information object"
-//      /input in [string! binary! file! blank!]
+//          {An OS-local command line (quoted as necessary), a block with
+//          arguments, or an executable file}
+//      /wait
+//          "Wait for command to terminate before returning"
+//      /console
+//          "Runs command with I/O redirected to console"
+//      /shell
+//          "Forces command to be run from shell"
+//      /info
+//          "Returns process information object"
+//      /input
 //          "Redirects stdin to in"
-//      /output out [string! binary! file! blank!]
+//      in [string! binary! file! blank!]
+//      /output
 //          "Redirects stdout to out"
-//      /error err [string! binary! file! blank!]
+//      out [string! binary! file! blank!]
+//      /error
 //          "Redirects stderr to err"
+//      err [string! binary! file! blank!]
 //  ]
 //
 REBNATIVE(call)
+//
+// !!! Parameter usage may require WAIT mode even if not explicitly requested. 
+// /WAIT should be default, with /ASYNC (or otherwise) as exception!
 {
+    INCLUDE_PARAMS_OF_CALL;
+
 #define INHERIT_TYPE 0
 #define NONE_TYPE 1
 #define STRING_TYPE 2
@@ -769,7 +773,7 @@ REBNATIVE(call)
 #define FLAG_INFO 8
 
     REBINT r;
-    REBVAL *arg = D_ARG(1);
+    REBVAL *arg = ARG(command);
     REBU64 pid = MAX_U64; // Was REBI64 of -1, but OS_CREATE_PROCESS wants u64
     u32 flags = 0;
 
@@ -820,26 +824,14 @@ REBNATIVE(call)
     REBCNT output_len = 0;
     REBCNT err_len = 0;
 
-    // Parameter usage may require WAIT mode even if not explicitly requested
-    // !!! /WAIT should be default, with /ASYNC (or otherwise) as exception!
-    //
-    REBOOL flag_wait = FALSE;
-    REBOOL flag_console = FALSE;
-    REBOOL flag_shell = FALSE;
-    REBOOL flag_info = FALSE;
-
     int exit_code = 0;
 
     Check_Security(Canon(SYM_CALL), POL_EXEC, arg);
 
-    if (D_REF(2)) flag_wait = TRUE;
-    if (D_REF(3)) flag_console = TRUE;
-    if (D_REF(4)) flag_shell = TRUE;
-    if (D_REF(5)) flag_info = TRUE;
-
     // If input_ser is set, it will be both managed and saved
-    if (D_REF(6)) {
-        REBVAL *param = D_ARG(7);
+    //
+    if (REF(input)) {
+        REBVAL *param = ARG(in);
         input = param;
         if (IS_STRING(param)) {
             input_type = STRING_TYPE;
@@ -873,8 +865,8 @@ REBNATIVE(call)
     // OS_FREE().)  Hence the case for FILE! is handled specially, where the
     // output_ser must be unsaved instead of OS_FREE()d.
     //
-    if (D_REF(8)) {
-        REBVAL *param = D_ARG(9);
+    if (REF(output)) {
+        REBVAL *param = ARG(out);
         output = param;
         if (IS_STRING(param)) {
             output_type = STRING_TYPE;
@@ -900,8 +892,9 @@ REBNATIVE(call)
     (void)input; // suppress unused warning but keep variable
 
     // Error case...same note about FILE! case as with Output case above
-    if (D_REF(10)) {
-        REBVAL *param = D_ARG(11);
+    //
+    if (REF(error)) {
+        REBVAL *param = ARG(err);
         err = param;
         if (IS_STRING(param)) {
             err_type = STRING_TYPE;
@@ -924,20 +917,29 @@ REBNATIVE(call)
             fail (Error_Invalid_Arg(param));
     }
 
-    /* I/O redirection implies /wait */
-    if (input_type == STRING_TYPE
-        || input_type == BINARY_TYPE
-        || output_type == STRING_TYPE
-        || output_type == BINARY_TYPE
-        || err_type == STRING_TYPE
-        || err_type == BINARY_TYPE) {
-        flag_wait = TRUE;
+    if (
+        REF(wait) ||
+        (
+            input_type == STRING_TYPE
+            || input_type == BINARY_TYPE
+            || output_type == STRING_TYPE
+            || output_type == BINARY_TYPE
+            || err_type == STRING_TYPE
+            || err_type == BINARY_TYPE
+        ) // I/O redirection implies /WAIT
+
+    ){
+        flags |= FLAG_WAIT;
     }
 
-    if (flag_wait) flags |= FLAG_WAIT;
-    if (flag_console) flags |= FLAG_CONSOLE;
-    if (flag_shell) flags |= FLAG_SHELL;
-    if (flag_info) flags |= FLAG_INFO;
+    if (REF(console))
+        flags |= FLAG_CONSOLE;
+
+    if (REF(shell))
+        flags |= FLAG_SHELL;
+
+    if (REF(info))
+        flags |= FLAG_INFO;
 
     // Translate the first parameter into an `argc` and a pointer array for
     // `argv[]`.  The pointer array is backed by `argv_series` which must
@@ -1083,11 +1085,11 @@ REBNATIVE(call)
     if (output_ser) DROP_GUARD_SERIES(output_ser);
     if (input_ser) DROP_GUARD_SERIES(input_ser);
 
-    if (flag_info) {
+    if (REF(info)) {
         REBCTX *info = Alloc_Context(2);
 
         SET_INTEGER(Append_Context(info, NULL, Canon(SYM_ID)), pid);
-        if (flag_wait)
+        if (REF(wait))
             SET_INTEGER(
                 Append_Context(info, NULL, Canon(SYM_EXIT_CODE)),
                 exit_code
@@ -1104,7 +1106,8 @@ REBNATIVE(call)
 
     // We may have waited even if they didn't ask us to explicitly, but
     // we only return a process ID if /WAIT was not explicitly used
-    if (flag_wait)
+    //
+    if (REF(wait))
         SET_INTEGER(D_OUT, exit_code);
     else
         SET_INTEGER(D_OUT, pid);
@@ -1236,15 +1239,25 @@ static REBARR *File_List_To_Array(const REBCHR *str)
 //  
 //  {Asks user to select a file and returns full file path (or block of paths).}
 //  
-//      /save "File save mode"
-//      /multi {Allows multiple file selection, returned as a block}
-//      /file name [file!] "Default file name or directory"
-//      /title text [string!] "Window title"
-//      /filter list [block!] "Block of filters (filter-name filter)"
+//      /save
+//          "File save mode"
+//      /multi
+//          {Allows multiple file selection, returned as a block}
+//      /file
+//      name [file!]
+//          "Default file name or directory"
+//      /title
+//      text [string!]
+//          "Window title"
+//      /filter
+//      list [block!]
+//          "Block of filters (filter-name filter)"
 //  ]
 //
 REBNATIVE(request_file)
 {
+    INCLUDE_PARAMS_OF_REQUEST_FILE;
+
     // !!! This routine used to have an ENABLE_GC and DISABLE_GC
     // reference.  It is not clear what that was protecting, but
     // this code should be reviewed with GC "torture mode", and
@@ -1258,17 +1271,20 @@ REBNATIVE(request_file)
     fr.len = MAX_FILE_REQ_BUF/sizeof(REBCHR) - 2;
     fr.files[0] = OS_MAKE_CH('\0');
 
-    if (D_REF(ARG_REQUEST_FILE_SAVE)) SET_FLAG(fr.flags, FRF_SAVE);
-    if (D_REF(ARG_REQUEST_FILE_MULTI)) SET_FLAG(fr.flags, FRF_MULTI);
+    if (REF(save))
+        SET_FLAG(fr.flags, FRF_SAVE);
+    if (REF(multi))
+        SET_FLAG(fr.flags, FRF_MULTI);
 
-    if (D_REF(ARG_REQUEST_FILE_FILE)) {
-        REBSER *ser = Value_To_OS_Path(D_ARG(ARG_REQUEST_FILE_NAME), TRUE);
+    if (REF(file)) {
+        REBSER *ser = Value_To_OS_Path(ARG(name), TRUE);
         REBINT n = SER_LEN(ser);
 
         fr.dir = SER_HEAD(REBCHR, ser);
 
-        if (OS_CH_VALUE(fr.dir[n-1]) != OS_DIR_SEP) {
-            if (n+2 > fr.len) n = fr.len - 2;
+        if (OS_CH_VALUE(fr.dir[n - 1]) != OS_DIR_SEP) {
+            if (n + 2 > fr.len)
+                n = fr.len - 2;
             OS_STRNCPY(
                 cast(REBCHR*, fr.files),
                 SER_HEAD(REBCHR, ser),
@@ -1278,14 +1294,14 @@ REBNATIVE(request_file)
         }
     }
 
-    if (D_REF(ARG_REQUEST_FILE_FILTER)) {
-        REBSER *ser = Block_To_String_List(D_ARG(ARG_REQUEST_FILE_LIST));
+    if (REF(filter)) {
+        REBSER *ser = Block_To_String_List(ARG(list));
         fr.filter = SER_HEAD(REBCHR, ser);
     }
 
-    if (D_REF(ARG_REQUEST_FILE_TITLE)) {
+    if (REF(title)) {
         // !!! By passing NULL we don't get backing series to protect!
-        fr.title = Val_Str_To_OS_Managed(NULL, D_ARG(ARG_REQUEST_FILE_TEXT));
+        fr.title = Val_Str_To_OS_Managed(NULL, ARG(text));
     }
 
     if (OS_REQUEST_FILE(&fr)) {
@@ -1318,7 +1334,7 @@ REBNATIVE(request_file)
 //
 REBNATIVE(get_env)
 {
-    PARAM(1, var);
+    INCLUDE_PARAMS_OF_GET_ENV;
 
     REBVAL *var = ARG(var);
 
@@ -1359,8 +1375,7 @@ REBNATIVE(get_env)
 //
 REBNATIVE(set_env)
 {
-    PARAM(1, var);
-    PARAM(2, value);
+    INCLUDE_PARAMS_OF_SET_ENV;
 
     REBVAL *var = ARG(var);
     REBVAL *value = ARG(value);
@@ -1414,24 +1429,29 @@ REBNATIVE(list_env)
 //
 //  access-os: native [
 //  
-//  {Access to various operating system functions (getuid, setuid, getpid, kill, etc.)}
+//  {Access various OS functions (getuid, setuid, getpid, kill, etc.)}
 //  
-//      field [word!] "uid, euid, gid, egid, pid"
-//      /set "To set or kill pid (sig 15)"
+//      field [word!]
+//          "uid, euid, gid, egid, pid"
+//      /set
+//          "To set or kill pid (sig 15)"
 //      value [integer! block!] 
-//      {Argument, such as uid, gid, or pid (in which case, it could be a block with the signal no)}
+//          {Argument, such as uid, gid, or pid (in which case, it could be
+//          a block with the signal number)}
 //  ]
 //
 REBNATIVE(access_os)
 {
+    INCLUDE_PARAMS_OF_ACCESS_OS;
+
 #define OS_ENA   -1
 #define OS_EINVAL -2
 #define OS_EPERM -3
 #define OS_ESRCH -4
 
-    REBVAL *field = D_ARG(1);
-    REBOOL set = D_REF(2);
-    REBVAL *val = D_ARG(3);
+    REBVAL *field = ARG(field);
+    REBOOL set = REF(set);
+    REBVAL *val = ARG(value);
 
     switch (VAL_WORD_SYM(field)) {
         case SYM_UID:

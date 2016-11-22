@@ -259,7 +259,7 @@ static void Push_Array_Marked_Deep(REBARR *array, const REBARR *key_list, REBMDP
     // set by calling macro (helps catch direct calls of this function)
     assert(IS_REBSER_MARKED(ARR_SERIES(array)));
 
-    // Add series to the end of the mark stack series and update terminator
+    // Add series to the end of the mark stack series
 
     if (SER_FULL(GC_Mark_Stack)) Extend_Series(GC_Mark_Stack, 8);
 
@@ -364,6 +364,11 @@ inline static void Queue_Mark_Function_Deep(REBFUN *f,
         f, NULL, parent, edge, REB_FUNCTION, sizeof(REBARR) /* size is counted in the contained REBVALs */
     };
     Dump_Mem_Entry(dump, &tmp_entry);
+
+    assert(f == FUNC_PARAMLIST(f));
+
+    Queue_Mark_Array_Deep(FUNC_PARAMLIST(f), f, "<paramlist>", dump);
+
     // Need to queue the mark of the array for the body--as trying
     // to mark the "singular" value directly could infinite loop.
     //
@@ -594,9 +599,19 @@ static void Queue_Mark_Field_Deep(
     REBCNT offset,
     const void *parent,
     REBMDP *dump
-) {
+){
     struct mem_dump_entry entry = { field, cast(const char*, STR_HEAD(field->name)), parent, "<field>", REB_KIND_FIELD, 0 /* counted in fields already */ };
     Dump_Mem_Entry(dump, &entry);
+
+    // These series are backing stores for the `ffi_type` data that
+    // is needed to use the struct with the FFI api.
+    //
+    if (field->fftype) {
+        assert(field->fields_fftype_ptrs != NULL);
+        Mark_Series_Only(field->fftype, field, "<fftypes>", dump);
+        Mark_Series_Only(field->fields_fftype_ptrs, field, "<fftype_ptrs>", dump);
+    }
+
     if (field->is_rebval) {
         //
         // !!! The FFI apparently can tunnel REBVALs through to callbacks.
@@ -605,23 +620,28 @@ static void Queue_Mark_Field_Deep(
         // "live", and there may be an array of them...so they are marked
         // much as a REBARR would.
         //
-        assert(field->type == FFI_TYPE_POINTER);
-        assert(field->dimension % 4 == 0);
+        assert(field->type == FFI_TYPE_UINT8);
         assert(field->size == sizeof(REBVAL));
 
         REBCNT i;
-        for (i = 0; i < field->dimension; i += 4) {
-            RELVAL *value = cast(REBVAL*,
-                SER_AT(
-                    REBYTE,
-                    data_bin,
-                    offset + field->offset + i * field->size
-                )
-            );
+        for (i = 0; i < field->dimension; i ++) {
+            if (field->done){
+                REBVAL value;
+                const REBYTE *blob = SER_AT(
+                     REBYTE,
+                     data_bin,
+                     offset + field->offset + i * field->size
+                );
 
-            /* This could lead to an infinite recursive call to Queue_Mark_Field_Deep if this value refers back to this struct */
-            if (field->done)
-                Queue_Mark_Value_Deep(value, field, "<value>", dump);
+                //
+                // Because data in the struct is densely packed, "blob"
+                // might not be well aligned for access as a REBVAL. Copying
+                // its content to a REBVAL for access.
+                //
+                memcpy(&value, blob, sizeof(REBVAL));
+
+                Queue_Mark_Value_Deep(&value, field, "<value>", dump);
+            }
         }
     }
     else if (field->type == FFI_TYPE_STRUCT) {
@@ -650,6 +670,7 @@ static void Queue_Mark_Field_Deep(
     if (field->name != NULL)
         Mark_Series_Only_Full(field->name, cast(const char*, STR_HEAD(field->name)), field, "<name>", REB_STRING, dump);
 }
+
 
 //
 //  Queue_Mark_Routine_Deep: C
@@ -683,7 +704,7 @@ static void Queue_Mark_Named_Routine_Deep(REBRIN *r, const char *name, const voi
         REBSER *schema = cast(REBSER*, VAL_HANDLE_DATA(&r->ret_schema));
         Mark_Series_Only(schema, r, "<ret-schema>", dump);
         Queue_Mark_Field_Deep(
-            *SER_HEAD(struct Struct_Field*, schema), NULL, 0, schema, dump
+            SER_HEAD(struct Struct_Field, schema), NULL, 0, schema, dump
         );
     }
     else // special, allows NONE (e.g. void return)
@@ -697,7 +718,7 @@ static void Queue_Mark_Named_Routine_Deep(REBRIN *r, const char *name, const voi
                 = cast(REBSER*, VAL_HANDLE_DATA(ARR_AT(r->args_schemas, n)));
             Mark_Series_Only(schema, r->args_schemas, "<schema>", dump);
             Queue_Mark_Field_Deep(
-                *SER_HEAD(struct Struct_Field*, schema), NULL, 0, schema, dump
+                SER_HEAD(struct Struct_Field, schema), NULL, 0, schema, dump
             );
         }
         else
@@ -897,28 +918,14 @@ static void Mark_Frame_Stack_Deep(REBMDP *dump)
             Queue_Mark_Value_Deep(&f->cell, f, "<cell>", dump);
 
         Queue_Mark_Array_Deep(FUNC_PARAMLIST(f->func), f, "<func>", dump); // never NULL
-
-        // Need to keep the label symbol alive for error messages/stacktraces
-        //
         Mark_Series_Only(f->label, f, "<label>", dump); // also never NULL
 
-        // The subfeed may be in use by VARARGS!, and it may be either a
-        // context or a single element array.  It will only be valid during
-        // the function's actual running.
-        //
         if (!Is_Function_Frame_Fulfilling(f)) {
-            if (f->special->header.bits & NOT_END_MASK) {
-                REBARR *subfeed = cast(REBARR*, f->special);
-
-                if (GET_ARR_FLAG(subfeed, ARRAY_FLAG_VARLIST))
-                    Queue_Mark_Context_Deep(AS_CONTEXT(subfeed), f, "<subfeed>", dump);
-                else {
-                    assert(ARR_LEN(subfeed) == 1);
-                    Queue_Mark_Array_Deep(subfeed, f, "<subfeed>", dump);
-                }
-            }
-
             assert(IS_END(f->param)); // indicates function is running
+
+            // refine and special can be used to GC protect an arbitrary
+            // value while a function is running, currently.  (A more
+            // important purpose may come up...) 
 
             if (
                 f->refine // currently allowed to be NULL
@@ -928,7 +935,20 @@ static void Mark_Frame_Stack_Deep(REBMDP *dump)
             ) {
                 Queue_Mark_Value_Deep(f->refine, f, "<refine>", dump);
             }
+
+            if (
+                f->special
+                && !IS_END(f->special)
+                && !IS_VOID_OR_SAFE_TRASH(f->special)
+                && Is_Value_Managed(f->special)
+            ) {
+                Queue_Mark_Value_Deep(f->special, f, "<special>", dump);
+            }
         }
+
+        // Need to keep the label symbol alive for error messages/stacktraces
+        //
+        Mark_Series_Only(f->label, f, "<label>", dump);
 
         // We need to GC protect the values in the args no matter what,
         // but it might not be managed yet (e.g. could still contain garbage
@@ -977,11 +997,8 @@ static void Mark_Frame_Stack_Deep(REBMDP *dump)
 
 //
 //  Queue_Mark_Named_Value_Deep: C
-// 
-// This routine is not marked `static` because it is needed by
-// Ren/C++ in order to implement its GC_Mark_Hook.
 //
-void Queue_Mark_Named_Value_Deep(const RELVAL *val, const char *name, const void *parent, const char *edge, REBMDP *dump)
+static void Queue_Mark_Named_Value_Deep(const RELVAL *val, const char *name, const void *parent, const char *edge, REBMDP *dump)
 {
     REBSER *ser = NULL;
     struct mem_dump_entry entry;
@@ -1555,6 +1572,7 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
     return count;
 }
 
+
 //
 //  Snapshot_All_Functions: C
 //
@@ -1595,6 +1613,7 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS REBARR *Snapshot_All_Functions(void)
 
     return Pop_Stack_Values(dsp_orig);
 }
+
 
 //
 //  Mark_Root_Series: C
@@ -1638,14 +1657,18 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static void Mark_Root_Series(REBMDP *dump)
                 // (Note: This does not have anything to do with the lifetime
                 // of the FRAME! value itself, which could be indefinite.)
                 //
+                // !!! Does it need to check for pending?  Could it be set
+                // up such that you can't make an owning frame that's in
+                // a pending state?
+                //
                 REBVAL *key = cast(REBVAL*, s);
                 REBVAL *pairing = key + 1;
                 if (
                     IS_FRAME(key)
                     && GET_VAL_FLAG(key, ANY_CONTEXT_FLAG_OWNS_PAIRED)
-                    /*&& !Is_Context_Running_Or_Pending(VAL_CONTEXT(key))*/
+                    && !Is_Context_Running_Or_Pending(VAL_CONTEXT(key))
                 ){
-                    Free_Pairing(key); // don't consider a root
+                    Free_Pairing(pairing); // don't consider a root
                     continue;
                 }
 
@@ -1769,10 +1792,6 @@ static void Propagate_All_GC_Marks(REBMDP *dump)
 
         elem = SER_AT(struct mark_stack_elem, GC_Mark_Stack, SER_LEN(GC_Mark_Stack));
 
-        // Drop the series we are processing off the tail, as we could be
-        // queuing more of them (hence increasing the tail).
-        //
-
         last = elem + 1;
 
         last->array = NULL;
@@ -1863,14 +1882,13 @@ REBCNT Recycle_Core(REBOOL shutdown, REBMDP *dump)
     TERM_ARRAY_LEN(BUF_COLLECT, ARR_LEN(BUF_COLLECT));
 
     // MARKING PHASE: the "root set" from which we determine the liveness
-    // (or deadness) of a series.  If we are shutting down, we are freeing
-    // *all* of the series that are managed by the garbage collector, so
-    // we don't mark anything as live.
+    // (or deadness) of a series.  If we are shutting down, we do not mark
+    // several categories of series...but we do need to run the root marking.
+    // (In particular because that is when pairing series whose lifetimes
+    // are bound to frames will be freed, if the frame is expired.)
     //
-    // !!! Should a root set be "frozen" that's not cleaned out until shutdown
-    // time?  There used to be a SERIES_FLAG_KEEP, which was removed due
-    // to its usages being bad (and having few flags at the time).  It could
-    // be reintroduced in a more limited fashion for this purpose.
+    Mark_Root_Series(dump);
+    Propagate_All_GC_Marks(dump);
 
     if (!shutdown) {
         //
@@ -1963,10 +1981,6 @@ REBCNT Recycle_Core(REBOOL shutdown, REBMDP *dump)
             Propagate_All_GC_Marks(dump);
         }
 
-        // Mark all root series:
-        //
-        Mark_Root_Series(dump);
-
         // Mark potential error object from callback!
         if (!IS_VOID_OR_SAFE_TRASH(&Callback_Error)) {
             assert(NOT(GET_VAL_FLAG(&Callback_Error, VALUE_FLAG_RELATIVE)));
@@ -2052,7 +2066,6 @@ REBCNT Recycle_Core(REBOOL shutdown, REBMDP *dump)
 //
 REBCNT Recycle(void)
 {
-    //printf("Recycle begins\n");
     // Default to not passing the `shutdown` flag.
     return Recycle_Core(FALSE, NULL);
 }

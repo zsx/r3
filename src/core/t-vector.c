@@ -621,19 +621,24 @@ REBTYPE(Vector)
         SET_INTEGER(D_OUT, SER_LEN(vect));
         return R_OUT;
 
-    case SYM_COPY:
+    case SYM_COPY: {
+        INCLUDE_PARAMS_OF_COPY;
         ser = Copy_Sequence(vect);
         ser->misc.size = vect->misc.size; // attributes
         Val_Init_Vector(value, ser);
-        break;
+        break; }
 
-    case SYM_RANDOM:
+    case SYM_RANDOM: {
+        INCLUDE_PARAMS_OF_RANDOM;
+
         FAIL_IF_LOCKED_SERIES(vect);
 
-        if (D_REF(2) || D_REF(4)) fail (Error(RE_BAD_REFINES)); // /seed /only
-        Shuffle_Vector(value, D_REF(3));
+        if (REF(seed) || REF(only))
+            fail (Error(RE_BAD_REFINES));
+
+        Shuffle_Vector(value, REF(secure));
         *D_OUT = *D_ARG(1);
-        return R_OUT;
+        return R_OUT; }
 
     default:
         fail (Error_Illegal_Action(VAL_TYPE(value), action));
