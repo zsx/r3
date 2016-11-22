@@ -1543,7 +1543,21 @@ void GC_Kill_Series(REBSER *s)
 
     // Update the do count to be the count on which the series was freed
     //
-    s->do_count = TG_Do_Count;
+    // Conceptually, `s' is free'd and shouldn't be accessed. But the
+    // in the current implementation, freeing a node is just returning
+    // it to the memory pool for reuse, thus it's still under the
+    // control of the application. However, when coupled with memory
+    // poisonning, this part of the memory will be poisoned until it's
+    // reallocated for other usages.
+    //
+    if (REGION_IS_POISONED(&s->do_count, sizeof(s->do_count))) {
+        UNPOISON_MEMORY(&s->do_count, sizeof(s->do_count));
+        s->do_count = TG_Do_Count;
+        POISON_MEMORY(&s->do_count, sizeof(s->do_count));
+    }
+    else {
+        s->do_count = TG_Do_Count;
+    }
 #endif
 }
 
