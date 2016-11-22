@@ -114,7 +114,7 @@ REBNATIVE(load_extension)
 
         CFUNC *info = OS_FIND_FUNCTION(
             dll,
-            cs_cast(BOOT_STR(RS_EXTENSION, 0))
+            cs_cast(BOOT_STR(RS_EXTENSION, 0)) //RX_Init
         );
         if (!info){
             OS_CLOSE_LIBRARY(dll);
@@ -131,7 +131,7 @@ REBNATIVE(load_extension)
         // Import the string into REBOL-land:
         src = Copy_Bytes(code, -1);
         call = OS_FIND_FUNCTION(
-            dll, cs_cast(BOOT_STR(RS_EXTENSION, 2))
+            dll, cs_cast(BOOT_STR(RS_EXTENSION, 2)) //RX_Call
         ); // zero is allowed
     }
     else {
