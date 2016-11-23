@@ -406,8 +406,10 @@ static inline void UNMARK_REBSER(REBSER *rebser) {
 // guarding, the last value guarded must be the first one you DROP_GUARD on.
 //
 
-#define PUSH_GUARD_SERIES(s) \
-    Guard_Series_Core(s)
+inline static void PUSH_GUARD_SERIES(REBSER *s) {
+    ASSERT_SERIES_MANAGED(s); // see PUSH_GUARD_ARRAY_CONTENTS if you need it
+    Guard_Series_Core(s);
+}
 
 inline static void DROP_GUARD_SERIES(REBSER *s) {
     assert(GET_SER_FLAG(GC_Series_Guard, SERIES_FLAG_HAS_DYNAMIC));

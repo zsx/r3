@@ -409,20 +409,10 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
     Val_Init_Object(ARG(vars), context); // keep GC safe
     Val_Init_Block(ARG(body), body_copy); // keep GC safe
 
-    REBARR *mapped;
-    if (mode == LOOP_MAP_EACH) {
-        // Must be managed *and* saved...because we are accumulating results
-        // into it, and those results must be protected from GC
-
-        // !!! This means we cannot Free_Series in case of a BREAK, we
-        // have to leave it to the GC.  Is there a safe and efficient way
-        // to allow inserting the managed values into a single-deep
-        // unmanaged series if we *promise* not to go deeper?
-
-        mapped = Make_Array(VAL_LEN_AT(data));
-        MANAGE_ARRAY(mapped);
-        PUSH_GUARD_ARRAY(mapped);
-    }
+    // Currently the data stack is only used by MAP-EACH to accumulate results
+    // but it's faster to just save it than test the loop mode.
+    //
+    REBDSP dsp_orig = DSP;
 
     // Extract the series and index being enumerated, based on data type
 
@@ -443,19 +433,11 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
         // would be difficult.  And this is really just a debug/instrumentation
         // feature anyway.
         //
-        // !!! Note also the issue that in order for the GC to be willing to
-        // protect the values in the array with a guard, it must be managed.
-        // This is a questionable requirement--and it means we can't just
-        // Free_Array() when we're done with the enumeration.  Consider
-        // loosening this requirement (there are other places that would
-        // benefit from it being looser).
-        //
         switch (VAL_TYPE_KIND(data)) {
         case REB_FUNCTION:
             series = ARR_SERIES(Snapshot_All_Functions());
             index = 0;
-            MANAGE_ARRAY(AS_ARRAY(series));
-            PUSH_GUARD_ARRAY(AS_ARRAY(series));
+            PUSH_GUARD_ARRAY_CONTENTS(AS_ARRAY(series));
             break;
 
         default:
@@ -470,8 +452,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                 SET_INTEGER(D_OUT, 0);
             }
             else if (mode == LOOP_MAP_EACH) {
-                DROP_GUARD_ARRAY(mapped);
-                Val_Init_Block(D_OUT, mapped);
+                Val_Init_Block(D_OUT, Make_Array(0));
             }
             return R_OUT_Q(q);
         }
@@ -633,9 +614,15 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
         case LOOP_FOR_EACH:
             // no action needed after body is run
             break;
+
         case LOOP_REMOVE_EACH:
-            // If FALSE return (or unset), copy values to the write location
-            if (IS_CONDITIONAL_FALSE(D_OUT) || IS_VOID(D_OUT)) {
+            //
+            // If body evaluates to FALSE, preserve the slot.  Do the same
+            // for a void body, since that should have the same behavior as
+            // a CONTINUE with no /WITH (which most sensibly does not do
+            // a removal.)
+            //
+            if (IS_VOID(D_OUT) || IS_CONDITIONAL_FALSE(D_OUT)) {
                 //
                 // memory areas may overlap, so use memmove and not memcpy!
                 //
@@ -651,10 +638,13 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                 write_index += index - read_index;
             }
             break;
+
         case LOOP_MAP_EACH:
             // anything that's not void will be added to the result
-            if (!IS_VOID(D_OUT)) Append_Value(mapped, D_OUT);
+            if (!IS_VOID(D_OUT))
+                DS_PUSH(D_OUT);
             break;
+
         case LOOP_EVERY:
             if (IS_VOID(D_OUT)) {
                 // Unsets "opt out" of the vote, as with ANY and ALL
@@ -671,14 +661,21 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
 skip_hidden: ;
     }
 
-    if (mode == LOOP_MAP_EACH) DROP_GUARD_ARRAY(mapped);
-
-    if (IS_DATATYPE(data))
-        DROP_GUARD_SERIES(series);
+    if (IS_DATATYPE(data)) {
+        //
+        // If asked to enumerate a datatype, we allocated a temporary array
+        // of all instances of that datatype.  It has to be freed.
+        //
+        DROP_GUARD_ARRAY_CONTENTS(AS_ARRAY(series));
+        Free_Array(AS_ARRAY(series));
+    }
 
     if (threw) {
         // a non-BREAK and non-CONTINUE throw overrides any other return
         // result we might give (generic THROW, RETURN, QUIT, etc.)
+
+        if (mode == LOOP_MAP_EACH)
+            DS_DROP_TO(dsp_orig);
 
         return R_OUT_IS_THROWN;
     }
@@ -718,7 +715,7 @@ skip_hidden: ;
         return R_OUT_Q(q);
 
     case LOOP_MAP_EACH:
-        Val_Init_Block(D_OUT, mapped);
+        Val_Init_Block(D_OUT, Pop_Stack_Values(dsp_orig));
         return R_OUT_Q(q);
 
     case LOOP_EVERY:
@@ -1180,28 +1177,41 @@ inline static REB_R Loop_While_Until_Core(REBFRM *frame_, REBOOL trigger)
 
     do {
     skip_check:;
+
         const REBOOL only = FALSE;
         if (Run_Success_Branch_Throws(D_OUT, ARG(body), only)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) return R_OUT;
 
-                // UNTIL is unique because when you get a CONTINUE/WITH, the
-                // usual rule of the /WITH being "what the body would have
-                // returned" becomes also the condition.  It's a very poor
-                // expression of breaking an until to say CONTINUE/WITH TRUE,
-                // as BREAK/WITH TRUE says it much better.
+                // LOOP-UNTIL and LOOP-WITH follow the precedent that the way
+                // a CONTINUE/WITH works is to act as if the loop body
+                // returned the value passed to the WITH...and that a CONTINUE
+                // lacking a WITH acts as if the body returned a void.
                 //
-                if (!IS_VOID(D_OUT))
-                    fail (Error(RE_BREAK_NOT_CONTINUE));
+                // Since the condition and body are the same in this case,
+                // the implications are a little strange (though logical).
+                // CONTINUE/WITH FALSE will break a LOOP-WHILE, and
+                // CONTINUE/WITH TRUE breaks a LOOP-UNTIL.
+                //
+                if (IS_VOID(D_OUT))
+                    goto skip_check;
 
-                goto skip_check;
+                goto perform_check;
             }
             return R_OUT_IS_THROWN;
         }
 
-        if (IS_VOID(D_OUT)) fail (Error(RE_NO_RETURN));
+        // Since CONTINUE acts like reaching the end of the loop body with a
+        // void, the logical consequence is that reaching the end of *either*
+        // a LOOP-WHILE or a LOOP-UNTIL with a void just keeps going.  This
+        // means that `loop-until [print "hi"]` and `loop-while [print "hi"]`
+        // are both infinite loops.
+        //
+        if (IS_VOID(D_OUT))
+            goto skip_check;
 
+    perform_check:;
     } while (IS_CONDITIONAL_TRUE(D_OUT) == trigger);
 
     // If the body is a function, it may be a "brancher".  If it is,

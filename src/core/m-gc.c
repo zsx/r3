@@ -1667,18 +1667,14 @@ REBCNT Recycle(void)
 //
 //  Guard_Series_Core: C
 //
+// Does not ensure the series being guarded is managed, since it can be
+// interesting to guard the managed *contents* of an unmanaged array.  The
+// calling wrappers ensure managedness or not.
+//
 void Guard_Series_Core(REBSER *series)
 {
-    // It would seem there isn't any reason to save a series from being
-    // garbage collected if it is already invisible to the garbage
-    // collector.  But some kind of "saving" feature which added a
-    // non-managed series in as if it were part of the root set would
-    // be useful.  That would be for cases where you are building a
-    // series up from constituent values but might want to abort and
-    // manually free it.  For the moment, we don't have that feature.
-    ASSERT_SERIES_MANAGED(series);
-
-    if (SER_FULL(GC_Series_Guard)) Extend_Series(GC_Series_Guard, 8);
+    if (SER_FULL(GC_Series_Guard))
+        Extend_Series(GC_Series_Guard, 8);
 
     *SER_AT(
         REBSER*,

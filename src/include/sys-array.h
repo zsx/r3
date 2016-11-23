@@ -143,12 +143,6 @@ inline static void TERM_SERIES(REBSER *s) {
 #define FAIL_IF_LOCKED_ARRAY(a) \
     FAIL_IF_LOCKED_SERIES(ARR_SERIES(a))
 
-#define PUSH_GUARD_ARRAY(a) \
-    PUSH_GUARD_SERIES(ARR_SERIES(a))
-
-#define DROP_GUARD_ARRAY(a) \
-    DROP_GUARD_SERIES(ARR_SERIES(a))
-
 #define IS_ARRAY_MANAGED(array) \
     IS_SERIES_MANAGED(ARR_SERIES(array))
 
@@ -157,6 +151,30 @@ inline static void TERM_SERIES(REBSER *s) {
 
 #define ENSURE_ARRAY_MANAGED(array) \
     ENSURE_SERIES_MANAGED(ARR_SERIES(array))
+
+#define PUSH_GUARD_ARRAY(a) \
+    PUSH_GUARD_SERIES(ARR_SERIES(a))
+
+#define DROP_GUARD_ARRAY(a) \
+    DROP_GUARD_SERIES(ARR_SERIES(a))
+
+inline static void PUSH_GUARD_ARRAY_CONTENTS(REBARR *a) {
+    assert(!IS_ARRAY_MANAGED(a)); // if managed, just use PUSH_GUARD_ARRAY
+    Guard_Series_Core(ARR_SERIES(a));
+}
+
+inline static void DROP_GUARD_ARRAY_CONTENTS(REBARR *a) {
+#if !defined(NDEBUG)
+    //
+    // Make sure no unmanaged values were put in the array, because they
+    // would have caused errors if the GC had seen them!
+    //
+    RELVAL *test = ARR_HEAD(a);
+    for (; NOT_END(test); ++test)
+        ASSERT_VALUE_MANAGED(test);
+#endif
+    DROP_GUARD_SERIES(ARR_SERIES(a));
+}
 
 
 // Make a series that is the right size to store REBVALs (and
