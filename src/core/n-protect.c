@@ -54,7 +54,7 @@ static void Protect_Key(RELVAL *key, REBFLGS flags)
 
 //
 //  Protect_Value: C
-// 
+//
 // Anything that calls this must call Unmark() when done.
 //
 void Protect_Value(RELVAL *value, REBFLGS flags)
@@ -68,7 +68,7 @@ void Protect_Value(RELVAL *value, REBFLGS flags)
 
 //
 //  Protect_Series: C
-// 
+//
 // Anything that calls this must call Unmark() when done.
 //
 void Protect_Series(REBSER *series, REBCNT index, REBFLGS flags)
@@ -93,7 +93,7 @@ void Protect_Series(REBSER *series, REBCNT index, REBFLGS flags)
 
 //
 //  Protect_Object: C
-// 
+//
 // Anything that calls this must call Unmark() when done.
 //
 void Protect_Object(RELVAL *value, REBFLGS flags)
@@ -168,9 +168,9 @@ static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
 
 //
 //  Protect_Unprotect_Core: C
-// 
+//
 // Common arguments between protect and unprotect:
-// 
+//
 static REB_R Protect_Unprotect_Core(REBFRM *frame_, REBFLGS flags)
 {
     INCLUDE_PARAMS_OF_PROTECT;
@@ -253,9 +253,9 @@ return_value_arg:
 
 //
 //  protect: native [
-//  
+//
 //  {Protect a series or a variable from being modified.}
-//  
+//
 //      value [word! any-series! bitset! map! object! module!]
 //      /deep
 //          "Protect all sub-series/objects as well"
@@ -284,9 +284,9 @@ REBNATIVE(protect)
 
 //
 //  unprotect: native [
-//  
+//
 //  {Unprotect a series or a variable (it can again be modified).}
-//  
+//
 //      value [word! any-series! bitset! map! object! module!]
 //      /deep
 //          "Protect all sub-series as well"

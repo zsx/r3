@@ -50,7 +50,7 @@ REBINT CT_Event(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 //
 //  Cmp_Event: C
-// 
+//
 // Given two events, compare them.
 //
 REBINT Cmp_Event(const RELVAL *t1, const RELVAL *t2)

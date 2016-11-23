@@ -102,7 +102,7 @@ static REBOOL Nonblocking_Mode(SOCKET sock)
 
 //
 //  Init_Net: C
-// 
+//
 // Intialize networking libraries and related interfaces.
 // This function will be called prior to any socket functions.
 //
@@ -122,7 +122,7 @@ DEVICE_CMD Init_Net(REBREQ *dr)
 
 //
 //  Quit_Net: C
-// 
+//
 // Close and cleanup networking libraries and related interfaces.
 //
 DEVICE_CMD Quit_Net(REBREQ *dr)
@@ -138,14 +138,14 @@ DEVICE_CMD Quit_Net(REBREQ *dr)
 
 //
 //  Host_Address: C
-// 
+//
 // Simple lookup of a host address.
 // The hostaddr must be at least 16 bytes in size (IPv6).
 // This is a synchronous function and blocks during access.
-// 
+//
 // On success, returns length of address.
 // On failure, returns 0.
-// 
+//
 // Current version is IPv4 only.
 //
 int Host_Address(char *hostname, char *hostaddr)
@@ -162,17 +162,17 @@ int Host_Address(char *hostname, char *hostaddr)
 
 //
 //  Open_Socket: C
-// 
+//
 // Setup a socket with the specified protocol and bind it to
 // the related transport service.
-// 
+//
 // Returns 0 on success.
 // On failure, error code is OS local.
-// 
+//
 // Note: This is an intialization procedure and no actual
 // connection is made at this time. The IP address and port
 // number are not needed, only the type of service required.
-// 
+//
 // After usage:
 //     Close_Socket() - to free OS allocations
 //
@@ -219,9 +219,9 @@ DEVICE_CMD Open_Socket(REBREQ *sock)
 
 //
 //  Close_Socket: C
-// 
+//
 // Close a socket.
-// 
+//
 // Returns 0 on success.
 // On failure, error code is OS local.
 //
@@ -254,7 +254,7 @@ DEVICE_CMD Close_Socket(REBREQ *sock)
 
 //
 //  Lookup_Socket: C
-// 
+//
 // Initiate the GetHost request and return immediately.
 // This is very similar to the DNS device.
 // The request will pend until the main event handler gets WM_DNS.
@@ -319,19 +319,19 @@ DEVICE_CMD Lookup_Socket(REBREQ *sock)
 
 //
 //  Connect_Socket: C
-// 
+//
 // Connect a socket to a service.
 // Only required for connection-based protocols (e.g. not UDP).
 // The IP address must already be resolved before calling.
-// 
+//
 // This function is asynchronous. It will return immediately.
 // You can call this function again to check the pending connection.
-// 
+//
 // The function will return:
 //     =0: connection succeeded (or already is connected)
 //     >0: in-progress, still trying
 //     <0: error occurred, no longer trying
-// 
+//
 // Before usage:
 //     Open_Socket() -- to allocate the socket
 //
@@ -395,25 +395,25 @@ DEVICE_CMD Connect_Socket(REBREQ *sock)
 
 //
 //  Transfer_Socket: C
-// 
+//
 // Write or read a socket (for connection-based protocols).
-// 
+//
 // This function is asynchronous. It will return immediately.
 // You can call this function again to check the pending connection.
-// 
+//
 // The mode is RSM_RECEIVE or RSM_SEND.
-// 
+//
 // The function will return:
 //     =0: succeeded
 //     >0: in-progress, still trying
 //     <0: error occurred, no longer trying
-// 
+//
 // Before usage:
 //     Open_Socket()
 //     Connect_Socket()
 //     Verify that RSM_CONNECT is true
 //     Setup the sock->common.data and sock->length
-// 
+//
 // Note that the mode flag is cleared by the caller, not here.
 //
 DEVICE_CMD Transfer_Socket(REBREQ *sock)
@@ -500,13 +500,13 @@ DEVICE_CMD Transfer_Socket(REBREQ *sock)
 
 //
 //  Listen_Socket: C
-// 
+//
 // Setup a server (listening) socket (TCP or UDP).
-// 
+//
 // Before usage:
 //     Open_Socket();
 //     Set local_port to desired port number.
-// 
+//
 // Use this instead of Connect_Socket().
 //
 DEVICE_CMD Listen_Socket(REBREQ *sock)
@@ -554,14 +554,14 @@ lserr:
 
 //
 //  Accept_Socket: C
-// 
+//
 // Accept an inbound connection on a TCP listen socket.
-// 
+//
 // The function will return:
 //     =0: succeeded
 //     >0: in-progress, still trying
 //     <0: error occurred, no longer trying
-// 
+//
 // Before usage:
 //     Open_Socket();
 //     Set local_port to desired port number.

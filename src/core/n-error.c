@@ -39,7 +39,7 @@
 
 //
 //  trap: native [
-//  
+//
 //  {Tries to DO a block, trapping error as return value (if one is raised).}
 //
 //      return: [<opt> any-value!]
@@ -128,10 +128,10 @@ REBNATIVE(trap)
 
 //
 //  fail: native [
-//  
+//
 //  {Interrupts execution by reporting an error (a TRAP can intercept it).}
-//  
-//      reason [error! string! block!] 
+//
+//      reason [error! string! block!]
 //          "ERROR! value, message string, or failure spec"
 //      /where
 //          "Specify an originating location other than the FAIL itself"
@@ -261,7 +261,7 @@ REBNATIVE(fail)
 
 //
 //  attempt: native [
-//  
+//
 //  {Tries to evaluate a block and returns result or NONE on error.}
 //
 //      return: [<opt> any-value!]

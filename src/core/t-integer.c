@@ -92,19 +92,19 @@ void TO_Integer(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
 //
 //  Value_To_Int64: C
-// 
+//
 // Interpret `value` as a 64-bit integer and return it in `out`.
-// 
+//
 // If `no_sign` is TRUE then use that to inform an ambiguous conversion
 // (e.g. TO-INTEGER/UNSIGNED #{FF} is 255 instead of -1).  However, it
 // won't contradict the sign of unambiguous source.  So the string "-1"
 // will raise an error if you try to convert it unsigned.  (For this,
 // use `abs to-integer "-1"` and not `to-integer/unsigned "-1"`.)
-// 
+//
 // Because Rebol's INTEGER! uses a signed REBI64 and not an unsigned
 // REBU64, a request for unsigned interpretation is limited to using
 // 63 of those bits.  A range error will be thrown otherwise.
-// 
+//
 // If a type is added or removed, update REBNATIVE(to_integer)'s spec
 //
 void Value_To_Int64(REBVAL *out, const REBVAL *value, REBOOL no_sign)
@@ -165,7 +165,7 @@ void Value_To_Int64(REBVAL *out, const REBVAL *value, REBOOL no_sign)
             if (n > sizeof(REBI64)) n = sizeof(REBI64);
             for (; n; n--, bp++)
                 i = cast(REBI64, (cast(REBU64, i) << 8) | *bp);
-            
+
             SET_INTEGER(out, i);
 
             // There was no TO-INTEGER/UNSIGNED in R3-Alpha, so even if
@@ -325,14 +325,14 @@ check_sign:
 
 //
 //  to-integer: native [
-//  
+//
 //  {Synonym of TO INTEGER! when used without refinements, adds /UNSIGNED.}
-//  
+//
 //      value [
 //      integer! decimal! percent! money! char! time!
 //      issue! binary! any-string!
 //      ]
-//      /unsigned 
+//      /unsigned
 //      {For BINARY! interpret as unsigned, otherwise error if signed.}
 //  ]
 //

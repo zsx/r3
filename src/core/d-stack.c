@@ -240,7 +240,7 @@ REBNATIVE(label_of)
 //
 //  "Get the FUNCTION! for a stack level or frame"
 //
-//      return: [function!] 
+//      return: [function!]
 //      level [frame! integer!]
 //  ]
 //
@@ -355,7 +355,7 @@ REBNATIVE(backtrace)
         max_rows = 20; // On an 80x25 terminal leaves room to type afterward
 
     REBDSP dsp_orig = DSP; // original stack pointer (for gathered backtrace)
-    
+
     REBCNT row = 0; // row we're on (incl. pending frames and maybe ellipsis)
     REBCNT number = 0; // level label number in the loop(no pending frames)
     REBOOL first = TRUE; // special check of first frame for "breakpoint 0"

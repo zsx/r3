@@ -37,9 +37,9 @@
 
 //
 //  OS_Alloc_Mem: C
-// 
+//
 // Allocate memory of given size.
-// 
+//
 // This is necessary because some environments may use their
 // own specific memory allocation (e.g. private heaps).
 //
@@ -71,7 +71,7 @@ void *OS_Alloc_Mem(size_t size)
 
 //
 //  OS_Free_Mem: C
-// 
+//
 // Free memory allocated in this OS environment. (See OS_Alloc_Mem)
 //
 void OS_Free_Mem(void *mem)

@@ -34,7 +34,7 @@
 
 //
 //  Snap_State_Core: C
-// 
+//
 // Used by SNAP_STATE, PUSH_TRAP, and PUSH_UNHALTABLE_TRAP.
 //
 // **Note:** Modifying this routine likely means a necessary modification to
@@ -172,7 +172,7 @@ problem_found:
 
 //
 //  Trapped_Helper_Halted: C
-// 
+//
 // This is used by both PUSH_TRAP and PUSH_UNHALTABLE_TRAP to do
 // the work of responding to a longjmp.  (Hence it is run when
 // setjmp returns TRUE.)  Its job is to safely recover from
@@ -180,7 +180,7 @@ problem_found:
 // be safely recovered from is finite.  Among the countless
 // things that are not handled automatically would be a memory
 // allocation.
-// 
+//
 // (Note: This is a crucial difference between C and C++, as
 // C++ will walk up the stack at each level and make sure
 // any constructors have their associated destructors run.
@@ -188,7 +188,7 @@ problem_found:
 // Rebol's greater concern is not so much the cost of setup
 // for stack unwinding, but being able to be compiled without
 // requiring a C++ compiler.)
-// 
+//
 // Returns whether the trapped error was a RE_HALT or not.
 //
 REBOOL Trapped_Helper_Halted(struct Reb_State *s)
@@ -256,7 +256,7 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
 
 //
 //  Fail_Core: C
-// 
+//
 // Cause a "trap" of an error by longjmp'ing to the enclosing PUSH_TRAP (or
 // PUSH_UNHALTABLE_TRAP).  Note that these failures interrupt code mid-stream,
 // so if a Rebol function is running it will not make it to the point of
@@ -374,13 +374,13 @@ REBCNT Stack_Depth(void)
 
 //
 //  Find_Error_For_Code: C
-// 
+//
 // Find the id word, the error type (category) word, and the error
 // message template block-or-string for a given error number.
-// 
+//
 // This scans the data which is loaded into the boot file by
 // processing %errors.r
-// 
+//
 // If the message is not found, return NULL.  Will not write to
 // `id_out` or `type_out` unless returning a non-NULL pointer.
 //
@@ -551,12 +551,12 @@ static void Try_Add_Backtrace_To_Error(
 
 //
 //  Make_Error_Object_Throws: C
-// 
+//
 // Creates an error object from arg and puts it in value.
 // The arg can be a string or an object body block.
-// 
+//
 // Returns TRUE if a THROWN() value is made during evaluation.
-// 
+//
 // This function is called by MAKE ERROR!.  Note that most often
 // system errors from %errors.r are thrown by C code using
 // Make_Error(), but this routine accommodates verification of
@@ -849,23 +849,23 @@ REBOOL Make_Error_Object_Throws(
 
 //
 //  Make_Error_Core: C
-// 
+//
 // (va_list by pointer: http://stackoverflow.com/a/3369762/211160)
-// 
+//
 // Create and init a new error object based on a C va_list
 // and an error code.  This routine is responsible also for
 // noticing if there is an attempt to make an error at a time
 // that is too early for error creation, and not try and invoke
 // the error creation machinery.  That means if you write:
-// 
+//
 //     panic (Error(RE_SOMETHING, arg1, ...));
-// 
+//
 // ...and it's too early to make an error, the inner call to
 // Error will be the one doing the panic.  Hence, both fail and
 // panic behave identically in that early phase of the system
 // (though panic is better documentation that one knows the
 // error cannot be trapped).
-// 
+//
 // Besides that caveat and putting running-out-of-memory aside,
 // this routine should not fail internally.  Hence it should
 // return to the caller to properly call va_end with no longjmp
@@ -1132,13 +1132,13 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
 
 //
 //  Error: C
-// 
+//
 // This is a variadic function which is designed to be the
 // "argument" of either a `fail` or a `panic` "keyword".
 // It can be called directly, or indirectly by another proxy
 // error function.  It takes a number of REBVAL* arguments
 // appropriate for the error number passed.
-// 
+//
 // With C variadic functions it is not known how many arguments
 // were passed.  Make_Error_Core() knows how many arguments are
 // in an error's template in %errors.r for a given error #, so
@@ -1210,7 +1210,7 @@ REBCTX *Error_Bad_Func_Def(const REBVAL *spec, const REBVAL *body)
     REBARR *array = Make_Array(2);
     Append_Value(array, spec);
     Append_Value(array, body);
-    
+
     REBVAL def;
     Val_Init_Block(&def, array);
     return Error(RE_BAD_FUNC_DEF, &def, END_CELL);
@@ -1260,7 +1260,7 @@ REBCTX *Error_No_Memory(REBCNT bytes)
 
 //
 //  Error_Invalid_Arg_Core: C
-// 
+//
 // This error is pretty vague...it's just "invalid argument"
 // and the value with no further commentary or context.  It
 // becomes a catch all for "unexpected input" when a more
@@ -1375,7 +1375,7 @@ REBCTX *Error_Invalid_Type(enum Reb_Kind kind)
 
 //
 //  Error_Out_Of_Range: C
-// 
+//
 // value out of range: <value>
 //
 REBCTX *Error_Out_Of_Range(const REBVAL *arg)
@@ -1441,7 +1441,7 @@ REBCTX *Error_Unexpected_Type(enum Reb_Kind expected, enum Reb_Kind actual)
 
 //
 //  Error_Arg_Type: C
-// 
+//
 // Function in frame of `call` expected parameter `param` to be
 // a type different than the arg given (which had `arg_type`)
 //
@@ -1540,10 +1540,10 @@ REBCTX *Error_On_Port(REBCNT errnum, REBCTX *port, REBINT err_code)
 
 //
 //  Exit_Status_From_Value: C
-// 
+//
 // This routine's job is to turn an arbitrary value into an
 // operating system exit status:
-// 
+//
 //     https://en.wikipedia.org/wiki/Exit_status
 //
 int Exit_Status_From_Value(REBVAL *value)
@@ -1618,28 +1618,28 @@ void Init_Errors(REBVAL *errors)
 
 //
 //  Security_Policy: C
-// 
+//
 // Given a security symbol (like FILE) and a value (like the file
 // path) returns the security policy (RWX) allowed for it.
-// 
+//
 // Args:
-// 
+//
 //     sym:  word that represents the type ['file 'net]
 //     name: file or path value
-// 
+//
 // Returns BTYE array of flags for the policy class:
-// 
+//
 //     flags: [rrrr wwww xxxx ----]
-// 
+//
 //     Where each byte is:
 //         0: SEC_ALLOW
 //         1: SEC_ASK
 //         2: SEC_THROW
 //         3: SEC_QUIT
-// 
+//
 // The secuity is defined by the system/state/policies object, that
 // is of the form:
-// 
+//
 //     [
 //         file:  [%file1 tuple-flags %file2 ... default tuple-flags]
 //         net:   [...]
@@ -1720,7 +1720,7 @@ REBYTE *Security_Policy(REBSTR *spelling, REBVAL *name)
 
 //
 //  Trap_Security: C
-// 
+//
 // Take action on the policy flags provided. The sym and value
 // are provided for error message purposes only.
 //
@@ -1739,7 +1739,7 @@ void Trap_Security(REBCNT flag, REBSTR *sym, REBVAL *value)
 
 //
 //  Check_Security: C
-// 
+//
 // A helper function that fetches the security flags for
 // a given symbol (FILE) and value (path), and then tests
 // that they are allowed.

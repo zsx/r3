@@ -136,7 +136,7 @@ REBCNT Modify_Array(
 
 //
 //  Modify_String: C
-// 
+//
 // Returns new dst_idx.
 //
 REBCNT Modify_String(

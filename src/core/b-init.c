@@ -194,14 +194,14 @@ static void Print_Banner(REBARGS *rargs)
 
 //
 //  Do_Global_Block: C
-// 
+//
 // Bind and evaluate a global block.
 // Rebind:
 //     0: bind set into sys or lib
 //    -1: bind shallow into sys (for ACTION)
 //     1: add new words to LIB, bind/deep to LIB
 //     2: add new words to SYS, bind/deep to LIB
-// 
+//
 // Expects result to be void
 //
 static void Do_Global_Block(
@@ -268,7 +268,7 @@ static void Do_Global_Block(
 
 //
 //  Load_Boot: C
-// 
+//
 // Decompress and scan in the boot block structure.  Can
 // only be called at the correct point because it will
 // create new symbols.
@@ -331,7 +331,7 @@ static void Load_Boot(void)
 
 //
 //  Init_Datatypes: C
-// 
+//
 // Create the datatypes.
 //
 static void Init_Datatypes(void)
@@ -368,9 +368,9 @@ static void Init_Datatypes(void)
 
 //
 //  Init_Constants: C
-// 
+//
 // Init constant words.
-// 
+//
 // WARNING: Do not create direct pointers into the Lib_Context
 // because it may get expanded and the pointers will be invalid.
 //
@@ -549,7 +549,7 @@ static void Init_Function_Tags(void)
 
 //
 //  Init_Natives: C
-// 
+//
 // Create native functions.  In R3-Alpha this would go as far as actually
 // creating a NATIVE native by hand, and then run code that would call that
 // native for each function.  Ren-C depends on having the native table
@@ -723,11 +723,11 @@ static void Init_Natives(void)
 
 //
 //  Init_Root_Context: C
-// 
+//
 // Hand-build the root context where special REBOL values are
 // stored. Called early, so it cannot depend on any other
 // system structures or values.
-// 
+//
 // Note that the Root_Vars's word table is unset!
 // None of its values are exported.
 //
@@ -826,7 +826,7 @@ static void Init_Root_Context(void)
 
 //
 //  Set_Root_Series: C
-// 
+//
 // Used to set block and string values in the ROOT context.
 //
 void Set_Root_Series(REBVAL *value, REBSER *ser)
@@ -846,7 +846,7 @@ void Set_Root_Series(REBVAL *value, REBSER *ser)
 
 //
 //  Init_Task_Context: C
-// 
+//
 // See above notes (same as root context, except for tasks)
 //
 static void Init_Task_Context(void)
@@ -899,7 +899,7 @@ static void Init_Task_Context(void)
 
 //
 //  Init_System_Object: C
-// 
+//
 // Evaluate the system object and create the global SYSTEM word.  We do not
 // BIND_ALL here to keep the internal system words out of the global context.
 // (See also N_context() which creates the subobjects of the system object.)
@@ -1138,7 +1138,7 @@ REBINT Codec_UTF16BE(int action, REBCDI *codi)
 
 //
 //  Register_Codec: C
-// 
+//
 // Internal function for adding a codec.
 //
 void Register_Codec(const REBYTE *name, codo dispatcher)
@@ -1200,7 +1200,7 @@ static REBSTR *Set_Option_Word(REBCHR *str, REBCNT field)
 
 //
 //  Init_Main_Args: C
-// 
+//
 // The system object is defined in boot.r.
 //
 static void Init_Main_Args(REBARGS *rargs)
@@ -1371,7 +1371,7 @@ void Init_Task(void)
 
 //
 //  Init_Core: C
-// 
+//
 // Initialize the interpreter core.
 //
 // !!! This will either succeed or "panic".  Panic currently triggers an exit
@@ -1380,12 +1380,12 @@ void Init_Task(void)
 //
 // The phases of initialization are tracked by PG_Boot_Phase.  Some system
 // functions are unavailable at certain phases.
-// 
+//
 // Though most of the initialization is run as C code, some portions are run
 // in Rebol.  For instance, ACTION is a function registered very early on in
 // the boot process, which is run from within a block to register more
 // functions.
-// 
+//
 // At the tail of the initialization, `finish_init_core` is run.  This Rebol
 // function lives in %sys-start.r.   It should be "host agnostic" and not
 // assume things about command-line switches (or even that there is a command
@@ -1624,7 +1624,7 @@ void Init_Core(REBARGS *rargs)
 
 //
 //  Shutdown_Core: C
-// 
+//
 // The goal of Shutdown_Core() is to release all memory and resources that the
 // interpreter has accrued since Init_Core().  This is a good "sanity check"
 // that there aren't unaccounted-for leaks (or semantic errors which such
@@ -1635,7 +1635,7 @@ void Init_Core(REBARGS *rargs)
 // clients wishing a speedy exit may force an exit to the OS instead of doing
 // a clean shut down.  (Note: There still might be some system resources
 // that need to be waited on, such as asynchronous writes.)
-// 
+//
 // While some leaks are detected by the debug build during shutdown, even more
 // can be found with a tool like Valgrind or Address Sanitizer.
 //

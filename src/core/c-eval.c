@@ -341,7 +341,7 @@ reevaluate:;
     case REB_0_LOOKBACK:
         SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
         // f->out must be the infix's left-hand-side arg, may be END
-        
+
         f->refine = LOOKBACK_ARG;
         goto do_function_in_gotten;
 
@@ -1608,7 +1608,7 @@ reevaluate:;
     //
     // `x: 1 + 2` does not want to push the X:, then get a 1, then assign the
     // 1...it needs to wait.  The pending sets are not flushed until the
-    // infix operation has finished. 
+    // infix operation has finished.
 
     if (IS_END(f->value)) {
         Do_Pending_Sets_May_Invalidate_Gotten(f->out, f); // don't care if does

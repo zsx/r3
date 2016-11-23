@@ -299,7 +299,7 @@ static void Set_Struct_Vars(REBSTU *strut, REBVAL *blk)
 
 //
 //  Struct_To_Array: C
-// 
+//
 // Used by MOLD to create a block.
 //
 // Cannot fail(), because fail() could call MOLD on a struct!, which will end

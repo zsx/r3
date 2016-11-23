@@ -37,9 +37,9 @@
 
 //
 //  Panic_Core: C
-// 
+//
 // (va_list by pointer: http://stackoverflow.com/a/3369762/211160)
-// 
+//
 // Print a failure message and abort.  The code adapts to several
 // different load stages of the system, and uses simpler ways to
 // report the error when the boot has not progressed enough to

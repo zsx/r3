@@ -151,7 +151,7 @@ void TO_Tuple(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
 //
 //  Cmp_Tuple: C
-// 
+//
 // Given two tuples, compare them.
 //
 REBINT Cmp_Tuple(const RELVAL *t1, const RELVAL *t2)
@@ -238,7 +238,7 @@ void Poke_Tuple_Immediate(
 
 //
 //  PD_Tuple: C
-// 
+//
 REBINT PD_Tuple(REBPVS *pvs)
 {
     if (pvs->opt_setval) {
@@ -259,7 +259,7 @@ REBINT PD_Tuple(REBPVS *pvs)
 
 //
 //  Emit_Tuple: C
-// 
+//
 // The out array must be large enough to hold longest tuple.
 // Longest is: (3 digits + '.') * 11 nums + 1 term => 45
 //

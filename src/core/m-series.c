@@ -36,7 +36,7 @@
 
 //
 //  Extend_Series: C
-// 
+//
 // Extend a series at its end without affecting its tail index.
 //
 void Extend_Series(REBSER *s, REBCNT delta)
@@ -49,7 +49,7 @@ void Extend_Series(REBSER *s, REBCNT delta)
 
 //
 //  Insert_Series: C
-// 
+//
 // Insert a series of values (bytes, longs, reb-vals) into the
 // series at the given index.  Expand it if necessary.  Does
 // not add a terminator to tail.
@@ -77,7 +77,7 @@ REBCNT Insert_Series(
 
 //
 //  Append_Series: C
-// 
+//
 // Append value(s) onto the tail of a series.  The len is
 // the number of units (bytes, REBVALS, etc.) of the data,
 // and does not include the terminator (which will be added).
@@ -100,7 +100,7 @@ void Append_Series(REBSER *s, const REBYTE *data, REBCNT len)
 
 //
 //  Append_Values_Len: C
-// 
+//
 // Append value(s) onto the tail of an array.  The len is
 // the number of units and does not include the terminator
 // (which will be added).
@@ -121,13 +121,13 @@ void Append_Values_Len(REBARR *array, const REBVAL *head, REBCNT len)
 
 //
 //  Copy_Sequence: C
-// 
+//
 // Copy any series that *isn't* an "array" (such as STRING!,
 // BINARY!, BITSET!, VECTOR!...).  Includes the terminator.
-// 
+//
 // Use Copy_Array routines (which specify Shallow, Deep, etc.) for
 // greater detail needed when expressing intent for Rebol Arrays.
-// 
+//
 // Note: No suitable name for "non-array-series" has been picked.
 // "Sequence" is used for now because Copy_Non_Array() doesn't
 // look good and lots of things aren't "Rebol Arrays" that aren't
@@ -155,10 +155,10 @@ REBSER *Copy_Sequence(REBSER *original)
 
 //
 //  Copy_Sequence_At_Len: C
-// 
+//
 // Copy a subseries out of a series that is not an array.
 // Includes the terminator for it.
-// 
+//
 // Use Copy_Array routines (which specify Shallow, Deep, etc.) for
 // greater detail needed when expressing intent for Rebol Arrays.
 //
@@ -180,7 +180,7 @@ REBSER *Copy_Sequence_At_Len(REBSER *original, REBCNT index, REBCNT len)
 
 //
 //  Copy_Sequence_At_Position: C
-// 
+//
 // Copy a non-array series from its value structure, using the
 // value's index as the location to start copying the data.
 //
@@ -194,7 +194,7 @@ REBSER *Copy_Sequence_At_Position(const REBVAL *position)
 
 //
 //  Remove_Series: C
-// 
+//
 // Remove a series of values (bytes, longs, reb-vals) from the
 // series at the given index.
 //
@@ -285,7 +285,7 @@ void Remove_Series(REBSER *s, REBCNT index, REBINT len)
 
 //
 //  Unbias_Series: C
-// 
+//
 // Reset series bias.
 //
 void Unbias_Series(REBSER *s, REBOOL keep)
@@ -309,7 +309,7 @@ void Unbias_Series(REBSER *s, REBOOL keep)
 
 //
 //  Reset_Sequence: C
-// 
+//
 // Reset series to empty. Reset bias, tail, and termination.
 // The tail is reset to zero.
 //
@@ -328,7 +328,7 @@ void Reset_Sequence(REBSER *s)
 
 //
 //  Reset_Array: C
-// 
+//
 // Reset series to empty. Reset bias, tail, and termination.
 // The tail is reset to zero.
 //
@@ -342,7 +342,7 @@ void Reset_Array(REBARR *a)
 
 //
 //  Clear_Series: C
-// 
+//
 // Clear an entire series to zero. Resets bias and tail.
 // The tail is reset to zero.
 //
@@ -363,7 +363,7 @@ void Clear_Series(REBSER *s)
 
 //
 //  Resize_Series: C
-// 
+//
 // Reset series and expand it to required size.
 // The tail is reset to zero.
 //
@@ -384,9 +384,9 @@ void Resize_Series(REBSER *s, REBCNT size)
 
 //
 //  Reset_Buffer: C
-// 
+//
 // Setup to reuse a shared buffer. Expand it if needed.
-// 
+//
 // NOTE: The length will be set to the supplied value, but the series will
 // not be terminated.
 //
@@ -404,7 +404,7 @@ REBYTE *Reset_Buffer(REBSER *buf, REBCNT len)
 
 //
 //  Copy_Buffer: C
-// 
+//
 // Copy a shared buffer, starting at index. Set tail and termination.
 //
 REBSER *Copy_Buffer(REBSER *buf, REBCNT index, void *end)
@@ -483,7 +483,7 @@ void Assert_Series_Core(REBSER *series)
 
 //
 //  Panic_Series_Debug: C
-// 
+//
 // This could be done in the PANIC_SERIES macro, but having it
 // as an actual function gives you a place to set breakpoints.
 //

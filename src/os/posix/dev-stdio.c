@@ -189,11 +189,11 @@ DEVICE_CMD Close_IO(REBREQ *req)
 
 //
 //  Write_IO: C
-// 
+//
 // Low level "raw" standard output function.
-// 
+//
 // Allowed to restrict the write to a max OS buffer size.
-// 
+//
 // Returns the number of chars written.
 //
 DEVICE_CMD Write_IO(REBREQ *req)
@@ -232,11 +232,11 @@ DEVICE_CMD Write_IO(REBREQ *req)
 
 //
 //  Read_IO: C
-// 
+//
 // Low level "raw" standard input function.
-// 
+//
 // The request buffer must be long enough to hold result.
-// 
+//
 // Result is NOT terminated (the actual field has length.)
 //
 DEVICE_CMD Read_IO(REBREQ *req)
@@ -281,7 +281,7 @@ DEVICE_CMD Read_IO(REBREQ *req)
 
 //
 //  Open_Echo: C
-// 
+//
 // Open a file for low-level console echo (output).
 //
 DEVICE_CMD Open_Echo(REBREQ *req)

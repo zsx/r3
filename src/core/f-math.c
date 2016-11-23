@@ -39,12 +39,12 @@
 
 //
 //  Grab_Int: C
-// 
+//
 // Grab an integer value from the string.
-// 
+//
 // Return the character position just after the integer and return
 // the integer via a pointer to it.
-// 
+//
 // Notes:
 //     1. Stops at the first non-digit.
 //     2. If no integer found, pointer doesn't change position.
@@ -71,7 +71,7 @@ const REBYTE *Grab_Int(const REBYTE *cp, REBINT *val)
 
 //
 //  Grab_Int_Scale: C
-// 
+//
 // Return integer scaled to the number of digits specified.
 // Used for the decimal part of numbers (e.g. times).
 //
@@ -100,12 +100,12 @@ const REBYTE *Grab_Int_Scale(const REBYTE *cp, REBINT *val, REBCNT scale)
 
 //
 //  Form_Int_Len: C
-// 
+//
 // Form an integer string into the given buffer. Result will
 // not exceed maxl length, including terminator.
-// 
+//
 // Returns the length of the string.
-// 
+//
 // Notes:
 //     1. If result is longer than maxl, returns 0 length.
 //     2. Make sure you have room in your buffer!
@@ -167,11 +167,11 @@ REBINT Form_Int_Len(REBYTE *buf, REBI64 val, REBINT maxl)
 
 //
 //  Form_Int_Pad: C
-// 
+//
 // Form an integer string in the given buffer with a min
 // width padded out with the given character. Len > 0 left
 // aligned. Len < 0 is right aligned.
-// 
+//
 // If len = 0 and val = 0, a null string is formed.
 // Make sure you have room in your buffer before calling this!
 //
@@ -204,7 +204,7 @@ REBYTE *Form_Int_Pad(REBYTE *buf, REBI64 val, REBINT max, REBINT len, REBYTE pad
 
 //
 //  Form_Int: C
-// 
+//
 // Form 32 bit integer string in the given buffer.
 // Make sure you have room in your buffer before calling this!
 //
@@ -217,7 +217,7 @@ REBYTE *Form_Int(REBYTE *buf, REBINT val)
 
 //
 //  Form_Integer: C
-// 
+//
 // Form standard REBOL integer value (32 or 64).
 // Make sure you have room in your buffer before calling this!
 //

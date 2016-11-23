@@ -275,7 +275,7 @@ void Unmap_Bytes(void *srcp, REBYTE **dstp, const char *map) {
 
 //
 //  Decode_BMP_Image: C
-// 
+//
 // Input:  BMP encoded image (codi->data, len)
 // Output: Image bits (codi->extra.bits, w, h)
 // Error:  Code in codi->error
@@ -509,7 +509,7 @@ error:
 
 //
 //  Encode_BMP_Image: C
-// 
+//
 // Input:  Image bits (codi->extra.bits, w, h)
 // Output: BMP encoded image (codi->data, len)
 // Error:  Code in codi->error

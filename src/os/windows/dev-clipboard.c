@@ -125,7 +125,7 @@ DEVICE_CMD Read_Clipboard(REBREQ *req)
 
 //
 //  Write_Clipboard: C
-// 
+//
 // Works for Unicode and ASCII strings.
 // Length is number of bytes passed (not number of chars).
 //

@@ -77,7 +77,7 @@ void Shutdown_StdIO(void)
 
 //
 //  Print_OS_Line: C
-// 
+//
 // Print a new line.
 //
 void Print_OS_Line(void)
@@ -97,9 +97,9 @@ void Print_OS_Line(void)
 
 //
 //  Prin_OS_String: C
-// 
+//
 // Print a string (with no line terminator).
-// 
+//
 // The encoding options are OPT_ENC_XXX flags OR'd together.
 //
 void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
@@ -306,7 +306,7 @@ void Debug_Line(void)
 
 //
 //  Debug_Str: C
-// 
+//
 // Print a string followed by a newline.
 //
 void Debug_Str(const char *str)
@@ -317,7 +317,7 @@ void Debug_Str(const char *str)
 
 //
 //  Debug_Uni: C
-// 
+//
 // Print debug unicode string followed by a newline.
 //
 void Debug_Uni(REBSER *ser)
@@ -408,7 +408,7 @@ void Debug_Series(REBSER *ser)
 
 //
 //  Debug_Num: C
-// 
+//
 // Print a string followed by a number.
 //
 void Debug_Num(const REBYTE *str, REBINT num)
@@ -424,7 +424,7 @@ void Debug_Num(const REBYTE *str, REBINT num)
 
 //
 //  Debug_Chars: C
-// 
+//
 // Print a number of spaces.
 //
 void Debug_Chars(REBYTE chr, REBCNT num)
@@ -439,7 +439,7 @@ void Debug_Chars(REBYTE chr, REBCNT num)
 
 //
 //  Debug_Space: C
-// 
+//
 // Print a number of spaces.
 //
 void Debug_Space(REBCNT num)
@@ -450,7 +450,7 @@ void Debug_Space(REBCNT num)
 
 //
 //  Debug_Word: C
-// 
+//
 // Print a REBOL word.
 //
 void Debug_Word(const REBVAL *word)
@@ -461,7 +461,7 @@ void Debug_Word(const REBVAL *word)
 
 //
 //  Debug_Type: C
-// 
+//
 // Print a REBOL datatype name.
 //
 void Debug_Type(const REBVAL *value)
@@ -529,19 +529,19 @@ void Debug_Values(const RELVAL *value, REBCNT count, REBCNT limit)
 
 //
 //  Debug_Buf: C
-// 
+//
 // (va_list by pointer: http://stackoverflow.com/a/3369762/211160)
-// 
+//
 // Lower level formatted print for debugging purposes.
-// 
+//
 // 1. Does not support UNICODE.
 // 2. Does not auto-expand the output buffer.
 // 3. No termination buffering (limited length).
-// 
+//
 // Print using a format string and variable number
 // of arguments.  All args must be long word aligned
 // (no short or char sized values unless recast to long).
-// 
+//
 // Output will be held in series print buffer and
 // will not exceed its max size.  No line termination
 // is supplied after the print.
@@ -584,7 +584,7 @@ void Debug_Buf(const char *fmt, va_list *vaptr)
 
 //
 //  Debug_Fmt_: C
-// 
+//
 // Print using a format string and variable number
 // of arguments.  All args must be long word aligned
 // (no short or char sized values unless recast to long).
@@ -603,7 +603,7 @@ void Debug_Fmt_(const char *fmt, ...)
 
 //
 //  Debug_Fmt: C
-// 
+//
 // Print using a formatted string and variable number
 // of arguments.  All args must be long word aligned
 // (no short or char sized values unless recast to long).
@@ -633,7 +633,7 @@ REBOOL Echo_File(REBCHR *file)
 
 //
 //  Form_Hex_Pad: C
-// 
+//
 // Form an integer hex string in the given buffer with a
 // width padded out with zeros.
 // If len = 0 and val = 0, a null string is formed.
@@ -666,7 +666,7 @@ REBYTE *Form_Hex_Pad(REBYTE *buf, REBI64 val, REBINT len)
 
 //
 //  Form_Hex2: C
-// 
+//
 // Convert byte-sized int to xx format. Very fast.
 //
 REBYTE *Form_Hex2(REBYTE *bp, REBCNT val)
@@ -680,7 +680,7 @@ REBYTE *Form_Hex2(REBYTE *bp, REBCNT val)
 
 //
 //  Form_Hex2_Uni: C
-// 
+//
 // Convert byte-sized int to unicode xx format. Very fast.
 //
 REBUNI *Form_Hex2_Uni(REBUNI *up, REBCNT val)
@@ -694,7 +694,7 @@ REBUNI *Form_Hex2_Uni(REBUNI *up, REBCNT val)
 
 //
 //  Form_Hex_Esc_Uni: C
-// 
+//
 // Convert byte int to %xx format (in unicode destination)
 //
 REBUNI *Form_Hex_Esc_Uni(REBUNI *up, REBUNI c)
@@ -709,7 +709,7 @@ REBUNI *Form_Hex_Esc_Uni(REBUNI *up, REBUNI c)
 
 //
 //  Form_RGB_Uni: C
-// 
+//
 // Convert 24 bit RGB to xxxxxx format.
 //
 REBUNI *Form_RGB_Uni(REBUNI *up, REBCNT val)
@@ -737,7 +737,7 @@ REBUNI *Form_RGB_Uni(REBUNI *up, REBCNT val)
 
 //
 //  Form_Uni_Hex: C
-// 
+//
 // Fast var-length hex output for uni-chars.
 // Returns next position (just past the insert).
 //
@@ -759,7 +759,7 @@ REBUNI *Form_Uni_Hex(REBUNI *out, REBCNT n)
 
 //
 //  Form_Args_Core: C
-// 
+//
 // (va_list by pointer: http://stackoverflow.com/a/3369762/211160)
 //
 // This is an internal routine used for debugging, which is something like
@@ -1193,7 +1193,7 @@ return_thrown:
 
 //
 //  Print_Value_Throws: C
-// 
+//
 // Print a value or block's contents for user viewing.
 // Can limit output to a given size. Set limit to 0 for full size.
 //
@@ -1251,7 +1251,7 @@ REBOOL Print_Value_Throws(
 
 //
 //  Print_Value: C
-// 
+//
 // Print a value or block's contents for user viewing.
 // Can limit output to a given size. Set limit to 0 for full size.
 //
@@ -1278,7 +1278,7 @@ void Print_Value(const REBVAL *value, REBCNT limit, REBOOL mold)
 
 //
 //  Init_Raw_Print: C
-// 
+//
 // Initialize print module.
 //
 void Init_Raw_Print(void)

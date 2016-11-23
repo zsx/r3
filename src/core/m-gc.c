@@ -106,16 +106,16 @@
 
 //
 //  Push_Array_Marked_Deep: C
-// 
+//
 // Note: Call Mark_Array_Deep or Queue_Mark_Array_Deep instead!
-// 
+//
 // Submits the block into the deferred stack to be processed later
 // with Propagate_All_GC_Marks().  We have already set this series
 // mark as it's now "spoken for".  (Though we haven't marked its
 // dependencies yet, we want to prevent it from being wastefully
 // submitted multiple times by another reference that would still
 // see it as "unmarked".)
-// 
+//
 // The data structure used for this processing is a stack and not
 // a queue (for performance reasons).  But when you use 'queue'
 // as a verb it has more leeway than as the CS noun, and can just
@@ -266,11 +266,11 @@ static inline void Mark_Series_Only(REBSER *series)
 
 //
 //  Queue_Mark_Gob_Deep: C
-// 
+//
 // 'Queue' refers to the fact that after calling this routine,
 // one will have to call Propagate_All_GC_Marks() to have the
 // deep transitive closure be guaranteed fully marked.
-// 
+//
 // Note: only referenced blocks are queued, the GOB structure
 // itself is processed via recursion.  Deeply nested GOBs could
 // in theory overflow the C stack.
@@ -322,11 +322,11 @@ static void Queue_Mark_Gob_Deep(REBGOB *gob)
 
 //
 //  Queue_Mark_Field_Deep: C
-// 
+//
 // 'Queue' refers to the fact that after calling this routine,
 // one will have to call Propagate_All_GC_Marks() to have the
 // deep transitive closure be guaranteed fully marked.
-// 
+//
 // Note: only referenced blocks are queued, fields that are structs
 // will be processed via recursion.  Deeply nested structs could
 // in theory overflow the C stack.
@@ -408,11 +408,11 @@ static void Queue_Mark_Field_Deep(
 
 //
 //  Queue_Mark_Routine_Deep: C
-// 
+//
 // 'Queue' refers to the fact that after calling this routine,
 // one will have to call Propagate_All_GC_Marks() to have the
 // deep transitive closure completely marked.
-// 
+//
 // Note: only referenced blocks are queued, the routine's RValue
 // is processed via recursion.  Deeply nested RValue structs could
 // in theory overflow the C stack.
@@ -498,7 +498,7 @@ static void Queue_Mark_Routine_Deep(REBRIN *r)
 
 //
 //  Queue_Mark_Event_Deep: C
-// 
+//
 // 'Queue' refers to the fact that after calling this routine,
 // one will have to call Propagate_All_GC_Marks() to have the
 // deep transitive closure completely marked.
@@ -540,9 +540,9 @@ static void Queue_Mark_Event_Deep(const RELVAL *value)
 
 //
 //  Mark_Devices_Deep: C
-// 
+//
 // Mark all devices. Search for pending requests.
-// 
+//
 // This should be called at the top level, and as it is not
 // 'Queued' it guarantees that the marks have been propagated.
 //
@@ -566,7 +566,7 @@ static void Mark_Devices_Deep(void)
 
 //
 //  Mark_Frame_Stack_Deep: C
-// 
+//
 // Mark values being kept live by all call frames.  If a function is running,
 // then this will keep the function itself live, as well as the arguments.
 // There is also an "out" slot--which may point to an arbitrary REBVAL cell
@@ -578,7 +578,7 @@ static void Mark_Devices_Deep(void)
 // Since function argument slots are not pre-initialized, how far the function
 // has gotten in its fulfillment must be taken into account.  Only those
 // argument slots through points of fulfillment may be GC protected.
-// 
+//
 // This should be called at the top level, and not from inside a
 // Propagate_All_GC_Marks().  All marks will be propagated.
 //
@@ -634,7 +634,7 @@ static void Mark_Frame_Stack_Deep(void)
 
             // refine and special can be used to GC protect an arbitrary
             // value while a function is running, currently.  (A more
-            // important purpose may come up...) 
+            // important purpose may come up...)
 
             if (
                 f->refine // currently allowed to be NULL
@@ -1043,7 +1043,7 @@ static void Queue_Mark_Value_Deep(const RELVAL *val)
 
 //
 //  Mark_Array_Deep_Core: C
-// 
+//
 // Mark all series reachable from the array.
 //
 // !!! At one time there was a notion of a "bare series" which would be marked
@@ -1112,7 +1112,7 @@ static void Mark_Array_Deep_Core(REBARR *array)
 
 //
 //  Sweep_Series: C
-// 
+//
 // Scans all series nodes (REBSER structs) in all segments that are part of
 // the SER_POOL.  If a series had its lifetime management delegated to the
 // garbage collector with MANAGE_SERIES(), then if it didn't get "marked" as
@@ -1147,7 +1147,7 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
             case 1:
                 // Doesn't have CELL_MASK set, but not marked as an END.  This
                 // is the state series start out in as unmanaged, where the
-                // not end bit is merely indicating "not free". 
+                // not end bit is merely indicating "not free".
                 //
                 assert(!IS_SERIES_MANAGED(s));
                 break;
@@ -1168,13 +1168,13 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
                 //
                 assert(!IS_SERIES_MANAGED(s));
                 break;
-            
+
             case 4:
                 // A managed REBSER which has no cell mask and is marked as
                 // an END.  This currently doesn't happen, because the not end
                 // bit is set on series at creation time so the header isn't
                 // all zero bits (which would be free).  But this could signal
-                // some special condition in the future. 
+                // some special condition in the future.
                 //
                 assert(FALSE);
                 break;
@@ -1203,7 +1203,7 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
 
             case 7:
                 // CELL_MASK is set, so it's a pairing...and the key is not
-                // an END, and it's managed.  Mark bit should be heeded. 
+                // an END, and it's managed.  Mark bit should be heeded.
                 //
                 assert(IS_SERIES_MANAGED(s));
                 if (IS_REBSER_MARKED(s))
@@ -1344,9 +1344,9 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static void Mark_Root_Series(void)
 
 //
 //  Sweep_Gobs: C
-// 
+//
 // Free all unmarked gobs.
-// 
+//
 // Scans all gobs in all segments that are part of the
 // GOB_POOL. Free gobs that have not been marked.
 //
@@ -1378,9 +1378,9 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Gobs(void)
 
 //
 //  Sweep_Routines: C
-// 
+//
 // Free all unmarked routines.
-// 
+//
 // Scans all routines in all segments that are part of the
 // RIN_POOL. Free routines that have not been marked.
 //
@@ -1414,12 +1414,12 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Routines(void)
 
 //
 //  Propagate_All_GC_Marks: C
-// 
+//
 // The Mark Stack is a series containing series pointers.  They
 // have already had their SERIES_FLAG_MARK set to prevent being added
 // to the stack multiple times, but the items they can reach
 // are not necessarily marked yet.
-// 
+//
 // Processing continues until all reachable items from the mark
 // stack are known to be marked.
 //
@@ -1449,7 +1449,7 @@ static void Propagate_All_GC_Marks(void)
 
 //
 //  Recycle_Core: C
-// 
+//
 // Recycle memory no longer needed.
 //
 REBCNT Recycle_Core(REBOOL shutdown)
@@ -1654,7 +1654,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
 
 //
 //  Recycle: C
-// 
+//
 // Recycle memory no longer needed.
 //
 REBCNT Recycle(void)
@@ -1730,7 +1730,7 @@ void Guard_Value_Core(const RELVAL *value)
 
 //
 //  Init_GC: C
-// 
+//
 // Initialize garbage collector.
 //
 void Init_GC(void)

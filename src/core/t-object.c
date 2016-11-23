@@ -568,7 +568,7 @@ REBNATIVE(set_meta)
 
 //
 //  REBTYPE: C
-// 
+//
 // Handles object!, module!, and error! datatypes.
 //
 REBTYPE(Context)
@@ -614,7 +614,7 @@ REBTYPE(Context)
         INIT_CTX_KEYLIST_SHARED(context, CTX_KEYLIST(VAL_CONTEXT(value)));
         SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_VARLIST);
         CTX_VALUE(context)->payload.any_context.varlist = CTX_VARLIST(context);
-        
+
         if (types != 0) {
             Clonify_Values_Len_Managed(
                 CTX_VARS_HEAD(context),

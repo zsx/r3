@@ -79,7 +79,7 @@ static void Ret_Query_Net(REBCTX *port, REBREQ *sock, REBVAL *out)
 
 //
 //  Accept_New_Port: C
-// 
+//
 // Clone a listening port as a new accept port.
 //
 static void Accept_New_Port(REBVAL *out, REBCTX *port, REBREQ *sock)
@@ -286,7 +286,7 @@ static REB_R Transport_Actor(
         result = OS_DO_DEVICE(sock, RDC_WRITE); // send can happen immediately
         if (result < 0)
             fail (Error_On_Port(RE_WRITE_ERROR, port, sock->error));
-        
+
         if (result == DR_DONE)
             SET_BLANK(CTX_VAR(port, STD_PORT_DATA));
         break; }

@@ -55,7 +55,7 @@
 inline static REB_R If_Unless_Core(REBFRM *frame_, REBOOL trigger)
 {
     INCLUDE_PARAMS_OF_IF;  // ? is renamed as "q"
-    
+
     // Test is "safe", e.g. literal blocks aren't allowed, `if [x] [...]`
     //
     if (IS_CONDITIONAL_TRUE_SAFE(ARG(condition)) != trigger) {
@@ -90,7 +90,7 @@ inline static REB_R If_Unless_Core(REBFRM *frame_, REBOOL trigger)
 
 //
 //  if: native [
-//  
+//
 //  {If TRUE? condition, return branch value; evaluate blocks by default.}
 //
 //      return: [<opt> any-value!]
@@ -161,7 +161,7 @@ REBNATIVE(either)
 
 //
 //  all: native [
-//  
+//
 //  {Short-circuiting variant of AND, using a block of expressions as input.}
 //
 //      return: [any-value!]
@@ -213,9 +213,9 @@ REBNATIVE(all)
 
 //
 //  any: native [
-//  
+//
 //  {Short-circuiting version of OR, using a block of expressions as input.}
-//  
+//
 //      return: [any-value!]
 //          {The first TRUE? evaluative result, or BLANK! value if all FALSE?}
 //      block [block!]
@@ -308,7 +308,7 @@ REBNATIVE(none)
 
 //
 //  case: native [
-//  
+//
 //  {Evaluates each condition, and when true, evaluates what follows it.}
 //
 //      return: [<opt> any-value!]
@@ -442,7 +442,7 @@ return_thrown:
 
 //
 //  switch: native [
-//  
+//
 //  {Selects a choice and evaluates the block that follows it.}
 //
 //      return: [<opt> any-value!]
@@ -588,7 +588,7 @@ return_thrown:
 
 //
 //  catch: native [
-//  
+//
 //  {Catches a throw from a block and returns its value.}
 //
 //      return: [<opt> any-value!]
@@ -755,9 +755,9 @@ was_caught:
 
 //
 //  throw: native [
-//  
+//
 //  "Throws control back to a previous catch."
-//  
+//
 //      value [<opt> any-value!]
 //          "Value returned from catch"
 //      /name

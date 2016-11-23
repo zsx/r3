@@ -107,7 +107,7 @@ static void cleanup_rc4_ctx(const REBVAL *val)
 
 //
 //  rc4: native [
-//  
+//
 //  "Encrypt/decrypt data (modifies) using RC4 algorithm."
 //
 //      return: [handle!]
@@ -144,7 +144,7 @@ REBNATIVE(rc4)
         //
         return R_TRUE;
     }
-    
+
     if (IS_BINARY(ARG(crypt_key))) { // Key defined - setup new context
         RC4_CTX *rc4_ctx = ALLOC_ZEROFILL(RC4_CTX);
 
@@ -508,7 +508,7 @@ static void cleanup_aes_ctx(const REBVAL *val)
 REBNATIVE(aes)
 {
     INCLUDE_PARAMS_OF_AES;
-    
+
     if (IS_HANDLE(ARG(ctx))) {
         AES_CTX *aes_ctx = cast(AES_CTX*, VAL_HANDLE_DATA(ARG(ctx)));
 
@@ -558,7 +558,7 @@ REBNATIVE(aes)
         Val_Init_Binary(D_OUT, binaryOut);
         return R_OUT;
     }
-    
+
     if (IS_BINARY(ARG(crypt_key))) {
         uint8_t iv[AES_IV_SIZE];
 
@@ -611,10 +611,10 @@ static REBYTE seed_str[SEED_LEN] = {
 
 //
 //  Cloak: C
-// 
+//
 // Simple data scrambler. Quality depends on the key length.
 // Result is made in place (data string).
-// 
+//
 // The key (kp) is passed as a REBVAL or REBYTE (when klen is !0).
 //
 REBOOL Cloak(
@@ -693,9 +693,9 @@ REBOOL Cloak(
 
 //
 //  decloak: native [
-//  
+//
 //  {Decodes a binary string scrambled previously by encloak.}
-//  
+//
 //      data [binary!]
 //          "Binary series to descramble (modified)"
 //      key [string! binary! integer!]
@@ -707,7 +707,7 @@ REBOOL Cloak(
 REBNATIVE(decloak)
 {
     INCLUDE_PARAMS_OF_DECLOAK;
-     
+
     if (!Cloak(
         TRUE,
         VAL_BIN_AT(ARG(data)),
@@ -726,9 +726,9 @@ REBNATIVE(decloak)
 
 //
 //  encloak: native [
-//  
+//
 //  "Scrambles a binary string based on a key."
-//  
+//
 //      data [binary!]
 //          "Binary series to scramble (modified)"
 //      key [string! binary! integer!]

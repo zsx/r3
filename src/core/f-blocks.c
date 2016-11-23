@@ -33,7 +33,7 @@
 
 //
 //  Copy_Array_At_Extra_Shallow: C
-// 
+//
 // Shallow copy an array from the given index thru the tail.
 // Additional capacity beyond what is required can be added
 // by giving an `extra` count of how many value cells one needs.
@@ -86,7 +86,7 @@ REBARR *Copy_Array_At_Extra_Shallow(
 
 //
 //  Copy_Array_At_Max_Shallow: C
-// 
+//
 // Shallow copy an array from the given index for given maximum
 // length (clipping if it exceeds the array length)
 //
@@ -132,7 +132,7 @@ REBARR *Copy_Array_At_Max_Shallow(
 
 //
 //  Copy_Values_Len_Extra_Skip_Shallow: C
-// 
+//
 // Shallow copy the first 'len' values of `head` into a new
 // series created to hold exactly that many entries.
 //
@@ -171,13 +171,13 @@ REBARR *Copy_Values_Len_Extra_Skip_Shallow(
 
 //
 //  Clonify_Values_Len_Managed: C
-// 
+//
 // Update the first `len` elements of `head[]` to clone the series
 // embedded in them *if* they are in the given set of types (and
 // if "cloning" makes sense for them, e.g. they are not simple
 // scalars).  If the `deep` flag is set, recurse into subseries
 // and objects when that type is matched for clonifying.
-// 
+//
 // Note: The resulting clones will be managed.  The model for
 // lists only allows the topmost level to contain unmanaged
 // values...and we *assume* the values we are operating on here
@@ -301,9 +301,9 @@ void Clonify_Values_Len_Managed(
 
 //
 //  Copy_Array_Core_Managed: C
-// 
+//
 // Copy a block, copy specified values, deeply if indicated.
-// 
+//
 // The resulting series will already be under GC management,
 // and hence cannot be freed with Free_Series().
 //
@@ -355,14 +355,14 @@ REBARR *Copy_Array_Core_Managed(
 
 //
 //  Copy_Array_At_Extra_Deep_Managed: C
-// 
+//
 // Deep copy an array, including all series (strings, blocks,
 // parens, objects...) excluding images, bitsets, maps, etc.
 // The set of exclusions is the typeset TS_NOT_COPIED.
-// 
+//
 // The resulting array will already be under GC management,
 // and hence cannot be freed with Free_Series().
-// 
+//
 // Note: If this were declared as a macro it would use the
 // `array` parameter more than once, and have to be in all-caps
 // to warn against usage with arguments that have side-effects.
@@ -445,12 +445,12 @@ REBARR *Copy_Rerelativized_Array_Deep_Managed(
 
 //
 //  Alloc_Tail_Array: C
-// 
+//
 // Append a REBVAL-size slot to Rebol Array series at its tail.
 // Will use existing memory capacity already in the series if it
 // is available, but will expand the series if necessary.
 // Returns the new value for you to initialize.
-// 
+//
 // Note: Updates the termination and tail.
 //
 REBVAL *Alloc_Tail_Array(REBARR *array)
@@ -463,10 +463,10 @@ REBVAL *Alloc_Tail_Array(REBARR *array)
 
 //
 //  Find_Same_Array: C
-// 
+//
 // Scan a block for any values that reference blocks related
 // to the value provided.
-// 
+//
 // !!! This was used for detection of cycles during MOLD.  The idea is that
 // while it is outputting a series, it doesn't want to see that series
 // again.  For the moment the only places to worry about with that are
@@ -532,9 +532,9 @@ void Unmark_Array(REBARR *array)
 
 //
 //  Unmark: C
-// 
+//
 // Clear the recusion markers for series and object trees.
-// 
+//
 // Note: these markers are also used for GC. Functions that
 // call this must not be able to trigger GC!
 //

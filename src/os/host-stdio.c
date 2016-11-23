@@ -100,10 +100,10 @@ static REBOOL Fetch_Buf()
 
 //
 //  Open_StdIO: C
-// 
+//
 // Open REBOL's standard IO device. This same device is used
 // by both the host code and the R3 DLL itself.
-// 
+//
 // This must be done before any other initialization is done
 // in order to output banners or errors.
 //
@@ -124,7 +124,7 @@ void Open_StdIO(void)
 
 //
 //  Close_StdIO: C
-// 
+//
 // Complement to Open_StdIO()
 //
 void Close_StdIO(void)
@@ -135,7 +135,7 @@ void Close_StdIO(void)
 
 //
 //  Get_Str: C
-// 
+//
 // Get input of a null terminated UTF-8 string.
 // Divides the input into lines.
 // Buffers multiple lines if needed.
@@ -155,7 +155,7 @@ REBYTE *Get_Str()
 
 //
 //  Put_Str: C
-// 
+//
 // Outputs a null terminated UTF-8 string.
 // If buf is larger than StdIO Device allows, error out.
 // OS dependent line termination must be done prior to call.

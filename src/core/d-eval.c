@@ -274,14 +274,14 @@ REBUPT Do_Core_Expression_Checks_Debug(REBFRM *f) {
     // chained in via a function execution, so it's okay to put "non-GC safe"
     // trash in at this point...though by the time of that call, they must
     // hold valid values.
-    
+
     TRASH_POINTER_IF_DEBUG(f->param);
     TRASH_POINTER_IF_DEBUG(f->arg);
     TRASH_POINTER_IF_DEBUG(f->refine);
 
     TRASH_POINTER_IF_DEBUG(f->args_head);
     TRASH_POINTER_IF_DEBUG(f->varlist);
-  
+
     TRASH_POINTER_IF_DEBUG(f->func);
     TRASH_POINTER_IF_DEBUG(f->binding);
     TRASH_POINTER_IF_DEBUG(f->underlying);

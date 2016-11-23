@@ -42,7 +42,7 @@
 // However, to use C runtime functions such as memcpy() etc, the library
 // libtcc1.a must be included.  This library must be available in addition
 // to the interpreter executable.
-// 
+//
 // External libraries can also be used if proper 'library-path' and
 // 'library' are specified.
 //
@@ -152,7 +152,7 @@ static REBCTX* add_path(
             for (item = VAL_ARRAY_AT(path); NOT_END(item); ++item) {
                 if (!IS_FILE(item) && !IS_STRING(item))
                     return Error(err_code, item);
-                    
+
                 if (do_add_path(state, item, add) < 0)
                     return Error(err_code, item);
             }
@@ -230,7 +230,7 @@ REB_R Pending_Native_Dispatcher(REBFRM *f) {
 REBNATIVE(make_native)
 {
     INCLUDE_PARAMS_OF_MAKE_NATIVE;
-    
+
 #if !defined(WITH_TCC)
     fail (Error(RE_NOT_TCC_BUILD));
 #else
@@ -238,7 +238,7 @@ REBNATIVE(make_native)
 
     if (VAL_LEN_AT(source) == 0)
         fail (Error(RE_TCC_EMPTY_SOURCE));
-    
+
     REBFUN *fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(ARG(spec), MKF_NONE),
         &Pending_Native_Dispatcher, // will be replaced e.g. by COMPILE
@@ -288,7 +288,7 @@ REBNATIVE(make_native)
         REBSER *bin = Make_Binary(len + 1);
         const char *src = cast(const char*, &fun);
         REBYTE *dest = BIN_HEAD(bin);
-        
+
         *dest ='N';
         ++dest;
         *dest = '_';

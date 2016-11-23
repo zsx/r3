@@ -134,7 +134,7 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
 // which tells you whether a function defers its first real argument when
 // used as a lookback.  Because lookback dispatches cannot use refinements
 // at this time, the answer is static for invocation via a plain word.
-// 
+//
 #define FUNC_FLAG_DEFERS_LOOKBACK_ARG FUNC_FLAG(3)
 
 // The COMPILE-NATIVES command wants to operate on user natives, and be able

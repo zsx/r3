@@ -42,9 +42,9 @@
 
 //
 //  eval: native [
-//  
+//
 //  {(Special) Process received value *inline* as the evaluator loop would.}
-//  
+//
 //      value [<opt> any-value!]
 //          {BLOCK! passes-thru, FUNCTION! runs, SET-WORD! assigns...}
 //      /only
@@ -86,7 +86,7 @@ REBNATIVE(eval)
 
 //
 //  do: native [
-//  
+//
 //  {Evaluates a block of source code (directly or fetched according to type)}
 //
 //      return: [<opt> any-value!]

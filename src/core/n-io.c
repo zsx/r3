@@ -75,9 +75,9 @@ REBNATIVE(echo)
 
 //
 //  form: native [
-//  
+//
 //  "Converts a value to a human-readable string."
-//  
+//
 //      value [<opt> any-value!] "The value to form"
 //      /delimit
 //          "Use a delimiter between expressions that added to the output"
@@ -137,9 +137,9 @@ REBNATIVE(form)
 
 //
 //  mold: native [
-//  
+//
 //  "Converts a value to a REBOL-readable string."
-//  
+//
 //      value [any-value!]
 //          "The value to mold"
 //      /only
@@ -173,9 +173,9 @@ REBNATIVE(mold)
 
 //
 //  print: native [
-//  
+//
 //  "Outputs value to standard output using the PRINT dialect."
-//  
+//
 //      return: [<opt>]
 //      value [any-value!]
 //          "Value or BLOCK! literal in PRINT dialect, newline if any output"
@@ -243,9 +243,9 @@ REBNATIVE(print)
 
 //
 //  new-line: native [
-//  
+//
 //  {Sets or clears the new-line marker within a block or group.}
-//  
+//
 //      position [block! group!]
 //          "Position to change marker (modified)"
 //      mark
@@ -291,9 +291,9 @@ REBNATIVE(new_line)
 
 //
 //  new-line?: native [
-//  
+//
 //  {Returns the state of the new-line marker within a block or group.}
-//  
+//
 //      position [block! group!] "Position to check marker"
 //  ]
 //
@@ -310,9 +310,9 @@ REBNATIVE(new_line_q)
 
 //
 //  now: native [
-//  
+//
 //  "Returns current date and time with timezone adjustment."
-//  
+//
 //      /year
 //          "Returns year only"
 //      /month
@@ -357,10 +357,10 @@ REBNATIVE(now)
         // meaning of not using precise measurement was to use only the
         // seconds portion (with the nanoseconds set to 0).  This achieves
         // that by extracting the seconds and then multiplying by nanoseconds.
-        // 
+        //
         VAL_TIME(ret) = TIME_SEC(VAL_SECS(ret));
     }
-    
+
     if (REF(utc)) {
         VAL_ZONE(ret) = 0;
     }
@@ -411,9 +411,9 @@ REBNATIVE(now)
 
 //
 //  wait: native [
-//  
+//
 //  "Waits for a duration, port, or both."
-//  
+//
 //      value [any-number! time! port! block! blank!]
 //      /all
 //          "Returns all in a block"
@@ -510,9 +510,9 @@ REBNATIVE(wait)
 
 //
 //  wake-up: native [
-//  
+//
 //  "Awake and update a port with event."
-//  
+//
 //      port [port!]
 //      event [event!]
 //  ]
@@ -554,9 +554,9 @@ REBNATIVE(wake_up)
 
 //
 //  to-rebol-file: native [
-//  
+//
 //  {Converts a local system file path to a REBOL file path.}
-//  
+//
 //      path [file! string!]
 //  ]
 //
@@ -565,11 +565,11 @@ REBNATIVE(to_rebol_file)
     INCLUDE_PARAMS_OF_TO_REBOL_FILE;
 
     REBVAL *arg = ARG(path);
-    
+
     REBSER *ser = Value_To_REBOL_Path(arg, FALSE);
     if (ser == NULL)
         fail (Error_Invalid_Arg(arg));
-    
+
     Val_Init_File(D_OUT, ser);
     return R_OUT;
 }
@@ -577,9 +577,9 @@ REBNATIVE(to_rebol_file)
 
 //
 //  to-local-file: native [
-//  
+//
 //  {Converts a REBOL file path to the local system file path.}
-//  
+//
 //      path [file! string!]
 //      /full
 //          {Prepends current dir for full path (for relative paths only)}
@@ -590,7 +590,7 @@ REBNATIVE(to_local_file)
     INCLUDE_PARAMS_OF_TO_LOCAL_FILE;
 
     REBVAL *arg = ARG(path);
-    
+
     REBSER *ser = Value_To_Local_Path(arg, REF(full));
     if (ser == NULL)
         fail (Error_Invalid_Arg(arg));
@@ -649,9 +649,9 @@ REBNATIVE(what_dir)
 
 //
 //  change-dir: native [
-//  
+//
 //  {Changes the current path (where scripts with relative paths will be run).}
-//  
+//
 //      path [file! url!]
 //  ]
 //
@@ -729,10 +729,10 @@ REBNATIVE(browse)
 
 //
 //  call: native [
-//  
+//
 //  "Run another program; return immediately (unless /WAIT)."
-//  
-//      command [string! block! file!] 
+//
+//      command [string! block! file!]
 //          {An OS-local command line (quoted as necessary), a block with
 //          arguments, or an executable file}
 //      /wait
@@ -756,7 +756,7 @@ REBNATIVE(browse)
 //
 REBNATIVE(call)
 //
-// !!! Parameter usage may require WAIT mode even if not explicitly requested. 
+// !!! Parameter usage may require WAIT mode even if not explicitly requested.
 // /WAIT should be default, with /ASYNC (or otherwise) as exception!
 {
     INCLUDE_PARAMS_OF_CALL;
@@ -1118,7 +1118,7 @@ REBNATIVE(call)
 
 //
 //  String_List_To_Array: C
-// 
+//
 // Convert a series of null terminated strings to an array of strings
 // separated with '='.
 //
@@ -1152,7 +1152,7 @@ static REBARR *String_List_To_Array(REBCHR *str)
 
 //
 //  Block_To_String_List: C
-// 
+//
 // Convert block of values to a string that holds
 // a series of null terminated strings, followed
 // by a final terminating string.
@@ -1178,7 +1178,7 @@ REBSER *Block_To_String_List(REBVAL *blk)
 
 //
 //  File_List_To_Array: C
-// 
+//
 // Convert file directory and file name list to block.
 //
 static REBARR *File_List_To_Array(const REBCHR *str)
@@ -1236,9 +1236,9 @@ static REBARR *File_List_To_Array(const REBCHR *str)
 
 //
 //  request-file: native [
-//  
+//
 //  {Asks user to select a file and returns full file path (or block of paths).}
-//  
+//
 //      /save
 //          "File save mode"
 //      /multi
@@ -1326,9 +1326,9 @@ REBNATIVE(request_file)
 
 //
 //  get-env: native [
-//  
+//
 //  {Returns the value of an OS environment variable (for current process).}
-//  
+//
 //      var [any-string! any-word!]
 //  ]
 //
@@ -1364,9 +1364,9 @@ REBNATIVE(get_env)
 
 //
 //  set-env: native [
-//  
+//
 //  {Sets value of operating system environment variable for current process.}
-//  
+//
 //      var [any-string! any-word!]
 //          "Variable to set"
 //      value [string! blank!]
@@ -1411,9 +1411,9 @@ REBNATIVE(set_env)
 
 //
 //  list-env: native [
-//  
+//
 //  {Returns a map of OS environment variables (for current process).}
-//  
+//
 //      ; No arguments
 //  ]
 //
@@ -1426,16 +1426,17 @@ REBNATIVE(list_env)
     return R_OUT;
 }
 
+
 //
 //  access-os: native [
-//  
+//
 //  {Access various OS functions (getuid, setuid, getpid, kill, etc.)}
-//  
+//
 //      field [word!]
 //          "uid, euid, gid, egid, pid"
 //      /set
 //          "To set or kill pid (sig 15)"
-//      value [integer! block!] 
+//      value [integer! block!]
 //          {Argument, such as uid, gid, or pid (in which case, it could be
 //          a block with the signal number)}
 //  ]

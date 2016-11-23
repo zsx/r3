@@ -165,7 +165,7 @@ REBSER *Emit(REB_MOLD *mold, const char *fmt, ...)
 
 //
 //  Prep_String: C
-// 
+//
 // Helper function for the string related Mold functions below.
 // Creates or expands the series and provides the location to
 // copy text into.
@@ -217,7 +217,7 @@ REBUNI *Prep_Uni_Series(REB_MOLD *mold, REBCNT len)
 
 //
 //  Pre_Mold: C
-// 
+//
 // Emit the initial datatype function, depending on /ALL option
 //
 void Pre_Mold(const RELVAL *value, REB_MOLD *mold)
@@ -228,7 +228,7 @@ void Pre_Mold(const RELVAL *value, REB_MOLD *mold)
 
 //
 //  End_Mold: C
-// 
+//
 // Finish the mold, depending on /ALL with close block.
 //
 void End_Mold(REB_MOLD *mold)
@@ -239,7 +239,7 @@ void End_Mold(REB_MOLD *mold)
 
 //
 //  Post_Mold: C
-// 
+//
 // For series that has an index, add the index for mold/all.
 // Add closing block.
 //
@@ -255,7 +255,7 @@ void Post_Mold(const RELVAL *value, REB_MOLD *mold)
 
 //
 //  New_Indented_Line: C
-// 
+//
 // Create a newline with auto-indent on next line if needed.
 //
 void New_Indented_Line(REB_MOLD *mold)
@@ -367,13 +367,13 @@ static void Mold_Uni_Char(REBSER *dst, REBUNI chr, REBOOL molded, REBOOL parened
     }
     else {
         EXPAND_SERIES_TAIL(dst, 10); // worst case: #"^(1234)"
-        
+
         REBUNI *up = UNI_AT(dst, tail);
         *up++ = '#';
         *up++ = '"';
         up = Emit_Uni_Char(up, chr, parened);
         *up++ = '"';
-        
+
         SET_SERIES_LEN(dst, up - UNI_HEAD(dst));
     }
     TERM_UNI(dst);
@@ -842,7 +842,7 @@ static void Mold_Typeset(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
         !TYPE_CHECK(value, REB_MAX_VOID) || VAL_KEY_SPELLING(value) != NULL
     );
 
-    // Convert bits to types.  
+    // Convert bits to types.
     //
     for (n = REB_0 + 1; n < REB_MAX; n++) {
         if (TYPE_CHECK(value, cast(enum Reb_Kind, n))) {
@@ -1172,7 +1172,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 
 //
 //  Mold_Value: C
-// 
+//
 // Mold or form any value to string series tail.
 //
 void Mold_Value(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
@@ -1498,7 +1498,7 @@ check_and_return:
 
 //
 //  Copy_Form_Value: C
-// 
+//
 // Form a value based on the mold opts provided.
 //
 REBSER *Copy_Form_Value(const RELVAL *value, REBFLGS opts)
@@ -1515,7 +1515,7 @@ REBSER *Copy_Form_Value(const RELVAL *value, REBFLGS opts)
 
 //
 //  Copy_Mold_Value: C
-// 
+//
 // Form a value based on the mold opts provided.
 //
 REBSER *Copy_Mold_Value(const REBVAL *value, REBFLGS opts)
@@ -1532,7 +1532,7 @@ REBSER *Copy_Mold_Value(const REBVAL *value, REBFLGS opts)
 
 //
 //  Form_Reduce_Throws: C
-// 
+//
 // Reduce a block and then form each value into a string REBVAL.
 //
 REBOOL Form_Reduce_Throws(

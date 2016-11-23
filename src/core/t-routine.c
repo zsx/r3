@@ -1084,7 +1084,7 @@ static void callback_dispatcher(
 
 //
 //  Alloc_Ffi_Function_For_Spec: C
-// 
+//
 // This allocates a REBFUN designed for using with the FFI--though it does
 // not fill in the actual code to call.  That is done by the caller, which
 // needs to be done differently if it runs a C function (routine) or if it

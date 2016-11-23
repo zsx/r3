@@ -45,7 +45,7 @@
 
 //
 //  OS_Exit: C
-// 
+//
 // Called in cases where REBOL needs to quit immediately
 // without returning from the main() function.
 //
@@ -61,15 +61,15 @@ void OS_Exit(int code)
 
 //
 //  OS_Crash: C
-// 
+//
 // Tell user that REBOL has crashed. This function must use
 // the most obvious and reliable method of displaying the
 // crash message.
-// 
+//
 // If the title is NULL, then REBOL is running in a server mode.
 // In that case, we do not want the crash message to appear on
 // the screen, because the system may be unattended.
-// 
+//
 // On some systems, the error may be recorded in the system log.
 //
 // coverity[+kill]
@@ -103,7 +103,7 @@ void OS_Crash(const REBYTE *title, const REBYTE *content)
 
 //
 //  OS_Form_Error: C
-// 
+//
 // Translate OS error into a string. The str is the string
 // buffer and the len is the length of the buffer.
 //

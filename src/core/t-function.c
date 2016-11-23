@@ -62,18 +62,18 @@ REBINT CT_Function(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 //
 //  MAKE_Function: C
-// 
+//
 // For REB_FUNCTION and "make spec", there is a function spec block and then
 // a block of Rebol code implementing that function.  In that case we expect
 // that `def` should be:
-// 
+//
 //     [[spec] [body]]
-// 
+//
 // With REB_COMMAND, the code is implemented via a C DLL, under a system of
 // APIs that pre-date Rebol's open sourcing and hence Ren/C:
-// 
+//
 //     [[spec] extension command-num]
-// 
+//
 // See notes in Make_Command() regarding that mechanism and meaning.
 //
 void MAKE_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)

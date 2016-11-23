@@ -62,9 +62,9 @@ static REBOOL Check_Char_Range(REBVAL *val, REBINT limit)
 
 //
 //  ascii?: native [
-//  
+//
 //  {Returns TRUE if value or string is in ASCII character range (below 128).}
-//  
+//
 //      value [any-string! char! integer!]
 //  ]
 //
@@ -78,9 +78,9 @@ REBNATIVE(ascii_q)
 
 //
 //  latin1?: native [
-//  
+//
 //  {Returns TRUE if value or string is in Latin-1 character range (below 256).}
-//  
+//
 //      value [any-string! char! integer!]
 //  ]
 //
@@ -263,9 +263,9 @@ type_matched:
 
 //
 //  as-pair: native [
-//  
+//
 //  "Combine X and Y values into a pair."
-//  
+//
 //      x [any-number!]
 //      y [any-number!]
 //  ]
@@ -289,9 +289,9 @@ REBNATIVE(as_pair)
 
 //
 //  bind: native [
-//  
+//
 //  "Binds words or words in arrays to the specified context."
-//  
+//
 //      value [any-array! any-word!]
 //          "A word or array (modified) (returned)"
 //      target [any-word! any-context!]
@@ -403,9 +403,9 @@ REBNATIVE(bind)
 
 //
 //  context-of: native [
-//  
+//
 //  "Returns the context in which a word is bound."
-//  
+//
 //      word [any-word!]
 //  ]
 //
@@ -430,9 +430,9 @@ REBNATIVE(context_of)
 
 //
 //  any-value?: native [
-//  
+//
 //  "Returns whether a data cell contains a value."
-//  
+//
 //      cell [<opt> any-value!]
 //  ]
 //
@@ -448,9 +448,9 @@ REBNATIVE(any_value_q)
 
 //
 //  unbind: native [
-//  
+//
 //  "Unbinds words from context."
-//  
+//
 //      word [block! any-word!]
 //          "A word or block (modified) (returned)"
 //      /deep
@@ -475,9 +475,9 @@ REBNATIVE(unbind)
 
 //
 //  collect-words: native [
-//  
+//
 //  {Collect unique words used in a block (used for context construction).}
-//  
+//
 //      block [block!]
 //      /deep
 //          "Include nested blocks"
@@ -530,7 +530,7 @@ REBNATIVE(collect_words)
 
 //
 //  get: native [
-//  
+//
 //  {Gets the value of a word or path, or values of a context.}
 //
 //      return: [<opt> any-value!]
@@ -618,7 +618,7 @@ REBNATIVE(get)
 
 //
 //  to-value: native [
-//  
+//
 //  {Turns unset to NONE, with ANY-VALUE! passing through. (See: OPT)}
 //
 //      return: [any-value!]
@@ -639,7 +639,7 @@ REBNATIVE(to_value)
 
 //
 //  opt: native [
-//  
+//
 //  {Convert blanks to optionals. (See Also: TO-VALUE)}
 //
 //      return: [<opt> any-value!]
@@ -661,9 +661,9 @@ REBNATIVE(opt)
 
 //
 //  in: native [
-//  
+//
 //  "Returns the word or block bound into the given context."
-//  
+//
 //      context [any-context! block!]
 //      word [any-word! block! group!] "(modified if series)"
 //  ]
@@ -740,16 +740,16 @@ REBNATIVE(in)
 
 //
 //  resolve: native [
-//  
+//
 //  {Copy context by setting values in the target from those in the source.}
-//  
+//
 //      target [any-context!] "(modified)"
 //      source [any-context!]
 //      /only
 //          "Only specific words (exports) or new words in target"
 //      from [block! integer!]
 //          "(index to tail)"
-//      /all 
+//      /all
 //          "Set all words, even those in the target that already have a value"
 //      /extend
 //          "Add source words to the target if necessary"
@@ -779,7 +779,7 @@ REBNATIVE(resolve)
 
 //
 //  set: native [
-//  
+//
 //  {Sets a word, path, block of words, or context to specified value(s).}
 //
 //      return: [<opt> any-value!]
@@ -1079,9 +1079,9 @@ return_value_arg:
 
 //
 //  type-of: native [
-//  
+//
 //  "Returns the datatype of a value."
-//  
+//
 //      value [<opt> any-value!]
 //  ]
 //
@@ -1138,9 +1138,9 @@ REBNATIVE(unset)
 
 //
 //  lookback?: native [
-//  
+//
 //  {TRUE if looks up to a function and gets first argument before the call}
-//  
+//
 //      source [any-word! any-path!]
 //  ]
 //
@@ -1341,9 +1341,9 @@ inline static REBOOL Is_Set_Modifies(REBVAL *location)
 
 //
 //  set?: native/body [
-//  
+//
 //  "Whether a bound word or path is set (!!! shouldn't eval GROUP!s)"
-//  
+//
 //      location [any-word! any-path!]
 //  ][
 //      any-value? get/opt location
@@ -1359,9 +1359,9 @@ REBNATIVE(set_q)
 
 //
 //  unset?: native/body [
-//  
+//
 //  "Whether a bound word or path is unset (!!! shouldn't eval GROUP!s)"
-//  
+//
 //      location [any-word! any-path!]
 //  ][
 //      void? get/opt location

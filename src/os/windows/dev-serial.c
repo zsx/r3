@@ -105,7 +105,7 @@ static REBINT Set_Serial_Settings(HANDLE h, REBREQ *req)
 
 //
 //  Open_Serial: C
-// 
+//
 // serial.path = the /dev name for the serial port
 // serial.baud = speed (baudrate)
 //

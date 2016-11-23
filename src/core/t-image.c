@@ -248,7 +248,7 @@ void TO_Image(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
 //
 //  Reset_Height: C
-// 
+//
 // Set height based on tail and width.
 //
 void Reset_Height(REBVAL *value)
@@ -570,7 +570,7 @@ REBSER *Make_Image_Binary(const REBVAL *image)
 
 //
 //  Make_Image: C
-// 
+//
 // Allocate and initialize an image.
 // If error is TRUE, throw error on bad size.
 // Return zero on oversized image.
@@ -596,7 +596,7 @@ REBSER *Make_Image(REBCNT w, REBCNT h, REBOOL error)
 
 //
 //  Clear_Image: C
-// 
+//
 // Clear image data.
 //
 void Clear_Image(REBVAL *img)
@@ -610,7 +610,7 @@ void Clear_Image(REBVAL *img)
 
 //
 //  Modify_Image: C
-// 
+//
 // Insert or change image
 //
 REBVAL *Modify_Image(REBFRM *frame_, REBCNT action)
@@ -797,7 +797,7 @@ REBVAL *Modify_Image(REBFRM *frame_, REBCNT action)
 
 //
 //  Find_Image: C
-// 
+//
 // Finds a value in a series and returns the series at the start of it.  For
 // parameters of FIND, see the action definition.
 //
@@ -1415,21 +1415,21 @@ REBNATIVE(to_png)
 
     // "disable autopilot"
     state.encoder.auto_convert = LAC_NO;
-    
+
     // input format
     state.info_raw.colortype = LCT_RGBA;
     state.info_raw.bitdepth = 8;
-    
+
     // output format
     state.info_png.color.colortype = LCT_RGBA;
     state.info_png.color.bitdepth = 8;
 
     size_t buffersize;
     REBYTE *buffer = NULL;
-    
+
     REBINT w = VAL_IMAGE_WIDE(image);
     REBINT h = VAL_IMAGE_HIGH(image);
-    
+
     unsigned error = lodepng_encode(
         &buffer, // freed with free()...so must be allocated via malloc() ?
         &buffersize,
@@ -1446,11 +1446,11 @@ REBNATIVE(to_png)
         return R_BLANK;
     }
 
-    REBSER *binary = Make_Binary(buffersize);    
+    REBSER *binary = Make_Binary(buffersize);
     memcpy(SER_DATA_RAW(binary), buffer, buffersize);
     SET_SERIES_LEN(binary, buffersize);
     free(buffer);
 
-    Val_Init_Binary(D_OUT, binary);    
+    Val_Init_Binary(D_OUT, binary);
     return R_OUT;
 }

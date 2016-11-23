@@ -76,7 +76,7 @@ REBINT CT_Typeset(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 //
 //  Init_Typesets: C
-// 
+//
 // Create typeset variables that are defined above.
 // For example: NUMBER is both integer and decimal.
 // Add the new variables to the system context.
@@ -102,7 +102,7 @@ void Init_Typesets(void)
 
 //
 //  Val_Init_Typeset: C
-// 
+//
 // Name should be set when a typeset is being used as a function parameter
 // specifier, or as a key in an object.
 //
@@ -195,7 +195,7 @@ REBOOL Update_Typeset_Bits_Core(
         ) {
             // Makes enfixed first arguments "lazy" and other arguments will
             // use the DO_FLAG_NO_LOOKAHEAD.
-            // 
+            //
             SET_VAL_FLAG(typeset, TYPESET_FLAG_TIGHT);
         }
         else if (
@@ -285,7 +285,7 @@ void TO_Typeset(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
 //
 //  Typeset_To_Array: C
-// 
+//
 // Converts typeset value to a block of datatypes.
 // No order is specified.
 //

@@ -41,7 +41,7 @@
 
 //
 //  func: native [
-//  
+//
 //  "Defines a user function with given spec and body."
 //
 //      return: [function!]
@@ -161,9 +161,9 @@ void Make_Thrown_Exit_Value(
 
 //
 //  exit: native [
-//  
+//
 //  {Leave enclosing function, or jump /FROM.}
-//  
+//
 //      /with
 //          "Result for enclosing state (default is no value)"
 //      value [<opt> any-value!]
@@ -198,9 +198,9 @@ REBNATIVE(exit)
 
 //
 //  return: native [
-//  
+//
 //  "Returns a value from a function."
-//  
+//
 //      value [<opt> any-value!]
 //  ]
 //

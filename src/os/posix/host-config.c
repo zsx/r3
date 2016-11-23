@@ -42,7 +42,7 @@ extern char **environ;
 
 //
 //  OS_Config: C
-// 
+//
 // Return a specific runtime configuration parameter.
 //
 REBINT OS_Config(int id, REBYTE *result)
@@ -60,7 +60,7 @@ REBINT OS_Config(int id, REBYTE *result)
 
 //
 //  OS_Get_Boot_Path: C
-// 
+//
 // Used to determine the program file path for REBOL.
 // This is the path stored in system->options->boot and
 // it is used for finding default boot files.
@@ -73,7 +73,7 @@ REBOOL OS_Get_Boot_Path(REBCHR *name)
 
 //
 //  OS_Get_Env: C
-// 
+//
 // Get a value from the environment.
 // Returns size of retrieved value for success or zero if missing.
 // If return size is greater than valsize then value contents
@@ -101,7 +101,7 @@ REBINT OS_Get_Env(REBCHR *envname, REBCHR* envval, REBINT valsize)
 
 //
 //  OS_Set_Env: C
-// 
+//
 // Set a value from the environment.
 // Returns >0 for success and 0 for errors.
 //

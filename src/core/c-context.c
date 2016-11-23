@@ -69,7 +69,7 @@
 
 //
 //  Alloc_Context: C
-// 
+//
 // Create context of a given size, allocating space for both words and values.
 //
 // This context will not have its ANY-OBJECT! REBVAL in the [0] position fully
@@ -127,7 +127,7 @@ REBOOL Expand_Context_Keylist_Core(REBCTX *context, REBCNT delta)
 
         REBCTX *meta = ARR_SERIES(keylist)->link.meta; // preserve meta object
 
-        keylist = Copy_Array_Extra_Shallow(keylist, SPECIFIED, delta);        
+        keylist = Copy_Array_Extra_Shallow(keylist, SPECIFIED, delta);
 
         ARR_SERIES(keylist)->link.meta = meta;
 
@@ -166,7 +166,7 @@ void Expand_Context(REBCTX *context, REBCNT delta)
 
 //
 //  Append_Context_Core: C
-// 
+//
 // Append a word to the context word list. Expands the list if necessary.
 // Returns the value cell for the word.  The new variable is unset by default.
 //
@@ -284,10 +284,10 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
 
 //
 //  Collect_Keys_Start: C
-// 
+//
 // Use the Bind_Table to start collecting new keys for a context.
 // Use Collect_Keys_End() when done.
-// 
+//
 // WARNING: This routine uses the shared BUF_COLLECT rather than
 // targeting a new series directly.  This way a context can be
 // allocated at exactly the right length when contents are copied.
@@ -401,7 +401,7 @@ void Collect_Keys_End(struct Reb_Binder *binder)
 
 //
 //  Collect_Context_Keys: C
-// 
+//
 // Collect words from a prior context.  If `check_dups` is passed in then
 // there is a check for duplicates, otherwise the keys are assumed to
 // be unique and copied in using `memcpy` as an optimization.
@@ -494,7 +494,7 @@ void Collect_Context_Keys(
 
 //
 //  Collect_Context_Inner_Loop: C
-// 
+//
 // The inner recursive loop used for Collect_Context function below.
 //
 static void Collect_Context_Inner_Loop(
@@ -623,7 +623,7 @@ REBARR *Collect_Keylist_Managed(
 
 //
 //  Collect_Words_Inner_Loop: C
-// 
+//
 // Used for Collect_Words() after the binds table has
 // been set up.
 //
@@ -651,7 +651,7 @@ static void Collect_Words_Inner_Loop(
 
 //
 //  Collect_Words: C
-// 
+//
 // Collect words from a prior block and new block.
 //
 REBARR *Collect_Words(
@@ -692,7 +692,7 @@ REBARR *Collect_Words(
 
 //
 //  Rebind_Context_Deep: C
-// 
+//
 // Clone old context to new context knowing
 // which types of values need to be copied, deep copied, and rebound.
 //
@@ -838,7 +838,7 @@ REBCTX *Make_Selfish_Context_Detect(
 
 //
 //  Construct_Context: C
-// 
+//
 // Construct an object without evaluation.
 // Parent can be null. Values are rebound.
 //
@@ -902,11 +902,11 @@ REBCTX *Construct_Context(
 
 //
 //  Context_To_Array: C
-// 
+//
 // Return a block containing words, values, or set-word: value
 // pairs for the given object. Note: words are bound to original
 // object.
-// 
+//
 // Modes:
 //     1 for word
 //     2 for value
@@ -951,10 +951,10 @@ REBARR *Context_To_Array(REBCTX *context, REBINT mode)
 
 //
 //  Merge_Contexts_Selfish: C
-// 
+//
 // Create a child context from two parent contexts. Merge common fields.
 // Values from the second parent take precedence.
-// 
+//
 // Deep copy and rebind the child.
 //
 REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
@@ -1063,7 +1063,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
 
 //
 //  Resolve_Context: C
-// 
+//
 // Only_words can be a block of words or an index in the target
 // (for new words).
 //
@@ -1226,7 +1226,7 @@ void Resolve_Context(
 
 //
 //  Find_Canon_In_Context: C
-// 
+//
 // Search a context looking for the given canon symbol.  Return the index or
 // 0 if not found.
 //
@@ -1250,7 +1250,7 @@ REBCNT Find_Canon_In_Context(REBCTX *context, REBSTR *canon, REBOOL always)
 
 //
 //  Select_Canon_In_Context: C
-// 
+//
 // Search a frame looking for the given word symbol and
 // return the value for the word. Locate it by matching
 // the canon word identifiers. Return NULL if not found.
@@ -1266,7 +1266,7 @@ REBVAL *Select_Canon_In_Context(REBCTX *context, REBSTR *sym)
 
 //
 //  Find_Word_In_Array: C
-// 
+//
 // Find word (of any type) in an array of values with linear search.
 //
 REBCNT Find_Word_In_Array(REBARR *array, REBCNT index, REBSTR *sym)
@@ -1285,7 +1285,7 @@ REBCNT Find_Word_In_Array(REBARR *array, REBCNT index, REBSTR *sym)
 
 //
 //  Obj_Value: C
-// 
+//
 // Return pointer to the nth VALUE of an object.
 // Return zero if the index is not valid.
 //

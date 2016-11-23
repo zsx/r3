@@ -44,7 +44,7 @@ REBINT CT_Map(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 //
 //  Make_Map: C
-// 
+//
 // Makes a MAP block (that holds both keys and values).
 // Capacity is measured in key-value pairings.
 // A hash series is also created.
@@ -61,12 +61,12 @@ static REBMAP *Make_Map(REBCNT capacity)
 
 //
 //  Find_Key_Hashed: C
-// 
+//
 // Returns hash index (either the match or the new one).
 // A return of zero is valid (as a hash index);
-// 
+//
 // Wide: width of record (normally 2, a key and a value).
-// 
+//
 // Modes:
 //     0 - search, return hash if found or not
 //     1 - search, return hash, else return -1 if not
@@ -83,7 +83,7 @@ REBINT Find_Key_Hashed(
 ) {
     REBCNT len = SER_LEN(hashlist);
     assert(len > 0);
-    
+
     REBCNT hash = Hash_Value(key, specifier);
 
     // The REBCNT[] hash array size is chosen to try and make a large enough
@@ -96,7 +96,7 @@ REBINT Find_Key_Hashed(
     // Note: if len and skip are co-primes is guaranteed that repeatedly
     // adding skip (and subtracting len when needed) all positions are
     // visited.  1 <= skip < len, and len is prime, so this is guaranteed.
-    
+
     REBCNT skip = hash % (len - 1) + 1;
 
     hash = hash % len;
@@ -172,7 +172,7 @@ REBINT Find_Key_Hashed(
     }
 
     //assert(n == 0);
-    if (!cased && uncased < len) hash = uncased; // uncased< match 
+    if (!cased && uncased < len) hash = uncased; // uncased< match
     else if (zombie < len) { // zombie encountered!
         assert(mode == 0);
         hash = zombie;
@@ -199,7 +199,7 @@ REBINT Find_Key_Hashed(
 
 //
 //  Rehash_Map: C
-// 
+//
 // Recompute the entire hash table for a map. Table must be large enough.
 //
 static void Rehash_Map(REBMAP *map)
@@ -264,7 +264,7 @@ void Expand_Hash(REBSER *ser)
 
 //
 //  Find_Map_Entry: C
-// 
+//
 // Try to find the entry in the map. If not found and val isn't void, create
 // the entry and store the key and val.
 //
@@ -469,7 +469,7 @@ void TO_Map(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
 //
 //  Map_To_Array: C
-// 
+//
 // what: -1 - words, +1 - values, 0 -both
 //
 REBARR *Map_To_Array(REBMAP *map, REBINT what)
@@ -497,7 +497,7 @@ REBARR *Map_To_Array(REBMAP *map, REBINT what)
 
 //
 //  Mutate_Array_Into_Map: C
-// 
+//
 // Convert existing array to a map.  The array is tested to make sure it is
 // not managed, hence it has not been put into any REBVALs that might use
 // a non-map-aware access to it.  (That would risk making changes to the

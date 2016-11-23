@@ -44,18 +44,18 @@ static REBCNT *CRC_Table;
 
 //
 //  Generate_CRC: C
-// 
+//
 // Simulates CRC hardware circuit.  Generates true CRC
 // directly, without requiring extra NULL bytes to be appended
 // to the message. Returns new updated CRC accumulator.
-// 
+//
 // These CRC functions are derived from code in chapter 19 of the book
 // "C Programmer's Guide to Serial Communications", by Joe Campbell.
 // Generalized to any CRC width by Philip Zimmermann.
-// 
+//
 //     CRC-16        X^16 + X^15 + X^2 + 1
 //     CRC-CCITT    X^16 + X^12 + X^2 + 1
-// 
+//
 // Notes on making a good 24-bit CRC:
 // The primitive irreducible polynomial of degree 23 over GF(2),
 // 040435651 (octal), comes from Appendix C of "Error Correcting Codes,
@@ -66,12 +66,12 @@ static REBCNT *CRC_Table;
 // the polynomial x+1 yields the additional property of detecting any
 // odd number of bits in error, which means it adds parity.  This
 // approach was recommended by Neal Glover.
-// 
+//
 // To multiply the polynomial 040435651 by x+1, shift it left 1 bit and
 // bitwise add (xor) the unshifted version back in.  Dropping the unused
 // upper bit (bit 24) produces a CRC-24 generator bitmask of 041446373
 // octal, or 0x864cfb hex.
-// 
+//
 // You can detect spurious leading zeros or framing errors in the
 // message by initializing the CRC accumulator to some agreed-upon
 // nonzero "random-like" value, but this is a bit nonstandard.
@@ -95,7 +95,7 @@ static REBCNT Generate_CRC(REBYTE ch, REBCNT poly, REBCNT accum)
 
 //
 //  Make_CRC_Table: C
-// 
+//
 // Derives a CRC lookup table from the CRC polynomial.
 // The table is used later by crcupdate function given below.
 // Only needs to be called once at the dawn of time.
@@ -111,7 +111,7 @@ static void Make_CRC_Table(REBCNT poly)
 
 //
 //  Compute_CRC: C
-// 
+//
 // Rebol had canonized signed numbers for CRCs, and the signed logic
 // actually does turn high bytes into negative numbers so they
 // subtract instead of add *during* the calculation.  Hence the casts
@@ -136,7 +136,7 @@ REBINT Compute_CRC(REBYTE *str, REBCNT len)
 
 //
 //  Hash_Word: C
-// 
+//
 // Return a case insensitive hash value for the string.
 //
 REBINT Hash_Word(const REBYTE *str, REBCNT len)
@@ -176,9 +176,9 @@ static void Make_CRC32_Table(void);
 
 //
 //  Hash_Value: C
-// 
+//
 // Return a case insensitive hash value for any value.
-// 
+//
 // Fails if datatype cannot be hashed.
 //
 REBCNT Hash_Value(const RELVAL *v, REBCTX *specifier)
@@ -399,7 +399,7 @@ REBSER *Make_Hash_Sequence(REBCNT len)
 
 //
 //  Val_Init_Map: C
-// 
+//
 // A map has an additional hash element hidden in the ->extra
 // field of the REBSER which needs to be given to memory
 // management as well.
@@ -420,10 +420,10 @@ void Val_Init_Map(REBVAL *out, REBMAP *map)
 
 //
 //  Hash_Block: C
-// 
+//
 // Hash ALL values of a block. Return hash array series.
 // Used for SET logic (unique, union, etc.)
-// 
+//
 // Note: hash array contents (indexes) are 1-based!
 //
 REBSER *Hash_Block(const REBVAL *block, REBCNT skip, REBOOL cased)
@@ -486,7 +486,7 @@ REBSER *Hash_Block(const REBVAL *block, REBCNT skip, REBOOL cased)
 
 //
 //  Compute_IPC: C
-// 
+//
 // Compute an IP checksum given some data and a length.
 // Used only on BINARY values.
 //
@@ -554,7 +554,7 @@ REBCNT CRC32(REBYTE *buf, REBCNT len)
 
 //
 //  Hash_String: C
-// 
+//
 // Return a 32-bit case insensitive hash value for the string.  The
 // string does not have to be zero terminated and UTF8 is ok.
 //

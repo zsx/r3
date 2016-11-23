@@ -41,11 +41,11 @@ typedef enum {
 
 //
 //  Catching_Break_Or_Continue: C
-// 
+//
 // Determines if a thrown value is either a break or continue.  If so,
 // modifies `val` to be the throw's argument, sets `stop` flag if it
 // was a BREAK or BREAK/WITH, and returns TRUE.
-// 
+//
 // If FALSE is returned then the throw name `val` was not a break
 // or continue, and needs to be bubbled up or handled another way.
 //
@@ -77,9 +77,9 @@ REBOOL Catching_Break_Or_Continue(REBVAL *val, REBOOL *stop)
 
 //
 //  break: native [
-//  
+//
 //  {Exit the current iteration of a loop and stop iterating further.}
-//  
+//
 //      /with
 //          {Act as if loop body finished current evaluation with a value}
 //      value [<opt> any-value!]
@@ -103,9 +103,9 @@ REBNATIVE(break)
 
 //
 //  continue: native [
-//  
+//
 //  "Throws control back to top of loop for next iteration."
-//  
+//
 //      /with
 //          {Act as if loop body finished current evaluation with a value}
 //      value [<opt> any-value!]
@@ -372,7 +372,7 @@ static REBOOL Loop_Number_Throws(
 
 //
 //  Loop_Each: C
-// 
+//
 // Common implementation code of FOR-EACH, REMOVE-EACH, MAP-EACH, and EVERY.
 //
 // !!! This routine has been slowly clarifying since R3-Alpha, and can
@@ -672,7 +672,7 @@ skip_hidden: ;
     }
 
     if (mode == LOOP_MAP_EACH) DROP_GUARD_ARRAY(mapped);
-    
+
     if (IS_DATATYPE(data))
         DROP_GUARD_SERIES(series);
 
@@ -745,7 +745,7 @@ skip_hidden: ;
 
 //
 //  for: native [
-//  
+//
 //  {Evaluate a block over a range of values. (See also: REPEAT)}
 //
 //      return: [<opt> any-value!]
@@ -836,7 +836,7 @@ REBNATIVE(for)
 
 //
 //  for-skip: native [
-//  
+//
 //  "Evaluates a block for periodic values in a series"
 //
 //      return: [<opt> any-value!]
@@ -929,7 +929,7 @@ restore_var_and_return:
 
 //
 //  forever: native [
-//  
+//
 //  "Evaluates a block endlessly, until an interrupting throw/error/break."
 //
 //      return: [<opt> any-value!]
@@ -960,7 +960,7 @@ REBNATIVE(forever)
 
 //
 //  for-each: native [
-//  
+//
 //  "Evaluates a block for each value(s) in a series."
 //
 //      return: [<opt> any-value!]
@@ -981,9 +981,9 @@ REBNATIVE(for_each)
 
 //
 //  remove-each: native [
-//  
+//
 //  {Removes values for each block that returns true; returns removal count.}
-//  
+//
 //      'vars [word! block!]
 //          "Word or block of words to set each time (local)"
 //      data [any-series!]
@@ -1000,7 +1000,7 @@ REBNATIVE(remove_each)
 
 //
 //  map-each: native [
-//  
+//
 //  {Evaluate a block for each value(s) in a series and collect as a block.}
 //
 //      return: [block!]
@@ -1021,7 +1021,7 @@ REBNATIVE(map_each)
 
 //
 //  every: native [
-//  
+//
 //  {Returns last TRUE? value if evaluating a block over a series is all TRUE?}
 //
 //      return: [<opt> any-value!]
@@ -1042,7 +1042,7 @@ REBNATIVE(every)
 
 //
 //  loop: native [
-//  
+//
 //  "Evaluates a block a specified number of times."
 //
 //      return: [<opt> any-value!]
@@ -1113,7 +1113,7 @@ REBNATIVE(loop)
 
 //
 //  repeat: native [
-//  
+//
 //  {Evaluates a block a number of times or over a series.}
 //
 //      return: [<opt> any-value!]
@@ -1216,7 +1216,7 @@ inline static REB_R Loop_While_Until_Core(REBFRM *frame_, REBOOL trigger)
 
 //
 //  loop-while: native [
-//  
+//
 //  "Evaluates a block while it is TRUE?"
 //
 //      return: [<opt> any-value!]
@@ -1232,7 +1232,7 @@ REBNATIVE(loop_while)
 
 //
 //  loop-until: native [
-//  
+//
 //  "Evaluates a block until it is TRUE?"
 //
 //      return: [<opt> any-value!]
@@ -1305,7 +1305,7 @@ inline static REB_R While_Until_Core(REBFRM *frame_, REBOOL trigger)
 
 //
 //  while: native [
-//  
+//
 //  {While a condition block is TRUE?, evaluates another block.}
 //
 //      return: [<opt> any-value!]
@@ -1324,7 +1324,7 @@ REBNATIVE(while)
 
 //
 //  until: native [
-//  
+//
 //  {Until a condition block is TRUE?, evaluates another block.}
 //
 //      return: [<opt> any-value!]

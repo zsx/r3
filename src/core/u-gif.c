@@ -76,7 +76,7 @@ void Chrom_Key_Alpha(REBVAL *v,REBCNT col,REBINT blitmode) {
 
 //
 //  Decode_LZW: C
-// 
+//
 // Perform LZW decompression.
 //
 void Decode_LZW(REBCNT *data, REBYTE **cpp, REBYTE *colortab, REBINT w, REBINT h, REBOOL interlaced)
@@ -205,7 +205,7 @@ void Decode_LZW(REBCNT *data, REBYTE **cpp, REBYTE *colortab, REBINT w, REBINT h
 
 //
 //  Decode_GIF_Image: C
-// 
+//
 // Input:  GIF encoded image (codi->data, len)
 // Output: Image bits (codi->extra.bits, w, h)
 // Error:  Code in codi->error

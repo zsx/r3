@@ -35,7 +35,7 @@
 
 //
 //  Series_Common_Action_Returns: C
-// 
+//
 // This routine is called to handle actions on ANY-SERIES! that can be taken
 // care of without knowing what specific kind of series it is.  So generally
 // index manipulation, and things like LENGTH/etc.
@@ -146,7 +146,7 @@ REBOOL Series_Common_Action_Returns(
 
 //
 //  Cmp_Array: C
-// 
+//
 // Compare two arrays and return the difference of the first
 // non-matching value.
 //
@@ -193,9 +193,9 @@ diff_of_ends:
 
 //
 //  Cmp_Value: C
-// 
+//
 // Compare two values and return the difference.
-// 
+//
 // is_case TRUE for case sensitive compare
 //
 REBINT Cmp_Value(const RELVAL *s, const RELVAL *t, REBOOL is_case)
@@ -326,7 +326,7 @@ chkDecimal:
 
 //
 //  Find_In_Array_Simple: C
-// 
+//
 // Simple search for a value in an array. Return the index of
 // the value or the TAIL index if not found.
 //

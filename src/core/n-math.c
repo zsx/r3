@@ -55,7 +55,7 @@ enum {SINE, COSINE, TANGENT};
 
 //
 //  Trig_Value: C
-// 
+//
 // Convert integer arg, if present, to decimal and convert to radians
 // if necessary.  Clip ranges for correct REBOL behavior.
 //
@@ -103,9 +103,9 @@ static void Arc_Trans(REBVAL *out, const REBVAL *value, REBOOL degrees, REBCNT k
 
 //
 //  cosine: native [
-//  
+//
 //  "Returns the trigonometric cosine."
-//  
+//
 //      value [any-number!]
 //          "In degrees by default"
 //      /radians
@@ -125,9 +125,9 @@ REBNATIVE(cosine)
 
 //
 //  sine: native [
-//  
+//
 //  "Returns the trigonometric sine."
-//  
+//
 //      value [any-number!]
 //          "In degrees by default"
 //      /radians
@@ -147,9 +147,9 @@ REBNATIVE(sine)
 
 //
 //  tangent: native [
-//  
+//
 //  "Returns the trigonometric tangent."
-//  
+//
 //      value [any-number!]
 //          "In degrees by default"
 //      /radians
@@ -169,9 +169,9 @@ REBNATIVE(tangent)
 
 //
 //  arccosine: native [
-//  
+//
 //  {Returns the trigonometric arccosine (in degrees by default).}
-//  
+//
 //      value [any-number!]
 //      /radians
 //          "Returns result in radians"
@@ -188,9 +188,9 @@ REBNATIVE(arccosine)
 
 //
 //  arcsine: native [
-//  
+//
 //  {Returns the trigonometric arcsine (in degrees by default).}
-//  
+//
 //      value [any-number!]
 //      /radians
 //          "Returns result in radians"
@@ -207,9 +207,9 @@ REBNATIVE(arcsine)
 
 //
 //  arctangent: native [
-//  
+//
 //  {Returns the trigonometric arctangent (in degrees by default).}
-//  
+//
 //      value [any-number!]
 //      /radians
 //          "Returns result in radians"
@@ -226,9 +226,9 @@ REBNATIVE(arctangent)
 
 //
 //  exp: native [
-//  
+//
 //  {Raises E (the base of natural logarithm) to the power specified}
-//  
+//
 //      power [any-number!]
 //  ]
 //
@@ -248,9 +248,9 @@ REBNATIVE(exp)
 
 //
 //  log-10: native [
-//  
+//
 //  "Returns the base-10 logarithm."
-//  
+//
 //      value [any-number!]
 //  ]
 //
@@ -267,9 +267,9 @@ REBNATIVE(log_10)
 
 //
 //  log-2: native [
-//  
+//
 //  "Return the base-2 logarithm."
-//  
+//
 //      value [any-number!]
 //  ]
 //
@@ -286,9 +286,9 @@ REBNATIVE(log_2)
 
 //
 //  log-e: native [
-//  
+//
 //  {Returns the natural (base-E) logarithm of the given value}
-//  
+//
 //      value [any-number!]
 //  ]
 //
@@ -305,9 +305,9 @@ REBNATIVE(log_e)
 
 //
 //  square-root: native [
-//  
+//
 //  "Returns the square root of a number."
-//  
+//
 //      value [any-number!]
 //  ]
 //
@@ -326,7 +326,7 @@ REBNATIVE(square_root)
 //
 // The SHIFT native uses negation of an unsigned number.  Although the
 // operation is well-defined in the C language, it is usually a mistake.
-// MSVC warns about it, so temporarily disable that. 
+// MSVC warns about it, so temporarily disable that.
 //
 // !!! The usage of negation of unsigned in SHIFT is from R3-Alpha.  Should it
 // be rewritten another way?
@@ -340,9 +340,9 @@ REBNATIVE(square_root)
 
 //
 //  shift: native [
-//  
+//
 //  {Shifts an integer left or right by a number of bits.}
-//  
+//
 //      value [integer!]
 //      bits [integer!]
 //          "Positive for left shift, negative for right shift"
@@ -413,20 +413,20 @@ REBNATIVE(shift)
 
 //
 //  Compare_Modify_Values: C
-// 
+//
 // Compare 2 values depending on level of strictness.  It leans
 // upon the per-type comparison functions (that have a more typical
 // interface of returning [1, 0, -1] and taking a CASE parameter)
 // but adds a layer of being able to check for specific types
 // of equality...which those comparison functions do not discern.
-// 
+//
 // Strictness:
 //     0 - coerced equality
 //     1 - strict equality
-// 
+//
 //    -1 - greater or equal
 //    -2 - greater
-// 
+//
 // !!! This routine (may) modify the value cells for 'a' and 'b' in
 // order to coerce them for easier comparison.  Most usages are
 // in native code that can overwrite its argument values without
@@ -523,9 +523,9 @@ compare:
 
 //
 //  equal?: native [
-//  
+//
 //  "Returns TRUE if the values are equal."
-//  
+//
 //      value1 [<opt> any-value!]
 //      value2 [<opt> any-value!]
 //  ]
@@ -543,9 +543,9 @@ REBNATIVE(equal_q)
 
 //
 //  not-equal?: native [
-//  
+//
 //  "Returns TRUE if the values are not equal."
-//  
+//
 //      value1 [<opt> any-value!]
 //      value2 [<opt> any-value!]
 //  ]
@@ -563,9 +563,9 @@ REBNATIVE(not_equal_q)
 
 //
 //  strict-equal?: native [
-//  
+//
 //  "Returns TRUE if the values are strictly equal."
-//  
+//
 //      value1 [<opt> any-value!]
 //      value2 [<opt> any-value!]
 //  ]
@@ -583,9 +583,9 @@ REBNATIVE(strict_equal_q)
 
 //
 //  strict-not-equal?: native [
-//  
+//
 //  "Returns TRUE if the values are not strictly equal."
-//  
+//
 //      value1 [<opt> any-value!]
 //      value2 [<opt> any-value!]
 //  ]
@@ -603,9 +603,9 @@ REBNATIVE(strict_not_equal_q)
 
 //
 //  same?: native [
-//  
+//
 //  "Returns TRUE if the values are identical."
-//  
+//
 //      value1 [<opt> any-value!]
 //      value2 [<opt> any-value!]
 //  ]
@@ -718,9 +718,9 @@ REBNATIVE(same_q)
 
 //
 //  lesser?: native [
-//  
+//
 //  {Returns TRUE if the first value is less than the second value.}
-//  
+//
 //      value1 value2
 //  ]
 //
@@ -737,9 +737,9 @@ REBNATIVE(lesser_q)
 
 //
 //  lesser-or-equal?: native [
-//  
+//
 //  {Returns TRUE if the first value is less than or equal to the second value.}
-//  
+//
 //      value1 value2
 //  ]
 //
@@ -756,9 +756,9 @@ REBNATIVE(lesser_or_equal_q)
 
 //
 //  greater?: native [
-//  
+//
 //  {Returns TRUE if the first value is greater than the second value.}
-//  
+//
 //      value1 value2
 //  ]
 //
@@ -775,9 +775,9 @@ REBNATIVE(greater_q)
 
 //
 //  greater-or-equal?: native [
-//  
+//
 //  {Returns TRUE if the first value is greater than or equal to the second value.}
-//  
+//
 //      value1 value2
 //  ]
 //
@@ -794,9 +794,9 @@ REBNATIVE(greater_or_equal_q)
 
 //
 //  maximum: native [
-//  
+//
 //  "Returns the greater of the two values."
-//  
+//
 //      value1 [any-scalar! date! any-series!]
 //      value2 [any-scalar! date! any-series!]
 //  ]
@@ -825,9 +825,9 @@ REBNATIVE(maximum)
 
 //
 //  minimum: native [
-//  
+//
 //  "Returns the lesser of the two values."
-//  
+//
 //      value1 [any-scalar! date! any-series!]
 //      value2 [any-scalar! date! any-series!]
 //  ]
@@ -857,9 +857,9 @@ REBNATIVE(minimum)
 
 //
 //  negative?: native [
-//  
+//
 //  "Returns TRUE if the number is negative."
-//  
+//
 //      number [any-number! money! time! pair!]
 //  ]
 //
@@ -879,9 +879,9 @@ REBNATIVE(negative_q)
 
 //
 //  positive?: native [
-//  
+//
 //  "Returns TRUE if the value is positive."
-//  
+//
 //      number [any-number! money! time! pair!]
 //  ]
 //
@@ -901,9 +901,9 @@ REBNATIVE(positive_q)
 
 //
 //  zero?: native [
-//  
+//
 //  {Returns TRUE if the value is zero (for its datatype).}
-//  
+//
 //      value
 //  ]
 //

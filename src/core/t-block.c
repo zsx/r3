@@ -33,10 +33,10 @@
 
 //
 //  CT_Array: C
-// 
+//
 // "Compare Type" dispatcher for the following types: (list here to help
 // text searches)
-// 
+//
 //     CT_Block()
 //     CT_Group()
 //     CT_Path()
@@ -57,9 +57,9 @@ REBINT CT_Array(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 //
 //  MAKE_Array: C
-// 
+//
 // "Make Type" dispatcher for the following subtypes:
-// 
+//
 //     MAKE_Block
 //     MAKE_Group
 //     MAKE_Path
@@ -228,20 +228,20 @@ void TO_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
 
 //
 //  Find_In_Array: C
-// 
+//
 // Flags are set according to: ALL_FIND_REFS
-// 
+//
 // Main Parameters:
 // start - index to start search
 // end   - ending position
 // len   - length of target
 // skip  - skip factor
 // dir   - direction
-// 
+//
 // Comparison Parameters:
 // case  - case sensitivity
 // wild  - wild cards/keys
-// 
+//
 // Final Parmameters:
 // tail  - tail position
 // match - sequence
@@ -445,7 +445,7 @@ static int Compare_Call(void *thunk, const void *v1, const void *v2)
 
 //
 //  Sort_Block: C
-// 
+//
 // series [any-series!]
 // /case {Case sensitive sort}
 // /skip {Treat the series as records of fixed size}
@@ -528,9 +528,9 @@ void Shuffle_Block(REBVAL *value, REBOOL secure)
 
 //
 //  PD_Array: C
-// 
+//
 // Path dispatch for the following types:
-// 
+//
 //     PD_Block
 //     PD_Group
 //     PD_Path
@@ -622,9 +622,9 @@ RELVAL *Pick_Block(REBVAL *out, const REBVAL *block, const REBVAL *selector)
 
 //
 //  REBTYPE: C
-// 
+//
 // Implementation of type dispatch of the following:
-// 
+//
 //     REBTYPE(Block)
 //     REBTYPE(Group)
 //     REBTYPE(Path)
@@ -831,7 +831,7 @@ REBTYPE(Array)
 
         if (REF(deep))
             types |= REF(types) ? 0 : TS_STD_SERIES;
-        
+
         if (REF(types)) {
             if (IS_DATATYPE(ARG(kinds)))
                 types |= FLAGIT_KIND(VAL_TYPE(ARG(kinds)));

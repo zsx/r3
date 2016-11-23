@@ -39,9 +39,9 @@ static REBOOL find_in_uni(REBUNI *up, REBINT len, REBUNI c)
 
 //
 //  Whitespace_Replace_With: C
-// 
+//
 // Replace whitespace chars that match WITH string.
-// 
+//
 // Resulting string is always smaller than it was to start.
 //
 void Whitespace_Replace_With(
@@ -103,10 +103,10 @@ void Whitespace_Replace_With(
 
 //
 //  Trim_String_Auto: C
-// 
+//
 // Skip any blank lines and then determine indent of
 // first line and make the rest align with it.
-// 
+//
 // BUG!!! If the indentation uses TABS, then it could
 // fill past the source pointer!
 //
@@ -164,7 +164,7 @@ void Trim_String_Auto(REBSER *ser, REBCNT index, REBCNT tail)
 
 //
 //  Trim_String_Lines: C
-// 
+//
 // Remove all newlines and extra space.
 //
 void Trim_String_Lines(REBSER *ser, REBCNT index, REBCNT tail)
@@ -200,7 +200,7 @@ void Trim_String_Lines(REBSER *ser, REBCNT index, REBCNT tail)
 
 //
 //  Trim_String_Head_Tail: C
-// 
+//
 // Trim from head and tail of each line, trim any leading or
 // trailing lines as well, leaving one at the end if present
 //

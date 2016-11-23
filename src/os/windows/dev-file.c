@@ -82,44 +82,44 @@ static BOOL Seek_File_64(REBREQ *file)
 
 //
 //  Read_Directory: C
-// 
+//
 // This function will read a file directory, one file entry
 // at a time, then close when no more files are found.
-// 
+//
 // Procedure:
-// 
+//
 // This function is passed directory and file arguments.
 // The dir arg provides information about the directory to read.
 // The file arg is used to return specific file information.
-// 
+//
 // To begin, this function is called with a dir->requestee.handle that
 // is set to zero and a dir->special.file.path string for the directory.
-// 
+//
 // The directory is opened and a handle is stored in the dir
 // structure for use on subsequent calls. If an error occurred,
 // dir->error is set to the error code and -1 is returned.
 // The dir->size field can be set to the number of files in the
 // dir, if it is known. The dir->special.file.index field can be used by this
 // function to store information between calls.
-// 
+//
 // If the open succeeded, then information about the first file
 // is stored in the file argument and the function returns 0.
 // On an error, the dir->error is set, the dir is closed,
 // dir->requestee.handle is nulled, and -1 is returned.
-// 
+//
 // The caller loops until all files have been obtained. This
 // action should be uninterrupted. (The caller should not perform
 // additional OS or IO operations between calls.)
-// 
+//
 // When no more files are found, the dir is closed, dir->requestee.handle
 // is nulled, and 1 is returned. No file info is returned.
 // (That is, this function is called one extra time. This helps
 // for OSes that may deallocate file strings on dir close.)
-// 
+//
 // Note that the dir->special.file.path can contain wildcards * and ?. The
 // processing of these can be done in the OS (if supported) or
 // by a separate filter operation during the read.
-// 
+//
 // Store file date info in file->special.file.index or other fields?
 // Store permissions? Ownership? Groups? Or, require that
 // to be part of a separate request?
@@ -173,9 +173,9 @@ static int Read_Directory(REBREQ *dir, REBREQ *file)
 
 //
 //  Open_File: C
-// 
+//
 // Open the specified file with the given modes.
-// 
+//
 // Notes:
 // 1.    The file path is provided in REBOL format, and must be
 //     converted to local format before it is used.
@@ -183,7 +183,7 @@ static int Read_Directory(REBREQ *dir, REBREQ *file)
 //     calling this function.
 // 3.    REBOL clears necessary fields of file structure before
 //     calling (e.g. error and size fields).
-// 
+//
 // !! Confirm that /seek /append works properly.
 //
 DEVICE_CMD Open_File(REBREQ *file)
@@ -259,7 +259,7 @@ fail:
 
 //
 //  Close_File: C
-// 
+//
 // Closes a previously opened file.
 //
 DEVICE_CMD Close_File(REBREQ *file)
@@ -312,7 +312,7 @@ DEVICE_CMD Read_File(REBREQ *file)
 
 //
 //  Write_File: C
-// 
+//
 // Bug?: update file->size value after write !?
 //
 DEVICE_CMD Write_File(REBREQ *file)
@@ -362,10 +362,10 @@ DEVICE_CMD Write_File(REBREQ *file)
 
 //
 //  Query_File: C
-// 
+//
 // Obtain information about a file. Return TRUE on success.
 // On error, return FALSE and set file->error code.
-// 
+//
 // Note: time is in local format and must be converted
 //
 DEVICE_CMD Query_File(REBREQ *file)
@@ -403,11 +403,11 @@ DEVICE_CMD Create_File(REBREQ *file)
 
 //
 //  Delete_File: C
-// 
+//
 // Delete a file or directory. Return TRUE if it was done.
 // The file->special.file.path provides the directory path and name.
 // For errors, return FALSE and set file->error to error code.
-// 
+//
 // Note: Dirs must be empty to succeed
 //
 DEVICE_CMD Delete_File(REBREQ *file)
@@ -424,7 +424,7 @@ DEVICE_CMD Delete_File(REBREQ *file)
 
 //
 //  Rename_File: C
-// 
+//
 // Rename a file or directory.
 // Note: cannot rename across file volumes.
 //

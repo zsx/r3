@@ -58,11 +58,11 @@
 
 //
 //  Get_Timezone: C
-// 
+//
 // Get the time zone in minutes from GMT.
 // NOT consistently supported in Posix OSes!
 // We have to use a few different methods.
-// 
+//
 // !!! "local_tm->tm_gmtoff / 60 would make the most sense,
 // but is no longer used" (said a comment)
 //
@@ -87,7 +87,7 @@ static int Get_Timezone(struct tm *local_tm)
 
 //
 //  Convert_Date: C
-// 
+//
 // Convert local format of system time into standard date
 // and time structure (for date/time and file timestamps).
 //
@@ -109,7 +109,7 @@ void Convert_Date(REBVAL *out, time_t *stime, long usec)
 
 //
 //  OS_Get_Time: C
-// 
+//
 // Get the current system date/time in UTC plus zone offset (mins).
 //
 void OS_Get_Time(REBVAL *out)
@@ -125,10 +125,10 @@ void OS_Get_Time(REBVAL *out)
 
 //
 //  OS_Delta_Time: C
-// 
+//
 // Return time difference in microseconds. If base = 0, then
 // return the counter. If base != 0, compute the time difference.
-// 
+//
 // NOTE: This needs to be precise, but many OSes do not
 // provide a precise time sampling method. So, if the target
 // posix OS does, add the ifdef code in here.
@@ -150,7 +150,7 @@ i64 OS_Delta_Time(i64 base, int flags)
 
 //
 //  OS_File_Time: C
-// 
+//
 // Convert file.time to REBOL date/time format.
 // Time zone is UTC.
 //

@@ -91,7 +91,7 @@ static REBCNT const Primes[] =
 
 //
 //  Get_Hash_Prime: C
-// 
+//
 // Given a size, return a prime number that is larger.
 //
 REBINT Get_Hash_Prime(REBCNT size)
@@ -121,7 +121,7 @@ static REBSTR PG_Deleted_Canon;
 
 //
 //  Expand_Word_Table: C
-// 
+//
 // Expand the hash table part of the word_table by allocating
 // the next larger table size and rehashing all the words of
 // the current table.  Free the old hash array.
@@ -470,7 +470,7 @@ void GC_Kill_Interning(REBSTR *intern)
 
 //
 //  Val_Init_Word_Bound: C
-// 
+//
 // Initialize an ANY-WORD! type with a binding to a context.
 //
 void Val_Init_Word_Bound(
@@ -507,7 +507,7 @@ const REBYTE *Get_Type_Name(const REBVAL *value)
 
 //
 //  Compare_Word: C
-// 
+//
 // Compare the names of two words and return the difference.
 // Note that words are kept UTF8 encoded.
 // Positive result if s > t and negative if s < t.

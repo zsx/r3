@@ -32,7 +32,7 @@
 
 //
 //  List_Func_Words: C
-// 
+//
 // Return a block of function words, unbound.
 // Note: skips 0th entry.
 //
@@ -84,7 +84,7 @@ REBARR *List_Func_Words(const REBVAL *func, REBOOL pure_locals)
 
 //
 //  List_Func_Typesets: C
-// 
+//
 // Return a block of function arg typesets.
 // Note: skips 0th entry.
 //
@@ -119,11 +119,11 @@ enum Reb_Spec_Mode {
 
 //
 //  Make_Paramlist_Managed_May_Fail: C
-// 
+//
 // Check function spec of the form:
-// 
+//
 //     ["description" arg "notes" [type! type2! ...] /ref ...]
-// 
+//
 // !!! The spec language was not formalized in R3-Alpha.  Strings were left
 // in and it was HELP's job (and any other clients) to make sense of it, e.g.:
 //
@@ -1027,12 +1027,12 @@ REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
 
 //
 //  Get_Maybe_Fake_Func_Body: C
-// 
+//
 // The FUNC_FLAG_LEAVE and FUNC_FLAG_RETURN tricks used for definitional
 // scoping make it seem like a generator authored more code in the function's
 // body...but the code isn't *actually* there and an optimized internal
 // trick is used.
-// 
+//
 // If the body is fake, it needs to be freed by the caller with
 // Free_Series.  This means that the body must currently be shallow
 // copied, and the splicing slot must be in the topmost series.
@@ -1091,26 +1091,26 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 
 //
 //  Make_Interpreted_Function_May_Fail: C
-// 
+//
 // This is the support routine behind `MAKE FUNCTION!`, FUNC, and PROC.
 //
 // Ren/C's schematic for the FUNC and PROC generators is *very* different
 // from R3-Alpha, whose definition of FUNC was simply:
-// 
+//
 //     make function! copy/deep reduce [spec body]
-// 
+//
 // Ren/C's `make function!` doesn't need to copy the spec (it does not save
 // it--parameter descriptions are in a meta object).  It also copies the body
 // by virtue of the need to relativize it.  They also have "definitional
 // return" constructs so that the body introduces RETURN and LEAVE constructs
 // specific to each function invocation, so the body acts more like:
-// 
+//
 //     return: make function! [
 //         [{Returns a value from a function.} value [<opt> any-value!]]
 //         [exit/from/with (context-of 'return) :value]
 //     ]
 //     (body goes here)
-// 
+//
 // This pattern addresses "Definitional Return" in a way that does not
 // technically require building RETURN or LEAVE in as a language keyword in
 // any specific form (in the sense that MAKE FUNCTION! does not itself
@@ -1122,14 +1122,14 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 // possible to "lie" about what the body "above" is.  This gives FUNC and PROC
 // the edge to pretend to add containing code and simulate its effects, while
 // really only holding onto the body the caller provided.
-// 
+//
 // While MAKE FUNCTION! has no RETURN, all functions still have EXIT as a
 // non-definitional alternative.  Ren/C adds a /WITH refinement so it can
 // behave equivalently to old-non-definitonal return.  There is even a way to
 // identify specific points up the call stack to exit from via EXIT/FROM, so
 // not having definitional return has several alternate options for generators
 // that wish to use them.
-// 
+//
 REBFUN *Make_Interpreted_Function_May_Fail(
     const REBVAL *spec,
     const REBVAL *code,
@@ -1447,7 +1447,7 @@ REBOOL Specialize_Function_Throws(
 
 //
 //  Clonify_Function: C
-// 
+//
 // (A "Clonify" interface takes in a raw duplicate value that one wishes to
 // mutate in-place into a full-fledged copy of the value it is a clone of.
 // This interface can be more efficient than a "source in, dest out" copy...

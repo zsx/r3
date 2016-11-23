@@ -44,7 +44,7 @@ const char ** iso3166_find_entry_by_2_code(const char* code);
 
 //
 //  OS_Get_Locale: C
-// 
+//
 // Used to obtain locale information from the system.
 // The returned value must be freed with OS_FREE_MEM.
 //

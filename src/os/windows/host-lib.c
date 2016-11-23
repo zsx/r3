@@ -67,7 +67,7 @@ static void *Task_Ready;
 
 //
 //  Convert_Date: C
-// 
+//
 // Convert local format of system time into standard date
 // and time structure.
 //
@@ -86,11 +86,11 @@ void Convert_Date(REBVAL *out, long zone, const SYSTEMTIME *stime)
 
 //
 //  Insert_Command_Arg: C
-// 
+//
 // Insert an argument into a command line at the %1 position,
 // or at the end if there is no %1. (An INSERT action.)
 // Do not exceed the specified limit length.
-// 
+//
 // Too bad std Clib does not provide INSERT or REPLACE functions.
 //
 static void Insert_Command_Arg(REBCHR *cmd, const REBCHR *arg, REBCNT limit)
@@ -138,7 +138,7 @@ static void Insert_Command_Arg(REBCHR *cmd, const REBCHR *arg, REBCNT limit)
 
 //
 //  OS_Get_PID: C
-// 
+//
 // Return the current process ID
 //
 REBINT OS_Get_PID()
@@ -148,7 +148,7 @@ REBINT OS_Get_PID()
 
 //
 //  OS_Get_UID: C
-// 
+//
 // Return the real user ID
 //
 REBINT OS_Get_UID()
@@ -158,7 +158,7 @@ REBINT OS_Get_UID()
 
 //
 //  OS_Set_UID: C
-// 
+//
 // Set the user ID, see setuid manual for its semantics
 //
 REBINT OS_Set_UID(REBINT uid)
@@ -168,7 +168,7 @@ REBINT OS_Set_UID(REBINT uid)
 
 //
 //  OS_Get_GID: C
-// 
+//
 // Return the real group ID
 //
 REBINT OS_Get_GID()
@@ -178,7 +178,7 @@ REBINT OS_Get_GID()
 
 //
 //  OS_Set_GID: C
-// 
+//
 // Set the group ID, see setgid manual for its semantics
 //
 REBINT OS_Set_GID(REBINT gid)
@@ -188,7 +188,7 @@ REBINT OS_Set_GID(REBINT gid)
 
 //
 //  OS_Get_EUID: C
-// 
+//
 // Return the effective user ID
 //
 REBINT OS_Get_EUID()
@@ -198,7 +198,7 @@ REBINT OS_Get_EUID()
 
 //
 //  OS_Set_EUID: C
-// 
+//
 // Set the effective user ID
 //
 REBINT OS_Set_EUID(REBINT uid)
@@ -208,7 +208,7 @@ REBINT OS_Set_EUID(REBINT uid)
 
 //
 //  OS_Get_EGID: C
-// 
+//
 // Return the effective group ID
 //
 REBINT OS_Get_EGID()
@@ -218,7 +218,7 @@ REBINT OS_Get_EGID()
 
 //
 //  OS_Set_EGID: C
-// 
+//
 // Set the effective group ID
 //
 REBINT OS_Set_EGID(REBINT gid)
@@ -228,7 +228,7 @@ REBINT OS_Set_EGID(REBINT gid)
 
 //
 //  OS_Send_Signal: C
-// 
+//
 // Send signal to a process
 //
 REBINT OS_Send_Signal(REBINT pid, REBINT signal)
@@ -238,7 +238,7 @@ REBINT OS_Send_Signal(REBINT pid, REBINT signal)
 
 //
 //  OS_Kill: C
-// 
+//
 // Try to kill the process
 //
 REBINT OS_Kill(REBINT pid)
@@ -272,7 +272,7 @@ REBINT OS_Kill(REBINT pid)
 
 //
 //  OS_Config: C
-// 
+//
 // Return a specific runtime configuration parameter.
 //
 REBINT OS_Config(int id, REBYTE *result)
@@ -290,7 +290,7 @@ REBINT OS_Config(int id, REBYTE *result)
 
 //
 //  OS_Exit: C
-// 
+//
 // Called in cases where REBOL needs to quit immediately
 // without returning from the main() function.
 //
@@ -307,15 +307,15 @@ void OS_Exit(int code)
 
 //
 //  OS_Crash: C
-// 
+//
 // Tell user that REBOL has crashed. This function must use
 // the most obvious and reliable method of displaying the
 // crash message.
-// 
+//
 // If the title is NULL, then REBOL is running in a server mode.
 // In that case, we do not want the crash message to appear on
 // the screen, because the system may be unattended.
-// 
+//
 // On some systems, the error may be recorded in the system log.
 //
 void OS_Crash(const REBYTE *title, const REBYTE *content)
@@ -338,7 +338,7 @@ void OS_Crash(const REBYTE *title, const REBYTE *content)
 
 //
 //  OS_Form_Error: C
-// 
+//
 // Translate OS error into a string. The str is the string
 // buffer and the len is the length of the buffer.
 //
@@ -375,7 +375,7 @@ REBCHR *OS_Form_Error(int errnum, REBCHR *str, int len)
 
 //
 //  OS_Get_Boot_Path: C
-// 
+//
 // Used to determine the program file path for REBOL.
 // This is the path stored in system->options->boot and
 // it is used for finding default boot files.
@@ -388,7 +388,7 @@ REBOOL OS_Get_Boot_Path(REBCHR *name)
 
 //
 //  OS_Get_Locale: C
-// 
+//
 // Used to obtain locale information from the system.
 // The returned value must be freed with OS_FREE_MEM.
 //
@@ -416,7 +416,7 @@ REBCHR *OS_Get_Locale(int what)
 
 //
 //  OS_Get_Env: C
-// 
+//
 // Get a value from the environment.
 // Returns size of retrieved value for success or zero if missing.
 // If return size is greater than valsize then value contents
@@ -439,7 +439,7 @@ REBINT OS_Get_Env(REBCHR *envname, REBCHR* envval, REBINT valsize)
 
 //
 //  OS_Set_Env: C
-// 
+//
 // Set a value from the environment.
 // Returns >0 for success and 0 for errors.
 //
@@ -476,7 +476,7 @@ REBCHR *OS_List_Env(void)
 
 //
 //  OS_Get_Time: C
-// 
+//
 // Get the current system date/time in UTC plus zone offset (mins).
 //
 void OS_Get_Time(REBVAL *out)
@@ -495,10 +495,10 @@ void OS_Get_Time(REBVAL *out)
 
 //
 //  OS_Delta_Time: C
-// 
+//
 // Return time difference in microseconds. If base = 0, then
 // return the counter. If base != 0, compute the time difference.
-// 
+//
 // Note: Requires high performance timer.
 //      Q: If not found, use timeGetTime() instead ?!
 //
@@ -520,10 +520,10 @@ i64 OS_Delta_Time(i64 base, int flags)
 
 //
 //  OS_Get_Current_Dir: C
-// 
+//
 // Return the current directory path as a string and
 // its length in chars (not bytes).
-// 
+//
 // The result should be freed after copy/conversion.
 //
 int OS_Get_Current_Dir(REBCHR **path)
@@ -541,7 +541,7 @@ int OS_Get_Current_Dir(REBCHR **path)
 
 //
 //  OS_Set_Current_Dir: C
-// 
+//
 // Set the current directory to local path. Return FALSE
 // on failure.
 //
@@ -553,7 +553,7 @@ REBOOL OS_Set_Current_Dir(REBCHR *path)
 
 //
 //  OS_File_Time: C
-// 
+//
 // Convert file.time to REBOL date/time format.
 // Time zone is UTC.
 //
@@ -572,7 +572,7 @@ void OS_File_Time(REBVAL *out, REBREQ *file)
 
 //
 //  OS_Open_Library: C
-// 
+//
 // Load a DLL library and return the handle to it.
 // If zero is returned, error indicates the reason.
 //
@@ -587,7 +587,7 @@ void *OS_Open_Library(const REBCHR *path, REBCNT *error)
 
 //
 //  OS_Close_Library: C
-// 
+//
 // Free a DLL library opened earlier.
 //
 void OS_Close_Library(void *dll)
@@ -598,7 +598,7 @@ void OS_Close_Library(void *dll)
 
 //
 //  OS_Find_Function: C
-// 
+//
 // Get a DLL function address from its string name.
 //
 CFUNC *OS_Find_Function(void *dll, const char *funcname)
@@ -621,7 +621,7 @@ CFUNC *OS_Find_Function(void *dll, const char *funcname)
 
 //
 //  OS_Create_Process: C
-// 
+//
 // Return -1 on error.
 // For right now, set flags to 1 for /wait.
 //
@@ -1228,7 +1228,7 @@ int CALLBACK ReqDirCallbackProc( HWND hWnd, UINT uMsg, LPARAM lParam, LPARAM lpD
 
 //
 //  OS_Request_Dir: C
-// 
+//
 // WARNING: TEMPORARY implementation! Used only by host-core.c
 // Will be most probably changed in future.
 //
@@ -1257,7 +1257,7 @@ REBOOL OS_Request_Dir(REBCHR* title, REBCHR** folder, REBCHR* path)
 
 //
 //  OS_GOB_To_Image: C
-// 
+//
 // Render a GOB into an image. Returns an image or zero if
 // it cannot be done.
 //
@@ -1274,15 +1274,15 @@ REBSER *OS_GOB_To_Image(REBGOB *gob)
 
 //
 //  As_OS_Str: C
-// 
+//
 // If necessary, convert a string series to Win32 wide-chars.
 // (Handy for GOB/TEXT handling).
 // If the string series is empty the resulting string is set to NULL
-// 
+//
 // Function returns:
 //     TRUE - if the resulting string needs to be deallocated by the caller code
 //     FALSE - if REBOL string is used (no dealloc needed)
-// 
+//
 // Note: REBOL strings are allowed to contain nulls.
 //
 REBOOL As_OS_Str(REBSER *series, REBCHR **string)

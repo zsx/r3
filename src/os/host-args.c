@@ -93,7 +93,7 @@ const struct arg_chr arg_chars2[] = {
 
 //
 //  find_option_word: C
-// 
+//
 // Scan options, return flag bits, else zero.
 //
 static int find_option_word(REBCHR *word)
@@ -123,7 +123,7 @@ static int find_option_word(REBCHR *word)
 
 //
 //  find_option_char: C
-// 
+//
 // Scan option char flags, return flag bits, else zero.
 //
 static int find_option_char(REBCHR chr, const struct arg_chr list[])
@@ -144,7 +144,7 @@ static int find_option_char(REBCHR chr, const struct arg_chr list[])
 
 //
 //  Get_Ext_Arg: C
-// 
+//
 // Get extended argument field.
 //
 static int Get_Ext_Arg(int flag, REBARGS *rargs, REBCHR *arg)
@@ -184,7 +184,7 @@ static int Get_Ext_Arg(int flag, REBARGS *rargs, REBCHR *arg)
 
 //
 //  Parse_Args: C
-// 
+//
 // Parse REBOL's command line arguments, setting options
 // and values in the provided args structure.
 //

@@ -36,7 +36,7 @@
 
 //
 //  Set_Date_UTC: C
-// 
+//
 // Convert date/time/zone to UTC with zone.
 //
 void Set_Date_UTC(REBVAL *val, REBINT y, REBINT m, REBINT d, REBI64 t, REBINT z)
@@ -135,7 +135,7 @@ void Emit_Date(REB_MOLD *mold, const REBVAL *value_orig)
 
 //
 //  Month_Length: C
-// 
+//
 // Given a year, determine the number of days in the month.
 // Handles all leap year calculations.
 //
@@ -156,7 +156,7 @@ static REBCNT Month_Length(REBCNT month, REBCNT year)
 
 //
 //  Julian_Date: C
-// 
+//
 // Given a year, month and day, return the number of days since the
 // beginning of that year.
 //
@@ -176,7 +176,7 @@ REBCNT Julian_Date(REBDAT date)
 
 //
 //  Diff_Date: C
-// 
+//
 // Calculate the difference in days between two dates.
 //
 REBINT Diff_Date(REBDAT d1, REBDAT d2)
@@ -219,7 +219,7 @@ REBINT Diff_Date(REBDAT d1, REBDAT d2)
 
 //
 //  Week_Day: C
-// 
+//
 // Return the day of the week for a specific date.
 //
 REBCNT Week_Day(REBDAT date)
@@ -235,7 +235,7 @@ REBCNT Week_Day(REBDAT date)
 
 //
 //  Normalize_Time: C
-// 
+//
 // Adjust *dp by number of days and set secs to less than a day.
 //
 void Normalize_Time(REBI64 *sp, REBCNT *dp)
@@ -261,7 +261,7 @@ void Normalize_Time(REBI64 *sp, REBCNT *dp)
 
 //
 //  Normalize_Date: C
-// 
+//
 // Given a year, month and day, normalize and combine to give a new
 // date value.
 //
@@ -312,7 +312,7 @@ static REBDAT Normalize_Date(REBINT day, REBINT month, REBINT year, REBINT tz)
 
 //
 //  Adjust_Date_Zone: C
-// 
+//
 // Adjust date and time for the timezone.
 // The result should be used for output, not stored.
 //
@@ -347,7 +347,7 @@ void Adjust_Date_Zone(REBVAL *d, REBOOL to_utc)
 
 //
 //  Subtract_Date: C
-// 
+//
 // Called by DIFFERENCE function.
 //
 void Subtract_Date(REBVAL *d1, REBVAL *d2, REBVAL *result)

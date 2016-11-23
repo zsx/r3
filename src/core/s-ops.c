@@ -33,7 +33,7 @@
 
 //
 //  All_Bytes_ASCII: C
-// 
+//
 // Returns TRUE if byte string does not use upper code page
 // (e.g. no 128-255 characters)
 //
@@ -48,7 +48,7 @@ REBOOL All_Bytes_ASCII(REBYTE *bp, REBCNT len)
 
 //
 //  Is_Wide: C
-// 
+//
 // Returns TRUE if uni string needs 16 bits.
 //
 REBOOL Is_Wide(const REBUNI *up, REBCNT len)
@@ -62,22 +62,22 @@ REBOOL Is_Wide(const REBUNI *up, REBCNT len)
 
 //
 //  Temp_Byte_Chars_May_Fail: C
-// 
+//
 // NOTE: This function returns a temporary result, and uses an internal
 // buffer.  Do not use it recursively.  Also, it will Trap on errors.
-// 
+//
 // Prequalifies a string before using it with a function that
 // expects it to be 8-bits.  It would be used for instance to convert
 // a string that is potentially REBUNI-wide into a form that can be used
 // with a Scan_XXX routine, that is expecting ASCII or UTF-8 source.
 // (Many TO-XXX conversions from STRING re-use that scanner logic.)
-// 
+//
 // Returns a temporary string and sets the length field.
-// 
+//
 // If `allow_utf8`, the constructed result is converted to UTF8.
-// 
+//
 // Checks or converts it:
-// 
+//
 //     1. it is byte string (not unicode)
 //     2. if unicode, copy and return as temp byte string
 //     3. it's actual content (less space, newlines) <= max len
@@ -146,13 +146,13 @@ REBYTE *Temp_Byte_Chars_May_Fail(
 
 //
 //  Temp_Bin_Str_Managed: C
-// 
+//
 // Determines if UTF8 conversion is needed for a series before it
 // is used with a byte-oriented function.
-// 
+//
 // If conversion is needed, a UTF8 series will be created.  Otherwise,
 // the source series is returned as-is.
-// 
+//
 // Note: This routine should only be used to generate a value used
 // for temporary purposes, because it has a "surprising variance"
 // regarding its input.  If the value's series can be reused, it is--
@@ -162,7 +162,7 @@ REBYTE *Temp_Byte_Chars_May_Fail(
 // many bytes).  But copying vs. non-copying means the resulting
 // data might or might not have previous values available to step
 // back into from the originating series!
-// 
+//
 // !!! Should performance dictate it, the callsites could be
 // adapted to know whether this produced a new series or not, and
 // instead of managing a created result they could be responsible
@@ -238,7 +238,7 @@ REBSER *Temp_Bin_Str_Managed(const RELVAL *val, REBCNT *index, REBCNT *length)
 
 //
 //  Xandor_Binary: C
-// 
+//
 // Only valid for BINARY data.
 //
 REBSER *Xandor_Binary(REBCNT action, REBVAL *value, REBVAL *arg)
@@ -309,7 +309,7 @@ REBSER *Xandor_Binary(REBCNT action, REBVAL *value, REBVAL *arg)
 
 //
 //  Complement_Binary: C
-// 
+//
 // Only valid for BINARY data.
 //
 REBSER *Complement_Binary(REBVAL *value)
@@ -333,7 +333,7 @@ REBSER *Complement_Binary(REBVAL *value)
 
 //
 //  Shuffle_String: C
-// 
+//
 // Randomize a string. Return a new string series.
 // Handles both BYTE and UNICODE strings.
 //
@@ -357,7 +357,7 @@ void Shuffle_String(REBVAL *value, REBOOL secure)
 
 //
 //  Trim_Tail: C
-// 
+//
 // Used to trim off hanging spaces during FORM and MOLD.
 //
 void Trim_Tail(REBSER *src, REBYTE chr)
@@ -379,7 +379,7 @@ void Trim_Tail(REBSER *src, REBYTE chr)
 
 //
 //  Deline_Bytes: C
-// 
+//
 // This function converts any combination of CR and
 // LF line endings to the internal REBOL line ending.
 // The new length of the buffer is returned.
@@ -505,7 +505,7 @@ void Enline_Uni(REBSER *ser, REBCNT idx, REBCNT len)
 
 //
 //  Entab_Bytes: C
-// 
+//
 // Entab a string and return a new series.
 //
 REBSER *Entab_Bytes(REBYTE *bp, REBCNT index, REBCNT len, REBINT tabsize)
@@ -551,7 +551,7 @@ REBSER *Entab_Bytes(REBYTE *bp, REBCNT index, REBCNT len, REBINT tabsize)
 
 //
 //  Entab_Unicode: C
-// 
+//
 // Entab a string and return a new series.
 //
 REBSER *Entab_Unicode(REBUNI *bp, REBCNT index, REBCNT len, REBINT tabsize)
@@ -608,7 +608,7 @@ REBSER *Entab_Unicode(REBUNI *bp, REBCNT index, REBCNT len, REBINT tabsize)
 
 //
 //  Detab_Bytes: C
-// 
+//
 // Detab a string and return a new series.
 //
 REBSER *Detab_Bytes(REBYTE *bp, REBCNT index, REBCNT len, REBINT tabsize)
@@ -648,7 +648,7 @@ REBSER *Detab_Bytes(REBYTE *bp, REBCNT index, REBCNT len, REBINT tabsize)
 
 //
 //  Detab_Unicode: C
-// 
+//
 // Detab a unicode string and return a new series.
 //
 REBSER *Detab_Unicode(REBUNI *bp, REBCNT index, REBCNT len, REBINT tabsize)
@@ -699,7 +699,7 @@ REBSER *Detab_Unicode(REBUNI *bp, REBCNT index, REBCNT len, REBINT tabsize)
 
 //
 //  Change_Case: C
-// 
+//
 // Common code for string case handling.
 //
 void Change_Case(REBVAL *out, REBVAL *val, REBVAL *part, REBOOL upper)
@@ -751,7 +751,7 @@ void Change_Case(REBVAL *out, REBVAL *val, REBVAL *part, REBOOL upper)
 
 //
 //  Split_Lines: C
-// 
+//
 // Given a string series, split lines on CR-LF.
 // Series can be bytes or Unicode.
 //
