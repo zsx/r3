@@ -147,19 +147,11 @@ REBTYPE(Function)
 
         switch (sym) {
         case SYM_ADDR:
-            if (
-                IS_FUNCTION_RIN(value)
-                && GET_RIN_FLAG(VAL_FUNC_ROUTINE(value), ROUTINE_FLAG_CALLBACK)
-            ) {
-                SET_INTEGER(
-                    D_OUT, cast(REBUPT, RIN_DISPATCHER(VAL_FUNC_ROUTINE(value)))
-                );
-                return R_OUT;
-            }
-            if (
-                IS_FUNCTION_RIN(value)
-                && !GET_RIN_FLAG(VAL_FUNC_ROUTINE(value), ROUTINE_FLAG_CALLBACK)
-            ) {
+            if (IS_FUNCTION_RIN(value)) {
+                //
+                // The CFUNC is fabricated by the FFI if it's a callback, or
+                // just the wrapped DLL function if it's an ordinary routine
+                //
                 SET_INTEGER(
                     D_OUT, cast(REBUPT, RIN_CFUNC(VAL_FUNC_ROUTINE(value)))
                 );
@@ -285,7 +277,7 @@ REBNATIVE(func_class_of)
     else if (IS_FUNCTION_COMMAND(value))
         n = 4;
     else if (IS_FUNCTION_RIN(value)) {
-        if (!GET_RIN_FLAG(VAL_FUNC_ROUTINE(value), ROUTINE_FLAG_CALLBACK))
+        if (NOT(RIN_IS_CALLBACK(VAL_FUNC_ROUTINE(value))))
             n = 5;
         else
             n = 6;

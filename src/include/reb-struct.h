@@ -295,106 +295,121 @@ inline static REBOOL VAL_STRUCT_INACCESSIBLE(const RELVAL *v) {
     STU_FFTYPE(VAL_STRUCT(v))
 
 
-
 //=////////////////////////////////////////////////////////////////////////=//
 //
 //  ROUTINE SUPPORT
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// A routine is an interface to calling a C function, which uses the libffi
-// library.
+// "Routine info" used to be a specialized C structure, which referenced
+// Rebol functions/values/series.  This meant there had to be specialized
+// code in the garbage collector.  It actually went as far as to have a memory
+// pool for objects that was sizeof(Reb_Routine_Info), which complicates the
+// concerns further.
 //
-// !!! Previously, ROUTINE! was an ANY-FUNCTION! category (like NATIVE!,
-// COMMAND!, ACTION!, etc.)  Ren-C unified these under a single FUNCTION!
-// type for the purposes of interface (included in the elimination of the
-// CLOSURE! vs. FUNCTION! distinction).
+// That "invasive" approach is being gradually generalized to speak in the
+// natural vocabulary of Rebol values.  What enables the transition is that
+// arbitrary C allocations (such as an ffi_closure*) can use the new freeing
+// handler feature of a GC'd HANDLE! value.  So now "routine info" is just
+// a BLOCK! REBVAL*, which lives in the FUNC_BODY of a routine, and has some
+// HANDLE!s in it that array.
 //
-// Since MAKE ROUTINE! wouldn't work (without some hacks in the compatibility
-// layer), MAKE-ROUTINE was introduced as a native that returns a FUNCTION!.
-// This opens the door to having MAKE-ROUTINE be a user function which then
-// generates another user function which calls a simpler native to dispatch
-// its work.  That review is pending.
+// !!! An additional benefit is that if the structures used internally
+// are actual Rebol-manipulatable values, then that means more parts of the
+// FFI extension itself could be written as Rebol.  e.g. the FFI spec analysis
+// could be done with PARSE, as opposed to harder-to-edit-and-maintain
+// internal API C code.
+//
+// The layout of the array of the REBRIN* BLOCK! is as follows:
+//
+// [0] - The HANDLE! of a CFUNC*, obeying the interface of the C-format call.
+//       If it's a routine, then it's the pointer to a pre-existing function
+//       in the DLL that the routine intends to wrap.  If a callback, then
+//       it's a fabricated function pointer returned by ffi_closure_alloc,
+//       which presents the "thunk"...a C function that other C functions can
+//       call which will then delegate to Rebol to call the wrapped FUNCTION!.
+//
+//       Additionally, callbacks poke a data pointer into the HANDLE! with
+//       ffi_closure*.  (The closure allocation routine gives back a void* and
+//       not an ffi_closure* for some reason.  Perhaps because it takes a
+//       size that might be bigger than the size of a closure?)
+//
+// [1] - An INTEGER! indicating which ABI is used by the CFUNC (enum ffi_abi)
+
+// [2] - The LIBRARY! the CFUNC* lives in if a routine, or the FUNCTION! to
+//       be called if this is a callback.
+//
+// [3] - The "schema" of the return type.  This is either an INTEGER! (which
+//       is the FFI_TYPE constant of the return) or a BINARY! containing
+//       the bit pattern of a `Struct_Field` (it's held in a series to allow
+//       it to be referenced multiple places and participate in GC, though
+//       the ultimate goal is to just use OBJECT! here.)
+//
+// [4] - An ARRAY! of the argument schemas; each also INTEGER! or BINARY!,
+//       following the same pattern as the return value.
+//
+// [5] - A HANDLE! containing one ffi_cif*, or BLANK! if variadic.  The Call
+//       InterFace (CIF) for a C function with fixed arguments can be created
+//       once and then used many times.  For a variadic routine, it must be
+//       created on each call to match the number and types of arguments.
+//
+// [6] - A HANDLE! which is actually an array of ffi_type*, so a C array of
+//       pointers.  They refer into the CIF so the CIF must live as long
+//       as these references are to be used.  BLANK! if variadic.
+//
+// [7] - A LOGIC! of whether this routine is variadic.  Since variadic-ness is
+//       something that gets exposed in the FUNCTION! interface itself, this
+//       may become redundant as an internal property of the implementation.
 //
 
-struct Reb_Routine_Info {
-    struct Reb_Header header;
-
-    union {
-        struct {
-            REBLIB *lib;
-            CFUNC *cfunc;
-        } routine;
-        struct {
-            //
-            // The closure allocation routine gives back a void* and not
-            // an ffi_closure* for some reason.  (Perhaps because it takes
-            // a sizeof() that is >= size of closure, so may be bigger.)
-            //
-            ffi_closure *closure;
-            REBFUN *func;
-            void *dispatcher;
-        } callback;
-    } code;
-
-    // Here the "schema" is either an INTEGER! (which is the FFI_TYPE constant
-    // of the argument) or a HANDLE! containing a REBSER* of length 1 that
-    // contains a `Struct_Field` (it's held in a series to allow it to be
-    // referenced multiple places and participate in GC).
-    //
-    // !!! REBVALs are used here to simplify a GC-participating typed
-    // struct, with an eye to a future where the schemas are done with OBJECT!
-    // so that special GC behavior and C struct definitions is not necessary.
-    //
-    REBVAL ret_schema;
-    REBARR *args_schemas;
-
-    // The Call InterFace (CIF) for a C function with fixed arguments can
-    // be created once and then used many times.  For a variadic routine,
-    // it must be created to match the variadic arguments.  Hence this will
-    // be NULL for variadics.
-    //
-    REBSER *cif; // one ffi_cif long (for GC participation, fail()...)
-    REBSER *args_fftypes; // list of ffi_type*, must live as long as CIF does
-
-    ffi_abi abi; // an enum
-
-    // sizeof(Reb_Routine_Info) % 8 must be 0 for Make_Node()
-};
-
-
-enum {
-    ROUTINE_FLAG_MARK = 1 << 0, // routine was found during GC mark scan.
-    ROUTINE_FLAG_USED = 1 << 1,
-    ROUTINE_FLAG_CALLBACK = 1 << 2, // is a callback
-    ROUTINE_FLAG_VARIADIC = 1 << 3 // has FFI va_list interface
-};
-
-#define SET_RIN_FLAG(s,f) \
-    ((s)->header.bits |= (f))
-
-#define CLEAR_RIN_FLAG(s,f) \
-    ((s)->header.bits &= ~(f))
-
-#define GET_RIN_FLAG(s, f) \
-    LOGICAL((s)->header.bits & (f))
-
-// Routine Field Accessors
+#define RIN_AT(a, n) ARR_AT((a), (n)) // help locate indexed accesses
 
 inline static CFUNC *RIN_CFUNC(REBRIN *r)
-    { return r->code.routine.cfunc; }
+    { return VAL_HANDLE_CODE(RIN_AT(r, 0)); }
 
-inline static REBLIB *RIN_LIB(REBRIN *r)
-    { return r->code.routine.lib; }
+inline static ffi_abi RIN_ABI(REBRIN *r)
+    { return cast(ffi_abi, VAL_INT32(RIN_AT(r, 1))); }
 
-#define RIN_NUM_FIXED_ARGS(r) \
-    ARR_LEN((r)->args_schemas)
+inline static REBOOL RIN_IS_CALLBACK(REBRIN *r) {
+    if (IS_FUNCTION(RIN_AT(r, 2)))
+        return TRUE;
+    assert(IS_LIBRARY(RIN_AT(r, 2)) || IS_BLANK(RIN_AT(r, 2)));
+    return FALSE;
+}
 
-// !!! Should this be 1-based to be consistent with ARG() and PARAM() (or
-// should the D_ARG(N) 1-basedness legacy be changed to a C 0-based one?)
-//
-#define RIN_ARG_SCHEMA(r,n) \
-    KNOWN(ARR_AT((r)->args_schemas, (n)))
+inline static ffi_closure* RIN_CLOSURE(REBRIN *r) {
+    assert(RIN_IS_CALLBACK(r)); // only callbacks have ffi_closure
+    return cast(ffi_closure*, VAL_HANDLE_DATA(RIN_AT(r, 0)));
+}
+
+inline static REBLIB *RIN_LIB(REBRIN *r) {
+    assert(NOT(RIN_IS_CALLBACK(r)));
+    return VAL_LIBRARY(RIN_AT(r, 2));
+}
+
+inline static REBFUN *RIN_CALLBACK_FUNC(REBRIN *r) {
+    assert(RIN_IS_CALLBACK(r));
+    return VAL_FUNC(RIN_AT(r, 2));
+}
+
+inline static REBVAL *RIN_RET_SCHEMA(REBRIN *r)
+    { return KNOWN(RIN_AT(r, 3)); }
+
+inline static REBCNT RIN_NUM_FIXED_ARGS(REBRIN *r)
+    { return VAL_LEN_HEAD(RIN_AT(r, 4)); }
+
+inline static REBVAL *RIN_ARG_SCHEMA(REBRIN *r, REBCNT n) // 0-based arg index
+    { return KNOWN(VAL_ARRAY_AT_HEAD(RIN_AT(r, 4), (n))); }
+
+inline static ffi_cif *RIN_CIF(REBRIN *r)
+    { return cast(ffi_cif*, VAL_HANDLE_DATA(RIN_AT(r, 5))); }
+
+inline static ffi_type** RIN_ARG_TYPES(REBRIN *r)
+    { return cast(ffi_type**, VAL_HANDLE_DATA(RIN_AT(r, 6))); }
+
+inline static REBOOL RIN_IS_VARIADIC(REBRIN *r)
+    { return VAL_LOGIC(RIN_AT(r, 7)); }
+
 
 #define Get_FFType_Enum_Info(sym_out,kind_out,type) \
     cast(ffi_type*, Get_FFType_Enum_Info_Core((sym_out), (kind_out), (type)))
@@ -423,18 +438,3 @@ inline static void* SCHEMA_FFTYPE_CORE(const RELVAL *schema) {
 
 #define SCHEMA_FFTYPE(schema) \
     cast(ffi_type*, SCHEMA_FFTYPE_CORE(schema))
-
-#define RIN_RET_SCHEMA(r) \
-    (&(r)->ret_schema)
-
-#define RIN_DISPATCHER(r) \
-    ((r)->code.callback.dispatcher)
-
-#define RIN_CALLBACK_FUNC(r) \
-    ((r)->code.callback.func)
-
-#define RIN_CLOSURE(r) \
-    ((r)->code.callback.closure)
-
-#define RIN_ABI(r) \
-    cast(ffi_abi, (r)->abi)

@@ -94,7 +94,7 @@ inline static REBVAL *FUNC_PARAMS_HEAD(REBFUN *f) {
 }
 
 inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
-    return cast(REBRIN*, FUNC_BODY(f)->payload.handle.data);
+    return VAL_ARRAY(FUNC_BODY(f));
 }
 
 
@@ -233,7 +233,7 @@ inline static REBOOL IS_FUNCTION_HIJACKER(const RELVAL *v)
     { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Hijacker_Dispatcher); }
 
 inline static REBRIN *VAL_FUNC_ROUTINE(const RELVAL *v) {
-    return cast(REBRIN*, VAL_FUNC_BODY(v)->payload.handle.data);
+    return VAL_ARRAY(VAL_FUNC_BODY(v));
 }
 
 

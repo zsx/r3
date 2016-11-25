@@ -176,7 +176,6 @@ static void Assert_Basics(void)
     assert(sizeof(REBI64) == 8);
     assert(sizeof(REBSER) % 8 == 0);
     assert(sizeof(REBGOB) % 8 == 0);
-    assert(sizeof(REBRIN) % 8 == 0);
 }
 
 

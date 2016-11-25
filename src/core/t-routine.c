@@ -571,11 +571,13 @@ static REBUPT arg_to_ffi(
             break;}
 
         case REB_FUNCTION:{
-            if (!GET_RIN_FLAG(VAL_FUNC_ROUTINE(arg), ROUTINE_FLAG_CALLBACK))
-                fail (Error(RE_ONLY_CALLBACK_PTR));
+            if (!IS_FUNCTION_RIN(arg))
+                fail (Error(RE_ONLY_CALLBACK_PTR)); // actually routines too
 
-            void* dispatcher = RIN_DISPATCHER(VAL_FUNC_ROUTINE(arg));
-            memcpy(dest, &dispatcher, sizeof(dispatcher));
+            CFUNC* cfunc = RIN_CFUNC(VAL_FUNC_ROUTINE(arg));
+            if (sizeof(cfunc) != sizeof(void*)) // not necessarily true
+                fail (Error(RE_MISC));
+            memcpy(dest, &cfunc, sizeof(void*));
             break;}
 
         default:
@@ -742,7 +744,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
     REBCNT num_variable;
     REBDSP dsp_orig = DSP; // variadic args pushed to stack, so save base ptr
 
-    if (NOT(GET_RIN_FLAG(rin, ROUTINE_FLAG_VARIADIC)))
+    if (NOT(RIN_IS_VARIADIC(rin)))
         num_variable = 0;
     else {
         // The function specification should have one extra parameter for
@@ -843,13 +845,14 @@ REB_R Routine_Dispatcher(REBFRM *f)
     // of correct types--they were checked by Do_Core() before this point.)
     //
     for (; i < num_fixed; ++i) {
-        *SER_AT(void*, arg_offsets, i) = cast(void*, arg_to_ffi(
+        REBCNT offset = arg_to_ffi(
             store, // ffi-converted arg appended here
             NULL, // dest pointer must be NULL if store is non-NULL
             FRM_ARG(f, i + 1), // 1-based
             RIN_ARG_SCHEMA(rin, i), // 0-based
             FUNC_PARAM(FRM_FUNC(f), i + 1) // 1-based
-        ));
+        );
+        *SER_AT(void*, arg_offsets, i) = cast(void*, offset); // convert later
     }
 
     // If an FFI routine takes a fixed number of arguments, then its Call
@@ -859,28 +862,26 @@ REB_R Routine_Dispatcher(REBFRM *f)
     // be set to the RIN_CIF if it exists already--or to a dynamically
     // allocated CIF for the varargs case (which will need to be freed).
     //
-    REBSER *cif; // one ffi_cif element (in a REBSER for GC on fail())
-    REBSER *args_fftypes; // list of ffi_type* if num_variable > 0
+    // Note that because these pointers need to be freed by HANDLE! cleanup,
+    // they need to know the size.
+    //
+    ffi_cif *cif; // pre-made if not variadic, built for this call otherwise
+    ffi_type **args_fftypes; // ffi_type*[] if num_variable > 0
 
     if (num_variable == 0) {
-        cif = rin->cif;
+        cif = RIN_CIF(rin);
     }
     else {
-        assert(rin->cif == NULL);
+        assert(IS_BLANK(RIN_AT(rin, 5)));
 
         // CIF creation requires a C array of argument descriptions that is
         // contiguous across both the fixed and variadic parts.  Start by
         // filling in the ffi_type*s for all the fixed args.
         //
-        args_fftypes = Make_Series(
-            num_fixed + num_variable,
-            sizeof(ffi_type*),
-            MKS_NONE
-        );
+        args_fftypes = OS_ALLOC_N(ffi_type*, num_fixed + num_variable);
 
         for (i = 0; i < num_fixed; ++i)
-            *SER_AT(ffi_type*, args_fftypes, i)
-                = SCHEMA_FFTYPE(RIN_ARG_SCHEMA(rin, i));
+            args_fftypes[i] = SCHEMA_FFTYPE(RIN_ARG_SCHEMA(rin, i));
 
         REBDSP dsp;
         for (dsp = dsp_orig + 1; i < num_args; dsp += 2, ++i) {
@@ -899,7 +900,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
                 DS_AT(dsp + 1) // will error if this is not a block
             );
 
-            *SER_AT(ffi_type*, args_fftypes, i) = SCHEMA_FFTYPE(&schema);
+            args_fftypes[i] = SCHEMA_FFTYPE(&schema);
 
             INIT_TYPESET_NAME(&param, Canon(SYM_ELLIPSIS));
 
@@ -914,21 +915,24 @@ REB_R Routine_Dispatcher(REBFRM *f)
 
         DS_DROP_TO(dsp_orig); // done w/args (converted to bytes in `store`)
 
-        cif = Make_Series(1, sizeof(ffi_cif), MKS_NONE);
+        cif = OS_ALLOC(ffi_cif);
 
         ffi_status status = ffi_prep_cif_var( // "_var"-iadic prep_cif version
-            SER_HEAD(ffi_cif, cif),
+            cif,
             RIN_ABI(rin),
             num_fixed, // just fixed
             num_args, // fixed plus variable
             IS_BLANK(RIN_RET_SCHEMA(rin))
                 ? &ffi_type_void
                 : SCHEMA_FFTYPE(RIN_RET_SCHEMA(rin)), // return FFI type
-            SER_HEAD(ffi_type*, args_fftypes) // arguments FFI types
+            args_fftypes // arguments FFI types
         );
 
-        if (status != FFI_OK)
+        if (status != FFI_OK) {
+            OS_FREE(cif);
+            OS_FREE(args_fftypes);
             fail (Error(RE_MISC)); // Couldn't prep CIF_VAR
+        }
     }
 
     // Now that all the additions to store have been made, we want to change
@@ -955,7 +959,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
         SET_UNREADABLE_BLANK(&Callback_Error); // !!! is it already?
 
         ffi_call(
-            SER_HEAD(ffi_cif, cif),
+            cif,
             RIN_CFUNC(rin),
             ret_offset, // actually a real pointer now (no longer an offset)
             (num_args == 0)
@@ -978,8 +982,8 @@ REB_R Routine_Dispatcher(REBFRM *f)
     Free_Series(store);
 
     if (num_variable != 0) {
-        Free_Series(cif);
-        Free_Series(args_fftypes);
+        OS_FREE(cif);
+        OS_FREE(args_fftypes);
     }
 
     // Note: cannot "throw" a Rebol value across an FFI boundary.
@@ -989,18 +993,36 @@ REB_R Routine_Dispatcher(REBFRM *f)
 }
 
 
+// The GC-able HANDLE! used by callbacks contains a ffi_closure pointer that
+// needs to be freed when the handle references go away (really only one
+// reference is likely--in the FUNC_BODY of the callback, but still this is
+// how the GC gets hooked in Ren-C)
 //
-//  Free_Routine: C
-//
-void Free_Routine(REBRIN *rin)
-{
-    CLEAR_RIN_FLAG(rin, ROUTINE_FLAG_MARK);
-    if (GET_RIN_FLAG(rin, ROUTINE_FLAG_CALLBACK))
-        ffi_closure_free(RIN_CLOSURE(rin));
+static void cleanup_ffi_closure(const REBVAL *v) {
+    assert(IS_HANDLE(v));
+    assert(v->payload.handle.code != NULL); // the cfunc thunk within closure
+    assert(v->payload.handle.data != NULL);
 
-    // cif and ffargs are GC-managed, will free themselves
+    ffi_closure_free(cast(ffi_closure*, v->payload.handle.data));
+}
 
-    Free_Node(RIN_POOL, rin);
+// Because HANDLE! has enough bits to store the pointer to a REBSER node for
+// a singular array, and the data, and then another void* size element left
+// over, the decision was to allow a handle to store more than one pointer...
+// one code and one data.  But that doesn't leave any info for a size, and
+// allocations from Rebol's memory manager do not encode the size in that
+// allocation.  It may be wiser in the long run to make the second value a
+// size, especially given that those wanting two HANDLE!s in one slot can
+// do so using a pairing series now, relatively efficiently.  (One of the
+// original motives was that Ren-Cpp needed to store a function pointer and
+// a data pointer in a function body.)
+// 
+static void cleanup_os_alloc(const REBVAL *v) {
+    assert(IS_HANDLE(v));
+    assert(v->payload.handle.code == NULL);
+    assert(v->payload.handle.data != NULL);
+
+    OS_FREE(v->payload.handle.data); // OS_FREE or free() knows the size
 }
 
 
@@ -1024,7 +1046,7 @@ static void callback_dispatcher(
         return;
 
     REBRIN *rin = cast(REBRIN*, user_data);
-    assert(!GET_RIN_FLAG(rin, ROUTINE_FLAG_VARIADIC));
+    assert(!RIN_IS_VARIADIC(rin));
     assert(cif->nargs == RIN_NUM_FIXED_ARGS(rin));
 
     // We do not want to longjmp() out of the callback if there is an error.
@@ -1107,15 +1129,15 @@ static void callback_dispatcher(
 //     return: [type] "note"
 // ]
 //
-REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec) {
+static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
     assert(IS_BLOCK(ffi_spec));
 
-    REBRIN *r = cast(REBRIN*, Make_Node(RIN_POOL));
-    assert(r->header.bits == 0);
-    SET_RIN_FLAG(r, ROUTINE_FLAG_USED); // so pooled node knows it's in use
-    r->abi = FFI_DEFAULT_ABI;
+    REBRIN *r = Make_Array(8);
 
-    INIT_CELL_IF_DEBUG(RIN_RET_SCHEMA(r));
+    SET_UNREADABLE_BLANK(RIN_AT(r, 0)); // caller updates to be cfunc handle
+    SET_INTEGER(RIN_AT(r, 1), abi);
+    SET_UNREADABLE_BLANK(RIN_AT(r, 2)); // caller updates to LIBRARY/FUNCTION
+
     SET_BLANK(RIN_RET_SCHEMA(r)); // blank means returns void (the default)
 
     const REBCNT capacity_guess = 8; // !!! Magic number...why 8? (can grow)
@@ -1138,11 +1160,12 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec) {
     //
     // !!! Should the spec analysis be allowed to do evaluation? (it does)
     //
-    r->args_schemas = Make_Array(capacity_guess);
-    MANAGE_ARRAY(r->args_schemas);
-    PUSH_GUARD_ARRAY(r->args_schemas);
+    REBARR *args_schemas = Make_Array(capacity_guess);
+    MANAGE_ARRAY(args_schemas);
+    PUSH_GUARD_ARRAY(args_schemas);
 
     REBCNT num_fixed = 0; // number of fixed (non-variadic) arguments
+    REBOOL is_variadic = FALSE; // default to not being variadic
 
     RELVAL *item = VAL_ARRAY_AT(ffi_spec);
     for (; NOT_END(item); ++item) {
@@ -1155,10 +1178,10 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec) {
             REBSTR *name = VAL_WORD_SPELLING(item);
 
             if (SAME_STR(name, Canon(SYM_ELLIPSIS))) { // variadic
-                if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC))
+                if (is_variadic)
                     fail (Error_Invalid_Arg(KNOWN(item))); // duplicate "..."
 
-                SET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC);
+                is_variadic = TRUE;
 
                 REBVAL *param = Alloc_Tail_Array(paramlist);
 
@@ -1176,7 +1199,7 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec) {
                 INIT_VAL_PARAM_CLASS(param, PARAM_CLASS_NORMAL);
             }
             else { // ordinary argument
-                if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC))
+                if (is_variadic)
                     fail (Error_Invalid_Arg(KNOWN(item))); // variadic is final
 
                 REBVAL *param = Alloc_Tail_Array(paramlist);
@@ -1187,7 +1210,7 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec) {
                 COPY_VALUE(&block, item, VAL_SPECIFIER(ffi_spec));
 
                 Schema_From_Block_May_Fail(
-                    Alloc_Tail_Array(r->args_schemas), // schema (out)
+                    Alloc_Tail_Array(args_schemas), // schema (out)
                     param, // param (out)
                     &block // block (in)
                 );
@@ -1227,58 +1250,62 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec) {
         }
     }
 
-    TERM_ARRAY_LEN(r->args_schemas, num_fixed);
-    ASSERT_ARRAY(r->args_schemas);
+    SET_LOGIC(RIN_AT(r, 7), is_variadic);
 
-    if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC)) {
+    TERM_ARRAY_LEN(r, 8);
+    ASSERT_ARRAY(args_schemas);
+    Val_Init_Block(RIN_AT(r, 4), args_schemas);
+
+    if (RIN_IS_VARIADIC(r)) {
         //
         // Each individual call needs to use `ffi_prep_cif_var` to make the
         // proper variadic CIF for that call.
         //
-        r->cif = NULL;
-        r->args_fftypes = NULL;
+        SET_BLANK(RIN_AT(r, 5));
+        SET_BLANK(RIN_AT(r, 6));
     }
     else {
         // The same CIF can be used for every call of the routine if it is
-        // not variadic.  The fftypes array pointer used must stay alive
-        // for the entire the lifetime of the CIF, apparently :-/
+        // not variadic.  The CIF must stay alive for the entire the lifetime
+        // of the args_fftypes, apparently.
         //
-        r->cif = Make_Series(1, sizeof(ffi_cif), MKS_NONE);
+        ffi_cif *cif = OS_ALLOC(ffi_cif);
 
+        ffi_type **args_fftypes;
         if (num_fixed == 0)
-            r->args_fftypes = NULL; // 0 size series illegal (others wasteful)
+            args_fftypes = NULL;
         else
-            r->args_fftypes = Make_Series(
-                num_fixed, sizeof(ffi_type*), MKS_NONE
-            );
+            args_fftypes = OS_ALLOC_N(ffi_type*, num_fixed);
 
         REBCNT i;
         for (i = 0; i < num_fixed; ++i)
-            *SER_AT(ffi_type*, r->args_fftypes, i)
-                = SCHEMA_FFTYPE(RIN_ARG_SCHEMA(r, i));
+            args_fftypes[i] = SCHEMA_FFTYPE(RIN_ARG_SCHEMA(r, i));
 
         if (
             FFI_OK != ffi_prep_cif(
-                SER_HEAD(ffi_cif, r->cif),
-                RIN_ABI(r),
+                cif,
+                abi,
                 num_fixed,
                 IS_BLANK(RIN_RET_SCHEMA(r))
                     ? &ffi_type_void
                     : SCHEMA_FFTYPE(RIN_RET_SCHEMA(r)),
-                (r->args_fftypes == NULL)
-                    ? NULL
-                    : SER_HEAD(ffi_type*, r->args_fftypes)
+                args_fftypes // NULL if 0 fixed args
             )
         ){
             fail (Error(RE_MISC)); // !!! Couldn't prep cif...
         }
 
-        MANAGE_SERIES(r->cif);
-        if (r->args_fftypes)
-            MANAGE_SERIES(r->args_fftypes); // must have same lifetime as cif
+        Init_Handle_Managed(RIN_AT(r, 5), NULL, cif, &cleanup_os_alloc);
+
+        if (args_fftypes == NULL)
+            SET_BLANK(RIN_AT(r, 6));
+        else
+            Init_Handle_Managed(
+                RIN_AT(r, 6), NULL, args_fftypes, &cleanup_os_alloc
+            ); // lifetime must match cif lifetime
     }
 
-    DROP_GUARD_ARRAY(r->args_schemas);
+    DROP_GUARD_ARRAY(args_schemas);
 
     // Now fill in the canon value of the paramlist so it is an actual "REBFUN"
     //
@@ -1286,9 +1313,7 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec) {
     rootparam->payload.function.paramlist = paramlist;
     rootparam->extra.binding = NULL;
 
-    // The "body" value of a routine is a handle which points to the routine
-    // info.  This is available to the Routine_Dispatcher when the function
-    // gets called.
+    // The "body" value of a routine is the routine info array.
     //
     SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
@@ -1297,11 +1322,7 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec) {
         &Routine_Dispatcher,
         NULL // no underlying function, this is fundamental
     );
-    Init_Handle_Simple(
-        FUNC_BODY(fun),
-        NULL, // code
-        cast(REBRIN*, r) // data
-    );
+    Val_Init_Block(FUNC_BODY(fun), r);
 
     ARR_SERIES(paramlist)->link.meta = NULL;
 
@@ -1334,6 +1355,12 @@ REBNATIVE(make_routine)
 {
     INCLUDE_PARAMS_OF_MAKE_ROUTINE;
 
+    ffi_abi abi;
+    if (REF(abi))
+        abi = Abi_From_Word(ARG(abi_type));
+    else
+        abi = FFI_DEFAULT_ABI;
+
     // Make sure library wasn't closed with CLOSE
     //
     REBLIB *lib = VAL_LIBRARY(ARG(lib));
@@ -1358,14 +1385,11 @@ REBNATIVE(make_routine)
 
     // Process the parameter types into a function, then fill it in
 
-    REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec));
+    REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec), abi);
     REBRIN *r = FUNC_ROUTINE(fun);
 
-    if (REF(abi))
-        r->abi = Abi_From_Word(ARG(abi_type));
-
-    r->code.routine.cfunc = cfunc;
-    r->code.routine.lib = lib;
+    Init_Handle_Simple(RIN_AT(r, 0), cfunc, NULL);
+    *RIN_AT(r, 2) = *ARG(lib);
 
     *D_OUT = *FUNC_VALUE(fun);
     return R_OUT;
@@ -1395,6 +1419,12 @@ REBNATIVE(make_routine_raw)
 {
     INCLUDE_PARAMS_OF_MAKE_ROUTINE_RAW;
 
+    ffi_abi abi;
+    if (REF(abi))
+        abi = Abi_From_Word(ARG(abi_type));
+    else
+        abi = FFI_DEFAULT_ABI;
+
     // Cannot cast directly to a function pointer from a 64-bit value
     // on 32-bit systems; first cast to (U)nsigned int that holds (P)oin(T)er
     //
@@ -1403,14 +1433,12 @@ REBNATIVE(make_routine_raw)
     if (cfunc == NULL)
         fail (Error_Invalid_Arg(ARG(pointer)));
 
-    REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec));
+    REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec), abi);
     REBRIN *r = FUNC_ROUTINE(fun);
 
-    if (REF(abi))
-        r->abi = Abi_From_Word(ARG(abi_type));
-
-    r->code.routine.cfunc = cfunc;
-    r->code.routine.lib = NULL;
+    Init_Handle_Simple(RIN_AT(r, 0), cfunc, NULL);
+    SET_INTEGER(RIN_AT(r, 1), abi);
+    SET_BLANK(RIN_AT(r, 2)); // no LIBRARY! in this case.
 
     *D_OUT = *FUNC_VALUE(fun);
     return R_OUT;
@@ -1437,33 +1465,42 @@ REBNATIVE(make_callback)
 {
     INCLUDE_PARAMS_OF_MAKE_CALLBACK;
 
-    REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec));
+    ffi_abi abi;
+    if (REF(abi))
+        abi = Abi_From_Word(ARG(abi_type));
+    else
+        abi = FFI_DEFAULT_ABI;
+
+    REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec), abi);
     REBRIN *r = FUNC_ROUTINE(fun);
 
-    if (REF(abi))
-        r->abi = Abi_From_Word(ARG(abi_type));
-
-    RIN_CALLBACK_FUNC(r) = VAL_FUNC(ARG(action));
-
-    r->code.callback.closure = cast(ffi_closure*, ffi_closure_alloc(
-        sizeof(ffi_closure), &RIN_DISPATCHER(r)
+    void *thunk; // actually CFUNC (FFI uses void*, may not be same size!)
+    ffi_closure *closure = cast(ffi_closure*, ffi_closure_alloc(
+        sizeof(ffi_closure), &thunk
     ));
 
-    if (RIN_CLOSURE(r) == NULL)
+    if (closure == NULL)
         fail (Error(RE_MISC)); // couldn't allocate closure
 
     ffi_status status = ffi_prep_closure_loc(
-        RIN_CLOSURE(r),
-        SER_HEAD(ffi_cif, r->cif),
-        callback_dispatcher,
-        r,
-        RIN_DISPATCHER(r)
+        closure,
+        RIN_CIF(r),
+        callback_dispatcher, // when thunk is called it calls this function...
+        r, // ...and this piece of data is passed to callback_dispatcher
+        thunk
     );
 
     if (status != FFI_OK)
         fail (Error(RE_MISC)); // couldn't prep closure
 
-    SET_RIN_FLAG(r, ROUTINE_FLAG_CALLBACK);
+    Init_Handle_Managed(
+        RIN_AT(r, 0),
+        cast(CFUNC*, thunk),
+        closure,
+        &cleanup_ffi_closure
+    );
+    SET_INTEGER(RIN_AT(r, 1), abi);
+    *RIN_AT(r, 2) = *ARG(action);
 
     *D_OUT = *FUNC_VALUE(fun);
     return R_OUT;

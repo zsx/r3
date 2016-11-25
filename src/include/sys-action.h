@@ -223,4 +223,7 @@ typedef REB_R (*REBPAF)(REBFRM *frame_, REBCTX *p, REBSYM a);
 // COMMAND! function
 typedef REB_R (*CMD_FUNC)(REBCNT n, REBSER *args);
 
-typedef struct Reb_Routine_Info REBRIN;
+// "Routine INfo" was once a specialized C structure, now an ordinary Rebol
+// REBARR pointer.
+//
+typedef REBARR REBRIN;

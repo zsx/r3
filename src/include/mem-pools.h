@@ -43,11 +43,8 @@
 **
 ***********************************************************************/
 {
-    struct  rebol_mem_segment *next;
-    REBCNT  size;
-#if defined(__LP64__) || defined (__LLP64__)
-//  REBCNT  padding; /* make if 16 byte long, such that the next element is pointer aligned */
-#endif
+    struct rebol_mem_segment *next;
+    REBUPT size;
 } REBSEG;
 
 
@@ -97,7 +94,6 @@
     MEM_BIG_POOLS   = MEM_MID_POOLS   +  4, // larger pools
     SER_POOL     = MEM_BIG_POOLS,
     GOB_POOL,
-    RIN_POOL, /* routine info */
     SYSTEM_POOL,
     MAX_POOLS
 };

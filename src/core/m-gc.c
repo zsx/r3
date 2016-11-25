@@ -410,85 +410,37 @@ static void Queue_Mark_Field_Deep(
 // one will have to call Propagate_All_GC_Marks() to have the
 // deep transitive closure completely marked.
 //
-// Note: only referenced blocks are queued, the routine's RValue
-// is processed via recursion.  Deeply nested RValue structs could
-// in theory overflow the C stack.
+// !!! Though REBRIN has been converted to an ordinary array that ideally
+// doesn't need any added marking, it has residual marking necessary for the
+// moment.  This is because the schema structs...which are OBJECT!-like things
+// have a C struct-based implementation for the fields.  Besides it putting
+// more brittle bit-fiddling in the core, the schemas were processed by
+// recursion instead of queuing.  Deeply nested schemas could overflow the
+// stack.
+//
+// This problem will be eliminated when schemas are replaced with OBJECT!s.
 //
 static void Queue_Mark_Routine_Deep(REBRIN *r)
 {
-    SET_RIN_FLAG(r, ROUTINE_FLAG_MARK);
-
-    // Mark the descriptions for the return type and argument types.
-    //
-    // !!! This winds up being a bit convoluted, because an OBJECT!-like thing
-    // is being implemented as a HANDLE! to a series, in order to get the
-    // behavior of multiple references and GC'd when the last goes away.
-    // This "schema" concept also allows the `ffi_type` descriptive structures
-    // to be garbage collected.  Replace with OBJECT!s in the future.
-
-    if (IS_HANDLE(&r->ret_schema)) {
-        REBSER *schema = cast(REBSER*, VAL_HANDLE_DATA(&r->ret_schema));
-        Mark_Series_Only(schema);
+    if (IS_BINARY(RIN_RET_SCHEMA(r))) {
+        REBSER *schema = cast(REBSER*, RIN_RET_SCHEMA(r));
         Queue_Mark_Field_Deep(
             SER_HEAD(struct Struct_Field, schema), NULL, 0
         );
     }
-    else // special, allows NONE (e.g. void return)
-        assert(IS_INTEGER(&r->ret_schema) || IS_BLANK(&r->ret_schema));
+    else // special, allows BLANK (e.g. void return)
+        assert(IS_INTEGER(RIN_RET_SCHEMA(r)) || IS_BLANK(RIN_RET_SCHEMA(r)));
 
-    Queue_Mark_Array_Deep(r->args_schemas);
     REBCNT n;
-    for (n = 0; n < ARR_LEN(r->args_schemas); ++n) {
-        if (IS_HANDLE(ARR_AT(r->args_schemas, n))) {
-            REBSER *schema
-                = cast(REBSER*, VAL_HANDLE_DATA(ARR_AT(r->args_schemas, n)));
-            Mark_Series_Only(schema);
+    for (n = 0; n < RIN_NUM_FIXED_ARGS(r); ++n) {
+        if (IS_BINARY(RIN_ARG_SCHEMA(r, n))) {
+            REBSER *schema = VAL_SERIES(RIN_ARG_SCHEMA(r, n));
             Queue_Mark_Field_Deep(
                 SER_HEAD(struct Struct_Field, schema), NULL, 0
             );
         }
         else
-            assert(IS_INTEGER(ARR_AT(r->args_schemas, n)));
-    }
-
-    if (GET_RIN_FLAG(r, ROUTINE_FLAG_VARIADIC)) {
-        assert(r->cif == NULL);
-        assert(r->args_fftypes == NULL);
-    }
-    else {
-        // !!! r->cif should always be set to something in non-variadic
-        // routines, but currently the implementation has to tolerate partially
-        // formed routines...because evaluations are called during make-routine
-        // before the CIF is ready to be created or not.
-        //
-        if (r->cif)
-            Mark_Series_Only(r->cif);
-        if (r->args_fftypes)
-            Mark_Series_Only(r->args_fftypes);
-    }
-
-    if (GET_RIN_FLAG(r, ROUTINE_FLAG_CALLBACK)) {
-        REBFUN *cb_func = RIN_CALLBACK_FUNC(r);
-        if (cb_func) {
-            // Should take care of spec, body, etc.
-            Queue_Mark_Array_Deep(FUNC_PARAMLIST(cb_func));
-        }
-        else {
-            // !!! There is a call during MAKE_Routine that does an evaluation
-            // while creating a callback function, before the CALLBACK_FUNC
-            // has been set.  If the garbage collector is invoked at that
-            // time, this will happen.  This should be reviewed to see if
-            // it can be done another way--e.g. by not making the relevant
-            // series visible to the garbage collector via MANAGE_SERIES()
-            // until fully constructed.
-        }
-    } else {
-        if (RIN_LIB(r))
-            Queue_Mark_Array_Deep(RIN_LIB(r));
-        else {
-            // may be null if called before the routine is fully constructed
-            // !!! Review if this can be made not possible
-        }
+            assert(IS_INTEGER(RIN_ARG_SCHEMA(r, n)));
     }
 }
 
@@ -1366,42 +1318,6 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Gobs(void)
 
 
 //
-//  Sweep_Routines: C
-//
-// Free all unmarked routines.
-//
-// Scans all routines in all segments that are part of the
-// RIN_POOL. Free routines that have not been marked.
-//
-ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Routines(void)
-{
-    REBCNT count = 0;
-
-    REBSEG *seg;
-    for (seg = Mem_Pools[RIN_POOL].segs; seg; seg = seg->next) {
-        REBRIN *rin = cast(REBRIN*, seg + 1);
-        REBCNT n;
-        for (n = Mem_Pools[RIN_POOL].units; n > 0; n--) {
-            if (IS_FREE_NODE(rin))
-                continue; // not used
-
-            assert(GET_RIN_FLAG(rin, ROUTINE_FLAG_USED)); // redundant?
-            if (GET_RIN_FLAG(rin, ROUTINE_FLAG_MARK))
-                CLEAR_RIN_FLAG(rin, ROUTINE_FLAG_MARK);
-            else {
-                Free_Routine(rin);
-                ++count;
-            }
-
-            ++rin;
-        }
-    }
-
-    return count;
-}
-
-
-//
 //  Propagate_All_GC_Marks: C
 //
 // The Mark Stack is a series containing series pointers.  They
@@ -1582,10 +1498,6 @@ REBCNT Recycle_Core(REBOOL shutdown)
     }
 
     // SWEEPING PHASE
-
-    // this needs to run before Sweep_Series(), because Routine has series
-    // with pointers, which can't be simply discarded by Sweep_Series
-    count = Sweep_Routines();
 
     count += Sweep_Series();
     count += Sweep_Gobs();
