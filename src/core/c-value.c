@@ -255,7 +255,7 @@ void Assert_No_Relative(REBARR *array, REBOOL deep)
             PROBE_MSG(item, "relative item");
             Panic_Array(array);
         }
-        if (!IS_VOID_OR_SAFE_TRASH(item) && ANY_ARRAY(item) && deep)
+        if (!IS_UNREADABLE_IF_DEBUG(item) && ANY_ARRAY(item) && deep)
              Assert_No_Relative(VAL_ARRAY(item), deep);
         ++item;
     }

@@ -141,7 +141,7 @@
 #else
     enum {
         VOID_FLAG_NOT_TRASH = (1 << TYPE_SPECIFIC_BIT),
-        VOID_FLAG_SAFE_TRASH = (2 << TYPE_SPECIFIC_BIT)
+        VOID_FLAG_SAFE_TRASH = (2 << TYPE_SPECIFIC_BIT) // "unreadable blank"
     };
 
     inline static REBOOL IS_TRASH_DEBUG(const RELVAL *v) {
@@ -414,16 +414,21 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 // as not containing any value at all.
 //
 // In the debug build, there is a special flag that if it is not set, the
-// cell is assumed to be "trash".  This is what's used to fill memory that
+// void cell is assumed to be "trash".  This is used to fill memory that
 // in the release build would be uninitialized data.  To prevent it from being
 // inspected while it's in an invalid state, VAL_TYPE used on a trash value
 // will assert in the debug build.
 //
-// IS_TRASH_DEBUG() can be used to test for trash, but in debug builds only.
 // The macros for setting trash will compile in both debug and release builds,
 // though an unsafe trash will be a NOOP in release builds.  (So the "trash"
 // will be uninitialized memory, in that case.)  A safe trash set turns into
-// a regular void in release builds.
+// a blank in release builds, hence it has the name "UNREADABLE_BLANK"...
+// see the definitions there.
+//
+// !!! It would probably be clearer if the debug build used REB_BLANK for the
+// unreadable blanks, with special bits.  But this would slow down testing for
+// the trash types and trash bits, which already drag down the debug build
+// as it is.  So it's better to have a quicker check.
 //
 // Doesn't need payload...so the debug build adds information in Reb_Track
 // which can be viewed in the debug watchlist (or shown by PANIC_VALUE)
@@ -441,12 +446,6 @@ inline static REBOOL IS_VOID(const RELVAL *v)
 
     #define SET_TRASH_IF_DEBUG(v) \
         NOOP
-
-    #define SET_TRASH_SAFE(v) \
-        SET_VOID(v)
-
-    #define IS_VOID_OR_SAFE_TRASH(v) \
-        IS_VOID(v)
 
     inline static REBVAL *SINK(RELVAL *v) {
         return cast(REBVAL*, v);
@@ -467,30 +466,11 @@ inline static REBOOL IS_VOID(const RELVAL *v)
         Set_Track_Payload_Debug(v, file, line);
     }
 
-    inline static void Set_Trash_Safe_Debug(
-        RELVAL *v, const char *file, int line
-    ){
-        VAL_RESET_HEADER(v, REB_MAX_VOID);
-        SET_VAL_FLAG(v, VOID_FLAG_SAFE_TRASH);
-        Set_Track_Payload_Debug(v, file, line);
-    }
-
     #define SET_VOID(v) \
         Set_Void_Debug((v), __FILE__, __LINE__)
 
     #define SET_TRASH_IF_DEBUG(v) \
         Set_Trash_Debug((v), __FILE__, __LINE__)
-
-    #define SET_TRASH_SAFE(v) \
-        Set_Trash_Safe_Debug((v), __FILE__, __LINE__)
-
-    inline static REBOOL IS_VOID_OR_SAFE_TRASH(const RELVAL *v) {
-        if (IS_TRASH_DEBUG(v) && GET_VAL_FLAG(v, VOID_FLAG_SAFE_TRASH))
-            return TRUE; // only the GC should treat "safe" trash as void
-        if (IS_VOID(v))
-            return TRUE;
-        return FALSE;
-    }
 
     inline static REBVAL *Sink_Debug(RELVAL *v, const char *file, int line) {
         //
@@ -574,8 +554,19 @@ inline static REBOOL IS_VOID(const RELVAL *v)
 // type, BLANK! also carries a header bit that can be checked for conditional
 // falsehood, to save on needing to separately test the type.
 //
+// In the debug build, it is possible to make an "unreadable" blank.  This
+// will behave neutrally as far as the garbage collector is concerned, so
+// it can be used as a placeholder for a value that will be filled in at
+// some later time--spanning an evaluation.  But if the special IS_UNREADABLE
+// checks are not used, it will not respond to IS_BLANK() and will also
+// refuse VAL_TYPE() checks.  This is useful anytime a placeholder is needed
+// in a slot temporarily where the code knows it's supposed to come back and
+// fill in the correct thing later...where the asserts serve as a reminder
+// if that fill in never happens.
+//
 // Doesn't need payload...so the debug build adds information in Reb_Track
-// which can be viewed in the debug watchlist (or shown by PANIC_VALUE)
+// which can be viewed in the debug watchlist (or shown by PANIC_VALUE).
+// This is particularly useful when getting an assertion on UNREADABLE blanks.
 //
 
 inline static void SET_BLANK_COMMON(RELVAL *v) {
@@ -586,6 +577,18 @@ inline static void SET_BLANK_COMMON(RELVAL *v) {
 #ifdef NDEBUG
     #define SET_BLANK(v) \
         SET_BLANK_COMMON(v)
+
+    #define SET_UNREADABLE_BLANK(v) \
+        SET_BLANK(v)
+
+     #define IS_UNREADABLE_IF_DEBUG(v) \
+        FALSE
+
+    #define IS_UNREADABLE_OR_VOID(v) \
+        IS_VOID(v)
+
+    #define IS_BLANK_RAW(v) \
+        IS_BLANK(v)
 #else
     inline static void SET_BLANK_Debug(
         RELVAL *v, const char *file, int line
@@ -597,6 +600,35 @@ inline static void SET_BLANK_COMMON(RELVAL *v) {
     }
     #define SET_BLANK(v) \
         SET_BLANK_Debug((v), __FILE__, __LINE__)
+
+    inline static void Set_Unreadable_Blank_Debug(
+        RELVAL *v, const char *file, int line
+    ){
+        VAL_RESET_HEADER(v, REB_MAX_VOID);
+        SET_VAL_FLAG(v, VOID_FLAG_SAFE_TRASH);
+        Set_Track_Payload_Debug(v, file, line);
+    }
+
+    #define SET_UNREADABLE_BLANK(v) \
+        Set_Unreadable_Blank_Debug((v), __FILE__, __LINE__)
+
+    inline static REBOOL IS_UNREADABLE_IF_DEBUG(const RELVAL *v) {
+        if (IS_TRASH_DEBUG(v) && GET_VAL_FLAG(v, VOID_FLAG_SAFE_TRASH))
+            return TRUE;
+        return FALSE;
+    }
+
+    inline static REBOOL IS_UNREADABLE_OR_VOID(const RELVAL *v) {
+        if (IS_UNREADABLE_IF_DEBUG(v) || IS_VOID(v))
+            return TRUE;
+        return FALSE;
+    }
+
+    inline static REBOOL IS_BLANK_RAW(const RELVAL *v) {
+        if (IS_UNREADABLE_IF_DEBUG(v) || IS_BLANK(v))
+            return TRUE;
+        return FALSE;
+    }
 #endif
 
 #define BLANK_VALUE \

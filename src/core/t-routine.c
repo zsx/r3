@@ -952,7 +952,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
     //
     // Note that the "offsets" are now actually pointers.
     {
-        SET_VOID(&Callback_Error); // !!! guarantee it's already void?
+        SET_UNREADABLE_BLANK(&Callback_Error); // !!! is it already?
 
         ffi_call(
             SER_HEAD(ffi_cif, cif),
@@ -963,7 +963,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
                 : SER_HEAD(void*, arg_offsets) // also real pointers now
         );
 
-        if (!IS_VOID(&Callback_Error))
+        if (!IS_BLANK_RAW(&Callback_Error))
             fail (VAL_CONTEXT(&Callback_Error)); // asserts if not ERROR!
     }
 
@@ -1020,7 +1020,7 @@ static void callback_dispatcher(
     void **args,
     void *user_data
 ){
-    if (!IS_VOID(&Callback_Error)) // !!!is this possible?
+    if (!IS_BLANK_RAW(&Callback_Error)) // !!!is this possible?
         return;
 
     REBRIN *rin = cast(REBRIN*, user_data);

@@ -156,7 +156,7 @@ inline static void DS_PUSH(const REBVAL *v) {
         (DS_Index = dsp, NOOP)
 #else
     #define DS_DROP \
-        (SET_TRASH_SAFE(DS_TOP), --DS_Index, NOOP)
+        (SET_UNREADABLE_BLANK(DS_TOP), --DS_Index, NOOP)
 
     inline static void DS_DROP_TO(REBDSP dsp) {
         assert(DSP >= dsp);

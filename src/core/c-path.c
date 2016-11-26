@@ -166,7 +166,7 @@ REBOOL Do_Path_Throws_Core(
     // will do, which is unset in release builds.
     //
     if (opt_setval)
-        SET_TRASH_SAFE(out);
+        SET_UNREADABLE_BLANK(out);
 
     // None of the values passed in can live on the data stack, because
     // they might be relocated during the path evaluation process.

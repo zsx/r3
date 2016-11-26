@@ -611,7 +611,7 @@ static void Mark_Frame_Stack_Deep(void)
 
         // For uniformity of assumption, f->out is always maintained as GC safe
         //
-        if (!IS_END(f->out) && !IS_VOID_OR_SAFE_TRASH(f->out))
+        if (!IS_END(f->out) && !IS_UNREADABLE_OR_VOID(f->out))
             Queue_Mark_Value_Deep(f->out); // never NULL
 
         if (NOT(Is_Any_Function_Frame(f))) {
@@ -623,7 +623,7 @@ static void Mark_Frame_Stack_Deep(void)
             continue;
         }
 
-        if (!IS_END(&f->cell) && !IS_VOID_OR_SAFE_TRASH(&f->cell))
+        if (!IS_END(&f->cell) && !IS_UNREADABLE_OR_VOID(&f->cell))
             Queue_Mark_Value_Deep(&f->cell);
 
         Queue_Mark_Array_Deep(FUNC_PARAMLIST(f->func)); // never NULL
@@ -639,7 +639,7 @@ static void Mark_Frame_Stack_Deep(void)
             if (
                 f->refine // currently allowed to be NULL
                 && !IS_END(f->refine)
-                && !IS_VOID_OR_SAFE_TRASH(f->refine)
+                && !IS_UNREADABLE_OR_VOID(f->refine)
                 && Is_Value_Managed(f->refine)
             ) {
                 Queue_Mark_Value_Deep(f->refine);
@@ -648,7 +648,7 @@ static void Mark_Frame_Stack_Deep(void)
             if (
                 f->special
                 && !IS_END(f->special)
-                && !IS_VOID_OR_SAFE_TRASH(f->special)
+                && !IS_UNREADABLE_OR_VOID(f->special)
                 && Is_Value_Managed(f->special)
             ) {
                 Queue_Mark_Value_Deep(f->special);
@@ -665,7 +665,6 @@ static void Mark_Frame_Stack_Deep(void)
         // to be handed to normal GC.
         //
         if (f->varlist != NULL && IS_ARRAY_MANAGED(f->varlist)) {
-            assert(!IS_TRASH_DEBUG(ARR_AT(f->varlist, 0)));
             assert(GET_ARR_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
             Queue_Mark_Context_Deep(AS_CONTEXT(f->varlist));
         }
@@ -687,15 +686,14 @@ static void Mark_Frame_Stack_Deep(void)
         //
         REBVAL *param = FUNC_PARAMS_HEAD(f->underlying);
         REBVAL *arg = f->args_head; // may be stack or dynamic
-        while (NOT_END(param)) {
-            if (!IS_END(arg) && !IS_VOID_OR_SAFE_TRASH(arg))
-                Queue_Mark_Value_Deep(arg);
-
+        for (; NOT_END(param); ++param, ++arg) {
             if (param == f->param && !f->doing_pickups)
                 break; // protect arg for current param, but no further
 
-            ++param;
-            ++arg;
+            if (!IS_UNREADABLE_OR_VOID(arg))
+                Queue_Mark_Value_Deep(arg);
+            else
+                assert(!IS_UNREADABLE_IF_DEBUG(arg) || f->doing_pickups);
         }
         assert(IS_END(param) ? IS_END(arg) : TRUE); // may not enforce
 
@@ -1093,19 +1091,22 @@ static void Mark_Array_Deep_Core(REBARR *array)
 
     RELVAL *value = ARR_HEAD(array);
     for (; NOT_END(value); value++) {
-        if (IS_VOID_OR_SAFE_TRASH(value)) {
-            //
-            // Voids are illegal in most arrays, but the varlist of a context
-            // uses void values to denote that the variable is not set.  Also
-            // reified C va_lists as Do_Core() sources can have them.
-            //
+        if (NOT(IS_UNREADABLE_OR_VOID(value))) {
+            Queue_Mark_Value_Deep(value);
+            continue;
+        }
+
+        // Voids are illegal in most arrays, but the varlist of a context
+        // uses void values to denote that the variable is not set.  Also
+        // reified C va_lists as Do_Core() sources can have them.
+        //
+    #if !defined(NDEBUG)
+        if (IS_VOID(value))
             assert(
                 GET_ARR_FLAG(array, ARRAY_FLAG_VARLIST)
                 || GET_ARR_FLAG(array, ARRAY_FLAG_VOIDS_LEGAL)
             );
-        }
-        else
-            Queue_Mark_Value_Deep(value);
+    #endif
     }
 }
 
@@ -1523,9 +1524,9 @@ REBCNT Recycle_Core(REBOOL shutdown)
         // doesn't want to mark these "marker-only" values live.
         //
         REBVAL *stackval = DS_TOP;
-        assert(IS_TRASH_DEBUG(&DS_Movable_Base[0]));
+        assert(IS_UNREADABLE_IF_DEBUG(&DS_Movable_Base[0]));
         while (stackval != &DS_Movable_Base[0]) {
-            if (NOT(IS_VOID_OR_SAFE_TRASH(stackval)))
+            if (NOT(IS_UNREADABLE_OR_VOID(stackval)))
                 Queue_Mark_Value_Deep(stackval);
             --stackval;
         }
@@ -1571,13 +1572,13 @@ REBCNT Recycle_Core(REBOOL shutdown)
         // Mark value stack (temp-saved values):
         vp = SER_HEAD(REBVAL*, GC_Value_Guard);
         for (n = SER_LEN(GC_Value_Guard); n > 0; n--, vp++) {
-            if (NOT_END(*vp) && !IS_VOID_OR_SAFE_TRASH(*vp))
+            if (NOT_END(*vp) && !IS_UNREADABLE_OR_VOID(*vp))
                 Queue_Mark_Value_Deep(*vp);
             Propagate_All_GC_Marks();
         }
 
         // Mark potential error object from callback!
-        if (!IS_VOID_OR_SAFE_TRASH(&Callback_Error)) {
+        if (!IS_BLANK_RAW(&Callback_Error)) {
             assert(NOT(GET_VAL_FLAG(&Callback_Error, VALUE_FLAG_RELATIVE)));
             Queue_Mark_Value_Deep(&Callback_Error);
         }
@@ -1697,7 +1698,7 @@ void Guard_Value_Core(const RELVAL *value)
     //
     assert(
         IS_END(value)
-        || IS_VOID_OR_SAFE_TRASH(value)
+        || IS_UNREADABLE_OR_VOID(value)
         || VAL_TYPE(value) < REB_MAX
     );
 

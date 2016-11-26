@@ -249,7 +249,7 @@ REBUPT Do_Core_Expression_Checks_Debug(REBFRM *f) {
     // Once a throw is started, no new expressions may be evaluated until
     // that throw gets handled.
     //
-    assert(IS_TRASH_DEBUG(&TG_Thrown_Arg));
+    assert(IS_UNREADABLE_IF_DEBUG(&TG_Thrown_Arg));
 
     assert(f->label == NULL && f->label_debug == NULL);
 
@@ -336,10 +336,9 @@ void Do_Core_Exit_Checks_Debug(REBFRM *f) {
         assert(THROWN(f->out) || IS_END(f->value));
 
     // Function execution should have written *some* actual output value.
+    // checking the VAL_TYPE() is enough to make sure it's not END or trash
     //
-    assert(NOT_END(f->out)); // series END marker shouldn't leak out
-    assert(!IS_TRASH_DEBUG(f->out));
-    assert(VAL_TYPE(f->out) <= REB_MAX_VOID); // cheap check
+    assert(VAL_TYPE(f->out) <= REB_MAX_VOID);
 
     if (NOT(THROWN(f->out))) {
         assert(f->label == NULL);

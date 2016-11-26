@@ -85,7 +85,7 @@ static inline void CONVERT_NAME_TO_THROWN(
     assert(!THROWN(name));
     SET_VAL_FLAG(name, VALUE_FLAG_THROWN);
 
-    assert(IS_TRASH_DEBUG(&TG_Thrown_Arg));
+    assert(IS_UNREADABLE_IF_DEBUG(&TG_Thrown_Arg));
     TG_Thrown_Arg = *arg;
 }
 
@@ -97,9 +97,9 @@ static inline void CATCH_THROWN(REBVAL *arg_out, REBVAL *thrown) {
     assert(THROWN(thrown));
     CLEAR_VAL_FLAG(thrown, VALUE_FLAG_THROWN);
 
-    assert(!IS_TRASH_DEBUG(&TG_Thrown_Arg));
+    assert(!IS_UNREADABLE_IF_DEBUG(&TG_Thrown_Arg));
     *arg_out = TG_Thrown_Arg;
-    SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
+    SET_UNREADABLE_BLANK(&TG_Thrown_Arg);
 }
 
 

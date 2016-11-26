@@ -643,7 +643,7 @@ reevaluate:;
                 // build will be able to tell if we don't come back and
                 // overwrite it correctly during the pickups phase.
                 //
-                SET_TRASH_SAFE(f->arg);
+                SET_UNREADABLE_BLANK(f->arg);
 
                 if (f->special != END_CELL)
                     ++f->special;

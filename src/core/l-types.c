@@ -1170,7 +1170,7 @@ REBNATIVE(scan_net_header)
                         SPECIFIED // no relative values added
                     );
                     val = Alloc_Tail_Array(array);
-                    SET_TRASH_SAFE(val); // can't be unsafe for Val_Init_Block
+                    SET_UNREADABLE_BLANK(val); // for Val_Init_Block
                     Val_Init_Block(item + 1, array);
                 }
                 break;

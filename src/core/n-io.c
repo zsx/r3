@@ -545,7 +545,7 @@ REBNATIVE(wake_up)
             fail (Error_No_Catch_For_Throw(D_OUT));
 
         if (!(IS_LOGIC(D_OUT) && VAL_LOGIC(D_OUT))) awakened = FALSE;
-        SET_TRASH_SAFE(D_OUT);
+        SET_UNREADABLE_BLANK(D_OUT);
     }
 
     return awakened ? R_TRUE : R_FALSE;

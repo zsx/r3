@@ -174,7 +174,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     // it is turned into a rootkey for param_notes.
     //
     DS_PUSH_TRASH; // paramlist[0] (will become FUNCTION! canon value)
-    SET_TRASH_SAFE(DS_TOP);
+    SET_UNREADABLE_BLANK(DS_TOP);
     DS_PUSH(EMPTY_BLOCK); // param_types[0] (to be OBJECT! canon value, if any)
     DS_PUSH(EMPTY_STRING); // param_notes[0] (holds description, then canon)
 
@@ -300,7 +300,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 );
             }
             else if (IS_STRING(DS_TOP)) { // !!! are blocks after notes good?
-                if (IS_VOID_OR_SAFE_TRASH(DS_TOP - 2)) {
+                if (IS_BLANK_RAW(DS_TOP - 2)) {
                     //
                     // No typesets pushed yet, so this is a block before any
                     // parameters have been named.  This was legal in Rebol2

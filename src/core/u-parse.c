@@ -195,7 +195,7 @@ static REBOOL Subparse_Throws(
     f->args_head = Push_Value_Chunk_Of_Length(2);
 #else
     f->args_head = Push_Value_Chunk_Of_Length(3); // real RETURN: for natives
-    SET_TRASH_SAFE(&f->args_head[2]);
+    SET_VOID(&f->args_head[2]);
 #endif
 
     f->varlist = NULL;
@@ -1271,7 +1271,7 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
     newparse.args_head = Push_Value_Chunk_Of_Length(2);
 #else
     newparse.args_head = Push_Value_Chunk_Of_Length(3); // real RETURN: checked
-    SET_TRASH_SAFE(&newparse.args_head[2]);
+    SET_UNREADABLE_BLANK(&newparse.args_head[2]);
 #endif
     Val_Init_Block_Index(
         &newparse.args_head[0],

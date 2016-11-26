@@ -1729,12 +1729,10 @@ static REBARR *Scan_Array(
                 //
                 REBVAL cell;
                 PUSH_GUARD_ARRAY(array);
-                SET_TRASH_SAFE(&cell);
+                SET_UNREADABLE_BLANK(&cell);
                 PUSH_GUARD_VALUE(&cell);
 
                 dispatcher(&cell, kind, KNOWN(ARR_AT(array, 1))); // may fail()
-
-                assert(!IS_TRASH_DEBUG(&cell));
 
                 *value = cell;
                 DROP_GUARD_VALUE(&cell);

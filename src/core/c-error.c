@@ -340,7 +340,7 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
     // raised, then it had the thrown argument set.  Trash it in debug
     // builds.  (The value will not be kept alive, it is not seen by GC)
     //
-    SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
+    SET_UNREADABLE_BLANK(&TG_Thrown_Arg);
 
     LONG_JUMP(Saved_State->cpu_state, 1);
 }

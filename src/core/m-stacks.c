@@ -78,7 +78,7 @@ void Init_Stacks(REBCNT size)
         DS_Array = Make_Array(1);
         DS_Movable_Base = KNOWN(ARR_HEAD(DS_Array)); // can't push RELVALs
 
-        SET_TRASH_SAFE(ARR_HEAD(DS_Array));
+        SET_UNREADABLE_BLANK(ARR_HEAD(DS_Array));
         MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(ARR_HEAD(DS_Array));
 
         // The END marker will signal DS_PUSH that it has run out of space,
@@ -183,7 +183,7 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
     REBCNT len_new = len_old + amount;
     REBCNT n;
     for (n = len_old; n < len_new; ++n) {
-        SET_TRASH_SAFE(value);
+        SET_UNREADABLE_BLANK(value);
         ++value;
     }
 

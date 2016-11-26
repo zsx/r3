@@ -891,7 +891,7 @@ static void Init_Task_Context(void)
     // The thrown arg is not intended to ever be around long enough to be
     // seen by the GC.
     //
-    SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
+    SET_UNREADABLE_BLANK(&TG_Thrown_Arg);
 
     // Can't ASSERT_CONTEXT here; no keylist yet...
 }
@@ -1364,8 +1364,6 @@ void Init_Task(void)
     Init_Mold(MIN_COMMON/4);
     Init_Collector();
     //Inspect_Series(0);
-
-    SET_TRASH_SAFE(&TG_Thrown_Arg);
 }
 
 
@@ -1532,7 +1530,7 @@ void Init_Core(REBARGS *rargs)
     Init_Codecs();
     Init_Errors(&Boot_Block->errors); // Needs system/standard/error object
 
-    SET_VOID(&Callback_Error);
+    SET_UNREADABLE_BLANK(&Callback_Error);
 
     PG_Boot_Phase = BOOT_ERRORS;
 

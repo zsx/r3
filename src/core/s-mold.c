@@ -1064,29 +1064,8 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
         if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
             continue; // !!! Should hidden fields be in molded view?
 
-        if (var) {
-            //
-            // There's no way to show a value for unset variables.  They are
-            // covered by being present in "spec" and absent from the "body".
-            //
-            // !!! The way FRAME! is currently implemented, it is possible to
-            // see "safe trash" when processing natives...because a native
-            // can legally use its argument slots as evaluation destinations.
-            // And it's possible to have an unsafe trash if the argument is
-            // a pending frame.  Because the debugger is a work in progress
-            // it's not known exactly how to handle this...for now, be
-            // very conservative and just allow the molding of objects which
-            // have safe trash set as if the variable is unset.
-            //
-            if (IS_FRAME(value)) {
-                if (IS_VOID_OR_SAFE_TRASH(var))
-                    continue;
-            }
-            else {
-                if (IS_VOID(value))
-                    continue;
-            }
-        }
+        if (var && IS_VOID(value))
+            continue;
 
         New_Indented_Line(mold);
 
