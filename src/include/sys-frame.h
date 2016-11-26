@@ -149,8 +149,36 @@ inline static REBCNT FRM_EXPR_INDEX(REBFRM *f) {
 #define FRM_OUT(f) \
     cast(REBVAL * const, (f)->out) // writable Lvalue
 
-#define FRM_CELL(f) \
-    (&(f)->cell)
+// Note about FRM_NUM_ARGS: A native should generally not detect the arity it
+// was invoked with, (and it doesn't make sense as most implementations get
+// the full list of arguments and refinements).  However, ACTION! dispatch
+// has several different argument counts piping through a switch, and often
+// "cheats" by using the arity instead of being conditional on which action
+// ID ran.  Consider when reviewing the future of ACTION!.
+//
+#define FRM_NUM_ARGS(f) \
+    FUNC_NUM_PARAMS((f)->underlying)
+
+inline static REBVAL *FRM_CELL(REBFRM *f) {
+    //
+    // If a function takes exactly one argument, the optimization is to use
+    // the GC protected eval cell for that argument.  In which case, the
+    // cell is not available for other purposes (such as evaluations, which
+    // cannot be done directly into function argument slots while a function
+    // is running, because they create transitional trash which might be
+    // accessed through a FRAME!)
+    //
+#if !defined(NDEBUG)
+    assert(&f->cell != f->args_head); // sanity check, but need more...
+
+    if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_RETURN_DEBUG))
+        assert(FRM_NUM_ARGS(f) - 1 != 1);
+    else
+        assert(FRM_NUM_ARGS(f) != 1);
+#endif
+
+    return &f->cell; // otherwise, it's available...
+}
 
 #define FRM_PRIOR(f) \
     ((f)->prior)
@@ -176,17 +204,6 @@ inline static REBCNT FRM_EXPR_INDEX(REBFRM *f) {
 //
 #define PROTECT_FRM_X(f,v) \
     ((f)->refine = (v))
-
-
-// Note about FRM_NUM_ARGS: A native should generally not detect the arity it
-// was invoked with, (and it doesn't make sense as most implementations get
-// the full list of arguments and refinements).  However, ACTION! dispatch
-// has several different argument counts piping through a switch, and often
-// "cheats" by using the arity instead of being conditional on which action
-// ID ran.  Consider when reviewing the future of ACTION!.
-//
-#define FRM_NUM_ARGS(f) \
-    FUNC_NUM_PARAMS((f)->underlying)
 
 
 // ARGS is the parameters and refinements
@@ -521,9 +538,18 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(REBFRM *f) {
     else if (num_args <= 1) {
         //
         // If the function takes only one stack parameter, use the eval cell
-        // so that no chunk pushing or popping needs to be involved.
+        // so that no chunk pushing or popping needs to be involved.  This
+        // means the cell won't be available to use as a temporary GC-safe
+        // value while the function is running for single-argument functions
         //
+    #if defined(NDEBUG)
         f->args_head = &f->cell;
+    #else
+        if (num_args == 0)
+            TRASH_POINTER_IF_DEBUG(f->args_head);
+        else
+            f->args_head = &f->cell;
+    #endif
         f->varlist = NULL;
     }
     else {

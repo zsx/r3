@@ -157,6 +157,21 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 
     REBUPT header_bits = 0;
 
+#if !defined(NDEBUG)
+    //
+    // Debug builds go ahead and include a RETURN field and hang onto the
+    // typeset for fake returns (e.g. natives).  But they make a note that
+    // they are doing this, which helps know what the actual size of the
+    // frame would be in a release build (e.g. for a FRM_CELL() assert)
+    //
+    if (flags & MKF_FAKE_RETURN) {
+        header_bits |= FUNC_FLAG_RETURN_DEBUG;
+        flags &= ~MKF_FAKE_RETURN;
+        assert(NOT(flags & MKF_RETURN));
+        flags |= MKF_RETURN;
+    }
+#endif
+
     REBOOL durable = FALSE;
 
     REBDSP dsp_orig = DSP;
@@ -604,7 +619,8 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     REBCNT num_slots = (DSP - dsp_orig) / 3;
 
     // If we pushed a typeset for a return and it's a native, it actually
-    // doesn't want a RETURN: key in the frame.  We'll omit from the copy.
+    // doesn't want a RETURN: key in the frame in release builds.  We'll omit
+    // from the copy.
     //
     if (definitional_return && (flags & MKF_FAKE_RETURN))
         --num_slots;

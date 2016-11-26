@@ -384,14 +384,10 @@ REBNATIVE(case)
             // It is told it failed the test, and may choose to perform some
             // action in a response...but the result is discarded.
             //
-            // Its result is put in the block argument cell, whose contents
-            // and index have been extracted already and aren't used further.
-            // (this might confuse debuggers, but if that's going to be
-            // considered a problem then every native has to be reviewed,
-            // as this is a common space-saving tactic)
             //
-            if (Maybe_Run_Failed_Branch_Throws(ARG(block), D_CELL, REF(only))) {
-                *D_OUT = *ARG(block);
+            REBVAL dummy;
+            if (Maybe_Run_Failed_Branch_Throws(&dummy, D_CELL, REF(only))) {
+                *D_OUT = dummy;
                 goto return_thrown;
             }
 

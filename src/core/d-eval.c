@@ -139,6 +139,31 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
     assert(!IN_DATA_STACK_DEBUG(f->out));
 #endif
 
+    // The arguments to functions in their frame are exposed via FRAME!s
+    // and through WORD!s.  This means that if you try to do an evaluation
+    // directly into one of those argument slots, and run arbitrary code
+    // which also *reads* those argument slots...there could be trouble with
+    // reading and writing overlapping locations.  So unless a function is
+    // in the argument fulfillment stage (before the variables or frame are
+    // accessible by user code), it's not legal to write directly into an
+    // argument slot.  :-/  Note the availability of D_CELL for any functions
+    // that have more than one argument, during their run.
+    //
+#if !defined(NDEBUG)
+    assert(f == FS_TOP);
+    REBFRM *ftemp = FS_TOP->prior;
+    for (; ftemp != NULL; ftemp = ftemp->prior) {
+        if (!Is_Any_Function_Frame(ftemp))
+            continue;
+        if (Is_Function_Frame_Fulfilling(ftemp))
+            continue;
+        assert(
+            f->out < ftemp->args_head ||
+            f->out >= ftemp->args_head + FRM_NUM_ARGS(ftemp)
+        );
+    }
+#endif
+
     // The caller must preload ->value with the first value to process.  It
     // may be resident in the array passed that will be used to fetch further
     // values, or it may not.

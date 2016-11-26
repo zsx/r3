@@ -424,11 +424,12 @@ REBNATIVE(action)
 
     REBVAL *spec = ARG(spec);
 
-    #if defined(NDEBUG)
-        REBFLGS flags = MKF_KEYWORDS | MKF_FAKE_RETURN;
-    #else
-        REBFLGS flags = MKF_KEYWORDS | MKF_RETURN; // want to check returns
-    #endif
+    // We only want to check the return type in the debug build.  In the
+    // release build, we want to have as few argument slots as possible...
+    // especially to get the optimization for 1 argument to go in the cell
+    // and not need to push arguments.
+    //
+    REBFLGS flags = MKF_KEYWORDS | MKF_FAKE_RETURN;
 
     REBFUN *fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(spec, flags),
@@ -662,11 +663,12 @@ static void Init_Natives(void)
         // the Natives table.  The associated C function is provided by a
         // table built in the bootstrap scripts, `Native_C_Funcs`.
 
-    #if defined(NDEBUG)
+        // We only want to check the return type in the debug build.  In the
+        // release build, we want to have as few argument slots as possible...
+        // especially to get the optimization for 1 argument to go in the cell
+        // and not need to push arguments.
+        //
         REBFLGS flags = MKF_KEYWORDS | MKF_FAKE_RETURN;
-    #else
-        REBFLGS flags = MKF_KEYWORDS | MKF_RETURN; // want to check returns
-    #endif
 
         REBFUN *fun = Make_Function(
             Make_Paramlist_Managed_May_Fail(KNOWN(spec), flags),
