@@ -184,8 +184,6 @@ inline static void Queue_Mark_Context_Deep(REBCTX *c) {
     Queue_Mark_Array_Deep(CTX_VARLIST(c));
 }
 
-static void Queue_Mark_Routine_Deep(REBRIN *r);
-
 inline static void Queue_Mark_Function_Deep(REBFUN *f) {
     Queue_Mark_Array_Deep(FUNC_PARAMLIST(f));
 
@@ -196,12 +194,6 @@ inline static void Queue_Mark_Function_Deep(REBFUN *f) {
 
     if (FUNC_META(f) != NULL)
         Queue_Mark_Context_Deep(FUNC_META(f));
-
-    // Of all the function types, only the routines and callbacks use
-    // HANDLE! and must be explicitly pointed out in the body.
-    //
-    if (IS_FUNCTION_RIN(FUNC_VALUE(f)))
-        Queue_Mark_Routine_Deep(VAL_FUNC_ROUTINE(FUNC_VALUE(f)));
 }
 
 inline static void Queue_Mark_Anything_Deep(REBSER *s) {
@@ -313,134 +305,6 @@ static void Queue_Mark_Gob_Deep(REBGOB *gob)
         case GOBD_BLOCK:
             Queue_Mark_Array_Deep(AS_ARRAY(GOB_DATA(gob)));
         }
-    }
-}
-
-
-//
-//  Queue_Mark_Field_Deep: C
-//
-// 'Queue' refers to the fact that after calling this routine,
-// one will have to call Propagate_All_GC_Marks() to have the
-// deep transitive closure be guaranteed fully marked.
-//
-// Note: only referenced blocks are queued, fields that are structs
-// will be processed via recursion.  Deeply nested structs could
-// in theory overflow the C stack.
-//
-static void Queue_Mark_Field_Deep(
-    struct Struct_Field *field,
-    REBSER *data_bin,
-    REBCNT offset
-){
-
-    // These series are backing stores for the `ffi_type` data that
-    // is needed to use the struct with the FFI api.
-    //
-    if (field->fftype) {
-        assert(field->fields_fftype_ptrs != NULL);
-        Mark_Series_Only(field->fftype);
-        Mark_Series_Only(field->fields_fftype_ptrs);
-    }
-
-    if (field->is_rebval) {
-        //
-        // !!! The FFI apparently can tunnel REBVALs through to callbacks.
-        // They would generally appear as raw sizeof(REBVAL) blobs to the
-        // C routines processing them.  The GC considers the REBVAL* to be
-        // "live", and there may be an array of them...so they are marked
-        // much as a REBARR would.
-        //
-        assert(field->type == FFI_TYPE_UINT8);
-        assert(field->size == sizeof(REBVAL));
-
-        REBCNT i;
-        for (i = 0; i < field->dimension; i ++) {
-            if (field->done){
-                REBVAL value;
-                const REBYTE *blob = SER_AT(
-                     REBYTE,
-                     data_bin,
-                     offset + field->offset + i * field->size
-                );
-
-                //
-                // Because data in the struct is densely packed, "blob"
-                // might not be well aligned for access as a REBVAL. Copying
-                // its content to a REBVAL for access.
-                //
-                memcpy(&value, blob, sizeof(REBVAL));
-
-                Queue_Mark_Value_Deep(&value);
-            }
-        }
-    }
-    else if (field->type == FFI_TYPE_STRUCT) {
-        assert(!field->is_rebval);
-        Mark_Series_Only(field->fields);
-        Queue_Mark_Array_Deep(field->spec);
-
-        REBCNT i;
-        for (i = 0; i < SER_LEN(field->fields); ++i) {
-            struct Struct_Field *subfield
-                = SER_AT(struct Struct_Field, field->fields, i);
-
-            // !!! If offset doesn't reflect the actual offset of this field
-            // inside the structure this will have to be revisited (it should
-            // be because you need to be able to reuse schemas
-            //
-            assert(subfield->offset >= offset);
-
-            Queue_Mark_Field_Deep(subfield, data_bin, subfield->offset);
-        }
-    }
-    else {
-        // ignore primitive datatypes
-    }
-
-    if (field->name != NULL)
-        Mark_Series_Only(field->name);
-}
-
-
-//
-//  Queue_Mark_Routine_Deep: C
-//
-// 'Queue' refers to the fact that after calling this routine,
-// one will have to call Propagate_All_GC_Marks() to have the
-// deep transitive closure completely marked.
-//
-// !!! Though REBRIN has been converted to an ordinary array that ideally
-// doesn't need any added marking, it has residual marking necessary for the
-// moment.  This is because the schema structs...which are OBJECT!-like things
-// have a C struct-based implementation for the fields.  Besides it putting
-// more brittle bit-fiddling in the core, the schemas were processed by
-// recursion instead of queuing.  Deeply nested schemas could overflow the
-// stack.
-//
-// This problem will be eliminated when schemas are replaced with OBJECT!s.
-//
-static void Queue_Mark_Routine_Deep(REBRIN *r)
-{
-    if (IS_BINARY(RIN_RET_SCHEMA(r))) {
-        REBSER *schema = cast(REBSER*, RIN_RET_SCHEMA(r));
-        Queue_Mark_Field_Deep(
-            SER_HEAD(struct Struct_Field, schema), NULL, 0
-        );
-    }
-    else // special, allows BLANK (e.g. void return)
-        assert(IS_INTEGER(RIN_RET_SCHEMA(r)) || IS_BLANK(RIN_RET_SCHEMA(r)));
-
-    REBCNT n;
-    for (n = 0; n < RIN_NUM_FIXED_ARGS(r); ++n) {
-        if (IS_BINARY(RIN_ARG_SCHEMA(r, n))) {
-            REBSER *schema = VAL_SERIES(RIN_ARG_SCHEMA(r, n));
-            Queue_Mark_Field_Deep(
-                SER_HEAD(struct Struct_Field, schema), NULL, 0
-            );
-        }
-        else
-            assert(IS_INTEGER(RIN_ARG_SCHEMA(r, n)));
     }
 }
 
@@ -926,8 +790,8 @@ static void Queue_Mark_Value_Deep(const RELVAL *val)
                 Queue_Mark_Context_Deep(meta);
             break; }
 
-        case REB_STRUCT:
-            {
+        case REB_STRUCT: {
+            //
             // The struct gets its GC'able identity and is passable by one
             // pointer from the fact that it is a single-element array that
             // contains the REBVAL of the struct itself.  (Because it is
@@ -935,13 +799,15 @@ static void Queue_Mark_Value_Deep(const RELVAL *val)
             //
             Queue_Mark_Array_Deep(VAL_STRUCT(val));
 
-            // Though the REBVAL payload carries the data series and offset
-            // position of this struct into that data, the hierarchical
-            // description of the structure's fields is stored in another
-            // single element series--the "schema"--which is held in the
-            // miscellaneous slot of the main array.
+            // The schema is the hierarchical description of the struct.
             //
-            Mark_Series_Only(ARR_SERIES(VAL_STRUCT(val))->link.schema);
+            REBFLD *schema = ARR_SERIES(VAL_STRUCT(val))->link.schema;
+            assert(FLD_IS_STRUCT(schema));
+            Queue_Mark_Array_Deep(schema);
+
+            // The symbol needs to be GC protected, but only fields have them
+            //
+            assert(FLD_NAME(schema) == NULL);
 
             // The data series needs to be marked.  It needs to be marked
             // even for structs that aren't at the 0 offset--because their
@@ -949,21 +815,7 @@ static void Queue_Mark_Value_Deep(const RELVAL *val)
             // a "slice" out of.
             //
             Mark_Series_Only(VAL_STRUCT_DATA_BIN(val));
-
-            // The symbol needs to be GC protected, but only fields have them
-
-            assert(VAL_STRUCT_SCHEMA(val)->name == NULL);
-
-            // Recursively mark the schema and any nested structures (or
-            // REBVAL-typed fields, specially recognized by the interface)
-            //
-            Queue_Mark_Field_Deep(
-                VAL_STRUCT_SCHEMA(val),
-                VAL_STRUCT_DATA_BIN(val),
-                VAL_STRUCT_OFFSET(val)
-            );
-            }
-            break;
+            break; }
 
         case REB_GOB:
             Queue_Mark_Gob_Deep(VAL_GOB(val));

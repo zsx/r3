@@ -403,7 +403,7 @@ struct Reb_Series {
     union {
         REBSER *hashlist; // MAP datatype uses this
         REBARR *keylist; // used by CONTEXT
-        REBSER *schema; // STRUCT uses this (parallels object's keylist)
+        REBARR *schema; // for STRUCT (a REBFLD, parallels object's keylist)
         REBCTX *meta; // paramlists and keylists can store a "meta" object
         REBSTR *synonym; // circularly linked list of othEr-CaSed string forms
     } link;

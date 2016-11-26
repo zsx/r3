@@ -164,36 +164,98 @@ inline static void *VAL_LIBRARY_FD(const RELVAL *v) {
 #endif // HAVE_LIBFFI_AVAILABLE
 
 
-struct Struct_Field {
-    REBARR* spec; /* for nested struct */
-    REBSER* fields; /* for nested struct */
-    REBSTR *name;
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// What used to be a specialized C structure for representing a FFI field
+// has been changed to an ordinary Rebol array.  This makes it so it does not
+// require modifications to the garbage collector.
+//
+// [0] - A WORD! name for the field (or BLANK! if anonymous ?)
+//
+// [1] - INTEGER! type, e.g. FFI_TYPE_XXX constants, or a BLOCK! of fields
+//       if this is a struct.
+//
+// [2] - An INTEGER! of the array dimensionality, or BLANK! if not an array
+//
+// [3] - HANDLE! to the ffi_type* representing this entire field.  This will
+//       appear other places, so it uses the shared form of HANDLE! which
+//       will GC the memory pointed to when the last reference goes away.
+//
+//       !!! This is a cache, in a sense that it is fully produced from
+//       the rest of the information.  It was sometimes set to NULL in the
+//       previous implementation and then calculated and cached, so the
+//       BLANK! state is used for that.  Is this state really necessary, or
+//       can it be guaranteed there's always a handle here?
+//
+// [4] - An INTEGER! of the offset this field is relative to the beginning
+//       of its entire containing structure.  Will be BLANK! if the structure
+//       is actually the root structure itself.
+//
+//       !!! Comment said "size is limited by struct->offset, so only 16-bit"
+//
+// [5] - An INTEGER! size of an individual field element ("wide"), in bytes.
+//
+// !!! Previously, there was a bit tracking whether the field represented a
+// REBVAL or not.  The actual FFI type was an array of FFI_TYPE_POINTER of
+// length 4, hence carrying the literal bit pattern of a value, in a place
+// that would be needed to be protected from GC.  Ren-C will not do this,
+// instead if a value is to be passed around it should be done by pointer
+// and protected from GC by something else.  (RL_API routines will be using
+// REBVAL* pointers into series nodes that have GC protection for the length
+// of their function call...and internal api clients do explicit handling.)
+// 
 
-    unsigned short type; // e.g. FFI_TYPE_XXX constants
+typedef REBARR REBFLD;
 
-    REBSER *fftype; // single-element series, one `ffi_type`
-    REBSER *fields_fftype_ptrs; // multiple-element series of `ffi_type*`
+#define FLD_AT(a, n) ARR_AT((a), (n)) // help locate indexed accesses
 
-    /* size is limited by struct->offset, so only 16-bit */
-    REBCNT offset;
-    REBCNT dimension; /* for arrays */
-    REBCNT size; /* size of element, in bytes */
+inline static REBSTR *FLD_NAME(REBFLD *f) {
+    if (IS_BLANK(FLD_AT(f, 0)))
+        return NULL;
+    return VAL_WORD_SPELLING(FLD_AT(f, 0));
+}
 
-    /* Note: C89 bitfields may be 'int', 'unsigned int', or 'signed int' */
-    unsigned int is_array:1;
+inline static unsigned short FLD_CTYPE(REBFLD *f) {
+    if (IS_BLOCK(FLD_AT(f, 1)))
+        return FFI_TYPE_STRUCT;
+    return VAL_INT32(FLD_AT(f, 1));
+}
 
-    // A REBVAL is passed as an FFI_TYPE_POINTER array of length 4.  But
-    // for purposes of the GC marking, in the structs it has to be known
-    // that they are REBVAL.
-    //
-    // !!! What is passing REBVALs for?
-    //
-    unsigned int is_rebval:1;
+inline static REBOOL FLD_IS_STRUCT(REBFLD *f)
+    { return IS_BLOCK(FLD_AT(f, 1)); }
 
-    /* field is initialized? */
-    /* (used by GC to decide if the value needs to be marked) */
-    unsigned int done:1;
-};
+inline static REBARR *FLD_FIELDLIST(REBFLD *f) {
+    assert(FLD_IS_STRUCT(f));
+    return VAL_ARRAY(FLD_AT(f, 1));
+}
+
+inline static REBOOL FLD_IS_ARRAY(REBFLD *f) {
+    if (IS_BLANK(FLD_AT(f, 2)))
+        return FALSE;
+    assert(IS_INTEGER(FLD_AT(f, 2)));
+    return TRUE;
+}
+
+inline static REBCNT FLD_DIMENSION(REBFLD *f) {
+    assert(FLD_IS_ARRAY(f));
+    return VAL_INT32(FLD_AT(f, 2));
+}
+
+inline static ffi_type *FLD_FFTYPE(REBFLD *f)
+    { return cast(ffi_type*, VAL_HANDLE_DATA(FLD_AT(f, 3))); }
+
+inline static REBCNT FLD_OFFSET(REBFLD *f)
+    { return VAL_INT32(FLD_AT(f, 4)); }
+
+inline static REBCNT FLD_WIDE(REBFLD *f)
+    { return VAL_INT32(FLD_AT(f, 5)); }
+
+inline static REBCNT FLD_LEN_BYTES_TOTAL(REBFLD *f) {
+    if (FLD_IS_ARRAY(f))
+        return FLD_WIDE(f) * FLD_DIMENSION(f);
+    return FLD_WIDE(f);
+}
+
 
 #define VAL_STRUCT_LIMIT MAX_U32
 
@@ -222,32 +284,18 @@ inline static REBVAL *STU_VALUE(REBSTU *stu) {
 #define STU_INACCESSIBLE(stu) \
     VAL_STRUCT_INACCESSIBLE(STU_VALUE(stu))
 
-inline static struct Struct_Field *STU_SCHEMA(REBSTU *stu) {
-    //
-    // The new concept for structures is to make a singular structure
-    // descriptor OBJECT!.  Previously structs didn't have a top level node,
-    // but a series of them... so this has to extract the fieldlist from
-    // the new-format top-level node.
-
-    REBSER *schema = ARR_SERIES(stu)->link.schema;
-
-#if !defined(NDEBUG)
-    if (SER_LEN(schema) != 1)
-        Panic_Series(schema);
-    assert(SER_LEN(schema) == 1);
-#endif
-
-    struct Struct_Field *top = SER_HEAD(struct Struct_Field, schema);
-    assert(top->type == FFI_TYPE_STRUCT);
-    return top;
+inline static REBFLD *STU_SCHEMA(REBSTU *stu) {
+    REBFLD *schema = ARR_SERIES(stu)->link.schema;
+    assert(FLD_IS_STRUCT(schema));
+    return schema;
 }
 
-inline static REBSER *STU_FIELDLIST(REBSTU *stu) {
-    return STU_SCHEMA(stu)->fields;
+inline static REBARR *STU_FIELDLIST(REBSTU *stu) {
+    return FLD_FIELDLIST(STU_SCHEMA(stu));
 }
 
 inline static REBCNT STU_SIZE(REBSTU *stu) {
-    return STU_SCHEMA(stu)->size;
+    return FLD_WIDE(STU_SCHEMA(stu));
 }
 
 inline static REBSER *STU_DATA_BIN(REBSTU *stu) {
@@ -259,13 +307,10 @@ inline static REBCNT STU_OFFSET(REBSTU *stu) {
 }
 
 #define STU_FFTYPE(stu) \
-    SER_HEAD(ffi_type, STU_SCHEMA(stu)->fftype)
+    FLD_FFTYPE(STU_SCHEMA(stu))
 
 #define VAL_STRUCT(v) \
     ((v)->payload.structure.stu)
-
-#define VAL_STRUCT_SPEC(v) \
-    (STU_SCHEMA(VAL_STRUCT(v))->spec)
 
 #define VAL_STRUCT_SCHEMA(v) \
     STU_SCHEMA(VAL_STRUCT(v))
@@ -415,14 +460,10 @@ inline static REBOOL RIN_IS_VARIADIC(REBRIN *r)
     cast(ffi_type*, Get_FFType_Enum_Info_Core((sym_out), (kind_out), (type)))
 
 inline static void* SCHEMA_FFTYPE_CORE(const RELVAL *schema) {
-    if (IS_HANDLE(schema)) {
-        struct Struct_Field *field
-            = SER_HEAD(
-                struct Struct_Field,
-                cast(REBSER*, VAL_HANDLE_DATA(schema))
-            );
+    if (IS_BLOCK(schema)) {
+        REBFLD *field = VAL_ARRAY(schema);
         Prepare_Field_For_FFI(field);
-        return SER_HEAD(ffi_type, field->fftype);
+        return FLD_FFTYPE(field);
     }
 
     // Avoid creating a "VOID" type in order to not give the illusion of

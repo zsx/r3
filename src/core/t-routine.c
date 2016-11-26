@@ -178,24 +178,17 @@ static ffi_abi Abi_From_Word(const REBVAL *word) {
 // Writes into `out` a Rebol value representing the "schema", which describes
 // either a basic FFI type or the layout of a STRUCT! (not including data).
 //
-// Ideally this would be an OBJECT! or user-defined type specification of
-// some kind (which is why it's being set up as a value).  However, for
-// now it is either an INTEGER! representing an FFI_TYPE -or- a HANDLE!
-// containing a REBSER* with one Struct_Field definition in it.  (It's in
-// a series in order to allow it to be shared and GC'd among many struct
-// instances, or extracted like this).
-//
 static void Schema_From_Block_May_Fail(
     REBVAL *schema_out, // => INTEGER! or HANDLE! for struct
     REBVAL *param_out, // => TYPESET!
     const REBVAL *blk
 ){
-    assert(IS_BLOCK(blk));
+    SET_TRASH_IF_DEBUG(schema_out);
+    SET_TRASH_IF_DEBUG(param_out);
 
+    assert(IS_BLOCK(blk));
     if (VAL_LEN_AT(blk) == 0)
         fail (Error_Invalid_Arg(blk));
-
-    Val_Init_Typeset(param_out, 0, NULL);
 
     RELVAL *item = VAL_ARRAY_AT(blk);
 
@@ -215,30 +208,21 @@ static void Schema_From_Block_May_Fail(
 
         REBVAL temp;
         MAKE_Struct(&temp, REB_STRUCT, &def); // may fail()
-
         assert(IS_STRUCT(&temp));
 
-        // We want the schema series (not just the raw Struct_Field*).  This
-        // is because what's needed is a GC-protecting reference, otherwise
-        // it would go bad after temp's REBSTU gets GC'd.
-        //
         // !!! It should be made possible to create a schema without going
         // through a struct creation.  There are "raw" structs with no memory,
         // which would avoid the data series (not the REBSTU array, though)
         //
-        Init_Handle_Simple(
-            schema_out,
-            NULL, // code
-            ARR_SERIES(VAL_STRUCT(&temp))->link.schema // data
-        );
+        Val_Init_Block(schema_out, VAL_STRUCT_SCHEMA(&temp));
 
-        // Saying "struct!" is legal would suggest any structure is legal.
-        // However, when the routine is called it gets a chance to look at
-        // the specifics.
+        // !!! Saying any STRUCT! is legal here in the typeset suggests any
+        // structure is legal to pass into a routine.  Yet structs in C
+        // have different sizes (and static type checking so you can't pass
+        // one structure in the place of another.  Actual struct compatibility
+        // is not checked until runtime, when the call happens.
         //
-        // !!! Original code didn't check anything--size checking added.
-        //
-        TYPE_SET(param_out, REB_STRUCT);
+        Val_Init_Typeset(param_out, FLAGIT_64(REB_STRUCT), NULL);
         return;
     }
 
@@ -253,61 +237,65 @@ static void Schema_From_Block_May_Fail(
 
         case SYM_UINT8:
             SET_INTEGER(schema_out, FFI_TYPE_UINT8);
-            TYPE_SET(param_out, REB_INTEGER);
+            Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
             break;
 
         case SYM_INT8:
             SET_INTEGER(schema_out, FFI_TYPE_SINT8);
-            TYPE_SET(param_out, REB_INTEGER);
+            Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
             break;
 
         case SYM_UINT16:
             SET_INTEGER(schema_out, FFI_TYPE_UINT16);
-            TYPE_SET(param_out, REB_INTEGER);
+            Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
             break;
 
         case SYM_INT16:
             SET_INTEGER(schema_out, FFI_TYPE_SINT16);
-            TYPE_SET(param_out, REB_INTEGER);
+            Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
             break;
 
         case SYM_UINT32:
             SET_INTEGER(schema_out, FFI_TYPE_UINT32);
-            TYPE_SET(param_out, REB_INTEGER);
+            Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
             break;
 
         case SYM_INT32:
             SET_INTEGER(schema_out, FFI_TYPE_SINT32);
-            TYPE_SET(param_out, REB_INTEGER);
+            Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
             break;
 
         case SYM_UINT64:
             SET_INTEGER(schema_out, FFI_TYPE_UINT64);
-            TYPE_SET(param_out, REB_INTEGER);
+            Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
             break;
 
         case SYM_INT64:
             SET_INTEGER(schema_out, FFI_TYPE_SINT64);
-            TYPE_SET(param_out, REB_INTEGER);
+            Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
             break;
 
         case SYM_FLOAT:
             SET_INTEGER(schema_out, FFI_TYPE_FLOAT);
-            TYPE_SET(param_out, REB_DECIMAL);
+            Val_Init_Typeset(param_out, FLAGIT_64(REB_DECIMAL), NULL);
             break;
 
         case SYM_DOUBLE:
             SET_INTEGER(schema_out, FFI_TYPE_DOUBLE);
-            TYPE_SET(param_out, REB_DECIMAL);
+            Val_Init_Typeset(param_out, FLAGIT_64(REB_DECIMAL), NULL);
             break;
 
         case SYM_POINTER:
             SET_INTEGER(schema_out, FFI_TYPE_POINTER);
-            TYPE_SET(param_out, REB_INTEGER);
-            TYPE_SET(param_out, REB_STRING);
-            TYPE_SET(param_out, REB_BINARY);
-            TYPE_SET(param_out, REB_VECTOR);
-            TYPE_SET(param_out, REB_FUNCTION); // callback
+            Val_Init_Typeset(
+                param_out,
+                FLAGIT_64(REB_INTEGER)
+                    | FLAGIT_64(REB_STRING)
+                    | FLAGIT_64(REB_BINARY)
+                    | FLAGIT_64(REB_VECTOR)
+                    | FLAGIT_64(REB_FUNCTION), // legal if routine or callback
+                NULL
+            );
             break;
 
         default:
@@ -394,14 +382,11 @@ static REBUPT arg_to_ffi(
     if (!dest)
         offset = 0;
 
-    if (IS_HANDLE(schema)) {
-        struct Struct_Field *top
-            = SER_HEAD(
-                struct Struct_Field,
-                cast(REBSER*, VAL_HANDLE_DATA(schema))
-            );
+    if (IS_BLOCK(schema)) {
+        REBFLD *top = VAL_ARRAY(schema);
 
-        assert(top->type == FFI_TYPE_STRUCT);
+        assert(FLD_IS_STRUCT(top));
+        assert(NOT(FLD_IS_ARRAY(top))); // !!! wasn't supported--should be?
 
         // !!! In theory a struct has to be aligned to its maximal alignment
         // needed by a fundamental member.  We'll assume that the largest
@@ -413,7 +398,7 @@ static REBUPT arg_to_ffi(
                 &offset,
                 sizeof(void*),
                 store,
-                top->size
+                FLD_WIDE(top) // !!! What about FLD_LEN_BYTES_TOTAL ?
             );
 
         if (arg == NULL) {
@@ -435,7 +420,7 @@ static REBUPT arg_to_ffi(
         if (!IS_STRUCT(arg))
             fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
 
-        if (STU_SIZE(VAL_STRUCT(arg)) != top->size)
+        if (STU_SIZE(VAL_STRUCT(arg)) != FLD_WIDE(top))
             fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
 
         memcpy(
@@ -635,19 +620,20 @@ static void ffi_to_rebol(
     const REBVAL *schema,
     void *ffi_rvalue
 ) {
-    if (IS_HANDLE(schema)) {
-        struct Struct_Field *top
-            = SER_HEAD(
-                struct Struct_Field,
-                cast(REBSER*, VAL_HANDLE_DATA(schema))
-            );
+    if (IS_BLOCK(schema)) {
+        REBFLD *top = VAL_ARRAY(schema);
 
-        assert(top->type == FFI_TYPE_STRUCT);
+        assert(FLD_IS_STRUCT(top));
+        assert(NOT(FLD_IS_ARRAY(top))); // !!! wasn't supported, should be?
 
         REBSTU *stu = Alloc_Singular_Array();
 
-        REBSER *data = Make_Series(top->size, sizeof(REBYTE), MKS_NONE);
-        memcpy(SER_HEAD(REBYTE, data), ffi_rvalue, top->size);
+        REBSER *data = Make_Series(
+            FLD_WIDE(top), // !!! what about FLD_LEN_BYTES_TOTAL ?
+            sizeof(REBYTE),
+            MKS_NONE
+        );
+        memcpy(SER_HEAD(REBYTE, data), ffi_rvalue, FLD_WIDE(top));
         MANAGE_SERIES(data);
 
         VAL_RESET_HEADER(out, REB_STRUCT);
@@ -656,7 +642,7 @@ static void ffi_to_rebol(
         out->extra.struct_offset = 0;
 
         *ARR_HEAD(stu) = *out; // save canon value
-        ARR_SERIES(stu)->link.schema = cast(REBSER*, VAL_HANDLE_DATA(schema));
+        ARR_SERIES(stu)->link.schema = top;
         MANAGE_ARRAY(stu);
 
         assert(STU_DATA_BIN(stu) == data);
@@ -845,7 +831,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
     // of correct types--they were checked by Do_Core() before this point.)
     //
     for (; i < num_fixed; ++i) {
-        REBCNT offset = arg_to_ffi(
+        REBUPT offset = arg_to_ffi(
             store, // ffi-converted arg appended here
             NULL, // dest pointer must be NULL if store is non-NULL
             FRM_ARG(f, i + 1), // 1-based

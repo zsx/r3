@@ -1434,15 +1434,15 @@ void Mold_Value(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
         Mold_Event(const_KNOWN(value), mold);
         break;
 
-    case REB_STRUCT:
-    {
-        REBARR *array;
+    case REB_STRUCT: {
         Pre_Mold(value, mold);
-        array = Struct_To_Array(VAL_STRUCT(value));
+
+        REBARR *array = Struct_To_Array(VAL_STRUCT(value));
         Mold_Array_At(mold, array, 0, 0);
+        Free_Array(array);
+
         End_Mold(mold);
-    }
-        break;
+        break; }
 
     case REB_LIBRARY: {
         Pre_Mold(value, mold);
