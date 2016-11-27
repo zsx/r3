@@ -535,21 +535,31 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(REBFRM *f) {
         SET_TRASH_IF_DEBUG(ARR_AT(f->varlist, 0));
         f->args_head = SINK(ARR_AT(f->varlist, 1));
     }
-    else if (num_args <= 1) {
+    else if (num_args == 0) {
+        //
+        // If the function takes 0 parameters, it makes sense to point the
+        // argument list at END_CELL.  This way it can still be enumerated
+        // without checking the length, and it doesn't need to use the
+        // eval cell (so it's available for the routine's use).
+        //
+        // !!! As optimizations go, providing free use of the D_CELL for
+        // rather uncommon 0-argument routines may not be an obvious win.
+        // Besides being rare, it's probably also rare they really need an
+        // evaluation destination (what is a 0 argument routine evaluating?)
+        // It may be better as just a debug check, to have a non-writable
+        // cell to help reinforce that there really isn't an argument.
+        //
+        f->args_head = m_cast(REBVAL*, END_CELL);
+        f->varlist = NULL;
+    }
+    else if (num_args == 1) {
         //
         // If the function takes only one stack parameter, use the eval cell
         // so that no chunk pushing or popping needs to be involved.  This
         // means the cell won't be available to use as a temporary GC-safe
         // value while the function is running for single-argument functions
         //
-    #if defined(NDEBUG)
         f->args_head = &f->cell;
-    #else
-        if (num_args == 0)
-            TRASH_POINTER_IF_DEBUG(f->args_head);
-        else
-            f->args_head = &f->cell;
-    #endif
         f->varlist = NULL;
     }
     else {
@@ -605,7 +615,7 @@ inline static void Drop_Function_Args_For_Frame_Core(
 
     if (drop_chunks) {
         if (f->varlist == NULL) {
-            if (f->args_head != &f->cell)
+            if (f->args_head != END_CELL && f->args_head != &f->cell)
                 Drop_Chunk_Of_Values(f->args_head);
 
             goto finished; // nothing else to do...
