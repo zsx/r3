@@ -82,7 +82,7 @@ void Protect_Series(REBSER *series, REBCNT index, REBFLGS flags)
 
     if (!Is_Array_Series(series) || !GET_FLAG(flags, PROT_DEEP)) return;
 
-    MARK_REBSER(series); // recursion protection
+    ADD_REBSER_MARK(series); // recursion protection
 
     RELVAL *val = ARR_AT(AS_ARRAY(series), index);
     for (; NOT_END(val); val++) {
@@ -114,7 +114,7 @@ void Protect_Object(RELVAL *value, REBFLGS flags)
 
     if (!GET_FLAG(flags, PROT_DEEP)) return;
 
-    MARK_REBSER(ARR_SERIES(CTX_VARLIST(context))); // recursion protection
+    ADD_REBSER_MARK(ARR_SERIES(CTX_VARLIST(context))); // recursion protection
 
     value = CTX_VARS_HEAD(context);
     for (; NOT_END(value); value++) {

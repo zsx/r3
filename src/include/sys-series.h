@@ -254,12 +254,6 @@ inline static void FAIL_IF_LOCKED_SERIES(REBSER *s) {
 }
 
 //
-// Series external data accessible
-//
-#define SER_DATA_NOT_ACCESSIBLE(s) \
-    (GET_SER_FLAG(s, SERIES_FLAG_EXTERNAL) \
-     && !GET_SER_FLAG(s, SERIES_FLAG_ACCESSIBLE))
-//
 // Optimized expand when at tail (but, does not reterminate)
 //
 
@@ -362,16 +356,21 @@ static inline REBOOL IS_REBSER_MARKED(REBSER *rebser) {
     return LOGICAL(rebser->header.bits & REBSER_REBVAL_FLAG_MARK);
 }
 
-static inline void MARK_REBSER(REBSER *rebser) {
-    assert(NOT(IS_REBSER_MARKED(rebser)));
-    assert(
-        IS_SERIES_MANAGED(rebser)
-        || rebser->header.bits & REBSER_REBVAL_FLAG_ROOT
-    );
+static inline void ADD_REBSER_MARK(REBSER *rebser) {
+    assert(NOT(rebser->header.bits & REBSER_REBVAL_FLAG_MARK));
+#if !defined(NDEBUG)
+    if (
+        NOT(IS_SERIES_MANAGED(rebser))
+        && NOT(rebser->header.bits & REBSER_REBVAL_FLAG_ROOT)
+    ){
+        Debug_Fmt("Link to non-MANAGED item reached by GC");
+        Panic_Series(rebser);
+    }
+#endif
     rebser->header.bits |= REBSER_REBVAL_FLAG_MARK;
 }
 
-static inline void UNMARK_REBSER(REBSER *rebser) {
+static inline void REMOVE_REBSER_MARK(REBSER *rebser) {
     assert(IS_REBSER_MARKED(rebser));
     rebser->header.bits &= ~cast(REBUPT, REBSER_REBVAL_FLAG_MARK);
 }

@@ -1378,14 +1378,13 @@ void Assert_Context_Core(REBCTX *context)
         Panic_Context(context);
     }
 
-    if (
-        GET_CTX_FLAG(context, CONTEXT_FLAG_STACK)
-        && !GET_CTX_FLAG(context, SERIES_FLAG_ACCESSIBLE)
-    ) {
+    if (GET_CTX_FLAG(context, SERIES_FLAG_INACCESSIBLE)) {
+        //
         // !!! For the moment, don't check inaccessible stack frames any
         // further.  This includes varless reified frames and those reified
         // frames that are no longer on the stack.
         //
+        assert(GET_CTX_FLAG(context, CONTEXT_FLAG_STACK));
         return;
     }
 

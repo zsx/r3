@@ -369,7 +369,7 @@ REBCTX *Context_For_Frame_May_Reify_Core(REBFRM *f) {
         context = AS_CONTEXT(f->varlist);
 
         SET_CTX_FLAG(context, CONTEXT_FLAG_STACK);
-        SET_CTX_FLAG(context, SERIES_FLAG_ACCESSIBLE);
+        assert(!GET_CTX_FLAG(context, SERIES_FLAG_INACCESSIBLE));
     }
 
     SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_VARLIST);

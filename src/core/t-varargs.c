@@ -147,10 +147,8 @@ REBIXO Do_Vararg_Op_May_Throw(
         // call pointer it first ran with is dead.  There needs to be a solution
         // for other reasons, so use that solution when it's ready.
         //
-        if (
-            GET_CTX_FLAG(context, CONTEXT_FLAG_STACK)
-            && !GET_CTX_FLAG(context, SERIES_FLAG_ACCESSIBLE)
-        ) {
+        if (GET_CTX_FLAG(context, SERIES_FLAG_INACCESSIBLE)) {
+            assert(GET_CTX_FLAG(context, CONTEXT_FLAG_STACK));
             fail (Error(RE_VARARGS_NO_STACK));
         }
 
@@ -497,9 +495,13 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
             Append_Unencoded(mold->series, "** varargs frame not fulfilled");
         }
         else if (
-            GET_CTX_FLAG(VAL_VARARGS_FRAME_CTX(value), CONTEXT_FLAG_STACK) &&
-            !GET_CTX_FLAG(VAL_VARARGS_FRAME_CTX(value), SERIES_FLAG_ACCESSIBLE)
+            GET_CTX_FLAG(
+                VAL_VARARGS_FRAME_CTX(value), SERIES_FLAG_INACCESSIBLE
+            )
         ) {
+            assert(
+                GET_CTX_FLAG(VAL_VARARGS_FRAME_CTX(value), CONTEXT_FLAG_STACK)
+            );
             Append_Unencoded(mold->series, "**unavailable: call ended **");
         }
         else {

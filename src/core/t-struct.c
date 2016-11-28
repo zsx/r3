@@ -740,7 +740,7 @@ static REBSER *make_ext_storage(
     );
 
     SER_SET_EXTERNAL_DATA(ser, cast(REBYTE*, raw_addr));
-    SET_SER_FLAG(ser, SERIES_FLAG_ACCESSIBLE); // accessible by default
+    assert(!GET_SER_FLAG(ser, SERIES_FLAG_INACCESSIBLE));
     SET_SERIES_LEN(ser, len);
 
     MANAGE_SERIES(ser);

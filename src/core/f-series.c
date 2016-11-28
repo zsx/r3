@@ -346,50 +346,29 @@ REBCNT Find_In_Array_Simple(REBARR *array, REBCNT index, const RELVAL *target)
 //  Destroy_External_Storage: C
 //
 // Destroy the external storage pointed by `->data` by calling the routine
-// `free_func` if it's not NULL
+// `free_func` if it's not NULL.  If it's NULL, only mark the external storage
+// non-accessible
 //
-// out            Result
-// ser            The series
-// free_func    A routine to free the storage, if it's NULL, only mark the
-//         external storage non-accessible
-//
-REB_R Destroy_External_Storage(REBVAL *out,
-                               REBSER *ser,
-                               REBVAL *free_func)
-{
-    SET_VOID(out);
-
-    if (!GET_SER_FLAG(ser, SERIES_FLAG_EXTERNAL)) {
+REB_R Destroy_External_Storage(
+    REBVAL *out,
+    REBSER *ser,
+    REBVAL *free_func
+) {
+    if (!GET_SER_FLAG(ser, SERIES_FLAG_EXTERNAL))
         fail (Error(RE_NO_EXTERNAL_STORAGE));
+
+    REBVAL pointer;
+    SET_INTEGER(&pointer, cast(REBUPT, SER_DATA_RAW(ser)));
+
+    if (GET_SER_FLAG(ser, SERIES_FLAG_INACCESSIBLE))
+        fail (Error(RE_ALREADY_DESTROYED, pointer));
+
+    SET_SER_FLAG(ser, SERIES_FLAG_INACCESSIBLE);
+
+    if (free_func != NULL) {
+        if (Do_Va_Throws(out, free_func, &pointer, END_CELL))
+            return R_OUT_IS_THROWN;
     }
-    if (!GET_SER_FLAG(ser, SERIES_FLAG_ACCESSIBLE)) {
-        REBVAL i;
-        SET_INTEGER(&i, cast(REBUPT, SER_DATA_RAW(ser)));
 
-        fail (Error(RE_ALREADY_DESTROYED, &i));
-    }
-    CLEAR_SER_FLAG(ser, SERIES_FLAG_ACCESSIBLE);
-    if (free_func) {
-        REBVAL safe;
-        REBARR *array;
-        REBVAL *elem;
-        REBOOL threw;
-
-        array = Make_Array(2);
-        MANAGE_ARRAY(array);
-        PUSH_GUARD_ARRAY(array);
-
-        elem = Alloc_Tail_Array(array);
-        *elem = *free_func;
-
-        elem = Alloc_Tail_Array(array);
-        SET_INTEGER(elem, cast(REBUPT, SER_DATA_RAW(ser)));
-
-        threw = Do_At_Throws(&safe, array, 0, SPECIFIED); // 2 non-relative val
-
-        DROP_GUARD_ARRAY(array);
-
-        if (threw) return R_OUT_IS_THROWN;
-    }
-    return R_OUT;
+    return R_VOID;
 }

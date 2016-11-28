@@ -60,7 +60,10 @@ struct Reb_Array {
 // one kind of pointer as the other (and they are both Reb_Series)
 //
 static inline REBARR* AS_ARRAY(REBSER *s) {
-    assert(Is_Array_Series(s));
+#if !defined(NDEBUG)
+    if (!Is_Array_Series(s))
+        Panic_Series(s);
+#endif
     return cast(REBARR*, s);
 }
 

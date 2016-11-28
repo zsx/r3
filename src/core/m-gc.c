@@ -132,15 +132,12 @@ static void Push_Array_Marked_Deep(REBARR *array)
 
     assert(GET_ARR_FLAG(array, SERIES_FLAG_ARRAY));
 
-    if (GET_ARR_FLAG(array, CONTEXT_FLAG_STACK)) {
-        //
-        // If the array's storage was on the stack and that stack level has
-        // been popped, its data has been nulled out, and the series only
-        // exists to keep words or objects holding it from crashing.
-        //
-        if (!GET_ARR_FLAG(array, SERIES_FLAG_ACCESSIBLE))
-            return;
-    }
+    // If the array's storage was on the stack and that stack level has
+    // been popped, its data has been nulled out, and the series only
+    // exists to keep words or objects holding it from crashing.
+    //
+    if (GET_ARR_FLAG(array, SERIES_FLAG_INACCESSIBLE))
+        return;
 
     // !!! Are there actually any "external" series that are value-bearing?
     // e.g. a REBSER node which has a ->data pointer to REBVAL[...] and
@@ -177,7 +174,7 @@ inline static void Queue_Mark_Array_Deep(REBARR *a) {
     if (IS_REBSER_MARKED(ARR_SERIES(a)))
         return;
 
-    MARK_REBSER(ARR_SERIES(a));
+    ADD_REBSER_MARK(ARR_SERIES(a));
     Push_Array_Marked_Deep(a);
 }
 
@@ -220,7 +217,7 @@ inline static void Queue_Mark_Anything_Deep(REBSER *s) {
             Queue_Mark_Array_Deep(AS_ARRAY(s));
     }
     else
-        MARK_REBSER(s);
+        ADD_REBSER_MARK(s);
 }
 
 // Non-Queued form for marking blocks.  Used for marking a *root set item*,
@@ -285,7 +282,7 @@ static void Queue_Mark_Gob_Deep(REBGOB *gob)
     MARK_GOB(gob);
 
     if (GOB_PANE(gob)) {
-        MARK_REBSER(GOB_PANE(gob));
+        ADD_REBSER_MARK(GOB_PANE(gob));
         pane = GOB_HEAD(gob);
         for (i = 0; i < GOB_LEN(gob); i++, pane++)
             Queue_Mark_Gob_Deep(*pane);
@@ -295,7 +292,7 @@ static void Queue_Mark_Gob_Deep(REBGOB *gob)
 
     if (GOB_CONTENT(gob)) {
         if (GOB_TYPE(gob) >= GOBT_IMAGE && GOB_TYPE(gob) <= GOBT_STRING)
-            MARK_REBSER(GOB_CONTENT(gob));
+            ADD_REBSER_MARK(GOB_CONTENT(gob));
         else if (GOB_TYPE(gob) >= GOBT_DRAW && GOB_TYPE(gob) <= GOBT_EFFECT)
             Queue_Mark_Array_Deep(AS_ARRAY(GOB_CONTENT(gob)));
     }
@@ -885,15 +882,6 @@ static void Queue_Mark_Value_Deep(const RELVAL *val)
                     Queue_Mark_Array_Deep(FUNC_PARAMLIST(func));
                 }
             }
-            else if (GET_VAL_FLAG(val, WORD_FLAG_PICKUP)) {
-                //
-                // Special word class that might be seen on the stack during
-                // a GC that's used by argument fulfillment when searching
-                // for out-of-order refinements.  It holds two REBVAL*s
-                // (for the parameter and argument of the refinement) and
-                // both should be covered for GC already, because the
-                // paramlist and arg variables are "in progress" for a call.
-            }
             else {
                 // The word is unbound...make sure index is 0 in debug build.
                 //
@@ -1188,7 +1176,7 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
                 //
                 assert(IS_SERIES_MANAGED(s));
                 if (IS_REBSER_MARKED(s))
-                    UNMARK_REBSER(s);
+                    REMOVE_REBSER_MARK(s);
                 else {
                     GC_Kill_Series(s);
                     ++count;
@@ -1208,7 +1196,7 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
                 //
                 assert(IS_SERIES_MANAGED(s));
                 if (IS_REBSER_MARKED(s))
-                    UNMARK_REBSER(s);
+                    REMOVE_REBSER_MARK(s);
                 else {
                     Free_Node(SER_POOL, s); // Free_Pairing is for manuals
                     ++count;
@@ -1326,7 +1314,7 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static void Mark_Root_Series(void)
                 // might be executed with the pairing as the OUT slot (since
                 // it is memory guaranteed not to relocate)
                 //
-                MARK_REBSER(s);
+                ADD_REBSER_MARK(s);
                 Queue_Mark_Value_Deep(key);
                 if (!IS_END(pairing))
                     Queue_Mark_Value_Deep(pairing);

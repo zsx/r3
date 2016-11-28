@@ -251,14 +251,14 @@ enum {
     //
     SERIES_FLAG_EXTERNAL = 1 << 10,
 
-    // `SERIES_FLAG_ACCESSIBLE` indicates that the external memory pointed by
-    // `->data` is accessible. This is not checked at every access to the
+    // `SERIES_FLAG_INACCESSIBLE` indicates that the external memory pointed by
+    // `->data` has "gone bad". This is not checked at every access to the
     // `->data` for the performance consideration, only on those that are
     // known to have possible external memory storage.  Currently this is
     // used for STRUCT! and to note when a CONTEXT_FLAG_STACK series has its
     // stack level popped (there's no data to lookup for words bound to it)
     //
-    SERIES_FLAG_ACCESSIBLE = 1 << 11,
+    SERIES_FLAG_INACCESSIBLE = 1 << 11,
 
     // `CONTEXT_FLAG_STACK` indicates that varlist data lives on the stack.
     // This is a work in progress to unify objects and function call frames

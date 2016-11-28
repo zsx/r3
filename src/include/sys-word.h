@@ -60,16 +60,6 @@
 //
 #define WORD_FLAG_BOUND WORD_FLAG(0)
 
-// A special kind of word is used during argument fulfillment to hold
-// a refinement's word on the data stack, augmented with its param
-// and argument location.  This helps fulfill "out-of-order" refinement
-// usages more quickly without having to do two full arglist walks.
-//
-// !!! Currently this is being done with a VARARGS! though this may not be
-// the best idea, and pickup words may be brought back.
-//
-#define WORD_FLAG_PICKUP WORD_FLAG(1)
-
 
 #define IS_WORD_BOUND(v) \
     GET_VAL_FLAG((v), WORD_FLAG_BOUND)

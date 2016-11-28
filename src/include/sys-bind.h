@@ -291,7 +291,7 @@ inline static REBVAL *Get_Var_Core(
     REBVAL *var;
 
     if (GET_CTX_FLAG(context, CONTEXT_FLAG_STACK)) {
-        if (!GET_CTX_FLAG(context, SERIES_FLAG_ACCESSIBLE)) {
+        if (GET_CTX_FLAG(context, SERIES_FLAG_INACCESSIBLE)) {
             //
             // Currently if a context has a stack component, then the vars
             // are "all stack"...so when that level is popped, all the vars

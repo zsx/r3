@@ -521,7 +521,7 @@ void Unmark_Array(REBARR *array)
     if (!IS_REBSER_MARKED(ARR_SERIES(array)))
         return; // avoid loop
 
-    UNMARK_REBSER(ARR_SERIES(array));
+    REMOVE_REBSER_MARK(ARR_SERIES(array));
 
     RELVAL *val;
     for (val = ARR_HEAD(array); NOT_END(val); ++val)

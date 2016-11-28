@@ -989,19 +989,17 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
     REBVAL *key;
     REBVAL *var;
 
-    if (
-        !GET_CTX_FLAG(VAL_CONTEXT(value), CONTEXT_FLAG_STACK) ||
-        GET_CTX_FLAG(VAL_CONTEXT(value), SERIES_FLAG_ACCESSIBLE)
-    ) {
-        vars_head = CTX_VARS_HEAD(VAL_CONTEXT(value));
-    }
-    else {
+    if (GET_CTX_FLAG(VAL_CONTEXT(value), SERIES_FLAG_INACCESSIBLE)) {
+        assert(GET_CTX_FLAG(VAL_CONTEXT(value), CONTEXT_FLAG_STACK));
+
         // If something like a function call has gone of the stack, the data
         // for the vars will no longer be available.  The keys should still
         // be good, however.
         //
         vars_head = NULL;
     }
+    else
+        vars_head = CTX_VARS_HEAD(VAL_CONTEXT(value));
 
     Pre_Mold(value, mold);
 

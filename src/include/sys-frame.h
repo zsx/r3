@@ -669,8 +669,8 @@ inline static void Drop_Function_Args_For_Frame_Core(
     assert(GET_ARR_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
     assert(NOT(GET_ARR_FLAG(f->varlist, SERIES_FLAG_HAS_DYNAMIC)));
 
-    assert(GET_ARR_FLAG(f->varlist, SERIES_FLAG_ACCESSIBLE));
-    CLEAR_ARR_FLAG(f->varlist, SERIES_FLAG_ACCESSIBLE);
+    assert(!GET_ARR_FLAG(f->varlist, SERIES_FLAG_INACCESSIBLE));
+    SET_ARR_FLAG(f->varlist, SERIES_FLAG_INACCESSIBLE);
 
 finished:
 

@@ -267,9 +267,6 @@ inline static REBCNT STU_OFFSET(REBSTU *stu) {
 #define VAL_STRUCT_SPEC(v) \
     (STU_SCHEMA(VAL_STRUCT(v))->spec)
 
-#define VAL_STRUCT_INACCESSIBLE(v) \
-    SER_DATA_NOT_ACCESSIBLE(VAL_STRUCT_DATA_BIN(v))
-
 #define VAL_STRUCT_SCHEMA(v) \
     STU_SCHEMA(VAL_STRUCT(v))
 
@@ -278,6 +275,15 @@ inline static REBCNT STU_OFFSET(REBSTU *stu) {
 
 #define VAL_STRUCT_DATA_BIN(v) \
     ((v)->payload.structure.data)
+
+inline static REBOOL VAL_STRUCT_INACCESSIBLE(const RELVAL *v) {
+    REBSER *bin = VAL_STRUCT_DATA_BIN(v);
+    if (GET_SER_FLAG(bin, SERIES_FLAG_INACCESSIBLE)) {
+        assert(GET_SER_FLAG(bin, SERIES_FLAG_EXTERNAL));
+        return TRUE;
+    }
+    return FALSE;
+}
 
 #define VAL_STRUCT_OFFSET(v) \
     ((v)->extra.struct_offset)
