@@ -30,7 +30,6 @@
 
 #include "sys-core.h"
 
-#define STATIC_assert(e) do {(void)sizeof(char[1 - 2*!(e)]);} while(0)
 
 // The managed HANDLE! for a ffi_type will have a reference in structs that
 // use it.
@@ -443,101 +442,116 @@ static REBOOL assign_scalar_core(
     Get_FFType_Enum_Info(&sym, &kind, FLD_CTYPE(field));
 
     switch (VAL_TYPE(val)) {
-        case REB_DECIMAL:
-            if (kind != REB_INTEGER && kind != REB_DECIMAL)
-                fail (Error_Invalid_Type(VAL_TYPE(val)));
-
-            d = VAL_DECIMAL(val);
-            i = (i64) d;
-            break;
-        case REB_INTEGER:
-            if (kind != REB_INTEGER && kind != REB_DECIMAL)
-                if (FLD_CTYPE(field) != FFI_TYPE_POINTER)
-                    fail (Error_Invalid_Type(VAL_TYPE(val)));
-
-            i =  VAL_INT64(val);
-            d = (double)i;
-            break;
-        case REB_STRUCT:
-            if (NOT(FLD_IS_STRUCT(field)))
-                fail (Error_Invalid_Type(VAL_TYPE(val)));
-            break;
-        default:
+    case REB_DECIMAL:
+        if (kind != REB_INTEGER && kind != REB_DECIMAL)
             fail (Error_Invalid_Type(VAL_TYPE(val)));
+
+        d = VAL_DECIMAL(val);
+        i = cast(i64, d);
+        break;
+
+    case REB_INTEGER:
+        if (kind != REB_INTEGER && kind != REB_DECIMAL)
+            if (FLD_CTYPE(field) != FFI_TYPE_POINTER)
+                fail (Error_Invalid_Type(VAL_TYPE(val)));
+
+        i =  VAL_INT64(val);
+        d = cast(double, i);
+        break;
+
+    case REB_STRUCT:
+        if (NOT(FLD_IS_STRUCT(field)))
+            fail (Error_Invalid_Type(VAL_TYPE(val)));
+        break;
+
+    default:
+        fail (Error_Invalid_Type(VAL_TYPE(val)));
     }
 
     switch (FLD_CTYPE(field)) {
-        case FFI_TYPE_SINT8:
-            if (i > 0x7f || i < -128)
-                fail (Error(RE_OVERFLOW));
-            *(i8*)data = (i8)i;
-            break;
-        case FFI_TYPE_UINT8:
-            if (i > 0xff || i < 0)
-                fail (Error(RE_OVERFLOW));
-            *(u8*)data = (u8)i;
-            break;
-        case FFI_TYPE_SINT16:
-            if (i > 0x7fff || i < -0x8000)
-                fail (Error(RE_OVERFLOW));
-            *(i16*)data = (i16)i;
-            break;
-        case FFI_TYPE_UINT16:
-            if (i > 0xffff || i < 0)
-                fail (Error(RE_OVERFLOW));
-            *(u16*)data = (u16)i;
-            break;
-        case FFI_TYPE_SINT32:
-            if (i > 0x7fffffff || i < -0x80000000LL)
-                fail (Error(RE_OVERFLOW));
-            *(i32*)data = (i32)i;
-            break;
-        case FFI_TYPE_UINT32:
-            if (i > 0xffffffffU || i < 0)
-                fail (Error(RE_OVERFLOW));
-            *(u32*)data = (u32)i;
-            break;
-        case FFI_TYPE_SINT64:
-            /* never overflow */
-            *(i64*)data = (i64)i;
-            break;
-        case FFI_TYPE_UINT64:
-            if (i < 0)
-                fail (Error(RE_OVERFLOW));
-            *(u64*)data = (u64)i;
-            break;
-        case FFI_TYPE_POINTER:
-            if (sizeof(void*) < 8 && i > 0xffffffff)
-                fail (Error(RE_OVERFLOW));
-            *cast(void**, data) = cast(void*, cast(REBUPT, i));
-            break;
-        case FFI_TYPE_FLOAT:
-            *(float*)data = (float)d;
-            break;
-        case FFI_TYPE_DOUBLE:
-            *(double*)data = (double)d;
-            break;
-        case FFI_TYPE_STRUCT:
-            if (FLD_WIDE(field) != VAL_STRUCT_SIZE(val))
-                fail (Error_Invalid_Arg(val));
+    case FFI_TYPE_SINT8:
+        if (i > 0x7f || i < -128)
+            fail (Error(RE_OVERFLOW));
+        *cast(i8*, data) = cast(i8, i);
+        break;
 
-            if (same_fields(FLD_FIELDLIST(field), VAL_STRUCT_FIELDLIST(val))) {
-                memcpy(
-                    data,
-                    SER_AT(
-                        REBYTE,
-                        VAL_STRUCT_DATA_BIN(val),
-                        VAL_STRUCT_OFFSET(val)
-                    ),
-                    FLD_WIDE(field)
-                );
-            } else
-                fail (Error_Invalid_Arg(val));
-            break;
-        default:
-            /* should never be here */
-            return FALSE;
+    case FFI_TYPE_UINT8:
+        if (i > 0xff || i < 0)
+            fail (Error(RE_OVERFLOW));
+        *cast(u8*, data) = cast(u8, i);
+        break;
+
+    case FFI_TYPE_SINT16:
+        if (i > 0x7fff || i < -0x8000)
+            fail (Error(RE_OVERFLOW));
+        *cast(i16*, data) = cast(i16, i);
+        break;
+
+    case FFI_TYPE_UINT16:
+        if (i > 0xffff || i < 0)
+            fail (Error(RE_OVERFLOW));
+        *cast(u16*, data) = cast(u16, i);
+        break;
+
+    case FFI_TYPE_SINT32:
+        if (i > MAX_I32 || i < MIN_I32)
+            fail (Error(RE_OVERFLOW));
+        *cast(i32*, data) = cast(i32, i);
+        break;
+
+    case FFI_TYPE_UINT32:
+        if (i > MAX_U32 || i < 0)
+            fail (Error(RE_OVERFLOW));
+        *cast(u32*, data) = cast(u32, i);
+        break;
+
+    case FFI_TYPE_SINT64:
+        *cast(i64*, data) = i;
+        break;
+
+    case FFI_TYPE_UINT64:
+        if (i < 0)
+            fail (Error(RE_OVERFLOW));
+        *cast(u64*, data) = cast(u64, i);
+        break;
+
+    case FFI_TYPE_POINTER:
+        if (sizeof(void*) == 4 && i > MAX_U32)
+            fail (Error(RE_OVERFLOW));
+        *cast(void**, data) = cast(void*, cast(REBUPT, i));
+        break;
+
+    case FFI_TYPE_FLOAT:
+        *cast(float*, data) = cast(float, d);
+        break;
+
+    case FFI_TYPE_DOUBLE:
+        *cast(double*, data) = d;
+        break;
+
+    case FFI_TYPE_STRUCT:
+        if (FLD_WIDE(field) != VAL_STRUCT_SIZE(val))
+            fail (Error_Invalid_Arg(val));
+
+        if (same_fields(FLD_FIELDLIST(field), VAL_STRUCT_FIELDLIST(val))) {
+            memcpy(
+                data,
+                SER_AT(
+                    REBYTE,
+                    VAL_STRUCT_DATA_BIN(val),
+                    VAL_STRUCT_OFFSET(val)
+                ),
+                FLD_WIDE(field)
+            );
+        } else
+            fail (Error_Invalid_Arg(val));
+        break;
+
+    default:
+        assert(FALSE);
+        return FALSE;
     }
+
     return TRUE;
 }
 
@@ -615,84 +629,84 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
     *raw_addr = 0;
 
     while (NOT_END(attr)) {
-        if (IS_SET_WORD(attr)) {
-            switch (VAL_WORD_SYM(attr)) {
-                case SYM_RAW_SIZE:
-                    ++ attr;
-                    if (NOT_END(attr) && IS_INTEGER(attr)) {
-                        if (*raw_size > 0) /* duplicate raw-size */
-                            fail (Error_Invalid_Arg(attr));
+        if (!IS_SET_WORD(attr))
+            fail (Error_Invalid_Arg(attr));
 
-                        *raw_size = VAL_INT64(attr);
-                        if (*raw_size <= 0)
-                            fail (Error_Invalid_Arg(attr));
-                    }
-                    else
-                        fail (Error_Invalid_Arg(attr));
-                    break;
+        switch (VAL_WORD_SYM(attr)) {
+        case SYM_RAW_SIZE:
+            ++ attr;
+            if (NOT_END(attr) && IS_INTEGER(attr)) {
+                if (*raw_size > 0) /* duplicate raw-size */
+                    fail (Error_Invalid_Arg(attr));
 
-                case SYM_RAW_MEMORY:
-                    ++ attr;
-                    if (NOT_END(attr) && IS_INTEGER(attr)) {
-                        if (*raw_addr != 0) /* duplicate raw-memory */
-                            fail (Error_Invalid_Arg(attr));
-
-                        *raw_addr = cast(REBU64, VAL_INT64(attr));
-                        if (*raw_addr == 0)
-                            fail (Error_Invalid_Arg(attr));
-                    }
-                    else
-                        fail (Error_Invalid_Arg(attr));
-                    break;
-
-                case SYM_EXTERN:
-                    ++ attr;
-
-                    if (*raw_addr != 0) // raw-memory is exclusive with extern
-                        fail (Error_Invalid_Arg(attr));
-
-                    if (IS_END(attr) || !IS_BLOCK(attr)
-                        || VAL_LEN_AT(attr) != 2) {
-                        fail (Error_Invalid_Arg(attr));
-                    }
-                    else {
-                        REBVAL *lib = KNOWN(VAL_ARRAY_AT_HEAD(attr, 0));
-                        if (!IS_LIBRARY(lib))
-                            fail (Error_Invalid_Arg(attr));
-                        if (IS_LIB_CLOSED(VAL_LIBRARY(lib)))
-                            fail (Error(RE_BAD_LIBRARY));
-
-                        REBVAL *sym = KNOWN(VAL_ARRAY_AT_HEAD(attr, 1));
-                        if (!ANY_BINSTR(sym))
-                            fail (Error_Invalid_Arg(sym));
-
-                        CFUNC *addr = OS_FIND_FUNCTION(
-                            VAL_LIBRARY_FD(lib),
-                            s_cast(VAL_RAW_DATA_AT(sym))
-                        );
-                        if (!addr)
-                            fail (Error(RE_SYMBOL_NOT_FOUND, sym));
-
-                        *raw_addr = cast(REBUPT, addr);
-                    }
-                    break;
-
-                    /*
-                       case SYM_ALIGNMENT:
-                       ++ attr;
-                       if (IS_INTEGER(attr)) {
-                       alignment = VAL_INT64(attr);
-                       } else {
-                       fail (Error_Invalid_Arg(attr));
-                       }
-                       break;
-                       */
-                default:
+                *raw_size = VAL_INT64(attr);
+                if (*raw_size <= 0)
                     fail (Error_Invalid_Arg(attr));
             }
-        }
-        else
+            else
+                fail (Error_Invalid_Arg(attr));
+            break;
+
+        case SYM_RAW_MEMORY:
+            ++ attr;
+            if (NOT_END(attr) && IS_INTEGER(attr)) {
+                if (*raw_addr != 0) /* duplicate raw-memory */
+                    fail (Error_Invalid_Arg(attr));
+
+                *raw_addr = cast(REBU64, VAL_INT64(attr));
+                if (*raw_addr == 0)
+                    fail (Error_Invalid_Arg(attr));
+            }
+            else
+                fail (Error_Invalid_Arg(attr));
+            break;
+
+        case SYM_EXTERN:
+            ++ attr;
+
+            if (*raw_addr != 0) // raw-memory is exclusive with extern
+                fail (Error_Invalid_Arg(attr));
+
+            if (IS_END(attr) || !IS_BLOCK(attr)
+                || VAL_LEN_AT(attr) != 2) {
+                fail (Error_Invalid_Arg(attr));
+            }
+            else {
+                REBVAL *lib = KNOWN(VAL_ARRAY_AT_HEAD(attr, 0));
+                if (!IS_LIBRARY(lib))
+                    fail (Error_Invalid_Arg(attr));
+                if (IS_LIB_CLOSED(VAL_LIBRARY(lib)))
+                    fail (Error(RE_BAD_LIBRARY));
+
+                REBVAL *sym = KNOWN(VAL_ARRAY_AT_HEAD(attr, 1));
+                if (!ANY_BINSTR(sym))
+                    fail (Error_Invalid_Arg(sym));
+
+                CFUNC *addr = OS_FIND_FUNCTION(
+                    VAL_LIBRARY_FD(lib),
+                    s_cast(VAL_RAW_DATA_AT(sym))
+                );
+                if (!addr)
+                    fail (Error(RE_SYMBOL_NOT_FOUND, sym));
+
+                *raw_addr = cast(REBUPT, addr);
+            }
+            break;
+
+        // !!! This alignment code was commented out for some reason.
+        /*
+        case SYM_ALIGNMENT:
+            ++ attr;
+            if (!IS_INTEGER(attr))
+                fail (Error_Invalid_Arg(attr));
+                
+            alignment = VAL_INT64(attr);
+            break;
+        */
+
+        default:
             fail (Error_Invalid_Arg(attr));
+        }
 
         ++ attr;
     }
@@ -1488,28 +1502,27 @@ REBINT Cmp_Struct(const RELVAL *s, const RELVAL *t)
 //
 REBINT CT_Struct(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
-    //printf("comparing struct a (%p) with b (%p), mode: %d\n", a, b, mode);
     switch (mode) {
-        case 1: // strict equality
-            return 0 == Cmp_Struct(a, b);
+    case 1: // strict equality
+        return 0 == Cmp_Struct(a, b);
 
-        case 0: // coerced equality
-            if (Cmp_Struct(a, b) == 0)
-                return 1;
+    case 0: // coerced equality
+        if (Cmp_Struct(a, b) == 0)
+            return 1;
 
-            return (
-                IS_STRUCT(a) && IS_STRUCT(b)
-                && same_fields(VAL_STRUCT_FIELDLIST(a), VAL_STRUCT_FIELDLIST(b))
-                && VAL_STRUCT_SIZE(a) == VAL_STRUCT_SIZE(b)
-                && !memcmp(
-                    BIN_HEAD(VAL_STRUCT_DATA_BIN(a)),
-                    BIN_HEAD(VAL_STRUCT_DATA_BIN(b)),
-                    VAL_STRUCT_SIZE(a)
-                )
-            );
+        return (
+            IS_STRUCT(a) && IS_STRUCT(b)
+            && same_fields(VAL_STRUCT_FIELDLIST(a), VAL_STRUCT_FIELDLIST(b))
+            && VAL_STRUCT_SIZE(a) == VAL_STRUCT_SIZE(b)
+            && !memcmp(
+                BIN_HEAD(VAL_STRUCT_DATA_BIN(a)),
+                BIN_HEAD(VAL_STRUCT_DATA_BIN(b)),
+                VAL_STRUCT_SIZE(a)
+            )
+        );
 
-        default:
-            return -1;
+    default:
+        return -1;
     }
     return -1;
 }
@@ -1582,7 +1595,12 @@ REBTYPE(Struct)
         switch (VAL_WORD_SYM(arg)) {
         case SYM_VALUES:
             fail_if_non_accessible(val);
-            Val_Init_Binary(D_OUT, Copy_Sequence_At_Len(VAL_STRUCT_DATA_BIN(val), VAL_STRUCT_OFFSET(val), VAL_STRUCT_SIZE(val)));
+            Val_Init_Binary(
+                D_OUT,
+                Copy_Sequence_At_Len(VAL_STRUCT_DATA_BIN(val),
+                VAL_STRUCT_OFFSET(val),
+                VAL_STRUCT_SIZE(val))
+            );
             break;
 
         case SYM_SPEC:

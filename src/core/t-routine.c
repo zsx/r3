@@ -827,8 +827,11 @@ REB_R Routine_Dispatcher(REBFRM *f)
 
     REBCNT i = 0;
 
-    // First gather the fixed parameters from the frame (known to be
-    // of correct types--they were checked by Do_Core() before this point.)
+    // First gather the fixed parameters from the frame.  They are known to
+    // be of correct general types (they were checked by Do_Core for the call)
+    // but a STRUCT! might not be compatible with the type of STRUCT! in
+    // the parameter specification.  They might also be out of range, e.g.
+    // a too-large or negative INTEGER! passed to a uint8.  Could fail() here.
     //
     for (; i < num_fixed; ++i) {
         REBUPT offset = arg_to_ffi(
@@ -844,12 +847,11 @@ REB_R Routine_Dispatcher(REBFRM *f)
     // If an FFI routine takes a fixed number of arguments, then its Call
     // InterFace (CIF) can be created just once.  This will be in the RIN_CIF.
     // However a variadic routine requires a CIF that matches the number
-    // and types of arguments for that specific call.  This CIF variable will
-    // be set to the RIN_CIF if it exists already--or to a dynamically
-    // allocated CIF for the varargs case (which will need to be freed).
+    // and types of arguments for that specific call.
     //
     // Note that because these pointers need to be freed by HANDLE! cleanup,
-    // they need to know the size.
+    // they need to remember the size.  OS_ALLOC() is used, at least until
+    // HANDLE! is changed to support sizes.
     //
     ffi_cif *cif; // pre-made if not variadic, built for this call otherwise
     ffi_type **args_fftypes; // ffi_type*[] if num_variable > 0

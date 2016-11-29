@@ -484,8 +484,8 @@ void Assert_Series_Core(REBSER *series)
 //
 //  Panic_Series_Debug: C
 //
-// This could be done in the PANIC_SERIES macro, but having it
-// as an actual function gives you a place to set breakpoints.
+// This could be done in the PANIC_SERIES macro, but having it as an actual
+// function gives you a place to set breakpoints.
 //
 ATTRIBUTE_NO_RETURN void Panic_Series_Debug(
     REBSER *series,

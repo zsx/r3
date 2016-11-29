@@ -35,6 +35,24 @@
 
 
 //
+// STATIC ASSERT
+//
+// Some conditions can be checked at compile-time, instead of deferred to a
+// runtime assert.  This macro triggers an error message at compile time.
+// `static_assert` is an arity-2 keyword in C++11 (which was expanded in
+// C++17 to have an arity-1 form).  This uses the name `static_assert_c` to
+// implement a poor-man's version of the arity-1 form in C, that only works
+// inside of function bodies.
+//
+// !!! This was the one being used, but review if it's the best choice:
+//
+// http://stackoverflow.com/questions/3385515/static-assert-in-c
+//
+#define static_assert_c(e) \
+    do {(void)sizeof(char[1 - 2*!(e)]);} while(0)
+
+
+//
 // CASTING MACROS
 //
 // The following code and explanation is from "Casts for the Masses (in C)":

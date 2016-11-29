@@ -78,7 +78,7 @@ void Assert_State_Balanced_Debug(
     const char *file,
     int line
 ) {
-    REBSER *panic = NULL;
+    REBSER *smoking_gun = NULL;
 
     if (s->dsp != DSP) {
         Debug_Fmt(
@@ -99,7 +99,7 @@ void Assert_State_Balanced_Debug(
             "PUSH_GUARD_SERIES()x%d without DROP_GUARD_SERIES",
             SER_LEN(GC_Series_Guard) - s->series_guard_len
         );
-        panic = *SER_AT(
+        smoking_gun = *SER_AT(
             REBSER*,
             GC_Series_Guard,
             SER_LEN(GC_Series_Guard) - 1
@@ -144,7 +144,7 @@ void Assert_State_Balanced_Debug(
             "Make_Series()x%d without Free_Series or MANAGE_SERIES",
             SER_LEN(GC_Manuals) - s->manuals_len
         );
-        panic = *(SER_AT(
+        smoking_gun = *(SER_AT(
             REBSER*,
             GC_Manuals,
             SER_LEN(GC_Manuals) - 1
@@ -161,8 +161,8 @@ void Assert_State_Balanced_Debug(
 
 problem_found:
     Debug_Fmt("in File: %s Line: %d", file, line);
-    if (panic)
-        Panic_Series(panic);
+    if (smoking_gun != NULL)
+        Panic_Series(smoking_gun);
     assert(FALSE);
     DEAD_END;
 }
