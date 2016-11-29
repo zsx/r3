@@ -402,6 +402,7 @@ REBCTX *Context_For_Frame_May_Reify_Core(REBFRM *f) {
     VAL_RESET_HEADER(CTX_VALUE(context), REB_FRAME);
     CTX_VALUE(context)->payload.any_context.varlist = CTX_VARLIST(context);
     INIT_CONTEXT_FRAME(context, f);
+    CTX_VALUE(context)->extra.binding = f->binding;
 
     // A reification of a frame for native code should not allow changing
     // the values out from under it, because that could cause it to crash

@@ -119,4 +119,8 @@ inline static void Init_Handle_Managed(
     SET_TRASH_IF_DEBUG(out);
     VAL_RESET_HEADER(out, REB_HANDLE);
     out->extra.singular = singular;
+#if !defined(NDEBUG)
+    TRASH_POINTER_IF_DEBUG(out->payload.handle.code);
+    TRASH_POINTER_IF_DEBUG(out->payload.handle.data);
+#endif
 }

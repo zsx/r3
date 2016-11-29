@@ -163,19 +163,6 @@ static void Assert_Basics(void)
     // you'd like to catch IS_END() tests on trash.)
     //
     assert(REB_MAX < 256);
-
-    // Types that are used for memory pooled allocations are required to be
-    // multiples of 8 bytes in size.  This way it's possible to reliably align
-    // 64-bit values using the node's allocation pointer as a baseline that
-    // is known to be 64-bit aligned.  (Rounding internally to the allocator
-    // would be possible, but that would add calculation as well as leading
-    // to wasting space--whereas this way any padding is visible.)
-    //
-    // This check is reinforced in the pool initialization itself.
-    //
-    assert(sizeof(REBI64) == 8);
-    assert(sizeof(REBSER) % 8 == 0);
-    assert(sizeof(REBGOB) % 8 == 0);
 }
 
 

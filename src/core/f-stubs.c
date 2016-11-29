@@ -468,6 +468,12 @@ void Val_Init_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
     ASSERT_ARRAY_MANAGED(CTX_KEYLIST(context));
 
     *out = *CTX_VALUE(context);
+
+    // Currently only FRAME! uses the ->binding field.  Following the pattern
+    // of function, we assume the archetype form of a frame has no binding,
+    // and it's only REBVAL instances besides the canon that become bound.
+    //
+    assert(VAL_BINDING(out) == NULL);
 }
 
 

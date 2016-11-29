@@ -1739,23 +1739,6 @@ REBOOL Is_Value_Managed(const RELVAL *value)
 
 
 //
-//  Free_Gob: C
-//
-// Free a gob, returning its memory for reuse.
-//
-void Free_Gob(REBGOB *gob)
-{
-    Free_Node(GOB_POOL, gob);
-
-    if (REB_I32_ADD_OF(GC_Ballast, Mem_Pools[GOB_POOL].wide, &GC_Ballast)) {
-        GC_Ballast = MAX_I32;
-    }
-
-    if (GC_Ballast > 0) CLR_SIGNAL(SIG_RECYCLE);
-}
-
-
-//
 //  Series_In_Pool: C
 //
 // Confirm that the series value is in the series pool.

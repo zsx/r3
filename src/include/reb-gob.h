@@ -233,8 +233,4 @@ typedef struct gob_window {             // Maps gob to window
 #define IS_GOB_STRING(g) (GOB_CONTENT(g) && GOB_TYPE(g) == GOBT_STRING)
 #define IS_GOB_TEXT(g)   (GOB_CONTENT(g) && GOB_TYPE(g) == GOBT_TEXT)
 
-#define IS_GOB_MARK(g)  GET_GOB_FLAG((g), GOBF_MARK)
-#define MARK_GOB(g)     SET_GOB_FLAG((g), GOBF_MARK)
-#define UNMARK_GOB(g)   CLR_GOB_FLAG((g), GOBF_MARK)
-
 extern REBGOB *Gob_Root; // Top level GOB (the screen)

@@ -666,12 +666,19 @@ typedef u16 REBUNI;
         inline static void TRASH_POINTER_IF_DEBUG(T* &p) {
             p = reinterpret_cast<T*>(static_cast<REBUPT>(0xDECAFBAD));
         }
-    #elif defined(__LP64__) || defined(__LLP64__)
-        #define TRASH_POINTER_IF_DEBUG(p) \
-            (p) = cast(void*, 0xDECAFBADLL)
+
+        template<class T>
+        inline static REBOOL IS_POINTER_TRASH_DEBUG(T* p) {
+            return LOGICAL(
+                p == reinterpret_cast<T*>(static_cast<REBUPT>(0xDECAFBAD))
+            );
+        }
     #else
         #define TRASH_POINTER_IF_DEBUG(p) \
-            (p) = cast(void*, 0xDECAFBAD)
+            ((p) = cast(void*, cast(REBUPT, 0xDECAFBAD)))
+
+        #define IS_POINTER_TRASH_DEBUG(p) \
+            LOGICAL((p) == cast(void*, cast(REBUPT, 0xDECAFBAD)))
     #endif
 #endif
 
