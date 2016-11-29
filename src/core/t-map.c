@@ -378,28 +378,11 @@ static void Append_Map(
     REBCNT n = 0;
 
     while (n < len && NOT_END(item)) {
-        if (IS_BAR(item)) {
-            //
-            // A BAR! between map pairs is okay, e.g. `make map! [a b | c d]`
-            //
-            ++item;
-            ++n;
-            continue;
-        }
-
         if (IS_END(item + 1)) {
             //
             // Keys with no value not allowed, e.g. `make map! [1 "foo" 2]`
             //
             fail (Error(RE_PAST_END));
-        }
-
-        if (IS_BAR(item + 1)) {
-            //
-            // Expression barriers allowed between items but not as the
-            // mapped-to value for a key, e.g. `make map! [1 "foo" 2 |]`
-            //
-            fail (Error(RE_EXPRESSION_BARRIER));
         }
 
         Find_Map_Entry(
@@ -443,6 +426,7 @@ void TO_Map(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     REBARR* array;
     REBCNT len;
     REBCNT index;
+    REBCTX *specifier;
 
     if (IS_BLOCK(arg) || IS_GROUP(arg)) {
         //
@@ -451,17 +435,19 @@ void TO_Map(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         array = VAL_ARRAY(arg);
         index = VAL_INDEX(arg);
         len = VAL_ARRAY_LEN_AT(arg);
+        specifier = VAL_SPECIFIER(arg);
     }
     else if (IS_MAP(arg)) {
         array = MAP_PAIRLIST(VAL_MAP(arg));
         index = 0;// maps don't have an index/"position"
         len = ARR_LEN(array);
+        specifier = SPECIFIED; // there should be no relative values in a MAP!
     }
     else
         fail (Error_Invalid_Arg(arg));
 
     REBMAP *map = Make_Map(len / 2); // [key value key value...] + END
-    Append_Map(map, array, index, VAL_SPECIFIER(arg), UNKNOWN);
+    Append_Map(map, array, index, specifier, len);
     Rehash_Map(map);
     Val_Init_Map(out, map);
 }
