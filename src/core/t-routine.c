@@ -230,63 +230,58 @@ static void Schema_From_Block_May_Fail(
         fail (Error_Invalid_Arg(blk));
 
     if (IS_WORD(item)) {
+        //
+        // Drop the binding off word (then note SYM_VOID turns schema to blank)
+        //
+        Val_Init_Word(schema_out, REB_WORD, VAL_WORD_SPELLING(item));
+
         switch (VAL_WORD_SYM(item)) {
         case SYM_VOID:
             SET_BLANK(schema_out); // only valid for return types
+            Val_Init_Typeset(param_out, FLAGIT_64(REB_MAX_VOID), NULL);
             break;
 
         case SYM_UINT8:
-            SET_INTEGER(schema_out, FFI_TYPE_UINT8);
             Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
             break;
 
         case SYM_INT8:
-            SET_INTEGER(schema_out, FFI_TYPE_SINT8);
             Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
             break;
 
         case SYM_UINT16:
-            SET_INTEGER(schema_out, FFI_TYPE_UINT16);
             Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
             break;
 
         case SYM_INT16:
-            SET_INTEGER(schema_out, FFI_TYPE_SINT16);
             Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
             break;
 
         case SYM_UINT32:
-            SET_INTEGER(schema_out, FFI_TYPE_UINT32);
             Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
             break;
 
         case SYM_INT32:
-            SET_INTEGER(schema_out, FFI_TYPE_SINT32);
             Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
             break;
 
         case SYM_UINT64:
-            SET_INTEGER(schema_out, FFI_TYPE_UINT64);
             Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
             break;
 
         case SYM_INT64:
-            SET_INTEGER(schema_out, FFI_TYPE_SINT64);
             Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
             break;
 
         case SYM_FLOAT:
-            SET_INTEGER(schema_out, FFI_TYPE_FLOAT);
             Val_Init_Typeset(param_out, FLAGIT_64(REB_DECIMAL), NULL);
             break;
 
         case SYM_DOUBLE:
-            SET_INTEGER(schema_out, FFI_TYPE_DOUBLE);
             Val_Init_Typeset(param_out, FLAGIT_64(REB_DECIMAL), NULL);
             break;
 
         case SYM_POINTER:
-            SET_INTEGER(schema_out, FFI_TYPE_POINTER);
             Val_Init_Typeset(
                 param_out,
                 FLAGIT_64(REB_INTEGER)
@@ -296,6 +291,10 @@ static void Schema_From_Block_May_Fail(
                     | FLAGIT_64(REB_FUNCTION), // legal if routine or callback
                 NULL
             );
+            break;
+
+        case SYM_REBVAL:
+            Val_Init_Typeset(param_out, ALL_64, NULL);
             break;
 
         default:
@@ -432,10 +431,10 @@ static REBUPT arg_to_ffi(
         return offset;
     }
 
-    assert(IS_INTEGER(schema));
+    assert(IS_WORD(schema));
 
-    switch (VAL_INT32(schema)) {
-    case FFI_TYPE_UINT8:{
+    switch (VAL_WORD_SYM(schema)) {
+    case SYM_UINT8:{
         u8 u;
         if (!dest)
             dest = Expand_And_Align(&offset, store, sizeof(u));
@@ -448,7 +447,7 @@ static REBUPT arg_to_ffi(
         memcpy(dest, &u, sizeof(u));
         break;}
 
-    case FFI_TYPE_SINT8:{
+    case SYM_INT8:{
         i8 i;
         if (!dest)
             dest = Expand_And_Align(&offset, store, sizeof(i));
@@ -461,7 +460,7 @@ static REBUPT arg_to_ffi(
         memcpy(dest, &i, sizeof(i));
         break;}
 
-    case FFI_TYPE_UINT16:{
+    case SYM_UINT16:{
         u16 u;
         if (!dest)
             dest = Expand_And_Align(&offset, store, sizeof(u));
@@ -474,7 +473,7 @@ static REBUPT arg_to_ffi(
         memcpy(dest, &u, sizeof(u));
         break;}
 
-    case FFI_TYPE_SINT16:{
+    case SYM_INT16:{
         i16 i;
         if (!dest)
             dest = Expand_And_Align(&offset, store, sizeof(i));
@@ -487,7 +486,7 @@ static REBUPT arg_to_ffi(
         memcpy(dest, &i, sizeof(i));
         break;}
 
-    case FFI_TYPE_UINT32:{
+    case SYM_UINT32:{
         u32 u;
         if (!dest)
             dest = Expand_And_Align(&offset, store, sizeof(u));
@@ -500,7 +499,7 @@ static REBUPT arg_to_ffi(
         memcpy(dest, &u, sizeof(u));
         break;}
 
-    case FFI_TYPE_SINT32:{
+    case SYM_INT32:{
         i32 i;
         if (!dest)
             dest = Expand_And_Align(&offset, store, sizeof(i));
@@ -513,8 +512,8 @@ static REBUPT arg_to_ffi(
         memcpy(dest, &i, sizeof(i));
         break;}
 
-    case FFI_TYPE_UINT64:
-    case FFI_TYPE_SINT64:{
+    case SYM_UINT64:
+    case SYM_INT64:{
         if (!dest)
             dest = Expand_And_Align(&offset, store, sizeof(REBI64));
         if (!arg) break;
@@ -525,7 +524,7 @@ static REBUPT arg_to_ffi(
         memcpy(dest, &VAL_INT64(arg), sizeof(REBI64));
         break;}
 
-    case FFI_TYPE_POINTER:{
+    case SYM_POINTER:{
         //
         // Note: Function pointers and data pointers may not be same size.
         //
@@ -570,7 +569,15 @@ static REBUPT arg_to_ffi(
         }
         break;} // end case FFI_TYPE_POINTER
 
-    case FFI_TYPE_FLOAT:{
+    case SYM_REBVAL: {
+        if (!dest)
+            dest = Expand_And_Align(&offset, store, sizeof(REBVAL*));
+        if (!arg) break;
+
+        memcpy(dest, &arg, sizeof(REBVAL*)); // copies a *pointer*!
+        break; }
+
+    case SYM_FLOAT:{
         float f;
         if (!dest)
             dest = Expand_And_Align(&offset, store, sizeof(f));
@@ -583,7 +590,7 @@ static REBUPT arg_to_ffi(
         memcpy(dest, &f, sizeof(f));
         break;}
 
-    case FFI_TYPE_DOUBLE:{
+    case SYM_DOUBLE:{
         if (!dest)
             dest = Expand_And_Align(&offset, store, sizeof(double));
         if (!arg) break;
@@ -594,12 +601,12 @@ static REBUPT arg_to_ffi(
         memcpy(dest, &VAL_DECIMAL(arg), sizeof(double));
         break;}
 
-    case FFI_TYPE_STRUCT:
+    case SYM_STRUCT_X:
         //
-        // structs should be processed above by the HANDLE! case, not INTEGER!
+        // structs should be processed above by the HANDLE! case, not WORD!
         //
         assert(FALSE);
-    case FFI_TYPE_VOID:
+    case SYM_VOID:
         //
         // can't return a meaningful offset for "void"--it's only valid for
         // return types, so caller should check and not try to pass it in.
@@ -649,54 +656,58 @@ static void ffi_to_rebol(
         return;
     }
 
-    assert(IS_INTEGER(schema));
+    assert(IS_WORD(schema));
 
-    switch (VAL_INT32(schema)) {
-    case FFI_TYPE_UINT8:
+    switch (VAL_WORD_SYM(schema)) {
+    case SYM_UINT8:
         SET_INTEGER(out, *cast(u8*, ffi_rvalue));
         break;
 
-    case FFI_TYPE_SINT8:
+    case SYM_INT8:
         SET_INTEGER(out, *cast(i8*, ffi_rvalue));
         break;
 
-    case FFI_TYPE_UINT16:
+    case SYM_UINT16:
         SET_INTEGER(out, *cast(u16*, ffi_rvalue));
         break;
 
-    case FFI_TYPE_SINT16:
+    case SYM_INT16:
         SET_INTEGER(out, *cast(i16*, ffi_rvalue));
         break;
 
-    case FFI_TYPE_UINT32:
+    case SYM_UINT32:
         SET_INTEGER(out, *cast(u32*, ffi_rvalue));
         break;
 
-    case FFI_TYPE_SINT32:
+    case SYM_INT32:
         SET_INTEGER(out, *cast(i32*, ffi_rvalue));
         break;
 
-    case FFI_TYPE_UINT64:
+    case SYM_UINT64:
         SET_INTEGER(out, *cast(u64*, ffi_rvalue));
         break;
 
-    case FFI_TYPE_SINT64:
+    case SYM_INT64:
         SET_INTEGER(out, *cast(i64*, ffi_rvalue));
         break;
 
-    case FFI_TYPE_POINTER:
+    case SYM_POINTER:
         SET_INTEGER(out, cast(REBUPT, *cast(void**, ffi_rvalue)));
         break;
 
-    case FFI_TYPE_FLOAT:
+    case SYM_FLOAT:
         SET_DECIMAL(out, *cast(float*, ffi_rvalue));
         break;
 
-    case FFI_TYPE_DOUBLE:
+    case SYM_DOUBLE:
         SET_DECIMAL(out, *cast(double*, ffi_rvalue));
         break;
 
-    case FFI_TYPE_VOID:
+    case SYM_REBVAL:
+        *out = **cast(const REBVAL**, ffi_rvalue);
+        break;
+
+    case SYM_VOID:
         assert(FALSE); // not covered by generic routine.
     default:
         assert(FALSE);

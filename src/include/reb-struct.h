@@ -170,10 +170,13 @@ inline static void *VAL_LIBRARY_FD(const RELVAL *v) {
 // has been changed to an ordinary Rebol array.  This makes it so it does not
 // require modifications to the garbage collector.
 //
-// [0] - A WORD! name for the field (or BLANK! if anonymous ?)
+// [0] - A WORD! name for the field (or BLANK! if anonymous ?)  What should
+//       probably happen here is that structs should use a keylist for this;
+//       though that would mean anonymous fields would not be legal.
 //
-// [1] - INTEGER! type, e.g. FFI_TYPE_XXX constants, or a BLOCK! of fields
-//       if this is a struct.
+// [1] - WORD! type or a BLOCK! of fields if this is a struct.  The symbols
+//       generally map to FFI_TYPE_XXX constant (e.g. UINT8) but may also
+//       be a special extension, such as REBVAL.
 //
 // [2] - An INTEGER! of the array dimensionality, or BLANK! if not an array
 //
@@ -215,14 +218,22 @@ inline static REBSTR *FLD_NAME(REBFLD *f) {
     return VAL_WORD_SPELLING(FLD_AT(f, 0));
 }
 
-inline static unsigned short FLD_CTYPE(REBFLD *f) {
-    if (IS_BLOCK(FLD_AT(f, 1)))
-        return FFI_TYPE_STRUCT;
-    return VAL_INT32(FLD_AT(f, 1));
-}
-
 inline static REBOOL FLD_IS_STRUCT(REBFLD *f)
     { return IS_BLOCK(FLD_AT(f, 1)); }
+
+inline static unsigned short FLD_TYPE_SYM(REBFLD *f) {
+    if (FLD_IS_STRUCT(f)) {
+        //
+        // We could return SYM_STRUCT_X for structs, but it's probably better
+        // to have callers test FLD_IS_STRUCT() separately for clarity.
+        //
+        assert(FALSE);
+        return SYM_STRUCT_X;
+    }
+
+    assert(IS_WORD(FLD_AT(f, 1)));
+    return VAL_WORD_SYM(FLD_AT(f, 1));
+}
 
 inline static REBARR *FLD_FIELDLIST(REBFLD *f) {
     assert(FLD_IS_STRUCT(f));
@@ -340,6 +351,62 @@ inline static REBOOL VAL_STRUCT_INACCESSIBLE(const RELVAL *v) {
     STU_FFTYPE(VAL_STRUCT(v))
 
 
+// Returns an ffi_type* (which contains a ->type field, that holds the
+// FFI_TYPE_XXX enum).
+//
+// !!! In the original Atronix implementation this was done with a table
+// indexed by FFI_TYPE_XXX constants.  But since those constants do not have
+// guaranteed values or ordering, there was a parallel separate enum to use
+// for indexing (STRUCT_TYPE_XXX).  Getting rid of the STRUCT_TYPE_XXX and
+// just using a switch statement should effectively act as a table anyway
+// if the SYM_XXX numbers are in sequence.  :-/
+//
+inline static ffi_type *Get_FFType_For_Sym(REBSYM sym) {
+    switch (sym) {
+    case SYM_UINT8:
+        return &ffi_type_uint8;
+
+    case SYM_INT8:
+        return &ffi_type_sint8;
+
+    case SYM_UINT16:
+        return &ffi_type_uint16;
+
+    case SYM_INT16:
+        return &ffi_type_sint16;
+
+    case SYM_UINT32:
+        return &ffi_type_uint32;
+
+    case SYM_INT32:
+        return &ffi_type_sint32;
+
+    case SYM_UINT64:
+        return &ffi_type_uint64;
+
+    case SYM_INT64:
+        return &ffi_type_sint64;
+
+    case SYM_FLOAT:
+        return &ffi_type_float;
+
+    case SYM_DOUBLE:
+        return &ffi_type_double;
+
+    case SYM_POINTER:
+        return &ffi_type_pointer;
+
+    case SYM_REBVAL:
+        return &ffi_type_pointer;
+
+    // !!! SYM_INTEGER, SYM_DECIMAL, SYM_STRUCT was "-1" in original table
+
+    default:
+        return NULL;
+    }
+}
+
+
 //=////////////////////////////////////////////////////////////////////////=//
 //
 //  ROUTINE SUPPORT
@@ -455,14 +522,9 @@ inline static ffi_type** RIN_ARG_TYPES(REBRIN *r)
 inline static REBOOL RIN_IS_VARIADIC(REBRIN *r)
     { return VAL_LOGIC(RIN_AT(r, 7)); }
 
-
-#define Get_FFType_Enum_Info(sym_out,kind_out,type) \
-    cast(ffi_type*, Get_FFType_Enum_Info_Core((sym_out), (kind_out), (type)))
-
-inline static void* SCHEMA_FFTYPE_CORE(const RELVAL *schema) {
+inline static ffi_type* SCHEMA_FFTYPE(const RELVAL *schema) {
     if (IS_BLOCK(schema)) {
         REBFLD *field = VAL_ARRAY(schema);
-        Prepare_Field_For_FFI(field);
         return FLD_FFTYPE(field);
     }
 
@@ -470,12 +532,6 @@ inline static void* SCHEMA_FFTYPE_CORE(const RELVAL *schema) {
     // void parameters being legal.  The NONE! return type is handled
     // exclusively by the return value, to prevent potential mixups.
     //
-    assert(IS_INTEGER(schema));
-
-    enum Reb_Kind kind; // dummy
-    REBSTR *name; // dummy
-    return Get_FFType_Enum_Info(&name, &kind, VAL_INT32(schema));
+    assert(IS_WORD(schema));
+    return Get_FFType_For_Sym(VAL_WORD_SYM(schema));
 }
-
-#define SCHEMA_FFTYPE(schema) \
-    cast(ffi_type*, SCHEMA_FFTYPE_CORE(schema))

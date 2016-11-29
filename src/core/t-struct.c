@@ -32,7 +32,9 @@
 
 
 // The managed HANDLE! for a ffi_type will have a reference in structs that
-// use it.
+// use it.  Basic non-struct FFI_TYPE_XXX use the stock ffi_type_xxx pointers
+// that do not have to be freed, so they use simple HANDLE! which do not
+// register this cleanup hook.
 //
 static void cleanup_ffi_type(const REBVAL *v) {
     assert(IS_HANDLE(v));
@@ -43,91 +45,6 @@ static void cleanup_ffi_type(const REBVAL *v) {
     if (fftype->type = FFI_TYPE_STRUCT)
         OS_FREE(fftype->elements);
     OS_FREE(fftype);
-}
-
-
-//
-//  Get_FFType_Enum_Info_Core: C
-//
-// Returns whether the FFI type is integer-like (REB_INTEGER) or decimal-like
-// (REB_DECIMAL).  If it is neither, it gives back REB_0.  Returns a symbol
-// if one is applicable.
-//
-// !!! Previously this was a table, which was based on a duplicate of the
-// FFI_TYPE constants as an enum (STRUCT_TYPE_XXX).  Getting rid of the
-// STRUCT_TYPE_XXX helps reduce confusion and redundancy, but there is no
-// FFI_TYPE_MAX or fixed ordering guaranteed necessarily of the constants.
-// Having a `switch` is worth not creating a mirror enum, however.
-//
-void *Get_FFType_Enum_Info_Core(
-    REBSTR **name_out,
-    enum Reb_Kind *kind_out,
-    unsigned short type
-) {
-    switch (type) {
-    case FFI_TYPE_UINT8:
-        *name_out = Canon(SYM_UINT8);
-        *kind_out = REB_INTEGER;
-        return &ffi_type_uint8;
-
-    case FFI_TYPE_SINT8:
-        *name_out = Canon(SYM_INT8);
-        *kind_out = REB_INTEGER;
-        return &ffi_type_sint8;
-
-    case FFI_TYPE_UINT16:
-        *name_out = Canon(SYM_UINT16);
-        *kind_out = REB_INTEGER;
-        return &ffi_type_uint16;
-
-    case FFI_TYPE_SINT16:
-        *name_out = Canon(SYM_INT16);
-        *kind_out = REB_INTEGER;
-        return &ffi_type_sint16;
-
-    case FFI_TYPE_UINT32:
-        *name_out = Canon(SYM_UINT32);
-        *kind_out = REB_INTEGER;
-        return &ffi_type_uint32;
-
-    case FFI_TYPE_SINT32:
-        *name_out = Canon(SYM_INT32);
-        *kind_out = REB_INTEGER;
-        return &ffi_type_sint32;
-
-    case FFI_TYPE_UINT64:
-        *name_out = Canon(SYM_INT64);
-        *kind_out = REB_INTEGER;
-        return &ffi_type_uint64;
-
-    case FFI_TYPE_SINT64:
-        *name_out = Canon(SYM_INT64);
-        *kind_out = REB_INTEGER;
-        return &ffi_type_sint64;
-
-    case FFI_TYPE_FLOAT:
-        *name_out = Canon(SYM_FLOAT);
-        *kind_out = REB_DECIMAL;
-        return &ffi_type_float;
-
-    case FFI_TYPE_DOUBLE:
-        *name_out = Canon(SYM_DOUBLE);
-        *kind_out = REB_DECIMAL;
-        return &ffi_type_double;
-
-    case FFI_TYPE_POINTER:
-        *name_out = Canon(SYM_POINTER);
-        *kind_out = REB_0;
-        return &ffi_type_pointer;
-
-    // !!! SYM_INTEGER, SYM_DECIMAL, SYM_STRUCT was "-1" in original table
-
-    default:
-        assert(FALSE);
-        *name_out = NULL;
-        *kind_out = REB_0;
-        return NULL;
-    }
 }
 
 
@@ -149,69 +66,13 @@ static void get_scalar(
 ){
     assert(n == 0 || FLD_IS_ARRAY(field));
 
-    if (STU_INACCESSIBLE(stu)) {
-        //
-        // !!! This just gets void with no error...that seems like a bad idea,
-        // if the data is truly inaccessible.
-        //
-        if (NOT(FLD_IS_STRUCT(field))) {
-            SET_VOID(out);
-            return;
-        }
-    }
-
     REBYTE *data = SER_AT(
         REBYTE,
         STU_DATA_BIN(stu),
         STU_OFFSET(stu) + FLD_OFFSET(field) + (n * FLD_WIDE(field))
     );
 
-    switch (FLD_CTYPE(field)) {
-    case FFI_TYPE_UINT8:
-        SET_INTEGER(out, *cast(u8*, data));
-        break;
-
-    case FFI_TYPE_SINT8:
-        SET_INTEGER(out, *cast(i8*, data));
-        break;
-
-    case FFI_TYPE_UINT16:
-        SET_INTEGER(out, *cast(u16*, data));
-        break;
-
-    case FFI_TYPE_SINT16:
-        SET_INTEGER(out, *cast(i8*, data));
-        break;
-
-    case FFI_TYPE_UINT32:
-        SET_INTEGER(out, *cast(u32*, data));
-        break;
-
-    case FFI_TYPE_SINT32:
-        SET_INTEGER(out, *cast(i32*, data));
-        break;
-
-    case FFI_TYPE_UINT64:
-        SET_INTEGER(out, *cast(u64*, data));
-        break;
-
-    case FFI_TYPE_SINT64:
-        SET_INTEGER(out, *cast(i64*, data));
-        break;
-
-    case FFI_TYPE_FLOAT:
-        SET_DECIMAL(out, *cast(float*, data));
-        break;
-
-    case FFI_TYPE_DOUBLE:
-        SET_DECIMAL(out, *cast(double*, data));
-        break;
-
-    case FFI_TYPE_POINTER:
-        SET_INTEGER(out, cast(REBUPT, *cast(void**, data)));
-        break;
-
-    case FFI_TYPE_STRUCT: {
+    if (FLD_IS_STRUCT(field)) {
         //
         // In order for the schema to participate in GC it must be a series.
         // Currently this series is created with a single value of the root
@@ -226,6 +87,8 @@ static void get_scalar(
 
         // In this case the structure lives at an offset inside another.
         //
+        // Note: The original code allowed this for STU_INACCESSIBLE(stu).
+        //
         VAL_RESET_HEADER(single, REB_STRUCT);
         MANAGE_ARRAY(sub_stu);
         single->payload.structure.stu = sub_stu;
@@ -236,7 +99,66 @@ static void get_scalar(
         //
         *out = *single;
         assert(VAL_STRUCT_SIZE(out) == FLD_WIDE(field));
-        break; }
+        return;
+    }
+
+    if (STU_INACCESSIBLE(stu)) {
+        //
+        // !!! This just gets void with no error...that seems like a bad idea,
+        // if the data is truly inaccessible.
+        //
+        SET_VOID(out);
+        return;
+    }
+
+    switch (FLD_TYPE_SYM(field)) {
+    case SYM_UINT8:
+        SET_INTEGER(out, *cast(u8*, data));
+        break;
+
+    case SYM_INT8:
+        SET_INTEGER(out, *cast(i8*, data));
+        break;
+
+    case SYM_UINT16:
+        SET_INTEGER(out, *cast(u16*, data));
+        break;
+
+    case SYM_INT16:
+        SET_INTEGER(out, *cast(i8*, data));
+        break;
+
+    case SYM_UINT32:
+        SET_INTEGER(out, *cast(u32*, data));
+        break;
+
+    case SYM_INT32:
+        SET_INTEGER(out, *cast(i32*, data));
+        break;
+
+    case SYM_UINT64:
+        SET_INTEGER(out, *cast(u64*, data));
+        break;
+
+    case SYM_INT64:
+        SET_INTEGER(out, *cast(i64*, data));
+        break;
+
+    case SYM_FLOAT:
+        SET_DECIMAL(out, *cast(float*, data));
+        break;
+
+    case SYM_DOUBLE:
+        SET_DECIMAL(out, *cast(double*, data));
+        break;
+
+    case SYM_POINTER:
+        SET_INTEGER(out, cast(REBUPT, *cast(void**, data)));
+        break;
+
+    case SYM_REBVAL:
+        *out = *cast(const REBVAL*, data);
+        break;
 
     default:
         assert(FALSE);
@@ -333,10 +255,11 @@ REBARR *Struct_To_Array(REBSTU *stu)
         else {
             // Elemental type (from a fixed list of known C types)
             //
-            REBSTR *name;
-            enum Reb_Kind kind; // dummy
-            Get_FFType_Enum_Info(&name, &kind, FLD_CTYPE(field));
-            Val_Init_Word(Alloc_Tail_Array(typespec), REB_WORD, name);
+            Val_Init_Word(
+                Alloc_Tail_Array(typespec),
+                REB_WORD,
+                Canon(FLD_TYPE_SYM(field))
+            );
         }
 
         // "optional dimension and initialization."
@@ -396,7 +319,7 @@ static REBOOL same_fields(REBARR *tgt_fieldlist, REBARR *src_fieldlist)
             return FALSE;
         }
 
-        if (FLD_CTYPE(tgt_field) != FLD_CTYPE(src_field))
+        if (FLD_TYPE_SYM(tgt_field) != FLD_TYPE_SYM(src_field))
             return FALSE;
 
         if (FLD_IS_ARRAY(tgt_field)) {
@@ -434,117 +357,118 @@ static REBOOL assign_scalar_core(
         offset + FLD_OFFSET(field) + (n * FLD_WIDE(field))
     );
 
-    i64 i = 0;
-    double d = 0;
+    if (FLD_IS_STRUCT(field)) {
+        if (!IS_STRUCT(val))
+            fail (Error_Invalid_Type(VAL_TYPE(val)));
 
-    REBSTR *sym; // dummy
-    enum Reb_Kind kind;
-    Get_FFType_Enum_Info(&sym, &kind, FLD_CTYPE(field));
+        if (FLD_WIDE(field) != VAL_STRUCT_SIZE(val))
+            fail (Error_Invalid_Arg(val));
+
+        if (!same_fields(FLD_FIELDLIST(field), VAL_STRUCT_FIELDLIST(val)))
+            fail (Error_Invalid_Arg(val));
+
+        memcpy(
+            data,
+            SER_AT(
+                REBYTE,
+                VAL_STRUCT_DATA_BIN(val),
+                VAL_STRUCT_OFFSET(val)
+            ),
+            FLD_WIDE(field)
+        );
+
+        return TRUE;
+    }
+
+    // All other types take numbers
+
+    i64 i;
+    double d;
 
     switch (VAL_TYPE(val)) {
     case REB_DECIMAL:
-        if (kind != REB_INTEGER && kind != REB_DECIMAL)
-            fail (Error_Invalid_Type(VAL_TYPE(val)));
-
         d = VAL_DECIMAL(val);
         i = cast(i64, d);
         break;
 
     case REB_INTEGER:
-        if (kind != REB_INTEGER && kind != REB_DECIMAL)
-            if (FLD_CTYPE(field) != FFI_TYPE_POINTER)
-                fail (Error_Invalid_Type(VAL_TYPE(val)));
-
-        i =  VAL_INT64(val);
+        i = VAL_INT64(val);
         d = cast(double, i);
-        break;
-
-    case REB_STRUCT:
-        if (NOT(FLD_IS_STRUCT(field)))
-            fail (Error_Invalid_Type(VAL_TYPE(val)));
         break;
 
     default:
         fail (Error_Invalid_Type(VAL_TYPE(val)));
     }
 
-    switch (FLD_CTYPE(field)) {
-    case FFI_TYPE_SINT8:
+    switch (FLD_TYPE_SYM(field)) {
+    case SYM_INT8:
         if (i > 0x7f || i < -128)
             fail (Error(RE_OVERFLOW));
         *cast(i8*, data) = cast(i8, i);
         break;
 
-    case FFI_TYPE_UINT8:
+    case SYM_UINT8:
         if (i > 0xff || i < 0)
             fail (Error(RE_OVERFLOW));
         *cast(u8*, data) = cast(u8, i);
         break;
 
-    case FFI_TYPE_SINT16:
+    case SYM_INT16:
         if (i > 0x7fff || i < -0x8000)
             fail (Error(RE_OVERFLOW));
         *cast(i16*, data) = cast(i16, i);
         break;
 
-    case FFI_TYPE_UINT16:
+    case SYM_UINT16:
         if (i > 0xffff || i < 0)
             fail (Error(RE_OVERFLOW));
         *cast(u16*, data) = cast(u16, i);
         break;
 
-    case FFI_TYPE_SINT32:
+    case SYM_INT32:
         if (i > MAX_I32 || i < MIN_I32)
             fail (Error(RE_OVERFLOW));
         *cast(i32*, data) = cast(i32, i);
         break;
 
-    case FFI_TYPE_UINT32:
+    case SYM_UINT32:
         if (i > MAX_U32 || i < 0)
             fail (Error(RE_OVERFLOW));
         *cast(u32*, data) = cast(u32, i);
         break;
 
-    case FFI_TYPE_SINT64:
+    case SYM_INT64:
         *cast(i64*, data) = i;
         break;
 
-    case FFI_TYPE_UINT64:
+    case SYM_UINT64:
         if (i < 0)
             fail (Error(RE_OVERFLOW));
         *cast(u64*, data) = cast(u64, i);
         break;
 
-    case FFI_TYPE_POINTER:
+    case SYM_FLOAT:
+        *cast(float*, data) = cast(float, d);
+        break;
+
+    case SYM_DOUBLE:
+        *cast(double*, data) = d;
+        break;
+
+    case SYM_POINTER:
         if (sizeof(void*) == 4 && i > MAX_U32)
             fail (Error(RE_OVERFLOW));
         *cast(void**, data) = cast(void*, cast(REBUPT, i));
         break;
 
-    case FFI_TYPE_FLOAT:
-        *cast(float*, data) = cast(float, d);
-        break;
-
-    case FFI_TYPE_DOUBLE:
-        *cast(double*, data) = d;
-        break;
-
-    case FFI_TYPE_STRUCT:
-        if (FLD_WIDE(field) != VAL_STRUCT_SIZE(val))
-            fail (Error_Invalid_Arg(val));
-
-        if (same_fields(FLD_FIELDLIST(field), VAL_STRUCT_FIELDLIST(val))) {
-            memcpy(
-                data,
-                SER_AT(
-                    REBYTE,
-                    VAL_STRUCT_DATA_BIN(val),
-                    VAL_STRUCT_OFFSET(val)
-                ),
-                FLD_WIDE(field)
-            );
-        } else
-            fail (Error_Invalid_Arg(val));
+    case SYM_REBVAL:
+        //
+        // !!! This is a dangerous thing to be doing in generic structs, but
+        // for the main purpose of REBVAL (tunneling) it should be okay so
+        // long as the REBVAL* that is passed in is actually a pointer into
+        // a frame's args.
+        //
+        *cast(const REBVAL**, data) = val;
         break;
 
     default:
@@ -760,6 +684,94 @@ static REBSER *make_ext_storage(
 
 
 //
+//  Total_Struct_Dimensionality: C
+//
+// This recursively counts the total number of data elements inside of a
+// struct.  This includes for instance every array element inside a
+// nested struct's field, along with its fields.
+//
+// !!! Is this really how char[1000] would be handled in the FFI?  By
+// creating 1000 ffi_types?  :-/
+//
+static REBCNT Total_Struct_Dimensionality(REBARR *fields)
+{
+    REBCNT n_fields = 0;
+
+    RELVAL *item = ARR_HEAD(fields);
+    for (; NOT_END(item); ++item) {
+        REBFLD *field = VAL_ARRAY(item);
+
+        if (FLD_IS_STRUCT(field))
+            n_fields += Total_Struct_Dimensionality(FLD_FIELDLIST(field));
+        else
+            n_fields += FLD_IS_ARRAY(field) ? FLD_DIMENSION(field) : 1;
+    }
+    return n_fields;
+}
+
+
+//
+//  Prepare_Field_For_FFI: C
+//
+// The main reason structs exist is so that they can be used with the FFI,
+// and the FFI requires you to set up a "ffi_type" C struct describing
+// each datatype. This is a helper function that sets up proper ffi_type.
+// There are stock types for the primitives, but each structure needs its
+// own.
+//
+static void Prepare_Field_For_FFI(REBFLD *schema)
+{
+    assert(IS_UNREADABLE_IF_DEBUG(FLD_AT(schema, 3))); // caller uninitializes
+
+    ffi_type *fftype;
+
+    if (!FLD_IS_STRUCT(schema)) {
+        fftype = Get_FFType_For_Sym(FLD_TYPE_SYM(schema));
+        assert(fftype != NULL);
+
+        // The FFType pointers returned by Get_FFType_For_Sym should not be
+        // freed, so a "simple" handle is used that just holds the pointer.
+        //
+        Init_Handle_Simple(FLD_AT(schema, 3), NULL, fftype);
+        return;
+    }
+
+    // For struct fields--on the other hand--it's necessary to do a custom
+    // allocation for a new type registered with the FFI.
+    //
+    fftype = OS_ALLOC(ffi_type);
+    fftype->type = FFI_TYPE_STRUCT;
+
+    // "This is set by libffi; you should initialize it to zero."
+    // http://www.atmark-techno.com/~yashi/libffi.html#Structures
+    //
+    fftype->size = 0;
+    fftype->alignment = 0;
+
+    REBARR *fieldlist = FLD_FIELDLIST(schema);
+
+    REBCNT dimensionality = Total_Struct_Dimensionality(fieldlist);
+    fftype->elements = OS_ALLOC_N(ffi_type*, dimensionality + 1); // NULL term
+
+    RELVAL *item = ARR_HEAD(fieldlist);
+
+    REBCNT j = 0;
+    for (; NOT_END(item); ++item) {
+        REBFLD *field = VAL_ARRAY(item);
+        REBCNT dimension = FLD_IS_ARRAY(field) ? FLD_DIMENSION(field) : 1;
+
+        REBCNT n = 0;
+        for (n = 0; n < dimension; ++n)
+            fftype->elements[j++] = FLD_FFTYPE(field);
+    }
+
+    fftype->elements[j] = NULL;
+
+    Init_Handle_Managed(FLD_AT(schema, 3), NULL, fftype, &cleanup_ffi_type);
+}
+
+
+//
 // This takes a spec like `[int32 [2]]` and sets the output field's properties
 // by recognizing a finite set of FFI type keywords defined in %words.r.
 //
@@ -784,69 +796,69 @@ static void Parse_Field_Type_May_Fail(
 
         switch (VAL_WORD_SYM(val)) {
         case SYM_UINT8:
-            SET_INTEGER(FLD_AT(field, 1), FFI_TYPE_UINT8);
-            SET_BLANK(FLD_AT(field, 2));
+            *FLD_AT(field, 1) = *val;
             SET_INTEGER(FLD_AT(field, 5), 1);
+            Prepare_Field_For_FFI(field);
             break;
 
         case SYM_INT8:
-            SET_INTEGER(FLD_AT(field, 1), FFI_TYPE_SINT8);
-            SET_BLANK(FLD_AT(field, 2));
+            *FLD_AT(field, 1) = *val;
             SET_INTEGER(FLD_AT(field, 5), 1);
+            Prepare_Field_For_FFI(field);
             break;
 
         case SYM_UINT16:
-            SET_INTEGER(FLD_AT(field, 1), FFI_TYPE_UINT16);
-            SET_BLANK(FLD_AT(field, 2));
+            *FLD_AT(field, 1) = *val;
             SET_INTEGER(FLD_AT(field, 5), 2);
+            Prepare_Field_For_FFI(field);
             break;
 
         case SYM_INT16:
-            SET_INTEGER(FLD_AT(field, 1), FFI_TYPE_SINT16);
-            SET_BLANK(FLD_AT(field, 2));
+            *FLD_AT(field, 1) = *val;
             SET_INTEGER(FLD_AT(field, 5), 2);
+            Prepare_Field_For_FFI(field);
             break;
 
         case SYM_UINT32:
-            SET_INTEGER(FLD_AT(field, 1), FFI_TYPE_UINT32);
-            SET_BLANK(FLD_AT(field, 2));
+            *FLD_AT(field, 1) = *val;
             SET_INTEGER(FLD_AT(field, 5), 4);
+            Prepare_Field_For_FFI(field);
             break;
 
         case SYM_INT32:
-            SET_INTEGER(FLD_AT(field, 1), FFI_TYPE_SINT32);
-            SET_BLANK(FLD_AT(field, 2));
+            *FLD_AT(field, 1) = *val;
             SET_INTEGER(FLD_AT(field, 5), 4);
+            Prepare_Field_For_FFI(field);
             break;
 
         case SYM_UINT64:
-            SET_INTEGER(FLD_AT(field, 1), FFI_TYPE_UINT64);
-            SET_BLANK(FLD_AT(field, 2));
+            *FLD_AT(field, 1) = *val;
             SET_INTEGER(FLD_AT(field, 5), 8);
+            Prepare_Field_For_FFI(field);
             break;
 
         case SYM_INT64:
-            SET_INTEGER(FLD_AT(field, 1), FFI_TYPE_SINT64);
-            SET_BLANK(FLD_AT(field, 2));
+            *FLD_AT(field, 1) = *val;
             SET_INTEGER(FLD_AT(field, 5), 8);
+            Prepare_Field_For_FFI(field);
             break;
 
         case SYM_FLOAT:
-            SET_INTEGER(FLD_AT(field, 1), FFI_TYPE_FLOAT);
-            SET_BLANK(FLD_AT(field, 2));
+            *FLD_AT(field, 1) = *val;
             SET_INTEGER(FLD_AT(field, 5), 4);
+            Prepare_Field_For_FFI(field);
             break;
 
         case SYM_DOUBLE:
-            SET_INTEGER(FLD_AT(field, 1), FFI_TYPE_DOUBLE);
-            SET_BLANK(FLD_AT(field, 2));
+            *FLD_AT(field, 1) = *val;
             SET_INTEGER(FLD_AT(field, 5), 8);
+            Prepare_Field_For_FFI(field);
             break;
 
         case SYM_POINTER:
-            SET_INTEGER(FLD_AT(field, 1), FFI_TYPE_POINTER);
-            SET_BLANK(FLD_AT(field, 2));
+            *FLD_AT(field, 1) = *val;
             SET_INTEGER(FLD_AT(field, 5), sizeof(void*));
+            Prepare_Field_For_FFI(field);
             break;
 
         case SYM_STRUCT_X: {
@@ -866,6 +878,27 @@ static void Parse_Field_Type_May_Fail(
             // field, instead of the array of fields?)
             //
             *FLD_AT(field, 3) = *FLD_AT(VAL_STRUCT_SCHEMA(inner), 3);
+            break; }
+
+        case SYM_REBVAL: {
+            //
+            // While most data types have some kind of proxying of when you
+            // pass a Rebol value in (such as turning an INTEGER! into bits
+            // for a C `int`) if the argument is marked as being a REBVAL
+            // then the VAL_TYPE is ignored, and it acts like a pointer to
+            // the actual argument in the frame...whatever that may be.
+            //
+            // !!! The initial FFI implementation from Atronix would actually
+            // store sizeof(REBVAL) in the struct, not sizeof(REBVAL*).  The
+            // struct's binary data was then hooked into the garbage collector
+            // to make sure that cell was marked.  Because the intended use
+            // of the feature is "tunneling" a value from a routine's frame
+            // to a callback's frame, the lifetime of the REBVAL* should last
+            // for the entirety of the routine it was passed to.
+            //
+            *FLD_AT(field, 1) = *val;
+            SET_INTEGER(FLD_AT(field, 5), sizeof(REBVAL*));
+            Prepare_Field_For_FFI(field);
             break; }
 
         default:
@@ -919,33 +952,6 @@ static void Parse_Field_Type_May_Fail(
     }
     else
         fail (Error_Invalid_Type(VAL_TYPE(val)));
-}
-
-
-//
-//  Total_Struct_Dimensionality: C
-//
-// This recursively counts the total number of data elements inside of a
-// struct.  This includes for instance every array element inside a
-// nested struct's field, along with its fields.
-//
-// !!! Is this really how char[1000] would be handled in the FFI?  By
-// creating 1000 ffi_types?  :-/
-//
-static REBCNT Total_Struct_Dimensionality(REBARR *fields)
-{
-    REBCNT n_fields = 0;
-
-    RELVAL *item = ARR_HEAD(fields);
-    for (; NOT_END(item); ++item) {
-        REBFLD *field = VAL_ARRAY(item);
-
-        if (FLD_IS_STRUCT(field))
-            n_fields += Total_Struct_Dimensionality(FLD_FIELDLIST(field));
-        else
-            n_fields += FLD_IS_ARRAY(field) ? FLD_DIMENSION(field) : 1;
-    }
-    return n_fields;
 }
 
 
@@ -1044,67 +1050,6 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
 
 
 //
-//  Prepare_Field_For_FFI: C
-//
-// The main reason structs exist is so that they can be used with the FFI,
-// and the FFI requires you to set up a "ffi_type" C struct describing
-// each datatype. This is a helper function that sets up proper ffi_type.
-// There are stock types for the primitives, but each structure needs its
-// own.
-//
-void Prepare_Field_For_FFI(REBARR *schema) // REBFLD, but need in %tmp-funcs.h
-{
-    assert(FLD_IS_STRUCT(schema));
-
-    if (NOT(IS_BLANK(FLD_AT(schema, 3)))) { // FFI type already calculated...
-        assert(IS_HANDLE(FLD_AT(schema, 3)));
-        return;
-    }
-
-    ffi_type *fftype = OS_ALLOC(ffi_type);
-
-    fftype->size = 0;
-    fftype->alignment = 0;
-    fftype->type = FFI_TYPE_STRUCT;
-
-    REBARR *fieldlist = FLD_FIELDLIST(schema);
-
-    REBCNT dimensionality = Total_Struct_Dimensionality(fieldlist);
-    fftype->elements = OS_ALLOC_N(ffi_type*, dimensionality + 1); // NULL term
-
-    RELVAL *item = ARR_HEAD(fieldlist);
-
-    REBCNT j = 0;
-    for (; NOT_END(item); ++item) {
-        REBFLD *field = VAL_ARRAY(item);
-        REBCNT dimension = FLD_IS_ARRAY(field) ? FLD_DIMENSION(field) : 1;
-
-        if (FLD_IS_STRUCT(field)) {
-            Prepare_Field_For_FFI(field);
-
-            REBCNT n = 0;
-            for (n = 0; n < dimension; ++n)
-                fftype->elements[j++] = FLD_FFTYPE(field);
-        }
-        else {
-            REBSTR *sym; // dummy
-            enum Reb_Kind kind; // dummy
-            ffi_type* field_fftype
-                = Get_FFType_Enum_Info(&sym, &kind, FLD_CTYPE(field));
-
-            REBCNT n;
-            for (n = 0; n < dimension; ++n)
-                fftype->elements[j++] = field_fftype;
-        }
-    }
-
-    fftype->elements[j] = NULL;
-
-    Init_Handle_Managed(FLD_AT(schema, 3), NULL, fftype, &cleanup_ffi_type);
-}
-
-
-//
 //  MAKE_Struct: C
 //
 // Format:
@@ -1134,12 +1079,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
     // we'll be filling in the 1 type slot with an array of fields
     SET_BLANK(FLD_AT(schema, 2)); // not an array, no dimensionality.
 
-    // !!! FFI type manufactured by Prepare_Field_For_FFI, but it is probably
-    // better to have it done by this routine, and have the invariant that
-    // a struct always has an FFI type.  (Theoretically a little wasteful,
-    // if you don't wind up making any calls that use a struct.)
-    //
-    SET_BLANK(FLD_AT(schema, 3));
+    SET_UNREADABLE_BLANK(FLD_AT(schema, 3));
 
     SET_BLANK(FLD_AT(schema, 4)); // the offset is not used
     // we'll be filling in the 5 len_bytes at the end.
@@ -1186,7 +1126,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
 
         REBFLD *field = Make_Array(6);
 
-        SET_BLANK(FLD_AT(field, 3)); // !!! ffi_type* calculated later for now
+        SET_UNREADABLE_BLANK(FLD_AT(field, 3)); // ffi_type* put here
         SET_INTEGER(FLD_AT(field, 4), offset);
 
         // Must be a word or a set-word, with set-words initializing
@@ -1352,7 +1292,10 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
     ASSERT_ARRAY(fieldlist);
 
     Val_Init_Block(FLD_AT(schema, 1), fieldlist);
+    Prepare_Field_For_FFI(schema);
+
     SET_INTEGER(FLD_AT(schema, 5), offset); // total size now known, save it
+
     TERM_ARRAY_LEN(schema, 6);
     ASSERT_ARRAY(schema);
 

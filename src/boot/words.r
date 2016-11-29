@@ -237,6 +237,7 @@ addr
 raw-memory
 raw-size
 extern
+rebval
 
 ;routine
 void
