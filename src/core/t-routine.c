@@ -871,7 +871,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
         cif = RIN_CIF(rin);
     }
     else {
-        assert(IS_BLANK(RIN_AT(rin, 5)));
+        assert(IS_BLANK(RIN_AT(rin, IDX_ROUTINE_CIF)));
 
         // CIF creation requires a C array of argument descriptions that is
         // contiguous across both the fixed and variadic parts.  Start by
@@ -1133,11 +1133,14 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
 
     REBRIN *r = Make_Array(8);
 
-    SET_UNREADABLE_BLANK(RIN_AT(r, 0)); // caller updates to be cfunc handle
-    SET_INTEGER(RIN_AT(r, 1), abi);
-    SET_UNREADABLE_BLANK(RIN_AT(r, 2)); // caller updates to LIBRARY/FUNCTION
+    SET_INTEGER(RIN_AT(r, IDX_ROUTINE_ABI), abi);
 
-    SET_BLANK(RIN_RET_SCHEMA(r)); // blank means returns void (the default)
+    // Caller will update these in the returned function.
+    //
+    SET_UNREADABLE_BLANK(RIN_AT(r, IDX_ROUTINE_CFUNC));
+    SET_UNREADABLE_BLANK(RIN_AT(r, IDX_ROUTINE_ORIGIN)); // LIBRARY!/FUNCTION!
+
+    SET_BLANK(RIN_AT(r, IDX_ROUTINE_RET_SCHEMA)); // returns void as default
 
     const REBCNT capacity_guess = 8; // !!! Magic number...why 8? (can grow)
 
@@ -1223,7 +1226,7 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
         case REB_SET_WORD:
             switch (VAL_WORD_SYM(item)) {
             case SYM_RETURN:{
-                if (!IS_BLANK(RIN_RET_SCHEMA(r)))
+                if (!IS_BLANK(RIN_AT(r, IDX_ROUTINE_RET_SCHEMA)))
                     fail (Error_Invalid_Arg(KNOWN(item))); // already a RETURN:
 
                 ++item;
@@ -1233,7 +1236,7 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
 
                 REBVAL param;
                 Schema_From_Block_May_Fail(
-                    RIN_RET_SCHEMA(r),
+                    RIN_AT(r, IDX_ROUTINE_RET_SCHEMA),
                     &param, // dummy (a return/output has no arg to typecheck)
                     &block
                 );
@@ -1249,19 +1252,19 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
         }
     }
 
-    SET_LOGIC(RIN_AT(r, 7), is_variadic);
+    SET_LOGIC(RIN_AT(r, IDX_ROUTINE_IS_VARIADIC), is_variadic);
 
-    TERM_ARRAY_LEN(r, 8);
+    TERM_ARRAY_LEN(r, IDX_ROUTINE_MAX);
     ASSERT_ARRAY(args_schemas);
-    Val_Init_Block(RIN_AT(r, 4), args_schemas);
+    Val_Init_Block(RIN_AT(r, IDX_ROUTINE_ARG_SCHEMAS), args_schemas);
 
     if (RIN_IS_VARIADIC(r)) {
         //
         // Each individual call needs to use `ffi_prep_cif_var` to make the
         // proper variadic CIF for that call.
         //
-        SET_BLANK(RIN_AT(r, 5));
-        SET_BLANK(RIN_AT(r, 6));
+        SET_BLANK(RIN_AT(r, IDX_ROUTINE_CIF));
+        SET_BLANK(RIN_AT(r, IDX_ROUTINE_ARG_FFTYPES));
     }
     else {
         // The same CIF can be used for every call of the routine if it is
@@ -1294,13 +1297,18 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
             fail (Error(RE_MISC)); // !!! Couldn't prep cif...
         }
 
-        Init_Handle_Managed(RIN_AT(r, 5), NULL, cif, &cleanup_os_alloc);
+        Init_Handle_Managed(
+            RIN_AT(r, IDX_ROUTINE_CIF), NULL, cif, &cleanup_os_alloc
+        );
 
         if (args_fftypes == NULL)
-            SET_BLANK(RIN_AT(r, 6));
+            SET_BLANK(RIN_AT(r, IDX_ROUTINE_ARG_FFTYPES));
         else
             Init_Handle_Managed(
-                RIN_AT(r, 6), NULL, args_fftypes, &cleanup_os_alloc
+                RIN_AT(r, IDX_ROUTINE_ARG_FFTYPES),
+                NULL,
+                args_fftypes,
+                &cleanup_os_alloc
             ); // lifetime must match cif lifetime
     }
 
@@ -1387,8 +1395,8 @@ REBNATIVE(make_routine)
     REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec), abi);
     REBRIN *r = FUNC_ROUTINE(fun);
 
-    Init_Handle_Simple(RIN_AT(r, 0), cfunc, NULL);
-    *RIN_AT(r, 2) = *ARG(lib);
+    Init_Handle_Simple(RIN_AT(r, IDX_ROUTINE_CFUNC), cfunc, NULL);
+    *RIN_AT(r, IDX_ROUTINE_ORIGIN) = *ARG(lib);
 
     *D_OUT = *FUNC_VALUE(fun);
     return R_OUT;
@@ -1435,9 +1443,8 @@ REBNATIVE(make_routine_raw)
     REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec), abi);
     REBRIN *r = FUNC_ROUTINE(fun);
 
-    Init_Handle_Simple(RIN_AT(r, 0), cfunc, NULL);
-    SET_INTEGER(RIN_AT(r, 1), abi);
-    SET_BLANK(RIN_AT(r, 2)); // no LIBRARY! in this case.
+    Init_Handle_Simple(RIN_AT(r, IDX_ROUTINE_CFUNC), cfunc, NULL);
+    SET_BLANK(RIN_AT(r, IDX_ROUTINE_ORIGIN)); // no LIBRARY! in this case.
 
     *D_OUT = *FUNC_VALUE(fun);
     return R_OUT;
@@ -1493,13 +1500,12 @@ REBNATIVE(make_callback)
         fail (Error(RE_MISC)); // couldn't prep closure
 
     Init_Handle_Managed(
-        RIN_AT(r, 0),
+        RIN_AT(r, IDX_ROUTINE_CFUNC),
         cast(CFUNC*, thunk),
         closure,
         &cleanup_ffi_closure
     );
-    SET_INTEGER(RIN_AT(r, 1), abi);
-    *RIN_AT(r, 2) = *ARG(action);
+    *RIN_AT(r, IDX_ROUTINE_ORIGIN) = *ARG(action);
 
     *D_OUT = *FUNC_VALUE(fun);
     return R_OUT;

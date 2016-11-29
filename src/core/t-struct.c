@@ -721,7 +721,7 @@ static REBCNT Total_Struct_Dimensionality(REBARR *fields)
 //
 static void Prepare_Field_For_FFI(REBFLD *schema)
 {
-    assert(IS_UNREADABLE_IF_DEBUG(FLD_AT(schema, 3))); // caller uninitializes
+    assert(IS_UNREADABLE_IF_DEBUG(FLD_AT(schema, IDX_FIELD_FFTYPE)));
 
     ffi_type *fftype;
 
@@ -732,7 +732,7 @@ static void Prepare_Field_For_FFI(REBFLD *schema)
         // The FFType pointers returned by Get_FFType_For_Sym should not be
         // freed, so a "simple" handle is used that just holds the pointer.
         //
-        Init_Handle_Simple(FLD_AT(schema, 3), NULL, fftype);
+        Init_Handle_Simple(FLD_AT(schema, IDX_FIELD_FFTYPE), NULL, fftype);
         return;
     }
 
@@ -767,7 +767,9 @@ static void Prepare_Field_For_FFI(REBFLD *schema)
 
     fftype->elements[j] = NULL;
 
-    Init_Handle_Managed(FLD_AT(schema, 3), NULL, fftype, &cleanup_ffi_type);
+    Init_Handle_Managed(
+        FLD_AT(schema, IDX_FIELD_FFTYPE), NULL, fftype, &cleanup_ffi_type
+    );
 }
 
 
@@ -793,71 +795,66 @@ static void Parse_Field_Type_May_Fail(
         fail (Error(RE_MISC)); // !!! better error
 
     if (IS_WORD(val)) {
+        REBSYM sym = VAL_WORD_SYM(val);
 
-        switch (VAL_WORD_SYM(val)) {
+        // Initialize the type symbol with the unbound word by default (will
+        // be overwritten in the struct cases).
+        //
+        Val_Init_Word(FLD_AT(field, IDX_FIELD_TYPE), REB_WORD, Canon(sym));
+         
+        switch (sym) {
         case SYM_UINT8:
-            *FLD_AT(field, 1) = *val;
-            SET_INTEGER(FLD_AT(field, 5), 1);
+            SET_INTEGER(FLD_AT(field, IDX_FIELD_WIDE), 1);
             Prepare_Field_For_FFI(field);
             break;
 
         case SYM_INT8:
-            *FLD_AT(field, 1) = *val;
-            SET_INTEGER(FLD_AT(field, 5), 1);
+            SET_INTEGER(FLD_AT(field, IDX_FIELD_WIDE), 1);
             Prepare_Field_For_FFI(field);
             break;
 
         case SYM_UINT16:
-            *FLD_AT(field, 1) = *val;
-            SET_INTEGER(FLD_AT(field, 5), 2);
+            SET_INTEGER(FLD_AT(field, IDX_FIELD_WIDE), 2);
             Prepare_Field_For_FFI(field);
             break;
 
         case SYM_INT16:
-            *FLD_AT(field, 1) = *val;
-            SET_INTEGER(FLD_AT(field, 5), 2);
+            SET_INTEGER(FLD_AT(field, IDX_FIELD_WIDE), 2);
             Prepare_Field_For_FFI(field);
             break;
 
         case SYM_UINT32:
-            *FLD_AT(field, 1) = *val;
-            SET_INTEGER(FLD_AT(field, 5), 4);
+            SET_INTEGER(FLD_AT(field, IDX_FIELD_WIDE), 4);
             Prepare_Field_For_FFI(field);
             break;
 
         case SYM_INT32:
-            *FLD_AT(field, 1) = *val;
-            SET_INTEGER(FLD_AT(field, 5), 4);
+            SET_INTEGER(FLD_AT(field, IDX_FIELD_WIDE), 4);
             Prepare_Field_For_FFI(field);
             break;
 
         case SYM_UINT64:
-            *FLD_AT(field, 1) = *val;
-            SET_INTEGER(FLD_AT(field, 5), 8);
+            SET_INTEGER(FLD_AT(field, IDX_FIELD_WIDE), 8);
             Prepare_Field_For_FFI(field);
             break;
 
         case SYM_INT64:
-            *FLD_AT(field, 1) = *val;
-            SET_INTEGER(FLD_AT(field, 5), 8);
+            SET_INTEGER(FLD_AT(field, IDX_FIELD_WIDE), 8);
             Prepare_Field_For_FFI(field);
             break;
 
         case SYM_FLOAT:
-            *FLD_AT(field, 1) = *val;
-            SET_INTEGER(FLD_AT(field, 5), 4);
+            SET_INTEGER(FLD_AT(field, IDX_FIELD_WIDE), 4);
             Prepare_Field_For_FFI(field);
             break;
 
         case SYM_DOUBLE:
-            *FLD_AT(field, 1) = *val;
-            SET_INTEGER(FLD_AT(field, 5), 8);
+            SET_INTEGER(FLD_AT(field, IDX_FIELD_WIDE), 8);
             Prepare_Field_For_FFI(field);
             break;
 
         case SYM_POINTER:
-            *FLD_AT(field, 1) = *val;
-            SET_INTEGER(FLD_AT(field, 5), sizeof(void*));
+            SET_INTEGER(FLD_AT(field, IDX_FIELD_WIDE), sizeof(void*));
             Prepare_Field_For_FFI(field);
             break;
 
@@ -870,14 +867,21 @@ static void Parse_Field_Type_May_Fail(
             COPY_VALUE(&specified, val, VAL_SPECIFIER(spec));
             MAKE_Struct(inner, REB_STRUCT, &specified); // may fail()
 
-            SET_INTEGER(FLD_AT(field, 5), SER_LEN(VAL_STRUCT_DATA_BIN(inner)));
-            Val_Init_Block(FLD_AT(field, 1), VAL_STRUCT_FIELDLIST(inner));
+            SET_INTEGER(
+                FLD_AT(field, IDX_FIELD_WIDE),
+                SER_LEN(VAL_STRUCT_DATA_BIN(inner))
+            );
+            Val_Init_Block(
+                FLD_AT(field, IDX_FIELD_TYPE),
+                VAL_STRUCT_FIELDLIST(inner)
+            );
 
             // Borrow the same ffi_type* that was built for the inner struct
             // (What about just storing the STRUCT! value itself in the type
             // field, instead of the array of fields?)
             //
-            *FLD_AT(field, 3) = *FLD_AT(VAL_STRUCT_SCHEMA(inner), 3);
+            *FLD_AT(field, IDX_FIELD_FFTYPE)
+                = *FLD_AT(VAL_STRUCT_SCHEMA(inner), IDX_FIELD_FFTYPE);
             break; }
 
         case SYM_REBVAL: {
@@ -896,8 +900,7 @@ static void Parse_Field_Type_May_Fail(
             // to a callback's frame, the lifetime of the REBVAL* should last
             // for the entirety of the routine it was passed to.
             //
-            *FLD_AT(field, 1) = *val;
-            SET_INTEGER(FLD_AT(field, 5), sizeof(REBVAL*));
+            SET_INTEGER(FLD_AT(field, IDX_FIELD_WIDE), sizeof(REBVAL*));
             Prepare_Field_For_FFI(field);
             break; }
 
@@ -909,13 +912,19 @@ static void Parse_Field_Type_May_Fail(
         //
         // [b: [struct-a] val-a]
         //
-        SET_INTEGER(FLD_AT(field, 5), SER_LEN(VAL_STRUCT_DATA_BIN(val)));
-        Val_Init_Block(FLD_AT(field, 1), VAL_STRUCT_FIELDLIST(val));
+        SET_INTEGER(
+            FLD_AT(field, IDX_FIELD_WIDE),
+            SER_LEN(VAL_STRUCT_DATA_BIN(val))
+        );
+        Val_Init_Block(
+            FLD_AT(field, IDX_FIELD_TYPE),
+            VAL_STRUCT_FIELDLIST(val)
+        );
 
         // Borrow the same ffi_type* that the struct uses, see above note
         // regarding alternative ideas.
         //
-        *FLD_AT(field, 3) = *FLD_AT(VAL_STRUCT_SCHEMA(val), 3);
+        *FLD_AT(field, IDX_FIELD_FFTYPE) = *FLD_AT(VAL_STRUCT_SCHEMA(val), 3);
         COPY_VALUE(inner, val, VAL_SPECIFIER(spec));
     }
     else
@@ -926,7 +935,7 @@ static void Parse_Field_Type_May_Fail(
     // Find out the array dimension (if there is one)
     //
     if (IS_END(val)) {
-        SET_BLANK(FLD_AT(field, 2)); // scalar
+        SET_BLANK(FLD_AT(field, IDX_FIELD_DIMENSION)); // scalar
     }
     else if (IS_BLOCK(val)) {
         //
@@ -947,7 +956,7 @@ static void Parse_Field_Type_May_Fail(
         if (!IS_INTEGER(&ret))
             fail (Error_Unexpected_Type(REB_INTEGER, VAL_TYPE(val)));
 
-        SET_INTEGER(FLD_AT(field, 2), VAL_INT64(&ret));
+        SET_INTEGER(FLD_AT(field, IDX_FIELD_DIMENSION), VAL_INT64(&ret));
         ++ val;
     }
     else
@@ -1074,15 +1083,15 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
     // hierarchical) of its fields, including any nested structs.  The
     // schema should be shared between common instances of the same struct.
     //
-    REBFLD *schema = Make_Array(6);
-    SET_BLANK(FLD_AT(schema, 0)); // no symbol for the struct itself
-    // we'll be filling in the 1 type slot with an array of fields
-    SET_BLANK(FLD_AT(schema, 2)); // not an array, no dimensionality.
+    REBFLD *schema = Make_Array(IDX_FIELD_MAX);
+    SET_BLANK(FLD_AT(schema, IDX_FIELD_NAME)); // no symbol for struct itself
+    // we'll be filling in the IDX_FIELD_TYPE slot with an array of fields
+    SET_BLANK(FLD_AT(schema, IDX_FIELD_DIMENSION)); // not an array
 
-    SET_UNREADABLE_BLANK(FLD_AT(schema, 3));
+    SET_UNREADABLE_BLANK(FLD_AT(schema, IDX_FIELD_FFTYPE));
 
-    SET_BLANK(FLD_AT(schema, 4)); // the offset is not used
-    // we'll be filling in the 5 len_bytes at the end.
+    SET_BLANK(FLD_AT(schema, IDX_FIELD_OFFSET)); // the offset is not used
+    // we'll be filling in the IDX_FIELD_WIDE at the end.
 
 
 //
@@ -1124,10 +1133,10 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
 
         // Add another field...
 
-        REBFLD *field = Make_Array(6);
+        REBFLD *field = Make_Array(IDX_FIELD_MAX);
 
-        SET_UNREADABLE_BLANK(FLD_AT(field, 3)); // ffi_type* put here
-        SET_INTEGER(FLD_AT(field, 4), offset);
+        SET_UNREADABLE_BLANK(FLD_AT(field, IDX_FIELD_FFTYPE));
+        SET_INTEGER(FLD_AT(field, IDX_FIELD_OFFSET), offset);
 
         // Must be a word or a set-word, with set-words initializing
 
@@ -1144,7 +1153,11 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
         else
             fail (Error_Invalid_Type(VAL_TYPE(item)));
 
-        Val_Init_Word(FLD_AT(field, 0), REB_WORD, VAL_WORD_SPELLING(item));
+        Val_Init_Word(
+            FLD_AT(field, IDX_FIELD_NAME),
+            REB_WORD,
+            VAL_WORD_SPELLING(item)
+        );
 
         ++item;
         if (IS_END(item) || !IS_BLOCK(item))
@@ -1291,12 +1304,12 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
     REBARR *fieldlist = Pop_Stack_Values(dsp_orig);
     ASSERT_ARRAY(fieldlist);
 
-    Val_Init_Block(FLD_AT(schema, 1), fieldlist);
+    Val_Init_Block(FLD_AT(schema, IDX_FIELD_TYPE), fieldlist);
     Prepare_Field_For_FFI(schema);
 
-    SET_INTEGER(FLD_AT(schema, 5), offset); // total size now known, save it
+    SET_INTEGER(FLD_AT(schema, IDX_FIELD_WIDE), offset); // total size known
 
-    TERM_ARRAY_LEN(schema, 6);
+    TERM_ARRAY_LEN(schema, IDX_FIELD_MAX);
     ASSERT_ARRAY(schema);
 
 //
