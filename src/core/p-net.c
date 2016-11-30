@@ -231,12 +231,12 @@ static REB_R Transport_Actor(
         }
 
         // Setup the read buffer (allocate a buffer if needed):
-
+        //
         REBVAL *port_data = CTX_VAR(port, STD_PORT_DATA);
         REBSER *buffer;
         if (!IS_STRING(port_data) && !IS_BINARY(port_data)) {
             buffer = Make_Binary(NET_BUF_SIZE);
-            Val_Init_Binary(port_data, buffer);
+            Init_Binary(port_data, buffer);
         }
         else {
             buffer = VAL_SERIES(port_data);

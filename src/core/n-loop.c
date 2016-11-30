@@ -411,7 +411,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
         ARG(body)
     );
     Val_Init_Object(ARG(vars), context); // keep GC safe
-    Val_Init_Block(ARG(body), body_copy); // keep GC safe
+    Init_Block(ARG(body), body_copy); // keep GC safe
 
     // Currently the data stack is only used by MAP-EACH to accumulate results
     // but it's faster to just save it than test the loop mode.
@@ -457,7 +457,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                 return R_OUT;
             }
             else if (mode == LOOP_MAP_EACH) {
-                Val_Init_Block(D_OUT, Make_Array(0));
+                Init_Block(D_OUT, Make_Array(0));
                 return R_OUT;
             }
             return R_VOID;
@@ -723,7 +723,7 @@ skip_hidden: ;
         return R_OUT;
 
     case LOOP_MAP_EACH:
-        Val_Init_Block(D_OUT, Pop_Stack_Values(dsp_orig));
+        Init_Block(D_OUT, Pop_Stack_Values(dsp_orig));
         return R_OUT;
 
     case LOOP_EVERY:
@@ -773,7 +773,7 @@ REBNATIVE(for)
         ARG(body)
     );
     Val_Init_Object(ARG(word), context); // keep GC safe
-    Val_Init_Block(ARG(body), body_copy); // keep GC safe
+    Init_Block(ARG(body), body_copy); // keep GC safe
 
     REBVAL *var = CTX_VAR(context, 1);
 
@@ -1135,7 +1135,7 @@ REBNATIVE(repeat)
     REBVAL *var = CTX_VAR(context, 1);
 
     Val_Init_Object(ARG(word), context); // keep GC safe
-    Val_Init_Block(ARG(body), copy); // keep GC safe
+    Init_Block(ARG(body), copy); // keep GC safe
 
     if (ANY_SERIES(value)) {
         return Loop_Series_Common(

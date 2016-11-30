@@ -66,7 +66,7 @@ void Collapsify_Array(REBARR *array, REBCTX *specifier, REBCNT limit)
             );
 
             enum Reb_Kind kind = VAL_TYPE(item);
-            Val_Init_Array_Index(item, kind, copy, 0); // at 0 now
+            Init_Any_Array_At(item, kind, copy, 0); // at 0 now
             assert(IS_SPECIFIC(item));
             assert(NOT_VAL_FLAG(item, VALUE_FLAG_LINE)); // should be cleared
         }
@@ -202,7 +202,7 @@ REBNATIVE(where_of)
     if (frame == NULL)
         fail (Error_Invalid_Arg(ARG(level)));
 
-    Val_Init_Block(D_OUT, Make_Where_For_Frame(frame));
+    Init_Block(D_OUT, Make_Where_For_Frame(frame));
     return R_OUT;
 }
 
@@ -486,7 +486,7 @@ REBNATIVE(backtrace)
         }
 
         DS_PUSH_TRASH;
-        Val_Init_Block(DS_TOP, Make_Where_For_Frame(f));
+        Init_Block(DS_TOP, Make_Where_For_Frame(f));
 
         // If building a backtrace, we just keep accumulating results as long
         // as there are stack levels left and the limit hasn't been hit.
@@ -529,7 +529,7 @@ REBNATIVE(backtrace)
 
     // Return accumulated backtrace otherwise, in the reverse order pushed
     //
-    Val_Init_Block(D_OUT, Pop_Stack_Values_Reversed(dsp_orig));
+    Init_Block(D_OUT, Pop_Stack_Values_Reversed(dsp_orig));
     if (REF(only))
         return R_OUT;
 

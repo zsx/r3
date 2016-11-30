@@ -61,7 +61,7 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             len = req->actual;
             if (GET_FLAG(req->flags, RRF_WIDE)) {
                 // convert to UTF8, so that it can be converted back to string!
-                Val_Init_Binary(arg, Make_UTF8_Binary(
+                Init_Binary(arg, Make_UTF8_Binary(
                     req->common.data,
                     len / sizeof(REBUNI),
                     0,
@@ -72,7 +72,7 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
                 REBSER *ser = Make_Binary(len);
                 memcpy(BIN_HEAD(ser), req->common.data, len);
                 SET_SERIES_LEN(ser, len);
-                Val_Init_Binary(arg, ser);
+                Init_Binary(arg, ser);
             }
             OS_FREE(req->common.data); // release the copy buffer
             req->common.data = 0;
@@ -102,7 +102,7 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         len = req->actual;
         if (GET_FLAG(req->flags, RRF_WIDE)) {
             // convert to UTF8, so that it can be converted back to string!
-            Val_Init_Binary(arg, Make_UTF8_Binary(
+            Init_Binary(arg, Make_UTF8_Binary(
                 req->common.data,
                 len / sizeof(REBUNI),
                 0,
@@ -113,7 +113,7 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             REBSER *ser = Make_Binary(len);
             memcpy(BIN_HEAD(ser), req->common.data, len);
             SET_SERIES_LEN(ser, len);
-            Val_Init_Binary(arg, ser);
+            Init_Binary(arg, ser);
         }
 
         *D_OUT = *arg;
@@ -141,7 +141,7 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 #ifdef ARG_STRINGS_ALLOWED
             if (!All_Bytes_ASCII(VAL_BIN_AT(arg), len)) {
                 REBSER *copy = Copy_Bytes_To_Unicode(VAL_BIN_AT(arg), len);
-                Val_Init_String(arg, copy);
+                Init_String(arg, copy);
             } else
                 req->common.data = VAL_BIN_AT(arg);
 #endif
@@ -153,7 +153,7 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             );
             len = abs(len);
             TERM_UNI_LEN(ser, len);
-            Val_Init_String(arg, ser);
+            Init_String(arg, ser);
             req->common.data = cast(REBYTE*, UNI_HEAD(ser));
             SET_FLAG(req->flags, RRF_WIDE);
         }

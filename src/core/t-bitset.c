@@ -107,7 +107,7 @@ void MAKE_Bitset(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         fail (Error_Invalid_Arg(arg));
 
     REBSER *ser = Make_Bitset(len);
-    Val_Init_Bitset(out, ser);
+    Init_Bitset(out, ser);
 
     if (IS_INTEGER(arg)) return; // allocated at a size, no contents.
 
@@ -580,7 +580,7 @@ REBTYPE(Bitset)
     case SYM_NEGATE:
         ser = Copy_Sequence(VAL_SERIES(value));
         INIT_BITS_NOT(ser, NOT(BITS_NOT(VAL_SERIES(value))));
-        Val_Init_Bitset(value, ser);
+        Init_Bitset(value, ser);
         break;
 
     case SYM_APPEND:  // Accepts: #"a" "abc" [1 - 10] [#"a" - #"z"] etc.
@@ -611,11 +611,11 @@ set_bits:
     case SYM_COPY: {
         INCLUDE_PARAMS_OF_COPY;
 
-        Val_Init_Series_Index(
+        Init_Any_Series_At(
             D_OUT,
             REB_BITSET,
             Copy_Sequence_At_Position(value),
-            VAL_INDEX(value)
+            VAL_INDEX(value) // !!! can bitset ever not be at 0?
         );
         INIT_BITS_NOT(VAL_SERIES(D_OUT), BITS_NOT(VAL_SERIES(value)));
         return R_OUT; }
@@ -641,7 +641,7 @@ set_bits:
             fail (Error_Math_Args(VAL_TYPE(arg), action));
         ser = Xandor_Binary(action, value, arg);
         Trim_Tail_Zeros(ser);
-        Val_Init_Series(D_OUT, VAL_TYPE(value), ser);
+        Init_Any_Series(D_OUT, VAL_TYPE(value), ser);
         return R_OUT;
 
     default:

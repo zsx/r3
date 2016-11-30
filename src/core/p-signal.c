@@ -251,9 +251,8 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             }
 
             arg = CTX_VAR(port, STD_PORT_DATA);
-            if (!IS_BLOCK(arg)) {
-                Val_Init_Block(arg, Make_Array(len));
-            }
+            if (!IS_BLOCK(arg))
+                Init_Block(arg, Make_Array(len));
 
             len = req->actual;
 

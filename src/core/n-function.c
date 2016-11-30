@@ -492,7 +492,7 @@ REBNATIVE(chain)
 
     // "body" is the chainees array, available to the dispatcher when called
     //
-    Val_Init_Block(FUNC_BODY(fun), chainees);
+    Init_Block(FUNC_BODY(fun), chainees);
 
     // See %sysobj.r for `specialized-meta:` object template
 
@@ -500,7 +500,7 @@ REBNATIVE(chain)
     REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(std_meta));
 
     assert(IS_VOID(CTX_VAR(meta, SELFISH(1)))); // no description by default
-    Val_Init_Block(CTX_VAR(meta, SELFISH(2)), chainees);
+    Init_Block(CTX_VAR(meta, SELFISH(2)), chainees);
     //
     // !!! There could be a system for preserving names in the chain, by
     // accepting lit-words instead of functions--or even by reading the

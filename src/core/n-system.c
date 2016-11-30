@@ -475,7 +475,7 @@ REBNATIVE(do_codec)
                 codi.w ? (codi.len * codi.w) : codi.len
             );
             SET_SERIES_LEN(ser, codi.len);
-            Val_Init_String(D_OUT, ser);
+            Init_String(D_OUT, ser);
             return R_OUT;
         }
 
@@ -486,7 +486,7 @@ REBNATIVE(do_codec)
             // See notice in reb-codec.h on reb_codec_image
             FREE_N(u32, codi.w * codi.h, codi.extra.bits);
 
-            Val_Init_Image(D_OUT, ser);
+            Init_Image(D_OUT, ser);
             return R_OUT;
         }
 
@@ -533,7 +533,7 @@ REBNATIVE(do_codec)
         if (codi.data)
             FREE_N(REBYTE, codi.len, codi.data);
 
-        Val_Init_Binary(D_OUT, ser);
+        Init_Binary(D_OUT, ser);
         return R_OUT; }
 
     default:

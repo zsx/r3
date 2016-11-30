@@ -85,7 +85,7 @@ void Copy_Image_Value(REBVAL *out, const REBVAL *arg, REBINT len)
         h = 0;
 
     REBSER *series = Make_Image(w, h, TRUE);
-    Val_Init_Image(out, series);
+    Init_Image(out, series);
     memcpy(VAL_IMAGE_HEAD(out), VAL_IMAGE_DATA(arg), w * h * 4);
 }
 
@@ -105,7 +105,7 @@ void MAKE_Image(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         //
         // make image! [] (or none)
         //
-        Val_Init_Image(out, Make_Image(0, 0, TRUE));
+        Init_Image(out, Make_Image(0, 0, TRUE));
     }
     else if (IS_PAIR(arg)) {
         //
@@ -115,7 +115,7 @@ void MAKE_Image(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         REBINT h = VAL_PAIR_Y_INT(arg);
         w = MAX(w, 0);
         h = MAX(h, 0);
-        Val_Init_Image(out, Make_Image(w, h, TRUE));
+        Init_Image(out, Make_Image(w, h, TRUE));
     }
     else if (IS_BLOCK(arg)) {
         //
@@ -132,7 +132,7 @@ void MAKE_Image(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         REBSER *img = Make_Image(w, h, FALSE);
         if (!img) goto bad_make;
 
-        Val_Init_Image(out, img);
+        Init_Image(out, img);
 
         REBYTE *ip = IMG_DATA(img); // image pointer
         REBCNT size = w * h;
@@ -216,7 +216,7 @@ void TO_Image(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         REBSER *series = OS_GOB_TO_IMAGE(VAL_GOB(arg));
         if (!series)
             fail (Error_Bad_Make(REB_IMAGE, arg));
-        Val_Init_Image(out, series);
+        Init_Image(out, series);
     }
     else if (IS_BINARY(arg)) {
         REBINT diff = VAL_LEN_AT(arg) / 4;
@@ -232,7 +232,7 @@ void TO_Image(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         if (w * h < diff) h++; // partial line
 
         REBSER *series = Make_Image(w, h, TRUE);
-        Val_Init_Image(out, series);
+        Init_Image(out, series);
         Bin_To_RGBA(
             IMG_DATA(series),
             w * h,
@@ -972,7 +972,7 @@ REBTYPE(Image)
 
     case SYM_COMPLEMENT:
         series = Complement_Image(value);
-        Val_Init_Image(value, series); // use series var not func
+        Init_Image(value, series); // use series var not func
         break;
 
     case SYM_INDEX_OF: {
@@ -1147,7 +1147,7 @@ REBTYPE(Image)
             w = MIN(w, index - diff); // img-width - x-pos
             h = MIN(h, (int)(VAL_IMAGE_HIGH(value) - len)); // img-high - y-pos
             series = Make_Image(w, h, TRUE);
-            Val_Init_Image(D_OUT, series);
+            Init_Image(D_OUT, series);
             Copy_Rect_Data(D_OUT, 0, 0, w, h, value, diff, len);
 //          VAL_IMAGE_TRANSP(D_OUT) = VAL_IMAGE_TRANSP(value);
             return R_OUT;
@@ -1229,14 +1229,14 @@ void Pick_Image(REBVAL *out, const REBVAL *value, const REBVAL *picker)
             REBSER *nser = Make_Binary(len * 3);
             SET_SERIES_LEN(nser, len * 3);
             RGB_To_Bin(QUAD_HEAD(nser), src, len, FALSE);
-            Val_Init_Binary(out, nser);
+            Init_Binary(out, nser);
             break; }
 
         case SYM_ALPHA: {
             REBSER *nser = Make_Binary(len);
             SET_SERIES_LEN(nser, len);
             Alpha_To_Bin(QUAD_HEAD(nser), src, len);
-            Val_Init_Binary(out, nser);
+            Init_Binary(out, nser);
             break; }
 
         default:
@@ -1443,6 +1443,6 @@ REBNATIVE(to_png)
     SET_SERIES_LEN(binary, buffersize);
     free(buffer);
 
-    Val_Init_Binary(D_OUT, binary);
+    Init_Binary(D_OUT, binary);
     return R_OUT;
 }

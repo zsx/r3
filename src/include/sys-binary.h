@@ -104,5 +104,5 @@ inline static REBYTE *VAL_BIN_TAIL(const RELVAL *v) {
 #define VAL_BYTE_SIZE(v) \
     BYTE_SIZE(VAL_SERIES(v))
 
-#define Val_Init_Binary(v,s) \
-    Val_Init_Series((v), REB_BINARY, (s))
+#define Init_Binary(v,s) \
+    Init_Any_Series((v), REB_BINARY, (s))

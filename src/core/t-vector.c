@@ -30,8 +30,8 @@
 
 #include "sys-core.h"
 
-#define Val_Init_Vector(v,s) \
-    Val_Init_Series((v), REB_VECTOR, (s))
+#define Init_Vector(v,s) \
+    Init_Any_Series((v), REB_VECTOR, (s))
 
 // Encoding Format:
 //      stored in series->size for now
@@ -449,7 +449,7 @@ void MAKE_Vector(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         REBINT size = Int32s(arg, 0);
         if (size < 0) goto bad_make;
         REBSER *ser = Make_Vector(0, 0, 1, 32, size);
-        Val_Init_Vector(out, ser);
+        Init_Vector(out, ser);
         return;
     }
 
@@ -625,7 +625,7 @@ REBTYPE(Vector)
         INCLUDE_PARAMS_OF_COPY;
         ser = Copy_Sequence(vect);
         ser->misc.size = vect->misc.size; // attributes
-        Val_Init_Vector(value, ser);
+        Init_Vector(value, ser);
         break; }
 
     case SYM_RANDOM: {

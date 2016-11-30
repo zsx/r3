@@ -233,7 +233,7 @@ REBNATIVE(fail)
             return R_OUT_IS_THROWN;
         }
 
-        Val_Init_String(reason, Pop_Molded_String(&mo));
+        Init_String(reason, Pop_Molded_String(&mo));
     }
 
     assert(IS_STRING(reason));

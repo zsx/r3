@@ -136,7 +136,7 @@ REBNATIVE(make)
             DS_PUSH(D_OUT);
         } while (TRUE);
 
-        Val_Init_Array(D_OUT, kind, Pop_Stack_Values(dsp_orig));
+        Init_Any_Array(D_OUT, kind, Pop_Stack_Values(dsp_orig));
         return R_OUT;
     }
 
@@ -838,7 +838,7 @@ const REBYTE *Scan_File(REBVAL *out, const REBYTE *cp, REBCNT len)
         return NULL;
     }
 
-    Val_Init_File(out, Pop_Molded_String(&mo));
+    Init_File(out, Pop_Molded_String(&mo));
     return cp;
 }
 
@@ -879,7 +879,7 @@ const REBYTE *Scan_Email(REBVAL *out, const REBYTE *cp, REBCNT len)
 
     SET_SERIES_LEN(series, cast(REBCNT, str - BIN_HEAD(series)));
 
-    Val_Init_Series(out, REB_EMAIL, series); // manages
+    Init_Email(out, series);
     return cp;
 }
 
@@ -921,7 +921,7 @@ const REBYTE *Scan_URL(REBVAL *out, const REBYTE *cp, REBCNT len)
     *str = 0;
     SET_SERIES_LEN(series, cast(REBCNT, str - BIN_HEAD(series)));
 
-    Val_Init_Series(out, REB_URL, series); // manages
+    Init_Url(out, series);
     return cp;
 }
 
@@ -1081,7 +1081,7 @@ const REBYTE *Scan_Any(
     // the source has been scanned and put somewhere safe!
     //
     SET_SERIES_LEN(s, delined_len);
-    Val_Init_Series(out, type, s);
+    Init_Any_Series(out, type, s);
 
     return cp + delined_len;
 }
@@ -1170,8 +1170,8 @@ REBNATIVE(scan_net_header)
                         SPECIFIED // no relative values added
                     );
                     val = Alloc_Tail_Array(array);
-                    SET_UNREADABLE_BLANK(val); // for Val_Init_Block
-                    Val_Init_Block(item + 1, array);
+                    SET_UNREADABLE_BLANK(val); // for Init_Block
+                    Init_Block(item + 1, array);
                 }
                 break;
             }
@@ -1221,9 +1221,9 @@ REBNATIVE(scan_net_header)
             else break;
         }
         *str = '\0';
-        Val_Init_String(val, string);
+        Init_String(val, string);
     }
 
-    Val_Init_Block(D_OUT, result);
+    Init_Block(D_OUT, result);
     return R_OUT;
 }

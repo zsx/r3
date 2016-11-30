@@ -304,7 +304,7 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSTR *name, REBVAL *val)
             if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_SHIFT))
                 Init_Word(Alloc_Tail_Array(array), Canon(SYM_SHIFT));
 
-            Val_Init_Block(val, array);
+            Init_Block(val, array);
         }
         else
             SET_BLANK(val);
@@ -337,7 +337,7 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSTR *name, REBVAL *val)
 
             OS_FREE(str);
         }
-        Val_Init_File(val, VAL_EVENT_SER(value));
+        Init_File(val, VAL_EVENT_SER(value));
         break;
 
     default:

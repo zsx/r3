@@ -246,7 +246,7 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
         if (!ser) return 1;
 
         val = CTX_VAR(Sys_Context, SYS_CTX_BOOT_HOST);
-        Val_Init_Binary(val, ser);
+        Init_Binary(val, ser);
     }
 
     if (script && script_len > 4) {
@@ -270,7 +270,7 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
         OS_FREE(script);
 
         val = CTX_VAR(Sys_Context, SYS_CTX_BOOT_EMBEDDED);
-        Val_Init_Binary(val, ser);
+        Init_Binary(val, ser);
     }
 
     PUSH_UNHALTABLE_TRAP(&error, &state);
@@ -431,10 +431,10 @@ RL_API void *RL_Extend(const REBYTE *source, RXICAL call)
         array = VAL_ARRAY(value);
     else {
         array = Make_Array(2);
-        Val_Init_Block(value, array);
+        Init_Block(value, array);
     }
     value = Alloc_Tail_Array(array);
-    Val_Init_Binary(value, Copy_Bytes(source, -1)); // UTF-8
+    Init_Binary(value, Copy_Bytes(source, -1)); // UTF-8
     value = Alloc_Tail_Array(array);
     Init_Handle_Simple(
         value,

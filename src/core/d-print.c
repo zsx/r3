@@ -380,7 +380,7 @@ void Debug_Series(REBSER *ser)
         // May not actually be a REB_BLOCK, but we put it in a value
         // container for now saying it is so we can output it.  It may be
         // a context and we may not want to Manage_Series here, so we use a
-        // raw VAL_SET instead of Val_Init_Block
+        // raw VAL_SET instead of Init_Block
         //
         REBVAL value;
         VAL_RESET_HEADER(&value, REB_BLOCK);
@@ -869,7 +869,7 @@ pick:
             break;
 
         case 'm': { // Mold a series
-            // Val_Init_Block would Ensure_Series_Managed, we use a raw
+            // Init_Block would Ensure_Series_Managed, we use a raw
             // VAL_SET instead.
             //
             // !!! Better approach?  Can the series be passed directly?
@@ -1022,7 +1022,7 @@ REBOOL Form_Value_Throws(
         *ARR_HEAD(array) = *value;
 
         REBVAL blockified_value;
-        Val_Init_Block(&blockified_value, array); // manages
+        Init_Block(&blockified_value, array); // manages
 
         PUSH_SAFE_ENUMERATOR(f, &blockified_value);
     }

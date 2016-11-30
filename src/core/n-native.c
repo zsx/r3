@@ -77,7 +77,7 @@ static void tcc_error_report(void *ignored, const char *msg)
     REBVAL err;
     REBSER *ser = Make_Binary(strlen(msg) + 2);
     Append_Series(ser, cb_cast(msg), strlen(msg));
-    Val_Init_String(&err, ser);
+    Init_String(&err, ser);
     fail (Error(RE_TCC_ERROR_WARN, &err));
 }
 
@@ -187,7 +187,7 @@ REB_R Pending_Native_Dispatcher(REBFRM *f) {
     Append_Value(array, FUNC_VALUE(f->func));
 
     REBVAL natives;
-    Val_Init_Block(&natives, array);
+    Init_Block(&natives, array);
 
     assert(FUNC_DISPATCHER(f->func) == &Pending_Native_Dispatcher);
 
@@ -252,7 +252,7 @@ REBNATIVE(make_native)
     else {
         // have to copy it (might change before COMPILE is called)
         //
-        Val_Init_String(
+        Init_String(
             Alloc_Tail_Array(info),
             Copy_String_Slimming(
                 VAL_SERIES(source),
@@ -268,7 +268,7 @@ REBNATIVE(make_native)
         if (GET_SER_INFO(VAL_SERIES(name), SERIES_INFO_LOCKED))
             Append_Value(info, name);
         else {
-            Val_Init_String(
+            Init_String(
                 Alloc_Tail_Array(info),
                 Copy_String_Slimming(
                     VAL_SERIES(name),
@@ -303,12 +303,12 @@ REBNATIVE(make_native)
         }
         TERM_BIN_LEN(bin, len);
 
-        Val_Init_String(Alloc_Tail_Array(info), bin);
+        Init_String(Alloc_Tail_Array(info), bin);
     }
 
     SET_BLANK(Alloc_Tail_Array(info)); // no TCC_State, yet...
 
-    Val_Init_Block(FUNC_BODY(fun), info);
+    Init_Block(FUNC_BODY(fun), info);
 
     // We need to remember this is a user native, because we won't over the
     // long run be able to tell it is when the dispatcher is replaced with an

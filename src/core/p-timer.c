@@ -66,7 +66,8 @@ static REB_R Event_Actor(REBFRM *frame_, REBCTX *port, REBCNT action)
     if (!IS_OBJECT(spec)) fail (Error(RE_INVALID_SPEC, spec));
 
     // Get or setup internal state data:
-    if (!IS_BLOCK(state)) Val_Init_Block(state, Make_Array(127));
+    if (!IS_BLOCK(state))
+        Init_Block(state, Make_Array(127));
 
     switch (action) {
 

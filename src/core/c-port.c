@@ -87,7 +87,7 @@ void *Use_Port_State(REBCTX *port, REBCNT device, REBCNT size)
         SET_FLAG(req->flags, RRF_ALLOC); // not on stack
         req->port = port;
         req->device = device;
-        Val_Init_Binary(state, data);
+        Init_Binary(state, data);
     }
 
     return (void *)VAL_BIN(state);
@@ -156,8 +156,10 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
     awake = VAL_CONTEXT_VAR(port, STD_PORT_AWAKE);
     if (!IS_FUNCTION(awake)) return -1;
 
-    if (ports) Val_Init_Block(&tmp, ports);
-    else SET_BLANK(&tmp);
+    if (ports)
+        Init_Block(&tmp, ports);
+    else
+        SET_BLANK(&tmp);
 
     if (only) {
         //
@@ -168,7 +170,7 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
         Append_Value(array, awake);
         Init_Word(Alloc_Tail_Array(array), Canon(SYM_ONLY));
 
-        Val_Init_Array(&awake_only, REB_PATH, array);
+        Init_Path(&awake_only, array);
     }
 
     // Call the system awake function:
@@ -429,7 +431,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
     MANAGE_ARRAY(code_array);
 
     TERM_ARRAY_LEN(path_array, path - ARR_HEAD(path_array));
-    Val_Init_Array(&first, REB_PATH, path_array); // manages
+    Init_Path(&first, path_array);
 
     // Invoke DO with the special mode requesting non-evaluation on all
     // args, as they were evaluated the first time around.
@@ -541,7 +543,7 @@ post_process_output:
             );
             if (decoded == NULL)
                 fail (Error(RE_BAD_UTF8));
-            Val_Init_String(D_OUT, decoded);
+            Init_String(D_OUT, decoded);
         }
 
         if (REF(lines)) { // caller wants a BLOCK! of STRING!s, not one string
@@ -549,7 +551,7 @@ post_process_output:
                 fail (Error(RE_MISC)); // !!! when can this happen?
 
             REBVAL temp = *D_OUT;
-            Val_Init_Block(D_OUT, Split_Lines(&temp));
+            Init_Block(D_OUT, Split_Lines(&temp));
         }
     }
 
@@ -568,7 +570,7 @@ post_process_output:
 void Secure_Port(REBSYM sym_kind, REBREQ *req, REBVAL *name, REBSER *path)
 {
     REBVAL val;
-    Val_Init_String(&val, path);
+    Init_String(&val, path);
 
     REBYTE *flags = Security_Policy(Canon(sym_kind), &val); // policy flags
 

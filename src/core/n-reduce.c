@@ -78,7 +78,7 @@ REBOOL Reduce_Any_Array_Throws(
     if (into)
         Pop_Stack_Values_Into(out, dsp_orig);
     else
-        Val_Init_Array(out, VAL_TYPE(any_array), Pop_Stack_Values(dsp_orig));
+        Init_Any_Array(out, VAL_TYPE(any_array), Pop_Stack_Values(dsp_orig));
 
     DROP_SAFE_ENUMERATOR(&e);
     return FALSE;
@@ -254,7 +254,7 @@ REBOOL Compose_Any_Array_Throws(
                             : VAL_SPECIFIER(const_KNOWN(e.value)) // else child's
                     );
                     DS_PUSH_TRASH;
-                    Val_Init_Array_Index(
+                    Init_Any_Array_At(
                         DS_TOP, VAL_TYPE(e.value), copy, VAL_INDEX(e.value)
                     ); // ...manages
                 }
@@ -275,7 +275,7 @@ REBOOL Compose_Any_Array_Throws(
     if (into)
         Pop_Stack_Values_Into(out, dsp_orig);
     else
-        Val_Init_Array(out, VAL_TYPE(any_array), Pop_Stack_Values(dsp_orig));
+        Init_Any_Array(out, VAL_TYPE(any_array), Pop_Stack_Values(dsp_orig));
 
     DROP_SAFE_ENUMERATOR(&e);
     return FALSE;

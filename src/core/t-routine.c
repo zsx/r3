@@ -214,7 +214,7 @@ static void Schema_From_Block_May_Fail(
         // through a struct creation.  There are "raw" structs with no memory,
         // which would avoid the data series (not the REBSTU array, though)
         //
-        Val_Init_Block(schema_out, VAL_STRUCT_SCHEMA(&temp));
+        Init_Block(schema_out, VAL_STRUCT_SCHEMA(&temp));
 
         // !!! Saying any STRUCT! is legal here in the typeset suggests any
         // structure is legal to pass into a routine.  Yet structs in C
@@ -1250,7 +1250,7 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
 
     TERM_ARRAY_LEN(r, IDX_ROUTINE_MAX);
     ASSERT_ARRAY(args_schemas);
-    Val_Init_Block(RIN_AT(r, IDX_ROUTINE_ARG_SCHEMAS), args_schemas);
+    Init_Block(RIN_AT(r, IDX_ROUTINE_ARG_SCHEMAS), args_schemas);
 
     if (RIN_IS_VARIADIC(r)) {
         //
@@ -1323,7 +1323,7 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
         &Routine_Dispatcher,
         NULL // no underlying function, this is fundamental
     );
-    Val_Init_Block(FUNC_BODY(fun), r);
+    Init_Block(FUNC_BODY(fun), r);
 
     ARR_SERIES(paramlist)->link.meta = NULL;
 

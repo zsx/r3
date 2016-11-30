@@ -70,7 +70,7 @@ static int Read_Dir(REBREQ *dir, REBARR *files)
         name = Copy_OS_Str(file.special.file.path, len);
         if (GET_FLAG(file.modes, RFM_DIR))
             SET_ANY_CHAR(name, SER_LEN(name) - 1, '/');
-        Val_Init_File(Alloc_Tail_Array(files), name);
+        Init_File(Alloc_Tail_Array(files), name);
     }
 
     if (result < 0 && dir->error != -RFE_OPEN_FAIL
@@ -206,7 +206,7 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         if (!IS_BLOCK(state)) {     // !!! ignores /SKIP and /PART, for now
             Init_Dir_Path(&dir, path, 1, POL_READ);
-            Val_Init_Block(state, Make_Array(7)); // initial guess
+            Init_Block(state, Make_Array(7)); // initial guess
             result = Read_Dir(&dir, VAL_ARRAY(state));
             if (result < 0)
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, dir.error));
@@ -216,7 +216,7 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         else {
             // !!! This copies the strings in the block, shallowly.  What is
             // the purpose of doing this?  Why copy at all?
-            Val_Init_Block(
+            Init_Block(
                 D_OUT,
                 Copy_Array_Core_Managed(
                     VAL_ARRAY(state),
@@ -287,7 +287,7 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         if (REF(new))
             goto create;
 
-        Val_Init_Block(state, Make_Array(7));
+        Init_Block(state, Make_Array(7));
         Init_Dir_Path(&dir, path, 1, POL_READ);
         result = Read_Dir(&dir, VAL_ARRAY(state));
 

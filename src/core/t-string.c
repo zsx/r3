@@ -355,7 +355,7 @@ void MAKE_String(REBVAL *out, enum Reb_Kind kind, const REBVAL *def) {
         // is semantically nebulous (round up, down?) and generally bad.
         //
         ser = Make_Binary(Int32s(def, 0));
-        Val_Init_Series(out, kind, ser);
+        Init_Any_Series(out, kind, ser);
         return;
     }
     else if (IS_BLOCK(def)) {
@@ -385,7 +385,7 @@ void MAKE_String(REBVAL *out, enum Reb_Kind kind, const REBVAL *def) {
         if (i < 0 || i > cast(REBINT, VAL_LEN_AT(any_binstr)))
             goto bad_make;
 
-        Val_Init_Series_Index(out, kind, VAL_SERIES(any_binstr), i);
+        Init_Any_Series_At(out, kind, VAL_SERIES(any_binstr), i);
         return;
     }
 
@@ -397,7 +397,7 @@ void MAKE_String(REBVAL *out, enum Reb_Kind kind, const REBVAL *def) {
     if (!ser)
         goto bad_make;
 
-    Val_Init_Series_Index(out, kind, ser, 0);
+    Init_Any_Series_At(out, kind, ser, 0);
     return;
 
 bad_make:
@@ -419,7 +419,7 @@ void TO_String(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     if (!ser)
         fail (Error_Invalid_Arg(arg));
 
-    Val_Init_Series(out, kind, ser);
+    Init_Any_Series(out, kind, ser);
 }
 
 
@@ -469,7 +469,7 @@ REBNATIVE(to_string)
     // unicode buffer, so it's not copied out with "slimming" if it turns out
     // to not contain wide chars.
 
-    Val_Init_String(D_OUT, ser);
+    Init_String(D_OUT, ser);
     return R_OUT;
 }
 
@@ -721,7 +721,7 @@ REBSER *File_Or_Url_Path_Dispatch(REBPVS *pvs)
 REBINT PD_File(REBPVS *pvs) {
     assert(VAL_TYPE(pvs->value) == REB_FILE);
     REBSER *ser = File_Or_Url_Path_Dispatch(pvs);
-    Val_Init_Series(pvs->store, REB_FILE, ser);
+    Init_File(pvs->store, ser);
     return PE_USE_STORE;
 }
 
@@ -732,7 +732,7 @@ REBINT PD_File(REBPVS *pvs) {
 REBINT PD_Url(REBPVS *pvs) {
     assert(VAL_TYPE(pvs->value) == REB_URL);
     REBSER *ser = File_Or_Url_Path_Dispatch(pvs);
-    Val_Init_Series(pvs->store, REB_URL, ser);
+    Init_Url(pvs->store, ser);
     return PE_USE_STORE;
 }
 
@@ -830,7 +830,7 @@ REBTYPE(String)
                 // to create an entire series just to include the delimiters.
                 //
                 REBSER *copy = Copy_Form_Value(arg, 0);
-                Val_Init_String(arg, copy);
+                Init_String(arg, copy);
             }
         }
 
@@ -929,7 +929,7 @@ pick_it:
             len = Partial(value, 0, ARG(limit));
             if (len == 0) {
         zero_str:
-                Val_Init_Series(D_OUT, VAL_TYPE(value), Make_Binary(0));
+                Init_Any_Series(D_OUT, VAL_TYPE(value), Make_Binary(0));
                 return R_OUT;
             }
         } else
@@ -957,7 +957,9 @@ pick_it:
         }
         else {
             enum Reb_Kind kind = VAL_TYPE(value);
-            Val_Init_Series(value, kind, Copy_String_Slimming(ser, index, len));
+            Init_Any_Series(
+                value, kind, Copy_String_Slimming(ser, index, len)
+            );
         }
         Remove_Series(ser, index, len);
         break; }
@@ -1118,6 +1120,6 @@ pick_it:
 
 ser_exit:
     type = VAL_TYPE(value);
-    Val_Init_Series(D_OUT, type, ser);
+    Init_Any_Series(D_OUT, type, ser);
     return R_OUT;
 }

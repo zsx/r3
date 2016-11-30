@@ -447,7 +447,7 @@ static void Try_Add_Backtrace_To_Error(
 
         Init_Word(Alloc_Tail_Array(backtrace), FRM_LABEL(f));
     }
-    Val_Init_Block(&vars->where, backtrace);
+    Init_Block(&vars->where, backtrace);
 
     // Nearby location of the error.  Reify any valist that is running,
     // so that the error has an array to present.
@@ -491,7 +491,7 @@ static void Try_Add_Backtrace_To_Error(
         if (NOT_END(item))
             DS_PUSH(&ellipsis);
 
-        Val_Init_Block(&vars->nearest, Pop_Stack_Values(dsp_orig));
+        Init_Block(&vars->nearest, Pop_Stack_Values(dsp_orig));
     }
 }
 
@@ -606,7 +606,7 @@ REBOOL Make_Error_Object_Throws(
 
         // fill in RE_USER (1000) later if it passes the check
 
-        Val_Init_String(&vars->message, Copy_Sequence_At_Position(arg));
+        Init_String(&vars->message, Copy_Sequence_At_Position(arg));
     }
     else {
         // No other argument types are handled by this routine at this time.
@@ -1024,7 +1024,7 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
             // error/__FILE__ (a FILE! value)
             Val_Init_Typeset(key, ALL_64, Canon(SYM___FILE__));
             key++;
-            Val_Init_File(
+            Init_File(
                 value,
                 Append_UTF8_May_Fail(
                     NULL,
@@ -1163,7 +1163,7 @@ REBCTX *Error_Bad_Func_Def(const REBVAL *spec, const REBVAL *body)
     Append_Value(array, body);
 
     REBVAL def;
-    Val_Init_Block(&def, array);
+    Init_Block(&def, array);
     return Error(RE_BAD_FUNC_DEF, &def, END_CELL);
 }
 
@@ -1712,5 +1712,5 @@ void Make_OS_Error(REBVAL *out, int errnum)
     REBCHR str[100];
 
     OS_FORM_ERROR(errnum, str, 100);
-    Val_Init_String(out, Copy_OS_Str(str, OS_STRLEN(str)));
+    Init_String(out, Copy_OS_Str(str, OS_STRLEN(str)));
 }

@@ -71,7 +71,7 @@ static REB_R Console_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         // If no buffer, create a buffer:
         arg = CTX_VAR(port, STD_PORT_DATA);
         if (!IS_STRING(arg) && !IS_BINARY(arg)) {
-            Val_Init_Binary(arg, MAKE_OS_BUFFER(OUT_BUF_SIZE));
+            Init_Binary(arg, MAKE_OS_BUFFER(OUT_BUF_SIZE));
         }
         ser = VAL_SERIES(arg);
         SET_SERIES_LEN(ser, 0);
@@ -88,8 +88,8 @@ static REB_R Console_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         if (result < 0) fail (Error_On_Port(RE_READ_ERROR, port, req->error));
 
         // !!! Among many confusions in this file, it said "Another copy???"
-        //Val_Init_String(D_OUT, Copy_OS_Str(ser->data, result));
-        Val_Init_Binary(D_OUT, Copy_Bytes(req->common.data, req->actual));
+        //Init_String(D_OUT, Copy_OS_Str(ser->data, result));
+        Init_Binary(D_OUT, Copy_Bytes(req->common.data, req->actual));
         break; }
 
     case SYM_OPEN: {

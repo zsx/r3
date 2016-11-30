@@ -198,7 +198,7 @@ static REBOOL Get_Struct_Var(REBVAL *out, REBSTU *stu, const REBVAL *word)
                 get_scalar(dest, stu, field, n);
             }
             TERM_ARRAY_LEN(array, dimension);
-            Val_Init_Block(out, array);
+            Init_Block(out, array);
         }
         else
             get_scalar(out, stu, field, 0);
@@ -242,7 +242,7 @@ REBARR *Struct_To_Array(REBSTU *stu)
             get_scalar(&nested, stu, field, 0);
 
             PUSH_GUARD_VALUE(&nested); // is this guard still necessary?
-            Val_Init_Block(
+            Init_Block(
                 Alloc_Tail_Array(typespec),
                 Struct_To_Array(VAL_STRUCT(&nested))
             );
@@ -266,7 +266,7 @@ REBARR *Struct_To_Array(REBSTU *stu)
             REBCNT dimension = FLD_DIMENSION(field);
             REBARR *one_int = Alloc_Singular_Array();
             SET_INTEGER(ARR_HEAD(one_int), dimension);
-            Val_Init_Block(Alloc_Tail_Array(typespec), one_int);
+            Init_Block(Alloc_Tail_Array(typespec), one_int);
 
             // Initialization seems to be just another block after that (?)
             //
@@ -277,7 +277,7 @@ REBARR *Struct_To_Array(REBSTU *stu)
                 get_scalar(dest, stu, field, n);
             }
             TERM_ARRAY_LEN(init, dimension);
-            Val_Init_Block(Alloc_Tail_Array(typespec), init);
+            Init_Block(Alloc_Tail_Array(typespec), init);
         }
         else {
             REBVAL *dest = Alloc_Tail_Array(typespec);
@@ -285,7 +285,7 @@ REBARR *Struct_To_Array(REBSTU *stu)
         }
 
         DS_PUSH_TRASH;
-        Val_Init_Block(DS_TOP, typespec); // required type
+        Init_Block(DS_TOP, typespec); // required type
     }
 
     return Pop_Stack_Values(dsp_orig);
@@ -863,7 +863,7 @@ static void Parse_Field_Type_May_Fail(
                 FLD_AT(field, IDX_FIELD_WIDE),
                 SER_LEN(VAL_STRUCT_DATA_BIN(inner))
             );
-            Val_Init_Block(
+            Init_Block(
                 FLD_AT(field, IDX_FIELD_TYPE),
                 VAL_STRUCT_FIELDLIST(inner)
             );
@@ -908,7 +908,7 @@ static void Parse_Field_Type_May_Fail(
             FLD_AT(field, IDX_FIELD_WIDE),
             SER_LEN(VAL_STRUCT_DATA_BIN(val))
         );
-        Val_Init_Block(
+        Init_Block(
             FLD_AT(field, IDX_FIELD_TYPE),
             VAL_STRUCT_FIELDLIST(val)
         );
@@ -1286,13 +1286,13 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
         ASSERT_ARRAY(field);
 
         DS_PUSH_TRASH;
-        Val_Init_Block(DS_TOP, field); // really should be an OBJECT!
+        Init_Block(DS_TOP, field); // really should be an OBJECT!
     }
 
     REBARR *fieldlist = Pop_Stack_Values(dsp_orig);
     ASSERT_ARRAY(fieldlist);
 
-    Val_Init_Block(FLD_AT(schema, IDX_FIELD_TYPE), fieldlist);
+    Init_Block(FLD_AT(schema, IDX_FIELD_TYPE), fieldlist);
     Prepare_Field_For_FFI(schema);
 
     SET_INTEGER(FLD_AT(schema, IDX_FIELD_WIDE), offset); // total size known
@@ -1539,7 +1539,7 @@ REBTYPE(Struct)
         switch (VAL_WORD_SYM(arg)) {
         case SYM_VALUES:
             fail_if_non_accessible(val);
-            Val_Init_Binary(
+            Init_Binary(
                 D_OUT,
                 Copy_Sequence_At_Len(VAL_STRUCT_DATA_BIN(val),
                 VAL_STRUCT_OFFSET(val),
@@ -1548,7 +1548,7 @@ REBTYPE(Struct)
             break;
 
         case SYM_SPEC:
-            Val_Init_Block(D_OUT, Struct_To_Array(VAL_STRUCT(val)));
+            Init_Block(D_OUT, Struct_To_Array(VAL_STRUCT(val)));
             break;
 
         case SYM_ADDR:

@@ -130,7 +130,7 @@ REBNATIVE(verify)
             continue;
 
         REBVAL temp;
-        Val_Init_Block(
+        Init_Block(
             &temp,
             Copy_Values_Len_Shallow(start, e.specifier, e.value - start)
         );
@@ -526,7 +526,7 @@ REBNATIVE(collect_words)
         prior_values = NULL;
 
     words = Collect_Words(values, prior_values, modes);
-    Val_Init_Block(D_OUT, words);
+    Init_Block(D_OUT, words);
     return R_OUT;
 }
 
@@ -605,7 +605,7 @@ REBNATIVE(get)
         }
 
         TERM_ARRAY_LEN(array, cast(RELVAL*, dest) - ARR_HEAD(array));
-        Val_Init_Block(D_OUT, array);
+        Init_Block(D_OUT, array);
     }
     else {
         assert(IS_BLANK(source));

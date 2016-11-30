@@ -329,7 +329,7 @@ REBNATIVE(rsa)
     bi_free(rsa_ctx->bi_ctx, data_bi);
     RSA_free(rsa_ctx);
 
-    Val_Init_Binary(D_OUT, binary);
+    Init_Binary(D_OUT, binary);
     return R_OUT;
 }
 
@@ -397,12 +397,12 @@ REBNATIVE(dh_generate_key)
     REBCNT priv_index = Find_Canon_In_Context(obj, Canon(SYM_PRIV_KEY), FALSE);
     if (priv_index == 0)
         fail (Error(RE_MISC));
-    Val_Init_Binary(CTX_VAR(obj, priv_index), priv_bin);
+    Init_Binary(CTX_VAR(obj, priv_index), priv_bin);
 
     REBCNT pub_index = Find_Canon_In_Context(obj, Canon(SYM_PUB_KEY), FALSE);
     if (pub_index == 0)
         fail (Error(RE_MISC));
-    Val_Init_Binary(CTX_VAR(obj, pub_index), pub_bin);
+    Init_Binary(CTX_VAR(obj, pub_index), pub_bin);
 
     return R_VOID;
 }
@@ -462,7 +462,7 @@ REBNATIVE(dh_compute_key)
 
     DH_compute_key(&dh_ctx);
 
-    Val_Init_Binary(D_OUT, binary);
+    Init_Binary(D_OUT, binary);
     return R_OUT;
 }
 
@@ -555,7 +555,7 @@ REBNATIVE(aes)
             FREE_N(REBYTE, pad_len, pad_data);
 
         SET_SERIES_LEN(binaryOut, pad_len);
-        Val_Init_Binary(D_OUT, binaryOut);
+        Init_Binary(D_OUT, binaryOut);
         return R_OUT;
     }
 

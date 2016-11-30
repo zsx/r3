@@ -696,7 +696,7 @@ REBTYPE(Map)
             fail (Error_Cannot_Reflect(REB_MAP, arg));
 
         REBARR *array = Map_To_Array(map, n);
-        Val_Init_Block(D_OUT, array);
+        Init_Block(D_OUT, array);
         return R_OUT;
     }
 

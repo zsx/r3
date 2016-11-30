@@ -485,11 +485,11 @@ inline static REBYTE *VAL_RAW_DATA_AT(const RELVAL *v) {
     return SER_AT_RAW(SER_WIDE(VAL_SERIES(v)), VAL_SERIES(v), VAL_INDEX(v));
 }
 
-#define Val_Init_Series_Index(v,t,s,i) \
-    Val_Init_Series_Index_Core(SINK(v), (t), (s), (i), SPECIFIED)
+#define Init_Any_Series_At(v,t,s,i) \
+    Init_Any_Series_At_Core(SINK(v), (t), (s), (i), SPECIFIED)
 
-#define Val_Init_Series(v,t,s) \
-    Val_Init_Series_Index((v), (t), (s), 0)
+#define Init_Any_Series(v,t,s) \
+    Init_Any_Series_At((v), (t), (s), 0)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -505,5 +505,5 @@ inline static REBYTE *VAL_RAW_DATA_AT(const RELVAL *v) {
 #define VAL_BITSET(v) \
     VAL_SERIES(v)
 
-#define Val_Init_Bitset(v,s) \
-    Val_Init_Series((v), REB_BITSET, (s))
+#define Init_Bitset(v,s) \
+    Init_Any_Series((v), REB_BITSET, (s))

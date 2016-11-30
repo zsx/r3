@@ -90,7 +90,7 @@ void Dump_Frame_Location(REBFRM *f)
     }
     else {
         REBVAL dump;
-        Val_Init_Series_Index_Core(
+        Init_Any_Series_At_Core(
             &dump,
             REB_BLOCK,
             ARR_SERIES(f->source.array),

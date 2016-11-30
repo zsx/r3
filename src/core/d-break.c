@@ -484,7 +484,7 @@ REBNATIVE(resume)
     // but for now we'll assume that the only decoder is BREAKPOINT and it
     // will be kept in sync.
     //
-    Val_Init_Array(&cell, REB_GROUP, instruction);
+    Init_Group(&cell, instruction);
 
     // Throw the instruction with the name of the RESUME function
     //

@@ -162,7 +162,7 @@ REBNATIVE(load_extension)
     if (NOT(REF(dispatch)))
         *CTX_VAR(context, STD_EXTENSION_LIB_FILE) = *ARG(name);
 
-    Val_Init_Binary(CTX_VAR(context, STD_EXTENSION_LIB_BOOT), src);
+    Init_Binary(CTX_VAR(context, STD_EXTENSION_LIB_BOOT), src);
 
     Val_Init_Object(D_OUT, context);
     return R_OUT;
@@ -218,7 +218,7 @@ void Make_Command(
     Append_Value(body_array, extension);
     Append_Value(body_array, command_num);
 
-    Val_Init_Block(FUNC_BODY(fun), body_array); // manages
+    Init_Block(FUNC_BODY(fun), body_array); // manages
 
     *out = *FUNC_VALUE(fun);
     return;
@@ -231,7 +231,7 @@ bad_func_def:
         Append_Value(array, spec);
         Append_Value(array, extension);
         Append_Value(array, command_num);
-        Val_Init_Block(&def, array);
+        Init_Block(&def, array);
 
         fail (Error(RE_BAD_FUNC_DEF, &def));
     }

@@ -613,10 +613,10 @@ static REBCTX *Error_Bad_Scan(
     Append_Series(ser, bp, len);
 
     REBVAL arg1;
-    Val_Init_String(&arg1, Copy_Bytes(name, -1));
+    Init_String(&arg1, Copy_Bytes(name, -1));
 
     REBVAL arg2;
-    Val_Init_String(&arg2, Copy_Bytes(arg, size));
+    Init_String(&arg2, Copy_Bytes(arg, size));
 
     REBCTX *error = Error(errnum, &arg1, &arg2, END_CELL);
 
@@ -624,7 +624,7 @@ static REBCTX *Error_Bad_Scan(
     // Vars is a C struct mirroring fixed portion of error fields
     //
     ERROR_VARS *vars = ERR_VARS(error);
-    Val_Init_String(&vars->nearest, ser);
+    Init_String(&vars->nearest, ser);
 
     ss->errors++;
     return error;
@@ -1552,7 +1552,7 @@ static REBARR *Scan_Array(
                 SET_ARRAY_LEN_NOTERM(emitbuf, ARR_LEN(emitbuf) + 1);
                 goto exit_block;
             }
-            Val_Init_Array(
+            Init_Any_Array(
                 value,
                 (token == TOKEN_BLOCK_BEGIN) ? REB_BLOCK : REB_GROUP,
                 array
@@ -1647,7 +1647,7 @@ static REBARR *Scan_Array(
 
         case TOKEN_STRING:
             // During scan above, string was stored in UNI_BUF (with Uni width)
-            Val_Init_String(value, Pop_Molded_String(&mo));
+            Init_String(value, Pop_Molded_String(&mo));
             break;
 
         case TOKEN_BINARY:
@@ -1704,7 +1704,7 @@ static REBARR *Scan_Array(
 
             if (ARR_LEN(array) == 0 || !IS_WORD(ARR_HEAD(array))) {
                 REBVAL temp;
-                Val_Init_Block(&temp, array);
+                Init_Block(&temp, array);
                 fail (Error(RE_MALCONSTRUCT, &temp));
             }
 
@@ -1716,7 +1716,7 @@ static REBARR *Scan_Array(
 
                 if (dispatcher == NULL || ARR_LEN(array) != 2) {
                     REBVAL temp;
-                    Val_Init_Block(&temp, array);
+                    Init_Block(&temp, array);
                     fail (Error(RE_MALCONSTRUCT, &temp));
                 }
 
@@ -1739,7 +1739,7 @@ static REBARR *Scan_Array(
             else {
                 if (ARR_LEN(array) != 1) {
                     REBVAL temp;
-                    Val_Init_Block(&temp, array);
+                    Init_Block(&temp, array);
                     fail (Error(RE_MALCONSTRUCT, &temp));
                 }
 
@@ -1764,12 +1764,10 @@ static REBARR *Scan_Array(
                     SET_TRUE(value);
                     break;
 
-                default:
-                    {
+                default: {
                     REBVAL temp;
-                    Val_Init_Block(&temp, array);
-                    fail (Error(RE_MALCONSTRUCT, &temp));
-                    }
+                    Init_Block(&temp, array);
+                    fail (Error(RE_MALCONSTRUCT, &temp)); }
                 }
             }
 
@@ -2026,7 +2024,7 @@ REBNATIVE(transcode)
     // If the source data bytes are "1" then it will be the block [1]
     // if the source data is "[1]" then it will be the block [[1]]
 
-    Val_Init_Block(D_OUT, Scan_Array(&scan_state, 0));
+    Init_Block(D_OUT, Scan_Array(&scan_state, 0));
 
     // Add a value to the tail of the result, representing the input
     // with position advanced past the content consumed by the scan.

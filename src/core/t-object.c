@@ -660,7 +660,7 @@ REBTYPE(Context)
             fail (Error_Cannot_Reflect(VAL_TYPE(value), arg));
         }
 
-        Val_Init_Block(D_OUT, Context_To_Array(VAL_CONTEXT(value), reflector));
+        Init_Block(D_OUT, Context_To_Array(VAL_CONTEXT(value), reflector));
         return R_OUT; }
 
     case SYM_TRIM: {

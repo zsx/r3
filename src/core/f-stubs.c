@@ -343,11 +343,11 @@ REBINT Get_System_Int(REBCNT i1, REBCNT i2, REBINT default_int)
 
 
 //
-//  Val_Init_Series_Index_Core: C
+//  Init_Any_Series_At_Core: C
 //
 // Common function.
 //
-void Val_Init_Series_Index_Core(
+void Init_Any_Series_At_Core(
     REBVAL *value,
     enum Reb_Kind type,
     REBSER *series,

@@ -530,24 +530,24 @@ static REBOOL Get_GOB_Var(REBGOB *gob, const REBVAL *word, REBVAL *val)
     case SYM_DRAW:
         if (GOB_TYPE(gob) == GOBT_DRAW) {
             // !!! comment said "compiler optimizes" the init "calls below" (?)
-            Val_Init_Block(val, AS_ARRAY(GOB_CONTENT(gob)));
+            Init_Block(val, AS_ARRAY(GOB_CONTENT(gob)));
         }
         else goto is_blank;
         break;
 
     case SYM_TEXT:
         if (GOB_TYPE(gob) == GOBT_TEXT) {
-            Val_Init_Block(val, AS_ARRAY(GOB_CONTENT(gob)));
+            Init_Block(val, AS_ARRAY(GOB_CONTENT(gob)));
         }
         else if (GOB_TYPE(gob) == GOBT_STRING) {
-            Val_Init_String(val, GOB_CONTENT(gob));
+            Init_String(val, GOB_CONTENT(gob));
         }
         else goto is_blank;
         break;
 
     case SYM_EFFECT:
         if (GOB_TYPE(gob) == GOBT_EFFECT) {
-            Val_Init_Block(val, AS_ARRAY(GOB_CONTENT(gob)));
+            Init_Block(val, AS_ARRAY(GOB_CONTENT(gob)));
         }
         else goto is_blank;
         break;
@@ -565,9 +565,9 @@ static REBOOL Get_GOB_Var(REBGOB *gob, const REBVAL *word, REBVAL *val)
 
     case SYM_PANE:
         if (GOB_PANE(gob))
-            Val_Init_Block(val, Pane_To_Array(gob, 0, -1));
+            Init_Block(val, Pane_To_Array(gob, 0, -1));
         else
-            Val_Init_Block(val, Make_Array(0));
+            Init_Block(val, Make_Array(0));
         break;
 
     case SYM_PARENT:
@@ -584,13 +584,13 @@ is_blank:
             Val_Init_Object(val, AS_CONTEXT(GOB_DATA(gob)));
         }
         else if (GOB_DTYPE(gob) == GOBD_BLOCK) {
-            Val_Init_Block(val, AS_ARRAY(GOB_DATA(gob)));
+            Init_Block(val, AS_ARRAY(GOB_DATA(gob)));
         }
         else if (GOB_DTYPE(gob) == GOBD_STRING) {
-            Val_Init_String(val, GOB_DATA(gob));
+            Init_String(val, GOB_DATA(gob));
         }
         else if (GOB_DTYPE(gob) == GOBD_BINARY) {
-            Val_Init_Binary(val, GOB_DATA(gob));
+            Init_Binary(val, GOB_DATA(gob));
         }
         else if (GOB_DTYPE(gob) == GOBD_INTEGER) {
             SET_INTEGER(val, (REBIPT)GOB_DATA(gob));
@@ -599,7 +599,7 @@ is_blank:
         break;
 
     case SYM_FLAGS:
-        Val_Init_Block(val, Gob_Flags_To_Array(gob));
+        Init_Block(val, Gob_Flags_To_Array(gob));
         break;
 
     default:
@@ -704,7 +704,7 @@ REBARR *Gob_To_Array(REBGOB *gob)
 static void Return_Gob_Pair(REBVAL *out, REBGOB *gob, REBD32 x, REBD32 y)
 {
     REBARR *blk = Make_Array(2);
-    Val_Init_Block(out, blk);
+    Init_Block(out, blk);
 
     SET_GOB(Alloc_Tail_Array(blk), gob);
 
@@ -1069,7 +1069,7 @@ REBTYPE(Gob)
             return R_OUT;
         }
         else {
-            Val_Init_Block(D_OUT, Pane_To_Array(gob, index, len));
+            Init_Block(D_OUT, Pane_To_Array(gob, index, len));
             Remove_Gobs(gob, index, len);
         }
         return R_OUT; }

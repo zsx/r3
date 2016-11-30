@@ -176,7 +176,7 @@ REBNATIVE(spelling_of)
         series = Copy_Mold_Value(value, 0 /* opts... MOPT_0? */);
     }
 
-    Val_Init_String(D_OUT, series);
+    Init_String(D_OUT, series);
     return R_OUT;
 }
 
@@ -312,7 +312,7 @@ REBNATIVE(checksum)
             }
 
             TERM_BIN_LEN(digest, digests[i].len);
-            Val_Init_Binary(D_OUT, digest);
+            Init_Binary(D_OUT, digest);
 
             return R_OUT;
         }
@@ -367,7 +367,7 @@ REBNATIVE(compress)
     REBCNT index;
     REBSER *ser = Temp_Bin_Str_Managed(ARG(data), &index, &len);
 
-    Val_Init_Binary(D_OUT, Compress(ser, index, len, REF(gzip), REF(only)));
+    Init_Binary(D_OUT, Compress(ser, index, len, REF(gzip), REF(only)));
 
     return R_OUT;
 }
@@ -418,7 +418,7 @@ REBNATIVE(decompress)
         len = BIN_LEN(VAL_SERIES(data));
 
 
-    Val_Init_Binary(D_OUT, Decompress(
+    Init_Binary(D_OUT, Decompress(
         BIN_HEAD(VAL_SERIES(data)) + VAL_INDEX(data),
         len,
         max,
@@ -496,7 +496,7 @@ REBNATIVE(enbase)
     //
     REBCNT index;
     REBSER *temp = Temp_Bin_Str_Managed(arg, &index, NULL);
-    Val_Init_Series_Index(arg, REB_BINARY, temp, index);
+    Init_Any_Series_At(arg, REB_BINARY, temp, index);
 
     REBSER *ser;
     switch (base) {
@@ -516,7 +516,7 @@ REBNATIVE(enbase)
         fail (Error_Invalid_Arg(ARG(base_value)));
     }
 
-    Val_Init_String(D_OUT, ser);
+    Init_String(D_OUT, ser);
 
     return R_OUT;
 }
@@ -592,7 +592,7 @@ REBNATIVE(dehex)
         );
     }
 
-    Val_Init_Series(D_OUT, VAL_TYPE(ARG(value)), ser);
+    Init_Any_Series(D_OUT, VAL_TYPE(ARG(value)), ser);
 
     return R_OUT;
 }
@@ -616,7 +616,7 @@ REBNATIVE(deline)
     REBVAL *val = ARG(string);
 
     if (REF(lines)) {
-        Val_Init_Block(D_OUT, Split_Lines(val));
+        Init_Block(D_OUT, Split_Lines(val));
         return R_OUT;
     }
 
@@ -697,7 +697,7 @@ REBNATIVE(entab)
     else
         ser = Entab_Unicode(VAL_UNI(val), VAL_INDEX(val), len, tabsize);
 
-    Val_Init_Series(D_OUT, VAL_TYPE(val), ser);
+    Init_Any_Series(D_OUT, VAL_TYPE(val), ser);
 
     return R_OUT;
 }
@@ -735,7 +735,7 @@ REBNATIVE(detab)
     else
         ser = Detab_Unicode(VAL_UNI(val), VAL_INDEX(val), len, tabsize);
 
-    Val_Init_Series(D_OUT, VAL_TYPE(val), ser);
+    Init_Any_Series(D_OUT, VAL_TYPE(val), ser);
 
     return R_OUT;
 }

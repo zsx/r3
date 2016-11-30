@@ -119,7 +119,7 @@ void Ret_Query_File(REBCTX *port, REBREQ *file, REBVAL *ret)
         file->special.file.path, 0, (OS_WIDE ? PATH_OPT_UNI_SRC : 0)
     );
 
-    Val_Init_File(CTX_VAR(context, STD_FILE_INFO_NAME), ser);
+    Init_File(CTX_VAR(context, STD_FILE_INFO_NAME), ser);
 }
 
 
@@ -168,7 +168,7 @@ static void Read_File_Port(
     REBCNT len
 ) {
     REBSER *ser = Make_Binary(len); // read result buffer
-    Val_Init_Binary(out, ser);
+    Init_Binary(out, ser);
 
     // Do the read, check for errors:
     file->common.data = BIN_HEAD(ser);
@@ -198,7 +198,7 @@ static void Write_File_Port(REBREQ *file, REBVAL *data, REBCNT len, REBOOL lines
         if (lines)
             mo.opts = 1 << MOPT_LINES;
         Mold_Value(&mo, data, FALSE);
-        Val_Init_String(data, Pop_Molded_String(&mo)); // fall to next section
+        Init_String(data, Pop_Molded_String(&mo)); // fall to next section
         len = VAL_LEN_HEAD(data);
     }
 

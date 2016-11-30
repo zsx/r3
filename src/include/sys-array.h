@@ -321,17 +321,20 @@ inline static RELVAL *VAL_ARRAY_TAIL(const RELVAL *v) {
 #define VAL_ARRAY_AT_HEAD(v,n) \
     ARR_AT(VAL_ARRAY(v), (n))
 
-#define Val_Init_Array_Index(v,t,a,i) \
-    Val_Init_Series_Index((v), (t), ARR_SERIES(a), (i))
+#define Init_Any_Array_At(v,t,a,i) \
+    Init_Any_Series_At((v), (t), ARR_SERIES(a), (i))
 
-#define Val_Init_Array(v,t,a) \
-    Val_Init_Array_Index((v), (t), (a), 0)
+#define Init_Any_Array(v,t,a) \
+    Init_Any_Array_At((v), (t), (a), 0)
 
-#define Val_Init_Block_Index(v,a,i) \
-    Val_Init_Array_Index((v), REB_BLOCK, (a), (i))
+#define Init_Block(v,s) \
+    Init_Any_Array((v), REB_BLOCK, (s))
 
-#define Val_Init_Block(v,s) \
-    Val_Init_Block_Index((v), (s), 0)
+#define Init_Group(v,s) \
+    Init_Any_Array((v), REB_GROUP, (s))
+
+#define Init_Path(v,s) \
+    Init_Any_Array((v), REB_PATH, (s))
 
 
 

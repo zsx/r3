@@ -300,7 +300,7 @@ REBNATIVE(difference)
         if (VAL_TYPE(val1) != VAL_TYPE(val2))
             fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
-        Val_Init_Bitset(D_OUT, Xandor_Binary(SYM_XOR_T, val1, val2));
+        Init_Bitset(D_OUT, Xandor_Binary(SYM_XOR_T, val1, val2));
         return R_OUT;
     }
 
@@ -313,7 +313,7 @@ REBNATIVE(difference)
         return R_OUT;
     }
 
-    Val_Init_Series(
+    Init_Any_Series(
         D_OUT,
         VAL_TYPE(val1),
         Make_Set_Operation_Series(
@@ -357,7 +357,7 @@ REBNATIVE(exclude)
 
         // !!! 0 was said to be a "special case" in original code
         //
-        Val_Init_Bitset(D_OUT, Xandor_Binary(0, val1, val2));
+        Init_Bitset(D_OUT, Xandor_Binary(0, val1, val2));
         return R_OUT;
     }
 
@@ -370,7 +370,7 @@ REBNATIVE(exclude)
         return R_OUT;
     }
 
-    Val_Init_Series(
+    Init_Any_Series(
         D_OUT,
         VAL_TYPE(val1),
         Make_Set_Operation_Series(
@@ -410,7 +410,7 @@ REBNATIVE(intersect)
         if (VAL_TYPE(val1) != VAL_TYPE(val2))
             fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
-        Val_Init_Bitset(D_OUT, Xandor_Binary(SYM_AND_T, val1, val2));
+        Init_Bitset(D_OUT, Xandor_Binary(SYM_AND_T, val1, val2));
         return R_OUT;
     }
 
@@ -423,7 +423,7 @@ REBNATIVE(intersect)
         return R_OUT;
     }
 
-    Val_Init_Series(
+    Init_Any_Series(
         D_OUT,
         VAL_TYPE(val1),
         Make_Set_Operation_Series(
@@ -464,7 +464,7 @@ REBNATIVE(union)
         if (VAL_TYPE(val1) != VAL_TYPE(val2))
             fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
-        Val_Init_Bitset(D_OUT, Xandor_Binary(SYM_OR_T, val1, val2));
+        Init_Bitset(D_OUT, Xandor_Binary(SYM_OR_T, val1, val2));
         return R_OUT;
     }
 
@@ -477,7 +477,7 @@ REBNATIVE(union)
         return R_OUT;
     }
 
-    Val_Init_Series(
+    Init_Any_Series(
         D_OUT,
         VAL_TYPE(val1),
         Make_Set_Operation_Series(
@@ -520,7 +520,7 @@ REBNATIVE(unique)
         return R_OUT;
     }
 
-    Val_Init_Series(
+    Init_Any_Series(
         D_OUT,
         VAL_TYPE(val),
         Make_Set_Operation_Series(

@@ -72,7 +72,7 @@ void MAKE_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
     // `make block! 10` => creates array with certain initial capacity
     //
     if (IS_INTEGER(arg) || IS_DECIMAL(arg)) {
-        Val_Init_Array(out, kind, Make_Array(Int32s(arg, 0)));
+        Init_Any_Array(out, kind, Make_Array(Int32s(arg, 0)));
         return;
     }
 
@@ -115,7 +115,7 @@ void MAKE_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         if (index < 0 || index > cast(REBINT, VAL_LEN_HEAD(any_array)))
             goto bad_make;
 
-        Val_Init_Series_Index_Core(
+        Init_Any_Series_At_Core(
             out,
             kind,
             ARR_SERIES(VAL_ARRAY(any_array)),
@@ -164,7 +164,7 @@ void TO_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         // restricted to only BLOCK!, now it lets you turn a typeset into
         // a GROUP! or a PATH!, etc.
         //
-        Val_Init_Array(out, kind, Typeset_To_Array(arg));
+        Init_Any_Array(out, kind, Typeset_To_Array(arg));
     }
     else if (ANY_ARRAY(arg)) {
         //
@@ -172,7 +172,7 @@ void TO_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         // position and change the type.  (Note: MAKE does not copy the
         // data, but aliases it under a new kind.)
         //
-        Val_Init_Array(
+        Init_Any_Array(
             out,
             kind,
             Copy_Values_Len_Shallow(
@@ -190,7 +190,7 @@ void TO_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         REBCNT index;
         REBSER *utf8 = Temp_Bin_Str_Managed(arg, &index, NULL);
         PUSH_GUARD_SERIES(utf8);
-        Val_Init_Array(
+        Init_Any_Array(
             out,
             kind,
             Scan_UTF8_Managed(BIN_HEAD(utf8), BIN_LEN(utf8))
@@ -202,18 +202,18 @@ void TO_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         // `to block! #{00BDAE....}` assumes the binary data is UTF8, and
         // goes directly to the scanner to make an unbound code array.
         //
-        Val_Init_Array(
+        Init_Any_Array(
             out, kind, Scan_UTF8_Managed(VAL_BIN_AT(arg), VAL_LEN_AT(arg))
         );
     }
     else if (IS_MAP(arg)) {
-        Val_Init_Array(out, kind, Map_To_Array(VAL_MAP(arg), 0));
+        Init_Any_Array(out, kind, Map_To_Array(VAL_MAP(arg), 0));
     }
     else if (ANY_CONTEXT(arg)) {
-        Val_Init_Array(out, kind, Context_To_Array(VAL_CONTEXT(arg), 3));
+        Init_Any_Array(out, kind, Context_To_Array(VAL_CONTEXT(arg), 3));
     }
     else if (IS_VECTOR(arg)) {
-        Val_Init_Array(out, kind, Vector_To_Array(arg));
+        Init_Any_Array(out, kind, Vector_To_Array(arg));
     }
     else {
         // !!! The general case of not having any special conversion behavior
@@ -221,7 +221,7 @@ void TO_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         // containing the value.  This may seem somewhat random, and an
         // error may be preferable.
         //
-        Val_Init_Array(out, kind, Copy_Values_Len_Shallow(arg, SPECIFIED, 1));
+        Init_Any_Array(out, kind, Copy_Values_Len_Shallow(arg, SPECIFIED, 1));
     }
 }
 
@@ -699,7 +699,7 @@ REBTYPE(Array)
         }
 
         if (REF(part))
-            Val_Init_Block(
+            Init_Block(
                 D_OUT, Copy_Array_At_Max_Shallow(array, index, specifier, len)
             );
         else
@@ -846,7 +846,7 @@ REBTYPE(Array)
             REF(deep), // deep
             types // types
         );
-        Val_Init_Array(D_OUT, VAL_TYPE(value), copy);
+        Init_Any_Array(D_OUT, VAL_TYPE(value), copy);
         return R_OUT;
     }
 
@@ -997,7 +997,7 @@ REBTYPE(Array)
     return T_Port(frame_, action);
 
 return_empty_block:
-    Val_Init_Block(D_OUT, Make_Array(0));
+    Init_Block(D_OUT, Make_Array(0));
     return R_OUT;
 }
 

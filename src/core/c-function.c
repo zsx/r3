@@ -226,7 +226,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 
             if (IS_BLOCK(DS_TOP)) { // we're in right spot to push notes/title
                 DS_PUSH_TRASH;
-                Val_Init_String(
+                Init_String(
                     DS_TOP,
                     Copy_String_Slimming(VAL_SERIES(item), VAL_INDEX(item), -1)
                 );
@@ -235,7 +235,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 //
                 // !!! A string was already pushed.  Should we append?
                 //
-                Val_Init_String(
+                Init_String(
                     DS_TOP,
                     Copy_String_Slimming(VAL_SERIES(item), VAL_INDEX(item), -1)
                 );
@@ -305,7 +305,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             if (IS_TYPESET(DS_TOP)) {
                 typeset = DS_TOP;
                 DS_PUSH_TRASH;
-                Val_Init_Block(
+                Init_Block(
                     DS_TOP,
                     Copy_Array_At_Deep_Managed(
                         VAL_ARRAY(item),
@@ -335,7 +335,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 if (VAL_ARRAY(DS_TOP - 1) != EMPTY_ARRAY)
                     fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
 
-                Val_Init_Block(
+                Init_Block(
                     DS_TOP - 1,
                     Copy_Array_At_Deep_Managed(
                         VAL_ARRAY(item),
@@ -1210,7 +1210,7 @@ REBFUN *Make_Interpreted_Function_May_Fail(
     }
 
     // We need to do a raw initialization of this block RELVAL because it is
-    // relative to a function.  (Val_Init_Block assumes all specific values)
+    // relative to a function.  (Init_Block assumes all specific values)
     //
     RELVAL *body = FUNC_BODY(fun);
     VAL_RESET_HEADER(body, REB_BLOCK);

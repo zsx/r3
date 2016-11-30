@@ -291,7 +291,7 @@ static REBCTX *Error_Parse_End() {
 
 static void Print_Parse_Index(REBFRM *f) {
     REBVAL input;
-    Val_Init_Series_Index_Core(
+    Init_Any_Series_At_Core(
         &input,
         P_TYPE,
         P_INPUT,
@@ -1270,11 +1270,12 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
     newparse.args_head = Push_Value_Chunk_Of_Length(3); // real RETURN: checked
     SET_UNREADABLE_BLANK(&newparse.args_head[2]);
 #endif
-    Val_Init_Block_Index(
+    Init_Any_Array_At(
         &newparse.args_head[0],
+        REB_BLOCK,
         Make_Array(1), // !!! "copy the value into its own block"
         0 // position 0
-    ); // series (now a REB_BLOCK)
+    );
 
     Append_Value(AS_ARRAY(VAL_SERIES(&newparse.args_head[0])), &value);
     SET_INTEGER(&newparse.args_head[1], P_FIND_FLAGS); // find_flags
@@ -2047,7 +2048,7 @@ REBNATIVE(subparse)
 
                 if (flags & PF_COPY) {
                     REBVAL temp;
-                    Val_Init_Series(
+                    Init_Any_Series(
                         &temp,
                         P_TYPE,
                         Is_Array_Series(P_INPUT)
@@ -2098,7 +2099,7 @@ REBNATIVE(subparse)
                     // See notes in PARSE native on handling of SYM_RETURN
                     //
                     REBVAL captured;
-                    Val_Init_Series(
+                    Init_Any_Series(
                         &captured,
                         P_TYPE,
                         Is_Array_Series(P_INPUT)

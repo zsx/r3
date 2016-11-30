@@ -616,7 +616,7 @@ void Mold_Array_At(
         return;
     }
 
-    // We don't want to use Val_Init_Block because it will create an implicit
+    // We don't want to use Init_Block because it will create an implicit
     // managed value, and the incoming series may be from an unmanaged source
     // !!! Review how to avoid needing to put the series into a value
     {
@@ -1530,7 +1530,7 @@ REBOOL Form_Reduce_Throws(
         Mold_Value(&mo, out, FALSE);
     }
 
-    Val_Init_String(out, Pop_Molded_String(&mo));
+    Init_String(out, Pop_Molded_String(&mo));
 
     return FALSE;
 }

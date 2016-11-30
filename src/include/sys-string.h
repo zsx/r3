@@ -177,14 +177,20 @@ inline static void SET_ANY_CHAR(REBSER *s, REBCNT n, REBYTE c) {
 //
 //=////////////////////////////////////////////////////////////////////////=//
 
-#define Val_Init_String(v,s) \
-    Val_Init_Series((v), REB_STRING, (s))
+#define Init_String(v,s) \
+    Init_Any_Series((v), REB_STRING, (s))
 
-#define Val_Init_File(v,s) \
-    Val_Init_Series((v), REB_FILE, (s))
+#define Init_File(v,s) \
+    Init_Any_Series((v), REB_FILE, (s))
 
-#define Val_Init_Tag(v,s) \
-    Val_Init_Series((v), REB_TAG, (s))
+#define Init_Email(v,s) \
+    Init_Any_Series((v), REB_EMAIL, (s))
+
+#define Init_Tag(v,s) \
+    Init_Any_Series((v), REB_TAG, (s))
+
+#define Init_Url(v,s) \
+    Init_Any_Series((v), REB_URL, (s))
 
 #define VAL_UNI(v) \
     UNI_HEAD(VAL_SERIES(v))

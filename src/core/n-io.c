@@ -126,10 +126,10 @@ REBNATIVE(form)
             return R_OUT_IS_THROWN;
         }
 
-        Val_Init_String(D_OUT, Pop_Molded_String(&mo));
+        Init_String(D_OUT, Pop_Molded_String(&mo));
     }
     else {
-        Val_Init_String(D_OUT, Copy_Form_Value(value, 0));
+        Init_String(D_OUT, Copy_Form_Value(value, 0));
     }
     return R_OUT;
 }
@@ -165,7 +165,7 @@ REBNATIVE(mold)
 
     Mold_Value(&mo, ARG(value), TRUE);
 
-    Val_Init_String(D_OUT, Pop_Molded_String(&mo));
+    Init_String(D_OUT, Pop_Molded_String(&mo));
 
     return R_OUT;
 }
@@ -486,7 +486,8 @@ REBNATIVE(wait)
 
     // Prevent GC on temp port block:
     // Note: Port block is always a copy of the block.
-    if (ports) Val_Init_Block(D_OUT, ports);
+    if (ports)
+        Init_Block(D_OUT, ports);
 
     // Process port events [stack-move]:
     if (!Wait_Ports(ports, timeout, REF(only))) {
@@ -571,7 +572,7 @@ REBNATIVE(to_rebol_file)
     if (ser == NULL)
         fail (Error_Invalid_Arg(arg));
 
-    Val_Init_File(D_OUT, ser);
+    Init_File(D_OUT, ser);
     return R_OUT;
 }
 
@@ -596,7 +597,7 @@ REBNATIVE(to_local_file)
     if (ser == NULL)
         fail (Error_Invalid_Arg(arg));
 
-    Val_Init_String(D_OUT, ser);
+    Init_String(D_OUT, ser);
     return R_OUT;
 }
 
@@ -635,7 +636,7 @@ REBNATIVE(what_dir)
 
         OS_FREE(lpath);
 
-        Val_Init_File(D_OUT, ser);
+        Init_File(D_OUT, ser);
         *current_path = *D_OUT; // !!! refresh system option if they diverged
     }
     else {
@@ -678,7 +679,7 @@ REBNATIVE(change_dir)
             fail (Error_Invalid_Arg(arg)); // !!! ERROR MSG
 
         REBVAL val;
-        Val_Init_String(&val, ser); // may be unicode or utf-8
+        Init_String(&val, ser); // may be unicode or utf-8
         Check_Security(Canon(SYM_FILE), POL_EXEC, &val);
 
         if (!OS_SET_CURRENT_DIR(SER_HEAD(REBCHR, ser)))
@@ -1140,8 +1141,8 @@ static REBARR *String_List_To_Array(REBCHR *str)
 
     str = start;
     while ((eq = OS_STRCHR(str+1, '=')) && (n = OS_STRLEN(str))) {
-        Val_Init_String(Alloc_Tail_Array(array), Copy_OS_Str(str, eq - str));
-        Val_Init_String(
+        Init_String(Alloc_Tail_Array(array), Copy_OS_Str(str, eq - str));
+        Init_String(
             Alloc_Tail_Array(array), Copy_OS_Str(eq + 1, n - (eq - str) - 1)
         );
         str += n + 1; // next
@@ -1203,7 +1204,7 @@ static REBARR *File_List_To_Array(const REBCHR *str)
 
     if (len == 1) {  // First is full file path
         dir = To_REBOL_Path(str, n, (OS_WIDE ? PATH_OPT_UNI_SRC : 0));
-        Val_Init_File(Alloc_Tail_Array(blk), dir);
+        Init_File(Alloc_Tail_Array(blk), dir);
     }
     else {  // First is dir path for the rest of the files
 #ifdef TO_WINDOWS /* directory followed by files */
@@ -1218,14 +1219,14 @@ static REBARR *File_List_To_Array(const REBCHR *str)
         while ((n = OS_STRLEN(str))) {
             SET_SERIES_LEN(dir, len);
             Append_Uni_Uni(dir, cast(const REBUNI*, str), n);
-            Val_Init_File(Alloc_Tail_Array(blk), Copy_String_Slimming(dir, 0, -1));
+            Init_File(Alloc_Tail_Array(blk), Copy_String_Slimming(dir, 0, -1));
             str += n + 1; // next
         }
 #else /* absolute pathes already */
         str += n + 1;
         while ((n = OS_STRLEN(str))) {
             dir = To_REBOL_Path(str, n, (OS_WIDE ? PATH_OPT_UNI_SRC : 0));
-            Val_Init_File(Alloc_Tail_Array(blk), Copy_String_Slimming(dir, 0, -1));
+            Init_File(Alloc_Tail_Array(blk), Copy_String_Slimming(dir, 0, -1));
             str += n + 1; // next
         }
 #endif
@@ -1308,13 +1309,13 @@ REBNATIVE(request_file)
     if (OS_REQUEST_FILE(&fr)) {
         if (GET_FLAG(fr.flags, FRF_MULTI)) {
             REBARR *array = File_List_To_Array(fr.files);
-            Val_Init_Block(D_OUT, array);
+            Init_Block(D_OUT, array);
         }
         else {
             REBSER *ser = To_REBOL_Path(
                 fr.files, OS_STRLEN(fr.files), (OS_WIDE ? PATH_OPT_UNI_SRC : 0)
             );
-            Val_Init_File(D_OUT, ser);
+            Init_File(D_OUT, ser);
         }
     } else
         SET_BLANK(D_OUT);
@@ -1343,7 +1344,7 @@ REBNATIVE(get_env)
 
     if (ANY_WORD(var)) {
         REBSER *copy = Copy_Form_Value(var, 0);
-        Val_Init_String(var, copy);
+        Init_String(var, copy);
     }
 
     // !!! By passing NULL we don't get backing series to protect!
@@ -1356,7 +1357,7 @@ REBNATIVE(get_env)
     // Two copies...is there a better way?
     REBCHR *buf = ALLOC_N(REBCHR, lenplus);
     OS_GET_ENV(os_var, buf, lenplus);
-    Val_Init_String(D_OUT, Copy_OS_Str(buf, lenplus - 1));
+    Init_String(D_OUT, Copy_OS_Str(buf, lenplus - 1));
     FREE_N(REBCHR, lenplus, buf);
 
     return R_OUT;
@@ -1385,7 +1386,7 @@ REBNATIVE(set_env)
 
     if (ANY_WORD(var)) {
         REBSER *copy = Copy_Form_Value(var, 0);
-        Val_Init_String(var, copy);
+        Init_String(var, copy);
     }
 
     // !!! By passing NULL we don't get backing series to protect!
@@ -1396,7 +1397,7 @@ REBNATIVE(set_env)
         REBCHR *os_value = Val_Str_To_OS_Managed(NULL, value);
         if (OS_SET_ENV(os_var, os_value)) {
             // What function could reuse arg2 as-is?
-            Val_Init_String(D_OUT, Copy_OS_Str(os_value, OS_STRLEN(os_value)));
+            Init_String(D_OUT, Copy_OS_Str(os_value, OS_STRLEN(os_value)));
             return R_OUT;
         }
         return R_VOID;

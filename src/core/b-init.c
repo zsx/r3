@@ -509,7 +509,7 @@ static void Add_Lib_Keys_R3Alpha_Cant_Make(void)
 //
 static void Init_Function_Tag(const char *name, REBVAL *slot)
 {
-    Val_Init_Tag(
+    Init_Tag(
         slot,
         Append_UTF8_May_Fail(NULL, cb_cast(name), strlen(name))
     );
@@ -796,13 +796,13 @@ static void Init_Root_Context(void)
 
     // The EMPTY_BLOCK provides EMPTY_ARRAY.  It is locked for protection.
     //
-    Val_Init_Block(ROOT_EMPTY_BLOCK, Make_Array(0));
+    Init_Block(ROOT_EMPTY_BLOCK, Make_Array(0));
     SET_SER_INFO(VAL_SERIES(ROOT_EMPTY_BLOCK), SERIES_INFO_LOCKED);
     SET_SER_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SERIES_FLAG_FIXED_SIZE);
 
     REBSER *empty_series = Make_Binary(1);
     *BIN_AT(empty_series, 0) = '\0';
-    Val_Init_String(ROOT_EMPTY_STRING, empty_series);
+    Init_String(ROOT_EMPTY_STRING, empty_series);
     SET_SER_INFO(VAL_SERIES(ROOT_EMPTY_STRING), SERIES_INFO_LOCKED);
     SET_SER_FLAG(VAL_SERIES(ROOT_EMPTY_STRING), SERIES_FLAG_FIXED_SIZE);
 
@@ -826,10 +826,10 @@ void Set_Root_Series(REBVAL *value, REBSER *ser)
     // automatically when the root set is removed from consideration.
 
     if (Is_Array_Series(ser))
-        Val_Init_Block(value, AS_ARRAY(ser));
+        Init_Block(value, AS_ARRAY(ser));
     else {
         assert(SER_WIDE(ser) == 1 || SER_WIDE(ser) == 2);
-        Val_Init_String(value, ser);
+        Init_String(value, ser);
     }
 }
 
@@ -947,14 +947,14 @@ static void Init_System_Object(void)
 
     // Create system/catalog/actions block
     //
-    Val_Init_Block(
+    Init_Block(
         Get_System(SYS_CATALOG, CAT_ACTIONS),
         Collect_Set_Words(VAL_ARRAY_HEAD(&Boot_Block->actions))
     );
 
     // Create system/catalog/natives block
     //
-    Val_Init_Block(
+    Init_Block(
         Get_System(SYS_CATALOG, CAT_NATIVES),
         Collect_Set_Words(VAL_ARRAY_HEAD(&Boot_Block->natives))
     );
@@ -1168,7 +1168,7 @@ static void Init_Codecs(void)
 static void Set_Option_String(REBCHR *str, REBCNT field)
 {
     REBVAL *val = Get_System(SYS_OPTIONS, field);
-    Val_Init_String(val, Copy_OS_Str(str, OS_STRLEN(str)));
+    Init_String(val, Copy_OS_Str(str, OS_STRLEN(str)));
 }
 
 
@@ -1200,23 +1200,21 @@ static void Init_Main_Args(REBARGS *rargs)
 {
     REBVAL *val;
     RELVAL *item;
-    REBARR *array;
     REBCHR *data;
-    REBCNT n;
 
-    array = Make_Array(3);
-    n = 2; // skip first flag (ROF_EXT)
+    REBARR *array = Make_Array(3);
+    REBFLGS rof = 2; // skip first flag (ROF_EXT)
     val = Get_System(SYS_CATALOG, CAT_BOOT_FLAGS);
     for (item = VAL_ARRAY_HEAD(val); NOT_END(item); item++) {
         CLEAR_VAL_FLAG(item, VALUE_FLAG_LINE);
-        if (rargs->options & n)
+        if (rargs->options & rof)
             Append_Value(array, KNOWN(item)); // no relatives in BOOT_FLAGS (?)
-        n <<= 1;
+        rof <<= 1;
     }
     val = Alloc_Tail_Array(array);
     SET_TRUE(val);
     val = Get_System(SYS_OPTIONS, OPTIONS_FLAGS);
-    Val_Init_Block(val, array);
+    Init_Block(val, array);
 
     // For compatibility:
     if (rargs->options & RO_QUIET) {
@@ -1230,7 +1228,7 @@ static void Init_Main_Args(REBARGS *rargs)
             rargs->script, 0, OS_WIDE ? PATH_OPT_UNI_SRC : 0
         );
         val = Get_System(SYS_OPTIONS, OPTIONS_SCRIPT);
-        Val_Init_File(val, ser);
+        Init_File(val, ser);
     }
 
     if (rargs->exe_path) {
@@ -1238,7 +1236,7 @@ static void Init_Main_Args(REBARGS *rargs)
             rargs->exe_path, 0, OS_WIDE ? PATH_OPT_UNI_SRC : 0
         );
         val = Get_System(SYS_OPTIONS, OPTIONS_BOOT);
-        Val_Init_File(val, ser);
+        Init_File(val, ser);
     }
 
     // Print("home: %s", rargs->home_dir);
@@ -1249,7 +1247,7 @@ static void Init_Main_Args(REBARGS *rargs)
             PATH_OPT_SRC_IS_DIR | (OS_WIDE ? PATH_OPT_UNI_SRC : 0)
         );
         val = Get_System(SYS_OPTIONS, OPTIONS_HOME);
-        Val_Init_File(val, ser);
+        Init_File(val, ser);
     }
 
     if (rargs->boot != NULL) {
@@ -1271,15 +1269,17 @@ static void Init_Main_Args(REBARGS *rargs)
     }
 
     if (rargs->args) {
-        n = 0;
-        while (rargs->args[n++]) NOOP;
-        // n == number_of_args + 1
-        array = Make_Array(n);
-        Val_Init_Block(Get_System(SYS_OPTIONS, OPTIONS_ARGS), array);
-        TERM_ARRAY_LEN(array, n - 1);
+        REBCNT n;
+        while (rargs->args[n] != NULL)
+            ++n;
+
+        REBARR *options_args = Make_Array(n);
+        Init_Block(Get_System(SYS_OPTIONS, OPTIONS_ARGS), options_args);
+        TERM_ARRAY_LEN(options_args, n - 1);
+
         for (n = 0; (data = rargs->args[n]); ++n)
-            Val_Init_String(
-                ARR_AT(array, n), Copy_OS_Str(data, OS_STRLEN(data))
+            Init_String(
+                ARR_AT(options_args, n), Copy_OS_Str(data, OS_STRLEN(data))
             );
     }
 
@@ -1306,25 +1306,25 @@ static void Init_Main_Args(REBARGS *rargs)
 
     if ((data = OS_GET_LOCALE(0))) {
         val = Get_System(SYS_LOCALE, LOCALE_LANGUAGE);
-        Val_Init_String(val, Copy_OS_Str(data, OS_STRLEN(data)));
+        Init_String(val, Copy_OS_Str(data, OS_STRLEN(data)));
         OS_FREE(data);
     }
 
     if ((data = OS_GET_LOCALE(1))) {
         val = Get_System(SYS_LOCALE, LOCALE_LANGUAGE_P);
-        Val_Init_String(val, Copy_OS_Str(data, OS_STRLEN(data)));
+        Init_String(val, Copy_OS_Str(data, OS_STRLEN(data)));
         OS_FREE(data);
     }
 
     if ((data = OS_GET_LOCALE(2))) {
         val = Get_System(SYS_LOCALE, LOCALE_LOCALE);
-        Val_Init_String(val, Copy_OS_Str(data, OS_STRLEN(data)));
+        Init_String(val, Copy_OS_Str(data, OS_STRLEN(data)));
         OS_FREE(data);
     }
 
     if ((data = OS_GET_LOCALE(3))) {
         val = Get_System(SYS_LOCALE, LOCALE_LOCALE_P);
-        Val_Init_String(val, Copy_OS_Str(data, OS_STRLEN(data)));
+        Init_String(val, Copy_OS_Str(data, OS_STRLEN(data)));
         OS_FREE(data);
     }
 }

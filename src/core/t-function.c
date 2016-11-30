@@ -160,7 +160,7 @@ REBTYPE(Function)
             break;
 
         case SYM_WORDS:
-            Val_Init_Block(D_OUT, List_Func_Words(value, FALSE)); // no locals
+            Init_Block(D_OUT, List_Func_Words(value, FALSE)); // no locals
             return R_OUT;
 
         case SYM_BODY:
@@ -185,7 +185,7 @@ REBTYPE(Function)
 
                 REBOOL is_fake;
                 REBARR *body = Get_Maybe_Fake_Func_Body(&is_fake, value);
-                Val_Init_Block(
+                Init_Block(
                     D_OUT,
                     Copy_Array_Deep_Managed(
                         body,
@@ -201,7 +201,7 @@ REBTYPE(Function)
             // the best, temporarily.
             //
             if (IS_BLOCK(VAL_FUNC_BODY(value))) {
-                Val_Init_Array(
+                Init_Any_Array(
                     D_OUT,
                     REB_BLOCK,
                     Copy_Array_Deep_Managed(
@@ -234,7 +234,7 @@ REBTYPE(Function)
             TERM_ARRAY_LEN(copy, VAL_FUNC_NUM_PARAMS(value));
             assert(IS_END(typeset));
 
-            Val_Init_Block(D_OUT, copy);
+            Init_Block(D_OUT, copy);
             return R_OUT;
         }
 

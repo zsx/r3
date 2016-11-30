@@ -373,7 +373,7 @@ const REBYTE *Decode_Binary(
 
     if (!ser) return 0;
 
-    Val_Init_Binary(value, ser);
+    Init_Binary(value, ser);
 
     return src;
 }

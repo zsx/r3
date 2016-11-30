@@ -75,7 +75,7 @@ static REBCTX *Error_Compression(const z_stream *strm, int ret)
     }
 
     if (strm->msg)
-        Val_Init_String(
+        Init_String(
             &arg, Copy_Bytes(cb_cast(strm->msg), strlen(strm->msg))
         );
     else

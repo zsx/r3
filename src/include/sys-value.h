@@ -1240,8 +1240,8 @@ inline static void SET_EVENT_KEY(RELVAL *v, REBCNT k, REBCNT c) {
 #define VAL_IMAGE_LEN(v) \
     VAL_LEN_AT(v)
 
-#define Val_Init_Image(v,s) \
-    Val_Init_Series((v), REB_IMAGE, (s));
+#define Init_Image(v,s) \
+    Init_Any_Series((v), REB_IMAGE, (s));
 
 //tuple to image! pixel order bytes
 #define TO_PIXEL_TUPLE(t) \

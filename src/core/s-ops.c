@@ -217,7 +217,7 @@ REBSER *Temp_Bin_Str_Managed(const RELVAL *val, REBCNT *index, REBCNT *length)
         // model to clean up the series.)
         {
             REBVAL protect;
-            Val_Init_String(&protect, series);
+            Init_String(&protect, series);
 
             Protect_Value(&protect, FLAGIT(PROT_SET));
 
@@ -772,7 +772,7 @@ REBARR *Split_Lines(REBVAL *val)
         if (c == LF || c == CR) {
             out = Copy_String_Slimming(str, start, idx - start);
             val = Alloc_Tail_Array(array);
-            Val_Init_String(val, out);
+            Init_String(val, out);
             SET_VAL_FLAG(val, VALUE_FLAG_LINE);
             idx++;
             if (c == CR && GET_ANY_CHAR(str, idx) == LF)
@@ -785,7 +785,7 @@ REBARR *Split_Lines(REBVAL *val)
     if (idx > start) {
         out = Copy_String_Slimming(str, start, idx - start);
         val = Alloc_Tail_Array(array);
-        Val_Init_String(val, out);
+        Init_String(val, out);
         SET_VAL_FLAG(val, VALUE_FLAG_LINE);
     }
 

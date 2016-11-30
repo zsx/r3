@@ -169,7 +169,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         // Setup the read buffer (allocate a buffer if needed):
         arg = CTX_VAR(port, STD_PORT_DATA);
         if (!IS_STRING(arg) && !IS_BINARY(arg)) {
-            Val_Init_Binary(arg, Make_Binary(32000));
+            Init_Binary(arg, Make_Binary(32000));
         }
         ser = VAL_SERIES(arg);
         req->length = SER_AVAIL(ser); // space available

@@ -244,7 +244,7 @@ REB_R N_debug(REBFRM *frame_) {
         if (!(frame = Frame_For_Stack_Level(&HG_Stack_Level, value, TRUE)))
             fail (Error_Invalid_Arg(value));
 
-        Val_Init_Block(D_OUT, Make_Where_For_Frame(frame));
+        Init_Block(D_OUT, Make_Where_For_Frame(frame));
         return R_OUT;
     }
 
@@ -525,7 +525,7 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
             N_debug_spec, LEN_BYTES(N_debug_spec)
         );
         REBVAL spec;
-        Val_Init_Block(&spec, spec_array);
+        Init_Block(&spec, spec_array);
 
         REBFUN *debug_native = Make_Function(
             Make_Paramlist_Managed_May_Fail(&spec, MKF_KEYWORDS),
