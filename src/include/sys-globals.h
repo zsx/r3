@@ -150,6 +150,8 @@ TVAR REBUPT Stack_Limit;    // Limit address for CPU stack.
     // other than Do_Next that are contingent on a certain "tick" elapsing.
     //
     TVAR REBUPT TG_Do_Count;
+
+    TVAR REBIPT TG_Num_Black_Series;
 #endif
 
 // Each time Do_Core is called a Reb_Frame* is pushed to the "frame stack".

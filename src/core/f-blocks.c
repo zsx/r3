@@ -514,31 +514,28 @@ REBCNT Find_Same_Array(REBARR *search_values, const RELVAL *value)
 
 
 //
-//  Unmark_Array: C
+//  Uncolor_Array: C
 //
-void Unmark_Array(REBARR *array)
+void Uncolor_Array(REBARR *array)
 {
-    if (!IS_REBSER_MARKED(ARR_SERIES(array)))
+    if (Is_Series_White(ARR_SERIES(array)))
         return; // avoid loop
 
-    REMOVE_REBSER_MARK(ARR_SERIES(array));
+    Flip_Series_To_White(ARR_SERIES(array));
 
     RELVAL *val;
     for (val = ARR_HEAD(array); NOT_END(val); ++val)
-        if (ANY_ARRAY(val))
-            Unmark(val);
+        if (ANY_ARRAY(val) || ANY_CONTEXT(val))
+            Uncolor(val);
 }
 
 
 //
-//  Unmark: C
+//  Uncolor: C
 //
 // Clear the recusion markers for series and object trees.
 //
-// Note: these markers are also used for GC. Functions that
-// call this must not be able to trigger GC!
-//
-void Unmark(RELVAL *val)
+void Uncolor(RELVAL *val)
 {
     REBARR *array;
 
@@ -551,10 +548,10 @@ void Unmark(RELVAL *val)
         //
         assert(
             !ANY_SERIES(val)
-            || !IS_REBSER_MARKED(VAL_SERIES(val))
+            || Is_Series_White(VAL_SERIES(val))
         );
         return;
     }
 
-    Unmark_Array(array);
+    Uncolor_Array(array);
 }

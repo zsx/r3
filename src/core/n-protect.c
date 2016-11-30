@@ -55,7 +55,7 @@ static void Protect_Key(RELVAL *key, REBFLGS flags)
 //
 //  Protect_Value: C
 //
-// Anything that calls this must call Unmark() when done.
+// Anything that calls this must call Uncolor() when done.
 //
 void Protect_Value(RELVAL *value, REBFLGS flags)
 {
@@ -69,11 +69,12 @@ void Protect_Value(RELVAL *value, REBFLGS flags)
 //
 //  Protect_Series: C
 //
-// Anything that calls this must call Unmark() when done.
+// Anything that calls this must call Uncolor() when done.
 //
 void Protect_Series(REBSER *series, REBCNT index, REBFLGS flags)
 {
-    if (IS_REBSER_MARKED(series)) return; // avoid loop
+    if (Is_Series_Black(series))
+        return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET))
         SET_SER_FLAG(series, SERIES_FLAG_LOCKED);
@@ -82,7 +83,7 @@ void Protect_Series(REBSER *series, REBCNT index, REBFLGS flags)
 
     if (!Is_Array_Series(series) || !GET_FLAG(flags, PROT_DEEP)) return;
 
-    ADD_REBSER_MARK(series); // recursion protection
+    Flip_Series_To_Black(series); // recursion protection
 
     RELVAL *val = ARR_AT(AS_ARRAY(series), index);
     for (; NOT_END(val); val++) {
@@ -94,13 +95,13 @@ void Protect_Series(REBSER *series, REBCNT index, REBFLGS flags)
 //
 //  Protect_Object: C
 //
-// Anything that calls this must call Unmark() when done.
+// Anything that calls this must call Uncolor() when done.
 //
 void Protect_Object(RELVAL *value, REBFLGS flags)
 {
     REBCTX *context = VAL_CONTEXT(value);
 
-    if (IS_REBSER_MARKED(ARR_SERIES(CTX_VARLIST(context))))
+    if (Is_Series_Black(ARR_SERIES(CTX_VARLIST(context))))
         return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET))
@@ -114,7 +115,7 @@ void Protect_Object(RELVAL *value, REBFLGS flags)
 
     if (!GET_FLAG(flags, PROT_DEEP)) return;
 
-    ADD_REBSER_MARK(ARR_SERIES(CTX_VARLIST(context))); // recursion protection
+    Flip_Series_To_Black(ARR_SERIES(CTX_VARLIST(context))); // for recursion
 
     value = CTX_VARS_HEAD(context);
     for (; NOT_END(value); value++) {
@@ -147,7 +148,7 @@ static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
                 GETVAR_READ_ONLY
             );
             Protect_Value(val, flags);
-            Unmark(val);
+            Uncolor(val);
         }
     }
     else if (ANY_PATH(word)) {
@@ -159,7 +160,7 @@ static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
             if (GET_FLAG(flags, PROT_DEEP)) {
                 val = CTX_VAR(context, index);
                 Protect_Value(val, flags);
-                Unmark(val);
+                Uncolor(val);
             }
         }
     }
@@ -233,7 +234,8 @@ static REB_R Protect_Unprotect_Core(REBFRM *frame_, REBFLGS flags)
                 }
 
                 Protect_Value(var, flags);
-                if (GET_FLAG(flags, PROT_DEEP)) Unmark(var);
+                if (GET_FLAG(flags, PROT_DEEP))
+                    Uncolor(var);
             }
             goto return_value_arg;
         }
@@ -243,7 +245,8 @@ static REB_R Protect_Unprotect_Core(REBFRM *frame_, REBFLGS flags)
 
     Protect_Value(value, flags);
 
-    if (GET_FLAG(flags, PROT_DEEP)) Unmark(value);
+    if (GET_FLAG(flags, PROT_DEEP))
+        Uncolor(value);
 
 return_value_arg:
     *D_OUT = *ARG(value);

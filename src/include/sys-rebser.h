@@ -373,6 +373,14 @@ union Reb_Series_Content {
 };
 
 
+enum {
+    // `REBSER_FLAG_BLACK` is a generic bit for Is_Series_Black()/White().
+    // These let native routines engage in marking and unmarking nodes
+    // without potentially wrecking the garbage collector.  :-/
+    //
+    REBSER_FLAG_BLACK = 1 << (GENERAL_VALUE_BIT + 0)
+};
+
 struct Reb_Series {
 
     // The low 2 bits in the header must be 00 if this is an "ordinary" REBSER

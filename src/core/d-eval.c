@@ -209,12 +209,20 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
         ); // END, THROWN, VA_LIST only used by wrappers
     }
 
+    // If this fires, it means that Flip_Series_To_White was not called an
+    // equal number of times after Flip_Series_To_Black, which means that
+    // the custom marker on series accumulated.
+    //
+    assert(TG_Num_Black_Series == 0);
+
+    //=//// ^-- ABOVE CHECKS *ALWAYS* APPLY ///////////////////////////////=//
+
     if (IS_END(f->value) || THROWN(f->out))
         return;
 
     assert(f->value_type == VAL_TYPE(f->value));
 
-    //=//// BELOW CHECKS ONLY APPLY IN THE EXIT CASE WITH MORE DATA ///////=//
+    //=//// v-- BELOW CHECKS ONLY APPLY IN EXITS CASE WITH MORE CODE //////=//
 
     // The eval_type is expected to be calculated already.  Should match
     // f->value, with special exemption for optimized lookback calls
@@ -255,6 +263,8 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
       /*  else
             assert(IS_FUNCTION(f->value));*/
     }
+
+    //=//// ^-- ADD CHECKS EARLIER THAN HERE IF THEY SHOULD ALWAYS RUN ////=//
 }
 
 

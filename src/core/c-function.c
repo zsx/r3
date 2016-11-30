@@ -1255,7 +1255,7 @@ REBFUN *Make_Interpreted_Function_May_Fail(
         FLAGIT(PROT_DEEP) | FLAGIT(PROT_SET)
     );
     assert(GET_ARR_FLAG(VAL_ARRAY(body), SERIES_FLAG_LOCKED));
-    Unmark_Array(VAL_ARRAY(body));
+    Uncolor_Array(VAL_ARRAY(body));
 
     return fun;
 }

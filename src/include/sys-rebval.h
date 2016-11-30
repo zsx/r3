@@ -164,17 +164,11 @@ enum {
     REBSER_REBVAL_FLAG_MANAGED = 1 << (REBSER_REBVAL_BIT + 0),
 
     // `REBSER_REBVAL_FLAG_MARK` is used by the mark-and-sweep of the garbage
-    // collector.  Note that the mark is used for other purposes which need to
-    // through and set a generic bit, e.g. to protect against loops in the
-    // transitive closure ("if you hit a SER_MARK, then you've already
-    // processed this series").
+    // collector, and should not be referenced outside of %m-gc.c.
     //
-    // Because of the dual purpose, it's important to be sure to not run
-    // garbage collection while one of these alternate uses is in effect.
-    // It's also important to reset the bit when done, as GC assumes when
-    // it starts that all bits are cleared.  (The GC itself clears all
-    // the bits by enumerating every series in the series pool during the
-    // sweeping phase.)
+    // See `REBSER_FLAG_BLACK` for a generic bit available to other routines
+    // that wish to have an arbitrary marker on series (for things like
+    // recursion avoidance in algorithms).
     //
     REBSER_REBVAL_FLAG_MARK = 1 << (REBSER_REBVAL_BIT + 1),
 

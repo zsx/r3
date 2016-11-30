@@ -221,7 +221,7 @@ REBSER *Temp_Bin_Str_Managed(const RELVAL *val, REBCNT *index, REBCNT *length)
 
             Protect_Value(&protect, FLAGIT(PROT_SET));
 
-            // just a string...not /DEEP...shouldn't need to Unmark()
+            // just a string...not /DEEP...shouldn't need to Uncolor()
         }
     #endif
 

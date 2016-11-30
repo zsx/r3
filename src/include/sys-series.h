@@ -348,32 +348,56 @@ inline static void ENSURE_SERIES_MANAGED(REBSER *s) {
 #endif
 
 
+//=////////////////////////////////////////////////////////////////////////=//
 //
-// Marking
+// SERIES COLORING API
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// R3-Alpha re-used the same marking flag from the GC in order to do various
+// other bit-twiddling tasks when the GC wasn't running.  This is an
+// unusually dangerous thing to be doing...because leaving a stray mark on
+// during some other traversal could lead the GC to think it had marked
+// things reachable from that series when it had not--thus freeing something
+// that was still in use.
+//
+// While leaving a stray mark on is a bug either way, GC bugs are particularly
+// hard to track down.  So one doesn't want to risk them if not absolutely
+// necessary.  Not to mention that sharing state with the GC that you can
+// only use when it's not running gets in the way of things like background
+// garbage collection, etc.
+//
+// Ren-C keeps the term "mark" for the GC, since that's standard nomenclature.
+// A lot of basic words are taken other places for other things (tags, flags)
+// so this just goes with a series "color" of black or white, with white as
+// the default.  The debug build keeps a count of how many black series there
+// are and asserts it's 0 by the time each evaluation ends, to ensure balance.
 //
 
-static inline REBOOL IS_REBSER_MARKED(REBSER *rebser) {
-    return LOGICAL(rebser->header.bits & REBSER_REBVAL_FLAG_MARK);
+static inline REBOOL Is_Series_Black(REBSER *s) {
+    return LOGICAL(s->header.bits & REBSER_FLAG_BLACK);
 }
 
-static inline void ADD_REBSER_MARK(REBSER *rebser) {
-    assert(NOT(rebser->header.bits & REBSER_REBVAL_FLAG_MARK));
+static inline REBOOL Is_Series_White(REBSER *s) {
+    return NOT(s->header.bits & REBSER_FLAG_BLACK);
+}
+
+static inline void Flip_Series_To_Black(REBSER *s) {
+    assert(NOT(s->header.bits & REBSER_FLAG_BLACK));
+    s->header.bits |= REBSER_FLAG_BLACK;
 #if !defined(NDEBUG)
-    if (
-        NOT(IS_SERIES_MANAGED(rebser))
-        && NOT(rebser->header.bits & REBSER_REBVAL_FLAG_ROOT)
-    ){
-        Debug_Fmt("Link to non-MANAGED item reached by GC");
-        Panic_Series(rebser);
-    }
+    ++TG_Num_Black_Series;
 #endif
-    rebser->header.bits |= REBSER_REBVAL_FLAG_MARK;
 }
 
-static inline void REMOVE_REBSER_MARK(REBSER *rebser) {
-    assert(IS_REBSER_MARKED(rebser));
-    rebser->header.bits &= ~cast(REBUPT, REBSER_REBVAL_FLAG_MARK);
+static inline void Flip_Series_To_White(REBSER *s) {
+    assert(s->header.bits & REBSER_FLAG_BLACK);
+    s->header.bits &= ~cast(REBUPT, REBSER_FLAG_BLACK);
+#if !defined(NDEBUG)
+    --TG_Num_Black_Series;
+#endif
 }
+
 
 //=////////////////////////////////////////////////////////////////////////=//
 //

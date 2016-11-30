@@ -117,19 +117,33 @@ static void Mark_Devices_Deep(void);
     assert(SER_LEN(GC_Mark_Stack) == 0)
 
 
-// Non-Deep form of mark, to be used on non-array series or a block series
-// for which deep marking is known to be unnecessary.  Unlike ADD_REBSER_MARK
-// this does not assert the mark is not already present.
+// Private routines for dealing with the GC mark bit.  Note that not all
+// REBSERs are actually series at the present time, because some are
+// "pairings".  Plus the name Mark_Rebser_Only helps drive home that it's
+// not actually marking an "any_series" type (like array) deeply.
 //
-static inline void Mark_Series_Only(REBSER *series)
+static inline void Mark_Rebser_Only(REBSER *s)
 {
 #if !defined(NDEBUG)
-    if (NOT(IS_SERIES_MANAGED(series))) {
+    if (NOT(IS_SERIES_MANAGED(s))) {
         Debug_Fmt("Link to non-MANAGED item reached by GC");
-        Panic_Series(series);
+        Panic_Series(s);
     }
 #endif
-    series->header.bits |= REBSER_REBVAL_FLAG_MARK;
+    s->header.bits |= REBSER_REBVAL_FLAG_MARK;
+}
+
+static inline REBOOL Is_Rebser_Marked_Or_Pending(REBSER *rebser) {
+    return LOGICAL(rebser->header.bits & REBSER_REBVAL_FLAG_MARK);
+}
+
+static inline REBOOL Is_Rebser_Marked(REBSER *rebser) {
+    // ASSERT_NO_GC_MARKS_PENDING(); // overkill check, but must be true
+    return LOGICAL(rebser->header.bits & REBSER_REBVAL_FLAG_MARK);
+}
+
+static inline REBOOL Unmark_Rebser(REBSER *rebser) {
+    rebser->header.bits &= ~cast(REBUPT, REBSER_REBVAL_FLAG_MARK);
 }
 
 
@@ -167,10 +181,10 @@ static void Queue_Mark_Array_Subclass_Deep(REBARR *a)
     // have been marked yet--it could still be waiting in the queue.  But we
     // don't want to wastefully submit it to the queue multiple times.
     //
-    if (IS_REBSER_MARKED(ARR_SERIES(a)))
+    if (Is_Rebser_Marked_Or_Pending(ARR_SERIES(a)))
         return;
 
-    Mark_Series_Only(ARR_SERIES(a)); // the up-front marking just mentioned
+    Mark_Rebser_Only(ARR_SERIES(a)); // the up-front marking just mentioned
 
     // Add series to the end of the mark stack series.  The length must be
     // maintained accurately to know when the stack needs to grow.
@@ -278,7 +292,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         // value.  That's because if the canon value gets GC'd, then
         // another value might become the new canon during that sweep.
         //
-        Mark_Series_Only(spelling);
+        Mark_Rebser_Only(spelling);
 
         // A GC cannot run during a binding process--which is the only
         // time a canon word's "index" field is allowed to be nonzero.
@@ -357,7 +371,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
     case REB_BITSET: {
         REBSER *series = VAL_SERIES(v);
         assert(SER_WIDE(series) <= sizeof(REBUNI));
-        Mark_Series_Only(series);
+        Mark_Rebser_Only(series);
         break; }
 
     case REB_HANDLE: { // See %sys-handle.h
@@ -372,7 +386,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
             // REBSER node that contains exactly one handle, and the actual
             // data for the handle lives in that shared location.
             // 
-            Mark_Series_Only(ARR_SERIES(singular));
+            Mark_Rebser_Only(ARR_SERIES(singular));
 
         #if !defined(NDEBUG)
             assert(ARR_LEN(singular) == 1);
@@ -394,11 +408,11 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         break; }
 
     case REB_IMAGE:
-        Mark_Series_Only(VAL_SERIES(v));
+        Mark_Rebser_Only(VAL_SERIES(v));
         break;
 
     case REB_VECTOR:
-        Mark_Series_Only(VAL_SERIES(v));
+        Mark_Rebser_Only(VAL_SERIES(v));
         break;
 
     case REB_BLANK:
@@ -435,7 +449,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         REBMAP* map = VAL_MAP(v);
         Queue_Mark_Array_Deep(MAP_PAIRLIST(map));
         if (MAP_HASHLIST(map) != NULL)
-            Mark_Series_Only(MAP_HASHLIST(map));
+            Mark_Rebser_Only(MAP_HASHLIST(map));
         break;
     }
 
@@ -451,7 +465,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         // keys of objects (or parameters of functions)
         //
         if (v->extra.key_spelling != NULL)
-            Mark_Series_Only(v->extra.key_spelling);
+            Mark_Rebser_Only(v->extra.key_spelling);
         break;
 
     case REB_VARARGS: {
@@ -571,7 +585,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         // lifetime can be longer than the struct which they represent
         // a "slice" out of.
         //
-        Mark_Series_Only(VAL_STRUCT_DATA_BIN(v));
+        Mark_Rebser_Only(VAL_STRUCT_DATA_BIN(v));
         break; }
 
     case REB_LIBRARY: {
@@ -641,7 +655,7 @@ static void Propagate_All_GC_Marks(void)
         // We should have marked this series at queueing time to keep it from
         // being doubly added before the queue had a chance to be processed
          //
-        assert(IS_REBSER_MARKED(ARR_SERIES(a)));
+        assert(Is_Rebser_Marked(ARR_SERIES(a)));
 
     #ifdef HEAVY_CHECKS
         //
@@ -669,7 +683,7 @@ static void Propagate_All_GC_Marks(void)
 
             REBARR *body_holder = v->payload.function.body_holder;
             assert(ARR_LEN(body_holder) == 1);
-            Mark_Series_Only(ARR_SERIES(body_holder));
+            Mark_Rebser_Only(ARR_SERIES(body_holder));
             Queue_Mark_Opt_Value_Deep(ARR_HEAD(body_holder));
 
             REBFUN *underlying = ARR_SERIES(a)->misc.underlying;
@@ -797,7 +811,7 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static void Mark_Root_Series(void)
             if (IS_FREE_NODE(s))
                 continue;
 
-            if (IS_REBSER_MARKED(s))
+            if (Is_Rebser_Marked(s))
                 continue;
 
             if (NOT(s->header.bits & REBSER_REBVAL_FLAG_ROOT))
@@ -822,13 +836,13 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static void Mark_Root_Series(void)
                 // a pending state?
                 //
                 REBVAL *key = cast(REBVAL*, s);
-                REBVAL *pairing = key + 1;
+                REBVAL *paired = key + 1;
                 if (
                     IS_FRAME(key)
                     && GET_VAL_FLAG(key, ANY_CONTEXT_FLAG_OWNS_PAIRED)
                     && !Is_Context_Running_Or_Pending(VAL_CONTEXT(key))
                 ){
-                    Free_Pairing(pairing); // don't consider a root
+                    Free_Pairing(paired); // don't consider a root
                     continue;
                 }
 
@@ -837,10 +851,10 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static void Mark_Root_Series(void)
                 // might be executed with the pairing as the OUT slot (since
                 // it is memory guaranteed not to relocate)
                 //
-                ADD_REBSER_MARK(s);
+                Mark_Rebser_Only(s);
                 Queue_Mark_Value_Deep(key);
-                if (!IS_END(pairing))
-                    Queue_Mark_Value_Deep(pairing);
+                if (!IS_END(paired))
+                    Queue_Mark_Value_Deep(paired);
             }
             else {
                 // We have to do the queueing based on whatever type of series
@@ -850,7 +864,7 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static void Mark_Root_Series(void)
                 if (Is_Array_Series(s))
                     Queue_Mark_Array_Subclass_Deep(AS_ARRAY(s));
                 else
-                    Mark_Series_Only(s);
+                    Mark_Rebser_Only(s);
             }
         }
     }
@@ -899,7 +913,7 @@ static void Mark_Symbol_Series(void)
     assert(*canon == NULL); // SYM_0 is for all non-builtin words
     ++canon;
     for (; *canon != NULL; ++canon)
-        Mark_Series_Only(*canon);
+        Mark_Rebser_Only(*canon);
 
     ASSERT_NO_GC_MARKS_PENDING(); // doesn't ues any queueing
 }
@@ -943,7 +957,7 @@ static void Mark_Guarded_Series(void)
         if (Is_Array_Series(*sp))
             Queue_Mark_Array_Subclass_Deep(AS_ARRAY(*sp));
         else
-            Mark_Series_Only(*sp);
+            Mark_Rebser_Only(*sp);
 
         Propagate_All_GC_Marks();
     }
@@ -1031,7 +1045,7 @@ static void Mark_Frame_Stack_Deep(void)
             Queue_Mark_Opt_Value_Deep(&f->cell);
 
         Queue_Mark_Function_Deep(f->func); // never NULL
-        Mark_Series_Only(f->label); // also never NULL
+        Mark_Rebser_Only(f->label); // also never NULL
 
         if (!Is_Function_Frame_Fulfilling(f)) {
             assert(IS_END(f->param)); // indicates function is running
@@ -1059,7 +1073,7 @@ static void Mark_Frame_Stack_Deep(void)
 
         // Need to keep the label symbol alive for error messages/stacktraces
         //
-        Mark_Series_Only(f->label);
+        Mark_Rebser_Only(f->label);
 
         // We need to GC protect the values in the args no matter what,
         // but it might not be managed yet (e.g. could still contain garbage
@@ -1177,8 +1191,8 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
                 // leave it alone...else kill it.
                 //
                 assert(IS_SERIES_MANAGED(s));
-                if (IS_REBSER_MARKED(s))
-                    REMOVE_REBSER_MARK(s);
+                if (Is_Rebser_Marked(s))
+                    Unmark_Rebser(s);
                 else {
                     GC_Kill_Series(s);
                     ++count;
@@ -1197,8 +1211,8 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
                 // an END, and it's managed.  Mark bit should be heeded.
                 //
                 assert(IS_SERIES_MANAGED(s));
-                if (IS_REBSER_MARKED(s))
-                    REMOVE_REBSER_MARK(s);
+                if (Is_Rebser_Marked(s))
+                    Unmark_Rebser(s);
                 else {
                     Free_Node(SER_POOL, s); // Free_Pairing is for manuals
                     ++count;
@@ -1537,7 +1551,7 @@ static void Queue_Mark_Gob_Deep(REBGOB *gob)
     MARK_GOB(gob);
 
     if (GOB_PANE(gob)) {
-        Mark_Series_Only(GOB_PANE(gob));
+        Mark_Rebser_Only(GOB_PANE(gob));
         pane = GOB_HEAD(gob);
         for (i = 0; i < GOB_LEN(gob); i++, pane++)
             Queue_Mark_Gob_Deep(*pane);
@@ -1547,7 +1561,7 @@ static void Queue_Mark_Gob_Deep(REBGOB *gob)
 
     if (GOB_CONTENT(gob)) {
         if (GOB_TYPE(gob) >= GOBT_IMAGE && GOB_TYPE(gob) <= GOBT_STRING)
-            Mark_Series_Only(GOB_CONTENT(gob));
+            Mark_Rebser_Only(GOB_CONTENT(gob));
         else if (GOB_TYPE(gob) >= GOBT_DRAW && GOB_TYPE(gob) <= GOBT_EFFECT)
             Queue_Mark_Array_Deep(AS_ARRAY(GOB_CONTENT(gob)));
     }
@@ -1563,7 +1577,7 @@ static void Queue_Mark_Gob_Deep(REBGOB *gob)
             break;
         case GOBD_STRING:
         case GOBD_BINARY:
-            Mark_Series_Only(GOB_DATA(gob));
+            Mark_Rebser_Only(GOB_DATA(gob));
             break;
         case GOBD_BLOCK:
             Queue_Mark_Array_Deep(AS_ARRAY(GOB_DATA(gob)));
