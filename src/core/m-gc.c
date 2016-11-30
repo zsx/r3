@@ -1349,8 +1349,16 @@ REBCNT Recycle(void)
     //
     REBCNT n = Recycle_Core(FALSE);
 
+#ifdef DOUBLE_RECYCLE_TEST
+    //
+    // If there are two recycles in a row, then the second should not free
+    // any additional series that were not freed by the first.  (It also
+    // shouldn't crash.)  This is an expensive check, but helpful to try if
+    // it seems a GC left things in a bad state that crashed a later GC.
+    //
     REBCNT n2 = Recycle_Core(FALSE);
     assert(n2 == 0);
+#endif
 
     return n;
 }
