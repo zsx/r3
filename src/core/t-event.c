@@ -234,11 +234,11 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSTR *name, REBVAL *val)
         }
         // Event holds a port:
         else if (IS_EVENT_MODEL(value, EVM_PORT)) {
-            Val_Init_Port(val, AS_CONTEXT(VAL_EVENT_SER(value)));
+            Init_Port(val, AS_CONTEXT(VAL_EVENT_SER(value)));
         }
         // Event holds an object:
         else if (IS_EVENT_MODEL(value, EVM_OBJECT)) {
-            Val_Init_Object(val, AS_CONTEXT(VAL_EVENT_SER(value)));
+            Init_Object(val, AS_CONTEXT(VAL_EVENT_SER(value)));
         }
         else if (IS_EVENT_MODEL(value, EVM_CALLBACK)) {
             *val = *Get_System(SYS_PORTS, PORTS_CALLBACK);
@@ -248,7 +248,7 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSTR *name, REBVAL *val)
             // Event holds the IO-Request, which has the PORT:
             req = VAL_EVENT_REQ(value);
             if (!req || !req->port) goto is_blank;
-            Val_Init_Port(val, AS_CONTEXT(cast(REBSER*, req->port)));
+            Init_Port(val, AS_CONTEXT(cast(REBSER*, req->port)));
         }
         break;
 

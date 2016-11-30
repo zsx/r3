@@ -105,7 +105,7 @@ void Ret_Query_File(REBCTX *port, REBREQ *file, REBVAL *ret)
 
     REBCTX *context = Copy_Context_Shallow(VAL_CONTEXT(info));
 
-    Val_Init_Object(ret, context);
+    Init_Object(ret, context);
     Init_Word(
         CTX_VAR(context, STD_FILE_INFO_TYPE),
         GET_FLAG(file->modes, RFM_DIR) ? Canon(SYM_DIR) : Canon(SYM_FILE)

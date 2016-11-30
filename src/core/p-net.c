@@ -73,7 +73,7 @@ static void Ret_Query_Net(REBCTX *port, REBREQ *sock, REBVAL *out)
         sock->special.net.remote_port
     );
 
-    Val_Init_Object(out, info);
+    Init_Object(out, info);
 }
 
 
@@ -95,7 +95,7 @@ static void Accept_New_Port(REBVAL *out, REBCTX *port, REBREQ *sock)
 
     // Create a new port using ACCEPT request passed by sock->common.sock:
     port = Copy_Context_Shallow(port);
-    Val_Init_Port(out, port); // Also for GC protect
+    Init_Port(out, port); // Also for GC protect
 
     SET_BLANK(CTX_VAR(port, STD_PORT_DATA)); // just to be sure.
     SET_BLANK(CTX_VAR(port, STD_PORT_STATE)); // just to be sure.

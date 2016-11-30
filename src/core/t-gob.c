@@ -581,7 +581,7 @@ is_blank:
 
     case SYM_DATA:
         if (GOB_DTYPE(gob) == GOBD_OBJECT) {
-            Val_Init_Object(val, AS_CONTEXT(GOB_DATA(gob)));
+            Init_Object(val, AS_CONTEXT(GOB_DATA(gob)));
         }
         else if (GOB_DTYPE(gob) == GOBD_BLOCK) {
             Init_Block(val, AS_ARRAY(GOB_DATA(gob)));

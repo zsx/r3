@@ -293,7 +293,7 @@ void MAKE_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         // returned to the user it can't be stack allocated, because it
         // would immediately become useless.  Allocate dynamically.
         //
-        Val_Init_Context(out, REB_FRAME, Make_Frame_For_Function(arg));
+        Init_Any_Context(out, REB_FRAME, Make_Frame_For_Function(arg));
 
         // The frame's keylist is the same as the function's paramlist, and
         // the [0] canon value of that array can be used to find the
@@ -309,7 +309,7 @@ void MAKE_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         //
         // Special case (necessary?) to return an empty object.
         //
-        Val_Init_Object(
+        Init_Object(
             out,
             Construct_Context(
                 REB_OBJECT,
@@ -340,7 +340,7 @@ void MAKE_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
         // !!! Spec block is currently ignored, but required.
 
-        Val_Init_Object(
+        Init_Object(
             out,
             Construct_Context(
                 REB_OBJECT,
@@ -394,7 +394,7 @@ void MAKE_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         VAL_RESET_HEADER(CTX_VALUE(context), target);
         CTX_SPEC(context) = NULL;
         CTX_BODY(context) = NULL; */
-        Val_Init_Context(out, kind, context);
+        Init_Any_Context(out, kind, context);
 
         return;
     }
@@ -402,7 +402,7 @@ void MAKE_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     // make object! map!
     if (IS_MAP(arg)) {
         REBCTX *context = Alloc_Context_From_Map(VAL_MAP(arg));
-        Val_Init_Context(out, kind, context);
+        Init_Any_Context(out, kind, context);
         return;
     }
 
@@ -433,7 +433,7 @@ void TO_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         // !!! Contexts hold canon values now that are typed, this init
         // will assert--a TO conversion would thus need to copy the varlist
         //
-        Val_Init_Object(out, VAL_CONTEXT(arg));
+        Init_Object(out, VAL_CONTEXT(arg));
         return;
     }
 
@@ -520,7 +520,7 @@ REBNATIVE(meta_of)
 
     if (!meta) return R_BLANK;
 
-    Val_Init_Object(D_OUT, meta);
+    Init_Object(D_OUT, meta);
     return R_OUT;
 }
 
@@ -624,7 +624,7 @@ REBTYPE(Context)
                 types
             );
         }
-        Val_Init_Context(D_OUT, VAL_TYPE(value), context);
+        Init_Any_Context(D_OUT, VAL_TYPE(value), context);
         return R_OUT; }
 
     case SYM_SELECT:
@@ -672,7 +672,7 @@ REBTYPE(Context)
             fail (Error(RE_BAD_REFINES));
         }
 
-        Val_Init_Context(
+        Init_Any_Context(
             D_OUT,
             VAL_TYPE(value),
             Trim_Context(VAL_CONTEXT(value))
@@ -802,7 +802,7 @@ REBNATIVE(construct)
     // refinement was passed in.
     //
     if (REF(only)) {
-        Val_Init_Object(
+        Init_Object(
             D_OUT,
             Construct_Context(
                 REB_OBJECT,
@@ -837,7 +837,7 @@ REBNATIVE(construct)
                 : VAL_ARRAY_AT(body),
             parent
         );
-        Val_Init_Object(D_OUT, context);
+        Init_Object(D_OUT, context);
 
         if (!IS_BLANK(body)) {
             //
@@ -871,7 +871,7 @@ REBNATIVE(construct)
         // the generator choice by the person doing the derivation.
         //
         context = Merge_Contexts_Selfish(parent, VAL_CONTEXT(body));
-        Val_Init_Object(D_OUT, context);
+        Init_Object(D_OUT, context);
         return R_OUT;
     }
 

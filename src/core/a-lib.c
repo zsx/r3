@@ -290,7 +290,7 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
         // Save error for WHY?
         //
         REBVAL *last = Get_System(SYS_STATE, STATE_LAST_ERROR);
-        Val_Init_Error(last, error);
+        Init_Error(last, error);
 
         PUSH_UNHALTABLE_TRAP(&halt_error, &state);
 
@@ -522,7 +522,7 @@ RL_API int RL_Do_String(
     if (error) {
         // Save error for WHY?
         REBVAL *last = Get_System(SYS_STATE, STATE_LAST_ERROR);
-        Val_Init_Error(last, error);
+        Init_Error(last, error);
 
         if (ERR_NUM(error) == RE_HALT)
             return -1; // !!! Revisit hardcoded #

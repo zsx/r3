@@ -315,14 +315,14 @@ inline static REBVAL *CTX_FRAME_FUNC_VALUE(REBCTX *c) {
 #define SELFISH(n) \
     ((n) + 1)
 
-#define Val_Init_Context(out,kind,context) \
-    Val_Init_Context_Core(SINK(out), (kind), (context))
+#define Init_Any_Context(out,kind,context) \
+    Init_Any_Context_Core(SINK(out), (kind), (context))
 
-#define Val_Init_Object(v,c) \
-    Val_Init_Context((v), REB_OBJECT, (c))
+#define Init_Object(v,c) \
+    Init_Any_Context((v), REB_OBJECT, (c))
 
-#define Val_Init_Port(v,c) \
-    Val_Init_Context((v), REB_PORT, (c))
+#define Init_Port(v,c) \
+    Init_Any_Context((v), REB_PORT, (c))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -391,5 +391,5 @@ inline static REBVAL *Append_Context(
 #define VAL_ERR_NUM(v) \
     ERR_NUM(VAL_CONTEXT(v))
 
-#define Val_Init_Error(v,c) \
-    Val_Init_Context((v), REB_ERROR, (c))
+#define Init_Error(v,c) \
+    Init_Any_Context((v), REB_ERROR, (c))

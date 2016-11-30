@@ -465,7 +465,7 @@ REBNATIVE(backtrace)
             // be a FRAME! (which can be queried for further properties via
             // `where-of`, `label-of`, `function-of`, etc.)
             //
-            Val_Init_Context(
+            Init_Any_Context(
                 D_OUT,
                 REB_FRAME,
                 Context_For_Frame_May_Reify_Managed(f)

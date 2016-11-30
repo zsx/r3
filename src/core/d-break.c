@@ -470,7 +470,7 @@ REBNATIVE(resume)
             fail (Error(RE_NO_CURRENT_PAUSE));
     }
 
-    Val_Init_Context(
+    Init_Any_Context(
         ARR_AT(instruction, RESUME_INST_TARGET),
         REB_FRAME,
         Context_For_Frame_May_Reify_Managed(frame)

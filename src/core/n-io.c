@@ -1097,7 +1097,7 @@ REBNATIVE(call)
                 exit_code
             );
 
-        Val_Init_Object(D_OUT, info);
+        Init_Object(D_OUT, info);
         return R_OUT;
     }
 

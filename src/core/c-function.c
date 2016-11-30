@@ -789,7 +789,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         TERM_ARRAY_LEN(types_varlist, num_slots);
         MANAGE_ARRAY(types_varlist);
 
-        Val_Init_Context(
+        Init_Any_Context(
             CTX_VAR(meta, parameter_types_index),
             REB_FRAME,
             AS_CONTEXT(types_varlist)
@@ -843,7 +843,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         TERM_ARRAY_LEN(notes_varlist, num_slots);
         MANAGE_ARRAY(notes_varlist);
 
-        Val_Init_Context(
+        Init_Any_Context(
             CTX_VAR(meta, parameter_notes_index),
             REB_FRAME,
             AS_CONTEXT(notes_varlist)

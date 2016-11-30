@@ -407,7 +407,7 @@ void Set_Tuple(REBVAL *value, REBYTE *bytes, REBCNT len)
 
 
 //
-//  Val_Init_Context_Core: C
+//  Init_Any_Context_Core: C
 //
 // Common routine for initializing OBJECT, MODULE!, PORT!, and ERROR!
 //
@@ -415,7 +415,7 @@ void Set_Tuple(REBVAL *value, REBYTE *bytes, REBCNT len)
 // is its canon form from a single pointer...the REBVAL sitting in the 0 slot
 // of the context's varlist.
 //
-void Val_Init_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *c) {
+void Init_Any_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *c) {
     //
     // In a debug build we check to make sure the type of the embedded value
     // matches the type of what is intended (so someone who thinks they are
@@ -443,7 +443,7 @@ void Val_Init_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *c) {
 #endif
 
     // Some contexts (stack frames in particular) start out unmanaged, and
-    // then check to see if an operation like Val_Init_Context set them to
+    // then check to see if an operation like Init_Any_Context set them to
     // managed.  If not, they will free the context.  This avoids the need
     // for the garbage collector to have to deal with the series if there's
     // no reason too.

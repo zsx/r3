@@ -77,7 +77,7 @@ void TO_Port(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     //
     REBCTX *context = Copy_Context_Shallow(VAL_CONTEXT(arg));
     VAL_RESET_HEADER(CTX_VALUE(context), REB_PORT);
-    Val_Init_Port(out, context);
+    Init_Port(out, context);
 }
 
 

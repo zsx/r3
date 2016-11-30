@@ -315,7 +315,7 @@ int Do_String(
             return -1; // !!! Revisit hardcoded #
         }
 
-        Val_Init_Error(out, error);
+        Init_Error(out, error);
         *last = *out;
         return -cast(REBINT, ERR_NUM(error));
     }

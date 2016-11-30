@@ -1815,7 +1815,7 @@ static REBARR *Scan_Array(
                 cast(REBCNT, ep - bp)
             );
             if (GET_FLAG(scan_state->opts, SCAN_RELAX)) {
-                Val_Init_Error(ARR_TAIL(emitbuf), error);
+                Init_Error(ARR_TAIL(emitbuf), error);
                 SET_ARRAY_LEN_NOTERM(emitbuf, ARR_LEN(emitbuf) + 1);
                 goto exit_block;
             }
@@ -1902,7 +1902,7 @@ extra_error: ; // needs to label a statement
         1
     );
     if (GET_FLAG(scan_state->opts, SCAN_RELAX)) {
-        Val_Init_Error(ARR_TAIL(emitbuf), error);
+        Init_Error(ARR_TAIL(emitbuf), error);
         SET_ARRAY_LEN_NOTERM(emitbuf, ARR_LEN(emitbuf) + 1);
         goto exit_block;
     }

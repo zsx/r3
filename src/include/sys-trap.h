@@ -144,7 +144,7 @@
 // code before the paired DROP_TRAP happens, then the C state will be
 // magically teleported back to the line after the PUSH_TRAP with the
 // error value now non-null and usable, including put into a REBVAL via
-// the `Val_Init_Error()` function.
+// the `Init_Error()` function.
 //
 #define PUSH_TRAP(e,s) \
     PUSH_TRAP_CORE((e), (s), TRUE)

@@ -1015,7 +1015,7 @@ REBVAL *Alloc_Pairing(REBCTX *opt_owning_frame) {
 
     INIT_CELL_IF_DEBUG(key);
     if (opt_owning_frame) {
-        Val_Init_Context(key, REB_FRAME, opt_owning_frame);
+        Init_Any_Context(key, REB_FRAME, opt_owning_frame);
         SET_VAL_FLAGS(
             key, ANY_CONTEXT_FLAG_OWNS_PAIRED | NODE_FLAG_ROOT
         );

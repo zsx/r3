@@ -115,7 +115,7 @@ REBTYPE(Datatype)
                 }
             }
 
-            Val_Init_Object(D_OUT, context);
+            Init_Object(D_OUT, context);
         }
         else
             fail (Error_Cannot_Reflect(VAL_TYPE(value), arg));

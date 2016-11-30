@@ -572,7 +572,7 @@ static void Init_Natives(void)
         REBVAL *rootvar = CTX_VALUE(function_meta);
         VAL_RESET_HEADER(rootvar, REB_OBJECT);
         rootvar->extra.binding = NULL;
-        Val_Init_Object(ROOT_FUNCTION_META, function_meta);
+        Init_Object(ROOT_FUNCTION_META, function_meta);
     }
 
     // !!! Same, we want to have SPECIALIZE before %sysobj.r loaded
@@ -584,7 +584,7 @@ static void Init_Natives(void)
         REBVAL *rootvar = CTX_VALUE(specialized_meta);
         VAL_RESET_HEADER(rootvar, REB_OBJECT);
         rootvar->extra.binding = NULL;
-        Val_Init_Object(ROOT_SPECIALIZED_META, specialized_meta);
+        Init_Object(ROOT_SPECIALIZED_META, specialized_meta);
     }
 
     RELVAL *item = VAL_ARRAY_HEAD(&Boot_Block->natives);
@@ -922,7 +922,7 @@ static void Init_System_Object(void)
     // Create a global value for it.  (This is why we are able to say `system`
     // and have it bound in lines like `sys: system/contexts/sys`)
     //
-    Val_Init_Object(
+    Init_Object(
         Append_Context(Lib_Context, NULL, Canon(SYM_SYSTEM)),
         system
     );
@@ -932,7 +932,7 @@ static void Init_System_Object(void)
     // could say `system: blank` in the Lib_Context and then it would be a
     // candidate for garbage collection otherwise!)
     //
-    Val_Init_Object(ROOT_SYSTEM, system);
+    Init_Object(ROOT_SYSTEM, system);
 
     // Create system/datatypes block.  Start at 1 (REB_BLANK), given that 0
     // is REB_0_LOOKBACK and does not correspond to a value type.
@@ -966,7 +966,7 @@ static void Init_System_Object(void)
         SET_BLANK(CTX_ROOTKEY(codecs));
         VAL_RESET_HEADER(CTX_VALUE(codecs), REB_OBJECT);
         CTX_VALUE(codecs)->extra.binding = NULL;
-        Val_Init_Object(Get_System(SYS_CODECS, 0), codecs);
+        Init_Object(Get_System(SYS_CODECS, 0), codecs);
     }
 }
 
@@ -989,11 +989,11 @@ static void Init_System_Object(void)
 static void Init_Contexts_Object(void)
 {
     DROP_GUARD_CONTEXT(Sys_Context);
-    Val_Init_Object(Get_System(SYS_CONTEXTS, CTX_SYS), Sys_Context);
+    Init_Object(Get_System(SYS_CONTEXTS, CTX_SYS), Sys_Context);
 
     DROP_GUARD_CONTEXT(Lib_Context);
-    Val_Init_Object(Get_System(SYS_CONTEXTS, CTX_LIB), Lib_Context);
-    Val_Init_Object(Get_System(SYS_CONTEXTS, CTX_USER), Lib_Context);
+    Init_Object(Get_System(SYS_CONTEXTS, CTX_LIB), Lib_Context);
+    Init_Object(Get_System(SYS_CONTEXTS, CTX_USER), Lib_Context);
 }
 
 
@@ -1541,8 +1541,8 @@ void Init_Core(REBARGS *rargs)
 #endif
 
     // Special pre-made errors:
-    Val_Init_Error(TASK_STACK_ERROR, Error(RE_STACK_OVERFLOW));
-    Val_Init_Error(TASK_HALT_ERROR, Error(RE_HALT));
+    Init_Error(TASK_STACK_ERROR, Error(RE_STACK_OVERFLOW));
+    Init_Error(TASK_HALT_ERROR, Error(RE_HALT));
 
     REBCTX *error;
     struct Reb_State state;
@@ -1555,9 +1555,11 @@ void Init_Core(REBARGS *rargs)
 
     if (error) {
         //
-        // !!! There may be unexpected cases that would cause an error during
-        // Init_Core() startup, which will then panic.  BUT it should not
-        // even be *possible* to trigger a HALT.  TBD: Enforce this.
+        // You shouldn't be able to halt during Init_Core() startup.
+        // The only way you should be able to stop Init_Core() is by raising
+        // an error, at which point the system will Panic out.
+        //
+        // !!! TBD: Enforce not being *able* to trigger HALT
         //
         assert(ERR_NUM(error) != RE_HALT);
         panic (error);

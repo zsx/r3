@@ -71,7 +71,7 @@ static void update(REBREQ *req, REBINT len, REBVAL *arg)
         CTX_VALUE(obj)->payload.any_context.varlist = CTX_VARLIST(obj);
 
         val = Alloc_Tail_Array(VAL_ARRAY(arg));
-        Val_Init_Object(val, obj);
+        Init_Object(val, obj);
     }
 
     req->actual = 0; /* avoid duplicate updates */

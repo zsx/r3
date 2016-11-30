@@ -1055,7 +1055,7 @@ static void callback_dispatcher(
 // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
 
     if (error) {
-        Val_Init_Error(&Callback_Error, error);
+        Init_Error(&Callback_Error, error);
         return;
     }
 

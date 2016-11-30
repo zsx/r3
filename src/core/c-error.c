@@ -251,6 +251,7 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
     //
     assert(TG_Erroring_C_File != NULL);
     TG_Erroring_C_File = NULL;
+#endif
 
     // If we raise the error we'll lose the stack, and if it's an early
     // error we always want to see it (do not use ATTEMPT or TRY on
@@ -258,7 +259,6 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
     //
     if (PG_Boot_Phase < BOOT_DONE)
         panic (error);
-#endif
 
     // There should be a PUSH_TRAP of some kind in effect if a `fail` can
     // ever be run.
@@ -561,7 +561,7 @@ REBOOL Make_Error_Object_Throws(
         // Protect the error from GC by putting into out, which must be
         // passed in as a GC-protecting value slot.
         //
-        Val_Init_Error(out, error);
+        Init_Error(out, error);
 
         Rebind_Context_Deep(root_error, error, NULL); // NULL=>no more binds
         Bind_Values_Deep(VAL_ARRAY_AT(arg), error);
@@ -789,7 +789,7 @@ REBOOL Make_Error_Object_Throws(
 
     Try_Add_Backtrace_To_Error(error, where);
 
-    Val_Init_Error(out, error);
+    Init_Error(out, error);
     return FALSE;
 }
 
@@ -1550,7 +1550,7 @@ void Init_Errors(REBVAL *errors)
         NULL
     );
 
-    Val_Init_Object(Get_System(SYS_CATALOG, CAT_ERRORS), errs);
+    Init_Object(Get_System(SYS_CATALOG, CAT_ERRORS), errs);
 
     // Create objects for all error types (CAT_ERRORS is "selfish", currently
     // so self is in slot 1 and the actual errors start at context slot 2)
@@ -1562,7 +1562,7 @@ void Init_Errors(REBVAL *errors)
             SPECIFIED, // source array not in a function body
             NULL
         );
-        Val_Init_Object(val, errs);
+        Init_Object(val, errs);
     }
 }
 

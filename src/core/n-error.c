@@ -81,7 +81,7 @@ REBNATIVE(trap)
                 assert (IS_FUNCTION(handler));
 
                 REBVAL arg;
-                Val_Init_Error(&arg, error);
+                Init_Error(&arg, error);
 
                 // Try passing the handler the ERROR! we trapped.  Passing
                 // FALSE for `fully` means it will not raise an error if
@@ -98,7 +98,7 @@ REBNATIVE(trap)
 
         if (REF(q)) return R_TRUE;
 
-        Val_Init_Error(D_OUT, error);
+        Init_Error(D_OUT, error);
         return R_OUT;
     }
 

@@ -410,7 +410,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
         ARG(vars),
         ARG(body)
     );
-    Val_Init_Object(ARG(vars), context); // keep GC safe
+    Init_Object(ARG(vars), context); // keep GC safe
     Init_Block(ARG(body), body_copy); // keep GC safe
 
     // Currently the data stack is only used by MAP-EACH to accumulate results
@@ -772,7 +772,7 @@ REBNATIVE(for)
         ARG(word),
         ARG(body)
     );
-    Val_Init_Object(ARG(word), context); // keep GC safe
+    Init_Object(ARG(word), context); // keep GC safe
     Init_Block(ARG(body), body_copy); // keep GC safe
 
     REBVAL *var = CTX_VAR(context, 1);
@@ -1134,7 +1134,7 @@ REBNATIVE(repeat)
 
     REBVAL *var = CTX_VAR(context, 1);
 
-    Val_Init_Object(ARG(word), context); // keep GC safe
+    Init_Object(ARG(word), context); // keep GC safe
     Init_Block(ARG(body), copy); // keep GC safe
 
     if (ANY_SERIES(value)) {

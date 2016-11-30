@@ -164,7 +164,7 @@ REBNATIVE(load_extension)
 
     Init_Binary(CTX_VAR(context, STD_EXTENSION_LIB_BOOT), src);
 
-    Val_Init_Object(D_OUT, context);
+    Init_Object(D_OUT, context);
     return R_OUT;
 }
 
@@ -305,7 +305,7 @@ REB_R Command_Dispatcher(REBFRM *f)
     //
     REBVAL frame;
     PUSH_GUARD_CONTEXT(frame_ctx);
-    Val_Init_Context(&frame, REB_FRAME, frame_ctx);
+    Init_Any_Context(&frame, REB_FRAME, frame_ctx);
 
     // Clients of the RL_Api should not be aware of the implementation detail
     // of END_CELL.  Pre-write f->out with void so that if a routine exposes
