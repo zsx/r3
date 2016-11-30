@@ -166,7 +166,7 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
         //
         REBARR *array = Make_Array(2);
         Append_Value(array, awake);
-        Val_Init_Word(Alloc_Tail_Array(array), REB_WORD, Canon(SYM_ONLY));
+        Init_Word(Alloc_Tail_Array(array), Canon(SYM_ONLY));
 
         Val_Init_Array(&awake_only, REB_PATH, array);
     }
@@ -411,7 +411,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
             // In use--and used refinements must be added to the PATH!
             //
             ignoring = FALSE;
-            Val_Init_Word(path, REB_WORD, VAL_PARAM_SPELLING(f->param));
+            Init_Word(path, VAL_PARAM_SPELLING(f->param));
             ++path;
             continue;
         }
@@ -505,7 +505,7 @@ REB_R Do_Port_Action(REBFRM *frame_, REBCTX *port, REBSYM action)
     actor = Obj_Value(actor, n);
     if (!n || !actor || !IS_FUNCTION(actor)) {
         REBVAL action_word;
-        Val_Init_Word(&action_word, REB_WORD, Canon(action));
+        Init_Word(&action_word, Canon(action));
 
         fail (Error(RE_NO_PORT_ACTION, &action_word));
     }

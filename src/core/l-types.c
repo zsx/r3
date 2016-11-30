@@ -1178,7 +1178,7 @@ REBNATIVE(scan_net_header)
         }
 
         if (IS_END(item)) { // didn't break, add space for new word/value
-            Val_Init_Word(Alloc_Tail_Array(result), REB_SET_WORD, name);
+            Init_Set_Word(Alloc_Tail_Array(result), name);
             val = Alloc_Tail_Array(result);
         }
 

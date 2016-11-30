@@ -309,37 +309,36 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
             )
         );
 
-        // All bound words should keep their contexts from being GC'd...
-        // even stack-relative contexts for functions.
-        //
-        if (GET_VAL_FLAG(v, VALUE_FLAG_RELATIVE)) {
-            //
-            // Marking the function's paramlist should be enough to
-            // mark all the function's properties (there is an embedded
-            // function value...)
-            //
-            REBFUN* func = VAL_WORD_FUNC(v);
-            assert(GET_VAL_FLAG(v, WORD_FLAG_BOUND)); // should be set
-            Queue_Mark_Function_Deep(func);
-        }
-        else if (GET_VAL_FLAG(v, WORD_FLAG_BOUND)) {
-            if (IS_SPECIFIC(v)) {
-                REBCTX* context = VAL_WORD_CONTEXT(const_KNOWN(v));
-                Queue_Mark_Context_Deep(context);
-            }
-            else {
-                // We trust that if a relative word's context needs to make
-                // it into the transitive closure, that will be taken care
-                // of by the array reference that holds it.
+        if (GET_VAL_FLAG(v, WORD_FLAG_BOUND)) {
+            assert(v->payload.any_word.index != 0);
+
+            if (GET_VAL_FLAG(v, VALUE_FLAG_RELATIVE)) {
+                // Bound relative to a function, keep that function alive.
+                //
+                // (To turn a relative binding into a specific one, a
+                // frame is needed from the BLOCK!/GROUP!/PATH! etc. that
+                // holds a word instance.  So those frames are kept alive
+                // by the REB_BLOCK/REB_GROUP/REB_PATH lines in this switch
+                // where they mark their "binding" field.)
                 //
                 REBFUN* func = VAL_WORD_FUNC(v);
                 Queue_Mark_Function_Deep(func);
             }
+            else {
+                // Bound to a specific context, keep that context alive.
+                //
+                REBCTX* context = VAL_WORD_CONTEXT(const_KNOWN(v));
+                Queue_Mark_Context_Deep(context);
+            }
         }
         else {
             // The word is unbound...make sure index is 0 in debug build.
+            // (it can be left uninitialized in release builds, for now)
             //
+            assert(!GET_VAL_FLAG(v, VALUE_FLAG_RELATIVE));
+        #if !defined(NDEBUG)
             assert(v->payload.any_word.index == 0);
+        #endif
         }
         break; }
 

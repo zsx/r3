@@ -174,7 +174,7 @@ void Unbind_Values_Core(RELVAL *head, REBCTX *context, REBOOL deep)
                 )
             )
         ) {
-            UNBIND_WORD(value);
+            Unbind_Any_Word(value);
         }
         else if (ANY_ARRAY(value) && deep)
             Unbind_Values_Core(VAL_ARRAY_AT(value), context, TRUE);
@@ -237,7 +237,7 @@ static void Bind_Relative_Inner_Loop(
                 // Word's canon symbol is in frame.  Relatively bind it.
                 // (clear out existing binding flags first).
                 //
-                UNBIND_WORD(value);
+                Unbind_Any_Word(value);
                 SET_VAL_FLAGS(value, WORD_FLAG_BOUND | VALUE_FLAG_RELATIVE);
                 INIT_WORD_FUNC(value, AS_FUNC(paramlist)); // incomplete func
                 INIT_WORD_INDEX(value, n);

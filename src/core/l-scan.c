@@ -1512,7 +1512,7 @@ static REBARR *Scan_Array(
             }
         case TOKEN_WORD:
             if (len == 0) {bp--; goto syntax_error;}
-            Val_Init_Word(
+            Init_Any_Word(
                 value,
                 KIND_OF_WORD_FROM_TOKEN(token),
                 Intern_UTF8_Managed(bp, len)
@@ -1520,9 +1520,7 @@ static REBARR *Scan_Array(
             break;
 
         case TOKEN_REFINE:
-            Val_Init_Word(
-                value, REB_REFINEMENT, Intern_UTF8_Managed(bp + 1, len - 1)
-            );
+            Init_Refinement(value, Intern_UTF8_Managed(bp + 1, len - 1));
             break;
 
         case TOKEN_ISSUE:
@@ -1537,7 +1535,7 @@ static REBARR *Scan_Array(
                 REBSTR *name = Scan_Issue(bp + 1, len - 1);
                 if (name == NULL)
                     goto syntax_error;
-                Val_Init_Word(value, REB_ISSUE, name);
+                Init_Issue(value, name);
             }
             break;
 

@@ -1185,7 +1185,7 @@ static REBSTR *Set_Option_Word(REBCHR *str, REBCNT field)
     REBSTR *name = Intern_UTF8_Managed(buf, len);
 
     REBVAL *val = Get_System(SYS_OPTIONS, field);
-    Val_Init_Word(val, REB_WORD, name);
+    Init_Word(val, name);
 
     return name;
 }

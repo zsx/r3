@@ -513,7 +513,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
 
                 // Alternate between word and value parts of object:
                 if (j == 0) {
-                    Val_Init_Word_Bound(
+                    Init_Any_Word_Bound(
                         var,
                         REB_WORD,
                         CTX_KEY_SPELLING(VAL_CONTEXT(data), index),
@@ -535,7 +535,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                 else {
                     // !!! Review this error (and this routine...)
                     REBVAL key_name;
-                    Val_Init_Word(&key_name, REB_WORD, VAL_KEY_SPELLING(key));
+                    Init_Word(&key_name, VAL_KEY_SPELLING(key));
 
                     fail (Error_Invalid_Arg(&key_name));
                 }
@@ -569,11 +569,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                     else {
                         // !!! Review this error (and this routine...)
                         REBVAL key_name;
-                        Val_Init_Word(
-                            &key_name,
-                            REB_WORD,
-                            VAL_KEY_SPELLING(key)
-                        );
+                        Init_Word(&key_name, VAL_KEY_SPELLING(key));
 
                         fail (Error_Invalid_Arg(&key_name));
                     }

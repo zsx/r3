@@ -641,7 +641,7 @@ static void Collect_Words_Inner_Loop(
             Add_Binder_Index(binder, VAL_WORD_CANON(value), 1);
 
             REBVAL *word = Alloc_Tail_Array(BUF_COLLECT);
-            Val_Init_Word(word, REB_WORD, VAL_WORD_SPELLING(value));
+            Init_Word(word, VAL_WORD_SPELLING(value));
         }
         else if (ANY_EVAL_BLOCK(value) && (flags & COLLECT_DEEP))
             Collect_Words_Inner_Loop(binder, VAL_ARRAY_AT(value), flags);
@@ -927,17 +927,16 @@ REBARR *Context_To_Array(REBCTX *context, REBINT mode)
     for (; NOT_END(key); n++, key++, var++) {
         if (NOT_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
             if (mode & 1) {
-                value = Alloc_Tail_Array(block);
-                if (mode & 2) {
-                    VAL_RESET_HEADER(value, REB_SET_WORD);
+                REBVAL *value = Alloc_Tail_Array(block);
+                Init_Any_Word_Bound(
+                    value,
+                    (mode & 2) ? REB_SET_WORD : REB_WORD,
+                    VAL_KEY_SPELLING(key),
+                    context,
+                    n
+                );
+                if (mode & 2)
                     SET_VAL_FLAG(value, VALUE_FLAG_LINE);
-                }
-                else VAL_RESET_HEADER(value, REB_WORD);
-
-                INIT_WORD_SPELLING(value, VAL_KEY_SPELLING(key));
-                SET_VAL_FLAG(value, WORD_FLAG_BOUND); // hdr reset, !relative
-                INIT_WORD_CONTEXT(value, context);
-                INIT_WORD_INDEX(value, n);
             }
             if (mode & 2) {
                 Append_Value(block, var);

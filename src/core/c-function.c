@@ -75,7 +75,9 @@ REBARR *List_Func_Words(const REBVAL *func, REBOOL pure_locals)
             DEAD_END;
         }
 
-        Val_Init_Word(Alloc_Tail_Array(array), kind, VAL_PARAM_SPELLING(param));
+        Init_Any_Word(
+            Alloc_Tail_Array(array), kind, VAL_PARAM_SPELLING(param)
+        );
     }
 
     return array;
@@ -365,9 +367,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             if (VAL_PARAM_CLASS(typeset) == PARAM_CLASS_HARD_QUOTE) {
                 if (TYPE_CHECK(typeset, REB_MAX_VOID)) {
                     REBVAL param_name;
-                    Val_Init_Word(
-                        &param_name, REB_WORD, VAL_PARAM_SPELLING(typeset)
-                    );
+                    Init_Word(&param_name, VAL_PARAM_SPELLING(typeset));
                     fail (Error(RE_HARD_QUOTE_VOID, &param_name));
                 }
             }
@@ -693,7 +693,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 
         if (duplicate != NULL) {
             REBVAL word;
-            Val_Init_Word(&word, REB_WORD, duplicate);
+            Init_Word(&word, duplicate);
             fail (Error(RE_DUP_VARS, &word));
         }
 
@@ -1451,7 +1451,7 @@ REBOOL Specialize_Function_Throws(
     assert(IS_VOID(CTX_VAR(meta, 1))); // no description by default
     *CTX_VAR(meta, 2) = *specializee;
     if (opt_specializee_name != NULL)
-        Val_Init_Word(CTX_VAR(meta, 3), REB_WORD, opt_specializee_name);
+        Init_Word(CTX_VAR(meta, 3), opt_specializee_name);
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
     ARR_SERIES(paramlist)->link.meta = meta;

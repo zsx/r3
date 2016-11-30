@@ -131,7 +131,7 @@ void MAKE_Word(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     else
         fail (Error_Unexpected_Type(REB_WORD, VAL_TYPE(arg)));
 
-    Val_Init_Word(out, kind, name);
+    Init_Any_Word(out, kind, name);
 }
 
 

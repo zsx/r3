@@ -525,7 +525,9 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
 
             // Note varargs_param is distinct from f->param!
             REBVAL param_word;
-            Val_Init_Word(&param_word, kind, VAL_PARAM_SPELLING(varargs_param));
+            Init_Any_Word(
+                &param_word, kind, VAL_PARAM_SPELLING(varargs_param)
+            );
 
             Mold_Value(mold, &param_word, TRUE);
 

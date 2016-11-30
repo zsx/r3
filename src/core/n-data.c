@@ -467,7 +467,7 @@ REBNATIVE(unbind)
     REBVAL *word = ARG(word);
 
     if (ANY_WORD(word))
-        UNBIND_WORD(word);
+        Unbind_Any_Word(word);
     else
         Unbind_Values_Core(VAL_ARRAY_AT(word), NULL, REF(deep));
 
@@ -732,11 +732,13 @@ REBNATIVE(in)
     if (index == 0)
         return R_BLANK;
 
-    VAL_RESET_HEADER(D_OUT, VAL_TYPE(word));
-    INIT_WORD_SPELLING(D_OUT, VAL_WORD_SPELLING(word));
-    SET_VAL_FLAG(D_OUT, WORD_FLAG_BOUND); // header reset, so not relative
-    INIT_WORD_CONTEXT(D_OUT, context);
-    INIT_WORD_INDEX(D_OUT, index);
+    Init_Any_Word_Bound(
+        D_OUT,
+        VAL_TYPE(word),
+        VAL_WORD_SPELLING(word),
+        context,
+        index
+    );
     return R_OUT;
 }
 
@@ -932,7 +934,7 @@ REBNATIVE(set)
 
             if (NOT(REF(opt)) && IS_VOID(value)) {
                 REBVAL key_name;
-                Val_Init_Word(&key_name, REB_WORD, VAL_KEY_SPELLING(key));
+                Init_Word(&key_name, VAL_KEY_SPELLING(key));
 
                 fail (Error(RE_NEED_VALUE, &key_name));
             }

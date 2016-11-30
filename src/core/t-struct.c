@@ -231,16 +231,12 @@ REBARR *Struct_To_Array(REBSTU *stu)
         REBFLD *field = VAL_ARRAY(item);
 
         DS_PUSH_TRASH;
-        Val_Init_Word(DS_TOP, REB_SET_WORD, FLD_NAME(field)); // required name
+        Init_Set_Word(DS_TOP, FLD_NAME(field)); // required name
 
         REBARR *typespec = Make_Array(2); // required type
 
         if (FLD_IS_STRUCT(field)) {
-            Val_Init_Word(
-                Alloc_Tail_Array(typespec),
-                REB_WORD,
-                Canon(SYM_STRUCT_X)
-            );
+            Init_Word(Alloc_Tail_Array(typespec), Canon(SYM_STRUCT_X));
 
             REBVAL nested;
             get_scalar(&nested, stu, field, 0);
@@ -255,11 +251,7 @@ REBARR *Struct_To_Array(REBSTU *stu)
         else {
             // Elemental type (from a fixed list of known C types)
             //
-            Val_Init_Word(
-                Alloc_Tail_Array(typespec),
-                REB_WORD,
-                Canon(FLD_TYPE_SYM(field))
-            );
+            Init_Word(Alloc_Tail_Array(typespec), Canon(FLD_TYPE_SYM(field)));
         }
 
         // "optional dimension and initialization."
@@ -800,7 +792,7 @@ static void Parse_Field_Type_May_Fail(
         // Initialize the type symbol with the unbound word by default (will
         // be overwritten in the struct cases).
         //
-        Val_Init_Word(FLD_AT(field, IDX_FIELD_TYPE), REB_WORD, Canon(sym));
+        Init_Word(FLD_AT(field, IDX_FIELD_TYPE), Canon(sym));
 
         switch (sym) {
         case SYM_UINT8:
@@ -1153,11 +1145,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
         else
             fail (Error_Invalid_Type(VAL_TYPE(item)));
 
-        Val_Init_Word(
-            FLD_AT(field, IDX_FIELD_NAME),
-            REB_WORD,
-            VAL_WORD_SPELLING(item)
-        );
+        Init_Word(FLD_AT(field, IDX_FIELD_NAME), VAL_WORD_SPELLING(item));
 
         ++item;
         if (IS_END(item) || !IS_BLOCK(item))

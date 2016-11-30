@@ -233,7 +233,7 @@ static void Schema_From_Block_May_Fail(
         //
         // Drop the binding off word (then note SYM_VOID turns schema to blank)
         //
-        Val_Init_Word(schema_out, REB_WORD, VAL_WORD_SPELLING(item));
+        Init_Word(schema_out, VAL_WORD_SPELLING(item));
 
         switch (VAL_WORD_SYM(item)) {
         case SYM_VOID:

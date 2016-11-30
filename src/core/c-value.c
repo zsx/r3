@@ -199,39 +199,6 @@ REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
 
 
 //
-//  INIT_WORD_INDEX_Debug: C
-//
-void INIT_WORD_INDEX_Debug(RELVAL *v, REBCNT i)
-{
-    assert(ANY_WORD(v));
-    assert(GET_VAL_FLAG((v), WORD_FLAG_BOUND));
-    if (IS_RELATIVE(v))
-        assert(
-            VAL_WORD_CANON(v)
-            == VAL_PARAM_CANON(FUNC_PARAM(VAL_WORD_FUNC(v), i))
-        );
-    else
-        assert(
-            VAL_WORD_CANON(v)
-            == CTX_KEY_CANON(VAL_WORD_CONTEXT(KNOWN(v)), i)
-        );
-    v->payload.any_word.index = i;
-}
-
-
-//
-//  IS_RELATIVE_Debug: C
-//
-// One should only be testing relvals for their relativeness or specificness,
-// because all REBVAL* should be guaranteed to be speciic!
-//
-REBOOL IS_RELATIVE_Debug(const RELVAL *value)
-{
-    return GET_VAL_FLAG(value, VALUE_FLAG_RELATIVE);
-}
-
-
-//
 //  Assert_No_Relative: C
 //
 // Check to make sure there are no relative values in an array, maybe deeply.

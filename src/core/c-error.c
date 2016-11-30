@@ -391,14 +391,12 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
     // Success! Write category word from the category list context key sym,
     // and specific error ID word from the context key sym within category
     //
-    Val_Init_Word(
+    Init_Word(
         type_out,
-        REB_WORD,
         CTX_KEY_SPELLING(categories, SELFISH((code / 1000) + 1))
     );
-    Val_Init_Word(
+    Init_Word(
         id_out,
-        REB_WORD,
         CTX_KEY_SPELLING(category, SELFISH((code % 1000) + 3))
     );
 
@@ -447,9 +445,7 @@ static void Try_Add_Backtrace_To_Error(
         if (Is_Function_Frame_Fulfilling(f))
             continue;
 
-        Val_Init_Word(
-            Alloc_Tail_Array(backtrace), REB_WORD, FRM_LABEL(f)
-        );
+        Init_Word(Alloc_Tail_Array(backtrace), FRM_LABEL(f));
     }
     Val_Init_Block(&vars->where, backtrace);
 
@@ -476,10 +472,10 @@ static void Try_Add_Backtrace_To_Error(
         RELVAL *item;
 
         REBVAL marker;
-        Val_Init_Word(&marker, REB_WORD, Canon(SYM__Q_Q));
+        Init_Word(&marker, Canon(SYM__Q_Q));
 
         REBVAL ellipsis;
-        Val_Init_Word(&ellipsis, REB_WORD, Canon(SYM_ELLIPSIS));
+        Init_Word(&ellipsis, Canon(SYM_ELLIPSIS));
 
         if (start < 0) {
             DS_PUSH(&ellipsis);
@@ -1149,7 +1145,7 @@ REBCTX *Error_Lookback_Quote_Set_Soft(REBFRM *f) {
 //
 REBCTX *Error_Non_Logic_Refinement(REBFRM *f) {
     REBVAL word;
-    Val_Init_Word(&word, REB_WORD, VAL_PARAM_SPELLING(f->param));
+    Init_Word(&word, VAL_PARAM_SPELLING(f->param));
     fail (Error(RE_NON_LOGIC_REFINE, &word, Type_Of(f->arg)));
 }
 
@@ -1180,10 +1176,10 @@ REBCTX *Error_No_Arg(REBSTR *label, const RELVAL *param)
     assert(IS_TYPESET(param));
 
     REBVAL param_word;
-    Val_Init_Word(&param_word, REB_WORD, VAL_PARAM_SPELLING(param));
+    Init_Word(&param_word, VAL_PARAM_SPELLING(param));
 
     REBVAL label_word;
-    Val_Init_Word(&label_word, REB_WORD, label);
+    Init_Word(&label_word, label);
 
     return Error(RE_NO_ARG, &label_word, &param_word, END_CELL);
 }
@@ -1264,13 +1260,13 @@ REBCTX *Error_Bad_Refine_Revoke(REBFRM *f)
     assert(IS_TYPESET(f->param));
 
     REBVAL param_name;
-    Val_Init_Word(&param_name, REB_WORD, VAL_PARAM_SPELLING(f->param));
+    Init_Word(&param_name, VAL_PARAM_SPELLING(f->param));
 
     while (VAL_PARAM_CLASS(f->param) != PARAM_CLASS_REFINEMENT)
         --f->param;
 
     REBVAL refine_name;
-    Val_Init_Word(&refine_name, REB_REFINEMENT, VAL_PARAM_SPELLING(f->param));
+    Init_Refinement(&refine_name, VAL_PARAM_SPELLING(f->param));
 
     if (IS_VOID(f->arg)) // was void and shouldn't have been
         return Error(RE_BAD_REFINE_REVOKE, &refine_name, &param_name, END_CELL);
@@ -1347,7 +1343,7 @@ REBCTX *Error_Protected_Key(REBVAL *key)
     assert(IS_TYPESET(key));
 
     REBVAL key_name;
-    Val_Init_Word(&key_name, REB_WORD, VAL_KEY_SPELLING(key));
+    Init_Word(&key_name, VAL_KEY_SPELLING(key));
 
     return Error(RE_LOCKED_WORD, &key_name, END_CELL);
 }
@@ -1359,7 +1355,7 @@ REBCTX *Error_Protected_Key(REBVAL *key)
 REBCTX *Error_Illegal_Action(enum Reb_Kind type, REBSYM action)
 {
     REBVAL action_word;
-    Val_Init_Word(&action_word, REB_WORD, Canon(action));
+    Init_Word(&action_word, Canon(action));
 
     return Error(RE_CANNOT_USE, &action_word, Get_Type(type), END_CELL);
 }
@@ -1371,7 +1367,7 @@ REBCTX *Error_Illegal_Action(enum Reb_Kind type, REBSYM action)
 REBCTX *Error_Math_Args(enum Reb_Kind type, REBSYM action)
 {
     REBVAL action_word;
-    Val_Init_Word(&action_word, REB_WORD, Canon(action));
+    Init_Word(&action_word, Canon(action));
 
     return Error(RE_NOT_RELATED, &action_word, Get_Type(type), END_CELL);
 }
@@ -1408,10 +1404,10 @@ REBCTX *Error_Arg_Type(
     assert(IS_TYPESET(param));
 
     REBVAL param_word;
-    Val_Init_Word(&param_word, REB_WORD, VAL_PARAM_SPELLING(param));
+    Init_Word(&param_word, VAL_PARAM_SPELLING(param));
 
     REBVAL label_word;
-    Val_Init_Word(&label_word, REB_WORD, label);
+    Init_Word(&label_word, label);
 
     if (kind != REB_MAX_VOID) {
         assert(kind != REB_0);
@@ -1444,7 +1440,7 @@ REBCTX *Error_Arg_Type(
 //
 REBCTX *Error_Bad_Return_Type(REBSTR *label, enum Reb_Kind kind) {
     REBVAL label_word;
-    Val_Init_Word(&label_word, REB_WORD, label);
+    Init_Word(&label_word, label);
 
     if (kind == REB_MAX_VOID)
         return Error(RE_NEEDS_RETURN_VALUE, &label_word, END_CELL);
@@ -1663,7 +1659,7 @@ REBYTE *Security_Policy(REBSTR *spelling, REBVAL *name)
         ; // need statement
         REBVAL temp;
         if (!policy) {
-            Val_Init_Word(&temp, REB_WORD, spelling);
+            Init_Word(&temp, spelling);
             policy = &temp;
         }
         fail (Error(errcode, policy));
@@ -1683,7 +1679,7 @@ void Trap_Security(REBCNT flag, REBSTR *sym, REBVAL *value)
 {
     if (flag == SEC_THROW) {
         if (!value) {
-            Val_Init_Word(DS_TOP, REB_WORD, sym);
+            Init_Word(DS_TOP, sym);
             value = DS_TOP;
         }
         fail (Error(RE_SECURITY, value));

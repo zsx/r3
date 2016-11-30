@@ -291,7 +291,7 @@ inline static REBVAL *Get_Var_Core(
             // mechanically have both stackvars and a dynamic data pointer.
 
             REBVAL unbound;
-            Val_Init_Word(
+            Init_Any_Word(
                 &unbound,
                 VAL_TYPE(any_word),
                 VAL_WORD_SPELLING(any_word)

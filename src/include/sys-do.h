@@ -942,7 +942,7 @@ inline static void Reify_Va_To_Array_In_Frame(
 
     if (truncated) {
         REBVAL temp;
-        Val_Init_Word(&temp, REB_WORD, Canon(SYM___OPTIMIZED_OUT__));
+        Init_Word(&temp, Canon(SYM___OPTIMIZED_OUT__));
 
         DS_PUSH(&temp);
     }

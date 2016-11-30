@@ -399,7 +399,7 @@ REBOOL Do_Path_Throws_Core(
             // Go ahead and canonize the word symbol so we don't have to
             // do it each time in order to get a case-insenstive compare
             //
-            INIT_WORD_SPELLING(DS_TOP, VAL_WORD_CANON(DS_TOP));
+            Canonize_Any_Word(DS_TOP);
         }
 
         // To make things easier for processing, reverse the refinements on

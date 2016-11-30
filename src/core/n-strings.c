@@ -838,7 +838,7 @@ REBNATIVE(to_hex)
     else
         fail (Error_Invalid_Arg(arg));
 
-    Val_Init_Word(D_OUT, REB_ISSUE, Scan_Issue(&buffer[0], len));
+    Init_Issue(D_OUT, Scan_Issue(&buffer[0], len));
 
     return R_OUT;
 }

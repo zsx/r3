@@ -296,25 +296,13 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSTR *name, REBVAL *val)
             REBARR *array = Make_Array(3);
 
             if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_DOUBLE))
-                Val_Init_Word(
-                    Alloc_Tail_Array(array),
-                    REB_WORD,
-                    Canon(SYM_DOUBLE)
-                );
+                Init_Word(Alloc_Tail_Array(array), Canon(SYM_DOUBLE));
 
             if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_CONTROL))
-                Val_Init_Word(
-                    Alloc_Tail_Array(array),
-                    REB_WORD,
-                    Canon(SYM_CONTROL)
-                );
+                Init_Word(Alloc_Tail_Array(array), Canon(SYM_CONTROL));
 
             if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_SHIFT))
-                Val_Init_Word(
-                    Alloc_Tail_Array(array),
-                    REB_WORD,
-                    Canon(SYM_SHIFT)
-                );
+                Init_Word(Alloc_Tail_Array(array), Canon(SYM_SHIFT));
 
             Val_Init_Block(val, array);
         }
@@ -429,123 +417,6 @@ REBTYPE(Event)
 {
     fail (Error_Illegal_Action(REB_EVENT, action));
 }
-
-
-#ifdef ndef
-//  case A_PATH:
-        if (IS_WORD(arg)) {
-            switch (VAL_WORD_CANON(arg)) {
-            case SYM_TYPE:    index = EF_TYPE; break;
-            case SYM_PORT:    index = EF_PORT; break;
-            case SYM_KEY:     index = EF_KEY; break;
-            case SYM_OFFSET:  index = EF_OFFSET; break;
-            case SYM_MODE:    index = EF_MODE; break;
-            case SYM_TIME:    index = EF_TIME; break;
-//!!! return these as options flags, not refinements.
-//          case SYM_SHIFT:   index = EF_SHIFT; break;
-//          case SYM_CONTROL: index = EF_CONTROL; break;
-//          case SYM_DOUBLE_CLICK: index = EF_DCLICK; break;
-            default: fail (Error(RE_INVALID_PATH, arg));
-            }
-            goto pick_it;
-        }
-        else if (!IS_INTEGER(arg))
-            fail (Error(RE_INVALID_PATH, arg));
-        // fall thru
-
-
-    case A_PICK:
-        index = num = Get_Num_From_Arg(arg);
-        if (num > 0) index--;
-        if (num == 0 || index < 0 || index > EF_DCLICK) {
-            if (action == A_POKE) fail (Error_Out_Of_Range(arg));
-            goto is_blank;
-        }
-pick_it:
-        switch(index) {
-        case EF_TYPE:
-            if (VAL_EVENT_TYPE(value) == 0) goto is_blank;
-            arg = Get_System(SYS_VIEW, VIEW_EVENT_TYPES);
-            if (IS_BLOCK(arg) && VAL_LEN_HEAD(arg) >= EVT_MAX) {
-                *D_OUT = *VAL_ARRAY_AT_HEAD(arg, VAL_EVENT_TYPE(value));
-                return R_OUT;
-            }
-            return R_BLANK;
-
-        case EF_PORT:
-            // Most events are for the GUI:
-            if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_NO_REQ))
-                *D_OUT = *Get_System(SYS_VIEW, VIEW_EVENT_PORT);
-            else {
-                req = VAL_EVENT_REQ(value);
-                if (!req || !req->port) goto is_blank;
-                Val_Init_Port(D_OUT, cast(REBSER*, req->port));
-            }
-            return R_OUT;
-
-        case EF_KEY:
-            if (VAL_EVENT_TYPE(value) != EVT_KEY) goto is_blank;
-            if (VAL_EVENT_FLAGS(value)) {  // !!!!!!!!!!!!! needs mask
-                VAL_RESET_HEADER(D_OUT, REB_CHAR);
-                VAL_CHAR(D_OUT) = VAL_EVENT_KEY(value) & 0xff;
-            } else
-                Val_Init_Word_Bound(D_OUT, VAL_EVENT_XY(value));
-            return R_OUT;
-
-        case EF_OFFSET:
-            SET_PAIR(D_OUT, VAL_EVENT_X(value), VAL_EVENT_Y(value));
-            return R_OUT;
-
-        case EF_TIME:
-            VAL_RESET_HEADER(D_OUT, REB_INTEGER);
-//!!            VAL_INT64(D_OUT) = VAL_EVENT_TIME(value);
-            return R_OUT;
-
-        case EF_SHIFT:
-            VAL_RESET_HEADER(D_OUT, REB_LOGIC);
-            SET_LOGIC(D_OUT, GET_FLAG(VAL_EVENT_FLAGS(value), EVF_SHIFT) != 0));
-            return R_OUT;
-
-        case EF_CONTROL:
-            VAL_RESET_HEADER(D_OUT, REB_LOGIC);
-            SET_LOGIC(D_OUT, GET_FLAG(VAL_EVENT_FLAGS(value), EVF_CONTROL) != 0);
-            return R_OUT;
-
-        case EF_DCLICK:
-            VAL_RESET_HEADER(D_OUT, REB_LOGIC);
-            SET_LOGIC(D_OUT, GET_FLAG(VAL_EVENT_FLAGS(value), EVF_DOUBLE) != 0);
-            return R_OUT;
-
-/*          case EF_FACE:
-            {
-                REBWIN  *wp;
-                // !!! Used to say 'return R_OUT None_Value;', but as this is
-                // commented out code it's not possible to determine what that
-                // exactly was supposed to have done.
-
-                if (!IS_BLOCK(ARR_HEAD(Windows) + VAL_EVENT_WIN(value))) return R_OUT;
-                wp = cast(REBWIN *, VAL_ARRAY_HEAD(ARR_HEAD(Windows) + VAL_EVENT_WIN(value)));
-                *D_OUT = wp->masterFace;
-                return R_OUT;
-            }
-*/
-        }
-        break;
-
-// These are used to map symbols to event field cases:
-enum rebol_event_fields {
-    EF_TYPE,
-    EF_KEY,
-    EF_OFFSET,
-    EF_TIME,
-    EF_SHIFT,   // Keep these? !!!
-    EF_CONTROL,
-    EF_DCLICK,
-    EF_PORT,
-    EF_MODE,
-};
-
-#endif
 
 
 //

@@ -57,7 +57,7 @@ void Collapsify_Array(REBARR *array, REBCTX *specifier, REBCNT limit)
                 limit + 1
             );
 
-            Val_Init_Word(ARR_AT(copy, limit), REB_WORD, Canon(SYM_ELLIPSIS));
+            Init_Word(ARR_AT(copy, limit), Canon(SYM_ELLIPSIS));
 
             Collapsify_Array(
                 copy,
@@ -137,7 +137,7 @@ REBARR *Make_Where_For_Frame(REBFRM *f)
     // appear and can be studied.
     /*
         DS_PUSH_TRASH;
-        Val_Init_Word(DS_TOP, REB_WORD, FRM_LABEL(f));
+        Init_Word(DS_TOP, FRM_LABEL(f));
     */
 
     for (n = start; n < end; ++n) {
@@ -169,7 +169,7 @@ REBARR *Make_Where_For_Frame(REBFRM *f)
     //
     if (pending) {
         DS_PUSH_TRASH;
-        Val_Init_Word(DS_TOP, REB_WORD, Canon(SYM_ELLIPSIS));
+        Init_Word(DS_TOP, Canon(SYM_ELLIPSIS));
     }
 
     where = Pop_Stack_Values(dsp_start);
@@ -230,7 +230,7 @@ REBNATIVE(label_of)
     if (frame == NULL)
         return R_BLANK;
 
-    Val_Init_Word(D_OUT, REB_WORD, FRM_LABEL(frame));
+    Init_Word(D_OUT, FRM_LABEL(frame));
     return R_OUT;
 }
 
@@ -440,7 +440,7 @@ REBNATIVE(backtrace)
                 // to show, then put an `+ ...` in the list and break.
                 //
                 DS_PUSH_TRASH;
-                Val_Init_Word(DS_TOP, REB_WORD, Canon(SYM_PLUS));
+                Init_Word(DS_TOP, Canon(SYM_PLUS));
 
                 if (NOT(REF(brief))) {
                     //
@@ -452,7 +452,7 @@ REBNATIVE(backtrace)
                     // !!! Review arbitrary symbolic choices.
                     //
                     DS_PUSH_TRASH;
-                    Val_Init_Word(DS_TOP, REB_WORD, Canon(SYM_ASTERISK));
+                    Init_Word(DS_TOP, Canon(SYM_ASTERISK));
                     SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE); // put on own line
                 }
                 break;
@@ -481,7 +481,7 @@ REBNATIVE(backtrace)
         //
         if (REF(brief)) {
             DS_PUSH_TRASH;
-            Val_Init_Word(DS_TOP, REB_WORD, FRM_LABEL(f));
+            Init_Word(DS_TOP, FRM_LABEL(f));
             continue;
         }
 
@@ -511,7 +511,7 @@ REBNATIVE(backtrace)
             // dealings with the arguments, however (for instance: not having
             // to initialize not-yet-filled args could be one thing).
             //
-            Val_Init_Word(DS_TOP, REB_WORD, Canon(SYM_ASTERISK));
+            Init_Word(DS_TOP, Canon(SYM_ASTERISK));
         }
         else
             SET_INTEGER(DS_TOP, number);

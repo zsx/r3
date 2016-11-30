@@ -1033,7 +1033,7 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
         // but if it paralleled how function specs work it would be SET-WORD!
         //
         REBVAL any_word;
-        Val_Init_Word(
+        Init_Any_Word(
             &any_word,
             GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN) ? REB_SET_WORD : REB_WORD,
             VAL_KEY_SPELLING(key)

@@ -614,7 +614,7 @@ REBNATIVE(adapt)
     assert(IS_VOID(CTX_VAR(meta, SELFISH(1)))); // no description by default
     *CTX_VAR(meta, SELFISH(2)) = *adaptee;
     if (opt_adaptee_name != NULL)
-        Val_Init_Word(CTX_VAR(meta, SELFISH(3)), REB_WORD, opt_adaptee_name);
+        Init_Word(CTX_VAR(meta, SELFISH(3)), opt_adaptee_name);
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
     ARR_SERIES(paramlist)->link.meta = meta;
@@ -761,7 +761,7 @@ REBNATIVE(hijack)
     assert(IS_VOID(CTX_VAR(meta, SELFISH(1)))); // no description by default
     *CTX_VAR(meta, SELFISH(2)) = *D_OUT;
     if (opt_victim_name != NULL)
-        Val_Init_Word(CTX_VAR(meta, SELFISH(3)), REB_WORD, opt_victim_name);
+        Init_Word(CTX_VAR(meta, SELFISH(3)), opt_victim_name);
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
     ARR_SERIES(VAL_FUNC_PARAMLIST(victim))->link.meta = meta;

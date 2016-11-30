@@ -66,11 +66,6 @@
 #define IS_WORD_UNBOUND(v) \
     NOT(IS_WORD_BOUND(v))
 
-inline static void INIT_WORD_SPELLING(RELVAL *v, REBSTR *s) {
-    assert(ANY_WORD(v));
-    v->payload.any_word.spelling = s;
-}
-
 inline static REBSTR *VAL_WORD_SPELLING(const RELVAL *v) {
     assert(ANY_WORD(v));
     return v->payload.any_word.spelling;
@@ -130,21 +125,20 @@ inline static REBCNT VAL_WORD_INDEX(const RELVAL *v) {
     return cast(REBCNT, i);
 }
 
-inline static void UNBIND_WORD(RELVAL *v) {
+inline static void Unbind_Any_Word(RELVAL *v) {
     CLEAR_VAL_FLAGS(v, WORD_FLAG_BOUND | VALUE_FLAG_RELATIVE);
 #if !defined(NDEBUG)
     v->payload.any_word.index = 0;
 #endif
 }
 
-inline static void Val_Init_Word(
+inline static void Init_Any_Word(
     RELVAL *out,
     enum Reb_Kind kind,
     REBSTR *spelling
 ) {
     VAL_RESET_HEADER(out, kind);
-    ASSERT_SERIES_MANAGED(spelling); // for now, all words are interned/shared
-    INIT_WORD_SPELLING(out, spelling);
+    out->payload.any_word.spelling = spelling;
 
 #if !defined(NDEBUG)
     out->payload.any_word.index = 0;
@@ -152,4 +146,47 @@ inline static void Val_Init_Word(
 
     assert(ANY_WORD(out));
     assert(IS_WORD_UNBOUND(out));
+}
+
+#define Init_Word(out,spelling) \
+    Init_Any_Word((out), REB_WORD, (spelling))
+
+#define Init_Get_Word(out,spelling) \
+    Init_Any_Word((out), REB_GET_WORD, (spelling))
+
+#define Init_Set_Word(out,spelling) \
+    Init_Any_Word((out), REB_SET_WORD, (spelling))
+
+#define Init_Lit_Word(out,spelling) \
+    Init_Any_Word((out), REB_LIT_WORD, (spelling))
+
+#define Init_Refinement(out,spelling) \
+    Init_Any_Word((out), REB_REFINEMENT, (spelling))
+
+#define Init_Issue(out,spelling) \
+    Init_Any_Word((out), REB_ISSUE, (spelling))
+
+// Initialize an ANY-WORD! type with a binding to a context.
+//
+inline static void Init_Any_Word_Bound(
+    REBVAL *out,
+    enum Reb_Kind type,
+    REBSTR *spelling,
+    REBCTX *context,
+    REBCNT index
+) {
+    assert(CTX_KEY_CANON(context, index) == STR_CANON(spelling));
+
+    VAL_RESET_HEADER(out, type);
+    SET_VAL_FLAG(out, WORD_FLAG_BOUND);
+    out->payload.any_word.spelling = spelling;
+    INIT_WORD_CONTEXT(out, context);
+    INIT_WORD_INDEX(out, index);
+
+    assert(ANY_WORD(out));
+    assert(IS_WORD_BOUND(out));
+}
+
+inline static void Canonize_Any_Word(REBVAL *any_word) {
+    any_word->payload.any_word.spelling = VAL_WORD_CANON(any_word);
 }

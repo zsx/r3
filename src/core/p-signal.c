@@ -142,7 +142,7 @@ static int sig_word_num(REBSTR *canon)
             return SIGXFSZ;
         default: {
             REBVAL word;
-            Val_Init_Word(&word, REB_WORD, canon);
+            Init_Word(&word, canon);
 
             fail (Error(RE_INVALID_SPEC, &word));
         }

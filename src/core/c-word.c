@@ -469,34 +469,6 @@ void GC_Kill_Interning(REBSTR *intern)
 
 
 //
-//  Val_Init_Word_Bound: C
-//
-// Initialize an ANY-WORD! type with a binding to a context.
-//
-void Val_Init_Word_Bound(
-    REBVAL *out,
-    enum Reb_Kind type,
-    REBSTR *name,
-    REBCTX *context,
-    REBCNT index
-) {
-    assert(name != NULL);
-    assert(context);
-
-    VAL_RESET_HEADER(out, type);
-    SET_VAL_FLAG(out, WORD_FLAG_BOUND);
-    INIT_WORD_SPELLING(out, name);
-    INIT_WORD_CONTEXT(out, context);
-    INIT_WORD_INDEX(out, index);
-
-    assert(ANY_WORD(out));
-
-    // !!! Assert that the key in that position matches?!  Seems sensible
-    // (add it when other changes done)
-}
-
-
-//
 //  Get_Type_Name: C
 //
 const REBYTE *Get_Type_Name(const REBVAL *value)

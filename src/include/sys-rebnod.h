@@ -156,7 +156,7 @@ struct Reb_Header {
 //
 // Originally it was just for the debug build, to make it safer to use the
 // implementation trick of "implicit END markers".  Checking NODE_FLAG_CELL
-// before allowing an operation like Val_Init_Word() to write a location
+// before allowing an operation like Init_Word() to write a location
 // avoided clobbering NODE_FLAG_END signals that were backed by only
 // `sizeof(struct Reb_Header)`.
 //
