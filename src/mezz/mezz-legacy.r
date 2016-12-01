@@ -433,7 +433,7 @@ r3-alpha-apply: function [
     params: words-of :action
     using-args: true
 
-    while [not tail? block] [
+    until [tail? block] [
         arg: either only [
             also block/1 (block: next block)
         ][
@@ -809,7 +809,7 @@ set 'r3-legacy* func [<local> if-flags] [
             either function? :source [
                 code: reduce [:source]
                 params: words-of :source
-                while [not tail? params] [
+                for-next params [
                     append code switch type-of params/1 [
                         :word! [take normals]
                         :lit-word! [take softs]
@@ -818,7 +818,6 @@ set 'r3-legacy* func [<local> if-flags] [
                         :refinement! [break]
                         (fail ["bad param type" params/1])
                     ]
-                    params: next params
                 ]
                 lib/do code
             ][
@@ -941,7 +940,7 @@ set 'r3-legacy* func [<local> if-flags] [
             ;
             use :vars [
                 position: data
-                while [not tail? position] compose [
+                until [tail? position] compose [
                     (collect [
                         every item vars [
                             case [

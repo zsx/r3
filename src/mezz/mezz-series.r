@@ -260,7 +260,7 @@ reword: function [
             vals: make map! length values  ; Make a new map internally
             not only block? values  ; Should we evaluate value expressions?
         ] [
-            while [not tail? values] [
+            until [tail? values] [
                 w: first+ values  ; Keywords are not evaluated
                 v: do/next values 'values
                 if any [set-word? :w lit-word? :w] [w: to word! :w]

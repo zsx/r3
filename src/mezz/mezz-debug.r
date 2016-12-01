@@ -120,7 +120,7 @@ assert-debug: function [
     ][
         ; Otherwise it's a block!
         active: true
-        while [not tail? conditions] [
+        until [tail? conditions] [
             if option: maybe [issue! tag!] :conditions/1 [
                 unless any-value? (active: select live-asserts-map option) [
                     ;

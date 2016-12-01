@@ -342,12 +342,11 @@ proto-parser: context [
     ] c.lexical/grammar
 ]
 
-rewrite-if-directives: func [
-    {Bottom up rewrite of conditional directives to remove unnecessary sections.}
+rewrite-if-directives: function [
+    {Bottom up rewrite conditional directives to remove unnecessary sections.}
     position
-    /local rewritten
 ][
-    until [
+    loop-until [
         parse position [
             (rewritten: false)
             some [

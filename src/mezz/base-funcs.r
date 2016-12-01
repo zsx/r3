@@ -733,7 +733,7 @@ left-bar: func [
     right [<opt> any-value! <...>]
         {Any number of expressions on the right.}
 ][
-    while [not tail? right] [take right]
+    loop-until [void? take right]
     :left
 ]
 
@@ -746,7 +746,7 @@ right-bar: func [
     right [<opt> any-value! <...>]
         {Any number of expressions on the right.}
 ][
-    also take right (while [not tail? right] [take right])
+    also take right (loop-until [void? take right])
 ]
 
 

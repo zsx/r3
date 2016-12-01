@@ -55,7 +55,7 @@ sync-op: func [port body /local state] [
     ;NOTE: We'll wait in a WHILE loop so the timeout cannot occur during 'reading-data state.
     ;The timeout should be triggered only when the response from other side exceeds the timeout value.
     ;--Richard
-    while [not find [ready close] state/state][
+    until [find [ready close] state/state][
         unless port? wait [state/connection port/spec/timeout] [
             fail make-http-error "Timeout"
         ]

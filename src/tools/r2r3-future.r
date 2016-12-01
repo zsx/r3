@@ -362,6 +362,16 @@ join: does [
 adjoin: get 'repend
 
 
+; It's not possible to write loop wrappers that work correctly with RETURN,
+; and so a good forward-compatible version of UNTIL as WHILE-NOT isn't really
+; feasible.  So just don't use it.
+;
+loop-until: get 'until
+until: does [
+    fail "UNTIL in Ren-C will be arity 2 (WHILE-NOT), can't mimic in R3-Alpha"
+]
+
+
 ; Note: any-context! and any-context? supplied at top of file
 
 ; *all* typesets now ANY-XXX to help distinguish them from concrete types
