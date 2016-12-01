@@ -40,10 +40,17 @@ emit-proto: proc [proto] [
                 'native = proto-parser/data/2/1
             ]
         ]
-        block? proto-parser/data/3
     ] [
 
         line: line-of source.text proto-parser/parse.position
+
+        if not block? proto-parser/data/3 [
+            fail [
+                "Native" (uppercase form to word! proto-parser/data/1)
+                "needs loadable specification block."
+                (mold the-file) (line)
+            ]
+        ]
 
         append case [
             ; could do tests here to create special buffer categories to
