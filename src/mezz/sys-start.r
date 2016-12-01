@@ -44,10 +44,25 @@ finish-init-core: procedure [
     ;
     init-schemes
 
-    ; Make the user's global context
+    ; Make the user's global context.  Remove functions whose names are being
+    ; retaken for new functionality--to be kept this way during a deprecation
+    ; period.
     ;
     tmp: make object! 320
-    append tmp reduce ['system :system]
+    append tmp reduce [
+        'system :system
+        
+        'adjoin (get 'join)
+        'join (func [dummy1 dummy2] [
+            fail/where [
+                {JOIN is reserved in Ren-C for future use}
+                {(It will act like R3's REPEND, which has a slight difference}
+                {from APPEND of a REDUCE'd value: it only reduces blocks).}
+                {Use ADJOIN for the future JOIN, JOIN-OF for non-mutating.}
+                {If in <r3-legacy> mode, old JOIN meaning is available.}
+            ] 'dummy1
+        ])
+    ]
     system/contexts/user: tmp
 
     ; Remove the reference through which this function we are running is

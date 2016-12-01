@@ -127,7 +127,7 @@ process: func [file] [
 
 rlib: form-header/gen "REBOL Interface Library" %reb-lib.h %make-headers.r
 append rlib newline
-emit-rlib: func [d] [append repend rlib d newline]
+emit-rlib: func [d] [append adjoin rlib d newline]
 
 
 ;-------------------------------------------------------------------------
@@ -136,7 +136,7 @@ proto-count: 0
 
 fsymbol-file: %tmp-symbols.c
 fsymbol-buffer: make string! 20000
-emit-fsymb: func [x] [append repend fsymbol-buffer x newline]
+emit-fsymb: func [x] [append adjoin fsymbol-buffer x newline]
 
 emit-header "Function Prototypes" %funcs.h
 
@@ -204,7 +204,7 @@ file-base: has load %../tools/file-base.r
 parse file-base/core [
     any [
         to '+ mark: (
-            poke mark 2 join output-dir/core [%/ mark/2]
+            poke mark 2 join-of output-dir/core [%/ mark/2]
             remove mark ;remove '+
         )
     ]

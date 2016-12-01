@@ -286,7 +286,7 @@ help: procedure [
             tmp: http://www.rebol.com/r3/docs/datatypes/
             remove back tail item ; the !
         ]
-        browse join tmp [item ".html"]
+        browse join-of tmp [item ".html"]
     ]
 
     ; If arg is a string or datatype! word, search the system:
@@ -322,7 +322,7 @@ help: procedure [
     type-name: func [value] [
         value: mold type-of :value
         clear back tail value
-        join either find "aeiou" first value ["an "]["a "] value
+        join-of either find "aeiou" first value ["an "]["a "] value
     ]
 
     ; Print literal values:
@@ -722,7 +722,7 @@ why?: procedure [
 
         say-browser
         err: lowercase ajoin [err/type #"-" err/id]
-        browse join http://www.rebol.com/r3/docs/errors/ [err ".html"]
+        browse join-of http://www.rebol.com/r3/docs/errors/ [err ".html"]
     ][
         print "No information is available."
     ]

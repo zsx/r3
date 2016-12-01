@@ -96,7 +96,7 @@ do*: function [
     ; If a file is being mentioned as a DO location and the "current path"
     ; is a URL!, then adjust the value to be a URL! based from that path.
     if all [url? original-path  file? value] [
-         value: join original-path value
+         value: join-of original-path value
     ]
 
     ; Load the data, first so it will error before change-dir
@@ -184,7 +184,7 @@ export: func [
     "Low level export of values (e.g. functions) to lib."
     words [block!] "Block of words (already defined in local context)"
 ][
-    for-each word words [repend lib [word get word]]
+    for-each word words [join lib [word get word]]
 ]
 
 assert-utf8: function [

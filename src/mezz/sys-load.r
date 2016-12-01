@@ -177,7 +177,7 @@ load-header: function [
         ]
 
         find hdr/options 'content [
-            repend hdr ['content data] ; as of start of header
+            join hdr ['content data] ; as of start of header
         ]
 
         13 = rest/1 [rest: next rest] ; skip CR
@@ -578,7 +578,7 @@ do-needs: function [
             set name [word! | file! | url!]
             set vers opt tuple!
             set hash opt binary!
-            (repend mods [name vers hash])
+            (join mods [name vers hash])
         ]
     ][
         cause-error 'script 'invalid-arg here
@@ -756,7 +756,7 @@ load-module: function [
                     set mod [word! | module! | file! | url! | string! | binary!]
                     set ver opt tuple!
                     set sum opt binary! ; ambiguous
-                    (repend data [mod ver sum if name [to word! name]])
+                    (join data [mod ver sum if name [to word! name]])
                 ]
             ][
                 cause-error 'script 'invalid-arg tmp

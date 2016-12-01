@@ -68,9 +68,14 @@ emit-proto: proc [proto] [
     ]
 ]
 
-process: func [file] [
+process: func [
+    file
+    ; <with> the-file ;-- note external variable (can't do this in R3-Alpha)
+][
+    the-file: file
     if verbose [probe [file]]
-    source.text: read join core-folder the-file: file
+
+    source.text: read join-of core-folder file
     if r3 [source.text: deline to-string source.text]
     proto-parser/emit-proto: :emit-proto
     proto-parser/process source.text

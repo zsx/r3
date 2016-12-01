@@ -39,7 +39,7 @@ make-dir dir
 ;** Utility Functions **************************************************
 
 out: make string! 100000
-emit: func [data] [repend out data]
+emit: func [data] [adjoin out data]
 
 emit-head: func [title file] [
     clear out

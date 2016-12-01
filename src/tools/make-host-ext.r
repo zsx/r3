@@ -52,7 +52,7 @@ collect-files: func [
 ;-- Emit Functions -----------------------------------------------------------
 
 out: make string! 10000
-emit: func [d] [repend out d]
+emit: func [d] [adjoin out d]
 
 emit-cmt: func [text] [
     emit [
@@ -138,8 +138,4 @@ emit-file: func [
     emit ["#endif" newline]
 
     write rejoin [output-dir/include %/ file %.h] out
-
-;   clear out
-;   emit form-header/gen join title " - Module Initialization" second split-path file %make-host-ext.r
-;   write rejoin [%../os/ file %.c] out
 ]

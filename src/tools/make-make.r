@@ -306,7 +306,7 @@ make-dir outdir
 make-dir outdir/objs
 
 output: make string! 10000
-emit: func [d] [repend output d]
+emit: func [d] [adjoin output d]
 
 ;******************************************************************************
 ;** Functions
@@ -341,7 +341,7 @@ macro++: procedure ['name obj [object!]] [
         all [
             obj/:n
             flag? (n)
-            repend out [space obj/:n]
+            adjoin out [space obj/:n]
         ]
     ]
     macro+ (name) out

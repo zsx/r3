@@ -26,10 +26,10 @@ make-port*: func [
     case [
         file? spec  [
             name: pick [dir file] dir? spec
-            spec: join [ref:] spec
+            spec: join-of [ref:] spec
         ]
         url? spec [
-            spec: repend decode-url spec [to set-word! 'ref spec]
+            spec: join decode-url spec [to set-word! 'ref spec]
             name: select spec to set-word! 'scheme
         ]
         block? spec [

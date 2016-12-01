@@ -877,7 +877,7 @@ module: func [
     ; Collect 'export keyword exports, removing the keywords
     if find body 'export [
         unless block? select spec 'exports [
-            repend spec ['exports make block! 10]
+            join spec ['exports make block! 10]
         ]
 
         ; Note: 'export overrides 'hidden, silently for now

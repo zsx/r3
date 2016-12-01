@@ -98,7 +98,7 @@ save: function [
                     remove find select header-data 'options 'compress
                 ]
                 not block? select header-data 'options [
-                    repend header-data ['options copy [compress]]
+                    join header-data ['options copy [compress]]
                 ]
                 not find header-data/options 'compress [
                     append header-data/options 'compress

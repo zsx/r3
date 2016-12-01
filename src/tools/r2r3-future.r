@@ -32,98 +32,23 @@ REBOL [
         "maintenance czar" to extend the concept.  In the meantime it will
         remain fairly bare-bones, but enhanced if-and-when needed.
     }
-    Description: {
-        Currently uses a simple dialect for remapping constructs:
-
-        word! <as> [get-word! | (expression)]
-            If the word is unset, set it to new value (otherwise leave it)
-
-        word! <to> word!
-            If left word defined, give right word its value, unset the left
-            (Note: was >>, which was clearer, but not a WORD! in Rebol2)
-    }
 ]
 
-; Bootstrap VOID? into existence
-;
-unless true = attempt [void? :some-undefined-thing] [
-    void?: :unset?
-    void: does []
 
-    ; Since it's R3-Alpha or before, go ahead and mention this...
+if true = attempt [void? :some-undefined-thing] [
     ;
-    default: enfix: does [
-        do make error! rejoin [
-            "The lookback quoting of SET-WORD! and SET-PATH! required by"
-            " ENFIX and DEFAULT are not possible in R3-Alpha"
-        ]
-    ]
-]
-
-
-; Used in function definitions before the mappings
-;
-if void? :any-context! [
-    any-context!: :any-object!
-    any-context?: :any-object?
-]
-
-if void? :set? [
-    set?: func [
-        "Returns whether a bound word has a value (fails if unbound)"
-        any-word [any-word!]
-    ][
-        unless bound? any-word [
-            fail [any-word "is not bound in set?"]
-        ]
-        value? any-word ;-- the "old" meaning of value...
-    ]
-]
-
-unless set? 'verify [
-    verify: :assert ;-- ASSERT may be a no-op in Ren-C, but verify isn't
-]
-
-unless set? 'blank? [
-    blank?: get 'none?
-    blank!: get 'none!
-    blank: get 'none
-    _: none
-]
-
-unless set? 'proc [
-    leave: does [
-        do make error! "LEAVE cannot be implemented in usermode R3-Alpha"
-    ]
-
-    proc: func [spec body] [
-        func spec compose [(body) void]
-    ]
-
-    procedure: func [spec body] [
-        function spec compose [(body) void]
-    ]
-]
-
-; ANY-VALUE! is anything that isn't void.  -OPT- ANY-VALUE! is a
-; placeholder for [<opt> ANY-VALUE!]
-;
-either void? :any-value! [
-    any-value!: difference any-type! (make typeset! [unset!])
-    *opt-legacy*: unset!
-    any-value?: func [item [*opt-legacy* any-value!]] [not void? :item]
-][
+    ; Ren-C, define an "optional" marker for returns.  (You can't use <opt>
+    ; on parameters in code designed to run Ren-C-like code in R3-Alpha.)
+    ;
     *opt-legacy*: _
+    QUIT ;-- !!! stops running if Ren-C here.
 ]
 
-; Ren-C replaces the awkward term PAREN! with GROUP!  (Retaining PAREN!
-; for compatibility as pointing to the same datatype).  Older Rebols
-; haven't heard of GROUP!, so establish the reverse compatibility.
+
+; Running R3-Alpha/Rebol2, bootstrap VOID? into existence and continue
 ;
-if void? :group? [
-    group?: get 'paren?
-    group!: get 'paren!
-]
+void?: :unset?
+void: does []
 
 
 ; Older versions of Rebol had a different concept of what FUNCTION meant
@@ -136,6 +61,65 @@ unless (copy/part words-of :function 2) = [spec body] [
 ]
 
 
+; `func [x [*opt-legacy* integer!]]` is like `func [x [<opt> integer!]]`,
+; and with these modifications can work in either Ren-C or R3-Alpha/Rebol2.
+;
+*opt-legacy*: unset!
+
+
+blank?: get 'none?
+blank!: get 'none!
+blank: get 'none
+_: none
+
+
+; ANY-VALUE! is anything that isn't void.
+;
+any-value!: difference any-type! (make typeset! [unset!])
+any-value?: func [item [*opt-legacy* any-value!]] [not void? :item]
+
+
+; Used in function definitions before the mappings
+;
+any-context!: :any-object!
+any-context?: :any-object?
+
+
+set?: func [
+    "Returns whether a bound word has a value (fails if unbound)"
+    any-word [any-word!]
+][
+    unless bound? any-word [
+        fail [any-word "is not bound in set?"]
+    ]
+    value? any-word ;-- the "old" meaning of value...
+]
+
+verify: :assert ;-- ASSERT is a no-op in Ren-C in "release", but verify isn't
+
+
+
+leave: does [
+    do make error! "LEAVE cannot be implemented in usermode R3-Alpha"
+]
+
+proc: func [spec body] [
+    func spec compose [(body) void]
+]
+
+procedure: func [spec body] [
+    function spec compose [(body) void]
+]
+
+
+; Ren-C replaces the awkward term PAREN! with GROUP!  (Retaining PAREN!
+; for compatibility as pointing to the same datatype).  Older Rebols
+; haven't heard of GROUP!, so establish the reverse compatibility.
+;
+group?: get 'paren?
+group!: get 'paren!
+
+
 ; The HAS routine in Ren-C is used for object creation with no spec, as
 ; a parallel between FUNCTION and DOES.  It is favored for this purpose
 ; over CONTEXT which is very "noun-like" and may be better for holding
@@ -144,283 +128,293 @@ unless (copy/part words-of :function 2) = [spec body] [
 ; Additionally, the CONSTRUCT option behaves like MAKE ANY-OBJECT, sort of,
 ; as the way of creating objects with parents or otherwise.
 ;
-unless (copy/part words-of :has 1) = [body] [
-    has: :context
+has: :context
 
-    construct-legacy: :construct
+construct-legacy: :construct
 
-    construct: function [
-        "Creates an ANY-CONTEXT! instance"
-        spec [datatype! block! any-context!]
-            "Datatype to create, specification, or parent/prototype context"
-        body [block! any-context! none!]
-            "keys and values defining instance contents (bindings modified)"
-        /only
-            "Values are kept as-is"
+construct: function [
+    "Creates an ANY-CONTEXT! instance"
+    spec [datatype! block! any-context!]
+        "Datatype to create, specification, or parent/prototype context"
+    body [block! any-context! none!]
+        "keys and values defining instance contents (bindings modified)"
+    /only
+        "Values are kept as-is"
+][
+    either only [
+        if block? spec [spec: make object! spec]
+        construct-legacy/only/with body spec
     ][
-        either only [
-            if block? spec [spec: make object! spec]
-            construct-legacy/only/with body spec
-        ][
-            if block? spec [
-                ;
-                ; If they supplied a spec block, do a minimal behavior which
-                ; will create a parent object with those fields...then run
-                ; the traditional gathering added onto that using the body
-                ;
-                spec: map-each item spec [
-                    assert [word? :item]
-                    to-set-word item
-                ]
-                append spec none
-                spec: make object! spec
+        if block? spec [
+            ;
+            ; If they supplied a spec block, do a minimal behavior which
+            ; will create a parent object with those fields...then run
+            ; the traditional gathering added onto that using the body
+            ;
+            spec: map-each item spec [
+                assert [word? :item]
+                to-set-word item
             ]
-            make spec body
+            append spec none
+            spec: make object! spec
         ]
+        make spec body
     ]
 ]
 
 
-; A lone vertical bar is an "expression barrier" in Ren-C, but a word character
+; Lone vertical bar is an "expression barrier" in Ren-C, but a word character
 ; in other situations.  Having a word behave as a function that returns an
 ; UNSET! in older Rebols is not quite the same, but can have a similar effect
-; in terms of creating errors if picked up by normal function args.
+; in terms of creating errors if picked up by most function args.
 ;
-if word? '| [
-    set '| does []
-]
+|: does []
 
 
-unless find words-of :set /opt [
-    ;
-    ; SET/OPT is the Ren-C replacement for SET/ANY, with /ANY supported
-    ; via <r3-legacy>.  But Rebol2 and R3-Alpha do not know /OPT.
-    ;
-    lib-set: :set ; overwriting lib/set for now
-    set: func [
-        {Sets a word, path, block of words, or context to specified value(s).}
-
-        target [any-word! any-path! block! any-context!]
-            {Word, block of words, path, or object to be set (modified)}
-
-        value [*opt-legacy* any-value!]
-            "Value or block of values"
-        /opt
-            "Value is optional, and if no value is provided then unset the word"
-        /pad
-            {For objects, set remaining words to NONE if block is too short}
-        /any
-            "Deprecated legacy synonym for /opt"
-    ][
-        set_ANY: any
-        any: :lib/any ;-- in case it needs to be used
-        opt_ANY: opt
-        lib-set/any 'opt () ;-- doesn't exist in R3-Alpha
-
-        apply :lib-set [target :value (any [opt_ANY set_ANY]) pad]
-    ]
-]
-
-unless find words-of :get /opt [
-    ;
-    ; GET/OPT is the Ren-C replacement for GET/ANY, with /ANY supported
-    ; via <r3-legacy>.  But Rebol2 and R3-Alpha do not know /OPT.
-    ;
-    lib-get: :get
-    get: function [
-        {Gets the value of a word or path, or values of a context.}
-        source
-            "Word, path, context to get"
-        /opt
-            "The source may optionally have no value (allows returning void)"
-        /any
-            "Deprecated legacy synonym for /OPT"
-    ][
-        set_ANY: any
-        any: :lib/any ;-- in case it needs to be used
-        opt_ANY: opt
-        lib-set/any 'opt () ;-- doesn't exist in R3-Alpha
-
-        apply :lib-get [source (any [opt_ANY set_ANY])]
-    ]
-]
-
-if group? reduce quote () [
-    ;
-    ; R3-Alpha would only REDUCE a block and pass through other outputs.
-    ; REDUCE in Ren-C (and also in Red) is willing to reduce anything that
-    ; does not require EVAL-like argument consumption (so GROUP!, GET-WORD!,
-    ; GET-PATH!).
-    ;
-    lib-reduce: :reduce
-    reduce: func [
-        {Evaluates expressions and returns multiple results.}
-        value
-        /no-set
-            "Keep set-words as-is. Do not set them."
-        /only
-            "Only evaluate words and paths, not functions"
-        words [block! blank!]
-            "Optional words that are not evaluated (keywords)"
-        /into
-            {Output results into a series with no intermediate storage}
-        target [any-block!]
-    ][
-        either block? :value [
-            apply :lib-reduce [value no-set only words into target]
-        ][
-            ; For non-blocks, put the item in a block, reduce the block,
-            ; then pick the first element out.  This may error (e.g. if you
-            ; try to reduce a word looking up to a function taking arguments)
-            ;
-            ; !!! Simple with no refinements for now--enhancement welcome.
-            ;
-            assert [not no-set not only not into]
-            first (lib-reduce lib-reduce [:value])
-        ]
-    ]
-]
-
-; === ABOVE ROUTINES NEEDED TO RUN BELOW ===
-
-
-migrations: [
-    ;
-    ; Note: EVERY cannot be written in R3-Alpha because there is no way
-    ; to write loop wrappers, given lack of definitionally scoped return
-    ;
-    for-each <as> :foreach
-    for-next <as> :forall
-
-    ; Not having category members have the same name as the category
-    ; themselves helps both cognition and clarity inside the source of the
-    ; implementation.
-    ;
-    any-array? <as> :any-block?
-    any-array! <as> :any-block!
-
-    ; Note: any-context! and any-context? supplied at top of file
-
-    ; *all* typesets now ANY-XXX to help distinguish them from concrete types
-    ; https://trello.com/c/d0Nw87kp
-    ;
-    any-scalar? <as> :scalar?
-    any-scalar! <as> :scalar!
-    any-series? <as> :series?
-    any-series! <as> :series!
-    any-number? <as> :number?
-    any-number! <as> :number!
-
-    ; Renamings to conform to ?-means-returns-true-false rule
-    ; https://trello.com/c/BxLP8Nch
-    ;
-    length? <to> length
-    index? <to> index-of
-    offset? <to> offset-of
-    type? <to> type-of
-
-    ; "optional" (a.k.a. void) handling
-    opt <as> (func [
-        {NONE! to a void, all other value types pass through.}
-        value [*opt-legacy* any-value!]
-    ][
-        either blank? get/opt 'value [()][
-            get/opt 'value
-        ]
-    ])
-
-    to-value <as> (func [
-        {Turns unset to NONE, with ANY-VALUE! passing through. (See: OPT)}
-        value [*opt-legacy* any-value!]
-    ][
-        either void? get/opt 'value [blank][:value]
-    ])
-
-    something? <as> (func [value [*opt-legacy* any-value!]] [
-        not any [
-            void? :value
-            blank? :value
-        ]
-    ])
-
-    ; It is not possible to make a version of eval that does something other
-    ; than everything DO does in an older Rebol.  Which points to why exactly
-    ; it's important to have only one function like eval in existence.
-    ;
-    eval <as> :do
-
-    ; Ren-C's FAIL dialect is still being designed, but the basic is to be
-    ; able to ramp up from simple strings to block-composed messages to
-    ; fully specifying ERROR! object fields.  Most commonly it is a synonym
-    ; for `do make error! form [...]`.
-    ;
-    fail <as> (func [
-        {Interrupts execution by reporting an error (TRAP can intercept it).}
-        reason [error! string! block!]
-            "ERROR! value, message string, or failure spec"
-    ][
-        case [
-            error? reason [do error]
-            string? reason [do make error! reason]
-            block? reason [
-                for-each item reason [
-                    unless any [
-                        any-scalar? :item
-                        string? :item
-                        group? :item
-                        all [
-                            word? :item
-                            not any-function? get :item
-                        ]
-                    ][
-                        do make error! (
-                            "FAIL requires complex expressions in a GROUP!"
-                        )
-                    ]
-                ]
-                do make error! form reduce reason
-            ]
-        ]
-    ])
-
-    ; R3-Alpha and Rebol2 did not allow you to make custom infix operators.
-    ; There is no way to get a conditional infix AND using those binaries.
-    ; In some cases, the bitwise and will be good enough for logic purposes...
-    ;
-    and* <as> :and
-    and? <as> (func [a b] [true? all [:a :b]])
-    and <as> :and ; see above
-
-    or+ <as> :or
-    or? <as> (func [a b] [true? any [:a :b]])
-    or <as> :or ; see above
-
-    xor+ <as> :xor
-    xor? <as> (func [a b] [true? any [all [:a (not :b)] all [(not :a) :b]]])
-]
-
-
-; Main remapping... use parse to process the dialect
+; SET/OPT is the Ren-C replacement for SET/ANY, with /ANY supported
+; via <r3-legacy>.  But Rebol2 and R3-Alpha do not know /OPT.
 ;
-unless parse migrations [
-    some [
-        ;-- Note: GROUP! defined during migration, so use PAREN! here
-        [set left word! <as> set right [get-word! | paren!]] (
-            unless set? left [
-                set left either paren? right [reduce right] [get right]
-            ]
-        )
-    |
-        [set left word! <to> set right word!] (
-            unless set? right [
-                set right get left
-                unset left
-            ]
-        )
-    ]
+lib-set: get 'set ; overwriting lib/set for now
+set: func [
+    {Sets a word, path, block of words, or context to specified value(s).}
+
+    target [any-word! any-path! block! any-context!]
+        {Word, block of words, path, or object to be set (modified)}
+
+    value [*opt-legacy* any-value!]
+        "Value or block of values"
+    /opt
+        "Value is optional, and if no value is provided then unset the word"
+    /pad
+        {For objects, set remaining words to NONE if block is too short}
+    /any
+        "Deprecated legacy synonym for /opt"
 ][
-    print ["last left:" mold left]
-    print ["last right:" mold right]
+    set_ANY: any
+    any: :lib/any ;-- in case it needs to be used
+    opt_ANY: opt
+    lib-set/any 'opt () ;-- doesn't exist in R3-Alpha
 
-    do make error! "%r2r3-future.r did not parse migrations completely"
+    apply :lib-set [target :value (any [opt_ANY set_ANY]) pad]
 ]
+
+
+; GET/OPT is the Ren-C replacement for GET/ANY, with /ANY supported
+; via <r3-legacy>.  But Rebol2 and R3-Alpha do not know /OPT.
+;
+lib-get: get 'get
+get: function [
+    {Gets the value of a word or path, or values of a context.}
+    source
+        "Word, path, context to get"
+    /opt
+        "The source may optionally have no value (allows returning void)"
+    /any
+        "Deprecated legacy synonym for /OPT"
+][
+    set_ANY: any
+    any: :lib/any ;-- in case it needs to be used
+    opt_ANY: opt
+    lib-set/any 'opt () ;-- doesn't exist in R3-Alpha
+
+    apply :lib-get [source (any [opt_ANY set_ANY])]
+]
+
+
+; R3-Alpha would only REDUCE a block and pass through other outputs.
+; REDUCE in Ren-C (and also in Red) is willing to reduce anything that
+; does not require EVAL-like argument consumption (so GROUP!, GET-WORD!,
+; GET-PATH!).
+;
+lib-reduce: get 'reduce
+reduce: func [
+    {Evaluates expressions and returns multiple results.}
+    value
+    /no-set
+        "Keep set-words as-is. Do not set them."
+    /only
+        "Only evaluate words and paths, not functions"
+    words [block! blank!]
+        "Optional words that are not evaluated (keywords)"
+    /into
+        {Output results into a series with no intermediate storage}
+    target [any-block!]
+][
+    either block? :value [
+        apply :lib-reduce [value no-set only words into target]
+    ][
+        ; For non-blocks, put the item in a block, reduce the block,
+        ; then pick the first element out.  This may error (e.g. if you
+        ; try to reduce a word looking up to a function taking arguments)
+        ;
+        ; !!! Simple with no refinements for now--enhancement welcome.
+        ;
+        assert [not no-set not only not into]
+        first (lib-reduce lib-reduce [:value])
+    ]
+]
+
+
+; Ren-C's FAIL dialect is still being designed, but the basic is to be
+; able to ramp up from simple strings to block-composed messages to
+; fully specifying ERROR! object fields.  Most commonly it is a synonym
+; for `do make error! form [...]`.
+;
+fail: func [
+    {Interrupts execution by reporting an error (TRAP can intercept it).}
+    reason [error! string! block!]
+        "ERROR! value, message string, or failure spec"
+][
+    case [
+        error? reason [do error]
+        string? reason [do make error! reason]
+        block? reason [
+            for-each item reason [
+                unless any [
+                    any-scalar? :item
+                    string? :item
+                    group? :item
+                    all [
+                        word? :item
+                        not any-function? get :item
+                    ]
+                ][
+                    do make error! (
+                        "FAIL requires complex expressions in a GROUP!"
+                    )
+                ]
+            ]
+            do make error! form reduce reason
+        ]
+    ]
+]
+
+
+unset!: does [
+    fail "UNSET! not a type, use *opt-legacy* as <opt> in func specs"
+]
+
+unset?: does [
+    fail "UNSET? reserved for future use, use VOID? to test no value"
+]
+
+
+; Note: EVERY cannot be written in R3-Alpha because there is no way
+; to write loop wrappers, given lack of definitionally scoped return
+;
+for-each: get 'foreach
+foreach: does [
+    fail "In Ren-C code, please use FOR-EACH and not FOREACH"
+]
+
+for-next: get 'forall
+forall: does [
+    fail "In Ren-C code, please use FOR-NEXT and not FORALL"
+]
+
+
+; Not having category members have the same name as the category
+; themselves helps both cognition and clarity inside the source of the
+; implementation.
+;
+any-array?: get 'any-block?
+any-array!: get 'any-block!
+
+
+; Renamings to conform to ?-means-returns-true-false rule
+; https://trello.com/c/BxLP8Nch
+;
+length: get 'length?
+index-of: get 'index?
+offset-of: get 'offset?
+type-of: get 'type?
+
+
+; Source code that comes back from LOAD or is in a module is read-only in
+; Ren-C by default.  Non-mutating forms of the "mutate by default"
+; operators are suffixed by -OF (APPEND-OF, INSERT-OF, etc.)  There
+; is a relationship between historical "JOIN" and "REPEND" that is very
+; much like this, and with JOIN the mutating form and JOIN-OF the one
+; that copies, it brings about consistency and kills an annoying word.
+;
+; Rather than change this all at once, JOIN becomes JOIN-OF and REPEND
+; is left as it is (as the word has no intent to be reclaimed for other
+; purposes.)
+;
+join-of: get 'join 
+join: does [
+    fail "use JOIN-OF for JOIN (one day, JOIN will replace REPEND)"
+]
+
+; R3-Alpha's version of REPEND was built upon R3-Alpha's notion of REDUCE,
+; which wouldn't reduce anything but BLOCK!.  Having it be a no-op on PATH!
+; or WORD! was frustrating, so Red and Ren-C made it actually reduce whatever
+; it got.  But that affected REPEND so that it arguably became less useful.
+;
+; With Ren-C retaking JOIN, it makes more sense to take more artistic license
+; and make the function more useful than strictly APPEND REDUCE as suggested
+; by the name REPEND.  So in that spirit, the JOIN will only reduce blocks.
+; This makes it like R3-Alpha's REPEND.
+;
+; The temporary name is ADJOIN, which will be changed to JOIN someday when
+; existing JOIN usages have all been changed to JOIN-OF.
+;
+adjoin: get 'repend
+
+
+; Note: any-context! and any-context? supplied at top of file
+
+; *all* typesets now ANY-XXX to help distinguish them from concrete types
+; https://trello.com/c/d0Nw87kp
+;
+any-scalar?: get 'scalar?
+any-scalar!: scalar!
+any-series?: get 'series?
+any-series!: series!
+any-number?: get 'number?
+any-number!: number!
+
+
+; "optional" (a.k.a. void) handling
+opt: func [
+    {BLANK! to a void, all other value types pass through.}
+    value [*opt-legacy* any-value!]
+][
+    either blank? :value [()][get/opt 'value]
+]
+
+to-value: func [
+    {Turns unset to NONE, with ANY-VALUE! passing through. (See: OPT)}
+    value [*opt-legacy* any-value!]
+][
+    either void? get/opt 'value [blank][:value]
+]
+
+something?: func [value [*opt-legacy* any-value!]] [
+    not any [
+        void? :value
+        blank? :value
+    ]
+]
+
+; It is not possible to make a version of eval that does something other
+; than everything DO does in an older Rebol.  Which points to why exactly
+; it's important to have only one function like eval in existence.
+;
+eval: get 'do
+
+
+; R3-Alpha and Rebol2 did not allow you to make custom infix operators.
+; There is no way to get a conditional infix AND using those binaries.
+; In some cases, the bitwise and will be good enough for logic purposes...
+;
+and*: get 'and
+and?: func [a b] [true? all [:a :b]]
+and: get 'and ; see above
+
+or+: get 'or
+or?: func [a b] [true? any [:a :b]]
+or: get 'or ; see above
+
+xor+: get 'xor
+xor?: func [a b] [true? any [all [:a (not :b)] all [(not :a) :b]]]

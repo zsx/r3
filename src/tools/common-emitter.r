@@ -25,7 +25,7 @@ REBOL [
 buf-emit: make string! 100000
 
 
-emit: proc [data] [repend buf-emit data]
+emit: proc [data] [adjoin buf-emit data]
 
 
 unemit: proc [

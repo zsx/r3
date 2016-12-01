@@ -24,9 +24,9 @@ decode-lines: function [
         fail [{decode-lines expects each line to begin with} (mold line-prefix) { and finish with a newline.}]
     ]
     insert text newline
-    replace/all text join newline line-prefix newline
+    replace/all text join-of newline line-prefix newline
     if not empty? indent [
-        replace/all text join newline indent newline
+        replace/all text join-of newline indent newline
     ]
     remove text
     remove back tail text

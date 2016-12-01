@@ -261,8 +261,8 @@ rebsource: context [
 
             files: make block! []
             for-each path fixed-source-paths [
-                for-each file read join src-folder path [
-                    append files join path file
+                for-each file read join-of src-folder path [
+                    append files join-of path file
                 ]
             ]
 

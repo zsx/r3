@@ -366,7 +366,7 @@ for-each-record type boot-types [
             "LOGICAL(VAL_TYPE(v)==REB_" (uppercase to-c-name type/name) ")"
         ]
 
-        append new-types to-word join type/name "!"
+        append new-types to-word join-of type/name "!"
     ]
 
     n: n + 1
@@ -871,7 +871,7 @@ mezz-files: load %../mezz/boot-files.r ; base lib, sys, mezz
 for-each section [boot-base boot-sys boot-mezz] [
     set section make block! 200
     for-each file first mezz-files [
-        append get section load join %../mezz/ file
+        append get section load join-of %../mezz/ file
     ]
 
     ;-- Expectation is that section does not return result; GROUP! makes unset
@@ -882,7 +882,7 @@ for-each section [boot-base boot-sys boot-mezz] [
 
 boot-protocols: make block! 20
 for-each file first mezz-files [
-    m: load/all join %../mezz/ file ; not REBOL word
+    m: load/all join-of %../mezz/ file ; not REBOL word
     append/only append/only boot-protocols m/2 skip m 2
 ]
 

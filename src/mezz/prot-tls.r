@@ -22,7 +22,7 @@ emit: func [
     ctx [object!]
     code [block! binary!]
 ] [
-    repend ctx/msg code
+    join ctx/msg code
 ]
 
 to-bin: func [

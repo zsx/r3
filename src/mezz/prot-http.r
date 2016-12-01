@@ -203,11 +203,11 @@ make-http-request: func [
         " HTTP/1.0" CRLF
     ]
     for-each [word string] headers [
-        repend result [mold word #" " string CRLF]
+        join result [mold word #" " string CRLF]
     ]
     if content [
         content: to binary! content
-        repend result ["Content-Length: " length content CRLF]
+        join result ["Content-Length: " length content CRLF]
     ]
     append result CRLF
     result: to binary! result

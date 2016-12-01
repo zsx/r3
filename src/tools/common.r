@@ -282,14 +282,13 @@ find-record-unique: function [
 ]
 
 
-parse-args: func [
+parse-args: function [
     args ;args in form of "NAME=VALUE"
-    /local a name value ret
 ][
     ret: make block! 4
     args: any [args copy []]
     unless block? args [args: split args [some " "]]
-    foreach a args [
+    for-each a args [
         if to logic! idx: find a #"=" [
             name: to word! copy/part a (index-of idx) - 1
             value: copy next idx

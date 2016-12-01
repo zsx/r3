@@ -7,4 +7,4 @@
 ]
 [empty? blank]
 ; bug#190
-[x: copy "xx^/" loop 20 [enline x: join x x] true]
+[x: copy "xx^/" loop 20 [enline x: join-of x x] true]

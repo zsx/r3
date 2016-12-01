@@ -54,11 +54,11 @@ mlib-buffer: make string! 1000
 dlib-buffer: make string! 1000
 xsum-buffer: make string! 1000
 
-emit: func [d] [append repend xlib-buffer d newline]
-emit-rlib: func [d] [append repend rlib-buffer d newline]
-emit-dlib: func [d] [append repend dlib-buffer d newline]
+emit: func [d] [append adjoin xlib-buffer d newline]
+emit-rlib: func [d] [append adjoin rlib-buffer d newline]
+emit-dlib: func [d] [append adjoin dlib-buffer d newline]
 emit-mlib: proc [d /nol] [
-    repend mlib-buffer d
+    adjoin mlib-buffer d
     if not nol [append mlib-buffer newline]
 ]
 
@@ -67,7 +67,7 @@ count: func [s c /local n] [
     out: copy "(a"
     n: 1
     while [s: find/tail s c][
-        repend out [#"," #"a" + n]
+        adjoin out [#"," #"a" + n]
         n: n + 1
     ]
     append out ")"
