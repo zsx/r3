@@ -243,18 +243,6 @@ op?: func [dummy:] [
 ]
 
 
-; There were several different strata of equality checks, and one was EQUIV?
-; as well as NOT-EQUIV?.  With changes to make comparisons inside the system
-; indifferent to binding (unless SAME? is used), these have been shaken up
-; instead focusing on getting more foundational comparisons working.
-;
-; These aren't correct but placeholders for putting in the real functionality
-; if it actually matters.
-;
-equiv?: :equal?
-not-equiv?: :not-equal?
-
-
 ; The legacy PRIN construct is equivalent to PRINT/ONLY of a reduced value
 ; (since PRIN of a block would historically execute it).
 ;
@@ -1175,6 +1163,18 @@ set 'r3-legacy* func [<local> if-flags] [
                 | only: true
             ]
         ])
+
+        ; There were several different strata of equality checks, and one was
+        ; EQUIV? as well as NOT-EQUIV?.  With changes to make comparisons
+        ; inside the system indifferent to binding (unless SAME? is used),
+        ; these have been shaken up instead focusing on getting more
+        ; foundational comparisons working.  Red does not have EQUIV?, for
+        ; example, and few could tell you what it was.
+        ;
+        ; These aren't the same but may work in some cases.  :-/
+        ;
+        equiv?: (:equal?)
+        not-equiv?: (:not-equal?)
     ]
 
     ; set-infix on PATH! instead of WORD! is still TBD

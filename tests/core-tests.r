@@ -73,7 +73,6 @@
 %comparison/lesserq.test.reb
 %comparison/maximum-of.test.reb
 %comparison/equalq.test.reb
-%comparison/equivq.test.reb
 %comparison/sameq.test.reb
 %comparison/strict-equalq.test.reb
 %comparison/strict-not-equalq.test.reb
