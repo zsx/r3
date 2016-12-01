@@ -287,20 +287,51 @@
     FLAGIT_LEFT(4)
 
 
-//=//// SERIES_INFO_LOCKED ////////////////////////////////////////////////=//
+//=//// SERIES_INFO_PROTECTED /////////////////////////////////////////////=//
 //
-// This indicates that the series size or values cannot be modified.  The
-// check is honored by some layers of abstraction, but if one manages to get
-// a raw non-const pointer into a value in the series data...then by that
-// point it cannot be enforced.
+// This indicates that the user had a tempoary desire to protect a series
+// size or values from modification.  It is the usermode analogue of
+// SERIES_INFO_FROZEN, but can be reversed.
 //
-// Note: There is a feature in PROTECT (TYPESET_FLAG_LOCKED) which protects a
-// certain variable in a context from being changed.  It is similar, but
-// distinct.  SERIES_INFO_LOCKED is a protection on a series itself--which
+// Note: There is a feature in PROTECT (TYPESET_FLAG_PROTECTED) which protects
+// a certain variable in a context from being changed.  It is similar, but
+// distinct.  SERIES_INFO_PROTECTED is a protection on a series itself--which
 // ends up affecting all values with that series in the payload.
 //
-#define SERIES_INFO_LOCKED \
+#define SERIES_INFO_PROTECTED \
     FLAGIT_LEFT(5)
+
+
+//=//// SERIES_INFO_RUNNING ///////////////////////////////////////////////=//
+//
+// Set in the header while a DO is happening on (or a PARSE, etc.) and gives
+// it a temporarily protected state.  It will be released when the execution
+// is finished, which distinguishes it from SERIES_INFO_FROZEN, from which it
+// will never come back, as long as it lives...
+//
+#define SERIES_INFO_RUNNING \
+    FLAGIT_LEFT(6)
+
+
+//=//// SERIES_INFO_FROZEN ////////////////////////////////////////////////=//
+//
+// Indicates that the length or values cannot be modified...ever.  It has been
+// locked and will never be released from that state for its lifetime, and if
+// it's an array then everything referenced beneath it is also frozen.  This
+// means that if a read-only copy of it is required, no copy needs to be made.
+//
+// (Contrast this with the temporary condition like caused by something
+// like REBSER_FLAG_RUNNING or REBSER_FLAG_PROTECTED.)
+//
+// Note: This and the other read-only series checks are honored by some layers
+// of abstraction, but if one manages to get a raw non-const pointer into a
+// value in the series data...then by that point it cannot be enforced.
+//
+#define SERIES_INFO_FROZEN \
+    FLAGIT_LEFT(7)
+
+
+#define SERIES_INFO_8_IS_FALSE FLAGIT_LEFT(8) // see Init_Endlike_Header()
 
 
 //=//// SERIES_INFO_INACCESSIBLE //////////////////////////////////////////=//
@@ -316,7 +347,7 @@
 // might approach this problem in a different way in the future.
 //
 #define SERIES_INFO_INACCESSIBLE \
-    FLAGIT_LEFT(6)
+    FLAGIT_LEFT(9)
 
 
 //=//// SERIES_INFO_POWER_OF_2 ////////////////////////////////////////////=//
@@ -347,10 +378,7 @@
 // http://stackoverflow.com/questions/3190146/
 //
 #define SERIES_INFO_POWER_OF_2 \
-    FLAGIT_LEFT(7)
-
-
-#define SERIES_INFO_8_IS_FALSE FLAGIT_LEFT(8) // see Init_Endlike_Header()
+    FLAGIT_LEFT(10)
 
 
 //=//// SERIES_INFO_SHARED_KEYLIST ////////////////////////////////////////=//
@@ -366,7 +394,7 @@
 // the GC would have to clean up.
 //
 #define SERIES_INFO_SHARED_KEYLIST \
-    FLAGIT_LEFT(9)
+    FLAGIT_LEFT(11)
 
 
 // ^-- STOP AT FLAGIT_LEFT(15) --^
@@ -376,7 +404,7 @@
 // flags need to stop at FLAGIT_LEFT(15).
 //
 #if defined(__cplusplus) && (__cplusplus >= 201103L)
-    static_assert(9 < 16, "SERIES_INFO_XXX too high");
+    static_assert(11 < 16, "SERIES_INFO_XXX too high");
 #endif
 
 

@@ -115,7 +115,7 @@ REBOOL Series_Common_Action_Returns(
             fail (Error(RE_BAD_REFINES));
         }
 
-        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+        FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
         len = REF(part) ? Partial(value, 0, ARG(limit)) : 1;
         index = cast(REBINT, VAL_INDEX(value));
         if (index < tail && len != 0)

@@ -144,9 +144,6 @@ inline static void TERM_SERIES(REBSER *s) {
 // Setting and getting array flags is common enough to want a macro for it
 // vs. having to extract the ARR_SERIES to do it each time.
 //
-#define FAIL_IF_LOCKED_ARRAY(a) \
-    FAIL_IF_LOCKED_SERIES(AS_SERIES(a))
-
 #define IS_ARRAY_MANAGED(a) \
     IS_SERIES_MANAGED(AS_SERIES(a))
 
@@ -179,6 +176,32 @@ inline static void DROP_GUARD_ARRAY_CONTENTS(REBARR *a) {
 #endif
     DROP_GUARD_SERIES(AS_SERIES(a));
 }
+
+
+//
+// Locking
+//
+
+inline static REBOOL Is_Array_Deeply_Frozen(REBARR *a) {
+    return GET_SER_INFO(a, SERIES_INFO_FROZEN);
+
+    // should be frozen all the way down (can only freeze arrays deeply)
+}
+
+inline static void Deep_Freeze_Array(REBARR *a) {
+    Protect_Series(
+        AS_SERIES(a),
+        0, // start protection at index 0
+        FLAGIT(PROT_DEEP) | FLAGIT(PROT_SET) | FLAGIT(PROT_FREEZE)
+    );
+    Uncolor_Array(a);
+}
+
+#define Is_Array_Shallow_Read_Only(a) \
+    Is_Series_Read_Only(a)
+
+#define FAIL_IF_READ_ONLY_ARRAY(a) \
+    FAIL_IF_READ_ONLY_SERIES(AS_SERIES(a))
 
 
 // Make a series that is the right size to store REBVALs (and

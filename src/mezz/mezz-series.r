@@ -228,9 +228,6 @@ reword: function [
     case/all [
         not escape [char: "$"]
         block? char [
-            ;
-            ; !!! Have to use parse here because ASSERT/type is broken
-            ;
             rule: [char! | any-string! | binary!]
             unless parse c: char [set char rule set char-end opt rule] [
                 cause-error 'script 'invalid-arg reduce [c]
@@ -273,8 +270,7 @@ reword: function [
                 ]
                 unless empty? w [
                     unless empty? char-end [w: append copy w char-end]
-                    poke vals w
-                    :v ;-- may be void
+                    poke vals lock-of w :v ; v may be void...can we use LOCK?
                 ]
             ]
         ]
@@ -292,8 +288,7 @@ reword: function [
                 ]
                 unless empty? w [
                     unless empty? char-end [w: append copy w char-end]
-                    poke vals w
-                    :v ;-- may be void
+                    poke vals lock-of w :v ; v may be void...can we use LOCK?
                 ]
             ]
         ]

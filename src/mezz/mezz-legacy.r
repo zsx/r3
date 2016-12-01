@@ -637,7 +637,6 @@ set 'r3-legacy* func [<local> if-flags] [
         lit-word-decay: true
         broken-case-semantics: true
         exit-functions-only: true
-        mutable-function-bodies: true
         refinements-blank: true
         no-switch-evals: true
         no-switch-fallthrough: true
@@ -651,6 +650,7 @@ set 'r3-legacy* func [<local> if-flags] [
         get-will-get-anything: true
         no-reduce-nested-print: true
         sets-unsuppress-lookahead: true
+        unlocked-source: true
     ]
 
     append system/contexts/user compose [

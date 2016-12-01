@@ -37,8 +37,10 @@
 static void Protect_Key(RELVAL *key, REBFLGS flags)
 {
     if (GET_FLAG(flags, PROT_WORD)) {
-        if (GET_FLAG(flags, PROT_SET)) SET_VAL_FLAG(key, TYPESET_FLAG_LOCKED);
-        else CLEAR_VAL_FLAG(key, TYPESET_FLAG_LOCKED);
+        if (GET_FLAG(flags, PROT_SET))
+            SET_VAL_FLAG(key, TYPESET_FLAG_PROTECTED);
+        else
+            CLEAR_VAL_FLAG(key, TYPESET_FLAG_PROTECTED);
     }
 
     if (GET_FLAG(flags, PROT_HIDE)) {
@@ -61,8 +63,8 @@ void Protect_Value(RELVAL *value, REBFLGS flags)
 {
     if (ANY_SERIES(value) || IS_MAP(value))
         Protect_Series(VAL_SERIES(value), VAL_INDEX(value), flags);
-    else if (IS_OBJECT(value) || IS_MODULE(value))
-        Protect_Object(value, flags);
+    else if (ANY_CONTEXT(value))
+        Protect_Context(VAL_CONTEXT(value), flags);
 }
 
 
@@ -71,56 +73,73 @@ void Protect_Value(RELVAL *value, REBFLGS flags)
 //
 // Anything that calls this must call Uncolor() when done.
 //
-void Protect_Series(REBSER *series, REBCNT index, REBFLGS flags)
+void Protect_Series(REBSER *s, REBCNT index, REBFLGS flags)
 {
-    if (Is_Series_Black(series))
+    if (Is_Series_Black(s))
         return; // avoid loop
 
-    if (GET_FLAG(flags, PROT_SET))
-        SET_SER_INFO(series, SERIES_INFO_LOCKED);
-    else
-        CLEAR_SER_INFO(series, SERIES_INFO_LOCKED);
-
-    if (!Is_Array_Series(series) || !GET_FLAG(flags, PROT_DEEP)) return;
-
-    Flip_Series_To_Black(series); // recursion protection
-
-    RELVAL *val = ARR_AT(AS_ARRAY(series), index);
-    for (; NOT_END(val); val++) {
-        Protect_Value(val, flags);
+    if (GET_FLAG(flags, PROT_SET)) {
+        if (GET_FLAG(flags, PROT_FREEZE)) {
+            assert(GET_FLAG(flags, PROT_DEEP));
+            SET_SER_INFO(s, SERIES_INFO_FROZEN);
+        }
+        else
+            SET_SER_INFO(s, SERIES_INFO_PROTECTED);
     }
+    else {
+        assert(!GET_FLAG(flags, PROT_FREEZE));
+        CLEAR_SER_INFO(s, SERIES_INFO_PROTECTED);
+    }
+
+    if (!Is_Array_Series(s) || !GET_FLAG(flags, PROT_DEEP))
+        return;
+
+    Flip_Series_To_Black(s); // recursion protection
+
+    RELVAL *val = ARR_AT(AS_ARRAY(s), index);
+    for (; NOT_END(val); val++)
+        Protect_Value(val, flags);
 }
 
 
 //
-//  Protect_Object: C
+//  Protect_Context: C
 //
 // Anything that calls this must call Uncolor() when done.
 //
-void Protect_Object(RELVAL *value, REBFLGS flags)
+void Protect_Context(REBCTX *c, REBFLGS flags)
 {
-    REBCTX *context = VAL_CONTEXT(value);
-
-    if (Is_Series_Black(AS_SERIES(CTX_VARLIST(context))))
+    if (Is_Series_Black(AS_SERIES(CTX_VARLIST(c))))
         return; // avoid loop
 
-    if (GET_FLAG(flags, PROT_SET))
-        SET_SER_INFO(CTX_VARLIST(context), SERIES_INFO_LOCKED);
-    else
-        CLEAR_SER_INFO(CTX_VARLIST(context), SERIES_INFO_LOCKED);
-
-    for (value = CTX_KEY(context, 1); NOT_END(value); value++) {
-        Protect_Key(KNOWN(value), flags);
+    if (GET_FLAG(flags, PROT_SET)) {
+        if (GET_FLAG(flags, PROT_FREEZE)) {
+            assert(GET_FLAG(flags, PROT_DEEP));
+            SET_SER_INFO(CTX_VARLIST(c), SERIES_INFO_FROZEN);
+        }
+        else
+            SET_SER_INFO(CTX_VARLIST(c), SERIES_INFO_PROTECTED);
     }
+    else {
+        assert(!GET_FLAG(flags, PROT_FREEZE));
+        CLEAR_SER_INFO(CTX_VARLIST(c), SERIES_INFO_PROTECTED);
+    }
+
+    // !!! Keylist may be shared!  R3-Alpha did not account for this, but
+    // if you don't want a protect of one object to protect its instances
+    // there will be a problem.
+    //
+    REBVAL *key = CTX_KEYS_HEAD(c);
+    for (; NOT_END(key); ++key)
+        Protect_Key(key, flags);
 
     if (!GET_FLAG(flags, PROT_DEEP)) return;
 
-    Flip_Series_To_Black(AS_SERIES(CTX_VARLIST(context))); // for recursion
+    Flip_Series_To_Black(AS_SERIES(CTX_VARLIST(c))); // for recursion
 
-    value = CTX_VARS_HEAD(context);
-    for (; NOT_END(value); value++) {
-        Protect_Value(value, flags);
-    }
+    REBVAL *var = CTX_VARS_HEAD(c);
+    for (; NOT_END(var); ++var)
+        Protect_Value(var, flags);
 }
 
 
@@ -325,4 +344,145 @@ REBNATIVE(unprotect)
         fail (Error(RE_MISC));
 
     return Protect_Unprotect_Core(frame_, FLAGIT(PROT_WORD));
+}
+
+
+//
+//  Is_Value_Immutable: C
+//
+REBOOL Is_Value_Immutable(const RELVAL *v) {
+    if (
+        IS_BLANK(v)
+        || IS_BAR(v)
+        || IS_LIT_BAR(v)
+        || ANY_SCALAR(v)
+        || ANY_WORD(v)
+    ){
+        return TRUE;
+    }
+
+    if (ANY_ARRAY(v))
+        return Is_Array_Deeply_Frozen(VAL_ARRAY(v));
+
+    if (ANY_CONTEXT(v))
+        return Is_Context_Deeply_Frozen(VAL_CONTEXT(v));
+
+    if (ANY_SERIES(v))
+        return Is_Series_Frozen(VAL_SERIES(v));
+
+    return FALSE;
+}
+
+
+//
+//  locked?: native [
+//
+//  {Determine if the value is locked (deeply and permanently immutable)}
+//
+//      return: [logic!]
+//      value [any-value!]
+//  ]
+//
+REBNATIVE(locked_q)
+{
+    INCLUDE_PARAMS_OF_LOCKED_Q;
+
+    return R_FROM_BOOL(Is_Value_Immutable(ARG(value)));
+}
+
+
+//
+//  Ensure_Value_Immutable: C
+//
+void Ensure_Value_Immutable(REBVAL *v) {
+    if (Is_Value_Immutable(v))
+        return;
+
+    if (ANY_ARRAY(v))
+        Deep_Freeze_Array(VAL_ARRAY(v));
+    else if (ANY_CONTEXT(v))
+        Deep_Freeze_Context(VAL_CONTEXT(v));
+    else if (ANY_SERIES(v))
+        Freeze_Sequence(VAL_SERIES(v));
+    else
+        fail (Error_Invalid_Type(VAL_TYPE(v))); // not yet implemented
+}
+
+
+//
+//  lock: native [
+//
+//  {Permanently lock values (if applicable) so they can be immutably shared.}
+//
+//      value [any-value!]
+//          {Value to lock (will be locked deeply if an ANY-ARRAY!)}
+//      /clone
+//          {Will lock a clone of the original (if not already immutable)}
+//  ]
+//
+REBNATIVE(lock)
+//
+// !!! COPY in Rebol truncates before the index.  You can't `y: copy next x`
+// and then `first back y` to get at a copy of the the original `first x`.
+//
+// This locking operation is opportunistic in terms of whether it actually
+// copies the data or not.  But if it did just a normal COPY, it'd truncate,
+// while if it just passes the value through it does not truncate.  So
+// `lock/copy x` wouldn't be semantically equivalent to `lock copy x` :-/
+//
+// So the strategy here is to go with a different option, CLONE.  CLONE was
+// already being considered as an operation due to complaints about backward
+// compatibility if COPY were changed to /DEEP by default.
+//
+// The "freezing" bit can only be used on deep copies, so it would not make
+// sense to use with a shallow one.  However, a truncating COPY/DEEP could
+// be made to have a version operating on read only data that reused a
+// subset of the data.  This would use a "slice"; letting one series refer
+// into another, with a different starting point.  That would complicate the
+// garbage collector because multiple REBSER would be referring into the same
+// data.  So that's a possibility.
+{
+    INCLUDE_PARAMS_OF_LOCK;
+
+    REBVAL *v = ARG(value);
+
+    if (!REF(clone))
+        *D_OUT = *v;
+    else {
+        if (ANY_ARRAY(v)) {
+            Init_Any_Array_At(
+                D_OUT,
+                VAL_TYPE(v),
+                Copy_Array_Deep_Managed(
+                    VAL_ARRAY(v),
+                    VAL_SPECIFIER(v)
+                ),
+                VAL_INDEX(v)
+            );
+        }
+        else if (ANY_CONTEXT(v)) {
+            const REBOOL deep = TRUE;
+            const REBU64 types = TS_STD_SERIES;
+
+            Init_Any_Context(
+                D_OUT,
+                VAL_TYPE(v),
+                Copy_Context_Core(VAL_CONTEXT(v), deep, types)
+            );
+        }
+        else if (ANY_SERIES(v)) {
+            Init_Any_Series_At(
+                D_OUT,
+                VAL_TYPE(v),
+                Copy_Sequence(VAL_SERIES(v)),
+                VAL_INDEX(v)
+            );
+        }
+        else
+            fail (Error_Invalid_Type(VAL_TYPE(v))); // not yet implemented
+    }
+
+    Ensure_Value_Immutable(D_OUT);
+
+    return R_OUT;
 }

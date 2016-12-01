@@ -1079,7 +1079,7 @@ void Resolve_Context(
     REBOOL all,
     REBOOL expand
 ) {
-    FAIL_IF_LOCKED_CONTEXT(target);
+    FAIL_IF_READ_ONLY_CONTEXT(target);
 
     REBVAL *key;
     REBVAL *var;
@@ -1162,7 +1162,7 @@ void Resolve_Context(
         if (m != 0) {
             // "the remove succeeded, so it's marked as set now" (old comment)
             if (
-                NOT_VAL_FLAG(key, TYPESET_FLAG_LOCKED)
+                NOT_VAL_FLAG(key, TYPESET_FLAG_PROTECTED)
                 && (all || IS_VOID(var))
             ) {
                 if (m < 0) SET_VOID(var); // no value in source context

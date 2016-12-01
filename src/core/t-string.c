@@ -605,7 +605,7 @@ REBINT PD_String(REBPVS *pvs)
         return PE_USE_STORE;
     }
 
-    FAIL_IF_LOCKED_SERIES(ser);
+    FAIL_IF_READ_ONLY_SERIES(ser);
     setval = pvs->opt_setval;
 
     if (n < 0 || cast(REBCNT, n) >= SER_LEN(ser))
@@ -774,7 +774,7 @@ REBTYPE(String)
     case SYM_CHANGE: {
         INCLUDE_PARAMS_OF_INSERT;
 
-        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+        FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
 
         UNUSED(PAR(series));
         UNUSED(PAR(value));
@@ -888,7 +888,7 @@ REBTYPE(String)
 
     //-- Picking:
     case SYM_POKE:
-        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+        FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
     case SYM_PICK:
         len = Get_Num_From_Arg(arg); // Position
         //if (len > 0) index--;
@@ -938,7 +938,7 @@ pick_it:
     case SYM_TAKE: {
         INCLUDE_PARAMS_OF_TAKE;
 
-        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+        FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
 
         UNUSED(PAR(series));
 
@@ -985,7 +985,7 @@ pick_it:
         break; }
 
     case SYM_CLEAR:
-        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+        FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
 
         if (index < tail) {
             if (index == 0)
@@ -1039,7 +1039,7 @@ pick_it:
 
     case SYM_TRIM: {
         INCLUDE_PARAMS_OF_TRIM;
-        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+        FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
 
         UNUSED(PAR(series));
 
@@ -1072,19 +1072,19 @@ pick_it:
         break; }
 
     case SYM_SWAP:
-        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+        FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
 
         if (VAL_TYPE(value) != VAL_TYPE(arg))
             fail (Error(RE_NOT_SAME_TYPE));
 
-        FAIL_IF_LOCKED_SERIES(VAL_SERIES(arg));
+        FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(arg));
 
         if (index < tail && VAL_INDEX(arg) < VAL_LEN_HEAD(arg))
             swap_chars(value, arg);
         break;
 
     case SYM_REVERSE:
-        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+        FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
 
         len = Partial(value, 0, D_ARG(3));
         if (len > 0) reverse_string(value, len);
@@ -1093,7 +1093,7 @@ pick_it:
     case SYM_SORT: {
         INCLUDE_PARAMS_OF_SORT;
 
-        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+        FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
 
         UNUSED(PAR(series));
         UNUSED(REF(skip));
@@ -1116,7 +1116,7 @@ pick_it:
 
         UNUSED(PAR(value));
 
-        FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+        FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
 
         if (REF(seed)) {
             //
