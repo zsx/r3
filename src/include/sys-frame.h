@@ -626,7 +626,7 @@ inline static void Drop_Function_Args_For_Frame_Core(
         // its actual content from the stackvars.
         //
         if (ARR_LEN(f->varlist) == 1) {
-            if (f->args_head != &f->cell)
+            if (f->args_head != END_CELL && f->args_head != &f->cell)
                 Drop_Chunk_Of_Values(f->args_head);
         }
     }
