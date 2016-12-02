@@ -168,13 +168,23 @@ static inline REBOOL Unmark_Rebser(REBSER *rebser) {
 static void Queue_Mark_Array_Subclass_Deep(REBARR *a)
 {
 #if !defined(NDEBUG)
-    assert(GET_ARR_FLAG(a, SERIES_FLAG_ARRAY));
-    assert(!GET_ARR_FLAG(a, SERIES_FLAG_EXTERNAL)); // external arrays illegal
-
-    if (!IS_ARRAY_MANAGED(a)) {
-        Debug_Fmt("Link to non-MANAGED item reached by GC");
+    if (ARR_SERIES(a)->header.bits == 0) {
+        printf("GC is queueing a freed array for marking.\n");
         Panic_Array(a);
     }
+
+    if (!GET_ARR_FLAG(a, SERIES_FLAG_ARRAY)) {
+        printf("GC is queuing a non-array in the array marking queue\n");
+        Panic_Array(a);
+    }
+
+    if (!IS_ARRAY_MANAGED(a)) {
+        printf("GC is queuing an unmanaged array for marking.\n");
+        Panic_Array(a);
+    }
+
+    assert(!GET_ARR_FLAG(a, SERIES_FLAG_EXTERNAL)); // external arrays illegal
+
 #endif
 
     // A marked array doesn't necessarily mean all references reached from it
@@ -254,7 +264,8 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
     //
     // http://stackoverflow.com/questions/17061967/c-switch-and-jump-tables
     //
-    switch (VAL_TYPE(v)) {
+    enum Reb_Kind kind = VAL_TYPE(v);
+    switch (kind) {
     case REB_0:
         //
         // Should not be possible, REB_0 instances should not exist or
@@ -1233,14 +1244,14 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
 //
 REBCNT Recycle_Core(REBOOL shutdown)
 {
-    ASSERT_NO_GC_MARKS_PENDING();
-
     // If disabled, exit now but set the pending flag.
     if (GC_Disabled || !GC_Active) {
         SET_SIGNAL(SIG_RECYCLE);
         //Print("pending");
         return 0;
     }
+
+    ASSERT_NO_GC_MARKS_PENDING();
 
     Reify_Any_C_Valist_Frames();
 
