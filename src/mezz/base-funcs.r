@@ -988,15 +988,15 @@ cause-error: func [
 ensure: function [
     {Pass through a value only if it matches types (or TRUE?/FALSE? state)}
     return: [<opt> any-value!]
-    types [block! datatype! typeset! logic!]
-    arg [any-value!] ;-- not <opt>, so implicitly ensured to be non-void
+    test [function! datatype! typeset! block! logic!]
+    arg [any-value!] ;-- should <opt> be allowed?
 ][
-    if blank? result: maybe types :arg [
+    unless maybe? test :arg [
         fail/where [
-            "ENSURE did not expect arg to have type" (type-of :arg)
+            "ENSURE expected arg to match" (test)
         ] 'arg
     ]
-    :result ;-- may be void if asked for BLANK! or LOGIC! and it's false
+    :arg
 ]
 
 

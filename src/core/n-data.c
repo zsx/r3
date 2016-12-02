@@ -246,10 +246,13 @@ REBNATIVE(maybe)
     assert(r == R_OUT); // must have matched!
 
 type_matched:
+    if (REF(q))
+        return R_TRUE;
+
     // Because there may be usages like `if maybe logic! x [print "logic!"]`,
-    // it would be bad to take in a FALSE and pass back a FALSE.  Returning
-    // void lets routines like ENSURE take advantage of the checking aspect
-    // without risking a false positive for BLANK! or FALSE in result use.
+    // it would be bad to take in a FALSE and pass back a FALSE.  This is
+    // why /? (and its specialization MAYBE?) exist, but to help avoid
+    // likely mistakes this returns a void.
     //
     // Note that in the case of a void passing the test and needing to go
     // through (e.g. `maybe :void? ()`) will be void also.
