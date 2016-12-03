@@ -412,7 +412,7 @@ inline static void Drop_Chunk_Of_Values(REBVAL *opt_head)
 {
     struct Reb_Chunk* chunk = TG_Top_Chunk;
 
-    // Passing in `values` is optional, but a good check to make sure you are
+    // Passing in `opt_head` is optional, but a good check to make sure you are
     // actually dropping the chunk you think you are.  (On an error condition
     // when dropping chunks to try and restore the top chunk to a previous
     // state, this information isn't available.)

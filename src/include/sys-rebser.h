@@ -196,6 +196,15 @@
     FLAGIT_LEFT(GENERAL_SERIES_BIT + 6)
 
 
+//=//// ARRAY_FLAG_PAIRLIST ///////////////////////////////////////////////=//
+//
+// Indicates that this series represents the "pairlist" of a map, so the
+// series also has a hashlist linked to in the series node.
+//
+#define ARRAY_FLAG_PAIRLIST \
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 7)
+
+
 //=//// CONTEXT_FLAG_STACK ////////////////////////////////////////////////=//
 //
 // This indicates that a context's varlist data lives on the stack.  That
@@ -209,7 +218,7 @@
 // inaccessible) are checked against this flag.
 //
 #define CONTEXT_FLAG_STACK \
-    FLAGIT_LEFT(GENERAL_SERIES_BIT + 7)
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 8)
 
 
 #if !defined(NDEBUG)
@@ -223,7 +232,7 @@
     // enough for casual compatibility in many cases.
     //
     #define SERIES_FLAG_LEGACY \
-        FLAGIT_LEFT(GENERAL_SERIES_BIT + 8)
+        FLAGIT_LEFT(GENERAL_SERIES_BIT + 9)
 #endif
 
 // ^-- STOP AT FLAGIT_LEFT(15) --^
@@ -235,7 +244,7 @@
 // could use the same bit, if needed.
 //
 #if defined(__cplusplus) && (__cplusplus >= 201103L)
-    static_assert(GENERAL_SERIES_BIT + 8 < 16, "SERIES_FLAG_XXX too high");
+    static_assert(GENERAL_SERIES_BIT + 9 < 16, "SERIES_FLAG_XXX too high");
 #endif
 
 

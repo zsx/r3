@@ -201,14 +201,19 @@ static void Queue_Mark_Array_Subclass_Deep(REBARR *a)
 
 inline static void Queue_Mark_Array_Deep(REBARR *a) {
     assert(NOT_SER_FLAG(a, ARRAY_FLAG_VARLIST));
-    assert(!GET_SER_FLAG(a, ARRAY_FLAG_PARAMLIST));
+    assert(NOT_SER_FLAG(a, ARRAY_FLAG_PARAMLIST));
+    assert(NOT_SER_FLAG(a, ARRAY_FLAG_PAIRLIST));
 
     Queue_Mark_Array_Subclass_Deep(a);
 }
 
 inline static void Queue_Mark_Context_Deep(REBCTX *c) {
-    assert(GET_SER_FLAG(CTX_VARLIST(c), ARRAY_FLAG_VARLIST));
-    Queue_Mark_Array_Subclass_Deep(CTX_VARLIST(c));
+    REBARR *a = CTX_VARLIST(c);
+    assert(GET_SER_FLAG(a, ARRAY_FLAG_VARLIST));
+    assert(NOT_SER_FLAG(a, ARRAY_FLAG_PARAMLIST));
+    assert(NOT_SER_FLAG(a, ARRAY_FLAG_PAIRLIST));
+
+    Queue_Mark_Array_Subclass_Deep(a);
 
     // Further handling is in Propagate_All_GC_Marks() for ARRAY_FLAG_VARLIST
     // where it can safely call Queue_Mark_Context_Deep() again without it
@@ -216,11 +221,28 @@ inline static void Queue_Mark_Context_Deep(REBCTX *c) {
 }
 
 inline static void Queue_Mark_Function_Deep(REBFUN *f) {
-    assert(GET_SER_FLAG(FUNC_PARAMLIST(f), ARRAY_FLAG_PARAMLIST));
-    Queue_Mark_Array_Subclass_Deep(FUNC_PARAMLIST(f));
+    REBARR *a = FUNC_PARAMLIST(f);
+    assert(GET_SER_FLAG(a, ARRAY_FLAG_PARAMLIST));
+    assert(NOT_SER_FLAG(a, ARRAY_FLAG_VARLIST));
+    assert(NOT_SER_FLAG(a, ARRAY_FLAG_PAIRLIST));
+
+    Queue_Mark_Array_Subclass_Deep(a);
 
     // Further handling is in Propagate_All_GC_Marks() for ARRAY_FLAG_PARAMLIST
     // where it can safely call Queue_Mark_Function_Deep() again without it
+    // being a recursion.  (e.g. marking underlying function for this function)
+}
+
+inline static void Queue_Mark_Map_Deep(REBMAP *m) {
+    REBARR *a = MAP_PAIRLIST(m);
+    assert(GET_SER_FLAG(a, ARRAY_FLAG_PAIRLIST));
+    assert(NOT_SER_FLAG(a, ARRAY_FLAG_PARAMLIST));
+    assert(NOT_SER_FLAG(a, ARRAY_FLAG_VARLIST));
+
+    Queue_Mark_Array_Subclass_Deep(a);
+
+    // Further handling is in Propagate_All_GC_Marks() for ARRAY_FLAG_PAIRLIST
+    // where it can safely call Queue_Mark_Map_Deep() again without it
     // being a recursion.  (e.g. marking underlying function for this function)
 }
 
@@ -444,9 +466,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
 
     case REB_MAP: {
         REBMAP* map = VAL_MAP(v);
-        Queue_Mark_Array_Deep(MAP_PAIRLIST(map));
-        if (MAP_HASHLIST(map) != NULL)
-            Mark_Rebser_Only(MAP_HASHLIST(map));
+        Queue_Mark_Map_Deep(map);
         break;
     }
 
@@ -713,6 +733,19 @@ static void Propagate_All_GC_Marks(void)
             assert(ANY_CONTEXT(v));
             assert(v->extra.binding == NULL); // archetypes have no binding
             ++v; // context archtype completely marked by this process
+        }
+        else if (GET_SER_FLAG(a, ARRAY_FLAG_PAIRLIST)) {
+            //
+            // There was once a "small map" optimization that wouldn't
+            // produce a hashlist for small maps and just did linear search.
+            // @giuliolunati deleted that for the time being because it
+            // seemed to be a source of bugs, but it may be added again...in
+            // which case the hashlist may be NULL.
+            //
+            REBSER *hashlist = AS_SERIES(a)->link.hashlist;
+            assert(hashlist != NULL);
+
+            Mark_Rebser_Only(hashlist);
         }
 
         if (GET_SER_INFO(a, SERIES_INFO_INACCESSIBLE)) {

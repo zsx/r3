@@ -47,11 +47,13 @@ struct Reb_Map {
     struct Reb_Array pairlist; // hashlist is held in ->link.hashlist
 };
 
-#define MAP_PAIRLIST(m) \
-    (&(m)->pairlist)
+inline static REBARR *MAP_PAIRLIST(REBMAP *m) {
+    assert(GET_SER_FLAG(&(m)->pairlist, ARRAY_FLAG_PAIRLIST));
+    return (&(m)->pairlist);
+}
 
 #define MAP_HASHLIST(m) \
-    (AS_SERIES(&(m)->pairlist)->link.hashlist)
+    (AS_SERIES(MAP_PAIRLIST(m))->link.hashlist)
 
 #define MAP_HASHES(m) \
     SER_HEAD(MAP_HASHLIST(m))

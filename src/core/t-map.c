@@ -51,11 +51,12 @@ REBINT CT_Map(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 static REBMAP *Make_Map(REBCNT capacity)
 {
-    REBMAP *map = AS_MAP(Make_Array(capacity * 2));
+    REBARR *pairlist = Make_Array(capacity * 2);
+    SET_SER_FLAG(pairlist, ARRAY_FLAG_PAIRLIST);
 
-    MAP_HASHLIST(map) = Make_Hash_Sequence(capacity);
+    AS_SERIES(pairlist)->link.hashlist = Make_Hash_Sequence(capacity);
 
-    return map;
+    return AS_MAP(pairlist);
 }
 
 
@@ -500,15 +501,17 @@ REBARR *Map_To_Array(REBMAP *map, REBINT what)
 // a non-map-aware access to it.  (That would risk making changes to the
 // array that did not keep the hashes in sync.)
 //
-REBMAP *Mutate_Array_Into_Map(REBARR *array)
+REBMAP *Mutate_Array_Into_Map(REBARR *a)
 {
-    REBCNT size = ARR_LEN(array);
+    REBCNT size = ARR_LEN(a);
 
     // See note above--can't have this array be accessible via some ANY-BLOCK!
     //
-    assert(NOT(IS_ARRAY_MANAGED(array)));
+    assert(NOT(IS_ARRAY_MANAGED(a)));
 
-    REBMAP *map = AS_MAP(array);
+    SET_SER_FLAG(a, ARRAY_FLAG_PAIRLIST);
+
+    REBMAP *map = AS_MAP(a);
     MAP_HASHLIST(map) = Make_Hash_Sequence(size);
 
     Rehash_Map(map);

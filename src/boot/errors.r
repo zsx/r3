@@ -206,7 +206,7 @@ Script: [
     varargs-no-look:    {VARARGS! may only lookahead by 1 if "hard quoted"}
     varargs-take-last:  {VARARGS! does not support TAKE-ing only /LAST item}
 
-    map-key-unlocked:   [{array key must be locked to add to MAP!} :arg1]
+    map-key-unlocked:   [{key must be LOCK-ed to add to MAP!} :arg1]
     tcc-not-supported-opt: [{Option} :arg1 {is not supported}]
     tcc-expect-word:     [{Option expecting a word:} :arg1]
     tcc-invalid-include: [{Include expects a block or a path:} :arg1]
