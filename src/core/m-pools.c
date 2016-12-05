@@ -50,6 +50,7 @@
 //#define INSPECT_SERIES
 
 #include "sys-core.h"
+#include "sys-int-funcs.h"
 
 #ifdef HAVE_ASAN_INTERFACE_H
 #include <sanitizer/asan_interface.h>
