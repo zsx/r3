@@ -50,7 +50,6 @@
 //#define INSPECT_SERIES
 
 #include "sys-core.h"
-#include "sys-int-funcs.h"
 
 #ifdef HAVE_ASAN_INTERFACE_H
 #include <sanitizer/asan_interface.h>
@@ -509,9 +508,8 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	if (IS_EXT_SERIES(series)) goto clear_header;  // Must be library related
 
 	size = SERIES_TOTAL(series);
-	if (REB_I32_ADD_OF(GC_Ballast, size, &GC_Ballast)) {
-		GC_Ballast = MAX_I32;
-	}
+	if ((GC_Ballast += size) > VAL_INT32(TASK_BALLAST))
+		GC_Ballast = VAL_INT32(TASK_BALLAST);
 
 	// GC may no longer be necessary:
 	if (GC_Ballast > 0) CLR_SIGNAL(SIG_RECYCLE);
