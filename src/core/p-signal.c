@@ -28,6 +28,7 @@
 **
 ***********************************************************************/
 
+#include <assert.h>
 #include "sys-core.h"
 
 #ifdef HAS_POSIX_SIGNAL
@@ -35,8 +36,17 @@
 
 static void update(REBREQ *req, REBINT len, REBVAL *arg)
 {
-	const siginfo_t *sig = req->data;
+	const siginfo_t *sig = (siginfo_t*)req->data;
 	int i = 0;
+
+    // drop the temporary binary!
+    // GC will not run in this function call, so the binary doesn't
+    // have to be protected
+    //
+    assert(VAL_TYPE(arg) == REB_BLOCK);
+    assert(VAL_LEN(arg) >= 1);
+    assert(VAL_TYPE(VAL_BLK_TAIL(arg) - 1) == REB_BINARY);
+	VAL_TAIL(arg) --;
 
 	Extend_Series(VAL_SERIES(arg), len);
 
@@ -214,15 +224,26 @@ static int sig_word_num(REBVAL *word)
 			arg = OFV(port, STD_PORT_DATA);
 
 			len = req->length = 8;
-			ser = Make_Binary(len * sizeof(siginfo_t));
-			req->data = BIN_HEAD(ser);
-			result = OS_DO_DEVICE(req, RDC_READ);
-			if (result < 0) Trap_Port(RE_READ_ERROR, port, req->error);
-
-			arg = OFV(port, STD_PORT_DATA);
 			if (!IS_BLOCK(arg)) {
 				Set_Block(arg, Make_Block(len));
 			}
+
+            /* Add a binary! to port/data as the reading buffer
+             * because port/data is GC-aware
+             */
+            sig = Append_Value(VAL_SERIES(arg));
+            assert(VAL_TAIL(arg) >= 1);
+            ser = Make_Binary(len * sizeof(siginfo_t));
+            SET_BINARY(sig, ser);
+			req->data = BIN_HEAD(ser);
+			result = OS_DO_DEVICE(req, RDC_READ);
+			if (result < 0) {
+                /* drop the last binary! in arg */
+                VAL_TAIL(arg) --;
+                Trap_Port(RE_READ_ERROR, port, req->error);
+            }
+
+			arg = OFV(port, STD_PORT_DATA);
 
 			len = req->actual;
 
