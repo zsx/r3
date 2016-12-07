@@ -80,6 +80,11 @@
 				VAL_LIB_SPEC(ret) = Make_Block(1);
 				Append_Val(VAL_LIB_SPEC(ret), arg);
 				VAL_LIB_HANDLE(ret) = (REBLHL*)Make_Node(LIB_POOL);
+
+                // Because it's not freeing the node (routines might still reference it) when
+                // closing, to keep GC_Ballast balanced, We're not reducing it here.
+                //if ((GC_Ballast -= Mem_Pools[LIB_POOL].wide) <= 0) SET_SIGNAL(SIG_RECYCLE);
+
 				VAL_LIB_FD(ret) = lib;
 				USE_LIB(VAL_LIB_HANDLE(ret));
 				OPEN_LIB(VAL_LIB_HANDLE(ret));

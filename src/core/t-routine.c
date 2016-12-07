@@ -29,6 +29,7 @@
 
 #include <stdio.h>
 #include "sys-core.h"
+#include "sys-int-funcs.h"
 
 #include <ffi.h>
 
@@ -609,6 +610,10 @@ static void ffi_to_rebol(REBRIN *rin,
 		ffi_closure_free(RIN_CLOSURE(rin));
 	}
 	Free_Node(RIN_POOL, (REBNOD*)rin);
+	if (REB_I32_ADD_OF(GC_Ballast, Mem_Pools[RIN_POOL].wide, &GC_Ballast)) {
+		GC_Ballast = MAX_I32;
+	}
+	if (GC_Ballast > 0) CLR_SIGNAL(SIG_RECYCLE);
 }
 
 static void process_type_block(REBVAL *out, REBVAL *blk, REBCNT n, REBOOL make)
@@ -781,6 +786,8 @@ static void callback_dispatcher(ffi_cif *cif, void *ret, void **args, void *user
 	VAL_ROUTINE_INFO(out) = Make_Node(RIN_POOL);
 	memset(VAL_ROUTINE_INFO(out), 0, sizeof(REBRIN));
 	USE_ROUTINE(VAL_ROUTINE_INFO(out));
+
+	if ((GC_Ballast -= Mem_Pools[RIN_POOL].wide) <= 0) SET_SIGNAL(SIG_RECYCLE);
 
 	if (type == REB_CALLBACK) {
 		ROUTINE_SET_FLAG(VAL_ROUTINE_INFO(out), ROUTINE_CALLBACK);

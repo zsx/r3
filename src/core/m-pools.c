@@ -450,7 +450,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	series->info = wide; // also clears flags
 	LABEL_SERIES(series, "make");
 
-	if ((GC_Ballast -= length) <= 0) SET_SIGNAL(SIG_RECYCLE);
+	if ((GC_Ballast -= length + sizeof(REBSER)) <= 0) SET_SIGNAL(SIG_RECYCLE);
 
 	// Keep the last few series in the nursery, safe from GC:
 	if (GC_Last_Infant >= MAX_SAFE_SERIES) GC_Last_Infant = 0;
@@ -475,6 +475,8 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 	gcm->mem = p;
 	gcm->free = free;
 	USE_GCM(gcm);
+
+	if ((GC_Ballast -= Mem_Pools[GCM_POOL].wide) <= 0) SET_SIGNAL(SIG_RECYCLE);
 
 	return gcm;
 }
@@ -575,6 +577,11 @@ clear_header:
 
 	Free_Node(SERIES_POOL, (REBNOD *)series);
 
+	if (REB_I32_ADD_OF(GC_Ballast, sizeof(REBSER), &GC_Ballast)) {
+		GC_Ballast = MAX_I32;
+	}
+    if (GC_Ballast > 0) CLR_SIGNAL(SIG_RECYCLE);
+
 	/* remove from GC_Infants */
 	for (n = 0; n < MAX_SAFE_SERIES; n++) {
 		if (GC_Infants[n] == series)
@@ -623,6 +630,12 @@ clear_header:
 	gcm->free(gcm->mem);
 	UNUSE_GCM(gcm);
 	Free_Node(GCM_POOL, (REBNOD *)gcm);
+
+	if (REB_I32_ADD_OF(GC_Ballast, Mem_Pools[GCM_POOL].wide, &GC_Ballast)) {
+		GC_Ballast = MAX_I32;
+	}
+
+	if (GC_Ballast > 0) CLR_SIGNAL(SIG_RECYCLE);
 }
 
 /***********************************************************************
