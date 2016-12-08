@@ -266,8 +266,8 @@ void Debug_String(const void *p, REBCNT len, REBOOL unicode, REBINT lines)
     const REBYTE *bp = unicode ? NULL : cast(const REBYTE *, p);
     const REBUNI *up = unicode ? cast(const REBUNI *, p) : NULL;
 
-    REBINT disabled = GC_Disabled;
-    GC_Disabled = 1;
+    REBOOL disabled = GC_Disabled;
+    GC_Disabled = TRUE;
 
     if (Trace_Limit > 0) {
         if (SER_LEN(Trace_Buffer) >= Trace_Limit)
@@ -290,7 +290,7 @@ void Debug_String(const void *p, REBCNT len, REBOOL unicode, REBINT lines)
         for (; lines > 0; lines--) Print_OS_Line();
     }
 
-    assert(GC_Disabled == 1);
+    assert(GC_Disabled == TRUE);
     GC_Disabled = disabled;
 }
 
@@ -329,8 +329,8 @@ void Debug_Uni(REBSER *ser)
     REBUNI *up = UNI_HEAD(ser);
     REBCNT size = SER_LEN(ser);
 
-    REBINT disabled = GC_Disabled;
-    GC_Disabled = 1;
+    REBOOL disabled = GC_Disabled;
+    GC_Disabled = TRUE;
 
     while (size > 0) {
         ul = size;
@@ -342,7 +342,7 @@ void Debug_Uni(REBSER *ser)
 
     Debug_Line();
 
-    assert(GC_Disabled == 1);
+    assert(GC_Disabled == TRUE);
     GC_Disabled = disabled;
 }
 
@@ -354,8 +354,8 @@ void Debug_Uni(REBSER *ser)
 //
 void Debug_Series(REBSER *ser)
 {
-    REBINT disabled = GC_Disabled;
-    GC_Disabled = 1;
+    REBOOL disabled = GC_Disabled;
+    GC_Disabled = TRUE;
 
     // Invalid series would possibly (but not necessarily) crash the print
     // routines--which are the same ones used to output a series normally.
@@ -399,7 +399,7 @@ void Debug_Series(REBSER *ser)
     else
         Panic_Series(ser);
 
-    assert(GC_Disabled == 1);
+    assert(GC_Disabled == TRUE);
     GC_Disabled = disabled;
 }
 
@@ -548,8 +548,8 @@ void Debug_Values(const RELVAL *value, REBCNT count, REBCNT limit)
 //
 void Debug_Buf(const char *fmt, va_list *vaptr)
 {
-    REBINT disabled = GC_Disabled;
-    GC_Disabled = 1;
+    REBOOL disabled = GC_Disabled;
+    GC_Disabled = TRUE;
 
     REB_MOLD mo;
     CLEARS(&mo);
@@ -577,7 +577,7 @@ void Debug_Buf(const char *fmt, va_list *vaptr)
 
     Free_Series(bytes);
 
-    assert(GC_Disabled == 1);
+    assert(GC_Disabled == TRUE);
     GC_Disabled = disabled;
 }
 

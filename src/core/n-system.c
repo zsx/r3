@@ -112,6 +112,8 @@ REBNATIVE(exit_rebol)
 //
 //  "Recycles unused memory."
 //
+//      return: [<opt> integer!]
+//          {Number of series nodes recycled (if applicable)}
 //      /off
 //          "Disable auto-recycling"
 //      /on
@@ -128,12 +130,12 @@ REBNATIVE(recycle)
     INCLUDE_PARAMS_OF_RECYCLE;
 
     if (REF(off)) {
-        GC_Active = FALSE;
+        GC_Disabled = TRUE;
         return R_VOID;
     }
 
     if (REF(on)) {
-        GC_Active = TRUE;
+        GC_Disabled = FALSE;
         VAL_INT64(TASK_BALLAST) = VAL_INT32(TASK_MAX_BALLAST);
     }
 
@@ -143,12 +145,14 @@ REBNATIVE(recycle)
     }
 
     if (REF(torture)) {
-        GC_Active = TRUE;
+        GC_Disabled = TRUE;
         VAL_INT64(TASK_BALLAST) = 0;
     }
 
-    REBCNT count = Recycle();
+    if (GC_Disabled)
+        return R_VOID; // don't give back misleading "0", since no recycle ran
 
+    REBCNT count = Recycle();
     SET_INTEGER(D_OUT, count);
     return R_OUT;
 }

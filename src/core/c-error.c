@@ -54,7 +54,6 @@ void Snap_State_Core(struct Reb_State *s)
     s->series_guard_len = SER_LEN(GC_Series_Guard);
     s->value_guard_len = SER_LEN(GC_Value_Guard);
     s->frame = FS_TOP;
-    s->gc_disable = GC_Disabled;
 
     s->manuals_len = SER_LEN(GC_Manuals);
     s->uni_buf_len = SER_LEN(UNI_BUF);
@@ -119,8 +118,6 @@ void Assert_State_Balanced_Debug(
         ));
         goto problem_found;
     }
-
-    assert(s->gc_disable == GC_Disabled);
 
     // !!! Note that this inherits a test that uses GC_Manuals->content.xxx
     // instead of SER_LEN().  The idea being that although some series
@@ -245,8 +242,6 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
 #endif
 
     TERM_ARRAY_LEN(MOLD_STACK, s->mold_loop_tail);
-
-    GC_Disabled = s->gc_disable;
 
     Saved_State = s->last_state;
 

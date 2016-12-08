@@ -67,7 +67,7 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     // We are crashing, so a legitimate time to be disabling the garbage
     // collector.  (It won't be turned back on.)
     //
-    GC_Disabled++;
+    GC_Disabled = TRUE;
 
 #if !defined(NDEBUG)
     if (Reb_Opts && Reb_Opts->crash_dump) {

@@ -986,7 +986,10 @@ static void Init_System_Object(void)
 //
 static void Init_Contexts_Object(void)
 {
+    DROP_GUARD_CONTEXT(Sys_Context);
     Val_Init_Object(Get_System(SYS_CONTEXTS, CTX_SYS), Sys_Context);
+
+    DROP_GUARD_CONTEXT(Lib_Context);
     Val_Init_Object(Get_System(SYS_CONTEXTS, CTX_LIB), Lib_Context);
     Val_Init_Object(Get_System(SYS_CONTEXTS, CTX_USER), Lib_Context);
 }
@@ -1442,21 +1445,17 @@ void Init_Core(REBARGS *rargs)
 
     // !!! Have MAKE-BOOT compute # of words
     //
-    // Must manage, else Expand_Context() looks like a leak
-    //
     Lib_Context = Alloc_Context(600);
-    MANAGE_ARRAY(CTX_VARLIST(Lib_Context));
-
     VAL_RESET_HEADER(CTX_VALUE(Lib_Context), REB_OBJECT);
     CTX_VALUE(Lib_Context)->extra.binding = NULL;
+    MANAGE_ARRAY(CTX_VARLIST(Lib_Context));
+    PUSH_GUARD_CONTEXT(Lib_Context);
 
-    // Must manage, else Expand_Context() looks like a leak
-    //
     Sys_Context = Alloc_Context(50);
-    MANAGE_ARRAY(CTX_VARLIST(Sys_Context));
-
     VAL_RESET_HEADER(CTX_VALUE(Sys_Context), REB_OBJECT);
     CTX_VALUE(Sys_Context)->extra.binding = NULL;
+    MANAGE_ARRAY(CTX_VARLIST(Sys_Context));
+    PUSH_GUARD_CONTEXT(Sys_Context);
 
     DOUT("Level 2");
 
@@ -1507,6 +1506,7 @@ void Init_Core(REBARGS *rargs)
     Init_Constants();       // Constant values
     Init_Function_Tags();
     Add_Lib_Keys_R3Alpha_Cant_Make();
+    SET_UNREADABLE_BLANK(&Callback_Error);
 
     // Run actual code:
     DOUT("Level 4");
@@ -1517,8 +1517,6 @@ void Init_Core(REBARGS *rargs)
     Init_Ports();
     Init_Codecs();
     Init_Errors(&Boot_Block->errors); // Needs system/standard/error object
-
-    SET_UNREADABLE_BLANK(&Callback_Error);
 
     PG_Boot_Phase = BOOT_ERRORS;
 

@@ -206,7 +206,6 @@ RL_API int RL_Init(REBARGS *rargs, void *lib)
 
     Init_Core(rargs);
 
-    GC_Active = TRUE; // Turn on GC
     if (rargs->options & RO_TRACE) {
         Trace_Level = 9999;
         Trace_Flags = 1;

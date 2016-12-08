@@ -129,9 +129,9 @@ TVAR REBVAL TG_Thrown_Arg;  // Non-GC protected argument to THROW
 
 //-- Memory and GC:
 TVAR REBPOL *Mem_Pools;     // Memory pool array
-TVAR REBINT GC_Disabled;    // GC disabled counter for critical sections.
+TVAR REBOOL GC_Recycling;    // True when the GC is in a recycle
 TVAR REBINT GC_Ballast;     // Bytes allocated to force automatic GC
-TVAR REBOOL GC_Active;      // TRUE when recycle is enabled (set by RECYCLE func)
+TVAR REBOOL GC_Disabled;      // TRUE when RECYCLE/OFF is run
 TVAR REBSER *GC_Series_Guard; // A stack of protected series (removed by pop)
 TVAR REBSER *GC_Value_Guard; // A stack of protected series (removed by pop)
 PVAR REBSER *GC_Mark_Stack; // Series pending to mark their reachables as live

@@ -1244,12 +1244,30 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
 //
 REBCNT Recycle_Core(REBOOL shutdown)
 {
-    // If disabled, exit now but set the pending flag.
-    if (GC_Disabled || !GC_Active) {
+    // Ordinarily, it should not be possible to spawn a recycle during a
+    // recycle.  But when debug code is added into the recycling code, it
+    // could cause a recursion.  Be tolerant of such recursions to make that
+    // debugging easier...but make a note that it's not ordinarily legal.
+    //
+#if !defined(NDEBUG)
+    if (GC_Recycling) {
+        printf("Recycle re-entry; should only happen in debug scenarios.\n");
         SET_SIGNAL(SIG_RECYCLE);
-        //Print("pending");
         return 0;
     }
+#endif
+
+    // If disabled by RECYCLE/OFF, exit now but set the pending flag.  (If
+    // shutdown, ignore so recycling runs and can be checked for balance.)
+    //
+    if (!shutdown && GC_Disabled) {
+        SET_SIGNAL(SIG_RECYCLE);
+        return 0;
+    }
+
+#if !defined(NDEBUG)
+    GC_Recycling = TRUE;
+#endif
 
     ASSERT_NO_GC_MARKS_PENDING();
 
@@ -1257,7 +1275,6 @@ REBCNT Recycle_Core(REBOOL shutdown)
 
     if (Reb_Opts->watch_recycle) Debug_Str(cs_cast(BOOT_STR(RS_WATCH, 0)));
 
-    GC_Disabled = 1;
 
 #if !defined(NDEBUG)
     PG_Reb_Stats->Recycle_Counter++;
@@ -1351,13 +1368,16 @@ REBCNT Recycle_Core(REBOOL shutdown)
         }*/
 
         GC_Ballast = VAL_INT32(TASK_BALLAST);
-        GC_Disabled = 0;
 
         if (Reb_Opts->watch_recycle)
             Debug_Fmt(cs_cast(BOOT_STR(RS_WATCH, 1)), count);
     }
 
     ASSERT_NO_GC_MARKS_PENDING();
+
+#if !defined(NDEBUG)
+    GC_Recycling = FALSE;
+#endif
 
     return count;
 }
@@ -1498,16 +1518,8 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS REBARR *Snapshot_All_Functions(void)
 //
 void Init_GC(void)
 {
-    // TRUE when recycle is enabled (set by RECYCLE func)
-    //
-    GC_Active = FALSE;
-
-    // GC disabled counter for critical sections.  Used liberally in R3-Alpha.
-    // But with Ren-C's introduction of the idea that an allocated series is
-    // not seen by the GC until such time as it gets the SERIES_FLAG_MANAGED flag
-    // set, there are fewer legitimate justifications to disabling the GC.
-    //
-    GC_Disabled = 0;
+    assert(NOT(GC_Disabled));
+    assert(NOT(GC_Recycling));
 
     GC_Ballast = MEM_BALLAST;
 
