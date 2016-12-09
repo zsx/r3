@@ -386,7 +386,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         break; }
 
     case REB_HANDLE: { // See %sys-handle.h
-        REBARR *singular = v->extra.singular; 
+        REBARR *singular = v->extra.singular;
         if (singular == NULL) {
             //
             // This HANDLE! was created with Init_Handle_Simple.  There is
@@ -610,7 +610,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         //
         // Not an actual ANY-VALUE! "value", just a void cell.  Instead of
         // this "Opt"ional routine, use Queue_Mark_Value_Deep() on slots
-        // that should not be void. 
+        // that should not be void.
         //
         break;
 
@@ -986,7 +986,7 @@ static void Mark_Guarded_Series(void)
 static void Mark_Guarded_Values(void)
 {
     REBVAL **vp = SER_HEAD(REBVAL*, GC_Value_Guard);
-    REBCNT n = SER_LEN(GC_Value_Guard); 
+    REBCNT n = SER_LEN(GC_Value_Guard);
     for (; n > 0; --n, ++vp) {
         if (NOT_END(*vp))
             Queue_Mark_Opt_Value_Deep(*vp);
@@ -1117,7 +1117,17 @@ static void Mark_Frame_Stack_Deep(void)
 
             assert(!IS_UNREADABLE_IF_DEBUG(arg) || f->doing_pickups);
 
-            Queue_Mark_Opt_Value_Deep(arg);
+            if (
+                f->param != NULL
+                && !IS_UNREADABLE_IF_DEBUG(arg)
+                && IS_VARARGS(arg)
+                && arg->payload.varargs.arg == arg
+            ){
+                // Special case of REB_VARARGS where the frame is this one and
+                // not complete...don't mark (uninitialized cells)
+            }
+            else
+                Queue_Mark_Opt_Value_Deep(arg);
         }
         assert(IS_END(param) ? IS_END(arg) : TRUE); // may not enforce
 

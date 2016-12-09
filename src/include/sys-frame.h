@@ -679,3 +679,17 @@ finished:
 
     return; // needed for release build so `finished:` labels a statement
 }
+
+
+// This routine ensures that a valid REBCTX* (suitable for putting into a
+// FRAME! REBVAL) exists for a Reb_Frame stack structure.
+//
+inline static REBCTX *Context_For_Frame_May_Reify_Managed(REBFRM *f)
+{
+    assert(NOT(Is_Function_Frame_Fulfilling(f)));
+
+    if (f->varlist == NULL || !GET_ARR_FLAG(f->varlist, ARRAY_FLAG_VARLIST))
+        Reify_Frame_Context_Maybe_Fulfilling(f); // it's not fulfilling, here
+
+    return AS_CONTEXT(f->varlist);
+}

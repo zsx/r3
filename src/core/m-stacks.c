@@ -331,7 +331,7 @@ REBFUN *Underlying_Function_Debug(
 
 
 //
-//  Context_For_Frame_May_Reify_Core: C
+//  Reify_Frame_Context_Maybe_Fulfilling: C
 //
 // A Reb_Frame does not allocate a REBSER for its frame to be used in the
 // context by default.  But one can be allocated on demand, even for a NATIVE!
@@ -341,18 +341,12 @@ REBFUN *Underlying_Function_Debug(
 //
 // If there's already a frame this will return it, otherwise create it.
 //
-// The result of this operation will not necessarily give back a managed
-// context.  All cases can't be managed because it may be in a partial state
-// (of fulfilling function arguments), and may contain bad data in the varlist.
-// But if it has already been managed, it will be returned that way.
-//
-REBCTX *Context_For_Frame_May_Reify_Core(REBFRM *f) {
+void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
     assert(Is_Any_Function_Frame(f)); // varargs reifies while still pending
 
     REBCTX *context;
     if (f->varlist != NULL) {
-        if (GET_ARR_FLAG(f->varlist, ARRAY_FLAG_VARLIST))
-            return AS_CONTEXT(f->varlist); // already a context!
+        assert(!GET_ARR_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
 
         // We have our function call's args in an array, but it is not yet
         // a context.  !!! Really this cannot reify if we're in arg gathering
@@ -383,13 +377,6 @@ REBCTX *Context_For_Frame_May_Reify_Core(REBFRM *f) {
     INIT_CTX_KEYLIST_SHARED(context, FUNC_PARAMLIST(underlying));
     ASSERT_ARRAY_MANAGED(CTX_KEYLIST(context));
 
-    // We do not manage the varlist, because we'd like to be able to free
-    // it *if* nothing happens that causes it to be managed.  Note that
-    // initializing word REBVALs that are bound into it will ensure
-    // managedness, as will creating a REBVAL for it.
-    //
-    assert(NOT(IS_ARRAY_MANAGED(CTX_VARLIST(context))));
-
     // When in ET_FUNCTION or ET_LOOKBACK, the arglist will be marked safe from
     // GC. It is managed because the pointer makes its way into bindings that
     // ANY-WORD! values may have, and they need to not crash.
@@ -413,25 +400,15 @@ REBCTX *Context_For_Frame_May_Reify_Core(REBFRM *f) {
     if (NOT(IS_FUNCTION_INTERPRETED(FUNC_VALUE(f->func))))
         SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_LOCKED);
 
-    return context;
-}
+    MANAGE_ARRAY(f->varlist);
 
-
-//
-//  Context_For_Frame_May_Reify_Managed: C
-//
-REBCTX *Context_For_Frame_May_Reify_Managed(REBFRM *f)
-{
-    assert(Is_Any_Function_Frame(f) && NOT(Is_Function_Frame_Fulfilling(f)));
-
-    REBCTX *context = Context_For_Frame_May_Reify_Core(f);
-    ENSURE_ARRAY_MANAGED(CTX_VARLIST(context));
-
-    // Finally we mark the flags to say this contains a valid frame, so that
-    // future calls to this routine will return it instead of making another.
-    // This flag must be cleared when the call is finished (as the Reb_Frame
-    // will be blown away if there's an error, no concerns about that).
+#if !defined(NDEBUG)
     //
-    ASSERT_CONTEXT(context);
-    return context;
+    // Variadics will reify the varlist even when the data is not quite
+    // ready; these need special handling in the GC code for marking frames.
+    // By the time the function actually runs, the data should be good.
+    //
+    if (NOT(Is_Function_Frame_Fulfilling(f)))
+        ASSERT_CONTEXT(context);
+#endif
 }

@@ -785,18 +785,22 @@ reevaluate:;
 
                 VAL_RESET_HEADER(f->arg, REB_VARARGS);
 
-                // Note that this varlist is to a context that is not ready
-                // to be shared with the GC yet (bad cells in any unfilled
-                // arg slots).  To help cue that it's not necessarily a
-                // completed context yet, we store it as an array type.
+                // Note that this varlist is to a context with bad cells in
+                // any unfilled arg slots.  Because of this, there needs to
+                // be special handling in the GC that knows *not* to try
+                // and walk these incomplete arrays sitting in the argument
+                // slots if they're not ready...
                 //
-                // Since we are putting the frame context into a REBVAL that
-                // may have an indefinite lifetime, it will need to be managed.
-                // We can't manage it *yet* because the frame is only partly
-                // constructed, so that's currently the job of dispatchers that
-                // allow variadic arguments.
-                //
-                Context_For_Frame_May_Reify_Core(f);
+                if (
+                    f->varlist == NULL
+                    || !GET_ARR_FLAG(f->varlist, ARRAY_FLAG_VARLIST)
+                ){
+                    // Don't use ordinary call to Context_For_Frame_May_Reify
+                    // because this special case allows reification even
+                    // though the frame is pending.
+                    //
+                    Reify_Frame_Context_Maybe_Fulfilling(f);
+                }
                 f->arg->extra.binding = f->varlist;
 
                 f->arg->payload.varargs.param = const_KNOWN(f->param); // check

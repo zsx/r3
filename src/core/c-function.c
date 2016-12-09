@@ -2024,7 +2024,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
         //
         Bind_Values_Core(
             VAL_ARRAY_AT(opt_def),
-            Context_For_Frame_May_Reify_Core(f),
+            Context_For_Frame_May_Reify_Managed(f),
             FLAGIT_KIND(REB_SET_WORD), // types to bind (just set-word!)
             0, // types to "add midstream" to binding as we go (nothing)
             BIND_DEEP
