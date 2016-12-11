@@ -90,10 +90,10 @@ void MAKE_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     }
 
     REBVAL spec;
-    COPY_VALUE(&spec, VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg));
+    Derelativize(&spec, VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg));
 
     REBVAL body;
-    COPY_VALUE(&body, VAL_ARRAY_AT(arg) + 1, VAL_SPECIFIER(arg));
+    Derelativize(&body, VAL_ARRAY_AT(arg) + 1, VAL_SPECIFIER(arg));
 
     // Spec-constructed functions do *not* have definitional returns
     // added automatically.  They are part of the generators.  So the

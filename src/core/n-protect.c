@@ -195,7 +195,7 @@ static REB_R Protect_Unprotect_Core(REBFRM *frame_, REBFLGS flags)
             RELVAL *val;
             for (val = VAL_ARRAY_AT(value); NOT_END(val); val++) {
                 REBVAL word; // need binding intact, can't just pass RELVAL
-                COPY_VALUE(&word, val, VAL_SPECIFIER(value));
+                Derelativize(&word, val, VAL_SPECIFIER(value));
                 Protect_Word_Value(&word, flags);  // will unmark if deep
             }
             goto return_value_arg;

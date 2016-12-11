@@ -110,7 +110,7 @@ REBTYPE(Datatype)
                 else {
                     // typespec array does not contain relative values
                     //
-                    COPY_VALUE(var, value, SPECIFIED);
+                    Derelativize(var, value, SPECIFIED);
                     ++value;
                 }
             }

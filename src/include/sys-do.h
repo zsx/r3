@@ -607,7 +607,7 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
     // we do with lookups here will be reused if we can't avoid a frame.
     //
     if (IS_KIND_INERT(child->eval_type)) {
-        COPY_VALUE(out, parent->value, parent->specifier);
+        Derelativize(out, parent->value, parent->specifier);
         SET_VAL_FLAG(out, VALUE_FLAG_UNEVALUATED);
     }
     else {
@@ -749,7 +749,7 @@ no_optimization:
 
 inline static void QUOTE_NEXT_REFETCH(REBVAL *dest, REBFRM *f) {
     TRACE_FETCH_DEBUG("QUOTE_NEXT_REFETCH", f, FALSE);
-    COPY_VALUE(dest, f->value, f->specifier);
+    Derelativize(dest, f->value, f->specifier);
     SET_VAL_FLAG(dest, VALUE_FLAG_UNEVALUATED);
     f->gotten = NULL;
     FETCH_NEXT_ONLY_MAYBE_END(f);

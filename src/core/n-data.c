@@ -972,7 +972,7 @@ REBNATIVE(set)
                 SET_BLANK(var);
                 continue;
             }
-            COPY_VALUE(var, value, value_specifier);
+            Derelativize(var, value, value_specifier);
             if (set_with_block) value++;
         }
 
@@ -1034,7 +1034,7 @@ REBNATIVE(set)
     //
     for (; NOT_END(target); target++) {
         if (IS_WORD(target) || IS_SET_WORD(target) || IS_LIT_WORD(target)) {
-            COPY_VALUE(
+            Derelativize(
                 GET_MUTABLE_VAR_MAY_FAIL(target, target_specifier),
                 value,
                 value_specifier
@@ -1052,7 +1052,7 @@ REBNATIVE(set)
                     = *GET_OPT_VAR_MAY_FAIL(value, value_specifier);
             }
             else {
-                COPY_VALUE(
+                Derelativize(
                     GET_MUTABLE_VAR_MAY_FAIL(target, target_specifier),
                     value,
                     value_specifier

@@ -87,7 +87,7 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
     else {
         // object/word and object/value case:
         //
-        COPY_VALUE(&pvs->selector_temp, pvs->item, pvs->item_specifier);
+        Derelativize(&pvs->selector_temp, pvs->item, pvs->item_specifier);
         pvs->selector = &pvs->selector_temp;
     }
 
@@ -222,7 +222,7 @@ REBOOL Do_Path_Throws_Core(
         // temporary locations, like this pvs.value...if a set-path sets
         // it, then it will be discarded.
 
-        COPY_VALUE(pvs.store, VAL_ARRAY_AT(pvs.orig), pvs.item_specifier);
+        Derelativize(pvs.store, VAL_ARRAY_AT(pvs.orig), pvs.item_specifier);
         pvs.value = pvs.store;
         pvs.value_specifier = SPECIFIED;
     }
@@ -261,17 +261,17 @@ REBOOL Do_Path_Throws_Core(
             // Only function refinements should get by this line:
 
             REBVAL specified_orig;
-            COPY_VALUE(&specified_orig, pvs.orig, specifier);
+            Derelativize(&specified_orig, pvs.orig, specifier);
 
             REBVAL specified_item;
-            COPY_VALUE(&specified_item, pvs.item, specifier);
+            Derelativize(&specified_item, pvs.item, specifier);
 
             fail (Error(RE_INVALID_PATH, &specified_orig, &specified_item));
         }
     }
     else if (!IS_FUNCTION(pvs.value)) {
         REBVAL specified;
-        COPY_VALUE(&specified, pvs.orig, specifier);
+        Derelativize(&specified, pvs.orig, specifier);
         fail (Error(RE_BAD_PATH_TYPE, &specified, Type_Of(pvs.value)));
     }
 
@@ -283,7 +283,7 @@ REBOOL Do_Path_Throws_Core(
 
     // If storage was not used, then copy final value back to it:
     if (pvs.value != pvs.store)
-        COPY_VALUE(pvs.store, pvs.value, pvs.value_specifier);
+        Derelativize(pvs.store, pvs.value, pvs.value_specifier);
 
     assert(!THROWN(out));
 
@@ -441,10 +441,10 @@ REBOOL Do_Path_Throws_Core(
 REBCTX *Error_Bad_Path_Select(REBPVS *pvs)
 {
     REBVAL orig;
-    COPY_VALUE(&orig, pvs->orig, pvs->item_specifier);
+    Derelativize(&orig, pvs->orig, pvs->item_specifier);
 
     REBVAL item;
-    COPY_VALUE(&item, pvs->item, pvs->item_specifier);
+    Derelativize(&item, pvs->item, pvs->item_specifier);
 
     return Error(RE_INVALID_PATH, &orig, &item);
 }
@@ -456,10 +456,10 @@ REBCTX *Error_Bad_Path_Select(REBPVS *pvs)
 REBCTX *Error_Bad_Path_Set(REBPVS *pvs)
 {
     REBVAL orig;
-    COPY_VALUE(&orig, pvs->orig, pvs->item_specifier);
+    Derelativize(&orig, pvs->orig, pvs->item_specifier);
 
     REBVAL item;
-    COPY_VALUE(&item, pvs->item, pvs->item_specifier);
+    Derelativize(&item, pvs->item, pvs->item_specifier);
 
     return Error(RE_BAD_PATH_SET, &orig, &item);
 }
@@ -471,7 +471,7 @@ REBCTX *Error_Bad_Path_Set(REBPVS *pvs)
 REBCTX *Error_Bad_Path_Range(REBPVS *pvs)
 {
     REBVAL item;
-    COPY_VALUE(&item, pvs->item, pvs->item_specifier);
+    Derelativize(&item, pvs->item, pvs->item_specifier);
 
     return Error_Out_Of_Range(&item);
 }
@@ -483,7 +483,7 @@ REBCTX *Error_Bad_Path_Range(REBPVS *pvs)
 REBCTX *Error_Bad_Path_Field_Set(REBPVS *pvs)
 {
     REBVAL item;
-    COPY_VALUE(&item, pvs->item, pvs->item_specifier);
+    Derelativize(&item, pvs->item, pvs->item_specifier);
 
     return Error(RE_BAD_FIELD_SET, &item, Type_Of(pvs->opt_setval));
 }
@@ -504,7 +504,7 @@ void Get_Simple_Value_Into(REBVAL *out, const RELVAL *val, REBCTX *specifier)
             fail (Error_No_Catch_For_Throw(out));
     }
     else {
-        COPY_VALUE(out, val, specifier);
+        Derelativize(out, val, specifier);
     }
 }
 

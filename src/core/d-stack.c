@@ -142,7 +142,7 @@ REBARR *Make_Where_For_Frame(REBFRM *f)
 
     for (n = start; n < end; ++n) {
         DS_PUSH_TRASH;
-        COPY_VALUE(
+        Derelativize(
             DS_TOP,
             ARR_AT(FRM_ARRAY(f), n),
             f->specifier

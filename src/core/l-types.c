@@ -1164,7 +1164,7 @@ REBNATIVE(scan_net_header)
                 else {
                     // Create new block for values:
                     REBARR *array = Make_Array(2);
-                    COPY_VALUE(
+                    Derelativize(
                         Alloc_Tail_Array(array),
                         item + 1, // prior value
                         SPECIFIED // no relative values added

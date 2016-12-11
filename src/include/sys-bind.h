@@ -445,52 +445,52 @@ static inline REBVAL *TRY_GET_MUTABLE_VAR(
 // that is the only kind of specifier you can use with them).
 //
 
-inline static void COPY_VALUE(
-    RELVAL *dest, // relative destinations are overwritten with specified value
-    const RELVAL *src,
+inline static void Derelativize(
+    REBVAL *out, // relative destinations are overwritten with specified value
+    const RELVAL *v,
     REBCTX *specifier
 ) {
-    assert(!IS_END(src));
-    assert(!IS_TRASH_DEBUG(src));
+    assert(!IS_END(v));
+    assert(!IS_TRASH_DEBUG(v));
 
-    ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(dest, __FILE__, __LINE__);
+    ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(out, __FILE__, __LINE__);
 
-    if (IS_RELATIVE(src)) {
+    if (IS_RELATIVE(v)) {
     #if !defined(NDEBUG)
-        assert(ANY_WORD(src) || ANY_ARRAY(src));
+        assert(ANY_WORD(v) || ANY_ARRAY(v));
         if (specifier == SPECIFIED) {
             Debug_Fmt("Internal Error: Relative item used with SPECIFIED");
-            PROBE_MSG(src, "word or array");
-            PROBE_MSG(FUNC_VALUE(VAL_RELATIVE(src)), "func");
+            PROBE_MSG(v, "word or array");
+            PROBE_MSG(FUNC_VALUE(VAL_RELATIVE(v)), "func");
             assert(FALSE);
         }
         else if (
-            VAL_RELATIVE(src)
+            VAL_RELATIVE(v)
             != VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier))
         ){
             Debug_Fmt("Internal Error: Function mismatch in specific binding");
-            PROBE_MSG(src, "word or array");
-            PROBE_MSG(FUNC_VALUE(VAL_RELATIVE(src)), "expected func");
+            PROBE_MSG(v, "word or array");
+            PROBE_MSG(FUNC_VALUE(VAL_RELATIVE(v)), "expected func");
             PROBE_MSG(CTX_FRAME_FUNC_VALUE(specifier), "actual func");
             assert(FALSE);
         }
     #endif
 
-        dest->header.bits
-            = src->header.bits & ~cast(REBUPT, VALUE_FLAG_RELATIVE);
-        dest->extra.binding = cast(REBARR*, specifier);
+        out->header.bits
+            = v->header.bits & ~cast(REBUPT, VALUE_FLAG_RELATIVE);
+        out->extra.binding = cast(REBARR*, specifier);
     }
     else {
-        dest->header = src->header;
-        dest->extra.binding = src->extra.binding;
+        out->header = v->header;
+        out->extra.binding = v->extra.binding;
     }
-    dest->payload = src->payload;
+    out->payload = v->payload;
 }
 
 inline static void DS_PUSH_RELVAL(const RELVAL *v, REBCTX *specifier) {
     ASSERT_VALUE_MANAGED(v); // would fail on END marker
     DS_PUSH_TRASH;
-    COPY_VALUE(DS_TOP, v, specifier);
+    Derelativize(DS_TOP, v, specifier);
 }
 
 

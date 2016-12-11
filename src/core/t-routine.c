@@ -204,7 +204,7 @@ static void Schema_From_Block_May_Fail(
         // machinery that implements `make struct! [...]`
 
         REBVAL def;
-        COPY_VALUE(&def, item, VAL_SPECIFIER(blk));
+        Derelativize(&def, item, VAL_SPECIFIER(blk));
 
         REBVAL temp;
         MAKE_Struct(&temp, REB_STRUCT, &def); // may fail()
@@ -1203,7 +1203,7 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
                 ++item;
 
                 REBVAL block;
-                COPY_VALUE(&block, item, VAL_SPECIFIER(ffi_spec));
+                Derelativize(&block, item, VAL_SPECIFIER(ffi_spec));
 
                 Schema_From_Block_May_Fail(
                     Alloc_Tail_Array(args_schemas), // schema (out)
@@ -1226,7 +1226,7 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
                 ++item;
 
                 REBVAL block;
-                COPY_VALUE(&block, item, VAL_SPECIFIER(ffi_spec));
+                Derelativize(&block, item, VAL_SPECIFIER(ffi_spec));
 
                 REBVAL param;
                 Schema_From_Block_May_Fail(

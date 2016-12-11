@@ -223,7 +223,7 @@ REBOOL Compose_Any_Array_Throws(
                 // compose/deep [does [(1 + 2)] nested] => [does [3] nested]
 
                 REBVAL specific;
-                COPY_VALUE(&specific, e.value, e.specifier);
+                Derelativize(&specific, e.value, e.specifier);
 
                 REBVAL composed;
                 if (Compose_Any_Array_Throws(

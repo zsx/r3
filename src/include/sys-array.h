@@ -224,7 +224,7 @@ inline static REBARR *Alloc_Singular_Array(void) {
     (*Alloc_Tail_Array(a) = *(v), NOOP)
 
 #define Append_Value_Core(a,v,s) \
-    COPY_VALUE(Alloc_Tail_Array(a), (v), (s))
+    Derelativize(Alloc_Tail_Array(a), (v), (s))
 
 
 #define Copy_Values_Len_Shallow(v,s,l) \

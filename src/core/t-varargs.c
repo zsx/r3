@@ -161,7 +161,7 @@ REBIXO Do_Vararg_Op_May_Throw(
             return END_FLAG;
 
         if (op == VARARG_OP_FIRST) {
-            COPY_VALUE(out, f->value, f->specifier);
+            Derelativize(out, f->value, f->specifier);
             return VA_LIST_FLAG;
         }
     }

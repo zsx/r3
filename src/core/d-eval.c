@@ -63,7 +63,7 @@
 void Dump_Frame_Location(REBFRM *f)
 {
     REBVAL dump;
-    COPY_VALUE(&dump, f->value, f->specifier);
+    Derelativize(&dump, f->value, f->specifier);
 
     PROBE_MSG(&dump, "Dump_Frame_Location() value");
 

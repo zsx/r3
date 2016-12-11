@@ -614,7 +614,7 @@ RELVAL *Pick_Block(REBVAL *out, const REBVAL *block, const REBVAL *selector)
     }
     else {
         RELVAL *slot = VAL_ARRAY_AT_HEAD(block, n);
-        COPY_VALUE(out, slot, VAL_SPECIFIER(block));
+        Derelativize(out, slot, VAL_SPECIFIER(block));
         return slot;
     }
 }
@@ -705,7 +705,7 @@ REBTYPE(Array)
                 D_OUT, Copy_Array_At_Max_Shallow(array, index, specifier, len)
             );
         else
-            COPY_VALUE(D_OUT, &ARR_HEAD(array)[index], specifier);
+            Derelativize(D_OUT, &ARR_HEAD(array)[index], specifier);
 
         Remove_Series(ARR_SERIES(array), index, len);
         return R_OUT;
@@ -760,7 +760,7 @@ REBTYPE(Array)
                     return R_BLANK;
                 return R_VOID;
             }
-            COPY_VALUE(D_OUT, ARR_AT(array, ret), specifier);
+            Derelativize(D_OUT, ARR_AT(array, ret), specifier);
         }
         return R_OUT;
     }

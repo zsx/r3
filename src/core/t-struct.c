@@ -864,7 +864,7 @@ static void Parse_Field_Type_May_Fail(
                 fail (Error_Unexpected_Type(REB_BLOCK, VAL_TYPE(val)));
 
             REBVAL specified;
-            COPY_VALUE(&specified, val, VAL_SPECIFIER(spec));
+            Derelativize(&specified, val, VAL_SPECIFIER(spec));
             MAKE_Struct(inner, REB_STRUCT, &specified); // may fail()
 
             SET_INTEGER(
@@ -925,7 +925,7 @@ static void Parse_Field_Type_May_Fail(
         // regarding alternative ideas.
         //
         *FLD_AT(field, IDX_FIELD_FFTYPE) = *FLD_AT(VAL_STRUCT_SCHEMA(val), 3);
-        COPY_VALUE(inner, val, VAL_SPECIFIER(spec));
+        Derelativize(inner, val, VAL_SPECIFIER(spec));
     }
     else
         fail (Error_Invalid_Type(VAL_TYPE(val)));
@@ -1112,7 +1112,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
         //     make struct! [[raw-size] ...]
         //
         REBVAL specified;
-        COPY_VALUE(&specified, item, VAL_SPECIFIER(arg));
+        Derelativize(&specified, item, VAL_SPECIFIER(arg));
         parse_attr(&specified, &raw_size, &raw_addr);
         ++item;
     }
@@ -1164,7 +1164,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
             fail (Error_Invalid_Arg_Core(item, VAL_SPECIFIER(arg)));
 
         REBVAL spec;
-        COPY_VALUE(&spec, item, VAL_SPECIFIER(arg));
+        Derelativize(&spec, item, VAL_SPECIFIER(arg));
 
         // Fills in the width, dimension, type, and ffi_type (if needed)
         //
@@ -1195,7 +1195,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
 
             if (IS_BLOCK(item)) {
                 REBVAL specified;
-                COPY_VALUE(&specified, item, VAL_SPECIFIER(arg));
+                Derelativize(&specified, item, VAL_SPECIFIER(arg));
 
                 if (Reduce_Any_Array_Throws(&init, &specified, FALSE))
                     fail (Error_No_Catch_For_Throw(&init));
@@ -1411,7 +1411,7 @@ REBINT PD_Struct(REBPVS *pvs)
 
             {
                 REBVAL specific;
-                COPY_VALUE(&specific, pvs->value, pvs->value_specifier);
+                Derelativize(&specific, pvs->value, pvs->value_specifier);
 
                 if (!Set_Struct_Var(stu, &sel_orig, pvs->selector, &specific))
                     fail (Error_Bad_Path_Set(pvs));

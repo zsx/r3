@@ -1096,7 +1096,7 @@ REBOOL Form_Value_Throws(
             // evaluation...just printed inertly.
 
             REBVAL specific;
-            COPY_VALUE(&specific, item, VAL_SPECIFIER(value));
+            Derelativize(&specific, item, VAL_SPECIFIER(value));
 
             REBVAL dummy;
             if (Form_Value_Throws(

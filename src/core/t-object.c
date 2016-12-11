@@ -207,7 +207,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
             break; // fix bug#708
         }
         else
-            COPY_VALUE(var, &word[1], VAL_SPECIFIER(arg));
+            Derelativize(var, &word[1], VAL_SPECIFIER(arg));
 
     }
 

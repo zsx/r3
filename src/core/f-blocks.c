@@ -75,7 +75,7 @@ REBARR *Copy_Array_At_Extra_Shallow(
         REBVAL *dest = KNOWN(ARR_HEAD(copy));
         REBCNT count = 0;
         for (; count < len; ++count, ++dest, ++src)
-            COPY_VALUE(dest, src, specifier);
+            Derelativize(dest, src, specifier);
     }
 
     TERM_ARRAY_LEN(copy, len);
@@ -96,15 +96,13 @@ REBARR *Copy_Array_At_Max_Shallow(
     REBCTX *specifier,
     REBCNT max
 ) {
-    REBARR *copy;
-
     if (index > ARR_LEN(original))
         return Make_Array(0);
 
     if (index + max > ARR_LEN(original))
         max = ARR_LEN(original) - index;
 
-    copy = Make_Array(max + 1);
+    REBARR *copy = Make_Array(max + 1);
 
     if (specifier == SPECIFIED) {
     #if !defined(NDEBUG)
@@ -121,7 +119,7 @@ REBARR *Copy_Array_At_Max_Shallow(
         const RELVAL *src = ARR_AT(original, index);
         RELVAL *dest = ARR_HEAD(copy);
         for (; count < max; ++count, ++src, ++dest)
-            COPY_VALUE(dest, src, specifier);
+            Derelativize(SINK(dest), src, specifier);
     }
 
     TERM_ARRAY_LEN(copy, max);
@@ -160,7 +158,7 @@ REBARR *Copy_Values_Len_Extra_Skip_Shallow(
         const RELVAL *src = head;
         RELVAL *dest = ARR_HEAD(array);
         for (; count < len; ++count, src += skip, ++dest)
-            COPY_VALUE(dest, src, specifier);
+            Derelativize(SINK(dest), src, specifier);
     }
 
     TERM_ARRAY_LEN(array, len);

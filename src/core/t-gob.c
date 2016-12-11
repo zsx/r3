@@ -618,7 +618,7 @@ static void Set_GOB_Vars(REBGOB *gob, const RELVAL *blk, REBCTX *specifier)
         assert(!IS_VOID(blk));
 
         REBVAL var;
-        COPY_VALUE(&var, blk, specifier);
+        Derelativize(&var, blk, specifier);
         ++blk;
 
         if (!IS_SET_WORD(&var))
@@ -628,7 +628,7 @@ static void Set_GOB_Vars(REBGOB *gob, const RELVAL *blk, REBCTX *specifier)
             fail (Error(RE_NEED_VALUE, &var));
 
         REBVAL val;
-        COPY_VALUE(&val, blk, specifier);
+        Derelativize(&val, blk, specifier);
         ++blk;
 
         if (IS_SET_WORD(&val))

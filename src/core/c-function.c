@@ -1035,7 +1035,7 @@ REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
     // Clients aren't supposed to ever be looking at the values for the
     // stackvars or the frame if it is expired.
     //
-    ARR_SERIES(varlist)->misc.f = NULL;
+    TRASH_POINTER_IF_DEBUG(ARR_SERIES(varlist)->misc.f);
 
     return expired;
 }

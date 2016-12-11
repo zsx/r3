@@ -1286,10 +1286,10 @@ inline static void SET_EVENT_KEY(RELVAL *v, REBCNT k, REBCNT c) {
 
 // In the C++ build, defining this overload that takes a REBVAL* instead of
 // a RELVAL*, and then not defining it...will tell you that you do not need
-// to use COPY_VALUE.  Just say `*dest = *src` if your source is a REBVAL!
+// to use Derelativize.  Just say `*out = *v` if your source is a REBVAL!
 //
 #ifdef __cplusplus
-void COPY_VALUE_Debug(REBVAL *dest, const REBVAL *src, REBCTX *specifier);
+    void Derelativize(REBVAL *out, const REBVAL *v, REBCTX *specifier);
 #endif
 
 

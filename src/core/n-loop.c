@@ -483,14 +483,14 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
             }
 
             if (ANY_ARRAY(data)) {
-                COPY_VALUE(
+                Derelativize(
                     var,
                     ARR_AT(AS_ARRAY(series), index),
                     VAL_SPECIFIER(data) // !!! always matches series?
                 );
             }
             else if (IS_DATATYPE(data)) {
-                COPY_VALUE(
+                Derelativize(
                     var,
                     ARR_AT(AS_ARRAY(series), index),
                     SPECIFIED // array generated via data stack, all specific
@@ -520,7 +520,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                     }
                 }
                 else if (j == 1) {
-                    COPY_VALUE(
+                    Derelativize(
                         var,
                         ARR_AT(AS_ARRAY(series), index),
                         SPECIFIED // !!! it's a varlist
@@ -545,7 +545,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                 REBVAL *val = KNOWN(ARR_AT(AS_ARRAY(series), index | 1));
                 if (!IS_VOID(val)) {
                     if (j == 0) {
-                        COPY_VALUE(
+                        Derelativize(
                             var,
                             ARR_AT(AS_ARRAY(series), index & ~1),
                             SPECIFIED // maps always specified
@@ -554,7 +554,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                         if (IS_END(var + 1)) index++; // only words
                     }
                     else if (j == 1) {
-                        COPY_VALUE(
+                        Derelativize(
                             var,
                             ARR_AT(AS_ARRAY(series), index),
                             SPECIFIED // maps always specified

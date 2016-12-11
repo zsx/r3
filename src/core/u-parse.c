@@ -200,7 +200,7 @@ static REBOOL Subparse_Throws(
 
     f->varlist = NULL;
 
-    COPY_VALUE(&f->args_head[0], input, input_specifier);
+    Derelativize(&f->args_head[0], input, input_specifier);
 
     // We always want "case-sensitivity" on binary bytes, vs. treating as
     // case-insensitive bytes for ASCII characters.
@@ -992,7 +992,7 @@ static REBIXO To_Thru_Non_Block_Rule(
         //
         REBVAL word;
         if (IS_LIT_WORD(rule)) {
-            COPY_VALUE(&word, rule, P_RULE_SPECIFIER);
+            Derelativize(&word, rule, P_RULE_SPECIFIER);
             VAL_SET_TYPE_BITS(&word, REB_WORD);
             rule = &word;
         }
@@ -2074,7 +2074,7 @@ REBNATIVE(subparse)
 
                     if (Is_Array_Series(P_INPUT)) {
                         if (count != 0)
-                            COPY_VALUE(
+                            Derelativize(
                                 var,
                                 ARR_AT(AS_ARRAY(P_INPUT), begin),
                                 P_INPUT_SPECIFIER
@@ -2150,7 +2150,7 @@ REBNATIVE(subparse)
 
                     if (Is_Array_Series(P_INPUT)) {
                         REBVAL specified;
-                        COPY_VALUE(&specified, rule, P_RULE_SPECIFIER);
+                        Derelativize(&specified, rule, P_RULE_SPECIFIER);
 
                         P_POS = Modify_Array(
                             (flags & PF_CHANGE) ? SYM_CHANGE : SYM_INSERT,
@@ -2170,7 +2170,7 @@ REBNATIVE(subparse)
                     }
                     else {
                         REBVAL specified;
-                        COPY_VALUE(&specified, rule, P_RULE_SPECIFIER);
+                        Derelativize(&specified, rule, P_RULE_SPECIFIER);
 
                         if (P_TYPE == REB_BINARY)
                             mod_flags |= AM_BINARY_SERIES;

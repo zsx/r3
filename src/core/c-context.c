@@ -893,7 +893,7 @@ REBCTX *Construct_Context(
         assert(!IS_SET_WORD(value + 1)); // TBD: support set words!
 
         REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(value, specifier);
-        COPY_VALUE(var, value + 1, specifier);
+        Derelativize(var, value + 1, specifier);
     }
 
     return context;

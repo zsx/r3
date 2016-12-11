@@ -1266,7 +1266,7 @@ REBCTX *Error_Invalid_Arg_Core(const RELVAL *value, REBCTX *specifier)
     assert(NOT_END(value)); // can't use with END markers
 
     REBVAL specific;
-    COPY_VALUE(&specific, value, specifier);
+    Derelativize(&specific, value, specifier);
 
     return Error(RE_INVALID_ARG, &specific, END_CELL);
 }
@@ -1286,7 +1286,7 @@ REBCTX *Error_Invalid_Arg(const REBVAL *value) {
 REBCTX *Error_Bad_Func_Def_Core(const RELVAL *item, REBCTX *specifier)
 {
     REBVAL specific;
-    COPY_VALUE(&specific, item, specifier);
+    Derelativize(&specific, item, specifier);
     return Error(RE_BAD_FUNC_DEF, &specific);
 }
 
@@ -1326,7 +1326,7 @@ REBCTX *Error_Bad_Refine_Revoke(REBFRM *f)
 //
 REBCTX *Error_No_Value_Core(const RELVAL *target, REBCTX *specifier) {
     REBVAL specified;
-    COPY_VALUE(&specified, target, specifier);
+    Derelativize(&specified, target, specifier);
 
     return Error(RE_NO_VALUE, &specified, END_CELL);
 }

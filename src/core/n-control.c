@@ -512,7 +512,7 @@ REBNATIVE(switch)
             // Note: e.value may have gone stale during DO, must REFETCH
         }
         else
-            COPY_VALUE(D_CELL, e.value, e.specifier);
+            Derelativize(D_CELL, e.value, e.specifier);
 
         // It's okay that we are letting the comparison change `value`
         // here, because equality is supposed to be transitive.  So if it
@@ -655,7 +655,7 @@ REBNATIVE(catch)
                     if (IS_BLOCK(candidate))
                         fail (Error(RE_INVALID_ARG, ARG(names)));
 
-                    COPY_VALUE(temp1, candidate, VAL_SPECIFIER(ARG(names)));
+                    Derelativize(temp1, candidate, VAL_SPECIFIER(ARG(names)));
                     *temp2 = *D_OUT;
 
                     // Return the THROW/NAME's arg if the names match

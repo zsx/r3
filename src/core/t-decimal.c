@@ -195,7 +195,7 @@ void MAKE_Decimal(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                 d = VAL_DECIMAL(item);
             else {
                 REBVAL specific;
-                COPY_VALUE(&specific, item, VAL_SPECIFIER(arg));
+                Derelativize(&specific, item, VAL_SPECIFIER(arg));
 
                 fail (Error_Invalid_Arg(&specific));
             }
@@ -209,7 +209,7 @@ void MAKE_Decimal(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                 exp = VAL_DECIMAL(item);
             else {
                 REBVAL specific;
-                COPY_VALUE(&specific, item, VAL_SPECIFIER(arg));
+                Derelativize(&specific, item, VAL_SPECIFIER(arg));
                 fail (Error_Invalid_Arg(&specific));
             }
 

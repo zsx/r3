@@ -308,7 +308,11 @@ static REBCNT Find_Map_Entry(
 
     // Must set the value:
     if (n) {  // re-set it:
-        COPY_VALUE(ARR_AT(pairlist, ((n - 1) * 2) + 1), val, val_specifier);
+        Derelativize(
+            SINK(ARR_AT(pairlist, ((n - 1) * 2) + 1)),
+            val,
+            val_specifier
+        );
         return n;
     }
 

@@ -1656,7 +1656,7 @@ reevaluate:;
 
         if (!f->gotten) { // <-- DO_COUNT_BREAKPOINT landing spot
             REBVAL specified;
-            COPY_VALUE(&specified, f->value, f->specifier);
+            Derelativize(&specified, f->value, f->specifier);
             fail (Error(RE_NOT_BOUND, &specified));
         }
 
