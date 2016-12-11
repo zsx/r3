@@ -366,7 +366,7 @@ for-each-record type boot-types [
             "LOGICAL(VAL_TYPE(v)==REB_" (uppercase to-c-name type/name) ")"
         ]
 
-        append new-types to-word join-of type/name "!"
+        append new-types to-word adjoin form type/name "!"
     ]
 
     n: n + 1
