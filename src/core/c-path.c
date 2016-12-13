@@ -46,49 +46,37 @@ extern const REBPEF Path_Dispatch[REB_MAX];
 //
 REBOOL Next_Path_Throws(REBPVS *pvs)
 {
-    REBPEF dispatcher;
-
-    // Path must have dispatcher, else return:
-    dispatcher = Path_Dispatch[VAL_TYPE(pvs->value)];
+    REBPEF dispatcher = Path_Dispatch[VAL_TYPE(pvs->value)];
     if (!dispatcher) return FALSE; // unwind, then check for errors
 
     pvs->item++;
 
-    //Debug_Fmt("Next_Path: %r/%r", pvs->path-1, pvs->path);
-
-    // Determine the "selector".  See notes on pvs->selector_temp for why
-    // a local variable can't be used for the temporary space.
+    // Calculate the "selector" into the GC guarded cell.
     //
+    assert(pvs->selector == &pvs->selector_cell);
+
     if (IS_GET_WORD(pvs->item)) { // e.g. object/:field
-        pvs->selector
-            = GET_MUTABLE_VAR_MAY_FAIL(pvs->item, pvs->item_specifier);
+        pvs->selector_cell
+            = *GET_OPT_VAR_MAY_FAIL(pvs->item, pvs->item_specifier);
 
         if (IS_VOID(pvs->selector))
             fail (Error_No_Value_Core(pvs->item, pvs->item_specifier));
-
-        SET_TRASH_IF_DEBUG(&pvs->selector_temp);
     }
-    // object/(expr) case:
-    else if (IS_GROUP(pvs->item)) {
+    else if (IS_GROUP(pvs->item)) { // object/(expr) case:
         if (Do_At_Throws(
-            &pvs->selector_temp,
+            &pvs->selector_cell,
             VAL_ARRAY(pvs->item),
             VAL_INDEX(pvs->item),
             IS_RELATIVE(pvs->item)
                 ? pvs->item_specifier // if relative, use parent specifier...
                 : VAL_SPECIFIER(const_KNOWN(pvs->item)) // ...else use child's
         )) {
-            *pvs->store = pvs->selector_temp;
+            *pvs->store = pvs->selector_cell;
             return TRUE;
         }
-
-        pvs->selector = &pvs->selector_temp;
     }
-    else {
-        // object/word and object/value case:
-        //
-        Derelativize(&pvs->selector_temp, pvs->item, pvs->item_specifier);
-        pvs->selector = &pvs->selector_temp;
+    else { // object/word and object/value case:
+        Derelativize(&pvs->selector_cell, pvs->item, pvs->item_specifier);
     }
 
     switch (dispatcher(pvs)) {
@@ -148,7 +136,21 @@ REBOOL Do_Path_Throws_Core(
     REBCTX *specifier,
     REBVAL *opt_setval
 ) {
+    // The pvs contains a cell for the selector into which evaluations are
+    // done, e.g. `foo/(1 + 2)`.  Because Next_Path() doesn't commit to not
+    // performing any evaluations this cell must be guarded.  In the case of
+    // a fail() this guard will be released automatically, but to return
+    // normally use `return_thrown` and `return_not_thrown` which drops guard.
+    //
+    // !!! There was also a strange requirement in some more quirky path
+    // evaluation (GOB!, STRUCT!) that the cell survive between Next_Path()
+    // calls, which may still be relevant to why this can't be a C local.
+    //
     REBPVS pvs;
+    SET_END(&pvs.selector_cell);
+    PUSH_GUARD_VALUE(&pvs.selector_cell);
+    pvs.selector = &pvs.selector_cell;
+
     REBDSP dsp_orig = DSP;
 
     assert(ANY_PATH(path));
@@ -253,7 +255,8 @@ REBOOL Do_Path_Throws_Core(
         //
         assert(threw == THROWN(pvs.value));
 
-        if (threw) return TRUE;
+        if (threw)
+            goto return_thrown;
 
         // Check for errors:
         if (NOT_END(pvs.item + 1) && !IS_FUNCTION(pvs.value)) {
@@ -278,7 +281,7 @@ REBOOL Do_Path_Throws_Core(
     if (opt_setval) {
         // If SET then we don't return anything
         assert(IS_END(pvs.item) + 1);
-        return FALSE;
+        goto return_not_thrown;
     }
 
     // If storage was not used, then copy final value back to it:
@@ -290,7 +293,7 @@ REBOOL Do_Path_Throws_Core(
     // Return 0 if not function or is :path/word...
     if (!IS_FUNCTION(pvs.value)) {
         assert(IS_END(pvs.item) + 1);
-        return FALSE;
+        goto return_not_thrown;
     }
 
     if (label_out) {
@@ -372,7 +375,7 @@ REBOOL Do_Path_Throws_Core(
                 )) {
                     *out = refinement;
                     DS_DROP_TO(dsp_orig);
-                    return TRUE;
+                    goto return_thrown;
                 }
                 if (IS_VOID(&refinement)) continue;
                 DS_PUSH(&refinement);
@@ -431,7 +434,13 @@ REBOOL Do_Path_Throws_Core(
             fail (Error(RE_TOO_LONG)); // !!! Better error or add feature
     }
 
+return_not_thrown:
+    DROP_GUARD_VALUE(&pvs.selector_cell);
     return FALSE;
+
+return_thrown:
+    DROP_GUARD_VALUE(&pvs.selector_cell);
+    return TRUE;
 }
 
 

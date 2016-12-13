@@ -106,16 +106,7 @@ struct Reb_Path_Value_State {
     // (This is what the individual path dispatchers should use.)
     //
     const REBVAL *selector;
-
-    // !!! `selector_temp` was added as a patch to push the temporary
-    // variable used to hold evaluated selectors into the PVS, when it was
-    // observed that callers of Next_Path() were expecting the selector to
-    // survive the call.  That meant it couldn't be in a C stack temporary.
-    // The method needs serious review, but keeping the temporary used for
-    // the selector in the PVS doesn't incur any more storage and bridges
-    // past the problem for now.
-    //
-    REBVAL selector_temp;
+    REBVAL selector_cell; // selector = &selector_cell (GC guarded value)
 
     // `value` holds the path value that should be chained from.  (It is the
     // type of `value` that dictates which dispatcher is given the `selector`
