@@ -409,6 +409,9 @@ static inline REBVAL *GET_MUTABLE_VAR_MAY_FAIL(
     return Get_Var_Core(&eval_type, any_word, specifier, GETVAR_IS_SETVAR);
 }
 
+#define SINK_VAR_MAY_FAIL(any_word,specifier) \
+    SINK(GET_MUTABLE_VAR_MAY_FAIL(any_word, specifier))
+
 
 //=////////////////////////////////////////////////////////////////////////=//
 //

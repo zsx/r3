@@ -318,7 +318,7 @@ inline static void Do_Pending_Sets_May_Invalidate_Gotten(
     while (DSP != f->dsp_orig) {
         switch (VAL_TYPE(DS_TOP)) {
         case REB_SET_WORD: {
-            f->refine = GET_MUTABLE_VAR_MAY_FAIL(DS_TOP, SPECIFIED);
+            f->refine = SINK_VAR_MAY_FAIL(DS_TOP, SPECIFIED);
             *f->refine = *out;
             if (f->refine == f->gotten)
                 f->gotten = NULL;

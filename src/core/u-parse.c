@@ -751,11 +751,8 @@ static REBIXO To_Thru_Block_Rule(
                     else
                         fail (Error_Parse_Rule());
                 }
-                else {
-                    // !!! Should mutability be enforced?  It might have to
-                    // be if set/copy are used...
-                    rule = GET_MUTABLE_VAR_MAY_FAIL(rule, P_RULE_SPECIFIER);
-                }
+                else
+                    rule = GET_OPT_VAR_MAY_FAIL(rule, P_RULE_SPECIFIER);
             }
             else if (IS_PATH(rule))
                 rule = Get_Parse_Value(&cell, rule, P_RULE_SPECIFIER);
@@ -1637,7 +1634,7 @@ REBNATIVE(subparse)
 
                 // word: - set a variable to the series at current index
                 if (IS_SET_WORD(P_RULE)) {
-                    *GET_MUTABLE_VAR_MAY_FAIL(P_RULE, P_RULE_SPECIFIER)
+                    *SINK_VAR_MAY_FAIL(P_RULE, P_RULE_SPECIFIER)
                         = *P_INPUT_VALUE;
                     FETCH_NEXT_RULE_MAYBE_END(f);
                     continue;
@@ -2063,31 +2060,36 @@ REBNATIVE(subparse)
                             : Copy_String_Slimming(P_INPUT, begin, count)
                     );
 
-                    *GET_MUTABLE_VAR_MAY_FAIL(
+                    *SINK_VAR_MAY_FAIL(
                         set_or_copy_word, P_RULE_SPECIFIER
                     ) = temp;
                 }
                 else if (flags & PF_SET) {
-                    REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(
-                        set_or_copy_word, P_RULE_SPECIFIER
-                    );
-
                     if (Is_Array_Series(P_INPUT)) {
                         if (count != 0)
                             Derelativize(
-                                var,
+                                SINK_VAR_MAY_FAIL(
+                                    set_or_copy_word, P_RULE_SPECIFIER
+                                ),
                                 ARR_AT(AS_ARRAY(P_INPUT), begin),
                                 P_INPUT_SPECIFIER
                             );
+                        else
+                            NOOP; // !!! leave as-is on 0 count?
                     }
                     else {
                         if (count != 0) {
+                            REBVAL *var = SINK_VAR_MAY_FAIL(
+                                set_or_copy_word, P_RULE_SPECIFIER
+                            );
                             REBUNI ch = GET_ANY_CHAR(P_INPUT, begin);
                             if (P_TYPE == REB_BINARY)
                                 SET_INTEGER(var, ch);
                             else
                                 SET_CHAR(var, ch);
                         }
+                        else
+                            NOOP; // !!! leave as-is on 0 count?
                     }
                 }
 

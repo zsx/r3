@@ -1035,7 +1035,7 @@ REBNATIVE(set)
     for (; NOT_END(target); target++) {
         if (IS_WORD(target) || IS_SET_WORD(target) || IS_LIT_WORD(target)) {
             Derelativize(
-                GET_MUTABLE_VAR_MAY_FAIL(target, target_specifier),
+                SINK_VAR_MAY_FAIL(target, target_specifier),
                 value,
                 value_specifier
             );
@@ -1048,12 +1048,12 @@ REBNATIVE(set)
             // Not exactly the same thing, but worth contemplating.
             //
             if (IS_WORD(value)) {
-                *GET_MUTABLE_VAR_MAY_FAIL(target, target_specifier)
+                *SINK_VAR_MAY_FAIL(target, target_specifier)
                     = *GET_OPT_VAR_MAY_FAIL(value, value_specifier);
             }
             else {
                 Derelativize(
-                    GET_MUTABLE_VAR_MAY_FAIL(target, target_specifier),
+                    SINK_VAR_MAY_FAIL(target, target_specifier),
                     value,
                     value_specifier
                 );
@@ -1119,7 +1119,7 @@ REBNATIVE(unset)
     REBVAL *target = ARG(target);
 
     if (ANY_WORD(target)) {
-        REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(target, SPECIFIED);
+        REBVAL *var = SINK_VAR_MAY_FAIL(target, SPECIFIED);
         SET_VOID(var);
         return R_VOID;
     }
@@ -1131,7 +1131,7 @@ REBNATIVE(unset)
         if (!ANY_WORD(word))
             fail (Error_Invalid_Arg_Core(word, VAL_SPECIFIER(target)));
 
-        REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word, VAL_SPECIFIER(target));
+        REBVAL *var = SINK_VAR_MAY_FAIL(word, VAL_SPECIFIER(target));
         SET_VOID(var);
     }
 
