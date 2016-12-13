@@ -1284,15 +1284,6 @@ inline static void SET_EVENT_KEY(RELVAL *v, REBCNT k, REBCNT c) {
         VAL_TUPLE_LEN(t) > 3 ? VAL_TUPLE(t)[3] : 0xff)
 
 
-// In the C++ build, defining this overload that takes a REBVAL* instead of
-// a RELVAL*, and then not defining it...will tell you that you do not need
-// to use Derelativize.  Just say `*out = *v` if your source is a REBVAL!
-//
-#ifdef __cplusplus
-    void Derelativize(REBVAL *out, const REBVAL *v, REBCTX *specifier);
-#endif
-
-
 //=////////////////////////////////////////////////////////////////////////=//
 //
 //  GOB! Graphic Object

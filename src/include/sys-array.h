@@ -137,6 +137,9 @@ inline static void TERM_SERIES(REBSER *s) {
 #define SET_ARR_FLAG(a,f) \
     SET_SER_FLAG(ARR_SERIES(a), (f))
 
+#define SET_ARR_FLAGS(a,f) \
+    SET_SER_FLAGS(ARR_SERIES(a), (f))
+
 #define CLEAR_ARR_FLAG(a,f) \
     CLEAR_SER_FLAG(ARR_SERIES(a), (f))
 

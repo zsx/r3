@@ -487,6 +487,16 @@ inline static void Derelativize(
     out->payload = v->payload;
 }
 
+
+// In the C++ build, defining this overload that takes a REBVAL* instead of
+// a RELVAL*, and then not defining it...will tell you that you do not need
+// to use Derelativize.  Just say `*out = *v` if your source is a REBVAL!
+//
+#ifdef __cplusplus
+    void Derelativize(REBVAL *out, const REBVAL *v, REBCTX *specifier);
+#endif
+
+
 inline static void DS_PUSH_RELVAL(const RELVAL *v, REBCTX *specifier) {
     ASSERT_VALUE_MANAGED(v); // would fail on END marker
     DS_PUSH_TRASH;

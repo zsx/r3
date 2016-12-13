@@ -517,12 +517,21 @@ void Free_Node(REBCNT pool_id, void *pv)
 
     REBPOL *pool = &Mem_Pools[pool_id];
 
+#ifdef NDEBUG
+    node->next_if_free = pool->first;
+    pool->first = node;
+#else
+    // !!! In R3-Alpha, the most recently freed node would become the first
+    // node to hand out.  This is a simple and likely good strategy for
+    // cache usage, but makes the "poisoning" nearly useless.
+    //
+    // This code was added to insert an empty segment, such that this node
+    // won't be picked by the next Make_Node.  That enlongates the poisonous
+    // time of this area to catch stale pointers.  But doing this in the
+    // debug build only creates a source of variant behavior.
+
     if (pool->last == NULL) // Fill pool if empty
         Fill_Pool(pool);
-
-    // insert an empty segment, such that this node won't be picked by
-    // next Make_Node to enlongate the poisonous time of this area to
-    // catch stale pointers
 
     UNPOISON_MEMORY(pool->last, pool->wide);
     pool->last->next_if_free = node;
@@ -531,6 +540,7 @@ void Free_Node(REBCNT pool_id, void *pv)
     node->next_if_free = NULL;
 
     POISON_MEMORY(node, pool->wide);
+#endif
 
     pool->free++;
 }
