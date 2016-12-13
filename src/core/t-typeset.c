@@ -152,21 +152,22 @@ REBOOL Update_Typeset_Bits_Core(
     for (; NOT_END(item); item++) {
         const RELVAL *var = NULL;
 
-        if (
-            IS_WORD(item)
-            && !(var = TRY_GET_OPT_VAR(item, specifier))
-        ) {
-            REBSYM sym = VAL_WORD_SYM(item);
+        if (IS_WORD(item)) {
+            if (IS_WORD_BOUND(item))
+                var = GET_OPT_VAR_MAY_FAIL(item, specifier);
+            else {
+                REBSYM sym = VAL_WORD_SYM(item);
 
-            // See notes: if a word doesn't look up to a variable, then its
-            // symbol is checked as a second chance.
-            //
-            if (IS_KIND_SYM(sym)) {
-                TYPE_SET(typeset, KIND_FROM_SYM(sym));
-                continue;
+                // See notes: if a word doesn't look up to a variable, then its
+                // symbol is checked as a second chance.
+                //
+                if (IS_KIND_SYM(sym)) {
+                    TYPE_SET(typeset, KIND_FROM_SYM(sym));
+                    continue;
+                }
+                else if (sym >= SYM_ANY_VALUE_X && sym < SYM_DATATYPES)
+                    var = ARR_AT(types, sym - SYM_ANY_VALUE_X);
             }
-            else if (sym >= SYM_ANY_VALUE_X && sym < SYM_DATATYPES)
-                var = ARR_AT(types, sym - SYM_ANY_VALUE_X);
         }
 
         if (!var) var = item;

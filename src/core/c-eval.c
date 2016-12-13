@@ -1630,12 +1630,17 @@ reevaluate:;
         // Don't overwrite f->value (if this just a DO/NEXT and it's not
         // infix, we might need to hold it at its position.)
         //
-        f->gotten = Get_Var_Core(
-            &f->eval_type, // always set to REB_0_LOOKBACK or REB_FUNCTION
-            f->value,
-            f->specifier,
-            GETVAR_READ_ONLY | GETVAR_UNBOUND_OK
-        );
+        if (IS_WORD_BOUND(f->value))
+            f->gotten = Get_Var_Core(
+                &f->eval_type, // always set to REB_0_LOOKBACK or REB_FUNCTION
+                f->value,
+                f->specifier,
+                GETVAR_READ_ONLY
+            );
+        else {
+            f->eval_type = REB_FUNCTION; // !!! rethink error dynamics here
+            f->gotten = NULL;
+        }
 
     //=//// DO/NEXT WON'T RUN MORE CODE UNLESS IT'S AN INFIX FUNCTION /////=//
 

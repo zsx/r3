@@ -682,12 +682,16 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
 
     child->eval_type = VAL_TYPE(parent->value);
 
-    if (NOT(flags & DO_FLAG_NO_LOOKAHEAD) && (child->eval_type == REB_WORD)) {
+    if (
+        NOT(flags & DO_FLAG_NO_LOOKAHEAD)
+        && (child->eval_type == REB_WORD)
+        && IS_WORD_BOUND(parent->value)
+    ){
         child->gotten = Get_Var_Core(
             &child->eval_type, // sets to REB_LOOKBACK or REB_FUNCTION
             parent->value,
             parent->specifier,
-            GETVAR_READ_ONLY | GETVAR_UNBOUND_OK
+            GETVAR_READ_ONLY
         );
 
         // We only want to run the function if it is a lookback function,

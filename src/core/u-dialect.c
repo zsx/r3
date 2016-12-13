@@ -173,9 +173,10 @@ static REBVAL *Eval_Arg(REBDIA *dia)
                 if (value) break;
             }
 
-            // value comes back NULL if protected or not found
-            //
-            value = TRY_GET_MUTABLE_VAR(val, SPECIFIED);
+            if (IS_WORD_BOUND(val))
+                value = GET_MUTABLE_VAR_MAY_FAIL(val, SPECIFIED);
+            else
+                value = NULL;
         }
         break;
 
@@ -266,7 +267,8 @@ again:
                 }
                 // Is it a typeset?
                 else if (
-                    (temp = TRY_GET_MUTABLE_VAR(fargs, SPECIFIED))
+                    IS_WORD_BOUND(fargs)
+                    && (temp = GET_MUTABLE_VAR_MAY_FAIL(fargs, SPECIFIED))
                     && IS_TYPESET(temp)
                 ) {
                     if (TYPE_CHECK(temp, VAL_TYPE(value))) accept = 1;

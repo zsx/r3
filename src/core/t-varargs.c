@@ -184,8 +184,11 @@ REBIXO Do_Vararg_Op_May_Throw(
     // Fulfilling_Last_Argument() to always report TRUE when a variadic
     // parameter is being processed.
     //
-    if (pclass == PARAM_CLASS_NORMAL && IS_WORD(f->value)) {
-        //
+    if (
+        pclass == PARAM_CLASS_NORMAL
+        && IS_WORD(f->value)
+        && IS_WORD_BOUND(f->value)
+    ){
         // !!! "f" frame is eval_type REB_FUNCTION and we can't disrupt that.
         // If we were going to reuse this fetch then we'd have to build a
         // child frame and call Do_Core() instead of DO_NEXT_REFETCH_MAY_THROW
@@ -196,10 +199,10 @@ REBIXO Do_Vararg_Op_May_Throw(
             &child_eval_type, // always set to REB_0_LOOKBACK or REB_FUNCTION
             f->value,
             f->specifier,
-            GETVAR_READ_ONLY | GETVAR_UNBOUND_OK
+            GETVAR_READ_ONLY
         );
 
-        if (!child_gotten || !IS_FUNCTION(child_gotten)) {
+        if (!IS_FUNCTION(child_gotten)) {
             assert(child_eval_type == REB_FUNCTION);
             /* child_eval_type = REB_WORD; */ // reset, keep fetched f->gotten
         }

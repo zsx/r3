@@ -197,10 +197,13 @@ REBNATIVE(fail)
             // message so it can be templated.
             //
             if (IS_WORD(item) || IS_GET_WORD(item)) {
-                const REBVAL *var
-                    = TRY_GET_OPT_VAR(item, VAL_SPECIFIER(reason));
+                if (!IS_WORD_BOUND(item))
+                    continue;
 
-                if (!var || !IS_FUNCTION(var))
+                const REBVAL *var
+                    = GET_OPT_VAR_MAY_FAIL(item, VAL_SPECIFIER(reason));
+
+                if (!IS_FUNCTION(var))
                     continue;
             }
 

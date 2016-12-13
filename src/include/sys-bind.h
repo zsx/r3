@@ -199,21 +199,15 @@ enum {
 // variable that is not currently set will return a REB_MAX_VOID value, trying
 // to GET_OPT_VAR_MAY_FAIL() on an *unbound* word will raise an error.
 //
-// TRY_GET_OPT_VAR() also provides const access.  But it will return NULL
-// instead of fail on unbound variables.
-//
-// GET_MUTABLE_VAR_MAY_FAIL() and TRY_GET_MUTABLE_VAR() offer parallel
-// facilities for getting a non-const REBVAL back.  They will fail if the
-// variable is either unbound -or- marked with OPT_TYPESET_LOCKED to protect
-// them against modification.  The TRY variation will fail quietly by
-// returning NULL.
+// GET_MUTABLE_VAR_MAY_FAIL() offers a parallel facility for getting a
+// non-const REBVAL back.  It will fail if the variable is either unbound
+// -or- marked with OPT_TYPESET_LOCKED to protect against modification.
 //
 
 
 enum {
     GETVAR_READ_ONLY = 0,
-    GETVAR_UNBOUND_OK = 1 << 0,
-    GETVAR_IS_SETVAR = 1 << 1 // will clear infix bit, so "always writes"!
+    GETVAR_IS_SETVAR = 1 << 0 // will clear infix bit, so "always writes"!
 };
 
 
@@ -277,8 +271,6 @@ inline static REBVAL *Get_Var_Core(
     else {
         // UNBOUND: No variable location to retrieve.
 
-        if (flags & GETVAR_UNBOUND_OK) return NULL;
-
         fail (Error(RE_NOT_BOUND, any_word));
     }
 
@@ -300,8 +292,6 @@ inline static REBVAL *Get_Var_Core(
             // series.  Hybrid approaches which have "some stack and some
             // durable" will be possible in the future, as a context can
             // mechanically have both stackvars and a dynamic data pointer.
-
-            if (flags & GETVAR_UNBOUND_OK) return NULL;
 
             REBVAL unbound;
             Val_Init_Word(
@@ -340,8 +330,6 @@ inline static REBVAL *Get_Var_Core(
             // some flags, including one of whether or not the variable is
             // locked from writes.  If mutable access was requested, deny
             // it if this flag is set.
-
-            if (flags & GETVAR_UNBOUND_OK) return NULL;
 
             fail (Error(RE_LOCKED_WORD, any_word));
         }
@@ -400,14 +388,6 @@ static inline const REBVAL *GET_OPT_VAR_MAY_FAIL(
     return Get_Var_Core(&eval_type, any_word, specifier, 0);
 }
 
-static inline const REBVAL *TRY_GET_OPT_VAR(
-    const RELVAL *any_word,
-    REBCTX *specifier
-) {
-    enum Reb_Kind eval_type; // unused
-    return Get_Var_Core(&eval_type, any_word, specifier, GETVAR_UNBOUND_OK);
-}
-
 static inline REBVAL *GET_MUTABLE_VAR_MAY_FAIL(
     const RELVAL *any_word,
     REBCTX *specifier
@@ -415,17 +395,6 @@ static inline REBVAL *GET_MUTABLE_VAR_MAY_FAIL(
     enum Reb_Kind eval_type = REB_FUNCTION; // reset infix/postfix/etc.
     return Get_Var_Core(&eval_type, any_word, specifier, GETVAR_IS_SETVAR);
 }
-
-static inline REBVAL *TRY_GET_MUTABLE_VAR(
-    const RELVAL *any_word,
-    REBCTX *specifier
-) {
-    enum Reb_Kind eval_type = REB_FUNCTION; // reset infix/postfix/etc.
-    return Get_Var_Core(
-        &eval_type, any_word, specifier, GETVAR_IS_SETVAR | GETVAR_UNBOUND_OK
-    );
-}
-
 
 
 //=////////////////////////////////////////////////////////////////////////=//
