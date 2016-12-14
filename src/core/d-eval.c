@@ -170,6 +170,8 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
     //
     assert(f->value);
 
+    assert((f->flags.bits & END_MASK) && NOT(f->flags.bits & CELL_MASK));
+
     f->label = NULL;
     f->label_debug = NULL;
 
