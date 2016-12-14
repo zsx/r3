@@ -647,7 +647,7 @@ void Mold_Array_At(
 
     if (sep[1]) {
         mold->indent--;
-        if (GET_VAL_FLAG(value, VALUE_FLAG_LINE) || had_lines)
+        if (had_lines)
             New_Indented_Line(mold);
         Append_Codepoint_Raw(out, sep[1]);
     }

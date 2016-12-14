@@ -1849,7 +1849,8 @@ static REBARR *Scan_Array(
 exit_block:
     Drop_Mold_If_Pushed(&mo);
 
-    if (line && value) SET_VAL_FLAG(value, VALUE_FLAG_LINE);
+    if (line && NOT_END(value))
+        SET_VAL_FLAG(value, VALUE_FLAG_LINE);
 
 #ifdef TEST_SCAN
     Print((REBYTE*)"block of %d values ", emitbuf->tail - begin);

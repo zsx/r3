@@ -232,6 +232,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     // borderline assert doesn't wind up taking up 20% of the debug's runtime.
     //
     #define CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG \
+        assert(NOT(IS_END_MACRO(v))); \
         REBUPT category = f >> HEADER_TYPE_SHIFT; \
         if (category != REB_0) { \
             enum Reb_Kind kind = VAL_TYPE(v); \
