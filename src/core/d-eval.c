@@ -217,7 +217,10 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
 
     //=//// ^-- ABOVE CHECKS *ALWAYS* APPLY ///////////////////////////////=//
 
-    if (IS_END(f->value) || THROWN(f->out))
+    if (IS_END(f->value))
+        return;
+
+    if (NOT_END(f->out) && THROWN(f->out))
         return;
 
     assert(f->value_type == VAL_TYPE(f->value));
