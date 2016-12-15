@@ -744,7 +744,7 @@ REBSER *Try_Find_Containing_Series_Debug(const void *p)
     for (seg = Mem_Pools[SER_POOL].segs; seg; seg = seg->next) {
         REBSER *s = cast(REBSER*, seg + 1);
         REBCNT n;
-        for (n = Mem_Pools[SER_POOL].units; n > 0; ++n, ++s) {
+        for (n = Mem_Pools[SER_POOL].units; n > 0; --n, ++s) {
             if (IS_FREE_NODE(s))
                 continue;
 
