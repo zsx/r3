@@ -768,7 +768,7 @@ static void Init_Root_Context(void)
     // this one into a program global.  It is not legal to bit-copy an
     // END (you always use SET_END), so we can make it unwritable.
     //
-    PG_End_Cell.header.bits = END_MASK; // read-only end
+    PG_End_Cell.header.bits = NODE_FLAG_END; // read-only end
     assert(IS_END(END_CELL)); // sanity check that it took
 
     // The EMPTY_BLOCK provides EMPTY_ARRAY.  It is locked for protection.
@@ -1466,7 +1466,7 @@ void Init_Core(REBARGS *rargs)
     ASSERT_CONTEXT(PG_Root_Context);
 
     ARR_SERIES(CTX_VARLIST(PG_Root_Context))->header.bits
-        |= REBSER_REBVAL_FLAG_ROOT;
+        |= NODE_FLAG_ROOT;
 
     // Get the words of the TASK context (to avoid it being an exception case)
     //
@@ -1480,7 +1480,7 @@ void Init_Core(REBARGS *rargs)
     ASSERT_CONTEXT(TG_Task_Context);
 
     ARR_SERIES(CTX_VARLIST(TG_Task_Context))->header.bits
-        |= REBSER_REBVAL_FLAG_ROOT;
+        |= NODE_FLAG_ROOT;
 
     // Create main values:
     DOUT("Level 3");
@@ -1624,9 +1624,9 @@ void Shutdown_Core(void)
     // created by Alloc_Pairing() with an owning context should be freed.
     //
     ARR_SERIES(CTX_VARLIST(PG_Root_Context))->header.bits
-        &= (~REBSER_REBVAL_FLAG_ROOT);
+        &= (~NODE_FLAG_ROOT);
     ARR_SERIES(CTX_VARLIST(TG_Task_Context))->header.bits
-        &= (~REBSER_REBVAL_FLAG_ROOT);
+        &= (~NODE_FLAG_ROOT);
     Recycle_Core(TRUE);
 
     FREE_N(REBYTE*, RS_MAX, PG_Boot_Strs);

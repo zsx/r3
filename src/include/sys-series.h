@@ -302,7 +302,7 @@ inline static void TERM_SEQUENCE_LEN(REBSER *s, REBCNT len) {
 //
 
 inline static REBOOL IS_SERIES_MANAGED(REBSER *s) {
-    return LOGICAL(s->header.bits & REBSER_REBVAL_FLAG_MANAGED);
+    return LOGICAL(s->header.bits & NODE_FLAG_MANAGED);
 }
 
 #define MANAGE_SERIES(s) \

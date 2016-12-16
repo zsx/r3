@@ -1036,14 +1036,14 @@ void Assert_Array_Core(REBARR *a)
 #ifdef __cplusplus
         assert(rest > 0 && rest > i);
         for (; i < rest - 1; ++i, ++item) {
-            if (NOT(item->header.bits & NOT_FREE_MASK)) {
+            if (NOT(item->header.bits & NODE_FLAG_VALID)) {
                 printf("Unwritable cell found in array rest capacity\n");
                 panic (a);
             }
         }
         assert(item == ARR_AT(a, rest - 1));
 #endif
-        if (ARR_AT(a, rest - 1)->header.bits != END_MASK) {
+        if (ARR_AT(a, rest - 1)->header.bits != NODE_FLAG_END) {
             printf("Implicit termination/unwritable END missing from array\n");
             panic (a);
         }

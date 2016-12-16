@@ -60,7 +60,7 @@ void Init_Stacks(REBCNT size)
     TG_Top_Chunk->offset = 0;
     TG_Top_Chunk->size = BASE_CHUNK_SIZE;
 
-    // Implicit termination trick--see CELL_MASK, END_FLAG and related notes
+    // Implicit termination trick, see notes on NODE_FLAG_END
     //
     Init_Endlike_Header(
         &cast(

@@ -218,27 +218,7 @@ extern void reb_qsort_r(void *a, size_t n, size_t es, void *thunk, cmp_t *cmp);
 #include "reb-math.h"
 #include "reb-codec.h"
 
-// !!! These definitions used to be in %sys-mem.h, which is now %mem-pools.h
-// REBNOD appears in the Free_Node API, while REBPOL is used in globals
-// The rest is not necessary to expose to the whole system, but perhaps
-// these two shouldn't be in this specific location.
-//
-typedef struct Reb_Node {
-    struct Reb_Header header; // will be header.bits = 0 if node is free
-
-    struct Reb_Node *next_if_free; // if not free, entire node is available
-
-    // Size of a node must be a multiple of 64-bits.  This is because there
-    // must be a baseline guarantee for node allocations to be able to know
-    // where 64-bit alignment boundaries are.
-    //
-    /*struct REBI64 payload[N];*/
-} REBNOD;
-
-#define IS_FREE_NODE(n) \
-    (cast(struct Reb_Node*, (n))->header.bits == 0)
-
-typedef struct rebol_mem_pool REBPOL;
+#include "sys-rebnod.h"
 
 #include "sys-deci.h"
 

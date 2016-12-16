@@ -120,9 +120,4 @@
     } REBVAL;
 #endif
 
-
-struct Reb_Header {
-    REBUPT bits;
-};
-
 #endif

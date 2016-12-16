@@ -79,8 +79,8 @@ static enum Reb_Pointer_Guess Guess_Rebol_Pointer(const void *p) {
 
     case 4:
     case 5:
-        // END_MASK (0x4) is set, but other bits aren't set...including
-        // CELL_MASK (0x2).  This *could* be an internal END marker, as
+        // NODE_FLAG_END (0x4) is set, but other bits aren't set...including
+        // NODE_FLAG_CELL (0x2).  This *could* be an internal END marker, as
         // opposed to a UTF-8 string.  A debug check might try doing a UTF-8
         // decode, and if it fails, it's probably an internal END.
         //

@@ -143,7 +143,7 @@
     ){
         enum Reb_Kind kind = VAL_TYPE_RAW(v);
         if (
-            (v->header.bits & CELL_MASK)
+            (v->header.bits & NODE_FLAG_CELL)
             && NOT(IS_END_MACRO(v)) // IS_END redundantly checks trash
             && NOT(
                 kind == REB_MAX_VOID
@@ -154,7 +154,7 @@
             return kind;
         }
 
-        assert(v->header.bits & CELL_MASK);
+        assert(v->header.bits & NODE_FLAG_CELL);
         printf("END marker or garbage/trash in VAL_TYPE()\n");
         panic_at (v, file, line);
     }
@@ -324,7 +324,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 
 #define VAL_RESET_HEADER_COMMON(v,kind) \
     ((v)->header.bits = \
-        HEADERIZE_KIND(kind) | NOT_FREE_MASK | CELL_MASK)
+        HEADERIZE_KIND(kind) | NODE_FLAG_VALID | NODE_FLAG_CELL)
 
 #ifdef NDEBUG
     #define ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v,file,line) \
@@ -536,7 +536,7 @@ inline static REBOOL IS_VOID(const RELVAL *v)
 
 inline static void SET_BLANK_COMMON(RELVAL *v) {
     v->header.bits = HEADERIZE_KIND(REB_BLANK) \
-        | NOT_FREE_MASK | VALUE_FLAG_FALSE | CELL_MASK;
+        | NODE_FLAG_VALID | VALUE_FLAG_CONDITIONALLY_FALSE | NODE_FLAG_CELL;
 }
 
 #ifdef NDEBUG
@@ -629,16 +629,16 @@ inline static void SET_BLANK_COMMON(RELVAL *v) {
 
 inline static void SET_TRUE_COMMON(RELVAL *v) {
     v->header.bits = HEADERIZE_KIND(REB_LOGIC) \
-        | NOT_FREE_MASK | CELL_MASK;
+        | NODE_FLAG_VALID | NODE_FLAG_CELL;
 }
 
 inline static void SET_FALSE_COMMON(RELVAL *v) {
     v->header.bits = HEADERIZE_KIND(REB_LOGIC) \
-        | NOT_FREE_MASK | CELL_MASK | VALUE_FLAG_FALSE;
+        | NODE_FLAG_VALID | NODE_FLAG_CELL | VALUE_FLAG_CONDITIONALLY_FALSE;
 }
 
 #define IS_CONDITIONAL_FALSE_COMMON(v) \
-    GET_VAL_FLAG((v), VALUE_FLAG_FALSE)
+    GET_VAL_FLAG((v), VALUE_FLAG_CONDITIONALLY_FALSE)
 
 #ifdef NDEBUG
     #define SET_TRUE(v) \
@@ -725,7 +725,7 @@ inline static REBOOL IS_CONDITIONAL_TRUE_SAFE(const REBVAL *v) {
 
 inline static REBOOL VAL_LOGIC(const RELVAL *v) {
     assert(IS_LOGIC(v));
-    return NOT(GET_VAL_FLAG((v), VALUE_FLAG_FALSE));
+    return NOT(GET_VAL_FLAG((v), VALUE_FLAG_CONDITIONALLY_FALSE));
 }
 
 

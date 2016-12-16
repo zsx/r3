@@ -103,11 +103,11 @@ void Assert_Cell_Writable(const RELVAL *v, const char *file, int line)
     //
     assert(cast(REBUPT, (v)) % sizeof(REBUPT) == 0);
 
-    if (NOT((v)->header.bits & CELL_MASK)) {
+    if (NOT((v)->header.bits & NODE_FLAG_CELL)) {
         printf("Non-cell passed to writing routine\n");
         panic_at (v, file, line);
     }
-    if (NOT((v)->header.bits & NOT_FREE_MASK)) {
+    if (NOT((v)->header.bits & NODE_FLAG_VALID)) {
         printf("Non-writable value passed to writing routine\n");
         panic_at (v, file, line);
     }
@@ -137,7 +137,7 @@ void SET_END_Debug(RELVAL *v, const char *file, int line) {
 REBOOL IS_END_Debug(const RELVAL *v, const char *file, int line) {
 #ifdef __cplusplus
     if (
-        (v->header.bits & CELL_MASK)
+        (v->header.bits & NODE_FLAG_CELL)
         //
         // Note: a non-writable value could have any bit pattern in the
         // type slot, so we only check for trash in writable ones.
@@ -152,7 +152,7 @@ REBOOL IS_END_Debug(const RELVAL *v, const char *file, int line) {
 #endif
 
     if (IS_END_MACRO(v)) {
-        if (v->header.bits & CELL_MASK)
+        if (v->header.bits & NODE_FLAG_CELL)
             assert(LEFT_N_BITS(v->header.bits, 8) == 255);
         return TRUE;
     }
@@ -273,7 +273,7 @@ void Probe_Core_Debug(
     fflush(stdout);
     fflush(stderr);
 
-    if (h->bits & CELL_MASK)
+    if (h->bits & NODE_FLAG_CELL)
         Debug_Fmt("%r\n", cast(const REBVAL*, p));
     else
         Debug_Series(m_cast(REBSER*, cast(const REBSER*, p)));

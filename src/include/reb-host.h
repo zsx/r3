@@ -66,7 +66,9 @@
 #include "reb-filereq.h"
 #include "reb-codec.h"
 
+#include "sys-rebnod.h" // !!! Legacy dependency, REBGOB should not be REBNOD
 #include "reb-gob.h"
+
 #include "reb-lib.h"
 
 // !!! None of the above currently include anything that *necessarily* defines

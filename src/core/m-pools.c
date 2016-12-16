@@ -733,7 +733,7 @@ static REBOOL Series_Data_Alloc(
         // avoids writing the unwritable locations by checking for END first.
         //
         RELVAL *ultimate = ARR_AT(AS_ARRAY(s), s->content.dynamic.rest - 1);
-        ultimate->header.bits = END_MASK;
+        ultimate->header.bits = NODE_FLAG_END;
     #if !defined(NDEBUG)
         Set_Track_Payload_Debug(ultimate, __FILE__, __LINE__);
     #endif
@@ -763,7 +763,7 @@ REBSER *Try_Find_Containing_Series_Debug(const void *p)
             if (IS_FREE_NODE(s))
                 continue;
 
-            if (s->header.bits & CELL_MASK) { // a pairing, REBSER is REBVAL[2]
+            if (s->header.bits & NODE_FLAG_CELL) { // a pairing, REBSER is REBVAL[2]
                 if ((p >= cast(void*, s)) && (p < cast(void*, s + 1))) {
                     printf("pointer found in 'pairing' series");
                     printf("not a real REBSER, no information available");
@@ -888,12 +888,12 @@ REBSER *Make_Series(REBCNT capacity, REBYTE wide, REBCNT flags)
 
     REBSER *s = cast(REBSER*, Make_Node(SER_POOL));
 
-    // Header bits can't be zero.  The NOT_FREE_MASK is sufficient to identify
-    // this as a REBSER node that is not GC managed.  (Because END_MASK is
+    // Header bits can't be zero.  The NODE_FLAG_VALID is sufficient to identify
+    // this as a REBSER node that is not GC managed.  (Because NODE_FLAG_END is
     // not set, it cannot act as an implicit END marker; there has not
     // yet been a pressing need for a REBSER* to be able to do so.)
     //
-    s->header.bits = NOT_FREE_MASK;
+    s->header.bits = NODE_FLAG_VALID;
 
     if ((GC_Ballast -= sizeof(REBSER)) <= 0) SET_SIGNAL(SIG_RECYCLE);
 
@@ -994,8 +994,8 @@ REBSER *Make_Series(REBCNT capacity, REBYTE wide, REBCNT flags)
 
     CHECK_MEMORY(2);
 
-    assert(s->info.bits & END_MASK);
-    assert(NOT(s->info.bits & CELL_MASK));
+    assert(s->info.bits & NODE_FLAG_END);
+    assert(NOT(s->info.bits & NODE_FLAG_CELL));
     assert(SER_LEN(s) == 0);
     return s;
 }
@@ -1028,7 +1028,7 @@ REBVAL *Alloc_Pairing(REBCTX *opt_owning_frame) {
     if (opt_owning_frame) {
         Val_Init_Context(key, REB_FRAME, opt_owning_frame);
         SET_VAL_FLAGS(
-            key, ANY_CONTEXT_FLAG_OWNS_PAIRED | REBSER_REBVAL_FLAG_ROOT
+            key, ANY_CONTEXT_FLAG_OWNS_PAIRED | NODE_FLAG_ROOT
         );
     }
     else {
@@ -1067,7 +1067,7 @@ REBVAL *Alloc_Pairing(REBCTX *opt_owning_frame) {
 //
 void Manage_Pairing(REBVAL *paired) {
     REBVAL *key = PAIRING_KEY(paired);
-    SET_VAL_FLAG(key, REBSER_REBVAL_FLAG_MANAGED);
+    SET_VAL_FLAG(key, NODE_FLAG_MANAGED);
 }
 
 
@@ -1076,7 +1076,7 @@ void Manage_Pairing(REBVAL *paired) {
 //
 void Free_Pairing(REBVAL *paired) {
     REBVAL *key = PAIRING_KEY(paired);
-    assert(!GET_VAL_FLAG(key, REBSER_REBVAL_FLAG_MANAGED));
+    assert(!GET_VAL_FLAG(key, NODE_FLAG_MANAGED));
     REBSER *series = cast(REBSER*, key);
     SET_TRASH_IF_DEBUG(paired);
     Free_Node(SER_POOL, series);
@@ -1476,7 +1476,7 @@ void Remake_Series(REBSER *s, REBCNT units, REBYTE wide, REBCNT flags)
 void GC_Kill_Series(REBSER *s)
 {
     assert(!IS_FREE_NODE(s));
-    assert(NOT(s->header.bits & CELL_MASK)); // use Free_Paired
+    assert(NOT(s->header.bits & NODE_FLAG_CELL)); // use Free_Paired
 
     // Special handling for adjusting canons.  (REVIEW: do this by keeping the
     // symbol REBSERs in their own pools, and letting that pool's sweeper
@@ -1727,7 +1727,7 @@ void Manage_Series(REBSER *s)
     }
 #endif
 
-    s->header.bits |= REBSER_REBVAL_FLAG_MANAGED;
+    s->header.bits |= NODE_FLAG_MANAGED;
 
     Drop_Manual_Series(s);
 }

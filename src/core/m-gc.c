@@ -130,20 +130,20 @@ static inline void Mark_Rebser_Only(REBSER *s)
         panic (s);
     }
 #endif
-    s->header.bits |= REBSER_REBVAL_FLAG_MARK;
+    s->header.bits |= NODE_FLAG_MARKED;
 }
 
 static inline REBOOL Is_Rebser_Marked_Or_Pending(REBSER *rebser) {
-    return LOGICAL(rebser->header.bits & REBSER_REBVAL_FLAG_MARK);
+    return LOGICAL(rebser->header.bits & NODE_FLAG_MARKED);
 }
 
 static inline REBOOL Is_Rebser_Marked(REBSER *rebser) {
     // ASSERT_NO_GC_MARKS_PENDING(); // overkill check, but must be true
-    return LOGICAL(rebser->header.bits & REBSER_REBVAL_FLAG_MARK);
+    return LOGICAL(rebser->header.bits & NODE_FLAG_MARKED);
 }
 
 static inline REBOOL Unmark_Rebser(REBSER *rebser) {
-    rebser->header.bits &= ~cast(REBUPT, REBSER_REBVAL_FLAG_MARK);
+    rebser->header.bits &= ~cast(REBUPT, NODE_FLAG_MARKED);
 }
 
 
@@ -433,12 +433,12 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         // Ren-C's PAIR! uses a special kind of REBSER that does no additional
         // memory allocation, but embeds two REBVALs in the REBSER itself.
         // A REBVAL has a REBUPT-sized header at the beginning of its struct,
-        // just like a REBSER, and the REBSER_REBVAL_FLAG_MARK bit is a 0
+        // just like a REBSER, and the NODE_FLAG_MARKED bit is a 0
         // if unmarked...so it can stealthily participate in the marking
         // process, as long as the bit is cleared at the end.
         //
         REBSER *pairing = cast(REBSER*, PAIRING_KEY(v->payload.pair));
-        pairing->header.bits |= REBSER_REBVAL_FLAG_MARK; // read via REBSER
+        pairing->header.bits |= NODE_FLAG_MARKED; // read via REBSER
         break; }
 
     case REB_TUPLE:
@@ -814,13 +814,13 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static void Mark_Root_Series(void)
             if (Is_Rebser_Marked(s))
                 continue;
 
-            if (NOT(s->header.bits & REBSER_REBVAL_FLAG_ROOT))
+            if (NOT(s->header.bits & NODE_FLAG_ROOT))
                 continue;
 
             // If something is marked as a root, then it has its contents
             // GC managed...even if it is not itself a candidate for GC.
 
-            if (s->header.bits & CELL_MASK) {
+            if (s->header.bits & NODE_FLAG_CELL) {
                 //
                 // There is a special feature of root paired series, which
                 // is that if the "key" is a frame marked in a certain way,
@@ -955,8 +955,8 @@ static void Mark_Guarded_Nodes(void)
     REBCNT n = SER_LEN(GC_Guarded);
     for (; n > 0; --n, ++np) {
         REBNOD *node = *np;
-        if (node->header.bits & CELL_MASK) { // a value cell
-            if (NOT(node->header.bits & END_MASK))
+        if (node->header.bits & NODE_FLAG_CELL) { // a value cell
+            if (NOT(node->header.bits & NODE_FLAG_END))
                 Queue_Mark_Opt_Value_Deep(cast(REBVAL*, node));
         }
         else { // a series
@@ -1127,10 +1127,10 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
     // Optimization here depends on SWITCH of the concrete values of bits.
     //
     static_assert_c(
-        REBSER_REBVAL_FLAG_MANAGED == HEADERFLAG(3) // 0x1 after right shift
-        && (CELL_MASK == HEADERFLAG(2)) // 0x2 after right shift
-        && (END_MASK == HEADERFLAG(1)) // 0x4 after right shift
-        && (NOT_FREE_MASK == HEADERFLAG(0)) // 0x8 after right shift
+        NODE_FLAG_MANAGED == HEADERFLAG(3) // 0x1 after right shift
+        && (NODE_FLAG_CELL == HEADERFLAG(2)) // 0x2 after right shift
+        && (NODE_FLAG_END == HEADERFLAG(1)) // 0x4 after right shift
+        && (NODE_FLAG_VALID == HEADERFLAG(0)) // 0x8 after right shift
     );
 
     REBSEG *seg;
@@ -1140,7 +1140,7 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
         for (n = Mem_Pools[SER_POOL].units; n > 0; --n, ++s) {
             switch (LEFT_N_BITS(s->header.bits, 4)) {
             case 0:
-                // NOT_FREE_MASK is clear.  The only way this should be able
+                // NODE_FLAG_VALID is clear.  The only way this should be able
                 // to happen is if this is a free node with all header bits
                 // set to 0.  The first 4 bits were all zero, but make sure
                 // that the rest are.
@@ -1156,7 +1156,7 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
             case 6: // 0x4 + 0x2
             case 7: // 0x4 + 0x2 + 0x1
                 //
-                // NOT_FREE_MASK (0x8) is clear...but other bits are set.
+                // NODE_FLAG_VALID (0x8) is clear...but other bits are set.
                 // This kind of signature is reserved for UTF-8 strings
                 // (corresponding to valid ASCII values in the first byte).
                 // They should never occur in the REBSER pools.
@@ -1164,12 +1164,12 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
                 assert(FALSE);
                 break;
 
-            // v-- Everything below this line has NOT_FREE_MASK set (0x8)
+            // v-- Everything below this line has NODE_FLAG_VALID set (0x8)
 
             case 8: // 0x8
                 //
                 // It's not a cell and not managed, hence a typical unmanaged
-                // REBSER (as it comes back from Make_Series()).  END_MASK
+                // REBSER (as it comes back from Make_Series()).  NODE_FLAG_END
                 // is not set so this cannot act as an implicit END marker.
                 //
                 assert(!IS_SERIES_MANAGED(s));
@@ -1179,7 +1179,7 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
                 //
                 // It's not a cell and managed hence a typical managed series
                 // (as you would get from Make_Series() then MANAGE_SERIES()).
-                // Again END_MASK is not set so this cannot act as an
+                // Again NODE_FLAG_END is not set so this cannot act as an
                 // implicit END marker.
                 //
                 // If it's GC marked in use, leave it alone...else kill it.
@@ -1444,7 +1444,7 @@ REBCNT Recycle(void)
 void Guard_Node_Core(const REBNOD *node)
 {
 #if !defined(NDEBUG)
-    if (node->header.bits & CELL_MASK) {
+    if (node->header.bits & NODE_FLAG_CELL) {
         //
         // It is a value.  Cheap check: require that it already contain valid
         // data when the guard call is made (even if GC isn't necessarily

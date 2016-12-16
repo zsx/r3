@@ -114,7 +114,7 @@ enum {
     // the SERIES_FLAG_1_IS_TRUE if it has an element in it)
     //
     // The bit position this corresponds to in ordinary headers would be the
-    // NOT_FREE_MASK.
+    // NODE_FLAG_VALID.
     //
     // !!! All things being equal, this bit would ideally always be zero just
     // to make it clearer that this is not the start of a REBSER (signaled by
@@ -123,14 +123,14 @@ enum {
     //
     SERIES_FLAG_HAS_DYNAMIC = HEADERFLAG(0),
 
-    // `SERIES_FLAG_1_IS_TRUE` corresponds to END_MASK.  It is set to
+    // `SERIES_FLAG_1_IS_TRUE` corresponds to NODE_FLAG_END.  It is set to
     // one to denote an END marker if there is a REBVAL sitting inside the
     // node which needs to be implicitly terminated.
     //
     SERIES_FLAG_1_IS_TRUE = HEADERFLAG(1),
 
-    // `SERIES_FLAG_2_IS_FALSE` corresponds to CELL_MASK.  It is checked by
-    // value writes to ensure that when the info flags are serving double duty
+    // `SERIES_FLAG_2_IS_FALSE` corresponds to NODE_FLAG_CELL.  Value writes
+    // check this to ensure that when the info flags are serving double duty
     // as an END marker, they do not get overwritten by rogue code that
     // thought a REBVAL* pointing at the memory had a full value's worth
     // of memory to write into.
