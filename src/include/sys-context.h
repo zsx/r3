@@ -226,11 +226,6 @@ inline static void FREE_CONTEXT(REBCTX *c) {
 #define DROP_GUARD_CONTEXT(c) \
     DROP_GUARD_ARRAY(CTX_VARLIST(c))
 
-#if! defined(NDEBUG)
-    #define Panic_Context(c) \
-        Panic_Array(CTX_VARLIST(c))
-#endif
-
 
 //=////////////////////////////////////////////////////////////////////////=//
 //

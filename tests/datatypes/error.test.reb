@@ -127,13 +127,11 @@
 
 [error? make error! [type: 'user id: 'message]]
 
-[error? make error! [type: 'internal id: 'no-buffer]]
 [error? make error! [type: 'internal id: 'bad-path]]
 [error? make error! [type: 'internal id: 'not-here]]
 [error? make error! [type: 'internal id: 'no-memory]]
 [error? make error! [type: 'internal id: 'stack-overflow]]
 [error? make error! [type: 'internal id: 'globals-full]]
-[error? make error! [type: 'internal id: 'max-natives]]
 [error? make error! [type: 'internal id: 'limit-hit]]
 [error? make error! [type: 'internal id: 'bad-sys-func]]
 [error? make error! [type: 'internal id: 'not-done]]

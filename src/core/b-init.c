@@ -108,41 +108,23 @@ static void Assert_Basics(void)
     // not work out as designed, it *should* be possible to comment this out
     // and keep running.
     //
-    if (sizeof(void *) == 8) {
+    if (sizeof(void*) == 8) {
         if (sizeof(REBVAL) != 32 || sizeof(REBEVT) != 32)
-            panic (Error(RE_REBVAL_ALIGNMENT));
+            panic ("size of void* is 8 but REBVAL is not sizeof(void*)*4");
+
+        assert(sizeof(REBGOB) == 88); // !!! REBGOB to be made a REBARR
     }
-    else {
+    else if (sizeof(void*) == 4) {
         if (sizeof(REBVAL) != 16 || sizeof(REBEVT) != 16)
-            panic (Error(RE_REBVAL_ALIGNMENT));
-    }
+            panic ("size of void* is 4 but REBVAL is not sizeof(void*)*4");
 
-    // In the original conception of R3-Alpha, performance of the graphics
-    // layer was considered very important...and so the GUI would make use
-    // of the custom memory-pooled heap for its "(G)raphic (OB)jects", even
-    // though much of the GUI code itself was written in extensions.  With
-    // the Ren-C branch, the focus is on a more "essential" core.  So the
-    // hope is to either provide generic pooled memory services or have the
-    // graphics layer implement its own allocator--or just use malloc()/new
-    //
-    // But given that external code depends on binary compatibility with an
-    // understanding of what size a GOB is, this helps enforce that by
-    // checking that the size is what the linked-to code is expecting.
-    //
-    if (sizeof(void *) == 8) {
-        if (sizeof(REBGOB) != 88)
-            panic (Error(RE_BAD_SIZE));
+        assert(sizeof(REBGOB) == 64); // !!! REBGOB to be made a REBARR
     }
-    else {
-        if (sizeof(REBGOB) != 64)
-            panic (Error(RE_BAD_SIZE));
-    }
+    else
+        panic ("sizeof void* is neither 4 nor 8");
 
-    // This checks the size of the `struct reb_date`.
-    // !!! Why this, in particular?
-    //
-    if (sizeof(REBDAT) != 4)
-        panic (Error(RE_BAD_SIZE));
+    assert(sizeof(REBDAT) == 4);
+    assert(sizeof(REBEVT) == sizeof(REBVAL));
 
     // The REBSER is designed to place the `info` bits exactly after a REBVAL
     // so they can do double-duty as also a terminator for that REBVAL when
@@ -153,7 +135,7 @@ static void Assert_Basics(void)
             - offsetof(struct Reb_Series, content)
         != sizeof(REBVAL)
     ){
-        panic (Error(RE_MISC));
+        panic ("bad structure alignment for internal array termination");
     }
 
     // The END marker logic currently uses REB_MAX for the type bits.  That's
@@ -243,12 +225,12 @@ static void Do_Global_Block(
     SNAP_STATE(&state);
 
     if (Do_At_Throws(&result, block, index, SPECIFIED))
-        panic (Error_No_Catch_For_Throw(&result));
+        panic (&result);
 
     ASSERT_STATE_BALANCED(&state);
 
     if (!IS_VOID(&result))
-        panic (Error(RE_MISC));
+        panic (&result);
 }
 
 
@@ -270,8 +252,8 @@ static void Load_Boot(void)
         Native_Specs, NAT_COMPRESSED_SIZE, NAT_UNCOMPRESSED_SIZE, FALSE, FALSE
     );
 
-    if (!utf8 || SER_LEN(utf8) != NAT_UNCOMPRESSED_SIZE)
-        panic (Error(RE_BOOT_DATA));
+    if (utf8 == NULL || SER_LEN(utf8) != NAT_UNCOMPRESSED_SIZE)
+        panic ("decompressed native specs size mismatch (try `make clean`)");
 
     REBARR *boot = Scan_UTF8_Managed(BIN_HEAD(utf8), NAT_UNCOMPRESSED_SIZE);
     Free_Series(utf8);
@@ -285,7 +267,7 @@ static void Load_Boot(void)
     // There should be a datatype word for every REB_XXX type except REB_0
     //
     if (VAL_LEN_HEAD(&Boot_Block->types) != REB_MAX - 1)
-        panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
+        panic (&Boot_Block->types);
 
     // First type should be FUNCTION! (Note: Init_Symbols() hasn't run yet, so
     // cannot check this via VAL_WORD_SYM())
@@ -293,7 +275,7 @@ static void Load_Boot(void)
     if (0 != COMPARE_BYTES(
         cb_cast("function!"), VAL_WORD_HEAD(VAL_ARRAY_HEAD(&Boot_Block->types))
     )){
-        panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
+        panic (VAL_ARRAY_HEAD(&Boot_Block->types));
     }
 
     // Create low-level string pointers (used by RS_ constants):
@@ -311,7 +293,7 @@ static void Load_Boot(void)
     }
 
     if (COMPARE_BYTES(cb_cast("newline"), BOOT_STR(RS_SCAN, 1)) != 0)
-        panic (Error(RE_BAD_BOOT_STRING));
+        panic (BOOT_STR(RS_SCAN, 1));
 }
 
 
@@ -588,7 +570,7 @@ static void Init_Natives(void)
 
     while (NOT_END(item)) {
         if (n >= NUM_NATIVES)
-            fail (Error(RE_MAX_NATIVES));
+            panic (item);
 
         // Each entry should be one of these forms:
         //
@@ -607,7 +589,7 @@ static void Init_Natives(void)
         // Get the name the native will be started at with in Lib_Context
         //
         if (!IS_SET_WORD(item))
-            panic (Error(RE_NATIVE_BOOT));
+            panic (item);
 
         REBVAL *name = KNOWN(item);
         ++item;
@@ -617,7 +599,7 @@ static void Init_Natives(void)
         REBOOL has_body;
         if (IS_WORD(item)) {
             if (VAL_WORD_SYM(item) != SYM_NATIVE)
-                panic (Error(RE_NATIVE_BOOT));
+                panic (item);
             has_body = FALSE;
         }
         else {
@@ -629,7 +611,7 @@ static void Init_Natives(void)
                 || !IS_WORD(ARR_AT(VAL_ARRAY(item), 1))
                 || VAL_WORD_SYM(ARR_AT(VAL_ARRAY(item), 1)) != SYM_BODY
             ) {
-                panic (Error(RE_NATIVE_BOOT));
+                panic (item);
             }
             has_body = TRUE;
         }
@@ -639,7 +621,7 @@ static void Init_Natives(void)
         // level and does not understand <opt>)
         //
         if (!IS_BLOCK(item))
-            panic (Error(RE_NATIVE_BOOT));
+            panic (item);
 
         REBVAL *spec = KNOWN(item);
         assert(VAL_INDEX(spec) == 0); // must be at head (we don't copy)
@@ -667,7 +649,7 @@ static void Init_Natives(void)
         //
         if (has_body) {
             if (!IS_BLOCK(item))
-                panic (Error(RE_NATIVE_BOOT));
+                panic (item);
             *FUNC_BODY(fun) = *KNOWN(item); // !!! handle relative?
             ++item;
         }
@@ -690,12 +672,10 @@ static void Init_Natives(void)
     }
 
     if (n != NUM_NATIVES)
-        fail (Error(RE_NATIVE_BOOT));
+        panic ("Incorrect number of natives found during processing");
 
-    // Should have found and bound `action:` among the natives
-    //
-    if (!action_word)
-        panic (Error(RE_NATIVE_BOOT));
+    if (action_word == NULL)
+        panic ("ACTION function was not found while processing natives");
 
     // With the natives registered (including ACTION), it's now safe to
     // run the evaluator to register the actions.
@@ -705,7 +685,7 @@ static void Init_Natives(void)
     // Sanity check the symbol transformation
     //
     if (0 != strcmp("open", cs_cast(STR_HEAD(Canon(SYM_OPEN)))))
-        panic (Error(RE_NATIVE_BOOT));
+        panic (Canon(SYM_OPEN));
 }
 
 
@@ -912,9 +892,9 @@ static void Init_System_Object(void)
     //
     REBVAL result;
     if (DO_VAL_ARRAY_AT_THROWS(&result, &Boot_Block->sysobj))
-        panic (Error_No_Catch_For_Throw(&result));
+        panic (&result);
     if (!IS_VOID(&result))
-        panic (Error(RE_MISC));
+        panic (&result);
 
     // Create a global value for it.  (This is why we are able to say `system`
     // and have it bound in lines like `sys: system/contexts/sys`)
@@ -1382,11 +1362,15 @@ void Init_Task(void)
 void Init_Core(REBARGS *rargs)
 {
 #if defined(TEST_EARLY_BOOT_PANIC)
-    // This is a good place to test if the "pre-booting panic" is working.
-    // It should be unable to present a format string, only the error code.
-    panic (Error(RE_NO_VALUE, BLANK_VALUE));
+    //
+    // It should be legal to panic at any time (especially given that the
+    // bar for success is "crash")
+    //
+    panic ("early panic test");
 #elif defined(TEST_EARLY_BOOT_FAIL)
-    // A fail should have the same behavior as a panic at this boot phase.
+    //
+    // A fail should fall back on panic at this boot phase.
+    //
     fail (Error(RE_NO_VALUE, BLANK_VALUE));
 #endif
 
@@ -1520,11 +1504,16 @@ void Init_Core(REBARGS *rargs)
     PG_Boot_Phase = BOOT_ERRORS;
 
 #if defined(TEST_MID_BOOT_PANIC)
-    // At this point panics should be able to present the full message.
-    panic (Error(RE_NO_VALUE, BLANK_VALUE));
+    //
+    // At this point panics should be able to do a reasonable job of giving
+    // details on Rebol types.
+    //
+    panic (EMPTY_ARRAY);
 #elif defined(TEST_MID_BOOT_FAIL)
+    //
     // With no PUSH_TRAP yet, fail should give a localized assert in a debug
-    // build but act like panic does in a release build.
+    // build, and panic the release build.
+    //
     fail (Error(RE_NO_VALUE, BLANK_VALUE));
 #endif
 
@@ -1542,18 +1531,13 @@ void Init_Core(REBARGS *rargs)
 // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
 
     if (error) {
-        REBVAL temp;
-        Val_Init_Error(&temp, error);
-
-        // You shouldn't be able to halt during Init_Core() startup.
-        // The only way you should be able to stop Init_Core() is by raising
-        // an error, at which point the system will Panic out.
-        // !!! TBD: Enforce not being *able* to trigger HALT
+        //
+        // !!! There may be unexpected cases that would cause an error during
+        // Init_Core() startup, which will then panic.  BUT it should not
+        // even be *possible* to trigger a HALT.  TBD: Enforce this.
+        //
         assert(ERR_NUM(error) != RE_HALT);
-
-        // If an error was raised during startup, print it and crash.
-        Print_Value(&temp, 1024, FALSE);
-        panic (Error(RE_MISC));
+        panic (error);
     }
 
     Init_Crypto();
@@ -1579,18 +1563,23 @@ void Init_Core(REBARGS *rargs)
     if (Apply_Only_Throws(
         &result, TRUE, Sys_Func(SYS_CTX_FINISH_INIT_CORE), END_CELL
     )) {
-        // Note: You shouldn't be able to throw any uncaught values during
+        // You shouldn't be able to throw any uncaught values during
         // Init_Core() startup, including throws implementing QUIT or EXIT.
-        assert(FALSE);
-        fail (Error_No_Catch_For_Throw(&result));
+        // A fail() would just jump up to the error delivery above, so a
+        // panic here more clearly indicates the moment of the problem.
+        //
+        panic (&result);
     }
 
-    // Success of the 'finish-init-core' Rebol code is signified by returning
-    // void (all other return results indicate an error state)
-
     if (!IS_VOID(&result)) {
-        Debug_Fmt("** 'finish-init-core' returned value: %r", &result);
-        panic (Error(RE_MISC));
+        //
+        // !!! `finish-init-core` Rebol code should return void, but it may be
+        // that more graceful error delivery than a panic should be given if
+        // it does not.  It may be that fairly legitimate circumstances which
+        // the user could fix would cause a more ordinary message delivery.
+        // For the moment, though, we panic on any non-void return result.
+        // 
+        panic (&result);
     }
 
     assert(DSP == 0 && FS_TOP == NULL);

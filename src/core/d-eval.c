@@ -65,7 +65,8 @@ void Dump_Frame_Location(REBFRM *f)
     REBVAL dump;
     Derelativize(&dump, f->value, f->specifier);
 
-    PROBE_MSG(&dump, "Dump_Frame_Location() value");
+    printf("Dump_Frame_Location() value\n");
+    PROBE(&dump);
 
     if (f->flags.bits & DO_FLAG_VA_LIST) {
         //
@@ -80,14 +81,12 @@ void Dump_Frame_Location(REBFRM *f)
 
     if (f->pending && NOT_END(f->pending)) {
         assert(IS_SPECIFIC(f->pending));
-        PROBE_MSG(
-            const_KNOWN(f->pending),
-            "EVAL in progress, so next will be..."
-        );
+        printf("EVAL in progress, so next will be...\n");
+        PROBE(const_KNOWN(f->pending));
     }
 
     if (IS_END(f->value)) {
-        Debug_Fmt("...then Dump_Frame_Location() at end of array");
+        printf("...then Dump_Frame_Location() at end of array\n");
     }
     else {
         REBVAL dump;
@@ -99,7 +98,8 @@ void Dump_Frame_Location(REBFRM *f)
             f->specifier
         );
 
-        PROBE_MSG(&dump, "Dump_Frame_Location() next input");
+        printf("Dump_Frame_Location() next input\n");
+        PROBE(&dump);
     }
 }
 

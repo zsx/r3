@@ -77,14 +77,12 @@ void Assert_State_Balanced_Debug(
     const char *file,
     int line
 ) {
-    REBSER *smoking_gun = NULL;
-
     if (s->dsp != DSP) {
-        Debug_Fmt(
-            "DS_PUSH()x%d without DS_POP/DS_DROP",
+        printf(
+            "DS_PUSH()x%d without DS_POP/DS_DROP\n",
             DSP - s->dsp
         );
-        goto problem_found;
+        panic_at (NULL, file, line);
     }
 
     assert(s->top_chunk == TG_Top_Chunk);
@@ -94,29 +92,29 @@ void Assert_State_Balanced_Debug(
     assert(ARR_LEN(BUF_COLLECT) == 0);
 
     if (s->series_guard_len != SER_LEN(GC_Series_Guard)) {
-        Debug_Fmt(
-            "PUSH_GUARD_SERIES()x%d without DROP_GUARD_SERIES",
+        printf(
+            "PUSH_GUARD_SERIES()x%d without DROP_GUARD_SERIES\n",
             SER_LEN(GC_Series_Guard) - s->series_guard_len
         );
-        smoking_gun = *SER_AT(
+        REBSER *guarded = *SER_AT(
             REBSER*,
             GC_Series_Guard,
             SER_LEN(GC_Series_Guard) - 1
         );
-        goto problem_found;
+        panic_at (guarded, file, line);
     }
 
     if (s->value_guard_len != SER_LEN(GC_Value_Guard)) {
-        Debug_Fmt(
-            "PUSH_GUARD_VALUE()x%d without DROP_GUARD_VALUE",
+        printf(
+            "PUSH_GUARD_VALUE()x%d without DROP_GUARD_VALUE\n",
             SER_LEN(GC_Value_Guard) - s->value_guard_len
         );
-        PROBE(*SER_AT(
+        REBVAL *guarded = *SER_AT(
             REBVAL*,
             GC_Value_Guard,
             SER_LEN(GC_Value_Guard) - 1
-        ));
-        goto problem_found;
+        );
+        panic_at (guarded, file, line);
     }
 
     // !!! Note that this inherits a test that uses GC_Manuals->content.xxx
@@ -127,26 +125,25 @@ void Assert_State_Balanced_Debug(
     // e.g. a contiguous pointer stack.
     //
     if (s->manuals_len > SER_LEN(GC_Manuals)) {
-        Debug_Fmt("!!! Manual series freed from outside of checkpoint !!!");
-
-        // Note: Should this ever actually happen, a Panic_Series won't do
-        // any real good in helping debug it.  You'll probably need to
+        //
+        // Note: Should this ever actually happen, panic() on the series won't
+        // do any real good in helping debug it.  You'll probably need to
         // add additional checking in the Manage_Series and Free_Series
         // routines that checks against the caller's manuals_len.
         //
-        goto problem_found;
+        panic_at ("manual series freed outside checkpoint", file, line);
     }
     else if (s->manuals_len < SER_LEN(GC_Manuals)) {
-        Debug_Fmt(
-            "Make_Series()x%d without Free_Series or MANAGE_SERIES",
+        printf(
+            "Make_Series()x%d without Free_Series or MANAGE_SERIES\n",
             SER_LEN(GC_Manuals) - s->manuals_len
         );
-        smoking_gun = *(SER_AT(
+        REBSER *manual = *(SER_AT(
             REBSER*,
             GC_Manuals,
             SER_LEN(GC_Manuals) - 1
         ));
-        goto problem_found;
+        panic_at (manual, file, line);
     }
 
     assert(s->uni_buf_len == SER_LEN(UNI_BUF));
@@ -156,12 +153,6 @@ void Assert_State_Balanced_Debug(
 
     return;
 
-problem_found:
-    Debug_Fmt("in File: %s Line: %d", file, line);
-    if (smoking_gun != NULL)
-        Panic_Series(smoking_gun);
-    assert(FALSE);
-    DEAD_END;
 }
 
 #endif
@@ -273,40 +264,22 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
     // that are not inside of a fail invocation don't get confused and
     // have the wrong information
     //
-    assert(TG_Erroring_C_File);
+    assert(TG_Erroring_C_File != NULL);
     TG_Erroring_C_File = NULL;
 
     // If we raise the error we'll lose the stack, and if it's an early
     // error we always want to see it (do not use ATTEMPT or TRY on
     // purpose in Init_Core()...)
     //
-    if (PG_Boot_Phase < BOOT_DONE) {
-        REBVAL error_value;
-
-        Val_Init_Error(&error_value, error);
-        Debug_Fmt("** Error raised during Init_Core(), should not happen!");
-        Debug_Fmt("%v", &error_value);
-        assert(FALSE);
-    }
+    if (PG_Boot_Phase < BOOT_DONE)
+        panic (error);
 #endif
 
-    if (!Saved_State) {
-        //
-        // There should be a PUSH_TRAP of some kind in effect if a `fail` can
-        // ever be run, so mention that before panicking.  The error contains
-        // arguments and information, however, so that should be the panic
-        //
-        Debug_Fmt("*** NO \"SAVED STATE\" - PLEASE MENTION THIS FACT! ***");
+    // There should be a PUSH_TRAP of some kind in effect if a `fail` can
+    // ever be run.
+    //
+    if (Saved_State == NULL)
         panic (error);
-    }
-
-    if (Trace_Level) {
-        Debug_Fmt(
-            "Error id, type: %r %r",
-            &ERR_VARS(error)->type,
-            &ERR_VARS(error)->id
-        );
-    }
 
     // The information for the Rebol call frames generally is held in stack
     // variables, so the data will go bad in the longjmp.  We have to free
@@ -327,8 +300,6 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
 
     TG_Frame_Stack = f; // TG_Frame_Stack is writable FS_TOP
 
-    // We pass the error as a context rather than as a value.
-    //
     Saved_State->error = error;
 
     // If a THROWN() was being processed up the stack when the error was
@@ -843,32 +814,20 @@ REBOOL Make_Error_Object_Throws(
 
 
 //
-//  Make_Error_Core: C
+//  Make_Error_Managed_Core: C
 //
-// (va_list by pointer: http://stackoverflow.com/a/3369762/211160)
+// (WARNING va_list by pointer: http://stackoverflow.com/a/3369762/211160)
 //
-// Create and init a new error object based on a C va_list
-// and an error code.  This routine is responsible also for
-// noticing if there is an attempt to make an error at a time
-// that is too early for error creation, and not try and invoke
-// the error creation machinery.  That means if you write:
+// Create and init a new error object based on a C va_list and an error code.
+// It knows how many arguments the error particular error ID requires based
+// on the templates defined in %errors.r.
 //
-//     panic (Error(RE_SOMETHING, arg1, ...));
+// This routine should either succeed and return to the caller, or panic()
+// and crash if there is a problem (such as running out of memory, or that
+// %errors.r has not been loaded).  Hence the caller can assume it will
+// regain control to properly call va_end with no longjmp to skip it.
 //
-// ...and it's too early to make an error, the inner call to
-// Error will be the one doing the panic.  Hence, both fail and
-// panic behave identically in that early phase of the system
-// (though panic is better documentation that one knows the
-// error cannot be trapped).
-//
-// Besides that caveat and putting running-out-of-memory aside,
-// this routine should not fail internally.  Hence it should
-// return to the caller to properly call va_end with no longjmp
-// to skip it.
-//
-// !!! Result is managed.  See notes at end for why.
-//
-REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
+REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
 {
     assert(code != 0);
 
@@ -882,9 +841,17 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
     const REBSYM *arg1_arg2_arg3 = legacy_data;
 #endif
 
+
     if (PG_Boot_Phase < BOOT_ERRORS) {
-        Panic_Core(code, NULL, vaptr);
-        DEAD_END;
+        char buf[1024];
+        strncat(buf, "fail() before object table initialized, code = ", 1024);
+        Form_Int(b_cast(buf + strlen(buf)), code); // !!! no bounding...
+    
+    #if defined(NDEBUG)
+        panic (buf);
+    #else
+        panic_at (buf, TG_Erroring_C_File, TG_Erroring_C_Line);
+    #endif
     }
 
     // Safe to initialize the root error now...
@@ -1031,9 +998,8 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
                     // Make_Error doesn't have any way to pass in a specifier,
                     // so only specific values should be used.
                     //
-                    Debug_Fmt("Relative value passed to Make_Error()");
-                    PROBE_MSG(arg, "the value");
-                    PANIC_VALUE(arg);
+                    printf("Relative value passed to Make_Error()\n");
+                    panic (arg);
                 }
             #endif
 
@@ -1042,8 +1008,8 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
             #if !defined(NDEBUG)
                 if (LEGACY(OPTIONS_ARG1_ARG2_ARG3_ERROR)) {
                     if (*arg1_arg2_arg3 == SYM_0) {
-                        Debug_Fmt("Legacy arg1_arg2_arg3 error with > 3 args");
-                        panic (Error(RE_MISC));
+                        printf("Legacy arg1_arg2_arg3 error with > 3 args\n");
+                        panic (arg);
                     }
                     Val_Init_Typeset(key, ALL_64, Canon(*arg1_arg2_arg3));
                     arg1_arg2_arg3++;
@@ -1128,19 +1094,29 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
 //
 //  Error: C
 //
-// This is a variadic function which is designed to be the
-// "argument" of either a `fail` or a `panic` "keyword".
-// It can be called directly, or indirectly by another proxy
-// error function.  It takes a number of REBVAL* arguments
-// appropriate for the error number passed.
+// This variadic function takes a number of REBVAL* arguments appropriate for
+// the error number passed.  It is commonly used with fail():
 //
-// With C variadic functions it is not known how many arguments
-// were passed.  Make_Error_Core() knows how many arguments are
-// in an error's template in %errors.r for a given error #, so
-// that is the number of arguments it will attempt to use.
-// If desired, a caller can pass a NULL after the last argument
-// to double-check that too few arguments are not given, though
-// this is not enforced (to help with callsite readability).
+//     fail (Error(RE_SOMETHING, arg1, arg2, ...));
+//
+// Note that in C, variadic functions don't know how many arguments they were
+// passed.  Make_Error_Managed_Core() knows how many arguments are in an
+// error's template in %errors.r for a given error id, so that is the number
+// of arguments it will *attempt* to use--reading invalid memory if wrong.
+//
+// (All C variadics have this problem, e.g. `printf("%d %d", 12);`)
+//
+// But the risk of mistakes is reduced by creating wrapper functions, with a
+// fixed number of arguments specific to each error...and the wrappers can
+// also do additional argument processing:
+//
+//     fail (Error_Something(arg1, thing_processed_to_make_arg2));
+//
+// But to make variadic calls *slightly* safer, a caller can pass END_CELL
+// after the last argument for a double-check that won't try reading invalid
+// memory if too few arguments are given:
+//
+//     fail (Error(RE_SOMETHING, arg1, arg2, END_CELL));
 //
 REBCTX *Error(REBCNT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
 {
@@ -1148,7 +1124,7 @@ REBCTX *Error(REBCNT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
     REBCTX *error;
 
     va_start(va, num);
-    error = Make_Error_Core(num, &va);
+    error = Make_Error_Managed_Core(num, &va);
     va_end(va);
 
     return error;

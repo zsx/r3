@@ -1320,123 +1320,104 @@ void Init_Collector(void)
 //
 //  Assert_Context_Core: C
 //
-void Assert_Context_Core(REBCTX *context)
+void Assert_Context_Core(REBCTX *c)
 {
-    REBARR *varlist = CTX_VARLIST(context);
+    REBARR *varlist = CTX_VARLIST(c);
 
-    if (!GET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST)) {
-        Debug_Fmt("Context varlist doesn't have ARRAY_FLAG_VARLIST");
-        Panic_Array(varlist);
-    }
+    if (!GET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST))
+        panic (varlist);
 
-    REBARR *keylist = CTX_KEYLIST(context);
+    REBARR *keylist = CTX_KEYLIST(c);
 
-    if (!CTX_KEYLIST(context)) {
-        Debug_Fmt("Null keylist found in frame");
-        Panic_Context(context);
-    }
+    if (!CTX_KEYLIST(c))
+        panic (c);
 
-    if (GET_ARR_FLAG(keylist, CONTEXT_FLAG_STACK)) {
-        Debug_Fmt("Keylist has a CONTEXT_FLAG_STACK, why?");
-        Panic_Array(keylist);
-    }
+    if (GET_ARR_FLAG(keylist, CONTEXT_FLAG_STACK))
+        panic (keylist);
 
-    REBVAL *rootvar = CTX_VALUE(context);
-    if (!ANY_CONTEXT(rootvar)) {
-        Debug_Fmt("Element at head of frame is not an ANY_CONTEXT");
-        Panic_Context(context);
-    }
+    REBVAL *rootvar = CTX_VALUE(c);
+    if (!ANY_CONTEXT(rootvar))
+        panic (rootvar);
 
     REBCNT keys_len = ARR_LEN(keylist);
     REBCNT vars_len = ARR_LEN(varlist);
 
-    if (keys_len < 1) {
-        Debug_Fmt("Keylist length less than one--cannot hold rootkey");
-        Panic_Context(context);
-    }
+    if (keys_len < 1)
+        panic (keylist);
 
-    if (GET_CTX_FLAG(context, CONTEXT_FLAG_STACK)) {
-        assert(vars_len == 1);
+    if (GET_CTX_FLAG(c, CONTEXT_FLAG_STACK)) {
+        if (vars_len != 1)
+            panic (varlist);
     }
     else {
-        if (keys_len != vars_len) {
-            Debug_Fmt("Unequal lengths of key/var series in Assert_Context");
-            Panic_Context(context);
-        }
+        if (keys_len != vars_len)
+            panic (c);
     }
 
-    // The 0th key and var are special and can't be accessed with CTX_VAR
-    // or CTX_KEY
-    //
-    if (!ANY_CONTEXT(rootvar)) {
-        Debug_Fmt("First value slot in context not ANY-CONTEXT!");
-        Panic_Context(context);
-    }
+    if (rootvar->payload.any_context.varlist != varlist)
+        panic (rootvar);
 
-    if (rootvar->payload.any_context.varlist != varlist) {
-        Debug_Fmt("Embedded ANY-CONTEXT!'s context doesn't match context");
-        Panic_Context(context);
-    }
-
-    if (GET_CTX_FLAG(context, SERIES_FLAG_INACCESSIBLE)) {
+    if (GET_CTX_FLAG(c, SERIES_FLAG_INACCESSIBLE)) {
         //
         // !!! For the moment, don't check inaccessible stack frames any
         // further.  This includes varless reified frames and those reified
         // frames that are no longer on the stack.
         //
-        assert(GET_CTX_FLAG(context, CONTEXT_FLAG_STACK));
+        if (!GET_CTX_FLAG(c, CONTEXT_FLAG_STACK))
+            panic (c);
         return;
     }
 
-    REBVAL *rootkey = CTX_ROOTKEY(context);
+    REBVAL *rootkey = CTX_ROOTKEY(c);
     if (IS_FUNCTION(rootkey)) {
-        if (!IS_FRAME(rootvar)) {
-            Debug_Fmt("FUNCTION! found in [0] rootkey slot of non-FRAME!");
-            Panic_Context(context);
-        }
+        //
+        // At the moment, only FRAME! is able to reuse a FUNCTION!'s keylist.
+        // There may be reason to relax this, if you wanted to make an
+        // ordinary object that was a copy of a FRAME! but not a FRAME!.
+        //
+        if (!IS_FRAME(rootvar))
+            panic (rootvar);
     }
     else if (IS_BLANK(rootkey)) {
-        if (IS_FRAME(rootvar)) {
-            Debug_Fmt("BLANK! found in [0] rootkey slot of FRAME!");
-            Panic_Context(context);
-        }
-
+        //
         // Note that in the future the rootkey for ordinary OBJECT! or ERROR!
-        // PORT! etc. may be more interesting than BLANK
+        // PORT! etc. may be more interesting than BLANK.  But it uses that
+        // for now.
+        //
+        if (IS_FRAME(rootvar))
+            panic (c);
     }
-    else {
-        Debug_Fmt("Rootkey in context not BLANK! or FUNCTION!.");
-        Panic_Context(context);
-    }
+    else
+        panic (rootkey);
 
-    REBVAL *key = CTX_KEYS_HEAD(context);
-    REBVAL *var = CTX_VARS_HEAD(context);
+    REBVAL *key = CTX_KEYS_HEAD(c);
+    REBVAL *var = CTX_VARS_HEAD(c);
 
     REBCNT n;
     for (n = 1; n < keys_len; n++, var++, key++) {
-        if (IS_END(key) || IS_END(var)) {
-            Debug_Fmt(
-                "** Early %s end at index: %d",
-                IS_END(key) ? "key" : "var",
-                n
-            );
-            Panic_Context(context);
+        if (IS_END(key)) {
+            printf("** Early key end at index: %d\n", n);
+            panic (c);
         }
 
-        if (!IS_TYPESET(key)) {
-            Debug_Fmt("** Non-typeset in context keys: %d\n", VAL_TYPE(key));
-            Panic_Context(context);
+        if (!IS_TYPESET(key))
+            panic (key);
+
+        if (IS_END(var)) {
+            printf("** Early var end at index: %d\n", n);
+            panic (c);
         }
     }
 
-    if (NOT_END(key) || NOT_END(var)) {
-        Debug_Fmt(
-            "** Missing %s end at index: %d type: %d",
-            NOT_END(key) ? "key" : "var",
-            n,
-            NOT_END(key) ? VAL_TYPE(key) : VAL_TYPE(var)
-        );
-        Panic_Context(context);
+    if (NOT_END(key)) {
+        printf("** Missing key end at index: %d\n", n);
+        panic (key);
+    }
+
+    if (NOT_END(var)) {
+        printf("** Missing var end at index: %d\n", n);
+        panic (var);
     }
 }
+
 #endif

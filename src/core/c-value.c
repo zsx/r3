@@ -49,15 +49,11 @@
 // it will dump out where the initialization happened if that information
 // was stored.
 //
-ATTRIBUTE_NO_RETURN void Panic_Value_Debug(
-    const RELVAL *v,
-    const char *file,
-    int line
-) {
-    REBSER *containing = Try_Find_Containing_Series_Debug(v);
-
-    printf("PANIC VALUE called from %s:%d\n", file, line);
+ATTRIBUTE_NO_RETURN void Panic_Value_Debug(const RELVAL *v) {
     fflush(stdout);
+    fflush(stderr);
+
+    REBSER *containing = Try_Find_Containing_Series_Debug(v);
 
     switch (VAL_TYPE_RAW(v)) {
     case REB_MAX_VOID:
@@ -77,15 +73,13 @@ ATTRIBUTE_NO_RETURN void Panic_Value_Debug(
     printf("Kind=%d\n", cast(int, VAL_TYPE_RAW(v)));
     fflush(stdout);
 
-    if (containing) {
+    if (containing != NULL) {
         printf("Containing series for value pointer found, panicking it:\n");
-        fflush(stdout);
-        Panic_Series(containing);
+        Panic_Series_Debug(containing);
     }
 
     printf("No containing series for value...panicking to make stack dump:\n");
-    fflush(stdout);
-    Panic_Array(EMPTY_ARRAY);
+    Panic_Series_Debug(ARR_SERIES(EMPTY_ARRAY));
 }
 
 
@@ -111,13 +105,11 @@ void Assert_Cell_Writable(const RELVAL *v, const char *file, int line)
 
     if (NOT((v)->header.bits & CELL_MASK)) {
         printf("Non-cell passed to writing routine\n");
-        fflush(stdout);
-        Panic_Value_Debug(v, file, line);
+        panic_at (v, file, line);
     }
     if (NOT((v)->header.bits & NOT_FREE_MASK)) {
         printf("Non-writable value passed to writing routine\n");
-        fflush(stdout);
-        Panic_Value_Debug(v, file, line);
+        panic_at (v, file, line);
     }
 }
 
@@ -155,8 +147,7 @@ REBOOL IS_END_Debug(const RELVAL *v, const char *file, int line) {
         && NOT(v->header.bits & VOID_FLAG_SAFE_TRASH)
     ) {
         printf("IS_END() called on value marked as TRASH\n");
-        fflush(stdout);
-        Panic_Value_Debug(v, file, line);
+        panic_at (v, file, line);
     }
 #endif
 
@@ -191,7 +182,7 @@ REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
         //
         if (!GET_CTX_FLAG(specific, ARRAY_FLAG_VARLIST)) {
             printf("Non-CONTEXT found as specifier in specific value\n");
-            Panic_Series(cast(REBSER*, specific)); // may not be series either
+            panic (specific); // may not be a series, either
         }
 
         // While an ANY-WORD! can be bound specifically to an arbitrary
@@ -256,9 +247,8 @@ void Assert_No_Relative(REBARR *array, REBOOL deep)
     RELVAL *item = ARR_HEAD(array);
     while (NOT_END(item)) {
         if (IS_RELATIVE(item)) {
-            Debug_Fmt("Array contained relative item and wasn't supposed to.");
-            PROBE_MSG(item, "relative item");
-            Panic_Array(array);
+            printf("Array contained relative item and wasn't supposed to\n");
+            panic (item);
         }
         if (!IS_UNREADABLE_IF_DEBUG(item) && ANY_ARRAY(item) && deep)
              Assert_No_Relative(VAL_ARRAY(item), deep);
@@ -271,21 +261,21 @@ void Assert_No_Relative(REBARR *array, REBOOL deep)
 //  Probe_Core_Debug: C
 //
 void Probe_Core_Debug(
-    const char *msg,
+    const void *p,
     const char *file,
-    int line,
-    const RELVAL *val
+    int line
 ) {
-    if (msg)
-        printf("\n** PROBE_MSG(\"%s\") ", msg);
-    else
-        printf("\n** PROBE() ");
+    const struct Reb_Header *h = cast(const struct Reb_Header*, p);
 
+    printf("\n** PROBE() ");
     printf("tick %d %s:%d\n", cast(int, TG_Do_Count), file, line);
 
     fflush(stdout);
+    fflush(stderr);
 
-    Debug_Fmt("%r\n", val);
+    if (h->bits & CELL_MASK)
+        Debug_Fmt("%r\n", cast(const REBVAL*, p));
+    else
+        Debug_Series(m_cast(REBSER*, cast(const REBSER*, p)));
 }
-
 #endif

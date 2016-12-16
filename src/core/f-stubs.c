@@ -415,7 +415,7 @@ void Set_Tuple(REBVAL *value, REBYTE *bytes, REBCNT len)
 // is its canon form from a single pointer...the REBVAL sitting in the 0 slot
 // of the context's varlist.
 //
-void Val_Init_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
+void Val_Init_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *c) {
     //
     // In a debug build we check to make sure the type of the embedded value
     // matches the type of what is intended (so someone who thinks they are
@@ -424,27 +424,22 @@ void Val_Init_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
     // checks as well.
     //
 #if !defined(NDEBUG)
-    REBVAL *value = CTX_VALUE(context);
+    REBVAL *archetype = CTX_VALUE(c);
+    assert(VAL_CONTEXT(archetype) == c);
 
-    assert(ANY_CONTEXT(value));
-    assert(CTX_TYPE(context) == kind);
+    assert(CTX_TYPE(c) == kind);
+    if (CTX_KEYLIST(c) == NULL)
+        panic (c);
 
-    assert(VAL_CONTEXT(value) == context);
+    assert(GET_ARR_FLAG(CTX_VARLIST(c), ARRAY_FLAG_VARLIST));
 
-    if (!CTX_KEYLIST(context)) {
-        Debug_Fmt("Context found with no keylist set");
-        Panic_Context(context);
-    }
-
-    assert(GET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_VARLIST));
-
-    if (IS_FRAME(CTX_VALUE(context)))
-        assert(IS_FUNCTION(CTX_FRAME_FUNC_VALUE(context)));
+    if (IS_FRAME(CTX_VALUE(c)))
+        assert(IS_FUNCTION(CTX_FRAME_FUNC_VALUE(c)));
 
     // !!! Currently only a context can serve as the "meta" information,
     // though the interface may expand.
     //
-    assert(!CTX_META(context) || ANY_CONTEXT(CTX_VALUE(CTX_META(context))));
+    assert(CTX_META(c) == NULL || ANY_CONTEXT(CTX_VALUE(CTX_META(c))));
 #endif
 
     // Some contexts (stack frames in particular) start out unmanaged, and
@@ -458,16 +453,16 @@ void Val_Init_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
     // set before they are GC'd.  For another case, see INIT_WORD_CONTEXT(),
     // where an ANY-WORD! can mark a context as in use.
     //
-    ENSURE_ARRAY_MANAGED(CTX_VARLIST(context));
+    ENSURE_ARRAY_MANAGED(CTX_VARLIST(c));
 
     // Keylists are different, because they may-or-may-not-be-reused by some
     // operations.  There needs to be a uniform policy on their management,
     // or certain routines would return "sometimes managed, sometimes not"
     // keylist series...a bad invariant.
     //
-    ASSERT_ARRAY_MANAGED(CTX_KEYLIST(context));
+    ASSERT_ARRAY_MANAGED(CTX_KEYLIST(c));
 
-    *out = *CTX_VALUE(context);
+    *out = *CTX_VALUE(c);
 
     // Currently only FRAME! uses the ->binding field.  Following the pattern
     // of function, we assume the archetype form of a frame has no binding,

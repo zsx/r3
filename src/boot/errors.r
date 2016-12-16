@@ -22,24 +22,12 @@ Special: [
 ]
 
 Internal: [
-    ; Some of these internal errors can happen prior to when the error
-    ; catalog (e.g. the blocks in this file) have been loaded as Rebol data.
-    ; Those strings need to be accessible another way, so %make-boot.r takes
-    ; the string data and duplicates it as C literals usable by Panic_Core()
-    ;
-    ; Note: Because these are flattened into printf-style format strings
-    ; instead of using the ordinary error-building mechanism, argument
-    ; ordering is not honored when an error is raised using the mechanism
-    ; from before when booting is ready.  It's also probably a bad idea to
-    ; use sophisticated REBVALs as arguments, because it may be too early
-    ; in the boot process for them to be molded properly.
-    ;
     code: 1000
     type: "internal"
 
     ; Because adding an error code has the overhead of modifying this file and
     ; coming up with a good name, errors for testing or that you don't think
-    ; will happen can be put here.  A debug build will identify the line
+    ; will happen can use RE_MISC.  A debug build will identify the line
     ; number and file source of the error, so provides some info already.
     ;
     misc:               {RE_MISC error (if actually happens, add to %errors.r)}
@@ -51,36 +39,18 @@ Internal: [
 
     not-done:           {reserved for future use (or not yet implemented)}
 
-    ; !!! Should boot errors be their own category?  Even if they were,
-    ; there will still be some errors that are not boot-specific which can
-    ; happen during boot (such as out of memory) which can't rely on boot
-    ;
     no-memory:          [{not enough memory:} :arg1 {bytes}]
     corrupt-memory:     {Check_Memory() found a problem}
-    boot-data:          {no boot.r text found}
-    native-boot:        {bad boot.r native ordering}
-    bad-boot-string:    {boot strings area is invalid}
-    bad-boot-type-block: {boot block is wrong size}
-    max-natives:        {too many natives}
-    action-overflow:    {more actions than we should have}
-    rebval-alignment:   {sizeof(REBVAL) not 4x 32-bits or 4x 64-bits}
-    pool-alignment:     {Memory pool width not 64-bit aligned}
 
     io-error:           {problem with IO}
-    max-words:          {too many words}
     locked-series:      {locked series expansion}
-    max-events:         {event queue overflow}
     unexpected-case:    {no case in switch statement}
-    bad-size:           {expected size did not match}
-    no-buffer:          {buffer not yet allocated}
     invalid-datatype:   [{invalid datatype #} :arg1]
     bad-path:           [{bad path:} :arg1]
     not-here:           [:arg1 {not supported on your system}]
     globals-full:       {no more global variable space}
-    limit-hit:          [{internal limit reached:} :arg1]
     bad-sys-func:       [{invalid or missing system function:} :arg1]
     invalid-error:      [{error object or fields were not valid:} :arg1]
-    bad-evaltype:       {invalid datatype for evaluation}
     hash-overflow:      {Hash ran out of space}
     no-print-ptr:       {print is missing string pointer}
 

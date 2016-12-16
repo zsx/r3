@@ -199,11 +199,10 @@ REBOOL Do_Path_Throws_Core(
         assert(specifier != SPECIFIED);
 
         if (VAL_RELATIVE(path) != VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier))) {
-            Debug_Fmt("Specificity mismatch found in path dispatch");
-            PROBE_MSG(path, "the path being evaluated");
-            PROBE_MSG(FUNC_VALUE(VAL_RELATIVE(path)), "expected func");
-            PROBE_MSG(CTX_FRAME_FUNC_VALUE(specifier), "actual func");
-            assert(FALSE);
+            printf("Specificity mismatch in path dispatch, expected:\n");
+            PROBE(CTX_FRAME_FUNC_VALUE(specifier));
+            printf("Panic on actual path\n");
+            panic (path);
         }
     #endif
         pvs.item_specifier = specifier;

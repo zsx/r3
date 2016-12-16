@@ -256,7 +256,7 @@ inline static void DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(struct Reb_State *s) {
 
 
 //
-// PANIC AND FAIL
+// FAIL
 //
 // The fail() macro implements a form of error which is "trappable" with the
 // macros above:
@@ -268,27 +268,15 @@ inline static void DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(struct Reb_State *s) {
 //            longjmp'd up the stack where execution continues */
 //     }
 //
-// The other also takes an pointer to a context for a REB_ERROR, and will
-// terminate the system using it as a message, if the system has progressed to
-// the point where messages are loaded:
-//
-//     if (Foo_Type(foo_critical) == BAD_FOO) {
-//         panic (Error_Bad_Foo_Operation(...));
-//
-//         /* this line will never be reached, because it
-//            immediately exited the process with a message */
-//     }
-//
-// These are macros that in debug builds will capture the file and line
-// numbers, and add them to the error object itself.
+// In debug builds, the macro will capture the file and line numbers, and
+// add it to the error object itself.
 //
 // Errors that originate from C code are created via Make_Error, and are
 // defined in %errors.r.  These definitions contain a formatted message
 // template, showing how the arguments will be displayed in FORMing.
 //
-// NOTE: It's desired that there be a space in `fail (...)` and `panic (...)`
-// to help make them seem more "keyword-like" and bring attention to the fact
-// that they are 'noreturn' calls.
+// NOTE: It's desired that there be a space in `fail (...)` to make it look
+// more "keyword-like" and draw attention to the fact it is a `noreturn` call.
 //
 
 #ifdef NDEBUG
@@ -297,20 +285,10 @@ inline static void DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(struct Reb_State *s) {
     // passing cost *or* the string table cost of having a list of all
     // the files and line numbers for all the places that originate
     // errors...
-
-    #define panic(error) \
-        Panic_Core(0, (error), NULL)
-
+    //
     #define fail(error) \
         Fail_Core(error)
 #else
-    #define panic(error) \
-        do { \
-            TG_Erroring_C_File = __FILE__; \
-            TG_Erroring_C_Line = __LINE__; \
-            Panic_Core(0, (error), NULL); \
-        } while (0)
-
     #define fail(error) \
         do { \
             TG_Erroring_C_File = __FILE__; \
@@ -319,3 +297,52 @@ inline static void DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(struct Reb_State *s) {
         } while (0)
 #endif
 
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// PANIC (Force System Exit with Diagnostic Info)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Panics are the equivalent of the "blue screen of death" and should never
+// happen in normal operation.  Generally, it is assumed nothing under the
+// user's control could fix or work around the issue, hence the main goal is
+// to provide the most diagnostic information possible.
+//
+// So the best thing to do is to pass in whatever REBVAL* or REBSER* subclass
+// (including REBARR*, REBCTX*, REBFUN*...) is the most useful "smoking gun":
+//
+//     if (VAL_TYPE(value) == REB_VOID)
+//         panic (value);
+//
+//     if (ARR_LEN(array) < 2)
+//         panic (array);
+//
+// Both the debug and release builds will spit out diagnostics of the item,
+// along with the file and line number of the problem.  The diagnostics are
+// written in such a way that they give the "more likely to succeed" output
+// first, and then get more aggressive to the point of possibly crashing by
+// dereferencing corrupt memory which triggered the panic.  The debug build
+// diagnostics will be more exhaustive, but the release build gives some info.
+//
+// The most useful argument to panic is going to be a problematic value or
+// series vs. a message (especially given that the file and line number are
+// included in the report).  But if no relevant smoking gun is available, a
+// UTF-8 string can also be passed to panic...and it will terminate with that
+// as a message:
+//
+//     if (sizeof(foo) != 42) {
+//         panic ("invalid foo size");
+//
+//         /* this line will never be reached, because it
+//            immediately exited the process with a message */
+//     }
+//
+// NOTE: It's desired that there be a space in `panic (...)` to make it look
+// more "keyword-like" and draw attention to the fact it is a `noreturn` call.
+//
+#define panic(v) \
+    Panic_Core((v), __FILE__, __LINE__);
+
+#define panic_at(v,file,line) \
+    Panic_Core((v), (file), (line));

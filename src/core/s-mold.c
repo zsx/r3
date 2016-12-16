@@ -663,13 +663,6 @@ static void Mold_Block(const RELVAL *value, REB_MOLD *mold)
     REBSER *series = mold->series;
     REBOOL over = FALSE;
 
-#if !defined(NDEBUG)
-    if (SER_WIDE(VAL_SERIES(value)) == 0) {
-        Debug_Fmt("** Mold_Block() zero series wide, t=%d", VAL_TYPE(value));
-        Panic_Series(VAL_SERIES(value));
-    }
-#endif
-
     // Optimize when no index needed:
     if (VAL_INDEX(value) == 0 && !IS_MAP(value)) // && (VAL_TYPE(value) <= REB_LIT_PATH))
         all = FALSE;
@@ -1461,7 +1454,7 @@ void Mold_Value(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
         break;
 
     default:
-        panic (Error_Invalid_Datatype(VAL_TYPE(value)));
+        panic (value);
     }
     goto check_and_return;
 

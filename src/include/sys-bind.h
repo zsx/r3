@@ -245,11 +245,8 @@ inline static REBVAL *Get_Var_Core(
         assert(GET_VAL_FLAG(any_word, WORD_FLAG_BOUND)); // should be set too
 
         if (specifier == SPECIFIED) {
-            Debug_Fmt("Get_Var_Core on relative value without specifier");
-            PROBE_MSG(any_word, "the word");
-            assert(IS_FUNCTION(FUNC_VALUE(VAL_WORD_FUNC(any_word))));
-            PROBE_MSG(FUNC_VALUE(VAL_WORD_FUNC(any_word)), "the function");
-            PANIC_VALUE(any_word);
+            printf("Get_Var_Core on relative value without specifier\n");
+            panic (any_word);
         }
         assert(
             VAL_WORD_FUNC(any_word)
@@ -428,20 +425,17 @@ inline static void Derelativize(
     #if !defined(NDEBUG)
         assert(ANY_WORD(v) || ANY_ARRAY(v));
         if (specifier == SPECIFIED) {
-            Debug_Fmt("Internal Error: Relative item used with SPECIFIED");
-            PROBE_MSG(v, "word or array");
-            PROBE_MSG(FUNC_VALUE(VAL_RELATIVE(v)), "func");
-            assert(FALSE);
+            printf("Relative item used with SPECIFIED\n");
+            panic (v);
         }
         else if (
             VAL_RELATIVE(v)
             != VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier))
         ){
-            Debug_Fmt("Internal Error: Function mismatch in specific binding");
-            PROBE_MSG(v, "word or array");
-            PROBE_MSG(FUNC_VALUE(VAL_RELATIVE(v)), "expected func");
-            PROBE_MSG(CTX_FRAME_FUNC_VALUE(specifier), "actual func");
-            assert(FALSE);
+            printf("Function mismatch in specific binding, expected:\n");
+            PROBE(FUNC_VALUE(VAL_RELATIVE(v)));
+            printf("Panic on relative value\n");
+            panic (v);
         }
     #endif
 

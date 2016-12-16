@@ -122,9 +122,6 @@ REBOOL Match_Sub_Path(REBSER *s1, REBSER *s2)
     REBUNI c1 = 0;
     REBUNI c2;
 
-//  Debug_Series(s1);
-//  Debug_Series(s2);
-
     // s1 len must be <= s2 len
     if (len > SER_LEN(s2)) return FALSE;
 

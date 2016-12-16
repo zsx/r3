@@ -586,10 +586,8 @@ REBINT PD_Array(REBPVS *pvs)
 
 #if !defined(NDEBUG)
     if (pvs->value_specifier == SPECIFIED && IS_RELATIVE(pvs->value)) {
-        Debug_Fmt("Relative value found in PD_Array with no specifier");
-        PROBE_MSG(pvs->value, "the value");
-        Panic_Array(VAL_ARRAY(pvs->value));
-        assert(FALSE);
+        printf("Relative value found in PD_Array with no specifier\n");
+        panic (pvs->value);
     }
 #endif
 
@@ -1009,54 +1007,45 @@ return_empty_block:
 //
 //  Assert_Array_Core: C
 //
-void Assert_Array_Core(REBARR *array)
+void Assert_Array_Core(REBARR *a)
 {
     // Basic integrity checks (series is not marked free, etc.)  Note that
     // we don't use ASSERT_SERIES the macro here, because that checks to
     // see if the series is an array...and if so, would call this routine
     //
-    Assert_Series_Core(ARR_SERIES(array));
+    Assert_Series_Core(ARR_SERIES(a));
 
-    if (NOT(GET_ARR_FLAG(array, SERIES_FLAG_ARRAY))) {
-        printf("Assert_Array called on series without SERIES_FLAG_ARRAY\n");
-        Panic_Array(array);
-    }
+    if (NOT(GET_ARR_FLAG(a, SERIES_FLAG_ARRAY)))
+        panic (a);
 
-    RELVAL *value = ARR_HEAD(array);
+    RELVAL *item = ARR_HEAD(a);
     REBCNT i;
-    for (i = 0; i < ARR_LEN(array); ++i, ++value) {
-        if (IS_END(value)) {
-            printf("Premature END found in Assert_Array\n");
-            printf("At index %d, length is %d\n", i, ARR_LEN(array));
-            fflush(stdout);
-            Panic_Array(array);
+    for (i = 0; i < ARR_LEN(a); ++i, ++item) {
+        if (IS_END(item)) {
+            printf("Premature array end at index %d\n", i);
+            panic (a);
         }
     }
 
-    if (NOT_END(value)) {
-        printf("END missing in Assert_Array, length is %d\n", ARR_LEN(array));
-        fflush(stdout);
-        Panic_Array(array);
-    }
+    if (NOT_END(item))
+        panic (item);
 
-    if (GET_ARR_FLAG(array, SERIES_FLAG_HAS_DYNAMIC)) {
-        REBCNT rest = SER_REST(ARR_SERIES(array));
+    if (GET_ARR_FLAG(a, SERIES_FLAG_HAS_DYNAMIC)) {
+        REBCNT rest = SER_REST(ARR_SERIES(a));
 
 #ifdef __cplusplus
         assert(rest > 0 && rest > i);
-        for (; i < rest - 1; ++i, ++value) {
-            if (NOT(value->header.bits & NOT_FREE_MASK)) {
+        for (; i < rest - 1; ++i, ++item) {
+            if (NOT(item->header.bits & NOT_FREE_MASK)) {
                 printf("Unwritable cell found in array rest capacity\n");
-                fflush(stdout);
-                Panic_Array(array);
+                panic (a);
             }
         }
-        assert(value == ARR_AT(array, rest - 1));
+        assert(item == ARR_AT(a, rest - 1));
 #endif
-        if (ARR_AT(array, rest - 1)->header.bits != END_MASK) {
+        if (ARR_AT(a, rest - 1)->header.bits != END_MASK) {
             printf("Implicit termination/unwritable END missing from array\n");
-            fflush(stdout);
-            assert(FALSE);
+            panic (a);
         }
     }
 

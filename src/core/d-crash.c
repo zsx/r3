@@ -30,6 +30,101 @@
 
 #include "sys-core.h"
 
+
+enum Reb_Pointer_Guess {
+    GUESSED_AS_UTF8,
+    GUESSED_AS_SERIES,
+    GUESSED_AS_FREED_SERIES,
+    GUESSED_AS_VALUE,
+    GUESSED_AS_END
+};
+
+// See the elaborate explanation in %m-gc.c for how this works!
+//
+static enum Reb_Pointer_Guess Guess_Rebol_Pointer(const void *p) {
+    const REBYTE *bp = cast(const REBYTE*, p);
+    REBYTE left_4_bits = *bp >> 4;
+
+    switch (left_4_bits) {
+    case 0: {
+        if (*bp != 0) {
+            //
+            // only top 4 bits 0, could be ASCII control character (including
+            // line feed...
+            //
+            return GUESSED_AS_UTF8;
+        }
+
+        // All 0 bits in first byte would either be an empty UTF-8 string or
+        // a *freed* series.  We will guess freed series in the case that the
+        // Reb_Header interpretation comes up with all 0 bits.
+        //
+        // Since this read of the header can crash the system on a valid
+        // empty string (if not legal to read bytes after terminator), this
+        // guess is only done in the debug build.
+        //
+    #if !defined(NDEBUG)
+        const struct Reb_Header *h = cast(const struct Reb_Header*, p);
+        if (h->bits == 0)
+            return GUESSED_AS_FREED_SERIES;
+    #endif
+
+        return GUESSED_AS_UTF8;
+    }
+
+    case 1:
+    case 2:
+    case 3:
+        return GUESSED_AS_UTF8; // slightly higher ASCII codepoints
+
+    case 4:
+    case 5:
+        // END_MASK (0x4) is set, but other bits aren't set...including
+        // CELL_MASK (0x2).  This *could* be an internal END marker, as
+        // opposed to a UTF-8 string.  A debug check might try doing a UTF-8
+        // decode, and if it fails, it's probably an internal END.
+        //
+        return GUESSED_AS_UTF8;
+
+    case 6:
+    case 7:
+        return GUESSED_AS_UTF8; // topmost ASCII codepoints
+
+    // v-- bit sequences starting with `10` (continuation bytes, so not
+    // valid starting points for a UTF-8 string)
+
+    case 8:
+        return GUESSED_AS_SERIES; // not free, not cell, not managed
+
+    case 9:
+        return GUESSED_AS_SERIES; // not free, not cell, managed
+
+    case 10:
+        return GUESSED_AS_VALUE; // not free, cell, not managed
+
+    case 11:
+        return GUESSED_AS_VALUE; // not free, cell, managed (pairing key)
+
+    // v-- bit sequences starting with `11` are usually legal multi-byte
+    // valid starting points, with a few exceptions.
+
+    case 12:
+    case 13:
+    case 14:
+        return GUESSED_AS_UTF8;
+
+    case 15:
+        if (*bp == 255)
+            return GUESSED_AS_END;
+
+        return GUESSED_AS_UTF8;
+    }
+
+    DEAD_END;
+}
+
+
+
 // Size of crash buffers
 #define PANIC_TITLE_BUF_SIZE 80
 #define PANIC_BUF_SIZE 512
@@ -38,36 +133,42 @@
 //
 //  Panic_Core: C
 //
-// (va_list by pointer: http://stackoverflow.com/a/3369762/211160)
-//
-// Print a failure message and abort.  The code adapts to several
-// different load stages of the system, and uses simpler ways to
-// report the error when the boot has not progressed enough to
-// use the more advanced modes.  This allows the same interface
-// to be used for `panic Error_XXX(...)` and `fail (Error_XXX(...))`.
+// See comments on `panic (...)` macro, which calls this routine.
 //
 ATTRIBUTE_NO_RETURN void Panic_Core(
-    REBCNT id,
-    REBCTX *opt_error,
-    va_list *vaptr
+    const void *p, // REBSER* (array, context, etc), REBVAL*, or UTF-8 char*
+    const char* file,
+    int line
 ) {
-    char title[PANIC_TITLE_BUF_SIZE + 1]; // account for null terminator
-    char message[PANIC_BUF_SIZE + 1]; // "
-
-    title[0] = '\0';
-    message[0] = '\0';
-
-    if (opt_error) {
-        ASSERT_CONTEXT(opt_error);
-        assert(CTX_TYPE(opt_error) == REB_ERROR);
-        assert(id == 0);
-        id = ERR_NUM(opt_error);
-    }
+    if (p == NULL)
+        p = "panic (...) was passed NULL"; // avoid later NULL tests
 
     // We are crashing, so a legitimate time to be disabling the garbage
     // collector.  (It won't be turned back on.)
     //
     GC_Disabled = TRUE;
+
+#if !defined(NDEBUG)
+    //
+    // Generally Rebol does not #include <stdio.h>, but the debug build does.
+    // It's often used for debug spew--as opposed to Debug_Fmt()--when there
+    // is a danger of causing recursive errors if the problem is being caused
+    // by I/O in the first place.  So flush anything lingering in the
+    // standard output or error buffers
+    //
+    fflush(stdout);
+    fflush(stderr);
+#endif
+
+    // Because the release build of Rebol does not link to printf or its
+    // support functions, the crash buf is assembled into a buffer for
+    // raw output through the host.
+    //
+    char title[PANIC_TITLE_BUF_SIZE + 1]; // account for null terminator
+    char buf[PANIC_BUF_SIZE + 1]; // "
+
+    title[0] = '\0';
+    buf[0] = '\0';
 
 #if !defined(NDEBUG)
     if (Reb_Opts && Reb_Opts->crash_dump) {
@@ -76,111 +177,67 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     }
 #endif
 
-    strncat(title, "PANIC #", PANIC_TITLE_BUF_SIZE - 0);
-    Form_Int(b_cast(title + strlen(title)), id); // !!! no bounding...
+    strncat(title, "PANIC()", PANIC_TITLE_BUF_SIZE - 0);
 
-    strncat(message, Str_Panic_Directions, PANIC_BUF_SIZE - 0);
+    strncat(buf, Str_Panic_Directions, PANIC_BUF_SIZE - 0);
 
-#if !defined(NDEBUG)
-    // In debug builds, we may have the file and line number to report if
-    // the call to Panic_Core originated from the `panic` macro.  But we
-    // will not if the panic is being called from a Make_Error call that
-    // is earlier than errors can be made...
+    strncat(buf, "C Source File ", PANIC_BUF_SIZE - strlen(buf));
+    strncat(buf, file, PANIC_BUF_SIZE - strlen(buf));
+    strncat(buf, ", Line ", PANIC_BUF_SIZE - strlen(buf));
+    Form_Int(b_cast(buf + strlen(buf)), line); // !!! no bounding...
+    strncat(buf, "\n", PANIC_BUF_SIZE - strlen(buf));
 
-    if (TG_Erroring_C_File) {
-        strncat(message, "C Source File ", PANIC_BUF_SIZE - strlen(message));
-        strncat(message, TG_Erroring_C_File, PANIC_BUF_SIZE - strlen(message));
-        strncat(message, ", Line ", PANIC_BUF_SIZE - strlen(message));
-        Form_Int(b_cast(message + strlen(message)), TG_Erroring_C_Line); // !
-        strncat(message, "\n", PANIC_BUF_SIZE - strlen(message));
-    }
-#endif
-
-    if (PG_Boot_Phase < BOOT_LOADED) {
-        strncat(message, title, PANIC_BUF_SIZE - strlen(message));
+    switch (Guess_Rebol_Pointer(p)) {
+    case GUESSED_AS_UTF8:
         strncat(
-            message,
-            "\n** Boot Error: (string table not decompressed yet)",
-            PANIC_BUF_SIZE - strlen(message)
+            buf,
+            cast(const char*, p),
+            PANIC_BUF_SIZE - strlen(buf)
         );
-    }
-    else if (PG_Boot_Phase < BOOT_ERRORS && id < RE_INTERNAL_MAX) {
-        //
-        // We are panic'ing on one of the errors that can occur during
-        // boot (e.g. before Make_Error() be assured to run).  So we use
-        // the C string constant that was formed by %make-boot.r and
-        // compressed in the boot block.
-        //
-        const char *format =
-            cs_cast(BOOT_STR(RS_ERROR, id - RE_INTERNAL_FIRST));
+        break;
 
-        // !!! These strings currently do not heed arguments, so if they
-        // use a format specifier it will be ignored.  Technically it
-        // *may* be possible at some levels of boot to use the args.  If it
-        // becomes a priority then find a way to safely report them
-        // (perhaps a subset like integer!, otherwise just print type #?)
-        //
-        assert(vaptr && !opt_error);
+    case GUESSED_AS_SERIES: {
+        REBSER *s = m_cast(REBSER*, cast(const REBSER*, p)); // don't mutate
+    #if !defined(NDEBUG)
+        Panic_Series_Debug(cast(REBSER*, s));
+    #else
+        strncat(buf, "valid series", PANIC_BUF_SIZE - strlen(buf));
+    #endif
+        break; }
 
-        strncat(
-            message, "\n** Boot Error: ", PANIC_BUF_SIZE - strlen(message)
+    case GUESSED_AS_FREED_SERIES: {
+        REBSER *s = m_cast(REBSER*, cast(const REBSER*, p)); // don't mutate
+    #if !defined(NDEBUG)
+        Panic_Series_Debug(s);
+    #else
+        strncat(buf, "freed series", PANIC_BUF_SIZE - strlen(buf));
+    #endif
+        break; }
+
+    case GUESSED_AS_VALUE:
+    #if !defined(NDEBUG)
+        Panic_Value_Debug(cast(const REBVAL*, p));
+    #else
+        strncat(buf, "value", PANIC_BUF_SIZE - strlen(buf));
+    #endif
+        break;
+
+    case GUESSED_AS_END:
+    #if !defined(NDEBUG)
+        Panic_Value_Debug(cast(const REBVAL*, p));
+    #else
+        strncat(buf, "end marker", PANIC_BUF_SIZE - strlen(buf));
+    #endif
+        break;
+
+    default:
+        strncat(buf,
+            "Guess_Rebol_Pointer() failure",
+            PANIC_BUF_SIZE - strlen(buf)
         );
-        strncat(message, format, PANIC_BUF_SIZE - strlen(message));
+        break;
     }
-    else if (PG_Boot_Phase < BOOT_ERRORS && id >= RE_INTERNAL_MAX) {
-        strncat(message, title, PANIC_BUF_SIZE - strlen(message));
-        strncat(
-            message,
-            "\n** Boot Error: (error object table not initialized yet)",
-            PANIC_BUF_SIZE - strlen(message)
-        );
-    }
-    else {
-        // The system should be theoretically able to make and mold errors.
-        //
-        // !!! If you're trying to panic *during* error molding this
-        // is obviously not going to not work.  All errors pertaining to
-        // molding errors should audited to be in the Boot: category.
-        //
-        // !!! As a bigger question, whether a `panic` means "stop the
-        // system right now for fear of data corruption` or "stop running"
-        // would guide whether this should effectively "blue-screen" or
-        // continue trying to use series and other mechanisms in the
-        // report.  The stronger meaning of panic would indicate that this
-        // *not* try to decode series or values in the report, for fear
-        // of tripping over a cascading bug that might do bad things.
-        // In which case, this branch would be removed.
 
-        REB_MOLD mo;
-        REBSER *bytes;
-
-        CLEARS(&mo);
-        SET_FLAG(mo.opts, MOPT_LIMIT);
-        mo.limit = PANIC_BUF_SIZE - strlen(message); // codepoints, not bytes
-
-        Push_Mold(&mo);
-
-        REBVAL error;
-        if (opt_error) {
-            assert(!vaptr);
-            Val_Init_Error(&error, opt_error);
-        }
-        else {
-            // We aren't explicitly passed a Rebol ERROR! object, but we
-            // consider it "safe" to make one since we're past BOOT_ERRORS
-
-            Val_Init_Error(&error, Make_Error_Core(id, vaptr));
-        }
-
-        Mold_Value(&mo, &error, FALSE);
-        bytes = Pop_Molded_UTF8(&mo);
-
-        strncat(
-            message, s_cast(BIN_HEAD(bytes)), PANIC_BUF_SIZE - strlen(message)
-        );
-
-        Free_Series(bytes);
-    }
 
 #if !defined(NDEBUG)
     //
@@ -189,12 +246,12 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     // host kit's exit routine...
     //
     printf("%s\n", Str_Panic_Title);
-    printf("%s\n", message);
+    printf("%s\n", buf);
     fflush(stdout);
     debug_break(); // see %debug_break.h
 #endif
 
-    OS_CRASH(cb_cast(Str_Panic_Title), cb_cast(message));
+    OS_CRASH(cb_cast(Str_Panic_Title), cb_cast(buf));
 
     // Note that since we crash, we never return so that the caller can run
     // a va_end on the passed-in args.  This is illegal in the general case:

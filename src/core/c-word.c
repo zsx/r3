@@ -592,9 +592,9 @@ void Init_Symbols(REBARR *words)
     // Do some sanity checks
 
     if (COMPARE_BYTES(cb_cast("blank!"), STR_HEAD(Canon(SYM_BLANK_X))) != 0)
-        panic (Error(RE_BAD_BOOT_STRING));
+        panic (Canon(SYM_BLANK_X));
     if (COMPARE_BYTES(cb_cast("true"), STR_HEAD(Canon(SYM_TRUE))) != 0)
-        panic (Error(RE_BAD_BOOT_STRING));
+        panic (Canon(SYM_TRUE));
 }
 
 

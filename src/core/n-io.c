@@ -528,7 +528,8 @@ REBNATIVE(wake_up)
     REBOOL awakened = TRUE; // start by assuming success
     REBVAL *value;
 
-    if (CTX_LEN(port) < STD_PORT_MAX - 1) panic (Error(RE_MISC));
+    if (CTX_LEN(port) < STD_PORT_MAX - 1)
+        panic (port);
 
     value = CTX_VAR(port, STD_PORT_ACTOR);
     if (IS_FUNCTION(value)) {

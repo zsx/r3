@@ -300,7 +300,7 @@ REBNATIVE(evoke)
                 Reb_Opts->watch_recycle = NOT(Reb_Opts->watch_recycle);
                 break;
             case SYM_CRASH:
-                panic (Error(RE_MISC));
+                panic ("evoke 'crash was executed");
             default:
                 Out_Str(cb_cast(evoke_help), 1);
             }

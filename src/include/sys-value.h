@@ -59,40 +59,26 @@
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  DEBUG PROBE AND PANIC
+//  DEBUG PROBE
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // The PROBE macro can be used in debug builds to mold a REBVAL much like the
-// Rebol `probe` operation.  PROBE_MSG can add a message:
-//
-//     REBVAL *v = Some_Value_Pointer();
-//
-//     PROBE(v);
-//     PROBE_MSG(v, "the v value debug dump label");
+// Rebol `probe` operation.  It's actually polymorphic, and if you have
+// a REBSER*, REBCTX*, or REBARR* it can be used with those as well.
 //
 // In order to make it easier to find out where a piece of debug spew is
 // coming from, the file and line number will be output as well.
 //
-// PANIC_VALUE causes a crash on a value, while trying to provide information
-// that could identify where that value was assigned.  If it is resident
-// in a series and you are using Address Sanitizer or Valgrind, then it should
-// cause a crash that pinpoints the stack where that array was allocated.
+// Note: As a convenience, PROBE also flushes the `stdout` and `stderr` in
+// case the debug build was using printf() to output contextual information.
 //
 
 #if !defined(NDEBUG)
     #define PROBE(v) \
-        Probe_Core_Debug(NULL, __FILE__, __LINE__, (v))
-
-    #define PROBE_MSG(v, m) \
-        Probe_Core_Debug((m), __FILE__, __LINE__, (v))
-
-    #define PANIC_VALUE(v) \
-        Panic_Value_Debug((v), __FILE__, __LINE__)
+        Probe_Core_Debug((v), __FILE__, __LINE__)
 #endif
 
-#define Panic_Value(v) \
-    PANIC_VALUE(v)
 
 #define VAL_ALL_BITS(v) ((v)->payload.all.bits)
 
@@ -170,8 +156,7 @@
 
         assert(v->header.bits & CELL_MASK);
         printf("END marker or garbage/trash in VAL_TYPE()\n");
-        fflush(stdout);
-        Panic_Value_Debug(v, file, line);
+        panic_at (v, file, line);
     }
 
     #define VAL_TYPE(v) \
@@ -291,7 +276,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 // they are left as random data.  But the debug build can take advantage of
 // it to store some tracking information about the point and moment of
 // initialization.  This data can be viewed in the debugging watchlist
-// under the `track` component of payload, and is also used by PANIC_VALUE.
+// under the `track` component of payload, and is also used by panic().
 //
 
 #if !defined NDEBUG
@@ -411,7 +396,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 // as it is.  So it's better to have a quicker check.
 //
 // Doesn't need payload...so the debug build adds information in Reb_Track
-// which can be viewed in the debug watchlist (or shown by PANIC_VALUE)
+// which can be viewed in the debug watchlist (or shown by panic())
 //
 
 #define VOID_CELL \
@@ -484,7 +469,7 @@ inline static REBOOL IS_VOID(const RELVAL *v)
 //     append [a b c] '|                        ;-- is legal
 //
 // Doesn't need payload...so the debug build adds information in Reb_Track
-// which can be viewed in the debug watchlist (or shown by PANIC_VALUE)
+// which can be viewed in the debug watchlist (or shown by panic())
 //
 
 #ifdef NDEBUG
@@ -545,7 +530,7 @@ inline static REBOOL IS_VOID(const RELVAL *v)
 // if that fill in never happens.
 //
 // Doesn't need payload...so the debug build adds information in Reb_Track
-// which can be viewed in the debug watchlist (or shown by PANIC_VALUE).
+// which can be viewed in the debug watchlist (or shown by panic()).
 // This is particularly useful when getting an assertion on UNREADABLE blanks.
 //
 
@@ -633,7 +618,7 @@ inline static void SET_BLANK_COMMON(RELVAL *v) {
 // should represent an "opt out" or an error.)
 //
 // Doesn't need payload...so the debug build adds information in Reb_Track
-// which can be viewed in the debug watchlist (or shown by PANIC_VALUE)
+// which can be viewed in the debug watchlist (or shown by panic())
 //
 
 #define FALSE_VALUE \
@@ -702,8 +687,7 @@ inline static void SET_FALSE_COMMON(RELVAL *v) {
     ){
         if (IS_VOID(v)) {
             printf("Conditional true/false test on void\n");
-            fflush(stdout);
-            Panic_Value_Debug(v, file, line);
+            panic_at (v, file, line);
         }
         return IS_CONDITIONAL_FALSE_COMMON(v);
     }

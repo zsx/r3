@@ -255,9 +255,6 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 //
 void Init_Pools(REBINT scale)
 {
-    REBCNT n;
-    REBINT unscale = 1;
-
 #ifndef NDEBUG
     const char *env_always_malloc = NULL;
     env_always_malloc = getenv("R3_ALWAYS_MALLOC");
@@ -272,11 +269,19 @@ void Init_Pools(REBINT scale)
     }
 #endif
 
-    if (scale == 0) scale = 1;
-    else if (scale < 0) unscale = -scale, scale = 1;
+    REBINT unscale = 1;
+    if (scale == 0)
+        scale = 1;
+    else if (scale < 0) {
+        unscale = -scale;
+        scale = 1;
+    }
+
+    Mem_Pools = ALLOC_N(REBPOL, MAX_POOLS);
 
     // Copy pool sizes to new pool structure:
-    Mem_Pools = ALLOC_N(REBPOL, MAX_POOLS);
+    //
+    REBCNT n;
     for (n = 0; n < MAX_POOLS; n++) {
         Mem_Pools[n].segs = NULL;
         Mem_Pools[n].first = NULL;
@@ -291,7 +296,8 @@ void Init_Pools(REBINT scale)
         // release sizes may be different...and both must be checked.
         //
         if (Mem_Pool_Spec[n].wide % sizeof(REBI64) != 0)
-            panic (Error(RE_POOL_ALIGNMENT));
+            panic ("memory pool width is not 64-bit aligned");
+
         Mem_Pools[n].wide = Mem_Pool_Spec[n].wide;
 
         Mem_Pools[n].units = (Mem_Pool_Spec[n].units * scale) / unscale;
@@ -351,8 +357,8 @@ void Shutdown_Pools(void)
             if (IS_FREE_NODE(series))
                 continue;
 
-            printf("Leaked series at shutdown");
-            Panic_Series(series);
+            printf("At least one leaked series at shutdown...\n");
+            panic (series);
         }
         UNPOISON_MEMORY(seg, sizeof(REBSEG)); // for access to seg->next
     }
@@ -422,7 +428,17 @@ static void Fill_Pool(REBPOL *pool)
     REBCNT mem_size = pool->wide * units + sizeof(REBSEG);
 
     REBSEG *seg = cast(REBSEG *, ALLOC_N(char, mem_size));
-    if (!seg) panic (Error_No_Memory(mem_size));
+    if (seg == NULL) {
+        panic ("Out of memory error during Fill_Pool()");
+
+        // Rebol's safe handling of running out of memory was never really
+        // articulated.  Yet it should be possible to run a fail()...at least
+        // of a certain type...without allocating more memory.  (This probably
+        // suggests a need for pre-creation of the out of memory objects,
+        // as is done with the stack overflow error)
+        //
+        // fail (Error_No_Memory(mem_size));
+    }
 
     seg->size = mem_size;
     seg->next = pool->segs;
@@ -774,7 +790,7 @@ REBSER *Try_Find_Containing_Series_Debug(const void *p)
                 continue;
             }
 
-            if (p > cast(void*, s->content.dynamic.data
+            if (p >= cast(void*, s->content.dynamic.data
                 + (SER_WIDE(s) * SER_REST(s))
             )) {
                 // The memory lies after the series capacity.
@@ -795,7 +811,7 @@ REBSER *Try_Find_Containing_Series_Debug(const void *p)
                 return s;
             }
 
-            if (p > cast(void*,
+            if (p >= cast(void*,
                 s->content.dynamic.data
                 + (SER_WIDE(s) * SER_LEN(s))
             )) {
@@ -1265,7 +1281,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
 //=//// INSUFFICIENT CAPACITY, NEW ALLOCATION REQUIRED ////////////////////=//
 
     if (GET_SER_FLAG(s, SERIES_FLAG_FIXED_SIZE))
-        panic (Error(RE_LOCKED_SERIES));
+        fail (Error(RE_LOCKED_SERIES));
 
 #ifndef NDEBUG
     if (Reb_Opts->watch_expand) {
@@ -1569,9 +1585,8 @@ inline static void Drop_Manual_Series(REBSER *s)
                 current_ptr
                 <= cast(REBSER**, GC_Manuals->content.dynamic.data)
             ){
-                printf("Series not in list of last manually added series");
-                fflush(stdout);
-                Panic_Series(s);
+                printf("Series not in list of last manually added series\n");
+                panic(s);
             }
         #endif
             --current_ptr;
@@ -1600,16 +1615,16 @@ void Free_Series(REBSER *s)
     // error that won't be conflated with a possible tracking problem
     //
     if (IS_FREE_NODE(s)) {
-        Debug_Fmt("Trying to Free_Series() on an already freed series");
-        Panic_Series(s);
+        printf("Trying to Free_Series() on an already freed series\n");
+        panic (s);
     }
 
     // We can only free a series that is not under management by the
     // garbage collector
     //
     if (IS_SERIES_MANAGED(s)) {
-        Debug_Fmt("Trying to Free_Series() on a series managed by GC.");
-        Panic_Series(s);
+        printf("Trying to Free_Series() on a series managed by GC.\n");
+        panic (s);
     }
 #endif
 
@@ -1707,8 +1722,8 @@ void Manage_Series(REBSER *s)
 {
 #if !defined(NDEBUG)
     if (IS_SERIES_MANAGED(s)) {
-        Debug_Fmt("Attempt to manage already managed series");
-        Panic_Series(s);
+        printf("Attempt to manage already managed series\n");
+        panic (s);
     }
 #endif
 
@@ -1803,13 +1818,13 @@ REBCNT Check_Memory(void)
                 continue;
 
             if (!SER_REST(s) || s->content.dynamic.data == NULL)
-                panic (Error(RE_CORRUPT_MEMORY));
+                panic (s);
 
             // If the size matches a known pool, be sure it's a match
 
             REBCNT pool_num = FIND_POOL(SER_TOTAL(s));
             if (pool_num < SER_POOL && Mem_Pools[pool_num].wide != SER_TOTAL(s))
-                panic (Error(RE_CORRUPT_MEMORY));
+                panic ("series total size does not equal pool width");
         }
     }
 
@@ -1822,19 +1837,18 @@ REBCNT Check_Memory(void)
         REBNOD *node = Mem_Pools[pool_num].first;
         for (; node != NULL; node = node->next_if_free) {
             count++;
-            // The node better belong to one of the pool's segments:
             for (seg = Mem_Pools[pool_num].segs; seg; seg = seg->next) {
                 if ((REBUPT)node > (REBUPT)seg && (REBUPT)node < (REBUPT)seg + (REBUPT)seg->size) break;
             }
-            if (!seg) panic (Error(RE_CORRUPT_MEMORY));
+            if (seg == NULL)
+                panic ("node does not belong to one of the pool's segments");
         }
 
-        // The number of free nodes must agree with header:
         if (
             (Mem_Pools[pool_num].free != count) ||
             (Mem_Pools[pool_num].free == 0 && Mem_Pools[pool_num].first != 0)
         )
-            panic (Error(RE_CORRUPT_MEMORY));
+            panic ("number of free nodes does not agree with header");
     }
 
     return count;

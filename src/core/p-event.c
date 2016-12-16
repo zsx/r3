@@ -83,23 +83,19 @@ REBVAL *Append_Event(void)
 
     // Append to tail if room:
     if (SER_FULL(VAL_SERIES(state))) {
-        if (VAL_LEN_HEAD(state) > EVENTS_LIMIT) {
-            panic (Error(RE_MAX_EVENTS));
-        } else {
-            Extend_Series(VAL_SERIES(state), EVENTS_CHUNK);
-            //RL_Print("event queue increased to :%d\n", SER_REST(VAL_SERIES(state)));
-        }
+        if (VAL_LEN_HEAD(state) > EVENTS_LIMIT)
+            panic (state);
+
+        Extend_Series(VAL_SERIES(state), EVENTS_CHUNK);
     }
     TERM_ARRAY_LEN(VAL_ARRAY(state), VAL_LEN_HEAD(state) + 1);
 
     REBVAL *value = SINK(ARR_LAST(VAL_ARRAY(state)));
     SET_BLANK(value);
 
-    //Dump_Series(VAL_SERIES(state), "state");
-    //Print("Tail: %d %d", VAL_LEN_HEAD(state), nn++);
-
     return value;
 }
+
 
 //
 //  Find_Last_Event: C

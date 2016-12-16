@@ -79,24 +79,6 @@
 //
 
 
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  DEBUG PANIC
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// "Series Panics" will (hopefully) trigger an alert under memory tools
-// like address sanitizer and valgrind that indicate the call stack at the
-// moment of allocation of a series.  Then you should have TWO stacks: the
-// one at the call of the Panic, and one where that series was alloc'd.
-//
-
-#if !defined(NDEBUG)
-    #define Panic_Series(s) \
-        Panic_Series_Debug((s), __FILE__, __LINE__);
-#endif
-
-
 //
 // Series flags
 //
@@ -179,7 +161,7 @@ inline static REBYTE *SER_DATA_RAW(REBSER *s) {
         : cast(REBYTE*, &s->content);
 }
 
-inline static REBYTE *SER_AT_RAW(size_t w, REBSER *s, REBCNT i) {
+inline static REBYTE *SER_AT_RAW(REBYTE w, REBSER *s, REBCNT i) {
 #if !defined(NDEBUG)
     if (w != SER_WIDE(s)) {
         //
@@ -187,8 +169,8 @@ inline static REBYTE *SER_AT_RAW(size_t w, REBSER *s, REBCNT i) {
         // caller passing in the wrong width (freeing sets width to 0).  But
         // give some debug tracking either way.
         //
-        Debug_Fmt("SER_AT_RAW asked %d on width=%d", w, SER_WIDE(s));
-        Panic_Series(s);
+        printf("SER_AT_RAW asked %d on width=%d\n", w, SER_WIDE(s));
+        panic (s);
     }
 #endif
 
@@ -340,7 +322,7 @@ inline static void ENSURE_SERIES_MANAGED(REBSER *s) {
 #else
     inline static void ASSERT_SERIES_MANAGED(REBSER *s) {
         if (NOT(IS_SERIES_MANAGED(s)))
-            Panic_Series(s);
+            panic (s);
     }
 
     #define ASSERT_VALUE_MANAGED(v) \

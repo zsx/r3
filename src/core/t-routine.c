@@ -100,11 +100,11 @@
         void *user_data,
         void *codeloc
     ){
-        panic (Error(RE_NOT_FFI_BUILD));
+        fail (Error(RE_NOT_FFI_BUILD));
     }
 
     void ffi_closure_free(void *closure) {
-        panic (Error(RE_NOT_FFI_BUILD));
+        fail (Error(RE_NOT_FFI_BUILD));
     }
 #endif
 

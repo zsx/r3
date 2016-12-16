@@ -392,7 +392,8 @@ void Resize_Series(REBSER *s, REBCNT size)
 //
 REBYTE *Reset_Buffer(REBSER *buf, REBCNT len)
 {
-    if (!buf) panic (Error(RE_NO_BUFFER));
+    if (buf == NULL)
+        panic ("buffer not yet allocated");
 
     SET_SERIES_LEN(buf, 0);
     Unbias_Series(buf, TRUE);
@@ -435,33 +436,26 @@ REBSER *Copy_Buffer(REBSER *buf, REBCNT index, void *end)
 //
 //  Assert_Series_Term_Core: C
 //
-void Assert_Series_Term_Core(REBSER *series)
+void Assert_Series_Term_Core(REBSER *s)
 {
-    if (Is_Array_Series(series)) {
+    if (Is_Array_Series(s)) {
         //
         // END values aren't canonized to zero bytes, check IS_END explicitly
         //
-        RELVAL *tail = ARR_TAIL(AS_ARRAY(series));
-        if (NOT_END(tail)) {
-            printf("Unterminated blocklike series detected\n");
-            fflush(stdout);
-            Panic_Series(series);
-        }
+        RELVAL *tail = ARR_TAIL(AS_ARRAY(s));
+        if (NOT_END(tail))
+            panic (tail);
     }
     else {
-        //
         // If they are terminated, then non-REBVAL-bearing series must have
         // their terminal element as all 0 bytes (to use this check)
         //
-        REBCNT len = SER_LEN(series);
-        REBCNT wide = SER_WIDE(series);
+        REBCNT len = SER_LEN(s);
+        REBCNT wide = SER_WIDE(s);
         REBCNT n;
         for (n = 0; n < wide; n++) {
-            if (0 != SER_DATA_RAW(series)[(len * wide) + n]) {
-                printf("Non-zero byte in terminator of non-block series\n");
-                fflush(stdout);
-                Panic_Series(series);
-            }
+            if (0 != SER_DATA_RAW(s)[(len * wide) + n])
+                panic (s);
         }
     }
 }
@@ -470,53 +464,56 @@ void Assert_Series_Term_Core(REBSER *series)
 //
 //  Assert_Series_Core: C
 //
-void Assert_Series_Core(REBSER *series)
+void Assert_Series_Core(REBSER *s)
 {
-    if (IS_FREE_NODE(series))
-        Panic_Series(series);
+    if (IS_FREE_NODE(s))
+        panic (s);
 
-    assert(SER_LEN(series) < SER_REST(series));
+    assert(SER_LEN(s) < SER_REST(s));
 
-    Assert_Series_Term_Core(series);
+    Assert_Series_Term_Core(s);
 }
 
 
 //
 //  Panic_Series_Debug: C
 //
-// This could be done in the PANIC_SERIES macro, but having it as an actual
-// function gives you a place to set breakpoints.
+// The goal of this routine is to progressively reveal as much diagnostic
+// information about a series as possible.  Since the routine will ultimately
+// crash anyway, it is okay if the diagnostics run code which might be
+// risky in an unstable state...though it is ideal if it can run to the end
+// so it can trigger Address Sanitizer or Valgrind's internal stack dump.
 //
-ATTRIBUTE_NO_RETURN void Panic_Series_Debug(
-    REBSER *series,
-    const char *file,
-    int line
-) {
-    // Note: Only use printf in debug builds (not a dependency of the main
-    // executable).  Here it's important because series panics can happen
-    // during mold and other times.
-    //
-    printf("\n\n*** Panic_Series() in %s at line %d\n", file, line);
-    if (IS_SERIES_MANAGED(series))
+ATTRIBUTE_NO_RETURN void Panic_Series_Debug(REBSER *s)
+{
+    fflush(stdout);
+    fflush(stderr);
+
+    if (IS_SERIES_MANAGED(s))
         printf("managed");
     else
         printf("unmanaged");
     printf(" series was likely ");
-    if (IS_FREE_NODE(series))
+    if (IS_FREE_NODE(s))
         printf("freed");
     else
         printf("created");
-    printf(" during evaluator tick: %d\n", cast(REBCNT, series->do_count));
+    printf(" during evaluator tick: %d\n", cast(REBCNT, s->do_count));
+
     fflush(stdout);
 
-    if (*series->guard == 1020) // should make valgrind or asan alert
-        panic (Error(RE_MISC));
+    if (*s->guard == 1020) // should make valgrind or asan alert
+        panic ("series guard didn't trigger ASAN/valgrind trap");
 
-    printf("!!! *series->guard didn't trigger ASAN/Valgrind trap\n");
-    printf("!!! either not a REBSER, or you're not running ASAN/Valgrind\n");
-    fflush(stdout);
+    OS_CRASH(
+        cb_cast("series guard didn't trigger ASAN/Valgrind trap\n"),
+        cb_cast("either not a REBSER, or you're not running ASAN/Valgrind\n")
+    );
 
-    panic (Error(RE_MISC)); // just in case it didn't crash
+    while (TRUE)
+        NOOP; // just in case it didn't crash, don't return
+
+    DEAD_END;
 }
 
 #endif

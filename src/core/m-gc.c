@@ -126,8 +126,8 @@ static inline void Mark_Rebser_Only(REBSER *s)
 {
 #if !defined(NDEBUG)
     if (NOT(IS_SERIES_MANAGED(s))) {
-        Debug_Fmt("Link to non-MANAGED item reached by GC");
-        Panic_Series(s);
+        printf("Link to non-MANAGED item reached by GC\n");
+        panic (s);
     }
 #endif
     s->header.bits |= REBSER_REBVAL_FLAG_MARK;
@@ -168,23 +168,16 @@ static inline REBOOL Unmark_Rebser(REBSER *rebser) {
 static void Queue_Mark_Array_Subclass_Deep(REBARR *a)
 {
 #if !defined(NDEBUG)
-    if (ARR_SERIES(a)->header.bits == 0) {
-        printf("GC is queueing a freed array for marking.\n");
-        Panic_Array(a);
-    }
+    if (IS_FREE_NODE(ARR_SERIES(a)))
+        panic (a);
 
-    if (!GET_ARR_FLAG(a, SERIES_FLAG_ARRAY)) {
-        printf("GC is queuing a non-array in the array marking queue\n");
-        Panic_Array(a);
-    }
+    if (!GET_ARR_FLAG(a, SERIES_FLAG_ARRAY))
+        panic (a);
 
-    if (!IS_ARRAY_MANAGED(a)) {
-        printf("GC is queuing an unmanaged array for marking.\n");
-        Panic_Array(a);
-    }
+    if (!IS_ARRAY_MANAGED(a))
+        panic (a);
 
     assert(!GET_ARR_FLAG(a, SERIES_FLAG_EXTERNAL)); // external arrays illegal
-
 #endif
 
     // A marked array doesn't necessarily mean all references reached from it
@@ -271,7 +264,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         // Should not be possible, REB_0 instances should not exist or
         // be filtered out by caller.
         //
-        panic (Error(RE_MISC));
+        panic (v);
 
     case REB_FUNCTION: {
         REBFUN *func = VAL_FUNC(v);
@@ -612,8 +605,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         break;
 
     default:
-        assert(FALSE);
-        panic (Error(RE_MISC));
+        panic (v);
     }
 
 #if !defined(NDEBUG)
@@ -625,7 +617,7 @@ inline static void Queue_Mark_Value_Deep(const RELVAL *v)
 {
 #if !defined(NDEBUG)
     if (IS_VOID(v))
-        Panic_Value(v);
+        panic (v);
 #endif
     Queue_Mark_Opt_Value_Deep(v);
 }

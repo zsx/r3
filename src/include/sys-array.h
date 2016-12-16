@@ -62,7 +62,7 @@ struct Reb_Array {
 static inline REBARR* AS_ARRAY(REBSER *s) {
 #if !defined(NDEBUG)
     if (!Is_Array_Series(s))
-        Panic_Series(s);
+        panic (s);
 #endif
     return cast(REBARR*, s);
 }
@@ -362,12 +362,6 @@ inline static RELVAL *VAL_ARRAY_TAIL(const RELVAL *v) {
 
     #define ASSERT_ARRAY_MANAGED(array) \
         ASSERT_SERIES_MANAGED(ARR_SERIES(array))
-
-    #define Panic_Array(a) \
-        Panic_Series(ARR_SERIES(a))
-
-    #define Debug_Array(a) \
-        Debug_Series(ARR_SERIES(a))
 
     static inline void ASSERT_SERIES(REBSER *s) {
         if (Is_Array_Series(s))

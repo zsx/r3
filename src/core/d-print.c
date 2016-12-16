@@ -56,7 +56,8 @@ void Init_StdIO(void)
 {
     //OS_CALL_DEVICE(RDI_STDIO, RDC_INIT);
     Req_SIO = OS_MAKE_DEVREQ(RDI_STDIO);
-    if (!Req_SIO) panic (Error(RE_IO_ERROR));
+    if (!Req_SIO)
+        fail (Error(RE_IO_ERROR));
 
     // The device is already open, so this call will just setup
     // the request fields properly.
@@ -91,7 +92,8 @@ void Print_OS_Line(void)
 
     OS_DO_DEVICE(Req_SIO, RDC_WRITE);
 
-    if (Req_SIO->error) panic (Error(RE_IO_ERROR));
+    if (Req_SIO->error)
+        panic ("IO error in Print_OS_Line"); // !!! could/should this fail()?
 }
 
 
@@ -113,7 +115,8 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
     const REBYTE *bp = unicode ? NULL : cast(const REBYTE *, p);
     const REBUNI *up = unicode ? cast(const REBUNI *, p) : NULL;
 
-    if (!p) panic (Error(RE_NO_PRINT_PTR));
+    if (p == NULL)
+        fail (Error(RE_NO_PRINT_PTR));
 
     // Determine length if not provided:
     if (len == UNKNOWN) len = unicode ? Strlen_Uni(up) : LEN_BYTES(bp);
@@ -146,7 +149,8 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
         Req_SIO->common.data = m_cast(REBYTE *, bp);
 
         OS_DO_DEVICE(Req_SIO, RDC_WRITE);
-        if (Req_SIO->error) panic (Error(RE_IO_ERROR));
+        if (Req_SIO->error)
+            fail (Error(RE_IO_ERROR));
     }
     else {
         while ((len2 = len) > 0) {
@@ -174,7 +178,8 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
             len -= len2;
 
             OS_DO_DEVICE(Req_SIO, RDC_WRITE);
-            if (Req_SIO->error) panic (Error(RE_IO_ERROR));
+            if (Req_SIO->error)
+                fail (Error(RE_IO_ERROR));
         }
     }
 }
@@ -387,17 +392,19 @@ void Debug_Series(REBSER *ser)
     else if (SER_WIDE(ser) == sizeof(REBUNI))
         Debug_Uni(ser);
     else if (ser == PG_Canons_By_Hash) {
-        // Dump hashes somehow?
-        Panic_Series(ser);
-    } else if (ser == GC_Series_Guard) {
-        // Dump protected series pointers somehow?
-        Panic_Series(ser);
-    } else if (ser == GC_Value_Guard) {
-        // Dump protected value pointers somehow?
-        Panic_Series(ser);
+        printf("can't probe PG_Canons_By_Hash\n");
+        panic (ser);
+    }
+    else if (ser == GC_Series_Guard) {
+        printf("can't probe GC_Series_Guard\n");
+        panic (ser);
+    }
+    else if (ser == GC_Value_Guard) {
+        printf("can't probe GC_Value_Guard\n");
+        panic (ser);
     }
     else
-        Panic_Series(ser);
+        panic (ser);
 
     assert(GC_Disabled == TRUE);
     GC_Disabled = disabled;
