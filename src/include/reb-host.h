@@ -31,6 +31,21 @@
 
 #include "reb-c.h"
 
+#ifdef STRICT_BOOL_COMPILER_TEST
+    //
+    // %reb-host.h is often used in third party code that was not written to
+    // use REBOOL.  Hence the definitions of TRUE and FALSE used in the "fake"
+    // build will trip it up.  We substitute in normal definitions for this
+    // file.  See explanations of this test in %reb-c.h for more information.
+    //
+    #undef REBOOL
+    #define REBOOL int
+    #undef TRUE
+    #undef FALSE
+    #define TRUE 1
+    #define FALSE 0
+#endif
+
 // Must be defined at the end of reb-c.h, but not *in* reb-c.h so that
 // files including sys-core.h and reb-host.h can have differing
 // definitions of REBCHR.  (We want it opaque to the core, but the
@@ -63,17 +78,4 @@
 #include <stdlib.h>
 
 #include "host-lib.h"
-
-#ifdef STRICT_BOOL_COMPILER_TEST
-    //
-    // %reb-host.h is often used in third party code that was not written to
-    // use REBOOL.  Hence the definitions of TRUE and FALSE used in the "fake"
-    // build will trip it up.  We substitute in normal definitions for this
-    // file.  See explanations of this test in %reb-c.h for more information.
-    //
-    #undef TRUE
-    #undef FALSE
-    #define TRUE 1
-    #define FALSE 0
-#endif
 

@@ -330,8 +330,10 @@ typedef unsigned long   REBUPT;     // unsigned counterpart of void*
     // is a valid pointer value.  However, this case is tested for by the
     // enum method of declaration in ordinary non-Windows builds.
     //
-    struct Bool_Dummy { int dummy; };
-    typedef struct Bool_Dummy *REBOOL;
+    // Use a #define and not a typedef so it can be selectively overridden.
+    //
+    typedef struct Bool_Dummy { int dummy; } * DUMMYBOOL;
+    #define REBOOL DUMMYBOOL
     #define FALSE cast(struct Bool_Dummy*, 0x6466AE99)
     #define TRUE cast(struct Bool_Dummy*, 0x0421BD75)
 #else

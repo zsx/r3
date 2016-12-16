@@ -125,7 +125,11 @@ inline static REB_R R_OUT_Q(REBOOL q) {
 // Specially chosen 0 and 1 values for R_FALSE and R_TRUE enable this. 
 //
 inline static REB_R R_FROM_BOOL(REBOOL b) {
+#ifdef STRICT_BOOL_COMPILER_TEST
+    return b ? R_TRUE : R_FALSE;
+#else
     return cast(REB_R, b);
+#endif
 }
 
 // R3-Alpha's concept was that all words got persistent integer values, which

@@ -122,7 +122,7 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
     REBSER *containing = Try_Find_Containing_Series_Debug(f->out);
 
     if (containing) {
-        if (GET_SER_FLAG(series, SERIES_FLAG_FIXED_SIZE)) {
+        if (GET_SER_FLAG(containing, SERIES_FLAG_FIXED_SIZE)) {
             //
             // Currently it's considered OK to be writing into a fixed size
             // series, for instance the durable portion of a function's
@@ -131,8 +131,8 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
             //
         }
         else {
-            Debug_Fmt("Request for ->out location in movable series memory");
-            assert(FALSE);
+            printf("Request for ->out location in movable series memory\n");
+            panic (containing);
         }
     }
 #else

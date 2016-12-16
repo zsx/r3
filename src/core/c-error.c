@@ -826,12 +826,11 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
     const REBSYM *arg1_arg2_arg3 = legacy_data;
 #endif
 
-
     if (PG_Boot_Phase < BOOT_ERRORS) {
         char buf[1024];
         strncat(buf, "fail() before object table initialized, code = ", 1024);
         Form_Int(b_cast(buf + strlen(buf)), code); // !!! no bounding...
-    
+
     #if defined(NDEBUG)
         panic (buf);
     #else

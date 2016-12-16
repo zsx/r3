@@ -212,7 +212,7 @@
                     *(e) = (s)->error; \
             } \
             else { \
-               cast(void, Trapped_Helper_Halted(s)); \
+               (void)Trapped_Helper_Halted(s); /* ignore result */ \
                 *(e) = (s)->error; \
             } \
         } \

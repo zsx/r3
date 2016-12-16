@@ -314,9 +314,18 @@ inline static REBVAL *Get_Var_Core(
         // evaluator wants to know when it fetches the value for a word
         // if it wants to lookback for infix purposes, if it's a function)
         //
+        // Efficient cast trick: REB_FUNCTION = 1, REB_0_LOOKBACK = 0
+        // which requires REBOOL only be allowed to hold 1 and 0.
+        //
+    #ifdef STRICT_BOOL_COMPILER_TEST
+        *eval_type = GET_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK)
+            ? REB_FUNCTION
+            : REB_0_LOOKBACK;
+    #else
         *eval_type = cast(
             enum Reb_Kind, GET_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK)
-        ); // REB_FUNCTION = 1, REB_0_LOOKBACK = 0
+        );
+    #endif
     }
     else {
         assert(*eval_type == REB_FUNCTION || *eval_type == REB_0_LOOKBACK);
@@ -364,7 +373,14 @@ inline static REBVAL *Get_Var_Core(
             else
                 CLEAR_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK);
 
+        #ifdef STRICT_BOOL_COMPILER_TEST
+            *eval_type =
+                (*eval_type == REB_0_LOOKBACK)
+                    ? REB_FUNCTION
+                    : REB_0_LOOKBACK;
+        #else
             *eval_type = cast(enum Reb_Kind, NOT(cast(REBOOL, *eval_type)));
+        #endif
         }
         else {
             // We didn't have to change the lookback, so it must have matched
