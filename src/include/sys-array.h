@@ -166,7 +166,7 @@ inline static void TERM_SERIES(REBSER *s) {
 
 inline static void PUSH_GUARD_ARRAY_CONTENTS(REBARR *a) {
     assert(!IS_ARRAY_MANAGED(a)); // if managed, just use PUSH_GUARD_ARRAY
-    Guard_Series_Core(ARR_SERIES(a));
+    Guard_Node_Core(cast(REBNOD*, a));
 }
 
 inline static void DROP_GUARD_ARRAY_CONTENTS(REBARR *a) {

@@ -395,12 +395,8 @@ void Debug_Series(REBSER *ser)
         printf("can't probe PG_Canons_By_Hash\n");
         panic (ser);
     }
-    else if (ser == GC_Series_Guard) {
-        printf("can't probe GC_Series_Guard\n");
-        panic (ser);
-    }
-    else if (ser == GC_Value_Guard) {
-        printf("can't probe GC_Value_Guard\n");
+    else if (ser == GC_Guarded) {
+        printf("can't probe GC_Guarded\n");
         panic (ser);
     }
     else

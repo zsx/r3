@@ -939,46 +939,33 @@ static void Mark_Natives(void)
 
 
 //
-//  Mark_Guarded_Series: C
+//  Mark_Guarded_Nodes: C
 //
-// Mark series that have been temporarily protected from garbage collection
-// with PUSH_GUARD_SERIES.
+// Mark series and values that have been temporarily protected from garbage
+// collection with PUSH_GUARD_SERIES and PUSH_GUARD_VALUE.
 //
 // Note: If the REBSER is actually a REBCTX, REBFUN, or REBARR then the
 // reachable values for the series will be guarded appropriate to its type.
 // (e.g. guarding a REBSER of an array will mark the values in that array,
 // not just shallow mark the REBSER node)
 //
-static void Mark_Guarded_Series(void)
+static void Mark_Guarded_Nodes(void)
 {
-    REBSER **sp = SER_HEAD(REBSER*, GC_Series_Guard);
-    REBCNT n = SER_LEN(GC_Series_Guard);
-    for (; n > 0; --n, ++sp) {
-        if (Is_Array_Series(*sp))
-            Queue_Mark_Array_Subclass_Deep(AS_ARRAY(*sp));
-        else
-            Mark_Rebser_Only(*sp);
-
-        Propagate_All_GC_Marks();
-    }
-}
-
-
-//
-//  Mark_Guarded_Values: C
-//
-// !!! Technically, REBSER and REBVAL pointers can be distinguished by their
-// header bits.  It would be possible to maintain a single list of guards,
-// though it would mean the GC logic would need a bit mask check to tell
-// which it was to know the right queue routine to use.
-//
-static void Mark_Guarded_Values(void)
-{
-    REBVAL **vp = SER_HEAD(REBVAL*, GC_Value_Guard);
-    REBCNT n = SER_LEN(GC_Value_Guard);
-    for (; n > 0; --n, ++vp) {
-        if (NOT_END(*vp))
-            Queue_Mark_Opt_Value_Deep(*vp);
+    REBNOD **np = SER_HEAD(REBNOD*, GC_Guarded);
+    REBCNT n = SER_LEN(GC_Guarded);
+    for (; n > 0; --n, ++np) {
+        REBNOD *node = *np;
+        if (node->header.bits & CELL_MASK) { // a value cell
+            if (NOT(node->header.bits & END_MASK))
+                Queue_Mark_Opt_Value_Deep(cast(REBVAL*, node));
+        }
+        else { // a series
+            REBSER *s = cast(REBSER*, node);
+            if (Is_Array_Series(s))
+                Queue_Mark_Array_Subclass_Deep(AS_ARRAY(s));
+            else
+                Mark_Rebser_Only(s);
+        }
         Propagate_All_GC_Marks();
     }
 }
@@ -1347,8 +1334,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
 
         Mark_Data_Stack();
 
-        Mark_Guarded_Series();
-        Mark_Guarded_Values();
+        Mark_Guarded_Nodes();
 
         Mark_Frame_Stack_Deep();
 
@@ -1453,62 +1439,54 @@ REBCNT Recycle(void)
 
 
 //
-//  Guard_Series_Core: C
+//  Guard_Node_Core: C
 //
-// Does not ensure the series being guarded is managed, since it can be
-// interesting to guard the managed *contents* of an unmanaged array.  The
-// calling wrappers ensure managedness or not.
-//
-void Guard_Series_Core(REBSER *series)
+void Guard_Node_Core(const REBNOD *node)
 {
-    if (SER_FULL(GC_Series_Guard))
-        Extend_Series(GC_Series_Guard, 8);
+#if !defined(NDEBUG)
+    if (node->header.bits & CELL_MASK) {
+        //
+        // It is a value.  Cheap check: require that it already contain valid
+        // data when the guard call is made (even if GC isn't necessarily
+        // going to happen immediately, and value could theoretically become
+        // valid before then.)
+        //
+        const REBVAL* value = cast(const REBVAL*, node);
+        assert(
+            IS_END(value)
+            || IS_UNREADABLE_OR_VOID(value)
+            || VAL_TYPE(value) < REB_MAX
+        );
 
-    *SER_AT(
-        REBSER*,
-        GC_Series_Guard,
-        SER_LEN(GC_Series_Guard)
-    ) = series;
-
-    SET_SERIES_LEN(GC_Series_Guard, SER_LEN(GC_Series_Guard) + 1);
-}
-
-
-//
-//  Guard_Value_Core: C
-//
-void Guard_Value_Core(const RELVAL *value)
-{
-    // Cheap check; require that the value already contain valid data when
-    // the guard call is made (even if GC isn't necessarily going to happen
-    // immediately, and value could theoretically become valid before then.)
-    //
-    assert(
-        IS_END(value)
-        || IS_UNREADABLE_OR_VOID(value)
-        || VAL_TYPE(value) < REB_MAX
-    );
-
-#ifdef STRESS_CHECK_GUARD_VALUE_POINTER
-    //
-    // Technically we should never call this routine to guard a value that
-    // lives inside of a series.  Not only would we have to guard the
-    // containing series, we would also have to lock the series from
-    // being able to resize and reallocate the data pointer.  But this is
-    // a somewhat expensive check, so it's only feasible to run occasionally.
-    //
-    ASSERT_NOT_IN_SERIES_DATA(value);
+    #ifdef STRESS_CHECK_GUARD_VALUE_POINTER
+        //
+        // Technically we should never call this routine to guard a value
+        // that lives inside of a series.  Not only would we have to guard the
+        // containing series, we would also have to lock the series from
+        // being able to resize and reallocate the data pointer.  But this is
+        // a somewhat expensive check, so only feasible to run occasionally.
+        //
+        ASSERT_NOT_IN_SERIES_DATA(value);
+    #endif
+    }
+    else {
+        // It's a series.  Does not ensure the series being guarded is
+        // managed, since it can be interesting to guard the managed
+        // *contents* of an unmanaged array.  The calling wrappers ensure
+        // managedness or not.
+    }
 #endif
 
-    if (SER_FULL(GC_Value_Guard)) Extend_Series(GC_Value_Guard, 8);
+    if (SER_FULL(GC_Guarded))
+        Extend_Series(GC_Guarded, 8);
 
     *SER_AT(
-        const RELVAL*,
-        GC_Value_Guard,
-        SER_LEN(GC_Value_Guard)
-    ) = value;
+        const REBNOD*,
+        GC_Guarded,
+        SER_LEN(GC_Guarded)
+    ) = node;
 
-    SET_SERIES_LEN(GC_Value_Guard, SER_LEN(GC_Value_Guard) + 1);
+    SET_SERIES_LEN(GC_Guarded, SER_LEN(GC_Guarded) + 1);
 }
 
 
@@ -1566,15 +1544,14 @@ void Init_GC(void)
 
     GC_Ballast = MEM_BALLAST;
 
-    // Temporary series protected from GC. Holds series pointers.
-    GC_Series_Guard = Make_Series(15, sizeof(REBSER *), MKS_NONE);
-
-    // Temporary values protected from GC. Holds value pointers.
-    GC_Value_Guard = Make_Series(15, sizeof(REBVAL *), MKS_NONE);
+    // Temporary series and values protected from GC. Holds node pointers.
+    //
+    GC_Guarded = Make_Series(15, sizeof(REBNOD*), MKS_NONE);
 
     // The marking queue used in lieu of recursion to ensure that deeply
     // nested structures don't cause the C stack to overflow.
-    GC_Mark_Stack = Make_Series(100, sizeof(REBARR *), MKS_NONE);
+    //
+    GC_Mark_Stack = Make_Series(100, sizeof(REBARR*), MKS_NONE);
     TERM_SEQUENCE(GC_Mark_Stack);
 }
 
@@ -1584,8 +1561,7 @@ void Init_GC(void)
 //
 void Shutdown_GC(void)
 {
-    Free_Series(GC_Series_Guard);
-    Free_Series(GC_Value_Guard);
+    Free_Series(GC_Guarded);
     Free_Series(GC_Mark_Stack);
 }
 

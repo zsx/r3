@@ -51,8 +51,7 @@ void Snap_State_Core(struct Reb_State *s)
     //
     assert(ARR_LEN(BUF_COLLECT) == 0);
 
-    s->series_guard_len = SER_LEN(GC_Series_Guard);
-    s->value_guard_len = SER_LEN(GC_Value_Guard);
+    s->guarded_len = SER_LEN(GC_Guarded);
     s->frame = FS_TOP;
 
     s->manuals_len = SER_LEN(GC_Manuals);
@@ -91,28 +90,15 @@ void Assert_State_Balanced_Debug(
 
     assert(ARR_LEN(BUF_COLLECT) == 0);
 
-    if (s->series_guard_len != SER_LEN(GC_Series_Guard)) {
+    if (s->guarded_len != SER_LEN(GC_Guarded)) {
         printf(
-            "PUSH_GUARD_SERIES()x%d without DROP_GUARD_SERIES\n",
-            SER_LEN(GC_Series_Guard) - s->series_guard_len
+            "PUSH_GUARD()x%d without DROP_GUARD()\n",
+            SER_LEN(GC_Guarded) - s->guarded_len
         );
-        REBSER *guarded = *SER_AT(
-            REBSER*,
-            GC_Series_Guard,
-            SER_LEN(GC_Series_Guard) - 1
-        );
-        panic_at (guarded, file, line);
-    }
-
-    if (s->value_guard_len != SER_LEN(GC_Value_Guard)) {
-        printf(
-            "PUSH_GUARD_VALUE()x%d without DROP_GUARD_VALUE\n",
-            SER_LEN(GC_Value_Guard) - s->value_guard_len
-        );
-        REBVAL *guarded = *SER_AT(
-            REBVAL*,
-            GC_Value_Guard,
-            SER_LEN(GC_Value_Guard) - 1
+        REBNOD *guarded = *SER_AT(
+            REBNOD*,
+            GC_Guarded,
+            SER_LEN(GC_Guarded) - 1
         );
         panic_at (guarded, file, line);
     }
@@ -217,8 +203,7 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
         );
     }
 
-    SET_SERIES_LEN(GC_Series_Guard, s->series_guard_len);
-    SET_SERIES_LEN(GC_Value_Guard, s->value_guard_len);
+    SET_SERIES_LEN(GC_Guarded, s->guarded_len);
     TG_Frame_Stack = s->frame;
     TERM_SEQUENCE_LEN(UNI_BUF, s->uni_buf_len);
 

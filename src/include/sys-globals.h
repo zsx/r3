@@ -132,8 +132,7 @@ TVAR REBPOL *Mem_Pools;     // Memory pool array
 TVAR REBOOL GC_Recycling;    // True when the GC is in a recycle
 TVAR REBINT GC_Ballast;     // Bytes allocated to force automatic GC
 TVAR REBOOL GC_Disabled;      // TRUE when RECYCLE/OFF is run
-TVAR REBSER *GC_Series_Guard; // A stack of protected series (removed by pop)
-TVAR REBSER *GC_Value_Guard; // A stack of protected series (removed by pop)
+TVAR REBSER *GC_Guarded; // A stack of GC protected series and values
 PVAR REBSER *GC_Mark_Stack; // Series pending to mark their reachables as live
 TVAR REBSER **Prior_Expand; // Track prior series expansions (acceleration)
 

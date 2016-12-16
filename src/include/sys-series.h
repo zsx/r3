@@ -413,22 +413,23 @@ static inline void Flip_Series_To_White(REBSER *s) {
 
 inline static void PUSH_GUARD_SERIES(REBSER *s) {
     ASSERT_SERIES_MANAGED(s); // see PUSH_GUARD_ARRAY_CONTENTS if you need it
-    Guard_Series_Core(s);
+    Guard_Node_Core(cast(REBNOD*, s));
 }
 
 inline static void DROP_GUARD_SERIES(REBSER *s) {
-    assert(GET_SER_FLAG(GC_Series_Guard, SERIES_FLAG_HAS_DYNAMIC));
-    assert(s == *SER_LAST(REBSER*, GC_Series_Guard));
-    GC_Series_Guard->content.dynamic.len--;
+    assert(GET_SER_FLAG(GC_Guarded, SERIES_FLAG_HAS_DYNAMIC));
+    assert(s == *SER_LAST(REBSER*, GC_Guarded));
+    GC_Guarded->content.dynamic.len--;
 }
 
-#define PUSH_GUARD_VALUE(v) \
-    Guard_Value_Core(v)
+inline static void PUSH_GUARD_VALUE(RELVAL *v) {
+    Guard_Node_Core(cast(REBNOD*, v));
+}
 
 inline static void DROP_GUARD_VALUE(RELVAL *v) {
-    assert(GET_SER_FLAG(GC_Value_Guard, SERIES_FLAG_HAS_DYNAMIC));
-    assert(v == *SER_LAST(RELVAL*, GC_Value_Guard));
-    GC_Value_Guard->content.dynamic.len--;
+    assert(GET_SER_FLAG(GC_Guarded, SERIES_FLAG_HAS_DYNAMIC));
+    assert(v == *SER_LAST(RELVAL*, GC_Guarded));
+    GC_Guarded->content.dynamic.len--;
 }
 
 
