@@ -1304,6 +1304,10 @@ reevaluate:;
             f->gotten = Get_Var_Core(
                 &f->eval_type, f->value, f->specifier, GETVAR_READ_ONLY
             );
+        else { // failed optimizations only run prefix functions
+            if (IS_FUNCTION(f->gotten))
+                f->eval_type = REB_FUNCTION;
+        }
 
         // eval_type will be set to either REB_0_LOOKBACK or REB_FUNCTION
 
