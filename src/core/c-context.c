@@ -79,7 +79,7 @@
 REBCTX *Alloc_Context(REBCNT len)
 {
     REBARR *varlist = Make_Array(len + 1); // size + room for ROOTVAR
-    SET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST);
+    SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
 
     // varlist[0] is a value instance of the OBJECT!/MODULE!/PORT!/ERROR! we
     // are building which contains this context.
@@ -113,7 +113,7 @@ REBOOL Expand_Context_Keylist_Core(REBCTX *context, REBCNT delta)
     if (delta == 0) return FALSE;
 
     REBARR *keylist = CTX_KEYLIST(context);
-    if (GET_ARR_FLAG(keylist, KEYLIST_FLAG_SHARED)) {
+    if (GET_SER_INFO(keylist, SERIES_INFO_SHARED_KEYLIST)) {
         //
         // INIT_CTX_KEYLIST_SHARED was used to set the flag that indicates
         // this keylist is shared with one or more other contexts.  Can't
@@ -248,7 +248,7 @@ REBVAL *Append_Context_Core(
 REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
     REBCTX *dest;
 
-    assert(GET_ARR_FLAG(CTX_VARLIST(src), ARRAY_FLAG_VARLIST));
+    assert(GET_SER_FLAG(CTX_VARLIST(src), ARRAY_FLAG_VARLIST));
     ASSERT_ARRAY_MANAGED(CTX_KEYLIST(src));
 
     REBCTX *meta = CTX_META(src); // preserve meta object (if any)
@@ -272,7 +272,7 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
         MANAGE_ARRAY(CTX_KEYLIST(dest));
     }
 
-    SET_ARR_FLAG(CTX_VARLIST(dest), ARRAY_FLAG_VARLIST);
+    SET_SER_FLAG(CTX_VARLIST(dest), ARRAY_FLAG_VARLIST);
 
     CTX_VALUE(dest)->payload.any_context.varlist = CTX_VARLIST(dest);
 
@@ -746,7 +746,7 @@ REBCTX *Make_Selfish_Context_Detect(
     // Make a context of same size as keylist (END already accounted for)
     //
     REBARR *varlist = Make_Array(len);
-    SET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST);
+    SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
 
     REBCTX *context = AS_CONTEXT(varlist);
 
@@ -995,7 +995,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     ARR_SERIES(keylist)->link.meta = NULL;
 
     REBCTX *merged = AS_CONTEXT(Make_Array(ARR_LEN(keylist)));
-    SET_ARR_FLAG(CTX_VARLIST(merged), ARRAY_FLAG_VARLIST);
+    SET_SER_FLAG(CTX_VARLIST(merged), ARRAY_FLAG_VARLIST);
     INIT_CTX_KEYLIST_UNIQUE(merged, keylist);
 
     REBVAL *rootvar = Alloc_Tail_Array(CTX_VARLIST(merged));
@@ -1324,7 +1324,7 @@ void Assert_Context_Core(REBCTX *c)
 {
     REBARR *varlist = CTX_VARLIST(c);
 
-    if (!GET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST))
+    if (NOT_SER_FLAG(varlist, ARRAY_FLAG_VARLIST))
         panic (varlist);
 
     REBARR *keylist = CTX_KEYLIST(c);
@@ -1332,7 +1332,7 @@ void Assert_Context_Core(REBCTX *c)
     if (!CTX_KEYLIST(c))
         panic (c);
 
-    if (GET_ARR_FLAG(keylist, CONTEXT_FLAG_STACK))
+    if (GET_SER_FLAG(keylist, CONTEXT_FLAG_STACK))
         panic (keylist);
 
     REBVAL *rootvar = CTX_VALUE(c);
@@ -1345,7 +1345,7 @@ void Assert_Context_Core(REBCTX *c)
     if (keys_len < 1)
         panic (keylist);
 
-    if (GET_CTX_FLAG(c, CONTEXT_FLAG_STACK)) {
+    if (GET_SER_FLAG(CTX_VARLIST(c), CONTEXT_FLAG_STACK)) {
         if (vars_len != 1)
             panic (varlist);
     }
@@ -1357,14 +1357,12 @@ void Assert_Context_Core(REBCTX *c)
     if (rootvar->payload.any_context.varlist != varlist)
         panic (rootvar);
 
-    if (GET_CTX_FLAG(c, SERIES_FLAG_INACCESSIBLE)) {
+    if (IS_INACCESSIBLE(c)) {
         //
         // !!! For the moment, don't check inaccessible stack frames any
         // further.  This includes varless reified frames and those reified
         // frames that are no longer on the stack.
         //
-        if (!GET_CTX_FLAG(c, CONTEXT_FLAG_STACK))
-            panic (c);
         return;
     }
 

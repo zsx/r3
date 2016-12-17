@@ -303,8 +303,12 @@ static REBCNT Find_Map_Entry(
     // Just a GET of value:
     if (!val) return n;
 
-    if (ANY_ARRAY(key) && !GET_ARR_FLAG(VAL_ARRAY(key), SERIES_FLAG_LOCKED))
+    if (
+        ANY_ARRAY(key)
+        && NOT_SER_INFO(VAL_ARRAY(key), SERIES_INFO_LOCKED)
+    ){
         fail (Error(RE_MAP_KEY_UNLOCKED, key));
+    }
 
     // Must set the value:
     if (n) {  // re-set it:

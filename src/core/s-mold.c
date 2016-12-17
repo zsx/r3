@@ -982,9 +982,8 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
     REBVAL *key;
     REBVAL *var;
 
-    if (GET_CTX_FLAG(VAL_CONTEXT(value), SERIES_FLAG_INACCESSIBLE)) {
-        assert(GET_CTX_FLAG(VAL_CONTEXT(value), CONTEXT_FLAG_STACK));
-
+    if (IS_INACCESSIBLE(VAL_CONTEXT(value))) {
+        //
         // If something like a function call has gone of the stack, the data
         // for the vars will no longer be available.  The keys should still
         // be good, however.

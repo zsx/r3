@@ -46,7 +46,7 @@ struct Reb_Func {
 #endif
 
 inline static REBARR *FUNC_PARAMLIST(REBFUN *f) {
-    assert(GET_ARR_FLAG(&f->paramlist, ARRAY_FLAG_PARAMLIST));
+    assert(GET_SER_FLAG(&f->paramlist, ARRAY_FLAG_PARAMLIST));
     return &f->paramlist;
 }
 
@@ -104,10 +104,10 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
 
 #ifdef NDEBUG
     #define FUNC_FLAG(n) \
-        HEADERFLAG(TYPE_SPECIFIC_BIT + (n))
+        FLAGIT_LEFT(TYPE_SPECIFIC_BIT + (n))
 #else
     #define FUNC_FLAG(n) \
-        (HEADERFLAG(TYPE_SPECIFIC_BIT + (n)) | HEADERIZE_KIND(REB_FUNCTION))
+        (FLAGIT_LEFT(TYPE_SPECIFIC_BIT + (n)) | HEADERIZE_KIND(REB_FUNCTION))
 #endif
 
 // RETURN will always be in the last paramlist slot (if present)

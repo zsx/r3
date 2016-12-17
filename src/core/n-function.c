@@ -293,7 +293,7 @@ REBNATIVE(typechecker)
     Val_Init_Typeset(param, ALL_64, Canon(SYM_VALUE));
     INIT_VAL_PARAM_CLASS(param, PARAM_CLASS_NORMAL);
 
-    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
+    SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
 
     REBFUN *fun = Make_Function(
@@ -362,11 +362,11 @@ REBNATIVE(brancher)
     rootkey->extra.binding = NULL;
 
     REBVAL *param = SINK(ARR_AT(paramlist, 1));
-    Val_Init_Typeset(param, FLAGIT_64(REB_LOGIC), Canon(SYM_CONDITION));
+    Val_Init_Typeset(param, FLAGIT_KIND(REB_LOGIC), Canon(SYM_CONDITION));
     INIT_VAL_PARAM_CLASS(param, PARAM_CLASS_NORMAL);
     TERM_ARRAY_LEN(paramlist, 2);
 
-    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
+    SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
 
     REBFUN *func = Make_Function(
@@ -478,7 +478,7 @@ REBNATIVE(chain)
         VAL_FUNC_PARAMLIST(ARR_HEAD(chainees)), SPECIFIED
     );
     ARR_HEAD(paramlist)->payload.function.paramlist = paramlist;
-    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
+    SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
 
     REBFUN *specializer;
@@ -573,7 +573,7 @@ REBNATIVE(adapt)
         VAL_FUNC_PARAMLIST(adaptee), SPECIFIED
     );
     ARR_HEAD(paramlist)->payload.function.paramlist = paramlist;
-    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
+    SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
 
     REBFUN *fun = Make_Function(
@@ -706,7 +706,7 @@ REBNATIVE(hijack)
         ARR_HEAD(proxy_paramlist)->payload.function.paramlist
             = proxy_paramlist;
         ARR_SERIES(proxy_paramlist)->link.meta = VAL_FUNC_META(victim);
-        SET_ARR_FLAG(proxy_paramlist, ARRAY_FLAG_PARAMLIST);
+        SET_SER_FLAG(proxy_paramlist, ARRAY_FLAG_PARAMLIST);
 
         // If the proxy had a body, then that body will be bound relative
         // to the original paramlist that's getting hijacked.  So when the
@@ -857,7 +857,7 @@ REBNATIVE(tighten)
         FUNC_PARAMLIST(original),
         SPECIFIED // no relative values in parameter lists
     );
-    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST); // flags not auto-copied
+    SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST); // flags not auto-copied
 
     RELVAL *param = ARR_AT(paramlist, 1); // first parameter (0 is FUNCTION!)
     for (; NOT_END(param); ++param)

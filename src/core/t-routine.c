@@ -222,7 +222,7 @@ static void Schema_From_Block_May_Fail(
         // one structure in the place of another.  Actual struct compatibility
         // is not checked until runtime, when the call happens.
         //
-        Val_Init_Typeset(param_out, FLAGIT_64(REB_STRUCT), NULL);
+        Val_Init_Typeset(param_out, FLAGIT_KIND(REB_STRUCT), NULL);
         return;
     }
 
@@ -238,57 +238,57 @@ static void Schema_From_Block_May_Fail(
         switch (VAL_WORD_SYM(item)) {
         case SYM_VOID:
             SET_BLANK(schema_out); // only valid for return types
-            Val_Init_Typeset(param_out, FLAGIT_64(REB_MAX_VOID), NULL);
+            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_MAX_VOID), NULL);
             break;
 
         case SYM_UINT8:
-            Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
+            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
             break;
 
         case SYM_INT8:
-            Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
+            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
             break;
 
         case SYM_UINT16:
-            Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
+            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
             break;
 
         case SYM_INT16:
-            Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
+            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
             break;
 
         case SYM_UINT32:
-            Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
+            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
             break;
 
         case SYM_INT32:
-            Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
+            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
             break;
 
         case SYM_UINT64:
-            Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
+            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
             break;
 
         case SYM_INT64:
-            Val_Init_Typeset(param_out, FLAGIT_64(REB_INTEGER), NULL);
+            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
             break;
 
         case SYM_FLOAT:
-            Val_Init_Typeset(param_out, FLAGIT_64(REB_DECIMAL), NULL);
+            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_DECIMAL), NULL);
             break;
 
         case SYM_DOUBLE:
-            Val_Init_Typeset(param_out, FLAGIT_64(REB_DECIMAL), NULL);
+            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_DECIMAL), NULL);
             break;
 
         case SYM_POINTER:
             Val_Init_Typeset(
                 param_out,
-                FLAGIT_64(REB_INTEGER)
-                    | FLAGIT_64(REB_STRING)
-                    | FLAGIT_64(REB_BINARY)
-                    | FLAGIT_64(REB_VECTOR)
-                    | FLAGIT_64(REB_FUNCTION), // legal if routine or callback
+                FLAGIT_KIND(REB_INTEGER)
+                    | FLAGIT_KIND(REB_STRING)
+                    | FLAGIT_KIND(REB_BINARY)
+                    | FLAGIT_KIND(REB_VECTOR)
+                    | FLAGIT_KIND(REB_FUNCTION), // legal if routine or callback
                 NULL
             );
             break;
@@ -1316,7 +1316,7 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
 
     // The "body" value of a routine is the routine info array.
     //
-    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
+    SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
     REBFUN *fun = Make_Function(
         paramlist,

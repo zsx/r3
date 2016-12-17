@@ -406,8 +406,8 @@ inline static REBCNT STU_OFFSET(REBSTU *stu) {
 
 inline static REBOOL VAL_STRUCT_INACCESSIBLE(const RELVAL *v) {
     REBSER *bin = VAL_STRUCT_DATA_BIN(v);
-    if (GET_SER_FLAG(bin, SERIES_FLAG_INACCESSIBLE)) {
-        assert(GET_SER_FLAG(bin, SERIES_FLAG_EXTERNAL));
+    if (GET_SER_INFO(bin, SERIES_INFO_INACCESSIBLE)) {
+        assert(GET_SER_INFO(bin, SERIES_INFO_EXTERNAL));
         return TRUE;
     }
     return FALSE;

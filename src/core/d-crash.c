@@ -36,7 +36,8 @@ enum Reb_Pointer_Guess {
     GUESSED_AS_SERIES,
     GUESSED_AS_FREED_SERIES,
     GUESSED_AS_VALUE,
-    GUESSED_AS_END
+    GUESSED_AS_CELL_END,
+    GUESSED_AS_INTERNAL_END
 };
 
 // See the elaborate explanation in %m-gc.c for how this works!
@@ -75,17 +76,8 @@ static enum Reb_Pointer_Guess Guess_Rebol_Pointer(const void *p) {
     case 1:
     case 2:
     case 3:
-        return GUESSED_AS_UTF8; // slightly higher ASCII codepoints
-
     case 4:
     case 5:
-        // NODE_FLAG_END (0x4) is set, but other bits aren't set...including
-        // NODE_FLAG_CELL (0x2).  This *could* be an internal END marker, as
-        // opposed to a UTF-8 string.  A debug check might try doing a UTF-8
-        // decode, and if it fails, it's probably an internal END.
-        //
-        return GUESSED_AS_UTF8;
-
     case 6:
     case 7:
         return GUESSED_AS_UTF8; // topmost ASCII codepoints
@@ -93,29 +85,43 @@ static enum Reb_Pointer_Guess Guess_Rebol_Pointer(const void *p) {
     // v-- bit sequences starting with `10` (continuation bytes, so not
     // valid starting points for a UTF-8 string)
 
-    case 8:
-        return GUESSED_AS_SERIES; // not free, not cell, not managed
+    case 8: // 0xb1000
+        return GUESSED_AS_SERIES;
 
-    case 9:
-        return GUESSED_AS_SERIES; // not free, not cell, managed
+    case 9: // 0xb1001
+        return GUESSED_AS_SERIES;
 
-    case 10:
-        return GUESSED_AS_VALUE; // not free, cell, not managed
-
-    case 11:
-        return GUESSED_AS_VALUE; // not free, cell, managed (pairing key)
+    case 10: // 0b1010
+    case 11: // 0b1011
+        return GUESSED_AS_VALUE;
 
     // v-- bit sequences starting with `11` are usually legal multi-byte
-    // valid starting points, with a few exceptions.
+    // valid starting points, so second byte is corrupted for internal ends,
+    // and the particular bad first byte `11111111` is used for end cells.
 
-    case 12:
-    case 13:
-    case 14:
+    case 12: // 0b1100
+    case 13: // 0b1101
+        //
+        // If this is the first byte of a valid UTF-8 sequence, then the next
+        // byte cannot start with a 0 bit.  Init_Endlike_Header() takes
+        // advantage of this fact.
+        //
+        if (*(bp + 1) < 128) // test 9th bit from left, a.k.a. FLAGIT_LEFT(8)
+            return GUESSED_AS_INTERNAL_END;
+
         return GUESSED_AS_UTF8;
 
-    case 15:
+    case 14: // 0b1110
+        //
+        // Though it carries the end bit and the cell bit, there are too many
+        // valid UTF-8 leading characters starting with this sequence.  So
+        // END cells use a full `11111111` pattern instead.
+        //
+        return GUESSED_AS_UTF8;
+
+    case 15: // 0b1111
         if (*bp == 255)
-            return GUESSED_AS_END;
+            return GUESSED_AS_CELL_END;
 
         return GUESSED_AS_UTF8;
     }
@@ -222,13 +228,25 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     #endif
         break;
 
-    case GUESSED_AS_END:
+    case GUESSED_AS_CELL_END:
     #if !defined(NDEBUG)
         Panic_Value_Debug(cast(const REBVAL*, p));
     #else
-        strncat(buf, "end marker", PANIC_BUF_SIZE - strlen(buf));
+        strncat(buf, "full cell-sized end", PANIC_BUF_SIZE - strlen(buf));
     #endif
         break;
+
+    case GUESSED_AS_INTERNAL_END:
+    #if !defined(NDEBUG)
+        printf("Internal END marker, if array then panic-ing container:\n");
+        Panic_Series_Debug(cast(REBSER*,
+            m_cast(REBYTE*, cast(const REBYTE*, p))
+            - offsetof(struct Reb_Series, info)
+            + offsetof(struct Reb_Series, header)
+        ));
+    #else
+        strncat(buf, "internal end marker", PANIC_BUF_SIZE - strlen(buf));
+    #endif
 
     default:
         strncat(buf,

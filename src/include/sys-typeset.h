@@ -138,10 +138,10 @@ enum Reb_Param_Class {
 
 #ifdef NDEBUG
     #define TYPESET_FLAG(n) \
-        HEADERFLAG(TYPE_SPECIFIC_BIT + (n))
+        FLAGIT_LEFT(TYPE_SPECIFIC_BIT + (n))
 #else
     #define TYPESET_FLAG(n) \
-        (HEADERFLAG(TYPE_SPECIFIC_BIT + (n)) | HEADERIZE_KIND(REB_TYPESET))
+        (FLAGIT_LEFT(TYPE_SPECIFIC_BIT + (n)) | HEADERIZE_KIND(REB_TYPESET))
 #endif
 
 // Option flags used with GET_VAL_FLAG().  These describe properties of
@@ -279,7 +279,7 @@ inline static enum Reb_Param_Class VAL_PARAM_CLASS(const RELVAL *v) {
 
 inline static void INIT_VAL_PARAM_CLASS(RELVAL *v, enum Reb_Param_Class c) {
     CLEAR_N_MID_BITS(v->header.bits, PCLASS_NUM_BITS);
-    v->header.bits |= FLAGVAL_MID(c);
+    v->header.bits |= FLAGBYTE_MID(c);
 
     // !!! The "<tight>" mechanism is likely to be ultimately deprecated,
     // and quoting will replace it.  For now, though, the only kinds of

@@ -60,105 +60,137 @@
 // necessary to consider cases where a value was intended to be provided
 // *without* evaluation.  This introduced EVAL/ONLY.
 //
-
-
+// The default for a DO operation is just a single DO/NEXT, where args
+// to functions are evaluated (vs. quoted), and lookahead is enabled.
 //
-// DO_FLAGS
+
+#define DO_FLAG_NORMAL 0
+
+// See Init_Endlike_Header() for why these (and DO_FLAG_8_IS_FALSE) are
+// chosen the way they are.  This means that the Reb_Frame->flags field
+// can function as an implicit END for Reb_Frame->cell, as well as be
+// distinguished from a REBVAL*, a REBSER*, or a UTF8 string.
 //
-// Used by low level routines, these flags specify behaviors which are
-// exposed at a higher level through EVAL
+#define DO_FLAG_0_IS_TRUE FLAGIT_LEFT(0)
+#define DO_FLAG_1_IS_TRUE FLAGIT_LEFT(1)
+#define DO_FLAG_2_IS_FALSE FLAGIT_LEFT(2)
+
+
+//=//// DO_FLAG_TO_END ////////////////////////////////////////////////////=//
 //
-enum {
-    // The default for a DO operation is just a single DO/NEXT, where args
-    // to functions are evaluated (vs. quoted), and lookahead is enabled.
-    //
-    DO_FLAG_NORMAL = 0,
+// As exposed by the DO native and its /NEXT refinement, a call to the
+// evaluator can either run to the finish from a position in an array or just
+// do one eval.  Rather than achieve execution to the end by iterative
+// function calls to the /NEXT variant (as in R3-Alpha), Ren-C offers a
+// controlling flag to do it from within the core evaluator as a loop.
+//
+// However: since running to the end follows a different code path than
+// performing DO/NEXT several times, it is important to ensure they achieve
+// equivalent results.  There are nuances to preserve this invariant and
+// especially in light of interaction with lookahead.
+//
+// !!! All things being equal, it might be nice if this flag were FALSE to
+// indicate NOT(NODE_FLAG_VALID) for anything that mistakenly tried to
+// interpret this as the header of a REBVAL* or a REBSER*.  But that is
+// covered by the next 2 bits already...so it would be "wasting" a bit.
+//
+#define DO_FLAG_TO_END \
+    FLAGIT_LEFT(3)
 
-    // As exposed by the DO native and its /NEXT refinement, a call to the
-    // evaluator can either run to the finish from a position in an array
-    // or just do one eval.  Rather than achieve execution to the end by
-    // iterative function calls to the /NEXT variant (as in R3-Alpha), Ren-C
-    // offers a controlling flag to do it from within the core evaluator
-    // as a loop.
-    //
-    // However: since running to the end follows a different code path than
-    // performing DO/NEXT several times, it is important to ensure they
-    // achieve equivalent results.  There are nuances to preserve this
-    // invariant and especially in light of interaction with lookahead.
-    //
-    // !!! All things being equal, it might be nice if this flag were FALSE
-    // to indicate NOT(NODE_FLAG_VALID) for anything that mistakenly tried to
-    // interpret this as the header of a REBVAL* or a REBSER*.  But that is
-    // covered by the next 2 bits already...so it would be "wasting" a bit.
-    //
-    DO_FLAG_TO_END = HEADERFLAG(0),
 
-    // This flag will be set to TRUE by Init_Endlike_Header, so that the
-    // Reb_Frame->flags can act as NODE_FLAG_END.  This implicitly terminates
-    // the Reb_Frame->cell at the head of the structure.
-    //
-    DO_FLAG_1_IS_TRUE = HEADERFLAG(1),
+//=//// DO_FLAG_NO_LOOKAHEAD //////////////////////////////////////////////=//
+//
+// When we're in mid-dispatch of an infix function, the precedence is such
+// that we don't want to do further infix lookahead while getting the
+// arguments.  (e.g. with `1 + 2 * 3` we don't want infix `+` to "look ahead"
+// past the 2 to see the infix `*`)
+//
+// Actions taken during lookahead may have no side effects.  If it's used
+// to evaluate a form of source input that cannot be backtracked (e.g.
+// a C variable argument list) then it will not be possible to resume.
+//
+#define DO_FLAG_NO_LOOKAHEAD \
+    FLAGIT_LEFT(4)
 
-    // This flag will be set to FALSE by Init_Endlike_Header, so that the
-    // Reb_Frame->flags will not signal NODE_FLAG_CELL.  That helps avoid
-    // any traversals that think this header signals IS_END() from then
-    // trying to "overwrite the end" of the implicit marker.
-    //
-    DO_FLAG_2_IS_FALSE = HEADERFLAG(2),
 
-    // When we're in mid-dispatch of an infix function, the precedence is such
-    // that we don't want to do further infix lookahead while getting the
-    // arguments.  (e.g. with `1 + 2 * 3` we don't want infix `+` to
-    // "look ahead" past the 2 to see the infix `*`)
-    //
-    // Actions taken during lookahead may have no side effects.  If it's used
-    // to evaluate a form of source input that cannot be backtracked (e.g.
-    // a C variable argument list) then it will not be possible to resume.
-    //
-    DO_FLAG_NO_LOOKAHEAD = HEADERFLAG(3),
+//=//// DO_FLAG_NO_ARGS_EVALUATE //////////////////////////////////////////=//
+//
+// Sometimes a DO operation has already calculated values, and does not want
+// to interpret them again.  e.g. the call to the function wishes to use a
+// precalculated WORD! value, and not look up that word as a variable.  This
+// is common when calling Rebol functions from C code when the parameters are
+// known, or what R3-Alpha called "APPLY/ONLY"
+//
+#define DO_FLAG_NO_ARGS_EVALUATE \
+    FLAGIT_LEFT(5)
 
-    // Sometimes a DO operation has already calculated values, and does not
-    // want to interpret them again.  e.g. the call to the function wishes
-    // to use a precalculated WORD! value, and not look up that word as a
-    // variable.  This is common when calling Rebol functions from C code
-    // when the parameters are known, or what R3-Alpha called "APPLY/ONLY"
-    //
-    DO_FLAG_NO_ARGS_EVALUATE = HEADERFLAG(4),
 
-    // A pre-built frame can be executed "in-place" without a new allocation.
-    // It will be type checked, and also any BAR! parameters will indicate
-    // a desire to acquire that argument (permitting partial specialization).
-    //
-    DO_FLAG_EXECUTE_FRAME = HEADERFLAG(5),
+//=//// DO_FLAG_NO_ARGS_EVALUATE //////////////////////////////////////////=//
+//
+// A pre-built frame can be executed "in-place" without a new allocation.  It
+// will be type checked, and also any BAR! parameters will indicate a desire
+// to acquire that argument (permitting partial specialization).
+//
+#define DO_FLAG_EXECUTE_FRAME \
+    FLAGIT_LEFT(6)
 
-    // Usually VA_LIST_FLAG is enough to tell when there is a source array to
-    // examine or not.  However, when the end is reached it is written over
-    // with END_FLAG and it's no longer possible to tell if there's an array
-    // available to inspect or not.  The few cases that "need to know" are
-    // things like error delivery, which want to process the array after
-    // expression evaluation is complete.  Review to see if they actually
-    // would rather know something else, but this is a cheap flag for now.
-    //
-    DO_FLAG_VA_LIST = HEADERFLAG(6),
 
-    // While R3-Alpha permitted modifications of an array while it was being
-    // executed, Ren-C does not.  It takes a lock if the source is not already
-    // read only, and sets it back when Do_Core is finished (or on errors)
-    //
-    DO_FLAG_TOOK_FRAME_LOCK = HEADERFLAG(7),
+//=//// DO_FLAG_VA_LIST ///////////////////////////////////////////////////=//
+//
+// Usually VA_LIST_FLAG is enough to tell when there is a source array to
+// examine or not.  However, when the end is reached it is written over with
+// END_FLAG and it's no longer possible to tell if there's an array available
+// to inspect or not.  The few cases that "need to know" are things like
+// error delivery, which want to process the array after expression evaluation
+// is complete.  Review to see if they actually would rather know something
+// else, but this is a cheap flag for now.
+//
+#define DO_FLAG_VA_LIST \
+    FLAGIT_LEFT(7)
 
-    // DO_FLAG_APPLYING is used to indicate that the Do_Core code is entering
-    // a situation where the frame was already set up.
-    //
-    DO_FLAG_APPLYING = HEADERFLAG(8),
 
-    // When a variadic operation is on the left hand side of a deferred
-    // lookback operation, it needs to inform the evaluator that the take is
-    // variadic, so it knows to defer.  Consider `summation 1 2 3 |> 100`
-    // should be `(summation 1 2 3) |> 100` and not `summation 1 2 (3 |> 100)`
-    //
-    DO_FLAG_VARIADIC_TAKE = HEADERFLAG(9)
-};
+//=//// DO_FLAG_TOOK_FRAME_LOCK ///////////////////////////////////////////=//
+//
+// While R3-Alpha permitted modifications of an array while it was being
+// executed, Ren-C does not.  It takes a lock if the source is not already
+// read only, and sets it back when Do_Core is finished (or on errors)
+//
+#define DO_FLAG_TOOK_FRAME_LOCK \
+    FLAGIT_LEFT(8)
+
+
+#define DO_FLAG_8_IS_FALSE FLAGIT_LEFT(9) // see Init_Endlike_Header()
+
+
+//=//// DO_FLAG_APPLYING ///.......////////////////////////////////////////=//
+//
+// Used to indicate that the Do_Core code is entering a situation where the
+// frame was already set up.
+//
+#define DO_FLAG_APPLYING \
+    FLAGIT_LEFT(10)
+
+
+//=//// DO_FLAG_VARIADIC_TAKE /////////////////////////////////////////////=//
+//
+// When a variadic operation is on the left hand side of a deferred
+// lookback operation, it needs to inform the evaluator that the take is
+// variadic, so it knows to defer.  Consider `summation 1 2 3 |> 100`
+// should be `(summation 1 2 3) |> 100` and not `summation 1 2 (3 |> 100)`
+//
+#define DO_FLAG_VARIADIC_TAKE \
+    FLAGIT_LEFT(11)
+
+
+// Currently the rightmost two bytes of the Reb_Frame->flags are not used,
+// so the flags could theoretically go up to 31.  It could hold something
+// like the ->eval_type, but performance is probably better to put such
+// information in a platform aligned position of the frame.
+//
+#if defined(__cplusplus) && (__cplusplus >= 201103L)
+    static_assert(11 < 32, "DO_FLAG_XXX too high");
+#endif
+
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -236,6 +268,7 @@ struct Reb_Frame {
     // These are DO_FLAG_XXX or'd together--see their documentation above.
     // A Reb_Header is used so that it can implicitly terminate `cell`,
     // giving natives an enumerable single-cell slot if they need it.
+    // See Init_Endlike_Header()
     //
     struct Reb_Header flags;
 

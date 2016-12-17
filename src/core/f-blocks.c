@@ -212,7 +212,7 @@ void Clonify_Values_Len_Managed(
             REBSER *series;
             if (ANY_CONTEXT(value)) {
             #if !defined(NDEBUG)
-                legacy = GET_ARR_FLAG(
+                legacy = GET_SER_FLAG(
                     CTX_VARLIST(VAL_CONTEXT(value)),
                     SERIES_FLAG_LEGACY
                 );
@@ -226,7 +226,7 @@ void Clonify_Values_Len_Managed(
             else {
                 if (Is_Array_Series(VAL_SERIES(value))) {
                 #if !defined(NDEBUG)
-                    legacy = GET_ARR_FLAG(VAL_ARRAY(value), SERIES_FLAG_LEGACY);
+                    legacy = GET_SER_FLAG(VAL_ARRAY(value), SERIES_FLAG_LEGACY);
                 #endif
 
                     series = ARR_SERIES(
@@ -342,8 +342,8 @@ REBARR *Copy_Array_Core_Managed(
     // be marked legacy.  Then if it runs, the SWITCH can dispatch to return
     // blank instead of the Ren-C behavior of returning `2`.
     //
-    if (GET_ARR_FLAG(original, SERIES_FLAG_LEGACY))
-        SET_ARR_FLAG(copy, SERIES_FLAG_LEGACY);
+    if (GET_SER_FLAG(original, SERIES_FLAG_LEGACY))
+        SET_SER_FLAG(copy, SERIES_FLAG_LEGACY);
 #endif
 
     ASSERT_NO_RELATIVE(copy, deep);

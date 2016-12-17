@@ -1372,10 +1372,8 @@ inline static REBFRM *Extract_Live_Rebfrm_May_Fail(const REBVAL *frame) {
         fail(Error(RE_MISC)); // !!! improve
 
     REBCTX *frame_ctx = VAL_CONTEXT(frame);
-    if (GET_CTX_FLAG(frame_ctx, SERIES_FLAG_INACCESSIBLE)) {
-        assert(GET_CTX_FLAG(frame_ctx, CONTEXT_FLAG_STACK));
+    if (IS_INACCESSIBLE(frame_ctx))
         fail (Error(RE_MISC)); // !!! improve
-    }
 
     REBFRM *f = CTX_FRAME(frame_ctx);
     assert(Is_Any_Function_Frame(f));

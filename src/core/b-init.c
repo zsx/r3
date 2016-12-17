@@ -98,6 +98,29 @@ static void Assert_Basics(void)
     fflush(stdout);
 #endif
 
+#if !defined(NDEBUG)
+    //
+    // Sanity check the platform byte-ordering sensitive flag macros
+    //
+    REBUPT flags;
+
+    flags = FLAGIT_LEFT(0);
+    unsigned char *ch = (unsigned char*)&flags;
+    if (*ch != 128) {
+        printf("Expected 128, got %d\n", *ch);
+        panic ("Bad leftmost bit setting of platform unsigned integer.");
+    }
+
+    flags = FLAGIT_LEFT(0) | FLAGIT_LEFT(1) | FLAGBYTE_RIGHT(13);
+
+    REBCNT left = LEFT_N_BITS(flags, 3); // == 6 (binary `110`)
+    REBCNT right = RIGHT_N_BITS(flags, 3); // == 5 (binary `101`)
+    if (left != 6 || right != 5) {
+        printf("Expected 6 and 5, got %d and %d\n", left, right);
+        panic ("Bad composed integer assignment for byte-ordering macro.");
+    }
+#endif
+
     // Although the system is designed to be able to function with REBVAL at
     // any size, the optimization of it being 4x(32-bit) on 32-bit platforms
     // and 4x(64-bit) on 64-bit platforms is a rather important performance
@@ -491,7 +514,7 @@ static void Init_Function_Tag(const char *name, REBVAL *slot)
         Append_UTF8_May_Fail(NULL, cb_cast(name), strlen(name))
     );
     SET_SER_FLAG(VAL_SERIES(slot), SERIES_FLAG_FIXED_SIZE);
-    SET_SER_FLAG(VAL_SERIES(slot), SERIES_FLAG_LOCKED);
+    SET_SER_INFO(VAL_SERIES(slot), SERIES_INFO_LOCKED);
 }
 
 
@@ -704,7 +727,7 @@ static void Init_Root_Context(void)
     REBCTX *root = Alloc_Context(ROOT_MAX - 1);
     PG_Root_Context = root;
 
-    SET_ARR_FLAG(CTX_VARLIST(root), SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAG(CTX_VARLIST(root), SERIES_FLAG_FIXED_SIZE);
     Root_Vars = cast(ROOT_VARS*, ARR_HEAD(CTX_VARLIST(root)));
 
     // Get rid of the keylist, we will make another one later in the boot.
@@ -774,13 +797,13 @@ static void Init_Root_Context(void)
     // The EMPTY_BLOCK provides EMPTY_ARRAY.  It is locked for protection.
     //
     Val_Init_Block(ROOT_EMPTY_BLOCK, Make_Array(0));
-    SET_SER_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SERIES_FLAG_LOCKED);
+    SET_SER_INFO(VAL_SERIES(ROOT_EMPTY_BLOCK), SERIES_INFO_LOCKED);
     SET_SER_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SERIES_FLAG_FIXED_SIZE);
 
     REBSER *empty_series = Make_Binary(1);
     *BIN_AT(empty_series, 0) = '\0';
     Val_Init_String(ROOT_EMPTY_STRING, empty_series);
-    SET_SER_FLAG(VAL_SERIES(ROOT_EMPTY_STRING), SERIES_FLAG_LOCKED);
+    SET_SER_INFO(VAL_SERIES(ROOT_EMPTY_STRING), SERIES_INFO_LOCKED);
     SET_SER_FLAG(VAL_SERIES(ROOT_EMPTY_STRING), SERIES_FLAG_FIXED_SIZE);
 
     // Used by REBNATIVE(print)
@@ -821,7 +844,7 @@ static void Init_Task_Context(void)
     REBCTX *task = Alloc_Context(TASK_MAX - 1);
     TG_Task_Context = task;
 
-    SET_ARR_FLAG(CTX_VARLIST(task), SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAG(CTX_VARLIST(task), SERIES_FLAG_FIXED_SIZE);
     Task_Vars = cast(TASK_VARS*, ARR_HEAD(CTX_VARLIST(task)));
 
     // Get rid of the keylist, we will make another one later in the boot.

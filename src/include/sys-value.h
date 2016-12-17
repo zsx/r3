@@ -118,16 +118,22 @@
 // argument, it's not worth it to make it a function for slowdown caused.
 // Also, don't bother checking using the `cast()` template in C++.
 //
+// !!! Technically this is wasting two bits in the header, because there are
+// only 64 types that fit in a type bitset.  Yet the sheer commonness of
+// this operation makes bit masking expensive...and choosing the number of
+// types based on what fits in a 64-bit mask is not necessarily the most
+// future-proof concept in the first place.  Use a full byte for speed.
+//
 #define VAL_TYPE_RAW(v) \
-    ((enum Reb_Kind)(RIGHT_N_BITS((v)->header.bits, NUM_KIND_BITS)))
+    ((enum Reb_Kind)(RIGHT_8_BITS((v)->header.bits)))
 
 #ifdef NDEBUG
     #define VAL_TYPE(v) \
         VAL_TYPE_RAW(v)
 #else
     enum {
-        VOID_FLAG_NOT_TRASH = HEADERFLAG(TYPE_SPECIFIC_BIT + 0),
-        VOID_FLAG_SAFE_TRASH = HEADERFLAG(TYPE_SPECIFIC_BIT + 1)
+        VOID_FLAG_NOT_TRASH = FLAGIT_LEFT(TYPE_SPECIFIC_BIT + 0),
+        VOID_FLAG_SAFE_TRASH = FLAGIT_LEFT(TYPE_SPECIFIC_BIT + 1)
     }; // ^-- safe trash is better thought of as "unreadable blank"
 
     inline static REBOOL IS_TRASH_DEBUG(const RELVAL *v) {
@@ -172,7 +178,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     // Use VAL_RESET_HEADER() to set the type AND initialize the flags to 0.
     //
     assert(!IS_TRASH_DEBUG(v));
-    CLEAR_N_RIGHT_BITS((v)->header.bits, NUM_KIND_BITS);
+    CLEAR_8_RIGHT_BITS((v)->header.bits);
     (v)->header.bits |= HEADERIZE_KIND(kind);
 }
 
@@ -218,7 +224,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     //
     #define CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG \
         assert(NOT(IS_END_MACRO(v))); \
-        REBUPT category = RIGHT_N_BITS(f, NUM_KIND_BITS); \
+        REBUPT category = RIGHT_8_BITS(f); \
         if (category != REB_0) { \
             enum Reb_Kind kind = VAL_TYPE(v); \
             if (kind != category) { \
@@ -229,7 +235,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
                 else \
                     assert(FALSE); \
             } \
-            CLEAR_N_RIGHT_BITS(f, NUM_KIND_BITS); \
+            CLEAR_8_RIGHT_BITS(f); \
         } \
 
 

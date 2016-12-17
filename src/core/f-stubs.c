@@ -431,7 +431,7 @@ void Val_Init_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *c) {
     if (CTX_KEYLIST(c) == NULL)
         panic (c);
 
-    assert(GET_ARR_FLAG(CTX_VARLIST(c), ARRAY_FLAG_VARLIST));
+    assert(GET_SER_FLAG(CTX_VARLIST(c), ARRAY_FLAG_VARLIST));
 
     if (IS_FRAME(CTX_VALUE(c)))
         assert(IS_FUNCTION(CTX_FRAME_FUNC_VALUE(c)));

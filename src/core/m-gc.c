@@ -171,13 +171,13 @@ static void Queue_Mark_Array_Subclass_Deep(REBARR *a)
     if (IS_FREE_NODE(ARR_SERIES(a)))
         panic (a);
 
-    if (!GET_ARR_FLAG(a, SERIES_FLAG_ARRAY))
+    if (NOT_SER_FLAG(a, SERIES_FLAG_ARRAY))
         panic (a);
 
     if (!IS_ARRAY_MANAGED(a))
         panic (a);
 
-    assert(!GET_ARR_FLAG(a, SERIES_FLAG_EXTERNAL)); // external arrays illegal
+    assert(NOT_SER_INFO(a, SERIES_INFO_EXTERNAL));
 #endif
 
     // A marked array doesn't necessarily mean all references reached from it
@@ -202,14 +202,14 @@ static void Queue_Mark_Array_Subclass_Deep(REBARR *a)
 }
 
 inline static void Queue_Mark_Array_Deep(REBARR *a) {
-    assert(!GET_ARR_FLAG(a, ARRAY_FLAG_VARLIST));
-    assert(!GET_ARR_FLAG(a, ARRAY_FLAG_PARAMLIST));
+    assert(NOT_SER_FLAG(a, ARRAY_FLAG_VARLIST));
+    assert(!GET_SER_FLAG(a, ARRAY_FLAG_PARAMLIST));
 
     Queue_Mark_Array_Subclass_Deep(a);
 }
 
 inline static void Queue_Mark_Context_Deep(REBCTX *c) {
-    assert(GET_ARR_FLAG(CTX_VARLIST(c), ARRAY_FLAG_VARLIST));
+    assert(GET_SER_FLAG(CTX_VARLIST(c), ARRAY_FLAG_VARLIST));
     Queue_Mark_Array_Subclass_Deep(CTX_VARLIST(c));
 
     // Further handling is in Propagate_All_GC_Marks() for ARRAY_FLAG_VARLIST
@@ -218,7 +218,7 @@ inline static void Queue_Mark_Context_Deep(REBCTX *c) {
 }
 
 inline static void Queue_Mark_Function_Deep(REBFUN *f) {
-    assert(GET_ARR_FLAG(FUNC_PARAMLIST(f), ARRAY_FLAG_PARAMLIST));
+    assert(GET_SER_FLAG(FUNC_PARAMLIST(f), ARRAY_FLAG_PARAMLIST));
     Queue_Mark_Array_Subclass_Deep(FUNC_PARAMLIST(f));
 
     // Further handling is in Propagate_All_GC_Marks() for ARRAY_FLAG_PARAMLIST
@@ -302,7 +302,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         // time a canon word's "index" field is allowed to be nonzero.
         //
         assert(
-            !GET_SER_FLAG(spelling, STRING_FLAG_CANON)
+            NOT_SER_FLAG(spelling, STRING_FLAG_CANON)
             || (
                 spelling->misc.bind_index.high == 0
                 && spelling->misc.bind_index.low == 0
@@ -489,7 +489,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
             // protect it, then it could hit unfinished/corrupt arg cells)
             //
             REBARR *varlist = VAL_BINDING(v);
-            if (GET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST)) {
+            if (GET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST)) {
                 if (IS_ARRAY_MANAGED(varlist)) {
                     REBCTX *context = AS_CONTEXT(varlist);
                     Queue_Mark_Context_Deep(context);
@@ -522,7 +522,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
             assert(CTX_TYPE(context) == REB_FRAME);
 
         #if !defined(NDEBUG)
-            if (GET_CTX_FLAG(context, SERIES_FLAG_INACCESSIBLE)) {
+            if (IS_INACCESSIBLE(context)) {
                 //
                 // !!! It seems a bit wasteful to keep alive the binding of a
                 // stack frame you can no longer get values out of.  But
@@ -669,13 +669,13 @@ static void Propagate_All_GC_Marks(void)
         // For a lighter check, make sure it's marked as a value-bearing array
         // and that it hasn't been freed.
         //
-        assert(GET_ARR_FLAG(a, SERIES_FLAG_ARRAY));
+        assert(GET_SER_FLAG(a, SERIES_FLAG_ARRAY));
         assert(!IS_FREE_NODE(ARR_SERIES(a)));
     #endif
 
         RELVAL *v = ARR_HEAD(a);
 
-        if (GET_ARR_FLAG(a, ARRAY_FLAG_PARAMLIST)) {
+        if (GET_SER_FLAG(a, ARRAY_FLAG_PARAMLIST)) {
             //
             // These queueings cannot be done in Queue_Mark_Function_Deep
             // because of the potential for overflowing the C stack with calls
@@ -698,7 +698,7 @@ static void Propagate_All_GC_Marks(void)
             assert(v->extra.binding == NULL); // archetypes have no binding
             ++v; // function archetype completely marked by this process
         }
-        else if (GET_ARR_FLAG(a, ARRAY_FLAG_VARLIST)) {
+        else if (GET_SER_FLAG(a, ARRAY_FLAG_VARLIST)) {
             //
             // These queueings cannot be done in Queue_Mark_Context_Deep
             // because of the potential for overflowing the C stack with calls
@@ -717,15 +717,15 @@ static void Propagate_All_GC_Marks(void)
             ++v; // context archtype completely marked by this process
         }
 
-        if (GET_ARR_FLAG(a, SERIES_FLAG_INACCESSIBLE)) {
+        if (GET_SER_INFO(a, SERIES_INFO_INACCESSIBLE)) {
             //
             // At present the only inaccessible arrays are expired frames of
             // functions with stack-bound arg and local lifetimes.  They are
             // just singular REBARRs with the FRAME! archetype value.
             //
-            assert(GET_ARR_FLAG(a, ARRAY_FLAG_VARLIST));
+            assert(GET_SER_FLAG(a, ARRAY_FLAG_VARLIST));
             assert(IS_FRAME(ARR_HEAD(a)));
-            assert(GET_CTX_FLAG(AS_CONTEXT(a), CONTEXT_FLAG_STACK));
+            assert(GET_SER_FLAG(a, CONTEXT_FLAG_STACK));
             continue;
         }
 
@@ -740,8 +740,8 @@ static void Propagate_All_GC_Marks(void)
             //
             if (IS_UNREADABLE_OR_VOID(v) && IS_VOID(v)) {
                 assert(
-                    GET_ARR_FLAG(a, ARRAY_FLAG_VARLIST)
-                    || GET_ARR_FLAG(a, ARRAY_FLAG_VOIDS_LEGAL)
+                    GET_SER_FLAG(a, ARRAY_FLAG_VARLIST)
+                    || GET_SER_FLAG(a, ARRAY_FLAG_VOIDS_LEGAL)
                 );
             }
         #endif
@@ -1127,10 +1127,10 @@ ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
     // Optimization here depends on SWITCH of the concrete values of bits.
     //
     static_assert_c(
-        NODE_FLAG_MANAGED == HEADERFLAG(3) // 0x1 after right shift
-        && (NODE_FLAG_CELL == HEADERFLAG(2)) // 0x2 after right shift
-        && (NODE_FLAG_END == HEADERFLAG(1)) // 0x4 after right shift
-        && (NODE_FLAG_VALID == HEADERFLAG(0)) // 0x8 after right shift
+        NODE_FLAG_MANAGED == FLAGIT_LEFT(3) // 0x1 after right shift
+        && (NODE_FLAG_CELL == FLAGIT_LEFT(2)) // 0x2 after right shift
+        && (NODE_FLAG_END == FLAGIT_LEFT(1)) // 0x4 after right shift
+        && (NODE_FLAG_VALID == FLAGIT_LEFT(0)) // 0x8 after right shift
     );
 
     REBSEG *seg;

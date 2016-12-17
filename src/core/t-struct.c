@@ -675,7 +675,7 @@ static REBSER *make_ext_storage(
     );
 
     SER_SET_EXTERNAL_DATA(ser, cast(REBYTE*, raw_addr));
-    assert(!GET_SER_FLAG(ser, SERIES_FLAG_INACCESSIBLE));
+    assert(NOT_SER_INFO(ser, SERIES_INFO_INACCESSIBLE));
     SET_SERIES_LEN(ser, len);
 
     MANAGE_SERIES(ser);

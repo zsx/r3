@@ -77,9 +77,9 @@ void Protect_Series(REBSER *series, REBCNT index, REBFLGS flags)
         return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET))
-        SET_SER_FLAG(series, SERIES_FLAG_LOCKED);
+        SET_SER_INFO(series, SERIES_INFO_LOCKED);
     else
-        CLEAR_SER_FLAG(series, SERIES_FLAG_LOCKED);
+        CLEAR_SER_INFO(series, SERIES_INFO_LOCKED);
 
     if (!Is_Array_Series(series) || !GET_FLAG(flags, PROT_DEEP)) return;
 
@@ -105,9 +105,9 @@ void Protect_Object(RELVAL *value, REBFLGS flags)
         return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET))
-        SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_LOCKED);
+        SET_SER_INFO(CTX_VARLIST(context), SERIES_INFO_LOCKED);
     else
-        CLEAR_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_LOCKED);
+        CLEAR_SER_INFO(CTX_VARLIST(context), SERIES_INFO_LOCKED);
 
     for (value = CTX_KEY(context, 1); NOT_END(value); value++) {
         Protect_Key(KNOWN(value), flags);

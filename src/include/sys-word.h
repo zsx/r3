@@ -43,10 +43,10 @@
 
 #ifdef NDEBUG
     #define WORD_FLAG(n) \
-        HEADERFLAG(TYPE_SPECIFIC_BIT + (n))
+        FLAGIT_LEFT(TYPE_SPECIFIC_BIT + (n))
 #else
     #define WORD_FLAG(n) \
-        (HEADERFLAG(TYPE_SPECIFIC_BIT + (n)) | HEADERIZE_KIND(REB_WORD))
+        (FLAGIT_LEFT(TYPE_SPECIFIC_BIT + (n)) | HEADERIZE_KIND(REB_WORD))
 #endif
 
 // `WORD_FLAG_BOUND` answers whether a word is bound, but it may be

@@ -134,18 +134,6 @@ inline static void TERM_SERIES(REBSER *s) {
 // Setting and getting array flags is common enough to want a macro for it
 // vs. having to extract the ARR_SERIES to do it each time.
 //
-#define SET_ARR_FLAG(a,f) \
-    SET_SER_FLAG(ARR_SERIES(a), (f))
-
-#define SET_ARR_FLAGS(a,f) \
-    SET_SER_FLAGS(ARR_SERIES(a), (f))
-
-#define CLEAR_ARR_FLAG(a,f) \
-    CLEAR_SER_FLAG(ARR_SERIES(a), (f))
-
-#define GET_ARR_FLAG(a,f) \
-    GET_SER_FLAG(ARR_SERIES(a), (f))
-
 #define FAIL_IF_LOCKED_ARRAY(a) \
     FAIL_IF_LOCKED_SERIES(ARR_SERIES(a))
 
@@ -192,8 +180,8 @@ inline static REBARR *Make_Array(REBCNT capacity)
     REBSER *s = Make_Series(capacity + 1, sizeof(REBVAL), MKS_ARRAY);
     assert(
         capacity <= 1
-            ? NOT(GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC))
-            : GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)
+            ? NOT(GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC))
+            : GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)
     );
 
     REBARR *a = AS_ARRAY(s);
@@ -211,10 +199,10 @@ inline static REBARR *Make_Array(REBCNT capacity)
 //
 inline static REBARR *Alloc_Singular_Array(void) {
     REBSER *s = Make_Series(2, sizeof(REBVAL), MKS_ARRAY); // no real 2nd slot
-    assert(NOT(GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)));
+    assert(NOT(GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)));
 
     REBARR *a = AS_ARRAY(s);
-    SET_ARR_FLAG(a, SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAG(a, SERIES_FLAG_FIXED_SIZE);
 
     SET_SERIES_LEN(s, 1); // currently needs length bits set
     assert(IS_END(ARR_TAIL(a)));

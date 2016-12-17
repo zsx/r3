@@ -64,7 +64,7 @@
 //
 // * Forward declarations are in %reb-defs.h
 //
-// * See %sys-rebnod.h for an explanation of HEADERFLAG.  This file defines
+// * See %sys-rebnod.h for an explanation of FLAGIT_LEFT.  This file defines
 //   those flags which are common to every value of every type.  Due to their
 //   scarcity, they are chosen carefully.
 //
@@ -92,7 +92,7 @@
 // reclaim the bit for a "higher purpose".
 //
 #define VALUE_FLAG_CONDITIONALLY_FALSE \
-    HEADERFLAG(GENERAL_VALUE_BIT + 0)
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 0)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -112,7 +112,7 @@
 // name considering its similarity to `newline` the line feed char.
 //
 #define VALUE_FLAG_LINE \
-    HEADERFLAG(GENERAL_VALUE_BIT + 1)
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 1)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -146,7 +146,7 @@
 //     }
 //
 #define VALUE_FLAG_THROWN \
-    HEADERFLAG(GENERAL_VALUE_BIT + 2)
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 2)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -166,7 +166,7 @@
 // the same function if it contains any instances of such relative words.
 //
 #define VALUE_FLAG_RELATIVE \
-    HEADERFLAG(GENERAL_VALUE_BIT + 3)
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 3)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -192,7 +192,7 @@
 // That has a lot of impact for the new user experience.
 //
 #define VALUE_FLAG_UNEVALUATED \
-    HEADERFLAG(GENERAL_VALUE_BIT + 4)
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 4)
 
 
 // v-- BEGIN TYPE SPECIFIC BITS HERE
@@ -201,14 +201,15 @@
 #define TYPE_SPECIFIC_BIT \
     (GENERAL_VALUE_BIT + 5)
 
-// The type is stored in the "rightmost" bits of the header, so that it can
-// be efficiently extracted (on big endian, little endian, 64-bit or 32-bit
-// machines).
-//
-#define NUM_KIND_BITS 6
 
+// Technically speaking, this only needs to use 6 bits of the rightmost byte
+// to store the type.  So using a full byte wastes 2 bits.  However, the
+// performance advantage of not needing to mask to do VAL_TYPE() is worth
+// it...also there may be a use for 256 types (even though the type bitsets
+// are only 64-bits at the moment)
+//
 #define HEADERIZE_KIND(kind) \
-    FLAGVAL_RIGHT(kind)
+    FLAGBYTE_RIGHT(kind)
 
 
 
@@ -309,7 +310,7 @@ struct Reb_Any_Series {
 };
 
 struct Reb_Typeset {
-    REBU64 bits; // One bit for each DATATYPE! (use with FLAGIT_64)
+    REBU64 bits; // One bit for each DATATYPE! (use with FLAGIT_KIND)
 };
 
 
@@ -684,7 +685,7 @@ struct Reb_Value
         // flags are set (e.g. NODE_FLAG_MANAGED) which should not
         // be of concern or looked at due to the IS_END() status.
         //
-        v->header.bits = FLAGVAL_FIRST(255);
+        v->header.bits = FLAGBYTE_FIRST(255);
     }
 #else
     // Note: These must be macros (that don't need IS_END_Debug or
@@ -739,11 +740,29 @@ struct Reb_Value
 //
 inline static void Init_Endlike_Header(struct Reb_Header *alias, REBUPT bits)
 {
-    // It's not strictly necessary to assert NODE_FLAG_VALID isn't set.  If
-    // NODE_FLAG_END is set and it's not all `11111111` are set anyway, then this
-    // won't be generally distinguishable from a UTF-8 character either way.
+    // The leftmost 3 bits of the info are `110`, and the 8th bit is `0`.  The
+    // strategic choice of `x10` is easily understood: since the info bits are
+    // placed in the structure after a potential internal cell, that carries a
+    // bit in the NODE_FLAG_END slot as 1 and the NODE_FLAG_CELL slot is 0.
+    // This makes an "implicit unwritable terminator" that helps simulate an
+    // array of length 1.
     //
-    assert(NOT(bits & (NODE_FLAG_END | NODE_FLAG_CELL)));
+    // The `11x` is not possible to distinguish from the first byte of a
+    // unicode character in a general case.  However, with the leading byte of
+    // the second character starting with the high bit clear, it could not be
+    // a valid UTF-8 string.  This allows us to distinguish implicit END
+    // markers from unicode strings if we need to do so...at a cost of only
+    // two bits (vs. other approaches like sacrificing a full byte of the
+    // header, to throw in a full invalid byte).
+    //
+    // Note: really it's only diagnostics that should need to distinguish
+    // internal ENDs from unicode strings, but for 2 bits it's worth it ATM.
+    //
+    assert(
+        NOT(bits & (
+            NODE_FLAG_END | NODE_FLAG_CELL | NODE_FLAG_VALID | FLAGIT_LEFT(8)
+        ))
+    );
 
     // Write from generic pointer to `struct Reb_Header`.  Make it look like
     // a "terminating non-cell".  This means it will stop REBVAL* traversals
@@ -751,7 +770,7 @@ inline static void Init_Endlike_Header(struct Reb_Header *alias, REBUPT bits)
     // debug build from thinking it's a cell-sized slot that could be
     // overwritten with a non-END.
     //
-    alias->bits = bits | NODE_FLAG_END;
+    alias->bits = bits | NODE_FLAG_VALID | NODE_FLAG_END;
 }
 
 
@@ -830,7 +849,7 @@ inline static REBOOL IS_RELATIVE(const RELVAL *v) {
 
 inline static REBFUN *VAL_RELATIVE(const RELVAL *v) {
     assert(IS_RELATIVE(v));
-    //assert(NOT(GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST)));
+    //assert(NOT(GET_SER_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST)));
     return cast(REBFUN*, v->extra.binding);
 }
 
@@ -838,7 +857,7 @@ inline static REBCTX *VAL_SPECIFIC_COMMON(const RELVAL *v) {
     assert(IS_SPECIFIC(v));
     //assert(
     //    v->extra.binding == SPECIFIED
-    //    || GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST)
+    //    || GET_SER_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST)
     //);
     return cast(REBCTX*, v->extra.binding);
 }

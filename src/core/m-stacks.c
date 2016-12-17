@@ -91,7 +91,7 @@ void Init_Stacks(REBCNT size)
         // contain them.  But DS_PUSH_MAYBE_VOID allows you to, in case you
         // are building a context varlist or similar.
         //
-        SET_ARR_FLAG(DS_Array, ARRAY_FLAG_VOIDS_LEGAL);
+        SET_SER_FLAG(DS_Array, ARRAY_FLAG_VOIDS_LEGAL);
 
         // Reuse the expansion logic that happens on a DS_PUSH to get the
         // initial stack size.  It requires you to be on an END to run.  Then
@@ -347,27 +347,25 @@ void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
 
     REBCTX *context;
     if (f->varlist != NULL) {
-        assert(!GET_ARR_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
+        assert(NOT_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
 
         // We have our function call's args in an array, but it is not yet
         // a context.  !!! Really this cannot reify if we're in arg gathering
         // mode, calling MANAGE_ARRAY is illegal -- need test for that !!!
 
         assert(IS_TRASH_DEBUG(ARR_AT(f->varlist, 0))); // we fill this in
-        assert(GET_ARR_FLAG(f->varlist, SERIES_FLAG_HAS_DYNAMIC));
+        assert(GET_SER_INFO(f->varlist, SERIES_INFO_HAS_DYNAMIC));
 
         context = AS_CONTEXT(f->varlist);
     }
     else {
         f->varlist = Alloc_Singular_Array();
+        SET_SER_FLAG(f->varlist, CONTEXT_FLAG_STACK);
 
         context = AS_CONTEXT(f->varlist);
-
-        SET_CTX_FLAG(context, CONTEXT_FLAG_STACK);
-        assert(!GET_CTX_FLAG(context, SERIES_FLAG_INACCESSIBLE));
     }
 
-    SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_VARLIST);
+    SET_SER_FLAG(CTX_VARLIST(context), ARRAY_FLAG_VARLIST);
 
     // We do not Manage_Context, because we are reusing a word series here
     // that has already been managed.  The arglist array was managed when
@@ -399,7 +397,7 @@ void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
     // user function.
     //
     if (NOT(IS_FUNCTION_INTERPRETED(FUNC_VALUE(f->func))))
-        SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_LOCKED);
+        SET_SER_INFO(CTX_VARLIST(context), SERIES_INFO_LOCKED);
 
     MANAGE_ARRAY(f->varlist);
 
@@ -411,5 +409,6 @@ void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
     //
     if (NOT(Is_Function_Frame_Fulfilling(f)))
         ASSERT_CONTEXT(context);
+    assert(!IS_INACCESSIBLE(context));
 #endif
 }

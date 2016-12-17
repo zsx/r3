@@ -95,9 +95,6 @@ struct Reb_Header {
     REBUPT bits;
 };
 
-#define HEADERFLAG(n) \
-    FLAGIT_LEFT(n)
-
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -120,7 +117,7 @@ struct Reb_Header {
 // heuristics to guess which it is when providing diagnostics.
 //
 #define NODE_FLAG_VALID \
-    HEADERFLAG(0)
+    FLAGIT_LEFT(0)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -145,7 +142,7 @@ struct Reb_Header {
 // It's only valid to overwrite end markers when NODE_FLAG_CELL is set.
 //
 #define NODE_FLAG_END \
-    HEADERFLAG(1)
+    FLAGIT_LEFT(1)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -169,7 +166,7 @@ struct Reb_Header {
 // while paring values have it set.
 //
 #define NODE_FLAG_CELL \
-    HEADERFLAG(2)
+    FLAGIT_LEFT(2)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -188,7 +185,7 @@ struct Reb_Header {
 // before the evaluation that created it ends).
 //
 #define NODE_FLAG_MANAGED \
-    HEADERFLAG(3)
+    FLAGIT_LEFT(3)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -200,12 +197,12 @@ struct Reb_Header {
 // This flag is used by the mark-and-sweep of the garbage collector, and
 // should not be referenced outside of %m-gc.c.
 //
-// See `REBSER_FLAG_BLACK` for a generic bit available to other routines
+// See `SERIES_INFO_BLACK` for a generic bit available to other routines
 // that wish to have an arbitrary marker on series (for things like
 // recursion avoidance in algorithms).
 //
 #define NODE_FLAG_MARKED \
-    HEADERFLAG(4)
+    FLAGIT_LEFT(4)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -224,12 +221,13 @@ struct Reb_Header {
 // non-key that has it...but the consequences may be more sinister.
 //
 #define NODE_FLAG_ROOT \
-    HEADERFLAG(5)
+    FLAGIT_LEFT(5)
 
 
-// v-- BEGIN GENERAL VALUE BITS HERE
+// v-- BEGIN GENERAL VALUE AND SERIES BITS WITH THIS INDEX
 
 #define GENERAL_VALUE_BIT 6
+#define GENERAL_SERIES_BIT 6
 
 
 //=////////////////////////////////////////////////////////////////////////=//

@@ -80,7 +80,7 @@ emit-item: proc [
     name: to-c-name name
     if upper [uppercase name]
     either assign [
-        emit-line/indent [name space "=" num ","]
+        emit-line/indent [name space "=" space num ","]
     ][
         emit-line/indent [name ","]
     ]

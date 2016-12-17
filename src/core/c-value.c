@@ -126,7 +126,7 @@ void Assert_Cell_Writable(const RELVAL *v, const char *file, int line)
 //
 void SET_END_Debug(RELVAL *v, const char *file, int line) {
     ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
-    (v)->header.bits = HEADERIZE_KIND(REB_0) | FLAGVAL_FIRST(255);
+    (v)->header.bits = HEADERIZE_KIND(REB_0) | FLAGBYTE_FIRST(255);
     Set_Track_Payload_Debug(v, file, line);
 }
 
@@ -180,7 +180,7 @@ REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
         //
         // Basic sanity check: make sure it's a context at all
         //
-        if (!GET_CTX_FLAG(specific, ARRAY_FLAG_VARLIST)) {
+        if (NOT_SER_FLAG(CTX_VARLIST(specific), ARRAY_FLAG_VARLIST)) {
             printf("Non-CONTEXT found as specifier in specific value\n");
             panic (specific); // may not be a series, either
         }

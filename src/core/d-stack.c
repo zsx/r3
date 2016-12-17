@@ -674,10 +674,8 @@ return_maybe_set_number_out:
 //
 REBOOL Is_Context_Running_Or_Pending(REBCTX *frame_ctx)
 {
-    if (GET_CTX_FLAG(frame_ctx, SERIES_FLAG_INACCESSIBLE)) {
-        assert(GET_CTX_FLAG(frame_ctx, CONTEXT_FLAG_STACK));
+    if (IS_INACCESSIBLE(frame_ctx))
         return FALSE;
-    }
 
     REBFRM *f = CTX_FRAME(frame_ctx);
 
@@ -704,10 +702,8 @@ REBNATIVE(running_q)
     INCLUDE_PARAMS_OF_RUNNING_Q;
 
     REBCTX *frame_ctx = VAL_CONTEXT(ARG(frame));
-    if (GET_CTX_FLAG(frame_ctx, SERIES_FLAG_INACCESSIBLE)) {
-        assert(GET_CTX_FLAG(frame_ctx, CONTEXT_FLAG_STACK));
+    if (IS_INACCESSIBLE(frame_ctx))
         return R_FALSE;
-    }
 
     REBFRM *f = CTX_FRAME(frame_ctx);
 
@@ -734,10 +730,8 @@ REBNATIVE(pending_q)
     INCLUDE_PARAMS_OF_PENDING_Q;
 
     REBCTX *frame_ctx = VAL_CONTEXT(ARG(frame));
-    if (GET_CTX_FLAG(frame_ctx, SERIES_FLAG_INACCESSIBLE)) {
-        assert(GET_CTX_FLAG(frame_ctx, CONTEXT_FLAG_STACK));
+    if (IS_INACCESSIBLE(frame_ctx))
         return R_FALSE;
-    }
 
     REBFRM *f = CTX_FRAME(frame_ctx);
 

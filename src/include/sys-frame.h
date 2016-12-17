@@ -527,7 +527,7 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(REBFRM *f) {
         //
         f->varlist = Make_Array(num_args + 1);
         TERM_ARRAY_LEN(f->varlist, num_args + 1);
-        SET_ARR_FLAG(f->varlist, SERIES_FLAG_FIXED_SIZE);
+        SET_SER_FLAG(f->varlist, SERIES_FLAG_FIXED_SIZE);
 
         // Skip the [0] slot which will be filled with the CTX_VALUE
         // !!! Note: Make_Array made the 0 slot an end marker
@@ -635,7 +635,7 @@ inline static void Drop_Function_Args_For_Frame_Core(
             goto finished;
     }
 
-    assert(GET_ARR_FLAG(f->varlist, SERIES_FLAG_ARRAY));
+    assert(GET_SER_FLAG(f->varlist, SERIES_FLAG_ARRAY));
 
     if (NOT(IS_ARRAY_MANAGED(f->varlist))) {
         //
@@ -653,24 +653,24 @@ inline static void Drop_Function_Args_For_Frame_Core(
 
     ASSERT_ARRAY_MANAGED(f->varlist);
 
-    if (NOT(GET_ARR_FLAG(f->varlist, CONTEXT_FLAG_STACK))) {
+    if (NOT(GET_SER_FLAG(f->varlist, CONTEXT_FLAG_STACK))) {
         //
         // If there's no stack memory being tracked by this context, it
         // has dynamic memory and is being managed by the garbage collector
         // so there's nothing to do.
         //
-        assert(GET_ARR_FLAG(f->varlist, SERIES_FLAG_HAS_DYNAMIC));
+        assert(GET_SER_INFO(f->varlist, SERIES_INFO_HAS_DYNAMIC));
         goto finished;
     }
 
     // It's reified but has its data pointer into the chunk stack, which
     // means we have to free it and mark the array inaccessible.
 
-    assert(GET_ARR_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
-    assert(NOT(GET_ARR_FLAG(f->varlist, SERIES_FLAG_HAS_DYNAMIC)));
+    assert(GET_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
+    assert(NOT_SER_INFO(f->varlist, SERIES_INFO_HAS_DYNAMIC));
 
-    assert(!GET_ARR_FLAG(f->varlist, SERIES_FLAG_INACCESSIBLE));
-    SET_ARR_FLAG(f->varlist, SERIES_FLAG_INACCESSIBLE);
+    assert(NOT_SER_INFO(f->varlist, SERIES_INFO_INACCESSIBLE));
+    SET_SER_INFO(f->varlist, SERIES_INFO_INACCESSIBLE);
 
 finished:
 
@@ -688,7 +688,7 @@ inline static REBCTX *Context_For_Frame_May_Reify_Managed(REBFRM *f)
 {
     assert(NOT(Is_Function_Frame_Fulfilling(f)));
 
-    if (f->varlist == NULL || !GET_ARR_FLAG(f->varlist, ARRAY_FLAG_VARLIST))
+    if (f->varlist == NULL || NOT_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST))
         Reify_Frame_Context_Maybe_Fulfilling(f); // it's not fulfilling, here
 
     return AS_CONTEXT(f->varlist);

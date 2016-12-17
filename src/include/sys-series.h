@@ -80,17 +80,20 @@
 
 
 //
-// Series flags
+// Series header FLAGs (distinct from INFO bits)
 //
 
 #define SET_SER_FLAG(s,f) \
-    cast(void, ((s)->info.bits |= cast(REBUPT, f)))
+    cast(void, (AS_SERIES(s)->header.bits |= cast(REBUPT, (f))))
 
 #define CLEAR_SER_FLAG(s,f) \
-    cast(void, ((s)->info.bits &= ~cast(REBUPT, f)))
+    cast(void, (AS_SERIES(s)->header.bits &= ~cast(REBUPT, (f))))
 
 #define GET_SER_FLAG(s,f) \
-    LOGICAL((s)->info.bits & (f))
+    LOGICAL(AS_SERIES(s)->header.bits & (f))
+
+#define NOT_SER_FLAG(s,f) \
+    NOT(AS_SERIES(s)->header.bits & (f))
 
 #define SET_SER_FLAGS(s,f) \
     SET_SER_FLAG((s), (f))
@@ -100,47 +103,64 @@
 
 
 //
+// Series INFO bits (distinct from header FLAGs)
+//
+
+#define SET_SER_INFO(s,f) \
+    cast(void, (AS_SERIES(s)->info.bits |= cast(REBUPT, f)))
+
+#define CLEAR_SER_INFO(s,f) \
+    cast(void, (AS_SERIES(s)->info.bits &= ~cast(REBUPT, f)))
+
+#define GET_SER_INFO(s,f) \
+    LOGICAL(AS_SERIES(s)->info.bits & (f))
+
+#define NOT_SER_INFO(s,f) \
+    NOT(AS_SERIES(s)->info.bits & (f))
+
+#define SET_SER_INFOS(s,f) \
+    SET_SER_INFO((s), (f))
+
+#define CLEAR_SER_INFOS(s,f) \
+    CLEAR_SER_INFO((s), (f))
+
+
+//
 // The mechanics of the macros that get or set the length of a series are a
 // little bit complicated.  This is due to the optimization that allows data
 // which is sizeof(REBVAL) or smaller to fit directly inside the series node.
 //
 // If a series is not "dynamic" (e.g. has a full pooled allocation) then its
-// length is stored in the header...where the "type" bits would be if it
-// were a REBVAL.  But if a series is dynamically allocated out of the memory
-// pools, then without the data itself taking up the "content", there's room
-// for a length in the node.
+// length is stored in the header.  But if a series is dynamically allocated
+// out of the memory pools, then without the data itself taking up the
+// "content", there's room for a length in the node.
 //
 
 #define SER_WIDE(s) \
-    ((REBYTE)((s)->info.bits >> 16) & 0xff) // no use to inline in debug build
+    RIGHT_8_BITS((s)->info.bits) // inlining unnecessary
 
 inline static REBCNT SER_LEN(REBSER *s) {
-    if (GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC))
-        return s->content.dynamic.len;
-
-    // Length is stored in the header if it is dynamic, in what would be the
-    // "type" bits were it a value.  The same optimization is available in
-    // that it can just be shifted out.
-
-    return RIGHT_N_BITS(s->header.bits, NUM_KIND_BITS); // !!! NUM_LEN_BITS
+    return GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)
+        ? s->content.dynamic.len
+        : MID_8_BITS(s->info.bits);
 }
 
 inline static void SET_SERIES_LEN(REBSER *s, REBCNT len) {
-    assert(!GET_SER_FLAG(s, CONTEXT_FLAG_STACK));
+    assert(NOT_SER_FLAG(s, CONTEXT_FLAG_STACK));
 
-    if (GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)) {
+    if (GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)) {
         s->content.dynamic.len = len;
     }
     else {
         assert(len < sizeof(s->content));
-        CLEAR_N_RIGHT_BITS(s->header.bits, NUM_KIND_BITS); // !!! NUM_LEN_BITS
-        s->header.bits |= FLAGVAL_RIGHT(len);
+        CLEAR_8_MID_BITS(s->info.bits);
+        s->info.bits |= FLAGBYTE_MID(len);
         assert(SER_LEN(s) == len);
     }
 }
 
 inline static REBCNT SER_REST(REBSER *s) {
-    if (GET_SER_FLAG((s), SERIES_FLAG_HAS_DYNAMIC))
+    if (GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC))
         return s->content.dynamic.rest;
 
     if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY))
@@ -156,7 +176,7 @@ inline static REBCNT SER_REST(REBSER *s) {
 //
 inline static REBYTE *SER_DATA_RAW(REBSER *s) {
     // if updating, also update manual inlining in SER_AT_RAW
-    return GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)
+    return GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)
         ? s->content.dynamic.data
         : cast(REBYTE*, &s->content);
 }
@@ -175,14 +195,14 @@ inline static REBYTE *SER_AT_RAW(REBYTE w, REBSER *s, REBCNT i) {
 #endif
 
     return ((w) * (i)) + ( // v-- inlining of SER_DATA_RAW
-        GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)
+        GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)
             ? s->content.dynamic.data
             : cast(REBYTE*, &s->content)
         );
 }
 
 inline static void SER_SET_EXTERNAL_DATA(REBSER *s, void *p) {
-    SET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC);
+    SET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC);
     s->content.dynamic.data = cast(REBYTE*, p);
 }
 
@@ -231,7 +251,7 @@ inline static REBYTE *SER_LAST_RAW(size_t w, REBSER *s) {
     GET_SER_FLAG((s), SERIES_FLAG_ARRAY)
 
 inline static void FAIL_IF_LOCKED_SERIES(REBSER *s) {
-    if (GET_SER_FLAG(s, SERIES_FLAG_LOCKED))
+    if (GET_SER_INFO(s, SERIES_INFO_LOCKED))
         fail (Error(RE_LOCKED));
 }
 
@@ -357,24 +377,24 @@ inline static void ENSURE_SERIES_MANAGED(REBSER *s) {
 //
 
 static inline REBOOL Is_Series_Black(REBSER *s) {
-    return LOGICAL(s->header.bits & REBSER_FLAG_BLACK);
+    return GET_SER_INFO(s, SERIES_INFO_BLACK);
 }
 
 static inline REBOOL Is_Series_White(REBSER *s) {
-    return NOT(s->header.bits & REBSER_FLAG_BLACK);
+    return NOT(GET_SER_INFO(s, SERIES_INFO_BLACK));
 }
 
 static inline void Flip_Series_To_Black(REBSER *s) {
-    assert(NOT(s->header.bits & REBSER_FLAG_BLACK));
-    s->header.bits |= REBSER_FLAG_BLACK;
+    assert(NOT_SER_INFO(s, SERIES_INFO_BLACK));
+    SET_SER_INFO(s, SERIES_INFO_BLACK);
 #if !defined(NDEBUG)
     ++TG_Num_Black_Series;
 #endif
 }
 
 static inline void Flip_Series_To_White(REBSER *s) {
-    assert(s->header.bits & REBSER_FLAG_BLACK);
-    s->header.bits &= ~cast(REBUPT, REBSER_FLAG_BLACK);
+    assert(GET_SER_INFO(s, SERIES_INFO_BLACK));
+    CLEAR_SER_INFO(s, SERIES_INFO_BLACK);
 #if !defined(NDEBUG)
     --TG_Num_Black_Series;
 #endif
@@ -417,7 +437,7 @@ inline static void PUSH_GUARD_SERIES(REBSER *s) {
 }
 
 inline static void DROP_GUARD_SERIES(REBSER *s) {
-    assert(GET_SER_FLAG(GC_Guarded, SERIES_FLAG_HAS_DYNAMIC));
+    assert(GET_SER_INFO(GC_Guarded, SERIES_INFO_HAS_DYNAMIC));
     assert(s == *SER_LAST(REBSER*, GC_Guarded));
     GC_Guarded->content.dynamic.len--;
 }
@@ -427,7 +447,7 @@ inline static void PUSH_GUARD_VALUE(RELVAL *v) {
 }
 
 inline static void DROP_GUARD_VALUE(RELVAL *v) {
-    assert(GET_SER_FLAG(GC_Guarded, SERIES_FLAG_HAS_DYNAMIC));
+    assert(GET_SER_INFO(GC_Guarded, SERIES_INFO_HAS_DYNAMIC));
     assert(v == *SER_LAST(RELVAL*, GC_Guarded));
     GC_Guarded->content.dynamic.len--;
 }

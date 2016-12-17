@@ -41,13 +41,8 @@
 
 // Is it a byte-sized series?
 //
-// !!! This trick in R3-Alpha "works because no other odd size allowed".  Is
-// it worth it to prohibit odd sizes for this trick?  An assertion that the
-// size is not odd was added to Make_Series; reconsider if this becomes an
-// issue at some point.
-//
 #define BYTE_SIZE(s) \
-    LOGICAL(((s)->info.bits) & (1 << 16))
+    LOGICAL(SER_WIDE(s) == 1)
 
 
 //

@@ -247,7 +247,7 @@ REBNATIVE(make_native)
 
     REBARR *info = Make_Array(3); // [source name tcc_state]
 
-    if (GET_SER_FLAG(VAL_SERIES(source), SERIES_FLAG_LOCKED))
+    if (GET_SER_INFO(VAL_SERIES(source), SERIES_INFO_LOCKED))
         Append_Value(info, source); // no need to copy it...
     else {
         // have to copy it (might change before COMPILE is called)
@@ -265,7 +265,7 @@ REBNATIVE(make_native)
     if (REF(linkname)) {
         REBVAL *name = ARG(name);
 
-        if (GET_SER_FLAG(VAL_SERIES(name), SERIES_FLAG_LOCKED))
+        if (GET_SER_INFO(VAL_SERIES(name), SERIES_INFO_LOCKED))
             Append_Value(info, name);
         else {
             Val_Init_String(

@@ -1882,7 +1882,7 @@ exit_block:
     //
 #if !defined(NDEBUG)
     if (LEGACY(OPTIONS_REFINEMENTS_BLANK))
-        SET_ARR_FLAG(result, SERIES_FLAG_LEGACY);
+        SET_SER_FLAG(result, SERIES_FLAG_LEGACY);
 #endif
 
     return result;

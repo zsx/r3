@@ -793,7 +793,7 @@ reevaluate:;
                 //
                 if (
                     f->varlist == NULL
-                    || !GET_ARR_FLAG(f->varlist, ARRAY_FLAG_VARLIST)
+                    || NOT_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST)
                 ){
                     // Don't use ordinary call to Context_For_Frame_May_Reify
                     // because this special case allows reification even

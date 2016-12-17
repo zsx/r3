@@ -354,16 +354,16 @@ REB_R Destroy_External_Storage(
     REBSER *ser,
     REBVAL *free_func
 ) {
-    if (!GET_SER_FLAG(ser, SERIES_FLAG_EXTERNAL))
+    if (NOT_SER_INFO(ser, SERIES_INFO_EXTERNAL))
         fail (Error(RE_NO_EXTERNAL_STORAGE));
 
     REBVAL pointer;
     SET_INTEGER(&pointer, cast(REBUPT, SER_DATA_RAW(ser)));
 
-    if (GET_SER_FLAG(ser, SERIES_FLAG_INACCESSIBLE))
+    if (GET_SER_INFO(ser, SERIES_INFO_INACCESSIBLE))
         fail (Error(RE_ALREADY_DESTROYED, pointer));
 
-    SET_SER_FLAG(ser, SERIES_FLAG_INACCESSIBLE);
+    SET_SER_INFO(ser, SERIES_INFO_INACCESSIBLE);
 
     if (free_func != NULL) {
         if (Do_Va_Throws(out, free_func, &pointer, END_CELL))

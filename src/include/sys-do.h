@@ -143,8 +143,8 @@ inline static void PUSH_CALL(REBFRM *f)
     f->prior = TG_Frame_Stack;
     TG_Frame_Stack = f;
     if (NOT(f->flags.bits & DO_FLAG_VA_LIST))
-        if (!GET_ARR_FLAG(f->source.array, SERIES_FLAG_LOCKED)) {
-            SET_ARR_FLAG(f->source.array, SERIES_FLAG_LOCKED);
+        if (NOT_SER_INFO(f->source.array, SERIES_INFO_LOCKED)) {
+            SET_SER_INFO(f->source.array, SERIES_INFO_LOCKED);
             f->flags.bits |= DO_FLAG_TOOK_FRAME_LOCK;
         }
 }
@@ -156,8 +156,8 @@ inline static void UPDATE_EXPRESSION_START(REBFRM *f) {
 
 inline static void DROP_CALL(REBFRM *f) {
     if (f->flags.bits & DO_FLAG_TOOK_FRAME_LOCK) {
-        assert(GET_ARR_FLAG(f->source.array, SERIES_FLAG_LOCKED));
-        CLEAR_ARR_FLAG(f->source.array, SERIES_FLAG_LOCKED);
+        assert(GET_SER_INFO(f->source.array, SERIES_INFO_LOCKED));
+        CLEAR_SER_INFO(f->source.array, SERIES_INFO_LOCKED);
     }
     assert(TG_Frame_Stack == f);
     TG_Frame_Stack = f->prior;
@@ -969,15 +969,15 @@ inline static void Reify_Va_To_Array_In_Frame(
         f->source.array = Pop_Stack_Values(dsp_orig); // may contain voids
         MANAGE_ARRAY(f->source.array); // held alive while frame running
 
-        SET_ARR_FLAG(f->source.array, SERIES_FLAG_LOCKED);
-        SET_ARR_FLAG(f->source.array, ARRAY_FLAG_VOIDS_LEGAL);
+        SET_SER_INFO(f->source.array, SERIES_INFO_LOCKED);
+        SET_SER_FLAG(f->source.array, ARRAY_FLAG_VOIDS_LEGAL);
         f->flags.bits |= DO_FLAG_TOOK_FRAME_LOCK;
     }
     else {
         // The series needs to be locked during Do_Core, but it doesn't have
         // to be unique.  Use empty array but don't say we locked it.
 
-        assert(GET_ARR_FLAG(EMPTY_ARRAY, SERIES_FLAG_LOCKED));
+        assert(GET_SER_INFO(EMPTY_ARRAY, SERIES_INFO_LOCKED));
         f->source.array = EMPTY_ARRAY;
     }
 

@@ -419,7 +419,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             typeset,
             (flags & MKF_ANY_VALUE)
                 ? ALL_64
-                : ALL_64 & ~(FLAGIT_64(REB_MAX_VOID) | FLAGIT_64(REB_FUNCTION)),
+                : ALL_64 & ~(FLAGIT_KIND(REB_MAX_VOID) | FLAGIT_KIND(REB_FUNCTION)),
             VAL_WORD_SPELLING(item)
         );
 
@@ -472,21 +472,21 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                     : PARAM_CLASS_NORMAL
             );
             if (refinement_seen)
-                VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_MAX_VOID);
+                VAL_TYPESET_BITS(typeset) |= FLAGIT_KIND(REB_MAX_VOID);
             break;
 
         case REB_GET_WORD:
             assert(mode == SPEC_MODE_NORMAL);
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_HARD_QUOTE);
             if (refinement_seen)
-                VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_MAX_VOID);
+                VAL_TYPESET_BITS(typeset) |= FLAGIT_KIND(REB_MAX_VOID);
             break;
 
         case REB_LIT_WORD:
             assert(mode == SPEC_MODE_NORMAL);
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_SOFT_QUOTE);
             if (refinement_seen)
-                VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_MAX_VOID);
+                VAL_TYPESET_BITS(typeset) |= FLAGIT_KIND(REB_MAX_VOID);
             break;
 
         case REB_REFINEMENT:
@@ -550,7 +550,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             REBSTR *canon_leave = Canon(SYM_LEAVE);
 
             DS_PUSH_TRASH;
-            Val_Init_Typeset(DS_TOP, FLAGIT_64(REB_MAX_VOID), canon_leave);
+            Val_Init_Typeset(DS_TOP, FLAGIT_KIND(REB_MAX_VOID), canon_leave);
             INIT_VAL_PARAM_CLASS(DS_TOP, PARAM_CLASS_LEAVE);
             definitional_leave = DS_TOP;
 
@@ -593,7 +593,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 || NOT(has_description || has_types || has_notes)
                     ? ALL_64
                     : ALL_64 & ~(
-                        FLAGIT_64(REB_MAX_VOID) | FLAGIT_64(REB_FUNCTION)
+                        FLAGIT_KIND(REB_MAX_VOID) | FLAGIT_KIND(REB_FUNCTION)
                     ),
                 canon_return
             );
@@ -706,7 +706,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         // protecting the whole array?  (It will be changed more by the
         // caller, but after that.)
         //
-        SET_ARR_FLAG(paramlist, SERIES_FLAG_FIXED_SIZE);
+        SET_SER_FLAG(paramlist, SERIES_FLAG_FIXED_SIZE);
     }
 
     //=///////////////////////////////////////////////////////////////////=//
@@ -743,7 +743,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //
     if (has_types) {
         REBARR *types_varlist = Make_Array(num_slots);
-        SET_ARR_FLAG(types_varlist, ARRAY_FLAG_VARLIST);
+        SET_SER_FLAG(types_varlist, ARRAY_FLAG_VARLIST);
         INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(types_varlist), paramlist);
 
         REBVAL *dest = SINK(ARR_HEAD(types_varlist)); // "rootvar"
@@ -800,7 +800,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //
     if (has_notes) {
         REBARR *notes_varlist = Make_Array(num_slots);
-        SET_ARR_FLAG(notes_varlist, ARRAY_FLAG_VARLIST);
+        SET_SER_FLAG(notes_varlist, ARRAY_FLAG_VARLIST);
         INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(notes_varlist), paramlist);
 
         REBVAL *dest = SINK(ARR_HEAD(notes_varlist)); // "rootvar"
@@ -854,7 +854,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //
     DS_DROP_TO(dsp_orig);
 
-    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
+    SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     return paramlist;
 }
 
@@ -1022,11 +1022,13 @@ REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
 {
     REBARR *varlist = Alloc_Singular_Array();
     SET_BLANK(ARR_HEAD(varlist));
-    SET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST);
+    SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
     MANAGE_ARRAY(varlist);
+    SET_SER_FLAG(varlist, CONTEXT_FLAG_STACK);
+
+    SET_SER_INFO(varlist, SERIES_INFO_INACCESSIBLE);
 
     REBCTX *expired = AS_CONTEXT(varlist);
-    SET_CTX_FLAG(expired, CONTEXT_FLAG_STACK); // don't set FLAG_ACCESSIBLE
 
     INIT_CTX_KEYLIST_SHARED(expired, FUNC_PARAMLIST(func));
 
@@ -1227,8 +1229,8 @@ REBFUN *Make_Interpreted_Function_May_Fail(
     //
     if (
         LEGACY_RUNNING(OPTIONS_REFINEMENTS_BLANK)
-        || GET_ARR_FLAG(VAL_ARRAY(spec), SERIES_FLAG_LEGACY)
-        || GET_ARR_FLAG(VAL_ARRAY(code), SERIES_FLAG_LEGACY)
+        || GET_SER_FLAG(VAL_ARRAY(spec), SERIES_FLAG_LEGACY)
+        || GET_SER_FLAG(VAL_ARRAY(code), SERIES_FLAG_LEGACY)
     ) {
         SET_VAL_FLAG(FUNC_VALUE(fun), FUNC_FLAG_LEGACY_DEBUG);
     }
@@ -1254,7 +1256,7 @@ REBFUN *Make_Interpreted_Function_May_Fail(
         0, // start protection at index 0
         FLAGIT(PROT_DEEP) | FLAGIT(PROT_SET)
     );
-    assert(GET_ARR_FLAG(VAL_ARRAY(body), SERIES_FLAG_LOCKED));
+    assert(GET_SER_INFO(VAL_ARRAY(body), SERIES_INFO_LOCKED));
     Uncolor_Array(VAL_ARRAY(body));
 
     return fun;
@@ -1280,8 +1282,8 @@ REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     // would immediately become useless.  Allocate dynamically.
     //
     REBARR *varlist = Make_Array(ARR_LEN(FUNC_PARAMLIST(func)));
-    SET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST);
-    SET_ARR_FLAG(varlist, SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
+    SET_SER_FLAG(varlist, SERIES_FLAG_FIXED_SIZE);
 
     // Fill in the rootvar information for the context canon REBVAL
     //
@@ -1359,7 +1361,7 @@ REBOOL Specialize_Function_Throws(
         REBARR *varlist = Copy_Array_Deep_Managed(
             CTX_VARLIST(exemplar), SPECIFIED
         );
-        SET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST);
+        SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
         INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(varlist), CTX_KEYLIST(exemplar));
 
         exemplar = AS_CONTEXT(varlist); // okay, now make exemplar our copy
@@ -1423,7 +1425,7 @@ REBOOL Specialize_Function_Throws(
     }
 
     REBARR *paramlist = Pop_Stack_Values(dsp_orig);
-    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
+    SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
 
     RELVAL *rootparam = ARR_HEAD(paramlist);
@@ -1510,7 +1512,7 @@ void Clonify_Function(REBVAL *value)
         FUNC_PARAMLIST(original_fun),
         SPECIFIED
     );
-    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
+    SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
     ARR_HEAD(paramlist)->payload.function.paramlist = paramlist;
 

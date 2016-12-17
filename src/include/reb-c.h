@@ -766,9 +766,6 @@ typedef REBUPT REBFLGS;
 #define FLAGIT(f) \
     ((REBUPT)1 << (f))
 
-#define FLAGIT_64(n) \
-    ((REBU64)1 << (n))
-
  // !!! These are leftovers from old code which used integers instead of
 // masks to indicate flags.  Using masks then it's easy enough to read using
 // C's plain bit masking operators.
@@ -799,7 +796,7 @@ typedef REBUPT REBFLGS;
 // from the left.  These form single optimized constants, which can be
 // assigned to an integer.  They can be masked or shifted out efficiently:
 //
-//    REBFLGS flags = FLAGIT_LEFT(0) | FLAGIT_LEFT(1) | FLAGVAL_RIGHT(13);
+//    REBFLGS flags = FLAGIT_LEFT(0) | FLAGIT_LEFT(1) | FLAGBYTE_RIGHT(13);
 //
 //    REBCNT left = LEFT_N_BITS(flags, 3); // == 6 (binary `110`)
 //    REBCNT right = RIGHT_N_BITS(flags, 3); // == 5 (binary `101`)
@@ -833,28 +830,40 @@ typedef REBUPT REBFLGS;
     #define FLAGIT_LEFT(n) \
         ((REBUPT)1 << PLATFORM_BITS - (n) - 1) // 63,62,61.. or 32,31,30..
 
-    #define FLAGVAL_FIRST(val) \
+    #define FLAGBYTE_FIRST(val) \
         ((REBUPT)val << PLATFORM_BITS - 8) // val <= 255
 
-    #define FLAGVAL_RIGHT(val) \
+    #define FLAGBYTE_RIGHT(val) \
         ((REBUPT)val) // little endian needs val <= 255
 
-    #define FLAGVAL_MID(val) \
+    #define FLAGBYTE_MID(val) \
         (((REBUPT)val) << 8) // little endian needs val <= 255
+
+    #define FLAGUINT16_RIGHT(val) \
+        ((REBUPT)val) // litte endian needs val <= 65535
+
+    #define RIGHT_16_BITS(flags) \
+        ((flags) & 0xFFFF)
 
 #elif defined(ENDIAN_LITTLE) // Byte w/least significant bit first (e.g. x86)
 
     #define FLAGIT_LEFT(n) \
         ((REBUPT)1 << 7 + ((n) / 8) * 8 - (n) % 8) // 7,6,5..0,15,14..8,23..
 
-    #define FLAGVAL_FIRST(val) \
+    #define FLAGBYTE_FIRST(val) \
         ((REBUPT)val) // val <= 255
 
-    #define FLAGVAL_RIGHT(val) \
+    #define FLAGBYTE_RIGHT(val) \
         ((REBUPT)(val) << (PLATFORM_BITS - 8)) // val <= 255
 
-    #define FLAGVAL_MID(val) \
+    #define FLAGBYTE_MID(val) \
         ((REBUPT)(val) << (PLATFORM_BITS - 16)) // val <= 255
+
+    #define FLAGUINT16_RIGHT(val) \
+        ((REBUPT)(val) << (PLATFORM_BITS - 16))
+
+    #define RIGHT_16_BITS(flags) \
+        ((flags) >> (PLATFORM_BITS - 16)) // unsigned, should zero fill left
 #else
     // !!! There are macro hacks which can actually make reasonable guesses
     // at endianness, and should probably be used in the config if nothing is
@@ -886,14 +895,30 @@ typedef REBUPT REBFLGS;
 #define RIGHT_N_BITS(flags,n) \
     (((REBYTE*)&flags)[sizeof(REBUPT) - 1] & ((1 << (n)) - 1)) // n <= 8
 
+#define RIGHT_8_BITS(flags) \
+    (((REBYTE*)&flags)[sizeof(REBUPT) - 1]) // reminds that 8 is faster
+
 #define CLEAR_N_RIGHT_BITS(flags,n) \
     (((REBYTE*)&flags)[sizeof(REBUPT) - 1] &= ~((1 << (n)) - 1)) // n <= 8
+
+#define CLEAR_8_RIGHT_BITS(flags) \
+    (((REBYTE*)&flags)[sizeof(REBUPT) - 1] = 0) // reminds that 8 is faster
 
 #define MID_N_BITS(flags,n) \
     (((REBYTE*)&flags)[sizeof(REBUPT) - 2] & ((1 << (n)) - 1)) // n <= 8
 
+#define MID_8_BITS(flags) \
+    (((REBYTE*)&flags)[sizeof(REBUPT) - 2]) // reminds that 8 is faster
+
 #define CLEAR_N_MID_BITS(flags,n) \
-    (((REBYTE*)&flags)[sizeof(REBUPT) - 2] &= ~((1 << (n)) - 1)) // n <= 8      
+    (((REBYTE*)&flags)[sizeof(REBUPT) - 2] &= ~((1 << (n)) - 1)) // n <= 8
+
+#define CLEAR_8_MID_BITS(flags) \
+    (((REBYTE*)&flags)[sizeof(REBUPT) - 2] = 0) // reminds that 8 is faster
+
+#define CLEAR_16_RIGHT_BITS(flags) \
+    (((REBYTE*)&flags)[sizeof(REBUPT) - 1] = \
+        ((REBYTE*)&flags)[sizeof(REBUPT) - 2] = 0)
 
 
 

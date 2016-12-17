@@ -1015,7 +1015,7 @@ void Assert_Array_Core(REBARR *a)
     //
     Assert_Series_Core(ARR_SERIES(a));
 
-    if (NOT(GET_ARR_FLAG(a, SERIES_FLAG_ARRAY)))
+    if (NOT(GET_SER_FLAG(a, SERIES_FLAG_ARRAY)))
         panic (a);
 
     RELVAL *item = ARR_HEAD(a);
@@ -1030,7 +1030,7 @@ void Assert_Array_Core(REBARR *a)
     if (NOT_END(item))
         panic (item);
 
-    if (GET_ARR_FLAG(a, SERIES_FLAG_HAS_DYNAMIC)) {
+    if (GET_SER_INFO(a, SERIES_INFO_HAS_DYNAMIC)) {
         REBCNT rest = SER_REST(ARR_SERIES(a));
 
 #ifdef __cplusplus

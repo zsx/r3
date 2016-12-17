@@ -279,8 +279,8 @@ inline static REBVAL *Get_Var_Core(
 
     REBVAL *var;
 
-    if (GET_CTX_FLAG(context, CONTEXT_FLAG_STACK)) {
-        if (GET_CTX_FLAG(context, SERIES_FLAG_INACCESSIBLE)) {
+    if (GET_SER_FLAG(CTX_VARLIST(context), CONTEXT_FLAG_STACK)) {
+        if (IS_INACCESSIBLE(context)) {
             //
             // Currently if a context has a stack component, then the vars
             // are "all stack"...so when that level is popped, all the vars
@@ -358,7 +358,7 @@ inline static REBVAL *Get_Var_Core(
             // words, so if a solution were engineered for one it would
             // likely be able to apply to both.
             //
-            if (GET_CTX_FLAG(context, CONTEXT_FLAG_STACK))
+            if (GET_SER_FLAG(CTX_VARLIST(context), CONTEXT_FLAG_STACK))
                 fail (Error(RE_MISC));
 
             // Make sure if this context shares a keylist that we aren't

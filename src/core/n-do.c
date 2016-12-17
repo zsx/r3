@@ -248,7 +248,7 @@ REBNATIVE(do)
         // kind of frames that come in as "objects plus function the object
         // is for" flavor.
         //
-        assert(!GET_ARR_FLAG(
+        assert(NOT_SER_FLAG(
             CTX_VARLIST(VAL_CONTEXT(source)), CONTEXT_FLAG_STACK)
         );
 
