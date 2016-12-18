@@ -377,7 +377,7 @@ redescribe: function [
                 fail [{archetype META-OF doesn't have DESCRIPTION slot} meta]
             ]
 
-            not notes: any [:meta/parameter-notes] [
+            not notes: to-value :meta/parameter-notes [
                 return () ; specialized or adapted, HELP uses original notes
             ]
 
@@ -537,13 +537,13 @@ catch?: redescribe [
 any?: redescribe [
     {Shortcut OR, ignores voids. Unlike plain ANY, forces result to LOGIC!}
 ](
-    chain [:any :true?]
+    chain [:any | :to-value | :true?]
 )
 
 all?: redescribe [
     {Shortcut AND, ignores voids. Unlike plain ALL, forces result to LOGIC!}
 ](
-    chain [:all :true?]
+    chain [:all | func [x [<opt> any-value!]] [any [:x | true]]]
 )
 
 maybe?: redescribe [

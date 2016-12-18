@@ -51,8 +51,8 @@ save: function [
     length: :lib/length
 
     ; Default `method` and `header-data` to blank
-    method: any [:method]
-    header-data: any [:header-data]
+    method: to-value :method
+    header-data: to-value :header-data
 
     ;-- Special datatypes use codecs directly (e.g. PNG image file):
     if all [

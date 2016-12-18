@@ -384,21 +384,16 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
     INCLUDE_PARAMS_OF_FOR_EACH;
 
     REBVAL *data = ARG(data);
+    assert(!IS_VOID(data));
+
+    if (IS_BLANK(data))
+        return R_VOID;
 
     REBOOL stop = FALSE;
-    REBOOL every_true = TRUE; // need due to OPTIONS_NONE_INSTEAD_OF_VOIDS
     REBOOL threw = FALSE; // did a non-BREAK or non-CONTINUE throw occur
 
-    REBOOL q = FALSE; // !!! Currently, /? option is not passed in
-
     if (mode == LOOP_EVERY)
-        SET_TRUE(D_OUT); // Default output is TRUE, to match ALL MAP-EACH
-    else
-        SET_VOID(D_OUT); // Default output is void, for "body never ran"
-
-    assert(!IS_VOID(data));
-    if (IS_BLANK(data))
-        return R_OUT;
+        SET_END(D_CELL); // Final result is in D_CELL (last TRUE? or a BLANK!)
 
     REBCTX *context;
     REBARR *body_copy = Copy_Body_Deep_Bound_To_New_Context(
@@ -450,11 +445,13 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
         if (index >= SER_LEN(series)) {
             if (mode == LOOP_REMOVE_EACH) {
                 SET_INTEGER(D_OUT, 0);
+                return R_OUT;
             }
             else if (mode == LOOP_MAP_EACH) {
                 Val_Init_Block(D_OUT, Make_Array(0));
+                return R_OUT;
             }
-            return R_OUT_Q(q);
+            return R_VOID;
         }
     }
 
@@ -649,8 +646,10 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
             if (IS_VOID(D_OUT)) {
                 // Unsets "opt out" of the vote, as with ANY and ALL
             }
-            else
-                every_true = LOGICAL(every_true && IS_CONDITIONAL_TRUE(D_OUT));
+            else if (IS_CONDITIONAL_FALSE(D_OUT))
+                SET_BLANK(D_CELL); // at least one false means blank result
+            else if (IS_END(D_CELL) || !IS_BLANK(D_CELL))
+                *D_CELL = *D_OUT;
             break;
         default:
             assert(FALSE);
@@ -703,33 +702,29 @@ skip_hidden: ;
 
     switch (mode) {
     case LOOP_FOR_EACH:
-        // Returns last body result or /WITH of BREAK (or the /WITH of a
-        // CONTINUE if it turned out to be the last iteration)
-        return R_OUT_Q(q);
+        if (IS_END(D_OUT))
+            return R_VOID;
+        return R_OUT; // ran at least once
 
     case LOOP_REMOVE_EACH:
         // Remove hole (updates tail):
         if (write_index < index)
             Remove_Series(series, write_index, index - write_index);
         SET_INTEGER(D_OUT, index - write_index);
-        return R_OUT_Q(q);
+        return R_OUT;
 
     case LOOP_MAP_EACH:
         Val_Init_Block(D_OUT, Pop_Stack_Values(dsp_orig));
-        return R_OUT_Q(q);
+        return R_OUT;
 
     case LOOP_EVERY:
-        if (threw) return R_OUT_IS_THROWN;
+        if (threw)
+            return R_OUT_IS_THROWN;
 
-        // Result is the cumulative TRUE? state of all the input (with any
-        // unsets taken out of the consideration).  The last TRUE? input
-        // if all valid and NONE! otherwise.  (Like ALL.)
-        if (!every_true) return R_BLANK;
+        if (IS_END(D_CELL))
+            return R_VOID; // all evaluations opted out
 
-        // We want to act like `ALL MAP-EACH ...`, hence we effectively ignore
-        // unsets and return TRUE if the last evaluation leaves an unset.
-        if (IS_VOID(D_OUT)) return R_TRUE;
-
+        *D_OUT = *D_CELL;
         return R_OUT;
 
     default:
@@ -762,8 +757,6 @@ REBNATIVE(for)
 {
     INCLUDE_PARAMS_OF_FOR;
 
-    REBOOL q = FALSE; // !!! No /q refinement yet, and FOR may be going away
-
     REBCTX *context;
     REBARR *body_copy = Copy_Body_Deep_Bound_To_New_Context(
         &context,
@@ -774,6 +767,8 @@ REBNATIVE(for)
     Val_Init_Block(ARG(body), body_copy); // keep GC safe
 
     REBVAL *var = CTX_VAR(context, 1);
+
+    SET_VOID(D_OUT);
 
     if (
         IS_INTEGER(ARG(start))
@@ -827,7 +822,7 @@ REBNATIVE(for)
         }
     }
 
-    return R_OUT_Q(q);
+    return R_OUT;
 }
 
 
@@ -844,8 +839,6 @@ REBNATIVE(for)
 //          "Number of positions to skip each time"
 //      body [block!]
 //          "Block to evaluate each time"
-//      /?
-//          {Instead of last body result, return TRUE if body ever ran}
 //  ]
 //
 REBNATIVE(for_skip)
@@ -854,7 +847,7 @@ REBNATIVE(for_skip)
 // other reason, and the author didn't wish to special case to rule out zero...
 // generality may dictate allowing it.
 {
-    INCLUDE_PARAMS_OF_FOR_SKIP; // ? is renamed as "q"
+    INCLUDE_PARAMS_OF_FOR_SKIP;
 
     REBVAL *word = ARG(word);
 
@@ -862,7 +855,7 @@ REBNATIVE(for_skip)
     // opting out.  This could be useful, e.g. `for-next x (any ...) [...]`
     //
     if (IS_BLANK(word))
-        return R_OUT_Q(REF(q));
+        return R_VOID;
 
     REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word, SPECIFIED);
 
@@ -879,6 +872,8 @@ REBNATIVE(for_skip)
     //
     if (skip < 0 && VAL_INDEX(var) >= VAL_LEN_HEAD(var))
         VAL_INDEX(var) = VAL_LEN_HEAD(var) + skip;
+
+    SET_VOID(D_OUT);
 
     while (TRUE) {
         REBINT len = VAL_LEN_HEAD(var); // VAL_LEN_HEAD() always >= 0
@@ -910,7 +905,7 @@ REBNATIVE(for_skip)
         // removed it, only checking that it's a series.
         //
         if (IS_BLANK(var))
-            return R_OUT_Q(REF(q));
+            return R_OUT;
 
         if (!ANY_SERIES(var))
             fail (Error_Invalid_Arg(var));
@@ -920,7 +915,7 @@ REBNATIVE(for_skip)
 
 restore_var_and_return:
     *var = *word;
-    return R_OUT_Q(REF(q));
+    return R_OUT;
 }
 
 
@@ -1129,10 +1124,8 @@ REBNATIVE(repeat)
 
     REBVAL *value = ARG(value);
 
-    REBOOL q = FALSE; // !!! No /? passed in at the moment
-
     if (IS_BLANK(value))
-        return q ? R_FALSE : R_VOID;
+        return R_VOID;
 
     if (IS_DECIMAL(value) || IS_PERCENT(value))
         SET_INTEGER(value, Int64(value));
@@ -1149,6 +1142,8 @@ REBNATIVE(repeat)
     Val_Init_Object(ARG(word), context); // keep GC safe
     Val_Init_Block(ARG(body), copy); // keep GC safe
 
+    SET_VOID(D_OUT);
+
     if (ANY_SERIES(value)) {
         if (Loop_Series_Throws(
             D_OUT, var, copy, value, VAL_LEN_HEAD(value) - 1, 1
@@ -1156,16 +1151,16 @@ REBNATIVE(repeat)
             return R_OUT_IS_THROWN;
         }
 
-        return R_OUT_Q(q);
+        return R_OUT;
     }
     else if (IS_INTEGER(value)) {
         if (Loop_Integer_Throws(D_OUT, var, copy, 1, VAL_INT64(value), 1))
             return R_OUT_IS_THROWN;
 
-        return R_OUT_Q(q);
+        return R_OUT;
     }
 
-    return q ? R_FALSE : R_VOID;
+    return R_VOID;
 }
 
 
@@ -1264,9 +1259,11 @@ REBNATIVE(loop_until)
 //
 inline static REB_R While_Until_Core(REBFRM *frame_, REBOOL trigger)
 {
-    INCLUDE_PARAMS_OF_WHILE; // ? is renamed as "q"
+    INCLUDE_PARAMS_OF_WHILE;
 
     const REBOOL only = FALSE; // while/only [cond] [body] is meaningless
+
+    SET_VOID(D_OUT); // return result if body never runs
 
     do {
         if (Run_Success_Branch_Throws(D_CELL, ARG(condition), only)) {
@@ -1291,19 +1288,15 @@ inline static REB_R While_Until_Core(REBFRM *frame_, REBOOL trigger)
             if (Maybe_Run_Failed_Branch_Throws(D_OUT, ARG(body), FALSE))
                 return R_OUT_IS_THROWN;
 
-            return R_OUT_Q(REF(q));
+            return R_OUT;
         }
 
-        // If this line runs, it will put a non-END marker in D_OUT, which
-        // will signal R_OUT_Q() to TRUE if /? (and D_OUT otherwise)
-        //
         if (Run_Success_Branch_Throws(D_OUT, ARG(body), only)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
-                if (stop) {
-                    if (REF(q)) return R_TRUE;
+                if (stop)
                     return R_OUT;
-                }
+
                 continue;
             }
             return R_OUT_IS_THROWN;
@@ -1322,8 +1315,6 @@ inline static REB_R While_Until_Core(REBFRM *frame_, REBOOL trigger)
 //          {Last body result or BREAK value, will also be void if never run}
 //      condition [block! function!]
 //      body [block! function!]
-//      /?
-//          "Instead of last body result, return LOGIC! of if body ever ran"
 //  ]
 //
 REBNATIVE(while)
@@ -1341,8 +1332,6 @@ REBNATIVE(while)
 //          {Last body result or BREAK value, will also be void if never run}
 //      condition [block! function!]
 //      body [block! function!]
-//      /?
-//          "Instead of last body result, return LOGIC! of if body ever ran"
 //  ]
 //
 REBNATIVE(until)

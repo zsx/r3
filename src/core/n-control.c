@@ -164,7 +164,7 @@ REBNATIVE(either)
 //
 //  {Short-circuiting variant of AND, using a block of expressions as input.}
 //
-//      return: [any-value!]
+//      return: [<opt> any-value!]
 //          {Product of last evaluation if all TRUE?, else a BLANK! value.}
 //      block [block!]
 //          "Block of expressions.  Void evaluations are ignored."
@@ -177,36 +177,38 @@ REBNATIVE(all)
     Reb_Enumerator e;
     PUSH_SAFE_ENUMERATOR(&e, ARG(block)); // DO-ing code could disrupt `block`
 
-    if (IS_END(e.value)) { // `all []` is considered TRUE
+    if (IS_END(e.value)) { // `all []` is rare, but acts like `all [() ()]`
         DROP_SAFE_ENUMERATOR(&e);
-        return R_TRUE;
+        return R_VOID;
     }
 
+    assert(IS_END(D_OUT)); // guaranteed by the evaluator
+
     do {
-        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_NORMAL);
-        if (THROWN(D_OUT)) {
+        REBVAL temp;
+        DO_NEXT_REFETCH_MAY_THROW(&temp, &e, DO_FLAG_NORMAL);
+        if (THROWN(&temp)) {
             DROP_SAFE_ENUMERATOR(&e);
+            *D_OUT = temp;
             return R_OUT_IS_THROWN;
         }
 
-        if (IS_VOID(D_OUT)) // voids do not "vote" true or false
+        if (IS_VOID(&temp)) // voids do not "vote" true or false
             continue;
 
-        if (IS_CONDITIONAL_FALSE(D_OUT)) { // a failed ALL returns BLANK!
+        if (IS_CONDITIONAL_FALSE(&temp)) { // a failed ALL returns BLANK!
             DROP_SAFE_ENUMERATOR(&e);
             return R_BLANK;
         }
+
+        *D_OUT = temp; // preserve value (not overwritten by later voids)
     } while (NOT_END(e.value));
 
-    // Note: Though ALL wants to use as a "truthy" value whatever the last
-    // evaluation was, with `all [1 2 ()]`...the 2 is already gone.  There
-    // would be overhead trying to preserve it.  Considering that `all []`
-    // has to pull a TRUE out of thin air anyway, it is accepted.
-
-    if (IS_VOID(D_OUT))
-        SET_TRUE(D_OUT);
-
     DROP_SAFE_ENUMERATOR(&e);
+
+    if (IS_END(D_OUT)) // no successes or failures found (all opt-outs)
+        return R_VOID;
+
     return R_OUT;
 }
 
@@ -216,7 +218,7 @@ REBNATIVE(all)
 //
 //  {Short-circuiting version of OR, using a block of expressions as input.}
 //
-//      return: [any-value!]
+//      return: [<opt> any-value!]
 //          {The first TRUE? evaluative result, or BLANK! value if all FALSE?}
 //      block [block!]
 //          "Block of expressions.  Void evaluations are ignored."
@@ -229,16 +231,12 @@ REBNATIVE(any)
     Reb_Enumerator e;
     PUSH_SAFE_ENUMERATOR(&e, ARG(block)); // DO-ing code could disrupt `block`
 
-    if (IS_END(e.value)) { // `any []` is a failure case, returns BLANK!
+    if (IS_END(e.value)) { // `any []` is rare, but acts like `any [() ()]`
         DROP_SAFE_ENUMERATOR(&e);
-        return R_BLANK;
+        return R_VOID;
     }
 
-    // Note: although `all []` is TRUE, `any []` is BLANK!.  This sides with
-    // general usage as "Were all of these things not false?" as opposed to
-    // "Were any of these things true?".  Also, `FALSE OR X OR Y` shows it
-    // as the "unit" for OR, matching `TRUE AND X AND Y` as the seed that
-    // doesn't affect the outcome of the chain.
+    REBOOL voted = FALSE;
 
     do {
         DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_NORMAL);
@@ -254,10 +252,16 @@ REBNATIVE(any)
             DROP_SAFE_ENUMERATOR(&e);
             return R_OUT;
         }
+
+        voted = TRUE; // signal at least one non-void result was seen
     } while (NOT_END(e.value));
 
     DROP_SAFE_ENUMERATOR(&e);
-    return R_BLANK;
+
+    if (voted)
+        return R_BLANK;
+
+    return R_VOID; // all opt-outs
 }
 
 
@@ -266,7 +270,7 @@ REBNATIVE(any)
 //
 //  {Short circuiting version of NOR, using a block of expressions as input.}
 //
-//      return: [logic! blank!]
+//      return: [<opt> logic! blank!]
 //          {TRUE if all expressions are FALSE?, or BLANK if any are TRUE?}
 //      block [block!]
 //          "Block of expressions.  Void evaluations are ignored."
@@ -282,8 +286,12 @@ REBNATIVE(none)
     Reb_Enumerator e;
     PUSH_SAFE_ENUMERATOR(&e, ARG(block)); // DO-ing code could disrupt `block`
 
-    if (IS_END(e.value)) // `none []` is a success case, returns TRUE
-        return R_TRUE;
+    if (IS_END(e.value)) { // `none []` is rare, but acts like `none [() ()]`
+        DROP_SAFE_ENUMERATOR(&e);
+        return R_VOID;
+    }
+
+    REBOOL voted = FALSE;
 
     do {
         DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_NORMAL);
@@ -295,14 +303,20 @@ REBNATIVE(none)
         if (IS_VOID(D_OUT)) // voids do not "vote" true or false
             continue;
 
-        if (IS_CONDITIONAL_TRUE(D_OUT)) { // successful ANY returns the value
+        if (IS_CONDITIONAL_TRUE(D_OUT)) { // any true results mean failure
             DROP_SAFE_ENUMERATOR(&e);
             return R_BLANK;
         }
+
+        voted = TRUE; // signal that at least one non-void result was seen
     } while (NOT_END(e.value));
 
     DROP_SAFE_ENUMERATOR(&e);
-    return R_TRUE;
+
+    if (voted)
+        return R_TRUE;
+
+    return R_VOID; // all opt-outs
 }
 
 
