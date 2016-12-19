@@ -199,21 +199,15 @@ enum {
 // variable that is not currently set will return a REB_MAX_VOID value, trying
 // to GET_OPT_VAR_MAY_FAIL() on an *unbound* word will raise an error.
 //
-// TRY_GET_OPT_VAR() also provides const access.  But it will return NULL
-// instead of fail on unbound variables.
-//
-// GET_MUTABLE_VAR_MAY_FAIL() and TRY_GET_MUTABLE_VAR() offer parallel
-// facilities for getting a non-const REBVAL back.  They will fail if the
-// variable is either unbound -or- marked with OPT_TYPESET_LOCKED to protect
-// them against modification.  The TRY variation will fail quietly by
-// returning NULL.
+// GET_MUTABLE_VAR_MAY_FAIL() offers a parallel facility for getting a
+// non-const REBVAL back.  It will fail if the variable is either unbound
+// -or- marked with OPT_TYPESET_LOCKED to protect against modification.
 //
 
 
 enum {
     GETVAR_READ_ONLY = 0,
-    GETVAR_UNBOUND_OK = 1 << 0,
-    GETVAR_IS_SETVAR = 1 << 1 // will clear infix bit, so "always writes"!
+    GETVAR_IS_SETVAR = 1 << 0 // will clear infix bit, so "always writes"!
 };
 
 
@@ -251,11 +245,8 @@ inline static REBVAL *Get_Var_Core(
         assert(GET_VAL_FLAG(any_word, WORD_FLAG_BOUND)); // should be set too
 
         if (specifier == SPECIFIED) {
-            Debug_Fmt("Get_Var_Core on relative value without specifier");
-            PROBE_MSG(any_word, "the word");
-            assert(IS_FUNCTION(FUNC_VALUE(VAL_WORD_FUNC(any_word))));
-            PROBE_MSG(FUNC_VALUE(VAL_WORD_FUNC(any_word)), "the function");
-            PANIC_VALUE(any_word);
+            printf("Get_Var_Core on relative value without specifier\n");
+            panic (any_word);
         }
         assert(
             VAL_WORD_FUNC(any_word)
@@ -277,8 +268,6 @@ inline static REBVAL *Get_Var_Core(
     else {
         // UNBOUND: No variable location to retrieve.
 
-        if (flags & GETVAR_UNBOUND_OK) return NULL;
-
         fail (Error(RE_NOT_BOUND, any_word));
     }
 
@@ -290,8 +279,8 @@ inline static REBVAL *Get_Var_Core(
 
     REBVAL *var;
 
-    if (GET_CTX_FLAG(context, CONTEXT_FLAG_STACK)) {
-        if (!GET_CTX_FLAG(context, SERIES_FLAG_ACCESSIBLE)) {
+    if (GET_SER_FLAG(CTX_VARLIST(context), CONTEXT_FLAG_STACK)) {
+        if (IS_INACCESSIBLE(context)) {
             //
             // Currently if a context has a stack component, then the vars
             // are "all stack"...so when that level is popped, all the vars
@@ -300,8 +289,6 @@ inline static REBVAL *Get_Var_Core(
             // series.  Hybrid approaches which have "some stack and some
             // durable" will be possible in the future, as a context can
             // mechanically have both stackvars and a dynamic data pointer.
-
-            if (flags & GETVAR_UNBOUND_OK) return NULL;
 
             REBVAL unbound;
             Val_Init_Word(
@@ -327,9 +314,18 @@ inline static REBVAL *Get_Var_Core(
         // evaluator wants to know when it fetches the value for a word
         // if it wants to lookback for infix purposes, if it's a function)
         //
+        // Efficient cast trick: REB_FUNCTION = 1, REB_0_LOOKBACK = 0
+        // which requires REBOOL only be allowed to hold 1 and 0.
+        //
+    #ifdef STRICT_BOOL_COMPILER_TEST
+        *eval_type = GET_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK)
+            ? REB_FUNCTION
+            : REB_0_LOOKBACK;
+    #else
         *eval_type = cast(
             enum Reb_Kind, GET_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK)
-        ); // REB_FUNCTION = 1, REB_0_LOOKBACK = 0
+        );
+    #endif
     }
     else {
         assert(*eval_type == REB_FUNCTION || *eval_type == REB_0_LOOKBACK);
@@ -340,8 +336,6 @@ inline static REBVAL *Get_Var_Core(
             // some flags, including one of whether or not the variable is
             // locked from writes.  If mutable access was requested, deny
             // it if this flag is set.
-
-            if (flags & GETVAR_UNBOUND_OK) return NULL;
 
             fail (Error(RE_LOCKED_WORD, any_word));
         }
@@ -364,7 +358,7 @@ inline static REBVAL *Get_Var_Core(
             // words, so if a solution were engineered for one it would
             // likely be able to apply to both.
             //
-            if (GET_CTX_FLAG(context, CONTEXT_FLAG_STACK))
+            if (GET_SER_FLAG(CTX_VARLIST(context), CONTEXT_FLAG_STACK))
                 fail (Error(RE_MISC));
 
             // Make sure if this context shares a keylist that we aren't
@@ -379,7 +373,14 @@ inline static REBVAL *Get_Var_Core(
             else
                 CLEAR_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK);
 
+        #ifdef STRICT_BOOL_COMPILER_TEST
+            *eval_type =
+                (*eval_type == REB_0_LOOKBACK)
+                    ? REB_FUNCTION
+                    : REB_0_LOOKBACK;
+        #else
             *eval_type = cast(enum Reb_Kind, NOT(cast(REBOOL, *eval_type)));
+        #endif
         }
         else {
             // We didn't have to change the lookback, so it must have matched
@@ -400,14 +401,6 @@ static inline const REBVAL *GET_OPT_VAR_MAY_FAIL(
     return Get_Var_Core(&eval_type, any_word, specifier, 0);
 }
 
-static inline const REBVAL *TRY_GET_OPT_VAR(
-    const RELVAL *any_word,
-    REBCTX *specifier
-) {
-    enum Reb_Kind eval_type; // unused
-    return Get_Var_Core(&eval_type, any_word, specifier, GETVAR_UNBOUND_OK);
-}
-
 static inline REBVAL *GET_MUTABLE_VAR_MAY_FAIL(
     const RELVAL *any_word,
     REBCTX *specifier
@@ -416,16 +409,8 @@ static inline REBVAL *GET_MUTABLE_VAR_MAY_FAIL(
     return Get_Var_Core(&eval_type, any_word, specifier, GETVAR_IS_SETVAR);
 }
 
-static inline REBVAL *TRY_GET_MUTABLE_VAR(
-    const RELVAL *any_word,
-    REBCTX *specifier
-) {
-    enum Reb_Kind eval_type = REB_FUNCTION; // reset infix/postfix/etc.
-    return Get_Var_Core(
-        &eval_type, any_word, specifier, GETVAR_IS_SETVAR | GETVAR_UNBOUND_OK
-    );
-}
-
+#define SINK_VAR_MAY_FAIL(any_word,specifier) \
+    SINK(GET_MUTABLE_VAR_MAY_FAIL(any_word, specifier))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -445,52 +430,59 @@ static inline REBVAL *TRY_GET_MUTABLE_VAR(
 // that is the only kind of specifier you can use with them).
 //
 
-inline static void COPY_VALUE(
-    RELVAL *dest, // relative destinations are overwritten with specified value
-    const RELVAL *src,
+inline static void Derelativize(
+    REBVAL *out, // relative destinations are overwritten with specified value
+    const RELVAL *v,
     REBCTX *specifier
 ) {
-    assert(!IS_END(src));
-    assert(!IS_TRASH_DEBUG(src));
+    assert(!IS_END(v));
+    assert(!IS_TRASH_DEBUG(v));
 
-    ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(dest, __FILE__, __LINE__);
+    ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(out, __FILE__, __LINE__);
 
-    if (IS_RELATIVE(src)) {
+    if (IS_RELATIVE(v)) {
     #if !defined(NDEBUG)
-        assert(ANY_WORD(src) || ANY_ARRAY(src));
+        assert(ANY_WORD(v) || ANY_ARRAY(v));
         if (specifier == SPECIFIED) {
-            Debug_Fmt("Internal Error: Relative item used with SPECIFIED");
-            PROBE_MSG(src, "word or array");
-            PROBE_MSG(FUNC_VALUE(VAL_RELATIVE(src)), "func");
-            assert(FALSE);
+            printf("Relative item used with SPECIFIED\n");
+            panic (v);
         }
         else if (
-            VAL_RELATIVE(src)
+            VAL_RELATIVE(v)
             != VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier))
         ){
-            Debug_Fmt("Internal Error: Function mismatch in specific binding");
-            PROBE_MSG(src, "word or array");
-            PROBE_MSG(FUNC_VALUE(VAL_RELATIVE(src)), "expected func");
-            PROBE_MSG(CTX_FRAME_FUNC_VALUE(specifier), "actual func");
-            assert(FALSE);
+            printf("Function mismatch in specific binding, expected:\n");
+            PROBE(FUNC_VALUE(VAL_RELATIVE(v)));
+            printf("Panic on relative value\n");
+            panic (v);
         }
     #endif
 
-        dest->header.bits
-            = src->header.bits & ~cast(REBUPT, VALUE_FLAG_RELATIVE);
-        dest->extra.binding = cast(REBARR*, specifier);
+        out->header.bits
+            = v->header.bits & ~cast(REBUPT, VALUE_FLAG_RELATIVE);
+        out->extra.binding = cast(REBARR*, specifier);
     }
     else {
-        dest->header = src->header;
-        dest->extra.binding = src->extra.binding;
+        out->header = v->header;
+        out->extra.binding = v->extra.binding;
     }
-    dest->payload = src->payload;
+    out->payload = v->payload;
 }
+
+
+// In the C++ build, defining this overload that takes a REBVAL* instead of
+// a RELVAL*, and then not defining it...will tell you that you do not need
+// to use Derelativize.  Just say `*out = *v` if your source is a REBVAL!
+//
+#ifdef __cplusplus
+    void Derelativize(REBVAL *out, const REBVAL *v, REBCTX *specifier);
+#endif
+
 
 inline static void DS_PUSH_RELVAL(const RELVAL *v, REBCTX *specifier) {
     ASSERT_VALUE_MANAGED(v); // would fail on END marker
     DS_PUSH_TRASH;
-    COPY_VALUE(DS_TOP, v, specifier);
+    Derelativize(DS_TOP, v, specifier);
 }
 
 

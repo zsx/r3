@@ -195,12 +195,12 @@ static REBOOL Subparse_Throws(
     f->args_head = Push_Value_Chunk_Of_Length(2);
 #else
     f->args_head = Push_Value_Chunk_Of_Length(3); // real RETURN: for natives
-    SET_TRASH_SAFE(&f->args_head[2]);
+    SET_VOID(&f->args_head[2]);
 #endif
 
     f->varlist = NULL;
 
-    COPY_VALUE(&f->args_head[0], input, input_specifier);
+    Derelativize(&f->args_head[0], input, input_specifier);
 
     // We always want "case-sensitivity" on binary bytes, vs. treating as
     // case-insensitive bytes for ASCII characters.
@@ -212,7 +212,7 @@ static REBOOL Subparse_Throws(
     f->func = NAT_FUNC(subparse);
     f->underlying = NAT_FUNC(subparse);
 
-    Init_Header_Aliased(&f->flags, 0); // will implicitly terminate f->cell
+    Init_Endlike_Header(&f->flags, 0); // implicitly terminate f->cell
     SET_END(&f->cell); // cell must have some form of initialization, though
 
     f->param = END_CELL; // informs infix lookahead
@@ -751,11 +751,8 @@ static REBIXO To_Thru_Block_Rule(
                     else
                         fail (Error_Parse_Rule());
                 }
-                else {
-                    // !!! Should mutability be enforced?  It might have to
-                    // be if set/copy are used...
-                    rule = GET_MUTABLE_VAR_MAY_FAIL(rule, P_RULE_SPECIFIER);
-                }
+                else
+                    rule = GET_OPT_VAR_MAY_FAIL(rule, P_RULE_SPECIFIER);
             }
             else if (IS_PATH(rule))
                 rule = Get_Parse_Value(&cell, rule, P_RULE_SPECIFIER);
@@ -992,7 +989,7 @@ static REBIXO To_Thru_Non_Block_Rule(
         //
         REBVAL word;
         if (IS_LIT_WORD(rule)) {
-            COPY_VALUE(&word, rule, P_RULE_SPECIFIER);
+            Derelativize(&word, rule, P_RULE_SPECIFIER);
             VAL_SET_TYPE_BITS(&word, REB_WORD);
             rule = &word;
         }
@@ -1271,7 +1268,7 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
     newparse.args_head = Push_Value_Chunk_Of_Length(2);
 #else
     newparse.args_head = Push_Value_Chunk_Of_Length(3); // real RETURN: checked
-    SET_TRASH_SAFE(&newparse.args_head[2]);
+    SET_UNREADABLE_BLANK(&newparse.args_head[2]);
 #endif
     Val_Init_Block_Index(
         &newparse.args_head[0],
@@ -1637,7 +1634,7 @@ REBNATIVE(subparse)
 
                 // word: - set a variable to the series at current index
                 if (IS_SET_WORD(P_RULE)) {
-                    *GET_MUTABLE_VAR_MAY_FAIL(P_RULE, P_RULE_SPECIFIER)
+                    *SINK_VAR_MAY_FAIL(P_RULE, P_RULE_SPECIFIER)
                         = *P_INPUT_VALUE;
                     FETCH_NEXT_RULE_MAYBE_END(f);
                     continue;
@@ -2063,31 +2060,36 @@ REBNATIVE(subparse)
                             : Copy_String_Slimming(P_INPUT, begin, count)
                     );
 
-                    *GET_MUTABLE_VAR_MAY_FAIL(
+                    *SINK_VAR_MAY_FAIL(
                         set_or_copy_word, P_RULE_SPECIFIER
                     ) = temp;
                 }
                 else if (flags & PF_SET) {
-                    REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(
-                        set_or_copy_word, P_RULE_SPECIFIER
-                    );
-
                     if (Is_Array_Series(P_INPUT)) {
                         if (count != 0)
-                            COPY_VALUE(
-                                var,
+                            Derelativize(
+                                SINK_VAR_MAY_FAIL(
+                                    set_or_copy_word, P_RULE_SPECIFIER
+                                ),
                                 ARR_AT(AS_ARRAY(P_INPUT), begin),
                                 P_INPUT_SPECIFIER
                             );
+                        else
+                            NOOP; // !!! leave as-is on 0 count?
                     }
                     else {
                         if (count != 0) {
+                            REBVAL *var = SINK_VAR_MAY_FAIL(
+                                set_or_copy_word, P_RULE_SPECIFIER
+                            );
                             REBUNI ch = GET_ANY_CHAR(P_INPUT, begin);
                             if (P_TYPE == REB_BINARY)
                                 SET_INTEGER(var, ch);
                             else
                                 SET_CHAR(var, ch);
                         }
+                        else
+                            NOOP; // !!! leave as-is on 0 count?
                     }
                 }
 
@@ -2150,7 +2152,7 @@ REBNATIVE(subparse)
 
                     if (Is_Array_Series(P_INPUT)) {
                         REBVAL specified;
-                        COPY_VALUE(&specified, rule, P_RULE_SPECIFIER);
+                        Derelativize(&specified, rule, P_RULE_SPECIFIER);
 
                         P_POS = Modify_Array(
                             (flags & PF_CHANGE) ? SYM_CHANGE : SYM_INSERT,
@@ -2170,7 +2172,7 @@ REBNATIVE(subparse)
                     }
                     else {
                         REBVAL specified;
-                        COPY_VALUE(&specified, rule, P_RULE_SPECIFIER);
+                        Derelativize(&specified, rule, P_RULE_SPECIFIER);
 
                         if (P_TYPE == REB_BINARY)
                             mod_flags |= AM_BINARY_SERIES;

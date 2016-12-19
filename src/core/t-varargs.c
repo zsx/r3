@@ -75,7 +75,7 @@ REBIXO Do_Vararg_Op_May_Throw(
     enum Reb_Param_Class pclass;
 
     const RELVAL *param; // for type checking
-    REBVAL *arg; // for updating VALUE_FLAG_EVALUATED
+    REBVAL *arg; // for updating VALUE_FLAG_UNEVALUATED
 
     REBVAL *shared;
 
@@ -147,12 +147,8 @@ REBIXO Do_Vararg_Op_May_Throw(
         // call pointer it first ran with is dead.  There needs to be a solution
         // for other reasons, so use that solution when it's ready.
         //
-        if (
-            GET_CTX_FLAG(context, CONTEXT_FLAG_STACK)
-            && !GET_CTX_FLAG(context, SERIES_FLAG_ACCESSIBLE)
-        ) {
+        if (IS_INACCESSIBLE(context))
             fail (Error(RE_VARARGS_NO_STACK));
-        }
 
         f = CTX_FRAME(context);
 
@@ -163,7 +159,7 @@ REBIXO Do_Vararg_Op_May_Throw(
             return END_FLAG;
 
         if (op == VARARG_OP_FIRST) {
-            COPY_VALUE(out, f->value, f->specifier);
+            Derelativize(out, f->value, f->specifier);
             return VA_LIST_FLAG;
         }
     }
@@ -186,8 +182,11 @@ REBIXO Do_Vararg_Op_May_Throw(
     // Fulfilling_Last_Argument() to always report TRUE when a variadic
     // parameter is being processed.
     //
-    if (pclass == PARAM_CLASS_NORMAL && IS_WORD(f->value)) {
-        //
+    if (
+        pclass == PARAM_CLASS_NORMAL
+        && IS_WORD(f->value)
+        && IS_WORD_BOUND(f->value)
+    ){
         // !!! "f" frame is eval_type REB_FUNCTION and we can't disrupt that.
         // If we were going to reuse this fetch then we'd have to build a
         // child frame and call Do_Core() instead of DO_NEXT_REFETCH_MAY_THROW
@@ -198,10 +197,10 @@ REBIXO Do_Vararg_Op_May_Throw(
             &child_eval_type, // always set to REB_0_LOOKBACK or REB_FUNCTION
             f->value,
             f->specifier,
-            GETVAR_READ_ONLY | GETVAR_UNBOUND_OK
+            GETVAR_READ_ONLY
         );
 
-        if (!child_gotten || !IS_FUNCTION(child_gotten)) {
+        if (!IS_FUNCTION(child_gotten)) {
             assert(child_eval_type == REB_FUNCTION);
             /* child_eval_type = REB_WORD; */ // reset, keep fetched f->gotten
         }
@@ -232,10 +231,10 @@ REBIXO Do_Vararg_Op_May_Throw(
             return THROWN_FLAG;
 
         if (arg) {
-            if (GET_VAL_FLAG(out, VALUE_FLAG_EVALUATED))
-                SET_VAL_FLAG(arg, VALUE_FLAG_EVALUATED);
+            if (GET_VAL_FLAG(out, VALUE_FLAG_UNEVALUATED))
+                SET_VAL_FLAG(arg, VALUE_FLAG_UNEVALUATED);
             else
-                CLEAR_VAL_FLAG(arg, VALUE_FLAG_EVALUATED);
+                CLEAR_VAL_FLAG(arg, VALUE_FLAG_UNEVALUATED);
         }
         break;
 
@@ -244,7 +243,7 @@ REBIXO Do_Vararg_Op_May_Throw(
 
         QUOTE_NEXT_REFETCH(out, f);
         if (arg)
-            CLEAR_VAL_FLAG(arg, VALUE_FLAG_EVALUATED);
+            SET_VAL_FLAG(arg, VALUE_FLAG_UNEVALUATED);
         break;
 
     case PARAM_CLASS_SOFT_QUOTE:
@@ -259,10 +258,10 @@ REBIXO Do_Vararg_Op_May_Throw(
                 return THROWN_FLAG;
 
             if (arg) {
-                if (GET_VAL_FLAG(out, VALUE_FLAG_EVALUATED))
-                    SET_VAL_FLAG(arg, VALUE_FLAG_EVALUATED);
+                if (GET_VAL_FLAG(out, VALUE_FLAG_UNEVALUATED))
+                    SET_VAL_FLAG(arg, VALUE_FLAG_UNEVALUATED);
                 else
-                    CLEAR_VAL_FLAG(arg, VALUE_FLAG_EVALUATED);
+                    CLEAR_VAL_FLAG(arg, VALUE_FLAG_UNEVALUATED);
             }
             FETCH_NEXT_ONLY_MAYBE_END(f);
         }
@@ -272,7 +271,7 @@ REBIXO Do_Vararg_Op_May_Throw(
             QUOTE_NEXT_REFETCH(out, f);
 
             if (arg)
-                CLEAR_VAL_FLAG(arg, VALUE_FLAG_EVALUATED);
+                SET_VAL_FLAG(arg, VALUE_FLAG_UNEVALUATED);
         }
         break;
 
@@ -496,10 +495,13 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
             //
             Append_Unencoded(mold->series, "** varargs frame not fulfilled");
         }
-        else if (
-            GET_CTX_FLAG(VAL_VARARGS_FRAME_CTX(value), CONTEXT_FLAG_STACK) &&
-            !GET_CTX_FLAG(VAL_VARARGS_FRAME_CTX(value), SERIES_FLAG_ACCESSIBLE)
-        ) {
+        else if (IS_INACCESSIBLE(VAL_VARARGS_FRAME_CTX(value))) {
+            assert(
+                GET_SER_FLAG(
+                    CTX_VARLIST(VAL_VARARGS_FRAME_CTX(value)),
+                    CONTEXT_FLAG_STACK
+                )
+            );
             Append_Unencoded(mold->series, "**unavailable: call ended **");
         }
         else {

@@ -91,7 +91,7 @@ static REBCNT const Primes[] =
 
 //
 //  Get_Hash_Prime: C
-// 
+//
 // Given a size, return a prime number that is larger.
 //
 REBINT Get_Hash_Prime(REBCNT size)
@@ -121,7 +121,7 @@ static REBSTR PG_Deleted_Canon;
 
 //
 //  Expand_Word_Table: C
-// 
+//
 // Expand the hash table part of the word_table by allocating
 // the next larger table size and rehashing all the words of
 // the current table.  Free the old hash array.
@@ -274,7 +274,7 @@ REBSTR *Intern_UTF8_Managed(const REBYTE *utf8, REBCNT len)
         REBSTR *synonym = canon->link.synonym;
         while (synonym != canon) {
             assert(synonym->misc.canon == canon);
-            assert(!GET_SER_FLAG(synonym, STRING_FLAG_CANON));
+            assert(NOT_SER_FLAG(synonym, STRING_FLAG_CANON));
 
             // Exact match for a synonym also means no new allocation needed.
             //
@@ -306,9 +306,9 @@ new_interning: ; // semicolon needed for statement
     //
     REBSTR *intern = Make_Series(len + 1, sizeof(REBYTE), MKS_NONE);
     if (len + 1 > sizeof(intern->content))
-        assert(GET_SER_FLAG(intern, SERIES_FLAG_HAS_DYNAMIC));
+        assert(GET_SER_INFO(intern, SERIES_INFO_HAS_DYNAMIC));
     else
-        assert(!GET_SER_FLAG(intern, SERIES_FLAG_HAS_DYNAMIC));
+        assert(NOT_SER_INFO(intern, SERIES_INFO_HAS_DYNAMIC));
 
     // The incoming string isn't always null terminated, e.g. if you are
     // interning `foo` in `foo: bar + 1` it would be colon-terminated.
@@ -316,7 +316,7 @@ new_interning: ; // semicolon needed for statement
     memcpy(BIN_HEAD(intern), utf8, len);
     TERM_SEQUENCE_LEN(intern, len);
 
-    SET_SER_FLAGS(intern, SERIES_FLAG_STRING | SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAGS(intern, SERIES_FLAG_UTF8_STRING | SERIES_FLAG_FIXED_SIZE);
 
     if (canon == NULL) {
         //
@@ -366,8 +366,8 @@ new_interning: ; // semicolon needed for statement
         // If the canon form had a SYM_XXX for quick comparison of %words.r
         // words in C switch statements, the synonym inherits that number.
         //
-        assert(((intern->header.bits >> 8) & 0xFFFF) == 0);
-        intern->header.bits |= (STR_SYMBOL(canon) << 8);
+        assert(RIGHT_16_BITS(intern->header.bits) == 0);
+        intern->header.bits |= FLAGUINT16_RIGHT(STR_SYMBOL(canon));
     }
 
 #if !defined(NDEBUG)
@@ -405,7 +405,7 @@ void GC_Kill_Interning(REBSTR *intern)
     }
     temp->link.synonym = synonym; // cut intern out of chain (or no-op)
 
-    if (!GET_SER_FLAG(intern, STRING_FLAG_CANON))
+    if (NOT_SER_FLAG(intern, STRING_FLAG_CANON))
         return; // for non-canon forms, removing from chain is all you need
 
     assert(intern->misc.bind_index.high == 0); // shouldn't GC during binds?
@@ -470,7 +470,7 @@ void GC_Kill_Interning(REBSTR *intern)
 
 //
 //  Val_Init_Word_Bound: C
-// 
+//
 // Initialize an ANY-WORD! type with a binding to a context.
 //
 void Val_Init_Word_Bound(
@@ -507,7 +507,7 @@ const REBYTE *Get_Type_Name(const REBVAL *value)
 
 //
 //  Compare_Word: C
-// 
+//
 // Compare the names of two words and return the difference.
 // Note that words are kept UTF8 encoded.
 // Positive result if s > t and negative if s < t.
@@ -575,8 +575,8 @@ void Init_Symbols(REBARR *words)
             // the header are free for the symbol number (could probably use
             // less than 16 bits, but 8 is insufficient, length %words.r > 256)
             //
-            assert(((name->header.bits >> 8) & 0xFFFF) == 0);
-            name->header.bits |= cast(REBUPT, sym << 8);
+            assert(RIGHT_16_BITS(name->header.bits) == 0);
+            name->header.bits |= FLAGUINT16_RIGHT(sym);
             assert(SAME_SYM_NONZERO(STR_SYMBOL(name), sym));
 
             name = name->link.synonym;
@@ -592,9 +592,9 @@ void Init_Symbols(REBARR *words)
     // Do some sanity checks
 
     if (COMPARE_BYTES(cb_cast("blank!"), STR_HEAD(Canon(SYM_BLANK_X))) != 0)
-        panic (Error(RE_BAD_BOOT_STRING));
+        panic (Canon(SYM_BLANK_X));
     if (COMPARE_BYTES(cb_cast("true"), STR_HEAD(Canon(SYM_TRUE))) != 0)
-        panic (Error(RE_BAD_BOOT_STRING));
+        panic (Canon(SYM_TRUE));
 }
 
 

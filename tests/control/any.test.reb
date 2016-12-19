@@ -1,6 +1,6 @@
 ; functions/control/any.r
 ; zero values
-[blank? any []]
+[void? any []]
 ; one value
 [:abs = any [:abs]]
 [
@@ -98,7 +98,7 @@
 ]
 [0:00 == any [0:00]]
 [0.0.0 == any [0.0.0]]
-[blank? any [()]]
+[void? any [()]]
 ['a == any ['a]]
 ; two values
 [:abs = any [false :abs]]

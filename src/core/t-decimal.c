@@ -195,7 +195,7 @@ void MAKE_Decimal(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                 d = VAL_DECIMAL(item);
             else {
                 REBVAL specific;
-                COPY_VALUE(&specific, item, VAL_SPECIFIER(arg));
+                Derelativize(&specific, item, VAL_SPECIFIER(arg));
 
                 fail (Error_Invalid_Arg(&specific));
             }
@@ -209,7 +209,7 @@ void MAKE_Decimal(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                 exp = VAL_DECIMAL(item);
             else {
                 REBVAL specific;
-                COPY_VALUE(&specific, item, VAL_SPECIFIER(arg));
+                Derelativize(&specific, item, VAL_SPECIFIER(arg));
                 fail (Error_Invalid_Arg(&specific));
             }
 
@@ -427,11 +427,16 @@ REBTYPE(Decimal)
             goto setDec;
 
         case SYM_EVEN_Q:
-        case SYM_ODD_Q:
             d1 = fabs(fmod(d1, 2.0));
-            if ((action == SYM_ODD_Q) != ((d1 < 0.5) || (d1 >= 1.5)))
+            if (d1 < 0.5 || d1 >= 1.5)
                 return R_TRUE;
             return R_FALSE;
+
+        case SYM_ODD_Q:
+            d1 = fabs(fmod(d1, 2.0));
+            if (d1 < 0.5 || d1 >= 1.5)
+                return R_FALSE;
+            return R_TRUE;
 
         case SYM_ROUND: {
             INCLUDE_PARAMS_OF_ROUND;

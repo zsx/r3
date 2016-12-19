@@ -164,36 +164,187 @@ inline static void *VAL_LIBRARY_FD(const RELVAL *v) {
 #endif // HAVE_LIBFFI_AVAILABLE
 
 
-struct Struct_Field {
-    REBARR* spec; /* for nested struct */
-    REBSER* fields; /* for nested struct */
-    REBSTR *name;
+// Returns an ffi_type* (which contains a ->type field, that holds the
+// FFI_TYPE_XXX enum).
+//
+// !!! In the original Atronix implementation this was done with a table
+// indexed by FFI_TYPE_XXX constants.  But since those constants do not have
+// guaranteed values or ordering, there was a parallel separate enum to use
+// for indexing (STRUCT_TYPE_XXX).  Getting rid of the STRUCT_TYPE_XXX and
+// just using a switch statement should effectively act as a table anyway
+// if the SYM_XXX numbers are in sequence.  :-/
+//
+inline static ffi_type *Get_FFType_For_Sym(REBSYM sym) {
+    switch (sym) {
+    case SYM_UINT8:
+        return &ffi_type_uint8;
 
-    unsigned short type; // e.g. FFI_TYPE_XXX constants
+    case SYM_INT8:
+        return &ffi_type_sint8;
 
-    REBSER *fftype; // single-element series, one `ffi_type`
-    REBSER *fields_fftype_ptrs; // multiple-element series of `ffi_type*`
+    case SYM_UINT16:
+        return &ffi_type_uint16;
 
-    /* size is limited by struct->offset, so only 16-bit */
-    REBCNT offset;
-    REBCNT dimension; /* for arrays */
-    REBCNT size; /* size of element, in bytes */
+    case SYM_INT16:
+        return &ffi_type_sint16;
 
-    /* Note: C89 bitfields may be 'int', 'unsigned int', or 'signed int' */
-    unsigned int is_array:1;
+    case SYM_UINT32:
+        return &ffi_type_uint32;
 
-    // A REBVAL is passed as an FFI_TYPE_POINTER array of length 4.  But
-    // for purposes of the GC marking, in the structs it has to be known
-    // that they are REBVAL.
+    case SYM_INT32:
+        return &ffi_type_sint32;
+
+    case SYM_UINT64:
+        return &ffi_type_uint64;
+
+    case SYM_INT64:
+        return &ffi_type_sint64;
+
+    case SYM_FLOAT:
+        return &ffi_type_float;
+
+    case SYM_DOUBLE:
+        return &ffi_type_double;
+
+    case SYM_POINTER:
+        return &ffi_type_pointer;
+
+    case SYM_REBVAL:
+        return &ffi_type_pointer;
+
+    // !!! SYM_INTEGER, SYM_DECIMAL, SYM_STRUCT was "-1" in original table
+
+    default:
+        return NULL;
+    }
+}
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// FIELD (FLD) describing an FFI struct element
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// A field is used by the FFI code to describe an element inside the layout
+// of a C `struct`, so that Rebol data can be proxied to and from C.  It
+// contains field type descriptions, dimensionality, and name of the field.
+// It is implemented as a small BLOCK!, which should eventually be coupled
+// with a keylist so it can be an easy-to-read OBJECT!
+//
+
+typedef REBARR REBFLD;
+
+enum {
+    // A WORD! name for the field (or BLANK! if anonymous ?)  What should
+    // probably happen here is that structs should use a keylist for this;
+    // though that would mean anonymous fields would not be legal.
     //
-    // !!! What is passing REBVALs for?
-    //
-    unsigned int is_rebval:1;
+    IDX_FIELD_NAME = 0,
 
-    /* field is initialized? */
-    /* (used by GC to decide if the value needs to be marked) */
-    unsigned int done:1;
+    // WORD! type symbol or a BLOCK! of fields if this is a struct.  Symbols
+    // generally map to FFI_TYPE_XXX constant (e.g. UINT8) but may also
+    // be a special extension, such as REBVAL.
+    //
+    IDX_FIELD_TYPE = 1,
+
+    // An INTEGER! of the array dimensionality, or BLANK! if not an array.
+    //
+    IDX_FIELD_DIMENSION = 2,
+
+    // HANDLE! to the ffi_type* representing this entire field.  If it's a
+    // premade ffi_type then it's a simple HANDLE! with no GC participation.
+    // If it's a struct then it will use the shared form of HANDLE!, which
+    // will GC the memory pointed to when the last reference goes away.
+    //
+    IDX_FIELD_FFTYPE = 3,
+
+    // An INTEGER! of the offset this field is relative to the beginning
+    // of its entire containing structure.  Will be BLANK! if the structure
+    // is actually the root structure itself.
+    //
+    // !!! Comment said "size is limited by struct->offset, so only 16-bit"?
+    //
+    IDX_FIELD_OFFSET = 4,
+
+    // An INTEGER! size of an individual field element ("wide"), in bytes.
+    //
+    IDX_FIELD_WIDE = 5,
+
+    IDX_FIELD_MAX
 };
+
+#define FLD_AT(a, n) SER_AT(REBVAL, ARR_SERIES(a), (n)) // locate index access
+
+inline static REBSTR *FLD_NAME(REBFLD *f) {
+    if (IS_BLANK(FLD_AT(f, IDX_FIELD_NAME)))
+        return NULL;
+    return VAL_WORD_SPELLING(FLD_AT(f, IDX_FIELD_NAME));
+}
+
+inline static REBOOL FLD_IS_STRUCT(REBFLD *f)
+    { return IS_BLOCK(FLD_AT(f, IDX_FIELD_TYPE)); }
+
+inline static unsigned short FLD_TYPE_SYM(REBFLD *f) {
+    if (FLD_IS_STRUCT(f)) {
+        //
+        // We could return SYM_STRUCT_X for structs, but it's probably better
+        // to have callers test FLD_IS_STRUCT() separately for clarity.
+        //
+        assert(FALSE);
+        return SYM_STRUCT_X;
+    }
+
+    assert(IS_WORD(FLD_AT(f, IDX_FIELD_TYPE)));
+    return VAL_WORD_SYM(FLD_AT(f, IDX_FIELD_TYPE));
+}
+
+inline static REBARR *FLD_FIELDLIST(REBFLD *f) {
+    assert(FLD_IS_STRUCT(f));
+    return VAL_ARRAY(FLD_AT(f, IDX_FIELD_TYPE));
+}
+
+inline static REBOOL FLD_IS_ARRAY(REBFLD *f) {
+    if (IS_BLANK(FLD_AT(f, IDX_FIELD_DIMENSION)))
+        return FALSE;
+    assert(IS_INTEGER(FLD_AT(f, IDX_FIELD_DIMENSION)));
+    return TRUE;
+}
+
+inline static REBCNT FLD_DIMENSION(REBFLD *f) {
+    assert(FLD_IS_ARRAY(f));
+    return VAL_INT32(FLD_AT(f, IDX_FIELD_DIMENSION));
+}
+
+inline static ffi_type *FLD_FFTYPE(REBFLD *f)
+    { return cast(ffi_type*, VAL_HANDLE_DATA(FLD_AT(f, IDX_FIELD_FFTYPE))); }
+
+inline static REBCNT FLD_OFFSET(REBFLD *f)
+    { return VAL_INT32(FLD_AT(f, IDX_FIELD_OFFSET)); }
+
+inline static REBCNT FLD_WIDE(REBFLD *f)
+    { return VAL_INT32(FLD_AT(f, IDX_FIELD_WIDE)); }
+
+inline static REBCNT FLD_LEN_BYTES_TOTAL(REBFLD *f) {
+    if (FLD_IS_ARRAY(f))
+        return FLD_WIDE(f) * FLD_DIMENSION(f);
+    return FLD_WIDE(f);
+}
+
+inline static ffi_type* SCHEMA_FFTYPE(const RELVAL *schema) {
+    if (IS_BLOCK(schema)) {
+        REBFLD *field = VAL_ARRAY(schema);
+        return FLD_FFTYPE(field);
+    }
+
+    // Avoid creating a "VOID" type in order to not give the illusion of
+    // void parameters being legal.  The NONE! return type is handled
+    // exclusively by the return value, to prevent potential mixups.
+    //
+    assert(IS_WORD(schema));
+    return Get_FFType_For_Sym(VAL_WORD_SYM(schema));
+}
+
 
 #define VAL_STRUCT_LIMIT MAX_U32
 
@@ -204,14 +355,8 @@ struct Struct_Field {
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Struct is used by the FFI code to describe the layout of a C `struct`,
-// so that Rebol data can be proxied to a C function call.
-//
-// !!! Atronix added the struct type to get coverage in the FFI, and it is
-// possible to make and extract structure data even if one is not calling
-// a routine at all.  This might not be necessary, in that the struct
-// description could be an ordinary OBJECT! which is used in FFI specs
-// and tells how to map data into a Rebol object used as a target.
+// Struct is a value type that is the the combination of a "schema" (field or
+// list of fields) along with a blob of binary data described by that schema.
 //
 
 inline static REBVAL *STU_VALUE(REBSTU *stu) {
@@ -222,32 +367,18 @@ inline static REBVAL *STU_VALUE(REBSTU *stu) {
 #define STU_INACCESSIBLE(stu) \
     VAL_STRUCT_INACCESSIBLE(STU_VALUE(stu))
 
-inline static struct Struct_Field *STU_SCHEMA(REBSTU *stu) {
-    //
-    // The new concept for structures is to make a singular structure
-    // descriptor OBJECT!.  Previously structs didn't have a top level node,
-    // but a series of them... so this has to extract the fieldlist from
-    // the new-format top-level node.
-
-    REBSER *schema = ARR_SERIES(stu)->link.schema;
-
-#if !defined(NDEBUG)
-    if (SER_LEN(schema) != 1)
-        Panic_Series(schema);
-    assert(SER_LEN(schema) == 1);
-#endif
-
-    struct Struct_Field *top = SER_HEAD(struct Struct_Field, schema);
-    assert(top->type == FFI_TYPE_STRUCT);
-    return top;
+inline static REBFLD *STU_SCHEMA(REBSTU *stu) {
+    REBFLD *schema = ARR_SERIES(stu)->link.schema;
+    assert(FLD_IS_STRUCT(schema));
+    return schema;
 }
 
-inline static REBSER *STU_FIELDLIST(REBSTU *stu) {
-    return STU_SCHEMA(stu)->fields;
+inline static REBARR *STU_FIELDLIST(REBSTU *stu) {
+    return FLD_FIELDLIST(STU_SCHEMA(stu));
 }
 
 inline static REBCNT STU_SIZE(REBSTU *stu) {
-    return STU_SCHEMA(stu)->size;
+    return FLD_WIDE(STU_SCHEMA(stu));
 }
 
 inline static REBSER *STU_DATA_BIN(REBSTU *stu) {
@@ -259,16 +390,10 @@ inline static REBCNT STU_OFFSET(REBSTU *stu) {
 }
 
 #define STU_FFTYPE(stu) \
-    SER_HEAD(ffi_type, STU_SCHEMA(stu)->fftype)
+    FLD_FFTYPE(STU_SCHEMA(stu))
 
 #define VAL_STRUCT(v) \
     ((v)->payload.structure.stu)
-
-#define VAL_STRUCT_SPEC(v) \
-    (STU_SCHEMA(VAL_STRUCT(v))->spec)
-
-#define VAL_STRUCT_INACCESSIBLE(v) \
-    SER_DATA_NOT_ACCESSIBLE(VAL_STRUCT_DATA_BIN(v))
 
 #define VAL_STRUCT_SCHEMA(v) \
     STU_SCHEMA(VAL_STRUCT(v))
@@ -278,6 +403,15 @@ inline static REBCNT STU_OFFSET(REBSTU *stu) {
 
 #define VAL_STRUCT_DATA_BIN(v) \
     ((v)->payload.structure.data)
+
+inline static REBOOL VAL_STRUCT_INACCESSIBLE(const RELVAL *v) {
+    REBSER *bin = VAL_STRUCT_DATA_BIN(v);
+    if (GET_SER_INFO(bin, SERIES_INFO_INACCESSIBLE)) {
+        assert(GET_SER_INFO(bin, SERIES_INFO_EXTERNAL));
+        return TRUE;
+    }
+    return FALSE;
+}
 
 #define VAL_STRUCT_OFFSET(v) \
     ((v)->extra.struct_offset)
@@ -289,146 +423,146 @@ inline static REBCNT STU_OFFSET(REBSTU *stu) {
     STU_FFTYPE(VAL_STRUCT(v))
 
 
-
 //=////////////////////////////////////////////////////////////////////////=//
 //
 //  ROUTINE SUPPORT
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// A routine is an interface to calling a C function, which uses the libffi
-// library.
+// "Routine info" used to be a specialized C structure, which referenced
+// Rebol functions/values/series.  This meant there had to be specialized
+// code in the garbage collector.  It actually went as far as to have a memory
+// pool for objects that was sizeof(Reb_Routine_Info), which complicates the
+// concerns further.
 //
-// !!! Previously, ROUTINE! was an ANY-FUNCTION! category (like NATIVE!,
-// COMMAND!, ACTION!, etc.)  Ren-C unified these under a single FUNCTION!
-// type for the purposes of interface (included in the elimination of the
-// CLOSURE! vs. FUNCTION! distinction).
+// That "invasive" approach is being gradually generalized to speak in the
+// natural vocabulary of Rebol values.  What enables the transition is that
+// arbitrary C allocations (such as an ffi_closure*) can use the new freeing
+// handler feature of a GC'd HANDLE! value.  So now "routine info" is just
+// a BLOCK! REBVAL*, which lives in the FUNC_BODY of a routine, and has some
+// HANDLE!s in it that array.
 //
-// Since MAKE ROUTINE! wouldn't work (without some hacks in the compatibility
-// layer), MAKE-ROUTINE was introduced as a native that returns a FUNCTION!.
-// This opens the door to having MAKE-ROUTINE be a user function which then
-// generates another user function which calls a simpler native to dispatch
-// its work.  That review is pending.
+// !!! An additional benefit is that if the structures used internally
+// are actual Rebol-manipulatable values, then that means more parts of the
+// FFI extension itself could be written as Rebol.  e.g. the FFI spec analysis
+// could be done with PARSE, as opposed to harder-to-edit-and-maintain
+// internal API C code.
 //
-
-struct Reb_Routine_Info {
-    struct Reb_Header header;
-
-    union {
-        struct {
-            REBLIB *lib;
-            CFUNC *cfunc;
-        } routine;
-        struct {
-            //
-            // The closure allocation routine gives back a void* and not
-            // an ffi_closure* for some reason.  (Perhaps because it takes
-            // a sizeof() that is >= size of closure, so may be bigger.)
-            //
-            ffi_closure *closure;
-            REBFUN *func;
-            void *dispatcher;
-        } callback;
-    } code;
-
-    // Here the "schema" is either an INTEGER! (which is the FFI_TYPE constant
-    // of the argument) or a HANDLE! containing a REBSER* of length 1 that
-    // contains a `Struct_Field` (it's held in a series to allow it to be
-    // referenced multiple places and participate in GC).
-    //
-    // !!! REBVALs are used here to simplify a GC-participating typed
-    // struct, with an eye to a future where the schemas are done with OBJECT!
-    // so that special GC behavior and C struct definitions is not necessary.
-    //
-    REBVAL ret_schema;
-    REBARR *args_schemas;
-
-    // The Call InterFace (CIF) for a C function with fixed arguments can
-    // be created once and then used many times.  For a variadic routine,
-    // it must be created to match the variadic arguments.  Hence this will
-    // be NULL for variadics.
-    //
-    REBSER *cif; // one ffi_cif long (for GC participation, fail()...)
-    REBSER *args_fftypes; // list of ffi_type*, must live as long as CIF does
-
-    ffi_abi abi; // an enum
-
-    // sizeof(Reb_Routine_Info) % 8 must be 0 for Make_Node()
-};
-
 
 enum {
-    ROUTINE_FLAG_MARK = 1 << 0, // routine was found during GC mark scan.
-    ROUTINE_FLAG_USED = 1 << 1,
-    ROUTINE_FLAG_CALLBACK = 1 << 2, // is a callback
-    ROUTINE_FLAG_VARIADIC = 1 << 3 // has FFI va_list interface
+    // The HANDLE! of a CFUNC*, obeying the interface of the C-format call.
+    // If it's a routine, then it's the pointer to a pre-existing function
+    // in the DLL that the routine intends to wrap.  If a callback, then
+    // it's a fabricated function pointer returned by ffi_closure_alloc,
+    // which presents the "thunk"...a C function that other C functions can
+    // call which will then delegate to Rebol to call the wrapped FUNCTION!.
+    //
+    // Additionally, callbacks poke a data pointer into the HANDLE! with
+    // ffi_closure*.  (The closure allocation routine gives back a void* and
+    // not an ffi_closure* for some reason.  Perhaps because it takes a
+    // size that might be bigger than the size of a closure?)
+    //
+    IDX_ROUTINE_CFUNC = 0,
+
+    // An INTEGER! indicating which ABI is used by the CFUNC (enum ffi_abi)
+    //
+    // !!! It would be better to change this to use a WORD!, especially if
+    // the routine descriptions will ever become user visible objects.
+    //
+    IDX_ROUTINE_ABI = 1,
+
+    // The LIBRARY! the CFUNC* lives in if a routine, or the FUNCTION! to
+    // be called if this is a callback.
+    //
+    IDX_ROUTINE_ORIGIN = 2,
+
+    // The "schema" of the return type.  This is either a WORD! (which
+    // is a symbol corresponding to the FFI_TYPE constant of the return) or
+    // a BLOCK! representing a field (this REBFLD will hopefully become
+    // OBJECT! at some point).  If it is BLANK! then there is no return type.
+    //
+    IDX_ROUTINE_RET_SCHEMA = 3,
+
+    // An ARRAY! of the argument schemas; each also WORD! or ARRAY!, following
+    // the same pattern as the return value...but not allowed to be blank
+    // (no such thing as a void argument)
+    //
+    IDX_ROUTINE_ARG_SCHEMAS = 4,
+
+    // A HANDLE! containing one ffi_cif*, or BLANK! if variadic.  The Call
+    // InterFace (CIF) for a C function with fixed arguments can be created
+    // once and then used many times.  For a variadic routine, it must be
+    // created on each call to match the number and types of arguments.
+    //
+    IDX_ROUTINE_CIF = 5,
+
+    // A HANDLE! which is actually an array of ffi_type*, so a C array of
+    // pointers.  This array was passed into the CIF at its creation time,
+    // and it holds references to them as long as you use that CIF...so this
+    // array must survive as long as the CIF does.  BLANK! if variadic.
+    //
+    IDX_ROUTINE_ARG_FFTYPES = 6,
+
+    // A LOGIC! of whether this routine is variadic.  Since variadic-ness is
+    // something that gets exposed in the FUNCTION! interface itself, this
+    // may become redundant as an internal property of the implementation.
+    //
+    IDX_ROUTINE_IS_VARIADIC = 7,
+
+    IDX_ROUTINE_MAX
 };
 
-#define SET_RIN_FLAG(s,f) \
-    ((s)->header.bits |= (f))
-
-#define CLEAR_RIN_FLAG(s,f) \
-    ((s)->header.bits &= ~(f))
-
-#define GET_RIN_FLAG(s, f) \
-    LOGICAL((s)->header.bits & (f))
-
-// Routine Field Accessors
+#define RIN_AT(a, n) SER_AT(REBVAL, ARR_SERIES(a), (n)) // locate index access
 
 inline static CFUNC *RIN_CFUNC(REBRIN *r)
-    { return r->code.routine.cfunc; }
+    { return VAL_HANDLE_CODE(RIN_AT(r, IDX_ROUTINE_CFUNC)); }
 
-inline static REBLIB *RIN_LIB(REBRIN *r)
-    { return r->code.routine.lib; }
+inline static ffi_abi RIN_ABI(REBRIN *r)
+    { return cast(ffi_abi, VAL_INT32(RIN_AT(r, IDX_ROUTINE_ABI))); }
 
-#define RIN_NUM_FIXED_ARGS(r) \
-    ARR_LEN((r)->args_schemas)
-
-// !!! Should this be 1-based to be consistent with ARG() and PARAM() (or
-// should the D_ARG(N) 1-basedness legacy be changed to a C 0-based one?)
-//
-#define RIN_ARG_SCHEMA(r,n) \
-    KNOWN(ARR_AT((r)->args_schemas, (n)))
-
-#define Get_FFType_Enum_Info(sym_out,kind_out,type) \
-    cast(ffi_type*, Get_FFType_Enum_Info_Core((sym_out), (kind_out), (type)))
-
-inline static void* SCHEMA_FFTYPE_CORE(const RELVAL *schema) {
-    if (IS_HANDLE(schema)) {
-        struct Struct_Field *field
-            = SER_HEAD(
-                struct Struct_Field,
-                cast(REBSER*, VAL_HANDLE_DATA(schema))
-            );
-        Prepare_Field_For_FFI(field);
-        return SER_HEAD(ffi_type, field->fftype);
-    }
-
-    // Avoid creating a "VOID" type in order to not give the illusion of
-    // void parameters being legal.  The NONE! return type is handled
-    // exclusively by the return value, to prevent potential mixups.
-    //
-    assert(IS_INTEGER(schema));
-
-    enum Reb_Kind kind; // dummy
-    REBSTR *name; // dummy
-    return Get_FFType_Enum_Info(&name, &kind, VAL_INT32(schema));
+inline static REBOOL RIN_IS_CALLBACK(REBRIN *r) {
+    if (IS_FUNCTION(RIN_AT(r, IDX_ROUTINE_ORIGIN)))
+        return TRUE;
+    assert(
+        IS_LIBRARY(RIN_AT(r, IDX_ROUTINE_ORIGIN))
+        || IS_BLANK(RIN_AT(r, IDX_ROUTINE_ORIGIN))
+    );
+    return FALSE;
 }
 
-#define SCHEMA_FFTYPE(schema) \
-    cast(ffi_type*, SCHEMA_FFTYPE_CORE(schema))
+inline static ffi_closure* RIN_CLOSURE(REBRIN *r) {
+    assert(RIN_IS_CALLBACK(r)); // only callbacks have ffi_closure
+    return cast(ffi_closure*, VAL_HANDLE_DATA(RIN_AT(r, IDX_ROUTINE_CFUNC)));
+}
 
-#define RIN_RET_SCHEMA(r) \
-    (&(r)->ret_schema)
+inline static REBLIB *RIN_LIB(REBRIN *r) {
+    assert(NOT(RIN_IS_CALLBACK(r)));
+    return VAL_LIBRARY(RIN_AT(r, IDX_ROUTINE_ORIGIN));
+}
 
-#define RIN_DISPATCHER(r) \
-    ((r)->code.callback.dispatcher)
+inline static REBFUN *RIN_CALLBACK_FUNC(REBRIN *r) {
+    assert(RIN_IS_CALLBACK(r));
+    return VAL_FUNC(RIN_AT(r, IDX_ROUTINE_ORIGIN));
+}
 
-#define RIN_CALLBACK_FUNC(r) \
-    ((r)->code.callback.func)
+inline static REBVAL *RIN_RET_SCHEMA(REBRIN *r)
+    { return KNOWN(RIN_AT(r, IDX_ROUTINE_RET_SCHEMA)); }
 
-#define RIN_CLOSURE(r) \
-    ((r)->code.callback.closure)
+inline static REBCNT RIN_NUM_FIXED_ARGS(REBRIN *r)
+    { return VAL_LEN_HEAD(RIN_AT(r, IDX_ROUTINE_ARG_SCHEMAS)); }
 
-#define RIN_ABI(r) \
-    cast(ffi_abi, (r)->abi)
+inline static REBVAL *RIN_ARG_SCHEMA(REBRIN *r, REBCNT n) { // 0-based index
+    return KNOWN(VAL_ARRAY_AT_HEAD(RIN_AT(r, IDX_ROUTINE_ARG_SCHEMAS), n));
+}
+
+inline static ffi_cif *RIN_CIF(REBRIN *r)
+    { return cast(ffi_cif*, VAL_HANDLE_DATA(RIN_AT(r, IDX_ROUTINE_CIF))); }
+
+inline static ffi_type** RIN_ARG_FFTYPES(REBRIN *r) {
+    return cast(ffi_type**,
+        VAL_HANDLE_DATA(RIN_AT(r, IDX_ROUTINE_ARG_FFTYPES))
+    );
+}
+
+inline static REBOOL RIN_IS_VARIADIC(REBRIN *r)
+    { return VAL_LOGIC(RIN_AT(r, IDX_ROUTINE_IS_VARIADIC)); }

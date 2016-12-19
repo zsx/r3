@@ -63,9 +63,10 @@
 void Dump_Frame_Location(REBFRM *f)
 {
     REBVAL dump;
-    COPY_VALUE(&dump, f->value, f->specifier);
+    Derelativize(&dump, f->value, f->specifier);
 
-    PROBE_MSG(&dump, "Dump_Frame_Location() value");
+    printf("Dump_Frame_Location() value\n");
+    PROBE(&dump);
 
     if (f->flags.bits & DO_FLAG_VA_LIST) {
         //
@@ -80,14 +81,12 @@ void Dump_Frame_Location(REBFRM *f)
 
     if (f->pending && NOT_END(f->pending)) {
         assert(IS_SPECIFIC(f->pending));
-        PROBE_MSG(
-            const_KNOWN(f->pending),
-            "EVAL in progress, so next will be..."
-        );
+        printf("EVAL in progress, so next will be...\n");
+        PROBE(const_KNOWN(f->pending));
     }
 
     if (IS_END(f->value)) {
-        Debug_Fmt("...then Dump_Frame_Location() at end of array");
+        printf("...then Dump_Frame_Location() at end of array\n");
     }
     else {
         REBVAL dump;
@@ -99,7 +98,8 @@ void Dump_Frame_Location(REBFRM *f)
             f->specifier
         );
 
-        PROBE_MSG(&dump, "Dump_Frame_Location() next input");
+        printf("Dump_Frame_Location() next input\n");
+        PROBE(&dump);
     }
 }
 
@@ -122,7 +122,7 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
     REBSER *containing = Try_Find_Containing_Series_Debug(f->out);
 
     if (containing) {
-        if (GET_SER_FLAG(series, SERIES_FLAG_FIXED_SIZE)) {
+        if (GET_SER_FLAG(containing, SERIES_FLAG_FIXED_SIZE)) {
             //
             // Currently it's considered OK to be writing into a fixed size
             // series, for instance the durable portion of a function's
@@ -131,12 +131,37 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
             //
         }
         else {
-            Debug_Fmt("Request for ->out location in movable series memory");
-            assert(FALSE);
+            printf("Request for ->out location in movable series memory\n");
+            panic (containing);
         }
     }
 #else
     assert(!IN_DATA_STACK_DEBUG(f->out));
+#endif
+
+    // The arguments to functions in their frame are exposed via FRAME!s
+    // and through WORD!s.  This means that if you try to do an evaluation
+    // directly into one of those argument slots, and run arbitrary code
+    // which also *reads* those argument slots...there could be trouble with
+    // reading and writing overlapping locations.  So unless a function is
+    // in the argument fulfillment stage (before the variables or frame are
+    // accessible by user code), it's not legal to write directly into an
+    // argument slot.  :-/  Note the availability of D_CELL for any functions
+    // that have more than one argument, during their run.
+    //
+#if !defined(NDEBUG)
+    assert(f == FS_TOP);
+    REBFRM *ftemp = FS_TOP->prior;
+    for (; ftemp != NULL; ftemp = ftemp->prior) {
+        if (!Is_Any_Function_Frame(ftemp))
+            continue;
+        if (Is_Function_Frame_Fulfilling(ftemp))
+            continue;
+        assert(
+            f->out < ftemp->args_head ||
+            f->out >= ftemp->args_head + FRM_NUM_ARGS(ftemp)
+        );
+    }
 #endif
 
     // The caller must preload ->value with the first value to process.  It
@@ -144,6 +169,8 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
     // values, or it may not.
     //
     assert(f->value);
+
+    assert((f->flags.bits & NODE_FLAG_END) && NOT(f->flags.bits & NODE_FLAG_CELL));
 
     f->label = NULL;
     f->label_debug = NULL;
@@ -184,12 +211,23 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
         ); // END, THROWN, VA_LIST only used by wrappers
     }
 
-    if (IS_END(f->value) || THROWN(f->out))
+    // If this fires, it means that Flip_Series_To_White was not called an
+    // equal number of times after Flip_Series_To_Black, which means that
+    // the custom marker on series accumulated.
+    //
+    assert(TG_Num_Black_Series == 0);
+
+    //=//// ^-- ABOVE CHECKS *ALWAYS* APPLY ///////////////////////////////=//
+
+    if (IS_END(f->value))
+        return;
+
+    if (NOT_END(f->out) && THROWN(f->out))
         return;
 
     assert(f->value_type == VAL_TYPE(f->value));
 
-    //=//// BELOW CHECKS ONLY APPLY IN THE EXIT CASE WITH MORE DATA ///////=//
+    //=//// v-- BELOW CHECKS ONLY APPLY IN EXITS CASE WITH MORE CODE //////=//
 
     // The eval_type is expected to be calculated already.  Should match
     // f->value, with special exemption for optimized lookback calls
@@ -230,6 +268,8 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
       /*  else
             assert(IS_FUNCTION(f->value));*/
     }
+
+    //=//// ^-- ADD CHECKS EARLIER THAN HERE IF THEY SHOULD ALWAYS RUN ////=//
 }
 
 
@@ -249,7 +289,7 @@ REBUPT Do_Core_Expression_Checks_Debug(REBFRM *f) {
     // Once a throw is started, no new expressions may be evaluated until
     // that throw gets handled.
     //
-    assert(IS_TRASH_DEBUG(&TG_Thrown_Arg));
+    assert(IS_UNREADABLE_IF_DEBUG(&TG_Thrown_Arg));
 
     assert(f->label == NULL && f->label_debug == NULL);
 
@@ -274,14 +314,14 @@ REBUPT Do_Core_Expression_Checks_Debug(REBFRM *f) {
     // chained in via a function execution, so it's okay to put "non-GC safe"
     // trash in at this point...though by the time of that call, they must
     // hold valid values.
-    
+
     TRASH_POINTER_IF_DEBUG(f->param);
     TRASH_POINTER_IF_DEBUG(f->arg);
     TRASH_POINTER_IF_DEBUG(f->refine);
 
     TRASH_POINTER_IF_DEBUG(f->args_head);
     TRASH_POINTER_IF_DEBUG(f->varlist);
-  
+
     TRASH_POINTER_IF_DEBUG(f->func);
     TRASH_POINTER_IF_DEBUG(f->binding);
     TRASH_POINTER_IF_DEBUG(f->underlying);
@@ -336,10 +376,9 @@ void Do_Core_Exit_Checks_Debug(REBFRM *f) {
         assert(THROWN(f->out) || IS_END(f->value));
 
     // Function execution should have written *some* actual output value.
+    // checking the VAL_TYPE() is enough to make sure it's not END or trash
     //
-    assert(NOT_END(f->out)); // series END marker shouldn't leak out
-    assert(!IS_TRASH_DEBUG(f->out));
-    assert(VAL_TYPE(f->out) <= REB_MAX_VOID); // cheap check
+    assert(VAL_TYPE(f->out) <= REB_MAX_VOID);
 
     if (NOT(THROWN(f->out))) {
         assert(f->label == NULL);

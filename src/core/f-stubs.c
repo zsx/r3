@@ -59,7 +59,7 @@ REBCNT Bytes_To_REBCNT(const REBYTE * const in)
 
 //
 //  Get_Num_From_Arg: C
-// 
+//
 // Get the amount to skip or pick.
 // Allow multiple types. Throw error if not valid.
 // Note that the result is one-based.
@@ -132,7 +132,7 @@ out_of_range:
 
 //
 //  Int32s: C
-// 
+//
 // Get integer as positive, negative 32 bit value.
 // Sign field can be
 //     0: >= 0
@@ -204,7 +204,7 @@ REBDEC Dec64(const REBVAL *val)
 
 //
 //  Int64s: C
-// 
+//
 // Get integer as positive, negative 64 bit value.
 // Sign field can be
 //     0: >= 0
@@ -259,7 +259,7 @@ void Val_Init_Datatype(REBVAL *out, enum Reb_Kind kind)
 
 //
 //  Get_Type: C
-// 
+//
 // Returns the specified datatype value from the system context.
 // The datatypes are all at the head of the context.
 //
@@ -272,7 +272,7 @@ REBVAL *Get_Type(enum Reb_Kind kind)
 
 //
 //  Type_Of: C
-// 
+//
 // Returns the datatype value for the given value.
 // The datatypes are all at the head of the context.
 //
@@ -284,7 +284,7 @@ REBVAL *Type_Of(const RELVAL *value)
 
 //
 //  In_Object: C
-// 
+//
 // Get value from nested list of objects. List is null terminated.
 // Returns object value, else returns 0 if not found.
 //
@@ -315,7 +315,7 @@ REBVAL *In_Object(REBCTX *base, ...)
 
 //
 //  Get_System: C
-// 
+//
 // Return a second level object field of the system object.
 //
 REBVAL *Get_System(REBCNT i1, REBCNT i2)
@@ -331,7 +331,7 @@ REBVAL *Get_System(REBCNT i1, REBCNT i2)
 
 //
 //  Get_System_Int: C
-// 
+//
 // Get an integer from system object.
 //
 REBINT Get_System_Int(REBCNT i1, REBCNT i2, REBINT default_int)
@@ -344,7 +344,7 @@ REBINT Get_System_Int(REBCNT i1, REBCNT i2, REBINT default_int)
 
 //
 //  Val_Init_Series_Index_Core: C
-// 
+//
 // Common function.
 //
 void Val_Init_Series_Index_Core(
@@ -415,7 +415,7 @@ void Set_Tuple(REBVAL *value, REBYTE *bytes, REBCNT len)
 // is its canon form from a single pointer...the REBVAL sitting in the 0 slot
 // of the context's varlist.
 //
-void Val_Init_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
+void Val_Init_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *c) {
     //
     // In a debug build we check to make sure the type of the embedded value
     // matches the type of what is intended (so someone who thinks they are
@@ -424,27 +424,22 @@ void Val_Init_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
     // checks as well.
     //
 #if !defined(NDEBUG)
-    REBVAL *value = CTX_VALUE(context);
+    REBVAL *archetype = CTX_VALUE(c);
+    assert(VAL_CONTEXT(archetype) == c);
 
-    assert(ANY_CONTEXT(value));
-    assert(CTX_TYPE(context) == kind);
+    assert(CTX_TYPE(c) == kind);
+    if (CTX_KEYLIST(c) == NULL)
+        panic (c);
 
-    assert(VAL_CONTEXT(value) == context);
+    assert(GET_SER_FLAG(CTX_VARLIST(c), ARRAY_FLAG_VARLIST));
 
-    if (!CTX_KEYLIST(context)) {
-        Debug_Fmt("Context found with no keylist set");
-        Panic_Context(context);
-    }
-
-    assert(GET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_VARLIST));
-
-    if (IS_FRAME(CTX_VALUE(context)))
-        assert(IS_FUNCTION(CTX_FRAME_FUNC_VALUE(context)));
+    if (IS_FRAME(CTX_VALUE(c)))
+        assert(IS_FUNCTION(CTX_FRAME_FUNC_VALUE(c)));
 
     // !!! Currently only a context can serve as the "meta" information,
     // though the interface may expand.
     //
-    assert(!CTX_META(context) || ANY_CONTEXT(CTX_VALUE(CTX_META(context))));
+    assert(CTX_META(c) == NULL || ANY_CONTEXT(CTX_VALUE(CTX_META(c))));
 #endif
 
     // Some contexts (stack frames in particular) start out unmanaged, and
@@ -458,22 +453,28 @@ void Val_Init_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *context) {
     // set before they are GC'd.  For another case, see INIT_WORD_CONTEXT(),
     // where an ANY-WORD! can mark a context as in use.
     //
-    ENSURE_ARRAY_MANAGED(CTX_VARLIST(context));
+    ENSURE_ARRAY_MANAGED(CTX_VARLIST(c));
 
     // Keylists are different, because they may-or-may-not-be-reused by some
     // operations.  There needs to be a uniform policy on their management,
     // or certain routines would return "sometimes managed, sometimes not"
     // keylist series...a bad invariant.
     //
-    ASSERT_ARRAY_MANAGED(CTX_KEYLIST(context));
+    ASSERT_ARRAY_MANAGED(CTX_KEYLIST(c));
 
-    *out = *CTX_VALUE(context);
+    *out = *CTX_VALUE(c);
+
+    // Currently only FRAME! uses the ->binding field.  Following the pattern
+    // of function, we assume the archetype form of a frame has no binding,
+    // and it's only REBVAL instances besides the canon that become bound.
+    //
+    assert(VAL_BINDING(out) == NULL);
 }
 
 
 //
 //  Partial1: C
-// 
+//
 // Process the /part (or /skip) and other length modifying arguments.
 //
 // Adjusts the value's index if necessary, and returns the length indicated.
@@ -509,7 +510,7 @@ void Partial1(REBVAL *value, const REBVAL *limit, REBCNT *span)
         ){
             fail (Error(RE_INVALID_PART, limit));
         }
-        
+
         len = cast(REBINT, VAL_INDEX(limit)) - cast(REBINT, VAL_INDEX(value));
 
     }
@@ -537,17 +538,17 @@ void Partial1(REBVAL *value, const REBVAL *limit, REBCNT *span)
 
 //
 //  Partial: C
-// 
+//
 // Args:
 //     aval: target value
 //     bval: argument to modify target (optional)
 //     lval: length value (or blank)
-// 
+//
 // Determine the length of a /PART value. It can be:
 //     1. integer or decimal
 //     2. relative to A value (bval is null)
 //     3. relative to B value
-// 
+//
 // NOTE: Can modify the value's index!
 // The result can be negative. ???
 //
@@ -646,7 +647,7 @@ int Mul_Max(enum Reb_Kind type, i64 n, i64 m, i64 maxi)
 
 //
 //  Collect_Set_Words: C
-// 
+//
 // Scan a block, collecting all of its SET words as a block.
 //
 REBARR *Collect_Set_Words(RELVAL *val)

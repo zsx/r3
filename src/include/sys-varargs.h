@@ -47,11 +47,10 @@
 
 #ifdef NDEBUG
     #define VARARGS_FLAG(n) \
-        (cast(REBUPT, 1) << (TYPE_SPECIFIC_BIT + (n))) 
+        FLAGIT_LEFT(TYPE_SPECIFIC_BIT + (n))
 #else
     #define VARARGS_FLAG(n) \
-        ((cast(REBUPT, 1) << (TYPE_SPECIFIC_BIT + (n))) \
-            | TYPE_SHIFT_LEFT_FOR_HEADER(REB_VARARGS))
+        (FLAGIT_LEFT(TYPE_SPECIFIC_BIT + (n)) | HEADERIZE_KIND(REB_VARARGS))
 #endif
 
 // Was made with a call to MAKE VARARGS! with data from an ANY-ARRAY!
@@ -67,19 +66,13 @@ inline static const REBVAL *VAL_VARARGS_PARAM(const RELVAL *v)
 inline static REBVAL *VAL_VARARGS_ARG(const RELVAL *v)
     { return v->payload.varargs.arg; }
 
-inline static void MANAGE_VARARGS_FRAME_CTX(RELVAL *v) {
-    assert(GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST));
-    ASSERT_ARRAY_MANAGED(CTX_KEYLIST(AS_CONTEXT(v->extra.binding))); // always
-    MANAGE_ARRAY(CTX_VARLIST(AS_CONTEXT(v->extra.binding)));
-}
-
 inline static REBCTX *VAL_VARARGS_FRAME_CTX(const RELVAL *v) {
     ASSERT_ARRAY_MANAGED(v->extra.binding);
-    assert(GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST));
+    assert(GET_SER_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST));
     return AS_CONTEXT(v->extra.binding);
 }
 
 inline static REBARR *VAL_VARARGS_ARRAY1(const RELVAL *v) {
-    assert(!GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST));
+    assert(NOT_SER_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST));
     return v->extra.binding;
 }

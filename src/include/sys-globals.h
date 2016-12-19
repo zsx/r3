@@ -115,6 +115,7 @@ PVAR REBFLGS Eval_Signals;   // Signal flags
 //
 PVAR REBBRK PG_Breakpoint_Quitting_Hook;
 
+
 /***********************************************************************
 **
 **  Thread Globals - Local to each thread
@@ -128,11 +129,10 @@ TVAR REBVAL TG_Thrown_Arg;  // Non-GC protected argument to THROW
 
 //-- Memory and GC:
 TVAR REBPOL *Mem_Pools;     // Memory pool array
-TVAR REBINT GC_Disabled;    // GC disabled counter for critical sections.
+TVAR REBOOL GC_Recycling;    // True when the GC is in a recycle
 TVAR REBI64 GC_Ballast;     // Bytes allocated to force automatic GC
-TVAR REBOOL GC_Active;      // TRUE when recycle is enabled (set by RECYCLE func)
-TVAR REBSER *GC_Series_Guard; // A stack of protected series (removed by pop)
-TVAR REBSER *GC_Value_Guard; // A stack of protected series (removed by pop)
+TVAR REBOOL GC_Disabled;      // TRUE when RECYCLE/OFF is run
+TVAR REBSER *GC_Guarded; // A stack of GC protected series and values
 PVAR REBSER *GC_Mark_Stack; // Series pending to mark their reachables as live
 TVAR REBSER **Prior_Expand; // Track prior series expansions (acceleration)
 
@@ -149,6 +149,8 @@ TVAR REBUPT Stack_Limit;    // Limit address for CPU stack.
     // other than Do_Next that are contingent on a certain "tick" elapsing.
     //
     TVAR REBUPT TG_Do_Count;
+
+    TVAR REBIPT TG_Num_Black_Series;
 #endif
 
 // Each time Do_Core is called a Reb_Frame* is pushed to the "frame stack".

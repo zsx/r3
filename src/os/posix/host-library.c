@@ -60,7 +60,7 @@
 
 //
 //  OS_Open_Library: C
-// 
+//
 // Load a DLL library and return the handle to it.
 // If zero is returned, error indicates the reason.
 //
@@ -81,7 +81,7 @@ void *OS_Open_Library(const REBCHR *path, REBCNT *error)
 
 //
 //  OS_Close_Library: C
-// 
+//
 // Free a DLL library opened earlier.
 //
 void OS_Close_Library(void *dll)
@@ -94,7 +94,7 @@ void OS_Close_Library(void *dll)
 
 //
 //  OS_Find_Function: C
-// 
+//
 // Get a DLL function address from its string name.
 //
 CFUNC *OS_Find_Function(void *dll, const char *funcname)

@@ -37,7 +37,7 @@
 
 //
 //  Round_Dec: C
-// 
+//
 // Identical to ROUND mezzanine function.
 // Note: scale arg only valid if RF_TO is set
 //
@@ -135,7 +135,7 @@ REBDEC Round_Dec(REBDEC dec, REBCNT flags, REBDEC scale)
 
 //
 //  Round_Int: C
-// 
+//
 // Identical to ROUND mezzanine function.
 // Note: scale arg only valid if RF_TO is set
 //
@@ -179,7 +179,7 @@ REBI64 Round_Int(REBI64 num, REBCNT flags, REBI64 scale)
 
 //
 //  Round_Deci: C
-// 
+//
 // Identical to ROUND mezzanine function.
 // Note: scale arg only valid if RF_TO is set
 //

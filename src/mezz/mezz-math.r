@@ -157,8 +157,9 @@ factorial: func [n [integer!] /local res] [
 ]
 
 ; This MATH implementation is from Gabrielle Santilli circa 2001, found
-; via http://www.amyresource.it/AGI/.  It implements the much-requested
-; (by new users) idea of * and / running before + and - in math expressions.
+; via http://www.rebol.org/ml-display-thread.r?m=rmlXJHS. It implements the
+; much-requested (by new users) idea of * and / running before + and - in
+; math expressions. Expanded to include functions.
 ;
 math: function [
     {Process expression taking "usual" operator precedence into account.}
@@ -218,24 +219,60 @@ math: function [
 
     prim-val (_)
 
-    ; WARNING: uses recursion for parens.
     primary ([
-        set prim-val [any-number! | word!]
-        | set prim-val group! (prim-val: translate to-block :prim-val)
+		set prim-val any-number!
+		| set prim-val [word! | path!] (prim-val: reduce [prim-val])
+			; might be a funtion call, looking for arguments
+			any [
+				nested-expression (append prim-val take nested-expr-val)
+			]
+        | and group! into nested-expression (prim-val: take nested-expr-val)
     ])
-][
-    ; to allow recursive calling, we need to preserve our state
-    recursion: reduce [
-        :expr-val :expr-op :term-val :term-op :power-val :unary-val
-        :pre-uop :post-uop :prim-val
-    ]
 
+	p-recursion (_)
+
+	nested-expr-val ([])
+
+	save-vars (func [][
+			p-recursion: reduce [
+				:p-recursion :expr-val :expr-op :term-val :term-op :power-val :unary-val
+				:pre-uop :post-uop :prim-val
+			]
+		])
+
+	restore-vars (func [][
+			set [
+				p-recursion expr-val expr-op term-val term-op power-val unary-val
+				pre-uop post-uop prim-val
+			] p-recursion
+		])
+
+	nested-expression ([
+			;all of the static variables have to be saved
+			(save-vars)
+			expression
+			(
+				; This rule can be recursively called as well,
+				; so result has to be passed via a stack
+				insert/only nested-expr-val expr-val
+				restore-vars
+			)
+			; vars could be changed even it failed, so restore them and fail
+			| (restore-vars) fail
+
+	])
+][
+	clear nested-expr-val
     res: either parse expr expression [expr-val] [blank]
 
-    set [
-        expr-val expr-op term-val term-op power-val unary-val
-        pre-uop post-uop prim-val
-    ] recursion
-
-    either only [res] [do res]
+    either only [res] [
+		ret: reduce res
+		unless all [
+			1 = length ret
+			any-number? ret/1
+		][
+			fail rejoin ["Cannot be REDUCED to a number(" mold ret ") :" mold res]
+		]
+		ret/1
+	]
 ]

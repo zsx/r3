@@ -62,9 +62,9 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 
 //
 //  load-extension: native [
-//  
+//
 //  "Low level extension module loader (for DLLs)."
-//  
+//
 //      name [file! binary!] "DLL file or UTF-8 source"
 //      /dispatch {Specify native command dispatch (from hosted extensions)}
 //      function [handle!] "Command dispatcher (native)"
@@ -73,16 +73,16 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 REBNATIVE(load_extension)
 //
 // Low level extension loader:
-// 
+//
 // 1. Opens the DLL for the extension
 // 2. Calls its Info() command to get its definition header (REBOL)
 // 3. Inits an extension structure (dll, Call() function)
 // 4. Creates a extension object and returns it
 // 5. REBOL code then uses that object to define the extension module
 //    including commands, functions, data, exports, etc.
-// 
+//
 // Each extension is defined as DLL with:
-// 
+//
 // init() - init anything needed
 // quit() - cleanup anything needed
 // call() - dispatch a native
@@ -171,7 +171,7 @@ REBNATIVE(load_extension)
 
 //
 //  Make_Command: C
-// 
+//
 // `extension` is an object or module that represents the properties of the
 // DLL or shared library (including its DLL handle, load or unload status,
 // etc.)  `command-num` is a numbered function inside of that DLL, which
@@ -252,17 +252,17 @@ REBNATIVE(make_command)
     INCLUDE_PARAMS_OF_MAKE_COMMAND;
 
     REBVAL *def = ARG(def);
-
-    REBVAL spec;
-    REBVAL extension;
-    REBVAL command_num;
-
     if (VAL_LEN_AT(def) != 3)
         fail (Error_Invalid_Arg(def));
 
-    COPY_VALUE(&spec, VAL_ARRAY_AT(def), VAL_SPECIFIER(def));
-    COPY_VALUE(&extension, VAL_ARRAY_AT(def) + 1, VAL_SPECIFIER(def));
-    COPY_VALUE(&command_num, VAL_ARRAY_AT(def) + 2, VAL_SPECIFIER(def));
+    REBVAL spec;
+    Derelativize(&spec, VAL_ARRAY_AT(def), VAL_SPECIFIER(def));
+
+    REBVAL extension;
+    Derelativize(&extension, VAL_ARRAY_AT(def) + 1, VAL_SPECIFIER(def));
+
+    REBVAL command_num;
+    Derelativize(&command_num, VAL_ARRAY_AT(def) + 2, VAL_SPECIFIER(def));
 
     // Validity checking on the 3 elements done inside Make_Command, will
     // fail() if the input is not good.
@@ -298,7 +298,7 @@ REB_R Command_Dispatcher(REBFRM *f)
     // (not RELVALs, REBSERs, etc) go ahead and reify and make a FRAME!.
     //
     REBCTX *frame_ctx = Context_For_Frame_May_Reify_Managed(f);
-    
+
     // !!! Although the frame value *contents* may be copied into other safe
     // locations and GC managed for an indefinite lifetime, this particular
     // REBVAL pointer will only be safe and good for the duration of the call.

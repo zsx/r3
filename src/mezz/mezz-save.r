@@ -51,8 +51,8 @@ save: function [
     length: :lib/length
 
     ; Default `method` and `header-data` to blank
-    method: any [:method]
-    header-data: any [:header-data]
+    method: to-value :method
+    header-data: to-value :header-data
 
     ;-- Special datatypes use codecs directly (e.g. PNG image file):
     if all [
@@ -98,7 +98,7 @@ save: function [
                     remove find select header-data 'options 'compress
                 ]
                 not block? select header-data 'options [
-                    repend header-data ['options copy [compress]]
+                    join header-data ['options copy [compress]]
                 ]
                 not find header-data/options 'compress [
                     append header-data/options 'compress

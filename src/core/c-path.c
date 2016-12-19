@@ -46,49 +46,37 @@ extern const REBPEF Path_Dispatch[REB_MAX];
 //
 REBOOL Next_Path_Throws(REBPVS *pvs)
 {
-    REBPEF dispatcher;
-
-    // Path must have dispatcher, else return:
-    dispatcher = Path_Dispatch[VAL_TYPE(pvs->value)];
+    REBPEF dispatcher = Path_Dispatch[VAL_TYPE(pvs->value)];
     if (!dispatcher) return FALSE; // unwind, then check for errors
 
     pvs->item++;
 
-    //Debug_Fmt("Next_Path: %r/%r", pvs->path-1, pvs->path);
-
-    // Determine the "selector".  See notes on pvs->selector_temp for why
-    // a local variable can't be used for the temporary space.
+    // Calculate the "selector" into the GC guarded cell.
     //
+    assert(pvs->selector == &pvs->selector_cell);
+
     if (IS_GET_WORD(pvs->item)) { // e.g. object/:field
-        pvs->selector
-            = GET_MUTABLE_VAR_MAY_FAIL(pvs->item, pvs->item_specifier);
+        pvs->selector_cell
+            = *GET_OPT_VAR_MAY_FAIL(pvs->item, pvs->item_specifier);
 
         if (IS_VOID(pvs->selector))
             fail (Error_No_Value_Core(pvs->item, pvs->item_specifier));
-
-        SET_TRASH_IF_DEBUG(&pvs->selector_temp);
     }
-    // object/(expr) case:
-    else if (IS_GROUP(pvs->item)) {
+    else if (IS_GROUP(pvs->item)) { // object/(expr) case:
         if (Do_At_Throws(
-            &pvs->selector_temp,
+            &pvs->selector_cell,
             VAL_ARRAY(pvs->item),
             VAL_INDEX(pvs->item),
             IS_RELATIVE(pvs->item)
                 ? pvs->item_specifier // if relative, use parent specifier...
                 : VAL_SPECIFIER(const_KNOWN(pvs->item)) // ...else use child's
         )) {
-            *pvs->store = pvs->selector_temp;
+            *pvs->store = pvs->selector_cell;
             return TRUE;
         }
-
-        pvs->selector = &pvs->selector_temp;
     }
-    else {
-        // object/word and object/value case:
-        //
-        COPY_VALUE(&pvs->selector_temp, pvs->item, pvs->item_specifier);
-        pvs->selector = &pvs->selector_temp;
+    else { // object/word and object/value case:
+        Derelativize(&pvs->selector_cell, pvs->item, pvs->item_specifier);
     }
 
     switch (dispatcher(pvs)) {
@@ -148,7 +136,21 @@ REBOOL Do_Path_Throws_Core(
     REBCTX *specifier,
     REBVAL *opt_setval
 ) {
+    // The pvs contains a cell for the selector into which evaluations are
+    // done, e.g. `foo/(1 + 2)`.  Because Next_Path() doesn't commit to not
+    // performing any evaluations this cell must be guarded.  In the case of
+    // a fail() this guard will be released automatically, but to return
+    // normally use `return_thrown` and `return_not_thrown` which drops guard.
+    //
+    // !!! There was also a strange requirement in some more quirky path
+    // evaluation (GOB!, STRUCT!) that the cell survive between Next_Path()
+    // calls, which may still be relevant to why this can't be a C local.
+    //
     REBPVS pvs;
+    SET_END(&pvs.selector_cell);
+    PUSH_GUARD_VALUE(&pvs.selector_cell);
+    pvs.selector = &pvs.selector_cell;
+
     REBDSP dsp_orig = DSP;
 
     assert(ANY_PATH(path));
@@ -166,7 +168,7 @@ REBOOL Do_Path_Throws_Core(
     // will do, which is unset in release builds.
     //
     if (opt_setval)
-        SET_TRASH_SAFE(out);
+        SET_UNREADABLE_BLANK(out);
 
     // None of the values passed in can live on the data stack, because
     // they might be relocated during the path evaluation process.
@@ -197,11 +199,10 @@ REBOOL Do_Path_Throws_Core(
         assert(specifier != SPECIFIED);
 
         if (VAL_RELATIVE(path) != VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier))) {
-            Debug_Fmt("Specificity mismatch found in path dispatch");
-            PROBE_MSG(path, "the path being evaluated");
-            PROBE_MSG(FUNC_VALUE(VAL_RELATIVE(path)), "expected func");
-            PROBE_MSG(CTX_FRAME_FUNC_VALUE(specifier), "actual func");
-            assert(FALSE);
+            printf("Specificity mismatch in path dispatch, expected:\n");
+            PROBE(CTX_FRAME_FUNC_VALUE(specifier));
+            printf("Panic on actual path\n");
+            panic (path);
         }
     #endif
         pvs.item_specifier = specifier;
@@ -222,7 +223,7 @@ REBOOL Do_Path_Throws_Core(
         // temporary locations, like this pvs.value...if a set-path sets
         // it, then it will be discarded.
 
-        COPY_VALUE(pvs.store, VAL_ARRAY_AT(pvs.orig), pvs.item_specifier);
+        Derelativize(pvs.store, VAL_ARRAY_AT(pvs.orig), pvs.item_specifier);
         pvs.value = pvs.store;
         pvs.value_specifier = SPECIFIED;
     }
@@ -253,7 +254,8 @@ REBOOL Do_Path_Throws_Core(
         //
         assert(threw == THROWN(pvs.value));
 
-        if (threw) return TRUE;
+        if (threw)
+            goto return_thrown;
 
         // Check for errors:
         if (NOT_END(pvs.item + 1) && !IS_FUNCTION(pvs.value)) {
@@ -261,36 +263,36 @@ REBOOL Do_Path_Throws_Core(
             // Only function refinements should get by this line:
 
             REBVAL specified_orig;
-            COPY_VALUE(&specified_orig, pvs.orig, specifier);
+            Derelativize(&specified_orig, pvs.orig, specifier);
 
             REBVAL specified_item;
-            COPY_VALUE(&specified_item, pvs.item, specifier);
+            Derelativize(&specified_item, pvs.item, specifier);
 
             fail (Error(RE_INVALID_PATH, &specified_orig, &specified_item));
         }
     }
     else if (!IS_FUNCTION(pvs.value)) {
         REBVAL specified;
-        COPY_VALUE(&specified, pvs.orig, specifier);
+        Derelativize(&specified, pvs.orig, specifier);
         fail (Error(RE_BAD_PATH_TYPE, &specified, Type_Of(pvs.value)));
     }
 
     if (opt_setval) {
         // If SET then we don't return anything
         assert(IS_END(pvs.item) + 1);
-        return FALSE;
+        goto return_not_thrown;
     }
 
     // If storage was not used, then copy final value back to it:
     if (pvs.value != pvs.store)
-        COPY_VALUE(pvs.store, pvs.value, pvs.value_specifier);
+        Derelativize(pvs.store, pvs.value, pvs.value_specifier);
 
     assert(!THROWN(out));
 
     // Return 0 if not function or is :path/word...
     if (!IS_FUNCTION(pvs.value)) {
         assert(IS_END(pvs.item) + 1);
-        return FALSE;
+        goto return_not_thrown;
     }
 
     if (label_out) {
@@ -372,7 +374,7 @@ REBOOL Do_Path_Throws_Core(
                 )) {
                     *out = refinement;
                     DS_DROP_TO(dsp_orig);
-                    return TRUE;
+                    goto return_thrown;
                 }
                 if (IS_VOID(&refinement)) continue;
                 DS_PUSH(&refinement);
@@ -431,7 +433,13 @@ REBOOL Do_Path_Throws_Core(
             fail (Error(RE_TOO_LONG)); // !!! Better error or add feature
     }
 
+return_not_thrown:
+    DROP_GUARD_VALUE(&pvs.selector_cell);
     return FALSE;
+
+return_thrown:
+    DROP_GUARD_VALUE(&pvs.selector_cell);
+    return TRUE;
 }
 
 
@@ -441,10 +449,10 @@ REBOOL Do_Path_Throws_Core(
 REBCTX *Error_Bad_Path_Select(REBPVS *pvs)
 {
     REBVAL orig;
-    COPY_VALUE(&orig, pvs->orig, pvs->item_specifier);
+    Derelativize(&orig, pvs->orig, pvs->item_specifier);
 
     REBVAL item;
-    COPY_VALUE(&item, pvs->item, pvs->item_specifier);
+    Derelativize(&item, pvs->item, pvs->item_specifier);
 
     return Error(RE_INVALID_PATH, &orig, &item);
 }
@@ -456,10 +464,10 @@ REBCTX *Error_Bad_Path_Select(REBPVS *pvs)
 REBCTX *Error_Bad_Path_Set(REBPVS *pvs)
 {
     REBVAL orig;
-    COPY_VALUE(&orig, pvs->orig, pvs->item_specifier);
+    Derelativize(&orig, pvs->orig, pvs->item_specifier);
 
     REBVAL item;
-    COPY_VALUE(&item, pvs->item, pvs->item_specifier);
+    Derelativize(&item, pvs->item, pvs->item_specifier);
 
     return Error(RE_BAD_PATH_SET, &orig, &item);
 }
@@ -471,7 +479,7 @@ REBCTX *Error_Bad_Path_Set(REBPVS *pvs)
 REBCTX *Error_Bad_Path_Range(REBPVS *pvs)
 {
     REBVAL item;
-    COPY_VALUE(&item, pvs->item, pvs->item_specifier);
+    Derelativize(&item, pvs->item, pvs->item_specifier);
 
     return Error_Out_Of_Range(&item);
 }
@@ -483,7 +491,7 @@ REBCTX *Error_Bad_Path_Range(REBPVS *pvs)
 REBCTX *Error_Bad_Path_Field_Set(REBPVS *pvs)
 {
     REBVAL item;
-    COPY_VALUE(&item, pvs->item, pvs->item_specifier);
+    Derelativize(&item, pvs->item, pvs->item_specifier);
 
     return Error(RE_BAD_FIELD_SET, &item, Type_Of(pvs->opt_setval));
 }
@@ -504,7 +512,7 @@ void Get_Simple_Value_Into(REBVAL *out, const RELVAL *val, REBCTX *specifier)
             fail (Error_No_Catch_For_Throw(out));
     }
     else {
-        COPY_VALUE(out, val, specifier);
+        Derelativize(out, val, specifier);
     }
 }
 

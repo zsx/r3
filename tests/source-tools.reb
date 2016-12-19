@@ -100,6 +100,13 @@ rebsource: context [
                 new-line position true
             ]
 
+            add-line: function [list][
+                if blank? buffer: get list [
+                    set list buffer: copy []
+                ]
+                append buffer line-of file-text position
+            ]
+
             text: read/string src-folder/:file
 
             all [
@@ -121,46 +128,55 @@ rebsource: context [
             ]
 
             wsp-not-eol: exclude c.lexical/charsets/ws-char charset {^/}
-            eol-wsp: malloc: _
+            wsp-not-tabeol: exclude wsp-not-eol charset {^-}
+
+            eol-wsp: malloc: tabbed: _
             file-text: text
 
             do bind [
 
                 is-identifier: [and identifier]
 
+                wsp-eol: [some wsp-not-eol eol]
+
+                trimmed-comment: [{//} some [not eol not wsp-eol skip]]
+
                 eol-wsp-check: [
-                    wsp-not-eol eol
-                    (
-                        eol-wsp: default [copy []]
-                        append eol-wsp line-of file-text position
-                    )
+                    wsp-eol (add-line 'eol-wsp)
                 ]
 
                 malloc-check: [
-                    is-identifier "malloc"
-                    (
-                        malloc: default [copy []]
-                        append malloc line-of file-text position
-                    )
+                    is-identifier "malloc" (add-line 'malloc)
+                ]
+
+                tab-check: [
+                    #"^-" (add-line 'tabbed)
                 ]
 
                 parse/case file-text [
                     some [
                         position:
                         malloc-check
+                        | trimmed-comment
                         | eol-wsp-check
+                        | some wsp-not-tabeol | tab-check
                         | c-pp-token
                     ]
                 ]
 
             ] c.lexical/grammar
 
-            if eol-wsp [
-                emit [eol-wsp (file) (eol-wsp)]
+            foreach list [eol-wsp malloc tabbed][
+                if not blank? get list [
+                    emit [(list) (file) (get list)]
+                ]
             ]
 
-            if malloc [
-                emit [malloc (file) (malloc)]
+            if all [
+                not tail? file-text
+                not equal? newline last file-text
+            ][
+                emit [eof-eol-missing (file)]
             ]
 
             emit-proto: procedure [proto][
@@ -245,8 +261,8 @@ rebsource: context [
 
             files: make block! []
             for-each path fixed-source-paths [
-                for-each file read join src-folder path [
-                    append files join path file
+                for-each file read join-of src-folder path [
+                    append files join-of path file
                 ]
             ]
 

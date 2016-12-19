@@ -34,7 +34,7 @@
 
 //
 //  Snap_State_Core: C
-// 
+//
 // Used by SNAP_STATE, PUSH_TRAP, and PUSH_UNHALTABLE_TRAP.
 //
 // **Note:** Modifying this routine likely means a necessary modification to
@@ -51,10 +51,8 @@ void Snap_State_Core(struct Reb_State *s)
     //
     assert(ARR_LEN(BUF_COLLECT) == 0);
 
-    s->series_guard_len = SER_LEN(GC_Series_Guard);
-    s->value_guard_len = SER_LEN(GC_Value_Guard);
+    s->guarded_len = SER_LEN(GC_Guarded);
     s->frame = FS_TOP;
-    s->gc_disable = GC_Disabled;
 
     s->manuals_len = SER_LEN(GC_Manuals);
     s->uni_buf_len = SER_LEN(UNI_BUF);
@@ -78,14 +76,12 @@ void Assert_State_Balanced_Debug(
     const char *file,
     int line
 ) {
-    REBSER *panic = NULL;
-
     if (s->dsp != DSP) {
-        Debug_Fmt(
-            "DS_PUSH()x%d without DS_POP/DS_DROP",
+        printf(
+            "DS_PUSH()x%d without DS_POP/DS_DROP\n",
             DSP - s->dsp
         );
-        goto problem_found;
+        panic_at (NULL, file, line);
     }
 
     assert(s->top_chunk == TG_Top_Chunk);
@@ -94,33 +90,18 @@ void Assert_State_Balanced_Debug(
 
     assert(ARR_LEN(BUF_COLLECT) == 0);
 
-    if (s->series_guard_len != SER_LEN(GC_Series_Guard)) {
-        Debug_Fmt(
-            "PUSH_GUARD_SERIES()x%d without DROP_GUARD_SERIES",
-            SER_LEN(GC_Series_Guard) - s->series_guard_len
+    if (s->guarded_len != SER_LEN(GC_Guarded)) {
+        printf(
+            "PUSH_GUARD()x%d without DROP_GUARD()\n",
+            SER_LEN(GC_Guarded) - s->guarded_len
         );
-        panic = *SER_AT(
-            REBSER*,
-            GC_Series_Guard,
-            SER_LEN(GC_Series_Guard) - 1
+        REBNOD *guarded = *SER_AT(
+            REBNOD*,
+            GC_Guarded,
+            SER_LEN(GC_Guarded) - 1
         );
-        goto problem_found;
+        panic_at (guarded, file, line);
     }
-
-    if (s->value_guard_len != SER_LEN(GC_Value_Guard)) {
-        Debug_Fmt(
-            "PUSH_GUARD_VALUE()x%d without DROP_GUARD_VALUE",
-            SER_LEN(GC_Value_Guard) - s->value_guard_len
-        );
-        PROBE(*SER_AT(
-            REBVAL*,
-            GC_Value_Guard,
-            SER_LEN(GC_Value_Guard) - 1
-        ));
-        goto problem_found;
-    }
-
-    assert(s->gc_disable == GC_Disabled);
 
     // !!! Note that this inherits a test that uses GC_Manuals->content.xxx
     // instead of SER_LEN().  The idea being that although some series
@@ -130,26 +111,25 @@ void Assert_State_Balanced_Debug(
     // e.g. a contiguous pointer stack.
     //
     if (s->manuals_len > SER_LEN(GC_Manuals)) {
-        Debug_Fmt("!!! Manual series freed from outside of checkpoint !!!");
-
-        // Note: Should this ever actually happen, a Panic_Series won't do
-        // any real good in helping debug it.  You'll probably need to
+        //
+        // Note: Should this ever actually happen, panic() on the series won't
+        // do any real good in helping debug it.  You'll probably need to
         // add additional checking in the Manage_Series and Free_Series
         // routines that checks against the caller's manuals_len.
         //
-        goto problem_found;
+        panic_at ("manual series freed outside checkpoint", file, line);
     }
     else if (s->manuals_len < SER_LEN(GC_Manuals)) {
-        Debug_Fmt(
-            "Make_Series()x%d without Free_Series or MANAGE_SERIES",
+        printf(
+            "Make_Series()x%d without Free_Series or MANAGE_SERIES\n",
             SER_LEN(GC_Manuals) - s->manuals_len
         );
-        panic = *(SER_AT(
+        REBSER *manual = *(SER_AT(
             REBSER*,
             GC_Manuals,
             SER_LEN(GC_Manuals) - 1
         ));
-        goto problem_found;
+        panic_at (manual, file, line);
     }
 
     assert(s->uni_buf_len == SER_LEN(UNI_BUF));
@@ -159,12 +139,6 @@ void Assert_State_Balanced_Debug(
 
     return;
 
-problem_found:
-    Debug_Fmt("in File: %s Line: %d", file, line);
-    if (panic)
-        Panic_Series(panic);
-    assert(FALSE);
-    DEAD_END;
 }
 
 #endif
@@ -172,7 +146,7 @@ problem_found:
 
 //
 //  Trapped_Helper_Halted: C
-// 
+//
 // This is used by both PUSH_TRAP and PUSH_UNHALTABLE_TRAP to do
 // the work of responding to a longjmp.  (Hence it is run when
 // setjmp returns TRUE.)  Its job is to safely recover from
@@ -180,7 +154,7 @@ problem_found:
 // be safely recovered from is finite.  Among the countless
 // things that are not handled automatically would be a memory
 // allocation.
-// 
+//
 // (Note: This is a crucial difference between C and C++, as
 // C++ will walk up the stack at each level and make sure
 // any constructors have their associated destructors run.
@@ -188,7 +162,7 @@ problem_found:
 // Rebol's greater concern is not so much the cost of setup
 // for stack unwinding, but being able to be compiled without
 // requiring a C++ compiler.)
-// 
+//
 // Returns whether the trapped error was a RE_HALT or not.
 //
 REBOOL Trapped_Helper_Halted(struct Reb_State *s)
@@ -229,8 +203,7 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
         );
     }
 
-    SET_SERIES_LEN(GC_Series_Guard, s->series_guard_len);
-    SET_SERIES_LEN(GC_Value_Guard, s->value_guard_len);
+    SET_SERIES_LEN(GC_Guarded, s->guarded_len);
     TG_Frame_Stack = s->frame;
     TERM_SEQUENCE_LEN(UNI_BUF, s->uni_buf_len);
 
@@ -246,8 +219,6 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
 
     TERM_ARRAY_LEN(MOLD_STACK, s->mold_loop_tail);
 
-    GC_Disabled = s->gc_disable;
-
     Saved_State = s->last_state;
 
     return halted;
@@ -256,7 +227,7 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
 
 //
 //  Fail_Core: C
-// 
+//
 // Cause a "trap" of an error by longjmp'ing to the enclosing PUSH_TRAP (or
 // PUSH_UNHALTABLE_TRAP).  Note that these failures interrupt code mid-stream,
 // so if a Rebol function is running it will not make it to the point of
@@ -278,40 +249,22 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
     // that are not inside of a fail invocation don't get confused and
     // have the wrong information
     //
-    assert(TG_Erroring_C_File);
+    assert(TG_Erroring_C_File != NULL);
     TG_Erroring_C_File = NULL;
 
     // If we raise the error we'll lose the stack, and if it's an early
     // error we always want to see it (do not use ATTEMPT or TRY on
     // purpose in Init_Core()...)
     //
-    if (PG_Boot_Phase < BOOT_DONE) {
-        REBVAL error_value;
-
-        Val_Init_Error(&error_value, error);
-        Debug_Fmt("** Error raised during Init_Core(), should not happen!");
-        Debug_Fmt("%v", &error_value);
-        assert(FALSE);
-    }
+    if (PG_Boot_Phase < BOOT_DONE)
+        panic (error);
 #endif
 
-    if (!Saved_State) {
-        //
-        // There should be a PUSH_TRAP of some kind in effect if a `fail` can
-        // ever be run, so mention that before panicking.  The error contains
-        // arguments and information, however, so that should be the panic
-        //
-        Debug_Fmt("*** NO \"SAVED STATE\" - PLEASE MENTION THIS FACT! ***");
+    // There should be a PUSH_TRAP of some kind in effect if a `fail` can
+    // ever be run.
+    //
+    if (Saved_State == NULL)
         panic (error);
-    }
-
-    if (Trace_Level) {
-        Debug_Fmt(
-            "Error id, type: %r %r",
-            &ERR_VARS(error)->type,
-            &ERR_VARS(error)->id
-        );
-    }
 
     // The information for the Rebol call frames generally is held in stack
     // variables, so the data will go bad in the longjmp.  We have to free
@@ -332,15 +285,13 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
 
     TG_Frame_Stack = f; // TG_Frame_Stack is writable FS_TOP
 
-    // We pass the error as a context rather than as a value.
-    //
     Saved_State->error = error;
 
     // If a THROWN() was being processed up the stack when the error was
     // raised, then it had the thrown argument set.  Trash it in debug
     // builds.  (The value will not be kept alive, it is not seen by GC)
     //
-    SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
+    SET_UNREADABLE_BLANK(&TG_Thrown_Arg);
 
 #if 0
     // Finish the func stats
@@ -385,13 +336,13 @@ REBCNT Stack_Depth(void)
 
 //
 //  Find_Error_For_Code: C
-// 
+//
 // Find the id word, the error type (category) word, and the error
 // message template block-or-string for a given error number.
-// 
+//
 // This scans the data which is loaded into the boot file by
 // processing %errors.r
-// 
+//
 // If the message is not found, return NULL.  Will not write to
 // `id_out` or `type_out` unless returning a non-NULL pointer.
 //
@@ -562,12 +513,12 @@ static void Try_Add_Backtrace_To_Error(
 
 //
 //  Make_Error_Object_Throws: C
-// 
+//
 // Creates an error object from arg and puts it in value.
 // The arg can be a string or an object body block.
-// 
+//
 // Returns TRUE if a THROWN() value is made during evaluation.
-// 
+//
 // This function is called by MAKE ERROR!.  Note that most often
 // system errors from %errors.r are thrown by C code using
 // Make_Error(), but this routine accommodates verification of
@@ -859,32 +810,20 @@ REBOOL Make_Error_Object_Throws(
 
 
 //
-//  Make_Error_Core: C
-// 
-// (va_list by pointer: http://stackoverflow.com/a/3369762/211160)
-// 
-// Create and init a new error object based on a C va_list
-// and an error code.  This routine is responsible also for
-// noticing if there is an attempt to make an error at a time
-// that is too early for error creation, and not try and invoke
-// the error creation machinery.  That means if you write:
-// 
-//     panic (Error(RE_SOMETHING, arg1, ...));
-// 
-// ...and it's too early to make an error, the inner call to
-// Error will be the one doing the panic.  Hence, both fail and
-// panic behave identically in that early phase of the system
-// (though panic is better documentation that one knows the
-// error cannot be trapped).
-// 
-// Besides that caveat and putting running-out-of-memory aside,
-// this routine should not fail internally.  Hence it should
-// return to the caller to properly call va_end with no longjmp
-// to skip it.
+//  Make_Error_Managed_Core: C
 //
-// !!! Result is managed.  See notes at end for why.
+// (WARNING va_list by pointer: http://stackoverflow.com/a/3369762/211160)
 //
-REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
+// Create and init a new error object based on a C va_list and an error code.
+// It knows how many arguments the error particular error ID requires based
+// on the templates defined in %errors.r.
+//
+// This routine should either succeed and return to the caller, or panic()
+// and crash if there is a problem (such as running out of memory, or that
+// %errors.r has not been loaded).  Hence the caller can assume it will
+// regain control to properly call va_end with no longjmp to skip it.
+//
+REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
 {
     assert(code != 0);
 
@@ -899,8 +838,15 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
 #endif
 
     if (PG_Boot_Phase < BOOT_ERRORS) {
-        Panic_Core(code, NULL, vaptr);
-        DEAD_END;
+        char buf[1024];
+        strncat(buf, "fail() before object table initialized, code = ", 1024);
+        Form_Int(b_cast(buf + strlen(buf)), code); // !!! no bounding...
+
+    #if defined(NDEBUG)
+        panic (buf);
+    #else
+        panic_at (buf, TG_Erroring_C_File, TG_Erroring_C_Line);
+    #endif
     }
 
     // Safe to initialize the root error now...
@@ -1047,9 +993,8 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
                     // Make_Error doesn't have any way to pass in a specifier,
                     // so only specific values should be used.
                     //
-                    Debug_Fmt("Relative value passed to Make_Error()");
-                    PROBE_MSG(arg, "the value");
-                    PANIC_VALUE(arg);
+                    printf("Relative value passed to Make_Error()\n");
+                    panic (arg);
                 }
             #endif
 
@@ -1058,8 +1003,8 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
             #if !defined(NDEBUG)
                 if (LEGACY(OPTIONS_ARG1_ARG2_ARG3_ERROR)) {
                     if (*arg1_arg2_arg3 == SYM_0) {
-                        Debug_Fmt("Legacy arg1_arg2_arg3 error with > 3 args");
-                        panic (Error(RE_MISC));
+                        printf("Legacy arg1_arg2_arg3 error with > 3 args\n");
+                        panic (arg);
                     }
                     Val_Init_Typeset(key, ALL_64, Canon(*arg1_arg2_arg3));
                     arg1_arg2_arg3++;
@@ -1144,20 +1089,30 @@ REBCTX *Make_Error_Core(REBCNT code, va_list *vaptr)
 
 //
 //  Error: C
-// 
-// This is a variadic function which is designed to be the
-// "argument" of either a `fail` or a `panic` "keyword".
-// It can be called directly, or indirectly by another proxy
-// error function.  It takes a number of REBVAL* arguments
-// appropriate for the error number passed.
-// 
-// With C variadic functions it is not known how many arguments
-// were passed.  Make_Error_Core() knows how many arguments are
-// in an error's template in %errors.r for a given error #, so
-// that is the number of arguments it will attempt to use.
-// If desired, a caller can pass a NULL after the last argument
-// to double-check that too few arguments are not given, though
-// this is not enforced (to help with callsite readability).
+//
+// This variadic function takes a number of REBVAL* arguments appropriate for
+// the error number passed.  It is commonly used with fail():
+//
+//     fail (Error(RE_SOMETHING, arg1, arg2, ...));
+//
+// Note that in C, variadic functions don't know how many arguments they were
+// passed.  Make_Error_Managed_Core() knows how many arguments are in an
+// error's template in %errors.r for a given error id, so that is the number
+// of arguments it will *attempt* to use--reading invalid memory if wrong.
+//
+// (All C variadics have this problem, e.g. `printf("%d %d", 12);`)
+//
+// But the risk of mistakes is reduced by creating wrapper functions, with a
+// fixed number of arguments specific to each error...and the wrappers can
+// also do additional argument processing:
+//
+//     fail (Error_Something(arg1, thing_processed_to_make_arg2));
+//
+// But to make variadic calls *slightly* safer, a caller can pass END_CELL
+// after the last argument for a double-check that won't try reading invalid
+// memory if too few arguments are given:
+//
+//     fail (Error(RE_SOMETHING, arg1, arg2, END_CELL));
 //
 REBCTX *Error(REBCNT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
 {
@@ -1165,7 +1120,7 @@ REBCTX *Error(REBCNT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
     REBCTX *error;
 
     va_start(va, num);
-    error = Make_Error_Core(num, &va);
+    error = Make_Error_Managed_Core(num, &va);
     va_end(va);
 
     return error;
@@ -1176,8 +1131,8 @@ REBCTX *Error(REBCNT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
 //  Error_Lookback_Quote_Too_Late: C
 //
 // You can't have infix operators as `(1 + 2) infix-op 3 4 5` which quote
-// their left-hand sides, because they have been evaluated.  However, the
-// VALUE_FLAG_EVALUATED permits the determination of inerts that would have
+// their left-hand sides, because they have been evaluated.  However,
+// VALUE_FLAG_UNEVALUATED permits the determination of inerts that would have
 // been okay to quote, e.g. `<a tag> infix-op 3 4 5`.
 //
 REBCTX *Error_Lookback_Quote_Too_Late(REBFRM *f) {
@@ -1222,7 +1177,7 @@ REBCTX *Error_Bad_Func_Def(const REBVAL *spec, const REBVAL *body)
     REBARR *array = Make_Array(2);
     Append_Value(array, spec);
     Append_Value(array, body);
-    
+
     REBVAL def;
     Val_Init_Block(&def, array);
     return Error(RE_BAD_FUNC_DEF, &def, END_CELL);
@@ -1272,7 +1227,7 @@ REBCTX *Error_No_Memory(REBCNT bytes)
 
 //
 //  Error_Invalid_Arg_Core: C
-// 
+//
 // This error is pretty vague...it's just "invalid argument"
 // and the value with no further commentary or context.  It
 // becomes a catch all for "unexpected input" when a more
@@ -1283,7 +1238,7 @@ REBCTX *Error_Invalid_Arg_Core(const RELVAL *value, REBCTX *specifier)
     assert(NOT_END(value)); // can't use with END markers
 
     REBVAL specific;
-    COPY_VALUE(&specific, value, specifier);
+    Derelativize(&specific, value, specifier);
 
     return Error(RE_INVALID_ARG, &specific, END_CELL);
 }
@@ -1303,7 +1258,7 @@ REBCTX *Error_Invalid_Arg(const REBVAL *value) {
 REBCTX *Error_Bad_Func_Def_Core(const RELVAL *item, REBCTX *specifier)
 {
     REBVAL specific;
-    COPY_VALUE(&specific, item, specifier);
+    Derelativize(&specific, item, specifier);
     return Error(RE_BAD_FUNC_DEF, &specific);
 }
 
@@ -1343,7 +1298,7 @@ REBCTX *Error_Bad_Refine_Revoke(REBFRM *f)
 //
 REBCTX *Error_No_Value_Core(const RELVAL *target, REBCTX *specifier) {
     REBVAL specified;
-    COPY_VALUE(&specified, target, specifier);
+    Derelativize(&specified, target, specifier);
 
     return Error(RE_NO_VALUE, &specified, END_CELL);
 }
@@ -1387,7 +1342,7 @@ REBCTX *Error_Invalid_Type(enum Reb_Kind kind)
 
 //
 //  Error_Out_Of_Range: C
-// 
+//
 // value out of range: <value>
 //
 REBCTX *Error_Out_Of_Range(const REBVAL *arg)
@@ -1453,7 +1408,7 @@ REBCTX *Error_Unexpected_Type(enum Reb_Kind expected, enum Reb_Kind actual)
 
 //
 //  Error_Arg_Type: C
-// 
+//
 // Function in frame of `call` expected parameter `param` to be
 // a type different than the arg given (which had `arg_type`)
 //
@@ -1552,10 +1507,10 @@ REBCTX *Error_On_Port(REBCNT errnum, REBCTX *port, REBINT err_code)
 
 //
 //  Exit_Status_From_Value: C
-// 
+//
 // This routine's job is to turn an arbitrary value into an
 // operating system exit status:
-// 
+//
 //     https://en.wikipedia.org/wiki/Exit_status
 //
 int Exit_Status_From_Value(REBVAL *value)
@@ -1630,28 +1585,28 @@ void Init_Errors(REBVAL *errors)
 
 //
 //  Security_Policy: C
-// 
+//
 // Given a security symbol (like FILE) and a value (like the file
 // path) returns the security policy (RWX) allowed for it.
-// 
+//
 // Args:
-// 
+//
 //     sym:  word that represents the type ['file 'net]
 //     name: file or path value
-// 
+//
 // Returns BTYE array of flags for the policy class:
-// 
+//
 //     flags: [rrrr wwww xxxx ----]
-// 
+//
 //     Where each byte is:
 //         0: SEC_ALLOW
 //         1: SEC_ASK
 //         2: SEC_THROW
 //         3: SEC_QUIT
-// 
+//
 // The secuity is defined by the system/state/policies object, that
 // is of the form:
-// 
+//
 //     [
 //         file:  [%file1 tuple-flags %file2 ... default tuple-flags]
 //         net:   [...]
@@ -1732,7 +1687,7 @@ REBYTE *Security_Policy(REBSTR *spelling, REBVAL *name)
 
 //
 //  Trap_Security: C
-// 
+//
 // Take action on the policy flags provided. The sym and value
 // are provided for error message purposes only.
 //
@@ -1751,7 +1706,7 @@ void Trap_Security(REBCNT flag, REBSTR *sym, REBVAL *value)
 
 //
 //  Check_Security: C
-// 
+//
 // A helper function that fetches the security flags for
 // a given symbol (FILE) and value (path), and then tests
 // that they are allowed.

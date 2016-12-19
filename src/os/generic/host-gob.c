@@ -61,7 +61,7 @@ REBSER* Gob_To_Image(REBGOB *gob);
 
 //
 //  OS_GOB_To_Image: C
-// 
+//
 // Render a GOB into an image. Returns an image or zero if
 // it cannot be done.
 //
@@ -76,15 +76,15 @@ REBSER *OS_GOB_To_Image(REBGOB *gob)
 
 //
 //  As_OS_Str: C
-// 
+//
 // If necessary, convert a string series to platform specific format.
 // (Handy for GOB/TEXT handling).
 // If the string series is empty the resulting string is set to NULL
-// 
+//
 // Function returns:
 //     TRUE - if the resulting string needs to be deallocated by the caller code
 //     FALSE - if REBOL string is used (no dealloc needed)
-// 
+//
 // Note: REBOL strings are allowed to contain nulls.
 //
 REBOOL As_OS_Str(REBSER *series, REBCHR **string)

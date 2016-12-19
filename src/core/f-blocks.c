@@ -33,7 +33,7 @@
 
 //
 //  Copy_Array_At_Extra_Shallow: C
-// 
+//
 // Shallow copy an array from the given index thru the tail.
 // Additional capacity beyond what is required can be added
 // by giving an `extra` count of how many value cells one needs.
@@ -75,7 +75,7 @@ REBARR *Copy_Array_At_Extra_Shallow(
         REBVAL *dest = KNOWN(ARR_HEAD(copy));
         REBCNT count = 0;
         for (; count < len; ++count, ++dest, ++src)
-            COPY_VALUE(dest, src, specifier);
+            Derelativize(dest, src, specifier);
     }
 
     TERM_ARRAY_LEN(copy, len);
@@ -86,7 +86,7 @@ REBARR *Copy_Array_At_Extra_Shallow(
 
 //
 //  Copy_Array_At_Max_Shallow: C
-// 
+//
 // Shallow copy an array from the given index for given maximum
 // length (clipping if it exceeds the array length)
 //
@@ -96,15 +96,13 @@ REBARR *Copy_Array_At_Max_Shallow(
     REBCTX *specifier,
     REBCNT max
 ) {
-    REBARR *copy;
-
     if (index > ARR_LEN(original))
         return Make_Array(0);
 
     if (index + max > ARR_LEN(original))
         max = ARR_LEN(original) - index;
 
-    copy = Make_Array(max + 1);
+    REBARR *copy = Make_Array(max + 1);
 
     if (specifier == SPECIFIED) {
     #if !defined(NDEBUG)
@@ -121,7 +119,7 @@ REBARR *Copy_Array_At_Max_Shallow(
         const RELVAL *src = ARR_AT(original, index);
         RELVAL *dest = ARR_HEAD(copy);
         for (; count < max; ++count, ++src, ++dest)
-            COPY_VALUE(dest, src, specifier);
+            Derelativize(SINK(dest), src, specifier);
     }
 
     TERM_ARRAY_LEN(copy, max);
@@ -132,7 +130,7 @@ REBARR *Copy_Array_At_Max_Shallow(
 
 //
 //  Copy_Values_Len_Extra_Skip_Shallow: C
-// 
+//
 // Shallow copy the first 'len' values of `head` into a new
 // series created to hold exactly that many entries.
 //
@@ -160,7 +158,7 @@ REBARR *Copy_Values_Len_Extra_Skip_Shallow(
         const RELVAL *src = head;
         RELVAL *dest = ARR_HEAD(array);
         for (; count < len; ++count, src += skip, ++dest)
-            COPY_VALUE(dest, src, specifier);
+            Derelativize(SINK(dest), src, specifier);
     }
 
     TERM_ARRAY_LEN(array, len);
@@ -171,13 +169,13 @@ REBARR *Copy_Values_Len_Extra_Skip_Shallow(
 
 //
 //  Clonify_Values_Len_Managed: C
-// 
+//
 // Update the first `len` elements of `head[]` to clone the series
 // embedded in them *if* they are in the given set of types (and
 // if "cloning" makes sense for them, e.g. they are not simple
 // scalars).  If the `deep` flag is set, recurse into subseries
 // and objects when that type is matched for clonifying.
-// 
+//
 // Note: The resulting clones will be managed.  The model for
 // lists only allows the topmost level to contain unmanaged
 // values...and we *assume* the values we are operating on here
@@ -214,7 +212,7 @@ void Clonify_Values_Len_Managed(
             REBSER *series;
             if (ANY_CONTEXT(value)) {
             #if !defined(NDEBUG)
-                legacy = GET_ARR_FLAG(
+                legacy = GET_SER_FLAG(
                     CTX_VARLIST(VAL_CONTEXT(value)),
                     SERIES_FLAG_LEGACY
                 );
@@ -228,7 +226,7 @@ void Clonify_Values_Len_Managed(
             else {
                 if (Is_Array_Series(VAL_SERIES(value))) {
                 #if !defined(NDEBUG)
-                    legacy = GET_ARR_FLAG(VAL_ARRAY(value), SERIES_FLAG_LEGACY);
+                    legacy = GET_SER_FLAG(VAL_ARRAY(value), SERIES_FLAG_LEGACY);
                 #endif
 
                     series = ARR_SERIES(
@@ -301,9 +299,9 @@ void Clonify_Values_Len_Managed(
 
 //
 //  Copy_Array_Core_Managed: C
-// 
+//
 // Copy a block, copy specified values, deeply if indicated.
-// 
+//
 // The resulting series will already be under GC management,
 // and hence cannot be freed with Free_Series().
 //
@@ -344,8 +342,8 @@ REBARR *Copy_Array_Core_Managed(
     // be marked legacy.  Then if it runs, the SWITCH can dispatch to return
     // blank instead of the Ren-C behavior of returning `2`.
     //
-    if (GET_ARR_FLAG(original, SERIES_FLAG_LEGACY))
-        SET_ARR_FLAG(copy, SERIES_FLAG_LEGACY);
+    if (GET_SER_FLAG(original, SERIES_FLAG_LEGACY))
+        SET_SER_FLAG(copy, SERIES_FLAG_LEGACY);
 #endif
 
     ASSERT_NO_RELATIVE(copy, deep);
@@ -355,14 +353,14 @@ REBARR *Copy_Array_Core_Managed(
 
 //
 //  Copy_Array_At_Extra_Deep_Managed: C
-// 
+//
 // Deep copy an array, including all series (strings, blocks,
 // parens, objects...) excluding images, bitsets, maps, etc.
 // The set of exclusions is the typeset TS_NOT_COPIED.
-// 
+//
 // The resulting array will already be under GC management,
 // and hence cannot be freed with Free_Series().
-// 
+//
 // Note: If this were declared as a macro it would use the
 // `array` parameter more than once, and have to be in all-caps
 // to warn against usage with arguments that have side-effects.
@@ -445,12 +443,12 @@ REBARR *Copy_Rerelativized_Array_Deep_Managed(
 
 //
 //  Alloc_Tail_Array: C
-// 
+//
 // Append a REBVAL-size slot to Rebol Array series at its tail.
 // Will use existing memory capacity already in the series if it
 // is available, but will expand the series if necessary.
 // Returns the new value for you to initialize.
-// 
+//
 // Note: Updates the termination and tail.
 //
 REBVAL *Alloc_Tail_Array(REBARR *array)
@@ -463,10 +461,10 @@ REBVAL *Alloc_Tail_Array(REBARR *array)
 
 //
 //  Find_Same_Array: C
-// 
+//
 // Scan a block for any values that reference blocks related
 // to the value provided.
-// 
+//
 // !!! This was used for detection of cycles during MOLD.  The idea is that
 // while it is outputting a series, it doesn't want to see that series
 // again.  For the moment the only places to worry about with that are
@@ -514,31 +512,28 @@ REBCNT Find_Same_Array(REBARR *search_values, const RELVAL *value)
 
 
 //
-//  Unmark_Array: C
+//  Uncolor_Array: C
 //
-void Unmark_Array(REBARR *array)
+void Uncolor_Array(REBARR *array)
 {
-    if (!IS_REBSER_MARKED(ARR_SERIES(array)))
+    if (Is_Series_White(ARR_SERIES(array)))
         return; // avoid loop
 
-    UNMARK_REBSER(ARR_SERIES(array));
+    Flip_Series_To_White(ARR_SERIES(array));
 
     RELVAL *val;
     for (val = ARR_HEAD(array); NOT_END(val); ++val)
-        if (ANY_ARRAY(val))
-            Unmark(val);
+        if (ANY_ARRAY(val) || ANY_CONTEXT(val))
+            Uncolor(val);
 }
 
 
 //
-//  Unmark: C
-// 
-// Clear the recusion markers for series and object trees.
-// 
-// Note: these markers are also used for GC. Functions that
-// call this must not be able to trigger GC!
+//  Uncolor: C
 //
-void Unmark(RELVAL *val)
+// Clear the recusion markers for series and object trees.
+//
+void Uncolor(RELVAL *val)
 {
     REBARR *array;
 
@@ -551,10 +546,10 @@ void Unmark(RELVAL *val)
         //
         assert(
             !ANY_SERIES(val)
-            || !IS_REBSER_MARKED(VAL_SERIES(val))
+            || Is_Series_White(VAL_SERIES(val))
         );
         return;
     }
 
-    Unmark_Array(array);
+    Uncolor_Array(array);
 }

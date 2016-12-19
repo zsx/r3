@@ -30,8 +30,8 @@
 // It is a small-ish descriptor for a series (though if the amount of data
 // in the series is small enough, it is embedded into the structure itself.)
 //
-// Every string and block in REBOL has a REBSER, and the code implementing
-// them is reused in many places where Rebol needs a general-purpose
+// Every string, block, path, etc. in Rebol has a REBSER.  The implementation
+// of them is reused in many places where Rebol needs a general-purpose
 // dynamically growing structure.  It is also used for fixed size structures
 // which would like to participate in garbage collection.
 //
@@ -49,40 +49,6 @@
 // by the GC to reclaim or optimize space.)  Hence pointers into data in a
 // managed series *must not be held onto across evaluations*, without
 // special protection or accomodation.
-//
-//=//// LAYOUT ////////////////////////////////////////////////////////////=//
-//
-// A REBSER node is the size of two REBVALs, and there are 3 basic layouts
-// which can be overlaid inside the node:
-//
-//      Dynamic: [header [allocation tracking] info link misc]
-//     Singular: [header [REBVAL cell] info link misc]
-//         Pair: [[REBVAL cell] [REBVAL cell]]
-//
-// The `info` bitflags are implemented in a special way, such that the low
-// two flags are clear.  That signals an END to a "Singular" array's cell
-// if a traversal attempts to step out of it (and indicates it unwritable).
-// That makes it a legal payload for traversable arrays of length 1 or 0.
-//
-// Singulars have widespread applications in the system, notably the
-// efficient implementation of FRAME!.  They also narrow the gap in overhead
-// between COMPOSE [A (B) C] vs. REDUCE ['A B 'C] such that the memory cost
-// of the array is about the same as just having another value in the array.
-//
-// Pair REBSERs are allocated from the REBSER pool instead of their own to
-// help exchange a common "currency" of allocation size more efficiently.
-// They are planned for use in the PAIR! and MAP! datatypes, and anticipated
-// to play a crucial part in the API--allowing a persistent handle for a
-// GC'able REBVAL and associated "meta" value (which can be used for
-// reference counting or other tracking.)
-//
-// Most of the time, code does not need to be concerned about distinguishing
-// Pair from the Dynamic and Singular layouts--because it already knows
-// which kind it has.  Only the GC needs to be concerned when marking
-// and sweeping.  For this purpose, the node is considered to be free when
-// the header bits are all 0 (low bits 00), Singular when 01, Dynamic when
-// 10, and a Pair when 11.  Dynamic allocation can thus be tested on non-free
-// series when the low bit in the header is 0.
 //
 //=//// NOTES /////////////////////////////////////////////////////////////=//
 //
@@ -105,210 +71,368 @@
 //   blocks of nearly all variable-size structures in the system.
 //
 
-// Series Flags
+
+//=////////////////////////////////////////////////////////////////////////=//
 //
-enum {
-    // `SERIES_FLAG_0_IS_FALSE` represents the lowest bit and should always
-    // be set to zero.  This is because it means that when Reb_Series_Content
-    // is interpreted as a REBVAL's worth of data, then the info bits are in
-    // a location where they do double-duty serving as an END marker.  For a
-    // description of the method see notes on NOT_END_MASK.
-    //
-    SERIES_FLAG_0_IS_FALSE = 1 << 0,
+// SERIES <<HEADER>> FLAGS
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Series have two places to store bits...in the "header" and in the "info".
+// The following are the SERIES_FLAG_XXX that are used in the header, while
+// the SERIES_INFO_XXX flags will be found in the info.
+//
+// As a general rule for choosing which place to put a bit, if it may be
+// interesting to test/set multiple bits at the same time, then they should
+// be in the same flag group.
+//
+// !!! Perhaps things that don't change for the lifetime of the series should
+// also prefer the header vs. info?  Such separation might help with caching.
+//
 
-    // `SERIES_FLAG_1_IS_FALSE` is the second lowest bit, and is set to zero
-    // as a safety precaution.  In the debug build this is checked by value
-    // writes to ensure that when the info flags are serving double duty
-    // as an END marker, they do not get overwritten by rogue code that
-    // thought a REBVAL* pointing at the memory had a full value's worth
-    // of memory to write into.  See WRITABLE_MASK_DEBUG.
-    //
-    SERIES_FLAG_1_IS_FALSE = 1 << 1,
 
-    // `SERIES_FLAG_HAS_DYNAMIC` indicates that this series has a dynamically
-    // allocated portion.  If it does not, then its data pointer is the
-    // address of the embedded value inside of it (marked terminated by
-    // the SERIES_FLAG_0_IS_ZERO if it has an element in it)
-    //
-    SERIES_FLAG_HAS_DYNAMIC = 1 << 2,
+//=//// SERIES_FLAG_FIXED_SIZE ////////////////////////////////////////////=//
+//
+// This means a series cannot be expanded or contracted.  Values within the
+// series are still writable (assuming SERIES_INFO_LOCKED isn't set).
+//
+// !!! Is there checking in all paths?  Do series contractions check this?
+//
+// One important reason for ensuring a series is fixed size is to avoid
+// the possibility of the data pointer being reallocated.  This allows
+// code to ignore the usual rule that it is unsafe to hold a pointer to
+// a value inside the series data.
+//
+// !!! Strictly speaking, SERIES_FLAG_NO_RELOCATE could be different
+// from fixed size... if there would be a reason to reallocate besides
+// changing size (such as memory compaction).
+//
+#define SERIES_FLAG_FIXED_SIZE \
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 0)
 
-    // `SERIES_FLAG_STRING` identifies that this series holds a string, which
-    // is important to the GC in order to successfully
-    //
-    // !!! While there are advantages to having symbols be a compatible shape
-    // with other series for clients convenience, it may be that using a
-    // different memory pool for tracking some bits make sense.  For instance,
-    // knowing the series is a string is important at GC time...to clean up
-    // aliases and adjust canons.
-    //
-    SERIES_FLAG_STRING = 1 << 3,
 
-    // `STRING_FLAG_CANON` is used to indicate when a REBSTR series represents
-    // the canon form of a word.  This doesn't mean anything special about
-    // the case of its letters--just that it was loaded first.  A canon
-    // string is unique because it does not need to store a pointer to its
-    // canon form, so it can use the REBSER.misc field for the purpose of
-    // holding an index during binding.
-    //
-    STRING_FLAG_CANON = 1 << 4,
+//=//// SERIES_FLAG_UTF8_STRING ///////////////////////////////////////////=//
+//
+// Indicates the series holds a UTF-8 encoded string.
+//
+// !!! Currently this is only used to store ANY-WORD! symbols, which are
+// read-only and cannot be indexed into, e.g. with `next 'foo`.  This is
+// because UTF-8 characters are encoded at variable sizes, and the series
+// indexing does not support that at this time.  However, it would be nice
+// if a way could be figured out to unify ANY-STRING! with ANY-WORD! somehow
+// in order to implement the "UTF-8 Everywhere" manifesto:
+//
+// http://utf8everywhere.org/
+//
+#define SERIES_FLAG_UTF8_STRING \
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 1)
 
-    // `ARRAY_FLAG_PARAMLIST` uses the same bit as STRING_FLAG_CANON, so the
-    // meaning depends on whether the SERIES_FLAG_ARRAY or SERIES_FLAG_STRING
-    // bit is set.  This indicates the array is the parameter list of a
-    // FUNCTION! (the first element will be a canon value of the function)
-    //
-    ARRAY_FLAG_PARAMLIST = 1 << 4,
 
-    // `SERIES_FLAG_ARRAY` indicates that this is a series of REBVAL values,
-    // and suitable for using as the payload of an ANY-ARRAY! value.  When a
-    // series carries this bit, that means that if it is also SER_MANAGED
-    // then the garbage collector will process its transitive closure to
-    // make sure all the values it contains (and the values its references
-    // contain) do not have series GC'd out from under them.
-    //
-    // (In R3-Alpha, whether a series was an array or not was tested by if
-    // its width was sizeof(REBVAL).  The Ren-C approach allows for the
-    // creation of series that contain items that incidentally happen to be
-    // the same size as a REBVAL, while not actually being REBVALs.)
-    //
-    SERIES_FLAG_ARRAY = 1 << 5,
+//=//// STRING_FLAG_CANON /////////////////////////////////////////////////=//
+//
+// This is used to indicate when a SERIES_FLAG_UTF8_STRING series represents
+// the canon form of a word.  This doesn't mean anything special about the
+// case of its letters--just that it was loaded first.  Canon forms can be
+// GC'd and then delegate the job of being canon to another spelling.
+//
+// A canon string is unique because it does not need to store a pointer to
+// its canon form.  So it can use the REBSER.misc field for the purpose of
+// holding an index during binding.
+//
+#define STRING_FLAG_CANON \
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 2)
 
-    // `ARRAY_FLAG_VARLIST` indicates this series represents the
-    // "varlist" of a context.  A second series can be reached from it via
-    // the `->misc` field in the series node, which is a second array known
-    // as a "keylist".
-    //
-    // See notes on REBCTX for further details about what a context is.
-    //
-    ARRAY_FLAG_VARLIST = 1 << 6,
 
-    // `SERIES_FLAG_LOCKED` indicates that the series size or values cannot
-    // be modified.  This check is honored by some layers of abstraction, but
-    // if one manages to get a raw pointer into a value in the series data
-    // then by that point it cannot be enforced.
-    //
-    // !!! Could the 'writable' flag be used for this in the debug build,
-    // if the locking process went through and cleared writability...then
-    // put it back if the series were unlocked?
-    //
-    // This is related to the feature in PROTECT (OPT_TYPESET_LOCKED) which
-    // protects a certain variable in a context from being changed.  Yet
-    // it is distinct as it's a protection on a series itself--which ends
-    // up affecting all variable content with that series in the payload.
-    //
-    SERIES_FLAG_LOCKED = 1 << 7,
+//=//// SERIES_FLAG_ARRAY /////////////////////////////////////////////////=//
+//
+// Indicates that this is a series of REBVAL value cells, and suitable for
+// using as the payload of an ANY-ARRAY! value.  When a series carries this
+// bit, then if it is also NODE_FLAG_MANAGED the garbage ollector will process
+// its transitive closure to make sure all the values it contains (and the
+// values its references contain) do not have series GC'd out from under them.
+//
+// Note: R3-Alpha used `SER_WIDE(s) == sizeof(REBVAL)` as the test for if
+// something was an array.  But this allows creation of series that have
+// items which are incidentally the size of a REBVAL, but not actually arrays.
+//
+#define SERIES_FLAG_ARRAY \
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 3)
 
-    // `SERIES_FLAG_FIXED_SIZE` indicates the size is fixed, and the series
-    // cannot be expanded or contracted.  Values within the series are still
-    // writable, assuming SERIES_FLAG_LOCKED isn't set.
-    //
-    // !!! Is there checking in all paths?  Do series contractions check this?
-    //
-    // One important reason for ensuring a series is fixed size is to avoid
-    // the possibility of the data pointer being reallocated.  This allows
-    // code to ignore the usual rule that it is unsafe to hold a pointer to
-    // a value inside the series data.
-    //
-    // !!! Strictly speaking, SERIES_FLAG_NO_RELOCATE could be different
-    // from fixed size... if there would be a reason to reallocate besides
-    // changing size (such as memory compaction).
-    //
-    SERIES_FLAG_FIXED_SIZE  = 1 << 8,
 
-    // `SERIES_FLAG_POWER_OF_2` is set when an allocation size was rounded to
-    // a power of 2.  This flag was introduced in Ren-C when accounting was
-    // added to make sure the system's notion of how much memory allocation
-    // was outstanding would balance out to zero by the time of exiting the
-    // interpreter.
-    //
-    // The problem was that the allocation size was measured in terms of the
-    // number of elements.  If the elements themselves were not the size of
-    // a power of 2, then to get an even power-of-2 size of memory allocated
-    // the memory block would not be an even multiple of the element size.
-    // Rather than track the actual memory allocation size as a 32-bit number,
-    // a single bit flag remembering that the allocation was a power of 2
-    // was enough to recreate the number to balance accounting at free time.
-    //
-    // !!! The rationale for why series were ever allocated to a power of 2
-    // should be revisited.  Current conventional wisdom suggests that asking
-    // for the amount of memory you need and not using powers of 2 is
-    // generally a better idea:
-    //
-    // http://stackoverflow.com/questions/3190146/
-    //
-    SERIES_FLAG_POWER_OF_2  = 1 << 9,
+//=//// ARRAY_FLAG_VOIDS_LEGAL ////////////////////////////////////////////=//
+//
+// Identifies arrays in which it is legal to have void elements.  This is true
+// for instance on reified C va_list()s which were being used for unevaluated
+// applies (like R3-Alpha's APPLY/ONLY).  When those va_lists need to be put
+// into arrays for the purposes of GC protection, they may contain voids which
+// they need to track.
+//
+// Note: ARRAY_FLAG_VARLIST also implies legality of voids, which
+// are used to represent unset variables.
+//
+#define ARRAY_FLAG_VOIDS_LEGAL \
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 4)
 
-    // `SERIES_FLAG_EXTERNAL` indicates that when the series was created, the
-    // `->data` pointer was poked in by the creator.  It takes responsibility
-    // for freeing it, so don't free() on GC.
-    //
-    // !!! It's not clear what the lifetime management of data used in this
-    // way is.  If the external system receives no notice when Rebol is done
-    // with the data and GC's the series, how does it know when it's safe
-    // to free the data or not?  The feature is not used by the core or
-    // Ren-Cpp, but by relatively old extensions...so there may be no good
-    // answer in the case of those clients (likely either leaks or crashes).
-    //
-    SERIES_FLAG_EXTERNAL = 1 << 10,
 
-    // `SERIES_FLAG_ACCESSIBLE` indicates that the external memory pointed by
-    // `->data` is accessible. This is not checked at every access to the
-    // `->data` for the performance consideration, only on those that are
-    // known to have possible external memory storage.  Currently this is
-    // used for STRUCT! and to note when a CONTEXT_FLAG_STACK series has its
-    // stack level popped (there's no data to lookup for words bound to it)
-    //
-    SERIES_FLAG_ACCESSIBLE = 1 << 11,
+//=//// ARRAY_FLAG_PARAMLIST //////////////////////////////////////////////=//
+//
+// ARRAY_FLAG_PARAMLIST indicates the array is the parameter list of a
+// FUNCTION! (the first element will be a canon value of the function)
+//
+#define ARRAY_FLAG_PARAMLIST \
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 5)
 
-    // `CONTEXT_FLAG_STACK` indicates that varlist data lives on the stack.
-    // This is a work in progress to unify objects and function call frames
-    // as a prelude to unifying FUNCTION! and CLOSURE!.
-    //
-    // !!! Ultimately this flag may be unnecessary because stack-based and
-    // dynamic series will "hybridize" so that they may have some stack
-    // fields and some fields in dynamic memory.  The foundation already
-    // exists, and both can be stored in the same REBSER.  It's just a problem
-    // of mapping index numbers in the function paramlist into either the
-    // stack array or the dynamic array during binding in an efficient way.
-    //
-    CONTEXT_FLAG_STACK = 1 << 12,
 
-    // `KEYLIST_FLAG_SHARED` is indicated on the keylist array of a context
-    // when that same array is the keylist for another object.  If this flag
-    // is set, then modifying an object using that keylist (such as by adding
-    // a key/value pair) will require that object to make its own copy.
-    //
-    // (Note: This flag did not exist in R3-Alpha, so all expansions would
-    // copy--even if expanding the same object by 1 item 100 times with no
-    // sharing of the keylist.  That would make 100 copies of an arbitrary
-    // long keylist that the GC would have to clean up.)
-    //
-    KEYLIST_FLAG_SHARED = 1 << 13,
+//=//// ARRAY_FLAG_VARLIST ////////////////////////////////////////////////=//
+//
+// This indicates this series represents the "varlist" of a context (which is
+// interchangeable with the identity of the varlist itself).  A second series
+// can be reached from it via the `->misc` field in the series node, which is
+// a second array known as a "keylist".
+//
+// See notes on REBCTX for further details about what a context is.
+//
+#define ARRAY_FLAG_VARLIST \
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 6)
 
-    // `ARRAY_FLAG_VOIDS_LEGAL` identifies arrays in which it is legal to
-    // have void elements.  This is used for instance on reified C va_list()s
-    // which were being used for unevaluated applies.  When those va_lists
-    // need to be put into arrays for the purposes of GC protection, they may
-    // contain voids which they need to track.
-    //
-    // Note: ARRAY_FLAG_VARLIST also implies legality of voids, which
-    // are used to represent unset variables.
-    //
-    ARRAY_FLAG_VOIDS_LEGAL = 1 << 14,
 
-    // `SERIES_FLAG_LEGACY` is a flag which is marked at the root set of the
-    // body of legacy functions.  It can be used in a dynamic examination of
-    // a call to see if it "originates from legacy code".  This is a vague
-    // concept given the ability to create blocks and run them--so functions
-    // like COPY would have to propagate the flag to make it "more accurate".
-    // But it's good enough for casual compatibility in many cases.
+//=//// CONTEXT_FLAG_STACK ////////////////////////////////////////////////=//
+//
+// This indicates that a context's varlist data lives on the stack.  That
+// means that when the function terminates, the data will no longer be
+// accessible (so SERIES_INFO_INACCESSIBLE will be true).
+//
+// !!! Ultimately this flag may be unnecessary because stack-based and
+// dynamic series will "hybridize" so that they may have some stack
+// fields and some fields in dynamic memory.  For now it's a good sanity
+// check that things which should only happen to stack contexts (like becoming
+// inaccessible) are checked against this flag.
+//
+#define CONTEXT_FLAG_STACK \
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 7)
+
+
+#if !defined(NDEBUG)
+    //=//// SERIES_FLAG_LEGACY ////////////////////////////////////////////=//
     //
-#if !defined NDEBUG
-    SERIES_FLAG_LEGACY = 1 << 15,
+    // This is a flag which is marked at the root set of the body of legacy
+    // functions.  It can be used in a dynamic examination of a call to see if
+    // it "originates from legacy code".  This is a vague concept given the
+    // ability to create blocks and run them--so functions like COPY would
+    // have to propagate the flag to make it "more accurate".  But it's good
+    // enough for casual compatibility in many cases.
+    //
+    #define SERIES_FLAG_LEGACY \
+        FLAGIT_LEFT(GENERAL_SERIES_BIT + 8)
 #endif
 
-    SERIES_FLAG_NO_COMMA_NEEDED = 0 // solves dangling comma from above
-};
+// ^-- STOP AT FLAGIT_LEFT(15) --^
+//
+// The rightmost 16 bits of the series flags are used to store an arbitrary
+// per-series-type 16 bit number.  Right now, that's used by the string series
+// to save their REBSYM id integer(if they have one).  Note that the flags
+// are flattened in kind of a wasteful way...some are mutually exclusive and
+// could use the same bit, if needed.
+//
+#if defined(__cplusplus) && (__cplusplus >= 201103L)
+    static_assert(GENERAL_SERIES_BIT + 8 < 16, "SERIES_FLAG_XXX too high");
+#endif
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// SERIES <<INFO>> BITS
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// See remarks above about the two places where series store bits.  These
+// are the info bits, which are more likely to be changed over the lifetime
+// of the series--defaulting to FALSE.
+//
+// See Init_Endlike_Header() for why the leading bits are chosen the way they
+// are (and why SERIES_INFO_8_IS_FALSE is unused also).  This means that the
+// Reb_Series->info field can function as an implicit END for
+// Reb_Series->content, as well as be distinguished from a REBVAL*, a REBSER*,
+// or a UTF8 string.
+//
+
+#define SERIES_INFO_0_IS_TRUE FLAGIT_LEFT(0) // NODE_FLAG_VALID
+#define SERIES_INFO_1_IS_TRUE FLAGIT_LEFT(1) // NODE_FLAG_END
+#define SERIES_INFO_2_IS_FALSE FLAGIT_LEFT(2) // NOT(NODE_FLAG_CELL)
+
+
+//=//// SERIES_INFO_HAS_DYNAMIC ///////////////////////////////////////////=//
+//
+// Indicates that this series has a dynamically allocated portion.  If it does
+// not, then its data pointer is the address of the embedded value inside of
+// it, and that the length is stored in the rightmost byte of the header
+// bits (of which this is one bit).
+//
+// This bit will be flipped if a series grows.  (In the future it should also
+// be flipped when the series shrinks, but no shrinking in the GC yet.)
+//
+#define SERIES_INFO_HAS_DYNAMIC \
+    FLAGIT_LEFT(3)
+
+
+//=//// SERIES_INFO_BLACK /////////////////////////////////////////////////=//
+//
+// This is a generic bit for the "coloring API", e.g. Is_Series_Black(),
+// Flip_Series_White(), etc.  These let native routines engage in marking
+// and unmarking nodes without potentially wrecking the garbage collector by
+// reusing NODE_FLAG_MARKED.  Purposes could be for recursion protection or
+// other features, to avoid having to make a map from REBSER to REBOOL.
+//
+#define SERIES_INFO_BLACK \
+    FLAGIT_LEFT(4)
+
+
+//=//// SERIES_INFO_LOCKED ////////////////////////////////////////////////=//
+//
+// This indicates that the series size or values cannot be modified.  The
+// check is honored by some layers of abstraction, but if one manages to get
+// a raw non-const pointer into a value in the series data...then by that
+// point it cannot be enforced.
+//
+// Note: There is a feature in PROTECT (TYPESET_FLAG_LOCKED) which protects a
+// certain variable in a context from being changed.  It is similar, but
+// distinct.  SERIES_INFO_LOCKED is a protection on a series itself--which
+// ends up affecting all values with that series in the payload.
+//
+#define SERIES_INFO_LOCKED \
+    FLAGIT_LEFT(5)
+
+
+//=//// SERIES_INFO_INACCESSIBLE //////////////////////////////////////////=//
+//
+// This indicates that the memory pointed at by `->data` has "gone bad".
+//
+// Currently this used to note when a CONTEXT_FLAG_STACK series has had its
+// stack level popped (there's no data to lookup for words bound to it).
+//
+// !!! The FFI also uses this for STRUCT! when an interface to a C structure
+// is using external memory instead of a Rebol series, and that external
+// memory goes away.  Since FFI is shifting to becoming a user extension, it
+// might approach this problem in a different way in the future.
+//
+#define SERIES_INFO_INACCESSIBLE \
+    FLAGIT_LEFT(6)
+
+
+//=//// SERIES_INFO_POWER_OF_2 ////////////////////////////////////////////=//
+//
+// This is set when an allocation size was rounded to a power of 2.  The bit
+// was introduced in Ren-C when accounting was added to make sure the system's
+// notion of how much memory allocation was outstanding would balance out to
+// zero by the time of exiting the interpreter.
+//
+// The problem was that the allocation size was measured in terms of the
+// number of elements in the series.  If the elements themselves were not the
+// size of a power of 2, then to get an even power-of-2 size of memory
+// allocated, the memory block would not be an even multiple of the element
+// size.  So rather than track the "actual" memory allocation size as a 32-bit
+// number, a single bit flag remembering that the allocation was a power of 2
+// was enough to recreate the number to balance accounting at free time.
+//
+// !!! The original code which created series with items which were not a
+// width of a power of 2 was in the FFI.  It has been rewritten to not use
+// such custom structures, but the support for this remains in case there
+// was a good reason to have a non-power-of-2 size in the future.
+//
+// !!! ...but rationale for why series were ever allocated to a power of 2
+// should be revisited.  Current conventional wisdom suggests that asking
+// for the amount of memory you need and not using powers of 2 is
+// generally a better idea:
+//
+// http://stackoverflow.com/questions/3190146/
+//
+#define SERIES_INFO_POWER_OF_2 \
+    FLAGIT_LEFT(7)
+
+
+#define SERIES_INFO_8_IS_FALSE FLAGIT_LEFT(8) // see Init_Endlike_Header()
+
+
+//=//// SERIES_INFO_SHARED_KEYLIST ////////////////////////////////////////=//
+//
+// This is indicated on the keylist array of a context when that same array
+// is the keylist for another object.  If this flag is set, then modifying an
+// object using that keylist (such as by adding a key/value pair) will require
+// that object to make its own copy.
+//
+// Note: This flag did not exist in R3-Alpha, so all expansions would copy--
+// even if expanding the same object by 1 item 100 times with no sharing of
+// the keylist.  That would make 100 copies of an arbitrary long keylist that
+// the GC would have to clean up.
+//
+#define SERIES_INFO_SHARED_KEYLIST \
+    FLAGIT_LEFT(9)
+
+
+//=//// SERIES_INFO_EXTERNAL //////////////////////////////////////////////=//
+//
+// This indicates that when the series was created, the `->data` pointer was
+// poked in by the creator.  It takes responsibility for freeing it, so don't
+// free() on GC.
+//
+// !!! This is a somewhat questionable feature, only used by the FFI.  It's
+// not clear that the right place to hook in the behavior is to have a
+// series physically allow external `->data` pointers vs. at a higher level
+// test some condition, using the series data or handle based on that.
+//
+#define SERIES_INFO_EXTERNAL \
+    FLAGIT_LEFT(10)
+
+
+// ^-- STOP AT FLAGIT_LEFT(15) --^
+//
+// The rightmost 16 bits of the series info is used to store an 8 bit length
+// for non-dynamic series and an 8 bit width of the series.  So the info
+// flags need to stop at FLAGIT_LEFT(15).
+//
+#if defined(__cplusplus) && (__cplusplus >= 201103L)
+    static_assert(10 < 16, "SERIES_INFO_XXX too high");
+#endif
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// SERIES NODE ("REBSER") STRUCTURE DEFINITION
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// A REBSER node is the size of two REBVALs, and there are 3 basic layouts
+// which can be overlaid inside the node:
+//
+//      Dynamic: [header [allocation tracking] info link misc]
+//     Singular: [header [REBVAL cell] info link misc]
+//      Pairing: [[REBVAL cell] [REBVAL cell]]
+//
+// `info` is not the start of a "Rebol Node" (REBNODE, e.g. either a REBSER or
+// a REBVAL cell).  But in the singular case it is positioned right where
+// the next cell after the embedded cell *would* be.  Hence the bit in the
+// info corresponding to NODE_FLAG_END is set, making it conform to the
+// "terminating array" pattern.  To lower the risk of this implicit terminator
+// being accidentally overwritten (which would corrupt link and misc), the
+// bit corresponding to NODE_FLAG_CELL is clear.
+//
+// Singulars have widespread applications in the system, notably the
+// efficient implementation of FRAME!.  They also narrow the gap in overhead
+// between COMPOSE [A (B) C] vs. REDUCE ['A B 'C] such that the memory cost
+// of the array is nearly the same as just having another value in the array.
+//
+// Pair REBSERs are allocated from the REBSER pool instead of their own to
+// help exchange a common "currency" of allocation size more efficiently.
+// They are planned for use in the PAIR! and MAP! datatypes, and anticipated
+// to play a crucial part in the API--allowing a persistent handle for a
+// GC'able REBVAL and associated "meta" value (which can be used for
+// reference counting or other tracking.)
+//
+// Most of the time, code does not need to be concerned about distinguishing
+// Pair from the Dynamic and Singular layouts--because it already knows
+// which kind it has.  Only the GC needs to be concerned when marking
+// and sweeping.
+//
 
 struct Reb_Series_Dynamic {
     //
@@ -357,17 +481,11 @@ union Reb_Series_Content {
     //
     struct Reb_Series_Dynamic dynamic;
 
-    // If not SERIES_FLAG_HAS_DYNAMIC, 0 or 1 length arrays can be held
-    // directly in the series node.  The SERIES_FLAG_0_IS_FALSE bit is set
-    // to zero and signals an IS_END().
+    // If not SERIES_INFO_HAS_DYNAMIC, 0 or 1 length arrays can be held in
+    // the series node.  This trick is accomplished via "implicit termination"
+    // in the ->info bits that come directly after ->content.
     //
-    // It is thus an "array" of effectively up to length two.  Either the
-    // [0] full element is IS_END(), or the [0] element is another value
-    // and the [1] element is read-only and passes IS_END() to terminate
-    // (but can't have any other value written, as the info bits are
-    // marked as unwritable by SERIES_FLAG_1_IS_FALSE...this protects the
-    // rest of the bits in the debug build as it is checked whenver a
-    // REBVAL tries to write a new header.)
+    // (See NODE_FLAG_END and NODE_FLAG_CELL for how this is done.)
     //
     RELVAL values[1];
 };
@@ -403,7 +521,7 @@ struct Reb_Series {
     union {
         REBSER *hashlist; // MAP datatype uses this
         REBARR *keylist; // used by CONTEXT
-        REBSER *schema; // STRUCT uses this (parallels object's keylist)
+        REBARR *schema; // for STRUCT (a REBFLD, parallels object's keylist)
         REBCTX *meta; // paramlists and keylists can store a "meta" object
         REBSTR *synonym; // circularly linked list of othEr-CaSed string forms
     } link;
@@ -413,12 +531,14 @@ struct Reb_Series {
     // `info` is the information about the series which needs to be known
     // even if it is not using a dynamic allocation.
     //
-    // The lowest 2 bits of info are required to be 0 when used with the trick
-    // of implicitly terminating series data.  See SERIES_FLAG_0_IS_FALSE and
-    // SERIES_FLAG_1_IS_FALSE for more information.
+    // It is purposefully positioned in the structure directly after the
+    // ->content field, because it has NODE_FLAG_END set to true.  Hence it
+    // appears to terminate an array of values if the content is not dynamic.
+    // Yet NODE_FLAG_CELL is set to false, so it is not a writable location
+    // (an "implicit terminator").
     //
-    // !!! Only the low 32-bits are used on 64-bit platforms.  There could
-    // be some interesting added caching feature or otherwise that would use
+    // !!! Only 32-bits are used on 64-bit platforms.  There could be some
+    // interesting added caching feature or otherwise that would use
     // it, while not making any feature specifically require a 64-bit CPU.
     //
     struct Reb_Header info;
@@ -451,3 +571,41 @@ struct Reb_Series {
     REBUPT do_count; // also maintains sizeof(REBSER) % sizeof(REBI64) == 0
 #endif
 };
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// ARR_SERIES() COERCION
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// It is desirable to have series subclasses be different types, even though
+// there are some common routines for processing them.  e.g. not every
+// function that would take a REBSER* would actually be handled in the same
+// way for a REBARR*.  Plus, just because a REBCTX* is implemented as a
+// REBARR* with a link to another REBARR* doesn't mean most clients should
+// be accessing the array--in a C++ build this would mean it would have some
+// kind of protected inheritance scheme.
+//
+// The ARR_SERIES() macro provides a compromise besides a raw cast of a
+// pointer to a REBSER*, because in the C++ build it makes sure that the
+// incoming pointer type is to a simple series subclass.  (It's just a raw
+// cast in the C build.)
+//
+
+#if defined(__cplusplus) && __cplusplus >= 201103L
+    #include <type_traits>
+
+    template <class T>
+    inline REBSER* AS_SERIES(T *p) {
+        static_assert(
+            std::is_same<T, REBSER>::value
+            || std::is_same<T, REBSTR>::value
+            || std::is_same<T, REBARR>::value,
+            "AS_SERIES works on: REBSER*, REBSTR*, REBARR*"
+        );
+        return cast(REBSER*, p);
+    }
+#else
+    #define AS_SERIES(p) cast(REBSER*, (p))
+#endif

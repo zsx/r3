@@ -28,7 +28,7 @@ compile/options [
     "const int one = 1;"
     c-fib
 ] compose [
-    runtime-path (join first split-path system/options/boot %tcc)
+    runtime-path (join-of (first split-path system/options/boot) %tcc)
 ]
 
 fib: func [

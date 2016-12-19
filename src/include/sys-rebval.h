@@ -60,253 +60,157 @@
 // either be slow or crash if reads of 64-bit floating points/etc. are done
 // on unaligned locations.
 //
-
+//=//// NOTES /////////////////////////////////////////////////////////////=//
 //
-// Note: Forward declarations are in %reb-defs.h
+// * Forward declarations are in %reb-defs.h
 //
-
-
-//=////////////////////////////////////////////////////////////////////////=//
+// * See %sys-rebnod.h for an explanation of FLAGIT_LEFT.  This file defines
+//   those flags which are common to every value of every type.  Due to their
+//   scarcity, they are chosen carefully.
 //
-//  VALUE HEADER (uses `struct Reb_Header`)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// Due to a desire to be able to assign all the header bits in one go
-// with a native-platform-sized int, this is done with bit masking.
-// Using bitfields would bring in questions of how smart the
-// optimizer is, as well as the endianness of the underlyling machine.
-//
-// We use REBUPT (Rebol's pre-C99 compatibility type for uintptr_t,
-// which is just uintptr_t from C99 on).  Only the low 32 bits are used
-// on 64-bit machines in order to make sure all the features work on
-// 32-bit machines...but could be used for some optimization or caching
-// purpose to enhance the 64-bit build.  No such uses implemented yet.
-//
-
-// `NOT_END_MASK`
-//
-// If set, it means this is *not* an end marker.  The bit has been picked
-// strategically to be in the negative sense, and in the lowest bit position.
-// This means that any even-valued unsigned integer REBUPT value can be used
-// to implicitly signal an end.
-//
-// If this bit is 0, it means that *no other header bits are valid*, as it
-// may contain arbitrary data used for non-REBVAL purposes.
-//
-// Note that the value doing double duty as a number for one purpose and an
-// END marker as another *must* be another REBUPT.  It cannot be a pointer
-// (despite being guaranteed-REBUPT-sized, and despite having a value that
-// is 0 when you mod it by 2.  So-called "type-punning" is unsafe with a
-// likelihood of invoking "undefined behavior", while it's the compiler's
-// responsibility to guarantee that pointers to memory of the same type of
-// data be compatibly read-and-written.
-//
-#define NOT_END_MASK \
-    ((REBUPT)0x01) // <-- don't use `cast()`...superfluous here, slows debug
-
-// `CELL_MASK`
-//
-// This is for the debug build, to make it safer to use the implementation
-// trick of NOT_END_MASK.  It indicates the slot is "REBVAL sized", and can
-// be written into--including to be written with SET_END().
-//
-// Originally it was just for the debug build, to make it safer to use the
-// implementation trick of NOT_END_MASK (so that clients would not try to write
-// a full REBVAL onto a "double-duty" END marker.)  Then it became useful for
-// the release build as well, to distinguish "doubular" REBSER nodes (holders
-// for two REBVALs in the same pool as ordinary REBSERs) from an ordinary
-// REBSER node, as they will have the cell mask clear in their node header.
-//
-// It's again a strategic choice--the 2nd lowest bit and in the negative.
-// This means any REBUPT value whose % 4 within a container doing
-// double-duty as an implicit terminator for the contained values can
-// trigger an alert if the values try to overwrite it.
-//
-#define CELL_MASK \
-    ((REBUPT)0x02) // <-- don't use `cast()`...superfluous here, slows debug
-
-// v-- BEGIN REBSER AND REBVAL SHARED BITS HERE
-#define REBSER_REBVAL_BIT 2
 
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  REBSER_REBVAL_FLAGs common to both REBSER and REBVAL
+//  VALUE_FLAG_CONDITIONALLY_FALSE
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// An implementation trick permits the pooled nodes that hold series to hold
-// two values.  Since a REBSER is exactly two REBVALs in size, that does not
-// leave any room for termination.  But it is implicitly terminated by virtue
-// of positioning that node next to another style of node that does *not*
-// contain two full values, in order to have just enough spare bits to
-// signal a termination.
+// This flag is used as a quick cache on BLANK! or LOGIC! false values.
+// These are the only two values that return true from the FALSE? native
+// (a.k.a. "conditionally false").  All other types are TRUE?.
 //
-// Because of the overlapped design, there are some flags that have to be
-// "stolen" from the REBVAL in order to take care of the garbage collector's
-// bookkeeping.  Many other flags live in the REBSER's "info" field (as
-// opposed to the shared header).  However, those flags cannot apply to one
-// of the "full bandwidth" usages of two REBVALs in the node--only these
-// basic overhead flags apply.
+// Because of this cached bit, LOGIC! does not need to store any data in its
+// payload... its data of being true or false is already covered by this
+// header bit.
 //
-
-enum {
-    // `REBSER_REBVAL_FLAG_MANAGED` indicates that a series is managed by
-    // garbage collection.  If this bit is not set, then during the GC's
-    // sweeping phase the simple fact that it hasn't been SER_MARK'd won't
-    // be enough to let it be considered for freeing.
-    //
-    // See MANAGE_SERIES for details on the lifecycle of a series (how it
-    // starts out manually managed, and then must either become managed or be
-    // freed before the evaluation that created it ends).
-    //
-    REBSER_REBVAL_FLAG_MANAGED = 1 << (REBSER_REBVAL_BIT + 0),
-
-    // `REBSER_REBVAL_FLAG_MARK` is used by the mark-and-sweep of the garbage
-    // collector.  Note that the mark is used for other purposes which need to
-    // through and set a generic bit, e.g. to protect against loops in the
-    // transitive closure ("if you hit a SER_MARK, then you've already
-    // processed this series").
-    //
-    // Because of the dual purpose, it's important to be sure to not run
-    // garbage collection while one of these alternate uses is in effect.
-    // It's also important to reset the bit when done, as GC assumes when
-    // it starts that all bits are cleared.  (The GC itself clears all
-    // the bits by enumerating every series in the series pool during the
-    // sweeping phase.)
-    //
-    REBSER_REBVAL_FLAG_MARK = 1 << (REBSER_REBVAL_BIT + 1),
-
-    // `REBSER_REBVAL_FLAG_ROOT` indicates this should be treated as a
-    // root for GC purposes.  It only means anything on a REBVAL if that
-    // REBVAL happens to live in the key slot of a paired REBSER--it should
-    // not generally be set otherwise.
-    //
-    REBSER_REBVAL_FLAG_ROOT = 1 << (REBSER_REBVAL_BIT + 2),
-
-    // v-- BEGIN GENERAL VALUE BITS HERE
-};
-
-#define GENERAL_VALUE_BIT (REBSER_REBVAL_BIT + 3)
-
+// !!! Since tests for conditional truth or falsehood are extremely common
+// (not just in IF and EITHER, but in CASE and ANY and many other constructs),
+// it seems like a good optimization.  But it is a cache and could be done
+// with a slightly more expensive test.  Given the scarcity of header bits in
+// the modern codebase, this optimization may need to be sacrificed to
+// reclaim the bit for a "higher purpose".
+//
+#define VALUE_FLAG_CONDITIONALLY_FALSE \
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 0)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  GENERAL FLAGS common to every REBVAL
+//  VALUE_FLAG_LINE
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// The value option flags are 8 individual bitflags which apply to every
-// value of every type.  Due to their scarcity, they are chosen carefully.
+// This is a line marker bit, such that when the value is molded it will put a
+// newline before the value.  (The details are a little more subtle than that,
+// because an ANY-PATH! could not be LOADed back if this were allowed.)
 //
-
-enum {
-    // `VALUE_FLAG_FALSE`
-    //
-    // Both NONE! and LOGIC!'s false state are FALSE? ("conditionally false").
-    // All other types are TRUE?.  To make checking FALSE? and TRUE? faster,
-    // this bit is set when creating NONE! or FALSE.  As a result, LOGIC!
-    // does not need to store any data in its payload... its data of being
-    // true or false is already covered by this header bit.
-    //
-    VALUE_FLAG_FALSE = 1 << (GENERAL_VALUE_BIT + 0),
-
-    // `VALUE_FLAG_LINE`
-    //
-    // If the line marker bit is 1, then when the value is molded it will put
-    // a newline before the value.  The logic is a bit more subtle than that,
-    // because an ANY-PATH! could not be LOADed back if this were allowed.
-    // The bit is set initially by what the scanner detects, and then left
-    // to the user's control after that.
-    //
-    // !!! The native `new-line` is used set this, which has a somewhat
-    // poor name considering its similarity to `newline` the line feed char.
-    //
-    VALUE_FLAG_LINE = 1 << (GENERAL_VALUE_BIT + 1),
-
-    // `VALUE_FLAG_THROWN`
-    //
-    // When a REBVAL slot wishes to signal that it is a "throw" (e.g. a
-    // RETURN, BREAK, CONTINUE or generic THROW signal), this bit is set on
-    // that cell.
-    //
-    // The bit being set does not mean the cell contains the thrown quantity
-    // (e.g. it would not be the `1020` in `throw 1020`)  That evaluator
-    // thread enters a modal "thrown state", and it's the state which hold
-    // the value--which must be processed (or converted into an error) before
-    // another throw occurs.
-    //
-    // Instead the bit indicates that the cell contains a value indicating
-    // the label, or "name", of the throw.  Having the label quickly available
-    // in the slot being bubbled up makes it easy for recipients to decide if
-    // they are interested in throws of that type or not.
-    //
-    // R3-Alpha code would frequently forget to check for thrown values, and
-    // wind up acting as if they did not happen.  In addition to enforcing that
-    // all thrown values are handled by entering a "thrown state" for the
-    // interpreter, all routines that can potentially return thrown values
-    // have been adapted to return a boolean and adopt the XXX_Throws()
-    // naming convention:
-    //
-    //     if (XXX_Throws()) {
-    //        /* handling code */
-    //     }
-    //
-    VALUE_FLAG_THROWN = 1 << (GENERAL_VALUE_BIT + 2),
-
-    // `VALUE_FLAG_RELATIVE` is used to indicate a value that needs to have
-    // a specific context added into it before it can have its bits copied
-    // or used for some purposes.  An ANY-WORD! is relative if it refers to
-    // a local or argument of a function, and has its bits resident in the
-    // deep copy of that function's body.  An ANY-ARRAY! in the deep copy
-    // of a function body must be relative also to the same function if
-    // it contains any instances of such relative words.
-    //
-    VALUE_FLAG_RELATIVE = 1 << (GENERAL_VALUE_BIT + 3),
-
-    // `VALUE_FLAG_EVALUATED` is a somewhat dodgy-yet-important concept.
-    // This is that some functions wish to be sensitive to whether or not
-    // their argument came as a literal in source or as a product of an
-    // evaluation.  While all values carry the bit, it is only guaranteed
-    // to be meaningful on arguments in function frames...though it is
-    // valid on any result at the moment of taking it from Do_Core().
-    //
-    VALUE_FLAG_EVALUATED = 1 << (GENERAL_VALUE_BIT + 4),
-
-    // v-- BEGIN TYPE SPECIFIC BITS HERE
-};
-
-// In debug builds, there's an additional property checked on cell writes
-// where values can be marked as unwritable.  There would be cost to checking
-// this in the release build, so it is not intended as a "feature"--just to
-// help avoid damaging things like the global BLANK_VALUE.
+// The bit is set initially by what the scanner detects, and then left to the
+// user's control after that.
 //
-// This is only checkable under C++, because stack REBVALs would not get the
-// flag implicitly in C...and manual initialization would clutter the code.
+// !!! The native `new-line` is used set this, which has a somewhat poor
+// name considering its similarity to `newline` the line feed char.
 //
-#if !defined(NDEBUG) && defined(__cplusplus)
-    #define VALUE_FLAG_WRITABLE_CPP_DEBUG \
-        ((REBUPT)(1 << (GENERAL_VALUE_BIT + 5)))
-#endif
+#define VALUE_FLAG_LINE \
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 1)
 
 
-#define TYPE_SPECIFIC_BIT (GENERAL_VALUE_BIT + 6)
-
-// The type is stored in the highest bits so that a single right shift
-// operation (which zero fills from the left) can get the 6-bit type.
+//=////////////////////////////////////////////////////////////////////////=//
 //
-// !!! The 64-bit build would need to use a larger number if it wanted to
-// find a use for its extra 32-bits, which would have to be both masked and
-// shifted (the way types used to be...)
+//  VALUE_FLAG_THROWN
 //
-#define HEADER_TYPE_SHIFT 26
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// This is how a REBVAL signals that it is a "throw" (e.g. a RETURN, BREAK,
+// CONTINUE or generic THROW signal).
+//
+// The bit being set does not mean the cell contains the thrown quantity
+// (e.g. it would not be the `1020` in `throw 1020`)  The evaluator thread
+// enters a modal "thrown state", and it's the state which holds the value.
+// It must be processed (or trigger an error) before another throw occurs.
+//
+// What the bit actually indicates is a cell containing the "label" or "name"
+// of the throw.  Having the label quickly available in the slot being bubbled
+// up makes it easy for recipients to decide if they are interested in throws
+// of that type or not--after which they can request the thrown value.
+//
+// R3-Alpha code would frequently forget to check for thrown values, and
+// wind up acting as if they did not happen.  In addition to enforcing that
+// all thrown values are handled by entering a "thrown state" for the
+// interpreter, all routines that can potentially return thrown values
+// have been adapted to return a boolean and adopt the XXX_Throws()
+// naming convention:
+//
+//     if (XXX_Throws()) {
+//        /* handling code */
+//     }
+//
+#define VALUE_FLAG_THROWN \
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 2)
 
-#define TYPE_SHIFT_LEFT_FOR_HEADER(kind) \
-    (((REBUPT)kind) << HEADER_TYPE_SHIFT) // need cast! see also VAL_TYPE_RAW
 
-#define HEADER_TYPE_MASK ((REBUPT)(0x3F) << HEADER_TYPE_SHIFT)
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  VALUE_FLAG_RELATIVE
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// This flag is used to indicate a value that needs to have a specific context
+// added into it before it can have its bits copied--or used for some other
+// purposes.
+//
+// An ANY-WORD! is relative if it refers to a local or argument of a function,
+// and has its bits resident in the deep copy of that function's body.
+//
+// An ANY-ARRAY! in the deep copy of a function body must be relative also to
+// the same function if it contains any instances of such relative words.
+//
+#define VALUE_FLAG_RELATIVE \
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 3)
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  VALUE_FLAG_UNEVALUATED
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Some functions wish to be sensitive to whether or not their argument came
+// as a literal in source or as a product of an evaluation.  While all values
+// carry the bit, it is only guaranteed to be meaningful on arguments in
+// function frames...though it is valid on any result at the moment of taking
+// it from Do_Core().
+//
+// It is in the negative sense because the act of requesting it is uncommon,
+// e.g. from the QUOTE operator.  So most SET_BLANK() or other assignment
+// should default to being "evaluative".
+//
+// !!! This concept is somewhat dodgy and experimental, but it shows promise
+// in addressing problems like being able to give errors if a user writes
+// something like `if [x > 2] [print "true"]` vs. `if x > 2 [print "true"]`,
+// while still tolerating `item: [a b c] | if item [print "it's an item"]`. 
+// That has a lot of impact for the new user experience.
+//
+#define VALUE_FLAG_UNEVALUATED \
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 4)
+
+
+// v-- BEGIN TYPE SPECIFIC BITS HERE
+
+
+#define TYPE_SPECIFIC_BIT \
+    (GENERAL_VALUE_BIT + 5)
+
+
+// Technically speaking, this only needs to use 6 bits of the rightmost byte
+// to store the type.  So using a full byte wastes 2 bits.  However, the
+// performance advantage of not needing to mask to do VAL_TYPE() is worth
+// it...also there may be a use for 256 types (even though the type bitsets
+// are only 64-bits at the moment)
+//
+#define HEADERIZE_KIND(kind) \
+    FLAGBYTE_RIGHT(kind)
+
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -406,7 +310,7 @@ struct Reb_Any_Series {
 };
 
 struct Reb_Typeset {
-    REBU64 bits; // One bit for each DATATYPE! (use with FLAGIT_64)
+    REBU64 bits; // One bit for each DATATYPE! (use with FLAGIT_KIND)
 };
 
 
@@ -523,7 +427,7 @@ struct Reb_Varargs {
     // Similar to the param, the arg is only good for the lifetime of the
     // FRAME!...but even less so, because VARARGS! can (currently) be
     // overwritten with another value in the function frame at any point.
-    // Despite this, we proxy the VALUE_FLAG_EVALUATED from the last TAKE
+    // Despite this, we proxy the VALUE_FLAG_UNEVALUATED from the last TAKE
     // onto the argument to reflect its *argument* status.
     //
     REBVAL *arg;
@@ -742,22 +646,14 @@ struct Reb_Value
 // content, and this final slot was used for a special REBVAL called END!.
 // Like a null terminator in a C string, it was possible to start from one
 // point in the series and traverse to find the end marker without needing
-// to maintain a count.  Rebol series store their length also--but it's
-// faster and more general to use the terminator.
+// to maintain a count.  (Rebol series store their length also--but it's
+// faster and more general to do traversals using the terminator.)
 //
-// Ren-C changed this so that end is not a data type, but rather seeing a
-// header slot with the lowest bit set to 0.  (See NOT_END_MASK for
-// an explanation of this choice.)  The upshot is that a data structure
-// designed to hold Rebol arrays is able to terminate an array at full
-// capacity with a pointer-sized integer with the lowest 2 bits clear, and
-// use the rest of the bits for other purposes.  (See WRITABLE_MASK_DEBUG
-// for why it's the low 2 bits and not just the lowest bit.)
-//
-// This means not only is a full REBVAL not needed to terminate, the sunk cost
-// of an existing 32-bit or 64-bit number (depending on platform) can be used
-// to avoid needing even 1/4 of a REBVAL for a header to terminate.  (See the
-// `size` field in `struct Reb_Chunk` from %sys-stack.h for a simple example
-// of the technique.)
+// Ren-C changed this so that end is not a data type, but a header bit.
+// (See NODE_FLAG_END for an explanation of this choice.)  This means not only is
+// a full REBVAL not needed to terminate, the sunk cost of an existing 32-bit
+// or 64-bit number (depending on platform) can be used to avoid needing even
+// 1/4 of a REBVAL for a header to terminate.
 //
 // !!! Because Rebol Arrays (REBARR) have both a length and a terminator, it
 // is important to keep these in sync.  R3-Alpha sought to give code the
@@ -777,14 +673,19 @@ struct Reb_Value
     c_cast(const REBVAL*, &PG_End_Cell)
 
 #define IS_END_MACRO(v) \
-    LOGICAL((v)->header.bits % 2 == 0) // == NOT(bits & NOT_END_MASK)
+    LOGICAL((v)->header.bits & NODE_FLAG_END)
 
 #ifdef NDEBUG
     #define IS_END(v) \
         IS_END_MACRO(v)
 
     inline static void SET_END(RELVAL *v) {
-        v->header.bits = 0;
+        //
+        // Invalid UTF-8 byte, but also NODE_FLAG_END and NODE_FLAG_CELL set.  Other
+        // flags are set (e.g. NODE_FLAG_MANAGED) which should not
+        // be of concern or looked at due to the IS_END() status.
+        //
+        v->header.bits = FLAGBYTE_FIRST(255);
     }
 #else
     // Note: These must be macros (that don't need IS_END_Debug or
@@ -802,6 +703,75 @@ struct Reb_Value
 
 #define NOT_END(v) \
     NOT(IS_END(v))
+
+//
+// With these definitions:
+//
+//     struct Foo_Type { struct Reb_Header header; int x; }
+//     struct Foo_Type *foo = ...;
+//
+//     struct Bar_Type { struct Reb_Header header; float x; }
+//     struct Bar_Type *bar = ...;
+//
+// This C code:
+//
+//     foo->header.bits = 1020;
+//
+// ...is actually different *semantically* from this code:
+//
+//     struct Reb_Header *alias = &foo->header;
+//     alias->bits = 1020;
+//
+// The first is considered as not possibly able to affect the header in a
+// Bar_Type.  It only is seen as being able to influence the header in other
+// Foo_Type instances.
+//
+// The second case, by forcing access through a generic aliasing pointer,
+// will cause the optimizer to realize all bets are off for any type which
+// might contain a `struct Reb_Header`.
+//
+// This is an important point to know, with certain optimizations of writing
+// headers through one type and then reading them through another.  That
+// trick is used for "implicit termination", see documentation of IS_END().
+//
+// (Note that this "feature" of writing through pointers actually slows
+// things down.  Desire to control this behavior is why the `restrict`
+// keyword exists in C99: https://en.wikipedia.org/wiki/Restrict )
+//
+inline static void Init_Endlike_Header(struct Reb_Header *alias, REBUPT bits)
+{
+    // The leftmost 3 bits of the info are `110`, and the 8th bit is `0`.  The
+    // strategic choice of `x10` is easily understood: since the info bits are
+    // placed in the structure after a potential internal cell, that carries a
+    // bit in the NODE_FLAG_END slot as 1 and the NODE_FLAG_CELL slot is 0.
+    // This makes an "implicit unwritable terminator" that helps simulate an
+    // array of length 1.
+    //
+    // The `11x` is not possible to distinguish from the first byte of a
+    // unicode character in a general case.  However, with the leading byte of
+    // the second character starting with the high bit clear, it could not be
+    // a valid UTF-8 string.  This allows us to distinguish implicit END
+    // markers from unicode strings if we need to do so...at a cost of only
+    // two bits (vs. other approaches like sacrificing a full byte of the
+    // header, to throw in a full invalid byte).
+    //
+    // Note: really it's only diagnostics that should need to distinguish
+    // internal ENDs from unicode strings, but for 2 bits it's worth it ATM.
+    //
+    assert(
+        NOT(bits & (
+            NODE_FLAG_END | NODE_FLAG_CELL | NODE_FLAG_VALID | FLAGIT_LEFT(8)
+        ))
+    );
+
+    // Write from generic pointer to `struct Reb_Header`.  Make it look like
+    // a "terminating non-cell".  This means it will stop REBVAL* traversals
+    // that bump into it, as well as stop value cell initializations in the
+    // debug build from thinking it's a cell-sized slot that could be
+    // overwritten with a non-END.
+    //
+    alias->bits = bits | NODE_FLAG_VALID | NODE_FLAG_END;
+}
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -841,16 +811,20 @@ struct Reb_Value
         //
         //     http://stackoverflow.com/a/7189821/211160
         //
-        // In the debug C++ build there is an extra check of writability. This
-        // makes sure that stack variables holding REBVAL are marked with that.
-        // It also means that the check can only be performed by the C++ build,
+        // In the debug C++ build there is an extra check of "writability",
+        // because the NODE_FLAG_VALID must be set on cells.  All stack
+        // variables holding REBVAL are given this mark in this constructor,
+        // and all array cells are given the mark when the array is built.
+        //
+        // It also means that the check is only be performed in the C++ build,
         // otherwise there would need to be a manual set of this bit on every
         // stack variable.
         //
         Reb_Specific_Value () {
+            //
             // doesn't set VOID_FLAG_NOT_TRASH, so this is a trash cell
-            header.bits
-                = REB_MAX_VOID | CELL_MASK | VALUE_FLAG_WRITABLE_CPP_DEBUG;
+            //
+            header.bits = REB_MAX_VOID | NODE_FLAG_CELL | NODE_FLAG_VALID;
         }
     #endif
     };
@@ -875,7 +849,7 @@ inline static REBOOL IS_RELATIVE(const RELVAL *v) {
 
 inline static REBFUN *VAL_RELATIVE(const RELVAL *v) {
     assert(IS_RELATIVE(v));
-    //assert(NOT(GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST)));
+    //assert(NOT(GET_SER_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST)));
     return cast(REBFUN*, v->extra.binding);
 }
 
@@ -883,7 +857,7 @@ inline static REBCTX *VAL_SPECIFIC_COMMON(const RELVAL *v) {
     assert(IS_SPECIFIC(v));
     //assert(
     //    v->extra.binding == SPECIFIED
-    //    || GET_ARR_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST)
+    //    || GET_SER_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST)
     //);
     return cast(REBCTX*, v->extra.binding);
 }

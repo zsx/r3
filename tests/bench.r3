@@ -148,7 +148,7 @@ merge: func [
 a la b lb /local c
 ] [
 c: copy/part a la
-until [
+loop-until [
 either (compare first b first c) [
 change/only a first b
 b: next b

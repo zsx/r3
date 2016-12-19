@@ -33,10 +33,10 @@
 
 //
 //  CT_Array: C
-// 
+//
 // "Compare Type" dispatcher for the following types: (list here to help
 // text searches)
-// 
+//
 //     CT_Block()
 //     CT_Group()
 //     CT_Path()
@@ -57,9 +57,9 @@ REBINT CT_Array(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 //
 //  MAKE_Array: C
-// 
+//
 // "Make Type" dispatcher for the following subtypes:
-// 
+//
 //     MAKE_Block
 //     MAKE_Group
 //     MAKE_Path
@@ -228,20 +228,20 @@ void TO_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
 
 //
 //  Find_In_Array: C
-// 
+//
 // Flags are set according to: ALL_FIND_REFS
-// 
+//
 // Main Parameters:
 // start - index to start search
 // end   - ending position
 // len   - length of target
 // skip  - skip factor
 // dir   - direction
-// 
+//
 // Comparison Parameters:
 // case  - case sensitivity
 // wild  - wild cards/keys
-// 
+//
 // Final Parmameters:
 // tail  - tail position
 // match - sequence
@@ -445,7 +445,7 @@ static int Compare_Call(void *thunk, const void *v1, const void *v2)
 
 //
 //  Sort_Block: C
-// 
+//
 // series [any-series!]
 // /case {Case sensitive sort}
 // /skip {Treat the series as records of fixed size}
@@ -528,9 +528,9 @@ void Shuffle_Block(REBVAL *value, REBOOL secure)
 
 //
 //  PD_Array: C
-// 
+//
 // Path dispatch for the following types:
-// 
+//
 //     PD_Block
 //     PD_Group
 //     PD_Path
@@ -586,10 +586,8 @@ REBINT PD_Array(REBPVS *pvs)
 
 #if !defined(NDEBUG)
     if (pvs->value_specifier == SPECIFIED && IS_RELATIVE(pvs->value)) {
-        Debug_Fmt("Relative value found in PD_Array with no specifier");
-        PROBE_MSG(pvs->value, "the value");
-        Panic_Array(VAL_ARRAY(pvs->value));
-        assert(FALSE);
+        printf("Relative value found in PD_Array with no specifier\n");
+        panic (pvs->value);
     }
 #endif
 
@@ -614,7 +612,7 @@ RELVAL *Pick_Block(REBVAL *out, const REBVAL *block, const REBVAL *selector)
     }
     else {
         RELVAL *slot = VAL_ARRAY_AT_HEAD(block, n);
-        COPY_VALUE(out, slot, VAL_SPECIFIER(block));
+        Derelativize(out, slot, VAL_SPECIFIER(block));
         return slot;
     }
 }
@@ -622,9 +620,9 @@ RELVAL *Pick_Block(REBVAL *out, const REBVAL *block, const REBVAL *selector)
 
 //
 //  REBTYPE: C
-// 
+//
 // Implementation of type dispatch of the following:
-// 
+//
 //     REBTYPE(Block)
 //     REBTYPE(Group)
 //     REBTYPE(Path)
@@ -705,7 +703,7 @@ REBTYPE(Array)
                 D_OUT, Copy_Array_At_Max_Shallow(array, index, specifier, len)
             );
         else
-            COPY_VALUE(D_OUT, &ARR_HEAD(array)[index], specifier);
+            Derelativize(D_OUT, &ARR_HEAD(array)[index], specifier);
 
         Remove_Series(ARR_SERIES(array), index, len);
         return R_OUT;
@@ -760,7 +758,7 @@ REBTYPE(Array)
                     return R_BLANK;
                 return R_VOID;
             }
-            COPY_VALUE(D_OUT, ARR_AT(array, ret), specifier);
+            Derelativize(D_OUT, ARR_AT(array, ret), specifier);
         }
         return R_OUT;
     }
@@ -831,7 +829,7 @@ REBTYPE(Array)
 
         if (REF(deep))
             types |= REF(types) ? 0 : TS_STD_SERIES;
-        
+
         if (REF(types)) {
             if (IS_DATATYPE(ARG(kinds)))
                 types |= FLAGIT_KIND(VAL_TYPE(ARG(kinds)));
@@ -1009,53 +1007,45 @@ return_empty_block:
 //
 //  Assert_Array_Core: C
 //
-void Assert_Array_Core(REBARR *array)
+void Assert_Array_Core(REBARR *a)
 {
     // Basic integrity checks (series is not marked free, etc.)  Note that
     // we don't use ASSERT_SERIES the macro here, because that checks to
     // see if the series is an array...and if so, would call this routine
     //
-    Assert_Series_Core(ARR_SERIES(array));
+    Assert_Series_Core(ARR_SERIES(a));
 
-    if (NOT(GET_ARR_FLAG(array, SERIES_FLAG_ARRAY))) {
-        printf("Assert_Array called on series without SERIES_FLAG_ARRAY\n");
-        Panic_Array(array);
-    }
+    if (NOT(GET_SER_FLAG(a, SERIES_FLAG_ARRAY)))
+        panic (a);
 
-    RELVAL *value = ARR_HEAD(array);
+    RELVAL *item = ARR_HEAD(a);
     REBCNT i;
-    for (i = 0; i < ARR_LEN(array); ++i, ++value) {
-        if (IS_END(value)) {
-            printf("Premature END found in Assert_Array\n");
-            printf("At index %d, length is %d\n", i, ARR_LEN(array));
-            fflush(stdout);
-            Panic_Array(array);
+    for (i = 0; i < ARR_LEN(a); ++i, ++item) {
+        if (IS_END(item)) {
+            printf("Premature array end at index %d\n", i);
+            panic (a);
         }
     }
 
-    if (NOT_END(value)) {
-        printf("END missing in Assert_Array, length is %d\n", ARR_LEN(array));
-        fflush(stdout);
-        Panic_Array(array);
-    }
+    if (NOT_END(item))
+        panic (item);
 
-    if (GET_ARR_FLAG(array, SERIES_FLAG_HAS_DYNAMIC)) {
-        REBCNT rest = SER_REST(ARR_SERIES(array));
+    if (GET_SER_INFO(a, SERIES_INFO_HAS_DYNAMIC)) {
+        REBCNT rest = SER_REST(ARR_SERIES(a));
 
 #ifdef __cplusplus
         assert(rest > 0 && rest > i);
-        for (; i < rest - 1; ++i, ++value) {
-            if (NOT(value->header.bits & VALUE_FLAG_WRITABLE_CPP_DEBUG)) {
+        for (; i < rest - 1; ++i, ++item) {
+            if (NOT(item->header.bits & NODE_FLAG_VALID)) {
                 printf("Unwritable cell found in array rest capacity\n");
-                fflush(stdout);
-                Panic_Array(array);
+                panic (a);
             }
         }
-        assert(value == ARR_AT(array, rest - 1));
+        assert(item == ARR_AT(a, rest - 1));
 #endif
-        if (ARR_AT(array, rest - 1)->header.bits != 0) {
+        if (ARR_AT(a, rest - 1)->header.bits != NODE_FLAG_END) {
             printf("Implicit termination/unwritable END missing from array\n");
-            fflush(stdout);
+            panic (a);
         }
     }
 

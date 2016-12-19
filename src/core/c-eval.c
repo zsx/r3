@@ -341,7 +341,7 @@ reevaluate:;
     case REB_0_LOOKBACK:
         SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
         // f->out must be the infix's left-hand-side arg, may be END
-        
+
         f->refine = LOOKBACK_ARG;
         goto do_function_in_gotten;
 
@@ -643,7 +643,7 @@ reevaluate:;
                 // build will be able to tell if we don't come back and
                 // overwrite it correctly during the pickups phase.
                 //
-                SET_TRASH_SAFE(f->arg);
+                SET_UNREADABLE_BLANK(f->arg);
 
                 if (f->special != END_CELL)
                     ++f->special;
@@ -744,12 +744,12 @@ reevaluate:;
                     break;
 
                 case PARAM_CLASS_HARD_QUOTE:
-                    if (GET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED))
+                    if (NOT(GET_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED)))
                         fail (Error_Lookback_Quote_Too_Late(f));
                     break;
 
                 case PARAM_CLASS_SOFT_QUOTE:
-                    if (GET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED))
+                    if (NOT(GET_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED)))
                         fail (Error_Lookback_Quote_Too_Late(f));
                     if (IS_SET_WORD(f->out) || IS_SET_PATH(f->out))
                         fail (Error_Lookback_Quote_Set_Soft(f));
@@ -785,18 +785,22 @@ reevaluate:;
 
                 VAL_RESET_HEADER(f->arg, REB_VARARGS);
 
-                // Note that this varlist is to a context that is not ready
-                // to be shared with the GC yet (bad cells in any unfilled
-                // arg slots).  To help cue that it's not necessarily a
-                // completed context yet, we store it as an array type.
+                // Note that this varlist is to a context with bad cells in
+                // any unfilled arg slots.  Because of this, there needs to
+                // be special handling in the GC that knows *not* to try
+                // and walk these incomplete arrays sitting in the argument
+                // slots if they're not ready...
                 //
-                // Since we are putting the frame context into a REBVAL that
-                // may have an indefinite lifetime, it will need to be managed.
-                // We can't manage it *yet* because the frame is only partly
-                // constructed, so that's currently the job of dispatchers that
-                // allow variadic arguments.
-                //
-                Context_For_Frame_May_Reify_Core(f);
+                if (
+                    f->varlist == NULL
+                    || NOT_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST)
+                ){
+                    // Don't use ordinary call to Context_For_Frame_May_Reify
+                    // because this special case allows reification even
+                    // though the frame is pending.
+                    //
+                    Reify_Frame_Context_Maybe_Fulfilling(f);
+                }
                 f->arg->extra.binding = f->varlist;
 
                 f->arg->payload.varargs.param = const_KNOWN(f->param); // check
@@ -836,7 +840,7 @@ reevaluate:;
    //=//// IF EVAL/ONLY SEMANTICS, TAKE NEXT ARG WITHOUT EVALUATION //////=//
 
             if (!args_evaluate) {
-                QUOTE_NEXT_REFETCH(f->arg, f); // non-VALUE_FLAG_EVALUATED
+                QUOTE_NEXT_REFETCH(f->arg, f); // has VALUE_FLAG_UNEVALUATED
                 goto check_arg;
             }
 
@@ -871,14 +875,14 @@ reevaluate:;
     //=//// HARD QUOTED ARG-OR-REFINEMENT-ARG /////////////////////////////=//
 
             case PARAM_CLASS_HARD_QUOTE:
-                QUOTE_NEXT_REFETCH(f->arg, f); // non-VALUE_FLAG_EVALUATED
+                QUOTE_NEXT_REFETCH(f->arg, f); // has VALUE_FLAG_UNEVALUATED
                 break;
 
     //=//// SOFT QUOTED ARG-OR-REFINEMENT-ARG  ////////////////////////////=//
 
             case PARAM_CLASS_SOFT_QUOTE:
                 if (!IS_QUOTABLY_SOFT(f->value)) {
-                    QUOTE_NEXT_REFETCH(f->arg, f); // non-VALUE_FLAG_EVALUATED
+                    QUOTE_NEXT_REFETCH(f->arg, f); // VALUE_FLAG_UNEVALUATED
                     goto check_arg;
                 }
 
@@ -1060,23 +1064,28 @@ reevaluate:;
         dispatcher = FUNC_DISPATCHER(f->func);
         switch (dispatcher(f)) {
         case R_FALSE:
-            SET_FALSE(f->out);
+            SET_FALSE(f->out); // no VALUE_FLAG_UNEVALUATED
             break;
 
         case R_TRUE:
-            SET_TRUE(f->out);
+            SET_TRUE(f->out); // no VALUE_FLAG_UNEVALUATED
             break;
 
         case R_VOID:
-            SET_VOID(f->out);
+            SET_VOID(f->out); // no VALUE_FLAG_UNEVALUATED
             break;
 
         case R_BLANK:
-            SET_BLANK(f->out);
+            SET_BLANK(f->out); // no VALUE_FLAG_UNEVALUATED
             break;
 
         case R_OUT:
+            CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
             break; // checked as NOT_END() after switch()
+
+        case R_OUT_UNEVALUATED: // returned by QUOTE and SEMIQUOTE
+            SET_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
+            break;
 
         case R_OUT_IS_THROWN: {
             assert(THROWN(f->out));
@@ -1110,18 +1119,21 @@ reevaluate:;
                 Abort_Function_Args_For_Frame(f);
                 goto finished; // stay THROWN and try to exit frames above...
             }
+            CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
             break; }
 
         case R_OUT_TRUE_IF_WRITTEN:
             if (IS_END(f->out))
-                SET_FALSE(f->out);
+                SET_FALSE(f->out); // no VALUE_FLAG_UNEVALUATED
             else
-                SET_TRUE(f->out);
+                SET_TRUE(f->out); // no VALUE_FLAG_UNEVALUATED
             break;
 
         case R_OUT_VOID_IF_UNWRITTEN:
             if (IS_END(f->out))
-                SET_VOID(f->out);
+                SET_VOID(f->out); // no VALUE_FLAG_UNEVALUATED
+            else
+                CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
             break;
 
         case R_REDO_CHECKED:
@@ -1194,14 +1206,6 @@ reevaluate:;
     //
     //==////////////////////////////////////////////////////////////////==//
 
-        // Calling a function counts as an evaluation *unless* it's quote or
-        // semiquote (the generic means for fooling the semiquote? test)
-        //
-        if (f->func == NAT_FUNC(semiquote) || f->func == NAT_FUNC(quote))
-            CLEAR_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
-        else
-            SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
-
         // If we have functions pending to run on the outputs, then do so.
         //
         while (DSP != f->dsp_orig) {
@@ -1264,8 +1268,7 @@ reevaluate:;
             goto do_next; // quickly process next item, no infix test needed
         }
 
-        SET_VOID(f->out);
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        SET_VOID(f->out); // no VALUE_FLAG_UNEVALUATED
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1280,8 +1283,7 @@ reevaluate:;
 //==//////////////////////////////////////////////////////////////////////==//
 
     case REB_LIT_BAR:
-        SET_BAR(f->out);
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        SET_BAR(f->out); // no VALUE_FLAG_UNEVALUATED
         FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
 
@@ -1302,6 +1304,10 @@ reevaluate:;
             f->gotten = Get_Var_Core(
                 &f->eval_type, f->value, f->specifier, GETVAR_READ_ONLY
             );
+        else { // failed optimizations only run prefix functions
+            if (IS_FUNCTION(f->gotten))
+                f->eval_type = REB_FUNCTION;
+        }
 
         // eval_type will be set to either REB_0_LOOKBACK or REB_FUNCTION
 
@@ -1327,7 +1333,7 @@ reevaluate:;
         }
 
         *f->out = *f->gotten;
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
         f->gotten = NULL;
         FETCH_NEXT_ONLY_MAYBE_END(f);
 
@@ -1392,7 +1398,7 @@ reevaluate:;
 
     case REB_GET_WORD:
         *f->out = *GET_OPT_VAR_MAY_FAIL(f->value, f->specifier);
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
         FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
 
@@ -1406,9 +1412,9 @@ reevaluate:;
 //==//////////////////////////////////////////////////////////////////////==//
 
     case REB_LIT_WORD:
-        QUOTE_NEXT_REFETCH(f->out, f); // we're adding VALUE_FLAG_EVALUATED
+        QUOTE_NEXT_REFETCH(f->out, f); // we clear VALUE_FLAG_UNEVALUATED
         VAL_SET_TYPE_BITS(f->out, REB_WORD);
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
         break;
 
 //==//// INERT WORD AND STRING TYPES /////////////////////////////////////==//
@@ -1445,7 +1451,7 @@ reevaluate:;
             goto finished;
         }
 
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
         FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
 
@@ -1489,7 +1495,7 @@ reevaluate:;
             goto do_function_in_gotten;
         }
 
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
         FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
     }
@@ -1562,7 +1568,7 @@ reevaluate:;
             goto finished;
         }
 
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
         FETCH_NEXT_ONLY_MAYBE_END(f);
         break;
 
@@ -1580,7 +1586,7 @@ reevaluate:;
     case REB_LIT_PATH:
         QUOTE_NEXT_REFETCH(f->out, f);
         VAL_SET_TYPE_BITS(f->out, REB_PATH);
-        SET_VAL_FLAG(f->out, VALUE_FLAG_EVALUATED);
+        CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1592,7 +1598,7 @@ reevaluate:;
     default:
     inert:
         assert(f->eval_type < REB_MAX);
-        QUOTE_NEXT_REFETCH(f->out, f); // clears VALUE_FLAG_EVALUATED
+        QUOTE_NEXT_REFETCH(f->out, f); // has VALUE_FLAG_UNEVALUATED
         break;
     }
 
@@ -1610,7 +1616,7 @@ reevaluate:;
     //
     // `x: 1 + 2` does not want to push the X:, then get a 1, then assign the
     // 1...it needs to wait.  The pending sets are not flushed until the
-    // infix operation has finished. 
+    // infix operation has finished.
 
     if (IS_END(f->value)) {
         Do_Pending_Sets_May_Invalidate_Gotten(f->out, f); // don't care if does
@@ -1628,12 +1634,17 @@ reevaluate:;
         // Don't overwrite f->value (if this just a DO/NEXT and it's not
         // infix, we might need to hold it at its position.)
         //
-        f->gotten = Get_Var_Core(
-            &f->eval_type, // always set to REB_0_LOOKBACK or REB_FUNCTION
-            f->value,
-            f->specifier,
-            GETVAR_READ_ONLY | GETVAR_UNBOUND_OK
-        );
+        if (IS_WORD_BOUND(f->value))
+            f->gotten = Get_Var_Core(
+                &f->eval_type, // always set to REB_0_LOOKBACK or REB_FUNCTION
+                f->value,
+                f->specifier,
+                GETVAR_READ_ONLY
+            );
+        else {
+            f->eval_type = REB_FUNCTION; // !!! rethink error dynamics here
+            f->gotten = NULL;
+        }
 
     //=//// DO/NEXT WON'T RUN MORE CODE UNLESS IT'S AN INFIX FUNCTION /////=//
 
@@ -1654,7 +1665,7 @@ reevaluate:;
 
         if (!f->gotten) { // <-- DO_COUNT_BREAKPOINT landing spot
             REBVAL specified;
-            COPY_VALUE(&specified, f->value, f->specifier);
+            Derelativize(&specified, f->value, f->specifier);
             fail (Error(RE_NOT_BOUND, &specified));
         }
 

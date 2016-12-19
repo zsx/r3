@@ -64,7 +64,7 @@ DEVICE_CMD Open_DNS(REBREQ *sock)
 
 //
 //  Close_DNS: C
-// 
+//
 // Note: valid even if not open.
 //
 DEVICE_CMD Close_DNS(REBREQ *sock)
@@ -86,7 +86,7 @@ DEVICE_CMD Close_DNS(REBREQ *sock)
 
 //
 //  Read_DNS: C
-// 
+//
 // Initiate the GetHost request and return immediately.
 // Note the temporary results buffer (must be freed later).
 //
@@ -147,7 +147,7 @@ DEVICE_CMD Read_DNS(REBREQ *sock)
 
 //
 //  Poll_DNS: C
-// 
+//
 // Check for completed DNS requests. These are marked with
 // RRF_DONE by the windows message event handler (dev-event.c).
 // Completed requests are removed from the pending queue and

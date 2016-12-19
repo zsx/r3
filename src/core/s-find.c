@@ -33,11 +33,11 @@
 
 //
 //  Compare_Binary_Vals: C
-// 
+//
 // Compare two binary values.
-// 
+//
 // Compares bytes, not chars. Return the difference.
-// 
+//
 // Used for: Binary comparision function
 //
 REBINT Compare_Binary_Vals(const RELVAL *v1, const RELVAL *v2)
@@ -67,9 +67,9 @@ REBINT Compare_Binary_Vals(const RELVAL *v1, const RELVAL *v2)
 
 //
 //  Compare_Bytes: C
-// 
+//
 // Compare two byte-wide strings. Return lexical difference.
-// 
+//
 // Uncase: compare is case-insensitive.
 //
 REBINT Compare_Bytes(const REBYTE *b1, const REBYTE *b2, REBCNT len, REBOOL uncase)
@@ -92,7 +92,7 @@ REBINT Compare_Bytes(const REBYTE *b1, const REBYTE *b2, REBCNT len, REBOOL unca
 
 //
 //  Match_Bytes: C
-// 
+//
 // Compare two binary strings. Return where the first differed.
 // Case insensitive.
 //
@@ -110,7 +110,7 @@ const REBYTE *Match_Bytes(const REBYTE *src, const REBYTE *pat)
 
 //
 //  Match_Sub_Path: C
-// 
+//
 // Compare two file path series, regardless of char size.
 // Return TRUE if s1 is a subpath of s2.
 // Case insensitive.
@@ -121,9 +121,6 @@ REBOOL Match_Sub_Path(REBSER *s1, REBSER *s2)
     REBCNT n;
     REBUNI c1 = 0;
     REBUNI c2;
-
-//  Debug_Series(s1);
-//  Debug_Series(s2);
 
     // s1 len must be <= s2 len
     if (len > SER_LEN(s2)) return FALSE;
@@ -152,9 +149,9 @@ REBOOL Match_Sub_Path(REBSER *s1, REBSER *s2)
 
 //
 //  Compare_Uni_Byte: C
-// 
+//
 // Compare unicode and byte-wide strings. Return lexical difference.
-// 
+//
 // Uncase: compare is case-insensitive.
 //
 REBINT Compare_Uni_Byte(REBUNI *u1, REBYTE *b2, REBCNT len, REBOOL uncase)
@@ -182,9 +179,9 @@ REBINT Compare_Uni_Byte(REBUNI *u1, REBYTE *b2, REBCNT len, REBOOL uncase)
 
 //
 //  Compare_Uni_Str: C
-// 
+//
 // Compare two unicode-wide strings. Return lexical difference.
-// 
+//
 // Uncase: compare is case-insensitive.
 //
 REBINT Compare_Uni_Str(REBUNI *u1, REBUNI *u2, REBCNT len, REBOOL uncase)
@@ -212,11 +209,11 @@ REBINT Compare_Uni_Str(REBUNI *u1, REBUNI *u2, REBCNT len, REBOOL uncase)
 
 //
 //  Compare_String_Vals: C
-// 
+//
 // Compare two string values. Either can be byte or unicode wide.
-// 
+//
 // Uncase: compare is case-insensitive.
-// 
+//
 // Used for: general string comparions (various places)
 //
 REBINT Compare_String_Vals(const RELVAL *v1, const RELVAL *v2, REBOOL uncase)
@@ -248,22 +245,22 @@ REBINT Compare_String_Vals(const RELVAL *v1, const RELVAL *v2, REBOOL uncase)
 
 //
 //  Compare_UTF8: C
-// 
+//
 // Compare two UTF8 strings.
-// 
+//
 // It is necessary to decode the strings to check if the match
 // case-insensitively.
-// 
+//
 // Returns:
 //     -3: no match, s2 > s1
 //     -1: no match, s1 > s2
 //      0: exact match
 //      1: non-case match, s2 > s1
 //      3: non-case match, s1 > s2
-// 
+//
 // So, result + 2 for no-match gives proper sort order.
 // And, result - 2 for non-case match gives sort order.
-// 
+//
 // Used for: WORD comparison.
 //
 REBINT Compare_UTF8(const REBYTE *s1, const REBYTE *s2, REBCNT l2)
@@ -299,14 +296,14 @@ REBINT Compare_UTF8(const REBYTE *s1, const REBYTE *s2, REBCNT l2)
 
 //
 //  Find_Byte_Str: C
-// 
+//
 // Find a byte string within a byte string. Optimized for speed.
-// 
+//
 // Returns starting position or NOT_FOUND.
-// 
+//
 // Uncase: compare is case-insensitive.
 // Match: compare to first position only.
-// 
+//
 // NOTE: Series tail must be > index.
 //
 REBCNT Find_Byte_Str(REBSER *series, REBCNT index, REBYTE *b2, REBCNT l2, REBOOL uncase, REBOOL match)
@@ -361,13 +358,13 @@ REBCNT Find_Byte_Str(REBSER *series, REBCNT index, REBYTE *b2, REBCNT l2, REBOOL
 
 //
 //  Find_Str_Str: C
-// 
+//
 // General purpose find a substring.
-// 
+//
 // Supports: forward/reverse with skip, cased/uncase, Unicode/byte.
-// 
+//
 // Skip can be set positive or negative (for reverse).
-// 
+//
 // Flags are set according to ALL_FIND_REFS
 //
 REBCNT Find_Str_Str(REBSER *ser1, REBCNT head, REBCNT index, REBCNT tail, REBINT skip, REBSER *ser2, REBCNT index2, REBCNT len, REBCNT flags)
@@ -412,7 +409,7 @@ REBCNT Find_Str_Str(REBSER *ser1, REBCNT head, REBCNT index, REBCNT tail, REBINT
 
 //
 //  Find_Str_Char_Old: C
-// 
+//
 // The Find_Str_Char routine turned out to be kind of a bottleneck in code
 // that was heavily reliant on PARSE, so it became slightly interesting to
 // try and optimize it a bit.  The old routine is kept around for the
@@ -680,13 +677,13 @@ return_index:
 
 //
 //  Find_Str_Bitset: C
-// 
+//
 // General purpose find a bitset char in a string.
-// 
+//
 // Supports: forward/reverse with skip, cased/uncase, Unicode/byte.
-// 
+//
 // Skip can be set positive or negative (for reverse).
-// 
+//
 // Flags are set according to ALL_FIND_REFS
 //
 REBCNT Find_Str_Bitset(
@@ -716,7 +713,7 @@ REBCNT Find_Str_Bitset(
 
 //
 //  Count_Lines: C
-// 
+//
 // Count lines in a UTF-8 file.
 //
 REBCNT Count_Lines(REBYTE *bp, REBCNT len)
@@ -738,7 +735,7 @@ REBCNT Count_Lines(REBYTE *bp, REBCNT len)
 
 //
 //  Next_Line: C
-// 
+//
 // Find next line termination. Advance the bp; return bin length.
 //
 REBCNT Next_Line(REBYTE **bin)

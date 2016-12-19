@@ -35,7 +35,7 @@ sprintf: make routine! [
 i: 1000
 j: 0.0
 printf reduce [
-    join "i: %d, %f" newline
+    join-of "i: %d, %f" newline
     i [int32]
     j [float]
 ]
@@ -65,7 +65,7 @@ h: make struct! [
 ]
 len: sprintf reduce [
     addr-of h
-    join "hello %s" newline
+    join-of "hello %s" newline
     "world" [pointer]
 ]
 prin ["h:" copy/part to string! values-of h len]

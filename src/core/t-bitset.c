@@ -58,9 +58,9 @@ REBINT CT_Bitset(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 //
 //  Make_Bitset: C
-// 
+//
 // Return a bitset series (binary.
-// 
+//
 // len: the # of bits in the bitset.
 //
 REBSER *Make_Bitset(REBCNT len)
@@ -131,7 +131,7 @@ void TO_Bitset(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
 
 //
 //  Find_Max_Bit: C
-// 
+//
 // Return integer number for the maximum bit number defined by
 // the value. Used to determine how much space to allocate.
 //
@@ -197,7 +197,7 @@ REBINT Find_Max_Bit(const RELVAL *val)
 
 //
 //  Check_Bit: C
-// 
+//
 // Check bit indicated. Returns TRUE if set.
 // If uncased is TRUE, try to match either upper or lower case.
 //
@@ -231,7 +231,7 @@ retry:
 
 //
 //  Check_Bit_Str: C
-// 
+//
 // If uncased is TRUE, try to match either upper or lower case.
 //
 REBOOL Check_Bit_Str(REBSER *bset, const REBVAL *val, REBOOL uncased)
@@ -254,7 +254,7 @@ REBOOL Check_Bit_Str(REBSER *bset, const REBVAL *val, REBOOL uncased)
 
 //
 //  Set_Bit: C
-// 
+//
 // Set/clear a single bit. Expand if needed.
 //
 void Set_Bit(REBSER *bset, REBCNT n, REBOOL set)
@@ -300,7 +300,7 @@ void Set_Bit_Str(REBSER *bset, const REBVAL *val, REBOOL set)
 
 //
 //  Set_Bits: C
-// 
+//
 // Set/clear bits indicated by strings and chars and ranges.
 //
 REBOOL Set_Bits(REBSER *bset, const REBVAL *val, REBOOL set)
@@ -417,7 +417,7 @@ span_bits:
 
 //
 //  Check_Bits: C
-// 
+//
 // Check bits indicated by strings and chars and ranges.
 // If uncased is TRUE, try to match either upper or lower case.
 //
@@ -531,7 +531,7 @@ REBINT PD_Bitset(REBPVS *pvs)
 
 //
 //  Trim_Tail_Zeros: C
-// 
+//
 // Remove extra zero bytes from end of byte string.
 //
 void Trim_Tail_Zeros(REBSER *ser)

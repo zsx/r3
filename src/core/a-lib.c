@@ -56,9 +56,9 @@ static enum Reb_Kind RXT_To_Reb[RXT_MAX];
 
 //
 //  RL_Version: C
-// 
+//
 // Obtain current REBOL interpreter version information.
-// 
+//
 // Returns:
 //     A byte array containing version, revision, update, and more.
 // Arguments:
@@ -90,9 +90,9 @@ RL_API void RL_Version(REBYTE vers[])
 
 //
 //  RL_Init: C
-// 
+//
 // Initialize the REBOL interpreter.
-// 
+//
 // Returns:
 //     Zero on success, otherwise an error indicating that the
 //     host library is not compatible with this release.
@@ -121,7 +121,7 @@ RL_API int RL_Init(REBARGS *rargs, void *lib)
     }
 
     // REB_BAR unsupported?
-    // REB_LIT_BAR unsupported?    
+    // REB_LIT_BAR unsupported?
     Reb_To_RXT[REB_WORD] = RXT_WORD;
     Reb_To_RXT[REB_SET_WORD] = RXT_SET_WORD;
     Reb_To_RXT[REB_GET_WORD] = RXT_GET_WORD;
@@ -206,7 +206,6 @@ RL_API int RL_Init(REBARGS *rargs, void *lib)
 
     Init_Core(rargs);
 
-    GC_Active = TRUE; // Turn on GC
     if (rargs->options & RO_TRACE) {
         Trace_Level = 9999;
         Trace_Flags = 1;
@@ -218,9 +217,9 @@ RL_API int RL_Init(REBARGS *rargs, void *lib)
 
 //
 //  RL_Start: C
-// 
+//
 // Evaluate the default boot function.
-// 
+//
 // Returns:
 //     Zero on success, otherwise indicates an error occurred.
 // Arguments:
@@ -373,9 +372,9 @@ RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, 
 
 //
 //  RL_Shutdown: C
-// 
+//
 // Shut down a Rebol interpreter (that was initialized via RL_Init).
-// 
+//
 // Returns:
 //     nothing
 // Arguments:
@@ -405,9 +404,9 @@ RL_API void RL_Shutdown(REBOOL clean)
 
 //
 //  RL_Extend: C
-// 
+//
 // Appends embedded extension to system/catalog/boot-exts.
-// 
+//
 // Returns:
 //     A pointer to the REBOL library (see reb-lib.h).
 // Arguments:
@@ -449,9 +448,9 @@ RL_API void *RL_Extend(const REBYTE *source, RXICAL call)
 
 //
 //  RL_Escape: C
-// 
+//
 // Signal that code evaluation needs to be interrupted.
-// 
+//
 // Returns:
 //     nothing
 // Arguments:
@@ -476,23 +475,23 @@ RL_API void RL_Escape(REBINT reserved)
 
 //
 //  RL_Do_String: C
-// 
+//
 // Load a string and evaluate the resulting block.
-// 
+//
 // Returns:
 //     The datatype of the result if a positive number (or 0 if the
 //     type has no representation in the "RXT" API).  An error code
 //     if it's a negative number.  Two negative numbers are reserved
 //     for non-error conditions: -1 for halting (e.g. Escape), and
 //     -2 is reserved for exiting with exit_status set.
-// 
+//
 // Arguments:
 //     text - A null terminated UTF-8 (or ASCII) string to transcode
 //         into a block and evaluate.
 //     flags - set to zero for now
 //     result - value returned from evaluation, if NULL then result
 //         will be returned on the top of the stack
-// 
+//
 // Notes:
 //     This API was from before Rebol's open sourcing and had little
 //     vetting and few clients.  The one client it did have was the
@@ -580,9 +579,9 @@ RL_API int RL_Do_String(
 
 //
 //  RL_Do_Binary: C
-// 
+//
 // Evaluate an encoded binary script such as compressed text.
-// 
+//
 // Returns:
 //     The datatype of the result or zero if error in the encoding.
 // Arguments:
@@ -692,9 +691,9 @@ RL_API void RL_Do_Commands(REBARR *array, REBCNT flags, REBCEC *cec)
 
 //
 //  RL_Print: C
-// 
+//
 // Low level print of formatted data to the console.
-// 
+//
 // Returns:
 //     nothing
 // Arguments:
@@ -716,9 +715,9 @@ RL_API void RL_Print(const REBYTE *fmt, ...)
 
 //
 //  RL_Event: C
-// 
+//
 // Appends an application event (e.g. GUI) to the event port.
-// 
+//
 // Returns:
 //     Returns TRUE if queued, or FALSE if event queue is full.
 // Arguments:
@@ -755,9 +754,9 @@ RL_API int RL_Event(REBEVT *evt)
 
 //
 //  RL_Update_Event: C
-// 
+//
 // Updates an application event (e.g. GUI) to the event port.
-// 
+//
 // Returns:
 //     Returns 1 if updated, or 0 if event appended, and -1 if full.
 // Arguments:
@@ -811,7 +810,7 @@ RL_API int RL_Accumulate_Event(REBEVT *evt)
 
 //
 //  RL_Find_Event: C
-// 
+//
 // Find an application event (e.g. GUI) to the event port.
 //
 // Returns:
@@ -832,12 +831,12 @@ RL_API REBEVT *RL_Find_Event (REBINT model, REBINT type)
 
 //
 //  RL_Make_Block: C
-// 
+//
 // Allocate a series suitable for storing Rebol values.  This series
 // can be used as a backing store for a BLOCK!, but also for any
 // other Rebol Array type (GROUP!, PATH!, GET-PATH!, SET-PATH!, or
 // LIT-PATH!).
-// 
+//
 // Returns:
 //     A pointer to a block series.
 // Arguments:
@@ -860,9 +859,9 @@ RL_API REBSER *RL_Make_Block(u32 size)
 
 //
 //  RL_Make_String: C
-// 
+//
 // Allocate a new string or binary series.
-// 
+//
 // Returns:
 //     A pointer to a string or binary series.
 // Arguments:
@@ -913,9 +912,9 @@ RL_API void RL_Set_Series_Len(REBSER* series, REBCNT len)
 
 //
 //  RL_Make_Image: C
-// 
+//
 // Allocate a new image of the given size.
-// 
+//
 // Returns:
 //     A pointer to an image series, or zero if size is too large.
 // Arguments:
@@ -936,7 +935,7 @@ RL_API REBSER *RL_Make_Image(u32 width, u32 height)
 
 //
 //  RL_Get_String: C
-// 
+//
 // Obtain a pointer into a string (bytes or unicode).
 //
 // Returns:
@@ -1020,9 +1019,9 @@ RL_API int RL_Get_UTF8_String(REBSER *series, u32 index, REBYTE **str)
 
 //
 //  RL_Map_Word: C
-// 
+//
 // Given a word as a string, return its global word identifier.
-// 
+//
 // Returns:
 //     The word identifier that matches the string.
 // Arguments:
@@ -1040,9 +1039,9 @@ RL_API REBSTR *RL_Map_Word(REBYTE *string)
 
 //
 //  RL_Map_Words: C
-// 
+//
 // Given a block of word values, return an array of word ids.
-// 
+//
 // Returns:
 //     An array of global word identifiers (integers). The [0] value is the size.
 // Arguments:
@@ -1073,9 +1072,9 @@ RL_API REBSTR* *RL_Map_Words(REBARR *array)
 
 //
 //  RL_Word_String: C
-// 
+//
 // Return a string related to a given global word identifier.
-// 
+//
 // Returns:
 //     A copy of the word string, null terminated.
 // Arguments:
@@ -1098,9 +1097,9 @@ RL_API REBYTE *RL_Word_String(REBSTR *word)
 
 //
 //  RL_Find_Word: C
-// 
+//
 // Given an array of word ids, return the index of the given word.
-// 
+//
 // Returns:
 //     The index of the given word or zero.
 // Arguments:
@@ -1124,9 +1123,9 @@ RL_API u32 RL_Find_Word(REBSTR* *words, REBSTR *word)
 
 //
 //  RL_Series: C
-// 
+//
 // Get series information.
-// 
+//
 // Returns:
 //     Returns information related to a series.
 // Arguments:
@@ -1150,9 +1149,9 @@ RL_API REBUPT RL_Series(REBSER *series, REBCNT what)
 
 //
 //  RL_Get_Char: C
-// 
+//
 // Get a character from byte or unicode string.
-// 
+//
 // Returns:
 //     A Unicode character point from string. If index is
 //     at or past the tail, a -1 is returned.
@@ -1173,9 +1172,9 @@ RL_API int RL_Get_Char(REBSER *series, u32 index)
 
 //
 //  RL_Set_Char: C
-// 
+//
 // Set a character into a byte or unicode string.
-// 
+//
 // Returns:
 //     The index passed as an argument.
 // Arguments:
@@ -1197,9 +1196,9 @@ RL_API u32 RL_Set_Char(REBSER *series, u32 index, u32 chr)
 
 //
 //  RL_Get_Value: C
-// 
+//
 // Get a value from a block.
-// 
+//
 // Returns:
 //     Datatype of value or zero if index is past tail.
 // Arguments:
@@ -1221,9 +1220,9 @@ RL_API int RL_Get_Value(REBARR *array, u32 index, REBVAL *result)
 
 //
 //  RL_Set_Value: C
-// 
+//
 // Set a value in a block.
-// 
+//
 // Returns:
 //     TRUE if index past end and value was appended to tail of block.
 // Arguments:
@@ -1247,9 +1246,9 @@ RL_API REBOOL RL_Set_Value(REBARR *array, u32 index, REBVAL value, int type)
 
 //
 //  RL_Words_Of_Object: C
-// 
+//
 // Returns information about the object.
-// 
+//
 // Returns:
 //     Returns an array of words used as fields of the object.
 // Arguments:
@@ -1285,9 +1284,9 @@ RL_API REBSTR* *RL_Words_Of_Object(REBSER *obj)
 
 //
 //  RL_Get_Field: C
-// 
+//
 // Get a field value (context variable) of an object.
-// 
+//
 // Returns:
 //     Datatype of value or zero if word is not found in the object.
 // Arguments:
@@ -1314,9 +1313,9 @@ RL_API REBRXT RL_Get_Field(REBSER *obj, REBSTR *word, REBVAL *result)
 
 //
 //  RL_Set_Field: C
-// 
+//
 // Set a field (context variable) of an object.
-// 
+//
 // Returns:
 //     The type arg, or zero if word not found in object or if field is protected.
 // Arguments:
@@ -1343,18 +1342,18 @@ RL_API int RL_Set_Field(REBSER *obj, REBSTR *word_id, REBVAL val, int type)
 
 //
 //  RL_Length_As_UTF8: C
-// 
+//
 // Calculate the UTF8 length of an array of unicode codepoints
-// 
+//
 // Returns:
 // How long the UTF8 encoded string would be
-// 
+//
 // Arguments:
 // p - pointer to array of bytes or wide characters
 // len - length of src in codepoints (not including terminator)
 // unicode - true if src is in wide character format
 // lf_to_crlf - convert linefeeds into carraige-return + linefeed
-// 
+//
 // !!! Host code is not supposed to call any Rebol routines except
 // for those in the RL_Api.  This exposes Rebol's internal UTF8
 // length routine, as it was being used by host code.  It should
@@ -1376,12 +1375,12 @@ RL_API REBCNT RL_Length_As_UTF8(
 
 //
 //  RL_Encode_UTF8: C
-// 
+//
 // Encode the unicode into UTF8 byte string.
-// 
+//
 // Returns:
 // Number of dst bytes used.
-// 
+//
 // Arguments:
 // dst - destination for encoded UTF8 bytes
 // max - maximum size of the result in bytes
@@ -1389,10 +1388,10 @@ RL_API REBCNT RL_Length_As_UTF8(
 // len - input is source length, updated to reflect src chars used
 // unicode - true if src is in wide character format
 // crlf_to_lf - convert carriage-return + linefeed into just linefeed
-// 
+//
 // Notes:
 // Does not add a terminator.
-// 
+//
 // !!! Host code is not supposed to call any Rebol routines except
 // for those in the RL_Api.  This exposes Rebol's internal UTF8
 // length routine, as it was being used by the Linux host code by
@@ -1443,9 +1442,8 @@ inline static REBFRM *Extract_Live_Rebfrm_May_Fail(const REBVAL *frame) {
         fail(Error(RE_MISC)); // !!! improve
 
     REBCTX *frame_ctx = VAL_CONTEXT(frame);
-    if (GET_CTX_FLAG(frame_ctx, CONTEXT_FLAG_STACK))
-        if (!GET_CTX_FLAG(frame_ctx, SERIES_FLAG_ACCESSIBLE))
-            fail (Error(RE_MISC)); // !!! improve
+    if (IS_INACCESSIBLE(frame_ctx))
+        fail (Error(RE_MISC)); // !!! improve
 
     REBFRM *f = CTX_FRAME(frame_ctx);
     assert(Is_Any_Function_Frame(f));

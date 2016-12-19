@@ -50,7 +50,7 @@ REBINT CT_Event(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 //
 //  Cmp_Event: C
-// 
+//
 // Given two events, compare them.
 //
 REBINT Cmp_Event(const RELVAL *t1, const RELVAL *t2)
@@ -187,7 +187,7 @@ void Set_Event_Vars(REBVAL *evt, RELVAL *blk, REBCTX *specifier)
 {
     while (NOT_END(blk)) {
         REBVAL var;
-        COPY_VALUE(&var, blk, specifier);
+        Derelativize(&var, blk, specifier);
         ++blk;
 
         REBVAL val;
@@ -218,7 +218,7 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSTR *name, REBVAL *val)
         if (VAL_EVENT_TYPE(value) == 0) goto is_blank;
         arg = Get_System(SYS_VIEW, VIEW_EVENT_TYPES);
         if (IS_BLOCK(arg) && VAL_LEN_HEAD(arg) >= EVT_MAX) {
-            COPY_VALUE(
+            Derelativize(
                 val,
                 VAL_ARRAY_AT_HEAD(arg, VAL_EVENT_TYPE(value)),
                 VAL_SPECIFIER(arg)
@@ -276,7 +276,7 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSTR *name, REBVAL *val)
             arg = Get_System(SYS_VIEW, VIEW_EVENT_KEYS);
             n = (n >> 16) - 1;
             if (IS_BLOCK(arg) && n < cast(REBINT, VAL_LEN_HEAD(arg))) {
-                COPY_VALUE(
+                Derelativize(
                     val,
                     VAL_ARRAY_AT_HEAD(arg, n),
                     VAL_SPECIFIER(arg)

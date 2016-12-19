@@ -207,7 +207,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
             break; // fix bug#708
         }
         else
-            COPY_VALUE(var, &word[1], VAL_SPECIFIER(arg));
+            Derelativize(var, &word[1], VAL_SPECIFIER(arg));
 
     }
 
@@ -568,7 +568,7 @@ REBNATIVE(set_meta)
 
 //
 //  REBTYPE: C
-// 
+//
 // Handles object!, module!, and error! datatypes.
 //
 REBTYPE(Context)
@@ -612,9 +612,9 @@ REBTYPE(Context)
             Copy_Array_Shallow(CTX_VARLIST(VAL_CONTEXT(value)), SPECIFIED)
         );
         INIT_CTX_KEYLIST_SHARED(context, CTX_KEYLIST(VAL_CONTEXT(value)));
-        SET_ARR_FLAG(CTX_VARLIST(context), ARRAY_FLAG_VARLIST);
+        SET_SER_FLAG(CTX_VARLIST(context), ARRAY_FLAG_VARLIST);
         CTX_VALUE(context)->payload.any_context.varlist = CTX_VARLIST(context);
-        
+
         if (types != 0) {
             Clonify_Values_Len_Managed(
                 CTX_VARS_HEAD(context),

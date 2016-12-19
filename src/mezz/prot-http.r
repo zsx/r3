@@ -55,7 +55,7 @@ sync-op: func [port body /local state] [
     ;NOTE: We'll wait in a WHILE loop so the timeout cannot occur during 'reading-data state.
     ;The timeout should be triggered only when the response from other side exceeds the timeout value.
     ;--Richard
-    while [not find [ready close] state/state][
+    until [find [ready close] state/state][
         unless port? wait [state/connection port/spec/timeout] [
             fail make-http-error "Timeout"
         ]
@@ -203,11 +203,11 @@ make-http-request: func [
         " HTTP/1.0" CRLF
     ]
     for-each [word string] headers [
-        repend result [mold word #" " string CRLF]
+        join result [mold word #" " string CRLF]
     ]
     if content [
         content: to binary! content
-        repend result ["Content-Length: " length content CRLF]
+        join result ["Content-Length: " length content CRLF]
     ]
     append result CRLF
     result: to binary! result

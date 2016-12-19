@@ -38,7 +38,7 @@
 
 //
 //  Is_Port_Open: C
-// 
+//
 // Standard method for checking if port is open.
 // A convention. Not all ports use this method.
 //
@@ -52,7 +52,7 @@ REBOOL Is_Port_Open(REBCTX *port)
 
 //
 //  Set_Port_Open: C
-// 
+//
 // Standard method for setting a port open/closed.
 // A convention. Not all ports use this method.
 //
@@ -68,7 +68,7 @@ void Set_Port_Open(REBCTX *port, REBOOL open)
 
 //
 //  Use_Port_State: C
-// 
+//
 // Use private state area in a port. Create if necessary.
 // The size is that of a binary structure used by
 // the port for storing internal information.
@@ -96,7 +96,7 @@ void *Use_Port_State(REBCTX *port, REBCNT device, REBCNT size)
 
 //
 //  Pending_Port: C
-// 
+//
 // Return TRUE if port value is pending a signal.
 // Not valid for all ports - requires request struct!!!
 //
@@ -118,7 +118,7 @@ REBOOL Pending_Port(REBVAL *port)
 
 //
 //  Awake_System: C
-// 
+//
 // Returns:
 //     -1 for errors
 //      0 for nothing to do
@@ -192,11 +192,11 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
 
 //
 //  Wait_Ports: C
-// 
+//
 // Inputs:
 //     Ports: a block of ports or zero (on stack to avoid GC).
 //     Timeout: milliseconds to wait
-// 
+//
 // Returns:
 //     TRUE when port action happened, or FALSE for timeout.
 //
@@ -276,7 +276,7 @@ REBOOL Wait_Ports(REBARR *ports, REBCNT timeout, REBOOL only)
 
 //
 //  Sieve_Ports: C
-// 
+//
 // Remove all ports not found in the WAKE list.
 // ports could be NULL, in which case the WAKE list is cleared.
 //
@@ -312,7 +312,7 @@ void Sieve_Ports(REBARR *ports)
 
 //
 //  Find_Action: C
-// 
+//
 // Given an action number, return the action's index in
 // the specified object. If not found, a zero is returned.
 //
@@ -459,16 +459,16 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
 
 //
 //  Do_Port_Action: C
-// 
+//
 // Call a PORT actor (action) value. Search PORT actor
 // first. If not found, search the PORT scheme actor.
-// 
+//
 // NOTE: stack must already be setup correctly for action, and
 // the caller must cleanup the stack.
 //
 REB_R Do_Port_Action(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
-    assert(GET_ARR_FLAG(CTX_VARLIST(port), ARRAY_FLAG_VARLIST));
+    assert(GET_SER_FLAG(CTX_VARLIST(port), ARRAY_FLAG_VARLIST));
 
     // Verify valid port (all of these must be false):
     if (
@@ -515,7 +515,7 @@ REB_R Do_Port_Action(REBFRM *frame_, REBCTX *port, REBSYM action)
 
 //
 //  Secure_Port: C
-// 
+//
 // kind: word that represents the type (e.g. 'file)
 // req:  I/O request
 // name: value that holds the original user spec
@@ -540,14 +540,14 @@ void Secure_Port(REBSYM sym_kind, REBREQ *req, REBVAL *name, REBSER *path)
 
 //
 //  Validate_Port: C
-// 
+//
 // Because port actors are exposed to the user level, we must
 // prevent them from being called with invalid values.
 //
 void Validate_Port(REBCTX *port, REBCNT action)
 {
     if (
-        !GET_ARR_FLAG(CTX_VARLIST(port), ARRAY_FLAG_VARLIST)
+        NOT_SER_FLAG(CTX_VARLIST(port), ARRAY_FLAG_VARLIST)
         || !IS_OBJECT(CTX_VAR(port, STD_PORT_SPEC))
     ) {
         fail (Error(RE_INVALID_PORT));
@@ -571,7 +571,7 @@ SCHEME_ACTIONS *Scheme_Actions; // Initial Global (not threaded)
 
 //
 //  Register_Scheme: C
-// 
+//
 // Associate a scheme word (e.g. FILE) with a set of native
 // scheme actions. This will be used by the Set_Scheme native
 //
@@ -589,9 +589,9 @@ void Register_Scheme(REBSTR *name, REBPAF fun)
 
 //
 //  set-scheme: native [
-//  
+//
 //  "Low-level port scheme actor initialization."
-//  
+//
 //      scheme [object!]
 //  ]
 //
@@ -643,11 +643,11 @@ REBNATIVE(set_scheme)
 
 //
 //  Init_Ports: C
-// 
+//
 // Initialize port scheme related subsystems.
-// 
+//
 // In order to add a port scheme:
-// 
+//
 // In mezz-ports.r add a make-scheme.
 // Add an Init_*_Scheme() here.
 // Be sure host-devices.c has the device enabled.

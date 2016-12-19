@@ -88,7 +88,7 @@
 
 //
 //  OS_Get_PID: C
-// 
+//
 // Return the current process ID
 //
 REBINT OS_Get_PID()
@@ -98,7 +98,7 @@ REBINT OS_Get_PID()
 
 //
 //  OS_Get_UID: C
-// 
+//
 // Return the real user ID
 //
 REBINT OS_Get_UID()
@@ -108,7 +108,7 @@ REBINT OS_Get_UID()
 
 //
 //  OS_Set_UID: C
-// 
+//
 // Set the user ID, see setuid manual for its semantics
 //
 REBINT OS_Set_UID(REBINT uid)
@@ -129,7 +129,7 @@ REBINT OS_Set_UID(REBINT uid)
 
 //
 //  OS_Get_GID: C
-// 
+//
 // Return the real group ID
 //
 REBINT OS_Get_GID()
@@ -139,7 +139,7 @@ REBINT OS_Get_GID()
 
 //
 //  OS_Set_GID: C
-// 
+//
 // Set the group ID, see setgid manual for its semantics
 //
 REBINT OS_Set_GID(REBINT gid)
@@ -160,7 +160,7 @@ REBINT OS_Set_GID(REBINT gid)
 
 //
 //  OS_Get_EUID: C
-// 
+//
 // Return the effective user ID
 //
 REBINT OS_Get_EUID()
@@ -170,7 +170,7 @@ REBINT OS_Get_EUID()
 
 //
 //  OS_Set_EUID: C
-// 
+//
 // Set the effective user ID
 //
 REBINT OS_Set_EUID(REBINT uid)
@@ -191,7 +191,7 @@ REBINT OS_Set_EUID(REBINT uid)
 
 //
 //  OS_Get_EGID: C
-// 
+//
 // Return the effective group ID
 //
 REBINT OS_Get_EGID()
@@ -201,7 +201,7 @@ REBINT OS_Get_EGID()
 
 //
 //  OS_Set_EGID: C
-// 
+//
 // Set the effective group ID
 //
 REBINT OS_Set_EGID(REBINT gid)
@@ -222,7 +222,7 @@ REBINT OS_Set_EGID(REBINT gid)
 
 //
 //  OS_Send_Signal: C
-// 
+//
 // Send signal to a process
 //
 REBINT OS_Send_Signal(REBINT pid, REBINT signal)
@@ -245,7 +245,7 @@ REBINT OS_Send_Signal(REBINT pid, REBINT signal)
 
 //
 //  OS_Kill: C
-// 
+//
 // Try to kill the process
 //
 REBINT OS_Kill(REBINT pid)
@@ -272,21 +272,21 @@ REBINT OS_Kill(REBINT pid)
 
 //
 //  OS_Create_Process: C
-// 
+//
 // flags:
 //     1: wait, is implied when I/O redirection is enabled
 //     2: console
 //     4: shell
 //     8: info
 //     16: show
-// 
+//
 // input_type/output_type/err_type:
 //     0: blank
 //     1: string
 //     2: file
-// 
+//
 // Return -1 on error, otherwise the process return code.
-// 
+//
 // POSIX previous simple version was just 'return system(call);'
 // This uses 'execvp' which is "POSIX.1 conforming, UNIX compatible"
 //
@@ -804,14 +804,14 @@ stdin_pipe_err:
 
 //
 //  OS_Reap_Process: C
-// 
+//
 // pid:
 //     > 0, a signle process
 //     -1, any child process
-// 
+//
 // flags:
 //     0: return immediately
-// 
+//
 // Return -1 on error
 //
 int OS_Reap_Process(int pid, int *status, int flags)

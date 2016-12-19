@@ -119,7 +119,7 @@ REBCNT Modify_Array(
     for (; dups > 0; dups--) {
         REBINT index = 0;
         for (; index < ilen; ++index, ++dst_idx) {
-            COPY_VALUE(
+            Derelativize(
                 SINK(ARR_HEAD(dst_arr) + dst_idx),
                 src_rel + index,
                 specifier
@@ -136,7 +136,7 @@ REBCNT Modify_Array(
 
 //
 //  Modify_String: C
-// 
+//
 // Returns new dst_idx.
 //
 REBCNT Modify_String(

@@ -85,7 +85,7 @@ static inline void CONVERT_NAME_TO_THROWN(
     assert(!THROWN(name));
     SET_VAL_FLAG(name, VALUE_FLAG_THROWN);
 
-    assert(IS_TRASH_DEBUG(&TG_Thrown_Arg));
+    assert(IS_UNREADABLE_IF_DEBUG(&TG_Thrown_Arg));
     TG_Thrown_Arg = *arg;
 }
 
@@ -97,9 +97,9 @@ static inline void CATCH_THROWN(REBVAL *arg_out, REBVAL *thrown) {
     assert(THROWN(thrown));
     CLEAR_VAL_FLAG(thrown, VALUE_FLAG_THROWN);
 
-    assert(!IS_TRASH_DEBUG(&TG_Thrown_Arg));
+    assert(!IS_UNREADABLE_IF_DEBUG(&TG_Thrown_Arg));
     *arg_out = TG_Thrown_Arg;
-    SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
+    SET_UNREADABLE_BLANK(&TG_Thrown_Arg);
 }
 
 
@@ -149,8 +149,36 @@ inline static REBCNT FRM_EXPR_INDEX(REBFRM *f) {
 #define FRM_OUT(f) \
     cast(REBVAL * const, (f)->out) // writable Lvalue
 
-#define FRM_CELL(f) \
-    (&(f)->cell)
+// Note about FRM_NUM_ARGS: A native should generally not detect the arity it
+// was invoked with, (and it doesn't make sense as most implementations get
+// the full list of arguments and refinements).  However, ACTION! dispatch
+// has several different argument counts piping through a switch, and often
+// "cheats" by using the arity instead of being conditional on which action
+// ID ran.  Consider when reviewing the future of ACTION!.
+//
+#define FRM_NUM_ARGS(f) \
+    FUNC_NUM_PARAMS((f)->underlying)
+
+inline static REBVAL *FRM_CELL(REBFRM *f) {
+    //
+    // If a function takes exactly one argument, the optimization is to use
+    // the GC protected eval cell for that argument.  In which case, the
+    // cell is not available for other purposes (such as evaluations, which
+    // cannot be done directly into function argument slots while a function
+    // is running, because they create transitional trash which might be
+    // accessed through a FRAME!)
+    //
+#if !defined(NDEBUG)
+    assert(&f->cell != f->args_head); // sanity check, but need more...
+
+    if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_RETURN_DEBUG))
+        assert(FRM_NUM_ARGS(f) - 1 != 1);
+    else
+        assert(FRM_NUM_ARGS(f) != 1);
+#endif
+
+    return &f->cell; // otherwise, it's available...
+}
 
 #define FRM_PRIOR(f) \
     ((f)->prior)
@@ -176,17 +204,6 @@ inline static REBCNT FRM_EXPR_INDEX(REBFRM *f) {
 //
 #define PROTECT_FRM_X(f,v) \
     ((f)->refine = (v))
-
-
-// Note about FRM_NUM_ARGS: A native should generally not detect the arity it
-// was invoked with, (and it doesn't make sense as most implementations get
-// the full list of arguments and refinements).  However, ACTION! dispatch
-// has several different argument counts piping through a switch, and often
-// "cheats" by using the arity instead of being conditional on which action
-// ID ran.  Consider when reviewing the future of ACTION!.
-//
-#define FRM_NUM_ARGS(f) \
-    FUNC_NUM_PARAMS((f)->underlying)
 
 
 // ARGS is the parameters and refinements
@@ -510,7 +527,7 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(REBFRM *f) {
         //
         f->varlist = Make_Array(num_args + 1);
         TERM_ARRAY_LEN(f->varlist, num_args + 1);
-        SET_ARR_FLAG(f->varlist, SERIES_FLAG_FIXED_SIZE);
+        SET_SER_FLAG(f->varlist, SERIES_FLAG_FIXED_SIZE);
 
         // Skip the [0] slot which will be filled with the CTX_VALUE
         // !!! Note: Make_Array made the 0 slot an end marker
@@ -518,10 +535,29 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(REBFRM *f) {
         SET_TRASH_IF_DEBUG(ARR_AT(f->varlist, 0));
         f->args_head = SINK(ARR_AT(f->varlist, 1));
     }
-    else if (num_args <= 1) {
+    else if (num_args == 0) {
+        //
+        // If the function takes 0 parameters, it makes sense to point the
+        // argument list at END_CELL.  This way it can still be enumerated
+        // without checking the length, and it doesn't need to use the
+        // eval cell (so it's available for the routine's use).
+        //
+        // !!! As optimizations go, providing free use of the D_CELL for
+        // rather uncommon 0-argument routines may not be an obvious win.
+        // Besides being rare, it's probably also rare they really need an
+        // evaluation destination (what is a 0 argument routine evaluating?)
+        // It may be better as just a debug check, to have a non-writable
+        // cell to help reinforce that there really isn't an argument.
+        //
+        f->args_head = m_cast(REBVAL*, END_CELL);
+        f->varlist = NULL;
+    }
+    else if (num_args == 1) {
         //
         // If the function takes only one stack parameter, use the eval cell
-        // so that no chunk pushing or popping needs to be involved.
+        // so that no chunk pushing or popping needs to be involved.  This
+        // means the cell won't be available to use as a temporary GC-safe
+        // value while the function is running for single-argument functions
         //
         f->args_head = &f->cell;
         f->varlist = NULL;
@@ -579,7 +615,7 @@ inline static void Drop_Function_Args_For_Frame_Core(
 
     if (drop_chunks) {
         if (f->varlist == NULL) {
-            if (f->args_head != &f->cell)
+            if (f->args_head != END_CELL && f->args_head != &f->cell)
                 Drop_Chunk_Of_Values(f->args_head);
 
             goto finished; // nothing else to do...
@@ -590,7 +626,7 @@ inline static void Drop_Function_Args_For_Frame_Core(
         // its actual content from the stackvars.
         //
         if (ARR_LEN(f->varlist) == 1) {
-            if (f->args_head != &f->cell)
+            if (f->args_head != END_CELL && f->args_head != &f->cell)
                 Drop_Chunk_Of_Values(f->args_head);
         }
     }
@@ -599,7 +635,7 @@ inline static void Drop_Function_Args_For_Frame_Core(
             goto finished;
     }
 
-    assert(GET_ARR_FLAG(f->varlist, SERIES_FLAG_ARRAY));
+    assert(GET_SER_FLAG(f->varlist, SERIES_FLAG_ARRAY));
 
     if (NOT(IS_ARRAY_MANAGED(f->varlist))) {
         //
@@ -617,24 +653,24 @@ inline static void Drop_Function_Args_For_Frame_Core(
 
     ASSERT_ARRAY_MANAGED(f->varlist);
 
-    if (NOT(GET_ARR_FLAG(f->varlist, CONTEXT_FLAG_STACK))) {
+    if (NOT(GET_SER_FLAG(f->varlist, CONTEXT_FLAG_STACK))) {
         //
         // If there's no stack memory being tracked by this context, it
         // has dynamic memory and is being managed by the garbage collector
         // so there's nothing to do.
         //
-        assert(GET_ARR_FLAG(f->varlist, SERIES_FLAG_HAS_DYNAMIC));
+        assert(GET_SER_INFO(f->varlist, SERIES_INFO_HAS_DYNAMIC));
         goto finished;
     }
 
     // It's reified but has its data pointer into the chunk stack, which
     // means we have to free it and mark the array inaccessible.
 
-    assert(GET_ARR_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
-    assert(NOT(GET_ARR_FLAG(f->varlist, SERIES_FLAG_HAS_DYNAMIC)));
+    assert(GET_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
+    assert(NOT_SER_INFO(f->varlist, SERIES_INFO_HAS_DYNAMIC));
 
-    assert(GET_ARR_FLAG(f->varlist, SERIES_FLAG_ACCESSIBLE));
-    CLEAR_ARR_FLAG(f->varlist, SERIES_FLAG_ACCESSIBLE);
+    assert(NOT_SER_INFO(f->varlist, SERIES_INFO_INACCESSIBLE));
+    SET_SER_INFO(f->varlist, SERIES_INFO_INACCESSIBLE);
 
 finished:
 
@@ -642,4 +678,18 @@ finished:
     TRASH_POINTER_IF_DEBUG(f->varlist);
 
     return; // needed for release build so `finished:` labels a statement
+}
+
+
+// This routine ensures that a valid REBCTX* (suitable for putting into a
+// FRAME! REBVAL) exists for a Reb_Frame stack structure.
+//
+inline static REBCTX *Context_For_Frame_May_Reify_Managed(REBFRM *f)
+{
+    assert(NOT(Is_Function_Frame_Fulfilling(f)));
+
+    if (f->varlist == NULL || NOT_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST))
+        Reify_Frame_Context_Maybe_Fulfilling(f); // it's not fulfilling, here
+
+    return AS_CONTEXT(f->varlist);
 }

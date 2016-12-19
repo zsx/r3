@@ -82,20 +82,6 @@ inline static REBARR *CTX_VARLIST(REBCTX *c) {
     return &c->varlist;
 }
 
-// It's convenient to not have to extract the array just to check/set flags
-//
-inline static void SET_CTX_FLAG(REBCTX *c, REBUPT f) {
-    SET_ARR_FLAG(CTX_VARLIST(c), f);
-}
-
-inline static void CLEAR_CTX_FLAG(REBCTX *c, REBUPT f) {
-    CLEAR_ARR_FLAG(CTX_VARLIST(c), f);
-}
-
-inline static REBOOL GET_CTX_FLAG(REBCTX *c, REBUPT f) {
-    return GET_ARR_FLAG(CTX_VARLIST(c), f);
-}
-
 // If you want to talk generically about a context just for the purposes of
 // setting its series flags (for instance) and not to access the "varlist"
 // data, then use CTX_SERIES(), as actual var access is hybridized
@@ -113,12 +99,12 @@ inline static REBARR *CTX_KEYLIST(REBCTX *c) {
 }
 
 static inline void INIT_CTX_KEYLIST_SHARED(REBCTX *c, REBARR *keylist) {
-    SET_ARR_FLAG(keylist, KEYLIST_FLAG_SHARED);
+    SET_SER_INFO(keylist, SERIES_INFO_SHARED_KEYLIST);
     ARR_SERIES(CTX_VARLIST(c))->link.keylist = keylist;
 }
 
 static inline void INIT_CTX_KEYLIST_UNIQUE(REBCTX *c, REBARR *keylist) {
-    assert(NOT(GET_ARR_FLAG(keylist, KEYLIST_FLAG_SHARED)));
+    assert(NOT_SER_INFO(keylist, SERIES_INFO_SHARED_KEYLIST));
     ARR_SERIES(CTX_VARLIST(c))->link.keylist = keylist;
 }
 
@@ -158,7 +144,7 @@ inline static REBVAL *CTX_KEYS_HEAD(REBCTX *c) {
 // REBSER node data itself.
 //
 inline static REBVAL *CTX_VALUE(REBCTX *c) {
-    return GET_CTX_FLAG(c, CONTEXT_FLAG_STACK)
+    return GET_SER_FLAG(CTX_VARLIST(c), CONTEXT_FLAG_STACK)
         ? KNOWN(&ARR_SERIES(CTX_VARLIST(c))->content.values[0])
         : KNOWN(ARR_HEAD(CTX_VARLIST(c))); // not a RELVAL
 }
@@ -168,7 +154,7 @@ inline static REBFRM *CTX_FRAME(REBCTX *c) {
 }
 
 inline static REBVAL *CTX_VARS_HEAD(REBCTX *c) {
-    return GET_CTX_FLAG(c, CONTEXT_FLAG_STACK)
+    return GET_SER_FLAG(CTX_VARLIST(c), CONTEXT_FLAG_STACK)
         ? CTX_FRAME(c)->args_head // if NULL, this will crash
         : SER_AT(REBVAL, ARR_SERIES(CTX_VARLIST(c)), 1);
 }
@@ -183,7 +169,7 @@ inline static REBVAL *CTX_KEY(REBCTX *c, REBCNT n) {
 inline static REBVAL *CTX_VAR(REBCTX *c, REBCNT n) {
     REBVAL *var;
     assert(n != 0 && n <= CTX_LEN(c));
-    assert(GET_ARR_FLAG(CTX_VARLIST(c), ARRAY_FLAG_VARLIST));
+    assert(GET_SER_FLAG(CTX_VARLIST(c), ARRAY_FLAG_VARLIST));
 
     var = CTX_VARS_HEAD(c) + (n) - 1;
 
@@ -226,10 +212,19 @@ inline static void FREE_CONTEXT(REBCTX *c) {
 #define DROP_GUARD_CONTEXT(c) \
     DROP_GUARD_ARRAY(CTX_VARLIST(c))
 
-#if! defined(NDEBUG)
-    #define Panic_Context(c) \
-        Panic_Array(CTX_VARLIST(c))
-#endif
+
+inline static REBOOL IS_INACCESSIBLE(REBCTX *c) {
+    //
+    // Mechanically any array can become inaccessible, but really the varlist
+    // of a stack context is the only case that should happen today (outside
+    // FFI, which should probably do what it does another way.)
+    //
+    if (GET_SER_INFO(CTX_VARLIST(c), SERIES_INFO_INACCESSIBLE)) {
+        assert(GET_SER_FLAG(CTX_VARLIST(c), CONTEXT_FLAG_STACK));
+        return TRUE;
+    }
+    return FALSE;
+}
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -245,11 +240,10 @@ inline static void FREE_CONTEXT(REBCTX *c) {
 
 #ifdef NDEBUG
     #define ANY_CONTEXT_FLAG(n) \
-        (1 << (TYPE_SPECIFIC_BIT + (n)))
+        FLAGIT_LEFT(TYPE_SPECIFIC_BIT + (n))
 #else
     #define ANY_CONTEXT_FLAG(n) \
-        ((1 << (TYPE_SPECIFIC_BIT + (n))) \
-            | TYPE_SHIFT_LEFT_FOR_HEADER(REB_OBJECT)) // means ANY-CONTEXT!
+        (FLAGIT_LEFT(TYPE_SPECIFIC_BIT + (n)) | HEADERIZE_KIND(REB_OBJECT))
 #endif
 
 // `ANY_CONTEXT_FLAG_OWNS_PAIRED` is particular to the idea of a "Paired"

@@ -62,9 +62,9 @@ static REBOOL Check_Char_Range(REBVAL *val, REBINT limit)
 
 //
 //  ascii?: native [
-//  
+//
 //  {Returns TRUE if value or string is in ASCII character range (below 128).}
-//  
+//
 //      value [any-string! char! integer!]
 //  ]
 //
@@ -78,9 +78,9 @@ REBNATIVE(ascii_q)
 
 //
 //  latin1?: native [
-//  
+//
 //  {Returns TRUE if value or string is in Latin-1 character range (below 256).}
-//  
+//
 //      value [any-string! char! integer!]
 //  ]
 //
@@ -246,10 +246,13 @@ REBNATIVE(maybe)
     assert(r == R_OUT); // must have matched!
 
 type_matched:
+    if (REF(q))
+        return R_TRUE;
+
     // Because there may be usages like `if maybe logic! x [print "logic!"]`,
-    // it would be bad to take in a FALSE and pass back a FALSE.  Returning
-    // void lets routines like ENSURE take advantage of the checking aspect
-    // without risking a false positive for BLANK! or FALSE in result use.
+    // it would be bad to take in a FALSE and pass back a FALSE.  This is
+    // why /? (and its specialization MAYBE?) exist, but to help avoid
+    // likely mistakes this returns a void.
     //
     // Note that in the case of a void passing the test and needing to go
     // through (e.g. `maybe :void? ()`) will be void also.
@@ -263,9 +266,9 @@ type_matched:
 
 //
 //  as-pair: native [
-//  
+//
 //  "Combine X and Y values into a pair."
-//  
+//
 //      x [any-number!]
 //      y [any-number!]
 //  ]
@@ -289,9 +292,9 @@ REBNATIVE(as_pair)
 
 //
 //  bind: native [
-//  
+//
 //  "Binds words or words in arrays to the specified context."
-//  
+//
 //      value [any-array! any-word!]
 //          "A word or array (modified) (returned)"
 //      target [any-word! any-context!]
@@ -404,9 +407,9 @@ REBNATIVE(bind)
 
 //
 //  context-of: native [
-//  
+//
 //  "Returns the context in which a word is bound."
-//  
+//
 //      word [any-word!]
 //  ]
 //
@@ -431,9 +434,9 @@ REBNATIVE(context_of)
 
 //
 //  any-value?: native [
-//  
+//
 //  "Returns whether a data cell contains a value."
-//  
+//
 //      cell [<opt> any-value!]
 //  ]
 //
@@ -449,9 +452,9 @@ REBNATIVE(any_value_q)
 
 //
 //  unbind: native [
-//  
+//
 //  "Unbinds words from context."
-//  
+//
 //      word [block! any-word!]
 //          "A word or block (modified) (returned)"
 //      /deep
@@ -476,9 +479,9 @@ REBNATIVE(unbind)
 
 //
 //  collect-words: native [
-//  
+//
 //  {Collect unique words used in a block (used for context construction).}
-//  
+//
 //      block [block!]
 //      /deep
 //          "Include nested blocks"
@@ -531,7 +534,7 @@ REBNATIVE(collect_words)
 
 //
 //  get: native [
-//  
+//
 //  {Gets the value of a word or path, or values of a context.}
 //
 //      return: [<opt> any-value!]
@@ -619,7 +622,7 @@ REBNATIVE(get)
 
 //
 //  to-value: native [
-//  
+//
 //  {Turns unset to NONE, with ANY-VALUE! passing through. (See: OPT)}
 //
 //      return: [any-value!]
@@ -640,7 +643,7 @@ REBNATIVE(to_value)
 
 //
 //  opt: native [
-//  
+//
 //  {Convert blanks to optionals. (See Also: TO-VALUE)}
 //
 //      return: [<opt> any-value!]
@@ -662,9 +665,9 @@ REBNATIVE(opt)
 
 //
 //  in: native [
-//  
+//
 //  "Returns the word or block bound into the given context."
-//  
+//
 //      context [any-context! block!]
 //      word [any-word! block! group!] "(modified if series)"
 //  ]
@@ -741,16 +744,16 @@ REBNATIVE(in)
 
 //
 //  resolve: native [
-//  
+//
 //  {Copy context by setting values in the target from those in the source.}
-//  
+//
 //      target [any-context!] "(modified)"
 //      source [any-context!]
 //      /only
 //          "Only specific words (exports) or new words in target"
 //      from [block! integer!]
 //          "(index to tail)"
-//      /all 
+//      /all
 //          "Set all words, even those in the target that already have a value"
 //      /extend
 //          "Add source words to the target if necessary"
@@ -780,7 +783,7 @@ REBNATIVE(resolve)
 
 //
 //  set: native [
-//  
+//
 //  {Sets a word, path, block of words, or context to specified value(s).}
 //
 //      return: [<opt> any-value!]
@@ -970,7 +973,7 @@ REBNATIVE(set)
                 SET_BLANK(var);
                 continue;
             }
-            COPY_VALUE(var, value, value_specifier);
+            Derelativize(var, value, value_specifier);
             if (set_with_block) value++;
         }
 
@@ -1032,8 +1035,8 @@ REBNATIVE(set)
     //
     for (; NOT_END(target); target++) {
         if (IS_WORD(target) || IS_SET_WORD(target) || IS_LIT_WORD(target)) {
-            COPY_VALUE(
-                GET_MUTABLE_VAR_MAY_FAIL(target, target_specifier),
+            Derelativize(
+                SINK_VAR_MAY_FAIL(target, target_specifier),
                 value,
                 value_specifier
             );
@@ -1046,12 +1049,12 @@ REBNATIVE(set)
             // Not exactly the same thing, but worth contemplating.
             //
             if (IS_WORD(value)) {
-                *GET_MUTABLE_VAR_MAY_FAIL(target, target_specifier)
+                *SINK_VAR_MAY_FAIL(target, target_specifier)
                     = *GET_OPT_VAR_MAY_FAIL(value, value_specifier);
             }
             else {
-                COPY_VALUE(
-                    GET_MUTABLE_VAR_MAY_FAIL(target, target_specifier),
+                Derelativize(
+                    SINK_VAR_MAY_FAIL(target, target_specifier),
                     value,
                     value_specifier
                 );
@@ -1080,9 +1083,9 @@ return_value_arg:
 
 //
 //  type-of: native [
-//  
+//
 //  "Returns the datatype of a value."
-//  
+//
 //      value [<opt> any-value!]
 //  ]
 //
@@ -1117,7 +1120,7 @@ REBNATIVE(unset)
     REBVAL *target = ARG(target);
 
     if (ANY_WORD(target)) {
-        REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(target, SPECIFIED);
+        REBVAL *var = SINK_VAR_MAY_FAIL(target, SPECIFIED);
         SET_VOID(var);
         return R_VOID;
     }
@@ -1129,7 +1132,7 @@ REBNATIVE(unset)
         if (!ANY_WORD(word))
             fail (Error_Invalid_Arg_Core(word, VAL_SPECIFIER(target)));
 
-        REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word, VAL_SPECIFIER(target));
+        REBVAL *var = SINK_VAR_MAY_FAIL(word, VAL_SPECIFIER(target));
         SET_VOID(var);
     }
 
@@ -1139,9 +1142,9 @@ REBNATIVE(unset)
 
 //
 //  lookback?: native [
-//  
+//
 //  {TRUE if looks up to a function and gets first argument before the call}
-//  
+//
 //      source [any-word! any-path!]
 //  ]
 //
@@ -1197,7 +1200,7 @@ REBNATIVE(semiquoted_q)
     const REBVAL *var = Get_Var_Core( // may fail
         &eval_type, ARG(parameter), SPECIFIED, GETVAR_READ_ONLY
     );
-    return GET_VAL_FLAG(var, VALUE_FLAG_EVALUATED) ? R_FALSE : R_TRUE;
+    return GET_VAL_FLAG(var, VALUE_FLAG_UNEVALUATED) ? R_TRUE : R_FALSE;
 }
 
 
@@ -1215,12 +1218,11 @@ REBNATIVE(semiquote)
 
     *D_OUT = *ARG(value);
 
-    // We cannot clear the VALUE_FLAG_EVALUATED bit here and make it stick,
-    // because the bit would just get added back on by Do_Core when the
-    // function finished.  So instead Do_Core recognizes this native
-    // specificially and clears the bit there.
+    // We cannot set the VALUE_FLAG_UNEVALUATED bit here and make it stick,
+    // because the bit would just get cleared off by Do_Core when the
+    // function finished.  So ask the evaluator to set the bit for us.
 
-    return R_OUT;
+    return R_OUT_UNEVALUATED;
 }
 
 
@@ -1343,9 +1345,9 @@ inline static REBOOL Is_Set_Modifies(REBVAL *location)
 
 //
 //  set?: native/body [
-//  
+//
 //  "Whether a bound word or path is set (!!! shouldn't eval GROUP!s)"
-//  
+//
 //      location [any-word! any-path!]
 //  ][
 //      any-value? get/opt location
@@ -1361,9 +1363,9 @@ REBNATIVE(set_q)
 
 //
 //  unset?: native/body [
-//  
+//
 //  "Whether a bound word or path is unset (!!! shouldn't eval GROUP!s)"
-//  
+//
 //      location [any-word! any-path!]
 //  ][
 //      void? get/opt location
@@ -1428,7 +1430,7 @@ REBNATIVE(false_q)
 //      return: [any-value!]
 //      :value [any-value!]
 //  ][
-//      :value
+//      :value ;-- actually also sets unevaluated bit, how could a user do so?
 //  ]
 //
 REBNATIVE(quote)
@@ -1437,12 +1439,11 @@ REBNATIVE(quote)
 
     *D_OUT = *ARG(value);
 
-    // We cannot clear the VALUE_FLAG_EVALUATED bit here and make it stick,
-    // because the bit would just get added back on by Do_Core when the
-    // function finished.  So instead Do_Core recognizes this native
-    // specificially and clears the bit there.
+    // We cannot set the VALUE_FLAG_UNEVALUATED bit here and make it stick,
+    // because the bit would just get cleared off by Do_Core when the
+    // function finished.  Ask evaluator to add the bit for us.
 
-    return R_OUT;
+    return R_OUT_UNEVALUATED;
 }
 
 

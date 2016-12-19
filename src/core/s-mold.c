@@ -165,7 +165,7 @@ REBSER *Emit(REB_MOLD *mold, const char *fmt, ...)
 
 //
 //  Prep_String: C
-// 
+//
 // Helper function for the string related Mold functions below.
 // Creates or expands the series and provides the location to
 // copy text into.
@@ -217,7 +217,7 @@ REBUNI *Prep_Uni_Series(REB_MOLD *mold, REBCNT len)
 
 //
 //  Pre_Mold: C
-// 
+//
 // Emit the initial datatype function, depending on /ALL option
 //
 void Pre_Mold(const RELVAL *value, REB_MOLD *mold)
@@ -228,7 +228,7 @@ void Pre_Mold(const RELVAL *value, REB_MOLD *mold)
 
 //
 //  End_Mold: C
-// 
+//
 // Finish the mold, depending on /ALL with close block.
 //
 void End_Mold(REB_MOLD *mold)
@@ -239,7 +239,7 @@ void End_Mold(REB_MOLD *mold)
 
 //
 //  Post_Mold: C
-// 
+//
 // For series that has an index, add the index for mold/all.
 // Add closing block.
 //
@@ -255,7 +255,7 @@ void Post_Mold(const RELVAL *value, REB_MOLD *mold)
 
 //
 //  New_Indented_Line: C
-// 
+//
 // Create a newline with auto-indent on next line if needed.
 //
 void New_Indented_Line(REB_MOLD *mold)
@@ -367,13 +367,13 @@ static void Mold_Uni_Char(REBSER *dst, REBUNI chr, REBOOL molded, REBOOL parened
     }
     else {
         EXPAND_SERIES_TAIL(dst, 10); // worst case: #"^(1234)"
-        
+
         REBUNI *up = UNI_AT(dst, tail);
         *up++ = '#';
         *up++ = '"';
         up = Emit_Uni_Char(up, chr, parened);
         *up++ = '"';
-        
+
         SET_SERIES_LEN(dst, up - UNI_HEAD(dst));
     }
     TERM_UNI(dst);
@@ -647,7 +647,7 @@ void Mold_Array_At(
 
     if (sep[1]) {
         mold->indent--;
-        if (GET_VAL_FLAG(value, VALUE_FLAG_LINE) || had_lines)
+        if (had_lines)
             New_Indented_Line(mold);
         Append_Codepoint_Raw(out, sep[1]);
     }
@@ -662,13 +662,6 @@ static void Mold_Block(const RELVAL *value, REB_MOLD *mold)
     REBOOL all = GET_MOPT(mold, MOPT_MOLD_ALL);
     REBSER *series = mold->series;
     REBOOL over = FALSE;
-
-#if !defined(NDEBUG)
-    if (SER_WIDE(VAL_SERIES(value)) == 0) {
-        Debug_Fmt("** Mold_Block() zero series wide, t=%d", VAL_TYPE(value));
-        Panic_Series(VAL_SERIES(value));
-    }
-#endif
 
     // Optimize when no index needed:
     if (VAL_INDEX(value) == 0 && !IS_MAP(value)) // && (VAL_TYPE(value) <= REB_LIT_PATH))
@@ -842,7 +835,7 @@ static void Mold_Typeset(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
         !TYPE_CHECK(value, REB_MAX_VOID) || VAL_KEY_SPELLING(value) != NULL
     );
 
-    // Convert bits to types.  
+    // Convert bits to types.
     //
     for (n = REB_0 + 1; n < REB_MAX; n++) {
         if (TYPE_CHECK(value, cast(enum Reb_Kind, n))) {
@@ -989,19 +982,16 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
     REBVAL *key;
     REBVAL *var;
 
-    if (
-        !GET_CTX_FLAG(VAL_CONTEXT(value), CONTEXT_FLAG_STACK) ||
-        GET_CTX_FLAG(VAL_CONTEXT(value), SERIES_FLAG_ACCESSIBLE)
-    ) {
-        vars_head = CTX_VARS_HEAD(VAL_CONTEXT(value));
-    }
-    else {
+    if (IS_INACCESSIBLE(VAL_CONTEXT(value))) {
+        //
         // If something like a function call has gone of the stack, the data
         // for the vars will no longer be available.  The keys should still
         // be good, however.
         //
         vars_head = NULL;
     }
+    else
+        vars_head = CTX_VARS_HEAD(VAL_CONTEXT(value));
 
     Pre_Mold(value, mold);
 
@@ -1064,29 +1054,8 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
         if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
             continue; // !!! Should hidden fields be in molded view?
 
-        if (var) {
-            //
-            // There's no way to show a value for unset variables.  They are
-            // covered by being present in "spec" and absent from the "body".
-            //
-            // !!! The way FRAME! is currently implemented, it is possible to
-            // see "safe trash" when processing natives...because a native
-            // can legally use its argument slots as evaluation destinations.
-            // And it's possible to have an unsafe trash if the argument is
-            // a pending frame.  Because the debugger is a work in progress
-            // it's not known exactly how to handle this...for now, be
-            // very conservative and just allow the molding of objects which
-            // have safe trash set as if the variable is unset.
-            //
-            if (IS_FRAME(value)) {
-                if (IS_VOID_OR_SAFE_TRASH(var))
-                    continue;
-            }
-            else {
-                if (IS_VOID(value))
-                    continue;
-            }
-        }
+        if (var && IS_VOID(value))
+            continue;
 
         New_Indented_Line(mold);
 
@@ -1172,7 +1141,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 
 //
 //  Mold_Value: C
-// 
+//
 // Mold or form any value to string series tail.
 //
 void Mold_Value(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
@@ -1457,15 +1426,15 @@ void Mold_Value(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
         Mold_Event(const_KNOWN(value), mold);
         break;
 
-    case REB_STRUCT:
-    {
-        REBARR *array;
+    case REB_STRUCT: {
         Pre_Mold(value, mold);
-        array = Struct_To_Array(VAL_STRUCT(value));
+
+        REBARR *array = Struct_To_Array(VAL_STRUCT(value));
         Mold_Array_At(mold, array, 0, 0);
+        Free_Array(array);
+
         End_Mold(mold);
-    }
-        break;
+        break; }
 
     case REB_LIBRARY: {
         Pre_Mold(value, mold);
@@ -1484,7 +1453,7 @@ void Mold_Value(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
         break;
 
     default:
-        panic (Error_Invalid_Datatype(VAL_TYPE(value)));
+        panic (value);
     }
     goto check_and_return;
 
@@ -1498,7 +1467,7 @@ check_and_return:
 
 //
 //  Copy_Form_Value: C
-// 
+//
 // Form a value based on the mold opts provided.
 //
 REBSER *Copy_Form_Value(const RELVAL *value, REBFLGS opts)
@@ -1515,7 +1484,7 @@ REBSER *Copy_Form_Value(const RELVAL *value, REBFLGS opts)
 
 //
 //  Copy_Mold_Value: C
-// 
+//
 // Form a value based on the mold opts provided.
 //
 REBSER *Copy_Mold_Value(const REBVAL *value, REBFLGS opts)
@@ -1532,7 +1501,7 @@ REBSER *Copy_Mold_Value(const REBVAL *value, REBFLGS opts)
 
 //
 //  Form_Reduce_Throws: C
-// 
+//
 // Reduce a block and then form each value into a string REBVAL.
 //
 REBOOL Form_Reduce_Throws(

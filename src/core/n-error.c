@@ -39,7 +39,7 @@
 
 //
 //  trap: native [
-//  
+//
 //  {Tries to DO a block, trapping error as return value (if one is raised).}
 //
 //      return: [<opt> any-value!]
@@ -77,7 +77,9 @@ REBNATIVE(trap)
 
                 return R_OUT;
             }
-            else if (IS_FUNCTION(handler)) {
+            else {
+                assert (IS_FUNCTION(handler));
+
                 REBVAL arg;
                 Val_Init_Error(&arg, error);
 
@@ -92,8 +94,6 @@ REBNATIVE(trap)
 
                 return R_OUT;
             }
-
-            panic (Error(RE_MISC)); // should not be possible (type-checking)
         }
 
         if (REF(q)) return R_TRUE;
@@ -128,10 +128,10 @@ REBNATIVE(trap)
 
 //
 //  fail: native [
-//  
+//
 //  {Interrupts execution by reporting an error (a TRAP can intercept it).}
-//  
-//      reason [error! string! block!] 
+//
+//      reason [error! string! block!]
 //          "ERROR! value, message string, or failure spec"
 //      /where
 //          "Specify an originating location other than the FAIL itself"
@@ -197,10 +197,13 @@ REBNATIVE(fail)
             // message so it can be templated.
             //
             if (IS_WORD(item) || IS_GET_WORD(item)) {
-                const REBVAL *var
-                    = TRY_GET_OPT_VAR(item, VAL_SPECIFIER(reason));
+                if (!IS_WORD_BOUND(item))
+                    continue;
 
-                if (!var || !IS_FUNCTION(var))
+                const REBVAL *var
+                    = GET_OPT_VAR_MAY_FAIL(item, VAL_SPECIFIER(reason));
+
+                if (!IS_FUNCTION(var))
                     continue;
             }
 
@@ -261,7 +264,7 @@ REBNATIVE(fail)
 
 //
 //  attempt: native [
-//  
+//
 //  {Tries to evaluate a block and returns result or NONE on error.}
 //
 //      return: [<opt> any-value!]

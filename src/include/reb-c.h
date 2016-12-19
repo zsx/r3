@@ -35,6 +35,24 @@
 
 
 //
+// STATIC ASSERT
+//
+// Some conditions can be checked at compile-time, instead of deferred to a
+// runtime assert.  This macro triggers an error message at compile time.
+// `static_assert` is an arity-2 keyword in C++11 (which was expanded in
+// C++17 to have an arity-1 form).  This uses the name `static_assert_c` to
+// implement a poor-man's version of the arity-1 form in C, that only works
+// inside of function bodies.
+//
+// !!! This was the one being used, but review if it's the best choice:
+//
+// http://stackoverflow.com/questions/3385515/static-assert-in-c
+//
+#define static_assert_c(e) \
+    do {(void)sizeof(char[1 - 2*!(e)]);} while(0)
+
+
+//
 // CASTING MACROS
 //
 // The following code and explanation is from "Casts for the Masses (in C)":
@@ -312,8 +330,10 @@ typedef unsigned long   REBUPT;     // unsigned counterpart of void*
     // is a valid pointer value.  However, this case is tested for by the
     // enum method of declaration in ordinary non-Windows builds.
     //
-    struct Bool_Dummy { int dummy; };
-    typedef struct Bool_Dummy *REBOOL;
+    // Use a #define and not a typedef so it can be selectively overridden.
+    //
+    typedef struct Bool_Dummy { int dummy; } * DUMMYBOOL;
+    #define REBOOL DUMMYBOOL
     #define FALSE cast(struct Bool_Dummy*, 0x6466AE99)
     #define TRUE cast(struct Bool_Dummy*, 0x0421BD75)
 #else
@@ -598,53 +618,6 @@ typedef u16 REBUNI;
     memset((void*)(m), 0, sizeof(*m))
 
 
-//
-// MEMORY POISONING and POINTER TRASHING
-//
-// If one wishes to indicate a region of memory as being "off-limits", modern
-// tools like Address Sanitizer allow instrumented builds to augment reads
-// from memory to check to see if that region is in a blacklist.
-//
-// These "poisoned" areas are generally sub-regions of valid malloc()'d memory
-// that contain bad data.  Yet they cannot be free()d because they also
-// contain some good data.  (Or it is merely desirable to avoid freeing and
-// then re-allocating them for performance reasons, yet a debug build still
-// would prefer to intercept accesses as if they were freed.)
-//
-// Also, in order to overwrite a pointer with garbage, the historical method
-// of using 0xBADF00D or 0xDECAFBAD is formalized with TRASH_POINTER_IF_DEBUG.
-// This makes the instances easier to find and standardizes how it is done.
-//
-#ifdef HAVE_ASAN_INTERFACE_H
-    #include <sanitizer/asan_interface.h>
-
-    // <IMPORTANT> Address sanitizer's memory poisoning must not have two
-    // threads both poisoning/unpoisoning the same addresses at the same time.
-
-    #define POISON_MEMORY(reg, mem_size) \
-        ASAN_POISON_MEMORY_REGION(reg, mem_size)
-
-    #define UNPOISON_MEMORY(reg, mem_size) \
-        ASAN_UNPOISON_MEMORY_REGION(reg, mem_size)
-
-    #define ADDRESS_IS_POISONED(reg) __asan_address_is_poisoned(reg)
-    #define REGION_IS_POISONED(reg, size) __asan_region_is_poisoned(reg, size)
-#else
-    // !!! @HostileFork wrote a tiny C++ "poor man's memory poisoner" that
-    // uses XOR to poison bits and then unpoison them back.  This might be
-    // useful to instrument C++-based DEBUG builds on platforms that did not
-    // have address sanitizer (if that ever becomes interesting).
-
-    #define POISON_MEMORY(reg, mem_size) \
-        NOOP
-
-    #define UNPOISON_MEMORY(reg, mem_size) \
-        NOOP
-
-    #define REGION_IS_POISONED(reg, size) 0
-    #define ADDRESS_IS_POISONED(reg) 0
-#endif
-
 #ifdef NDEBUG
     #define TRASH_POINTER_IF_DEBUG(p) \
         NOOP
@@ -654,12 +627,19 @@ typedef u16 REBUNI;
         inline static void TRASH_POINTER_IF_DEBUG(T* &p) {
             p = reinterpret_cast<T*>(static_cast<REBUPT>(0xDECAFBAD));
         }
-    #elif defined(__LP64__) || defined(__LLP64__)
-        #define TRASH_POINTER_IF_DEBUG(p) \
-            (p) = cast(void*, 0xDECAFBADLL)
+
+        template<class T>
+        inline static REBOOL IS_POINTER_TRASH_DEBUG(T* p) {
+            return LOGICAL(
+                p == reinterpret_cast<T*>(static_cast<REBUPT>(0xDECAFBAD))
+            );
+        }
     #else
         #define TRASH_POINTER_IF_DEBUG(p) \
-            (p) = cast(void*, 0xDECAFBAD)
+            ((p) = cast(void*, cast(REBUPT, 0xDECAFBAD)))
+
+        #define IS_POINTER_TRASH_DEBUG(p) \
+            LOGICAL((p) == cast(void*, cast(REBUPT, 0xDECAFBAD)))
     #endif
 #endif
 
@@ -726,6 +706,181 @@ typedef u16 REBUNI;
 #endif
 
 
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// BIT FLAGS & MASKING
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// When flags are needed, the platform-natural unsigned integer is used
+// (REBUPT, a `uintptr_t` equivalent).
+//
+// The 64-bit macro is used to get a 64-bit flag even on 32-bit platforms.
+// Hence it should be stored in a REBU64 and not in a REBFLGS.
+//
+
+typedef REBUPT REBFLGS;
+
+#define FLAGIT(f) \
+    ((REBUPT)1 << (f))
+
+ // !!! These are leftovers from old code which used integers instead of
+// masks to indicate flags.  Using masks then it's easy enough to read using
+// C's plain bit masking operators.
+//
+#define GET_FLAG(v,f)       LOGICAL((v) & (1u << (f)))
+#define GET_FLAGS(v,f,g)    LOGICAL((v) & ((1u << (f)) | (1u << (g))))
+#define SET_FLAG(v,f)       cast(void, (v) |= (1u << (f)))
+#define CLR_FLAG(v,f)       cast(void, (v) &= ~(1u << (f)))
+#define CLR_FLAGS(v,f,g)    cast(void, (v) &= ~((1u << (f)) | (1u << (g))))
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// BYTE-ORDER SENSITIVE BIT FLAGS & MASKING
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// These macros are for purposefully arranging bit flags with respect to the
+// "leftmost" and "rightmost" bytes of the underlying platform:
+//
+//     REBFLGS flags = FLAGIT_LEFT(0);
+//     unsigned char *ch = (unsigned char*)&flags;
+//
+// In the code above, the leftmost bit of the flags has been set to 1,
+// resulting in `ch == 128` on all supported platforms.
+//
+// Quantities smaller than a byte can be mixed in on the right with flags
+// from the left.  These form single optimized constants, which can be
+// assigned to an integer.  They can be masked or shifted out efficiently:
+//
+//    REBFLGS flags = FLAGIT_LEFT(0) | FLAGIT_LEFT(1) | FLAGBYTE_RIGHT(13);
+//
+//    REBCNT left = LEFT_N_BITS(flags, 3); // == 6 (binary `110`)
+//    REBCNT right = RIGHT_N_BITS(flags, 3); // == 5 (binary `101`)
+//
+// `left` gets `110` because it asked for the left 3 bits, of which only
+// the first and the second had been set.
+//
+// `right` gets `101` because 13 was binary `1101` that was added into the
+// value.  Yet only the rightmost 3 bits were requested.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Note: It is simpler to not worry about the underlying bytes and just use
+// ordinary bit masking.  But this is used for an important feature (the
+// discernment of a `void*` to a REBVAL from that of a valid UTF-8 string).
+// Other tools that might be tried with this all have downsides:
+//
+// * bitfields arranged in a `union` with integers have no layout guarantee
+// * `#pragma pack` is not standard C98 or C99...nor is any #pragma
+// * `char[4]` or `char[8]` can't generally be assigned in one instruction
+//
+
+#if defined(__LP64__) || defined(__LLP64__)
+    #define PLATFORM_BITS 64
+#else
+    #define PLATFORM_BITS 32
+#endif
+
+#if defined(ENDIAN_BIG) // Byte w/most significant bit first
+
+    #define FLAGIT_LEFT(n) \
+        ((REBUPT)1 << PLATFORM_BITS - (n) - 1) // 63,62,61.. or 32,31,30..
+
+    #define FLAGBYTE_FIRST(val) \
+        ((REBUPT)val << PLATFORM_BITS - 8) // val <= 255
+
+    #define FLAGBYTE_RIGHT(val) \
+        ((REBUPT)val) // little endian needs val <= 255
+
+    #define FLAGBYTE_MID(val) \
+        (((REBUPT)val) << 8) // little endian needs val <= 255
+
+    #define FLAGUINT16_RIGHT(val) \
+        ((REBUPT)val) // litte endian needs val <= 65535
+
+    #define RIGHT_16_BITS(flags) \
+        ((flags) & 0xFFFF)
+
+#elif defined(ENDIAN_LITTLE) // Byte w/least significant bit first (e.g. x86)
+
+    #define FLAGIT_LEFT(n) \
+        ((REBUPT)1 << 7 + ((n) / 8) * 8 - (n) % 8) // 7,6,5..0,15,14..8,23..
+
+    #define FLAGBYTE_FIRST(val) \
+        ((REBUPT)val) // val <= 255
+
+    #define FLAGBYTE_RIGHT(val) \
+        ((REBUPT)(val) << (PLATFORM_BITS - 8)) // val <= 255
+
+    #define FLAGBYTE_MID(val) \
+        ((REBUPT)(val) << (PLATFORM_BITS - 16)) // val <= 255
+
+    #define FLAGUINT16_RIGHT(val) \
+        ((REBUPT)(val) << (PLATFORM_BITS - 16))
+
+    #define RIGHT_16_BITS(flags) \
+        ((flags) >> (PLATFORM_BITS - 16)) // unsigned, should zero fill left
+#else
+    // !!! There are macro hacks which can actually make reasonable guesses
+    // at endianness, and should probably be used in the config if nothing is
+    // specified explicitly.
+    //
+    // http://stackoverflow.com/a/2100549/211160
+    //
+    #error "ENDIAN_BIG or ENDIAN_LITTLE must be defined"
+#endif
+
+// These specialized extractions of N bits out of the leftmost, rightmost,
+// or "middle" byte (one step to the left of rightmost) can be expressed in
+// a platform-agnostic way.  The constructions by integer to establish these
+// positions are where the the difference is.
+//
+// !!! It would be possible to do this with integer shifting on big endian
+// in a "simpler" way, e.g.:
+//
+//    #define LEFT_N_BITS(flags,n) \
+//      ((flags) >> PLATFORM_BITS - (n))
+//
+// But in addition to big endian platforms being kind of rare, it's not clear
+// that would be faster than a byte operation, especially with optimization.
+//
+
+#define LEFT_N_BITS(flags,n) \
+    (((REBYTE*)&flags)[0] >> 8 - (n)) // n <= 8
+
+#define RIGHT_N_BITS(flags,n) \
+    (((REBYTE*)&flags)[sizeof(REBUPT) - 1] & ((1 << (n)) - 1)) // n <= 8
+
+#define RIGHT_8_BITS(flags) \
+    (((REBYTE*)&flags)[sizeof(REBUPT) - 1]) // reminds that 8 is faster
+
+#define CLEAR_N_RIGHT_BITS(flags,n) \
+    (((REBYTE*)&flags)[sizeof(REBUPT) - 1] &= ~((1 << (n)) - 1)) // n <= 8
+
+#define CLEAR_8_RIGHT_BITS(flags) \
+    (((REBYTE*)&flags)[sizeof(REBUPT) - 1] = 0) // reminds that 8 is faster
+
+#define MID_N_BITS(flags,n) \
+    (((REBYTE*)&flags)[sizeof(REBUPT) - 2] & ((1 << (n)) - 1)) // n <= 8
+
+#define MID_8_BITS(flags) \
+    (((REBYTE*)&flags)[sizeof(REBUPT) - 2]) // reminds that 8 is faster
+
+#define CLEAR_N_MID_BITS(flags,n) \
+    (((REBYTE*)&flags)[sizeof(REBUPT) - 2] &= ~((1 << (n)) - 1)) // n <= 8
+
+#define CLEAR_8_MID_BITS(flags) \
+    (((REBYTE*)&flags)[sizeof(REBUPT) - 2] = 0) // reminds that 8 is faster
+
+#define CLEAR_16_RIGHT_BITS(flags) \
+    (((REBYTE*)&flags)[sizeof(REBUPT) - 1] = \
+        ((REBYTE*)&flags)[sizeof(REBUPT) - 2] = 0)
+
+
+
 /***********************************************************************
 **
 **  Useful Macros
@@ -744,16 +899,6 @@ inline static const REBYTE *Skip_To_Byte(
     if (*cp == b) return cp;
     return 0;
 }
-
-typedef unsigned int REBFLGS; // Collection of bit flags, CPU optimized
-
-#define FLAGIT(f)           (1u << (f))
-#define FLAGIT_64(n)        (cast(REBU64, 1) << (n))
-#define GET_FLAG(v,f)       LOGICAL((v) & (1u << (f)))
-#define GET_FLAGS(v,f,g)    LOGICAL((v) & ((1u << (f)) | (1u << (g))))
-#define SET_FLAG(v,f)       cast(void, (v) |= (1u << (f)))
-#define CLR_FLAG(v,f)       cast(void, (v) &= ~(1u << (f)))
-#define CLR_FLAGS(v,f,g)    cast(void, (v) &= ~((1u << (f)) | (1u << (g))))
 
 
 // It is common for MIN and MAX to be defined in C to macros; and equally

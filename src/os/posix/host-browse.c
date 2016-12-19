@@ -62,10 +62,10 @@ void OS_Destroy_Graphics(void);
 
 //
 //  OS_Get_Current_Dir: C
-// 
+//
 // Return the current directory path as a string and
 // its length in chars (not bytes).
-// 
+//
 // The result should be freed after copy/conversion.
 //
 int OS_Get_Current_Dir(REBCHR **path)
@@ -78,7 +78,7 @@ int OS_Get_Current_Dir(REBCHR **path)
 
 //
 //  OS_Set_Current_Dir: C
-// 
+//
 // Set the current directory to local path. Return FALSE
 // on failure.
 //
@@ -99,7 +99,7 @@ REBOOL OS_Request_File(REBRFR *fr)
 
 //
 //  OS_Request_Dir: C
-// 
+//
 // WARNING: TEMPORARY implementation! Used only by host-core.c
 // Will be most probably changed in future.
 //

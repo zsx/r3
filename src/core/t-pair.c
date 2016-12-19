@@ -124,7 +124,7 @@ void TO_Pair(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
 //
 //  Cmp_Pair: C
-// 
+//
 // Given two pairs, compare them.
 //
 REBINT Cmp_Pair(const RELVAL *t1, const RELVAL *t2)

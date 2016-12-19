@@ -366,7 +366,7 @@ for-each-record type boot-types [
             "LOGICAL(VAL_TYPE(v)==REB_" (uppercase to-c-name type/name) ")"
         ]
 
-        append new-types to-word join type/name "!"
+        append new-types to-word adjoin form type/name "!"
     ]
 
     n: n + 1
@@ -490,7 +490,6 @@ emit {
 }
 
 boot-strings: load %strings.r
-boot-errors: load %errors.r ;-- used also to make %tmp-errnums.r below
 
 code: ""
 n: 0
@@ -502,35 +501,6 @@ for-each str boot-strings [
     ][
         n: n + 1
         append code str
-        append code null
-    ]
-]
-
-; Some errors occur before we have the boot process is far enough along to
-; have the error messages loaded in as Rebol strings in the boot block's
-; CAT_ERRORS structure.  Adding their strings to %errors.r and keeping them
-; in sync with a "pre-boot" copy in %strings.r was a manual process.  This
-; makes format strings from the STRING! or BLOCK! in %errors.r automatically.
-;
-for-each [cat msgs] boot-errors [
-    unless cat = quote Internal: [continue]
-
-    emit-line ["#define RS_ERROR" space n]
-
-    for-each [word val] skip msgs 4 [
-        n: n + 1
-        case [
-            string? val [append code val]
-            block? val [
-                ; %strings.r strings use printf-like convention, %d tells
-                ; FORM to treat the vararg REBVAL* as an integer.
-                ;
-                append code rejoin map-each item val [
-                    either get-word? item [{ %v }] [item]
-                ]
-            ]
-            true [fail {Non-STRING! non-BLOCK! as %errors.r value}]
-        ]
         append code null
     ]
 ]
@@ -787,6 +757,8 @@ emit {
 }
 emit-line "{"
 
+boot-errors: load %errors.r
+
 id-list: make block! 200
 
 for-each [category info] boot-errors [
@@ -871,7 +843,7 @@ mezz-files: load %../mezz/boot-files.r ; base lib, sys, mezz
 for-each section [boot-base boot-sys boot-mezz] [
     set section make block! 200
     for-each file first mezz-files [
-        append get section load join %../mezz/ file
+        append get section load join-of %../mezz/ file
     ]
 
     ;-- Expectation is that section does not return result; GROUP! makes unset
@@ -882,7 +854,7 @@ for-each section [boot-base boot-sys boot-mezz] [
 
 boot-protocols: make block! 20
 for-each file first mezz-files [
-    m: load/all join %../mezz/ file ; not REBOL word
+    m: load/all join-of %../mezz/ file ; not REBOL word
     append/only append/only boot-protocols m/2 skip m 2
 ]
 

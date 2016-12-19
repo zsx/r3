@@ -46,9 +46,9 @@ extern void Done_Device(REBUPT handle, int error);
 
 //
 //  Init_Events: C
-// 
+//
 // Initialize the event device.
-// 
+//
 // Create a hidden window to handle special events,
 // such as timers and async DNS.
 //
@@ -62,7 +62,7 @@ DEVICE_CMD Init_Events(REBREQ *dr)
 
 //
 //  Poll_Events: C
-// 
+//
 // Poll for events and process them.
 // Returns 1 if event found, else 0.
 //
@@ -75,7 +75,7 @@ DEVICE_CMD Poll_Events(REBREQ *req)
 
 //
 //  Query_Events: C
-// 
+//
 // Wait for an event, or a timeout (in milliseconds) specified by
 // req->length. The latter is used by WAIT as the main timing
 // method.
@@ -110,7 +110,7 @@ DEVICE_CMD Query_Events(REBREQ *req)
 
 //
 //  Connect_Events: C
-// 
+//
 // Simply keeps the request pending for polling purposes.
 // Use Abort_Device to remove it.
 //

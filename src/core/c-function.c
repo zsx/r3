@@ -32,7 +32,7 @@
 
 //
 //  List_Func_Words: C
-// 
+//
 // Return a block of function words, unbound.
 // Note: skips 0th entry.
 //
@@ -84,7 +84,7 @@ REBARR *List_Func_Words(const REBVAL *func, REBOOL pure_locals)
 
 //
 //  List_Func_Typesets: C
-// 
+//
 // Return a block of function arg typesets.
 // Note: skips 0th entry.
 //
@@ -119,11 +119,11 @@ enum Reb_Spec_Mode {
 
 //
 //  Make_Paramlist_Managed_May_Fail: C
-// 
+//
 // Check function spec of the form:
-// 
+//
 //     ["description" arg "notes" [type! type2! ...] /ref ...]
-// 
+//
 // !!! The spec language was not formalized in R3-Alpha.  Strings were left
 // in and it was HELP's job (and any other clients) to make sense of it, e.g.:
 //
@@ -157,6 +157,21 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 
     REBUPT header_bits = 0;
 
+#if !defined(NDEBUG)
+    //
+    // Debug builds go ahead and include a RETURN field and hang onto the
+    // typeset for fake returns (e.g. natives).  But they make a note that
+    // they are doing this, which helps know what the actual size of the
+    // frame would be in a release build (e.g. for a FRM_CELL() assert)
+    //
+    if (flags & MKF_FAKE_RETURN) {
+        header_bits |= FUNC_FLAG_RETURN_DEBUG;
+        flags &= ~MKF_FAKE_RETURN;
+        assert(NOT(flags & MKF_RETURN));
+        flags |= MKF_RETURN;
+    }
+#endif
+
     REBOOL durable = FALSE;
 
     REBDSP dsp_orig = DSP;
@@ -174,7 +189,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     // it is turned into a rootkey for param_notes.
     //
     DS_PUSH_TRASH; // paramlist[0] (will become FUNCTION! canon value)
-    SET_TRASH_SAFE(DS_TOP);
+    SET_UNREADABLE_BLANK(DS_TOP);
     DS_PUSH(EMPTY_BLOCK); // param_types[0] (to be OBJECT! canon value, if any)
     DS_PUSH(EMPTY_STRING); // param_notes[0] (holds description, then canon)
 
@@ -300,7 +315,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 );
             }
             else if (IS_STRING(DS_TOP)) { // !!! are blocks after notes good?
-                if (IS_VOID_OR_SAFE_TRASH(DS_TOP - 2)) {
+                if (IS_BLANK_RAW(DS_TOP - 2)) {
                     //
                     // No typesets pushed yet, so this is a block before any
                     // parameters have been named.  This was legal in Rebol2
@@ -404,7 +419,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             typeset,
             (flags & MKF_ANY_VALUE)
                 ? ALL_64
-                : ALL_64 & ~(FLAGIT_64(REB_MAX_VOID) | FLAGIT_64(REB_FUNCTION)),
+                : ALL_64 & ~(FLAGIT_KIND(REB_MAX_VOID) | FLAGIT_KIND(REB_FUNCTION)),
             VAL_WORD_SPELLING(item)
         );
 
@@ -457,21 +472,21 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                     : PARAM_CLASS_NORMAL
             );
             if (refinement_seen)
-                VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_MAX_VOID);
+                VAL_TYPESET_BITS(typeset) |= FLAGIT_KIND(REB_MAX_VOID);
             break;
 
         case REB_GET_WORD:
             assert(mode == SPEC_MODE_NORMAL);
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_HARD_QUOTE);
             if (refinement_seen)
-                VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_MAX_VOID);
+                VAL_TYPESET_BITS(typeset) |= FLAGIT_KIND(REB_MAX_VOID);
             break;
 
         case REB_LIT_WORD:
             assert(mode == SPEC_MODE_NORMAL);
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_SOFT_QUOTE);
             if (refinement_seen)
-                VAL_TYPESET_BITS(typeset) |= FLAGIT_64(REB_MAX_VOID);
+                VAL_TYPESET_BITS(typeset) |= FLAGIT_KIND(REB_MAX_VOID);
             break;
 
         case REB_REFINEMENT:
@@ -535,7 +550,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             REBSTR *canon_leave = Canon(SYM_LEAVE);
 
             DS_PUSH_TRASH;
-            Val_Init_Typeset(DS_TOP, FLAGIT_64(REB_MAX_VOID), canon_leave);
+            Val_Init_Typeset(DS_TOP, FLAGIT_KIND(REB_MAX_VOID), canon_leave);
             INIT_VAL_PARAM_CLASS(DS_TOP, PARAM_CLASS_LEAVE);
             definitional_leave = DS_TOP;
 
@@ -578,7 +593,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 || NOT(has_description || has_types || has_notes)
                     ? ALL_64
                     : ALL_64 & ~(
-                        FLAGIT_64(REB_MAX_VOID) | FLAGIT_64(REB_FUNCTION)
+                        FLAGIT_KIND(REB_MAX_VOID) | FLAGIT_KIND(REB_FUNCTION)
                     ),
                 canon_return
             );
@@ -604,7 +619,8 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     REBCNT num_slots = (DSP - dsp_orig) / 3;
 
     // If we pushed a typeset for a return and it's a native, it actually
-    // doesn't want a RETURN: key in the frame.  We'll omit from the copy.
+    // doesn't want a RETURN: key in the frame in release builds.  We'll omit
+    // from the copy.
     //
     if (definitional_return && (flags & MKF_FAKE_RETURN))
         --num_slots;
@@ -690,7 +706,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         // protecting the whole array?  (It will be changed more by the
         // caller, but after that.)
         //
-        SET_ARR_FLAG(paramlist, SERIES_FLAG_FIXED_SIZE);
+        SET_SER_FLAG(paramlist, SERIES_FLAG_FIXED_SIZE);
     }
 
     //=///////////////////////////////////////////////////////////////////=//
@@ -727,7 +743,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //
     if (has_types) {
         REBARR *types_varlist = Make_Array(num_slots);
-        SET_ARR_FLAG(types_varlist, ARRAY_FLAG_VARLIST);
+        SET_SER_FLAG(types_varlist, ARRAY_FLAG_VARLIST);
         INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(types_varlist), paramlist);
 
         REBVAL *dest = SINK(ARR_HEAD(types_varlist)); // "rootvar"
@@ -784,7 +800,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //
     if (has_notes) {
         REBARR *notes_varlist = Make_Array(num_slots);
-        SET_ARR_FLAG(notes_varlist, ARRAY_FLAG_VARLIST);
+        SET_SER_FLAG(notes_varlist, ARRAY_FLAG_VARLIST);
         INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(notes_varlist), paramlist);
 
         REBVAL *dest = SINK(ARR_HEAD(notes_varlist)); // "rootvar"
@@ -838,7 +854,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //
     DS_DROP_TO(dsp_orig);
 
-    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
+    SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     return paramlist;
 }
 
@@ -1006,11 +1022,13 @@ REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
 {
     REBARR *varlist = Alloc_Singular_Array();
     SET_BLANK(ARR_HEAD(varlist));
-    SET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST);
+    SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
     MANAGE_ARRAY(varlist);
+    SET_SER_FLAG(varlist, CONTEXT_FLAG_STACK);
+
+    SET_SER_INFO(varlist, SERIES_INFO_INACCESSIBLE);
 
     REBCTX *expired = AS_CONTEXT(varlist);
-    SET_CTX_FLAG(expired, CONTEXT_FLAG_STACK); // don't set FLAG_ACCESSIBLE
 
     INIT_CTX_KEYLIST_SHARED(expired, FUNC_PARAMLIST(func));
 
@@ -1019,7 +1037,7 @@ REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
     // Clients aren't supposed to ever be looking at the values for the
     // stackvars or the frame if it is expired.
     //
-    ARR_SERIES(varlist)->misc.f = NULL;
+    TRASH_POINTER_IF_DEBUG(ARR_SERIES(varlist)->misc.f);
 
     return expired;
 }
@@ -1027,12 +1045,12 @@ REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
 
 //
 //  Get_Maybe_Fake_Func_Body: C
-// 
+//
 // The FUNC_FLAG_LEAVE and FUNC_FLAG_RETURN tricks used for definitional
 // scoping make it seem like a generator authored more code in the function's
 // body...but the code isn't *actually* there and an optimized internal
 // trick is used.
-// 
+//
 // If the body is fake, it needs to be freed by the caller with
 // Free_Series.  This means that the body must currently be shallow
 // copied, and the splicing slot must be in the topmost series.
@@ -1091,26 +1109,26 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 
 //
 //  Make_Interpreted_Function_May_Fail: C
-// 
+//
 // This is the support routine behind `MAKE FUNCTION!`, FUNC, and PROC.
 //
 // Ren/C's schematic for the FUNC and PROC generators is *very* different
 // from R3-Alpha, whose definition of FUNC was simply:
-// 
+//
 //     make function! copy/deep reduce [spec body]
-// 
+//
 // Ren/C's `make function!` doesn't need to copy the spec (it does not save
 // it--parameter descriptions are in a meta object).  It also copies the body
 // by virtue of the need to relativize it.  They also have "definitional
 // return" constructs so that the body introduces RETURN and LEAVE constructs
 // specific to each function invocation, so the body acts more like:
-// 
+//
 //     return: make function! [
 //         [{Returns a value from a function.} value [<opt> any-value!]]
 //         [exit/from/with (context-of 'return) :value]
 //     ]
 //     (body goes here)
-// 
+//
 // This pattern addresses "Definitional Return" in a way that does not
 // technically require building RETURN or LEAVE in as a language keyword in
 // any specific form (in the sense that MAKE FUNCTION! does not itself
@@ -1122,14 +1140,14 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 // possible to "lie" about what the body "above" is.  This gives FUNC and PROC
 // the edge to pretend to add containing code and simulate its effects, while
 // really only holding onto the body the caller provided.
-// 
+//
 // While MAKE FUNCTION! has no RETURN, all functions still have EXIT as a
 // non-definitional alternative.  Ren/C adds a /WITH refinement so it can
 // behave equivalently to old-non-definitonal return.  There is even a way to
 // identify specific points up the call stack to exit from via EXIT/FROM, so
 // not having definitional return has several alternate options for generators
 // that wish to use them.
-// 
+//
 REBFUN *Make_Interpreted_Function_May_Fail(
     const REBVAL *spec,
     const REBVAL *code,
@@ -1211,8 +1229,8 @@ REBFUN *Make_Interpreted_Function_May_Fail(
     //
     if (
         LEGACY_RUNNING(OPTIONS_REFINEMENTS_BLANK)
-        || GET_ARR_FLAG(VAL_ARRAY(spec), SERIES_FLAG_LEGACY)
-        || GET_ARR_FLAG(VAL_ARRAY(code), SERIES_FLAG_LEGACY)
+        || GET_SER_FLAG(VAL_ARRAY(spec), SERIES_FLAG_LEGACY)
+        || GET_SER_FLAG(VAL_ARRAY(code), SERIES_FLAG_LEGACY)
     ) {
         SET_VAL_FLAG(FUNC_VALUE(fun), FUNC_FLAG_LEGACY_DEBUG);
     }
@@ -1238,8 +1256,8 @@ REBFUN *Make_Interpreted_Function_May_Fail(
         0, // start protection at index 0
         FLAGIT(PROT_DEEP) | FLAGIT(PROT_SET)
     );
-    assert(GET_ARR_FLAG(VAL_ARRAY(body), SERIES_FLAG_LOCKED));
-    Unmark_Array(VAL_ARRAY(body));
+    assert(GET_SER_INFO(VAL_ARRAY(body), SERIES_INFO_LOCKED));
+    Uncolor_Array(VAL_ARRAY(body));
 
     return fun;
 }
@@ -1264,8 +1282,8 @@ REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     // would immediately become useless.  Allocate dynamically.
     //
     REBARR *varlist = Make_Array(ARR_LEN(FUNC_PARAMLIST(func)));
-    SET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST);
-    SET_ARR_FLAG(varlist, SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
+    SET_SER_FLAG(varlist, SERIES_FLAG_FIXED_SIZE);
 
     // Fill in the rootvar information for the context canon REBVAL
     //
@@ -1343,7 +1361,7 @@ REBOOL Specialize_Function_Throws(
         REBARR *varlist = Copy_Array_Deep_Managed(
             CTX_VARLIST(exemplar), SPECIFIED
         );
-        SET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST);
+        SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
         INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(varlist), CTX_KEYLIST(exemplar));
 
         exemplar = AS_CONTEXT(varlist); // okay, now make exemplar our copy
@@ -1407,7 +1425,7 @@ REBOOL Specialize_Function_Throws(
     }
 
     REBARR *paramlist = Pop_Stack_Values(dsp_orig);
-    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
+    SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
 
     RELVAL *rootparam = ARR_HEAD(paramlist);
@@ -1447,7 +1465,7 @@ REBOOL Specialize_Function_Throws(
 
 //
 //  Clonify_Function: C
-// 
+//
 // (A "Clonify" interface takes in a raw duplicate value that one wishes to
 // mutate in-place into a full-fledged copy of the value it is a clone of.
 // This interface can be more efficient than a "source in, dest out" copy...
@@ -1494,7 +1512,7 @@ void Clonify_Function(REBVAL *value)
         FUNC_PARAMLIST(original_fun),
         SPECIFIED
     );
-    SET_ARR_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
+    SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
     ARR_HEAD(paramlist)->payload.function.paramlist = paramlist;
 
@@ -2008,7 +2026,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
         //
         Bind_Values_Core(
             VAL_ARRAY_AT(opt_def),
-            Context_For_Frame_May_Reify_Core(f),
+            Context_For_Frame_May_Reify_Managed(f),
             FLAGIT_KIND(REB_SET_WORD), // types to bind (just set-word!)
             0, // types to "add midstream" to binding as we go (nothing)
             BIND_DEEP

@@ -39,7 +39,7 @@
 
 //
 //  Setup_File: C
-// 
+//
 // Convert native action refinements to file modes.
 //
 static void Setup_File(REBREQ *file, REBFLGS flags, REBVAL *path)
@@ -93,7 +93,7 @@ static void Cleanup_File(REBREQ *file)
 
 //
 //  Ret_Query_File: C
-// 
+//
 // Query file and set RET value to resulting STD_FILE_INFO object.
 //
 void Ret_Query_File(REBCTX *port, REBREQ *file, REBVAL *ret)
@@ -126,7 +126,7 @@ void Ret_Query_File(REBCTX *port, REBREQ *file, REBVAL *ret)
 
 //
 //  Open_File_Port: C
-// 
+//
 // Open a file port.
 //
 static void Open_File_Port(REBCTX *port, REBREQ *file, REBVAL *path)
@@ -157,7 +157,7 @@ REBINT Mode_Syms[] = {
 
 //
 //  Read_File_Port: C
-// 
+//
 // Read from a file port.
 //
 static void Read_File_Port(
@@ -176,7 +176,7 @@ static void Read_File_Port(
     file->length = len;
     if (OS_DO_DEVICE(file, RDC_READ) < 0)
         fail (Error_On_Port(RE_READ_ERROR, port, file->error));
-    
+
     SET_SERIES_LEN(ser, file->actual);
     TERM_SEQUENCE(ser);
 
@@ -237,7 +237,7 @@ static void Write_File_Port(REBREQ *file, REBVAL *data, REBCNT len, REBOOL lines
 
 //
 //  Set_Length: C
-// 
+//
 // Note: converts 64bit number to 32bit. The requested size
 // can never be greater than 4GB.  If limit isn't negative it
 // constrains the size of the requested read.
@@ -262,7 +262,7 @@ static REBCNT Set_Length(const REBREQ *file, REBI64 limit)
 
 //
 //  Set_Seek: C
-// 
+//
 // Computes the number of bytes that should be skipped.
 //
 static void Set_Seek(REBREQ *file, REBVAL *arg)
@@ -281,7 +281,7 @@ static void Set_Seek(REBREQ *file, REBVAL *arg)
 
 //
 //  File_Actor: C
-// 
+//
 // Internal port handler for files.
 //
 static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
@@ -407,7 +407,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             | (REF(allow) ? AM_OPEN_ALLOW : 0)
         );
         Setup_File(file, flags, path);
-        
+
         // !!! need to change file modes to R/O if necessary
 
         Open_File_Port(port, file, path);
@@ -566,7 +566,7 @@ seeked:
 
 //
 //  Init_File_Scheme: C
-// 
+//
 // Associate the FILE:// scheme with the above native
 // actions. This will later be used by SET-SCHEME when
 // the scheme is initialized.

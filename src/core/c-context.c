@@ -69,7 +69,7 @@
 
 //
 //  Alloc_Context: C
-// 
+//
 // Create context of a given size, allocating space for both words and values.
 //
 // This context will not have its ANY-OBJECT! REBVAL in the [0] position fully
@@ -79,7 +79,7 @@
 REBCTX *Alloc_Context(REBCNT len)
 {
     REBARR *varlist = Make_Array(len + 1); // size + room for ROOTVAR
-    SET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST);
+    SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
 
     // varlist[0] is a value instance of the OBJECT!/MODULE!/PORT!/ERROR! we
     // are building which contains this context.
@@ -113,7 +113,7 @@ REBOOL Expand_Context_Keylist_Core(REBCTX *context, REBCNT delta)
     if (delta == 0) return FALSE;
 
     REBARR *keylist = CTX_KEYLIST(context);
-    if (GET_ARR_FLAG(keylist, KEYLIST_FLAG_SHARED)) {
+    if (GET_SER_INFO(keylist, SERIES_INFO_SHARED_KEYLIST)) {
         //
         // INIT_CTX_KEYLIST_SHARED was used to set the flag that indicates
         // this keylist is shared with one or more other contexts.  Can't
@@ -127,7 +127,7 @@ REBOOL Expand_Context_Keylist_Core(REBCTX *context, REBCNT delta)
 
         REBCTX *meta = ARR_SERIES(keylist)->link.meta; // preserve meta object
 
-        keylist = Copy_Array_Extra_Shallow(keylist, SPECIFIED, delta);        
+        keylist = Copy_Array_Extra_Shallow(keylist, SPECIFIED, delta);
 
         ARR_SERIES(keylist)->link.meta = meta;
 
@@ -166,7 +166,7 @@ void Expand_Context(REBCTX *context, REBCNT delta)
 
 //
 //  Append_Context_Core: C
-// 
+//
 // Append a word to the context word list. Expands the list if necessary.
 // Returns the value cell for the word.  The new variable is unset by default.
 //
@@ -248,7 +248,7 @@ REBVAL *Append_Context_Core(
 REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
     REBCTX *dest;
 
-    assert(GET_ARR_FLAG(CTX_VARLIST(src), ARRAY_FLAG_VARLIST));
+    assert(GET_SER_FLAG(CTX_VARLIST(src), ARRAY_FLAG_VARLIST));
     ASSERT_ARRAY_MANAGED(CTX_KEYLIST(src));
 
     REBCTX *meta = CTX_META(src); // preserve meta object (if any)
@@ -272,7 +272,7 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
         MANAGE_ARRAY(CTX_KEYLIST(dest));
     }
 
-    SET_ARR_FLAG(CTX_VARLIST(dest), ARRAY_FLAG_VARLIST);
+    SET_SER_FLAG(CTX_VARLIST(dest), ARRAY_FLAG_VARLIST);
 
     CTX_VALUE(dest)->payload.any_context.varlist = CTX_VARLIST(dest);
 
@@ -284,10 +284,10 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
 
 //
 //  Collect_Keys_Start: C
-// 
+//
 // Use the Bind_Table to start collecting new keys for a context.
 // Use Collect_Keys_End() when done.
-// 
+//
 // WARNING: This routine uses the shared BUF_COLLECT rather than
 // targeting a new series directly.  This way a context can be
 // allocated at exactly the right length when contents are copied.
@@ -401,7 +401,7 @@ void Collect_Keys_End(struct Reb_Binder *binder)
 
 //
 //  Collect_Context_Keys: C
-// 
+//
 // Collect words from a prior context.  If `check_dups` is passed in then
 // there is a check for duplicates, otherwise the keys are assumed to
 // be unique and copied in using `memcpy` as an optimization.
@@ -494,7 +494,7 @@ void Collect_Context_Keys(
 
 //
 //  Collect_Context_Inner_Loop: C
-// 
+//
 // The inner recursive loop used for Collect_Context function below.
 //
 static void Collect_Context_Inner_Loop(
@@ -623,7 +623,7 @@ REBARR *Collect_Keylist_Managed(
 
 //
 //  Collect_Words_Inner_Loop: C
-// 
+//
 // Used for Collect_Words() after the binds table has
 // been set up.
 //
@@ -651,7 +651,7 @@ static void Collect_Words_Inner_Loop(
 
 //
 //  Collect_Words: C
-// 
+//
 // Collect words from a prior block and new block.
 //
 REBARR *Collect_Words(
@@ -692,7 +692,7 @@ REBARR *Collect_Words(
 
 //
 //  Rebind_Context_Deep: C
-// 
+//
 // Clone old context to new context knowing
 // which types of values need to be copied, deep copied, and rebound.
 //
@@ -746,7 +746,7 @@ REBCTX *Make_Selfish_Context_Detect(
     // Make a context of same size as keylist (END already accounted for)
     //
     REBARR *varlist = Make_Array(len);
-    SET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST);
+    SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
 
     REBCTX *context = AS_CONTEXT(varlist);
 
@@ -838,7 +838,7 @@ REBCTX *Make_Selfish_Context_Detect(
 
 //
 //  Construct_Context: C
-// 
+//
 // Construct an object without evaluation.
 // Parent can be null. Values are rebound.
 //
@@ -892,8 +892,8 @@ REBCTX *Construct_Context(
 
         assert(!IS_SET_WORD(value + 1)); // TBD: support set words!
 
-        REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(value, specifier);
-        COPY_VALUE(var, value + 1, specifier);
+        REBVAL *var = SINK_VAR_MAY_FAIL(value, specifier);
+        Derelativize(var, value + 1, specifier);
     }
 
     return context;
@@ -902,11 +902,11 @@ REBCTX *Construct_Context(
 
 //
 //  Context_To_Array: C
-// 
+//
 // Return a block containing words, values, or set-word: value
 // pairs for the given object. Note: words are bound to original
 // object.
-// 
+//
 // Modes:
 //     1 for word
 //     2 for value
@@ -951,10 +951,10 @@ REBARR *Context_To_Array(REBCTX *context, REBINT mode)
 
 //
 //  Merge_Contexts_Selfish: C
-// 
+//
 // Create a child context from two parent contexts. Merge common fields.
 // Values from the second parent take precedence.
-// 
+//
 // Deep copy and rebind the child.
 //
 REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
@@ -995,7 +995,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     ARR_SERIES(keylist)->link.meta = NULL;
 
     REBCTX *merged = AS_CONTEXT(Make_Array(ARR_LEN(keylist)));
-    SET_ARR_FLAG(CTX_VARLIST(merged), ARRAY_FLAG_VARLIST);
+    SET_SER_FLAG(CTX_VARLIST(merged), ARRAY_FLAG_VARLIST);
     INIT_CTX_KEYLIST_UNIQUE(merged, keylist);
 
     REBVAL *rootvar = Alloc_Tail_Array(CTX_VARLIST(merged));
@@ -1063,7 +1063,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
 
 //
 //  Resolve_Context: C
-// 
+//
 // Only_words can be a block of words or an index in the target
 // (for new words).
 //
@@ -1226,7 +1226,7 @@ void Resolve_Context(
 
 //
 //  Find_Canon_In_Context: C
-// 
+//
 // Search a context looking for the given canon symbol.  Return the index or
 // 0 if not found.
 //
@@ -1250,7 +1250,7 @@ REBCNT Find_Canon_In_Context(REBCTX *context, REBSTR *canon, REBOOL always)
 
 //
 //  Select_Canon_In_Context: C
-// 
+//
 // Search a frame looking for the given word symbol and
 // return the value for the word. Locate it by matching
 // the canon word identifiers. Return NULL if not found.
@@ -1266,7 +1266,7 @@ REBVAL *Select_Canon_In_Context(REBCTX *context, REBSTR *sym)
 
 //
 //  Find_Word_In_Array: C
-// 
+//
 // Find word (of any type) in an array of values with linear search.
 //
 REBCNT Find_Word_In_Array(REBARR *array, REBCNT index, REBSTR *sym)
@@ -1285,7 +1285,7 @@ REBCNT Find_Word_In_Array(REBARR *array, REBCNT index, REBSTR *sym)
 
 //
 //  Obj_Value: C
-// 
+//
 // Return pointer to the nth VALUE of an object.
 // Return zero if the index is not valid.
 //
@@ -1320,68 +1320,45 @@ void Init_Collector(void)
 //
 //  Assert_Context_Core: C
 //
-void Assert_Context_Core(REBCTX *context)
+void Assert_Context_Core(REBCTX *c)
 {
-    REBARR *varlist = CTX_VARLIST(context);
+    REBARR *varlist = CTX_VARLIST(c);
 
-    if (!GET_ARR_FLAG(varlist, ARRAY_FLAG_VARLIST)) {
-        Debug_Fmt("Context varlist doesn't have ARRAY_FLAG_VARLIST");
-        Panic_Array(varlist);
-    }
+    if (NOT_SER_FLAG(varlist, ARRAY_FLAG_VARLIST))
+        panic (varlist);
 
-    REBARR *keylist = CTX_KEYLIST(context);
+    REBARR *keylist = CTX_KEYLIST(c);
 
-    if (!CTX_KEYLIST(context)) {
-        Debug_Fmt("Null keylist found in frame");
-        Panic_Context(context);
-    }
+    if (!CTX_KEYLIST(c))
+        panic (c);
 
-    if (GET_ARR_FLAG(keylist, CONTEXT_FLAG_STACK)) {
-        Debug_Fmt("Keylist has a CONTEXT_FLAG_STACK, why?");
-        Panic_Array(keylist);
-    }
+    if (GET_SER_FLAG(keylist, CONTEXT_FLAG_STACK))
+        panic (keylist);
 
-    REBVAL *rootvar = CTX_VALUE(context);
-    if (!ANY_CONTEXT(rootvar)) {
-        Debug_Fmt("Element at head of frame is not an ANY_CONTEXT");
-        Panic_Context(context);
-    }
+    REBVAL *rootvar = CTX_VALUE(c);
+    if (!ANY_CONTEXT(rootvar))
+        panic (rootvar);
 
     REBCNT keys_len = ARR_LEN(keylist);
     REBCNT vars_len = ARR_LEN(varlist);
 
-    if (keys_len < 1) {
-        Debug_Fmt("Keylist length less than one--cannot hold rootkey");
-        Panic_Context(context);
-    }
+    if (keys_len < 1)
+        panic (keylist);
 
-    if (GET_CTX_FLAG(context, CONTEXT_FLAG_STACK)) {
-        assert(vars_len == 1);
+    if (GET_SER_FLAG(CTX_VARLIST(c), CONTEXT_FLAG_STACK)) {
+        if (vars_len != 1)
+            panic (varlist);
     }
     else {
-        if (keys_len != vars_len) {
-            Debug_Fmt("Unequal lengths of key/var series in Assert_Context");
-            Panic_Context(context);
-        }
+        if (keys_len != vars_len)
+            panic (c);
     }
 
-    // The 0th key and var are special and can't be accessed with CTX_VAR
-    // or CTX_KEY
-    //
-    if (!ANY_CONTEXT(rootvar)) {
-        Debug_Fmt("First value slot in context not ANY-CONTEXT!");
-        Panic_Context(context);
-    }
+    if (rootvar->payload.any_context.varlist != varlist)
+        panic (rootvar);
 
-    if (rootvar->payload.any_context.varlist != varlist) {
-        Debug_Fmt("Embedded ANY-CONTEXT!'s context doesn't match context");
-        Panic_Context(context);
-    }
-
-    if (
-        GET_CTX_FLAG(context, CONTEXT_FLAG_STACK)
-        && !GET_CTX_FLAG(context, SERIES_FLAG_ACCESSIBLE)
-    ) {
+    if (IS_INACCESSIBLE(c)) {
+        //
         // !!! For the moment, don't check inaccessible stack frames any
         // further.  This includes varless reified frames and those reified
         // frames that are no longer on the stack.
@@ -1389,55 +1366,56 @@ void Assert_Context_Core(REBCTX *context)
         return;
     }
 
-    REBVAL *rootkey = CTX_ROOTKEY(context);
+    REBVAL *rootkey = CTX_ROOTKEY(c);
     if (IS_FUNCTION(rootkey)) {
-        if (!IS_FRAME(rootvar)) {
-            Debug_Fmt("FUNCTION! found in [0] rootkey slot of non-FRAME!");
-            Panic_Context(context);
-        }
+        //
+        // At the moment, only FRAME! is able to reuse a FUNCTION!'s keylist.
+        // There may be reason to relax this, if you wanted to make an
+        // ordinary object that was a copy of a FRAME! but not a FRAME!.
+        //
+        if (!IS_FRAME(rootvar))
+            panic (rootvar);
     }
     else if (IS_BLANK(rootkey)) {
-        if (IS_FRAME(rootvar)) {
-            Debug_Fmt("BLANK! found in [0] rootkey slot of FRAME!");
-            Panic_Context(context);
-        }
-
+        //
         // Note that in the future the rootkey for ordinary OBJECT! or ERROR!
-        // PORT! etc. may be more interesting than BLANK
+        // PORT! etc. may be more interesting than BLANK.  But it uses that
+        // for now.
+        //
+        if (IS_FRAME(rootvar))
+            panic (c);
     }
-    else {
-        Debug_Fmt("Rootkey in context not BLANK! or FUNCTION!.");
-        Panic_Context(context);
-    }
+    else
+        panic (rootkey);
 
-    REBVAL *key = CTX_KEYS_HEAD(context);
-    REBVAL *var = CTX_VARS_HEAD(context);
+    REBVAL *key = CTX_KEYS_HEAD(c);
+    REBVAL *var = CTX_VARS_HEAD(c);
 
     REBCNT n;
     for (n = 1; n < keys_len; n++, var++, key++) {
-        if (IS_END(key) || IS_END(var)) {
-            Debug_Fmt(
-                "** Early %s end at index: %d",
-                IS_END(key) ? "key" : "var",
-                n
-            );
-            Panic_Context(context);
+        if (IS_END(key)) {
+            printf("** Early key end at index: %d\n", n);
+            panic (c);
         }
 
-        if (!IS_TYPESET(key)) {
-            Debug_Fmt("** Non-typeset in context keys: %d\n", VAL_TYPE(key));
-            Panic_Context(context);
+        if (!IS_TYPESET(key))
+            panic (key);
+
+        if (IS_END(var)) {
+            printf("** Early var end at index: %d\n", n);
+            panic (c);
         }
     }
 
-    if (NOT_END(key) || NOT_END(var)) {
-        Debug_Fmt(
-            "** Missing %s end at index: %d type: %d",
-            NOT_END(key) ? "key" : "var",
-            n,
-            NOT_END(key) ? VAL_TYPE(key) : VAL_TYPE(var)
-        );
-        Panic_Context(context);
+    if (NOT_END(key)) {
+        printf("** Missing key end at index: %d\n", n);
+        panic (key);
+    }
+
+    if (NOT_END(var)) {
+        printf("** Missing var end at index: %d\n", n);
+        panic (var);
     }
 }
+
 #endif

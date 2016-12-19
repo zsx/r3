@@ -59,6 +59,17 @@ enum Reb_Result {
     //
     R_OUT,
 
+    // By default, all return results will not have the VALUE_FLAG_UNEVALUATED
+    // bit when they come back from a function.  To override that, this asks
+    // the dispatch to clear the bit instead.  It should be noted that since
+    // there is no meaningful way to carry the bit when copying values around
+    // internally, this is only a useful bit to read on things that were
+    // known to go directly through an evaluation step...e.g. arguments to
+    // functions on their initial fulfillment.  So this is returned by the
+    // QUOTE native (for instance).
+    //
+    R_OUT_UNEVALUATED,
+
     // See comments on OPT_VALUE_THROWN about the migration of "thrownness"
     // from being a property signaled to the evaluator.
     //
@@ -114,7 +125,11 @@ inline static REB_R R_OUT_Q(REBOOL q) {
 // Specially chosen 0 and 1 values for R_FALSE and R_TRUE enable this. 
 //
 inline static REB_R R_FROM_BOOL(REBOOL b) {
+#ifdef STRICT_BOOL_COMPILER_TEST
+    return b ? R_TRUE : R_FALSE;
+#else
     return cast(REB_R, b);
+#endif
 }
 
 // R3-Alpha's concept was that all words got persistent integer values, which
@@ -212,4 +227,7 @@ typedef REB_R (*REBPAF)(REBFRM *frame_, REBCTX *p, REBSYM a);
 // COMMAND! function
 typedef REB_R (*CMD_FUNC)(REBCNT n, REBSER *args);
 
-typedef struct Reb_Routine_Info REBRIN;
+// "Routine INfo" was once a specialized C structure, now an ordinary Rebol
+// REBARR pointer.
+//
+typedef REBARR REBRIN;

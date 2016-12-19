@@ -180,13 +180,13 @@ REBNATIVE(to)
 
 //
 //  Scan_Hex: C
-// 
+//
 // Scans hex while it is valid and does not exceed the maxlen.
 // If the hex string is longer than maxlen - it's an error.
 // If a bad char is found less than the minlen - it's an error.
 // String must not include # - ~ or other invalid chars.
 // If minlen is zero, and no string, that's a valid zero value.
-// 
+//
 // Note, this function relies on LEX_WORD lex values having a LEX_VALUE
 // field of zero, except for hex values.
 //
@@ -224,11 +224,11 @@ const REBYTE *Scan_Hex(
 
 //
 //  Scan_Hex2: C
-// 
+//
 // Decode a %xx hex encoded byte into a char.
-// 
+//
 // The % should already be removed before calling this.
-// 
+//
 // We don't allow a %00 in files, urls, email, etc... so
 // a return of 0 is used to indicate an error.
 //
@@ -263,7 +263,7 @@ REBOOL Scan_Hex2(const REBYTE *bp, REBUNI *n, REBOOL unicode)
 
 //
 //  Scan_Hex_Value: C
-// 
+//
 // Given a string, scan it as hex. Chars can be 8 or 16 bit.
 // Result is 32 bits max.
 // Throw errors.
@@ -300,7 +300,7 @@ bad_hex:
 
 //
 //  Scan_Dec_Buf: C
-// 
+//
 // Validate a decimal number. Return on first invalid char (or end).
 // Returns NULL if not valid.
 //
@@ -385,7 +385,7 @@ const REBYTE *Scan_Dec_Buf(
 
 //
 //  Scan_Decimal: C
-// 
+//
 // Scan and convert a decimal value.  Return zero if error.
 //
 const REBYTE *Scan_Decimal(
@@ -437,7 +437,7 @@ const REBYTE *Scan_Decimal(
     if (*cp == 'E' || *cp == 'e') {
         *ep++ = *cp++;
         digit_present = FALSE;
-        
+
         if (*cp == '-' || *cp == '+')
             *ep++ = *cp++;
 
@@ -478,7 +478,7 @@ const REBYTE *Scan_Decimal(
 
 //
 //  Scan_Integer: C
-// 
+//
 // Scan and convert an integer value.  Return zero if error.
 // Allow preceding + - and any combination of ' marks.
 //
@@ -565,7 +565,7 @@ const REBYTE *Scan_Integer(REBVAL *out, const REBYTE *cp, REBCNT len)
 
 //
 //  Scan_Money: C
-// 
+//
 // Scan and convert money.  Return zero if error.
 //
 const REBYTE *Scan_Money(REBVAL *out, const REBYTE *cp, REBCNT len)
@@ -585,7 +585,7 @@ const REBYTE *Scan_Money(REBVAL *out, const REBYTE *cp, REBCNT len)
 
 //
 //  Scan_Date: C
-// 
+//
 // Scan and convert a date. Also can include a time and zone.
 //
 const REBYTE *Scan_Date(REBVAL *out, const REBYTE *cp, REBCNT len)
@@ -710,7 +710,7 @@ const REBYTE *Scan_Date(REBVAL *out, const REBYTE *cp, REBCNT len)
             // short dates to be turned into their short year equivalents, the
             // user code can parse such dates and fix them up after the fact
             // according to their requirements, `if date/year < 100 [...]`
-            // 
+            //
             year = num;
         }
     }
@@ -731,13 +731,13 @@ const REBYTE *Scan_Date(REBVAL *out, const REBYTE *cp, REBCNT len)
 
     cp = ep;
     VAL_TIME(out) = NO_TIME;
-    
+
     if (cp >= end)
         goto end_date;
 
     if (*cp == '/' || *cp == ' ') {
         sep = *cp++;
-        
+
         if (cp >= end)
             goto end_date;
 
@@ -804,7 +804,7 @@ end_date:
 
 //
 //  Scan_File: C
-// 
+//
 // Scan and convert a file name.
 //
 const REBYTE *Scan_File(REBVAL *out, const REBYTE *cp, REBCNT len)
@@ -845,7 +845,7 @@ const REBYTE *Scan_File(REBVAL *out, const REBYTE *cp, REBCNT len)
 
 //
 //  Scan_Email: C
-// 
+//
 // Scan and convert email.
 //
 const REBYTE *Scan_Email(REBVAL *out, const REBYTE *cp, REBCNT len)
@@ -886,7 +886,7 @@ const REBYTE *Scan_Email(REBVAL *out, const REBYTE *cp, REBCNT len)
 
 //
 //  Scan_URL: C
-// 
+//
 // Scan and convert a URL.
 //
 const REBYTE *Scan_URL(REBVAL *out, const REBYTE *cp, REBCNT len)
@@ -928,7 +928,7 @@ const REBYTE *Scan_URL(REBVAL *out, const REBYTE *cp, REBCNT len)
 
 //
 //  Scan_Pair: C
-// 
+//
 // Scan and convert a pair
 //
 const REBYTE *Scan_Pair(REBVAL *out, const REBYTE *cp, REBCNT len)
@@ -971,7 +971,7 @@ const REBYTE *Scan_Pair(REBVAL *out, const REBYTE *cp, REBCNT len)
 
 //
 //  Scan_Tuple: C
-// 
+//
 // Scan and convert a tuple.
 //
 const REBYTE *Scan_Tuple(REBVAL *out, const REBYTE *cp, REBCNT len)
@@ -1020,7 +1020,7 @@ const REBYTE *Scan_Tuple(REBVAL *out, const REBYTE *cp, REBCNT len)
 
 //
 //  Scan_Binary: C
-// 
+//
 // Scan and convert binary strings.
 //
 const REBYTE *Scan_Binary(REBVAL *out, const REBYTE *cp, REBCNT len)
@@ -1040,7 +1040,7 @@ const REBYTE *Scan_Binary(REBVAL *out, const REBYTE *cp, REBCNT len)
     cp++;  // skip #
     if (*cp++ != '{')
         return NULL;
-    
+
     len -= 2;
 
     cp = Decode_Binary(out, cp, len, base, '}');
@@ -1057,7 +1057,7 @@ const REBYTE *Scan_Binary(REBVAL *out, const REBYTE *cp, REBCNT len)
 
 //
 //  Scan_Any: C
-// 
+//
 // Scan any string that does not require special decoding.
 //
 const REBYTE *Scan_Any(
@@ -1164,13 +1164,13 @@ REBNATIVE(scan_net_header)
                 else {
                     // Create new block for values:
                     REBARR *array = Make_Array(2);
-                    COPY_VALUE(
+                    Derelativize(
                         Alloc_Tail_Array(array),
                         item + 1, // prior value
                         SPECIFIED // no relative values added
                     );
                     val = Alloc_Tail_Array(array);
-                    SET_TRASH_SAFE(val); // can't be unsafe for Val_Init_Block
+                    SET_UNREADABLE_BLANK(val); // for Val_Init_Block
                     Val_Init_Block(item + 1, array);
                 }
                 break;

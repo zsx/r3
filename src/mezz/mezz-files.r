@@ -174,7 +174,7 @@ list-dir: procedure [
             change info second split-path info/1
             printf [indent 16 -8 #" " 24 #" " 6] info
             if all [r | dir? file] [
-                list-dir/l/r/i :file join indent "    "
+                list-dir/l/r/i :file join-of indent "    "
             ]
         ]
     ]

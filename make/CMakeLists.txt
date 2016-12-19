@@ -14,6 +14,10 @@ cmake_minimum_required (VERSION 2.8)
 
 project (Rebol3 C CXX)
 
+# While the project is technically able to build as C++98, the interesting
+# added checks are only enabled in the C++11 (or later) builds.
+#
+set (CMAKE_CXX_STANDARD 11)
 
 # Simplify appending flags to the C build settings, C++ settings, or both
 

@@ -203,7 +203,7 @@ ctx-zip: context [
             return value
         ]
         value: decode-url value
-        join %"" [
+        join-of %"" [
             value/host "/"
             any [value/path ""]
             any [value/target ""]
@@ -308,7 +308,7 @@ ctx-zip: context [
     ][
         errors: 0
         info: unless all [quiet not verbose][
-            func [value][prin join "" value]
+            func [value][prin join-of "" value]
         ]
         if any-file? where [where: dirize where]
         if all [any-file? where not exists? where][

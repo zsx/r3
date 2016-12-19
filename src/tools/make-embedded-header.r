@@ -35,7 +35,7 @@ append out rejoin [
     {#include "sys-core.h"^/}
     "extern const REBYTE core_header_source[];^/"
     "const REBYTE core_header_source[] = {^/"
-    binary-to-c join inp #{00}
+    binary-to-c join-of inp #{00}
     "};^/"
 ]
 

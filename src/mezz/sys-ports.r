@@ -26,10 +26,10 @@ make-port*: func [
     case [
         file? spec  [
             name: pick [dir file] dir? spec
-            spec: join [ref:] spec
+            spec: join-of [ref:] spec
         ]
         url? spec [
-            spec: repend decode-url spec [to set-word! 'ref spec]
+            spec: join decode-url spec [to set-word! 'ref spec]
             name: select spec to set-word! 'scheme
         ]
         block? spec [
@@ -225,7 +225,7 @@ init-schemes: func [
             ; Process all events (even if no awake ports).
             n-event: 0
             event-list: sport/state
-            while [not empty? event-list][
+            until [empty? event-list][
                 if n-event > 8 [break] ; Do only 8 events at a time (to prevent polling lockout).
                 event: first event-list
                 port: event/port

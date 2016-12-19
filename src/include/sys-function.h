@@ -46,10 +46,7 @@ struct Reb_Func {
 #endif
 
 inline static REBARR *FUNC_PARAMLIST(REBFUN *f) {
-#if !defined(NDEBUG)
-    if (!GET_ARR_FLAG(&f->paramlist, ARRAY_FLAG_PARAMLIST))
-        Panic_Array(&f->paramlist);
-#endif
+    assert(GET_SER_FLAG(&f->paramlist, ARRAY_FLAG_PARAMLIST));
     return &f->paramlist;
 }
 
@@ -94,7 +91,7 @@ inline static REBVAL *FUNC_PARAMS_HEAD(REBFUN *f) {
 }
 
 inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
-    return cast(REBRIN*, FUNC_BODY(f)->payload.handle.data);
+    return VAL_ARRAY(FUNC_BODY(f));
 }
 
 
@@ -107,11 +104,10 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
 
 #ifdef NDEBUG
     #define FUNC_FLAG(n) \
-        (1 << (TYPE_SPECIFIC_BIT + (n)))
+        FLAGIT_LEFT(TYPE_SPECIFIC_BIT + (n))
 #else
     #define FUNC_FLAG(n) \
-        ((1 << (TYPE_SPECIFIC_BIT + (n))) \
-            | TYPE_SHIFT_LEFT_FOR_HEADER(REB_FUNCTION))
+        (FLAGIT_LEFT(TYPE_SPECIFIC_BIT + (n)) | HEADERIZE_KIND(REB_FUNCTION))
 #endif
 
 // RETURN will always be in the last paramlist slot (if present)
@@ -134,7 +130,7 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
 // which tells you whether a function defers its first real argument when
 // used as a lookback.  Because lookback dispatches cannot use refinements
 // at this time, the answer is static for invocation via a plain word.
-// 
+//
 #define FUNC_FLAG_DEFERS_LOOKBACK_ARG FUNC_FLAG(3)
 
 // The COMPILE-NATIVES command wants to operate on user natives, and be able
@@ -159,6 +155,14 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
     // Also, BLANK! for args of unused refinements instead of not set
     //
     #define FUNC_FLAG_LEGACY_DEBUG FUNC_FLAG(6)
+
+    // If a function is a native then it may provide return information as
+    // documentation, but not want to pay for the run-time check of whether
+    // the type is correct or not.  In the debug build though, it's good
+    // to double-check.  So when MKF_FAKE_RETURN is used in a debug build,
+    // it leaves this flag on the function.
+    //
+    #define FUNC_FLAG_RETURN_DEBUG FUNC_FLAG(7)
 #endif
 
 
@@ -225,7 +229,7 @@ inline static REBOOL IS_FUNCTION_HIJACKER(const RELVAL *v)
     { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Hijacker_Dispatcher); }
 
 inline static REBRIN *VAL_FUNC_ROUTINE(const RELVAL *v) {
-    return cast(REBRIN*, VAL_FUNC_BODY(v)->payload.handle.data);
+    return VAL_ARRAY(VAL_FUNC_BODY(v));
 }
 
 

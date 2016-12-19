@@ -105,19 +105,30 @@
 //
 // DISABLE STDIO.H IN RELEASE BUILD
 //
-// The core build of Rebol seeks to not be dependent on stdio.h.  The premise
-// was to be free of historical baggage of the implementation of things like
-// printf and to speak alternative protocols.  Hence it is decoupled from the
-// "host".  (There are other choices related to this decoupling, such as not
-// assuming the allocator is malloc())
+// The core build of Rebol published in R3-Alpha sought to not be dependent
+// on <stdio.h>.  The intent--ostensibly--was since Rebol had richer tools
+// like WORD!s and BLOCK! for dialecting, that including a brittle historic
+// string-based C "mini-language" of printf into the executable was a
+// wasteful dependency.  Also, many implementations are clunky:
 //
-// The alternative interface spoken (Host Kit) is questionable, and generally
-// the only known hosts are "fat" and wind up including things like printf
-// anyway.  However, the idea of not setting printf in stone and replacing it
-// with Rebol's string logic is reasonable.
+// http://blog.hostilefork.com/where-printf-rubber-meets-road/
 //
-// These definitions will help catch uses of <stdio.h> in the release build,
-// and give a hopefully informative error.
+// Hence formatted output was not presumed as a host service, which only
+// provided raw character string output.
+//
+// This "radical decoupling" idea was undermined by including a near-rewrite
+// of printf() called Debug_Fmt().  This was a part of release builds, and
+// added format specifiers for Rebol values ("%r") or series, as well as
+// handling a subset of basic C types.
+//
+// Ren-C's long-term goal is to not include any string-based dialect for
+// formatting output.  Low-level diagnostics in the debug build will rely on
+// printf, while all release build formatting will be done through Rebol
+// code...where the format specification is done with a Rebol BLOCK! dialect
+// that could be used by client code as well.
+//
+// To formalize this rule, these definitions will help catch uses of <stdio.h>
+// in the release build, and give a hopefully informative error.
 //
 #ifdef NDEBUG
     #if !defined(REN_C_STDIO_OK)
@@ -207,27 +218,7 @@ extern void reb_qsort_r(void *a, size_t n, size_t es, void *thunk, cmp_t *cmp);
 #include "reb-math.h"
 #include "reb-codec.h"
 
-// !!! These definitions used to be in %sys-mem.h, which is now %mem-pools.h
-// REBNOD appears in the Free_Node API, while REBPOL is used in globals
-// The rest is not necessary to expose to the whole system, but perhaps
-// these two shouldn't be in this specific location.
-//
-typedef struct Reb_Node {
-    struct Reb_Header header; // will be header.bits = 0 if node is free
-
-    struct Reb_Node *next_if_free; // if not free, entire node is available
-
-    // Size of a node must be a multiple of 64-bits.  This is because there
-    // must be a baseline guarantee for node allocations to be able to know
-    // where 64-bit alignment boundaries are.
-    //
-    /*struct REBI64 payload[N];*/
-} REBNOD;
-
-#define IS_FREE_NODE(n) \
-    (cast(struct Reb_Node*, (n))->header.bits == 0)
-
-typedef struct rebol_mem_pool REBPOL;
+#include "sys-rebnod.h"
 
 #include "sys-deci.h"
 

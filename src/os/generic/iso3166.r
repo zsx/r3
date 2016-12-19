@@ -34,7 +34,7 @@ binary-to-chex: func [
     print ["bin: " mold bin]
     ret: copy ""
     for-each c bin [
-        append ret join "\x" skip to-hex to integer! to char! c 6
+        append ret join-of "\x" skip to-hex to integer! to char! c 6
     ]
     ret
 ]
@@ -53,7 +53,7 @@ capitalize: func [
                 append ret "U.S."
             ]
             'else [
-                append ret join uppercase first w reduce [lowercase next w " "]
+                append ret join-of uppercase first w reduce [lowercase next w " "]
             ]
         ]
     ]

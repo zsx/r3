@@ -56,7 +56,8 @@ void Init_StdIO(void)
 {
     //OS_CALL_DEVICE(RDI_STDIO, RDC_INIT);
     Req_SIO = OS_MAKE_DEVREQ(RDI_STDIO);
-    if (!Req_SIO) panic (Error(RE_IO_ERROR));
+    if (!Req_SIO)
+        fail (Error(RE_IO_ERROR));
 
     // The device is already open, so this call will just setup
     // the request fields properly.
@@ -77,7 +78,7 @@ void Shutdown_StdIO(void)
 
 //
 //  Print_OS_Line: C
-// 
+//
 // Print a new line.
 //
 void Print_OS_Line(void)
@@ -91,15 +92,16 @@ void Print_OS_Line(void)
 
     OS_DO_DEVICE(Req_SIO, RDC_WRITE);
 
-    if (Req_SIO->error) panic (Error(RE_IO_ERROR));
+    if (Req_SIO->error)
+        panic ("IO error in Print_OS_Line"); // !!! could/should this fail()?
 }
 
 
 //
 //  Prin_OS_String: C
-// 
+//
 // Print a string (with no line terminator).
-// 
+//
 // The encoding options are OPT_ENC_XXX flags OR'd together.
 //
 void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
@@ -113,7 +115,8 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
     const REBYTE *bp = unicode ? NULL : cast(const REBYTE *, p);
     const REBUNI *up = unicode ? cast(const REBUNI *, p) : NULL;
 
-    if (!p) panic (Error(RE_NO_PRINT_PTR));
+    if (p == NULL)
+        fail (Error(RE_NO_PRINT_PTR));
 
     // Determine length if not provided:
     if (len == UNKNOWN) len = unicode ? Strlen_Uni(up) : LEN_BYTES(bp);
@@ -146,7 +149,8 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
         Req_SIO->common.data = m_cast(REBYTE *, bp);
 
         OS_DO_DEVICE(Req_SIO, RDC_WRITE);
-        if (Req_SIO->error) panic (Error(RE_IO_ERROR));
+        if (Req_SIO->error)
+            fail (Error(RE_IO_ERROR));
     }
     else {
         while ((len2 = len) > 0) {
@@ -174,7 +178,8 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
             len -= len2;
 
             OS_DO_DEVICE(Req_SIO, RDC_WRITE);
-            if (Req_SIO->error) panic (Error(RE_IO_ERROR));
+            if (Req_SIO->error)
+                fail (Error(RE_IO_ERROR));
         }
     }
 }
@@ -266,8 +271,8 @@ void Debug_String(const void *p, REBCNT len, REBOOL unicode, REBINT lines)
     const REBYTE *bp = unicode ? NULL : cast(const REBYTE *, p);
     const REBUNI *up = unicode ? cast(const REBUNI *, p) : NULL;
 
-    REBINT disabled = GC_Disabled;
-    GC_Disabled = 1;
+    REBOOL disabled = GC_Disabled;
+    GC_Disabled = TRUE;
 
     if (Trace_Limit > 0) {
         if (SER_LEN(Trace_Buffer) >= Trace_Limit)
@@ -290,7 +295,7 @@ void Debug_String(const void *p, REBCNT len, REBOOL unicode, REBINT lines)
         for (; lines > 0; lines--) Print_OS_Line();
     }
 
-    assert(GC_Disabled == 1);
+    assert(GC_Disabled == TRUE);
     GC_Disabled = disabled;
 }
 
@@ -306,7 +311,7 @@ void Debug_Line(void)
 
 //
 //  Debug_Str: C
-// 
+//
 // Print a string followed by a newline.
 //
 void Debug_Str(const char *str)
@@ -317,7 +322,7 @@ void Debug_Str(const char *str)
 
 //
 //  Debug_Uni: C
-// 
+//
 // Print debug unicode string followed by a newline.
 //
 void Debug_Uni(REBSER *ser)
@@ -329,8 +334,8 @@ void Debug_Uni(REBSER *ser)
     REBUNI *up = UNI_HEAD(ser);
     REBCNT size = SER_LEN(ser);
 
-    REBINT disabled = GC_Disabled;
-    GC_Disabled = 1;
+    REBOOL disabled = GC_Disabled;
+    GC_Disabled = TRUE;
 
     while (size > 0) {
         ul = size;
@@ -342,7 +347,7 @@ void Debug_Uni(REBSER *ser)
 
     Debug_Line();
 
-    assert(GC_Disabled == 1);
+    assert(GC_Disabled == TRUE);
     GC_Disabled = disabled;
 }
 
@@ -354,8 +359,8 @@ void Debug_Uni(REBSER *ser)
 //
 void Debug_Series(REBSER *ser)
 {
-    REBINT disabled = GC_Disabled;
-    GC_Disabled = 1;
+    REBOOL disabled = GC_Disabled;
+    GC_Disabled = TRUE;
 
     // Invalid series would possibly (but not necessarily) crash the print
     // routines--which are the same ones used to output a series normally.
@@ -387,19 +392,17 @@ void Debug_Series(REBSER *ser)
     else if (SER_WIDE(ser) == sizeof(REBUNI))
         Debug_Uni(ser);
     else if (ser == PG_Canons_By_Hash) {
-        // Dump hashes somehow?
-        Panic_Series(ser);
-    } else if (ser == GC_Series_Guard) {
-        // Dump protected series pointers somehow?
-        Panic_Series(ser);
-    } else if (ser == GC_Value_Guard) {
-        // Dump protected value pointers somehow?
-        Panic_Series(ser);
+        printf("can't probe PG_Canons_By_Hash\n");
+        panic (ser);
+    }
+    else if (ser == GC_Guarded) {
+        printf("can't probe GC_Guarded\n");
+        panic (ser);
     }
     else
-        Panic_Series(ser);
+        panic (ser);
 
-    assert(GC_Disabled == 1);
+    assert(GC_Disabled == TRUE);
     GC_Disabled = disabled;
 }
 
@@ -408,7 +411,7 @@ void Debug_Series(REBSER *ser)
 
 //
 //  Debug_Num: C
-// 
+//
 // Print a string followed by a number.
 //
 void Debug_Num(const REBYTE *str, REBINT num)
@@ -424,7 +427,7 @@ void Debug_Num(const REBYTE *str, REBINT num)
 
 //
 //  Debug_Chars: C
-// 
+//
 // Print a number of spaces.
 //
 void Debug_Chars(REBYTE chr, REBCNT num)
@@ -439,7 +442,7 @@ void Debug_Chars(REBYTE chr, REBCNT num)
 
 //
 //  Debug_Space: C
-// 
+//
 // Print a number of spaces.
 //
 void Debug_Space(REBCNT num)
@@ -450,7 +453,7 @@ void Debug_Space(REBCNT num)
 
 //
 //  Debug_Word: C
-// 
+//
 // Print a REBOL word.
 //
 void Debug_Word(const REBVAL *word)
@@ -461,7 +464,7 @@ void Debug_Word(const REBVAL *word)
 
 //
 //  Debug_Type: C
-// 
+//
 // Print a REBOL datatype name.
 //
 void Debug_Type(const REBVAL *value)
@@ -529,27 +532,27 @@ void Debug_Values(const RELVAL *value, REBCNT count, REBCNT limit)
 
 //
 //  Debug_Buf: C
-// 
+//
 // (va_list by pointer: http://stackoverflow.com/a/3369762/211160)
-// 
+//
 // Lower level formatted print for debugging purposes.
-// 
+//
 // 1. Does not support UNICODE.
 // 2. Does not auto-expand the output buffer.
 // 3. No termination buffering (limited length).
-// 
+//
 // Print using a format string and variable number
 // of arguments.  All args must be long word aligned
 // (no short or char sized values unless recast to long).
-// 
+//
 // Output will be held in series print buffer and
 // will not exceed its max size.  No line termination
 // is supplied after the print.
 //
 void Debug_Buf(const char *fmt, va_list *vaptr)
 {
-    REBINT disabled = GC_Disabled;
-    GC_Disabled = 1;
+    REBOOL disabled = GC_Disabled;
+    GC_Disabled = TRUE;
 
     REB_MOLD mo;
     CLEARS(&mo);
@@ -577,14 +580,14 @@ void Debug_Buf(const char *fmt, va_list *vaptr)
 
     Free_Series(bytes);
 
-    assert(GC_Disabled == 1);
+    assert(GC_Disabled == TRUE);
     GC_Disabled = disabled;
 }
 
 
 //
 //  Debug_Fmt_: C
-// 
+//
 // Print using a format string and variable number
 // of arguments.  All args must be long word aligned
 // (no short or char sized values unless recast to long).
@@ -603,7 +606,7 @@ void Debug_Fmt_(const char *fmt, ...)
 
 //
 //  Debug_Fmt: C
-// 
+//
 // Print using a formatted string and variable number
 // of arguments.  All args must be long word aligned
 // (no short or char sized values unless recast to long).
@@ -633,7 +636,7 @@ REBOOL Echo_File(REBCHR *file)
 
 //
 //  Form_Hex_Pad: C
-// 
+//
 // Form an integer hex string in the given buffer with a
 // width padded out with zeros.
 // If len = 0 and val = 0, a null string is formed.
@@ -666,7 +669,7 @@ REBYTE *Form_Hex_Pad(REBYTE *buf, REBI64 val, REBINT len)
 
 //
 //  Form_Hex2: C
-// 
+//
 // Convert byte-sized int to xx format. Very fast.
 //
 REBYTE *Form_Hex2(REBYTE *bp, REBCNT val)
@@ -680,7 +683,7 @@ REBYTE *Form_Hex2(REBYTE *bp, REBCNT val)
 
 //
 //  Form_Hex2_Uni: C
-// 
+//
 // Convert byte-sized int to unicode xx format. Very fast.
 //
 REBUNI *Form_Hex2_Uni(REBUNI *up, REBCNT val)
@@ -694,7 +697,7 @@ REBUNI *Form_Hex2_Uni(REBUNI *up, REBCNT val)
 
 //
 //  Form_Hex_Esc_Uni: C
-// 
+//
 // Convert byte int to %xx format (in unicode destination)
 //
 REBUNI *Form_Hex_Esc_Uni(REBUNI *up, REBUNI c)
@@ -709,7 +712,7 @@ REBUNI *Form_Hex_Esc_Uni(REBUNI *up, REBUNI c)
 
 //
 //  Form_RGB_Uni: C
-// 
+//
 // Convert 24 bit RGB to xxxxxx format.
 //
 REBUNI *Form_RGB_Uni(REBUNI *up, REBCNT val)
@@ -737,7 +740,7 @@ REBUNI *Form_RGB_Uni(REBUNI *up, REBCNT val)
 
 //
 //  Form_Uni_Hex: C
-// 
+//
 // Fast var-length hex output for uni-chars.
 // Returns next position (just past the insert).
 //
@@ -759,7 +762,7 @@ REBUNI *Form_Uni_Hex(REBUNI *out, REBCNT n)
 
 //
 //  Form_Args_Core: C
-// 
+//
 // (va_list by pointer: http://stackoverflow.com/a/3369762/211160)
 //
 // This is an internal routine used for debugging, which is something like
@@ -942,7 +945,6 @@ static void Get_Pending_Format_Delimiter(
     if (!IS_BLOCK(delimiters)) {
         if (depth == 0) {
             *out = *delimiters;
-            MARK_CELL_WRITABLE_IF_CPP_DEBUG(out); // read-only item may be used
         }
         else
             SET_BLANK(out);
@@ -1037,7 +1039,7 @@ REBOOL Form_Value_Throws(
             if (IS_VOID(out) || IS_BLANK(out))
                 continue; // no output, don't disrupt pending delimiter
 
-            literal = NOT(GET_VAL_FLAG(out, VALUE_FLAG_EVALUATED));
+            literal = GET_VAL_FLAG(out, VALUE_FLAG_UNEVALUATED);
 
             item = out;
             // The DO_NEXT already refetched...
@@ -1045,7 +1047,7 @@ REBOOL Form_Value_Throws(
         else {
             assert(!IS_VOID(item)); // should not be possible, no literal voids
 
-            // do not use VALUE_FLAG_EVALUATED, because since this isn't the
+            // don't clear VALUE_FLAG_UNEVALUATED, because since this isn't the
             // direct product of an evaluation it might get the evaluated flag
             // from a COMPOSE or whatever made the block.
             //
@@ -1096,7 +1098,7 @@ REBOOL Form_Value_Throws(
             // evaluation...just printed inertly.
 
             REBVAL specific;
-            COPY_VALUE(&specific, item, VAL_SPECIFIER(value));
+            Derelativize(&specific, item, VAL_SPECIFIER(value));
 
             REBVAL dummy;
             if (Form_Value_Throws(
@@ -1180,7 +1182,7 @@ REBOOL Form_Value_Throws(
         Append_Unencoded(mold->series, "\n");
     }
 
-    SET_TRASH_SAFE(out); // no return result unless thrown
+    SET_UNREADABLE_BLANK(out); // no return result unless thrown
     DROP_SAFE_ENUMERATOR(f);
     return FALSE; // not thrown (also `out` may not be initialized)
 
@@ -1193,7 +1195,7 @@ return_thrown:
 
 //
 //  Print_Value_Throws: C
-// 
+//
 // Print a value or block's contents for user viewing.
 // Can limit output to a given size. Set limit to 0 for full size.
 //
@@ -1251,7 +1253,7 @@ REBOOL Print_Value_Throws(
 
 //
 //  Print_Value: C
-// 
+//
 // Print a value or block's contents for user viewing.
 // Can limit output to a given size. Set limit to 0 for full size.
 //
@@ -1278,7 +1280,7 @@ void Print_Value(const REBVAL *value, REBCNT limit, REBOOL mold)
 
 //
 //  Init_Raw_Print: C
-// 
+//
 // Initialize print module.
 //
 void Init_Raw_Print(void)

@@ -142,7 +142,7 @@ REBARR *Make_Where_For_Frame(REBFRM *f)
 
     for (n = start; n < end; ++n) {
         DS_PUSH_TRASH;
-        COPY_VALUE(
+        Derelativize(
             DS_TOP,
             ARR_AT(FRM_ARRAY(f), n),
             f->specifier
@@ -240,7 +240,7 @@ REBNATIVE(label_of)
 //
 //  "Get the FUNCTION! for a stack level or frame"
 //
-//      return: [function!] 
+//      return: [function!]
 //      level [frame! integer!]
 //  ]
 //
@@ -355,7 +355,7 @@ REBNATIVE(backtrace)
         max_rows = 20; // On an 80x25 terminal leaves room to type afterward
 
     REBDSP dsp_orig = DSP; // original stack pointer (for gathered backtrace)
-    
+
     REBCNT row = 0; // row we're on (incl. pending frames and maybe ellipsis)
     REBCNT number = 0; // level label number in the loop(no pending frames)
     REBOOL first = TRUE; // special check of first frame for "breakpoint 0"
@@ -674,9 +674,8 @@ return_maybe_set_number_out:
 //
 REBOOL Is_Context_Running_Or_Pending(REBCTX *frame_ctx)
 {
-    if (GET_CTX_FLAG(frame_ctx, CONTEXT_FLAG_STACK))
-        if (!GET_CTX_FLAG(frame_ctx, SERIES_FLAG_ACCESSIBLE))
-            return FALSE;
+    if (IS_INACCESSIBLE(frame_ctx))
+        return FALSE;
 
     REBFRM *f = CTX_FRAME(frame_ctx);
 
@@ -703,9 +702,8 @@ REBNATIVE(running_q)
     INCLUDE_PARAMS_OF_RUNNING_Q;
 
     REBCTX *frame_ctx = VAL_CONTEXT(ARG(frame));
-    if (GET_CTX_FLAG(frame_ctx, CONTEXT_FLAG_STACK))
-        if (!GET_CTX_FLAG(frame_ctx, SERIES_FLAG_ACCESSIBLE))
-            return R_FALSE;
+    if (IS_INACCESSIBLE(frame_ctx))
+        return R_FALSE;
 
     REBFRM *f = CTX_FRAME(frame_ctx);
 
@@ -732,9 +730,8 @@ REBNATIVE(pending_q)
     INCLUDE_PARAMS_OF_PENDING_Q;
 
     REBCTX *frame_ctx = VAL_CONTEXT(ARG(frame));
-    if (GET_CTX_FLAG(frame_ctx, CONTEXT_FLAG_STACK))
-        if (!GET_CTX_FLAG(frame_ctx, SERIES_FLAG_ACCESSIBLE))
-            return R_FALSE;
+    if (IS_INACCESSIBLE(frame_ctx))
+        return R_FALSE;
 
     REBFRM *f = CTX_FRAME(frame_ctx);
 

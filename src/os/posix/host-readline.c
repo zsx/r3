@@ -108,7 +108,7 @@ extern STD_TERM *Init_Terminal(void);
 
 //
 //  Init_Terminal: C
-// 
+//
 // Change the terminal modes to those required for proper
 // REBOL console handling. Return TRUE on success.
 //
@@ -162,7 +162,7 @@ extern void Quit_Terminal(STD_TERM *term);
 
 //
 //  Quit_Terminal: C
-// 
+//
 // Restore the terminal modes original entry settings,
 // in preparation for exit from program.
 //
@@ -187,7 +187,7 @@ void Quit_Terminal(STD_TERM *term)
 
 //
 //  Write_Char: C
-// 
+//
 // Write out repeated number of chars.
 // Unicode: not used
 //
@@ -202,7 +202,7 @@ static void Write_Char(char c, int n)
 
 //
 //  Store_Line: C
-// 
+//
 // Makes a copy of the current buffer and store it in the
 // history list. Returns the copied string.
 //
@@ -225,7 +225,7 @@ static void Store_Line(STD_TERM *term)
 
 //
 //  Recall_Line: C
-// 
+//
 // Set the current buffer to the contents of the history
 // list at its current position. Clip at the ends.
 // Return the history line index number.
@@ -254,7 +254,7 @@ static void Recall_Line(STD_TERM *term)
 
 //
 //  Clear_Line: C
-// 
+//
 // Clear all the chars from the current position to the end.
 // Reset cursor to current position.
 // Unicode: not used
@@ -268,7 +268,7 @@ static void Clear_Line(STD_TERM *term)
 
 //
 //  Home_Line: C
-// 
+//
 // Reset cursor to home position.
 // Unicode: not used
 //
@@ -281,7 +281,7 @@ static void Home_Line(STD_TERM *term)
 
 //
 //  End_Line: C
-// 
+//
 // Move cursor to end position.
 // Unicode: not used
 //
@@ -298,7 +298,7 @@ static void End_Line(STD_TERM *term)
 
 //
 //  Show_Line: C
-// 
+//
 // Refresh a line from the current position to the end.
 // Extra blanks can be specified to erase chars off end.
 // If blanks is negative, stay at end of line.
@@ -332,7 +332,7 @@ static void Show_Line(STD_TERM *term, int blanks)
 
 //
 //  Insert_Char: C
-// 
+//
 // Insert a char at the current position. Adjust end position.
 // Redisplay the line.
 // Unicode: not yet supported!
@@ -358,7 +358,7 @@ static char *Insert_Char(STD_TERM *term, char *cp)
 
 //
 //  Delete_Char: C
-// 
+//
 // Delete a char at the current position. Adjust end position.
 // Redisplay the line. Blank out extra char at end.
 // Unicode: not yet supported!
@@ -385,7 +385,7 @@ static void Delete_Char(STD_TERM *term, REBOOL back)
 
 //
 //  Move_Cursor: C
-// 
+//
 // Move cursor right or left by one char.
 // Unicode: not yet supported!
 //
@@ -408,7 +408,7 @@ static void Move_Cursor(STD_TERM *term, int count)
 
 //
 //  Process_Key: C
-// 
+//
 // Process the next key. If it's an edit key, perform the
 // necessary editing action. Return position of next char.
 // Unicode: not yet supported!
@@ -539,7 +539,7 @@ static char *Process_Key(STD_TERM *term, char *cp)
 
 //
 //  Read_Bytes: C
-// 
+//
 // Read the next "chunk" of data into the terminal buffer.
 //
 static int Read_Bytes(STD_TERM *term, char *buf, int len)
@@ -579,7 +579,7 @@ extern int Read_Line(STD_TERM *term, char *result, int limit);
 
 //
 //  Read_Line: C
-// 
+//
 // Read a line (as a sequence of bytes) from the terminal.
 // Handles line editing and line history recall.
 // Returns number of bytes in line.

@@ -124,7 +124,7 @@ void Dump_Bytes(REBYTE *bp, REBCNT limit)
 
 //
 //  Dump_Values: C
-// 
+//
 // Print values in raw hex; If memory is corrupted this still needs to work.
 //
 void Dump_Values(RELVAL *vp, REBCNT count)
@@ -187,8 +187,7 @@ void Dump_Info(void)
 
     Debug_Fmt("    Ballast: %d", GC_Ballast);
     Debug_Fmt("    Disable: %d", GC_Disabled);
-    Debug_Fmt("    Guarded Series: %d", SER_LEN(GC_Series_Guard));
-    Debug_Fmt("    Guarded Values: %d", SER_LEN(GC_Value_Guard));
+    Debug_Fmt("    Guarded Nodes: %d", SER_LEN(GC_Guarded));
 }
 
 

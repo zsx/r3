@@ -347,7 +347,7 @@ err:
 
 //
 //  Decode_Binary: C
-// 
+//
 // Scan and convert a binary string.
 //
 const REBYTE *Decode_Binary(
@@ -381,7 +381,7 @@ const REBYTE *Decode_Binary(
 
 //
 //  Encode_Base2: C
-// 
+//
 // Base2 encode a given series. Must be BYTES, not UNICODE.
 //
 REBSER *Encode_Base2(const REBVAL *value, REBSER *series, REBOOL brk)
@@ -430,7 +430,7 @@ REBSER *Encode_Base2(const REBVAL *value, REBSER *series, REBOOL brk)
 
 //
 //  Encode_Base16: C
-// 
+//
 // Base16 encode a given series. Must be BYTES, not UNICODE.
 //
 REBSER *Encode_Base16(const REBVAL *value, REBSER *series, REBOOL brk)
@@ -470,7 +470,7 @@ REBSER *Encode_Base16(const REBVAL *value, REBSER *series, REBOOL brk)
 
 //
 //  Encode_Base64: C
-// 
+//
 // Base64 encode a given series. Must be BYTES, not UNICODE.
 //
 REBSER *Encode_Base64(const REBVAL *value, REBSER *series, REBOOL brk)

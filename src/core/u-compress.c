@@ -56,7 +56,7 @@ static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
 
 //
 //  Error_Compression: C
-// 
+//
 // Zlib gives back string error messages.  We use them or fall
 // back on the integer code if there is no message.
 //
@@ -87,15 +87,15 @@ static REBCTX *Error_Compression(const z_stream *strm, int ret)
 
 //
 //  Compress: C
-// 
+//
 // This is a wrapper over Zlib which will compress a BINARY!
 // series to produce another BINARY!.  It can use either gzip
 // or zlib envelopes, and has a "raw" option for no header.
-// 
+//
 // !!! Adds 32-bit size info to zlib non-raw compressions for
 // compatibility with Rebol2 and R3-Alpha, at the cost of
 // inventing yet-another-format.  Consider removing.
-// 
+//
 // !!! Does not expose the "streaming" ability of zlib.
 //
 REBSER *Compress(
@@ -195,9 +195,9 @@ REBSER *Compress(
 
 //
 //  Decompress: C
-// 
+//
 // Decompress a binary (only).
-// 
+//
 // !!! Does not expose the "streaming" ability of zlib.
 //
 REBSER *Decompress(

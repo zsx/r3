@@ -33,9 +33,9 @@
 
 //
 //  halt: native [
-//  
+//
 //  "Stops evaluation and returns to the input prompt."
-//  
+//
 //      ; No arguments
 //  ]
 //
@@ -47,9 +47,9 @@ REBNATIVE(halt)
 
 //
 //  quit: native [
-//  
+//
 //  {Stop evaluating and return control to command shell or calling script.}
-//  
+//
 //      /with
 //          {Yield a result (mapped to an integer if given to shell)}
 //      value [<opt> any-value!]
@@ -84,9 +84,9 @@ REBNATIVE(quit)
 
 //
 //  exit-rebol: native [
-//  
+//
 //  {Stop the current Rebol interpreter, cannot be caught by CATCH/QUIT.}
-//  
+//
 //      /with
 //          {Yield a result (mapped to an integer if given to shell)}
 //      value [<opt> any-value!]
@@ -108,29 +108,12 @@ REBNATIVE(exit_rebol)
 
 
 //
-//  dump-memory: native [
-//  
-//  "Dump all referenced memory"
-//  
-//      path [file!] "Where to dump the data"
-//  ]
-//
-REBNATIVE(dump_memory)
-{
-    INCLUDE_PARAMS_OF_DUMP_MEMORY;
-
-    REBSER *ser;
-    ser = Value_To_OS_Path(ARG(path), TRUE);
-    Dump_Memory_Usage(SER_HEAD(REBCHR, ser));
-    Free_Series(ser);
-    return R_OUT_VOID_IF_UNWRITTEN;
-}
-
-//
 //  recycle: native [
-//  
+//
 //  "Recycles unused memory."
-//  
+//
+//      return: [<opt> integer!]
+//          {Number of series nodes recycled (if applicable)}
 //      /off
 //          "Disable auto-recycling"
 //      /on
@@ -147,12 +130,12 @@ REBNATIVE(recycle)
     INCLUDE_PARAMS_OF_RECYCLE;
 
     if (REF(off)) {
-        GC_Active = FALSE;
+        GC_Disabled = TRUE;
         return R_VOID;
     }
 
     if (REF(on)) {
-        GC_Active = TRUE;
+        GC_Disabled = FALSE;
         VAL_INT64(TASK_BALLAST) = VAL_INT32(TASK_MAX_BALLAST);
     }
 
@@ -162,12 +145,14 @@ REBNATIVE(recycle)
     }
 
     if (REF(torture)) {
-        GC_Active = TRUE;
+        GC_Disabled = TRUE;
         VAL_INT64(TASK_BALLAST) = 0;
     }
 
-    REBCNT count = Recycle();
+    if (GC_Disabled)
+        return R_VOID; // don't give back misleading "0", since no recycle ran
 
+    REBCNT count = Recycle();
     SET_INTEGER(D_OUT, count);
     return R_OUT;
 }
@@ -175,9 +160,9 @@ REBNATIVE(recycle)
 
 //
 //  stats: native [
-//  
+//
 //  {Provides status and statistics information about the interpreter.}
-//  
+//
 //      /show
 //          "Print formatted results to console"
 //      /profile
@@ -277,9 +262,9 @@ const char *evoke_help = "Evoke values:\n"
 
 //
 //  evoke: native [
-//  
+//
 //  "Special guru meditations. (Not for beginners.)"
-//  
+//
 //      chant [word! block! integer!]
 //          "Single or block of words ('? to list)"
 //  ]
@@ -315,7 +300,7 @@ REBNATIVE(evoke)
                 Reb_Opts->watch_recycle = NOT(Reb_Opts->watch_recycle);
                 break;
             case SYM_CRASH:
-                panic (Error(RE_MISC));
+                panic ("evoke 'crash was executed");
             default:
                 Out_Str(cb_cast(evoke_help), 1);
             }
@@ -344,9 +329,9 @@ REBNATIVE(evoke)
 
 //
 //  limit-usage: native [
-//  
+//
 //  "Set a usage limit only once (used for SECURE)."
-//  
+//
 //      field [word!]
 //          "eval (count) or memory (bytes)"
 //      limit [any-number!]
@@ -420,9 +405,9 @@ REBNATIVE(check)
 
 //
 //  do-codec: native [
-//  
+//
 //  {Evaluate a CODEC function to encode or decode media types.}
-//  
+//
 //      handle [handle!]
 //          "Internal link to codec"
 //      action [word!]
@@ -445,7 +430,7 @@ REBNATIVE(do_codec)
     case SYM_IDENTIFY: {
         if (!IS_BINARY(val))
             fail (Error(RE_INVALID_ARG, val));
-        
+
         codi.data = VAL_BIN_AT(val);
         codi.len  = VAL_LEN_AT(val);
 
@@ -453,7 +438,7 @@ REBNATIVE(do_codec)
         if (codi.error != 0) {
             if (result == CODI_CHECK)
                 return R_FALSE;
-        
+
             fail (Error(RE_BAD_MEDIA));
         }
 
@@ -463,7 +448,7 @@ REBNATIVE(do_codec)
     case SYM_DECODE: {
         if (!IS_BINARY(val))
             fail (Error(RE_INVALID_ARG, val));
-        
+
         codi.data = VAL_BIN_AT(val);
         codi.len  = VAL_LEN_AT(val);
 
@@ -493,7 +478,7 @@ REBNATIVE(do_codec)
             Val_Init_String(D_OUT, ser);
             return R_OUT;
         }
-        
+
         if (result == CODI_IMAGE) {
             REBSER *ser = Make_Image(codi.w, codi.h, TRUE);
             memcpy(IMG_DATA(ser), codi.extra.bits, codi.w * codi.h * 4);
@@ -504,7 +489,7 @@ REBNATIVE(do_codec)
             Val_Init_Image(D_OUT, ser);
             return R_OUT;
         }
-        
+
         fail (Error(RE_BAD_MEDIA)); }
 
     case SYM_ENCODE: {

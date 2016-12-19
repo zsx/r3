@@ -44,7 +44,7 @@ REBINT CT_Map(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 //
 //  Make_Map: C
-// 
+//
 // Makes a MAP block (that holds both keys and values).
 // Capacity is measured in key-value pairings.
 // A hash series is also created.
@@ -61,12 +61,12 @@ static REBMAP *Make_Map(REBCNT capacity)
 
 //
 //  Find_Key_Hashed: C
-// 
+//
 // Returns hash index (either the match or the new one).
 // A return of zero is valid (as a hash index);
-// 
+//
 // Wide: width of record (normally 2, a key and a value).
-// 
+//
 // Modes:
 //     0 - search, return hash if found or not
 //     1 - search, return hash, else return -1 if not
@@ -83,7 +83,7 @@ REBINT Find_Key_Hashed(
 ) {
     REBCNT len = SER_LEN(hashlist);
     assert(len > 0);
-    
+
     REBCNT hash = Hash_Value(key, specifier);
 
     // The REBCNT[] hash array size is chosen to try and make a large enough
@@ -96,7 +96,7 @@ REBINT Find_Key_Hashed(
     // Note: if len and skip are co-primes is guaranteed that repeatedly
     // adding skip (and subtracting len when needed) all positions are
     // visited.  1 <= skip < len, and len is prime, so this is guaranteed.
-    
+
     REBCNT skip = hash % (len - 1) + 1;
 
     hash = hash % len;
@@ -172,7 +172,7 @@ REBINT Find_Key_Hashed(
     }
 
     //assert(n == 0);
-    if (!cased && uncased < len) hash = uncased; // uncased< match 
+    if (!cased && uncased < len) hash = uncased; // uncased< match
     else if (zombie < len) { // zombie encountered!
         assert(mode == 0);
         hash = zombie;
@@ -199,7 +199,7 @@ REBINT Find_Key_Hashed(
 
 //
 //  Rehash_Map: C
-// 
+//
 // Recompute the entire hash table for a map. Table must be large enough.
 //
 static void Rehash_Map(REBMAP *map)
@@ -264,7 +264,7 @@ void Expand_Hash(REBSER *ser)
 
 //
 //  Find_Map_Entry: C
-// 
+//
 // Try to find the entry in the map. If not found and val isn't void, create
 // the entry and store the key and val.
 //
@@ -303,12 +303,20 @@ static REBCNT Find_Map_Entry(
     // Just a GET of value:
     if (!val) return n;
 
-    if (ANY_ARRAY(key) && !GET_ARR_FLAG(VAL_ARRAY(key), SERIES_FLAG_LOCKED))
+    if (
+        ANY_ARRAY(key)
+        && NOT_SER_INFO(VAL_ARRAY(key), SERIES_INFO_LOCKED)
+    ){
         fail (Error(RE_MAP_KEY_UNLOCKED, key));
+    }
 
     // Must set the value:
     if (n) {  // re-set it:
-        COPY_VALUE(ARR_AT(pairlist, ((n - 1) * 2) + 1), val, val_specifier);
+        Derelativize(
+            SINK(ARR_AT(pairlist, ((n - 1) * 2) + 1)),
+            val,
+            val_specifier
+        );
         return n;
     }
 
@@ -378,28 +386,11 @@ static void Append_Map(
     REBCNT n = 0;
 
     while (n < len && NOT_END(item)) {
-        if (IS_BAR(item)) {
-            //
-            // A BAR! between map pairs is okay, e.g. `make map! [a b | c d]`
-            //
-            ++item;
-            ++n;
-            continue;
-        }
-
         if (IS_END(item + 1)) {
             //
             // Keys with no value not allowed, e.g. `make map! [1 "foo" 2]`
             //
             fail (Error(RE_PAST_END));
-        }
-
-        if (IS_BAR(item + 1)) {
-            //
-            // Expression barriers allowed between items but not as the
-            // mapped-to value for a key, e.g. `make map! [1 "foo" 2 |]`
-            //
-            fail (Error(RE_EXPRESSION_BARRIER));
         }
 
         Find_Map_Entry(
@@ -443,6 +434,7 @@ void TO_Map(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     REBARR* array;
     REBCNT len;
     REBCNT index;
+    REBCTX *specifier;
 
     if (IS_BLOCK(arg) || IS_GROUP(arg)) {
         //
@@ -451,17 +443,19 @@ void TO_Map(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         array = VAL_ARRAY(arg);
         index = VAL_INDEX(arg);
         len = VAL_ARRAY_LEN_AT(arg);
+        specifier = VAL_SPECIFIER(arg);
     }
     else if (IS_MAP(arg)) {
         array = MAP_PAIRLIST(VAL_MAP(arg));
         index = 0;// maps don't have an index/"position"
         len = ARR_LEN(array);
+        specifier = SPECIFIED; // there should be no relative values in a MAP!
     }
     else
         fail (Error_Invalid_Arg(arg));
 
     REBMAP *map = Make_Map(len / 2); // [key value key value...] + END
-    Append_Map(map, array, index, VAL_SPECIFIER(arg), UNKNOWN);
+    Append_Map(map, array, index, specifier, len);
     Rehash_Map(map);
     Val_Init_Map(out, map);
 }
@@ -469,7 +463,7 @@ void TO_Map(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
 //
 //  Map_To_Array: C
-// 
+//
 // what: -1 - words, +1 - values, 0 -both
 //
 REBARR *Map_To_Array(REBMAP *map, REBINT what)
@@ -497,7 +491,7 @@ REBARR *Map_To_Array(REBMAP *map, REBINT what)
 
 //
 //  Mutate_Array_Into_Map: C
-// 
+//
 // Convert existing array to a map.  The array is tested to make sure it is
 // not managed, hence it has not been put into any REBVALs that might use
 // a non-map-aware access to it.  (That would risk making changes to the

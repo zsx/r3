@@ -66,7 +66,7 @@ REBINT CT_Gob(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 //
 //  Make_Gob: C
-// 
+//
 // Allocate a new GOB.
 //
 REBGOB *Make_Gob(void)
@@ -122,7 +122,7 @@ static REBOOL Set_Pair(REBXYF *pair, const REBVAL *val)
 
 //
 //  Find_Gob: C
-// 
+//
 // Find a target GOB within the pane of another gob.
 // Return the index, or a -1 if not found.
 //
@@ -144,7 +144,7 @@ static REBCNT Find_Gob(REBGOB *gob, REBGOB *target)
 
 //
 //  Detach_Gob: C
-// 
+//
 // Remove a gob value from its parent.
 // Done normally in advance of inserting gobs into new parent.
 //
@@ -163,7 +163,7 @@ static void Detach_Gob(REBGOB *gob)
 
 //
 //  Insert_Gobs: C
-// 
+//
 // Insert one or more gobs into a pane at the given index.
 // If index >= tail, an append occurs. Each gob has its parent
 // gob field set. (Call Detach_Gobs() before inserting.)
@@ -257,7 +257,7 @@ static void Insert_Gobs(
 
 //
 //  Remove_Gobs: C
-// 
+//
 // Remove one or more gobs from a pane at the given index.
 //
 static void Remove_Gobs(REBGOB *gob, REBCNT index, REBCNT len)
@@ -276,7 +276,7 @@ static void Remove_Gobs(REBGOB *gob, REBCNT index, REBCNT len)
 
 //
 //  Pane_To_Array: C
-// 
+//
 // Convert pane list of gob pointers to a Rebol array of GOB! REBVALs.
 //
 static REBARR *Pane_To_Array(REBGOB *gob, REBCNT index, REBINT len)
@@ -619,7 +619,7 @@ static void Set_GOB_Vars(REBGOB *gob, const RELVAL *blk, REBCTX *specifier)
         assert(!IS_VOID(blk));
 
         REBVAL var;
-        COPY_VALUE(&var, blk, specifier);
+        Derelativize(&var, blk, specifier);
         ++blk;
 
         if (!IS_SET_WORD(&var))
@@ -629,7 +629,7 @@ static void Set_GOB_Vars(REBGOB *gob, const RELVAL *blk, REBCTX *specifier)
             fail (Error(RE_NEED_VALUE, &var));
 
         REBVAL val;
-        COPY_VALUE(&val, blk, specifier);
+        Derelativize(&val, blk, specifier);
         ++blk;
 
         if (IS_SET_WORD(&val))
@@ -643,7 +643,7 @@ static void Set_GOB_Vars(REBGOB *gob, const RELVAL *blk, REBCTX *specifier)
 
 //
 //  Gob_To_Array: C
-// 
+//
 // Used by MOLD to create a block.
 //
 REBARR *Gob_To_Array(REBGOB *gob)
@@ -1014,7 +1014,7 @@ REBTYPE(Gob)
             fail (Error(RE_PAST_END));
         if (action == SYM_CHANGE && (REF(part) || REF(only) || REF(dup)))
             fail (Error(RE_NOT_DONE));
-        
+
         Insert_Gobs(gob, arg, index, 1, FALSE);
         if (action == SYM_POKE) {
             *D_OUT = *arg;
@@ -1040,7 +1040,7 @@ REBTYPE(Gob)
         }
         else
             goto is_arg_error;
-        
+
         Insert_Gobs(gob, arg, index, len, FALSE);
         break; }
 

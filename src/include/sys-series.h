@@ -79,36 +79,21 @@
 //
 
 
-//=////////////////////////////////////////////////////////////////////////=//
 //
-//  DEBUG PANIC
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// "Series Panics" will (hopefully) trigger an alert under memory tools
-// like address sanitizer and valgrind that indicate the call stack at the
-// moment of allocation of a series.  Then you should have TWO stacks: the
-// one at the call of the Panic, and one where that series was alloc'd.
-//
-
-#if !defined(NDEBUG)
-    #define Panic_Series(s) \
-        Panic_Series_Debug((s), __FILE__, __LINE__);
-#endif
-
-
-//
-// Series flags
+// Series header FLAGs (distinct from INFO bits)
 //
 
 #define SET_SER_FLAG(s,f) \
-    cast(void, ((s)->info.bits |= cast(REBUPT, f)))
+    cast(void, (AS_SERIES(s)->header.bits |= cast(REBUPT, (f))))
 
 #define CLEAR_SER_FLAG(s,f) \
-    cast(void, ((s)->info.bits &= ~cast(REBUPT, f)))
+    cast(void, (AS_SERIES(s)->header.bits &= ~cast(REBUPT, (f))))
 
 #define GET_SER_FLAG(s,f) \
-    LOGICAL((s)->info.bits & (f))
+    LOGICAL(AS_SERIES(s)->header.bits & (f))
+
+#define NOT_SER_FLAG(s,f) \
+    NOT(AS_SERIES(s)->header.bits & (f))
 
 #define SET_SER_FLAGS(s,f) \
     SET_SER_FLAG((s), (f))
@@ -118,47 +103,64 @@
 
 
 //
+// Series INFO bits (distinct from header FLAGs)
+//
+
+#define SET_SER_INFO(s,f) \
+    cast(void, (AS_SERIES(s)->info.bits |= cast(REBUPT, f)))
+
+#define CLEAR_SER_INFO(s,f) \
+    cast(void, (AS_SERIES(s)->info.bits &= ~cast(REBUPT, f)))
+
+#define GET_SER_INFO(s,f) \
+    LOGICAL(AS_SERIES(s)->info.bits & (f))
+
+#define NOT_SER_INFO(s,f) \
+    NOT(AS_SERIES(s)->info.bits & (f))
+
+#define SET_SER_INFOS(s,f) \
+    SET_SER_INFO((s), (f))
+
+#define CLEAR_SER_INFOS(s,f) \
+    CLEAR_SER_INFO((s), (f))
+
+
+//
 // The mechanics of the macros that get or set the length of a series are a
 // little bit complicated.  This is due to the optimization that allows data
 // which is sizeof(REBVAL) or smaller to fit directly inside the series node.
 //
 // If a series is not "dynamic" (e.g. has a full pooled allocation) then its
-// length is stored in the header...where the "type" bits would be if it
-// were a REBVAL.  But if a series is dynamically allocated out of the memory
-// pools, then without the data itself taking up the "content", there's room
-// for a length in the node.
+// length is stored in the header.  But if a series is dynamically allocated
+// out of the memory pools, then without the data itself taking up the
+// "content", there's room for a length in the node.
 //
 
 #define SER_WIDE(s) \
-    ((REBYTE)((s)->info.bits >> 16) & 0xff) // no use to inline in debug build
+    RIGHT_8_BITS((s)->info.bits) // inlining unnecessary
 
 inline static REBCNT SER_LEN(REBSER *s) {
-    if (GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC))
-        return s->content.dynamic.len;
-
-    // Length is stored in the header if it is dynamic, in what would be the
-    // "type" bits were it a value.  The same optimization is available in
-    // that it can just be shifted out.
-
-    return s->header.bits >> HEADER_TYPE_SHIFT;
+    return GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)
+        ? s->content.dynamic.len
+        : MID_8_BITS(s->info.bits);
 }
 
 inline static void SET_SERIES_LEN(REBSER *s, REBCNT len) {
-    assert(!GET_SER_FLAG(s, CONTEXT_FLAG_STACK));
+    assert(NOT_SER_FLAG(s, CONTEXT_FLAG_STACK));
 
-    if (GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)) {
+    if (GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)) {
         s->content.dynamic.len = len;
     }
     else {
         assert(len < sizeof(s->content));
-        s->header.bits &= ~HEADER_TYPE_MASK;
-        s->header.bits |= cast(REBUPT, len) << HEADER_TYPE_SHIFT;
+        CLEAR_8_MID_BITS(s->info.bits);
+        s->info.bits |= FLAGBYTE_MID(len);
         assert(SER_LEN(s) == len);
     }
 }
 
 inline static REBCNT SER_REST(REBSER *s) {
-    if (GET_SER_FLAG((s), SERIES_FLAG_HAS_DYNAMIC))
+    if (GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC))
         return s->content.dynamic.rest;
 
     if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY))
@@ -174,12 +176,12 @@ inline static REBCNT SER_REST(REBSER *s) {
 //
 inline static REBYTE *SER_DATA_RAW(REBSER *s) {
     // if updating, also update manual inlining in SER_AT_RAW
-    return GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)
+    return GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)
         ? s->content.dynamic.data
         : cast(REBYTE*, &s->content);
 }
 
-inline static REBYTE *SER_AT_RAW(size_t w, REBSER *s, REBCNT i) {
+inline static REBYTE *SER_AT_RAW(REBYTE w, REBSER *s, REBCNT i) {
 #if !defined(NDEBUG)
     if (w != SER_WIDE(s)) {
         //
@@ -187,20 +189,20 @@ inline static REBYTE *SER_AT_RAW(size_t w, REBSER *s, REBCNT i) {
         // caller passing in the wrong width (freeing sets width to 0).  But
         // give some debug tracking either way.
         //
-        Debug_Fmt("SER_AT_RAW asked %d on width=%d", w, SER_WIDE(s));
-        Panic_Series(s);
+        printf("SER_AT_RAW asked %d on width=%d\n", w, SER_WIDE(s));
+        panic (s);
     }
 #endif
 
     return ((w) * (i)) + ( // v-- inlining of SER_DATA_RAW
-        GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)
+        GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)
             ? s->content.dynamic.data
             : cast(REBYTE*, &s->content)
         );
 }
 
 inline static void SER_SET_EXTERNAL_DATA(REBSER *s, void *p) {
-    SET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC);
+    SET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC);
     s->content.dynamic.data = cast(REBYTE*, p);
 }
 
@@ -249,16 +251,10 @@ inline static REBYTE *SER_LAST_RAW(size_t w, REBSER *s) {
     GET_SER_FLAG((s), SERIES_FLAG_ARRAY)
 
 inline static void FAIL_IF_LOCKED_SERIES(REBSER *s) {
-    if (GET_SER_FLAG(s, SERIES_FLAG_LOCKED))
+    if (GET_SER_INFO(s, SERIES_INFO_LOCKED))
         fail (Error(RE_LOCKED));
 }
 
-//
-// Series external data accessible
-//
-#define SER_DATA_NOT_ACCESSIBLE(s) \
-    (GET_SER_FLAG(s, SERIES_FLAG_EXTERNAL) \
-     && !GET_SER_FLAG(s, SERIES_FLAG_ACCESSIBLE))
 //
 // Optimized expand when at tail (but, does not reterminate)
 //
@@ -326,7 +322,7 @@ inline static void TERM_SEQUENCE_LEN(REBSER *s, REBCNT len) {
 //
 
 inline static REBOOL IS_SERIES_MANAGED(REBSER *s) {
-    return LOGICAL(s->header.bits & REBSER_REBVAL_FLAG_MANAGED);
+    return LOGICAL(s->header.bits & NODE_FLAG_MANAGED);
 }
 
 #define MANAGE_SERIES(s) \
@@ -346,7 +342,7 @@ inline static void ENSURE_SERIES_MANAGED(REBSER *s) {
 #else
     inline static void ASSERT_SERIES_MANAGED(REBSER *s) {
         if (NOT(IS_SERIES_MANAGED(s)))
-            Panic_Series(s);
+            panic (s);
     }
 
     #define ASSERT_VALUE_MANAGED(v) \
@@ -354,27 +350,56 @@ inline static void ENSURE_SERIES_MANAGED(REBSER *s) {
 #endif
 
 
+//=////////////////////////////////////////////////////////////////////////=//
 //
-// Marking
+// SERIES COLORING API
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// R3-Alpha re-used the same marking flag from the GC in order to do various
+// other bit-twiddling tasks when the GC wasn't running.  This is an
+// unusually dangerous thing to be doing...because leaving a stray mark on
+// during some other traversal could lead the GC to think it had marked
+// things reachable from that series when it had not--thus freeing something
+// that was still in use.
+//
+// While leaving a stray mark on is a bug either way, GC bugs are particularly
+// hard to track down.  So one doesn't want to risk them if not absolutely
+// necessary.  Not to mention that sharing state with the GC that you can
+// only use when it's not running gets in the way of things like background
+// garbage collection, etc.
+//
+// Ren-C keeps the term "mark" for the GC, since that's standard nomenclature.
+// A lot of basic words are taken other places for other things (tags, flags)
+// so this just goes with a series "color" of black or white, with white as
+// the default.  The debug build keeps a count of how many black series there
+// are and asserts it's 0 by the time each evaluation ends, to ensure balance.
 //
 
-static inline REBOOL IS_REBSER_MARKED(REBSER *rebser) {
-    return LOGICAL(rebser->header.bits & REBSER_REBVAL_FLAG_MARK);
+static inline REBOOL Is_Series_Black(REBSER *s) {
+    return GET_SER_INFO(s, SERIES_INFO_BLACK);
 }
 
-static inline void MARK_REBSER(REBSER *rebser) {
-    assert(NOT(IS_REBSER_MARKED(rebser)));
-    assert(
-        IS_SERIES_MANAGED(rebser)
-        || rebser->header.bits & REBSER_REBVAL_FLAG_ROOT
-    );
-    rebser->header.bits |= REBSER_REBVAL_FLAG_MARK;
+static inline REBOOL Is_Series_White(REBSER *s) {
+    return NOT(GET_SER_INFO(s, SERIES_INFO_BLACK));
 }
 
-static inline void UNMARK_REBSER(REBSER *rebser) {
-    assert(IS_REBSER_MARKED(rebser));
-    rebser->header.bits &= ~cast(REBUPT, REBSER_REBVAL_FLAG_MARK);
+static inline void Flip_Series_To_Black(REBSER *s) {
+    assert(NOT_SER_INFO(s, SERIES_INFO_BLACK));
+    SET_SER_INFO(s, SERIES_INFO_BLACK);
+#if !defined(NDEBUG)
+    ++TG_Num_Black_Series;
+#endif
 }
+
+static inline void Flip_Series_To_White(REBSER *s) {
+    assert(GET_SER_INFO(s, SERIES_INFO_BLACK));
+    CLEAR_SER_INFO(s, SERIES_INFO_BLACK);
+#if !defined(NDEBUG)
+    --TG_Num_Black_Series;
+#endif
+}
+
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -406,22 +431,25 @@ static inline void UNMARK_REBSER(REBSER *rebser) {
 // guarding, the last value guarded must be the first one you DROP_GUARD on.
 //
 
-#define PUSH_GUARD_SERIES(s) \
-    Guard_Series_Core(s)
-
-inline static void DROP_GUARD_SERIES(REBSER *s) {
-    assert(GET_SER_FLAG(GC_Series_Guard, SERIES_FLAG_HAS_DYNAMIC));
-    assert(s == *SER_LAST(REBSER*, GC_Series_Guard));
-    GC_Series_Guard->content.dynamic.len--;
+inline static void PUSH_GUARD_SERIES(REBSER *s) {
+    ASSERT_SERIES_MANAGED(s); // see PUSH_GUARD_ARRAY_CONTENTS if you need it
+    Guard_Node_Core(cast(REBNOD*, s));
 }
 
-#define PUSH_GUARD_VALUE(v) \
-    Guard_Value_Core(v)
+inline static void DROP_GUARD_SERIES(REBSER *s) {
+    assert(GET_SER_INFO(GC_Guarded, SERIES_INFO_HAS_DYNAMIC));
+    assert(s == *SER_LAST(REBSER*, GC_Guarded));
+    GC_Guarded->content.dynamic.len--;
+}
+
+inline static void PUSH_GUARD_VALUE(RELVAL *v) {
+    Guard_Node_Core(cast(REBNOD*, v));
+}
 
 inline static void DROP_GUARD_VALUE(RELVAL *v) {
-    assert(GET_SER_FLAG(GC_Value_Guard, SERIES_FLAG_HAS_DYNAMIC));
-    assert(v == *SER_LAST(RELVAL*, GC_Value_Guard));
-    GC_Value_Guard->content.dynamic.len--;
+    assert(GET_SER_INFO(GC_Guarded, SERIES_INFO_HAS_DYNAMIC));
+    assert(v == *SER_LAST(RELVAL*, GC_Guarded));
+    GC_Guarded->content.dynamic.len--;
 }
 
 

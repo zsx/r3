@@ -38,10 +38,9 @@ struct Reb_State {
     REBDSP dsp;
     struct Reb_Chunk *top_chunk;
     REBFRM *frame;
-    REBCNT series_guard_len;
+    REBCNT guarded_len;
     REBCNT value_guard_len;
     REBCTX *error;
-    REBINT gc_disable; // Count of GC_Disables at time of Push
 
     REBCNT manuals_len; // Where GC_Manuals was when state started
     REBCNT uni_buf_len;

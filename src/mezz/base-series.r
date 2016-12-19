@@ -116,41 +116,56 @@ last: func [
 ;
 
 
-repend: func [
-    "Appends a reduced value to a series and returns the series head."
-    series [any-series! port! map! gob! object! bitset!]
-        {Series at point to insert (modified)}
-    value [<opt> any-value!] {The value to insert}
-    /part {Limits to a given length or position}
-    limit [any-number! any-series! pair!]
-    /only {Inserts a series as a series}
-    /dup {Duplicates the insert a specified number of times}
-    count [any-number! pair!]
+repend: redescribe [
+    "APPEND a reduced value to a series."
+](
+    adapt 'append [
+        if set? 'value [
+            value: reduce :value
+        ]
+    ]
+)
+
+
+; REPEND very literally does what it says, which is to reduce the argument
+; and call APPEND.  This is not necessarily the most useful operation.
+; Note that `x: 10 | repend [] 'x` would give you `[x]` in R3-Alpha
+; and not 10.  The new JOIN (temporarily ADJOIN) and JOIN-OF operations  
+; can take more license with their behavior if it makes the function more
+; convenient, and not be beholden to the behavior that the name REPEND would
+; seem to suggest.
+;
+join: func [ ;-- renamed to ADJOIN in %sys-start.r for user context, tempoary
+    "Concatenates values to the end of a series."
+    series [any-series! port! map! gob! object! module! bitset!]
+    value [<opt> any-value!]
 ][
-    either any-value? :value [
-        append/part/(if only 'only)/dup series reduce :value :limit :count
-    ][
-        head series ;-- simulating result of appending () returns the head
+    case [
+        block? :value [repend series :value]
+        group? :value [
+            fail/where "Can't JOIN a GROUP! onto a series (use APPEND)."
+        ]
+        function? :value [
+            fail/where "Can't JOIN a FUNCTION! onto a series (use APPEND)."
+        ]
+        'else [append/only series value] ;-- paths, words, not in block
     ]
 ]
 
-join: func [
-    "Concatenates values."
-    value "Base value" [<opt> any-value!]
-    rest "Value or block of values" [<opt> any-value!]
-][
-    either any-value? :value [
-        value: either any-series? :value [copy value] [form :value]
-        repend value :rest
-    ][
-        reduce rest
+join-of: redescribe [
+    "Concatenates values to the end of a copy of a series."
+](
+    adapt 'join [
+        series: copy series
     ]
-]
+)
 
-reform: func [
+
+reform: redescribe [
     "Forms a reduced block and returns a string."
-    value "Value to reduce and form"
     ;/with "separator"
-][
-    form reduce :value
-]
+](
+    adapt 'form [
+        value: reduce :value
+    ]
+)

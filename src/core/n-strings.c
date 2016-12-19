@@ -121,9 +121,9 @@ static struct {
 
 //
 //  ajoin: native [
-//  
+//
 //  {Reduces and joins a block of values into a new string.}
-//  
+//
 //      block [block!]
 //  ]
 //
@@ -145,9 +145,9 @@ REBNATIVE(ajoin)
 
 //
 //  spelling-of: native [
-//  
+//
 //  {Gives the delimiter-less spelling of words or strings}
-//  
+//
 //      value [any-word! any-string!]
 //  ]
 //
@@ -183,9 +183,9 @@ REBNATIVE(spelling_of)
 
 //
 //  checksum: native [
-//  
+//
 //  "Computes a checksum, CRC, or hash."
-//  
+//
 //      data [binary!]
 //          "Bytes to checksum"
 //      /part
@@ -272,7 +272,7 @@ REBNATIVE(checksum)
                 digests[i].digest(data, len, BIN_HEAD(digest));
             else {
                 REBVAL *key = ARG(key_value);
-                
+
                 int blocklen = digests[i].hmacblock;
 
                 REBYTE tmpdigest[20]; // size must be max of all digest[].len
@@ -342,7 +342,7 @@ REBNATIVE(checksum)
 
 //
 //  compress: native [
-//  
+//
 //  "Compresses a string series and returns it."
 //
 //      return: [binary!]
@@ -375,7 +375,7 @@ REBNATIVE(compress)
 
 //
 //  decompress: native [
-//  
+//
 //  "Decompresses data."
 //
 //      return: [binary!]
@@ -398,7 +398,7 @@ REBNATIVE(decompress)
     INCLUDE_PARAMS_OF_DECOMPRESS;
 
     REBVAL *data = ARG(data);
-    
+
     REBINT max;
     if (REF(limit)) {
         max = Int32s(ARG(max), 1);
@@ -432,7 +432,7 @@ REBNATIVE(decompress)
 
 //
 //  debase: native [
-//  
+//
 //  {Decodes binary-coded string (BASE-64 default) to binary value.}
 //
 //      return: [binary!]
@@ -468,7 +468,7 @@ REBNATIVE(debase)
 
 //
 //  enbase: native [
-//  
+//
 //  {Encodes data into a binary, hexadecimal, or base-64 ASCII string.}
 //
 //      return: [string!]
@@ -492,7 +492,7 @@ REBNATIVE(enbase)
 
     REBVAL *arg = ARG(value);
 
-    // Will convert STRING!s to UTF-8 if necessary. 
+    // Will convert STRING!s to UTF-8 if necessary.
     //
     REBCNT index;
     REBSER *temp = Temp_Bin_Str_Managed(arg, &index, NULL);
@@ -524,9 +524,9 @@ REBNATIVE(enbase)
 
 //
 //  dehex: native [
-//  
+//
 //  "Converts URL-style hex encoded (%xx) strings."
-//  
+//
 //      value [any-string!] "The string to dehex"
 //  ]
 //
@@ -600,12 +600,12 @@ REBNATIVE(dehex)
 
 //
 //  deline: native [
-//  
+//
 //  {Converts string terminators to standard format, e.g. CRLF to LF.}
-//  
+//
 //      string [any-string!]
 //          "Will be modified (unless /LINES used)"
-//      /lines 
+//      /lines
 //          {Return block of lines (works for LF, CR, CR-LF endings)}
 //  ]
 //
@@ -621,7 +621,7 @@ REBNATIVE(deline)
     }
 
     REBINT len = VAL_LEN_AT(val);
-    
+
     REBINT n;
     if (VAL_BYTE_SIZE(val)) {
         REBYTE *bp = VAL_BIN_AT(val);
@@ -640,9 +640,9 @@ REBNATIVE(deline)
 
 //
 //  enline: native [
-//  
+//
 //  {Converts string terminators to native OS format, e.g. LF to CRLF.}
-//  
+//
 //      series [any-string! block!] "(modified)"
 //  ]
 //
@@ -667,9 +667,9 @@ REBNATIVE(enline)
 
 //
 //  entab: native [
-//  
+//
 //  "Converts spaces to tabs (default tab size is 4)."
-//  
+//
 //      string [any-string!]
 //          "(modified)"
 //      /size
@@ -705,9 +705,9 @@ REBNATIVE(entab)
 
 //
 //  detab: native [
-//  
+//
 //  "Converts tabs to spaces (default tab size is 4)."
-//  
+//
 //      string [any-string!]
 //          "(modified)"
 //      /size
@@ -743,9 +743,9 @@ REBNATIVE(detab)
 
 //
 //  lowercase: native [
-//  
+//
 //  "Converts string of characters to lowercase."
-//  
+//
 //      string [any-string! char!]
 //          "(modified if series)"
 //      /part
@@ -764,9 +764,9 @@ REBNATIVE(lowercase)
 
 //
 //  uppercase: native [
-//  
+//
 //  "Converts string of characters to uppercase."
-//  
+//
 //      string [any-string! char!]
 //          "(modified if series)"
 //      /part
@@ -785,9 +785,9 @@ REBNATIVE(uppercase)
 
 //
 //  to-hex: native [
-//  
+//
 //  {Converts numeric value to a hex issue! datatype (with leading # and 0's).}
-//  
+//
 //      value [integer! tuple!]
 //          "Value to be converted"
 //      /size
@@ -846,9 +846,9 @@ REBNATIVE(to_hex)
 
 //
 //  find-script: native [
-//  
+//
 //  {Find a script header within a binary string. Returns starting position.}
-//  
+//
 //      script [binary!]
 //  ]
 //
@@ -879,9 +879,9 @@ REBNATIVE(find_script)
 
 //
 //  utf?: native [
-//  
+//
 //  {Returns UTF BOM (byte order marker) encoding; + for BE, - for LE.}
-//  
+//
 //      data [binary!]
 //  ]
 //
@@ -897,9 +897,9 @@ REBNATIVE(utf_q)
 
 //
 //  invalid-utf?: native [
-//  
+//
 //  {Checks UTF encoding; if correct, returns blank else position of error.}
-//  
+//
 //      data [binary!]
 //      /utf
 //          "Check encodings other than UTF-8"
@@ -927,7 +927,7 @@ REBNATIVE(invalid_utf_q)
 #ifndef NDEBUG
 //
 //  b_cast_: C
-// 
+//
 // Debug-only version of b_cast() that does type checking.
 // If you get a complaint you probably meant to use cb_cast().
 //
@@ -939,7 +939,7 @@ REBYTE *b_cast_(char *s)
 
 //
 //  cb_cast_: C
-// 
+//
 // Debug-only version of cb_cast() that does type checking.
 // If you get a complaint you probably meant to use b_cast().
 //
@@ -951,7 +951,7 @@ const REBYTE *cb_cast_(const char *s)
 
 //
 //  s_cast_: C
-// 
+//
 // Debug-only version of s_cast() that does type checking.
 // If you get a complaint you probably meant to use cs_cast().
 //
@@ -963,7 +963,7 @@ char *s_cast_(REBYTE *s)
 
 //
 //  cs_cast_: C
-// 
+//
 // Debug-only version of cs_cast() that does type checking.
 // If you get a complaint you probably meant to use s_cast().
 //
@@ -975,7 +975,7 @@ const char *cs_cast_(const REBYTE *s)
 
 //
 //  COPY_BYTES_: C
-// 
+//
 // Debug-only REBYTE-checked substitute for COPY_BYTES macro
 // If you meant characters, consider if you wanted strncpy()
 //
@@ -987,7 +987,7 @@ REBYTE *COPY_BYTES_(REBYTE *dest, const REBYTE *src, size_t count)
 
 //
 //  LEN_BYTES_: C
-// 
+//
 // Debug-only REBYTE-checked substitute for LEN_BYTES macro
 // If you meant characters, consider if you wanted strlen()
 //
@@ -999,7 +999,7 @@ size_t LEN_BYTES_(const REBYTE *str)
 
 //
 //  COMPARE_BYTES_: C
-// 
+//
 // Debug-only REBYTE-checked function for COMPARE_BYTES macro
 // If you meant characters, consider if you wanted strcmp()
 //
@@ -1011,7 +1011,7 @@ int COMPARE_BYTES_(const REBYTE *lhs, const REBYTE *rhs)
 
 //
 //  APPEND_BYTES_LIMIT_: C
-// 
+//
 // REBYTE-checked function for APPEND_BYTES_LIMIT macro in Debug
 // If you meant characters, you'll have to use strncat()/strlen()
 // (there's no single <string.h> entry point for this purpose)
@@ -1026,7 +1026,7 @@ REBYTE *APPEND_BYTES_LIMIT_(REBYTE *dest, const REBYTE *src, size_t max)
 
 //
 //  OS_STRNCPY_: C
-// 
+//
 // Debug-only REBCHR-checked substitute for OS_STRNCPY macro
 //
 REBCHR *OS_STRNCPY_(REBCHR *dest, const REBCHR *src, size_t count)
@@ -1051,7 +1051,7 @@ REBCHR *OS_STRNCPY_(REBCHR *dest, const REBCHR *src, size_t count)
 
 //
 //  OS_STRNCAT_: C
-// 
+//
 // Debug-only REBCHR-checked function for OS_STRNCAT macro
 //
 REBCHR *OS_STRNCAT_(REBCHR *dest, const REBCHR *src, size_t max)
@@ -1076,7 +1076,7 @@ REBCHR *OS_STRNCAT_(REBCHR *dest, const REBCHR *src, size_t max)
 
 //
 //  OS_STRNCMP_: C
-// 
+//
 // Debug-only REBCHR-checked substitute for OS_STRNCMP macro
 //
 int OS_STRNCMP_(const REBCHR *lhs, const REBCHR *rhs, size_t max)
@@ -1091,7 +1091,7 @@ int OS_STRNCMP_(const REBCHR *lhs, const REBCHR *rhs, size_t max)
 
 //
 //  OS_STRLEN_: C
-// 
+//
 // Debug-only REBCHR-checked substitute for OS_STRLEN macro
 //
 size_t OS_STRLEN_(const REBCHR *str)
@@ -1106,7 +1106,7 @@ size_t OS_STRLEN_(const REBCHR *str)
 
 //
 //  OS_STRCHR_: C
-// 
+//
 // Debug-only REBCHR-checked function for OS_STRCHR macro
 //
 REBCHR *OS_STRCHR_(const REBCHR *str, REBCNT ch)
@@ -1128,7 +1128,7 @@ REBCHR *OS_STRCHR_(const REBCHR *str, REBCNT ch)
 
 //
 //  OS_MAKE_CH_: C
-// 
+//
 // Debug-only REBCHR-checked function for OS_MAKE_CH macro
 //
 REBCHR OS_MAKE_CH_(REBCNT ch)

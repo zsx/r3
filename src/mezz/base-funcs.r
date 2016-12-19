@@ -377,7 +377,7 @@ redescribe: function [
                 fail [{archetype META-OF doesn't have DESCRIPTION slot} meta]
             ]
 
-            not notes: any [:meta/parameter-notes] [
+            not notes: to-value :meta/parameter-notes [
                 return () ; specialized or adapted, HELP uses original notes
             ]
 
@@ -537,13 +537,13 @@ catch?: redescribe [
 any?: redescribe [
     {Shortcut OR, ignores voids. Unlike plain ANY, forces result to LOGIC!}
 ](
-    chain [:any :true?]
+    chain [:any | :to-value | :true?]
 )
 
 all?: redescribe [
     {Shortcut AND, ignores voids. Unlike plain ALL, forces result to LOGIC!}
 ](
-    chain [:all :true?]
+    chain [:all | func [x [<opt> any-value!]] [any [:x | true]]]
 )
 
 maybe?: redescribe [
@@ -733,7 +733,7 @@ left-bar: func [
     right [<opt> any-value! <...>]
         {Any number of expressions on the right.}
 ][
-    while [not tail? right] [take right]
+    loop-until [void? take right]
     :left
 ]
 
@@ -746,7 +746,7 @@ right-bar: func [
     right [<opt> any-value! <...>]
         {Any number of expressions on the right.}
 ][
-    also take right (while [not tail? right] [take right])
+    also take right (loop-until [void? take right])
 ]
 
 
@@ -877,7 +877,7 @@ module: func [
     ; Collect 'export keyword exports, removing the keywords
     if find body 'export [
         unless block? select spec 'exports [
-            repend spec ['exports make block! 10]
+            join spec ['exports make block! 10]
         ]
 
         ; Note: 'export overrides 'hidden, silently for now
@@ -988,15 +988,15 @@ cause-error: func [
 ensure: function [
     {Pass through a value only if it matches types (or TRUE?/FALSE? state)}
     return: [<opt> any-value!]
-    types [block! datatype! typeset! logic!]
-    arg [any-value!] ;-- not <opt>, so implicitly ensured to be non-void
+    test [function! datatype! typeset! block! logic!]
+    arg [any-value!] ;-- should <opt> be allowed?
 ][
-    if blank? result: maybe types :arg [
+    unless maybe? test :arg [
         fail/where [
-            "ENSURE did not expect arg to have type" (type-of :arg)
+            "ENSURE expected arg to match" (test)
         ] 'arg
     ]
-    :result ;-- may be void if asked for BLANK! or LOGIC! and it's false
+    :arg
 ]
 
 

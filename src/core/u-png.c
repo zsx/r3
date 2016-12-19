@@ -717,7 +717,7 @@ static void emitchunk(unsigned char **cpp,const char *type,const char *data,int 
 
 //
 //  Encode_PNG_Image: C
-// 
+//
 // Input:  Image bits (codi->extra.bits, w, h)
 // Output: PNG encoded image (codi->data, len)
 // Error:  Code in codi->error
@@ -831,7 +831,7 @@ error:
 
 //
 //  Decode_PNG_Image: C
-// 
+//
 // Input:  PNG encoded image (codi->data, len)
 // Output: Image bits (codi->extra.bits, w, h)
 // Error:  Code in codi->error

@@ -55,7 +55,7 @@ void Split_Time(REBI64 t, REB_TIMEF *tf)
 
 //
 //  Join_Time: C
-// 
+//
 // !! A REB_TIMEF has lost the sign bit available on the REBI64
 // used for times.  If you want to make it negative, you need
 // pass in a flag here.  (Flag added to help document the
@@ -72,7 +72,7 @@ REBI64 Join_Time(REB_TIMEF *tf, REBOOL neg)
 
 //
 //  Scan_Time: C
-// 
+//
 // Scan string and convert to time.  Return zero if error.
 //
 const REBYTE *Scan_Time(REBVAL *out, const REBYTE *cp, REBCNT len)
@@ -109,8 +109,8 @@ const REBYTE *Scan_Time(REBVAL *out, const REBYTE *cp, REBCNT len)
         return NULL;
 
     const REBYTE *sp;
-    
-    REBINT part2 = -1;        
+
+    REBINT part2 = -1;
     sp = Grab_Int(cp, &part2);
     if (part2 < 0 || sp == cp)
         return NULL;
@@ -218,7 +218,7 @@ REBINT CT_Time(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 //
 //  Make_Time: C
-// 
+//
 // Returns NO_TIME if error.
 //
 REBI64 Make_Time(const REBVAL *val)
@@ -314,7 +314,7 @@ void TO_Time(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
 //
 //  Cmp_Time: C
-// 
+//
 // Given two times, compare them.
 //
 REBINT Cmp_Time(const RELVAL *v1, const RELVAL *v2)

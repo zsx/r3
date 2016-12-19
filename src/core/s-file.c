@@ -35,18 +35,18 @@
 
 //
 //  To_REBOL_Path: C
-// 
+//
 // Convert local filename to a REBOL filename.
-// 
+//
 // Allocate and return a new series with the converted path.
 // Return NULL on error.
-// 
+//
 // Reduces width when possible to byte-size from unicode, unless the flag
 // PATH_OPT_FORCE_UNI_DEST is used.
 //
 // Adds extra space at end for appending a dir /(star)
 //     (Note: don't put actual star, as "/" "*" ends this comment)
-// 
+//
 // REBDIFF: No longer appends current dir to volume when no
 // root slash is provided (that odd MSDOS c:file case).
 //
@@ -123,7 +123,7 @@ REBSER *To_REBOL_Path(const void *p, REBCNT len, REBFLGS flags)
 
 //
 //  Value_To_REBOL_Path: C
-// 
+//
 // Helper to above function.
 //
 REBSER *Value_To_REBOL_Path(REBVAL *val, REBOOL is_dir)
@@ -142,15 +142,15 @@ REBSER *Value_To_REBOL_Path(REBVAL *val, REBOOL is_dir)
 
 //
 //  To_Local_Path: C
-// 
+//
 // Convert REBOL filename to a local filename.
-// 
+//
 // Allocate and return a new series with the converted path.
 // Return 0 on error.
-// 
+//
 // Adds extra space at end for appending a dir /(star)
 //     (Note: don't put actual star, as "/" "*" ends this comment)
-// 
+//
 // Expands width for OS's that require it.
 //
 REBSER *To_Local_Path(const void *p, REBCNT len, REBOOL unicode, REBOOL full)
@@ -267,7 +267,7 @@ REBSER *To_Local_Path(const void *p, REBCNT len, REBOOL unicode, REBOOL full)
 
 //
 //  Value_To_Local_Path: C
-// 
+//
 // Helper to above function.
 //
 REBSER *Value_To_Local_Path(REBVAL *val, REBOOL full)
@@ -281,7 +281,7 @@ REBSER *Value_To_Local_Path(REBVAL *val, REBOOL full)
 
 //
 //  Value_To_OS_Path: C
-// 
+//
 // Helper to above function.
 //
 REBSER *Value_To_OS_Path(const REBVAL *val, REBOOL full)

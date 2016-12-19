@@ -36,7 +36,7 @@
 
 //
 //  Extend_Series: C
-// 
+//
 // Extend a series at its end without affecting its tail index.
 //
 void Extend_Series(REBSER *s, REBCNT delta)
@@ -49,7 +49,7 @@ void Extend_Series(REBSER *s, REBCNT delta)
 
 //
 //  Insert_Series: C
-// 
+//
 // Insert a series of values (bytes, longs, reb-vals) into the
 // series at the given index.  Expand it if necessary.  Does
 // not add a terminator to tail.
@@ -77,7 +77,7 @@ REBCNT Insert_Series(
 
 //
 //  Append_Series: C
-// 
+//
 // Append value(s) onto the tail of a series.  The len is
 // the number of units (bytes, REBVALS, etc.) of the data,
 // and does not include the terminator (which will be added).
@@ -100,7 +100,7 @@ void Append_Series(REBSER *s, const REBYTE *data, REBCNT len)
 
 //
 //  Append_Values_Len: C
-// 
+//
 // Append value(s) onto the tail of an array.  The len is
 // the number of units and does not include the terminator
 // (which will be added).
@@ -121,13 +121,13 @@ void Append_Values_Len(REBARR *array, const REBVAL *head, REBCNT len)
 
 //
 //  Copy_Sequence: C
-// 
+//
 // Copy any series that *isn't* an "array" (such as STRING!,
 // BINARY!, BITSET!, VECTOR!...).  Includes the terminator.
-// 
+//
 // Use Copy_Array routines (which specify Shallow, Deep, etc.) for
 // greater detail needed when expressing intent for Rebol Arrays.
-// 
+//
 // Note: No suitable name for "non-array-series" has been picked.
 // "Sequence" is used for now because Copy_Non_Array() doesn't
 // look good and lots of things aren't "Rebol Arrays" that aren't
@@ -155,10 +155,10 @@ REBSER *Copy_Sequence(REBSER *original)
 
 //
 //  Copy_Sequence_At_Len: C
-// 
+//
 // Copy a subseries out of a series that is not an array.
 // Includes the terminator for it.
-// 
+//
 // Use Copy_Array routines (which specify Shallow, Deep, etc.) for
 // greater detail needed when expressing intent for Rebol Arrays.
 //
@@ -180,7 +180,7 @@ REBSER *Copy_Sequence_At_Len(REBSER *original, REBCNT index, REBCNT len)
 
 //
 //  Copy_Sequence_At_Position: C
-// 
+//
 // Copy a non-array series from its value structure, using the
 // value's index as the location to start copying the data.
 //
@@ -194,7 +194,7 @@ REBSER *Copy_Sequence_At_Position(const REBVAL *position)
 
 //
 //  Remove_Series: C
-// 
+//
 // Remove a series of values (bytes, longs, reb-vals) from the
 // series at the given index.
 //
@@ -202,7 +202,7 @@ void Remove_Series(REBSER *s, REBCNT index, REBINT len)
 {
     if (len <= 0) return;
 
-    REBOOL is_dynamic = GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC);
+    REBOOL is_dynamic = GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC);
     REBCNT len_old = SER_LEN(s);
 
     REBCNT start = index * SER_WIDE(s);
@@ -285,7 +285,7 @@ void Remove_Series(REBSER *s, REBCNT index, REBINT len)
 
 //
 //  Unbias_Series: C
-// 
+//
 // Reset series bias.
 //
 void Unbias_Series(REBSER *s, REBOOL keep)
@@ -309,14 +309,14 @@ void Unbias_Series(REBSER *s, REBOOL keep)
 
 //
 //  Reset_Sequence: C
-// 
+//
 // Reset series to empty. Reset bias, tail, and termination.
 // The tail is reset to zero.
 //
 void Reset_Sequence(REBSER *s)
 {
     assert(!Is_Array_Series(s));
-    if (GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)) {
+    if (GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)) {
         Unbias_Series(s, FALSE);
         s->content.dynamic.len = 0;
         TERM_SEQUENCE(s);
@@ -328,13 +328,13 @@ void Reset_Sequence(REBSER *s)
 
 //
 //  Reset_Array: C
-// 
+//
 // Reset series to empty. Reset bias, tail, and termination.
 // The tail is reset to zero.
 //
 void Reset_Array(REBARR *a)
 {
-    if (GET_ARR_FLAG(a, SERIES_FLAG_HAS_DYNAMIC))
+    if (GET_SER_INFO(a, SERIES_INFO_HAS_DYNAMIC))
         Unbias_Series(ARR_SERIES(a), FALSE);
     TERM_ARRAY_LEN(a, 0);
 }
@@ -342,15 +342,15 @@ void Reset_Array(REBARR *a)
 
 //
 //  Clear_Series: C
-// 
+//
 // Clear an entire series to zero. Resets bias and tail.
 // The tail is reset to zero.
 //
 void Clear_Series(REBSER *s)
 {
-    assert(!GET_SER_FLAG(s, SERIES_FLAG_LOCKED));
+    assert(NOT_SER_INFO(s, SERIES_INFO_LOCKED));
 
-    if (GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)) {
+    if (GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)) {
         Unbias_Series(s, FALSE);
         CLEAR(s->content.dynamic.data, SER_REST(s) * SER_WIDE(s));
     }
@@ -363,13 +363,13 @@ void Clear_Series(REBSER *s)
 
 //
 //  Resize_Series: C
-// 
+//
 // Reset series and expand it to required size.
 // The tail is reset to zero.
 //
 void Resize_Series(REBSER *s, REBCNT size)
 {
-    if (GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)) {
+    if (GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)) {
         s->content.dynamic.len = 0;
         Unbias_Series(s, TRUE);
     }
@@ -384,15 +384,16 @@ void Resize_Series(REBSER *s, REBCNT size)
 
 //
 //  Reset_Buffer: C
-// 
+//
 // Setup to reuse a shared buffer. Expand it if needed.
-// 
+//
 // NOTE: The length will be set to the supplied value, but the series will
 // not be terminated.
 //
 REBYTE *Reset_Buffer(REBSER *buf, REBCNT len)
 {
-    if (!buf) panic (Error(RE_NO_BUFFER));
+    if (buf == NULL)
+        panic ("buffer not yet allocated");
 
     SET_SERIES_LEN(buf, 0);
     Unbias_Series(buf, TRUE);
@@ -404,7 +405,7 @@ REBYTE *Reset_Buffer(REBSER *buf, REBCNT len)
 
 //
 //  Copy_Buffer: C
-// 
+//
 // Copy a shared buffer, starting at index. Set tail and termination.
 //
 REBSER *Copy_Buffer(REBSER *buf, REBCNT index, void *end)
@@ -435,33 +436,26 @@ REBSER *Copy_Buffer(REBSER *buf, REBCNT index, void *end)
 //
 //  Assert_Series_Term_Core: C
 //
-void Assert_Series_Term_Core(REBSER *series)
+void Assert_Series_Term_Core(REBSER *s)
 {
-    if (Is_Array_Series(series)) {
+    if (Is_Array_Series(s)) {
         //
         // END values aren't canonized to zero bytes, check IS_END explicitly
         //
-        RELVAL *tail = ARR_TAIL(AS_ARRAY(series));
-        if (NOT_END(tail)) {
-            printf("Unterminated blocklike series detected\n");
-            fflush(stdout);
-            Panic_Series(series);
-        }
+        RELVAL *tail = ARR_TAIL(AS_ARRAY(s));
+        if (NOT_END(tail))
+            panic (tail);
     }
     else {
-        //
         // If they are terminated, then non-REBVAL-bearing series must have
         // their terminal element as all 0 bytes (to use this check)
         //
-        REBCNT len = SER_LEN(series);
-        REBCNT wide = SER_WIDE(series);
+        REBCNT len = SER_LEN(s);
+        REBCNT wide = SER_WIDE(s);
         REBCNT n;
         for (n = 0; n < wide; n++) {
-            if (0 != SER_DATA_RAW(series)[(len * wide) + n]) {
-                printf("Non-zero byte in terminator of non-block series\n");
-                fflush(stdout);
-                Panic_Series(series);
-            }
+            if (0 != SER_DATA_RAW(s)[(len * wide) + n])
+                panic (s);
         }
     }
 }
@@ -470,53 +464,63 @@ void Assert_Series_Term_Core(REBSER *series)
 //
 //  Assert_Series_Core: C
 //
-void Assert_Series_Core(REBSER *series)
+void Assert_Series_Core(REBSER *s)
 {
-    if (IS_FREE_NODE(series))
-        Panic_Series(series);
+    if (IS_FREE_NODE(s))
+        panic (s);
 
-    assert(SER_LEN(series) < SER_REST(series));
+    assert(
+        GET_SER_INFO(s, SERIES_INFO_0_IS_TRUE)
+        && GET_SER_INFO(s, SERIES_INFO_1_IS_TRUE)
+        && NOT_SER_INFO(s, SERIES_INFO_2_IS_FALSE)
+        && NOT_SER_INFO(s, SERIES_INFO_8_IS_FALSE)
+    );
 
-    Assert_Series_Term_Core(series);
+    assert(SER_LEN(s) < SER_REST(s));
+
+    Assert_Series_Term_Core(s);
 }
 
 
 //
 //  Panic_Series_Debug: C
-// 
-// This could be done in the PANIC_SERIES macro, but having it
-// as an actual function gives you a place to set breakpoints.
 //
-ATTRIBUTE_NO_RETURN void Panic_Series_Debug(
-    REBSER *series,
-    const char *file,
-    int line
-) {
-    // Note: Only use printf in debug builds (not a dependency of the main
-    // executable).  Here it's important because series panics can happen
-    // during mold and other times.
-    //
-    printf("\n\n*** Panic_Series() in %s at line %d\n", file, line);
-    if (IS_SERIES_MANAGED(series))
+// The goal of this routine is to progressively reveal as much diagnostic
+// information about a series as possible.  Since the routine will ultimately
+// crash anyway, it is okay if the diagnostics run code which might be
+// risky in an unstable state...though it is ideal if it can run to the end
+// so it can trigger Address Sanitizer or Valgrind's internal stack dump.
+//
+ATTRIBUTE_NO_RETURN void Panic_Series_Debug(REBSER *s)
+{
+    fflush(stdout);
+    fflush(stderr);
+
+    if (IS_SERIES_MANAGED(s))
         printf("managed");
     else
         printf("unmanaged");
     printf(" series was likely ");
-    if (IS_FREE_NODE(series))
+    if (IS_FREE_NODE(s))
         printf("freed");
     else
         printf("created");
-    printf(" during evaluator tick: %d\n", cast(REBCNT, series->do_count));
+    printf(" during evaluator tick: %d\n", cast(REBCNT, s->do_count));
+
     fflush(stdout);
 
-    if (*series->guard == 1020) // should make valgrind or asan alert
-        panic (Error(RE_MISC));
+    if (*s->guard == 1020) // should make valgrind or asan alert
+        panic ("series guard didn't trigger ASAN/valgrind trap");
 
-    printf("!!! *series->guard didn't trigger ASAN/Valgrind trap\n");
-    printf("!!! either not a REBSER, or you're not running ASAN/Valgrind\n");
-    fflush(stdout);
+    OS_CRASH(
+        cb_cast("series guard didn't trigger ASAN/Valgrind trap\n"),
+        cb_cast("either not a REBSER, or you're not running ASAN/Valgrind\n")
+    );
 
-    panic (Error(RE_MISC)); // just in case it didn't crash
+    while (TRUE)
+        NOOP; // just in case it didn't crash, don't return
+
+    DEAD_END;
 }
 
 #endif

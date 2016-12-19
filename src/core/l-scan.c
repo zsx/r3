@@ -299,14 +299,14 @@ const REBYTE Lower_Case[256] =
 
 //
 //  Scan_UTF8_Char_Escapable: C
-// 
+//
 // Scan a char, handling ^A, ^/, ^(null), ^(1234)
-// 
+//
 // Returns the numeric value for char, or NULL for errors.
 // 0 is a legal codepoint value which may be returned.
-// 
+//
 // Advances the cp to just past the last position.
-// 
+//
 // test: to-integer load to-binary mold to-char 1234
 //
 static const REBYTE *Scan_UTF8_Char_Escapable(REBUNI *out, const REBYTE *bp)
@@ -401,9 +401,9 @@ static const REBYTE *Scan_UTF8_Char_Escapable(REBUNI *out, const REBYTE *bp)
 
 //
 //  Scan_Quote_Push_Mold: C
-// 
+//
 // Scan a quoted string, handling all the escape characters.
-// 
+//
 // The result will be put into the temporary unistring mold buffer.
 //
 static const REBYTE *Scan_Quote_Push_Mold(
@@ -480,11 +480,11 @@ static const REBYTE *Scan_Quote_Push_Mold(
 
 //
 //  Scan_Item_Push_Mold: C
-// 
+//
 // Scan as UTF8 an item like a file or URL.
-// 
+//
 // Returns continuation point or zero for error.
-// 
+//
 // Put result into the temporary mold buffer as uni-chars.
 //
 const REBYTE *Scan_Item_Push_Mold(
@@ -555,7 +555,7 @@ const REBYTE *Scan_Item_Push_Mold(
 
 //
 //  Skip_Tag: C
-// 
+//
 // Skip the entire contents of a tag, including quoted strings.
 // The argument points to the opening '<'.  Zero is returned on
 // errors.
@@ -578,7 +578,7 @@ static const REBYTE *Skip_Tag(const REBYTE *cp)
 
 //
 //  Error_Bad_Scan: C
-// 
+//
 // Scanner error handler
 //
 static REBCTX *Error_Bad_Scan(
@@ -633,7 +633,7 @@ static REBCTX *Error_Bad_Scan(
 
 //
 //  Prescan_Token: C
-// 
+//
 // This function updates `scan_state->begin` to skip past leading
 // whitespace.  If the first character it finds after that is a
 // LEX_DELIMITER (`"`, `[`, `)`, `{`, etc. or a space/newline)
@@ -641,21 +641,21 @@ static REBCTX *Error_Bad_Scan(
 // character.  For all other leading characters, it will advance
 // the end pointer up to the first delimiter class byte (but not
 // include it.)
-// 
+//
 // If the first character is not a delimiter, then this routine
 // also gathers a quick "fingerprint" of the special characters
 // that appeared after it, but before a delimiter was found.
 // This comes from unioning LEX_SPECIAL_XXX flags of the bytes
 // that are seen (plus LEX_SPECIAL_WORD if any legal word bytes
 // were found in that range.)
-// 
+//
 // So if the input were "$#foobar[@" this would come back with
 // the flags LEX_SPECIAL_POUND and LEX_SPECIAL_WORD set.  Since
 // it is the first character, the `$` would not be counted to
 // add LEX_SPECIAL_DOLLAR.  And LEX_SPECIAL_AT would not be set
 // even though there is an `@` character, because it occurs
 // after the `[` which is LEX_DELIMITER class.
-// 
+//
 // Note: The reason the first character's lexical class is not
 // considered is because it's important to know it exactly, so
 // the caller will use GET_LEX_CLASS(scan_state->begin[0]).
@@ -713,7 +713,7 @@ static REBCNT Prescan_Token(SCAN_STATE *scan_state)
 
 //
 //  Locate_Token_May_Push_Mold: C
-// 
+//
 // Find the beginning and end character pointers for the next
 // TOKEN_ in the scanner state.  The TOKEN_ type returned will
 // correspond directly to a Rebol datatype if it isn't an
@@ -722,22 +722,22 @@ static REBCNT Prescan_Token(SCAN_STATE *scan_state)
 // will indicate that (e.g. TOKEN_BLOCK_BEGIN or TOKEN_GROUP_END).
 // Hence the routine will have to be called multiple times during
 // the array's content scan.
-// 
+//
 // !!! This should be modified to explain how paths work, once
 // I can understand how paths work. :-/  --HF
-// 
+//
 // The scan_state will be updated so that `scan_state->begin`
 // has been moved past any leading whitespace that was pending in
 // the buffer.  `scan_state->end` will hold the conclusion at
 // a delimiter.  TOKEN_END is returned if end of input is reached
 // (signaled by a null byte).
-// 
+//
 // Newlines that should be internal to a non-ANY-ARRAY! type are
 // included in the scanned range between the `begin` and `end`.
 // But newlines that are found outside of a string are returned
 // as TOKEN_NEWLINE.  (These are used to set the OPTS_VALUE_LINE
 // formatting bit on the values.)
-// 
+//
 // Determining the end point of token types that need escaping
 // requires processing (for instance `{a^}b}` can't see the first
 // close brace as ending the string).  To avoid double processing,
@@ -745,57 +745,57 @@ static REBCNT Prescan_Token(SCAN_STATE *scan_state)
 // quoted form to be used by the caller.  This is overwritten in
 // successive calls, and is only done for quoted forms (e.g. %"foo"
 // will have data in UNI_BUF but %foo will not.)
-// 
+//
 // !!! This is a somewhat weird separation of responsibilities,
 // that seems to arise from a desire to make "Scan_XXX" functions
 // independent of the "Locate_Token_May_Push_Mold" function.  But if the work of
 // locating the value means you have to basically do what you'd
 // do to read it into a REBVAL anyway, why split it up?  --HF
-// 
+//
 // Error handling is limited for most types, as an additional
 // phase is needed to load their data into a REBOL value.  Yet if
 // a "cheap" error is incidentally found during this routine
 // without extra cost to compute, it is indicated by returning a
 // negative value for the malformed type.
-// 
+//
 // !!! What real value is this optimization of the negative type,
 // as opposed to just raising the error here?  Is it required to
 // support a resumable scanner on partially written source, such
 // as in a syntax highlighter?  Is the "relaxed" mode of handling
 // errors already sufficient to achieve the goal?  --HF
-// 
+//
 // Examples with scan_state's (B)egin (E)nd and return value:
-// 
+//
 //        foo: baz bar => TOKEN_SET
 //        B   E
-// 
+//
 //     [quick brown fox] => TOKEN_BLOCK_BEGIN
 //     B
 //      E
-// 
+//
 //     "brown fox]" => TOKEN_WORD
 //      B    E
-// 
+//
 //       $10AE.20 sent => -TOKEN_MONEY (negative, malformed)
 //       B       E
-// 
+//
 //       {line1\nline2}  => TOKEN_STRING (content in UNI_BUF)
 //       B             E
-// 
+//
 //     \n{line2} => TOKEN_NEWLINE (newline is external)
 //     BB
 //       E
-// 
+//
 //     %"a ^"b^" c" d => TOKEN_FILE (content in UNI_BUF)
 //     B           E
-// 
+//
 //     %a-b.c d => TOKEN_FILE (content *not* in UNI_BUF)
 //     B     E
-// 
+//
 //     \0 => TOKEN_END
 //     BB
 //     EE
-// 
+//
 // Note: The reason that the code is able to use byte scanning
 // over UTF-8 encoded source is because all the characters
 // that dictate the tokenization are ASCII (< 128).
@@ -1268,7 +1268,7 @@ scanword:
 
 //
 //  Init_Scan_State: C
-// 
+//
 // Initialize a scanner state structure.  Set the standard
 // scan pointers and the limit pointer.
 //
@@ -1290,7 +1290,7 @@ static void Init_Scan_State(SCAN_STATE *scan_state, const REBYTE *cp, REBCNT lim
 
 //
 //  Scan_Head: C
-// 
+//
 // Search text for a REBOL header.  It is distinguished as
 // the word REBOL followed by a '[' (they can be separated
 // only by lines and comments).  There can be nothing on the
@@ -1298,12 +1298,12 @@ static void Init_Scan_State(SCAN_STATE *scan_state, const REBYTE *cp, REBCNT lim
 // header, then note its position (for embedded code).
 // The scan_state begin pointer is updated to point to the header block.
 // Keep track of line-count.
-// 
+//
 // Returns:
 //     0 if no header,
 //     1 if header,
 //    -1 if embedded header (inside []).
-// 
+//
 // The scan_state structure is updated to point to the
 // beginning of the source text.
 //
@@ -1356,7 +1356,7 @@ static REBARR *Scan_Full_Array(SCAN_STATE *scan_state, REBYTE mode_char);
 
 //
 //  Scan_Array: C
-// 
+//
 // Scans an array of values, based on a mode_char.  This character can be
 // '[', '(', or '/' to indicate the processing type.  Always returns array.
 //
@@ -1729,12 +1729,10 @@ static REBARR *Scan_Array(
                 //
                 REBVAL cell;
                 PUSH_GUARD_ARRAY(array);
-                SET_TRASH_SAFE(&cell);
+                SET_UNREADABLE_BLANK(&cell);
                 PUSH_GUARD_VALUE(&cell);
 
                 dispatcher(&cell, kind, KNOWN(ARR_AT(array, 1))); // may fail()
-
-                assert(!IS_TRASH_DEBUG(&cell));
 
                 *value = cell;
                 DROP_GUARD_VALUE(&cell);
@@ -1851,7 +1849,8 @@ static REBARR *Scan_Array(
 exit_block:
     Drop_Mold_If_Pushed(&mo);
 
-    if (line && value) SET_VAL_FLAG(value, VALUE_FLAG_LINE);
+    if (line && NOT_END(value))
+        SET_VAL_FLAG(value, VALUE_FLAG_LINE);
 
 #ifdef TEST_SCAN
     Print((REBYTE*)"block of %d values ", emitbuf->tail - begin);
@@ -1883,7 +1882,7 @@ exit_block:
     //
 #if !defined(NDEBUG)
     if (LEGACY(OPTIONS_REFINEMENTS_BLANK))
-        SET_ARR_FLAG(result, SERIES_FLAG_LEGACY);
+        SET_SER_FLAG(result, SERIES_FLAG_LEGACY);
 #endif
 
     return result;
@@ -1917,7 +1916,7 @@ extra_error: ; // needs to label a statement
 
 //
 //  Scan_Full_Array: C
-// 
+//
 // Simple variation of scan_block to avoid problem with
 // construct of aggregate values.
 //
@@ -1935,7 +1934,7 @@ static REBARR *Scan_Full_Array(SCAN_STATE *scan_state, REBYTE mode_char)
 
 //
 //  Scan_UTF8_Managed: C
-// 
+//
 // Scan source code. Scan state initialized. No header required.
 //
 REBARR *Scan_UTF8_Managed(const REBYTE *utf8, REBCNT len)
@@ -1948,7 +1947,7 @@ REBARR *Scan_UTF8_Managed(const REBYTE *utf8, REBCNT len)
 
 //
 //  Scan_Header: C
-// 
+//
 // Scan for header, return its offset if found or -1 if not.
 //
 REBINT Scan_Header(const REBYTE *src, REBCNT len)
@@ -1994,9 +1993,9 @@ void Shutdown_Scanner(void)
 
 //
 //  transcode: native [
-//  
+//
 //  {Translates UTF-8 binary source to values. Returns [value binary].}
-//  
+//
 //      source [binary!]
 //          "Must be Unicode UTF-8 encoded"
 //      /next
@@ -2045,7 +2044,7 @@ REBNATIVE(transcode)
 
 //
 //  Scan_Word: C
-// 
+//
 // Scan word chars and make word symbol for it.
 // This method gets exactly the same results as scanner.
 // Returns symbol number, or zero for errors.
@@ -2071,7 +2070,7 @@ REBSTR *Scan_Word(const REBYTE *cp, REBCNT len)
 
 //
 //  Scan_Issue: C
-// 
+//
 // Scan an issue word, allowing special characters.
 //
 REBSTR *Scan_Issue(const REBYTE *cp, REBCNT len)

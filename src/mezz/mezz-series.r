@@ -43,15 +43,21 @@ extend: func [
     :val
 ]
 
-rejoin: func [
+rejoin: function [
     "Reduces and joins a block of values."
     block [block!] "Values to reduce and join"
     ;/with "separator"
+    <local> position
 ][
-    if empty? block: reduce block [return block]
-    append either any-series? first block [copy first block][
-        form first block
-    ] next block
+    either void? base: do/next block 'position [
+        blank
+    ][
+        either any-series? :base [
+            join-of base position
+        ][
+            join form base position
+        ]
+    ]
 ]
 
 remold: func [
@@ -254,7 +260,7 @@ reword: function [
             vals: make map! length values  ; Make a new map internally
             not only block? values  ; Should we evaluate value expressions?
         ] [
-            while [not tail? values] [
+            until [tail? values] [
                 w: first+ values  ; Keywords are not evaluated
                 v: do/next values 'values
                 if any [set-word? :w lit-word? :w] [w: to word! :w]

@@ -98,6 +98,29 @@ static void Assert_Basics(void)
     fflush(stdout);
 #endif
 
+#if !defined(NDEBUG)
+    //
+    // Sanity check the platform byte-ordering sensitive flag macros
+    //
+    REBUPT flags;
+
+    flags = FLAGIT_LEFT(0);
+    unsigned char *ch = (unsigned char*)&flags;
+    if (*ch != 128) {
+        printf("Expected 128, got %d\n", *ch);
+        panic ("Bad leftmost bit setting of platform unsigned integer.");
+    }
+
+    flags = FLAGIT_LEFT(0) | FLAGIT_LEFT(1) | FLAGBYTE_RIGHT(13);
+
+    REBCNT left = LEFT_N_BITS(flags, 3); // == 6 (binary `110`)
+    REBCNT right = RIGHT_N_BITS(flags, 3); // == 5 (binary `101`)
+    if (left != 6 || right != 5) {
+        printf("Expected 6 and 5, got %d and %d\n", left, right);
+        panic ("Bad composed integer assignment for byte-ordering macro.");
+    }
+#endif
+
     // Although the system is designed to be able to function with REBVAL at
     // any size, the optimization of it being 4x(32-bit) on 32-bit platforms
     // and 4x(64-bit) on 64-bit platforms is a rather important performance
@@ -108,41 +131,23 @@ static void Assert_Basics(void)
     // not work out as designed, it *should* be possible to comment this out
     // and keep running.
     //
-    if (sizeof(void *) == 8) {
+    if (sizeof(void*) == 8) {
         if (sizeof(REBVAL) != 32 || sizeof(REBEVT) != 32)
-            panic (Error(RE_REBVAL_ALIGNMENT));
+            panic ("size of void* is 8 but REBVAL is not sizeof(void*)*4");
+
+        assert(sizeof(REBGOB) == 88); // !!! REBGOB to be made a REBARR
     }
-    else {
+    else if (sizeof(void*) == 4) {
         if (sizeof(REBVAL) != 16 || sizeof(REBEVT) != 16)
-            panic (Error(RE_REBVAL_ALIGNMENT));
-    }
+            panic ("size of void* is 4 but REBVAL is not sizeof(void*)*4");
 
-    // In the original conception of R3-Alpha, performance of the graphics
-    // layer was considered very important...and so the GUI would make use
-    // of the custom memory-pooled heap for its "(G)raphic (OB)jects", even
-    // though much of the GUI code itself was written in extensions.  With
-    // the Ren-C branch, the focus is on a more "essential" core.  So the
-    // hope is to either provide generic pooled memory services or have the
-    // graphics layer implement its own allocator--or just use malloc()/new
-    //
-    // But given that external code depends on binary compatibility with an
-    // understanding of what size a GOB is, this helps enforce that by
-    // checking that the size is what the linked-to code is expecting.
-    //
-    if (sizeof(void *) == 8) {
-        if (sizeof(REBGOB) != 88)
-            panic (Error(RE_BAD_SIZE));
+        assert(sizeof(REBGOB) == 64); // !!! REBGOB to be made a REBARR
     }
-    else {
-        if (sizeof(REBGOB) != 64)
-            panic (Error(RE_BAD_SIZE));
-    }
+    else
+        panic ("sizeof void* is neither 4 nor 8");
 
-    // This checks the size of the `struct reb_date`.
-    // !!! Why this, in particular?
-    //
-    if (sizeof(REBDAT) != 4)
-        panic (Error(RE_BAD_SIZE));
+    assert(sizeof(REBDAT) == 4);
+    assert(sizeof(REBEVT) == sizeof(REBVAL));
 
     // The REBSER is designed to place the `info` bits exactly after a REBVAL
     // so they can do double-duty as also a terminator for that REBVAL when
@@ -153,7 +158,7 @@ static void Assert_Basics(void)
             - offsetof(struct Reb_Series, content)
         != sizeof(REBVAL)
     ){
-        panic (Error(RE_MISC));
+        panic ("bad structure alignment for internal array termination");
     }
 
     // The END marker logic currently uses REB_MAX for the type bits.  That's
@@ -163,20 +168,6 @@ static void Assert_Basics(void)
     // you'd like to catch IS_END() tests on trash.)
     //
     assert(REB_MAX < 256);
-
-    // Types that are used for memory pooled allocations are required to be
-    // multiples of 8 bytes in size.  This way it's possible to reliably align
-    // 64-bit values using the node's allocation pointer as a baseline that
-    // is known to be 64-bit aligned.  (Rounding internally to the allocator
-    // would be possible, but that would add calculation as well as leading
-    // to wasting space--whereas this way any padding is visible.)
-    //
-    // This check is reinforced in the pool initialization itself.
-    //
-    assert(sizeof(REBI64) == 8);
-    assert(sizeof(REBSER) % 8 == 0);
-    assert(sizeof(REBGOB) % 8 == 0);
-    assert(sizeof(REBRIN) % 8 == 0);
 }
 
 
@@ -194,14 +185,14 @@ static void Print_Banner(REBARGS *rargs)
 
 //
 //  Do_Global_Block: C
-// 
+//
 // Bind and evaluate a global block.
 // Rebind:
 //     0: bind set into sys or lib
 //    -1: bind shallow into sys (for ACTION)
 //     1: add new words to LIB, bind/deep to LIB
 //     2: add new words to SYS, bind/deep to LIB
-// 
+//
 // Expects result to be void
 //
 static void Do_Global_Block(
@@ -257,18 +248,18 @@ static void Do_Global_Block(
     SNAP_STATE(&state);
 
     if (Do_At_Throws(&result, block, index, SPECIFIED))
-        panic (Error_No_Catch_For_Throw(&result));
+        panic (&result);
 
     ASSERT_STATE_BALANCED(&state);
 
     if (!IS_VOID(&result))
-        panic (Error(RE_MISC));
+        panic (&result);
 }
 
 
 //
 //  Load_Boot: C
-// 
+//
 // Decompress and scan in the boot block structure.  Can
 // only be called at the correct point because it will
 // create new symbols.
@@ -284,8 +275,8 @@ static void Load_Boot(void)
         Native_Specs, NAT_COMPRESSED_SIZE, NAT_UNCOMPRESSED_SIZE, FALSE, FALSE
     );
 
-    if (!utf8 || SER_LEN(utf8) != NAT_UNCOMPRESSED_SIZE)
-        panic (Error(RE_BOOT_DATA));
+    if (utf8 == NULL || SER_LEN(utf8) != NAT_UNCOMPRESSED_SIZE)
+        panic ("decompressed native specs size mismatch (try `make clean`)");
 
     REBARR *boot = Scan_UTF8_Managed(BIN_HEAD(utf8), NAT_UNCOMPRESSED_SIZE);
     Free_Series(utf8);
@@ -299,7 +290,7 @@ static void Load_Boot(void)
     // There should be a datatype word for every REB_XXX type except REB_0
     //
     if (VAL_LEN_HEAD(&Boot_Block->types) != REB_MAX - 1)
-        panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
+        panic (&Boot_Block->types);
 
     // First type should be FUNCTION! (Note: Init_Symbols() hasn't run yet, so
     // cannot check this via VAL_WORD_SYM())
@@ -307,7 +298,7 @@ static void Load_Boot(void)
     if (0 != COMPARE_BYTES(
         cb_cast("function!"), VAL_WORD_HEAD(VAL_ARRAY_HEAD(&Boot_Block->types))
     )){
-        panic (Error(RE_BAD_BOOT_TYPE_BLOCK));
+        panic (VAL_ARRAY_HEAD(&Boot_Block->types));
     }
 
     // Create low-level string pointers (used by RS_ constants):
@@ -325,13 +316,13 @@ static void Load_Boot(void)
     }
 
     if (COMPARE_BYTES(cb_cast("newline"), BOOT_STR(RS_SCAN, 1)) != 0)
-        panic (Error(RE_BAD_BOOT_STRING));
+        panic (BOOT_STR(RS_SCAN, 1));
 }
 
 
 //
 //  Init_Datatypes: C
-// 
+//
 // Create the datatypes.
 //
 static void Init_Datatypes(void)
@@ -368,9 +359,9 @@ static void Init_Datatypes(void)
 
 //
 //  Init_Constants: C
-// 
+//
 // Init constant words.
-// 
+//
 // WARNING: Do not create direct pointers into the Lib_Context
 // because it may get expanded and the pointers will be invalid.
 //
@@ -424,11 +415,12 @@ REBNATIVE(action)
 
     REBVAL *spec = ARG(spec);
 
-    #if defined(NDEBUG)
-        REBFLGS flags = MKF_KEYWORDS | MKF_FAKE_RETURN;
-    #else
-        REBFLGS flags = MKF_KEYWORDS | MKF_RETURN; // want to check returns
-    #endif
+    // We only want to check the return type in the debug build.  In the
+    // release build, we want to have as few argument slots as possible...
+    // especially to get the optimization for 1 argument to go in the cell
+    // and not need to push arguments.
+    //
+    REBFLGS flags = MKF_KEYWORDS | MKF_FAKE_RETURN;
 
     REBFUN *fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(spec, flags),
@@ -441,7 +433,7 @@ REBNATIVE(action)
     // A lookback quoting function that quotes a SET-WORD! on its left is
     // responsible for setting the value if it wants it to change.
     //
-    *GET_MUTABLE_VAR_MAY_FAIL(ARG(verb), SPECIFIED) = *FUNC_VALUE(fun);
+    *SINK_VAR_MAY_FAIL(ARG(verb), SPECIFIED) = *FUNC_VALUE(fun);
 
     return R_BLANK; // result won't be used if a function left-quotes SET-WORD!
 }
@@ -522,7 +514,7 @@ static void Init_Function_Tag(const char *name, REBVAL *slot)
         Append_UTF8_May_Fail(NULL, cb_cast(name), strlen(name))
     );
     SET_SER_FLAG(VAL_SERIES(slot), SERIES_FLAG_FIXED_SIZE);
-    SET_SER_FLAG(VAL_SERIES(slot), SERIES_FLAG_LOCKED);
+    SET_SER_INFO(VAL_SERIES(slot), SERIES_INFO_LOCKED);
 }
 
 
@@ -549,7 +541,7 @@ static void Init_Function_Tags(void)
 
 //
 //  Init_Natives: C
-// 
+//
 // Create native functions.  In R3-Alpha this would go as far as actually
 // creating a NATIVE native by hand, and then run code that would call that
 // native for each function.  Ren-C depends on having the native table
@@ -601,7 +593,7 @@ static void Init_Natives(void)
 
     while (NOT_END(item)) {
         if (n >= NUM_NATIVES)
-            fail (Error(RE_MAX_NATIVES));
+            panic (item);
 
         // Each entry should be one of these forms:
         //
@@ -620,7 +612,7 @@ static void Init_Natives(void)
         // Get the name the native will be started at with in Lib_Context
         //
         if (!IS_SET_WORD(item))
-            panic (Error(RE_NATIVE_BOOT));
+            panic (item);
 
         REBVAL *name = KNOWN(item);
         ++item;
@@ -630,7 +622,7 @@ static void Init_Natives(void)
         REBOOL has_body;
         if (IS_WORD(item)) {
             if (VAL_WORD_SYM(item) != SYM_NATIVE)
-                panic (Error(RE_NATIVE_BOOT));
+                panic (item);
             has_body = FALSE;
         }
         else {
@@ -642,7 +634,7 @@ static void Init_Natives(void)
                 || !IS_WORD(ARR_AT(VAL_ARRAY(item), 1))
                 || VAL_WORD_SYM(ARR_AT(VAL_ARRAY(item), 1)) != SYM_BODY
             ) {
-                panic (Error(RE_NATIVE_BOOT));
+                panic (item);
             }
             has_body = TRUE;
         }
@@ -652,7 +644,7 @@ static void Init_Natives(void)
         // level and does not understand <opt>)
         //
         if (!IS_BLOCK(item))
-            panic (Error(RE_NATIVE_BOOT));
+            panic (item);
 
         REBVAL *spec = KNOWN(item);
         assert(VAL_INDEX(spec) == 0); // must be at head (we don't copy)
@@ -662,11 +654,12 @@ static void Init_Natives(void)
         // the Natives table.  The associated C function is provided by a
         // table built in the bootstrap scripts, `Native_C_Funcs`.
 
-    #if defined(NDEBUG)
+        // We only want to check the return type in the debug build.  In the
+        // release build, we want to have as few argument slots as possible...
+        // especially to get the optimization for 1 argument to go in the cell
+        // and not need to push arguments.
+        //
         REBFLGS flags = MKF_KEYWORDS | MKF_FAKE_RETURN;
-    #else
-        REBFLGS flags = MKF_KEYWORDS | MKF_RETURN; // want to check returns
-    #endif
 
         REBFUN *fun = Make_Function(
             Make_Paramlist_Managed_May_Fail(KNOWN(spec), flags),
@@ -679,7 +672,7 @@ static void Init_Natives(void)
         //
         if (has_body) {
             if (!IS_BLOCK(item))
-                panic (Error(RE_NATIVE_BOOT));
+                panic (item);
             *FUNC_BODY(fun) = *KNOWN(item); // !!! handle relative?
             ++item;
         }
@@ -702,12 +695,10 @@ static void Init_Natives(void)
     }
 
     if (n != NUM_NATIVES)
-        fail (Error(RE_NATIVE_BOOT));
+        panic ("Incorrect number of natives found during processing");
 
-    // Should have found and bound `action:` among the natives
-    //
-    if (!action_word)
-        panic (Error(RE_NATIVE_BOOT));
+    if (action_word == NULL)
+        panic ("ACTION function was not found while processing natives");
 
     // With the natives registered (including ACTION), it's now safe to
     // run the evaluator to register the actions.
@@ -717,17 +708,17 @@ static void Init_Natives(void)
     // Sanity check the symbol transformation
     //
     if (0 != strcmp("open", cs_cast(STR_HEAD(Canon(SYM_OPEN)))))
-        panic (Error(RE_NATIVE_BOOT));
+        panic (Canon(SYM_OPEN));
 }
 
 
 //
 //  Init_Root_Context: C
-// 
+//
 // Hand-build the root context where special REBOL values are
 // stored. Called early, so it cannot depend on any other
 // system structures or values.
-// 
+//
 // Note that the Root_Vars's word table is unset!
 // None of its values are exported.
 //
@@ -736,7 +727,7 @@ static void Init_Root_Context(void)
     REBCTX *root = Alloc_Context(ROOT_MAX - 1);
     PG_Root_Context = root;
 
-    SET_ARR_FLAG(CTX_VARLIST(root), SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAG(CTX_VARLIST(root), SERIES_FLAG_FIXED_SIZE);
     Root_Vars = cast(ROOT_VARS*, ARR_HEAD(CTX_VARLIST(root)));
 
     // Get rid of the keylist, we will make another one later in the boot.
@@ -768,8 +759,13 @@ static void Init_Root_Context(void)
     // These values are simple isolated VOID, NONE, TRUE, and FALSE values
     // that can be used in lieu of initializing them.  They are initialized
     // as two-element series in order to ensure that their address is not
-    // treated as an array.  They are unsettable (in debug builds), to avoid
-    // their values becoming overwritten.
+    // treated as an array.
+    //
+    // They should only be accessed by macros which retrieve their values
+    // as `const`, to avoid the risk of accidentally changing them.  (This
+    // rule is broken by some special system code which `m_cast`s them for
+    // the purpose of using them as directly recognizable pointers which
+    // also look like values.)
     //
     // It is presumed that these types will never need to have GC behavior,
     // and thus can be stored safely in program globals without mention in
@@ -778,47 +774,41 @@ static void Init_Root_Context(void)
 
     SET_VOID(&PG_Void_Cell[0]);
     SET_TRASH_IF_DEBUG(&PG_Void_Cell[1]);
-    MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(&PG_Void_Cell[1]);
 
     SET_BLANK(&PG_Blank_Value[0]);
     SET_TRASH_IF_DEBUG(&PG_Blank_Value[1]);
-    MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(&PG_Blank_Value[1]);
 
     SET_BAR(&PG_Bar_Value[0]);
     SET_TRASH_IF_DEBUG(&PG_Bar_Value[1]);
-    MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(&PG_Bar_Value[1]);
 
     SET_FALSE(&PG_False_Value[0]);
     SET_TRASH_IF_DEBUG(&PG_False_Value[1]);
-    MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(&PG_False_Value[1]);
 
     SET_TRUE(&PG_True_Value[0]);
     SET_TRASH_IF_DEBUG(&PG_True_Value[1]);
-    MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(&PG_True_Value[1]);
 
     // We can't actually put an end value in the middle of a block, so we poke
     // this one into a program global.  It is not legal to bit-copy an
     // END (you always use SET_END), so we can make it unwritable.
     //
-    PG_End_Cell.header.bits = 0; // read-only end
+    PG_End_Cell.header.bits = NODE_FLAG_END; // read-only end
     assert(IS_END(END_CELL)); // sanity check that it took
 
     // The EMPTY_BLOCK provides EMPTY_ARRAY.  It is locked for protection.
     //
     Val_Init_Block(ROOT_EMPTY_BLOCK, Make_Array(0));
-    SET_SER_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SERIES_FLAG_LOCKED);
+    SET_SER_INFO(VAL_SERIES(ROOT_EMPTY_BLOCK), SERIES_INFO_LOCKED);
     SET_SER_FLAG(VAL_SERIES(ROOT_EMPTY_BLOCK), SERIES_FLAG_FIXED_SIZE);
 
     REBSER *empty_series = Make_Binary(1);
     *BIN_AT(empty_series, 0) = '\0';
     Val_Init_String(ROOT_EMPTY_STRING, empty_series);
-    SET_SER_FLAG(VAL_SERIES(ROOT_EMPTY_STRING), SERIES_FLAG_LOCKED);
+    SET_SER_INFO(VAL_SERIES(ROOT_EMPTY_STRING), SERIES_INFO_LOCKED);
     SET_SER_FLAG(VAL_SERIES(ROOT_EMPTY_STRING), SERIES_FLAG_FIXED_SIZE);
 
     // Used by REBNATIVE(print)
     //
     SET_CHAR(ROOT_SPACE_CHAR, ' ');
-    MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(ROOT_SPACE_CHAR);
 
     // Can't ASSERT_CONTEXT here; no keylist yet...
 }
@@ -826,7 +816,7 @@ static void Init_Root_Context(void)
 
 //
 //  Set_Root_Series: C
-// 
+//
 // Used to set block and string values in the ROOT context.
 //
 void Set_Root_Series(REBVAL *value, REBSER *ser)
@@ -846,7 +836,7 @@ void Set_Root_Series(REBVAL *value, REBSER *ser)
 
 //
 //  Init_Task_Context: C
-// 
+//
 // See above notes (same as root context, except for tasks)
 //
 static void Init_Task_Context(void)
@@ -854,7 +844,7 @@ static void Init_Task_Context(void)
     REBCTX *task = Alloc_Context(TASK_MAX - 1);
     TG_Task_Context = task;
 
-    SET_ARR_FLAG(CTX_VARLIST(task), SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAG(CTX_VARLIST(task), SERIES_FLAG_FIXED_SIZE);
     Task_Vars = cast(TASK_VARS*, ARR_HEAD(CTX_VARLIST(task)));
 
     // Get rid of the keylist, we will make another one later in the boot.
@@ -891,7 +881,7 @@ static void Init_Task_Context(void)
     // The thrown arg is not intended to ever be around long enough to be
     // seen by the GC.
     //
-    SET_TRASH_IF_DEBUG(&TG_Thrown_Arg);
+    SET_UNREADABLE_BLANK(&TG_Thrown_Arg);
 
     // Can't ASSERT_CONTEXT here; no keylist yet...
 }
@@ -899,7 +889,7 @@ static void Init_Task_Context(void)
 
 //
 //  Init_System_Object: C
-// 
+//
 // Evaluate the system object and create the global SYSTEM word.  We do not
 // BIND_ALL here to keep the internal system words out of the global context.
 // (See also N_context() which creates the subobjects of the system object.)
@@ -925,9 +915,9 @@ static void Init_System_Object(void)
     //
     REBVAL result;
     if (DO_VAL_ARRAY_AT_THROWS(&result, &Boot_Block->sysobj))
-        panic (Error_No_Catch_For_Throw(&result));
+        panic (&result);
     if (!IS_VOID(&result))
-        panic (Error(RE_MISC));
+        panic (&result);
 
     // Create a global value for it.  (This is why we are able to say `system`
     // and have it bound in lines like `sys: system/contexts/sys`)
@@ -998,7 +988,10 @@ static void Init_System_Object(void)
 //
 static void Init_Contexts_Object(void)
 {
+    DROP_GUARD_CONTEXT(Sys_Context);
     Val_Init_Object(Get_System(SYS_CONTEXTS, CTX_SYS), Sys_Context);
+
+    DROP_GUARD_CONTEXT(Lib_Context);
     Val_Init_Object(Get_System(SYS_CONTEXTS, CTX_LIB), Lib_Context);
     Val_Init_Object(Get_System(SYS_CONTEXTS, CTX_USER), Lib_Context);
 }
@@ -1044,7 +1037,6 @@ REBINT Codec_UTF16(int action, REBCDI *codi, REBOOL little_endian)
             UNI_HEAD(ser), codi->data, codi->len, little_endian, FALSE
         );
         SET_SERIES_LEN(ser, size);
-        MANAGE_SERIES(ser);
         if (size < 0) { //ASCII
             REBSER *dst = Make_Binary((size = -size));
             Append_Uni_Bytes(dst, UNI_HEAD(ser), size);
@@ -1058,7 +1050,6 @@ REBINT Codec_UTF16(int action, REBCDI *codi, REBOOL little_endian)
 
     if (action == CODI_ACT_ENCODE) {
         u16 * data = ALLOC_N(u16, codi->len);
-        codi->data = cast(unsigned char*, data);
         if (codi->w == 1) {
             /* in ASCII */
             REBCNT i = 0;
@@ -1140,7 +1131,7 @@ REBINT Codec_UTF16BE(int action, REBCDI *codi)
 
 //
 //  Register_Codec: C
-// 
+//
 // Internal function for adding a codec.
 //
 void Register_Codec(const REBYTE *name, codo dispatcher)
@@ -1202,7 +1193,7 @@ static REBSTR *Set_Option_Word(REBCHR *str, REBCNT field)
 
 //
 //  Init_Main_Args: C
-// 
+//
 // The system object is defined in boot.r.
 //
 static void Init_Main_Args(REBARGS *rargs)
@@ -1366,14 +1357,12 @@ void Init_Task(void)
     Init_Mold(MIN_COMMON/4);
     Init_Collector();
     //Inspect_Series(0);
-
-    SET_TRASH_SAFE(&TG_Thrown_Arg);
 }
 
 
 //
 //  Init_Core: C
-// 
+//
 // Initialize the interpreter core.
 //
 // !!! This will either succeed or "panic".  Panic currently triggers an exit
@@ -1382,12 +1371,12 @@ void Init_Task(void)
 //
 // The phases of initialization are tracked by PG_Boot_Phase.  Some system
 // functions are unavailable at certain phases.
-// 
+//
 // Though most of the initialization is run as C code, some portions are run
 // in Rebol.  For instance, ACTION is a function registered very early on in
 // the boot process, which is run from within a block to register more
 // functions.
-// 
+//
 // At the tail of the initialization, `finish_init_core` is run.  This Rebol
 // function lives in %sys-start.r.   It should be "host agnostic" and not
 // assume things about command-line switches (or even that there is a command
@@ -1396,11 +1385,15 @@ void Init_Task(void)
 void Init_Core(REBARGS *rargs)
 {
 #if defined(TEST_EARLY_BOOT_PANIC)
-    // This is a good place to test if the "pre-booting panic" is working.
-    // It should be unable to present a format string, only the error code.
-    panic (Error(RE_NO_VALUE, BLANK_VALUE));
+    //
+    // It should be legal to panic at any time (especially given that the
+    // bar for success is "crash")
+    //
+    panic ("early panic test");
 #elif defined(TEST_EARLY_BOOT_FAIL)
-    // A fail should have the same behavior as a panic at this boot phase.
+    //
+    // A fail should fall back on panic at this boot phase.
+    //
     fail (Error(RE_NO_VALUE, BLANK_VALUE));
 #endif
 
@@ -1458,21 +1451,17 @@ void Init_Core(REBARGS *rargs)
 
     // !!! Have MAKE-BOOT compute # of words
     //
-    // Must manage, else Expand_Context() looks like a leak
-    //
     Lib_Context = Alloc_Context(600);
-    MANAGE_ARRAY(CTX_VARLIST(Lib_Context));
-
     VAL_RESET_HEADER(CTX_VALUE(Lib_Context), REB_OBJECT);
     CTX_VALUE(Lib_Context)->extra.binding = NULL;
+    MANAGE_ARRAY(CTX_VARLIST(Lib_Context));
+    PUSH_GUARD_CONTEXT(Lib_Context);
 
-    // Must manage, else Expand_Context() looks like a leak
-    //
     Sys_Context = Alloc_Context(50);
-    MANAGE_ARRAY(CTX_VARLIST(Sys_Context));
-
     VAL_RESET_HEADER(CTX_VALUE(Sys_Context), REB_OBJECT);
     CTX_VALUE(Sys_Context)->extra.binding = NULL;
+    MANAGE_ARRAY(CTX_VARLIST(Sys_Context));
+    PUSH_GUARD_CONTEXT(Sys_Context);
 
     DOUT("Level 2");
 
@@ -1500,7 +1489,7 @@ void Init_Core(REBARGS *rargs)
     ASSERT_CONTEXT(PG_Root_Context);
 
     ARR_SERIES(CTX_VARLIST(PG_Root_Context))->header.bits
-        |= REBSER_REBVAL_FLAG_ROOT;
+        |= NODE_FLAG_ROOT;
 
     // Get the words of the TASK context (to avoid it being an exception case)
     //
@@ -1514,7 +1503,7 @@ void Init_Core(REBARGS *rargs)
     ASSERT_CONTEXT(TG_Task_Context);
 
     ARR_SERIES(CTX_VARLIST(TG_Task_Context))->header.bits
-        |= REBSER_REBVAL_FLAG_ROOT;
+        |= NODE_FLAG_ROOT;
 
     // Create main values:
     DOUT("Level 3");
@@ -1523,6 +1512,7 @@ void Init_Core(REBARGS *rargs)
     Init_Constants();       // Constant values
     Init_Function_Tags();
     Add_Lib_Keys_R3Alpha_Cant_Make();
+    SET_UNREADABLE_BLANK(&Callback_Error);
 
     // Run actual code:
     DOUT("Level 4");
@@ -1534,16 +1524,19 @@ void Init_Core(REBARGS *rargs)
     Init_Codecs();
     Init_Errors(&Boot_Block->errors); // Needs system/standard/error object
 
-    SET_VOID(&Callback_Error);
-
     PG_Boot_Phase = BOOT_ERRORS;
 
 #if defined(TEST_MID_BOOT_PANIC)
-    // At this point panics should be able to present the full message.
-    panic (Error(RE_NO_VALUE, BLANK_VALUE));
+    //
+    // At this point panics should be able to do a reasonable job of giving
+    // details on Rebol types.
+    //
+    panic (EMPTY_ARRAY);
 #elif defined(TEST_MID_BOOT_FAIL)
+    //
     // With no PUSH_TRAP yet, fail should give a localized assert in a debug
-    // build but act like panic does in a release build.
+    // build, and panic the release build.
+    //
     fail (Error(RE_NO_VALUE, BLANK_VALUE));
 #endif
 
@@ -1561,18 +1554,13 @@ void Init_Core(REBARGS *rargs)
 // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
 
     if (error) {
-        REBVAL temp;
-        Val_Init_Error(&temp, error);
-
-        // You shouldn't be able to halt during Init_Core() startup.
-        // The only way you should be able to stop Init_Core() is by raising
-        // an error, at which point the system will Panic out.
-        // !!! TBD: Enforce not being *able* to trigger HALT
+        //
+        // !!! There may be unexpected cases that would cause an error during
+        // Init_Core() startup, which will then panic.  BUT it should not
+        // even be *possible* to trigger a HALT.  TBD: Enforce this.
+        //
         assert(ERR_NUM(error) != RE_HALT);
-
-        // If an error was raised during startup, print it and crash.
-        Print_Value(&temp, 1024, FALSE);
-        panic (Error(RE_MISC));
+        panic (error);
     }
 
     Init_Crypto();
@@ -1598,18 +1586,23 @@ void Init_Core(REBARGS *rargs)
     if (Apply_Only_Throws(
         &result, TRUE, Sys_Func(SYS_CTX_FINISH_INIT_CORE), END_CELL
     )) {
-        // Note: You shouldn't be able to throw any uncaught values during
+        // You shouldn't be able to throw any uncaught values during
         // Init_Core() startup, including throws implementing QUIT or EXIT.
-        assert(FALSE);
-        fail (Error_No_Catch_For_Throw(&result));
+        // A fail() would just jump up to the error delivery above, so a
+        // panic here more clearly indicates the moment of the problem.
+        //
+        panic (&result);
     }
 
-    // Success of the 'finish-init-core' Rebol code is signified by returning
-    // void (all other return results indicate an error state)
-
     if (!IS_VOID(&result)) {
-        Debug_Fmt("** 'finish-init-core' returned value: %r", &result);
-        panic (Error(RE_MISC));
+        //
+        // !!! `finish-init-core` Rebol code should return void, but it may be
+        // that more graceful error delivery than a panic should be given if
+        // it does not.  It may be that fairly legitimate circumstances which
+        // the user could fix would cause a more ordinary message delivery.
+        // For the moment, though, we panic on any non-void return result.
+        // 
+        panic (&result);
     }
 
     assert(DSP == 0 && FS_TOP == NULL);
@@ -1626,7 +1619,7 @@ void Init_Core(REBARGS *rargs)
 
 //
 //  Shutdown_Core: C
-// 
+//
 // The goal of Shutdown_Core() is to release all memory and resources that the
 // interpreter has accrued since Init_Core().  This is a good "sanity check"
 // that there aren't unaccounted-for leaks (or semantic errors which such
@@ -1637,7 +1630,7 @@ void Init_Core(REBARGS *rargs)
 // clients wishing a speedy exit may force an exit to the OS instead of doing
 // a clean shut down.  (Note: There still might be some system resources
 // that need to be waited on, such as asynchronous writes.)
-// 
+//
 // While some leaks are detected by the debug build during shutdown, even more
 // can be found with a tool like Valgrind or Address Sanitizer.
 //
@@ -1654,10 +1647,10 @@ void Shutdown_Core(void)
     // created by Alloc_Pairing() with an owning context should be freed.
     //
     ARR_SERIES(CTX_VARLIST(PG_Root_Context))->header.bits
-        &= (~REBSER_REBVAL_FLAG_ROOT);
+        &= (~NODE_FLAG_ROOT);
     ARR_SERIES(CTX_VARLIST(TG_Task_Context))->header.bits
-        &= (~REBSER_REBVAL_FLAG_ROOT);
-    Recycle_Core(TRUE, NULL);
+        &= (~NODE_FLAG_ROOT);
+    Recycle_Core(TRUE);
 
     FREE_N(REBYTE*, RS_MAX, PG_Boot_Strs);
 

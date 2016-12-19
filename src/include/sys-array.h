@@ -60,7 +60,10 @@ struct Reb_Array {
 // one kind of pointer as the other (and they are both Reb_Series)
 //
 static inline REBARR* AS_ARRAY(REBSER *s) {
-    assert(Is_Array_Series(s));
+#if !defined(NDEBUG)
+    if (!Is_Array_Series(s))
+        panic (s);
+#endif
     return cast(REBARR*, s);
 }
 
@@ -131,23 +134,8 @@ inline static void TERM_SERIES(REBSER *s) {
 // Setting and getting array flags is common enough to want a macro for it
 // vs. having to extract the ARR_SERIES to do it each time.
 //
-#define SET_ARR_FLAG(a,f) \
-    SET_SER_FLAG(ARR_SERIES(a), (f))
-
-#define CLEAR_ARR_FLAG(a,f) \
-    CLEAR_SER_FLAG(ARR_SERIES(a), (f))
-
-#define GET_ARR_FLAG(a,f) \
-    GET_SER_FLAG(ARR_SERIES(a), (f))
-
 #define FAIL_IF_LOCKED_ARRAY(a) \
     FAIL_IF_LOCKED_SERIES(ARR_SERIES(a))
-
-#define PUSH_GUARD_ARRAY(a) \
-    PUSH_GUARD_SERIES(ARR_SERIES(a))
-
-#define DROP_GUARD_ARRAY(a) \
-    DROP_GUARD_SERIES(ARR_SERIES(a))
 
 #define IS_ARRAY_MANAGED(array) \
     IS_SERIES_MANAGED(ARR_SERIES(array))
@@ -157,6 +145,30 @@ inline static void TERM_SERIES(REBSER *s) {
 
 #define ENSURE_ARRAY_MANAGED(array) \
     ENSURE_SERIES_MANAGED(ARR_SERIES(array))
+
+#define PUSH_GUARD_ARRAY(a) \
+    PUSH_GUARD_SERIES(ARR_SERIES(a))
+
+#define DROP_GUARD_ARRAY(a) \
+    DROP_GUARD_SERIES(ARR_SERIES(a))
+
+inline static void PUSH_GUARD_ARRAY_CONTENTS(REBARR *a) {
+    assert(!IS_ARRAY_MANAGED(a)); // if managed, just use PUSH_GUARD_ARRAY
+    Guard_Node_Core(cast(REBNOD*, a));
+}
+
+inline static void DROP_GUARD_ARRAY_CONTENTS(REBARR *a) {
+#if !defined(NDEBUG)
+    //
+    // Make sure no unmanaged values were put in the array, because they
+    // would have caused errors if the GC had seen them!
+    //
+    RELVAL *test = ARR_HEAD(a);
+    for (; NOT_END(test); ++test)
+        ASSERT_VALUE_MANAGED(test);
+#endif
+    DROP_GUARD_SERIES(ARR_SERIES(a));
+}
 
 
 // Make a series that is the right size to store REBVALs (and
@@ -168,8 +180,8 @@ inline static REBARR *Make_Array(REBCNT capacity)
     REBSER *s = Make_Series(capacity + 1, sizeof(REBVAL), MKS_ARRAY);
     assert(
         capacity <= 1
-            ? NOT(GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC))
-            : GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)
+            ? NOT(GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC))
+            : GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)
     );
 
     REBARR *a = AS_ARRAY(s);
@@ -187,10 +199,10 @@ inline static REBARR *Make_Array(REBCNT capacity)
 //
 inline static REBARR *Alloc_Singular_Array(void) {
     REBSER *s = Make_Series(2, sizeof(REBVAL), MKS_ARRAY); // no real 2nd slot
-    assert(NOT(GET_SER_FLAG(s, SERIES_FLAG_HAS_DYNAMIC)));
+    assert(NOT(GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)));
 
     REBARR *a = AS_ARRAY(s);
-    SET_ARR_FLAG(a, SERIES_FLAG_FIXED_SIZE);
+    SET_SER_FLAG(a, SERIES_FLAG_FIXED_SIZE);
 
     SET_SERIES_LEN(s, 1); // currently needs length bits set
     assert(IS_END(ARR_TAIL(a)));
@@ -203,7 +215,7 @@ inline static REBARR *Alloc_Singular_Array(void) {
     (*Alloc_Tail_Array(a) = *(v), NOOP)
 
 #define Append_Value_Core(a,v,s) \
-    COPY_VALUE(Alloc_Tail_Array(a), (v), (s))
+    Derelativize(Alloc_Tail_Array(a), (v), (s))
 
 
 #define Copy_Values_Len_Shallow(v,s,l) \
@@ -338,12 +350,6 @@ inline static RELVAL *VAL_ARRAY_TAIL(const RELVAL *v) {
 
     #define ASSERT_ARRAY_MANAGED(array) \
         ASSERT_SERIES_MANAGED(ARR_SERIES(array))
-
-    #define Panic_Array(a) \
-        Panic_Series(ARR_SERIES(a))
-
-    #define Debug_Array(a) \
-        Debug_Series(ARR_SERIES(a))
 
     static inline void ASSERT_SERIES(REBSER *s) {
         if (Is_Array_Series(s))

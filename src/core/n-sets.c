@@ -40,7 +40,7 @@ enum {
 
 //
 //  Make_Set_Operation_Series: C
-// 
+//
 // Do set operations on a series.  Case-sensitive if `cased` is TRUE.
 // `skip` is the record size.
 //

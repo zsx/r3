@@ -43,11 +43,10 @@
 
 #ifdef NDEBUG
     #define WORD_FLAG(n) \
-        (1 << (TYPE_SPECIFIC_BIT + (n)))
+        FLAGIT_LEFT(TYPE_SPECIFIC_BIT + (n))
 #else
     #define WORD_FLAG(n) \
-        ((1 << (TYPE_SPECIFIC_BIT + (n))) \
-            | TYPE_SHIFT_LEFT_FOR_HEADER(REB_WORD)) // interpreted as ANY-WORD!
+        (FLAGIT_LEFT(TYPE_SPECIFIC_BIT + (n)) | HEADERIZE_KIND(REB_WORD))
 #endif
 
 // `WORD_FLAG_BOUND` answers whether a word is bound, but it may be
@@ -59,16 +58,6 @@
 // If VALUE_FLAG_RELATIVE is set, then WORD_FLAG_BOUND must also be set.
 //
 #define WORD_FLAG_BOUND WORD_FLAG(0)
-
-// A special kind of word is used during argument fulfillment to hold
-// a refinement's word on the data stack, augmented with its param
-// and argument location.  This helps fulfill "out-of-order" refinement
-// usages more quickly without having to do two full arglist walks.
-//
-// !!! Currently this is being done with a VARARGS! though this may not be
-// the best idea, and pickup words may be brought back.
-//
-#define WORD_FLAG_PICKUP WORD_FLAG(1)
 
 
 #define IS_WORD_BOUND(v) \

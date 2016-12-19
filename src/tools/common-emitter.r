@@ -25,7 +25,7 @@ REBOL [
 buf-emit: make string! 100000
 
 
-emit: proc [data] [repend buf-emit data]
+emit: proc [data] [adjoin buf-emit data]
 
 
 unemit: proc [
@@ -80,7 +80,7 @@ emit-item: proc [
     name: to-c-name name
     if upper [uppercase name]
     either assign [
-        emit-line/indent [name space "=" num ","]
+        emit-line/indent [name space "=" space num ","]
     ][
         emit-line/indent [name ","]
     ]

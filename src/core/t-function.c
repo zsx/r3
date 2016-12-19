@@ -62,18 +62,18 @@ REBINT CT_Function(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 //
 //  MAKE_Function: C
-// 
+//
 // For REB_FUNCTION and "make spec", there is a function spec block and then
 // a block of Rebol code implementing that function.  In that case we expect
 // that `def` should be:
-// 
+//
 //     [[spec] [body]]
-// 
+//
 // With REB_COMMAND, the code is implemented via a C DLL, under a system of
 // APIs that pre-date Rebol's open sourcing and hence Ren/C:
-// 
+//
 //     [[spec] extension command-num]
-// 
+//
 // See notes in Make_Command() regarding that mechanism and meaning.
 //
 void MAKE_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
@@ -90,10 +90,10 @@ void MAKE_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     }
 
     REBVAL spec;
-    COPY_VALUE(&spec, VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg));
+    Derelativize(&spec, VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg));
 
     REBVAL body;
-    COPY_VALUE(&body, VAL_ARRAY_AT(arg) + 1, VAL_SPECIFIER(arg));
+    Derelativize(&body, VAL_ARRAY_AT(arg) + 1, VAL_SPECIFIER(arg));
 
     // Spec-constructed functions do *not* have definitional returns
     // added automatically.  They are part of the generators.  So the
@@ -147,19 +147,11 @@ REBTYPE(Function)
 
         switch (sym) {
         case SYM_ADDR:
-            if (
-                IS_FUNCTION_RIN(value)
-                && GET_RIN_FLAG(VAL_FUNC_ROUTINE(value), ROUTINE_FLAG_CALLBACK)
-            ) {
-                SET_INTEGER(
-                    D_OUT, cast(REBUPT, RIN_DISPATCHER(VAL_FUNC_ROUTINE(value)))
-                );
-                return R_OUT;
-            }
-            if (
-                IS_FUNCTION_RIN(value)
-                && !GET_RIN_FLAG(VAL_FUNC_ROUTINE(value), ROUTINE_FLAG_CALLBACK)
-            ) {
+            if (IS_FUNCTION_RIN(value)) {
+                //
+                // The CFUNC is fabricated by the FFI if it's a callback, or
+                // just the wrapped DLL function if it's an ordinary routine
+                //
                 SET_INTEGER(
                     D_OUT, cast(REBUPT, RIN_CFUNC(VAL_FUNC_ROUTINE(value)))
                 );
@@ -285,7 +277,7 @@ REBNATIVE(func_class_of)
     else if (IS_FUNCTION_COMMAND(value))
         n = 4;
     else if (IS_FUNCTION_RIN(value)) {
-        if (!GET_RIN_FLAG(VAL_FUNC_ROUTINE(value), ROUTINE_FLAG_CALLBACK))
+        if (NOT(RIN_IS_CALLBACK(VAL_FUNC_ROUTINE(value))))
             n = 5;
         else
             n = 6;

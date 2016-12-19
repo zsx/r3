@@ -146,7 +146,7 @@ static int Poll_Default(REBDEV *dev)
 
 //
 //  Attach_Request: C
-// 
+//
 // Attach a request to a device's pending or accept list.
 // Node is a pointer to the head pointer of the req list.
 //
@@ -174,7 +174,7 @@ void Attach_Request(REBREQ **node, REBREQ *req)
 
 //
 //  Detach_Request: C
-// 
+//
 // Detach a request to a device's pending or accept list.
 // If it is not in list, then no harm done.
 //
@@ -208,7 +208,7 @@ extern void Done_Device(REBUPT handle, int error);
 
 //
 //  Done_Device: C
-// 
+//
 // Given a handle mark the related request as done.
 // (Used by DNS device).
 //
@@ -237,7 +237,7 @@ void Done_Device(REBUPT handle, int error)
 
 //
 //  Signal_Device: C
-// 
+//
 // Generate a device event to awake a port on REBOL.
 //
 void Signal_Device(REBREQ *req, REBINT type)
@@ -257,9 +257,9 @@ void Signal_Device(REBREQ *req, REBINT type)
 
 //
 //  OS_Call_Device: C
-// 
+//
 // Shortcut for non-request calls to device.
-// 
+//
 // Init - Initialize any device-related resources (e.g. libs).
 // Quit - Cleanup any device-related resources.
 // Make - Create and initialize a request for a device.
@@ -289,10 +289,10 @@ int OS_Call_Device(REBINT device, REBCNT command)
 
 //
 //  OS_Do_Device: C
-// 
+//
 // Tell a device to perform a command. Non-blocking in many
 // cases and will attach the request for polling.
-// 
+//
 // Returns:
 //     =0: for command success
 //     >0: for command still pending
@@ -370,7 +370,7 @@ REBREQ *OS_Make_Devreq(int device)
 
 //
 //  OS_Abort_Device: C
-// 
+//
 // Ask device to abort prior request.
 //
 int OS_Abort_Device(REBREQ *req)
@@ -384,11 +384,11 @@ int OS_Abort_Device(REBREQ *req)
 
 //
 //  OS_Poll_Devices: C
-// 
+//
 // Poll devices for activity.
-// 
+//
 // Returns count of devices that changed status.
-// 
+//
 // Devices with pending lists will be called to see if
 // there is a change in status of those requests. If so,
 // those devices are allowed to change the state of those
@@ -425,14 +425,14 @@ int OS_Poll_Devices(void)
 
 //
 //  OS_Quit_Devices: C
-// 
+//
 // Terminate all devices in preparation to quit.
-// 
+//
 // Allows devices to perform cleanup and resource freeing.
-// 
+//
 // Set flags to zero for now. (May later be used to indicate
 // a device query check or a brute force quit.)
-// 
+//
 // Returns: 0 for now.
 //
 int OS_Quit_Devices(int flags)
@@ -453,18 +453,18 @@ int OS_Quit_Devices(int flags)
 
 //
 //  OS_Wait: C
-// 
+//
 // Check if devices need attention, and if not, then wait.
 // The wait can be interrupted by a GUI event, otherwise
 // the timeout will wake it.
-// 
+//
 // Res specifies resolution. (No wait if less than this.)
-// 
+//
 // Returns:
 //     -1: Devices have changed state.
 //      0: past given millsecs
 //      1: wait in timer
-// 
+//
 // The time it takes for the devices to be scanned is
 // subtracted from the timer value.
 //

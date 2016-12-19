@@ -196,7 +196,7 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 
 //
 //  Vector_To_Array: C
-// 
+//
 // Convert a vector to a block.
 //
 REBARR *Vector_To_Array(const REBVAL *vect)
@@ -306,7 +306,7 @@ void Set_Vector_Value(REBVAL *var, REBSER *series, REBCNT index)
 
 //
 //  Make_Vector: C
-// 
+//
 // type: the datatype
 // sign: signed or unsigned
 // dims: number of dimensions
@@ -340,9 +340,9 @@ REBSER *Make_Vector(REBINT type, REBINT sign, REBINT dims, REBINT bits, REBINT s
 
 //
 //  Make_Vector_Spec: C
-// 
+//
 // Make a vector from a block spec.
-// 
+//
 //    make vector! [integer! 32 100]
 //    make vector! [decimal! 64 100]
 //    make vector! [unsigned integer! 32]

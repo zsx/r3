@@ -42,9 +42,9 @@
 
 //
 //  eval: native [
-//  
+//
 //  {(Special) Process received value *inline* as the evaluator loop would.}
-//  
+//
 //      value [<opt> any-value!]
 //          {BLOCK! passes-thru, FUNCTION! runs, SET-WORD! assigns...}
 //      /only
@@ -86,7 +86,7 @@ REBNATIVE(eval)
 
 //
 //  do: native [
-//  
+//
 //  {Evaluates a block of source code (directly or fetched according to type)}
 //
 //      return: [<opt> any-value!]
@@ -144,7 +144,7 @@ REBNATIVE(do)
                 // then have it indicate the start of the thrown expression
                 //
                 if (!IS_BLANK(ARG(var))) {
-                    *GET_MUTABLE_VAR_MAY_FAIL(ARG(var), SPECIFIED)
+                    *SINK_VAR_MAY_FAIL(ARG(var), SPECIFIED)
                         = *source;
                 }
 
@@ -166,7 +166,7 @@ REBNATIVE(do)
                 else
                     VAL_INDEX(source) = cast(REBCNT, indexor);
 
-                *GET_MUTABLE_VAR_MAY_FAIL(ARG(var), SPECIFIED)
+                *SINK_VAR_MAY_FAIL(ARG(var), SPECIFIED)
                     = *ARG(source);
             }
 
@@ -248,7 +248,7 @@ REBNATIVE(do)
         // kind of frames that come in as "objects plus function the object
         // is for" flavor.
         //
-        assert(!GET_ARR_FLAG(
+        assert(NOT_SER_FLAG(
             CTX_VARLIST(VAL_CONTEXT(source)), CONTEXT_FLAG_STACK)
         );
 

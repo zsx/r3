@@ -1,6 +1,6 @@
 ; functions/control/all.r
 ; zero values
-[true == all []]
+[void? all []]
 ; one value
 [:abs = all [:abs]]
 [
@@ -97,7 +97,7 @@
 ]
 [0:00 == all [0:00]]
 [0.0.0 == all [0.0.0]]
-[true == all [()]] ;-- Ren/C change
+[void? all [()]]
 ['a == all ['a]]
 ; two values
 [:abs = all [true :abs]]
@@ -193,7 +193,7 @@
 ]
 [0:00 == all [true 0:00]]
 [0.0.0 == all [true 0.0.0]]
-[true == all [1020 ()]] ;-- Ren/C change
+[1020 == all [1020 ()]]
 ['a == all [true 'a]]
 [true = all [:abs true]]
 [

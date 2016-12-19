@@ -59,40 +59,26 @@
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  DEBUG PROBE AND PANIC
+//  DEBUG PROBE
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // The PROBE macro can be used in debug builds to mold a REBVAL much like the
-// Rebol `probe` operation.  PROBE_MSG can add a message:
-//
-//     REBVAL *v = Some_Value_Pointer();
-//
-//     PROBE(v);
-//     PROBE_MSG(v, "the v value debug dump label");
+// Rebol `probe` operation.  It's actually polymorphic, and if you have
+// a REBSER*, REBCTX*, or REBARR* it can be used with those as well.
 //
 // In order to make it easier to find out where a piece of debug spew is
 // coming from, the file and line number will be output as well.
 //
-// PANIC_VALUE causes a crash on a value, while trying to provide information
-// that could identify where that value was assigned.  If it is resident
-// in a series and you are using Address Sanitizer or Valgrind, then it should
-// cause a crash that pinpoints the stack where that array was allocated.
+// Note: As a convenience, PROBE also flushes the `stdout` and `stderr` in
+// case the debug build was using printf() to output contextual information.
 //
 
 #if !defined(NDEBUG)
     #define PROBE(v) \
-        Probe_Core_Debug(NULL, __FILE__, __LINE__, (v))
-
-    #define PROBE_MSG(v, m) \
-        Probe_Core_Debug((m), __FILE__, __LINE__, (v))
-
-    #define PANIC_VALUE(v) \
-        Panic_Value_Debug((v), __FILE__, __LINE__)
+        Probe_Core_Debug((v), __FILE__, __LINE__)
 #endif
 
-#define Panic_Value(v) \
-    PANIC_VALUE(v)
 
 #define VAL_ALL_BITS(v) ((v)->payload.all.bits)
 
@@ -132,17 +118,23 @@
 // argument, it's not worth it to make it a function for slowdown caused.
 // Also, don't bother checking using the `cast()` template in C++.
 //
+// !!! Technically this is wasting two bits in the header, because there are
+// only 64 types that fit in a type bitset.  Yet the sheer commonness of
+// this operation makes bit masking expensive...and choosing the number of
+// types based on what fits in a 64-bit mask is not necessarily the most
+// future-proof concept in the first place.  Use a full byte for speed.
+//
 #define VAL_TYPE_RAW(v) \
-    ((enum Reb_Kind)((v)->header.bits >> HEADER_TYPE_SHIFT))
+    ((enum Reb_Kind)(RIGHT_8_BITS((v)->header.bits)))
 
 #ifdef NDEBUG
     #define VAL_TYPE(v) \
         VAL_TYPE_RAW(v)
 #else
     enum {
-        VOID_FLAG_NOT_TRASH = (1 << TYPE_SPECIFIC_BIT),
-        VOID_FLAG_SAFE_TRASH = (2 << TYPE_SPECIFIC_BIT)
-    };
+        VOID_FLAG_NOT_TRASH = FLAGIT_LEFT(TYPE_SPECIFIC_BIT + 0),
+        VOID_FLAG_SAFE_TRASH = FLAGIT_LEFT(TYPE_SPECIFIC_BIT + 1)
+    }; // ^-- safe trash is better thought of as "unreadable blank"
 
     inline static REBOOL IS_TRASH_DEBUG(const RELVAL *v) {
         // note this is directly inlined into VAL_TYPE_Debug() below
@@ -157,7 +149,7 @@
     ){
         enum Reb_Kind kind = VAL_TYPE_RAW(v);
         if (
-            (v->header.bits & CELL_MASK)
+            (v->header.bits & NODE_FLAG_CELL)
             && NOT(IS_END_MACRO(v)) // IS_END redundantly checks trash
             && NOT(
                 kind == REB_MAX_VOID
@@ -168,10 +160,9 @@
             return kind;
         }
 
-        assert(v->header.bits & CELL_MASK);
+        assert(v->header.bits & NODE_FLAG_CELL);
         printf("END marker or garbage/trash in VAL_TYPE()\n");
-        fflush(stdout);
-        Panic_Value_Debug(v, file, line);
+        panic_at (v, file, line);
     }
 
     #define VAL_TYPE(v) \
@@ -187,8 +178,8 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     // Use VAL_RESET_HEADER() to set the type AND initialize the flags to 0.
     //
     assert(!IS_TRASH_DEBUG(v));
-    (v)->header.bits &= ~HEADER_TYPE_MASK;
-    (v)->header.bits |= TYPE_SHIFT_LEFT_FOR_HEADER(kind);
+    CLEAR_8_RIGHT_BITS((v)->header.bits);
+    (v)->header.bits |= HEADERIZE_KIND(kind);
 }
 
 
@@ -232,7 +223,8 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     // borderline assert doesn't wind up taking up 20% of the debug's runtime.
     //
     #define CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG \
-        REBUPT category = f >> HEADER_TYPE_SHIFT; \
+        assert(NOT(IS_END_MACRO(v))); \
+        REBUPT category = RIGHT_8_BITS(f); \
         if (category != REB_0) { \
             enum Reb_Kind kind = VAL_TYPE(v); \
             if (kind != category) { \
@@ -243,7 +235,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
                 else \
                     assert(FALSE); \
             } \
-            f &= ~HEADER_TYPE_MASK; \
+            CLEAR_8_RIGHT_BITS(f); \
         } \
 
 
@@ -290,7 +282,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 // they are left as random data.  But the debug build can take advantage of
 // it to store some tracking information about the point and moment of
 // initialization.  This data can be viewed in the debugging watchlist
-// under the `track` component of payload, and is also used by PANIC_VALUE.
+// under the `track` component of payload, and is also used by panic().
 //
 
 #if !defined NDEBUG
@@ -337,17 +329,11 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 //
 
 #define VAL_RESET_HEADER_COMMON(v,kind) \
-    ((v)->header.bits = TYPE_SHIFT_LEFT_FOR_HEADER(kind) \
-        | NOT_END_MASK | CELL_MASK)
+    ((v)->header.bits = \
+        HEADERIZE_KIND(kind) | NODE_FLAG_VALID | NODE_FLAG_CELL)
 
 #ifdef NDEBUG
     #define ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v,file,line) \
-        NOOP
-
-    #define MARK_CELL_WRITABLE_IF_CPP_DEBUG(v) \
-        NOOP
-
-    #define MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(v) \
         NOOP
 
     #define VAL_RESET_HEADER(v,t) \
@@ -362,21 +348,8 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     #ifdef __cplusplus
         #define ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v,file,line) \
             Assert_Cell_Writable((v), (file), (line))
-
-        // just adds bit
-        #define MARK_CELL_WRITABLE_IF_CPP_DEBUG(v) \
-            ((v)->header.bits |= VALUE_FLAG_WRITABLE_CPP_DEBUG)
-
-        #define MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(v) \
-            ((v)->header.bits &= ~cast(REBUPT, VALUE_FLAG_WRITABLE_CPP_DEBUG))
     #else
         #define ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v,file,line) \
-            NOOP
-
-        #define MARK_CELL_WRITABLE_IF_CPP_DEBUG(v) \
-            NOOP
-
-        #define MARK_CELL_UNWRITABLE_IF_CPP_DEBUG(v) \
             NOOP
     #endif
 
@@ -385,7 +358,6 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     ){
         ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
         VAL_RESET_HEADER_COMMON(v, kind);
-        MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
     }
 
     #define VAL_SET_DO_COUNT(v) ((v)->extra.do_count = TG_Do_Count)
@@ -398,7 +370,6 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     ){
         VAL_RESET_HEADER_COMMON(v, REB_MAX_VOID); // no VOID_FLAG_NOT_TRASH
         Set_Track_Payload_Debug(v, file, line);
-        MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
     }
 
     #define INIT_CELL_IF_DEBUG(v) \
@@ -419,19 +390,24 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 // as not containing any value at all.
 //
 // In the debug build, there is a special flag that if it is not set, the
-// cell is assumed to be "trash".  This is what's used to fill memory that
+// void cell is assumed to be "trash".  This is used to fill memory that
 // in the release build would be uninitialized data.  To prevent it from being
 // inspected while it's in an invalid state, VAL_TYPE used on a trash value
 // will assert in the debug build.
 //
-// IS_TRASH_DEBUG() can be used to test for trash, but in debug builds only.
 // The macros for setting trash will compile in both debug and release builds,
 // though an unsafe trash will be a NOOP in release builds.  (So the "trash"
 // will be uninitialized memory, in that case.)  A safe trash set turns into
-// a regular void in release builds.
+// a blank in release builds, hence it has the name "UNREADABLE_BLANK"...
+// see the definitions there.
+//
+// !!! It would probably be clearer if the debug build used REB_BLANK for the
+// unreadable blanks, with special bits.  But this would slow down testing for
+// the trash types and trash bits, which already drag down the debug build
+// as it is.  So it's better to have a quicker check.
 //
 // Doesn't need payload...so the debug build adds information in Reb_Track
-// which can be viewed in the debug watchlist (or shown by PANIC_VALUE)
+// which can be viewed in the debug watchlist (or shown by panic())
 //
 
 #define VOID_CELL \
@@ -446,12 +422,6 @@ inline static REBOOL IS_VOID(const RELVAL *v)
 
     #define SET_TRASH_IF_DEBUG(v) \
         NOOP
-
-    #define SET_TRASH_SAFE(v) \
-        SET_VOID(v)
-
-    #define IS_VOID_OR_SAFE_TRASH(v) \
-        IS_VOID(v)
 
     inline static REBVAL *SINK(RELVAL *v) {
         return cast(REBVAL*, v);
@@ -472,30 +442,11 @@ inline static REBOOL IS_VOID(const RELVAL *v)
         Set_Track_Payload_Debug(v, file, line);
     }
 
-    inline static void Set_Trash_Safe_Debug(
-        RELVAL *v, const char *file, int line
-    ){
-        VAL_RESET_HEADER(v, REB_MAX_VOID);
-        SET_VAL_FLAG(v, VOID_FLAG_SAFE_TRASH);
-        Set_Track_Payload_Debug(v, file, line);
-    }
-
     #define SET_VOID(v) \
         Set_Void_Debug((v), __FILE__, __LINE__)
 
     #define SET_TRASH_IF_DEBUG(v) \
         Set_Trash_Debug((v), __FILE__, __LINE__)
-
-    #define SET_TRASH_SAFE(v) \
-        Set_Trash_Safe_Debug((v), __FILE__, __LINE__)
-
-    inline static REBOOL IS_VOID_OR_SAFE_TRASH(const RELVAL *v) {
-        if (IS_TRASH_DEBUG(v) && GET_VAL_FLAG(v, VOID_FLAG_SAFE_TRASH))
-            return TRUE; // only the GC should treat "safe" trash as void
-        if (IS_VOID(v))
-            return TRUE;
-        return FALSE;
-    }
 
     inline static REBVAL *Sink_Debug(RELVAL *v, const char *file, int line) {
         //
@@ -529,7 +480,7 @@ inline static REBOOL IS_VOID(const RELVAL *v)
 //     append [a b c] '|                        ;-- is legal
 //
 // Doesn't need payload...so the debug build adds information in Reb_Track
-// which can be viewed in the debug watchlist (or shown by PANIC_VALUE)
+// which can be viewed in the debug watchlist (or shown by panic())
 //
 
 #ifdef NDEBUG
@@ -579,29 +530,80 @@ inline static REBOOL IS_VOID(const RELVAL *v)
 // type, BLANK! also carries a header bit that can be checked for conditional
 // falsehood, to save on needing to separately test the type.
 //
+// In the debug build, it is possible to make an "unreadable" blank.  This
+// will behave neutrally as far as the garbage collector is concerned, so
+// it can be used as a placeholder for a value that will be filled in at
+// some later time--spanning an evaluation.  But if the special IS_UNREADABLE
+// checks are not used, it will not respond to IS_BLANK() and will also
+// refuse VAL_TYPE() checks.  This is useful anytime a placeholder is needed
+// in a slot temporarily where the code knows it's supposed to come back and
+// fill in the correct thing later...where the asserts serve as a reminder
+// if that fill in never happens.
+//
 // Doesn't need payload...so the debug build adds information in Reb_Track
-// which can be viewed in the debug watchlist (or shown by PANIC_VALUE)
+// which can be viewed in the debug watchlist (or shown by panic()).
+// This is particularly useful when getting an assertion on UNREADABLE blanks.
 //
 
 inline static void SET_BLANK_COMMON(RELVAL *v) {
-    v->header.bits = TYPE_SHIFT_LEFT_FOR_HEADER(REB_BLANK) \
-        | VALUE_FLAG_FALSE | NOT_END_MASK | CELL_MASK;
+    v->header.bits = HEADERIZE_KIND(REB_BLANK) \
+        | NODE_FLAG_VALID | VALUE_FLAG_CONDITIONALLY_FALSE | NODE_FLAG_CELL;
 }
 
 #ifdef NDEBUG
     #define SET_BLANK(v) \
         SET_BLANK_COMMON(v)
+
+    #define SET_UNREADABLE_BLANK(v) \
+        SET_BLANK(v)
+
+     #define IS_UNREADABLE_IF_DEBUG(v) \
+        FALSE
+
+    #define IS_UNREADABLE_OR_VOID(v) \
+        IS_VOID(v)
+
+    #define IS_BLANK_RAW(v) \
+        IS_BLANK(v)
 #else
     inline static void SET_BLANK_Debug(
         RELVAL *v, const char *file, int line
     ){
         ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
         SET_BLANK_COMMON(v);
-        MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
         Set_Track_Payload_Debug(v, file, line);
     }
     #define SET_BLANK(v) \
         SET_BLANK_Debug((v), __FILE__, __LINE__)
+
+    inline static void Set_Unreadable_Blank_Debug(
+        RELVAL *v, const char *file, int line
+    ){
+        VAL_RESET_HEADER(v, REB_MAX_VOID);
+        SET_VAL_FLAG(v, VOID_FLAG_SAFE_TRASH);
+        Set_Track_Payload_Debug(v, file, line);
+    }
+
+    #define SET_UNREADABLE_BLANK(v) \
+        Set_Unreadable_Blank_Debug((v), __FILE__, __LINE__)
+
+    inline static REBOOL IS_UNREADABLE_IF_DEBUG(const RELVAL *v) {
+        if (IS_TRASH_DEBUG(v) && GET_VAL_FLAG(v, VOID_FLAG_SAFE_TRASH))
+            return TRUE;
+        return FALSE;
+    }
+
+    inline static REBOOL IS_UNREADABLE_OR_VOID(const RELVAL *v) {
+        if (IS_UNREADABLE_IF_DEBUG(v) || IS_VOID(v))
+            return TRUE;
+        return FALSE;
+    }
+
+    inline static REBOOL IS_BLANK_RAW(const RELVAL *v) {
+        if (IS_UNREADABLE_IF_DEBUG(v) || IS_BLANK(v))
+            return TRUE;
+        return FALSE;
+    }
 #endif
 
 #define BLANK_VALUE \
@@ -627,7 +629,7 @@ inline static void SET_BLANK_COMMON(RELVAL *v) {
 // should represent an "opt out" or an error.)
 //
 // Doesn't need payload...so the debug build adds information in Reb_Track
-// which can be viewed in the debug watchlist (or shown by PANIC_VALUE)
+// which can be viewed in the debug watchlist (or shown by panic())
 //
 
 #define FALSE_VALUE \
@@ -637,17 +639,17 @@ inline static void SET_BLANK_COMMON(RELVAL *v) {
     c_cast(const REBVAL*, &PG_True_Value[0])
 
 inline static void SET_TRUE_COMMON(RELVAL *v) {
-    v->header.bits = TYPE_SHIFT_LEFT_FOR_HEADER(REB_LOGIC) \
-        | NOT_END_MASK | CELL_MASK;
+    v->header.bits = HEADERIZE_KIND(REB_LOGIC) \
+        | NODE_FLAG_VALID | NODE_FLAG_CELL;
 }
 
 inline static void SET_FALSE_COMMON(RELVAL *v) {
-    v->header.bits = TYPE_SHIFT_LEFT_FOR_HEADER(REB_LOGIC) \
-        | NOT_END_MASK | CELL_MASK | VALUE_FLAG_FALSE;
+    v->header.bits = HEADERIZE_KIND(REB_LOGIC) \
+        | NODE_FLAG_VALID | NODE_FLAG_CELL | VALUE_FLAG_CONDITIONALLY_FALSE;
 }
 
 #define IS_CONDITIONAL_FALSE_COMMON(v) \
-    GET_VAL_FLAG((v), VALUE_FLAG_FALSE)
+    GET_VAL_FLAG((v), VALUE_FLAG_CONDITIONALLY_FALSE)
 
 #ifdef NDEBUG
     #define SET_TRUE(v) \
@@ -671,7 +673,6 @@ inline static void SET_FALSE_COMMON(RELVAL *v) {
     ){
         ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
         SET_TRUE_COMMON(v);
-        MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
         Set_Track_Payload_Debug(v, file, line);
     }
 
@@ -680,7 +681,6 @@ inline static void SET_FALSE_COMMON(RELVAL *v) {
     ){
         ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
         SET_FALSE_COMMON(v);
-        MARK_CELL_WRITABLE_IF_CPP_DEBUG(v);
         Set_Track_Payload_Debug(v, file, line);
     }
 
@@ -698,8 +698,7 @@ inline static void SET_FALSE_COMMON(RELVAL *v) {
     ){
         if (IS_VOID(v)) {
             printf("Conditional true/false test on void\n");
-            fflush(stdout);
-            Panic_Value_Debug(v, file, line);
+            panic_at (v, file, line);
         }
         return IS_CONDITIONAL_FALSE_COMMON(v);
     }
@@ -727,17 +726,17 @@ inline static void SET_FALSE_COMMON(RELVAL *v) {
 //
 inline static REBOOL IS_CONDITIONAL_TRUE_SAFE(const REBVAL *v) {
     if (IS_BLOCK(v)) {
-        if (GET_VAL_FLAG(v, VALUE_FLAG_EVALUATED))
-            return TRUE;
-
-        fail (Error(RE_BLOCK_CONDITIONAL, v));
+        if (GET_VAL_FLAG(v, VALUE_FLAG_UNEVALUATED))
+            fail (Error(RE_BLOCK_CONDITIONAL, v));
+            
+        return TRUE;
     }
     return IS_CONDITIONAL_TRUE(v);
 }
 
 inline static REBOOL VAL_LOGIC(const RELVAL *v) {
     assert(IS_LOGIC(v));
-    return NOT(GET_VAL_FLAG((v), VALUE_FLAG_FALSE));
+    return NOT(GET_VAL_FLAG((v), VALUE_FLAG_CONDITIONALLY_FALSE));
 }
 
 
@@ -1255,15 +1254,6 @@ inline static void SET_EVENT_KEY(RELVAL *v, REBCNT k, REBCNT c) {
 #define TO_COLOR_TUPLE(t) \
     TO_RGBA_COLOR(VAL_TUPLE(t)[0], VAL_TUPLE(t)[1], VAL_TUPLE(t)[2], \
         VAL_TUPLE_LEN(t) > 3 ? VAL_TUPLE(t)[3] : 0xff)
-
-
-// In the C++ build, defining this overload that takes a REBVAL* instead of
-// a RELVAL*, and then not defining it...will tell you that you do not need
-// to use COPY_VALUE.  Just say `*dest = *src` if your source is a REBVAL!
-//
-#ifdef __cplusplus
-void COPY_VALUE_Debug(REBVAL *dest, const REBVAL *src, REBCTX *specifier);
-#endif
 
 
 //=////////////////////////////////////////////////////////////////////////=//

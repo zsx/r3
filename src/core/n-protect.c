@@ -54,8 +54,8 @@ static void Protect_Key(RELVAL *key, REBFLGS flags)
 
 //
 //  Protect_Value: C
-// 
-// Anything that calls this must call Unmark() when done.
+//
+// Anything that calls this must call Uncolor() when done.
 //
 void Protect_Value(RELVAL *value, REBFLGS flags)
 {
@@ -68,21 +68,22 @@ void Protect_Value(RELVAL *value, REBFLGS flags)
 
 //
 //  Protect_Series: C
-// 
-// Anything that calls this must call Unmark() when done.
+//
+// Anything that calls this must call Uncolor() when done.
 //
 void Protect_Series(REBSER *series, REBCNT index, REBFLGS flags)
 {
-    if (IS_REBSER_MARKED(series)) return; // avoid loop
+    if (Is_Series_Black(series))
+        return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET))
-        SET_SER_FLAG(series, SERIES_FLAG_LOCKED);
+        SET_SER_INFO(series, SERIES_INFO_LOCKED);
     else
-        CLEAR_SER_FLAG(series, SERIES_FLAG_LOCKED);
+        CLEAR_SER_INFO(series, SERIES_INFO_LOCKED);
 
     if (!Is_Array_Series(series) || !GET_FLAG(flags, PROT_DEEP)) return;
 
-    MARK_REBSER(series); // recursion protection
+    Flip_Series_To_Black(series); // recursion protection
 
     RELVAL *val = ARR_AT(AS_ARRAY(series), index);
     for (; NOT_END(val); val++) {
@@ -93,20 +94,20 @@ void Protect_Series(REBSER *series, REBCNT index, REBFLGS flags)
 
 //
 //  Protect_Object: C
-// 
-// Anything that calls this must call Unmark() when done.
+//
+// Anything that calls this must call Uncolor() when done.
 //
 void Protect_Object(RELVAL *value, REBFLGS flags)
 {
     REBCTX *context = VAL_CONTEXT(value);
 
-    if (IS_REBSER_MARKED(ARR_SERIES(CTX_VARLIST(context))))
+    if (Is_Series_Black(ARR_SERIES(CTX_VARLIST(context))))
         return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET))
-        SET_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_LOCKED);
+        SET_SER_INFO(CTX_VARLIST(context), SERIES_INFO_LOCKED);
     else
-        CLEAR_ARR_FLAG(CTX_VARLIST(context), SERIES_FLAG_LOCKED);
+        CLEAR_SER_INFO(CTX_VARLIST(context), SERIES_INFO_LOCKED);
 
     for (value = CTX_KEY(context, 1); NOT_END(value); value++) {
         Protect_Key(KNOWN(value), flags);
@@ -114,7 +115,7 @@ void Protect_Object(RELVAL *value, REBFLGS flags)
 
     if (!GET_FLAG(flags, PROT_DEEP)) return;
 
-    MARK_REBSER(ARR_SERIES(CTX_VARLIST(context))); // recursion protection
+    Flip_Series_To_Black(ARR_SERIES(CTX_VARLIST(context))); // for recursion
 
     value = CTX_VARS_HEAD(context);
     for (; NOT_END(value); value++) {
@@ -147,7 +148,7 @@ static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
                 GETVAR_READ_ONLY
             );
             Protect_Value(val, flags);
-            Unmark(val);
+            Uncolor(val);
         }
     }
     else if (ANY_PATH(word)) {
@@ -159,7 +160,7 @@ static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
             if (GET_FLAG(flags, PROT_DEEP)) {
                 val = CTX_VAR(context, index);
                 Protect_Value(val, flags);
-                Unmark(val);
+                Uncolor(val);
             }
         }
     }
@@ -168,9 +169,9 @@ static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
 
 //
 //  Protect_Unprotect_Core: C
-// 
+//
 // Common arguments between protect and unprotect:
-// 
+//
 static REB_R Protect_Unprotect_Core(REBFRM *frame_, REBFLGS flags)
 {
     INCLUDE_PARAMS_OF_PROTECT;
@@ -194,7 +195,7 @@ static REB_R Protect_Unprotect_Core(REBFRM *frame_, REBFLGS flags)
             RELVAL *val;
             for (val = VAL_ARRAY_AT(value); NOT_END(val); val++) {
                 REBVAL word; // need binding intact, can't just pass RELVAL
-                COPY_VALUE(&word, val, VAL_SPECIFIER(value));
+                Derelativize(&word, val, VAL_SPECIFIER(value));
                 Protect_Word_Value(&word, flags);  // will unmark if deep
             }
             goto return_value_arg;
@@ -233,7 +234,8 @@ static REB_R Protect_Unprotect_Core(REBFRM *frame_, REBFLGS flags)
                 }
 
                 Protect_Value(var, flags);
-                if (GET_FLAG(flags, PROT_DEEP)) Unmark(var);
+                if (GET_FLAG(flags, PROT_DEEP))
+                    Uncolor(var);
             }
             goto return_value_arg;
         }
@@ -243,7 +245,8 @@ static REB_R Protect_Unprotect_Core(REBFRM *frame_, REBFLGS flags)
 
     Protect_Value(value, flags);
 
-    if (GET_FLAG(flags, PROT_DEEP)) Unmark(value);
+    if (GET_FLAG(flags, PROT_DEEP))
+        Uncolor(value);
 
 return_value_arg:
     *D_OUT = *ARG(value);
@@ -253,9 +256,9 @@ return_value_arg:
 
 //
 //  protect: native [
-//  
+//
 //  {Protect a series or a variable from being modified.}
-//  
+//
 //      value [word! any-series! bitset! map! object! module!]
 //      /deep
 //          "Protect all sub-series/objects as well"
@@ -284,9 +287,9 @@ REBNATIVE(protect)
 
 //
 //  unprotect: native [
-//  
+//
 //  {Unprotect a series or a variable (it can again be modified).}
-//  
+//
 //      value [word! any-series! bitset! map! object! module!]
 //      /deep
 //          "Protect all sub-series as well"

@@ -124,7 +124,7 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         if (!IS_STRING(arg) && !IS_BINARY(arg))
             fail (Error(RE_INVALID_PORT_ARG, arg));
-        
+
         // This device is opened on the WRITE:
         if (!IS_OPEN(req)) {
             if (OS_DO_DEVICE(req, RDC_OPEN))

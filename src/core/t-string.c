@@ -118,7 +118,7 @@ static REBCNT find_string(
     REBINT skip
 ) {
     assert(end >= index);
-    
+
     if (target_len > end - index) // series not long enough to have target
         return NOT_FOUND;
 
@@ -483,7 +483,7 @@ enum COMPARE_CHR_FLAGS {
 
 //
 //  Compare_Chr: C
-// 
+//
 // This function is called by qsort_r, on behalf of the string sort
 // function.  The `thunk` is an argument passed through from the caller
 // and given to us by the sort routine, which tells us about the string
@@ -773,7 +773,7 @@ REBTYPE(String)
 
         Partial1((action == SYM_CHANGE) ? value : arg, ARG(limit), cast(REBCNT*, &len));
         index = VAL_INDEX(value);
-        
+
         REBFLGS flags = 0;
         if (IS_BINARY(value))
             flags |= AM_BINARY_SERIES;
@@ -828,7 +828,7 @@ REBTYPE(String)
                 // unmanaged (and freed), a more efficient matching could
                 // be done e.g. of `FIND "<abc...z>" <abc...z>` without having
                 // to create an entire series just to include the delimiters.
-                // 
+                //
                 REBSER *copy = Copy_Form_Value(arg, 0);
                 Val_Init_String(arg, copy);
             }
