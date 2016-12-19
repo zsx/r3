@@ -353,14 +353,12 @@ void Shutdown_Pools(void)
         REBSER *series = cast(REBSER*, seg + 1);
         REBCNT n;
         for (n = Mem_Pools[SER_POOL].units; n > 0; n--, series++) {
-            UNPOISON_MEMORY(series, sizeof(REBSER));
             if (IS_FREE_NODE(series))
                 continue;
 
             printf("At least one leaked series at shutdown...\n");
             panic (series);
         }
-        UNPOISON_MEMORY(seg, sizeof(REBSEG)); // for access to seg->next
     }
 #endif
 
@@ -372,7 +370,6 @@ void Shutdown_Pools(void)
         REBSEG *seg = pool->segs;
         while (seg) {
             REBSEG *next;
-            UNPOISON_MEMORY(seg, sizeof(REBSEG)); // for access to seg->next
             next = seg->next;
             FREE_N(char, mem_size, cast(char*, seg));
             seg = next;
@@ -456,9 +453,7 @@ static void Fill_Pool(REBPOL *pool)
     }
     else {
         assert(pool->last != NULL);
-        UNPOISON_MEMORY(pool->last, pool->wide);
         pool->last->next_if_free = node;
-        POISON_MEMORY(pool->last, pool->wide);
     }
 
     while (TRUE) {
@@ -475,8 +470,6 @@ static void Fill_Pool(REBPOL *pool)
     }
 
     pool->last = node;
-
-    POISON_MEMORY(seg, mem_size);
 }
 
 
@@ -502,8 +495,6 @@ void *Make_Node(REBCNT pool_id)
     if (!pool->first) Fill_Pool(pool);
 
     REBNOD *node = pool->first;
-
-    UNPOISON_MEMORY(node, pool->wide);
 
     pool->first = node->next_if_free;
     if (node == pool->last)
@@ -549,13 +540,10 @@ void Free_Node(REBCNT pool_id, void *pv)
     if (pool->last == NULL) // Fill pool if empty
         Fill_Pool(pool);
 
-    UNPOISON_MEMORY(pool->last, pool->wide);
     pool->last->next_if_free = node;
-    POISON_MEMORY(pool->last, pool->wide);
     pool->last = node;
     node->next_if_free = NULL;
 
-    POISON_MEMORY(node, pool->wide);
 #endif
 
     pool->free++;

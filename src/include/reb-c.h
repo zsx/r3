@@ -618,47 +618,6 @@ typedef u16 REBUNI;
     memset((void*)(m), 0, sizeof(*m))
 
 
-//
-// MEMORY POISONING and POINTER TRASHING
-//
-// If one wishes to indicate a region of memory as being "off-limits", modern
-// tools like Address Sanitizer allow instrumented builds to augment reads
-// from memory to check to see if that region is in a blacklist.
-//
-// These "poisoned" areas are generally sub-regions of valid malloc()'d memory
-// that contain bad data.  Yet they cannot be free()d because they also
-// contain some good data.  (Or it is merely desirable to avoid freeing and
-// then re-allocating them for performance reasons, yet a debug build still
-// would prefer to intercept accesses as if they were freed.)
-//
-// Also, in order to overwrite a pointer with garbage, the historical method
-// of using 0xBADF00D or 0xDECAFBAD is formalized with TRASH_POINTER_IF_DEBUG.
-// This makes the instances easier to find and standardizes how it is done.
-//
-#ifdef HAVE_ASAN_INTERFACE_H
-    #include <sanitizer/asan_interface.h>
-
-    // <IMPORTANT> Address sanitizer's memory poisoning must not have two
-    // threads both poisoning/unpoisoning the same addresses at the same time.
-
-    #define POISON_MEMORY(reg, mem_size) \
-        ASAN_POISON_MEMORY_REGION(reg, mem_size)
-
-    #define UNPOISON_MEMORY(reg, mem_size) \
-        ASAN_UNPOISON_MEMORY_REGION(reg, mem_size)
-#else
-    // !!! @HostileFork wrote a tiny C++ "poor man's memory poisoner" that
-    // uses XOR to poison bits and then unpoison them back.  This might be
-    // useful to instrument C++-based DEBUG builds on platforms that did not
-    // have address sanitizer (if that ever becomes interesting).
-
-    #define POISON_MEMORY(reg, mem_size) \
-        NOOP
-
-    #define UNPOISON_MEMORY(reg, mem_size) \
-        NOOP
-#endif
-
 #ifdef NDEBUG
     #define TRASH_POINTER_IF_DEBUG(p) \
         NOOP
