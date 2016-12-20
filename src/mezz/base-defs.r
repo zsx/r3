@@ -28,6 +28,9 @@ REBOL [
 blank: _
 bar: '|
 
+next: specialize 'skip [offset: 1]
+back: specialize 'skip [offset: -1]
+
 
 eval proc [
     {Make type testing functions (variadic to quote "top-level" words)}

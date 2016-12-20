@@ -970,14 +970,6 @@ REBTYPE(Image)
     case SYM_TAIL_Q:
         return (index >= tail) ? R_TRUE : R_FALSE;
 
-    case SYM_NEXT:
-        if (index < tail) VAL_INDEX(value)++;
-        break;
-
-    case SYM_BACK:
-        if (index > 0) VAL_INDEX(value)--;
-        break;
-
     case SYM_COMPLEMENT:
         series = Complement_Image(value);
         Val_Init_Image(value, series); // use series var not func

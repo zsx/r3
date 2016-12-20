@@ -451,10 +451,6 @@ enum act_find_mask {
     AM_FIND_TAIL = 1 << 4,
     AM_FIND_MATCH = 1 << 5
 };
-enum act_read_mask {
-    AM_READ_STRING = 1 << 0,
-    AM_READ_LINES = 1 << 1
-};
 enum act_open_mask {
     AM_OPEN_NEW = 1 << 0,
     AM_OPEN_READ = 1 << 1,

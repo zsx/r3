@@ -79,14 +79,6 @@ REBOOL Series_Common_Action_Returns(
         *r = (index > tail) ? R_TRUE : R_FALSE;
         return TRUE; // handled
 
-    case SYM_NEXT:
-        if (index < tail) VAL_INDEX(value)++;
-        break;
-
-    case SYM_BACK:
-        if (index > 0) VAL_INDEX(value)--;
-        break;
-
     case SYM_SKIP:
     case SYM_AT:
         len = Get_Num_From_Arg(arg);

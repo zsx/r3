@@ -179,23 +179,6 @@ static void Read_File_Port(
 
     SET_SERIES_LEN(ser, file->actual);
     TERM_SEQUENCE(ser);
-
-    // Convert to string or block of strings.
-    // NOTE: This code is incorrect for files read in chunks!!!
-    //
-    if (flags & (AM_READ_STRING | AM_READ_LINES)) {
-        REBSER *nser = Decode_UTF_String(BIN_HEAD(ser), file->actual, -1);
-        if (nser == NULL)
-            fail (Error(RE_BAD_UTF8));
-
-        if (flags & AM_READ_LINES) { // wants a BLOCK!, not a STRING!
-            REBVAL temp;
-            Val_Init_String(&temp, nser);
-            Val_Init_Block(out, Split_Lines(&temp));
-        }
-        else
-            Val_Init_String(out, nser);
-    }
 }
 
 
@@ -286,55 +269,54 @@ static void Set_Seek(REBREQ *file, REBVAL *arg)
 //
 static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
-    REBVAL *spec;
-    REBVAL *path;
-    REBREQ *file = 0;
-    REBCNT args = 0;
-    REBCNT len;
-    REBOOL opened = FALSE;  // had to be opened (shortcut case)
-
-    //Print("FILE ACTION: %d", action);
-
     Validate_Port(port, action);
 
-    *D_OUT = *D_ARG(1);
+    REBVAL *spec = CTX_VAR(port, STD_PORT_SPEC);
+    if (!IS_OBJECT(spec))
+        fail (Error(RE_INVALID_SPEC, spec));
 
-    // Validate PORT fields:
-    spec = CTX_VAR(port, STD_PORT_SPEC);
-    if (!IS_OBJECT(spec)) fail (Error(RE_INVALID_SPEC, spec));
-    path = Obj_Value(spec, STD_PORT_SPEC_HEAD_REF);
-    if (!path) fail (Error(RE_INVALID_SPEC, spec));
+    REBVAL *path = Obj_Value(spec, STD_PORT_SPEC_HEAD_REF);
+    if (!path)
+        fail (Error(RE_INVALID_SPEC, spec));
 
-    if (IS_URL(path)) path = Obj_Value(spec, STD_PORT_SPEC_HEAD_PATH);
-    else if (!IS_FILE(path)) fail (Error(RE_INVALID_SPEC, path));
+    if (IS_URL(path))
+        path = Obj_Value(spec, STD_PORT_SPEC_HEAD_PATH);
+    else if (!IS_FILE(path))
+        fail (Error(RE_INVALID_SPEC, path));
 
     // Get or setup internal state data:
-    file = (REBREQ*)Use_Port_State(port, RDI_FILE, sizeof(*file));
+    //
+    REBREQ *file = (REBREQ*)Use_Port_State(port, RDI_FILE, sizeof(*file));
+
+    // !!! R3-Alpha never implemented quite a number of operations on files,
+    // including FLUSH, POKE, etc.
 
     switch (action) {
 
     case SYM_READ: {
         INCLUDE_PARAMS_OF_READ;
 
-        REBFLGS flags = (
-            (REF(lines) ? AM_READ_LINES : 0)
-            | (REF(string) ? AM_READ_STRING : 0)
-        );
+        REBFLGS flags = 0;
 
-        // Handle the READ %file shortcut case:
-        if (!IS_OPEN(file)) {
+        // Handle the READ %file shortcut case, where the FILE! has been
+        // converted into a PORT! but has not been opened yet.
+
+        REBOOL opened;
+        if (IS_OPEN(file))
+            opened = FALSE; // was already open
+        else {
             REBCNT nargs = AM_OPEN_READ;
             if (REF(seek))
                 nargs |= AM_OPEN_SEEK;
             Setup_File(file, nargs, path);
             Open_File_Port(port, file, path);
-            opened = TRUE;
+            opened = TRUE; // had to be opened (shortcut case)
         }
 
         if (REF(seek))
             Set_Seek(file, ARG(index));
 
-        len = Set_Length(file, REF(part) ? VAL_INT64(ARG(limit)) : -1);
+        REBCNT len = Set_Length(file, REF(part) ? VAL_INT64(ARG(limit)) : -1);
         Read_File_Port(D_OUT, port, file, path, flags, len);
 
         if (opened) {
@@ -344,21 +326,33 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         if (file->error)
             fail (Error_On_Port(RE_READ_ERROR, port, file->error));
-        break; }
 
-    case SYM_APPEND:
+        return R_OUT; }
+
+    case SYM_APPEND: {
         if (!(IS_BINARY(D_ARG(2)) || IS_STRING(D_ARG(2)) || IS_BLOCK(D_ARG(2))))
             fail (Error(RE_INVALID_ARG, D_ARG(2)));
         file->special.file.index = file->special.file.size;
-        SET_FLAG(file->modes, RFM_RESEEK);
-
+        SET_FLAG(file->modes, RFM_RESEEK); }
+        //
+        // Fall through
+        //
     case SYM_WRITE: {
         INCLUDE_PARAMS_OF_WRITE;
 
-        spec = D_ARG(2); // data (binary, string, or block)
+        spec = ARG(data); // binary, string, or block
 
-        // Handle the READ %file shortcut case:
-        if (!IS_OPEN(file)) {
+        // Handle the WRITE %file shortcut case, where the FILE! is converted
+        // to a PORT! but it hasn't been opened yet.
+
+        REBOOL opened;
+        if (IS_OPEN(file)) {
+            if (!GET_FLAG(file->modes, RFM_WRITE))
+                fail (Error(RE_READ_ONLY, path));
+
+            opened = FALSE; // already open
+        }
+        else {
             REBCNT nargs = AM_OPEN_WRITE;
             if (REF(seek) || REF(append))
                 nargs |= AM_OPEN_SEEK;
@@ -367,10 +361,6 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             Setup_File(file, nargs, path);
             Open_File_Port(port, file, path);
             opened = TRUE;
-        }
-        else {
-            if (!GET_FLAG(file->modes, RFM_WRITE))
-                fail (Error(RE_READ_ONLY, path));
         }
 
         if (REF(append)) {
@@ -381,7 +371,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             Set_Seek(file, ARG(index));
 
         // Determine length. Clip /PART to size of string if needed.
-        len = VAL_LEN_AT(spec);
+        REBCNT len = VAL_LEN_AT(spec);
         if (REF(part)) {
             REBCNT n = Int32s(ARG(limit), 0);
             if (n <= len) len = n;
@@ -394,8 +384,11 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             Cleanup_File(file);
         }
 
-        if (file->error) fail (Error(RE_WRITE_ERROR, path));
-        break; }
+        if (file->error)
+            fail (Error(RE_WRITE_ERROR, path));
+
+        *D_OUT = *CTX_VALUE(port);
+        return R_OUT; }
 
     case SYM_OPEN: {
         INCLUDE_PARAMS_OF_OPEN;
@@ -411,120 +404,149 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         // !!! need to change file modes to R/O if necessary
 
         Open_File_Port(port, file, path);
-        break; }
+
+        *D_OUT = *CTX_VALUE(port);
+        return R_OUT; }
 
     case SYM_COPY: {
         INCLUDE_PARAMS_OF_COPY;
+
         if (!IS_OPEN(file))
             fail (Error(RE_NOT_OPEN, path)); // !!! wrong msg
-        len = Set_Length(file, REF(part) ? VAL_INT64(ARG(limit)) : -1);
+
+        REBCNT len = Set_Length(file, REF(part) ? VAL_INT64(ARG(limit)) : -1);
         REBFLGS flags = 0;
         Read_File_Port(D_OUT, port, file, path, flags, len);
-        break; }
+        return R_OUT; }
 
     case SYM_OPEN_Q:
-        if (IS_OPEN(file)) return R_TRUE;
-        return R_FALSE;
+        return R_FROM_BOOL(IS_OPEN(file));
 
-    case SYM_CLOSE:
+    case SYM_CLOSE: {
+        INCLUDE_PARAMS_OF_CLOSE;
+
         if (IS_OPEN(file)) {
             OS_DO_DEVICE(file, RDC_CLOSE);
             Cleanup_File(file);
         }
-        break;
+        *D_OUT = *CTX_VALUE(port);
+        return R_OUT; }
 
-    case SYM_DELETE:
-        if (IS_OPEN(file)) fail (Error(RE_NO_DELETE, path));
+    case SYM_DELETE: {
+        INCLUDE_PARAMS_OF_DELETE;
+
+        if (IS_OPEN(file))
+            fail (Error(RE_NO_DELETE, path));
         Setup_File(file, 0, path);
         if (OS_DO_DEVICE(file, RDC_DELETE) < 0)
             fail (Error(RE_NO_DELETE, path));
-        break;
 
-    case SYM_RENAME:
-        if (IS_OPEN(file)) fail (Error(RE_NO_RENAME, path));
-        else {
-            REBSER *target;
+        *D_OUT = *CTX_VALUE(port);
+        return R_OUT; }
 
-            Setup_File(file, 0, path);
+    case SYM_RENAME: {
+        INCLUDE_PARAMS_OF_RENAME;
 
-            // Convert file name to OS format:
-            if (!(target = Value_To_OS_Path(D_ARG(2), TRUE)))
-                fail (Error(RE_BAD_FILE_PATH, D_ARG(2)));
-            file->common.data = BIN_HEAD(target);
-            OS_DO_DEVICE(file, RDC_RENAME);
-            Free_Series(target);
-            if (file->error) fail (Error(RE_NO_RENAME, path));
-        }
-        break;
+        if (IS_OPEN(file))
+            fail (Error(RE_NO_RENAME, path));
 
-    case SYM_CREATE:
-        // !!! should it leave file open???
+        Setup_File(file, 0, path);
+
+        // Convert file name to OS format:
+        //
+        REBSER *target = Value_To_OS_Path(ARG(to), TRUE);
+        if (target == NULL)
+            fail (Error(RE_BAD_FILE_PATH, ARG(to)));
+        file->common.data = BIN_HEAD(target);
+        OS_DO_DEVICE(file, RDC_RENAME);
+        Free_Series(target);
+        if (file->error)
+            fail (Error(RE_NO_RENAME, path));
+
+        *D_OUT = *ARG(from);
+        return R_OUT; }
+
+    case SYM_CREATE: {
+        INCLUDE_PARAMS_OF_CREATE;
+
         if (!IS_OPEN(file)) {
             Setup_File(file, AM_OPEN_WRITE | AM_OPEN_NEW, path);
             if (OS_DO_DEVICE(file, RDC_CREATE) < 0)
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, file->error));
             OS_DO_DEVICE(file, RDC_CLOSE);
         }
-        break;
 
-    case SYM_QUERY:
+        // !!! should it leave file open???
+
+        *D_OUT = *CTX_VALUE(port);
+        return R_OUT; }
+
+    case SYM_QUERY: {
+        INCLUDE_PARAMS_OF_QUERY;
+
         if (!IS_OPEN(file)) {
             Setup_File(file, 0, path);
             if (OS_DO_DEVICE(file, RDC_QUERY) < 0) return R_BLANK;
         }
         Ret_Query_File(port, file, D_OUT);
-        // !!! free file path?
-        break;
 
-    case SYM_MODIFY:
+        // !!! free file path?
+
+        return R_OUT; }
+
+    case SYM_MODIFY: {
+        INCLUDE_PARAMS_OF_MODIFY;
+
         // !!! Set_Mode_Value() was called here, but a no-op in R3-Alpha
         if (!IS_OPEN(file)) {
             Setup_File(file, 0, path);
             if (OS_DO_DEVICE(file, RDC_MODIFY) < 0) return R_BLANK;
         }
-        return R_TRUE;
-        break;
+        return R_TRUE; }
 
     case SYM_INDEX_OF:
         SET_INTEGER(D_OUT, file->special.file.index + 1);
-        break;
+        return R_OUT;
 
     case SYM_LENGTH:
-        SET_INTEGER(D_OUT, file->special.file.size - file->special.file.index); // !clip at zero
-        break;
+        //
+        // Comment said "clip at zero"
+        ///
+        SET_INTEGER(D_OUT, file->special.file.size - file->special.file.index);
+        return R_OUT;
 
-    case SYM_HEAD:
+    case SYM_HEAD: {
         file->special.file.index = 0;
-        goto seeked;
+        SET_FLAG(file->modes, RFM_RESEEK);
+        *D_OUT = *CTX_VALUE(port);
+        return R_OUT; }
 
-    case SYM_TAIL:
+    case SYM_TAIL: {
         file->special.file.index = file->special.file.size;
-        goto seeked;
+        SET_FLAG(file->modes, RFM_RESEEK);
+        *D_OUT = *CTX_VALUE(port);
+        return R_OUT; }
 
-    case SYM_NEXT:
-        file->special.file.index++;
-        goto seeked;
+    case SYM_SKIP: {
+        INCLUDE_PARAMS_OF_SKIP;
 
-    case SYM_BACK:
-        if (file->special.file.index > 0) file->special.file.index--;
-        goto seeked;
-
-    case SYM_SKIP:
         file->special.file.index += Get_Num_From_Arg(D_ARG(2));
-        goto seeked;
+        SET_FLAG(file->modes, RFM_RESEEK);
+        *D_OUT = *CTX_VALUE(port);
+        return R_OUT; }
 
     case SYM_HEAD_Q:
-        return (file->special.file.index == 0) ? R_TRUE : R_FALSE;
+        return R_FROM_BOOL(LOGICAL(file->special.file.index == 0));
 
     case SYM_TAIL_Q:
-        return (file->special.file.index >= file->special.file.size)
-            ? R_TRUE
-            : R_FALSE;
+        return R_FROM_BOOL(
+            LOGICAL(file->special.file.index >= file->special.file.size)
+        );
 
     case SYM_PAST_Q:
-        return (file->special.file.index > file->special.file.size)
-            ? R_TRUE
-            : R_FALSE;
+        return R_FROM_BOOL(
+            LOGICAL(file->special.file.index > file->special.file.size)
+        );
 
     case SYM_CLEAR:
         // !! check for write enabled?
@@ -533,34 +555,10 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         file->length = 0;
         if (OS_DO_DEVICE(file, RDC_WRITE) < 0)
             fail (Error(RE_WRITE_ERROR, path));
-        break;
-
-    /* Not yet implemented:
-        A_AT,                   // 38
-        A_PICK,                 // 41
-        A_PATH,                 // 42
-        A_PATH_SET,             // 43
-        A_FIND,                 // 44
-        A_SELECT,               // 45
-        A_TAKE,                 // 49
-        A_INSERT,               // 50
-        A_REMOVE,               // 52
-        A_CHANGE,               // 53
-        A_POKE,                 // 54
-        A_QUERY,                // 64
-        A_FLUSH,                // 65
-    */
-
-    default:
-        fail (Error_Illegal_Action(REB_PORT, action));
+        return R_OUT;
     }
 
-    return R_OUT;
-
-seeked:
-    SET_FLAG(file->modes, RFM_RESEEK);
-    *D_OUT = *D_ARG(1);
-    return R_OUT;
+    fail (Error_Illegal_Action(REB_PORT, action));
 }
 
 

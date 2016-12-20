@@ -97,18 +97,18 @@ REBTYPE(Port)
     case SYM_OPEN:
     case SYM_CREATE:
     case SYM_DELETE:
-    case SYM_RENAME:
+    case SYM_RENAME: {
         // !!! We are going to "re-apply" the call frame with routines that
         // are going to read the D_ARG(1) slot *implicitly* regardless of
-        // what value points to.  And dodgily, we must also make sure the
-        // output is set.  Review.
+        // what value points to.
         //
         if (!IS_PORT(value)) {
-            MAKE_Port(D_OUT, REB_PORT, value);
-            *D_ARG(1) = *D_OUT;
-            value = D_ARG(1);
-        } else
-            *D_OUT = *value;
+            REBVAL temp;
+            MAKE_Port(&temp, REB_PORT, value);
+            *value = temp;
+        }
+        break; }
+
     case SYM_UPDATE:
         break;
 

@@ -149,16 +149,6 @@ past?: action [
     series [any-series! gob! port!]
 ]
 
-next: action [
-    {Returns the series at its next position.}
-    series [any-series! gob! port!]
-]
-
-back: action [
-    {Returns the series at its previous position.}
-    series [any-series! gob! port!]
-]
-
 skip: action [
     {Returns the series forward or backward from the current position.}
     series [any-series! gob! port!]

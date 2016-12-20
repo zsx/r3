@@ -1074,14 +1074,6 @@ REBTYPE(Gob)
         }
         return R_OUT; }
 
-    case SYM_NEXT:
-        if (index < tail) index++;
-        goto set_index;
-
-    case SYM_BACK:
-        if (index > 0) index--;
-        goto set_index;
-
     case SYM_AT:
         index--;
     case SYM_SKIP:

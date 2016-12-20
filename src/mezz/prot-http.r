@@ -46,29 +46,43 @@ idate-to-date: function [date [string!]] [
     ]
 ]
 
-sync-op: func [port body /local state] [
-    unless port/state [open port port/state/close?: yes]
+sync-op: function [port body] [
+    unless port/state [
+        open port
+        port/state/close?: yes
+    ]
+
     state: port/state
     state/awake: :read-sync-awake
+    
     do body
+
     if state/state = 'ready [do-request port]
-    ;NOTE: We'll wait in a WHILE loop so the timeout cannot occur during 'reading-data state.
-    ;The timeout should be triggered only when the response from other side exceeds the timeout value.
-    ;--Richard
-    until [find [ready close] state/state][
+
+    ; Wait in a WHILE loop so the timeout cannot occur during 'reading-data
+    ; state.  The timeout should be triggered only when the response from
+    ; the other side exceeds the timeout value.
+    ;
+    until [find [ready close] state/state] [
         unless port? wait [state/connection port/spec/timeout] [
             fail make-http-error "Timeout"
         ]
-        if state/state = 'reading-data [read state/connection]
+        if state/state = 'reading-data [
+            read state/connection
+        ]
     ]
+
     body: copy port
+    
     if state/close? [close port]
+
     either port/spec/debug [
         state/connection/locals
     ][
         body
     ]
 ]
+
 read-sync-awake: func [event [event!] /local error] [
     switch/default event/type [
         connect ready [
@@ -543,6 +557,7 @@ hex-digits: charset "1234567890abcdefABCDEF"
 sys/make-scheme [
     name: 'http
     title: "HyperText Transport Protocol v1.1"
+    
     spec: construct system/standard/port-spec-net [
         path: %/
         method: 'get
@@ -551,35 +566,63 @@ sys/make-scheme [
         timeout: 15
         debug: _
     ]
+    
     info: construct system/standard/file-info [
         response-line:
         response-parsed:
         headers: _
     ]
+
     actor: [
         read: func [
             port [port!]
-        ] [
-            either function? :port/awake [
-                unless open? port [cause-error 'Access 'not-open port/spec/ref]
+            /lines
+            /string
+            <local> foo
+        ][
+            foo: either function? :port/awake [
+                unless open? port [
+                    cause-error 'Access 'not-open port/spec/ref
+                ]
                 unless port/state/state = 'ready [
                     fail make-http-error "Port not ready"
                 ]
                 port/state/awake: :port/awake
                 do-request port
-                port
-            ] [
+            ][
                 sync-op port []
             ]
+            if lines or string [
+                ; !!! When READ is called on an http PORT! (directly or
+                ; indirectly) it bounces its parameters to this routine.  To
+                ; avoid making an error this tolerates the refinements but the
+                ; actual work of breaking the buffer into lines is done in the
+                ; generic code so it will apply to all ports.  The design
+                ; from R3-Alpha for ports (and "actions" in general), was
+                ; rather half-baked, so this should all be rethought.
+            ]
+            return foo
         ]
+
         write: func [
             port [port!]
             value
-        ] [
-            unless any [block? :value binary? :value any-string? :value] [value: form :value]
-            unless block? value [value: reduce [[Content-Type: "application/x-www-form-urlencoded; charset=utf-8"] value]]
+        ][
+            unless any [block? :value binary? :value any-string? :value] [
+                value: form :value
+            ]
+            unless block? value [
+                value: reduce [
+                    [Content-Type:
+                        "application/x-www-form-urlencoded; charset=utf-8"
+                    ]
+                    value
+                ]
+            ]
             either function? :port/awake [
-                unless open? port [cause-error 'Access 'not-open port/spec/ref]
+                unless open? port [
+                    cause-error 'Access 'not-open port/spec/ref
+                ]
                 unless port/state/state = 'ready [
                     fail make-http-error "Port not ready"
                 ]
@@ -587,14 +630,15 @@ sys/make-scheme [
                 parse-write-dialect port value
                 do-request port
                 port
-            ] [
+            ][
                 sync-op port [parse-write-dialect port value]
             ]
         ]
+
         open: func [
             port [port!]
-            /local conn
-        ] [
+            <local> conn
+        ][
             if port/state [return port]
             unless port/spec/host [
                 fail make-http-error "Missing host address"
@@ -608,7 +652,9 @@ sys/make-scheme [
                 awake: :port/awake
             ]
             port/state/connection: conn: make port! compose [
-                scheme: (to lit-word! either port/spec/scheme = 'http ['tcp]['tls])
+                scheme: (
+                    to lit-word! either port/spec/scheme = 'http ['tcp]['tls]
+                )
                 host: port/spec/host
                 port-id: port/spec/port-id
                 ref: rejoin [tcp:// host ":" port-id]
@@ -618,14 +664,16 @@ sys/make-scheme [
             open conn
             port
         ]
+
         open?: func [
             port [port!]
-        ] [
+        ][
             all? [port/state open? port/state/connection]
         ]
+
         close: func [
             port [port!]
-        ] [
+        ][
             if port/state [
                 close port/state/connection
                 port/state/connection/awake: _
@@ -633,31 +681,34 @@ sys/make-scheme [
             ]
             port
         ]
+
         copy: func [
             port [port!]
-        ] [
+        ][
             either all [port/spec/method = 'head port/state] [
                 reduce bind [name size date] port/state/info
-            ] [
+            ][
                 if port/data [copy port/data]
             ]
         ]
+
         query: func [
             port [port!]
-            /local error state
-        ] [
+            <local> error state
+        ][
             if state: port/state [
                 either error? error: state/error [
                     state/error: _
                     error
-                ] [
+                ][
                     state/info
                 ]
             ]
         ]
+
         length: func [
             port [port!]
-        ] [
+        ][
             ; actor is not an object!, so this isn't a recursive length call
             either port/data [length port/data] [0]
         ]
@@ -665,9 +716,10 @@ sys/make-scheme [
         ; !!! DEPRECATED in favor of length above, but left working for now.
         ; Since this isn't an object, we can't say 'length? :length'.  So
         ; we repeat the body, given that it's short and this will be deleted.
+        ;
         length?: func [
             port [port!]
-        ] [
+        ][
             either port/data [length port/data] [0]
         ]
     ]

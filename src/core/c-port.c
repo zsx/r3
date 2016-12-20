@@ -484,18 +484,24 @@ REB_R Do_Port_Action(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     REBVAL *actor = CTX_VAR(port, STD_PORT_ACTOR);
 
-    if (IS_BLANK(actor)) return R_BLANK;
+    if (IS_BLANK(actor))
+        return R_BLANK;
 
+    REB_R r;
     // If actor is a function (!!! Note: must be native !!!)
-    if (IS_FUNCTION(actor))
-        return cast(REBPAF, VAL_FUNC_DISPATCHER(actor))(frame_, port, action);
+    if (IS_FUNCTION(actor)) {
+        r = cast(REBPAF, VAL_FUNC_DISPATCHER(actor))(frame_, port, action);
+        goto post_process_output;
+    }
 
     // actor must be an object:
-    if (!IS_OBJECT(actor)) fail (Error(RE_INVALID_ACTOR));
+    if (!IS_OBJECT(actor))
+        fail (Error(RE_INVALID_ACTOR));
 
     // Dispatch object function:
 
-    REBCNT n = Find_Action(actor, action);
+    REBCNT n; // goto would cross initialization
+    n = Find_Action(actor, action);
     actor = Obj_Value(actor, n);
     if (!n || !actor || !IS_FUNCTION(actor)) {
         REBVAL action_word;
@@ -509,7 +515,45 @@ REB_R Do_Port_Action(REBFRM *frame_, REBCTX *port, REBSYM action)
         return R_OUT_IS_THROWN;
     }
 
-    return R_OUT;
+    r = R_OUT; // result should be in frame_->out
+
+    // !!! READ's /LINES and /STRING refinements are something that should
+    // work regardless of data source.  But R3-Alpha only implemented it in
+    // %p-file.c, so it got ignored.  Ren-C caught that it was being ignored,
+    // so the code was moved to here as a quick fix.
+    //
+    // !!! Note this code is incorrect for files read in chunks!!!
+
+post_process_output:
+    if (action == SYM_READ) {
+        INCLUDE_PARAMS_OF_READ;
+
+        assert(r == R_OUT);
+
+        if ((REF(string) || REF(lines)) && !IS_STRING(D_OUT)) {
+            if (!IS_BINARY(D_OUT))
+                fail (Error(RE_MISC)); // !!! when can this happen?
+
+            REBSER *decoded = Decode_UTF_String(
+                VAL_BIN_AT(D_OUT),
+                VAL_LEN_AT(D_OUT),
+                -1
+            );
+            if (decoded == NULL)
+                fail (Error(RE_BAD_UTF8));
+            Val_Init_String(D_OUT, decoded);
+        }
+
+        if (REF(lines)) { // caller wants a BLOCK! of STRING!s, not one string
+            if (!IS_STRING(D_OUT))
+                fail (Error(RE_MISC)); // !!! when can this happen?
+
+            REBVAL temp = *D_OUT;
+            Val_Init_Block(D_OUT, Split_Lines(&temp));
+        }
+    }
+
+    return r;
 }
 
 
