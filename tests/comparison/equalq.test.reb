@@ -542,9 +542,8 @@
     test: :equal?
     equal?
         test a-value b-value
-        for-each [w v] a-value [
-            unless test :v select b-value w [break/return false]
-            true
+        true? for-each [w v] a-value [
+            unless test :v select b-value w [break]
         ]
 ]
 ; object! structural equivalence verified
@@ -565,9 +564,8 @@
     test: :equal?
     equal?
         test a-value b-value
-        for-each [w v] a-value [
-            unless test :v select b-value w [break/return false]
-            true
+        true? for-each [w v] a-value [
+            unless test :v select b-value w [break]
         ]
 ]
 ; unset! comparison fails

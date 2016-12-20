@@ -220,9 +220,9 @@
 ]
 ; BREAK stops evaluation
 [
-    1 = loop 1 [
+    blank? loop 1 [
         do [
-            break/return 1
+            break
             2
         ]
         2

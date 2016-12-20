@@ -9,7 +9,7 @@
     (10 = num) and* success
 ]
 ; cycle return value
-[false = for i 1 1 1 [false]]
+[bar? for i 1 1 1 [false]]
 ; break cycle
 [
     num: 0
@@ -17,12 +17,11 @@
     num = 1
 ]
 ; break return value
-[void? for i 1 10 1 [break]]
-; break/return return value
-[2 = for i 1 10 1 [break/return 2]]
+[blank? for i 1 10 1 [break]]
+
 ; continue cycle
-; bug#58
 [
+    #58
     success: true
     for i 1 1 1 [continue success: false]
     success
@@ -81,14 +80,14 @@
     num: 0
     for i 2147483647 2147483647 1 [
         num: num + 1
-        either num > 1 [break/return false] [true]
+        either num > 1 [break] [true]
     ]
 ]
 [
     num: 0
     for i -2147483648 -2147483648 -1 [
         num: num + 1
-        either num > 1 [break/return false] [true]
+        either num > 1 [break] [true]
     ]
 ]
 ; bug#1136
@@ -97,7 +96,7 @@
     num: 0
     for i 9223372036854775807 9223372036854775807 -9223372036854775808 [
         num: num + 1
-        if num <> 1 [break/return false]
+        if num <> 1 [break]
         true
     ]
 ]
@@ -106,7 +105,7 @@
     num: 0
     for i -9223372036854775808 -9223372036854775808 9223372036854775807 [
         num: num + 1
-        if num <> 1 [break/return false]
+        if num <> 1 [break]
         true
     ]
 ]
@@ -114,7 +113,7 @@
     num: 0
     for i 2147483647 2147483647 2147483647 [
         num: num + 1
-        if num <> 1 [break/return false]
+        if num <> 1 [break]
         true
     ]
 ]
@@ -122,7 +121,7 @@
     num: 0
     for i 2147483647 2147483647 -2147483648 [
         num: num + 1
-        if num <> 1 [break/return false]
+        if num <> 1 [break]
         true
     ]
 ]
@@ -130,7 +129,7 @@
     num: 0
     for i -2147483648 -2147483648 2147483647 [
         num: num + 1
-        if num <> 1 [break/return false]
+        if num <> 1 [break]
         true
     ]
 ]
@@ -138,7 +137,7 @@
     num: 0
     for i -2147483648 -2147483648 -2147483648 [
         num: num + 1
-        if num <> 1 [break/return false]
+        if num <> 1 [break]
         true
     ]
 ]
@@ -164,9 +163,9 @@
 ; local variable changeability - this is how it works in R3
 [
     test: false
-    for i 1 3 1 [
+    blank? for i 1 3 1 [
         if i = 2 [
-            if test [break/return true]
+            if test [break]
             test: true
             i: 1
         ]

@@ -314,7 +314,7 @@ REBNATIVE(none)
     DROP_SAFE_ENUMERATOR(&e);
 
     if (voted)
-        return R_TRUE;
+        return R_BAR;
 
     return R_VOID; // all opt-outs
 }

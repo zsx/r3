@@ -7,9 +7,8 @@
     ]
     num = 10
 ]
-; Test break, break/return and continue
-[void? forever [break]]
-[1 = forever [break/return 1]]
+; Test break and continue
+[blank? forever [break]]
 [
     success: true
     cycle?: true
@@ -26,12 +25,13 @@
 ; Test that errors do not stop the loop and errors can be returned
 [
     num: 0
-    e: forever [
+    e: _
+    forever [
         num: num + 1
-        if num = 10 [break/return try [1 / 0]]
+        if num = 10 [e: try [1 / 0] break]
         try [1 / 0]
     ]
-    all [error? e num = 10]
+    all [error? e | num = 10]
 ]
 ; Recursion check
 [

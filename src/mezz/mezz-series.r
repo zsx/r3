@@ -247,8 +247,9 @@ reword: function [
             empty? char-end  ; If we have char-end, it gets appended to the keys
             for-each [w v] values [
                 ; Key types must match wtype and no unset values allowed
-                if any [void? :v wtype <> type-of :w] [break/return false]
-                true
+                if any [void? :v | wtype <> type-of :w] [
+                    break
+                ]
             ]
         ] [vals: values]  ; Success, so use it
 

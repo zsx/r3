@@ -657,7 +657,7 @@ typedef u16 REBUNI;
 // of using 0xBADF00D or 0xDECAFBAD is formalized with TRASH_POINTER_IF_DEBUG.
 // This makes the instances easier to find and standardizes how it is done.
 //
-#if __has_feature(address_sanitizer) || GCC_VERSION_AT_LEAST(4, 8)
+#if __has_feature(address_sanitizer)
     #include <sanitizer/asan_interface.h>
 
     #define ATTRIBUTE_NO_SANITIZE_ADDRESS __attribute__ ((no_sanitize_address))
@@ -675,6 +675,8 @@ typedef u16 REBUNI;
     // uses XOR to poison bits and then unpoison them back.  This might be
     // useful to instrument C++-based DEBUG builds on platforms that did not
     // have address sanitizer (if that ever becomes interesting).
+    //
+    // http://blog.hostilefork.com/poison-memory-without-asan/
 
     #define ATTRIBUTE_NO_SANITIZE_ADDRESS
 

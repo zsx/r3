@@ -14,8 +14,8 @@
 [a: 10 all [use [a] [void? :a] a = 10]]
 ; BREAK out of USE
 [
-    1 = loop 1 [
-        use [a] [break/return 1]
+    blank? loop 1 [
+        use [a] [break]
         2
     ]
 ]

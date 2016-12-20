@@ -11,8 +11,7 @@
 ; THROW stops attempt evaluation
 [1 == catch [attempt [throw 1 2] 2]]
 ; BREAK stops attempt evaluation
-[void? loop 1 [attempt [break 2] 2]]
-[1 == loop 1 [attempt [break/return 1 2] 2]]
+[blank? loop 1 [attempt [break 2] 2]]
 ; recursion
 [1 = attempt [attempt [1]]]
 [blank? attempt [attempt [1 / 0]]]

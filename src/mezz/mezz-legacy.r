@@ -262,29 +262,6 @@ dt: :delta-time
 dp: :delta-profile
 
 
-; BREAK/RETURN was supplanted by BREAK/WITH.  The confusing idea of involving
-; the word RETURN in the refinement (return from where, who?) became only
-; more confusing with the introduction of definitional return.
-;
-; Renaming rationale: https://trello.com/c/c4T1UZEE
-; New features of WITH: https://trello.com/c/cOgdiOAD
-;
-lib-break: :break ; overwriting lib/break for now
-break: func [
-    {Exit the current iteration of a loop and stop iterating further.}
-
-    /with
-        {Act as if loop body finished current evaluation with a value}
-    value [<opt> any-value!]
-
-    /return ;-- Overrides RETURN!
-        {(deprecated: mostly /WITH synonym, use THROW+CATCH if not)}
-    return-value [<opt> any-value!]
-][
-    lib-break/with either return :return-value :value
-]
-
-
 ; SET has a refinement called /ANY which doesn't communicate as well in the
 ; Ren-C world as OPT.  OPT is the marker on functions to mark parameters as
 ; optional...OPT is the function to convert NONE! to UNSET! while passing
@@ -1174,6 +1151,38 @@ set 'r3-legacy* func [<local> if-flags] [
         ;
         equiv?: (:equal?)
         not-equiv?: (:not-equal?)
+
+        ; BREAK/RETURN had a lousy name to start with (return from what?), but
+        ; was axed to give loops a better interface contract:
+        ;
+        ; https://trello.com/c/uPiz2jLL/
+        ;
+        ; New features of WITH: https://trello.com/c/cOgdiOAD
+        ;
+        lib-break: :break ; overwriting lib/break for now
+        break: func [
+            {Exit the current iteration of a loop and stop iterating further.}
+
+            /return ;-- Overrides RETURN!
+                {(deprecated: use THROW+CATCH)}
+            value [<opt> any-value!]
+        ][
+            if return [
+                fail [
+                    "BREAK/RETURN temporarily not implemented in <r3-legacy>"
+                    "see https://trello.com/c/uPiz2jLL/ for why it was"
+                    "removed.  It could be accomplished in the compatibility"
+                    "layer by climbing the stack via the DEBUG API and"
+                    "looking for loops to EXIT, but this will all change with"
+                    "the definitional BREAK and CONTINUE so it seems not"
+                    "worth it.  Use THROW and CATCH instead (available in"
+                    "R3-Alpha) to subvert the loop return value."
+                ]
+            ]
+
+            lib-break
+        ]
+
     ]
 
     ; set-infix on PATH! instead of WORD! is still TBD

@@ -5,7 +5,7 @@
     10 = num
 ]
 ; cycle return value
-[false = loop 1 [false]]
+[bar? loop 1 [false]]
 ; break cycle
 [
     num: 0
@@ -13,9 +13,7 @@
     num = 1
 ]
 ; break return value
-[void? loop 10 [break]]
-; break/return return value
-[2 = loop 10 [break/return 2]]
+[blank? loop 10 [break]]
 ; continue cycle
 [
     success: true

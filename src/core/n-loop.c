@@ -60,13 +60,13 @@ REBOOL Catching_Break_Or_Continue(REBVAL *val, REBOOL *stop)
 
     if (VAL_FUNC_DISPATCHER(val) == &N_break) {
         *stop = TRUE; // was BREAK or BREAK/WITH
-        CATCH_THROWN(val, val); // will be unset if no /WITH was used
+        CATCH_THROWN(val, val); // will be void if no /WITH was used
         return TRUE;
     }
 
     if (VAL_FUNC_DISPATCHER(val) == &N_continue) {
         *stop = FALSE; // was CONTINUE or CONTINUE/WITH
-        CATCH_THROWN(val, val); // will be unset if no /WITH was used
+        CATCH_THROWN(val, val); // will be void if no /WITH was used
         return TRUE;
     }
 
@@ -226,9 +226,9 @@ static REBARR *Copy_Body_Deep_Bound_To_New_Context(
 
 
 //
-//  Loop_Series_Throws: C
+//  Loop_Series_Common: C
 //
-static REBOOL Loop_Series_Throws(
+static REB_R Loop_Series_Common(
     REBVAL *out,
     REBVAL *var,
     REBARR *body,
@@ -236,6 +236,8 @@ static REBOOL Loop_Series_Throws(
     REBINT ei,
     REBINT ii
 ) {
+    assert(IS_END(out));
+
     REBINT si = VAL_INDEX(start);
     enum Reb_Kind type = VAL_TYPE(start);
 
@@ -255,10 +257,11 @@ static REBOOL Loop_Series_Throws(
         if (Do_At_Throws(out, body, 0, SPECIFIED)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(out, &stop)) {
-                if (stop) break;
+                if (stop)
+                    return R_BLANK;
                 goto next_iteration;
             }
-            return TRUE;
+            return R_OUT_IS_THROWN;
         }
 
     next_iteration:
@@ -266,14 +269,14 @@ static REBOOL Loop_Series_Throws(
         si = VAL_INDEX(var);
     }
 
-    return FALSE;
+    return R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY;
 }
 
 
 //
-//  Loop_Integer_Throws: C
+//  Loop_Integer_Common: C
 //
-static REBOOL Loop_Integer_Throws(
+static REB_R Loop_Integer_Common(
     REBVAL *out,
     REBVAL *var,
     REBARR *body,
@@ -281,6 +284,8 @@ static REBOOL Loop_Integer_Throws(
     REBI64 end,
     REBI64 incr
 ) {
+    assert(IS_END(out));
+
     VAL_RESET_HEADER(var, REB_INTEGER);
 
     while ((incr > 0) ? start <= end : start >= end) {
@@ -289,10 +294,11 @@ static REBOOL Loop_Integer_Throws(
         if (Do_At_Throws(out, body, 0, SPECIFIED)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(out, &stop)) {
-                if (stop) break;
+                if (stop)
+                    return R_BLANK;
                 goto next_iteration;
             }
-            return TRUE;
+            return R_OUT_IS_THROWN;
         }
 
     next_iteration:
@@ -305,14 +311,14 @@ static REBOOL Loop_Integer_Throws(
             fail (Error(RE_OVERFLOW));
     }
 
-    return FALSE;
+    return R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY;
 }
 
 
 //
-//  Loop_Number_Throws: C
+//  Loop_Number_Common: C
 //
-static REBOOL Loop_Number_Throws(
+static REB_R Loop_Number_Common(
     REBVAL *out,
     REBVAL *var,
     REBARR *body,
@@ -320,10 +326,9 @@ static REBOOL Loop_Number_Throws(
     REBVAL *end,
     REBVAL *incr
 ) {
-    REBDEC s;
-    REBDEC e;
-    REBDEC i;
+    assert(IS_END(out));
 
+    REBDEC s;
     if (IS_INTEGER(start))
         s = cast(REBDEC, VAL_INT64(start));
     else if (IS_DECIMAL(start) || IS_PERCENT(start))
@@ -331,6 +336,7 @@ static REBOOL Loop_Number_Throws(
     else
         fail (Error_Invalid_Arg(start));
 
+    REBDEC e;
     if (IS_INTEGER(end))
         e = cast(REBDEC, VAL_INT64(end));
     else if (IS_DECIMAL(end) || IS_PERCENT(end))
@@ -338,6 +344,7 @@ static REBOOL Loop_Number_Throws(
     else
         fail (Error_Invalid_Arg(end));
 
+    REBDEC i;
     if (IS_INTEGER(incr))
         i = cast(REBDEC, VAL_INT64(incr));
     else if (IS_DECIMAL(incr) || IS_PERCENT(incr))
@@ -353,10 +360,11 @@ static REBOOL Loop_Number_Throws(
         if (Do_At_Throws(out, body, 0, SPECIFIED)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(out, &stop)) {
-                if (stop) break;
+                if (stop)
+                    return R_BLANK;
                 goto next_iteration;
             }
-            return TRUE;
+            return R_OUT_IS_THROWN;
         }
 
     next_iteration:
@@ -366,7 +374,7 @@ static REBOOL Loop_Number_Throws(
         s = VAL_DECIMAL(var);
     }
 
-    return FALSE;
+    return R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY;
 }
 
 
@@ -392,6 +400,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
     REBOOL stop = FALSE;
     REBOOL threw = FALSE; // did a non-BREAK or non-CONTINUE throw occur
 
+    assert(IS_END(D_OUT));
     if (mode == LOOP_EVERY)
         SET_END(D_CELL); // Final result is in D_CELL (last TRUE? or a BLANK!)
 
@@ -655,7 +664,10 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
             assert(FALSE);
         }
 
-        if (stop) break;
+        if (stop) {
+            SET_BLANK(D_OUT);
+            break;
+        }
 
 skip_hidden: ;
     }
@@ -700,11 +712,12 @@ skip_hidden: ;
     }
 #endif
 
+    if (stop)
+        return R_BLANK;
+
     switch (mode) {
     case LOOP_FOR_EACH:
-        if (IS_END(D_OUT))
-            return R_VOID;
-        return R_OUT; // ran at least once
+        return R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY;
 
     case LOOP_REMOVE_EACH:
         // Remove hole (updates tail):
@@ -725,7 +738,7 @@ skip_hidden: ;
             return R_VOID; // all evaluations opted out
 
         *D_OUT = *D_CELL;
-        return R_OUT;
+        return R_OUT; // should it be like R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY?
 
     default:
         assert(FALSE);
@@ -768,14 +781,12 @@ REBNATIVE(for)
 
     REBVAL *var = CTX_VAR(context, 1);
 
-    SET_VOID(D_OUT);
-
     if (
         IS_INTEGER(ARG(start))
         && IS_INTEGER(ARG(end))
         && IS_INTEGER(ARG(bump))
     ) {
-        if (Loop_Integer_Throws(
+        return Loop_Integer_Common(
             D_OUT,
             var,
             body_copy,
@@ -784,45 +795,35 @@ REBNATIVE(for)
                 ? (REBI64)VAL_DECIMAL(ARG(end))
                 : VAL_INT64(ARG(end)),
             VAL_INT64(ARG(bump))
-        )) {
-            return R_OUT_IS_THROWN;
-        }
+        );
     }
     else if (ANY_SERIES(ARG(start))) {
         if (ANY_SERIES(ARG(end))) {
-            if (Loop_Series_Throws(
+            return Loop_Series_Common(
                 D_OUT,
                 var,
                 body_copy,
                 ARG(start),
                 VAL_INDEX(ARG(end)),
                 Int32(ARG(bump))
-            )) {
-                return R_OUT_IS_THROWN;
-            }
+            );
         }
         else {
-            if (Loop_Series_Throws(
+            return Loop_Series_Common(
                 D_OUT,
                 var,
                 body_copy,
                 ARG(start),
                 Int32s(ARG(end), 1) - 1,
                 Int32(ARG(bump))
-            )) {
-                return R_OUT_IS_THROWN;
-            }
-        }
-    }
-    else {
-        if (Loop_Number_Throws(
-            D_OUT, var, body_copy, ARG(start), ARG(end), ARG(bump)
-        )) {
-            return R_OUT_IS_THROWN;
+            );
         }
     }
 
-    return R_OUT;
+    return Loop_Number_Common(
+        D_OUT, var, body_copy, ARG(start), ARG(end), ARG(bump)
+    );
+
 }
 
 
@@ -873,8 +874,6 @@ REBNATIVE(for_skip)
     if (skip < 0 && VAL_INDEX(var) >= VAL_LEN_HEAD(var))
         VAL_INDEX(var) = VAL_LEN_HEAD(var) + skip;
 
-    SET_VOID(D_OUT);
-
     while (TRUE) {
         REBINT len = VAL_LEN_HEAD(var); // VAL_LEN_HEAD() always >= 0
         REBINT index = VAL_INDEX(var); // (may have been set to < 0 below)
@@ -890,8 +889,10 @@ REBNATIVE(for_skip)
         if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(body))) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
-                if (stop) goto restore_var_and_return;
-
+                if (stop) {
+                    *var = *word;
+                    return R_BLANK;
+                }
                 goto next_iteration;
             }
             return R_OUT_IS_THROWN;
@@ -913,9 +914,8 @@ REBNATIVE(for_skip)
         VAL_INDEX(var) += skip;
     }
 
-restore_var_and_return:
     *var = *word;
-    return R_OUT;
+    return R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY;
 }
 
 
@@ -939,7 +939,8 @@ REBNATIVE(forever)
         if (Run_Success_Branch_Throws(D_OUT, ARG(body), only)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
-                if (stop) return R_OUT;
+                if (stop)
+                    return R_BLANK;
                 continue;
             }
             return R_OUT_IS_THROWN;
@@ -1076,7 +1077,8 @@ REBNATIVE(loop)
         if (Run_Success_Branch_Throws(D_OUT, ARG(body), only)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
-                if (stop) return R_OUT;
+                if (stop)
+                    return R_BLANK;
                 continue;
             }
             return R_OUT_IS_THROWN;
@@ -1096,10 +1098,7 @@ REBNATIVE(loop)
     if (Maybe_Run_Failed_Branch_Throws(D_OUT, ARG(body), FALSE))
         return R_OUT_IS_THROWN;
 
-    if (IS_END(D_OUT))
-        return R_VOID;
-
-    return R_OUT;
+    return R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY;
 }
 
 
@@ -1142,25 +1141,15 @@ REBNATIVE(repeat)
     Val_Init_Object(ARG(word), context); // keep GC safe
     Val_Init_Block(ARG(body), copy); // keep GC safe
 
-    SET_VOID(D_OUT);
-
     if (ANY_SERIES(value)) {
-        if (Loop_Series_Throws(
+        return Loop_Series_Common(
             D_OUT, var, copy, value, VAL_LEN_HEAD(value) - 1, 1
-        )) {
-            return R_OUT_IS_THROWN;
-        }
-
-        return R_OUT;
-    }
-    else if (IS_INTEGER(value)) {
-        if (Loop_Integer_Throws(D_OUT, var, copy, 1, VAL_INT64(value), 1))
-            return R_OUT_IS_THROWN;
-
-        return R_OUT;
+        );
     }
 
-    return R_VOID;
+    assert(IS_INTEGER(value));
+
+    return Loop_Integer_Common(D_OUT, var, copy, 1, VAL_INT64(value), 1);
 }
 
 
@@ -1177,7 +1166,8 @@ inline static REB_R Loop_While_Until_Core(REBFRM *frame_, REBOOL trigger)
         if (Run_Success_Branch_Throws(D_OUT, ARG(body), only)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
-                if (stop) return R_OUT;
+                if (stop)
+                    return R_BLANK;
 
                 // LOOP-UNTIL and LOOP-WITH follow the precedent that the way
                 // a CONTINUE/WITH works is to act as if the loop body
@@ -1215,6 +1205,14 @@ inline static REB_R Loop_While_Until_Core(REBFRM *frame_, REBOOL trigger)
     if (Maybe_Run_Failed_Branch_Throws(D_OUT, ARG(body), FALSE)) // !only
         return R_OUT_IS_THROWN;
 
+    // Though LOOP-UNTIL will always have a truthy result, LOOP-WHILE never
+    // will, and needs to have the result overwritten with something TRUE?
+    // so BAR! is used.
+    //
+    if (trigger == TRUE)
+        return R_BAR;
+
+    assert(IS_CONDITIONAL_TRUE(D_OUT));
     return R_OUT;
 }
 
@@ -1263,7 +1261,7 @@ inline static REB_R While_Until_Core(REBFRM *frame_, REBOOL trigger)
 
     const REBOOL only = FALSE; // while/only [cond] [body] is meaningless
 
-    SET_VOID(D_OUT); // return result if body never runs
+    assert(IS_END(D_OUT)); // guaranteed by the evaluator
 
     do {
         if (Run_Success_Branch_Throws(D_CELL, ARG(condition), only)) {
@@ -1288,14 +1286,21 @@ inline static REB_R While_Until_Core(REBFRM *frame_, REBOOL trigger)
             if (Maybe_Run_Failed_Branch_Throws(D_OUT, ARG(body), FALSE))
                 return R_OUT_IS_THROWN;
 
-            return R_OUT;
+            if (trigger == FALSE) {
+                // Successfully completed loops aren't allowed to return a
+                // FALSE? value, so they get BAR! as a truthy-result.
+                //
+                return R_BAR;
+            }
+
+            return R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY;
         }
 
         if (Run_Success_Branch_Throws(D_OUT, ARG(body), only)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop)
-                    return R_OUT;
+                    return R_BLANK;
 
                 continue;
             }

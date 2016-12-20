@@ -52,6 +52,7 @@ enum Reb_Result {
     //
     R_VOID, // => SET_VOID(D_OUT); return R_OUT;
     R_BLANK, // => SET_BLANK(D_OUT); return R_OUT;
+    R_BAR, // SET_BAR(D_OUT); return R_OUT;
 
     // This means that the value in D_OUT is to be used as the return result.
     // Note that value starts as an END, and must be written to some other
@@ -95,6 +96,10 @@ enum Reb_Result {
     // value in R_OUT to simply a void.
     //
     R_OUT_VOID_IF_UNWRITTEN,
+
+    // This converts END into void, but void or conditional false into BAR!
+    //
+    R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY,
 
     // If Do_Core gets back an R_REDO from a dispatcher, it will re-execute
     // the f->func in the frame.  This function may be changed by the

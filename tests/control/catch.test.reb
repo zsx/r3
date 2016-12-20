@@ -67,8 +67,8 @@
 ]
 ; CATCH and BREAK
 [
-    1 = loop 1 [
-        catch [break/return 1 2]
+    blank? loop 1 [
+        catch [break 2]
         2
     ]
 ]

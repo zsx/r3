@@ -13,10 +13,10 @@
     x = 1
 ]
 ; BREAK out of make object!
-; bug#846
 [
-    1 = loop 1 [
-        make object! [break/return 1]
+    #846
+    blank? loop 1 [
+        make object! [break]
         2
     ]
 ]

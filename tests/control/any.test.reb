@@ -332,9 +332,9 @@
 ]
 ; BREAK stops evaluation
 [
-    1 = loop 1 [
+    blank? loop 1 [
         any [
-            break/return 1
+            break
             2
         ]
     ]

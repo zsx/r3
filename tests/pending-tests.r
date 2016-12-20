@@ -466,7 +466,7 @@
     num: 0
     for i 9223372036854775807 9223372036854775807 1 [
         num: num + 1
-        either num > 1 [break/return false] [true]
+        either num > 1 [break] [true]
     ]
 ]
 #64bit
@@ -474,7 +474,7 @@
     num: 0
     for i -9223372036854775808 -9223372036854775808 -1 [
         num: num + 1
-        either num > 1 [break/return false] [true]
+        either num > 1 [break] [true]
     ]
 ]
 ; bug#1994
@@ -483,7 +483,7 @@
     num: 0
     for i 9223372036854775807 9223372036854775807 9223372036854775807 [
         num: num + 1
-        if num <> 1 [break/return false]
+        if num <> 1 [break]
         true
     ]
 ]
@@ -493,7 +493,7 @@
     num: 0
     for i -9223372036854775808 -9223372036854775808 -9223372036854775808 [
         num: num + 1
-        if num <> 1 [break/return false]
+        if num <> 1 [break]
         true
     ]
 ]

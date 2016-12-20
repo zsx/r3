@@ -197,8 +197,8 @@
 ]
 ; BREAK out of a function
 [
-    1 = loop 1 [
-        f: does [break/return 1]
+    blank? loop 1 [
+        f: does [break]
         f
         2
     ]
@@ -226,7 +226,7 @@
             either x = 1 [
                 loop 1 [f 2]
                 x
-            ] [break/return 1]
+            ] [break]
         ]
         f 1
     ]

@@ -1079,6 +1079,10 @@ reevaluate:;
             SET_BLANK(f->out); // no VALUE_FLAG_UNEVALUATED
             break;
 
+        case R_BAR:
+            SET_BAR(f->out); // no VALUE_FLAG_UNEVALUATED
+            break;
+
         case R_OUT:
             CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
             break; // checked as NOT_END() after switch()
@@ -1132,6 +1136,15 @@ reevaluate:;
         case R_OUT_VOID_IF_UNWRITTEN:
             if (IS_END(f->out))
                 SET_VOID(f->out); // no VALUE_FLAG_UNEVALUATED
+            else
+                CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
+            break;
+
+        case R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY:
+            if (IS_END(f->out))
+                SET_VOID(f->out);
+            else if (IS_VOID(f->out) || IS_CONDITIONAL_FALSE(f->out))
+                SET_BAR(f->out);
             else
                 CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
             break;

@@ -29,8 +29,8 @@
 ]
 ; BREAK stops evaluation
 [
-    1 = loop 1 [
-        case [break/return 1 2]
+    blank? loop 1 [
+        case [break 2]
         2
     ]
 ]

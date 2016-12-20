@@ -301,7 +301,7 @@
     char: #"^(ff)"
     not for i char char 1 [
         num: num + 1
-        if num > 1 [break/return true]
+        if num > 1 [break]
     ]
 ]
 [
@@ -309,7 +309,7 @@
     char: #"^(0)"
     not for i char char -1 [
         num: num + 1
-        if num > 1 [break/return true]
+        if num > 1 [break]
     ]
 ]
 [

@@ -6,9 +6,8 @@
 ]
 ; Test body-block return values
 [1 = loop-until [1]]
-; Test break and break/return
-[void? loop-until [break true]]
-[1 = loop-until [break/return 1 true]]
+; Test break
+[blank? loop-until [break true]]
 ; Test continue
 [
     success: true

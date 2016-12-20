@@ -17,8 +17,8 @@
     while [false] [success: false]
     success
 ]
-; Test break, break/return and continue
-[cycle?: true void? while [cycle?] [break cycle?: false]]
+; Test break and continue
+[cycle?: true blank? while [cycle?] [break cycle?: false]]
 ; Test reactions to break and continue in the condition
 [
     was-stopped: true

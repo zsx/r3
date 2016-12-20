@@ -43,14 +43,14 @@
 ]
 ; BREAK stops the evaluation
 [
-    1 == loop 1 [
-        either true [break/return 1 2] [2]
+    blank? loop 1 [
+        either true [break 2] [2]
         2
     ]
 ]
 [
-    1 == loop 1 [
-        either false [2] [break/return 1 2]
+    blank? loop 1 [
+        either false [2] [break 2]
         2
     ]
 ]
