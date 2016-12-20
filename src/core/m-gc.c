@@ -801,7 +801,7 @@ static void Reify_Any_C_Valist_Frames(void)
 // lifetime of that frame on the stack.  (Not to the lifetime of the FRAME!
 // value itself, which could be indefinite.)
 //
-ATTRIBUTE_NO_SANITIZE_ADDRESS static void Mark_Root_Series(void)
+static void Mark_Root_Series(void)
 {
     REBSEG *seg;
     for (seg = Mem_Pools[SER_POOL].segs; seg; seg = seg->next) {
@@ -1120,7 +1120,7 @@ static void Mark_Frame_Stack_Deep(void)
 // garbage collector with MANAGE_SERIES(), then if it didn't get "marked" as
 // live during the marking phase then free it.
 //
-ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Series(void)
+static REBCNT Sweep_Series(void)
 {
     REBCNT count = 0;
 
@@ -1500,7 +1500,7 @@ void Guard_Node_Core(const REBNOD *node)
 // enumerating if there is any chance the GC might run (e.g. if user code
 // is called to process the function list)
 //
-ATTRIBUTE_NO_SANITIZE_ADDRESS REBARR *Snapshot_All_Functions(void)
+REBARR *Snapshot_All_Functions(void)
 {
     REBDSP dsp_orig = DSP;
 
@@ -1638,7 +1638,7 @@ static void Queue_Mark_Gob_Deep(REBGOB *gob)
 // Scans all gobs in all segments that are part of the
 // GOB_POOL. Free gobs that have not been marked.
 //
-ATTRIBUTE_NO_SANITIZE_ADDRESS static REBCNT Sweep_Gobs(void)
+static REBCNT Sweep_Gobs(void)
 {
     REBCNT count = 0;
 
