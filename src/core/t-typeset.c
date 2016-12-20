@@ -138,9 +138,9 @@ REBOOL Update_Typeset_Bits_Core(
     VAL_TYPESET_BITS(typeset) = 0;
 
     const RELVAL *item = head;
-    if (!IS_END(item) && IS_BLOCK(item)) {
+    if (NOT_END(item) && IS_BLOCK(item)) {
         // Double blocks are a variadic signal.
-        if (!IS_END(item + 1))
+        if (NOT_END(item + 1))
             fail (Error(RE_MISC));
 
         item = VAL_ARRAY_AT(item);

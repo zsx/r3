@@ -752,7 +752,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
         REBVAL *vararg = FRM_ARG(f, num_fixed + 1); // 1-based
         assert(
             IS_VARARGS(vararg)
-            && !GET_VAL_FLAG(vararg, VARARGS_FLAG_NO_FRAME)
+            && NOT_VAL_FLAG(vararg, VARARGS_FLAG_NO_FRAME)
         );
 
         // Evaluate the VARARGS! feed of values to the data stack.  This way

@@ -1075,7 +1075,7 @@ REBOOL Form_Value_Throws(
             // should be interpreted as UTF-8 bytes.
             //
             if (VAL_LEN_AT(item) > 0) {
-                if (!IS_END(pending_delimiter) && !IS_BLANK(pending_delimiter))
+                if (NOT_END(pending_delimiter) && !IS_BLANK(pending_delimiter))
                     Mold_Value(mold, pending_delimiter, FALSE);
 
                 Append_UTF8_May_Fail(
@@ -1117,7 +1117,7 @@ REBOOL Form_Value_Throws(
             // If there's a delimiter pending (even a BLANK!), then convert
             // it back to pending the delimiter of the *outer* element.
             //
-            if (!IS_END(pending_delimiter)) {
+            if (NOT_END(pending_delimiter)) {
                 Get_Pending_Format_Delimiter(
                     pending_delimiter, delimiters, depth
                 );
@@ -1131,7 +1131,7 @@ REBOOL Form_Value_Throws(
 
             REBCNT rollback_point = UNI_LEN(mold->series);
 
-            if (!IS_END(pending_delimiter) && !IS_BLANK(pending_delimiter))
+            if (NOT_END(pending_delimiter) && !IS_BLANK(pending_delimiter))
                 Mold_Value(mold, pending_delimiter, FALSE);
 
             REBCNT mold_point = UNI_LEN(mold->series);

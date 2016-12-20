@@ -267,6 +267,9 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     }
 #endif
 
+#define NOT_VAL_FLAG(v,f) \
+    NOT(GET_VAL_FLAG((v), (f)))
+
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -731,7 +734,7 @@ inline static REBOOL IS_CONDITIONAL_TRUE_SAFE(const REBVAL *v) {
 
 inline static REBOOL VAL_LOGIC(const RELVAL *v) {
     assert(IS_LOGIC(v));
-    return NOT(GET_VAL_FLAG((v), VALUE_FLAG_CONDITIONALLY_FALSE));
+    return NOT_VAL_FLAG((v), VALUE_FLAG_CONDITIONALLY_FALSE);
 }
 
 

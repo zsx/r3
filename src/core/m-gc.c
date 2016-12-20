@@ -853,7 +853,7 @@ static void Mark_Root_Series(void)
                 //
                 Mark_Rebser_Only(s);
                 Queue_Mark_Value_Deep(key);
-                if (!IS_END(paired))
+                if (NOT_END(paired))
                     Queue_Mark_Value_Deep(paired);
             }
             else {
@@ -1016,7 +1016,7 @@ static void Mark_Frame_Stack_Deep(void)
         if (f->specifier != SPECIFIED)
             Queue_Mark_Context_Deep(f->specifier);
 
-        if (!IS_END(f->out)) // never NULL, always initialized bit pattern
+        if (NOT_END(f->out)) // never NULL, always initialized bit pattern
             Queue_Mark_Opt_Value_Deep(f->out);
 
         if (NOT(Is_Any_Function_Frame(f))) {
@@ -1028,7 +1028,7 @@ static void Mark_Frame_Stack_Deep(void)
             continue;
         }
 
-        if (!IS_END(&f->cell))
+        if (NOT_END(&f->cell))
             Queue_Mark_Opt_Value_Deep(&f->cell);
 
         Queue_Mark_Function_Deep(f->func); // never NULL
@@ -1043,7 +1043,7 @@ static void Mark_Frame_Stack_Deep(void)
 
             if (
                 f->refine // currently allowed to be NULL
-                && !IS_END(f->refine)
+                && NOT_END(f->refine)
                 && Is_Value_Managed(f->refine)
             ) {
                 Queue_Mark_Opt_Value_Deep(f->refine);
@@ -1051,7 +1051,7 @@ static void Mark_Frame_Stack_Deep(void)
 
             if (
                 f->special
-                && !IS_END(f->special)
+                && NOT_END(f->special)
                 && Is_Value_Managed(f->special)
             ) {
                 Queue_Mark_Opt_Value_Deep(f->special);
@@ -1340,7 +1340,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
 
         // Mark potential error object from callback!
         if (!IS_BLANK_RAW(&Callback_Error)) {
-            assert(NOT(GET_VAL_FLAG(&Callback_Error, VALUE_FLAG_RELATIVE)));
+            assert(NOT_VAL_FLAG(&Callback_Error, VALUE_FLAG_RELATIVE));
             Queue_Mark_Value_Deep(&Callback_Error);
         }
         Propagate_All_GC_Marks();

@@ -597,7 +597,7 @@ reevaluate:;
             case PARAM_CLASS_RETURN:
                 assert(VAL_PARAM_SYM(f->param) == SYM_RETURN);
 
-                if (!GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_RETURN)) {
+                if (NOT_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_RETURN)) {
                     SET_VOID(f->arg);
                     goto continue_arg_loop;
                 }
@@ -616,7 +616,7 @@ reevaluate:;
             case PARAM_CLASS_LEAVE:
                 assert(VAL_PARAM_SYM(f->param) == SYM_LEAVE);
 
-                if (!GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEAVE)) {
+                if (NOT_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEAVE)) {
                     SET_VOID(f->arg);
                     goto continue_arg_loop;
                 }
@@ -730,10 +730,10 @@ reevaluate:;
                 // It is not possible to gather variadic lookback arguments.
                 // SET/LOOKBACK should prohibit functions w/variadic 1st args.
                 //
-                assert(!GET_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC));
+                assert(NOT_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC));
 
                 if (IS_END(f->out)) {
-                    if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
+                    if (NOT_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                         fail (Error_No_Arg(FRM_LABEL(f), f->param));
                     SET_VOID(f->arg);
                     goto continue_arg_loop;
@@ -744,12 +744,12 @@ reevaluate:;
                     break;
 
                 case PARAM_CLASS_HARD_QUOTE:
-                    if (NOT(GET_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED)))
+                    if (NOT_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED))
                         fail (Error_Lookback_Quote_Too_Late(f));
                     break;
 
                 case PARAM_CLASS_SOFT_QUOTE:
-                    if (NOT(GET_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED)))
+                    if (NOT_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED))
                         fail (Error_Lookback_Quote_Too_Late(f));
                     if (IS_SET_WORD(f->out) || IS_SET_PATH(f->out))
                         fail (Error_Lookback_Quote_Set_Soft(f));
@@ -818,7 +818,7 @@ reevaluate:;
     //=//// ERROR ON END MARKER, BAR! IF APPLICABLE //////////////////////=//
 
             if (IS_END(f->value)) {
-                if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
+                if (NOT_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                     fail (Error_No_Arg(FRM_LABEL(f), f->param));
 
                 SET_VOID(f->arg);
@@ -830,7 +830,7 @@ reevaluate:;
             // It must come through other means (e.g. `'|` or `first [|]`)
             //
             if (IS_BAR(f->value)) {
-                if (!GET_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
+                if (NOT_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                     fail (Error(RE_EXPRESSION_BARRIER));
 
                 SET_VOID(f->arg);

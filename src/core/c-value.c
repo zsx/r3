@@ -165,7 +165,7 @@ REBOOL IS_END_Debug(const RELVAL *v, const char *file, int line) {
 //
 REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
 {
-    assert(NOT(GET_VAL_FLAG(v, VALUE_FLAG_RELATIVE)));
+    assert(NOT_VAL_FLAG(v, VALUE_FLAG_RELATIVE));
     assert(
         ANY_WORD(v)
         || ANY_ARRAY(v)

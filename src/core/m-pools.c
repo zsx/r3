@@ -1065,7 +1065,7 @@ void Manage_Pairing(REBVAL *paired) {
 //
 void Free_Pairing(REBVAL *paired) {
     REBVAL *key = PAIRING_KEY(paired);
-    assert(!GET_VAL_FLAG(key, NODE_FLAG_MANAGED));
+    assert(NOT_VAL_FLAG(key, NODE_FLAG_MANAGED));
     REBSER *series = cast(REBSER*, key);
     SET_TRASH_IF_DEBUG(paired);
     Free_Node(SER_POOL, series);

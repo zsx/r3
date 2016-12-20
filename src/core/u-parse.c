@@ -224,7 +224,7 @@ static REBOOL Subparse_Throws(
 
     REB_R r = N_subparse(f);
 
-    assert(!IS_END(out));
+    assert(NOT_END(out));
 
     // Can't just drop f->data.stackvars because the debugger may have
     // "reified" the frame into a FRAME!, which means it would now be using

@@ -481,7 +481,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
         read_index = index;  // remember starting spot
 
         // Set the FOREACH loop variables from the series:
-        for (i = 1; !IS_END(key); i++, key++, var++) {
+        for (i = 1; NOT_END(key); i++, key++, var++) {
 
             if (index >= tail) {
                 SET_BLANK(var);
@@ -707,7 +707,7 @@ skip_hidden: ;
     if (LEGACY(OPTIONS_BREAK_WITH_OVERRIDES)) {
         // In legacy R3-ALPHA, BREAK without a provided value did *not*
         // override the result.  It returned the partial results.
-        if (stop && !IS_END(D_OUT))
+        if (stop && NOT_END(D_OUT))
             return R_OUT;
     }
 #endif

@@ -435,7 +435,7 @@ inline static void Derelativize(
     const RELVAL *v,
     REBCTX *specifier
 ) {
-    assert(!IS_END(v));
+    assert(NOT_END(v));
     assert(!IS_TRASH_DEBUG(v));
 
     ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(out, __FILE__, __LINE__);

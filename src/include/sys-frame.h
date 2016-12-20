@@ -49,7 +49,7 @@ inline static void INIT_RELATIVE(RELVAL *v, REBFUN *func) {
 }
 
 inline static void INIT_SPECIFIC(RELVAL *v, REBCTX *context) {
-    assert(NOT(GET_VAL_FLAG(v, VALUE_FLAG_RELATIVE)));
+    assert(NOT_VAL_FLAG(v, VALUE_FLAG_RELATIVE));
     v->extra.binding = CTX_VARLIST(context);
 }
 
@@ -93,7 +93,7 @@ static inline void CATCH_THROWN(REBVAL *arg_out, REBVAL *thrown) {
     //
     // Note: arg_out and thrown may be the same pointer
     //
-    assert(!IS_END(thrown));
+    assert(NOT_END(thrown));
     assert(THROWN(thrown));
     CLEAR_VAL_FLAG(thrown, VALUE_FLAG_THROWN);
 
@@ -218,7 +218,7 @@ inline static REBVAL *FRM_CELL(REBFRM *f) {
         REBVAL *var = &f->args_head[n - 1];
 
         assert(!THROWN(var));
-        assert(NOT(GET_VAL_FLAG(var, VALUE_FLAG_RELATIVE)));
+        assert(NOT_VAL_FLAG(var, VALUE_FLAG_RELATIVE));
         return var;
     }
 #endif

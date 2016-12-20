@@ -1806,7 +1806,7 @@ static REBARR *Scan_Array(
         VAL_LINE(value)=linenum;
         VAL_FLAGS(value)|=FLAGS_LINE;
 #endif
-        if (!IS_END(value))
+        if (NOT_END(value))
             SET_ARRAY_LEN_NOTERM(emitbuf, ARR_LEN(emitbuf) + 1);
         else {
         syntax_error: ; // needs to be a statement

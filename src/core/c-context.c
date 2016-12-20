@@ -223,7 +223,7 @@ REBVAL *Append_Context_Core(
         // for stack-relative bindings, the index will be negative and the
         // target will be a function's PARAMLIST series.
         //
-        assert(!GET_VAL_FLAG(opt_any_word, VALUE_FLAG_RELATIVE));
+        assert(NOT_VAL_FLAG(opt_any_word, VALUE_FLAG_RELATIVE));
         SET_VAL_FLAG(opt_any_word, WORD_FLAG_BOUND);
         INIT_WORD_CONTEXT(opt_any_word, context);
         INIT_WORD_INDEX(opt_any_word, len); // length we just bumped
@@ -924,8 +924,8 @@ REBARR *Context_To_Array(REBCTX *context, REBINT mode)
     block = Make_Array(CTX_LEN(context) * (mode == 3 ? 2 : 1));
 
     n = 1;
-    for (; !IS_END(key); n++, key++, var++) {
-        if (!GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
+    for (; NOT_END(key); n++, key++, var++) {
+        if (NOT_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
             if (mode & 1) {
                 value = Alloc_Tail_Array(block);
                 if (mode & 2) {
@@ -1157,7 +1157,7 @@ void Resolve_Context(
         if (m != 0) {
             // "the remove succeeded, so it's marked as set now" (old comment)
             if (
-                !GET_VAL_FLAG(key, TYPESET_FLAG_LOCKED)
+                NOT_VAL_FLAG(key, TYPESET_FLAG_LOCKED)
                 && (all || IS_VOID(var))
             ) {
                 if (m < 0) SET_VOID(var); // no value in source context
@@ -1190,7 +1190,7 @@ void Resolve_Context(
                     target,
                     0,
                     canon,
-                    NOT(GET_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK))
+                    NOT_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK)
                 );
                 *var = *CTX_VAR(source, n);
             }

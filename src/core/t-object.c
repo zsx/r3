@@ -109,11 +109,11 @@ static REBOOL Equal_Context(const RELVAL *val, const RELVAL *arg)
     // they don't line up.
     //
     for (; NOT_END(key1); key1++, var1++) {
-        if (!GET_VAL_FLAG(key1, TYPESET_FLAG_HIDDEN))
+        if (NOT_VAL_FLAG(key1, TYPESET_FLAG_HIDDEN))
             return FALSE;
     }
     for (; NOT_END(key2); key2++, var2++) {
-        if (!GET_VAL_FLAG(key2, TYPESET_FLAG_HIDDEN))
+        if (NOT_VAL_FLAG(key2, TYPESET_FLAG_HIDDEN))
             return FALSE;
     }
 
@@ -184,7 +184,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
             context,
             NULL,
             VAL_KEY_SPELLING(key),
-            NOT(GET_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK)) // !!! others?
+            NOT_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK) // !!! others?
         );
     }
 
@@ -233,7 +233,7 @@ static REBCTX *Trim_Context(REBCTX *context)
     key = CTX_KEYS_HEAD(context);
     var = CTX_VARS_HEAD(context);
     for (; NOT_END(var); var++, key++) {
-        if (VAL_TYPE(var) != REB_BLANK && !GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
+        if (VAL_TYPE(var) != REB_BLANK && NOT_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
             copy_count++;
     }
 
@@ -251,7 +251,7 @@ static REBCTX *Trim_Context(REBCTX *context)
     var_new = CTX_VARS_HEAD(context_new);
     key_new = CTX_KEYS_HEAD(context_new);
     for (; NOT_END(var); var++, key++) {
-        if (VAL_TYPE(var) != REB_BLANK && !GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
+        if (VAL_TYPE(var) != REB_BLANK && NOT_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
             *var_new++ = *var;
             *key_new++ = *key;
         }

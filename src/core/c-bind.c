@@ -135,7 +135,7 @@ void Bind_Values_Core(
     REBCNT index = 1;
     REBVAL *key = CTX_KEYS_HEAD(context);
     for (; index <= CTX_LEN(context); key++, index++)
-        if (!GET_VAL_FLAG(key, TYPESET_FLAG_UNBINDABLE))
+        if (NOT_VAL_FLAG(key, TYPESET_FLAG_UNBINDABLE))
             Add_Binder_Index(&binder, VAL_KEY_CANON(key), index);
 
     Bind_Values_Inner_Loop(
@@ -330,7 +330,7 @@ void Rebind_Values_Deep(
         else if (
             ANY_WORD(value)
             && GET_VAL_FLAG(value, WORD_FLAG_BOUND)
-            && !GET_VAL_FLAG(value, VALUE_FLAG_RELATIVE)
+            && NOT_VAL_FLAG(value, VALUE_FLAG_RELATIVE)
             && VAL_WORD_CONTEXT(KNOWN(value)) == src
         ) {
             INIT_WORD_CONTEXT(value, dst);

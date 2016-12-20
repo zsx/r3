@@ -444,7 +444,7 @@ REBTYPE(Varargs)
 REBINT CT_Varargs(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     if (GET_VAL_FLAG(a, VARARGS_FLAG_NO_FRAME)) {
-        if (!GET_VAL_FLAG(b, VARARGS_FLAG_NO_FRAME)) return 1;
+        if (NOT_VAL_FLAG(b, VARARGS_FLAG_NO_FRAME)) return 1;
         return VAL_VARARGS_ARRAY1(a) == VAL_VARARGS_ARRAY1(b) ? 1 : 0;
     }
     else {

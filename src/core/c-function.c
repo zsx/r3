@@ -41,7 +41,7 @@ REBARR *List_Func_Words(const REBVAL *func, REBOOL pure_locals)
     REBARR *array = Make_Array(VAL_FUNC_NUM_PARAMS(func));
     REBVAL *param = VAL_FUNC_PARAMS_HEAD(func);
 
-    for (; !IS_END(param); param++) {
+    for (; NOT_END(param); param++) {
         enum Reb_Kind kind;
 
         switch (VAL_PARAM_CLASS(param)) {
@@ -93,7 +93,7 @@ REBARR *List_Func_Typesets(REBVAL *func)
     REBARR *array = Make_Array(VAL_FUNC_NUM_PARAMS(func));
     REBVAL *typeset = VAL_FUNC_PARAMS_HEAD(func);
 
-    for (; !IS_END(typeset); typeset++) {
+    for (; NOT_END(typeset); typeset++) {
         REBVAL *value = Alloc_Tail_Array(array);
 
         assert(IS_TYPESET(typeset));
@@ -955,7 +955,7 @@ REBFUN *Make_Function(
             //
             SET_VAL_FLAG(rootparam, FUNC_FLAG_MAYBE_BRANCHER);
 
-            if (!GET_VAL_FLAG(param, TYPESET_FLAG_TIGHT))
+            if (NOT_VAL_FLAG(param, TYPESET_FLAG_TIGHT))
                 SET_VAL_FLAG(rootparam, FUNC_FLAG_DEFERS_LOOKBACK_ARG);
 
             goto done_caching; }

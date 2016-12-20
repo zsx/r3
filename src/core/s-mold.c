@@ -958,8 +958,8 @@ static void Form_Object(const REBVAL *value, REB_MOLD *mold)
     Append_Value(MOLD_STACK, value);
 
     // Mold all words and their values:
-    for (; !IS_END(key); key++, var++) {
-        if (!GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
+    for (; NOT_END(key); key++, var++) {
+        if (NOT_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
             had_output = TRUE;
             Emit(mold, "N: V\n", VAL_KEY_SPELLING(key), var);
         }
@@ -1025,7 +1025,7 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
     key = keys_head;
     var = vars_head;
 
-    for (; !IS_END(key); var ? (++key, ++var) : ++key) {
+    for (; NOT_END(key); var ? (++key, ++var) : ++key) {
         if (key != keys_head)
             Append_Codepoint_Raw(mold->series, ' ');
 
@@ -1050,7 +1050,7 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
     key = keys_head;
     var = vars_head;
 
-    for (; !IS_END(key); var ? (++key, ++var) : ++key) {
+    for (; NOT_END(key); var ? (++key, ++var) : ++key) {
         if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
             continue; // !!! Should hidden fields be in molded view?
 

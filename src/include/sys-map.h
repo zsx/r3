@@ -77,7 +77,7 @@ inline static REBCNT Length_Map(REBMAP *map)
     REBVAL *v = KNOWN(ARR_HEAD(MAP_PAIRLIST(map)));
 
     REBCNT count = 0;
-    for (; !IS_END(v); v += 2) {
+    for (; NOT_END(v); v += 2) {
         if (!IS_VOID(v + 1))
             ++count;
     }

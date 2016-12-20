@@ -704,7 +704,7 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
             // Run the lookback if we can't afford to defer it -or- if it's
             // not the kind that is deferred.
             if (
-                !GET_VAL_FLAG(child->gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG)
+                NOT_VAL_FLAG(child->gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG)
                 || (
                     NOT(flags & DO_FLAG_VARIADIC_TAKE)
                     && NOT(Fulfilling_Last_Argument(parent))
