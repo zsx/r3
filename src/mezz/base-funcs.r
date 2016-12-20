@@ -299,7 +299,7 @@ dig-function-meta-fields: function [value [function!]] [
 
         child: make frame! :value
         for-each param child [
-            if ? select parent param [
+            if any-value? select parent param [
                 child/(param): copy parent/(param)
             ]
         ]

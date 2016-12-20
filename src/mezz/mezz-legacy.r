@@ -1017,7 +1017,7 @@ set 'r3-legacy* func [<local> if-flags] [
 
             /with
                 {Yield a result (mapped to an integer if given to shell)}
-            value [<opt> any-value!]
+            value [any-value!]
                 "See: http://en.wikipedia.org/wiki/Exit_status"
             /return
                 "(deprecated synonym for /WITH)"

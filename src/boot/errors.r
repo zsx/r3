@@ -143,6 +143,7 @@ Script: [
     argument-revoked:   [:arg1 {refinement revoked, cannot supply} :arg2]
     bad-refine-revoke:  [:arg1 {refinement in use, can't be revoked by} :arg2]
     non-logic-refine:   [:arg1 {refinement must be LOGIC!, not} :arg2]
+    refinement-arg-opt: [{refinement arguments cannot be <opt>}]
 
     invalid-path:       [{cannot access} :arg2 {in path} :arg1]
     bad-path-type:      [{path} :arg1 {is not valid for} :arg2 {type}]

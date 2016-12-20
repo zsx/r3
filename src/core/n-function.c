@@ -166,7 +166,7 @@ void Make_Thrown_Exit_Value(
 //
 //      /with
 //          "Result for enclosing state (default is no value)"
-//      value [<opt> any-value!]
+//      value [any-value!]
 //      /from
 //          "Jump the stack to return from a specific frame or call"
 //      level [frame! function! integer!]

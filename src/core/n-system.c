@@ -52,7 +52,7 @@ REBNATIVE(halt)
 //
 //      /with
 //          {Yield a result (mapped to an integer if given to shell)}
-//      value [<opt> any-value!]
+//      value [any-value!]
 //          "See: http://en.wikipedia.org/wiki/Exit_status"
 //  ]
 //
@@ -89,7 +89,7 @@ REBNATIVE(quit)
 //
 //      /with
 //          {Yield a result (mapped to an integer if given to shell)}
-//      value [<opt> any-value!]
+//      value [any-value!]
 //          "See: http://en.wikipedia.org/wiki/Exit_status"
 //  ]
 //

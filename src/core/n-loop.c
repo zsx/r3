@@ -82,7 +82,7 @@ REBOOL Catching_Break_Or_Continue(REBVAL *val, REBOOL *stop)
 //
 //      /with
 //          {Act as if loop body finished current evaluation with a value}
-//      value [<opt> any-value!]
+//      value [any-value!]
 //  ]
 //
 REBNATIVE(break)
@@ -108,7 +108,7 @@ REBNATIVE(break)
 //
 //      /with
 //          {Act as if loop body finished current evaluation with a value}
-//      value [<opt> any-value!]
+//      value [any-value!]
 //  ]
 //
 REBNATIVE(continue)

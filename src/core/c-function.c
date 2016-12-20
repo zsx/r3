@@ -361,6 +361,16 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 FALSE // `trap`: false means fail vs. return FALSE if error
             );
 
+            // Refinements and refinement arguments cannot be specified as
+            // <opt>.  Although refinement arguments may be void, they are
+            // not "passed in" that way...the refinement is inactive.
+            //
+            if (refinement_seen) {
+                if (TYPE_CHECK(typeset, REB_MAX_VOID))
+                    fail (Error(RE_REFINEMENT_ARG_OPT));
+            }
+
+
             // A hard quote can only get a void if it is an <end>, and that
             // is not reflected in the typeset but in TYPESET_FLAG_ENDABLE
             //
@@ -471,22 +481,16 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                     ? PARAM_CLASS_LOCAL
                     : PARAM_CLASS_NORMAL
             );
-            if (refinement_seen)
-                VAL_TYPESET_BITS(typeset) |= FLAGIT_KIND(REB_MAX_VOID);
             break;
 
         case REB_GET_WORD:
             assert(mode == SPEC_MODE_NORMAL);
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_HARD_QUOTE);
-            if (refinement_seen)
-                VAL_TYPESET_BITS(typeset) |= FLAGIT_KIND(REB_MAX_VOID);
             break;
 
         case REB_LIT_WORD:
             assert(mode == SPEC_MODE_NORMAL);
             INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_SOFT_QUOTE);
-            if (refinement_seen)
-                VAL_TYPESET_BITS(typeset) |= FLAGIT_KIND(REB_MAX_VOID);
             break;
 
         case REB_REFINEMENT:
@@ -904,8 +908,8 @@ REBCNT Find_Param_Index(REBARR *paramlist, REBSTR *spelling)
 //
 // Functions have an associated REBVAL-sized cell of data, accessible via
 // FUNC_BODY().  This is where they can store information that will be
-// available when the dispatcher is called.  Despite the name, it doesn't
-// have to be an array--it can be any REBVAL.
+// available when the dispatcher is called.  Despite being called "body", it
+// doesn't have to be an array--it can be any REBVAL.
 //
 REBFUN *Make_Function(
     REBARR *paramlist,
