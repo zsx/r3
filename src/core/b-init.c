@@ -1269,7 +1269,7 @@ static void Init_Main_Args(REBARGS *rargs)
     }
 
     if (rargs->args) {
-        REBCNT n;
+        REBCNT n = 0;
         while (rargs->args[n] != NULL)
             ++n;
 
