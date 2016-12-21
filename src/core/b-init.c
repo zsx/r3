@@ -283,7 +283,7 @@ static void Load_Boot(void)
 
     // Do not let it get GC'd
     //
-    Set_Root_Series(ROOT_BOOT, ARR_SERIES(boot));
+    Set_Root_Series(ROOT_BOOT, AS_SERIES(boot));
 
     Boot_Block = cast(BOOT_BLK *, VAL_ARRAY_HEAD(ARR_HEAD(boot)));
 
@@ -740,7 +740,7 @@ static void Init_Root_Context(void)
     //
     /*Free_Array(CTX_KEYLIST(root));*/
     /*INIT_CTX_KEYLIST_UNIQUE(root, NULL);*/ // can't use with NULL
-    ARR_SERIES(CTX_VARLIST(root))->link.keylist = NULL;
+    AS_SERIES(CTX_VARLIST(root))->link.keylist = NULL;
     MANAGE_ARRAY(CTX_VARLIST(root));
 
     // !!! Also no `stackvars` (or `spec`, not yet implemented); revisit
@@ -857,7 +857,7 @@ static void Init_Task_Context(void)
     //
     /*Free_Array(CTX_KEYLIST(task));*/
     /*INIT_CTX_KEYLIST_UNIQUE(task, NULL);*/ // can't use with NULL
-    ARR_SERIES(CTX_VARLIST(task))->link.keylist = NULL;
+    AS_SERIES(CTX_VARLIST(task))->link.keylist = NULL;
 
     MANAGE_ARRAY(CTX_VARLIST(task));
 
@@ -938,7 +938,7 @@ static void Init_System_Object(void)
     // is REB_0_LOOKBACK and does not correspond to a value type.
     //
     REBARR *array = VAL_ARRAY(Get_System(SYS_CATALOG, CAT_DATATYPES));
-    Extend_Series(ARR_SERIES(array), REB_MAX - 1);
+    Extend_Series(AS_SERIES(array), REB_MAX - 1);
 
     REBCNT n;
     for (n = 1; n < REB_MAX; n++) {
@@ -1488,7 +1488,7 @@ void Init_Core(REBARGS *rargs)
     INIT_CTX_KEYLIST_UNIQUE(PG_Root_Context, root_keylist);
     ASSERT_CONTEXT(PG_Root_Context);
 
-    ARR_SERIES(CTX_VARLIST(PG_Root_Context))->header.bits
+    AS_SERIES(CTX_VARLIST(PG_Root_Context))->header.bits
         |= NODE_FLAG_ROOT;
 
     // Get the words of the TASK context (to avoid it being an exception case)
@@ -1502,7 +1502,7 @@ void Init_Core(REBARGS *rargs)
     INIT_CTX_KEYLIST_UNIQUE(TG_Task_Context, task_keylist);
     ASSERT_CONTEXT(TG_Task_Context);
 
-    ARR_SERIES(CTX_VARLIST(TG_Task_Context))->header.bits
+    AS_SERIES(CTX_VARLIST(TG_Task_Context))->header.bits
         |= NODE_FLAG_ROOT;
 
     // Create main values:
@@ -1648,9 +1648,9 @@ void Shutdown_Core(void)
     // -however- there may be other roots.  But by this point, the roots
     // created by Alloc_Pairing() with an owning context should be freed.
     //
-    ARR_SERIES(CTX_VARLIST(PG_Root_Context))->header.bits
+    AS_SERIES(CTX_VARLIST(PG_Root_Context))->header.bits
         &= (~NODE_FLAG_ROOT);
-    ARR_SERIES(CTX_VARLIST(TG_Task_Context))->header.bits
+    AS_SERIES(CTX_VARLIST(TG_Task_Context))->header.bits
         &= (~NODE_FLAG_ROOT);
     Recycle_Core(TRUE);
 

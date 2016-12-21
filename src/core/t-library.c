@@ -65,8 +65,8 @@ void MAKE_Library(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     VAL_RESET_HEADER(ARR_HEAD(singular), REB_LIBRARY);
     ARR_HEAD(singular)->payload.library.singular = singular;
 
-    ARR_SERIES(singular)->misc.fd = fd;
-    ARR_SERIES(singular)->link.meta = NULL; // build from spec, e.g. arg?
+    AS_SERIES(singular)->misc.fd = fd;
+    AS_SERIES(singular)->link.meta = NULL; // build from spec, e.g. arg?
 
     MANAGE_ARRAY(singular);
     *out = *KNOWN(ARR_HEAD(singular));
@@ -95,7 +95,7 @@ REBTYPE(Library)
         case SYM_CLOSE:
             if (VAL_LIBRARY_FD(val)) {// allow to CLOSE an already closed library!
                 OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(val));
-                ARR_SERIES(VAL_LIBRARY(val))->misc.fd = NULL;
+                AS_SERIES(VAL_LIBRARY(val))->misc.fd = NULL;
             }
             return R_VOID;
     }

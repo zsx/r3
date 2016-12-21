@@ -162,10 +162,10 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
     // If adding in the requested amount would overflow the stack limit, then
     // give a data stack overflow error.
     //
-    if (SER_REST(ARR_SERIES(DS_Array)) + amount >= STACK_LIMIT)
+    if (SER_REST(AS_SERIES(DS_Array)) + amount >= STACK_LIMIT)
         Trap_Stack_Overflow();
 
-    Extend_Series(ARR_SERIES(DS_Array), amount);
+    Extend_Series(AS_SERIES(DS_Array), amount);
 
     // Update the global pointer representing the base of the stack that
     // likely was moved by the above allocation.  (It's not necessarily a
@@ -249,7 +249,7 @@ void Pop_Stack_Values_Into(REBVAL *into, REBDSP dsp_start) {
     FAIL_IF_LOCKED_ARRAY(VAL_ARRAY(into));
 
     VAL_INDEX(into) = Insert_Series(
-        ARR_SERIES(VAL_ARRAY(into)),
+        AS_SERIES(VAL_ARRAY(into)),
         VAL_INDEX(into),
         cast(REBYTE*, values), // stack only holds fully specified REBVALs
         len // multiplied by width (sizeof(REBVAL)) in Insert_Series
@@ -304,7 +304,7 @@ REBFUN *Underlying_Function_Debug(
             // place that's stored is in the misc field
 
             REBFUN *underlying
-                = ARR_SERIES(VAL_FUNC_PARAMLIST(value))->misc.underlying;
+                = AS_SERIES(VAL_FUNC_PARAMLIST(value))->misc.underlying;
 
             if (underlying == VAL_FUNC(value))
                 break; // hijacking was of a fundamental function
@@ -345,27 +345,24 @@ REBFUN *Underlying_Function_Debug(
 void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
     assert(Is_Any_Function_Frame(f)); // varargs reifies while still pending
 
-    REBCTX *context;
     if (f->varlist != NULL) {
-        assert(NOT_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
-
+        //
         // We have our function call's args in an array, but it is not yet
         // a context.  !!! Really this cannot reify if we're in arg gathering
         // mode, calling MANAGE_ARRAY is illegal -- need test for that !!!
+        //
+        assert(NOT_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
+        SET_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST);
 
         assert(IS_TRASH_DEBUG(ARR_AT(f->varlist, 0))); // we fill this in
         assert(GET_SER_INFO(f->varlist, SERIES_INFO_HAS_DYNAMIC));
-
-        context = AS_CONTEXT(f->varlist);
     }
     else {
         f->varlist = Alloc_Singular_Array();
-        SET_SER_FLAG(f->varlist, CONTEXT_FLAG_STACK);
-
-        context = AS_CONTEXT(f->varlist);
+        SET_SER_FLAGS(f->varlist, ARRAY_FLAG_VARLIST | CONTEXT_FLAG_STACK);
     }
 
-    SET_SER_FLAG(CTX_VARLIST(context), ARRAY_FLAG_VARLIST);
+    REBCTX *context = AS_CONTEXT(f->varlist);
 
     // We do not Manage_Context, because we are reusing a word series here
     // that has already been managed.  The arglist array was managed when

@@ -243,7 +243,7 @@ struct Reb_Header {
 // header for its linked list of free nodes.
 //
 
-typedef struct Reb_Node {
+struct Reb_Node {
     struct Reb_Header header; // will be header.bits = 0 if node is free
 
     struct Reb_Node *next_if_free; // if not free, entire node is available
@@ -253,10 +253,10 @@ typedef struct Reb_Node {
     // where 64-bit alignment boundaries are.
     //
     /*struct REBI64 payload[N];*/
-} REBNOD;
+};
 
 #define IS_FREE_NODE(n) \
-    (cast(struct Reb_Node*, (n))->header.bits == 0)
+    (cast(REBNOD*, (n))->header.bits == 0)
 
 
 // !!! Definitions for the memory allocator generally don't need to be

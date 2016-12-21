@@ -97,7 +97,7 @@ struct Reb_Path_Value_State {
     // evaluation to disambiguate which variable a word's relative binding
     // would match.
     //
-    REBCTX *item_specifier;
+    REBSPC *item_specifier;
 
     // `selector` is the result of evaluating the current path item if
     // necessary.  So if the path is `a/(1 + 2)` and processing the second
@@ -117,7 +117,7 @@ struct Reb_Path_Value_State {
 
     // `value_specifier` has to be updated whenever value is updated
     //
-    REBCTX *value_specifier;
+    REBSPC *value_specifier;
 
     // `store` is the storage for constructed values, and also where any
     // thrown value will be written.

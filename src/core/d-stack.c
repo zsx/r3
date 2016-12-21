@@ -45,7 +45,7 @@
 // ellipses to show they have been cut off.  It does not change the arrays
 // in question, but replaces them with copies.
 //
-void Collapsify_Array(REBARR *array, REBCTX *specifier, REBCNT limit)
+void Collapsify_Array(REBARR *array, REBSPC *specifier, REBCNT limit)
 {
     RELVAL *item = ARR_HEAD(array);
     for (; NOT_END(item); ++item) {

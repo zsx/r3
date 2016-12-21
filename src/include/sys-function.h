@@ -51,11 +51,11 @@ inline static REBARR *FUNC_PARAMLIST(REBFUN *f) {
 }
 
 inline static REBVAL *FUNC_VALUE(REBFUN *f) {
-    return SER_AT(REBVAL, ARR_SERIES(FUNC_PARAMLIST(f)), 0);
+    return SER_AT(REBVAL, AS_SERIES(FUNC_PARAMLIST(f)), 0);
 }
 
 inline static REBNAT FUNC_DISPATCHER(REBFUN *f) {
-    return ARR_SERIES(
+    return AS_SERIES(
         FUNC_VALUE(f)->payload.function.body_holder
     )->misc.dispatcher;
 }
@@ -67,7 +67,7 @@ inline static RELVAL *FUNC_BODY(REBFUN *f) {
 
 inline static REBVAL *FUNC_PARAM(REBFUN *f, REBCNT n) {
     assert(n != 0 && n < ARR_LEN(FUNC_PARAMLIST(f)));
-    return SER_AT(REBVAL, ARR_SERIES(FUNC_PARAMLIST(f)), n);
+    return SER_AT(REBVAL, AS_SERIES(FUNC_PARAMLIST(f)), n);
 }
 
 inline static REBCNT FUNC_NUM_PARAMS(REBFUN *f) {
@@ -75,19 +75,19 @@ inline static REBCNT FUNC_NUM_PARAMS(REBFUN *f) {
 }
 
 inline static REBCTX *FUNC_META(REBFUN *f) {
-    return ARR_SERIES(FUNC_PARAMLIST(f))->link.meta;
+    return AS_SERIES(FUNC_PARAMLIST(f))->link.meta;
 }
 
 // Note: On Windows, FUNC_DISPATCH is already defined in the header files
 //
 #define FUNC_DISPATCHER(f) \
-    (ARR_SERIES(FUNC_VALUE(f)->payload.function.body_holder)->misc.dispatcher)
+    (AS_SERIES(FUNC_VALUE(f)->payload.function.body_holder)->misc.dispatcher)
 
 // There is no binding information in a function parameter (typeset) so a
 // REBVAL should be okay.
 //
 inline static REBVAL *FUNC_PARAMS_HEAD(REBFUN *f) {
-    return SER_AT(REBVAL, ARR_SERIES(FUNC_PARAMLIST(f)), 1);
+    return SER_AT(REBVAL, AS_SERIES(FUNC_PARAMLIST(f)), 1);
 }
 
 inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
@@ -187,10 +187,10 @@ inline static RELVAL *VAL_FUNC_BODY(const RELVAL *v)
     { return ARR_HEAD(v->payload.function.body_holder); }
 
 inline static REBNAT VAL_FUNC_DISPATCHER(const RELVAL *v)
-    { return ARR_SERIES(v->payload.function.body_holder)->misc.dispatcher; }
+    { return AS_SERIES(v->payload.function.body_holder)->misc.dispatcher; }
 
 inline static REBCTX *VAL_FUNC_META(const RELVAL *v)
-    { return ARR_SERIES(v->payload.function.paramlist)->link.meta; }
+    { return AS_SERIES(v->payload.function.paramlist)->link.meta; }
 
 inline static REBOOL IS_FUNCTION_INTERPRETED(const RELVAL *v) {
     //

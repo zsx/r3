@@ -142,7 +142,7 @@ static inline REBOOL Is_Rebser_Marked(REBSER *rebser) {
     return LOGICAL(rebser->header.bits & NODE_FLAG_MARKED);
 }
 
-static inline REBOOL Unmark_Rebser(REBSER *rebser) {
+static inline void Unmark_Rebser(REBSER *rebser) {
     rebser->header.bits &= ~cast(REBUPT, NODE_FLAG_MARKED);
 }
 
@@ -168,7 +168,7 @@ static inline REBOOL Unmark_Rebser(REBSER *rebser) {
 static void Queue_Mark_Array_Subclass_Deep(REBARR *a)
 {
 #if !defined(NDEBUG)
-    if (IS_FREE_NODE(ARR_SERIES(a)))
+    if (IS_FREE_NODE(a))
         panic (a);
 
     if (NOT_SER_FLAG(a, SERIES_FLAG_ARRAY))
@@ -184,10 +184,10 @@ static void Queue_Mark_Array_Subclass_Deep(REBARR *a)
     // have been marked yet--it could still be waiting in the queue.  But we
     // don't want to wastefully submit it to the queue multiple times.
     //
-    if (Is_Rebser_Marked_Or_Pending(ARR_SERIES(a)))
+    if (Is_Rebser_Marked_Or_Pending(AS_SERIES(a)))
         return;
 
-    Mark_Rebser_Only(ARR_SERIES(a)); // the up-front marking just mentioned
+    Mark_Rebser_Only(AS_SERIES(a)); // the up-front marking just mentioned
 
     // Add series to the end of the mark stack series.  The length must be
     // maintained accurately to know when the stack needs to grow.
@@ -349,9 +349,9 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
     case REB_BLOCK:
     case REB_GROUP: {
         if (IS_SPECIFIC(v)) {
-            REBCTX *context = VAL_SPECIFIER(const_KNOWN(v));
-            if (context != SPECIFIED)
-                Queue_Mark_Context_Deep(context);
+            REBSPC *specifier = VAL_SPECIFIER(const_KNOWN(v));
+            if (specifier != SPECIFIED)
+                Queue_Mark_Context_Deep(AS_CONTEXT(specifier));
         }
         else {
             // We trust that if a relative array's context needs to make
@@ -389,7 +389,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
             // REBSER node that contains exactly one handle, and the actual
             // data for the handle lives in that shared location.
             // 
-            Mark_Rebser_Only(ARR_SERIES(singular));
+            Mark_Rebser_Only(AS_SERIES(singular));
 
         #if !defined(NDEBUG)
             assert(ARR_LEN(singular) == 1);
@@ -572,7 +572,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
 
         // The schema is the hierarchical description of the struct.
         //
-        REBFLD *schema = ARR_SERIES(VAL_STRUCT(v))->link.schema;
+        REBFLD *schema = AS_SERIES(VAL_STRUCT(v))->link.schema;
         assert(FLD_IS_STRUCT(schema));
         Queue_Mark_Array_Deep(schema);
 
@@ -654,7 +654,7 @@ static void Propagate_All_GC_Marks(void)
         // We should have marked this series at queueing time to keep it from
         // being doubly added before the queue had a chance to be processed
          //
-        assert(Is_Rebser_Marked(ARR_SERIES(a)));
+        assert(Is_Rebser_Marked(AS_SERIES(a)));
 
     #ifdef HEAVY_CHECKS
         //
@@ -669,7 +669,7 @@ static void Propagate_All_GC_Marks(void)
         // and that it hasn't been freed.
         //
         assert(GET_SER_FLAG(a, SERIES_FLAG_ARRAY));
-        assert(!IS_FREE_NODE(ARR_SERIES(a)));
+        assert(!IS_FREE_NODE(AS_SERIES(a)));
     #endif
 
         RELVAL *v = ARR_HEAD(a);
@@ -682,14 +682,14 @@ static void Propagate_All_GC_Marks(void)
 
             REBARR *body_holder = v->payload.function.body_holder;
             assert(ARR_LEN(body_holder) == 1);
-            Mark_Rebser_Only(ARR_SERIES(body_holder));
+            Mark_Rebser_Only(AS_SERIES(body_holder));
             Queue_Mark_Opt_Value_Deep(ARR_HEAD(body_holder));
 
-            REBFUN *underlying = ARR_SERIES(a)->misc.underlying;
-            if (underlying != NULL);
+            REBFUN *underlying = AS_SERIES(a)->misc.underlying;
+            if (underlying != NULL)
                 Queue_Mark_Function_Deep(underlying);
 
-            REBCTX *meta = ARR_SERIES(a)->link.meta;
+            REBCTX *meta = AS_SERIES(a)->link.meta;
             if (meta != NULL)
                 Queue_Mark_Context_Deep(meta);
 
@@ -703,11 +703,11 @@ static void Propagate_All_GC_Marks(void)
             // because of the potential for overflowing the C stack with calls
             // to Queue_Mark_Context_Deep.
 
-            REBARR *keylist = ARR_SERIES(a)->link.keylist;
+            REBARR *keylist = AS_SERIES(a)->link.keylist;
             assert(keylist == CTX_KEYLIST(AS_CONTEXT(a)));
             Queue_Mark_Array_Subclass_Deep(keylist); // might be paramlist
 
-            REBCTX *meta = ARR_SERIES(keylist)->link.meta;
+            REBCTX *meta = AS_SERIES(keylist)->link.meta;
             if (meta != NULL)
                 Queue_Mark_Context_Deep(meta);
 
@@ -1013,7 +1013,7 @@ static void Mark_Frame_Stack_Deep(void)
             Queue_Mark_Value_Deep(f->value);
 
         if (f->specifier != SPECIFIED)
-            Queue_Mark_Context_Deep(f->specifier);
+            Queue_Mark_Context_Deep(AS_CONTEXT(f->specifier));
 
         if (NOT_END(f->out)) // never NULL, always initialized bit pattern
             Queue_Mark_Opt_Value_Deep(f->out);
@@ -1708,7 +1708,7 @@ static void Queue_Mark_Event_Deep(const RELVAL *value)
         while (req) {
             // Comment says void* ->port is "link back to REBOL port object"
             if (req->port)
-                Queue_Mark_Context_Deep(AS_CONTEXT(cast(REBSER*, req->port)));
+                Queue_Mark_Context_Deep(AS_CONTEXT(req->port));
             req = req->next;
         }
     }
@@ -1736,7 +1736,7 @@ static void Mark_Devices_Deep(void)
 
         for (req = dev->pending; req; req = req->next)
             if (req->port)
-                Queue_Mark_Context_Deep(AS_CONTEXT(cast(REBSER*, req->port)));
+                Queue_Mark_Context_Deep(AS_CONTEXT(req->port));
     }
 
     Propagate_All_GC_Marks();

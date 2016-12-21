@@ -83,7 +83,7 @@ REBINT CT_Typeset(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 void Init_Typesets(void)
 {
-    Set_Root_Series(ROOT_TYPESETS, ARR_SERIES(Make_Array(40)));
+    Set_Root_Series(ROOT_TYPESETS, AS_SERIES(Make_Array(40)));
 
     REBINT n;
     for (n = 0; Typesets[n].sym != 0; n++) {
@@ -131,7 +131,7 @@ void Val_Init_Typeset(RELVAL *value, REBU64 bits, REBSTR *opt_name)
 REBOOL Update_Typeset_Bits_Core(
     RELVAL *typeset,
     const RELVAL *head,
-    REBCTX *specifier,
+    REBSPC *specifier,
     REBOOL trap // if TRUE, then return FALSE instead of failing
 ) {
     assert(IS_TYPESET(typeset));

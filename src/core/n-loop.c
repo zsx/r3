@@ -186,7 +186,7 @@ static REBARR *Copy_Body_Deep_Bound_To_New_Context(
     REBVAL *var = CTX_VARS_HEAD(context);
 
     const RELVAL *item;
-    REBCTX *specifier;
+    REBSPC *specifier;
     if (IS_BLOCK(spec)) {
         item = VAL_ARRAY_AT(spec);
         specifier = VAL_SPECIFIER(spec);
@@ -423,7 +423,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
     REBSER *series;
     REBCNT index;
     if (ANY_CONTEXT(data)) {
-        series = ARR_SERIES(CTX_VARLIST(VAL_CONTEXT(data)));
+        series = AS_SERIES(CTX_VARLIST(VAL_CONTEXT(data)));
         index = 1;
     }
     else if (IS_MAP(data)) {
@@ -439,7 +439,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
         //
         switch (VAL_TYPE_KIND(data)) {
         case REB_FUNCTION:
-            series = ARR_SERIES(Snapshot_All_Functions());
+            series = AS_SERIES(Snapshot_All_Functions());
             index = 0;
             PUSH_GUARD_ARRAY_CONTENTS(AS_ARRAY(series));
             break;

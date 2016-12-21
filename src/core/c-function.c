@@ -730,10 +730,10 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     if (has_description || has_types || has_notes) {
         meta = Copy_Context_Shallow(VAL_CONTEXT(ROOT_FUNCTION_META));
         MANAGE_ARRAY(CTX_VARLIST(meta));
-        ARR_SERIES(paramlist)->link.meta = meta;
+        AS_SERIES(paramlist)->link.meta = meta;
     }
     else
-        ARR_SERIES(paramlist)->link.meta = NULL;
+        AS_SERIES(paramlist)->link.meta = NULL;
 
     // If a description string was gathered, it's sitting in the first string
     // slot, the third cell we pushed onto the stack.  Extract it if so.
@@ -985,12 +985,12 @@ done_caching:;
     // Having a level of indirection from the REBVAL bits themself also
     // facilitates the "Hijacker" to change multiple REBVALs behavior.
 
-    ARR_SERIES(body_holder)->misc.dispatcher = dispatcher;
+    AS_SERIES(body_holder)->misc.dispatcher = dispatcher;
 
     // To avoid NULL checking when a function is called and looking for the
     // underlying function, put the functions own pointer in if needed
     //
-    ARR_SERIES(paramlist)->misc.underlying
+    AS_SERIES(paramlist)->misc.underlying
         = opt_underlying != NULL ? opt_underlying : AS_FUNC(paramlist);
 
     // Note: used to set the keys of natives as read-only so that the debugger
@@ -1041,7 +1041,7 @@ REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
     // Clients aren't supposed to ever be looking at the values for the
     // stackvars or the frame if it is expired.
     //
-    TRASH_POINTER_IF_DEBUG(ARR_SERIES(varlist)->misc.f);
+    TRASH_POINTER_IF_DEBUG(AS_SERIES(varlist)->misc.f);
 
     return expired;
 }
@@ -1256,7 +1256,7 @@ REBFUN *Make_Interpreted_Function_May_Fail(
     // unprotect conventional protection via UNPROTECT.
     //
     Protect_Series(
-        ARR_SERIES(VAL_ARRAY(body)),
+        AS_SERIES(VAL_ARRAY(body)),
         0, // start protection at index 0
         FLAGIT(PROT_DEEP) | FLAGIT(PROT_SET)
     );
@@ -1458,7 +1458,7 @@ REBOOL Specialize_Function_Throws(
         Init_Word(CTX_VAR(meta, 3), opt_specializee_name);
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
-    ARR_SERIES(paramlist)->link.meta = meta;
+    AS_SERIES(paramlist)->link.meta = meta;
 
     *out = *FUNC_VALUE(fun);
     assert(VAL_BINDING(out) == NULL);
@@ -1528,7 +1528,7 @@ void Clonify_Function(REBVAL *value)
 
     // !!! Meta: copy, inherit?
     //
-    ARR_SERIES(paramlist)->link.meta = FUNC_META(original_fun);
+    AS_SERIES(paramlist)->link.meta = FUNC_META(original_fun);
 
     RELVAL *body = FUNC_BODY(new_fun);
 
@@ -1639,7 +1639,7 @@ REB_R Unchecked_Dispatcher(REBFRM *f)
         f->out,
         VAL_ARRAY(body),
         VAL_INDEX(body),
-        Context_For_Frame_May_Reify_Managed(f) // necessary in specific binding
+        AS_SPECIFIER(Context_For_Frame_May_Reify_Managed(f))
     )){
         return R_OUT_IS_THROWN;
     }
@@ -1664,7 +1664,7 @@ REB_R Voider_Dispatcher(REBFRM *f)
         f->out,
         VAL_ARRAY(body),
         VAL_INDEX(body),
-        Context_For_Frame_May_Reify_Managed(f) // necessary in specific binding
+        AS_SPECIFIER(Context_For_Frame_May_Reify_Managed(f))
     )){
         return R_OUT_IS_THROWN;
     }
@@ -1689,7 +1689,7 @@ REB_R Returner_Dispatcher(REBFRM *f)
         f->out,
         VAL_ARRAY(body),
         VAL_INDEX(body),
-        Context_For_Frame_May_Reify_Managed(f) // necessary in specific binding
+        AS_SPECIFIER(Context_For_Frame_May_Reify_Managed(f))
     )){
         return R_OUT_IS_THROWN;
     }
@@ -1793,8 +1793,6 @@ REB_R Hijacker_Dispatcher(REBFRM *f)
 //
 REB_R Adapter_Dispatcher(REBFRM *f)
 {
-    REBCTX *frame_ctx = Context_For_Frame_May_Reify_Managed(f);
-
     RELVAL *adaptation = FUNC_BODY(f->func);
     assert(ARR_LEN(VAL_ARRAY(adaptation)) == 2);
 
@@ -1813,8 +1811,14 @@ REB_R Adapter_Dispatcher(REBFRM *f)
     // does throw--including a RETURN--that means the adapted function will
     // not be run.
     //
-    if (Do_At_Throws(f->out, VAL_ARRAY(prelude), VAL_INDEX(prelude), frame_ctx))
+    if (Do_At_Throws(
+        f->out,
+        VAL_ARRAY(prelude),
+        VAL_INDEX(prelude),
+        AS_SPECIFIER(Context_For_Frame_May_Reify_Managed(f))
+    )){
         return R_OUT_IS_THROWN;
+    }
 
     f->func = VAL_FUNC(adaptee);
     f->binding = VAL_BINDING(adaptee);

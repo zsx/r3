@@ -162,7 +162,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
             //
             // Wasn't already collected...so we added it...
             //
-            EXPAND_SERIES_TAIL(ARR_SERIES(BUF_COLLECT), 1);
+            EXPAND_SERIES_TAIL(AS_SERIES(BUF_COLLECT), 1);
             Val_Init_Typeset(
                 ARR_LAST(BUF_COLLECT), ALL_64, VAL_WORD_SPELLING(word)
             );
@@ -556,7 +556,7 @@ REBNATIVE(set_meta)
     REBVAL *value = ARG(value);
 
     if (IS_FUNCTION(value))
-        ARR_SERIES(VAL_FUNC_PARAMLIST(value))->link.meta = meta;
+        AS_SERIES(VAL_FUNC_PARAMLIST(value))->link.meta = meta;
     else {
         assert(ANY_CONTEXT(value));
         INIT_CONTEXT_META(VAL_CONTEXT(value), meta);
@@ -608,11 +608,12 @@ REBTYPE(Context)
                 types |= VAL_TYPESET_BITS(ARG(kinds));
         }
 
-        context = AS_CONTEXT(
-            Copy_Array_Shallow(CTX_VARLIST(VAL_CONTEXT(value)), SPECIFIED)
-        );
+        REBARR *varlist =
+            Copy_Array_Shallow(CTX_VARLIST(VAL_CONTEXT(value)), SPECIFIED);
+        SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
+
+        REBCTX *context = AS_CONTEXT(varlist);
         INIT_CTX_KEYLIST_SHARED(context, CTX_KEYLIST(VAL_CONTEXT(value)));
-        SET_SER_FLAG(CTX_VARLIST(context), ARRAY_FLAG_VARLIST);
         CTX_VALUE(context)->payload.any_context.varlist = CTX_VARLIST(context);
 
         if (types != 0) {

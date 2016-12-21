@@ -454,7 +454,7 @@ static REBOOL Set_GOB_Var(REBGOB *gob, const REBVAL *word, const REBVAL *val)
         SET_GOB_DTYPE(gob, GOBD_NONE);
         if (IS_OBJECT(val)) {
             SET_GOB_DTYPE(gob, GOBD_OBJECT);
-            SET_GOB_DATA(gob, ARR_SERIES(CTX_VARLIST(VAL_CONTEXT(val))));
+            SET_GOB_DATA(gob, AS_SERIES(CTX_VARLIST(VAL_CONTEXT(val))));
         }
         else if (IS_BLOCK(val)) {
             SET_GOB_DTYPE(gob, GOBD_BLOCK);
@@ -612,7 +612,7 @@ is_blank:
 //
 //  Set_GOB_Vars: C
 //
-static void Set_GOB_Vars(REBGOB *gob, const RELVAL *blk, REBCTX *specifier)
+static void Set_GOB_Vars(REBGOB *gob, const RELVAL *blk, REBSPC *specifier)
 {
     while (NOT_END(blk)) {
         assert(!IS_VOID(blk));

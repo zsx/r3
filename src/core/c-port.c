@@ -301,7 +301,7 @@ void Sieve_Ports(REBARR *ports)
                 Find_In_Array_Simple(VAL_ARRAY(waked), 0, val)
                 == VAL_LEN_HEAD(waked) // `=len` means not found
             ) {
-                Remove_Series(ARR_SERIES(ports), n, 1);
+                Remove_Series(AS_SERIES(ports), n, 1);
                 continue;
             }
         }

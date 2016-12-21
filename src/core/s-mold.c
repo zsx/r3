@@ -1508,7 +1508,7 @@ REBOOL Form_Reduce_Throws(
     REBVAL *out,
     REBARR *block,
     REBCNT index,
-    REBCTX *specifier
+    REBSPC *specifier
 ) {
     REBIXO indexor = index;
 
@@ -1798,7 +1798,7 @@ void Init_Mold(REBCNT size)
     REBYTE c;
     const REBYTE *dc;
 
-    Set_Root_Series(TASK_MOLD_STACK, ARR_SERIES(Make_Array(size/10)));
+    Set_Root_Series(TASK_MOLD_STACK, AS_SERIES(Make_Array(size/10)));
     Set_Root_Series(TASK_UNI_BUF, Make_Unicode(size));
 
     // Create quoted char escape table:

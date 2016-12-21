@@ -71,6 +71,7 @@
 #else
     class NOT_FOUND_t {
     public:
+        NOT_FOUND_t () {} // clang won't initialize const object w/o this
         operator REBCNT() const {
             return ((REBCNT)-1);
         }

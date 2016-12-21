@@ -224,7 +224,7 @@ enum {
 inline static REBVAL *Get_Var_Core(
     enum Reb_Kind *eval_type, // REB_LOOKBACK or REB_FUNCTION
     const RELVAL *any_word,
-    REBCTX *specifier,
+    REBSPC *specifier,
     REBFLGS flags
 ) {
     REBCTX *context;
@@ -239,20 +239,20 @@ inline static REBVAL *Get_Var_Core(
         // find the right function call on the stack (if any) for the word to
         // refer to (the FRAME!)
         //
-        context = specifier;
-
-    #if !defined(NDEBUG)
         assert(GET_VAL_FLAG(any_word, WORD_FLAG_BOUND)); // should be set too
 
+    #if !defined(NDEBUG)
         if (specifier == SPECIFIED) {
             printf("Get_Var_Core on relative value without specifier\n");
             panic (any_word);
         }
-        assert(
-            VAL_WORD_FUNC(any_word)
-            == VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier))
-        );
     #endif
+
+        context = AS_CONTEXT(specifier);
+
+        assert(
+            VAL_WORD_FUNC(any_word) == VAL_FUNC(CTX_FRAME_FUNC_VALUE(context))
+        );
     }
     else if (GET_VAL_FLAG(any_word, WORD_FLAG_BOUND)) {
         //
@@ -395,7 +395,7 @@ inline static REBVAL *Get_Var_Core(
 
 static inline const REBVAL *GET_OPT_VAR_MAY_FAIL(
     const RELVAL *any_word,
-    REBCTX *specifier
+    REBSPC *specifier
 ) {
     enum Reb_Kind eval_type;
     return Get_Var_Core(&eval_type, any_word, specifier, 0);
@@ -403,7 +403,7 @@ static inline const REBVAL *GET_OPT_VAR_MAY_FAIL(
 
 static inline REBVAL *GET_MUTABLE_VAR_MAY_FAIL(
     const RELVAL *any_word,
-    REBCTX *specifier
+    REBSPC *specifier
 ) {
     enum Reb_Kind eval_type = REB_FUNCTION; // reset infix/postfix/etc.
     return Get_Var_Core(&eval_type, any_word, specifier, GETVAR_IS_SETVAR);
@@ -433,7 +433,7 @@ static inline REBVAL *GET_MUTABLE_VAR_MAY_FAIL(
 inline static void Derelativize(
     REBVAL *out, // relative destinations are overwritten with specified value
     const RELVAL *v,
-    REBCTX *specifier
+    REBSPC *specifier
 ) {
     assert(NOT_END(v));
     assert(!IS_TRASH_DEBUG(v));
@@ -449,7 +449,7 @@ inline static void Derelativize(
         }
         else if (
             VAL_RELATIVE(v)
-            != VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier))
+            != VAL_FUNC(CTX_FRAME_FUNC_VALUE(AS_CONTEXT(specifier)))
         ){
             printf("Function mismatch in specific binding, expected:\n");
             PROBE(FUNC_VALUE(VAL_RELATIVE(v)));
@@ -475,11 +475,11 @@ inline static void Derelativize(
 // to use Derelativize.  Just say `*out = *v` if your source is a REBVAL!
 //
 #ifdef __cplusplus
-    void Derelativize(REBVAL *out, const REBVAL *v, REBCTX *specifier);
+    void Derelativize(REBVAL *out, const REBVAL *v, REBSPC *specifier);
 #endif
 
 
-inline static void DS_PUSH_RELVAL(const RELVAL *v, REBCTX *specifier) {
+inline static void DS_PUSH_RELVAL(const RELVAL *v, REBSPC *specifier) {
     ASSERT_VALUE_MANAGED(v); // would fail on END marker
     DS_PUSH_TRASH;
     Derelativize(DS_TOP, v, specifier);

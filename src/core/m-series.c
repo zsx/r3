@@ -105,17 +105,17 @@ void Append_Series(REBSER *s, const REBYTE *data, REBCNT len)
 // the number of units and does not include the terminator
 // (which will be added).
 //
-void Append_Values_Len(REBARR *array, const REBVAL *head, REBCNT len)
+void Append_Values_Len(REBARR *a, const REBVAL *head, REBCNT len)
 {
-    REBYTE *dest = cast(REBYTE*, ARR_TAIL(array));
+    REBYTE *dest = cast(REBYTE*, ARR_TAIL(a));
 
     // updates tail (hence we calculated dest before)
     //
-    EXPAND_SERIES_TAIL(ARR_SERIES(array), len);
+    EXPAND_SERIES_TAIL(AS_SERIES(a), len);
 
     memcpy(dest, head, sizeof(REBVAL) * len);
 
-    TERM_ARRAY_LEN(array, ARR_LEN(array));
+    TERM_ARRAY_LEN(a, ARR_LEN(a));
 }
 
 
@@ -335,7 +335,7 @@ void Reset_Sequence(REBSER *s)
 void Reset_Array(REBARR *a)
 {
     if (GET_SER_INFO(a, SERIES_INFO_HAS_DYNAMIC))
-        Unbias_Series(ARR_SERIES(a), FALSE);
+        Unbias_Series(AS_SERIES(a), FALSE);
     TERM_ARRAY_LEN(a, 0);
 }
 

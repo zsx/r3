@@ -318,7 +318,7 @@ struct Reb_Frame {
     // It may also be NULL if it is known that there are no relatively bound
     // words that will be encountered from the source--as in va_list calls.
     //
-    REBCTX *specifier;
+    REBSPC *specifier;
 
     // `value`
     //

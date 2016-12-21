@@ -768,10 +768,10 @@ typedef REBUPT REBFLGS;
 #if defined(ENDIAN_BIG) // Byte w/most significant bit first
 
     #define FLAGIT_LEFT(n) \
-        ((REBUPT)1 << PLATFORM_BITS - (n) - 1) // 63,62,61.. or 32,31,30..
+        ((REBUPT)1 << (PLATFORM_BITS - (n) - 1)) // 63,62,61.. or 32,31,30..
 
     #define FLAGBYTE_FIRST(val) \
-        ((REBUPT)val << PLATFORM_BITS - 8) // val <= 255
+        ((REBUPT)val << (PLATFORM_BITS - 8)) // val <= 255
 
     #define FLAGBYTE_RIGHT(val) \
         ((REBUPT)val) // little endian needs val <= 255
@@ -788,7 +788,7 @@ typedef REBUPT REBFLGS;
 #elif defined(ENDIAN_LITTLE) // Byte w/least significant bit first (e.g. x86)
 
     #define FLAGIT_LEFT(n) \
-        ((REBUPT)1 << 7 + ((n) / 8) * 8 - (n) % 8) // 7,6,5..0,15,14..8,23..
+        ((REBUPT)1 << (7 + ((n) / 8) * 8 - (n) % 8)) // 7,6,5..0,15,14..8,23..
 
     #define FLAGBYTE_FIRST(val) \
         ((REBUPT)val) // val <= 255
@@ -830,7 +830,7 @@ typedef REBUPT REBFLGS;
 //
 
 #define LEFT_N_BITS(flags,n) \
-    (((REBYTE*)&flags)[0] >> 8 - (n)) // n <= 8
+    (((REBYTE*)&flags)[0] >> (8 - (n))) // n <= 8
 
 #define RIGHT_N_BITS(flags,n) \
     (((REBYTE*)&flags)[sizeof(REBUPT) - 1] & ((1 << (n)) - 1)) // n <= 8

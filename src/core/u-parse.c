@@ -145,9 +145,9 @@ static REBOOL Subparse_Throws(
     REBOOL *interrupted_out,
     REBVAL *out,
     RELVAL *input,
-    REBCTX *input_specifier,
+    REBSPC *input_specifier,
     const RELVAL *rules,
-    REBCTX *rules_specifier,
+    REBSPC *rules_specifier,
     REBCNT find_flags
 ) {
     REBFRM frame;
@@ -360,7 +360,7 @@ static void Set_Parse_Series(
 static const RELVAL *Get_Parse_Value(
     REBVAL *cell,
     const RELVAL *rule,
-    REBCTX *specifier
+    REBSPC *specifier
 ) {
     if (IS_BAR(rule))
         return rule;
@@ -2052,7 +2052,7 @@ REBNATIVE(subparse)
                         &temp,
                         P_TYPE,
                         Is_Array_Series(P_INPUT)
-                            ? ARR_SERIES(Copy_Array_At_Max_Shallow(
+                            ? AS_SERIES(Copy_Array_At_Max_Shallow(
                                 AS_ARRAY(P_INPUT),
                                 begin,
                                 P_INPUT_SPECIFIER,
@@ -2103,7 +2103,7 @@ REBNATIVE(subparse)
                         &captured,
                         P_TYPE,
                         Is_Array_Series(P_INPUT)
-                            ? ARR_SERIES(Copy_Array_At_Max_Shallow(
+                            ? AS_SERIES(Copy_Array_At_Max_Shallow(
                                 AS_ARRAY(P_INPUT),
                                 begin,
                                 P_INPUT_SPECIFIER,

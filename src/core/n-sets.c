@@ -108,7 +108,7 @@ static REBSER *Make_Set_Operation_Series(
         // may be better to use something more similar to the mold stack
         // approach of marking off successive ranges in the array.
         //
-        REBSER *buffer = ARR_SERIES(BUF_EMIT);
+        REBSER *buffer = AS_SERIES(BUF_EMIT);
         Resize_Series(buffer, i);
         hret = Make_Hash_Sequence(i);   // allocated
 
@@ -183,7 +183,7 @@ static REBSER *Make_Set_Operation_Series(
         if (hret)
             Free_Series(hret);
 
-        out_ser = ARR_SERIES(Copy_Array_Shallow(AS_ARRAY(buffer), SPECIFIED));
+        out_ser = AS_SERIES(Copy_Array_Shallow(AS_ARRAY(buffer), SPECIFIED));
         SET_SERIES_LEN(buffer, 0); // required - allow reuse
     }
     else {

@@ -71,12 +71,11 @@ struct Reb_Context {
 
 // Series-to-Frame coercion, see notes in %sys-array.h header
 //
-#ifdef NDEBUG
-    #define AS_CONTEXT(s)       cast(REBCTX*, (s))
-#else
-    // Put a debug version here that asserts.
-    #define AS_CONTEXT(s)       cast(REBCTX*, (s))
-#endif
+inline static REBCTX *AS_CONTEXT(void *p) {
+    REBARR *a = AS_ARRAY(p);
+    assert(GET_SER_FLAG(a, ARRAY_FLAG_VARLIST));
+    return cast(REBCTX*, a);
+}
 
 inline static REBARR *CTX_VARLIST(REBCTX *c) {
     return &c->varlist;
@@ -88,24 +87,24 @@ inline static REBARR *CTX_VARLIST(REBCTX *c) {
 // between stack vars and dynamic vars...so there's not always a "varlist"
 //
 #define CTX_SERIES(c) \
-    ARR_SERIES(CTX_VARLIST(c))
+    AS_SERIES(CTX_VARLIST(c))
 
 //
 // Special property: keylist pointer is stored in the misc field of REBSER
 //
 
 inline static REBARR *CTX_KEYLIST(REBCTX *c) {
-    return ARR_SERIES(CTX_VARLIST(c))->link.keylist;
+    return AS_SERIES(CTX_VARLIST(c))->link.keylist;
 }
 
 static inline void INIT_CTX_KEYLIST_SHARED(REBCTX *c, REBARR *keylist) {
     SET_SER_INFO(keylist, SERIES_INFO_SHARED_KEYLIST);
-    ARR_SERIES(CTX_VARLIST(c))->link.keylist = keylist;
+    AS_SERIES(CTX_VARLIST(c))->link.keylist = keylist;
 }
 
 static inline void INIT_CTX_KEYLIST_UNIQUE(REBCTX *c, REBARR *keylist) {
     assert(NOT_SER_INFO(keylist, SERIES_INFO_SHARED_KEYLIST));
-    ARR_SERIES(CTX_VARLIST(c))->link.keylist = keylist;
+    AS_SERIES(CTX_VARLIST(c))->link.keylist = keylist;
 }
 
 // Navigate from context to context components.  Note that the context's
@@ -120,7 +119,7 @@ static inline void INIT_CTX_KEYLIST_UNIQUE(REBCTX *c, REBARR *keylist) {
     (ARR_LEN(CTX_KEYLIST(c)) - 1)
 
 #define CTX_ROOTKEY(c) \
-    SER_HEAD(REBVAL, ARR_SERIES(CTX_KEYLIST(c)))
+    SER_HEAD(REBVAL, AS_SERIES(CTX_KEYLIST(c)))
 
 #define CTX_TYPE(c) \
     VAL_TYPE(CTX_VALUE(c))
@@ -136,7 +135,7 @@ static inline void INIT_CTX_KEYLIST_UNIQUE(REBCTX *c, REBARR *keylist) {
 // Keys can't hold relative values either.
 //
 inline static REBVAL *CTX_KEYS_HEAD(REBCTX *c) {
-    return SER_AT(REBVAL, ARR_SERIES(CTX_KEYLIST(c)), 1);
+    return SER_AT(REBVAL, AS_SERIES(CTX_KEYLIST(c)), 1);
 }
 
 // There may not be any dynamic or stack allocation available for a stack
@@ -145,18 +144,18 @@ inline static REBVAL *CTX_KEYS_HEAD(REBCTX *c) {
 //
 inline static REBVAL *CTX_VALUE(REBCTX *c) {
     return GET_SER_FLAG(CTX_VARLIST(c), CONTEXT_FLAG_STACK)
-        ? KNOWN(&ARR_SERIES(CTX_VARLIST(c))->content.values[0])
+        ? KNOWN(&AS_SERIES(CTX_VARLIST(c))->content.values[0])
         : KNOWN(ARR_HEAD(CTX_VARLIST(c))); // not a RELVAL
 }
 
 inline static REBFRM *CTX_FRAME(REBCTX *c) {
-    return ARR_SERIES(CTX_VARLIST(c))->misc.f;
+    return AS_SERIES(CTX_VARLIST(c))->misc.f;
 }
 
 inline static REBVAL *CTX_VARS_HEAD(REBCTX *c) {
     return GET_SER_FLAG(CTX_VARLIST(c), CONTEXT_FLAG_STACK)
         ? CTX_FRAME(c)->args_head // if NULL, this will crash
-        : SER_AT(REBVAL, ARR_SERIES(CTX_VARLIST(c)), 1);
+        : SER_AT(REBVAL, AS_SERIES(CTX_VARLIST(c)), 1);
 }
 
 inline static REBVAL *CTX_KEY(REBCTX *c, REBCNT n) {
@@ -191,7 +190,7 @@ inline static REBSYM CTX_KEY_SYM(REBCTX *c, REBCNT n) {
 }
 
 inline static REBCTX *CTX_META(REBCTX *c) {
-    return ARR_SERIES(CTX_KEYLIST(c))->link.meta;
+    return AS_SERIES(CTX_KEYLIST(c))->link.meta;
 }
 
 inline static REBVAL *CTX_STACKVARS(REBCTX *c) {
@@ -276,7 +275,7 @@ inline static void INIT_VAL_CONTEXT(REBVAL *v, REBCTX *c) {
     CTX_KEY(VAL_CONTEXT(v), (n))
 
 inline static REBCTX *VAL_CONTEXT_META(const RELVAL *v) {
-    return ARR_SERIES(
+    return AS_SERIES(
         CTX_KEYLIST(AS_CONTEXT(v->payload.any_context.varlist))
     )->link.meta;
 }
@@ -286,11 +285,11 @@ inline static REBCTX *VAL_CONTEXT_META(const RELVAL *v) {
 
 inline static void INIT_CONTEXT_FRAME(REBCTX *c, REBFRM *frame) {
     assert(IS_FRAME(CTX_VALUE(c)));
-    ARR_SERIES(CTX_VARLIST(c))->misc.f = frame;
+    AS_SERIES(CTX_VARLIST(c))->misc.f = frame;
 }
 
 inline static void INIT_CONTEXT_META(REBCTX *c, REBCTX *m) {
-    ARR_SERIES(CTX_KEYLIST(c))->link.meta = m;
+    AS_SERIES(CTX_KEYLIST(c))->link.meta = m;
 }
 
 inline static REBVAL *CTX_FRAME_FUNC_VALUE(REBCTX *c) {

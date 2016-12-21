@@ -390,7 +390,7 @@ static REBINT Do_Cmd(REBDIA *dia)
     fargs = KNOWN(VAL_ARRAY_AT(fargs));
     size = Count_Dia_Args(fargs); // approximate
 
-    ser = ARR_SERIES(dia->out);
+    ser = AS_SERIES(dia->out);
     // Preallocate output block (optimize for large blocks):
     if (dia->len > size) size = dia->len;
     if (GET_FLAG(dia->flags, RDIA_ALL)) {
@@ -611,7 +611,7 @@ REBNATIVE(delect)
 
     if (REF(all)) {
         SET_FLAG(dia.flags, RDIA_ALL);
-        Resize_Series(ARR_SERIES(dia.out), VAL_LEN_AT(ARG(input)));
+        Resize_Series(AS_SERIES(dia.out), VAL_LEN_AT(ARG(input)));
         while (TRUE) {
             dia.cmd = 0;
             dia.len = 0;

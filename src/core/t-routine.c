@@ -649,7 +649,7 @@ static void ffi_to_rebol(
         out->extra.struct_offset = 0;
 
         *ARR_HEAD(stu) = *out; // save canon value
-        ARR_SERIES(stu)->link.schema = top;
+        AS_SERIES(stu)->link.schema = top;
         MANAGE_ARRAY(stu);
 
         assert(STU_DATA_BIN(stu) == data);
@@ -1325,7 +1325,7 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
     );
     Init_Block(FUNC_BODY(fun), r);
 
-    ARR_SERIES(paramlist)->link.meta = NULL;
+    AS_SERIES(paramlist)->link.meta = NULL;
 
     return fun; // still needs to have function or callback info added!
 }

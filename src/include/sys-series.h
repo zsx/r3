@@ -79,6 +79,66 @@
 //
 
 
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// AS_SERIES() COERCION
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// It is desirable to have series subclasses be different types, even though
+// there are some common routines for processing them.  e.g. not every
+// function that would take a REBSER* would actually be handled in the same
+// way for a REBARR*.  Plus, just because a REBCTX* is implemented as a
+// REBARR* with a link to another REBARR* doesn't mean most clients should
+// be accessing the array--in a C++ build this would mean it would have some
+// kind of protected inheritance scheme.
+//
+// The AS_SERIES() macro provides a compromise besides a raw cast of a
+// pointer to a REBSER*, because in the C++ build it makes sure that the
+// incoming pointer type is to a simple series subclass.  (It's just a raw
+// cast in the C build.)
+//
+
+#if defined(__cplusplus) && __cplusplus >= 201103L
+    #include <type_traits>
+
+    template <class T>
+    inline REBSER *AS_SERIES(T *p) {
+        static_assert(
+            // see specializations for void* and REBNOD*, which do more checks
+            std::is_same<T, REBSTR>::value
+            || std::is_same<T, REBARR>::value,
+            "AS_SERIES works on: void*, REBNOD*, REBSTR*, REBARR*"
+        );
+        return cast(REBSER*, p);
+    }
+
+    template <>
+    inline REBSER *AS_SERIES(void *p) {
+        REBNOD *n = cast(REBNOD*, p);
+        assert(
+            n->header.bits & NODE_FLAG_VALID // GET_SER_FLAG would recurse!
+            && NOT(n->header.bits & NODE_FLAG_CELL)
+            && NOT(n->header.bits & NODE_FLAG_END)
+        );
+        return cast(REBSER*, n);
+    }
+
+    template <>
+    inline REBSER *AS_SERIES(REBNOD *n) {
+        assert(
+            n->header.bits & NODE_FLAG_VALID // GET_SER_FLAG would recurse!
+            && NOT(n->header.bits & NODE_FLAG_CELL)
+            && NOT(n->header.bits & NODE_FLAG_END)
+        );
+        return cast(REBSER*, n);
+    }
+#else
+    #define AS_SERIES(p) \
+        cast(REBSER*, (p))
+#endif
+
+
 //
 // Series header FLAGs (distinct from INFO bits)
 //

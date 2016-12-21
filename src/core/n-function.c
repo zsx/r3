@@ -308,7 +308,7 @@ REBNATIVE(typechecker)
 
     // for now, no help...use REDESCRIBE
 
-    ARR_SERIES(paramlist)->link.meta = NULL;
+    AS_SERIES(paramlist)->link.meta = NULL;
 
     *D_OUT = *FUNC_VALUE(fun);
 
@@ -353,7 +353,7 @@ REBNATIVE(brancher)
     INCLUDE_PARAMS_OF_BRANCHER;
 
     REBARR *paramlist = Make_Array(2);
-    ARR_SERIES(paramlist)->link.meta = NULL;
+    AS_SERIES(paramlist)->link.meta = NULL;
 
     REBVAL *rootkey = SINK(ARR_AT(paramlist, 0));
     VAL_RESET_HEADER(rootkey, REB_FUNCTION);
@@ -509,7 +509,7 @@ REBNATIVE(chain)
     assert(IS_VOID(CTX_VAR(meta, SELFISH(3))));
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
-    ARR_SERIES(paramlist)->link.meta = meta;
+    AS_SERIES(paramlist)->link.meta = meta;
 
     *D_OUT = *FUNC_VALUE(fun);
     assert(VAL_BINDING(D_OUT) == NULL);
@@ -617,7 +617,7 @@ REBNATIVE(adapt)
         Init_Word(CTX_VAR(meta, SELFISH(3)), opt_adaptee_name);
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
-    ARR_SERIES(paramlist)->link.meta = meta;
+    AS_SERIES(paramlist)->link.meta = meta;
 
     *D_OUT = *FUNC_VALUE(fun);
     assert(VAL_BINDING(D_OUT) == NULL);
@@ -697,7 +697,7 @@ REBNATIVE(hijack)
         // the hijacker too).  So it's a copy.
 
         REBFUN *victim_underlying
-            = ARR_SERIES(victim->payload.function.paramlist)->misc.underlying;
+            = AS_SERIES(victim->payload.function.paramlist)->misc.underlying;
 
         REBARR *proxy_paramlist = Copy_Array_Deep_Managed(
             victim->payload.function.paramlist,
@@ -705,7 +705,7 @@ REBNATIVE(hijack)
         );
         ARR_HEAD(proxy_paramlist)->payload.function.paramlist
             = proxy_paramlist;
-        ARR_SERIES(proxy_paramlist)->link.meta = VAL_FUNC_META(victim);
+        AS_SERIES(proxy_paramlist)->link.meta = VAL_FUNC_META(victim);
         SET_SER_FLAG(proxy_paramlist, ARRAY_FLAG_PARAMLIST);
 
         // If the proxy had a body, then that body will be bound relative
@@ -745,7 +745,7 @@ REBNATIVE(hijack)
     // which is built, and will have to build a new frame in the dispatcher.
 
     *VAL_FUNC_BODY(victim) = *hijacker;
-    ARR_SERIES(victim->payload.function.body_holder)->misc.dispatcher
+    AS_SERIES(victim->payload.function.body_holder)->misc.dispatcher
         = &Hijacker_Dispatcher;
 
     victim->extra.binding = NULL; // old exit binding extracted for proxy
@@ -764,7 +764,7 @@ REBNATIVE(hijack)
         Init_Word(CTX_VAR(meta, SELFISH(3)), opt_victim_name);
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
-    ARR_SERIES(VAL_FUNC_PARAMLIST(victim))->link.meta = meta;
+    AS_SERIES(VAL_FUNC_PARAMLIST(victim))->link.meta = meta;
 
 #if !defined(NDEBUG)
     REBFUN *specializer;
@@ -869,20 +869,20 @@ REBNATIVE(tighten)
     // a legacy support issue that's probably a feature and not a bug, but
     // other function-copying abstractions should do it.
     //    
-    ARR_SERIES(paramlist)->link.meta = FUNC_META(original);
+    AS_SERIES(paramlist)->link.meta = FUNC_META(original);
 
     // Update the underlying function (we should know it was equal to the
     // original function from the test at the start)
     //
-    ARR_SERIES(paramlist)->misc.underlying = AS_FUNC(paramlist);
+    AS_SERIES(paramlist)->misc.underlying = AS_FUNC(paramlist);
 
     // The body can't be reused directly, even for natives--because that is how
     // HIJACK and other dispatch manipulators can alter function behavior
     // without changing their identity.
     //
     REBARR *body_holder = Alloc_Singular_Array();
-    ARR_SERIES(body_holder)->misc.dispatcher = FUNC_DISPATCHER(original);
-    /* ARR_SERIES(body_holder)->link not used at this time */
+    AS_SERIES(body_holder)->misc.dispatcher = FUNC_DISPATCHER(original);
+    /* AS_SERIES(body_holder)->link not used at this time */
 
     RELVAL *body = ARR_HEAD(body_holder);
 

@@ -793,7 +793,7 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     REBVAL *out,
     REBARR *array,
     REBCNT index,
-    REBCTX *specifier
+    REBSPC *specifier
 ){
     REBFRM frame;
     REBFRM *f = &frame;
@@ -837,7 +837,7 @@ inline static REBIXO Do_Array_At_Core(
     const RELVAL *opt_first, // must also be relative to specifier if relative
     REBARR *array,
     REBCNT index,
-    REBCTX *specifier,
+    REBSPC *specifier,
     REBFLGS flags
 ) {
     REBFRM f;
@@ -1202,7 +1202,7 @@ inline static REBOOL Do_At_Throws(
     REBVAL *out,
     REBARR *array,
     REBCNT index,
-    REBCTX *specifier
+    REBSPC *specifier
 ){
     return LOGICAL(
         THROWN_FLAG == Do_Array_At_Core(
@@ -1240,7 +1240,7 @@ inline static REBOOL DO_VAL_ARRAY_AT_THROWS(
 inline static REBOOL EVAL_VALUE_CORE_THROWS(
     REBVAL *out,
     const RELVAL *value,
-    REBCTX *specifier
+    REBSPC *specifier
 ){
     return LOGICAL(
         THROWN_FLAG == Do_Array_At_Core(

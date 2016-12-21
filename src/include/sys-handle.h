@@ -101,7 +101,7 @@ inline static void Init_Handle_Managed(
     CLEANUP_FUNC cleaner
 ){
     REBARR *singular = Alloc_Singular_Array();
-    ARR_SERIES(singular)->misc.cleaner = cleaner;
+    AS_SERIES(singular)->misc.cleaner = cleaner;
 
     RELVAL *v = ARR_HEAD(singular);
     VAL_RESET_HEADER(v, REB_HANDLE);

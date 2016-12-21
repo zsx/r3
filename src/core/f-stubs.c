@@ -352,7 +352,7 @@ void Init_Any_Series_At_Core(
     enum Reb_Kind type,
     REBSER *series,
     REBCNT index,
-    REBCTX *specifier
+    REBSPC *specifier
 ) {
     assert(series);
     ENSURE_SERIES_MANAGED(series);
@@ -377,7 +377,10 @@ void Init_Any_Series_At_Core(
     VAL_RESET_HEADER(value, type);
     value->payload.any_series.series = series;
     VAL_INDEX(value) = index;
-    INIT_SPECIFIC(value, specifier);
+    if (specifier == SPECIFIED)
+        INIT_SPECIFIC(value, SPECIFIED);
+    else
+        INIT_SPECIFIC(value, AS_CONTEXT(specifier));
 
 #if !defined(NDEBUG)
     if (Is_Array_Series(series) && specifier == SPECIFIED) {

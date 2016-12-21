@@ -94,11 +94,11 @@ static REBOOL Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
     case SYM_PORT:
         if (IS_PORT(val)) {
             VAL_EVENT_MODEL(value) = EVM_PORT;
-            VAL_EVENT_SER(value) = ARR_SERIES(CTX_VARLIST(VAL_CONTEXT(val)));
+            VAL_EVENT_SER(value) = AS_SERIES(CTX_VARLIST(VAL_CONTEXT(val)));
         }
         else if (IS_OBJECT(val)) {
             VAL_EVENT_MODEL(value) = EVM_OBJECT;
-            VAL_EVENT_SER(value) = ARR_SERIES(CTX_VARLIST(VAL_CONTEXT(val)));
+            VAL_EVENT_SER(value) = AS_SERIES(CTX_VARLIST(VAL_CONTEXT(val)));
         }
         else if (IS_BLANK(val)) {
             VAL_EVENT_MODEL(value) = EVM_GUI;
@@ -183,7 +183,7 @@ static REBOOL Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
 //
 //  Set_Event_Vars: C
 //
-void Set_Event_Vars(REBVAL *evt, RELVAL *blk, REBCTX *specifier)
+void Set_Event_Vars(REBVAL *evt, RELVAL *blk, REBSPC *specifier)
 {
     while (NOT_END(blk)) {
         REBVAL var;
@@ -248,7 +248,7 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSTR *name, REBVAL *val)
             // Event holds the IO-Request, which has the PORT:
             req = VAL_EVENT_REQ(value);
             if (!req || !req->port) goto is_blank;
-            Init_Port(val, AS_CONTEXT(cast(REBSER*, req->port)));
+            Init_Port(val, AS_CONTEXT(req->port));
         }
         break;
 

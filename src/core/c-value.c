@@ -79,7 +79,7 @@ ATTRIBUTE_NO_RETURN void Panic_Value_Debug(const RELVAL *v) {
     }
 
     printf("No containing series for value...panicking to make stack dump:\n");
-    Panic_Series_Debug(ARR_SERIES(EMPTY_ARRAY));
+    Panic_Series_Debug(AS_SERIES(EMPTY_ARRAY));
 }
 
 

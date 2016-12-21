@@ -76,7 +76,7 @@ REBINT Find_Key_Hashed(
     REBARR *array,
     REBSER *hashlist,
     const RELVAL *key, // !!! assumes key is followed by value(s) via ++
-    REBCTX *specifier,
+    REBSPC *specifier,
     REBCNT wide,
     REBOOL cased,
     REBYTE mode
@@ -273,9 +273,9 @@ void Expand_Hash(REBSER *ser)
 static REBCNT Find_Map_Entry(
     REBMAP *map,
     const RELVAL *key,
-    REBCTX *key_specifier,
+    REBSPC *key_specifier,
     const RELVAL *val,
-    REBCTX *val_specifier,
+    REBSPC *val_specifier,
     REBOOL cased // case-sensitive if true
 ) {
     assert(!IS_VOID(key));
@@ -379,7 +379,7 @@ static void Append_Map(
     REBMAP *map,
     REBARR *array,
     REBCNT index,
-    REBCTX *specifier,
+    REBSPC *specifier,
     REBCNT len
 ) {
     RELVAL *item = ARR_AT(array, index);
@@ -434,7 +434,7 @@ void TO_Map(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     REBARR* array;
     REBCNT len;
     REBCNT index;
-    REBCTX *specifier;
+    REBSPC *specifier;
 
     if (IS_BLOCK(arg) || IS_GROUP(arg)) {
         //

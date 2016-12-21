@@ -828,7 +828,7 @@ RL_API REBSER *RL_Make_Block(u32 size)
 {
     REBARR * array = Make_Array(size);
     MANAGE_ARRAY(array);
-    return ARR_SERIES(array);
+    return AS_SERIES(array);
 }
 
 
@@ -1563,7 +1563,7 @@ RL_API void RL_Set_Handle_Data(REBVAL *v, void *p) {
 //  RL_Val_Context: C
 //
 RL_API REBSER *RL_Val_Context(const REBVAL *v) {
-    return ARR_SERIES(CTX_VARLIST(VAL_CONTEXT(v)));
+    return AS_SERIES(CTX_VARLIST(VAL_CONTEXT(v)));
 }
 
 //

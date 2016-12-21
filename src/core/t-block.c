@@ -118,7 +118,7 @@ void MAKE_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         Init_Any_Series_At_Core(
             out,
             kind,
-            ARR_SERIES(VAL_ARRAY(any_array)),
+            AS_SERIES(VAL_ARRAY(any_array)),
             index,
             IS_SPECIFIC(any_array)
                 ? VAL_SPECIFIER(KNOWN(any_array))
@@ -646,7 +646,7 @@ REBTYPE(Array)
     //
     REBARR *array = VAL_ARRAY(value);
     REBINT index = cast(REBINT, VAL_INDEX(value));
-    REBCTX *specifier = VAL_SPECIFIER(value);
+    REBSPC *specifier = VAL_SPECIFIER(value);
 
     switch (action) {
     case SYM_POKE:
@@ -705,7 +705,7 @@ REBTYPE(Array)
         else
             Derelativize(D_OUT, &ARR_HEAD(array)[index], specifier);
 
-        Remove_Series(ARR_SERIES(array), index, len);
+        Remove_Series(AS_SERIES(array), index, len);
         return R_OUT;
     }
 
@@ -868,7 +868,7 @@ REBTYPE(Array)
                 if (VAL_TYPE(head + end - 1) != REB_BLANK)
                     break;
             }
-            Remove_Series(ARR_SERIES(array), end, ARR_LEN(array) - end);
+            Remove_Series(AS_SERIES(array), end, ARR_LEN(array) - end);
 
             // if (!(flags & AM_TRIM_HEAD) || index >= end) return;
         }
@@ -877,7 +877,7 @@ REBTYPE(Array)
             for (; index < end; index++) {
                 if (VAL_TYPE(head + index) != REB_BLANK) break;
             }
-            Remove_Series(ARR_SERIES(array), out, index - out);
+            Remove_Series(AS_SERIES(array), out, index - out);
         }
 
         if (NOT(REF(head) || REF(tail))) {
@@ -891,7 +891,7 @@ REBTYPE(Array)
                     out++;
                 }
             }
-            Remove_Series(ARR_SERIES(array), out, end - out);
+            Remove_Series(AS_SERIES(array), out, end - out);
         }
 
         *D_OUT = *value;
@@ -1013,7 +1013,7 @@ void Assert_Array_Core(REBARR *a)
     // we don't use ASSERT_SERIES the macro here, because that checks to
     // see if the series is an array...and if so, would call this routine
     //
-    Assert_Series_Core(ARR_SERIES(a));
+    Assert_Series_Core(AS_SERIES(a));
 
     if (NOT(GET_SER_FLAG(a, SERIES_FLAG_ARRAY)))
         panic (a);
@@ -1031,7 +1031,7 @@ void Assert_Array_Core(REBARR *a)
         panic (item);
 
     if (GET_SER_INFO(a, SERIES_INFO_HAS_DYNAMIC)) {
-        REBCNT rest = SER_REST(ARR_SERIES(a));
+        REBCNT rest = SER_REST(AS_SERIES(a));
 
 #ifdef __cplusplus
         assert(rest > 0 && rest > i);

@@ -1217,7 +1217,7 @@ REBCTX *Error_No_Memory(REBCNT bytes)
 // becomes a catch all for "unexpected input" when a more
 // specific error would be more useful.
 //
-REBCTX *Error_Invalid_Arg_Core(const RELVAL *value, REBCTX *specifier)
+REBCTX *Error_Invalid_Arg_Core(const RELVAL *value, REBSPC *specifier)
 {
     assert(NOT_END(value)); // can't use with END markers
 
@@ -1239,7 +1239,7 @@ REBCTX *Error_Invalid_Arg(const REBVAL *value) {
 //
 //  Error_Bad_Func_Def_Core: C
 //
-REBCTX *Error_Bad_Func_Def_Core(const RELVAL *item, REBCTX *specifier)
+REBCTX *Error_Bad_Func_Def_Core(const RELVAL *item, REBSPC *specifier)
 {
     REBVAL specific;
     Derelativize(&specific, item, specifier);
@@ -1280,7 +1280,7 @@ REBCTX *Error_Bad_Refine_Revoke(REBFRM *f)
 //
 //  Error_No_Value_Core: C
 //
-REBCTX *Error_No_Value_Core(const RELVAL *target, REBCTX *specifier) {
+REBCTX *Error_No_Value_Core(const RELVAL *target, REBSPC *specifier) {
     REBVAL specified;
     Derelativize(&specified, target, specifier);
 

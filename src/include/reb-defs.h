@@ -94,6 +94,11 @@
     typedef unsigned int REBDSP;
     struct Reb_Chunk;
     struct Reb_Chunker;
+
+    struct Reb_Node;
+    typedef struct Reb_Node REBNOD;
+
+    typedef struct Reb_Node REBSPC;
 #else
     // The %reb-xxx.h files define structures visible to host code (client)
     // which don't also require pulling in all of the %sys-xxx.h files and

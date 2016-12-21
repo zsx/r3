@@ -51,7 +51,7 @@ struct Reb_Map {
     (&(m)->pairlist)
 
 #define MAP_HASHLIST(m) \
-    (ARR_SERIES(&(m)->pairlist)->link.hashlist)
+    (AS_SERIES(&(m)->pairlist)->link.hashlist)
 
 #define MAP_HASHES(m) \
     SER_HEAD(MAP_HASHLIST(m))

@@ -133,7 +133,7 @@ REBOOL Do_Path_Throws_Core(
     REBVAL *out,
     REBSTR **label_out,
     const RELVAL *path,
-    REBCTX *specifier,
+    REBSPC *specifier,
     REBVAL *opt_setval
 ) {
     // The pvs contains a cell for the selector into which evaluations are
@@ -198,9 +198,10 @@ REBOOL Do_Path_Throws_Core(
     #if !defined(NDEBUG)
         assert(specifier != SPECIFIED);
 
-        if (VAL_RELATIVE(path) != VAL_FUNC(CTX_FRAME_FUNC_VALUE(specifier))) {
+        REBCTX *context = AS_CONTEXT(specifier);
+        if (VAL_RELATIVE(path) != VAL_FUNC(CTX_FRAME_FUNC_VALUE(context))) {
             printf("Specificity mismatch in path dispatch, expected:\n");
-            PROBE(CTX_FRAME_FUNC_VALUE(specifier));
+            PROBE(CTX_FRAME_FUNC_VALUE(context));
             printf("Panic on actual path\n");
             panic (path);
         }
@@ -502,7 +503,7 @@ REBCTX *Error_Bad_Path_Field_Set(REBPVS *pvs)
 //
 // Does easy lookup, else just returns the value as is.
 //
-void Get_Simple_Value_Into(REBVAL *out, const RELVAL *val, REBCTX *specifier)
+void Get_Simple_Value_Into(REBVAL *out, const RELVAL *val, REBSPC *specifier)
 {
     if (IS_WORD(val) || IS_GET_WORD(val)) {
         *out = *GET_OPT_VAR_MAY_FAIL(val, specifier);

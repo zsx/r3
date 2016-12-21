@@ -415,11 +415,11 @@ inline static REBFUN *Underlying_Function(
     //
     if (IS_FUNCTION_SPECIALIZER(value)) {
         *specializer_out = VAL_FUNC(value);
-        underlying = ARR_SERIES(VAL_FUNC_PARAMLIST(value))->misc.underlying;
+        underlying = AS_SERIES(VAL_FUNC_PARAMLIST(value))->misc.underlying;
         goto return_and_check;
     }
 
-    underlying = ARR_SERIES(VAL_FUNC_PARAMLIST(value))->misc.underlying;
+    underlying = AS_SERIES(VAL_FUNC_PARAMLIST(value))->misc.underlying;
 
     if (!IS_FUNCTION_SPECIALIZER(FUNC_VALUE(underlying))) {
         //
@@ -437,7 +437,7 @@ inline static REBFUN *Underlying_Function(
     // specializations.
 
     *specializer_out = underlying;
-    underlying = ARR_SERIES(FUNC_PARAMLIST(underlying))->misc.underlying;
+    underlying = AS_SERIES(FUNC_PARAMLIST(underlying))->misc.underlying;
 
 return_and_check:
 
@@ -446,7 +446,7 @@ return_and_check:
     //
     assert(
         underlying
-        == ARR_SERIES(FUNC_PARAMLIST(underlying))->misc.underlying
+        == AS_SERIES(FUNC_PARAMLIST(underlying))->misc.underlying
     );
     assert(!IS_FUNCTION_SPECIALIZER(FUNC_VALUE(underlying)));
     assert(!IS_FUNCTION_CHAINER(FUNC_VALUE(underlying)));

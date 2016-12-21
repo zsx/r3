@@ -189,7 +189,9 @@ REBTYPE(Function)
                     D_OUT,
                     Copy_Array_Deep_Managed(
                         body,
-                        Make_Expired_Frame_Ctx_Managed(VAL_FUNC(value))
+                        AS_SPECIFIER(
+                            Make_Expired_Frame_Ctx_Managed(VAL_FUNC(value))
+                        )
                     )
                 );
 

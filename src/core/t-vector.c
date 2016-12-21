@@ -354,7 +354,7 @@ REBSER *Make_Vector(REBINT type, REBINT sign, REBINT dims, REBINT bits, REBINT s
 //           size:       integer units
 //           init:        block of values
 //
-REBVAL *Make_Vector_Spec(RELVAL *bp, REBCTX *specifier, REBVAL *value)
+REBVAL *Make_Vector_Spec(RELVAL *bp, REBSPC *specifier, REBVAL *value)
 {
     REBINT type = -1; // 0 = int,    1 = float
     REBINT sign = -1; // 0 = signed, 1 = unsigned

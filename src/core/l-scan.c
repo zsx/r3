@@ -1412,8 +1412,8 @@ static REBARR *Scan_Array(
         }
 
         // Is output block buffer large enough?
-        if (SER_FULL(ARR_SERIES(emitbuf)))
-            Extend_Series(ARR_SERIES(emitbuf), 1024);
+        if (SER_FULL(AS_SERIES(emitbuf)))
+            Extend_Series(AS_SERIES(emitbuf), 1024);
 
         value = SINK(ARR_TAIL(emitbuf));
         SET_END(value);
@@ -1858,7 +1858,7 @@ exit_block:
         SPECIFIED, // no RELVALs in scan
         ARR_LEN(emitbuf) - begin
     );
-    ASSERT_SERIES_TERM(ARR_SERIES(result));
+    ASSERT_SERIES_TERM(AS_SERIES(result));
 
     SET_ARRAY_LEN_NOTERM(emitbuf, begin);
 
@@ -1973,7 +1973,7 @@ REBINT Scan_Header(const REBYTE *src, REBCNT len)
 //
 void Init_Scanner(void)
 {
-    Set_Root_Series(TASK_BUF_EMIT, ARR_SERIES(Make_Array(511)));
+    Set_Root_Series(TASK_BUF_EMIT, AS_SERIES(Make_Array(511)));
     Set_Root_Series(TASK_BUF_UTF8, Make_Unicode(1020));
 }
 

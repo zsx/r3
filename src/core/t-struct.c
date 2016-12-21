@@ -42,7 +42,7 @@ static void cleanup_ffi_type(const REBVAL *v) {
     assert(v->payload.handle.data != NULL);
 
     ffi_type *fftype = cast(ffi_type*, v->payload.handle.data);
-    if (fftype->type = FFI_TYPE_STRUCT)
+    if (fftype->type == FFI_TYPE_STRUCT)
         OS_FREE(fftype->elements);
     OS_FREE(fftype);
 }
@@ -82,7 +82,7 @@ static void get_scalar(
         // are to uniquely carry an ffi_type freed when they are GC'd
         //
         REBSTU *sub_stu = Alloc_Singular_Array();
-        ARR_SERIES(sub_stu)->link.schema = field;
+        AS_SERIES(sub_stu)->link.schema = field;
         REBVAL *single = SINK(ARR_HEAD(sub_stu));
 
         // In this case the structure lives at an offset inside another.
@@ -1312,7 +1312,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
     SET_BLANK(ARR_HEAD(stu));
 
     MANAGE_ARRAY(schema);
-    ARR_SERIES(stu)->link.schema = schema;
+    AS_SERIES(stu)->link.schema = schema;
 
     VAL_RESET_HEADER(out, REB_STRUCT);
     out->payload.structure.stu = stu;
@@ -1487,7 +1487,7 @@ REBSTU *Copy_Struct_Managed(REBSTU *src)
     // linked manually.
     //
     REBSTU *copy = Copy_Array_Shallow(src, SPECIFIED);
-    ARR_SERIES(copy)->link.schema = ARR_SERIES(src)->link.schema;
+    AS_SERIES(copy)->link.schema = AS_SERIES(src)->link.schema;
 
     // Update the binary data with a copy of its sequence.
     //

@@ -804,15 +804,6 @@ REBNATIVE(set)
 {
     INCLUDE_PARAMS_OF_SET;
 
-    // Pointers independent from the arguments.  If we change them, they can
-    // be reset to point at the original argument again.
-    //
-    RELVAL *target;
-    REBCTX *target_specifier;
-    RELVAL *value;
-    REBCTX *value_specifier;
-    REBOOL set_with_block;
-
     if (NOT(REF(opt)) && IS_VOID(ARG(value)))
         fail (Error(RE_NEED_VALUE, ARG(target)));
 
@@ -880,7 +871,12 @@ REBNATIVE(set)
     // be recovered again with `value = VAL_ARRAY_AT(ARG(value))` if
     // it is changed.)
     //
-    if ((set_with_block = IS_BLOCK(ARG(value)))) {
+    REBOOL set_with_block; // goto would cross initialization
+    set_with_block = IS_BLOCK(ARG(value));
+
+    RELVAL *value;
+    REBSPC *value_specifier;
+    if (set_with_block) {
         value = VAL_ARRAY_AT(ARG(value));
         value_specifier = VAL_SPECIFIER(ARG(value));
 
@@ -984,7 +980,11 @@ REBNATIVE(set)
     // Otherwise, it must be a BLOCK!... extract the value at index position
     //
     assert(IS_BLOCK(ARG(target)));
+
+    RELVAL *target; // goto would cross initialization
     target = VAL_ARRAY_AT(ARG(target));
+
+    REBSPC *target_specifier; // goto would cross initialization
     target_specifier = VAL_SPECIFIER(ARG(target));
 
     // SET should be somewhat atomic.  So if we're setting a block of

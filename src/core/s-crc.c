@@ -181,7 +181,7 @@ static void Make_CRC32_Table(void);
 //
 // Fails if datatype cannot be hashed.
 //
-REBCNT Hash_Value(const RELVAL *v, REBCTX *specifier)
+REBCNT Hash_Value(const RELVAL *v, REBSPC *specifier)
 {
     REBCNT ret;
 
@@ -220,7 +220,7 @@ REBCNT Hash_Value(const RELVAL *v, REBCTX *specifier)
         break;
 
     case REB_MONEY:
-        ret = VAL_ALL_BITS(v)[0] ^ VAL_ALL_BITS(v)[1] ^ VAL_ALL_BITS(v)[2];
+        ret = VAL_ALL_BITS(v)[0] ^ VAL_ALL_BITS(v)[1] ^ v->extra.m0;
         break;
 
     case REB_CHAR:
@@ -413,7 +413,7 @@ void Val_Init_Map(REBVAL *out, REBMAP *map)
 
     VAL_RESET_HEADER(out, REB_MAP);
     out->extra.binding = (REBARR*)SPECIFIED; // !!! cast() gripes, investigate
-    out->payload.any_series.series = ARR_SERIES(MAP_PAIRLIST(map));
+    out->payload.any_series.series = AS_SERIES(MAP_PAIRLIST(map));
     out->payload.any_series.index = 0;
 }
 

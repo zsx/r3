@@ -101,7 +101,7 @@ void Protect_Object(RELVAL *value, REBFLGS flags)
 {
     REBCTX *context = VAL_CONTEXT(value);
 
-    if (Is_Series_Black(ARR_SERIES(CTX_VARLIST(context))))
+    if (Is_Series_Black(AS_SERIES(CTX_VARLIST(context))))
         return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET))
@@ -115,7 +115,7 @@ void Protect_Object(RELVAL *value, REBFLGS flags)
 
     if (!GET_FLAG(flags, PROT_DEEP)) return;
 
-    Flip_Series_To_Black(ARR_SERIES(CTX_VARLIST(context))); // for recursion
+    Flip_Series_To_Black(AS_SERIES(CTX_VARLIST(context))); // for recursion
 
     value = CTX_VARS_HEAD(context);
     for (; NOT_END(value); value++) {

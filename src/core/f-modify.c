@@ -50,7 +50,7 @@ REBCNT Modify_Array(
     REBINT ilen = 1; // length to be inserted
 
     const RELVAL *src_rel;
-    REBCTX *specifier;
+    REBSPC *specifier;
 
     if (IS_VOID(src_val) || dups < 0) {
         // If they are effectively asking for "no action" then all we have
@@ -94,15 +94,15 @@ REBCNT Modify_Array(
 
     if (action != SYM_CHANGE) {
         // Always expand dst_arr for INSERT and APPEND actions:
-        Expand_Series(ARR_SERIES(dst_arr), dst_idx, size);
+        Expand_Series(AS_SERIES(dst_arr), dst_idx, size);
     }
     else {
         if (size > dst_len)
-            Expand_Series(ARR_SERIES(dst_arr), dst_idx, size-dst_len);
+            Expand_Series(AS_SERIES(dst_arr), dst_idx, size-dst_len);
         else if (size < dst_len && (flags & AM_PART))
-            Remove_Series(ARR_SERIES(dst_arr), dst_idx, dst_len-size);
+            Remove_Series(AS_SERIES(dst_arr), dst_idx, dst_len-size);
         else if (size + dst_idx > tail) {
-            EXPAND_SERIES_TAIL(ARR_SERIES(dst_arr), size - (tail - dst_idx));
+            EXPAND_SERIES_TAIL(AS_SERIES(dst_arr), size - (tail - dst_idx));
         }
     }
 

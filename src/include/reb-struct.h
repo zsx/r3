@@ -44,15 +44,15 @@
 //
 
 inline static void *LIB_FD(REBLIB *l) {
-    return ARR_SERIES(l)->misc.fd; // file descriptor
+    return AS_SERIES(l)->misc.fd; // file descriptor
 }
 
-inline static REBOOL IS_LIB_CLOSED(const REBLIB *l) {
-    return LOGICAL(ARR_SERIES(l)->misc.fd == NULL);
+inline static REBOOL IS_LIB_CLOSED(REBLIB *l) {
+    return LOGICAL(AS_SERIES(l)->misc.fd == NULL);
 }
 
 inline static REBCTX *VAL_LIBRARY_META(const RELVAL *v) {
-    return ARR_SERIES(v->payload.library.singular)->link.meta;
+    return AS_SERIES(v->payload.library.singular)->link.meta;
 }
 
 inline static REBLIB *VAL_LIBRARY(const RELVAL *v) {
@@ -274,7 +274,7 @@ enum {
     IDX_FIELD_MAX
 };
 
-#define FLD_AT(a, n) SER_AT(REBVAL, ARR_SERIES(a), (n)) // locate index access
+#define FLD_AT(a, n) SER_AT(REBVAL, AS_SERIES(a), (n)) // locate index access
 
 inline static REBSTR *FLD_NAME(REBFLD *f) {
     if (IS_BLANK(FLD_AT(f, IDX_FIELD_NAME)))
@@ -368,7 +368,7 @@ inline static REBVAL *STU_VALUE(REBSTU *stu) {
     VAL_STRUCT_INACCESSIBLE(STU_VALUE(stu))
 
 inline static REBFLD *STU_SCHEMA(REBSTU *stu) {
-    REBFLD *schema = ARR_SERIES(stu)->link.schema;
+    REBFLD *schema = AS_SERIES(stu)->link.schema;
     assert(FLD_IS_STRUCT(schema));
     return schema;
 }
@@ -512,7 +512,7 @@ enum {
     IDX_ROUTINE_MAX
 };
 
-#define RIN_AT(a, n) SER_AT(REBVAL, ARR_SERIES(a), (n)) // locate index access
+#define RIN_AT(a, n) SER_AT(REBVAL, AS_SERIES(a), (n)) // locate index access
 
 inline static CFUNC *RIN_CFUNC(REBRIN *r)
     { return VAL_HANDLE_CODE(RIN_AT(r, IDX_ROUTINE_CFUNC)); }
