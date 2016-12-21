@@ -306,15 +306,12 @@ REBNATIVE(evoke)
             }
         }
         if (IS_INTEGER(arg)) {
-            switch (Int32(KNOWN(arg))) {
+            switch (Int32(arg)) {
             case 0:
-                Check_Memory();
+                Check_Memory_Debug();
                 break;
             case 1:
                 Reb_Opts->watch_expand = TRUE;
-                break;
-            case 2:
-                Check_Memory();
                 break;
             default:
                 Out_Str(cb_cast(evoke_help), 1);

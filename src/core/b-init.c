@@ -1613,6 +1613,15 @@ void Init_Core(REBARGS *rargs)
 
     PG_Boot_Phase = BOOT_DONE;
 
+#if !defined(NDEBUG)
+    //
+    // This memory check from R3-Alpha is somewhat superfluous, but include a
+    // call to it during Init in the debug build, because otherwise no one
+    // will think to keep it up to date and working.
+    //
+    Check_Memory_Debug();
+#endif
+
     Recycle(); // necessary?
 
     DOUT("Boot done");
@@ -1638,6 +1647,15 @@ void Init_Core(REBARGS *rargs)
 //
 void Shutdown_Core(void)
 {
+#if !defined(NDEBUG)
+    //
+    // This memory check from R3-Alpha is somewhat superfluous, but include a
+    // call to it during Shutdown in the debug build, because otherwise no one
+    // will think to keep it up to date and working.
+    //
+    Check_Memory_Debug();
+#endif
+
     assert(!Saved_State);
 
     Shutdown_Stacks();

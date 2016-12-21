@@ -1357,8 +1357,6 @@ REBCNT Recycle_Core(REBOOL shutdown)
     count += Sweep_Series();
     count += Sweep_Gobs();
 
-    CHECK_MEMORY(4);
-
 #if !defined(NDEBUG)
     // Compute new stats:
     PG_Reb_Stats->Recycle_Series = Mem_Pools[SER_POOL].free - PG_Reb_Stats->Recycle_Series;

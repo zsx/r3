@@ -288,7 +288,6 @@ typedef struct rebol_stats {
     REBCNT  Recycle_Series;
     REBI64  Recycle_Prior_Eval;
     REBCNT  Mark_Count;
-    REBCNT  Free_List_Checked;
     REBCNT  Blocks;
     REBCNT  Objects;
 } REB_STATS;

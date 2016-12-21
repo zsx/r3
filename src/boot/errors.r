@@ -40,7 +40,6 @@ Internal: [
     not-done:           {reserved for future use (or not yet implemented)}
 
     no-memory:          [{not enough memory:} :arg1 {bytes}]
-    corrupt-memory:     {Check_Memory() found a problem}
 
     io-error:           {problem with IO}
     locked-series:      {locked series expansion}

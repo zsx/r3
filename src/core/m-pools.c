@@ -440,8 +440,8 @@ static void Fill_Pool(REBPOL *pool)
     seg->size = mem_size;
     seg->next = pool->segs;
     pool->segs = seg;
-    pool->free += units;
     pool->has += units;
+    pool->free += units;
 
     // Add new nodes to the end of free list:
 
@@ -492,7 +492,8 @@ static void Fill_Pool(REBPOL *pool)
 void *Make_Node(REBCNT pool_id)
 {
     REBPOL *pool = &Mem_Pools[pool_id];
-    if (!pool->first) Fill_Pool(pool);
+    if (pool->first == NULL)
+        Fill_Pool(pool);
 
     REBNOD *node = pool->first;
 
@@ -981,8 +982,6 @@ REBSER *Make_Series(REBCNT capacity, REBYTE wide, REBCNT flags)
         ] = s;
     }
 
-    CHECK_MEMORY(2);
-
     assert(s->info.bits & NODE_FLAG_END);
     assert(NOT(s->info.bits & NODE_FLAG_CELL));
     assert(SER_LEN(s) == 0);
@@ -1121,10 +1120,8 @@ static void Free_Unbiased_Series_Data(REBYTE *unbiased, REBCNT size_unpooled)
     else {
         FREE_N(REBYTE, size_unpooled, unbiased);
         Mem_Pools[SYSTEM_POOL].has -= size_unpooled;
-        Mem_Pools[SYSTEM_POOL].free--;
+        Mem_Pools[SYSTEM_POOL].free++;
     }
-
-    CHECK_MEMORY(2);
 }
 
 
@@ -1777,20 +1774,20 @@ REBOOL Series_In_Pool(REBSER *series)
 #if !defined(NDEBUG)
 
 //
-//  Check_Memory: C
+//  Check_Memory_Debug: C
 //
-// FOR DEBUGGING ONLY:
 // Traverse the free lists of all pools -- just to prove we can.
-// This is useful for finding corruption from bad memory writes,
-// because a write past the end of a node will destory the pointer
-// for the next free area.
 //
-REBCNT Check_Memory(void)
+// Note: This was useful in R3-Alpha for finding corruption from bad memory
+// writes, because a write past the end of a node destroys the pointer for the
+// next free area.  The Always_Malloc option for Ren-C leverages the faster
+// checking built into Valgrind or Address Sanitizer for the same problem.
+// However, a call to this is kept in the debug build on init and shutdown
+// just to keep it working as a sanity check.
+//
+REBCNT Check_Memory_Debug(void)
 {
-#if !defined(NDEBUG)
-    //Debug_Str("<ChkMem>");
-    PG_Reb_Stats->Free_List_Checked++;
-#endif
+    REBOOL expansion_null_found = FALSE;
 
     REBSEG *seg;
     for (seg = Mem_Pools[SER_POOL].segs; seg; seg = seg->next) {
@@ -1801,44 +1798,75 @@ REBCNT Check_Memory(void)
             if (IS_FREE_NODE(s))
                 continue;
 
+            if (GET_SER_FLAG(s, NODE_FLAG_CELL))
+                continue; // a pairing
+
             if (NOT(GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)))
-                continue;
+                continue; // data lives in the series node itself
 
-            if (!SER_REST(s) || s->content.dynamic.data == NULL)
-                panic (s);
+            if (SER_REST(s) == 0)
+                panic (s); // zero size allocations not legal
 
-            // If the size matches a known pool, be sure it's a match
+            if (s->content.dynamic.data == NULL) {
+                //
+                // !!! legal during the moment of series expansion only; e.g.
+                // can only be true for one series at a time (current invariant
+                // which was needed as a patch so Check_Memory could be called
+                // during Make_Node()...hacky, should be rethought)
+                //
+                if (expansion_null_found)
+                    panic (s);
+
+                expansion_null_found = TRUE;
+            }
 
             REBCNT pool_num = FIND_POOL(SER_TOTAL(s));
-            if (pool_num < SER_POOL && Mem_Pools[pool_num].wide != SER_TOTAL(s))
+            if (pool_num >= SER_POOL)
+                continue; // size doesn't match a known pool
+
+            if (Mem_Pools[pool_num].wide != SER_TOTAL(s))
                 panic ("series total size does not equal pool width");
         }
     }
 
-    REBCNT count = 0;
+    REBCNT total_free_nodes = 0;
 
     REBCNT pool_num;
     for (pool_num = 0; pool_num < SYSTEM_POOL; pool_num++) {
-        // Check each free node in the memory pool:
+        REBCNT pool_free_nodes = 0;
 
         REBNOD *node = Mem_Pools[pool_num].first;
         for (; node != NULL; node = node->next_if_free) {
-            count++;
-            for (seg = Mem_Pools[pool_num].segs; seg; seg = seg->next) {
-                if ((REBUPT)node > (REBUPT)seg && (REBUPT)node < (REBUPT)seg + (REBUPT)seg->size) break;
+            ++pool_free_nodes;
+
+            REBOOL found = FALSE;
+            seg = Mem_Pools[pool_num].segs;
+            for (; seg != NULL; seg = seg->next) {
+                if (
+                    cast(REBUPT, node) > cast(REBUPT, seg)
+                    && (
+                        cast(REBUPT, node)
+                        < cast(REBUPT, seg) + cast(REBUPT, seg->size)
+                    )
+                ){
+                    if (found)
+                        panic ("node belongs to more than one segment");
+
+                    found = TRUE;
+                }
             }
-            if (seg == NULL)
+
+            if (NOT(found))
                 panic ("node does not belong to one of the pool's segments");
         }
 
-        if (
-            (Mem_Pools[pool_num].free != count) ||
-            (Mem_Pools[pool_num].free == 0 && Mem_Pools[pool_num].first != 0)
-        )
-            panic ("number of free nodes does not agree with header");
+        if (Mem_Pools[pool_num].free != pool_free_nodes)
+            panic ("actual free node count does not agree with pool header");
+
+        total_free_nodes += pool_free_nodes;
     }
 
-    return count;
+    return total_free_nodes;
 }
 
 
