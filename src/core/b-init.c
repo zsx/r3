@@ -50,12 +50,6 @@
 
 #define EVAL_DOSE 10000
 
-#ifdef WATCH_BOOT
-    #define DOUT(s) puts(s)
-#else
-    #define DOUT(s)
-#endif
-
 static BOOT_BLK *Boot_Block; // loaded from %boot-code.r
 
 
@@ -168,18 +162,6 @@ static void Assert_Basics(void)
     // you'd like to catch IS_END() tests on trash.)
     //
     assert(REB_MAX < 256);
-}
-
-
-//
-//  Print_Banner: C
-//
-static void Print_Banner(REBARGS *rargs)
-{
-    if (rargs->options & RO_VERS) {
-        Debug_Fmt(Str_Banner, REBOL_VER, REBOL_REV, REBOL_UPD, REBOL_SYS, REBOL_VAR);
-        OS_EXIT(0);
-    }
 }
 
 
@@ -358,37 +340,29 @@ static void Init_Datatypes(void)
 
 
 //
-//  Init_Constants: C
+//  Init_True_And_False: C
 //
-// Init constant words.
+// !!! Rebol is firm on TRUE and FALSE being WORD!s, as opposed to the literal
+// forms of logical true and false.  Not only does this frequently lead to
+// confusion, but there's not consensus on what a good literal form would be.
+// R3-Alpha used #[true] and #[false] (but often molded them as looking like
+// the words true and false anyway).  $true and $false have been proposed,
+// but would not be backward compatible in files read by bootstrap.
 //
-// WARNING: Do not create direct pointers into the Lib_Context
-// because it may get expanded and the pointers will be invalid.
+// Since no good literal form exists, the %sysobj.r file uses the words.  They
+// have to be defined before the point that it runs (along with the natives).
 //
-static void Init_Constants(void)
+static void Init_True_And_False(void)
 {
-    REBVAL *value;
-    extern const double pi1;
+    REBVAL *true_value = Append_Context(Lib_Context, 0, Canon(SYM_TRUE));
+    SET_TRUE(true_value);
+    assert(VAL_LOGIC(true_value) == TRUE);
+    assert(IS_CONDITIONAL_TRUE(true_value));
 
-    value = Append_Context(Lib_Context, 0, Canon(SYM_BLANK));
-    SET_BLANK(value);
-    assert(IS_BLANK(value));
-    assert(IS_CONDITIONAL_FALSE(value));
-
-    value = Append_Context(Lib_Context, 0, Canon(SYM_TRUE));
-    SET_TRUE(value);
-    assert(VAL_LOGIC(value));
-    assert(IS_CONDITIONAL_TRUE(value));
-
-    value = Append_Context(Lib_Context, 0, Canon(SYM_FALSE));
-    SET_FALSE(value);
-    assert(!VAL_LOGIC(value));
-    assert(IS_CONDITIONAL_FALSE(value));
-
-    value = Append_Context(Lib_Context, 0, Canon(SYM_PI));
-    SET_DECIMAL(value, pi1);
-    assert(IS_DECIMAL(value));
-    assert(IS_CONDITIONAL_TRUE(value));
+    REBVAL *false_value = Append_Context(Lib_Context, 0, Canon(SYM_FALSE));
+    SET_FALSE(false_value);
+    assert(VAL_LOGIC(false_value) == FALSE);
+    assert(IS_CONDITIONAL_FALSE(false_value));
 }
 
 
@@ -1222,7 +1196,6 @@ static void Init_Main_Args(REBARGS *rargs)
         SET_TRUE(val);
     }
 
-    // Print("script: %s", rargs->script);
     if (rargs->script) {
         REBSER *ser = To_REBOL_Path(
             rargs->script, 0, OS_WIDE ? PATH_OPT_UNI_SRC : 0
@@ -1239,7 +1212,6 @@ static void Init_Main_Args(REBARGS *rargs)
         Init_File(val, ser);
     }
 
-    // Print("home: %s", rargs->home_dir);
     if (rargs->home_dir) {
         REBSER *ser = To_REBOL_Path(
             rargs->home_dir,
@@ -1275,7 +1247,7 @@ static void Init_Main_Args(REBARGS *rargs)
 
         REBARR *options_args = Make_Array(n);
         Init_Block(Get_System(SYS_OPTIONS, OPTIONS_ARGS), options_args);
-        TERM_ARRAY_LEN(options_args, n - 1);
+        TERM_ARRAY_LEN(options_args, n);
 
         for (n = 0; (data = rargs->args[n]); ++n)
             Init_String(
@@ -1356,7 +1328,6 @@ void Init_Task(void)
     Init_Scanner();
     Init_Mold(MIN_COMMON/4);
     Init_Collector();
-    //Inspect_Series(0);
 }
 
 
@@ -1377,7 +1348,7 @@ void Init_Task(void)
 // the boot process, which is run from within a block to register more
 // functions.
 //
-// At the tail of the initialization, `finish_init_core` is run.  This Rebol
+// At the tail of the initialization, `finish-init-core` is run.  This Rebol
 // function lives in %sys-start.r.   It should be "host agnostic" and not
 // assume things about command-line switches (or even that there is a command
 // line!)  Converting the code that made such assumptions ongoing.
@@ -1397,7 +1368,11 @@ void Init_Core(REBARGS *rargs)
     fail (Error(RE_NO_VALUE, BLANK_VALUE));
 #endif
 
-    DOUT("Main init");
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// INITIALIZE BASIC DIAGNOSTICS
+//
+//==//////////////////////////////////////////////////////////////////////==//
 
 #ifndef NDEBUG
     PG_Always_Malloc = FALSE;
@@ -1429,7 +1404,12 @@ void Init_Core(REBARGS *rargs)
     Assert_Basics();
     PG_Boot_Time = OS_DELTA_TIME(0, 0);
 
-    DOUT("Level 0");
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// INITIALIZE MEMORY AND ALLOCATORS
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
     Init_Pools(0);          // Memory allocator
     Init_GC();
     Init_Root_Context();    // Special REBOL values per program
@@ -1437,9 +1417,31 @@ void Init_Core(REBARGS *rargs)
 
     Init_Raw_Print();       // Low level output (Print)
 
-    Print_Banner(rargs);
+    // !!! R3-Alpha had the option that if the only thing the user wanted was
+    // to dump out the version, it would do so before trying the rest of the
+    // boot...presumably because it could fail.  This should be a
+    // responsibility of the host; which indicates there needs to be an API
+    // for getting the version of the Rebol library independent of calling
+    // any complex Init() process.
+    //
+    if (rargs->options & RO_VERS) {
+        Debug_Fmt(
+            "Rebol 3 %d.%d.%d.%d.%d",
+            REBOL_VER,
+            REBOL_REV,
+            REBOL_UPD,
+            REBOL_SYS,
+            REBOL_VAR
+        );
+        OS_EXIT(0);
+    }
 
-    DOUT("Level 1");
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// CREATE GLOBAL OBJECTS
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
     Init_Char_Cases();
     Init_CRC();             // For word hashing
     Set_Random(0);
@@ -1447,7 +1449,7 @@ void Init_Core(REBARGS *rargs)
     Init_Stacks(STACK_MIN * 4);
     Init_Scanner();
     Init_Mold(MIN_COMMON);  // Output buffer
-    Init_Collector();           // Frames
+    Init_Collector();
 
     // !!! Have MAKE-BOOT compute # of words
     //
@@ -1463,19 +1465,24 @@ void Init_Core(REBARGS *rargs)
     MANAGE_ARRAY(CTX_VARLIST(Sys_Context));
     PUSH_GUARD_CONTEXT(Sys_Context);
 
-    DOUT("Level 2");
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// LOAD BOOT BLOCK
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    // The %make-boot.r process takes all the various definitions and
+    // mezzanine code and packs it all into one compressed file, which is
+    // embedded into the executable.  This includes the type list, word list,
+    // error message templates, system object, etc.
 
     Load_Boot();
-
-    // Data in %boot-code.r now available as Boot_Block.  This includes the
-    // type list, word list, error message templates, system object, etc.
 
     Init_Symbols(VAL_ARRAY(&Boot_Block->words));
 
     // STR_SYMBOL(), VAL_WORD_SYM() and Canon(SYM_XXX) now available
 
     PG_Boot_Phase = BOOT_LOADED;
-    //Debug_Str(BOOT_STR(RS_INFO,0)); // Booting...
 
     // Get the words of the ROOT context (to avoid it being an exception case)
     //
@@ -1505,23 +1512,40 @@ void Init_Core(REBARGS *rargs)
     AS_SERIES(CTX_VARLIST(TG_Task_Context))->header.bits
         |= NODE_FLAG_ROOT;
 
-    // Create main values:
-    DOUT("Level 3");
-    Init_Datatypes();       // Create REBOL datatypes
-    Init_Typesets();        // Create standard typesets
-    Init_Constants();       // Constant values
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// CREATE BASIC VALUES
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    // Before any code can start running (even simple bootstrap code), some
+    // basic words need to be defined.  For instance: You can't run %sysobj.r
+    // unless `true` and `false` have been added to the Lib_Context--they'd be
+    // undefined.  And while analyzing the function specs during the
+    // definition of natives, things like the <opt> tag are needed as a basis
+    // for comparison to see if a usage matches that.
+
+    Init_Datatypes();
+    Init_Typesets();
+    Init_True_And_False();
     Init_Function_Tags();
     Add_Lib_Keys_R3Alpha_Cant_Make();
+
     SET_UNREADABLE_BLANK(&Callback_Error);
 
-    // Run actual code:
-    DOUT("Level 4");
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// RUN CODE BEFORE ERROR HANDLING INITIALIZED
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
     Init_Natives();
     Init_System_Object();
     Init_Contexts_Object();
     Init_Main_Args(rargs);
     Init_Ports();
     Init_Codecs();
+    Init_Crypto();
     Init_Errors(&Boot_Block->errors); // Needs system/standard/error object
 
     PG_Boot_Phase = BOOT_ERRORS;
@@ -1544,6 +1568,12 @@ void Init_Core(REBARGS *rargs)
     Init_Error(TASK_STACK_ERROR, Error(RE_STACK_OVERFLOW));
     Init_Error(TASK_HALT_ERROR, Error(RE_HALT));
 
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// RUN MEZZANINE CODE NOW THAT ERROR HANDLING IS INITIALIZED
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
     REBCTX *error;
     struct Reb_State state;
 
@@ -1565,10 +1595,6 @@ void Init_Core(REBARGS *rargs)
         panic (error);
     }
 
-    Init_Crypto();
-
-    // Initialize mezzanine functions:
-    DOUT("Level 5");
     if (PG_Boot_Level >= BOOT_LEVEL_SYS) {
         Do_Global_Block(VAL_ARRAY(&Boot_Block->base), 0, 1, NULL);
         Do_Global_Block(VAL_ARRAY(&Boot_Block->sys), 0, 2, NULL);
@@ -1623,8 +1649,6 @@ void Init_Core(REBARGS *rargs)
 #endif
 
     Recycle(); // necessary?
-
-    DOUT("Boot done");
 }
 
 

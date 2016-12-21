@@ -40,12 +40,12 @@
 #define LOG2    0.6931471805599453
 #define EPS     2.718281828459045235360287471
 
-extern const double pi1;
-const double pi1 = 3.14159265358979323846;
-const double pi2 = 2.0 * 3.14159265358979323846;
+#ifndef PI
+    #define PI 3.14159265358979323846E0
+#endif
 
 #ifndef DBL_EPSILON
-#define DBL_EPSILON 2.2204460492503131E-16
+    #define DBL_EPSILON 2.2204460492503131E-16
 #endif
 
 #define AS_DECIMAL(n) (IS_INTEGER(n) ? (REBDEC)VAL_INT64(n) : VAL_DECIMAL(n))
@@ -76,7 +76,7 @@ static REBDEC Trig_Value(const REBVAL *value, REBOOL degrees, REBCNT which)
             /* get dval between -90.0 and 90.0 */
             if (fabs (dval) > 90.0) dval = (dval < 0.0 ? -180.0 : 180.0) - dval;
         }
-        dval = dval * pi1 / 180.0; // to radians
+        dval = dval * PI / 180.0; // to radians
     }
 
     return dval;
@@ -95,7 +95,8 @@ static void Arc_Trans(REBVAL *out, const REBVAL *value, REBOOL degrees, REBCNT k
     else if (kind == COSINE) dval = acos(dval);
     else dval = atan(dval);
 
-    if (degrees) dval = dval * 180.0 / pi1; // to degrees
+    if (degrees)
+        dval = dval * 180.0 / PI; // to degrees
 
     SET_DECIMAL(out, dval);
 }
@@ -161,7 +162,9 @@ REBNATIVE(tangent)
     INCLUDE_PARAMS_OF_TANGENT;
 
     REBDEC dval = Trig_Value(ARG(value), NOT(REF(radians)), TANGENT);
-    if (Eq_Decimal(fabs(dval), pi1 / 2.0)) fail (Error(RE_OVERFLOW));
+    if (Eq_Decimal(fabs(dval), PI / 2.0))
+        fail (Error(RE_OVERFLOW));
+
     SET_DECIMAL(D_OUT, tan(dval));
     return R_OUT;
 }

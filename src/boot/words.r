@@ -57,7 +57,6 @@ on
 off
 yes
 no
-pi
 
 rebol
 

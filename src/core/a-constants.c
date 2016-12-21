@@ -27,16 +27,21 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Very few strings should be located here. Most strings are
-// put in the compressed embedded boot image. That saves space,
-// reduces tampering, and allows UTF8 encoding. See ../boot dir.
+// Most text strings in Rebol should appear in the bootstrap files as Rebol
+// code.  This allows for "internationalization" without needing to update
+// the C code.  Other advantages are that the strings are compressed,
+// "reduces tampering", etc.
+//
+// So to keep track of any stray English strings in the executable which make
+// it into the user's view, they should be located here.
+//
+// Note: It's acceptable for hardcoded English strings to appear in the debug
+// build or in other debug settings, as anyone working with the C code itself
+// is basically expected to be able to read English (given the variable names
+// and comments in the C are English).
 //
 
 #include "sys-core.h"
-
-const char Str_Banner[] = "Rebol 3 %d.%d.%d.%d.%d";
-
-const char Str_Stack_Misaligned[] = "!! Stack misaligned: %d";
 
 const char Str_REBOL[] = "REBOL";
 

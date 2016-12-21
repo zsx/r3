@@ -174,7 +174,7 @@ script: construct [] [
     parent:         ; Script that loaded the current one
     path:           ; Location of the script being evaluated
     args:           ; args passed to script
-        blank
+        _
 ]
 
 standard: construct [] [
@@ -296,7 +296,7 @@ standard: construct [] [
         parent:
         path:
         args:
-            blank
+            _
     ]
 
     header: construct [] [
@@ -313,7 +313,7 @@ standard: construct [] [
 ;       compress:
 ;       exports:
 ;       content:
-            blank
+            _
     ]
 
     scheme: construct [] [
@@ -325,7 +325,7 @@ standard: construct [] [
 ;       type:       ; bytes, integers, objects, values, block
         actor:      ; standard action handler for scheme port functions
         awake:      ; standard awake handler for this scheme's ports
-            blank
+            _
     ]
 
     port: construct [] [ ; Port specification object
@@ -337,7 +337,7 @@ standard: construct [] [
         data:       ; data buffer (usually binary or block)
         locals:     ; user-defined storage of local data
 ;       stats:      ; stats on operation (optional)
-            blank
+            _
     ]
 
     port-spec-head: construct [] [
@@ -345,7 +345,7 @@ standard: construct [] [
         scheme:     ; reference to scheme that defines this port
         ref:        ; reference path or url (for errors)
         path:       ; used for files
-           blank    ; (extended here)
+           _            ; (extended here)
     ]
 
     port-spec-net: construct port-spec-head [
@@ -370,7 +370,7 @@ standard: construct [] [
         size:
         date:
         type:
-            blank
+            _
     ]
 
     net-info: construct [] [
@@ -378,7 +378,7 @@ standard: construct [] [
         local-port:
         remote-ip:
         remote-port:
-            blank
+            _
     ]
 
     extension: construct [] [
@@ -388,7 +388,7 @@ standard: construct [] [
         command:    ; command function
         cmd-index:  ; command index counter
         words:      ; symbol references
-            blank
+            _
     ]
 
     stats: construct [] [ ; port stats
@@ -404,13 +404,13 @@ standard: construct [] [
         made-blocks:
         made-objects:
         recycles:
-            blank
+            _
     ]
 
     type-spec: construct [] [
         title:
         type:
-            blank
+            _
     ]
 
     utype: _
@@ -500,14 +500,14 @@ view: construct [] [
     ]
 ]
 
-;;stats: blank
+;;stats: _
 
 ;user-license: context [
 ;   name:
 ;   email:
 ;   id:
 ;   message:
-;       blank
+;       _
 ;]
 
 
@@ -558,7 +558,7 @@ view: construct [] [
 ;       data-bits:
 ;       parity:
 ;       stop-bits:
-;           blank
+;           _
 ;       rts-cts: true
 ;       user-data:
 ;       awake:
@@ -568,7 +568,7 @@ view: construct [] [
 ;       pass-thru:
 ;       open-append:
 ;       open-new:
-;           blank
+;           _
 ;   ]
 
 ;   email: construct [] [ ; Email header object
@@ -587,20 +587,20 @@ view: construct [] [
 ;       MIME-Version:
 ;       Content-Type:
 ;       Content:
-;           blank
+;           _
 ;   ]
 
 ;user: construct [] [
 ;   name:           ; User's name
 ;   email:          ; User's default email address
 ;   home:           ; The HOME environment variable
-;   words: blank
+;   words: _
 ;]
 
 ;network: construct [] [
 ;   host: ""        ; Host name of the user's computer
 ;   host-address: 0.0.0.0 ; Host computer's TCP-IP address
-;   trace: blank
+;   trace: _
 ;]
 
 ;console: construct [] [
@@ -637,14 +637,14 @@ view: construct [] [
 ;       remote-user:
 ;       remote-ident:
 ;       Content-Type:           ; cap'd for email header
-;       content-length: blank
+;       content-length: _
 ;       other-headers: []
 ;   ]
 ;   browser-type: 0
 
 ;   trace:          ; True if the --trace flag was specified
-;   help: blank      ; True if the --help flags was specified
-;   halt: blank      ; halt after script
+;   help: _         ; True if the --help flags was specified
+;   halt: _         ; halt after script
 
 ;-- Expectation is that evaluation ends with no result, empty GROUP! does that
 ()
