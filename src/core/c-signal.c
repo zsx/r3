@@ -78,19 +78,14 @@
 //
 REBOOL Do_Signals_Throws(REBVAL *out)
 {
+    Eval_Cycles += Eval_Dose - Eval_Count;
+    Eval_Count = Eval_Dose;
+
+    if (Eval_Limit != 0 && Eval_Cycles > Eval_Limit)
+        Check_Security(Canon(SYM_EVAL), POL_EXEC, 0);
+
     REBOOL thrown = FALSE;
     SET_VOID(out);
-
-#if !defined(NDEBUG)
-    if (!Saved_State && PG_Boot_Phase >= BOOT_MEZZ) {
-        printf(
-            "WARNING: Printing while no top-level trap handler in place\n"
-            "This is dangerous because of Ctrl-C processing, there's\n"
-            "nothing to catch the HALT signal.\n"
-        );
-        fflush(stdout);
-    }
-#endif
 
     REBCNT mask = Eval_Sigmask;
     REBCNT sigs = Eval_Signals & mask;
@@ -114,9 +109,27 @@ REBOOL Do_Signals_Throws(REBVAL *out)
     }
 #endif
 
-    // Breaking only allowed after MEZZ boot
-    //
-    if (GET_FLAG(sigs, SIG_INTERRUPT) && PG_Boot_Phase >= BOOT_MEZZ) {
+    if (GET_FLAG(sigs, SIG_HALT)) {
+        //
+        // Early in the booting process, it's not possible to handle Ctrl-C
+        // because the error machinery has not been initialized.  There must
+        // be at least one PUSH_UNHALTABLE_TRAP() before fail() can work.
+        //
+        if (Saved_State == NULL)
+            panic ("Ctrl-C or other HALT signal with no trap to process it");
+
+        CLR_SIGNAL(SIG_HALT);
+        Eval_Sigmask = mask;
+
+        fail (VAL_CONTEXT(TASK_HALT_ERROR));
+    }
+
+    if (GET_FLAG(sigs, SIG_INTERRUPT)) {
+        //
+        // Similar to the Ctrl-C halting, the "breakpoint" interrupt request
+        // can't be processed early on.  The throw mechanics should panic
+        // all right, but it might make more sense to wait.
+        //
         CLR_SIGNAL(SIG_INTERRUPT);
         Eval_Sigmask = mask;
 
@@ -126,29 +139,9 @@ REBOOL Do_Signals_Throws(REBVAL *out)
         goto done;
     }
 
-    // Halting only allowed after MEZZ boot
-    //
-    if (GET_FLAG(sigs, SIG_HALT) && PG_Boot_Phase >= BOOT_MEZZ) {
-        CLR_SIGNAL(SIG_HALT);
-        Eval_Sigmask = mask;
-
-        fail (VAL_CONTEXT(TASK_HALT_ERROR));
-    }
-
     Eval_Sigmask = mask;
 
 done:
-    if (Eval_Signals)
-        Eval_Count = 1; // will call this routine again on next evaluation
-    else {
-        // Accumulate evaluation counter and reset countdown:
-
-        if (Eval_Limit != 0 && Eval_Cycles > Eval_Limit)
-            Check_Security(Canon(SYM_EVAL), POL_EXEC, 0);
-
-        Eval_Cycles += Eval_Dose - Eval_Count;
-        Eval_Count = Eval_Dose;
-    }
-
+    Eval_Count = 1; // will call this routine again on next 
     return thrown;
 }
