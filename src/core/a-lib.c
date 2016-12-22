@@ -206,6 +206,25 @@ RL_API int RL_Init(REBARGS *rargs, void *lib)
 
     Init_Core(rargs);
 
+    Register_Codec("text", ".txt", Codec_Text);
+    Register_Codec("utf-16le", ".txt", Codec_UTF16LE);
+    Register_Codec("utf-16be", ".txt", Codec_UTF16BE);
+    Init_BMP_Codec();
+    Init_GIF_Codec();
+    Init_PNG_Codec();
+
+    REBARR *file_types = Make_Array(2);
+    Init_File(
+        Alloc_Tail_Array(file_types),
+        Make_UTF8_May_Fail(".jpg")
+    );
+    Init_File(
+        Alloc_Tail_Array(file_types),
+        Make_UTF8_May_Fail(".jpeg")
+    );
+
+    Register_Codec("jpeg", file_types, Codec_JPEG_Image);
+
     if (rargs->options & RO_TRACE) {
         Trace_Level = 9999;
         Trace_Flags = 1;

@@ -603,5 +603,5 @@ REBINT Codec_BMP_Image(int action, REBCDI *codi)
 //
 void Init_BMP_Codec(void)
 {
-    Register_Codec(cb_cast("bmp"), Codec_BMP_Image);
+    Register_Codec("bmp", ".bmp", Codec_BMP_Image);
 }

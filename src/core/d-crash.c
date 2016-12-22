@@ -31,18 +31,12 @@
 #include "sys-core.h"
 
 
-enum Reb_Pointer_Guess {
-    GUESSED_AS_UTF8,
-    GUESSED_AS_SERIES,
-    GUESSED_AS_FREED_SERIES,
-    GUESSED_AS_VALUE,
-    GUESSED_AS_CELL_END,
-    GUESSED_AS_INTERNAL_END
-};
-
+//
+// Guess_Rebol_Pointer: C
+//
 // See the elaborate explanation in %m-gc.c for how this works!
 //
-static enum Reb_Pointer_Guess Guess_Rebol_Pointer(const void *p) {
+enum Reb_Pointer_Guess Guess_Rebol_Pointer(const void *p) {
     const REBYTE *bp = cast(const REBYTE*, p);
     REBYTE left_4_bits = *bp >> 4;
 

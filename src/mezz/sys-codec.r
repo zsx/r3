@@ -19,29 +19,39 @@ REBOL [
 
 ;-- Setup Codecs -------------------------------------------------------------
 
-for-each [codec handler] system/codecs [
-    if handle? handler [
-        ; Change boot handle into object:
-        codec: set codec construct [] [
-            entry: handler
-            title: form reduce ["Internal codec for" codec "media type"]
-            name: codec
-            type: 'image!
-            suffixes: select [
-                text [%.txt]
-                utf-16le [%.txt]
-                utf-16be [%.txt]
-                markup [%.html %.htm %.xml %.xsl %.wml %.sgml %.asp %.php %.cgi]
-                bmp  [%.bmp]
-                gif  [%.gif]
-                jpeg [%.jpg %.jpeg]
-                png  [%.png]
-            ] codec
-        ]
-        ; Media-types block format: [.abc .def type ...]
-        append append system/options/file-types codec/suffixes codec/name
+; !!! Codecs in R3-Alpha were C functions with a limited interface for
+; detecting if binary data matched a pattern they were expecting, and if so
+; being able to try and load that data...and if not they would pass to another
+; codec registered for that file extension.  They could also encode data.
+; Their inputs and outputs were raw C interfaces, while Ren-C is refitting
+; these to use BINARY! and Rebol types directly.  The change is happening
+; incrementally, however.  This function is called by the C function
+; Register_Codec().
+;
+register-codec*: func [
+    name [word!]
+    handler [handle!]
+    suffixes [file! block!]
+    <local> codec
+][
+    unless block? suffixes [suffixes: reduce [suffixes]]
+
+    codec: construct [] compose/only [
+        entry: handler
+        title: form reduce ["Internal codec for" (mold name) "media type"]
+        name: ('name)
+        type: 'image!
+        suffixes: (suffixes)
     ]
+    
+    ; Media-types block format: [.abc .def type ...]
+    ; !!! Should be a map, with blocks of codecs on collisions
+    ;
+    append append system/options/file-types suffixes name
+    
+    return codec
 ]
+
 
 ; Special import case for extensions:
 append system/options/file-types switch/default fourth system/version [

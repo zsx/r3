@@ -890,5 +890,5 @@ REBINT Codec_PNG_Image(int action, REBCDI *codi)
 //
 void Init_PNG_Codec(void)
 {
-    Register_Codec(cb_cast("png"), Codec_PNG_Image);
+    Register_Codec("png", ".png", Codec_PNG_Image);
 }

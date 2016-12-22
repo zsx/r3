@@ -418,10 +418,7 @@ static void Add_Lib_Keys_R3Alpha_Cant_Make(void)
 //
 static void Init_Function_Tag(const char *name, REBVAL *slot)
 {
-    Init_Tag(
-        slot,
-        Append_UTF8_May_Fail(NULL, cb_cast(name), strlen(name))
-    );
+    Init_Tag(slot, Make_UTF8_May_Fail(name));
     SET_SER_FLAG(VAL_SERIES(slot), SERIES_FLAG_FIXED_SIZE);
     SET_SER_INFO(VAL_SERIES(slot), SERIES_INFO_LOCKED);
 }
@@ -1052,34 +1049,52 @@ REBINT Codec_UTF16BE(int action, REBCDI *codi)
 //
 // Internal function for adding a codec.
 //
-void Register_Codec(const REBYTE *name, codo dispatcher)
-{
-    REBSTR *sym = Intern_UTF8_Managed(name, LEN_BYTES(name));
+void Register_Codec(
+    const char *name,
+    const void *suffixes, // may be REBARR* or UTF-8 string
+    codo dispatcher
+) {
+    REBVAL word;
+    Init_Word(&word, Intern_UTF8_Managed(cb_cast(name), strlen(name)));
 
-    REBVAL *value = Append_Context(
-        VAL_CONTEXT(Get_System(SYS_CODECS, 0)), 0, sym
-    );
-
+    REBVAL handle;
     Init_Handle_Simple(
-        value,
+        &handle,
         cast(CFUNC*, dispatcher), // code
         NULL // data
     );
-}
 
+    REBVAL suffixes_value;
+    switch (Guess_Rebol_Pointer(suffixes)) {
+    case GUESSED_AS_SERIES:
+        Init_Block(&suffixes_value, AS_ARRAY(m_cast(void*, suffixes)));
+        break;
 
-//
-//  Init_Codecs: C
-//
-static void Init_Codecs(void)
-{
-    Register_Codec(cb_cast("text"), Codec_Text);
-    Register_Codec(cb_cast("utf-16le"), Codec_UTF16LE);
-    Register_Codec(cb_cast("utf-16be"), Codec_UTF16BE);
-    Init_BMP_Codec();
-    Init_GIF_Codec();
-    Init_PNG_Codec();
-    Init_JPEG_Codec();
+    case GUESSED_AS_UTF8:
+        Init_File(
+            &suffixes_value,
+            Make_UTF8_May_Fail(cast(const char*, suffixes))
+        );
+        break;
+
+    default:
+        panic (suffixes);
+    }
+
+    REBVAL *value = Append_Context(
+        VAL_CONTEXT(Get_System(SYS_CODECS, 0)), &word, NULL
+    );
+
+    REBVAL codec;
+    if (Apply_Only_Throws(
+        value, TRUE, Sys_Func(SYS_CTX_REGISTER_CODEC_P),
+        &word, &handle, &suffixes_value, END_CELL
+    )) {
+        fail (Error_No_Catch_For_Throw(value));
+    }
+
+    if (!IS_OBJECT(value))
+        panic (value); // should have returned a codec object
 }
 
 
@@ -1513,7 +1528,6 @@ void Init_Core(REBARGS *rargs)
     Init_Contexts_Object();
     Init_Main_Args(rargs);
     Init_Ports();
-    Init_Codecs();
     Init_Crypto();
 
     Init_Errors(

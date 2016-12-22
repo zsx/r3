@@ -95,6 +95,15 @@ struct Reb_Header {
     REBUPT bits;
 };
 
+enum Reb_Pointer_Guess {
+    GUESSED_AS_UTF8,
+    GUESSED_AS_SERIES,
+    GUESSED_AS_FREED_SERIES,
+    GUESSED_AS_VALUE,
+    GUESSED_AS_CELL_END,
+    GUESSED_AS_INTERNAL_END
+};
+
 
 //=////////////////////////////////////////////////////////////////////////=//
 //

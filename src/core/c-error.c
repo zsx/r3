@@ -1026,11 +1026,7 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
             key++;
             Init_File(
                 value,
-                Append_UTF8_May_Fail(
-                    NULL,
-                    cb_cast(TG_Erroring_C_File),
-                    LEN_BYTES(cb_cast(TG_Erroring_C_File))
-                )
+                Make_UTF8_May_Fail(TG_Erroring_C_File)
             );
             value++;
 

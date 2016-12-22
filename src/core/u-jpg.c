@@ -10804,7 +10804,7 @@ jinit_phuff_decoder (j_decompress_ptr cinfo)
 // Original comment said: "REBOL Interface (keep it minimal)"
 //
 // The JPEG codec does not include sys-core.h, so it doesn't pick up
-// the prototype of Init_JPEG_Codec which is generated from make-headers.r
+// the prototype of Codec_JPEG_Image which is generated from make-headers.r
 // (made b/c its definition appears in a starred comment box).  It's
 // the only codec that does this.  Should no codecs include sys-core?
 //
@@ -10815,8 +10815,6 @@ extern "C" {
 
     void *Alloc_Mem(size_t size); // used by ALLOC_N below
 
-    void Register_Codec(const REBYTE *name, codo dispatcher);
-    void Init_JPEG_Codec(void);
     REBINT Codec_JPEG_Image(int action, REBCDI *codi);
 
 #ifdef __cplusplus
@@ -10857,13 +10855,4 @@ REBINT Codec_JPEG_Image(int action, REBCDI *codi)
 
     codi->error = CODI_ERR_NA;
     return CODI_ERROR;
-}
-
-
-//
-//  Init_JPEG_Codec: C
-//
-void Init_JPEG_Codec(void)
-{
-    Register_Codec(cb_cast("jpeg"), Codec_JPEG_Image);
 }

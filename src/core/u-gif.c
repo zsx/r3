@@ -349,5 +349,5 @@ REBINT Codec_GIF_Image(int action, REBCDI *codi)
 //
 void Init_GIF_Codec(void)
 {
-    Register_Codec(cb_cast("gif"), Codec_GIF_Image);
+    Register_Codec("gif", ".gif", Codec_GIF_Image);
 }

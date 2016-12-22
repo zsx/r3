@@ -203,3 +203,15 @@ inline static void SET_ANY_CHAR(REBSER *s, REBCNT n, REBYTE c) {
 
 #define VAL_ANY_CHAR(v) \
     GET_ANY_CHAR(VAL_SERIES(v), VAL_INDEX(v))
+
+
+// Basic string initialization from UTF8.
+//
+inline static REBSER *Make_UTF8_May_Fail(const char *utf8)
+{
+    return Append_UTF8_May_Fail(
+        NULL,
+        cast(const REBYTE*, utf8),
+        LEN_BYTES(cast(const REBYTE*, utf8))
+    );
+}
