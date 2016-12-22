@@ -500,15 +500,6 @@ void Append_String(REBSER *dst, REBSER *src, REBCNT i, REBCNT len)
 
 
 //
-//  Append_Boot_Str: C
-//
-void Append_Boot_Str(REBSER *dst, REBINT num)
-{
-    Append_Unencoded(dst, s_cast(PG_Boot_Strs[num]));
-}
-
-
-//
 //  Append_Int: C
 //
 // Append an integer string.

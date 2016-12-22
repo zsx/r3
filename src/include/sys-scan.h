@@ -34,7 +34,7 @@ enum Value_Types {
     TOKEN_END = 0,
     TOKEN_NEWLINE,
     TOKEN_BLOCK_END,
-    TOKEN_PAREN_END,
+    TOKEN_GROUP_END,
     TOKEN_WORD,
     TOKEN_SET, // order matters (see KIND_OF_WORD_FROM_TOKEN)
     TOKEN_GET, // ^-- same
@@ -51,7 +51,7 @@ enum Value_Types {
     TOKEN_DATE,
     TOKEN_CHAR,
     TOKEN_BLOCK_BEGIN,
-    TOKEN_PAREN_BEGIN,
+    TOKEN_GROUP_BEGIN,
     TOKEN_STRING,
     TOKEN_BINARY,
     TOKEN_PAIR,

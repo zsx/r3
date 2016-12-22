@@ -227,12 +227,8 @@ static void Do_Global_Block(
         }
     }
 
-    SNAP_STATE(&state);
-
     if (Do_At_Throws(&result, block, index, SPECIFIED))
         panic (&result);
-
-    ASSERT_STATE_BALANCED(&state);
 
     if (!IS_VOID(&result))
         panic (&result);
@@ -282,23 +278,6 @@ static void Load_Boot(void)
     )){
         panic (VAL_ARRAY_HEAD(&Boot_Block->types));
     }
-
-    // Create low-level string pointers (used by RS_ constants):
-    {
-        PG_Boot_Strs = ALLOC_N(REBYTE *, RS_MAX);
-        *ROOT_STRINGS = Boot_Block->strings;
-
-        REBYTE *cp = VAL_BIN(ROOT_STRINGS);
-        REBINT i;
-        for (i = 0; i < RS_MAX; i++) {
-            PG_Boot_Strs[i] = cp;
-            while (*cp++)
-                NOOP;
-        }
-    }
-
-    if (COMPARE_BYTES(cb_cast("newline"), BOOT_STR(RS_SCAN, 1)) != 0)
-        panic (BOOT_STR(RS_SCAN, 1));
 }
 
 
@@ -1695,8 +1674,6 @@ void Shutdown_Core(void)
     AS_SERIES(CTX_VARLIST(TG_Task_Context))->header.bits
         &= (~NODE_FLAG_ROOT);
     Recycle_Core(TRUE);
-
-    FREE_N(REBYTE*, RS_MAX, PG_Boot_Strs);
 
     Shutdown_Crypto();
     Shutdown_Ports();

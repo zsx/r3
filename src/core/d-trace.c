@@ -124,19 +124,6 @@ void Trace_Line(REBFRM *f)
         else
             Debug_Fmt_(" : %s", Get_Type_Name(var));
     }
-    /*if (ANY_WORD(value)) {
-        word = value;
-        if (IS_WORD(value)) value = GET_OPT_VAR_MAY_FAIL(word);
-        Debug_Fmt_(
-            " : %50r",
-            VAL_WORD_CONTEXT(word),
-            VAL_WORD_INDEX(word),
-            Get_Type_Name(value)
-        );
-    }
-    if (Trace_Stack) Debug_Fmt(" : %s %50m", DSP, FS_TOP);
-    else
-    */
     Debug_Line();
 }
 
@@ -148,7 +135,7 @@ void Trace_Func(REBSTR *label, const REBVAL *value)
 {
     int depth;
     CHECK_DEPTH(depth);
-    Debug_Fmt_("--> %s", STR_HEAD(label));
+    Debug_Fmt_(RM_TRACE_FUNCTION, STR_HEAD(label));
     if (GET_FLAG(Trace_Flags, 1))
         Debug_Values(FRM_ARG(FS_TOP, 1), FRM_NUM_ARGS(FS_TOP), 20);
     else Debug_Line();
@@ -162,7 +149,7 @@ void Trace_Return(REBSTR *label, const REBVAL *value)
 {
     int depth;
     CHECK_DEPTH(depth);
-    Debug_Fmt_("<-- %s ==", STR_HEAD(label));
+    Debug_Fmt_(RM_TRACE_RETURN, STR_HEAD(label));
     Debug_Values(value, 1, 50);
 }
 
@@ -176,7 +163,7 @@ void Trace_Value(
 ) {
     int depth;
     CHECK_DEPTH(depth);
-    Debug_Fmt("Parse %s: %r", label, value);
+    Debug_Fmt(RM_TRACE_PARSE_VALUE, label, value);
 }
 
 
@@ -191,7 +178,7 @@ void Trace_String(const REBYTE *str, REBINT limit)
     CHECK_DEPTH(depth);
     memcpy(tracebuf, str, len);
     tracebuf[len] = '\0';
-    Debug_Fmt("Parse input: %s", tracebuf);
+    Debug_Fmt(RM_TRACE_PARSE_INPUT, tracebuf);
 }
 
 
@@ -203,7 +190,7 @@ void Trace_Error(const REBVAL *value)
     int depth;
     CHECK_DEPTH(depth);
     Debug_Fmt(
-        "**: error : %r %r",
+        RM_TRACE_ERROR,
         &VAL_ERR_VARS(value)->type,
         &VAL_ERR_VARS(value)->id
     );

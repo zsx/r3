@@ -61,7 +61,6 @@ sections: [
     boot-words
     boot-root
     boot-task
-    boot-strings
     boot-booters
     boot-actions
     boot-natives
@@ -474,40 +473,6 @@ emit-line [{#define REBOL_REV} space (version/2)]
 emit-line [{#define REBOL_UPD} space (version/3)]
 emit-line [{#define REBOL_SYS} space (version/4)]
 emit-line [{#define REBOL_VAR} space (version/5)]
-
-;-- Generate Lower-Level String Table ----------------------------------------
-
-emit {
-/***********************************************************************
-**
-**  REBOL Boot Strings
-**
-**      These are special strings required during boot and other
-**      operations. Putting them here hides them from exe hackers.
-**      These are all string offsets within a single string.
-**
-***********************************************************************/
-}
-
-boot-strings: load %strings.r
-
-code: ""
-n: 0
-for-each str boot-strings [
-    either set-word? :str [
-        emit-line [
-            "#define" space (uppercase to-c-name ["RS_" to word! str]) space n
-        ]
-    ][
-        n: n + 1
-        append code str
-        append code null
-    ]
-]
-
-emit-line ["#define RS_MAX" space n]
-emit-line ["#define RS_SIZE" space length code]
-boot-strings: to-binary code
 
 ;-- Generate Canonical Words (must follow datatypes above!) ------------------
 

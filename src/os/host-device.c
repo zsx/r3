@@ -155,8 +155,12 @@ void Attach_Request(REBREQ **node, REBREQ *req)
     REBREQ *r;
 
 #ifdef special_debug
-    if (req->device == 5)
-        Debug_Fmt("Attach: %x %x %x %x", req, req->device, req->port, req->next);
+    if (req->device == 5) {
+        printf("Attach: %x %x %x %x\n",
+            req, req->device, req->port, req->next
+        );
+        fflush(stdout);
+    }
 #endif
 
     // See if its there, and get last req:
@@ -183,15 +187,20 @@ void Detach_Request(REBREQ **node, REBREQ *req)
     REBREQ *r;
 
 #ifdef special_debug
-    if (req->device == 5)
-        Debug_Fmt("Detach= n: %x r: %x p: %x %x", *node, req, req->port, &req->next);
+    if (req->device == 5) {
+        printf("Detach= n: %x r: %x p: %x %x\n",
+            *node, req, req->port, &req->next);
+        fflush(stdout);
+    }
 #endif
 
     // See if its there, and get last req:
     for (r = *node; r; r = *node) {
 #ifdef special_debug
-    if (req->device == 5)
-        Debug_Fmt("Detach: r: %x n: %x", r, r->next);
+    if (req->device == 5) {
+        printf("Detach: r: %x n: %x\n", r, r->next);
+        fflush(stdout);
+    }
 #endif
         if (r == req) {
             *node = req->next;

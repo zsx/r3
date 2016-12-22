@@ -112,10 +112,7 @@ REBNATIVE(load_extension)
 
         // Call its INFO_FUNC info() function for header and code body:
 
-        CFUNC *info = OS_FIND_FUNCTION(
-            dll,
-            cs_cast(BOOT_STR(RS_EXTENSION, 0)) //RX_Init
-        );
+        CFUNC *info = OS_FIND_FUNCTION(dll, "RX_Init");
         if (!info){
             OS_CLOSE_LIBRARY(dll);
             fail (Error(RE_BAD_EXTENSION, val));
@@ -130,9 +127,7 @@ REBNATIVE(load_extension)
 
         // Import the string into REBOL-land:
         src = Copy_Bytes(code, -1);
-        call = OS_FIND_FUNCTION(
-            dll, cs_cast(BOOT_STR(RS_EXTENSION, 2)) //RX_Call
-        ); // zero is allowed
+        call = OS_FIND_FUNCTION(dll, "RX_Call"); // zero is allowed
     }
     else {
         // Hosted extension:

@@ -590,11 +590,7 @@ static REBCTX *Error_Bad_Scan(
 ) {
     assert(errnum != 0);
 
-    const REBYTE *name;
-    if (PG_Boot_Strs)
-        name = BOOT_STR(RS_SCAN,tkn);
-    else
-        name = cb_cast("boot");
+    const REBYTE *name = cb_cast(Token_Names[tkn]);
 
     const REBYTE *cp = ss->head_line;
     while (IS_LEX_SPACE(*cp)) cp++; // skip indentation
@@ -844,10 +840,10 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
         // (PARENS)
 
         case LEX_DELIMIT_LEFT_PAREN:
-            return TOKEN_PAREN_BEGIN;
+            return TOKEN_GROUP_BEGIN;
 
         case LEX_DELIMIT_RIGHT_PAREN:
-            return TOKEN_PAREN_END;
+            return TOKEN_GROUP_END;
 
 
         // "QUOTES" and {BRACES}
@@ -1540,7 +1536,7 @@ static REBARR *Scan_Array(
             break;
 
         case TOKEN_BLOCK_BEGIN:
-        case TOKEN_PAREN_BEGIN: {
+        case TOKEN_GROUP_BEGIN: {
             REBARR *array = Scan_Array(
                 scan_state, (token == TOKEN_BLOCK_BEGIN) ? ']' : ')'
             );
@@ -1567,7 +1563,7 @@ static REBARR *Scan_Array(
             else if (mode_char != ']') goto missing_error;
             else goto exit_block;
 
-        case TOKEN_PAREN_END:
+        case TOKEN_GROUP_END:
             if (!mode_char) { mode_char = '('; goto extra_error; }
             else if (mode_char != ')') goto missing_error;
             else goto exit_block;
@@ -1973,6 +1969,11 @@ REBINT Scan_Header(const REBYTE *src, REBCNT len)
 //
 void Init_Scanner(void)
 {
+    REBCNT n = 0;
+    while (Token_Names[n] != NULL)
+        ++n;
+    assert(cast(enum Value_Types, n) == TOKEN_MAX);
+
     Set_Root_Series(TASK_BUF_EMIT, AS_SERIES(Make_Array(511)));
     Set_Root_Series(TASK_BUF_UTF8, Make_Unicode(1020));
 }

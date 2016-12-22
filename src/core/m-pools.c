@@ -160,11 +160,9 @@ void Free_Mem(void *mem, size_t size)
     free(mem);
 #else
     char *ptr = cast(char *, mem) - sizeof(REBI64);
-    if (*cast(REBI64 *, ptr) == cast(REBI64, -1020)) {
-        Debug_Fmt("** Free_Mem() likely used on OS_Alloc_Mem() memory!");
-        Debug_Fmt("** You should use OS_FREE() instead of FREE().");
-        assert(FALSE);
-    }
+    if (*cast(REBI64 *, ptr) == cast(REBI64, -1020))
+        panic ("** FREE() used on OS_Alloc_Mem() memory instead of FREE()");
+
     assert(*cast(REBI64*, ptr) == cast(REBI64, size));
     free(ptr);
 #endif
@@ -1271,10 +1269,11 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
 
 #ifndef NDEBUG
     if (Reb_Opts->watch_expand) {
-        Debug_Fmt(
-            "Expand %x wide: %d tail: %d delta: %d",
+        printf(
+            "Expand %p wide: %d tail: %d delta: %d\n",
             s, wide, len_old, delta
         );
+        fflush(stdout);
     }
 #endif
 
@@ -1750,27 +1749,6 @@ REBOOL Is_Value_Managed(const RELVAL *value)
 }
 
 
-//
-//  Series_In_Pool: C
-//
-// Confirm that the series value is in the series pool.
-//
-REBOOL Series_In_Pool(REBSER *series)
-{
-    REBSEG  *seg;
-    REBSER *start;
-
-    // Scan all series headers to check that series->size is correct:
-    for (seg = Mem_Pools[SER_POOL].segs; seg; seg = seg->next) {
-        start = (REBSER *) (seg + 1);
-        if (series >= start && series <= (REBSER*)((REBYTE*)start + seg->size - sizeof(REBSER)))
-            return TRUE;
-    }
-
-    return FALSE;
-}
-
-
 #if !defined(NDEBUG)
 
 //
@@ -1871,11 +1849,9 @@ REBCNT Check_Memory_Debug(void)
 
 
 //
-//  Dump_All: C
+//  Dump_All_Series_Of_Size: C
 //
-// Dump all series of a given size.
-//
-void Dump_All(REBCNT size)
+void Dump_All_Series_Of_Size(REBCNT size)
 {
     REBCNT count = 0;
 
@@ -1888,19 +1864,18 @@ void Dump_All(REBCNT size)
                 continue;
 
             if (SER_WIDE(s) == size) {
-                //Debug_Fmt("%3d %4d %4d = \"%s\"", n++, series->tail, SER_TOTAL(series), series->data);
-                Debug_Fmt(
-                    "%3d %4d %4d = \"%s\"",
+                printf(
+                    "%3d %4d %4d\n",
                     ++count,
                     SER_LEN(s),
-                    SER_REST(s),
-                    "-" // !label
+                    SER_REST(s)
                 );
             }
-
+            fflush(stdout);
         }
     }
 }
+
 
 //
 //  Dump_Series_In_Pool: C
@@ -1917,44 +1892,17 @@ void Dump_Series_In_Pool(REBCNT pool_id)
             if (IS_FREE_NODE(s))
                 continue;
 
-            REBOOL is_dynamic = GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC);
+            if (GET_SER_FLAG(s, NODE_FLAG_CELL))
+                continue; // pairing
 
             if (
                 pool_id == UNKNOWN
-                || FIND_POOL(SER_TOTAL(s)) == pool_id
+                || (
+                    GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)
+                    && FIND_POOL(SER_TOTAL(s)) == pool_id
+                )
             ) {
-                Debug_Fmt(
-                    "%s Series %x \"%s\":"
-                        " wide: %2d"
-                        " size: %6d"
-                        " bias: %d"
-                        " tail: %d"
-                        " rest: %d"
-                        " flags: %x",
-                    "Dump",
-                    s,
-                    "-", // !label
-                    SER_WIDE(s),
-                    SER_TOTAL(s),
-                    is_dynamic ? SER_BIAS(s) : 0,
-                    SER_LEN(s),
-                    SER_REST(s),
-                    s->info.bits // flags + width
-                );
-
-                if (Is_Array_Series(s)) {
-                    Debug_Values(
-                        ARR_HEAD(AS_ARRAY(s)),
-                        SER_LEN(s),
-                        1024 // !!! "FIXME limit
-                    );
-                }
-                else {
-                    Dump_Bytes(
-                        SER_DATA_RAW(s),
-                        (SER_LEN(s) + 1) * SER_WIDE(s)
-                    );
-                }
+                Dump_Series(s, "Dump_Series_In_Pool");
             }
 
         }
@@ -1967,139 +1915,142 @@ void Dump_Series_In_Pool(REBCNT pool_id)
 //
 // Print statistics about all memory pools.
 //
-static void Dump_Pools(void)
+void Dump_Pools(void)
 {
-    REBSEG  *seg;
-    REBCNT  segs;
-    REBCNT  size;
-    REBCNT  used;
-    REBCNT  total = 0;
-    REBCNT  tused = 0;
-    REBCNT  n;
+    REBCNT total = 0;
+    REBCNT tused = 0;
 
+    REBCNT n;
     for (n = 0; n < SYSTEM_POOL; n++) {
+        REBCNT segs = 0;
+        REBCNT size = 0;
+
         size = segs = 0;
 
+        REBSEG *seg;
         for (seg = Mem_Pools[n].segs; seg; seg = seg->next, segs++)
             size += seg->size;
 
-        used = Mem_Pools[n].has - Mem_Pools[n].free;
-        Debug_Fmt("Pool[%-2d] %-4dB %-5d/%-5d:%-4d (%-2d%%) %-2d segs, %-07d total",
+        REBCNT used = Mem_Pools[n].has - Mem_Pools[n].free;
+        printf(
+            "Pool[%-2d] %5dB %-5d/%-5d:%-4d (%3d%%) ",
             n,
             Mem_Pools[n].wide,
             used,
             Mem_Pools[n].has,
             Mem_Pools[n].units,
-            Mem_Pools[n].has ? ((used * 100) / Mem_Pools[n].has) : 0,
-            segs,
-            size
+            Mem_Pools[n].has ? ((used * 100) / Mem_Pools[n].has) : 0
         );
+        printf("%-2d segs, %-7d total\n", segs, size);
 
         tused += used * Mem_Pools[n].wide;
         total += size;
     }
-    Debug_Fmt("Pools used %d of %d (%2d%%)", tused, total, (tused*100) / total);
-    Debug_Fmt("System pool used %d", Mem_Pools[SYSTEM_POOL].has);
-    //Debug_Fmt("Raw allocator reports %d", PG_Mem_Usage);
+
+    printf("Pools used %d of %d (%2d%%)\n", tused, total, (tused*100) / total);
+    printf("System pool used %d\n", Mem_Pools[SYSTEM_POOL].has);
+    printf("Raw allocator reports %lu\n", cast(unsigned long, PG_Mem_Usage));
+    
+    fflush(stdout);
 }
 
 
 //
 //  Inspect_Series: C
 //
-REBU64 Inspect_Series(REBCNT flags)
+// !!! This is an old routine which was exposed through STATS to "expert
+// users".  Its purpose is to calculate the total amount of memory currently
+// in use by series, but it could also print out a breakdown of categories.
+//
+REBU64 Inspect_Series(REBOOL show)
 {
-    REBSEG  *seg;
-    REBSER  *series;
-    REBCNT  segs, n, tot, blks, strs, unis, nons, odds, fre;
-    REBCNT  str_size, uni_size, blk_size, odd_size, seg_size, fre_size;
-    REBOOL  f = FALSE;
-    REBINT  pool_num;
-#ifdef SER_LABELS
-    REBYTE  *kind;
-#endif
-    REBU64  tot_size;
+    REBCNT segs = 0;
+    REBCNT tot = 0;
+    REBCNT blks = 0;
+    REBCNT strs = 0;
+    REBCNT unis = 0;
+    REBCNT nons = 0;
+    REBCNT odds = 0;
+    REBCNT fre = 0;
 
-    segs = tot = blks = strs = unis = nons = odds = fre = 0;
-    seg_size = str_size = uni_size = blk_size = odd_size = fre_size = 0;
-    tot_size = 0;
+    REBCNT seg_size = 0;
+    REBCNT str_size = 0;
+    REBCNT uni_size = 0;
+    REBCNT blk_size = 0;
+    REBCNT odd_size = 0;
 
+    REBU64 tot_size = 0;
+
+    REBSEG *seg;
     for (seg = Mem_Pools[SER_POOL].segs; seg; seg = seg->next) {
 
         seg_size += seg->size;
         segs++;
 
-        series = (REBSER *) (seg + 1);
+        REBSER *s = cast(REBSER*, seg + 1);
 
+        REBCNT n;
         for (n = Mem_Pools[SER_POOL].units; n > 0; n--) {
-
-            if (SER_WIDE(series)) {
-                tot++;
-                tot_size += SER_TOTAL(series);
-                f = FALSE;
-            } else {
-                fre++;
+            if (IS_FREE_NODE(s)) {
+                ++fre;
+                continue;
             }
 
-            if (Is_Array_Series(series)) {
+            ++tot;
+
+            if (GET_SER_FLAG(s, NODE_FLAG_CELL))
+                continue;
+            
+            tot_size += SER_TOTAL_IF_DYNAMIC(s); // else 0
+
+            if (Is_Array_Series(s)) {
                 blks++;
-                blk_size += SER_TOTAL(series);
-                if (f) Debug_Fmt_("BLOCK ");
+                blk_size += SER_TOTAL_IF_DYNAMIC(s);
             }
-            else if (SER_WIDE(series) == 1) {
+            else if (SER_WIDE(s) == 1) {
                 strs++;
-                str_size += SER_TOTAL(series);
-                if (f) Debug_Fmt_("STRING");
+                str_size += SER_TOTAL_IF_DYNAMIC(s);
             }
-            else if (SER_WIDE(series) == sizeof(REBUNI)) {
+            else if (SER_WIDE(s) == sizeof(REBUNI)) {
                 unis++;
-                uni_size += SER_TOTAL(series);
-                if (f) Debug_Fmt_("UNICOD");
+                uni_size += SER_TOTAL_IF_DYNAMIC(s);
             }
-            else if (SER_WIDE(series)) {
+            else if (SER_WIDE(s)) {
                 odds++;
-                odd_size += SER_TOTAL(series);
-                if (f) Debug_Fmt_("ODD[%d]", SER_WIDE(series));
-            }
-            if (f && SER_WIDE(series)) {
-                Debug_Fmt(" units: %-5d tail: %-5d bytes: %-7d", SER_REST(series), SER_LEN(series), SER_TOTAL(series));
+                odd_size += SER_TOTAL_IF_DYNAMIC(s);
             }
 
-            series++;
+            ++s;
         }
     }
 
     // Size up unused memory:
+    //
+    REBU64 fre_size = 0;
+    REBINT pool_num;
     for (pool_num = 0; pool_num < SYSTEM_POOL; pool_num++) {
         fre_size += Mem_Pools[pool_num].free * Mem_Pools[pool_num].wide;
     }
 
-    if (flags & 1) {
-        Debug_Fmt(
-              "Series Memory Info:\n"
-              "  node   size = %d\n"
-              "  series size = %d\n"
-              "  %-6d segs = %-7d bytes - headers\n"
-              "  %-6d blks = %-7d bytes - blocks\n"
-              "  %-6d strs = %-7d bytes - byte strings\n"
-              "  %-6d unis = %-7d bytes - unicode strings\n"
-              "  %-6d odds = %-7d bytes - odd series\n"
-              "  %-6d used = %-7d bytes - total used\n"
-              "  %-6d free / %-7d bytes - free headers / node-space\n"
-              ,
-              sizeof(REBVAL),
-              sizeof(REBSER),
-              segs, seg_size,
-              blks, blk_size,
-              strs, str_size,
-              unis, uni_size,
-              odds, odd_size,
-              tot,  tot_size,
-              fre,  fre_size   // the 2 are not related
+    if (show) {
+        printf("Series Memory Info:\n");
+        printf("  REBVAL size = %lu\n", cast(unsigned long, sizeof(REBVAL)));
+        printf("  REBSER size = %lu\n", cast(unsigned long, sizeof(REBSER)));
+        printf("  %-6d segs = %-7d bytes - headers\n", segs, seg_size);
+        printf("  %-6d blks = %-7d bytes - blocks\n", blks, blk_size);
+        printf("  %-6d strs = %-7d bytes - byte strings\n", strs, str_size);
+        printf("  %-6d unis = %-7d bytes - uni strings\n", unis, uni_size);
+        printf("  %-6d odds = %-7d bytes - odd series\n", odds, odd_size);
+        printf(
+            "  %-6d used = %lu bytes - total used\n",
+            tot, cast(unsigned long, tot_size)
         );
+        printf("  %lu free headers\n", cast(unsigned long, fre));
+        printf("  %lu bytes node-space\n", cast(unsigned long, fre_size));
+        printf("\n");
     }
 
-    if (flags & 2) Dump_Pools();
+    fflush(stdout);
 
     return tot_size;
 }

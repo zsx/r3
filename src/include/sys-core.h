@@ -682,8 +682,6 @@ inline static void SET_SIGNAL(REBFLGS f) {
 #define CLR_SIGNAL(f) CLR_FLAG(Eval_Signals, (f))
 
 
-#define BOOT_STR(c,i) c_cast(const REBYTE *, PG_Boot_Strs[(c) + (i)])
-
 //-- Temporary Buffers
 //   These are reused for cases for appending, when length cannot be known.
 

@@ -27,8 +27,22 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-
-//#include <stdio.h> // !!! No <stdio.h> in Ren-C release builds
+// Most of these low-level debug routines were leftovers from R3-Alpha, which
+// had no DEBUG build (and was perhaps frequently debugged without an IDE
+// debugger).  After the open source release, Ren-C's reliance is on a
+// more heavily checked debug build...so these routines were not used.
+//
+// They're being brought up to date to be included in the debug build only
+// version of panic().  That should keep them in working shape.
+//
+// Note: These routines use `printf()`, which is only linked in DEBUG builds.
+// Higher-level Rebol formatting should ultimately be using BLOCK! dialects,
+// as opposed to strings with %s and %d.  Bear in mind the "z" modifier in
+// printf is unavailable in C89, so if something might be 32-bit or 64-bit
+// depending, it must be cast to unsigned long:
+//
+// http://stackoverflow.com/q/2125845
+//
 
 #include "sys-core.h"
 #include "mem-series.h" // low-level series memory access
@@ -39,38 +53,6 @@
 #define snprintf _snprintf
 #endif
 
-//
-//  Dump_Series: C
-//
-void Dump_Series(REBSER *series, const char *memo)
-{
-    if (!series) return;
-    Debug_Fmt(
-        "%s Series %x \"%s\":"
-            " wide: %2d"
-            " size: %6d"
-            " bias: %d"
-            " tail: %d"
-            " rest: %d"
-            " flags: %x",
-        memo,
-        series,
-        "-", // !label
-        SER_WIDE(series),
-        SER_TOTAL(series),
-        SER_BIAS(series),
-        SER_LEN(series),
-        SER_REST(series),
-        series->info.bits // flags + width
-    );
-    if (Is_Array_Series(series)) {
-        Dump_Values(ARR_HEAD(AS_ARRAY(series)), SER_LEN(series));
-    } else
-        Dump_Bytes(
-            SER_DATA_RAW(series),
-            (SER_LEN(series) + 1) * SER_WIDE(series)
-        );
-}
 
 //
 //  Dump_Bytes: C
@@ -78,47 +60,94 @@ void Dump_Series(REBSER *series, const char *memo)
 void Dump_Bytes(REBYTE *bp, REBCNT limit)
 {
     const REBCNT max_lines = 120;
-    REBYTE buf[2048];
-    REBYTE str[40];
-    REBYTE *cp, *tp;
-    REBYTE c;
-    REBCNT l, n;
-    REBCNT cnt = 0;
 
-    cp = buf;
-    for (l = 0; l < max_lines; l++) {
-        cp = Form_Hex_Pad(cp, (REBUPT) bp, 8);
+    REBCNT total = 0;
+
+    REBYTE buf[2048];
+
+    REBCNT l = 0;
+    for (; l < max_lines; l++) {
+        REBYTE *cp = buf;
+
+        cp = Form_Hex_Pad(cp, cast(REBUPT, bp), 8);
 
         *cp++ = ':';
         *cp++ = ' ';
-        tp = str;
 
-        for (n = 0; n < 16; n++) {
-            if (cnt++ >= limit) break;
-            c = *bp++;
+        REBYTE str[40];
+        REBYTE *tp = str;
+
+        REBCNT n = 0;
+        for (; n < 16; n++) {
+            if (total++ >= limit)
+                break;
+
+            REBYTE c = *bp++;
             cp = Form_Hex2(cp, c);
-            if ((n & 3) == 3) *cp++ = ' ';
-            if ((c < 32) || (c > 126)) c = '.';
+            if ((n & 3) == 3)
+                *cp++ = ' ';
+            if ((c < 32) || (c > 126))
+                c = '.';
             *tp++ = c;
         }
 
         for (; n < 16; n++) {
-            c = ' ';
+            REBYTE c = ' ';
             *cp++ = c;
             *cp++ = c;
-            if ((n & 3) == 3) *cp++ = ' ';
-            if ((c < 32) || (c > 126)) c = '.';
+            if ((n & 3) == 3)
+                *cp++ = ' ';
+            if ((c < 32) || (c > 126))
+                c = '.';
             *tp++ = c;
         }
+
         *tp++ = 0;
 
-        for (tp = str; *tp;) *cp++ = *tp++;
+        for (tp = str; *tp;)
+            *cp++ = *tp++;
 
         *cp = 0;
-        Debug_Str(s_cast(buf));
-        if (cnt >= limit) break;
-        cp = buf;
+        printf("%s\n", s_cast(buf));
+        fflush(stdout);
+
+        if (total >= limit)
+            break;
     }
+}
+
+
+//
+//  Dump_Series: C
+//
+void Dump_Series(REBSER *s, const char *memo)
+{
+    printf("Dump_Series(%s) @ %p\n", memo, s);
+    fflush(stdout);
+
+    if (s == NULL)
+        return;
+
+    printf(" wide: %d\n", SER_WIDE(s));
+    printf(" size: %ld\n", cast(unsigned long, SER_TOTAL(s)));
+    printf(" bias: %d\n", SER_BIAS(s));
+    printf(" tail: %d\n", SER_LEN(s));
+    printf(" rest: %d\n", SER_REST(s));
+
+    // flags includes len if non-dynamic
+    printf(" flags: %lx\n", cast(unsigned long, s->header.bits));
+
+    // info includes width
+    printf(" info: %lx\n", cast(unsigned long, s->info.bits));
+
+    fflush(stdout);
+
+    if (Is_Array_Series(s))
+        Dump_Values(ARR_HEAD(AS_ARRAY(s)), SER_LEN(s));
+    else
+        Dump_Bytes(SER_DATA_RAW(s), (SER_LEN(s) + 1) * SER_WIDE(s));
+
+    fflush(stdout);
 }
 
 
@@ -173,21 +202,22 @@ void Dump_Values(RELVAL *vp, REBCNT count)
 //
 void Dump_Info(void)
 {
-    Debug_Fmt("^/--REBOL Kernel Dump--");
+    printf("^/--REBOL Kernel Dump--\n");
 
-    Debug_Fmt("Evaluator:");
-    Debug_Fmt("    Cycles:  %d", cast(REBINT, Eval_Cycles));
-    Debug_Fmt("    Counter: %d", Eval_Count);
-    Debug_Fmt("    Dose:    %d", Eval_Dose);
-    Debug_Fmt("    Signals: %x", Eval_Signals);
-    Debug_Fmt("    Sigmask: %x", Eval_Sigmask);
-    Debug_Fmt("    DSP:     %d", DSP);
+    printf("Evaluator:\n");
+    printf("    Cycles:  %d\n", cast(REBINT, Eval_Cycles));
+    printf("    Counter: %d\n", Eval_Count);
+    printf("    Dose:    %d\n", Eval_Dose);
+    printf("    Signals: %lx\n", cast(unsigned long, Eval_Signals));
+    printf("    Sigmask: %lx\n", cast(unsigned long, Eval_Sigmask));
+    printf("    DSP:     %d\n", DSP);
 
-    Debug_Fmt("Memory/GC:");
+    printf("Memory/GC:\n");
 
-    Debug_Fmt("    Ballast: %d", GC_Ballast);
-    Debug_Fmt("    Disable: %d", GC_Disabled);
-    Debug_Fmt("    Guarded Nodes: %d", SER_LEN(GC_Guarded));
+    printf("    Ballast: %d\n", GC_Ballast);
+    printf("    Disable: %d\n", GC_Disabled);
+    printf("    Guarded Nodes: %d\n", SER_LEN(GC_Guarded));
+    fflush(stdout);
 }
 
 
@@ -198,33 +228,40 @@ void Dump_Info(void)
 //
 void Dump_Stack(REBFRM *f, REBCNT level)
 {
-    REBINT n;
-    REBVAL *arg;
-    REBVAL *param;
+    printf("\n");
 
-    Debug_Fmt(""); // newline.
+    if (f == NULL)
+        f = FS_TOP;
 
-    if (f == NULL) f = FS_TOP;
     if (f == NULL) {
-        Debug_Fmt("*STACK[] - NO FRAMES*");
+        printf("*STACK[] - NO FRAMES*\n");
+        fflush(stdout);
         return;
     }
 
-    Debug_Fmt(
-        "STACK[%d](%s) - %d",
+   printf(
+        "STACK[%d](%s) - %d\n",
         level,
         STR_HEAD(FRM_LABEL(f)),
         f->eval_type // note: this is now an ordinary Reb_Kind, stringify it
     );
 
     if (NOT(Is_Any_Function_Frame(f))) {
-        Debug_Fmt("(no function call pending or in progress)");
+        printf("(no function call pending or in progress)\n");
+        fflush(stdout);
         return;
     }
 
-    n = 1;
-    arg = FRM_ARG(f, 1);
-    param = FUNC_PARAMS_HEAD(f->func);
+    // !!! This is supposed to be a low-level debug routine, but it is
+    // effectively molding arguments.  If the stack is known to be in "good
+    // shape" enough for that, it should be dumped by routines using the
+    // Rebol backtrace API.
+
+    fflush(stdout);
+
+    REBINT n = 1;
+    REBVAL *arg = FRM_ARG(f, 1);
+    REBVAL *param = FUNC_PARAMS_HEAD(f->func);
 
     for (; NOT_END(param); ++param, ++arg, ++n) {
         Debug_Fmt(
@@ -238,23 +275,7 @@ void Dump_Stack(REBFRM *f, REBCNT level)
         Dump_Stack(f->prior, level + 1);
 }
 
-#ifdef TEST_PRINT
-    // Simple low-level tests:
-    Print("%%d %d", 1234);
-    Print("%%d %d", -1234);
-    Print("%%d %d", 12345678);
-    Print("%%d %d", 0);
-    Print("%%6d %6d", 1234);
-    Print("%%10d %10d", 123456789);
-    Print("%%x %x", 0x1234ABCD);
-    Print("%%x %x", -1);
-    Print("%%4x %x", 0x1234);
-    Print("%%s %s", "test");
-    Print("%%s %s", 0);
-    Print("%%c %c", (REBINT)'X');
-    Print("%s %d %x", "test", 1234, 1234);
-    getchar();
-#endif
+
 
 #endif // DUMP is picked up by scan regardless of #ifdef, must be defined
 

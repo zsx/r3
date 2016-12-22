@@ -959,7 +959,7 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
 
                     arg = BLANK_VALUE;
                 #else
-                    Debug_Fmt(
+                    printf(
                         "too few args passed for error code %d at %s line %d",
                         code,
                         TG_Erroring_C_File ? TG_Erroring_C_File : "<unknown>",
@@ -1639,7 +1639,6 @@ REBYTE *Security_Policy(REBSTR *spelling, REBVAL *name)
 
         // Is it a string (file or URL):
         else if (ANY_BINSTR(policy) && name) {
-            //Debug_Fmt("sec: %r %r", policy, name);
             if (Match_Sub_Path(VAL_SERIES(policy), VAL_SERIES(name))) {
                 // Is the match adequate?
                 if (VAL_LEN_HEAD(name) >= len) {

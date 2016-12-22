@@ -45,6 +45,8 @@
 
 const char Str_REBOL[] = "REBOL";
 
+// A panic() indicates a serious malfunction, and should not make use of
+// Rebol-structured error message delivery in the release build.
 
 const char Str_Panic_Title[] = "Rebol Internal Error";
 
@@ -92,3 +94,74 @@ const char * const Month_Names[12] = {
     "January", "February", "March", "April", "May", "June", "July", "August",
     "September", "October", "November", "December"
 };
+
+
+// Used by scanner. Keep in sync with Value_Types in %scan.h file!
+//
+const char * const Token_Names[] = {
+    "end-of-script",
+    "newline",
+    "block-end",
+    "group-end",
+    "word",
+    "set",
+    "get",
+    "lit",
+    "blank",
+    "bar",
+    "lit-bar",
+    "logic",
+    "integer",
+    "decimal",
+    "percent",
+    "money",
+    "time",
+    "date",
+    "char",
+    "block-begin",
+    "group-begin",
+    "string",
+    "binary",
+    "pair",
+    "tuple",
+    "file",
+    "email",
+    "url",
+    "issue",
+    "tag",
+    "path",
+    "refine",
+    "construct",
+    NULL
+};
+
+
+// !!! For now, (R)ebol (M)essages use the historical Debug_Fmt() output
+// method, which is basically like `printf()`.  Over the long term, they
+// should use declarations like the (R)ebol (E)rrors do with RE_XXX values
+// loaded during boot.
+//
+// The goal should be that any non-debug-build only strings mentioned from C
+// that can be seen in the course of normal operation should go through this
+// abstraction.  Ultimately that would permit internationalization, and the
+// benefit of not needing to ship a release build binary with a string-based
+// format dialect.
+//
+// Switching strings to use this convention should ultimately parallel the
+// `Error()` generation, where the arguments are Rebol values and not C
+// raw memory as parameters.  Debug_Fmt() should also just be changed to
+// a normal `Print()` naming.
+//
+const char RM_ERROR_LABEL[] = " error: ";
+const char RM_BAD_ERROR_FORMAT[] = "(improperly formatted error)";
+const char RM_ERROR_WHERE[] = "** Where: ";
+const char RM_ERROR_NEAR[] = "** Near: ";
+
+const char RM_WATCH_RECYCLE[] = "RECYCLE: %d series";
+
+const char RM_TRACE_FUNCTION[] = "--> %s";
+const char RM_TRACE_RETURN[] = "<-- %s ==";
+const char RM_TRACE_ERROR[] = "**: error : %r %r";
+
+const char RM_TRACE_PARSE_VALUE[] = "Parse %s: %r";
+const char RM_TRACE_PARSE_INPUT[] = "Parse input: %s";

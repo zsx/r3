@@ -1302,8 +1302,6 @@ REBCNT Recycle_Core(REBOOL shutdown)
 
     Reify_Any_C_Valist_Frames();
 
-    if (Reb_Opts->watch_recycle) Debug_Str(cs_cast(BOOT_STR(RS_WATCH, 0)));
-
 
 #if !defined(NDEBUG)
     PG_Reb_Stats->Recycle_Counter++;
@@ -1396,7 +1394,7 @@ REBCNT Recycle_Core(REBOOL shutdown)
         GC_Ballast = VAL_INT32(TASK_BALLAST);
 
         if (Reb_Opts->watch_recycle)
-            Debug_Fmt(cs_cast(BOOT_STR(RS_WATCH, 1)), count);
+            Debug_Fmt(RM_WATCH_RECYCLE, count);
     }
 
     ASSERT_NO_GC_MARKS_PENDING();

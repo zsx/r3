@@ -148,9 +148,6 @@ REBSER *Emit(REB_MOLD *mold, const char *fmt, ...)
             else
                 va_arg(va, REBCNT); // ignore it
             break;
-        case 'B':   // Boot string
-            Append_Boot_Str(series, va_arg(va, REBINT));
-            break;
         default:
             Append_Codepoint_Raw(series, *fmt);
         }
@@ -1100,7 +1097,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
     vars = VAL_ERR_VARS(value);
 
     // Form: ** <type> Error:
-    Emit(mold, "** WB", &vars->type, RS_ERRS+0);
+    Emit(mold, "** WS", &vars->type, RM_ERROR_LABEL);
 
     // Append: error message ARG1, ARG2, etc.
     if (IS_BLOCK(&vars->message))
@@ -1108,13 +1105,13 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
     else if (IS_STRING(&vars->message))
         Mold_Value(mold, &vars->message, FALSE);
     else
-        Append_Boot_Str(mold->series, RS_ERRS + 1);
+        Append_Unencoded(mold->series, RM_BAD_ERROR_FORMAT);
 
     // Form: ** Where: function
     value = &vars->where;
     if (VAL_TYPE(value) != REB_BLANK) {
         Append_Codepoint_Raw(mold->series, '\n');
-        Append_Boot_Str(mold->series, RS_ERRS+2);
+        Append_Unencoded(mold->series, RM_ERROR_WHERE);
         Mold_Value(mold, value, FALSE);
     }
 
@@ -1122,7 +1119,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
     value = &vars->nearest;
     if (VAL_TYPE(value) != REB_BLANK) {
         Append_Codepoint_Raw(mold->series, '\n');
-        Append_Boot_Str(mold->series, RS_ERRS+3);
+        Append_Unencoded(mold->series, RM_ERROR_NEAR);
         if (IS_STRING(value)) // special case: source file line number
             Append_String(mold->series, VAL_SERIES(value), 0, VAL_LEN_HEAD(value));
         else if (IS_BLOCK(value))

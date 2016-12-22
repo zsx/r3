@@ -239,13 +239,10 @@ REBNATIVE(stats)
         return R_BLANK;
     }
 
-    REBCNT flags;
-    if (REF(show))
-        flags = 3;
-    else
-        flags = 0;
+    SET_INTEGER(D_OUT, Inspect_Series(REF(show)));
 
-    SET_INTEGER(D_OUT, Inspect_Series(flags));
+    if (REF(show))
+        Dump_Pools();
 
     return R_OUT;
 #endif

@@ -71,3 +71,9 @@ inline static void SER_SET_BIAS(REBSER *s, REBCNT bias) {
 inline static size_t SER_TOTAL(REBSER *s) {
     return (SER_REST(s) + SER_BIAS(s)) * SER_WIDE(s);
 }
+
+inline static size_t SER_TOTAL_IF_DYNAMIC(REBSER *s) {
+    if (NOT_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC))
+        return 0;
+    return SER_TOTAL(s);
+}

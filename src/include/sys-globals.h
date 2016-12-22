@@ -30,7 +30,6 @@
 //-- Bootstrap variables:
 PVAR REBINT PG_Boot_Phase;  // To know how far in the boot we are.
 PVAR REBINT PG_Boot_Level;  // User specified startup level
-PVAR REBYTE **PG_Boot_Strs; // Special strings in boot.r (RS_ constants)
 
 // PG_Reb_Stats - Various statistics about memory, etc.  This is only tracked
 // in the debug build, as this data gathering is a sort of constant "tax" on

@@ -414,9 +414,10 @@ REBNATIVE(backtrace)
                 Frame_For_Stack_Level(&temp_num, &temp_val, TRUE) != f
                 || temp_num != number
             ) {
-                Debug_Fmt(
+                printf(
                     "%d != Frame_For_Stack_Level %d", number, temp_num
                 );
+                fflush(stdout);
                 assert(FALSE);
             }
         }
