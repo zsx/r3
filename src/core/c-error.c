@@ -1536,16 +1536,15 @@ int Exit_Status_From_Value(REBVAL *value)
 //
 //  Init_Errors: C
 //
-void Init_Errors(REBVAL *errors)
+// Create error objects and error type objects
+//
+void Init_Errors(REBARR *boot_errors, REBVAL *std_error)
 {
-    REBCTX *errs;
-    REBVAL *val;
+    *ROOT_ERROBJ = *std_error;
 
-    // Create error objects and error type objects:
-    *ROOT_ERROBJ = *Get_System(SYS_STANDARD, STD_ERROR);
-    errs = Construct_Context(
+    REBCTX *errs = Construct_Context(
         REB_OBJECT,
-        VAL_ARRAY_HEAD(errors),
+        ARR_HEAD(boot_errors),
         SPECIFIED, // we're confident source array isn't in a function body
         NULL
     );
@@ -1555,6 +1554,7 @@ void Init_Errors(REBVAL *errors)
     // Create objects for all error types (CAT_ERRORS is "selfish", currently
     // so self is in slot 1 and the actual errors start at context slot 2)
     //
+    REBVAL *val;
     for (val = CTX_VAR(errs, SELFISH(1)); NOT_END(val); val++) {
         errs = Construct_Context(
             REB_OBJECT,

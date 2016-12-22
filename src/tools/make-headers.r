@@ -175,12 +175,9 @@ extern "C" ^{
 }
 emit newline
 
-boot-booters: load %../boot/booters.r
 boot-natives: load output-dir/boot/tmp-natives.r
 
-nats: append copy boot-booters boot-natives
-
-for-each val nats [
+for-each val boot-natives [
     if set-word? val [
         emit-line rejoin ["REBNATIVE(" to-c-name (to word! val) ");"]
     ]

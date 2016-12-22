@@ -42,5 +42,3 @@ tight-tag       ; Argument completes shortest legal expression (not longest)
 function-meta
 specialized-meta
 
-boot            ; boot block defined in boot.r (GC'd after boot is done)
-

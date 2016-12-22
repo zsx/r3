@@ -61,7 +61,6 @@ sections: [
     boot-words
     boot-root
     boot-task
-    boot-booters
     boot-actions
     boot-natives
     boot-typespecs
@@ -866,13 +865,10 @@ emit-line {#include "sys-core.h"}
 emit newline
 
 externs: make string! 2000
-boot-booters: load %booters.r
 boot-natives: load boot/tmp-natives.r
-
-nats: append copy boot-booters boot-natives
 num-natives: 0
 
-for-each val nats [
+for-each val boot-natives [
     if set-word? val [
         num-natives: num-natives + 1
     ]
@@ -886,7 +882,7 @@ emit-line {REBVAL Natives[NUM_NATIVES];}
 
 emit-line "const REBNAT Native_C_Funcs[NUM_NATIVES] = {"
 
-for-each val nats [
+for-each val boot-natives [
     if set-word? val [
         emit-item ["N_" to word! val]
     ]
@@ -977,7 +973,7 @@ emit newline
 emit-line "enum Native_Indices {"
 
 nat-index: 0
-for-each val nats [
+for-each val boot-natives [
     if set-word? val [
         emit-item/assign ["N_" (to word! val) "_ID"] nat-index
         nat-index: nat-index + 1

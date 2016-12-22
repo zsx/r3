@@ -1950,7 +1950,7 @@ void Dump_Pools(void)
     printf("Pools used %d of %d (%2d%%)\n", tused, total, (tused*100) / total);
     printf("System pool used %d\n", Mem_Pools[SYSTEM_POOL].has);
     printf("Raw allocator reports %lu\n", cast(unsigned long, PG_Mem_Usage));
-    
+
     fflush(stdout);
 }
 
@@ -2000,7 +2000,7 @@ REBU64 Inspect_Series(REBOOL show)
 
             if (GET_SER_FLAG(s, NODE_FLAG_CELL))
                 continue;
-            
+
             tot_size += SER_TOTAL_IF_DYNAMIC(s); // else 0
 
             if (Is_Array_Series(s)) {
