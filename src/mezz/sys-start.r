@@ -36,14 +36,6 @@ finish-init-core: procedure [
     "Completes the boot sequence for Ren-C core."
     <in> system/options
 ][
-
-    ; For now, we consider initializing the port schemes to be "part of the
-    ; core function".  Longer term, it may be the host's responsibility to
-    ; pick and configure the specific schemes it wishes to support...or
-    ; to delegate to the user to load them.
-    ;
-    init-schemes
-
     ; Make the user's global context.  Remove functions whose names are being
     ; retaken for new functionality--to be kept this way during a deprecation
     ; period.
@@ -81,12 +73,6 @@ finish-init-core: procedure [
     ;
     finish-init-core: 'done
 
-    ; Set the "boot-level"
-    ; !!! Is this something the user needs to be concerned with?
-    ;
-    assert [blank? boot-level]
-    boot-level: 'full
-
     ; It was a stated goal at one point that it should be possible to protect
     ; the entire system object and still run the interpreter.  This was
     ; commented out, so the state of that feature is unknown.
@@ -100,6 +86,13 @@ finish-rl-start: procedure [
     <in> system/options
     <with> boot-mezz boot-host
 ][
+    ; For now, we consider initializing the port schemes to be "part of the
+    ; core function".  Longer term, it may be the host's responsibility to
+    ; pick and configure the specific schemes it wishes to support...or
+    ; to delegate to the user to load them.
+    ;
+    init-schemes
+
     ;-- Print minimal identification banner if needed:
     if all [
         not quiet
@@ -107,7 +100,7 @@ finish-rl-start: procedure [
     ][
         boot-print boot-banner ; basic boot banner only
     ]
-    if any [boot-embedded do-arg script] [quiet: true]
+    if any [boot-embedded script] [quiet: true]
 
     ;-- Set up option/paths for /path, /boot, /home, and script path (for SECURE):
     path: dirize any [path home]
@@ -130,7 +123,6 @@ finish-rl-start: procedure [
     ;-- Convert command line arg strings as needed:
     script-args: args ; save for below
     for-each [opt act] [
-        do-arg  block!
         debug   block!
         secure  word!
         import  [to-value if import [to-rebol-file import]]
@@ -147,32 +139,32 @@ finish-rl-start: procedure [
     ;-- Boot up the rest of the run-time environment:
     ;   NOTE: this can still be split up into more boot-levels !!!
     ;   For example: mods, plus, host, and full
-    if boot-level [
-        load-boot-exts
-        loud-print "Init mezz plus..."
 
-        do bind-lib boot-mezz
-        boot-mezz: 'done
+    load-boot-exts
+    loud-print "Init mezz plus..."
 
-        for-each [spec body] boot-prot [module spec body]
-        ;do bind-lib boot-prot
-        ;boot-prot: 'done
+    do bind-lib boot-mezz
+    boot-mezz: 'done
 
-        ;-- User is requesting usage info:
-        if flags/help [lib/usage quiet: true]
+    for-each [spec body] boot-prot [module spec body]
 
-        ;-- Print fancy banner (created by mezz plus):
-        if any [
-            flags/verbose
-            not any [quiet script do-arg]
-        ][
-            boot-print boot-banner
-        ]
-        if boot-host [
-            loud-print "Init host code..."
-            do load boot-host
-            boot-host: _
-        ]
+    ;do bind-lib boot-prot
+    ;boot-prot: 'done
+
+    ;-- User is requesting usage info:
+    if flags/help [lib/usage quiet: true]
+
+    ;-- Print fancy banner (created by mezz plus):
+    if any [
+        flags/verbose
+        not any [quiet script]
+    ][
+        boot-print boot-banner
+    ]
+    if boot-host [
+        loud-print "Init host code..."
+        do load boot-host
+        boot-host: _
     ]
 
     ;-- Setup SECURE configuration (a NO-OP for min boot)

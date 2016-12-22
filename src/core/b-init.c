@@ -1098,169 +1098,6 @@ void Register_Codec(
 }
 
 
-static void Set_Option_String(REBCHR *str, REBCNT field)
-{
-    REBVAL *val = Get_System(SYS_OPTIONS, field);
-    Init_String(val, Copy_OS_Str(str, OS_STRLEN(str)));
-}
-
-
-static REBSTR *Set_Option_Word(REBCHR *str, REBCNT field)
-{
-    REBYTE buf[40]; // option words always short ASCII strings
-
-    REBCNT len = OS_STRLEN(str); // WC correct
-    assert(len <= 38);
-
-    REBYTE *bp = &buf[0];
-    while ((*bp++ = cast(REBYTE, OS_CH_VALUE(*(str++))))); // clips unicode
-
-    REBSTR *name = Intern_UTF8_Managed(buf, len);
-
-    REBVAL *val = Get_System(SYS_OPTIONS, field);
-    Init_Word(val, name);
-
-    return name;
-}
-
-
-//
-//  Init_Main_Args: C
-//
-// The system object is defined in boot.r.
-//
-static void Init_Main_Args(REBARGS *rargs)
-{
-    REBVAL *val;
-    RELVAL *item;
-    REBCHR *data;
-
-    REBARR *array = Make_Array(3);
-    REBFLGS rof = 2; // skip first flag (ROF_EXT)
-    val = Get_System(SYS_CATALOG, CAT_BOOT_FLAGS);
-    for (item = VAL_ARRAY_HEAD(val); NOT_END(item); item++) {
-        CLEAR_VAL_FLAG(item, VALUE_FLAG_LINE);
-        if (rargs->options & rof)
-            Append_Value(array, KNOWN(item)); // no relatives in BOOT_FLAGS (?)
-        rof <<= 1;
-    }
-    val = Alloc_Tail_Array(array);
-    SET_TRUE(val);
-    val = Get_System(SYS_OPTIONS, OPTIONS_FLAGS);
-    Init_Block(val, array);
-
-    // For compatibility:
-    if (rargs->options & RO_QUIET) {
-        val = Get_System(SYS_OPTIONS, OPTIONS_QUIET);
-        SET_TRUE(val);
-    }
-
-    if (rargs->script) {
-        REBSER *ser = To_REBOL_Path(
-            rargs->script, 0, OS_WIDE ? PATH_OPT_UNI_SRC : 0
-        );
-        val = Get_System(SYS_OPTIONS, OPTIONS_SCRIPT);
-        Init_File(val, ser);
-    }
-
-    if (rargs->exe_path) {
-        REBSER *ser = To_REBOL_Path(
-            rargs->exe_path, 0, OS_WIDE ? PATH_OPT_UNI_SRC : 0
-        );
-        val = Get_System(SYS_OPTIONS, OPTIONS_BOOT);
-        Init_File(val, ser);
-    }
-
-    if (rargs->home_dir) {
-        REBSER *ser = To_REBOL_Path(
-            rargs->home_dir,
-            0,
-            PATH_OPT_SRC_IS_DIR | (OS_WIDE ? PATH_OPT_UNI_SRC : 0)
-        );
-        val = Get_System(SYS_OPTIONS, OPTIONS_HOME);
-        Init_File(val, ser);
-    }
-
-    if (rargs->boot != NULL) {
-        REBSTR *name = Set_Option_Word(rargs->boot, OPTIONS_BOOT_LEVEL);
-        REBSYM sym = STR_SYMBOL(name);
-        switch (sym) {
-        case SYM_BASE:
-            PG_Boot_Level = 0;
-            break;
-        case SYM_SYS:
-            PG_Boot_Level = 1;
-            break;
-        case SYM_MODS:
-            PG_Boot_Level = 2;
-            break;
-        default:
-            assert(FALSE); // !!! Review this "boot level" R3-Alpha idea
-        }
-    }
-
-    if (rargs->args) {
-        REBCNT n = 0;
-        while (rargs->args[n] != NULL)
-            ++n;
-
-        REBARR *options_args = Make_Array(n);
-        Init_Block(Get_System(SYS_OPTIONS, OPTIONS_ARGS), options_args);
-        TERM_ARRAY_LEN(options_args, n);
-
-        for (n = 0; (data = rargs->args[n]); ++n)
-            Init_String(
-                ARR_AT(options_args, n), Copy_OS_Str(data, OS_STRLEN(data))
-            );
-    }
-
-    if (rargs->debug)
-        Set_Option_String(rargs->debug, OPTIONS_DEBUG);
-    if (rargs->version)
-        Set_Option_String(rargs->version, OPTIONS_VERSION);
-    if (rargs->import)
-        Set_Option_String(rargs->import, OPTIONS_IMPORT);
-
-    // !!! The argument to --do exists in REBCHR* form in rargs->do_arg,
-    // hence platform-specific encoding.  The host_main.c executes the --do
-    // directly instead of using the Rebol-Value string set here.  Ultimately,
-    // the Ren/C core will *not* be taking responsibility for setting any
-    // "do-arg" variable in the system/options context...if a client of the
-    // library has a --do option and wants to expose it, then it will have
-    // to do so itself.  We'll leave this non-INTERN'd block here for now.
-    //
-    if (rargs->do_arg)
-        Set_Option_String(rargs->do_arg, OPTIONS_DO_ARG);
-
-    if (rargs->secure)
-        Set_Option_Word(rargs->secure, OPTIONS_SECURE);
-
-    if ((data = OS_GET_LOCALE(0))) {
-        val = Get_System(SYS_LOCALE, LOCALE_LANGUAGE);
-        Init_String(val, Copy_OS_Str(data, OS_STRLEN(data)));
-        OS_FREE(data);
-    }
-
-    if ((data = OS_GET_LOCALE(1))) {
-        val = Get_System(SYS_LOCALE, LOCALE_LANGUAGE_P);
-        Init_String(val, Copy_OS_Str(data, OS_STRLEN(data)));
-        OS_FREE(data);
-    }
-
-    if ((data = OS_GET_LOCALE(2))) {
-        val = Get_System(SYS_LOCALE, LOCALE_LOCALE);
-        Init_String(val, Copy_OS_Str(data, OS_STRLEN(data)));
-        OS_FREE(data);
-    }
-
-    if ((data = OS_GET_LOCALE(3))) {
-        val = Get_System(SYS_LOCALE, LOCALE_LOCALE_P);
-        Init_String(val, Copy_OS_Str(data, OS_STRLEN(data)));
-        OS_FREE(data);
-    }
-}
-
-
 //
 //  Init_Task: C
 //
@@ -1291,6 +1128,47 @@ void Init_Task(void)
 
 
 //
+//  Init_Locale: C
+//
+void Init_Locale(void)
+{
+    REBCHR *data;
+
+    if ((data = OS_GET_LOCALE(0))) {
+        Init_String(
+            Get_System(SYS_LOCALE, LOCALE_LANGUAGE),
+            Copy_OS_Str(data, OS_STRLEN(data))
+        );
+        OS_FREE(data);
+    }
+
+    if ((data = OS_GET_LOCALE(1))) {
+        Init_String(
+            Get_System(SYS_LOCALE, LOCALE_LANGUAGE_P),
+            Copy_OS_Str(data, OS_STRLEN(data))
+        );
+        OS_FREE(data);
+    }
+
+    if ((data = OS_GET_LOCALE(2))) {
+        Init_String(
+            Get_System(SYS_LOCALE, LOCALE_LOCALE),
+            Copy_OS_Str(data, OS_STRLEN(data))
+        );
+        OS_FREE(data);
+    }
+
+    if ((data = OS_GET_LOCALE(3))) {
+        Init_String(
+            Get_System(SYS_LOCALE, LOCALE_LOCALE_P),
+            Copy_OS_Str(data, OS_STRLEN(data))
+        );
+        OS_FREE(data);
+    }
+}
+
+
+//
 //  Init_Core: C
 //
 // Initialize the interpreter core.
@@ -1312,7 +1190,7 @@ void Init_Task(void)
 // assume things about command-line switches (or even that there is a command
 // line!)  Converting the code that made such assumptions ongoing.
 //
-void Init_Core(REBARGS *rargs)
+void Init_Core(void)
 {
 #if defined(TEST_EARLY_BOOT_PANIC)
     //
@@ -1375,25 +1253,6 @@ void Init_Core(REBARGS *rargs)
     Init_Task_Context();    // Special REBOL values per task
 
     Init_Raw_Print();       // Low level output (Print)
-
-    // !!! R3-Alpha had the option that if the only thing the user wanted was
-    // to dump out the version, it would do so before trying the rest of the
-    // boot...presumably because it could fail.  This should be a
-    // responsibility of the host; which indicates there needs to be an API
-    // for getting the version of the Rebol library independent of calling
-    // any complex Init() process.
-    //
-    if (rargs->options & RO_VERS) {
-        Debug_Fmt(
-            "Rebol 3 %d.%d.%d.%d.%d",
-            REBOL_VER,
-            REBOL_REV,
-            REBOL_UPD,
-            REBOL_SYS,
-            REBOL_VAR
-        );
-        OS_EXIT(0);
-    }
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
@@ -1526,9 +1385,7 @@ void Init_Core(REBARGS *rargs)
     );
 
     Init_Contexts_Object();
-    Init_Main_Args(rargs);
-    Init_Ports();
-    Init_Crypto();
+    Init_Locale();
 
     Init_Errors(
         VAL_ARRAY(&boot->errors), // error definition list from %errors.r

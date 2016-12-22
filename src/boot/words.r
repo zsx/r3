@@ -62,11 +62,6 @@ rebol
 
 system
 
-;boot levels
-base
-sys
-mods
-
 ;reflectors:
 spec
 body

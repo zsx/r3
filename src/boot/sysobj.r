@@ -45,7 +45,7 @@ catalog: construct [] [
     boot-flags: [
         do import version debug secure
         help vers quiet verbose
-        secure-min secure-max trace halt cgi boot-level no-window
+        secure-min secure-max trace halt cgi no-window
     ]
 ]
 
@@ -126,12 +126,10 @@ options: construct [] [  ; Options supplied to REBOL during startup
     flags: _        ; Boot flag bits (see system/catalog/boot-flags)
     script: _       ; Filename of script to evaluate
     args: _         ; Command line arguments passed to script
-    do-arg: _       ; Set to a block if --do was specified
     import: _       ; imported modules
     debug: _        ; debug flags
     secure: _       ; security policy
     version: _      ; script version needed
-    boot-level: _   ; how far to boot up
 
     quiet: false    ; do not show startup info (compatibility)
 

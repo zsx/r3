@@ -26,24 +26,29 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// OS independent
+// %host-main.c is the original entry point for the open-sourced R3-Alpha.
+// Depending on whether it was POSIX or Windows, it would define either a
+// `main()` or `WinMain()`, and implemented a very rudimentary console.
 //
-// Provides the outer environment that calls the REBOL lib.
-// This module is more or less just an example and includes
-// a very simple console prompt.
+// On POSIX systems it uses <termios.h> to implement line editing:
 //
-//=////////////////////////////////////////////////////////////////////////=//
+// http://pubs.opengroup.org/onlinepubs/7908799/xbd/termios.html
 //
-// WARNING to PROGRAMMERS:
+// On Windows it uses the Console API:
 //
-//     This open source code is strictly managed to maintain
-//     source consistency according to our standards, not yours.
+// https://msdn.microsoft.com/en-us/library/ms682087.aspx
 //
-//     1. Keep code clear and simple.
-//     2. Document odd code, your reasoning, or gotchas.
-//     3. Use our source style for code, indentation, comments, etc.
-//     4. It must work on Win32, Linux, OS X, BSD, big/little endian.
-//     5. Test your code really well before submitting it.
+// !!! Originally %host-main.c was a client of the %reb-host.h (RL_Api).  It
+// did not have access to things like the definition of a REBVAL or a REBSER.
+// The sparse and convoluted nature of the RL_Api presented an awkward
+// barrier, and the "sample console" stagnated as a result.
+//
+// In lieu of a suitable "abstracted" variant of the core services--be that
+// an evolution of RL_Api or otherwise--the console now links directly
+// against the Ren-C core.  This provides full access to the routines and
+// hooks necessary to evolve the console if one were interested.  (The GUI
+// inteface Ren Garden is the flagship console for Ren-C, so that is where
+// most investment will be made.)
 //
 
 #include <stdlib.h>
@@ -85,18 +90,6 @@
 #endif
 
 
-// !!! Originally %host-main.c was a client of the %reb-host.h (RL_Api).  It
-// did not have access to things like the definition of a REBVAL or a REBSER.
-// The sparse and convoluted nature of the RL_Api presented an awkward
-// barrier, and the "sample console" stagnated as a result.
-//
-// In lieu of a suitable "abstracted" variant of the core services--be that
-// an evolution of RL_Api or otherwise--the console now links directly
-// against the Ren-C core.  This provides full access to the routines and
-// hooks necessary to evolve the console if one were interested.  (The GUI
-// inteface Ren Garden is the flagship console for Ren-C, so that is where
-// most investment will be made.)
-//
 #include "sys-core.h"
 #ifdef __cplusplus
 extern "C" {
@@ -109,7 +102,7 @@ extern "C" {
         REBINT script_len,
         REBCNT flags
     );
-    extern int RL_Init(REBARGS *rargs, void *lib);
+    extern void RL_Init(void *lib);
     extern void RL_Shutdown(REBOOL clean);
     extern REBCNT RL_Length_As_UTF8(
         const void *p,
@@ -136,7 +129,308 @@ extern "C" {
     #include "host-init.h"
 #endif
 
-/**********************************************************************/
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// COMMAND-LINE ARGUMENT PROCESSING
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// !!! Originally, command line arguments were passed into Rebol's process of
+// basic initialization, to control the boot.  That meant the command-line
+// parsing had to be done in a very raw and OS-specific way in C, when the
+// ultimate goal was to run script logic and modify Rebol state and flags.
+//
+// Ren-C began to modularize the boot such that it could get basic Rebol
+// services going without any command line arguments.  This made LOADing and
+// running Rebol code more of an option for things like command-line
+// processing.  This code should be rewritten to take advantage of that, and
+// use PARSE.
+//
+
+typedef struct rebol_args {
+    REBFLGS options;
+    REBCHR *script;
+    REBCHR **args;
+    REBCHR *do_arg;
+    REBCHR *version;
+    REBCHR *debug;
+    REBCHR *import;
+    REBCHR *secure;
+    REBCHR *exe_path;
+    REBCHR *home_dir;
+} REBARGS;
+
+// REBOL arg option flags:
+// Must stay matched to system/catalog/boot-flags.
+enum arg_opts {
+    ROF_EXT,
+
+    ROF_DO,
+    ROF_IMPORT,
+    ROF_VERSION,
+    ROF_DEBUG,
+    ROF_SECURE,
+
+    ROF_HELP,
+    ROF_VERS,
+    ROF_QUIET,
+    ROF_VERBOSE,
+    ROF_SECURE_MIN,
+    ROF_SECURE_MAX,
+    ROF_TRACE,
+    ROF_HALT,
+    ROF_CGI,
+    ROF_NO_WINDOW,
+
+    ROF_IGNORE, // not an option
+    ROF_MAX
+};
+
+#define RO_EXT         (1<<ROF_EXT)
+#define RO_HELP        (1<<ROF_HELP)
+#define RO_IMPORT      (1<<ROF_IMPORT)
+#define RO_CGI         (1<<ROF_CGI)
+#define RO_DO          (1<<ROF_DO)
+#define RO_DEBUG       (1<<ROF_DEBUG)
+#define RO_SECURE_MIN  (1<<ROF_SECURE_MIN)
+#define RO_SECURE_MAX  (1<<ROF_SECURE_MAX)
+#define RO_QUIET       (1<<ROF_QUIET)
+#define RO_SECURE      (1<<ROF_SECURE)
+#define RO_TRACE       (1<<ROF_TRACE)
+#define RO_VERSION     (1<<ROF_VERSION)
+#define RO_VERS        (1<<ROF_VERS)
+#define RO_VERBOSE     (1<<ROF_VERBOSE)
+#define RO_HALT        (1<<ROF_HALT)
+#define RO_NO_WINDOW   (1<<ROF_NO_WINDOW)
+
+#define RO_IGNORE      (1<<ROF_IGNORE)
+
+
+// REBOL Option --Words:
+
+const struct {const REBCHR *word; const int flag;} arg_words[] = {
+    // Keep in Alpha order!
+    {OS_STR_LIT("cgi"),         RO_CGI | RO_QUIET},
+    {OS_STR_LIT("debug"),       RO_DEBUG | RO_EXT},
+    {OS_STR_LIT("do"),          RO_DO | RO_EXT},
+    {OS_STR_LIT("halt"),        RO_HALT},
+    {OS_STR_LIT("help"),        RO_HELP},
+    {OS_STR_LIT("import"),      RO_IMPORT | RO_EXT},
+    {OS_STR_LIT("quiet"),       RO_QUIET},
+    {OS_STR_LIT("secure"),      RO_SECURE | RO_EXT},
+    {OS_STR_LIT("trace"),       RO_TRACE},
+    {OS_STR_LIT("verbose"),     RO_VERBOSE},
+    {OS_STR_LIT("version"),     RO_VERSION | RO_EXT},
+    {OS_STR_LIT(""),            0},
+};
+
+// REBOL Option -Characters (in alpha sorted order):
+
+const struct arg_chr {const char cflg; const int flag;} arg_chars[] = {
+    {'?',   RO_HELP},
+    {'V',   RO_VERS},
+    {'c',   RO_CGI | RO_QUIET},
+    {'h',   RO_HALT},
+    {'q',   RO_QUIET},
+    {'s',   RO_SECURE_MIN},
+    {'t',   RO_TRACE},
+    {'v',   RO_VERS},
+    {'w',   RO_NO_WINDOW},
+    {'\0',  0},
+};
+
+// REBOL Option +Characters:
+
+const struct arg_chr arg_chars2[] = {
+    {'s',   RO_SECURE_MAX},
+    {'\0',  0},
+};
+
+
+//
+//  find_option_word: C
+//
+// Scan options, return flag bits, else zero.
+//
+static int find_option_word(REBCHR *word)
+{
+    int n;
+    int i;
+    REBCHR buf[16];
+
+    // Some shells will pass us the line terminator. Ignore it.
+    if (
+        OS_CH_EQUAL(word[0], '\r')
+        || OS_CH_EQUAL(word[0], '\n')
+    ) {
+        return RO_IGNORE;
+    }
+
+    OS_STRNCPY(buf, word, 15);
+
+    for (i = 0; arg_words[i].flag; i++) {
+        n = OS_STRNCMP(buf, arg_words[i].word, 15);
+        if (n < 0) break;
+        if (n == 0) return arg_words[i].flag;
+    }
+    return 0;
+}
+
+
+//
+//  find_option_char: C
+//
+// Scan option char flags, return flag bits, else zero.
+//
+static int find_option_char(REBCHR chr, const struct arg_chr list[])
+{
+    int i;
+
+    // Some shells will pass us the line terminator. Ignore it.
+    if (OS_CH_EQUAL(chr, '\r') || OS_CH_EQUAL(chr, '\n'))
+        return RO_IGNORE;
+
+    for (i = 0; list[i].flag; i++) {
+        if (OS_CH_VALUE(chr) < list[i].cflg) break;
+        if (OS_CH_VALUE(chr) == list[i].cflg) return list[i].flag;
+    }
+    return 0;
+}
+
+
+//
+//  Get_Ext_Arg: C
+//
+// Get extended argument field.
+//
+static int Get_Ext_Arg(int flag, REBARGS *rargs, REBCHR *arg)
+{
+    flag &= ~RO_EXT;
+
+    switch (flag) {
+
+    case RO_VERSION:
+        rargs->version = arg;
+        break;
+
+    case RO_DO:
+        rargs->do_arg = arg;
+        break;
+
+    case RO_DEBUG:
+        rargs->debug = arg;
+        break;
+
+    case RO_SECURE:
+        rargs->secure = arg;
+        break;
+
+    case RO_IMPORT:
+        rargs->import = arg;
+        break;
+    }
+
+    return flag;
+}
+
+
+//
+//  Parse_Args: C
+//
+// Parse REBOL's command line arguments, setting options
+// and values in the provided args structure.
+//
+void Parse_Args(int argc, REBCHR **argv, REBARGS *rargs)
+{
+    REBCHR *arg;
+    int flag;
+    int i;
+
+    CLEARS(rargs);
+
+    // First arg is path to execuable (on most systems):
+    if (argc > 0) rargs->exe_path = *argv;
+
+    OS_GET_CURRENT_DIR(&rargs->home_dir);
+
+    // Parse each argument:
+    for (i = 1; i < argc ; i++) {
+        arg = argv[i];
+        if (arg == NULL) continue; // shell bug
+        if (OS_CH_EQUAL(*arg, '-')) {
+            if (OS_CH_EQUAL(arg[1], '-')) {
+                if (OS_CH_EQUAL(arg[2], 0)) {
+                    // -- (end of options)
+                    ++i;
+                    break;
+                }
+                // --option words
+                flag = find_option_word(arg+2);
+                if (!flag) goto error;
+                if (flag & RO_EXT) {
+                    if (++i < argc) flag = Get_Ext_Arg(flag, rargs, argv[i]);
+                    else goto error;
+                }
+                rargs->options |= flag;
+            }
+            else {
+                // -x option chars
+                while (OS_CH_VALUE(*++arg) != '\0') {
+                    flag = find_option_char(*arg, arg_chars);
+                    if (!flag) goto error;
+                    if (flag & RO_EXT) {
+                        if (++i < argc) flag = Get_Ext_Arg(flag, rargs, argv[i]);
+                        else goto error;
+                    }
+                    rargs->options |= flag;
+                }
+            }
+        }
+        else if (OS_CH_EQUAL(*arg, '+')) {
+            // +x option chars
+            while (OS_CH_VALUE(*++arg) != '\0') {
+                flag = find_option_char(*arg, arg_chars2);
+                if (!flag) goto error;
+                if (flag & RO_EXT) {
+                    if (++i < argc) flag = Get_Ext_Arg(flag, rargs, argv[i]);
+                    else goto error;
+                }
+                rargs->options |= flag;
+            }
+        }
+        else break;
+    }
+
+    // script filename
+    if (i < argc) rargs->script = argv[i++];
+
+    // the rest are script args
+    if (i < argc) {
+        // rargs->args must be a null-terminated array of pointers
+        // but CommandLineToArgvW() may return a non-terminated array
+        rargs->args = OS_ALLOC_N(REBCHR*, argc - i + 1);
+        memcpy(rargs->args, &argv[i], (argc - i) * sizeof(REBCHR*));
+        rargs->args[argc - i] = NULL;
+    }
+
+    // empty script name for only setting args
+    if (rargs->script && OS_CH_VALUE(rargs->script[0]) == '\0')
+        rargs->script = NULL;
+
+    return;
+
+error:
+    // disregard command line options
+    // leave exe_path and home_dir set
+    rargs->options = RO_HELP;
+    rargs->version = NULL;
+    rargs->do_arg = NULL;
+    rargs->debug = NULL;
+    rargs->secure = NULL;
+    rargs->import = NULL;
+}
 
 REBARGS Main_Args;
 
@@ -437,32 +731,154 @@ int Do_String(
 }
 
 
+static REBSTR *Set_Option_Word(REBCHR *str, REBCNT field)
+{
+    REBYTE buf[40]; // option words always short ASCII strings
+
+    REBCNT len = OS_STRLEN(str); // WC correct
+    assert(len <= 38);
+
+    REBYTE *bp = &buf[0];
+    while ((*bp++ = cast(REBYTE, OS_CH_VALUE(*(str++))))); // clips unicode
+
+    REBSTR *name = Intern_UTF8_Managed(buf, len);
+
+    REBVAL *val = Get_System(SYS_OPTIONS, field);
+    Init_Word(val, name);
+
+    return name;
+}
+
+
 REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
     REBINT startup_rc;
-    REBYTE *embedded_script = NULL;
-    REBI64 embedded_size = 0;
+
+    // Must be done before an console I/O can occur. Does not use reb-lib,
+    // so this device should open even if there are other problems.
+    //
+    Open_StdIO();  // also sets up interrupt handler
 
     Host_Lib = &Host_Lib_Init;
-
-    embedded_script = OS_READ_EMBEDDED(&embedded_size);
+    RL_Init(Host_Lib);
 
     // !!! Note we may have to free Main_Args.home_dir below after this
     Parse_Args(argc, argv, &Main_Args);
 
-    // Must be done before an console I/O can occur. Does not use reb-lib,
-    // so this device should open even if there are other problems.
-    Open_StdIO();  // also sets up interrupt handler
+    if (Main_Args.options & RO_TRACE) {
+        Trace_Level = 9999;
+        Trace_Flags = 1;
+    }
 
-    if (!Host_Lib) Host_Crash("Missing host lib");
+    // !!! R3-Alpha had the option that if the only thing the user wanted was
+    // to dump out the version, it would do so before trying the rest of the
+    // boot...presumably because it could fail.  This should be a
+    // responsibility of the host; which indicates there needs to be an API
+    // for getting the version of the Rebol library independent of calling
+    // any complex Init() process.
+    //
+    if (Main_Args.options & RO_VERS) {
+        Debug_Fmt(
+            "Rebol 3 %d.%d.%d.%d.%d",
+            REBOL_VER,
+            REBOL_REV,
+            REBOL_UPD,
+            REBOL_SYS,
+            REBOL_VAR
+        );
+        OS_EXIT(0);
+    }
 
-    startup_rc = RL_Init(&Main_Args, Host_Lib);
+    REBVAL *val;
+    RELVAL *item;
+    REBCHR *data;
+
+    REBARR *array = Make_Array(3);
+    REBFLGS rof = 2; // skip first flag (ROF_EXT)
+    val = Get_System(SYS_CATALOG, CAT_BOOT_FLAGS);
+    for (item = VAL_ARRAY_HEAD(val); NOT_END(item); item++) {
+        CLEAR_VAL_FLAG(item, VALUE_FLAG_LINE);
+        if (Main_Args.options & rof)
+            Append_Value(array, KNOWN(item)); // no relatives in BOOT_FLAGS (?)
+        rof <<= 1;
+    }
+    val = Alloc_Tail_Array(array);
+    SET_TRUE(val);
+    val = Get_System(SYS_OPTIONS, OPTIONS_FLAGS);
+    Init_Block(val, array);
+
+    // For compatibility:
+    if (Main_Args.options & RO_QUIET) {
+        val = Get_System(SYS_OPTIONS, OPTIONS_QUIET);
+        SET_TRUE(val);
+    }
+
+    if (Main_Args.script) {
+        REBSER *ser = To_REBOL_Path(
+            Main_Args.script, 0, OS_WIDE ? PATH_OPT_UNI_SRC : 0
+        );
+        val = Get_System(SYS_OPTIONS, OPTIONS_SCRIPT);
+        Init_File(val, ser);
+    }
+
+    if (Main_Args.exe_path) {
+        REBSER *ser = To_REBOL_Path(
+            Main_Args.exe_path, 0, OS_WIDE ? PATH_OPT_UNI_SRC : 0
+        );
+        val = Get_System(SYS_OPTIONS, OPTIONS_BOOT);
+        Init_File(val, ser);
+    }
+
+    if (Main_Args.home_dir) {
+        REBSER *ser = To_REBOL_Path(
+            Main_Args.home_dir,
+            0,
+            PATH_OPT_SRC_IS_DIR | (OS_WIDE ? PATH_OPT_UNI_SRC : 0)
+        );
+        val = Get_System(SYS_OPTIONS, OPTIONS_HOME);
+        Init_File(val, ser);
+    }
+
+    if (Main_Args.args) {
+        REBCNT n = 0;
+        while (Main_Args.args[n] != NULL)
+            ++n;
+
+        REBARR *options_args = Make_Array(n);
+        Init_Block(Get_System(SYS_OPTIONS, OPTIONS_ARGS), options_args);
+        TERM_ARRAY_LEN(options_args, n);
+
+        for (n = 0; (data = Main_Args.args[n]); ++n)
+            Init_String(
+                ARR_AT(options_args, n), Copy_OS_Str(data, OS_STRLEN(data))
+            );
+    }
+
+    if (Main_Args.debug)
+        Init_String(
+            Get_System(SYS_OPTIONS, OPTIONS_DEBUG),
+            Copy_OS_Str(Main_Args.debug, OS_STRLEN(Main_Args.debug))
+        );
+
+    if (Main_Args.version)
+        Init_String(
+            Get_System(SYS_OPTIONS, OPTIONS_VERSION),
+            Copy_OS_Str(Main_Args.version, OS_STRLEN(Main_Args.version))
+        );
+
+    if (Main_Args.import)
+        Init_String(
+            Get_System(SYS_OPTIONS, OPTIONS_IMPORT),
+            Copy_OS_Str(Main_Args.import, OS_STRLEN(Main_Args.import))
+        );
+
+    if (Main_Args.secure)
+        Set_Option_Word(Main_Args.secure, OPTIONS_SECURE);
 
     // !!! Not a good abstraction layer here, but Parse_Args may have put
     // an OS_ALLOC'd string into home_dir, via OS_Get_Current_Dir
-    if (Main_Args.home_dir) OS_FREE(Main_Args.home_dir);
-
-    if (startup_rc == 1) Host_Crash("Host-lib wrong size");
-    if (startup_rc == 2) Host_Crash("Host-lib wrong version/checksum");
+    //
+    if (Main_Args.home_dir)
+        OS_FREE(Main_Args.home_dir);
 
 #ifdef TEST_EXTENSIONS
     Init_Ext_Test();
@@ -543,51 +959,150 @@ REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
         assert(FALSE);
     }
 
-    // Call sys/start function. If a compressed script is provided, it will be
-    // decompressed, stored in system/options/boot-host, loaded, and evaluated.
-    // Returns: 0: ok, -1: error, 1: bad data.
+    int error_num;
+
+    REBVAL result;
+
 #ifdef CUSTOM_STARTUP
+    //
     // For custom startup, you can provide compressed script code here:
-    startup_rc = RL_Start(
-        &Reb_Init_Code[0], REB_INIT_SIZE,
-        embedded_script, embedded_size, 0
-    );
-#else
-    startup_rc = RL_Start(0, 0, embedded_script, embedded_size, 0);
+    //
+    REBSER startup = Decompress(&Reb_Init_Code[0], REB_INIT_SIZE, -1, FALSE, FALSE);
+    if (startup == NULL)
+        panic ("Could not decompress CUSTOM_STARTUP code");
+
+    Init_Binary(CTX_VAR(Sys_Context, SYS_CTX_BOOT_HOST), startup);
 #endif
 
+    REBI64 embedded_size = 0;
+    REBYTE *embedded_script = OS_READ_EMBEDDED(&embedded_size);
+    if (embedded_script != NULL) {
+        if (embedded_size <= 4)
+            panic ("No 4-byte long payload at beginning of embedded script");
+
+        i32 ptype = 0;
+        REBYTE *data = embedded_script + sizeof(ptype);
+        embedded_size -= sizeof(ptype);
+
+        memcpy(&ptype, embedded_script, sizeof(ptype));
+
+        REBSER *utf8;
+        if (ptype == 1) { // COMPRESSed data
+            utf8 = Decompress(data, embedded_size, -1, FALSE, FALSE);
+        }
+        else {
+            utf8 = Make_Binary(embedded_size);
+            memcpy(BIN_HEAD(utf8), data, embedded_size);
+        }
+
+        OS_FREE(embedded_script);
+
+        Init_Binary(CTX_VAR(Sys_Context, SYS_CTX_BOOT_EMBEDDED), utf8);
+    }
+
+    struct Reb_State state;
+    REBCTX *error;
+
+    PUSH_UNHALTABLE_TRAP(&error, &state);
+
+// The first time through the following code 'error' will be NULL, but...
+// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+
+    if (error) {
+        //
+        // !!! We are not allowed to ask for a print operation that can take
+        // arbitrarily long without allowing for cancellation via Ctrl-C,
+        // but here we are wanting to print an error.  If you're printing
+        // out an error and get a halt, it won't print the halt.
+        //
+        REBCTX *halt_error;
+
+        // Save error for WHY?
+        //
+        REBVAL *last = Get_System(SYS_STATE, STATE_LAST_ERROR);
+        Init_Error(last, error);
+
+        PUSH_UNHALTABLE_TRAP(&halt_error, &state);
+
+// The first time through the following code 'error' will be NULL, but...
+// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+
+        if (halt_error)
+            panic ("Halted while an error was being printed.");
+
+        Print_Value(last, 1024, FALSE);
+
+        DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+
+        // !!! When running in a script, whether or not the Rebol interpreter
+        // just exits in an error case with a bad error code or breaks you
+        // into the console to debug the environment should be controlled by
+        // a command line option.  Defaulting to returning an error code
+        // seems better, because kicking into an interactive session can
+        // cause logging systems to hang...
+
+        panic (error);
+    }
+
+    if (Apply_Only_Throws(
+        &result, TRUE, Sys_Func(SYS_CTX_FINISH_RL_START), END_CELL
+    )) {
+        #if !defined(NDEBUG)
+            if (LEGACY(OPTIONS_EXIT_FUNCTIONS_ONLY))
+                fail (Error_No_Catch_For_Throw(&result));
+        #endif
+
+        if (
+            IS_FUNCTION(&result) && (
+                VAL_FUNC_DISPATCHER(&result) == &N_quit
+                || VAL_FUNC_DISPATCHER(&result) == &N_exit
+            )
+        ) {
+            int status;
+
+            CATCH_THROWN(&result, &result);
+            status = Exit_Status_From_Value(&result);
+
+            DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+
+            Shutdown_Core();
+            OS_EXIT(status);
+            DEAD_END;
+        }
+
+        fail (Error_No_Catch_For_Throw(&result));
+    }
+
+    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+
+    // The convention in the API was to return 0 for success.  We use the
+    // convention (as for FINISH_INIT_CORE) that any stray value result from
+    // FINISH_RL_START indicates something went wrong.
+
+    if (IS_VOID(&result))
+        error_num = 0; // no error
+    else {
+        Debug_Fmt("** finish-rl-start returned non-NONE!:");
+        Debug_Fmt("%r", &result);
+
+        assert(FALSE); // should not happen (raise an error instead)
+
+        error_num = RE_MISC;
+    }
+
+
 #if !defined(ENCAP)
+    //
     // !!! What should an encapped executable do with a --do?  Here we just
     // ignore it, as the assumption is that it is a packaged system that
     // doesn't necessarily want to present itself as an arbitrary interpreter
-
-    // Previously this command line option was handled by the Rebol Core
-    // itself, in Mezzanine initialization.  However, Ren/C is catering to
-    // needs of other kinds of clients.  So rather than having those clients
-    // figure out how to send Rebol a "--do" option in a "command line
-    // arguments buffer", it is turned the other way so that if something
-    // does have a command line it needs to call APIs to run them.  This
-    // "pulled out" piece of command line processing uses the RL_Api still,
-    // with RL_Do_String (more options will be available with Ren/C proper)
-
-    // !!! NOTE: Encapping needs to be thought of similarly; it is not a
-    // Ren/C feature, rather a feature that some client (e.g. a console
-    // client named "Rebol") would implement.
-
-    // !!! The command line processing tells us if we have just '--do' with
-    // nothing afterward by setting do_arg to NULL.  When all the command
-    // line processing is taken out of Ren/C's concern that kind of decision
-    // can be revisited.  In the meantime, we test for NULL.
-
+    //
     if (startup_rc >= 0 && (Main_Args.options & RO_DO) && Main_Args.do_arg) {
         REBYTE *do_arg_utf8;
         REBCNT len_uni;
         REBCNT len_predicted;
         REBCNT len_encoded;
         int do_result;
-
-        struct Reb_State state;
-        REBCTX *error;
 
         REBVAL result;
 

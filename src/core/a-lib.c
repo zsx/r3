@@ -97,8 +97,6 @@ RL_API void RL_Version(REBYTE vers[])
 //     Zero on success, otherwise an error indicating that the
 //     host library is not compatible with this release.
 // Arguments:
-//     rargs - REBOL command line args and options structure.
-//         See the host-args.c module for details.
 //     lib - the host lib (OS_ functions) to be used by REBOL.
 //         See host-lib.c for details.
 // Notes:
@@ -106,7 +104,7 @@ RL_API void RL_Version(REBYTE vers[])
 //     structures used by the REBOL interpreter. This is an
 //     extensive process that takes time.
 //
-RL_API int RL_Init(REBARGS *rargs, void *lib)
+void RL_Init(void *lib)
 {
     // These tables used to be built by overcomplicated Rebol scripts.  It's
     // less hassle to have them built on initialization.
@@ -182,10 +180,10 @@ RL_API int RL_Init(REBARGS *rargs, void *lib)
     Host_Lib = cast(REBOL_HOST_LIB*, lib);
 
     if (Host_Lib->size < HOST_LIB_SIZE)
-        return 1;
+        panic ("Host-lib wrong size");
 
     if (((HOST_LIB_VER << 16) + HOST_LIB_SUM) != Host_Lib->ver_sum)
-        return 2;
+        panic ("Host-lib wrong version/checksum");
 
     // See C_STACK_OVERFLOWING for remarks on this non-standard technique
     // of stack overflow detection.  Note that each thread would have its
@@ -204,7 +202,9 @@ RL_API int RL_Init(REBARGS *rargs, void *lib)
     else Stack_Limit = (REBUPT)&marker - bounds;
 #endif
 
-    Init_Core(rargs);
+    Init_Core();
+    Init_Crypto();
+    Init_Ports();
 
     Register_Codec("text", ".txt", Codec_Text);
     Register_Codec("utf-16le", ".txt", Codec_UTF16LE);
@@ -224,168 +224,6 @@ RL_API int RL_Init(REBARGS *rargs, void *lib)
     );
 
     Register_Codec("jpeg", file_types, Codec_JPEG_Image);
-
-    if (rargs->options & RO_TRACE) {
-        Trace_Level = 9999;
-        Trace_Flags = 1;
-    }
-
-    return 0;
-}
-
-
-//
-//  RL_Start: C
-//
-// Evaluate the default boot function.
-//
-// Returns:
-//     Zero on success, otherwise indicates an error occurred.
-// Arguments:
-//     bin - optional startup code (compressed), can be null
-//     len - length of above bin
-//     flags - special flags
-// Notes:
-//     This function completes the startup sequence by calling
-//     the sys/start function.
-//
-RL_API int RL_Start(REBYTE *bin, REBINT len, REBYTE *script, REBINT script_len, REBCNT flags)
-{
-    REBVAL *val;
-    REBSER *ser;
-
-    struct Reb_State state;
-    REBCTX *error;
-    int error_num;
-
-    REBVAL result;
-
-    if (bin) {
-        ser = Decompress(bin, len, -1, FALSE, FALSE);
-        if (!ser) return 1;
-
-        val = CTX_VAR(Sys_Context, SYS_CTX_BOOT_HOST);
-        Init_Binary(val, ser);
-    }
-
-    if (script && script_len > 4) {
-        /* a 4-byte long payload type at the beginning */
-        i32 ptype = 0;
-        REBYTE *data = script + sizeof(ptype);
-        script_len -= sizeof(ptype);
-
-        memcpy(&ptype, script, sizeof(ptype));
-
-        if (ptype == 1) {/* COMPRESSed data */
-            ser = Decompress(data, script_len, -1, FALSE, FALSE);
-        } else {
-            ser = Make_Binary(script_len);
-            if (ser == NULL) {
-                OS_FREE(script);
-                return 1;
-            }
-            memcpy(BIN_HEAD(ser), data, script_len);
-        }
-        OS_FREE(script);
-
-        val = CTX_VAR(Sys_Context, SYS_CTX_BOOT_EMBEDDED);
-        Init_Binary(val, ser);
-    }
-
-    PUSH_UNHALTABLE_TRAP(&error, &state);
-
-// The first time through the following code 'error' will be NULL, but...
-// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
-
-    if (error) {
-        //
-        // !!! We are not allowed to ask for a print operation that can take
-        // arbitrarily long without allowing for cancellation via Ctrl-C,
-        // but here we are wanting to print an error.  If you're printing
-        // out an error and get a halt, it won't print the halt.
-        //
-        REBCTX *halt_error;
-
-        // Save error for WHY?
-        //
-        REBVAL *last = Get_System(SYS_STATE, STATE_LAST_ERROR);
-        Init_Error(last, error);
-
-        PUSH_UNHALTABLE_TRAP(&halt_error, &state);
-
-// The first time through the following code 'error' will be NULL, but...
-// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
-
-        if (halt_error) {
-            assert(ERR_NUM(halt_error) == RE_HALT);
-            return ERR_NUM(halt_error);
-        }
-
-        Print_Value(last, 1024, FALSE);
-
-        DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-
-        // !!! When running in a script, whether or not the Rebol interpreter
-        // just exits in an error case with a bad error code or breaks you
-        // into the console to debug the environment should be controlled by
-        // a command line option.  Defaulting to returning an error code
-        // seems better, because kicking into an interactive session can
-        // cause logging systems to hang.
-
-        // For RE_HALT and all other errors we return the error
-        // number.  Error numbers are not set in stone (currently), but
-        // are never zero...which is why we can use 0 for success.
-        //
-        return ERR_NUM(error);
-    }
-
-    if (Apply_Only_Throws(
-        &result, TRUE, Sys_Func(SYS_CTX_FINISH_RL_START), END_CELL
-    )) {
-        #if !defined(NDEBUG)
-            if (LEGACY(OPTIONS_EXIT_FUNCTIONS_ONLY))
-                fail (Error_No_Catch_For_Throw(&result));
-        #endif
-
-        if (
-            IS_FUNCTION(&result) && (
-                VAL_FUNC_DISPATCHER(&result) == &N_quit
-                || VAL_FUNC_DISPATCHER(&result) == &N_exit
-            )
-        ) {
-            int status;
-
-            CATCH_THROWN(&result, &result);
-            status = Exit_Status_From_Value(&result);
-
-            DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-
-            Shutdown_Core();
-            OS_EXIT(status);
-            DEAD_END;
-        }
-
-        fail (Error_No_Catch_For_Throw(&result));
-    }
-
-    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-
-    // The convention in the API was to return 0 for success.  We use the
-    // convention (as for FINISH_INIT_CORE) that any stray value result from
-    // FINISH_RL_START indicates something went wrong.
-
-    if (IS_VOID(&result))
-        error_num = 0; // no error
-    else {
-        Debug_Fmt("** finish-rl-start returned non-NONE!:");
-        Debug_Fmt("%r", &result);
-
-        assert(FALSE); // should not happen (raise an error instead)
-
-        error_num = RE_MISC;
-    }
-
-    return error_num;
 }
 
 
