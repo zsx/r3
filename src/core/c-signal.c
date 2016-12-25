@@ -142,6 +142,6 @@ REBOOL Do_Signals_Throws(REBVAL *out)
     Eval_Sigmask = mask;
 
 done:
-    Eval_Count = 1; // will call this routine again on next 
+    Eval_Count = 1; // will call this routine again on next
     return thrown;
 }

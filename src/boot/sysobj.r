@@ -20,7 +20,8 @@ REBOL [
 version:  0.0.0
 build:    1
 platform: _
-product:  'core
+
+product: _ ;-- assigned by startup of the host ('core, 'view, 'ren-garden...)
 
 license: {Copyright 2012 REBOL Technologies
 REBOL is a trademark of REBOL Technologies
@@ -40,13 +41,6 @@ catalog: construct [] [
     actions: _
     natives: _
     errors: _
-    ; Official list of system/options/flags that can appear.
-    ; Must match host reb-args.h enum!
-    boot-flags: [
-        do import version debug secure
-        help vers quiet verbose
-        secure-min secure-max trace halt cgi no-window
-    ]
 ]
 
 contexts: construct [] [
@@ -123,15 +117,16 @@ options: construct [] [  ; Options supplied to REBOL during startup
 
     current-path: _ ; Current URL! or FILE! path to use for relative lookups
 
-    flags: _        ; Boot flag bits (see system/catalog/boot-flags)
     script: _       ; Filename of script to evaluate
     args: _         ; Command line arguments passed to script
-    import: _       ; imported modules
     debug: _        ; debug flags
     secure: _       ; security policy
     version: _      ; script version needed
 
     quiet: false    ; do not show startup info (compatibility)
+    cgi: false
+    no-window: false
+    verbose: false
 
     binary-base: 16    ; Default base for FORMed binary values (64, 16, 2)
     decimal-digits: 15 ; Max number of decimal digits to print.

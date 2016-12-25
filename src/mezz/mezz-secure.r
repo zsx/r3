@@ -181,7 +181,7 @@ secure: function [
 ]
 
 
-unless system/options/flags/secure-min [
+unless system/options/secure == 'allow [
     ; Remove all other access to the policies:
     protect/hide in system/state 'policies
 ]

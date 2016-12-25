@@ -188,7 +188,6 @@ made: [
 
 os: [
     host-main.c
-    host-args.c
     + host-device.c
     host-stdio.c
     host-table.c

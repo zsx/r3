@@ -1439,23 +1439,40 @@ void Init_Core(void)
         panic (error);
     }
 
-    if (PG_Boot_Level >= BOOT_LEVEL_SYS) {
-        Do_Global_Block(VAL_ARRAY(&boot->base), 0, 1, NULL);
-        Do_Global_Block(VAL_ARRAY(&boot->sys), 0, 2, NULL);
-    }
-
-    *CTX_VAR(Sys_Context, SYS_CTX_BOOT_MEZZ) = boot->mezz;
-    *CTX_VAR(Sys_Context, SYS_CTX_BOOT_PROT) = boot->protocols;
-
-    DROP_GUARD_ARRAY(boot_array);
+    // !!! These currently execute using Do_Global_Block instead of through
+    // an Apply of a system function.  Review the exact reason why that is
+    // necessary (if it is), since all things being equal it's better to
+    // run userspace code whenever possible.
+    //
+    Do_Global_Block(VAL_ARRAY(&boot->base), 0, 1, NULL);
+    Do_Global_Block(VAL_ARRAY(&boot->sys), 0, 2, NULL);
 
     PG_Boot_Phase = BOOT_MEZZ;
 
     assert(DSP == 0 && FS_TOP == NULL);
 
+    Init_Ports();
+
+    // The FINISH-INIT-CORE function should theoretically do very little.
+    // But right now it is where:
+    //
+    // * the mezzanine definitions are bound to the lib context and DO'd
+    // * the various scheme handlers (http://, file://) are registered
+    // * protocols implemented in user code (HTTP and TLS) are registered
+    //
+    // Over time those will be factored out so that only the distributions
+    // that want these components will include them.  However, this shows
+    // the explicit dependency by passing the mezzanine and the protocols
+    // from the boot block to the finalization function as arguments.
+    //
     REBVAL result;
     if (Apply_Only_Throws(
-        &result, TRUE, Sys_Func(SYS_CTX_FINISH_INIT_CORE), END_CELL
+        &result,
+        TRUE, // generate error if all arguments aren't consumed
+        Sys_Func(SYS_CTX_FINISH_INIT_CORE), // %sys-start.r function to call
+        &boot->mezz, // boot-mezz argument
+        &boot->protocols, // boot-protocol argument
+        END_CELL
     )) {
         // You shouldn't be able to throw any uncaught values during
         // Init_Core() startup, including throws implementing QUIT or EXIT.
@@ -1475,6 +1492,8 @@ void Init_Core(void)
         // 
         panic (&result);
     }
+
+    DROP_GUARD_ARRAY(boot_array);
 
     assert(DSP == 0 && FS_TOP == NULL);
 

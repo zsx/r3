@@ -34,7 +34,10 @@ REBOL [
 
 finish-init-core: procedure [
     "Completes the boot sequence for Ren-C core."
-    <in> system/options
+    boot-mezz [block!]
+        {Mezzanine code loaded as part of the boot block in Init_Core()}
+    boot-prot [block!]
+        {Protocols built into the mezzanine at this time (http, tls)}
 ][
     ; Make the user's global context.  Remove functions whose names are being
     ; retaken for new functionality--to be kept this way during a deprecation
@@ -78,176 +81,22 @@ finish-init-core: procedure [
     ; commented out, so the state of that feature is unknown.
     ;
     comment [if :lib/secure [protect-system-object]]
-]
 
+    ; The mezzanine is currently considered part of what Init_Core() will
+    ; initialize for all clients.
+    ;
+    do bind-lib boot-mezz
 
-finish-rl-start: procedure [
-    "Loads extras, handles args, security, scripts (should be host-specific)."
-    <in> system/options
-    <with> boot-mezz boot-host
-][
-    ; For now, we consider initializing the port schemes to be "part of the
-    ; core function".  Longer term, it may be the host's responsibility to
-    ; pick and configure the specific schemes it wishes to support...or
-    ; to delegate to the user to load them.
+    ; For now, we also consider initializing the port schemes to be "part of
+    ; the core function".  Longer term, it needs to be the host's
+    ; responsibility to pick and configure the specific schemes it wishes to
+    ; support...or to delegate to the user to load them.
     ;
     init-schemes
 
-    ;-- Print minimal identification banner if needed:
-    if all [
-        not quiet
-        any [flags/verbose flags/usage flags/help]
-    ][
-        boot-print boot-banner ; basic boot banner only
-    ]
-    if any [boot-embedded script] [quiet: true]
-
-    ;-- Set up option/paths for /path, /boot, /home, and script path (for SECURE):
-    path: dirize any [path home]
-
-    ;-- !!! this was commented out, and said "HAVE C CODE DO IT PROPERLY !!!!"
-    comment [
-        if slash <> first boot [boot: clean-path boot]
-    ]
-
-    home: file: first split-path boot
-    if file? script [ ; Get the path (needed for SECURE setup)
-        script-path: split-path script
-        case [
-            slash = first first script-path []      ; absolute
-            %./ = first script-path [script-path/1: path]   ; curr dir
-            'else [insert first script-path path]   ; relative
-        ]
-    ]
-
-    ;-- Convert command line arg strings as needed:
-    script-args: args ; save for below
-    for-each [opt act] [
-        debug   block!
-        secure  word!
-        import  [to-value if import [to-rebol-file import]]
-        version tuple!
-    ][
-        set opt attempt either block? act [act][
-            [all [get opt to get act get opt]]
-        ]
-    ]
-    ; version, import, secure are all of valid type or blank
-
-    if flags/verbose [print self]
-
-    ;-- Boot up the rest of the run-time environment:
-    ;   NOTE: this can still be split up into more boot-levels !!!
-    ;   For example: mods, plus, host, and full
-
-    load-boot-exts
-    loud-print "Init mezz plus..."
-
-    do bind-lib boot-mezz
-    boot-mezz: 'done
-
+    ; Also for now, we consider the boot protocols that are implemented in
+    ; user code (http and tls) to be part of the core.  The explicit
+    ; parameterization here helps show how they're getting passed in.
+    ;
     for-each [spec body] boot-prot [module spec body]
-
-    ;do bind-lib boot-prot
-    ;boot-prot: 'done
-
-    ;-- User is requesting usage info:
-    if flags/help [lib/usage quiet: true]
-
-    ;-- Print fancy banner (created by mezz plus):
-    if any [
-        flags/verbose
-        not any [quiet script]
-    ][
-        boot-print boot-banner
-    ]
-    if boot-host [
-        loud-print "Init host code..."
-        do load boot-host
-        boot-host: _
-    ]
-
-    ;-- Setup SECURE configuration (a NO-OP for min boot)
-    lib/secure (case [
-        flags/secure [secure]
-        flags/secure-min ['allow]
-        flags/secure-max ['quit]
-        file? script [compose [file throw (file) [allow read] (first script-path) allow]]
-        'else [compose [file throw (file) [allow read] %. allow]] ; default
-    ])
-
-    ;-- Evaluate rebol.r script:
-    loud-print ["Checking for rebol.r file in" file]
-    if exists? file/rebol.r [do file/rebol.r] ; bug#706
-
-    ;boot-print ["Checking for user.r file in" file]
-    ;if exists? file/user.r [do file/user.r]
-
-    boot-print ""
-
-    ; Import module?
-    if import [lib/import import]
-
-    unless blank? boot-embedded [
-        code: load/header/type boot-embedded 'unbound
-        ;boot-print ["executing embedded script:" mold code]
-        system/script: construct system/standard/script [
-            title: select first code 'title
-            header: first code
-            parent: _
-            path: what-dir
-            args: script-args
-        ]
-        either 'module = select first code 'type [
-            code: reduce [first+ code code]
-            if object? tmp: do-needs/no-user first code [append code tmp]
-            import do compose [module (code)]
-        ][
-            do-needs first+ code
-            do intern code
-        ]
-        quit ;ignore user script and "--do" argument
-    ]
-
-    ;-- Evaluate script argument?
-    either file? script [
-        ; !!! Would be nice to use DO for this section. !!!
-        ; NOTE: We can't use DO here because it calls the code it does with CATCH/quit
-        ;   and we shouldn't catch QUIT in the top-level script, we should just quit.
-
-        ; script-path holds: [dir file] for script
-        ensure block! script-path
-        ensure file! script-path/1
-        ensure file! script-path/2
-
-        ; /path dir is where our script gets started.
-        change-dir first script-path
-        either exists? second script-path [
-            boot-print ["Evaluating:" script]
-            code: load/header/type second script-path 'unbound
-            ; update system/script (Make into a function?)
-            system/script: construct system/standard/script [
-                title: select first code 'title
-                header: first code
-                parent: _
-                path: what-dir
-                args: script-args
-            ]
-            either 'module = select first code 'type [
-                code: reduce [first+ code code]
-                if object? tmp: do-needs/no-user first code [append code tmp]
-                import do compose [module (code)]
-            ][
-                do-needs first+ code
-                do intern code
-            ]
-            if flags/halt [lib/halt]
-        ] [
-            cause-error 'access 'no-script script
-        ]
-    ][
-        boot-print boot-help
-    ]
-
-    finish-rl-start: 'done
 ]

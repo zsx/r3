@@ -204,7 +204,6 @@ void RL_Init(void *lib)
 
     Init_Core();
     Init_Crypto();
-    Init_Ports();
 
     Register_Codec("text", ".txt", Codec_Text);
     Register_Codec("utf-16le", ".txt", Codec_UTF16LE);
@@ -256,50 +255,6 @@ RL_API void RL_Shutdown(REBOOL clean)
 #endif
 
     Shutdown_Core();
-}
-
-
-//
-//  RL_Extend: C
-//
-// Appends embedded extension to system/catalog/boot-exts.
-//
-// Returns:
-//     A pointer to the REBOL library (see reb-lib.h).
-// Arguments:
-//     source - A pointer to a UTF-8 (or ASCII) string that provides
-//         extension module header, function definitions, and other
-//         related functions and data.
-//     call - A pointer to the extension's command dispatcher.
-// Notes:
-//     This function simply adds the embedded extension to the
-//     boot-exts list. All other processing and initialization
-//     happens later during startup. Each embedded extension is
-//     queried and init using LOAD-EXTENSION system native.
-//     See c:extensions-embedded
-//
-RL_API void *RL_Extend(const REBYTE *source, RXICAL call)
-{
-    REBVAL *value;
-    REBARR *array;
-
-    value = CTX_VAR(Sys_Context, SYS_CTX_BOOT_EXTS);
-    if (IS_BLOCK(value))
-        array = VAL_ARRAY(value);
-    else {
-        array = Make_Array(2);
-        Init_Block(value, array);
-    }
-    value = Alloc_Tail_Array(array);
-    Init_Binary(value, Copy_Bytes(source, -1)); // UTF-8
-    value = Alloc_Tail_Array(array);
-    Init_Handle_Simple(
-        value,
-        cast(CFUNC*, call), // code
-        NULL // data
-    );
-
-    return Extension_Lib();
 }
 
 

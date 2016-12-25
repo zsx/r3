@@ -802,8 +802,6 @@ write-emitted inc/tmp-portmodes.h
 ;-- Add other MEZZ functions:
 mezz-files: load %../mezz/boot-files.r ; base lib, sys, mezz
 
-;append boot-mezz+ blank ?? why was this needed?
-
 for-each section [boot-base boot-sys boot-mezz] [
     set section make block! 200
     for-each file first mezz-files [

@@ -21,7 +21,6 @@ print "--- Make Host Boot Extension ---"
 
 do %common.r
 
-secure none
 do %form-header.r
 args: parse-args system/options/args
 output-dir: fix-win32-path to file! any [args/OUTDIR %../]

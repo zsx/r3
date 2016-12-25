@@ -201,8 +201,6 @@ make-scheme: func [
 init-schemes: func [
     "INIT: Init system native schemes and ports."
 ][
-    loud-print "Init schemes"
-
     sys/decode-url: lib/decode-url: :sys/*parse-url/decode-url
 
     system/schemes: make object! 10

@@ -26,6 +26,13 @@ REBOL [
 native: _ ; for boot only
 action: _ ; for boot only
 
+;-- If the host wants to know if a script or module is loaded, e.g. to
+;   print out a message.  (Printing directly from this code would be
+;   presumptuous.)
+;
+script-pre-load-hook: _
+
+
 do*: function [
     {SYS: Called by system for DO on datatypes that require special handling.}
     return: [<opt> any-value!]
@@ -141,11 +148,10 @@ do*: function [
             args: to-value :arg
         ]
 
-        ; Print out the script info
-        boot-print [
-            (either is-module "Module:" "Script:") select hdr 'title
-                "Version:" opt select hdr 'version
-                "Date:" opt select hdr 'date
+        all [
+            set? 'script-pre-load-hook
+        |
+            script-pre-load-hook is-module hdr ;-- chance to print it out
         ]
 
         also (
@@ -170,15 +176,6 @@ do*: function [
         )
     ]
 ]
-
-; MOVE some of these to SYSTEM?
-boot-banner: ajoin ["REBOL 3.0 A" system/version/3 " " system/build newline]
-boot-help: "Boot-sys level - no extra features."
-boot-host: _ ; any host add-ons to the lib (binary)
-boot-mezz: _ ; built-in mezz code (put here on boot)
-boot-prot: _ ; built-in boot protocols
-boot-exts: _ ; boot extension list
-boot-embedded: _ ; embedded script
 
 export: func [
     "Low level export of values (e.g. functions) to lib."

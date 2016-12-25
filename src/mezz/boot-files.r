@@ -20,7 +20,6 @@ REBOL [
     %base-infix.r
     %base-series.r
     %base-files.r
-    %base-debug.r
 ]
 
 ;-- sys: low-level sys context:
@@ -44,7 +43,6 @@ REBOL [
     %mezz-shell.r
     %mezz-math.r
     %mezz-help.r ; move dump-obj!
-    %mezz-banner.r
     %mezz-colors.r
     %mezz-tail.r
     %mezz-legacy.r

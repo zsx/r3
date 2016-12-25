@@ -199,6 +199,7 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     case GUESSED_AS_SERIES: {
         REBSER *s = m_cast(REBSER*, cast(const REBSER*, p)); // don't mutate
     #if !defined(NDEBUG)
+        PROBE(s);
         Panic_Series_Debug(cast(REBSER*, s));
     #else
         strncat(buf, "valid series", PANIC_BUF_SIZE - strlen(buf));

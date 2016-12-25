@@ -64,6 +64,8 @@ src/include/reb-lib.h
 src/include/reb-types.h
 src/include/tmp-*
 
+src/os/tmp-*
+
 #################
 ## Eclipse
 #################

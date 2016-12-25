@@ -503,65 +503,6 @@ help: procedure [
 ]
 
 
-about: procedure [
-    "Information about REBOL"
-][
-    print make-banner sys/boot-banner
-]
-
-
-
-usage: procedure [
-    "Prints command-line arguments."
-][
-;       --cgi (-c)       Load CGI utiliy module and modes
-
-    print trim/auto copy {
-    Command line usage:
-
-        REBOL |options| |script| |arguments|
-
-    Standard options:
-
-        --do expr        Evaluate expression (quoted)
-        --help (-?)      Display this usage information
-        --version tuple  Script must be this version or greater
-        --               End of options
-
-    Special options:
-
-        --boot level     Valid levels: base sys mods
-        --debug flags    For user scripts (system/options/debug)
-        --halt (-h)      Leave console open when script is done
-        --import file    Import a module prior to script
-        --quiet (-q)     No startup banners or information
-        --secure policy  Can be: none allow ask throw quit
-        --trace (-t)     Enable trace mode during boot
-        --verbose        Show detailed startup information
-
-    Other quick options:
-
-        -s               No security
-        +s               Full security
-        -v               Display version only (then quit)
-
-    Examples:
-
-        REBOL script.r
-        REBOL -s script.r
-        REBOL script.r 10:30 test@example.com
-        REBOL --do "watch: on" script.r
-    }
-]
-
-
-license: procedure [
-    "Prints the REBOL/core license agreement."
-][
-    print system/license
-]
-
-
 ; !!! MAKE is used here to deliberately avoid the use of an abstraction,
 ; because of the adaptation of SOURCE to be willing to take an index that
 ; indicates the caller's notion of a stack frame.  (So `source 3` would

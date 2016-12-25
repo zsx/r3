@@ -675,11 +675,17 @@ set_source_files_properties(
     PROPERTIES
     HEADER_FILE_ONLY TRUE
     )
+set_source_files_properties(
+    ${TOP_GENERATED_SRC_DIR}/os/tmp-host-start.inc
+    PROPERTIES
+    HEADER_FILE_ONLY TRUE
+    )
 
 #HOST
 set(EXT_OS_OUTPUT
     ${TOP_GENERATED_SRC_DIR}/include/host-lib.h
     ${TOP_GENERATED_SRC_DIR}/include/host-table.inc
+    ${TOP_GENERATED_SRC_DIR}/os/tmp-host-start.inc
     )
 
 set(EXT_OS_DEPENDS
@@ -695,8 +701,11 @@ if (R3_BUILD_VIEW)
     add_custom_command(OUTPUT
         ${EXT_OS_OUTPUT}
         COMMAND ${REBOL} ${TOOLS_DIR}/make-os-ext.r OS_ID=${R3_OS_ID} GFX=1 OUTDIR=${TOP_GENERATED_SRC_DIR}
+        COMMAND ${REBOL} ${TOOLS_DIR}/make-host-init.r OS_ID=${R3_OS_ID} OUTDIR=${TOP_GENERATED_SRC_DIR}
         DEPENDS
         ${TOOLS_DIR}/make-os-ext.r
+        ${TOOLS_DIR}/make-host-init.r
+        ${TOP_SRC_DIR}/os/host-start.r
         ${TOOL_DEPENDS}
         ${EXT_OS_DEPENDS}
         )
@@ -704,8 +713,11 @@ else ()
     add_custom_command(OUTPUT
         ${EXT_OS_OUTPUT}
         COMMAND ${REBOL} ${TOOLS_DIR}/make-os-ext.r OS_ID=${R3_OS_ID} OUTDIR=${TOP_GENERATED_SRC_DIR}
+        COMMAND ${REBOL} ${TOOLS_DIR}/make-host-init.r OS_ID=${R3_OS_ID} OUTDIR=${TOP_GENERATED_SRC_DIR}
         DEPENDS
         ${TOOLS_DIR}/make-os-ext.r
+        ${TOOLS_DIR}/make-host-init.r
+        ${TOP_SRC_DIR}/os/host-start.r
         ${TOOL_DEPENDS}
         ${EXT_OS_DEPENDS}
         )
@@ -713,7 +725,6 @@ endif ()
 
 set (OS_SOURCE
     ${OS_DIR}/host-main.c
-    ${OS_DIR}/host-args.c
     ${OS_DIR}/host-device.c
     ${OS_DIR}/host-stdio.c
     ${OS_DIR}/host-table.c
@@ -725,6 +736,7 @@ set (OS_SOURCE
 
 set (GENERATED_OS_SOURCE
     ${TOP_GENERATED_SRC_DIR}/include/host-table.inc
+    ${TOP_GENERATED_SRC_DIR}/os/tmp-host-start.inc
     )
 
 if(NOT (MSVC_IDE OR XCODE))
@@ -768,6 +780,7 @@ target_include_directories(libr3_core_core PUBLIC
         )
 target_include_directories(r3-core PUBLIC
         ${TOP_GENERATED_SRC_DIR}/include
+        ${TOP_GENERATED_SRC_DIR}/os
         ${TOP_SRC_DIR}/include
         ${TOP_SRC_DIR}/codecs
         ${FFI_INCLUDE_DIRS}

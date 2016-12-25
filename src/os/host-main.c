@@ -95,29 +95,8 @@
 extern "C" {
 #endif
     extern void RL_Version(REBYTE vers[]);
-    extern int RL_Start(
-        REBYTE *bin,
-        REBINT len,
-        REBYTE *script,
-        REBINT script_len,
-        REBCNT flags
-    );
     extern void RL_Init(void *lib);
     extern void RL_Shutdown(REBOOL clean);
-    extern REBCNT RL_Length_As_UTF8(
-        const void *p,
-        REBCNT len,
-        REBOOL unicode,
-        REBOOL lf_to_crlf
-    );
-    extern REBCNT RL_Encode_UTF8(
-        REBYTE *dst,
-        REBINT max,
-        const void *src,
-        REBCNT *len,
-        REBOOL unicode,
-        REBOOL crlf_to_lf
-    );
 
     extern REBOL_HOST_LIB Host_Lib_Init;
 #ifdef __cplusplus
@@ -125,314 +104,19 @@ extern "C" {
 #endif
 
 
-#ifdef CUSTOM_STARTUP
-    #include "host-init.h"
-#endif
-
-
-
-//=////////////////////////////////////////////////////////////////////////=//
+// The initialization done by RL_Init() is intended to be as basic as possible
+// in order to get the Rebol series/values/array functions ready to be run.
+// Once that's ready, the rest of the initialization can take advantage of
+// a working evaluator.  This includes PARSE to process the command line
+// parameters, or PRINT to output boot banners.
 //
-// COMMAND-LINE ARGUMENT PROCESSING
+// The %make-host-init.r file takes the %host-start.r script and turns it
+// into a compressed binary C literal.  That literal can be LOADed and
+// executed to return the HOST-START function, which takes the command line
+// arguments as an array of STRING! and handles it from there.
 //
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// !!! Originally, command line arguments were passed into Rebol's process of
-// basic initialization, to control the boot.  That meant the command-line
-// parsing had to be done in a very raw and OS-specific way in C, when the
-// ultimate goal was to run script logic and modify Rebol state and flags.
-//
-// Ren-C began to modularize the boot such that it could get basic Rebol
-// services going without any command line arguments.  This made LOADing and
-// running Rebol code more of an option for things like command-line
-// processing.  This code should be rewritten to take advantage of that, and
-// use PARSE.
-//
+#include "tmp-host-start.inc"
 
-typedef struct rebol_args {
-    REBFLGS options;
-    REBCHR *script;
-    REBCHR **args;
-    REBCHR *do_arg;
-    REBCHR *version;
-    REBCHR *debug;
-    REBCHR *import;
-    REBCHR *secure;
-    REBCHR *exe_path;
-    REBCHR *home_dir;
-} REBARGS;
-
-// REBOL arg option flags:
-// Must stay matched to system/catalog/boot-flags.
-enum arg_opts {
-    ROF_EXT,
-
-    ROF_DO,
-    ROF_IMPORT,
-    ROF_VERSION,
-    ROF_DEBUG,
-    ROF_SECURE,
-
-    ROF_HELP,
-    ROF_VERS,
-    ROF_QUIET,
-    ROF_VERBOSE,
-    ROF_SECURE_MIN,
-    ROF_SECURE_MAX,
-    ROF_TRACE,
-    ROF_HALT,
-    ROF_CGI,
-    ROF_NO_WINDOW,
-
-    ROF_IGNORE, // not an option
-    ROF_MAX
-};
-
-#define RO_EXT         (1<<ROF_EXT)
-#define RO_HELP        (1<<ROF_HELP)
-#define RO_IMPORT      (1<<ROF_IMPORT)
-#define RO_CGI         (1<<ROF_CGI)
-#define RO_DO          (1<<ROF_DO)
-#define RO_DEBUG       (1<<ROF_DEBUG)
-#define RO_SECURE_MIN  (1<<ROF_SECURE_MIN)
-#define RO_SECURE_MAX  (1<<ROF_SECURE_MAX)
-#define RO_QUIET       (1<<ROF_QUIET)
-#define RO_SECURE      (1<<ROF_SECURE)
-#define RO_TRACE       (1<<ROF_TRACE)
-#define RO_VERSION     (1<<ROF_VERSION)
-#define RO_VERS        (1<<ROF_VERS)
-#define RO_VERBOSE     (1<<ROF_VERBOSE)
-#define RO_HALT        (1<<ROF_HALT)
-#define RO_NO_WINDOW   (1<<ROF_NO_WINDOW)
-
-#define RO_IGNORE      (1<<ROF_IGNORE)
-
-
-// REBOL Option --Words:
-
-const struct {const REBCHR *word; const int flag;} arg_words[] = {
-    // Keep in Alpha order!
-    {OS_STR_LIT("cgi"),         RO_CGI | RO_QUIET},
-    {OS_STR_LIT("debug"),       RO_DEBUG | RO_EXT},
-    {OS_STR_LIT("do"),          RO_DO | RO_EXT},
-    {OS_STR_LIT("halt"),        RO_HALT},
-    {OS_STR_LIT("help"),        RO_HELP},
-    {OS_STR_LIT("import"),      RO_IMPORT | RO_EXT},
-    {OS_STR_LIT("quiet"),       RO_QUIET},
-    {OS_STR_LIT("secure"),      RO_SECURE | RO_EXT},
-    {OS_STR_LIT("trace"),       RO_TRACE},
-    {OS_STR_LIT("verbose"),     RO_VERBOSE},
-    {OS_STR_LIT("version"),     RO_VERSION | RO_EXT},
-    {OS_STR_LIT(""),            0},
-};
-
-// REBOL Option -Characters (in alpha sorted order):
-
-const struct arg_chr {const char cflg; const int flag;} arg_chars[] = {
-    {'?',   RO_HELP},
-    {'V',   RO_VERS},
-    {'c',   RO_CGI | RO_QUIET},
-    {'h',   RO_HALT},
-    {'q',   RO_QUIET},
-    {'s',   RO_SECURE_MIN},
-    {'t',   RO_TRACE},
-    {'v',   RO_VERS},
-    {'w',   RO_NO_WINDOW},
-    {'\0',  0},
-};
-
-// REBOL Option +Characters:
-
-const struct arg_chr arg_chars2[] = {
-    {'s',   RO_SECURE_MAX},
-    {'\0',  0},
-};
-
-
-//
-//  find_option_word: C
-//
-// Scan options, return flag bits, else zero.
-//
-static int find_option_word(REBCHR *word)
-{
-    int n;
-    int i;
-    REBCHR buf[16];
-
-    // Some shells will pass us the line terminator. Ignore it.
-    if (
-        OS_CH_EQUAL(word[0], '\r')
-        || OS_CH_EQUAL(word[0], '\n')
-    ) {
-        return RO_IGNORE;
-    }
-
-    OS_STRNCPY(buf, word, 15);
-
-    for (i = 0; arg_words[i].flag; i++) {
-        n = OS_STRNCMP(buf, arg_words[i].word, 15);
-        if (n < 0) break;
-        if (n == 0) return arg_words[i].flag;
-    }
-    return 0;
-}
-
-
-//
-//  find_option_char: C
-//
-// Scan option char flags, return flag bits, else zero.
-//
-static int find_option_char(REBCHR chr, const struct arg_chr list[])
-{
-    int i;
-
-    // Some shells will pass us the line terminator. Ignore it.
-    if (OS_CH_EQUAL(chr, '\r') || OS_CH_EQUAL(chr, '\n'))
-        return RO_IGNORE;
-
-    for (i = 0; list[i].flag; i++) {
-        if (OS_CH_VALUE(chr) < list[i].cflg) break;
-        if (OS_CH_VALUE(chr) == list[i].cflg) return list[i].flag;
-    }
-    return 0;
-}
-
-
-//
-//  Get_Ext_Arg: C
-//
-// Get extended argument field.
-//
-static int Get_Ext_Arg(int flag, REBARGS *rargs, REBCHR *arg)
-{
-    flag &= ~RO_EXT;
-
-    switch (flag) {
-
-    case RO_VERSION:
-        rargs->version = arg;
-        break;
-
-    case RO_DO:
-        rargs->do_arg = arg;
-        break;
-
-    case RO_DEBUG:
-        rargs->debug = arg;
-        break;
-
-    case RO_SECURE:
-        rargs->secure = arg;
-        break;
-
-    case RO_IMPORT:
-        rargs->import = arg;
-        break;
-    }
-
-    return flag;
-}
-
-
-//
-//  Parse_Args: C
-//
-// Parse REBOL's command line arguments, setting options
-// and values in the provided args structure.
-//
-void Parse_Args(int argc, REBCHR **argv, REBARGS *rargs)
-{
-    REBCHR *arg;
-    int flag;
-    int i;
-
-    CLEARS(rargs);
-
-    // First arg is path to execuable (on most systems):
-    if (argc > 0) rargs->exe_path = *argv;
-
-    OS_GET_CURRENT_DIR(&rargs->home_dir);
-
-    // Parse each argument:
-    for (i = 1; i < argc ; i++) {
-        arg = argv[i];
-        if (arg == NULL) continue; // shell bug
-        if (OS_CH_EQUAL(*arg, '-')) {
-            if (OS_CH_EQUAL(arg[1], '-')) {
-                if (OS_CH_EQUAL(arg[2], 0)) {
-                    // -- (end of options)
-                    ++i;
-                    break;
-                }
-                // --option words
-                flag = find_option_word(arg+2);
-                if (!flag) goto error;
-                if (flag & RO_EXT) {
-                    if (++i < argc) flag = Get_Ext_Arg(flag, rargs, argv[i]);
-                    else goto error;
-                }
-                rargs->options |= flag;
-            }
-            else {
-                // -x option chars
-                while (OS_CH_VALUE(*++arg) != '\0') {
-                    flag = find_option_char(*arg, arg_chars);
-                    if (!flag) goto error;
-                    if (flag & RO_EXT) {
-                        if (++i < argc) flag = Get_Ext_Arg(flag, rargs, argv[i]);
-                        else goto error;
-                    }
-                    rargs->options |= flag;
-                }
-            }
-        }
-        else if (OS_CH_EQUAL(*arg, '+')) {
-            // +x option chars
-            while (OS_CH_VALUE(*++arg) != '\0') {
-                flag = find_option_char(*arg, arg_chars2);
-                if (!flag) goto error;
-                if (flag & RO_EXT) {
-                    if (++i < argc) flag = Get_Ext_Arg(flag, rargs, argv[i]);
-                    else goto error;
-                }
-                rargs->options |= flag;
-            }
-        }
-        else break;
-    }
-
-    // script filename
-    if (i < argc) rargs->script = argv[i++];
-
-    // the rest are script args
-    if (i < argc) {
-        // rargs->args must be a null-terminated array of pointers
-        // but CommandLineToArgvW() may return a non-terminated array
-        rargs->args = OS_ALLOC_N(REBCHR*, argc - i + 1);
-        memcpy(rargs->args, &argv[i], (argc - i) * sizeof(REBCHR*));
-        rargs->args[argc - i] = NULL;
-    }
-
-    // empty script name for only setting args
-    if (rargs->script && OS_CH_VALUE(rargs->script[0]) == '\0')
-        rargs->script = NULL;
-
-    return;
-
-error:
-    // disregard command line options
-    // leave exe_path and home_dir set
-    rargs->options = RO_HELP;
-    rargs->version = NULL;
-    rargs->do_arg = NULL;
-    rargs->debug = NULL;
-    rargs->secure = NULL;
-    rargs->import = NULL;
-}
-
-REBARGS Main_Args;
 
 const REBYTE halt_str[] = "[escape]";
 const REBYTE prompt_str[] = ">> ";
@@ -731,490 +415,6 @@ int Do_String(
 }
 
 
-static REBSTR *Set_Option_Word(REBCHR *str, REBCNT field)
-{
-    REBYTE buf[40]; // option words always short ASCII strings
-
-    REBCNT len = OS_STRLEN(str); // WC correct
-    assert(len <= 38);
-
-    REBYTE *bp = &buf[0];
-    while ((*bp++ = cast(REBYTE, OS_CH_VALUE(*(str++))))); // clips unicode
-
-    REBSTR *name = Intern_UTF8_Managed(buf, len);
-
-    REBVAL *val = Get_System(SYS_OPTIONS, field);
-    Init_Word(val, name);
-
-    return name;
-}
-
-
-REBOOL Host_Start_Exiting(int *exit_status, int argc, REBCHR **argv) {
-    REBINT startup_rc;
-
-    // Must be done before an console I/O can occur. Does not use reb-lib,
-    // so this device should open even if there are other problems.
-    //
-    Open_StdIO();  // also sets up interrupt handler
-
-    Host_Lib = &Host_Lib_Init;
-    RL_Init(Host_Lib);
-
-    // !!! Note we may have to free Main_Args.home_dir below after this
-    Parse_Args(argc, argv, &Main_Args);
-
-    if (Main_Args.options & RO_TRACE) {
-        Trace_Level = 9999;
-        Trace_Flags = 1;
-    }
-
-    // !!! R3-Alpha had the option that if the only thing the user wanted was
-    // to dump out the version, it would do so before trying the rest of the
-    // boot...presumably because it could fail.  This should be a
-    // responsibility of the host; which indicates there needs to be an API
-    // for getting the version of the Rebol library independent of calling
-    // any complex Init() process.
-    //
-    if (Main_Args.options & RO_VERS) {
-        Debug_Fmt(
-            "Rebol 3 %d.%d.%d.%d.%d",
-            REBOL_VER,
-            REBOL_REV,
-            REBOL_UPD,
-            REBOL_SYS,
-            REBOL_VAR
-        );
-        OS_EXIT(0);
-    }
-
-    REBVAL *val;
-    RELVAL *item;
-    REBCHR *data;
-
-    REBARR *array = Make_Array(3);
-    REBFLGS rof = 2; // skip first flag (ROF_EXT)
-    val = Get_System(SYS_CATALOG, CAT_BOOT_FLAGS);
-    for (item = VAL_ARRAY_HEAD(val); NOT_END(item); item++) {
-        CLEAR_VAL_FLAG(item, VALUE_FLAG_LINE);
-        if (Main_Args.options & rof)
-            Append_Value(array, KNOWN(item)); // no relatives in BOOT_FLAGS (?)
-        rof <<= 1;
-    }
-    val = Alloc_Tail_Array(array);
-    SET_TRUE(val);
-    val = Get_System(SYS_OPTIONS, OPTIONS_FLAGS);
-    Init_Block(val, array);
-
-    // For compatibility:
-    if (Main_Args.options & RO_QUIET) {
-        val = Get_System(SYS_OPTIONS, OPTIONS_QUIET);
-        SET_TRUE(val);
-    }
-
-    if (Main_Args.script) {
-        REBSER *ser = To_REBOL_Path(
-            Main_Args.script, 0, OS_WIDE ? PATH_OPT_UNI_SRC : 0
-        );
-        val = Get_System(SYS_OPTIONS, OPTIONS_SCRIPT);
-        Init_File(val, ser);
-    }
-
-    if (Main_Args.exe_path) {
-        REBSER *ser = To_REBOL_Path(
-            Main_Args.exe_path, 0, OS_WIDE ? PATH_OPT_UNI_SRC : 0
-        );
-        val = Get_System(SYS_OPTIONS, OPTIONS_BOOT);
-        Init_File(val, ser);
-    }
-
-    if (Main_Args.home_dir) {
-        REBSER *ser = To_REBOL_Path(
-            Main_Args.home_dir,
-            0,
-            PATH_OPT_SRC_IS_DIR | (OS_WIDE ? PATH_OPT_UNI_SRC : 0)
-        );
-        val = Get_System(SYS_OPTIONS, OPTIONS_HOME);
-        Init_File(val, ser);
-    }
-
-    if (Main_Args.args) {
-        REBCNT n = 0;
-        while (Main_Args.args[n] != NULL)
-            ++n;
-
-        REBARR *options_args = Make_Array(n);
-        Init_Block(Get_System(SYS_OPTIONS, OPTIONS_ARGS), options_args);
-        TERM_ARRAY_LEN(options_args, n);
-
-        for (n = 0; (data = Main_Args.args[n]); ++n)
-            Init_String(
-                ARR_AT(options_args, n), Copy_OS_Str(data, OS_STRLEN(data))
-            );
-    }
-
-    if (Main_Args.debug)
-        Init_String(
-            Get_System(SYS_OPTIONS, OPTIONS_DEBUG),
-            Copy_OS_Str(Main_Args.debug, OS_STRLEN(Main_Args.debug))
-        );
-
-    if (Main_Args.version)
-        Init_String(
-            Get_System(SYS_OPTIONS, OPTIONS_VERSION),
-            Copy_OS_Str(Main_Args.version, OS_STRLEN(Main_Args.version))
-        );
-
-    if (Main_Args.import)
-        Init_String(
-            Get_System(SYS_OPTIONS, OPTIONS_IMPORT),
-            Copy_OS_Str(Main_Args.import, OS_STRLEN(Main_Args.import))
-        );
-
-    if (Main_Args.secure)
-        Set_Option_Word(Main_Args.secure, OPTIONS_SECURE);
-
-    // !!! Not a good abstraction layer here, but Parse_Args may have put
-    // an OS_ALLOC'd string into home_dir, via OS_Get_Current_Dir
-    //
-    if (Main_Args.home_dir)
-        OS_FREE(Main_Args.home_dir);
-
-#ifdef TEST_EXTENSIONS
-    Init_Ext_Test();
-#endif
-
-#ifdef TO_WINDOWS
-    // no console, we must be the child process
-    if (GetStdHandle(STD_OUTPUT_HANDLE) == 0)
-    {
-        App_Instance = GetModuleHandle(NULL);
-    }
-#ifdef REB_CORE
-    else //use always the console for R3/core
-    {
-        // GetWindowsLongPtr support 32 & 64 bit windows
-        App_Instance = (HINSTANCE)GetWindowLongPtr(GetConsoleWindow(), GWLP_HINSTANCE);
-    }
-#else
-    //followinng R3/view code behaviors when compiled as:
-    //-"console app" mode: stdio redirection works but blinking console window during start
-    //-"GUI app" mode stdio redirection doesn't work properly, no blinking console window during start
-    else if (argc > 1) // we have command line args
-    {
-        // GetWindowsLongPtr support 32 & 64 bit windows
-        App_Instance = (HINSTANCE)GetWindowLongPtr(GetConsoleWindow(), GWLP_HINSTANCE);
-    }
-    else // no command line args but a console - launch child process so GUI is initialized and exit
-    {
-        DWORD dwCreationFlags = CREATE_DEFAULT_ERROR_MODE | DETACHED_PROCESS;
-        STARTUPINFO startinfo;
-        PROCESS_INFORMATION procinfo;
-        ZeroMemory(&startinfo, sizeof(startinfo));
-        startinfo.cb = sizeof(startinfo);
-        if (!CreateProcess(NULL, argv[0], NULL, NULL, FALSE, dwCreationFlags, NULL, NULL, &startinfo, &procinfo))
-            MessageBox(0, L"CreateProcess() failed :(", L"", 0);
-        exit(0);
-    }
-#endif //REB_CORE
-#endif //TO_WINDOWS
-
-    // Common code for console & GUI version
-#ifndef REB_CORE
-    Init_Windows();
-    OS_Init_Graphics();
-#endif // REB_CORE
-
-    // Register host-specific DEBUG native in user and lib contexts.  (See
-    // notes on N_debug regarding why the C code implementing DEBUG is in
-    // the host and not part of Rebol Core.)
-    //
-    const REBYTE debug_utf8[] = "debug";
-    REBSTR *debug_name = Intern_UTF8_Managed(debug_utf8, LEN_BYTES(debug_utf8));
-
-    REBCTX *user_context = VAL_CONTEXT(Get_System(SYS_CONTEXTS, CTX_USER));
-    if (
-        0 == Find_Canon_In_Context(Lib_Context, STR_CANON(debug_name), TRUE) &&
-        0 == Find_Canon_In_Context(user_context, STR_CANON(debug_name), TRUE)
-    ) {
-        REBARR *spec_array = Scan_UTF8_Managed(
-            N_debug_spec, LEN_BYTES(N_debug_spec)
-        );
-        REBVAL spec;
-        Init_Block(&spec, spec_array);
-
-        REBFUN *debug_native = Make_Function(
-            Make_Paramlist_Managed_May_Fail(&spec, MKF_KEYWORDS),
-            &N_debug,
-            NULL // no underlying function, this is fundamental
-        );
-
-        *Append_Context(Lib_Context, 0, debug_name) = *FUNC_VALUE(debug_native);
-        *Append_Context(user_context, 0, debug_name) = *FUNC_VALUE(debug_native);
-    }
-    else {
-        // It's already there--e.g. someone added REBNATIVE(debug).  Assert
-        // about it in the debug build, otherwise don't add the host version.
-        //
-        assert(FALSE);
-    }
-
-    int error_num;
-
-    REBVAL result;
-
-#ifdef CUSTOM_STARTUP
-    //
-    // For custom startup, you can provide compressed script code here:
-    //
-    REBSER startup = Decompress(&Reb_Init_Code[0], REB_INIT_SIZE, -1, FALSE, FALSE);
-    if (startup == NULL)
-        panic ("Could not decompress CUSTOM_STARTUP code");
-
-    Init_Binary(CTX_VAR(Sys_Context, SYS_CTX_BOOT_HOST), startup);
-#endif
-
-    REBI64 embedded_size = 0;
-    REBYTE *embedded_script = OS_READ_EMBEDDED(&embedded_size);
-    if (embedded_script != NULL) {
-        if (embedded_size <= 4)
-            panic ("No 4-byte long payload at beginning of embedded script");
-
-        i32 ptype = 0;
-        REBYTE *data = embedded_script + sizeof(ptype);
-        embedded_size -= sizeof(ptype);
-
-        memcpy(&ptype, embedded_script, sizeof(ptype));
-
-        REBSER *utf8;
-        if (ptype == 1) { // COMPRESSed data
-            utf8 = Decompress(data, embedded_size, -1, FALSE, FALSE);
-        }
-        else {
-            utf8 = Make_Binary(embedded_size);
-            memcpy(BIN_HEAD(utf8), data, embedded_size);
-        }
-
-        OS_FREE(embedded_script);
-
-        Init_Binary(CTX_VAR(Sys_Context, SYS_CTX_BOOT_EMBEDDED), utf8);
-    }
-
-    struct Reb_State state;
-    REBCTX *error;
-
-    PUSH_UNHALTABLE_TRAP(&error, &state);
-
-// The first time through the following code 'error' will be NULL, but...
-// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
-
-    if (error) {
-        //
-        // !!! We are not allowed to ask for a print operation that can take
-        // arbitrarily long without allowing for cancellation via Ctrl-C,
-        // but here we are wanting to print an error.  If you're printing
-        // out an error and get a halt, it won't print the halt.
-        //
-        REBCTX *halt_error;
-
-        // Save error for WHY?
-        //
-        REBVAL *last = Get_System(SYS_STATE, STATE_LAST_ERROR);
-        Init_Error(last, error);
-
-        PUSH_UNHALTABLE_TRAP(&halt_error, &state);
-
-// The first time through the following code 'error' will be NULL, but...
-// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
-
-        if (halt_error)
-            panic ("Halted while an error was being printed.");
-
-        Print_Value(last, 1024, FALSE);
-
-        DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-
-        // !!! When running in a script, whether or not the Rebol interpreter
-        // just exits in an error case with a bad error code or breaks you
-        // into the console to debug the environment should be controlled by
-        // a command line option.  Defaulting to returning an error code
-        // seems better, because kicking into an interactive session can
-        // cause logging systems to hang...
-
-        panic (error);
-    }
-
-    if (Apply_Only_Throws(
-        &result, TRUE, Sys_Func(SYS_CTX_FINISH_RL_START), END_CELL
-    )) {
-        #if !defined(NDEBUG)
-            if (LEGACY(OPTIONS_EXIT_FUNCTIONS_ONLY))
-                fail (Error_No_Catch_For_Throw(&result));
-        #endif
-
-        if (
-            IS_FUNCTION(&result) && (
-                VAL_FUNC_DISPATCHER(&result) == &N_quit
-                || VAL_FUNC_DISPATCHER(&result) == &N_exit
-            )
-        ) {
-            int status;
-
-            CATCH_THROWN(&result, &result);
-            status = Exit_Status_From_Value(&result);
-
-            DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-
-            Shutdown_Core();
-            OS_EXIT(status);
-            DEAD_END;
-        }
-
-        fail (Error_No_Catch_For_Throw(&result));
-    }
-
-    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-
-    // The convention in the API was to return 0 for success.  We use the
-    // convention (as for FINISH_INIT_CORE) that any stray value result from
-    // FINISH_RL_START indicates something went wrong.
-
-    if (IS_VOID(&result))
-        error_num = 0; // no error
-    else {
-        Debug_Fmt("** finish-rl-start returned non-NONE!:");
-        Debug_Fmt("%r", &result);
-
-        assert(FALSE); // should not happen (raise an error instead)
-
-        error_num = RE_MISC;
-    }
-
-
-#if !defined(ENCAP)
-    //
-    // !!! What should an encapped executable do with a --do?  Here we just
-    // ignore it, as the assumption is that it is a packaged system that
-    // doesn't necessarily want to present itself as an arbitrary interpreter
-    //
-    if (startup_rc >= 0 && (Main_Args.options & RO_DO) && Main_Args.do_arg) {
-        REBYTE *do_arg_utf8;
-        REBCNT len_uni;
-        REBCNT len_predicted;
-        REBCNT len_encoded;
-        int do_result;
-
-        REBVAL result;
-
-        // See notes regarding unix signals and Ctrl-C in main() for why
-        // this must be pushed in order to handle potential breaks during
-        // outputting a value.
-        //
-        PUSH_UNHALTABLE_TRAP(&error, &state);
-
-// The first time through the following code 'error' will be NULL, but...
-// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
-
-        if (error) {
-            *exit_status = 100; // made up number, used again below
-            return TRUE;
-        }
-
-        // On Windows, do_arg is a REBUNI*.  We need to get it into UTF8.
-        // !!! Better helpers needed than this; Ren/C can call host's OS_ALLOC
-        // so this should be more seamless.
-    #ifdef TO_WINDOWS
-        len_uni = wcslen(cast(WCHAR*, Main_Args.do_arg));
-        len_predicted = RL_Length_As_UTF8(
-            Main_Args.do_arg, len_uni, TRUE, FALSE
-        );
-        do_arg_utf8 = OS_ALLOC_N(REBYTE, len_predicted + 1);
-        len_encoded = RL_Encode_UTF8(
-            do_arg_utf8,
-            len_predicted + 1,
-            Main_Args.do_arg,
-            &len_uni,
-            TRUE,
-            FALSE
-        );
-
-        // Sanity check; we shouldn't get a different answer.
-        assert(len_predicted == len_encoded);
-
-        // Encoding doesn't NULL-terminate on its own.
-        do_arg_utf8[len_encoded] = '\0';
-    #else
-        do_arg_utf8 = b_cast(cast(char*, Main_Args.do_arg));
-    #endif
-
-        do_result = Do_String(exit_status, &result, do_arg_utf8, FALSE);
-
-    #ifdef TO_WINDOWS
-        OS_FREE(do_arg_utf8);
-    #endif
-
-        if (do_result == -1) {
-            //
-            // The user canceled via a HALT signal, e.g. Ctrl-C.  For now we
-            // print a halt message and exit with a made-up error code.
-            //
-            // !!! This behavior of not breaking into the debugger should
-            // be configurable.  It is based on the idea of being a "good
-            // command line citizen", but certainly someone might wish to
-            // have it act like a breakpoint if they would know what to
-            // do in a debug scenario.  For now we save that for the REPL.
-            //
-            // Exiting with "100" is arbitrary, should be configurable.
-            // used again above.  (Not defining as a constant because this
-            // should be rethought, and it signals that.)
-            //
-            Put_Str(halt_str);
-            *exit_status = 100;
-            goto return_status_and_drop;
-        }
-        else if (do_result == -2) {
-            //
-            // There was a purposeful QUIT or EXIT, exit_status has any /WITH
-            // translated into an integer
-            //
-            goto return_status_and_drop;
-        }
-        else if (do_result < -2) {
-            // There was an error, so print it out (with limited print length)
-            //
-            // !!! We invent a status and exit, but the response to an error
-            // should be more flexible, and the error code is arbitrary and
-            // needs to be configurable.  See #2215.
-            //
-            Out_Value(&result, 500, FALSE, 1);
-            *exit_status = 101;
-            goto return_status_and_drop;
-        }
-        else {
-            // Command completed successfully, we don't print anything.
-            //
-            // We quit vs. dropping to interpreter by default, but it would be
-            // good to have a more flexible response here too.  See #2215.
-            //
-            assert(do_result >= 0);
-            *exit_status = 0;
-
-        return_status_and_drop:
-            DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-            return TRUE;
-        }
-
-        DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-    }
-#endif //!ENCAP
-
-    // If we get here we didn't have something happen that translates to
-    // needing us to definitely exit.  So `exit_status` is uninitialized.
-    //
-    return FALSE;
-}
-
-
 void Host_Repl(int *exit_status, REBVAL *out, REBOOL at_breakpoint) {
     REBOOL why_alert = TRUE;
 
@@ -1410,14 +610,6 @@ cleanup_and_return:
 }
 
 
-void Host_Quit() {
-    OS_QUIT_DEVICES(0);
-#ifndef REB_CORE
-    OS_Destroy_Graphics();
-#endif
-}
-
-
 //
 //  Host_Breakpoint_Quitting_Hook()
 //
@@ -1502,6 +694,43 @@ REBOOL Host_Breakpoint_Quitting_Hook(
 }
 
 
+// Register host-specific DEBUG native in user and lib contexts.  (See
+// notes on N_debug regarding why the C code implementing DEBUG is in
+// the host and not part of Rebol Core.)
+//
+void Init_Debug_Extension(void) {
+    const REBYTE debug_utf8[] = "debug";
+    REBSTR *debug_name = Intern_UTF8_Managed(debug_utf8, LEN_BYTES(debug_utf8));
+
+    REBCTX *user_context = VAL_CONTEXT(Get_System(SYS_CONTEXTS, CTX_USER));
+    if (
+        0 == Find_Canon_In_Context(Lib_Context, STR_CANON(debug_name), TRUE) &&
+        0 == Find_Canon_In_Context(user_context, STR_CANON(debug_name), TRUE)
+    ) {
+        REBARR *spec_array = Scan_UTF8_Managed(
+            N_debug_spec, LEN_BYTES(N_debug_spec)
+        );
+        REBVAL spec;
+        Init_Block(&spec, spec_array);
+
+        REBFUN *debug_native = Make_Function(
+            Make_Paramlist_Managed_May_Fail(&spec, MKF_KEYWORDS),
+            &N_debug,
+            NULL // no underlying function, this is fundamental
+        );
+
+        *Append_Context(Lib_Context, 0, debug_name) = *FUNC_VALUE(debug_native);
+        *Append_Context(user_context, 0, debug_name) = *FUNC_VALUE(debug_native);
+    }
+    else {
+        // It's already there--e.g. someone added REBNATIVE(debug).  Assert
+        // about it in the debug build, otherwise don't add the host version.
+        //
+        assert(FALSE);
+    }
+}
+
+
 /***********************************************************************
 **
 **  MAIN ENTRY POINT
@@ -1534,70 +763,288 @@ REBOOL Host_Breakpoint_Quitting_Hook(
 
 int main(int argc, char **argv_ansi)
 {
-    int exit_status;
-
-    REBCHR **argv;
-
+    // Must be done before an console I/O can occur. Does not use reb-lib,
+    // so this device should open even if there are other problems.
     //
+    Open_StdIO();  // also sets up interrupt handler
+
+    Host_Lib = &Host_Lib_Init;
+    RL_Init(Host_Lib);
+
+    // With basic initialization done, we want to turn the platform-dependent
+    // argument strings into a block of Rebol strings as soon as possible.
+    // That way the command line argument processing can be taken care of by
+    // PARSE instead of C code!
+    //
+    REBARR *argv = Make_Array(argc);
+
+#ifdef TO_WINDOWS
+    //
+    // Were we using WinMain we'd be getting our arguments in Unicode, but
+    // since we're using an ordinary main() we do not.  However, this call
+    // lets us slip out and pick up the arguments in Unicode form.
+    //
+    wchar_t **argv_utf16 = cast(
+        wchar_t**, CommandLineToArgvW(GetCommandLineW(), &argc)
+    );
+    int i = 0;
+    for (; i < argc; ++i) {
+        if (argv_utf16[i] == NULL)
+            continue; // shell bug
+
+        static_assert_c(sizeof(REBUNI) == sizeof(wchar_t));
+
+        Init_String(
+            Alloc_Tail_Array(argv),
+            Make_UTF16_May_Fail(cast(REBUNI*, argv_utf16[i]))
+        );
+    }
+#else
+    // Assume no wide character support, and just take the ANSI C args, which
+    // should ideally be in UTF8
+    //
+    int i = 0;
+    for (; i < argc; ++i) {
+        if (argv_ansi[i] == NULL)
+            continue; // shell bug
+
+        Init_String(
+            Alloc_Tail_Array(argv), Make_UTF8_May_Fail(argv_ansi[i])
+        );
+    }
+#endif
+
     // !!! Register EXPERIMENTAL breakpoint hook.  Note that %host-main.c is
     // not really expected to stick around as the main REPL...
     //
     PG_Breakpoint_Quitting_Hook = &Host_Breakpoint_Quitting_Hook;
 
-#ifdef TO_WINDOWS
-    // Were we using WinMain we'd be getting our arguments in Unicode, but
-    // since we're using an ordinary main() we do not.  However, this call
-    // lets us slip out and pick up the arguments in Unicode form.
-    argv = cast(REBCHR**, CommandLineToArgvW(GetCommandLineW(), &argc));
-#else
-    // Assume no wide character support, and just take the ANSI C args
-    argv = cast(REBCHR**, argv_ansi);
+    REBVAL argv_value;
+    Init_Block(&argv_value, argv);
+    PUSH_GUARD_VALUE(&argv_value);
+
+#ifdef TEST_EXTENSIONS
+    Init_Ext_Test();
 #endif
 
-    if (Host_Start_Exiting(&exit_status, argc, argv))
-        goto cleanup_and_exit; // exit status is set...
+#ifdef TO_WINDOWS
+    // no console, we must be the child process
+    if (GetStdHandle(STD_OUTPUT_HANDLE) == 0)
+    {
+        App_Instance = GetModuleHandle(NULL);
+    }
+#ifdef REB_CORE
+    else //use always the console for R3/core
+    {
+        // GetWindowsLongPtr support 32 & 64 bit windows
+        App_Instance = (HINSTANCE)GetWindowLongPtr(GetConsoleWindow(), GWLP_HINSTANCE);
+    }
+#else
+    //followinng R3/view code behaviors when compiled as:
+    //-"console app" mode: stdio redirection works but blinking console window during start
+    //-"GUI app" mode stdio redirection doesn't work properly, no blinking console window during start
+    else if (argc > 1) // we have command line args
+    {
+        // GetWindowsLongPtr support 32 & 64 bit windows
+        App_Instance = (HINSTANCE)GetWindowLongPtr(GetConsoleWindow(), GWLP_HINSTANCE);
+    }
+    else // no command line args but a console - launch child process so GUI is initialized and exit
+    {
+        DWORD dwCreationFlags = CREATE_DEFAULT_ERROR_MODE | DETACHED_PROCESS;
+        STARTUPINFO startinfo;
+        PROCESS_INFORMATION procinfo;
+        ZeroMemory(&startinfo, sizeof(startinfo));
+        startinfo.cb = sizeof(startinfo);
+        if (!CreateProcess(NULL, argv[0], NULL, NULL, FALSE, dwCreationFlags, NULL, NULL, &startinfo, &procinfo))
+            MessageBox(0, L"CreateProcess() failed :(", L"", 0);
+        exit(0);
+    }
+#endif //REB_CORE
+#endif //TO_WINDOWS
 
-#if !defined(ENCAP)
-    //
-    // Call the console line input loop function if necessary
-    //
-    if (
-        !(Main_Args.options & RO_CGI)
-        && (
-            !Main_Args.script               // no script was provided
-            || Main_Args.options & RO_HALT  // --halt option
-        )
-    ) {
-        struct Reb_State state;
-        REBCTX *error;
+    // Common code for console & GUI version
+#ifndef REB_CORE
+    Init_Windows();
+    OS_Init_Graphics();
+#endif // REB_CORE
 
+    Init_Debug_Extension();
+
+    REBVAL result;
+
+    REBSER *startup = Decompress(
+        &Reb_Init_Code[0],
+        REB_INIT_SIZE,
+        -1,
+        FALSE,
+        FALSE
+    );
+    if (startup == NULL)
+        panic ("Can't decompress %host-start.r code linked into executable");
+
+    REBSER *embedded = NULL;
+    REBI64 embedded_size = 0;
+    REBYTE *embedded_utf8 = OS_READ_EMBEDDED(&embedded_size);
+    if (embedded_utf8 != NULL) {
+        if (embedded_size <= 4)
+            panic ("No 4-byte long payload at beginning of embedded script");
+
+        i32 ptype = 0;
+        REBYTE *data = embedded_utf8 + sizeof(ptype);
+        embedded_size -= sizeof(ptype);
+
+        memcpy(&ptype, embedded_utf8, sizeof(ptype));
+
+        if (ptype == 1) { // COMPRESSed data
+            embedded = Decompress(data, embedded_size, -1, FALSE, FALSE);
+        }
+        else {
+            embedded = Make_Binary(embedded_size);
+            memcpy(BIN_HEAD(embedded), data, embedded_size);
+        }
+
+        OS_FREE(embedded_utf8);
+    }
+
+    REBVAL embedded_value;
+    if (embedded == NULL)
+        SET_BLANK(&embedded_value);
+    else
+        Init_Block(&embedded_value, embedded);
+    PUSH_GUARD_VALUE(&embedded_value);
+
+    struct Reb_State state;
+    REBCTX *error;
+
+    PUSH_UNHALTABLE_TRAP(&error, &state);
+
+    REBOOL finished;
+
+// The first time through the following code 'error' will be NULL, but...
+// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+
+    int exit_status;
+
+    if (error == NULL) {
+        REBVAL host_start;
+        if (
+            Do_String(&exit_status, &host_start, BIN_HEAD(startup), FALSE)
+            != 0
+        ){
+            panic (startup); // just loads functions, shouldn't QUIT or error
+        }
+
+        if (!IS_FUNCTION(&host_start))
+            panic (&host_start); // should not be able to error
+
+        PUSH_GUARD_VALUE(&host_start);
+
+        if (Apply_Only_Throws(
+            &result, TRUE, &host_start,
+            &argv_value, // argv parameter
+            &embedded_value, // embedded-script parameter
+            END_CELL
+        )) {
+            #if !defined(NDEBUG)
+                if (LEGACY(OPTIONS_EXIT_FUNCTIONS_ONLY))
+                    fail (Error_No_Catch_For_Throw(&result));
+            #endif
+
+            if (
+                IS_FUNCTION(&result) && (
+                    VAL_FUNC_DISPATCHER(&result) == &N_quit
+                    || VAL_FUNC_DISPATCHER(&result) == &N_exit
+                )
+            ) {
+                CATCH_THROWN(&result, &result);
+                exit_status = Exit_Status_From_Value(&result);
+
+                DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+
+                Shutdown_Core();
+                OS_EXIT(exit_status);
+                DEAD_END;
+            }
+
+            fail (Error_No_Catch_For_Throw(&result));
+        }
+
+        DROP_GUARD_VALUE(&host_start);
+        DROP_GUARD_VALUE(&embedded_value);
+        DROP_GUARD_VALUE(&argv_value);
+        DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+
+        // HOST-START returns either an integer exit code or a blank if the
+        // behavior should be to fall back to the REPL.
+        //
+        if (IS_BLANK(&result))
+            finished = FALSE;
+        else if (IS_INTEGER(&result)) {
+            finished = TRUE;
+            exit_status = VAL_INT32(&result);
+        }
+        else
+            panic (&result); // no other legal return values for now
+    }
+    else {
+        //
+        // !!! We are not allowed to ask for a print operation that can take
+        // arbitrarily long without allowing for cancellation via Ctrl-C,
+        // but here we are wanting to print an error.  If you're printing
+        // out an error and get a halt, it won't print the halt.
+        //
+        REBCTX *halt_error;
+
+        // Save error for WHY?
+        //
+        REBVAL *last = Get_System(SYS_STATE, STATE_LAST_ERROR);
+        Init_Error(last, error);
+
+        PUSH_UNHALTABLE_TRAP(&halt_error, &state);
+
+// The first time through the following code 'halt_error' will be NULL, but...
+// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+
+        if (halt_error)
+            panic ("Halt or error while an error was being printed.");
+
+        Print_Value(last, 1024, FALSE);
+
+        DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+
+        // !!! When running in a script, whether or not the Rebol interpreter
+        // just exits in an error case with a bad error code or breaks you
+        // into the console to debug the environment should be controlled by
+        // a command line option.  Defaulting to returning an error code
+        // seems better, because kicking into an interactive session can
+        // cause logging systems to hang...
+
+        finished = TRUE;
+    }
+
+    Free_Series(startup);
+
+    // Although the REPL routine does a PUSH_UNHALTABLE_TRAP in order to
+    // catch any errors or halts, it then has to report those errors when
+    // that trap is engaged.  So imagine it's in the process of trapping an
+    // error and prints out a very long one, and the user wants to interrupt
+    // the error report with a Ctrl-C...but there's not one in effect.
+    //
+    // This loop institutes a top-level trap whose only job is to catch the
+    // interrupts that occur during overlong error reports inside the REPL.
+    //
+    while (NOT(finished)) {
         REBVAL value;
         SET_END(&value);
         PUSH_GUARD_VALUE(&value); // !!! Out_Value expects value to be GC safe
 
-    push_trap:
-        SET_END(&value);
+        struct Reb_State state;
+        REBCTX *error;
 
-        //
-        // The R3-Alpha host kit did not have a policy articulated on dealing
-        // with the interrupt nature of the SIGINT signals sent by Ctrl-C
-        //
-        // https://en.wikipedia.org/wiki/Unix_signal
-        //
-        // Guarding against errors being longjmp'd when an evaluation is in
-        // effect isn't the only time these signals are processed.  Rebol's
-        // Process_Signals currently happens during I/O, such as printing.
-        // As a consequence, a Ctrl-C can be picked up and then triggered
-        // during an Out_Value, jumping the stack from there.
-        //
-        // This means a top-level trap must be run, even though no eval is
-        // in effect.  The most convenient place to do this is here, outside
-        // the REPL call that has the I/O.
-        //
         PUSH_UNHALTABLE_TRAP(&error, &state);
 
-// The first time through the following code 'error' will be NULL, but...
-// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+    // The first time through the following code 'error' will be NULL, but...
+    // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
 
         if (error) {
             //
@@ -1607,27 +1054,28 @@ int main(int argc, char **argv_ansi)
             // halt that happened during output.)
             //
             assert(ERR_NUM(error) == RE_HALT);
-            goto push_trap;
+            continue;
         }
 
         Host_Repl(&exit_status, &value, FALSE);
 
         DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
         DROP_GUARD_VALUE(&value);
-    }
-    else
-        exit_status = 0; // "success"
-#else
-    exit_status = 0; // "success"
-#endif
 
-cleanup_and_exit:
-    Host_Quit();
+        finished = TRUE;
+    }
+
+    OS_QUIT_DEVICES(0);
+
+#ifndef REB_CORE
+    OS_Destroy_Graphics();
+#endif
 
     Close_StdIO();
 
     // No need to do a "clean" shutdown, as we are about to exit the process
     // (Note: The debug build runs through the clean shutdown anyway!)
+    //
     RL_Shutdown(FALSE);
 
     return exit_status;

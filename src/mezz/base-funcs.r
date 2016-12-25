@@ -998,6 +998,3 @@ ensure: function [
     ]
     :arg
 ]
-
-
-secure: proc ['d] [boot-print "SECURE is disabled"]
