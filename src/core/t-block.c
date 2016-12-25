@@ -340,91 +340,59 @@ REBCNT Find_In_Array(
 }
 
 
-// WARNING! Not re-entrant. !!!  Must find a way to push it on stack?
-// Fields initialized to zero due to global scope
-static struct {
+struct sort_flags {
     REBOOL cased;
     REBOOL reverse;
     REBCNT offset;
-    REBVAL *compare;
-} sort_flags;
+    REBVAL *comparator;
+    REBOOL all; // !!! not used?
+};
 
 
 //
 //  Compare_Val: C
 //
-static int Compare_Val(void *thunk, const void *v1, const void *v2)
+static int Compare_Val(void *arg, const void *v1, const void *v2)
 {
+    struct sort_flags *flags = cast(struct sort_flags*, arg);
+
     // !!!! BE SURE that 64 bit large difference comparisons work
 
-    if (sort_flags.reverse)
+    if (flags->reverse)
         return Cmp_Value(
-            cast(const RELVAL*, v2) + sort_flags.offset,
-            cast(const RELVAL*, v1) + sort_flags.offset,
-            sort_flags.cased
+            cast(const RELVAL*, v2) + flags->offset,
+            cast(const RELVAL*, v1) + flags->offset,
+            flags->cased
         );
     else
         return Cmp_Value(
-            cast(const RELVAL*, v1) + sort_flags.offset,
-            cast(const RELVAL*, v2) + sort_flags.offset,
-            sort_flags.cased
+            cast(const RELVAL*, v1) + flags->offset,
+            cast(const RELVAL*, v2) + flags->offset,
+            flags->cased
         );
-
-/*
-    REBI64 n = VAL_INT64((REBVAL*)v1) - VAL_INT64((REBVAL*)v2);
-    if (n > 0) return 1;
-    if (n < 0) return -1;
-    return 0;
-*/
 }
 
 
 //
-//  Compare_Call: C
+//  Compare_Val_Custom: C
 //
-static int Compare_Call(void *thunk, const void *v1, const void *v2)
+static int Compare_Val_Custom(void *arg, const void *v1, const void *v2)
 {
-    RELVAL *args = NULL;
-    REBINT tristate = -1;
-    const void *tmp = NULL;
+    struct sort_flags *flags = cast(struct sort_flags*, arg);
 
     REBVAL result;
-
-    if (!sort_flags.reverse) { /*swap v1 and v2 */
-        tmp = v1;
-        v1 = v2;
-        v2 = tmp;
-    }
-
-    args = ARR_AT(VAL_FUNC_PARAMLIST(sort_flags.compare), 1);
-    if (NOT_END(args) && !TYPE_CHECK(args, VAL_TYPE(cast(const RELVAL*, v1)))) {
-        fail (Error(
-            RE_EXPECT_ARG,
-            Type_Of(sort_flags.compare),
-            args,
-            Type_Of(cast(const RELVAL*, v1))
-        ));
-    }
-    ++ args;
-    if (NOT_END(args) && !TYPE_CHECK(args, VAL_TYPE(cast(const RELVAL*, v2)))) {
-        fail (Error(
-            RE_EXPECT_ARG,
-            Type_Of(sort_flags.compare),
-            args,
-            Type_Of(cast(const RELVAL*, v2))
-        ));
-    }
-
     if (Apply_Only_Throws(
         &result,
         TRUE,
-        sort_flags.compare,
-        v1,
-        v2,
+        flags->comparator,
+        flags->reverse ? v1 : v2,
+        flags->reverse ? v2 : v1,
         END_CELL
     )) {
         fail (Error_No_Catch_For_Throw(&result));
     }
+
+    REBINT tristate = -1;
 
     if (IS_LOGIC(&result)) {
         if (VAL_LOGIC(&result)) tristate = 1;
@@ -466,38 +434,48 @@ static void Sort_Block(
     REBOOL all,
     REBOOL rev
 ) {
-    REBCNT len;
-    REBCNT skip = 1;
-    REBCNT size = sizeof(REBVAL);
-//  int (*sfunc)(const void *v1, const void *v2);
+    struct sort_flags flags;
+    flags.cased = ccase;
+    flags.reverse = rev;
+    flags.all = all; // !!! not used?
 
-    sort_flags.cased = ccase;
-    sort_flags.reverse = rev;
-    sort_flags.compare = 0;
-    sort_flags.offset = 0;
-
-    if (IS_INTEGER(compv)) sort_flags.offset = Int32(compv)-1;
-    if (IS_FUNCTION(compv)) sort_flags.compare = compv;
+    if (IS_FUNCTION(compv)) {
+        flags.comparator = compv;
+        flags.offset = 0;
+    }
+    else if (IS_INTEGER(compv)) {
+        flags.comparator = NULL;
+        flags.offset = Int32(compv) - 1;
+    }
+    else {
+        assert(IS_VOID(compv));
+        flags.comparator = NULL;
+        flags.offset = 0;
+    }
 
     // Determine length of sort:
+    REBCNT len;
     Partial1(block, part, &len);
-    if (len <= 1) return;
+    if (len <= 1)
+        return;
 
     // Skip factor:
+    REBCNT skip;
     if (!IS_VOID(skipv)) {
         skip = Get_Num_From_Arg(skipv);
         if (skip <= 0 || len % skip != 0 || skip > len)
             fail (Error_Out_Of_Range(skipv));
     }
-
-    // Use fast quicksort library function:
-    if (skip > 1) len /= skip, size *= skip;
-
-    if (sort_flags.compare)
-        reb_qsort_r(VAL_ARRAY_AT(block), len, size, NULL, Compare_Call);
     else
-        reb_qsort_r(VAL_ARRAY_AT(block), len, size, NULL, Compare_Val);
+        skip = 1;
 
+    reb_qsort_r(
+        VAL_ARRAY_AT(block),
+        len / skip,
+        sizeof(REBVAL) * skip,
+        &flags,
+        flags.comparator != NULL ? &Compare_Val_Custom : &Compare_Val
+    );
 }
 
 
