@@ -710,11 +710,20 @@ typedef REBUPT REBFLGS;
 // masks to indicate flags.  Using masks then it's easy enough to read using
 // C's plain bit masking operators.
 //
-#define GET_FLAG(v,f)       LOGICAL((v) & (1u << (f)))
-#define GET_FLAGS(v,f,g)    LOGICAL((v) & ((1u << (f)) | (1u << (g))))
-#define SET_FLAG(v,f)       cast(void, (v) |= (1u << (f)))
-#define CLR_FLAG(v,f)       cast(void, (v) &= ~(1u << (f)))
-#define CLR_FLAGS(v,f,g)    cast(void, (v) &= ~((1u << (f)) | (1u << (g))))
+#define GET_FLAG(v,f) \
+    LOGICAL((v) & (cast(REBUPT, 1) << (f)))
+
+#define GET_FLAGS(v,f,g) \
+    LOGICAL((v) & ((cast(REBUPT, 1) << (f)) | (cast(REBUPT, 1) << (g))))
+
+#define SET_FLAG(v,f) \
+    cast(void, (v) |= (cast(REBUPT, 1) << (f)))
+
+#define CLR_FLAG(v,f) \
+    cast(void, (v) &= ~(cast(REBUPT, 1) << (f)))
+
+#define CLR_FLAGS(v,f,g) \
+    cast(void, (v) &= ~((cast(REBUPT, 1) << (f)) | (cast(REBUPT, 1) << (g))))
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -822,21 +831,20 @@ typedef REBUPT REBFLGS;
 // !!! It would be possible to do this with integer shifting on big endian
 // in a "simpler" way, e.g.:
 //
-//    #define LEFT_N_BITS(flags,n) \
-//      ((flags) >> PLATFORM_BITS - (n))
+//    #define LEFT_N_BITS(flags,n) ((flags) >> PLATFORM_BITS - (n))
 //
 // But in addition to big endian platforms being kind of rare, it's not clear
 // that would be faster than a byte operation, especially with optimization.
 //
 
 #define LEFT_N_BITS(flags,n) \
-    (((REBYTE*)&flags)[0] >> (8 - (n))) // n <= 8
+    (((const REBYTE*)&flags)[0] >> (8 - (n))) // n <= 8
 
 #define RIGHT_N_BITS(flags,n) \
-    (((REBYTE*)&flags)[sizeof(REBUPT) - 1] & ((1 << (n)) - 1)) // n <= 8
+    (((const REBYTE*)&flags)[sizeof(REBUPT) - 1] & ((1 << (n)) - 1)) // n <= 8
 
 #define RIGHT_8_BITS(flags) \
-    (((REBYTE*)&flags)[sizeof(REBUPT) - 1]) // reminds that 8 is faster
+    (((const REBYTE*)&flags)[sizeof(REBUPT) - 1]) // reminds that 8 is faster
 
 #define CLEAR_N_RIGHT_BITS(flags,n) \
     (((REBYTE*)&flags)[sizeof(REBUPT) - 1] &= ~((1 << (n)) - 1)) // n <= 8
@@ -845,10 +853,10 @@ typedef REBUPT REBFLGS;
     (((REBYTE*)&flags)[sizeof(REBUPT) - 1] = 0) // reminds that 8 is faster
 
 #define MID_N_BITS(flags,n) \
-    (((REBYTE*)&flags)[sizeof(REBUPT) - 2] & ((1 << (n)) - 1)) // n <= 8
+    (((const REBYTE*)&flags)[sizeof(REBUPT) - 2] & ((1 << (n)) - 1)) // n <= 8
 
 #define MID_8_BITS(flags) \
-    (((REBYTE*)&flags)[sizeof(REBUPT) - 2]) // reminds that 8 is faster
+    (((const REBYTE*)&flags)[sizeof(REBUPT) - 2]) // reminds that 8 is faster
 
 #define CLEAR_N_MID_BITS(flags,n) \
     (((REBYTE*)&flags)[sizeof(REBUPT) - 2] &= ~((1 << (n)) - 1)) // n <= 8

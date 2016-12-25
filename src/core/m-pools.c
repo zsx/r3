@@ -1803,7 +1803,7 @@ REBCNT Check_Memory_Debug(void)
                 continue; // size doesn't match a known pool
 
             if (Mem_Pools[pool_num].wide != SER_TOTAL(s))
-                panic ("series total size does not equal pool width");
+                panic (s);
         }
     }
 

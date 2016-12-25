@@ -313,17 +313,17 @@ inline static REBOOL FLD_IS_ARRAY(REBFLD *f) {
 
 inline static REBCNT FLD_DIMENSION(REBFLD *f) {
     assert(FLD_IS_ARRAY(f));
-    return VAL_INT32(FLD_AT(f, IDX_FIELD_DIMENSION));
+    return VAL_UNT32(FLD_AT(f, IDX_FIELD_DIMENSION));
 }
 
 inline static ffi_type *FLD_FFTYPE(REBFLD *f)
     { return cast(ffi_type*, VAL_HANDLE_DATA(FLD_AT(f, IDX_FIELD_FFTYPE))); }
 
 inline static REBCNT FLD_OFFSET(REBFLD *f)
-    { return VAL_INT32(FLD_AT(f, IDX_FIELD_OFFSET)); }
+    { return VAL_UNT32(FLD_AT(f, IDX_FIELD_OFFSET)); }
 
 inline static REBCNT FLD_WIDE(REBFLD *f)
-    { return VAL_INT32(FLD_AT(f, IDX_FIELD_WIDE)); }
+    { return VAL_UNT32(FLD_AT(f, IDX_FIELD_WIDE)); }
 
 inline static REBCNT FLD_LEN_BYTES_TOTAL(REBFLD *f) {
     if (FLD_IS_ARRAY(f))

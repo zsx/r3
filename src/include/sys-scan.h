@@ -285,7 +285,7 @@ inline static const REBYTE *Back_Scan_UTF8_Char(
     const REBYTE *bp_new = Back_Scan_UTF8_Char_Core(&ch, bp, len);
     if (bp_new != NULL && ch > 0xFFFF) {
         REBVAL num;
-        SET_INTEGER(&num, ch);
+        SET_INTEGER(&num, cast(REBI64, ch));
         fail (Error(RE_CODEPOINT_TOO_HIGH, &num));
     }
     *out = cast(REBUNI, ch);
