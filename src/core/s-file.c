@@ -52,8 +52,11 @@
 //
 REBSER *To_REBOL_Path(const void *p, REBCNT len, REBFLGS flags)
 {
+#ifdef TO_WINDOWS
     REBOOL saw_colon = FALSE;  // have we hit a ':' yet?
     REBOOL saw_slash = FALSE; // have we hit a '/' yet?
+#endif
+
     REBUNI c;
     REBSER *dst;
     REBCNT n;
@@ -155,7 +158,7 @@ REBSER *Value_To_REBOL_Path(REBVAL *val, REBOOL is_dir)
 //
 REBSER *To_Local_Path(const void *p, REBCNT len, REBOOL unicode, REBOOL full)
 {
-    REBUNI c, d;
+    REBUNI c;
     REBSER *dst;
     REBCNT i = 0;
     REBCNT n = 0;
@@ -181,8 +184,9 @@ REBSER *To_Local_Path(const void *p, REBCNT len, REBOOL unicode, REBOOL full)
         }
         if (c != '/') {     // %/c or %/c/ but not %/ %// %//c
             // peek ahead for a '/':
-            d = '/';
-            if (i < len) d = unicode ? up[i] : bp[i];
+            REBUNI d = '/';
+            if (i < len)
+                d = unicode ? up[i] : bp[i];
             if (d == '/') { // %/c/ => "c:/"
                 i++;
                 out[n++] = c;

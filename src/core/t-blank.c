@@ -44,6 +44,7 @@ REBINT CT_Unit(const RELVAL *a, const RELVAL *b, REBINT mode)
 //  MAKE_Unit: C
 //
 void MAKE_Unit(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    assert(arg != NULL);
     VAL_RESET_HEADER(out, kind);
 }
 
@@ -52,6 +53,7 @@ void MAKE_Unit(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
 //  TO_Unit: C
 //
 void TO_Unit(REBVAL *out, enum Reb_Kind kind, const REBVAL *data) {
+    assert(data != NULL);
     VAL_RESET_HEADER(out, kind);
 }
 
@@ -78,7 +80,6 @@ REBTYPE(Unit)
         return R_BLANK;
 
     case SYM_COPY: {
-        INCLUDE_PARAMS_OF_COPY;
         if (IS_BLANK(val))
             return R_BLANK; // perhaps allow COPY on any type, as well.
         break; }
@@ -98,6 +99,10 @@ REBINT CT_Handle(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     // Would it be meaningful to allow user code to compare HANDLE!?
     //
+    UNUSED(a);
+    UNUSED(b);
+    UNUSED(mode);
+
     fail (Error(RE_MISC));
 }
 
@@ -108,5 +113,7 @@ REBINT CT_Handle(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 REBTYPE(Handle)
 {
+    UNUSED(frame_);
+
     fail (Error_Illegal_Action(REB_HANDLE, action));
 }

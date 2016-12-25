@@ -180,6 +180,23 @@
 
 
 //
+// MARK UNUSED VARIABLES
+//
+// Used in coordination with the `-Wunused-variable` setting of the compiler.
+// While a simple cast to void is what people usually use for this purpose,
+// there's some potential for side-effects with volatiles:
+//
+// http://stackoverflow.com/a/4030983/211160
+//
+// The tricks suggested there for avoiding it seem to still trigger warnings
+// as compilers get new ones, so assume that won't be an issue and use the
+// standard fare.
+//
+#define UNUSED(x) \
+    ((void)(x))
+
+
+//
 // NOOP a.k.a. VOID GENERATOR
 //
 // Creating a void value conveniently is useful for a few reasons.  One is

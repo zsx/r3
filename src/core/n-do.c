@@ -340,15 +340,16 @@ REBNATIVE(apply)
 //  {Returns the first value, but also evaluates the second.}
 //
 //      return: [<opt> any-value!]
-//      value1 [<opt> any-value!]
-//      value2 [<opt> any-value!]
+//      returned [<opt> any-value!]
+//      evaluated [<opt> any-value!]
 //  ]
 //
 REBNATIVE(also)
 {
     INCLUDE_PARAMS_OF_ALSO;
 
-    *D_OUT = *ARG(value1);
+    UNUSED(PAR(evaluated)); // not used (but was evaluated)
+    *D_OUT = *ARG(returned);
     return R_OUT;
 }
 
@@ -371,5 +372,6 @@ REBNATIVE(comment)
     // All the work was already done (at the cost of setting up
     // state that would just have to be torn down).
 
+    UNUSED(PAR(value)); // avoid unused variable warning
     return R_VOID;
 }

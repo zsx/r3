@@ -653,6 +653,10 @@ REBTYPE(Array)
     case SYM_TAKE: {
         INCLUDE_PARAMS_OF_TAKE;
 
+        UNUSED(PAR(series));
+        if (REF(deep))
+            fail (Error(RE_BAD_REFINES));
+
         REBCNT len;
 
         FAIL_IF_LOCKED_ARRAY(array);
@@ -692,6 +696,12 @@ REBTYPE(Array)
     case SYM_FIND:
     case SYM_SELECT: {
         INCLUDE_PARAMS_OF_FIND;
+
+        UNUSED(PAR(series));
+        UNUSED(PAR(value)); // aliased as arg
+
+        if (REF(last))
+            fail (Error(RE_BAD_REFINES));
 
         REBINT len = ANY_ARRAY(arg) ? VAL_ARRAY_LEN_AT(arg) : 1;
 
@@ -747,6 +757,9 @@ REBTYPE(Array)
     case SYM_CHANGE: {
         INCLUDE_PARAMS_OF_INSERT;
 
+        UNUSED(PAR(series));
+        UNUSED(PAR(value));
+
         // Length of target (may modify index): (arg can be anything)
         //
         REBCNT len;
@@ -799,9 +812,13 @@ REBTYPE(Array)
     case SYM_COPY: {
         INCLUDE_PARAMS_OF_COPY;
 
+        UNUSED(PAR(value));
+
         REBU64 types = 0;
         REBCNT tail = 0;
         index = VAL_INDEX(value);
+
+        UNUSED(REF(part));
         Partial1(value, ARG(limit), &tail);
         tail += index;
 
@@ -832,14 +849,21 @@ REBTYPE(Array)
 
     case SYM_TRIM: {
         INCLUDE_PARAMS_OF_TRIM;
+        UNUSED(PAR(series));
+
         FAIL_IF_LOCKED_ARRAY(array);
 
-        if (REF(auto) || REF(with) || REF(all) || REF(lines))
+        if (REF(auto) || REF(all) || REF(lines))
             fail (Error(RE_BAD_REFINES));
+
+        if (REF(with)) {
+            assert(!IS_VOID(ARG(str)));
+            fail (Error(RE_BAD_REFINES));
+        }
 
         RELVAL *head = ARR_HEAD(array);
         REBCNT out = index;
-        REBCNT end = ARR_LEN(array);
+        REBINT end = ARR_LEN(array);
 
         if (REF(tail)) {
             for (; end >= (index + 1); end--) {
@@ -922,6 +946,11 @@ REBTYPE(Array)
     case SYM_SORT: {
         INCLUDE_PARAMS_OF_SORT;
 
+        UNUSED(PAR(series));
+        UNUSED(REF(part)); // checks limit as void
+        UNUSED(REF(skip)); // checks size as void
+        UNUSED(REF(compare)); // checks comparator as void
+
         FAIL_IF_LOCKED_ARRAY(array);
         Sort_Block(
             value,
@@ -938,6 +967,8 @@ REBTYPE(Array)
 
     case SYM_RANDOM: {
         INCLUDE_PARAMS_OF_RANDOM;
+
+        UNUSED(PAR(value));
 
         if (REF(seed))
             fail (Error(RE_BAD_REFINES));

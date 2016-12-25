@@ -117,8 +117,6 @@ static REB_R Transport_Actor(
     REBSYM action,
     enum Transport_Types proto
 ) {
-    Validate_Port(port, action);
-
     // Initialize the IO request
     //
     REBREQ *sock = cast(REBREQ*, Use_Port_State(port, RDI_NET, sizeof(*sock)));
@@ -221,6 +219,19 @@ static REB_R Transport_Actor(
     case SYM_READ: {
         INCLUDE_PARAMS_OF_READ;
 
+        UNUSED(PAR(source));
+
+        if (REF(part)) {
+            assert(!IS_VOID(ARG(limit)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        if (REF(seek)) {
+            assert(!IS_VOID(ARG(index)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        UNUSED(PAR(string)); // handled in dispatcher
+        UNUSED(PAR(lines)); // handled in dispatcher
+
         // Read data into a buffer, expanding the buffer if needed.
         // If no length is given, program must stop it at some point.
         if (
@@ -261,6 +272,21 @@ static REB_R Transport_Actor(
 
     case SYM_WRITE: {
         INCLUDE_PARAMS_OF_WRITE;
+
+        UNUSED(PAR(destination));
+
+        if (REF(seek)) {
+            assert(!IS_VOID(ARG(index)));
+            fail (Error(RE_MISC));
+        }
+        if (REF(append))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(allow)) {
+            assert(!IS_VOID(ARG(access)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        if (REF(lines))
+            fail (Error(RE_BAD_REFINES));
 
         // Write the entire argument string to the network.
         // The lower level write code continues until done.
@@ -303,6 +329,7 @@ static REB_R Transport_Actor(
 
     case SYM_PICK: {
         INCLUDE_PARAMS_OF_PICK;
+        UNUSED(PAR(aggregate));
 
         // FIRST server-port returns new port connection.
         //

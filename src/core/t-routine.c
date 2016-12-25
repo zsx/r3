@@ -535,7 +535,7 @@ static REBUPT arg_to_ffi(
         switch (VAL_TYPE(arg)) {
         case REB_INTEGER:{
             REBIPT ipt = VAL_INT64(arg); // REBIPT is like C99's intptr_t
-            memcpy(dest, &VAL_INT64(arg), sizeof(void*));
+            memcpy(dest, &ipt, sizeof(void*));
             break;}
 
         case REB_STRING:
@@ -1170,7 +1170,6 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
 
         switch (VAL_TYPE(item)) {
         case REB_WORD:{
-            REBVAL *v = NULL;
             REBSTR *name = VAL_WORD_SPELLING(item);
 
             if (SAME_STR(name, Canon(SYM_ELLIPSIS))) { // variadic

@@ -254,6 +254,8 @@ REBOOL Update_Typeset_Bits_Core(
 //
 void MAKE_Typeset(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
+    assert(kind == REB_TYPESET);
+
     if (IS_TYPESET(arg)) {
         *out = *arg;
         return;

@@ -631,6 +631,9 @@ reevaluate:;
                 if (f->special != END_CELL)
                     ++f->special; // specialization being overwritten is right
                 goto continue_arg_loop;
+
+            default:
+                break;
             }
 
     //=//// IF COMING BACK TO REFINEMENT ARGS LATER, MOVE ON FOR NOW //////=//
@@ -812,7 +815,7 @@ reevaluate:;
 
             assert(
                 f->refine == ORDINARY_ARG
-                || IS_LOGIC(f->refine) && IS_CONDITIONAL_TRUE(f->refine)
+                || (IS_LOGIC(f->refine) && IS_CONDITIONAL_TRUE(f->refine))
             );
 
     //=//// ERROR ON END MARKER, BAR! IF APPLICABLE //////////////////////=//
@@ -1042,7 +1045,8 @@ reevaluate:;
             || IS_VALUE_IN_ARRAY_DEBUG(f->source.array, f->value)
         );
 
-        if (Trace_Flags) Trace_Func(FRM_LABEL(f), FUNC_VALUE(f->func));
+        if (Trace_Flags)
+            Trace_Func(FRM_LABEL(f));
 
         // The out slot needs initialization for GC safety during the function
         // run.  Choosing an END marker should be legal because places that

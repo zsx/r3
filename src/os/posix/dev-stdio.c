@@ -70,12 +70,12 @@ static int interrupted = 0;
 
 
 //
-// Hook reigtered via `signal()`.  The parallel implementation in the Windows
+// Hook registered via `signal()`.  The parallel implementation in the Windows
 // code is `Handle_Break()`
 //
 static void Handle_Signal(int sig)
 {
-    RL_Escape(0); /* This will cause the next evalution escaped */
+    RL_Escape();
     interrupted = 1;
 }
 

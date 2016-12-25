@@ -769,6 +769,7 @@ REBNATIVE(resolve)
         Int32s(ARG(from), 1);
     }
 
+    UNUSED(REF(only)); // handled by noticing if ARG(from) is void
     Resolve_Context(
         VAL_CONTEXT(ARG(target)),
         VAL_CONTEXT(ARG(source)),
@@ -1270,6 +1271,9 @@ REBNATIVE(as)
         if (!ANY_WORD(value))
             fail (Error_Invalid_Arg(value));
         break;
+
+    default:
+        panic(value); // all applicable types should be handled above
     }
 
     VAL_SET_TYPE_BITS(value, kind);
@@ -1477,6 +1481,7 @@ REBNATIVE(void_q)
 //
 REBNATIVE(void)
 {
+    assert(frame_ != NULL); // avoid unused parameter warning
     return R_VOID;
 }
 

@@ -209,6 +209,8 @@ bad_make:
 //
 void TO_Image(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
+    assert(kind == REB_IMAGE);
+
     if (IS_IMAGE(arg)) {
         Copy_Image_Value(out, arg, VAL_IMAGE_LEN(arg));
     }
@@ -535,7 +537,7 @@ void Mold_Image_Data(const REBVAL *value, REB_MOLD *mold)
     }
 
     // Output Alpha channel, if it has one:
-    if (Image_Has_Alpha(value, FALSE)) {
+    if (Image_Has_Alpha(value)) {
 
         Append_Unencoded(mold->series, "\n} #{");
 
@@ -824,8 +826,18 @@ REBVAL *Find_Image(REBFRM *frame_)
     // in terms of reporting when a refinement was ignored.  This is a
     // problem that archetype-based dispatch will need to address.
     //
-    if (REF(case) || REF(skip) || REF(last) || REF(match))
+    if (
+        REF(case)
+        || REF(skip)
+        || REF(last)
+        || REF(match)
+        || REF(part)
+        || REF(reverse)
+    ){
+        UNUSED(PAR(limit));
+        UNUSED(PAR(size));
         fail (Error(RE_BAD_REFINE));
+    }
 
     REBOOL only = FALSE;
     if (IS_TUPLE(arg)) {
@@ -866,23 +878,17 @@ REBVAL *Find_Image(REBFRM *frame_)
 //
 //  Image_Has_Alpha: C
 //
-REBOOL Image_Has_Alpha(const REBVAL *v, REBOOL save)
+// !!! See code in R3-Alpha for VITT_ALPHA and the `save` flag.
+//
+REBOOL Image_Has_Alpha(const REBVAL *v)
 {
-    int i;
-    REBCNT *p;
+    REBCNT *p = cast(REBCNT*, VAL_IMAGE_HEAD(v));
 
-//  if (VAL_IMAGE_TRANSP_TYPE(v)==VITT_NONE) return FALSE;
-//  if (VAL_IMAGE_TRANSP_TYPE(v)==VITT_ALPHA) return TRUE;
-
-    p = (REBCNT *)VAL_IMAGE_HEAD(v);
-    i = VAL_IMAGE_WIDE(v)*VAL_IMAGE_HIGH(v);
+    int i = VAL_IMAGE_WIDE(v) * VAL_IMAGE_HIGH(v);
     for(; i > 0; i--) {
-        if (~*p++ & 0xff000000) {
-//          if (save) VAL_IMAGE_TRANSP(v) = VITT_ALPHA;
+        if (~*p++ & 0xff000000)
             return TRUE;
-        }
     }
-//  if (save) VAL_IMAGE_TRANSP(v) = VITT_NONE;
 
     return FALSE;
 }
@@ -977,6 +983,8 @@ REBTYPE(Image)
 
     case SYM_INDEX_OF: {
         INCLUDE_PARAMS_OF_INDEX_OF;
+
+        UNUSED(PAR(series));
 
         if (REF(xy)) {
             SET_PAIR(
@@ -1080,6 +1088,13 @@ REBTYPE(Image)
     case SYM_REMOVE: {
         INCLUDE_PARAMS_OF_REMOVE;
 
+        UNUSED(PAR(series));
+
+        if (REF(map)) {
+            assert(!IS_VOID(ARG(key)));
+            fail (Error(RE_BAD_REFINES));
+        }
+
         if (REF(part)) {
             val = ARG(limit);
             if (IS_INTEGER(val)) {
@@ -1114,6 +1129,16 @@ REBTYPE(Image)
 
     case SYM_COPY: {
         INCLUDE_PARAMS_OF_COPY;
+
+        UNUSED(PAR(value));
+
+        if (REF(deep))
+            fail (Error(RE_BAD_REFINES));
+
+        if (REF(types)) {
+            assert(!IS_VOID(ARG(kinds)));
+            fail (Error(RE_BAD_REFINES));
+        }
 
         if (NOT(REF(part))) {
             arg = value;

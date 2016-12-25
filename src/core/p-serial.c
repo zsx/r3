@@ -43,12 +43,9 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     REBVAL *spec;   // port spec
     REBVAL *arg;    // action argument value
     REBINT result;  // IO result
-    REBCNT refs;    // refinement argument flags
     REBCNT len;     // generic length
     REBSER *ser;    // simplifier
     REBVAL *path;
-
-    Validate_Port(port, action);
 
     *D_OUT = *D_ARG(1);
 
@@ -166,6 +163,18 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     case SYM_READ: {
         INCLUDE_PARAMS_OF_READ;
 
+        UNUSED(PAR(source));
+        if (REF(part)) {
+            assert(!IS_VOID(ARG(limit)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        if (REF(seek)) {
+            assert(!IS_VOID(ARG(index)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        UNUSED(PAR(string)); // handled in dispatcher
+        UNUSED(PAR(lines)); // handled in dispatcher
+
         // Setup the read buffer (allocate a buffer if needed):
         arg = CTX_VAR(port, STD_PORT_DATA);
         if (!IS_STRING(arg) && !IS_BINARY(arg)) {
@@ -201,23 +210,39 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     case SYM_WRITE: {
         INCLUDE_PARAMS_OF_WRITE;
 
+        UNUSED(PAR(destination));
+
+        if (REF(seek)) {
+            assert(!IS_VOID(ARG(index)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        if (REF(append))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(allow)) {
+            assert(!IS_VOID(ARG(access)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        if (REF(lines))
+            fail (Error(RE_BAD_REFINES));
+
         // Determine length. Clip /PART to size of string if needed.
-        spec = D_ARG(2);
-        len = VAL_LEN_AT(spec);
+        REBVAL *data = ARG(data);
+        len = VAL_LEN_AT(data);
         if (REF(part)) {
             REBCNT n = Int32s(ARG(limit), 0);
             if (n <= len) len = n;
         }
 
         // Setup the write:
-        *CTX_VAR(port, STD_PORT_DATA) = *spec;  // keep it GC safe
+        *CTX_VAR(port, STD_PORT_DATA) = *data;  // keep it GC safe
         req->length = len;
-        req->common.data = VAL_BIN_AT(spec);
+        req->common.data = VAL_BIN_AT(data);
         req->actual = 0;
 
         //Print("(write length %d)", len);
         result = OS_DO_DEVICE(req, RDC_WRITE); // send can happen immediately
-        if (result < 0) fail (Error_On_Port(RE_WRITE_ERROR, port, req->error));
+        if (result < 0)
+            fail (Error_On_Port(RE_WRITE_ERROR, port, req->error));
         break; }
 
     case SYM_UPDATE:

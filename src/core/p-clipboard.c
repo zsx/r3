@@ -39,11 +39,8 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     REBREQ *req;
     REBINT result;
     REBVAL *arg;
-    REBCNT refs;    // refinement argument flags
     REBINT len;
     REBSER *ser;
-
-    Validate_Port(port, action);
 
     arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
@@ -85,6 +82,18 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     case SYM_READ: {
         INCLUDE_PARAMS_OF_READ;
 
+        UNUSED(PAR(source)); // already accounted for
+        if (REF(part)) {
+            assert(!IS_VOID(ARG(limit)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        if (REF(seek)) {
+            assert(!IS_VOID(ARG(index)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        UNUSED(PAR(string)); // handled in dispatcher
+        UNUSED(PAR(lines)); // handled in dispatcher
+
         // This device is opened on the READ:
         if (!IS_OPEN(req)) {
             if (OS_DO_DEVICE(req, RDC_OPEN))
@@ -121,6 +130,22 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     case SYM_WRITE: {
         INCLUDE_PARAMS_OF_WRITE;
+
+        UNUSED(PAR(destination));
+        UNUSED(PAR(data)); // used as arg
+
+        if (REF(seek)) {
+            assert(!IS_VOID(ARG(index)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        if (REF(append))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(allow)) {
+            assert(!IS_VOID(ARG(access)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        if (REF(lines))
+            fail (Error(RE_BAD_REFINES));
 
         if (!IS_STRING(arg) && !IS_BINARY(arg))
             fail (Error(RE_INVALID_PORT_ARG, arg));
@@ -180,6 +205,21 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     case SYM_OPEN: {
         INCLUDE_PARAMS_OF_OPEN;
+
+        UNUSED(PAR(spec));
+        if (REF(new))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(read))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(write))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(seek))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(allow)) {
+            assert(!IS_VOID(ARG(access)));
+            fail (Error(RE_BAD_REFINES));
+        }
+
         if (OS_DO_DEVICE(req, RDC_OPEN))
             fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
         break; }

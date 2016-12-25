@@ -868,6 +868,8 @@ void Extend_Gob_Core(REBGOB *gob, const REBVAL *arg) {
 //
 void MAKE_Gob(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
 {
+    assert(type == REB_GOB);
+
     REBGOB *gob = Make_Gob();
 
     if (IS_GOB(arg)) {
@@ -891,6 +893,8 @@ void MAKE_Gob(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
 //
 void TO_Gob(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
 {
+    SET_TRASH_IF_DEBUG(out);
+    assert(type == REB_GOB);
     fail (Error_Invalid_Arg(arg));
 }
 
@@ -1007,12 +1011,21 @@ REBTYPE(Gob)
     case SYM_CHANGE: {
         INCLUDE_PARAMS_OF_CHANGE;
 
+        UNUSED(PAR(series));
+        UNUSED(PAR(value)); // handled as `arg`
+
         if (!IS_GOB(arg))
             goto is_arg_error;
         if (!GOB_PANE(gob) || index >= tail)
             fail (Error(RE_PAST_END));
-        if (action == SYM_CHANGE && (REF(part) || REF(only) || REF(dup)))
+        if (
+            action == SYM_CHANGE
+            && (REF(part) || REF(only) || REF(dup))
+        ){
+            UNUSED(PAR(limit));
+            UNUSED(PAR(count));
             fail (Error(RE_NOT_DONE));
+        }
 
         Insert_Gobs(gob, arg, index, 1, FALSE);
         if (action == SYM_POKE) {
@@ -1027,8 +1040,14 @@ REBTYPE(Gob)
     case SYM_INSERT: {
         INCLUDE_PARAMS_OF_INSERT;
 
-        if (REF(part) || REF(only) || REF(dup))
+        UNUSED(PAR(series));
+        UNUSED(PAR(value));
+
+        if (REF(part) || REF(only) || REF(dup)) {
+            UNUSED(PAR(limit));
+            UNUSED(PAR(count));
             fail (Error(RE_NOT_DONE));
+        }
 
         if (IS_GOB(arg)) {
             len = 1;
@@ -1050,6 +1069,13 @@ REBTYPE(Gob)
     case SYM_REMOVE: {
         INCLUDE_PARAMS_OF_REMOVE;
 
+        UNUSED(PAR(series));
+
+        if (REF(map)) {
+            assert(!IS_VOID(ARG(key)));
+            fail (Error(RE_BAD_REFINES));
+        }
+
         len = REF(part) ? Get_Num_From_Arg(ARG(limit)) : 1;
         if (index + len > tail) len = tail - index;
         if (index < tail && len != 0) Remove_Gobs(gob, index, len);
@@ -1057,6 +1083,13 @@ REBTYPE(Gob)
 
     case SYM_TAKE: {
         INCLUDE_PARAMS_OF_TAKE;
+
+        UNUSED(PAR(series));
+
+        if (REF(deep))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(last))
+            fail (Error(RE_BAD_REFINES));
 
         len = REF(part) ? Get_Num_From_Arg(ARG(limit)) : 1;
         if (index + len > tail) len = tail - index;

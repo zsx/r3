@@ -122,7 +122,7 @@ void Dump_Bytes(REBYTE *bp, REBCNT limit)
 //
 void Dump_Series(REBSER *s, const char *memo)
 {
-    printf("Dump_Series(%s) @ %p\n", memo, s);
+    printf("Dump_Series(%s) @ %p\n", memo, cast(void*, s));
     fflush(stdout);
 
     if (s == NULL)

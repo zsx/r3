@@ -182,9 +182,6 @@ static void Do_Global_Block(
     REBVAL *opt_toplevel_word
 ) {
     RELVAL *item = ARR_AT(block, index);
-    struct Reb_State state;
-
-    REBVAL result;
 
     Bind_Values_Set_Midstream_Shallow(
         item, rebind > 1 ? Sys_Context : Lib_Context
@@ -225,6 +222,7 @@ static void Do_Global_Block(
         }
     }
 
+    REBVAL result;
     if (Do_At_Throws(&result, block, index, SPECIFIED))
         panic (&result);
 

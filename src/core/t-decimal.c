@@ -318,7 +318,6 @@ REBTYPE(Decimal)
     REBVAL  *val = D_ARG(1);
     REBVAL  *arg;
     REBDEC  d2;
-    REBINT  num;
     enum Reb_Kind type;
 
     REBDEC d1 = VAL_DECIMAL(val);
@@ -441,6 +440,8 @@ REBTYPE(Decimal)
         case SYM_ROUND: {
             INCLUDE_PARAMS_OF_ROUND;
 
+            UNUSED(PAR(value));
+
             REBFLGS flags = (
                 (REF(to) ? RF_TO : 0)
                 | (REF(even) ? RF_EVEN : 0)
@@ -477,6 +478,10 @@ REBTYPE(Decimal)
 
         case SYM_RANDOM: {
             INCLUDE_PARAMS_OF_RANDOM;
+
+            UNUSED(PAR(value));
+            if (REF(only))
+                fail (Error(RE_BAD_REFINES));
 
             if (REF(seed)) {
                 Set_Random(*cast(REBI64*, &VAL_DECIMAL(val))); // use IEEE bits

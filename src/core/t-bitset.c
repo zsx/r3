@@ -94,7 +94,7 @@ void Mold_Bitset(const REBVAL *value, REB_MOLD *mold)
 //  MAKE_Bitset: C
 //
 void MAKE_Bitset(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
-    REBOOL is_not = FALSE;
+    assert(kind == REB_BITSET);
 
     REBINT len = Find_Max_Bit(arg);
 
@@ -571,6 +571,28 @@ REBTYPE(Bitset)
     case SYM_PICK:
     case SYM_FIND: {
         INCLUDE_PARAMS_OF_FIND; // is PICK guaranteed to have CASE at same pos
+
+        UNUSED(PAR(series));
+        UNUSED(PAR(value));
+        if (REF(part)) {
+            assert(!IS_VOID(ARG(limit)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        if (REF(only))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(skip)) {
+            assert(!IS_VOID(ARG(size)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        if (REF(last))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(reverse))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(tail))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(match))
+            fail (Error(RE_BAD_REFINES));
+
         if (!Check_Bits(VAL_SERIES(value), arg, REF(case)))
             return R_BLANK;
         return R_TRUE;
@@ -600,6 +622,12 @@ set_bits:
     case SYM_REMOVE: {
         INCLUDE_PARAMS_OF_REMOVE;
 
+        UNUSED(PAR(series));
+        if (REF(map)) {
+            assert(!IS_VOID(ARG(key)));
+            fail (Error(RE_BAD_REFINES));
+        }
+
         if (NOT(REF(part)))
             fail (Error(RE_MISSING_ARG));
 
@@ -610,6 +638,18 @@ set_bits:
 
     case SYM_COPY: {
         INCLUDE_PARAMS_OF_COPY;
+
+        UNUSED(PAR(value));
+        if (REF(part)) {
+            assert(!IS_VOID(ARG(limit)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        if (REF(deep))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(types)) {
+            assert(!IS_VOID(ARG(kinds)));
+            fail (Error(RE_BAD_REFINES));
+        }
 
         Init_Any_Series_At(
             D_OUT,

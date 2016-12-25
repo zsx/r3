@@ -49,6 +49,8 @@ REBINT CT_Integer(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 void MAKE_Integer(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
+    assert(kind == REB_INTEGER);
+
     if (IS_LOGIC(arg)) {
         //
         // !!! Due to Rebol's policies on conditional truth and falsehood,
@@ -83,6 +85,8 @@ void MAKE_Integer(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 void TO_Integer(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
+    assert(kind == REB_INTEGER);
+
     // use signed logic by default (use TO-INTEGER/UNSIGNED to force
     // unsigned interpretation or error if that doesn't make sense)
 
@@ -493,6 +497,8 @@ REBTYPE(Integer)
     case SYM_ROUND: {
         INCLUDE_PARAMS_OF_ROUND;
 
+        UNUSED(PAR(value));
+
         REBFLGS flags = (
             (REF(to) ? RF_TO : 0)
             | (REF(even) ? RF_EVEN : 0)
@@ -530,6 +536,11 @@ REBTYPE(Integer)
 
     case SYM_RANDOM: {
         INCLUDE_PARAMS_OF_RANDOM;
+
+        UNUSED(PAR(value));
+
+        if (REF(only))
+            fail (Error(RE_BAD_REFINES));
 
         if (REF(seed)) {
             Set_Random(num);

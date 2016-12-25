@@ -84,7 +84,7 @@ REBINT Find_Key_Hashed(
     REBCNT len = SER_LEN(hashlist);
     assert(len > 0);
 
-    REBCNT hash = Hash_Value(key, specifier);
+    REBCNT hash = Hash_Value(key);
 
     // The REBCNT[] hash array size is chosen to try and make a large enough
     // table relative to the data that collisions will be hopefully not
@@ -431,6 +431,8 @@ void MAKE_Map(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 void TO_Map(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
+    assert(kind == REB_MAP);
+
     REBARR* array;
     REBCNT len;
     REBCNT index;
@@ -579,7 +581,6 @@ REBTYPE(Map)
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     REBINT n;
     REBMAP *map = VAL_MAP(val);
-    REBCNT  args;
     REBCNT tail;
 
     switch (action) {
@@ -592,6 +593,28 @@ REBTYPE(Map)
     case SYM_FIND:
     case SYM_SELECT: {
         INCLUDE_PARAMS_OF_FIND;
+
+        UNUSED(PAR(series));
+        UNUSED(PAR(value)); // handled as `arg`
+
+        if (REF(part)) {
+            assert(!IS_VOID(ARG(limit)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        if (REF(only))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(skip)) {
+            assert(!IS_VOID(ARG(size)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        if (REF(last))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(reverse))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(tail))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(match))
+            fail (Error(RE_BAD_REFINES));
 
         n = Find_Map_Entry(
             map,
@@ -617,6 +640,13 @@ REBTYPE(Map)
 
         FAIL_IF_LOCKED_ARRAY(MAP_PAIRLIST(map));
 
+        UNUSED(PAR(series));
+        UNUSED(PAR(value)); // handled as arg
+
+        if (REF(only))
+            fail (Error(RE_BAD_REFINES));
+
+
         if (!IS_BLOCK(arg))
             fail (Error_Invalid_Arg(val));
         *D_OUT = *val;
@@ -624,6 +654,8 @@ REBTYPE(Map)
             n = Int32(ARG(count));
             if (n <= 0) break;
         }
+
+        UNUSED(REF(part));
         Partial1(arg, ARG(limit), &tail);
         Append_Map(
             map,
@@ -639,12 +671,18 @@ REBTYPE(Map)
 
         FAIL_IF_LOCKED_ARRAY(MAP_PAIRLIST(map));
 
+        UNUSED(PAR(series));
+
+        if (REF(part)) {
+            assert(!IS_VOID(ARG(limit)));
+            fail (Error(RE_BAD_REFINES));
+        }
         if (NOT(REF(map)))
             fail (Error_Illegal_Action(REB_MAP, action));
 
         *D_OUT = *val;
         Find_Map_Entry(
-            map, D_ARG(5), SPECIFIED, VOID_CELL, SPECIFIED, TRUE
+            map, ARG(key), SPECIFIED, VOID_CELL, SPECIFIED, TRUE
         );
         return R_OUT; }
 
@@ -663,7 +701,19 @@ REBTYPE(Map)
 
     case SYM_COPY: {
         INCLUDE_PARAMS_OF_COPY;
-        //
+
+        UNUSED(PAR(value));
+        if (REF(part)) {
+            assert(!IS_VOID(ARG(limit)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        if (REF(deep))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(types)) {
+            assert(!IS_VOID(ARG(kinds)));
+            fail (Error(RE_BAD_REFINES));
+        }
+
         // !!! the copying map case should probably not be a MAKE case, but
         // implemented here as copy.
         //

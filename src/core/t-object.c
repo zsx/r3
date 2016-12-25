@@ -575,7 +575,6 @@ REBTYPE(Context)
 {
     REBVAL *value = D_ARG(1);
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-    REBCTX *context;
 
     switch (action) {
     case SYM_APPEND:
@@ -595,8 +594,12 @@ REBTYPE(Context)
     case SYM_COPY: { // Note: words are not copied and bindings not changed!
         INCLUDE_PARAMS_OF_COPY;
 
-        if (REF(part))
+        UNUSED(PAR(value));
+
+        if (REF(part)) {
+            assert(!IS_VOID(ARG(limit)));
             fail (Error(RE_BAD_REFINES));
+        }
 
         REBU64 types = 0;
         if (REF(deep))
@@ -666,10 +669,18 @@ REBTYPE(Context)
 
     case SYM_TRIM: {
         INCLUDE_PARAMS_OF_TRIM;
+
+        UNUSED(ARG(series));
+
         if (
             REF(head) || REF(tail)
-            || REF(auto) || REF(with) || REF(all) || REF(lines)
+            || REF(auto) || REF(all) || REF(lines)
         ){
+            fail (Error(RE_BAD_REFINES));
+        }
+
+        if (REF(with)) {
+            assert(!IS_VOID(ARG(str)));
             fail (Error(RE_BAD_REFINES));
         }
 

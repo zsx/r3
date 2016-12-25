@@ -163,8 +163,6 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     REBVAL *val;
     RELVAL *sig;
 
-    Validate_Port(port, action);
-
     req = cast(REBREQ*, Use_Port_State(port, RDI_SIGNAL, sizeof(REBREQ)));
     spec = CTX_VAR(port, STD_PORT_SPEC);
 
@@ -275,7 +273,6 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             return R_TRUE;
 
         case SYM_OPEN: {
-            INCLUDE_PARAMS_OF_OPEN;
             fail (Error(RE_ALREADY_OPEN, D_ARG(1)));
         }
 

@@ -55,8 +55,6 @@ static REB_R Event_Actor(REBFRM *frame_, REBCTX *port, REBCNT action)
     REBVAL *arg;
     REBVAL save_port;
 
-    Validate_Port(port, action);
-
     arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     *D_OUT = *D_ARG(1);
 

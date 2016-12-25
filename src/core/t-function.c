@@ -117,6 +117,8 @@ void TO_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     // `to function! foo` is meaningless (and should not be given meaning,
     // because `to function! [print "DOES exists for this, for instance"]`
     //
+    SET_TRASH_IF_DEBUG(out);
+    assert(kind == REB_FUNCTION);
     fail (Error_Invalid_Arg(arg));
 }
 
@@ -132,6 +134,19 @@ REBTYPE(Function)
     switch (action) {
     case SYM_COPY: {
         INCLUDE_PARAMS_OF_COPY;
+
+        UNUSED(PAR(value));
+        if (REF(part)) {
+            assert(!IS_VOID(ARG(limit)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        if (REF(types)) {
+            assert(!IS_VOID(ARG(kinds)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        if (REF(deep)) {
+            // !!! always "deep", allow it?
+        }
 
         // !!! The R3-Alpha theory was that functions could modify "their
         // bodies" while running, effectively accruing state that one might

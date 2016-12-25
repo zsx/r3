@@ -57,6 +57,8 @@ REBINT CT_Char(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 void MAKE_Char(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
+    assert(kind == REB_CHAR);
+
     REBUNI uni;
 
     switch(VAL_TYPE(arg)) {
@@ -139,9 +141,10 @@ static REBINT Math_Arg_For_Char(REBVAL *arg, REBSYM action)
 
     case REB_DECIMAL:
         return cast(REBINT, VAL_DECIMAL(arg));
-    }
 
-    fail (Error_Math_Args(REB_CHAR, action));
+    default:
+        fail (Error_Math_Args(REB_CHAR, action));
+    }
 }
 
 
@@ -213,6 +216,10 @@ REBTYPE(Char)
 
     case SYM_RANDOM: {
         INCLUDE_PARAMS_OF_RANDOM;
+
+        UNUSED(PAR(value));
+        if (REF(only))
+            fail (Error(RE_BAD_REFINES));
 
         if (REF(seed)) {
             Set_Random(chr);

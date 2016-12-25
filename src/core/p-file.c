@@ -167,6 +167,9 @@ static void Read_File_Port(
     REBFLGS flags,
     REBCNT len
 ) {
+    assert(IS_FILE(path));
+    assert(flags == 0); // currently not used
+
     REBSER *ser = Make_Binary(len); // read result buffer
     Init_Binary(out, ser);
 
@@ -268,8 +271,6 @@ static void Set_Seek(REBREQ *file, REBVAL *arg)
 //
 static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
-    Validate_Port(port, action);
-
     REBVAL *spec = CTX_VAR(port, STD_PORT_SPEC);
     if (!IS_OBJECT(spec))
         fail (Error(RE_INVALID_SPEC, spec));
@@ -294,6 +295,10 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     case SYM_READ: {
         INCLUDE_PARAMS_OF_READ;
+
+        UNUSED(PAR(source));
+        UNUSED(PAR(string)); // handled in dispatcher
+        UNUSED(PAR(lines)); // handled in dispatcher
 
         REBFLGS flags = 0;
 
@@ -339,7 +344,14 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     case SYM_WRITE: {
         INCLUDE_PARAMS_OF_WRITE;
 
-        spec = ARG(data); // binary, string, or block
+        UNUSED(PAR(destination));
+
+        if (REF(allow)) {
+            assert(!IS_VOID(ARG(access)));
+            fail (Error(RE_BAD_REFINES));
+        }
+
+        REBVAL *data = ARG(data); // binary, string, or block
 
         // Handle the WRITE %file shortcut case, where the FILE! is converted
         // to a PORT! but it hasn't been opened yet.
@@ -370,13 +382,13 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             Set_Seek(file, ARG(index));
 
         // Determine length. Clip /PART to size of string if needed.
-        REBCNT len = VAL_LEN_AT(spec);
+        REBCNT len = VAL_LEN_AT(data);
         if (REF(part)) {
             REBCNT n = Int32s(ARG(limit), 0);
             if (n <= len) len = n;
         }
 
-        Write_File_Port(file, spec, len, REF(lines));
+        Write_File_Port(file, data, len, REF(lines));
 
         if (opened) {
             OS_DO_DEVICE(file, RDC_CLOSE);
@@ -391,6 +403,13 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     case SYM_OPEN: {
         INCLUDE_PARAMS_OF_OPEN;
+
+        UNUSED(PAR(spec));
+        if (REF(allow)) {
+            assert(!IS_VOID(ARG(access)));
+            fail (Error(RE_BAD_REFINES));
+        }
+
         REBFLGS flags = (
             (REF(new) ? AM_OPEN_NEW : 0)
             | (REF(read) || NOT(REF(write)) ? AM_OPEN_READ : 0)
@@ -410,6 +429,14 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     case SYM_COPY: {
         INCLUDE_PARAMS_OF_COPY;
 
+        UNUSED(PAR(value));
+        if (REF(deep))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(types)) {
+            assert(!IS_VOID(ARG(kinds)));
+            fail (Error(RE_BAD_REFINES));
+        }
+
         if (!IS_OPEN(file))
             fail (Error(RE_NOT_OPEN, path)); // !!! wrong msg
 
@@ -423,6 +450,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     case SYM_CLOSE: {
         INCLUDE_PARAMS_OF_CLOSE;
+        assert(PAR(port) != NULL);
 
         if (IS_OPEN(file)) {
             OS_DO_DEVICE(file, RDC_CLOSE);
@@ -433,6 +461,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     case SYM_DELETE: {
         INCLUDE_PARAMS_OF_DELETE;
+        UNUSED(PAR(port));
 
         if (IS_OPEN(file))
             fail (Error(RE_NO_DELETE, path));
@@ -466,8 +495,6 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         return R_OUT; }
 
     case SYM_CREATE: {
-        INCLUDE_PARAMS_OF_CREATE;
-
         if (!IS_OPEN(file)) {
             Setup_File(file, AM_OPEN_WRITE | AM_OPEN_NEW, path);
             if (OS_DO_DEVICE(file, RDC_CREATE) < 0)
@@ -483,6 +510,12 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     case SYM_QUERY: {
         INCLUDE_PARAMS_OF_QUERY;
 
+        UNUSED(PAR(target));
+        if (REF(mode)) {
+            assert(!IS_VOID(ARG(field)));
+            fail (Error(RE_BAD_REFINES));
+        }
+
         if (!IS_OPEN(file)) {
             Setup_File(file, 0, path);
             if (OS_DO_DEVICE(file, RDC_QUERY) < 0) return R_BLANK;
@@ -495,6 +528,10 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     case SYM_MODIFY: {
         INCLUDE_PARAMS_OF_MODIFY;
+
+        UNUSED(PAR(target));
+        UNUSED(PAR(field));
+        UNUSED(PAR(value));
 
         // !!! Set_Mode_Value() was called here, but a no-op in R3-Alpha
         if (!IS_OPEN(file)) {
@@ -529,7 +566,9 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     case SYM_SKIP: {
         INCLUDE_PARAMS_OF_SKIP;
 
-        file->special.file.index += Get_Num_From_Arg(D_ARG(2));
+        UNUSED(PAR(series));
+
+        file->special.file.index += Get_Num_From_Arg(ARG(offset));
         SET_FLAG(file->modes, RFM_RESEEK);
         *D_OUT = *CTX_VALUE(port);
         return R_OUT; }

@@ -127,7 +127,7 @@ REBNATIVE(rc4)
 {
     INCLUDE_PARAMS_OF_RC4;
 
-    if (IS_HANDLE(ARG(ctx))) {
+    if (REF(stream)) {
         REBVAL *data = ARG(data);
 
         RC4_CTX *rc4_ctx = cast(RC4_CTX*, VAL_HANDLE_DATA(ARG(ctx)));
@@ -509,7 +509,7 @@ REBNATIVE(aes)
 {
     INCLUDE_PARAMS_OF_AES;
 
-    if (IS_HANDLE(ARG(ctx))) {
+    if (REF(stream)) {
         AES_CTX *aes_ctx = cast(AES_CTX*, VAL_HANDLE_DATA(ARG(ctx)));
 
         REBYTE *dataBuffer = VAL_BIN_AT(ARG(data));
@@ -559,7 +559,7 @@ REBNATIVE(aes)
         return R_OUT;
     }
 
-    if (IS_BINARY(ARG(crypt_key))) {
+    if (REF(key)) {
         uint8_t iv[AES_IV_SIZE];
 
         if (IS_BINARY(ARG(iv))) {
@@ -654,6 +654,9 @@ REBOOL Cloak(
             klen = LEN_BYTES(dst);
             as_is = FALSE;
             break;
+
+        default:
+            assert(FALSE);
         }
 
         if (klen == 0)

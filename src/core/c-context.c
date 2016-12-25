@@ -300,6 +300,9 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
 void Collect_Keys_Start(REBFLGS flags)
 {
     assert(ARR_LEN(BUF_COLLECT) == 0); // should be empty
+    if (flags & COLLECT_ANY_WORD) {
+        NOOP; // flags not paid attention to for now
+    }
 
     // Leave the [0] slot empty while collecting.  This will become the
     // "rootparam" in function paramlists (where the FUNCTION! archetype
@@ -920,7 +923,6 @@ REBARR *Context_To_Array(REBCTX *context, REBINT mode)
     REBVAL *key = CTX_KEYS_HEAD(context);
     REBVAL *var = CTX_VARS_HEAD(context);
     REBARR *block;
-    REBVAL *value;
     REBCNT n;
 
     assert(!(mode & 4));

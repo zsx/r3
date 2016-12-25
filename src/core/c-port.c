@@ -530,6 +530,12 @@ post_process_output:
     if (action == SYM_READ) {
         INCLUDE_PARAMS_OF_READ;
 
+        UNUSED(PAR(source));
+        UNUSED(PAR(part));
+        UNUSED(PAR(limit));
+        UNUSED(PAR(seek));
+        UNUSED(PAR(index));
+
         assert(r == R_OUT);
 
         if ((REF(string) || REF(lines)) && !IS_STRING(D_OUT)) {
@@ -581,23 +587,6 @@ void Secure_Port(REBSYM sym_kind, REBREQ *req, REBVAL *name, REBSER *path)
 
     if (GET_FLAG(req->modes, RFM_WRITE))
         Trap_Security(flags[POL_WRITE], Canon(sym_kind), name);
-}
-
-
-//
-//  Validate_Port: C
-//
-// Because port actors are exposed to the user level, we must
-// prevent them from being called with invalid values.
-//
-void Validate_Port(REBCTX *port, REBCNT action)
-{
-    if (
-        NOT_SER_FLAG(CTX_VARLIST(port), ARRAY_FLAG_VARLIST)
-        || !IS_OBJECT(CTX_VAR(port, STD_PORT_SPEC))
-    ) {
-        fail (Error(RE_INVALID_PORT));
-    }
 }
 
 

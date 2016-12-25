@@ -131,7 +131,7 @@ void Trace_Line(REBFRM *f)
 //
 //  Trace_Func: C
 //
-void Trace_Func(REBSTR *label, const REBVAL *value)
+void Trace_Func(REBSTR *label)
 {
     int depth;
     CHECK_DEPTH(depth);

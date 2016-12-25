@@ -49,6 +49,8 @@ REBINT CT_Port(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 void MAKE_Port(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
+    assert(kind == REB_PORT);
+
     if (Apply_Only_Throws(
         out, TRUE, Sys_Func(SYS_CTX_MAKE_PORT_P), arg, END_CELL
     )) {
@@ -67,6 +69,8 @@ void MAKE_Port(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 void TO_Port(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
+    assert(kind == REB_PORT);
+
     if (!IS_OBJECT(arg))
         fail (Error_Bad_Make(REB_PORT, arg));
 
@@ -84,10 +88,12 @@ void TO_Port(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 //  REBTYPE: C
 //
+// !!! The concept of port dispatch from R3-Alpha is that it delegates to a
+// handler which may be native code or user code.
+//
 REBTYPE(Port)
 {
     REBVAL *value = D_ARG(1);
-    REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
     switch (action) {
 

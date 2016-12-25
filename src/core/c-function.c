@@ -933,7 +933,6 @@ REBFUN *Make_Function(
     // arguments.  Looking at the surface interface is good enough--that is
     // what will be relevant after the specializations are accounted for.
 
-    REBOOL is_first = TRUE;
     REBVAL *param = KNOWN(rootparam) + 1;
     for (; NOT_END(param); ++param) {
         switch (VAL_PARAM_CLASS(param)) {
@@ -1589,6 +1588,7 @@ REB_R Action_Dispatcher(REBFRM *f)
 //
 REB_R Noop_Dispatcher(REBFRM *f)
 {
+    assert(f != NULL); // unused argument warning otherwise
     return R_VOID;
 }
 
@@ -1806,6 +1806,7 @@ REB_R Adapter_Dispatcher(REBFRM *f)
 
     REBFUN *specializer;
     REBFUN *underlying = Underlying_Function(&specializer, adaptee);
+    assert(underlying != NULL);
 
     // The first thing to do is run the prelude code, which may throw.  If it
     // does throw--including a RETURN--that means the adapted function will

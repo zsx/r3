@@ -50,8 +50,6 @@ static REB_R Console_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     REBVAL *arg;
     REBSER *ser;
 
-    Validate_Port(port, action);
-
     arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     *D_OUT = *D_ARG(1);
 
@@ -61,6 +59,19 @@ static REB_R Console_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     case SYM_READ: {
         INCLUDE_PARAMS_OF_READ;
+
+        UNUSED(PAR(source));
+
+        if (REF(part)) {
+            assert(!IS_VOID(ARG(limit)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        if (REF(seek)) {
+            assert(!IS_VOID(ARG(index)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        UNUSED(PAR(string)); // handled in dispatcher
+        UNUSED(PAR(lines)); // handled in dispatcher
 
         // If not open, open it:
         if (!IS_OPEN(req)) {
@@ -93,7 +104,6 @@ static REB_R Console_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         break; }
 
     case SYM_OPEN: {
-        INCLUDE_PARAMS_OF_OPEN;
         SET_OPEN(req);
         break; }
 

@@ -364,6 +364,13 @@ REBVAL *Make_Vector_Spec(RELVAL *bp, REBSPC *specifier, REBVAL *value)
     REBSER *vect;
     REBVAL *iblk = 0;
 
+    if (specifier) {
+        //
+        // The specifier would be needed if variables were going to be looked
+        // up, but isn't required for just symbol comparisons or extracting
+        // integer values.
+    }
+
     // UNSIGNED
     if (IS_WORD(bp) && VAL_WORD_SYM(bp) == SYM_UNSIGNED) {
         sign = 1;
@@ -623,6 +630,19 @@ REBTYPE(Vector)
 
     case SYM_COPY: {
         INCLUDE_PARAMS_OF_COPY;
+
+        UNUSED(PAR(value));
+        if (REF(part)) {
+            assert(!IS_VOID(ARG(limit)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        if (REF(deep))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(types)) {
+            assert(!IS_VOID(ARG(kinds)));
+            fail (Error(RE_BAD_REFINES));
+        }
+
         ser = Copy_Sequence(vect);
         ser->misc.size = vect->misc.size; // attributes
         Init_Vector(value, ser);
@@ -630,6 +650,7 @@ REBTYPE(Vector)
 
     case SYM_RANDOM: {
         INCLUDE_PARAMS_OF_RANDOM;
+        assert(PAR(value) != NULL);
 
         FAIL_IF_LOCKED_SERIES(vect);
 

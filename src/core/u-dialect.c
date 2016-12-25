@@ -203,6 +203,9 @@ static REBVAL *Eval_Arg(REBDIA *dia)
         DS_PUSH(&safe);
         value = DS_TOP;
         break;
+
+    default:
+        break;
     }
 
     return value;

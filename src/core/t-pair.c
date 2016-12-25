@@ -51,6 +51,8 @@ REBINT CT_Pair(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 void MAKE_Pair(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
 {
+    assert(type == REB_PAIR);
+
     if (IS_PAIR(arg)) {
         *out = *arg;
         return;
@@ -270,7 +272,6 @@ REBTYPE(Pair)
     switch (action) {
 
     case SYM_COPY: {
-        INCLUDE_PARAMS_OF_COPY;
         goto setPair;
     }
 
@@ -319,6 +320,8 @@ REBTYPE(Pair)
     case SYM_ROUND: {
         INCLUDE_PARAMS_OF_ROUND;
 
+        UNUSED(PAR(value));
+
         REBFLGS flags = (
             (REF(to) ? RF_TO : 0)
             | (REF(even) ? RF_EVEN : 0)
@@ -348,6 +351,10 @@ REBTYPE(Pair)
     case SYM_RANDOM: {
         INCLUDE_PARAMS_OF_RANDOM;
 
+        UNUSED(PAR(value));
+
+        if (REF(only))
+            fail (Error(RE_BAD_REFINES));
         if (REF(seed))
             fail (Error(RE_BAD_REFINES));
 

@@ -46,8 +46,6 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     REBVAL tmp;
 
-    Validate_Port(port, action);
-
     arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     *D_OUT = *D_ARG(1);
 
@@ -61,6 +59,20 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     case SYM_READ: {
         INCLUDE_PARAMS_OF_READ;
+
+        UNUSED(PAR(source));
+        if (REF(part)) {
+            assert(!IS_VOID(ARG(limit)));
+            fail (Error(RE_BAD_REFINES));
+        }
+
+        if (REF(seek)) {
+            assert(!IS_VOID(ARG(index)));
+            fail (Error(RE_BAD_REFINES));
+        }
+
+        UNUSED(PAR(string)); // handled in dispatcher
+        UNUSED(PAR(lines)); // handled in dispatcher
 
         if (!IS_OPEN(sock)) {
             if (OS_DO_DEVICE(sock, RDC_OPEN))
@@ -131,6 +143,21 @@ pick:
 
     case SYM_OPEN: {
         INCLUDE_PARAMS_OF_OPEN;
+
+        UNUSED(PAR(spec));
+        if (REF(new))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(read))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(write))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(seek))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(allow)) {
+            assert(!IS_VOID(ARG(access)));
+            fail (Error(RE_BAD_REFINES));
+        }
+
         if (OS_DO_DEVICE(sock, RDC_OPEN))
             fail (Error_On_Port(RE_CANNOT_OPEN, port, -12));
         break; }

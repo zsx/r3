@@ -41,6 +41,7 @@
 //
 REBNATIVE(halt)
 {
+    assert(frame_ != NULL); // avoid unused parameter warning
     fail (VAL_CONTEXT(TASK_HALT_ERROR));
 }
 
@@ -491,7 +492,7 @@ REBNATIVE(do_codec)
             codi.extra.bits = VAL_IMAGE_BITS(val);
             codi.w = VAL_IMAGE_WIDE(val);
             codi.h = VAL_IMAGE_HIGH(val);
-            codi.has_alpha = Image_Has_Alpha(val, FALSE) ? 1 : 0;
+            codi.has_alpha = Image_Has_Alpha(val) ? 1 : 0;
         }
         else if (IS_STRING(val)) {
             codi.w = SER_WIDE(VAL_SERIES(val));

@@ -929,6 +929,8 @@ REBOOL Decode_UTF8_Maybe_Astral_Throws(
     REBOOL crlf_to_lf,
     const REBVAL *handler
 ) {
+    SET_TRASH_IF_DEBUG(out_if_thrown);
+
     assert(SER_WIDE(dst) == sizeof(REBUNI)); // Append_Codepoint_Raw is used
 
     UTF32 ch;
@@ -948,8 +950,12 @@ REBOOL Decode_UTF8_Maybe_Astral_Throws(
                     // FALSE for `fully` means it will not raise an error if
                     // the handler happens to be arity 0.
                     //
-                    if (Apply_Only_Throws(&item, FALSE, handler, &a, END_CELL))
+                    if (Apply_Only_Throws(
+                        &item, FALSE, handler, &a, END_CELL
+                    )){
+                        *out_if_thrown = item;
                         return TRUE;
+                    }
                 }
                 else
                     item = *handler;
@@ -1118,7 +1124,7 @@ REBCNT Length_As_UTF8(const void *p, REBCNT len, REBFLGS opts)
     REBCNT size = 0;
     REBCNT c;
     REBOOL unicode = LOGICAL(opts & OPT_ENC_UNISRC);
-    REBOOL lf_to_crlf = LOGICAL(opts & OPT_ENC_CRLF);
+
     const REBYTE *bp = unicode ? NULL : cast(const REBYTE *, p);
     const REBUNI *up = unicode ? cast(const REBUNI *, p) : NULL;
 
@@ -1126,7 +1132,8 @@ REBCNT Length_As_UTF8(const void *p, REBCNT len, REBFLGS opts)
         c = unicode ? *up++ : *bp++;
         if (c < (UTF32)0x80) {
 #ifdef TO_WINDOWS
-            if (lf_to_crlf && c == LF) size++; // since we will add a CR to it
+            if (LOGICAL(opts & OPT_ENC_CRLF) && c == LF)
+                size++; // since we will add a CR to it
 #endif
             size++;
         }
@@ -1201,7 +1208,6 @@ REBCNT Encode_UTF8(
     const REBUNI *up = cast(const REBUNI*, src);
     REBCNT cnt;
     REBOOL unicode = LOGICAL(opts & OPT_ENC_UNISRC);
-    REBOOL lf_to_crlf = LOGICAL(opts & OPT_ENC_CRLF);
 
     if (len) cnt = *len;
     else cnt = unicode ? Strlen_Uni(up) : LEN_BYTES(bp);
@@ -1210,7 +1216,7 @@ REBCNT Encode_UTF8(
         c = unicode ? *up++ : *bp++;
         if (c < 0x80) {
 #if defined(TO_WINDOWS)
-            if (lf_to_crlf && c == LF) {
+            if (LOGICAL(opts & OPT_ENC_CRLF) && c == LF) {
                 // If there's not room, don't try to output CRLF
                 if (2 > max) {bp--; up--; break;}
                 *dst++ = CR;

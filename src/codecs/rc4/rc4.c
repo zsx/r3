@@ -64,6 +64,8 @@ void RC4_setup(RC4_CTX *ctx, const uint8_t *key, int length)
  */
 void RC4_crypt(RC4_CTX *ctx, const uint8_t *msg, uint8_t *out, int length)
 {
+    (void)msg; // not used since msg and out are the same
+
     int i;
     uint8_t *m, x, y, a, b;
 

@@ -311,6 +311,8 @@ REBIXO Do_Vararg_Op_May_Throw(
 //
 void MAKE_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
+    assert(kind == REB_VARARGS);
+
     // With MAKE VARARGS! on an ANY-ARRAY!, the array is the backing store
     // (shared) that the varargs interface cannot affect, but changes to
     // the array will change the varargs.
@@ -341,6 +343,8 @@ void MAKE_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 void TO_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
+    SET_TRASH_IF_DEBUG(out);
+    assert(kind == REB_VARARGS);
     fail (Error_Invalid_Arg(arg));
 }
 
@@ -386,8 +390,9 @@ REBTYPE(Varargs)
         REBDSP dsp_orig = DSP;
         REBINT limit;
 
+        UNUSED(PAR(series));
         if (REF(deep))
-            fail (Error(RE_MISC));
+            fail (Error(RE_BAD_REFINES));
         if (REF(last))
             fail (Error(RE_VARARGS_TAKE_LAST));
 
@@ -443,6 +448,8 @@ REBTYPE(Varargs)
 //
 REBINT CT_Varargs(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
+    cast(void, mode);
+
     if (GET_VAL_FLAG(a, VARARGS_FLAG_NO_FRAME)) {
         if (NOT_VAL_FLAG(b, VARARGS_FLAG_NO_FRAME)) return 1;
         return VAL_VARARGS_ARRAY1(a) == VAL_VARARGS_ARRAY1(b) ? 1 : 0;

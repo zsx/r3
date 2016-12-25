@@ -74,6 +74,8 @@ const void *r3_libtcc1_symbols[];
 
 static void tcc_error_report(void *ignored, const char *msg)
 {
+    assert(ignored == NULL); // !!! is this to tunnel an arbitrary pointer?
+
     REBVAL err;
     REBSER *ser = Make_Binary(strlen(msg) + 2);
     Append_Series(ser, cb_cast(msg), strlen(msg));
@@ -357,7 +359,6 @@ REBNATIVE(compile)
     if (VAL_LEN_AT(ARG(natives)) == 0)
         fail (Error(RE_TCC_EMPTY_SPEC));
 
-    RELVAL *spec = NULL;
     RELVAL *inc = NULL;
     RELVAL *lib = NULL;
     RELVAL *libdir = NULL;
@@ -416,6 +417,9 @@ REBNATIVE(compile)
             }
         }
     }
+
+    if (debug)
+        fail (Error(RE_MISC)); // !!! not implemented yet
 
     // Using the "hot" mold buffer allows us to build the combined source in
     // memory that is generally preallocated.  This makes it not necessary

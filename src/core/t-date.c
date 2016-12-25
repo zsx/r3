@@ -388,6 +388,8 @@ REBINT Cmp_Date(const RELVAL *d1, const RELVAL *d2)
 //  MAKE_Date: C
 //
 void MAKE_Date(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    assert(kind == REB_DATE);
+
     if (IS_DATE(arg)) {
         *out = *arg;
         return;

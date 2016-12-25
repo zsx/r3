@@ -1113,7 +1113,7 @@ static void Free_Unbiased_Series_Data(REBYTE *unbiased, REBCNT size_unpooled)
         pool->free++;
 
         struct Reb_Header *alias = &node->header;
-        node->header.bits = 0;
+        alias->bits = 0;
     }
     else {
         FREE_N(REBYTE, size_unpooled, unbiased);
@@ -1271,7 +1271,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
     if (Reb_Opts->watch_expand) {
         printf(
             "Expand %p wide: %d tail: %d delta: %d\n",
-            s, wide, len_old, delta
+            cast(void*, s), wide, len_old, delta
         );
         fflush(stdout);
     }
@@ -1969,7 +1969,6 @@ REBU64 Inspect_Series(REBOOL show)
     REBCNT blks = 0;
     REBCNT strs = 0;
     REBCNT unis = 0;
-    REBCNT nons = 0;
     REBCNT odds = 0;
     REBCNT fre = 0;
 

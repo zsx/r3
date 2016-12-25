@@ -179,9 +179,10 @@ static void Make_CRC32_Table(void);
 //
 // Return a case insensitive hash value for any value.
 //
-// Fails if datatype cannot be hashed.
+// Fails if datatype cannot be hashed.  Note that the specifier is not used
+// in hashing, because it is not used in comparisons either.
 //
-REBCNT Hash_Value(const RELVAL *v, REBSPC *specifier)
+REBCNT Hash_Value(const RELVAL *v)
 {
     REBCNT ret;
 

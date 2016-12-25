@@ -246,15 +246,20 @@ RL_API void RL_Shutdown(REBOOL clean)
     // committing unfinished data to disk.  So really there is
     // nothing to do in the case of an "unclean" shutdown...yet.
 
-#ifdef NDEBUG
-    // Only do the work above this line in an unclean shutdown
-    if (!clean) return;
-#else
-    // Run a clean shutdown anyway in debug builds--even if the
-    // caller didn't need it--to see if it triggers any alerts.
-#endif
-
-    Shutdown_Core();
+    if (clean) {
+    #ifdef NDEBUG
+        // Only do the work above this line in an unclean shutdown
+        return;
+    #else
+        // Run a clean shutdown anyway in debug builds--even if the
+        // caller didn't need it--to see if it triggers any alerts.
+        //
+        Shutdown_Core();
+    #endif
+    }
+    else {
+        Shutdown_Core();
+    }
 }
 
 
@@ -265,15 +270,13 @@ RL_API void RL_Shutdown(REBOOL clean)
 //
 // Returns:
 //     nothing
-// Arguments:
-//     reserved - must be set to zero.
 // Notes:
 //     This function set's a signal that is checked during evaluation
 //     and will cause the interpreter to begin processing an escape
 //     trap. Note that control must be passed back to REBOL for the
 //     signal to be recognized and handled.
 //
-RL_API void RL_Escape(REBINT reserved)
+RL_API void RL_Escape(void)
 {
     // How should HALT vs. BREAKPOINT be decided?  When does a Ctrl-C want
     // to quit entirely vs. begin an interactive debugging session?
@@ -390,46 +393,6 @@ RL_API int RL_Do_String(
 
 
 //
-//  RL_Do_Binary: C
-//
-// Evaluate an encoded binary script such as compressed text.
-//
-// Returns:
-//     The datatype of the result or zero if error in the encoding.
-// Arguments:
-//     bin - by default, a REBOL compressed UTF-8 (or ASCII) script.
-//     length - the length of the data.
-//     flags - special flags (set to zero at this time).
-//     key - encoding, encryption, or signature key.
-//     result - value returned from evaluation.
-// Notes:
-//     As of A104, only compressed scripts are supported, however,
-//     rebin, cloaked, signed, and encrypted formats will be supported.
-//
-RL_API int RL_Do_Binary(
-    int *exit_status,
-    const REBYTE *bin,
-    REBINT length,
-    REBCNT flags,
-    REBCNT key,
-    REBVAL *out
-) {
-    int maybe_rxt; // could be REBRXT, or negative number for error :-/
-
-    REBSER *utf8 = Decompress(bin, length, -1, FALSE, FALSE);
-    if (!utf8)
-        return 0;
-
-    Append_Codepoint_Raw(utf8, 0);
-
-    maybe_rxt = RL_Do_String(exit_status, BIN_HEAD(utf8), flags, out);
-
-    Free_Series(utf8);
-    return maybe_rxt;
-}
-
-
-//
 //  RL_Do_Commands: C
 //
 // Evaluate a block with a command context passed in.
@@ -438,14 +401,13 @@ RL_API int RL_Do_Binary(
 //     Nothing
 // Arguments:
 //     array - a pointer to the REBVAL array series
-//     flags - set to zero for now
 //     cec - command evaluation context struct or NULL if not used.
 // Notes:
 //     The context allows passing to each command a struct that is
 //     used for back-referencing your environment data or for tracking
 //     the evaluation block and its index.
 //
-RL_API void RL_Do_Commands(REBARR *array, REBCNT flags, REBCEC *cec)
+RL_API void RL_Do_Commands(REBARR *array, REBCEC *cec)
 {
     // !!! Only 2 calls to RL_Do_Commands known to exist (R3-View), like:
     //
@@ -971,9 +933,8 @@ RL_API int RL_Get_Value(REBARR *array, u32 index, REBVAL *result)
 //     series - block series pointer
 //     index - index of the value in the block (zero based)
 //     val  - new value for field
-//     type - datatype of value
 //
-RL_API REBOOL RL_Set_Value(REBARR *array, u32 index, REBVAL value, int type)
+RL_API REBOOL RL_Set_Value(REBARR *array, u32 index, REBVAL value)
 {
     if (index >= ARR_LEN(array)) {
         Append_Value(array, &value);

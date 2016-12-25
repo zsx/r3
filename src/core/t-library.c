@@ -49,6 +49,8 @@ REBINT CT_Library(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 void MAKE_Library(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
+    assert(kind == REB_LIBRARY);
+
     if (!IS_FILE(arg))
         fail (Error_Unexpected_Type(REB_FILE, VAL_TYPE(arg)));
 
@@ -87,18 +89,21 @@ void TO_Library(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 REBTYPE(Library)
 {
-    REBVAL *val = D_ARG(1);
-    REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-
-    // unary actions
     switch(action) {
-        case SYM_CLOSE:
-            if (VAL_LIBRARY_FD(val)) {// allow to CLOSE an already closed library!
-                OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(val));
-                AS_SERIES(VAL_LIBRARY(val))->misc.fd = NULL;
-            }
-            return R_VOID;
-    }
+    case SYM_CLOSE: {
+        INCLUDE_PARAMS_OF_CLOSE;
+
+        REBVAL *lib = ARG(port); // !!! generic arg name is "port"?
+
+        if (VAL_LIBRARY_FD(lib) == NULL) {
+            // allow to CLOSE an already closed library
+        }
+        else {
+            OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(lib));
+            AS_SERIES(VAL_LIBRARY(lib))->misc.fd = NULL;
+        }
+        return R_VOID; }
+}
 
     fail (Error_Illegal_Action(REB_LIBRARY, action));
 }

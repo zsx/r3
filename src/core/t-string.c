@@ -541,6 +541,11 @@ static void Sort_String(
     REBOOL all,
     REBOOL rev
 ) {
+    if (!IS_VOID(compv))
+        fail (Error(RE_BAD_REFINE)); // !!! didn't seem to be supported (?)
+    if (all)
+        fail (Error(RE_BAD_REFINE)); // neither did this
+
     REBCNT len;
     REBCNT skip = 1;
     REBCNT size = 1;
@@ -771,6 +776,13 @@ REBTYPE(String)
 
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
 
+        UNUSED(PAR(series));
+        UNUSED(PAR(value));
+
+        if (REF(only)) {
+            // !!! Doesn't pay attention...all string appends are /ONLY
+        }
+
         Partial1((action == SYM_CHANGE) ? value : arg, ARG(limit), cast(REBCNT*, &len));
         index = VAL_INDEX(value);
 
@@ -796,6 +808,9 @@ REBTYPE(String)
     case SYM_SELECT:
     case SYM_FIND: {
         INCLUDE_PARAMS_OF_FIND;
+
+        UNUSED(PAR(series));
+        UNUSED(PAR(value));
 
         REBFLGS flags = (
             (REF(only) ? AM_FIND_ONLY : 0)
@@ -925,6 +940,11 @@ pick_it:
 
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
 
+        UNUSED(PAR(series));
+
+        if (REF(deep))
+            fail (Error(RE_BAD_REFINES));
+
         if (REF(part)) {
             len = Partial(value, 0, ARG(limit));
             if (len == 0) {
@@ -979,6 +999,17 @@ pick_it:
 
     case SYM_COPY: {
         INCLUDE_PARAMS_OF_COPY;
+
+        UNUSED(PAR(value));
+
+        if (REF(deep))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(types)) {
+            assert(!IS_VOID(ARG(kinds)));
+            fail (Error(RE_BAD_REFINES));
+        }
+
+        UNUSED(REF(part));
         len = Partial(value, 0, ARG(limit)); // Can modify value index.
         ser = Copy_String_Slimming(VAL_SERIES(value), VAL_INDEX(value), len);
         goto ser_exit; }
@@ -1009,6 +1040,8 @@ pick_it:
     case SYM_TRIM: {
         INCLUDE_PARAMS_OF_TRIM;
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
+
+        UNUSED(PAR(series));
 
         ser = VAL_SERIES(value);
 
@@ -1062,6 +1095,11 @@ pick_it:
 
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
 
+        UNUSED(PAR(series));
+        UNUSED(REF(skip));
+        UNUSED(REF(compare));
+        UNUSED(REF(part));
+
         Sort_String(
             value,
             REF(case),
@@ -1075,6 +1113,8 @@ pick_it:
 
     case SYM_RANDOM: {
         INCLUDE_PARAMS_OF_RANDOM;
+
+        UNUSED(PAR(value));
 
         FAIL_IF_LOCKED_SERIES(VAL_SERIES(value));
 

@@ -56,6 +56,8 @@ REBINT CT_Money(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 void MAKE_Money(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
+    assert(kind == REB_MONEY);
+
     switch (VAL_TYPE(arg)) {
     case REB_INTEGER:
         SET_MONEY(out, int_to_deci(VAL_INT64(arg)));
@@ -112,6 +114,11 @@ void TO_Money(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 REBINT Emit_Money(const REBVAL *value, REBYTE *buf, REBFLGS opts)
 {
+    if (opts & MOPT_LIMIT) {
+        // !!! In theory, emits should pay attention to the mold options,
+        // at least the limit.
+    }
+
     return deci_to_string(buf, VAL_MONEY_AMOUNT(value), '$', '.');
 }
 
@@ -215,6 +222,8 @@ REBTYPE(Money)
 
     case SYM_ROUND: {
         INCLUDE_PARAMS_OF_ROUND;
+
+        UNUSED(PAR(value));
 
         REBFLGS flags = (
             (REF(to) ? RF_TO : 0)

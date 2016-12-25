@@ -543,8 +543,8 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
     #if !defined(NDEBUG)
         REBVAL *archetype = CTX_VALUE(context);
         assert(CTX_TYPE(context) == VAL_TYPE(v));
-        assert(VAL_CONTEXT(CTX_VALUE(context)) == context);
-        assert(VAL_CONTEXT_META(CTX_VALUE(context)) == CTX_META(context));
+        assert(VAL_CONTEXT(archetype) == context);
+        assert(VAL_CONTEXT_META(archetype) == CTX_META(context));
     #endif
 
         // Note: for VAL_CONTEXT_FRAME, the FRM_CALL is either on the stack

@@ -172,12 +172,9 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     REBVAL *path;
     REBVAL *state;
     REBREQ dir;
-    REBCNT args = 0;
     REBINT result;
     REBCNT len;
     //REBYTE *flags;
-
-    Validate_Port(port, action);
 
     *D_OUT = *D_ARG(1);
     CLEARS(&dir);
@@ -203,6 +200,18 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     case SYM_READ: {
         INCLUDE_PARAMS_OF_READ;
+
+        UNUSED(PAR(source));
+        if (REF(part)) {
+            assert(!IS_VOID(ARG(limit)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        if (REF(seek)) {
+            assert(!IS_VOID(ARG(index)));
+            fail (Error(RE_BAD_REFINES));
+        }
+        UNUSED(PAR(string)); // handled in dispatcher
+        UNUSED(PAR(lines)); // handled in dispatcher
 
         if (!IS_BLOCK(state)) {     // !!! ignores /SKIP and /PART, for now
             Init_Dir_Path(&dir, path, 1, POL_READ);
@@ -279,6 +288,18 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     case SYM_OPEN: {
         INCLUDE_PARAMS_OF_OPEN;
+
+        UNUSED(PAR(spec));
+        if (REF(read))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(write))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(seek))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(allow)) {
+            assert(!IS_VOID(ARG(access)));
+            fail (Error(RE_BAD_REFINES));
+        }
 
         // !! If open fails, what if user does a READ w/o checking for error?
         if (IS_BLOCK(state))

@@ -48,8 +48,10 @@ REBINT CT_Tuple(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 //  MAKE_Tuple: C
 //
-void MAKE_Tuple(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
+void MAKE_Tuple(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
+    assert(kind == REB_TUPLE);
+
     if (IS_TUPLE(arg)) {
         *out = *arg;
         return;
@@ -398,6 +400,12 @@ REBTYPE(Tuple)
     }
     if (action == SYM_RANDOM) {
         INCLUDE_PARAMS_OF_RANDOM;
+
+        UNUSED(PAR(value));
+
+        if (REF(only))
+            fail (Error(RE_BAD_REFINES));
+
         if (REF(seed))
             fail (Error(RE_BAD_REFINES));
         for (; len > 0; len--, vp++) {
@@ -427,6 +435,8 @@ REBTYPE(Tuple)
 
     case SYM_REVERSE: {
         INCLUDE_PARAMS_OF_REVERSE;
+
+        UNUSED(PAR(series));
 
         if (REF(part)) {
             len = Get_Num_From_Arg(ARG(limit));

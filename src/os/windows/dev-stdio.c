@@ -72,7 +72,7 @@ BOOL WINAPI Handle_Break(DWORD dwCtrlType)
     switch(dwCtrlType) {
     case CTRL_C_EVENT:
     case CTRL_BREAK_EVENT:
-        RL_Escape(0);
+        RL_Escape();
         return TRUE; // TRUE = "we handled it"
 
     case CTRL_CLOSE_EVENT:

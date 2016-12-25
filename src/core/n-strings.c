@@ -218,7 +218,8 @@ REBNATIVE(checksum)
     REBCNT wide = SER_WIDE(VAL_SERIES(arg));
     REBCNT len = 0;
 
-    Partial1(arg, ARG(size), &len);
+    UNUSED(REF(part)); // checked by if limit is void
+    Partial1(arg, ARG(limit), &len);
 
     REBSYM sym;
     if (REF(method)) {
@@ -362,6 +363,7 @@ REBNATIVE(compress)
     INCLUDE_PARAMS_OF_COMPRESS;
 
     REBCNT len;
+    UNUSED(PAR(part)); // checked by if limit is void
     Partial1(ARG(data), ARG(limit), &len);
 
     REBCNT index;
@@ -409,6 +411,7 @@ REBNATIVE(decompress)
         max = -1;
 
     REBCNT len;
+    assert(PAR(part) != NULL);
     Partial1(data, ARG(lim), &len);
 
     // This truncation rule used to be in Decompress, which passed len
@@ -757,6 +760,7 @@ REBNATIVE(lowercase)
 {
     INCLUDE_PARAMS_OF_LOWERCASE;
 
+    UNUSED(REF(part)); // checked by if limit is void
     Change_Case(D_OUT, ARG(string), ARG(limit), FALSE);
     return R_OUT;
 }
@@ -778,6 +782,7 @@ REBNATIVE(uppercase)
 {
     INCLUDE_PARAMS_OF_UPPERCASE;
 
+    UNUSED(REF(part)); // checked by if limit is void
     Change_Case(D_OUT, ARG(string), ARG(limit), TRUE);
     return R_OUT;
 }
@@ -896,20 +901,16 @@ REBNATIVE(utf_q)
 
 
 //
-//  invalid-utf?: native [
+//  invalid-utf8?: native [
 //
-//  {Checks UTF encoding; if correct, returns blank else position of error.}
+//  {Checks UTF-8 encoding; if correct, returns blank else position of error.}
 //
 //      data [binary!]
-//      /utf
-//          "Check encodings other than UTF-8"
-//      num [integer!]
-//          "Bit size - positive for BE negative for LE"
 //  ]
 //
-REBNATIVE(invalid_utf_q)
+REBNATIVE(invalid_utf8_q)
 {
-    INCLUDE_PARAMS_OF_INVALID_UTF_Q;
+    INCLUDE_PARAMS_OF_INVALID_UTF8_Q;
 
     REBVAL *arg = ARG(data);
 

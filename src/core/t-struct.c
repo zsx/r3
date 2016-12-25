@@ -967,7 +967,6 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
     REBVAL *blk = NULL;
 
     for (blk = KNOWN(VAL_ARRAY_AT(spec)); NOT_END(blk); blk += 2) {
-        unsigned int i = 0;
         REBVAL *word = blk;
         REBVAL *fld_val = blk + 1;
 
@@ -1062,7 +1061,9 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
 //         ...
 //     ]
 //
-void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
+void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
+    assert(kind == REB_STRUCT);
+
     if (!IS_BLOCK(arg))
         fail (Error_Invalid_Arg(arg));
 
@@ -1117,7 +1118,6 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind type, const REBVAL *arg) {
 
     REBINT field_idx = 0; // for field index
     REBIXO eval_idx = 0; // for spec block evaluation
-    REBCNT alignment = 0;
 
     REBDSP dsp_orig = DSP; // use data stack to accumulate fields (BLOCK!s)
 
@@ -1347,8 +1347,6 @@ void TO_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 REBINT PD_Struct(REBPVS *pvs)
 {
-    struct Struct_Field *field = NULL;
-    REBCNT i = 0;
     REBSTU *stu = VAL_STRUCT(pvs->value);
     if (!IS_WORD(pvs->selector))
         fail (Error_Bad_Path_Select(pvs));

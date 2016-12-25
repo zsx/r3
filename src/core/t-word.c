@@ -155,7 +155,6 @@ void TO_Word(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 REBTYPE(Word)
 {
     REBVAL *val = D_ARG(1);
-    REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
     switch (action) {
     case SYM_LENGTH: {

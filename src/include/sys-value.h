@@ -885,15 +885,15 @@ inline static void SET_PERCENT(RELVAL *v, REBDEC d) {
     v->payload.decimal = d;
 }
 
-#if defined(__cplusplus)
+#if defined(__cplusplus) && __cplusplus >= 201103L
     //
     // There is a difference between SET_DECIMAL_BITS and SET_DECIMAL when
     // interpreting a 64-bit integer.  These overloads with no bodies make it
     // so that the C++ build will catch attempts to pass integers to the
     // decimal initialization, which could be confused with bit initialization
     //
-    inline static void SET_DECIMAL(RELVAL *v, REBI64 bits);
-    inline static void SET_PERCENT(RELVAL *v, REBI64 bits);
+    inline static void SET_DECIMAL(RELVAL *v, REBI64 bits) = delete;
+    inline static void SET_PERCENT(RELVAL *v, REBI64 bits) = delete;
 #endif
 
 // !!! Several parts of the code wanted to access the decimal as "bits" through

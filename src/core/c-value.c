@@ -68,6 +68,9 @@ ATTRIBUTE_NO_RETURN void Panic_Value_Debug(const RELVAL *v) {
         );
         fflush(stdout);
         break;
+
+    default:
+        break;
     }
 
     printf("Kind=%d\n", cast(int, VAL_TYPE_RAW(v)));

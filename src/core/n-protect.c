@@ -176,6 +176,8 @@ static REB_R Protect_Unprotect_Core(REBFRM *frame_, REBFLGS flags)
 {
     INCLUDE_PARAMS_OF_PROTECT;
 
+    UNUSED(PAR(hide)); // unused here, but processed in caller
+
     REBVAL *value = ARG(value);
 
     // flags has PROT_SET bit (set or not)
@@ -274,6 +276,13 @@ REBNATIVE(protect)
 {
     INCLUDE_PARAMS_OF_PROTECT;
 
+    // Avoid unused parameter warnings (core routine handles them via frame)
+    //
+    UNUSED(PAR(value));
+    UNUSED(PAR(deep));
+    UNUSED(PAR(words));
+    UNUSED(PAR(values));
+
     REBFLGS flags = FLAGIT(PROT_SET);
 
     if (REF(hide))
@@ -304,6 +313,13 @@ REBNATIVE(protect)
 REBNATIVE(unprotect)
 {
     INCLUDE_PARAMS_OF_UNPROTECT;
+
+    // Avoid unused parameter warnings (core handles them via frame)
+    //
+    UNUSED(PAR(value));
+    UNUSED(PAR(deep));
+    UNUSED(PAR(words));
+    UNUSED(PAR(values));
 
     if (REF(hide))
         fail (Error(RE_MISC));

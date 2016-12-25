@@ -78,6 +78,7 @@ REBI64 Join_Time(REB_TIMEF *tf, REBOOL neg)
 const REBYTE *Scan_Time(REBVAL *out, const REBYTE *cp, REBCNT len)
 {
     SET_TRASH_IF_DEBUG(out);
+    cast(void, len); // !!! should len be paid attention to?
 
     REBOOL neg;
     if (*cp == '-') {
@@ -293,6 +294,8 @@ REBI64 Make_Time(const REBVAL *val)
 //
 void MAKE_Time(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
 {
+    assert(type == REB_TIME);
+
     REBI64 secs = Make_Time(arg);
     if (secs == NO_TIME)
         fail (Error_Bad_Make(REB_TIME, arg));
@@ -599,6 +602,8 @@ REBTYPE(Time)
         case SYM_ROUND: {
             INCLUDE_PARAMS_OF_ROUND;
 
+            UNUSED(PAR(value));
+
             REBFLGS flags = (
                 (REF(to) ? RF_TO : 0)
                 | (REF(even) ? RF_EVEN : 0)
@@ -640,6 +645,11 @@ REBTYPE(Time)
 
         case SYM_RANDOM: {
             INCLUDE_PARAMS_OF_RANDOM;
+
+            UNUSED(PAR(value));
+
+            if (REF(only))
+                fail (Error(RE_BAD_REFINES));
 
             if (REF(seed)) {
                 Set_Random(secs);

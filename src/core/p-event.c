@@ -143,8 +143,6 @@ static REB_R Event_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     REBVAL *arg;
     REBVAL save_port;
 
-    Validate_Port(port, action);
-
     arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     *D_OUT = *D_ARG(1);
 
@@ -198,6 +196,21 @@ act_blk:
 
     case SYM_OPEN: {
         INCLUDE_PARAMS_OF_OPEN;
+
+        UNUSED(PAR(spec));
+        if (REF(new))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(read))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(write))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(seek))
+            fail (Error(RE_BAD_REFINES));
+        if (REF(allow)) {
+            assert(!IS_VOID(ARG(access)));
+            fail (Error(RE_BAD_REFINES));
+        }
+
         if (!req) { //!!!
             req = OS_MAKE_DEVREQ(RDI_EVENT);
             if (req) {

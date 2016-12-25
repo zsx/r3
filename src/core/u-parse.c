@@ -538,9 +538,10 @@ static REBIXO Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
             return THROWN_FLAG;
         }
         return MIN(P_POS, SER_LEN(P_INPUT)); } // !!! review truncation concept
-    }
 
-    fail (Error_Parse_Rule());
+    default:
+        fail (Error_Parse_Rule());
+    }
 }
 
 
@@ -1161,7 +1162,7 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
     REBIXO indexor = DO_NEXT_MAY_THROW(
         &value, AS_ARRAY(P_INPUT), P_POS, P_INPUT_SPECIFIER
     );
-    if (THROWN(&value)) {
+    if (indexor == THROWN_FLAG) {
         *P_OUT = value;
         return THROWN_FLAG;
     }
@@ -1352,6 +1353,7 @@ REBNATIVE(subparse)
     // the value payloads so they can be seen more easily.
     //
     const REBCNT *pos_debug = &P_POS;
+    cast(const void*, pos_debug);
 
     REBUPT do_count = TG_Do_Count; // helpful to cache for visibility also
 #endif
@@ -2325,6 +2327,7 @@ REBNATIVE(parse_accept)
 // !!! This was not created for user usage, but rather as a label for the
 // internal throw used to indicate "accept".
 {
+    UNUSED(frame_);
     fail (Error(RE_MISC));
 }
 
@@ -2341,5 +2344,6 @@ REBNATIVE(parse_reject)
 // !!! This was not created for user usage, but rather as a label for the
 // internal throw used to indicate "reject".
 {
+    UNUSED(frame_);
     fail (Error(RE_MISC));
 }
