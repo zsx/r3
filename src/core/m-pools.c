@@ -913,19 +913,7 @@ REBSER *Make_Series(REBCNT capacity, REBYTE wide, REBCNT flags)
 
     s->content.dynamic.data = NULL;
 
-    if (flags & MKS_EXTERNAL) {
-        //
-        // External series will poke in their own data pointer after the
-        // REBSER header allocation is done.  Note that despite using a
-        // data pointer, it is still considered a dynamic series...as it
-        // uses fields in `content.dynamic` (for length and data)
-        //
-        SER_SET_WIDE(s, wide);
-        SET_SER_INFOS(s, SERIES_INFO_EXTERNAL | SERIES_INFO_HAS_DYNAMIC);
-        s->content.dynamic.rest = capacity;
-        s->content.dynamic.len = 0;
-    }
-    else if ((flags & MKS_ARRAY) && capacity <= 2) {
+    if ((flags & MKS_ARRAY) && capacity <= 2) {
         //
         // An array requested of capacity 2 actually means one cell of data
         // and one cell that can serve as an END marker.  The invariant that
@@ -1380,9 +1368,6 @@ void Remake_Series(REBSER *s, REBCNT units, REBYTE wide, REBCNT flags)
     REBYTE wide_old = SER_WIDE(s);
 
 #if !defined(NDEBUG)
-    assert(!(flags & MKS_EXTERNAL)); // manages own memory
-    assert(NOT_SER_INFO(s, SERIES_INFO_EXTERNAL));
-
     assert(is_array == LOGICAL(flags & MKS_ARRAY)); // can't switch arrayness
 
     if (flags & MKS_PRESERVE)
@@ -1473,37 +1458,27 @@ void GC_Kill_Series(REBSER *s)
     }
 
     if (GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)) {
-        if (GET_SER_INFO(s, SERIES_INFO_EXTERNAL)) {
-            //
-            // External series have their REBSER GC'd when Rebol doesn't need it,
-            // but the data pointer itself is not one that Rebol allocated
-            // !!! Should the external owner be told about the GC/free event?
-        }
-        else {
-            REBCNT size = SER_TOTAL(s);
+        REBCNT size = SER_TOTAL(s);
 
-            REBYTE wide = SER_WIDE(s);
-            REBCNT bias = SER_BIAS(s);
-            s->content.dynamic.data -= wide * bias;
-            Free_Unbiased_Series_Data(
-                s->content.dynamic.data,
-                Series_Allocation_Unpooled(s)
-            );
+        REBYTE wide = SER_WIDE(s);
+        REBCNT bias = SER_BIAS(s);
+        s->content.dynamic.data -= wide * bias;
+        Free_Unbiased_Series_Data(
+            s->content.dynamic.data,
+            Series_Allocation_Unpooled(s)
+        );
 
-            // !!! This indicates reclaiming of the space, not for the series
-            // nodes themselves...have they never been accounted for, e.g. in
-            // R3-Alpha?  If not, they should be...additional sizeof(REBSER),
-            // also tracking overhead for that.  Review the question of how
-            // the GC watermarks interact with Alloc_Mem and the "higher
-            // level" allocations.
+        // !!! This indicates reclaiming of the space, not for the series
+        // nodes themselves...have they never been accounted for, e.g. in
+        // R3-Alpha?  If not, they should be...additional sizeof(REBSER),
+        // also tracking overhead for that.  Review the question of how
+        // the GC watermarks interact with Alloc_Mem and the "higher
+        // level" allocations.
 
-            if (REB_I32_ADD_OF(GC_Ballast, size, &GC_Ballast))
-                GC_Ballast = MAX_I32;
-        }
+        if (REB_I32_ADD_OF(GC_Ballast, size, &GC_Ballast))
+            GC_Ballast = MAX_I32;
     }
     else {
-        assert(NOT_SER_INFO(s, SERIES_INFO_EXTERNAL));
-
         // Special GC processing for HANDLE! when the handle is implemented as
         // a singular array, so that if the handle represents a resource, it
         // may be freed.

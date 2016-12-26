@@ -132,7 +132,7 @@ REBNATIVE(load_extension)
     else {
         // Hosted extension:
         src = VAL_SERIES(val);
-        call = VAL_HANDLE_CODE(ARG(function));
+        call = cast(CFUNC*, VAL_HANDLE_POINTER(ARG(function)));
         dll = 0;
     }
 
@@ -150,8 +150,8 @@ REBNATIVE(load_extension)
     // Set extension fields needed:
     Init_Handle_Simple(
         CTX_VAR(context, STD_EXTENSION_LIB_BASE),
-        NULL, // code
-        cast(void*, cast(REBUPT, ext->index)) // data
+        cast(void*, cast(REBUPT, ext->index)), // data
+        0 // optional length-sized data
     );
 
     if (NOT(REF(dispatch)))
@@ -188,7 +188,7 @@ void Make_Command(
         REBEXT *rebext;
         REBVAL *handle = VAL_CONTEXT_VAR(extension, SELFISH(1));
         if (!IS_HANDLE(handle)) goto bad_func_def;
-        rebext = &Ext_List[cast(REBUPT, VAL_HANDLE_DATA(handle))];
+        rebext = &Ext_List[cast(REBUPT, VAL_HANDLE_POINTER(handle))];
         if (!rebext || !rebext->call) goto bad_func_def;
     }
 
@@ -283,7 +283,7 @@ REB_R Command_Dispatcher(REBFRM *f)
     //
     REBVAL *data = KNOWN(VAL_ARRAY_HEAD(FUNC_BODY(f->func)));
     REBEXT *handler = &Ext_List[
-        cast(REBUPT, VAL_HANDLE_DATA(VAL_CONTEXT_VAR(data, SELFISH(1))))
+        cast(REBUPT, VAL_HANDLE_POINTER(VAL_CONTEXT_VAR(data, SELFISH(1))))
     ];
     REBCNT cmd_num = cast(REBCNT, Int32(data + 1));
 

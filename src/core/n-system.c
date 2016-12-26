@@ -414,7 +414,7 @@ REBNATIVE(do_codec)
 {
     INCLUDE_PARAMS_OF_DO_CODEC;
 
-    codo fun = cast(codo, VAL_HANDLE_CODE(ARG(handle)));
+    codo fun = cast(codo, VAL_HANDLE_POINTER(ARG(handle)));
 
     REBCDI codi;
     CLEAR(&codi, sizeof(codi));

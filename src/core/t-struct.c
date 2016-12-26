@@ -38,10 +38,7 @@
 //
 static void cleanup_ffi_type(const REBVAL *v) {
     assert(IS_HANDLE(v));
-    assert(v->payload.handle.code == NULL);
-    assert(v->payload.handle.data != NULL);
-
-    ffi_type *fftype = cast(ffi_type*, v->payload.handle.data);
+    ffi_type *fftype = cast(ffi_type*, v->payload.handle.pointer);
     if (fftype->type == FFI_TYPE_STRUCT)
         OS_FREE(fftype->elements);
     OS_FREE(fftype);
@@ -51,9 +48,8 @@ static void cleanup_ffi_type(const REBVAL *v) {
 static void fail_if_non_accessible(const REBVAL *val)
 {
     if (VAL_STRUCT_INACCESSIBLE(val)) {
-        REBSER *data = VAL_STRUCT_DATA_BIN(val);
         REBVAL i;
-        SET_INTEGER(&i, cast(REBUPT, SER_DATA_RAW(data)));
+        SET_INTEGER(&i, cast(REBUPT, VAL_STRUCT_DATA_HEAD(val)));
         fail (Error(RE_BAD_MEMORY, &i, val));
     }
 }
@@ -66,11 +62,8 @@ static void get_scalar(
 ){
     assert(n == 0 || FLD_IS_ARRAY(field));
 
-    REBYTE *data = SER_AT(
-        REBYTE,
-        STU_DATA_BIN(stu),
-        STU_OFFSET(stu) + FLD_OFFSET(field) + (n * FLD_WIDE(field))
-    );
+    REBCNT offset =
+        STU_OFFSET(stu) + FLD_OFFSET(field) + (n * FLD_WIDE(field));
 
     if (FLD_IS_STRUCT(field)) {
         //
@@ -92,8 +85,14 @@ static void get_scalar(
         VAL_RESET_HEADER(single, REB_STRUCT);
         MANAGE_ARRAY(sub_stu);
         single->payload.structure.stu = sub_stu;
-        single->payload.structure.data = STU_DATA_BIN(stu); // in parent data
-        single->extra.struct_offset = data - BIN_HEAD(STU_DATA_BIN(stu));
+
+        // The parent data may be a singular array for a HANDLE! or a BINARY!
+        // series, depending on whether the data is owned by Rebol or not.
+        // That series pointer is being referenced again here.
+        //
+        single->payload.structure.data =
+            ARR_HEAD(stu)->payload.structure.data;
+        single->extra.struct_offset = offset;
 
         // With all fields initialized, assign canon value as result
         //
@@ -111,53 +110,55 @@ static void get_scalar(
         return;
     }
 
+    REBYTE *p = offset + STU_DATA_HEAD(stu);
+
     switch (FLD_TYPE_SYM(field)) {
     case SYM_UINT8:
-        SET_INTEGER(out, *cast(u8*, data));
+        SET_INTEGER(out, *cast(u8*, p));
         break;
 
     case SYM_INT8:
-        SET_INTEGER(out, *cast(i8*, data));
+        SET_INTEGER(out, *cast(i8*, p));
         break;
 
     case SYM_UINT16:
-        SET_INTEGER(out, *cast(u16*, data));
+        SET_INTEGER(out, *cast(u16*, p));
         break;
 
     case SYM_INT16:
-        SET_INTEGER(out, *cast(i8*, data));
+        SET_INTEGER(out, *cast(i8*, p));
         break;
 
     case SYM_UINT32:
-        SET_INTEGER(out, *cast(u32*, data));
+        SET_INTEGER(out, *cast(u32*, p));
         break;
 
     case SYM_INT32:
-        SET_INTEGER(out, *cast(i32*, data));
+        SET_INTEGER(out, *cast(i32*, p));
         break;
 
     case SYM_UINT64:
-        SET_INTEGER(out, *cast(u64*, data));
+        SET_INTEGER(out, *cast(u64*, p));
         break;
 
     case SYM_INT64:
-        SET_INTEGER(out, *cast(i64*, data));
+        SET_INTEGER(out, *cast(i64*, p));
         break;
 
     case SYM_FLOAT:
-        SET_DECIMAL(out, *cast(float*, data));
+        SET_DECIMAL(out, *cast(float*, p));
         break;
 
     case SYM_DOUBLE:
-        SET_DECIMAL(out, *cast(double*, data));
+        SET_DECIMAL(out, *cast(double*, p));
         break;
 
     case SYM_POINTER:
-        SET_INTEGER(out, cast(REBUPT, *cast(void**, data)));
+        SET_INTEGER(out, cast(REBUPT, *cast(void**, p)));
         break;
 
     case SYM_REBVAL:
-        *out = *cast(const REBVAL*, data);
+        *out = *cast(const REBVAL*, p);
         break;
 
     default:
@@ -335,7 +336,7 @@ static REBOOL same_fields(REBARR *tgt_fieldlist, REBARR *src_fieldlist)
 
 
 static REBOOL assign_scalar_core(
-    REBSER *data_bin,
+    REBYTE *data_head,
     REBCNT offset,
     REBFLD *field,
     REBCNT n,
@@ -343,11 +344,8 @@ static REBOOL assign_scalar_core(
 ){
     assert(n == 0 || FLD_IS_ARRAY(field));
 
-    void *data = SER_AT(
-        REBYTE,
-        data_bin,
-        offset + FLD_OFFSET(field) + (n * FLD_WIDE(field))
-    );
+    void *data = data_head +
+        offset + FLD_OFFSET(field) + (n * FLD_WIDE(field));
 
     if (FLD_IS_STRUCT(field)) {
         if (!IS_STRUCT(val))
@@ -359,15 +357,7 @@ static REBOOL assign_scalar_core(
         if (!same_fields(FLD_FIELDLIST(field), VAL_STRUCT_FIELDLIST(val)))
             fail (Error_Invalid_Arg(val));
 
-        memcpy(
-            data,
-            SER_AT(
-                REBYTE,
-                VAL_STRUCT_DATA_BIN(val),
-                VAL_STRUCT_OFFSET(val)
-            ),
-            FLD_WIDE(field)
-        );
+        memcpy(data, VAL_STRUCT_DATA_AT(val), FLD_WIDE(field));
 
         return TRUE;
     }
@@ -479,7 +469,7 @@ inline static REBOOL assign_scalar(
     const REBVAL *val
 ) {
     return assign_scalar_core(
-        STU_DATA_BIN(stu), STU_OFFSET(stu), field, n, val
+        STU_DATA_HEAD(stu), STU_OFFSET(stu), field, n, val
     );
 }
 
@@ -629,25 +619,23 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
 }
 
 
+// The managed handle logic always assumes a cleanup function, so it doesn't
+// have to test for NULL.
+//
+static void cleanup_noop(const REBVAL *v) {
+    assert(IS_HANDLE(v));
+}
+
+
 //
 // set storage memory to external addr: raw_addr
 //
-// !!! The STRUCT! type is being converted to be "more like a user defined
-// type", in that it will be driven less by specialized C structures and
-// done more in usermode mechanics.  One glitch in that is this routine
-// which apparently was used specifically on structs to allow their data
-// pointer to come from an external memory address.  With STRUCT! relying
-// on BINARY! for its storage, this introduces the concept of an
-// "external binary".  While a generalized external binary might be
-// an interesting feature, it would come at the cost that every series
-// access on BINARY! for the data would have to check if it was loaded
-// or not.
-//
-// This suggests perhaps that BINARY! can't be used and some kind of handle
-// would instead.
-//
-// This is something that should be discussed with Atronix to figure out
-// exactly why this was added
+// "External Storage" is the idea that a STRUCT! which is modeling a C
+// struct doesn't use a BINARY! series as the backing store, rather a pointer
+// that is external to the system.  When Atronix added the FFI initially,
+// this was done by creating a separate type of REBSER that could use an
+// external pointer.  This uses a managed HANDLE! for the same purpose, as
+// a less invasive way of doing the same thing.
 //
 static REBSER *make_ext_storage(
     REBCNT len,
@@ -660,18 +648,10 @@ static REBSER *make_ext_storage(
         fail (Error(RE_INVALID_DATA, &i));
     }
 
-    REBSER *ser = Make_Series(
-        len + 1, // include term. !!! not included otherwise (?)
-        1, // width
-        MKS_EXTERNAL
-    );
+    REBVAL handle;
+    Init_Handle_Managed(&handle, cast(REBYTE*, raw_addr), len, &cleanup_noop);
 
-    SER_SET_EXTERNAL_DATA(ser, cast(REBYTE*, raw_addr));
-    assert(NOT_SER_INFO(ser, SERIES_INFO_INACCESSIBLE));
-    SET_SERIES_LEN(ser, len);
-
-    MANAGE_SERIES(ser);
-    return ser;
+    return AS_SERIES(handle.extra.singular);
 }
 
 
@@ -724,7 +704,7 @@ static void Prepare_Field_For_FFI(REBFLD *schema)
         // The FFType pointers returned by Get_FFType_For_Sym should not be
         // freed, so a "simple" handle is used that just holds the pointer.
         //
-        Init_Handle_Simple(FLD_AT(schema, IDX_FIELD_FFTYPE), NULL, fftype);
+        Init_Handle_Simple(FLD_AT(schema, IDX_FIELD_FFTYPE), fftype, 0);
         return;
     }
 
@@ -760,7 +740,10 @@ static void Prepare_Field_For_FFI(REBFLD *schema)
     fftype->elements[j] = NULL;
 
     Init_Handle_Managed(
-        FLD_AT(schema, IDX_FIELD_FFTYPE), NULL, fftype, &cleanup_ffi_type
+        FLD_AT(schema, IDX_FIELD_FFTYPE),
+        fftype,
+        dimensionality + 1,
+        &cleanup_ffi_type
     );
 }
 
@@ -861,7 +844,7 @@ static void Parse_Field_Type_May_Fail(
 
             SET_INTEGER(
                 FLD_AT(field, IDX_FIELD_WIDE),
-                SER_LEN(VAL_STRUCT_DATA_BIN(inner))
+                VAL_STRUCT_DATA_LEN(inner)
             );
             Init_Block(
                 FLD_AT(field, IDX_FIELD_TYPE),
@@ -906,7 +889,7 @@ static void Parse_Field_Type_May_Fail(
         //
         SET_INTEGER(
             FLD_AT(field, IDX_FIELD_WIDE),
-            SER_LEN(VAL_STRUCT_DATA_BIN(val))
+            VAL_STRUCT_DATA_LEN(val)
         );
         Init_Block(
             FLD_AT(field, IDX_FIELD_TYPE),
@@ -1025,11 +1008,7 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
 
                     // assuming valid pointer to enough space
                     memcpy(
-                        SER_AT(
-                            REBYTE,
-                            VAL_STRUCT_DATA_BIN(ret),
-                            FLD_OFFSET(field)
-                        ),
+                        VAL_STRUCT_DATA_HEAD(ret) + FLD_OFFSET(field),
                         ptr,
                         FLD_LEN_BYTES_TOTAL(field)
                     );
@@ -1226,7 +1205,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                     // assign
                     for (n = 0; n < FLD_DIMENSION(field); n ++) {
                         if (!assign_scalar_core(
-                            data_bin,
+                            BIN_HEAD(data_bin),
                             offset,
                             field,
                             n,
@@ -1242,7 +1221,9 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
             }
             else {
                 // scalar
-                if (!assign_scalar_core(data_bin, offset, field, 0, &init)) {
+                if (!assign_scalar_core(
+                    BIN_HEAD(data_bin), offset, field, 0, &init
+                )) {
                     //RL_Print("Failed to assign scalar value\n");
                     fail (Error(RE_MISC));
                 }
@@ -1258,7 +1239,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                             data_bin,
                             cast(REBCNT, offset) + (n * FLD_WIDE(field))
                         ),
-                        BIN_HEAD(VAL_STRUCT_DATA_BIN(&init)),
+                        VAL_STRUCT_DATA_HEAD(&init),
                         FLD_WIDE(field)
                     );
                 }
@@ -1457,8 +1438,8 @@ REBINT CT_Struct(const RELVAL *a, const RELVAL *b, REBINT mode)
             && same_fields(VAL_STRUCT_FIELDLIST(a), VAL_STRUCT_FIELDLIST(b))
             && VAL_STRUCT_SIZE(a) == VAL_STRUCT_SIZE(b)
             && !memcmp(
-                BIN_HEAD(VAL_STRUCT_DATA_BIN(a)),
-                BIN_HEAD(VAL_STRUCT_DATA_BIN(b)),
+                VAL_STRUCT_DATA_HEAD(a),
+                VAL_STRUCT_DATA_HEAD(b),
                 VAL_STRUCT_SIZE(a)
             )
         );
@@ -1492,9 +1473,11 @@ REBSTU *Copy_Struct_Managed(REBSTU *src)
     // !!! Note that this leaves the offset intact, and will wind up making a
     // copy as big as struct the instance is embedded into if nonzero offset.
 
-    REBSER *bin_copy = Copy_Sequence(STU_DATA_BIN(src));
+    REBSER *bin_copy = Make_Binary(STU_DATA_LEN(src));
+    memcpy(BIN_HEAD(bin_copy), STU_DATA_HEAD(src), STU_DATA_LEN(src));
+    TERM_BIN_LEN(bin_copy, STU_DATA_LEN(src));
     STU_VALUE(copy)->payload.structure.data = bin_copy;
-    assert(STU_DATA_BIN(copy) == bin_copy);
+    assert(STU_DATA_HEAD(copy) == BIN_HEAD(bin_copy));
 
     MANAGE_SERIES(bin_copy);
     MANAGE_ARRAY(copy);
@@ -1521,13 +1504,13 @@ REBTYPE(Struct)
         if (!IS_BINARY(arg))
             fail (Error_Unexpected_Type(REB_BINARY, VAL_TYPE(arg)));
 
-        if (VAL_LEN_AT(arg) != SER_LEN(VAL_STRUCT_DATA_BIN(val)))
+        if (VAL_LEN_AT(arg) != VAL_STRUCT_DATA_LEN(val))
             fail (Error_Invalid_Arg(arg));
 
         memcpy(
-            BIN_HEAD(VAL_STRUCT_DATA_BIN(val)),
+            VAL_STRUCT_DATA_HEAD(val),
             BIN_HEAD(VAL_SERIES(arg)),
-            BIN_LEN(VAL_STRUCT_DATA_BIN(val))
+            VAL_STRUCT_DATA_LEN(val)
         );
         *D_OUT = *val;
         break; }
@@ -1535,29 +1518,24 @@ REBTYPE(Struct)
     case SYM_REFLECT: {
         arg = D_ARG(2);
         switch (VAL_WORD_SYM(arg)) {
-        case SYM_VALUES:
+        case SYM_VALUES: {
             fail_if_non_accessible(val);
-            Init_Binary(
-                D_OUT,
-                Copy_Sequence_At_Len(VAL_STRUCT_DATA_BIN(val),
-                VAL_STRUCT_OFFSET(val),
-                VAL_STRUCT_SIZE(val))
+            REBSER *bin = Make_Binary(VAL_STRUCT_SIZE(val));
+            memcpy(
+                BIN_HEAD(bin),
+                VAL_STRUCT_DATA_AT(val),
+                VAL_STRUCT_SIZE(val)
             );
-            break;
+            TERM_BIN_LEN(bin, VAL_STRUCT_SIZE(val));
+            Init_Binary(D_OUT, bin);
+            break; }
 
         case SYM_SPEC:
             Init_Block(D_OUT, Struct_To_Array(VAL_STRUCT(val)));
             break;
 
         case SYM_ADDR:
-            SET_INTEGER(
-                D_OUT,
-                cast(REBUPT, SER_AT(
-                    REBYTE,
-                    VAL_STRUCT_DATA_BIN(val),
-                    VAL_STRUCT_OFFSET(val)
-                ))
-            );
+            SET_INTEGER(D_OUT, cast(REBUPT, VAL_STRUCT_DATA_AT(val)));
             break;
 
         default:
@@ -1566,7 +1544,7 @@ REBTYPE(Struct)
         break; }
 
     case SYM_LENGTH:
-        SET_INTEGER(D_OUT, SER_LEN(VAL_STRUCT_DATA_BIN(val)));
+        SET_INTEGER(D_OUT, VAL_STRUCT_DATA_LEN(val));
         break;
 
     default:
@@ -1591,14 +1569,25 @@ REBNATIVE(destroy_struct_storage)
 {
     INCLUDE_PARAMS_OF_DESTROY_STRUCT_STORAGE;
 
+    REBSER *ser = ARG(struct)->payload.structure.data;
+    if (NOT(Is_Array_Series(ser)))
+        fail (Error(RE_NO_EXTERNAL_STORAGE));
+
+    REBVAL pointer;
+    SET_INTEGER(&pointer, cast(REBUPT, SER_DATA_RAW(ser)));
+
+    if (GET_SER_INFO(ser, SERIES_INFO_INACCESSIBLE))
+        fail (Error(RE_ALREADY_DESTROYED, pointer));
+
+    SET_SER_INFO(ser, SERIES_INFO_INACCESSIBLE);
+
     if (REF(free)) {
-        if (IS_FUNCTION_RIN(ARG(free_func)))
+        if (NOT(IS_FUNCTION_RIN(ARG(free_func))))
             fail (Error(RE_FREE_NEEDS_ROUTINE));
+
+        if (Do_Va_Throws(D_OUT, ARG(free_func), &pointer, END_CELL))
+            return R_OUT_IS_THROWN;
     }
 
-    return Destroy_External_Storage(
-        D_OUT,
-        VAL_STRUCT_DATA_BIN(ARG(struct)),
-        REF(free) ? ARG(free_func) : NULL
-    );
+    return R_VOID;
 }

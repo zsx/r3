@@ -176,8 +176,6 @@ static void Queue_Mark_Array_Subclass_Deep(REBARR *a)
 
     if (!IS_ARRAY_MANAGED(a))
         panic (a);
-
-    assert(NOT_SER_INFO(a, SERIES_INFO_EXTERNAL));
 #endif
 
     // A marked array doesn't necessarily mean all references reached from it
@@ -403,8 +401,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
                 // references at once), the data pointers in all but the
                 // shared singular value are NULL.
                 //
-                assert(IS_POINTER_TRASH_DEBUG(v->payload.handle.code));
-                assert(IS_POINTER_TRASH_DEBUG(v->payload.handle.data));
+                assert(IS_POINTER_TRASH_DEBUG(v->payload.handle.pointer));
             }
         #endif
         }
@@ -585,7 +582,9 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         // lifetime can be longer than the struct which they represent
         // a "slice" out of.
         //
-        Mark_Rebser_Only(VAL_STRUCT_DATA_BIN(v));
+        // Note this may be a singular array handle, or it could be a BINARY!
+        //
+        Mark_Rebser_Only(v->payload.structure.data);
         break; }
 
     case REB_LIBRARY: {

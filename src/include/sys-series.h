@@ -261,11 +261,6 @@ inline static REBYTE *SER_AT_RAW(REBYTE w, REBSER *s, REBCNT i) {
         );
 }
 
-inline static void SER_SET_EXTERNAL_DATA(REBSER *s, void *p) {
-    SET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC);
-    s->content.dynamic.data = cast(REBYTE*, p);
-}
-
 
 //
 // In general, requesting a pointer into the series data requires passing in

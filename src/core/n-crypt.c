@@ -97,10 +97,7 @@ void Shutdown_Crypto(void)
 static void cleanup_rc4_ctx(const REBVAL *val)
 {
     assert(IS_HANDLE(val));
-    assert(val->payload.handle.code == NULL);
-    assert(val->payload.handle.data != NULL);
-
-    RC4_CTX *rc4_ctx = cast(RC4_CTX*, val->payload.handle.data);
+    RC4_CTX *rc4_ctx = cast(RC4_CTX*, val->payload.handle.pointer);
     FREE(RC4_CTX, rc4_ctx);
 }
 
@@ -130,7 +127,7 @@ REBNATIVE(rc4)
     if (REF(stream)) {
         REBVAL *data = ARG(data);
 
-        RC4_CTX *rc4_ctx = cast(RC4_CTX*, VAL_HANDLE_DATA(ARG(ctx)));
+        RC4_CTX *rc4_ctx = cast(RC4_CTX*, VAL_HANDLE_POINTER(ARG(ctx)));
 
         RC4_crypt(
             rc4_ctx,
@@ -150,7 +147,7 @@ REBNATIVE(rc4)
 
         RC4_setup(rc4_ctx, VAL_BIN_AT(ARG(key)), VAL_LEN_AT(ARG(key)));
 
-        Init_Handle_Managed(D_OUT, NULL, rc4_ctx, &cleanup_rc4_ctx);
+        Init_Handle_Managed(D_OUT, rc4_ctx, 0, &cleanup_rc4_ctx);
         return R_OUT;
     }
 
@@ -475,10 +472,9 @@ REBNATIVE(dh_compute_key)
 static void cleanup_aes_ctx(const REBVAL *val)
 {
     assert(IS_HANDLE(val));
-    assert(val->payload.handle.code == NULL);
-    assert(val->payload.handle.data != NULL);
+    assert(val->payload.handle.pointer != NULL);
 
-    AES_CTX *aes_ctx = cast(AES_CTX*, val->payload.handle.data);
+    AES_CTX *aes_ctx = cast(AES_CTX*, val->payload.handle.pointer);
     FREE(AES_CTX, aes_ctx);
 }
 
@@ -510,7 +506,7 @@ REBNATIVE(aes)
     INCLUDE_PARAMS_OF_AES;
 
     if (REF(stream)) {
-        AES_CTX *aes_ctx = cast(AES_CTX*, VAL_HANDLE_DATA(ARG(ctx)));
+        AES_CTX *aes_ctx = cast(AES_CTX*, VAL_HANDLE_POINTER(ARG(ctx)));
 
         REBYTE *dataBuffer = VAL_BIN_AT(ARG(data));
         REBINT len = VAL_LEN_AT(ARG(data));
@@ -591,7 +587,7 @@ REBNATIVE(aes)
         if (REF(decrypt))
             AES_convert_key(aes_ctx);
 
-        Init_Handle_Managed(D_OUT, NULL, aes_ctx, &cleanup_aes_ctx);
+        Init_Handle_Managed(D_OUT, aes_ctx, 0, &cleanup_aes_ctx);
         return R_OUT;
     }
 

@@ -317,7 +317,7 @@ inline static REBCNT FLD_DIMENSION(REBFLD *f) {
 }
 
 inline static ffi_type *FLD_FFTYPE(REBFLD *f)
-    { return cast(ffi_type*, VAL_HANDLE_DATA(FLD_AT(f, IDX_FIELD_FFTYPE))); }
+    { return cast(ffi_type*, VAL_HANDLE_POINTER(FLD_AT(f, IDX_FIELD_FFTYPE))); }
 
 inline static REBCNT FLD_OFFSET(REBFLD *f)
     { return VAL_UNT32(FLD_AT(f, IDX_FIELD_OFFSET)); }
@@ -381,10 +381,6 @@ inline static REBCNT STU_SIZE(REBSTU *stu) {
     return FLD_WIDE(STU_SCHEMA(stu));
 }
 
-inline static REBSER *STU_DATA_BIN(REBSTU *stu) {
-    return STU_VALUE(stu)->payload.structure.data;
-}
-
 inline static REBCNT STU_OFFSET(REBSTU *stu) {
     return STU_VALUE(stu)->extra.struct_offset;
 }
@@ -401,20 +397,45 @@ inline static REBCNT STU_OFFSET(REBSTU *stu) {
 #define VAL_STRUCT_SIZE(v) \
     STU_SIZE(VAL_STRUCT(v))
 
-#define VAL_STRUCT_DATA_BIN(v) \
-    ((v)->payload.structure.data)
+inline static REBYTE *VAL_STRUCT_DATA_HEAD(const RELVAL *v) {
+    REBSER *data = v->payload.structure.data;
+    if (Is_Array_Series(data))
+        return cast(REBYTE*, VAL_HANDLE_POINTER(ARR_HEAD(data)));
+    else
+        return BIN_HEAD(data);
+}
 
-inline static REBOOL VAL_STRUCT_INACCESSIBLE(const RELVAL *v) {
-    REBSER *bin = VAL_STRUCT_DATA_BIN(v);
-    if (GET_SER_INFO(bin, SERIES_INFO_INACCESSIBLE)) {
-        assert(GET_SER_INFO(bin, SERIES_INFO_EXTERNAL));
-        return TRUE;
-    }
-    return FALSE;
+inline static REBYTE *STU_DATA_HEAD(REBSTU *stu) {
+    return VAL_STRUCT_DATA_HEAD(STU_VALUE(stu));
 }
 
 #define VAL_STRUCT_OFFSET(v) \
     ((v)->extra.struct_offset)
+
+inline static REBYTE *VAL_STRUCT_DATA_AT(const RELVAL *v) {
+    return VAL_STRUCT_DATA_HEAD(v) + VAL_STRUCT_OFFSET(v);
+}
+
+inline static REBCNT VAL_STRUCT_DATA_LEN(const RELVAL *v) {
+    REBSER *data = v->payload.structure.data;
+    if (Is_Array_Series(data))
+        return VAL_HANDLE_LEN(ARR_HEAD(data));
+    else
+        return BIN_LEN(data);
+}
+
+inline static REBCNT STU_DATA_LEN(REBSTU *stu) {
+    return VAL_STRUCT_DATA_LEN(STU_VALUE(stu));
+}
+
+inline static REBOOL VAL_STRUCT_INACCESSIBLE(const RELVAL *v) {
+    REBSER *data = v->payload.structure.data;
+    if (GET_SER_INFO(data, SERIES_INFO_INACCESSIBLE)) {
+        assert(Is_Array_Series(data));
+        return TRUE;
+    }
+    return FALSE;
+}
 
 #define VAL_STRUCT_FIELDLIST(v) \
     STU_FIELDLIST(VAL_STRUCT(v))
@@ -509,13 +530,18 @@ enum {
     //
     IDX_ROUTINE_IS_VARIADIC = 7,
 
+    // An ffi_closure which for a callback stores the place where the CFUNC*
+    // lives, or BLANK! otherwise.
+    //
+    IDX_ROUTINE_CLOSURE = 8,
+
     IDX_ROUTINE_MAX
 };
 
 #define RIN_AT(a, n) SER_AT(REBVAL, AS_SERIES(a), (n)) // locate index access
 
 inline static CFUNC *RIN_CFUNC(REBRIN *r)
-    { return VAL_HANDLE_CODE(RIN_AT(r, IDX_ROUTINE_CFUNC)); }
+    { return cast(CFUNC*, VAL_HANDLE_POINTER(RIN_AT(r, IDX_ROUTINE_CFUNC))); }
 
 inline static ffi_abi RIN_ABI(REBRIN *r)
     { return cast(ffi_abi, VAL_INT32(RIN_AT(r, IDX_ROUTINE_ABI))); }
@@ -532,7 +558,7 @@ inline static REBOOL RIN_IS_CALLBACK(REBRIN *r) {
 
 inline static ffi_closure* RIN_CLOSURE(REBRIN *r) {
     assert(RIN_IS_CALLBACK(r)); // only callbacks have ffi_closure
-    return cast(ffi_closure*, VAL_HANDLE_DATA(RIN_AT(r, IDX_ROUTINE_CFUNC)));
+    return cast(ffi_closure*, VAL_HANDLE_POINTER(RIN_AT(r, IDX_ROUTINE_CLOSURE)));
 }
 
 inline static REBLIB *RIN_LIB(REBRIN *r) {
@@ -556,11 +582,11 @@ inline static REBVAL *RIN_ARG_SCHEMA(REBRIN *r, REBCNT n) { // 0-based index
 }
 
 inline static ffi_cif *RIN_CIF(REBRIN *r)
-    { return cast(ffi_cif*, VAL_HANDLE_DATA(RIN_AT(r, IDX_ROUTINE_CIF))); }
+    { return cast(ffi_cif*, VAL_HANDLE_POINTER(RIN_AT(r, IDX_ROUTINE_CIF))); }
 
 inline static ffi_type** RIN_ARG_FFTYPES(REBRIN *r) {
     return cast(ffi_type**,
-        VAL_HANDLE_DATA(RIN_AT(r, IDX_ROUTINE_ARG_FFTYPES))
+        VAL_HANDLE_POINTER(RIN_AT(r, IDX_ROUTINE_ARG_FFTYPES))
     );
 }
 

@@ -1318,18 +1318,18 @@ RL_API void RL_Init_Val_Index(REBVAL *v, REBCNT i) {
 }
 
 //
-//  RL_Val_Handle_Data: C
+//  RL_Val_Handle_Pointer: C
 //
-RL_API void *RL_Val_Handle_Data(const REBVAL *v) {
-    return VAL_HANDLE_DATA(v);
+RL_API void *RL_Val_Handle_Pointer(const REBVAL *v) {
+    return VAL_HANDLE_POINTER(v);
 }
 
 //
-//  RL_Set_Handle_Data: C
+//  RL_Set_Handle_Pointer: C
 //
-RL_API void RL_Set_Handle_Data(REBVAL *v, void *p) {
+RL_API void RL_Set_Handle_Pointer(REBVAL *v, void *p) {
     v->extra.singular = NULL; // !!! only support "dumb" handles for now
-    SET_HANDLE_DATA(v, p);
+    SET_HANDLE_POINTER(v, p);
 }
 
 //

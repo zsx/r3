@@ -226,7 +226,7 @@ typedef int (*RXICAL)(int cmd, const REBVAL *frame, REBCEC *ctx);
     RL_VAL_INDEX(RL_FRM_ARG((f), (n)))
 
 #define RXA_HANDLE(f,n) \
-    RL_VAL_HANDLE_DATA(RL_FRM_ARG((f), (n)))
+    RL_VAL_HANDLE_POINTER(RL_FRM_ARG((f), (n)))
 
 #define RXA_OBJECT(f,n) \
     RL_VAL_CONTEXT(RL_FRM_ARG((f), (n)))

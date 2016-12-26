@@ -168,9 +168,8 @@ static REBCTX* add_path(
 static void cleanup(const REBVAL *val)
 {
     assert(IS_HANDLE(val));
-    assert(val->payload.handle.code == NULL);
-    assert(val->payload.handle.data != NULL);
-    tcc_delete(cast(TCCState*, val->payload.handle.data));
+    assert(val->payload.handle.pointer != NULL);
+    tcc_delete(cast(TCCState*, val->payload.handle.pointer));
 }
 
 
@@ -606,8 +605,8 @@ REBNATIVE(compile)
     REBVAL handle;
     Init_Handle_Managed(
         &handle,
-        NULL, // no "code" pointer
         state, // "data" pointer
+        0,
         cleanup // called upon GC
     );
 

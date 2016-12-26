@@ -422,11 +422,7 @@ static REBUPT arg_to_ffi(
         if (STU_SIZE(VAL_STRUCT(arg)) != FLD_WIDE(top))
             fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
 
-        memcpy(
-            dest,
-            SER_AT(REBYTE, VAL_STRUCT_DATA_BIN(arg), VAL_STRUCT_OFFSET(arg)),
-            STU_SIZE(VAL_STRUCT(arg))
-        );
+        memcpy(dest, VAL_STRUCT_DATA_AT(arg), STU_SIZE(VAL_STRUCT(arg)));
 
         return offset;
     }
@@ -652,7 +648,7 @@ static void ffi_to_rebol(
         AS_SERIES(stu)->link.schema = top;
         MANAGE_ARRAY(stu);
 
-        assert(STU_DATA_BIN(stu) == data);
+        assert(STU_DATA_HEAD(stu) == BIN_HEAD(data));
         return;
     }
 
@@ -993,29 +989,21 @@ REB_R Routine_Dispatcher(REBFRM *f)
 //
 static void cleanup_ffi_closure(const REBVAL *v) {
     assert(IS_HANDLE(v));
-    assert(v->payload.handle.code != NULL); // the cfunc thunk within closure
-    assert(v->payload.handle.data != NULL);
-
-    ffi_closure_free(cast(ffi_closure*, v->payload.handle.data));
+    ffi_closure_free(cast(ffi_closure*, v->payload.handle.pointer));
 }
 
-// Because HANDLE! has enough bits to store the pointer to a REBSER node for
-// a singular array, and the data, and then another void* size element left
-// over, the decision was to allow a handle to store more than one pointer...
-// one code and one data.  But that doesn't leave any info for a size, and
-// allocations from Rebol's memory manager do not encode the size in that
-// allocation.  It may be wiser in the long run to make the second value a
-// size, especially given that those wanting two HANDLE!s in one slot can
-// do so using a pairing series now, relatively efficiently.  (One of the
-// original motives was that Ren-Cpp needed to store a function pointer and
-// a data pointer in a function body.)
-// 
-static void cleanup_os_alloc(const REBVAL *v) {
+static void cleanup_cif(const REBVAL *v) {
     assert(IS_HANDLE(v));
-    assert(v->payload.handle.code == NULL);
-    assert(v->payload.handle.data != NULL);
+    FREE(ffi_cif, cast(ffi_cif*, v->payload.handle.pointer));
+}
 
-    OS_FREE(v->payload.handle.data); // OS_FREE or free() knows the size
+static void cleanup_args_fftypes(const REBVAL *v) {
+    assert(IS_HANDLE(v));
+    FREE_N(
+        ffi_type*,
+        v->payload.handle.length,
+        cast(ffi_type**, v->payload.handle.pointer)
+    );
 }
 
 
@@ -1125,13 +1113,14 @@ static void callback_dispatcher(
 static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
     assert(IS_BLOCK(ffi_spec));
 
-    REBRIN *r = Make_Array(8);
+    REBRIN *r = Make_Array(IDX_ROUTINE_MAX);
 
     SET_INTEGER(RIN_AT(r, IDX_ROUTINE_ABI), abi);
 
     // Caller will update these in the returned function.
     //
     SET_UNREADABLE_BLANK(RIN_AT(r, IDX_ROUTINE_CFUNC));
+    SET_UNREADABLE_BLANK(RIN_AT(r, IDX_ROUTINE_CLOSURE));
     SET_UNREADABLE_BLANK(RIN_AT(r, IDX_ROUTINE_ORIGIN)); // LIBRARY!/FUNCTION!
 
     SET_BLANK(RIN_AT(r, IDX_ROUTINE_RET_SCHEMA)); // returns void as default
@@ -1264,13 +1253,13 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
         // not variadic.  The CIF must stay alive for the entire the lifetime
         // of the args_fftypes, apparently.
         //
-        ffi_cif *cif = OS_ALLOC(ffi_cif);
+        ffi_cif *cif = ALLOC(ffi_cif);
 
         ffi_type **args_fftypes;
         if (num_fixed == 0)
             args_fftypes = NULL;
         else
-            args_fftypes = OS_ALLOC_N(ffi_type*, num_fixed);
+            args_fftypes = ALLOC_N(ffi_type*, num_fixed);
 
         REBCNT i;
         for (i = 0; i < num_fixed; ++i)
@@ -1291,7 +1280,10 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
         }
 
         Init_Handle_Managed(
-            RIN_AT(r, IDX_ROUTINE_CIF), NULL, cif, &cleanup_os_alloc
+            RIN_AT(r, IDX_ROUTINE_CIF),
+            cif,
+            0,
+            &cleanup_cif
         );
 
         if (args_fftypes == NULL)
@@ -1299,9 +1291,9 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
         else
             Init_Handle_Managed(
                 RIN_AT(r, IDX_ROUTINE_ARG_FFTYPES),
-                NULL,
                 args_fftypes,
-                &cleanup_os_alloc
+                num_fixed,
+                &cleanup_args_fftypes
             ); // lifetime must match cif lifetime
     }
 
@@ -1388,7 +1380,7 @@ REBNATIVE(make_routine)
     REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec), abi);
     REBRIN *r = FUNC_ROUTINE(fun);
 
-    Init_Handle_Simple(RIN_AT(r, IDX_ROUTINE_CFUNC), cfunc, NULL);
+    Init_Handle_Simple(RIN_AT(r, IDX_ROUTINE_CFUNC), cast(void*, cfunc), 0);
     *RIN_AT(r, IDX_ROUTINE_ORIGIN) = *ARG(lib);
 
     *D_OUT = *FUNC_VALUE(fun);
@@ -1436,7 +1428,7 @@ REBNATIVE(make_routine_raw)
     REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec), abi);
     REBRIN *r = FUNC_ROUTINE(fun);
 
-    Init_Handle_Simple(RIN_AT(r, IDX_ROUTINE_CFUNC), cfunc, NULL);
+    Init_Handle_Simple(RIN_AT(r, IDX_ROUTINE_CFUNC), cast(void*, cfunc), 0);
     SET_BLANK(RIN_AT(r, IDX_ROUTINE_ORIGIN)); // no LIBRARY! in this case.
 
     *D_OUT = *FUNC_VALUE(fun);
@@ -1492,10 +1484,11 @@ REBNATIVE(make_callback)
     if (status != FFI_OK)
         fail (Error(RE_MISC)); // couldn't prep closure
 
+    Init_Handle_Simple(RIN_AT(r, IDX_ROUTINE_CFUNC), thunk, 0);
     Init_Handle_Managed(
-        RIN_AT(r, IDX_ROUTINE_CFUNC),
-        cast(CFUNC*, thunk),
+        RIN_AT(r, IDX_ROUTINE_CLOSURE),
         closure,
+        0,
         &cleanup_ffi_closure
     );
     *RIN_AT(r, IDX_ROUTINE_ORIGIN) = *ARG(action);

@@ -369,21 +369,6 @@
     FLAGIT_LEFT(9)
 
 
-//=//// SERIES_INFO_EXTERNAL //////////////////////////////////////////////=//
-//
-// This indicates that when the series was created, the `->data` pointer was
-// poked in by the creator.  It takes responsibility for freeing it, so don't
-// free() on GC.
-//
-// !!! This is a somewhat questionable feature, only used by the FFI.  It's
-// not clear that the right place to hook in the behavior is to have a
-// series physically allow external `->data` pointers vs. at a higher level
-// test some condition, using the series data or handle based on that.
-//
-#define SERIES_INFO_EXTERNAL \
-    FLAGIT_LEFT(10)
-
-
 // ^-- STOP AT FLAGIT_LEFT(15) --^
 //
 // The rightmost 16 bits of the series info is used to store an 8 bit length
@@ -391,7 +376,7 @@
 // flags need to stop at FLAGIT_LEFT(15).
 //
 #if defined(__cplusplus) && (__cplusplus >= 201103L)
-    static_assert(10 < 16, "SERIES_INFO_XXX too high");
+    static_assert(9 < 16, "SERIES_INFO_XXX too high");
 #endif
 
 

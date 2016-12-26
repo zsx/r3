@@ -340,34 +340,3 @@ REBCNT Find_In_Array_Simple(REBARR *array, REBCNT index, const RELVAL *target)
 
     return ARR_LEN(array);
 }
-
-//
-//  Destroy_External_Storage: C
-//
-// Destroy the external storage pointed by `->data` by calling the routine
-// `free_func` if it's not NULL.  If it's NULL, only mark the external storage
-// non-accessible
-//
-REB_R Destroy_External_Storage(
-    REBVAL *out,
-    REBSER *ser,
-    REBVAL *free_func
-) {
-    if (NOT_SER_INFO(ser, SERIES_INFO_EXTERNAL))
-        fail (Error(RE_NO_EXTERNAL_STORAGE));
-
-    REBVAL pointer;
-    SET_INTEGER(&pointer, cast(REBUPT, SER_DATA_RAW(ser)));
-
-    if (GET_SER_INFO(ser, SERIES_INFO_INACCESSIBLE))
-        fail (Error(RE_ALREADY_DESTROYED, pointer));
-
-    SET_SER_INFO(ser, SERIES_INFO_INACCESSIBLE);
-
-    if (free_func != NULL) {
-        if (Do_Va_Throws(out, free_func, &pointer, END_CELL))
-            return R_OUT_IS_THROWN;
-    }
-
-    return R_VOID;
-}

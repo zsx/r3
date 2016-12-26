@@ -1058,8 +1058,8 @@ void Register_Codec(
     REBVAL handle;
     Init_Handle_Simple(
         &handle,
-        cast(CFUNC*, dispatcher), // code
-        NULL // data
+        cast(void*, dispatcher), // code
+        0 // optional length-sized data
     );
 
     REBVAL suffixes_value;

@@ -31,11 +31,6 @@
 // be encoded as a BINARY! "blob" (as it might be in XML), the HANDLE! type
 // is intentionally "opaque" to user code so that it is a black box.
 //
-// In the C language, sizeof(void*) may not be the same size as a function
-// pointer; hence they can't necessarily be cast between each other.  Since
-// there is room for it, each HANDLE! in Ren-C is able to store one of each:
-// a code pointer and data pointer.  Or it may use only one or the other.
-//
 // Additionally, Ren-C added the idea of a garbage collector callback for
 // "Managed" handles.  This is implemented by means of making the handle cost
 // a single REBSER node shared among its instances, which is a "singular"
@@ -50,54 +45,59 @@
 // handle however is such that each REBVAL copied instance is independent,
 // and changing one won't change the others.
 //
+// Note: In the C language, sizeof(void*) may not be the same size as a
+// function pointer; hence they can't necessarily be cast between each other.
+// In practice, a void* is generally big enough to hold a CFUNC*, and many
+// APIs do assume this.
+//
 
-inline static CFUNC *VAL_HANDLE_CODE(const RELVAL *v) {
+inline static REBUPT VAL_HANDLE_LEN(const RELVAL *v) {
     assert(IS_HANDLE(v));
     if (v->extra.singular)
-        return ARR_HEAD(v->extra.singular)->payload.handle.code;
+        return ARR_HEAD(v->extra.singular)->payload.handle.length;
     else
-        return v->payload.handle.code;
+        return v->payload.handle.length;
 }
 
-inline static void *VAL_HANDLE_DATA(const RELVAL *v) {
+inline static void *VAL_HANDLE_POINTER(const RELVAL *v) {
     assert(IS_HANDLE(v));
     if (v->extra.singular)
-        return ARR_HEAD(v->extra.singular)->payload.handle.data;
+        return ARR_HEAD(v->extra.singular)->payload.handle.pointer;
     else
-        return v->payload.handle.data;
+        return v->payload.handle.pointer;
 }
 
-inline static void SET_HANDLE_CODE(RELVAL *v, CFUNC *code) {
+inline static void SET_HANDLE_LEN(RELVAL *v, REBUPT length) {
     assert(IS_HANDLE(v));
     if (v->extra.singular)
-        ARR_HEAD(v->extra.singular)->payload.handle.code = code;
+        ARR_HEAD(v->extra.singular)->payload.handle.length = length;
     else
-        v->payload.handle.code = code;
+        v->payload.handle.length = length;
 }
 
-inline static void SET_HANDLE_DATA(RELVAL *v, void *data) {
+inline static void SET_HANDLE_POINTER(RELVAL *v, void *pointer) {
     assert(IS_HANDLE(v));
     if (v->extra.singular)
-        ARR_HEAD(v->extra.singular)->payload.handle.data = data;
+        ARR_HEAD(v->extra.singular)->payload.handle.pointer = pointer;
     else
-        v->payload.handle.data = data;
+        v->payload.handle.pointer = pointer;
 }
 
 inline static void Init_Handle_Simple(
     RELVAL *out,
-    CFUNC *code,
-    void *data
+    void *pointer,
+    REBUPT length
 ){
     VAL_RESET_HEADER(out, REB_HANDLE);
     out->extra.singular = NULL;
-    out->payload.handle.code = code;
-    out->payload.handle.data = data;
+    out->payload.handle.pointer = pointer;
+    out->payload.handle.length = length;
 }
 
 inline static void Init_Handle_Managed(
     RELVAL *out,
-    CFUNC *code,
-    void *data,
+    void *pointer,
+    REBUPT length,
     CLEANUP_FUNC cleaner
 ){
     REBARR *singular = Alloc_Singular_Array();
@@ -106,8 +106,8 @@ inline static void Init_Handle_Managed(
     RELVAL *v = ARR_HEAD(singular);
     VAL_RESET_HEADER(v, REB_HANDLE);
     v->extra.singular = singular;
-    v->payload.handle.code = code;
-    v->payload.handle.data = data;
+    v->payload.handle.pointer = pointer;
+    v->payload.handle.length = length;
 
     MANAGE_ARRAY(singular);
 
@@ -119,8 +119,5 @@ inline static void Init_Handle_Managed(
     SET_TRASH_IF_DEBUG(out);
     VAL_RESET_HEADER(out, REB_HANDLE);
     out->extra.singular = singular;
-#if !defined(NDEBUG)
-    TRASH_POINTER_IF_DEBUG(out->payload.handle.code);
-    TRASH_POINTER_IF_DEBUG(out->payload.handle.data);
-#endif
+    TRASH_POINTER_IF_DEBUG(out->payload.handle.pointer);
 }
