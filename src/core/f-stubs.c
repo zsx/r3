@@ -31,31 +31,6 @@
 #include "sys-core.h"
 #include "sys-deci-funcs.h"
 
-//
-//  REBCNT_To_Bytes: C
-//
-void REBCNT_To_Bytes(REBYTE *out, REBCNT in)
-{
-    assert(sizeof(REBCNT) == 4);
-    out[0] = (REBYTE) in;
-    out[1] = (REBYTE)(in >> 8);
-    out[2] = (REBYTE)(in >> 16);
-    out[3] = (REBYTE)(in >> 24);
-}
-
-
-//
-//  Bytes_To_REBCNT: C
-//
-REBCNT Bytes_To_REBCNT(const REBYTE * const in)
-{
-    assert(sizeof(REBCNT) == 4);
-    return (REBCNT) in[0]          // & 0xFF
-        | (REBCNT)  in[1] <<  8    // & 0xFF00;
-        | (REBCNT)  in[2] << 16    // & 0xFF0000;
-        | (REBCNT)  in[3] << 24;   // & 0xFF000000;
-}
-
 
 //
 //  Get_Num_From_Arg: C

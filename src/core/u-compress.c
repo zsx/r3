@@ -27,9 +27,58 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
+// The Rebol executable includes a version of zlib which has been extracted
+// from the GitHub archive and pared down into a single .h and .c file.
+// This wraps that functionality into functions that compress and decompress
+// BINARY! REBSERs.
+//
+// Classically, Rebol added a 32-bit size header onto the front of compressed
+// data, indicating the uncompressed size.  This is the default BINARY! format
+// returned by COMPRESS.  However, it only used a 32-bit number...gzip also
+// includes the length modulo 32.  This means that if the data is < 4MB in
+// size you can use the length with gzip:
+//
+// http://stackoverflow.com/a/9213826/211160
+//
+// Options are offered for using zlib envelope, gzip envelope, or raw deflate.
+//
+// !!! Technically zlib is designed to do "streaming" compression.  Those
+// features are not exposed by this interface, although they are implemented
+// in the zlib code.
+//
 
 #include "sys-core.h"
 #include "sys-zlib.h"
+
+
+//
+//  REBCNT_To_Bytes: C
+//
+// Get endian-independent encoding of a 32-bit unsigned integer to 4 bytes
+//
+static void REBCNT_To_Bytes(REBYTE *out, REBCNT in)
+{
+    assert(sizeof(REBCNT) == 4);
+    out[0] = cast(REBYTE, in);
+    out[1] = cast(REBYTE, in >> 8);
+    out[2] = cast(REBYTE, in >> 16);
+    out[3] = cast(REBYTE, in >> 24);
+}
+
+
+//
+//  Bytes_To_REBCNT: C
+//
+// Decode endian-independent sequence of 4 bytes back into a 32-bit unsigned
+//
+static REBCNT Bytes_To_REBCNT(const REBYTE * const in)
+{
+    assert(sizeof(REBCNT) == 4);
+    return cast(REBCNT, in[0])
+        | cast(REBCNT, in[1] << 8)
+        | cast(REBCNT, in[2] << 16)
+        | cast(REBCNT, in[3] << 24);
+}
 
 
 //
@@ -47,11 +96,11 @@
 // hand, to make a dependency on gzip explicit (in case you're looking for
 // that and want to see if you could use a lighter build without it...)
 //
-static int window_bits_zlib = MAX_WBITS;
-static int window_bits_gzip = MAX_WBITS | 16; // "+ 16"
-static int window_bits_detect_zlib_gzip = MAX_WBITS | 32; // "+ 32"
-static int window_bits_zlib_raw = -(MAX_WBITS);
-static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
+static const int window_bits_zlib = MAX_WBITS;
+static const int window_bits_gzip = MAX_WBITS | 16; // "+ 16"
+static const int window_bits_detect_zlib_gzip = MAX_WBITS | 32; // "+ 32"
+static const int window_bits_zlib_raw = -(MAX_WBITS);
+static const int window_bits_gzip_raw = -(MAX_WBITS | 16); // "raw gzip" ?!
 
 
 //
@@ -62,8 +111,6 @@ static int window_bits_gzip_raw = -(MAX_WBITS | 16); // is "raw gzip" a thing?
 //
 static REBCTX *Error_Compression(const z_stream *strm, int ret)
 {
-    REBVAL arg;
-
     if (ret == Z_MEM_ERROR) {
         //
         // We do not technically know the amount of memory that zlib asked
@@ -74,10 +121,9 @@ static REBCTX *Error_Compression(const z_stream *strm, int ret)
         fail (Error_No_Memory(0));
     }
 
-    if (strm->msg)
-        Init_String(
-            &arg, Copy_Bytes(cb_cast(strm->msg), strlen(strm->msg))
-        );
+    REBVAL arg;
+    if (strm->msg != NULL)
+        Init_String(&arg, Make_UTF8_May_Fail(strm->msg));
     else
         SET_INTEGER(&arg, ret);
 
@@ -88,15 +134,9 @@ static REBCTX *Error_Compression(const z_stream *strm, int ret)
 //
 //  Compress: C
 //
-// This is a wrapper over Zlib which will compress a BINARY!
-// series to produce another BINARY!.  It can use either gzip
-// or zlib envelopes, and has a "raw" option for no header.
-//
-// !!! Adds 32-bit size info to zlib non-raw compressions for
-// compatibility with Rebol2 and R3-Alpha, at the cost of
-// inventing yet-another-format.  Consider removing.
-//
-// !!! Does not expose the "streaming" ability of zlib.
+// !!! Adds 32-bit size info to zlib non-raw compressions for compatibility
+// with Rebol2 and R3-Alpha, at the cost of inventing yet-another-format.
+// Consider removing.
 //
 REBSER *Compress(
     REBSER *input,
@@ -195,10 +235,6 @@ REBSER *Compress(
 
 //
 //  Decompress: C
-//
-// Decompress a binary (only).
-//
-// !!! Does not expose the "streaming" ability of zlib.
 //
 REBSER *Decompress(
     const REBYTE *input,

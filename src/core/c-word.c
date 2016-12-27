@@ -27,20 +27,10 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Word table is a block composed of symbols, each of which contain
-// a canon word number, alias word number (if it exists), and an
-// index that refers to the string for the text itself.
-//
-// The canon number for a word is unique and is used to compare
-// words. The word table is independent of context frames and
-// words are never garbage collected.
-//
-// The alias is used mainly for upper and lower case equality,
-// but can also be used to create ALIASes.
-//
-// The word strings are stored as a single large string series.
-// NEVER CACHE A WORD NAME POINTER if new words may be added (e.g.
-// LOAD), because the series may get moved in memory.
+// In R3-Alpha, words were not garbage collected, and their UTF-8 data was
+// kept in a separate table from the REBSERs.  In Ren-C, words use REBSERs,
+// and are merely *indexed* by hashes of their canon forms via an external
+// table.  This table grows and shrinks as canons are added and removed.
 //
 
 #include "sys-core.h"

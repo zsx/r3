@@ -700,9 +700,6 @@ REBTYPE(Array)
         UNUSED(PAR(series));
         UNUSED(PAR(value)); // aliased as arg
 
-        if (REF(last))
-            fail (Error(RE_BAD_REFINES));
-
         REBINT len = ANY_ARRAY(arg) ? VAL_ARRAY_LEN_AT(arg) : 1;
 
         REBCNT limit;
@@ -716,6 +713,7 @@ REBTYPE(Array)
             | (REF(match) ? AM_FIND_MATCH : 0)
             | (REF(reverse) ? AM_FIND_REVERSE : 0)
             | (REF(case) ? AM_FIND_CASE : 0)
+            | (REF(last) ? AM_FIND_LAST : 0)
         );
 
         REBCNT skip = REF(skip) ? Int32s(ARG(size), 1) : 1;
