@@ -712,6 +712,7 @@ void Init_Debug_Extension(void) {
         );
         REBVAL spec;
         Init_Block(&spec, spec_array);
+        Bind_Values_Deep(ARR_HEAD(spec_array), Lib_Context);
 
         REBFUN *debug_native = Make_Function(
             Make_Paramlist_Managed_May_Fail(&spec, MKF_KEYWORDS),

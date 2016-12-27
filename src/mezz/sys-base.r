@@ -20,11 +20,6 @@ REBOL [
     }
 ]
 
-;-- SYS context definition begins here --
-;   WARNING: ORDER DEPENDENT part of context (accessed from C code)
-
-native: _ ; for boot only
-action: _ ; for boot only
 
 ;-- If the host wants to know if a script or module is loaded, e.g. to
 ;   print out a message.  (Printing directly from this code would be

@@ -845,9 +845,12 @@ REBTYPE(Date)
             return R_OUT;*/
 
         case SYM_RANDOM: {
-            REFINE(2, seed);
-            REFINE(3, secure);
-            // !!! "needs further definition ?  random/zero" <-- ?
+            INCLUDE_PARAMS_OF_RANDOM;
+
+            UNUSED(PAR(value));
+
+            if (REF(only))
+                fail (Error(RE_BAD_REFINES));
 
             const REBOOL secure = REF(secure);
 

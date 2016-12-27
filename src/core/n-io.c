@@ -337,16 +337,7 @@ REBNATIVE(new_line_q)
 //
 REBNATIVE(now)
 {
-    REFINE(1, year);
-    REFINE(2, month);
-    REFINE(3, day);
-    REFINE(4, time);
-    REFINE(5, zone);
-    REFINE(6, date);
-    REFINE(7, weekday);
-    REFINE(8, yearday);
-    REFINE(9, precise);
-    REFINE(10, utc);
+    INCLUDE_PARAMS_OF_NOW;
 
     REBVAL *ret = D_OUT;
     OS_GET_TIME(D_OUT);

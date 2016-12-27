@@ -164,66 +164,72 @@ static void Assert_Basics(void)
 
 
 //
-//  Do_Global_Block: C
+//  Init_Base: C
 //
-// Bind and evaluate a global block.
-// Rebind:
-//     0: bind set into sys or lib
-//    -1: bind shallow into sys (for ACTION)
-//     1: add new words to LIB, bind/deep to LIB
-//     2: add new words to SYS, bind/deep to LIB
+// The code in "base" is the lowest level of Rebol initialization written as
+// Rebol code.  This is where things like `+` being an infix form of ADD is
+// set up, or FIRST being a specialization of PICK.  It's also where the
+// definition of the locals-gathering FUNCTION currently lives.
 //
-// Expects result to be void
-//
-static void Do_Global_Block(
-    REBARR *block,
-    REBCNT index,
-    REBINT rebind,
-    REBVAL *opt_toplevel_word
-) {
-    RELVAL *item = ARR_AT(block, index);
+static void Init_Base(REBARR *boot_base)
+{
+    RELVAL *head = ARR_HEAD(boot_base);
 
-    Bind_Values_Set_Midstream_Shallow(
-        item, rebind > 1 ? Sys_Context : Lib_Context
-    );
-
-    if (rebind < 0) Bind_Values_Shallow(item, Sys_Context);
-    if (rebind > 0) Bind_Values_Deep(item, Lib_Context);
-    if (rebind > 1) Bind_Values_Deep(item, Sys_Context);
-
-    // !!! In the block, ACTION words are bound but paths would not bind.
-    // So you could do `action [spec]` but not `action/xxx [spec]`
-    // because in the later case, it wouldn't have descended into the path
-    // to bind `native`.  This is apparently intentional to avoid binding
-    // deeply in the system context.
+    // By this point, the Lib_Context contains basic definitions for things
+    // like true, false, the natives, and the actions.  But before deeply
+    // binding the code in the base block to those definitions, add all the
+    // top-level SET-WORD! in the base block to Lib_Context as well.
     //
-    // Here we hackily walk over all the paths and look for any that start
-    // with the symbol of the passed in word (SYM_ACTION) and just overwrite
-    // the word with the bound vesion.  :-/  Review.
+    // Without this shallow walk looking for set words, an assignment like
+    // `function: func [...] [...]` would not have a slot in the Lib_Context
+    // for FUNCTION to bind to.  So FUNCTION: would be an unbound SET-WORD!,
+    // and give an error on the assignment.
     //
-    if (opt_toplevel_word) {
-        item = ARR_AT(block, index);
-        for (; NOT_END(item); item++) {
-            if (IS_PATH(item)) {
-                RELVAL *path_item = VAL_ARRAY_HEAD(item);
-                if (
-                    IS_WORD(path_item) && (
-                        VAL_WORD_SPELLING(path_item)
-                        == VAL_WORD_SPELLING(opt_toplevel_word)
-                    )
-                ) {
-                    // Steal binding, but keep the same word type
-                    //
-                    enum Reb_Kind kind = VAL_TYPE(path_item);
-                    *path_item = *opt_toplevel_word;
-                    VAL_SET_TYPE_BITS(path_item, kind);
-                }
-            }
-        }
-    }
+    Bind_Values_Set_Midstream_Shallow(head, Lib_Context);
+
+    // With the base block's definitions added to the mix, deep bind the code
+    // and execute it.  As a sanity check, it's expected the base block will
+    // return no value when executed...hence it should end in `()`.
+
+    Bind_Values_Deep(head, Lib_Context);
 
     REBVAL result;
-    if (Do_At_Throws(&result, block, index, SPECIFIED))
+    if (Do_At_Throws(&result, boot_base, 0, SPECIFIED))
+        panic (&result);
+
+    if (!IS_VOID(&result))
+        panic (&result);
+}
+
+
+//
+//  Init_Sys: C
+//
+// The SYS context contains supporting Rebol code for implementing "system"
+// features.  The code has natives, actions, and the definitions from
+// Init_Base() available for its implementation.
+//
+// (Note: The SYS context should not be confused with "the system object",
+// which is a different thing.)
+//
+// The sys context has a #define constant for the index of every definition
+// inside of it.  That means that you can access it from the C code for the
+// core.  Any work the core C needs to have done that would be more easily
+// done by delegating it to Rebol can use a function in sys as a service.
+//
+static void Init_Sys(REBARR *boot_sys) {
+    RELVAL *head = ARR_HEAD(boot_sys);
+
+    // Add all new top-level SET-WORD! found in the sys boot-block to Lib,
+    // and then bind deeply all words to Lib and Sys.  See Init_Base() notes
+    // for why the top-level walk is needed first.
+    //
+    Bind_Values_Set_Midstream_Shallow(head, Sys_Context);
+    Bind_Values_Deep(head, Lib_Context);
+    Bind_Values_Deep(head, Sys_Context);
+
+    REBVAL result;
+    if (Do_At_Throws(&result, boot_sys, 0, SPECIFIED))
         panic (&result);
 
     if (!IS_VOID(&result))
@@ -463,7 +469,7 @@ static void Init_Function_Tags(void)
 //      code [block!]
 //  ]
 //
-static REBVAL *Init_Natives(REBARR *boot_natives)
+static void Init_Natives(REBARR *boot_natives)
 {
     // !!! See notes on FUNCTION-META in %sysobj.r
     {
@@ -492,8 +498,16 @@ static REBVAL *Init_Natives(REBARR *boot_natives)
     }
 
     RELVAL *item = ARR_HEAD(boot_natives);
+
+    // Although the natives are not being "executed", there are typesets
+    // being built from the specs.  So to process `foo: native [x [integer!]]`
+    // the INTEGER! word must be bound to its datatype.  Deep walk the
+    // natives in order to bind these datatypes.
+    //
+    Bind_Values_Deep(item, Lib_Context);
+
     REBCNT n = 0;
-    REBVAL *action_word;
+    REBVAL *action_word = NULL;
 
     while (NOT_END(item)) {
         if (n >= NUM_NATIVES)
@@ -601,19 +615,38 @@ static REBVAL *Init_Natives(REBARR *boot_natives)
     if (n != NUM_NATIVES)
         panic ("Incorrect number of natives found during processing");
 
-    return action_word;
+    if (action_word == NULL)
+        panic ("ACTION native not found during boot block processing");
 }
 
 
 //
 //  Init_Actions: C
 //
-static void Init_Actions(REBARR *boot_actions, REBVAL *action_word)
+static void Init_Actions(REBARR *boot_actions)
 {
-    // With the natives registered (including ACTION), it's now safe to
-    // run the evaluator to register the actions.
+    RELVAL *head = ARR_HEAD(boot_actions);
+
+    // Add SET-WORD!s that are top-level in the actions block to the lib
+    // context, so there is a variable for each action.  This means that the
+    // assignments can execute.
     //
-    Do_Global_Block(boot_actions, 0, -1, action_word);
+    Bind_Values_Set_Midstream_Shallow(head, Lib_Context);
+
+    // The above code actually does bind the ACTION word to the ACTION native,
+    // since the action word is found in the top-level of the block.  But as
+    // with the natives, in order to process `foo: action [x [integer!]]` the
+    // INTEGER! word must be bound to its datatype.  Deep bind the code in
+    // order to bind the words for these datatypes.
+    //
+    Bind_Values_Deep(head, Lib_Context);
+
+    REBVAL result;
+    if (Do_At_Throws(&result, boot_actions, 0, SPECIFIED))
+        panic (&result);
+
+    if (!IS_VOID(&result))
+        panic (&result);
 
     // Sanity check the symbol transformation
     //
@@ -1370,11 +1403,9 @@ void Init_Core(void)
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
-    REBVAL *action_word = Init_Natives(VAL_ARRAY(&boot->natives));
-    if (action_word == NULL)
-        panic ("ACTION function was not found while processing natives");
+    Init_Natives(VAL_ARRAY(&boot->natives));
 
-    Init_Actions(VAL_ARRAY(&boot->actions), action_word);
+    Init_Actions(VAL_ARRAY(&boot->actions));
 
     Init_System_Object(
         &boot->sysobj,
@@ -1437,13 +1468,9 @@ void Init_Core(void)
         panic (error);
     }
 
-    // !!! These currently execute using Do_Global_Block instead of through
-    // an Apply of a system function.  Review the exact reason why that is
-    // necessary (if it is), since all things being equal it's better to
-    // run userspace code whenever possible.
-    //
-    Do_Global_Block(VAL_ARRAY(&boot->base), 0, 1, NULL);
-    Do_Global_Block(VAL_ARRAY(&boot->sys), 0, 2, NULL);
+    Init_Base(VAL_ARRAY(&boot->base));
+
+    Init_Sys(VAL_ARRAY(&boot->sys));
 
     PG_Boot_Phase = BOOT_MEZZ;
 

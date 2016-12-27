@@ -147,30 +147,14 @@ REBOOL Update_Typeset_Bits_Core(
         SET_VAL_FLAG(typeset, TYPESET_FLAG_VARIADIC);
     }
 
-    REBARR *types = VAL_ARRAY(ROOT_TYPESETS);
-
     for (; NOT_END(item); item++) {
         const RELVAL *var = NULL;
 
-        if (IS_WORD(item)) {
-            if (IS_WORD_BOUND(item))
-                var = GET_OPT_VAR_MAY_FAIL(item, specifier);
-            else {
-                REBSYM sym = VAL_WORD_SYM(item);
+        if (IS_WORD(item))
+            var = GET_OPT_VAR_MAY_FAIL(item, specifier);
 
-                // See notes: if a word doesn't look up to a variable, then its
-                // symbol is checked as a second chance.
-                //
-                if (IS_KIND_SYM(sym)) {
-                    TYPE_SET(typeset, KIND_FROM_SYM(sym));
-                    continue;
-                }
-                else if (sym >= SYM_ANY_VALUE_X && sym < SYM_DATATYPES)
-                    var = ARR_AT(types, sym - SYM_ANY_VALUE_X);
-            }
-        }
-
-        if (!var) var = item;
+        if (var == NULL)
+            var = item;
 
         // Though MAKE FUNCTION! at its lowest level attempts to avoid any
         // keywords, there are native-optimized function generators that do
