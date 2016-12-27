@@ -874,7 +874,7 @@ REBCTX *Construct_Context(
 ) {
     REBCTX *context = Make_Selfish_Context_Detect(
         kind, // type
-        NULL, // body
+        NULL, // binding
         head, // values to scan for toplevel set-words
         opt_parent // parent
     );

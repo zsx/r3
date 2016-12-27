@@ -842,7 +842,7 @@ REBNATIVE(construct)
         //
         context = Make_Selfish_Context_Detect(
             target, // type
-            NULL, // body
+            NULL, // binding
             // scan for toplevel set-words
             IS_BLANK(body)
                 ? cast(const RELVAL*, END_CELL) // needed by gcc/g++ 2.95 (bug)

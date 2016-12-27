@@ -622,27 +622,3 @@ int Mul_Max(enum Reb_Kind type, i64 n, i64 m, i64 maxi)
     return (int)r;
 }
 
-
-//
-//  Collect_Set_Words: C
-//
-// Scan a block, collecting all of its SET words as a block.
-//
-REBARR *Collect_Set_Words(RELVAL *val)
-{
-    REBCNT count = 0;
-    RELVAL *val2 = val;
-
-    for (; NOT_END(val); val++) if (IS_SET_WORD(val)) count++;
-    val = val2;
-
-    REBARR *array = Make_Array(count);
-    val2 = ARR_HEAD(array);
-    for (; NOT_END(val); val++) {
-        if (IS_SET_WORD(val))
-            Init_Word(val2++, VAL_WORD_SPELLING(val));
-    }
-    TERM_ARRAY_LEN(array, count);
-
-    return array;
-}

@@ -36,8 +36,10 @@ See: http://www.apache.org/licenses/LICENSE-2.0
 ; low level MAKE OBJECT! and not use things like `x: y: z: none` etc.
 
 catalog: construct [] [
-    ; Static (non-changing) values, blocks, objects
-    datatypes: []
+    ;
+    ; These catalogs are filled in by Init_System_Object()
+    ;
+    datatypes: _
     actions: _
     natives: _
     errors: _

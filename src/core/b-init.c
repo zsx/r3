@@ -240,9 +240,16 @@ static void Init_Sys(REBARR *boot_sys) {
 //
 //  Init_Datatypes: C
 //
-// Create the datatypes.
+// Create library words for each type, (e.g. make INTEGER! correspond to
+// the integer datatype value).  Returns an array of words for the added
+// datatypes to use in SYSTEM/CATALOG/DATATYPES
 //
-static void Init_Datatypes(REBARR *boot_types, REBARR *boot_typespecs)
+// Note the type enum starts at 1 (REB_FUNCTION), given that 0 is
+// REB_0_LOOKBACK and does not correspond to a value type.  REB_MAX is used
+// for void, and also is not value type.  Hence the total number of types is
+// REB_MAX - 1.
+//
+static REBARR *Init_Datatypes(REBARR *boot_types, REBARR *boot_typespecs)
 {
     if (ARR_LEN(boot_types) != REB_MAX - 1)
         panic (boot_types); // Every REB_XXX but REB_0 should have a WORD!
@@ -251,6 +258,8 @@ static void Init_Datatypes(REBARR *boot_types, REBARR *boot_typespecs)
 
     if (VAL_WORD_SYM(word) != SYM_FUNCTION_X)
         panic (word); // First type should be FUNCTION!
+
+    REBARR *catalog = Make_Array(REB_MAX - 1);
 
     REBINT n;
     for (n = 1; NOT_END(word); word++, n++) {
@@ -262,19 +271,20 @@ static void Init_Datatypes(REBARR *boot_types, REBARR *boot_typespecs)
         VAL_TYPE_SPEC(value) = VAL_ARRAY(ARR_AT(boot_typespecs, n - 1));
 
         // !!! The system depends on these definitions, as they are used by
-        // Get_Type and Type_Of.  Although it is convenient to be able to
-        // get a REBVAL of a type and not have to worry about its lifetime
-        // management or stack-allocate the value and fill it, that's
-        // probably not a frequent enough need to justify putting it in
-        // a public slot and either leave it mutable (dangerous) or lock it
-        // (inflexible).  Better to create a new type value each time.
-        //
-        // (Another possibility would be to use the "datatypes catalog",
-        // which appears to copy this subset out from the Lib_Context.)
+        // Get_Type and Type_Of.  Lock it for safety...though consider an
+        // alternative like using the returned types catalog and locking
+        // that.  (It would be hard to rewrite lib to safely change a type
+        // definition, given the code doing the rewriting would likely depend
+        // on lib...but it could still be technically possible, even in
+        // a limited sense.)
         //
         assert(value == Get_Type(cast(enum Reb_Kind, n)));
         SET_VAL_FLAG(CTX_KEY(Lib_Context, 1), TYPESET_FLAG_LOCKED);
+
+        Append_Value(catalog, KNOWN(word));
     }
+
+    return catalog;
 }
 
 
@@ -469,7 +479,9 @@ static void Init_Function_Tags(void)
 //      code [block!]
 //  ]
 //
-static void Init_Natives(REBARR *boot_natives)
+// Returns an array of words bound to natives for SYSTEM/CATALOG/NATIVES
+//
+static REBARR *Init_Natives(REBARR *boot_natives)
 {
     // !!! See notes on FUNCTION-META in %sysobj.r
     {
@@ -505,6 +517,8 @@ static void Init_Natives(REBARR *boot_natives)
     // natives in order to bind these datatypes.
     //
     Bind_Values_Deep(item, Lib_Context);
+
+    REBARR *catalog = Make_Array(NUM_NATIVES);
 
     REBCNT n = 0;
     REBVAL *action_word = NULL;
@@ -609,6 +623,10 @@ static void Init_Natives(REBARR *boot_natives)
         else
             *Append_Context(Lib_Context, name, 0) = Natives[n];
 
+        REBVAL *catalog_item = Alloc_Tail_Array(catalog);
+        *catalog_item = *name;
+        VAL_SET_TYPE_BITS(catalog_item, REB_WORD);
+
         ++n;
     }
 
@@ -617,13 +635,17 @@ static void Init_Natives(REBARR *boot_natives)
 
     if (action_word == NULL)
         panic ("ACTION native not found during boot block processing");
+
+    return catalog;
 }
 
 
 //
 //  Init_Actions: C
 //
-static void Init_Actions(REBARR *boot_actions)
+// Returns an array of words bound to actions for SYSTEM/CATALOG/ACTIONS
+//
+static REBARR *Init_Actions(REBARR *boot_actions)
 {
     RELVAL *head = ARR_HEAD(boot_actions);
 
@@ -652,6 +674,17 @@ static void Init_Actions(REBARR *boot_actions)
     //
     if (0 != strcmp("open", cs_cast(STR_HEAD(Canon(SYM_OPEN)))))
         panic (Canon(SYM_OPEN));
+
+    REBDSP dsp_orig = DSP;
+
+    RELVAL *item = head;
+    for (; NOT_END(item); ++item)
+        if (IS_SET_WORD(item)) {
+            DS_PUSH_RELVAL(item, SPECIFIED);
+            VAL_SET_TYPE_BITS(DS_TOP, REB_WORD); // change pushed to WORD!
+        }
+
+    return Pop_Stack_Values(dsp_orig); // catalog of actions
 }
 
 
@@ -838,29 +871,33 @@ static void Init_Task_Context(void)
 // (See also N_context() which creates the subobjects of the system object.)
 //
 static void Init_System_Object(
-    RELVAL *boot_sysobj,
-    RELVAL *boot_natives,
-    RELVAL *boot_actions
+    REBARR *boot_sysobj_spec,
+    REBARR *datatypes_catalog,
+    REBARR *natives_catalog,
+    REBARR *actions_catalog,
+    REBCTX *errors_catalog
 ) {
+    RELVAL *spec_head = ARR_HEAD(boot_sysobj_spec);
+
     // Create the system object from the sysobj block (defined in %sysobj.r)
     //
     REBCTX *system = Make_Selfish_Context_Detect(
         REB_OBJECT, // type
-        NULL, // body
-        VAL_ARRAY_HEAD(boot_sysobj), // scan for toplevel set-words
+        NULL, // binding
+        spec_head, // scan for toplevel set-words
         NULL // parent
     );
 
-    Bind_Values_Deep(VAL_ARRAY_HEAD(boot_sysobj), Lib_Context);
+    Bind_Values_Deep(spec_head, Lib_Context);
 
     // Bind it so CONTEXT native will work (only used at topmost depth)
     //
-    Bind_Values_Shallow(VAL_ARRAY_HEAD(boot_sysobj), system);
+    Bind_Values_Shallow(spec_head, system);
 
     // Evaluate the block (will eval CONTEXTs within).  Expects void result.
     //
     REBVAL result;
-    if (Do_At_Throws(&result, VAL_ARRAY(boot_sysobj), 0, SPECIFIED))
+    if (Do_At_Throws(&result, boot_sysobj_spec, 0, SPECIFIED))
         panic (&result);
     if (!IS_VOID(&result))
         panic (&result);
@@ -880,30 +917,12 @@ static void Init_System_Object(
     //
     Init_Object(ROOT_SYSTEM, system);
 
-    // Create system/datatypes block.  Start at 1 (REB_BLANK), given that 0
-    // is REB_0_LOOKBACK and does not correspond to a value type.
+    // Create system/catalog/* for datatypes, natives, actions, errors
     //
-    REBARR *array = VAL_ARRAY(Get_System(SYS_CATALOG, CAT_DATATYPES));
-    Extend_Series(AS_SERIES(array), REB_MAX - 1);
-
-    REBCNT n;
-    for (n = 1; n < REB_MAX; n++) {
-        Append_Value(array, CTX_VAR(Lib_Context, n));
-    }
-
-    // Create system/catalog/actions block
-    //
-    Init_Block(
-        Get_System(SYS_CATALOG, CAT_ACTIONS),
-        Collect_Set_Words(boot_actions)
-    );
-
-    // Create system/catalog/natives block
-    //
-    Init_Block(
-        Get_System(SYS_CATALOG, CAT_NATIVES),
-        Collect_Set_Words(boot_natives)
-    );
+    Init_Block(Get_System(SYS_CATALOG, CAT_DATATYPES), datatypes_catalog);
+    Init_Block(Get_System(SYS_CATALOG, CAT_NATIVES), natives_catalog);
+    Init_Block(Get_System(SYS_CATALOG, CAT_ACTIONS), actions_catalog);
+    Init_Object(Get_System(SYS_CATALOG, CAT_ERRORS), errors_catalog);
 
     // Create system/codecs object
     //
@@ -1387,7 +1406,7 @@ void Init_Core(void)
     MANAGE_ARRAY(CTX_VARLIST(Sys_Context));
     PUSH_GUARD_CONTEXT(Sys_Context);
 
-    Init_Datatypes(
+    REBARR *datatypes_catalog = Init_Datatypes(
         VAL_ARRAY(&boot->types), VAL_ARRAY(&boot->typespecs)
     );
     Init_Typesets();
@@ -1403,23 +1422,31 @@ void Init_Core(void)
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
-    Init_Natives(VAL_ARRAY(&boot->natives));
+    // boot->natives is from the automatically gathered list of natives found
+    // by scanning comments in the C sources for `native: ...` declarations.
+    //
+    REBARR *natives_catalog = Init_Natives(VAL_ARRAY(&boot->natives));
 
-    Init_Actions(VAL_ARRAY(&boot->actions));
+    // boot->actions is the list in %actions.r
+    //
+    REBARR *actions_catalog = Init_Actions(VAL_ARRAY(&boot->actions));
+
+    // boot->errors is the error definition list from %errors.r
+    //
+    REBCTX *errors_catalog = Init_Errors(VAL_ARRAY(&boot->errors));
 
     Init_System_Object(
-        &boot->sysobj,
-        &boot->natives,
-        &boot->actions
+        VAL_ARRAY(&boot->sysobj),
+        datatypes_catalog,
+        natives_catalog,
+        actions_catalog,
+        errors_catalog
     );
 
     Init_Contexts_Object();
     Init_Locale();
 
-    Init_Errors(
-        VAL_ARRAY(&boot->errors), // error definition list from %errors.r
-        Get_System(SYS_STANDARD, STD_ERROR) // standard error template
-    );
+    *ROOT_ERROBJ = *Get_System(SYS_STANDARD, STD_ERROR);
 
     PG_Boot_Phase = BOOT_ERRORS;
 
