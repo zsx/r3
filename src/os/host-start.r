@@ -394,7 +394,7 @@ host-start: function [
             )
         |
             ["--help" | "-?"] end (
-                lib/usage
+                usage
                 quit-when-done: default true
             )
         |
