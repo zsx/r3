@@ -473,7 +473,6 @@ set(BOOT_DEPENDS
     # all of the files loaded by make-boot.r
     ${TOP_SRC_DIR}/boot/version.r
     ${TOP_SRC_DIR}/boot/types.r
-    ${TOP_SRC_DIR}/boot/strings.r
     ${TOP_SRC_DIR}/boot/errors.r
     ${TOP_SRC_DIR}/boot/words.r
     ${TOP_SRC_DIR}/boot/modes.r
@@ -483,7 +482,6 @@ set(BOOT_DEPENDS
 
     ${TOP_SRC_DIR}/mezz/boot-files.r
 
-    ${TOP_SRC_DIR}/boot/booters.r
     ${TOP_GENERATED_SRC_DIR}/boot/tmp-natives.r
     ${TOP_SRC_DIR}/boot/typespec.r
     ${TOP_SRC_DIR}/boot/root.r
@@ -495,7 +493,6 @@ set(BOOT_DEPENDS
     ${TOP_SRC_DIR}/mezz/base-infix.r
     ${TOP_SRC_DIR}/mezz/base-series.r
     ${TOP_SRC_DIR}/mezz/base-files.r
-    ${TOP_SRC_DIR}/mezz/base-debug.r
     ${TOP_SRC_DIR}/mezz/base-defs.r
 
     ${TOP_SRC_DIR}/mezz/sys-base.r
@@ -514,7 +511,6 @@ set(BOOT_DEPENDS
     ${TOP_SRC_DIR}/mezz/mezz-shell.r
     ${TOP_SRC_DIR}/mezz/mezz-math.r
     ${TOP_SRC_DIR}/mezz/mezz-help.r # move dump-obj!
-    ${TOP_SRC_DIR}/mezz/mezz-banner.r
     ${TOP_SRC_DIR}/mezz/mezz-colors.r
     ${TOP_SRC_DIR}/mezz/mezz-tail.r
     ${TOP_SRC_DIR}/mezz/mezz-legacy.r
