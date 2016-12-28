@@ -494,19 +494,19 @@ REBNATIVE(chain)
     //
     Init_Block(FUNC_BODY(fun), chainees);
 
-    // See %sysobj.r for `specialized-meta:` object template
+    // See %sysobj.r for `chained-meta:` object template
 
     REBVAL *std_meta = Get_System(SYS_STANDARD, STD_CHAINED_META);
     REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(std_meta));
 
-    assert(IS_VOID(CTX_VAR(meta, SELFISH(1)))); // no description by default
-    Init_Block(CTX_VAR(meta, SELFISH(2)), chainees);
+    SET_VOID(CTX_VAR(meta, STD_CHAINED_META_DESCRIPTION)); // default
+    Init_Block(CTX_VAR(meta, STD_CHAINED_META_CHAINEES), chainees);
     //
     // !!! There could be a system for preserving names in the chain, by
     // accepting lit-words instead of functions--or even by reading the
     // GET-WORD!s in the block.  Consider for the future.
     //
-    assert(IS_VOID(CTX_VAR(meta, SELFISH(3))));
+    SET_VOID(CTX_VAR(meta, STD_CHAINED_META_CHAINEE_NAMES));
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
     AS_SERIES(paramlist)->link.meta = meta;
@@ -606,15 +606,20 @@ REBNATIVE(adapt)
     INIT_RELATIVE(body, underlying);
     MANAGE_ARRAY(adaptation);
 
-    // See %sysobj.r for `specialized-meta:` object template
+    // See %sysobj.r for `adapted-meta:` object template
 
     REBVAL *example = Get_System(SYS_STANDARD, STD_ADAPTED_META);
 
     REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(example));
-    assert(IS_VOID(CTX_VAR(meta, SELFISH(1)))); // no description by default
-    *CTX_VAR(meta, SELFISH(2)) = *adaptee;
-    if (opt_adaptee_name != NULL)
-        Init_Word(CTX_VAR(meta, SELFISH(3)), opt_adaptee_name);
+    SET_VOID(CTX_VAR(meta, STD_ADAPTED_META_DESCRIPTION)); // default
+    *CTX_VAR(meta, STD_ADAPTED_META_ADAPTEE) = *adaptee;
+    if (opt_adaptee_name == NULL)
+        SET_VOID(CTX_VAR(meta, STD_ADAPTED_META_ADAPTEE_NAME));
+    else
+        Init_Word(
+            CTX_VAR(meta, STD_ADAPTED_META_ADAPTEE_NAME),
+            opt_adaptee_name
+        );
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
     AS_SERIES(paramlist)->link.meta = meta;
@@ -758,10 +763,15 @@ REBNATIVE(hijack)
     REBVAL *std_meta = Get_System(SYS_STANDARD, STD_HIJACKED_META);
     REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(std_meta));
 
-    assert(IS_VOID(CTX_VAR(meta, SELFISH(1)))); // no description by default
-    *CTX_VAR(meta, SELFISH(2)) = *D_OUT;
-    if (opt_victim_name != NULL)
-        Init_Word(CTX_VAR(meta, SELFISH(3)), opt_victim_name);
+    SET_VOID(CTX_VAR(meta, STD_HIJACKED_META_DESCRIPTION)); // default
+    *CTX_VAR(meta, STD_HIJACKED_META_HIJACKEE) = *D_OUT;
+    if (opt_victim_name == NULL)
+        SET_VOID(CTX_VAR(meta, STD_HIJACKED_META_HIJACKEE_NAME));
+    else
+        Init_Word(
+            CTX_VAR(meta, STD_HIJACKED_META_HIJACKEE_NAME),
+            opt_victim_name
+        );
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
     AS_SERIES(VAL_FUNC_PARAMLIST(victim))->link.meta = meta;

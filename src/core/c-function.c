@@ -720,32 +720,35 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //=///////////////////////////////////////////////////////////////////=//
 
     // !!! See notes on FUNCTION-META in %sysobj.r
-    const REBCNT description_index = 1;
-    const REBCNT return_type_index = 2;
-    const REBCNT return_note_index = 3;
-    const REBCNT parameter_types_index = 4;
-    const REBCNT parameter_notes_index = 5;
-    REBCTX *meta;
+
+    REBCTX *meta = NULL;
 
     if (has_description || has_types || has_notes) {
         meta = Copy_Context_Shallow(VAL_CONTEXT(ROOT_FUNCTION_META));
         MANAGE_ARRAY(CTX_VARLIST(meta));
-        AS_SERIES(paramlist)->link.meta = meta;
     }
-    else
-        AS_SERIES(paramlist)->link.meta = NULL;
+
+    AS_SERIES(paramlist)->link.meta = meta;
 
     // If a description string was gathered, it's sitting in the first string
     // slot, the third cell we pushed onto the stack.  Extract it if so.
     //
     if (has_description) {
         assert(IS_STRING(DS_AT(dsp_orig + 3)));
-        *CTX_VAR(meta, description_index) = *DS_AT(dsp_orig + 3);
+        *CTX_VAR(meta, STD_FUNCTION_META_DESCRIPTION) = *DS_AT(dsp_orig + 3);
     }
+    else if (meta)
+        SET_VOID(CTX_VAR(meta, STD_FUNCTION_META_DESCRIPTION));
 
     // Only make `parameter-types` if there were blocks in the spec
     //
-    if (has_types) {
+    if (NOT(has_types)) {
+        if (meta) {
+            SET_VOID(CTX_VAR(meta, STD_FUNCTION_META_PARAMETER_TYPES));
+            SET_VOID(CTX_VAR(meta, STD_FUNCTION_META_RETURN_TYPE));
+        }
+    }
+    else {
         REBARR *types_varlist = Make_Array(num_slots);
         SET_SER_FLAG(types_varlist, ARRAY_FLAG_VARLIST);
         INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(types_varlist), paramlist);
@@ -780,9 +783,11 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             // the function.)
             //
             if (VAL_ARRAY_LEN_AT(definitional_return + 1) == 0)
-                SET_VOID(CTX_VAR(meta, return_type_index));
-            else
-                *CTX_VAR(meta, return_type_index) = *(definitional_return + 1);
+                SET_VOID(CTX_VAR(meta, STD_FUNCTION_META_RETURN_TYPE));
+            else {
+                *CTX_VAR(meta, STD_FUNCTION_META_RETURN_TYPE)
+                    = *(definitional_return + 1);
+            }
 
             if (NOT(flags & MKF_FAKE_RETURN)) {
                 SET_VOID(dest); // clear the local RETURN: var's description
@@ -794,7 +799,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         MANAGE_ARRAY(types_varlist);
 
         Init_Any_Context(
-            CTX_VAR(meta, parameter_types_index),
+            CTX_VAR(meta, STD_FUNCTION_META_PARAMETER_TYPES),
             REB_FRAME,
             AS_CONTEXT(types_varlist)
         );
@@ -802,7 +807,13 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 
     // Only make `parameter-notes` if there were strings (besides description)
     //
-    if (has_notes) {
+    if (NOT(has_notes)) {
+        if (meta) {
+            SET_VOID(CTX_VAR(meta, STD_FUNCTION_META_PARAMETER_NOTES));
+            SET_VOID(CTX_VAR(meta, STD_FUNCTION_META_RETURN_NOTE));
+        }
+    }
+    else {
         REBARR *notes_varlist = Make_Array(num_slots);
         SET_SER_FLAG(notes_varlist, ARRAY_FLAG_VARLIST);
         INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(notes_varlist), paramlist);
@@ -834,9 +845,11 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             // parameter in the list
             //
             if (SER_LEN(VAL_SERIES(definitional_return + 2)) == 0)
-                SET_VOID(CTX_VAR(meta, return_note_index));
-            else
-                *CTX_VAR(meta, return_note_index) = *(definitional_return + 2);
+                SET_VOID(CTX_VAR(meta, STD_FUNCTION_META_RETURN_NOTE));
+            else {
+                *CTX_VAR(meta, STD_FUNCTION_META_RETURN_NOTE)
+                    = *(definitional_return + 2);
+            }
 
             if (NOT(flags & MKF_FAKE_RETURN)) {
                 SET_VOID(dest);
@@ -848,7 +861,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         MANAGE_ARRAY(notes_varlist);
 
         Init_Any_Context(
-            CTX_VAR(meta, parameter_notes_index),
+            CTX_VAR(meta, STD_FUNCTION_META_PARAMETER_NOTES),
             REB_FRAME,
             AS_CONTEXT(notes_varlist)
         );
@@ -1440,12 +1453,19 @@ REBOOL Specialize_Function_Throws(
 
     // See %sysobj.r for `specialized-meta:` object template
 
-    REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(ROOT_SPECIALIZED_META));
+    REBVAL *example = Get_System(SYS_STANDARD, STD_SPECIALIZED_META);
 
-    assert(IS_VOID(CTX_VAR(meta, 1))); // no description by default
-    *CTX_VAR(meta, 2) = *specializee;
-    if (opt_specializee_name != NULL)
-        Init_Word(CTX_VAR(meta, 3), opt_specializee_name);
+    REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(example));
+
+    SET_VOID(CTX_VAR(meta, STD_SPECIALIZED_META_DESCRIPTION)); // default
+    *CTX_VAR(meta, STD_SPECIALIZED_META_SPECIALIZEE) = *specializee;
+    if (opt_specializee_name == NULL)
+        SET_VOID(CTX_VAR(meta, STD_SPECIALIZED_META_SPECIALIZEE_NAME));
+    else
+        Init_Word(
+            CTX_VAR(meta, STD_SPECIALIZED_META_SPECIALIZEE_NAME),
+            opt_specializee_name
+        );
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
     AS_SERIES(paramlist)->link.meta = meta;

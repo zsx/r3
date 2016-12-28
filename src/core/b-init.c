@@ -483,29 +483,27 @@ static void Init_Function_Tags(void)
 static REBARR *Init_Natives(REBARR *boot_natives)
 {
     // !!! See notes on FUNCTION-META in %sysobj.r
+    // This tries to build a field-compatible version to use in bootstrap.
+    // That includes using BLANK! instead of void (required for R3-Alpha
+    // compatibility to load the object) as well as being "selfish"
     {
-        REBCTX *function_meta = Alloc_Context(3);
-        Append_Context(function_meta, NULL, Canon(SYM_DESCRIPTION));
-        Append_Context(function_meta, NULL, Canon(SYM_RETURN_TYPE));
-        Append_Context(function_meta, NULL, Canon(SYM_RETURN_NOTE));
-        Append_Context(function_meta, NULL, Canon(SYM_PARAMETER_TYPES));
-        Append_Context(function_meta, NULL, Canon(SYM_PARAMETER_NOTES));
+        REBSYM field_syms[6] = {
+            SYM_SELF, SYM_DESCRIPTION, SYM_RETURN_TYPE, SYM_RETURN_NOTE,
+            SYM_PARAMETER_TYPES, SYM_PARAMETER_NOTES
+        };
+        REBCTX *function_meta = Alloc_Context(6);
+        REBCNT i = 1;
+        for (; i <= 6; ++i) {
+            SET_BLANK(
+                Append_Context(function_meta, NULL, Canon(field_syms[i - 1]))
+            );
+        }
+
         REBVAL *rootvar = CTX_VALUE(function_meta);
         VAL_RESET_HEADER(rootvar, REB_OBJECT);
         rootvar->extra.binding = NULL;
         Init_Object(ROOT_FUNCTION_META, function_meta);
-    }
-
-    // !!! Same, we want to have SPECIALIZE before %sysobj.r loaded
-    {
-        REBCTX *specialized_meta = Alloc_Context(3);
-        Append_Context(specialized_meta, NULL, Canon(SYM_DESCRIPTION));
-        Append_Context(specialized_meta, NULL, Canon(SYM_SPECIALIZEE));
-        Append_Context(specialized_meta, NULL, Canon(SYM_SPECIALIZEE_NAME));
-        REBVAL *rootvar = CTX_VALUE(specialized_meta);
-        VAL_RESET_HEADER(rootvar, REB_OBJECT);
-        rootvar->extra.binding = NULL;
-        Init_Object(ROOT_SPECIALIZED_META, specialized_meta);
+        Init_Object(CTX_VAR(function_meta, 1), function_meta); // self
     }
 
     RELVAL *item = ARR_HEAD(boot_natives);

@@ -237,14 +237,16 @@ standard: construct [] [
             _
     ]
 
-    ; !!! As with FUNCTION-META, this is needed by SPECIALIZE, before
-    ; %sysobj.r has been loaded.  So a copy is built by hand.  Review.
-    ;
-    ; !!! The common case is that specializations will not need to be
+    ; The common case is that derived functions will not need to be
     ; REDESCRIBE'd besides their title.  If they are, then they switch the
     ; meta archetype to `function-meta` and subset the parameters.  Otherwise
-    ; HELP just follows the `specializee` and gets descriptions there.
+    ; HELP just follows the link (`specializee`, `adaptee`) and gets
+    ; descriptions there.
     ;
+    ; !!! Due to wanting R3-Alpha to be able to run the bootstrap build,
+    ; these objects can't unset these fields.  (make object! [x: ()] fails)
+    ; Hence the code has to overwrite the missing fields with voids.
+
     specialized-meta: construct [] [
         description:
         specializee:

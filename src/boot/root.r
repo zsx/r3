@@ -40,5 +40,3 @@ tight-tag       ; Argument completes shortest legal expression (not longest)
 ;; !!! See notes on FUNCTION-META in %sysobj.r
 
 function-meta
-specialized-meta
-

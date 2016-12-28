@@ -31,30 +31,6 @@ assert: func [
     ; a default hijacking to set it to be equivalent to VERIFY, late in boot.)
 ]
 
-
-; Due to wanting R3-Alpha to be able to run the bootstrap build, these objects
-; could not unset these fields.  (make object! [x: ()] fails in R3-Alpha)
-;
-system/standard/function-meta/description:
-system/standard/function-meta/return-type:
-system/standard/function-meta/return-note:
-system/standard/function-meta/parameter-types:
-system/standard/function-meta/parameter-notes:
-system/standard/specialized-meta/description:
-system/standard/specialized-meta/specializee:
-system/standard/specialized-meta/specializee-name:
-system/standard/adapted-meta/description:
-system/standard/adapted-meta/adaptee:
-system/standard/adapted-meta/adaptee-name:
-system/standard/chained-meta/description:
-system/standard/chained-meta/chainees:
-system/standard/chained-meta/chainee-names:
-system/standard/hijacked-meta/description:
-system/standard/hijacked-meta/hijackee:
-system/standard/hijacked-meta/hijackee-name:
-    ()
-
-
 set/lookback quote enfix: proc [
     "Convenience version of SET/LOOKBACK, e.g `+: enfix :add`"
     :target [set-word! set-path!]
