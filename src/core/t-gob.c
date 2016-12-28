@@ -189,7 +189,7 @@ static void Insert_Gobs(
             // For the moment, assume this GOB-or-WORD! containing block
             // only contains non-relative values.
             //
-            val = GET_OPT_VAR_MAY_FAIL(val, SPECIFIED);
+            val = Get_Opt_Var_May_Fail(val, SPECIFIED);
         }
         if (IS_GOB(val)) {
             count++;
@@ -241,7 +241,7 @@ static void Insert_Gobs(
             //
             // Again, assume no relative values
             //
-            val = GET_OPT_VAR_MAY_FAIL(val, SPECIFIED);
+            val = Get_Opt_Var_May_Fail(val, SPECIFIED);
         }
         if (IS_GOB(val)) {
             // !!! Temporary error of some kind (supposed to trap, not panic?)

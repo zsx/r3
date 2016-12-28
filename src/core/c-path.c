@@ -56,8 +56,9 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
     assert(pvs->selector == &pvs->selector_cell);
 
     if (IS_GET_WORD(pvs->item)) { // e.g. object/:field
-        pvs->selector_cell
-            = *GET_OPT_VAR_MAY_FAIL(pvs->item, pvs->item_specifier);
+        Copy_Opt_Var_May_Fail(
+            &pvs->selector_cell, pvs->item, pvs->item_specifier
+        );
 
         if (IS_VOID(pvs->selector))
             fail (Error_No_Value_Core(pvs->item, pvs->item_specifier));
@@ -214,7 +215,7 @@ REBOOL Do_Path_Throws_Core(
     // get a datatype to dispatch on for the later path items)
     //
     if (IS_WORD(pvs.item)) {
-        pvs.value = GET_MUTABLE_VAR_MAY_FAIL(pvs.item, pvs.item_specifier);
+        pvs.value = Get_Mutable_Var_May_Fail(pvs.item, pvs.item_specifier);
         pvs.value_specifier = SPECIFIED;
         if (IS_VOID(pvs.value))
             fail (Error_No_Value_Core(pvs.item, pvs.item_specifier));
@@ -382,7 +383,7 @@ REBOOL Do_Path_Throws_Core(
             }
             else if (IS_GET_WORD(pvs.item)) {
                 DS_PUSH_TRASH;
-                *DS_TOP = *GET_OPT_VAR_MAY_FAIL(pvs.item, pvs.item_specifier);
+                Copy_Opt_Var_May_Fail(DS_TOP, pvs.item, pvs.item_specifier);
                 if (IS_VOID(DS_TOP)) {
                     DS_DROP;
                     continue;
@@ -506,7 +507,7 @@ REBCTX *Error_Bad_Path_Field_Set(REBPVS *pvs)
 void Get_Simple_Value_Into(REBVAL *out, const RELVAL *val, REBSPC *specifier)
 {
     if (IS_WORD(val) || IS_GET_WORD(val)) {
-        *out = *GET_OPT_VAR_MAY_FAIL(val, specifier);
+        Copy_Opt_Var_May_Fail(out, val, specifier);
     }
     else if (IS_PATH(val) || IS_GET_PATH(val)) {
         if (Do_Path_Throws_Core(out, NULL, val, specifier, NULL))
@@ -534,7 +535,7 @@ void Get_Simple_Value_Into(REBVAL *out, const RELVAL *val, REBSPC *specifier)
 REBCTX *Resolve_Path(const REBVAL *path, REBCNT *index_out)
 {
     RELVAL *selector;
-    const REBVAL *var;
+    const RELVAL *var;
     REBARR *array;
     REBCNT i;
 
@@ -544,7 +545,7 @@ REBCTX *Resolve_Path(const REBVAL *path, REBCNT *index_out)
     if (IS_END(selector) || !ANY_WORD(selector))
         return NULL; // !!! only handles heads of paths that are ANY-WORD!
 
-    var = GET_OPT_VAR_MAY_FAIL(selector, VAL_SPECIFIER(path));
+    var = Get_Opt_Var_May_Fail(selector, VAL_SPECIFIER(path));
 
     ++selector;
     if (IS_END(selector))

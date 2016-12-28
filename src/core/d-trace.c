@@ -113,7 +113,7 @@ void Trace_Line(REBFRM *f)
     }
 
     if (IS_WORD(f->value) || IS_GET_WORD(f->value)) {
-        const REBVAL *var = GET_OPT_VAR_MAY_FAIL(f->value, f->specifier);
+        const RELVAL *var = Get_Opt_Var_May_Fail(f->value, f->specifier);
         if (VAL_TYPE(var) < REB_FUNCTION)
             Debug_Fmt_(" : %50r", var);
         else if (VAL_TYPE(var) == REB_FUNCTION) {

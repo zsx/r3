@@ -220,10 +220,7 @@ REBNATIVE(maybe)
                 D_OUT,
                 value,
                 IS_WORD(item)
-                    ? cast(
-                        const RELVAL*,
-                        GET_OPT_VAR_MAY_FAIL(item, VAL_SPECIFIER(test))
-                    ) // cast needed for gcc/g++ 2.95 (bug)
+                    ? Get_Opt_Var_May_Fail(item, VAL_SPECIFIER(test))
                     : item
             );
 
@@ -553,7 +550,7 @@ REBNATIVE(get)
     REBVAL *source = ARG(source);
 
     if (ANY_WORD(source)) {
-        *D_OUT = *GET_OPT_VAR_MAY_FAIL(source, SPECIFIED);
+        Copy_Opt_Var_May_Fail(D_OUT, source, SPECIFIED);
     }
     else if (ANY_PATH(source)) {
         //
@@ -1009,7 +1006,7 @@ REBNATIVE(set)
                 // it's a get-word for the !set_with_block too.
                 //
                 if (IS_WORD(value)) // !!! why just WORD!, and not ANY-WORD!
-                    if (IS_VOID(GET_OPT_VAR_MAY_FAIL(value, value_specifier)))
+                    if (IS_VOID(Get_Opt_Var_May_Fail(value, value_specifier)))
                         fail (Error(RE_NEED_VALUE, target));
                 break;
 
@@ -1038,7 +1035,7 @@ REBNATIVE(set)
     for (; NOT_END(target); target++) {
         if (IS_WORD(target) || IS_SET_WORD(target) || IS_LIT_WORD(target)) {
             Derelativize(
-                SINK_VAR_MAY_FAIL(target, target_specifier),
+                Sink_Var_May_Fail(target, target_specifier),
                 value,
                 value_specifier
             );
@@ -1051,12 +1048,15 @@ REBNATIVE(set)
             // Not exactly the same thing, but worth contemplating.
             //
             if (IS_WORD(value)) {
-                *SINK_VAR_MAY_FAIL(target, target_specifier)
-                    = *GET_OPT_VAR_MAY_FAIL(value, value_specifier);
+                Copy_Opt_Var_May_Fail(
+                    Sink_Var_May_Fail(target, target_specifier),
+                    value,
+                    value_specifier
+                );
             }
             else {
                 Derelativize(
-                    SINK_VAR_MAY_FAIL(target, target_specifier),
+                    Sink_Var_May_Fail(target, target_specifier),
                     value,
                     value_specifier
                 );
@@ -1122,7 +1122,7 @@ REBNATIVE(unset)
     REBVAL *target = ARG(target);
 
     if (ANY_WORD(target)) {
-        REBVAL *var = SINK_VAR_MAY_FAIL(target, SPECIFIED);
+        REBVAL *var = Sink_Var_May_Fail(target, SPECIFIED);
         SET_VOID(var);
         return R_VOID;
     }
@@ -1134,7 +1134,7 @@ REBNATIVE(unset)
         if (!ANY_WORD(word))
             fail (Error_Invalid_Arg_Core(word, VAL_SPECIFIER(target)));
 
-        REBVAL *var = SINK_VAR_MAY_FAIL(word, VAL_SPECIFIER(target));
+        REBVAL *var = Sink_Var_May_Fail(word, VAL_SPECIFIER(target));
         SET_VOID(var);
     }
 
@@ -1312,7 +1312,7 @@ inline static REBOOL Is_Set_Modifies(REBVAL *location)
         //
         // Note this will fail if unbound
         //
-        const REBVAL *var = GET_OPT_VAR_MAY_FAIL(location, SPECIFIED);
+        const RELVAL *var = Get_Opt_Var_May_Fail(location, SPECIFIED);
         if (IS_VOID(var))
             return FALSE;
     }

@@ -73,7 +73,7 @@ REBVAL *Find_Mutable_In_Contexts(REBSTR *sym, REBVAL *where)
 
     for (; NOT_END(where); where++) {
         if (IS_WORD(where)) {
-            val = GET_MUTABLE_VAR_MAY_FAIL(where, SPECIFIED);
+            val = Get_Mutable_Var_May_Fail(where, SPECIFIED);
         }
         else if (IS_PATH(where)) {
             if (Do_Path_Throws_Core(&safe, NULL, where, SPECIFIED, NULL))
@@ -174,7 +174,7 @@ static REBVAL *Eval_Arg(REBDIA *dia)
             }
 
             if (IS_WORD_BOUND(val))
-                value = GET_MUTABLE_VAR_MAY_FAIL(val, SPECIFIED);
+                value = Get_Mutable_Var_May_Fail(val, SPECIFIED);
             else
                 value = NULL;
         }
@@ -271,7 +271,7 @@ again:
                 // Is it a typeset?
                 else if (
                     IS_WORD_BOUND(fargs)
-                    && (temp = GET_MUTABLE_VAR_MAY_FAIL(fargs, SPECIFIED))
+                    && (temp = Get_Mutable_Var_May_Fail(fargs, SPECIFIED))
                     && IS_TYPESET(temp)
                 ) {
                     if (TYPE_CHECK(temp, VAL_TYPE(value))) accept = 1;

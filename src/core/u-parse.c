@@ -369,11 +369,11 @@ static const RELVAL *Get_Parse_Value(
         if (VAL_CMD(rule))
             return rule;
 
-        const REBVAL *var = GET_OPT_VAR_MAY_FAIL(rule, specifier);
-        if (IS_VOID(var))
+        Copy_Opt_Var_May_Fail(cell, rule, specifier);
+        if (IS_VOID(cell))
             fail (Error_No_Value_Core(rule, specifier));
 
-        return var;
+        return cell;
     }
 
     if (IS_PATH(rule)) {
@@ -752,8 +752,10 @@ static REBIXO To_Thru_Block_Rule(
                     else
                         fail (Error_Parse_Rule());
                 }
-                else
-                    rule = GET_OPT_VAR_MAY_FAIL(rule, P_RULE_SPECIFIER);
+                else {
+                    Copy_Opt_Var_May_Fail(&cell, rule, P_RULE_SPECIFIER);
+                    rule = &cell;
+                }
             }
             else if (IS_PATH(rule))
                 rule = Get_Parse_Value(&cell, rule, P_RULE_SPECIFIER);
@@ -1607,7 +1609,7 @@ REBNATIVE(subparse)
                             VAL_INDEX(P_RULE),
                             P_RULE_SPECIFIER
                         )) {
-                            *P_OUT = save;
+                            *P_OUT = condition;
                             return R_OUT_IS_THROWN;
                         }
 
@@ -1637,7 +1639,7 @@ REBNATIVE(subparse)
 
                 // word: - set a variable to the series at current index
                 if (IS_SET_WORD(P_RULE)) {
-                    *SINK_VAR_MAY_FAIL(P_RULE, P_RULE_SPECIFIER)
+                    *Sink_Var_May_Fail(P_RULE, P_RULE_SPECIFIER)
                         = *P_INPUT_VALUE;
                     FETCH_NEXT_RULE_MAYBE_END(f);
                     continue;
@@ -1645,20 +1647,19 @@ REBNATIVE(subparse)
 
                 // :word - change the index for the series to a new position
                 if (IS_GET_WORD(P_RULE)) {
-                    const REBVAL *var = GET_OPT_VAR_MAY_FAIL(
-                        P_RULE,
-                        P_RULE_SPECIFIER
-                    );
-                    if (!ANY_SERIES(var)) // #1263
+                    REBVAL temp;
+                    Copy_Opt_Var_May_Fail(&temp, P_RULE, P_RULE_SPECIFIER);
+                    if (!ANY_SERIES(&temp)) // #1263
                         fail (Error(RE_PARSE_SERIES, P_RULE));
-                    Set_Parse_Series(f, var);
+                    Set_Parse_Series(f, &temp);
                     FETCH_NEXT_RULE_MAYBE_END(f);
                     continue;
                 }
 
                 // word - some other variable
                 if (IS_WORD(P_RULE)) {
-                    rule = GET_OPT_VAR_MAY_FAIL(P_RULE, P_RULE_SPECIFIER);
+                    Copy_Opt_Var_May_Fail(&save, P_RULE, P_RULE_SPECIFIER);
+                    rule = &save;
                     if (IS_VOID(rule))
                         fail (Error_No_Value_Core(P_RULE, P_RULE_SPECIFIER));
                 }
@@ -2063,7 +2064,7 @@ REBNATIVE(subparse)
                             : Copy_String_Slimming(P_INPUT, begin, count)
                     );
 
-                    *SINK_VAR_MAY_FAIL(
+                    *Sink_Var_May_Fail(
                         set_or_copy_word, P_RULE_SPECIFIER
                     ) = temp;
                 }
@@ -2071,7 +2072,7 @@ REBNATIVE(subparse)
                     if (Is_Array_Series(P_INPUT)) {
                         if (count != 0)
                             Derelativize(
-                                SINK_VAR_MAY_FAIL(
+                                Sink_Var_May_Fail(
                                     set_or_copy_word, P_RULE_SPECIFIER
                                 ),
                                 ARR_AT(AS_ARRAY(P_INPUT), begin),
@@ -2082,7 +2083,7 @@ REBNATIVE(subparse)
                     }
                     else {
                         if (count != 0) {
-                            REBVAL *var = SINK_VAR_MAY_FAIL(
+                            REBVAL *var = Sink_Var_May_Fail(
                                 set_or_copy_word, P_RULE_SPECIFIER
                             );
                             REBUNI ch = GET_ANY_CHAR(P_INPUT, begin);

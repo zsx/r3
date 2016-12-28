@@ -200,8 +200,8 @@ REBNATIVE(fail)
                 if (!IS_WORD_BOUND(item))
                     continue;
 
-                const REBVAL *var
-                    = GET_OPT_VAR_MAY_FAIL(item, VAL_SPECIFIER(reason));
+                const RELVAL *var
+                    = Get_Opt_Var_May_Fail(item, VAL_SPECIFIER(reason));
 
                 if (!IS_FUNCTION(var))
                     continue;

@@ -356,7 +356,7 @@ REBNATIVE(action)
     // A lookback quoting function that quotes a SET-WORD! on its left is
     // responsible for setting the value if it wants it to change.
     //
-    *SINK_VAR_MAY_FAIL(ARG(verb), SPECIFIED) = *FUNC_VALUE(fun);
+    *Sink_Var_May_Fail(ARG(verb), SPECIFIED) = *FUNC_VALUE(fun);
 
     return R_BLANK; // result won't be used if a function left-quotes SET-WORD!
 }

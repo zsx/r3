@@ -1414,7 +1414,7 @@ reevaluate:;
 //==//////////////////////////////////////////////////////////////////////==//
 
     case REB_GET_WORD:
-        *f->out = *GET_OPT_VAR_MAY_FAIL(f->value, f->specifier);
+        Copy_Opt_Var_May_Fail(f->out, f->value, f->specifier);
         CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
         FETCH_NEXT_ONLY_MAYBE_END(f);
         break;

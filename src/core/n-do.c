@@ -144,7 +144,7 @@ REBNATIVE(do)
                 // then have it indicate the start of the thrown expression
                 //
                 if (!IS_BLANK(ARG(var))) {
-                    *SINK_VAR_MAY_FAIL(ARG(var), SPECIFIED)
+                    *Sink_Var_May_Fail(ARG(var), SPECIFIED)
                         = *source;
                 }
 
@@ -166,7 +166,7 @@ REBNATIVE(do)
                 else
                     VAL_INDEX(source) = cast(REBCNT, indexor);
 
-                *SINK_VAR_MAY_FAIL(ARG(var), SPECIFIED)
+                *Sink_Var_May_Fail(ARG(var), SPECIFIED)
                     = *ARG(source);
             }
 

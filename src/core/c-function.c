@@ -36,7 +36,7 @@
 // Return a block of function words, unbound.
 // Note: skips 0th entry.
 //
-REBARR *List_Func_Words(const REBVAL *func, REBOOL pure_locals)
+REBARR *List_Func_Words(const RELVAL *func, REBOOL pure_locals)
 {
     REBARR *array = Make_Array(VAL_FUNC_NUM_PARAMS(func));
     REBVAL *param = VAL_FUNC_PARAMS_HEAD(func);

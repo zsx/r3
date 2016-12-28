@@ -151,7 +151,7 @@ REBOOL Update_Typeset_Bits_Core(
         const RELVAL *var = NULL;
 
         if (IS_WORD(item))
-            var = GET_OPT_VAR_MAY_FAIL(item, specifier);
+            var = Get_Opt_Var_May_Fail(item, specifier);
 
         if (var == NULL)
             var = item;

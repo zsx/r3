@@ -193,13 +193,13 @@ enum {
 // narrowly we may refer to a KEY that represents a parameter to a function
 // as a PARAM.
 //
-// The GET_OPT_VAR_MAY_FAIL() function takes the conservative default that
+// The Get_Opt_Var_May_Fail() function takes the conservative default that
 // only const access is needed.  A const pointer to a REBVAL is given back
 // which may be inspected, but the contents not modified.  While a bound
 // variable that is not currently set will return a REB_MAX_VOID value, trying
-// to GET_OPT_VAR_MAY_FAIL() on an *unbound* word will raise an error.
+// to Get_Opt_Var_May_Fail() on an *unbound* word will raise an error.
 //
-// GET_MUTABLE_VAR_MAY_FAIL() offers a parallel facility for getting a
+// Get_Mutable_Var_May_Fail() offers a parallel facility for getting a
 // non-const REBVAL back.  It will fail if the variable is either unbound
 // -or- marked with OPT_TYPESET_LOCKED to protect against modification.
 //
@@ -393,7 +393,7 @@ inline static REBVAL *Get_Var_Core(
     return var;
 }
 
-static inline const REBVAL *GET_OPT_VAR_MAY_FAIL(
+static inline const RELVAL *Get_Opt_Var_May_Fail(
     const RELVAL *any_word,
     REBSPC *specifier
 ) {
@@ -401,7 +401,16 @@ static inline const REBVAL *GET_OPT_VAR_MAY_FAIL(
     return Get_Var_Core(&eval_type, any_word, specifier, 0);
 }
 
-static inline REBVAL *GET_MUTABLE_VAR_MAY_FAIL(
+inline static void Copy_Opt_Var_May_Fail(
+    REBVAL *out,
+    const RELVAL *any_word,
+    REBSPC *specifier
+) {
+    enum Reb_Kind eval_type;
+    *out = *Get_Var_Core(&eval_type, any_word, specifier, 0);
+}
+
+static inline REBVAL *Get_Mutable_Var_May_Fail(
     const RELVAL *any_word,
     REBSPC *specifier
 ) {
@@ -409,8 +418,8 @@ static inline REBVAL *GET_MUTABLE_VAR_MAY_FAIL(
     return Get_Var_Core(&eval_type, any_word, specifier, GETVAR_IS_SETVAR);
 }
 
-#define SINK_VAR_MAY_FAIL(any_word,specifier) \
-    SINK(GET_MUTABLE_VAR_MAY_FAIL(any_word, specifier))
+#define Sink_Var_May_Fail(any_word,specifier) \
+    SINK(Get_Mutable_Var_May_Fail(any_word, specifier))
 
 
 //=////////////////////////////////////////////////////////////////////////=//

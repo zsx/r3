@@ -854,7 +854,7 @@ REBNATIVE(for_skip)
     if (IS_BLANK(word))
         return R_VOID;
 
-    REBVAL *var = GET_MUTABLE_VAR_MAY_FAIL(word, SPECIFIED);
+    REBVAL *var = Get_Mutable_Var_May_Fail(word, SPECIFIED);
 
     if (!ANY_SERIES(var))
         fail (Error_Invalid_Arg(var));

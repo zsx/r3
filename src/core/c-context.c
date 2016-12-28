@@ -898,7 +898,7 @@ REBCTX *Construct_Context(
 
         assert(!IS_SET_WORD(value + 1)); // TBD: support set words!
 
-        REBVAL *var = SINK_VAR_MAY_FAIL(value, specifier);
+        REBVAL *var = Sink_Var_May_Fail(value, specifier);
         Derelativize(var, value + 1, specifier);
     }
 

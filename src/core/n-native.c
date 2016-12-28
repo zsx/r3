@@ -452,7 +452,7 @@ REBNATIVE(compile)
     for (item = VAL_ARRAY_AT(natives); NOT_END(item); ++item) {
         const RELVAL *var = item;
         if (IS_WORD(item) || IS_GET_WORD(item)) {
-            var = GET_OPT_VAR_MAY_FAIL(item, VAL_SPECIFIER(natives));
+            var = Get_Opt_Var_May_Fail(item, VAL_SPECIFIER(natives));
             if (IS_VOID(var))
                 fail (Error_No_Value_Core(item, VAL_SPECIFIER(natives)));
         }

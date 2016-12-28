@@ -461,7 +461,7 @@ void GC_Kill_Interning(REBSTR *intern)
 //
 //  Get_Type_Name: C
 //
-const REBYTE *Get_Type_Name(const REBVAL *value)
+const REBYTE *Get_Type_Name(const RELVAL *value)
 {
     return STR_HEAD(Canon(SYM_FROM_KIND(VAL_TYPE(value))));
 }
