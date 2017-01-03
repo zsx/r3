@@ -650,6 +650,7 @@ if (R3_WITH_TCC)
         ${HEADER_OUTPUT}
         ${SYS_CORE_HEADER}
         ${TOP_GENERATED_SRC_DIR}/include/host-lib.h
+        ${TOP_GENERATED_SRC_DIR}/include/tmp-funcs.h
         VERBATIM
         )
 
