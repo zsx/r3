@@ -623,7 +623,7 @@ REBTYPE(Array)
     // NOTE: Partial1() used below can mutate VAL_INDEX(value), be aware :-/
     //
     REBARR *array = VAL_ARRAY(value);
-    REBINT index = cast(REBINT, VAL_INDEX(value));
+    REBCNT index = VAL_INDEX(value);
     REBSPC *specifier = VAL_SPECIFIER(value);
 
     switch (action) {
@@ -665,7 +665,10 @@ REBTYPE(Array)
             Partial1(value, ARG(limit), &len);
             if (len == 0)
                 goto return_empty_block;
-        } else
+
+            assert(VAL_LEN_HEAD(value) >= len);
+        }
+        else
             len = 1;
 
         index = VAL_INDEX(value); // /part can change index
@@ -673,7 +676,7 @@ REBTYPE(Array)
         if (REF(last))
             index = VAL_LEN_HEAD(value) - len;
 
-        if (index < 0 || index >= cast(REBINT, VAL_LEN_HEAD(value))) {
+        if (index >= VAL_LEN_HEAD(value)) {
             if (NOT(REF(part)))
                 return R_VOID;
 
@@ -794,7 +797,7 @@ REBTYPE(Array)
 
     case SYM_CLEAR: {
         FAIL_IF_READ_ONLY_ARRAY(array);
-        if (index < cast(REBINT, VAL_LEN_HEAD(value))) {
+        if (index < VAL_LEN_HEAD(value)) {
             if (index == 0) Reset_Array(array);
             else {
                 SET_END(ARR_AT(array, index));
@@ -907,7 +910,7 @@ REBTYPE(Array)
         FAIL_IF_READ_ONLY_ARRAY(VAL_ARRAY(arg));
 
         if (
-            index < cast(REBINT, VAL_LEN_HEAD(value))
+            index < VAL_LEN_HEAD(value)
             && VAL_INDEX(arg) < VAL_LEN_HEAD(arg)
         ) {
             // RELVAL bits can be copied within the same array
@@ -974,7 +977,7 @@ REBTYPE(Array)
             fail (Error(RE_BAD_REFINES));
 
         if (REF(only)) { // pick an element out of the array
-            if (index >= cast(REBINT, VAL_LEN_HEAD(value)))
+            if (index >= VAL_LEN_HEAD(value))
                 return R_BLANK;
 
             SET_INTEGER(
