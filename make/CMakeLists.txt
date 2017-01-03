@@ -423,7 +423,7 @@ add_custom_command(OUTPUT
 
 set(HEADER_OUTPUT
     ${TOP_GENERATED_SRC_DIR}/include/tmp-funcs.h
-    ${TOP_GENERATED_SRC_DIR}/include/tmp-funcargs.h
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-paramlists.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-strings.h
     ${CORE_GENERATED_DIR}/tmp-symbols.c
     )
