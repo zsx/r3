@@ -22,6 +22,9 @@ REBOL [
 
 do %common.r
 do %common-emitter.r
+args: parse-args system/options/args
+output-dir: fix-win32-path to file! any [args/OUTDIR %../]
+mkdir/deep output-dir/os
 
 print "--- Make Host Init Code ---"
 
@@ -105,4 +108,4 @@ load-files: function [
 ]
 
 
-write-c-file %tmp-host-start.inc load-files [%host-start.r]
+write-c-file output-dir/os/tmp-host-start.inc load-files [%host-start.r]
