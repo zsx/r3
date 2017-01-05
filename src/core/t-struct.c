@@ -1164,8 +1164,11 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                 REBVAL specified;
                 Derelativize(&specified, item, VAL_SPECIFIER(arg));
 
-                if (Reduce_Any_Array_Throws(&init, &specified, FALSE))
+                if (Reduce_Any_Array_Throws(
+                    &init, &specified, REDUCE_FLAG_DROP_BARS
+                )){
                     fail (Error_No_Catch_For_Throw(&init));
+                }
 
                 ++item;
             }

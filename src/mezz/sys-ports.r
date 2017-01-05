@@ -65,7 +65,7 @@ make-port*: func [
 
     ; Defaults:
     port/actor: get in scheme 'actor ; avoid evaluation
-    port/awake: any [get in port/spec 'awake :scheme/awake]
+    port/awake: any [get/opt in port/spec 'awake | :scheme/awake]
     unless port/spec/ref [port/spec/ref: spec]
     unless port/spec/title [port/spec/title: scheme/title]
     port: to port! port

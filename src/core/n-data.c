@@ -534,8 +534,8 @@ REBNATIVE(collect_words)
 //  {Gets the value of a word or path, or values of a context.}
 //
 //      return: [<opt> any-value!]
-//      source [blank! any-word! any-path! any-context!]
-//          "Word, path, context to get"
+//      source [blank! any-word! any-path! any-context! block!]
+//          {Word, path, context to get}
 //      /opt
 //          "Optionally return no value if the source is not SET?"
 //  ]
@@ -547,29 +547,11 @@ REBNATIVE(get)
 {
     INCLUDE_PARAMS_OF_GET;
 
-    REBVAL *source = ARG(source);
+    RELVAL *source;
+    REBVAL *dest;
+    REBSPC *specifier;
 
-    if (ANY_WORD(source)) {
-        Copy_Opt_Var_May_Fail(D_OUT, source, SPECIFIED);
-    }
-    else if (ANY_PATH(source)) {
-        //
-        // Since `source` is in the local frame, it is a copy of the user's
-        // value so it's okay to tweak its path type to ensure it's GET-PATH!
-        //
-        VAL_SET_TYPE_BITS(source, REB_GET_PATH);
-
-        // Here we DO it, which means that `get 'foo/bar` will act the same
-        // as `:foo/bar` for all types.
-        //
-        if (Do_Path_Throws_Core(D_OUT, NULL, source, SPECIFIED, NULL))
-            return R_OUT_IS_THROWN;
-
-        // !!! Should this prohibit GROUP! evaluations?  Failure to do so
-        // could make a GET able to have side-effects, which may not be
-        // desirable, at least without a refinement.
-    }
-    else if (ANY_CONTEXT(source)) {
+    if (ANY_CONTEXT(ARG(source))) {
         //
         // !!! This is a questionable feature, a shallow copy of the vars of
         // the context being put into a BLOCK!:
@@ -585,6 +567,7 @@ REBNATIVE(get)
         // !!! The array we create may have extra unused capacity, due to
         // the LEN including hidden fields which aren't going to be copied.
         //
+        source = ARG(source);
         REBARR *array = Make_Array(CTX_LEN(VAL_CONTEXT(source)));
         REBVAL *dest = SINK(ARR_HEAD(array));
 
@@ -603,14 +586,90 @@ REBNATIVE(get)
 
         TERM_ARRAY_LEN(array, cast(RELVAL*, dest) - ARR_HEAD(array));
         Init_Block(D_OUT, array);
-    }
-    else {
-        assert(IS_BLANK(source));
-        *D_OUT = *source;
+        return R_OUT;
     }
 
-    if (NOT(REF(opt)) && IS_VOID(D_OUT))
-        fail (Error_No_Value(source));
+    // Move the argument into the single cell in the frame if it's not a
+    // block, so the same enumeration-up-to-an-END marker can work on it
+    // as for handling a block of items.
+    //
+    REBARR *results;
+
+    if (IS_BLOCK(ARG(source))) {
+        //
+        // If a BLOCK! of gets are performed, voids cannot be put into the
+        // resulting BLOCK!.  Hence for /OPT to be legal, it would have to
+        // give back a BLANK! or other placeholder.  For now, error.
+        //
+        if (REF(opt))
+            fail (Error(RE_BAD_REFINES));
+
+        source = VAL_ARRAY_AT(ARG(source));
+        specifier = VAL_SPECIFIER(ARG(source));
+
+        results = Make_Array(VAL_LEN_AT(ARG(source)));
+        TERM_ARRAY_LEN(results, VAL_LEN_AT(ARG(source)));
+        dest = SINK(ARR_HEAD(results));
+    }
+    else {
+        *D_CELL = *ARG(source);
+        source = D_CELL;
+        specifier = SPECIFIED;
+        dest = D_OUT;
+    }
+
+    for (; NOT_END(source); ++source, ++dest) {
+        if (IS_BAR(source)) {
+            //
+            // `a: 10 | b: 20 | get [a | b]` will give back `[10 | 20]`.
+            // While seemingly not a very useful feature standalone, this
+            // compatibility with SET could come in useful so that blocks
+            // don't have to be rearranged to filter out BAR!s.
+            //
+            SET_BAR(dest);
+        }
+        else if (IS_BLANK(source)) {
+            //
+            // R3-Alpha had the notion of "none propagation" where a routine
+            // that it didn't make sense to take a non-value would use that
+            // to allow a pass-thru to chain "failure" to other routines.
+            // Ren-C has routines that tolerate blank inputs but that give
+            // back a void, which avoids an immediate error alert but which
+            // is more of a "hot potato" that needs to be handled.
+            //
+            SET_VOID(dest);
+        }
+        else if (ANY_WORD(source)) {
+            Copy_Opt_Var_May_Fail(dest, source, specifier);
+        }
+        else if (ANY_PATH(source)) {
+            //
+            // Piggy-back on the GET-PATH! mechanic by copying to a temp
+            // value and changing its type bits.
+            //
+            // !!! Review making a more efficient method of doing this.
+            //
+            REBVAL temp;
+            Derelativize(&temp, source, specifier);
+            VAL_SET_TYPE_BITS(&temp, REB_GET_PATH);
+
+            // Here we DO it, which means that `get 'foo/bar` will act the same
+            // as `:foo/bar` for all types.
+            //
+            if (Do_Path_Throws_Core(dest, NULL, &temp, specifier, NULL))
+                return R_OUT_IS_THROWN;
+
+            // !!! Should this prohibit GROUP! evaluations?  Failure to do so
+            // could make a GET able to have side-effects, which may not be
+            // desirable, at least without a refinement.
+        }
+
+        if (NOT(REF(opt)) && IS_VOID(dest))
+            fail (Error_No_Value_Core(source, specifier));
+    }
+
+    if (IS_BLOCK(ARG(source)))
+        Init_Block(D_OUT, results);
 
     return R_OUT;
 }
@@ -993,7 +1052,15 @@ REBNATIVE(set)
         for (; NOT_END(target) && NOT_END(value); target++) {
             assert(!IS_VOID(value)); // blocks may not contain voids
 
+            if (IS_BAR(value))
+                if (!IS_BAR(target))
+                    fail (Error(RE_MISC));
+
             switch (VAL_TYPE(target)) {
+            case REB_BLANK:
+                //
+                // Throws away whatever value is there
+                //
             case REB_WORD:
             case REB_SET_WORD:
             case REB_LIT_WORD:
@@ -1008,6 +1075,15 @@ REBNATIVE(set)
                 if (IS_WORD(value)) // !!! why just WORD!, and not ANY-WORD!
                     if (IS_VOID(Get_Opt_Var_May_Fail(value, value_specifier)))
                         fail (Error(RE_NEED_VALUE, target));
+                break;
+
+            case REB_BAR:
+                //
+                // A BAR! must match a BAR!, e.g. `set [a | b] [1 | 2]` is
+                // legal but `set [a | b] [1 2 3]` is not.
+                //
+                if (!IS_BAR(value))
+                    fail (Error(RE_MISC));
                 break;
 
             default:
@@ -1033,7 +1109,17 @@ REBNATIVE(set)
     // With the assignments checked, do them
     //
     for (; NOT_END(target); target++) {
-        if (IS_WORD(target) || IS_SET_WORD(target) || IS_LIT_WORD(target)) {
+        if (IS_BAR(target) || IS_BLANK(target)) {
+            //
+            // Just skip it (bars have already been checked that they line
+            // up with other bars)
+            //
+        }
+        else if (
+            IS_WORD(target)
+            || IS_SET_WORD(target)
+            || IS_LIT_WORD(target)
+        ) {
             Derelativize(
                 Sink_Var_May_Fail(target, target_specifier),
                 value,

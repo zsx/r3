@@ -342,6 +342,7 @@ get: function [
         any-word? :source
         any-path? :source
         any-context? :source
+        block? :source
     ][
         lib-get/(if any [opt_GET any_GET] 'opt) :source
     ][

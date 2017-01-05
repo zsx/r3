@@ -270,7 +270,7 @@ REBNATIVE(any)
 //
 //  {Short circuiting version of NOR, using a block of expressions as input.}
 //
-//      return: [<opt> logic! blank!]
+//      return: [<opt> bar! blank!]
 //          {TRUE if all expressions are FALSE?, or BLANK if any are TRUE?}
 //      block [block!]
 //          "Block of expressions.  Void evaluations are ignored."

@@ -38,11 +38,19 @@
 // `out` with all values collected from the stack, into an array matching the
 // type of the input.  So [1 + 1 2 + 2] => [3 4], and 1/+/1/2/+/2 => 3/4
 //
+// !!! This is not necessarily the best answer, it's just the mechanically
+// most obvious one.
+//
 REBOOL Reduce_Any_Array_Throws(
     REBVAL *out,
     REBVAL *any_array,
-    REBOOL into
+    REBFLGS flags
 ) {
+    assert(
+        NOT(flags & REDUCE_FLAG_KEEP_BARS)
+        == LOGICAL(flags & REDUCE_FLAG_DROP_BARS)
+    ); // only one should be true, but caller should be explicit of which
+
     REBDSP dsp_orig = DSP;
 
     Reb_Enumerator e;
@@ -50,6 +58,17 @@ REBOOL Reduce_Any_Array_Throws(
 
     while (NOT_END(e.value)) {
         UPDATE_EXPRESSION_START(&e); // informs the error delivery better
+
+        if (IS_BAR(e.value)) {
+            if (flags & REDUCE_FLAG_KEEP_BARS) {
+                DS_PUSH_TRASH;
+                QUOTE_NEXT_REFETCH(DS_TOP, &e);
+            }
+            else
+                FETCH_NEXT_ONLY_MAYBE_END(&e);
+
+            continue;
+        }
 
         REBVAL reduced;
         DO_NEXT_REFETCH_MAY_THROW(&reduced, &e, DO_FLAG_NORMAL);
@@ -75,7 +94,7 @@ REBOOL Reduce_Any_Array_Throws(
         DS_PUSH(&reduced);
     }
 
-    if (into)
+    if (flags & REDUCE_FLAG_INTO)
         Pop_Stack_Values_Into(out, dsp_orig);
     else
         Init_Any_Array(out, VAL_TYPE(any_array), Pop_Stack_Values(dsp_orig));
@@ -111,7 +130,13 @@ REBNATIVE(reduce)
         if (REF(into))
             *D_OUT = *ARG(target);
 
-        if (Reduce_Any_Array_Throws(D_OUT, value, REF(into))) {
+        if (Reduce_Any_Array_Throws(
+            D_OUT,
+            value,
+            REF(into)
+                ? REDUCE_FLAG_INTO | REDUCE_FLAG_KEEP_BARS
+                : REDUCE_FLAG_KEEP_BARS
+        )){
             return R_OUT_IS_THROWN;
         }
 

@@ -426,7 +426,9 @@ REBNATIVE(wait)
     if (IS_BLOCK(ARG(value))) {
         REBVAL unsafe; // temporary not safe from GC
 
-        if (Reduce_Any_Array_Throws(&unsafe, ARG(value), FALSE)) {
+        if (Reduce_Any_Array_Throws(
+            &unsafe, ARG(value), REDUCE_FLAG_DROP_BARS
+        )){
             *D_OUT = unsafe;
             return R_OUT_IS_THROWN;
         }

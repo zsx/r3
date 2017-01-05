@@ -1336,3 +1336,10 @@ inline static REBOOL Maybe_Run_Failed_Branch_Throws(
 
     return FALSE;
 }
+
+
+enum {
+    REDUCE_FLAG_INTO = 1 << 0,
+    REDUCE_FLAG_DROP_BARS = 1 << 1,
+    REDUCE_FLAG_KEEP_BARS = 1 << 2
+};

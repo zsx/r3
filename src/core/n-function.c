@@ -449,7 +449,7 @@ REBNATIVE(chain)
         chainees = COPY_ANY_ARRAY_AT_DEEP_MANAGED(pipeline);
     }
     else {
-        if (Reduce_Any_Array_Throws(out, pipeline, FALSE))
+        if (Reduce_Any_Array_Throws(out, pipeline, REDUCE_FLAG_DROP_BARS))
             return R_OUT_IS_THROWN;
 
         chainees = VAL_ARRAY(out); // should be all specific values
