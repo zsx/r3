@@ -687,7 +687,7 @@ reevaluate:;
                     ) {
                         if (!IS_VARARGS(f->arg)) {
                             REBVAL honest_param;
-                            Val_Init_Typeset(
+                            Init_Typeset(
                                 &honest_param,
                                 FLAGIT_KIND(REB_VARARGS), // actually expected
                                 VAL_PARAM_SPELLING(f->param)

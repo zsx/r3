@@ -176,7 +176,7 @@ REBCTX *Make_Guarded_Arg123_Error(void)
 
     REBCNT n;
     for (n = 0; n < 3; n++, key++, var++) {
-        Val_Init_Typeset(
+        Init_Typeset(
             key,
             ALL_64,
             Canon(cast(REBSYM, cast(REBCNT, SYM_ARG1) + n))

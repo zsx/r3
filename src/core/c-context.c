@@ -193,7 +193,7 @@ REBVAL *Append_Context_Core(
     //
     EXPAND_SERIES_TAIL(AS_SERIES(keylist), 1);
     REBVAL *key = SINK(ARR_LAST(keylist));
-    Val_Init_Typeset(
+    Init_Typeset(
         key,
         ALL_64,
         opt_any_word != NULL ? VAL_WORD_SPELLING(opt_any_word) : opt_name
@@ -518,7 +518,7 @@ static void Collect_Context_Inner_Loop(
                     Add_Binder_Index(binder, canon, ARR_LEN(BUF_COLLECT));
                     EXPAND_SERIES_TAIL(AS_SERIES(BUF_COLLECT), 1);
                     REBVAL *typeset = SINK(ARR_LAST(BUF_COLLECT));
-                    Val_Init_Typeset(
+                    Init_Typeset(
                         typeset,
                         // Allow all datatypes but no void (initially):
                         ~FLAGIT_KIND(REB_MAX_VOID),
@@ -584,7 +584,7 @@ REBARR *Collect_Keylist_Managed(
             // No prior or no SELF in prior, so we'll add it as the first key
             //
             RELVAL *self_key = ARR_AT(BUF_COLLECT, 1);
-            Val_Init_Typeset(self_key, ALL_64, Canon(SYM_SELF));
+            Init_Typeset(self_key, ALL_64, Canon(SYM_SELF));
 
             // !!! See notes on the flags about why SELF is set hidden but
             // not unbindable with TYPESET_FLAG_UNBINDABLE.

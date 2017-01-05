@@ -991,12 +991,12 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
                         printf("Legacy arg1_arg2_arg3 error with > 3 args\n");
                         panic (arg);
                     }
-                    Val_Init_Typeset(key, ALL_64, Canon(*arg1_arg2_arg3));
+                    Init_Typeset(key, ALL_64, Canon(*arg1_arg2_arg3));
                     arg1_arg2_arg3++;
                 }
                 else
             #endif
-                    Val_Init_Typeset(key, ALL_64, VAL_WORD_SPELLING(temp));
+                    Init_Typeset(key, ALL_64, VAL_WORD_SPELLING(temp));
 
                 *value = *arg;
 
@@ -1010,7 +1010,7 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
         if (LEGACY(OPTIONS_ARG1_ARG2_ARG3_ERROR)) {
             // Need to fill in blanks for any remaining args.
             while (*arg1_arg2_arg3 != SYM_0) {
-                Val_Init_Typeset(key, ALL_64, Canon(*arg1_arg2_arg3));
+                Init_Typeset(key, ALL_64, Canon(*arg1_arg2_arg3));
                 arg1_arg2_arg3++;
                 key++;
                 SET_BLANK(value);
@@ -1022,7 +1022,7 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
             // (two extra fields accounted for above in creation)
 
             // error/__FILE__ (a FILE! value)
-            Val_Init_Typeset(key, ALL_64, Canon(SYM___FILE__));
+            Init_Typeset(key, ALL_64, Canon(SYM___FILE__));
             key++;
             Init_File(
                 value,
@@ -1031,7 +1031,7 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
             value++;
 
             // error/__LINE__ (an INTEGER! value)
-            Val_Init_Typeset(key, ALL_64, Canon(SYM___LINE__));
+            Init_Typeset(key, ALL_64, Canon(SYM___LINE__));
             key++;
             SET_INTEGER(value, TG_Erroring_C_Line);
             value++;

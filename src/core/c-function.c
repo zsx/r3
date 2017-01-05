@@ -357,8 +357,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 VAL_ARRAY_HEAD(item),
                 IS_SPECIFIC(item)
                     ? VAL_SPECIFIER(const_KNOWN(item))
-                    : VAL_SPECIFIER(spec),
-                FALSE // `trap`: false means fail vs. return FALSE if error
+                    : VAL_SPECIFIER(spec)
             );
 
             // Refinements and refinement arguments cannot be specified as
@@ -425,7 +424,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         //
         DS_PUSH_TRASH;
         REBVAL *typeset = DS_TOP;
-        Val_Init_Typeset(
+        Init_Typeset(
             typeset,
             (flags & MKF_ANY_VALUE)
                 ? ALL_64
@@ -554,7 +553,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             REBSTR *canon_leave = Canon(SYM_LEAVE);
 
             DS_PUSH_TRASH;
-            Val_Init_Typeset(DS_TOP, FLAGIT_KIND(REB_MAX_VOID), canon_leave);
+            Init_Typeset(DS_TOP, FLAGIT_KIND(REB_MAX_VOID), canon_leave);
             INIT_VAL_PARAM_CLASS(DS_TOP, PARAM_CLASS_LEAVE);
             definitional_leave = DS_TOP;
 
@@ -591,7 +590,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             // that is as broadly usable as possible.)
             //
             DS_PUSH_TRASH;
-            Val_Init_Typeset(
+            Init_Typeset(
                 DS_TOP,
                 (flags & MKF_ANY_VALUE)
                 || NOT(has_description || has_types || has_notes)

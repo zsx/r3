@@ -290,7 +290,7 @@ REBNATIVE(typechecker)
     archetype->extra.binding = NULL;
 
     REBVAL *param = Alloc_Tail_Array(paramlist);
-    Val_Init_Typeset(param, ALL_64, Canon(SYM_VALUE));
+    Init_Typeset(param, ALL_64, Canon(SYM_VALUE));
     INIT_VAL_PARAM_CLASS(param, PARAM_CLASS_NORMAL);
 
     SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
@@ -362,7 +362,7 @@ REBNATIVE(brancher)
     rootkey->extra.binding = NULL;
 
     REBVAL *param = SINK(ARR_AT(paramlist, 1));
-    Val_Init_Typeset(param, FLAGIT_KIND(REB_LOGIC), Canon(SYM_CONDITION));
+    Init_Typeset(param, FLAGIT_KIND(REB_LOGIC), Canon(SYM_CONDITION));
     INIT_VAL_PARAM_CLASS(param, PARAM_CLASS_NORMAL);
     TERM_ARRAY_LEN(paramlist, 2);
 

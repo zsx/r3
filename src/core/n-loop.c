@@ -202,7 +202,7 @@ static REBARR *Copy_Body_Deep_Bound_To_New_Context(
             fail (Error_Invalid_Arg_Core(item, specifier));
         }
 
-        Val_Init_Typeset(key, ALL_64, VAL_WORD_SPELLING(item));
+        Init_Typeset(key, ALL_64, VAL_WORD_SPELLING(item));
         key++;
 
         SET_VOID(var);

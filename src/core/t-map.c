@@ -553,7 +553,7 @@ REBCTX *Alloc_Context_From_Map(REBMAP *map)
             // !!! Used to leave SET_WORD typed values here... but why?
             // (Objects did not make use of the set-word vs. other distinctions
             // that function specs did.)
-            Val_Init_Typeset(
+            Init_Typeset(
                 key,
                 // all types except void
                 ~FLAGIT_KIND(REB_MAX_VOID),

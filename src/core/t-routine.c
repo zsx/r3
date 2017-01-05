@@ -222,7 +222,7 @@ static void Schema_From_Block_May_Fail(
         // one structure in the place of another.  Actual struct compatibility
         // is not checked until runtime, when the call happens.
         //
-        Val_Init_Typeset(param_out, FLAGIT_KIND(REB_STRUCT), NULL);
+        Init_Typeset(param_out, FLAGIT_KIND(REB_STRUCT), NULL);
         return;
     }
 
@@ -238,51 +238,51 @@ static void Schema_From_Block_May_Fail(
         switch (VAL_WORD_SYM(item)) {
         case SYM_VOID:
             SET_BLANK(schema_out); // only valid for return types
-            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_MAX_VOID), NULL);
+            Init_Typeset(param_out, FLAGIT_KIND(REB_MAX_VOID), NULL);
             break;
 
         case SYM_UINT8:
-            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
+            Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
             break;
 
         case SYM_INT8:
-            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
+            Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
             break;
 
         case SYM_UINT16:
-            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
+            Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
             break;
 
         case SYM_INT16:
-            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
+            Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
             break;
 
         case SYM_UINT32:
-            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
+            Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
             break;
 
         case SYM_INT32:
-            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
+            Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
             break;
 
         case SYM_UINT64:
-            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
+            Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
             break;
 
         case SYM_INT64:
-            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
+            Init_Typeset(param_out, FLAGIT_KIND(REB_INTEGER), NULL);
             break;
 
         case SYM_FLOAT:
-            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_DECIMAL), NULL);
+            Init_Typeset(param_out, FLAGIT_KIND(REB_DECIMAL), NULL);
             break;
 
         case SYM_DOUBLE:
-            Val_Init_Typeset(param_out, FLAGIT_KIND(REB_DECIMAL), NULL);
+            Init_Typeset(param_out, FLAGIT_KIND(REB_DECIMAL), NULL);
             break;
 
         case SYM_POINTER:
-            Val_Init_Typeset(
+            Init_Typeset(
                 param_out,
                 FLAGIT_KIND(REB_INTEGER)
                     | FLAGIT_KIND(REB_STRING)
@@ -294,7 +294,7 @@ static void Schema_From_Block_May_Fail(
             break;
 
         case SYM_REBVAL:
-            Val_Init_Typeset(param_out, ALL_64, NULL);
+            Init_Typeset(param_out, ALL_64, NULL);
             break;
 
         default:
@@ -1071,7 +1071,7 @@ static void callback_dispatcher(
         assert(IS_BLANK(RIN_RET_SCHEMA(rin)));
     else {
         REBVAL param;
-        Val_Init_Typeset(&param, 0, Canon(SYM_RETURN));
+        Init_Typeset(&param, 0, Canon(SYM_RETURN));
         arg_to_ffi(
             NULL, // store must be NULL if dest is non-NULL,
             ret, // destination pointer
@@ -1174,7 +1174,7 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
                 // chaining as opposed to passing the parameter pack to the
                 // C code to process (it wouldn't know what to do with it)
                 //
-                Val_Init_Typeset(
+                Init_Typeset(
                     param,
                     ALL_64 & ~FLAGIT_KIND(REB_VARARGS),
                     Canon(SYM_VARARGS)

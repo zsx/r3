@@ -163,7 +163,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
             // Wasn't already collected...so we added it...
             //
             EXPAND_SERIES_TAIL(AS_SERIES(BUF_COLLECT), 1);
-            Val_Init_Typeset(
+            Init_Typeset(
                 ARR_LAST(BUF_COLLECT), ALL_64, VAL_WORD_SPELLING(word)
             );
         }

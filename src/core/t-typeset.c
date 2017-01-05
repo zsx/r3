@@ -93,7 +93,7 @@ void Init_Typesets(void)
         // the typesets, rather an extra data field used when the typeset is
         // in a context key slot to identify that field's name
         //
-        Val_Init_Typeset(value, Typesets[n].bits, NULL);
+        Init_Typeset(value, Typesets[n].bits, NULL);
 
         *Append_Context(Lib_Context, NULL, Canon(Typesets[n].sym)) = *value;
     }
@@ -101,12 +101,12 @@ void Init_Typesets(void)
 
 
 //
-//  Val_Init_Typeset: C
+//  Init_Typeset: C
 //
 // Name should be set when a typeset is being used as a function parameter
 // specifier, or as a key in an object.
 //
-void Val_Init_Typeset(RELVAL *value, REBU64 bits, REBSTR *opt_name)
+void Init_Typeset(RELVAL *value, REBU64 bits, REBSTR *opt_name)
 {
     VAL_RESET_HEADER(value, REB_TYPESET);
     SET_VAL_FLAG(value, TYPESET_FLAG_NO_LOOKBACK); // default
@@ -131,8 +131,7 @@ void Val_Init_Typeset(RELVAL *value, REBU64 bits, REBSTR *opt_name)
 REBOOL Update_Typeset_Bits_Core(
     RELVAL *typeset,
     const RELVAL *head,
-    REBSPC *specifier,
-    REBOOL trap // if TRUE, then return FALSE instead of failing
+    REBSPC *specifier
 ) {
     assert(IS_TYPESET(typeset));
     VAL_TYPESET_BITS(typeset) = 0;
@@ -222,11 +221,8 @@ REBOOL Update_Typeset_Bits_Core(
         else if (IS_TYPESET(var)) {
             VAL_TYPESET_BITS(typeset) |= VAL_TYPESET_BITS(var);
         }
-        else {
-            if (trap) return FALSE;
-
+        else
             fail (Error_Invalid_Arg_Core(item, specifier));
-        }
     }
 
     return TRUE;
@@ -247,13 +243,8 @@ void MAKE_Typeset(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
     if (!IS_BLOCK(arg)) goto bad_make;
 
-    Val_Init_Typeset(out, 0, NULL);
-    Update_Typeset_Bits_Core(
-        out,
-        VAL_ARRAY_AT(arg),
-        VAL_SPECIFIER(arg),
-        FALSE // `trap`: false means fail() instead of FALSE on error
-    );
+    Init_Typeset(out, 0, NULL);
+    Update_Typeset_Bits_Core(out, VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg));
     return;
 
 bad_make:
