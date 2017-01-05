@@ -1160,12 +1160,12 @@ set 'r3-legacy* func [<local> if-flags] [
         ; New features of WITH: https://trello.com/c/cOgdiOAD
         ;
         lib-break: :break ; overwriting lib/break for now
-        break: func [
+        break: (func [
             {Exit the current iteration of a loop and stop iterating further.}
 
             /return ;-- Overrides RETURN!
                 {(deprecated: use THROW+CATCH)}
-            value [<opt> any-value!]
+            value [any-value!]
         ][
             if return [
                 fail [
@@ -1181,8 +1181,7 @@ set 'r3-legacy* func [<local> if-flags] [
             ]
 
             lib-break
-        ]
-
+        ])
     ]
 
     ; set-infix on PATH! instead of WORD! is still TBD
