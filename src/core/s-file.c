@@ -136,7 +136,7 @@ REBSER *Value_To_REBOL_Path(REBVAL *val, REBOOL is_dir)
         VAL_RAW_DATA_AT(val),
         VAL_LEN_AT(val),
         (
-            (VAL_BYTE_SIZE(val) ? PATH_OPT_UNI_SRC : 0)
+            (VAL_BYTE_SIZE(val) ? 0 : PATH_OPT_UNI_SRC)
             | (is_dir ? PATH_OPT_SRC_IS_DIR : 0)
         )
     );
