@@ -44,6 +44,7 @@ set (TOP_GENERATED_SRC_DIR "${CMAKE_CURRENT_BINARY_DIR}/src")
 set (CORE_DIR "${TOP_SRC_DIR}/core")
 set (CORE_GENERATED_DIR "${TOP_GENERATED_SRC_DIR}/core")
 set (OS_DIR "${TOP_SRC_DIR}/os")
+set (EXT_DIR "${TOP_SRC_DIR}/extensions")
 set (AGG_DIR "${TOP_SRC_DIR}/agg")
 set (TOOLS_DIR "${TOP_SRC_DIR}/tools")
 set (EXTERNAL_DIR "${TOP_SRC_DIR}/../external")
@@ -304,7 +305,6 @@ set (CORE_SOURCE
     ${CORE_DIR}/m-series.c
     ${CORE_DIR}/m-stacks.c
     ${CORE_DIR}/n-control.c
-    ${CORE_DIR}/n-crypt.c
     ${CORE_DIR}/n-data.c
     ${CORE_DIR}/n-do.c
     ${CORE_DIR}/n-error.c
@@ -592,7 +592,7 @@ endmacro (add_module)
 
 #add_module has to be put in the following section
 #<-------------- modules --------------->
-
+add_module(Crypt ${EXT_DIR}/n-crypt.c)
 #<------------- end of modules --------->
 
 string(REPLACE ";" "," BOOT_MODULE_LIST "${BOOT_MODULES}")

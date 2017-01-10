@@ -203,7 +203,6 @@ void RL_Init(void *lib)
 #endif
 
     Init_Core();
-    Init_Crypto();
 
     Register_Codec("text", ".txt", Codec_Text);
     Register_Codec("utf-16le", ".txt", Codec_UTF16LE);

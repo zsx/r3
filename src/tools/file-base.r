@@ -77,7 +77,7 @@ core: [
 
     ; (N)atives
     n-control.c
-    n-crypt.c
+    ;n-crypt.c ;moved to extensions
     n-data.c
     n-do.c
     n-error.c
@@ -171,8 +171,7 @@ core: [
 
 modules: [
     ; [+ (builtin) | - (not builtin)] module_name module_source_file
-    ; e.g.
-    ; + Crypt ../extensions/n-crypt.c
+    + Crypt ../extensions/n-crypt.c
 ]
 
 made: [

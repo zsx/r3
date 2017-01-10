@@ -1605,7 +1605,6 @@ void Shutdown_Core(void)
         &= (~NODE_FLAG_ROOT);
     Recycle_Core(TRUE);
 
-    Shutdown_Crypto();
     Shutdown_Ports();
     Shutdown_Event_Scheme();
     Shutdown_CRC();

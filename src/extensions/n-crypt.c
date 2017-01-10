@@ -1,7 +1,7 @@
 //
 //  File: %n-crypt.c
 //  Summary: "Native Functions for cryptography"
-//  Section: natives
+//  Section: Extension
 //  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
@@ -46,11 +46,14 @@
 #undef IS_ERROR //winerror.h defines this, so undef it to avoid the warning
 #endif
 #include "sys-core.h"
+#include "sys-ext.h"
+
+#include "tmp-ext-crypt-first.h"
 
 //
 //  Init_Crypto: C
 //
-void Init_Crypto(void)
+static void Init_Crypto(void)
 {
 #ifdef TO_WINDOWS
     if (!CryptAcquireContextW(
@@ -77,7 +80,7 @@ void Init_Crypto(void)
 //
 //  Shutdown_Crypto: C
 //
-void Shutdown_Crypto(void)
+static void Shutdown_Crypto(void)
 {
 #ifdef TO_WINDOWS
     if (gCryptProv != 0)
@@ -103,7 +106,7 @@ static void cleanup_rc4_ctx(const REBVAL *val)
 
 
 //
-//  rc4: native [
+//  rc4: native/export [
 //
 //  "Encrypt/decrypt data (modifies) using RC4 algorithm."
 //
@@ -120,7 +123,7 @@ static void cleanup_rc4_ctx(const REBVAL *val)
 //          "Data to encrypt/decrypt."
 //  ]
 //
-REBNATIVE(rc4)
+static REBNATIVE(rc4)
 {
     INCLUDE_PARAMS_OF_RC4;
 
@@ -157,7 +160,7 @@ REBNATIVE(rc4)
 
 
 //
-//  rsa: native [
+//  rsa: native/export [
 //
 //  "Encrypt/decrypt data using the RSA algorithm."
 //
@@ -172,8 +175,9 @@ REBNATIVE(rc4)
 //      padding-type [word! blank!]
 //          "Type of padding. Available values: PKCS1 or NONE"
 //  ]
+//  new-words: [n e d p q dp dq qinv pkcs1]
 //
-REBNATIVE(rsa)
+static REBNATIVE(rsa)
 {
     INCLUDE_PARAMS_OF_RSA;
 
@@ -210,48 +214,41 @@ REBNATIVE(rsa)
         if (!IS_BINARY(var))
             continue; // if not binary then what?
 
-        switch (VAL_KEY_SYM(key)) {
-        case SYM_N:
+        REBSTR* word = VAL_KEY_CANON(key);
+        if (word == CRYPT_WORD_N) {
             n = VAL_BIN_AT(var);
             n_len = VAL_LEN_AT(var);
-            break;
-
-        case SYM_E:
+        }
+        else if (word == CRYPT_WORD_E) {
             e = VAL_BIN_AT(var);
             e_len = VAL_LEN_AT(var);
-            break;
-
-        case SYM_D:
+        }
+        else if (word == CRYPT_WORD_D) {
             d = VAL_BIN_AT(var);
             d_len = VAL_LEN_AT(var);
-            break;
-
-        case SYM_P:
+        }
+        else if (word == CRYPT_WORD_P) {
             p = VAL_BIN_AT(var);
             p_len = VAL_LEN_AT(var);
-            break;
-
-        case SYM_Q:
+        }
+        else if (word == CRYPT_WORD_Q) {
             q = VAL_BIN_AT(var);
             q_len = VAL_LEN_AT(var);
-            break;
-
-        case SYM_DP:
+           break;
+        }
+        else if (word == CRYPT_WORD_DP) {
             dp = VAL_BIN_AT(var);
             dp_len = VAL_LEN_AT(var);
-            break;
-
-        case SYM_DQ:
+        }
+        else if (word == CRYPT_WORD_DQ) {
             dq = VAL_BIN_AT(var);
             dq_len = VAL_LEN_AT(var);
-            break;
-
-        case SYM_QINV:
+        }
+        else if (word == CRYPT_WORD_QINV) {
             qinv = VAL_BIN_AT(var);
             qinv_len = VAL_LEN_AT(var);
-            break;
-
-        default:
+        }
+        else {
             fail (Error(RE_MISC));
         }
     }
@@ -332,7 +329,7 @@ REBNATIVE(rsa)
 
 
 //
-//  dh-generate-key: native [
+//  dh-generate-key: native/export [
 //
 //  "Generates a new DH private/public key pair."
 //
@@ -340,8 +337,9 @@ REBNATIVE(rsa)
 //      obj [object!]
 //         "The Diffie-Hellman key object, with generator(g) and modulus(p)"
 //  ]
+//  new-words: [priv-key pub-key p g]
 //
-REBNATIVE(dh_generate_key)
+static REBNATIVE(dh_generate_key)
 {
     INCLUDE_PARAMS_OF_DH_GENERATE_KEY;
 
@@ -357,16 +355,15 @@ REBNATIVE(dh_generate_key)
         if (!IS_BINARY(var))
             continue; // what else would it be?
 
-        switch (VAL_KEY_SYM(key)) {
-        case SYM_P:
+        REBSTR* word = VAL_KEY_CANON(key);
+        if (word == CRYPT_WORD_P) {
             dh_ctx.p = VAL_BIN_AT(var);
             dh_ctx.len = VAL_LEN_AT(var);
             break;
-
-        case SYM_G:
+        }
+        else if (word == CRYPT_WORD_G) {
             dh_ctx.g = VAL_BIN_AT(var);
             dh_ctx.glen = VAL_LEN_AT(var);
-            break;
         }
     }
 
@@ -391,12 +388,12 @@ REBNATIVE(dh_generate_key)
 
     // set the object fields
 
-    REBCNT priv_index = Find_Canon_In_Context(obj, Canon(SYM_PRIV_KEY), FALSE);
+    REBCNT priv_index = Find_Canon_In_Context(obj, CRYPT_WORD_PRIV_KEY, FALSE);
     if (priv_index == 0)
         fail (Error(RE_MISC));
     Init_Binary(CTX_VAR(obj, priv_index), priv_bin);
 
-    REBCNT pub_index = Find_Canon_In_Context(obj, Canon(SYM_PUB_KEY), FALSE);
+    REBCNT pub_index = Find_Canon_In_Context(obj, CRYPT_WORD_PUB_KEY, FALSE);
     if (pub_index == 0)
         fail (Error(RE_MISC));
     Init_Binary(CTX_VAR(obj, pub_index), pub_bin);
@@ -406,7 +403,7 @@ REBNATIVE(dh_generate_key)
 
 
 //
-//  dh-compute-key: native [
+//  dh-compute-key: native/export [
 //
 //  "Computes key from a private/public key pair and the peer's public key."
 //
@@ -418,7 +415,7 @@ REBNATIVE(dh_generate_key)
 //          "Peer's public key"
 //  ]
 //
-REBNATIVE(dh_compute_key)
+static REBNATIVE(dh_compute_key)
 {
     INCLUDE_PARAMS_OF_DH_COMPUTE_KEY;
 
@@ -434,15 +431,13 @@ REBNATIVE(dh_compute_key)
         if (!IS_BINARY(var))
             continue; // what else would it be?
 
-        switch (VAL_KEY_SYM(key)) {
-        case SYM_P:
+        REBSTR* word = VAL_KEY_CANON(key);
+        if (word == CRYPT_WORD_P) {
             dh_ctx.p = VAL_BIN_AT(var);
             dh_ctx.len = VAL_LEN_AT(var);
-            break;
-
-        case SYM_PRIV_KEY:
+        }
+        else if (word == CRYPT_WORD_PRIV_KEY) { 
             dh_ctx.x = VAL_BIN_AT(var);
-            break;
         }
     }
 
@@ -480,7 +475,7 @@ static void cleanup_aes_ctx(const REBVAL *val)
 
 
 //
-//  aes: native [
+//  aes: native/export [
 //
 //  "Encrypt/decrypt data using AES algorithm."
 //
@@ -501,7 +496,7 @@ static void cleanup_aes_ctx(const REBVAL *val)
 //          "Use the crypt-key for decryption (default is to encrypt)"
 //  ]
 //
-REBNATIVE(aes)
+static REBNATIVE(aes)
 {
     INCLUDE_PARAMS_OF_AES;
 
@@ -613,7 +608,7 @@ static REBYTE seed_str[SEED_LEN] = {
 //
 // The key (kp) is passed as a REBVAL or REBYTE (when klen is !0).
 //
-REBOOL Cloak(
+static REBOOL Cloak(
     REBOOL decode,
     REBYTE *cp,
     REBCNT dlen,
@@ -691,7 +686,7 @@ REBOOL Cloak(
 
 
 //
-//  decloak: native [
+//  decloak: native/export [
 //
 //  {Decodes a binary string scrambled previously by encloak.}
 //
@@ -703,7 +698,7 @@ REBOOL Cloak(
 //          "Use a string! key as-is (do not generate hash)"
 //  ]
 //
-REBNATIVE(decloak)
+static REBNATIVE(decloak)
 {
     INCLUDE_PARAMS_OF_DECLOAK;
 
@@ -724,7 +719,7 @@ REBNATIVE(decloak)
 
 
 //
-//  encloak: native [
+//  encloak: native/export [
 //
 //  "Scrambles a binary string based on a key."
 //
@@ -736,7 +731,7 @@ REBNATIVE(decloak)
 //          "Use a string! key as-is (do not generate hash)"
 //  ]
 //
-REBNATIVE(encloak)
+static REBNATIVE(encloak)
 {
     INCLUDE_PARAMS_OF_ENCLOAK;
 
@@ -753,4 +748,18 @@ REBNATIVE(encloak)
 
     *D_OUT = *ARG(data);
     return R_OUT;
+}
+
+#include "tmp-ext-crypt-last.h"
+
+MODULE_INIT(Crypt)
+{
+    Init_Crypto();
+    return CALL_MODULE_INIT_CORE(Crypt);
+}
+
+MODULE_QUIT(Crypt)
+{
+    Shutdown_Crypto();
+    return CALL_MODULE_QUIT_CORE(Crypt);
 }
