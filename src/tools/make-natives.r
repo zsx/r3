@@ -15,6 +15,7 @@ REBOL [
 
 do %common.r
 do %common-parsers.r
+do %native-emitters.r ;for emit-native-proto
 
 print "------ Generate tmp-natives.r"
 
@@ -28,46 +29,6 @@ verbose: false
 
 unsorted-buffer: make string! 20000
 
-emit-proto: proc [proto] [
-
-    if all [
-        'format2015 = proto-parser/style
-        block? proto-parser/data
-        any [
-            'native = proto-parser/data/2
-            all [
-                path? proto-parser/data/2
-                'native = proto-parser/data/2/1
-            ]
-        ]
-    ] [
-
-        line: line-of source.text proto-parser/parse.position
-
-        if not block? proto-parser/data/3 [
-            fail [
-                "Native" (uppercase form to word! proto-parser/data/1)
-                "needs loadable specification block."
-                (mold the-file) (line)
-            ]
-        ]
-
-        append case [
-            ; could do tests here to create special buffer categories to
-            ; put certain natives first or last, etc. (not currently needed)
-            ;
-            true [unsorted-buffer]
-        ] rejoin [
-            newline newline
-            {; !!! DO NOT EDIT HERE! This is generated from }
-            mold the-file { line } line newline
-            mold/only proto-parser/data
-        ]
-
-        proto-count: proto-count + 1
-    ]
-]
-
 process: func [
     file
     ; <with> the-file ;-- note external variable (can't do this in R3-Alpha)
@@ -77,7 +38,7 @@ process: func [
 
     source.text: read join-of core-folder file
     if r3 [source.text: deline to-string source.text]
-    proto-parser/emit-proto: :emit-proto
+    proto-parser/emit-proto: :emit-native-proto
     proto-parser/process source.text
 ]
 

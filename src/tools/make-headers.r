@@ -18,6 +18,7 @@ do %common.r
 do %common-emitter.r
 do %common-parsers.r
 do %form-header.r
+do %native-emitters.r ;for emit-include-params-macro and emit-native-include-params-macro
 
 print "------ Building headers"
 args: parse-args system/options/args
@@ -298,42 +299,6 @@ write output-dir/core/:fsymbol-file fsymbol-buffer
 
 emit-header "PARAM() and REFINE() Automatic Macros" %func-args.h
 
-emit-include-params-macro: procedure [word [word!] paramlist [block!]] [
-    ;
-    ; start emitting what will be a multi line macro (backslash as last
-    ; character on line is how macros span multiple lines in C).
-    ;
-    emit-line [
-        {#define} space "INCLUDE_PARAMS_OF_" (uppercase to-c-name word)
-        space "\"
-    ]
-
-    ; Collect the argument and refinements, converted to their "C names"
-    ; (so dashes become underscores, * becomes _P, etc.)
-    ;
-    n: 1
-    for-each item paramlist [
-        if all [any-word? item | not set-word? item] [
-            param-name: switch/default to-word item [
-                ? [copy "q"]
-            ][
-                to-c-name to-word item
-            ]
-
-            which: either refinement? item ["REFINE"] ["PARAM"]
-            emit-line/indent [
-                which "(" n "," space param-name ");" space "\"
-            ]
-            n: n + 1
-        ]
-    ]
-
-    ; Get rid of trailing \ for multi-line macro continuation.
-    unemit newline
-    unemit #"\"
-    emit newline
-]
-
 action-list: load output-dir/boot/tmp-actions.r
 
 ; Search file for definition.  Will be `action-name: action [paramlist]`
@@ -348,16 +313,7 @@ for-next action-list [
 
 native-list: load output-dir/boot/tmp-natives.r
 
-for-next native-list [
-    if any [
-        'native = native-list/2
-        all [path? native-list/2 | 'native = first native-list/2]
-    ][
-        assert [set-word? native-list/1]
-        emit-include-params-macro (to-word native-list/1) (native-list/3)
-        emit newline
-    ]
-]
+emit-native-include-params-macro native-list
 
 write-emitted output-dir/include/tmp-paramlists.h
 

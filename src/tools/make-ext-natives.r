@@ -18,6 +18,7 @@ do %common.r
 do %common-emitter.r
 do %form-header.r
 do %common-parsers.r
+do %native-emitters.r ;for emit-native-proto and emit-include-params-macro
 
 r3: system/version > 2.100.0
 
@@ -33,97 +34,17 @@ verbose: false
 
 unsorted-buffer: make string! 20000
 
-emit-proto: proc [proto] [
-
-    if all [
-        'format2015 = proto-parser/style
-        block? proto-parser/data
-        any [
-            'native = proto-parser/data/2
-            all [
-                path? proto-parser/data/2
-                'native = proto-parser/data/2/1
-            ]
-        ]
-    ] [
-        line: line-of source.text proto-parser/parse.position
-
-        if not block? proto-parser/data/3 [
-            fail [
-                "Native" (uppercase form to word! proto-parser/data/1)
-                "needs loadable specification block."
-                (mold the-file) (line)
-            ]
-        ]
-
-        append case [
-            ; could do tests here to create special buffer categories to
-            ; put certain natives first or last, etc. (not currently needed)
-            ;
-            true [unsorted-buffer]
-        ] rejoin [
-            newline newline
-            {; !!! DO NOT EDIT HERE! This is generated from }
-            mold the-file { line } line newline
-            mold/only proto-parser/data
-        ]
-
-        proto-count: proto-count + 1
-    ]
-]
-
 process: func [
     file
-    ; <with> the-file ;-- note external variable (can't do this in R3-Alpha)
 ][
-    the-file: file
     if verbose [probe [file]]
 
     source.text: read the-file: file
     ;print ["source:" to string! source.text]
     if r3 [source.text: deline to-string source.text]
-    proto-parser/emit-proto: :emit-proto
+    proto-parser/emit-proto: :emit-native-proto
     proto-parser/process source.text
 ]
-
-;------- copied from make-headers.r
-emit-include-params-macro: procedure [word [word!] paramlist [block!]] [
-    ;
-    ; start emitting what will be a multi line macro (backslash as last
-    ; character on line is how macros span multiple lines in C).
-    ;
-    emit-line [
-        {#define} space "INCLUDE_PARAMS_OF_" (uppercase to-c-name word)
-        space "\"
-    ]
-
-    ; Collect the argument and refinements, converted to their "C names"
-    ; (so dashes become underscores, * becomes _P, etc.)
-    ;
-    n: 1
-    for-each item paramlist [
-        if all [any-word? item | not set-word? item] [
-            param-name: switch/default to-word item [
-                ? [copy "q"]
-            ][
-                to-c-name to-word item
-            ]
-
-            which: either refinement? item ["REFINE"] ["PARAM"]
-            emit-line/indent [
-                which "(" n "," space param-name ");" space "\"
-            ]
-            n: n + 1
-        ]
-    ]
-
-    ; Get rid of trailing \ for multi-line macro continuation.
-    unemit newline
-    unemit #"\"
-    emit newline
-]
-
-;-------------------------------------------------------------------------
 
 c-natives: make block! 128
 
@@ -209,17 +130,7 @@ write-emitted to file! rejoin [output-dir/include/tmp-ext- l-m-name %.h]
 ;--------------------------------------------------------------
 ; tmp-ext-args.h
 emit-header "PARAM() and REFINE() Automatic Macros" to file! rejoin [%tmp-ext- l-m-name %-args.h]
-
-for-next native-list [
-    if any [
-        'native = native-list/2
-        all [path? native-list/2 | 'native = first native-list/2]
-    ][
-        assert [set-word? native-list/1]
-        emit-include-params-macro (to-word native-list/1) (native-list/3)
-        emit newline
-    ]
-]
+emit-native-include-params-macro native-list
 write-emitted to file! rejoin [output-dir/include/tmp-ext- l-m-name %-args.h]
 
 ;--------------------------------------------------------------
