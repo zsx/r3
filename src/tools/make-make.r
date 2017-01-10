@@ -62,6 +62,9 @@ makefile-head:
 # http://rebolsource.net/go/chat-faq
 #
 
+# Modules automatically loaded after boot up
+BOOT_MODULES=
+
 # For the build toolchain:
 CC= $(TOOLS)gcc
 NM= $(TOOLS)nm
@@ -145,7 +148,8 @@ prep: $(REBOL_TOOL)
     $(REBOL) $T/make-os-ext.r
     $(REBOL) $T/make-host-ext.r
     $(REBOL) $T/make-reb-lib.r
-    $(REBOL) $T/make-boot-mod-header.r
+    $(REBOL) $T/make-ext-natives.r
+    $(REBOL) $T/make-boot-mod-header.r MODULES=$(BOOT_MODULES)
 
 zlib:
     $(REBOL) $T/make-zlib.r
@@ -435,9 +439,20 @@ macro+  HOST_FLAGS compiler-flags/f64 ; default for all
 
 if flag? +SC [remove find os-specific-objs 'host-readline.c]
 
+boot-module-src: copy []
+module-list: copy ""
+for-each [builtin? m-name m-src] file-base/modules [
+    if '+ = builtin? [
+        unless empty? module-list [append module-list ","]
+        append module-list to string! m-name
+        append/only boot-module-src m-src
+    ]
+]
+macro+ BOOT_MODULES rejoin [{"} module-list {"}]
+
 emit makefile-head
 emit ["OBJS =" space]
-emit-obj-files file-base/core
+emit-obj-files append copy file-base/core boot-module-src
 emit ["HOST =" space]
 emit-obj-files append copy file-base/os os-specific-objs
 emit makefile-link
@@ -450,6 +465,7 @@ b-boot.c: $(SRC)/boot/boot.r
 emit newline
 
 emit-file-deps file-base/core
+emit-file-deps boot-module-src
 
 emit-file-deps/dir file-base/os %os/
 emit-file-deps/dir os-specific-objs %os/

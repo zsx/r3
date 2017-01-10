@@ -25,10 +25,11 @@ args: parse-args system/options/args
 output-dir: fix-win32-path to file! any [args/OUTDIR %../]
 mkdir/deep output-dir/include
 
-;print ["modules:" args/MODULES]
 modules: either any-string? args/MODULES [split args/MODULES #","][[]]
 
 emit-header "Boot Modules" output-dir/include/tmp-boot-modules.h
+remove-each mod modules [empty? mod] ;SPLIT in r3-a111 gives an empty "" at the end
+
 for-each mod modules [
     emit-line ["MODULE_INIT(" mod ");"]
     emit-line ["MODULE_QUIT(" mod ");"]

@@ -169,6 +169,12 @@ core: [
     ../codecs/rsa/rsa.c
 ]
 
+modules: [
+    ; [+ (builtin) | - (not builtin)] module_name module_source_file
+    ; e.g.
+    ; + Crypt ../extensions/n-crypt.c
+]
+
 made: [
     make-boot.r         core/b-boot.c
     make-headers.r      include/tmp-funcs.h
