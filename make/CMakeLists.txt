@@ -562,6 +562,50 @@ set (GENERATED_CORE_HEADER
     ${EXT_CORE_OUTPUT}
     )
 
+set (EXT_SOURCE "")
+
+macro(add_module name source)
+    string (TOUPPER ${name} u_name)
+    string (TOLOWER ${name} l_name)
+
+    option(R3_EXT_${u_name} "Build with extension ${l_name}" ON)
+
+    set (GENERATED_EXT_${u_name}_SOURCE
+        ${TOP_GENERATED_SRC_DIR}/include/tmp-ext-${l_name}-args.h
+        ${TOP_GENERATED_SRC_DIR}/include/tmp-ext-${l_name}-words.h
+        ${TOP_GENERATED_SRC_DIR}/include/tmp-ext-${l_name}.h
+        )
+    add_custom_command(OUTPUT
+        ${GENERATED_EXT_${u_name}_SOURCE}
+        COMMAND ${REBOL} ${TOOLS_DIR}/make-ext-natives.r SRC=${source} MODULE=${name} OUTDIR=${TOP_GENERATED_SRC_DIR}
+        DEPENDS
+        ${TOOL_DEPENDS}
+        ${TOOLS_DIR}/make-ext-natives.r
+        ${source}
+        )
+
+    if (R3_EXT_${u_name})
+        list(APPEND EXT_SOURCE ${source})
+        list(APPEND GENERATED_EXT_SOURCE ${GENERATED_EXT_${u_name}_SOURCE})
+        list(APPEND BOOT_MODULES ${name})
+    endif ()
+endmacro (add_module)
+
+#add_module has to be put in the following section
+#<-------------- modules --------------->
+
+#<------------- end of modules --------->
+
+string(REPLACE ";" "," BOOT_MODULE_LIST "${BOOT_MODULES}")
+SET(BOOT_MODULE_HEADER %{TOP_GENERATED_SRC_DIR}/include/tmp-boot-modules.h)
+add_custom_command(OUTPUT
+    ${BOOT_MODULE_HEADER}
+    COMMAND ${REBOL} ${TOOLS_DIR}/make-boot-mod-header.r MODULES=${BOOT_MODULE_LIST} OUTDIR=${TOP_GENERATED_SRC_DIR}
+	DEPENDS
+	${TOOL_DEPENDS}
+	${TOOLS_DIR}/make-boot-mod-header.r
+    )
+
 if (R3_WITH_TCC)
     enable_language(ASM)
     if (XCODE) #Xcode has problem with EXCLUDE_FROM_ALL
@@ -732,8 +776,8 @@ set (OS_SOURCE
     )
 
 set (GENERATED_OS_SOURCE
-    ${TOP_GENERATED_SRC_DIR}/include/host-table.inc
-    ${TOP_GENERATED_SRC_DIR}/os/tmp-host-start.inc
+    ${EXT_OS_SOURCE}
+    ${BOOT_MODULE_HEADER}
     )
 
 if(NOT (MSVC_IDE OR XCODE))
@@ -760,12 +804,19 @@ else ()
     endif (LINUX)
 endif ()
 
-add_library(libr3_core_core OBJECT ${CORE_SOURCE} ${GENERATED_CORE_SOURCE} ${GENERATED_CORE_HEADER} ${GENERATED_OS_SOURCE})
+add_library(libr3_core_core OBJECT ${CORE_SOURCE} ${GENERATED_CORE_SOURCE} ${GENERATED_CORE_HEADER})
+
+set (HOST_SOURCE
+    ${OS_SOURCE}
+    ${GENERATED_OS_SOURCE}
+    ${EXT_SOURCE}
+    ${GENERATED_EXT_SOURCE}
+    )
 
 if(R3_WITH_TCC)
-    add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> $<TARGET_OBJECTS:r3_libtcc1> $<TARGET_OBJECTS:libtcc> ${OS_SOURCE})
+    add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> $<TARGET_OBJECTS:r3_libtcc1> $<TARGET_OBJECTS:libtcc> ${HOST_SOURCE})
 else()
-    add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> ${OS_SOURCE})
+    add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> ${HOST_SOURCE})
 endif()
 
 target_include_directories(libr3_core_core PUBLIC
@@ -795,8 +846,7 @@ set (EXTRA_C_FLAGS "")
 set (R3_CORE_SOURCE
     ${CORE_SOURCE}
     ${GENERATED_CORE_SOURCE}
-    ${OS_SOURCE}
-    ${GENERATED_OS_SOURCE}
+    ${HOST_SOURCE}
     )
 # Build as C by default, but there are extra checks if you build as C++
 # NOTE: The library code will not be binary compatible in -debug- builds as

@@ -91,6 +91,9 @@
 
 
 #include "sys-core.h"
+#include "sys-ext.h"
+#include "tmp-boot-modules.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -921,6 +924,8 @@ int main(int argc, char **argv_ansi)
         Init_Block(&embedded_value, embedded);
     PUSH_GUARD_VALUE(&embedded_value);
 
+    LOAD_BOOT_MODULES;
+
     struct Reb_State state;
     REBCTX *error;
 
@@ -969,6 +974,7 @@ int main(int argc, char **argv_ansi)
 
                 DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
+                UNLOAD_BOOT_MODULES;
                 Shutdown_Core();
                 OS_EXIT(exit_status);
                 DEAD_END;
@@ -1082,6 +1088,7 @@ int main(int argc, char **argv_ansi)
     // No need to do a "clean" shutdown, as we are about to exit the process
     // (Note: The debug build runs through the clean shutdown anyway!)
     //
+    UNLOAD_BOOT_MODULES;
     RL_Shutdown(FALSE);
 
     return exit_status;

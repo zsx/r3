@@ -145,6 +145,7 @@ prep: $(REBOL_TOOL)
     $(REBOL) $T/make-os-ext.r
     $(REBOL) $T/make-host-ext.r
     $(REBOL) $T/make-reb-lib.r
+    $(REBOL) $T/make-boot-mod-header.r
 
 zlib:
     $(REBOL) $T/make-zlib.r

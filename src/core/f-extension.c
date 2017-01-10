@@ -40,6 +40,7 @@
 #include "reb-evtypes.h"
 
 #include "reb-lib.h"
+#include "sys-ext.h"
 
 
 //(*call)(int cmd, RXIFRM *args);
@@ -358,4 +359,80 @@ REB_R Command_Dispatcher(REBFRM *f)
     // that REB_COMMAND has a future in Ren-C).
 
     return R_OUT;
+}
+
+//
+//  load-native: native [
+//
+//  "Load a native from a built-in extension"
+//
+//      return: [function!]
+//      "function value, will be created from the native implementation"
+//      spec [block!]
+//      "spec of the native"
+//      impl [handle!]
+//      "a handle returned from RX_Init_ of the extension"
+//      index [integer!]
+//      "Index of the native"
+//      /body
+//      code [block!]
+//      "User-equivalent body"
+//  ]
+//
+REBNATIVE(load_native)
+{
+    INCLUDE_PARAMS_OF_LOAD_NATIVE;
+
+    REBFUN *fun = Make_Function(
+        Make_Paramlist_Managed_May_Fail(ARG(spec), MKF_KEYWORDS | MKF_FAKE_RETURN),
+        cast(REBNAT*, VAL_HANDLE_POINTER(ARG(impl)))[VAL_INT64(ARG(index))], // unique
+        NULL // no underlying function, this is fundamental
+    );
+    if (REF(body)) {
+        *FUNC_BODY(fun) = *ARG(code);
+    }
+    *D_OUT = *FUNC_VALUE(fun);
+    return R_OUT;
+}
+
+//
+//  Add_Boot_Extension: C
+//
+// Save the extension to user/boot-exts, such that it will be loaded at bootup.
+//
+void Add_Boot_Extension(RELVAL *ext)
+{
+    REBCTX *user_ctx = VAL_CONTEXT(Get_System(SYS_CONTEXTS, CTX_USER));
+    REBSTR* canon = *SER_AT(REBSTR*, PG_Symbol_Canons, SYM_BOOT_EXTS);
+    REBCNT index = Find_Canon_In_Context(user_ctx, canon, TRUE);
+
+    REBVAL *exts = NULL;
+    if (index) {
+        exts = CTX_VAR(user_ctx, index);
+    }
+    else {
+        Expand_Context(user_ctx, 1);
+        exts = Append_Context(user_ctx, NULL, canon);
+    }
+
+    if (!IS_BLOCK(exts)) {
+        Init_Block(exts, Make_Array(2));
+    }
+    REBVAL *v = KNOWN(VAL_ARRAY_HEAD(ext));
+    for (; NOT_END(v); ++v) {
+        Append_Value(VAL_ARRAY(exts), v);
+    }
+}
+
+//
+//  Init_Extension_Words: C
+//
+// Intern strings and save their canonical forms
+//
+void Init_Extension_Words(const REBYTE* strings[], REBSTR *canons[], REBCNT n)
+{
+    int i;
+    for (i = 0; i < n; i++) {
+        canons[i] = Intern_UTF8_Managed(strings[i], LEN_BYTES(strings[i]));
+    }
 }

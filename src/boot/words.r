@@ -376,3 +376,6 @@ priv-key
 pub-key
 g
 pkcs1
+
+; For extensions automatically loaded after bootup
+boot-exts

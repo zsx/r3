@@ -32,7 +32,7 @@ REBOL [
 ; synchronous.  It's not clear how that old model applies any longer, but the
 ; code has been moved out of the core to here.
 ;
-boot-exts: _
+boot-exts: default _
 
 ; These used to be loaded by the core, but prot-tls depends on crypt, thus it
 ; needs to be loaded after crypt. It was not an issue when crypt was builtin.
@@ -261,42 +261,44 @@ load-ext-module: function [
 
 load-boot-exts: function [
     "INIT: Load boot-based extensions."
+    <with> boot-exts
 ][
     loud-print "Loading boot extensions..."
 
-    ext-objs: copy []
-
-    for-each [spec caller] boot-exts [
-        append ext-objs load-extension/dispatch spec caller
-    ]
-
-    for-each ext ext-objs [
-        case/all [
-            word? set [hdr: code:] load-header/only/required ext/lib-boot [
-                cause-error 'syntax hdr ext  ; word returned is error code
+    loud-print ["boot-exts:" mold boot-exts]
+    for-each [code impl] boot-exts [
+        code: load/header decompress code
+        hdr: take code
+        ;loud-print ["Found boot module" hdr/name]
+        tmp-ctx: make object!  [
+            native: function [
+                return: [function!]
+                spec
+                /export "this refinement is ignored here"
+                /body
+                code [block!]
+                "Equivalent rebol code"
+                <static> index (-1)
+            ] compose [
+                index: index + 1
+                f: load-native/(if body 'body) spec (impl) index :code
+                :f
             ]
+        ]
+        mod: make module! (length code) / 2
+        set-meta mod hdr
+        bind/only/set code mod
+        bind hdr/exports mod
+        bind code tmp-ctx
+        if w: in mod 'words [protect/hide w]
+        do code
 
-            not word? :hdr/name [hdr/name: _]
-
-            not any [hdr/name | find hdr/options 'private] [
-                hdr/options: append any [hdr/options make block! 1] 'private
-            ]
-
-            delay: all [hdr/name | find hdr/options 'delay] [ ; load it later
-                mod: reduce [hdr ext]
-            ]
-
-            not delay [
-                hdr: meta-of mod: do compose [module (load-ext-module ext)]
-            ]
-
-            ; NOTE: This will error out if the code contains commands but
-            ; no extension dispatcher (call) has been provided.
-            hdr/name [
-                reduce/into [
-                    hdr/name mod either hdr/checksum [copy hdr/checksum][blank]
-                ] system/modules
-            ]
+        ; NOTE: This will error out if the code contains commands but
+        ; no extension dispatcher (call) has been provided.
+        if hdr/name [
+            reduce/into [
+                hdr/name mod either hdr/checksum [copy hdr/checksum][blank]
+            ] system/modules
         ]
 
         case [
@@ -312,11 +314,12 @@ load-boot-exts: function [
             ]
 
             'default [
-                export-words mod hdr/exports
+                sys/export-words mod hdr/exports
             ]
         ]
     ]
 
+    boot-exts: 'done
     set 'load-boot-exts 'done ; only once
 ]
 
