@@ -561,8 +561,8 @@ inline static REBOOL Fulfilling_Last_Argument(struct Reb_Frame *f) {
     // in the stack until it is exhausted or pickup is found.
     //
     for (; pickup > DS_AT(f->dsp_orig); --pickup) {
-        if (IS_VARARGS(pickup)) {
-            param = pickup->payload.varargs.param;
+        if (VAL_TYPE(pickup) == REB_0_PICKUP) {
+            param = pickup->payload.pickup.param;
             goto next_param;
         }
         assert(

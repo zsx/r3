@@ -238,6 +238,7 @@ inline static REBVAL *FRM_CELL(REBFRM *f) {
 #define D_PROTECT_X(v)      PROTECT_FRM_X(frame_, (v))
 
 #define REB_0_LOOKBACK REB_0
+#define REB_0_PICKUP REB_0
 
 inline static REBOOL Is_Any_Function_Frame(REBFRM *f) {
     if (f->eval_type <= REB_FUNCTION) {

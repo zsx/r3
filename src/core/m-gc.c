@@ -911,20 +911,31 @@ static void Mark_Root_Series(void)
 // except at the array end.  Bumping up against that END signal is how the
 // stack knows when it needs to grow.
 //
-// However, every drop of the stack doesn't overwrite value dropped.  The
+// But every drop of the stack doesn't overwrite the dropped value.  Since the
 // values are not END markers, they are considered fine as far as a NOT_END()
-// test is concerned to indicate unused capacity.  So the values are fine
+// test is concerned to indicate unused capacity.  So the values are good
 // for the testing purpose, yet the GC doesn't want to consider those to be
 // "live" references.  So rather than to a full Queue_Mark_Array_Deep() on
-// the capacity of the data stack's underlying array, it stops at DS_TOP.
+// the capacity of the data stack's underlying array, it begins at DS_TOP.
 //
 static void Mark_Data_Stack(void)
 {
-    REBVAL *stackval = DS_TOP;
     assert(IS_UNREADABLE_IF_DEBUG(&DS_Movable_Base[0]));
-    while (stackval != &DS_Movable_Base[0]) {
+
+    REBVAL *stackval = DS_TOP;
+    for (; stackval != &DS_Movable_Base[0]; --stackval) {
+        //
+        // During path evaluation, function refinements are pushed to the
+        // data stack as WORD!.  If the order of definition of refinements
+        // in the function spec doesn't match the order of usage, then the
+        // refinement will need to be revisited.  The WORD! is converted
+        // into a "pickup" which stores the parameter and argument position.
+        // These are only legal on the data stack, and are skipped by the GC.
+        //
+        if (VAL_TYPE(stackval) == REB_0_PICKUP)
+            continue;
+
         Queue_Mark_Value_Deep(stackval);
-        --stackval;
     }
 
     Propagate_All_GC_Marks();

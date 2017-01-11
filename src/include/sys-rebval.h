@@ -433,6 +433,18 @@ struct Reb_Varargs {
     REBVAL *arg;
 };
 
+
+// This is an internal type, used to memoize the location of a refinement
+// which was invoked by the path but out of order from the refinement order
+// in the function definition.  Because these can only exist on the stack
+// they are given a REB_0 type, as opposed to having their own REB_XXX type.
+//
+struct Reb_Pickup {
+    const REBVAL *param;
+    REBVAL *arg;
+};
+
+
 // Note that the ->extra field of the REBVAL may contain a singular REBARR
 // that is leveraged for its GC-awareness.
 //
@@ -632,6 +644,12 @@ union Reb_Value_Payload {
     struct Reb_Function function;
     struct Reb_Any_Context any_context;
     struct Reb_Varargs varargs;
+
+    // This is only used on the data stack as an internal type by the
+    // evaluator, in order to find where not-yet-used refinements are, with
+    // REB_0 (REB_0_PICKUP) as the type.
+    //
+    struct Reb_Pickup pickup;
 };
 
 struct Reb_Value

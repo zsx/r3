@@ -218,7 +218,7 @@ static inline void Abort_Function_Args_For_Frame(REBFRM *f) {
 // to step through.  A lot of it is assertions, debug tracking, and comments.
 //
 // Comments on the definition of Reb_Frame are a good place to start looking
-// to understand what's going on.  See %sys-frame.h for full details.
+// to understand what's going on.  See %sys-rebfrm.h for full details.
 //
 // To summarize, these fields are required upon initialization:
 //
@@ -242,8 +242,9 @@ static inline void Abort_Function_Args_For_Frame(REBFRM *f) {
 //
 //     f->out*
 //     REBVAL pointer to which the evaluation's result should be written
-//     Can point to uninitialized bits, unless f->eval_type is REB_0_LOOKBACK,
-//     in which case it must be the REBVAL to use as first infix argument
+//     Must point to initialized bits, and that needs to be an END marker,
+//     unless f->eval_type is REB_0_LOOKBACK, in which case it must be the
+//     REBVAL to use as first argument (infix/postfix/"enfixed" functions)
 //
 //     f->gotten
 //     Must be either be the Get_Var() lookup of f->value, or NULL
@@ -466,9 +467,9 @@ reevaluate:;
             // Hence refinements are targeted to be revisited by "pickups"
             // after the initial parameter walk.  An out-of-order refinement
             // makes a note in the stack about a parameter and arg position
-            // it sees that it will need to come back to.  A REB_VARARGS value
-            // is used to track this (since it holds a symbol and cache of the
-            // parameter and argument position).
+            // it sees that it will need to come back to.  A REB_0_PICKUP
+            // is used to track this (it holds a cache of the parameter and
+            // argument position).
 
             if (pclass == PARAM_CLASS_REFINEMENT) {
 
@@ -554,10 +555,10 @@ reevaluate:;
                         // consume lines up.  Make a note of the param
                         // and arg and poke them into the stack value.
                         //
-                        VAL_RESET_HEADER(f->refine, REB_VARARGS);
-                        f->refine->payload.varargs.param
+                        VAL_RESET_HEADER(f->refine, REB_0_PICKUP);
+                        f->refine->payload.pickup.param
                             = const_KNOWN(f->param);
-                        f->refine->payload.varargs.arg = f->arg;
+                        f->refine->payload.pickup.arg = f->arg;
 
                         SET_TRUE(f->arg); // marks refinement used
                         // "consume args later" (promise not to change)
@@ -1006,10 +1007,10 @@ reevaluate:;
                 fail (Error(RE_BAD_REFINE, DS_TOP));
             }
 
-            if (IS_VARARGS(DS_TOP)) {
+            if (VAL_TYPE(DS_TOP) == REB_0_PICKUP) {
                 assert(f->special == END_CELL); // no specialization "pickups"
-                f->param = DS_TOP->payload.varargs.param;
-                f->refine = f->arg = DS_TOP->payload.varargs.arg;
+                f->param = DS_TOP->payload.pickup.param;
+                f->refine = f->arg = DS_TOP->payload.pickup.arg;
                 assert(IS_LOGIC(f->refine) && VAL_LOGIC(f->refine));
                 DS_DROP;
                 f->doing_pickups = TRUE;
