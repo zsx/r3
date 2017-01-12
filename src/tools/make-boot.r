@@ -766,7 +766,7 @@ for-each [category info] boot-errors [
 
 emit-end
 
-emit-line {#define RE_USER 10000}
+emit-line {#define RE_USER MAX_I32}
 emit-annotation {Hardcoded, update in %make-boot.r}
 
 emit-line {#define RE_CATEGORY_SIZE 1000}
