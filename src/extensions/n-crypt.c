@@ -122,6 +122,9 @@ static void cleanup_rc4_ctx(const REBVAL *val)
 //      data [binary!]
 //          "Data to encrypt/decrypt."
 //  ]
+//  new-errors: [
+//      key-or-stream-required: {Refinement /key or /stream has to be present}
+//  ]
 //
 static REBNATIVE(rc4)
 {
@@ -154,8 +157,7 @@ static REBNATIVE(rc4)
         return R_OUT;
     }
 
-    assert(FALSE); // was falling through and returning first refinement arg
-    return R_TRUE;
+    fail (Error(RE_EXT_CRYPT_KEY_OR_STREAM_REQUIRED));
 }
 
 
@@ -176,6 +178,13 @@ static REBNATIVE(rc4)
 //          "Type of padding. Available values: PKCS1 or NONE"
 //  ]
 //  new-words: [n e d p q dp dq qinv pkcs1]
+//  new-errors: [
+//      invalid-key-field: [{Unrecognized field in the key object:} :arg1]
+//      invalid-key-data: [{Invalid data in the key object:} :arg1 {for} :arg2]
+//      invalid-key: [{No valid key in the object:} :obj]
+//      decryption-failure: [{Failed to decrypt:} :arg1]
+//      encryption-failure: [{Failed to encrypt:} :arg1]
+//  ]
 //
 static REBNATIVE(rsa)
 {
@@ -211,8 +220,13 @@ static REBNATIVE(rsa)
     REBVAL *var = CTX_VARS_HEAD(obj);
 
     for (; NOT_END(key); ++key, ++var) {
+        if (VAL_KEY_SYM(key) == SYM_SELF //object may have a 'self key that referring to itself
+            || IS_BLANK(var) //some fields are initialized to blank
+           )
+            continue;
+
         if (!IS_BINARY(var))
-            continue; // if not binary then what?
+            fail (Error(RE_EXT_CRYPT_INVALID_KEY_DATA, var, key));
 
         REBSTR* word = VAL_KEY_CANON(key);
         if (word == CRYPT_WORD_N) {
@@ -249,12 +263,12 @@ static REBNATIVE(rsa)
             qinv_len = VAL_LEN_AT(var);
         }
         else {
-            fail (Error(RE_MISC));
+            fail (Error(RE_EXT_CRYPT_INVALID_KEY_FIELD, key));
         }
     }
 
     if (!n || !e)
-        return R_BLANK;
+        fail (Error(RE_EXT_CRYPT_INVALID_KEY, ARG(key_object)));
 
     RSA_CTX *rsa_ctx = NULL;
 
@@ -296,7 +310,7 @@ static REBNATIVE(rsa)
             RSA_free(rsa_ctx);
 
             Free_Series(binary);
-            return R_BLANK;
+            fail (Error(RE_EXT_CRYPT_DECRYPTION_FAILURE, ARG(data)));
         }
     }
     else {
@@ -314,7 +328,7 @@ static REBNATIVE(rsa)
             RSA_free(rsa_ctx);
 
             Free_Series(binary);
-            return R_BLANK;
+            fail (Error(RE_EXT_CRYPT_ENCRYPTION_FAILURE, ARG(data)));
         }
     }
 
@@ -352,8 +366,13 @@ static REBNATIVE(dh_generate_key)
     REBVAL *var = CTX_VARS_HEAD(obj);
 
     for (; NOT_END(key); ++key, ++var) {
+        if (VAL_KEY_SYM(key) == SYM_SELF //object may have a 'self key that referring to itself
+            || IS_BLANK(var) //some fields are initialized to blank
+           )
+            continue;
+
         if (!IS_BINARY(var))
-            continue; // what else would it be?
+            fail (Error(RE_EXT_CRYPT_INVALID_KEY_DATA, var, key));
 
         REBSTR* word = VAL_KEY_CANON(key);
         if (word == CRYPT_WORD_P) {
@@ -365,10 +384,13 @@ static REBNATIVE(dh_generate_key)
             dh_ctx.g = VAL_BIN_AT(var);
             dh_ctx.glen = VAL_LEN_AT(var);
         }
+        else {
+            fail (Error(RE_EXT_CRYPT_INVALID_KEY_FIELD, key));
+        }
     }
 
     if (!dh_ctx.p || !dh_ctx.g)
-        return R_VOID;
+        fail (Error(RE_EXT_CRYPT_INVALID_KEY, ARG(obj)));
 
     // allocate new BINARY! for private key
     //
@@ -439,12 +461,15 @@ static REBNATIVE(dh_compute_key)
         else if (word == CRYPT_WORD_PRIV_KEY) { 
             dh_ctx.x = VAL_BIN_AT(var);
         }
+        else {
+            fail (Error(RE_EXT_CRYPT_INVALID_KEY_FIELD, key));
+        }
     }
 
     dh_ctx.gy = VAL_BIN_AT(ARG(public_key));
 
     if (!dh_ctx.p || !dh_ctx.x || !dh_ctx.gy)
-        return R_BLANK;
+        fail (Error(RE_EXT_CRYPT_INVALID_KEY, ARG(obj)));
 
     REBSER *binary = Make_Binary(dh_ctx.len);
     memset(BIN_HEAD(binary), 0, dh_ctx.len);
@@ -494,6 +519,9 @@ static void cleanup_aes_ctx(const REBVAL *val)
 //          "Data to encrypt/decrypt."
 //      /decrypt
 //          "Use the crypt-key for decryption (default is to encrypt)"
+//  ]
+//  new-errors: [
+//      invalid-aes-key-length: [{AES key length has to be 16 or 32:} :arg1]
 //  ]
 //
 static REBNATIVE(aes)
@@ -567,8 +595,11 @@ static REBNATIVE(aes)
         //key defined - setup new context
 
         REBINT len = VAL_LEN_AT(ARG(crypt_key)) << 3;
-        if (len != 128 && len != 256)
-            return R_FALSE;
+        if (len != 128 && len != 256) {
+            REBVAL i;
+            SET_INTEGER(&i, len);
+            fail (Error(RE_EXT_CRYPT_INVALID_AES_KEY_LENGTH, &i));
+        }
 
         AES_CTX *aes_ctx = ALLOC_ZEROFILL(AES_CTX);
 
@@ -586,8 +617,7 @@ static REBNATIVE(aes)
         return R_OUT;
     }
 
-    assert(FALSE); // would have just returned first refinement state
-    return R_TRUE;
+    fail (Error(RE_EXT_CRYPT_KEY_OR_STREAM_REQUIRED));
 }
 
 
