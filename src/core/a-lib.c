@@ -378,10 +378,8 @@ RL_API int RL_Do_String(
     REBVAL result;
     if (Do_At_Throws(&result, code, 0, SPECIFIED)) { // implicitly guarded
         if (
-            IS_FUNCTION(&result) && (
-                VAL_FUNC_DISPATCHER(&result) == &N_quit
-                || VAL_FUNC_DISPATCHER(&result) == &N_exit
-            )
+            IS_FUNCTION(&result)
+            && VAL_FUNC_DISPATCHER(&result) == &N_quit
         ) {
             CATCH_THROWN(&result, &result);
             DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);

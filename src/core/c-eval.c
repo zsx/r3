@@ -608,7 +608,7 @@ reevaluate:;
                 if (f->varlist) // !!! in specific binding, always for Plain
                     f->arg->extra.binding = f->varlist;
                 else
-                    f->arg->extra.binding = FUNC_PARAMLIST(f->func);
+                    f->arg->extra.binding = FUNC_PARAMLIST(f->underlying);
 
                 if (f->special != END_CELL)
                     ++f->special; // specialization being overwritten is right
@@ -627,7 +627,7 @@ reevaluate:;
                 if (f->varlist) // !!! in specific binding, always for Plain
                     f->arg->extra.binding = f->varlist;
                 else
-                    f->arg->extra.binding = FUNC_PARAMLIST(f->func);
+                    f->arg->extra.binding = FUNC_PARAMLIST(f->underlying);
 
                 if (f->special != END_CELL)
                     ++f->special; // specialization being overwritten is right

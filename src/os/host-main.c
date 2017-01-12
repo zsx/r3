@@ -400,15 +400,11 @@ int Do_String(
             }
         }
         else {
-            // We are at the top level REPL, where we catch QUIT and for
-            // now, also EXIT as meaning you want to leave.
+            // We are at the top level REPL, where we catch QUIT
             //
             if (
                 IS_FUNCTION(out)
-                && (
-                    VAL_FUNC_DISPATCHER(out) == &N_quit
-                    || VAL_FUNC_DISPATCHER(out) == &N_exit
-                )
+                && VAL_FUNC_DISPATCHER(out) == &N_quit
             ) {
                 DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
                 CATCH_THROWN(out, out);
@@ -946,6 +942,8 @@ int main(int argc, char **argv_ansi)
             panic (startup); // just loads functions, shouldn't QUIT or error
         }
 
+        Free_Series(startup);
+
         if (!IS_FUNCTION(&host_start))
             panic (&host_start); // should not be able to error
 
@@ -963,10 +961,8 @@ int main(int argc, char **argv_ansi)
             #endif
 
             if (
-                IS_FUNCTION(&result) && (
-                    VAL_FUNC_DISPATCHER(&result) == &N_quit
-                    || VAL_FUNC_DISPATCHER(&result) == &N_exit
-                )
+                IS_FUNCTION(&result)
+                && VAL_FUNC_DISPATCHER(&result) == &N_quit
             ) {
                 CATCH_THROWN(&result, &result);
                 exit_status = Exit_Status_From_Value(&result);
@@ -1033,8 +1029,6 @@ int main(int argc, char **argv_ansi)
 
         finished = TRUE;
     }
-
-    Free_Series(startup);
 
     // Although the REPL routine does a PUSH_UNHALTABLE_TRAP in order to
     // catch any errors or halts, it then has to report those errors when
