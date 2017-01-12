@@ -1647,7 +1647,9 @@ static REBARR *Scan_Array(
             break;
 
         case TOKEN_BINARY:
-            Scan_Binary(value, bp, len);
+            if (!Scan_Binary(value, bp, len)) {
+                goto syntax_error;
+            }
             break;
 
         case TOKEN_PAIR:
