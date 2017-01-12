@@ -587,7 +587,7 @@ REBOOL Make_Error_Object_Throws(
         //
         // String argument to MAKE ERROR! makes a custom error from user:
         //
-        //     code: 1000 ;-- default is blank
+        //     code: RE_USER ;-- default is blank
         //     type: 'user
         //     id: 'message
         //     message: "whatever the string was" ;-- default is blank
@@ -604,7 +604,7 @@ REBOOL Make_Error_Object_Throws(
         vars = ERR_VARS(error);
         assert(IS_BLANK(&vars->code));
 
-        // fill in RE_USER (1000) later if it passes the check
+        // fill in RE_USER later if it passes the check
 
         Init_String(&vars->message, Copy_Sequence_At_Position(arg));
     }
@@ -627,7 +627,7 @@ REBOOL Make_Error_Object_Throws(
         if (VAL_INT32(&vars->code) < RE_USER) {
             // Users can make up anything for error codes allocated to them,
             // but Rebol's historical default is to "own" error codes less
-            // than 1000.  If a code is used in the sub-1000 range then make
+            // than RE_USER.  If a code is used in the sub-RE_USER range then make
             // sure any id or type provided do not conflict.
 
             REBVAL *message;
@@ -749,7 +749,7 @@ REBOOL Make_Error_Object_Throws(
         // strange code #.  The question of how non-standard to
         // tolerate is an open one.
 
-        // For now we just write 1000 into the error code field, if that was
+        // For now we just write RE_USER into the error code field, if that was
         // not already there.
 
         if (IS_BLANK(&vars->code))
