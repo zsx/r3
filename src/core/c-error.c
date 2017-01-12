@@ -349,7 +349,7 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
     assert(CTX_KEY_SYM(categories, 1) == SYM_SELF);
 
     // Find the correct catalog category
-    n = code / 1000; // 0 for Special, 1 for Internal...
+    n = code / RE_CATEGORY_SIZE; // 0 for Special, 1 for Internal...
     if (SELFISH(n + 1) > CTX_LEN(categories)) // 1-based, not 0 based
         return NULL;
 
@@ -362,7 +362,7 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
     assert(CTX_KEY_SYM(category, 1) == SYM_SELF);
 
     // Find the correct template in the catalog category (see %errors.r)
-    n = code % 1000; // 0-based order within category
+    n = code % RE_CATEGORY_SIZE; // 0-based order within category
     if (SELFISH(n + 2) > CTX_LEN(category)) // 1-based (CODE: TYPE:)
         return NULL;
 
@@ -372,7 +372,7 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
         return NULL;
     }
     assert(
-        (code / 1000) * 1000
+        (code / RE_CATEGORY_SIZE) * RE_CATEGORY_SIZE
         == cast(REBCNT, VAL_INT32(CTX_VAR(category, SELFISH(1))))
     );
 
@@ -393,11 +393,11 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
     //
     Init_Word(
         type_out,
-        CTX_KEY_SPELLING(categories, SELFISH((code / 1000) + 1))
+        CTX_KEY_SPELLING(categories, SELFISH((code / RE_CATEGORY_SIZE) + 1))
     );
     Init_Word(
         id_out,
-        CTX_KEY_SPELLING(category, SELFISH((code % 1000) + 3))
+        CTX_KEY_SPELLING(category, SELFISH((code % RE_CATEGORY_SIZE) + 3))
     );
 
     return message;

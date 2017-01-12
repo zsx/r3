@@ -769,6 +769,9 @@ emit-end
 emit-line {#define RE_USER 10000}
 emit-annotation {Hardcoded, update in %make-boot.r}
 
+emit-line {#define RE_CATEGORY_SIZE 1000}
+emit-annotation {Hardcoded, update in %make-boot.r}
+
 emit-line {#define RE_INTERNAL_FIRST RE_MISC}
 emit-annotation {GENERATED! update in %make-boot.r}
 
