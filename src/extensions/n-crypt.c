@@ -124,6 +124,7 @@ static void cleanup_rc4_ctx(const REBVAL *val)
 //  ]
 //  new-errors: [
 //      key-or-stream-required: {Refinement /key or /stream has to be present}
+//      invalid-rc4-context: [{Not a RC4 context:} :arg1]
 //  ]
 //
 static REBNATIVE(rc4)
@@ -132,6 +133,9 @@ static REBNATIVE(rc4)
 
     if (REF(stream)) {
         REBVAL *data = ARG(data);
+
+        if (VAL_HANDLE_CLEANER(ARG(ctx)) != cleanup_rc4_ctx)
+            fail (Error(RE_EXT_CRYPT_INVALID_RC4_CONTEXT, ARG(ctx)));
 
         RC4_CTX *rc4_ctx = cast(RC4_CTX*, VAL_HANDLE_POINTER(ARG(ctx)));
 
@@ -521,6 +525,7 @@ static void cleanup_aes_ctx(const REBVAL *val)
 //          "Use the crypt-key for decryption (default is to encrypt)"
 //  ]
 //  new-errors: [
+//      invalid-aes-context: [{Not a AES context:} :arg1]
 //      invalid-aes-key-length: [{AES key length has to be 16 or 32:} :arg1]
 //  ]
 //
@@ -529,6 +534,9 @@ static REBNATIVE(aes)
     INCLUDE_PARAMS_OF_AES;
 
     if (REF(stream)) {
+        if (VAL_HANDLE_CLEANER(ARG(ctx)) != cleanup_aes_ctx)
+            fail (Error(RE_EXT_CRYPT_INVALID_AES_CONTEXT, ARG(ctx)));
+
         AES_CTX *aes_ctx = cast(AES_CTX*, VAL_HANDLE_POINTER(ARG(ctx)));
 
         REBYTE *dataBuffer = VAL_BIN_AT(ARG(data));

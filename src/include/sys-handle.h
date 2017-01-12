@@ -67,6 +67,12 @@ inline static void *VAL_HANDLE_POINTER(const RELVAL *v) {
         return v->payload.handle.pointer;
 }
 
+inline static CLEANUP_FUNC VAL_HANDLE_CLEANER(const RELVAL *v) {
+    assert(IS_HANDLE(v));
+    REBARR *singular = v->extra.singular;
+    return singular ? AS_SERIES(singular)->misc.cleaner : NULL;
+}
+
 inline static void SET_HANDLE_LEN(RELVAL *v, REBUPT length) {
     assert(IS_HANDLE(v));
     if (v->extra.singular)
