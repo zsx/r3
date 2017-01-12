@@ -571,9 +571,8 @@ macro(add_module name source)
     option(R3_EXT_${u_name} "Build with extension ${l_name}" ON)
 
     set (GENERATED_EXT_${u_name}_SOURCE
-        ${TOP_GENERATED_SRC_DIR}/include/tmp-ext-${l_name}-args.h
-        ${TOP_GENERATED_SRC_DIR}/include/tmp-ext-${l_name}-words.h
-        ${TOP_GENERATED_SRC_DIR}/include/tmp-ext-${l_name}.h
+        ${TOP_GENERATED_SRC_DIR}/include/tmp-ext-${l_name}-first.h
+        ${TOP_GENERATED_SRC_DIR}/include/tmp-ext-${l_name}-last.h
         )
     add_custom_command(OUTPUT
         ${GENERATED_EXT_${u_name}_SOURCE}

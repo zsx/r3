@@ -62,6 +62,7 @@ Internal: [
     no-current-pause:   {No current PAUSE or BREAKPOINT instruction in effect}
 
     invalid-exit:       {Frame does not exist on the stack to EXIT from}
+    out-of-error-numbers: {There is no more base error code available}
 ]
 
 Syntax: [

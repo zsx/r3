@@ -1707,3 +1707,17 @@ void Make_OS_Error(REBVAL *out, int errnum)
     OS_FORM_ERROR(errnum, str, 100);
     Init_String(out, Copy_OS_Str(str, OS_STRLEN(str)));
 }
+
+
+//
+//  Find_Next_Error_Base_Code: C
+//
+// Find in system/catalog/errors the next error base (used by extensions)
+//
+REBINT Find_Next_Error_Base_Code(void)
+{
+    REBCTX * categories = VAL_CONTEXT(Get_System(SYS_CATALOG, CAT_ERRORS));
+    if (CTX_LEN(categories) > RE_USER / RE_CATEGORY_SIZE)
+        fail (Error(RE_OUT_OF_ERROR_NUMBERS));
+    return (CTX_LEN(categories) - 1) * RE_CATEGORY_SIZE;
+}

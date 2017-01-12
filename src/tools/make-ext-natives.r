@@ -54,6 +54,7 @@ process c-src
 native-list: load unsorted-buffer
 word-list: copy []
 export-list: copy []
+error-list: copy []
 num-native: 0
 unless parse native-list [
     while [
@@ -67,6 +68,7 @@ unless parse native-list [
             ] (append export-list to word! w)
         ] (++ num-native)
         | remove [quote new-words: set words block! (append word-list words)]
+        | remove [quote new-errors: set errors block! (append error-list errors)]
     ]
 ][
     fail rejoin ["failed to parse" mold native-list ", current word-list:" mold word-list]
@@ -80,7 +82,14 @@ spec: compose/deep/only [
     ]
 ]
 unless empty? word-list [
-    append spec compose/only [words: (word-list)]
+    append spec compose/only [
+        words: (word-list)
+    ]
+]
+unless empty? error-list [
+    append spec compose/only [
+        errors: (error-list)
+    ]
 ]
 append spec native-list
 comp-data: compress data: to-binary mold spec
@@ -107,12 +116,18 @@ emit-line [ {
 int Module_Init_} m-name {_Core(RELVAL *out)
 ^{
     INIT_} u-m-name {_WORDS;
-    REBARR *arr = Make_Array(2);
-    TERM_ARRAY_LEN(arr, 2);
+    REBARR *arr = Make_Array(3);
+    TERM_ARRAY_LEN(arr, 3);
     Init_Binary(ARR_AT(arr, 0),
         Copy_Bytes(Ext_Native_Specs_} m-name {, EXT_NAT_COMPRESSED_SIZE_} u-m-name {));
     Init_Handle_Simple(ARR_AT(arr, 1),
         Ext_Native_C_Funcs_} m-name {, EXT_NUM_NATIVES_} u-m-name {);
+    } either empty? error-list [
+        {SET_BLANK(ARR_AT(arr, 2));}
+    ][
+        rejoin [ {Ext_} m-name {_Error_Base = Find_Next_Error_Base_Code();
+    SET_INTEGER(ARR_AT(arr, 2), Ext_} m-name {_Error_Base);} ]
+    ] {
     Init_Block(out, arr);
 
     return 0;
@@ -125,17 +140,16 @@ int Module_Quit_} m-name {_Core(void)
 }
 ]
 
-write-emitted to file! rejoin [output-dir/include/tmp-ext- l-m-name %.h]
+write-emitted to file! rejoin [output-dir/include/tmp-ext- l-m-name %-last.h]
 
 ;--------------------------------------------------------------
-; tmp-ext-args.h
-emit-header "PARAM() and REFINE() Automatic Macros" to file! rejoin [%tmp-ext- l-m-name %-args.h]
+; args
+emit-header "PARAM() and REFINE() Automatic Macros" to file! rejoin [%tmp-ext- l-m-name %-first.h]
 emit-native-include-params-macro native-list
-write-emitted to file! rejoin [output-dir/include/tmp-ext- l-m-name %-args.h]
 
 ;--------------------------------------------------------------
-; tmp-ext-words.h
-emit-header "Local words" to file! rejoin [%tmp-ext- l-m-name %-words.h]
+; words
+emit-line ["//  Local words"]
 emit-line ["#define NUM_EXT_" u-m-name "_WORDS" space length word-list]
 
 either empty? word-list [
@@ -159,4 +173,33 @@ either empty? word-list [
     emit-line/indent ["Init_Extension_Words(Ext_Words_" m-name ", Ext_Canons_" m-name ", NUM_EXT_" u-m-name "_WORDS)"]
 ]
 
-write-emitted to file! rejoin [output-dir/include/tmp-ext- l-m-name %-words.h]
+;--------------------------------------------------------------
+; errors
+emit-line ["//  Local errors"]
+unless empty? error-list [
+    emit-line [ {enum Ext_} m-name {_Errors ^{}]
+    error-collected: copy []
+    for-each [key val] error-list [
+        unless set-word? key [
+            fail rejoin ["key (" mold key ") must be a set-word!"]
+        ]
+        if found? find error-collected key [
+            fail rejoin ["Duplicate error key" to word! key]
+        ]
+        append error-collected key
+        emit-item/upper rejoin [ {RE_EXT_ENUM_} u-m-name {_} uppercase to-c-name to word! key]
+    ]
+    emit-end
+    emit-line ["static REBINT Ext_" m-name "_Error_Base;"]
+
+    emit-line []
+    for-each [key val] error-list [
+        emit-line rejoin [ {#define RE_EXT_} u-m-name {_} uppercase to-c-name to word! key
+        space
+        {(Ext_} m-name {_Error_Base + }
+        {RE_EXT_ENUM_} u-m-name {_} uppercase to-c-name to word! key {)}
+        ]
+    ]
+]
+
+write-emitted to file! rejoin [output-dir/include/tmp-ext- l-m-name %-first.h]

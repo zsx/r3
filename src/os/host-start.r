@@ -265,11 +265,12 @@ load-boot-exts: function [
 ][
     loud-print "Loading boot extensions..."
 
-    loud-print ["boot-exts:" mold boot-exts]
-    for-each [code impl] boot-exts [
+    ;loud-print ["boot-exts:" mold boot-exts]
+    for-each [code impl error-base] boot-exts [
         code: load/header decompress code
         hdr: take code
-        ;loud-print ["Found boot module" hdr/name]
+        loud-print ["Found boot module" hdr/name]
+        loud-print mold code
         tmp-ctx: make object!  [
             native: function [
                 return: [function!]
@@ -287,6 +288,15 @@ load-boot-exts: function [
         ]
         mod: make module! (length code) / 2
         set-meta mod hdr
+        if errors: find code to set-word! 'errors [
+            loud-print ["found errors in module" hdr/name]
+            eo: construct make object! [
+               code: error-base
+               type: lowercase reform [hdr/name "error"]
+            ] second errors
+            append system/catalog/errors reduce [to set-word! hdr/name eo]
+            remove/part errors 2
+        ]
         bind/only/set code mod
         bind hdr/exports mod
         bind code tmp-ctx
