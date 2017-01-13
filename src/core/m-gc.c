@@ -1726,14 +1726,19 @@ static void Queue_Mark_Event_Deep(const RELVAL *value)
     if (
         IS_EVENT_MODEL(value, EVM_PORT)
         || IS_EVENT_MODEL(value, EVM_OBJECT)
-        || (
-            VAL_EVENT_TYPE(value) == EVT_DROP_FILE
-            && GET_FLAG(VAL_EVENT_FLAGS(value), EVF_COPIED)
-        )
     ) {
-        // !!! Comment says void* ->ser field of the REBEVT is a "port or
-        // object" but it also looks to store maps.  (?)
-        //
+        Queue_Mark_Context_Deep(AS_CONTEXT(VAL_EVENT_SER(m_cast(RELVAL*, value))));
+    }
+    else if (IS_EVENT_MODEL(value, EVM_GUI)) {
+        Queue_Mark_Gob_Deep(cast(REBGOB*, VAL_EVENT_SER(m_cast(RELVAL*, value))));
+    }
+
+    // FIXME: This test is not in parallel to others.
+    if (VAL_EVENT_TYPE(value) == EVT_DROP_FILE
+        && GET_FLAG(VAL_EVENT_FLAGS(value), EVF_COPIED)
+        )
+    {
+        assert(FALSE);
         Queue_Mark_Array_Deep(AS_ARRAY(VAL_EVENT_SER(m_cast(RELVAL*, value))));
     }
 
