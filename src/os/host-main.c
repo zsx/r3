@@ -878,62 +878,28 @@ int main(int argc, char **argv_ansi)
 
     Init_Debug_Extension();
 
-    REBVAL result;
-
-    REBSER *startup = Decompress(
-        &Reb_Init_Code[0],
-        REB_INIT_SIZE,
-        -1,
-        FALSE,
-        FALSE
-    );
-    if (startup == NULL)
-        panic ("Can't decompress %host-start.r code linked into executable");
-
-    REBSER *embedded = NULL;
-    REBI64 embedded_size = 0;
-    REBYTE *embedded_utf8 = OS_READ_EMBEDDED(&embedded_size);
-    if (embedded_utf8 != NULL) {
-        if (embedded_size <= 4)
-            panic ("No 4-byte long payload at beginning of embedded script");
-
-        i32 ptype = 0;
-        REBYTE *data = embedded_utf8 + sizeof(ptype);
-        embedded_size -= sizeof(ptype);
-
-        memcpy(&ptype, embedded_utf8, sizeof(ptype));
-
-        if (ptype == 1) { // COMPRESSed data
-            embedded = Decompress(data, embedded_size, -1, FALSE, FALSE);
-        }
-        else {
-            embedded = Make_Binary(embedded_size);
-            memcpy(BIN_HEAD(embedded), data, embedded_size);
-        }
-
-        OS_FREE(embedded_utf8);
-    }
-
-    REBVAL embedded_value;
-    if (embedded == NULL)
-        SET_BLANK(&embedded_value);
-    else
-        Init_Block(&embedded_value, embedded);
-    PUSH_GUARD_VALUE(&embedded_value);
-
     struct Reb_State state;
     REBCTX *error;
 
     PUSH_UNHALTABLE_TRAP(&error, &state);
 
-    REBOOL finished;
-
 // The first time through the following code 'error' will be NULL, but...
 // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
 
     int exit_status;
+    REBOOL finished;
 
     if (error == NULL) {
+        REBSER *startup = Decompress(
+            &Reb_Init_Code[0],
+            REB_INIT_SIZE,
+            -1,
+            FALSE,
+            FALSE
+        );
+        if (startup == NULL)
+            panic ("Can't decompress %host-start.r linked into executable");
+
         REBVAL host_start;
         if (
             Do_String(&exit_status, &host_start, BIN_HEAD(startup), FALSE)
@@ -944,22 +910,47 @@ int main(int argc, char **argv_ansi)
 
         Free_Series(startup);
 
+        REBSER *embedded = NULL;
+        REBI64 embedded_size = 0;
+        REBYTE *embedded_utf8 = OS_READ_EMBEDDED(&embedded_size);
+        if (embedded_utf8 != NULL) {
+            if (embedded_size <= 4)
+                panic ("No 4-byte long payload at start of embedded script");
+
+            i32 ptype = 0;
+            REBYTE *data = embedded_utf8 + sizeof(ptype);
+            embedded_size -= sizeof(ptype);
+
+            memcpy(&ptype, embedded_utf8, sizeof(ptype));
+
+            if (ptype == 1) { // COMPRESSed data
+                embedded = Decompress(data, embedded_size, -1, FALSE, FALSE);
+            }
+            else {
+                embedded = Make_Binary(embedded_size);
+                memcpy(BIN_HEAD(embedded), data, embedded_size);
+            }
+
+            OS_FREE(embedded_utf8);
+        }
+
+        REBVAL embedded_value;
+        if (embedded == NULL)
+            SET_BLANK(&embedded_value);
+        else
+            Init_Block(&embedded_value, embedded);
+
         if (!IS_FUNCTION(&host_start))
             panic (&host_start); // should not be able to error
 
-        PUSH_GUARD_VALUE(&host_start);
-
+        REBVAL result;
         if (Apply_Only_Throws(
-            &result, TRUE, &host_start,
-            &argv_value, // argv parameter
-            &embedded_value, // embedded-script parameter
+            &result, TRUE,
+            &host_start, // startup function, implicit GC guard
+            &argv_value, // argv parameter, implicit GC guard
+            &embedded_value, // embedded-script parameter, implicit GC guard
             END_CELL
         )) {
-            #if !defined(NDEBUG)
-                if (LEGACY(OPTIONS_EXIT_FUNCTIONS_ONLY))
-                    fail (Error_No_Catch_For_Throw(&result));
-            #endif
-
             if (
                 IS_FUNCTION(&result)
                 && VAL_FUNC_DISPATCHER(&result) == &N_quit
@@ -977,9 +968,6 @@ int main(int argc, char **argv_ansi)
             fail (Error_No_Catch_For_Throw(&result));
         }
 
-        DROP_GUARD_VALUE(&host_start);
-        DROP_GUARD_VALUE(&embedded_value);
-        DROP_GUARD_VALUE(&argv_value);
         DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
         // HOST-START returns either an integer exit code or a blank if the
@@ -995,7 +983,6 @@ int main(int argc, char **argv_ansi)
             panic (&result); // no other legal return values for now
     }
     else {
-        //
         // !!! We are not allowed to ask for a print operation that can take
         // arbitrarily long without allowing for cancellation via Ctrl-C,
         // but here we are wanting to print an error.  If you're printing
@@ -1029,6 +1016,8 @@ int main(int argc, char **argv_ansi)
 
         finished = TRUE;
     }
+
+    DROP_GUARD_VALUE(&argv_value);
 
     // Although the REPL routine does a PUSH_UNHALTABLE_TRAP in order to
     // catch any errors or halts, it then has to report those errors when
