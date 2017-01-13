@@ -50,6 +50,7 @@ REBOL [
 
 ;-- protocols:
 [
-    %prot-http.r
-    %prot-tls.r
+    ;moved to file-base and loaded by host-start.r
+    ;%prot-http.r
+    ;%prot-tls.r
 ]

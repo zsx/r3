@@ -337,6 +337,11 @@ mezz-files: [
     ;-- There were some of these in the R3/View build
 ]
 
+prot-files: [
+    prot-tls.r
+    prot-http.r
+]
+
 tools: [
     make-host-init.r
     make-host-ext.r

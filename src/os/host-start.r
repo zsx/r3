@@ -34,6 +34,17 @@ REBOL [
 ;
 boot-exts: _
 
+; These used to be loaded by the core, but prot-tls depends on crypt, thus it
+; needs to be loaded after crypt. It was not an issue when crypt was builtin.
+; But when it's converted to a module, and loaded by load-boot-exts, it breaks
+; the dependency of prot-tls.
+;
+; Moving protocol loading from core to host fixes the problem.
+;
+; This should be initialized by make-host-init.r, but set a default just in
+; case
+host-prot: default _
+
 boot-print: procedure [
     "Prints during boot when not quiet."
     data
@@ -333,6 +344,7 @@ host-start: function [
         {Raw command line argument block received by main() as STRING!s}
     boot-embedded [binary! string! blank!]
         {Embedded user script inside this host instance (e.g. encapping)}
+    <with> host-prot
     <static>
         o (system/options) ;-- shorthand since options are often read/written
 ][
@@ -519,6 +531,9 @@ host-start: function [
     if o/verbose [print o]
 
     load-boot-exts
+
+    for-each [spec body] host-prot [module spec body]
+    host-prot: 'done
 
     ;-- Setup SECURE configuration (a NO-OP for min boot)
 

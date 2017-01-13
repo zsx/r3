@@ -87,8 +87,7 @@ load-files: function [
     for-each file file-list [
         print ["loading:" file]
         file: load/header file
-        header: file/1
-        remove file
+        header: take file
         if header/type = 'module [
             file: compose/deep [
                 import module
@@ -107,5 +106,17 @@ load-files: function [
     data
 ]
 
+host-start: load-files [%host-start.r]
 
-write-c-file output-dir/os/tmp-host-start.inc load-files [%host-start.r]
+file-base: has load %../tools/file-base.r
+
+; copied from make-boot.r
+host-protocols: make block! 2
+for-each file file-base/prot-files [
+    m: load/all join-of %../mezz/ file ; not REBOL word
+    append/only append/only host-protocols m/2 skip m 2
+]
+
+insert host-start compose/only [host-prot: (host-protocols)]
+
+write-c-file output-dir/os/tmp-host-start.inc host-start
