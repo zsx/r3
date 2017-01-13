@@ -924,7 +924,10 @@ int main(int argc, char **argv_ansi)
         Init_Block(&embedded_value, embedded);
     PUSH_GUARD_VALUE(&embedded_value);
 
-    LOAD_BOOT_MODULES;
+    REBVAL ext_value;
+    SET_BLANK(&ext_value);
+    PUSH_GUARD_VALUE(&ext_value);
+    LOAD_BOOT_MODULES(&ext_value);
 
     struct Reb_State state;
     REBCTX *error;
@@ -958,6 +961,7 @@ int main(int argc, char **argv_ansi)
             &result, TRUE, &host_start,
             &argv_value, // argv parameter
             &embedded_value, // embedded-script parameter
+            &ext_value, // extensions loaded at boot
             END_CELL
         )) {
             #if !defined(NDEBUG)
@@ -984,6 +988,7 @@ int main(int argc, char **argv_ansi)
         }
 
         DROP_GUARD_VALUE(&host_start);
+        DROP_GUARD_VALUE(&ext_value);
         DROP_GUARD_VALUE(&embedded_value);
         DROP_GUARD_VALUE(&argv_value);
         DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);

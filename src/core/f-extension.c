@@ -395,34 +395,6 @@ REBNATIVE(load_native)
     return R_OUT;
 }
 
-//
-//  Add_Boot_Extension: C
-//
-// Save the extension to user/boot-exts, such that it will be loaded at bootup.
-//
-void Add_Boot_Extension(RELVAL *ext)
-{
-    REBCTX *user_ctx = VAL_CONTEXT(Get_System(SYS_CONTEXTS, CTX_USER));
-    REBSTR* canon = *SER_AT(REBSTR*, PG_Symbol_Canons, SYM_BOOT_EXTS);
-    REBCNT index = Find_Canon_In_Context(user_ctx, canon, TRUE);
-
-    REBVAL *exts = NULL;
-    if (index) {
-        exts = CTX_VAR(user_ctx, index);
-    }
-    else {
-        Expand_Context(user_ctx, 1);
-        exts = Append_Context(user_ctx, NULL, canon);
-    }
-
-    if (!IS_BLOCK(exts)) {
-        Init_Block(exts, Make_Array(2));
-    }
-    REBVAL *v = KNOWN(VAL_ARRAY_HEAD(ext));
-    for (; NOT_END(v); ++v) {
-        Append_Value(VAL_ARRAY(exts), v);
-    }
-}
 
 //
 //  Init_Extension_Words: C

@@ -5,16 +5,27 @@
     #define EXT_API extern
 #endif
 
-#define MODULE_INIT(m) EXT_API int Init_Module_ ## m (REBVAL* out)
-#define MODULE_QUIT(m) EXT_API int Quit_Module_ ## m ()
+#define MODULE_INIT(m) EXT_API int Module_Init_ ## m (REBVAL* out)
+#define CALL_MODULE_INIT_CORE(m) Module_Init_ ## m  ## _Core (out)
 
-#define LOAD_MODULE(m) do {         \
-    REBVAL out;                     \
-    if (!Init_Module_ ## m(&out)) { \
-        Add_Boot_Extension(&out);   \
-    }                               \
+#define MODULE_QUIT(m) EXT_API int Module_Quit_ ## m ()
+#define CALL_MODULE_QUIT_CORE(m) Module_Quit_ ## m ## _Core ()
+
+inline static void Add_Boot_Extension(REBARR *exts, RELVAL *ext)
+{
+    REBVAL *v = KNOWN(VAL_ARRAY_HEAD(ext));
+    for (; NOT_END(v); ++v) {
+        Append_Value(exts, v);
+    }
+}
+
+#define LOAD_MODULE(exts, m) do {           \
+    REBVAL out;                             \
+    if (!Module_Init_ ## m(&out)) {         \
+        Add_Boot_Extension(exts, &out);     \
+    }                                       \
 } while(0)
 
 #define UNLOAD_MODULE(m) do {   \
-    Quit_Module_ ## m();        \
+    Module_Quit_ ## m();        \
 } while (0)

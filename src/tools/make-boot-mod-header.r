@@ -36,9 +36,14 @@ for-each mod modules [
 ]
 
 emit-line []
-emit-line ["#define LOAD_BOOT_MODULES do {\"]
+emit-line ["#define LOAD_BOOT_MODULES(v) do {\"]
+unless empty? modules [
+    emit-line/indent ["if (!IS_BLOCK(v)) {\"]
+    emit-line/indent ["    Init_Block(v, Make_Array(" 3 * length modules "));\"]
+    emit-line/indent ["}\"]
+]
 for-each mod modules [
-    emit-line/indent ["LOAD_MODULE(" mod ");\"]
+    emit-line/indent ["LOAD_MODULE(VAL_ARRAY(v), " mod ");\"]
 ]
 emit-line ["} while(0)"]
 

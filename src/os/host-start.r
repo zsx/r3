@@ -25,15 +25,6 @@ REBOL [
     }
 ]
 
-; !!! "Boot extensions" referred to a list of DLLs that registered additional
-; psuedo-natives called COMMAND!s.  There was a desire to be able to register
-; these extensions either from Rebol or from C.  Yet in C, the calls that
-; asked for the extensions to be loaded were not necessarily able to be
-; synchronous.  It's not clear how that old model applies any longer, but the
-; code has been moved out of the core to here.
-;
-boot-exts: default _
-
 ; These used to be loaded by the core, but prot-tls depends on crypt, thus it
 ; needs to be loaded after crypt. It was not an issue when crypt was builtin.
 ; But when it's converted to a module, and loaded by load-boot-exts, it breaks
@@ -261,7 +252,7 @@ load-ext-module: function [
 
 load-boot-exts: function [
     "INIT: Load boot-based extensions."
-    <with> boot-exts
+    boot-exts [block! blank!]
 ][
     loud-print "Loading boot extensions..."
 
@@ -357,6 +348,8 @@ host-start: function [
         {Raw command line argument block received by main() as STRING!s}
     boot-embedded [binary! string! blank!]
         {Embedded user script inside this host instance (e.g. encapping)}
+    boot-exts [block! blank!]
+        {Extensions (modules) loaded at boot}
     <with> host-prot
     <static>
         o (system/options) ;-- shorthand since options are often read/written
@@ -543,7 +536,7 @@ host-start: function [
 
     if o/verbose [print o]
 
-    load-boot-exts
+    load-boot-exts boot-exts
 
     for-each [spec body] host-prot [module spec body]
     host-prot: 'done
