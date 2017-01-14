@@ -8,7 +8,7 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2013 REBOL Technologies
-// Copyright 2013-2016 Rebol Open Source Contributors
+// Copyright 2013-2017 Rebol Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information.

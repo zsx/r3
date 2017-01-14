@@ -3,7 +3,7 @@ REBOL [
     Title: "REBOL 3 Mezzanine: Legacy compatibility"
     Homepage: https://trello.com/b/l385BE7a/porting-guide
     Rights: {
-        Copyright 2012-2016 Rebol Open Source Contributors
+        Copyright 2012-2017 Rebol Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
