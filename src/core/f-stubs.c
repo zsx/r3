@@ -323,13 +323,12 @@ REBINT Get_System_Int(REBCNT i1, REBCNT i2, REBINT default_int)
 // Common function.
 //
 void Init_Any_Series_At_Core(
-    REBVAL *value,
+    REBVAL *out,
     enum Reb_Kind type,
     REBSER *series,
     REBCNT index,
     REBSPC *specifier
 ) {
-    assert(series);
     ENSURE_SERIES_MANAGED(series);
 
     if (type != REB_IMAGE && type != REB_VECTOR) {
@@ -349,13 +348,13 @@ void Init_Any_Series_At_Core(
         ASSERT_SERIES_TERM(series); // doesn't apply to image/vector
     }
 
-    VAL_RESET_HEADER(value, type);
-    value->payload.any_series.series = series;
-    VAL_INDEX(value) = index;
+    VAL_RESET_HEADER(out, type);
+    out->payload.any_series.series = series;
+    VAL_INDEX(out) = index;
     if (specifier == SPECIFIED)
-        INIT_SPECIFIC(value, SPECIFIED);
+        INIT_SPECIFIC(out, SPECIFIED);
     else
-        INIT_SPECIFIC(value, AS_CONTEXT(specifier));
+        INIT_SPECIFIC(out, AS_CONTEXT(specifier));
 
 #if !defined(NDEBUG)
     if (Is_Array_Series(series) && specifier == SPECIFIED) {
