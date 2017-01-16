@@ -87,6 +87,7 @@ tenth: redescribe [
 
 last: func [
     {Returns the last value of a series.}
+    return: [<opt> any-value!]
     value [any-series! tuple! gob!]
     <local> len
 ][

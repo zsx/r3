@@ -8,7 +8,7 @@
 >
 > * Copyright 2012 REBOL Technologies
 > * Copyright 2013 Saphirion AG
-> * Copyright 2013-2016 Rebol Open Source Contributors
+> * Copyright 2013-2017 Rebol Open Source Contributors
 >
 > This README was originally written by Ladislav Mecir.
 
