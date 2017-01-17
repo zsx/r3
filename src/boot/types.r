@@ -40,7 +40,7 @@ REBOL [
 ;
 0           0           -       -       -
 
-function    function    -       *       -
+function    function    *       *       -
 
 bar         unit        -       *       -
 lit-bar     unit        -       *       -

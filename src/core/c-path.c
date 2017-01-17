@@ -47,7 +47,19 @@ extern const REBPEF Path_Dispatch[REB_MAX];
 REBOOL Next_Path_Throws(REBPVS *pvs)
 {
     REBPEF dispatcher = Path_Dispatch[VAL_TYPE(pvs->value)];
-    if (!dispatcher) return FALSE; // unwind, then check for errors
+    if (dispatcher == NULL) {
+        REBVAL specified_orig;
+        Derelativize(&specified_orig, pvs->orig, pvs->item_specifier);
+
+        REBVAL specified_item;
+        Derelativize(&specified_item, pvs->item, pvs->item_specifier);
+
+        fail (Error(RE_INVALID_PATH, &specified_orig, &specified_item));
+    }
+
+    if (IS_FUNCTION(pvs->value) && pvs->label_out && *pvs->label_out == NULL)
+        if (IS_WORD(pvs->item))
+            *pvs->label_out = VAL_WORD_SPELLING(pvs->item);
 
     pvs->item++;
 
@@ -189,6 +201,9 @@ REBOOL Do_Path_Throws_Core(
     pvs.store = out;
     pvs.orig = path;
     pvs.item = VAL_ARRAY_AT(pvs.orig); // may not be starting at head of PATH!
+    pvs.label_out = label_out;
+    if (label_out != NULL)
+        *label_out = NULL; // initial value if no function label found
 
     // The path value that's coming in may be relative (in which case it
     // needs to use the specifier passed in).  Or it may be specific already,
@@ -236,6 +251,9 @@ REBOOL Do_Path_Throws_Core(
         // try to dispatch it (would cause a crash at time of writing)
         //
         // !!! Is this the desired behavior, or should it be an error?
+
+        if (IS_FUNCTION(pvs.value) && IS_WORD(pvs.item) && pvs.label_out)
+            *pvs.label_out = VAL_WORD_SPELLING(pvs.item);
     }
     else if (Path_Dispatch[VAL_TYPE(pvs.value)]) {
         REBOOL threw = Next_Path_Throws(&pvs);
@@ -258,22 +276,8 @@ REBOOL Do_Path_Throws_Core(
 
         if (threw)
             goto return_thrown;
-
-        // Check for errors:
-        if (NOT_END(pvs.item + 1) && !IS_FUNCTION(pvs.value)) {
-            //
-            // Only function refinements should get by this line:
-
-            REBVAL specified_orig;
-            Derelativize(&specified_orig, pvs.orig, specifier);
-
-            REBVAL specified_item;
-            Derelativize(&specified_item, pvs.item, specifier);
-
-            fail (Error(RE_INVALID_PATH, &specified_orig, &specified_item));
-        }
     }
-    else if (!IS_FUNCTION(pvs.value)) {
+    else {
         REBVAL specified;
         Derelativize(&specified, pvs.orig, specifier);
         fail (Error(RE_BAD_PATH_TYPE, &specified, Type_Of(pvs.value)));
@@ -291,148 +295,36 @@ REBOOL Do_Path_Throws_Core(
 
     assert(!THROWN(out));
 
-    // Return 0 if not function or is :path/word...
-    if (!IS_FUNCTION(pvs.value)) {
-        assert(IS_END(pvs.item) + 1);
-        goto return_not_thrown;
-    }
+    assert(IS_END(pvs.item) + 1);
 
-    if (label_out) {
-        REBVAL refinement;
+    // To make things easier for processing, reverse any refinements
+    // pushed to the data stack (we needed to evaluate them
+    // in forward order).  This way we can just pop them as we go,
+    // and know if they weren't all consumed if it doesn't get
+    // back to `dsp_orig` by the end.
+    //
+    if (dsp_orig != DSP) {
+        assert(IS_FUNCTION(pvs.store));
 
-        // When a function is hit, path processing stops as soon as the
-        // processed sub-path resolves to a function. The path is still sitting
-        // on the position of the last component of that sub-path. Usually,
-        // this last component in the sub-path is a word naming the function.
+        // !!! It should be technically possible to do something like
+        // :append/dup and return a "refined" variant of a function.  That
+        // feature is not currently implemented.  So if a label wasn't
+        // requested, assume a function is not being run and deliver an
+        // error for that case.
         //
-        if (IS_WORD(pvs.item)) {
-            *label_out = VAL_WORD_SPELLING(pvs.item);
+        if (label_out == NULL)
+            fail (Error(RE_TOO_LONG));
+
+        REBVAL *bottom = DS_AT(dsp_orig + 1);
+        REBVAL *top = DS_TOP;
+        while (top > bottom) {
+            REBVAL temp = *bottom;
+            *bottom = *top;
+            *top = temp;
+
+            top--;
+            bottom++;
         }
-        else {
-            // In rarer cases, the final component (completing the sub-path to
-            // the function to call) is not a word. Such as when you use a path
-            // to pick by index out of a block of functions:
-            //
-            //      functions: reduce [:add :subtract]
-            //      functions/1 10 20
-            //
-            // Or when you have an immediate function value in a path with a
-            // refinement. Tricky to make, but possible:
-            //
-            //      do reduce [
-            //          to-path reduce [:append 'only] [a] [b]
-            //      ]
-            //
-
-            // !!! When a function was not invoked through looking up a word
-            // (or a word in a path) to use as a label, there were once three
-            // different alternate labels used.  One was SYM__APPLY_, another
-            // was ROOT_NONAME, and another was to be the type of the function
-            // being executed.  None are fantastic, we do the type for now.
-
-            *label_out = Canon(SYM_FROM_KIND(VAL_TYPE(pvs.value)));
-        }
-
-        // Move on to the refinements (if any)
-        ++pvs.item;
-
-        // !!! Currently, the mainline path evaluation "punts" on refinements.
-        // When it finds a function, it stops the path evaluation and leaves
-        // the position pvs.path before the list of refinements.
-        //
-        // A more elegant solution would be able to process and notice (for
-        // instance) that `:APPEND/ONLY` should yield a function value that
-        // has been specialized with a refinement.  Path chaining should thus
-        // be able to effectively do this and give the refined function object
-        // back to the evaluator or other client.
-        //
-        // If a label_sym is passed in, we recognize that a function dispatch
-        // is going to be happening.  We do not want to pay to generate the
-        // new series that would be needed to make a temporary function that
-        // will be invoked and immediately GC'd  So we gather the refinements
-        // on the data stack.
-        //
-        // This code simulates that path-processing-to-data-stack, but it
-        // should really be something in dispatch iself.  In any case, we put
-        // refinements on the data stack...and caller knows refinements are
-        // from dsp_orig to DSP (thanks to accounting, all other operations
-        // should balance!)
-
-        for (; NOT_END(pvs.item); ++pvs.item) { // "the refinements"
-            if (IS_VOID(pvs.item)) continue;
-
-            if (IS_GROUP(pvs.item)) {
-                //
-                // Note it is not legal to use the data stack directly as the
-                // output location for a DO (might be resized)
-
-                if (Do_At_Throws(
-                    &refinement,
-                    VAL_ARRAY(pvs.item),
-                    VAL_INDEX(pvs.item),
-                    IS_RELATIVE(pvs.item)
-                        ? pvs.item_specifier // if relative, use parent's
-                        : VAL_SPECIFIER(const_KNOWN(pvs.item)) // else embedded
-                )) {
-                    *out = refinement;
-                    DS_DROP_TO(dsp_orig);
-                    goto return_thrown;
-                }
-                if (IS_VOID(&refinement)) continue;
-                DS_PUSH(&refinement);
-            }
-            else if (IS_GET_WORD(pvs.item)) {
-                DS_PUSH_TRASH;
-                Copy_Opt_Var_May_Fail(DS_TOP, pvs.item, pvs.item_specifier);
-                if (IS_VOID(DS_TOP)) {
-                    DS_DROP;
-                    continue;
-                }
-            }
-            else DS_PUSH_RELVAL(pvs.item, pvs.item_specifier);
-
-            // Whatever we were trying to use as a refinement should now be
-            // on the top of the data stack, and only words are legal ATM
-            //
-            if (!IS_WORD(DS_TOP)) {
-                fail (Error(RE_BAD_REFINE, DS_TOP));
-            }
-
-            // Go ahead and canonize the word symbol so we don't have to
-            // do it each time in order to get a case-insenstive compare
-            //
-            Canonize_Any_Word(DS_TOP);
-        }
-
-        // To make things easier for processing, reverse the refinements on
-        // the data stack (we needed to evaluate them in forward order).
-        // This way we can just pop them as we go, and know if they weren't
-        // all consumed if it doesn't get back to `dsp_orig` by the end.
-
-        if (dsp_orig != DSP) {
-            REBVAL *bottom = DS_AT(dsp_orig + 1);
-            REBVAL *top = DS_TOP;
-            while (top > bottom) {
-                refinement = *bottom;
-                *bottom = *top;
-                *top = refinement;
-
-                top--;
-                bottom++;
-            }
-        }
-    }
-    else {
-        // !!! Historically this just ignores a result indicating this is a
-        // function with refinements, e.g. ':append/only'.  However that
-        // ignoring seems unwise.  It should presumably create a modified
-        // function in that case which acts as if it has the refinement.
-        //
-        // If the caller did not pass in a label pointer we assume they are
-        // likely not ready to process any refinements.
-        //
-        if (NOT_END(pvs.item + 1))
-            fail (Error(RE_TOO_LONG)); // !!! Better error or add feature
     }
 
 return_not_thrown:

@@ -309,3 +309,46 @@ REBNATIVE(func_class_of)
     SET_INTEGER(D_OUT, n);
     return R_OUT;
 }
+
+
+//
+//  PD_Function: C
+//
+REBINT PD_Function(REBPVS *pvs)
+{
+    if (IS_VOID(pvs->selector)) {
+        //
+        // Leave the function value as-is, and continue processing.  This
+        // enables things like `append/(if foo ['dup])/(if bar ['only])`...
+        // 
+        return PE_OK;
+    }
+
+    // The first evaluation of a GROUP! and GET-WORD! are processed by the
+    // general path mechanic before reaching this dispatch.  So if it's not
+    // a word or one of those that evaluated to a word raise an error.
+    //
+    if (!IS_WORD(pvs->selector))
+        fail (Error(RE_BAD_REFINE, pvs->selector));
+
+    // We could generate a "refined" function variant at each step:
+    //
+    //     `append/dup/only` => `ad: :append/dup | ado: :ad/only | ado`
+    //
+    // Generating these intermediates would be costly.  They'd have updated
+    // paramlists and tax the garbage collector.  So path dispatch is
+    // understood to push the canonized word to the data stack in the
+    // function case.
+    //
+    DS_PUSH(pvs->selector);
+
+    // Go ahead and canonize the word symbol so we don't have to do it each
+    // time in order to get a case-insensitive compare.  (Note that canons can
+    // be GC'd, but will not be so long as an instance is on the stack.)
+    //
+    Canonize_Any_Word(DS_TOP);
+
+    // Leave the function value as is in pvs->value
+    //
+    return PE_OK;
+}

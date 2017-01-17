@@ -29,10 +29,10 @@
 // This file contains `Do_Core()`, which is the central evaluator which
 // is behind DO.  It can execute single evaluation steps (e.g. a DO/NEXT)
 // or it can run the array to the end of its content.  A flag controls that
-// behavior, and there are other flags for controlling its other behaviors.
+// behavior, and there are DO_FLAG_XXX for controlling other behaviors.
 //
 // For comprehensive notes on the input parameters, output parameters, and
-// internal state variables...see %sys-do.h and `REBFRM`.
+// internal state variables...see %sys-rebfrm.h.
 //
 // NOTES:
 //
@@ -1496,7 +1496,10 @@ reevaluate:;
 
         if (IS_FUNCTION(f->out)) {
             f->eval_type = REB_FUNCTION; // paths are never REB_0_LOOKBACK
-            SET_FRAME_LABEL(f, label);
+            if (label == NULL)
+                SET_FRAME_LABEL(f, Canon(SYM___ANONYMOUS__));
+            else
+                SET_FRAME_LABEL(f, label);
 
             // object/func or func/refinements or object/func/refinement
             //

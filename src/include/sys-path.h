@@ -139,6 +139,19 @@ struct Reb_Path_Value_State {
     // `orig` original path input, saved for error messages
     //
     const RELVAL *orig;
+
+    // `label` is a concept that `obj/fun/refinement` would come back with
+    // the symbol FUN to identify a function, for the stack trace.  This
+    // idea throws away information and is a little sketchy, not to mention
+    // that anonymous functions throw a wrench into it.  But it is roughly
+    // what R3-Alpha did.
+    //
+    // !!! A better idea is probably to just temporarily lock the executing
+    // path until the function is done running, and use the path itself as
+    // the label.  This provides more information and doesn't require the
+    // sketchy extraction logic.
+    //
+    REBSTR **label_out;
 };
 
 
