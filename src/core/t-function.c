@@ -316,10 +316,10 @@ REBNATIVE(func_class_of)
 //
 REBINT PD_Function(REBPVS *pvs)
 {
-    if (IS_VOID(pvs->selector)) {
+    if (IS_BLANK(pvs->selector)) {
         //
         // Leave the function value as-is, and continue processing.  This
-        // enables things like `append/(if foo ['dup])/(if bar ['only])`...
+        // enables things like `append/(all [foo 'dup])/only`...
         // 
         return PE_OK;
     }

@@ -45,7 +45,7 @@ boot-print: procedure [
     eval: :lib/eval
 
     unless system/options/quiet [
-        print/(if any [eval_BOOT_PRINT | semiquoted? 'data] ['eval]) :data
+        print/(all [any [eval_BOOT_PRINT | semiquoted? 'data] 'eval]) :data
     ]
 ]
 
@@ -58,7 +58,7 @@ loud-print: procedure [
     eval: :lib/eval
 
     if system/options/verbose [
-        print/(if any [eval_BOOT_PRINT | semiquoted? 'data] ['eval]) :data
+        print/(all [any [eval_BOOT_PRINT | semiquoted? 'data] 'eval]) :data
     ]
 ]
 
@@ -273,7 +273,7 @@ load-boot-exts: function [
                 <static> index (-1)
             ] compose [
                 index: index + 1
-                f: load-native/(if body 'body) spec (impl) index :code
+                f: load-native/(all [body 'body]) spec (impl) index :code
                 :f
             ]
         ]

@@ -346,9 +346,6 @@ REBINT PD_Map(REBPVS *pvs)
     if (setting)
         FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(pvs->value));
 
-    if (IS_BLANK(pvs->selector))
-        return PE_NONE;
-
     REBINT n = Find_Map_Entry(
         VAL_MAP(pvs->value),
         pvs->selector,

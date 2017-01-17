@@ -785,7 +785,7 @@ has: func [
     /only
         "Values are kept as-is"
 ][
-    construct/(if only 'only) [] body
+    construct/(all [only 'only]) [] body
 ]
 
 module: func [

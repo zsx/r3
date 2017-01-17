@@ -67,7 +67,11 @@ remold: func [
     /all  {Mold in serialized format}
     /flat {No indentation}
 ][
-    mold/(if only 'only)/(if all 'all)/(if flat 'flat) reduce :value
+    all_REMOLD: all
+    all: :lib/all
+
+    mold/(all [only 'only])/(all [all_REMOLD 'all])/(all [flat 'flat])
+        reduce :value
 ]
 
 charset: func [
@@ -171,7 +175,7 @@ replace: function [
         true 1
     ]
 
-    while [pos: find/(if case_REPLACE 'case) target :pattern] [
+    while [pos: find/(all [case_REPLACE 'case]) target :pattern] [
         ; apply replacement if function, or drops pos if not
         ; the parens quarantine function invocation to maximum arity of 1
         (value: replacement pos)
@@ -332,7 +336,7 @@ reword: function [
         [a: any [to char b: char [escape | blank]] to end fout]
     ]
 
-    parse/(if case_REWORD 'case) source rule
+    parse/(all [case_REWORD 'case]) source rule
 
     ; Return end of output with /into, head otherwise
     either into [output] [head output]
@@ -405,6 +409,9 @@ alter: func [
     value
     /case "Case-sensitive comparison"
 ][
+    case_ALTER: case
+    case: :lib/case
+
     if bitset? series [
         return either find series :value [
             remove/part series :value false
@@ -412,7 +419,7 @@ alter: func [
             append series :value true
         ]
     ]
-    unless? remove (find/(if case ['case]) series :value) [
+    unless? remove (find/(all [case_ALTER ['case]]) series :value) [
         append series :value ;-- returns true if this branch runs, false if not
     ]
 ]
@@ -440,7 +447,7 @@ collect-with: func [
         value [<opt> any-value!]
         /only
     ][
-        output: insert/(if only 'only) output :value
+        output: insert/(all [only 'only]) output :value
         :value
     ]
 

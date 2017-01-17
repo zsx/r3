@@ -44,6 +44,10 @@ extern const REBPEF Path_Dispatch[REB_MAX];
 //
 // Evaluate next part of a path.
 //
+// !!! This is done as a recursive function instead of iterating in a loop due
+// to the unusual nature of some path dispatches that call Next_Path_Throws()
+// inside their implementation.
+//
 REBOOL Next_Path_Throws(REBPVS *pvs)
 {
     REBPEF dispatcher = Path_Dispatch[VAL_TYPE(pvs->value)];
@@ -91,6 +95,13 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
     else { // object/word and object/value case:
         Derelativize(&pvs->selector_cell, pvs->item, pvs->item_specifier);
     }
+
+    // Disallow voids from being used in path dispatch.  This rule seems like
+    // common sense for safety, and also corresponds to voids being illegal
+    // to use in SELECT.
+    //
+    if (IS_VOID(pvs->selector))
+        fail (Error_No_Value_Core(pvs->item, pvs->item_specifier));
 
     switch (dispatcher(pvs)) {
     case PE_OK:

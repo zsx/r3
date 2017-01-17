@@ -327,7 +327,8 @@ load: function [
         ;-- Load multiple sources?
         block? source [
             return map-each item source [
-                load/type/(if header 'header)/(if all_LOAD 'all) item :ftype
+                load/type/(all [header 'header])/(all [all_LOAD 'all])
+                    item :ftype
             ]
         ]
 
