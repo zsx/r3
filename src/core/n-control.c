@@ -574,7 +574,9 @@ REBNATIVE(switch)
         goto return_matched;
 
     if (REF(default)) {
-        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(default_case)))
+        const REBOOL only = FALSE;
+
+        if (Run_Success_Branch_Throws(D_OUT, ARG(default_case), only))
             goto return_thrown;
     }
     else
