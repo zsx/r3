@@ -486,34 +486,34 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         break;
 
     case REB_VARARGS: {
-        if (GET_VAL_FLAG(v, VARARGS_FLAG_NO_FRAME)) {
-            //
-            // A single-element shared series node is kept between
-            // instances of the same vararg that was created with
-            // MAKE ARRAY! - which fits compactly in a REBSER.
-            //
-            Queue_Mark_Array_Deep(VAL_VARARGS_ARRAY1(v));
-        }
-        else {
-            //
-            // VARARGS! can wind up holding a pointer to a frame that is
-            // not managed, because arguments are still being fulfilled
-            // in the frame where the varargs lives.  This is a bit snakey,
-            // but if that's the state it's in, then it need not worry
-            // about GC protecting the frame...because it protects itself
-            // so long as the function is running.  (If it tried to
-            // protect it, then it could hit unfinished/corrupt arg cells)
-            //
-            REBARR *varlist = VAL_BINDING(v);
-            if (GET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST)) {
-                if (IS_ARRAY_MANAGED(varlist)) {
-                    REBCTX *context = AS_CONTEXT(varlist);
-                    Queue_Mark_Context_Deep(context);
-                }
+        //
+        // Binding may be NULL if the varargs was a MAKE VARARGS! and hasn't
+        // been passed through any parameter.  Otherwise it is the frame
+        // context where the param and arg live (possibly expired).
+        //
+        REBARR *binding = v->extra.binding;
+        if (binding != NULL)
+            if (IS_ARRAY_MANAGED(binding))
+                Queue_Mark_Context_Deep(AS_CONTEXT(v->extra.binding));
+            else {
+                // !!! Should assert that the binding is to a frame that is
+                // in mid-fulfillment on the stack
             }
+
+        // The data feed is either a frame context or a singular block which
+        // holds the shared index among all same varargs into that array.
+        //
+        REBARR *feed = v->payload.varargs.feed;
+        assert(GET_SER_FLAG(feed, ARRAY_FLAG_VARLIST) || ARR_LEN(feed) == 1);
+        if (IS_ARRAY_MANAGED(feed))
+            Queue_Mark_Array_Subclass_Deep(feed);
+        else {
+            // !!! Should also assert that this is a frame in mid-fulfillment
+            // on the stack.
+            // 
+            assert(GET_SER_FLAG(feed, ARRAY_FLAG_VARLIST));
         }
-        break;
-    }
+        break; }
 
     case REB_OBJECT:
     case REB_FRAME:
@@ -1135,17 +1135,7 @@ static void Mark_Frame_Stack_Deep(void)
 
             assert(!IS_UNREADABLE_IF_DEBUG(arg) || f->doing_pickups);
 
-            if (
-                f->param != NULL
-                && !IS_UNREADABLE_IF_DEBUG(arg)
-                && IS_VARARGS(arg)
-                && arg->payload.varargs.arg == arg
-            ){
-                // Special case of REB_VARARGS where the frame is this one and
-                // not complete...don't mark (uninitialized cells)
-            }
-            else
-                Queue_Mark_Opt_Value_Deep(arg);
+            Queue_Mark_Opt_Value_Deep(arg);
         }
         assert(IS_END(param) ? IS_END(arg) : TRUE); // may not enforce
 
