@@ -113,16 +113,16 @@ REBNATIVE(verify)
         fail (Error(RE_VERIFY_FAILED, FALSE_VALUE));
     }
 
-    Reb_Enumerator e;
-    PUSH_SAFE_ENUMERATOR(&e, ARG(conditions)); // protects conditions during DO
+    REBFRM f;
+    Push_Frame(&f, ARG(conditions));
 
-    while (NOT_END(e.value)) {
-        UPDATE_EXPRESSION_START(&e); // informs the error delivery better
+    while (NOT_END(f.value)) {
+        UPDATE_EXPRESSION_START(&f); // informs the error delivery better
 
-        const RELVAL *start = e.value;
-        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_NORMAL);
+        const RELVAL *start = f.value;
+        Do_Next_In_Frame_May_Throw(D_OUT, &f, DO_FLAG_NORMAL);
         if (THROWN(D_OUT)) {
-            DROP_SAFE_ENUMERATOR(&e);
+            Drop_Frame(&f);
             return R_OUT_IS_THROWN;
         }
 
@@ -132,7 +132,7 @@ REBNATIVE(verify)
         REBVAL temp;
         Init_Block(
             &temp,
-            Copy_Values_Len_Shallow(start, e.specifier, e.value - start)
+            Copy_Values_Len_Shallow(start, f.specifier, f.value - start)
         );
 
         if (IS_VOID(D_OUT))
@@ -141,7 +141,7 @@ REBNATIVE(verify)
         fail (Error(RE_VERIFY_FAILED, &temp));
     }
 
-    DROP_SAFE_ENUMERATOR(&e);
+    Drop_Frame(&f);
     return R_VOID;
 }
 

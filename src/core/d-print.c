@@ -1016,7 +1016,7 @@ REBOOL Form_Value_Throws(
     // safe enumerator interface.  This protects the value from GC implicitly.
 
     if (IS_BLOCK(value))
-        PUSH_SAFE_ENUMERATOR(f, value);
+        Push_Frame(f, value);
     else {
         REBARR *array = Alloc_Singular_Array();
         *ARR_HEAD(array) = *value;
@@ -1024,7 +1024,7 @@ REBOOL Form_Value_Throws(
         REBVAL blockified_value;
         Init_Block(&blockified_value, array); // manages
 
-        PUSH_SAFE_ENUMERATOR(f, &blockified_value);
+        Push_Frame(f, &blockified_value);
     }
 
     while (NOT_END(f->value)) {
@@ -1032,7 +1032,7 @@ REBOOL Form_Value_Throws(
 
         const RELVAL *item = f->value;
         if (flags & FORM_FLAG_REDUCE) {
-            DO_NEXT_REFETCH_MAY_THROW(out, f, DO_FLAG_NORMAL);
+            Do_Next_In_Frame_May_Throw(out, f, DO_FLAG_NORMAL);
             if (THROWN(out))
                 goto return_thrown;
 
@@ -1053,7 +1053,7 @@ REBOOL Form_Value_Throws(
             //
             literal = FALSE;
 
-            FETCH_NEXT_ONLY_MAYBE_END(f);
+            Fetch_Next_In_Frame(f);
         }
 
         if (IS_CHAR(item)) {
@@ -1160,7 +1160,7 @@ REBOOL Form_Value_Throws(
             if (!IS_BAR(f->value))
                 break;
 
-            FETCH_NEXT_ONLY_MAYBE_END(f);
+            Fetch_Next_In_Frame(f);
         }
 
         // If we just output a string literal and the next item is also a
@@ -1183,12 +1183,12 @@ REBOOL Form_Value_Throws(
     }
 
     SET_UNREADABLE_BLANK(out); // no return result unless thrown
-    DROP_SAFE_ENUMERATOR(f);
+    Drop_Frame(f);
     return FALSE; // not thrown (also `out` may not be initialized)
 
 return_thrown:
     assert(THROWN(out));
-    DROP_SAFE_ENUMERATOR(f);
+    Drop_Frame(f);
     return TRUE; // thrown
 }
 

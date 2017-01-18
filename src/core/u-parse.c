@@ -93,7 +93,7 @@
 #define P_OUT (f->out)
 
 #define FETCH_NEXT_RULE_MAYBE_END(f) \
-    FETCH_NEXT_ONLY_MAYBE_END(f)
+    Fetch_Next_In_Frame(f)
 
 #define FETCH_TO_BAR_MAYBE_END(f) \
     while (NOT_END(P_RULE) && !IS_BAR(P_RULE)) \
@@ -220,7 +220,7 @@ static REBOOL Subparse_Throws(
     f->refine = NULL;
     f->special = m_cast(REBVAL*, END_CELL);
 
-    PUSH_CALL(f);
+    Push_Frame_Core(f);
 
     REB_R r = N_subparse(f);
 
@@ -232,7 +232,7 @@ static REBOOL Subparse_Throws(
     //
     Drop_Function_Args_For_Frame_Core(f, TRUE);
 
-    DROP_CALL(f);
+    Drop_Frame_Core(f);
 
     if (r == R_OUT_IS_THROWN) {
         assert(THROWN(out));

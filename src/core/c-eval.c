@@ -269,7 +269,7 @@ void Do_Core(REBFRM * const f)
         goto do_function_arglist_in_progress;
     }
 
-    PUSH_CALL(f);
+    Push_Frame_Core(f);
 
 #if !defined(NDEBUG)
     SNAP_STATE(&f->state); // to make sure stack balances, etc.
@@ -384,7 +384,7 @@ reevaluate:;
         Push_Or_Alloc_Args_For_Underlying_Func(f); // sets f's func, param, arg
 
         f->gotten = NULL;
-        FETCH_NEXT_ONLY_MAYBE_END(f); // overwrites f->value
+        Fetch_Next_In_Frame(f); // overwrites f->value
 
     do_function_arglist_in_progress:
 
@@ -844,7 +844,7 @@ reevaluate:;
    //=//// IF EVAL/ONLY SEMANTICS, TAKE NEXT ARG WITHOUT EVALUATION //////=//
 
             if (!args_evaluate) {
-                QUOTE_NEXT_REFETCH(f->arg, f); // has VALUE_FLAG_UNEVALUATED
+                Quote_Next_In_Frame(f->arg, f); // has VALUE_FLAG_UNEVALUATED
                 goto check_arg;
             }
 
@@ -861,7 +861,7 @@ reevaluate:;
                 // `(square 1) + 2`, by not applying lookahead to
                 // see the + during the argument evaluation.
                 //
-                DO_NEXT_REFETCH_MAY_THROW(
+                Do_Next_In_Frame_May_Throw(
                     f->arg,
                     f,
                     (GET_VAL_FLAG(f->param, TYPESET_FLAG_TIGHT)
@@ -879,14 +879,14 @@ reevaluate:;
     //=//// HARD QUOTED ARG-OR-REFINEMENT-ARG /////////////////////////////=//
 
             case PARAM_CLASS_HARD_QUOTE:
-                QUOTE_NEXT_REFETCH(f->arg, f); // has VALUE_FLAG_UNEVALUATED
+                Quote_Next_In_Frame(f->arg, f); // has VALUE_FLAG_UNEVALUATED
                 break;
 
     //=//// SOFT QUOTED ARG-OR-REFINEMENT-ARG  ////////////////////////////=//
 
             case PARAM_CLASS_SOFT_QUOTE:
                 if (!IS_QUOTABLY_SOFT(f->value)) {
-                    QUOTE_NEXT_REFETCH(f->arg, f); // VALUE_FLAG_UNEVALUATED
+                    Quote_Next_In_Frame(f->arg, f); // VALUE_FLAG_UNEVALUATED
                     goto check_arg;
                 }
 
@@ -896,7 +896,7 @@ reevaluate:;
                     goto finished;
                 }
 
-                FETCH_NEXT_ONLY_MAYBE_END(f);
+                Fetch_Next_In_Frame(f);
                 break;
 
             default:
@@ -1280,7 +1280,7 @@ reevaluate:;
 //==//////////////////////////////////////////////////////////////////////==//
 
     case REB_BAR:
-        FETCH_NEXT_ONLY_MAYBE_END(f);
+        Fetch_Next_In_Frame(f);
         if (NOT_END(f->value)) {
             f->eval_type = VAL_TYPE(f->value);
             goto do_next; // quickly process next item, no infix test needed
@@ -1302,7 +1302,7 @@ reevaluate:;
 
     case REB_LIT_BAR:
         SET_BAR(f->out); // no VALUE_FLAG_UNEVALUATED
-        FETCH_NEXT_ONLY_MAYBE_END(f);
+        Fetch_Next_In_Frame(f);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1353,7 +1353,7 @@ reevaluate:;
         *f->out = *f->gotten;
         CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
         f->gotten = NULL;
-        FETCH_NEXT_ONLY_MAYBE_END(f);
+        Fetch_Next_In_Frame(f);
 
     #if !defined(NDEBUG)
         if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(f->out))
@@ -1385,7 +1385,7 @@ reevaluate:;
 
         // ^-- see Do_Pending_Sets_May_Invalidate_Gotten() for real assignment
 
-        FETCH_NEXT_ONLY_MAYBE_END(f);
+        Fetch_Next_In_Frame(f);
         if (IS_END(f->value))
             fail (Error(RE_NEED_VALUE, DS_TOP)); // e.g. `do [foo:]`
         f->eval_type = VAL_TYPE(f->value);
@@ -1417,7 +1417,7 @@ reevaluate:;
     case REB_GET_WORD:
         Copy_Opt_Var_May_Fail(f->out, f->value, f->specifier);
         CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
-        FETCH_NEXT_ONLY_MAYBE_END(f);
+        Fetch_Next_In_Frame(f);
         break;
 
 //==/////////////////////////////////////////////////////////////////////==//
@@ -1430,7 +1430,7 @@ reevaluate:;
 //==//////////////////////////////////////////////////////////////////////==//
 
     case REB_LIT_WORD:
-        QUOTE_NEXT_REFETCH(f->out, f); // we clear VALUE_FLAG_UNEVALUATED
+        Quote_Next_In_Frame(f->out, f); // we clear VALUE_FLAG_UNEVALUATED
         VAL_SET_TYPE_BITS(f->out, REB_WORD);
         CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
         break;
@@ -1470,7 +1470,7 @@ reevaluate:;
         }
 
         CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
-        FETCH_NEXT_ONLY_MAYBE_END(f);
+        Fetch_Next_In_Frame(f);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1517,7 +1517,7 @@ reevaluate:;
         }
 
         CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
-        FETCH_NEXT_ONLY_MAYBE_END(f);
+        Fetch_Next_In_Frame(f);
         break;
     }
 
@@ -1551,7 +1551,7 @@ reevaluate:;
 
         // ^-- see Do_Pending_Sets_May_Invalidate_Gotten() for real assignment
 
-        FETCH_NEXT_ONLY_MAYBE_END(f);
+        Fetch_Next_In_Frame(f);
         if (IS_END(f->value))
             fail (Error(RE_NEED_VALUE, DS_TOP)); // `do [a/b/c:]` is illegal
         f->eval_type = VAL_TYPE(f->value);
@@ -1590,7 +1590,7 @@ reevaluate:;
         }
 
         CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
-        FETCH_NEXT_ONLY_MAYBE_END(f);
+        Fetch_Next_In_Frame(f);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1605,7 +1605,7 @@ reevaluate:;
 //==//////////////////////////////////////////////////////////////////////==//
 
     case REB_LIT_PATH:
-        QUOTE_NEXT_REFETCH(f->out, f);
+        Quote_Next_In_Frame(f->out, f);
         VAL_SET_TYPE_BITS(f->out, REB_PATH);
         CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
         break;
@@ -1619,7 +1619,7 @@ reevaluate:;
     default:
     inert:
         assert(f->eval_type < REB_MAX);
-        QUOTE_NEXT_REFETCH(f->out, f); // has VALUE_FLAG_UNEVALUATED
+        Quote_Next_In_Frame(f->out, f); // has VALUE_FLAG_UNEVALUATED
         break;
     }
 
@@ -1748,7 +1748,7 @@ finished:
     // Restore the top of stack (if there is a fail() and associated longjmp,
     // this restoration will be done by the Drop_Trap helper.)
     //
-    DROP_CALL(f);
+    Drop_Frame_Core(f);
 
     // All callers must inspect for THROWN(f->out), and most should also
     // inspect for IS_END(f->value)

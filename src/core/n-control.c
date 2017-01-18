@@ -174,21 +174,17 @@ REBNATIVE(all)
 {
     INCLUDE_PARAMS_OF_ALL;
 
-    Reb_Enumerator e;
-    PUSH_SAFE_ENUMERATOR(&e, ARG(block)); // DO-ing code could disrupt `block`
-
-    if (IS_END(e.value)) { // `all []` is rare, but acts like `all [() ()]`
-        DROP_SAFE_ENUMERATOR(&e);
-        return R_VOID;
-    }
-
     assert(IS_END(D_OUT)); // guaranteed by the evaluator
 
-    do {
+    REBFRM f;
+    Push_Frame(&f, ARG(block));
+
+    while (NOT_END(f.value)) {
         REBVAL temp;
-        DO_NEXT_REFETCH_MAY_THROW(&temp, &e, DO_FLAG_NORMAL);
+        Do_Next_In_Frame_May_Throw(&temp, &f, DO_FLAG_NORMAL);
+
         if (THROWN(&temp)) {
-            DROP_SAFE_ENUMERATOR(&e);
+            Drop_Frame(&f);
             *D_OUT = temp;
             return R_OUT_IS_THROWN;
         }
@@ -197,19 +193,18 @@ REBNATIVE(all)
             continue;
 
         if (IS_CONDITIONAL_FALSE(&temp)) { // a failed ALL returns BLANK!
-            DROP_SAFE_ENUMERATOR(&e);
+            Drop_Frame(&f);
             return R_BLANK;
         }
 
         *D_OUT = temp; // preserve value (not overwritten by later voids)
-    } while (NOT_END(e.value));
+    }
 
-    DROP_SAFE_ENUMERATOR(&e);
+    Drop_Frame(&f);
 
-    if (IS_END(D_OUT)) // no successes or failures found (all opt-outs)
-        return R_VOID;
-
-    return R_OUT;
+    // If IS_END(out), no successes or failures found (all opt-outs)
+    //
+    return R_OUT_VOID_IF_UNWRITTEN;
 }
 
 
@@ -228,20 +223,15 @@ REBNATIVE(any)
 {
     INCLUDE_PARAMS_OF_ANY;
 
-    Reb_Enumerator e;
-    PUSH_SAFE_ENUMERATOR(&e, ARG(block)); // DO-ing code could disrupt `block`
-
-    if (IS_END(e.value)) { // `any []` is rare, but acts like `any [() ()]`
-        DROP_SAFE_ENUMERATOR(&e);
-        return R_VOID;
-    }
+    REBFRM f;
+    Push_Frame(&f, ARG(block));
 
     REBOOL voted = FALSE;
 
-    do {
-        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_NORMAL);
+    while (NOT_END(f.value)) {
+        Do_Next_In_Frame_May_Throw(D_OUT, &f, DO_FLAG_NORMAL);
         if (THROWN(D_OUT)) {
-            DROP_SAFE_ENUMERATOR(&e);
+            Drop_Frame(&f);
             return R_OUT_IS_THROWN;
         }
 
@@ -249,14 +239,14 @@ REBNATIVE(any)
             continue;
 
         if (IS_CONDITIONAL_TRUE(D_OUT)) { // successful ANY returns the value
-            DROP_SAFE_ENUMERATOR(&e);
+            Drop_Frame(&f);
             return R_OUT;
         }
 
         voted = TRUE; // signal at least one non-void result was seen
-    } while (NOT_END(e.value));
+    }
 
-    DROP_SAFE_ENUMERATOR(&e);
+    Drop_Frame(&f);
 
     if (voted)
         return R_BLANK;
@@ -283,20 +273,15 @@ REBNATIVE(none)
 {
     INCLUDE_PARAMS_OF_NONE;
 
-    Reb_Enumerator e;
-    PUSH_SAFE_ENUMERATOR(&e, ARG(block)); // DO-ing code could disrupt `block`
-
-    if (IS_END(e.value)) { // `none []` is rare, but acts like `none [() ()]`
-        DROP_SAFE_ENUMERATOR(&e);
-        return R_VOID;
-    }
+    REBFRM f;
+    Push_Frame(&f, ARG(block));
 
     REBOOL voted = FALSE;
 
-    do {
-        DO_NEXT_REFETCH_MAY_THROW(D_OUT, &e, DO_FLAG_NORMAL);
+    while (NOT_END(f.value)) {
+        Do_Next_In_Frame_May_Throw(D_OUT, &f, DO_FLAG_NORMAL);
         if (THROWN(D_OUT)) {
-            DROP_SAFE_ENUMERATOR(&e);
+            Drop_Frame(&f);
             return R_OUT_IS_THROWN;
         }
 
@@ -304,14 +289,14 @@ REBNATIVE(none)
             continue;
 
         if (IS_CONDITIONAL_TRUE(D_OUT)) { // any true results mean failure
-            DROP_SAFE_ENUMERATOR(&e);
+            Drop_Frame(&f);
             return R_BLANK;
         }
 
         voted = TRUE; // signal that at least one non-void result was seen
-    } while (NOT_END(e.value));
+    }
 
-    DROP_SAFE_ENUMERATOR(&e);
+    Drop_Frame(&f);
 
     if (voted)
         return R_BAR;
@@ -341,23 +326,23 @@ REBNATIVE(case)
 {
     INCLUDE_PARAMS_OF_CASE; // ? is renamed as "q"
 
-    Reb_Enumerator e;
-    PUSH_SAFE_ENUMERATOR(&e, ARG(block)); // DO-ing cases could disrupt `block`
+    REBFRM f;
+    Push_Frame(&f, ARG(block));
 
     // With the block argument pushed in the enumerator, that frame slot is
     // available for scratch space in the rest of the routine.
 
-    while (NOT_END(e.value)) {
-        UPDATE_EXPRESSION_START(&e); // informs the error delivery better
+    while (NOT_END(f.value)) {
+        UPDATE_EXPRESSION_START(&f); // informs the error delivery better
 
-        if (IS_BAR(e.value)) { // interstitial BAR! legal, `case [1 2 | 3 4]`
-            FETCH_NEXT_ONLY_MAYBE_END(&e);
+        if (IS_BAR(f.value)) { // interstitial BAR! legal, `case [1 2 | 3 4]`
+            Fetch_Next_In_Frame(&f);
             continue;
         }
 
         // Perform a DO/NEXT's worth of evaluation on a "condition" to test
 
-        DO_NEXT_REFETCH_MAY_THROW(D_CELL, &e, DO_FLAG_NORMAL);
+        Do_Next_In_Frame_May_Throw(D_CELL, &f, DO_FLAG_NORMAL);
         if (THROWN(D_CELL)) {
             *D_OUT = *D_CELL;
             goto return_thrown;
@@ -366,10 +351,10 @@ REBNATIVE(case)
         if (IS_VOID(D_CELL)) // no void conditions allowed (as with IF)
             fail (Error(RE_NO_RETURN));
 
-        if (IS_END(e.value)) // require conditions and branches in pairs
+        if (IS_END(f.value)) // require conditions and branches in pairs
             fail (Error(RE_PAST_END));
 
-        if (IS_BAR(e.value)) // BAR! out of sync, between condition and branch
+        if (IS_BAR(f.value)) // BAR! out of sync, between condition and branch
             fail (Error(RE_BAR_HIT_MID_CASE));
 
         // Regardless of whether a "condition" was true or false, it's
@@ -387,7 +372,7 @@ REBNATIVE(case)
         // GROUP! as in `case [([x]) [y]]`.
         //
         if (NOT(IS_CONDITIONAL_TRUE_SAFE(D_CELL))) {
-            DO_NEXT_REFETCH_MAY_THROW(D_CELL, &e, DO_FLAG_NORMAL);
+            Do_Next_In_Frame_May_Throw(D_CELL, &f, DO_FLAG_NORMAL);
             if (THROWN(D_CELL)) {
                 *D_OUT = *D_CELL;
                 goto return_thrown;
@@ -416,7 +401,7 @@ REBNATIVE(case)
         //
         // Similar to IF TRUE STUFF, so CASE can act like many IFs at once.
 
-        DO_NEXT_REFETCH_MAY_THROW(D_CELL, &e, DO_FLAG_NORMAL);
+        Do_Next_In_Frame_May_Throw(D_CELL, &f, DO_FLAG_NORMAL);
         if (THROWN(D_CELL)) {
             *D_OUT = *D_CELL;
             goto return_thrown;
@@ -430,22 +415,23 @@ REBNATIVE(case)
         if (Run_Success_Branch_Throws(D_OUT, D_CELL, REF(only)))
             goto return_thrown;
 
-        if (NOT(REF(all))) goto return_matched;
+        if (NOT(REF(all)))
+            goto return_matched;
 
         // keep matching if /ALL
     }
 
 //return_maybe_matched:
-    DROP_SAFE_ENUMERATOR(&e);
+    Drop_Frame(&f);
     return R_OUT_Q(REF(q)); // if /?, detect if D_OUT was written to
 
 return_matched:
-    DROP_SAFE_ENUMERATOR(&e);
+    Drop_Frame(&f);
     if (REF(q)) return R_TRUE; // /? gets TRUE if at least one case ran
     return R_OUT;
 
 return_thrown:
-    DROP_SAFE_ENUMERATOR(&e);
+    Drop_Frame(&f);
     return R_OUT_IS_THROWN;
 }
 
@@ -477,8 +463,8 @@ REBNATIVE(switch)
 {
     INCLUDE_PARAMS_OF_SWITCH; // ? is renamed as "q"
 
-    Reb_Enumerator e;
-    PUSH_SAFE_ENUMERATOR(&e, ARG(cases)); // DO-ing matches may disrupt `cases`
+    REBFRM f;
+    Push_Frame(&f, ARG(cases));
 
     // The evaluator always initializes the out slot to an END marker.  That
     // makes sure it gets overwritten with a value (or void) before returning.
@@ -500,13 +486,13 @@ REBNATIVE(switch)
 
     SET_VOID(D_CELL); // used for "fallout"
 
-    while (NOT_END(e.value)) {
+    while (NOT_END(f.value)) {
 
         // If a block is seen at this point, it doesn't correspond to any
         // condition to match.  If no more tests are run, let it suppress the
         // feature of the last value "falling out" the bottom of the switch
 
-        if (IS_BLOCK(e.value)) {
+        if (IS_BLOCK(f.value)) {
             SET_VOID(D_CELL);
             goto continue_loop;
         }
@@ -515,18 +501,17 @@ REBNATIVE(switch)
         // All other types are seen as-is (hence words act "quoted")
 
         if (
-            IS_GROUP(e.value)
-            || IS_GET_WORD(e.value)
-            || IS_GET_PATH(e.value)
-            ) {
-            if (EVAL_VALUE_CORE_THROWS(D_CELL, e.value, e.specifier)) {
+            IS_GROUP(f.value)
+            || IS_GET_WORD(f.value)
+            || IS_GET_PATH(f.value)
+        ){
+            if (EVAL_VALUE_CORE_THROWS(D_CELL, f.value, f.specifier)) {
                 *D_OUT = *D_CELL;
                 goto return_thrown;
             }
-            // Note: e.value may have gone stale during DO, must REFETCH
         }
         else
-            Derelativize(D_CELL, e.value, e.specifier);
+            Derelativize(D_CELL, f.value, f.specifier);
 
         // It's okay that we are letting the comparison change `value`
         // here, because equality is supposed to be transitive.  So if it
@@ -544,31 +529,32 @@ REBNATIVE(switch)
         // Skip ahead to try and find a block, to treat as code for the match
 
         do {
-            FETCH_NEXT_ONLY_MAYBE_END(&e);
-            if (IS_END(e.value))
+            Fetch_Next_In_Frame(&f);
+            if (IS_END(f.value))
                 goto return_defaulted;
-        } while (!IS_BLOCK(e.value));
+        } while (!IS_BLOCK(f.value));
 
         // Run the code if it was found.  Because it writes D_OUT with a value
         // (or void), it won't be END--so we'll know at least one case has run.
 
         if (Do_At_Throws(
             D_OUT,
-            VAL_ARRAY(e.value),
-            VAL_INDEX(e.value),
-            IS_RELATIVE(e.value)
+            VAL_ARRAY(f.value),
+            VAL_INDEX(f.value),
+            IS_RELATIVE(f.value)
             ? VAL_SPECIFIER(ARG(cases)) // if relative, use parent's...
-            : VAL_SPECIFIER(const_KNOWN(e.value)) // ...else use child's
+            : VAL_SPECIFIER(const_KNOWN(f.value)) // ...else use child's
         )) {
             goto return_thrown;
         }
 
         // Only keep processing if the /ALL refinement was specified
 
-        if (NOT(REF(all))) goto return_matched;
+        if (NOT(REF(all)))
+            goto return_matched;
 
     continue_loop:
-        FETCH_NEXT_ONLY_MAYBE_END(&e);
+        Fetch_Next_In_Frame(&f);
     }
 
     if (NOT_END(D_OUT)) // at least one case body's DO ran and overwrote D_OUT
@@ -584,17 +570,19 @@ return_defaulted:
     else
         *D_OUT = *D_CELL; // let last test value "fall out", might be void
 
-    DROP_SAFE_ENUMERATOR(&e);
-    if (REF(q)) return R_FALSE; // running default code doesn't count for /?
+    Drop_Frame(&f);
+    if (REF(q))
+        return R_FALSE; // running default code doesn't count for /?
     return R_OUT;
 
 return_matched:
-    DROP_SAFE_ENUMERATOR(&e);
-    if (REF(q)) return R_TRUE;
+    Drop_Frame(&f);
+    if (REF(q))
+        return R_TRUE;
     return R_OUT;
 
 return_thrown:
-    DROP_SAFE_ENUMERATOR(&e);
+    Drop_Frame(&f);
     return R_OUT_IS_THROWN;
 }
 

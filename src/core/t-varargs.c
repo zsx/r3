@@ -189,7 +189,7 @@ REBIXO Do_Vararg_Op_May_Throw(
     ){
         // !!! "f" frame is eval_type REB_FUNCTION and we can't disrupt that.
         // If we were going to reuse this fetch then we'd have to build a
-        // child frame and call Do_Core() instead of DO_NEXT_REFETCH_MAY_THROW
+        // child frame and call Do_Core(), not Do_Next_In_Frame_May_Throw()
         // because it would be child->eval_type and child->gotten we pre-set
         //
         enum Reb_Kind child_eval_type;
@@ -218,7 +218,7 @@ REBIXO Do_Vararg_Op_May_Throw(
     case PARAM_CLASS_NORMAL:
         if (op == VARARG_OP_TAIL_Q) return VA_LIST_FLAG;
 
-        DO_NEXT_REFETCH_MAY_THROW(
+        Do_Next_In_Frame_May_Throw(
             out,
             f,
             DO_FLAG_VARIADIC_TAKE |
@@ -241,7 +241,7 @@ REBIXO Do_Vararg_Op_May_Throw(
     case PARAM_CLASS_HARD_QUOTE:
         if (op == VARARG_OP_TAIL_Q) return VA_LIST_FLAG;
 
-        QUOTE_NEXT_REFETCH(out, f);
+        Quote_Next_In_Frame(out, f);
         if (arg)
             SET_VAL_FLAG(arg, VALUE_FLAG_UNEVALUATED);
         break;
@@ -263,12 +263,12 @@ REBIXO Do_Vararg_Op_May_Throw(
                 else
                     CLEAR_VAL_FLAG(arg, VALUE_FLAG_UNEVALUATED);
             }
-            FETCH_NEXT_ONLY_MAYBE_END(f);
+            Fetch_Next_In_Frame(f);
         }
         else { // not a soft-"exception" case, quote ordinarily
             if (op == VARARG_OP_TAIL_Q) return VA_LIST_FLAG;
 
-            QUOTE_NEXT_REFETCH(out, f);
+            Quote_Next_In_Frame(out, f);
 
             if (arg)
                 SET_VAL_FLAG(arg, VALUE_FLAG_UNEVALUATED);

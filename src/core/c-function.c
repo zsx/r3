@@ -204,11 +204,11 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     REBOOL refinement_seen = FALSE;
 
     REBFRM f;
-    PUSH_SAFE_ENUMERATOR(&f, spec); // helps deliver better error messages, etc
+    Push_Frame(&f, spec);
 
     while (NOT_END(f.value)) {
         const RELVAL *item = f.value; // gets "faked", e.g. <return> => RETURN:
-        FETCH_NEXT_ONLY_MAYBE_END(&f); // go ahead and consume next
+        Fetch_Next_In_Frame(&f); // go ahead and consume next
 
     //=//// STRING! FOR FUNCTION DESCRIPTION OR PARAMETER NOTE ////////////=//
 
@@ -526,7 +526,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             SET_VAL_FLAG(typeset, TYPESET_FLAG_DURABLE);
     }
 
-    DROP_SAFE_ENUMERATOR(&f);
+    Drop_Frame(&f);
 
     // Go ahead and flesh out the TYPESET! BLOCK! STRING! triples.
     //
@@ -1966,7 +1966,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
     // binding, the stack gets walked to resolve variables.   Hence in the
     // apply case, Do_Core doesn't do its own push to the frame stack.
     //
-    PUSH_CALL(f);
+    Push_Frame_Core(f);
 
 #if !defined(NDEBUG)
     //
@@ -2055,7 +2055,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
         // thrown, in which case it must be returned.)
         //
         if (DO_VAL_ARRAY_AT_THROWS(f->out, opt_def)) {
-            DROP_CALL(f);
+            Drop_Frame_Core(f);
             return R_OUT_IS_THROWN;
         }
     }

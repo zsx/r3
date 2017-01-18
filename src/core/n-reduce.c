@@ -53,29 +53,29 @@ REBOOL Reduce_Any_Array_Throws(
 
     REBDSP dsp_orig = DSP;
 
-    Reb_Enumerator e;
-    PUSH_SAFE_ENUMERATOR(&e, any_array); // REDUCE-ing could disrupt any-array
+    REBFRM f;
+    Push_Frame(&f, any_array);
 
-    while (NOT_END(e.value)) {
-        UPDATE_EXPRESSION_START(&e); // informs the error delivery better
+    while (NOT_END(f.value)) {
+        UPDATE_EXPRESSION_START(&f); // informs the error delivery better
 
-        if (IS_BAR(e.value)) {
+        if (IS_BAR(f.value)) {
             if (flags & REDUCE_FLAG_KEEP_BARS) {
                 DS_PUSH_TRASH;
-                QUOTE_NEXT_REFETCH(DS_TOP, &e);
+                Quote_Next_In_Frame(DS_TOP, &f);
             }
             else
-                FETCH_NEXT_ONLY_MAYBE_END(&e);
+                Fetch_Next_In_Frame(&f);
 
             continue;
         }
 
         REBVAL reduced;
-        DO_NEXT_REFETCH_MAY_THROW(&reduced, &e, DO_FLAG_NORMAL);
+        Do_Next_In_Frame_May_Throw(&reduced, &f, DO_FLAG_NORMAL);
         if (THROWN(&reduced)) {
             *out = reduced;
             DS_DROP_TO(dsp_orig);
-            DROP_SAFE_ENUMERATOR(&e);
+            Drop_Frame(&f);
             return TRUE;
         }
 
@@ -99,7 +99,7 @@ REBOOL Reduce_Any_Array_Throws(
     else
         Init_Any_Array(out, VAL_TYPE(any_array), Pop_Stack_Values(dsp_orig));
 
-    DROP_SAFE_ENUMERATOR(&e);
+    Drop_Frame(&f);
     return FALSE;
 }
 
@@ -195,23 +195,23 @@ REBOOL Compose_Any_Array_Throws(
 ) {
     REBDSP dsp_orig = DSP;
 
-    Reb_Enumerator e;
-    PUSH_SAFE_ENUMERATOR(&e, any_array); // evaluating could disrupt any_array
+    REBFRM f;
+    Push_Frame(&f, any_array);
 
-    while (NOT_END(e.value)) {
-        UPDATE_EXPRESSION_START(&e); // informs the error delivery better
+    while (NOT_END(f.value)) {
+        UPDATE_EXPRESSION_START(&f); // informs the error delivery better
 
-        if (IS_GROUP(e.value)) {
+        if (IS_GROUP(f.value)) {
             //
             // We evaluate here, but disable lookahead so it only evaluates
             // the GROUP! and doesn't trigger errors on what's after it.
             //
             REBVAL evaluated;
-            DO_NEXT_REFETCH_MAY_THROW(&evaluated, &e, DO_FLAG_NO_LOOKAHEAD);
+            Do_Next_In_Frame_May_Throw(&evaluated, &f, DO_FLAG_NO_LOOKAHEAD);
             if (THROWN(&evaluated)) {
                 *out = evaluated;
                 DS_DROP_TO(dsp_orig);
-                DROP_SAFE_ENUMERATOR(&e);
+                Drop_Frame(&f);
                 return TRUE;
             }
 
@@ -243,12 +243,12 @@ REBOOL Compose_Any_Array_Throws(
             }
         }
         else if (deep) {
-            if (IS_BLOCK(e.value)) {
+            if (IS_BLOCK(f.value)) {
                 //
                 // compose/deep [does [(1 + 2)] nested] => [does [3] nested]
 
                 REBVAL specific;
-                Derelativize(&specific, e.value, e.specifier);
+                Derelativize(&specific, f.value, f.specifier);
 
                 REBVAL composed;
                 if (Compose_Any_Array_Throws(
@@ -260,40 +260,40 @@ REBOOL Compose_Any_Array_Throws(
                 )) {
                     *out = composed;
                     DS_DROP_TO(dsp_orig);
-                    DROP_SAFE_ENUMERATOR(&e);
+                    Drop_Frame(&f);
                     return TRUE;
                 }
 
                 DS_PUSH(&composed);
             }
             else {
-                if (ANY_ARRAY(e.value)) {
+                if (ANY_ARRAY(f.value)) {
                     //
                     // compose [copy/(orig) (copy)] => [copy/(orig) (copy)]
                     // !!! path and second group are copies, first group isn't
                     //
                     REBARR *copy = Copy_Array_Shallow(
-                        VAL_ARRAY(e.value),
-                        IS_RELATIVE(e.value)
-                            ? e.specifier // use parent specifier if relative...
-                            : VAL_SPECIFIER(const_KNOWN(e.value)) // else child's
+                        VAL_ARRAY(f.value),
+                        IS_RELATIVE(f.value)
+                            ? f.specifier // use parent specifier if relative...
+                            : VAL_SPECIFIER(const_KNOWN(f.value)) // child's
                     );
                     DS_PUSH_TRASH;
                     Init_Any_Array_At(
-                        DS_TOP, VAL_TYPE(e.value), copy, VAL_INDEX(e.value)
+                        DS_TOP, VAL_TYPE(f.value), copy, VAL_INDEX(f.value)
                     ); // ...manages
                 }
                 else
-                    DS_PUSH_RELVAL(e.value, e.specifier);
+                    DS_PUSH_RELVAL(f.value, f.specifier);
             }
-            FETCH_NEXT_ONLY_MAYBE_END(&e);
+            Fetch_Next_In_Frame(&f);
         }
         else {
             //
             // compose [[(1 + 2)] (reverse "wollahs")] => [[(1 + 2)] "shallow"]
             //
-            DS_PUSH_RELVAL(e.value, e.specifier);
-            FETCH_NEXT_ONLY_MAYBE_END(&e);
+            DS_PUSH_RELVAL(f.value, f.specifier);
+            Fetch_Next_In_Frame(&f);
         }
     }
 
@@ -302,7 +302,7 @@ REBOOL Compose_Any_Array_Throws(
     else
         Init_Any_Array(out, VAL_TYPE(any_array), Pop_Stack_Values(dsp_orig));
 
-    DROP_SAFE_ENUMERATOR(&e);
+    Drop_Frame(&f);
     return FALSE;
 }
 

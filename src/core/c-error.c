@@ -279,7 +279,7 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
             Drop_Function_Args_For_Frame_Core(f, FALSE); // don't drop chunks
 
         REBFRM *prior = f->prior;
-        DROP_CALL(f);
+        Drop_Frame_Core(f);
         f = prior;
     }
 

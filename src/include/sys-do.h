@@ -109,23 +109,23 @@ inline static REBOOL IS_QUOTABLY_SOFT(const RELVAL *v) {
 //
 // Operations are:
 //
-//  FETCH_NEXT_ONLY_MAYBE_END
+// Fetch_Next_In_Frame()
 //
 //      Retrieve next pointer for examination to f->value.  The previous
 //      f->value pointer is overwritten.  (No REBVAL bits are moved by
 //      this operation, only the 'currently processing' pointer reassigned.)
 //      f->value may become an END marker...test with IS_END()
 //
-// DO_NEXT_REFETCH_MAY_THROW
+// Do_Next_In_Frame_May_Throw()
 //
 //      Executes the already-fetched pointer, consuming as much of the input
 //      as necessary to complete a /NEXT (or failing with an error).  This
 //      writes the computed REBVAL into a destination location.  After the
-//      operation, the next c->value pointer will already be fetched and
+//      operation, the next f->value pointer will already be fetched and
 //      waiting for examination or use.  The returned value may be THROWN(),
-//      and the f->value may IS_END().
+//      and IS_END(f->value) may be true after the operation.
 //
-// QUOTE_NEXT_REFETCH
+// Quote_Next_In_Frame()
 //
 //      This operation is fairly trivial in the sense that it just assigns
 //      the REBVAL bits pointed to by the current value to the destination
@@ -138,7 +138,7 @@ inline static REBOOL IS_QUOTABLY_SOFT(const RELVAL *v) {
 // optimize performance by working with the evaluator directly.
 //
 
-inline static void PUSH_CALL(REBFRM *f)
+inline static void Push_Frame_Core(REBFRM *f)
 {
     f->prior = TG_Frame_Stack;
     TG_Frame_Stack = f;
@@ -157,7 +157,7 @@ inline static void UPDATE_EXPRESSION_START(REBFRM *f) {
     f->expr_index = f->index;
 }
 
-inline static void DROP_CALL(REBFRM *f) {
+inline static void Drop_Frame_Core(REBFRM *f) {
     if (f->flags.bits & DO_FLAG_TOOK_FRAME_LOCK) {
         assert(GET_SER_INFO(f->source.array, SERIES_INFO_RUNNING));
         CLEAR_SER_INFO(f->source.array, SERIES_INFO_RUNNING);
@@ -172,19 +172,9 @@ inline static void DROP_CALL(REBFRM *f) {
 // that arbitrary user code may disrupt the array being enumerated.  If the
 // array is to expand, it might have a different data pointer entirely.
 //
-// The Reb_Enumerator abstracts whatever mechanism is used to deal with this
-// problem.  That could include doing nothing at all about it and just
-// incrementing the pointer and hoping for the best (R3-Alpha would do this
-// often).  However Ren-C reuses the same mechanism as its evaluator, which
-// is to hold a temporary lock on the array.
-//
 
-typedef REBFRM Reb_Enumerator;
-
-inline static void PUSH_SAFE_ENUMERATOR(
-    REBFRM *f,
-    const REBVAL *v
-) {
+inline static void Push_Frame(REBFRM *f, const REBVAL *v)
+{
     SET_FRAME_VALUE(f, VAL_ARRAY_AT(v));
     f->source.array = VAL_ARRAY(v);
 
@@ -196,11 +186,14 @@ inline static void PUSH_SAFE_ENUMERATOR(
     f->eval_type = REB_MAX_VOID;
     f->pending = NULL;
     f->out = m_cast(REBVAL*, END_CELL); // no out here, but needs to be GC safe
-    PUSH_CALL(f);
+    Push_Frame_Core(f);
 }
 
-#define DROP_SAFE_ENUMERATOR(f) \
-    DROP_CALL(f)
+inline static void Drop_Frame(REBFRM *f)
+{
+    assert(f->eval_type == REB_MAX_VOID);
+    Drop_Frame_Core(f);
+}
 
 
 #if 0 && !defined(NDEBUG)
@@ -217,15 +210,15 @@ inline static void PUSH_SAFE_ENUMERATOR(
 #define VA_LIST_PENDING cast(const RELVAL*, &PG_Va_List_Pending)
 
 //
-// FETCH_NEXT_ONLY_MAYBE_END (see notes above)
+// Fetch_Next_In_Frame() (see notes above)
 //
 // This routine is optimized assuming the common case is that values are
 // being read out of an array.  Whether to read out of a C va_list or to use
 // a "virtual" next value (e.g. an old value saved by EVAL) are both indicated
 // by f->pending, hence a NULL test of that can be executed quickly.
 //
-inline static void FETCH_NEXT_ONLY_MAYBE_END(REBFRM *f) {
-    TRACE_FETCH_DEBUG("FETCH_NEXT_ONLY_MAYBE_END", f, FALSE);
+inline static void Fetch_Next_In_Frame(REBFRM *f) {
+    TRACE_FETCH_DEBUG("Fetch_Next_In_Frame", f, FALSE);
 
     // If f->value is pointing to f->cell, it's possible that it may wind up
     // with an END in it between fetches if f->cell gets reused (as in when
@@ -255,7 +248,7 @@ inline static void FETCH_NEXT_ONLY_MAYBE_END(REBFRM *f) {
             f->pending = NULL;
     }
 
-    TRACE_FETCH_DEBUG("FETCH_NEXT_ONLY_MAYBE_END", f, TRUE);
+    TRACE_FETCH_DEBUG("Fetch_Next_In_Frame", f, TRUE);
 }
 
 
@@ -577,27 +570,27 @@ inline static REBOOL Fulfilling_Last_Argument(struct Reb_Frame *f) {
 
 
 //
-// DO_NEXT_REFETCH_MAY_THROW provides some slick optimization for the
-// evaluator, by taking the simpler cases which can be done without a nested
-// frame and handing them back more immediately.
+// This operation provides some optimization beyond Do_Core(), by taking the
+// simpler cases which can be done without a nested frame and handing them
+// back more immediately.
 //
 // Just skipping the evaluator for ET_INERT types that evaluate to themselves
 // is not possible--due to the role of infix.  So the code has to be somewhat
 // clever about testing for that.  Also, it is written in a way that if an
 // optimization cannot be done, the work it did to find out that fact can
-// be reused by Do_Core.
+// be reused by Do_Core().
 //
 // The debug build exercises both code paths, by optimizing every other
 // execution to bypass the evaluator if possible...and then throwing
 // the code through Do_Core the other times.  It's a sampling test, but
 // not a bad one for helping keep the methods in sync.
 //
-inline static void DO_NEXT_REFETCH_MAY_THROW(
+inline static void Do_Next_In_Frame_May_Throw(
     REBVAL *out,
     REBFRM *parent,
     REBUPT flags
 ){
-    TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_MAY_THROW", parent, FALSE);
+    TRACE_FETCH_DEBUG("Do_Next_In_Frame_May_Throw", parent, FALSE);
 
     REBFRM child_frame;
     REBFRM *child = &child_frame;
@@ -679,7 +672,7 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
     //if (SPORADICALLY(2)) goto no_optimization; // skip half the time to test
 #endif
 
-    FETCH_NEXT_ONLY_MAYBE_END(parent);
+    Fetch_Next_In_Frame(parent);
     if (IS_END(parent->value))
         return;
 
@@ -720,7 +713,7 @@ inline static void DO_NEXT_REFETCH_MAY_THROW(
             child->eval_type = REB_WORD;
     }
 
-    TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_MAY_THROW", parent, TRUE);
+    TRACE_FETCH_DEBUG("Do_Next_In_Frame_May_Throw", parent, TRUE);
     return;
 
 no_optimization:
@@ -750,17 +743,19 @@ no_optimization:
     parent->index = child->index;
     parent->gotten = child->gotten;
 
-    TRACE_FETCH_DEBUG("DO_NEXT_REFETCH_MAY_THROW", parent, TRUE);
+    TRACE_FETCH_DEBUG("Do_Next_In_Frame_May_Throw", parent, TRUE);
 }
 
 
-inline static void QUOTE_NEXT_REFETCH(REBVAL *dest, REBFRM *f) {
-    TRACE_FETCH_DEBUG("QUOTE_NEXT_REFETCH", f, FALSE);
+inline static void Quote_Next_In_Frame(REBVAL *dest, REBFRM *f) {
+    TRACE_FETCH_DEBUG("Quote_Next_In_Frame", f, FALSE);
+
     Derelativize(dest, f->value, f->specifier);
     SET_VAL_FLAG(dest, VALUE_FLAG_UNEVALUATED);
     f->gotten = NULL;
-    FETCH_NEXT_ONLY_MAYBE_END(f);
-    TRACE_FETCH_DEBUG("QUOTE_NEXT_REFETCH", (f), TRUE);
+    Fetch_Next_In_Frame(f);
+
+    TRACE_FETCH_DEBUG("Quote_Next_In_Frame", f, TRUE);
 }
 
 
@@ -817,7 +812,7 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     f->gotten = NULL;
     f->eval_type = VAL_TYPE(f->value);
 
-    DO_NEXT_REFETCH_MAY_THROW(out, f, DO_FLAG_NORMAL);
+    Do_Next_In_Frame_May_Throw(out, f, DO_FLAG_NORMAL);
 
     if (THROWN(out))
         return THROWN_FLAG;
@@ -953,7 +948,7 @@ inline static void Reify_Va_To_Array_In_Frame(
     if (NOT_END(f->value)) {
         do {
             DS_PUSH_RELVAL(f->value, f->specifier); // may be void
-            FETCH_NEXT_ONLY_MAYBE_END(f);
+            Fetch_Next_In_Frame(f);
         } while (NOT_END(f->value));
 
         if (truncated)
