@@ -542,8 +542,8 @@ REBNATIVE(switch)
             VAL_ARRAY(f.value),
             VAL_INDEX(f.value),
             IS_RELATIVE(f.value)
-            ? VAL_SPECIFIER(ARG(cases)) // if relative, use parent's...
-            : VAL_SPECIFIER(const_KNOWN(f.value)) // ...else use child's
+                ? VAL_SPECIFIER(ARG(cases)) // if relative, use parent's...
+                : VAL_SPECIFIER(const_KNOWN(f.value)) // ...else use child's
         )) {
             goto return_thrown;
         }

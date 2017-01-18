@@ -136,9 +136,6 @@ void Assert_State_Balanced_Debug(
     assert(s->mold_loop_tail == ARR_LEN(MOLD_STACK));
 
     assert(s->error == NULL); // !!! necessary?
-
-    return;
-
 }
 
 #endif
@@ -147,38 +144,35 @@ void Assert_State_Balanced_Debug(
 //
 //  Trapped_Helper_Halted: C
 //
-// This is used by both PUSH_TRAP and PUSH_UNHALTABLE_TRAP to do
-// the work of responding to a longjmp.  (Hence it is run when
-// setjmp returns TRUE.)  Its job is to safely recover from
-// a sudden interruption, though the list of things which can
-// be safely recovered from is finite.  Among the countless
-// things that are not handled automatically would be a memory
-// allocation.
+// This is used by both PUSH_TRAP and PUSH_UNHALTABLE_TRAP to do the work of
+// responding to a longjmp.  (Hence it is run when setjmp returns TRUE.)  Its
+// job is to safely recover from a sudden interruption, though the list of
+// things which can be safely recovered from is finite.
 //
-// (Note: This is a crucial difference between C and C++, as
-// C++ will walk up the stack at each level and make sure
-// any constructors have their associated destructors run.
-// *Much* safer for large systems, though not without cost.
-// Rebol's greater concern is not so much the cost of setup
-// for stack unwinding, but being able to be compiled without
-// requiring a C++ compiler.)
+// (Among the countless things that are not handled automatically would be a
+// memory allocation via malloc().)
+//
+// Note: This is a crucial difference between C and C++, as C++ will walk up
+// the stack at each level and make sure any constructors have their
+// associated destructors run.  *Much* safer for large systems, though not
+// without cost.  Rebol's greater concern is not so much the cost of setup for
+// stack unwinding, but being written without requiring a C++ compiler.
 //
 // Returns whether the trapped error was a RE_HALT or not.
 //
 REBOOL Trapped_Helper_Halted(struct Reb_State *s)
 {
-    REBOOL halted;
-
-    // Check for more "error frame validity"?
     ASSERT_CONTEXT(s->error);
     assert(CTX_TYPE(s->error) == REB_ERROR);
 
-    halted = LOGICAL(ERR_NUM(s->error) == RE_HALT);
+    REBOOL halted = LOGICAL(ERR_NUM(s->error) == RE_HALT);
 
     // Restore Rebol data stack pointer at time of Push_Trap
+    //
     DS_DROP_TO(s->dsp);
 
     // Drop to the chunk state at the time of Push_Trap
+    //
     while (TG_Top_Chunk != s->top_chunk)
         Drop_Chunk_Of_Values(NULL);
 
@@ -337,15 +331,12 @@ REBCNT Stack_Depth(void)
 //
 REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
 {
-    REBCTX *categories;
-    REBCTX *category;
     REBCNT n;
-    REBVAL *message;
 
     // See %errors.r for the list of data which is loaded into the boot
     // file as objects for the "error catalog"
     //
-    categories = VAL_CONTEXT(Get_System(SYS_CATALOG, CAT_ERRORS));
+    REBCTX *categories = VAL_CONTEXT(Get_System(SYS_CATALOG, CAT_ERRORS));
     assert(CTX_KEY_SYM(categories, 1) == SYM_SELF);
 
     // Find the correct catalog category
@@ -358,7 +349,8 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
         assert(FALSE);
         return NULL;
     }
-    category = VAL_CONTEXT(CTX_VAR(categories, SELFISH(n + 1)));
+
+    REBCTX *category = VAL_CONTEXT(CTX_VAR(categories, SELFISH(n + 1)));
     assert(CTX_KEY_SYM(category, 1) == SYM_SELF);
 
     // Find the correct template in the catalog category (see %errors.r)
@@ -383,7 +375,7 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
         return NULL;
     }
 
-    message = CTX_VAR(category, SELFISH(n + 3));
+    REBVAL *message = CTX_VAR(category, SELFISH(n + 3));
 
     // Error message template must be string or block
     assert(IS_BLOCK(message) || IS_STRING(message));
@@ -625,20 +617,18 @@ REBOOL Make_Error_Object_Throws(
 
     if (IS_INTEGER(&vars->code)) {
         if (VAL_INT32(&vars->code) < RE_USER) {
+            //
             // Users can make up anything for error codes allocated to them,
             // but Rebol's historical default is to "own" error codes less
-            // than RE_USER.  If a code is used in the sub-RE_USER range then make
-            // sure any id or type provided do not conflict.
-
-            REBVAL *message;
-
-            REBVAL id;
-            REBVAL type;
+            // than RE_USER.  If a code is used in the sub-RE_USER range then
+            // make sure any id or type provided do not conflict.
 
             if (!IS_BLANK(&vars->message)) // assume a MESSAGE: is wrong
                 fail (Error(RE_INVALID_ERROR, arg));
 
-            message = Find_Error_For_Code(
+            REBVAL id;
+            REBVAL type;
+            REBVAL *message = Find_Error_For_Code(
                 &id,
                 &type,
                 cast(REBCNT, VAL_INT32(&vars->code))

@@ -404,6 +404,13 @@ inline static void Do_Pending_Sets_May_Invalidate_Gotten(
 // it occurs at the end of the arguments.
 //
 inline static REBOOL Fulfilling_Last_Argument(struct Reb_Frame *f) {
+    //
+    // !!! The concept of fulfilling last arguments was an experiment.  It
+    // does likely have applications, but for the moment infix ops are
+    // "tightened" to give them their left-to-right behavior as in R3-Alpha.
+    // 
+    return FALSE;
+
     if (NOT(f->eval_type == REB_FUNCTION || f->eval_type == REB_0_LOOKBACK))
         return FALSE;
 

@@ -72,25 +72,54 @@ REBIXO Do_Vararg_Op_May_Throw(
         SET_TRASH_IF_DEBUG(out);
 #endif
 
+    const RELVAL *param; // for type checking
     enum Reb_Param_Class pclass;
 
-    const RELVAL *param; // for type checking
     REBVAL *arg; // for updating VALUE_FLAG_UNEVALUATED
+
+    if (vararg->extra.binding == NULL) {
+        //
+        // Just a vararg created from a block, never passed as an argument
+        // so no typeset or quoting settings available.  Treat as "normal"
+        // parameter.
+        //
+        pclass = PARAM_CLASS_NORMAL;
+        param = NULL; // doesn't correspond to a real varargs parameter
+        arg = NULL; // no corresponding varargs argument either
+    }
+    else {
+        REBCTX *context = AS_CONTEXT(vararg->extra.binding);
+
+        // If the VARARGS! has a call frame, then ensure that the call frame
+        // where the VARARGS! originated is still on the stack.
+        //
+        // !!! This test is not good enough for "durables", and if FRAME! can
+        // be reused on the stack then it could still be alive even though the
+        // call pointer it first ran with is dead.  There needs to be a
+        // solution for other reasons, so use that solution when it's ready.
+        //
+        if (IS_INACCESSIBLE(context))
+            fail (Error(RE_VARARGS_NO_STACK));
+
+        REBFRM *param_frame = CTX_FRAME(context);
+
+        param = FUNC_PARAMS_HEAD(param_frame->underlying)
+            + vararg->payload.varargs.param_offset;
+        pclass = VAL_PARAM_CLASS(param);
+
+        arg = param_frame->args_head + vararg->payload.varargs.param_offset;
+    }
+
+    if (op == VARARG_OP_FIRST && pclass != PARAM_CLASS_HARD_QUOTE)
+        fail (Error(RE_VARARGS_NO_LOOK)); // lookahead needs hard quote
 
     REBVAL *shared;
 
     REBFRM temp_frame;
     REBFRM *f;
 
-    if (GET_VAL_FLAG(vararg, VARARGS_FLAG_NO_FRAME)) {
-        REBARR *array1 = VAL_VARARGS_ARRAY1(vararg);
-
-        // Just a vararg created from a block, so no typeset or quoting
-        // settings available.  Treat as a hard quote with ellipsis label.
-        //
-        pclass = PARAM_CLASS_HARD_QUOTE;
-        param = NULL; // doesn't correspond to a real varargs parameter
-        arg = NULL; // no corresponding varargs argument either
+    if (NOT_SER_FLAG(vararg->payload.varargs.feed, ARRAY_FLAG_VARLIST)) {
+        REBARR *array1 = vararg->payload.varargs.feed;
 
         // We are processing an ANY-ARRAY!-based varargs, which came from
         // either a MAKE VARARGS! on an ANY-ARRAY! value -or- from a
@@ -125,27 +154,20 @@ REBIXO Do_Vararg_Op_May_Throw(
         temp_frame.index = VAL_INDEX(shared) + 1;
         temp_frame.out = out;
         temp_frame.pending = NULL;
-        temp_frame.label = Canon(SYM_ELLIPSIS); // !!! lie, shouldn't be used
+        temp_frame.gotten = NULL;
 
         f = &temp_frame;
     }
     else {
-        REBCTX *context = VAL_VARARGS_FRAME_CTX(vararg);
-        param = VAL_VARARGS_PARAM(vararg);
-        arg = VAL_VARARGS_ARG(vararg);
+        REBCTX *context = AS_CONTEXT(vararg->payload.varargs.feed);
 
-        pclass = VAL_PARAM_CLASS(param);
-
-        if (op == VARARG_OP_FIRST && pclass != PARAM_CLASS_HARD_QUOTE)
-            fail (Error(RE_VARARGS_NO_LOOK)); // lookahead needs hard quote
-
-        // If the VARARGS! has a call frame, then ensure that the call frame where
-        // the VARARGS! originated is still on the stack.
+        // If the VARARGS! has a call frame, then ensure that the call frame
+        // where the VARARGS! originated is still on the stack.
         //
-        // !!! This test is not good enough for "durables", and if FRAME! can be
-        // reused on the stack then it could still be alive even though the
-        // call pointer it first ran with is dead.  There needs to be a solution
-        // for other reasons, so use that solution when it's ready.
+        // !!! This test is not good enough for "durables", and if FRAME! can
+        // bw reused on the stack then it could still be alive even though the
+        // call pointer it first ran with is dead.  There needs to be a
+        // solution for other reasons, so use that solution when it's ready.
         //
         if (IS_INACCESSIBLE(context))
             fail (Error(RE_VARARGS_NO_STACK));
@@ -328,11 +350,16 @@ void MAKE_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         MANAGE_ARRAY(array1);
 
         VAL_RESET_HEADER(out, REB_VARARGS);
-        SET_VAL_FLAG(out, VARARGS_FLAG_NO_FRAME);
-        out->extra.binding = array1;
+        out->extra.binding = NULL;
+    #if !defined(NDEBUG)
+        out->payload.varargs.param_offset = -1020;
+    #endif
+        out->payload.varargs.feed = array1;
 
         return;
     }
+
+    // !!! Permit FRAME! ?
 
     fail (Error_Bad_Make(kind, arg));
 }
@@ -450,14 +477,14 @@ REBINT CT_Varargs(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     cast(void, mode);
 
-    if (GET_VAL_FLAG(a, VARARGS_FLAG_NO_FRAME)) {
-        if (NOT_VAL_FLAG(b, VARARGS_FLAG_NO_FRAME)) return 1;
-        return VAL_VARARGS_ARRAY1(a) == VAL_VARARGS_ARRAY1(b) ? 1 : 0;
-    }
-    else {
-        if (GET_VAL_FLAG(b, VARARGS_FLAG_NO_FRAME)) return 1;
-        return VAL_VARARGS_FRAME_CTX(a) == VAL_VARARGS_FRAME_CTX(b) ? 1 : 0;
-    }
+    // !!! For the moment, say varargs are the same if they have the same
+    // source feed from which the data comes.  (This check will pass even
+    // expired varargs, because the expired stub should be kept alive as
+    // long as its identity is needed).
+    //
+    if (a->payload.varargs.feed == b->payload.varargs.feed)
+        return 1;
+    return 0;
 }
 
 
@@ -470,51 +497,29 @@ REBINT CT_Varargs(const RELVAL *a, const RELVAL *b, REBINT mode)
 // VARARGS! have stabilized somewhat just how much information can (or should)
 // be given when printing these out (they should not "lookahead")
 //
-void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
-    assert(IS_VARARGS(value));
+void Mold_Varargs(const REBVAL *v, REB_MOLD *mold) {
+    assert(IS_VARARGS(v));
 
-    Pre_Mold(value, mold);  // #[varargs! or make varargs!
+    Pre_Mold(v, mold);  // #[varargs! or make varargs!
 
     Append_Codepoint_Raw(mold->series, '[');
 
-    if (GET_VAL_FLAG(value, VARARGS_FLAG_NO_FRAME)) {
-        Append_Unencoded(mold->series, "<= ");
-
-        { // Just [...] for now
-            Append_Unencoded(mold->series, "[...]");
-            goto skip_complex_mold_for_now;
-        }
-
-        if (IS_END(ARR_HEAD(VAL_VARARGS_ARRAY1(value))))
-            Append_Unencoded(mold->series, "*exhausted*");
-        else
-            Mold_Value(mold, ARR_HEAD(VAL_VARARGS_ARRAY1(value)), TRUE);
+    if (v->extra.binding == NULL) {
+        Append_Unencoded(mold->series, "???");
     }
     else {
-        const RELVAL *varargs_param = VAL_VARARGS_PARAM(value);
-
-        REBARR *varlist = VAL_BINDING(value);
-        if (NOT(IS_ARRAY_MANAGED(varlist))) {
-            //
-            // This can happen if you internally try and PROBE() a varargs
-            // item that is residing in the argument slots for a function,
-            // while that function is still fulfilling its arguments.
-            //
-            Append_Unencoded(mold->series, "** varargs frame not fulfilled");
-        }
-        else if (IS_INACCESSIBLE(VAL_VARARGS_FRAME_CTX(value))) {
-            assert(
-                GET_SER_FLAG(
-                    CTX_VARLIST(VAL_VARARGS_FRAME_CTX(value)),
-                    CONTEXT_FLAG_STACK
-                )
-            );
-            Append_Unencoded(mold->series, "**unavailable: call ended **");
+        REBCTX *context = AS_CONTEXT(v->extra.binding);
+        if (IS_INACCESSIBLE(context)) {
+            Append_Unencoded(mold->series, "???");
         }
         else {
-            // The Reb_Frame is not a bad pointer since FRAME! is stack-live
-            //
-            enum Reb_Param_Class pclass = VAL_PARAM_CLASS(varargs_param);
+            REBFRM *param_frame = CTX_FRAME(context);
+
+            const RELVAL *param
+                = FUNC_PARAMS_HEAD(param_frame->underlying)
+                    + v->payload.varargs.param_offset;
+
+            enum Reb_Param_Class pclass = VAL_PARAM_CLASS(param);
             enum Reb_Kind kind;
             switch (pclass) {
                 case PARAM_CLASS_NORMAL:
@@ -533,19 +538,53 @@ void Mold_Varargs(const REBVAL *value, REB_MOLD *mold) {
             // Note varargs_param is distinct from f->param!
             REBVAL param_word;
             Init_Any_Word(
-                &param_word, kind, VAL_PARAM_SPELLING(varargs_param)
+                &param_word, kind, VAL_PARAM_SPELLING(param)
             );
 
             Mold_Value(mold, &param_word, TRUE);
+        }
+    }
 
-            Append_Unencoded(mold->series, " <= ");
+    Append_Unencoded(mold->series, " <= ");
+
+    REBARR *feed = v->payload.varargs.feed;
+
+    if (NOT_SER_FLAG(feed, ARRAY_FLAG_VARLIST)) {
+        REBARR *array1 = feed;
+
+        { // Just [...] for now
+            Append_Unencoded(mold->series, "[...]");
+            goto skip_complex_mold_for_now;
+        }
+
+        if (IS_END(ARR_HEAD(array1)))
+            Append_Unencoded(mold->series, "*exhausted*");
+        else
+            Mold_Value(mold, ARR_HEAD(array1), TRUE);
+    }
+    else if (NOT(IS_ARRAY_MANAGED(feed))) {
+        //
+        // This can happen if you internally try and PROBE() a varargs
+        // item that is residing in the argument slots for a function,
+        // while that function is still fulfilling its arguments.
+        //
+        Append_Unencoded(mold->series, "** varargs frame not fulfilled");
+    }
+    else {
+        REBCTX *context = AS_CONTEXT(feed);
+        if (IS_INACCESSIBLE(context)) {
+            assert(GET_SER_FLAG(CTX_VARLIST(context), CONTEXT_FLAG_STACK));
+            Append_Unencoded(mold->series, "**unavailable: call ended **");
+        }
+        else {
+            // The Reb_Frame is not a bad pointer since FRAME! is stack-live
+            //
+            REBFRM *f = CTX_FRAME(context);
 
             {// Just [...] for now
                 Append_Unencoded(mold->series, "[...]");
                 goto skip_complex_mold_for_now;
             }
-
-            REBFRM *f = CTX_FRAME(VAL_VARARGS_FRAME_CTX(value));
 
             if (IS_END(f->value))
                 Append_Unencoded(mold->series, "*exhausted*");

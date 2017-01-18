@@ -746,10 +746,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
         assert(FUNC_NUM_PARAMS(FRM_FUNC(f)) == num_fixed + 1);
 
         REBVAL *vararg = FRM_ARG(f, num_fixed + 1); // 1-based
-        assert(
-            IS_VARARGS(vararg)
-            && NOT_VAL_FLAG(vararg, VARARGS_FLAG_NO_FRAME)
-        );
+        assert(IS_VARARGS(vararg) && f->binding != NULL);
 
         // Evaluate the VARARGS! feed of values to the data stack.  This way
         // they will be available to be counted, to know how big to make the

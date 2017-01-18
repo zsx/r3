@@ -413,24 +413,24 @@ struct Reb_Any_Context {
 //
 struct Reb_Varargs {
     //
-    // For as long as the VARARGS! can be used, the function it is applying
-    // will be alive.  Assume that the locked paramlist won't move in memory
-    // (evaluation would break if so, anyway) and hold onto the TYPESET!
-    // describing the parameter.  Each time a value is fetched from the EVAL
-    // then type check it for convenience.  Use ANY-VALUE! if not wanted.
+    // If the extra->binding of the varargs is not NULL, it represents the
+    // frame in which this VARARGS! was tied to a parameter.  This 0-based
+    // offset can be used to find the param the varargs is tied to, in order
+    // to know whether it is quoted or not (and its name for error delivery).
     //
-    // Note: could be a parameter index in the worst case scenario that the
-    // array grew, revisit the rules on holding pointers into paramlists.
+    // It can also find the arg.  Similar to the param, the arg is only good
+    // for the lifetime of the FRAME! in extra->binding...but even less so,
+    // because VARARGS! can (currently) be overwritten with another value in
+    // the function frame at any point.  Despite this, we proxy the
+    // VALUE_FLAG_UNEVALUATED from the last TAKE to reflect its status.
     //
-    const REBVAL *param;
+    REBCNT param_offset;
 
-    // Similar to the param, the arg is only good for the lifetime of the
-    // FRAME!...but even less so, because VARARGS! can (currently) be
-    // overwritten with another value in the function frame at any point.
-    // Despite this, we proxy the VALUE_FLAG_UNEVALUATED from the last TAKE
-    // onto the argument to reflect its *argument* status.
-    //
-    REBVAL *arg;
+    // Data source for the VARARGS!.  This can come from a frame (and is often
+    // the same as extra->binding), or from an array if MAKE ARRAY! is the
+    // source of the variadic data.
+    // 
+    REBARR *feed;
 };
 
 
@@ -571,10 +571,9 @@ union Reb_Value_Extra {
     // of RETURN, the keylist only indicates the archetype RETURN.  Putting
     // the binding back together can indicate the instance.
     //
-    // VARARGS!: the binding may be to a frame context and it may be to just
-    // an array from which values are read.  It might also be bound to a
-    // function paramlist it doesn't use, because word pickups overwrite WORD!
-    // => VARARGS! in the evaluator loop...and don't reinitialize binding
+    // VARARGS!: the binding is the frame context where the variadic parameter
+    // lives (or NULL if it was made with MAKE VARARGS! and hasn't been
+    // passed through a parameter yet).
     //
     REBARR *binding;
 

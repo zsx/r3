@@ -52,27 +52,3 @@
     #define VARARGS_FLAG(n) \
         (FLAGIT_LEFT(TYPE_SPECIFIC_BIT + (n)) | HEADERIZE_KIND(REB_VARARGS))
 #endif
-
-// Was made with a call to MAKE VARARGS! with data from an ANY-ARRAY!
-// If that is the case, it does not use the varargs payload at all,
-// rather it uses the Reb_Any_Series payload.
-//
-#define VARARGS_FLAG_NO_FRAME VARARGS_FLAG(0)
-
-
-inline static const REBVAL *VAL_VARARGS_PARAM(const RELVAL *v)
-    { return v->payload.varargs.param; }
-
-inline static REBVAL *VAL_VARARGS_ARG(const RELVAL *v)
-    { return v->payload.varargs.arg; }
-
-inline static REBCTX *VAL_VARARGS_FRAME_CTX(const RELVAL *v) {
-    ASSERT_ARRAY_MANAGED(v->extra.binding);
-    assert(GET_SER_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST));
-    return AS_CONTEXT(v->extra.binding);
-}
-
-inline static REBARR *VAL_VARARGS_ARRAY1(const RELVAL *v) {
-    assert(NOT_SER_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST));
-    return v->extra.binding;
-}

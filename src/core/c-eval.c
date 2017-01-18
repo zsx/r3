@@ -674,8 +674,6 @@ reevaluate:;
                     ++f->special;
                 }
                 else {
-                    *f->arg = *f->special;
-
                     // Varargs are odd, because the type checking doesn't
                     // actually check the type of the parameter--it's always
                     // a VARARGS!.  Also since the "types accepted" are a lie
@@ -706,11 +704,41 @@ reevaluate:;
                         // specializing variadics to be TBD until the type
                         // checking issue is sorted out.
                         //
-                        assert(FALSE);
+                        VAL_RESET_HEADER(f->arg, REB_VARARGS);
+
+                        // Note that this varlist is to a context with bad cells in
+                        // any unfilled arg slots.  Because of this, there needs to
+                        // be special handling in the GC that knows *not* to try
+                        // and walk these incomplete arrays sitting in the argument
+                        // slots if they're not ready...
+                        //
+                        if (
+                            f->varlist == NULL
+                            || NOT_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST)
+                        ){
+                            // Don't use ordinary call to Context_For_Frame_May_Reify
+                            // because this special case allows reification even
+                            // though the frame is pending.
+                            //
+                            Reify_Frame_Context_Maybe_Fulfilling(f);
+                        }
+                        f->arg->extra.binding = f->varlist;
+
+                        f->arg->payload.varargs.param_offset
+                            = f->arg - f->args_head;
+
+                        // Use the same data source as the varargs coming in
+                        // (it's just getting re-stamped with the parameter
+                        // and the frame.)
+                        //
+                        f->arg->payload.varargs.feed
+                            = f->special->payload.varargs.feed;
 
                         ++f->special;
                         goto continue_arg_loop;
                     }
+
+                    *f->arg = *f->special;
 
                     ++f->special;
                     goto check_arg; // normal checking, handles errors also
@@ -807,8 +835,15 @@ reevaluate:;
                 }
                 f->arg->extra.binding = f->varlist;
 
-                f->arg->payload.varargs.param = const_KNOWN(f->param); // check
-                f->arg->payload.varargs.arg = f->arg; // linkback, might change
+                f->arg->payload.varargs.param_offset = f->arg - f->args_head;
+
+                // The data feed doesn't necessarily come from the frame
+                // that has the parameter and the argument.  A varlist may be
+                // chained such that its data came from another frame, or just
+                // an ordinary array.
+                //
+                f->arg->payload.varargs.feed = f->varlist;
+
                 goto continue_arg_loop;
             }
 
