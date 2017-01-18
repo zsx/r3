@@ -545,7 +545,8 @@ REBNATIVE(switch)
 
         do {
             FETCH_NEXT_ONLY_MAYBE_END(&e);
-            if (IS_END(e.value)) break;
+            if (IS_END(e.value))
+                goto return_defaulted;
         } while (!IS_BLOCK(e.value));
 
         // Run the code if it was found.  Because it writes D_OUT with a value
@@ -573,6 +574,7 @@ REBNATIVE(switch)
     if (NOT_END(D_OUT)) // at least one case body's DO ran and overwrote D_OUT
         goto return_matched;
 
+return_defaulted:
     if (REF(default)) {
         const REBOOL only = FALSE;
 
@@ -582,7 +584,6 @@ REBNATIVE(switch)
     else
         *D_OUT = *D_CELL; // let last test value "fall out", might be void
 
-//return_defaulted:
     DROP_SAFE_ENUMERATOR(&e);
     if (REF(q)) return R_FALSE; // running default code doesn't count for /?
     return R_OUT;
