@@ -171,14 +171,14 @@
     FLAGIT_LEFT(10)
 
 
-//=//// DO_FLAG_VARIADIC_TAKE /////////////////////////////////////////////=//
+//=//// DO_FLAG_FULFILLING_ARG ////////////////////////////////////////////=//
 //
-// When a variadic operation is on the left hand side of a deferred
-// lookback operation, it needs to inform the evaluator that the take is
-// variadic, so it knows to defer.  Consider `summation 1 2 3 |> 100`
-// should be `(summation 1 2 3) |> 100` and not `summation 1 2 (3 |> 100)`
+// Deferred lookback operations need to know when they are dealing with an
+// argument fulfillment for a function, e.g. `summation 1 2 3 |> 100` should
+// be `(summation 1 2 3) |> 100` and not `summation 1 2 (3 |> 100)`.  This
+// also means that `add 1 <| 2` will act as an error.
 //
-#define DO_FLAG_VARIADIC_TAKE \
+#define DO_FLAG_FULFILLING_ARG \
     FLAGIT_LEFT(11)
 
 

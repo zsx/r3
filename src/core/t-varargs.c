@@ -200,10 +200,6 @@ REBIXO Do_Vararg_Op_May_Throw(
     // `summation 1 2 3 |> 100` would act as `summation 1 2 (3 |> 100)`.
     // A deferred operator needs to act somewhat as an expression barrier.
     //
-    // Besides reporting an END here, it's also necessary for the function
-    // Fulfilling_Last_Argument() to always report TRUE when a variadic
-    // parameter is being processed.
-    //
     if (
         pclass == PARAM_CLASS_NORMAL
         && IS_WORD(f->value)
@@ -243,7 +239,7 @@ REBIXO Do_Vararg_Op_May_Throw(
         Do_Next_In_Frame_May_Throw(
             out,
             f,
-            DO_FLAG_VARIADIC_TAKE |
+            DO_FLAG_FULFILLING_ARG |
             ((f->flags.bits & DO_FLAG_NO_LOOKAHEAD)
                 ? DO_FLAG_NO_LOOKAHEAD
                 : 0)

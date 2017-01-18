@@ -340,6 +340,12 @@ reevaluate:;
 //==//////////////////////////////////////////////////////////////////////==//
 
     case REB_0_LOOKBACK:
+        if (GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG))
+            if (f->flags.bits & DO_FLAG_FULFILLING_ARG) {
+                f->eval_type = REB_MAX_VOID;
+                fail (Error(RE_EXPRESSION_BARRIER)); // !!! better error?
+            }
+
         SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
         // f->out must be the infix's left-hand-side arg, may be END
 
@@ -900,8 +906,8 @@ reevaluate:;
                     f->arg,
                     f,
                     (GET_VAL_FLAG(f->param, TYPESET_FLAG_TIGHT)
-                        ? DO_FLAG_NO_LOOKAHEAD
-                        : 0)
+                        ? DO_FLAG_NO_LOOKAHEAD | DO_FLAG_FULFILLING_ARG
+                        : DO_FLAG_FULFILLING_ARG)
                 );
 
                 if (THROWN(f->arg)) {
@@ -1733,10 +1739,7 @@ reevaluate:;
         if (f->eval_type == REB_0_LOOKBACK) {
             if (
                 GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG)
-                && (
-                    (f->flags.bits & DO_FLAG_VARIADIC_TAKE)
-                    || (f->prior && Fulfilling_Last_Argument(f->prior))
-                )
+                && (f->flags.bits & DO_FLAG_FULFILLING_ARG)
             ){
                 // This is the special case; we have a lookback function
                 // pending but it wants to defer its first argument as
