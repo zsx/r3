@@ -335,9 +335,6 @@ inline static void Do_Pending_Sets_May_Invalidate_Gotten(
         case REB_SET_PATH: {
             REBVAL hack = *DS_TOP; // can't path eval from data stack, yet
 
-            enum Reb_Kind eval_type_saved = f->eval_type;
-            f->eval_type = REB_MAX_VOID; // for error handling
-
             if (Do_Path_Throws_Core(
                 &f->cell, // output location if thrown
                 NULL, // not requesting symbol means refinements not allowed
@@ -347,8 +344,6 @@ inline static void Do_Pending_Sets_May_Invalidate_Gotten(
             )) {
                 fail (Error_No_Catch_For_Throw(&f->cell));
             }
-
-            f->eval_type = eval_type_saved;
 
             // Arbitrary code just ran.  Assume the worst, that it may have
             // changed gotten.  (Future model it may be easier to test this.)

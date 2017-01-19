@@ -243,9 +243,13 @@ inline static REBVAL *FRM_CELL(REBFRM *f) {
 inline static REBOOL Is_Any_Function_Frame(REBFRM *f) {
     if (f->eval_type <= REB_FUNCTION) {
         assert(f->eval_type == REB_FUNCTION || f->eval_type == REB_0_LOOKBACK);
-        return TRUE;
+
+        // Do not count as a function frame unless it's gotten to the point
+        // of setting the label.
+        //
+        return LOGICAL(f->label != NULL);
     }
-    return  FALSE;
+    return FALSE;
 }
 
 // While a function frame is fulfilling its arguments, the `f->param` will
@@ -265,7 +269,7 @@ inline static REBOOL Is_Function_Frame_Fulfilling(REBFRM *f)
 // The release build only considers the frame symbol valid if ET_FUNCTION
 //
 inline static void SET_FRAME_LABEL(REBFRM *f, REBSTR *label) {
-    assert(Is_Any_Function_Frame(f));
+    assert(f->eval_type == REB_FUNCTION || f->eval_type == REB_0_LOOKBACK);
     f->label = label;
 #if !defined(NDEBUG)
     f->label_debug = cast(const char*, STR_HEAD(label));
@@ -273,8 +277,8 @@ inline static void SET_FRAME_LABEL(REBFRM *f, REBSTR *label) {
 }
 
 inline static void CLEAR_FRAME_LABEL(REBFRM *f) {
-#if !defined(NDEBUG)
     f->label = NULL;
+#if !defined(NDEBUG)
     f->label_debug = NULL;
 #endif
 }

@@ -172,8 +172,11 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
 
     assert((f->flags.bits & NODE_FLAG_END) && NOT(f->flags.bits & NODE_FLAG_CELL));
 
-    f->label = NULL;
+    // f->label is set to NULL by Do_Core()
+
+#if !defined(NDEBUG)
     f->label_debug = NULL;
+#endif
 
     // All callers should ensure that the type isn't an END marker before
     // bothering to invoke Do_Core().
@@ -291,7 +294,11 @@ REBUPT Do_Core_Expression_Checks_Debug(REBFRM *f) {
     //
     assert(IS_UNREADABLE_IF_DEBUG(&TG_Thrown_Arg));
 
-    assert(f->label == NULL && f->label_debug == NULL);
+    assert(f->label == NULL); // release build initializes this
+
+#if !defined(NDEBUG)
+    assert(f->label_debug == NULL); // marked debug to point out debug only
+#endif
 
     // Make sure `eval` is trash in debug build if not doing a `reevaluate`.
     // It does not have to be GC safe (for reasons explained below).  We

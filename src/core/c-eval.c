@@ -89,15 +89,10 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
         // it may spawn an entire interactive debugging session via
         // breakpoint before it returns.  It may also FAIL and longjmp out.
         //
-        enum Reb_Kind eval_type_saved = f->eval_type;
-        f->eval_type = REB_MAX_VOID;
-
         if (Do_Signals_Throws(&f->cell)) {
             *f->out = f->cell;
             return TRUE;
         }
-
-        f->eval_type = eval_type_saved;
 
         if (!IS_VOID(&f->cell)) {
             //
@@ -263,11 +258,22 @@ void Do_Core(REBFRM * const f)
     // APPLY and a DO of a FRAME! both use this same code path.
     //
     if (f->flags.bits & DO_FLAG_APPLYING) {
+        assert(f->label != NULL);
         assert(f->eval_type != REB_0_LOOKBACK); // "APPLY infix" not supported
         args_evaluate = NOT(f->flags.bits & DO_FLAG_NO_ARGS_EVALUATE);
         f->refine = ORDINARY_ARG;
         goto do_function_arglist_in_progress;
     }
+    else {
+        // Some initialized bit pattern is needed to check to see if a function
+        // call is actually in progress, or if eval_type is just REB_FUNCTION or
+        // REB_0_LOOKBACK but doesn't have valid args/state.  The label is a good
+        // choice because it is only affected by the function call case, see
+        // Is_Function_Frame_Fulfilling.
+        //
+        f->label = NULL;
+    }
+
 
     Push_Frame_Core(f);
 
@@ -284,15 +290,8 @@ void Do_Core(REBFRM * const f)
 
     // Check just once (stack level would be constant if checked in a loop).
     //
-    // Note that the eval_type can be deceptive; it's preloaded by the caller
-    // and may be something like REB_FUNCTION.  That suggests args pushed
-    // that the error machinery needs to free...but we haven't gotten to the
-    // code that does that yet by this point!  Say the frame is inert.
-    //
-    if (C_STACK_OVERFLOWING(&f)) {
-        f->eval_type = REB_MAX_VOID;
+    if (C_STACK_OVERFLOWING(&f))
         Trap_Stack_Overflow();
-    }
 
     // Capture the data stack pointer on entry (used by debug checks, but
     // also refinements are pushed to stack and need to be checked if there
@@ -341,10 +340,8 @@ reevaluate:;
 
     case REB_0_LOOKBACK:
         if (GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG))
-            if (f->flags.bits & DO_FLAG_FULFILLING_ARG) {
-                f->eval_type = REB_MAX_VOID;
+            if (f->flags.bits & DO_FLAG_FULFILLING_ARG)
                 fail (Error(RE_EXPRESSION_BARRIER)); // !!! better error?
-            }
 
         SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
         // f->out must be the infix's left-hand-side arg, may be END
