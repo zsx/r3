@@ -139,12 +139,6 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
         } while (FALSE)
 #endif
 
-
-static inline void Type_Check_Arg_For_Param_May_Fail(REBFRM *f) {
-    if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg)))
-        fail (Error_Arg_Type(FRM_LABEL(f), f->param, VAL_TYPE(f->arg)));
-}
-
 static inline void Drop_Function_Args_For_Frame(REBFRM *f) {
     Drop_Function_Args_For_Frame_Core(f, TRUE);
 }
@@ -677,70 +671,6 @@ reevaluate:;
                     ++f->special;
                 }
                 else {
-                    // Varargs are odd, because the type checking doesn't
-                    // actually check the type of the parameter--it's always
-                    // a VARARGS!.  Also since the "types accepted" are a lie
-                    // (an [integer! <...>] takes VARARGS!, not INTEGER!) then
-                    // an "honest" parameter has to be made to give the error.
-                    //
-                    if (
-                        IS_CONDITIONAL_TRUE(f->refine) // not unused/revoking
-                        && GET_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC)
-                    ) {
-                        if (!IS_VARARGS(f->arg)) {
-                            REBVAL honest_param;
-                            Init_Typeset(
-                                &honest_param,
-                                FLAGIT_KIND(REB_VARARGS), // actually expected
-                                VAL_PARAM_SPELLING(f->param)
-                            );
-
-                            fail (Error_Arg_Type(
-                                FRM_LABEL(f), &honest_param, VAL_TYPE(f->arg))
-                            );
-                        }
-
-                        // !!! Passing the varargs through directly does not
-                        // preserve the type checking or symbol.  This suggests
-                        // that even array-based varargs frames should have
-                        // an optional frame and parameter.  Consider
-                        // specializing variadics to be TBD until the type
-                        // checking issue is sorted out.
-                        //
-                        VAL_RESET_HEADER(f->arg, REB_VARARGS);
-
-                        // Note that this varlist is to a context with bad cells in
-                        // any unfilled arg slots.  Because of this, there needs to
-                        // be special handling in the GC that knows *not* to try
-                        // and walk these incomplete arrays sitting in the argument
-                        // slots if they're not ready...
-                        //
-                        if (
-                            f->varlist == NULL
-                            || NOT_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST)
-                        ){
-                            // Don't use ordinary call to Context_For_Frame_May_Reify
-                            // because this special case allows reification even
-                            // though the frame is pending.
-                            //
-                            Reify_Frame_Context_Maybe_Fulfilling(f);
-                        }
-                        f->arg->extra.binding = f->varlist;
-
-                        f->arg->payload.varargs.param_offset
-                            = f->arg - f->args_head;
-
-                        // Use the same data source as the varargs coming in
-                        // (it's just getting re-stamped with the parameter
-                        // and the frame.)
-                        //
-                        f->arg->payload.varargs.feed
-                            = f->special->payload.varargs.feed;
-
-                        ++f->special;
-                        goto continue_arg_loop;
-                    }
-
                     *f->arg = *f->special;
 
                     ++f->special;
@@ -1005,7 +935,59 @@ reevaluate:;
                     fail (Error_Bad_Refine_Revoke(f));
             }
 
-            Type_Check_Arg_For_Param_May_Fail(f);
+            if (NOT(GET_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC))) {
+                if (!TYPE_CHECK(f->param, VAL_TYPE(f->arg)))
+                    fail (Error_Arg_Type(
+                        FRM_LABEL(f), f->param, VAL_TYPE(f->arg))
+                    );
+            }
+            else {
+                // Varargs are odd, because the type checking doesn't
+                // actually check the type of the parameter--it's always
+                // a VARARGS!.  Also since the "types accepted" are a lie
+                // (an [integer! <...>] takes VARARGS!, not INTEGER!) then
+                // an "honest" parameter has to be made to give the error.
+                //
+                if (!IS_VARARGS(f->arg)) {
+                    REBVAL honest_param;
+                    Init_Typeset(
+                        &honest_param,
+                        FLAGIT_KIND(REB_VARARGS), // actually expected
+                        VAL_PARAM_SPELLING(f->param)
+                    );
+
+                    fail (Error_Arg_Type(
+                        FRM_LABEL(f), &honest_param, VAL_TYPE(f->arg))
+                    );
+                }
+
+                // While "checking" the variadic argument we actually re-stamp
+                // it with this parameter and frame's signature.  It reuses
+                // whatever the original data feed was (this frame, another
+                // frame, or just an array from MAKE VARARGS!)
+                //
+                // Note that this varlist is to a context with bad cells in
+                // any unfilled arg slots.  Because of this, there needs to
+                // be special handling in the GC that knows *not* to try
+                // and walk these incomplete arrays sitting in the argument
+                // slots if they're not ready...
+                //
+                if (
+                    f->varlist == NULL
+                    || NOT_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST)
+                ){
+                    // Don't use ordinary call to Context_For_Frame_May_Reify
+                    // because this special case allows reification even
+                    // though the frame is pending.
+                    //
+                    Reify_Frame_Context_Maybe_Fulfilling(f);
+                }
+                f->arg->extra.binding = f->varlist;
+
+                f->arg->payload.varargs.param_offset = f->arg - f->args_head;
+
+                // leave f->arg->payload.varargs.feed as it is
+            }
 
         continue_arg_loop: // `continue` might bind to the wrong scope
             ++f->param;

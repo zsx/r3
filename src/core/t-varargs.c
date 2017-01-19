@@ -148,6 +148,7 @@ REBIXO Do_Vararg_Op_May_Throw(
 
         // Fill in just enough enformation to call the FETCH-based routines
 
+        Init_Endlike_Header(&temp_frame.flags, DO_FLAG_NORMAL);
         temp_frame.value = VAL_ARRAY_AT(shared);
         temp_frame.specifier = SPECIFIED;
         temp_frame.source.array = VAL_ARRAY(shared);
@@ -236,14 +237,7 @@ REBIXO Do_Vararg_Op_May_Throw(
     case PARAM_CLASS_NORMAL:
         if (op == VARARG_OP_TAIL_Q) return VA_LIST_FLAG;
 
-        Do_Next_In_Frame_May_Throw(
-            out,
-            f,
-            DO_FLAG_FULFILLING_ARG |
-            ((f->flags.bits & DO_FLAG_NO_LOOKAHEAD)
-                ? DO_FLAG_NO_LOOKAHEAD
-                : 0)
-        );
+        Do_Next_In_Frame_May_Throw(out, f, DO_FLAG_FULFILLING_ARG);
 
         if (THROWN(out))
             return THROWN_FLAG;
