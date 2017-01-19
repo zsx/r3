@@ -299,8 +299,8 @@ REBNATIVE(typechecker)
     REBFUN *fun = Make_Function(
         paramlist,
         IS_DATATYPE(type)
-        ? &Datatype_Checker_Dispatcher
-        : &Typeset_Checker_Dispatcher,
+            ? &Datatype_Checker_Dispatcher
+            : &Typeset_Checker_Dispatcher,
         NULL // this is fundamental (no distinct underlying function)
     );
 

@@ -1126,20 +1126,19 @@ void Register_Codec(
         panic (suffixes);
     }
 
-    REBVAL *value = Append_Context(
-        VAL_CONTEXT(Get_System(SYS_CODECS, 0)), &word, NULL
-    );
-
-    REBVAL codec;
+    REBVAL codec; // cannot use array slots (e.g. codec varlists) as direct target of Apply/Do!
     if (Apply_Only_Throws(
-        value, TRUE, Sys_Func(SYS_CTX_REGISTER_CODEC_P),
+        &codec, TRUE, Sys_Func(SYS_CTX_REGISTER_CODEC_P),
         &word, &handle, &suffixes_value, END_CELL
     )) {
-        fail (Error_No_Catch_For_Throw(value));
+        fail (Error_No_Catch_For_Throw(&codec));
     }
 
-    if (!IS_OBJECT(value))
-        panic (value); // should have returned a codec object
+    if (!IS_OBJECT(&codec))
+        panic (&codec); // should have returned a codec object
+
+    REBCTX *codecs_context = VAL_CONTEXT(Get_System(SYS_CODECS, 0));
+    *Append_Context(codecs_context, &word, NULL) = codec;
 }
 
 
