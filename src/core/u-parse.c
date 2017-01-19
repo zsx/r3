@@ -1690,8 +1690,7 @@ REBNATIVE(subparse)
                 // GET cases", but here rule isn't set to NULL...so it falls
                 // through and does not continue.  Investigate.
             }
-            else {
-                assert(IS_GET_PATH(P_RULE));
+            else if (IS_GET_PATH(P_RULE)) {
 
                 if (Do_Path_Throws_Core(
                     &save, NULL, P_RULE, P_RULE_SPECIFIER, NULL
@@ -1709,6 +1708,10 @@ REBNATIVE(subparse)
                 Set_Parse_Series(f, &save);
                 FETCH_NEXT_RULE_MAYBE_END(f);
                 continue;
+            }
+            else {
+                assert(IS_LIT_PATH(P_RULE));
+                rule = P_RULE;
             }
 
             if (P_POS > SER_LEN(P_INPUT))

@@ -137,8 +137,12 @@ replace: function [
 
     ; Consider adding an /any refinement to use find/any, once that works.
 ][
+    all_REPLACE: all
+    all: :lib/all
     case_REPLACE: case
     case: :lib/case
+    tail_REPLACE: tail
+    tail: :lib/tail
 
     save-target: target
 
@@ -182,10 +186,10 @@ replace: function [
 
         target: change/part pos :value len
 
-        unless all [break] ;-- tests /ALL refinement, not ALL native
+        unless all_REPLACE [break]
     ]
 
-    either tail [target] [save-target]
+    either tail_REPLACE [target] [save-target]
 ]
 
 

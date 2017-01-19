@@ -40,7 +40,7 @@ process: func [
 
 boot-modules: copy []
 
-either none? args/MODULE [
+either blank? args/MODULE [
     ;read process all builtin modules in file-base/modules
     ;used by make-make.r
     file-base: load %file-base.r
