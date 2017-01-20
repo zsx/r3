@@ -153,6 +153,47 @@ static inline void Abort_Function_Args_For_Frame(REBFRM *f) {
     DS_DROP_TO(f->dsp_orig);
 }
 
+static inline void Link_Vararg_Param_To_Frame(REBFRM *f, REBOOL make) {
+    assert(GET_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC));
+
+    // Note that this varlist is to a context with bad cells in
+    // any unfilled arg slots.  Because of this, there needs to
+    // be special handling in the GC that knows *not* to try
+    // and walk these incomplete arrays sitting in the argument
+    // slots if they're not ready...
+    //
+    if (
+        f->varlist == NULL
+        || NOT_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST)
+    ){
+        // Don't use ordinary call to Context_For_Frame_May_Reify
+        // because this special case allows reification even
+        // though the frame is pending.
+        //
+        Reify_Frame_Context_Maybe_Fulfilling(f);
+    }
+    f->arg->extra.binding = f->varlist;
+
+    // Store the offset so that both the f->arg and f->param locations can
+    // be quickly recovered, while using only a single slot in the REBVAL.
+    //
+    f->arg->payload.varargs.param_offset = f->arg - f->args_head;
+
+    // The data feed doesn't necessarily come from the frame
+    // that has the parameter and the argument.  A varlist may be
+    // chained such that its data came from another frame, or just
+    // an ordinary array.
+    //
+    if (make) {
+        VAL_RESET_HEADER(f->arg, REB_VARARGS);
+        f->arg->payload.varargs.feed = f->varlist;
+    }
+    else
+        assert(VAL_TYPE(f->arg) == REB_VARARGS);
+
+    assert(GET_SER_FLAG(f->arg->payload.varargs.feed, SERIES_FLAG_ARRAY));
+}
+
 
 //
 // f->refine is a bit tricky.  If it IS_LOGIC() and TRUE, then this means that
@@ -748,34 +789,7 @@ reevaluate:;
                 //
                 assert(args_evaluate);
 
-                VAL_RESET_HEADER(f->arg, REB_VARARGS);
-
-                // Note that this varlist is to a context with bad cells in
-                // any unfilled arg slots.  Because of this, there needs to
-                // be special handling in the GC that knows *not* to try
-                // and walk these incomplete arrays sitting in the argument
-                // slots if they're not ready...
-                //
-                if (
-                    f->varlist == NULL
-                    || NOT_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST)
-                ){
-                    // Don't use ordinary call to Context_For_Frame_May_Reify
-                    // because this special case allows reification even
-                    // though the frame is pending.
-                    //
-                    Reify_Frame_Context_Maybe_Fulfilling(f);
-                }
-                f->arg->extra.binding = f->varlist;
-
-                f->arg->payload.varargs.param_offset = f->arg - f->args_head;
-
-                // The data feed doesn't necessarily come from the frame
-                // that has the parameter and the argument.  A varlist may be
-                // chained such that its data came from another frame, or just
-                // an ordinary array.
-                //
-                f->arg->payload.varargs.feed = f->varlist;
+                Link_Vararg_Param_To_Frame(f, TRUE);
 
                 goto continue_arg_loop;
             }
@@ -966,27 +980,7 @@ reevaluate:;
                 // whatever the original data feed was (this frame, another
                 // frame, or just an array from MAKE VARARGS!)
                 //
-                // Note that this varlist is to a context with bad cells in
-                // any unfilled arg slots.  Because of this, there needs to
-                // be special handling in the GC that knows *not* to try
-                // and walk these incomplete arrays sitting in the argument
-                // slots if they're not ready...
-                //
-                if (
-                    f->varlist == NULL
-                    || NOT_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST)
-                ){
-                    // Don't use ordinary call to Context_For_Frame_May_Reify
-                    // because this special case allows reification even
-                    // though the frame is pending.
-                    //
-                    Reify_Frame_Context_Maybe_Fulfilling(f);
-                }
-                f->arg->extra.binding = f->varlist;
-
-                f->arg->payload.varargs.param_offset = f->arg - f->args_head;
-
-                // leave f->arg->payload.varargs.feed as it is
+                Link_Vararg_Param_To_Frame(f, FALSE);
             }
 
         continue_arg_loop: // `continue` might bind to the wrong scope
