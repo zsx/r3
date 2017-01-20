@@ -780,18 +780,9 @@ reevaluate:;
             // consume additional arguments during the function run.
             //
             if (GET_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC)) {
-                //
-                // !!! Can EVAL/ONLY be supported by variadics?  What would
-                // it mean?  It generally means that argument fulfillment will
-                // ignore the quoting settings, if that's all it is then
-                // the varargs needs to have this flag communicated...but
-                // then should it function variadically anyway?
-                //
-                assert(args_evaluate);
-
-                Link_Vararg_Param_To_Frame(f, TRUE);
-
-                goto continue_arg_loop;
+                const REBOOL make = TRUE;
+                Link_Vararg_Param_To_Frame(f, make);
+                goto continue_arg_loop; // new value, type guaranteed correct
             }
 
     //=//// AFTER THIS, PARAMS CONSUME FROM CALLSITE IF NOT APPLY ////////=//
@@ -980,7 +971,8 @@ reevaluate:;
                 // whatever the original data feed was (this frame, another
                 // frame, or just an array from MAKE VARARGS!)
                 //
-                Link_Vararg_Param_To_Frame(f, FALSE);
+                const REBOOL make = FALSE; // reuse feed in f->arg
+                Link_Vararg_Param_To_Frame(f, make);
             }
 
         continue_arg_loop: // `continue` might bind to the wrong scope

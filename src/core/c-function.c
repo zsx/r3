@@ -1956,11 +1956,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
 
     f->dsp_orig = DSP;
 
-    struct Reb_Header *alias = &f->flags;
-    alias->bits =
-        DO_FLAG_NO_LOOKAHEAD
-        | DO_FLAG_NO_ARGS_EVALUATE
-        | DO_FLAG_APPLYING;
+    Init_Endlike_Header(&f->flags, DO_FLAG_APPLYING);
 
     // !!! We have to push a call here currently because prior to specific
     // binding, the stack gets walked to resolve variables.   Hence in the

@@ -585,7 +585,6 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(REBFRM *f) {
     if (specializer) {
         REBCTX *exemplar = VAL_CONTEXT(FUNC_BODY(specializer));
         f->special = CTX_VARS_HEAD(exemplar);
-        f->flags.bits |= DO_FLAG_EXECUTE_FRAME; // void "unspecialized" not opt
     }
     else
         f->special = m_cast(REBVAL*, END_CELL); // literal pointer used as test
@@ -616,8 +615,6 @@ inline static void Drop_Function_Args_For_Frame_Core(
     REBFRM *f,
     REBOOL drop_chunks
 ) {
-    f->flags.bits &= ~cast(REBUPT, DO_FLAG_EXECUTE_FRAME);
-
     if (drop_chunks) {
         if (f->varlist == NULL) {
             if (f->args_head != END_CELL && f->args_head != &f->cell)

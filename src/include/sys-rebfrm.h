@@ -98,43 +98,6 @@
     FLAGIT_LEFT(3)
 
 
-//=//// DO_FLAG_NO_LOOKAHEAD //////////////////////////////////////////////=//
-//
-// When we're in mid-dispatch of an infix function, the precedence is such
-// that we don't want to do further infix lookahead while getting the
-// arguments.  (e.g. with `1 + 2 * 3` we don't want infix `+` to "look ahead"
-// past the 2 to see the infix `*`)
-//
-// Actions taken during lookahead may have no side effects.  If it's used
-// to evaluate a form of source input that cannot be backtracked (e.g.
-// a C variable argument list) then it will not be possible to resume.
-//
-#define DO_FLAG_NO_LOOKAHEAD \
-    FLAGIT_LEFT(4)
-
-
-//=//// DO_FLAG_NO_ARGS_EVALUATE //////////////////////////////////////////=//
-//
-// Sometimes a DO operation has already calculated values, and does not want
-// to interpret them again.  e.g. the call to the function wishes to use a
-// precalculated WORD! value, and not look up that word as a variable.  This
-// is common when calling Rebol functions from C code when the parameters are
-// known, or what R3-Alpha called "APPLY/ONLY"
-//
-#define DO_FLAG_NO_ARGS_EVALUATE \
-    FLAGIT_LEFT(5)
-
-
-//=//// DO_FLAG_NO_ARGS_EVALUATE //////////////////////////////////////////=//
-//
-// A pre-built frame can be executed "in-place" without a new allocation.  It
-// will be type checked, and also any BAR! parameters will indicate a desire
-// to acquire that argument (permitting partial specialization).
-//
-#define DO_FLAG_EXECUTE_FRAME \
-    FLAGIT_LEFT(6)
-
-
 //=//// DO_FLAG_VA_LIST ///////////////////////////////////////////////////=//
 //
 // Usually VA_LIST_FLAG is enough to tell when there is a source array to
@@ -146,7 +109,7 @@
 // else, but this is a cheap flag for now.
 //
 #define DO_FLAG_VA_LIST \
-    FLAGIT_LEFT(7)
+    FLAGIT_LEFT(4)
 
 
 //=//// DO_FLAG_TOOK_FRAME_LOCK ///////////////////////////////////////////=//
@@ -156,10 +119,7 @@
 // read only, and sets it back when Do_Core is finished (or on errors)
 //
 #define DO_FLAG_TOOK_FRAME_LOCK \
-    FLAGIT_LEFT(8)
-
-
-#define DO_FLAG_8_IS_FALSE FLAGIT_LEFT(9) // see Init_Endlike_Header()
+    FLAGIT_LEFT(5)
 
 
 //=//// DO_FLAG_APPLYING ///.......////////////////////////////////////////=//
@@ -168,7 +128,7 @@
 // frame was already set up.
 //
 #define DO_FLAG_APPLYING \
-    FLAGIT_LEFT(10)
+    FLAGIT_LEFT(6)
 
 
 //=//// DO_FLAG_FULFILLING_ARG ////////////////////////////////////////////=//
@@ -179,7 +139,53 @@
 // also means that `add 1 <| 2` will act as an error.
 //
 #define DO_FLAG_FULFILLING_ARG \
-    FLAGIT_LEFT(11)
+    FLAGIT_LEFT(7)
+
+
+#define DO_FLAG_8_IS_FALSE FLAGIT_LEFT(8) // see Init_Endlike_Header()
+
+
+//=//// DO_FLAG_NO_ARGS_EVALUATE //////////////////////////////////////////=//
+//
+// Sometimes a DO operation has already calculated values, and does not want
+// to interpret them again.  e.g. the call to the function wishes to use a
+// precalculated WORD! value, and not look up that word as a variable.  This
+// is common when calling Rebol functions from C code when the parameters are
+// known, or what R3-Alpha called "APPLY/ONLY"
+//
+// !!! It's questionable as to whether this flag needs to exist, or if C
+// code should use some kind of special out of band quoting operator to mean
+// "literally this value".  (The problem with using the QUOTE word or function
+// in this capacity is that then functions that quote their arguments will
+// receive the literal QUOTE word or function, but a variadic call from C
+// could subvert that with an invisible instruction.)  Currently the existence
+// of this mode is leaked to Rebol users through EVAL/ONLY, which may be
+// unnecessary complexity to expose.
+//
+#define DO_FLAG_NO_ARGS_EVALUATE \
+    FLAGIT_LEFT(9)
+
+
+//=//// DO_FLAG_NO_LOOKAHEAD //////////////////////////////////////////////=//
+//
+// R3-Alpha had a property such that when it was in mid-dispatch of an infix
+// function, it would suppress further infix lookahead while getting the
+// arguments.  (e.g. with `1 + 2 * 3` it didn't want infix `+` to "look ahead"
+// past the 2 to see the infix `*`)
+//
+// This amounted to what was basically another parameter acquisition mode for
+// the right hand sides of OP!, which became named <tight>.  Because tight
+// parameter fulfillment added variation into the evaluator, it is being
+// replaced by a strategy to use the quoted or non-quoted status of the left
+// hand argument of enfixed functions to guide evaluator behavior.  The worst
+// case scenario will be that `1 + 2 * 3` becomes 7 instead of 9.
+//
+// !!! The flag will be needed as long as legacy support is required, because
+// this fundamentally different mode of parameter acquisition is controlled at
+// the frame level and can't be achieved (reasonably) by other means.
+//
+#define DO_FLAG_NO_LOOKAHEAD \
+    FLAGIT_LEFT(10)
 
 
 // Currently the rightmost two bytes of the Reb_Frame->flags are not used,
@@ -188,7 +194,7 @@
 // information in a platform aligned position of the frame.
 //
 #if defined(__cplusplus) && (__cplusplus >= 201103L)
-    static_assert(11 < 32, "DO_FLAG_XXX too high");
+    static_assert(10 < 32, "DO_FLAG_XXX too high");
 #endif
 
 
