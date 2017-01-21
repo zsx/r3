@@ -376,15 +376,15 @@ static void cleanup_module_handler(const REBVAL *val)
 // Make an extension module array for being loaded later
 //
 REBARR *Make_Extension_Module_Array(
-    const char spec[], REBCNT len,
-    const REBNAT impl[], REBCNT n,
+    const REBYTE spec[], REBCNT len,
+    REBNAT impl[], REBCNT n,
     REBCNT error_base)
 {
     // the array will be like [spec C_func error_base/none]
     REBARR *arr = Make_Array(3);
     TERM_ARRAY_LEN(arr, 3);
-    Init_Binary(ARR_AT(arr, 0), Copy_Bytes(cb_cast(spec), len));
-    Init_Handle_Managed(ARR_AT(arr,1), m_cast(void *, impl), n, &cleanup_module_handler);
+    Init_Binary(ARR_AT(arr, 0), Copy_Bytes(spec, len));
+    Init_Handle_Managed(ARR_AT(arr,1), cast(void *, impl), n, &cleanup_module_handler);
     if (error_base < 0) {
         SET_BLANK(ARR_AT(arr, 2));
     } else {
