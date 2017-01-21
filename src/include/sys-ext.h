@@ -11,14 +11,6 @@
 #define MODULE_QUIT(m) EXT_API int Module_Quit_ ## m ()
 #define CALL_MODULE_QUIT_CORE(m) Module_Quit_ ## m ## _Core ()
 
-inline static void Add_Boot_Extension(REBARR *exts, RELVAL *ext)
-{
-    REBVAL *v = KNOWN(VAL_ARRAY_HEAD(ext));
-    for (; NOT_END(v); ++v) {
-        Append_Value(exts, v);
-    }
-}
-
 #define LOAD_MODULE(exts, m) do {           \
     REBVAL out;                             \
     if (!Module_Init_ ## m(&out)) {         \

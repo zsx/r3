@@ -134,18 +134,19 @@ for-each [m-name c-src] boot-modules [
     emit-line [ {
     int Module_Init_} m-name {_Core(RELVAL *out)
     ^{
-        INIT_} u-m-name {_WORDS;
-        REBARR *arr = Make_Array(3);
-        TERM_ARRAY_LEN(arr, 3);
-        Init_Binary(ARR_AT(arr, 0),
-            Copy_Bytes(Ext_Native_Specs_} m-name {, EXT_NAT_COMPRESSED_SIZE_} u-m-name {));
-        Init_Handle_Simple(ARR_AT(arr, 1),
-            Ext_Native_C_Funcs_} m-name {, EXT_NUM_NATIVES_} u-m-name {);
-        } either empty? error-list [
-            {SET_BLANK(ARR_AT(arr, 2));}
+        INIT_} u-m-name {_WORDS;}
+		either empty? error-list [ {
+		REBARR * arr = Make_Extension_Module_Array(
+            Ext_Native_Specs_} m-name {, EXT_NAT_COMPRESSED_SIZE_} u-m-name {,
+            Ext_Native_C_Funcs_} m-name {, EXT_NUM_NATIVES_} u-m-name {,
+			-1);}
         ][
-            rejoin [ {Ext_} m-name {_Error_Base = Find_Next_Error_Base_Code();
-        SET_INTEGER(ARR_AT(arr, 2), Ext_} m-name {_Error_Base);} ]
+            rejoin [ {
+		Ext_} m-name {_Error_Base = Find_Next_Error_Base_Code();
+		REBARR * arr = Make_Extension_Module_Array(
+            Ext_Native_Specs_} m-name {, EXT_NAT_COMPRESSED_SIZE_} u-m-name {,
+            Ext_Native_C_Funcs_} m-name {, EXT_NUM_NATIVES_} u-m-name {,
+			Ext_} m-name {_Error_Base);}]
         ] {
         Init_Block(out, arr);
 

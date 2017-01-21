@@ -361,6 +361,54 @@ REB_R Command_Dispatcher(REBFRM *f)
     return R_OUT;
 }
 
+
+//
+// Just an ID for the handler
+//
+static void cleanup_module_handler(const REBVAL *val)
+{
+}
+
+
+//
+//  Make_Extension_Module_Array: C
+//
+// Make an extension module array for being loaded later
+//
+REBARR *Make_Extension_Module_Array(
+    const char spec[], REBCNT len,
+    const REBNAT impl[], REBCNT n,
+    REBCNT error_base)
+{
+    // the array will be like [spec C_func error_base/none]
+    REBARR *arr = Make_Array(3);
+    TERM_ARRAY_LEN(arr, 3);
+    Init_Binary(ARR_AT(arr, 0), Copy_Bytes(cb_cast(spec), len));
+    Init_Handle_Managed(ARR_AT(arr,1), m_cast(void *, impl), n, &cleanup_module_handler);
+    if (error_base < 0) {
+        SET_BLANK(ARR_AT(arr, 2));
+    } else {
+        SET_INTEGER(ARR_AT(arr, 2), error_base);
+    }
+    return arr;
+}
+
+
+//
+//  Add_Boot_Extension: C
+//
+// Add an extension to a list to be loaded at bootup 
+//
+void Add_Boot_Extension(REBARR *exts, RELVAL *ext)
+{
+    assert(IS_BLOCK(ext));
+    REBVAL *v = KNOWN(VAL_ARRAY_HEAD(ext));
+    for (; NOT_END(v); ++v) {
+        Append_Value(exts, v);
+    }
+}
+
+
 //
 //  load-native: native [
 //
@@ -383,11 +431,17 @@ REBNATIVE(load_native)
 {
     INCLUDE_PARAMS_OF_LOAD_NATIVE;
 
+    if (VAL_HANDLE_CLEANER(ARG(impl)) != cleanup_module_handler
+        || VAL_INT64(ARG(index)) < 0
+        || VAL_INT64(ARG(index)) >= VAL_HANDLE_LEN(ARG(impl)))
+        fail (Error(RE_MISC));
+
     REBFUN *fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(ARG(spec), MKF_KEYWORDS | MKF_FAKE_RETURN),
         cast(REBNAT*, VAL_HANDLE_POINTER(ARG(impl)))[VAL_INT64(ARG(index))], // unique
         NULL // no underlying function, this is fundamental
     );
+
     if (REF(body)) {
         *FUNC_BODY(fun) = *ARG(code);
     }
