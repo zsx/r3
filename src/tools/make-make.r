@@ -143,7 +143,7 @@ all:
 prep: $(REBOL_TOOL)
     $(REBOL) $T/make-natives.r
     $(REBOL) $T/make-headers.r
-    $(REBOL) $T/make-boot.r $(OS_ID)
+    $(REBOL) $T/make-boot.r OS_ID=$(OS_ID)
     $(REBOL) $T/make-host-init.r
     $(REBOL) $T/make-os-ext.r
     $(REBOL) $T/make-host-ext.r
