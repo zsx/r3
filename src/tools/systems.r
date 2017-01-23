@@ -3,13 +3,13 @@ REBOL [
     Title: "System build targets"
     Rights: {
         Copyright 2012 REBOL Technologies
+        Copyright 2012-2017 Rebol Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
         Licensed under the Apache License, Version 2.0
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
-    Author: ["Carl Sassenrath" "@HostileFork" "contributors"]
     Purpose: {
         These are the target system definitions used to build REBOL
         with a variety of compilers and libraries.  We prefer to keep it
@@ -53,43 +53,43 @@ systems: [
             [LLP64 LEN LL? +O2 UNI W32 CON S4M EXE DIR -LM]
     ;-------------------------------------------------------------------------
     0.4.02      linux-x86       linux
-            [M32 LEN LLC +O2 LDL ST1 -LM LC23]
+            [M32 LEN LLC +O2 LDL ST1 -LM LC23 UFS NSP NSER]
 
     0.4.03      linux-x86       linux
-            [M32 LEN LLC +O2 HID LDL ST1 -LM LC25]
+            [M32 LEN LLC +O2 LDL ST1 -LM LC25 UFS HID]
 
     0.4.04      linux-x86       linux
-            [M32 LEN LLC +O2 HID LDL ST1 -LM LC211]
+            [M32 LEN LLC +O2 LDL ST1 -LM LC211 HID PIP2]
 
     0.4.10      linux-ppc       linux
-            [BEN LLC +O1 HID LDL ST1 -LM]
+            [BEN LLC +O1 HID LDL ST1 -LM PIP2]
 
     0.4.11      linux-ppc64     linux
-            [LP64 BEN LLC +O1 HID LDL ST1 -LM]
+            [LP64 BEN LLC +O1 HID LDL ST1 -LM PIP2]
 
     0.4.20      linux-arm       linux
-            [LEN LLC +O2 HID LDL ST1 -LM]
+            [LEN LLC +O2 HID LDL ST1 -LM PIP2]
 
     0.4.21      linux-arm       linux
-            [LEN LLC +O2 HID LDL ST1 -LM PIE LCB]
+            [LEN LLC +O2 HID LDL ST1 -LM PIE LCB PIP2]
 
     0.4.22      linux-aarch64       linux
-            [LP64 LEN LLC +O2 HID LDL ST1 -LM]
+            [LP64 LEN LLC +O2 HID LDL ST1 -LM PIP2]
 
     0.4.30      linux-mips      linux
-            [LEN LLC +O2 HID LDL ST1 -LM]
+            [LEN LLC +O2 HID LDL ST1 -LM PIP2]
 
     0.4.31      linux-mips32be  linux
-            [BEN LLC +O2 HID LDL ST1 -LM]
+            [BEN LLC +O2 HID LDL ST1 -LM PIP2]
 
     0.4.40      linux-x64       linux
-            [LP64 LEN LLC +O2 HID LDL ST1 -LM]
+            [LP64 LEN LLC +O2 HID LDL ST1 -LM PIP2]
 
     0.4.60      linux-axp       linux
-            [LP64 LEN LLC +O2 HID LDL ST1 -LM]
+            [LP64 LEN LLC +O2 HID LDL ST1 -LM PIP2]
 
     0.4.61      linux-ia64      linux
-            [LP64 LEN LLC +O2 HID LDL ST1 -LM]
+            [LP64 LEN LLC +O2 HID LDL ST1 -LM PIP2]
     ;-------------------------------------------------------------------------
     0.5.75      haiku           posix
             [LEN LLC +O2 ST1 NWK]
@@ -137,13 +137,41 @@ compiler-flags: context [
     +O2: "-O2"                      ; optimize for maximum speed
 
     UNI: "-DUNICODE"                ; win32 wants it
-    CST: "-DCUSTOM_STARTUP"         ; include custom startup script at boot
     HID: "-fvisibility=hidden"      ; all syms are hidden
     F64: "-D_FILE_OFFSET_BITS=64"   ; allow larger files
     NPS: "-Wno-pointer-sign"        ; OSX fix
     PIC: "-fPIC"                    ; position independent (used for libs)
     PIE: "-fPIE"                    ; position independent (executables)
     NCM: "-fno-common"              ; lib cannot have common vars
+
+    ; There are variations in what functions different compiler versions will
+    ; wind up linking in to support the same standard C functions.  This
+    ; means it is not possible to a-priori know what libc version that
+    ; compiler's build product will depend on when using a shared libc.so
+    ;
+    ; To get a list of the glibc stubs your build depends on, run this:
+    ;
+    ;     objdump -T ./r3 | fgrep GLIBC
+    ;
+    ; Notably, increased security measures caused functions like poll() and
+    ; longjmp() to link to checked versions available only in later libc,
+    ; or to automatically insert stack_chk calls for stack protection:
+    ;
+    ; http://stackoverflow.com/a/35404501/211160
+    ; http://unix.stackexchange.com/a/92780/118919
+    ;
+    ; As compilers evolve, the workarounds to make them effectively cross
+    ; compile to older versions of the same platform will become more complex.
+    ; Switches that are needed to achieve this compilation may not be
+    ; supported by old compilers.  This simple build system is not prepared
+    ; to handle both "platform" and "compiler" variations; each OS_ID is
+    ; intended to be used with the standard compiler for that platform.
+    ;
+    NSP: "-fno-stack-protector"     ; stack protect pulls in glibc 2.4 calls
+    PIP2: "-DUSE_PIPE2_NOT_PIPE"    ; pipe2() linux only, glibc 2.9 or later
+    UFS: "-U_FORTIFY_SOURCE"        ; don't link to _chk variants of C calls
+    NSER:                           ; strerror_r() in glibc 2.3.4, not 2.3.0
+        "-DUSE_STRERROR_NOT_STRERROR_R"
 ]
 
 linker-flags: context [
@@ -159,12 +187,17 @@ linker-flags: context [
     S4M: "-Wl,--stack=4194300"
     -LM: "-lm"                      ; Math library (Haiku has it in libroot)
     NWK: "-lnetwork"                ; Needed by HaikuOS
+    
+    PIE: "-pie"
 
+    ; Which libc is used is commentary, it has to be influenced by other
+    ; flags.  See notes above about NSP, PIP1, UFS which are used to try and
+    ; actually control these outcomes.
+    ;
     LC23: ""                        ; libc 2.3
     LC25: ""                        ; libc 2.5
     LC211: ""                       ; libc 2.11
     LCB: ""                         ; bionic (Android)
-    PIE: "-pie"
 ]
 
 other-flags: context [
@@ -174,16 +207,16 @@ other-flags: context [
     DIR: ""                         ; use DIR as ls program
     ST1: "-s"                       ; strip flags...
     STX: "-x"
-    ST2: "-S -x -X"
     CMT: "-R.comment"
     EXE: ""                         ; use %.exe as binary file suffix
 ]
 
 ; A little bit of sanity-checking on the systems table
-use [rec unknown-flags] [
+use [rec unknown-flags used-flags] [
     ;
     ; !!! See notes about RETURN from FOR-EACH-RECORD in its definition.
     ;
+    used-flags: copy []
     for-each-record rec systems [
         assert [tuple? rec/id]
         assert [(to-string rec/os-name) == (lowercase to-string rec/os-name)]
@@ -198,7 +231,23 @@ use [rec unknown-flags] [
             (words-of linker-flags)
             (words-of other-flags)
         ]
-        assert [empty? unknown-flags]
+        if not empty? unknown-flags [
+            print mold unknown-flags
+            fail "Unknown flag used in %systems.r specification"
+        ]
+
+        used-flags: union used-flags rec/build-flags
+    ]
+
+    unused-flags: exclude compose [
+        (words-of compiler-flags)
+        (words-of linker-flags)
+        (words-of other-flags)
+    ] used-flags
+
+    if not empty? unused-flags [
+        print mold unused-flags
+        fail "Unused flags in %systems.r specifications"
     ]
 ]
 

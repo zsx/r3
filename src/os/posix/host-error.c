@@ -126,7 +126,10 @@ REBCHR *OS_Form_Error(int errnum, REBCHR *str, int len)
     // undefined pre-processor names arithmetically compare as 0, which is
     // used in the original glibc test; we are more explicit.)
 
-#if defined(__GNU_LIBRARY__) \
+#ifdef USE_STRERROR_NOT_STRERROR_R
+    char *shared = strerror(errnum);
+    strncpy(str, shared, len);
+#elif defined(__GNU_LIBRARY__) \
         && (defined(_GNU_SOURCE) \
             || ((!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200112L) \
                 && (!defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 600)))

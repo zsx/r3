@@ -343,7 +343,7 @@ int OS_Create_Process(
 
     if (input_type == STRING_TYPE
         || input_type == BINARY_TYPE) {
-    #ifdef TO_LINUX
+    #ifdef USE_PIPE2_NOT_PIPE
         if (pipe2(stdin_pipe, O_CLOEXEC | O_NONBLOCK) < 0) {
     #else
         if (pipe(stdin_pipe) < 0) {
@@ -352,7 +352,7 @@ int OS_Create_Process(
         }
     }
     if (output_type == STRING_TYPE || output_type == BINARY_TYPE) {
-    #ifdef TO_LINUX
+    #ifdef USE_PIPE2_NOT_PIPE
         if (pipe2(stdout_pipe, O_CLOEXEC | O_NONBLOCK) < 0) {
     #else
         if (pipe(stdout_pipe) < 0) {
@@ -361,7 +361,7 @@ int OS_Create_Process(
         }
     }
     if (err_type == STRING_TYPE || err_type == BINARY_TYPE) {
-    #ifdef TO_LINUX
+    #ifdef USE_PIPE2_NOT_PIPE
         if (pipe2(stderr_pipe, O_CLOEXEC | O_NONBLOCK) < 0) {
     #else
         if (pipe(stderr_pipe) < 0) {
@@ -370,7 +370,7 @@ int OS_Create_Process(
         }
     }
 
-#ifdef TO_LINUX
+#ifdef USE_PIPE2_NOT_PIPE
     if (pipe2(info_pipe, O_CLOEXEC | O_NONBLOCK) < 0) {
 #else
     if (pipe(info_pipe) < 0) {
