@@ -53,10 +53,10 @@ systems: [
             [LLP64 LEN LL? +O2 UNI W32 CON S4M EXE DIR -LM]
     ;-------------------------------------------------------------------------
     0.4.02      linux-x86       linux
-            [LEN LLC +O2 LDL ST1 -LM LC23]
+            [M32 LEN LLC +O2 LDL ST1 -LM LC23]
 
     0.4.03      linux-x86       linux
-            [LEN LLC +O2 HID LDL ST1 -LM LC25]
+            [M32 LEN LLC +O2 HID LDL ST1 -LM LC25]
 
     0.4.04      linux-x86       linux
             [M32 LEN LLC +O2 HID LDL ST1 -LM LC211]
