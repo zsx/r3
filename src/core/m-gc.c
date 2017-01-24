@@ -1343,11 +1343,10 @@ REBCNT Recycle_Core(REBOOL shutdown)
     PG_Reb_Stats->Mark_Count = 0;
 #endif
 
-    // WARNING: These terminate existing open blocks. This could
-    // be a problem if code is building a new value at the tail,
-    // but has not yet updated the TAIL marker.
+    // WARNING: This terminates an existing open block.  This could be a
+    // problem if code is building a new value at the tail, but has not yet
+    // updated the TAIL marker.
     //
-    TERM_ARRAY_LEN(BUF_EMIT, ARR_LEN(BUF_EMIT));
     TERM_ARRAY_LEN(BUF_COLLECT, ARR_LEN(BUF_COLLECT));
 
     // MARKING PHASE: the "root set" from which we determine the liveness

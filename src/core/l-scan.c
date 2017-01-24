@@ -1270,12 +1270,6 @@ scanword:
 //
 static void Init_Scan_State(SCAN_STATE *scan_state, const REBYTE *cp, REBCNT limit)
 {
-    // Not all scans finish successfully, and if they're stopped by an error
-    // may leave lingering data in the emit buffer.  This cleans it upon
-    // every new scan initialization.
-    // !!! Is it too slow to have all scans be in a TRAP that does this?
-    RESET_ARRAY(BUF_EMIT);
-
     scan_state->head_line = scan_state->begin = scan_state->end = cp;
     scan_state->limit = cp + limit;
     scan_state->line_count = 1;
@@ -1368,8 +1362,7 @@ static REBARR *Scan_Array(
     SCAN_STATE *scan_state,
     REBYTE mode_char
 ) {
-    REBARR *emitbuf = BUF_EMIT;
-    REBCNT begin = ARR_LEN(emitbuf);   // starting point in block buffer
+    REBDSP dsp_orig = DSP;
     REBOOL line = FALSE;
 #ifdef COMP_LINES
     REBINT linenum;
@@ -1383,12 +1376,12 @@ static REBARR *Scan_Array(
     REB_MOLD mo;
     CLEARS(&mo);
 
-    if (C_STACK_OVERFLOWING(&emitbuf)) Trap_Stack_Overflow();
+    if (C_STACK_OVERFLOWING(&dsp_orig))
+        Trap_Stack_Overflow();
 
     if (just_once)
         CLR_FLAG(scan_state->opts, SCAN_NEXT); // no deeper
 
-    REBVAL *value = NULL;
     REBINT token;
     while (
 #ifdef COMP_LINES
@@ -1407,17 +1400,10 @@ static REBARR *Scan_Array(
             goto syntax_error;
         }
 
-        // Is output block buffer large enough?
-        if (SER_FULL(AS_SERIES(emitbuf)))
-            Extend_Series(AS_SERIES(emitbuf), 1024);
-
-        value = SINK(ARR_TAIL(emitbuf));
-        SET_END(value);
-
         // If in a path, handle start of path /word or word//word cases:
         if (mode_char == '/' && *bp == '/') {
-            SET_BLANK(value);
-            SET_ARRAY_LEN_NOTERM(emitbuf, ARR_LEN(emitbuf) + 1);
+            DS_PUSH_TRASH;
+            SET_BLANK(DS_TOP);
             scan_state->begin = bp + 1;
             continue;
         }
@@ -1439,29 +1425,30 @@ static REBARR *Scan_Array(
         ) {
             REBARR *array = Scan_Array(scan_state, '/'); // may realloc emitbuf
 
-            REBVAL *any_path = SINK(ARR_TAIL(emitbuf));
+            DS_PUSH_TRASH;
 
             if (token == TOKEN_LIT) {
-                VAL_RESET_HEADER(value, REB_LIT_PATH);
+                VAL_RESET_HEADER(DS_TOP, REB_LIT_PATH);
                 VAL_RESET_HEADER(ARR_HEAD(array), REB_WORD);
                 assert(IS_WORD_UNBOUND(ARR_HEAD(array)));
             }
             else if (IS_GET_WORD(ARR_HEAD(array))) {
-                if (*scan_state->end == ':') goto syntax_error;
-                VAL_RESET_HEADER(any_path, REB_GET_PATH);
+                if (*scan_state->end == ':')
+                    goto syntax_error;
+                VAL_RESET_HEADER(DS_TOP, REB_GET_PATH);
                 VAL_RESET_HEADER(ARR_HEAD(array), REB_WORD);
                 assert(IS_WORD_UNBOUND(ARR_HEAD(array)));
             }
             else {
                 if (*scan_state->end == ':') {
-                    VAL_RESET_HEADER(any_path, REB_SET_PATH);
+                    VAL_RESET_HEADER(DS_TOP, REB_SET_PATH);
                     scan_state->begin = ++(scan_state->end);
                 }
                 else
-                    VAL_RESET_HEADER(any_path, REB_PATH);
+                    VAL_RESET_HEADER(DS_TOP, REB_PATH);
             }
-            INIT_VAL_ARRAY(any_path, array); // copies args
-            VAL_INDEX(any_path) = 0;
+            INIT_VAL_ARRAY(DS_TOP, array); // copies args
+            VAL_INDEX(DS_TOP) = 0;
             token = TOKEN_PATH;
         }
         else
@@ -1479,17 +1466,20 @@ static REBARR *Scan_Array(
             continue;
 
         case TOKEN_BAR:
-            SET_BAR(value);
+            DS_PUSH_TRASH;
+            SET_BAR(DS_TOP);
             ++bp;
             break;
 
         case TOKEN_LIT_BAR:
-            SET_LIT_BAR(value);
+            DS_PUSH_TRASH;
+            SET_LIT_BAR(DS_TOP);
             ++bp;
             break;
 
         case TOKEN_BLANK:
-            SET_BLANK(value);
+            DS_PUSH_TRASH;
+            SET_BLANK(DS_TOP);
             ++bp;
             break;
 
@@ -1508,15 +1498,17 @@ static REBARR *Scan_Array(
             }
         case TOKEN_WORD:
             if (len == 0) {bp--; goto syntax_error;}
+            DS_PUSH_TRASH;
             Init_Any_Word(
-                value,
+                DS_TOP,
                 KIND_OF_WORD_FROM_TOKEN(token),
                 Intern_UTF8_Managed(bp, len)
             );
             break;
 
         case TOKEN_REFINE:
-            Init_Refinement(value, Intern_UTF8_Managed(bp + 1, len - 1));
+            DS_PUSH_TRASH;
+            Init_Refinement(DS_TOP, Intern_UTF8_Managed(bp + 1, len - 1));
             break;
 
         case TOKEN_ISSUE:
@@ -1525,13 +1517,16 @@ static REBARR *Scan_Array(
                     token = TOKEN_CONSTRUCT;
                     goto syntax_error;
                 }
-                SET_BLANK(value);  // A single # means NONE
+                DS_PUSH_TRASH;
+                SET_BLANK(DS_TOP);  // A single # means NONE
             }
             else {
                 REBSTR *name = Scan_Issue(bp + 1, len - 1);
                 if (name == NULL)
                     goto syntax_error;
-                Init_Issue(value, name);
+
+                DS_PUSH_TRASH;
+                Init_Issue(DS_TOP, name);
             }
             break;
 
@@ -1540,16 +1535,15 @@ static REBARR *Scan_Array(
             REBARR *array = Scan_Array(
                 scan_state, (token == TOKEN_BLOCK_BEGIN) ? ']' : ')'
             );
-            // (above line could have realloced emitbuf)
             ep = scan_state->end;
-            value = SINK(ARR_TAIL(emitbuf));
             if (scan_state->errors) {
-                *value = *KNOWN(ARR_LAST(array)); // Copy the error
-                SET_ARRAY_LEN_NOTERM(emitbuf, ARR_LEN(emitbuf) + 1);
+                DS_PUSH_TRASH;
+                *DS_TOP = *KNOWN(ARR_LAST(array)); // Copy the error
                 goto exit_block;
             }
+            DS_PUSH_TRASH;
             Init_Any_Array(
-                value,
+                DS_TOP,
                 (token == TOKEN_BLOCK_BEGIN) ? REB_BLOCK : REB_GROUP,
                 array
             );
@@ -1570,7 +1564,8 @@ static REBARR *Scan_Array(
 
         case TOKEN_INTEGER:     // or start of DATE
             if (*ep != '/' || mode_char == '/') {
-                if (NULL == Scan_Integer(value, bp, len))
+                DS_PUSH_TRASH;
+                if (NULL == Scan_Integer(DS_TOP, bp, len))
                     goto syntax_error;
             }
             else {              // A / and not in block
@@ -1578,7 +1573,8 @@ static REBARR *Scan_Array(
                 while (*ep == '/' || IS_LEX_NOT_DELIMIT(*ep)) ep++;
                 scan_state->begin = ep;
                 len = (REBCNT)(ep - bp);
-                if (ep != Scan_Date(value, bp, len))
+                DS_PUSH_TRASH;
+                if (ep != Scan_Date(DS_TOP, bp, len))
                     goto syntax_error;
             }
             break;
@@ -1586,15 +1582,16 @@ static REBARR *Scan_Array(
         case TOKEN_DECIMAL:
         case TOKEN_PERCENT:
             // Do not allow 1.2/abc:
-            if (
-                *ep == '/'
-                || (NULL == Scan_Decimal(value, bp, len, FALSE))
-            ) {
+            if (*ep == '/')
                 goto syntax_error;
-            }
+
+            DS_PUSH_TRASH;
+            if (NULL == Scan_Decimal(DS_TOP, bp, len, FALSE))
+                goto syntax_error;
+
             if (bp[len - 1] == '%') {
-                VAL_RESET_HEADER(value, REB_PERCENT);
-                VAL_DECIMAL(value) /= 100.0;
+                VAL_RESET_HEADER(DS_TOP, REB_PERCENT);
+                VAL_DECIMAL(DS_TOP) /= 100.0;
             }
             break;
 
@@ -1604,18 +1601,22 @@ static REBARR *Scan_Array(
                 ++ep;
                 goto syntax_error;
             }
-            if (!Scan_Money(value, bp, len))
+
+            DS_PUSH_TRASH;
+            if (!Scan_Money(DS_TOP, bp, len))
                 goto syntax_error;
             break;
 
         case TOKEN_TIME:
             if (bp[len-1] == ':' && mode_char == '/') { // could be path/10: set
-                if (NULL == Scan_Integer(value, bp, len - 1))
+                DS_PUSH_TRASH;
+                if (NULL == Scan_Integer(DS_TOP, bp, len - 1))
                     goto syntax_error;
                 scan_state->end--;  // put ':' back on end but not beginning
                 break;
             }
-            if (ep != Scan_Time(value, bp, len))
+            DS_PUSH_TRASH;
+            if (ep != Scan_Time(DS_TOP, bp, len))
                 goto syntax_error;
             break;
 
@@ -1630,68 +1631,64 @@ static REBARR *Scan_Array(
                 }
                 scan_state->begin = ep;  // End point extended to cover time
             }
-            if (ep != Scan_Date(value, bp, len))
+            DS_PUSH_TRASH;
+            if (ep != Scan_Date(DS_TOP, bp, len))
                 goto syntax_error;
             break;
 
         case TOKEN_CHAR:
             bp += 2; // skip #"
-            if (!Scan_UTF8_Char_Escapable(&VAL_CHAR(value), bp))
+            DS_PUSH_TRASH;
+            if (!Scan_UTF8_Char_Escapable(&VAL_CHAR(DS_TOP), bp))
                 goto syntax_error;
-            VAL_RESET_HEADER(value, REB_CHAR);
+            VAL_RESET_HEADER(DS_TOP, REB_CHAR);
             break;
 
         case TOKEN_STRING:
             // During scan above, string was stored in UNI_BUF (with Uni width)
-            Init_String(value, Pop_Molded_String(&mo));
+            DS_PUSH_TRASH;
+            Init_String(DS_TOP, Pop_Molded_String(&mo));
             break;
 
         case TOKEN_BINARY:
-            if (!Scan_Binary(value, bp, len)) {
+            DS_PUSH_TRASH;
+            if (!Scan_Binary(DS_TOP, bp, len))
                 goto syntax_error;
-            }
             break;
 
         case TOKEN_PAIR:
-            Scan_Pair(value, bp, len);
+            DS_PUSH_TRASH;
+            Scan_Pair(DS_TOP, bp, len);
             break;
 
         case TOKEN_TUPLE:
-            if (NULL == Scan_Tuple(value, bp, len))
+            DS_PUSH_TRASH;
+            if (NULL == Scan_Tuple(DS_TOP, bp, len))
                 goto syntax_error;
             break;
 
         case TOKEN_FILE:
-            Scan_File(value, bp, len);
+            DS_PUSH_TRASH;
+            Scan_File(DS_TOP, bp, len);
             break;
 
         case TOKEN_EMAIL:
-            Scan_Email(value, bp, len);
+            DS_PUSH_TRASH;
+            Scan_Email(DS_TOP, bp, len);
             break;
 
         case TOKEN_URL:
-            Scan_URL(value, bp, len);
+            DS_PUSH_TRASH;
+            Scan_URL(DS_TOP, bp, len);
             break;
 
         case TOKEN_TAG:
-            Scan_Any(value, bp + 1, len - 2, REB_TAG);
+            DS_PUSH_TRASH;
+            Scan_Any(DS_TOP, bp + 1, len - 2, REB_TAG);
             break;
 
         case TOKEN_CONSTRUCT:
             {
-            RELVAL *value = SINK(ARR_TAIL(emitbuf));
-
-            if (0) {
-                // !!! This was the R3-Alpha protection code.  As a method of
-                // GC protection it has a problem...the emit buffer may wind
-                // up containing half-built garbage if there is a fail(), which
-                // the emit buffer will consider good.  So either the code has
-                // to be fail-proof (nothing that does memory allocation is)
-                // or the buffer can't be used.
-                //
-                SET_ARRAY_LEN_NOTERM(emitbuf, ARR_LEN(emitbuf) + 1);
-            }
-
             REBARR *array = Scan_Full_Array(scan_state, ']');
 
             // !!! Should the scanner be doing binding at all, and if so why
@@ -1721,17 +1718,15 @@ static REBARR *Scan_Array(
                 // !!! As written today, MAKE may call into the evaluator, and
                 // hence a GC may be triggered.  Performing evaluations during
                 // the scanner is a questionable idea, but at the very least
-                // `block` must be guarded.
+                // `array` must be guarded and the slot on the data stack
+                // being targeted must contain GC valid data in release build.
                 //
-                REBVAL cell;
                 PUSH_GUARD_ARRAY(array);
-                SET_UNREADABLE_BLANK(&cell);
-                PUSH_GUARD_VALUE(&cell);
 
-                dispatcher(&cell, kind, KNOWN(ARR_AT(array, 1))); // may fail()
+                DS_PUSH_TRASH;
+                SET_UNREADABLE_BLANK(DS_TOP);
+                dispatcher(DS_TOP, kind, KNOWN(ARR_AT(array, 1))); // may fail()
 
-                *value = cell;
-                DROP_GUARD_VALUE(&cell);
                 DROP_GUARD_ARRAY(array);
             }
             else {
@@ -1750,16 +1745,19 @@ static REBARR *Scan_Array(
             #if !defined(NDEBUG)
                 case SYM_NONE:
                     // Should be under a LEGACY flag...
-                    SET_BLANK(value);
+                    DS_PUSH_TRASH;
+                    SET_BLANK(DS_TOP);
                     break;
             #endif
 
                 case SYM_FALSE:
-                    SET_FALSE(value);
+                    DS_PUSH_TRASH;
+                    SET_FALSE(DS_TOP);
                     break;
 
                 case SYM_TRUE:
-                    SET_TRUE(value);
+                    DS_PUSH_TRASH;
+                    SET_TRUE(DS_TOP);
                     break;
 
                 default: {
@@ -1769,11 +1767,6 @@ static REBARR *Scan_Array(
                 }
             }
 
-            if (0) {
-                // This was the R3-Alpha unprotect, see notes above.
-                //
-                SET_ARRAY_LEN_NOTERM(emitbuf, ARR_LEN(emitbuf) - 1);
-            }
             } // case TOKEN_CONSTRUCT
             break;
 
@@ -1781,30 +1774,7 @@ static REBARR *Scan_Array(
             continue;
 
         default:
-            SET_BLANK(value);
-        }
-
-        if (line) {
-            line = FALSE;
-            SET_VAL_FLAG(value, VALUE_FLAG_LINE);
-        }
-
-#ifdef TEST_SCAN
-        Print((REBYTE*)"%s - %s", Token_Names[token], Use_Buf(bp,ep));
-        if (VAL_TYPE(value) >= REB_STRING && VAL_TYPE(value) <= REB_URL)
-            Print_Str(VAL_BIN(value));
-        //Wait_User(0);
-#endif
-
-#ifdef COMP_LINES
-        VAL_LINE(value)=linenum;
-        VAL_FLAGS(value)|=FLAGS_LINE;
-#endif
-        if (NOT_END(value))
-            SET_ARRAY_LEN_NOTERM(emitbuf, ARR_LEN(emitbuf) + 1);
-        else {
-        syntax_error: ; // needs to be a statement
-
+        syntax_error: { // needs to be a statement
             REBCTX *error = Error_Bad_Scan(
                 RE_INVALID,
                 scan_state,
@@ -1813,11 +1783,16 @@ static REBARR *Scan_Array(
                 cast(REBCNT, ep - bp)
             );
             if (GET_FLAG(scan_state->opts, SCAN_RELAX)) {
-                Init_Error(ARR_TAIL(emitbuf), error);
-                SET_ARRAY_LEN_NOTERM(emitbuf, ARR_LEN(emitbuf) + 1);
+                DS_PUSH_TRASH;
+                Init_Error(DS_TOP, error);
                 goto exit_block;
             }
-            fail (error);
+            fail (error); }
+        }
+
+        if (line) {
+            line = FALSE;
+            SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
         }
 
         // Check for end of path:
@@ -1843,22 +1818,15 @@ static REBARR *Scan_Array(
 exit_block:
     Drop_Mold_If_Pushed(&mo);
 
-    if (line && NOT_END(value))
-        SET_VAL_FLAG(value, VALUE_FLAG_LINE);
+    if (line && DSP != dsp_orig)
+        SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
 
 #ifdef TEST_SCAN
     Print((REBYTE*)"block of %d values ", emitbuf->tail - begin);
 #endif
 
     REBARR *result;
-    result = Copy_Values_Len_Shallow(
-        ARR_AT(emitbuf, begin),
-        SPECIFIED, // no RELVALs in scan
-        ARR_LEN(emitbuf) - begin
-    );
-    ASSERT_SERIES_TERM(AS_SERIES(result));
-
-    SET_ARRAY_LEN_NOTERM(emitbuf, begin);
+    result = Pop_Stack_Values(dsp_orig);
 
     // All scanned code is expected to be managed by the GC (because walking
     // the tree after constructing it to add the "manage GC" bit would be
@@ -1900,8 +1868,8 @@ extra_error: ; // needs to label a statement
         1
     );
     if (GET_FLAG(scan_state->opts, SCAN_RELAX)) {
-        Init_Error(ARR_TAIL(emitbuf), error);
-        SET_ARRAY_LEN_NOTERM(emitbuf, ARR_LEN(emitbuf) + 1);
+        DS_PUSH_TRASH;
+        Init_Error(DS_TOP, error);
         goto exit_block;
     }
     fail (error);
@@ -1976,7 +1944,6 @@ void Init_Scanner(void)
         ++n;
     assert(cast(enum Value_Types, n) == TOKEN_MAX);
 
-    Set_Root_Series(TASK_BUF_EMIT, AS_SERIES(Make_Array(511)));
     Set_Root_Series(TASK_BUF_UTF8, Make_Unicode(1020));
 }
 

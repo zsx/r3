@@ -755,39 +755,42 @@ void Change_Case(REBVAL *out, REBVAL *val, REBVAL *part, REBOOL upper)
 // Given a string series, split lines on CR-LF.
 // Series can be bytes or Unicode.
 //
-REBARR *Split_Lines(REBVAL *val)
+REBARR *Split_Lines(REBVAL *str)
 {
-    REBARR *array = BUF_EMIT; // GC protected (because it is emit buffer)
-    REBSER *str = VAL_SERIES(val);
-    REBCNT len = VAL_LEN_AT(val);
-    REBCNT idx = VAL_INDEX(val);
-    REBCNT start = idx;
-    REBSER *out;
-    REBUNI c;
+    REBDSP dsp_orig = DSP;
 
-    RESET_ARRAY(array);
+    REBSER *s = VAL_SERIES(str);
+    REBCNT len = VAL_LEN_AT(str);
+    REBCNT i = VAL_INDEX(str);
 
-    while (idx < len) {
-        c = GET_ANY_CHAR(str, idx);
+    REBCNT start = i;
+
+    while (i < len) {
+        REBUNI c = GET_ANY_CHAR(s, i);
         if (c == LF || c == CR) {
-            out = Copy_String_Slimming(str, start, idx - start);
-            val = Alloc_Tail_Array(array);
-            Init_String(val, out);
-            SET_VAL_FLAG(val, VALUE_FLAG_LINE);
-            idx++;
-            if (c == CR && GET_ANY_CHAR(str, idx) == LF)
-                idx++;
-            start = idx;
+            DS_PUSH_TRASH;
+            Init_String(
+                DS_TOP,
+                Copy_String_Slimming(s, start, i - start)
+            );
+            SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
+            ++i;
+            if (c == CR && GET_ANY_CHAR(s, i) == LF)
+                ++i;
+            start = i;
         }
-        else idx++;
+        else
+            ++i;
     }
     // Possible remainder (no terminator)
-    if (idx > start) {
-        out = Copy_String_Slimming(str, start, idx - start);
-        val = Alloc_Tail_Array(array);
-        Init_String(val, out);
-        SET_VAL_FLAG(val, VALUE_FLAG_LINE);
+    if (i > start) {
+        DS_PUSH_TRASH;
+        Init_String(
+            DS_TOP,
+            Copy_String_Slimming(s, start, i - start)
+        );
+        SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
     }
 
-    return Copy_Array_Shallow(array, SPECIFIED); // no relative values
+    return Pop_Stack_Values(dsp_orig);
 }

@@ -101,15 +101,11 @@ static REBSER *Make_Set_Operation_Series(
         REBSER *hser = 0;   // hash table for series
         REBSER *hret;       // hash table for return series
 
-        // The buffer used for building the return series.  Currently it
-        // reuses BUF_EMIT, because that buffer is not likely to be in
-        // use (emit doesn't call set operations, nor vice versa).  However,
-        // other routines may get the same idea and start recursing so it
-        // may be better to use something more similar to the mold stack
-        // approach of marking off successive ranges in the array.
+        // The buffer used for building the return series.  This creates
+        // a new buffer every time, but reusing one might be slightly more
+        // efficient.
         //
-        REBSER *buffer = AS_SERIES(BUF_EMIT);
-        Resize_Series(buffer, i);
+        REBSER *buffer = AS_SERIES(Make_Array(i));
         hret = Make_Hash_Sequence(i);   // allocated
 
         // Optimization note: !!
@@ -183,8 +179,11 @@ static REBSER *Make_Set_Operation_Series(
         if (hret)
             Free_Series(hret);
 
+        // The buffer may have been allocated too large, so copy it at the
+        // used capacity size
+        //
         out_ser = AS_SERIES(Copy_Array_Shallow(AS_ARRAY(buffer), SPECIFIED));
-        SET_SERIES_LEN(buffer, 0); // required - allow reuse
+        Free_Array(AS_ARRAY(buffer));
     }
     else {
         REB_MOLD mo;

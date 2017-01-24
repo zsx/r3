@@ -20,7 +20,6 @@ max-ballast     ; ballast reset value
 stack-error     ; special stack overlow error object
 halt-error      ; special halt error object
 this-context    ; current context
-buf-emit        ; temporary emit output block
 buf-collect     ; temporary cache for collecting object keys or words
 buf-utf8        ; UTF8 reused buffer
 buf-print       ; temporary print output - used by raw print
