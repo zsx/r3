@@ -2,16 +2,13 @@ REBOL [
     System: "Ren/C Core Extraction of the Rebol System"
     Title: "Common Routines for Tools"
     Rights: {
-        Rebol is Copyright 1997-2015 REBOL Technologies
+        Copyright 2012-2017 Rebol Open Source Contributors
         REBOL is a trademark of REBOL Technologies
-
-        Ren/C is Copyright 2015 MetaEducation
     }
     License: {
         Licensed under the Apache License, Version 2.0
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
-    Author: "@HostileFork"
     Version: 2.100.0
     Needs: 2.100.100
     Purpose: {
@@ -289,7 +286,7 @@ parse-args: function [
     args: any [args copy []]
     unless block? args [args: split args [some " "]]
     for-each a args [
-        if to logic! idx: find a #"=" [
+        if idx: find a #"=" [
             name: to word! copy/part a (index-of idx) - 1
             value: copy next idx
             append ret reduce [name value]

@@ -68,6 +68,7 @@
 %datatypes/typeset.test.reb
 %datatypes/unset.test.reb
 %datatypes/url.test.reb
+%datatypes/varargs.test.reb
 %datatypes/vector.test.reb
 %datatypes/word.test.reb
 %comparison/lesserq.test.reb
@@ -93,6 +94,7 @@
 %control/catch.test.reb
 %control/compose.test.reb
 %control/continue.test.reb
+%control/default.test.reb
 %control/disarm.test.reb
 %control/do.test.reb
 %control/either.test.reb
@@ -132,6 +134,11 @@
 %file/make-dir.test.reb
 %file/open.test.reb
 %file/file-typeq.test.reb
+%functions/adapt.test.reb
+%functions/apply.test.reb
+%functions/chain.test.reb
+%functions/hijack.test.reb
+%functions/specialize.test.reb
 %math/absolute.test.reb
 %math/add.test.reb
 %math/and.test.reb
