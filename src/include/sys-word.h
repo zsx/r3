@@ -138,6 +138,8 @@ inline static void Init_Any_Word(
     REBSTR *spelling
 ) {
     VAL_RESET_HEADER(out, kind);
+
+    assert(spelling != NULL);
     out->payload.any_word.spelling = spelling;
 
 #if !defined(NDEBUG)
@@ -179,7 +181,10 @@ inline static void Init_Any_Word_Bound(
 
     VAL_RESET_HEADER(out, type);
     SET_VAL_FLAG(out, WORD_FLAG_BOUND);
+
+    assert(spelling != NULL);
     out->payload.any_word.spelling = spelling;
+
     INIT_WORD_CONTEXT(out, context);
     INIT_WORD_INDEX(out, index);
 

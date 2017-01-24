@@ -76,6 +76,7 @@ REBIXO Do_Vararg_Op_May_Throw(
     enum Reb_Param_Class pclass;
 
     REBVAL *arg; // for updating VALUE_FLAG_UNEVALUATED
+    REBSTR *label;
 
     if (vararg->extra.binding == NULL) {
         //
@@ -86,6 +87,7 @@ REBIXO Do_Vararg_Op_May_Throw(
         pclass = PARAM_CLASS_NORMAL;
         param = NULL; // doesn't correspond to a real varargs parameter
         arg = NULL; // no corresponding varargs argument either
+        label = Canon(SYM___ANONYMOUS__);
     }
     else {
         REBCTX *context = AS_CONTEXT(vararg->extra.binding);
@@ -108,6 +110,8 @@ REBIXO Do_Vararg_Op_May_Throw(
         pclass = VAL_PARAM_CLASS(param);
 
         arg = param_frame->args_head + vararg->payload.varargs.param_offset;
+
+        label = FRM_LABEL(param_frame);
     }
 
     if (op == VARARG_OP_FIRST && pclass != PARAM_CLASS_HARD_QUOTE)
@@ -142,7 +146,7 @@ REBIXO Do_Vararg_Op_May_Throw(
         }
 
         if (op == VARARG_OP_FIRST) {
-            *out = *KNOWN(VAL_ARRAY_AT(shared)); // no relative values
+            Derelativize(out, VAL_ARRAY_AT(shared), VAL_SPECIFIER(shared));
             return VA_LIST_FLAG;
         }
 
@@ -150,7 +154,7 @@ REBIXO Do_Vararg_Op_May_Throw(
 
         Init_Endlike_Header(&temp_frame.flags, DO_FLAG_NORMAL);
         temp_frame.value = VAL_ARRAY_AT(shared);
-        temp_frame.specifier = SPECIFIED;
+        temp_frame.specifier = VAL_SPECIFIER(shared);
         temp_frame.source.array = VAL_ARRAY(shared);
         temp_frame.index = VAL_INDEX(shared) + 1;
         temp_frame.out = out;
@@ -312,7 +316,7 @@ REBIXO Do_Vararg_Op_May_Throw(
     }
 
     if (param && !TYPE_CHECK(param, VAL_TYPE(out)))
-        fail (Error_Arg_Type(FRM_LABEL(f), param, VAL_TYPE(out)));
+        fail (Error_Arg_Type(label, param, VAL_TYPE(out)));
 
     return VA_LIST_FLAG; // may be at end now, but reflect that at *next* call
 }

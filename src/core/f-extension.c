@@ -397,7 +397,7 @@ REBARR *Make_Extension_Module_Array(
 //
 //  Add_Boot_Extension: C
 //
-// Add an extension to a list to be loaded at bootup 
+// Add an extension to a list to be loaded at bootup
 //
 void Add_Boot_Extension(REBARR *exts, RELVAL *ext)
 {
