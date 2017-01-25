@@ -1602,7 +1602,7 @@ void Shutdown_Core(void)
         &= (~NODE_FLAG_ROOT);
     AS_SERIES(CTX_VARLIST(TG_Task_Context))->header.bits
         &= (~NODE_FLAG_ROOT);
-    Recycle_Core(TRUE);
+    Recycle_Core(TRUE, NULL);
 
     Shutdown_Ports();
     Shutdown_Event_Scheme();

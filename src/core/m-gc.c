@@ -1299,12 +1299,69 @@ static REBCNT Sweep_Series(void)
 }
 
 
+#if !defined(NDEBUG)
+
+//
+//  Fill_Sweeplist: C
+//
+REBCNT Fill_Sweeplist(REBSER *sweeplist)
+{
+    assert(SER_WIDE(sweeplist) == sizeof(REBNOD*));
+    assert(SER_LEN(sweeplist) == 0);
+
+    REBCNT count = 0;
+
+    REBSEG *seg;
+    for (seg = Mem_Pools[SER_POOL].segs; seg != NULL; seg = seg->next) {
+        REBSER *s = cast(REBSER*, seg + 1);
+        REBCNT n;
+        for (n = Mem_Pools[SER_POOL].units; n > 0; --n, ++s) {
+            switch (LEFT_N_BITS(s->header.bits, 4)) {
+            case 9: // 0x8 + 0x1
+                assert(IS_SERIES_MANAGED(s));
+                if (Is_Rebser_Marked(s))
+                    Unmark_Rebser(s);
+                else {
+                    EXPAND_SERIES_TAIL(sweeplist, 1); 
+                    *SER_AT(REBNOD*, sweeplist, count) = cast(REBNOD*, s);
+                    ++count;
+                }
+                break;
+
+            case 11: // 0x8 + 0x2 + 0x1
+                //
+                // It's a cell which is managed where the key is not an END.
+                // This is a managed pairing, so mark bit should be heeded.
+                //
+                // !!! It is a REBNOD, but *not* a "series".
+                //
+                assert(IS_SERIES_MANAGED(s));
+                if (Is_Rebser_Marked(s))
+                    Unmark_Rebser(s);
+                else {
+                    EXPAND_SERIES_TAIL(sweeplist, 1); 
+                    *SER_AT(REBNOD*, sweeplist, count) = cast(REBNOD*, s);
+                    ++count;
+                }
+                break;
+            }
+        }
+    }
+
+    return count;
+}
+
+#endif
+
+
 //
 //  Recycle_Core: C
 //
-// Recycle memory no longer needed.
+// Recycle memory no longer needed.  If sweeplist is not NULL, then it needs
+// to be a series whose width is sizeof(REBSER*), and it will be filled with
+// the list of series that *would* be recycled.
 //
-REBCNT Recycle_Core(REBOOL shutdown)
+REBCNT Recycle_Core(REBOOL shutdown, REBSER *sweeplist)
 {
     // Ordinarily, it should not be possible to spawn a recycle during a
     // recycle.  But when debug code is added into the recycling code, it
@@ -1384,12 +1441,27 @@ REBCNT Recycle_Core(REBOOL shutdown)
 
     REBCNT count = 0;
 
-    count += Sweep_Series();
-    count += Sweep_Gobs();
+    if (sweeplist != NULL) {
+    #if defined(NDEBUG)
+        panic (sweeplist);
+    #else
+        count += Fill_Sweeplist(sweeplist);
+    #endif
+    }
+    else
+        count += Sweep_Series();
+
+    // !!! The intent is for GOB! to be unified in the REBNOD pattern, the
+    // way that the FFI structures were.  So they are not included in the
+    // count, in order to help make the numbers returned consistent between
+    // when the sweeplist is used and not.
+    //
+    Sweep_Gobs();
 
 #if !defined(NDEBUG)
     // Compute new stats:
-    PG_Reb_Stats->Recycle_Series = Mem_Pools[SER_POOL].free - PG_Reb_Stats->Recycle_Series;
+    PG_Reb_Stats->Recycle_Series
+        = Mem_Pools[SER_POOL].free - PG_Reb_Stats->Recycle_Series;
     PG_Reb_Stats->Recycle_Series_Total += PG_Reb_Stats->Recycle_Series;
     PG_Reb_Stats->Recycle_Prior_Eval = Eval_Cycles;
 #endif
@@ -1448,7 +1520,7 @@ REBCNT Recycle(void)
 {
     // Default to not passing the `shutdown` flag.
     //
-    REBCNT n = Recycle_Core(FALSE);
+    REBCNT n = Recycle_Core(FALSE, NULL);
 
 #ifdef DOUBLE_RECYCLE_TEST
     //
@@ -1457,7 +1529,7 @@ REBCNT Recycle(void)
     // shouldn't crash.)  This is an expensive check, but helpful to try if
     // it seems a GC left things in a bad state that crashed a later GC.
     //
-    REBCNT n2 = Recycle_Core(FALSE);
+    REBCNT n2 = Recycle_Core(FALSE, NULL);
     assert(n2 == 0);
 #endif
 

@@ -557,7 +557,6 @@ void Mold_Varargs(const REBVAL *v, REB_MOLD *mold) {
         REBFRM *f = CTX_FRAME_IF_ON_STACK(context);
 
         if (f == NULL) {
-            assert(GET_SER_FLAG(CTX_VARLIST(context), CONTEXT_FLAG_STACK));
             Append_Unencoded(mold->series, "**unavailable: call ended **");
         }
         else {

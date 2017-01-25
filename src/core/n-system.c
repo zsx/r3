@@ -124,6 +124,8 @@ REBNATIVE(exit_rebol)
 //      size [integer!]
 //      /torture
 //          "Constant recycle (for internal debugging)"
+//      /verbose
+//          "Dump out information about series being recycled"
 //  ]
 //
 REBNATIVE(recycle)
@@ -153,7 +155,32 @@ REBNATIVE(recycle)
     if (GC_Disabled)
         return R_VOID; // don't give back misleading "0", since no recycle ran
 
-    REBCNT count = Recycle();
+    REBCNT count;
+
+    if (REF(verbose)) {
+    #if defined(NDEBUG)
+        fail (Error(RE_DEBUG_ONLY));
+    #else
+        REBSER *sweeplist = Make_Series(100, sizeof(REBNOD*), MKS_NONE);
+        count = Recycle_Core(FALSE, sweeplist);
+        assert(count == SER_LEN(sweeplist));
+
+        REBCNT index = 0;
+        for (index = 0; index < count; ++index) {
+            REBNOD *node = *SER_AT(REBNOD*, sweeplist, index);
+            PROBE(node);
+        }
+
+        Free_Series(sweeplist);
+        
+        REBCNT recount = Recycle_Core(FALSE, NULL);
+        assert(recount == count); 
+    #endif
+    }
+    else {
+        count = Recycle();
+    }
+
     SET_INTEGER(D_OUT, count);
     return R_OUT;
 }

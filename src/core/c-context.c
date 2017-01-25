@@ -1380,6 +1380,17 @@ void Assert_Context_Core(REBCTX *c)
         //
         if (!IS_FRAME(rootvar))
             panic (rootvar);
+
+        REBFRM *f = CTX_FRAME_IF_ON_STACK(c);
+        if (f != NULL) {
+            REBFUN *rootkey_fun = VAL_FUNC(rootkey);
+            REBFUN *frame_fun = f->underlying; // should match
+
+            if (rootkey_fun != frame_fun) {
+                printf("FRAME! context function doesn't match its REBFRM");
+                panic (frame_fun);
+            }
+        }
     }
     else if (IS_BLANK(rootkey)) {
         //
