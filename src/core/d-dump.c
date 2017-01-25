@@ -168,12 +168,20 @@ void Dump_Values(RELVAL *vp, REBCNT count)
     cp = buf;
     for (l = 0; l < count; l++) {
         REBVAL *val = cast(REBVAL*, bp);
+        if (IS_END(val)) {
+            break;
+        }
+        if (IS_UNREADABLE_OR_VOID(val)) {
+            bp = cast(REBCNT*, val + 1);
+            continue;
+        }
+
         cp = Form_Hex_Pad(cp, l, 8);
 
         *cp++ = ':';
         *cp++ = ' ';
 
-        type = Get_Type_Name((REBVAL*)bp);
+        type = Get_Type_Name(val);
         for (n = 0; n < 11; n++) {
             if (*type) *cp++ = *type++;
             else *cp++ = ' ';
