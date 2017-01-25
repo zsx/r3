@@ -284,7 +284,6 @@ set (CORE_SOURCE
     ${CORE_DIR}/d-print.c
     ${CORE_DIR}/d-stack.c
     ${CORE_DIR}/d-trace.c
-    ${CORE_GENERATED_DIR}/tmp-symbols.c
     ${CORE_DIR}/f-blocks.c
     ${CORE_DIR}/f-deci.c
     ${CORE_DIR}/f-dtoa.c
@@ -421,10 +420,13 @@ add_custom_command(OUTPUT
     ${NATIVE_DEPENDS}
 )
 
-set(HEADER_OUTPUT
+SET(GENERATED_HEADER
     ${TOP_GENERATED_SRC_DIR}/include/tmp-funcs.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-paramlists.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-strings.h
+    )
+set(HEADER_OUTPUT
+    ${GENERATED_HEADER}
     ${CORE_GENERATED_DIR}/tmp-symbols.c
     )
 set(HEADER_DEPENDS
@@ -553,10 +555,11 @@ add_custom_command(OUTPUT
 
 set (GENERATED_CORE_SOURCE
     ${CORE_GENERATED_DIR}/b-boot.c
+    ${CORE_GENERATED_DIR}/tmp-symbols.c
     )
 
 set (GENERATED_CORE_HEADER
-    ${HEADER_OUTPUT}
+    ${GENERATED_HEADER}
     ${REB_LIB_OUTPUT}
     ${BOOT_HEADER}
     ${EXT_CORE_OUTPUT}
@@ -570,12 +573,12 @@ macro(add_module name source)
 
     option(R3_EXT_${u_name} "Build with extension ${l_name}" ON)
 
-    set (GENERATED_EXT_${u_name}_SOURCE
+    set (GENERATED_EXT_${u_name}_HEADER
         ${TOP_GENERATED_SRC_DIR}/include/tmp-ext-${l_name}-first.h
         ${TOP_GENERATED_SRC_DIR}/include/tmp-ext-${l_name}-last.h
         )
     add_custom_command(OUTPUT
-        ${GENERATED_EXT_${u_name}_SOURCE}
+        ${GENERATED_EXT_${u_name}_HEADER}
         COMMAND ${REBOL} ${TOOLS_DIR}/make-ext-natives.r SRC=${source} MODULE=${name} OUTDIR=${TOP_GENERATED_SRC_DIR}
         DEPENDS
         ${TOOL_DEPENDS}
@@ -585,7 +588,7 @@ macro(add_module name source)
 
     if (R3_EXT_${u_name})
         list(APPEND EXT_SOURCE ${source})
-        list(APPEND GENERATED_EXT_SOURCE ${GENERATED_EXT_${u_name}_SOURCE})
+        list(APPEND GENERATED_EXT_HEADER ${GENERATED_EXT_${u_name}_HEADER})
         list(APPEND BOOT_MODULES ${name})
     endif ()
 endmacro (add_module)
@@ -596,7 +599,7 @@ add_module(Crypt ${EXT_DIR}/n-crypt.c)
 #<------------- end of modules --------->
 
 string(REPLACE ";" "," BOOT_MODULE_LIST "${BOOT_MODULES}")
-SET(BOOT_MODULE_HEADER %{TOP_GENERATED_SRC_DIR}/include/tmp-boot-modules.h)
+SET(BOOT_MODULE_HEADER ${TOP_GENERATED_SRC_DIR}/include/tmp-boot-modules.h)
 add_custom_command(OUTPUT
     ${BOOT_MODULE_HEADER}
     COMMAND ${REBOL} ${TOOLS_DIR}/make-boot-mod-header.r MODULES=${BOOT_MODULE_LIST} OUTDIR=${TOP_GENERATED_SRC_DIR}
@@ -712,11 +715,13 @@ endif()
 #HOST
 set_source_files_properties(
     ${TOP_GENERATED_SRC_DIR}/include/host-table.inc
+    ${GENERATED_EXT_HEADER}
+    ${BOOT_MODULE_HEADER}
     PROPERTIES
     HEADER_FILE_ONLY TRUE
     )
 set_source_files_properties(
-    ${TOP_GENERATED_SRC_DIR}/os/tmp-host-start.inc
+    ${GENERATED_CORE_HEADER}
     PROPERTIES
     HEADER_FILE_ONLY TRUE
     )
@@ -809,7 +814,7 @@ set (HOST_SOURCE
     ${OS_SOURCE}
     ${GENERATED_OS_SOURCE}
     ${EXT_SOURCE}
-    ${GENERATED_EXT_SOURCE}
+    ${GENERATED_EXT_HEADER}
     )
 
 if(R3_WITH_TCC)
