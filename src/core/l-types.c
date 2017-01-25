@@ -309,7 +309,7 @@ bad_hex:
 // !!! Is this redundant with Scan_Decimal?  Appears to be similar code.
 //
 const REBYTE *Scan_Dec_Buf(
-    REBYTE *out,
+    REBYTE *out, // may live in data stack (do not call DS_PUSH, GC, eval)
     const REBYTE *cp,
     REBCNT len // max size of buffer
 ) {
@@ -389,7 +389,7 @@ const REBYTE *Scan_Dec_Buf(
 // Scan and convert a decimal value.  Return zero if error.
 //
 const REBYTE *Scan_Decimal(
-    REBVAL *out,
+    REBVAL *out, // may live in data stack (do not call DS_PUSH, GC, eval)
     const REBYTE *cp,
     REBCNT len,
     REBOOL dec_only
@@ -482,8 +482,11 @@ const REBYTE *Scan_Decimal(
 // Scan and convert an integer value.  Return zero if error.
 // Allow preceding + - and any combination of ' marks.
 //
-const REBYTE *Scan_Integer(REBVAL *out, const REBYTE *cp, REBCNT len)
-{
+const REBYTE *Scan_Integer(
+    REBVAL *out, // may live in data stack (do not call DS_PUSH, GC, eval)
+    const REBYTE *cp,
+    REBCNT len
+) {
     SET_TRASH_IF_DEBUG(out);
 
     // Super-fast conversion of zero and one (most common cases):
@@ -568,8 +571,11 @@ const REBYTE *Scan_Integer(REBVAL *out, const REBYTE *cp, REBCNT len)
 //
 // Scan and convert money.  Return zero if error.
 //
-const REBYTE *Scan_Money(REBVAL *out, const REBYTE *cp, REBCNT len)
-{
+const REBYTE *Scan_Money(
+    REBVAL *out, // may live in data stack (do not call DS_PUSH, GC, eval)
+    const REBYTE *cp,
+    REBCNT len
+) {
     SET_TRASH_IF_DEBUG(out);
 
     const REBYTE *end;
@@ -588,8 +594,11 @@ const REBYTE *Scan_Money(REBVAL *out, const REBYTE *cp, REBCNT len)
 //
 // Scan and convert a date. Also can include a time and zone.
 //
-const REBYTE *Scan_Date(REBVAL *out, const REBYTE *cp, REBCNT len)
-{
+const REBYTE *Scan_Date(
+    REBVAL *out, // may live in data stack (do not call DS_PUSH, GC, eval)
+    const REBYTE *cp,
+    REBCNT len
+) {
     SET_TRASH_IF_DEBUG(out);
 
     const REBYTE *end = cp + len;
@@ -807,8 +816,11 @@ end_date:
 //
 // Scan and convert a file name.
 //
-const REBYTE *Scan_File(REBVAL *out, const REBYTE *cp, REBCNT len)
-{
+const REBYTE *Scan_File(
+    REBVAL *out, // may live in data stack (do not call DS_PUSH, GC, eval)
+    const REBYTE *cp,
+    REBCNT len
+) {
     SET_TRASH_IF_DEBUG(out);
 
     if (*cp == '%') {
@@ -848,8 +860,11 @@ const REBYTE *Scan_File(REBVAL *out, const REBYTE *cp, REBCNT len)
 //
 // Scan and convert email.
 //
-const REBYTE *Scan_Email(REBVAL *out, const REBYTE *cp, REBCNT len)
-{
+const REBYTE *Scan_Email(
+    REBVAL *out, // may live in data stack (do not call DS_PUSH, GC, eval)
+    const REBYTE *cp,
+    REBCNT len
+) {
     SET_TRASH_IF_DEBUG(out);
 
     REBSER *series = Make_Binary(len);
@@ -889,8 +904,11 @@ const REBYTE *Scan_Email(REBVAL *out, const REBYTE *cp, REBCNT len)
 //
 // Scan and convert a URL.
 //
-const REBYTE *Scan_URL(REBVAL *out, const REBYTE *cp, REBCNT len)
-{
+const REBYTE *Scan_URL(
+    REBVAL *out, // may live in data stack (do not call DS_PUSH, GC, eval)
+    const REBYTE *cp,
+    REBCNT len
+) {
     SET_TRASH_IF_DEBUG(out);
 
 //  !!! Need to check for any possible scheme followed by ':'
@@ -931,8 +949,11 @@ const REBYTE *Scan_URL(REBVAL *out, const REBYTE *cp, REBCNT len)
 //
 // Scan and convert a pair
 //
-const REBYTE *Scan_Pair(REBVAL *out, const REBYTE *cp, REBCNT len)
-{
+const REBYTE *Scan_Pair(
+    REBVAL *out, // may live in data stack (do not call DS_PUSH, GC, eval)
+    const REBYTE *cp,
+    REBCNT len
+) {
     SET_TRASH_IF_DEBUG(out);
 
     REBYTE buf[MAX_NUM_LEN + 4];
@@ -974,8 +995,11 @@ const REBYTE *Scan_Pair(REBVAL *out, const REBYTE *cp, REBCNT len)
 //
 // Scan and convert a tuple.
 //
-const REBYTE *Scan_Tuple(REBVAL *out, const REBYTE *cp, REBCNT len)
-{
+const REBYTE *Scan_Tuple(
+    REBVAL *out, // may live in data stack (do not call DS_PUSH, GC, eval)
+    const REBYTE *cp,
+    REBCNT len
+) {
     SET_TRASH_IF_DEBUG(out);
 
     if (len == 0)
@@ -1023,8 +1047,11 @@ const REBYTE *Scan_Tuple(REBVAL *out, const REBYTE *cp, REBCNT len)
 //
 // Scan and convert binary strings.
 //
-const REBYTE *Scan_Binary(REBVAL *out, const REBYTE *cp, REBCNT len)
-{
+const REBYTE *Scan_Binary(
+    REBVAL *out, // may live in data stack (do not call DS_PUSH, GC, eval)
+    const REBYTE *cp,
+    REBCNT len
+) {
     SET_TRASH_IF_DEBUG(out);
 
     REBINT base = 16;
@@ -1061,7 +1088,7 @@ const REBYTE *Scan_Binary(REBVAL *out, const REBYTE *cp, REBCNT len)
 // Scan any string that does not require special decoding.
 //
 const REBYTE *Scan_Any(
-    REBVAL *out,
+    REBVAL *out, // may live in data stack (do not call DS_PUSH, GC, eval)
     const REBYTE *cp,
     REBCNT num_bytes,
     enum Reb_Kind type

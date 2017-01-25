@@ -1496,20 +1496,19 @@ static REBARR *Scan_Array(
                 token = TOKEN_WORD; // will be a PATH_SET
                 scan_state->end--;  // put ':' back on end but not beginning
             }
-        case TOKEN_WORD:
+        case TOKEN_WORD: {
             if (len == 0) {bp--; goto syntax_error;}
-            DS_PUSH_TRASH;
-            Init_Any_Word(
-                DS_TOP,
-                KIND_OF_WORD_FROM_TOKEN(token),
-                Intern_UTF8_Managed(bp, len)
-            );
-            break;
 
-        case TOKEN_REFINE:
+            REBSTR *spelling = Intern_UTF8_Managed(bp, len);
             DS_PUSH_TRASH;
-            Init_Refinement(DS_TOP, Intern_UTF8_Managed(bp + 1, len - 1));
-            break;
+            Init_Any_Word(DS_TOP, KIND_OF_WORD_FROM_TOKEN(token), spelling);
+            break; }
+
+        case TOKEN_REFINE: {
+            REBSTR *spelling = Intern_UTF8_Managed(bp + 1, len - 1);
+            DS_PUSH_TRASH;
+            Init_Refinement(DS_TOP, spelling);
+            break; }
 
         case TOKEN_ISSUE:
             if (len == 1) {
@@ -1572,7 +1571,7 @@ static REBARR *Scan_Array(
                 token = TOKEN_DATE;
                 while (*ep == '/' || IS_LEX_NOT_DELIMIT(*ep)) ep++;
                 scan_state->begin = ep;
-                len = (REBCNT)(ep - bp);
+                len = cast(REBCNT, ep - bp);
                 DS_PUSH_TRASH;
                 if (ep != Scan_Date(DS_TOP, bp, len))
                     goto syntax_error;
@@ -1644,11 +1643,13 @@ static REBARR *Scan_Array(
             VAL_RESET_HEADER(DS_TOP, REB_CHAR);
             break;
 
-        case TOKEN_STRING:
+        case TOKEN_STRING: {
             // During scan above, string was stored in UNI_BUF (with Uni width)
+            //
+            REBSER *s = Pop_Molded_String(&mo);
             DS_PUSH_TRASH;
-            Init_String(DS_TOP, Pop_Molded_String(&mo));
-            break;
+            Init_String(DS_TOP, s);
+            break; }
 
         case TOKEN_BINARY:
             DS_PUSH_TRASH;
@@ -1718,15 +1719,20 @@ static REBARR *Scan_Array(
                 // !!! As written today, MAKE may call into the evaluator, and
                 // hence a GC may be triggered.  Performing evaluations during
                 // the scanner is a questionable idea, but at the very least
-                // `array` must be guarded and the slot on the data stack
-                // being targeted must contain GC valid data in release build.
+                // `array` must be guarded, and a data stack cell can't be
+                // used as the destination...because a raw pointer into the
+                // data stack could go bad on any DS_PUSH or DS_DROP.
                 //
+                REBVAL cell;
                 PUSH_GUARD_ARRAY(array);
+                SET_UNREADABLE_BLANK(&cell);
+                PUSH_GUARD_VALUE(&cell);
+
+                dispatcher(&cell, kind, KNOWN(ARR_AT(array, 1))); // may fail()
 
                 DS_PUSH_TRASH;
-                SET_UNREADABLE_BLANK(DS_TOP);
-                dispatcher(DS_TOP, kind, KNOWN(ARR_AT(array, 1))); // may fail()
-
+                *DS_TOP = cell;
+                DROP_GUARD_VALUE(&cell);
                 DROP_GUARD_ARRAY(array);
             }
             else {
