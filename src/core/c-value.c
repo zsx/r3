@@ -245,7 +245,21 @@ void Probe_Core_Debug(
 
     if (h->bits & NODE_FLAG_CELL)
         Debug_Fmt("%r\n", cast(const REBVAL*, p));
-    else
-        Debug_Series(m_cast(REBSER*, cast(const REBSER*, p)));
+    else {
+        REBSER *s = m_cast(REBSER*, cast(const REBSER*, p));
+        if (GET_SER_FLAG(s, ARRAY_FLAG_VARLIST)) {
+            REBCTX *c = AS_CONTEXT(s);
+
+            // Don't use Init_Any_Context, because that can implicitly manage
+            // the context...which we don't want a debug dump routine to do.
+            //
+            REBVAL temp;
+            VAL_RESET_HEADER(&temp, CTX_TYPE(c));
+            temp.extra.binding = NULL;
+            temp.payload.any_context.varlist = CTX_VARLIST(c);
+        }
+        else
+            Debug_Series(s); // handles arrays
+    }
 }
 #endif

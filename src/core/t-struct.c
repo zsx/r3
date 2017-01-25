@@ -1572,17 +1572,21 @@ REBNATIVE(destroy_struct_storage)
 {
     INCLUDE_PARAMS_OF_DESTROY_STRUCT_STORAGE;
 
-    REBSER *ser = ARG(struct)->payload.structure.data;
-    if (NOT(Is_Array_Series(ser)))
+    REBSER *data = ARG(struct)->payload.structure.data;
+    if (NOT(Is_Array_Series(data)))
         fail (Error(RE_NO_EXTERNAL_STORAGE));
 
-    REBVAL pointer;
-    SET_INTEGER(&pointer, cast(REBUPT, SER_DATA_RAW(ser)));
+    RELVAL *handle = ARR_HEAD(AS_ARRAY(data));
 
-    if (GET_SER_INFO(ser, SERIES_INFO_INACCESSIBLE))
+    REBVAL pointer;
+    SET_INTEGER(&pointer, cast(REBUPT, VAL_HANDLE_POINTER(handle)));
+
+    if (VAL_HANDLE_LEN(handle) == 0)
         fail (Error(RE_ALREADY_DESTROYED, pointer));
 
-    SET_SER_INFO(ser, SERIES_INFO_INACCESSIBLE);
+    // TBD: assert handle length was correct for memory block size
+
+    SET_HANDLE_LEN(handle, 0);
 
     if (REF(free)) {
         if (NOT(IS_FUNCTION_RIN(ARG(free_func))))

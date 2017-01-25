@@ -87,17 +87,17 @@ struct Reb_Array {
 // marker in its tail slot, which is one past the last position that is
 // valid for writing a full REBVAL.
 
-#define ARR_AT(a, n) \
-    SER_AT(RELVAL, AS_SERIES(a), (n))
+inline static RELVAL *ARR_AT(REBARR *a, REBCNT n)
+    { return SER_AT(RELVAL, AS_SERIES(a), (n)); }
 
-#define ARR_HEAD(a) \
-    SER_HEAD(RELVAL, AS_SERIES(a))
+inline static RELVAL *ARR_HEAD(REBARR *a)
+    { return SER_HEAD(RELVAL, AS_SERIES(a)); }
 
-#define ARR_TAIL(a) \
-    SER_TAIL(RELVAL, AS_SERIES(a))
+inline static RELVAL *ARR_TAIL(REBARR *a)
+    { return SER_TAIL(RELVAL, AS_SERIES(a)); }
 
-#define ARR_LAST(a) \
-    SER_LAST(RELVAL, AS_SERIES(a))
+inline static RELVAL *ARR_LAST(REBARR *a)
+    { return SER_LAST(RELVAL, AS_SERIES(a)); }
 
 // As with an ordinary REBSER, a REBARR has separate management of its length
 // and its terminator.  Many routines seek to control these independently for

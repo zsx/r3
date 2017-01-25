@@ -399,10 +399,12 @@ inline static REBCNT STU_OFFSET(REBSTU *stu) {
 
 inline static REBYTE *VAL_STRUCT_DATA_HEAD(const RELVAL *v) {
     REBSER *data = v->payload.structure.data;
-    if (Is_Array_Series(data))
-        return cast(REBYTE*, VAL_HANDLE_POINTER(ARR_HEAD(data)));
-    else
+    if (NOT(Is_Array_Series(data)))
         return BIN_HEAD(data);
+
+    RELVAL *handle = ARR_HEAD(AS_ARRAY(data));
+    assert(VAL_HANDLE_LEN(handle) != 0);
+    return cast(REBYTE*, VAL_HANDLE_POINTER(handle));
 }
 
 inline static REBYTE *STU_DATA_HEAD(REBSTU *stu) {
@@ -418,10 +420,12 @@ inline static REBYTE *VAL_STRUCT_DATA_AT(const RELVAL *v) {
 
 inline static REBCNT VAL_STRUCT_DATA_LEN(const RELVAL *v) {
     REBSER *data = v->payload.structure.data;
-    if (Is_Array_Series(data))
-        return VAL_HANDLE_LEN(ARR_HEAD(data));
-    else
+    if (NOT(Is_Array_Series(data)))
         return BIN_LEN(data);
+
+    RELVAL *handle = ARR_HEAD(AS_ARRAY(data));
+    assert(VAL_HANDLE_LEN(handle) != 0);
+    return VAL_HANDLE_LEN(handle);
 }
 
 inline static REBCNT STU_DATA_LEN(REBSTU *stu) {
@@ -430,11 +434,14 @@ inline static REBCNT STU_DATA_LEN(REBSTU *stu) {
 
 inline static REBOOL VAL_STRUCT_INACCESSIBLE(const RELVAL *v) {
     REBSER *data = v->payload.structure.data;
-    if (GET_SER_INFO(data, SERIES_INFO_INACCESSIBLE)) {
-        assert(Is_Array_Series(data));
-        return TRUE;
-    }
-    return FALSE;
+    if (NOT(Is_Array_Series(data)))
+        return FALSE; // it's not "external", so never inaccessible
+
+    RELVAL *handle = ARR_HEAD(AS_ARRAY(data));
+    if (VAL_HANDLE_LEN(handle) != 0)
+        return FALSE; // !!! TBD: double check size is correct for mem block
+    
+    return TRUE;
 }
 
 #define VAL_STRUCT_FIELDLIST(v) \
