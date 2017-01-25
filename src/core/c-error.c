@@ -1331,7 +1331,21 @@ REBCTX *Error_Protected_Key(REBVAL *key)
     REBVAL key_name;
     Init_Word(&key_name, VAL_KEY_SPELLING(key));
 
-    return Error(RE_PROTECTED_WORD, &key_name, END_CELL);
+    return Error(RE_WORD_PROTECTED, &key_name, END_CELL);
+}
+
+
+//
+//  Error_Frozen_Key: C
+//
+REBCTX *Error_Frozen_Key(REBVAL *key)
+{
+    assert(IS_TYPESET(key));
+
+    REBVAL key_name;
+    Init_Word(&key_name, VAL_KEY_SPELLING(key));
+
+    return Error(RE_WORD_FROZEN, &key_name, END_CELL);
 }
 
 
