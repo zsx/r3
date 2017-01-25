@@ -254,14 +254,11 @@ Access: [
     code: 5000
     type: "access error"
 
+    protected-word:     [{variable} :arg1 {locked by PROTECT (see UNPROTECT)}]
     
     series-protected:   {series read-only due to PROTECT (see UNPROTECT)}
     series-frozen:      {series is source or permanently locked, can't modify}
     series-running:     {series temporarily read-only for running (DO, PARSE)}
-
-    word-protected:     [{variable} :arg1 {locked by PROTECT (see UNPROTECT)}]
-    word-frozen:        [{variable} :arg1 {is permanently locked}]
-    context-frozen:     [{context is permanently locked}]
 
     hidden:             {not allowed - would expose or modify hidden values}
 

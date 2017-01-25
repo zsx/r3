@@ -34,17 +34,13 @@
 //
 //  Protect_Key: C
 //
-static void Protect_Key(REBCTX *context, RELVAL *key, REBFLGS flags)
+static void Protect_Key(RELVAL *key, REBFLGS flags)
 {
     if (GET_FLAG(flags, PROT_WORD)) {
         if (GET_FLAG(flags, PROT_SET))
             SET_VAL_FLAG(key, TYPESET_FLAG_PROTECTED);
-        else {
-            if (GET_SER_INFO(CTX_VARLIST(context), SERIES_INFO_FROZEN))
-                fail (Error_Frozen_Key(KNOWN(key)));
-
+        else
             CLEAR_VAL_FLAG(key, TYPESET_FLAG_PROTECTED);
-        }
     }
 
     if (GET_FLAG(flags, PROT_HIDE)) {
@@ -87,12 +83,11 @@ void Protect_Series(REBSER *s, REBCNT index, REBFLGS flags)
             assert(GET_FLAG(flags, PROT_DEEP));
             SET_SER_INFO(s, SERIES_INFO_FROZEN);
         }
-        SET_SER_INFO(s, SERIES_INFO_PROTECTED);
+        else
+            SET_SER_INFO(s, SERIES_INFO_PROTECTED);
     }
     else {
-        if (GET_SER_INFO(s, SERIES_INFO_FROZEN))
-            fail (Error(RE_SERIES_FROZEN));
-
+        assert(!GET_FLAG(flags, PROT_FREEZE));
         CLEAR_SER_INFO(s, SERIES_INFO_PROTECTED);
     }
 
@@ -122,11 +117,11 @@ void Protect_Context(REBCTX *c, REBFLGS flags)
             assert(GET_FLAG(flags, PROT_DEEP));
             SET_SER_INFO(CTX_VARLIST(c), SERIES_INFO_FROZEN);
         }
-        SET_SER_INFO(CTX_VARLIST(c), SERIES_INFO_PROTECTED);
+        else
+            SET_SER_INFO(CTX_VARLIST(c), SERIES_INFO_PROTECTED);
     }
     else {
-        if (GET_SER_INFO(CTX_VARLIST(c), SERIES_INFO_FROZEN))
-            fail (Error(RE_CONTEXT_FROZEN));
+        assert(!GET_FLAG(flags, PROT_FREEZE));
         CLEAR_SER_INFO(CTX_VARLIST(c), SERIES_INFO_PROTECTED);
     }
 
@@ -136,7 +131,7 @@ void Protect_Context(REBCTX *c, REBFLGS flags)
     //
     REBVAL *key = CTX_KEYS_HEAD(c);
     for (; NOT_END(key); ++key)
-        Protect_Key(c, key, flags);
+        Protect_Key(key, flags);
 
     if (!GET_FLAG(flags, PROT_DEEP)) return;
 
@@ -157,9 +152,8 @@ static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
     REBVAL *val;
 
     if (ANY_WORD(word) && IS_WORD_BOUND(word)) {
-        REBCTX *c = VAL_WORD_CONTEXT(word);
-        key = CTX_KEY(c, VAL_WORD_INDEX(word));
-        Protect_Key(c, key, flags);
+        key = CTX_KEY(VAL_WORD_CONTEXT(word), VAL_WORD_INDEX(word));
+        Protect_Key(key, flags);
         if (GET_FLAG(flags, PROT_DEEP)) {
             //
             // Ignore existing mutability state so that it may be modified.
@@ -181,7 +175,7 @@ static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
         REBCTX *context;
         if ((context = Resolve_Path(word, &index))) {
             key = CTX_KEY(context, index);
-            Protect_Key(context, key, flags);
+            Protect_Key(key, flags);
             if (GET_FLAG(flags, PROT_DEEP)) {
                 val = CTX_VAR(context, index);
                 Protect_Value(val, flags);

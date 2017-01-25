@@ -366,7 +366,7 @@ inline static REBVAL *Append_Context(
 inline static void Deep_Freeze_Context(REBCTX *c) {
     Protect_Context(
         c,
-        FLAGIT(PROT_SET) | FLAGIT(PROT_DEEP) | FLAGIT(PROT_FREEZE) | FLAGIT(PROT_WORD)
+        FLAGIT(PROT_SET) | FLAGIT(PROT_DEEP) | FLAGIT(PROT_FREEZE)
     );
     Uncolor_Array(CTX_VARLIST(c));
 }

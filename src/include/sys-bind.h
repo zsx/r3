@@ -211,19 +211,6 @@ enum {
 };
 
 
-// Gives the appropriate kind of error message for the reason the key is
-// read only (frozen or protected).
-static inline void FAIL_IF_READ_ONLY_KEY(REBCTX *c, REBVAL *key)
-{
-    if (GET_VAL_FLAG(key, TYPESET_FLAG_PROTECTED)) {
-        if (Is_Context_Deeply_Frozen(c))
-            fail (Error_Frozen_Key(key));
-        else
-            fail(Error_Protected_Key(key));
-    }
-}
-
-
 // Get the word--variable--value. (Generally, use the macros like
 // GET_VAR or GET_MUTABLE_VAR instead of this).  This routine is
 // called quite a lot and so attention to performance is important.
@@ -335,13 +322,15 @@ inline static REBVAL *Get_Var_Core(
     else {
         assert(*eval_type == REB_FUNCTION || *eval_type == REB_0_LOOKBACK);
 
-        //
-        // The key corresponding to the var being looked up contains
-        // some flags, including one of whether or not the variable is
-        // locked from writes.  If mutable access was requested, deny
-        // it if this flag is set.
-        
-        FAIL_IF_READ_ONLY_KEY(context, key);
+        if (GET_VAL_FLAG(key, TYPESET_FLAG_PROTECTED)) {
+            //
+            // The key corresponding to the var being looked up contains
+            // some flags, including one of whether or not the variable is
+            // locked from writes.  If mutable access was requested, deny
+            // it if this flag is set.
+
+            fail (Error(RE_PROTECTED_WORD, any_word));
+        }
 
         // If we are writing, then we write the state of the lookback boolean
         // but also return what it was before.

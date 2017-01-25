@@ -196,7 +196,8 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
         REBVAL *key = CTX_KEY(context, i);
         REBVAL *var = CTX_VAR(context, i);
 
-        FAIL_IF_READ_ONLY_KEY(context, key);
+        if (GET_VAL_FLAG(key, TYPESET_FLAG_PROTECTED))
+            fail (Error_Protected_Key(key));
 
         if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
             fail (Error(RE_HIDDEN));
@@ -469,8 +470,9 @@ REBINT PD_Context(REBPVS *pvs)
     if (
         pvs->opt_setval
         && IS_END(pvs->item + 1)
+        && GET_VAL_FLAG(CTX_KEY(context, n), TYPESET_FLAG_PROTECTED)
     ) {
-        FAIL_IF_READ_ONLY_KEY(context, CTX_KEY(context, n));
+        fail (Error(RE_PROTECTED_WORD, pvs->selector));
     }
 
     pvs->value = CTX_VAR(context, n);
