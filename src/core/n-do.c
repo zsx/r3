@@ -232,28 +232,29 @@ REBNATIVE(do)
     }
 
     case REB_FRAME: {
-        //
+        REBCTX *c = VAL_CONTEXT(source);
+
         // To allow efficient applications, this does not make a copy of the
-        // FRAME!.  However it goes through the argument traversal in order
-        // to do type checking.
+        // FRAME!.  This means the frame must not be currently running
+        // on the stack.
         //
-        // !!! Check needed to not run an already running frame!  User should
-        // be told to copy the frame if they try.
+        // !!! It may come to pass that a trick lets you reuse a stack context
+        // and unwind it as a kind of tail recursion to reuse it.  But one would
+        // not want that strange voodoo to be what DO does on a FRAME!,
+        // it would have to be another operation (REDO ?)
         //
-        // Right now all stack based contexts are either running (in which
-        // case you shouldn't run them again) or expired (in which case their
-        // values are unavailable).  It may come to pass that an interesting
-        // trick lets you reuse a stack context and unwind it as a kind of
-        // GOTO to reuse it, but that would be deep voodoo.  Just handle the
-        // kind of frames that come in as "objects plus function the object
-        // is for" flavor.
+        REBFRM *f = CTX_FRAME_IF_ON_STACK(c);
+        if (f != NULL)
+            fail (Error(RE_DO_RUNNING_FRAME));
+
+        // Right now all stack based contexts are either running (stopped by
+        // the above) or expired (in which case their values are unavailable).
         //
-        assert(NOT_SER_FLAG(
-            CTX_VARLIST(VAL_CONTEXT(source)), CONTEXT_FLAG_STACK)
-        );
+        if (CTX_VARS_UNAVAILABLE(c))
+            fail (Error(RE_DO_EXPIRED_FRAME));
 
         REBFRM frame;
-        REBFRM *f = &frame;
+        f = &frame;
 
         // Apply_Frame_Core sets up most of the Reb_Frame, but expects these
         // arguments to be filled in.
@@ -264,6 +265,7 @@ REBNATIVE(do)
         f->binding = VAL_BINDING(source);
 
         f->varlist = CTX_VARLIST(VAL_CONTEXT(source)); // need w/NULL def
+        AS_SERIES(f->varlist)->misc.f = f;
 
         return Apply_Frame_Core(f, Canon(SYM___ANONYMOUS__), NULL); }
 

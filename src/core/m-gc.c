@@ -538,7 +538,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
             assert(CTX_TYPE(context) == REB_FRAME);
 
         #if !defined(NDEBUG)
-            if (IS_INACCESSIBLE(context)) {
+            if (CTX_VARS_UNAVAILABLE(context)) {
                 //
                 // !!! It seems a bit wasteful to keep alive the binding of a
                 // stack frame you can no longer get values out of.  But
@@ -548,7 +548,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
                 //
             }
             else {
-                struct Reb_Frame *f = CTX_FRAME(context);
+                struct Reb_Frame *f = CTX_FRAME_IF_ON_STACK(context);
                 if (f != NULL) // comes from execution, not MAKE FRAME!
                     assert(binding == f->binding);
             }

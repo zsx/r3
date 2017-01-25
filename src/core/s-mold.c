@@ -975,11 +975,9 @@ static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
 {
     REBVAL *keys_head = CTX_KEYS_HEAD(VAL_CONTEXT(value));
-    REBVAL *vars_head;
-    REBVAL *key;
-    REBVAL *var;
 
-    if (IS_INACCESSIBLE(VAL_CONTEXT(value))) {
+    REBVAL *vars_head;
+    if (CTX_VARS_UNAVAILABLE(VAL_CONTEXT(value))) {
         //
         // If something like a function call has gone of the stack, the data
         // for the vars will no longer be available.  The keys should still
@@ -1019,10 +1017,10 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
     New_Indented_Line(mold);
     Append_Codepoint_Raw(mold->series, '[');
 
-    key = keys_head;
-    var = vars_head;
+    REBVAL *key = keys_head;
+    REBVAL *var = vars_head;
 
-    for (; NOT_END(key); var ? (++key, ++var) : ++key) {
+    for (; NOT_END(key); var != NULL ? (++key, ++var) : ++key) {
         if (key != keys_head)
             Append_Codepoint_Raw(mold->series, ' ');
 

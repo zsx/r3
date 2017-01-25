@@ -91,19 +91,13 @@ REBIXO Do_Vararg_Op_May_Throw(
     }
     else {
         REBCTX *context = AS_CONTEXT(vararg->extra.binding);
+        REBFRM *param_frame = CTX_FRAME_IF_ON_STACK(context);
 
         // If the VARARGS! has a call frame, then ensure that the call frame
         // where the VARARGS! originated is still on the stack.
         //
-        // !!! This test is not good enough for "durables", and if FRAME! can
-        // be reused on the stack then it could still be alive even though the
-        // call pointer it first ran with is dead.  There needs to be a
-        // solution for other reasons, so use that solution when it's ready.
-        //
-        if (IS_INACCESSIBLE(context))
+        if (param_frame == NULL)
             fail (Error(RE_VARARGS_NO_STACK));
-
-        REBFRM *param_frame = CTX_FRAME(context);
 
         param = FUNC_PARAMS_HEAD(param_frame->underlying)
             + vararg->payload.varargs.param_offset;
@@ -169,15 +163,9 @@ REBIXO Do_Vararg_Op_May_Throw(
         // If the VARARGS! has a call frame, then ensure that the call frame
         // where the VARARGS! originated is still on the stack.
         //
-        // !!! This test is not good enough for "durables", and if FRAME! can
-        // bw reused on the stack then it could still be alive even though the
-        // call pointer it first ran with is dead.  There needs to be a
-        // solution for other reasons, so use that solution when it's ready.
-        //
-        if (IS_INACCESSIBLE(context))
+        f = CTX_FRAME_IF_ON_STACK(context);
+        if (f == NULL)
             fail (Error(RE_VARARGS_NO_STACK));
-
-        f = CTX_FRAME(context);
 
         // "Ordinary" case... use the original frame implied by the VARARGS!
         // The Reb_Frame isn't a bad pointer, we checked FRAME! is stack-live.
@@ -503,12 +491,12 @@ void Mold_Varargs(const REBVAL *v, REB_MOLD *mold) {
     }
     else {
         REBCTX *context = AS_CONTEXT(v->extra.binding);
-        if (IS_INACCESSIBLE(context)) {
+        REBFRM *param_frame = CTX_FRAME_IF_ON_STACK(context);
+
+        if (param_frame == NULL) {
             Append_Unencoded(mold->series, "???");
         }
         else {
-            REBFRM *param_frame = CTX_FRAME(context);
-
             const RELVAL *param
                 = FUNC_PARAMS_HEAD(param_frame->underlying)
                     + v->payload.varargs.param_offset;
@@ -566,15 +554,13 @@ void Mold_Varargs(const REBVAL *v, REB_MOLD *mold) {
     }
     else {
         REBCTX *context = AS_CONTEXT(feed);
-        if (IS_INACCESSIBLE(context)) {
+        REBFRM *f = CTX_FRAME_IF_ON_STACK(context);
+
+        if (f == NULL) {
             assert(GET_SER_FLAG(CTX_VARLIST(context), CONTEXT_FLAG_STACK));
             Append_Unencoded(mold->series, "**unavailable: call ended **");
         }
         else {
-            // The Reb_Frame is not a bad pointer since FRAME! is stack-live
-            //
-            REBFRM *f = CTX_FRAME(context);
-
             {// Just [...] for now
                 Append_Unencoded(mold->series, "[...]");
                 goto skip_complex_mold_for_now;

@@ -148,14 +148,26 @@ inline static REBVAL *CTX_VALUE(REBCTX *c) {
         : KNOWN(ARR_HEAD(CTX_VARLIST(c))); // not a RELVAL
 }
 
-inline static REBFRM *CTX_FRAME(REBCTX *c) {
-    return AS_SERIES(CTX_VARLIST(c))->misc.f;
+inline static REBFRM *CTX_FRAME_IF_ON_STACK(REBCTX *c) {
+    assert(IS_FRAME(CTX_VALUE(c)));
+    REBFRM *f = AS_SERIES(CTX_VARLIST(c))->misc.f;
+    assert(
+        f == NULL
+        || (
+            f->eval_type <= REB_FUNCTION
+            && f->label != NULL
+        ) // Note: inlining of Is_Any_Function_Frame() to break dependency
+    );
+    return f;
 }
 
 inline static REBVAL *CTX_VARS_HEAD(REBCTX *c) {
-    return GET_SER_FLAG(CTX_VARLIST(c), CONTEXT_FLAG_STACK)
-        ? CTX_FRAME(c)->args_head // if NULL, this will crash
-        : SER_AT(REBVAL, AS_SERIES(CTX_VARLIST(c)), 1);
+    if (NOT(GET_SER_FLAG(CTX_VARLIST(c), CONTEXT_FLAG_STACK)))
+        return KNOWN(ARR_AT(CTX_VARLIST(c), 1));
+
+    REBFRM *f = CTX_FRAME_IF_ON_STACK(c);
+    assert(f != NULL);
+    return f->args_head;
 }
 
 inline static REBVAL *CTX_KEY(REBCTX *c, REBCNT n) {
@@ -193,10 +205,6 @@ inline static REBCTX *CTX_META(REBCTX *c) {
     return AS_SERIES(CTX_KEYLIST(c))->link.meta;
 }
 
-inline static REBVAL *CTX_STACKVARS(REBCTX *c) {
-    return CTX_FRAME(c)->args_head;
-}
-
 #define FAIL_IF_READ_ONLY_CONTEXT(c) \
     FAIL_IF_READ_ONLY_ARRAY(CTX_VARLIST(c))
 
@@ -212,7 +220,7 @@ inline static void FREE_CONTEXT(REBCTX *c) {
     DROP_GUARD_ARRAY(CTX_VARLIST(c))
 
 
-inline static REBOOL IS_INACCESSIBLE(REBCTX *c) {
+inline static REBOOL CTX_VARS_UNAVAILABLE(REBCTX *c) {
     //
     // Mechanically any array can become inaccessible, but really the varlist
     // of a stack context is the only case that should happen today (outside
@@ -263,9 +271,6 @@ inline static void INIT_VAL_CONTEXT(REBVAL *v, REBCTX *c) {
     v->payload.any_context.varlist = CTX_VARLIST(c);
 }
 
-#define VAL_CONTEXT_FRAME(v) \
-    CTX_FRAME(VAL_CONTEXT(v))
-
 // Convenience macros to speak in terms of object values instead of the context
 //
 #define VAL_CONTEXT_VAR(v,n) \
@@ -282,11 +287,6 @@ inline static REBCTX *VAL_CONTEXT_META(const RELVAL *v) {
 
 #define VAL_CONTEXT_KEY_SYM(v,n) \
     CTX_KEY_SYM(VAL_CONTEXT(v), (n))
-
-inline static void INIT_CONTEXT_FRAME(REBCTX *c, REBFRM *frame) {
-    assert(IS_FRAME(CTX_VALUE(c)));
-    AS_SERIES(CTX_VARLIST(c))->misc.f = frame;
-}
 
 inline static void INIT_CONTEXT_META(REBCTX *c, REBCTX *m) {
     AS_SERIES(CTX_KEYLIST(c))->link.meta = m;

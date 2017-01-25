@@ -539,6 +539,11 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(REBFRM *f) {
         //
         SET_TRASH_IF_DEBUG(ARR_AT(f->varlist, 0));
         f->args_head = SINK(ARR_AT(f->varlist, 1));
+
+        // Similarly, it should not be possible to use CTX_FRAME_IF_ON_STACK
+        // if the varlist does not become reified.
+        //
+        TRASH_POINTER_IF_DEBUG(AS_SERIES(f->varlist)->misc.f);
     }
     else if (num_args == 0) {
         //
@@ -646,9 +651,16 @@ inline static void Drop_Function_Args_For_Frame_Core(
         // didn't need to be (no Context_For_Frame_May_Reify_Managed).  We
         // can just free it.
         //
+        assert(IS_POINTER_TRASH_DEBUG(AS_SERIES(f->varlist)->misc.f));
         Free_Array(f->varlist);
         goto finished;
     }
+
+    // The varlist is going to outlive this call, so the frame correspondence
+    // in it needs to be cleared out, so callers will know the frame is dead.
+    //
+    assert(AS_SERIES(f->varlist)->misc.f == f);
+    AS_SERIES(f->varlist)->misc.f = NULL;
 
     // The varlist might have been for indefinite extent variables, or it
     // might be a stub holder for a stack context.

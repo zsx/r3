@@ -345,15 +345,17 @@
 
 //=//// SERIES_INFO_INACCESSIBLE //////////////////////////////////////////=//
 //
-// This indicates that the memory pointed at by `->data` has "gone bad".
-//
 // Currently this used to note when a CONTEXT_FLAG_STACK series has had its
 // stack level popped (there's no data to lookup for words bound to it).
 //
-// !!! The FFI also uses this for STRUCT! when an interface to a C structure
-// is using external memory instead of a Rebol series, and that external
-// memory goes away.  Since FFI is shifting to becoming a user extension, it
-// might approach this problem in a different way in the future.
+// !!! This is currently redundant with checking if a CONTEXT_FLAG_STACK
+// series has its `misc.f` (REBFRM) nulled out, but it means both can be
+// tested at the same time with a single bit.
+//
+// !!! It is conceivable that there would be other cases besides frames that
+// would want to expire their contents, and it's also conceivable that frames
+// might want to *half* expire their contents (e.g. have a hybrid of both
+// stack and dynamic values+locals).  These are potential things to look at.
 //
 #define SERIES_INFO_INACCESSIBLE \
     FLAGIT_LEFT(9)

@@ -245,7 +245,8 @@ REBNATIVE(fail)
             context = VAL_WORD_CONTEXT(ARG(location));
         else
             context = VAL_CONTEXT(ARG(location));
-        where = CTX_FRAME(context);
+
+        where = CTX_FRAME_IF_ON_STACK(context);
 
         // !!! If where comes back NULL, what to do?  Probably bad if someone
         // is trying to decipher an error to trigger another error.  Maybe

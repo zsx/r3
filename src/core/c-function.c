@@ -1037,9 +1037,8 @@ REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
 {
     REBARR *varlist = Alloc_Singular_Array();
     SET_BLANK(ARR_HEAD(varlist));
-    SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
+    SET_SER_FLAGS(varlist, ARRAY_FLAG_VARLIST | CONTEXT_FLAG_STACK);
     MANAGE_ARRAY(varlist);
-    SET_SER_FLAG(varlist, CONTEXT_FLAG_STACK);
 
     SET_SER_INFO(varlist, SERIES_INFO_INACCESSIBLE);
 
@@ -1049,10 +1048,11 @@ REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
 
     CTX_VALUE(expired)->payload.any_context.varlist = varlist;
 
-    // Clients aren't supposed to ever be looking at the values for the
-    // stackvars or the frame if it is expired.
+    // A NULL stored by the misc field of a REB_FRAME context's varlist which
+    // indicates that the frame has finished running.  If it is stack-based,
+    // then that also means the data values are unavailable.
     //
-    TRASH_POINTER_IF_DEBUG(AS_SERIES(varlist)->misc.f);
+    AS_SERIES(varlist)->misc.f = NULL;
 
     return expired;
 }
@@ -1305,15 +1305,11 @@ REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(varlist), FUNC_PARAMLIST(func));
     ASSERT_ARRAY_MANAGED(CTX_KEYLIST(AS_CONTEXT(varlist)));
 
-    // !!! The frame will never have stack storage if created this
-    // way, because we return it...and it would be of no use if the
-    // stackvars were empty--they could not be filled.  However it
-    // will have an associated call if it is run.  We don't know what
-    // that call pointer will be so NULL is put in for now--but any
-    // extant FRAME! values of this type will have to use stack
-    // walks to find the pointer (possibly recaching in values.)
+    // The current implementation allows that `do frame` of the result
+    // of a `make frame! :fun` will not make a copy of the frame, but use
+    // its values.  See notes in DO of FRAME! regarding this.
     //
-    INIT_CONTEXT_FRAME(AS_CONTEXT(varlist), NULL);
+    AS_SERIES(varlist)->misc.f = NULL;
     CTX_VALUE(AS_CONTEXT(varlist))->extra.binding = value->extra.binding;
     ++var;
 

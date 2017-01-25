@@ -384,7 +384,7 @@ void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
     //
     VAL_RESET_HEADER(CTX_VALUE(context), REB_FRAME);
     CTX_VALUE(context)->payload.any_context.varlist = CTX_VARLIST(context);
-    INIT_CONTEXT_FRAME(context, f);
+    AS_SERIES(CTX_VARLIST(context))->misc.f = f;
     CTX_VALUE(context)->extra.binding = f->binding;
 
     // A reification of a frame for native code should not allow changing
@@ -407,6 +407,6 @@ void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
     //
     if (NOT(Is_Function_Frame_Fulfilling(f)))
         ASSERT_CONTEXT(context);
-    assert(!IS_INACCESSIBLE(context));
+    assert(NOT(CTX_VARS_UNAVAILABLE(context)));
 #endif
 }

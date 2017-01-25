@@ -675,12 +675,8 @@ return_maybe_set_number_out:
 //
 REBOOL Is_Context_Running_Or_Pending(REBCTX *frame_ctx)
 {
-    if (IS_INACCESSIBLE(frame_ctx))
-        return FALSE;
-
-    REBFRM *f = CTX_FRAME(frame_ctx);
-
-    if (NOT(Is_Any_Function_Frame(f)))
+    REBFRM *f = CTX_FRAME_IF_ON_STACK(frame_ctx);
+    if (f == NULL)
         return FALSE;
 
     if (Is_Function_Frame_Fulfilling(f))
@@ -703,12 +699,9 @@ REBNATIVE(running_q)
     INCLUDE_PARAMS_OF_RUNNING_Q;
 
     REBCTX *frame_ctx = VAL_CONTEXT(ARG(frame));
-    if (IS_INACCESSIBLE(frame_ctx))
-        return R_FALSE;
 
-    REBFRM *f = CTX_FRAME(frame_ctx);
-
-    if (NOT(Is_Any_Function_Frame(f)))
+    REBFRM *f = CTX_FRAME_IF_ON_STACK(frame_ctx);
+    if (f == NULL)
         return R_FALSE;
 
     if (Is_Function_Frame_Fulfilling(f))
@@ -731,14 +724,13 @@ REBNATIVE(pending_q)
     INCLUDE_PARAMS_OF_PENDING_Q;
 
     REBCTX *frame_ctx = VAL_CONTEXT(ARG(frame));
-    if (IS_INACCESSIBLE(frame_ctx))
+
+    REBFRM *f = CTX_FRAME_IF_ON_STACK(frame_ctx);
+    if (f == NULL)
         return R_FALSE;
 
-    REBFRM *f = CTX_FRAME(frame_ctx);
-
-    if (Is_Any_Function_Frame(f))
-        if (Is_Function_Frame_Fulfilling(f))
-            return R_TRUE;
+    if (Is_Function_Frame_Fulfilling(f))
+        return R_TRUE;
 
     return R_FALSE;
 }

@@ -95,6 +95,9 @@ Script: [
     expect-type:        [:arg1 :arg2 {field must be of type} :arg3]
     cannot-use:         [{cannot use} :arg1 {on} :arg2 {value}]
 
+    do-running-frame:   [{Must COPY a FRAME! that's RUNNING? before DOing it}]
+    do-expired-frame:   [{Cannot DO a FRAME! whose stack storage expired}]
+
     apply-too-many:     {Too many values in processed argument block of APPLY.}
     apply-has-changed:  {APPLY takes frame def block (or see r3-alpha-apply)}
     apply-non-function: [:arg1 {needs to be a function for APPLY/SPECIALIZE}]

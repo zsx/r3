@@ -277,35 +277,27 @@ inline static REBVAL *Get_Var_Core(
     REBVAL *key = CTX_KEY(context, index);
     assert(VAL_WORD_CANON(any_word) == VAL_KEY_CANON(key));
 
-    REBVAL *var;
+    if (CTX_VARS_UNAVAILABLE(context)) {
+        //
+        // Currently if a context has a stack component, then the vars
+        // are "all stack"...so when that level is popped, all the vars
+        // will be unavailable.  There is a <durable> mechanism, but that
+        // makes all the variables come from an ordinary pool-allocated
+        // series.  Hybrid approaches which have "some stack and some
+        // durable" will be possible in the future, as a context can
+        // mechanically have both stackvars and a dynamic data pointer.
 
-    if (GET_SER_FLAG(CTX_VARLIST(context), CONTEXT_FLAG_STACK)) {
-        if (IS_INACCESSIBLE(context)) {
-            //
-            // Currently if a context has a stack component, then the vars
-            // are "all stack"...so when that level is popped, all the vars
-            // will be unavailable.  There is a <durable> mechanism, but that
-            // makes all the variables come from an ordinary pool-allocated
-            // series.  Hybrid approaches which have "some stack and some
-            // durable" will be possible in the future, as a context can
-            // mechanically have both stackvars and a dynamic data pointer.
+        REBVAL unbound;
+        Init_Any_Word(
+            &unbound,
+            VAL_TYPE(any_word),
+            VAL_WORD_SPELLING(any_word)
+        );
 
-            REBVAL unbound;
-            Init_Any_Word(
-                &unbound,
-                VAL_TYPE(any_word),
-                VAL_WORD_SPELLING(any_word)
-            );
-
-            fail (Error(RE_NO_RELATIVE, &unbound));
-        }
-
-        assert(CTX_STACKVARS(context) != NULL);
-
-        var = FRM_ARG(CTX_FRAME(context), index);
+        fail (Error(RE_NO_RELATIVE, &unbound));
     }
-    else
-        var = CTX_VAR(context, index);
+
+    REBVAL *var = CTX_VAR(context, index);
 
     if (NOT(flags & GETVAR_IS_SETVAR)) {
         //
