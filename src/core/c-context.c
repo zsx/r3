@@ -110,9 +110,9 @@ REBCTX *Alloc_Context(REBCNT len)
 //
 REBOOL Expand_Context_Keylist_Core(REBCTX *context, REBCNT delta)
 {
-    if (delta == 0) return FALSE;
-
     REBARR *keylist = CTX_KEYLIST(context);
+    assert(!IS_PARAMLIST(keylist)); // can't expand or unshare a FRAME!'s list
+
     if (GET_SER_INFO(keylist, SERIES_INFO_SHARED_KEYLIST)) {
         //
         // INIT_CTX_KEYLIST_SHARED was used to set the flag that indicates
@@ -136,6 +136,8 @@ REBOOL Expand_Context_Keylist_Core(REBCTX *context, REBCNT delta)
 
         return TRUE;
     }
+
+    if (delta == 0) return FALSE;
 
     // INIT_CTX_KEYLIST_UNIQUE was used to set this keylist in the
     // context, and no INIT_CTX_KEYLIST_SHARED was used by another context

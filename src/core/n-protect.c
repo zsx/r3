@@ -34,8 +34,15 @@
 //
 //  Protect_Key: C
 //
-static void Protect_Key(RELVAL *key, REBFLGS flags)
+static void Protect_Key(REBCTX *context, REBCNT index, REBFLGS flags)
 {
+    // It is only necessary to make sure the keylist is unique if the key's
+    // state is actually changed, but for simplicity always ensure unique.
+    //
+    Ensure_Keylist_Unique_Invalidated(context);
+
+    REBVAL *key = CTX_KEY(context, index);
+
     if (GET_FLAG(flags, PROT_WORD)) {
         if (GET_FLAG(flags, PROT_SET))
             SET_VAL_FLAG(key, TYPESET_FLAG_PROTECTED);
@@ -125,14 +132,6 @@ void Protect_Context(REBCTX *c, REBFLGS flags)
         CLEAR_SER_INFO(CTX_VARLIST(c), SERIES_INFO_PROTECTED);
     }
 
-    // !!! Keylist may be shared!  R3-Alpha did not account for this, but
-    // if you don't want a protect of one object to protect its instances
-    // there will be a problem.
-    //
-    REBVAL *key = CTX_KEYS_HEAD(c);
-    for (; NOT_END(key); ++key)
-        Protect_Key(key, flags);
-
     if (!GET_FLAG(flags, PROT_DEEP)) return;
 
     Flip_Series_To_Black(AS_SERIES(CTX_VARLIST(c))); // for recursion
@@ -148,38 +147,34 @@ void Protect_Context(REBCTX *c, REBFLGS flags)
 //
 static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
 {
-    REBVAL *key;
-    REBVAL *val;
-
     if (ANY_WORD(word) && IS_WORD_BOUND(word)) {
-        key = CTX_KEY(VAL_WORD_CONTEXT(word), VAL_WORD_INDEX(word));
-        Protect_Key(key, flags);
+        Protect_Key(VAL_WORD_CONTEXT(word), VAL_WORD_INDEX(word), flags);
         if (GET_FLAG(flags, PROT_DEEP)) {
             //
             // Ignore existing mutability state so that it may be modified.
             // Most routines should NOT do this!
             //
             enum Reb_Kind eval_type; // unused
-            val = Get_Var_Core(
+            REBVAL *var = Get_Var_Core(
                 &eval_type,
                 word,
                 SPECIFIED,
                 GETVAR_READ_ONLY
             );
-            Protect_Value(val, flags);
-            Uncolor(val);
+            Protect_Value(var, flags);
+            Uncolor(var);
         }
     }
     else if (ANY_PATH(word)) {
         REBCNT index;
-        REBCTX *context;
-        if ((context = Resolve_Path(word, &index))) {
-            key = CTX_KEY(context, index);
-            Protect_Key(key, flags);
+        REBCTX *context = Resolve_Path(word, &index);
+
+        if (context != NULL) {
+            Protect_Key(context, index, flags);
             if (GET_FLAG(flags, PROT_DEEP)) {
-                val = CTX_VAR(context, index);
-                Protect_Value(val, flags);
-                Uncolor(val);
+                REBVAL *var = CTX_VAR(context, index);
+                Protect_Value(var, flags);
+                Uncolor(var);
             }
         }
     }

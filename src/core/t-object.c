@@ -446,13 +446,14 @@ void TO_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 REBINT PD_Context(REBPVS *pvs)
 {
-    REBCNT n;
-    REBCTX *context = VAL_CONTEXT(pvs->value);
+    REBCTX *c = VAL_CONTEXT(pvs->value);
 
-    if (IS_WORD(pvs->selector)) {
-        n = Find_Canon_In_Context(context, VAL_WORD_CANON(pvs->selector), FALSE);
-    }
-    else fail (Error_Bad_Path_Select(pvs));
+    if (NOT(IS_WORD(pvs->selector)))
+        fail (Error_Bad_Path_Select(pvs));
+
+    REBCNT n = Find_Canon_In_Context(
+        c, VAL_WORD_CANON(pvs->selector), FALSE
+    );
 
     if (n == 0) {
         //
@@ -467,15 +468,17 @@ REBINT PD_Context(REBPVS *pvs)
         fail (Error_Bad_Path_Select(pvs));
     }
 
-    if (
-        pvs->opt_setval
-        && IS_END(pvs->item + 1)
-        && GET_VAL_FLAG(CTX_KEY(context, n), TYPESET_FLAG_PROTECTED)
-    ) {
-        fail (Error(RE_PROTECTED_WORD, pvs->selector));
+    if (CTX_VARS_UNAVAILABLE(c))
+        fail (Error(RE_NO_RELATIVE, pvs->selector));
+
+    if (pvs->opt_setval && IS_END(pvs->item + 1)) {
+        FAIL_IF_READ_ONLY_CONTEXT(c);
+
+        if (GET_VAL_FLAG(CTX_KEY(c, n), TYPESET_FLAG_PROTECTED))
+            fail (Error(RE_PROTECTED_WORD, pvs->selector));
     }
 
-    pvs->value = CTX_VAR(context, n);
+    pvs->value = CTX_VAR(c, n);
     pvs->value_specifier = SPECIFIED;
 
     return PE_SET_IF_END;

@@ -391,6 +391,25 @@ inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL *value) {
 #endif
 
 
+// The native entry prelude makes sure that once native code starts running,
+// then a reified frame will be locked or a non-reified frame will be flagged
+// in such a way as to indicate that it should be locked when reified.  This
+// prevents a FRAME! generated for a native from being able to get write
+// access to 
+//
+// This is automatically injected by the INCLUDE_PARAMS_OF_XXX macros.  The
+// reason this is done with code inlined into the native itself instead of
+// based on an IS_NATIVE() test is to avoid the cost of the testing--which
+// is itself a bit dodgy to tell a priori if a dispatcher is native or not.
+// This way there is no test and only natives pay the cost of flag setting.
+//
+inline static void Enter_Native(REBFRM *f) {
+    f->flags.bits |= DO_FLAG_NATIVE_HOLD;
+    if (f->varlist != NULL)
+        SET_SER_INFO(f->varlist, SERIES_INFO_RUNNING);
+}
+
+
 // The concept of the "underlying" function is that which has the right
 // number of arguments for the frame to be built--and which has the actual
 // correct paramlist identity to use for binding in adaptations.
@@ -620,6 +639,15 @@ inline static void Drop_Function_Args_For_Frame_Core(
     REBFRM *f,
     REBOOL drop_chunks
 ) {
+    // The frame may be reused for another function call, and that function
+    // may not start with native code (or use native code at all).
+    //
+    // !!! Should the code be willing to drop the running flag off the varlist
+    // as well if it is persistent, so that the values can be modified once
+    // the native code is no longer running?
+    //
+    f->flags.bits &= ~DO_FLAG_NATIVE_HOLD;
+
     if (drop_chunks) {
         if (f->varlist == NULL) {
             if (f->args_head != END_CELL && f->args_head != &f->cell)

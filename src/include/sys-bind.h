@@ -322,15 +322,22 @@ inline static REBVAL *Get_Var_Core(
     else {
         assert(*eval_type == REB_FUNCTION || *eval_type == REB_0_LOOKBACK);
 
-        if (GET_VAL_FLAG(key, TYPESET_FLAG_PROTECTED)) {
-            //
-            // The key corresponding to the var being looked up contains
-            // some flags, including one of whether or not the variable is
-            // locked from writes.  If mutable access was requested, deny
-            // it if this flag is set.
+        // A context can be permanently frozen (`lock obj`) or temporarily
+        // protected, e.g. `protect obj | unprotect obj`.
+        //
+        // !!! Technically speaking it could also be marked as immutable due
+        // to "running", though that feature is not used at this time.
+        // All 3 bits are checked in the same instruction.
+        //
+        FAIL_IF_READ_ONLY_CONTEXT(context);
 
+        // The PROTECT command has a finer-grained granularity for marking
+        // not just contexts, but individual fields as protected.  This
+        // feature inhibits sharing of keylists between objects, because to
+        // mark a field read-only a bit has to be set in its key.
+        //
+        if (GET_VAL_FLAG(key, TYPESET_FLAG_PROTECTED))
             fail (Error(RE_PROTECTED_WORD, any_word));
-        }
 
         // If we are writing, then we write the state of the lookback boolean
         // but also return what it was before.

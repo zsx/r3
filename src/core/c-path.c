@@ -266,7 +266,7 @@ REBOOL Do_Path_Throws_Core(
         if (IS_FUNCTION(pvs.value) && IS_WORD(pvs.item) && pvs.label_out)
             *pvs.label_out = VAL_WORD_SPELLING(pvs.item);
     }
-    else if (Path_Dispatch[VAL_TYPE(pvs.value)]) {
+    else {
         REBOOL threw = Next_Path_Throws(&pvs);
 
         // !!! See comments about why the initialization of out is necessary.
@@ -287,11 +287,6 @@ REBOOL Do_Path_Throws_Core(
 
         if (threw)
             goto return_thrown;
-    }
-    else {
-        REBVAL specified;
-        Derelativize(&specified, pvs.orig, specifier);
-        fail (Error(RE_BAD_PATH_TYPE, &specified, Type_Of(pvs.value)));
     }
 
     if (opt_setval) {

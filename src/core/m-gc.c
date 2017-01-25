@@ -1322,7 +1322,7 @@ REBCNT Fill_Sweeplist(REBSER *sweeplist)
                 if (Is_Rebser_Marked(s))
                     Unmark_Rebser(s);
                 else {
-                    EXPAND_SERIES_TAIL(sweeplist, 1); 
+                    EXPAND_SERIES_TAIL(sweeplist, 1);
                     *SER_AT(REBNOD*, sweeplist, count) = cast(REBNOD*, s);
                     ++count;
                 }
@@ -1339,7 +1339,7 @@ REBCNT Fill_Sweeplist(REBSER *sweeplist)
                 if (Is_Rebser_Marked(s))
                     Unmark_Rebser(s);
                 else {
-                    EXPAND_SERIES_TAIL(sweeplist, 1); 
+                    EXPAND_SERIES_TAIL(sweeplist, 1);
                     *SER_AT(REBNOD*, sweeplist, count) = cast(REBNOD*, s);
                     ++count;
                 }

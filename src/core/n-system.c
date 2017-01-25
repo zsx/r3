@@ -172,9 +172,9 @@ REBNATIVE(recycle)
         }
 
         Free_Series(sweeplist);
-        
+
         REBCNT recount = Recycle_Core(FALSE, NULL);
-        assert(recount == count); 
+        assert(recount == count);
     #endif
     }
     else {

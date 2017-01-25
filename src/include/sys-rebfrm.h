@@ -188,13 +188,37 @@
     FLAGIT_LEFT(10)
 
 
+//=//// DO_FLAG_NATIVE_HOLD ///////////////////////////////////////////////=//
+//
+// When a REBNATIVE()'s code starts running, it means that the associated
+// frame must consider itself locked to user code modification.  This is
+// because native code does not check the datatypes of its frame contents,
+// and if access through the debug API were allowed to modify those contents
+// out from under it then it could crash.
+//
+// A native may wind up running in a reified frame from the get-go (e.g. if
+// there is an ADAPT that created the frame and ran user code into it prior
+// to the native.)  But the average case is that the native will run on a
+// frame that is using the chunk stack, and has no varlist to lock.  But if
+// a frame reification happens after the fact, it needs to know to take a
+// lock if the native code has started running.
+//
+// The current solution is that all natives set this flag on the frame as
+// part of their entry.  If they have a varlist, they will also lock that...
+// but if they don't have a varlist, this flag controls the locking when
+// the reification happens.
+//
+#define DO_FLAG_NATIVE_HOLD \
+    FLAGIT_LEFT(11)
+
+
 // Currently the rightmost two bytes of the Reb_Frame->flags are not used,
 // so the flags could theoretically go up to 31.  It could hold something
 // like the ->eval_type, but performance is probably better to put such
 // information in a platform aligned position of the frame.
 //
 #if defined(__cplusplus) && (__cplusplus >= 201103L)
-    static_assert(10 < 32, "DO_FLAG_XXX too high");
+    static_assert(11 < 32, "DO_FLAG_XXX too high");
 #endif
 
 

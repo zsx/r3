@@ -394,7 +394,7 @@ void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
     // running...which should not stop FRM_ARG from working in the native
     // itself, but should stop modifications from user code.
     //
-    if (NOT(IS_FUNCTION_INTERPRETED(FUNC_VALUE(f->func))))
+    if (f->flags.bits & DO_FLAG_NATIVE_HOLD)
         SET_SER_INFO(CTX_VARLIST(context), SERIES_INFO_RUNNING);
 
     MANAGE_ARRAY(f->varlist);

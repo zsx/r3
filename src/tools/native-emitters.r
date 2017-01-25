@@ -90,10 +90,14 @@ emit-include-params-macro: procedure [
         ]
     ]
 
-    ; Get rid of trailing \ for multi-line macro continuation.
-    unemit newline
-    unemit #"\"
-    emit newline
+    comment [
+        ; Get rid of trailing \ for multi-line macro continuation.
+        unemit newline
+        unemit #"\"
+        emit newline
+    ]
+
+    emit-line [spaced-tab "Enter_Native(frame_);" space]
 ]
 
 emit-native-include-params-macro: proc [native-list [block!]][

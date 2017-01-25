@@ -1974,10 +1974,10 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
     if (opt_def)
         Push_Or_Alloc_Args_For_Underlying_Func(f);
     else {
-        ASSERT_CONTEXT(AS_CONTEXT(f->varlist));
-
         REBFUN *specializer;
         f->underlying = Underlying_Function(&specializer, FUNC_VALUE(f->func));
+
+        ASSERT_CONTEXT(AS_CONTEXT(f->varlist)); // underlying must be set
 
         f->args_head = CTX_VARS_HEAD(AS_CONTEXT(f->varlist));
 
