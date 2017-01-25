@@ -34,12 +34,6 @@
 //
 //  Protect_Key: C
 //
-//  FIXME: As a keylist could be shared by multiple contexts, the flag should
-//  not be applied to such a keylist, instead the keylist should be unshared first,
-//  and only set the copy owned by the context.
-//  
-//  However, how to unshare or whether it is safe to simply change the keylist of a
-//  context needs to be investigated, i.e. if the keylist has been cached?
 static void Protect_Key(REBCTX *context, RELVAL *key, REBFLGS flags)
 {
     if (GET_FLAG(flags, PROT_WORD)) {
