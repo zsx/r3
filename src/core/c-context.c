@@ -111,7 +111,10 @@ REBCTX *Alloc_Context(REBCNT len)
 REBOOL Expand_Context_Keylist_Core(REBCTX *context, REBCNT delta)
 {
     REBARR *keylist = CTX_KEYLIST(context);
-    assert(!IS_PARAMLIST(keylist)); // can't expand or unshare a FRAME!'s list
+
+    // can't expand or unshare a FRAME!'s list
+    //
+    assert(NOT_SER_FLAG(keylist, ARRAY_FLAG_PARAMLIST));
 
     if (GET_SER_INFO(keylist, SERIES_INFO_SHARED_KEYLIST)) {
         //
