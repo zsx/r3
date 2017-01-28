@@ -8,7 +8,7 @@
 [blank = _]
 [blank = #] ;-- Deprecated!
 [blank = make blank! blank]
-[blank = to blank! blank]
+[to blank! blank] ;-- only thing you can successfully convert a blank to
 [blank = to blank! 1]
 ["_" = mold blank]
 ; bug#1666

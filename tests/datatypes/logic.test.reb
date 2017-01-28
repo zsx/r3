@@ -14,7 +14,6 @@
 [true = make logic! 1]
 [true = to logic! 0]
 [true = to logic! 1]
-[false = to logic! blank]
 [true = to logic! "f"]
 ["true" = mold true]
 ["false" = mold false]

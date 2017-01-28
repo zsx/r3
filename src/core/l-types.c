@@ -169,6 +169,21 @@ REBNATIVE(to)
     else
         kind = VAL_TYPE(type);
 
+    // !!! The only thing you can TO convert a blank into is a BLANK!.  This
+    // allows one to sort of opt-out:
+    //
+    //    kind: get-kind-maybe-blank x y z
+    //    if blank? converted: to kind value [...]
+    //
+    // Is this a good rule, or should types be able to have a custom behavior
+    // for the TO of a blank conversion into them?
+    //
+    if (IS_BLANK(arg)) {
+        if (kind == REB_BLANK)
+            return R_BLANK;
+        fail (Error_Invalid_Arg(arg));
+    }
+
     TO_FUNC dispatcher = To_Dispatch[kind];
     if (dispatcher == NULL)
         fail (Error_Invalid_Arg(arg));
