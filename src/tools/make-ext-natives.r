@@ -135,11 +135,11 @@ for-each [m-name c-src] boot-modules [
     int Module_Init_} m-name {_Core(RELVAL *out)
     ^{
         INIT_} u-m-name {_WORDS;}
-		either empty? error-list [ {
+	either empty? error-list [ rejoin [ {
 		REBARR * arr = Make_Extension_Module_Array(
             Ext_Native_Specs_} m-name {, EXT_NAT_COMPRESSED_SIZE_} u-m-name {,
             Ext_Native_C_Funcs_} m-name {, EXT_NUM_NATIVES_} u-m-name {,
-			-1);}
+			-1);} ]
         ][
             rejoin [ {
 		Ext_} m-name {_Error_Base = Find_Next_Error_Base_Code();
