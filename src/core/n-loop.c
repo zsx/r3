@@ -197,10 +197,8 @@ static REBARR *Copy_Body_Deep_Bound_To_New_Context(
     }
 
     while (len-- > 0) {
-        if (!IS_WORD(item) && !IS_SET_WORD(item)) {
-            FREE_CONTEXT(context);
+        if (!IS_WORD(item) && !IS_SET_WORD(item))
             fail (Error_Invalid_Arg_Core(item, specifier));
-        }
 
         Init_Typeset(key, ALL_64, VAL_WORD_SPELLING(item));
         key++;

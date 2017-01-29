@@ -70,3 +70,6 @@
     ]
     num = 10
 ]
+[
+    error? trap [for-each [:x] [] []]
+]
