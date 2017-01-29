@@ -140,3 +140,9 @@
 ; self-modifying rule, not legal in Ren-C if it's during the parse
 
 [error? try [not parse? "abcd" rule: ["ab" (remove back tail rule) "cd"]]]
+
+[
+    https://github.com/metaeducation/ren-c/issues/377
+    o: make object! [a: 1]
+    true = parse "a" [o/a: skip]
+]

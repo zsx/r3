@@ -1684,11 +1684,12 @@ REBNATIVE(subparse)
                 )) {
                     fail (Error_No_Catch_For_Throw(&save));
                 }
-                rule = &save;
 
-                // !!! code used to say `if (!rule) continue;` "for SET and
-                // GET cases", but here rule isn't set to NULL...so it falls
-                // through and does not continue.  Investigate.
+                // Nothing left to do after storing the parse position in the
+                // path location...continue.
+                //
+                FETCH_NEXT_RULE_MAYBE_END(f);
+                continue;
             }
             else if (IS_GET_PATH(P_RULE)) {
 
