@@ -122,7 +122,6 @@ extern "C" {
 
 
 const REBYTE halt_str[] = "[escape]";
-const REBYTE why_str[] = "** Note: use WHY? for more error information\n";
 const REBYTE breakpoint_str[] =
     "** Breakpoint Hit (see BACKTRACE, DEBUG, and RESUME)\n";
 const REBYTE interrupted_str[] =
@@ -289,16 +288,12 @@ int Do_Code(
 // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
 
     if (error) {
-        // Save error for WHY?
-        REBVAL *last = Get_System(SYS_STATE, STATE_LAST_ERROR);
-
         if (ERR_NUM(error) == RE_HALT) {
             assert(!at_breakpoint);
             return -1; // !!! Revisit hardcoded #
         }
 
         Init_Error(out, error);
-        *last = *out;
         return -cast(REBINT, ERR_NUM(error));
     }
 
@@ -368,8 +363,7 @@ void Host_Repl(
     REBVAL *out,
     REBOOL at_breakpoint
 ) {
-    REBOOL why_alert = TRUE;
-
+    REBOOL last_failed = FALSE;
     SET_VOID(out);
 
     REBVAL level;
@@ -407,6 +401,7 @@ void Host_Repl(
             TRUE, // error if not all arguments before END_CELL are consumed
             &HG_Host_Repl, // HOST-REPL function to run
             out, // last-result (always void first run through loop)
+            last_failed ? TRUE_VALUE : FALSE_VALUE, // last-failed
             &level, // focus-level
             &frame, // focus-frame
             END_CELL
@@ -448,6 +443,7 @@ void Host_Repl(
             // via the error mechanism is an "implementation detail".
             //
             Put_Str(halt_str);
+            last_failed = FALSE;
         }
         else if (do_result == -2) {
             //
@@ -457,24 +453,14 @@ void Host_Repl(
             goto cleanup_and_return;
         }
         else if (do_result < -2) {
-            //
-            // Error occurred, print it without molding (formed)
-            //
-            Out_Value(out, 500, FALSE, 1);
-
-            // Tell them about why on the first error only
-            //
-            if (why_alert) {
-                Put_Str(why_str);
-                why_alert = FALSE;
-            }
-
-            SET_VOID(out);
+            last_failed = TRUE;
+            assert(IS_ERROR(out));
         }
         else {
             // Result will be printed by next loop
             //
             assert(do_result == 0);
+            last_failed = FALSE;
         }
     }
 

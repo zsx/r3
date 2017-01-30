@@ -27,14 +27,12 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Processes special keys for input line editing and recall.
-// Avoides use of complex OS libraries and GNU readline().
-// but hardcodes some parts only for the common standard.
 //
-// This file is meant to be used in more than just REBOL, so
-// it does not include the normal REBOL header files, but rather
-// defines its own types and constants.
+// Avoids use of complex OS libraries and GNU readline() but hardcodes some
+// parts only for the common standard.
 //
-//=////////////////////////////////////////////////////////////////////////=//
+// !!! This code is more or less unchanged from R3-Alpha.  It is very
+// primitive, and does not support UTF-8.
 //
 
 #include <stdlib.h>
@@ -44,12 +42,8 @@
 
 //#define TEST_MODE  // teset as stand-alone program
 
-#ifdef NO_TTY_ATTRIBUTES
-#ifdef TO_WINDOWS
-#include <io.h>
-#endif
-#else
-#include <termios.h>
+#ifndef NO_TTY_ATTRIBUTES
+    #include <termios.h>
 #endif
 
 #include "reb-host.h"
@@ -59,7 +53,6 @@
 #define READ_BUF_LEN 64     // chars per read()
 #define MAX_HISTORY  300    // number of lines stored
 
-// Macros: (does not use reb-c.h)
 
 #define WRITE_CHAR(s) \
     do { \
@@ -343,7 +336,11 @@ static char *Insert_Char(STD_TERM *term, char *cp)
     if (term->end < TERM_BUF_LEN-1) { // avoid buffer overrun
 
         if (term->pos < term->end) { // open space for it:
-            memmove(term->buffer + term->pos + 1, term->buffer + term->pos, 1 + term->end - term->pos);
+            memmove(
+                term->buffer + term->pos + 1, // dest pointer
+                term->buffer + term->pos, // source pointer
+                1 + term->end - term->pos // length
+            );
         }
         WRITE_CHAR(cp);
         term->buffer[term->pos] = *cp;
@@ -604,7 +601,11 @@ int Read_Line(STD_TERM *term, char *result, int limit)
 
     // Not at end of input? Save any unprocessed chars:
     if (*cp) {
-        if (strlen(term->residue) + strlen(cp) < TERM_BUF_LEN-1) // avoid overrun
+        if (strlen(term->residue) + strlen(cp) >= TERM_BUF_LEN - 1) {
+            //
+            // avoid overrun
+        }
+        else
             strcat(term->residue, cp);
     }
 

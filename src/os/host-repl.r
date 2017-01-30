@@ -31,10 +31,16 @@ host-repl: function [
 
     return: [block! error!]
         {Code to run or syntax error in the string input that tried to LOAD}
+
     last-result [<opt> any-value!]
         {The result from the last time HOST-REPL ran to display (if any)}
+
+    last-failed [logic!]
+        {TRUE if the last-result is an ERROR! that FAILed vs just a result}
+
     focus-level [blank! integer!]
         {If at a breakpoint, the integer index of how deep the stack was}
+
     focus-frame [blank! frame!]
         {If at a breakpoint, the function frame where the breakpoint was hit}
 ][
@@ -46,10 +52,28 @@ host-repl: function [
     ;
     code: copy []
 
-    ; Output the last evaluation result if there was one.
+    ; Output the last evaluation result if there was one.  MOLD it unless it
+    ; was an actual error that FAILed.
     ;
-    if set? 'last-result [
-        print ["==" mold :last-result]
+    case [
+        not set? 'last-result [
+            ; Do nothing
+        ]
+
+        last-failed [
+            assert [error? :last-result]
+            print last-result
+
+            unless system/state/last-error [
+                print "** Note: use WHY for more error information"
+            ]
+
+            system/state/last-error: last-result
+        ]
+
+        'default [
+            print ["==" mold :last-result]
+        ]
     ]
 
     print " " ;-- newline !!! (print "" does not do that right now)
@@ -156,7 +180,7 @@ host-repl: function [
 ]
 
 
-why?: procedure [
+why: procedure [
     "Explain the last error in more detail."
     'err [<end> word! path! error! blank!] "Optional error value"
 ][
