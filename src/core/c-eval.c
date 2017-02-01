@@ -309,7 +309,6 @@ void Do_Core(REBFRM * const f)
         f->label = NULL;
     }
 
-
     Push_Frame_Core(f);
 
 #if !defined(NDEBUG)
@@ -802,23 +801,25 @@ reevaluate:;
                 goto continue_arg_loop;
             }
 
-            // Literal expression barriers cannot be consumed, even if the
-            // argument takes a BAR!, or even if there is quoting.
-            // It must come through other means (e.g. `'|` or `first [|]`)
-            //
+    //=//// IF EVAL/ONLY SEMANTICS, TAKE NEXT ARG WITHOUT EVALUATION //////=//
+
+            if (NOT(args_evaluate)) {
+                Quote_Next_In_Frame(f->arg, f); // has VALUE_FLAG_UNEVALUATED
+                goto check_arg;
+            }
+
+    //=//// IF EVAL SEMANTICS, DISALLOW LITERAL EXPRESSION BARRIERS ///////=//
+
             if (IS_BAR(f->value)) {
+                //
+                // Not even legal if arg is quoted.  It must come through
+                // other means (e.g. literal as `'|` or `first [|]`)
+                
                 if (NOT_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                     fail (Error(RE_EXPRESSION_BARRIER));
 
                 SET_VOID(f->arg);
                 goto continue_arg_loop;
-            }
-
-   //=//// IF EVAL/ONLY SEMANTICS, TAKE NEXT ARG WITHOUT EVALUATION //////=//
-
-            if (!args_evaluate) {
-                Quote_Next_In_Frame(f->arg, f); // has VALUE_FLAG_UNEVALUATED
-                goto check_arg;
             }
 
             switch (pclass) {

@@ -252,7 +252,7 @@ prin: procedure [
     value [<opt> any-value!]
     /eval
 ][
-    eval: if any [eval | semiquoted? 'value] ['eval]
+    eval: all [eval | semiquoted? 'value | 'eval]
     print/delimit/only/:eval :value space
 ]
 
