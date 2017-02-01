@@ -1006,6 +1006,7 @@ REBNATIVE(call)
         argv = SER_HEAD(const REBCHR*, argv_ser);
 
         argv[0] = SER_HEAD(REBCHR, path);
+        MANAGE_SERIES(path);
         PUSH_GUARD_SERIES(path);
         SER_HEAD(REBSER*, argv_saved_sers)[0] = path;
 
