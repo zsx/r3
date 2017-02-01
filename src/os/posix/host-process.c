@@ -49,29 +49,13 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "reb-host.h"
+#include <assert.h>
 
-// "O_CLOEXEC (Since Linux 2.6.23) Enable the close-on-exec flag for the
-// new file descriptor. Specifying this flag permits a program to avoid
-// additional fcntl(2) F_SETFD operations to set the FD_CLOEXEC flag.
-// Additionally, use of this flag is essential in some multithreaded
-// programs since using a separate fcntl(2) F_SETFD operation to set the
-// FD_CLOEXEC flag does not suffice to avoid race conditions where one
-// thread opens a file descriptor at the same time as another thread
-// does a fork(2) plus execve(2)."
-//
-// This flag is POSIX 2008, hence relatively new ("for some definition
-// of new").  It is not defined in Syllable OS and may not be in some
-// other distributions that are older.  It seems multithreading may
-// not have a workaround with F_SETFD FD_CLOEXEC, but a single-threaded
-// program can achieve equivalent behavior with those calls.
-//
-// !!! TBD: add FD_SETFD alternative implementation instead of just
-// setting to zero.
-
-#ifndef O_CLOEXEC
-    #define O_CLOEXEC 0
+#if !defined(NDEBUG)
+    #include <stdio.h>
 #endif
+
+#include "reb-host.h"
 
 
 /***********************************************************************
@@ -270,6 +254,49 @@ REBINT OS_Kill(REBINT pid)
 #define FLAG_INFO 8
 
 
+static REBOOL Open_Nonblocking_Pipe_Fails(int pipefd[2]) {
+#ifdef USE_PIPE2_NOT_PIPE
+    //
+    // NOTE: pipe() is POSIX, but pipe2() is Linux-specific.  With pipe() it
+    // takes an additional call to fcntl() to request non-blocking behavior,
+    // so it's a small amount more work.  However, there are other flags which
+    // if aren't passed atomically at the moment of opening allow for a race
+    // condition in threading if split, e.g. FD_CLOEXEC.
+    //
+    // (If you don't have FD_CLOEXEC set on the file descriptor, then all
+    // instances of CALL will act as a /WAIT.)
+    //
+    // At time of writing, this is mostly academic...but the code needed to be
+    // patched to work with pipe() since some older libcs do not have pipe2().
+    // So the ability to target both are kept around, saving the pipe2() call
+    // for later Linuxes known to have it (and O_CLOEXEC).
+    //
+    if (pipe2(pipefd, O_CLOEXEC | O_NONBLOCK))
+        return TRUE;
+#else
+    if (pipe(pipefd) < 0)
+        return TRUE;
+
+    int direction; // READ=0, WRITE=1
+    for (direction = 0; direction < 2; ++direction) {
+        int oldflags;
+        oldflags = fcntl(pipefd[direction], F_GETFL);
+        if (oldflags < 0)
+            return TRUE;
+        if (fcntl(pipefd[direction], F_SETFL, oldflags | O_NONBLOCK) < 0)
+            return TRUE;
+        oldflags = fcntl(pipefd[direction], F_GETFD);
+        if (oldflags < 0)
+            return TRUE;
+        if (fcntl(pipefd[direction], F_SETFD, oldflags | FD_CLOEXEC) < 0)
+            return TRUE;
+    }
+#endif
+
+    return FALSE;
+}
+
+
 //
 //  OS_Create_Process: C
 //
@@ -307,14 +334,6 @@ int OS_Create_Process(
     char **err,
     u32 *err_len
 ) {
-    REBOOL flag_wait = FALSE;
-    REBOOL flag_console = FALSE;
-    REBOOL flag_shell = FALSE;
-    REBOOL flag_info = FALSE;
-    int stdin_pipe[] = {-1, -1};
-    int stdout_pipe[] = {-1, -1};
-    int stderr_pipe[] = {-1, -1};
-    int info_pipe[] = {-1, -1};
     int status = 0;
     int ret = 0;
     char *info = NULL;
@@ -328,7 +347,13 @@ int OS_Create_Process(
     // We want to be able to compile with all warnings as errors, and
     // we'd like to use -Wcast-qual if possible.  This is currently
     // the only barrier in the codebase...so we tunnel under the cast.
+    //
     char * const *argv_hack;
+
+    REBOOL flag_wait = FALSE;
+    REBOOL flag_console = FALSE;
+    REBOOL flag_shell = FALSE;
+    REBOOL flag_info = FALSE;
 
     if (flags & FLAG_WAIT) flag_wait = TRUE;
     if (flags & FLAG_CONSOLE) flag_console = TRUE;
@@ -336,151 +361,154 @@ int OS_Create_Process(
     if (flags & FLAG_INFO) flag_info = TRUE;
 
     // suppress unused warnings but keep flags for future use
-    (void)flag_info;
-    (void)flag_console;
+    UNUSED(flag_info);
+    UNUSED(flag_console);
 
-    // NOTE: pipe() is POSIX, but pipe2() is Linux-specific.
+    int stdin_pipe[] = {-1, -1};
+    int stdout_pipe[] = {-1, -1};
+    int stderr_pipe[] = {-1, -1};
+    int info_pipe[] = {-1, -1};
 
-    if (input_type == STRING_TYPE
-        || input_type == BINARY_TYPE) {
-    #ifdef USE_PIPE2_NOT_PIPE
-        if (pipe2(stdin_pipe, O_CLOEXEC | O_NONBLOCK) < 0) {
-    #else
-        if (pipe(stdin_pipe) < 0) {
-    #endif
+    if (
+        input_type == STRING_TYPE
+        || input_type == BINARY_TYPE
+    ){
+        if (Open_Nonblocking_Pipe_Fails(stdin_pipe))
             goto stdin_pipe_err;
-        }
-    }
-    if (output_type == STRING_TYPE || output_type == BINARY_TYPE) {
-    #ifdef USE_PIPE2_NOT_PIPE
-        if (pipe2(stdout_pipe, O_CLOEXEC | O_NONBLOCK) < 0) {
-    #else
-        if (pipe(stdout_pipe) < 0) {
-    #endif
-            goto stdout_pipe_err;
-        }
-    }
-    if (err_type == STRING_TYPE || err_type == BINARY_TYPE) {
-    #ifdef USE_PIPE2_NOT_PIPE
-        if (pipe2(stderr_pipe, O_CLOEXEC | O_NONBLOCK) < 0) {
-    #else
-        if (pipe(stderr_pipe) < 0) {
-    #endif
-            goto stderr_pipe_err;
-        }
     }
 
-#ifdef USE_PIPE2_NOT_PIPE
-    if (pipe2(info_pipe, O_CLOEXEC | O_NONBLOCK) < 0) {
-#else
-    if (pipe(info_pipe) < 0) {
-#endif
-        goto info_pipe_err;
+    if (
+        output_type == STRING_TYPE
+        || output_type == BINARY_TYPE
+    ){
+        if (Open_Nonblocking_Pipe_Fails(stdout_pipe))
+            goto stdout_pipe_err;
     }
+
+    if (
+        err_type == STRING_TYPE
+        || err_type == BINARY_TYPE
+    ){
+        if (Open_Nonblocking_Pipe_Fails(stderr_pipe))
+            goto stdout_pipe_err;
+    }
+
+    if (Open_Nonblocking_Pipe_Fails(info_pipe))
+        goto info_pipe_err;
 
     fpid = fork();
     if (fpid == 0) {
-        /* child */
-        if (input_type == STRING_TYPE
-            || input_type == BINARY_TYPE) {
+        //
+        // This is the child branch of the fork.  In GDB if you want to debug
+        // the child you need to use `set follow-fork-mode child`:
+        //
+        // http://stackoverflow.com/questions/15126925/
+
+        if (
+            input_type == STRING_TYPE
+            || input_type == BINARY_TYPE
+        ){
             close(stdin_pipe[W]);
-            if (dup2(stdin_pipe[R], STDIN_FILENO) < 0) {
+            if (dup2(stdin_pipe[R], STDIN_FILENO) < 0)
                 goto child_error;
-            }
             close(stdin_pipe[R]);
-        } else if (input_type == FILE_TYPE) {
+        }
+        else if (input_type == FILE_TYPE) {
             int fd = open(input, O_RDONLY);
-            if (fd < 0) {
+            if (fd < 0)
+                goto child_error;        
+            if (dup2(fd, STDIN_FILENO) < 0)
                 goto child_error;
-            }
-            if (dup2(fd, STDIN_FILENO) < 0) {
-                goto child_error;
-            }
             close(fd);
-        } else if (input_type == NONE_TYPE) {
+        }
+        else if (input_type == NONE_TYPE) {
             int fd = open("/dev/null", O_RDONLY);
-            if (fd < 0) {
+            if (fd < 0)
                 goto child_error;
-            }
-            if (dup2(fd, STDIN_FILENO) < 0) {
+            if (dup2(fd, STDIN_FILENO) < 0)
                 goto child_error;
-            }
             close(fd);
-        } else { /* inherit stdin from the parent */
+        }
+        else {
+            // inherit stdin from the parent
         }
 
-        if (output_type == STRING_TYPE
-            || output_type == BINARY_TYPE) {
+        if (
+            output_type == STRING_TYPE
+            || output_type == BINARY_TYPE
+        ){
             close(stdout_pipe[R]);
-            if (dup2(stdout_pipe[W], STDOUT_FILENO) < 0) {
+            if (dup2(stdout_pipe[W], STDOUT_FILENO) < 0)
                 goto child_error;
-            }
             close(stdout_pipe[W]);
-        } else if (output_type == FILE_TYPE) {
-            int fd = open(*output, O_CREAT|O_WRONLY, 0666);
-            if (fd < 0) {
+        }
+        else if (output_type == FILE_TYPE) {
+            int fd = open(*output, O_CREAT | O_WRONLY, 0666);
+            if (fd < 0)
                 goto child_error;
-            }
-            if (dup2(fd, STDOUT_FILENO) < 0) {
+            if (dup2(fd, STDOUT_FILENO) < 0)
                 goto child_error;
-            }
             close(fd);
-        } else if (output_type == NONE_TYPE) {
+        }
+        else if (output_type == NONE_TYPE) {
             int fd = open("/dev/null", O_WRONLY);
-            if (fd < 0) {
+            if (fd < 0)
                 goto child_error;
-            }
-            if (dup2(fd, STDOUT_FILENO) < 0) {
+            if (dup2(fd, STDOUT_FILENO) < 0)
                 goto child_error;
-            }
             close(fd);
-        } else { /* inherit stdout from the parent */
+        }
+        else {
+            // inherit stdout from the parent
         }
 
-        if (err_type == STRING_TYPE
-            || err_type == BINARY_TYPE) {
+        if (
+            err_type == STRING_TYPE
+            || err_type == BINARY_TYPE
+        ){
             close(stderr_pipe[R]);
-            if (dup2(stderr_pipe[W], STDERR_FILENO) < 0) {
+            if (dup2(stderr_pipe[W], STDERR_FILENO) < 0)
                 goto child_error;
-            }
             close(stderr_pipe[W]);
-        } else if (err_type == FILE_TYPE) {
-            int fd = open(*err, O_CREAT|O_WRONLY, 0666);
-            if (fd < 0) {
+        }
+        else if (err_type == FILE_TYPE) {
+            int fd = open(*err, O_CREAT | O_WRONLY, 0666);
+            if (fd < 0)
                 goto child_error;
-            }
-            if (dup2(fd, STDERR_FILENO) < 0) {
+            if (dup2(fd, STDERR_FILENO) < 0)
                 goto child_error;
-            }
             close(fd);
-        } else if (err_type == NONE_TYPE) {
+        }
+        else if (err_type == NONE_TYPE) {
             int fd = open("/dev/null", O_WRONLY);
-            if (fd < 0) {
+            if (fd < 0)
                 goto child_error;
-            }
-            if (dup2(fd, STDERR_FILENO) < 0) {
+            if (dup2(fd, STDERR_FILENO) < 0)
                 goto child_error;
-            }
             close(fd);
-        } else {/* inherit stderr from the parent */
+        }
+        else {
+            // inherit stderr from the parent
         }
 
         close(info_pipe[R]);
 
-        //printf("flag_shell in child: %hhu\n", flag_shell);
+        /* printf("flag_shell in child: %hhu\n", flag_shell); */
+
         if (flag_shell) {
-            const char* sh = NULL;
-            const char ** argv_new = NULL;
-            sh = getenv("SHELL");
-            if (sh == NULL) {
-                int err = 2; /* shell does not exist */
+            const char *sh = getenv("SHELL");
+
+            if (sh == NULL) { // shell does not exist
+                int err = 2;
                 if (write(info_pipe[W], &err, sizeof(err)) == -1) {
+                    //
                     // Nothing we can do, but need to stop compiler warning
                     // (cast to void is insufficient for warn_unused_result)
                 }
                 exit(EXIT_FAILURE);
             }
-            argv_new = c_cast(
+
+            const char ** argv_new = c_cast(
                 const char**, OS_ALLOC_N(const char*, argc + 3)
             );
             argv_new[0] = sh;
@@ -490,20 +518,28 @@ int OS_Create_Process(
 
             memcpy(&argv_hack, &argv_new, sizeof(argv_hack));
             execvp(sh, argv_hack);
-        } else {
+        }
+        else {
             memcpy(&argv_hack, &argv, sizeof(argv_hack));
             execvp(argv[0], argv_hack);
         }
 
 child_error:
         if (write(info_pipe[W], &errno, sizeof(errno)) == -1) {
+            //
             // Nothing we can do, but need to stop compiler warning
             // (cast to void is insufficient for warn_unused_result)
         }
         exit(EXIT_FAILURE); /* get here only when exec fails */
     }
     else if (fpid > 0) {
-        /* parent */
+        //
+        // This is the parent branch, so it may (or may not) wait on the
+        // child fork branch, based on /WAIT.  Even if you are not using
+        // /WAIT, it will use the info pipe to make sure the process did
+        // actually start.
+        //
+
 #define BUF_SIZE_CHUNK 4096
         nfds_t nfds = 0;
         struct pollfd pfds[4];
@@ -516,30 +552,41 @@ child_error:
         int exited = 0;
         int valid_nfds;
 
-        /* initialize outputs */
-        if (output_type != NONE_TYPE
-            && output_type != INHERIT_TYPE
-            && (output == NULL
-                || output_len == NULL)) {
-            return -1;
-        }
-        if (output != NULL) *output = NULL;
-        if (output_len != NULL) *output_len = 0;
+        // initialize outputs
 
-        if (err_type != NONE_TYPE
-            && err_type != INHERIT_TYPE
-            && (err == NULL
-                || err_len == NULL)) {
+        if (
+            output_type != NONE_TYPE
+            && output_type != INHERIT_TYPE
+            && (output == NULL || output_len == NULL)
+        ){
             return -1;
         }
-        if (err != NULL) *err = NULL;
-        if (err_len != NULL) *err_len = 0;
+        if (output != NULL)
+            *output = NULL;
+        if (output_len != NULL)
+            *output_len = 0;
+
+        if (
+            err_type != NONE_TYPE
+            && err_type != INHERIT_TYPE
+            && (err == NULL || err_len == NULL)
+        ){
+            return -1;
+        }
+        if (err != NULL)
+            *err = NULL;
+        if (err_len != NULL)
+            *err_len = 0;
 
         // Only put the input pipe in the consideration if we can write to
         // it and we have data to send to it.
+
         if ((stdin_pipe[W] > 0) && (input_size = strlen(input)) > 0) {
-            //printf("stdin_pipe[W]: %d\n", stdin_pipe[W]);
-            /* the passed in input_len is in characters, not in bytes */
+            /* printf("stdin_pipe[W]: %d\n", stdin_pipe[W]); */
+
+            //
+            // the passed in input_len is in characters, not in bytes
+            //
             input_len = 0;
 
             pfds[nfds].fd = stdin_pipe[W];
@@ -550,7 +597,8 @@ child_error:
             stdin_pipe[R] = -1;
         }
         if (stdout_pipe[R] > 0) {
-            //printf("stdout_pipe[R]: %d\n", stdout_pipe[R]);
+            /* printf("stdout_pipe[R]: %d\n", stdout_pipe[R]); */
+
             output_size = BUF_SIZE_CHUNK;
 
             *output = OS_ALLOC_N(char, output_size);
@@ -563,7 +611,8 @@ child_error:
             stdout_pipe[W] = -1;
         }
         if (stderr_pipe[R] > 0) {
-            //printf("stderr_pipe[R]: %d\n", stderr_pipe[R]);
+            /* printf("stderr_pipe[R]: %d\n", stderr_pipe[R]); */
+
             err_size = BUF_SIZE_CHUNK;
 
             *err = OS_ALLOC_N(char, err_size);
@@ -598,7 +647,9 @@ child_error:
             }
 
             if (xpid == fpid) {
-                /* try one more time to read any remainding output/err */
+                //
+                // try one more time to read any remainding output/err
+                //
                 if (stdout_pipe[R] > 0) {
                     nbytes = read(
                         stdout_pipe[R],
@@ -648,28 +699,33 @@ child_error:
             }
 
             for (i = 0; i < nfds && valid_nfds > 0; ++i) {
-                //printf("check: %d [%d/%d]\n", pfds[i].fd, i, nfds);
+                /* printf("check: %d [%d/%d]\n", pfds[i].fd, i, nfds); */
+
                 if (pfds[i].revents & POLLERR) {
-                    //printf("POLLERR: %d [%d/%d]\n", pfds[i].fd, i, nfds);
+                    /* printf("POLLERR: %d [%d/%d]\n", pfds[i].fd, i, nfds); */
+
                     close(pfds[i].fd);
                     pfds[i].fd = -1;
                     valid_nfds --;
-                } else if (pfds[i].revents & POLLOUT) {
-                    //printf("POLLOUT: %d [%d/%d]\n", pfds[i].fd, i, nfds);
+                }
+                else if (pfds[i].revents & POLLOUT) {
+                    /* printf("POLLOUT: %d [%d/%d]\n", pfds[i].fd, i, nfds); */
+
                     nbytes = write(pfds[i].fd, input, input_size - input_len);
                     if (nbytes <= 0) {
                         ret = errno;
                         goto kill;
                     }
-                    //printf("POLLOUT: %d bytes\n", nbytes);
+                    /* printf("POLLOUT: %d bytes\n", nbytes); */
                     input_len += nbytes;
                     if (input_len >= input_size) {
                         close(pfds[i].fd);
                         pfds[i].fd = -1;
                         valid_nfds --;
                     }
-                } else if (pfds[i].revents & POLLIN) {
-                    //printf("POLLIN: %d [%d/%d]\n", pfds[i].fd, i, nfds);
+                }
+                else if (pfds[i].revents & POLLIN) {
+                    /* printf("POLLIN: %d [%d/%d]\n", pfds[i].fd, i, nfds); */
                     char **buffer = NULL;
                     u32 *offset;
                     ssize_t to_read = 0;
@@ -689,20 +745,19 @@ child_error:
                     }
                     do {
                         to_read = size - *offset;
-                        //printf("to read %d bytes\n", to_read);
+                        /* printf("to read %d bytes\n", to_read); */
                         nbytes = read(pfds[i].fd, *buffer + *offset, to_read);
                         if (nbytes < 0) {
                             break;
                         }
-                        if (nbytes == 0) {
-                            /* closed */
-                            //printf("the other end closed\n");
+                        if (nbytes == 0) { // closed
+                            /* printf("the other end closed\n"); */
                             close(pfds[i].fd);
                             pfds[i].fd = -1;
                             valid_nfds --;
                             break;
                         }
-                        //printf("POLLIN: %d bytes\n", nbytes);
+                        /* printf("POLLIN: %d bytes\n", nbytes); */
                         *offset += nbytes;
                         if (*offset >= size) {
                             char *larger =
@@ -714,13 +769,15 @@ child_error:
                             size += BUF_SIZE_CHUNK;
                         }
                     } while (nbytes == to_read);
-                } else if (pfds[i].revents & POLLHUP) {
-                    //printf("POLLHUP: %d [%d/%d]\n", pfds[i].fd, i, nfds);
+                }
+                else if (pfds[i].revents & POLLHUP) {
+                    /* printf("POLLHUP: %d [%d/%d]\n", pfds[i].fd, i, nfds); */
                     close(pfds[i].fd);
                     pfds[i].fd = -1;
                     valid_nfds --;
-                } else if (pfds[i].revents & POLLNVAL) {
-                    //printf("POLLNVAL: %d [%d/%d]\n", pfds[i].fd, i, nfds);
+                }
+                else if (pfds[i].revents & POLLNVAL) {
+                    /* printf("POLLNVAL: %d [%d/%d]\n", pfds[i].fd, i, nfds); */
                     ret = errno;
                     goto kill;
                 }
@@ -734,29 +791,36 @@ child_error:
             }
         }
 
-    } else {
-        /* error */
+    }
+    else { // error
         ret = errno;
         goto error;
     }
 
     if (info_len > 0) {
-        /* exec in child process failed */
-        /* set to errno for reporting */
+        //
+        // exec in child process failed, set to errno for reporting
         ret = *(int*)info;
-    } else if (WIFEXITED(status)) {
-        if (exit_code != NULL) *exit_code = WEXITSTATUS(status);
-        if (pid != NULL) *pid = fpid;
-    } else {
-        goto error;
     }
+    else if (WIFEXITED(status)) {
+        if (exit_code != NULL)
+            *exit_code = WEXITSTATUS(status);
+        if (pid != NULL)
+            *pid = fpid;
+    }
+    else
+        goto error;
 
     goto cleanup;
+
 kill:
     kill(fpid, SIGKILL);
     waitpid(fpid, NULL, 0);
+
 error:
-    if (!ret) ret = -1;
+    if (ret == 0)
+        ret = -1;
+
 cleanup:
     if (output != NULL && *output != NULL && *output_len <= 0) {
         OS_FREE(*output);
@@ -773,6 +837,7 @@ cleanup:
     if (info_pipe[W] > 0) {
         close(info_pipe[W]);
     }
+
 info_pipe_err:
     if (stderr_pipe[R] > 0) {
         close(stderr_pipe[R]);
@@ -780,6 +845,7 @@ info_pipe_err:
     if (stderr_pipe[W] > 0) {
         close(stderr_pipe[W]);
     }
+
 stderr_pipe_err:
     if (stdout_pipe[R] > 0) {
         close(stdout_pipe[R]);
@@ -787,6 +853,7 @@ stderr_pipe_err:
     if (stdout_pipe[W] > 0) {
         close(stdout_pipe[W]);
     }
+
 stdout_pipe_err:
     if (stdin_pipe[R] > 0) {
         close(stdin_pipe[R]);
@@ -794,10 +861,13 @@ stdout_pipe_err:
     if (stdin_pipe[W] > 0) {
         close(stdin_pipe[W]);
     }
+
 stdin_pipe_err:
+    //
     // We will get to this point on success, as well as error (so ret may
     // be 0.  This is the return value of the host kit function to Rebol, not
-    // the process exit code (that is written into the pointer arg 'exit_code')
+    // the process exit code (that's written into the pointer arg 'exit_code')
+    //
     return ret;
 }
 

@@ -33,9 +33,9 @@
 //
 // In Ren-C, there is an implicit END marker just past the last cell in the
 // capacity.  Allowing a SET_END() on this position could corrupt the END
-// signaling slot, which only has to have its low bit zero (vs. be the size of
-// an entire cell).  Use TERM_ARRAY_LEN() to safely terminate arrays and
-// respect not writing if it's past capacity.
+// signaling slot, which only uses a bit out of a Reb_Header sized item to
+// signal.  Use TERM_ARRAY_LEN() to safely terminate arrays and respect not
+// writing if it's past capacity.
 //
 // While many operations are shared in common with REBSER, there is a
 // (deliberate) type incompatibility introduced.  The type compatibility is
