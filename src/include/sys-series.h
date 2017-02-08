@@ -594,10 +594,11 @@ inline static REBSER *VAL_SERIES(const RELVAL *v) {
     //
     //     assert(ANY_SERIES(v) || IS_MAP(v) || IS_IMAGE(v));
     //
-    // Appears to omit the ANY_SERIES() test entirely in -O2.  Hence when a STRING! is
-    // passed in, it just fails the map and image test in the assembly.  There is seemingly no
-    // good reason for this code to be missing, or that rewriting it as these ifs should fix it.
-    // But it does, so this is presumed to be an optimizer bug in that version.  Review.
+    // Appears to omit the ANY_SERIES() test entirely in -O2.  Hence when a
+    // STRING! is passed in, it just fails the map and image test in the
+    // assembly.  There is seemingly no good reason for this code to be
+    // missing, or that rewriting it as these ifs should fix it.  But it does,
+    // so this is presumed to be an optimizer bug in that version.  Review.
     //
     if (NOT(ANY_SERIES(v)))
         if (NOT(IS_MAP(v)))

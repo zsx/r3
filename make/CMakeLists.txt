@@ -603,9 +603,9 @@ SET(BOOT_MODULE_HEADER ${TOP_GENERATED_SRC_DIR}/include/tmp-boot-modules.h)
 add_custom_command(OUTPUT
     ${BOOT_MODULE_HEADER}
     COMMAND ${REBOL} ${TOOLS_DIR}/make-boot-mod-header.r MODULES=${BOOT_MODULE_LIST} OUTDIR=${TOP_GENERATED_SRC_DIR}
-	DEPENDS
-	${TOOL_DEPENDS}
-	${TOOLS_DIR}/make-boot-mod-header.r
+    DEPENDS
+    ${TOOL_DEPENDS}
+    ${TOOLS_DIR}/make-boot-mod-header.r
     )
 
 if (R3_WITH_TCC)
