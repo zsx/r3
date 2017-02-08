@@ -31,6 +31,9 @@ bar: '|
 next: specialize 'skip [offset: 1]
 back: specialize 'skip [offset: -1]
 
+unspaced: specialize 'delimit [delimiter: blank]
+spaced: specialize 'delimit [delimiter: space]
+
 
 eval proc [
     {Make type testing functions (variadic to quote "top-level" words)}
@@ -126,6 +129,41 @@ eval proc [
 |
 
 
+print: proc [
+    "Textually output value (evaluating elements if a block), adds newline"
+
+     value [any-value!]
+          "Value or BLOCK! literal (BLANK! means print nothing)"
+     /only
+          "Do not add a newline, and do not implicitly space items if a block"
+     /eval
+          "Allow value to be a block and evaluated (even if not literal)"
+;    /quote
+;         "Do not reduce values in blocks"
+    <local> eval_PRINT ;quote_PRINT
+][
+    eval_PRINT: eval
+    eval: :lib/eval
+    ;quote_PRINT: quote
+    ;quote: :lib/quote
+
+    if blank? :value [leave]
+
+    write-stdout (either block? :value [
+        either any [semiquoted? 'value | eval_PRINT] [
+            delimit value either only [blank] [space]
+        ][
+            fail "PRINT called on non-literal block without /EVAL switch"
+        ]
+    ][
+        form :value ;-- Should this be TO-STRING, or is that MOLD semantics?
+    ])
+    unless only [write-stdout newline]
+]
+
+print-newline: specialize 'write-stdout [value: newline]
+
+
 ; PROBE is a good early function to have handy for debugging all the rest (!)
 ;
 probe: func [
@@ -201,7 +239,7 @@ eval proc [
 
         set set-word make function! compose/deep [
             [
-                (ajoin [{Returns a copy of the } name { of a } categories {.}])
+                (spaced [{Returns a copy of the} name {of a} categories])
                 value [any-value!]
             ][
                 reflect :value (to lit-word! name)

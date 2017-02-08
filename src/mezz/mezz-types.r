@@ -36,7 +36,7 @@ to-event:
 ; Auto-build the functions for the above TO-* words.
 use [word] [
     for-each type system/catalog/datatypes [
-        word: make word! head remove back tail ajoin ["to-" type]
+        word: make word! head remove back tail unspaced ["to-" type]
 
         ; The list above determines what will be made here, but we must not
         ; overwrite any NATIVE! implementations.  (e.g. TO-INTEGER is a
@@ -47,7 +47,7 @@ use [word] [
             blank? get word
         ][
             set word make function! compose/deep [
-                [(ajoin ["Converts to" form type "value."]) value]
+                [(spaced ["Converts to" form type "value."]) value]
                 [to (type) :value]
             ]
         ]

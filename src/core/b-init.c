@@ -777,9 +777,8 @@ static void Init_Root_Context(void)
     Init_String(ROOT_EMPTY_STRING, empty_series);
     Freeze_Sequence(VAL_SERIES(ROOT_EMPTY_STRING));
 
-    // Used by REBNATIVE(print)
-    //
     SET_CHAR(ROOT_SPACE_CHAR, ' ');
+    SET_CHAR(ROOT_NEWLINE_CHAR, '\n');
 
     // Can't ASSERT_CONTEXT here; no keylist yet...
 }

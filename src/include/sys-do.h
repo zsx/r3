@@ -173,20 +173,29 @@ inline static void Drop_Frame_Core(REBFRM *f) {
 // array is to expand, it might have a different data pointer entirely.
 //
 
-inline static void Push_Frame(REBFRM *f, const REBVAL *v)
-{
-    SET_FRAME_VALUE(f, VAL_ARRAY_AT(v));
-    f->source.array = VAL_ARRAY(v);
+inline static void Push_Frame_At(
+    REBFRM *f,
+    REBARR *array,
+    REBCNT index,
+    REBSPC *specifier
+) {
+    SET_FRAME_VALUE(f, ARR_AT(array, index));
+    f->source.array = array;
 
     Init_Endlike_Header(&f->flags, 0);
 
     f->gotten = NULL; // tells ET_WORD and ET_GET_WORD they must do a get
-    f->index = VAL_INDEX(v) + 1;
-    f->specifier = VAL_SPECIFIER(v);
+    f->index = index + 1;
+    f->specifier = specifier;
     f->eval_type = REB_MAX_VOID;
     f->pending = NULL;
     f->out = m_cast(REBVAL*, END_CELL); // no out here, but needs to be GC safe
     Push_Frame_Core(f);
+}
+
+inline static void Push_Frame(REBFRM *f, const REBVAL *v)
+{
+    Push_Frame_At(f, VAL_ARRAY(v), VAL_INDEX(v), VAL_SPECIFIER(v));
 }
 
 inline static void Drop_Frame(REBFRM *f)

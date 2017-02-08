@@ -20,6 +20,12 @@ REBOL [
     }
 ]
 
+; It is desirable to express the logic of PRINT as user code, but it is
+; also desirable to use PRINT from the C code.  This should likely be
+; optimized as a native, but is easier to explore at the moment like this.
+;
+print*: :print
+
 
 ;-- If the host wants to know if a script or module is loaded, e.g. to
 ;   print out a message.  (Printing directly from this code would be
@@ -214,7 +220,7 @@ assert-utf8: function [
     data [binary!]
 ][
     unless find [0 8] tmp: utf? data [ ; Not UTF-8
-        cause-error 'script 'no-decode ajoin ["UTF-" abs tmp]
+        cause-error 'script 'no-decode unspaced ["UTF-" abs tmp]
     ]
     data
 ]

@@ -129,19 +129,31 @@ save: function [
     append data newline
 
     case/all [
-        ; Checksum uncompressed data, if requested
         tmp: find header-data 'checksum [
+            ; Checksum uncompressed data, if requested
             change next tmp checksum/secure data: to-binary data
         ]
 
-        ; Compress the data if necessary
-        compress [data: lib/compress data]
+        compress [
+            ; Compress the data if necessary
+            data: lib/compress data
+        ]
 
-        ; File content is encoded as base-64:
-        method = 'script [data: mold64 data]
-        not binary? data [data: to-binary data]
-        length_SAVE [change find/tail header-data 'length (length data)]
-        header-data [insert data ajoin ['REBOL #" " mold header-data newline]]
+        method = 'script [
+            data: mold64 data ; File content is encoded as base-64
+        ]
+
+        not binary? data [
+            data: to-binary data
+        ]
+
+        length_SAVE [
+            change find/tail header-data 'length (length data)
+        ]
+
+        header-data [
+            insert data unspaced [{REBOL} space (mold header-data) newline]
+        ]
     ]
 
     case [

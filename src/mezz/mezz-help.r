@@ -323,7 +323,7 @@ help: procedure [
     type-name: func [value] [
         value: mold type-of :value
         clear back tail value
-        join-of either find "aeiou" first value ["an "]["a "] value
+        spaced [(either find "aeiou" first value ["an"]["a"]) value]
     ]
 
     ; Print literal values:
@@ -352,13 +352,15 @@ help: procedure [
     ]
 
     unless function? :value [
-        prin [uppercase mold word "is" type-name :value "of value: "]
-        print rejoin collect [
-            either any [object? value port? value] [
+        print/only spaced [
+            (uppercase mold word) "is" (type-name :value) "of value:"
+        ]
+        print unspaced collect [
+            either maybe [object! port!] value [
                 keep newline
                 keep dump-obj value
             ][
-                keep mold :value
+                keep mold value
             ]
         ]
         leave
@@ -371,9 +373,7 @@ help: procedure [
     space4: rejoin [space space space space] ;-- use instead of tab
 
     ;-- Print info about function:
-    print/only [
-        "USAGE:" newline
-        space4]
+    print "USAGE:"
 
     args: _ ;-- plain arguments
     refinements: _ ;-- refinements and refinement arguments
@@ -387,9 +387,9 @@ help: procedure [
     ; !!! Should refinement args be shown for lookback case??
     ;
     either lookback [
-        print [args/1 | uppercase mold word | next args]
+        print [space4 args/1 (uppercase mold word) next args]
     ][
-        print [uppercase mold word | args | refinements]
+        print [space4 (uppercase mold word) args refinements]
     ]
 
     ; Dig deeply, but try to inherit the most specific meta fields available
@@ -425,7 +425,7 @@ help: procedure [
     classification: case [
         :specializee [
             either original-name [
-                ajoin [{a specialization of } original-name]
+                spaced [{a specialization of} original-name]
             ][
                 {a specialized function}
             ]
@@ -433,7 +433,7 @@ help: procedure [
 
         :adaptee [
             either original-name [
-                ajoin [{an adaptation of } original-name]
+                spaced [{an adaptation of} original-name]
             ][
                 {an adapted function}
             ]
@@ -445,7 +445,7 @@ help: procedure [
 
         :hijackee [
             either original-name [
-                ajoin [{a hijacking of } original-name]
+                spaced [{a hijacking of} original-name]
             ][
                 {a hijacked function}
             ]
@@ -456,14 +456,14 @@ help: procedure [
         ]
     ]
 
+    print-newline
+
     print [
-        newline
+        "DESCRIPTION:"
             |
-        "DESCRIPTION:" newline
+        space4 (any [description | "(undocumented)"])
             |
-        [space4 (any [description | "(undocumented)"])] newline
-            |
-        [space4 (uppercase mold word)] {is} [classification {.}]
+        space4 (uppercase mold word) {is} classification {.}
     ]
 
     print-args: procedure [list /indent-words] [
@@ -473,40 +473,43 @@ help: procedure [
 
             ;-- parameter name and type line
             either all [type | not refinement? param] [
-                print [[space4 param] ["[" type "]"]]
+                print/only [space4 param space "[" type "]" newline]
             ][
-                print [[space4 param]]
+                print/only [space4 param newline]
             ]
 
             if note [
-                print [[space4 space4 note]]
+                print/only [space4 space4 note newline]
             ]
         ]
     ]
 
-    ; Always make a note about the return value if there's no explicit
-    ; indication about it being a procedure...even to say it's undocumented.
-    ;
-    ; !!! Should it say "RETURNS: void"?  Concept is that's wasteful.
-    ;
-    unless blank? :return-type [
-        print [newline "RETURNS:" if set? 'return-type [mold return-type]]
+    either blank? :return-type [
+        ; If it's a PROCEDURE, saying "RETURNS: void" would waste space
+    ][
+        ; For any return besides "always void", always say something about
+        ; the return value...even if just to say it's undocumented.
+        ;
+        print-newline
+        print ["RETURNS:" (if set? 'return-type [mold return-type])]
         either return-note [
-            print [[space4 return-note]]
+            print/only [space4 return-note newline]
         ][
             if not set? 'return-type [
-                print [[space4 "(undocumented)"]]
+                print/only [space4 "(undocumented)" newline]
             ]
         ]
     ]
 
     unless empty? args [
-        print [newline "ARGUMENTS:"]
+        print-newline
+        print "ARGUMENTS:"
         print-args args
     ]
 
     unless empty? refinements [
-        print [newline "REFINEMENTS:"]
+        print-newline
+        print "REFINEMENTS:"
         print-args/indent-words refinements
     ]
 ]

@@ -40,7 +40,7 @@ idate-to-date: function [date [string!]] [
         copy zone: to end
     ][
         if zone = "GMT" [zone: copy "+0"]
-        to date! ajoin [day "-" month "-" year "/" time zone]
+        to date! unspaced [day "-" month "-" year "/" time zone]
     ][
         blank
     ]
@@ -172,7 +172,7 @@ make-http-error: func [
     ; know.  Once it was fixed, the `message` variable name here caused
     ; a conflict where the error had no message.
 
-    if block? msg [msg: ajoin msg]
+    if block? msg [msg: unspaced msg]
     case [
         inf [
             make error! [
@@ -448,7 +448,7 @@ do-redirect: func [port [port!] new-uri [url! string! file!] /local spec state] 
     spec: port/spec
     state: port/state
     if #"/" = first new-uri [
-        new-uri: to url! ajoin [spec/scheme "://" spec/host new-uri]
+        new-uri: as url! unspaced [spec/scheme "://" spec/host new-uri]
     ]
     new-uri: decode-url new-uri
     unless find new-uri 'port-id [

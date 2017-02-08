@@ -36,7 +36,7 @@ make-tls-error: func [
     "Make an error for the TLS protocol"
     message [string! block!]
 ] [
-    if block? message [message: ajoin message]
+    if block? message [message: unspaced message]
     make error! [
         type: 'Access
         id: 'Protocol

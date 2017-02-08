@@ -19,10 +19,12 @@ error-response: func [code uri /local values] [
 
 start-response: func [port res /local code text type body] [
     set [code type body] res
-    write port ajoin ["HTTP/1.0 " code " " code-map/:code crlf]
-    write port ajoin ["Content-type: " type crlf]
-    write port ajoin ["Content-length: " length? body crlf]
-    write port crlf
+    write port unspaced [
+        "HTTP/1.0" space code space code-map/:code crlf
+        "Content-type:" space type crlf
+        "Content-length:" space length? body crlf
+        crlf
+    ]
     ;; Manual chunking is only necessary because of several bugs in R3's
     ;; networking stack (mainly cc#2098 & cc#2160; in some constellations also
     ;; cc#2103). Once those are fixed, we should directly use R3's internal

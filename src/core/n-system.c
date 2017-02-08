@@ -277,14 +277,6 @@ REBNATIVE(stats)
 }
 
 
-const char *evoke_help = "Evoke values:\n"
-    "[stack-size n] crash-dump delect\n"
-    "watch-recycle watch-obj-copy crash\n"
-    "1: watch expand\n"
-    "2: check memory pools\n"
-    "3: check bind table\n"
-;
-
 //
 //  evoke: native [
 //
@@ -318,16 +310,20 @@ REBNATIVE(evoke)
             case SYM_DELECT:
                 Trace_Delect(1);
                 break;
+
             case SYM_CRASH_DUMP:
                 Reb_Opts->crash_dump = TRUE;
                 break;
+
             case SYM_WATCH_RECYCLE:
                 Reb_Opts->watch_recycle = NOT(Reb_Opts->watch_recycle);
                 break;
+
             case SYM_CRASH:
                 panic ("evoke 'crash was executed");
+
             default:
-                Out_Str(cb_cast(evoke_help), 1);
+                Debug_Fmt(RM_EVOKE_HELP);
             }
         }
         if (IS_INTEGER(arg)) {
@@ -335,11 +331,13 @@ REBNATIVE(evoke)
             case 0:
                 Check_Memory_Debug();
                 break;
+
             case 1:
                 Reb_Opts->watch_expand = TRUE;
                 break;
+
             default:
-                Out_Str(cb_cast(evoke_help), 1);
+                Debug_Fmt(RM_EVOKE_HELP);
             }
         }
     }

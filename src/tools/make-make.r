@@ -335,7 +335,7 @@ macro+: procedure [
             ]
         ]
     ][
-        print ajoin ["Cannot find" space name "= definition"]
+        print unspaced ["Cannot find" space name "= definition"]
     ]
 ]
 

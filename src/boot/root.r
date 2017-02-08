@@ -25,6 +25,7 @@ empty-block     ; a value that is an empty BLOCK!
 empty-string    ; a value that is an empty STRING!
 
 space-char      ; a value that is a space CHAR!
+newline-char    ; a value that is a newline CHAR!
 
 ;; Tags used in the native-optimized versions of user-function-generators
 ;; FUNC and PROC

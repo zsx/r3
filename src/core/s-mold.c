@@ -1497,33 +1497,84 @@ REBSER *Copy_Mold_Value(const REBVAL *value, REBFLGS opts)
 //
 //  Form_Reduce_Throws: C
 //
-// Reduce a block and then form each value into a string REBVAL.
+// Evaluates each item in a block and forms it, with an optional delimiter.
+//
+// The special treatment of BLANK! in the source block is to act as an
+// opt-out, and the special treatment of BAR! is to act as a line break.
+// There's no such thing as a void literal in the incoming block, but if
+// an element evaluated to void it is also considered an opt-out, equivalent
+// to a BLANK!.
+//
+// BAR!, BLANK!/void, and CHAR! suppress the delimiter logic.  Hence if you
+// are to form `["a" space "b" | () (blank) "c" newline "d" "e"]` with a
+// delimiter of ":", you will get back `"a b^/c^/d:e"... where only the
+// last interstitial is considered a valid candidate for delimiting.
 //
 REBOOL Form_Reduce_Throws(
     REBVAL *out,
-    REBARR *block,
+    REBARR *array,
     REBCNT index,
-    REBSPC *specifier
+    REBSPC *specifier,
+    const REBVAL *delimiter
 ) {
-    REBIXO indexor = index;
+    assert(!IS_VOID(delimiter)); // use BLANK! to indicate no delimiting
+    if (IS_BAR(delimiter))
+        delimiter = ROOT_NEWLINE_CHAR; // BAR! is synonymous to newline here
 
     REB_MOLD mo;
     CLEARS(&mo);
 
     Push_Mold(&mo);
 
-    while (indexor != END_FLAG) {
-        indexor = DO_NEXT_MAY_THROW(
-            out,
-            block,
-            cast(REBCNT, indexor), // cast ok (isn't END_FLAG or THROWN_FLAG)
-            specifier
-        );
-        if (indexor == THROWN_FLAG)
-            return TRUE;
+    REBFRM f;
+    Push_Frame_At(&f, array, index, specifier);
 
-        Mold_Value(&mo, out, FALSE);
+    REBOOL pending = FALSE;
+
+    while (NOT_END(f.value)) {
+        if (IS_BLANK(f.value)) { // opt-out
+            Fetch_Next_In_Frame(&f);
+            continue;
+        }
+
+        if (IS_BAR(f.value)) { // newline
+            Append_Codepoint_Raw(mo.series, '\n');
+            pending = FALSE;
+            Fetch_Next_In_Frame(&f);
+            continue;
+        }
+
+        Do_Next_In_Frame_May_Throw(out, &f, DO_FLAG_NORMAL);
+        if (THROWN(out)) {
+            Drop_Frame(&f);
+            return TRUE;
+        }
+
+        if (IS_VOID(out) || IS_BLANK(out)) // opt-out
+            continue;
+
+        if (IS_BAR(out)) { // newline
+            Append_Codepoint_Raw(mo.series, '\n');
+            pending = FALSE;
+            continue;
+        }
+
+        if (IS_CHAR(out)) {
+            Append_Codepoint_Raw(mo.series, VAL_CHAR(out));
+            pending = FALSE;
+        }
+        else if (IS_BLANK(delimiter)) // no delimiter
+            Mold_Value(&mo, out, FALSE);
+        else {
+            if (pending)
+                Mold_Value(&mo, delimiter, FALSE);
+
+            Mold_Value(&mo, out, FALSE);
+            pending = TRUE;
+        }
     }
+
+    Drop_Frame(&f);
 
     Init_String(out, Pop_Molded_String(&mo));
 

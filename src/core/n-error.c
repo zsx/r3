@@ -127,139 +127,38 @@ REBNATIVE(trap)
 
 
 //
-//  fail: native [
+//  set-where-of-error: native [
 //
-//  {Interrupts execution by reporting an error (a TRAP can intercept it).}
+//  {Sets the WHERE and NEAR fields of an error}
 //
-//      reason [error! string! block!]
-//          "ERROR! value, message string, or failure spec"
-//      /where
-//          "Specify an originating location other than the FAIL itself"
+//      return: [<opt>]
+//      error [error!]
 //      location [frame! any-word!]
-//          "Frame or parameter at which to indicate the error originated"
 //  ]
 //
-REBNATIVE(fail)
+REBNATIVE(set_where_of_error)
 {
-    INCLUDE_PARAMS_OF_FAIL;
+    INCLUDE_PARAMS_OF_SET_WHERE_OF_ERROR;
 
-    REBVAL *reason = ARG(reason);
+    REBCTX *context;
+    if (IS_WORD(ARG(location)))
+        context = VAL_WORD_CONTEXT(ARG(location));
+    else
+        context = VAL_CONTEXT(ARG(location));
 
-    if (IS_ERROR(reason))
-        fail (VAL_CONTEXT(reason)); // if argument is an error, trigger as-is
+    REBFRM *where = CTX_FRAME_IF_ON_STACK(context);
 
-    if (IS_BLOCK(reason)) {
-        //
-        // Ultimately we'd like FAIL to use some clever error-creating
-        // dialect when passed a block, maybe something like:
-        //
-        //     fail [<invalid-key> {The key} key-name: key {is invalid}]
-        //
-        // That could provide an error ID, the format message, and the
-        // values to plug into the slots to make the message...which could
-        // be extracted from the error if captured (e.g. error/id and
-        // `error/key-name`.  Another option would be something like:
-        //
-        //     fail/with [{The key} :key-name {is invalid}] [key-name: key]
+    // !!! If where comes back NULL, what to do?  Probably bad if someone
+    // is trying to decipher an error to trigger another error.  Maybe
+    // the meta info on the error could be annotated with "tried a
+    // where that was for an expired stack frame" or similar...
 
-        RELVAL *item = VAL_ARRAY_AT(reason);
-
-        REBVAL pending_delimiter;
-        SET_END(&pending_delimiter);
-
-        REB_MOLD mo;
-        CLEARS(&mo);
-
-        // Check to make sure we're only drawing from the limited types
-        // we accept (reserving room for future dialect expansion)
-        //
-        for (; NOT_END(item); item++) {
-            if (IS_STRING(item) || ANY_SCALAR(item))
-                continue;
-
-            // Leave the group in and let the reduce take care of it
-            //
-            if (IS_GROUP(item))
-                continue;
-
-            // Literal blocks in the spec given to Format used by PRINT
-            // has special meaning for BLOCK! (and BAR! when not used
-            // in the middle of an expression)
-            //
-            if (IS_BLOCK(item) || IS_BAR(item))
-                continue;
-
-            // Leave words in to be handled by the reduce step as long
-            // as they don't look up to functions.
-            //
-            // !!! This keeps the option open of being able to know that
-            // strings that appear in the block appear in the error
-            // message so it can be templated.
-            //
-            if (IS_WORD(item) || IS_GET_WORD(item)) {
-                if (!IS_WORD_BOUND(item))
-                    continue;
-
-                const RELVAL *var
-                    = Get_Opt_Var_May_Fail(item, VAL_SPECIFIER(reason));
-
-                if (!IS_FUNCTION(var))
-                    continue;
-            }
-
-            // The only way to tell if a path resolves to a function
-            // or not is to actually evaluate it, and we are delegating
-            // to Reduce_Block ATM.  For now we force you to use a GROUP!
-            //
-            //     fail [{Erroring on} (the/safe/side) {for now.}]
-            //
-            fail (Error(RE_LIMITED_FAIL_INPUT));
-        }
-
-        // Use the same logic that PRINT does, which will create newline
-        // at expression barriers and form literal blocks with no spaces
-
-        Push_Mold(&mo);
-        if (Form_Value_Throws(
-            D_OUT,
-            &mo,
-            &pending_delimiter, // variable shared by recursions
-            reason,
-            FORM_FLAG_REDUCE
-                | FORM_FLAG_NEWLINE_SEQUENTIAL_STRINGS, // no newline at end
-            SPACE_VALUE, // delimiter same as PRINT (customizable?)
-            0 // depth
-        )) {
-            return R_OUT_IS_THROWN;
-        }
-
-        Init_String(reason, Pop_Molded_String(&mo));
+    if (where != NULL) {
+        REBCTX *error = VAL_CONTEXT(ARG(error));
+        Try_Add_Backtrace_To_Error(error, where);
     }
 
-    assert(IS_STRING(reason));
-
-    REBFRM *where = NULL;
-    if (REF(where)) {
-        REBCTX *context;
-        if (IS_WORD(ARG(location)))
-            context = VAL_WORD_CONTEXT(ARG(location));
-        else
-            context = VAL_CONTEXT(ARG(location));
-
-        where = CTX_FRAME_IF_ON_STACK(context);
-
-        // !!! If where comes back NULL, what to do?  Probably bad if someone
-        // is trying to decipher an error to trigger another error.  Maybe
-        // the meta info on the error could be annotated with "tried a
-        // where that was for an expired stack frame" or similar...
-    }
-
-    if (Make_Error_Object_Throws(D_OUT, reason, where)) {
-        // Throw name is in D_OUT, thrown value is held task local
-        return R_OUT_IS_THROWN;
-    }
-
-    fail (VAL_CONTEXT(D_OUT));
+    return R_VOID;
 }
 
 

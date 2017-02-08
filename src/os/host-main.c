@@ -926,7 +926,7 @@ int main(int argc, char **argv_ansi)
         }
         else {
             Host_Repl(&exit_status, &value, FALSE);
-            
+
             finished = TRUE;
 
             DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);

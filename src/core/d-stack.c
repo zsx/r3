@@ -302,7 +302,7 @@ REBNATIVE(backtrace_index)
 //
 //      return: [<opt> block! frame!]
 //          "Nothing if printing, if specific level a frame! else block"
-//      level [<end> blank! integer! function! |]
+//      level [<end> blank! integer! function!]
 //          "Stack level to return frame for (blank to list)"
 //      /limit
 //          "Limit the length of the backtrace"
@@ -310,8 +310,6 @@ REBNATIVE(backtrace_index)
 //          "Max number of frames (pending and active), blank for no limit"
 //      /brief
 //          "Do not list depths, just function labels on one line"
-//      /only ;-- should this be /QUIET or similar?
-//          "Return backtrace data without printing it to the console"
 //  ]
 //
 REBNATIVE(backtrace)
@@ -474,9 +472,6 @@ REBNATIVE(backtrace)
             return R_OUT;
         }
 
-        // The /ONLY case is bare bones and just gives a block of the label
-        // symbols (at this point in time).
-        //
         // !!! Should /BRIEF omit pending frames?  Should it have a less
         // "loaded" name for the refinement?
         //
@@ -531,15 +526,7 @@ REBNATIVE(backtrace)
     // Return accumulated backtrace otherwise, in the reverse order pushed
     //
     Init_Block(D_OUT, Pop_Stack_Values_Reversed(dsp_orig));
-    if (REF(only))
-        return R_OUT;
-
-    // If they didn't use /ONLY we assume they want it printed out.
-    //
-    // TRUE = mold
-    //
-    Print_Value(D_OUT, 0, TRUE);
-    return R_VOID;
+    return R_OUT;
 }
 
 

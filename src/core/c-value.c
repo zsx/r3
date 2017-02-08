@@ -247,6 +247,15 @@ void Probe_Core_Debug(
         Debug_Fmt("%r\n", cast(const REBVAL*, p));
     else {
         REBSER *s = m_cast(REBSER*, cast(const REBSER*, p));
+
+        // Invalid series would possibly (but not necessarily) crash the print
+        // routines--which are the same ones used to output a series normally.
+        // Hence don't attempt to print a known malformed series.  A more
+        // pointed message will probably come from ASSERT_SERIES, saying
+        // what is wrong rather than just crashing the print code...
+        //
+        ASSERT_SERIES(s);
+
         if (GET_SER_FLAG(s, ARRAY_FLAG_VARLIST)) {
             REBCTX *c = AS_CONTEXT(s);
 
@@ -257,9 +266,48 @@ void Probe_Core_Debug(
             VAL_RESET_HEADER(&temp, CTX_TYPE(c));
             temp.extra.binding = NULL;
             temp.payload.any_context.varlist = CTX_VARLIST(c);
+            Debug_Fmt("%r\n", &temp);
         }
-        else
-            Debug_Series(s); // handles arrays
+        else {
+            REBOOL disabled = GC_Disabled;
+            GC_Disabled = TRUE;
+
+            // This routine is also a little catalog of the outlying series
+            // types in terms of sizing, just to know what they are.
+
+            if (BYTE_SIZE(s))
+                Debug_Str(s_cast(BIN_HEAD(s)));
+            else if (Is_Array_Series(s)) {
+                //
+                // May not actually be a REB_BLOCK, but we put it in a value
+                // container for now saying it is so we can output it.  May
+                // not want to Manage_Series here, so we use a raw
+                // initialization instead of Init_Block.
+                //
+                REBVAL value;
+                VAL_RESET_HEADER(&value, REB_BLOCK);
+                INIT_VAL_ARRAY(&value, AS_ARRAY(s));
+                VAL_INDEX(&value) = 0;
+
+                Debug_Fmt("%r", &value);
+            }
+            else if (SER_WIDE(s) == sizeof(REBUNI))
+                Debug_Uni(s);
+            else if (s == PG_Canons_By_Hash) {
+                printf("can't probe PG_Canons_By_Hash\n");
+                panic (s);
+            }
+            else if (s == GC_Guarded) {
+                printf("can't probe GC_Guarded\n");
+                panic (s);
+            }
+            else
+                panic (s);
+
+            assert(GC_Disabled == TRUE);
+            GC_Disabled = disabled;
+        }
     }
 }
+
 #endif

@@ -92,7 +92,7 @@ ask: function [
     /hide
         "mask input with *"
 ][
-    prin question
+    print/only either block? question [spaced question] [question]
     trim either hide [input/hide] [input]
 ]
 

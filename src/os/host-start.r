@@ -504,8 +504,8 @@ host-start: function [
     ][
         ; basic boot banner only
         ;
-        boot-print ajoin [
-            "REBOL 3.0 A" system/version/3 " " system/build newline
+        boot-print unspaced [
+            "REBOL 3.0 A" system/version/3 space system/build newline
         ]
     ]
 

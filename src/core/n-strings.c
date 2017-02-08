@@ -120,21 +120,28 @@ static struct {
 
 
 //
-//  ajoin: native [
+//  delimit: native [
 //
-//  {Reduces and joins a block of values into a new string.}
+//  {Joins a block of values into a new string with delimiters.}
 //
+//      return: [string!]
 //      block [block!]
+//      delimiter [blank! char! string!]
 //  ]
 //
-REBNATIVE(ajoin)
+REBNATIVE(delimit)
 {
-    INCLUDE_PARAMS_OF_AJOIN;
+    INCLUDE_PARAMS_OF_DELIMIT;
 
     REBVAL *block = ARG(block);
+    REBVAL *delimiter = ARG(delimiter);
 
     if (Form_Reduce_Throws(
-        D_OUT, VAL_ARRAY(block), VAL_INDEX(block), VAL_SPECIFIER(block)
+        D_OUT,
+        VAL_ARRAY(block),
+        VAL_INDEX(block),
+        VAL_SPECIFIER(block),
+        delimiter
     )) {
         return R_OUT_IS_THROWN;
     }

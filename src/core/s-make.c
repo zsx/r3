@@ -222,7 +222,6 @@ cp_same:
     up = UNI_AT(src, pos);
     for (n = 0; n < len; n++) {
         if (up[n] > 0xFF) {
-            //Debug_Num("##Widen-series because char value is:", up[n]);
             // Expand dst and restart:
             idx += n;
             pos += n;

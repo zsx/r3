@@ -243,23 +243,26 @@ op?: func [dummy:] [
 ]
 
 
-; The legacy PRIN construct is equivalent to PRINT/ONLY of a reduced value
-; (since PRIN of a block would historically execute it).
+; The legacy PRIN construct is replaced by PRINT/ONLY SPACED
 ;
 prin: procedure [
-    "Print value, no line break, reducing blocks.  <r3-legacy>, use PRINT/ONLY"
+    "Print spaced w/no added terminal line break, reducing blocks."
 
     value [<opt> any-value!]
-    /eval
 ][
-    eval: all [eval | semiquoted? 'value | 'eval]
-    print/delimit/only/:eval :value space
+    print/only/eval spaced :value
 ]
 
 ; Common debug abbreviations that should be console-only (if anything)
 ;
 dt: :delta-time
 dp: :delta-profile
+
+
+; AJOIN is a kind of ugly name for making an unspaced string from a block.
+; Ren-C has UNSPACED and SPACED.
+;
+ajoin: :unspaced
 
 
 ; SET has a refinement called /ANY which doesn't communicate as well in the

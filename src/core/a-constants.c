@@ -165,3 +165,12 @@ const char RM_TRACE_ERROR[] = "**: error : %r %r";
 
 const char RM_TRACE_PARSE_VALUE[] = "Parse %s: %r";
 const char RM_TRACE_PARSE_INPUT[] = "Parse input: %s";
+
+const char RM_BACKTRACE_NOT_ENABLED[] = "backtrace not enabled";
+
+const char RM_EVOKE_HELP[] = "Evoke values:\n"
+    "[stack-size n] crash-dump delect\n"
+    "watch-recycle watch-obj-copy crash\n"
+    "1: watch expand\n"
+    "2: check memory pools\n"
+    "3: check bind table\n";

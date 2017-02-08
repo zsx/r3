@@ -78,15 +78,8 @@ REBNATIVE(echo)
 //
 //  "Converts a value to a human-readable string."
 //
-//      value [<opt> any-value!] "The value to form"
-//      /delimit
-//          "Use a delimiter between expressions that added to the output"
-//      delimiter [blank! any-scalar! any-string! block!]
-//          "Delimiting value (or block of delimiters for each depth)"
-//      /quote
-//          "Do not reduce values in blocks"
-//      /new
-//          "TEMPORARY: Test new formatting logic for Ren-C (reduces)"
+//      value [<opt> any-value!]
+//          "The value to form"
 //  ]
 //
 REBNATIVE(form)
@@ -95,42 +88,8 @@ REBNATIVE(form)
 
     REBVAL *value = ARG(value);
 
-    if (REF(new)) {
-        REBVAL pending_delimiter;
-        SET_END(&pending_delimiter);
+    Init_String(D_OUT, Copy_Form_Value(value, 0));
 
-        REB_MOLD mo;
-        CLEARS(&mo);
-
-        // !!! Temporary experiment to make the strings done by the new
-        // print logic available programmatically.  Possible outcome is that
-        // this would become the new FORM.
-
-        REBVAL *delimiter;
-        if (REF(delimit))
-            delimiter = ARG(delimiter);
-        else
-            delimiter = SPACE_VALUE;
-
-        Push_Mold(&mo);
-
-        if (Form_Value_Throws(
-            D_OUT,
-            &mo,
-            &pending_delimiter,
-            value,
-            (REF(quote) || !IS_BLOCK(value) ? 0 : FORM_FLAG_REDUCE),
-            delimiter,
-            0 // depth
-        )) {
-            return R_OUT_IS_THROWN;
-        }
-
-        Init_String(D_OUT, Pop_Molded_String(&mo));
-    }
-    else {
-        Init_String(D_OUT, Copy_Form_Value(value, 0));
-    }
     return R_OUT;
 }
 
@@ -172,69 +131,37 @@ REBNATIVE(mold)
 
 
 //
-//  print: native [
+//  write-stdout: native [
 //
-//  "Outputs value to standard output using the PRINT dialect."
+//  "Write text to standard output, or raw BINARY! (for control codes / CGI)"
 //
 //      return: [<opt>]
-//      value [any-value!]
-//          "Value or BLOCK! literal in PRINT dialect, newline if any output"
-//      /only
-//          "Do not include automatic spacing or newlines"
-//      /delimit
-//          "Use a delimiter between expressions that added to the output"
-//      delimiter [blank! any-scalar! any-string! block!]
-//          "Delimiting value (or block of delimiters for each depth)"
-//      /eval
-//          "Print block using the evaluating dialect (even if not literal)"
-//      /quote
-//          "Do not reduce values in blocks"
+//      value [string! char! binary!]
+//          "Text to write, if a STRING! or CHAR! is converted to OS format"
 //  ]
 //
-REBNATIVE(print)
+REBNATIVE(write_stdout)
 {
-    INCLUDE_PARAMS_OF_PRINT;
+    INCLUDE_PARAMS_OF_WRITE_STDOUT;
 
-    REBVAL *value = ARG(value);
+    REBVAL *v = ARG(value);
 
-    if (IS_VOID(value)) // opt out of printing
-        return R_VOID;
-
-    // Literal blocks passed to PRINT are assumed to be all right to evaluate.
-    // But for safety, `print x` will not run code if x is a block, unless the
-    // /EVAL switch is used.  This helps prevent accidents, confusions, or
-    // security problems if a block gets into a slot that wasn't expecting it.
-    //
-    if (
-        IS_BLOCK(value)
-        && NOT_VAL_FLAG(value, VALUE_FLAG_UNEVALUATED)
-        && NOT(REF(eval))
-    ){
-        fail (Error(RE_PRINT_NEEDS_EVAL));
+    if (IS_BINARY(v)) { // raw output
+        Prin_OS_String(VAL_BIN_AT(v), VAL_LEN_AT(v), OPT_ENC_RAW);
     }
-
-    const REBVAL *delimiter;
-    if (REF(delimit))
-        delimiter = ARG(delimiter);
-    else if (REF(only))
-        delimiter = BLANK_VALUE;
-    else {
-        // By default, we assume the delimiter is supposed to be a space at the
-        // outermost level and nothing at every level beyond that.
-        //
-        delimiter = SPACE_VALUE;
+    else if (IS_CHAR(v)) { // useful for `write-stdout newline`, etc.
+        Prin_OS_String(&VAL_CHAR(v), 1, OPT_ENC_UNISRC | OPT_ENC_CRLF_MAYBE);
     }
-
-    if (Print_Value_Throws(
-        D_OUT,
-        value,
-        delimiter,
-        0, // `limit`: 0 means do not limit output length
-        (REF(only) ? FORM_FLAG_ONLY : FORM_FLAG_NEWLINE_SEQUENTIAL_STRINGS)
-            | (!IS_BLOCK(value) || REF(quote) ? 0 : FORM_FLAG_REDUCE)
-            | (REF(only) ? 0 : FORM_FLAG_NEWLINE_UNLESS_EMPTY)
-    )) {
-        return R_OUT_IS_THROWN;
+    else { // string output translated to OS format
+        assert(IS_STRING(v));
+        if (VAL_BYTE_SIZE(v))
+            Prin_OS_String(VAL_BIN_AT(v), VAL_LEN_AT(v), OPT_ENC_CRLF_MAYBE);
+        else
+            Prin_OS_String(
+                VAL_UNI_AT(v),
+                VAL_LEN_AT(v),
+                OPT_ENC_UNISRC | OPT_ENC_CRLF_MAYBE
+            );
     }
 
     return R_VOID;

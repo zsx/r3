@@ -207,7 +207,8 @@ REBNATIVE(do)
         // a natural behavior for blocks passed to construct readable messages
         // and "FAIL X" more clearly communicates a failure than "DO X"
         // does.  However DO of an ERROR! would have to raise an error
-        // anyway, so it might as well raise the one it is given.
+        // anyway, so it might as well raise the one it is given...and this
+        // allows the more complex logic of FAIL to be written in Rebol code.
         //
         fail (VAL_CONTEXT(source));
 

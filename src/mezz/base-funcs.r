@@ -943,6 +943,7 @@ module: func [
     mod
 ]
 
+
 cause-error: func [
     "Causes an immediate error throw with the provided information."
     err-type [word!]
@@ -951,14 +952,16 @@ cause-error: func [
 ][
     ; Make sure it's a block:
     args: compose [(:args)]
+    
     ; Filter out functional values:
     for-next args [
         if function? first args [
             change/only args meta-of first args
         ]
     ]
-    ; Build and throw the error:
-    fail make error! [
+
+    ; Build and raise the error:
+    do make error! [
         type: err-type
         id:   err-id
         arg1: first args
@@ -966,6 +969,55 @@ cause-error: func [
         arg3: third args
     ]
 ]
+
+
+fail: function [
+    {Interrupts execution by reporting an error (a TRAP can intercept it).}
+
+    reason [error! string! block!]
+        "ERROR! value, message string, or failure spec"
+    /where
+        "Specify an originating location other than the FAIL itself"
+    location [frame! any-word!]
+        "Frame or parameter at which to indicate the error originated"
+][
+    ; By default, make the originating frame the FAIL's frame
+    ;
+    unless where [location: context-of 'reason]
+
+    ; Ultimately we might like FAIL to use some clever error-creating dialect
+    ; when passed a block, maybe something like:
+    ;
+    ;     fail [<invalid-key> {The key} key-name: key {is invalid}]
+    ;
+    ; That could provide an error ID, the format message, and the values to
+    ; plug into the slots to make the message...which could be extracted from
+    ; the error if captured (e.g. error/id and `error/key-name`.  Another
+    ; option would be something like:
+    ;
+    ;     fail/with [{The key} :key-name {is invalid}] [key-name: key]
+    ;
+    case [
+        error? reason [
+            error: reason
+        ]
+        string? reason [
+            error: make error! reason
+        ]
+        block? reason [
+            error: make error! spaced reason
+        ]
+    ]
+
+    ; !!! Does SET-WHERE-OF-ERROR need to be a native?
+    ;
+    set-where-of-error error location
+
+    ; Raise error to the nearest TRAP up the stack (if any)
+    ;
+    do error
+]
+
 
 ensure: function [
     {Pass through a value only if it matches types (or TRUE?/FALSE? state)}

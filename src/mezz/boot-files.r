@@ -14,8 +14,8 @@ REBOL [
 
 ;-- base: low-level boot in lib context:
 [
-    %base-defs.r
     %base-constants.r
+    %base-defs.r
     %base-funcs.r
     %base-infix.r
     %base-series.r

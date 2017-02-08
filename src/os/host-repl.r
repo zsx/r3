@@ -76,7 +76,7 @@ host-repl: function [
         ]
     ]
 
-    print " " ;-- newline !!! (print "" does not do that right now)
+    print-newline
 
     ; If a debug frame is in focus then show it in the prompt, e.g.
     ; as `if:|4|>>` to indicate stack frame 4 is being examined, and
@@ -85,17 +85,13 @@ host-repl: function [
     ;
     if focus-frame [
         if label-of focus-frame [
-            print/only label-of focus-frame
-            print/only ":"
+            print/only [label-of focus-frame ":"]
         ]
 
-        print/only "|"
-        print/only focus-level
-        print/only "|"
+        print/only ["|" focus-level "|"]
     ]
 
-    print/only ">>"
-    print/only space
+    print/only [">>" space]
 
     forever [ ;-- gather potentially multi-line input
 
@@ -147,7 +143,7 @@ host-repl: function [
                 ; could be tailored specifically, e.g. to report
                 ; a depth)
                 ;
-                print/only "{   "
+                print/only ["{" space space space]
 
                 append source newline
                 continue ]
@@ -157,8 +153,8 @@ host-repl: function [
                 ; that could be improved.)
                 ;
                 case [
-                    error/arg1 = "]" [print/only "[   "]
-                    error/arg1 = ")" [print/only "(   "]
+                    error/arg1 = "]" [print/only ["[" space space space]]
+                    error/arg1 = ")" [print/only ["(" space space space]]
                     'default [break]
                 ]
 
@@ -208,7 +204,7 @@ why: procedure [
         ]
 
         say-browser
-        err: lowercase ajoin [err/type #"-" err/id]
+        err: lowercase unspaced [err/type #"-" err/id]
         browse join-of http://www.rebol.com/r3/docs/errors/ [err ".html"]
     ][
         print "No information is available."

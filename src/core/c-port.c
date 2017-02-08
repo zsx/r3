@@ -142,7 +142,6 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
     // Get wait queue block (the state field):
     state = VAL_CONTEXT_VAR(port, STD_PORT_STATE);
     if (!IS_BLOCK(state)) return -10;
-    //Debug_Num("S", VAL_LEN_HEAD(state));
 
     // Get waked queue block:
     waked = VAL_CONTEXT_VAR(port, STD_PORT_DATA);
@@ -151,7 +150,6 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
     // If there is nothing new to do, return now:
     if (VAL_LEN_HEAD(state) == 0 && VAL_LEN_HEAD(waked) == 0) return -1;
 
-    //Debug_Num("A", VAL_LEN_HEAD(waked));
     // Get the system port AWAKE function:
     awake = VAL_CONTEXT_VAR(port, STD_PORT_AWAKE);
     if (!IS_FUNCTION(awake)) return -1;
@@ -265,7 +263,6 @@ REBOOL Wait_Ports(REBARR *ports, REBCNT timeout, REBOOL only)
         //printf("%d %d %d\n", dt, time, timeout);
 
         // Wait for events or time to expire:
-        //Debug_Num("OSW", wt);
         OS_WAIT(wt, res);
     }
 
