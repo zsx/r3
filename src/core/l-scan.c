@@ -1824,8 +1824,10 @@ static REBARR *Scan_Array(
 exit_block:
     Drop_Mold_If_Pushed(&mo);
 
-    if (line && DSP != dsp_orig)
-        SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
+    // !!! Code here used to set VALUE_FLAG_LINE if `line` was true at this
+    // point, but it would set it on END markers.  This is not legal in Ren-C
+    // since end markers are not themselves values; hence if line is going
+    // to be preserved it would have to be passed up the stack somehow.
 
 #ifdef TEST_SCAN
     Print((REBYTE*)"block of %d values ", emitbuf->tail - begin);

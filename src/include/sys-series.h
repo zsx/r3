@@ -537,16 +537,18 @@ inline static void PUSH_GUARD_VALUE(RELVAL *v) {
 }
 
 inline static void Drop_Guard_Series_Common(REBSER *s) {
+    UNUSED(s);
     GC_Guarded->content.dynamic.len--;
 }
 
 inline static void Drop_Guard_Value_Common(const RELVAL *v) {
+    UNUSED(v);
     GC_Guarded->content.dynamic.len--;
 }
 
 #ifdef NDEBUG
     #define DROP_GUARD_SERIES(s) \
-        Drop_Guard_Series_Common(v);
+        Drop_Guard_Series_Common(s);
 
     #define DROP_GUARD_VALUE(v) \
         Drop_Guard_Value_Common(v);
