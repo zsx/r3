@@ -744,7 +744,23 @@ int main(int argc, char **argv_ansi)
 
     SET_BLANK(&HG_Host_Repl);
 
-    if (error == NULL) {
+    if (error != NULL) {
+        //
+        // We want to avoid doing I/O directly from the C code of the host,
+        // and let that go through WRITE-STDOUT.  Hence any part of the
+        // startup that can error should be TRAP'd by the startup code itself
+        // and handled or PRINT'd in some way.
+        // 
+        // The exception is a halt with Ctrl-C, which can currently only be
+        // handled by C code that ran PUSH_UNHALTABLE_TRAP().
+        //
+        if (ERR_NUM(error) != RE_HALT)
+            panic (error);
+
+        exit_status = 128; // http://stackoverflow.com/questions/1101957/
+        finished = TRUE;
+    }
+    else {
         REBSER *startup = Decompress(
             &Reb_Init_Code[0],
             REB_INIT_SIZE,
@@ -872,40 +888,6 @@ int main(int argc, char **argv_ansi)
         else
             panic (&result); // no other legal return values for now
     }
-    else {
-        // !!! We are not allowed to ask for a print operation that can take
-        // arbitrarily long without allowing for cancellation via Ctrl-C,
-        // but here we are wanting to print an error.  If you're printing
-        // out an error and get a halt, it won't print the halt.
-        //
-        REBCTX *halt_error;
-
-        // Save error for WHY?
-        //
-        REBVAL *last = Get_System(SYS_STATE, STATE_LAST_ERROR);
-        Init_Error(last, error);
-
-        PUSH_UNHALTABLE_TRAP(&halt_error, &state);
-
-// The first time through the following code 'halt_error' will be NULL, but...
-// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
-
-        if (halt_error)
-            panic ("Halt or error while an error was being printed.");
-
-        Print_Value(last, 1024, FALSE);
-
-        DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-
-        // !!! When running in a script, whether or not the Rebol interpreter
-        // just exits in an error case with a bad error code or breaks you
-        // into the console to debug the environment should be controlled by
-        // a command line option.  Defaulting to returning an error code
-        // seems better, because kicking into an interactive session can
-        // cause logging systems to hang...
-
-        finished = TRUE;
-    }
 
     DROP_GUARD_VALUE(&argv_value);
 
@@ -941,15 +923,16 @@ int main(int argc, char **argv_ansi)
             // halt that happened during output.)
             //
             assert(ERR_NUM(error) == RE_HALT);
-            continue;
+        }
+        else {
+            Host_Repl(&exit_status, &value, FALSE);
+            
+            finished = TRUE;
+
+            DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
         }
 
-        Host_Repl(&exit_status, &value, FALSE);
-
-        DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
         DROP_GUARD_VALUE(&value);
-
-        finished = TRUE;
     }
 
     DROP_GUARD_VALUE(&HG_Host_Repl);

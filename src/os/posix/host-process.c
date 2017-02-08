@@ -416,7 +416,7 @@ int OS_Create_Process(
         else if (input_type == FILE_TYPE) {
             int fd = open(input, O_RDONLY);
             if (fd < 0)
-                goto child_error;        
+                goto child_error;
             if (dup2(fd, STDIN_FILENO) < 0)
                 goto child_error;
             close(fd);

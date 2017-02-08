@@ -624,11 +624,16 @@ host-start: function [
         ]
     ]
 
-    if do-string [
-        do do-string
-    ]
-
     host-start: 'done
+
+    if do-string [
+        trap/with [
+            do do-string
+        ] func [error <with> return] [
+            print error
+            return 1
+        ]
+    ]
 
     if quit-when-done [return 0]
 

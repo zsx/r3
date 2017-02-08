@@ -814,7 +814,7 @@ reevaluate:;
                 //
                 // Not even legal if arg is quoted.  It must come through
                 // other means (e.g. literal as `'|` or `first [|]`)
-                
+
                 if (NOT_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                     fail (Error(RE_EXPRESSION_BARRIER));
 

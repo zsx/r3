@@ -532,21 +532,51 @@ inline static void PUSH_GUARD_SERIES(REBSER *s) {
     Guard_Node_Core(cast(REBNOD*, s));
 }
 
-inline static void DROP_GUARD_SERIES(REBSER *s) {
-    assert(GET_SER_INFO(GC_Guarded, SERIES_INFO_HAS_DYNAMIC));
-    assert(s == *SER_LAST(REBSER*, GC_Guarded));
-    GC_Guarded->content.dynamic.len--;
-}
-
 inline static void PUSH_GUARD_VALUE(RELVAL *v) {
     Guard_Node_Core(cast(REBNOD*, v));
 }
 
-inline static void DROP_GUARD_VALUE(RELVAL *v) {
-    assert(GET_SER_INFO(GC_Guarded, SERIES_INFO_HAS_DYNAMIC));
-    assert(v == *SER_LAST(RELVAL*, GC_Guarded));
+inline static void Drop_Guard_Series_Common(REBSER *s) {
     GC_Guarded->content.dynamic.len--;
 }
+
+inline static void Drop_Guard_Value_Common(const RELVAL *v) {
+    GC_Guarded->content.dynamic.len--;
+}
+
+#ifdef NDEBUG
+    #define DROP_GUARD_SERIES(s) \
+        Drop_Guard_Series_Common(v);
+
+    #define DROP_GUARD_VALUE(v) \
+        Drop_Guard_Value_Common(v);
+#else
+    inline static void Drop_Guard_Series_Debug(
+        REBSER *s,
+        const char *file,
+        int line
+    ) {
+        if (s != *SER_LAST(REBSER*, GC_Guarded))
+            panic_at (s, file, line);
+        Drop_Guard_Series_Common(s);
+    }
+
+    inline static void Drop_Guard_Value_Debug(
+        const RELVAL *v,
+        const char *file,
+        int line
+    ) {
+        if (v != *SER_LAST(RELVAL*, GC_Guarded))
+            panic_at (v, file, line);
+        Drop_Guard_Value_Common(v);
+    }
+
+    #define DROP_GUARD_SERIES(s) \
+        Drop_Guard_Series_Debug(s, __FILE__, __LINE__);
+
+    #define DROP_GUARD_VALUE(v) \
+        Drop_Guard_Value_Debug(v, __FILE__, __LINE__);
+#endif
 
 
 //=////////////////////////////////////////////////////////////////////////=//
