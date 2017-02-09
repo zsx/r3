@@ -619,8 +619,13 @@ host-start: function [
             ]
             import do compose [module (code)]
         ][
-            sys/do-needs first+ code
-            do intern code
+            trap/with [
+                sys/do-needs first+ code
+                do intern code
+            ] func [error <with> return] [
+                print error
+                return 1
+            ]
         ]
     ]
 
