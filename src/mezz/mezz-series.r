@@ -43,21 +43,25 @@ extend: func [
     :val
 ]
 
-rejoin: function [
-    "Reduces and joins a block of values."
-    block [block!] "Values to reduce and join"
-    ;/with "separator"
+join-all: function [
+    "Reduces and appends a block of values together."
+    return: [<opt> any-series!]
+        "Will be the type of the first non-void series produced by evaluation"
+    block [block!]
+        "Values to join together"
     <local> position
 ][
-    either void? base: do/next block 'position [
-        blank
-    ][
-        either any-series? :base [
-            join-of base position
-        ][
-            join form base position
-        ]
+    forever [
+        if tail? block [return ()]
+        unless void? base: do/next block 'block [break]
     ]
+
+    ; !!! It isn't especially compelling that  `join-of 3 "hello"` gives you
+    ; `3hello`; defaulting to a string doesn't make obviously more sense than
+    ; `[3 "hello"]` when using a series operation.  However, so long as
+    ; JOIN-OF is willing to do so, it will be legal to do it here.
+    ;
+    join-of base block
 ]
 
 remold: func [

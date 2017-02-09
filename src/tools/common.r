@@ -25,7 +25,7 @@ REBOL [
 do %r2r3-future.r
 
 
-spaced-tab: rejoin [space space space space]
+spaced-tab: unspaced [space space space space]
 
 tab-char: #"^-" ;-- only GNU Makefiles require this...
 tab: does [
@@ -36,7 +36,7 @@ to-c-name: function [
     {Take a Rebol value and transliterate it as a (likely) valid C identifier.}
 
     value [string! block! word!]
-        {Will be converted to a string (via REJOIN if BLOCK!)}
+        {Will be converted to a string (via UNSPACED if BLOCK!)}
     /scope
         {See scope rules: http://stackoverflow.com/questions/228783/}
     word [word!]
@@ -49,7 +49,7 @@ to-c-name: function [
         #"_"
     ]
 
-    string: either block? :value [rejoin value][form value]
+    string: either block? :value [unspaced value][form value]
 
     string: switch/default attempt [to-word string] [
         ; Take care of special cases of singular symbols
@@ -130,8 +130,8 @@ to-c-name: function [
     ; starts with an underscore if something legal will be prepended.  But
     ; there are no instances of that need so better to plant awareness.
 
-    catch [case/all [
-        string/1 != "_" [throw string]
+    case [
+        string/1 != "_" []
 
         word = 'global [
             fail [
@@ -141,17 +141,18 @@ to-c-name: function [
         ]
 
         word = 'local [
-            unless find charset [#"A" - #"Z"] value/2 [
-                throw string
-            ]
-            fail [
-                "local identifiers in C starting with underscore and then"
-                "a capital letter are reserved for standard library usage"
+            if find charset [#"A" - #"Z"] value/2 [
+                fail [
+                    "local identifiers in C starting with underscore and then"
+                    "a capital letter are reserved for standard library usage"
+                ]
             ]
         ]
 
-        'default [fail "scope word must be 'global or 'local"]
-    ]]
+        'default [
+            fail "scope word must be 'global or 'local"
+        ]
+    ]
 
     string
 ]
@@ -175,7 +176,7 @@ binary-to-c: function [
         hexed: enbase/base (copy/part data 8) 16
         data: skip data 8
         for-each [digit1 digit2] hexed [
-            append out rejoin [{0x} digit1 digit2 {,} space]
+            append out unspaced [{0x} digit1 digit2 {,} space]
         ]
 
         take/last out ;-- drop the last space

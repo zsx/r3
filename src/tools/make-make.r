@@ -273,8 +273,8 @@ print ["Option set for building:" config/id config/os-name]
 ; easier to type).  But we need a string, and one that C can accept and not
 ; think you're doing subtraction.  Transform it (e.g. osx-64 => "TO_OSX_X64")
 ;
-to-base-def: rejoin [{TO_} uppercase to-string config/os-base]
-to-name-def: rejoin [
+to-base-def: unspaced [{TO_} uppercase to-string config/os-base]
+to-name-def: unspaced [
     {TO_} replace/all (uppercase to-string config/os-name) {-} {_}
 ]
 
@@ -286,11 +286,11 @@ append plat-id config/id/3
 
 ; Collect OS-specific host files:
 unless (
-    os-specific-objs: select file-base to word! rejoin ["os-" config/os-base]
+    os-specific-objs: select file-base to word! unspaced ["os-" config/os-base]
 ) [
     fail [
         "make-make.r requires os-specific obj list in file-base.r"
-        "blank was provided for" rejoin ["os-" config/os-base]
+        "blank was provided for" unspaced ["os-" config/os-base]
     ]
 ]
 
@@ -325,7 +325,7 @@ macro+: procedure [
     'name
     value
 ][
-    n: rejoin [newline name]
+    n: unspaced [newline name]
     value: form value
     unless parse makefile-head [
         any [
@@ -384,7 +384,7 @@ emit-obj-files: function [
         emit [%objs/ file space]
         
         if (cnt // 4) = 0 [
-            pending: rejoin ["\" newline spaced-tab]
+            pending: unspaced ["\" newline spaced-tab]
         ]
         cnt: cnt + 1
     ]
@@ -399,7 +399,7 @@ emit-file-deps: function [
 ][
     for-each src files [
         obj: to-obj src
-        src: rejoin pick [["$R/" src]["$S/" path src]] not dir
+        src: unspaced pick [["$R/" src]["$S/" path src]] not dir
         emit [
             %objs/ obj ":" space src
             newline spaced-tab
@@ -448,7 +448,7 @@ for-each [builtin? m-name m-src] file-base/modules [
         append/only boot-module-src m-src
     ]
 ]
-macro+ BOOT_MODULES rejoin [{"} module-list {"}]
+macro+ BOOT_MODULES unspaced [{"} module-list {"}]
 
 emit makefile-head
 emit ["OBJS =" space]

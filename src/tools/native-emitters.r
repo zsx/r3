@@ -45,7 +45,7 @@ emit-native-proto: proc [
             ; put certain natives first or last, etc. (not currently needed)
             ;
             true [unsorted-buffer]
-        ] rejoin [
+        ] unspaced [
             newline newline
             {; !!! DO NOT EDIT HERE! This is generated from }
             mold the-file { line } line newline

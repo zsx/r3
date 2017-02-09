@@ -31,8 +31,8 @@ dump-obj: function [
 
     form-val: func [val [any-value!]] [
         ; Form a limited string from the value provided.
-        if any-block? :val [return reform ["length:" length val]]
-        if image? :val [return reform ["size:" val/size]]
+        if any-block? :val [return spaced ["length:" length val]]
+        if image? :val [return spaced ["size:" val/size]]
         if datatype? :val [return get in spec-of val 'title]
         if function? :val [
             return clip-str any [title-of :val mold spec-of :val]
@@ -40,7 +40,7 @@ dump-obj: function [
         if object? :val [val: words-of val]
         if typeset? :val [val: to-block val]
         if port? :val [val: reduce [val/spec/title val/spec/ref]]
-        if gob? :val [return reform ["offset:" val/offset "size:" val/size]]
+        if gob? :val [return spaced ["offset:" val/offset "size:" val/size]]
         clip-str mold :val
     ]
 
@@ -58,8 +58,8 @@ dump-obj: function [
         for-each [word val] obj [
             type: type-of :val
 
-            str: either any [function? :type object? :type] [
-                reform [word mold spec-of :val words-of :val]
+            str: either maybe [function! object!] :type [
+                spaced [word _ mold spec-of :val _ words-of :val]
             ][
                 form word
             ]
@@ -85,7 +85,7 @@ dump-obj: function [
                 str: form-pad word 15
                 append str #" "
                 append str form-pad type 10 - ((length str) - 15)
-                keep reform [
+                keep spaced [
                     "  " str
                     if type [form-val :val]
                     newline
@@ -370,7 +370,7 @@ help: procedure [
     ; If it has refinements, strip them:
     ;if path? :word [word: first :word]
 
-    space4: rejoin [space space space space] ;-- use instead of tab
+    space4: unspaced [space space space space] ;-- use instead of tab
 
     ;-- Print info about function:
     print "USAGE:"
@@ -538,7 +538,7 @@ source: make function! [[
         ]
 
         integer? :arg [
-            name: rejoin ["backtrace-" arg]
+            name: unspaced ["backtrace-" arg]
 
             ; We add two here because we assume the caller meant to be
             ; using as point of reference what BACKTRACE would have told
@@ -583,7 +583,7 @@ source: make function! [[
     ]
 
     either function? :f [
-        print rejoin [mold name ":" space mold :f]
+        print unspaced [mold name ":" space mold :f]
     ][
         either integer? arg [
             print ["Stack level" arg "does not exist in backtrace"]

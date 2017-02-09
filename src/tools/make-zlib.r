@@ -63,11 +63,11 @@ disable-user-includes: func [
                 inline
                 pos: find headers to file! name
             ] [
-                change/part line-iter (read/lines rejoin [path-zlib name]) 1 
+                change/part line-iter (read/lines join-all [path-zlib name]) 1 
                 take pos
             ] [
-                insert line rejoin [{//} space]
-                append line rejoin [
+                insert line unspaced [{//} space]
+                append line unspaced [
                     space {/* REBOL: see make-zlib.r */}
                 ]
             ]
@@ -122,10 +122,10 @@ make-warning-lines: func [name [file!] title [string!]] [
         {**}
         {************************************************************************}
         {**}
-        rejoin [{**  Title: } title]
+        unspaced [{**  Title: } title]
         {**  Build: A0}
-        rejoin [{**  Date:  } now/date]
-        rejoin [{**  File:  } to string! name]
+        unspaced [{**  Date:  } now/date]
+        unspaced [{**  File:  } to string! name]
         {**}
         {**  AUTO-GENERATED FILE - Do not modify. (From: make-zlib.r)}
         {**}
@@ -147,7 +147,7 @@ for-each h-file [
     %zlib.h
     %deflate.h
 ] [
-    append header-lines read/lines rejoin [path-zlib h-file]
+    append header-lines read/lines join-all [path-zlib h-file]
 ]
 
 disable-user-includes header-lines
@@ -161,7 +161,7 @@ insert header-lines [
 
 insert header-lines make-warning-lines file-include {ZLIB aggregated header file}
 
-write/lines rejoin [path-include file-include] header-lines
+write/lines join-all [path-include file-include] header-lines
 
 
 
@@ -171,7 +171,7 @@ write/lines rejoin [path-include file-include] header-lines
 
 source-lines: copy []
 
-append source-lines read/lines rejoin [path-zlib %crc32.c]
+append source-lines read/lines join-all [path-zlib %crc32.c]
 
 ; 
 ; Macros DO1 and DO8 are defined differently in crc32.c, and if you don't #undef
@@ -198,7 +198,7 @@ for-each c-file [
     %inffast.c
     %inflate.c
 ] [
-    append source-lines read/lines rejoin [path-zlib c-file]
+    append source-lines read/lines join-all [path-zlib c-file]
 ]
 
 disable-user-includes/inline source-lines [%trees.h %inffixed.h %crc32.h]
@@ -211,4 +211,4 @@ insert source-lines [
 
 insert source-lines make-warning-lines file-source {ZLIB aggregated source file}
 
-write/lines rejoin [path-source file-source] source-lines
+write/lines join-all [path-source file-source] source-lines

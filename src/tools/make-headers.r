@@ -180,7 +180,7 @@ boot-natives: load output-dir/boot/tmp-natives.r
 
 for-each val boot-natives [
     if set-word? val [
-        emit-line rejoin ["REBNATIVE(" to-c-name (to word! val) ");"]
+        emit-line ["REBNATIVE(" to-c-name (to word! val) ");"]
     ]
 ]
 

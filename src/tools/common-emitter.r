@@ -56,6 +56,11 @@ emit-line: proc [data /indent] [
 ]
 
 
+emit-lines: proc [block [block!]] [
+    for-each data block [emit-line data]
+]
+
+
 emit-header: proc [title [string!] file [file!]] [
     unless tail? head buf-emit [
         probe file

@@ -44,7 +44,7 @@ encode-lines: func [
     ; Note: Preserves newline formatting of the block.
 
     ; Encode newlines.
-    replace/all text newline rejoin [newline line-prefix indent]
+    replace/all text newline unspaced [newline line-prefix indent]
 
     ; Indent head if original text did not start with a newline.
     pos: insert text line-prefix

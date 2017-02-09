@@ -78,7 +78,7 @@ make-banner: function [
                         b:
                           path! (b: get b/1)
                         | word! (b: get b/1)
-                        | block! (b: reform b/1)
+                        | block! (b: spaced b/1)
                         | string! (b: b/1)
                     ]
                     (s: format ["**    " 11 55 "**"] reduce [a b])
@@ -283,7 +283,7 @@ load-boot-exts: function [
             loud-print ["found errors in module" hdr/name]
             eo: construct make object! [
                code: error-base
-               type: lowercase reform [hdr/name "error"]
+               type: lowercase spaced [hdr/name "error"]
             ] second errors
             append system/catalog/errors reduce [to set-word! hdr/name eo]
             remove/part errors 2

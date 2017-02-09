@@ -32,8 +32,8 @@ log-filter: func [
     for-each [source-test source-result] source-log-contents [
         if find [crashed failed] source-result [
             ; test failure
-            write/append target-log rejoin [
-                source-test " " mold source-result newline
+            write/append target-log spaced [
+                source-test _ mold source-result _ newline
             ]
         ]
     ]

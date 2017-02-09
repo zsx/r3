@@ -428,3 +428,17 @@ or: get 'or ; see above
 
 xor+: get 'xor
 xor?: func [a b] [true? any [all [:a (not :b)] all [(not :a) :b]]]
+
+
+; UNSPACED in Ren-C corresponds rougly to AJOIN, and SPACED corresponds very
+; roughly to REFORM.  A similar "sort-of corresponds" applies to REJOIN being
+; like JOIN-ALL.  There are missing features in the handling of voids and
+; blanks, as well as CHAR!s and BAR!s.
+;
+; Since the only code really running modern Ren-C-named constructs through an
+; R3-Alpha is the bootstrap, the necessity of making this work well depends
+; on how aggressive the use of modern features in bootstrap are.
+;
+unspaced: :ajoin
+spaced: :reform
+join-all: :rejoin

@@ -138,7 +138,7 @@ ctx-zip: context [
 
         reduce [
             ; local file entry
-            rejoin [
+            join-all [
                 local-file-sig
                 #{0000} ; version
                 #{0000} ; flags
@@ -159,7 +159,7 @@ ctx-zip: context [
                 data    ; compressed data
             ]
             ; central-dir file entry
-            rejoin [
+            join-all [
                 central-file-sig
                 #{0000} ; version source
                 #{0000} ; version min
@@ -282,7 +282,7 @@ ctx-zip: context [
             ; next arg
             source: next source
         ]
-        out rejoin [
+        out join-all [
             central-directory
             end-of-central-sig
             #{0000} ; disk num
@@ -369,7 +369,7 @@ ctx-zip: context [
 
                         ; Code used to contain:
                         ;
-                        ;     decompress rejoin [
+                        ;     decompress join-all [
                         ;         #{789C}
                         ;         copy/part data compressed-size
                         ;         crc
@@ -405,7 +405,7 @@ ctx-zip: context [
                     ]
 
                     either uncompressed-data [
-                        info rejoin ["^- -> ok [" method "]^/"]
+                        info unspaced ["^- -> ok [" method "]^/"]
                     ][
                         errors: errors + 1
                     ]

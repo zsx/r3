@@ -9,18 +9,16 @@ REBOL [
     }
     Author: "Brett Handley"
     Purpose: {Parse C source text into preprocessing tokens.}
-]
+    Description: {
+        Based upon N1570 Committee Draft - April 12, 2011 ISO/IEC 9899:201x
 
-;
-; Based upon N1570 Committee Draft — April 12, 2011 ISO/IEC 9899:201x
-;
-; Trigraphs are not implemented.
-;
-; Do not put any actions in this file.
-;
-; To use these rules, copy them, call them from your own rules or
-; use rule injection to dynamically add emit actions.
-;
+        Trigraphs are not implemented.
+
+        Do not put any actions (e.g. executable GROUP!s in the PARSE rules)
+        in this file.  To use these rules, copy them, call them from your
+        own rules or use rule injection to dynamically add emit actions.
+    }
+]
 
 c.lexical: context [
 
@@ -92,7 +90,9 @@ c.lexical: context [
             | {\a} | {\b} | {\f} | {\n} | {\r} | {\t} | {\v}
         ]
 
-        hexadecimal-escape-sequence: [{\x} hexadecimal-digit any hexadecimal-digit]
+        hexadecimal-escape-sequence: [
+            {\x} hexadecimal-digit any hexadecimal-digit
+        ]
 
         octal-escape-sequence: [#"\" 1 3 octal-digit]
 

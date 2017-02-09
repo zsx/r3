@@ -108,6 +108,6 @@ boot-types: load %../boot/types.r
 
 append output-buffer mold/only load %../boot/actions.r
 
-append output-buffer rejoin [newline newline]
+append output-buffer unspaced [newline newline]
 
 write output-dir/boot/tmp-actions.r output-buffer

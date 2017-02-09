@@ -228,7 +228,9 @@ on-click-callback: mk-cb [
         i [int32]
     ]
     i/i: i/i + 1
-    gtk-button-set-label widget rejoin ["clicked " i/i either i/i = 1 [" time"][" times"]]
+    gtk-button-set-label widget spaced [
+        "clicked" i/i either i/i = 1 ["time"]["times"]
+    ]
 ]
 
 app-quit-callback: mk-cb [

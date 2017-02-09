@@ -260,9 +260,32 @@ dp: :delta-profile
 
 
 ; AJOIN is a kind of ugly name for making an unspaced string from a block.
-; Ren-C has UNSPACED and SPACED.
+; REFORM is nonsensical looking.  Ren-C has UNSPACED and SPACED.
 ;
 ajoin: :unspaced
+reform: :spaced
+
+
+
+; REJOIN in R3-Alpha meant "reduce and join"; the idea of cumulative joining
+; in Ren-C already implies reduction of the appended data.  JOIN-ALL is a
+; friendlier name, suggesting joining with the atomic root type of the first
+; reduced element.
+;
+; JOIN-ALL is not exactly the same as REJOIN; and it is not used as often
+; because UNSPACED can be used for strings, with AS allowing aliasing of the
+; data as other string types (`as tag! unspaced [...]` will not create a copy
+; of the series data the way TO TAG! would).  While REJOIN is tolerant of
+; cases like `rejoin [() () ()]` producing an empty block, this makes a
+; void in JOIN-ALL...but that is a common possibility.
+;
+rejoin: chain [
+    :join-all
+        |
+    func [v [<opt> any-series!]] [
+        either set? 'v [:v] [copy []]
+    ]
+]
 
 
 ; SET has a refinement called /ANY which doesn't communicate as well in the

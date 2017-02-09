@@ -162,7 +162,9 @@ REBCNT Modify_String(
     else
         limit = -1;
 
-    if (limit == 0 || dups < 0) return (action == SYM_APPEND) ? 0 : dst_idx;
+    if (IS_VOID(src_val) || limit == 0 || dups < 0)
+        return (action == SYM_APPEND) ? 0 : dst_idx;
+
     if (action == SYM_APPEND || dst_idx > tail) dst_idx = tail;
 
     // If the src_val is not a string, then we need to create a string:

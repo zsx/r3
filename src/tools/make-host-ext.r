@@ -136,5 +136,5 @@ emit-file: func [
     ]
     emit ["#endif" newline]
 
-    write rejoin [output-dir/include %/ file %.h] out
+    write join-all [output-dir/include %/ file %.h] out
 ]

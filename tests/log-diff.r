@@ -68,9 +68,8 @@ make-diff: func [
                 ]
             ] [
                 ; fresh test
-                write/append diff-file rejoin [
+                write/append diff-file spaced [
                     new-test
-                    " "
                     switch new-result [
                         succeeded [
                             new-successes: new-successes + 1
@@ -85,7 +84,7 @@ make-diff: func [
                             "crashed"
                         ]
                     ]
-                    "^/"
+                    newline
                 ]
             ]
             all [
@@ -105,10 +104,7 @@ make-diff: func [
             ] [
                 ; removed test
                 removed: removed + 1
-                write/append diff-file rejoin [
-                    old-test
-                    " removed^/"
-                ]
+                write/append diff-file spaced [old-test "removed" newline]
             ]
             any [
                 old-result = new-result
@@ -127,12 +123,16 @@ make-diff: func [
             ) [
                 ; regression
                 regressions: regressions + 1
-                write/append diff-file rejoin [" regression, " new-result "^/"]
+                write/append diff-file spaced [
+                    space "regression," new-result newline
+                ]
             ]
             'else [
                 ; progression
                 progressions: progressions + 1
-                write/append diff-file rejoin [" progression, " new-result "^/"]
+                write/append diff-file spaced [
+                    space "progression," new-result newline
+                ]
             ]
         ]
         next-old-log: all [
@@ -169,20 +169,32 @@ make-diff: func [
 
     print "Done."
 
-    summary: rejoin [
-        "^/new-successes: " new-successes
-        "^/new-failures: " new-failures
-        "^/new-crashes: " new-crashes
-        "^/progressions: " progressions
-        "^/regressions: " regressions
-        "^/removed: " removed
-        "^/unchanged: " unchanged
-        "^/total: " new-successes + new-failures + new-crashes + progressions
-        + regressions + removed + unchanged
+    summary: spaced [
+        "new-successes:" new-successes
+            |
+        "new-failures:" new-failures
+            |
+        "new-crashes:" new-crashes
+            |
+        "progressions:" progressions
+            |
+        "regressions:" regressions
+            |
+        "removed:" removed
+            |
+        "unchanged:" unchanged
+            |
+        "total:"
+            new-successes + new-failures + new-crashes + progressions
+            + regressions + removed + unchanged
     ]
     print summary
 
-    write/append diff-file rejoin ["^/Summary:^/" summary "^/"]
+    write/append diff-file unspaced [
+        newline
+        "Summary:" newline
+        summary newline
+    ]
 ]
 
 make-diff to-file first load system/script/args to-file second load system/script/args %diff.r

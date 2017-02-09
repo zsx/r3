@@ -128,9 +128,9 @@ body-of: function [
 
             compose [
                 comment (
-                    rejoin [
+                    spaced [
                         {Specialization of}
-                        space first spec-with-word space
+                        first spec-with-word
                         {(this body is fake)}
                     ]
                 )

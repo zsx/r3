@@ -20,7 +20,7 @@ make object! compose [
     log-file: _
 
     log: func [report [block!]] [
-        write/append log-file to binary! rejoin report
+        write/append log-file join-of #{} report
     ]
 
     ; counters
@@ -61,7 +61,7 @@ make object! compose [
         error? set/opt 'test-block catch-any test-block 'exception
 
         test-block: case [
-            exception [rejoin ["failed, " exceptions/:exception]]
+            exception [spaced ["failed," exceptions/:exception]]
             not logic? :test-block ["failed, not a logic value"]
             test-block ["succeeded"]
             true ["failed"]
@@ -214,32 +214,32 @@ make object! compose [
             ]
             'else [false]
         ] [
-            summary: rejoin [
-                "^(line)"
-                "system/version: " system/version
-                "^(line)"
-                "code-checksum: " code-checksum
-                "^(line)"
-                "test-checksum: " test-checksum
-                "^(line)"
-                "Total: " (
+            summary: spaced [
+                    |
+                "system/version:" system/version
+                    |
+                "code-checksum:" code-checksum
+                    |
+                "test-checksum:" test-checksum
+                    |
+                "Total:" (
                     successes
                     + test-failures
                     + crashes
                     + dialect-failures
                     + skipped
                 )
-                "^(line)"
-                "Succeeded: " successes
-                "^(line)"
-                "Test-failures: " test-failures
-                "^(line)"
-                "Crashes: " crashes
-                "^(line)"
-                "Dialect-failures: " dialect-failures
-                "^(line)"
-                "Skipped: " skipped
-                "^(line)"
+                    |
+                "Succeeded:" successes
+                    |
+                "Test-failures:" test-failures
+                    |
+                "Crashes:" crashes
+                    |
+                "Dialect-failures:" dialect-failures
+                    |
+                "Skipped:" skipped
+                    |
             ]
 
             log [summary]

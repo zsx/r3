@@ -37,11 +37,11 @@ change-dir %../os/
 
 ; Collect OS-specific host files:
 unless (
-    os-specific-objs: select file-base to word! rejoin ["os-" config/os-base]
+    os-specific-objs: select file-base to word! unspaced ["os-" config/os-base]
 )[
     fail [
         "make-os-ext.r requires os-specific obj list in file-base.r"
-        "none was provided for" rejoin ["os-" config/os-base]
+        "none was provided for" unspaced ["os-" config/os-base]
     ]
 ]
 
@@ -463,7 +463,7 @@ newline newline (rebol-lib-macros)
 write output-dir/include/host-lib.h output-buffer
 
 
-output-buffer: rejoin [
+output-buffer: unspaced [
 form-header/gen "Host Table Definition" %host-table.inc %make-os-ext.r
 
 {

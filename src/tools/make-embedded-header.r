@@ -31,7 +31,7 @@ out: make binary! 2048
 
 append out form-header/gen "Embedded sys-core.h" %e-embedded-header.c %make-embedded-header.r
 
-append out rejoin [
+append out unspaced [
     {#include "sys-core.h"^/}
     "extern const REBYTE core_header_source[];^/"
     "const REBYTE core_header_source[] = {^/"

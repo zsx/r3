@@ -251,7 +251,7 @@ client-hello: func [
     random/seed now/time/precise
     loop 28 [append ctx/client-random (random/secure 256) - 1]
 
-    cs-data: rejoin values-of cipher-suites
+    cs-data: join-all values-of cipher-suites
 
     beg: length ctx/msg
     emit ctx [
@@ -410,10 +410,10 @@ finished: func [
     ctx [object!]
 ] [
     ctx/seq-num-w: 0
-    return rejoin [
+    return join-all [
         #{14}       ; protocol message type (20=Finished)
         #{00 00 0c} ; protocol message length (12 bytes)
-        prf ctx/master-secret either ctx/server? ["server finished"] ["client finished"] rejoin [
+        prf ctx/master-secret either ctx/server? ["server finished"] ["client finished"] join-all [
             checksum/method ctx/handshake-messages 'md5 checksum/method ctx/handshake-messages 'sha1
         ] 12
     ]
@@ -427,11 +427,11 @@ encrypt-data: func [
     /local
         mac padding len
 ] [
-        data: rejoin [
+    data: join-all [
         data
         ; MAC code
-        mac: checksum/method/key rejoin [
-            to-bin ctx/seq-num-w 8              ; sequence number (64-bit int in R3)
+        mac: checksum/method/key join-all [
+            to-bin ctx/seq-num-w 8              ; sequence number (64-bit int)
             any [:msg-type #{17}]               ; msg type
             ctx/version                         ; version
             to-bin length data 2                ; msg content length
@@ -773,7 +773,14 @@ parse-messages: func [
                     finished [
                         ctx/seq-num-r: 0
                         msg-content: copy/part at data 5 len
-                        either msg-content <> prf ctx/master-secret either ctx/server? ["client finished"] ["server finished"] rejoin [checksum/method ctx/handshake-messages 'md5 checksum/method ctx/handshake-messages 'sha1] 12 [
+                        either (msg-content <>
+                            prf ctx/master-secret either ctx/server? ["client finished"] ["server finished"]
+                                join-all [
+                                    checksum/method
+                                    ctx/handshake-messages 'md5
+                                    checksum/method ctx/handshake-messages 'sha1
+                                ] 12
+                        ) [
                             fail "Bad 'finished' MAC"
                         ] [
                             debug "FINISHED MAC verify: OK"
@@ -791,7 +798,7 @@ parse-messages: func [
                 data: skip data len + either ctx/encrypted? [
                     ; check the MAC
                     mac: copy/part skip data len + 4 ctx/hash-size
-                    if mac <> checksum/method/key rejoin [
+                    if mac <> checksum/method/key join-all [
                             to-bin ctx/seq-num-r 8                  ; sequence number (64-bit int in R3)
                             #{16}                                   ; msg type
                             ctx/version                             ; version
@@ -821,7 +828,7 @@ parse-messages: func [
             len: length msg-obj/content
             mac: copy/part skip data len ctx/hash-size
             ; check the MAC
-            if mac <> checksum/method/key rejoin [
+            if mac <> checksum/method/key join-all [
                 to-bin ctx/seq-num-r 8  ; sequence number (64-bit int in R3)
                 #{17}                   ; msg type
                 ctx/version             ; version
@@ -873,13 +880,13 @@ prf: func [
     s-1: copy/part secret mid
     s-2: copy at secret mid + either odd? len [0] [1]
 
-    seed: rejoin [#{} label seed]
+    seed: join-all [#{} label seed]
 
     p-md5: copy #{}
     a: seed ; A(0)
     while [output-length > length p-md5] [
         a: checksum/method/key a 'md5 decode 'text s-1 ; A(n)
-        append p-md5 checksum/method/key rejoin [a seed] 'md5 decode 'text s-1
+        append p-md5 checksum/method/key join-all [a seed] 'md5 decode 'text s-1
 
     ]
 
@@ -887,7 +894,7 @@ prf: func [
     a: seed ; A(0)
     while [output-length > length p-sha1] [
         a: checksum/method/key a 'sha1 decode 'text s-2 ; A(n)
-        append p-sha1 checksum/method/key rejoin [a seed] 'sha1 decode 'text s-2
+        append p-sha1 checksum/method/key join-all [a seed] 'sha1 decode 'text s-2
     ]
     return ((copy/part p-md5 output-length) xor+ copy/part p-sha1 output-length)
 ]
@@ -898,7 +905,7 @@ make-key-block: func [
     ctx/key-block: prf
         ctx/master-secret
         "key expansion"
-        rejoin [ctx/server-random ctx/client-random]
+        join-all [ctx/server-random ctx/client-random]
         (
             (ctx/hash-size + ctx/crypt-size)
             + (either ctx/block-size [ctx/iv-size] [0])
@@ -912,7 +919,7 @@ make-master-secret: func [
     ctx/master-secret: prf
         pre-master-secret
         "master secret"
-        rejoin [ctx/client-random ctx/server-random]
+        join-all [ctx/client-random ctx/server-random]
         48
 ]
 
@@ -1198,7 +1205,7 @@ sys/make-scheme [
                 scheme: 'tcp
                 host: port/spec/host
                 port-id: port/spec/port-id
-                ref: rejoin [tcp:// host ":" port-id]
+                ref: join-all [tcp:// host ":" port-id]
             ]
 
             port/data: port/state/port-data

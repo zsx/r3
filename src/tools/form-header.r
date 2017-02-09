@@ -17,10 +17,10 @@ bv: load %../boot/version.r
 form-header: func [title [string!] file [file!] /gen by] [
     print ["..." title]
     by: either gen [
-        rejoin [{**  AUTO-GENERATED FILE - Do not modify. (From: } by {)^/**^/}]
+        unspaced [{**  AUTO-GENERATED FILE - Do not modify. (From: } by {)^/**^/}]
     ][""]
 
-    rejoin [
+    unspaced [
 {/***********************************************************************
 **
 **  REBOL [R3] Language Interpreter and Run-time Environment

@@ -124,7 +124,10 @@ make object! [
         unless parse test-sources rule [
             append collected-tests reduce [
                 'dialect
-                rejoin [{^/"failed, line: } line-number? position {"^/}]
+                unspaced [
+                    newline
+                    {"failed, line:} space line-number? position {"} newline
+                ]
             ]
         ]
     ]

@@ -513,7 +513,7 @@ add-word: func [
     ; which would also turn SYM_.a. into "SYM__DOTA_DOT" (or similar) 
     ;
     emit-item/upper ["SYM_" (to-c-name word)]
-    emit-annotation reform [n "-" word]
+    emit-annotation spaced [n "-" word]
     n: n + 1
 
     ; The types make a SYM_XXX entry, but they're kept in a separate block
@@ -529,7 +529,7 @@ add-word: func [
 for-each-record type boot-types [
     if n = 0 [n: n + 1 | continue]
 
-    add-word/type to-word rejoin [to-string type/name "!"]
+    add-word/type to-word unspaced [to-string type/name "!"]
 ]
 
 wordlist: load %words.r
@@ -756,7 +756,7 @@ for-each [category info] boot-errors [
         ][
             emit-item/upper ["RE_" id]
         ]
-        emit-annotation reform [code mold val]
+        emit-annotation spaced [code mold val]
 
         code: code + 1
     ]

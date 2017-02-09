@@ -211,13 +211,13 @@ make-http-request: func [
         {Empty string not exactly like blank.}
     /local result
 ] [
-    result: rejoin [
-        uppercase form method #" "
+    result: unspaced [
+        uppercase form method space
         either file? target [next mold target] [target]
-        " HTTP/1.0" CRLF
+        space "HTTP/1.0" CRLF
     ]
     for-each [word string] headers [
-        join result [mold word #" " string CRLF]
+        join result [mold word space string CRLF]
     ]
     if content [
         content: to binary! content
@@ -239,7 +239,7 @@ do-request: func [
         Accept: "*/*"
         Accept-Charset: "utf-8"
         Host: either not find [80 443] spec/port-id [
-            rejoin [form spec/host #":" spec/port-id]
+            unspaced [form spec/host ":" spec/port-id]
         ] [
             form spec/host
         ]
@@ -473,7 +473,9 @@ do-redirect: func [port [port!] new-uri [url! string! file!] /local spec state] 
         do-request port
         false
     ] [
-        state/error: make-http-error/otherhost "Redirect to other host - requires custom handling" to-url rejoin [new-uri/scheme "://" new-uri/host new-uri/path]
+        state/error: make-http-error/otherhost
+            "Redirect to other host - requires custom handling"
+            as url! unspaced [new-uri/scheme "://" new-uri/host new-uri/path]
         state/awake make event! [type: 'error port: port]
     ]
 ]
@@ -657,7 +659,7 @@ sys/make-scheme [
                 )
                 host: port/spec/host
                 port-id: port/spec/port-id
-                ref: rejoin [tcp:// host ":" port-id]
+                ref: join-all [tcp:// host ":" port-id]
             ]
             conn/awake: :http-awake
             conn/locals: port

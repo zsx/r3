@@ -136,7 +136,7 @@ repend: redescribe [
 ; convenient, and not be beholden to the behavior that the name REPEND would
 ; seem to suggest.
 ;
-join: func [ ;-- renamed to ADJOIN in %sys-start.r for user context, tempoary
+join: func [ ;-- renamed to ADJOIN in %sys-start.r for user context, temporary
     "Concatenates values to the end of a series."
     series [any-series! port! map! gob! object! module! bitset!]
     value [<opt> any-value!]
@@ -149,7 +149,7 @@ join: func [ ;-- renamed to ADJOIN in %sys-start.r for user context, tempoary
         function? :value [
             fail/where "Can't JOIN a FUNCTION! onto a series (use APPEND)."
         ]
-        'else [append/only series value] ;-- paths, words, not in block
+        'else [append/only series :value] ;-- paths, words, not in block
     ]
 ]
 
@@ -166,14 +166,5 @@ append-of: redescribe [
 ](
     adapt 'append [
         series: copy series
-    ]
-)
-
-reform: redescribe [
-    "Forms a reduced block and returns a string."
-    ;/with "separator"
-](
-    adapt 'form [
-        value: reduce :value
     ]
 )

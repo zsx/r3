@@ -1,9 +1,9 @@
 REBOL [
     System: "REBOL [R3] Language Interpreter and Run-time Environment"
     Title: "Generate extention native header files"
-    File: %make-ext-native.r ;-- used by EMIT-HEADER to indicate emitting script
+    File: %make-ext-native.r ;-- EMIT-HEADER uses to indicate emitting script
     Rights: {
-        Copyright 2012 REBOL Technologies
+        Copyright 2017 Rebol Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -12,6 +12,14 @@ REBOL [
     }
     Author: "Shixin Zeng <szeng@atronixengineering.com>"
     Needs: 2.100.100
+    Description: {
+        This script is used to preprocess C source files containing code for
+        extension DLLs, designed to load new native code into the interpreter.
+        
+        Such code is very similar to that of the code which is built into
+        the EXE itself.  Hence, features like scanning the C comments for
+        native specifications is reused.
+    }
 ]
 
 do %common.r
@@ -77,20 +85,36 @@ for-each [m-name c-src] boot-modules [
     num-native: 0
     unless parse native-list [
         while [
-            set w set-word! [
+            set w set-word!
+            [
                 'native block!
-                | 'native/body 2 block!
-                | [
+                    |
+                'native/body 2 block!
+                    |
+                 [
                     'native/export block!
-                    | 'native/export/body 2 block!
-                    | 'native/body/export 2 block!
-                ] (append export-list to word! w)
-            ] (++ num-native)
-            | remove [quote new-words: set words block! (append word-list words)]
-            | remove [quote new-errors: set errors block! (append error-list errors)]
+                        |
+                    'native/export/body 2 block!
+                        |
+                    'native/body/export 2 block!
+                ]
+                (append export-list to word! w)
+            ]
+            (++ num-native)
+                |
+            remove [
+                quote new-words: set words block! (append word-list words)
+            ]
+                |
+            remove [
+                quote new-errors: set errors block! (append error-list errors)
+            ]
         ]
     ][
-        fail rejoin ["failed to parse" mold native-list ", current word-list:" mold word-list]
+        fail [
+            "failed to parse" mold native-list ":"
+            "current word-list:" mold word-list
+        ]
     ]
     ;print ["specs:" mold native-list]
     word-list: unique word-list
@@ -114,16 +138,24 @@ for-each [m-name c-src] boot-modules [
     comp-data: compress data: to-binary mold spec
     ;print ["buf:" to string! data]
 
-    emit-header m-name to file! rejoin [%tmp- l-m-name %.h]
-    emit-line ["#define EXT_NUM_NATIVES_" u-m-name space num-native]
-    emit-line ["#define EXT_NAT_COMPRESSED_SIZE_" u-m-name space length comp-data]
-    emit-line ["const REBYTE Ext_Native_Specs_" m-name "[EXT_NAT_COMPRESSED_SIZE_" u-m-name "] = {"]
+    emit-header m-name join-all [%tmp- l-m-name %.h]
+    emit-lines [
+        ["#define EXT_NUM_NATIVES_" u-m-name space num-native]
+        ["#define EXT_NAT_COMPRESSED_SIZE_" u-m-name space length comp-data]
+        [
+            "const REBYTE Ext_Native_Specs_" m-name
+            "[EXT_NAT_COMPRESSED_SIZE_" u-m-name "] = {"
+        ]
+    ]
 
     ;-- Convert UTF-8 binary to C-encoded string:
     emit binary-to-c comp-data
-    emit-line "};" ;-- EMIT-END would erase the last comma, but there's no extra
+    emit-line "};" ;-- EMIT-END erases the last comma, but there's no extra
 
-    emit-line ["REBNAT Ext_Native_C_Funcs_" m-name "[EXT_NUM_NATIVES_" u-m-name "] = {"]
+    emit-line [
+        "REBNAT Ext_Native_C_Funcs_" m-name
+        "[EXT_NUM_NATIVES_" u-m-name "] = {"
+    ]
     for-each item native-list [
         if set-word? item [
             emit-item ["N_" to word! item]
@@ -135,18 +167,18 @@ for-each [m-name c-src] boot-modules [
     int Module_Init_} m-name {_Core(RELVAL *out)
     ^{
         INIT_} u-m-name {_WORDS;}
-	either empty? error-list [ rejoin [ {
-		REBARR * arr = Make_Extension_Module_Array(
+    either empty? error-list [ unspaced [ {
+        REBARR * arr = Make_Extension_Module_Array(
             Ext_Native_Specs_} m-name {, EXT_NAT_COMPRESSED_SIZE_} u-m-name {,
             Ext_Native_C_Funcs_} m-name {, EXT_NUM_NATIVES_} u-m-name {,
-			-1);} ]
+            -1);} ]
         ][
-            rejoin [ {
-		Ext_} m-name {_Error_Base = Find_Next_Error_Base_Code();
-		REBARR * arr = Make_Extension_Module_Array(
+            unspaced [ {
+        Ext_} m-name {_Error_Base = Find_Next_Error_Base_Code();
+        REBARR * arr = Make_Extension_Module_Array(
             Ext_Native_Specs_} m-name {, EXT_NAT_COMPRESSED_SIZE_} u-m-name {,
             Ext_Native_C_Funcs_} m-name {, EXT_NUM_NATIVES_} u-m-name {,
-			Ext_} m-name {_Error_Base);}]
+            Ext_} m-name {_Error_Base);}]
         ] {
         Init_Block(out, arr);
 
@@ -160,67 +192,102 @@ for-each [m-name c-src] boot-modules [
     }
     ]
 
-    write-emitted to file! rejoin [output-dir/include/tmp-ext- l-m-name %-last.h]
+    write-emitted to file! unspaced [
+        output-dir/include/tmp-ext- l-m-name %-last.h
+    ]
 
     ;--------------------------------------------------------------
     ; args
-    emit-header "PARAM() and REFINE() Automatic Macros" to file! rejoin [%tmp-ext- l-m-name %-first.h]
+
+    emit-header
+        "PARAM() and REFINE() Automatic Macros"
+        to file! unspaced [%tmp-ext- l-m-name %-first.h]
+
     emit-native-include-params-macro native-list
 
     ;--------------------------------------------------------------
     ; words
-    emit-line ["//  Local words"]
-    emit-line ["#define NUM_EXT_" u-m-name "_WORDS" space length word-list]
+    emit-lines [
+        ["//  Local words"]
+        ["#define NUM_EXT_" u-m-name "_WORDS" space length word-list]
+    ]
 
     either empty? word-list [
         emit-line ["#define INIT_" u-m-name "_WORDS"]
     ][
-        emit-line ["static const char* Ext_Words_" m-name "[NUM_EXT_" u-m-name "_WORDS] = {"]
+        emit-line [
+            "static const char* Ext_Words_" m-name
+            "[NUM_EXT_" u-m-name "_WORDS] = {"
+        ]
         for-next word-list [
             emit-line/indent [ {"} to string! word-list/1 {",} ]
         ]
         emit-end
 
-        emit-line ["static REBSTR* Ext_Canons_" m-name "[NUM_EXT_" u-m-name "_WORDS];"]
+        emit-line [
+            "static REBSTR* Ext_Canons_" m-name
+            "[NUM_EXT_" u-m-name "_WORDS];"
+        ]
 
         word-seq: 0
         for-next word-list [
-            emit-line ["#define" space u-m-name {_WORD_} uppercase to-c-name word-list/1 space
-                {Ext_Canons_} m-name {[} word-seq {]}]
+            emit-line [
+                "#define"
+                space
+                u-m-name {_WORD_} uppercase to-c-name word-list/1
+                space
+                {Ext_Canons_} m-name {[} word-seq {]}
+            ]
             ++ word-seq
         ]
         emit-line ["#define INIT_" u-m-name "_WORDS" space "\"]
-        emit-line/indent ["Init_Extension_Words(cast(const REBYTE**, Ext_Words_" m-name "), Ext_Canons_" m-name ", NUM_EXT_" u-m-name "_WORDS)"]
+        emit-line/indent [
+            "Init_Extension_Words("
+                "cast(const REBYTE**, Ext_Words_" m-name ")"
+                "," space
+                "Ext_Canons_" m-name
+                "," space
+                "NUM_EXT_" u-m-name "_WORDS"
+            ")"
+        ]
     ]
 
     ;--------------------------------------------------------------
     ; errors
+
     emit-line ["//  Local errors"]
     unless empty? error-list [
         emit-line [ {enum Ext_} m-name {_Errors ^{}]
         error-collected: copy []
         for-each [key val] error-list [
             unless set-word? key [
-                fail rejoin ["key (" mold key ") must be a set-word!"]
+                fail ["key (" mold key ") must be a set-word!"]
             ]
             if found? find error-collected key [
-                fail rejoin ["Duplicate error key" to word! key]
+                fail ["Duplicate error key" to word! key]
             ]
             append error-collected key
-            emit-item/upper rejoin [ {RE_EXT_ENUM_} u-m-name {_} uppercase to-c-name to word! key]
+            emit-item/upper [
+                {RE_EXT_ENUM_} u-m-name {_} to-c-name to word! key
+            ]
         ]
         emit-end
         emit-line ["static REBINT Ext_" m-name "_Error_Base;"]
 
         emit-line []
         for-each [key val] error-list [
-            emit-line rejoin [ {#define RE_EXT_} u-m-name {_} uppercase to-c-name to word! key
-            space
-            {(Ext_} m-name {_Error_Base + }
-            {RE_EXT_ENUM_} u-m-name {_} uppercase to-c-name to word! key {)}
+            key: uppercase to-c-name to word! key
+            emit-line [
+                {#define RE_EXT_} u-m-name {_} key
+                space
+                {(}
+                {Ext_} m-name {_Error_Base + RE_EXT_ENUM_} u-m-name {_} key
+                {)}
             ]
         ]
     ]
 
-    write-emitted to file! rejoin [output-dir/include/tmp-ext- l-m-name %-first.h]
+    write-emitted to file! unspaced [
+        output-dir/include/tmp-ext- l-m-name %-first.h
+    ]
 ]

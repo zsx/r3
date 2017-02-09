@@ -66,7 +66,7 @@ parse cnt [
     some [
         copy name to ";"
         ";" copy code-2 to "^/"
-        (emit rejoin [{^{"} code-2 {", "} binary-to-chex capitalize name {"^},^/}])
+        (emit join-all [{^{"} code-2 {", "} binary-to-chex capitalize name {"^},^/}])
         "^/"
     ]
 ]
