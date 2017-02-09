@@ -147,16 +147,11 @@ REBNATIVE(set_where_of_error)
         context = VAL_CONTEXT(ARG(location));
 
     REBFRM *where = CTX_FRAME_IF_ON_STACK(context);
+    if (where == NULL)
+        fail (Error(RE_FRAME_NOT_ON_STACK));
 
-    // !!! If where comes back NULL, what to do?  Probably bad if someone
-    // is trying to decipher an error to trigger another error.  Maybe
-    // the meta info on the error could be annotated with "tried a
-    // where that was for an expired stack frame" or similar...
-
-    if (where != NULL) {
-        REBCTX *error = VAL_CONTEXT(ARG(error));
-        Try_Add_Backtrace_To_Error(error, where);
-    }
+    REBCTX *error = VAL_CONTEXT(ARG(error));
+    Set_Where_And_Near_Of_Error(error, where);
 
     return R_VOID;
 }

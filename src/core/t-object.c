@@ -367,7 +367,6 @@ void MAKE_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         if (Make_Error_Object_Throws(out, arg))
             fail (Error_No_Catch_For_Throw(out));
 
-        Try_Add_Backtrace_To_Error(VAL_CONTEXT(out), FS_TOP);
         return;
     }
 
@@ -423,7 +422,6 @@ void TO_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         if (Make_Error_Object_Throws(out, arg))
             fail (Error_No_Catch_For_Throw(out));
 
-        Try_Add_Backtrace_To_Error(VAL_CONTEXT(out), FS_TOP);
         return;
     }
 

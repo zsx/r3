@@ -203,6 +203,7 @@ Script: [
 ;   face-reused:        [{Face object reused (in more than one pane):} :arg1]
 
     frame-already-used: [{Frame currently in use by a function call} :arg1]
+    frame-not-on-stack: {Frame is no longer running on the stack}
 
     recursive-varargs:  {VARARGS! chained into itself (maybe try <durable>?)}
     varargs-no-stack:   {Call originating VARARGS! has finished running}

@@ -397,20 +397,27 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
 
 
 //
-//  Try_Add_Backtrace_To_Error: C
+//  Set_Where_And_Near_Of_Error: C
 //
-void Try_Add_Backtrace_To_Error(REBCTX *error, REBFRM *where) {
-    //
-    // Currently trust that if a Reb_Frame* was passed in, that it must
-    // be good and on the stack.
-    //
+// Since errors are generally raised to stack levels above their origin, the
+// stack levels causing the error are no longer running by the time the
+// error object is inspected.  A limited snapshot of context information is
+// captured in the WHERE and NEAR fields.
+//
+// The information is derived from the current execution position and stack
+// depth of a running frame.
+//
+void Set_Where_And_Near_Of_Error(
+    REBCTX *error,
+    REBFRM *where // must be valid and executing on the stack
+) {
     assert(where != NULL);
 
     REBDSP dsp_orig = DSP;
 
     ERROR_VARS *vars = ERR_VARS(error);
 
-    // Set backtrace, in the form of a block of label words that start
+    // WHERE is a backtrace in the form of a block of label words, that start
     // from the top of stack and go downward.
     //
     REBFRM *f = where;
@@ -762,6 +769,12 @@ REBOOL Make_Error_Object_Throws(
         DROP_GUARD_CONTEXT(root_error);
 #endif
 
+    // There might be no Rebol code running when the error is created (e.g.
+    // the static creation of the stack overflow error before any code runs)
+    //
+    if (FS_TOP != NULL)
+        Set_Where_And_Near_Of_Error(error, FS_TOP);
+
     Init_Error(out, error);
     return FALSE;
 }
@@ -1025,6 +1038,12 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
     vars->message = *message;
     vars->id = id;
     vars->type = type;
+
+    // There might be no Rebol code running when the error is created (e.g.
+    // the static creation of the stack overflow error before any code runs)
+    //
+    if (FS_TOP != NULL)
+        Set_Where_And_Near_Of_Error(error, FS_TOP);
 
     // !!! We create errors and then fail() on them without ever putting them
     // into a REBVAL.  This means that if left unmanaged, they would count as
