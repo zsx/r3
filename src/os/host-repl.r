@@ -113,11 +113,6 @@ host-repl: function [
             code: load/all source
             assert [block? code]
 
-            ; There is a question of how it should be decided whether the code
-            ; in the REPL should be locked as read-only or not.
-            ;
-            lock code
-
         ] func [error] [
             ;
             ; If loading the string gave back an error, check to see if it
@@ -166,10 +161,22 @@ host-repl: function [
         break ;-- Exit FOREVER if no additional input to be gathered
     ]
 
-    ; If we're focused on a debug frame, try binding into it
-    ;
-    if all [focus-frame | any-array? :code] [
-        bind code focus-frame
+    either block? code [
+        ;
+        ; If we're focused on a debug frame, try binding into it
+        ;
+        if focus-frame [
+            bind code focus-frame
+        ]
+
+        ; There is a question of how it should be decided whether the code
+        ; in the REPL should be locked as read-only or not.  It may be a
+        ; configuration switch, as it also may be an option for a module or
+        ; a special type of function which does not lock its source.
+        ;
+        lock code
+    ][
+        assert [error? code]
     ]
 
     return code

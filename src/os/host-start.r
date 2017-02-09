@@ -621,7 +621,7 @@ host-start: function [
         ][
             trap/with [
                 sys/do-needs first+ code
-                do intern code
+                do lock intern code
             ] func [error <with> return] [
                 print error
                 return 1
