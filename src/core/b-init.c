@@ -459,6 +459,44 @@ static void Init_Function_Tags(void)
 
 
 //
+//  Init_Function_Meta_Shim: C
+//
+// Make_Paramlist_Managed_May_Fail() needs the object archetype FUNCTION-META
+// from %sysobj.r, to have the keylist to use in generating the info used
+// by HELP for the natives.  However, natives themselves are used in order
+// to run the object construction in %sysobj.r
+//
+// To break this Catch-22, this code builds a field-compatible version of
+// FUNCTION-META.  After %sysobj.r is loaded, an assert checks to make sure
+// that this manual construction actually matches the definition in the file.
+//
+static void Init_Function_Meta_Shim() {
+    REBSYM field_syms[6] = {
+        SYM_SELF, SYM_DESCRIPTION, SYM_RETURN_TYPE, SYM_RETURN_NOTE,
+        SYM_PARAMETER_TYPES, SYM_PARAMETER_NOTES
+    };
+    REBCTX *function_meta = Alloc_Context(6);
+    REBCNT i = 1;
+    for (; i <= 6; ++i) {
+        //
+        // BLANK! is used for the fields instead of void (required for
+        // R3-Alpha compatibility to load the object)
+        //
+        SET_BLANK(
+            Append_Context(function_meta, NULL, Canon(field_syms[i - 1]))
+        );
+    }
+
+    REBVAL *rootvar = CTX_VALUE(function_meta);
+    VAL_RESET_HEADER(rootvar, REB_OBJECT);
+    rootvar->extra.binding = NULL;
+    Init_Object(CTX_VAR(function_meta, 1), function_meta); // it's "selfish"
+
+    Init_Object(ROOT_FUNCTION_META, function_meta);
+}
+
+
+//
 //  Init_Natives: C
 //
 // Create native functions.  In R3-Alpha this would go as far as actually
@@ -482,29 +520,9 @@ static void Init_Function_Tags(void)
 //
 static REBARR *Init_Natives(REBARR *boot_natives)
 {
-    // !!! See notes on FUNCTION-META in %sysobj.r
-    // This tries to build a field-compatible version to use in bootstrap.
-    // That includes using BLANK! instead of void (required for R3-Alpha
-    // compatibility to load the object) as well as being "selfish"
-    {
-        REBSYM field_syms[6] = {
-            SYM_SELF, SYM_DESCRIPTION, SYM_RETURN_TYPE, SYM_RETURN_NOTE,
-            SYM_PARAMETER_TYPES, SYM_PARAMETER_NOTES
-        };
-        REBCTX *function_meta = Alloc_Context(6);
-        REBCNT i = 1;
-        for (; i <= 6; ++i) {
-            SET_BLANK(
-                Append_Context(function_meta, NULL, Canon(field_syms[i - 1]))
-            );
-        }
-
-        REBVAL *rootvar = CTX_VALUE(function_meta);
-        VAL_RESET_HEADER(rootvar, REB_OBJECT);
-        rootvar->extra.binding = NULL;
-        Init_Object(ROOT_FUNCTION_META, function_meta);
-        Init_Object(CTX_VAR(function_meta, 1), function_meta); // self
-    }
+    // Must be called before first use of Make_Paramlist_Managed_May_Fail()
+    //
+    Init_Function_Meta_Shim();
 
     RELVAL *item = ARR_HEAD(boot_natives);
 
@@ -910,6 +928,19 @@ static void Init_System_Object(
     // candidate for garbage collection otherwise!)
     //
     Init_Object(ROOT_SYSTEM, system);
+
+    // Init_Function_Meta_Shim() made ROOT_FUNCTION_META as a bootstrap hack
+    // since it needed to make function meta information for natives before
+    // %sysobj.r's code could run using those natives.  But make sure what it
+    // made is actually identical to the definition in %sysobj.r.
+    //
+    assert(
+        0 == CT_Context(
+            Get_System(SYS_STANDARD, STD_FUNCTION_META),
+            ROOT_FUNCTION_META,
+            TRUE
+        )
+    );
 
     // Create system/catalog/* for datatypes, natives, actions, errors
     //
