@@ -111,6 +111,8 @@ REBNATIVE(eval)
 //          {Do next expression only, return it, update block variable}
 //      var [any-word! blank!]
 //          "If not blank, then a variable updated with new block position"
+//      /only
+//          "Don't catch QUIT (default behavior for BLOCK!)"
 //  ]
 //
 REBNATIVE(do)
@@ -195,6 +197,7 @@ REBNATIVE(do)
             REF(args) ? ARG(arg) : BLANK_VALUE, // can't put void in block
             REF(next) ? TRUE_VALUE : FALSE_VALUE,
             REF(next) ? ARG(var) : BLANK_VALUE, // can't put void in block
+            REF(only) ? TRUE_VALUE : FALSE_VALUE,
             END_CELL
         )) {
             return R_OUT_IS_THROWN;

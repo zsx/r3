@@ -52,6 +52,8 @@ do*: function [
         "Positional workaround of /NEXT"
     var [blank! word!]
         "If do next expression only, variable updated with new block position"
+    only [logic!]
+        "Do not catch quits...propagate them."
 ][
     next_DO*: next
     next: :lib/next
@@ -104,6 +106,28 @@ do*: function [
     ; Note that DO of file path evaluates in the directory of the target file.
     ;
     original-path: what-dir
+    original-script: _
+
+    finalizer: func [
+        value [<opt> any-value!]
+        name [any-value!] ;-- can be a FUNCTION!
+        <with> return
+    ][
+        ; Restore system/script and the dir if they were changed
+
+        if original-script [system/script: original-script]
+        if original-path [change-dir original-path]
+
+        either :name = :quit [
+            if only [
+                quit/with :value ;-- "rethrow" the QUIT if DO/ONLY
+            ]
+        ][
+            assert [:name = blank]
+        ]
+
+        return :value ;-- returns from DO* not FINALIZER, due to <with> return
+    ]
 
     ; If a file is being mentioned as a DO location and the "current path"
     ; is a URL!, then adjust the source to be a URL! based from that path.
@@ -135,7 +159,7 @@ do*: function [
         ;
         do-needs hdr  ; Load the script requirements
         intern code   ; Bind the user script
-        result: catch/quit [
+        result: catch/quit/with [
             ;
             ; The source string may have been mutable or immutable, but the
             ; loaded code is not locked for this case.  So this works:
@@ -143,7 +167,7 @@ do*: function [
             ;     do "append {abc} {de}"
             ;
             do/next code :var ;-- If var is void, /NEXT is revoked
-        ]
+        ] :finalizer
     ][
         ; Otherwise we are in script mode.  When we run a script, the
         ; "current" directory is changed to the directory of that script.
@@ -171,11 +195,11 @@ do*: function [
         lock code
 
         ; Make the new script object
-        scr: system/script  ; and save old one
+        original-script: system/script  ; and save old one
         system/script: construct system/standard/script [
             title: select hdr 'title
             header: hdr
-            parent: :scr
+            parent: :original-script
             path: what-dir
             args: to-value :arg
         ]
@@ -188,24 +212,20 @@ do*: function [
 
         ; Eval the block or make the module, returned
         either is-module [ ; Import the module and set the var
-            result: import catch/quit [
+            result: import catch/quit/with [
                 module/mixin hdr code (opt do-needs/no-user hdr)
-            ]
+            ] :finalizer
             if next_DO* [set var tail code]
         ][
             do-needs hdr  ; Load the script requirements
             intern code   ; Bind the user script
-            result: catch/quit [
+            result: catch/quit/with [
                 do/next code :var ;-- If var is void, /NEXT is revoked
-            ]
+            ] :finalizer
         ]
-
-        ; Restore system/script and the dir
-        system/script: :scr
-        if original-path [change-dir original-path]
     ]
 
-    :result
+    finalizer :result blank
 ]
 
 export: func [

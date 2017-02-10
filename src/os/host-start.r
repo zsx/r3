@@ -585,55 +585,24 @@ host-start: function [
         quit ;ignore user script and "--do" argument
     ]
 
-    ;-- Evaluate script argument?
+    ; Evaluate any script argument, e.g. `r3 test.r` or `r3 --script test.r`
+    ;
     either file? o/script [
-        ; !!! Would be nice to use DO for this section. !!!
-        ; NOTE: We can't use DO here because it calls the code it does with CATCH/quit
-        ;   and we shouldn't catch QUIT in the top-level script, we should just quit.
-
-        ; script-path holds: [dir file] for script
-        ensure block! script-path
-        ensure file! script-path/1
-        ensure file! script-path/2
-
-        ; /path dir is where our script gets started.
-        change-dir first script-path
-        if not exists? second script-path [
-            cause-error 'access 'no-script o/script
-        ]
-
-        boot-print ["Evaluating:" o/script]
-        code: load/header/type second script-path 'unbound
-        ; update system/script (Make into a function?)
-        system/script: construct system/standard/script [
-            title: select first code 'title
-            header: first code
-            parent: _
-            path: what-dir
-            args: script-args
-        ]
-        either 'module = select first code 'type [
-            code: reduce [first+ code code]
-            if object? tmp: sys/do-needs/no-user first code [
-                append code tmp
-            ]
-            import do compose [module (code)]
-        ][
-            trap/with [
-                sys/do-needs first+ code
-                do lock intern code
-            ] func [error <with> return] [
-                print error
-                return 1
-            ]
+        trap/with [
+            do/only o/script ;-- /ONLY so QUIT/WITH exit code bubbles out
+        ] func [error <with> return] [
+            print error
+            return 1
         ]
     ]
 
     host-start: 'done
 
+    ; Evaluate the DO string, e.g. `r3 --do "print {Hello}"`
+    ;
     if do-string [
         trap/with [
-            do do-string
+            do/only do-string ;-- /ONLY so QUIT/WITH exit code bubbles out
         ] func [error <with> return] [
             print error
             return 1
