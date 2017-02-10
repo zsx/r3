@@ -470,7 +470,7 @@ static void Init_Function_Tags(void)
 // FUNCTION-META.  After %sysobj.r is loaded, an assert checks to make sure
 // that this manual construction actually matches the definition in the file.
 //
-static void Init_Function_Meta_Shim() {
+static void Init_Function_Meta_Shim(void) {
     REBSYM field_syms[6] = {
         SYM_SELF, SYM_DESCRIPTION, SYM_RETURN_TYPE, SYM_RETURN_NOTE,
         SYM_PARAMETER_TYPES, SYM_PARAMETER_NOTES
