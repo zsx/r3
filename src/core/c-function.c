@@ -2068,6 +2068,8 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
 
     Do_Core(f);
 
+    Drop_Frame_Core(f);
+
     if (THROWN(f->out))
         return R_OUT_IS_THROWN; // prohibits recovery from exits
 

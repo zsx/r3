@@ -309,8 +309,6 @@ void Do_Core(REBFRM * const f)
         f->label = NULL;
     }
 
-    Push_Frame_Core(f);
-
 #if !defined(NDEBUG)
     SNAP_STATE(&f->state); // to make sure stack balances, etc.
     Do_Core_Entry_Checks_Debug(f); // run once per Do_Core()
@@ -1743,16 +1741,11 @@ reevaluate:;
     if (f->flags.bits & DO_FLAG_TO_END)
         goto do_next;
 
-finished:
+finished:;
 
 #if !defined(NDEBUG)
     Do_Core_Exit_Checks_Debug(f); // will get called unless a fail() longjmps
 #endif
-
-    // Restore the top of stack (if there is a fail() and associated longjmp,
-    // this restoration will be done by the Drop_Trap helper.)
-    //
-    Drop_Frame_Core(f);
 
     // All callers must inspect for THROWN(f->out), and most should also
     // inspect for IS_END(f->value)

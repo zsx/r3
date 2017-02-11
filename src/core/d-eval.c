@@ -139,6 +139,12 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
     assert(!IN_DATA_STACK_DEBUG(f->out));
 #endif
 
+    // Caller should have pushed the frame, such that it is the topmost.
+    // This way, repeated calls to Do_Core(), e.g. by routines like ANY []
+    // don't keep pushing and popping on each call.
+    //
+    assert(f == FS_TOP);
+
     // The arguments to functions in their frame are exposed via FRAME!s
     // and through WORD!s.  This means that if you try to do an evaluation
     // directly into one of those argument slots, and run arbitrary code
@@ -149,8 +155,6 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
     // argument slot.  :-/  Note the availability of D_CELL for any functions
     // that have more than one argument, during their run.
     //
-#if !defined(NDEBUG)
-    assert(f == FS_TOP);
     REBFRM *ftemp = FS_TOP->prior;
     for (; ftemp != NULL; ftemp = ftemp->prior) {
         if (!Is_Any_Function_Frame(ftemp))
@@ -162,7 +166,6 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
             f->out >= ftemp->args_head + FRM_NUM_ARGS(ftemp)
         );
     }
-#endif
 
     // The caller must preload ->value with the first value to process.  It
     // may be resident in the array passed that will be used to fetch further
@@ -286,6 +289,8 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
 // in the switch (vs. starting at the top) to reuse the work.
 //
 REBUPT Do_Core_Expression_Checks_Debug(REBFRM *f) {
+
+    assert(f == FS_TOP); // should be topmost frame, still
 
     Do_Core_Shared_Checks_Debug(f);
 

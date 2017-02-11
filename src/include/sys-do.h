@@ -550,7 +550,9 @@ no_optimization:
     Init_Endlike_Header(&child->flags, flags);
     child->pending = parent->pending;
 
+    Push_Frame_Core(child);
     Do_Core(child);
+    Drop_Frame_Core(child);
 
     // It is technically possible to wind up with child->eval_type as
     // REB_0_LOOKBACK here if a lookback's first argument does not allow
@@ -693,7 +695,9 @@ inline static REBIXO Do_Array_At_Core(
 
     f.eval_type = VAL_TYPE(f.value);
 
+    Push_Frame_Core(&f);
     Do_Core(&f);
+    Drop_Frame_Core(&f);
 
     if (THROWN(f.out))
         return THROWN_FLAG; // !!! prohibits recovery from exits
@@ -883,7 +887,9 @@ inline static REBIXO Do_Va_Core(
 
     f.eval_type = VAL_TYPE(f.value);
 
+    Push_Frame_Core(&f);
     Do_Core(&f);
+    Drop_Frame_Core(&f);
 
     if (THROWN(f.out))
         return THROWN_FLAG; // !!! prohibits recovery from exits

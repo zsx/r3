@@ -32,11 +32,11 @@
 // written such that a longjmp up to a failure handler above it can run
 // safely and clean up even though intermediate stacks have vanished.
 //
-// Ren-C can not only run the evaluator across a REBSER-style series of
-// input based on index, it can also fetch those values from a standard C
-// array of REBVAL[].  Alternately, it can enumerate through C's `va_list`,
-// providing the ability to pass pointers as REBVAL* to comma-separated input
-// at the source level.
+// Ren-C can not only run the evaluator across a REBARR-style series of
+// input based on index, it can also enumerate through C's `va_list`,
+// providing the ability to pass pointers as REBVAL* in a variadic function
+// call from the C (comma-separated arguments, as with printf()).  Future data
+// sources might also include a REBVAL[] raw C array.
 //
 // To provide even greater flexibility, it allows the very first element's
 // pointer in an evaluation to come from an arbitrary source.  It doesn't
