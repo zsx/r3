@@ -81,3 +81,34 @@
 [error? try [catch/quit [] fail make error! ""]]
 ; bug#851
 [blank? attempt [catch/quit [] fail make error! ""]]
+
+
+; DO-ALL is a sort of CATCH/TRAP hybrid.
+;
+[
+    x: _
+    all? [
+        error? trap [do-all [
+            x: 10
+                |
+            fail "some error"
+                |
+            x: 20
+        ]]
+        x = 20
+    ]
+]
+
+[
+    x: _
+    all? [
+        30 = catch [do-all [
+            x: 10
+                |
+            throw 30
+                |
+            x: 20
+        ]]
+        x = 20
+    ]
+]

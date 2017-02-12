@@ -287,6 +287,159 @@ REBNATIVE(do)
 
 
 //
+//  do-all: native [
+//
+//  {Execute a series of BAR!-separated statements with error/quit recovery.}
+//
+//      return: [<opt> any-value!]
+//      block [block!]
+//  ]
+//
+REBNATIVE(do_all)
+//
+// !!! The name of this construct is under review, as well as whether it
+// should be a block-of-blocks or use BAR!.  It was added to try and solve
+// a problem, but then not used--however some variant of this feature is
+// useful.
+{
+    INCLUDE_PARAMS_OF_DO_ALL;
+
+    // Holds either an error value that is raised, or the thrown value.
+    //
+    REBVAL arg_or_error;
+    SET_END(&arg_or_error);
+    PUSH_GUARD_VALUE(&arg_or_error);
+
+    // If arg_or_error is not end, but thrown_name is an end, a throw tried
+    // to propagate, but was caught...but if thrown_name is an end and the
+    // arg_or_error is also not, it is an error which tried to propagate.
+    //
+    REBVAL thrown_name;
+    SET_END(&thrown_name);
+    PUSH_GUARD_VALUE(&thrown_name);
+
+    REBFRM f;
+    Push_Frame(&f, ARG(block));
+
+    // The trap must be pushed *after* the frame has been pushed, so that
+    // when a fail() happens it won't pop the running frame.
+    //
+    struct Reb_State state;
+    REBCTX *error;
+
+repush:
+    PUSH_TRAP(&error, &state);
+
+    // The first time through the following code 'error' will be NULL, but...
+    // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+
+    if (error) {
+        if (NOT_END(&arg_or_error)) { // already a throw or fail pending!
+            REBVAL arg1;
+            if (IS_END(&thrown_name)) {
+                assert(IS_ERROR(&arg_or_error));
+                arg1 = arg_or_error;
+            }
+            else {
+                CONVERT_NAME_TO_THROWN(&thrown_name, &arg_or_error);
+                Init_Error(&arg1, Error_No_Catch_For_Throw(&thrown_name));
+            }
+
+            REBVAL arg2;
+            Init_Error(&arg2, error);
+
+            fail (Error(RE_MULTIPLE_DO_ERRORS, &arg1, &arg2));
+        }
+
+        assert(IS_END(&thrown_name));
+        Init_Error(&arg_or_error, error);
+
+        while (NOT_END(f.value) && NOT(IS_BAR(f.value)))
+            Fetch_Next_In_Frame(&f);
+
+        goto repush;
+    }
+
+    SET_VOID(D_OUT); // default return result of DO-ALL []
+
+    while (NOT_END(f.value)) {
+        if (IS_BAR(f.value)) {
+            //
+            // BAR! is handled explicitly, because you might have f.value as
+            // the BAR! in `| asdf`, call into the evaluator and get an error,
+            // yet then come back and still have f.value positioned at the
+            // BAR!.  This comes from how child frames and optimizations work.
+            // Hence it's not easy to know where to skip forward to in case
+            // of an error.
+            //
+            // !!! Review if the invariant of Do_Next_In_Frame_May_Throw()
+            // should be changed.  So far, this is the only routine affected,
+            // because no other functions try and "resume" a throwing/failing
+            // frame--as that's not generically possible unless you skip to
+            // the next BAR!, as this routine does.
+            //
+            SET_VOID(D_OUT);
+            Fetch_Next_In_Frame(&f);
+            continue;
+        }
+
+        Do_Next_In_Frame_May_Throw(D_OUT, &f, DO_FLAG_NORMAL);
+        if (THROWN(D_OUT)) {
+            if (NOT_END(&arg_or_error)) { // already a throw or fail pending!
+                REBVAL arg1;
+                if (IS_END(&thrown_name)) {
+                    assert(IS_ERROR(&arg_or_error));
+                    arg1 = arg_or_error;
+                }
+                else {
+                    CONVERT_NAME_TO_THROWN(&thrown_name, &arg_or_error);
+                    Init_Error(&arg1, Error_No_Catch_For_Throw(&thrown_name));
+                }
+
+                REBVAL arg2;
+                Init_Error(&arg2, Error_No_Catch_For_Throw(D_OUT));
+
+                // We're still inside the pushed trap for this throw.  Have
+                // to drop the trap to avoid transmitting the error to the
+                // `if (error)` longjmp branch above!
+                //
+                DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+
+                fail (Error(RE_MULTIPLE_DO_ERRORS, &arg1, &arg2));
+            }
+
+            CATCH_THROWN(&arg_or_error, D_OUT);
+            thrown_name = *D_OUT; // THROWN bit cleared by CATCH_THROWN
+
+            while (NOT_END(f.value) && NOT(IS_BAR(f.value)))
+                Fetch_Next_In_Frame(&f);
+        }
+    }
+
+    Drop_Frame(&f);
+
+    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+
+    DROP_GUARD_VALUE(&thrown_name); // no GC (via Do_Core()) after this point
+    DROP_GUARD_VALUE(&arg_or_error);
+
+    if (IS_END(&arg_or_error)) { // no throws or errors tried to propagate
+        assert(IS_END(&thrown_name));
+        return R_OUT;
+    }
+
+    if (NOT_END(&thrown_name)) { // throw tried propagating, re-throw it 
+        *D_OUT = thrown_name;
+        CONVERT_NAME_TO_THROWN(D_OUT, &arg_or_error);
+        return R_OUT_IS_THROWN;
+    }
+
+    assert(IS_ERROR(&arg_or_error));
+    fail (VAL_CONTEXT(&arg_or_error)); // error tried propagating, re-raise it
+}
+
+
+//
 //  apply: native [
 //
 //  {Invoke a function with all required arguments specified.}

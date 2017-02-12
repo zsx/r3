@@ -708,7 +708,7 @@ was_caught:
         REBVAL *thrown_name = ARG(quit);
 
         CATCH_THROWN(thrown_arg, D_OUT);
-        *thrown_name = *D_OUT; // THROWN bit cleared by TAKE_THROWN_ARG
+        *thrown_name = *D_OUT; // THROWN bit cleared by CATCH_THROWN
 
         if (IS_BLOCK(handler)) {
             //
