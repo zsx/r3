@@ -372,8 +372,12 @@ get: function [
     ][
         lib-get/(all [any [opt_GET any_GET] 'opt]) :source
     ][
-        if system/options/get-will-get-anything [:source]
-        fail ["GET takes ANY-WORD!, ANY-PATH!, ANY-CONTEXT!, not" (:source)]
+        unless system/options/get-will-get-anything [
+            fail [
+                "GET takes ANY-WORD!, ANY-PATH!, ANY-CONTEXT!, not" (:source)
+            ]
+        ]
+        :source
     ]
 ]
 

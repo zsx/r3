@@ -428,7 +428,7 @@ repush:
         return R_OUT;
     }
 
-    if (NOT_END(&thrown_name)) { // throw tried propagating, re-throw it 
+    if (NOT_END(&thrown_name)) { // throw tried propagating, re-throw it
         *D_OUT = thrown_name;
         CONVERT_NAME_TO_THROWN(D_OUT, &arg_or_error);
         return R_OUT_IS_THROWN;
