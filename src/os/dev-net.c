@@ -37,6 +37,7 @@
 
 #include "reb-host.h"
 #include "sys-net.h"
+#include "reb-net.h"
 
 #if (0)
 #define WATCH1(s,a) printf(s, a)
@@ -635,4 +636,4 @@ static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] = {
     Lookup_Socket
 };
 
-DEFINE_DEV(Dev_Net, "TCP/IP Network", 1, Dev_Cmds, RDC_MAX, sizeof(REBREQ));
+DEFINE_DEV(Dev_Net, "TCP/IP Network", 1, Dev_Cmds, RDC_MAX);

@@ -344,5 +344,5 @@ static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] =
     Open_Echo,  // CREATE used for opening echo file
 };
 
-DEFINE_DEV(Dev_StdIO, "Standard IO", 1, Dev_Cmds, RDC_MAX, 0);
+DEFINE_DEV(Dev_StdIO, "Standard IO", 1, Dev_Cmds, RDC_MAX);
 

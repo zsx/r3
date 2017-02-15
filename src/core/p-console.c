@@ -45,7 +45,6 @@
 //
 static REB_R Console_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
-    REBREQ *req;
     REBINT result;
     REBVAL *arg;
     REBSER *ser;
@@ -53,7 +52,7 @@ static REB_R Console_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     *D_OUT = *D_ARG(1);
 
-    req = cast(REBREQ*, Use_Port_State(port, RDI_STDIO, sizeof(REBREQ)));
+    REBREQ *req = Ensure_Port_State(port, RDI_STDIO);
 
     switch (action) {
 

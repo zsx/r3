@@ -468,4 +468,4 @@ static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] = {
     Rename_File,
 };
 
-DEFINE_DEV(Dev_File, "File IO", 1, Dev_Cmds, RDC_MAX, sizeof(REBREQ));
+DEFINE_DEV(Dev_File, "File IO", 1, Dev_Cmds, RDC_MAX);

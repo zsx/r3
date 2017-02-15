@@ -61,7 +61,6 @@
 #include "reb-file.h"
 #include "reb-event.h"
 #include "reb-evtypes.h"
-#include "reb-net.h"
 #include "reb-filereq.h"
 #include "reb-codec.h"
 

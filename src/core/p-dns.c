@@ -38,7 +38,6 @@
 static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
     REBVAL *spec;
-    REBREQ *sock;
     REBINT result;
     REBVAL *arg;
     REBCNT len;
@@ -49,7 +48,7 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     *D_OUT = *D_ARG(1);
 
-    sock = cast(REBREQ*, Use_Port_State(port, RDI_DNS, sizeof(*sock)));
+    REBREQ *sock = Ensure_Port_State(port, RDI_DNS);
     spec = CTX_VAR(port, STD_PORT_SPEC);
     if (!IS_OBJECT(spec)) fail (Error(RE_INVALID_PORT));
 

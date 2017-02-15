@@ -36,7 +36,6 @@
 //
 static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
-    REBREQ *req;
     REBINT result;
     REBVAL *arg;
     REBINT len;
@@ -44,7 +43,7 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
-    req = cast(REBREQ*, Use_Port_State(port, RDI_CLIPBOARD, sizeof(REBREQ)));
+    REBREQ *req = Ensure_Port_State(port, RDI_CLIPBOARD);
 
     switch (action) {
     case SYM_UPDATE:

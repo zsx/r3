@@ -110,7 +110,6 @@ static REBOOL Fetch_Buf()
 void Open_StdIO(void)
 {
     CLEARS(&Std_IO_Req);
-    Std_IO_Req.clen = sizeof(Std_IO_Req);
     Std_IO_Req.device = RDI_STDIO;
 
     OS_Do_Device(&Std_IO_Req, RDC_OPEN);

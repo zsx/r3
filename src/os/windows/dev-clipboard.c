@@ -203,4 +203,4 @@ static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] =
     Poll_Clipboard,
 };
 
-DEFINE_DEV(Dev_Clipboard, "Clipboard", 1, Dev_Cmds, RDC_MAX, 0);
+DEFINE_DEV(Dev_Clipboard, "Clipboard", 1, Dev_Cmds, RDC_MAX);

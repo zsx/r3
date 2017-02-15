@@ -360,17 +360,13 @@ int OS_Do_Device(REBREQ *req, REBCNT command)
 REBREQ *OS_Make_Devreq(int device)
 {
     REBDEV *dev;
-    REBREQ *req;
-    unsigned int size;
 
     // Validate device:
     if (device >= RDI_MAX || !(dev = Devices[device]))
         return 0;
 
-    size = dev->req_size ? dev->req_size : sizeof(REBREQ);
-    req = cast(REBREQ*, OS_ALLOC_N_ZEROFILL(char, size));
+    REBREQ *req = OS_ALLOC_ZEROFILL(REBREQ);
     SET_FLAG(req->flags, RRF_ALLOC);
-    req->clen = size;
     req->device = device;
 
     return req;

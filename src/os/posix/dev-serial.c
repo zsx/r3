@@ -363,5 +363,5 @@ static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] = {
     0   // rename
 };
 
-DEFINE_DEV(Dev_Serial, "Serial IO", 1, Dev_Cmds, RDC_MAX, sizeof(REBREQ));
+DEFINE_DEV(Dev_Serial, "Serial IO", 1, Dev_Cmds, RDC_MAX);
 

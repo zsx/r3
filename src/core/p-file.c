@@ -284,9 +284,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     else if (!IS_FILE(path))
         fail (Error(RE_INVALID_SPEC, path));
 
-    // Get or setup internal state data:
-    //
-    REBREQ *file = (REBREQ*)Use_Port_State(port, RDI_FILE, sizeof(*file));
+    REBREQ *file = Ensure_Port_State(port, RDI_FILE);
 
     // !!! R3-Alpha never implemented quite a number of operations on files,
     // including FLUSH, POKE, etc.

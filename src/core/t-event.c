@@ -34,7 +34,6 @@
 
 #include "sys-core.h"
 #include "reb-evtypes.h"
-#include "reb-net.h"
 
 
 //

@@ -29,7 +29,6 @@
 //
 
 #include "sys-core.h"
-#include "reb-net.h"
 #include "reb-evtypes.h"
 
 #define MAX_SERIAL_DEV_PATH 128
@@ -39,7 +38,6 @@
 //
 static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
-    REBREQ *req;    // IO request
     REBVAL *spec;   // port spec
     REBVAL *arg;    // action argument value
     REBINT result;  // IO result
@@ -57,7 +55,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     //if (!IS_FILE(path)) fail (Error(RE_INVALID_SPEC, path));
 
-    req = cast(REBREQ*, Use_Port_State(port, RDI_SERIAL, sizeof(*req)));
+    REBREQ *req = Ensure_Port_State(port, RDI_SERIAL);
 
     // Actions for an unopened serial port:
     if (!IS_OPEN(req)) {

@@ -148,4 +148,4 @@ static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] =
     0,
 };
 
-DEFINE_DEV(Dev_Signal, "Signal", 1, Dev_Cmds, RDC_MAX, 0);
+DEFINE_DEV(Dev_Signal, "Signal", 1, Dev_Cmds, RDC_MAX);

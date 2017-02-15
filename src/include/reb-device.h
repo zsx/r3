@@ -153,15 +153,13 @@ struct rebol_device {
     u32 max_command;        // keep commands in bounds
     REBREQ *pending;        // pending requests
     u32 flags;              // state: open, signal
-    u32 req_size;           // size of request struct
 };
 
 // Inializer (keep ordered same as above)
-#define DEFINE_DEV(w,t,v,c,m,s) REBDEV w = {t, v, 0, c, m, 0, 0, s}
+#define DEFINE_DEV(w,t,v,c,m) REBDEV w = {t, v, 0, c, m, 0, 0}
 
 // Request structure:       // Allowed to be extended by some devices
 struct rebol_devreq {
-    u32 clen;               // size of extended structure
 
     // Linkages:
     u32 device;             // device id (dev table)

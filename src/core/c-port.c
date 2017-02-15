@@ -67,30 +67,35 @@ void Set_Port_Open(REBCTX *port, REBOOL open)
 
 
 //
-//  Use_Port_State: C
+//  Ensure_Port_State: C
 //
 // Use private state area in a port. Create if necessary.
 // The size is that of a binary structure used by
 // the port for storing internal information.
 //
-void *Use_Port_State(REBCTX *port, REBCNT device, REBCNT size)
+REBREQ *Ensure_Port_State(REBCTX *port, REBCNT device)
 {
     REBVAL *state = CTX_VAR(port, STD_PORT_STATE);
 
-    // If state is not a binary structure, create it:
     if (!IS_BINARY(state)) {
-        REBSER *data = Make_Binary(size);
+        assert(IS_BLANK(state));
+
+        REBSER *data = Make_Binary(sizeof(REBREQ));
+        CLEAR(BIN_HEAD(data), sizeof(REBREQ));
+        TERM_BIN_LEN(data, sizeof(REBREQ));
+
         REBREQ *req = cast(REBREQ*, BIN_HEAD(data));
-        req->clen = size;
-        CLEAR(BIN_HEAD(data), size);
-        //data->tail = size; // makes it easier for ACCEPT to clone the port
         SET_FLAG(req->flags, RRF_ALLOC); // not on stack
         req->port = port;
         req->device = device;
         Init_Binary(state, data);
     }
+    else {
+        assert(VAL_INDEX(state) == 0); // should always be at head
+        assert(VAL_LEN_HEAD(state) == sizeof(REBREQ)); // should be right size
+    }
 
-    return (void *)VAL_BIN(state);
+    return cast(REBREQ*, VAL_BIN(state));
 }
 
 

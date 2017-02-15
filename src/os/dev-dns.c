@@ -37,6 +37,7 @@
 
 #include "reb-host.h"
 #include "sys-net.h"
+#include "reb-net.h"
 
 extern DEVICE_CMD Init_Net(REBREQ *); // Share same init
 extern DEVICE_CMD Quit_Net(REBREQ *);
@@ -202,4 +203,4 @@ static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] =
     Poll_DNS
 };
 
-DEFINE_DEV(Dev_DNS, "DNS", 1, Dev_Cmds, RDC_MAX, 0);
+DEFINE_DEV(Dev_DNS, "DNS", 1, Dev_Cmds, RDC_MAX);

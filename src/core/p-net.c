@@ -101,9 +101,8 @@ static void Accept_New_Port(REBVAL *out, REBCTX *port, REBREQ *sock)
     SET_BLANK(CTX_VAR(port, STD_PORT_STATE)); // just to be sure.
 
     // Copy over the new sock data:
-    sock = cast(REBREQ*, Use_Port_State(port, RDI_NET, sizeof(*sock)));
+    sock = Ensure_Port_State(port, RDI_NET);
     *sock = *nsock;
-    sock->clen = sizeof(*sock);
     sock->port = port;
     OS_FREE(nsock); // allocated by dev_net.c (MT issues?)
 }
@@ -119,7 +118,7 @@ static REB_R Transport_Actor(
 ) {
     // Initialize the IO request
     //
-    REBREQ *sock = cast(REBREQ*, Use_Port_State(port, RDI_NET, sizeof(*sock)));
+    REBREQ *sock = Ensure_Port_State(port, RDI_NET);
     if (proto == TRANSPORT_UDP)
         SET_FLAG(sock->modes, RST_UDP);
 

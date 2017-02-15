@@ -154,7 +154,6 @@ static int sig_word_num(REBSTR *canon)
 //
 static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
-    REBREQ *req;
     REBINT result;
     REBVAL *arg;
     REBINT len;
@@ -163,7 +162,7 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     REBVAL *val;
     RELVAL *sig;
 
-    req = cast(REBREQ*, Use_Port_State(port, RDI_SIGNAL, sizeof(REBREQ)));
+    REBREQ *req = Ensure_Port_State(port, RDI_SIGNAL);
     spec = CTX_VAR(port, STD_PORT_SPEC);
 
     if (!IS_OPEN(req)) {
