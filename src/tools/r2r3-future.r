@@ -279,6 +279,7 @@ fail: func [
                         not any-function? get :item
                     ]
                 ][
+                    probe reason
                     do make error! (
                         "FAIL requires complex expressions in a GROUP!"
                     )
@@ -442,3 +443,15 @@ xor?: func [a b] [true? any [all [:a (not :b)] all [(not :a) :b]]]
 unspaced: :ajoin
 spaced: :reform
 join-all: :rejoin
+
+
+; This isn't a full implementation of ENSURE with function-oriented testing,
+; but it works well enough for types.
+;
+ensure: function [type [datatype!] value [*opt-legacy* any-value!]] [
+    if type != type-of :value [
+        probe :value
+        fail ["ENSURE expected:" (mold type) "but got" (mold type-of :value)]
+    ]
+    return :value
+]
