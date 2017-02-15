@@ -52,8 +52,7 @@ void Signal_Device(REBREQ *req, REBINT type);
 DEVICE_CMD Listen_Socket(REBREQ *sock);
 
 #ifdef TO_WINDOWS
-typedef int socklen_t;
-extern HWND Event_Handle; // For WSAAsync API
+    extern HWND Event_Handle; // For WSAAsync API
 #endif
 
 
@@ -63,7 +62,7 @@ extern HWND Event_Handle; // For WSAAsync API
 **
 ***********************************************************************/
 
-static void Set_Addr(SOCKAI *sa, long ip, int port)
+static void Set_Addr(struct sockaddr_in *sa, long ip, int port)
 {
     // Set the IP address and port number in a socket_addr struct.
     memset(sa, 0, sizeof(*sa));
@@ -76,7 +75,7 @@ static void Get_Local_IP(REBREQ *sock)
 {
     // Get the local IP address and port number.
     // This code should be fast and never fail.
-    SOCKAI sa;
+    struct sockaddr_in sa;
     socklen_t len = sizeof(sa);
 
     getsockname(sock->requestee.socket, cast(struct sockaddr *, &sa), &len);
@@ -338,7 +337,7 @@ DEVICE_CMD Lookup_Socket(REBREQ *sock)
 DEVICE_CMD Connect_Socket(REBREQ *sock)
 {
     int result;
-    SOCKAI sa;
+    struct sockaddr_in sa;
 
     if (GET_FLAG(sock->modes, RST_LISTEN))
         return Listen_Socket(sock);
@@ -420,7 +419,7 @@ DEVICE_CMD Transfer_Socket(REBREQ *sock)
 {
     int result;
     long len;
-    SOCKAI remote_addr;
+    struct sockaddr_in remote_addr;
     socklen_t addr_len = sizeof(remote_addr);
     int mode = (sock->command == RDC_READ ? RSM_RECEIVE : RSM_SEND);
 
@@ -513,7 +512,7 @@ DEVICE_CMD Listen_Socket(REBREQ *sock)
 {
     int result;
     int len = 1;
-    SOCKAI sa;
+    struct sockaddr_in sa;
 
     // Setup socket address range and port:
     Set_Addr(&sa, INADDR_ANY, sock->special.net.local_port);
@@ -569,7 +568,7 @@ lserr:
 //
 DEVICE_CMD Accept_Socket(REBREQ *sock)
 {
-    SOCKAI sa;
+    struct sockaddr_in sa;
     REBREQ *news;
     socklen_t len = sizeof(sa);
     int result;
