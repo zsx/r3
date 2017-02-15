@@ -1639,6 +1639,14 @@ REBNATIVE(subparse)
 
                 // word: - set a variable to the series at current index
                 if (IS_SET_WORD(P_RULE)) {
+                    //
+                    // !!! Review meaning of marking the parse in a slot that
+                    // is a target of a rule, e.g. `thru pos: xxx` #
+                    //
+                    // https://github.com/rebol/rebol-issues/issues/2269
+                    //
+                    // if (flags != 0) fail (Error_Parse_Rule());
+
                     *Sink_Var_May_Fail(P_RULE, P_RULE_SPECIFIER)
                         = *P_INPUT_VALUE;
                     FETCH_NEXT_RULE_MAYBE_END(f);
@@ -1652,6 +1660,22 @@ REBNATIVE(subparse)
                     if (!ANY_SERIES(&temp)) // #1263
                         fail (Error(RE_PARSE_SERIES, P_RULE));
                     Set_Parse_Series(f, &temp);
+
+                    // !!! `continue` is used here without any post-"match"
+                    // processing, so the only way `begin` will get set for
+                    // the next rule is if it's set here, else commands like
+                    // INSERT that follow will insert at the old location.
+                    //
+                    // https://github.com/rebol/rebol-issues/issues/2269
+                    //
+                    // Without known resolution on #2269, it isn't clear if
+                    // there is legitimate meaning to seeking a parse in mid
+                    // rule or not.  So only reset the begin position if the
+                    // seek appears to be a "separate rule" in its own right.
+                    //
+                    if (flags == 0)
+                        begin = P_POS;
+
                     FETCH_NEXT_RULE_MAYBE_END(f);
                     continue;
                 }
