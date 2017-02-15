@@ -28,21 +28,48 @@ do %form-header.r
 do %common-parsers.r
 do %native-emitters.r ;for emit-native-proto and emit-include-params-macro
 
-r3: system/version > 2.100.0
 
 args: parse-args system/options/args
 output-dir: fix-win32-path to file! any [args/OUTDIR %../]
 mkdir/deep output-dir/include
 
+
+module-header: _
+
+; The way that the processing code for extracting Rebol information out of
+; C file comments is written is that the PROTO-PARSER has several callback
+; functions that can be registered to receive each item it detects.
+;
 process: func [
     file
+
+    ; R3-Alpha FUNCTION does not have <with> syntax, and this is a bootstrap
+    ; script so it has to work either way.  But these are the externals.
+    ;
+    ; <with> module-header c-natives unsorted-buffer the-file
 ][
     if verbose [probe [file]]
 
-    source.text: read the-file: file
-    ;print ["source:" to string! source.text]
-    if r3 [source.text: deline to-string source.text]
+    source.text: read file
+    if system/version > 2.100.0 [ ;-- !!! Why is this necessary?
+        source.text: deline to-string source.text
+    ] 
+
+    ; When the header information in the comments at the top of the file is
+    ; seen, save it into a variable.
+    ;
+    module-header: _
+    proto-parser/emit-fileheader: func [header] [module-header: header]
+
+    ; Reuse the emitter that is used on processing natives in the core source.
+    ; It will add the information to UNSORTED-BUFFER
+    ;
+    c-natives: make block! 128
+    unsorted-buffer: make string! 20000
     proto-parser/emit-proto: :emit-native-proto
+    
+    the-file: file ;-- global used for comments in the native emitter
+
     proto-parser/process source.text
 ]
 
@@ -70,10 +97,6 @@ for-each [m-name c-src] boot-modules [
     u-m-name: uppercase copy m-name
 
     verbose: false
-
-    unsorted-buffer: make string! 20000
-
-    c-natives: make block! 128
 
     proto-count: 0
     process c-src
@@ -152,16 +175,20 @@ for-each [m-name c-src] boot-modules [
     emit binary-to-c comp-data
     emit-line "};" ;-- EMIT-END erases the last comma, but there's no extra
 
-    emit-line [
-        "REBNAT Ext_Native_C_Funcs_" m-name
-        "[EXT_NUM_NATIVES_" u-m-name "] = {"
-    ]
-    for-each item native-list [
-        if set-word? item [
-            emit-item ["N_" to word! item]
+    either num-native > 0 [
+        emit-line [
+            "REBNAT Ext_Native_C_Funcs_" m-name
+            "[EXT_NUM_NATIVES_" u-m-name "] = {"
         ]
+        for-each item native-list [
+            if set-word? item [
+                emit-item ["N_" to word! item]
+            ]
+        ]
+        emit-end
+    ][
+        emit-line ["REBNAT *Ext_Native_C_Funcs_" m-name space "= NULL;"]
     ]
-    emit-end
 
     emit-line [ {
     int Module_Init_} m-name {_Core(RELVAL *out)
