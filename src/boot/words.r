@@ -90,7 +90,6 @@ y
 *
 unsigned
 code        ; error field
-delect
 
 ; Secure:  (add to system/state/policies object too)
 secure

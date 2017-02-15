@@ -644,26 +644,6 @@ make-obj-defs ob/view "VIEW_" 4
 
 write-emitted inc/tmp-sysobj.h
 
-;----------------------------------------------------------------------------
-
-emit-header "Dialects" %reb-dialect.h
-emit {
-enum REBOL_dialect_error {
-    REB_DIALECT_END = 0,    // End of dialect block
-    REB_DIALECT_MISSING,    // Requested dialect is missing or not valid
-    REB_DIALECT_NO_CMD,     // Command needed before the arguments
-    REB_DIALECT_BAD_SPEC,   // Dialect spec is not valid
-    REB_DIALECT_BAD_ARG,    // The argument type does not match the dialect
-    REB_DIALECT_EXTRA_ARG   // There are more args than the command needs
-};
-
-}
-make-obj-defs ob/dialects "DIALECTS_" 4
-
-emit-line {#define DIALECT_LIT_CMD 0x1000}
-
-write-emitted inc/reb-dialect.h
-
 
 ;----------------------------------------------------------------------------
 ;

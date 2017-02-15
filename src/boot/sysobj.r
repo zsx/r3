@@ -77,15 +77,6 @@ modules: []
 
 codecs: make object! [[][]]
 
-dialects: construct [] [
-    secure:
-    draw:
-    effect:
-    text:
-    rebcode:
-        _
-]
-
 schemes: make object! [[][]]
 
 ports: construct [] [

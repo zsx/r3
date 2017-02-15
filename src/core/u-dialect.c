@@ -27,9 +27,45 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
+// The DELECT native is a not-well-understood "dialecting middleware" that
+// was included in R3-Alpha.  It was kept in a compiling state in Ren-C since
+// it seemed like it might be used by R3/View.  However, despite it compiling
+// there were no tests and nothing to ensure it would stay in a working
+// state.
+//
+// It isn't clear if anyone uses it or not.  If not, it can likely be deleted
+// entirely...either way, it could be moved into an extension and optionally
+// included in the executable.
+//
+// If it has any features with actual merit, they could likely be integrated
+// into PARSE.
+//
 
 #include "sys-core.h"
-#include "reb-dialect.h"
+
+enum REBOL_dialect_error {
+    REB_DIALECT_END = 0,    // End of dialect block
+    REB_DIALECT_MISSING,    // Requested dialect is missing or not valid
+    REB_DIALECT_NO_CMD,     // Command needed before the arguments
+    REB_DIALECT_BAD_SPEC,   // Dialect spec is not valid
+    REB_DIALECT_BAD_ARG,    // The argument type does not match the dialect
+    REB_DIALECT_EXTRA_ARG   // There are more args than the command needs
+};
+
+// These were generated from a list in %sysobj.r
+
+enum DIALECTS_object {
+    DIALECTS_SELF = 1,
+    DIALECTS_SECURE,
+    DIALECTS_DRAW,
+    DIALECTS_EFFECT,
+    DIALECTS_TEXT,
+    DIALECTS_REBCODE,
+    DIALECTS_MAX
+};
+
+#define DIALECT_LIT_CMD 0x1000
+
 
 typedef struct Reb_Dialect_Parse {
     REBCTX *dialect;    // dialect object

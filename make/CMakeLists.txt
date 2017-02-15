@@ -460,7 +460,6 @@ set (BOOT_HEADER
     ${TOP_GENERATED_SRC_DIR}/include/reb-types.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-bootdefs.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-sysobj.h
-    ${TOP_GENERATED_SRC_DIR}/include/reb-dialect.h
     ${TOP_GENERATED_SRC_DIR}/include/reb-evtypes.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-errnums.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-portmodes.h

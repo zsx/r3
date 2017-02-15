@@ -307,10 +307,6 @@ REBNATIVE(evoke)
     for (; len > 0; len--, arg++) {
         if (IS_WORD(arg)) {
             switch (VAL_WORD_SYM(arg)) {
-            case SYM_DELECT:
-                Trace_Delect(1);
-                break;
-
             case SYM_CRASH_DUMP:
                 Reb_Opts->crash_dump = TRUE;
                 break;
