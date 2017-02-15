@@ -33,12 +33,19 @@
 #include "sys-dec-to-char.h"
 #include <errno.h>
 
-extern const MAKE_FUNC Make_Dispatch[REB_MAX];
-
-// !!! Actually should be a .inc file, as it includes data declarations
-// Has a repeated prototype in %l-scan.c to avoid double inclusion
+// Is an .inc file as it has data declarations, can only be included once.
+// extern definitions for Make_Dispatch, To_Dispatch are in %sys-core.h 
 //
-#include "tmp-maketypes.h"
+#include "tmp-maketypes.inc"
+
+//
+//  MAKE_Fail: C
+//
+void MAKE_Fail(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    fail (Error(RE_MISC));
+}
+
 
 //
 //  make: native [
@@ -142,6 +149,15 @@ REBNATIVE(make)
 
     dispatcher(D_OUT, kind, arg); // may fail()
     return R_OUT;
+}
+
+
+//
+//  TO_Fail: C
+//
+void TO_Fail(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    fail (Error(RE_MISC));
 }
 
 

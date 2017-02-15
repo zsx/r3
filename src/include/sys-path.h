@@ -162,7 +162,3 @@ enum Path_Eval_Result {
     PE_NONE // set pvs->store to NONE and then pvs->value to pvs->store
 };
 
-typedef REBINT (*REBPEF)(REBPVS *pvs); // Path evaluator function
-
-typedef REBINT (*REBCTF)(const RELVAL *a, const RELVAL *b, REBINT s);
-

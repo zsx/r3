@@ -16,7 +16,7 @@ REBOL [
         hold just the datatype words - the initial entries the word table.
 
         name        - name of datatype (generates words)
-        class       - how type actions are dispatched (T_type)
+        class       - how type actions are dispatched (T_type), + is extension
         path        - it supports various path forms (* for same as typeclass)
         make        - It can be made with #[datatype] method
         typesets    - what typesets the type belongs to

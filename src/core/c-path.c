@@ -32,11 +32,23 @@
 
 #include "sys-core.h"
 
-// !!! This is defined in "tmp-evaltypes.inc", that can only be included once.
-// However it contains definitions for Path_Dispatch and other things needed
-// by %c-do, so it is included there and an extern used here.
+
 //
-extern const REBPEF Path_Dispatch[REB_MAX];
+//  PD_Fail: C
+//
+// In order to avoid having to pay for a check for NULL in the path dispatch
+// table for types with no path dispatch, a failing handler is in the slot.
+//
+REBINT PD_Fail(REBPVS *pvs)
+{
+    REBVAL specified_orig;
+    Derelativize(&specified_orig, pvs->orig, pvs->item_specifier);
+
+    REBVAL specified_item;
+    Derelativize(&specified_item, pvs->item, pvs->item_specifier);
+
+    fail (Error(RE_INVALID_PATH, &specified_orig, &specified_item));
+}
 
 
 //
@@ -51,15 +63,7 @@ extern const REBPEF Path_Dispatch[REB_MAX];
 REBOOL Next_Path_Throws(REBPVS *pvs)
 {
     REBPEF dispatcher = Path_Dispatch[VAL_TYPE(pvs->value)];
-    if (dispatcher == NULL) {
-        REBVAL specified_orig;
-        Derelativize(&specified_orig, pvs->orig, pvs->item_specifier);
-
-        REBVAL specified_item;
-        Derelativize(&specified_item, pvs->item, pvs->item_specifier);
-
-        fail (Error(RE_INVALID_PATH, &specified_orig, &specified_item));
-    }
+    assert(dispatcher != NULL); // &PD_Fail is used instead of NULL
 
     if (IS_FUNCTION(pvs->value) && pvs->label_out && *pvs->label_out == NULL)
         if (IS_WORD(pvs->item))

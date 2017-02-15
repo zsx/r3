@@ -455,8 +455,8 @@ set_source_files_properties(
 
 set (BOOT_HEADER
     ${TOP_GENERATED_SRC_DIR}/include/tmp-evaltypes.inc
-    ${TOP_GENERATED_SRC_DIR}/include/tmp-maketypes.h
-    ${TOP_GENERATED_SRC_DIR}/include/tmp-comptypes.h
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-maketypes.inc
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-comptypes.inc
     ${TOP_GENERATED_SRC_DIR}/include/reb-types.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-bootdefs.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-sysobj.h

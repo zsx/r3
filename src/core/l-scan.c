@@ -45,10 +45,6 @@
 
 #include "sys-core.h"
 
-// %tmp-maketypes.h cannot be included multiple times
-//
-extern const MAKE_FUNC Make_Dispatch[REB_MAX];
-
 
 //
 // Maps each character to its lexical attributes, using

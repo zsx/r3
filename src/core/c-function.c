@@ -1562,6 +1562,23 @@ void Clonify_Function(REBVAL *value)
 
 
 //
+//  REBTYPE: C
+//
+// This handler is used to fail for a type which cannot handle actions.
+//
+// !!! Currently all types have a REBTYPE() handler for either themselves or
+// their class.  But having a handler that could be "swapped in" from a
+// default failing case is an idea that could be used as an interim step
+// to allow something like REB_GOB to fail by default, but have the failing
+// type handler swapped out by an extension.
+//
+REBTYPE(Fail)
+{
+    fail (Error(RE_MISC));
+}
+
+
+//
 //  Action_Dispatcher: C
 //
 // "actions" are historically a kind of dispatch based on the first argument's

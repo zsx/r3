@@ -738,17 +738,23 @@ inline static void SET_SIGNAL(REBFLGS f) {
 #endif
 
 
-/***********************************************************************
-**
-**  Thread Shared Variables
-**
-**      Set by main boot and not changed after that.
-**
-***********************************************************************/
+//
+// Dispatch Table Prototypes
+//
+// These dispatch tables are generated and have data declarations in .inc
+// files.  Those data declarations can only be included once, yet the tables
+// may be used in multiple modules.
+//
+// The tables never contain NULL values.  Instead there is a dispatcher in
+// the slot which will fail if it is ever called.
+//
 
-extern const REBACT Value_Dispatch[];
-//extern const REBYTE Upper_Case[];
-//extern const REBYTE Lower_Case[];
+extern const REBACT Value_Dispatch[REB_MAX]; // in %tmp-evaltypes.inc
+extern const REBPEF Path_Dispatch[REB_MAX]; // in %tmp-evaltypes.inc
+extern const REBCTF Compare_Types[REB_MAX]; // in %tmp-comptypes.inc
+extern const MAKE_FUNC Make_Dispatch[REB_MAX]; // in %tmp-maketypes.inc
+extern const TO_FUNC To_Dispatch[REB_MAX]; // in %tmp-maketypes.inc
+
 
 #include "sys-do.h"
 #include "sys-path.h"

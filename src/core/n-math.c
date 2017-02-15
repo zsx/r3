@@ -31,7 +31,7 @@
 //
 
 #include "sys-core.h"
-#include "tmp-comptypes.h"
+#include "tmp-comptypes.inc"
 #include "sys-deci-funcs.h"
 
 #include <math.h>
@@ -412,6 +412,14 @@ REBNATIVE(shift)
 #if defined(_MSC_VER) && _MSC_VER > 1800
     #pragma warning (default : 4146)
 #endif
+
+
+//  CT_Fail: C
+//
+REBINT CT_Fail(const RELVAL *a, const RELVAL *b, REBINT mode)
+{
+    fail (Error(RE_MISC));
+}
 
 
 //

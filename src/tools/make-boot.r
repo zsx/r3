@@ -136,10 +136,16 @@ emit-line "{"
 for-each-record type boot-types [
     if group? type/class [type/class: first type/class]
 
-    either type/class = 0 [
-        emit-item "NULL"
-    ][
-        emit-item ["T_" propercase-of type/class]
+    case [
+        type/class = 0 [ ; REB_0 should not ever be dispatched, bad news
+            emit-item "NULL"
+        ]
+        type/class = '+ [ ; Extension types just fail until registered
+            emit-item "T_Fail"
+        ]
+        true [ ; All other types should have handlers
+            emit-item ["T_" propercase-of type/class]
+        ]
     ]
     emit-annotation type/name
 ]
@@ -165,7 +171,7 @@ for-each-record type boot-types [
     if group? type/class [type/class: first type/class]
 
     either type/path = '- [
-        emit-item "NULL"
+        emit-item "PD_Fail"
     ][
         emit-item [
             "PD_" propercase-of (
@@ -220,7 +226,7 @@ for-each-record type boot-types [
     either type/make = '* [
         emit-item ["MAKE_" propercase-of type/class]
     ][
-        emit-item "NULL"
+        emit-item "MAKE_Fail"
     ]
     emit-annotation type/name
 ]
@@ -243,13 +249,13 @@ for-each-record type boot-types [
     either type/make = '* [
         emit-item ["TO_" propercase-of type/class]
     ][
-        emit-item "NULL"
+        emit-item "TO_Fail"
     ]
     emit-annotation type/name
 ]
 emit-end
 
-write-emitted inc/tmp-maketypes.h
+write-emitted inc/tmp-maketypes.inc
 
 
 ;----------------------------------------------------------------------------
@@ -287,16 +293,22 @@ emit-line "{"
 for-each-record type boot-types [
     if group? type/class [type/class: first type/class]
 
-    either type/class = 0 [
-        emit-item "NULL"
-    ][
-        emit-item ["CT_" propercase-of type/class]
+    case [
+        type/class = 0 [
+            emit-item "NULL"
+        ]
+        type/class = '+ [
+            emit-item "CT_Fail"
+        ]
+        true [
+            emit-item ["CT_" propercase-of type/class]
+        ]
     ]
     emit-annotation type/name
 ]
 emit-end
 
-write-emitted inc/tmp-comptypes.h
+write-emitted inc/tmp-comptypes.inc
 
 
 ;----------------------------------------------------------------------------

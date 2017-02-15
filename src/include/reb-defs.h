@@ -82,6 +82,10 @@
     struct Reb_Path_Value_State;
     typedef struct Reb_Path_Value_State REBPVS;
 
+    typedef REBINT (*REBPEF)(REBPVS *pvs); // Path evaluator function
+
+    typedef REBINT (*REBCTF)(const RELVAL *a, const RELVAL *b, REBINT s);
+
     // A standard integer is currently used to represent the data stack
     // pointer.  `unsigned int` instead of a `REBCNT` in order to leverage the
     // native performance of the integer type unconstrained by bit size, as
