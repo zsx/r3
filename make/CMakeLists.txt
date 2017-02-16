@@ -468,7 +468,7 @@ set (BOOT_HEADER
     )
 set(BOOT_OUTPUT
     ${BOOT_HEADER}
-    ${CORE_GENERATED_DIR}/b-boot.c
+    ${CORE_GENERATED_DIR}/tmp-boot-block.c
     )
 set(BOOT_DEPENDS
     # all of the files loaded by make-boot.r
@@ -553,7 +553,7 @@ add_custom_command(OUTPUT
     )
 
 set (GENERATED_CORE_SOURCE
-    ${CORE_GENERATED_DIR}/b-boot.c
+    ${CORE_GENERATED_DIR}/tmp-boot-block.c
     ${CORE_GENERATED_DIR}/tmp-symbols.c
     )
 

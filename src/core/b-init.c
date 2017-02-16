@@ -29,8 +29,8 @@
 //
 // The primary routine for starting up Rebol is Init_Core().  It runs the
 // bootstrap in phases, based on processing various portions of the data in
-// %boot-code.r (which is the aggregated code from the %mezz/*.r files, that
-// is packed into one file as part of the build preparation)
+// %tmp-boot-block.r (which is the aggregated code from the %mezz/*.r files,
+// packed into one file as part of the build preparation).
 //
 // As part of an effort to lock down the memory usage, Ren-C added a parallel
 // Shutdown_Core() routine which would gracefully exit Rebol, with assurances
@@ -1224,9 +1224,10 @@ void Init_Core(void)
 //==//////////////////////////////////////////////////////////////////////==//
 
     // The %make-boot.r process takes all the various definitions and
-    // mezzanine code and packs it into one compressed string in %b-boot.c
-    // which gets embedded into the executable.  This includes the type list,
-    // word list, error message templates, system object, mezzanines, etc.
+    // mezzanine code and packs it into one compressed string in
+    // %tmp-boot-block.c which gets embedded into the executable.  This
+    // includes the type list, word list, error message templates, system
+    // object, mezzanines, etc.
 
     REBSER *utf8 = Decompress(
         Native_Specs, NAT_COMPRESSED_SIZE, NAT_UNCOMPRESSED_SIZE, FALSE, FALSE
@@ -1401,19 +1402,10 @@ void Init_Core(void)
 
     assert(DSP == 0 && FS_TOP == NULL);
 
-    Init_Ports();
-
-    // The FINISH-INIT-CORE function should theoretically do very little.
-    // But right now it is where:
-    //
-    // * the mezzanine definitions are bound to the lib context and DO'd
-    // * the various scheme handlers (http://, file://) are registered
-    // * protocols implemented in user code (HTTP and TLS) are registered
-    //
-    // Over time those will be factored out so that only the distributions
-    // that want these components will include them.  However, this shows
-    // the explicit dependency by passing the mezzanine and the protocols
-    // from the boot block to the finalization function as arguments.
+    // The FINISH-INIT-CORE function should likely do very little.  But right
+    // now it is where the user context is created from the lib context (a
+    // copy with some omissions), and where the mezzanine definitions are
+    // bound to the lib context and DO'd.
     //
     REBVAL result;
     if (Apply_Only_Throws(
@@ -1421,7 +1413,6 @@ void Init_Core(void)
         TRUE, // generate error if all arguments aren't consumed
         Sys_Func(SYS_CTX_FINISH_INIT_CORE), // %sys-start.r function to call
         &boot->mezz, // boot-mezz argument
-        &boot->protocols, // boot-protocol argument
         END_CELL
     )) {
         // You shouldn't be able to throw any uncaught values during

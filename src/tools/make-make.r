@@ -459,7 +459,7 @@ emit makefile-link
 emit get pick [makefile-dyn makefile-so] config/id/2 = 2
 emit {
 ### File build targets:
-b-boot.c: $(SRC)/boot/boot.r
+tmp-boot-block.c: $(SRC)/boot/tmp-boot-block.r
     $(REBOL) -sqw $(SRC)/tools/make-boot.r
 }
 emit newline

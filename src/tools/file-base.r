@@ -24,7 +24,6 @@ core: [
     a-lib.c
 
     ; (B)oot
-    + b-boot.c
     b-init.c
 
     ; (C)ore
@@ -159,6 +158,9 @@ core: [
     u-sha1.c
     u-zlib.c
 
+    ; Generated file, created by the make boot process
+    + tmp-boot-block.c
+
     ; Atronix repository breaks out codecs into a separate directory.
     ; More crypto is needed than in original Rebol open source for the HTTPS
     ; protocol implementation.
@@ -177,7 +179,7 @@ modules: [
 ]
 
 made: [
-    make-boot.r         core/b-boot.c
+    make-boot.r         core/tmp-boot-block.c
     make-headers.r      include/tmp-funcs.h
 
     make-host-init.r    include/host-init.h

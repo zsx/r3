@@ -354,6 +354,14 @@ host-start: function [
     <static>
         o (system/options) ;-- shorthand since options are often read/written
 ][
+    ; Currently there is just one monolithic "initialize all schemes", e.g.
+    ; FILE:// and HTTP:// and CONSOLE:// -- this will need to be broken down
+    ; into finer granularity.  Formerly all of them were loaded at the end
+    ; of Init_Core(), but one small step is to push the decision into the
+    ; host...which loads them all, but should be more selective.
+    ;
+    sys/init-schemes
+
     system/product: 'core
 
     sys/script-pre-load-hook: :host-script-pre-load

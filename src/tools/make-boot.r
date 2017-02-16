@@ -69,7 +69,6 @@ sections: [
     boot-base
     boot-sys
     boot-mezz
-    boot-protocols
 ;   boot-script
 ]
 
@@ -809,12 +808,6 @@ for-each section [boot-base boot-sys boot-mezz] [
     mezz-files: next mezz-files
 ]
 
-boot-protocols: make block! 20
-for-each file first mezz-files [
-    m: load/all join-of %../mezz/ file ; not REBOL word
-    append/only append/only boot-protocols m/2 skip m 2
-]
-
 emit-header "Sys Context" %sysctx.h
 
 ; We don't actually want to create the object in the R3-MAKE Rebol, because
@@ -845,14 +838,18 @@ write-emitted inc/tmp-sysctx.h
 
 ;----------------------------------------------------------------------------
 ;
-; b-boot.c - Boot data file
+; TMP-BOOT-BLOCK.R and TMP-BOOT-BLOCK.C
+;
+; Create the aggregated Rebol file of all the Rebol-formatted data that is
+; used in bootstrap.  This includes everything from a list of WORD!s that
+; are built-in as symbols, to the sys and mezzanine functions.
+;
+; %tmp-boot-block.c is just a C file containing a literal constant of the
+; compressed representation of %tmp-boot-block.r
 ;
 ;----------------------------------------------------------------------------
 
-;-- Build b-boot.c output file -------------------------------------------------
-
-
-emit-header "Natives and Bootstrap" %b-boot.c
+emit-header "Natives and Bootstrap" %tmp-boot-block.c
 emit newline
 emit-line {#include "sys-core.h"}
 emit newline
@@ -900,7 +897,7 @@ boot-types: new-types
 boot-root: load %root.r
 boot-task: load %task.r
 
-write boot/boot-code.r mold reduce sections
+write boot/tmp-boot-block.r mold reduce sections
 data: mold/flat reduce sections
 insert data reduce ["; Copyright (C) REBOL Technologies " now newline]
 insert tail data make char! 0 ; scanner requires zero termination
@@ -922,7 +919,7 @@ emit-line ["const REBYTE Native_Specs[NAT_COMPRESSED_SIZE] = {"]
 emit binary-to-c comp-data
 emit-line "};" ;-- EMIT-END would erase the last comma, but there's no extra
 
-write-emitted src/b-boot.c
+write-emitted src/tmp-boot-block.c
 
 ;-- Output stats:
 print [

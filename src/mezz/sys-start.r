@@ -3,6 +3,7 @@ REBOL [
     Title: "REBOL 3 Boot Sys: Startup"
     Rights: {
         Copyright 2012 REBOL Technologies
+        Copyright 2012-2017 Rebol Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -11,24 +12,21 @@ REBOL [
     }
     Context: sys
     Note: {
-        Originally Rebol's "Mezzanine" init was one function.  In Ren/C's
-        philosophy of being "just an interpreter core", many concerns will
-        not be in the basic library.  This includes whether "--do" is the
-        character sequence on the command-line for executing scripts (or even
-        if there *is* a command-line).  It also shouldn't be concerned with
-        code for reading embedded scripts out of various ELF or PE file
-        formats for encapping.
+        The Init_Core() function in %b-init.c is supposed to be a fairly
+        minimal startup, to get the system running.  For instance, it does
+        not do any command-line processing...as the host program might not
+        even *have* a command line.  It just gets basic things set up like
+        the garbage collector and other interpreter services.
 
-        Prior to the Atronix un-forking, Ren/C had some progress by putting
-        the "--do" handling into the host.  But merging the Atronix code put
-        encapping into the core startup.  So this separation will be an
-        ongoing process.  For the moment that is done by splitting into two
-        functions: a "core" portion for finishing Init_Core(), and a "host"
-        portion for finishing RL_Start().
+        Not much of that work can be delegated to Rebol routines, because
+        the evaluator can't run for a lot of that setup time.  But at the
+        end of Init_Core() when the evaluator is ready, it runs this
+        routine for any core initialization code which can reasonably be
+        delegated to Rebol.
 
-        !!! "The boot binding of this module is SYS then LIB deep.
-        Any non-local words not found in those contexts WILL BE
-        UNBOUND and will error out at runtime!"
+        After this point, it is expected that further initialization be done
+        by the host.  That includes the mentioned command-line processing,
+        which due to this layering can be done with PARSE.
     }
 ]
 
@@ -36,12 +34,17 @@ finish-init-core: procedure [
     "Completes the boot sequence for Ren-C core."
     boot-mezz [block!]
         {Mezzanine code loaded as part of the boot block in Init_Core()}
-    boot-prot [block!]
-        {Protocols built into the mezzanine at this time (http, tls)}
 ][
+    ; Remove the reference through which this function we are running is
+    ; found, so it's invisible to the user and can't run again (but leave
+    ; a hint that it's in the process of running vs. just unsetting it)
+    ;
+    finish-init-core: 'running
+
     ; Make the user's global context.  Remove functions whose names are being
     ; retaken for new functionality--to be kept this way during a deprecation
-    ; period.
+    ; period.  Ther lib definitions are left as-is, however, since the new
+    ; definitions are required by SYS and LIB code itself.
     ;
     tmp: make object! 320
     append tmp reduce [
@@ -71,11 +74,6 @@ finish-init-core: procedure [
     ]
     system/contexts/user: tmp
 
-    ; Remove the reference through which this function we are running is
-    ; found, so it's invisible to the user and can't run again.
-    ;
-    finish-init-core: 'done
-
     ; It was a stated goal at one point that it should be possible to protect
     ; the entire system object and still run the interpreter.  This was
     ; commented out, so the state of that feature is unknown.
@@ -87,16 +85,5 @@ finish-init-core: procedure [
     ;
     do bind-lib boot-mezz
 
-    ; For now, we also consider initializing the port schemes to be "part of
-    ; the core function".  Longer term, it needs to be the host's
-    ; responsibility to pick and configure the specific schemes it wishes to
-    ; support...or to delegate to the user to load them.
-    ;
-    init-schemes
-
-    ; Also for now, we consider the boot protocols that are implemented in
-    ; user code (http and tls) to be part of the core.  The explicit
-    ; parameterization here helps show how they're getting passed in.
-    ;
-    for-each [spec body] boot-prot [module spec body]
+    finish-init-core: 'done
 ]

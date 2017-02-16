@@ -219,7 +219,7 @@ void RL_Init(void *lib)
         NAT_VALUE(decode_utf16le),
         NAT_VALUE(encode_utf16le)
     );
-    
+
     Register_Codec(
         "utf-16be",
         ".txt",
