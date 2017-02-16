@@ -308,6 +308,7 @@ set (CORE_SOURCE
     ${CORE_DIR}/n-do.c
     ${CORE_DIR}/n-error.c
     ${CORE_DIR}/n-function.c
+    ${CORE_DIR}/n-jpg.c
     ${CORE_DIR}/n-io.c
     ${CORE_DIR}/n-loop.c
     ${CORE_DIR}/n-math.c
@@ -317,6 +318,7 @@ set (CORE_SOURCE
     ${CORE_DIR}/n-sets.c
     ${CORE_DIR}/n-strings.c
     ${CORE_DIR}/n-system.c
+    ${CORE_DIR}/n-textcodecs.c
     ${CORE_DIR}/p-clipboard.c
     ${CORE_DIR}/p-console.c
     ${CORE_DIR}/p-dir.c
