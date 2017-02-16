@@ -62,7 +62,6 @@
 #include "reb-event.h"
 #include "reb-evtypes.h"
 #include "reb-filereq.h"
-#include "reb-codec.h"
 
 #include "sys-rebnod.h" // !!! Legacy dependency, REBGOB should not be REBNOD
 #include "reb-gob.h"

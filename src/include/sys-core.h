@@ -215,7 +215,6 @@ extern void reb_qsort_r(void *a, size_t n, size_t es, void *thunk, cmp_t *cmp);
 #include "reb-file.h"
 #include "reb-filereq.h"
 #include "reb-math.h"
-#include "reb-codec.h"
 
 #include "sys-rebnod.h"
 

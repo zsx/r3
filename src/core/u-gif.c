@@ -203,34 +203,72 @@ void Decode_LZW(REBCNT *data, REBYTE **cpp, REBYTE *colortab, REBINT w, REBINT h
 }
 
 
+static REBOOL Has_Valid_GIF_Header(REBYTE *data, REBCNT len) {
+    if (len < 5)
+        return FALSE;
+
+    if (strncmp(cast(char*, data), "GIF87", 5) == 0)
+        return TRUE;
+
+    if (strncmp(cast(char*, data), "GIF89", 5) == 0)
+        return TRUE;
+
+    return FALSE;
+}
+
+
 //
-//  Decode_GIF_Image: C
+//  identify-gif?: native [
 //
-// Input:  GIF encoded image (codi->data, len)
-// Output: Image bits (codi->extra.bits, w, h)
-// Error:  Code in codi->error
-// Return: Success as TRUE or FALSE
+//  {Codec for identifying BINARY! data for a GIF}
 //
-void Decode_GIF_Image(REBOOL identify, REBCDI *codi)
+//      return: [logic!]
+//      data [binary!]
+//  ]
+//
+REBNATIVE(identify_gif_q)
 {
+    INCLUDE_PARAMS_OF_IDENTIFY_GIF_Q;
+
+    REBYTE *data = VAL_BIN_AT(ARG(data));
+    REBCNT len = VAL_LEN_AT(ARG(data));
+
+    // Assume signature matching is good enough (will get a fail() on
+    // decode if it's a false positive).
+    //
+    return R_FROM_BOOL(Has_Valid_GIF_Header(data, len));
+}
+
+
+//
+//  decode-gif: native [
+//
+//  {Codec for decoding BINARY! data for a GIF}
+//
+//      return: [image! block!]
+//          {Single image or BLOCK! of images if multiple frames (animated)}
+//      data [binary!]
+//  ]
+//
+REBNATIVE(decode_gif)
+{
+    INCLUDE_PARAMS_OF_DECODE_GIF;
+
+    REBYTE *data = VAL_BIN_AT(ARG(data));
+    REBCNT len = VAL_LEN_AT(ARG(data));
+
+    if (NOT(Has_Valid_GIF_Header(data, len)))
+        fail (Error(RE_BAD_MEDIA));
+
     REBINT  w, h;
     REBINT  transparency_index;
     REBYTE  c, *global_colormap, *colormap;
-    REBCNT  global_colors, image_count, local_colormap;
+    REBCNT  global_colors, local_colormap;
     REBCNT  colors;
-    REBYTE  *cp;
-    REBCNT  *dp;
     REBOOL  interlaced;
-    REBYTE  *end;
 
-    cp  = codi->data;
-    end = codi->data + codi->len;
-
-    if (strncmp((char *)cp, "GIF87", 5) != 0 && strncmp((char *)cp, "GIF89", 5) != 0) {
-        codi->error = CODI_ERR_SIGNATURE;
-        return;
-    }
-    if (identify) return; // no error means success
+    REBYTE *cp = data;
+    REBYTE *end = data + len;
 
     global_colors = 0;
     global_colormap = (unsigned char *) NULL;
@@ -242,7 +280,9 @@ void Decode_GIF_Image(REBOOL identify, REBCDI *codi)
     }
     cp += 13;
     transparency_index = -1;
-    image_count = 0;
+
+    REBDSP dsp_orig = DSP; // push each image frame found in the GIF file
+
     for (;;) {
         if (cp >= end) break;
         c = *cp++;
@@ -273,7 +313,6 @@ void Decode_GIF_Image(REBOOL identify, REBCDI *codi)
 
         if (c != ',') continue;
 
-        image_count++;
         interlaced = LOGICAL(cp[8] & 0x40);
         local_colormap = cp[8] & 0x80;
 
@@ -294,18 +333,9 @@ void Decode_GIF_Image(REBOOL identify, REBCDI *codi)
         }
         cp += 9;
 
-        //note: animated GIFs support needs to be added!!!
-/*
-        if (image_count == 2) {
-            VAL_SERIES(Temp2_Value) = Make_Array(0, 0);
-            VAL_INIT(Temp2_Value, REB_BLOCK);
-            VAL_INDEX(Temp2_Value) = 0;
-            Append_Series(VAL_SERIES(Temp2_Value), (REBMEM *)Temp_Value, 1);
-        }
-*/
-        dp = codi->extra.bits = ALLOC_N(u32, w * h);
-        codi->w = w;
-        codi->h = h;
+        REBSER *ser = Make_Image(w, h, TRUE);
+
+        REBCNT *dp = cast(REBCNT*, IMG_DATA(ser));
 
         Decode_LZW(dp, &cp, colormap, w, h, interlaced);
 
@@ -314,33 +344,27 @@ void Decode_GIF_Image(REBOOL identify, REBCDI *codi)
             ///Chroma_Key_Alpha(Temp_Value, (REBCNT)(p[2]|(p[1]<<8)|(p[0]<<16)), BLIT_MODE_COLOR);
         }
 
-//      if (image_count == 1)
-//          *Temp2_Value = *Temp_Value;
-//      else
-//          Append_Series(VAL_SERIES(Temp2_Value), (REBMEM *)Temp_Value, 1);
-    }
-}
-
-
-//
-//  Codec_GIF_Image: C
-//
-REBINT Codec_GIF_Image(int action, REBCDI *codi)
-{
-    codi->error = 0;
-
-    if (action == CODI_ACT_IDENTIFY) {
-        Decode_GIF_Image(TRUE, codi);
-        return CODI_CHECK; // error code is inverted result
+        DS_PUSH_TRASH;
+        Init_Image(DS_TOP, ser);
     }
 
-    if (action == CODI_ACT_DECODE) {
-        Decode_GIF_Image(FALSE, codi);
-        return CODI_IMAGE;
+    if (dsp_orig + 1 == DSP) {
+        //
+        // If 1 image, return as a single value
+        //
+        // !!! Should formats that can act as containers always be a block?
+        //
+        assert(IS_IMAGE(DS_TOP));
+        *D_OUT = *DS_TOP;
+        DS_DROP;
+    }
+    else {
+        // If 0 or more than one image, return a BLOCK!.
+        //
+        Init_Block(D_OUT, Pop_Stack_Values(dsp_orig));
     }
 
-    codi->error = CODI_ERR_NA;
-    return CODI_ERROR;
+    return R_OUT;
 }
 
 
@@ -349,5 +373,11 @@ REBINT Codec_GIF_Image(int action, REBCDI *codi)
 //
 void Init_GIF_Codec(void)
 {
-    Register_Codec("gif", ".gif", Codec_GIF_Image);
+    Register_Codec(
+        "gif",
+        ".gif",
+        NAT_VALUE(identify_gif_q),
+        NAT_VALUE(decode_gif),
+        NULL // currently no GIF encoder
+    );
 }

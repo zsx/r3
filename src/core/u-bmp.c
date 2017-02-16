@@ -158,8 +158,8 @@ static REBOOL longaligned(void) {
     return FALSE;
 }
 
-void Map_Bytes(void *dstp, REBYTE **srcp, const char *map) {
-    REBYTE *src = *srcp;
+void Map_Bytes(void *dstp, const REBYTE **srcp, const char *map) {
+    const REBYTE *src = *srcp;
     REBYTE *dst = cast(REBYTE*, dstp);
     char c;
 #ifdef ENDIAN_LITTLE
@@ -273,36 +273,79 @@ void Unmap_Bytes(void *srcp, REBYTE **dstp, const char *map) {
 }
 
 
+static REBOOL Has_Valid_BITMAPFILEHEADER(const REBYTE *data, REBCNT len) {
+    if (len < sizeof(BITMAPFILEHEADER))
+        return FALSE;
+
+    BITMAPFILEHEADER bmfh;
+    Map_Bytes(&bmfh, &data, mapBITMAPFILEHEADER);
+
+    if (bmfh.bfType[0] != 'B' || bmfh.bfType[1] != 'M')
+        return FALSE;
+
+    return TRUE;
+}
+
+
 //
-//  Decode_BMP_Image: C
+//  identify-bmp?: native [
 //
-// Input:  BMP encoded image (codi->data, len)
-// Output: Image bits (codi->extra.bits, w, h)
-// Error:  Code in codi->error
-// Return: Success as TRUE or FALSE
+//  {Codec for identifying BINARY! data for a BMP}
 //
-static void Decode_BMP_Image(REBOOL identify, REBCDI *codi)
+//      return: [logic!]
+//      data [binary!]
+//  ]
+//
+REBNATIVE(identify_bmp_q)
 {
+    INCLUDE_PARAMS_OF_IDENTIFY_BMP_Q;
+
+    const REBYTE *data = VAL_BIN_AT(ARG(data));
+    REBCNT len = VAL_LEN_AT(ARG(data));
+
+    // Assume signature matching is good enough (will get a fail() on
+    // decode if it's a false positive).
+    //
+    return R_FROM_BOOL(Has_Valid_BITMAPFILEHEADER(data, len));
+}
+
+
+//
+//  decode-bmp: native [
+//
+//  {Codec for decoding BINARY! data for a BMP}
+//
+//      return: [image!]
+//      data [binary!]
+//  ]
+//
+REBNATIVE(decode_bmp)
+{
+    INCLUDE_PARAMS_OF_DECODE_BMP;
+
+    const REBYTE *data = VAL_BIN_AT(ARG(data));
+    REBCNT len = VAL_LEN_AT(ARG(data));
+
+    if (NOT(Has_Valid_BITMAPFILEHEADER(data, len)))
+        fail (Error(RE_BAD_MEDIA));
+
     REBINT              i, j, x, y, c;
     REBINT              colors, compression, bitcount;
     REBINT              w, h;
-    BITMAPFILEHEADER    bmfh;
     BITMAPINFOHEADER    bmih;
     BITMAPCOREHEADER    bmch;
-    REBYTE              *cp, *tp;
-    REBCNT              *dp;
     RGBQUADPTR          color;
     RGBQUADPTR          ctab = 0;
 
-    cp = codi->data;
-    Map_Bytes(&bmfh, &cp, mapBITMAPFILEHEADER);
-    if (bmfh.bfType[0] != 'B' || bmfh.bfType[1] != 'M') {
-        codi->error = CODI_ERR_SIGNATURE;
-        return;
-    }
-    if (identify) return; // no error means success
+    const REBYTE *cp = data;
 
-    tp = cp;
+    // !!! It strangely appears that passing &data instead of &cp to this
+    // Map_Bytes call causes bugs below.  Not clear why that would be.
+    //
+    BITMAPFILEHEADER bmfh;
+    Map_Bytes(&bmfh, &cp, mapBITMAPFILEHEADER); // length already checked
+
+    const REBYTE *tp = cp;
     Map_Bytes(&bmih, &cp, mapBITMAPINFOHEADER);
     if (bmih.biSize < sizeof(BITMAPINFOHEADER)) {
         cp = tp;
@@ -346,14 +389,13 @@ static void Decode_BMP_Image(REBOOL identify, REBCDI *codi)
         }
     }
 
-    if (bmfh.bfOffBits != (DWORD)(cp - codi->data))
-        cp = codi->data + bmfh.bfOffBits;
+    if (bmfh.bfOffBits != cast(DWORD, cp - data))
+        cp = data + bmfh.bfOffBits;
 
-    codi->w = w;
-    codi->h = h;
-    codi->extra.bits = ALLOC_N(u32, w * h);
+    REBSER *ser = Make_Image(w, h, TRUE);
 
-    dp = cast(REBCNT *, codi->extra.bits);
+    REBCNT *dp = cast(REBCNT *, IMG_DATA(ser));
+    
     dp += w * h - w;
 
     for (y = 0; y<h; y++) {
@@ -383,8 +425,7 @@ static void Decode_BMP_Image(REBOOL identify, REBCDI *codi)
                     else
                         x = c & 0xf;
                     if (x > colors) {
-                        codi->error = CODI_ERR_BAD_TABLE;
-                        goto error;
+                        goto bad_table_error;
                     }
                     color = &ctab[x];
                     *dp++ = TO_PIXEL_COLOR(color->rgbRed, color->rgbGreen, color->rgbBlue, 0xff);
@@ -396,8 +437,7 @@ static void Decode_BMP_Image(REBOOL identify, REBCDI *codi)
                 for (i = 0; i<w; i++) {
                     c = *cp++ & 0xff;
                     if (c > colors) {
-                        codi->error = CODI_ERR_BAD_TABLE;
-                        goto error;
+                        goto bad_table_error;
                     }
                     color = &ctab[c];
                     *dp++ = TO_PIXEL_COLOR(color->rgbRed, color->rgbGreen, color->rgbBlue, 0xff);
@@ -413,8 +453,7 @@ static void Decode_BMP_Image(REBOOL identify, REBCDI *codi)
                 break;
 
             default:
-                codi->error = CODI_ERR_BIT_LEN;
-                goto error;
+                goto bit_len_error;
             }
             while (i++ % 4)
                 cp++;
@@ -430,12 +469,11 @@ static void Decode_BMP_Image(REBOOL identify, REBCDI *codi)
                     if (c == 0 || c == 1)
                         break;
                     if (c == 2) {
-                        codi->error = CODI_ERR_BAD_TABLE;
-                        goto error;
+                        goto bad_table_error;
                     }
                     for (j = 0; j<c; j++) {
                         if (i == w)
-                            goto error;
+                            goto bad_table_error;
                         if ((j&1) == 0) {
                             x = *cp++ & 0xff;
                             color = &ctab[x>>4];
@@ -452,8 +490,7 @@ static void Decode_BMP_Image(REBOOL identify, REBCDI *codi)
                     x = *cp++ & 0xff;
                     for (j = 0; j<c; j++) {
                         if (i == w) {
-                            codi->error = CODI_ERR_BAD_TABLE;
-                            goto error;
+                            goto bad_table_error;
                         }
                         if (j&1)
                             color = &ctab[x&0x0f];
@@ -475,8 +512,7 @@ static void Decode_BMP_Image(REBOOL identify, REBCDI *codi)
                     if (c == 0 || c == 1)
                         break;
                     if (c == 2) {
-                        codi->error = CODI_ERR_BAD_TABLE;
-                        goto error;
+                        goto bad_table_error;
                     }
                     for (j = 0; j<c; j++) {
                         x = *cp++ & 0xff;
@@ -497,35 +533,43 @@ static void Decode_BMP_Image(REBOOL identify, REBCDI *codi)
             break;
 
         default:
-            codi->error = CODI_ERR_ENCODING;
-            goto error;
+            goto bad_encoding_error;
         }
         dp -= 2 * w;
     }
-error:
+
+    Init_Image(D_OUT, ser);
+    return R_OUT;
+
+bit_len_error:
+bad_encoding_error:
+bad_table_error:
     if (ctab) free(ctab);
+    fail (Error(RE_BAD_MEDIA)); // better error?
 }
 
 
 //
-//  Encode_BMP_Image: C
+//  encode-bmp: native [
 //
-// Input:  Image bits (codi->extra.bits, w, h)
-// Output: BMP encoded image (codi->data, len)
-// Error:  Code in codi->error
-// Return: Success as TRUE or FALSE
+//  {Codec for encoding a BMP image}
 //
-static void Encode_BMP_Image(REBCDI *codi)
+//      return: [binary!]
+//      image [image!]
+//  ]
+//
+REBNATIVE(encode_bmp)
 {
+    INCLUDE_PARAMS_OF_ENCODE_BMP;
+
     REBINT i, y;
-    REBINT w, h;
     REBYTE *cp, *v;
     REBCNT *dp;
     BITMAPFILEHEADER bmfh;
     BITMAPINFOHEADER bmih;
 
-    w = codi->w;
-    h = codi->h;
+    REBINT w = VAL_IMAGE_WIDE(ARG(image));
+    REBINT h = VAL_IMAGE_HIGH(ARG(image));
 
     memset(&bmfh, 0, sizeof(bmfh));
     bmfh.bfType[0] = 'B';
@@ -534,8 +578,8 @@ static void Encode_BMP_Image(REBCDI *codi)
     bmfh.bfOffBits = 14 + 40;
 
     // Create binary string:
-    cp = codi->data = ALLOC_N(REBYTE, bmfh.bfSize);
-    codi->len = bmfh.bfSize;
+    REBSER *bin = Make_Binary(bmfh.bfSize);
+    cp = BIN_HEAD(bin);
     Unmap_Bytes(&bmfh, &cp, mapBITMAPFILEHEADER);
 
     memset(&bmih, 0, sizeof(bmih));
@@ -552,7 +596,7 @@ static void Encode_BMP_Image(REBCDI *codi)
     bmih.biClrImportant = 0;
     Unmap_Bytes(&bmih, &cp, mapBITMAPINFOHEADER);
 
-    dp = cast(REBCNT *, codi->extra.bits);
+    dp = cast(REBCNT *, VAL_IMAGE_BITS(ARG(image)));
     dp += w * h - w;
 
     for (y = 0; y<h; y++) {
@@ -568,33 +612,10 @@ static void Encode_BMP_Image(REBCDI *codi)
             *cp++ = 0;
         dp -= 2 * w;
     }
-}
 
-
-//
-//  Codec_BMP_Image: C
-//
-REBINT Codec_BMP_Image(int action, REBCDI *codi)
-{
-    codi->error = 0;
-
-    if (action == CODI_ACT_IDENTIFY) {
-        Decode_BMP_Image(TRUE, codi);
-        return CODI_CHECK; // error code is inverted result
-    }
-
-    if (action == CODI_ACT_DECODE) {
-        Decode_BMP_Image(FALSE, codi);
-        return CODI_IMAGE;
-    }
-
-    if (action == CODI_ACT_ENCODE) {
-        Encode_BMP_Image(codi);
-        return CODI_BINARY;
-    }
-
-    codi->error = CODI_ERR_NA;
-    return CODI_ERROR;
+    TERM_BIN_LEN(bin, bmfh.bfSize);
+    Init_Binary(D_OUT, bin);
+    return R_OUT;
 }
 
 
@@ -603,5 +624,11 @@ REBINT Codec_BMP_Image(int action, REBCDI *codi)
 //
 void Init_BMP_Codec(void)
 {
-    Register_Codec("bmp", ".bmp", Codec_BMP_Image);
+    Register_Codec(
+        "bmp",
+        ".bmp",
+        NAT_VALUE(identify_bmp_q),
+        NAT_VALUE(decode_bmp),
+        NAT_VALUE(encode_bmp)
+    );
 }

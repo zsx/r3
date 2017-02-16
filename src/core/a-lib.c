@@ -204,9 +204,30 @@ void RL_Init(void *lib)
 
     Init_Core();
 
-    Register_Codec("text", ".txt", Codec_Text);
-    Register_Codec("utf-16le", ".txt", Codec_UTF16LE);
-    Register_Codec("utf-16be", ".txt", Codec_UTF16BE);
+    Register_Codec(
+        "text",
+        ".txt",
+        NAT_VALUE(identify_text_q),
+        NAT_VALUE(decode_text),
+        NAT_VALUE(encode_text)
+    );
+
+    Register_Codec(
+        "utf-16le",
+        ".txt",
+        NAT_VALUE(identify_utf16le_q),
+        NAT_VALUE(decode_utf16le),
+        NAT_VALUE(encode_utf16le)
+    );
+    
+    Register_Codec(
+        "utf-16be",
+        ".txt",
+        NAT_VALUE(identify_utf16be_q),
+        NAT_VALUE(decode_utf16be),
+        NAT_VALUE(encode_utf16be)
+    );
+
     Init_BMP_Codec();
     Init_GIF_Codec();
     Init_PNG_Codec();
@@ -221,7 +242,13 @@ void RL_Init(void *lib)
         Make_UTF8_May_Fail(".jpeg")
     );
 
-    Register_Codec("jpeg", file_types, Codec_JPEG_Image);
+    Register_Codec(
+        "jpeg",
+        file_types,
+        NAT_VALUE(identify_jpeg_q),
+        NAT_VALUE(decode_jpeg),
+        NULL // currently no encoder
+     );
 }
 
 

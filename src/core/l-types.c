@@ -34,7 +34,7 @@
 #include <errno.h>
 
 // Is an .inc file as it has data declarations, can only be included once.
-// extern definitions for Make_Dispatch, To_Dispatch are in %sys-core.h 
+// extern definitions for Make_Dispatch, To_Dispatch are in %sys-core.h
 //
 #include "tmp-maketypes.inc"
 

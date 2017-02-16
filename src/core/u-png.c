@@ -715,28 +715,40 @@ static void emitchunk(unsigned char **cpp,const char *type,const char *data,int 
     *cpp=cp;
 }
 
+
 //
-//  Encode_PNG_Image: C
+//  encode-png: native [
 //
-// Input:  Image bits (codi->extra.bits, w, h)
-// Output: PNG encoded image (codi->data, len)
-// Error:  Code in codi->error
+//  {Codec for encoding a PNG image}
 //
-void Encode_PNG_Image(REBCDI *codi)
+//      return: [binary!]
+//      image [image!]
+//  ]
+//
+REBNATIVE(encode_png)
 {
-    REBINT w = codi->w;
-    REBINT h = codi->h;
+    INCLUDE_PARAMS_OF_ENCODE_PNG;
+
+    assert(IS_END(D_OUT)); // evaluator guarantees--used as error signal
+
+    // Error hook in the PNG encoder from R3-Alpha is done via longjmp.
+    //
+    if (setjmp(png_state)) {
+        fail (Error(RE_BAD_MEDIA)); // can the error be more specific?
+    }
+
+    REBINT w = VAL_IMAGE_WIDE(ARG(image));
+    REBINT h = VAL_IMAGE_HIGH(ARG(image));
+    int hasalpha = Image_Has_Alpha(ARG(image)) ? 1 : 0;
+
     struct ihdrchunk ihdr;
     struct idatnode *firstidat,*currentidat;
     unsigned char *linebuf,*cp;
     int x,y,imgsize,ret;
     REBCNT *dp,cv;
-    int hasalpha;
 //  z_stream zstream={0}; // Ren/C: changed for -Wmissing-field-initializers
     z_stream zstream;
     memset(&zstream, '\0', sizeof(zstream));
-
-    hasalpha = codi->has_alpha;
 
     ihdr.width=w;
     CVT_END_L(ihdr.width);
@@ -760,7 +772,7 @@ void Encode_PNG_Image(REBCDI *codi)
     deflateInit(&zstream, Z_DEFAULT_COMPRESSION);
     zstream.next_out=currentidat->data;
     zstream.avail_out=IDATLENGTH;
-    dp=codi->extra.bits;
+    dp=VAL_IMAGE_BITS(ARG(image));
     for(y=0;y<h;y++) {
         cp=linebuf;
         *cp++=0;
@@ -783,7 +795,6 @@ void Encode_PNG_Image(REBCDI *codi)
             if(ret==Z_STREAM_END)
                 break;
 
-            codi->error = CODI_ERR_ENCODING;
             goto error;
 
          refill:
@@ -804,10 +815,10 @@ void Encode_PNG_Image(REBCDI *codi)
         currentidat=currentidat->next;
     }
 
-    codi->data = ALLOC_N(REBYTE, imgsize);
-    codi->len = imgsize;
-
-    cp=(unsigned char *)codi->data;
+    REBSER *bin; // goto would cross initialization
+    bin = Make_Binary(imgsize);
+   
+    cp=(unsigned char *)BIN_HEAD(bin);
     memcpy(cp,"\211\120\116\107\015\012\032\012", 8);
     cp+=8;
     emitchunk(&cp,"IHDR",(char *)&ihdr,13);
@@ -819,69 +830,101 @@ void Encode_PNG_Image(REBCDI *codi)
     }
     emitchunk(&cp,"IEND",0,0);
 
+    TERM_BIN_LEN(bin, imgsize);
+
+    Init_Binary(D_OUT, bin);
+    goto cleanup;
+
 error:
+    assert(IS_END(D_OUT));
+
+cleanup:
     free(linebuf);
     while(firstidat) {
         currentidat=firstidat->next;
         free(firstidat);
         firstidat=currentidat;
     }
+
+    if (IS_END(D_OUT))
+        fail (Error(RE_BAD_MEDIA)); // better error?
+
+    assert(IS_BINARY(D_OUT));
+    return R_OUT;
 }
 
 
 //
-//  Decode_PNG_Image: C
+//  identify-png?: native [
 //
-// Input:  PNG encoded image (codi->data, len)
-// Output: Image bits (codi->extra.bits, w, h)
-// Error:  Code in codi->error
+//  {Codec for identifying BINARY! data for a PNG}
 //
-void Decode_PNG_Image(REBCDI *codi)
+//      return: [logic!]
+//      data [binary!]
+//  ]
+//
+REBNATIVE(identify_png_q)
 {
-    int w, h;
-    BOOL alpha = 0;
+    INCLUDE_PARAMS_OF_IDENTIFY_PNG_Q;
 
-    if (!png_info(codi->data, codi->len, &w, &h )) trap_png();
-    codi->w = w;
-    codi->h = h;
-    codi->extra.bits = ALLOC_N(u32, w * h);
-    png_load(codi->data, codi->len, cast(char*, codi->extra.bits), &alpha);
+    REBYTE *data = VAL_BIN_AT(ARG(data));
+    REBCNT len = VAL_LEN_AT(ARG(data));
 
-    //if(alpha) VAL_IMAGE_TRANSP(Temp_Value)=VITT_ALPHA;
-}
-
-
-//
-//  Codec_PNG_Image: C
-//
-REBINT Codec_PNG_Image(int action, REBCDI *codi)
-{
-    codi->error = 0;
-
-    // Handle JPEG error throw:
+    // Error hook in the PNG decoder from R3-Alpha is done via longjmp.
+    //
     if (setjmp(png_state)) {
-        codi->error = CODI_ERR_BAD_DATA; // generic
-        if (action == CODI_ACT_IDENTIFY) return CODI_CHECK;
-        return CODI_ERROR;
+        return R_FALSE;
     }
 
-    if (action == CODI_ACT_IDENTIFY) {
-        if (!png_info(codi->data, codi->len, 0, 0)) codi->error = CODI_ERR_SIGNATURE;
-        return CODI_CHECK; // error code is inverted result
+    // !!! Should codec identifiers return any optional information they just
+    // happen to get?  Intsead of passing NULL for the addresses of the width
+    // and the height, this could incidentally get that information back
+    // to return it.  Then any non-FALSE result could be "identified" while
+    // still being potentially more informative about what was found out.
+    //
+    if (0 == png_info(data, len, NULL, NULL))
+        return R_FALSE;
+    return R_TRUE;
+}
+
+
+//
+//  decode-png: native [
+//
+//  {Codec for decoding BINARY! data for a PNG}
+//
+//      return: [image!]
+//      data [binary!]
+//  ]
+//
+REBNATIVE(decode_png)
+{
+    INCLUDE_PARAMS_OF_DECODE_PNG;
+
+    REBYTE *data = VAL_BIN_AT(ARG(data));
+    REBCNT len = VAL_LEN_AT(ARG(data));
+
+    // Error hook in the PNG decoder from R3-Alpha is done via longjmp.
+    //
+    if (setjmp(png_state)) {
+        fail (Error(RE_BAD_MEDIA)); // can the error be more specific?
     }
 
-    if (action == CODI_ACT_DECODE) {
-        Decode_PNG_Image(codi);
-        return CODI_IMAGE;
-    }
+    int w, h;
+    if (0 == png_info(data, len, &w, &h))
+        trap_png(); // longjmps to the "bad media" call above.
 
-    if (action == CODI_ACT_ENCODE) {
-        Encode_PNG_Image(codi);
-        return CODI_BINARY;
-    }
+    REBSER *ser = Make_Image(w, h, TRUE);
 
-    codi->error = CODI_ERR_NA;
-    return CODI_ERROR;
+    BOOL alpha = 0; // Note: not a REBOOL (PNG lib has minimal modification)
+    png_load(data, len, cast(char*, IMG_DATA(ser)), &alpha);
+
+    Init_Image(D_OUT, ser);
+
+    // !!! This was commented out?
+    // if (alpha) VAL_IMAGE_TRANSP(D_OUT) = VITT_ALPHA;
+
+    return R_OUT;
 }
 
 
@@ -890,5 +933,11 @@ REBINT Codec_PNG_Image(int action, REBCDI *codi)
 //
 void Init_PNG_Codec(void)
 {
-    Register_Codec("png", ".png", Codec_PNG_Image);
+    Register_Codec(
+        "png",
+        ".png",
+        NAT_VALUE(identify_png_q),
+        NAT_VALUE(decode_png),
+        NAT_VALUE(encode_png)
+    );
 }

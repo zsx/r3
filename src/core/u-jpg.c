@@ -10,6 +10,11 @@
 //
 #include <setjmp.h>
 
+extern jmp_buf jpeg_state;
+extern void jpeg_info(char *buffer, int nbytes, int *w, int *h);
+extern void jpeg_load(char *buffer, int nbytes, char *output);
+
+
 // !!! In R3-Alpha, it was possible to write a codec that was not dependent on
 // the RL_API in %reb-host.h (or the "internal API", which didn't exist
 // formally but was effectively what you got by including %sys-core.h).
@@ -31,7 +36,7 @@
 // else to not need these dependencies...and %reb-host.h inclusion could
 // be moved to the bottom of the file.
 //
-#include "reb-host.h"
+#include "reb-c.h"
 
 
 /*
@@ -7947,6 +7952,8 @@ jmp_buf jpeg_state;
 METHODDEF(void)
 error_exit (j_common_ptr cinfo)
 {
+    jpeg_destroy(cinfo); /* don't just abort, actually destroy the object */
+
     longjmp(jpeg_state, 1);
 }
 
@@ -10797,62 +10804,3 @@ jinit_phuff_decoder (j_decompress_ptr cinfo)
 }
 
 #endif /* D_PROGRESSIVE_SUPPORTED */
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// Original comment said: "REBOL Interface (keep it minimal)"
-//
-// The JPEG codec does not include sys-core.h, so it doesn't pick up
-// the prototype of Codec_JPEG_Image which is generated from make-headers.r
-// (made b/c its definition appears in a starred comment box).  It's
-// the only codec that does this.  Should no codecs include sys-core?
-//
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-    void *Alloc_Mem(size_t size); // used by ALLOC_N below
-
-    REBINT Codec_JPEG_Image(int action, REBCDI *codi);
-
-#ifdef __cplusplus
-}
-#endif
-
-
-//
-//  Codec_JPEG_Image: C
-//
-REBINT Codec_JPEG_Image(int action, REBCDI *codi)
-{
-    codi->error = 0;
-
-    // Handle JPEG error throw:
-    if (setjmp(jpeg_state)) {
-        codi->error = CODI_ERR_BAD_DATA; // generic
-        if (action == CODI_ACT_IDENTIFY)
-            return CODI_CHECK;
-        return CODI_ERROR;
-    }
-
-    if (action == CODI_ACT_IDENTIFY) {
-        int w, h;
-        jpeg_info(s_cast(codi->data), codi->len, &w, &h); // may longjmp above
-        return CODI_CHECK;
-    }
-
-    if (action == CODI_ACT_DECODE) {
-        int w, h;
-        jpeg_info(s_cast(codi->data), codi->len, &w, &h); // also may longjmp
-        codi->extra.bits = ALLOC_N(u32, w * h);
-        jpeg_load(s_cast(codi->data), codi->len, cast(char*, codi->extra.bits));
-        codi->w = w;
-        codi->h = h;
-        return CODI_IMAGE;
-    }
-
-    codi->error = CODI_ERR_NA;
-    return CODI_ERROR;
-}

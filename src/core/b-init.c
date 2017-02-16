@@ -988,138 +988,6 @@ static void Init_Contexts_Object(void)
 
 
 //
-//  Codec_Text: C
-//
-REBINT Codec_Text(int action, REBCDI *codi)
-{
-    codi->error = 0;
-
-    if (action == CODI_ACT_IDENTIFY) {
-        return CODI_CHECK; // error code is inverted result
-    }
-
-    if (action == CODI_ACT_DECODE) {
-        return CODI_TEXT;
-    }
-
-    if (action == CODI_ACT_ENCODE) {
-        return CODI_BINARY;
-    }
-
-    codi->error = CODI_ERR_NA;
-    return CODI_ERROR;
-}
-
-//
-//  Codec_UTF16: C
-//
-REBINT Codec_UTF16(int action, REBCDI *codi, REBOOL little_endian)
-{
-    codi->error = 0;
-
-    if (action == CODI_ACT_IDENTIFY) {
-        return CODI_CHECK; // error code is inverted result
-    }
-
-    if (action == CODI_ACT_DECODE) {
-        REBSER *ser = Make_Unicode(codi->len);
-        REBINT size = Decode_UTF16(
-            UNI_HEAD(ser), codi->data, codi->len, little_endian, FALSE
-        );
-        SET_SERIES_LEN(ser, size);
-        if (size < 0) { //ASCII
-            REBSER *dst = Make_Binary((size = -size));
-            Append_Uni_Bytes(dst, UNI_HEAD(ser), size);
-            ser = dst;
-        }
-        codi->data = SER_DATA_RAW(ser); // !!! REBUNI?  REBYTE?
-        codi->len = SER_LEN(ser);
-        codi->w = SER_WIDE(ser);
-        return CODI_TEXT;
-    }
-
-    if (action == CODI_ACT_ENCODE) {
-        u16 * data = ALLOC_N(u16, codi->len);
-        if (codi->w == 1) {
-            /* in ASCII */
-            REBCNT i = 0;
-            for (i = 0; i < codi->len; i ++) {
-            #ifdef ENDIAN_LITTLE
-                if (little_endian) {
-                    data[i] = cast(char*, codi->extra.other)[i];
-                } else {
-                    data[i] = cast(char*, codi->extra.other)[i] << 8;
-                }
-            #elif defined (ENDIAN_BIG)
-                if (little_endian) {
-                    data[i] = cast(char*, codi->extra.other)[i] << 8;
-                } else {
-                    data[i] = cast(char*, codi->extra.other)[i];
-                }
-            #else
-                #error "Unsupported CPU endian"
-            #endif
-            }
-        } else if (codi->w == 2) {
-            /* already in UTF16 */
-        #ifdef ENDIAN_LITTLE
-            if (little_endian) {
-                memcpy(data, codi->extra.other, codi->len * sizeof(u16));
-            } else {
-                REBCNT i = 0;
-                for (i = 0; i < codi->len; i ++) {
-                    REBUNI uni = cast(REBUNI*, codi->extra.other)[i];
-                    data[i] = ((uni & 0xff) << 8) | ((uni & 0xff00) >> 8);
-                }
-            }
-        #elif defined (ENDIAN_BIG)
-            if (little_endian) {
-                REBCNT i = 0;
-                for (i = 0; i < codi->len; i ++) {
-                    REBUNI uni = cast(REBUNI*, codi->extra.other)[i];
-                    data[i] = ((uni & 0xff) << 8) | ((uni & 0xff00) >> 8);
-                }
-            } else {
-                memcpy(data, codi->extra.other, codi->len * sizeof(u16));
-            }
-        #else
-            #error "Unsupported CPU endian"
-        #endif
-        } else {
-            /* RESERVED for future unicode expansion */
-            codi->error = CODI_ERR_NA;
-            return CODI_ERROR;
-        }
-
-        codi->len *= sizeof(u16);
-
-        return CODI_BINARY;
-    }
-
-    codi->error = CODI_ERR_NA;
-    return CODI_ERROR;
-}
-
-
-//
-//  Codec_UTF16LE: C
-//
-REBINT Codec_UTF16LE(int action, REBCDI *codi)
-{
-    return Codec_UTF16(action, codi, TRUE);
-}
-
-
-//
-//  Codec_UTF16BE: C
-//
-REBINT Codec_UTF16BE(int action, REBCDI *codi)
-{
-    return Codec_UTF16(action, codi, FALSE);
-}
-
-
-//
 //  Register_Codec: C
 //
 // Internal function for adding a codec.
@@ -1127,17 +995,16 @@ REBINT Codec_UTF16BE(int action, REBCDI *codi)
 void Register_Codec(
     const char *name,
     const void *suffixes, // may be REBARR* or UTF-8 string
-    codo dispatcher
+    const REBVAL *identify_q,
+    const REBVAL *decode,
+    const REBVAL *encode
 ) {
+    assert(identify_q == NULL || IS_FUNCTION(identify_q));
+    assert(decode == NULL || IS_FUNCTION(decode));
+    assert(encode == NULL || IS_FUNCTION(encode));
+
     REBVAL word;
     Init_Word(&word, Intern_UTF8_Managed(cb_cast(name), strlen(name)));
-
-    REBVAL handle;
-    Init_Handle_Simple(
-        &handle,
-        cast(void*, dispatcher), // code
-        0 // optional length-sized data
-    );
 
     REBVAL suffixes_value;
     switch (Guess_Rebol_Pointer(suffixes)) {
@@ -1156,19 +1023,26 @@ void Register_Codec(
         panic (suffixes);
     }
 
-    REBVAL codec; // cannot use array slots (e.g. codec varlists) as direct target of Apply/Do!
+    // can't use arrays (e.g. codec varlists) as direct target of Apply/Do!
+    //
+    REBVAL codec;
+
     if (Apply_Only_Throws(
-        &codec, TRUE, Sys_Func(SYS_CTX_REGISTER_CODEC_P),
-        &word, &handle, &suffixes_value, END_CELL
+        &codec,
+        TRUE,
+        Sys_Func(SYS_CTX_REGISTER_CODEC_P),
+        &word,
+        &suffixes_value,
+        identify_q ? identify_q : BLANK_VALUE,
+        decode ? decode : BLANK_VALUE,
+        encode ? encode : BLANK_VALUE,
+        END_CELL
     )) {
         fail (Error_No_Catch_For_Throw(&codec));
     }
 
     if (!IS_OBJECT(&codec))
         panic (&codec); // should have returned a codec object
-
-    REBCTX *codecs_context = VAL_CONTEXT(Get_System(SYS_CODECS, 0));
-    *Append_Context(codecs_context, &word, NULL) = codec;
 }
 
 

@@ -17,37 +17,43 @@ REBOL [
     }
 ]
 
-;-- Setup Codecs -------------------------------------------------------------
 
-; !!! Codecs in R3-Alpha were C functions with a limited interface for
-; detecting if binary data matched a pattern they were expecting, and if so
-; being able to try and load that data...and if not they would pass to another
-; codec registered for that file extension.  They could also encode data.
-; Their inputs and outputs were raw C interfaces, while Ren-C is refitting
-; these to use BINARY! and Rebol types directly.  The change is happening
-; incrementally, however.  This function is called by the C function
-; Register_Codec().
+; This function is called by the C function Register_Codec(), but can
+; also be called by user code.
+;
+; !!! There should also be an unregister-codec*
 ;
 register-codec*: func [
     name [word!]
-    handler [handle!]
+        {Descriptive name of the codec.}
     suffixes [file! block!]
+        {File extension or block of file extensions the codec processes}
+    identify? [function! blank!]
+    decode [function! blank!]
+    encode [function! blank!]
     <local> codec
 ][
     unless block? suffixes [suffixes: reduce [suffixes]]
 
     codec: construct [] compose/only [
-        entry: handler
-        title: form reduce ["Internal codec for" (mold name) "media type"]
-        name: ('name)
-        type: 'image!
+        name: quote (name)
+
+        ; !!! There was a "type:" field here before, which was always set to
+        ; IMAGE!.  Should the argument types of the encode function be cached
+        ; here, or be another parameter, or...?
+
         suffixes: (suffixes)
+        identify?: quote (:identify?)
+        decode: quote (:decode)
+        encode: quote (:encode)
     ]
-    
+
+    append system/codecs reduce [(to set-word! name) codec]
+
     ; Media-types block format: [.abc .def type ...]
     ; !!! Should be a map, with blocks of codecs on collisions
     ;
-    append append system/options/file-types suffixes name
+    append append system/options/file-types suffixes (bind name system/codecs)
     
     return codec
 ]
@@ -63,51 +69,62 @@ append system/options/file-types switch/default fourth system/version [
 
 decode: function [
     {Decodes a series of bytes into the related datatype (e.g. image!).}
-    type [word!] {Media type (jpeg, png, etc.)}
-    data [binary!] {The data to decode}
+    
+    type [word!]
+        {Media type (jpeg, png, etc.)}
+    data [binary!]
+        {The data to decode}
 ][
     unless all [
         cod: select system/codecs type
-        data: do-codec cod/entry 'decode data
+        f: :cod/decode
+        (data: f data)
     ][
         cause-error 'access 'no-codec type
     ]
     data
 ]
+
 
 encode: function [
     {Encodes a datatype (e.g. image!) into a series of bytes.}
-    type [word!] {Media type (jpeg, png, etc.)}
-    data [image! binary! string!] {The data to encode}
-    /options opts [block!] {Special encoding options}
+
+    return: [binary!]
+    type [word!]
+        {Media type (jpeg, png, etc.)}
+    data
+        {The data to encode}
+    /options
+        {Special encoding options}
+    opts [block!]
 ][
     unless all [
         cod: select system/codecs type
-        ;encode patch replacing internal PNG encoder crash for now
-        data: switch/default cod/name [
-            png [
-                lib/to-png data
-            ]
-        ][
-            do-codec cod/entry 'encode data
-        ]
+        f: :cod/encode
+        (data: f data)
     ][
         cause-error 'access 'no-codec type
     ]
     data
 ]
 
-encoding?: function [
-    ; !!! Functions ending in ? should only return TRUE or FALSE
+
+encoding-of: function [
     "Returns the media codec name for given binary data. (identify)"
+
+    return [word!]
     data [binary!]
 ][
     for-each [name codec] system/codecs [
-        if do-codec codec/entry 'identify data [
+        if all [
+            f: :codec/identify?
+            (f data)
+        ][
             return name
         ]
     ]
     blank
 ]
 
-export [decode encode encoding?]
+
+export [decode encode encoding-of]

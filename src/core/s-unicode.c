@@ -1010,7 +1010,7 @@ REBOOL Decode_UTF8_Maybe_Astral_Throws(
 //
 int Decode_UTF16(
     REBUNI *dst,
-    REBYTE *src,
+    const REBYTE *src,
     REBCNT len,
     REBOOL little_endian,
     REBOOL crlf_to_lf
