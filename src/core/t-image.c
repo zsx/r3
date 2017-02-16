@@ -1412,18 +1412,22 @@ REBINT PD_Image(REBPVS *pvs)
 // found a problem with that in terms of saving (saving only?) which they
 // added in lodepng for.  This is unfortunate as lodepng repeats deflate
 // code already available in Zlib.
+//
+// It is used as an override for the encoder from R3-Alpha, which is found
+// in %u-png.c as ENCODE-PNG.
 
 //
-//  to-png: native [
+//  encode-png-lodepng: native [
 //
-//  "Save an image to PNG format"
+//  {Codec for encoding a PNG image (via LODEPNG, plain ENCODE-PNG is buggy)}
 //
+//      return: [binary!]
 //      image [image!]
 // ]
 //
-REBNATIVE(to_png)
+REBNATIVE(encode_png_lodepng)
 {
-    INCLUDE_PARAMS_OF_TO_PNG;
+    INCLUDE_PARAMS_OF_ENCODE_PNG_LODEPNG;
 
     REBVAL *image = ARG(image);
 

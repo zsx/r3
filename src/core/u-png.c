@@ -938,6 +938,6 @@ void Init_PNG_Codec(void)
         ".png",
         NAT_VALUE(identify_png_q),
         NAT_VALUE(decode_png),
-        NAT_VALUE(encode_png)
+        NAT_VALUE(encode_png_lodepng) // use the LODEPNG encoder
     );
 }
