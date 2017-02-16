@@ -148,7 +148,7 @@ do*: function [
     ;
     ; !!! Should the header always be locked by LOAD?
     ;
-    hdr: lock ensure [object! blank!] first code
+    hdr: lock to-value ensure [object! blank!] first code
     is-module: 'module = select hdr 'type
     code: next code
 

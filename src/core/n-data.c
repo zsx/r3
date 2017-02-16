@@ -207,7 +207,7 @@ REBNATIVE(maybe)
     REBVAL *value = ARG(value);
 
     if (IS_LOGIC(test)) {
-        if (!IS_VOID(test) && VAL_LOGIC(test) == IS_CONDITIONAL_TRUE(value))
+        if (!IS_VOID(value) && VAL_LOGIC(test) == IS_CONDITIONAL_TRUE(value))
             goto type_matched;
         return REF(q) ? R_FALSE : R_BLANK;
     }
@@ -251,10 +251,7 @@ type_matched:
     // why /? (and its specialization MAYBE?) exist, but to help avoid
     // likely mistakes this returns a void.
     //
-    // Note that in the case of a void passing the test and needing to go
-    // through (e.g. `maybe :void? ()`) will be void also.
-    //
-    if (IS_VOID(value) || IS_CONDITIONAL_FALSE(value))
+    if (IS_CONDITIONAL_FALSE(value))
         return R_VOID;
 
     return R_OUT;

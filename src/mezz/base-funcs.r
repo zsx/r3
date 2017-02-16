@@ -1023,12 +1023,27 @@ ensure: function [
     {Pass through a value only if it matches types (or TRUE?/FALSE? state)}
     return: [<opt> any-value!]
     test [function! datatype! typeset! block! logic!]
-    arg [any-value!] ;-- should <opt> be allowed?
+    arg [<opt> any-value!]
 ][
-    unless maybe? test :arg [
-        fail/where [
-            "ENSURE expected arg to match" (test)
-        ] 'arg
+    case [
+        void? temp: maybe test :arg [
+            assert [any [void? :arg | false? :arg]]
+
+            ; The test passed but we want to avoid an accidental usage like
+            ; `if ensure [logic!] some-false-thing [...]` where the test
+            ; passed but the passthru gets used conditionally.  So FALSE?
+            ; things are converted to void.
+            ;
+            ()
+        ]
+        blank? :temp [
+            fail/where [
+                "ENSURE expected arg to match" (test)
+            ] 'arg
+        ]
+        true [
+            assert [all [true? :temp | :arg = :temp]]
+            :temp
+        ]
     ]
-    :arg
 ]
