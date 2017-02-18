@@ -30,7 +30,7 @@
 /*
 **  Tokens returned by the scanner.  Keep in sync with boot.r strings area.
 */
-enum Value_Types {
+enum Reb_Token {
     TOKEN_END = 0,
     TOKEN_NEWLINE,
     TOKEN_BLOCK_END,
@@ -213,6 +213,7 @@ typedef struct rebol_scan_state {
     REBCNT line_count;
     const REBYTE *head_line;        // head of current line (used for errors)
     REBFLGS opts;
+    REBOOL has_error;
     REBCNT errors;
 } SCAN_STATE;
 

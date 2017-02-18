@@ -850,7 +850,8 @@ REBNATIVE(to_hex)
     else
         fail (Error_Invalid_Arg(arg));
 
-    Init_Issue(D_OUT, Scan_Issue(&buffer[0], len));
+    if (NULL == Scan_Issue(D_OUT, &buffer[0], len))
+        fail (Error_Invalid_Arg(arg));
 
     return R_OUT;
 }

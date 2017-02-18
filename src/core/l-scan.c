@@ -740,18 +740,17 @@ static REBCNT Prescan_Token(SCAN_STATE *scan_state)
 //
 // !!! This is a somewhat weird separation of responsibilities,
 // that seems to arise from a desire to make "Scan_XXX" functions
-// independent of the "Locate_Token_May_Push_Mold" function.  But if the work of
-// locating the value means you have to basically do what you'd
-// do to read it into a REBVAL anyway, why split it up?  --HF
+// independent of the "Locate_Token_May_Push_Mold" function.
+// But if the work of locating the value means you have to basically
+// do what you'd do to read it into a REBVAL anyway, why split it?
 //
 // Error handling is limited for most types, as an additional
 // phase is needed to load their data into a REBOL value.  Yet if
 // a "cheap" error is incidentally found during this routine
-// without extra cost to compute, it is indicated by returning a
-// negative value for the malformed type.
+// without extra cost to compute, it is indicated by setting the
+// has_error field of the scan_state.
 //
-// !!! What real value is this optimization of the negative type,
-// as opposed to just raising the error here?  Is it required to
+// !!! What real value is returning has_error?  Is it required to
 // support a resumable scanner on partially written source, such
 // as in a syntax highlighter?  Is the "relaxed" mode of handling
 // errors already sufficient to achieve the goal?  --HF
@@ -768,7 +767,7 @@ static REBCNT Prescan_Token(SCAN_STATE *scan_state)
 //     "brown fox]" => TOKEN_WORD
 //      B    E
 //
-//       $10AE.20 sent => -TOKEN_MONEY (negative, malformed)
+//       $10AE.20 sent => TOKEN_MONEY, has_error = TRUE
 //       B       E
 //
 //       {line1\nline2}  => TOKEN_STRING (content in UNI_BUF)
@@ -792,13 +791,17 @@ static REBCNT Prescan_Token(SCAN_STATE *scan_state)
 // over UTF-8 encoded source is because all the characters
 // that dictate the tokenization are ASCII (< 128).
 //
-static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
-{
+static enum Reb_Token Locate_Token_May_Push_Mold(
+    REB_MOLD *mo,
+    SCAN_STATE *scan_state
+) {
+    assert(NOT(scan_state->has_error));
+
     REBCNT flags = Prescan_Token(scan_state);
 
     const REBYTE *cp = scan_state->begin;
 
-    REBINT type;
+    enum Reb_Token type;
 
     switch (GET_LEX_CLASS(*cp)) {
 
@@ -810,12 +813,15 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
             DEAD_END;
 
         case LEX_DELIMIT_SEMICOLON:     /* ; begin comment */
-            while (!ANY_CR_LF_END(*cp)) cp++;
-            if (!*cp) cp--;             /* avoid passing EOF  */
+            while (NOT(ANY_CR_LF_END(*cp)))
+                ++cp;
+            if (*cp == '\0')
+                --cp;             /* avoid passing EOF  */
             if (*cp == LF) goto line_feed;
             /* fall thru  */
         case LEX_DELIMIT_RETURN:
-            if (cp[1] == LF) cp++;
+            if (cp[1] == LF)
+                ++cp;
             /* fall thru */
         case LEX_DELIMIT_LINEFEED:
         line_feed:
@@ -857,19 +863,23 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
             }
             // try to recover at next new line...
             cp = scan_state->begin + 1;
-            while (!ANY_CR_LF_END(*cp)) cp++;
+            while (NOT(ANY_CR_LF_END(*cp)))
+                ++cp;
             scan_state->end = cp;
-            return -TOKEN_STRING;
+            scan_state->has_error = TRUE;
+            return TOKEN_STRING;
 
         case LEX_DELIMIT_RIGHT_BRACE:
             // !!! handle better (missing)
-            return -TOKEN_STRING;
+            scan_state->has_error = TRUE;
+            return TOKEN_STRING;
 
 
         // /SLASH
 
         case LEX_DELIMIT_SLASH:
-            while (*cp && *cp == '/') cp++;
+            while (*cp && *cp == '/')
+                ++cp;
             if (
                 IS_LEX_WORD_OR_NUMBER(*cp)
                 || *cp == '+'
@@ -881,19 +891,22 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
                 // ///refine not allowed
                 if (scan_state->begin + 1 != cp) {
                     scan_state->end = cp;
-                    return -TOKEN_REFINE;
+                    scan_state->has_error = TRUE;
+                    return TOKEN_REFINE;
                 }
                 scan_state->begin = cp;
                 flags = Prescan_Token(scan_state);
                 scan_state->begin--;
                 type = TOKEN_REFINE;
                 // Fast easy case:
-                if (ONLY_LEX_FLAG(flags, LEX_SPECIAL_WORD)) return type;
+                if (ONLY_LEX_FLAG(flags, LEX_SPECIAL_WORD))
+                    return type;
                 goto scanword;
             }
             if (cp[0] == '<' || cp[0] == '>') {
                 scan_state->end = cp + 1;
-                return -TOKEN_REFINE;
+                scan_state->has_error = TRUE;
+                return TOKEN_REFINE;
             }
             scan_state->end = cp;
             return TOKEN_WORD;
@@ -907,7 +920,8 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
 
         case LEX_DELIMIT_UTF8_ERROR:
         default:
-            return -TOKEN_WORD;         /* just in case */
+            scan_state->has_error = TRUE;
+            return TOKEN_WORD; // !!! comment said "just in case" (?)
         }
 
     case LEX_CLASS_SPECIAL:
@@ -917,13 +931,17 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
         switch (GET_LEX_VALUE(*cp)) {
 
         case LEX_SPECIAL_AT:
-            return -TOKEN_EMAIL;
+            scan_state->has_error = TRUE;
+            return TOKEN_EMAIL;
 
         case LEX_SPECIAL_PERCENT:       /* %filename */
             cp = scan_state->end;
             if (*cp == '"') {
                 cp = Scan_Quote_Push_Mold(mo, cp, scan_state);
-                if (!cp) return -TOKEN_FILE;
+                if (cp == NULL) {
+                    scan_state->has_error = TRUE;
+                    return TOKEN_FILE;
+                }
                 scan_state->end = cp;
                 return TOKEN_FILE;
             }
@@ -938,12 +956,19 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
             if (IS_LEX_NUMBER(cp[1])) return TOKEN_TIME;
             if (ONLY_LEX_FLAG(flags, LEX_SPECIAL_WORD))
                 return TOKEN_GET; /* common case */
-            if (cp[1] == '\'') return -TOKEN_WORD;
+            if (cp[1] == '\'') {
+                scan_state->has_error = TRUE;
+                return TOKEN_WORD;
+            }
             // Various special cases of < << <> >> > >= <=
             if (cp[1] == '<' || cp[1] == '>') {
                 cp++;
-                if (cp[1] == '<' || cp[1] == '>' || cp[1] == '=') cp++;
-                if (!IS_LEX_DELIMIT(cp[1])) return -TOKEN_GET;
+                if (cp[1] == '<' || cp[1] == '>' || cp[1] == '=')
+                    ++cp;
+                if (NOT(IS_LEX_DELIMIT(cp[1]))) {
+                    scan_state->has_error = TRUE;
+                    return TOKEN_GET;
+                }
                 scan_state->end = cp+1;
                 return TOKEN_GET;
             }
@@ -952,8 +977,14 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
             goto scanword;
 
         case LEX_SPECIAL_APOSTROPHE:
-            if (IS_LEX_NUMBER(cp[1])) return -TOKEN_LIT;        // no '2nd
-            if (cp[1] == ':') return -TOKEN_LIT;                // no ':X
+            if (IS_LEX_NUMBER(cp[1])) { // no '2nd
+                scan_state->has_error = TRUE;
+                return TOKEN_LIT;
+            }
+            if (cp[1] == ':') { // no ':X
+                scan_state->has_error = TRUE;
+                return TOKEN_LIT;
+            }
             if (
                 cp[1] == '|'
                 && (IS_LEX_DELIMIT(cp[2]) || IS_LEX_ANY_SPACE(cp[2]))
@@ -962,42 +993,60 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
             }
             if (ONLY_LEX_FLAG(flags, LEX_SPECIAL_WORD))
                 return TOKEN_LIT; /* common case */
-            if (!IS_LEX_WORD(cp[1])) {
+            if (NOT(IS_LEX_WORD(cp[1]))) {
                 // Various special cases of < << <> >> > >= <=
-                if ((cp[1] == '-' || cp[1] == '+') && IS_LEX_NUMBER(cp[2]))
-                    return -TOKEN_WORD;
+                if ((cp[1] == '-' || cp[1] == '+') && IS_LEX_NUMBER(cp[2])) {
+                    scan_state->has_error = TRUE;
+                    return TOKEN_WORD;
+                }
                 if (cp[1] == '<' || cp[1] == '>') {
                     cp++;
-                    if (cp[1] == '<' || cp[1] == '>' || cp[1] == '=') cp++;
-                    if (!IS_LEX_DELIMIT(cp[1])) return -TOKEN_LIT;
+                    if (cp[1] == '<' || cp[1] == '>' || cp[1] == '=')
+                        ++cp;
+                    if (NOT(IS_LEX_DELIMIT(cp[1]))) {
+                        scan_state->has_error = TRUE;
+                        return TOKEN_LIT;
+                    }
                     scan_state->end = cp+1;
                     return TOKEN_LIT;
                 }
             }
-            if (cp[1] == '\'') return -TOKEN_WORD;
+            if (cp[1] == '\'') {
+                scan_state->has_error = TRUE;
+                return TOKEN_WORD;
+            }
             type = TOKEN_LIT;
             goto scanword;
 
         case LEX_SPECIAL_COMMA:         /* ,123 */
         case LEX_SPECIAL_PERIOD:        /* .123 .123.456.789 */
             SET_LEX_FLAG(flags, (GET_LEX_VALUE(*cp)));
-            if (IS_LEX_NUMBER(cp[1])) goto num;
-            if (GET_LEX_VALUE(*cp) != LEX_SPECIAL_PERIOD) return -TOKEN_WORD;
+            if (IS_LEX_NUMBER(cp[1]))
+                goto num;
+            if (GET_LEX_VALUE(*cp) != LEX_SPECIAL_PERIOD) {
+                scan_state->has_error = TRUE;
+                return TOKEN_WORD;
+            }
             type = TOKEN_WORD;
             goto scanword;
 
         case LEX_SPECIAL_GREATER:
-            if (IS_LEX_DELIMIT(cp[1])) return TOKEN_WORD;
+            if (IS_LEX_DELIMIT(cp[1]))
+                return TOKEN_WORD;
             if (cp[1] == '>') {
-                if (IS_LEX_DELIMIT(cp[2])) return TOKEN_WORD;
-                return -TOKEN_WORD;
+                if (IS_LEX_DELIMIT(cp[2]))
+                    return TOKEN_WORD;
+                scan_state->has_error = TRUE;
+                return TOKEN_WORD;
             }
         case LEX_SPECIAL_LESSER:
             if (IS_LEX_ANY_SPACE(cp[1]) || cp[1] == ']' || cp[1] == 0)
                 return TOKEN_WORD;  // changed for </tag>
             if ((cp[0] == '<' && cp[1] == '<') || cp[1] == '=' || cp[1] == '>') {
-                if (IS_LEX_DELIMIT(cp[2])) return TOKEN_WORD;
-                return -TOKEN_WORD;
+                if (IS_LEX_DELIMIT(cp[2]))
+                    return TOKEN_WORD;
+                scan_state->has_error = TRUE;
+                return TOKEN_WORD;
             }
             if (
                 cp[0] == '<' && (cp[1] == '-' || cp[1] == '|')
@@ -1005,16 +1054,24 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
             ) {
                 return TOKEN_WORD; // "<|" and "<-"
             }
-            if (GET_LEX_VALUE(*cp) == LEX_SPECIAL_GREATER) return -TOKEN_WORD;
+            if (GET_LEX_VALUE(*cp) == LEX_SPECIAL_GREATER) {
+                scan_state->has_error = TRUE;
+                return TOKEN_WORD;
+            }
             cp = Skip_Tag(cp);
-            if (!cp) return -TOKEN_TAG;
+            if (cp == NULL) {
+                scan_state->has_error = TRUE;
+                return TOKEN_TAG;
+            }
             scan_state->end = cp;
             return TOKEN_TAG;
 
         case LEX_SPECIAL_PLUS:          /* +123 +123.45 +$123 */
         case LEX_SPECIAL_MINUS:         /* -123 -123.45 -$123 */
-            if (HAS_LEX_FLAG(flags, LEX_SPECIAL_AT)) return TOKEN_EMAIL;
-            if (HAS_LEX_FLAG(flags, LEX_SPECIAL_DOLLAR)) return TOKEN_MONEY;
+            if (HAS_LEX_FLAG(flags, LEX_SPECIAL_AT))
+                return TOKEN_EMAIL;
+            if (HAS_LEX_FLAG(flags, LEX_SPECIAL_DOLLAR))
+                return TOKEN_MONEY;
             if (HAS_LEX_FLAG(flags, LEX_SPECIAL_COLON)) {
                 cp = Skip_To_Byte(cp, scan_state->end, ':');
                 if (cp && (cp+1) != scan_state->end)
@@ -1028,7 +1085,8 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
             cp++;
             if (IS_LEX_NUMBER(*cp)) goto num;
             if (IS_LEX_SPECIAL(*cp)) {
-                if ((GET_LEX_VALUE(*cp)) >= LEX_SPECIAL_PERIOD) goto next_ls;
+                if ((GET_LEX_VALUE(*cp)) >= LEX_SPECIAL_PERIOD)
+                    goto next_ls;
                 if (*cp == '+' || *cp == '-') {
                     type = TOKEN_WORD;
                     goto scanword;
@@ -1040,7 +1098,8 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
                     // Special exemption for ->
                     return TOKEN_WORD;
                 }
-                return -TOKEN_WORD;
+                scan_state->has_error = TRUE;
+                return TOKEN_WORD;
             }
             type = TOKEN_WORD;
             goto scanword;
@@ -1090,9 +1149,11 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
                 }
                 // try to recover at next new line...
                 cp = scan_state->begin + 1;
-                while (!ANY_CR_LF_END(*cp)) cp++;
+                while (NOT(ANY_CR_LF_END(*cp)))
+                    ++cp;
                 scan_state->end = cp;
-                return -TOKEN_CHAR;
+                scan_state->has_error = TRUE;
+                return TOKEN_CHAR;
             }
             if (*cp == '{') { /* BINARY #{12343132023902902302938290382} */
                 scan_state->end = scan_state->begin;  /* save start */
@@ -1105,30 +1166,40 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
                 }
                 // try to recover at next new line...
                 cp = (scan_state->begin) + 1;
-                while (!ANY_CR_LF_END(*cp)) cp++;
+                while (NOT(ANY_CR_LF_END(*cp)))
+                    ++cp;
                 scan_state->end = cp;
-                return -TOKEN_BINARY;
+                scan_state->has_error = TRUE;
+                return TOKEN_BINARY;
             }
-            if (cp-1 == scan_state->begin) return TOKEN_ISSUE;
-            else return -TOKEN_INTEGER;
+            if (cp - 1 == scan_state->begin)
+                return TOKEN_ISSUE;
+
+            scan_state->has_error = TRUE;
+            return TOKEN_INTEGER;
 
         case LEX_SPECIAL_DOLLAR:
-            if (HAS_LEX_FLAG(flags, LEX_SPECIAL_AT)) return TOKEN_EMAIL;
+            if (HAS_LEX_FLAG(flags, LEX_SPECIAL_AT))
+                return TOKEN_EMAIL;
             return TOKEN_MONEY;
 
         default:
-            return -TOKEN_WORD;
+            scan_state->has_error = TRUE;
+            return TOKEN_WORD;
         }
 
     case LEX_CLASS_WORD:
-        if (ONLY_LEX_FLAG(flags, LEX_SPECIAL_WORD)) return TOKEN_WORD;
+        if (ONLY_LEX_FLAG(flags, LEX_SPECIAL_WORD))
+            return TOKEN_WORD;
         type = TOKEN_WORD;
         goto scanword;
 
     case LEX_CLASS_NUMBER:      /* order of tests is important */
     num:
-        if (!flags) return TOKEN_INTEGER;       /* simple integer */
-        if (HAS_LEX_FLAG(flags, LEX_SPECIAL_AT)) return TOKEN_EMAIL;
+        if (flags == 0)
+            return TOKEN_INTEGER;       /* simple integer */
+        if (HAS_LEX_FLAG(flags, LEX_SPECIAL_AT))
+            return TOKEN_EMAIL;
         if (HAS_LEX_FLAG(flags, LEX_SPECIAL_POUND)) {
             if (cp == scan_state->begin) { // no +2 +16 +64 allowed
                 if (
@@ -1153,16 +1224,19 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
                     goto pound;
                 }
             }
-            return -TOKEN_INTEGER;
+            scan_state->has_error = TRUE;
+            return TOKEN_INTEGER;
         }
         if (HAS_LEX_FLAG(flags, LEX_SPECIAL_COLON))
             return TOKEN_TIME; // 12:34
         if (HAS_LEX_FLAG(flags, LEX_SPECIAL_PERIOD)) {
             // 1.2 1.2.3 1,200.3 1.200,3 1.E-2
-            if (Skip_To_Byte(cp, scan_state->end, 'x')) return TOKEN_PAIR;
+            if (Skip_To_Byte(cp, scan_state->end, 'x'))
+                return TOKEN_PAIR;
             cp = Skip_To_Byte(cp, scan_state->end, '.');
+            // Note: no comma in bytes
             if (
-                !HAS_LEX_FLAG(flags, LEX_SPECIAL_COMMA) // no comma in bytes
+                NOT(HAS_LEX_FLAG(flags, LEX_SPECIAL_COMMA))
                 && Skip_To_Byte(cp+1, scan_state->end, '.')
             ) {
                 return TOKEN_TUPLE;
@@ -1170,7 +1244,8 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
             return TOKEN_DECIMAL;
         }
         if (HAS_LEX_FLAG(flags, LEX_SPECIAL_COMMA)) {
-            if (Skip_To_Byte(cp, scan_state->end, 'x')) return TOKEN_PAIR;
+            if (Skip_To_Byte(cp, scan_state->end, 'x'))
+                return TOKEN_PAIR;
             return TOKEN_DECIMAL;  /* 1,23 */
         }
         if (HAS_LEX_FLAG(flags, LEX_SPECIAL_POUND)) { // -#123 2#1010
@@ -1184,9 +1259,11 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
                     )
                 )
             ) {
-                return -TOKEN_INTEGER;
+                scan_state->has_error = TRUE;
+                return TOKEN_INTEGER;
             }
-            if (HAS_LEX_FLAG(flags, LEX_SPECIAL_PERIOD)) return TOKEN_TUPLE;
+            if (HAS_LEX_FLAG(flags, LEX_SPECIAL_PERIOD))
+                return TOKEN_TUPLE;
             return TOKEN_INTEGER;
         }
         /* Note: cannot detect dates of the form 1/2/1998 because they
@@ -1194,21 +1271,27 @@ static REBINT Locate_Token_May_Push_Mold(REB_MOLD *mo, SCAN_STATE *scan_state)
         ** Special parsing is required at the next level up. */
         for (;cp != scan_state->end; cp++) {
             // what do we hit first? 1-AUG-97 or 123E-4
-            if (*cp == '-') return TOKEN_DATE;      /* 1-2-97 1-jan-97 */
-            if (*cp == 'x' || *cp == 'X') return TOKEN_PAIR; // 320x200
+            if (*cp == '-')
+                return TOKEN_DATE; // 1-2-97 1-jan-97
+            if (*cp == 'x' || *cp == 'X')
+                return TOKEN_PAIR; // 320x200
             if (*cp == 'E' || *cp == 'e') {
-                if (Skip_To_Byte(cp, scan_state->end, 'x')) return TOKEN_PAIR;
+                if (Skip_To_Byte(cp, scan_state->end, 'x'))
+                    return TOKEN_PAIR;
                 return TOKEN_DECIMAL; /* 123E4 */
             }
-            if (*cp == '%') return TOKEN_PERCENT;
+            if (*cp == '%')
+                return TOKEN_PERCENT;
         }
         /*cp = scan_state->begin;*/
         if (HAS_LEX_FLAG(flags, LEX_SPECIAL_APOSTROPHE))
             return TOKEN_INTEGER; // 1'200
-        return -TOKEN_INTEGER;
+        scan_state->has_error = TRUE;
+        return TOKEN_INTEGER;
 
     default:
-        return -TOKEN_WORD;
+        scan_state->has_error = TRUE;
+        return TOKEN_WORD;
     }
 
     DEAD_END;
@@ -1228,7 +1311,8 @@ scanword:
                     flags, ~LEX_FLAG(LEX_SPECIAL_COLON) & LEX_WORD_FLAGS
                 )
             ) {
-                return -TOKEN_WORD;
+                scan_state->has_error = TRUE;
+                return TOKEN_WORD;
             }
             return TOKEN_SET;
         }
@@ -1244,16 +1328,26 @@ scanword:
     if (HAS_LEX_FLAG(flags, LEX_SPECIAL_DOLLAR)) return TOKEN_MONEY;
     if (HAS_LEX_FLAGS(flags, LEX_WORD_FLAGS)) {
         // has chars not allowed in word (eg % \ )
-        return -type;
+        scan_state->has_error = TRUE;
+        return type;
     }
     if (HAS_LEX_FLAG(flags, LEX_SPECIAL_LESSER)) {
         // Allow word<tag> and word</tag> but not word< word<= word<> etc.
         cp = Skip_To_Byte(cp, scan_state->end, '<');
-        if (cp[1] == '<' || cp[1] == '>' || cp[1] == '=' ||
-            IS_LEX_SPACE(cp[1]) || (cp[1] != '/' && IS_LEX_DELIMIT(cp[1])))
-            return -type;
+        if (
+            cp[1] == '<' || cp[1] == '>' || cp[1] == '='
+            || IS_LEX_SPACE(cp[1])
+            || (cp[1] != '/' && IS_LEX_DELIMIT(cp[1]))
+        ){
+            scan_state->has_error = TRUE;
+            return type;
+        }
         scan_state->end = cp;
-    } else if (HAS_LEX_FLAG(flags, LEX_SPECIAL_GREATER)) return -type;
+    }
+    else if (HAS_LEX_FLAG(flags, LEX_SPECIAL_GREATER)) {
+        scan_state->has_error = TRUE;
+        return type;
+    }
     return type;
 }
 
@@ -1270,6 +1364,7 @@ static void Init_Scan_State(SCAN_STATE *scan_state, const REBYTE *cp, REBCNT lim
     scan_state->limit = cp + limit;
     scan_state->line_count = 1;
     scan_state->opts = 0;
+    scan_state->has_error = FALSE;
     scan_state->errors = 0;
 }
 
@@ -1358,6 +1453,8 @@ static REBARR *Scan_Array(
     SCAN_STATE *scan_state,
     REBYTE mode_char
 ) {
+    assert(NOT(scan_state->has_error));
+
     REBDSP dsp_orig = DSP;
     REBOOL line = FALSE;
 #ifdef COMP_LINES
@@ -1378,7 +1475,7 @@ static REBARR *Scan_Array(
     if (just_once)
         CLR_FLAG(scan_state->opts, SCAN_NEXT); // no deeper
 
-    REBINT token;
+    enum Reb_Token token;
     while (
 #ifdef COMP_LINES
         linenum=scan_state->line_count,
@@ -1390,9 +1487,9 @@ static REBARR *Scan_Array(
         const REBYTE *ep = scan_state->end;
         REBCNT len = cast(REBCNT, ep - bp);
 
-        if (token < 0) {    // Check for error tokens
-            token = -token;
+        if (scan_state->has_error) {    // Check for error tokens
             scan_state->begin = scan_state->end; // skip malformed token
+            scan_state->has_error = FALSE;
             goto syntax_error;
         }
 
@@ -1516,12 +1613,9 @@ static REBARR *Scan_Array(
                 SET_BLANK(DS_TOP);  // A single # means NONE
             }
             else {
-                REBSTR *name = Scan_Issue(bp + 1, len - 1);
-                if (name == NULL)
-                    goto syntax_error;
-
                 DS_PUSH_TRASH;
-                Init_Issue(DS_TOP, name);
+                if (ep != Scan_Issue(DS_TOP, bp + 1, len - 1))
+                    goto syntax_error;
             }
             break;
 
@@ -1560,7 +1654,7 @@ static REBARR *Scan_Array(
         case TOKEN_INTEGER:     // or start of DATE
             if (*ep != '/' || mode_char == '/') {
                 DS_PUSH_TRASH;
-                if (NULL == Scan_Integer(DS_TOP, bp, len))
+                if (ep != Scan_Integer(DS_TOP, bp, len))
                     goto syntax_error;
             }
             else {              // A / and not in block
@@ -1581,7 +1675,7 @@ static REBARR *Scan_Array(
                 goto syntax_error;
 
             DS_PUSH_TRASH;
-            if (NULL == Scan_Decimal(DS_TOP, bp, len, FALSE))
+            if (ep != Scan_Decimal(DS_TOP, bp, len, FALSE))
                 goto syntax_error;
 
             if (bp[len - 1] == '%') {
@@ -1598,14 +1692,14 @@ static REBARR *Scan_Array(
             }
 
             DS_PUSH_TRASH;
-            if (!Scan_Money(DS_TOP, bp, len))
+            if (ep != Scan_Money(DS_TOP, bp, len))
                 goto syntax_error;
             break;
 
         case TOKEN_TIME:
             if (bp[len-1] == ':' && mode_char == '/') { // could be path/10: set
                 DS_PUSH_TRASH;
-                if (NULL == Scan_Integer(DS_TOP, bp, len - 1))
+                if (ep - 1 != Scan_Integer(DS_TOP, bp, len - 1))
                     goto syntax_error;
                 scan_state->end--;  // put ':' back on end but not beginning
                 break;
@@ -1632,9 +1726,9 @@ static REBARR *Scan_Array(
             break;
 
         case TOKEN_CHAR:
-            bp += 2; // skip #"
             DS_PUSH_TRASH;
-            if (!Scan_UTF8_Char_Escapable(&VAL_CHAR(DS_TOP), bp))
+            bp += 2; // skip #", and subtract 1 from ep for "
+            if (ep - 1 != Scan_UTF8_Char_Escapable(&VAL_CHAR(DS_TOP), bp))
                 goto syntax_error;
             VAL_RESET_HEADER(DS_TOP, REB_CHAR);
             break;
@@ -1649,39 +1743,48 @@ static REBARR *Scan_Array(
 
         case TOKEN_BINARY:
             DS_PUSH_TRASH;
-            if (!Scan_Binary(DS_TOP, bp, len))
+            if (ep != Scan_Binary(DS_TOP, bp, len))
                 goto syntax_error;
             break;
 
         case TOKEN_PAIR:
             DS_PUSH_TRASH;
-            Scan_Pair(DS_TOP, bp, len);
+            if (ep != Scan_Pair(DS_TOP, bp, len))
+                goto syntax_error;
             break;
 
         case TOKEN_TUPLE:
             DS_PUSH_TRASH;
-            if (NULL == Scan_Tuple(DS_TOP, bp, len))
+            if (ep != Scan_Tuple(DS_TOP, bp, len))
                 goto syntax_error;
             break;
 
         case TOKEN_FILE:
             DS_PUSH_TRASH;
-            Scan_File(DS_TOP, bp, len);
+            if (ep != Scan_File(DS_TOP, bp, len))
+                goto syntax_error;
             break;
 
         case TOKEN_EMAIL:
             DS_PUSH_TRASH;
-            Scan_Email(DS_TOP, bp, len);
+            if (ep != Scan_Email(DS_TOP, bp, len))
+                goto syntax_error;
             break;
 
         case TOKEN_URL:
             DS_PUSH_TRASH;
-            Scan_URL(DS_TOP, bp, len);
+            if (ep != Scan_URL(DS_TOP, bp, len))
+                goto syntax_error;
             break;
 
         case TOKEN_TAG:
             DS_PUSH_TRASH;
-            Scan_Any(DS_TOP, bp + 1, len - 2, REB_TAG);
+
+            // The Scan_Any routine (only used here for tag) doesn't
+            // know where the tag ends, so it scans the len.
+            //
+            if (ep - 1 != Scan_Any(DS_TOP, bp + 1, len - 2, REB_TAG))
+                goto syntax_error;
             break;
 
         case TOKEN_CONSTRUCT:
@@ -1946,7 +2049,7 @@ void Init_Scanner(void)
     REBCNT n = 0;
     while (Token_Names[n] != NULL)
         ++n;
-    assert(cast(enum Value_Types, n) == TOKEN_MAX);
+    assert(cast(enum Reb_Token, n) == TOKEN_MAX);
 
     Set_Root_Series(TASK_BUF_UTF8, Make_Unicode(1020));
 }
@@ -2013,14 +2116,18 @@ REBNATIVE(transcode)
 
 
 //
-//  Scan_Word: C
+//  Scan_Any_Word: C
 //
 // Scan word chars and make word symbol for it.
 // This method gets exactly the same results as scanner.
 // Returns symbol number, or zero for errors.
 //
-REBSTR *Scan_Word(const REBYTE *cp, REBCNT len)
-{
+const REBYTE *Scan_Any_Word(
+    REBVAL *out,
+    enum Reb_Kind kind,
+    const REBYTE *cp,
+    REBCNT len
+) {
     SCAN_STATE scan_state;
     Init_Scan_State(&scan_state, cp, len);
 
@@ -2028,13 +2135,12 @@ REBSTR *Scan_Word(const REBYTE *cp, REBCNT len)
     CLEARS(&mo);
 
     REBSTR *name;
-    if (TOKEN_WORD == Locate_Token_May_Push_Mold(&mo, &scan_state))
-        name = Intern_UTF8_Managed(cp, len);
-    else
-        name = NULL;
+    if (TOKEN_WORD != Locate_Token_May_Push_Mold(&mo, &scan_state))
+        return NULL;
 
+    Init_Any_Word(out, kind, Intern_UTF8_Managed(cp, len));
     Drop_Mold_If_Pushed(&mo);
-    return name;
+    return scan_state.begin; // !!! is this right?
 }
 
 
@@ -2043,7 +2149,7 @@ REBSTR *Scan_Word(const REBYTE *cp, REBCNT len)
 //
 // Scan an issue word, allowing special characters.
 //
-REBSTR *Scan_Issue(const REBYTE *cp, REBCNT len)
+const REBYTE *Scan_Issue(REBVAL *out, const REBYTE *cp, REBCNT len)
 {
     if (len == 0) return NULL; // will trigger error
 
@@ -2080,5 +2186,7 @@ REBSTR *Scan_Issue(const REBYTE *cp, REBCNT len)
         }
     }
 
-    return Intern_UTF8_Managed(cp, len);
+    REBSTR *str = Intern_UTF8_Managed(cp, len);
+    Init_Issue(out, str);
+    return bp;
 }

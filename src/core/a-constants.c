@@ -96,7 +96,7 @@ const char * const Month_Names[12] = {
 };
 
 
-// Used by scanner. Keep in sync with Value_Types in %scan.h file!
+// Used by scanner. Keep in sync with enum Reb_Token in %scan.h file!
 //
 const char * const Token_Names[] = {
     "end-of-script",

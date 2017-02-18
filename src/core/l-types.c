@@ -1109,7 +1109,7 @@ const REBYTE *Scan_Binary(
     if (cp == NULL)
         return NULL; // series will be gc'd
 
-    return cp;
+    return cp + 1; // include the "}" in the scan total
 }
 
 
@@ -1141,7 +1141,7 @@ const REBYTE *Scan_Any(
     SET_SERIES_LEN(s, delined_len);
     Init_Any_Series(out, type, s);
 
-    return cp + delined_len;
+    return cp + num_bytes;
 }
 
 

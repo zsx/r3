@@ -83,8 +83,6 @@ void MAKE_Word(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         return;
     }
 
-    REBSTR *name;
-
     if (IS_STRING(arg)) {
         REBCNT len;
         const REBOOL allow_utf8 = TRUE;
@@ -97,41 +95,33 @@ void MAKE_Word(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
             arg, MAX_SCAN_WORD, &len, allow_utf8
         );
 
-        if (kind == REB_ISSUE)
-            name = Scan_Issue(bp, len);
-        else
-            name = Scan_Word(bp, len);
-
-        if (name == NULL)
-            fail (Error(RE_BAD_CHAR, arg));
+        if (kind == REB_ISSUE) {
+            if (NULL == Scan_Issue(out, bp, len))
+                fail (Error(RE_BAD_CHAR, arg));
+        }
+        else {
+            if (NULL == Scan_Any_Word(out, kind, bp, len))
+                fail (Error(RE_BAD_CHAR, arg));
+            }
     }
     else if (IS_CHAR(arg)) {
         REBYTE buf[8];
         REBCNT len = Encode_UTF8_Char(&buf[0], VAL_CHAR(arg));
-        name = Scan_Word(&buf[0], len);
-        if (name == NULL) fail (Error(RE_BAD_CHAR, arg));
+        if (NULL == Scan_Any_Word(out, kind, &buf[0], len))
+            fail (Error(RE_BAD_CHAR, arg));
     }
     else if (IS_DATATYPE(arg)) {
-    #if defined(NDEBUG)
-        name = Canon(VAL_TYPE_SYM(arg));
-    #else
-        if (
-            LEGACY(OPTIONS_PAREN_INSTEAD_OF_GROUP)
-            && VAL_TYPE_KIND(arg) == REB_GROUP
-        ) {
-            name = Canon(SYM_PAREN_X); // e_Xclamation point (PAREN!)
-        }
-        else
-            name = Canon(VAL_TYPE_SYM(arg));
-    #endif
+        Init_Any_Word(out, kind, Canon(VAL_TYPE_SYM(arg)));
     }
     else if (IS_LOGIC(arg)) {
-        name = VAL_LOGIC(arg) ? Canon(SYM_TRUE) : Canon(SYM_FALSE);
+        Init_Any_Word(
+            out,
+            kind,
+            VAL_LOGIC(arg) ? Canon(SYM_TRUE) : Canon(SYM_FALSE)
+        );
     }
     else
         fail (Error_Unexpected_Type(REB_WORD, VAL_TYPE(arg)));
-
-    Init_Any_Word(out, kind, name);
 }
 
 

@@ -769,6 +769,19 @@ set 'r3-legacy* func [<local> if-flags] [
 
         apply: (:r3-alpha-apply)
 
+        ; Adapt the TO ANY-WORD! case for GROUP! to give back the
+        ; word PAREN! (not the word GROUP!)
+        ;
+        to: (adapt 'to [
+            if all [
+                :value = group!
+                system/options/paren-instead-of-group
+                find any-word! type
+            ][
+                value: "paren!" ;-- twist it into a string conversion
+            ]
+        ])
+
         ; Not contentious, but trying to excise this ASAP
         funct: (:function)
 
