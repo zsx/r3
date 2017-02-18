@@ -194,7 +194,7 @@ write-emitted inc/tmp-evaltypes.inc
 emit-header "Datatype Makers" %maketypes.h
 emit newline
 
-types-used: []
+types-used: copy []
 
 for-each-record type boot-types [
     if group? type/class [type/class: first type/class]
@@ -266,7 +266,7 @@ write-emitted inc/tmp-maketypes.inc
 emit-header "Datatype Comparison Functions" %comptypes.h
 emit newline
 
-types-used: []
+types-used: copy []
 
 for-each-record type boot-types [
     if group? type/class [type/class: first type/class]
@@ -329,7 +329,7 @@ emit {
 }
 emit-line "{"
 
-datatypes: []
+datatypes: copy []
 n: 0
 
 for-each-record type boot-types [
@@ -357,7 +357,7 @@ emit {
 ***********************************************************************/
 }
 
-new-types: []
+new-types: copy []
 n: 0
 for-each-record type boot-types [
     ;
@@ -445,7 +445,7 @@ emit {
 #define TS_VALUE ((FLAGIT_KIND(REB_MAX_VOID) - 1) - FLAGIT_KIND(REB_0))
 }
 
-typeset-sets: []
+typeset-sets: copy []
 
 for-each-record type boot-types [
     for-each ts compose [(type/typesets)] [
@@ -499,7 +499,7 @@ emit-line "{"
 emit-item/assign "SYM_0" 0
 
 n: 0
-boot-words: []
+boot-words: copy []
 add-word: func [
     ; LEAVE is not available in R3-Alpha compatibility PROC
     ; RETURN () is not legal in R3-Alpha compatibility FUNC (no RETURN: [...])
@@ -591,7 +591,7 @@ change/only at-value platform reduce [
 ob: has boot-sysobj
 
 make-obj-defs: procedure [obj prefix depth /selfless] [
-    uppercase prefix
+    prefix: uppercase-of prefix
     emit-line ["enum " prefix "object {"]
 
     either selfless [

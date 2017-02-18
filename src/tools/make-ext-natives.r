@@ -290,7 +290,7 @@ for-each [m-name c-src] boot-modules [
             unless set-word? key [
                 fail ["key (" mold key ") must be a set-word!"]
             ]
-            if found? find error-collected key [
+            if find error-collected key [
                 fail ["Duplicate error key" to word! key]
             ]
             append error-collected key
