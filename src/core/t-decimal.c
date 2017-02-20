@@ -417,6 +417,10 @@ REBTYPE(Decimal)
         // unary actions
         switch (action) {
 
+        case SYM_COPY:
+            *D_OUT = *val;
+            return R_OUT;
+
         case SYM_NEGATE:
             d1 = -d1;
             goto setDec;

@@ -21,13 +21,13 @@ REBOL [
 
 add: action [
     {Returns the addition of two values.}
-    value1 [any-scalar! date!]
+    value1 [any-scalar! date! binary!]
     value2
 ]
 
 subtract: action [
     {Returns the second value subtracted from the first.}
-    value1 [any-scalar! date!]
+    value1 [any-scalar! date! binary!]
     value2 [any-scalar! date!]
 ]
 
@@ -234,8 +234,8 @@ reflect: action [
 
 copy: action [
     {Copies a series, object, or other value.}
-    value [blank! any-series! port! map! object! frame! bitset! function! pair!]
-        {At position}
+    value [any-value!]
+        {If an ANY-SERIES!, it is only copied from its current position}
     /part
         {Limits to a given length or position}
     limit [any-number! any-series! pair!]

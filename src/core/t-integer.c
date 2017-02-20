@@ -425,6 +425,10 @@ REBTYPE(Integer)
 
     switch (action) {
 
+    case SYM_COPY:
+        *D_OUT = *val;
+        return R_OUT;
+
     case SYM_ADD:
         if (REB_I64_ADD_OF(num, arg, &anum)) fail (Error(RE_OVERFLOW));
         num = anum;

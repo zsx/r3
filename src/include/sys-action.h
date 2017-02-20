@@ -114,7 +114,13 @@ enum Reb_Result {
     // "eval cell".
     //
     R_REEVALUATE,
-    R_REEVALUATE_ONLY
+    R_REEVALUATE_ONLY,
+
+    // This is a signal that isn't accepted as a return value from a native,
+    // so it can be used by common routines that return REB_R values and need
+    // an "escape" code.
+    //
+    R_UNHANDLED
 };
 typedef enum Reb_Result REB_R;
 

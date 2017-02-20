@@ -34,17 +34,13 @@
 #define THE_SIGN(v) ((v < 0) ? -1 : (v > 0) ? 1 : 0)
 
 //
-//  Series_Common_Action_Returns: C
+//  Series_Common_Action_Maybe_Unhandled: C
 //
 // This routine is called to handle actions on ANY-SERIES! that can be taken
 // care of without knowing what specific kind of series it is.  So generally
 // index manipulation, and things like LENGTH/etc.
 //
-// The strange name is to convey the result in an if statement, in the same
-// spirit as the `if (XXX_Throws(...)) { /* handle throw */ }` pattern.
-//
-REBOOL Series_Common_Action_Returns(
-    REB_R *r, // `r_out` would be slightly confusing, considering R_OUT
+REB_R Series_Common_Action_Maybe_Unhandled(
     REBFRM *frame_,
     REBSYM action
 ) {
@@ -64,20 +60,17 @@ REBOOL Series_Common_Action_Returns(
         break;
 
     case SYM_TAIL:
-        VAL_INDEX(value) = (REBCNT)tail;
+        VAL_INDEX(value) = cast(REBCNT, tail);
         break;
 
     case SYM_HEAD_Q:
-        *r = (index == 0) ? R_TRUE : R_FALSE;
-        return TRUE; // handled
+        return R_FROM_BOOL(LOGICAL(index == 0));
 
     case SYM_TAIL_Q:
-        *r = (index >= tail) ? R_TRUE : R_FALSE;
-        return TRUE; // handled
+        return R_FROM_BOOL(LOGICAL(index >= tail));
 
     case SYM_PAST_Q:
-        *r = (index > tail) ? R_TRUE : R_FALSE;
-        return TRUE; // handled
+        return R_FROM_BOOL(LOGICAL(index > tail));
 
     case SYM_SKIP:
     case SYM_AT:
@@ -97,13 +90,11 @@ REBOOL Series_Common_Action_Returns(
 
     case SYM_INDEX_OF:
         SET_INTEGER(D_OUT, cast(REBI64, index) + 1);
-        *r = R_OUT;
-        return TRUE; // handled
+        return R_OUT; // handled
 
     case SYM_LENGTH:
         SET_INTEGER(D_OUT, tail > index ? tail - index : 0);
-        *r = R_OUT;
-        return TRUE; // handled
+        return R_OUT; // handled
 
     case SYM_REMOVE: {
         INCLUDE_PARAMS_OF_REMOVE;
@@ -122,24 +113,12 @@ REBOOL Series_Common_Action_Returns(
             Remove_Series(VAL_SERIES(value), VAL_INDEX(value), len);
         break; }
 
-    case SYM_ADD:         // Join_Strings(value, arg);
-    case SYM_SUBTRACT:    // "test this" - 10
-    case SYM_MULTIPLY:    // "t" * 4 = "tttt"
-    case SYM_DIVIDE:
-    case SYM_REMAINDER:
-    case SYM_POWER:
-    case SYM_ODD_Q:
-    case SYM_EVEN_Q:
-    case SYM_ABSOLUTE:
-        fail (Error_Illegal_Action(VAL_TYPE(value), action));
-
     default:
-        return FALSE; // not a common operation, not handled
+        return R_UNHANDLED; // not a common operation, not handled
     }
 
     *D_OUT = *value;
-    *r = R_OUT;
-    return TRUE; // handled
+    return R_OUT;
 }
 
 

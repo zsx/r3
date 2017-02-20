@@ -747,24 +747,23 @@ REBINT PD_Url(REBPVS *pvs) {
 //
 REBTYPE(String)
 {
+    REBSER *ser;
+    TRASH_POINTER_IF_DEBUG(ser); // `goto return_ser;` will return this
+
     REBVAL  *value = D_ARG(1);
     REBVAL  *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-    REBINT  index;
-    REBINT  tail;
-    REBINT  len;
-    REBSER  *ser;
-    enum Reb_Kind type;
 
     // Common operations for any series type (length, head, etc.)
     {
-        REB_R r;
-        if (Series_Common_Action_Returns(&r, frame_, action))
+        REB_R r = Series_Common_Action_Maybe_Unhandled(frame_, action);
+        if (r != R_UNHANDLED)
             return r;
     }
 
     // Common setup code for all actions:
-    index = cast(REBINT, VAL_INDEX(value));
-    tail = cast(REBINT, VAL_LEN_HEAD(value));
+    //
+    REBINT index = cast(REBINT, VAL_INDEX(value));
+    REBINT tail = cast(REBINT, VAL_LEN_HEAD(value));
 
     switch (action) {
 
@@ -783,7 +782,12 @@ REBTYPE(String)
             // !!! Doesn't pay attention...all string appends are /ONLY
         }
 
-        Partial1((action == SYM_CHANGE) ? value : arg, ARG(limit), cast(REBCNT*, &len));
+        REBINT len;
+        Partial1(
+            (action == SYM_CHANGE) ? value : arg,
+            ARG(limit),
+            cast(REBCNT*, &len)
+        );
         index = VAL_INDEX(value);
 
         REBFLGS flags = 0;
@@ -821,6 +825,7 @@ REBTYPE(String)
             | (REF(tail) ? AM_FIND_TAIL : 0)
         );
 
+        REBINT len;
         if (IS_BINARY(value)) {
             flags |= AM_FIND_CASE;
 
@@ -849,7 +854,8 @@ REBTYPE(String)
             }
         }
 
-        if (ANY_BINSTR(arg)) len = VAL_LEN_AT(arg);
+        if (ANY_BINSTR(arg))
+            len = VAL_LEN_AT(arg);
 
         if (REF(part))
             tail = Partial(value, 0, ARG(limit));
@@ -889,8 +895,8 @@ REBTYPE(String)
     //-- Picking:
     case SYM_POKE:
         FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
-    case SYM_PICK:
-        len = Get_Num_From_Arg(arg); // Position
+    case SYM_PICK: {
+        REBINT len = Get_Num_From_Arg(arg); // Position
         //if (len > 0) index--;
         if (REB_I32_SUB_OF(len, 1, &len)
             || REB_I32_ADD_OF(index, len, &index)
@@ -899,7 +905,6 @@ REBTYPE(String)
             fail (Error_Out_Of_Range(arg));
         }
         if (action == SYM_PICK) {
-pick_it:
             if (IS_BINARY(value)) {
                 SET_INTEGER(D_OUT, *VAL_BIN_AT_HEAD(value, index));
             }
@@ -933,7 +938,7 @@ pick_it:
             }
             value = arg;
         }
-        break;
+        break; }
 
     case SYM_TAKE: {
         INCLUDE_PARAMS_OF_TAKE;
@@ -945,10 +950,10 @@ pick_it:
         if (REF(deep))
             fail (Error(RE_BAD_REFINES));
 
+        REBINT len;
         if (REF(part)) {
             len = Partial(value, 0, ARG(limit));
             if (len == 0) {
-        zero_str:
                 Init_Any_Series(D_OUT, VAL_TYPE(value), Make_Binary(0));
                 return R_OUT;
             }
@@ -962,7 +967,8 @@ pick_it:
         if (index < 0 || index >= tail) {
             if (NOT(REF(part)))
                 return R_BLANK;
-            goto zero_str;
+            Init_Any_Series(D_OUT, VAL_TYPE(value), Make_Binary(0));
+            return R_OUT;
         }
 
         ser = VAL_SERIES(value);
@@ -984,7 +990,7 @@ pick_it:
         Remove_Series(ser, index, len);
         break; }
 
-    case SYM_CLEAR:
+    case SYM_CLEAR: {
         FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
 
         if (index < tail) {
@@ -993,7 +999,7 @@ pick_it:
             else
                 TERM_SEQUENCE_LEN(VAL_SERIES(value), cast(REBCNT, index));
         }
-        break;
+        break; }
 
     //-- Creation:
 
@@ -1010,15 +1016,15 @@ pick_it:
         }
 
         UNUSED(REF(part));
-        len = Partial(value, 0, ARG(limit)); // Can modify value index.
+        REBINT len = Partial(value, 0, ARG(limit)); // Can modify value index.
         ser = Copy_String_Slimming(VAL_SERIES(value), VAL_INDEX(value), len);
-        goto ser_exit; }
+        goto return_ser; }
 
     //-- Bitwise:
 
     case SYM_AND_T:
     case SYM_OR_T:
-    case SYM_XOR_T:
+    case SYM_XOR_T: {
         if (!IS_BINARY(arg)) fail (Error_Invalid_Arg(arg));
 
         if (VAL_INDEX(value) > VAL_LEN_HEAD(value))
@@ -1028,12 +1034,94 @@ pick_it:
             VAL_INDEX(arg) = VAL_LEN_HEAD(arg);
 
         ser = Xandor_Binary(action, value, arg);
-        goto ser_exit;
+        goto return_ser; }
 
-    case SYM_COMPLEMENT:
+    case SYM_COMPLEMENT: {
         if (!IS_BINARY(value)) fail (Error_Invalid_Arg(value));
         ser = Complement_Binary(value);
-        goto ser_exit;
+        goto return_ser; }
+
+    // Arithmetic operations are allowed on BINARY!, because it's too limiting
+    // to not allow `#{4B} + 1` => `#{4C}`.  Allowing the operations requires
+    // a default semantic of binaries as unsigned arithmetic, since one
+    // does not want `#{FF} + 1` to be #{FE}.  It uses a big endian
+    // interpretation, so `#{00FF} + 1` is #{0100}
+    //
+    // Since Rebol is a language with mutable semantics by default, `add x y`
+    // will mutate x by default (if X is not an immediate type).  `+` is an
+    // enfixing of `add-of` which copies the first argument before adding.
+    //
+    // To try and maximize usefulness, the semantic chosen is that any
+    // arithmetic that would go beyond the bounds of the length is considered
+    // an overflow.  Hence the size of the result binary will equal the size
+    // of the original binary.  This means that `#{0100} - 1` is #{00FF},
+    // not #{FF}.
+    //
+    // !!! The code below is extremely slow and crude--using an odometer-style
+    // loop to do the math.  What's being done here is effectively "bigint"
+    // math, and it might be that it would share code with whatever big
+    // integer implementation was used; e.g. integers which exceeded the size
+    // of the platform REBI64 would use BINARY! under the hood.
+
+    case SYM_SUBTRACT:
+    case SYM_ADD: {
+        if (!IS_BINARY(value))
+            fail (Error_Invalid_Arg(value));
+
+        FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
+
+        REBINT amount;
+        if (IS_INTEGER(arg))
+            amount = VAL_INT32(arg);
+        else if (IS_BINARY(arg))
+            fail (Error_Invalid_Arg(arg)); // should work
+        else
+            fail (Error_Invalid_Arg(arg)); // what about other types?
+
+        if (action == SYM_SUBTRACT)
+            amount = -amount;
+
+        if (amount == 0) { // adding or subtracting 0 works, even #{} + 0
+            *D_OUT = *value;
+            return R_OUT;
+        }
+        else if (VAL_LEN_AT(value) == 0) // add/subtract to #{} otherwise
+            fail (Error(RE_OVERFLOW));
+
+        while (amount != 0) {
+            REBCNT wheel = VAL_LEN_HEAD(value) - 1;
+            while (TRUE) {
+                REBYTE *b = VAL_BIN_AT_HEAD(value, wheel);
+                if (amount > 0) {
+                    if (*b == 255) {
+                        if (wheel == VAL_INDEX(value))
+                            fail (Error(RE_OVERFLOW));
+
+                        *b = 0;
+                        --wheel;
+                        continue;
+                    }
+                    ++(*b);
+                    --amount;
+                    break;
+                }
+                else {
+                    if (*b == 0) {
+                        if (wheel == VAL_INDEX(value))
+                            fail (Error(RE_OVERFLOW));
+                            
+                        *b = 255;
+                        --wheel;
+                        continue;
+                    }
+                    --(*b);
+                    ++amount;
+                    break;
+                }
+            }
+        }
+        *D_OUT = *value;
+        return R_OUT; }
 
     //-- Special actions:
 
@@ -1071,7 +1159,7 @@ pick_it:
         }
         break; }
 
-    case SYM_SWAP:
+    case SYM_SWAP: {
         FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
 
         if (VAL_TYPE(value) != VAL_TYPE(arg))
@@ -1081,14 +1169,15 @@ pick_it:
 
         if (index < tail && VAL_INDEX(arg) < VAL_LEN_HEAD(arg))
             swap_chars(value, arg);
-        break;
+        break; }
 
-    case SYM_REVERSE:
+    case SYM_REVERSE: {
         FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
 
-        len = Partial(value, 0, D_ARG(3));
-        if (len > 0) reverse_string(value, len);
-        break;
+        REBINT len = Partial(value, 0, D_ARG(3));
+        if (len > 0)
+            reverse_string(value, len);
+        break; }
 
     case SYM_SORT: {
         INCLUDE_PARAMS_OF_SORT;
@@ -1139,9 +1228,15 @@ pick_it:
         }
 
         if (REF(only)) {
-            if (index >= tail) return R_BLANK;
+            if (index >= tail)
+                return R_BLANK;
             index += (REBCNT)Random_Int(REF(secure)) % (tail - index);
-            goto pick_it;
+            if (IS_BINARY(value)) { // same as PICK
+                SET_INTEGER(D_OUT, *VAL_BIN_AT_HEAD(value, index));
+            }
+            else
+                str_to_char(D_OUT, value, index);
+            return R_OUT;
         }
         Shuffle_String(value, REF(secure));
         break; }
@@ -1158,8 +1253,7 @@ pick_it:
     *D_OUT = *value;
     return R_OUT;
 
-ser_exit:
-    type = VAL_TYPE(value);
-    Init_Any_Series(D_OUT, type, ser);
+return_ser:
+    Init_Any_Series(D_OUT, VAL_TYPE(value), ser);
     return R_OUT;
 }

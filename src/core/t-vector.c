@@ -605,8 +605,8 @@ REBTYPE(Vector)
 
     // Common operations for any series type (length, head, etc.)
     {
-        REB_R r;
-        if (Series_Common_Action_Returns(&r, frame_, action))
+        REB_R r = Series_Common_Action_Maybe_Unhandled(frame_, action);
+        if (r != R_UNHANDLED)
             return r;
     }
 

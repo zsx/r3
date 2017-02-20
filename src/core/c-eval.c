@@ -1191,6 +1191,9 @@ reevaluate:;
             CLEAR_FRAME_LABEL(f);
             goto reevaluate; // we don't move index!
 
+        case R_UNHANDLED: // internal use only, shouldn't be returned
+            assert(FALSE);
+
         default:
             assert(FALSE);
         }
