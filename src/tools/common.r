@@ -60,10 +60,8 @@ to-c-name: function [
         ; Used to make SYM_HYPHEN which is needed by `charset [#"A" - #"Z"]`
         - [copy "hyphen"]
 
-        ; Used by u-dialect apparently
-        * [copy "asterisk"]
-
         ; None of these are used at present, but included in case
+        * [copy "asterisk"]
         . [copy "period"]
         ? [copy "question"]
         ! [copy "exclamation"]

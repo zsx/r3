@@ -367,7 +367,6 @@ set (CORE_SOURCE
     ${CORE_DIR}/t-word.c
     ${CORE_DIR}/u-bmp.c
     ${CORE_DIR}/u-compress.c
-    ${CORE_DIR}/u-dialect.c
     ${CORE_DIR}/u-gif.c
     ${CORE_DIR}/u-jpg.c
     ${CORE_DIR}/u-md5.c

@@ -149,7 +149,6 @@ core: [
     ; (U)??? (3rd-party code extractions)
     u-bmp.c
     u-compress.c
-    u-dialect.c
     u-gif.c
     u-jpg.c
     u-md5.c
