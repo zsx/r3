@@ -51,7 +51,17 @@
 //
 
 enum Reb_Param_Class {
-    PARAM_CLASS_0 = 0, // reserve to catch uninitialized cases
+    //
+    // `PARAM_CLASS_LOCAL` is a "pure" local, which will be set to void by
+    // argument fulfillment.  It is indicated by a SET-WORD! in the function
+    // spec, or by coming after a <local> tag in the function generators.
+    //
+    // !!! Initially these were indicated with TYPESET_FLAG_HIDDEN.  That
+    // would allow the PARAM_CLASS to fit in just two bits (if there were
+    // no debug-purpose PARAM_CLASS_0) and free up a scarce typeset flag.
+    // But is it the case that hiding and localness should be independent?
+    //
+    PARAM_CLASS_LOCAL = 0,
 
     // `PARAM_CLASS_NORMAL` is cued by an ordinary WORD! in the function spec
     // to indicate that you would like that argument to be evaluated normally.
@@ -87,16 +97,25 @@ enum Reb_Param_Class {
     //
     PARAM_CLASS_REFINEMENT = 0x03,
 
-    // `PARAM_CLASS_LOCAL` is a "pure" local, which will be set to void by
-    // argument fulfillment.  It is indicated by a SET-WORD! in the function
-    // spec, or by coming after a <local> tag in the function generators.
+    // `PARAM_CLASS_TIGHT` makes enfixed first arguments "lazy" and other
+    // arguments will use the DO_FLAG_NO_LOOKAHEAD.
     //
-    // !!! Initially these were indicated with TYPESET_FLAG_HIDDEN.  That
-    // would allow the PARAM_CLASS to fit in just two bits (if there were
-    // no debug-purpose PARAM_CLASS_0) and free up a scarce typeset flag.
-    // But is it the case that hiding and localness should be independent?
+    // R3-Alpha's notion of infix OP!s changed the way parameters were
+    // gathered.  On the right hand side, the argument was evaluated in a
+    // special mode in which further infix processing was not done.  This
+    // meant that `1 + 2 * 3`, when fulfilling the 2 for the right side of +,
+    // would "blind" itself so that it would not chain forward and see the
+    // `* 3`.  This gave rise to a distinct behavior from `1 + multiply 2 3`.
+    // A similar kind of "tightness" would happen with the left hand side,
+    // where `add 1 2 * 3` would be aggressive and evaluate it as
+    // `add 1 (2 * 3)` and not `(add 1 2) * 3`.
     //
-    PARAM_CLASS_LOCAL = 0x04,
+    // Ren-C decouples this property so that it may be applied to any
+    // parameter, and calls it "tight".  By default, however, expressions are
+    // completed as far as they can be on both the left and right hand side of
+    // enfixed expressions.
+    //
+    PARAM_CLASS_TIGHT = 0x04,
 
     // PARAM_CLASS_RETURN acts like a pure local, but is pre-filled with a
     // definitionally-scoped function value that takes 1 arg and returns it.
@@ -214,23 +233,6 @@ enum Reb_Param_Class {
 //
 #define TYPESET_FLAG_NO_LOOKBACK TYPESET_FLAG(6)
 
-// R3-Alpha's notion of infix OP!s changed the way parameters were gathered.
-// On the right hand side, the argument was evaluated in a special mode in
-// which further infix processing was not done.  This meant that `1 + 2 * 3`,
-// when fulfilling the 2 for the right side of +, would "blind" itself so
-// that it would not chain forward and see the `* 3`.  This gave rise to a
-// distinct behavior from `1 + multiply 2 3`.  A similar kind of "tightness"
-// would happen with the left hand side, where `add 1 2 * 3` would be
-// aggressive and evaluate it as `add 1 (2 * 3)` and not `(add 1 2) * 3`.
-//
-// Ren-C decouples this property so that it may be applied to any parameter,
-// and calls it "tight".  By default, however, expressions are completed as
-// far as they can be on both the left and right hand side of enfixed
-// expressions.
-//
-#define TYPESET_FLAG_TIGHT TYPESET_FLAG(7)
-
-
 // Operations when typeset is done with a bitset (currently all typesets)
 
 #define VAL_TYPESET_BITS(v) ((v)->payload.typeset.bits)
@@ -280,18 +282,6 @@ inline static enum Reb_Param_Class VAL_PARAM_CLASS(const RELVAL *v) {
 inline static void INIT_VAL_PARAM_CLASS(RELVAL *v, enum Reb_Param_Class c) {
     CLEAR_N_MID_BITS(v->header.bits, PCLASS_NUM_BITS);
     v->header.bits |= FLAGBYTE_MID(c);
-
-    // !!! The "<tight>" mechanism is likely to be ultimately deprecated,
-    // and quoting will replace it.  For now, though, the only kinds of
-    // quoting you can accomplish on the left-hand side of an enfixed
-    // operation need tight semantics.  Otherwise, even if ELSE wants its
-    // first parameter to be a hard-quoted block, then `if x [] else []`
-    // will see (if x []) as a completed expression before ELSE gets the
-    // chance to quote the block.  To avoid having to mark quoted args
-    // as tight explicitly, do it implicitly for now.
-    //
-    if (c & PCLASS_ANY_QUOTE_MASK)
-        SET_VAL_FLAG(v, TYPESET_FLAG_TIGHT);
 }
 
 

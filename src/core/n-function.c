@@ -870,8 +870,11 @@ REBNATIVE(tighten)
     SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST); // flags not auto-copied
 
     RELVAL *param = ARR_AT(paramlist, 1); // first parameter (0 is FUNCTION!)
-    for (; NOT_END(param); ++param)
-        SET_VAL_FLAG(param, TYPESET_FLAG_TIGHT);
+    for (; NOT_END(param); ++param) {
+        enum Reb_Param_Class pclass = VAL_PARAM_CLASS(param);
+        if (pclass == PARAM_CLASS_NORMAL)
+            INIT_VAL_PARAM_CLASS(param, PARAM_CLASS_TIGHT);
+    }
 
     // !!! This does not make a unique copy of the meta information context.
     // Hence updates to the title/parameter-descriptions/etc. of the tightened

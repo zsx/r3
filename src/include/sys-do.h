@@ -1047,8 +1047,6 @@ inline static REBOOL Maybe_Run_Failed_Branch_Throws(
             return TRUE;
         }
     }
-    else
-        SET_VOID(out);
 
     return FALSE;
 }

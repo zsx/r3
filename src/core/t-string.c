@@ -1109,7 +1109,7 @@ REBTYPE(String)
                     if (*b == 0) {
                         if (wheel == VAL_INDEX(value))
                             fail (Error(RE_OVERFLOW));
-                            
+
                         *b = 255;
                         --wheel;
                         continue;

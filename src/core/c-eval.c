@@ -744,6 +744,12 @@ reevaluate:;
 
                 switch (pclass) {
                 case PARAM_CLASS_NORMAL:
+                case PARAM_CLASS_TIGHT:
+                    //
+                    // For lookback, the distinction between NORMAL and TIGHT
+                    // needs to have already been handled by this point.
+                    // Either way, the value is in f->out.
+                    //
                     break;
 
                 case PARAM_CLASS_HARD_QUOTE:
@@ -825,20 +831,32 @@ reevaluate:;
    //=//// REGULAR ARG-OR-REFINEMENT-ARG (consumes a DO/NEXT's worth) ////=//
 
             case PARAM_CLASS_NORMAL:
+                Do_Next_In_Frame_May_Throw(
+                    f->arg,
+                    f,
+                    DO_FLAG_FULFILLING_ARG
+                );
+
+                if (THROWN(f->arg)) {
+                    *f->out = *f->arg;
+                    Abort_Function_Args_For_Frame(f);
+                    goto finished;
+                }
+                break;
+
+            case PARAM_CLASS_TIGHT:
                 //
                 // The default for evaluated parameters is to do normal
                 // infix lookahead, e.g. `square 1 + 2` would pass 3
                 // to a single-arity function "square".  But if the
-                // argument to square is declared <tight>, it will act as
+                // argument to square is declared #tight, it will act as
                 // `(square 1) + 2`, by not applying lookahead to
                 // see the + during the argument evaluation.
                 //
                 Do_Next_In_Frame_May_Throw(
                     f->arg,
                     f,
-                    (GET_VAL_FLAG(f->param, TYPESET_FLAG_TIGHT)
-                        ? DO_FLAG_NO_LOOKAHEAD | DO_FLAG_FULFILLING_ARG
-                        : DO_FLAG_FULFILLING_ARG)
+                    DO_FLAG_NO_LOOKAHEAD | DO_FLAG_FULFILLING_ARG
                 );
 
                 if (THROWN(f->arg)) {

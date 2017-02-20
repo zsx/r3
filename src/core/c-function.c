@@ -49,6 +49,10 @@ REBARR *List_Func_Words(const RELVAL *func, REBOOL pure_locals)
             kind = REB_WORD;
             break;
 
+        case PARAM_CLASS_TIGHT:
+            kind = REB_ISSUE;
+            break;
+
         case PARAM_CLASS_REFINEMENT:
             kind = REB_REFINEMENT;
             break;
@@ -512,10 +516,19 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             //
             break;
 
+        case REB_ISSUE:
+            //
+            // !!! Because of their role in the preprocessor in Red, and a
+            // likely need for a similar behavior in Rebol, ISSUE! might not
+            // be the ideal choice to mark tight parameters.
+            //
+            assert(mode == SPEC_MODE_NORMAL);
+            INIT_VAL_PARAM_CLASS(typeset, PARAM_CLASS_TIGHT);
+            break;
+
         default:
             fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
         }
-        assert(VAL_PARAM_CLASS(typeset) != PARAM_CLASS_0);
 
         // !!! This is a lame way of setting the durability, because it means
         // that there's no way a user with just `make function!` could do it.
@@ -960,20 +973,27 @@ REBFUN *Make_Function(
             //
             goto done_caching;
 
-        case PARAM_CLASS_NORMAL:
-        case PARAM_CLASS_HARD_QUOTE:
-        case PARAM_CLASS_SOFT_QUOTE: {
+        case PARAM_CLASS_NORMAL: {
             //
             // At least one argument.  Call it a brancher even if it might
             // error on LOGIC! or have greater arity, so that the error can
             // be delivered by the moment of attempted application.
             //
             SET_VAL_FLAG(rootparam, FUNC_FLAG_MAYBE_BRANCHER);
-
-            if (NOT_VAL_FLAG(param, TYPESET_FLAG_TIGHT))
-                SET_VAL_FLAG(rootparam, FUNC_FLAG_DEFERS_LOOKBACK_ARG);
+            SET_VAL_FLAG(rootparam, FUNC_FLAG_DEFERS_LOOKBACK_ARG);
 
             goto done_caching; }
+
+        case PARAM_CLASS_TIGHT:
+        case PARAM_CLASS_HARD_QUOTE:
+        case PARAM_CLASS_SOFT_QUOTE: {
+            //
+            // At least one argument but not one that requires the deferring
+            // of lookback.
+            //
+            SET_VAL_FLAG(rootparam, FUNC_FLAG_MAYBE_BRANCHER);
+            goto done_caching;
+        }
 
         default:
             assert(FALSE);

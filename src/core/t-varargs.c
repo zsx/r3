@@ -193,8 +193,10 @@ REBIXO Do_Vararg_Op_May_Throw(
     // `summation 1 2 3 |> 100` would act as `summation 1 2 (3 |> 100)`.
     // A deferred operator needs to act somewhat as an expression barrier.
     //
+    // The same rule applies for "tight" arguments, `sum 1 2 3 + 4` with
+    // sum being variadic and tight needs to act as `(sum 1 2 3) + 4`
     if (
-        pclass == PARAM_CLASS_NORMAL
+        (pclass == PARAM_CLASS_NORMAL || pclass == PARAM_CLASS_TIGHT)
         && IS_WORD(f->value)
         && IS_WORD_BOUND(f->value)
     ){
@@ -216,9 +218,12 @@ REBIXO Do_Vararg_Op_May_Throw(
             /* child_eval_type = REB_WORD; */ // reset, keep fetched f->gotten
         }
         else {
-            if (child_eval_type == REB_0_LOOKBACK)
+            if (child_eval_type == REB_0_LOOKBACK) {
+                if (pclass == PARAM_CLASS_TIGHT)
+                    return END_FLAG;
                 if (GET_VAL_FLAG(child_gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG))
                     return END_FLAG;
+            }
         }
     }
 
@@ -226,28 +231,34 @@ REBIXO Do_Vararg_Op_May_Throw(
     // whatever information was loaded into `c` as the "feed" for values.
     //
     switch (pclass) {
-    case PARAM_CLASS_NORMAL:
-        if (op == VARARG_OP_TAIL_Q) return VA_LIST_FLAG;
+    case PARAM_CLASS_NORMAL: {
+        if (op == VARARG_OP_TAIL_Q)
+            return VA_LIST_FLAG;
 
         Do_Next_In_Frame_May_Throw(out, f, DO_FLAG_FULFILLING_ARG);
 
         if (THROWN(out))
             return THROWN_FLAG;
+        break; }
 
-        if (arg) {
-            if (GET_VAL_FLAG(out, VALUE_FLAG_UNEVALUATED))
-                SET_VAL_FLAG(arg, VALUE_FLAG_UNEVALUATED);
-            else
-                CLEAR_VAL_FLAG(arg, VALUE_FLAG_UNEVALUATED);
-        }
-        break;
+    case PARAM_CLASS_TIGHT: {
+        if (op == VARARG_OP_TAIL_Q)
+            return VA_LIST_FLAG;
+
+        Do_Next_In_Frame_May_Throw(
+            out,
+            f,
+            DO_FLAG_FULFILLING_ARG | DO_FLAG_NO_LOOKAHEAD
+        );
+
+        if (THROWN(out))
+            return THROWN_FLAG;
+        break; }
 
     case PARAM_CLASS_HARD_QUOTE:
         if (op == VARARG_OP_TAIL_Q) return VA_LIST_FLAG;
 
         Quote_Next_In_Frame(out, f);
-        if (arg)
-            SET_VAL_FLAG(arg, VALUE_FLAG_UNEVALUATED);
         break;
 
     case PARAM_CLASS_SOFT_QUOTE:
@@ -261,26 +272,24 @@ REBIXO Do_Vararg_Op_May_Throw(
             if (EVAL_VALUE_CORE_THROWS(out, f->value, f->specifier))
                 return THROWN_FLAG;
 
-            if (arg) {
-                if (GET_VAL_FLAG(out, VALUE_FLAG_UNEVALUATED))
-                    SET_VAL_FLAG(arg, VALUE_FLAG_UNEVALUATED);
-                else
-                    CLEAR_VAL_FLAG(arg, VALUE_FLAG_UNEVALUATED);
-            }
             Fetch_Next_In_Frame(f);
         }
         else { // not a soft-"exception" case, quote ordinarily
             if (op == VARARG_OP_TAIL_Q) return VA_LIST_FLAG;
 
             Quote_Next_In_Frame(out, f);
-
-            if (arg)
-                SET_VAL_FLAG(arg, VALUE_FLAG_UNEVALUATED);
         }
         break;
 
     default:
         assert(FALSE);
+    }
+
+    if (arg) {
+        if (GET_VAL_FLAG(out, VALUE_FLAG_UNEVALUATED))
+            SET_VAL_FLAG(arg, VALUE_FLAG_UNEVALUATED);
+        else
+            CLEAR_VAL_FLAG(arg, VALUE_FLAG_UNEVALUATED);
     }
 
     assert(NOT(THROWN(out))); // should have returned above

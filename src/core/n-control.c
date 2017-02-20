@@ -76,7 +76,7 @@ inline static REB_R If_Unless_Core(REBFRM *frame_, REBOOL trigger)
         if (REF(q))
             return R_FALSE; // !!! Support this?  It is like having EITHER?
 
-        return R_VOID; // default if nothing run (and not /?)
+        return R_OUT_VOID_IF_UNWRITTEN; // defaults void if nothing run
     }
 
     if (Run_Success_Branch_Throws(D_OUT, ARG(branch), REF(only)))
