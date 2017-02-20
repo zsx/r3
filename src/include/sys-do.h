@@ -397,20 +397,23 @@ inline static void Do_Pending_Sets_May_Invalidate_Gotten(
 
 
 //
-// This operation provides some optimization beyond Do_Core(), by taking the
-// simpler cases which can be done without a nested frame and handing them
-// back more immediately.
+// !!! This operation used to provide some optimization beyond setting up
+// a frame for a nested Do_Core().  It would take simpler cases which could
+// be done without a nested frame and hand them back more immediately, and
+// if it found it couldn't do an optimization then the work done in any
+// word fetches could be reused by keeping the fetch result in `f->gotten`
 //
-// Just skipping the evaluator for ET_INERT types that evaluate to themselves
-// is not possible--due to the role of infix.  So the code has to be somewhat
-// clever about testing for that.  Also, it is written in a way that if an
-// optimization cannot be done, the work it did to find out that fact can
-// be reused by Do_Core().
+// Checking for whether an optimization would be legal or not was complex,
+// as even something inert like `1` cannot be evaluated into a slot as `1`
+// unless one is sure that there isn't an ensuing `+` or other enfixed
+// operation.  Hence, complex evaluator logic had to be reproduced here
+// and second-guessed, often falling through to no optimization.
 //
-// The debug build exercises both code paths, by optimizing every other
-// execution to bypass the evaluator if possible...and then throwing
-// the code through Do_Core the other times.  It's a sampling test, but
-// not a bad one for helping keep the methods in sync.
+// Over time as the evaluator got more complicated, the redundant work and
+// conditional code paths showed a slight *slowdown* over just having an
+// inline straight-line function that built a frame and recursed Do_Core().
+// Future investigation could attack the problem again and see if there is
+// any common case that actually offered an advantage to optimize for here.
 //
 inline static void Do_Next_In_Frame_May_Throw(
     REBVAL *out,
@@ -424,123 +427,9 @@ inline static void Do_Next_In_Frame_May_Throw(
 
     child->eval_type = VAL_TYPE(parent->value);
 
-    // First see if it's one of the three categories we can optimize for
-    // that don't necessarily require us to recurse: inert values (like
-    // strings and integers and blocks), or a WORD! or GET-WORD!.  The work
-    // we do with lookups here will be reused if we can't avoid a frame.
-    //
-    if (IS_KIND_INERT(child->eval_type)) {
-        Derelativize(out, parent->value, parent->specifier);
-        SET_VAL_FLAG(out, VALUE_FLAG_UNEVALUATED);
-    }
-    else {
-        switch (child->eval_type) {
-        case REB_WORD: {
-            if (parent->gotten == NULL) {
-                child->gotten = Get_Var_Core(
-                    &child->eval_type, // sets to ET_LOOKBACK or ET_FUNCTION
-                    parent->value,
-                    parent->specifier,
-                    GETVAR_READ_ONLY
-                );
-            }
-            else {
-                child->eval_type = VAL_TYPE(parent->gotten);
-                child->gotten = parent->gotten;
-                parent->gotten = NULL;
-            }
+    child->gotten = parent->gotten;
 
-            if (IS_FUNCTION(child->gotten)) {
-                if (child->eval_type == REB_0_LOOKBACK)
-                    Lookback_For_Set_Word_Or_Set_Path(out, parent);
-                else {
-                    assert(child->eval_type == REB_FUNCTION);
-                    SET_END(out);
-                }
-                goto no_optimization;
-            }
-
-            if (IS_VOID(child->gotten))
-                fail (Error_No_Value_Core(parent->value, parent->specifier));
-
-            *out = *child->gotten;
-            CLEAR_VAL_FLAG(out, VALUE_FLAG_UNEVALUATED);
-
-        #if !defined(NDEBUG)
-            if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(out))
-                VAL_SET_TYPE_BITS(out, REB_WORD); // don't reset full header!
-        #endif
-            }
-            break;
-
-        case REB_GET_WORD: {
-            *out = *Get_Var_Core(
-                &child->eval_type, // sets to ET_LOOKBACK or ET_FUNCTION <ignored>
-                parent->value,
-                parent->specifier,
-                GETVAR_READ_ONLY
-            );
-            CLEAR_VAL_FLAG(out, VALUE_FLAG_UNEVALUATED);
-            }
-            break;
-
-        default:
-            // Paths, literal functions, set-words, groups... these are all things
-            // that currently need an independent frame from the parent in order
-            // to hold their state.
-            //
-            child->gotten = NULL;
-            SET_END(out);
-            goto no_optimization;
-        }
-    }
-
-#if !defined(NDEBUG)
-    //if (SPORADICALLY(2)) goto no_optimization; // skip half the time to test
-#endif
-
-    Fetch_Next_In_Frame(parent);
-    if (IS_END(parent->value))
-        return;
-
-    child->eval_type = VAL_TYPE(parent->value);
-
-    if (
-        NOT(flags & DO_FLAG_NO_LOOKAHEAD)
-        && (child->eval_type == REB_WORD)
-        && IS_WORD_BOUND(parent->value)
-    ){
-        child->gotten = Get_Var_Core(
-            &child->eval_type, // sets to REB_LOOKBACK or REB_FUNCTION
-            parent->value,
-            parent->specifier,
-            GETVAR_READ_ONLY
-        );
-
-        // We only want to run the function if it is a lookback function,
-        // otherwise we leave it prefetched in f->gotten.  It will be reused
-        // on the next Do_Core call.
-        //
-        if (child->eval_type == REB_0_LOOKBACK) {
-            assert(IS_FUNCTION(child->gotten));
-
-            // Run the lookback if we can't afford to defer it -or- if it's
-            // not the kind that is deferred.
-            if (
-                NOT_VAL_FLAG(child->gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG)
-                || NOT(flags & DO_FLAG_FULFILLING_ARG)
-            ) {
-                goto no_optimization;
-            }
-        }
-        else
-            child->eval_type = REB_WORD;
-    }
-
-    TRACE_FETCH_DEBUG("Do_Next_In_Frame_May_Throw", parent, TRUE);
-    return;
-
-no_optimization:
+    SET_END(out);
     child->out = out;
 
     child->source = parent->source;
@@ -1158,6 +1047,8 @@ inline static REBOOL Maybe_Run_Failed_Branch_Throws(
             return TRUE;
         }
     }
+    else
+        SET_VOID(out);
 
     return FALSE;
 }
