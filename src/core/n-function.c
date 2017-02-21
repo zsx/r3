@@ -296,19 +296,20 @@ REBNATIVE(typechecker)
     SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
 
+    // for now, no help...use REDESCRIBE
+
+    AS_SERIES(paramlist)->link.meta = NULL;
+
     REBFUN *fun = Make_Function(
         paramlist,
         IS_DATATYPE(type)
             ? &Datatype_Checker_Dispatcher
             : &Typeset_Checker_Dispatcher,
-        NULL // this is fundamental (no distinct underlying function)
+        NULL, // this is fundamental (no distinct underlying function)
+        NULL // not providing a specialization
     );
 
     *FUNC_BODY(fun) = *type;
-
-    // for now, no help...use REDESCRIBE
-
-    AS_SERIES(paramlist)->link.meta = NULL;
 
     *D_OUT = *FUNC_VALUE(fun);
 
@@ -372,7 +373,8 @@ REBNATIVE(brancher)
     REBFUN *func = Make_Function(
         paramlist,
         &Brancher_Dispatcher,
-        NULL // no underlying function, this is fundamental
+        NULL, // no underlying function, this is fundamental
+        NULL // not providing a specialization
     );
 
     RELVAL *body = FUNC_BODY(func);
@@ -481,19 +483,6 @@ REBNATIVE(chain)
     SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
 
-    REBFUN *specializer;
-    REBFUN *underlying = Underlying_Function(&specializer, first);
-
-    REBFUN *fun = Make_Function(
-        paramlist,
-        &Chainer_Dispatcher,
-        specializer != NULL ? specializer : underlying // cache in paramlist
-    );
-
-    // "body" is the chainees array, available to the dispatcher when called
-    //
-    Init_Block(FUNC_BODY(fun), chainees);
-
     // See %sysobj.r for `chained-meta:` object template
 
     REBVAL *std_meta = Get_System(SYS_STANDARD, STD_CHAINED_META);
@@ -510,6 +499,17 @@ REBNATIVE(chain)
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
     AS_SERIES(paramlist)->link.meta = meta;
+
+    REBFUN *fun = Make_Function(
+        paramlist,
+        &Chainer_Dispatcher,
+        VAL_FUNC(first), // cache in paramlist
+        NULL // not changing the specialization
+    );
+
+    // "body" is the chainees array, available to the dispatcher when called
+    //
+    Init_Block(FUNC_BODY(fun), chainees);
 
     *D_OUT = *FUNC_VALUE(fun);
     assert(VAL_BINDING(D_OUT) == NULL);
@@ -552,8 +552,7 @@ REBNATIVE(adapt)
     // Hence you must bind relative to that deeper function...e.g. the function
     // behind the frame of the specialization which gets pushed.
     //
-    REBFUN *specializer;
-    REBFUN *underlying = Underlying_Function(&specializer, adaptee);
+    REBFUN *underlying = FUNC_UNDERLYING(VAL_FUNC(adaptee));
 
     // !!! In a future branch it may be possible that specific binding allows
     // a read-only input to be "viewed" with a relative binding, and no copy
@@ -576,10 +575,29 @@ REBNATIVE(adapt)
     SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
 
+    // See %sysobj.r for `adapted-meta:` object template
+
+    REBVAL *example = Get_System(SYS_STANDARD, STD_ADAPTED_META);
+
+    REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(example));
+    SET_VOID(CTX_VAR(meta, STD_ADAPTED_META_DESCRIPTION)); // default
+    *CTX_VAR(meta, STD_ADAPTED_META_ADAPTEE) = *adaptee;
+    if (opt_adaptee_name == NULL)
+        SET_VOID(CTX_VAR(meta, STD_ADAPTED_META_ADAPTEE_NAME));
+    else
+        Init_Word(
+            CTX_VAR(meta, STD_ADAPTED_META_ADAPTEE_NAME),
+            opt_adaptee_name
+        );
+
+    MANAGE_ARRAY(CTX_VARLIST(meta));
+    AS_SERIES(paramlist)->link.meta = meta;
+
     REBFUN *fun = Make_Function(
         paramlist,
         &Adapter_Dispatcher,
-        specializer != NULL ? specializer : underlying // cache in paramlist
+        underlying, // cache in paramlist
+        NULL // not changing the specialization
     );
 
     // We need to store the 2 values describing the adaptation so that the
@@ -605,24 +623,6 @@ REBNATIVE(adapt)
     SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
     INIT_RELATIVE(body, underlying);
     MANAGE_ARRAY(adaptation);
-
-    // See %sysobj.r for `adapted-meta:` object template
-
-    REBVAL *example = Get_System(SYS_STANDARD, STD_ADAPTED_META);
-
-    REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(example));
-    SET_VOID(CTX_VAR(meta, STD_ADAPTED_META_DESCRIPTION)); // default
-    *CTX_VAR(meta, STD_ADAPTED_META_ADAPTEE) = *adaptee;
-    if (opt_adaptee_name == NULL)
-        SET_VOID(CTX_VAR(meta, STD_ADAPTED_META_ADAPTEE_NAME));
-    else
-        Init_Word(
-            CTX_VAR(meta, STD_ADAPTED_META_ADAPTEE_NAME),
-            opt_adaptee_name
-        );
-
-    MANAGE_ARRAY(CTX_VARLIST(meta));
-    AS_SERIES(paramlist)->link.meta = meta;
 
     *D_OUT = *FUNC_VALUE(fun);
     assert(VAL_BINDING(D_OUT) == NULL);
@@ -701,8 +701,7 @@ REBNATIVE(hijack)
         // original victim being hijacked (otherwise, calling it would call
         // the hijacker too).  So it's a copy.
 
-        REBFUN *victim_underlying
-            = AS_SERIES(victim->payload.function.paramlist)->misc.underlying;
+        REBFUN *victim_underlying = FUNC_UNDERLYING(VAL_FUNC(victim));
 
         REBARR *proxy_paramlist = Copy_Array_Deep_Managed(
             victim->payload.function.paramlist,
@@ -722,7 +721,8 @@ REBNATIVE(hijack)
         REBFUN *proxy = Make_Function(
             proxy_paramlist,
             FUNC_DISPATCHER(VAL_FUNC(victim)),
-            victim_underlying
+            victim_underlying,
+            NULL // not changing the specialization
         );
 
         // The victim's body is overwritten below to hold the hijacker.  Copy
@@ -732,13 +732,6 @@ REBNATIVE(hijack)
 
         *D_OUT = *FUNC_VALUE(proxy);
         D_OUT->extra.binding = VAL_BINDING(victim);
-
-    #if !defined(NDEBUG)
-        SET_VAL_FLAG(FUNC_VALUE(proxy), FUNC_FLAG_PROXY_DEBUG);
-
-        REBFUN *specializer;
-        Underlying_Function(&specializer, D_OUT); // double-check underlying
-    #endif
     }
 
     // With the return value settled, do the actual hijacking.  The "body"
@@ -776,11 +769,6 @@ REBNATIVE(hijack)
     MANAGE_ARRAY(CTX_VARLIST(meta));
     AS_SERIES(VAL_FUNC_PARAMLIST(victim))->link.meta = meta;
 
-#if !defined(NDEBUG)
-    REBFUN *specializer;
-    Underlying_Function(&specializer, victim); // double-check underlying
-#endif
-
     return R_OUT;
 }
 
@@ -810,7 +798,7 @@ REBNATIVE(variadic_q)
 //
 //  tighten: native [
 //
-//  {Returns alias of a function whose args are gathered <tight>ly}
+//  {Returns alias of a function whose "normal" args are gathered "tightly"}
 //
 //      return: [function!]
 //      action [function!]
@@ -818,47 +806,20 @@ REBNATIVE(variadic_q)
 //
 REBNATIVE(tighten)
 //
-// !!! The <tight> annotation was introduced while trying to define a bridge
-// for compatibility with R3-Alpha's OP!.  That code made use of "lookahead
-// suppression" on the right hand side of infix operators, in order to give
-// a left-to-right evaluation ordering in pure infix expressions.  After some
-// experimentation, Ren-C came up with a more uniform rule across both
-// "enfixed" expressions (of arbitrary arity) and ordinary prefix expressions,
-// which still gave a left-to-right effect for binary infix ops.
-//
-// Hence <tight> is likely to be phased out; but it exists for compatibility.
 // This routine exists to avoid the overhead of a user-function stub where
-// all the parameters are <tight>, e.g. the behavior of R3-Alpha's OP!s.
+// all the parameters are #tight, e.g. the behavior of R3-Alpha's OP!s.
 // So `+: enfix tighten :add` is a faster equivalent of:
 //
-//     +: enfix func [arg1 [<tight> any-value!] arg2 [<tight> any-value!] [
+//     +: enfix func [#arg1 [any-value!] #arg2 [any-value!] [
 //         add :arg1 :arg2
 //     ]
 //
 // But also, the parameter types and help notes are kept in sync.
+//
 {
     INCLUDE_PARAMS_OF_TIGHTEN;
 
     REBFUN *original = VAL_FUNC(ARG(action));
-
-    // !!! With specializations and chaining, functions can be a stack of
-    // entities which require consistent definitions and point to each other.
-    // The identity comes from the top-most function, while the functionality
-    // often comes from the lowest one...and the pointers must be coherent.
-    // This means that tweaking function copies gets somewhat involved.  :-/
-    //
-    // For now this only supports tightening native or interpreted functions,
-    // to avoid walking the function chain and adjusting each level.  The
-    // option is still currently available to manually create a new user
-    // function that explicitly calls chained/specialized/adapted functions
-    // but has <tight> parameters...it will just not be as fast.
-    //
-    REBFUN *specializer;
-    REBFUN *underlying = Underlying_Function(&specializer, ARG(action));
-    if (underlying != original)
-        fail (Error(RE_INVALID_TIGHTEN));
-
-    assert(specializer == NULL);
 
     // Copy the paramlist, which serves as the function's unique identity,
     // and set the tight flag on all the parameters.
@@ -876,74 +837,72 @@ REBNATIVE(tighten)
             INIT_VAL_PARAM_CLASS(param, PARAM_CLASS_TIGHT);
     }
 
+    RELVAL *rootparam = ARR_HEAD(paramlist);
+    CLEAR_VAL_FLAGS(rootparam, FUNC_FLAG_CACHED_MASK);
+    rootparam->payload.function.paramlist = paramlist;
+    rootparam->extra.binding = NULL;
+
     // !!! This does not make a unique copy of the meta information context.
     // Hence updates to the title/parameter-descriptions/etc. of the tightened
-    // function will affect the original, and vice-versa.  Because this is
-    // a legacy support issue that's probably a feature and not a bug, but
-    // other function-copying abstractions should do it.
-    //    
+    // function will affect the original, and vice-versa.
+    //
     AS_SERIES(paramlist)->link.meta = FUNC_META(original);
 
-    // Update the underlying function (we should know it was equal to the
-    // original function from the test at the start)
-    //
-    AS_SERIES(paramlist)->misc.underlying = AS_FUNC(paramlist);
-
-    // The body can't be reused directly, even for natives--because that is how
-    // HIJACK and other dispatch manipulators can alter function behavior
-    // without changing their identity.
-    //
-    REBARR *body_holder = Alloc_Singular_Array();
-    AS_SERIES(body_holder)->misc.dispatcher = FUNC_DISPATCHER(original);
-    /* AS_SERIES(body_holder)->link not used at this time */
-
-    RELVAL *body = ARR_HEAD(body_holder);
-
-    // Interpreted functions actually hold a relativized block as their body.
-    // This relativization is with respect to their own paramlist.  So a new
-    // body has to be made for them, re-relativized to the new identity.
-    if (
-        IS_FUNCTION_INTERPRETED(ARG(action))
-        && !IS_BLANK(FUNC_BODY(original)) // Noop_Dispatcher uses blanks
-    ) {
-        assert(IS_BLOCK(FUNC_BODY(original)));
-        assert(VAL_RELATIVE(FUNC_BODY(original)) == original);
-
-        VAL_RESET_HEADER(body, REB_BLOCK);
-        INIT_VAL_ARRAY(
-            body,
-            Copy_Rerelativized_Array_Deep_Managed(
-                VAL_ARRAY(FUNC_BODY(original)),
-                original,
-                AS_FUNC(paramlist)
-            )
-        );
-        VAL_INDEX(body) = 0;
-
-        SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
-        INIT_RELATIVE(body, AS_FUNC(paramlist));
-    }
-    else
-        *body = *FUNC_BODY(original);
-
-    REBVAL *archetype = KNOWN(ARR_AT(paramlist, 0)); // must update
-    assert(IS_FUNCTION(archetype));
-
-    archetype->payload.function.paramlist = paramlist;
     MANAGE_ARRAY(paramlist);
 
-    archetype->payload.function.body_holder = body_holder;
-    MANAGE_ARRAY(body_holder);
+    REBFUN *fun = Make_Function(
+        paramlist,
+        FUNC_DISPATCHER(original),
+        original, // used to set the initial facade (overridden below)
+        NULL // don't add any specialization beyond the original
+    );
 
-    assert(archetype->extra.binding == NULL);
-
-    // The function should not indicate any longer that it defers lookback
-    // arguments (this flag is calculated from <tight> annotations in
-    // Make_Function())
+    // We're reusing the original dispatcher, so we also reuse the original
+    // function body.
     //
-    CLEAR_VAL_FLAG(archetype, FUNC_FLAG_DEFERS_LOOKBACK_ARG);
+    *FUNC_BODY(fun) = *FUNC_BODY(original);
 
-    *D_OUT = *archetype;
+    // Our function has a new identity, but we don't want to be using that
+    // identity for the pushed frame.  If we did that, then if the underlying
+    // function were interpreted, we would have to make a copy of its body
+    // and rebind it to the new paramlist.  HOWEVER we want the new tightened
+    // parameter specification to take effect--and that's not reflected in
+    // the original paramlist, e.g. the one to which that block is bound.
+    //
+    // So here's the clever part: functions allow you to offer a "facade"
+    // which is an array compatible with the original underlying function,
+    // but with stricter parameter types and different parameter classes.
+    // So just as the paramlist got transformed, transform the facade.
+
+    REBARR *facade = Copy_Array_Shallow(
+        FUNC_FACADE(original),
+        SPECIFIED // no relative values in facades, either
+    );
+    RELVAL *facade_param = ARR_AT(facade, 1);
+    for (; NOT_END(facade_param); ++facade_param) {
+        //
+        // !!! Technically we probably shouldn't be modifying the parameter
+        // classes of any arguments that were specialized out or otherwise
+        // not present in the original; but it shouldn't really matter.
+        // Once this function's layer has finished, the lower levels will
+        // refer to their own facades.
+        //
+        enum Reb_Param_Class pclass = VAL_PARAM_CLASS(facade_param);
+        if (pclass == PARAM_CLASS_NORMAL)
+            INIT_VAL_PARAM_CLASS(facade_param, PARAM_CLASS_TIGHT);
+    }
+
+    MANAGE_ARRAY(facade);
+
+    // Note: Do NOT set the ARRAY_FLAG_PARAMLIST on this facade.  It holds
+    // whatever function value in the [0] slot the original had, and that is
+    // used for the identity of the "underlying function".  (In order to make
+    // this a real FUNCTION!'s paramlist, the paramlist in the [0] slot would
+    // have to be equal to the facade's pointer.)
+    //
+    AS_SERIES(paramlist)->misc.facade = facade;
+
+    *D_OUT = *FUNC_VALUE(fun);
 
     // Currently esoteric case if someone chose to tighten a definitional
     // return, so `return 1 + 2` would return 1 instead of 3.  Would need to

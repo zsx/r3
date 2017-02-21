@@ -1309,7 +1309,8 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
     REBFUN *fun = Make_Function(
         paramlist,
         &Routine_Dispatcher,
-        NULL // no underlying function, this is fundamental
+        NULL, // no underlying function, this is fundamental
+        NULL // not providing a specialization
     );
     Init_Block(FUNC_BODY(fun), r);
 

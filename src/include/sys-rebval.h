@@ -354,12 +354,6 @@ struct Reb_Function {
     // The `link.meta` field of the paramlist holds a meta object (if any)
     // that describes the function.  This is read by help.
     //
-    // The `misc.underlying` field of the paramlist may point to the
-    // specialization whose frame should be used to set the default values
-    // for the arguments during a call.  Or it will point directly to the
-    // function whose paramlist should be used in the frame pushed.  This is
-    // different in hijackers, adapters, and chainers.
-    //
     REBARR *paramlist;
 
     // `body_holder` is an optimized "singular" REBSER, the size of exactly
@@ -377,6 +371,12 @@ struct Reb_Function {
     // SPECIALIZATIONS: body is a 1-element array containing a FRAME!
     // CALLBACKS: body a HANDLE! (REBRIN*)
     // ROUTINES: body a HANDLE! (REBRIN*)
+    //
+    // The `link.underlying` field of the body_holder may point to the
+    // specialization whose frame should be used to set the default values
+    // for the arguments during a call.  Or it will point directly to the
+    // function whose paramlist should be used in the frame pushed.  This is
+    // different in hijackers, adapters, and chainers.
     //
     REBARR *body_holder;
 };

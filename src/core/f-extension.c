@@ -202,7 +202,8 @@ void Make_Command(
     fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(spec, MKF_KEYWORDS),
         &Command_Dispatcher,
-        NULL // no underlying function, fundamental
+        NULL, // no underlying function, fundamental
+        NULL // not providing a specialization
     );
 
     // There is no "code" for a body, but there is information that tells the
@@ -439,7 +440,8 @@ REBNATIVE(load_native)
     REBFUN *fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(ARG(spec), MKF_KEYWORDS | MKF_FAKE_RETURN),
         cast(REBNAT*, VAL_HANDLE_POINTER(ARG(impl)))[VAL_INT64(ARG(index))], // unique
-        NULL // no underlying function, this is fundamental
+        NULL, // no underlying function, this is fundamental
+        NULL // not providing a specialization
     );
 
     if (REF(body)) {

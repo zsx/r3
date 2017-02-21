@@ -440,7 +440,7 @@ reevaluate:;
     #endif
 
         f->arg = f->args_head;
-        f->param = FUNC_PARAMS_HEAD(f->underlying);
+        f->param = FUNC_FACADE_HEAD(f->func);
         // f->special is END_CELL, f->args_head, or first specialized value
 
         // Same as check before switch.  (do_function_arglist_in_progress:
@@ -643,7 +643,8 @@ reevaluate:;
                 if (f->varlist) // !!! in specific binding, always for Plain
                     f->arg->extra.binding = f->varlist;
                 else
-                    f->arg->extra.binding = FUNC_PARAMLIST(f->underlying);
+                    f->arg->extra.binding =
+                        FUNC_PARAMLIST(FUNC_UNDERLYING(f->func));
 
                 if (f->special != END_CELL)
                     ++f->special; // specialization being overwritten is right
@@ -662,7 +663,8 @@ reevaluate:;
                 if (f->varlist) // !!! in specific binding, always for Plain
                     f->arg->extra.binding = f->varlist;
                 else
-                    f->arg->extra.binding = FUNC_PARAMLIST(f->underlying);
+                    f->arg->extra.binding =
+                        FUNC_PARAMLIST(FUNC_UNDERLYING(f->func));
 
                 if (f->special != END_CELL)
                     ++f->special; // specialization being overwritten is right

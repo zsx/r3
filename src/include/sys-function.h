@@ -78,6 +78,70 @@ inline static REBCTX *FUNC_META(REBFUN *f) {
     return AS_SERIES(FUNC_PARAMLIST(f))->link.meta;
 }
 
+inline static REBARR *FUNC_FACADE(REBFUN *f) {
+    REBARR *facade = AS_SERIES(FUNC_PARAMLIST(f))->misc.facade;
+    
+    // Although a facade *may* be a paramlist, it also could just be an array
+    // that *looks* like a paramlist, holding the underlying function the
+    // facade is "fronting for" in the head slot.  The facade must always
+    // hold the same number of parameters as the underlying function.
+    //
+#if !defined(NDEBUG)
+    assert(IS_FUNCTION(ARR_HEAD(facade)));
+    REBARR *underlying = ARR_HEAD(facade)->payload.function.paramlist;
+    if (underlying != facade) {
+        assert(NOT_SER_FLAG(facade, ARRAY_FLAG_PARAMLIST));
+        assert(GET_SER_FLAG(underlying, ARRAY_FLAG_PARAMLIST));
+        assert(ARR_LEN(facade) == ARR_LEN(underlying));
+    }
+#endif
+    return facade;
+}
+
+inline static REBCNT FUNC_FACADE_NUM_PARAMS(REBFUN *f) {
+    return ARR_LEN(FUNC_FACADE(f)) - 1;
+}
+
+inline static REBVAL *FUNC_FACADE_HEAD(REBFUN *f) {
+    return KNOWN(ARR_AT(FUNC_FACADE(f), 1));
+}
+
+// The concept of the "underlying" function is that which has the right
+// number of arguments for the frame to be built--and which has the actual
+// correct paramlist identity to use for binding in adaptations.
+//
+// So if you specialize a plain function with 2 arguments so it has just 1,
+// and then specialize the specialization so that it has 0, your call still
+// needs to be building a frame with 2 arguments.  Because that's what the
+// code that ultimately executes--after the specializations are peeled away--
+// will expect.
+//
+// And if you adapt an adaptation of a function, the keylist referred to in
+// the frame has to be the one for the inner function.  Using the adaptation's
+// parameter list would write variables the adapted code wouldn't read.
+//
+// For efficiency, the underlying pointer can be derived from the "facade".
+// Though the facade may not be the underlying paramlist (it could have its
+// parameter types tweaked for the purposes of that composition), it will
+// always have a FUNCTION! value in its 0 slot as the underlying function.
+//
+inline static REBFUN *FUNC_UNDERLYING(REBFUN *f) {
+    return AS_FUNC(ARR_HEAD(FUNC_FACADE(f))->payload.function.paramlist);
+}
+
+inline static REBCTX *FUNC_EXEMPLAR(REBFUN *f) {
+    REBCTX *exemplar = 
+        AS_SERIES(FUNC_VALUE(f)->payload.function.body_holder)->link.exemplar;
+
+#if !defined(NDEBUG)
+    if (exemplar != NULL) {
+        assert(FUNC_FACADE_NUM_PARAMS(f) == CTX_LEN(exemplar));
+    };
+#endif
+    return exemplar;
+}
+
+
 // Note: On Windows, FUNC_DISPATCH is already defined in the header files
 //
 #define FUNC_DISPATCHER(f) \
@@ -143,18 +207,10 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
 
 #if !defined(NDEBUG)
     //
-    // This flag is set on the canon function value when a proxy for a
-    // hijacking is made.  The main use is to disable the assert that the
-    // underlying function cached at the top level matches the actual
-    // function implementation after digging through the layers...because
-    // proxies must have new (cloned) paramlists but use the original bodies.
-    //
-    #define FUNC_FLAG_PROXY_DEBUG FUNC_FLAG(5)
-
     // BLANK! ("none!") for unused refinements instead of FALSE
     // Also, BLANK! for args of unused refinements instead of not set
     //
-    #define FUNC_FLAG_LEGACY_DEBUG FUNC_FLAG(6)
+    #define FUNC_FLAG_LEGACY_DEBUG FUNC_FLAG(5)
 
     // If a function is a native then it may provide return information as
     // documentation, but not want to pay for the run-time check of whether
@@ -162,8 +218,13 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
     // to double-check.  So when MKF_FAKE_RETURN is used in a debug build,
     // it leaves this flag on the function.
     //
-    #define FUNC_FLAG_RETURN_DEBUG FUNC_FLAG(7)
+    #define FUNC_FLAG_RETURN_DEBUG FUNC_FLAG(6)
 #endif
+
+// These are the flags which are scanned for and set during Make_Function
+//
+#define FUNC_FLAG_CACHED_MASK \
+    (FUNC_FLAG_MAYBE_BRANCHER | FUNC_FLAG_DEFERS_LOOKBACK_ARG)
 
 
 inline static REBFUN *VAL_FUNC(const RELVAL *v) {

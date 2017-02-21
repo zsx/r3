@@ -939,7 +939,8 @@ REBCNT Find_Param_Index(REBARR *paramlist, REBSTR *spelling)
 REBFUN *Make_Function(
     REBARR *paramlist,
     REBNAT dispatcher, // native C function called by Do_Core
-    REBFUN *opt_underlying // function which has size of actual frame to push
+    REBFUN *opt_underlying, // function which has size of actual frame to push
+    REBCTX *opt_exemplar // specialization (or inherit from underlying)
 ) {
     ASSERT_ARRAY_MANAGED(paramlist);
 
@@ -1018,11 +1019,53 @@ done_caching:;
 
     AS_SERIES(body_holder)->misc.dispatcher = dispatcher;
 
-    // To avoid NULL checking when a function is called and looking for the
-    // underlying function, put the functions own pointer in if needed
+    // When this function is run, it needs to push a stack frame with a
+    // certain number of arguments, and do type checking and parameter class
+    // conventions based on that.  This frame must be compatible with the
+    // number of arguments expected by the underlying function, and must not
+    // allow any types to be passed to that underlying function it is not
+    // expecting (e.g. natives written to only take INTEGER! may crash if
+    // they get BLOCK!).  But beyond those constraints, the outer function
+    // may have new parameter classes through a "facade".  This facade is
+    // initially just the underlying function's paramlist, but may change.
     //
-    AS_SERIES(paramlist)->misc.underlying
-        = opt_underlying != NULL ? opt_underlying : AS_FUNC(paramlist);
+    if (opt_underlying) {
+        AS_SERIES(paramlist)->misc.facade =
+            AS_SERIES(FUNC_PARAMLIST(opt_underlying))->misc.facade;
+    }
+    else {
+        // To avoid NULL checking when a function is called and looking for
+        // the underlying function, the functions own pointer in if needed
+        //
+        AS_SERIES(paramlist)->misc.facade = paramlist;
+    }
+
+    if (opt_exemplar) {
+        assert(
+            CTX_LEN(opt_exemplar)
+            == ARR_LEN(AS_SERIES(paramlist)->misc.facade) - 1
+        );
+
+        AS_SERIES(body_holder)->link.exemplar = opt_exemplar;
+    }
+    else if (opt_underlying)
+        AS_SERIES(body_holder)->link.exemplar =
+            AS_SERIES(
+                FUNC_VALUE(opt_underlying)->payload.function.body_holder
+            )->link.exemplar;
+    else
+        AS_SERIES(body_holder)->link.exemplar = NULL;
+
+    // The meta information may already be initialized, since the native
+    // version of paramlist construction sets up the FUNCTION-META information
+    // used by HELP.  If so, it must be a valid REBCTX*.  Otherwise NULL.
+    //
+    assert(
+        AS_SERIES(paramlist)->link.meta == NULL
+        || GET_SER_FLAG(
+            CTX_VARLIST(AS_SERIES(paramlist)->link.meta), ARRAY_FLAG_VARLIST
+        )
+    );
 
     // Note: used to set the keys of natives as read-only so that the debugger
     // couldn't manipulate the values in a native frame out from under it,
@@ -1194,7 +1237,8 @@ REBFUN *Make_Interpreted_Function_May_Fail(
     REBFUN *fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(spec, mkf_flags),
         &Noop_Dispatcher, // will be overwritten if non-NULL body
-        NULL // no underlying function, this is fundamental
+        NULL, // no underlying function, this is fundamental
+        NULL // not providing a specialization
     );
 
     // We look at the *actual* function flags; e.g. the person may have used
@@ -1364,13 +1408,17 @@ REBOOL Specialize_Function_Throws(
 ) {
     assert(out != specializee);
 
-    REBFUN *previous; // a previous specialization (if any)
-    REBFUN *underlying = Underlying_Function(&previous, specializee);
-
-    REBCTX *exemplar;
-
-    if (previous) {
+    REBCTX *exemplar = FUNC_EXEMPLAR(VAL_FUNC(specializee));
+    if (exemplar == NULL) {
         //
+        // An initial specialization is responsible for making a frame out
+        // of the function's paramlist.  Frame vars default void.
+        //
+        REBFUN *underlying = FUNC_UNDERLYING(VAL_FUNC(specializee));
+        exemplar = Make_Frame_For_Function(FUNC_VALUE(underlying));
+        MANAGE_ARRAY(CTX_VARLIST(exemplar));
+    }
+    else {
         // Specializing a specialization is ultimately just a specialization
         // of the innermost function being specialized.  (Imagine specializing
         // a specialization of APPEND, to the point where it no longer takes
@@ -1379,7 +1427,6 @@ REBOOL Specialize_Function_Throws(
         // be built for the code ultimately being called--and specializations
         // have no code of their own.)
 
-        exemplar = VAL_CONTEXT(FUNC_BODY(previous));
         REBARR *varlist = Copy_Array_Deep_Managed(
             CTX_VARLIST(exemplar), SPECIFIED
         );
@@ -1388,13 +1435,6 @@ REBOOL Specialize_Function_Throws(
 
         exemplar = AS_CONTEXT(varlist); // okay, now make exemplar our copy
         CTX_VALUE(exemplar)->payload.any_context.varlist = varlist;
-    }
-    else {
-        // An initial specialization is responsible for making a frame out
-        // of the function's paramlist.  Frame vars default void.
-        //
-        exemplar = Make_Frame_For_Function(FUNC_VALUE(underlying));
-        MANAGE_ARRAY(CTX_VARLIST(exemplar));
     }
 
     // Archetypal frame values can't have exit bindings (would write paramlist)
@@ -1453,19 +1493,6 @@ REBOOL Specialize_Function_Throws(
     RELVAL *rootparam = ARR_HEAD(paramlist);
     rootparam->payload.function.paramlist = paramlist;
 
-    REBFUN *fun = Make_Function(
-        paramlist,
-        &Specializer_Dispatcher,
-        underlying // cache the underlying function pointer in the paramlist
-    );
-
-    // The "body" is the FRAME! value of the specialization.  Though we may
-    // not be able to touch the keylist of that frame to update the "archetype"
-    // binding, we can patch this cell in the "body array" to hold it.
-    //
-    *FUNC_BODY(fun) = *CTX_VALUE(exemplar);
-    assert(VAL_BINDING(FUNC_BODY(fun)) == VAL_BINDING(specializee));
-
     // See %sysobj.r for `specialized-meta:` object template
 
     REBVAL *example = Get_System(SYS_STANDARD, STD_SPECIALIZED_META);
@@ -1484,6 +1511,20 @@ REBOOL Specialize_Function_Throws(
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
     AS_SERIES(paramlist)->link.meta = meta;
+
+    REBFUN *fun = Make_Function(
+        paramlist,
+        &Specializer_Dispatcher,
+        VAL_FUNC(specializee), // cache underlying function's facade
+        exemplar // also provide a context of specialization values
+    );
+
+    // The "body" is the FRAME! value of the specialization.  Though we may
+    // not be able to touch the keylist of that frame to update the "archetype"
+    // binding, we can patch this cell in the "body array" to hold it.
+    //
+    *FUNC_BODY(fun) = *CTX_VALUE(exemplar);
+    assert(VAL_BINDING(FUNC_BODY(fun)) == VAL_BINDING(specializee));
 
     *out = *FUNC_VALUE(fun);
     assert(VAL_BINDING(out) == NULL);
@@ -1545,15 +1586,16 @@ void Clonify_Function(REBVAL *value)
     MANAGE_ARRAY(paramlist);
     ARR_HEAD(paramlist)->payload.function.paramlist = paramlist;
 
-    REBFUN *new_fun = Make_Function(
-        paramlist,
-        FUNC_DISPATCHER(original_fun),
-        NULL // no underlying function, this is fundamental
-    );
-
     // !!! Meta: copy, inherit?
     //
     AS_SERIES(paramlist)->link.meta = FUNC_META(original_fun);
+
+    REBFUN *new_fun = Make_Function(
+        paramlist,
+        FUNC_DISPATCHER(original_fun),
+        NULL, // no underlying function, this is fundamental
+        NULL // not providing a specialization
+    );
 
     RELVAL *body = FUNC_BODY(new_fun);
 
@@ -1842,18 +1884,13 @@ REB_R Adapter_Dispatcher(REBFRM *f)
     RELVAL* prelude = VAL_ARRAY_AT_HEAD(adaptation, 0);
     REBVAL* adaptee = KNOWN(VAL_ARRAY_AT_HEAD(adaptation, 1));
 
-    // !!! With specific binding, we could slip the adapter a specifier for
-    // the underlying function.  But until then, it looks at the stack.  The
-    // f->func has to match what it's looking for that it bound to--which is
-    // the underlying function.
-
-    REBFUN *specializer;
-    REBFUN *underlying = Underlying_Function(&specializer, adaptee);
-    assert(underlying != NULL);
-
     // The first thing to do is run the prelude code, which may throw.  If it
     // does throw--including a RETURN--that means the adapted function will
     // not be run.
+    //
+    // (Note that when the adapter was created, the prelude code was bound to
+    // the paramlist of the *underlying* function--because that's what a
+    // compatible frame gets pushed for.)
     //
     if (Do_At_Throws(
         f->out,
@@ -2011,17 +2048,13 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
     if (opt_def)
         Push_Or_Alloc_Args_For_Underlying_Func(f);
     else {
-        REBFUN *specializer;
-        f->underlying = Underlying_Function(&specializer, FUNC_VALUE(f->func));
-
         ASSERT_CONTEXT(AS_CONTEXT(f->varlist)); // underlying must be set
 
         f->args_head = CTX_VARS_HEAD(AS_CONTEXT(f->varlist));
 
-        if (specializer) {
-            REBCTX *exemplar = VAL_CONTEXT(FUNC_BODY(specializer));
+        REBCTX *exemplar = FUNC_EXEMPLAR(f->func);
+        if (exemplar)
             f->special = CTX_VARS_HEAD(exemplar);
-        }
         else
             f->special = m_cast(REBVAL*, END_CELL); // literal pointer tested
 
@@ -2039,7 +2072,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
     // know if the user writes them or not...so making them "write-only"
     // isn't an option either.  One has to
     //
-    f->param = FUNC_PARAMS_HEAD(f->underlying);
+    f->param = FUNC_FACADE_HEAD(f->func);
     f->arg = f->args_head;
     while (NOT_END(f->param)) {
         if (f->special != END_CELL && !IS_VOID(f->special)) {

@@ -157,7 +157,7 @@ inline static REBCNT FRM_EXPR_INDEX(REBFRM *f) {
 // ID ran.  Consider when reviewing the future of ACTION!.
 //
 #define FRM_NUM_ARGS(f) \
-    FUNC_NUM_PARAMS((f)->underlying)
+    FUNC_FACADE_NUM_PARAMS((f)->func)
 
 inline static REBVAL *FRM_CELL(REBFRM *f) {
     //
@@ -410,99 +410,6 @@ inline static void Enter_Native(REBFRM *f) {
 }
 
 
-// The concept of the "underlying" function is that which has the right
-// number of arguments for the frame to be built--and which has the actual
-// correct paramlist identity to use for binding in adaptations.
-//
-// So if you specialize a plain function with 2 arguments so it has just 1,
-// and then specialize the specialization so that it has 0, your call still
-// needs to be building a frame with 2 arguments.  Because that's what the
-// code that ultimately executes--after the specializations are peeled away--
-// will expect.
-//
-// And if you adapt an adaptation of a function, the keylist referred to in
-// the frame has to be the one for the inner function.  Using the adaptation's
-// parameter list would write variables the adapted code wouldn't read.
-//
-// For efficiency, the underlying pointer is cached in the function paramlist.
-// However, it may take two steps, if there is a specialization to take into
-// account...because the specialization is needed to get the exemplar frame.
-//
-inline static REBFUN *Underlying_Function(
-    REBFUN **specializer_out,
-    const REBVAL *value
-) {
-    REBFUN *underlying;
-
-    // If the function is itself a specialization, then capture it and then
-    // return its underlying function.
-    //
-    if (IS_FUNCTION_SPECIALIZER(value)) {
-        *specializer_out = VAL_FUNC(value);
-        underlying = AS_SERIES(VAL_FUNC_PARAMLIST(value))->misc.underlying;
-        goto return_and_check;
-    }
-
-    underlying = AS_SERIES(VAL_FUNC_PARAMLIST(value))->misc.underlying;
-
-    if (!IS_FUNCTION_SPECIALIZER(FUNC_VALUE(underlying))) {
-        //
-        // If the function isn't a specialization and its underlying function
-        // isn't either, that means there are no specializations in this
-        // composition.  Note the underlying function pointer may be itself!
-        //
-        *specializer_out = NULL;
-        goto return_and_check;
-    }
-
-    // If the underlying function is a specialization, that means this is
-    // an adaptation or chaining of specializations.  The next underlying
-    // link should be to the real underlying function, digging under all
-    // specializations.
-
-    *specializer_out = underlying;
-    underlying = AS_SERIES(FUNC_PARAMLIST(underlying))->misc.underlying;
-
-return_and_check:
-
-    // This should be the terminal point in the chain of underlyingness, and
-    // it cannot itself be a specialization/adaptation/etc.
-    //
-    assert(
-        underlying
-        == AS_SERIES(FUNC_PARAMLIST(underlying))->misc.underlying
-    );
-    assert(!IS_FUNCTION_SPECIALIZER(FUNC_VALUE(underlying)));
-    assert(!IS_FUNCTION_CHAINER(FUNC_VALUE(underlying)));
-    assert(!IS_FUNCTION_ADAPTER(FUNC_VALUE(underlying)));
-
-#if !defined(NDEBUG)
-    REBFUN* specializer_check;
-    REBFUN* underlying_check = Underlying_Function_Debug(
-        &specializer_check, value
-    );
-    if (GET_VAL_FLAG(FUNC_VALUE(underlying_check), FUNC_FLAG_PROXY_DEBUG)) {
-        //
-        // Hijacking proxies have to push frames for the functions they proxy
-        // for, because that's the paramlist they're bound to.  Yet they
-        // need a unique identity.  The paramlist should be equivalent, just
-        // at a different address...but just check for same length.
-        //
-        assert(
-            FUNC_NUM_PARAMS(underlying) == FUNC_NUM_PARAMS(underlying_check)
-        );
-    }
-    else
-        assert(underlying == underlying_check); // enforce full match
-
-    assert(*specializer_out == specializer_check);
-#endif
-
-    return underlying;
-}
-
-
-
 // Allocate the series of REBVALs inspected by a function when executed (the
 // values behind ARG(name), REF(name), D_ARG(3),  etc.)
 //
@@ -528,7 +435,8 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(REBFRM *f) {
     // pointer with FUNC_VALUE().  That archetype--as with RETURN and LEAVE--
     // will not carry the specific `binding` information of a value.
     //
-    assert(IS_FUNCTION(f->gotten));
+    f->func = VAL_FUNC(f->gotten);
+    f->binding = VAL_BINDING(f->gotten);
 
     // The underlying function is whose parameter list must be enumerated.
     // Even though this underlying function can have more arguments than the
@@ -536,12 +444,14 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(REBFRM *f) {
     // than in that interface won't be gathered at the callsite because they
     // will not contain END markers.
     //
-    REBFUN *specializer;
-    f->underlying = Underlying_Function(&specializer, f->gotten);
+    // The "facade" is the interface this function uses, which must have the
+    // same number of arguments and be compatible with the underlying
+    // function.  At this point in time a facade might be a paramlist, but
+    // it could also just be an array with an unreadable blank in slot 0.
+    //
+    REBCNT num_args = FUNC_FACADE_NUM_PARAMS(f->func);
 
-    REBCNT num_args = FUNC_NUM_PARAMS(f->underlying);
-
-    if (IS_FUNC_DURABLE(f->underlying)) { // test f->func instead?
+    if (IS_FUNC_DURABLE(VAL_FUNC(f->gotten))) { // !!! Who decides durability?
         //
         // !!! It's hoped that stack frames can be "hybrids" with some pooled
         // allocated vars that survive a call, and some that go away when the
@@ -606,15 +516,11 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(REBFRM *f) {
         assert(CHUNK_LEN_FROM_VALUES(f->args_head) == num_args);
     }
 
-    if (specializer) {
-        REBCTX *exemplar = VAL_CONTEXT(FUNC_BODY(specializer));
+    REBCTX *exemplar = FUNC_EXEMPLAR(f->func);
+    if (exemplar)
         f->special = CTX_VARS_HEAD(exemplar);
-    }
     else
         f->special = m_cast(REBVAL*, END_CELL); // literal pointer used as test
-
-    f->func = VAL_FUNC(f->gotten);
-    f->binding = VAL_BINDING(f->gotten);
 
     // We want the cell to be GC safe; whether it's used by an argument or
     // not.  If it's being used as an argument then this just gets overwritten

@@ -704,13 +704,16 @@ static void Propagate_All_GC_Marks(void)
             Mark_Rebser_Only(AS_SERIES(body_holder));
             Queue_Mark_Opt_Value_Deep(ARR_HEAD(body_holder));
 
-            REBFUN *underlying = AS_SERIES(a)->misc.underlying;
-            if (underlying != NULL)
-                Queue_Mark_Function_Deep(underlying);
+            REBCTX *exemplar = AS_SERIES(body_holder)->link.exemplar;
+            if (exemplar != NULL)
+                Queue_Mark_Context_Deep(exemplar);
 
             REBCTX *meta = AS_SERIES(a)->link.meta;
             if (meta != NULL)
                 Queue_Mark_Context_Deep(meta);
+
+            REBARR *facade = AS_SERIES(a)->misc.facade;
+            Queue_Mark_Array_Subclass_Deep(facade);
 
             assert(IS_FUNCTION(v));
             assert(v->extra.binding == NULL); // archetypes have no binding
@@ -1127,7 +1130,7 @@ static void Mark_Frame_Stack_Deep(void)
         // of if this is the "doing pickups" or not.  If doing pickups
         // then skip the cells for pending refinement arguments.
         //
-        REBVAL *param = FUNC_PARAMS_HEAD(f->underlying);
+        REBVAL *param = FUNC_FACADE_HEAD(f->func);
         REBVAL *arg = f->args_head; // may be stack or dynamic
         for (; NOT_END(param); ++param, ++arg) {
             if (param == f->param && !f->doing_pickups)

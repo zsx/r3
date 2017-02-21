@@ -259,78 +259,6 @@ void Pop_Stack_Values_Into(REBVAL *into, REBDSP dsp_start) {
 }
 
 
-#if !defined(NDEBUG)
-//
-//  Underlying_Function_Debug: C
-//
-// Slow version, keep temporarily for the double-checking
-//
-REBFUN *Underlying_Function_Debug(
-    REBFUN **specializer_out,
-    const RELVAL *value
-) {
-    REBOOL loop;
-    do {
-        loop = FALSE;
-
-        // A specializer knows its underlying function because it is the
-        // function its exemplar was designed for.
-        //
-        // Only the outermost specialized frame is needed.  It should have
-        // taken into account the effects of any deeper specializations at the
-        // time of creation, to cache the summation of the specilized args.
-        //
-        if (IS_FUNCTION_SPECIALIZER(value)) {
-            *specializer_out = VAL_FUNC(value);
-
-            REBCTX *exemplar = VAL_CONTEXT(VAL_FUNC_BODY(value));
-            return VAL_FUNC(CTX_FRAME_FUNC_VALUE(exemplar));
-        }
-
-        while (IS_FUNCTION_ADAPTER(value)) {
-            value = VAL_ARRAY_AT_HEAD(VAL_FUNC_BODY(value), 1);
-            loop = TRUE;
-        }
-
-        while (IS_FUNCTION_CHAINER(value)) {
-            value = VAL_ARRAY_AT_HEAD(VAL_FUNC_BODY(value), 0);
-            loop = TRUE;
-        }
-
-        while (IS_FUNCTION_HIJACKER(value)) {
-            //
-            // The function that got hijacked needs to report the same
-            // underlying function that it did before the hijacking.  The only
-            // place that's stored is in the misc field
-
-            REBFUN *underlying
-                = AS_SERIES(VAL_FUNC_PARAMLIST(value))->misc.underlying;
-
-            if (underlying == VAL_FUNC(value))
-                break; // hijacking was of a fundamental function
-
-            value = FUNC_VALUE(underlying);
-            loop = TRUE;
-        }
-    } while (loop);
-
-    *specializer_out = NULL; // underlying function is not specializing.
-
-    // A plain function may be a re-relativization (due to hijacking) with
-    // what was originally a body made for another function.  In that case,
-    // the frame needs to be "for that", so it is the underlying function.
-
-    if (IS_FUNCTION_INTERPRETED(value)) {
-        RELVAL *body = VAL_FUNC_BODY(value);
-        assert(IS_RELATIVE(body));
-        return VAL_RELATIVE(body);
-    }
-
-    return VAL_FUNC(value);
-}
-#endif
-
-
 //
 //  Reify_Frame_Context_Maybe_Fulfilling: C
 //
@@ -368,9 +296,7 @@ void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
     // that has already been managed.  The arglist array was managed when
     // created and kept alive by Mark_Call_Frames
     //
-    REBFUN *specializer;
-    REBFUN *underlying = Underlying_Function(&specializer, FUNC_VALUE(f->func));
-    INIT_CTX_KEYLIST_SHARED(context, FUNC_PARAMLIST(underlying));
+    INIT_CTX_KEYLIST_SHARED(context, FUNC_PARAMLIST(FUNC_UNDERLYING(f->func)));
     ASSERT_ARRAY_MANAGED(CTX_KEYLIST(context));
 
     // When in ET_FUNCTION or ET_LOOKBACK, the arglist will be marked safe from

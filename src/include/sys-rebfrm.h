@@ -437,7 +437,6 @@ struct Reb_Frame {
     // that function (to examine its function flags, for instance).
     //
     REBFUN *func;
-    REBFUN *underlying;
 
     // `binding`
     //

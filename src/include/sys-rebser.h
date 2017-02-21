@@ -543,11 +543,48 @@ struct Reb_Series {
     // "payload" which might need to be 64-bit aligned as well.
     //
     union {
-        REBSER *hashlist; // MAP datatype uses this
-        REBARR *keylist; // used by CONTEXT
-        REBARR *schema; // for STRUCT (a REBFLD, parallels object's keylist)
-        REBCTX *meta; // paramlists and keylists can store a "meta" object
-        REBSTR *synonym; // circularly linked list of othEr-CaSed string forms
+        // REBCTX types use this to point from the varlist (the object's
+        // values, which is the identity of the object) to the keylist.  One
+        // reason why this is stored in the REBSER node of the varlist REBARR
+        // as opposed to in the REBVAL of the ANY-CONTEXT! is so that the
+        // keylist can be changed without needing to update all the REBVALs
+        // for that object.
+        //
+        // (Note: The main reason a keylist pointer needs to change--at least
+        // at the moment--is when an object instance is expanded, and the
+        // keylist needs to be disconnected from sharing with other objects.)
+        //
+        REBARR *keylist;
+
+        // paramlists and keylists can store a "meta" object
+        //
+        REBCTX *meta;
+
+        // For REBSTR, circularly linked list of othEr-CaSed string forms
+        //
+        REBSTR *synonym;
+
+        // On Reb_Function body_holders, this is the specialization frame for
+        // a function--or NULL if none.
+        //
+        REBCTX *exemplar;
+
+        // The MAP! datatype uses this.
+        //
+        REBSER *hashlist;
+
+        // for STRUCT, this is a "REBFLD" array.  It parallels an object's
+        // keylist, giving not only names of the fields in the structure but
+        // also the types and sizes.
+        //
+        // !!! The Atronix FFI has been gradually moved away from having its
+        // hooks directly into the low-level implemetation and the garbage
+        // collector.  With the conversion of REBFLD to a REBARR instead of
+        // a custom C type, it is one step closer to making STRUCT! a very
+        // OBJECT!-like type extension.  When there is a full story told on
+        // user-defined types, this should be excisable from the core.
+        //
+        REBARR *schema;
     } link;
 
     union Reb_Series_Content content;
@@ -572,22 +609,91 @@ struct Reb_Series {
     // might be referring to the series.
     //
     union {
-        REBNAT dispatcher; // native dispatcher code, see Reb_Function's body
-        REBCNT size;    // used for vectors and bitsets
+        // native dispatcher code, see Reb_Function's body_holder
+        //
+        REBNAT dispatcher;
+
+        // The facade is a REBARR which is a proxy for the paramlist of the
+        // underlying frame which is pushed when a function is called.  For
+        // instance, if a specialization of APPEND provides the value to
+        // append, that removes a parameter from the paramlist.  So the
+        // specialization will not have the value.  However, the frame that
+        // needs to be pushed for the call ultimately needs to have the
+        // value--so it must be pushed.
+        //
+        // Originally this was done just by caching the paramlist of the
+        // "underlying" function.  However, that can be limiting if one wants
+        // to constrain the types or change the parameter classes.  The facade
+        // *can* be the the paramlist of the underlying function, but it is
+        // not necessarily.
+        //
+        REBARR *facade;
+
+        // If this is the varlist of the REBCTX of a FRAME! series, this is
+        // the Reb_Frame pointer containing the C runtime state of the frame.
+        // If the call corresponding to the frame is no longer on the stack,
+        // then this will be NULL.
+        //
+        REBFRM *f;
+
+        // For REBSTR the canon cased form of this symbol, if it isn't canon
+        // itself.  If it *is* a canon, then the field is free and is used
+        // instead for `bind_index`
+        //
+        REBSTR *canon;
+        
+        // When binding words into a context, it's necessary to keep a table
+        // mapping those words to indices in the context's keylist.  R3-Alpha
+        // had a global "binding table" for the spellings of words, where
+        // those spellings were not garbage collected.  Ren-C uses REBSERs
+        // to store word spellings, and then has a hash table indexing them.
+        //
+        // So the "binding table" is chosen to be indices reachable from the
+        // REBSER nodes of the words themselves.  If it were necessary for
+        // multiple clients to have bindings at the same time, this could be
+        // done through a pointer that would "pop out" into some kind of
+        // linked list.  For now, the binding API just demonstrates having
+        // up to 2 different indices in effect at once.
+        //
+        struct {
+            REBINT high:16;
+            REBINT low:16;
+        } bind_index;
+
+        // some HANDLE!s use this for GC finalization
+        //
+        CLEANUP_FUNC cleaner;
+
+        // Because a bitset can get very large, the negation state is stored
+        // as a boolean in the series.  Since negating a bitset is intended
+        // to affect all values, it has to be stored somewhere that all
+        // REBVALs would see a change--hence the field is in the series.
+        //
+        REBOOL negated;
+
+        // used for vectors and bitsets
+        //
+        REBCNT size;
+
+        // For LIBRARY!, the file descriptor.  This is set to NULL when the
+        // library is not loaded.
+        //
+        // !!! As with some other types, this may not need the optimization of
+        // being in the Reb_Series node--but be handled via user defined types
+        //
+        void *fd;
+
+        // used for IMAGE!
+        //
+        // !!! The optimization by which images live in a single REBSER vs.
+        // actually being a class of OBJECT! with something like an ordinary
+        // PAIR! for its size is superfluous, and would be excised when it
+        // is possible to make images a user-defined type.
+        //
         struct {
             REBCNT wide:16;
             REBCNT high:16;
         } area;
-        REBOOL negated; // for bitsets (must be shared, can't be in REBVAL)
-        REBFUN *underlying; // specialization -or- final underlying function
-        REBFRM *f; // for a FRAME! series, the call frame (or NULL)
-        void *fd; // file descriptor for library
-        REBSTR *canon; // canon cased form of this symbol (if not canon)
-        struct {
-            REBINT high:16;
-            REBINT low:16;
-        } bind_index; // canon words hold index for binding--demo sharing 2
-        CLEANUP_FUNC cleaner; // some HANDLE!s use this for GC finalization
     } misc;
 
 #if !defined(NDEBUG)

@@ -577,7 +577,8 @@ void Init_Debug_Extension(void) {
         REBFUN *debug_native = Make_Function(
             Make_Paramlist_Managed_May_Fail(&spec, MKF_KEYWORDS),
             &N_debug,
-            NULL // no underlying function, this is fundamental
+            NULL, // no underlying function, this is fundamental
+            NULL // not providing a specialization
         );
 
         *Append_Context(Lib_Context, 0, debug_name) = *FUNC_VALUE(debug_native);

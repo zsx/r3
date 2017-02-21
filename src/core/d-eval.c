@@ -336,7 +336,6 @@ REBUPT Do_Core_Expression_Checks_Debug(REBFRM *f) {
 
     TRASH_POINTER_IF_DEBUG(f->func);
     TRASH_POINTER_IF_DEBUG(f->binding);
-    TRASH_POINTER_IF_DEBUG(f->underlying);
 
     // Mutate va_list sources into arrays at fairly random moments in the
     // debug build.  It should be able to handle it at any time.

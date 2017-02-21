@@ -374,7 +374,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
     //
     // !!! See note in function description about arity mismatches.
     //
-    f->param = FUNC_PARAMS_HEAD(f->underlying);
+    f->param = FUNC_FACADE_HEAD(f->func);
     f->arg = f->args_head;
     REBOOL ignoring = FALSE;
 
@@ -669,7 +669,8 @@ REBNATIVE(set_scheme)
     REBFUN *fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(port_actor_spec, MKF_KEYWORDS),
         cast(REBNAT, Scheme_Actions[n].fun), // !!! actually a REBPAF (!!!)
-        NULL // no underlying function, fundamental
+        NULL, // no underlying function, fundamental
+        NULL // not providing a specialization
     );
 
     *actor = *FUNC_VALUE(fun);

@@ -91,7 +91,7 @@ REBOOL In_Legacy_Function_Debug(void)
 //
 void Legacy_Convert_Function_Args(REBFRM *f)
 {
-    REBVAL *param = FUNC_PARAMS_HEAD(f->underlying);
+    REBVAL *param = FUNC_FACADE_HEAD(f->func);
     REBVAL *arg = f->args_head;
 
     REBOOL set_blank = FALSE;
