@@ -379,8 +379,10 @@ help: procedure [
     refinements: _ ;-- refinements and refinement arguments
 
     parse words-of :value [
-        copy args any [word! | get-word! | lit-word!]
-        copy refinements any [refinement! | word! | get-word! | lit-word!]
+        copy args any [word! | get-word! | lit-word! | issue!]
+        copy refinements any [
+            refinement! | word! | get-word! | lit-word! | issue!
+        ]
     ]
 
     ; Output exemplar calling string, e.g. LEFT + RIGHT or FOO A B C
