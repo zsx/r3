@@ -92,7 +92,7 @@
 
 #include "sys-core.h"
 #include "sys-ext.h"
-#include "tmp-boot-modules.h"
+#include "tmp-boot-extensions.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -843,7 +843,7 @@ int main(int argc, char **argv_ansi)
 
         REBVAL ext_value;
         SET_BLANK(&ext_value);
-        LOAD_BOOT_MODULES(&ext_value);
+        LOAD_BOOT_EXTENSIONS(&ext_value);
 
         if (!IS_FUNCTION(&host_start))
             panic (&host_start); // should not be able to error
@@ -873,6 +873,7 @@ int main(int argc, char **argv_ansi)
 
                 DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
+                SHUTDOWN_BOOT_EXTENSIONS();
                 Shutdown_Core();
                 OS_EXIT(exit_status);
                 DEAD_END;
@@ -945,6 +946,8 @@ int main(int argc, char **argv_ansi)
     }
 
     DROP_GUARD_VALUE(&HG_Host_Repl);
+
+    SHUTDOWN_BOOT_EXTENSIONS();
 
     OS_QUIT_DEVICES(0);
 

@@ -221,6 +221,10 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
     #define FUNC_FLAG_RETURN_DEBUG FUNC_FLAG(6)
 #endif
 
+// This flag is set when the native (e.g. extensions) can be unloaded
+//
+#define FUNC_FLAG_UNLOADABLE_NATIVE FUNC_FLAG(7)
+
 // These are the flags which are scanned for and set during Make_Function
 //
 #define FUNC_FLAG_CACHED_MASK \

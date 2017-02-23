@@ -79,9 +79,14 @@ either blank? args/MODULE [
     ;read process all builtin modules in file-base/modules
     ;used by make-make.r
     file-base: load %file-base.r
-    for-each [builtin? m-name m-src] file-base/modules [
+    for-each [builtin? ext-name ext-src modules] file-base/extensions [
         if '+ = builtin? [
-            append boot-modules reduce [to string! m-name m-src]
+            for-each m modules [
+                append boot-modules reduce [
+                    to string! m
+                    select file-base/modules m
+                ]
+            ]
         ]
     ]
 ][
@@ -161,8 +166,11 @@ for-each [m-name c-src] boot-modules [
     comp-data: compress data: to-binary mold spec
     ;print ["buf:" to string! data]
 
-    emit-header m-name join-all [%tmp- l-m-name %.h]
+    emit-header m-name join-all [%tmp-mod- l-m-name %-last.h]
     emit-lines [
+        [{int Module_Init_} m-name {(RELVAL *out);}]
+        [{int Module_Quit_} m-name {(void);}]
+        ["#if !defined(MODULE_INCLUDE_DECLARATION_ONLY)"]
         ["#define EXT_NUM_NATIVES_" u-m-name space num-native]
         ["#define EXT_NAT_COMPRESSED_SIZE_" u-m-name space length comp-data]
         [
@@ -191,7 +199,7 @@ for-each [m-name c-src] boot-modules [
     ]
 
     emit-line [ {
-    int Module_Init_} m-name {_Core(RELVAL *out)
+    int Module_Init_} m-name {(RELVAL *out)
     ^{
         INIT_} u-m-name {_WORDS;}
     either empty? error-list [ unspaced [ {
@@ -207,20 +215,26 @@ for-each [m-name c-src] boot-modules [
             Ext_Native_C_Funcs_} m-name {, EXT_NUM_NATIVES_} u-m-name {,
             Ext_} m-name {_Error_Base);}]
         ] {
-        Init_Block(out, arr);
+        if (!IS_BLOCK(out)) {
+            Init_Block(out, arr);
+        } else {
+            Append_Values_Len(VAL_ARRAY(out), KNOWN(ARR_HEAD(arr)), ARR_LEN(arr));
+            Free_Array(arr);
+        }
 
         return 0;
     ^}
 
-    int Module_Quit_} m-name {_Core(void)
+    int Module_Quit_} m-name {(void)
     {
         return 0;
     }
+    #endif //MODULE_INCLUDE_DECLARATION_ONLY
     }
     ]
 
     write-emitted to file! unspaced [
-        output-dir/include/tmp-ext- l-m-name %-last.h
+        output-dir/include/tmp-mod- l-m-name %-last.h
     ]
 
     ;--------------------------------------------------------------
@@ -228,7 +242,7 @@ for-each [m-name c-src] boot-modules [
 
     emit-header
         "PARAM() and REFINE() Automatic Macros"
-        to file! unspaced [%tmp-ext- l-m-name %-first.h]
+        to file! unspaced [%tmp-mod- l-m-name %-first.h]
 
     emit-native-include-params-macro native-list
 
@@ -315,6 +329,6 @@ for-each [m-name c-src] boot-modules [
     ]
 
     write-emitted to file! unspaced [
-        output-dir/include/tmp-ext- l-m-name %-first.h
+        output-dir/include/tmp-mod- l-m-name %-first.h
     ]
 ]

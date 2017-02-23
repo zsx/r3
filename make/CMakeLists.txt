@@ -83,7 +83,7 @@ message("OS: ${OS_MAJOR}.${OS_MINOR}")
 if (NOT DEFINED OS_MAJOR OR NOT DEFINED OS_MINOR)
     message(FATAL_ERROR "Unrecognized R3_OS_ID: ${R3_OS_ID}")
 endif()
-set(COMMON_MACROS REB_EXE)
+set (COMMON_MACROS "")
 if ("${OS_MAJOR}" STREQUAL "2")
     set (TO_OSX TRUE)
     list (APPEND COMMON_MACROS
@@ -374,13 +374,15 @@ set (CORE_SOURCE
     ${CORE_DIR}/u-png.c
     ${CORE_DIR}/u-sha1.c
     ${CORE_DIR}/u-zlib.c
+    ${CORE_DIR}/../codecs/png/lodepng.c
+    )
+set (CODECS_SOURCE
     ${CORE_DIR}/../codecs/aes/aes.c
     ${CORE_DIR}/../codecs/bigint/bigint.c
     ${CORE_DIR}/../codecs/dh/dh.c
-    ${CORE_DIR}/../codecs/png/lodepng.c
     ${CORE_DIR}/../codecs/rc4/rc4.c
     ${CORE_DIR}/../codecs/rsa/rsa.c
-    )
+)
 
 file(GLOB CORE_C_FILES ${CORE_DIR}/*.c)
 list(REMOVE_ITEM CORE_C_FILES ${CORE_DIR}/a-lib2.c) #see make-headers.r
@@ -565,20 +567,23 @@ set (GENERATED_CORE_HEADER
     ${EXT_CORE_OUTPUT}
     )
 
-set (EXT_SOURCE "")
+#HOST
+set(EXT_OS_OUTPUT
+    ${TOP_GENERATED_SRC_DIR}/include/host-lib.h
+    ${TOP_GENERATED_SRC_DIR}/include/host-table.inc
+    ${TOP_GENERATED_SRC_DIR}/os/tmp-host-start.inc
+    )
 
-macro(add_module name source)
+macro(add_module name source other)
     string (TOUPPER ${name} u_name)
     string (TOLOWER ${name} l_name)
 
-    option(R3_EXT_${u_name} "Build with extension ${l_name}" ON)
-
-    set (GENERATED_EXT_${u_name}_HEADER
-        ${TOP_GENERATED_SRC_DIR}/include/tmp-ext-${l_name}-first.h
-        ${TOP_GENERATED_SRC_DIR}/include/tmp-ext-${l_name}-last.h
+    set (GENERATED_MOD_${u_name}_HEADER
+        ${TOP_GENERATED_SRC_DIR}/include/tmp-mod-${l_name}-first.h
+        ${TOP_GENERATED_SRC_DIR}/include/tmp-mod-${l_name}-last.h
         )
     add_custom_command(OUTPUT
-        ${GENERATED_EXT_${u_name}_HEADER}
+        ${GENERATED_MOD_${u_name}_HEADER}
         COMMAND ${REBOL} ${TOOLS_DIR}/make-ext-natives.r SRC=${source} MODULE=${name} OUTDIR=${TOP_GENERATED_SRC_DIR}
         DEPENDS
         ${TOOL_DEPENDS}
@@ -586,26 +591,101 @@ macro(add_module name source)
         ${source}
         )
 
-    if (R3_EXT_${u_name})
-        list(APPEND EXT_SOURCE ${source})
-        list(APPEND GENERATED_EXT_HEADER ${GENERATED_EXT_${u_name}_HEADER})
-        list(APPEND BOOT_MODULES ${name})
-    endif ()
+    set (MODULE_${u_name}_SOURCE ${source} ${other})
+    set_source_files_properties(
+        ${GENERATED_MOD_${u_name}_HEADER}
+        PROPERTIES
+        HEADER_FILE_ONLY TRUE
+        )
 endmacro (add_module)
+
+macro(add_extension libname name can_be_module source modules includes definitions)
+    string (TOUPPER ${name} u_name)
+    string (TOLOWER ${name} l_name)
+    if (${can_be_module})
+        set (R3_EXT_${u_name} "Y" CACHE STRING "Build with extension ${l_name} ([Y], M or N)")
+    else ()
+        option (R3_EXT_${u_name} "Build with extension ${l_name}" TRUE)
+    endif ()
+
+    if ((${can_be_module}
+            AND (R3_EXT_${u_name} STREQUAL "M"
+                OR R3_EXT_${u_name} STREQUAL "Y")
+            ) OR ((NOT ${can_be_module}) AND R3_EXT_${u_name}))
+        set(MODULE_SOURCES "")
+        set(GENERATED_MODULE_HEADERS "")
+        foreach (mod ${modules})
+            string (TOUPPER ${mod} u_mod_name)
+            list(APPEND MODULE_SOURCES "${MODULE_${u_mod_name}_SOURCE}")
+            list(APPEND GENERATED_MODULE_HEADERS "${GENERATED_MOD_${u_mod_name}_HEADER}")
+        endforeach(mod)
+
+        set(R3_EXT_${u_name}_SOURCES
+            ${source} ${MODULE_SOURCES} ${GENERATED_MODULE_HEADERS})
+
+        set_source_files_properties(
+            ${GENERATED_MODULE_HEADERS}
+            PROPERTIES
+            HEADER_FILE_ONLY TRUE
+            )
+
+        if (R3_CPP)
+            set_property(SOURCE ${R3_EXT_${u_name}_SOURCES} PROPERTY LANGUAGE CXX)
+        endif (R3_CPP)
+
+        set(defs "${definitions}") #it seems that macro input can't be modified, so make a copy here
+        if (R3_EXT_${u_name} STREQUAL "M")
+            if (NOT ${can_be_module}) #sanity check
+                message (FATAL "Wrong configuration: ${name} can not be an external extension")
+            endif ()
+            message("Building ${name} as an external extension")
+            add_library(${libname} SHARED ${R3_EXT_${u_name}_SOURCES})
+            target_link_libraries(${libname} r3-core)
+            add_dependencies(${libname} r3-core)
+            list(APPEND defs "EXT_DLL")
+        elseif ((${can_be_module} AND R3_EXT_${u_name} STREQUAL "Y")
+            OR ((NOT ${can_be_module}) AND R3_EXT_${u_name}))
+            message("Building ${name} into the executable")
+            add_library(${libname} OBJECT ${R3_EXT_${u_name}_SOURCES})
+
+            #setup the dependency for the files included by sys-core.h
+            set_source_files_properties(
+                ${source}
+                PROPERTIES
+                OBJECT_DEPENDS "${BOOT_HEADER};${GENERATED_HEADER};${EXT_OS_OUTPUT}"
+                )
+
+            list(APPEND BOOT_EXTENSIONS ${name})
+            list(APPEND EXT_OBJECTS "$<TARGET_OBJECTS:${libname}>")
+        endif ()
+        target_include_directories(${libname} PUBLIC ${includes})
+        target_compile_definitions(${libname} PUBLIC ${defs})
+    else ()
+        message("${name} is not built")
+    endif ()
+endmacro(add_extension)
 
 #add_module has to be put in the following section
 #<-------------- modules --------------->
-add_module(Crypt ${EXT_DIR}/n-crypt.c)
+add_module(Crypt "${EXT_DIR}/mod-crypt.c" "${CODECS_SOURCE}")
+#crypt has to be builtin because tls (loaded by the host at boot time) requires it,
+#or rc4, rsa will not be bound properly.
+add_extension(r3-crypt Crypt FALSE "${EXT_DIR}/ext-crypt.c" "Crypt"
+    "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${TOP_SRC_DIR}/codecs;${FFI_INCLUDE_DIRS};${INC}"
+    "${COMMON_MACROS}")
+if (TO_WINDOWS AND ${R3_EXT_CRYPT} STREQUAL "M")
+    target_link_libraries(r3-crypt "Ws2_32.lib")
+endif ()
 #<------------- end of modules --------->
 
-string(REPLACE ";" "," BOOT_MODULE_LIST "${BOOT_MODULES}")
-SET(BOOT_MODULE_HEADER ${TOP_GENERATED_SRC_DIR}/include/tmp-boot-modules.h)
+string(REPLACE ";" "," BOOT_EXTENSION_LIST "${BOOT_EXTENSIONS}")
+SET(BOOT_MODULE_HEADER ${TOP_GENERATED_SRC_DIR}/include/tmp-boot-extensions.h)
 add_custom_command(OUTPUT
     ${BOOT_MODULE_HEADER}
-    COMMAND ${REBOL} ${TOOLS_DIR}/make-boot-mod-header.r MODULES=${BOOT_MODULE_LIST} OUTDIR=${TOP_GENERATED_SRC_DIR}
+    COMMAND ${REBOL} ${TOOLS_DIR}/make-boot-ext-header.r EXTENSIONS=${BOOT_EXTENSION_LIST} OUTDIR=${TOP_GENERATED_SRC_DIR}
     DEPENDS
     ${TOOL_DEPENDS}
-    ${TOOLS_DIR}/make-boot-mod-header.r
+    ${TOOLS_DIR}/make-boot-ext-header.r
     )
 
 if (R3_WITH_TCC)
@@ -726,13 +806,6 @@ set_source_files_properties(
     HEADER_FILE_ONLY TRUE
     )
 
-#HOST
-set(EXT_OS_OUTPUT
-    ${TOP_GENERATED_SRC_DIR}/include/host-lib.h
-    ${TOP_GENERATED_SRC_DIR}/include/host-table.inc
-    ${TOP_GENERATED_SRC_DIR}/os/tmp-host-start.inc
-    )
-
 set(EXT_OS_DEPENDS
     ${TOP_SRC_DIR}/boot/version.r
     ${TOOLS_DIR}/common.r
@@ -813,15 +886,15 @@ add_library(libr3_core_core OBJECT ${CORE_SOURCE} ${GENERATED_CORE_SOURCE} ${GEN
 set (HOST_SOURCE
     ${OS_SOURCE}
     ${GENERATED_OS_SOURCE}
-    ${EXT_SOURCE}
-    ${GENERATED_EXT_HEADER}
     )
 
 if(R3_WITH_TCC)
-    add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> $<TARGET_OBJECTS:r3_libtcc1> $<TARGET_OBJECTS:libtcc> ${HOST_SOURCE})
+    add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> $<TARGET_OBJECTS:r3_libtcc1> $<TARGET_OBJECTS:libtcc> ${EXT_OBJECTS} ${HOST_SOURCE})
 else()
-    add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> ${HOST_SOURCE})
+    add_executable(r3-core $<TARGET_OBJECTS:libr3_core_core> ${EXT_OBJECTS} ${HOST_SOURCE})
 endif()
+
+set_target_properties(r3-core PROPERTIES ENABLE_EXPORTS TRUE)
 
 target_include_directories(libr3_core_core PUBLIC
         ${TOP_GENERATED_SRC_DIR}/include
@@ -841,10 +914,11 @@ target_include_directories(r3-core PUBLIC
 target_compile_definitions(libr3_core_core PUBLIC REB_API REB_CORE ${COMMON_MACROS})
 if (TO_WINDOWS)
     #WINSYS_WIN32 is needed for dev-event.c
-    target_compile_definitions(r3-core PUBLIC REB_CORE REB_EXE WINSYS_WIN32 ${COMMON_MACROS})
+    target_compile_definitions(r3-core PUBLIC REB_CORE WINSYS_WIN32 ${COMMON_MACROS})
 else ()
-    target_compile_definitions(r3-core PUBLIC REB_CORE REB_EXE ${COMMON_MACROS})
+    target_compile_definitions(r3-core PUBLIC REB_CORE ${COMMON_MACROS})
 endif ()
+target_compile_definitions(r3-core PRIVATE REB_EXE)
 
 set (EXTRA_C_FLAGS "")
 set (R3_CORE_SOURCE

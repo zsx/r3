@@ -159,22 +159,24 @@ core: [
 
     ; Generated file, created by the make boot process
     + tmp-boot-block.c
-
-    ; Atronix repository breaks out codecs into a separate directory.
-    ; More crypto is needed than in original Rebol open source for the HTTPS
-    ; protocol implementation.
-
-    ../codecs/aes/aes.c
-    ../codecs/bigint/bigint.c
-    ../codecs/dh/dh.c
-    ../codecs/png/lodepng.c
-    ../codecs/rc4/rc4.c
-    ../codecs/rsa/rsa.c
 ]
 
 modules: [
-    ; [+ (builtin) | - (not builtin)] module_name module_source_file
-    + Crypt ../extensions/n-crypt.c
+    ;name module-file other-files
+    Crypt ../extensions/mod-crypt.c [
+        ../codecs/aes/aes.c
+        ../codecs/bigint/bigint.c
+        ../codecs/dh/dh.c
+        ../codecs/rc4/rc4.c
+        ../codecs/rsa/rsa.c
+    ]
+
+
+]
+
+extensions: [
+    ; [+ (builtin) | - (not builtin)] ext-name ext-file modules (defined in modules)
+    + Crypt ../extensions/ext-crypt.c [Crypt]
 ]
 
 made: [

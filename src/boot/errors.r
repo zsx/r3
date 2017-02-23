@@ -238,6 +238,10 @@ Script: [
 
     block-conditional:  [{Literal block used as conditional} :arg1]
     block-switch:       [{Literal block used as switch value} :arg1]
+
+    non-unloadable-native:    [{Not an unloadable native:} :arg1]
+    native-unloaded:    [{Native has been unloaded:} :arg1]
+    fail-to-quit-extension:   [{Failed to quit the extension:} :arg1]
 ]
 
 Math: [

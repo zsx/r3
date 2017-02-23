@@ -1,5 +1,5 @@
 //
-//  File: %n-crypt.c
+//  File: %mod-crypt.c
 //  Summary: "Native Functions for cryptography"
 //  Section: Extension
 //  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
@@ -48,12 +48,12 @@
 #include "sys-core.h"
 #include "sys-ext.h"
 
-#include "tmp-ext-crypt-first.h"
+#include "tmp-mod-crypt-first.h"
 
 //
 //  Init_Crypto: C
 //
-static void Init_Crypto(void)
+void Init_Crypto(void)
 {
 #ifdef TO_WINDOWS
     if (!CryptAcquireContextW(
@@ -80,7 +80,7 @@ static void Init_Crypto(void)
 //
 //  Shutdown_Crypto: C
 //
-static void Shutdown_Crypto(void)
+void Shutdown_Crypto(void)
 {
 #ifdef TO_WINDOWS
     if (gCryptProv != 0)
@@ -788,16 +788,4 @@ static REBNATIVE(encloak)
     return R_OUT;
 }
 
-#include "tmp-ext-crypt-last.h"
-
-MODULE_INIT(Crypt)
-{
-    Init_Crypto();
-    return CALL_MODULE_INIT_CORE(Crypt);
-}
-
-MODULE_QUIT(Crypt)
-{
-    Shutdown_Crypto();
-    return CALL_MODULE_QUIT_CORE(Crypt);
-}
+#include "tmp-mod-crypt-last.h"

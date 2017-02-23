@@ -1,23 +1,60 @@
 // Extension entry point functions:
-#if defined (EXT_DLL) && defined(TO_WINDOWS)
-    #define EXT_API __declspec(dllexport)
+#if defined(__cplusplus)
+#define EXTERN_C extern "C"
 #else
-    #define EXT_API extern
+#define EXTERN_C
 #endif
 
-#define MODULE_INIT(m) EXT_API int Module_Init_ ## m (REBVAL* out)
-#define CALL_MODULE_INIT_CORE(m) Module_Init_ ## m  ## _Core (out)
+#if defined(EXT_DLL) // External extensions
+#if defined(REB_EXE)
+#define EXT_API EXTERN_C API_IMPORT
+#else
+#define EXT_API EXTERN_C API_EXPORT
+#endif
+#define EXT_INIT(e) RX_Init
+#define EXT_QUIT(e) RX_Quit
+#else // Builtin extensions
+#define EXT_API EXTERN_C
+#define EXT_INIT(e) RX_Init_ ## e
+#define EXT_QUIT(e) RX_Quit_ ## e
+#endif
 
-#define MODULE_QUIT(m) EXT_API int Module_Quit_ ## m ()
-#define CALL_MODULE_QUIT_CORE(m) Module_Quit_ ## m ## _Core ()
+typedef int (*INIT_FUNC)(REBVAL *, REBVAL *);
+typedef int (*QUIT_FUNC)();
 
-#define LOAD_MODULE(exts, m) do {           \
-    REBVAL out;                             \
-    if (!Module_Init_ ## m(&out)) {         \
-        Add_Boot_Extension(exts, &out);     \
-    }                                       \
+// Extension macros
+#define DECLARE_EXT_INIT(e) \
+EXT_API int EXT_INIT(e) (REBVAL *header, REBVAL *out)
+
+#define DEFINE_EXT_INIT(e, script_bytes, code) \
+EXT_API int EXT_INIT(e) (REBVAL *script, REBVAL *out) \
+{\
+    code \
+    Init_String(script, Copy_Bytes(cb_cast(script_bytes), sizeof(script_bytes) - 1)); \
+    return 0;\
+}
+
+#define DEFINE_EXT_INIT_COMPRESSED(e, script_bytes, code) \
+EXT_API int EXT_INIT(e) (REBVAL *header, REBVAL *out) \
+{\
+    code \
+    Init_Binary(script, Copy_Bytes(cb_cast(script_bytes), sizeof(script_bytes) - 1)); \
+    return 0;\
+}
+
+#define DECLARE_EXT_QUIT(e) \
+EXT_API int EXT_QUIT(e) ()
+
+#define DEFINE_EXT_QUIT(e, code) \
+EXT_API int EXT_QUIT(e) () code
+
+#define LOAD_EXTENSION(exts, e) do {           \
+    Add_Boot_Extension(exts, EXT_INIT(e), EXT_QUIT(e));     \
 } while(0)
 
-#define UNLOAD_MODULE(m) do {   \
-    Module_Quit_ ## m();        \
-} while (0)
+// Module macros
+#define DECLARE_MODULE_INIT(m) int Module_Init_ ## m (REBVAL* out)
+#define CALL_MODULE_INIT(m) Module_Init_ ## m (out)
+
+#define DECLARE_MODULE_QUIT(m) int Module_Quit_ ## m ()
+#define CALL_MODULE_QUIT(m) Module_Quit_ ## m ()

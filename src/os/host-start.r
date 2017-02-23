@@ -188,68 +188,6 @@ license: procedure [
 ]
 
 
-load-ext-module: function [
-    "Loads an extension module from an extension object."
-    ext [object!]
-        "Extension object (from LOAD-EXTENSION, modified)"
-][
-    ; for ext obj: help system/standard/extensions
-    ensure handle! ext/lib-base
-    ensure binary! ext/lib-boot
-
-    if word? set [hdr: code:] load-header/required ext/lib-boot [
-        cause-error 'syntax hdr ext  ; word returned is error code
-    ]
-    ensure object! hdr
-    ensure [block! blank!] hdr/options
-    ensure [binary! block!] code
-
-    loud-print ["Extension:" select hdr 'title]
-    unless hdr/options [hdr/options: make block! 1]
-    append hdr/options 'extension ; So make module! special cases it
-    hdr/type: 'module             ; So load and do special case it
-    ext/lib-boot: _            ; So it doesn't show up in the source
-    tmp: body-of ext              ; Special extension words
-
-    ; Define default extension initialization if needed:
-    ; It is overridden when extension provides it's own COMMAND func.
-    unless :ext/command [
-        ;
-        ; This is appending raw material to a block that will be used to
-        ; make a MODULE!, so the function body will be bound first by the
-        ; module and then by the FUNC.
-        ;
-        append tmp [
-            cmd-index: 0
-            command: func [
-                "Define a new command for an extension."
-                return: [function!]
-                args [integer! block!]
-            ][
-                ; (contains module-local variables)
-                make-command reduce [
-                    ;
-                    ; `self` isn't the self in effect for load-ext-module
-                    ; (we're in the `sys` context, which doesn't have self).
-                    ; It will be bound in the context of the module.
-                    ;
-                    args self also cmd-index (cmd-index: cmd-index + 1)
-                ]
-            ]
-            protect/hide/words [cmd-index command]
-        ]
-    ]
-
-    ; Convert the code to a block if not already:
-    unless block? code [code: to block! code]
-
-    ; Extension object fields and values must be first!
-    insert code tmp
-
-    reduce [hdr code] ; ready for make module!
-]
-
-
 load-boot-exts: function [
     "INIT: Load boot-based extensions."
     boot-exts [block! blank!]
@@ -257,67 +195,8 @@ load-boot-exts: function [
     loud-print "Loading boot extensions..."
 
     ;loud-print ["boot-exts:" mold boot-exts]
-    for-each [code impl error-base] boot-exts [
-        code: load/header decompress code
-        hdr: take code
-        loud-print ["Found boot module" hdr/name]
-        loud-print mold code
-        tmp-ctx: make object!  [
-            native: function [
-                return: [function!]
-                spec
-                /export "this refinement is ignored here"
-                /body
-                code [block!]
-                "Equivalent rebol code"
-                <static> index (-1)
-            ] compose [
-                index: index + 1
-                f: load-native/(all [body 'body]) spec (impl) index :code
-                :f
-            ]
-        ]
-        mod: make module! (length code) / 2
-        set-meta mod hdr
-        if errors: find code to set-word! 'errors [
-            loud-print ["found errors in module" hdr/name]
-            eo: construct make object! [
-               code: error-base
-               type: lowercase spaced [hdr/name "error"]
-            ] second errors
-            append system/catalog/errors reduce [to set-word! hdr/name eo]
-            remove/part errors 2
-        ]
-        bind/only/set code mod
-        bind hdr/exports mod
-        bind code tmp-ctx
-        if w: in mod 'words [protect/hide w]
-        do code
-
-        ; NOTE: This will error out if the code contains commands but
-        ; no extension dispatcher (call) has been provided.
-        if hdr/name [
-            reduce/into [
-                hdr/name mod either hdr/checksum [copy hdr/checksum][blank]
-            ] system/modules
-        ]
-
-        case [
-            not module? mod blank
-
-            not block? select hdr 'exports blank
-
-            empty? hdr/exports blank
-
-            find hdr/options 'private [
-                ; full export to user
-                resolve/extend/only system/contexts/user mod hdr/exports
-            ]
-
-            'default [
-                sys/export-words mod hdr/exports
-            ]
-        ]
+    for-each [init quit] boot-exts [
+        load-extension init
     ]
 
     boot-exts: 'done

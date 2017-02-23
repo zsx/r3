@@ -87,14 +87,20 @@ Special internal defines used by RT, not Host-Kit developers:
 
 #ifdef REB_EXE
     // standalone exe from RT
-    #define RL_API
+    // Export all of the APIs such that they can be referenced by extensions.
+    // The purpose is to have one exe and some dynamic libraries for extensions (.dll, .so etc.)
+    #define RL_API API_EXPORT
 #else
     #ifdef REB_API
         // r3lib dll from RT
         #define RL_API API_EXPORT
-    #else
-        // for host exe (not used for extension dlls)
+    #elif defined(EXT_DLL) || defined(REB_HOST)
+        // Building extensions as external libraries (.dll, .so etc.)
+        // or r3 host against r3lib dll
         #define RL_API API_IMPORT
+    #else
+        // Extensions are builtin
+        #define RL_API
     #endif
 #endif
 

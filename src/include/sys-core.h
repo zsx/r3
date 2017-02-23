@@ -604,8 +604,8 @@ enum Reb_Vararg_Op {
 // feature is better implemented as in the V8 JavaScript engine as "isolates"  
 
 #ifdef __cplusplus
-    #define PVAR extern "C"
-    #define TVAR extern "C"
+    #define PVAR extern "C" RL_API
+    #define TVAR extern "C" RL_API
 #else
     // When being preprocessed by TCC and combined with the user - native
     // code, all global variables need to be declared
@@ -614,10 +614,10 @@ enum Reb_Vararg_Op {
     // PVAR and TVAR allow for overriding at the compiler command line.
     //
     #if !defined(PVAR)
-        #define PVAR extern
+        #define PVAR RL_API
     #endif
     #if !defined(TVAR)
-        #define TVAR extern
+        #define TVAR RL_API
     #endif
 #endif
 

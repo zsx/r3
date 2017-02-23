@@ -79,7 +79,7 @@ emit-proto: proc [proto] [
         either find proto "RL_API" [
             emit-rlib ["extern " proto "; // " the-file]
         ][
-            emit-line ["extern " proto "; // " the-file]
+            emit-line ["RL_API " proto "; // " the-file]
             either "REBTYPE" = proto-parser/proto.id [
                emit-fsymb ["    SYM_FUNC(T_" proto-parser/proto.arg.1 "), // " the-file]
             ][

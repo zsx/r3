@@ -42,7 +42,6 @@
 #include "reb-lib.h"
 #include "sys-ext.h"
 
-
 //(*call)(int cmd, RXIFRM *args);
 
 typedef struct reb_ext {
@@ -60,108 +59,178 @@ REBCNT Ext_Next = 0;
 
 typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 
+//
+// Just an ID for the handler
+//
+static void cleanup_extension_init_handler(const REBVAL *val)
+{
+}
+
+static void cleanup_extension_quit_handler(const REBVAL *val)
+{
+}
 
 //
-//  load-extension: native [
+//  load-extension-helper: native [
 //
 //  "Low level extension module loader (for DLLs)."
 //
-//      name [file! binary!] "DLL file or UTF-8 source"
-//      /dispatch {Specify native command dispatch (from hosted extensions)}
-//      function [handle!] "Command dispatcher (native)"
+//      path-or-handle [file! handle!] "Path to the extension file or handle to a builtin extension"
 //  ]
 //
-REBNATIVE(load_extension)
+REBNATIVE(load_extension_helper)
 //
 // Low level extension loader:
 //
 // 1. Opens the DLL for the extension
-// 2. Calls its Info() command to get its definition header (REBOL)
-// 3. Inits an extension structure (dll, Call() function)
-// 4. Creates a extension object and returns it
-// 5. REBOL code then uses that object to define the extension module
-//    including commands, functions, data, exports, etc.
+// 2. Calls RX_Init() to initialize and get its definition header (REBOL)
+// 3. Creates a extension object and returns it
+// 4. REBOL code then uses that object to define the extension module
+//    including natives, data, exports, etc.
 //
 // Each extension is defined as DLL with:
 //
-// init() - init anything needed
-// quit() - cleanup anything needed
-// call() - dispatch a native
+// RX_Init() - init anything needed
+// optinoal RX_Quit() - cleanup anything needed
 {
-    INCLUDE_PARAMS_OF_LOAD_EXTENSION;
+    INCLUDE_PARAMS_OF_LOAD_EXTENSION_HELPER;
 
-    REBVAL *val = ARG(name);
+    REBCTX *std_ext_ctx = VAL_CONTEXT(Get_System(SYS_STANDARD, STD_EXTENSION));
+    REBCTX *context;
 
-    REBSER *src;
-    CFUNC *call; // RXICAL
-    void *dll;
+    if (IS_FILE(ARG(path_or_handle))) {
+        REBVAL *path = ARG(path_or_handle);
 
-    //Check_Security(SYM_EXTENSION, POL_EXEC, val);
+        //Check_Security(SYM_EXTENSION, POL_EXEC, val);
 
-    if (NOT(REF(dispatch))) { // use the DLL file
+        REBVAL lib;
+        MAKE_Library(&lib, REB_LIBRARY, path);
 
-        if (!IS_FILE(val)) fail (Error_Invalid_Arg(val));
+        // check if it's reloading an existing extension
+        REBVAL *loaded_exts = CTX_VAR(VAL_CONTEXT(ROOT_SYSTEM), SYS_EXTENSIONS);
+        if (IS_BLOCK(loaded_exts)) {
+            RELVAL *item = VAL_ARRAY_HEAD(loaded_exts);
+            for (; NOT_END(item); ++item) {
+                // do some sanity checking, just to avoid crashing if system/extensions was messed up
+                if (!IS_OBJECT(item))
+                    fail(Error(RE_BAD_EXTENSION, item));
 
-        // !!! By passing NULL we don't get backing series to protect!
-        REBCHR *name = Val_Str_To_OS_Managed(NULL, val);
+                REBCTX *item_ctx = VAL_CONTEXT(item);
+                if ((CTX_LEN(item_ctx) <= STD_EXTENSION_LIB_BASE)
+                    || CTX_KEY_SPELLING(item_ctx, STD_EXTENSION_LIB_BASE)
+                    != CTX_KEY_SPELLING(std_ext_ctx, STD_EXTENSION_LIB_BASE)
+                    ) {
+                    fail(Error(RE_BAD_EXTENSION, item));
+                }
+                else {
+                    if (IS_BLANK(CTX_VAR(item_ctx, STD_EXTENSION_LIB_BASE))) {//builtin extension
+                        continue;
+                    }
+                }
 
-        // Try to load the DLL file:
-        REBCNT err_num;
-        if (!(dll = OS_OPEN_LIBRARY(name, &err_num))) {
-            fail (Error(RE_NO_EXTENSION, val));
+                assert(IS_LIBRARY(CTX_VAR(item_ctx, STD_EXTENSION_LIB_BASE)));
+
+                if (VAL_LIBRARY_FD(&lib)
+                    == VAL_LIBRARY_FD(CTX_VAR(item_ctx, STD_EXTENSION_LIB_BASE))) {
+                    // found the existing extension
+                    OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(&lib)); //decrease the reference added by MAKE_library
+                    *D_OUT = *KNOWN(item);
+                    return R_OUT;
+                }
+            }
+        }
+        context = Copy_Context_Shallow(std_ext_ctx);
+        *CTX_VAR(context, STD_EXTENSION_LIB_BASE) = lib;
+        *CTX_VAR(context, STD_EXTENSION_LIB_FILE) = *path;
+
+        CFUNC *RX_Init = OS_FIND_FUNCTION(VAL_LIBRARY_FD(&lib), "RX_Init");
+        if (!RX_Init) {
+            OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(&lib));
+            fail(Error(RE_BAD_EXTENSION, path));
         }
 
-        // Call its INFO_FUNC info() function for header and code body:
-
-        CFUNC *info = OS_FIND_FUNCTION(dll, "RX_Init");
-        if (!info){
-            OS_CLOSE_LIBRARY(dll);
-            fail (Error(RE_BAD_EXTENSION, val));
+        // Call its RX_Init function for header and code body:
+        if (cast(INIT_FUNC, RX_Init)(CTX_VAR(context, STD_EXTENSION_SCRIPT),
+            CTX_VAR(context, STD_EXTENSION_MODULES)) < 0) {
+            OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(&lib));
+            fail(Error(RE_EXTENSION_INIT, path));
         }
-
-        // Obtain info string as UTF8:
-        REBYTE *code;
-        if (!(code = cast(INFO_FUNC*, info)(0, Extension_Lib()))) {
-            OS_CLOSE_LIBRARY(dll);
-            fail (Error(RE_EXTENSION_INIT, val));
-        }
-
-        // Import the string into REBOL-land:
-        src = Copy_Bytes(code, -1);
-        call = OS_FIND_FUNCTION(dll, "RX_Call"); // zero is allowed
     }
     else {
-        // Hosted extension:
-        src = VAL_SERIES(val);
-        call = cast(CFUNC*, VAL_HANDLE_POINTER(ARG(function)));
-        dll = 0;
+        assert(IS_HANDLE(ARG(path_or_handle)));
+        REBVAL *handle = ARG(path_or_handle);
+        if (VAL_HANDLE_CLEANER(handle) != cleanup_extension_init_handler) {
+            fail(Error(RE_BAD_EXTENSION, handle));
+        }
+        INIT_FUNC RX_Init = cast(INIT_FUNC, VAL_HANDLE_POINTER(handle));
+        context = Copy_Context_Shallow(std_ext_ctx);
+        if (RX_Init(CTX_VAR(context, STD_EXTENSION_SCRIPT),
+            CTX_VAR(context, STD_EXTENSION_MODULES)) < 0) {
+            fail(Error(RE_EXTENSION_INIT, handle));
+        }
     }
-
-    REBEXT *ext = &Ext_List[Ext_Next];
-    CLEARS(ext);
-    ext->call = cast(RXICAL, call);
-    ext->dll = dll;
-    ext->index = Ext_Next++;
-
-    // Extension return: dll, info, filename
-    REBCTX *context = Copy_Context_Shallow(
-        VAL_CONTEXT(Get_System(SYS_STANDARD, STD_EXTENSION))
-    );
-
-    // Set extension fields needed:
-    Init_Handle_Simple(
-        CTX_VAR(context, STD_EXTENSION_LIB_BASE),
-        cast(void*, cast(REBUPT, ext->index)), // data
-        0 // optional length-sized data
-    );
-
-    if (NOT(REF(dispatch)))
-        *CTX_VAR(context, STD_EXTENSION_LIB_FILE) = *ARG(name);
-
-    Init_Binary(CTX_VAR(context, STD_EXTENSION_LIB_BOOT), src);
 
     Init_Object(D_OUT, context);
     return R_OUT;
+}
+
+
+//
+//  unload-extension-helper: native [
+//
+//  "Unload an extension"
+//      return: [<opt>]
+//      ext [object!] "The extension to be unloaded"
+//      /cleanup cleaner [handle!] "The RX_Quit pointer for the builtin extension"
+//  ]
+//
+REBNATIVE(unload_extension_helper)
+{
+    INCLUDE_PARAMS_OF_UNLOAD_EXTENSION_HELPER;
+
+    REBCTX *std = VAL_CONTEXT(Get_System(SYS_STANDARD, STD_EXTENSION));
+    REBCTX *context = VAL_CONTEXT(ARG(ext));
+    if ((CTX_LEN(context) <= STD_EXTENSION_LIB_BASE)
+        || (CTX_KEY_CANON(context, STD_EXTENSION_LIB_BASE)
+            != CTX_KEY_CANON(std, STD_EXTENSION_LIB_BASE))) {
+        fail(Error(RE_INVALID_ARG, ARG(ext)));
+    }
+    if (!REF(cleanup)) {
+        REBVAL *lib = CTX_VAR(context, STD_EXTENSION_LIB_BASE);
+        if (!IS_LIBRARY(lib))
+            fail(Error(RE_INVALID_ARG, ARG(ext)));
+
+        if (IS_LIB_CLOSED(VAL_LIBRARY(lib)))
+            fail(Error(RE_BAD_LIBRARY));
+
+        CFUNC *RX_Quit = OS_FIND_FUNCTION(VAL_LIBRARY_FD(lib), "RX_Quit");
+        if (!RX_Quit) {
+            OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(lib));
+            return R_VOID;
+        }
+        int ret = cast(QUIT_FUNC, RX_Quit)();
+        if (ret < 0) {
+            OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(lib));
+            REBVAL i;
+            SET_INTEGER(&i, ret);
+            fail(Error(RE_FAIL_TO_QUIT_EXTENSION, i));
+        }
+
+        OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(lib));
+    }
+    else {
+        if (VAL_HANDLE_CLEANER(ARG(cleaner)) != cleanup_extension_quit_handler)
+            fail(Error(RE_INVALID_ARG, ARG(cleaner)));
+        void *RX_Quit = VAL_HANDLE_POINTER(ARG(cleaner));
+        int ret = cast(QUIT_FUNC, RX_Quit)();
+        if (ret < 0) {
+            REBVAL i;
+            SET_INTEGER(&i, ret);
+            fail(Error(RE_FAIL_TO_QUIT_EXTENSION, i));
+        }
+    }
+
+    return R_VOID;
 }
 
 
@@ -363,6 +432,7 @@ REB_R Command_Dispatcher(REBFRM *f)
 }
 
 
+
 //
 // Just an ID for the handler
 //
@@ -396,16 +466,42 @@ REBARR *Make_Extension_Module_Array(
 
 
 //
-//  Add_Boot_Extension: C
+//  Prepare_Boot_Extensions: C
 //
-// Add an extension to a list to be loaded at bootup
+// Convert an extension [Init Quit] array to [handle! handle!] array
 //
-void Add_Boot_Extension(REBARR *exts, RELVAL *ext)
+void Prepare_Boot_Extensions(REBVAL *exts, CFUNC **funcs, REBCNT n)
 {
-    assert(IS_BLOCK(ext));
-    REBVAL *v = KNOWN(VAL_ARRAY_HEAD(ext));
-    for (; NOT_END(v); ++v) {
-        Append_Value(exts, v);
+    REBARR *arr = Make_Array(n);
+    REBCNT i;
+    for (i = 0; i < n; i += 2) {
+        RELVAL *val = Alloc_Tail_Array(arr);
+        Init_Handle_Managed(val, cast(void *, funcs[i]),
+            0, &cleanup_extension_init_handler);
+        val = Alloc_Tail_Array(arr);
+        Init_Handle_Managed(val, cast(void *, funcs[i + 1]),
+            0, &cleanup_extension_quit_handler);
+    }
+    Init_Block(exts, arr);
+}
+
+//
+//  Shutdown_Boot_Extensions: C
+//
+// Call QUIT functions of boot extensions in the reversed order
+//
+// Note that this function does not call unload-extension, that is why it is
+// called SHUTDOWN instead of UNLOAD, because it's only supposed to be called
+// when the interpreter is shutting down, at which point, unloading an extension
+// is not necessary. Plus, there is not an elegant way to call unload-extension
+// on each of boot extensions: boot extensions are passed to host-start as a
+// block, and there is no host-shutdown function which would be an ideal place
+// to such things.
+//
+void Shutdown_Boot_Extensions(CFUNC **funcs, REBCNT n)
+{
+    for (; n > 1; n -= 2) {
+        cast(QUIT_FUNC, funcs[n - 1])();
     }
 }
 
@@ -426,6 +522,8 @@ void Add_Boot_Extension(REBARR *exts, RELVAL *ext)
 //      /body
 //      code [block!]
 //      "User-equivalent body"
+//      /unloadable
+//      "The native can be unloaded later (when the extension is unloaded)"
 //  ]
 //
 REBNATIVE(load_native)
@@ -434,7 +532,7 @@ REBNATIVE(load_native)
 
     if (VAL_HANDLE_CLEANER(ARG(impl)) != cleanup_module_handler
         || VAL_INT64(ARG(index)) < 0
-        || VAL_INT64(ARG(index)) >= VAL_HANDLE_LEN(ARG(impl)))
+        || cast(REBUPT, VAL_INT64(ARG(index))) >= VAL_HANDLE_LEN(ARG(impl)))
         fail (Error(RE_MISC));
 
     REBFUN *fun = Make_Function(
@@ -444,11 +542,50 @@ REBNATIVE(load_native)
         NULL // not providing a specialization
     );
 
+    if (REF(unloadable))
+        SET_VAL_FLAG(FUNC_VALUE(fun), FUNC_FLAG_UNLOADABLE_NATIVE);
+
     if (REF(body)) {
         *FUNC_BODY(fun) = *ARG(code);
     }
     *D_OUT = *FUNC_VALUE(fun);
     return R_OUT;
+}
+
+
+//
+//  Unloaded_Dispatcher: C
+//
+// This will be the dispatcher for the natives in an extension after the
+// extension is unloaded.
+//
+static REB_R Unloaded_Dispatcher(REBFRM *f)
+{
+    assert(f != NULL); // unused argument warning otherwise
+    fail (Error(RE_NATIVE_UNLOADED, FUNC_VALUE(f->func)));
+}
+
+
+//
+//  unload-native: native [
+//
+//  "Unload a native when the containing extension is unloaded"
+//
+//      return: [<opt>]
+//      nat [function!] "The native function to be unloaded"
+//  ]
+//
+REBNATIVE(unload_native)
+{
+    INCLUDE_PARAMS_OF_UNLOAD_NATIVE;
+
+    REBFUN *fun = VAL_FUNC(ARG(nat));
+    if (NOT_VAL_FLAG(FUNC_VALUE(fun), FUNC_FLAG_UNLOADABLE_NATIVE))
+        fail (Error(RE_NON_UNLOADABLE_NATIVE, ARG(nat)));
+
+    FUNC_DISPATCHER(VAL_FUNC(ARG(nat))) = Unloaded_Dispatcher;
+
+    return R_VOID;
 }
 
 

@@ -341,6 +341,7 @@ load: function [
                 'default [sftype]
             ]
             data: read-decode source ftype
+            if sftype = 'extension [return data]
         ]
 
         void? :data [data: source]
@@ -501,6 +502,79 @@ do-needs: function [
 ]
 
 
+load-ext-module: function [
+    spec    [binary!]  "Spec for the module"
+    impl    [handle!] "Native function implementation array"
+    error-base [integer!] "error base for the module"
+    /unloadable
+    /no-lib
+    /no-user
+][
+    code: load/header decompress spec
+    hdr: take code
+    tmp-ctx: make object! [
+        native: function [
+            return: [function!]
+            spec
+            /export "this refinement is ignored here"
+            /body
+            code [block!] "Equivalent rebol code"
+            <static> index (-1)
+        ] compose [
+            index: index + 1
+            f: load-native/(all [body 'body])/(all [unloadable 'unloadable]) spec (impl) index :code
+            :f
+        ]
+    ]
+    mod: make module! (length code) / 2
+    set-meta mod hdr
+    if errors: find code to set-word! 'errors [
+        eo: construct make object! [
+            code: error-base
+            type: lowercase spaced [hdr/name "error"]
+        ] second errors
+        append system/catalog/errors reduce [to set-word! hdr/name eo]
+        remove/part errors 2
+    ]
+    bind/only/set code mod
+    bind hdr/exports mod
+    bind code tmp-ctx
+    if w: in mod 'words [protect/hide w]
+    do code
+
+    if hdr/name [
+        reduce/into [
+            hdr/name mod either hdr/checksum [copy hdr/checksum][blank]
+        ] system/modules
+    ]
+
+    case [
+        not module? mod blank
+
+        not block? select hdr 'exports blank
+
+        empty? hdr/exports blank
+
+        find hdr/options 'private [
+            ; full export to user
+            unless no-user [
+                resolve/extend/only system/contexts/user mod hdr/exports
+            ]
+        ]
+
+        'default [
+            unless no-lib [
+                resolve/extend/only system/contexts/lib mod hdr/exports
+            ]
+            unless no-user [
+                resolve/extend/only system/contexts/user mod hdr/exports
+            ]
+        ]
+    ]
+    mod
+]
+
+
 load-module: function [
     {Loads a module and inserts it into the system module list.}
     source [word! file! url! string! binary! module! block!]
@@ -574,24 +648,7 @@ load-module: function [
                 ]
 
                 tmp = 'extension [
-                    ; special processing for extensions
-                    ; load-extension also fails for url!
-                    unless attempt [ext: load-extension source] [return blank]
-
-                    data: ext/lib-boot ; save for checksum before it's unset
-
-                    case [
-                        import [set [hdr: code:] load-ext-module ext]
-
-                        word? set [hdr: tmp:] load-header/only/required data [
-                            cause-error 'syntax hdr source ; word is error code
-                        ]
-
-                        not any [delay | delay: find? hdr/options 'delay] [
-                            set [hdr: code:] load-ext-module ext ; import now
-                        ]
-                    ]
-                    if hdr/checksum [modsum: copy hdr/checksum]
+                    fail "Use LOAD or LOAD-EXTENSION to load an extension"
                 ]
 
                 'default [
@@ -914,4 +971,91 @@ import: function [
 ]
 
 
-export [load import]
+load-extension: function [
+    file [file! handle!] "library file or handle to init function in the builtin extension"
+    /no-user "Do not export to the user context"
+    /no-lib "Do not export to the lib context"
+][
+
+    ext: load-extension-helper file
+    ;print ["ext:" mold ext]
+    if locked? ext [; already loaded
+        return ext
+    ]
+    case [
+        string? ext/script [
+            script: load/header ext/script
+        ]
+        binary? ext/script [
+            script: uncompress ext/script
+            script: load/header script
+        ]
+        true [
+            ; ext/script should ALWAYS be set by the extension but if it's not,
+            ; do not fail, because failing to load a builtin extension could
+            ; cause the interpreter to fail to boot
+            script: reduce [construct system/standard/header []]
+        ]
+    ]
+    ext/script: _ ;clear the startup script to save memory
+    ext/header: take script
+    modules: make block! 1
+    for-each [spec impl error-base] ext/modules [
+        append modules apply 'load-ext-module [
+                spec: spec
+                impl: impl
+                error-base: error-base
+                unloadable: true
+                no-user: no-user
+                no-lib: no-lib
+        ]
+    ]
+
+    ext/modules: modules
+    if blank? ext/header/type [
+        ext/header/type: 'extension
+    ]
+
+    lock ext/header
+    lock ext
+
+    append system/extensions ext
+
+    ;run the startup script
+    do script
+
+    ext
+]
+
+
+unload-extension: procedure [
+    ext [object!] "extension object"
+][
+
+    ;sanity checking
+    unless locked? ext [
+        fail "Extension is not locked"
+    ]
+    unless all [
+        library? ext/lib-base
+        file? ext/lib-file
+    ][
+        fail "Can't unload a builtin extension"
+    ]
+
+    remove find system/extensions ext
+    for-each m ext/modules [
+        remove/part back find system/modules m 3
+        ;print ["words-of m:" words-of m]
+        for-each w words-of m [
+            v: get w
+            if all [function? :v 1 = func-class-of :v] [
+                unload-native :v
+            ]
+        ]
+    ]
+    unload-extension-helper ext
+]
+
+
+export [load import load-extension unload-extension]
