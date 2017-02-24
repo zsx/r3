@@ -444,6 +444,11 @@ void Host_Repl(
             //
             Put_Str(halt_str);
             last_failed = FALSE;
+
+            // The output value will be an END marker on halt, to signal the
+            // unusability of the interrupted result.
+            //
+            SET_VOID(out);
         }
         else if (do_result == -2) {
             //

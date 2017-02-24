@@ -69,7 +69,7 @@ REBIXO Do_Vararg_Op_May_Throw(
     if (op == VARARG_OP_TAIL_Q)
         assert(out == NULL); // not expecting return result
     else
-        SET_TRASH_IF_DEBUG(out);
+        SET_END(out); // don't want trash in frame output on FAIL
 #endif
 
     const RELVAL *param; // for type checking

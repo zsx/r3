@@ -272,6 +272,22 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
         if (Is_Any_Function_Frame(f))
             Drop_Function_Args_For_Frame_Core(f, FALSE); // don't drop chunks
 
+        // Though the output slot was initialized to an END marker at the
+        // start of each frame, a failure might happen in mid-operation that
+        // has written something in the output slot.  Since callers may have
+        // GC protected the slot with something like PUSH_GUARD_VALUE() and
+        // be expecting it to keep the invariant of GC safety, set it to
+        // an END marker instead of trash.
+        //
+        // Note that it is checked to see if it is already END.  This serves
+        // two purposes: it allows frames that aren't supposed to have
+        // writable outputs and use END_CELL to do so.  Secondly, it means
+        // the cell is integrity tested to make sure the failure didn't happen
+        // while trash was in the cell.
+        //
+        if (NOT_END(f->out))
+            SET_END(f->out); // Note: out cells can't be in arrays
+
         REBFRM *prior = f->prior;
         Drop_Frame_Core(f);
         f = prior;

@@ -139,6 +139,8 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
     assert(!IN_DATA_STACK_DEBUG(f->out));
 #endif
 
+    Assert_Cell_Writable(f->out, __FILE__, __LINE__);
+
     // Caller should have pushed the frame, such that it is the topmost.
     // This way, repeated calls to Do_Core(), e.g. by routines like ANY []
     // don't keep pushing and popping on each call.

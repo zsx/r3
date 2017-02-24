@@ -86,8 +86,6 @@ ATTRIBUTE_NO_RETURN void Panic_Value_Debug(const RELVAL *v) {
 }
 
 
-#if defined(__cplusplus)
-
 //
 //  Assert_Cell_Writable: C
 //
@@ -115,8 +113,6 @@ void Assert_Cell_Writable(const RELVAL *v, const char *file, int line)
         panic_at (v, file, line);
     }
 }
-
-#endif
 
 
 //

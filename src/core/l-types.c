@@ -39,6 +39,17 @@
 #include "tmp-maketypes.inc"
 
 //
+// The scanning code in R3-Alpha used NULL to return failure during the scan
+// of a value, possibly leaving the value itself in an incomplete or invalid
+// state.  Rather than write stray incomplete values into these spots, Ren-C
+// puts "unreadable blank"
+//
+
+#define return_NULL \
+    do { SET_UNREADABLE_BLANK(out); return NULL; } while (TRUE)
+
+
+//
 //  MAKE_Fail: C
 //
 void MAKE_Fail(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
@@ -230,23 +241,24 @@ const REBYTE *Scan_Hex(
     SET_TRASH_IF_DEBUG(out);
 
     if (maxlen > MAX_HEX_LEN)
-        return NULL;
+        return_NULL;
 
     REBI64 i = 0;
     REBCNT cnt = 0;
     REBYTE lex;
     while ((lex = Lex_Map[*cp]) > LEX_WORD) {
         REBYTE v;
-        if (++cnt > maxlen) return NULL;
+        if (++cnt > maxlen)
+            return_NULL;
         v = cast(REBYTE, lex & LEX_VALUE); // char num encoded into lex
         if (!v && lex < LEX_NUMBER)
-            return NULL;  // invalid char (word but no val)
+            return_NULL;  // invalid char (word but no val)
         i = (i << 4) + v;
         cp++;
     }
 
     if (cnt < minlen)
-        return NULL;
+        return_NULL;
 
     SET_INTEGER(out, i);
     return cp;
@@ -430,7 +442,7 @@ const REBYTE *Scan_Decimal(
     REBYTE buf[MAX_NUM_LEN + 4];
     REBYTE *ep = buf;
     if (len > MAX_NUM_LEN)
-        return NULL;
+        return_NULL;
 
     const REBYTE *bp = cp;
 
@@ -463,7 +475,7 @@ const REBYTE *Scan_Decimal(
     }
 
     if (NOT(digit_present))
-        return NULL;
+        return_NULL;
 
     if (*cp == 'E' || *cp == 'e') {
         *ep++ = *cp++;
@@ -478,12 +490,12 @@ const REBYTE *Scan_Decimal(
         }
 
         if (NOT(digit_present))
-            return NULL;
+            return_NULL;
     }
 
     if (*cp == '%') {
         if (dec_only)
-            return NULL;
+            return_NULL;
 
         ++cp; // ignore it
     }
@@ -491,7 +503,7 @@ const REBYTE *Scan_Decimal(
     *ep = '\0';
 
     if (cast(REBCNT, cp - bp) != len)
-        return NULL;
+        return_NULL;
 
     VAL_RESET_HEADER(out, REB_DECIMAL);
 
@@ -534,7 +546,7 @@ const REBYTE *Scan_Integer(
 
     REBYTE buf[MAX_NUM_LEN + 4];
     if (len > MAX_NUM_LEN)
-        return NULL; // prevent buffer overflow
+        return_NULL; // prevent buffer overflow
 
     REBYTE *bp = buf;
 
@@ -568,7 +580,7 @@ const REBYTE *Scan_Integer(
         else if (*cp == '\'')
             ++cp;
         else
-            return NULL;
+            return_NULL;
     }
     *bp = '\0';
 
@@ -578,7 +590,7 @@ const REBYTE *Scan_Integer(
         --len;
     if (len > 19) {
         // !!! magic number :-( How does it relate to MAX_INT_LEN (also magic)
-        return NULL;
+        return_NULL;
     }
 
     // Convert, check, and return:
@@ -588,10 +600,10 @@ const REBYTE *Scan_Integer(
 
     VAL_INT64(out) = CHR_TO_INT(buf);
     if (errno != 0)
-        return NULL; // overflow
+        return_NULL; // overflow
 
     if ((VAL_INT64(out) > 0 && neg) || (VAL_INT64(out) < 0 && !neg))
-        return NULL;
+        return_NULL;
 
     return cp;
 }
@@ -611,10 +623,16 @@ const REBYTE *Scan_Money(
 
     const REBYTE *end;
 
-    if (*cp == '$') cp++, len--;
-    if (len == 0) return 0;
+    if (*cp == '$') {
+        ++cp;
+        --len;
+    }
+    if (len == 0)
+        return_NULL;
+    
     SET_MONEY(out, string_to_deci(cp, &end));
-    if (end != cp + len) return 0;
+    if (end != cp + len)
+        return_NULL;
 
     return end;
 }
@@ -645,14 +663,14 @@ const REBYTE *Scan_Date(
         while (*cp == ' ' && cp != end) cp++;
     }
     if (cp == end)
-        return NULL;
+        return_NULL;
 
     REBINT num;
 
     // Day or 4-digit year:
     ep = Grab_Int(cp, &num);
     if (num < 0)
-        return NULL;
+        return_NULL;
 
     REBINT day;
     REBINT month;
@@ -670,27 +688,28 @@ const REBYTE *Scan_Date(
         // year is not set in this branch (we know because day ISN'T 0)
         // Ex: 12-Dec-2012
         day = num;
-        if (day == 0) return NULL;
+        if (day == 0)
+            return_NULL;
 
         // !!! Clang static analyzer doesn't know from test of `day` below
         // how it connects with year being set or not.  Suppress warning.
         year = MIN_I32; // !!! Garbage, should not be read.
     }
     else
-        return NULL;
+        return_NULL;
 
     cp = ep;
 
     // Determine field separator:
     if (*cp != '/' && *cp != '-' && *cp != '.' && *cp != ' ')
-        return NULL;
+        return_NULL;
 
     REBYTE sep = *cp++;
 
     // Month as number or name:
     ep = Grab_Int(cp, &num);
     if (num < 0)
-        return NULL;
+        return_NULL;
 
     size = cast(REBCNT, ep - cp);
 
@@ -702,7 +721,7 @@ const REBYTE *Scan_Date(
 
         size = cast(REBCNT, ep - cp);
         if (size < 3)
-            return NULL;
+            return_NULL;
 
         for (num = 0; num < 12; num++) {
             if (!Compare_Bytes(cb_cast(Month_Names[num]), cp, size, TRUE))
@@ -712,20 +731,20 @@ const REBYTE *Scan_Date(
     }
 
     if (month < 1 || month > 12)
-        return NULL;
+        return_NULL;
 
     cp = ep;
     if (*cp++ != sep)
-        return NULL;
+        return_NULL;
 
     // Year or day (if year was first):
     ep = Grab_Int(cp, &num);
     if (*cp == '-' || num < 0)
-        return NULL;
+        return_NULL;
 
     size = cast(REBCNT, ep - cp);
     if (size == 0)
-        return NULL;
+        return_NULL;
 
     if (day == 0) {
         // year already set, but day hasn't been
@@ -756,7 +775,7 @@ const REBYTE *Scan_Date(
     }
 
     if (year > MAX_YEAR || day < 1 || day > Month_Max_Days[month-1])
-        return NULL;
+        return_NULL;
 
     // Check February for leap year or century:
     if (month == 2 && day == 29) {
@@ -765,7 +784,7 @@ const REBYTE *Scan_Date(
             ((year % 100) == 0 &&       // century?
             (year % 400) != 0)
         ){
-            return NULL; // not leap century
+            return_NULL; // not leap century
         }
     }
 
@@ -788,7 +807,7 @@ const REBYTE *Scan_Date(
             || (VAL_TIME(out) < 0)
             || (VAL_TIME(out) >= TIME_SEC(24 * 60 * 60))
         ){
-            return NULL;
+            return_NULL;
         }
     }
 
@@ -801,11 +820,11 @@ const REBYTE *Scan_Date(
 
         ep = Grab_Int(cp + 1, &num);
         if (ep - cp == 0)
-            return NULL;
+            return_NULL;
 
         if (*ep != ':') {
             if (num < -1500 || num > 1500)
-                return NULL;
+                return_NULL;
 
             int h = (num / 100);
             int m = (num - (h * 100));
@@ -814,21 +833,21 @@ const REBYTE *Scan_Date(
         }
         else {
             if (num < -15 || num > 15)
-                return NULL;
+                return_NULL;
 
             tz = num * (60 / ZONE_MINS);
 
             if (*ep == ':') {
                 ep = Grab_Int(ep + 1, &num);
                 if (num % ZONE_MINS != 0)
-                    return NULL;
+                    return_NULL;
 
                 tz += num / ZONE_MINS;
             }
         }
 
         if (ep != end)
-            return NULL;
+            return_NULL;
 
         if (*cp == '-')
             tz = -tz;
@@ -878,7 +897,7 @@ const REBYTE *Scan_File(
     cp = Scan_Item_Push_Mold(&mo, cp, cp + len, term, invalid);
     if (cp == NULL) {
         Drop_Mold(&mo);
-        return NULL;
+        return_NULL;
     }
 
     Init_File(out, Pop_Molded_String(&mo));
@@ -904,14 +923,14 @@ const REBYTE *Scan_Email(
     REBYTE *str = BIN_HEAD(series);
     for (; len > 0; len--) {
         if (*cp == '@') {
-            if (at) return NULL;
+            if (at) return_NULL;
             at = TRUE;
         }
 
         if (*cp == '%') {
             REBUNI n;
             if (len <= 2 || !Scan_Hex2(cp + 1, &n, FALSE))
-                return NULL;
+                return_NULL;
             *str++ = cast(REBYTE, n);
             cp += 3;
             len -= 2;
@@ -920,8 +939,8 @@ const REBYTE *Scan_Email(
             *str++ = *cp++;
     }
     *str = 0;
-    if (!at)
-        return NULL;
+    if (NOT(at))
+        return_NULL;
 
     SET_SERIES_LEN(series, cast(REBCNT, str - BIN_HEAD(series)));
 
@@ -947,8 +966,8 @@ const REBYTE *Scan_URL(
 //  for (n = 0; n < URL_MAX; n++) {
 //      if (str = Match_Bytes(cp, (REBYTE *)(URL_Schemes[n]))) break;
 //  }
-//  if (n >= URL_MAX) return 0;
-//  if (*str != ':') return 0;
+//  if (n >= URL_MAX) return_NULL;
+//  if (*str != ':') return_NULL;
 
     REBSER *series = Make_Binary(len);
 
@@ -958,7 +977,7 @@ const REBYTE *Scan_URL(
         if (*cp == '%') {
             REBUNI n;
             if (len <= 2 || !Scan_Hex2(cp + 1, &n, FALSE))
-                return NULL;
+                return_NULL;
 
             *str++ = cast(REBYTE, n);
             cp += 3;
@@ -991,9 +1010,9 @@ const REBYTE *Scan_Pair(
 
     const REBYTE *ep = Scan_Dec_Buf(&buf[0], cp, MAX_NUM_LEN);
     if (ep == NULL)
-        return NULL;
+        return_NULL;
     if (*ep != 'x' && *ep != 'X')
-        return NULL;
+        return_NULL;
 
     VAL_RESET_HEADER(out, REB_PAIR);
     out->payload.pair = Alloc_Pairing(NULL);
@@ -1006,14 +1025,14 @@ const REBYTE *Scan_Pair(
     const REBYTE *xp = Scan_Dec_Buf(&buf[0], ep, MAX_NUM_LEN);
     if (!xp) {
         Free_Pairing(out->payload.pair);
-        return NULL;
+        return_NULL;
     }
 
     VAL_PAIR_Y(out) = cast(float, atof(cast(char*, &buf[0]))); //n;
 
     if (len > cast(REBCNT, xp - cp)) {
         Free_Pairing(out->payload.pair);
-        return NULL;
+        return_NULL;
     }
 
     Manage_Pairing(out->payload.pair);
@@ -1034,7 +1053,7 @@ const REBYTE *Scan_Tuple(
     SET_TRASH_IF_DEBUG(out);
 
     if (len == 0)
-        return NULL;
+        return_NULL;
 
     const REBYTE *ep;
     REBCNT size = 1;
@@ -1045,7 +1064,7 @@ const REBYTE *Scan_Tuple(
     }
 
     if (size > MAX_TUPLE)
-        return NULL;
+        return_NULL;
 
     if (size < 3)
         size = 3;
@@ -1059,7 +1078,7 @@ const REBYTE *Scan_Tuple(
     for (ep = cp; len > cast(REBCNT, ep - cp); ++ep) {
         ep = Grab_Int(ep, &n);
         if (n < 0 || n > 255)
-            return NULL;
+            return_NULL;
 
         *tp++ = cast(REBYTE, n);
         if (*ep != '.')
@@ -1067,7 +1086,7 @@ const REBYTE *Scan_Tuple(
     }
 
     if (len > cast(REBCNT, ep - cp))
-        return NULL;
+        return_NULL;
 
     return ep;
 }
@@ -1090,24 +1109,24 @@ const REBYTE *Scan_Binary(
     if (*cp != '#') {
         const REBYTE *ep = Grab_Int(cp, &base);
         if (cp == ep || *ep != '#')
-            return NULL;
+            return_NULL;
         len -= cast(REBCNT, ep - cp);
         cp = ep;
     }
 
     cp++;  // skip #
     if (*cp++ != '{')
-        return NULL;
+        return_NULL;
 
     len -= 2;
 
     cp = Decode_Binary(out, cp, len, base, '}');
     if (cp == NULL)
-        return NULL;
+        return_NULL;
 
     cp = Skip_To_Byte(cp, cp + len, '}');
     if (cp == NULL)
-        return NULL; // series will be gc'd
+        return_NULL; // series will be gc'd
 
     return cp + 1; // include the "}" in the scan total
 }
