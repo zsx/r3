@@ -155,9 +155,12 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
     // The current requests for expansion should only happen when the stack
     // is at its end.  Sanity check that.
     //
-    assert(IS_END(DS_TOP));
-    assert(DS_TOP == KNOWN(ARR_TAIL(DS_Array))); // can't push RELVALs
-    assert(DS_TOP - KNOWN(ARR_HEAD(DS_Array)) == len_old);
+#if !defined(NDEBUG)
+    REBVAL *end_top = DS_AT(DSP); // DS_TOP would assert on END
+    assert(IS_END(end_top));
+    assert(end_top == KNOWN(ARR_TAIL(DS_Array))); // can't push RELVALs
+    assert(end_top - KNOWN(ARR_HEAD(DS_Array)) == len_old);
+#endif
 
     // If adding in the requested amount would overflow the stack limit, then
     // give a data stack overflow error.
@@ -180,7 +183,7 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
     // the debug build).  In order to serve as a marker for the stack slot
     // being available, it merely must not be IS_END()...
     //
-    REBVAL *value = DS_TOP;
+    REBVAL *value = DS_AT(DSP); // DS_TOP would assert on END
     REBCNT len_new = len_old + amount;
     REBCNT n;
     for (n = len_old; n < len_new; ++n) {

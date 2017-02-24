@@ -7,7 +7,7 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Copyright 2012 REBOL Technologies
-// Copyright 2012-2015 Rebol Open Source Contributors
+// Copyright 2012-2017 Rebol Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
@@ -105,8 +105,13 @@
 
 // DS_TOP is the most recently pushed item
 //
+inline static REBVAL *DS_TOP_Core() {
+    assert(NOT(IS_END_MACRO(DS_AT(DSP))));
+    return DS_AT(DSP);
+}
+
 #define DS_TOP \
-    DS_AT(DSP)
+    DS_TOP_Core()
 
 #if !defined(NDEBUG)
     #define IN_DATA_STACK_DEBUG(v) \
@@ -150,19 +155,28 @@ inline static void DS_PUSH(const REBVAL *v) {
 
 #ifdef NDEBUG
     #define DS_DROP \
-        (--DS_Index, NOOP)
+        (--DS_Index)
 
     #define DS_DROP_TO(dsp) \
-        (DS_Index = dsp, NOOP)
+        (DS_Index = dsp)
 #else
-    #define DS_DROP \
-        (SET_UNREADABLE_BLANK(DS_TOP), --DS_Index, NOOP)
+    inline static void DS_DROP_Core() {
+        // Note: DS_TOP checks to make sure it's not an END.
+        SET_UNREADABLE_BLANK(DS_TOP); // TRASH would mean ASSERT_ARRAY failing
+        --DS_Index;
+    }
 
-    inline static void DS_DROP_TO(REBDSP dsp) {
+    #define DS_DROP \
+        DS_DROP_Core()
+
+    inline static void DS_DROP_TO_Core(REBDSP dsp) {
         assert(DSP >= dsp);
         while (DSP != dsp)
             DS_DROP;
     }
+
+    #define DS_DROP_TO(dsp) \
+        DS_DROP_TO_Core(dsp)
 #endif
 
 
