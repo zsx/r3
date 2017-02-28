@@ -1086,18 +1086,22 @@ void Resolve_Context(
 ) {
     FAIL_IF_READ_ONLY_CONTEXT(target);
 
-    REBVAL *key;
-    REBVAL *var;
-    REBCNT i = 0;
+    REBCNT i;
+    if (IS_INTEGER(only_words)) { // Must be: 0 < i <= tail
+        i = VAL_INT32(only_words);
+        if (i == 0)
+            i = 1;
+        if (i > CTX_LEN(target))
+            return;
+    }
+    else
+        i = 0;
 
     struct Reb_Binder binder;
     INIT_BINDER(&binder);
 
-    if (IS_INTEGER(only_words)) { // Must be: 0 < i <= tail
-        i = VAL_INT32(only_words); // never <= 0
-        if (i == 0) i = 1;
-        if (i > CTX_LEN(target)) return;
-    }
+    REBVAL *key;
+    REBVAL *var;
 
     // !!! This function does its own version of resetting the bind table
     // and hence the Collect_Keys_End that would be performed in the case of
@@ -1139,8 +1143,10 @@ void Resolve_Context(
                 --n;
 
         // Expand context by the amount required:
-        if (n > 0) Expand_Context(target, n);
-        else expand = FALSE;
+        if (n > 0)
+            Expand_Context(target, n);
+        else
+            expand = FALSE;
     }
 
     // Maps a word to its value index in the source context.

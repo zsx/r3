@@ -781,20 +781,16 @@ int main(int argc, char **argv_ansi)
             BIN_HEAD(startup), BIN_LEN(startup)
         );
 
-        // First the scanned code is bound into the user context with a
-        // fallback to the lib context.
+        // Bind the REPL and startup code into the lib context.
         //
-        // !!! This code is very old, and is how the REPL has bound since
-        // R3-Alpha.  It comes from RL_Do_String, but should receive a modern
-        // review of why it's written exactly this way.
+        // !!! It's important not to load the REPL into user, because since it
+        // uses routines like PRINT to do it's I/O you (probably) don't want
+        // the REPL to get messed up if PRINT is redefined--for instance.  It
+        // should probably have its own context, which would entail a copy of
+        // every word in lib that it uses, but that mechanic hasn't been
+        // fully generalized--and might not be the right answer anyway.
         //
-        REBCTX *user_ctx = VAL_CONTEXT(Get_System(SYS_CONTEXTS, CTX_USER));
-
-        REBVAL vali;
-        SET_INTEGER(&vali, CTX_LEN(user_ctx) + 1);
-
-        Bind_Values_All_Deep(ARR_HEAD(array), user_ctx);
-        Resolve_Context(user_ctx, Lib_Context, &vali, FALSE, FALSE);
+        Bind_Values_All_Deep(ARR_HEAD(array), Lib_Context);
 
         // The new policy for source code in Ren-C is that it loads read only.
         // This didn't go through the LOAD Rebol function (should it?  it

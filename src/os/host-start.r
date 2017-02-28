@@ -380,7 +380,7 @@ host-start: function [
         o/boot: to file! take argv
     ]
 
-    while-not [tail? argv] [
+    until [tail? argv] [
 
         is-option: parse/case argv/1 [
 
