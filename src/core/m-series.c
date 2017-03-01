@@ -107,13 +107,13 @@ void Append_Series(REBSER *s, const REBYTE *data, REBCNT len)
 //
 void Append_Values_Len(REBARR *a, const REBVAL *head, REBCNT len)
 {
-    REBYTE *dest = cast(REBYTE*, ARR_TAIL(a));
+    REBCNT old_len = ARR_LEN(a);
 
-    // updates tail (hence we calculated dest before)
+    // updates tail, which could move data storage.
     //
     EXPAND_SERIES_TAIL(AS_SERIES(a), len);
 
-    memcpy(dest, head, sizeof(REBVAL) * len);
+    memcpy(ARR_AT(a, old_len), head, sizeof(REBVAL) * len);
 
     TERM_ARRAY_LEN(a, ARR_LEN(a));
 }
