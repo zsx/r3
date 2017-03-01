@@ -35,6 +35,9 @@
 #include "sys-zlib.h"
 #include <ctype.h> // remove this later !!!!
 
+#include "sys-ext.h"
+#include "tmp-mod-upng-first.h"
+
 #ifdef STRICT_BOOL_COMPILER_TEST
     //
     // This is third party code that is not written to use REBOOL, and hence
@@ -928,16 +931,4 @@ REBNATIVE(decode_png)
 }
 
 
-//
-//  Init_PNG_Codec: C
-//
-void Init_PNG_Codec(void)
-{
-    Register_Codec(
-        "png",
-        ".png",
-        NAT_VALUE(identify_png_q),
-        NAT_VALUE(decode_png),
-        NAT_VALUE(encode_png_lodepng) // use the LODEPNG encoder
-    );
-}
+#include "tmp-mod-upng-last.h"

@@ -153,7 +153,6 @@ core: [
     u-jpg.c
     u-md5.c
     u-parse.c
-    u-png.c
     u-sha1.c
     u-zlib.c
 
@@ -171,12 +170,15 @@ modules: [
         ../codecs/rsa/rsa.c
     ]
 
+    LodePNG ../extensions/mod-lodepng.c [../codecs/png/lodepng.c]
 
+    uPNG ../extensions/u-png.c []
 ]
 
 extensions: [
     ; [+ (builtin) | - (not builtin)] ext-name ext-file modules (defined in modules)
     + Crypt ../extensions/ext-crypt.c [Crypt]
+    + PNG ../extensions/ext-png.c [LodePNG uPNG]
 ]
 
 made: [

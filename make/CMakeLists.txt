@@ -98,6 +98,7 @@ elseif ("${OS_MAJOR}" STREQUAL "3")
         ENDIAN_LITTLE
         UNICODE
         _UNICODE
+        ZLIB_DLL #to export symbols in zlib for u-png.c usage
         )
     set(LIBS wsock32 comdlg32)
 elseif ("${OS_MAJOR}" STREQUAL "4")
@@ -371,10 +372,8 @@ set (CORE_SOURCE
     ${CORE_DIR}/u-jpg.c
     ${CORE_DIR}/u-md5.c
     ${CORE_DIR}/u-parse.c
-    ${CORE_DIR}/u-png.c
     ${CORE_DIR}/u-sha1.c
     ${CORE_DIR}/u-zlib.c
-    ${CORE_DIR}/../codecs/png/lodepng.c
     )
 set (CODECS_SOURCE
     ${CORE_DIR}/../codecs/aes/aes.c
@@ -676,6 +675,12 @@ add_extension(r3-crypt Crypt FALSE "${EXT_DIR}/ext-crypt.c" "Crypt"
 if (TO_WINDOWS AND ${R3_EXT_CRYPT} STREQUAL "M")
     target_link_libraries(r3-crypt "Ws2_32.lib")
 endif ()
+
+add_module(LodePNG "${EXT_DIR}/mod-lodepng.c" "${CORE_DIR}/../codecs/png/lodepng.c;")
+add_module(uPNG "${EXT_DIR}/u-png.c" "")
+add_extension(r3-png PNG TRUE "${EXT_DIR}/ext-png.c;" "LodePNG;uPNG"
+    "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${TOP_SRC_DIR}/codecs;${FFI_INCLUDE_DIRS};${INC}"
+    "${COMMON_MACROS}")
 #<------------- end of modules --------->
 
 string(REPLACE ";" "," BOOT_EXTENSION_LIST "${BOOT_EXTENSIONS}")
@@ -911,8 +916,14 @@ target_include_directories(r3-core PUBLIC
         ${FFI_INCLUDE_DIRS}
         ${INC}
         )
-target_compile_definitions(libr3_core_core PUBLIC REB_API REB_CORE ${COMMON_MACROS})
+target_compile_definitions(libr3_core_core PUBLIC
+    REB_API
+    REB_CORE
+    ${COMMON_MACROS})
+
 if (TO_WINDOWS)
+    target_compile_definitions(libr3_core_core PRIVATE ZLIB_INTERNAL)
+
     #WINSYS_WIN32 is needed for dev-event.c
     target_compile_definitions(r3-core PUBLIC REB_CORE WINSYS_WIN32 ${COMMON_MACROS})
 else ()
