@@ -41,7 +41,6 @@
 #undef IS_ERROR //winerror.h defines this, so undef it to avoid the warning
 #endif
 #include "sys-core.h"
-#include "sys-ext.h"
 
 #include "reb-net.h"
 #include "reb-evtypes.h"
@@ -142,29 +141,6 @@ DEVICE_CMD Quit_Net(REBREQ *dr)
     return DR_DONE;
 }
 
-
-//
-//  Host_Address: C
-//
-// Simple lookup of a host address.
-// The hostaddr must be at least 16 bytes in size (IPv6).
-// This is a synchronous function and blocks during access.
-//
-// On success, returns length of address.
-// On failure, returns 0.
-//
-// Current version is IPv4 only.
-//
-int Host_Address(char *hostname, char *hostaddr)
-{
-    struct hostent *he;
-
-    if (!(he = gethostbyname(hostname))) return DR_DONE;
-
-    memcpy(hostaddr, *he->h_addr_list, he->h_length);
-
-    return he->h_length;
-}
 
 
 //
