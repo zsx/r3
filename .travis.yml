@@ -16,49 +16,61 @@ compiler:
 env:
     matrix:
         # Linux x86, release
+        #
         - OS_ID=0.4.4 REL=1
+
         # Linux x64, debug
+        #
         - OS_ID=0.4.40
+
         # Linux x64, release
+        #
         - OS_ID=0.4.40 REL=1
 
         # Windows x86, release
+        #
         - OS_ID=0.3.1 REL=1 TOOLS=i686-w64-mingw32-
+        
         # Windows x64, release
+        #
         - OS_ID=0.3.40 REL=1 TOOLS=x86_64-w64-mingw32-
 
     global:
+        #
         # travis encrypt AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+        #
         - secure: "kQB+yBhlQnbJK35wyBDUHNN4SoUkWt5v5FzsdV+i9USgIatgLA33eBeRBWsmfTHWqdjBurRmomy7aNhDwKp8Viax1MhyrsYgfqkvXjnTImMGj2b/m4ltqBjTb2rQlVuhykYBR9RU4TsuX0LHVlG2xw31+VdtpQECzrnwjvsSSWwyosYdd+gg5S4TW5yNlbuyzoqVHPqc8unpj+zBUWEDAksqkvzriZvPlRjdiJR8iGTdia3ciO/+kOpHaA2yjGJRWkZWcOToDNvsZZcaQTU+iovqdWJZJdwljUMueGLD3I+pxKP3TiO79CslQD/dfL/gIj4TUc1R27fEaYGYW0v1W2yQr7trrwNeV/Oi10qSpsrXfQ10rOQ6XyhlSiWQUtwVUGredobwmAKG8IBNI32qnEJZlmQ0fyc01YXvip5EHD2FhOaK+TDK01hbXJxT4aJWgi8t+IUJO2b65jKUkhaXOtiblp2od0ZQAhH/gkgckLDwNbiHbYNBrz2mbvJli5PT26AhZ8ho5ZXa3/BTj/8A9CX1veUIykvGcRvru3lqq6PKsccfni0RxXdtuBlPxtHzsOSZy0UGEqlvPqYUpB8wEWRRt81wbh9+we46hVvvYi075sAQzw0CtPLSzSJoKFshHHY7Eo9lgbsOgirk0MiJOYLkjWsiMVMm39Oea+fHsms=" 
+
         # travis encrypt AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+        #
         - secure: "YOW5lGwroKWQchmK+AzvN61dQ6geaYHQw0Y9eXZnWmXY8X6rjce9TnY5nWxnbHSo5cnRcP6mtSK48ce1JGrkMT0P0wpQhM+2bJfIQcmbiigRWIdrc0bQZsGkT3l+A6g9lz6VosiOlKjkxZEkzxt20+ABVc1c2ZFa8RE7ctaAfvnC/Vc0PVk3z7oQbCBVZ0H8u6HsY7zLlUrUmDPtTt7yS5VSzZf5NEvjoD3zDR7T73IFNWxW29SpdZ3jnPI67GHjshPTYj/zuAexAebI2YdV7w1EEchFqsUKskjDmr9Kkpn9BvJMZhUzCfeZVUHcQLH56h61NlFen4yhJIT/yoKSu9clRDbMhw3V3319IDTQXp/MTjXqZxZ+P1fFS81ZAt1eHvavEb5pMqVG5EJiopQTfU16TuM8sUMeuSkVwx1oSke+99qikpV1nU169KUXvQP3qksBGNMIeyRnAlQi/nYcvkJS7X4lc58lXhGpoylp7oOqk/+nlnexrmJdZQV+ixMAJ3U+OLWEDAyilGn2/Vfv7+9jlHOUtkpu6k5c0EdDvOSyOfIO/bbbIrNXnvOIheyShyfVbwjY7J9C5QDAk7AZ6mjr1ulgZU7Tk+lYrTBTjD+M1Al2q3bzYz43Ay6jKVxGZurINNB9b8DUtgma5179wqF61pMalvBfsxicYwjgQUM="
+
         - AWS_S3_BUCKET_NAME: "metaeducation"
 
-deploy:
-  provider: s3
-  # these are set up in the global env
-  access_key_id: $AWS_ACCESS_KEY_ID
-  secret_access_key: $AWS_SECRET_ACCESS_KEY
-  bucket: $AWS_S3_BUCKET_NAME
-  skip_cleanup: true
-  upload-dir: travis-builds
 
 # Force new container-based infrastructure.
-# Ref: http://docs.travis-ci.com/user/migrating-from-legacy/
+#
+# http://docs.travis-ci.com/user/migrating-from-legacy/
+#
 sudo: false
+
 
 addons:
     apt:
         packages:
+            #
             # For building 32b binaries on a 64b host (not necessary when we
             # build for 64b):
+            #
             - gcc-multilib
             - g++-multilib
 
             # For running the 32b bootstrap rebol ("r3-make") on a 64b host:
+            #
             - libc6:i386
 
             # For cross-compiling to Windows.
+            #
             - binutils-mingw-w64-i686
             - binutils-mingw-w64-x86-64
             - gcc-mingw-w64-i686
@@ -69,26 +81,89 @@ addons:
 
 
 install:
+    #
     # Fetch a Rebol bootstrap binary, which is needed for building Rebol.
+    #
     - wget http://www.rebol.com/r3/downloads/r3-a111-4-2.tar.gz
     - tar xvzf r3-a111-4-2.tar.gz
     - cp r3 make/r3-make
 
+
 script:
     - cd make/
+
     # If REL is defined and not empty, we do a release build by compiling with
     # NDEBUG defined. (`${parameter+alt_value}` is a Bash-ism documented as:
     # "if parameter set, use alt_value, else use null string.")
+    #
     - export CC="${TOOLS}${CC}${REL+ -DNDEBUG}"
+
     # We have to set REBOL_TOOL explicitly to circumvent the automatic r3-make
-    # filename inference, as we always use a Linux r3-make, even when
-    # cross-compiling to Windows.
+    # filename inference, as we always use Linux "r3-make" (not "r3-make.exe")
+    # even when doing windows builds, since this is a cross-compilation.
+    #
     - make -f makefile.boot REBOL_TOOL=r3-make OS_ID="${OS_ID}" CC="${CC}"
-    # A minimal sanity check that the built R3 does _something_. Eventually, we
-    # should run the full test suite.
 
     # Run once but don't pipe output, in case it prints out useful crash msg
-    - if [ "${OS_ID}" = "0.4.40" ]; then ./r3 --do 'print {OK}'; fi
+    # that we want to see in the Travis log (especially helpful for failures
+    # only happening in the Travis builds that aren't reproducing locally)
+    # Save the exit code ($?) so we can return it to Travis as last step
+    #
+    # !!! This is a very minimal sanity check to ensure the built R3 does
+    # *something*, and it can obviously only be used on the linux version.
+    # Eventually it should run the whole test suite.
+    #
+    - R3_EXIT_STATUS=0
+    - if [ "${OS_ID}" = "0.4.40" ]; then ./r3 --do 'print {OK} quit/with 0'; export R3_EXIT_STATUS=$?; fi
+    - echo ${R3_EXIT_STATUS}
+    
+    # Delete the obj file directory so we don't upload those to S3
+    #
+    - rm -rf objs
 
-    # Run a second time with piped output to return success/faiure to Travis
-    - if [ "${OS_ID}" = "0.4.40" ]; then ./r3 --do 'print {OK}' | grep OK; fi
+    # Grab the git commit ID into an environment variable
+    #
+    # http://stackoverflow.com/a/42549385/211160
+    #
+    - GIT_COMMIT="$(git show --format="%h" --no-patch)" 
+    - echo ${GIT_COMMIT}
+
+    # Move the executable to a directory based on the OS_ID and then give
+    # it the name of the commit and whether it is a debug build or not.  
+    # (Currently all the build products are written to S3 and overlap each 
+    # other, so this naming is necessary to distinguish them)
+    #
+    # Note that ${XXX- alt} is a bash-ism meaning "evaluate to nothing if
+    # the variable is set, but if it is not set evaluate to the following
+    # text.  Hence ${REL--debug} is nothing for REL=1, and "-debug"  if it
+    # is not set...labeling non-release builds as debug.
+    #
+    # !!! All Ren-C stakeholders should be using debug builds at this time.  
+    #
+    - mkdir ${OS_ID}
+    - NEW_NAME=${OS_ID}/r3-${GIT_COMMIT}${REL--debug}
+    - echo ${NEW_NAME}
+    - if [ -e "r3.exe" ]; then mv r3.exe ${NEW_NAME}.exe; else mv r3 ${NEW_NAME}; fi
+
+    # Return whether the build succeeded or not to Travis.  If this succeeded 
+    # then the deploy step to S3 will run
+    #
+    # http://stackoverflow.com/a/10457902/211160
+    #
+    - (exit ${R3_EXIT_STATUS})
+
+
+# After everything is finished (e.g. script section above), upload build 
+# product to Amazon S3.  For how the configuration works and manages to keep
+# the private key secure, see:
+#
+# http://stackoverflow.com/a/42547424/211160
+#
+deploy:
+    provider: s3
+    access_key_id: $AWS_ACCESS_KEY_ID
+    secret_access_key: $AWS_SECRET_ACCESS_KEY
+    bucket: $AWS_S3_BUCKET_NAME
+    skip_cleanup: true
+    upload-dir: travis-builds
+
