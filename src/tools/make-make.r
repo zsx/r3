@@ -266,8 +266,17 @@ do %systems.r
 
 file-base: has load %file-base.r
 
-args: parse-args system/options/args
-config: config-system/guess args/OS_ID
+; !!! Because %make-make.r may be called with an OS_ID or not, the generated
+; makefile is easier to write as passing a single argument vs trying to
+; have the caller figure out how to either send OS_ID=X.Y.Z or not write
+; the OS_ID (e.g. "OS_ID=" would be an error).  So we do not call the
+; argument parser here.
+;
+config: either block? system/options/args [
+    config-system to-value first system/options/args
+][
+    config-system blank
+]
 
 print ["Option set for building:" config/id config/os-name]
 

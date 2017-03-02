@@ -251,45 +251,32 @@ use [rec unknown-flags used-flags] [
     ]
 ]
 
-config-system: func [
+config-system: function [
     {Return build configuration information}
-    /version {Provide a specific version ID}
-    id [tuple!] {Tuple matching the OS_ID}
-    /guess {Should the function guess the version if it is NONE?}
-    hint {Additional value to help with guessing (e.g. commandline args)}
-    /local result
+    hint [blank! string! tuple!]
+        {Version ID (blank means guess)}
 ][
-    ; Don't override a literal version tuple with a guess
-    if all [guess version] [
-        fail "config-system called with both /version and /guess"
-    ]
-
-    id: any [
-        ; first choice is a literal tuple that was passed in (unset means
-        ; no vote in the ANY)
-        :id
-
-        ; If version was blank and asked to /guess, use opts if given
-        if all [guess hint] [
-            if block? hint [hint: first hint]
-            if hint = ">" [hint: "0.3.1"] ; !!! "bogus cw editor" (?)
-            probe hint
-            hint: load hint
-            unless tuple? hint [
-                fail [
-                    "Expected platform id (tuple like 0.3.1), not:" hint
-                ]
-            ]
-            hint
+    version: case [
+        blank? hint [
+            ;
+            ; Try same version as this r3-make was built with
+            ;
+            to tuple! reduce [0 system/version/4 system/version/5]
         ]
-
-        ; Fallback: try same version as this r3-make was built with
-        to tuple! reduce [0 system/version/4 system/version/5]
+        string? hint [
+            load hint
+        ]
     ]
 
-    unless result: find-record-unique systems 'id id [
+    unless tuple? version [
         fail [
-            {No table entry for} id {found in systems.r}
+            "Expected platform id (tuple like 0.3.1), not:" version
+        ]
+    ]
+
+    unless result: find-record-unique systems 'id version [
+        fail [
+            {No table entry for} version {found in systems.r}
         ]
     ]
 

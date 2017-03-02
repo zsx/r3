@@ -29,7 +29,7 @@ do %form-header.r
 
 do %systems.r
 args: parse-args system/options/args
-config: config-system/guess args/OS_ID
+config: config-system to-value args/OS_ID
 
 
 ;-- SETUP --------------------------------------------------------------
