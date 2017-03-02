@@ -27,6 +27,21 @@ env:
         # Windows x64, release
         - OS_ID=0.3.40 REL=1 TOOLS=x86_64-w64-mingw32-
 
+    global:
+        # travis encrypt AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+        - secure: "ZauToTmqGjPYJ3n7d9C02DhLks115fHVUAr/d/j/wbVBm9amR1mvx7H6O+Kd7Bm8st4nXebdOBk8pD8VHKu9WA56GIsLcrCyffb11wGOpw1QpTMEiAoxRoDDuN5jldTT71W4wj3YpfRzjkxSK5PODhdUIQ8WoSjuAkWZDrLAoN0ZA1tiW1iHMQDU4NTcqv9fGJI5/0LL1zP0FSJMUA33JfcMB85zsL2B1bas1iBJz4ph/HgQ5x1LhG2WJb3lY7gkceNyM61U3f3+qk461KKw12UTd8Lki3rg3fc/RNS/QsbQ2RQxbtITbJstsmhXPXQ+nbyKJIteUQuOpYQ10zuM7llAg2J5vSsRBFvFnoqoXYOfMgnf1Zpo/9x2BBZ90/mXLVJv8ej+TQ2cw/ww6mex6A4H0CFqg3XIq74sJrvArbH3Vc90vqMQcWW+IBjXn/smaOhS2NzMwu+X2qio6vGJk9jhL7Gd6EDGNbhfCpQ262AWrh577FU9xIM+MGDG9miG0J26eTSjMml+/cB+tFyV9A8S1nj5ujaOZyT7eMQwvrbm3oWOYb7tA+GKTfNwLympf1vtVCfHEVJwc6e57pGy3cL24aX9Hc94s1ashqcSLa3ZQ3nCjwpNhJJmh4FLuIhDJJijNCNZf6+T+GE8NA9lsOxdComYN+mAxdbscje9Nes="
+        # travis encrypt AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+        - secure: "LBN7bWcETbkqQNJXUZOw23iwGGQf/sqgZXIs9SGpEkCrEFCsdX2F9pL1KlQyi2Il+aJNy/SozZTIxLtODiX8j4IVg8P5BzJBZlycBfbOcuLUQBzKwzzYoIuibTaUzHaFuPli7zu+NVRMZIkloW1PVinc4CfX3XJnYeSgWGM/s6T7FIxJ5+dR7TZCaNQwbUI8IHrbLcdMZ3l7OM+aqAXz7BikR9CN2xzCEp65eocw3RGUxDFOwmjr9QrlkBqN2vHuMWVkcpTKViqjDMKLd8ha045bbZd5GjiJy9oWS7FDN05zTp03lTCcsAC2hhhuoK2KhpdT+5y3zVWaYlp3Gfrabm/WZb9fVBy1BHypyBSCKVcMB5O4n5Oe0CVBaOPZY5wGLLPIUB+k7dpOvSy4lodUfldu+RByvCY7IcA/rdX7s1YYkuexGCCLkWRNOzu4wcTRLN+AlVvZDVc6r0KXqA0cfzlrtCG9fIy7MiO4SxGpMeQ1lsiagHKre5AYvOU5qnghD8g5Q9IGlVHCtN8B2bE9vbXg5rWcUdJCEzHKRkIj67RD65slki8osXM0f7kvxmvyo3+D830pkElJeiQEwgp+yypT3C5wdvCu2bvs1obXY0lwCUpKkcYJw6YslIIAo/adpVgkB5hhiFEfoQIUJbJMy2eTP+ohIiwPxg35CkyQvlI="
+        - AWS_S3_BUCKET_NAME: "metaeducation"
+
+deploy:
+    provider: s3
+    access_key_id: $AWS_ACCESS_KEY_ID
+    secret_access_key: $AWS_SECRET_ACCESS_KEY
+    bucket: $AWS_S3_BUCKET_NAME
+    skip_cleanup: true
+    upload-dir: travis-builds
+
 # Force new container-based infrastructure.
 # Ref: http://docs.travis-ci.com/user/migrating-from-legacy/
 sudo: false
