@@ -97,6 +97,16 @@ install:
 script:
     - cd make/
 
+    # Keep track of whether the incoming compilation tool was C++ or not,
+    # before changing the definition of CC to suit the makefile
+    #
+    - |
+      if [[ "${CC}" = "g++" ]]; then
+          CPLUSPLUS=1;
+      else
+          unset CPLUSPLUS;
+      fi
+
     # If REL is defined and not empty, we do a release build by compiling with
     # NDEBUG defined. (`${parameter+alt_value}` is a Bash-ism documented as:
     # "if parameter set, use alt_value, else use null string.")
@@ -165,7 +175,7 @@ script:
     # !!! All Ren-C stakeholders should be using debug builds at this time.  
     #
     - mkdir ${OS_ID}
-    - NEW_NAME=${OS_ID}/r3-${GIT_COMMIT}${REL--debug}
+    - NEW_NAME=${OS_ID}/r3-${GIT_COMMIT}${REL--debug}${CPLUSPLUS+-cpp}
     - echo ${NEW_NAME}
     - |
       if [ -e "r3.exe" ]; then
