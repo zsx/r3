@@ -230,23 +230,6 @@ void RL_Init(void *lib)
 
     Init_BMP_Codec();
 
-    REBARR *file_types = Make_Array(2);
-    Init_File(
-        Alloc_Tail_Array(file_types),
-        Make_UTF8_May_Fail(".jpg")
-    );
-    Init_File(
-        Alloc_Tail_Array(file_types),
-        Make_UTF8_May_Fail(".jpeg")
-    );
-
-    Register_Codec(
-        "jpeg",
-        file_types,
-        NAT_VALUE(identify_jpeg_q),
-        NAT_VALUE(decode_jpeg),
-        NULL // currently no encoder
-     );
 }
 
 

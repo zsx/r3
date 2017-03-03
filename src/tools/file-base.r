@@ -82,7 +82,6 @@ core: [
     n-error.c
     n-function.c
     n-io.c
-    n-jpg.c ; !!! should be moved to extensions
     n-loop.c
     n-math.c
     n-native.c
@@ -149,7 +148,6 @@ core: [
     ; (U)??? (3rd-party code extractions)
     u-bmp.c
     u-compress.c
-    u-jpg.c
     u-md5.c
     u-parse.c
     u-sha1.c
@@ -174,6 +172,8 @@ modules: [
     uPNG ../extensions/u-png.c []
 
     GIF ../extensions/mod-gif.c []
+
+    JPG ../extensions/mod-jpg.c [../extensions/u-jpg.c]
 ]
 
 extensions: [
@@ -181,6 +181,7 @@ extensions: [
     + Crypt ../extensions/ext-crypt.c [Crypt]
     + PNG ../extensions/ext-png.c [LodePNG uPNG]
     + GIF ../extensions/ext-gif.c [GIF]
+    + JPG ../extensions/ext-jpg.c [JPG]
 ]
 
 made: [

@@ -1,7 +1,7 @@
 //
-//  File: %n-jpg.c
+//  File: %mod-jpg.c
 //  Summary: "JPEG codec natives (dependent on %sys-core.h)"
-//  Section: utility
+//  Section: Extension
 //  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
@@ -33,6 +33,8 @@
 //
 
 #include "sys-core.h"
+#include "sys-ext.h"
+#include "tmp-mod-jpg-first.h"
 
 // These routines live in %u-jpg.c, which doesn't depend on %sys-core.h, but
 // has a minor dependency on %reb-c.h
@@ -99,3 +101,5 @@ REBNATIVE(decode_jpeg)
     Init_Image(D_OUT, ser);
     return R_OUT;
 }
+
+#include "tmp-mod-jpg-last.h"
