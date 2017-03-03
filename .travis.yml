@@ -162,23 +162,28 @@ script:
     - GIT_COMMIT="$(git show --format="%h" --no-patch)" 
     - echo ${GIT_COMMIT}
 
-    # Move the executable to a directory based on the OS_ID and then give
-    # it the name of the commit and whether it is a debug build or not.  
-    # (Currently all the build products are written to S3 and overlap each 
-    # other, so this naming is necessary to distinguish them)
-    #
-    # Note that ${parameter-alt_value} is a bash-ism meaning "evaluate to 
-    # nothing if # the variable is set, but if it is not set evaluate to 
-    # the following text.  Hence ${REL--debug} is nothing for REL=1, 
-    # and "-debug"  if it is not set...labeling non-release builds as debug.
+    # Name the executable based on the git commit, whether it is a debug
+    # or release build, and if it was built using C++ or not.  Note that
+    # the C++ debug builds have additional runtime checks in the debug
+    # build...though there should not be any impact on the release build.
+    # (Though there may be additional DLL dependencies regardless.)
     #
     # !!! All Ren-C stakeholders should be using debug builds at this time.  
     #
-    - mkdir ${OS_ID}
-    - NEW_NAME=${OS_ID}/r3-${GIT_COMMIT}${REL--debug}${CPLUSPLUS+-cpp}
+    # Note: -z tests if a variable is undefined
+    #
+    - NEW_NAME=${OS_ID}/r3-${GIT_COMMIT}
+    - if [[ -z "${REL}" ]]; then NEW_NAME+="-debug"; fi 
+    - if [[ ! -z "${CPLUSPLUS}" ]]; then NEW_NAME+="-cpp"; fi
     - echo ${NEW_NAME}
+
+    # Move the executable into a directory based on its OS_ID platform.
+    # This is because the deploy step is run for each OS and would
+    # otherwise overwrite executables in the same location.
+    #
+    - mkdir ${OS_ID}
     - |
-      if [ -e "r3.exe" ]; then
+      if [[ -e "r3.exe" ]]; then
            mv r3.exe ${NEW_NAME}.exe;
       else
            mv r3 ${NEW_NAME};
