@@ -4,13 +4,13 @@ REBOL [
     File: %make-headers.r ;-- used by EMIT-HEADER to indicate emitting script
     Rights: {
         Copyright 2012 REBOL Technologies
+        Copyright 2012-2017 Rebol Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
         Licensed under the Apache License, Version 2.0
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
-    Author: "Carl Sassenrath"
     Needs: 2.100.100
 ]
 

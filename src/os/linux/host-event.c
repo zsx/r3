@@ -2,7 +2,8 @@
 **
 **  REBOL [R3] Language Interpreter and Run-time Environment
 **
-**  Copyright 2012 REBOL Technologies
+**  Copyright 2012 Atronix Engineering
+**  Copyright 2012-2017 Rebol Open Source Contributors
 **  REBOL is a trademark of REBOL Technologies
 **
 **  Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +21,6 @@
 ************************************************************************
 **
 **  Title: Device: Event handler for X window
-**  Author: Shixin Zeng
 **  Purpose:
 **      Processes X events to pass to REBOL
 */

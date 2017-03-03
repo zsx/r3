@@ -3,13 +3,13 @@ REBOL [
     Title: "Make the R3 Core Makefile"
     Rights: {
         Copyright 2012 REBOL Technologies
+        Copyright 2012-2017 Rebol Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
         Licensed under the Apache License, Version 2.0
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
-    Author: "Carl Sassenrath"
     Purpose: {
         Build a new makefile for a given platform.
     }

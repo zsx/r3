@@ -1,15 +1,15 @@
 REBOL [
     System: "REBOL [R3] Language Interpreter and Run-time Environment"
-    Title: "Generate C string for the embeded headers"
+    Title: "Generate C string for the embedded headers"
     Rights: {
-        Copyright 2012 REBOL Technologies
+        Copyright 2017 Atronix Engineering
+        Copyright 2017 Rebol Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
         Licensed under the Apache License, Version 2.0
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
-    Author: "Shixin Zeng"
     Needs: 2.100.100
 ]
 

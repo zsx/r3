@@ -4,6 +4,7 @@ REBOL [
     File: %make-host-init.r
     Rights: {
         Copyright 2012 REBOL Technologies
+        Copyright 2012-2017 Rebol Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
     License: {
@@ -13,7 +14,6 @@ REBOL [
     Package: "REBOL 3 Host Kit"
     Version: 1.1.1
     Needs: 2.100.100
-    Author: "Carl Sassenrath"
     Purpose: {
         Build a single init-file from a collection of scripts.
         This is used during the REBOL host startup sequence.

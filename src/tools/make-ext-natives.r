@@ -3,6 +3,7 @@ REBOL [
     Title: "Generate extention native header files"
     File: %make-ext-native.r ;-- EMIT-HEADER uses to indicate emitting script
     Rights: {
+        Copyright 2017 Atronix Engineering
         Copyright 2017 Rebol Open Source Contributors
         REBOL is a trademark of REBOL Technologies
     }
@@ -10,7 +11,6 @@ REBOL [
         Licensed under the Apache License, Version 2.0
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
-    Author: "Shixin Zeng <szeng@atronixengineering.com>"
     Needs: 2.100.100
     Description: {
         This script is used to preprocess C source files containing code for
