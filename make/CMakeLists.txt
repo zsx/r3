@@ -368,7 +368,6 @@ set (CORE_SOURCE
     ${CORE_DIR}/t-word.c
     ${CORE_DIR}/u-bmp.c
     ${CORE_DIR}/u-compress.c
-    ${CORE_DIR}/u-gif.c
     ${CORE_DIR}/u-jpg.c
     ${CORE_DIR}/u-md5.c
     ${CORE_DIR}/u-parse.c
@@ -678,8 +677,13 @@ endif ()
 
 add_module(LodePNG "${EXT_DIR}/mod-lodepng.c" "${CORE_DIR}/../codecs/png/lodepng.c;")
 add_module(uPNG "${EXT_DIR}/u-png.c" "")
-add_extension(r3-png PNG TRUE "${EXT_DIR}/ext-png.c;" "LodePNG;uPNG"
+add_extension(r3-png PNG TRUE "${EXT_DIR}/ext-png.c" "LodePNG;uPNG"
     "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${TOP_SRC_DIR}/codecs;${FFI_INCLUDE_DIRS};${INC}"
+    "${COMMON_MACROS}")
+
+add_module(GIF "${EXT_DIR}/mod-gif.c" "")
+add_extension(r3-gif GIF TRUE "${EXT_DIR}/ext-gif.c" "GIF"
+    "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
     "${COMMON_MACROS}")
 #<------------- end of modules --------->
 

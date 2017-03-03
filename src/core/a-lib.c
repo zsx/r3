@@ -229,7 +229,6 @@ void RL_Init(void *lib)
     );
 
     Init_BMP_Codec();
-    Init_GIF_Codec();
 
     REBARR *file_types = Make_Array(2);
     Init_File(

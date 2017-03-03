@@ -1,7 +1,7 @@
 //
-//  File: %u-gif.c
+//  File: %mod-gif.c
 //  Summary: "GIF image format conversion"
-//  Section: utility
+//  Section: Extension
 //  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
@@ -32,6 +32,8 @@
 //
 
 #include "sys-core.h"
+#include "sys-ext.h"
+#include "tmp-mod-gif-first.h"
 
 
 #define MAX_STACK_SIZE  4096
@@ -368,16 +370,4 @@ REBNATIVE(decode_gif)
 }
 
 
-//
-//  Init_GIF_Codec: C
-//
-void Init_GIF_Codec(void)
-{
-    Register_Codec(
-        "gif",
-        ".gif",
-        NAT_VALUE(identify_gif_q),
-        NAT_VALUE(decode_gif),
-        NULL // currently no GIF encoder
-    );
-}
+#include "tmp-mod-gif-last.h"

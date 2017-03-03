@@ -149,7 +149,6 @@ core: [
     ; (U)??? (3rd-party code extractions)
     u-bmp.c
     u-compress.c
-    u-gif.c
     u-jpg.c
     u-md5.c
     u-parse.c
@@ -173,12 +172,15 @@ modules: [
     LodePNG ../extensions/mod-lodepng.c [../codecs/png/lodepng.c]
 
     uPNG ../extensions/u-png.c []
+
+    GIF ../extensions/mod-gif.c []
 ]
 
 extensions: [
     ; [+ (builtin) | - (not builtin)] ext-name ext-file modules (defined in modules)
     + Crypt ../extensions/ext-crypt.c [Crypt]
     + PNG ../extensions/ext-png.c [LodePNG uPNG]
+    + GIF ../extensions/ext-gif.c [GIF]
 ]
 
 made: [
