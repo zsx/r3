@@ -146,7 +146,6 @@ core: [
     t-word.c
 
     ; (U)??? (3rd-party code extractions)
-    u-bmp.c
     u-compress.c
     u-md5.c
     u-parse.c
@@ -174,6 +173,8 @@ modules: [
     GIF ../extensions/mod-gif.c []
 
     JPG ../extensions/mod-jpg.c [../extensions/u-jpg.c]
+
+    BMP ../extensions/mod-bmp.c []
 ]
 
 extensions: [
@@ -182,6 +183,7 @@ extensions: [
     + PNG ../extensions/ext-png.c [LodePNG uPNG]
     + GIF ../extensions/ext-gif.c [GIF]
     + JPG ../extensions/ext-jpg.c [JPG]
+    + BMP ../extensions/ext-bmp.c [BMP]
 ]
 
 made: [

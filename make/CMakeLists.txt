@@ -365,7 +365,6 @@ set (CORE_SOURCE
     ${CORE_DIR}/t-varargs.c
     ${CORE_DIR}/t-vector.c
     ${CORE_DIR}/t-word.c
-    ${CORE_DIR}/u-bmp.c
     ${CORE_DIR}/u-compress.c
     ${CORE_DIR}/u-md5.c
     ${CORE_DIR}/u-parse.c
@@ -681,6 +680,11 @@ add_extension(r3-png PNG TRUE "${EXT_DIR}/ext-png.c" "LodePNG;uPNG"
 
 add_module(GIF "${EXT_DIR}/mod-gif.c" "")
 add_extension(r3-gif GIF TRUE "${EXT_DIR}/ext-gif.c" "GIF"
+    "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
+    "${COMMON_MACROS}")
+
+add_module(BMP "${EXT_DIR}/mod-bmp.c" "")
+add_extension(r3-bmp BMP TRUE "${EXT_DIR}/ext-bmp.c" "BMP"
     "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
     "${COMMON_MACROS}")
 

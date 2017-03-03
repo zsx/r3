@@ -1,7 +1,7 @@
 //
-//  File: %u-bmp.c
+//  File: %mod-bmp.c
 //  Summary: "conversion to and from BMP graphics format"
-//  Section: utility
+//  Section: Extension
 //  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
@@ -32,6 +32,8 @@
 //
 
 #include "sys-core.h"
+#include "sys-ext.h"
+#include "tmp-mod-bmp-first.h"
 
 //**********************************************************************
 
@@ -619,16 +621,4 @@ REBNATIVE(encode_bmp)
 }
 
 
-//
-//  Init_BMP_Codec: C
-//
-void Init_BMP_Codec(void)
-{
-    Register_Codec(
-        "bmp",
-        ".bmp",
-        NAT_VALUE(identify_bmp_q),
-        NAT_VALUE(decode_bmp),
-        NAT_VALUE(encode_bmp)
-    );
-}
+#include "tmp-mod-bmp-last.h"

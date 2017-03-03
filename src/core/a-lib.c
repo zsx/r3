@@ -227,9 +227,6 @@ void RL_Init(void *lib)
         NAT_VALUE(decode_utf16be),
         NAT_VALUE(encode_utf16be)
     );
-
-    Init_BMP_Codec();
-
 }
 
 
