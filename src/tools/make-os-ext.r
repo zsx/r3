@@ -489,11 +489,7 @@ form-header/gen "Host Table Definition" %host-table.inc %make-os-ext.r
 **
 ***********************************************************************/
 
-#ifdef __cplusplus
-    extern "C" REBOL_HOST_LIB Host_Lib_Init;
-#else
-    extern REBOL_HOST_LIB Host_Lib_Init;
-#endif
+EXTERN_C REBOL_HOST_LIB Host_Lib_Init;
 
 REBOL_HOST_LIB Host_Lib_Init = ^{
 

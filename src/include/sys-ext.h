@@ -1,9 +1,5 @@
 // Extension entry point functions:
-#if defined(__cplusplus)
-#define EXTERN_C extern "C"
-#else
-#define EXTERN_C
-#endif
+
 
 #if defined(EXT_DLL) // External extensions
 #if defined(REB_EXE)

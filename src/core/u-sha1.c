@@ -65,10 +65,6 @@
 #error Endianness must be defined in rebol.h for builds including SHA1
 #endif
 
-#ifdef  __cplusplus
-extern "C" {
-#endif
-
 #define SHA_DEFINED
 
 #define SHA_CBLOCK  64
@@ -88,16 +84,13 @@ typedef struct SHAstate_st
     unsigned int num;
     } SHA_CTX;
 
-void SHA1_Init(void *c);
-void SHA1_Update(void *c, unsigned char *data, size_t len);
-void SHA1_Final(unsigned char *md, void *c);
-int SHA1_CtxSize(void);
+EXTERN_C void SHA1_Init(void *c);
+EXTERN_C void SHA1_Update(void *c, unsigned char *data, size_t len);
+EXTERN_C void SHA1_Final(unsigned char *md, void *c);
+EXTERN_C int SHA1_CtxSize(void);
+
 //unsigned char *SHA1(unsigned char *d, SHA_LONG n,unsigned char *md);
 //static void SHA1_Transform(SHA_CTX *c, unsigned char *data);
-
-#ifdef  __cplusplus
-}
-#endif
 
 
 #define ULONG   SHA_LONG

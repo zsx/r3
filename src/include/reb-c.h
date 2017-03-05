@@ -75,6 +75,28 @@
 
 
 //
+// CONDITIONAL C++ NAME MANGLING MACRO
+//
+// When linking C++ code, different functions with the same name need to be
+// discerned by the types of their parameters.  This means their name is
+// "decorated" (or "mangled") from the fairly simple and flat convention of
+// a C function.
+//
+// https://en.wikipedia.org/wiki/Name_mangling
+//
+// When built as C++, Ren-C needs to inform the compiler that the functions
+// it exports to the outside world should *not* use C++ name mangling, so that
+// they can be called sensibly from C.  This conditional macro avoids needing
+// to put #ifdefs around those prototypes.
+//
+#if defined(__cplusplus)
+    #define EXTERN_C extern "C"
+#else
+    #define EXTERN_C extern
+#endif
+
+
+//
 // CASTING MACROS
 //
 // The following code and explanation is from "Casts for the Masses (in C)":

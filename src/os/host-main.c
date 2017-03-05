@@ -94,18 +94,12 @@
 #include "sys-ext.h"
 #include "tmp-boot-extensions.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-    extern void RL_Version(REBYTE vers[]);
-    extern void RL_Init(void *lib);
-    extern void RL_Shutdown(REBOOL clean);
-    extern void RL_Escape();
+EXTERN_C void RL_Version(REBYTE vers[]);
+EXTERN_C void RL_Init(void *lib);
+EXTERN_C void RL_Shutdown(REBOOL clean);
+EXTERN_C void RL_Escape();
 
-    extern REBOL_HOST_LIB Host_Lib_Init;
-#ifdef __cplusplus
-}
-#endif
+EXTERN_C REBOL_HOST_LIB Host_Lib_Init;
 
 
 // The initialization done by RL_Init() is intended to be as basic as possible
@@ -129,28 +123,16 @@ const REBYTE interrupted_str[] =
     "** Execution Interrupted (see BACKTRACE, DEBUG, and RESUME)\n";
 
 #ifndef REB_CORE
-extern void Init_Windows(void);
-extern void OS_Init_Graphics(void);
-extern void OS_Destroy_Graphics(void);
+EXTERN_C void Init_Windows(void);
+EXTERN_C void OS_Init_Graphics(void);
+EXTERN_C void OS_Destroy_Graphics(void);
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 #ifdef TO_WINDOWS
-    HINSTANCE App_Instance = 0;
+    EXTERN_C HINSTANCE App_Instance = 0;
 #endif
 
-#ifdef __cplusplus
-}
-#endif
-
-
-//#define TEST_EXTENSIONS
-#ifdef TEST_EXTENSIONS
-extern void Init_Ext_Test(void);    // see: host-ext-test.c
-#endif
 
 // Host bare-bones stdio functs:
 extern void Open_StdIO(void);
@@ -626,7 +608,7 @@ BOOL WINAPI Handle_Break(DWORD dwCtrlType)
         //
         // !!! Review arbitrary "100" exit code here.
         //
-        OS_Exit(100);
+        OS_EXIT(100);
         return TRUE; // TRUE = "we handled it"
 
     default:

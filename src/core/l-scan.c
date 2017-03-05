@@ -2134,7 +2134,6 @@ const REBYTE *Scan_Any_Word(
     REB_MOLD mo;
     CLEARS(&mo);
 
-    REBSTR *name;
     if (TOKEN_WORD != Locate_Token_May_Push_Mold(&mo, &scan_state))
         return NULL;
 

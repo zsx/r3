@@ -868,7 +868,7 @@ REBTYPE(Array)
         REBINT end = ARR_LEN(array);
 
         if (REF(tail)) {
-            for (; end >= (index + 1); end--) {
+            for (; end >= cast(REBINT, index + 1); end--) {
                 if (VAL_TYPE(head + end - 1) != REB_BLANK)
                     break;
             }
@@ -878,14 +878,14 @@ REBTYPE(Array)
         }
 
         if (REF(head)) {
-            for (; index < end; index++) {
+            for (; cast(REBINT, index) < end; index++) {
                 if (VAL_TYPE(head + index) != REB_BLANK) break;
             }
             Remove_Series(AS_SERIES(array), out, index - out);
         }
 
         if (NOT(REF(head) || REF(tail))) {
-            for (; index < end; index++) {
+            for (; cast(REBINT, index) < end; index++) {
                 if (VAL_TYPE(head + index) != REB_BLANK) {
                     //
                     // Rare case of legal RELVAL bit copying... from one slot

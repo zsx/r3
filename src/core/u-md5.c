@@ -21,18 +21,10 @@ typedef struct MD5state_st {
     int num;
 } MD5_CTX;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-void MD5_Init(MD5_CTX *c);
-void MD5_Update(MD5_CTX *c, unsigned char *data, MD5_LONG len);
-void MD5_Final(unsigned char *md, MD5_CTX *c);
-int MD5_CtxSize(void);
-
-#ifdef __cplusplus
-}
-#endif
+EXTERN_C void MD5_Init(MD5_CTX *c);
+EXTERN_C void MD5_Update(MD5_CTX *c, unsigned char *data, MD5_LONG len);
+EXTERN_C void MD5_Final(unsigned char *md, MD5_CTX *c);
+EXTERN_C int MD5_CtxSize(void);
 
 #define ULONG   MD5_LONG
 #define UCHAR   unsigned char

@@ -43,13 +43,7 @@ extern void Done_Device(REBUPT handle, int error);
 HWND Event_Handle = 0;          // Used for async DNS
 static int Timer_Id = 0;        // The timer we are using
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-extern HINSTANCE App_Instance;  // From Main module.
-#ifdef __cplusplus
-}
-#endif
+EXTERN_C HINSTANCE App_Instance;  // From Main module.
 
 
 //

@@ -27,14 +27,13 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+EXTERN_C char *dtoa(
+    double dd,
+    int mode,
+    int ndigits,
+    int *decpt,
+    int *sign,
+    char **rve
+);
 
-char *dtoa(double dd, int mode, int ndigits, int *decpt, int *sign, char **rve);
-// Ren/C: fix cast away of const (on **se)
-double STRTOD(const char *s00, const char **se);
-
-#ifdef __cplusplus
-}
-#endif
+EXTERN_C double STRTOD(const char *s00, const char **se);
