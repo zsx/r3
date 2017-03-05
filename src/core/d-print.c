@@ -811,5 +811,5 @@ void Form_Args(REB_MOLD *mo, const char *fmt, ...)
 //
 void Init_Raw_Print(void)
 {
-    Set_Root_Series(TASK_BYTE_BUF,  Make_Binary(1000));
+    Init_String(TASK_BYTE_BUF,  Make_Binary(1000));
 }

@@ -83,20 +83,22 @@ REBINT CT_Typeset(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 void Init_Typesets(void)
 {
-    Set_Root_Series(ROOT_TYPESETS, AS_SERIES(Make_Array(40)));
+    REBDSP dsp_orig = DSP;
 
     REBINT n;
     for (n = 0; Typesets[n].sym != 0; n++) {
-        REBVAL *value = Alloc_Tail_Array(VAL_ARRAY(ROOT_TYPESETS));
-
+        //
         // Note: the symbol in the typeset is not the symbol of a word holding
         // the typesets, rather an extra data field used when the typeset is
         // in a context key slot to identify that field's name
         //
-        Init_Typeset(value, Typesets[n].bits, NULL);
+        DS_PUSH_TRASH;
+        Init_Typeset(DS_TOP, Typesets[n].bits, NULL);
 
-        *Append_Context(Lib_Context, NULL, Canon(Typesets[n].sym)) = *value;
+        *Append_Context(Lib_Context, NULL, Canon(Typesets[n].sym)) = *DS_TOP;
     }
+
+    Init_Block(ROOT_TYPESETS, Pop_Stack_Values(dsp_orig));
 }
 
 

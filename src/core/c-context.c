@@ -1327,7 +1327,7 @@ void Init_Collector(void)
     // least 2 long to hold the rootkey (SYM_0) and a possible SYM_SELF
     // hidden actual key.
     //
-    Set_Root_Series(TASK_BUF_COLLECT, AS_SERIES(Make_Array(2 + 98)));
+    Init_Block(TASK_BUF_COLLECT, Make_Array(2 + 98));
 }
 
 

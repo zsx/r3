@@ -1844,8 +1844,8 @@ void Init_Mold(REBCNT size)
     REBYTE c;
     const REBYTE *dc;
 
-    Set_Root_Series(TASK_MOLD_STACK, AS_SERIES(Make_Array(size/10)));
-    Set_Root_Series(TASK_UNI_BUF, Make_Unicode(size));
+    Init_Block(TASK_MOLD_STACK, Make_Array(size/10));
+    Init_String(TASK_UNI_BUF, Make_Unicode(size));
 
     // Create quoted char escape table:
     Char_Escapes = cp = ALLOC_N_ZEROFILL(REBYTE, MAX_ESC_CHAR + 1);

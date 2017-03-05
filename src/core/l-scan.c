@@ -2051,7 +2051,7 @@ void Init_Scanner(void)
         ++n;
     assert(cast(enum Reb_Token, n) == TOKEN_MAX);
 
-    Set_Root_Series(TASK_BUF_UTF8, Make_Unicode(1020));
+    Init_String(TASK_BUF_UTF8, Make_Unicode(1020));
 }
 
 

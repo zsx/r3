@@ -804,26 +804,6 @@ static void Init_Root_Context(void)
 
 
 //
-//  Set_Root_Series: C
-//
-// Used to set block and string values in the ROOT context.
-//
-void Set_Root_Series(REBVAL *value, REBSER *ser)
-{
-    // Note that the Val_Init routines call Manage_Series and make the
-    // series GC Managed.  They will hence be freed on shutdown
-    // automatically when the root set is removed from consideration.
-
-    if (Is_Array_Series(ser))
-        Init_Block(value, AS_ARRAY(ser));
-    else {
-        assert(SER_WIDE(ser) == 1 || SER_WIDE(ser) == 2);
-        Init_String(value, ser);
-    }
-}
-
-
-//
 //  Init_Task_Context: C
 //
 // See above notes (same as root context, except for tasks)
