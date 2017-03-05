@@ -1850,8 +1850,8 @@ void Init_Mold(REBCNT size)
     // Create quoted char escape table:
     Char_Escapes = cp = ALLOC_N_ZEROFILL(REBYTE, MAX_ESC_CHAR + 1);
     for (c = '@'; c <= '_'; c++) *cp++ = c;
-    Char_Escapes[cast(REBYTE, TAB)] = '-';
-    Char_Escapes[cast(REBYTE, LF)] = '/';
+    Char_Escapes[cast(REBYTE, '\t')] = '-'; // tab
+    Char_Escapes[cast(REBYTE, '\n')] = '/'; // line feed
     Char_Escapes[cast(REBYTE, '"')] = '"';
     Char_Escapes[cast(REBYTE, '^')] = '^';
 

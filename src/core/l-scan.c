@@ -345,7 +345,7 @@ static const REBYTE *Scan_UTF8_Char_Escapable(REBUNI *out, const REBYTE *bp)
         break;
 
     case '-':
-        *out = TAB;
+        *out = '\t'; // tab character
         break;
 
     case '!':

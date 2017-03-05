@@ -327,6 +327,34 @@ REBNATIVE(now)
 }
 
 
+
+static REBCNT Milliseconds_From_Value(const RELVAL *v) {
+    REBINT msec;
+    
+    switch (VAL_TYPE(v)) {
+    case REB_INTEGER:
+        msec = 1000 * Int32(v);
+        break;
+
+    case REB_DECIMAL:
+        msec = (REBINT)(1000 * VAL_DECIMAL(v));
+        break;
+
+    case REB_TIME:
+        msec = (REBINT) (VAL_TIME(v) / (SEC_SEC / 1000));
+        break;
+
+    default:
+        assert(FALSE);
+    }
+
+    if (msec < 0)
+        fail (Error_Out_Of_Range(const_KNOWN(v)));
+
+    return cast(REBCNT, msec);
+}
+
+
 //
 //  wait: native [
 //
@@ -343,7 +371,7 @@ REBNATIVE(wait)
 {
     INCLUDE_PARAMS_OF_WAIT;
 
-    REBINT timeout = 0; // in milliseconds
+    REBCNT timeout = 0; // in milliseconds
     REBARR *ports = NULL;
     REBINT n = 0;
 
@@ -377,17 +405,9 @@ REBNATIVE(wait)
     if (NOT_END(val)) {
         switch (VAL_TYPE(val)) {
         case REB_INTEGER:
-            timeout = 1000 * Int32(KNOWN(val));
-            goto chk_neg;
-
         case REB_DECIMAL:
-            timeout = (REBINT)(1000 * VAL_DECIMAL(val));
-            goto chk_neg;
-
         case REB_TIME:
-            timeout = (REBINT) (VAL_TIME(val) / (SEC_SEC / 1000));
-        chk_neg:
-            if (timeout < 0) fail (Error_Out_Of_Range(KNOWN(val)));
+            timeout = Milliseconds_From_Value(val);
             break;
 
         case REB_PORT:
@@ -1583,4 +1603,42 @@ REBNATIVE(access_os)
         default:
             fail (Error_Invalid_Arg(field));
     }
+}
+
+
+#ifdef TO_WINDOWS
+    #include <windows.h> // Temporary: this is not desirable in core!
+#else
+    #include <unistd.h>
+#endif
+
+//
+//  sleep: native [
+//
+//  "Use system sleep to wait a certain amount of time (doesn't use PORT!s)."
+//
+//      return: [<opt>]
+//      duration [integer! decimal! time!]
+//          {Length to sleep (integer and decimal are measuring seconds)}
+//
+//  ]
+//
+REBNATIVE(sleep)
+//
+// !!! This is a temporary workaround for the fact that it is not currently
+// possible to do a WAIT on a time from within an AWAKE handler.  A proper
+// solution would presumably solve that problem, so two different functions
+// would not be needed.
+{
+    INCLUDE_PARAMS_OF_SLEEP;
+
+    REBCNT msec = Milliseconds_From_Value(ARG(duration));
+
+#ifdef TO_WINDOWS
+    Sleep(msec);
+#else
+    usleep(msec * 1000);
+#endif
+
+    return R_VOID;
 }

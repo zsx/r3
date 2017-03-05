@@ -620,7 +620,8 @@ REBSER *Detab_Bytes(REBYTE *bp, REBCNT index, REBCNT len, REBINT tabsize)
 
     // Estimate new length based on tab expansion:
     for (n = index; n < len; n++)
-        if (bp[n] == TAB) cnt++;
+        if (bp[n] == '\t') // tab character
+            ++cnt;
 
     dp = Reset_Buffer(BYTE_BUF, len + (cnt * (tabsize-1)));
 
@@ -663,7 +664,8 @@ REBSER *Detab_Unicode(REBUNI *bp, REBCNT index, REBCNT len, REBINT tabsize)
 
     // Estimate new length based on tab expansion:
     for (n = index; n < len; n++)
-        if (bp[n] == TAB) cnt++;
+        if (bp[n] == '\t') // tab character
+            ++cnt;
 
     mo.opts = MOPT_RESERVE;
     mo.reserve = len + (cnt * (tabsize - 1));

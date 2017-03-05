@@ -427,12 +427,6 @@ enum {
     LOAD_MAX
 };
 
-// General constants:
-
-#define LF 10
-#define CR 13
-#define TAB '\t'
-#define CRLF "\r\n"
 #define TAB_SIZE 4
 
 // Move these things:
