@@ -66,44 +66,6 @@ STD_TERM *Term_IO;
 
 extern void Put_Str(const REBYTE *buf);
 
-static int interrupted = 0;
-
-
-//
-// Hook registered via `signal()`.  The parallel implementation in the Windows
-// code is `Handle_Break()`
-//
-static void Handle_Signal(int sig)
-{
-    RL_Escape();
-    interrupted = 1;
-}
-
-
-static void Init_Signals(void)
-{
-    // SIGINT is the interrupt, usually tied to "Ctrl-C"
-    //
-    signal(SIGINT, Handle_Signal);
-
-    // SIGTERM is sent on "polite request to end", e.g. default unix `kill`
-    //
-    signal(SIGTERM, Handle_Signal);
-
-    // SIGHUP is sent on a hangup, e.g. user's terminal disconnected
-    //
-    signal(SIGHUP, Handle_Signal);
-
-    // SIGQUIT is used to terminate a program in a way that is designed to
-    // debug it, e.g. a core dump.  Receiving SIGQUIT is a case where
-    // program exit functions like deletion of temporary files may be
-    // skipped to provide more state to analyze in a debugging scenario.
-    //
-    // -- no handler
-
-    // SIGKILL is the impolite signal for shutdown; cannot be hooked/blocked
-}
-
 
 static void Close_Stdio(void)
 {
@@ -151,8 +113,6 @@ DEVICE_CMD Open_IO(REBREQ *req)
         SET_FLAG(req->flags, RRF_OPEN);
         return DR_DONE; // Do not do it again
     }
-
-    Init_Signals();
 
     if (!GET_FLAG(req->modes, RDM_NULL)) {
 
@@ -253,7 +213,6 @@ DEVICE_CMD Read_IO(REBREQ *req)
 
     if (Std_Inp >= 0) {
 
-        interrupted = 0;
         // Perform a processed read or a raw read?
 #ifndef HAS_SMART_CONSOLE
         if (Term_IO)
@@ -265,11 +224,6 @@ DEVICE_CMD Read_IO(REBREQ *req)
         if (total < 0) {
             req->error = errno;
             return DR_ERROR;
-        }
-        if (interrupted) {
-            char noop[] = "does[]\n";
-            APPEND_BYTES_LIMIT(req->common.data, cb_cast(noop), len);
-            total += sizeof(noop);
         }
 
         req->actual = total;

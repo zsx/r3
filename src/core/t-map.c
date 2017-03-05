@@ -690,14 +690,14 @@ REBTYPE(Map)
         );
         return R_OUT; }
 
-    case SYM_POKE:  // CHECK all pokes!!! to be sure they check args now !!!
+    case SYM_POKE: { // CHECK all pokes!!! to be sure they check args now !!!
         FAIL_IF_READ_ONLY_ARRAY(MAP_PAIRLIST(map));
 
         REBINT n = Find_Map_Entry(
             map, arg, SPECIFIED, D_ARG(3), SPECIFIED, TRUE
         );
         *D_OUT = *D_ARG(3);
-        return R_OUT;
+        return R_OUT; }
 
     case SYM_LENGTH:
         SET_INTEGER(D_OUT, Length_Map(map));

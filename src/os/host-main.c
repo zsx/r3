@@ -100,6 +100,7 @@ extern "C" {
     extern void RL_Version(REBYTE vers[]);
     extern void RL_Init(void *lib);
     extern void RL_Shutdown(REBOOL clean);
+    extern void RL_Escape();
 
     extern REBOL_HOST_LIB Host_Lib_Init;
 #ifdef __cplusplus
@@ -598,6 +599,55 @@ void Init_Debug_Extension(void) {
 }
 
 
+#ifdef TO_WINDOWS
+
+//
+// This is the callback passed to `SetConsoleCtrlHandler()`.
+//
+BOOL WINAPI Handle_Break(DWORD dwCtrlType)
+{
+    switch(dwCtrlType) {
+    case CTRL_C_EVENT:
+    case CTRL_BREAK_EVENT:
+        RL_Escape();
+        return TRUE; // TRUE = "we handled it"
+
+    case CTRL_CLOSE_EVENT:
+        //
+        // !!! Theoretically the close event could confirm that the user
+        // wants to exit, if there is possible unsaved state.  As a UI
+        // premise this is probably less good than persisting the state
+        // and bringing it back.
+        //
+    case CTRL_LOGOFF_EVENT:
+    case CTRL_SHUTDOWN_EVENT:
+        //
+        // They pushed the close button, did a shutdown, etc.  Exit.
+        //
+        // !!! Review arbitrary "100" exit code here.
+        //
+        OS_Exit(100);
+        return TRUE; // TRUE = "we handled it"
+
+    default:
+        return FALSE; // FALSE = "we didn't handle it"
+    }
+}
+
+#else
+
+//
+// Hook registered via `signal()`.
+//
+static void Handle_Signal(int sig)
+{
+    RL_Escape();
+}
+
+#endif
+
+
+
 /***********************************************************************
 **
 **  MAIN ENTRY POINT
@@ -633,10 +683,43 @@ int main(int argc, char **argv_ansi)
     // Must be done before an console I/O can occur. Does not use reb-lib,
     // so this device should open even if there are other problems.
     //
-    Open_StdIO();  // also sets up interrupt handler
+    Open_StdIO();
 
     Host_Lib = &Host_Lib_Init;
     RL_Init(Host_Lib);
+
+    // While running the Rebol initialization code, we don't want any special
+    // Ctrl-C handling... leave it to the OS (which would likely terminate
+    // the process).  But once it's done, set up the interrupt handler.
+    //
+    // Note: Once this was done in Open_StdIO, but it's less opaque to do it
+    // here (since there are already platform-dependent #ifdefs to handle the
+    // command line arguments)
+    //
+#ifdef TO_WINDOWS
+    SetConsoleCtrlHandler(Handle_Break, TRUE);
+#else
+    // SIGINT is the interrupt, usually tied to "Ctrl-C"
+    //
+    signal(SIGINT, Handle_Signal);
+
+    // SIGTERM is sent on "polite request to end", e.g. default unix `kill`
+    //
+    signal(SIGTERM, Handle_Signal);
+
+    // SIGHUP is sent on a hangup, e.g. user's terminal disconnected
+    //
+    signal(SIGHUP, Handle_Signal);
+
+    // SIGQUIT is used to terminate a program in a way that is designed to
+    // debug it, e.g. a core dump.  Receiving SIGQUIT is a case where
+    // program exit functions like deletion of temporary files may be
+    // skipped to provide more state to analyze in a debugging scenario.
+    //
+    // -- no handler
+
+    // SIGKILL is the impolite signal for shutdown; cannot be hooked/blocked
+#endif
 
     // With basic initialization done, we want to turn the platform-dependent
     // argument strings into a block of Rebol strings as soon as possible.

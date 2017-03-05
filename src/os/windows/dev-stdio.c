@@ -63,40 +63,6 @@ extern REBDEV *Devices[];
 
 //**********************************************************************
 
-//
-// This is the callback passed to `SetConsoleCtrlHandler()`.  The parallel
-// implementation in the POSIX code is `Handle_Signal()`
-//
-BOOL WINAPI Handle_Break(DWORD dwCtrlType)
-{
-    switch(dwCtrlType) {
-    case CTRL_C_EVENT:
-    case CTRL_BREAK_EVENT:
-        RL_Escape();
-        return TRUE; // TRUE = "we handled it"
-
-    case CTRL_CLOSE_EVENT:
-        //
-        // !!! Theoretically the close event could confirm that the user
-        // wants to exit, if there is possible unsaved state.  As a UI
-        // premise this is probably less good than persisting the state
-        // and bringing it back.
-        //
-    case CTRL_LOGOFF_EVENT:
-    case CTRL_SHUTDOWN_EVENT:
-        //
-        // They pushed the close button, did a shutdown, etc.  Exit.
-        //
-        // !!! Review arbitrary "100" exit code here.
-        //
-        OS_Exit(100);
-        return TRUE; // TRUE = "we handled it"
-
-    default:
-        return FALSE; // FALSE = "we didn't handle it"
-    }
-}
-
 
 static void Close_Stdio(void)
 {
@@ -163,9 +129,6 @@ DEVICE_CMD Open_IO(REBREQ *req)
         if (!Redir_Inp) {
             // Make the Win32 console a bit smarter by default.
             SetConsoleMode(Std_Inp, CONSOLE_MODES);
-
-            // Handle CTRL-C interrupt.
-            SetConsoleCtrlHandler(Handle_Break, TRUE);
         }
     }
     else
