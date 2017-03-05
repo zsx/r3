@@ -629,7 +629,7 @@ const REBYTE *Scan_Money(
     }
     if (len == 0)
         return_NULL;
-    
+
     SET_MONEY(out, string_to_deci(cp, &end));
     if (end != cp + len)
         return_NULL;

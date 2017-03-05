@@ -355,14 +355,18 @@ REBINT PD_Map(REBPVS *pvs)
         setting // `cased` flag for case-sensitivity--use when setting only
     );
 
-    if (n == 0)
-        return PE_NONE;
+    if (n == 0) {
+        SET_VOID(pvs->store);
+        return PE_USE_STORE;
+    }
 
     REBVAL *val = KNOWN(
         ARR_AT(MAP_PAIRLIST(VAL_MAP(pvs->value)), ((n - 1) * 2) + 1)
     );
-    if (IS_VOID(val))
-        return PE_NONE;
+    if (IS_VOID(val)) {
+        SET_VOID(pvs->store);
+        return PE_USE_STORE;
+    }
 
     pvs->value = val;
     pvs->value_specifier = SPECIFIED;
@@ -580,7 +584,7 @@ REBTYPE(Map)
 {
     REBVAL *val = D_ARG(1);
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-    REBINT n;
+
     REBMAP *map = VAL_MAP(val);
     REBCNT tail;
 
@@ -617,7 +621,7 @@ REBTYPE(Map)
         if (REF(match))
             fail (Error(RE_BAD_REFINES));
 
-        n = Find_Map_Entry(
+        REBINT n = Find_Map_Entry(
             map,
             arg,
             SPECIFIED,
@@ -625,14 +629,15 @@ REBTYPE(Map)
             SPECIFIED,
             REF(case)
         );
-        if (n == 0) {
-            return action == SYM_FIND ? R_BLANK : R_VOID;
-        }
+
+        if (n == 0)
+            return action == SYM_FIND ? R_FALSE : R_VOID;
+
         *D_OUT = *KNOWN(ARR_AT(MAP_PAIRLIST(map), ((n - 1) * 2) + 1));
-        if (IS_VOID(D_OUT)) {
-            return action == SYM_FIND ? R_BLANK : R_VOID;
-        }
-        if (action == SYM_FIND) *D_OUT = *val;
+
+        if (action == SYM_FIND)
+            return IS_VOID(D_OUT) ? R_FALSE : R_TRUE;
+
         return R_OUT; }
 
     case SYM_INSERT:
@@ -647,13 +652,11 @@ REBTYPE(Map)
         if (REF(only))
             fail (Error(RE_BAD_REFINES));
 
-
         if (!IS_BLOCK(arg))
             fail (Error_Invalid_Arg(val));
         *D_OUT = *val;
         if (REF(dup)) {
-            n = Int32(ARG(count));
-            if (n <= 0) break;
+            if (Int32(ARG(count)) <= 0) break;
         }
 
         UNUSED(REF(part));
@@ -690,7 +693,7 @@ REBTYPE(Map)
     case SYM_POKE:  // CHECK all pokes!!! to be sure they check args now !!!
         FAIL_IF_READ_ONLY_ARRAY(MAP_PAIRLIST(map));
 
-        n = Find_Map_Entry(
+        REBINT n = Find_Map_Entry(
             map, arg, SPECIFIED, D_ARG(3), SPECIFIED, TRUE
         );
         *D_OUT = *D_ARG(3);
@@ -737,6 +740,7 @@ REBTYPE(Map)
     case SYM_REFLECT: {
         REBSYM sym = VAL_WORD_SYM(arg);
 
+        REBINT n;
         if (sym == SYM_VALUES)
             n = 1;
         else if (sym == SYM_WORDS)
