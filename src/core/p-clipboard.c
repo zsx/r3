@@ -241,9 +241,15 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
 
 //
-//  Init_Clipboard_Scheme: C
+//  get-clipboard-actor-handle: native [
 //
-void Init_Clipboard_Scheme(void)
+//  {Retrieve handle to the native actor for clipboard}
+//
+//      return: [handle!]
+//  ]
+//
+REBNATIVE(get_clipboard_actor_handle)
 {
-    Register_Scheme(Canon(SYM_CLIPBOARD), Clipboard_Actor);
+    Make_Port_Actor_Handle(D_OUT, &Clipboard_Actor);
+    return R_OUT;
 }

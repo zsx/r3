@@ -411,3 +411,31 @@ inline static REBOOL Is_Context_Deeply_Frozen(REBCTX *c) {
 
 #define Init_Error(v,c) \
     Init_Any_Context((v), REB_ERROR, (c))
+
+
+// Ports are unusual hybrids of user-mode code dispatched with native code, so
+// some things the user can do to the internals of a port might cause the
+// C code to crash.  This wasn't very well thought out in R3-Alpha, but there
+// was some validation checking.  This factors out that check instead of
+// repeating the code.
+//
+inline static void FAIL_IF_BAD_PORT(REBCTX *port) {
+    assert(GET_SER_FLAG(CTX_VARLIST(port), ARRAY_FLAG_VARLIST));
+
+    if (
+        (CTX_LEN(port) < STD_PORT_MAX - 1) ||
+        !IS_OBJECT(CTX_VAR(port, STD_PORT_SPEC))
+    ) {
+        fail (Error(RE_INVALID_PORT));
+    }
+}
+
+// It's helpful to show when a test for a native port actor is being done,
+// rather than just having the code say IS_HANDLE().
+//
+inline static REBOOL Is_Native_Port_Actor(const REBVAL *actor) {
+    if (IS_HANDLE(actor))
+        return TRUE;
+    assert(IS_OBJECT(actor));
+    return FALSE;
+}

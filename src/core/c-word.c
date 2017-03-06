@@ -561,6 +561,17 @@ void Init_Symbols(REBARR *words)
 
 
 //
+//  Shutdown_Symbols: C
+//
+void Shutdown_Symbols(void)
+{
+    assert(PG_Num_Canon_Slots_In_Use - PG_Num_Canon_Deleteds == 0);
+    Free_Series(PG_Canons_By_Hash);
+    Free_Series(PG_Symbol_Canons);
+}
+
+
+//
 //  Init_Words: C
 //
 void Init_Words(void)

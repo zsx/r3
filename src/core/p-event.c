@@ -244,9 +244,6 @@ act_blk:
 void Init_Event_Scheme(void)
 {
     req = 0; // move to port struct
-    Register_Scheme(Canon(SYM_SYSTEM), Event_Actor);
-    Register_Scheme(Canon(SYM_EVENT), Event_Actor);
-    Register_Scheme(Canon(SYM_CALLBACK), Event_Actor);
 }
 
 
@@ -259,4 +256,19 @@ void Shutdown_Event_Scheme(void)
         OS_FREE(req);
         req = NULL;
     }
+}
+
+
+//
+//  get-event-actor-handle: native [
+//
+//  {Retrieve handle to the native actor for events (system, event, callback)}
+//
+//      return: [handle!]
+//  ]
+//
+REBNATIVE(get_event_actor_handle)
+{
+    Make_Port_Actor_Handle(D_OUT, &Event_Actor);
+    return R_OUT;
 }

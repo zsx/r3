@@ -102,8 +102,8 @@ memory
 debug
 browse
 extension
-;dir - below
-;file - below
+file
+dir
 
 ; Time:
 hour
@@ -192,19 +192,6 @@ adler32
 identify
 decode
 encode
-
-; Schemes
-console
-file
-dir
-event
-callback
-dns
-tcp
-udp
-clipboard
-serial
-signal
 
 ; Serial parameters
 ; Parity

@@ -349,9 +349,15 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
 
 //
-//  Init_Dir_Scheme: C
+//  get-dir-actor-handle: native [
 //
-void Init_Dir_Scheme(void)
+//  {Retrieve handle to the native actor for directories}
+//
+//      return: [handle!]
+//  ]
+//
+REBNATIVE(get_dir_actor_handle)
 {
-    Register_Scheme(Canon(SYM_DIR), Dir_Actor);
+    Make_Port_Actor_Handle(D_OUT, &Dir_Actor);
+    return R_OUT;
 }

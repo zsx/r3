@@ -472,29 +472,19 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
 //
 REB_R Do_Port_Action(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
-    assert(GET_SER_FLAG(CTX_VARLIST(port), ARRAY_FLAG_VARLIST));
-
-    // Verify valid port (all of these must be false):
-    if (
-        // Must be = or larger than std port:
-        (CTX_LEN(port) < STD_PORT_MAX - 1) ||
-        // Must have a spec object:
-        !IS_OBJECT(CTX_VAR(port, STD_PORT_SPEC))
-    ) {
-        fail (Error(RE_INVALID_PORT));
-    }
-
-    // Get actor for port, if it has one:
+    FAIL_IF_BAD_PORT(port);
 
     REBVAL *actor = CTX_VAR(port, STD_PORT_ACTOR);
 
-    if (IS_BLANK(actor))
-        return R_BLANK;
-
     REB_R r;
-    // If actor is a function (!!! Note: must be native !!!)
-    if (IS_FUNCTION(actor)) {
-        r = cast(REBPAF, VAL_FUNC_DISPATCHER(actor))(frame_, port, action);
+
+    // If actor is a HANDLE!, it should be a PAF
+    //
+    // !!! Review how user-defined types could make this better/safer, as if
+    // it's some other kind of handle value this could crash.
+    //
+    if (Is_Native_Port_Actor(actor)) {
+        r = cast(REBPAF, VAL_HANDLE_POINTER(actor))(frame_, port, action);
         goto post_process_output;
     }
 
@@ -592,135 +582,29 @@ void Secure_Port(REBSYM sym_kind, REBREQ *req, REBVAL *name, REBSER *path)
 }
 
 
-#ifdef HAS_POSIX_SIGNAL
-#define MAX_SCHEMES 12      // max native schemes
-#else
-#define MAX_SCHEMES 11      // max native schemes
-#endif
-
-typedef struct rebol_scheme_actions {
-    REBSTR *name;
-    REBPAF fun;
-} SCHEME_ACTIONS;
-
-SCHEME_ACTIONS *Scheme_Actions; // Initial Global (not threaded)
-
-
 //
-//  Register_Scheme: C
+//  Make_Port_Actor_Handle: C
 //
-// Associate a scheme word (e.g. FILE) with a set of native
-// scheme actions. This will be used by the Set_Scheme native
+// When users write a "port scheme", they provide an actor...which contains
+// a block of functions with the names of the "verbs" that can be applied to
+// ports.  When the name of a port action matches the name of a supplied
+// function, then the matching function is called.  Each of these functions
+// may have different numbers and types of arguments and refinements. 
 //
-void Register_Scheme(REBSTR *name, REBPAF fun)
+// R3-Alpha provided some native code to handle port actions, but all the
+// port actions were folded into a single function that was able to interpret
+// different function frames.  This was similar to how datatypes handled
+// various "action" verbs.
+//
+// In Ren-C, this distinction is taken care of such that when the actor is
+// a HANDLE!, it is assumed to be a pointer to a "REBPAF".  But since the
+// registration is done in user code, these handles have to be exposed to
+// that code.  In order to make this more distributed, each port action
+// function is exposed through a native that returns it.  This is the shared
+// routine used to make a handle out of a REBPAF.
+//
+void Make_Port_Actor_Handle(REBVAL *out, REBPAF paf)
 {
-    REBINT n;
-
-    for (n = 0; n < MAX_SCHEMES && Scheme_Actions[n].name != NULL; n++);
-    assert(n < MAX_SCHEMES);
-
-    Scheme_Actions[n].name = name;
-    Scheme_Actions[n].fun = fun;
-}
-
-
-//
-//  set-scheme: native [
-//
-//  "Low-level port scheme actor initialization."
-//
-//      scheme [object!]
-//  ]
-//
-REBNATIVE(set_scheme)
-{
-    INCLUDE_PARAMS_OF_SET_SCHEME;
-
-    REBVAL *name = Obj_Value(ARG(scheme), STD_SCHEME_NAME);
-    if (!IS_WORD(name))
-        fail (Error(RE_NO_SCHEME_NAME));
-
-    REBVAL *actor = Obj_Value(ARG(scheme), STD_SCHEME_ACTOR);
-    if (!actor) return R_BLANK;
-
-    REBCNT n;
-    // Does this scheme have native actor or actions?
-    for (n = 0; n < MAX_SCHEMES && Scheme_Actions[n].name != NULL; n++) {
-        if (SAME_STR(Scheme_Actions[n].name, VAL_WORD_SPELLING(name))) break;
-    }
-
-    if (n == MAX_SCHEMES || Scheme_Actions[n].name == NULL)
-        return R_BLANK;
-
-    // !!! A previously unused aspect of registering "scheme handlers" was the
-    // idea that instead of a native PAF function ("port action function"),
-    // some kind of map was provided.  Ren-C is going in a different direction
-    // with this, and since it wasn't used that was deleted.  The only scheme
-    // handler supported is a REBPAF "native actor"
-    //
-    assert(Scheme_Actions[n].fun);
-
-    REBVAL *port_actor_spec = Get_System(SYS_STANDARD, STD_PORT_ACTOR_SPEC);
-
-    // !!! Not sure what this code was supposed to do, and it is
-    // deprecated.  It takes a single argument, and currently the spec
-    // allows [<opt> any-value!].
-
-    REBFUN *fun = Make_Function(
-        Make_Paramlist_Managed_May_Fail(port_actor_spec, MKF_KEYWORDS),
-        cast(REBNAT, Scheme_Actions[n].fun), // !!! actually a REBPAF (!!!)
-        NULL, // no underlying function, fundamental
-        NULL // not providing a specialization
-    );
-
-    *actor = *FUNC_VALUE(fun);
-
-    return R_TRUE;
-}
-
-
-//
-//  Init_Ports: C
-//
-// Initialize port scheme related subsystems.
-//
-// In order to add a port scheme:
-//
-// In mezz-ports.r add a make-scheme.
-// Add an Init_*_Scheme() here.
-// Be sure host-devices.c has the device enabled.
-//
-void Init_Ports(void)
-{
-    Scheme_Actions = ALLOC_N(SCHEME_ACTIONS, MAX_SCHEMES);
-    CLEAR(Scheme_Actions, MAX_SCHEMES * sizeof(SCHEME_ACTIONS));
-
-    Init_Console_Scheme();
-    Init_File_Scheme();
-    Init_Dir_Scheme();
-    Init_Event_Scheme();
-    Init_TCP_Scheme();
-    Init_UDP_Scheme();
-    Init_DNS_Scheme();
-
-#ifdef TO_WINDOWS
-    Init_Clipboard_Scheme();
-#endif
-
-#if defined(TO_LINUX) || defined(TO_WINDOWS)
-    Init_Serial_Scheme();
-#endif
-
-#ifdef HAS_POSIX_SIGNAL
-    Init_Signal_Scheme();
-#endif
-}
-
-
-//
-//  Shutdown_Ports: C
-//
-void Shutdown_Ports(void)
-{
-    FREE_N(SCHEME_ACTIONS, MAX_SCHEMES, Scheme_Actions);
+    static_assert_c(sizeof(REBPAF) == sizeof(void*)); // may not be true!
+    Init_Handle_Simple(out, cast(void*, paf), 0);
 }

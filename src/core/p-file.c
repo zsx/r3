@@ -599,13 +599,15 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
 
 //
-//  Init_File_Scheme: C
+//  get-file-actor-handle: native [
 //
-// Associate the FILE:// scheme with the above native
-// actions. This will later be used by SET-SCHEME when
-// the scheme is initialized.
+//  {Retrieve handle to the native actor for files}
 //
-void Init_File_Scheme(void)
+//      return: [handle!]
+//  ]
+//
+REBNATIVE(get_file_actor_handle)
 {
-    Register_Scheme(Canon(SYM_FILE), File_Actor);
+    Make_Port_Actor_Handle(D_OUT, &File_Actor);
+    return R_OUT;
 }

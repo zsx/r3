@@ -1145,6 +1145,7 @@ sys/make-scheme [
                 return port
             ]
         ]
+
         open: func [port [port!] /local conn] [
             if port/state [return port]
 
@@ -1215,9 +1216,11 @@ sys/make-scheme [
             open conn
             port
         ]
+
         open?: func [port [port!]] [
             all? [port/state open? port/state/connection]
         ]
+
         close: func [port [port!] /local ctx] [
             unless port/state [return port]
 
@@ -1260,21 +1263,17 @@ sys/make-scheme [
             port/state: blank
             port
         ]
+
         copy: func [port [port!]] [
             if port/data [copy port/data]
         ]
+
         query: func [port [port!]] [
             all [port/state query port/state/connection]
         ]
+
         length: func [port [port!]] [
             ; actor is not an object!, so this isn't a recursive length call
-            either port/data [length port/data] [0]
-        ]
-
-        ; !!! DEPRECATED in favor of length above, but left working for now.
-        ; Since this isn't an object, we can't say 'length? :length'.  So
-        ; we repeat the body, given that it's short and this will be deleted.
-        length?: func [port [port!]] [
             either port/data [length port/data] [0]
         ]
     ]

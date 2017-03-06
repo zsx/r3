@@ -181,9 +181,15 @@ pick:
 
 
 //
-//  Init_DNS_Scheme: C
+//  get-dns-actor-handle: native [
 //
-void Init_DNS_Scheme(void)
+//  {Retrieve handle to the native actor for DNS}
+//
+//      return: [handle!]
+//  ]
+//
+REBNATIVE(get_dns_actor_handle)
 {
-    Register_Scheme(Canon(SYM_DNS), DNS_Actor);
+    Make_Port_Actor_Handle(D_OUT, &DNS_Actor);
+    return R_OUT;
 }

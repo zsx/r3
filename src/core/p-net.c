@@ -412,20 +412,34 @@ static REB_R UDP_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     return Transport_Actor(frame_, port, action, TRANSPORT_UDP);
 }
 
-//
-//  Init_TCP_Scheme: C
-//
-void Init_TCP_Scheme(void)
-{
-    Register_Scheme(Canon(SYM_TCP), TCP_Actor);
-}
 
 //
-//  Init_UDP_Scheme: C
+//  get-tcp-actor-handle: native [
 //
-void Init_UDP_Scheme(void)
+//  {Retrieve handle to the native actor for TCP}
+//
+//      return: [handle!]
+//  ]
+//
+REBNATIVE(get_tcp_actor_handle)
 {
-    Register_Scheme(Canon(SYM_UDP), UDP_Actor);
+    Make_Port_Actor_Handle(D_OUT, &TCP_Actor);
+    return R_OUT;
+}
+
+
+//
+//  get-udp-actor-handle: native [
+//
+//  {Retrieve handle to the native actor for UDP}
+//
+//      return: [handle!]
+//  ]
+//
+REBNATIVE(get_udp_actor_handle)
+{
+    Make_Port_Actor_Handle(D_OUT, &UDP_Actor);
+    return R_OUT;
 }
 
 

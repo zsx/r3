@@ -124,9 +124,15 @@ static REB_R Console_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
 
 //
-//  Init_Console_Scheme: C
+//  get-console-actor-handle: native [
 //
-void Init_Console_Scheme(void)
+//  {Retrieve handle to the native actor for console}
+//
+//      return: [handle!]
+//  ]
+//
+REBNATIVE(get_console_actor_handle)
 {
-    Register_Scheme(Canon(SYM_CONSOLE), Console_Actor);
+    Make_Port_Actor_Handle(D_OUT, &Console_Actor);
+    return R_OUT;
 }

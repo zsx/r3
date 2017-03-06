@@ -330,7 +330,7 @@ REBNATIVE(now)
 
 static REBCNT Milliseconds_From_Value(const RELVAL *v) {
     REBINT msec;
-    
+
     switch (VAL_TYPE(v)) {
     case REB_INTEGER:
         msec = 1000 * Int32(v);
@@ -466,31 +466,29 @@ REBNATIVE(wake_up)
     INCLUDE_PARAMS_OF_WAKE_UP;
 
     REBCTX *port = VAL_CONTEXT(ARG(port));
-    REBOOL awakened = TRUE; // start by assuming success
-    REBVAL *value;
+    FAIL_IF_BAD_PORT(port);
 
-    if (CTX_LEN(port) < STD_PORT_MAX - 1)
-        panic (port);
-
-    value = CTX_VAR(port, STD_PORT_ACTOR);
-    if (IS_FUNCTION(value)) {
+    REBVAL *actor = CTX_VAR(port, STD_PORT_ACTOR);
+    if (Is_Native_Port_Actor(actor)) {
         //
-        // We don't pass `value` or `event` in, because we just pass the
+        // We don't pass `actor` or `event` in, because we just pass the
         // current call info.  The port action can re-read the arguments.
         //
         Do_Port_Action(frame_, port, SYM_UPDATE);
     }
 
-    value = CTX_VAR(port, STD_PORT_AWAKE);
-    if (IS_FUNCTION(value)) {
-        if (Apply_Only_Throws(D_OUT, TRUE, value, ARG(event), END_CELL))
+    REBOOL woke_up = TRUE; // start by assuming success
+
+    REBVAL *awake = CTX_VAR(port, STD_PORT_AWAKE);
+    if (IS_FUNCTION(awake)) {
+        if (Apply_Only_Throws(D_OUT, TRUE, awake, ARG(event), END_CELL))
             fail (Error_No_Catch_For_Throw(D_OUT));
 
-        if (!(IS_LOGIC(D_OUT) && VAL_LOGIC(D_OUT))) awakened = FALSE;
-        SET_UNREADABLE_BLANK(D_OUT);
+        if (NOT(IS_LOGIC(D_OUT) && VAL_LOGIC(D_OUT)))
+            woke_up = FALSE;
     }
 
-    return awakened ? R_TRUE : R_FALSE;
+    return R_FROM_BOOL(woke_up);
 }
 
 

@@ -1480,16 +1480,13 @@ void Shutdown_Core(void)
         &= (~NODE_FLAG_ROOT);
     Recycle_Core(TRUE, NULL);
 
-    Shutdown_Ports();
     Shutdown_Event_Scheme();
     Shutdown_CRC();
     Shutdown_Mold();
     Shutdown_Scanner();
     Shutdown_Char_Cases();
 
-    assert(PG_Num_Canon_Slots_In_Use - PG_Num_Canon_Deleteds == 0);
-    Free_Series(PG_Canons_By_Hash);
-    Free_Series(PG_Symbol_Canons);
+    Shutdown_Symbols();
 
     Shutdown_GC();
 

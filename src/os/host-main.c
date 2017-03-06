@@ -913,13 +913,6 @@ int main(int argc, char **argv_ansi)
         if (!IS_FUNCTION(&host_start))
             panic (&host_start); // should not be able to error
 
-        // HOST-START calls INIT-SCHEMES, which is a monolithic registrar of
-        // all the schemes built into the executable.  This should be done
-        // with extensions, but until then, that monolithic initialization
-        // needs all the native port actors ready.
-        //
-        Init_Ports();
-
         REBVAL result;
         if (Apply_Only_Throws(
             &result, TRUE,

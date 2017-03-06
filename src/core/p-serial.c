@@ -279,9 +279,15 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
 
 //
-//  Init_Serial_Scheme: C
+//  get-serial-actor-handle: native [
 //
-void Init_Serial_Scheme(void)
+//  {Retrieve handle to the native actor for the serial port}
+//
+//      return: [handle!]
+//  ]
+//
+REBNATIVE(get_serial_actor_handle)
 {
-    Register_Scheme(Canon(SYM_SERIAL), Serial_Actor);
+    Make_Port_Actor_Handle(D_OUT, &Serial_Actor);
+    return R_OUT;
 }

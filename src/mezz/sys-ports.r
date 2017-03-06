@@ -161,24 +161,24 @@ decode-url: _ ; used by sys funcs, defined above, set below
 
 ;-- Native Schemes -----------------------------------------------------------
 
-make-scheme: func [
-    "INIT: Make a scheme from a specification and add it to the system."
-    def [block!] "Scheme specification"
-    /with 'scheme "Scheme name to use as base"
-    /local actor
+make-scheme: function [
+    "Make a scheme from a specification and add it to the system."
+    def [block!]
+        "Scheme specification"
+    /with
+    'base-name
+        "Scheme name to use as base"
 ][
-    with: either with [get in system/schemes scheme][system/standard/scheme]
-    unless with [cause-error 'access 'no-scheme scheme]
+    with: either with [get in system/schemes base-name][system/standard/scheme]
+    unless with [cause-error 'access 'no-scheme base-name]
 
-    def: construct with def
-    ;print ["Scheme:" def/name]
-    unless def/name [cause-error 'access 'no-scheme-name def]
-    set-scheme def
+    scheme: construct with def
+    unless scheme/name [cause-error 'access 'no-scheme-name scheme]
 
     ; If actor is block build a non-contextual actor object:
-    if block? :def/actor [
-        actor: make object! (length def/actor) / 4
-        for-each [name func* args body] def/actor [
+    if block? :scheme/actor [
+        actor: make object! (length scheme/actor) / 4
+        for-each [name func* args body] scheme/actor [
             ; !!! Comment here said "Maybe PARSE is better here", though
             ; knowing would depend on understanding precisely what the goal
             ; is in only allowing FUNC vs. alternative function generators.
@@ -192,10 +192,14 @@ make-scheme: func [
                 name (func args body) ; add function! to object! w/name
             ]
         ]
-        def/actor: actor
+        scheme/actor: actor
     ]
 
-    append system/schemes reduce [def/name def]
+    unless maybe [object! handle!] :scheme/actor [
+        fail ["Scheme actor" :scheme/name "can't be" type-of :scheme/actor]
+    ]
+
+    append system/schemes reduce [scheme/name scheme]
 ]
 
 init-schemes: func [
@@ -208,6 +212,7 @@ init-schemes: func [
     make-scheme [
         title: "System Port"
         name: 'system
+        actor: get-event-actor-handle
         awake: func [
             sport "System port (State block holds events)"
             ports "Port list (Copy of block passed to WAIT)"
@@ -262,11 +267,13 @@ init-schemes: func [
     make-scheme [
         title: "Console Access"
         name: 'console
+        actor: get-console-actor-handle
     ]
 
     make-scheme [
         title: "File Access"
         name: 'file
+        actor: get-file-actor-handle
         info: system/standard/file-info ; for C enums
         init: proc [port /local path] [
             if url? port/spec/ref [
@@ -279,11 +286,13 @@ init-schemes: func [
     make-scheme/with [
         title: "File Directory Access"
         name: 'dir
+        actor: get-dir-actor-handle
     ] 'file
 
     make-scheme [
         title: "GUI Events"
         name: 'event
+        actor: get-event-actor-handle
         awake: func [event] [
             print ["Default GUI event/awake:" event/type]
             true
@@ -293,6 +302,7 @@ init-schemes: func [
     make-scheme [
         title: "DNS Lookup"
         name: 'dns
+        actor: get-dns-actor-handle
         spec: system/standard/port-spec-net
         awake: func [event] [print event/type true]
     ]
@@ -300,6 +310,7 @@ init-schemes: func [
     make-scheme [
         title: "TCP Networking"
         name: 'tcp
+        actor: get-tcp-actor-handle
         spec: system/standard/port-spec-net
         info: system/standard/net-info ; for C enums
         awake: func [event] [print ['TCP-event event/type] true]
@@ -308,6 +319,7 @@ init-schemes: func [
     make-scheme [
         title: "UDP Networking"
         name: 'udp
+        actor: get-udp-actor-handle
         spec: system/standard/port-spec-net
         info: system/standard/net-info ; for C enums
         awake: func [event] [print ['UDP-event event/type] true]
@@ -316,12 +328,14 @@ init-schemes: func [
     make-scheme [
         title: "Clipboard"
         name: 'clipboard
+        actor: get-clipboard-actor-handle
     ]
 
     if 4 == fourth system/version [
         make-scheme [
             title: "Signal"
             name: 'signal
+            actor: get-signal-actor-handle
             spec: system/standard/port-spec-signal
         ]
     ]
@@ -329,6 +343,7 @@ init-schemes: func [
     make-scheme [
         title: "Serial Port"
         name: 'serial
+        actor: get-serial-actor-handle
         spec: system/standard/port-spec-serial
         init: proc [port /local path speed] [
             if url? port/spec/ref [

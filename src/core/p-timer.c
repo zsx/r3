@@ -45,9 +45,9 @@
 
 
 //
-//  Event_Actor: C
+//  Timer_Actor: C
 //
-static REB_R Event_Actor(REBFRM *frame_, REBCTX *port, REBCNT action)
+static REB_R Timer_Actor(REBFRM *frame_, REBCTX *port, REBCNT action)
 {
     REBVAL *spec;
     REBVAL *state;
@@ -123,10 +123,17 @@ act_blk:
 }
 
 
-//
-//  Init_Timer_Scheme: C
-//
-void Init_Timer_Scheme(void)
+// !!! Timer code is currently not used
+//x
+//x  get-timer-actor-handle: native [
+//x
+//x  {Retrieve handle to the native actor for timer features}
+//x
+//x      return: [handle!]
+//x  ]
+//x
+REBNATIVE(get_timer_actor_handle)
 {
-    Register_Scheme(SYM_TIMER, Event_Actor);
+    Make_Port_Actor_Handle(D_OUT, &Timer_Actor);
+    return R_OUT;
 }

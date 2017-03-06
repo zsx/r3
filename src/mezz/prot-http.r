@@ -714,16 +714,6 @@ sys/make-scheme [
             ; actor is not an object!, so this isn't a recursive length call
             either port/data [length port/data] [0]
         ]
-
-        ; !!! DEPRECATED in favor of length above, but left working for now.
-        ; Since this isn't an object, we can't say 'length? :length'.  So
-        ; we repeat the body, given that it's short and this will be deleted.
-        ;
-        length?: func [
-            port [port!]
-        ][
-            either port/data [length port/data] [0]
-        ]
     ]
 ]
 

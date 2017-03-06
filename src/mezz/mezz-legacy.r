@@ -250,7 +250,7 @@ prin: procedure [
 
     value [<opt> any-value!]
 ][
-    print/only/eval spaced :value
+    print/only/eval either block? :value [spaced :value] [:value]
 ]
 
 ; Common debug abbreviations that should be console-only (if anything)

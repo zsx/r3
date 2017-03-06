@@ -282,13 +282,27 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     return R_OUT;
 }
 
-
-//
-//  Init_Signal_Scheme: C
-//
-void Init_Signal_Scheme(void)
-{
-    Register_Scheme(Canon(SYM_SIGNAL), Signal_Actor);
-}
-
 #endif //HAS_POSIX_SIGNAL
+
+
+//
+//  get-signal-actor-handle: native [
+//
+//  {Retrieve handle to the native actor for POSIX signals}
+//
+//      return: [handle!]
+//  ]
+//
+REBNATIVE(get_signal_actor_handle)
+//
+// !!! The native scanner isn't smart enough to notice REBNATIVE() inside a
+// disabled #ifdef, so a definition for this has to be provided... even if
+// it's not a build where it should be available.
+{
+#ifdef HAS_POSIX_SIGNAL
+    Make_Port_Actor_Handle(D_OUT, &Signal_Actor);
+    return R_OUT;
+#else
+    fail (Error(RE_MISC));
+#endif
+}
