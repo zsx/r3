@@ -87,6 +87,8 @@
     #undef IS_ERROR
     #undef max
     #undef min
+#else
+    #include <signal.h> // needed for SIGINT, SIGTERM, SIGHUP
 #endif
 
 
