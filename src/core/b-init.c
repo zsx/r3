@@ -587,15 +587,10 @@ static REBARR *Init_Natives(REBARR *boot_natives)
         }
         ++item;
 
-        // Grab the spec, and turn any <opt> into _ (the spec processor is low
-        // level and does not understand <opt>)
-        //
-        if (!IS_BLOCK(item))
-            panic (item);
-
         REBVAL *spec = KNOWN(item);
-        assert(VAL_INDEX(spec) == 0); // must be at head (we don't copy)
         ++item;
+        if (!IS_BLOCK(spec))
+            panic (spec);
 
         // With the components extracted, generate the native and add it to
         // the Natives table.  The associated C function is provided by a
@@ -619,10 +614,11 @@ static REBARR *Init_Natives(REBARR *boot_natives)
         // REBVAL for later lookup.
         //
         if (has_body) {
-            if (!IS_BLOCK(item))
-                panic (item);
-            *FUNC_BODY(fun) = *KNOWN(item); // !!! handle relative?
+            REBVAL *body = KNOWN(item); // !!! handle relative?
             ++item;
+            if (!IS_BLOCK(body))
+                panic (body);
+            *FUNC_BODY(fun) = *body;
         }
 
         Natives[n] = *FUNC_VALUE(fun);
@@ -965,65 +961,6 @@ static void Init_Contexts_Object(void)
     DROP_GUARD_CONTEXT(Lib_Context);
     Init_Object(Get_System(SYS_CONTEXTS, CTX_LIB), Lib_Context);
     Init_Object(Get_System(SYS_CONTEXTS, CTX_USER), Lib_Context);
-}
-
-
-//
-//  Register_Codec: C
-//
-// Internal function for adding a codec.
-//
-void Register_Codec(
-    const char *name,
-    const void *suffixes, // may be REBARR* or UTF-8 string
-    const REBVAL *identify_q,
-    const REBVAL *decode,
-    const REBVAL *encode
-) {
-    assert(identify_q == NULL || IS_FUNCTION(identify_q));
-    assert(decode == NULL || IS_FUNCTION(decode));
-    assert(encode == NULL || IS_FUNCTION(encode));
-
-    REBVAL word;
-    Init_Word(&word, Intern_UTF8_Managed(cb_cast(name), strlen(name)));
-
-    REBVAL suffixes_value;
-    switch (Guess_Rebol_Pointer(suffixes)) {
-    case GUESSED_AS_SERIES:
-        Init_Block(&suffixes_value, AS_ARRAY(m_cast(void*, suffixes)));
-        break;
-
-    case GUESSED_AS_UTF8:
-        Init_File(
-            &suffixes_value,
-            Make_UTF8_May_Fail(cast(const char*, suffixes))
-        );
-        break;
-
-    default:
-        panic (suffixes);
-    }
-
-    // can't use arrays (e.g. codec varlists) as direct target of Apply/Do!
-    //
-    REBVAL codec;
-
-    if (Apply_Only_Throws(
-        &codec,
-        TRUE,
-        Sys_Func(SYS_CTX_REGISTER_CODEC_P),
-        &word,
-        &suffixes_value,
-        identify_q ? identify_q : BLANK_VALUE,
-        decode ? decode : BLANK_VALUE,
-        encode ? encode : BLANK_VALUE,
-        END_CELL
-    )) {
-        fail (Error_No_Catch_For_Throw(&codec));
-    }
-
-    if (!IS_OBJECT(&codec))
-        panic (&codec); // should have returned a codec object
 }
 
 

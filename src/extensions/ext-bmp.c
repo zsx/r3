@@ -37,11 +37,11 @@ static const char script_bytes[] =
     "type: 'Extension\n"
     "version: 1.0.0\n"
     "license: {Apache 2.0}\n"
-"]"
+"]\n"
 "sys/register-codec* 'bmp %.bmp\n"
     "get in import 'bmp 'identify-bmp?\n"
     "get in import 'bmp 'decode-bmp\n"
-    "_" // currently no BMP encoder
+    "get in import 'bmp 'encode-bmp\n"
 ;
 
 #define MODULE_INCLUDE_DECLARATION_ONLY

@@ -37,7 +37,7 @@ static const char script_bytes[] =
     "type: 'Extension\n"
     "version: 1.0.0\n"
     "license: {Apache 2.0}\n"
-"]"
+"]\n"
 ;
 
 void Init_Crypto(void);

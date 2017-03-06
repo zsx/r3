@@ -203,30 +203,6 @@ void RL_Init(void *lib)
 #endif
 
     Init_Core();
-
-    Register_Codec(
-        "text",
-        ".txt",
-        NAT_VALUE(identify_text_q),
-        NAT_VALUE(decode_text),
-        NAT_VALUE(encode_text)
-    );
-
-    Register_Codec(
-        "utf-16le",
-        ".txt",
-        NAT_VALUE(identify_utf16le_q),
-        NAT_VALUE(decode_utf16le),
-        NAT_VALUE(encode_utf16le)
-    );
-
-    Register_Codec(
-        "utf-16be",
-        ".txt",
-        NAT_VALUE(identify_utf16be_q),
-        NAT_VALUE(decode_utf16be),
-        NAT_VALUE(encode_utf16be)
-    );
 }
 
 

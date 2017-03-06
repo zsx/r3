@@ -589,7 +589,7 @@ void Secure_Port(REBSYM sym_kind, REBREQ *req, REBVAL *name, REBSER *path)
 // a block of functions with the names of the "verbs" that can be applied to
 // ports.  When the name of a port action matches the name of a supplied
 // function, then the matching function is called.  Each of these functions
-// may have different numbers and types of arguments and refinements. 
+// may have different numbers and types of arguments and refinements.
 //
 // R3-Alpha provided some native code to handle port actions, but all the
 // port actions were folded into a single function that was able to interpret

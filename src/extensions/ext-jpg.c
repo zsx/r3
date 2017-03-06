@@ -37,8 +37,8 @@ static const char script_bytes[] =
     "type: 'Extension\n"
     "version: 1.0.0\n"
     "license: {Apache 2.0}\n"
-"]"
-"sys/register-codec* 'jpg [%.jpg %jpeg]\n"
+"]\n"
+"sys/register-codec* 'jpeg [%.jpg %jpeg]\n"
     "get in import 'jpg 'identify-jpeg?\n"
     "get in import 'jpg 'decode-jpeg\n"
     "_" // currently no JPG encoder
