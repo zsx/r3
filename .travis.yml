@@ -41,9 +41,9 @@ env:
         #
         - OS_ID=0.3.1 REL=1 TOOLS=i686-w64-mingw32-
         
-        # Windows x64, release
+        # Windows x64, debug
         #
-        - OS_ID=0.3.40 REL=1 TOOLS=x86_64-w64-mingw32-
+        - OS_ID=0.3.40 TOOLS=x86_64-w64-mingw32-
 
     global:
         #
@@ -103,15 +103,22 @@ script:
     - |
       if [[ "${CC}" = "g++" ]]; then
           CPLUSPLUS=1;
+          LIBC_FLAG="-static-libstdc++"
       else
           unset CPLUSPLUS;
+          LIBC_FLAG=""
       fi
 
     # If REL is defined and not empty, we do a release build by compiling with
     # NDEBUG defined. (`${parameter+alt_value}` is a Bash-ism documented as:
     # "if parameter set, use alt_value, else use null string.")
     #
-    - export CC="${TOOLS}${CC}${REL+ -DNDEBUG}"
+    # We also raise the level to where all warnings are errors.  Since a
+    # particular compiler can add warnings at any time, this is probably not
+    # the best option for a general distribution...but on Travis where builds
+    # are constantly being checked and the code fixed, it's worth doing.
+    #
+    - export CC="${TOOLS}${CC}${REL+ -DNDEBUG} -Werror ${LIBC_FLAG}"
 
     # We have to set REBOL_TOOL explicitly to circumvent the automatic r3-make
     # filename inference, as we always use Linux "r3-make" (not "r3-make.exe")

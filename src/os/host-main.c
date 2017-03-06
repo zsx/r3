@@ -132,7 +132,8 @@ EXTERN_C void OS_Destroy_Graphics(void);
 
 
 #ifdef TO_WINDOWS
-    EXTERN_C HINSTANCE App_Instance = 0;
+    EXTERN_C HINSTANCE App_Instance;
+    HINSTANCE App_Instance = 0;
 #endif
 
 
