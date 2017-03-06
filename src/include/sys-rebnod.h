@@ -95,14 +95,17 @@ struct Reb_Header {
     REBUPT bits;
 };
 
-enum Reb_Pointer_Guess {
-    GUESSED_AS_UTF8,
-    GUESSED_AS_SERIES,
-    GUESSED_AS_FREED_SERIES,
-    GUESSED_AS_VALUE,
-    GUESSED_AS_CELL_END,
-    GUESSED_AS_INTERNAL_END
+enum Reb_Pointer_Detect {
+    DETECTED_AS_SERIES = 0,
+    DETECTED_AS_NON_EMPTY_UTF8 = 1,
+    DETECTED_AS_CELL_END = 2,
+    DETECTED_AS_EMPTY_UTF8 = 3, // Note: might also be a freed series!
+    DETECTED_AS_INTERNAL_END = 4,
+    DETECTED_AS_VALUE = 5
 };
+
+#define DETECTED_AS_UTF8_MASK 0x1 // matches 1 and 3
+#define DETECTED_AS_END_MASK 0x2 // matches 2 and 4
 
 
 //=////////////////////////////////////////////////////////////////////////=//

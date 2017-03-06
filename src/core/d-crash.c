@@ -31,100 +31,6 @@
 #include "sys-core.h"
 
 
-//
-// Guess_Rebol_Pointer: C
-//
-// See the elaborate explanation in %m-gc.c for how this works!
-//
-enum Reb_Pointer_Guess Guess_Rebol_Pointer(const void *p) {
-    const REBYTE *bp = cast(const REBYTE*, p);
-    REBYTE left_4_bits = *bp >> 4;
-
-    switch (left_4_bits) {
-    case 0: {
-        if (*bp != 0) {
-            //
-            // only top 4 bits 0, could be ASCII control character (including
-            // line feed...
-            //
-            return GUESSED_AS_UTF8;
-        }
-
-        // All 0 bits in first byte would either be an empty UTF-8 string or
-        // a *freed* series.  We will guess freed series in the case that the
-        // Reb_Header interpretation comes up with all 0 bits.
-        //
-        // Since this read of the header can crash the system on a valid
-        // empty string (if not legal to read bytes after terminator), this
-        // guess is only done in the debug build.
-        //
-    #if !defined(NDEBUG)
-        const struct Reb_Header *h = cast(const struct Reb_Header*, p);
-        if (h->bits == 0)
-            return GUESSED_AS_FREED_SERIES;
-    #endif
-
-        return GUESSED_AS_UTF8;
-    }
-
-    case 1:
-    case 2:
-    case 3:
-    case 4:
-    case 5:
-    case 6:
-    case 7:
-        return GUESSED_AS_UTF8; // topmost ASCII codepoints
-
-    // v-- bit sequences starting with `10` (continuation bytes, so not
-    // valid starting points for a UTF-8 string)
-
-    case 8: // 0xb1000
-        return GUESSED_AS_SERIES;
-
-    case 9: // 0xb1001
-        return GUESSED_AS_SERIES;
-
-    case 10: // 0b1010
-    case 11: // 0b1011
-        return GUESSED_AS_VALUE;
-
-    // v-- bit sequences starting with `11` are usually legal multi-byte
-    // valid starting points, so second byte is corrupted for internal ends,
-    // and the particular bad first byte `11111111` is used for end cells.
-
-    case 12: // 0b1100
-    case 13: // 0b1101
-        //
-        // If this is the first byte of a valid UTF-8 sequence, then the next
-        // byte cannot start with a 0 bit.  Init_Endlike_Header() takes
-        // advantage of this fact.
-        //
-        if (*(bp + 1) < 128) // test 9th bit from left, a.k.a. FLAGIT_LEFT(8)
-            return GUESSED_AS_INTERNAL_END;
-
-        return GUESSED_AS_UTF8;
-
-    case 14: // 0b1110
-        //
-        // Though it carries the end bit and the cell bit, there are too many
-        // valid UTF-8 leading characters starting with this sequence.  So
-        // END cells use a full `11111111` pattern instead.
-        //
-        return GUESSED_AS_UTF8;
-
-    case 15: // 0b1111
-        if (*bp == 255)
-            return GUESSED_AS_CELL_END;
-
-        return GUESSED_AS_UTF8;
-    }
-
-    DEAD_END;
-}
-
-
-
 // Size of crash buffers
 #define PANIC_TITLE_BUF_SIZE 80
 #define PANIC_BUF_SIZE 512
@@ -187,8 +93,8 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     Form_Int(b_cast(buf + strlen(buf)), line); // !!! no bounding...
     strncat(buf, "\n", PANIC_BUF_SIZE - strlen(buf));
 
-    switch (Guess_Rebol_Pointer(p)) {
-    case GUESSED_AS_UTF8:
+    switch (Detect_Rebol_Pointer(p)) {
+    case DETECTED_AS_NON_EMPTY_UTF8:
         strncat(
             buf,
             cast(const char*, p),
@@ -196,7 +102,34 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
         );
         break;
 
-    case GUESSED_AS_SERIES: {
+    case DETECTED_AS_EMPTY_UTF8: {
+        //
+        // More often than not, what this actually is would be a freed series.
+        // Which ordinary code shouldn't run into, so you have to assume in
+        // general it's not an empty string.  But how often is an empty string
+        // passed to panic?
+        //
+        // If it is an empty string, you run the risk of causing an access
+        // violation by reading beyond that first 0 byte to see the full
+        // header.
+        //
+    #if !defined(NDEBUG)
+        const struct Reb_Header *h = cast(const struct Reb_Header*, p);
+        if (h->bits == 0) {
+            REBSER *s = m_cast(REBSER*, cast(const REBSER*, p)); // read only
+            Panic_Series_Debug(s);
+        }
+    #else
+        const char *no_message = "[empty UTF-8 string]";
+        strncat(
+            buf,
+            no_message,
+            PANIC_BUF_SIZE - strlen(no_message)
+        );
+    #endif
+        break; }
+
+    case DETECTED_AS_SERIES: {
         REBSER *s = m_cast(REBSER*, cast(const REBSER*, p)); // don't mutate
     #if !defined(NDEBUG)
         #if 0
@@ -214,16 +147,7 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     #endif
         break; }
 
-    case GUESSED_AS_FREED_SERIES: {
-        REBSER *s = m_cast(REBSER*, cast(const REBSER*, p)); // don't mutate
-    #if !defined(NDEBUG)
-        Panic_Series_Debug(s);
-    #else
-        strncat(buf, "freed series", PANIC_BUF_SIZE - strlen(buf));
-    #endif
-        break; }
-
-    case GUESSED_AS_VALUE:
+    case DETECTED_AS_VALUE:
     #if !defined(NDEBUG)
         Panic_Value_Debug(cast(const REBVAL*, p));
     #else
@@ -231,7 +155,7 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     #endif
         break;
 
-    case GUESSED_AS_CELL_END:
+    case DETECTED_AS_CELL_END:
     #if !defined(NDEBUG)
         Panic_Value_Debug(cast(const REBVAL*, p));
     #else
@@ -239,7 +163,7 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     #endif
         break;
 
-    case GUESSED_AS_INTERNAL_END:
+    case DETECTED_AS_INTERNAL_END:
     #if !defined(NDEBUG)
         printf("Internal END marker, if array then panic-ing container:\n");
         Panic_Series_Debug(cast(REBSER*,
@@ -253,12 +177,11 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
 
     default:
         strncat(buf,
-            "Guess_Rebol_Pointer() failure",
+            "Detect_Rebol_Pointer() failure",
             PANIC_BUF_SIZE - strlen(buf)
         );
         break;
     }
-
 
 #if !defined(NDEBUG)
     //

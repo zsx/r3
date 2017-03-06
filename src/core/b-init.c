@@ -1348,7 +1348,7 @@ void Init_Core(void)
         // it does not.  It may be that fairly legitimate circumstances which
         // the user could fix would cause a more ordinary message delivery.
         // For the moment, though, we panic on any non-void return result.
-        // 
+        //
         panic (&result);
     }
 
@@ -1367,6 +1367,11 @@ void Init_Core(void)
     // will think to keep it up to date and working.
     //
     Check_Memory_Debug();
+
+    // We can only do a check of the pointer detection service after the
+    // system is somewhat initialized.
+    //
+    Assert_Pointer_Detection_Working();
 #endif
 
     Recycle(); // necessary?

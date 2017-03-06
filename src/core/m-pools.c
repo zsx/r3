@@ -1723,7 +1723,112 @@ REBOOL Is_Value_Managed(const RELVAL *value)
 }
 
 
+//
+// Detect_Rebol_Pointer: C
+//
+// See the elaborate explanation in %m-gc.c for how this works!  It is a
+// trustworthy method for "sniffing" pointers and discerning whether it is a
+// REBSER*, a REBVAL*, or a UTF-8 character string.
+//
+// Note that a freed series will look like an empty UTF8 string.
+//
+enum Reb_Pointer_Detect Detect_Rebol_Pointer(const void *p) {
+    const REBYTE *bp = cast(const REBYTE*, p);
+    REBYTE left_4_bits = *bp >> 4;
+
+    switch (left_4_bits) {
+    case 0: {
+        if (*bp != 0) {
+            //
+            // only top 4 bits 0, could be ASCII control character (including
+            // line feed...
+            //
+            return DETECTED_AS_NON_EMPTY_UTF8;
+        }
+
+        // All 0 bits in first byte would either be an empty UTF-8 string or
+        // a *freed* series.  We don't want to risk crashing the system on a
+        // valid empty string, so bias the guess to UTF8.
+        //
+        return DETECTED_AS_EMPTY_UTF8;
+    }
+
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+        return DETECTED_AS_NON_EMPTY_UTF8; // topmost ASCII codepoints
+
+    // v-- bit sequences starting with `10` (continuation bytes, so not
+    // valid starting points for a UTF-8 string)
+
+    case 8: // 0xb1000
+        return DETECTED_AS_SERIES;
+
+    case 9: // 0xb1001
+        return DETECTED_AS_SERIES;
+
+    case 10: // 0b1010
+    case 11: // 0b1011
+        return DETECTED_AS_VALUE;
+
+    // v-- bit sequences starting with `11` are usually legal multi-byte
+    // valid starting points, so second byte is corrupted for internal ends,
+    // and the particular bad first byte `11111111` is used for end cells.
+
+    case 12: // 0b1100
+    case 13: // 0b1101
+        //
+        // If this is the first byte of a valid UTF-8 sequence, then the next
+        // byte cannot start with a 0 bit.  Init_Endlike_Header() takes
+        // advantage of this fact.
+        //
+        if (*(bp + 1) < 128) // test 9th bit from left, a.k.a. FLAGIT_LEFT(8)
+            return DETECTED_AS_INTERNAL_END;
+
+        return DETECTED_AS_NON_EMPTY_UTF8;
+
+    case 14: // 0b1110
+        //
+        // Though it carries the end bit and the cell bit, there are too many
+        // valid UTF-8 leading characters starting with this sequence.  So
+        // END cells use a full `11111111` pattern instead.
+        //
+        return DETECTED_AS_NON_EMPTY_UTF8;
+
+    case 15: // 0b1111
+        if (*bp == 255)
+            return DETECTED_AS_CELL_END;
+
+        return DETECTED_AS_NON_EMPTY_UTF8;
+    }
+
+    DEAD_END;
+}
+
+
 #if !defined(NDEBUG)
+
+//
+//  Assert_Pointer_Detection_Working: C
+//
+void Assert_Pointer_Detection_Working(void)
+{
+    assert(Detect_Rebol_Pointer("") == DETECTED_AS_EMPTY_UTF8);
+    assert(Detect_Rebol_Pointer("asdf") == DETECTED_AS_NON_EMPTY_UTF8);
+
+    assert(Detect_Rebol_Pointer(EMPTY_ARRAY) == DETECTED_AS_SERIES);
+    assert(Detect_Rebol_Pointer(BLANK_VALUE) == DETECTED_AS_VALUE);
+
+    REBVAL cell_end;
+    SET_END(&cell_end);
+    assert(Detect_Rebol_Pointer(&cell_end) == DETECTED_AS_CELL_END);
+    assert(Detect_Rebol_Pointer(END_CELL) == DETECTED_AS_INTERNAL_END);
+}
+
 
 //
 //  Check_Memory_Debug: C
