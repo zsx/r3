@@ -969,16 +969,16 @@ int OS_Create_Process(const REBCHR *call, int argc, const REBCHR* argv[], u32 fl
                         }
                     }
                 } else {
-                    //RL_Print("Error READ");
+                    //printf("Error READ");
                     if (!ret) ret = GetLastError();
                     goto kill;
                 }
             } else if (wait_result == WAIT_FAILED) { /* */
-                //RL_Print("Wait Failed\n");
+                //printf("Wait Failed\n");
                 if (!ret) ret = GetLastError();
                 goto kill;
             } else {
-                //RL_Print("Wait returns unexpected result: %d\n", wait_result);
+                //printf("Wait returns unexpected result: %d\n", wait_result);
                 if (!ret) ret = GetLastError();
                 goto kill;
             }
@@ -1261,50 +1261,15 @@ REBOOL OS_Request_Dir(REBCHR* title, REBCHR** folder, REBCHR* path)
 // Render a GOB into an image. Returns an image or zero if
 // it cannot be done.
 //
-REBSER *OS_GOB_To_Image(REBGOB *gob)
+REBVAL *OS_GOB_To_Image(REBGOB *gob)
 {
-
 #if (defined REB_CORE)
     return 0;
 #else
     return Gob_To_Image(gob);
 #endif
-
 }
 
-//
-//  As_OS_Str: C
-//
-// If necessary, convert a string series to Win32 wide-chars.
-// (Handy for GOB/TEXT handling).
-// If the string series is empty the resulting string is set to NULL
-//
-// Function returns:
-//     TRUE - if the resulting string needs to be deallocated by the caller code
-//     FALSE - if REBOL string is used (no dealloc needed)
-//
-// Note: REBOL strings are allowed to contain nulls.
-//
-REBOOL As_OS_Str(REBSER *series, REBCHR **string)
-{
-    int len, n;
-    void *str;
-    wchar_t *wstr;
-
-    if ((len = RL_Get_String(series, 0, &str)) < 0) {
-        // Latin1 byte string - convert to wide chars
-        len = -len;
-        wstr = OS_ALLOC_N(wchar_t, len + 1);
-        for (n = 0; n < len; n++)
-            wstr[n] = (wchar_t)((unsigned char*)str)[n];
-        wstr[len] = 0;
-        //note: following string needs be deallocated in the code that uses this function
-        *string = wstr;
-        return TRUE;
-    }
-    *string = (len == 0) ? NULL : cast(wchar_t*, str); //empty string check
-    return FALSE;
-}
 
 //
 //  OS_Read_Embedded: C

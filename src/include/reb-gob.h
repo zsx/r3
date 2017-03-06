@@ -115,7 +115,12 @@ struct rebol_gob {
 
     REBCNT state;       // state flags
 
+#ifdef REB_DEF
     REBSER *pane;       // List of child GOBs
+#else
+    void *pane;
+#endif
+
     REBGOB *parent;     // Parent GOB (or window ptr)
 
     REBYTE alpha;       // transparency
@@ -125,8 +130,13 @@ struct rebol_gob {
 
     REBGOB *owner;      // !!! was a singular item in a union
 
+#ifdef REB_DEF
     REBSER *content;    // content value (block, string, color)
     REBSER *data;       // user defined data
+#else
+    void *content;
+    void *data;
+#endif
 
     REBXYF offset;      // location
     REBXYF size;
@@ -217,9 +227,9 @@ typedef struct gob_window {             // Maps gob to window
 #define SET_GOB_LEN(g,l)    SET_SERIES_LEN((g)->pane, (l))
 #define GOB_HEAD(g)         SER_HEAD(REBGOB*, GOB_PANE(g))
 #else
-#define GOB_STRING(g)   ((REBYTE *)RL_Series(GOB_CONTENT(g), (REBCNT)RXI_SER_DATA))
-#define GOB_LEN(g)     ((REBCNT)RL_Series(GOB_PANE(g), (REBCNT)RXI_SER_TAIL))
-#define GOB_HEAD(g)     ((REBGOB **)RL_Series(GOB_PANE(g), (REBCNT)RXI_SER_DATA))
+#define GOB_STRING(g)   RL_Gob_String(g)
+#define GOB_LEN(g)      RL_Gob_Len(g)
+#define GOB_HEAD(g)     RL_Gob_Head(g)
 #endif
 #define GOB_BITMAP(g)   GOB_STRING(g)
 #define GOB_AT(g,n)   (GOB_HEAD(g)+n)

@@ -215,10 +215,10 @@ void TO_Image(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         Copy_Image_Value(out, arg, VAL_IMAGE_LEN(arg));
     }
     else if (IS_GOB(arg)) {
-        REBSER *series = OS_GOB_TO_IMAGE(VAL_GOB(arg));
-        if (!series)
-            fail (Error_Bad_Make(REB_IMAGE, arg));
-        Init_Image(out, series);
+        REBVAL *image = OS_GOB_TO_IMAGE(VAL_GOB(arg));
+        if (image == NULL)
+            fail (Error_Bad_Make(REB_IMAGE, arg)); // not GUI build...
+        *out = *image; // what are the GC semantics here?
     }
     else if (IS_BINARY(arg)) {
         REBINT diff = VAL_LEN_AT(arg) / 4;

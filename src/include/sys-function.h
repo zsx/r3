@@ -275,9 +275,6 @@ inline static REBOOL IS_FUNCTION_INTERPRETED(const RELVAL *v) {
 inline static REBOOL IS_FUNCTION_ACTION(const RELVAL *v)
     { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Action_Dispatcher); }
 
-inline static REBOOL IS_FUNCTION_COMMAND(const RELVAL *v)
-    { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Command_Dispatcher); }
-
 inline static REBOOL IS_FUNCTION_SPECIALIZER(const RELVAL *v)
     { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Specializer_Dispatcher); }
 

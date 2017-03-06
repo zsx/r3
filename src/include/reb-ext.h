@@ -166,14 +166,7 @@ typedef REBVAL RXIARG;
 typedef REBVAL RXIFRM;
 
 
-typedef struct rxi_cmd_context {
-    void *envr;     // for holding a reference to your environment
-    REBARR *block;  // block being evaluated
-    REBCNT index;   // 0-based index of current command in block
-} REBCEC;
-
 typedef unsigned char REBRXT;
-typedef int (*RXICAL)(int cmd, const REBVAL *frame, REBCEC *ctx);
 
 
 #define RXA_COUNT(f) \
@@ -252,39 +245,3 @@ typedef int (*RXICAL)(int cmd, const REBVAL *frame, REBCEC *ctx);
 
 #define RXA_LOG_PAIR(f,n) \
     RXI_LOG_PAIR(RL_FRM_ARG((f), (n)))
-
-// Command function return values:
-enum rxi_return {
-    RXR_VOID,
-    RXR_BLANK,
-    RXR_TRUE,
-    RXR_FALSE,
-
-    RXR_VALUE,
-    RXR_ERROR,
-    RXR_BAD_ARGS,
-    RXR_NO_COMMAND,
-    RXR_MAX
-};
-
-// Used with RXI_SERIES_INFO:
-enum {
-    RXI_SER_DATA,   // pointer to data
-    RXI_SER_TAIL,   // series tail index (length of data)
-    RXI_SER_SIZE,   // size of series (in units)
-    RXI_SER_WIDE,   // width of series (in bytes)
-    RXI_SER_LEFT,   // units free in series (past tail)
-    RXI_MAX
-};
-
-// Error Codes (returned in result value from some API functions):
-enum {
-    RXE_NO_ERROR,
-    RXE_NO_WORD,    // the word cannot be found (e.g. in an object)
-    RXE_NOT_FUNC,   // the value is not a function (for callback)
-    RXE_BAD_ARGS,   // function arguments to not match
-    RXE_MAX
-};
-
-#define SET_EXT_ERROR(v,n) ((v)->i2.int32a = (n))
-#define GET_EXT_ERROR(v)   ((v)->i2.int32a)

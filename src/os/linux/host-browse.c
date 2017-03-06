@@ -123,11 +123,11 @@ REBOOL OS_Request_File(REBRFR *fr)
     }
 
     if (libgtk == NULL) {
-        //RL_Print("open libgtk-3.so failed: %s\n", dlerror());
+        //printf("open libgtk-3.so failed: %s\n", dlerror());
         return FALSE;
     }
     if (!os_init_gtk(libgtk)) {
-        //RL_Print("init gtk failed\n");
+        //printf("init gtk failed\n");
         OS_Close_Library(libgtk);
         return FALSE;
     }
@@ -138,7 +138,7 @@ REBOOL OS_Request_File(REBRFR *fr)
                                  fr->dir,
                                  GET_FLAG(fr->flags, FRF_SAVE),
                                  GET_FLAG(fr->flags, FRF_MULTI))) {
-        //RL_Print("file opened returned\n");
+        //printf("file opened returned\n");
         ret = TRUE;
     }
     OS_Close_Library(libgtk);

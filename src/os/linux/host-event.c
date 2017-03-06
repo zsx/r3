@@ -186,7 +186,7 @@ static void handle_property_notify(XEvent *ev, REBGOB *gob)
 {
     /*
        REBYTE *target = XGetAtomName(global_x_info->display, ev->xproperty.atom);
-       RL_Print("Property (%s, %d) changed: %d\n", target, ev->xproperty.atom, ev->xproperty.state);
+       printf("Property (%s, %d) changed: %d\n", target, ev->xproperty.atom, ev->xproperty.state);
        XFree(target);
        */
     Atom XA_WM_STATE = x_atom_list_find_atom(global_x_info->x_atom_list,
@@ -221,7 +221,7 @@ static void handle_property_notify(XEvent *ev, REBGOB *gob)
         return;
     }
 
-    //RL_Print("XA_WM_STATE: %d\n", XA_WM_STATE);
+    //printf("XA_WM_STATE: %d\n", XA_WM_STATE);
 
     if (ev->xproperty.atom == XA_WM_STATE) {
         Atom     actual_type;
@@ -253,7 +253,7 @@ static void handle_property_notify(XEvent *ev, REBGOB *gob)
                            (unsigned char**)&data);
         for(i = 0; i < nitems; i ++){
             if (data[i] == XA_FULLSCREEN){
-                //RL_Print("Window %x is Fullscreen\n", ev->xproperty.window);
+                //printf("Window %x is Fullscreen\n", ev->xproperty.window);
                 fullscreen = 1;
             } else if (data[i] == XA_MAX_HORZ) {
                 maximized_horz = 1;
@@ -274,7 +274,7 @@ static void handle_property_notify(XEvent *ev, REBGOB *gob)
             CLR_GOB_FLAG(gob, GOBF_MAXIMIZE);
             SET_GOB_FLAG(gob, GOBF_FULLSCREEN);
         } else {
-            //RL_Print("Not fullscreen\n");
+            //printf("Not fullscreen\n");
             CLR_GOB_FLAG(gob, GOBF_FULLSCREEN);
         }
 
@@ -282,32 +282,32 @@ static void handle_property_notify(XEvent *ev, REBGOB *gob)
             CLR_GOB_FLAG(gob, GOBF_FULLSCREEN);
             SET_GOB_FLAG(gob, GOBF_MAXIMIZE);
         } else {
-            //RL_Print("Not maxed\n");
+            //printf("Not maxed\n");
             CLR_GOB_FLAG(gob, GOBF_MAXIMIZE);
         }
 
         if (on_top) {
             SET_GOB_FLAG(gob, GOBF_TOP);
         } else {
-            //RL_Print("Not no_top\n");
+            //printf("Not no_top\n");
             CLR_GOB_FLAG(gob, GOBF_TOP);
         }
 
         if (hidden) {
             SET_GOB_FLAG(gob, GOBF_HIDDEN);
         } else {
-            //RL_Print("Not hidden\n");
+            //printf("Not hidden\n");
             CLR_GOB_FLAG(gob, GOBF_HIDDEN);
         }
         hw->window_flags = gob->flags; /* save a copy of current window flags */
     } else {
-        //RL_Print("Not WM_STATE, ignoring\n");
+        //printf("Not WM_STATE, ignoring\n");
     }
 }
 
 static void handle_button(XEvent *ev, REBGOB *gob)
 {
-    //RL_Print("Button %d event at %d\n", ev->xbutton.button, ev->xbutton.time);
+    //printf("Button %d event at %d\n", ev->xbutton.button, ev->xbutton.time);
     static Time last_click = 0;
     static REBINT last_click_button = 0;
     // Handle XEvents and flush the input
@@ -322,7 +322,7 @@ static void handle_button(XEvent *ev, REBGOB *gob)
             && ev->xbutton.time - last_click < DOUBLE_CLICK_DIFF){
             /* FIXME, a hack to detect double click: a double click would be a single click followed by a double click */
             flags |= 1 << EVF_DOUBLE;
-            //RL_Print("Button %d double clicked\n", ev->xbutton.button);
+            //printf("Button %d double clicked\n", ev->xbutton.button);
         }
         switch (ev->xbutton.button){
             case BUTTON_LEFT:
@@ -405,7 +405,7 @@ static void handle_client_message(XEvent *ev)
     /*
        const REBYTE *message_type = XGetAtomName(global_x_info->display, ev->xclient.message_type);
        const REBYTE *protocol = XGetAtomName(global_x_info->display, ev->xclient.data.l[0]);
-       RL_Print("client message: %s, %s\n", message_type, protocol);
+       printf("client message: %s, %s\n", message_type, protocol);
        XFree(message_type);
        XFree(protocol);
        */
@@ -426,7 +426,7 @@ static void handle_client_message(XEvent *ev)
         }
     } else if (XA_PING
                && XA_PING == ev->xclient.data.l[0]) {
-        //RL_Print("Ping from window manager\n");
+        //printf("Ping from window manager\n");
         ev->xclient.window = DefaultRootWindow(global_x_info->display);
         XSendEvent(global_x_info->display,
                    ev->xclient.window,
@@ -442,7 +442,7 @@ static void handle_selection_request(XEvent *ev)
 #if 0
     const REBYTE *target = XGetAtomName(global_x_info->display, ev->xselectionrequest.target);
     const REBYTE *property = XGetAtomName(global_x_info->display, ev->xselectionrequest.property);
-    RL_Print("selection target = %s, property = %s\n", target, property);
+    printf("selection target = %s, property = %s\n", target, property);
     XFree((void*)property);
     XFree((void*)target);
 #endif
@@ -490,7 +490,7 @@ static void handle_selection_request(XEvent *ev)
     selection_event.xselection.selection = ev->xselectionrequest.selection;
     selection_event.xselection.target = ev->xselectionrequest.target;
     selection_event.xselection.time = ev->xselectionrequest.time;
-    //RL_Print("Sending selection_event\n");
+    //printf("Sending selection_event\n");
     XSendEvent(selection_event.xselection.display,
                selection_event.xselection.requestor,
                False,
@@ -560,7 +560,7 @@ static void handle_configure_notify(XEvent *ev, REBGOB *gob)
     /* translate x,y to its gob_parent coordinates */
     int x = xce.x, y = xce.y;
     /*
-       RL_Print("configuranotify, window = %x, x = %d, y = %d, w = %d, h = %d\n",
+       printf("configuranotify, window = %x, x = %d, y = %d, w = %d, h = %d\n",
        xce.window,
        xce.x, xce.y, xce.width, xce.height);
        */
@@ -586,13 +586,13 @@ static void handle_configure_notify(XEvent *ev, REBGOB *gob)
                         0, 0,
                         &x, &y, &child);
             }
-            //RL_Print("XTranslateCoordinates returns %d, pos: %dx%d\n", status, x, y);
+            //printf("XTranslateCoordinates returns %d, pos: %dx%d\n", status, x, y);
         }
     }
     if (ROUND_TO_INT(gob->offset.x) != x
         || ROUND_TO_INT(gob->offset.y) != y){
         /*
-           RL_Print("%s, %s, %d: EVT_OFFSET (%dx%d) is sent\n", __FILE__, __func__, __LINE__,
+           printf("%s, %s, %d: EVT_OFFSET (%dx%d) is sent\n", __FILE__, __func__, __LINE__,
            ROUND_TO_INT(x), ROUND_TO_INT(y));
            */
         gob->offset.x = ROUND_TO_INT(PHYS_COORD_X(x));
@@ -614,12 +614,12 @@ static void handle_configure_notify(XEvent *ev, REBGOB *gob)
     xyd = (ROUND_TO_INT((gob->size.x))) + (ROUND_TO_INT(gob->size.y) << 16);
     if (GOB_WO_INT(gob) != GOB_LOG_W_INT(gob)
         || GOB_HO_INT(gob) != GOB_LOG_H_INT(gob)) {
-        //RL_Print("Resize for gob: %x to %dx%d\n", gob, GOB_LOG_W_INT(gob), GOB_LOG_H_INT(gob));
-        //RL_Print("%s, %s, %d: EVT_RESIZE is sent: %x\n", __FILE__, __func__, __LINE__, xyd);
+        //printf("Resize for gob: %x to %dx%d\n", gob, GOB_LOG_W_INT(gob), GOB_LOG_H_INT(gob));
+        //printf("%s, %s, %d: EVT_RESIZE is sent: %x\n", __FILE__, __func__, __LINE__, xyd);
         int i = 0;
         for(i = 0; i < MAX_WINDOWS; i ++){
             if (resize_events[i] == NULL){
-                //RL_Print("Filled resize_events[%d]\n", i);
+                //printf("Filled resize_events[%d]\n", i);
                 resize_events[i] = gob;
                 if (i < MAX_WINDOWS - 1) {
                     resize_events[i + 1] = NULL; /* mark it the end of the array */
@@ -720,12 +720,12 @@ static void handle_expose(XEvent *ev, REBGOB *gob)
         /*
         XRectangle final_rect;
         XClipBox(hw->exposed_region, &final_rect);
-        RL_Print("Win Region , left: %d,\ttop: %d,\tright: %d,\tbottom: %d\n",
+        printf("Win Region , left: %d,\ttop: %d,\tright: %d,\tbottom: %d\n",
                  rect.x,
                  rect.y,
                  rect.x + rect.width,
                  rect.y + rect.height);
-        RL_Print("exposed: x %d, y %d, w %d, h %d\n", final_rect.x, final_rect.y, final_rect.width, final_rect.height);
+        printf("exposed: x %d, y %d, w %d, h %d\n", final_rect.x, final_rect.y, final_rect.width, final_rect.height);
         */
         //rebcmp_compose_region(compositor, wingob, gob, &final_rect, FALSE);
         rebcmp_blit_region(compositor, hw->exposed_region);
@@ -758,14 +758,14 @@ void Dispatch_Event(XEvent *ev)
     switch (ev->type) {
         case CreateNotify:
             /*
-            RL_Print("window %x created at: %dx%d, size: %dx%d\n",
+            printf("window %x created at: %dx%d, size: %dx%d\n",
                      ev->xcreatewindow.window,
                      ev->xcreatewindow.x, ev->xcreatewindow.y,
                      ev->xcreatewindow.width, ev->xcreatewindow.height);
                      */
             break;
         case Expose:
-            //RL_Print("exposed\n");
+            //printf("exposed\n");
             gob = Find_Gob_By_Window(ev->xexpose.window);
             if (gob != NULL) {
                 handle_expose(ev, gob);
@@ -780,7 +780,7 @@ void Dispatch_Event(XEvent *ev)
             break;
 
         case MotionNotify:
-            //RL_Print ("mouse motion\n");
+            //printf("mouse motion\n");
             gob = Find_Gob_By_Window(ev->xmotion.window);
             if (gob != NULL){
                 REBINT xyd = (ROUND_TO_INT(PHYS_COORD_X(ev->xmotion.x))) + (ROUND_TO_INT(PHYS_COORD_Y(ev->xmotion.y)) << 16);
@@ -831,7 +831,7 @@ void Dispatch_Event(XEvent *ev)
             }
             break;
         case ClientMessage:
-            //RL_Print ("closed\n");
+            //printf("closed\n");
             handle_client_message(ev);
             break;
         case PropertyNotify:
@@ -847,11 +847,11 @@ void Dispatch_Event(XEvent *ev)
             }
             break;
         case SelectionRequest:
-            //RL_Print("SelectionRequest\n");
+            //printf("SelectionRequest\n");
             handle_selection_request(ev);
             break;
         case SelectionNotify:
-            //RL_Print("SelectionNotify\n");
+            //printf("SelectionNotify\n");
             handle_selection_notify(ev);
             break;
         case SelectionClear:
@@ -862,7 +862,7 @@ void Dispatch_Event(XEvent *ev)
             }
             break;
         case MapNotify:
-            //RL_Print("Window %x is mapped\n", ev->xmap.window);
+            //printf("Window %x is mapped\n", ev->xmap.window);
             {
                 host_window_t *hw = Find_Host_Window_By_ID(ev->xmap.window);
                 if (hw != NULL) {
@@ -871,7 +871,7 @@ void Dispatch_Event(XEvent *ev)
             }
             break;
         case ReparentNotify:
-            //RL_Print("Window %x is reparented to %x\n", ev->xreparent.window, ev->xreparent.parent);
+            //printf("Window %x is reparented to %x\n", ev->xreparent.window, ev->xreparent.parent);
             {
                 host_window_t *hw = Find_Host_Window_By_ID(ev->xreparent.window);
                 if (hw != NULL) {
@@ -880,7 +880,7 @@ void Dispatch_Event(XEvent *ev)
             }
             break;
         default:
-            //RL_Print("default event type: %d\n", ev->type);
+            //printf("default event type: %d\n", ev->type);
             break;
     }
 }

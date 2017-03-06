@@ -181,7 +181,7 @@ DEVICE_CMD Read_Serial(REBREQ *req)
         return DR_ERROR;
     }
 
-    //RL_Print("reading %d bytes\n", req->length);
+    //printf("reading %d bytes\n", req->length);
     if (!ReadFile(req->requestee.handle, req->common.data, req->length, &result, 0)) {
         req->error = -RFE_BAD_READ;
         Signal_Device(req, EVT_ERROR);
@@ -190,7 +190,7 @@ DEVICE_CMD Read_Serial(REBREQ *req)
         if (result == 0) {
             return DR_PEND;
         } else if (result > 0){
-            //RL_Print("read %d bytes\n", req->actual);
+            //printf("read %d bytes\n", req->actual);
             req->actual = result;
             Signal_Device(req, EVT_READ);
         }

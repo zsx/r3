@@ -291,8 +291,6 @@ REBNATIVE(func_class_of)
         n = 2;
     else if (IS_FUNCTION_ACTION(value))
         n = 3;
-    else if (IS_FUNCTION_COMMAND(value))
-        n = 4;
     else if (IS_FUNCTION_RIN(value)) {
         if (NOT(RIN_IS_CALLBACK(VAL_FUNC_ROUTINE(value))))
             n = 5;
@@ -303,6 +301,7 @@ REBNATIVE(func_class_of)
         n = 7;
     else {
         // !!! A shaky guess, but assume native if none of the above.
+        // (COMMAND! was once 4)
         n = 1;
     }
 

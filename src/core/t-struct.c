@@ -1214,7 +1214,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                             n,
                             KNOWN(VAL_ARRAY_AT_HEAD(&init, n))
                         )) {
-                            //RL_Print("Failed to assign element value\n");
+                            //printf("Failed to assign element value\n");
                             fail (Error(RE_MISC));
                         }
                     }
@@ -1227,7 +1227,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                 if (!assign_scalar_core(
                     BIN_HEAD(data_bin), offset, field, 0, &init
                 )) {
-                    //RL_Print("Failed to assign scalar value\n");
+                    //printf("Failed to assign scalar value\n");
                     fail (Error(RE_MISC));
                 }
             }

@@ -51,7 +51,11 @@ struct Reb_Event {
 
 union Reb_Eventee {
     REBREQ *req; // request (for device events)
+#ifdef REB_DEF
     REBSER *ser; // port or object
+#else
+    void *ser;
+#endif
 };
 
 typedef struct {

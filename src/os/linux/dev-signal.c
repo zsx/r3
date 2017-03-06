@@ -44,8 +44,6 @@ extern void Signal_Device(REBREQ *req, REBINT type);
 //
 DEVICE_CMD Open_Signal(REBREQ *req)
 {
-    //RL_Print("Open_Signal\n");
-
     sigset_t mask;
     sigset_t overlap;
 
@@ -81,7 +79,6 @@ error:
 //
 DEVICE_CMD Close_Signal(REBREQ *req)
 {
-    //RL_Print("Close_Signal\n");
     if (sigprocmask(SIG_UNBLOCK, &req->special.signal.mask, NULL) < 0) {
         goto error;
     }

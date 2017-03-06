@@ -36,7 +36,6 @@
 //
 REBINT CT_Library(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
-    //RL_Print("%s, %d\n", __func__, __LINE__);
     if (mode >= 0) {
         return VAL_LIBRARY(a) == VAL_LIBRARY(b);
     }

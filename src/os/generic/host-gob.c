@@ -65,52 +65,11 @@ REBSER* Gob_To_Image(REBGOB *gob);
 // Render a GOB into an image. Returns an image or zero if
 // it cannot be done.
 //
-REBSER *OS_GOB_To_Image(REBGOB *gob)
+REBVAL *OS_GOB_To_Image(REBGOB *gob)
 {
 #if (defined REB_CORE)
     return 0;
 #else
     return Gob_To_Image(gob);
 #endif
-}
-
-//
-//  As_OS_Str: C
-//
-// If necessary, convert a string series to platform specific format.
-// (Handy for GOB/TEXT handling).
-// If the string series is empty the resulting string is set to NULL
-//
-// Function returns:
-//     TRUE - if the resulting string needs to be deallocated by the caller code
-//     FALSE - if REBOL string is used (no dealloc needed)
-//
-// Note: REBOL strings are allowed to contain nulls.
-//
-REBOOL As_OS_Str(REBSER *series, REBCHR **string)
-{
-    int n;
-    void *str;
-    REBCNT len;
-
-    if ((n = RL_Get_String(series, 0, &str)) < 0) {
-        // Latin1 byte string - use as is
-        *string = cast(char*, str);
-        return FALSE;
-    }
-
-    len = n;
-
-    //empty string check
-    if (len == 0) { /* shortcut */
-        *string = OS_ALLOC_N(REBCHR, 1);
-        *string[0] = '\0';
-    } else {
-        //convert to UTF8
-        REBCNT utf8_len = RL_Length_As_UTF8(str, len, TRUE, FALSE);
-        *string = OS_ALLOC_N(char, utf8_len + 1);
-        RL_Encode_UTF8(b_cast(*string), utf8_len, str, &len, TRUE, FALSE);
-        (*string)[utf8_len] = '\0';
-    }
-    return TRUE;
 }

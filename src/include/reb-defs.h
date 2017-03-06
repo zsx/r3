@@ -107,26 +107,18 @@
     // The %reb-xxx.h files define structures visible to host code (client)
     // which don't also require pulling in all of the %sys-xxx.h files and
     // dependencies.  Some of these definitions are shared with the core,
-    // and mention things like REBSER.  When building as core that's fine,
+    // and mention things like REBVAL.  When building as core that's fine,
     // but when building as host this will be undefined unless something
     // is there.  Define as a void so that it can point at it, but not know
     // anything else about it (including size).
     //
-    typedef void REBSER;
-    typedef void REBARR;
-    typedef void REBOBJ;
-    typedef void REBSTR;
-    typedef void REBFRM;
-
-    // !!! The previous definition of RXIARG let them be stack-instantiated,
-    // and as such their size needed to be known.  However, the API version
-    // of REBVAL* is seeking to use GC cells, not stack ones.  This is a
-    // stopgap until all the routines are changed to speak in pointers,
-    // so callers can allocate stack storage in the meantime...
+    // Note: R3-Alpha allowed stack instantiation of values as "RXIARG".  But
+    // the Ren-C API version of REBVAL* needs to know where all the values are
+    // so they can be GC managed, since external clients are not expected to
+    // know how to do that.  Hence the values are opaque.
     //
-    typedef struct {
-        char opaque[sizeof(REBUPT) * 4];
-    } REBVAL;
+    typedef void REBVAL;
+    typedef void REBFRM;
 #endif
 
 #endif
