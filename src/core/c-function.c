@@ -308,15 +308,15 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             REBVAL *typeset;
             if (IS_TYPESET(DS_TOP)) {
                 typeset = DS_TOP;
+
+                REBSPC *derived = Derive_Specifier(VAL_SPECIFIER(spec), item);
                 DS_PUSH_TRASH;
                 Init_Block(
                     DS_TOP,
                     Copy_Array_At_Deep_Managed(
                         VAL_ARRAY(item),
                         VAL_INDEX(item),
-                        IS_SPECIFIC(item)
-                            ? VAL_SPECIFIER(const_KNOWN(item))
-                            : VAL_SPECIFIER(spec)
+                        derived
                     )
                 );
             }
@@ -339,14 +339,13 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 if (VAL_ARRAY(DS_TOP - 1) != EMPTY_ARRAY)
                     fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
 
+                REBSPC *derived = Derive_Specifier(VAL_SPECIFIER(spec), item);
                 Init_Block(
                     DS_TOP - 1,
                     Copy_Array_At_Deep_Managed(
                         VAL_ARRAY(item),
                         VAL_INDEX(item),
-                        IS_SPECIFIC(item)
-                            ? VAL_SPECIFIER(const_KNOWN(item))
-                            : VAL_SPECIFIER(spec)
+                        derived
                     )
                 );
             }
@@ -356,12 +355,11 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             // Turn block into typeset for parameter at current index.
             // Leaves VAL_TYPESET_SYM as-is.
             //
+            REBSPC *derived = Derive_Specifier(VAL_SPECIFIER(spec), item);
             Update_Typeset_Bits_Core(
                 typeset,
                 VAL_ARRAY_HEAD(item),
-                IS_SPECIFIC(item)
-                    ? VAL_SPECIFIER(const_KNOWN(item))
-                    : VAL_SPECIFIER(spec)
+                derived
             );
 
             // Refinements and refinement arguments cannot be specified as

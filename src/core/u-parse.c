@@ -181,9 +181,7 @@ static REBOOL Subparse_Throws(
     f->out = out;
 
     SET_FRAME_VALUE(f, VAL_ARRAY_AT(rules));
-    f->specifier = IS_SPECIFIC(rules)
-        ? VAL_SPECIFIER(const_KNOWN(rules))
-        : rules_specifier;
+    f->specifier = Derive_Specifier(rules_specifier, rules);
 
     f->source.array = VAL_ARRAY(rules);
     f->index = VAL_INDEX(rules) + 1;
@@ -525,13 +523,12 @@ static REBIXO Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
         // then truncate it to the end of series.
         //
         REBVAL dummy;
+        REBSPC *derived = Derive_Specifier(P_RULE_SPECIFIER, rule);
         if (Do_At_Throws(
             &dummy,
             VAL_ARRAY(rule),
             VAL_INDEX(rule),
-            IS_SPECIFIC(rule)
-                ? VAL_SPECIFIER(const_KNOWN(rule))
-                : P_RULE_SPECIFIER
+            derived
         )) {
             *P_OUT = dummy;
             return THROWN_FLAG;
@@ -615,14 +612,13 @@ static REBIXO Parse_Array_One_Rule_Core(
         // modification during the parse, the input series is not...so the
         // index may have to be adjusted to keep it in the array bounds.
         //
+        REBSPC *derived = Derive_Specifier(P_RULE_SPECIFIER, rule);
         REBVAL dummy;
         if (Do_At_Throws(
             &dummy,
             VAL_ARRAY(rule),
             VAL_INDEX(rule),
-            IS_SPECIFIC(rule)
-                ? VAL_SPECIFIER(const_KNOWN(rule))
-                : P_RULE_SPECIFIER
+            derived
         )) {
             *P_OUT = dummy;
             return THROWN_FLAG;
@@ -734,13 +730,15 @@ static REBIXO To_Thru_Block_Rule(
                             fail (Error_Parse_Rule());
 
                         if (IS_GROUP(rule)) {
+                            REBSPC *derived = Derive_Specifier(
+                                P_RULE_SPECIFIER,
+                                rule
+                            );
                             if (Do_At_Throws( // might GC
                                 &cell,
                                 VAL_ARRAY(rule),
                                 VAL_INDEX(rule),
-                                IS_SPECIFIC(rule)
-                                    ? VAL_SPECIFIER(const_KNOWN(rule))
-                                    : P_RULE_SPECIFIER
+                                derived
                             )) {
                                 *P_OUT = cell;
                                 return THROWN_FLAG;
@@ -932,13 +930,12 @@ static REBIXO To_Thru_Block_Rule(
 found:
     if (NOT_END(blk + 1) && IS_GROUP(blk + 1)) {
         REBVAL dummy;
+        REBSPC *derived = Derive_Specifier(P_RULE_SPECIFIER, rule_block);
         if (Do_At_Throws(
             &dummy,
             VAL_ARRAY(blk + 1),
             VAL_INDEX(blk + 1),
-            IS_SPECIFIC(rule_block)
-                ? VAL_SPECIFIER(const_KNOWN(rule_block))
-                : P_RULE_SPECIFIER
+            derived
         )) {
             *P_OUT = dummy;
             return THROWN_FLAG;
@@ -1187,13 +1184,12 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
 
             if (IS_GROUP(rule)) {
                 // might GC ... !!! why is QUOTE evaluating something?
+                REBSPC *derived = Derive_Specifier(P_RULE_SPECIFIER, rule);
                 if (Do_At_Throws(
                     &save,
                     VAL_ARRAY(rule),
                     VAL_INDEX(rule),
-                    IS_SPECIFIC(rule)
-                        ? VAL_SPECIFIER(const_KNOWN(rule))
-                        : P_RULE_SPECIFIER
+                    derived
                 )) {
                     *P_OUT = save;
                     return THROWN_FLAG;
@@ -1751,13 +1747,12 @@ REBNATIVE(subparse)
 
         if (IS_GROUP(rule)) {
             REBVAL evaluated;
+            REBSPC *derived = Derive_Specifier(P_RULE_SPECIFIER, rule);
             if (Do_At_Throws( // might GC
                 &evaluated,
                 VAL_ARRAY(rule),
                 VAL_INDEX(rule),
-                IS_SPECIFIC(rule)
-                    ? VAL_SPECIFIER(const_KNOWN(rule))
-                    : P_RULE_SPECIFIER
+                derived
             )) {
                 *P_OUT = evaluated;
                 return R_OUT_IS_THROWN;

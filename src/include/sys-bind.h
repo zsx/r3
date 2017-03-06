@@ -423,6 +423,35 @@ static inline REBVAL *Get_Mutable_Var_May_Fail(
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
+//  DETERMINING SPECIFIER FOR CHILDREN IN AN ARRAY
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// A relative array must be combined with a specifier in order to find the
+// actual context instance where its values can be found.  Since today's
+// specifiers are always nothing or a FRAME!'s context, this is fairly easy...
+// if you find a specific child value living inside a relative array then
+// it's that child's specifier that overrides the specifier in effect.
+//
+// With virtual binding this could get more complex, since a specifier may
+// wish to augment or override the binding in a deep way on read-only blocks.
+// That means specifiers may need to be chained together.  This would create
+// needs for GC or reference counting mechanics, which may defy a simple
+// solution in C89.
+//
+// But as a first step, this function locates all the places in the code that
+// would need such derivation.
+//
+
+inline static REBSPC *Derive_Specifier(REBSPC *parent, const RELVAL *child) {
+    if (IS_SPECIFIC(child))
+        return VAL_SPECIFIER(const_KNOWN(child));
+    return parent;
+}
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
 //  COPYING RELATIVE VALUES TO SPECIFIC
 //
 //=////////////////////////////////////////////////////////////////////////=//

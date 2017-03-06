@@ -229,12 +229,11 @@ void Clonify_Values_Len_Managed(
                     legacy = GET_SER_FLAG(VAL_ARRAY(value), SERIES_FLAG_LEGACY);
                 #endif
 
+                    REBSPC *derived = Derive_Specifier(specifier, value);
                     series = AS_SERIES(
                         Copy_Array_Shallow(
                             VAL_ARRAY(value),
-                            IS_SPECIFIC(value)
-                                ? VAL_SPECIFIER(KNOWN(value))
-                                : specifier
+                            derived
                         )
                     );
 
@@ -269,11 +268,10 @@ void Clonify_Values_Len_Managed(
             // through to the new values.
             //
             if (types & FLAGIT_KIND(VAL_TYPE(value)) & TS_ARRAYS_OBJ) {
+                REBSPC *derived = Derive_Specifier(specifier, value);
                 Clonify_Values_Len_Managed(
                      ARR_HEAD(AS_ARRAY(series)),
-                     IS_SPECIFIC(value)
-                        ? VAL_SPECIFIER(KNOWN(value))
-                        : specifier,
+                     derived,
                      VAL_LEN_HEAD(value),
                      deep,
                      types

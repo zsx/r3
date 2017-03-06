@@ -50,10 +50,11 @@ void Collapsify_Array(REBARR *array, REBSPC *specifier, REBCNT limit)
     RELVAL *item = ARR_HEAD(array);
     for (; NOT_END(item); ++item) {
         if (ANY_ARRAY(item) && VAL_LEN_AT(item) > limit) {
+            REBSPC *derived = Derive_Specifier(specifier, item);
             REBARR *copy = Copy_Array_At_Max_Shallow(
                 VAL_ARRAY(item),
                 VAL_INDEX(item),
-                IS_RELATIVE(item) ? specifier : VAL_SPECIFIER(KNOWN(item)),
+                derived,
                 limit + 1
             );
 

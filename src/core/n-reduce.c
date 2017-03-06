@@ -272,11 +272,10 @@ REBOOL Compose_Any_Array_Throws(
                     // compose [copy/(orig) (copy)] => [copy/(orig) (copy)]
                     // !!! path and second group are copies, first group isn't
                     //
+                    REBSPC *derived = Derive_Specifier(f.specifier, f.value);
                     REBARR *copy = Copy_Array_Shallow(
                         VAL_ARRAY(f.value),
-                        IS_RELATIVE(f.value)
-                            ? f.specifier // use parent specifier if relative...
-                            : VAL_SPECIFIER(const_KNOWN(f.value)) // child's
+                        derived
                     );
                     DS_PUSH_TRASH;
                     Init_Any_Array_At(

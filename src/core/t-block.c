@@ -115,14 +115,13 @@ void MAKE_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         if (index < 0 || index > cast(REBINT, VAL_LEN_HEAD(any_array)))
             goto bad_make;
 
+        REBSPC *derived = Derive_Specifier(VAL_SPECIFIER(arg), any_array);
         Init_Any_Series_At_Core(
             out,
             kind,
             AS_SERIES(VAL_ARRAY(any_array)),
             index,
-            IS_SPECIFIC(any_array)
-                ? VAL_SPECIFIER(KNOWN(any_array))
-                : VAL_SPECIFIER(arg)
+            derived
         );
 
         // !!! Previously this code would clear line break options on path
@@ -556,10 +555,7 @@ REBINT PD_Array(REBPVS *pvs)
     if (pvs->opt_setval)
         FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(pvs->value));
 
-    pvs->value_specifier = IS_SPECIFIC(pvs->value)
-        ? VAL_SPECIFIER(const_KNOWN(pvs->value))
-        : pvs->value_specifier;
-
+    pvs->value_specifier = Derive_Specifier(pvs->value_specifier, pvs->value);
     pvs->value = VAL_ARRAY_AT_HEAD(pvs->value, n);
 
 #if !defined(NDEBUG)

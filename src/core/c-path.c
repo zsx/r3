@@ -84,13 +84,12 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
             fail (Error_No_Value_Core(pvs->item, pvs->item_specifier));
     }
     else if (IS_GROUP(pvs->item)) { // object/(expr) case:
+        REBSPC *derived = Derive_Specifier(pvs->item_specifier, pvs->item);
         if (Do_At_Throws(
             &pvs->selector_cell,
             VAL_ARRAY(pvs->item),
             VAL_INDEX(pvs->item),
-            IS_RELATIVE(pvs->item)
-                ? pvs->item_specifier // if relative, use parent specifier...
-                : VAL_SPECIFIER(const_KNOWN(pvs->item)) // ...else use child's
+            derived
         )) {
             *pvs->store = pvs->selector_cell;
             return TRUE;

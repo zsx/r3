@@ -537,13 +537,13 @@ REBNATIVE(switch)
         // Run the code if it was found.  Because it writes D_OUT with a value
         // (or void), it won't be END--so we'll know at least one case has run.
 
+        REBSPC *derived; // goto would cross initialization
+        derived = Derive_Specifier(VAL_SPECIFIER(ARG(cases)), f.value);
         if (Do_At_Throws(
             D_OUT,
             VAL_ARRAY(f.value),
             VAL_INDEX(f.value),
-            IS_RELATIVE(f.value)
-                ? VAL_SPECIFIER(ARG(cases)) // if relative, use parent's...
-                : VAL_SPECIFIER(const_KNOWN(f.value)) // ...else use child's
+            derived
         )) {
             goto return_thrown;
         }

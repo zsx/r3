@@ -177,13 +177,13 @@ void MAKE_Image(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         }
         else if (IS_BLOCK(item)) {
             REBCNT bad_index;
-            if (Array_Has_Non_Tuple(&bad_index, item))
+            if (Array_Has_Non_Tuple(&bad_index, item)) {
+                REBSPC *derived = Derive_Specifier(VAL_SPECIFIER(arg), item);
                 fail (Error_Invalid_Arg_Core(
                     VAL_ARRAY_AT_HEAD(item, bad_index),
-                    IS_SPECIFIC(item)
-                        ? VAL_SPECIFIER(KNOWN(item))
-                        : VAL_SPECIFIER(arg)
+                    derived
                 ));
+            }
 
             Tuples_To_RGBA(
                 ip, size, KNOWN(VAL_ARRAY_AT(item)), VAL_LEN_AT(item)

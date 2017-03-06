@@ -1479,27 +1479,26 @@ reevaluate:;
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
-    case REB_GROUP:
+    case REB_GROUP: {
         //
         // If the source array we are processing that is yielding values is
         // part of the deep copy of a function body, it's possible that this
         // GROUP! is a "relative ANY-ARRAY!" that needs the specifier to
         // resolve the relative any-words and other any-arrays inside it...
         //
+        REBSPC *derived = Derive_Specifier(f->specifier, f->value);
         if (Do_At_Throws(
             f->out,
             VAL_ARRAY(f->value), // the GROUP!'s array
             VAL_INDEX(f->value), // index in group's REBVAL (may not be head)
-            IS_RELATIVE(f->value)
-                ? f->specifier // if relative, use parent specifier...
-                : VAL_SPECIFIER(const_KNOWN(f->value)) // ...else use child's
+            derived
         )) {
             goto finished;
         }
 
         CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
         Fetch_Next_In_Frame(f);
-        break;
+        break; }
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
