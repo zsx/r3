@@ -54,6 +54,7 @@
 #include <fcntl.h>
 #include <dirent.h>
 #include <errno.h>
+#include <assert.h>
 
 #include "reb-host.h"
 
@@ -118,50 +119,54 @@ static int Is_Dir(const char *path, const char *name)
 }
 
 
-static REBOOL Seek_File_64(REBREQ *file)
+static REBOOL Seek_File_64(struct devreq_file *file)
 {
     // Performs seek and updates index value. TRUE on success.
-    // On error, returns FALSE and sets file->error field.
-    int h = file->requestee.id;
+    // On error, returns FALSE and sets req->error field.
+    REBREQ *req = AS_REBREQ(file);
+
+    int h = req->requestee.id;
     i64 result;
 
-    if (file->special.file.index == -1) {
+    if (file->index == -1) {
         // Append:
         result = lseek(h, 0, SEEK_END);
     }
     else {
-        result = lseek(h, file->special.file.index, SEEK_SET);
+        result = lseek(h, file->index, SEEK_SET);
     }
 
     if (result < 0) {
-        file->error = -RFE_NO_SEEK;
+        req->error = -RFE_NO_SEEK;
         return FALSE;
     }
 
-    file->special.file.index = result;
+    file->index = result;
 
     return TRUE;
 }
 
 
-static int Get_File_Info(REBREQ *file)
+static int Get_File_Info(struct devreq_file *file)
 {
     struct stat info;
 
-    if (stat(file->special.file.path, &info)) {
-        file->error = errno;
+    REBREQ *req = AS_REBREQ(file);
+
+    if (stat(file->path, &info)) {
+        req->error = errno;
         return DR_ERROR;
     }
 
     if (S_ISDIR(info.st_mode)) {
-        SET_FLAG(file->modes, RFM_DIR);
-        file->special.file.size = 0; // in order to be consistent on all systems
+        SET_FLAG(req->modes, RFM_DIR);
+        file->size = 0; // in order to be consistent on all systems
     }
     else {
-        CLR_FLAG(file->modes, RFM_DIR);
-        file->special.file.size = info.st_size;
+        CLR_FLAG(req->modes, RFM_DIR);
+        file->size = info.st_size;
     }
-    file->special.file.time.l = cast(long, info.st_mtime);
+    file->time.l = cast(long, info.st_mtime);
 
     return DR_DONE;
 }
@@ -180,13 +185,13 @@ static int Get_File_Info(REBREQ *file)
 // The file arg is used to return specific file information.
 //
 // To begin, this function is called with a dir->requestee.handle that
-// is set to zero and a dir->special.file.path string for the directory.
+// is set to zero and a dir->path string for the directory.
 //
 // The directory is opened and a handle is stored in the dir
 // structure for use on subsequent calls. If an error occurred,
 // dir->error is set to the error code and -1 is returned.
 // The dir->size field can be set to the number of files in the
-// dir, if it is known. The dir->special.file.index field can be used by this
+// dir, if it is known. The dir->index field can be used by this
 // function to store information between calls.
 //
 // If the open succeeded, then information about the first file
@@ -203,15 +208,15 @@ static int Get_File_Info(REBREQ *file)
 // (That is, this function is called one extra time. This helps
 // for OSes that may deallocate file strings on dir close.)
 //
-// Note that the dir->special.file.path can contain wildcards * and ?. The
+// Note that the dir->path can contain wildcards * and ?. The
 // processing of these can be done in the OS (if supported) or
 // by a separate filter operation during the read.
 //
-// Store file date info in file->special.file.index or other fields?
+// Store file date info in file->index or other fields?
 // Store permissions? Ownership? Groups? Or, require that
 // to be part of a separate request?
 //
-static int Read_Directory(REBREQ *dir, REBREQ *file)
+static int Read_Directory(struct devreq_file *dir, struct devreq_file *file)
 {
     struct stat info;
     struct dirent *d;
@@ -219,20 +224,23 @@ static int Read_Directory(REBREQ *dir, REBREQ *file)
     DIR *h;
     int n;
 
+    REBREQ *dir_req = AS_REBREQ(dir);
+    REBREQ *file_req = AS_REBREQ(file);
+
     // Remove * from tail, if present. (Allowed because the
     // path was copied into to-local-path first).
-    n = strlen(cp = dir->special.file.path);
+    n = strlen(cp = dir->path);
     if (n > 0 && cp[n-1] == '*') cp[n-1] = 0;
 
     // If no dir handle, open the dir:
-    if (!(h = cast(DIR*, dir->requestee.handle))) {
-        h = opendir(dir->special.file.path);
+    if (!(h = cast(DIR*, dir_req->requestee.handle))) {
+        h = opendir(dir->path);
         if (!h) {
-            dir->error = errno;
+            dir_req->error = errno;
             return DR_ERROR;
         }
-        dir->requestee.handle = h;
-        CLR_FLAG(dir->flags, RRF_DONE);
+        dir_req->requestee.handle = h;
+        CLR_FLAG(dir_req->flags, RRF_DONE);
     }
 
     // Get dir entry (skip over the . and .. dir cases):
@@ -241,16 +249,16 @@ static int Read_Directory(REBREQ *dir, REBREQ *file)
         if (!(d = readdir(h))) {
             //dir->error = errno;
             closedir(h);
-            dir->requestee.handle = 0;
+            dir_req->requestee.handle = 0;
             //if (dir->error) return DR_ERROR;
-            SET_FLAG(dir->flags, RRF_DONE); // no more files
+            SET_FLAG(dir_req->flags, RRF_DONE); // no more files
             return DR_DONE;
         }
         cp = d->d_name;
     } while (cp[0] == '.' && (cp[1] == 0 || (cp[1] == '.' && cp[2] == 0)));
 
-    file->modes = 0;
-    strncpy(file->special.file.path, cp, MAX_FILE_NAME);
+    file_req->modes = 0;
+    strncpy(file->path, cp, MAX_FILE_NAME);
 
 #if 0
     // NOTE: we do not use d_type even if DT_DIR is #define-d.  First of all,
@@ -259,15 +267,15 @@ static int Read_Directory(REBREQ *dir, REBREQ *file)
     // instance).  But secondly, even if your OS supports it...a filesystem
     // doesn't have to.  (Examples: VirtualBox shared folders, XFS.)
 
-    if (d->d_type == DT_DIR) SET_FLAG(file->modes, RFM_DIR);
+    if (d->d_type == DT_DIR) SET_FLAG(file_req->modes, RFM_DIR);
 #endif
 
     // More widely supported mechanism of determining if something is a
     // directory, although less efficient than DT_DIR (because it requires
     // making an additional filesystem call)
 
-    if (Is_Dir(dir->special.file.path, file->special.file.path))
-        SET_FLAG(file->modes, RFM_DIR);
+    if (Is_Dir(dir->path, file->path))
+        SET_FLAG(file_req->modes, RFM_DIR);
 
     // Line below DOES NOT WORK -- because we need full path.
     //Get_File_Info(file); // updates modes, size, time
@@ -289,7 +297,7 @@ static int Read_Directory(REBREQ *dir, REBREQ *file)
 // 3.    REBOL clears necessary fields of file structure before
 //     calling (e.g. error and size fields).
 //
-DEVICE_CMD Open_File(REBREQ *file)
+DEVICE_CMD Open_File(REBREQ *req)
 {
     int modes;
     int access = 0;
@@ -297,30 +305,32 @@ DEVICE_CMD Open_File(REBREQ *file)
     char *path;
     struct stat info;
 
+    struct devreq_file *file = DEVREQ_FILE(req);
+
     // Posix file names should be compatible with REBOL file paths:
-    if (!(path = file->special.file.path)) {
-        file->error = -RFE_BAD_PATH;
+    if (!(path = file->path)) {
+        req->error = -RFE_BAD_PATH;
         return DR_ERROR;
     }
 
     // Set the modes:
-    modes = O_BINARY | (GET_FLAG(file->modes, RFM_READ) ? O_RDONLY : O_RDWR);
+    modes = O_BINARY | (GET_FLAG(req->modes, RFM_READ) ? O_RDONLY : O_RDWR);
 
-    if (GET_FLAGS(file->modes, RFM_WRITE, RFM_APPEND)) {
+    if (GET_FLAGS(req->modes, RFM_WRITE, RFM_APPEND)) {
         modes = O_BINARY | O_RDWR | O_CREAT;
         if (
-            GET_FLAG(file->modes, RFM_NEW) ||
+            GET_FLAG(req->modes, RFM_NEW) ||
             !(
-                GET_FLAG(file->modes, RFM_READ) ||
-                GET_FLAG(file->modes, RFM_APPEND) ||
-                GET_FLAG(file->modes, RFM_SEEK)
+                GET_FLAG(req->modes, RFM_READ) ||
+                GET_FLAG(req->modes, RFM_APPEND) ||
+                GET_FLAG(req->modes, RFM_SEEK)
             )
         ) modes |= O_TRUNC;
     }
 
-    //modes |= GET_FLAG(file->modes, RFM_SEEK) ? O_RANDOM : O_SEQUENTIAL;
+    //modes |= GET_FLAG(req->modes, RFM_SEEK) ? O_RANDOM : O_SEQUENTIAL;
 
-    if (GET_FLAG(file->modes, RFM_READONLY))
+    if (GET_FLAG(req->modes, RFM_READONLY))
         access = S_IREAD;
     else
         access = S_IREAD | S_IWRITE | S_IRGRP | S_IWGRP | S_IROTH;
@@ -329,26 +339,26 @@ DEVICE_CMD Open_File(REBREQ *file)
     // printf("Open: %s %d %d\n", path, modes, access);
     h = open(path, modes, access);
     if (h < 0) {
-        file->error = -RFE_OPEN_FAIL;
+        req->error = -RFE_OPEN_FAIL;
         goto fail;
     }
 
     // Confirm that a seek-mode file is actually seekable:
-    if (GET_FLAG(file->modes, RFM_SEEK)) {
+    if (GET_FLAG(req->modes, RFM_SEEK)) {
         if (lseek(h, 0, SEEK_CUR) < 0) {
             close(h);
-            file->error = -RFE_BAD_SEEK;
+            req->error = -RFE_BAD_SEEK;
             goto fail;
         }
     }
 
     // Fetch file size (if fails, then size is assumed zero):
     if (fstat(h, &info) == 0) {
-        file->special.file.size = info.st_size;
-        file->special.file.time.l = cast(long, info.st_mtime);
+        file->size = info.st_size;
+        file->time.l = cast(long, info.st_mtime);
     }
 
-    file->requestee.id = h;
+    req->requestee.id = h;
 
     return DR_DONE;
 
@@ -362,11 +372,11 @@ fail:
 //
 // Closes a previously opened file.
 //
-DEVICE_CMD Close_File(REBREQ *file)
+DEVICE_CMD Close_File(REBREQ *req)
 {
-    if (file->requestee.id) {
-        close(file->requestee.id);
-        file->requestee.id = 0;
+    if (req->requestee.id) {
+        close(req->requestee.id);
+        req->requestee.id = 0;
     }
     return DR_DONE;
 }
@@ -375,32 +385,35 @@ DEVICE_CMD Close_File(REBREQ *file)
 //
 //  Read_File: C
 //
-DEVICE_CMD Read_File(REBREQ *file)
+DEVICE_CMD Read_File(REBREQ *req)
 {
     ssize_t bytes = 0;
-    if (GET_FLAG(file->modes, RFM_DIR)) {
-        return Read_Directory(file, cast(REBREQ*, file->common.data));
+
+    struct devreq_file *file = DEVREQ_FILE(req);
+
+    if (GET_FLAG(req->modes, RFM_DIR)) {
+        return Read_Directory(file, cast(struct devreq_file*, req->common.data));
     }
 
-    if (!file->requestee.id) {
-        file->error = -RFE_NO_HANDLE;
+    if (!req->requestee.id) {
+        req->error = -RFE_NO_HANDLE;
         return DR_ERROR;
     }
 
-    if (file->modes & ((1 << RFM_SEEK) | (1 << RFM_RESEEK))) {
-        CLR_FLAG(file->modes, RFM_RESEEK);
+    if (req->modes & ((1 << RFM_SEEK) | (1 << RFM_RESEEK))) {
+        CLR_FLAG(req->modes, RFM_RESEEK);
         if (!Seek_File_64(file)) return DR_ERROR;
     }
 
-    // printf("read %d len %d\n", file->requestee.id, file->length);
+    // printf("read %d len %d\n", req->requestee.id, req->length);
 
-    bytes = read(file->requestee.id, file->common.data, file->length);
+    bytes = read(req->requestee.id, req->common.data, req->length);
     if (bytes < 0) {
-        file->error = -RFE_BAD_READ;
+        req->error = -RFE_BAD_READ;
         return DR_ERROR;
     } else {
-        file->actual = bytes;
-        file->special.file.index += file->actual;
+        req->actual = bytes;
+        file->index += req->actual;
     }
 
     return DR_DONE;
@@ -412,32 +425,35 @@ DEVICE_CMD Read_File(REBREQ *file)
 //
 // Bug?: update file->size value after write !?
 //
-DEVICE_CMD Write_File(REBREQ *file)
+DEVICE_CMD Write_File(REBREQ *req)
 {
     ssize_t bytes = 0;
-    if (!file->requestee.id) {
-        file->error = -RFE_NO_HANDLE;
+
+    struct devreq_file *file = DEVREQ_FILE(req);
+
+    if (!req->requestee.id) {
+        req->error = -RFE_NO_HANDLE;
         return DR_ERROR;
     }
 
-    if (GET_FLAG(file->modes, RFM_APPEND)) {
-        CLR_FLAG(file->modes, RFM_APPEND);
-        lseek(file->requestee.id, 0, SEEK_END);
+    if (GET_FLAG(req->modes, RFM_APPEND)) {
+        CLR_FLAG(req->modes, RFM_APPEND);
+        lseek(req->requestee.id, 0, SEEK_END);
     }
 
-    if (file->modes & ((1 << RFM_SEEK) | (1 << RFM_RESEEK) | (1 << RFM_TRUNCATE))) {
-        CLR_FLAG(file->modes, RFM_RESEEK);
+    if (req->modes & ((1 << RFM_SEEK) | (1 << RFM_RESEEK) | (1 << RFM_TRUNCATE))) {
+        CLR_FLAG(req->modes, RFM_RESEEK);
         if (!Seek_File_64(file)) return DR_ERROR;
-        if (GET_FLAG(file->modes, RFM_TRUNCATE))
-            if (ftruncate(file->requestee.id, file->special.file.index)) return DR_ERROR;
+        if (GET_FLAG(req->modes, RFM_TRUNCATE))
+            if (ftruncate(req->requestee.id, file->index)) return DR_ERROR;
     }
 
-    if (file->length == 0) return DR_DONE;
+    if (req->length == 0) return DR_DONE;
 
-    file->actual = bytes = write(file->requestee.id, file->common.data, file->length);
+    req->actual = bytes = write(req->requestee.id, req->common.data, req->length);
     if (bytes < 0) {
-        if (errno == ENOSPC) file->error = -RFE_DISK_FULL;
-        else file->error = -RFE_BAD_WRITE;
+        if (errno == ENOSPC) req->error = -RFE_DISK_FULL;
+        else req->error = -RFE_BAD_WRITE;
         return DR_ERROR;
     }
 
@@ -449,27 +465,28 @@ DEVICE_CMD Write_File(REBREQ *file)
 //  Query_File: C
 //
 // Obtain information about a file. Return TRUE on success.
-// On error, return FALSE and set file->error code.
+// On error, return FALSE and set req->error code.
 //
 // Note: time is in local format and must be converted
 //
-DEVICE_CMD Query_File(REBREQ *file)
+DEVICE_CMD Query_File(REBREQ *req)
 {
-    return Get_File_Info(file);
+    return Get_File_Info(DEVREQ_FILE(req));
 }
 
 
 //
 //  Create_File: C
 //
-DEVICE_CMD Create_File(REBREQ *file)
+DEVICE_CMD Create_File(REBREQ *req)
 {
-    if (GET_FLAG(file->modes, RFM_DIR)) {
-        if (!mkdir(file->special.file.path, 0777)) return DR_DONE;
-        file->error = errno;
+    struct devreq_file *file = DEVREQ_FILE(req);
+    if (GET_FLAG(req->modes, RFM_DIR)) {
+        if (!mkdir(file->path, 0777)) return DR_DONE;
+        req->error = errno;
         return DR_ERROR;
     } else
-        return Open_File(file);
+        return Open_File(req);
 }
 
 
@@ -477,19 +494,21 @@ DEVICE_CMD Create_File(REBREQ *file)
 //  Delete_File: C
 //
 // Delete a file or directory. Return TRUE if it was done.
-// The file->special.file.path provides the directory path and name.
-// For errors, return FALSE and set file->error to error code.
+// The file->path provides the directory path and name.
+// For errors, return FALSE and set req->error to error code.
 //
 // Note: Dirs must be empty to succeed
 //
-DEVICE_CMD Delete_File(REBREQ *file)
+DEVICE_CMD Delete_File(REBREQ *req)
 {
-    if (GET_FLAG(file->modes, RFM_DIR)) {
-        if (!rmdir(file->special.file.path)) return DR_DONE;
-    } else
-        if (!remove(file->special.file.path)) return DR_DONE;
+    struct devreq_file *file = DEVREQ_FILE(req);
 
-    file->error = errno;
+    if (GET_FLAG(req->modes, RFM_DIR)) {
+        if (!rmdir(file->path)) return DR_DONE;
+    } else
+        if (!remove(file->path)) return DR_DONE;
+
+    req->error = errno;
     return DR_ERROR;
 
     return 0;
@@ -502,11 +521,13 @@ DEVICE_CMD Delete_File(REBREQ *file)
 // Rename a file or directory.
 // Note: cannot rename across file volumes.
 //
-DEVICE_CMD Rename_File(REBREQ *file)
+DEVICE_CMD Rename_File(REBREQ *req)
 {
-    if (!rename(file->special.file.path, s_cast(file->common.data)))
+    struct devreq_file *file = DEVREQ_FILE(req);
+
+    if (!rename(file->path, s_cast(req->common.data)))
         return DR_DONE;
-    file->error = errno;
+    req->error = errno;
     return DR_ERROR;
 }
 
@@ -514,9 +535,18 @@ DEVICE_CMD Rename_File(REBREQ *file)
 //
 //  Poll_File: C
 //
-DEVICE_CMD Poll_File(REBREQ *file)
+DEVICE_CMD Poll_File(REBREQ *req)
 {
     return DR_DONE;     // files are synchronous (currently)
+}
+
+//
+//  Request_Size_File: C
+//
+static i32 Request_Size_File(REBREQ *req)
+{
+    (void)req; //unused
+    return sizeof(struct devreq_file);
 }
 
 
@@ -527,6 +557,7 @@ DEVICE_CMD Poll_File(REBREQ *file)
 ***********************************************************************/
 
 static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] = {
+    Request_Size_File,
     0,
     0,
     Open_File,

@@ -355,6 +355,24 @@ int OS_Do_Device(REBREQ *req, REBCNT command)
 
 
 //
+//  OS_Devreq_Size: C
+//
+// Ask the Devreq size for the device
+//
+int OS_Devreq_Size(int device)
+{
+    REBDEV *dev;
+
+    // Validate device:
+    if (device >= RDI_MAX || !(dev = Devices[device]))
+        return 0;
+
+    return dev->commands[RDC_DEVREQ_SIZE](NULL);
+}
+
+
+
+//
 //  OS_Make_Devreq: C
 //
 REBREQ *OS_Make_Devreq(int device)
@@ -365,7 +383,9 @@ REBREQ *OS_Make_Devreq(int device)
     if (device >= RDI_MAX || !(dev = Devices[device]))
         return 0;
 
-    REBREQ *req = OS_ALLOC_ZEROFILL(REBREQ);
+    i32 size = OS_Devreq_Size(device);
+    REBREQ *req = cast (REBREQ *, OS_ALLOC_MEM(size));
+    memset(req, 0, size);
     SET_FLAG(req->flags, RRF_ALLOC);
     req->device = device;
 
@@ -502,4 +522,15 @@ REBINT OS_Wait(REBCNT millisec, REBCNT res)
     OS_Do_Device(&req, RDC_QUERY); // wait for timer or other event
 
     return 1;  // layer above should check delta again
+}
+
+
+
+//
+//  Request_Size_Rebreq: C
+//
+i32 Request_Size_Rebreq(REBREQ *req)
+{
+    (void)req; //unused
+    return sizeof(REBREQ); //no special fields
 }

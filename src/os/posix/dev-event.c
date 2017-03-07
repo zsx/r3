@@ -41,6 +41,7 @@
 #include "reb-host.h"
 
 extern void Done_Device(REBUPT handle, int error);
+extern i32 Request_Size_Rebreq(REBREQ *req);
 
 //
 //  Init_Events: C
@@ -125,6 +126,7 @@ DEVICE_CMD Connect_Events(REBREQ *req)
 ***********************************************************************/
 
 static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] = {
+    Request_Size_Rebreq,
     Init_Events,            // init device driver resources
     0,  // RDC_QUIT,        // cleanup device driver resources
     0,  // RDC_OPEN,        // open device unit (port)

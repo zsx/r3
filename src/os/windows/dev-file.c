@@ -48,33 +48,34 @@
 **
 ***********************************************************************/
 
-static BOOL Seek_File_64(REBREQ *file)
+static BOOL Seek_File_64(struct devreq_file *file)
 {
     // Performs seek and updates index value. TRUE on scuccess.
     // On error, returns FALSE and sets file->error field.
-    HANDLE h = file->requestee.handle;
+    REBREQ *req = AS_REBREQ(file);
+    HANDLE h = req->requestee.handle;
     DWORD result;
     LONG highint;
 
-    if (file->special.file.index == -1) {
+    if (file->index == -1) {
         // Append:
         highint = 0;
         result = SetFilePointer(h, 0, &highint, FILE_END);
     }
     else {
         // Line below updates index if it is affected:
-        highint = cast(LONG, file->special.file.index >> 32);
+        highint = cast(LONG, file->index >> 32);
         result = SetFilePointer(
-            h, cast(LONG, file->special.file.index), &highint, FILE_BEGIN
+            h, cast(LONG, file->index), &highint, FILE_BEGIN
         );
     }
 
     if (result == INVALID_SET_FILE_POINTER && GetLastError() != NO_ERROR) {
-        file->error = -RFE_NO_SEEK;
+        req->error = -RFE_NO_SEEK;
         return 0;
     }
 
-    file->special.file.index = (cast(i64, highint) << 32) + result;
+    file->index = (cast(i64, highint) << 32) + result;
 
     return 1;
 }
@@ -124,22 +125,24 @@ static BOOL Seek_File_64(REBREQ *file)
 // Store permissions? Ownership? Groups? Or, require that
 // to be part of a separate request?
 //
-static int Read_Directory(REBREQ *dir, REBREQ *file)
+static int Read_Directory(struct devreq_file *dir, struct devreq_file *file)
 {
     WIN32_FIND_DATA info;
-    HANDLE h= dir->requestee.handle;
+    REBREQ *dir_req = AS_REBREQ(dir);
+    REBREQ *file_req = AS_REBREQ(file);
+    HANDLE h= dir_req->requestee.handle;
     wchar_t *cp = 0;
 
     if (!h) {
 
         // Read first file entry:
-        h = FindFirstFile(dir->special.file.path, &info);
+        h = FindFirstFile(dir->path, &info);
         if (h == INVALID_HANDLE_VALUE) {
-            dir->error = -RFE_OPEN_FAIL;
+            dir_req->error = -RFE_OPEN_FAIL;
             return DR_ERROR;
         }
-        dir->requestee.handle = h;
-        CLR_FLAG(dir->flags, RRF_DONE);
+        dir_req->requestee.handle = h;
+        CLR_FLAG(dir_req->flags, RRF_DONE);
         cp = info.cFileName;
 
     }
@@ -147,24 +150,24 @@ static int Read_Directory(REBREQ *dir, REBREQ *file)
     // Skip over the . and .. dir cases:
     while (cp == 0 || (cp[0] == '.' && (cp[1] == 0 || (cp[1] == '.' && cp[2] == 0)))) {
 
-        // Read next file entry, or error:
+        // Read next file_req entry, or error:
         if (!FindNextFile(h, &info)) {
-            dir->error = GetLastError();
+            dir_req->error = GetLastError();
             FindClose(h);
-            dir->requestee.handle = 0;
-            if (dir->error != ERROR_NO_MORE_FILES) return DR_ERROR;
-            dir->error = 0;
-            SET_FLAG(dir->flags, RRF_DONE); // no more files
+            dir_req->requestee.handle = 0;
+            if (dir_req->error != ERROR_NO_MORE_FILES) return DR_ERROR;
+            dir_req->error = 0;
+            SET_FLAG(dir_req->flags, RRF_DONE); // no more file_reqs
             return DR_DONE;
         }
         cp = info.cFileName;
 
     }
 
-    file->modes = 0;
-    if (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) SET_FLAG(file->modes, RFM_DIR);
-    wcsncpy(file->special.file.path, info.cFileName, MAX_FILE_NAME);
-    file->special.file.size =
+    file_req->modes = 0;
+    if (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) SET_FLAG(file_req->modes, RFM_DIR);
+    wcsncpy(file->path, info.cFileName, MAX_FILE_NAME);
+    file->size =
         (cast(i64, info.nFileSizeHigh) << 32) + info.nFileSizeLow;
 
     return DR_DONE;
@@ -186,69 +189,70 @@ static int Read_Directory(REBREQ *dir, REBREQ *file)
 //
 // !! Confirm that /seek /append works properly.
 //
-DEVICE_CMD Open_File(REBREQ *file)
+DEVICE_CMD Open_File(REBREQ *req)
 {
     DWORD attrib = FILE_ATTRIBUTE_NORMAL;
     DWORD access = 0;
     DWORD create = 0;
     HANDLE h;
     BY_HANDLE_FILE_INFORMATION info;
+    struct devreq_file *file = DEVREQ_FILE(req);
 
     // Set the access, creation, and attribute for file creation:
-    if (GET_FLAG(file->modes, RFM_READ)) {
+    if (GET_FLAG(req->modes, RFM_READ)) {
         access |= GENERIC_READ;
         create = OPEN_EXISTING;
     }
 
-    if (GET_FLAGS(file->modes, RFM_WRITE, RFM_APPEND)) {
+    if (GET_FLAGS(req->modes, RFM_WRITE, RFM_APPEND)) {
         access |= GENERIC_WRITE;
         if (
-            GET_FLAG(file->modes, RFM_NEW) ||
+            GET_FLAG(req->modes, RFM_NEW) ||
             !(
-                GET_FLAG(file->modes, RFM_READ) ||
-                GET_FLAG(file->modes, RFM_APPEND) ||
-                GET_FLAG(file->modes, RFM_SEEK)
+                GET_FLAG(req->modes, RFM_READ) ||
+                GET_FLAG(req->modes, RFM_APPEND) ||
+                GET_FLAG(req->modes, RFM_SEEK)
             )
         ) create = CREATE_ALWAYS;
         else create = OPEN_ALWAYS;
     }
 
-    attrib |= GET_FLAG(file->modes, RFM_SEEK) ? FILE_FLAG_RANDOM_ACCESS : FILE_FLAG_SEQUENTIAL_SCAN;
+    attrib |= GET_FLAG(req->modes, RFM_SEEK) ? FILE_FLAG_RANDOM_ACCESS : FILE_FLAG_SEQUENTIAL_SCAN;
 
-    if (GET_FLAG(file->modes, RFM_READONLY))
+    if (GET_FLAG(req->modes, RFM_READONLY))
         attrib |= FILE_ATTRIBUTE_READONLY;
 
     if (!access) {
-        file->error = -RFE_NO_MODES;
+        req->error = -RFE_NO_MODES;
         goto fail;
     }
 
-    // Open the file (yes, this is how windows does it, the nutty kids):
-    h = CreateFile(file->special.file.path, access, FILE_SHARE_READ|FILE_SHARE_WRITE, 0, create, attrib, 0);
+    // Open the req (yes, this is how windows does it, the nutty kids):
+    h = CreateFile(file->path, access, FILE_SHARE_READ|FILE_SHARE_WRITE, 0, create, attrib, 0);
     if (h == INVALID_HANDLE_VALUE) {
-        file->error = -RFE_OPEN_FAIL;
+        req->error = -RFE_OPEN_FAIL;
         goto fail;
     }
 
-    // Confirm that a seek-mode file is actually seekable:
-    if (GET_FLAG(file->modes, RFM_SEEK)) {
+    // Confirm that a seek-mode req is actually seekable:
+    if (GET_FLAG(req->modes, RFM_SEEK)) {
         // Below should work because we are seeking to 0:
         if (SetFilePointer(h, 0, 0, FILE_BEGIN) == INVALID_SET_FILE_POINTER) {
             CloseHandle(h);
-            file->error = -RFE_BAD_SEEK;
+            req->error = -RFE_BAD_SEEK;
             goto fail;
         }
     }
 
-    // Fetch file size (if fails, then size is assumed zero):
+    // Fetch req size (if fails, then size is assumed zero):
     if (GetFileInformationByHandle(h, &info)) {
-        file->special.file.size =
+        file->size =
             (cast(i64, info.nFileSizeHigh) << 32) + info.nFileSizeLow;
-        file->special.file.time.l = info.ftLastWriteTime.dwLowDateTime;
-        file->special.file.time.h = info.ftLastWriteTime.dwHighDateTime;
+        file->time.l = info.ftLastWriteTime.dwLowDateTime;
+        file->time.h = info.ftLastWriteTime.dwHighDateTime;
     }
 
-    file->requestee.handle = h;
+    req->requestee.handle = h;
 
     return DR_DONE;
 
@@ -275,35 +279,36 @@ DEVICE_CMD Close_File(REBREQ *file)
 //
 //  Read_File: C
 //
-DEVICE_CMD Read_File(REBREQ *file)
+DEVICE_CMD Read_File(REBREQ *req)
 {
-    if (GET_FLAG(file->modes, RFM_DIR)) {
-        return Read_Directory(file, cast(REBREQ*, file->common.data));
+    struct devreq_file *file = DEVREQ_FILE(req);
+    if (GET_FLAG(req->modes, RFM_DIR)) {
+        return Read_Directory(file, cast(struct devreq_file*, req->common.data));
     }
 
-    if (!file->requestee.handle) {
-        file->error = -RFE_NO_HANDLE;
+    if (!req->requestee.handle) {
+        req->error = -RFE_NO_HANDLE;
         return DR_ERROR;
     }
 
-    if (file->modes & ((1 << RFM_SEEK) | (1 << RFM_RESEEK))) {
-        CLR_FLAG(file->modes, RFM_RESEEK);
+    if (req->modes & ((1 << RFM_SEEK) | (1 << RFM_RESEEK))) {
+        CLR_FLAG(req->modes, RFM_RESEEK);
         if (!Seek_File_64(file)) return DR_ERROR;
     }
 
-    assert(sizeof(DWORD) == sizeof(file->actual));
+    assert(sizeof(DWORD) == sizeof(req->actual));
 
     if (!ReadFile(
-        file->requestee.handle,
-        file->common.data,
-        file->length,
-        cast(DWORD*, &file->actual),
+        req->requestee.handle,
+        req->common.data,
+        req->length,
+        cast(DWORD*, &req->actual),
         0
     )) {
-        file->error = -RFE_BAD_READ;
+        req->error = -RFE_BAD_READ;
         return DR_ERROR;
     } else {
-        file->special.file.index += file->actual;
+        file->index += req->actual;
     }
 
     return DR_DONE;
@@ -315,45 +320,46 @@ DEVICE_CMD Read_File(REBREQ *file)
 //
 // Bug?: update file->size value after write !?
 //
-DEVICE_CMD Write_File(REBREQ *file)
+DEVICE_CMD Write_File(REBREQ *req)
 {
     DWORD result;
     DWORD size_high, size_low;
+    struct devreq_file *file = DEVREQ_FILE(req);
 
-    if (!file->requestee.handle) {
-        file->error = -RFE_NO_HANDLE;
+    if (!req->requestee.handle) {
+        req->error = -RFE_NO_HANDLE;
         return DR_ERROR;
     }
 
-    if (GET_FLAG(file->modes, RFM_APPEND)) {
-        CLR_FLAG(file->modes, RFM_APPEND);
-        SetFilePointer(file->requestee.handle, 0, 0, FILE_END);
+    if (GET_FLAG(req->modes, RFM_APPEND)) {
+        CLR_FLAG(req->modes, RFM_APPEND);
+        SetFilePointer(req->requestee.handle, 0, 0, FILE_END);
     }
 
-    if (file->modes & ((1 << RFM_SEEK) | (1 << RFM_RESEEK) | (1 << RFM_TRUNCATE))) {
-        CLR_FLAG(file->modes, RFM_RESEEK);
+    if (req->modes & ((1 << RFM_SEEK) | (1 << RFM_RESEEK) | (1 << RFM_TRUNCATE))) {
+        CLR_FLAG(req->modes, RFM_RESEEK);
         if (!Seek_File_64(file)) return DR_ERROR;
-        if (GET_FLAG(file->modes, RFM_TRUNCATE))
-            SetEndOfFile(file->requestee.handle);
+        if (GET_FLAG(req->modes, RFM_TRUNCATE))
+            SetEndOfFile(req->requestee.handle);
     }
 
-    if (file->length != 0) {
-        if (!WriteFile(file->requestee.handle, file->common.data, file->length, (LPDWORD)&file->actual, 0)) {
+    if (req->length != 0) {
+        if (!WriteFile(req->requestee.handle, req->common.data, req->length, (LPDWORD)&req->actual, 0)) {
             result = GetLastError();
-            if (result == ERROR_HANDLE_DISK_FULL) file->error = -RFE_DISK_FULL;
-            else file->error = -RFE_BAD_WRITE;
+            if (result == ERROR_HANDLE_DISK_FULL) req->error = -RFE_DISK_FULL;
+            else req->error = -RFE_BAD_WRITE;
             return DR_ERROR;
         }
     }
 
-    size_low = GetFileSize(file->requestee.handle, &size_high);
+    size_low = GetFileSize(req->requestee.handle, &size_high);
     if (size_low == 0xffffffff) {
         result = GetLastError();
-        file->error = -RFE_BAD_WRITE;
+        req->error = -RFE_BAD_WRITE;
         return DR_ERROR;
     }
 
-    file->special.file.size =
+    file->size =
         (cast(i64, size_high) << 32) + cast(i64, size_low);
 
     return DR_DONE;
@@ -368,21 +374,22 @@ DEVICE_CMD Write_File(REBREQ *file)
 //
 // Note: time is in local format and must be converted
 //
-DEVICE_CMD Query_File(REBREQ *file)
+DEVICE_CMD Query_File(REBREQ *req)
 {
     WIN32_FILE_ATTRIBUTE_DATA info;
+    struct devreq_file *file = DEVREQ_FILE(req);
 
-    if (!GetFileAttributesEx(file->special.file.path, GetFileExInfoStandard, &info)) {
-        file->error = GetLastError();
+    if (!GetFileAttributesEx(file->path, GetFileExInfoStandard, &info)) {
+        req->error = GetLastError();
         return DR_ERROR;
     }
 
-    if (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) SET_FLAG(file->modes, RFM_DIR);
-    else CLR_FLAG(file->modes, RFM_DIR);
-    file->special.file.size =
+    if (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) SET_FLAG(req->modes, RFM_DIR);
+    else CLR_FLAG(req->modes, RFM_DIR);
+    file->size =
         (cast(i64, info.nFileSizeHigh) << 32) + cast(i64, info.nFileSizeLow);
-    file->special.file.time.l = info.ftLastWriteTime.dwLowDateTime;
-    file->special.file.time.h = info.ftLastWriteTime.dwHighDateTime;
+    file->time.l = info.ftLastWriteTime.dwLowDateTime;
+    file->time.h = info.ftLastWriteTime.dwHighDateTime;
     return DR_DONE;
 }
 
@@ -390,14 +397,15 @@ DEVICE_CMD Query_File(REBREQ *file)
 //
 //  Create_File: C
 //
-DEVICE_CMD Create_File(REBREQ *file)
+DEVICE_CMD Create_File(REBREQ *req)
 {
-    if (GET_FLAG(file->modes, RFM_DIR)) {
-        if (CreateDirectory(file->special.file.path, 0)) return DR_DONE;
-        file->error = GetLastError();
+    struct devreq_file *file = DEVREQ_FILE(req);
+    if (GET_FLAG(req->modes, RFM_DIR)) {
+        if (CreateDirectory(file->path, 0)) return DR_DONE;
+        req->error = GetLastError();
         return DR_ERROR;
     } else
-        return Open_File(file);
+        return Open_File(req);
 }
 
 
@@ -410,14 +418,15 @@ DEVICE_CMD Create_File(REBREQ *file)
 //
 // Note: Dirs must be empty to succeed
 //
-DEVICE_CMD Delete_File(REBREQ *file)
+DEVICE_CMD Delete_File(REBREQ *req)
 {
-    if (GET_FLAG(file->modes, RFM_DIR)) {
-        if (RemoveDirectory(file->special.file.path)) return DR_DONE;
+    struct devreq_file *file = DEVREQ_FILE(req);
+    if (GET_FLAG(req->modes, RFM_DIR)) {
+        if (RemoveDirectory(file->path)) return DR_DONE;
     } else
-        if (DeleteFile(file->special.file.path)) return DR_DONE;
+        if (DeleteFile(file->path)) return DR_DONE;
 
-    file->error = GetLastError();
+    req->error = GetLastError();
     return DR_ERROR;
 }
 
@@ -428,11 +437,12 @@ DEVICE_CMD Delete_File(REBREQ *file)
 // Rename a file or directory.
 // Note: cannot rename across file volumes.
 //
-DEVICE_CMD Rename_File(REBREQ *file)
+DEVICE_CMD Rename_File(REBREQ *req)
 {
-    if (MoveFile(cast(wchar_t*, file->special.file.path), cast(wchar_t*, file->common.data)))
+    struct devreq_file *file = DEVREQ_FILE(req);
+    if (MoveFile(cast(wchar_t*, file->path), cast(wchar_t*, req->common.data)))
         return DR_DONE;
-    file->error = GetLastError();
+    req->error = GetLastError();
     return DR_ERROR;
 }
 
@@ -445,6 +455,15 @@ DEVICE_CMD Poll_File(REBREQ *file)
     return DR_DONE;     // files are synchronous (currently)
 }
 
+//
+//  Request_Size_File: C
+//
+static i32 Request_Size_File(REBREQ *req)
+{
+    (void)req; //unused
+    return sizeof(struct devreq_file);
+}
+
 
 /***********************************************************************
 **
@@ -453,6 +472,7 @@ DEVICE_CMD Poll_File(REBREQ *file)
 ***********************************************************************/
 
 static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] = {
+    Request_Size_File,
     0,
     0,
     Open_File,

@@ -43,7 +43,7 @@ enum Transport_Types {
 //
 //  Ret_Query_Net: C
 //
-static void Ret_Query_Net(REBCTX *port, REBREQ *sock, REBVAL *out)
+static void Ret_Query_Net(REBCTX *port, struct devreq_net *sock, REBVAL *out)
 {
     REBVAL *std_info = In_Object(port, STD_PORT_SCHEME, STD_SCHEME_INFO, 0);
     REBCTX *info;
@@ -55,22 +55,22 @@ static void Ret_Query_Net(REBCTX *port, REBREQ *sock, REBVAL *out)
 
     Set_Tuple(
         CTX_VAR(info, STD_NET_INFO_LOCAL_IP),
-        cast(REBYTE*, &sock->special.net.local_ip),
+        cast(REBYTE*, &sock->local_ip),
         4
     );
     SET_INTEGER(
         CTX_VAR(info, STD_NET_INFO_LOCAL_PORT),
-        sock->special.net.local_port
+        sock->local_port
     );
 
     Set_Tuple(
         CTX_VAR(info, STD_NET_INFO_REMOTE_IP),
-        cast(REBYTE*, &sock->special.net.remote_ip),
+        cast(REBYTE*, &sock->remote_ip),
         4
     );
     SET_INTEGER(
         CTX_VAR(info, STD_NET_INFO_REMOTE_PORT),
-        sock->special.net.remote_port
+        sock->remote_port
     );
 
     Init_Object(out, info);
@@ -82,16 +82,18 @@ static void Ret_Query_Net(REBCTX *port, REBREQ *sock, REBVAL *out)
 //
 // Clone a listening port as a new accept port.
 //
-static void Accept_New_Port(REBVAL *out, REBCTX *port, REBREQ *sock)
+static void Accept_New_Port(REBVAL *out, REBCTX *port, struct devreq_net *sock)
 {
-    REBREQ *nsock;
+    struct devreq_net *nsock;
+    REBREQ *req = AS_REBREQ(sock);
 
     // Get temp sock struct created by the device:
-    nsock = sock->common.sock;
+    nsock = cast(struct devreq_net*, req->common.sock);
     if (!nsock) return;  // false alarm
-    sock->common.sock = nsock->next;
-    nsock->common.data = 0;
-    nsock->next = 0;
+    req->common.sock = AS_REBREQ(nsock)->next;
+    REBREQ *nreq = AS_REBREQ(nsock);
+    nreq->common.data = 0;
+    nreq->next = 0;
 
     // Create a new port using ACCEPT request passed by sock->common.sock:
     port = Copy_Context_Shallow(port);
@@ -101,9 +103,9 @@ static void Accept_New_Port(REBVAL *out, REBCTX *port, REBREQ *sock)
     SET_BLANK(CTX_VAR(port, STD_PORT_STATE)); // just to be sure.
 
     // Copy over the new sock data:
-    sock = Ensure_Port_State(port, RDI_NET);
+    sock = cast(struct devreq_net*, Ensure_Port_State(port, RDI_NET));
     *sock = *nsock;
-    sock->port = port;
+    AS_REBREQ(sock)->port = port;
     OS_FREE(nsock); // allocated by dev_net.c (MT issues?)
 }
 
@@ -148,7 +150,7 @@ static REB_R Transport_Actor(
             // Lookup host name (an extra TCP device step):
             if (IS_STRING(arg)) {
                 sock->common.data = VAL_BIN(arg);
-                sock->special.net.remote_port =
+                DEVREQ_NET(sock)->remote_port =
                     IS_INTEGER(val) ? VAL_INT32(val) : 80;
 
                 // Note: sets remote_ip field
@@ -161,15 +163,15 @@ static REB_R Transport_Actor(
                 return R_OUT;
             }
             else if (IS_TUPLE(arg)) { // Host IP specified:
-                sock->special.net.remote_port =
+                DEVREQ_NET(sock)->remote_port =
                     IS_INTEGER(val) ? VAL_INT32(val) : 80;
-                memcpy(&sock->special.net.remote_ip, VAL_TUPLE(arg), 4);
+                memcpy(&(DEVREQ_NET(sock)->remote_ip), VAL_TUPLE(arg), 4);
                 break;
             }
             else if (IS_BLANK(arg)) { // No host, must be a LISTEN socket:
                 SET_FLAG(sock->modes, RST_LISTEN);
                 sock->common.sock = 0; // where ACCEPT requests are queued
-                sock->special.net.local_port =
+                DEVREQ_NET(sock)->local_port =
                     IS_INTEGER(val) ? VAL_INT32(val) : 8000;
                 break;
             }
@@ -334,7 +336,7 @@ static REB_R Transport_Actor(
         //
         REBCNT len = Get_Num_From_Arg(ARG(index));
         if (len == 1 && GET_FLAG(sock->modes, RST_LISTEN) && sock->common.data)
-            Accept_New_Port(SINK(D_OUT), port, sock);
+            Accept_New_Port(SINK(D_OUT), port, DEVREQ_NET(sock));
         else
             fail (Error_Out_Of_Range(ARG(index)));
         return R_OUT; }
@@ -344,7 +346,7 @@ static REB_R Transport_Actor(
         // Get specific information - the scheme's info object.
         // Special notation allows just getting part of the info.
         //
-        Ret_Query_Net(port, sock, D_OUT);
+        Ret_Query_Net(port, DEVREQ_NET(sock), D_OUT);
         return R_OUT; }
 
     case SYM_OPEN_Q:

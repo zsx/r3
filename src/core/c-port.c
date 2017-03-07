@@ -76,13 +76,13 @@ void Set_Port_Open(REBCTX *port, REBOOL open)
 REBREQ *Ensure_Port_State(REBCTX *port, REBCNT device)
 {
     REBVAL *state = CTX_VAR(port, STD_PORT_STATE);
+    i32 req_size = OS_DEVREQ_SIZE(device);
 
     if (!IS_BINARY(state)) {
         assert(IS_BLANK(state));
-
-        REBSER *data = Make_Binary(sizeof(REBREQ));
-        CLEAR(BIN_HEAD(data), sizeof(REBREQ));
-        TERM_BIN_LEN(data, sizeof(REBREQ));
+        REBSER *data = Make_Binary(req_size);
+        CLEAR(BIN_HEAD(data), req_size);
+        TERM_BIN_LEN(data, req_size);
 
         REBREQ *req = cast(REBREQ*, BIN_HEAD(data));
         SET_FLAG(req->flags, RRF_ALLOC); // not on stack
@@ -92,7 +92,7 @@ REBREQ *Ensure_Port_State(REBCTX *port, REBCNT device)
     }
     else {
         assert(VAL_INDEX(state) == 0); // should always be at head
-        assert(VAL_LEN_HEAD(state) == sizeof(REBREQ)); // should be right size
+        assert(VAL_LEN_HEAD(state) == req_size); // should be right size
     }
 
     return cast(REBREQ*, VAL_BIN(state));

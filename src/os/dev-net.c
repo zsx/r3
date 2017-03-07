@@ -77,16 +77,17 @@ static void Set_Addr(struct sockaddr_in *sa, long ip, int port)
     sa->sin_port = htons((unsigned short)port);
 }
 
-static void Get_Local_IP(REBREQ *sock)
+static void Get_Local_IP(struct devreq_net *sock)
 {
     // Get the local IP address and port number.
     // This code should be fast and never fail.
     struct sockaddr_in sa;
     socklen_t len = sizeof(sa);
+    REBREQ *req = AS_REBREQ(sock);
 
-    getsockname(sock->requestee.socket, cast(struct sockaddr *, &sa), &len);
-    sock->special.net.local_ip = sa.sin_addr.s_addr; //htonl(ip); NOTE: REBOL stays in network byte order
-    sock->special.net.local_port = ntohs(sa.sin_port);
+    getsockname(AS_REBREQ(sock)->requestee.socket, cast(struct sockaddr *, &sa), &len);
+    sock->local_ip = sa.sin_addr.s_addr; //htonl(ip); NOTE: REBOL stays in network byte order
+    sock->local_port = ntohs(sa.sin_port);
 }
 
 static REBOOL Nonblocking_Mode(SOCKET sock)
@@ -207,25 +208,26 @@ DEVICE_CMD Open_Socket(REBREQ *sock)
 // Returns 0 on success.
 // On failure, error code is OS local.
 //
-DEVICE_CMD Close_Socket(REBREQ *sock)
+DEVICE_CMD Close_Socket(REBREQ *req)
 {
-    sock->error = 0;
+    struct devreq_net *sock = DEVREQ_NET(req);
+    req->error = 0;
 
-    if (GET_FLAG(sock->state, RSM_OPEN)) {
+    if (GET_FLAG(req->state, RSM_OPEN)) {
 
-        sock->state = 0;  // clear: RSM_OPEN, RSM_CONNECT
+        req->state = 0;  // clear: RSM_OPEN, RSM_CONNECT
 
         // If DNS pending, abort it:
-        if (sock->special.net.host_info) {  // indicates DNS phase active
+        if (sock->host_info) {  // indicates DNS phase active
 #ifdef HAS_ASYNC_DNS
-            if (sock->requestee.handle) WSACancelAsyncRequest(sock->requestee.handle);
+            if (req->requestee.handle) WSACancelAsyncRequest(req->requestee.handle);
 #endif
-            OS_FREE(sock->special.net.host_info);
-            sock->requestee.socket = sock->length; // Restore TCP socket (see Lookup)
+            OS_FREE(sock->host_info);
+            req->requestee.socket = req->length; // Restore TCP socket (see Lookup)
         }
 
-        if (CLOSE_SOCKET(sock->requestee.socket)) {
-            sock->error = GET_ERROR;
+        if (CLOSE_SOCKET(req->requestee.socket)) {
+            req->error = GET_ERROR;
             return DR_ERROR;
         }
     }
@@ -244,57 +246,59 @@ DEVICE_CMD Close_Socket(REBREQ *sock)
 // Note we use the sock->requestee.handle for the DNS handle. During use,
 // we store the TCP socket in the length field.
 //
-DEVICE_CMD Lookup_Socket(REBREQ *sock)
+DEVICE_CMD Lookup_Socket(REBREQ *req)
 {
 #ifdef TO_WINDOWS
     HANDLE handle;
 #endif
     HOSTENT *host;
 
+    struct devreq_net *sock = DEVREQ_NET(req);
+
 #ifdef HAS_ASYNC_DNS
     // Check if we are polling for completion:
-    if ((host = cast(HOSTENT*, sock->special.net.host_info))) {
+    if ((host = cast(HOSTENT*, sock->host_info))) {
         // The windows main event handler will change this when it gets WM_DNS event:
-        if (!GET_FLAG(sock->flags, RRF_DONE)) return DR_PEND; // still waiting
-        CLR_FLAG(sock->flags, RRF_DONE);
-        if (!sock->error) { // Success!
-            host = cast(HOSTENT*, sock->special.net.host_info);
-            memcpy(&sock->special.net.remote_ip, *host->h_addr_list, 4); //he->h_length);
-            Signal_Device(sock, EVT_LOOKUP);
+        if (!GET_FLAG(req->flags, RRF_DONE)) return DR_PEND; // still waiting
+        CLR_FLAG(req->flags, RRF_DONE);
+        if (!req->error) { // Success!
+            host = cast(HOSTENT*, sock->host_info);
+            memcpy(&sock->remote_ip, *host->h_addr_list, 4); //he->h_length);
+            Signal_Device(req, EVT_LOOKUP);
         }
         else
-            Signal_Device(sock, EVT_ERROR);
+            Signal_Device(req, EVT_ERROR);
         OS_FREE(host);  // free what we allocated earlier
-        sock->requestee.socket = sock->length; // Restore TCP socket saved below
-        sock->special.net.host_info = 0;
+        req->requestee.socket = req->length; // Restore TCP socket saved below
+        sock->host_info = 0;
         return DR_DONE;
     }
 
     // Else, make the lookup request:
     host = cast(HOSTENT*, OS_ALLOC_N(char, MAXGETHOSTSTRUCT));
-    handle = WSAAsyncGetHostByName(Event_Handle, WM_DNS, s_cast(sock->common.data), cast(char*, host), MAXGETHOSTSTRUCT);
+    handle = WSAAsyncGetHostByName(Event_Handle, WM_DNS, s_cast(req->common.data), cast(char*, host), MAXGETHOSTSTRUCT);
     if (handle != 0) {
-        sock->special.net.host_info = host;
-        sock->length = sock->requestee.socket; // save TCP socket temporarily
-        sock->requestee.handle = handle;
+        sock->host_info = host;
+        req->length = req->requestee.socket; // save TCP socket temporarily
+        req->requestee.handle = handle;
         return DR_PEND; // keep it on pending list
     }
     OS_FREE(host);
 #else
     // Use old-style blocking DNS (mainly for testing purposes):
-    host = gethostbyname(s_cast(sock->common.data));
-    sock->special.net.host_info = 0; // no allocated data
+    host = gethostbyname(s_cast(req->common.data));
+    sock->host_info = 0; // no allocated data
 
     if (host) {
-        memcpy(&sock->special.net.remote_ip, *host->h_addr_list, 4); //he->h_length);
-        CLR_FLAG(sock->flags, RRF_DONE);
-        Signal_Device(sock, EVT_LOOKUP);
+        memcpy(&sock->remote_ip, *host->h_addr_list, 4); //he->h_length);
+        CLR_FLAG(req->flags, RRF_DONE);
+        Signal_Device(req, EVT_LOOKUP);
         return DR_DONE;
     }
 #endif
 
-    sock->error = GET_ERROR;
-    //Signal_Device(sock, EVT_ERROR);
+    req->error = GET_ERROR;
+    //Signal_Device(req, EVT_ERROR);
     return DR_ERROR; // Remove it from pending list
 }
 
@@ -317,27 +321,28 @@ DEVICE_CMD Lookup_Socket(REBREQ *sock)
 // Before usage:
 //     Open_Socket() -- to allocate the socket
 //
-DEVICE_CMD Connect_Socket(REBREQ *sock)
+DEVICE_CMD Connect_Socket(REBREQ *req)
 {
     int result;
     struct sockaddr_in sa;
+    struct devreq_net *sock = DEVREQ_NET(req);
 
-    if (GET_FLAG(sock->modes, RST_LISTEN))
-        return Listen_Socket(sock);
+    if (GET_FLAG(req->modes, RST_LISTEN))
+        return Listen_Socket(req);
 
-    if (GET_FLAG(sock->state, RSM_CONNECT)) return DR_DONE; // already connected
+    if (GET_FLAG(req->state, RSM_CONNECT)) return DR_DONE; // already connected
 
-    if (GET_FLAG(sock->modes, RST_UDP)) {
-        CLR_FLAG(sock->state, RSM_ATTEMPT);
-        SET_FLAG(sock->state, RSM_CONNECT);
+    if (GET_FLAG(req->modes, RST_UDP)) {
+        CLR_FLAG(req->state, RSM_ATTEMPT);
+        SET_FLAG(req->state, RSM_CONNECT);
         Get_Local_IP(sock);
-        Signal_Device(sock, EVT_CONNECT);
+        Signal_Device(req, EVT_CONNECT);
         return DR_DONE; // done
     }
 
-    Set_Addr(&sa, sock->special.net.remote_ip, sock->special.net.remote_port);
+    Set_Addr(&sa, sock->remote_ip, sock->remote_port);
     result = connect(
-        sock->requestee.socket, cast(struct sockaddr *, &sa), sizeof(sa)
+        req->requestee.socket, cast(struct sockaddr *, &sa), sizeof(sa)
     );
 
     if (result != 0) result = GET_ERROR;
@@ -349,10 +354,10 @@ DEVICE_CMD Connect_Socket(REBREQ *sock)
     case 0: // no error
     case NE_ISCONN:
         // Connected, set state:
-        CLR_FLAG(sock->state, RSM_ATTEMPT);
-        SET_FLAG(sock->state, RSM_CONNECT);
+        CLR_FLAG(req->state, RSM_ATTEMPT);
+        SET_FLAG(req->state, RSM_CONNECT);
         Get_Local_IP(sock);
-        Signal_Device(sock, EVT_CONNECT);
+        Signal_Device(req, EVT_CONNECT);
         return DR_DONE; // done
 
 #ifdef TO_WINDOWS
@@ -362,14 +367,14 @@ DEVICE_CMD Connect_Socket(REBREQ *sock)
     case NE_INPROGRESS:
     case NE_ALREADY:
         // Still trying:
-        SET_FLAG(sock->state, RSM_ATTEMPT);
+        SET_FLAG(req->state, RSM_ATTEMPT);
         return DR_PEND;
 
     default:
         // An error happened:
-        CLR_FLAG(sock->state, RSM_ATTEMPT);
-        sock->error = result;
-        //Signal_Device(sock, EVT_ERROR);
+        CLR_FLAG(req->state, RSM_ATTEMPT);
+        req->error = result;
+        //Signal_Device(req, EVT_ERROR);
         return DR_ERROR;
     }
 }
@@ -398,70 +403,71 @@ DEVICE_CMD Connect_Socket(REBREQ *sock)
 //
 // Note that the mode flag is cleared by the caller, not here.
 //
-DEVICE_CMD Transfer_Socket(REBREQ *sock)
+DEVICE_CMD Transfer_Socket(REBREQ *req)
 {
     int result;
     long len;
     struct sockaddr_in remote_addr;
     socklen_t addr_len = sizeof(remote_addr);
-    int mode = (sock->command == RDC_READ ? RSM_RECEIVE : RSM_SEND);
+    struct devreq_net *sock = DEVREQ_NET(req);
+    int mode = (req->command == RDC_READ ? RSM_RECEIVE : RSM_SEND);
 
-    if (!GET_FLAG(sock->state, RSM_CONNECT)
-        &&!GET_FLAG(sock->modes, RST_UDP)) {
-        sock->error = -18;
+    if (!GET_FLAG(req->state, RSM_CONNECT)
+        &&!GET_FLAG(req->modes, RST_UDP)) {
+        req->error = -18;
         return DR_ERROR;
     }
 
-    SET_FLAG(sock->state, mode);
+    SET_FLAG(req->state, mode);
 
     // Limit size of transfer:
-    len = MIN(sock->length - sock->actual, MAX_TRANSFER);
+    len = MIN(req->length - req->actual, MAX_TRANSFER);
 
     if (mode == RSM_SEND) {
         // If host is no longer connected:
-        Set_Addr(&remote_addr, sock->special.net.remote_ip, sock->special.net.remote_port);
+        Set_Addr(&remote_addr, sock->remote_ip, sock->remote_port);
         result = sendto(
-            sock->requestee.socket,
-            s_cast(sock->common.data), len,
+            req->requestee.socket,
+            s_cast(req->common.data), len,
             0, // Flags
             cast(struct sockaddr*, &remote_addr), addr_len
         );
         WATCH2("send() len: %d actual: %d\n", len, result);
 
         if (result >= 0) {
-            sock->common.data += result;
-            sock->actual += result;
-            if (sock->actual >= sock->length) {
-                Signal_Device(sock, EVT_WROTE);
+            req->common.data += result;
+            req->actual += result;
+            if (req->actual >= req->length) {
+                Signal_Device(req, EVT_WROTE);
                 return DR_DONE;
             }
-            SET_FLAG(sock->flags, RRF_ACTIVE); /* notify OS_WAIT of activity */
+            SET_FLAG(req->flags, RRF_ACTIVE); /* notify OS_WAIT of activity */
             return DR_PEND;
         }
         // if (result < 0) ...
     }
     else {
         result = recvfrom(
-            sock->requestee.socket,
-            s_cast(sock->common.data), len,
+            req->requestee.socket,
+            s_cast(req->common.data), len,
             0, // Flags
             cast(struct sockaddr*, &remote_addr), &addr_len
         );
         WATCH2("recv() len: %d result: %d\n", len, result);
 
         if (result > 0) {
-            if (GET_FLAG(sock->modes, RST_UDP)) {
-                sock->special.net.remote_ip = remote_addr.sin_addr.s_addr;
-                sock->special.net.remote_port = ntohs(remote_addr.sin_port);
+            if (GET_FLAG(req->modes, RST_UDP)) {
+                sock->remote_ip = remote_addr.sin_addr.s_addr;
+                sock->remote_port = ntohs(remote_addr.sin_port);
             }
-            sock->actual = result;
-            Signal_Device(sock, EVT_READ);
+            req->actual = result;
+            Signal_Device(req, EVT_READ);
             return DR_DONE;
         }
         if (result == 0) {      // The socket gracefully closed.
-            sock->actual = 0;
-            CLR_FLAG(sock->state, RSM_CONNECT); // But, keep RRF_OPEN true
-            Signal_Device(sock, EVT_CLOSE);
+            req->actual = 0;
+            CLR_FLAG(req->state, RSM_CONNECT); // But, keep RRF_OPEN true
+            Signal_Device(req, EVT_CLOSE);
             return DR_DONE;
         }
         // if (result < 0) ...
@@ -472,10 +478,10 @@ DEVICE_CMD Transfer_Socket(REBREQ *sock)
     WATCH2("get error: %d %s\n", result, strerror(result));
     if (result == NE_WOULDBLOCK) return DR_PEND; // still waiting
 
-    WATCH4("ERROR: recv(%d %x) len: %d error: %d\n", sock->requestee.socket, sock->common.data, len, result);
+    WATCH4("ERROR: recv(%d %x) len: %d error: %d\n", req->requestee.socket, req->common.data, len, result);
     // A nasty error happened:
-    sock->error = result;
-    //Signal_Device(sock, EVT_ERROR);
+    req->error = result;
+    //Signal_Device(req, EVT_ERROR);
     return DR_ERROR;
 }
 
@@ -491,44 +497,49 @@ DEVICE_CMD Transfer_Socket(REBREQ *sock)
 //
 // Use this instead of Connect_Socket().
 //
-DEVICE_CMD Listen_Socket(REBREQ *sock)
+DEVICE_CMD Listen_Socket(REBREQ *req)
 {
     int result;
     int len = 1;
     struct sockaddr_in sa;
+    struct devreq_net *sock = DEVREQ_NET(req);
+
+    // make sure ACCEPT queue is empty
+    // initialized in p-net.c
+    assert(req->common.sock == NULL);
 
     // Setup socket address range and port:
-    Set_Addr(&sa, INADDR_ANY, sock->special.net.local_port);
+    Set_Addr(&sa, INADDR_ANY, sock->local_port);
 
     // Allow listen socket reuse:
     result = setsockopt(
-        sock->requestee.socket, SOL_SOCKET, SO_REUSEADDR,
+        req->requestee.socket, SOL_SOCKET, SO_REUSEADDR,
         cast(char*, &len), sizeof(len)
     );
 
     if (result) {
 lserr:
-        sock->error = GET_ERROR;
+        req->error = GET_ERROR;
         return DR_ERROR;
     }
 
     // Bind the socket to our local address:
     result = bind(
-        sock->requestee.socket, cast(struct sockaddr *, &sa), sizeof(sa)
+        req->requestee.socket, cast(struct sockaddr *, &sa), sizeof(sa)
     );
     if (result) goto lserr;
 
-    SET_FLAG(sock->state, RSM_BIND);
+    SET_FLAG(req->state, RSM_BIND);
 
     // For TCP connections, setup listen queue:
-    if (!GET_FLAG(sock->modes, RST_UDP)) {
-        result = listen(sock->requestee.socket, SOMAXCONN);
+    if (!GET_FLAG(req->modes, RST_UDP)) {
+        result = listen(req->requestee.socket, SOMAXCONN);
         if (result) goto lserr;
-        SET_FLAG(sock->state, RSM_LISTEN);
+        SET_FLAG(req->state, RSM_LISTEN);
     }
 
     Get_Local_IP(sock);
-    sock->command = RDC_CREATE; // the command done on wakeup
+    req->command = RDC_CREATE; // the command done on wakeup
 
     return DR_PEND;
 }
@@ -621,21 +632,22 @@ DEVICE_CMD Modify_Socket(REBREQ *sock)
 //     Set local_port to desired port number.
 //     Listen_Socket();
 //
-DEVICE_CMD Accept_Socket(REBREQ *sock)
+DEVICE_CMD Accept_Socket(REBREQ *req)
 {
     struct sockaddr_in sa;
-    REBREQ *news;
+    struct devreq_net *news;
     socklen_t len = sizeof(sa);
     int result;
     extern void Attach_Request(REBREQ **prior, REBREQ *req);
+    struct devreq_net *sock = DEVREQ_NET(req);
 
     // Accept a new socket, if there is one:
-    result = accept(sock->requestee.socket, cast(struct sockaddr *, &sa), &len);
+    result = accept(req->requestee.socket, cast(struct sockaddr *, &sa), &len);
 
     if (result == BAD_SOCKET) {
         result = GET_ERROR;
         if (result == NE_WOULDBLOCK) return DR_PEND;
-        sock->error = result;
+        req->error = result;
         //Signal_Device(sock, EVT_ERROR);
         return DR_ERROR;
     }
@@ -644,30 +656,36 @@ DEVICE_CMD Accept_Socket(REBREQ *sock)
     // request and copies the listen request to it. Then, it stores
     // the new values for IP and ports and links this request to the
     // original via the sock->common.data.
-    news = OS_ALLOC_ZEROFILL(REBREQ);
+    news = OS_ALLOC_ZEROFILL(struct devreq_net);
 //  *news = *sock;
-    news->device = sock->device;
+    news->devreq.device = req->device;
 
     SET_OPEN(news);
-    SET_FLAG(news->state, RSM_OPEN);
-    SET_FLAG(news->state, RSM_CONNECT);
+    SET_FLAG(news->devreq.state, RSM_OPEN);
+    SET_FLAG(news->devreq.state, RSM_CONNECT);
 
-    news->requestee.socket = result;
-    news->special.net.remote_ip   = sa.sin_addr.s_addr; //htonl(ip); NOTE: REBOL stays in network byte order
-    news->special.net.remote_port = ntohs(sa.sin_port);
+    news->devreq.requestee.socket = result;
+    news->remote_ip   = sa.sin_addr.s_addr; //htonl(ip); NOTE: REBOL stays in network byte order
+    news->remote_port = ntohs(sa.sin_port);
     Get_Local_IP(news);
 
-    Nonblocking_Mode(news->requestee.socket);
+    Nonblocking_Mode(news->devreq.requestee.socket);
 
     // There could be mulitple connections to be accepted.
     // Queue them at common.sock
-    Attach_Request(&sock->common.sock, AS_REBREQ(news));
+    Attach_Request(cast(REBREQ**, &AS_REBREQ(sock)->common.sock), AS_REBREQ(news));
 
-    Signal_Device(sock, EVT_ACCEPT);
+    Signal_Device(req, EVT_ACCEPT);
 
     // Even though we signalled, we keep the listen pending to
     // accept additional connections.
     return DR_PEND;
+}
+
+i32 Request_Size_Net(REBREQ *sock)
+{
+    (void)(sock);
+    return sizeof(struct devreq_net);
 }
 
 /***********************************************************************
@@ -677,6 +695,7 @@ DEVICE_CMD Accept_Socket(REBREQ *sock)
 ***********************************************************************/
 
 static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] = {
+    Request_Size_Net,
     Init_Net,
     Quit_Net,
     Open_Socket,

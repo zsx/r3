@@ -31,6 +31,7 @@
 //
 
 #include <stdio.h>
+#include <assert.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
@@ -65,6 +66,7 @@ STD_TERM *Term_IO;
 #endif
 
 extern void Put_Str(const REBYTE *buf);
+extern i32 Request_Size_Rebreq(REBREQ *req);
 
 
 static void Close_Stdio(void)
@@ -245,8 +247,9 @@ DEVICE_CMD Open_Echo(REBREQ *req)
         Std_Echo = 0;
     }
 
-    if (req->special.file.path) {
-        Std_Echo = fopen(req->special.file.path, "w");  // null on error
+    struct devreq_file *file = DEVREQ_FILE(req);
+    if (file->path) {
+        Std_Echo = fopen(file->path, "w");  // null on error
         if (!Std_Echo) {
             req->error = errno;
             return DR_ERROR;
@@ -265,6 +268,7 @@ DEVICE_CMD Open_Echo(REBREQ *req)
 
 static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] =
 {
+    Request_Size_Rebreq,
     0,  // init
     Quit_IO,
     Open_IO,

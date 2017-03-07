@@ -154,15 +154,15 @@ i64 OS_Delta_Time(i64 base, int flags)
 // Convert file.time to REBOL date/time format.
 // Time zone is UTC.
 //
-void OS_File_Time(REBVAL *out, REBREQ *file)
+void OS_File_Time(REBVAL *out, struct devreq_file *file)
 {
-    if (sizeof(time_t) > sizeof(file->special.file.time.l)) {
-        REBI64 t = file->special.file.time.l;
-        t |= cast(REBI64, file->special.file.time.h) << 32;
+    if (sizeof(time_t) > sizeof(file->time.l)) {
+        REBI64 t = file->time.l;
+        t |= cast(REBI64, file->time.h) << 32;
         Convert_Date(out, cast(time_t*, &t), 0);
     }
     else {
-        Convert_Date(out, cast(time_t *, &file->special.file.time.l), 0);
+        Convert_Date(out, cast(time_t *, &file->time.l), 0);
     }
 }
 

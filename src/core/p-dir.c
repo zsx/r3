@@ -41,13 +41,14 @@
 // Provide option to prepend dir path.
 // Provide option to use wildcards.
 //
-static int Read_Dir(REBREQ *dir, REBARR *files)
+static int Read_Dir(struct devreq_file *dir, REBARR *files)
 {
     REBINT result;
     REBCNT len;
     REBSER *fname;
     REBSER *name;
-    REBREQ file;
+    struct devreq_file file;
+    REBREQ *req = AS_REBREQ(dir);
 
     TERM_ARRAY_LEN(files, 0);
     CLEARS(&file);
@@ -55,28 +56,28 @@ static int Read_Dir(REBREQ *dir, REBARR *files)
     // Temporary filename storage; native OS API character size (REBCHR) varies
     //
     fname = Make_Series(MAX_FILE_NAME, sizeof(REBCHR), MKS_NONE);
-    file.special.file.path = SER_HEAD(REBCHR, fname);
+    file.path = SER_HEAD(REBCHR, fname);
 
-    SET_FLAG(dir->modes, RFM_DIR);
+    SET_FLAG(req->modes, RFM_DIR);
 
-    dir->common.data = cast(REBYTE*, &file);
+    req->common.data = cast(REBYTE*, &file);
 
     while (
-        (result = OS_DO_DEVICE(dir, RDC_READ)) == 0
-        && !GET_FLAG(dir->flags, RRF_DONE)
+        (result = OS_DO_DEVICE(req, RDC_READ)) == 0
+        && !GET_FLAG(req->flags, RRF_DONE)
     ) {
-        len = OS_STRLEN(file.special.file.path);
-        if (GET_FLAG(file.modes, RFM_DIR)) len++;
-        name = Copy_OS_Str(file.special.file.path, len);
-        if (GET_FLAG(file.modes, RFM_DIR))
+        len = OS_STRLEN(file.path);
+        if (GET_FLAG(file.devreq.modes, RFM_DIR)) len++;
+        name = Copy_OS_Str(file.path, len);
+        if (GET_FLAG(file.devreq.modes, RFM_DIR))
             SET_ANY_CHAR(name, SER_LEN(name) - 1, '/');
         Init_File(Alloc_Tail_Array(files), name);
     }
 
-    if (result < 0 && dir->error != -RFE_OPEN_FAIL
+    if (result < 0 && req->error != -RFE_OPEN_FAIL
         && (
-            OS_STRCHR(dir->special.file.path, '*')
-            || OS_STRCHR(dir->special.file.path, '?')
+            OS_STRCHR(dir->path, '*')
+            || OS_STRCHR(dir->path, '?')
         )
     ) {
         result = 0;  // no matches found, but not an error
@@ -100,62 +101,63 @@ static int Read_Dir(REBREQ *dir, REBARR *files)
 //     1 - accept wild cards * and ?, and * if need
 //    -1 - not wild, if path does not end in /, add it
 //
-static void Init_Dir_Path(REBREQ *dir, REBVAL *path, REBINT wild, REBCNT policy)
+static void Init_Dir_Path(struct devreq_file *dir, REBVAL *path, REBINT wild, REBCNT policy)
 {
     REBINT len;
     REBSER *ser;
     //REBYTE *flags;
+    REBREQ *req = AS_REBREQ(dir);
 
-    SET_FLAG(dir->modes, RFM_DIR);
+    SET_FLAG(req->modes, RFM_DIR);
 
     // We depend on To_Local_Path giving us 2 extra chars for / and *
     ser = Value_To_OS_Path(path, TRUE);
     len = SER_LEN(ser);
-    dir->special.file.path = SER_HEAD(REBCHR, ser);
+    dir->path = SER_HEAD(REBCHR, ser);
 
-    Secure_Port(SYM_FILE, dir, path, ser);
+    Secure_Port(SYM_FILE, req, path, ser);
 
-    if (len == 1 && OS_CH_EQUAL(dir->special.file.path[0], '.')) {
+    if (len == 1 && OS_CH_EQUAL(dir->path[0], '.')) {
         if (wild > 0) {
-            dir->special.file.path[0] = OS_MAKE_CH('*');
-            dir->special.file.path[1] = OS_MAKE_CH('\0');
+            dir->path[0] = OS_MAKE_CH('*');
+            dir->path[1] = OS_MAKE_CH('\0');
         }
     }
     else if (
         len == 2
-        && OS_CH_EQUAL(dir->special.file.path[0], '.')
-        && OS_CH_EQUAL(dir->special.file.path[1], '.')
+        && OS_CH_EQUAL(dir->path[0], '.')
+        && OS_CH_EQUAL(dir->path[1], '.')
     ) {
         // Insert * if needed:
         if (wild > 0) {
-            dir->special.file.path[len++] = OS_MAKE_CH('/');
-            dir->special.file.path[len++] = OS_MAKE_CH('*');
-            dir->special.file.path[len] = OS_MAKE_CH('\0');
+            dir->path[len++] = OS_MAKE_CH('/');
+            dir->path[len++] = OS_MAKE_CH('*');
+            dir->path[len] = OS_MAKE_CH('\0');
         }
     }
     else if (
-        OS_CH_EQUAL(dir->special.file.path[len-1], '/')
-        || OS_CH_EQUAL(dir->special.file.path[len-1], '\\')
+        OS_CH_EQUAL(dir->path[len-1], '/')
+        || OS_CH_EQUAL(dir->path[len-1], '\\')
     ) {
         if ((policy & REMOVE_TAIL_SLASH) && len > 1) {
-            dir->special.file.path[len-1] = OS_MAKE_CH('\0');
+            dir->path[len-1] = OS_MAKE_CH('\0');
         }
         else {
             // Insert * if needed:
             if (wild > 0) {
-                dir->special.file.path[len++] = OS_MAKE_CH('*');
-                dir->special.file.path[len] = OS_MAKE_CH('\0');
+                dir->path[len++] = OS_MAKE_CH('*');
+                dir->path[len] = OS_MAKE_CH('\0');
             }
         }
     } else {
         // Path did not end with /, so we better be wild:
         if (wild == 0) {
-            // !!! Comment said `OS_FREE(dir->special.file.path);` (needed?)
+            // !!! Comment said `OS_FREE(dir->path);` (needed?)
             fail (Error(RE_BAD_FILE_PATH, path));
         }
         else if (wild < 0) {
-            dir->special.file.path[len++] = OS_MAKE_CH(OS_DIR_SEP);
-            dir->special.file.path[len] = OS_MAKE_CH('\0');
+            dir->path[len++] = OS_MAKE_CH(OS_DIR_SEP);
+            dir->path[len] = OS_MAKE_CH('\0');
         }
     }
 }
@@ -171,7 +173,7 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     REBVAL *spec;
     REBVAL *path;
     REBVAL *state;
-    REBREQ dir;
+    struct devreq_file dir;
     REBINT result;
     REBCNT len;
     //REBYTE *flags;
@@ -193,8 +195,8 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     //flags = Security_Policy(SYM_FILE, path);
 
     // Get or setup internal state data:
-    dir.port = port;
-    dir.device = RDI_FILE;
+    dir.devreq.port = port;
+    dir.devreq.device = RDI_FILE;
 
     switch (action) {
 
@@ -218,7 +220,7 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             Init_Block(state, Make_Array(7)); // initial guess
             result = Read_Dir(&dir, VAL_ARRAY(state));
             if (result < 0)
-                fail (Error_On_Port(RE_CANNOT_OPEN, port, dir.error));
+                fail (Error_On_Port(RE_CANNOT_OPEN, port, dir.devreq.error));
             *D_OUT = *state;
             SET_BLANK(state);
         }
@@ -247,7 +249,7 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         Init_Dir_Path(
             &dir, path, 0, POL_WRITE | REMOVE_TAIL_SLASH
         ); // Sets RFM_DIR too
-        result = OS_DO_DEVICE(&dir, RDC_CREATE);
+        result = OS_DO_DEVICE(&dir.devreq, RDC_CREATE);
         if (result < 0)
             fail (Error(RE_NO_CREATE, path));
         if (action == SYM_CREATE) {
@@ -266,10 +268,10 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             // Convert file name to OS format:
             if (!(target = Value_To_OS_Path(D_ARG(2), TRUE)))
                 fail (Error(RE_BAD_FILE_PATH, D_ARG(2)));
-            dir.common.data = BIN_HEAD(target);
-            OS_DO_DEVICE(&dir, RDC_RENAME);
+            dir.devreq.common.data = BIN_HEAD(target);
+            OS_DO_DEVICE(&dir.devreq, RDC_RENAME);
             Free_Series(target);
-            if (dir.error) fail (Error(RE_NO_RENAME, path));
+            if (dir.devreq.error) fail (Error(RE_NO_RENAME, path));
         }
         break;
 
@@ -279,7 +281,7 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         Init_Dir_Path(&dir, path, 0, POL_WRITE);
         // !!! add *.r deletion
         // !!! add recursive delete (?)
-        result = OS_DO_DEVICE(&dir, RDC_DELETE);
+        result = OS_DO_DEVICE(&dir.devreq, RDC_DELETE);
         ///OS_FREE(dir.file.path);
         if (result < 0) fail (Error(RE_NO_DELETE, path));
         // !!! Returned D_ARG(2) before, but there is no second argument :-/
@@ -313,7 +315,7 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         result = Read_Dir(&dir, VAL_ARRAY(state));
 
         if (result < 0)
-            fail (Error_On_Port(RE_CANNOT_OPEN, port, dir.error));
+            fail (Error_On_Port(RE_CANNOT_OPEN, port, dir.devreq.error));
         break; }
 
     case SYM_OPEN_Q:
@@ -328,7 +330,7 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         //Trap_Security(flags[POL_READ], POL_READ, path);
         SET_BLANK(state);
         Init_Dir_Path(&dir, path, -1, REMOVE_TAIL_SLASH | POL_READ);
-        if (OS_DO_DEVICE(&dir, RDC_QUERY) < 0) return R_BLANK;
+        if (OS_DO_DEVICE(&dir.devreq, RDC_QUERY) < 0) return R_BLANK;
         Ret_Query_File(port, &dir, D_OUT);
         ///OS_FREE(dir.file.path);
         break;

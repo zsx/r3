@@ -33,6 +33,7 @@
 #include <stdio.h>
 #include <windows.h>
 #include <process.h>
+#include <assert.h>
 
 #include <fcntl.h>
 #include <io.h>
@@ -60,6 +61,7 @@ static BOOL Con_Out = 1;        //controls the console text output
 // Special access:
 extern REBDEV *Devices[];
 
+extern i32 Request_Size_Rebreq(REBREQ *);
 
 //**********************************************************************
 
@@ -273,8 +275,10 @@ DEVICE_CMD Open_Echo(REBREQ *req)
         Std_Echo = 0;
     }
 
-    if (req->special.file.path) {
-        Std_Echo = CreateFile(req->special.file.path, GENERIC_WRITE, FILE_SHARE_READ|FILE_SHARE_WRITE, 0, CREATE_ALWAYS, 0, 0);
+    struct devreq_file *file = DEVREQ_FILE(req);
+
+    if (file->path) {
+        Std_Echo = CreateFile(file->path, GENERIC_WRITE, FILE_SHARE_READ|FILE_SHARE_WRITE, 0, CREATE_ALWAYS, 0, 0);
         if (Std_Echo == INVALID_HANDLE_VALUE) {
             Std_Echo = 0;
             req->error = GetLastError();
@@ -286,6 +290,7 @@ DEVICE_CMD Open_Echo(REBREQ *req)
 }
 
 
+
 /***********************************************************************
 **
 **  Command Dispatch Table (RDC_ enum order)
@@ -294,6 +299,7 @@ DEVICE_CMD Open_Echo(REBREQ *req)
 
 static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] =
 {
+    Request_Size_Rebreq,
     0,  // init
     Quit_IO,
     Open_IO,

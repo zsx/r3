@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 #include "reb-host.h"
 #include "sys-net.h"
@@ -41,6 +42,7 @@
 
 extern DEVICE_CMD Init_Net(REBREQ *); // Share same init
 extern DEVICE_CMD Quit_Net(REBREQ *);
+extern i32 Request_Size_Net(REBREQ *); // Share same request struct
 
 extern void Signal_Device(REBREQ *req, REBINT type);
 
@@ -64,19 +66,20 @@ DEVICE_CMD Open_DNS(REBREQ *sock)
 //
 // Note: valid even if not open.
 //
-DEVICE_CMD Close_DNS(REBREQ *sock)
+DEVICE_CMD Close_DNS(REBREQ *req)
 {
     // Terminate a pending request:
+    struct devreq_net *sock = DEVREQ_NET(req);
 #ifdef HAS_ASYNC_DNS
-    if (GET_FLAG(sock->flags, RRF_PENDING)) {
-        CLR_FLAG(sock->flags, RRF_PENDING);
-        if (sock->requestee.handle) WSACancelAsyncRequest(sock->requestee.handle);
+    if (GET_FLAG(req->flags, RRF_PENDING)) {
+        CLR_FLAG(req->flags, RRF_PENDING);
+        if (req->requestee.handle) WSACancelAsyncRequest(req->requestee.handle);
     }
 #endif
-    if (sock->special.net.host_info) OS_FREE(sock->special.net.host_info);
-    sock->special.net.host_info = 0;
-    sock->requestee.handle = 0;
-    SET_CLOSED(sock);
+    if (sock->host_info) OS_FREE(sock->host_info);
+    sock->host_info = 0;
+    req->requestee.handle = 0;
+    SET_CLOSED(req);
     return DR_DONE; // Removes it from device's pending list (if needed)
 }
 
@@ -87,7 +90,7 @@ DEVICE_CMD Close_DNS(REBREQ *sock)
 // Initiate the GetHost request and return immediately.
 // Note the temporary results buffer (must be freed later).
 //
-DEVICE_CMD Read_DNS(REBREQ *sock)
+DEVICE_CMD Read_DNS(REBREQ *req)
 {
     char *host;
 #ifdef HAS_ASYNC_DNS
@@ -96,48 +99,49 @@ DEVICE_CMD Read_DNS(REBREQ *sock)
     HOSTENT *he;
 #endif
 
+    struct devreq_net *sock = DEVREQ_NET(req);
     host = OS_ALLOC_N(char, MAXGETHOSTSTRUCT); // be sure to free it
 
 #ifdef HAS_ASYNC_DNS
-    if (!GET_FLAG(sock->modes, RST_REVERSE)) // hostname lookup
-        handle = WSAAsyncGetHostByName(Event_Handle, WM_DNS, s_cast(sock->common.data), host, MAXGETHOSTSTRUCT);
+    if (!GET_FLAG(req->modes, RST_REVERSE)) // hostname lookup
+        handle = WSAAsyncGetHostByName(Event_Handle, WM_DNS, s_cast(req->common.data), host, MAXGETHOSTSTRUCT);
     else
-        handle = WSAAsyncGetHostByAddr(Event_Handle, WM_DNS, s_cast(&sock->special.net.remote_ip), 4, AF_INET, host, MAXGETHOSTSTRUCT);
+        handle = WSAAsyncGetHostByAddr(Event_Handle, WM_DNS, s_cast(&sock->remote_ip), 4, AF_INET, host, MAXGETHOSTSTRUCT);
 
     if (handle != 0) {
-        sock->special.net.host_info = host;
-        sock->requestee.handle = handle;
+        sock->host_info = host;
+        req->requestee.handle = handle;
         return DR_PEND; // keep it on pending list
     }
 #else
     // Use old-style blocking DNS (mainly for testing purposes):
-    if (GET_FLAG(sock->modes, RST_REVERSE)) {
+    if (GET_FLAG(req->modes, RST_REVERSE)) {
         he = gethostbyaddr(
-            cast(char*, &sock->special.net.remote_ip), 4, AF_INET
+            cast(char*, &sock->remote_ip), 4, AF_INET
         );
         if (he) {
-            sock->special.net.host_info = host; //???
-            sock->common.data = b_cast(he->h_name);
-            SET_FLAG(sock->flags, RRF_DONE);
+            sock->host_info = host; //???
+            req->common.data = b_cast(he->h_name);
+            SET_FLAG(req->flags, RRF_DONE);
             return DR_DONE;
         }
     }
     else {
-        he = gethostbyname(s_cast(sock->common.data));
+        he = gethostbyname(s_cast(req->common.data));
         if (he) {
-            sock->special.net.host_info = host; // ?? who deallocs?
-            memcpy(&sock->special.net.remote_ip, *he->h_addr_list, 4); //he->h_length);
-            SET_FLAG(sock->flags, RRF_DONE);
+            sock->host_info = host; // ?? who deallocs?
+            memcpy(&sock->remote_ip, *he->h_addr_list, 4); //he->h_length);
+            SET_FLAG(req->flags, RRF_DONE);
             return DR_DONE;
         }
     }
 #endif
 
     OS_FREE(host);
-    sock->special.net.host_info = 0;
+    sock->host_info = 0;
 
-    sock->error = GET_ERROR;
-    //Signal_Device(sock, EVT_ERROR);
+    req->error = GET_ERROR;
+    //Signal_Device(req, EVT_ERROR);
     return DR_ERROR; // Remove it from pending list
 }
 
@@ -168,11 +172,11 @@ DEVICE_CMD Poll_DNS(REBREQ *dr)
             CLR_FLAG(req->flags, RRF_PENDING);
 
             if (!req->error) { // success!
-                host = cast(HOSTENT*, req->special.net.host_info);
+                host = cast(HOSTENT*, DEVREQ_NET(req)->host_info);
                 if (GET_FLAG(req->modes, RST_REVERSE))
                     req->common.data = b_cast(host->h_name);
                 else
-                    memcpy(&req->special.net.remote_ip, *host->h_addr_list, 4); //he->h_length);
+                    memcpy(&(DEVREQ_NET(req)->remote_ip), *host->h_addr_list, 4); //he->h_length);
                 Signal_Device(req, EVT_READ);
             }
             else
@@ -194,6 +198,7 @@ DEVICE_CMD Poll_DNS(REBREQ *dr)
 
 static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] =
 {
+    Request_Size_Net,
     Init_Net,   // Shared init - called only once
     Quit_Net,   // Shared
     Open_DNS,

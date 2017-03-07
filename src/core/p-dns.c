@@ -86,7 +86,7 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             && Scan_Tuple(&tmp, VAL_BIN(arg), LEN_BYTES(VAL_BIN(arg)))
         ){
             SET_FLAG(sock->modes, RST_REVERSE);
-            memcpy(&sock->special.net.remote_ip, VAL_TUPLE(&tmp), 4);
+            memcpy(&(DEVREQ_NET(sock)->remote_ip), VAL_TUPLE(&tmp), 4);
         }
         else if (IS_STRING(arg)) {
             sock->common.data = VAL_BIN(arg);
@@ -120,7 +120,7 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 pick:
         if (len == 1) {
             if (
-                !sock->special.net.host_info
+                !DEVREQ_NET(sock)->host_info
                 || !GET_FLAG(sock->flags, RRF_DONE
             )) {
                 return R_VOID;
@@ -132,7 +132,7 @@ pick:
             if (GET_FLAG(sock->modes, RST_REVERSE)) {
                 Init_String(D_OUT, Copy_Bytes(sock->common.data, LEN_BYTES(sock->common.data)));
             } else {
-                Set_Tuple(D_OUT, cast(REBYTE*, &sock->special.net.remote_ip), 4);
+                Set_Tuple(D_OUT, cast(REBYTE*, &DEVREQ_NET(sock)->remote_ip), 4);
             }
             OS_DO_DEVICE(sock, RDC_CLOSE);
         }

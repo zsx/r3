@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -91,7 +92,8 @@ static REBINT Set_Serial_Settings(int ttyfd, REBREQ *req)
 {
     REBINT n;
     struct termios attr;
-    REBINT speed = req->special.serial.baud;
+    struct devreq_serial *serial = DEVREQ_SERIAL(req);
+    REBINT speed = serial->baud;
     CLEARS(&attr);
 #ifdef DEBUG_SERIAL
     printf("setting attributes: speed %d\n", speed);
@@ -113,7 +115,7 @@ static REBINT Set_Serial_Settings(int ttyfd, REBREQ *req)
 
     attr.c_cflag &= ~CSIZE; /* clear data size bits */
 
-    switch (req->special.serial.data_bits) {
+    switch (serial->data_bits) {
         case 5:
             attr.c_cflag |= CS5;
             break;
@@ -128,7 +130,7 @@ static REBINT Set_Serial_Settings(int ttyfd, REBREQ *req)
             attr.c_cflag |= CS8;
     }
 
-    switch (req->special.serial.parity) {
+    switch (serial->parity) {
         case SERIAL_PARITY_ODD:
             attr.c_cflag |= PARENB;
             attr.c_cflag |= PARODD;
@@ -143,7 +145,7 @@ static REBINT Set_Serial_Settings(int ttyfd, REBREQ *req)
             break;
     }
 
-    switch (req->special.serial.stop_bits) {
+    switch (serial->stop_bits) {
         case 2:
             attr.c_cflag |= CSTOPB;
             break;
@@ -154,7 +156,7 @@ static REBINT Set_Serial_Settings(int ttyfd, REBREQ *req)
     }
 
 #ifdef CNEW_RTSCTS
-    switch (req->special.serial.parity) {
+    switch (serial->parity) {
         case SERIAL_FLOW_CONTROL_HARDWARE:
             attr.c_cflag |= CNEW_RTSCTS;
             break;
@@ -201,8 +203,9 @@ DEVICE_CMD Open_Serial(REBREQ *req)
     char *path;
     char devpath[MAX_SERIAL_PATH];
     REBINT h;
+    struct devreq_serial *serial = DEVREQ_SERIAL(req);
 
-    if (!(path = req->special.serial.path)) {
+    if (!(path = serial->path)) {
         req->error = -RFE_BAD_PATH;
         return DR_ERROR;
     }
@@ -219,8 +222,8 @@ DEVICE_CMD Open_Serial(REBREQ *req)
     }
 
     //Getting prior atttributes:
-    req->special.serial.prior_attr = Get_Serial_Settings(h);
-    if (tcgetattr(h, cast(struct termios*, req->special.serial.prior_attr))) {
+    serial->prior_attr = Get_Serial_Settings(h);
+    if (tcgetattr(h, cast(struct termios*, serial->prior_attr))) {
         close(h);
         return DR_ERROR;
     }
@@ -241,12 +244,13 @@ DEVICE_CMD Open_Serial(REBREQ *req)
 //
 DEVICE_CMD Close_Serial(REBREQ *req)
 {
+    struct devreq_serial *serial = DEVREQ_SERIAL(req);
     if (req->requestee.id) {
-        // !!! should we free req->special.serial.prior_attr termios struct?
+        // !!! should we free serial->prior_attr termios struct?
         tcsetattr(
             req->requestee.id,
             TCSANOW,
-            cast(struct termios*, req->special.serial.prior_attr)
+            cast(struct termios*, serial->prior_attr)
         );
         close(req->requestee.id);
         req->requestee.id = 0;
@@ -341,6 +345,16 @@ DEVICE_CMD Query_Serial(REBREQ *req)
 }
 
 
+//
+//  Request_Size_Serial: C
+//
+static i32 Request_Size_Serial(REBREQ *req)
+{
+    (void)req; //unused
+    return sizeof(struct devreq_serial);
+}
+
+
 /***********************************************************************
 **
 **  Command Dispatch Table (RDC_ enum order)
@@ -348,6 +362,7 @@ DEVICE_CMD Query_Serial(REBREQ *req)
 ***********************************************************************/
 
 static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] = {
+    Request_Size_Serial,
     0,
     0,
     Open_Serial,

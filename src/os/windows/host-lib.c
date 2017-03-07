@@ -557,7 +557,7 @@ REBOOL OS_Set_Current_Dir(REBCHR *path)
 // Convert file.time to REBOL date/time format.
 // Time zone is UTC.
 //
-void OS_File_Time(REBVAL *out, REBREQ *file)
+void OS_File_Time(REBVAL *out, struct devreq_file *file)
 {
     SYSTEMTIME stime;
     TIME_ZONE_INFORMATION tzone;
@@ -565,7 +565,7 @@ void OS_File_Time(REBVAL *out, REBREQ *file)
     if (TIME_ZONE_ID_DAYLIGHT == GetTimeZoneInformation(&tzone))
         tzone.Bias += tzone.DaylightBias;
 
-    FileTimeToSystemTime(cast(FILETIME *, &file->special.file.time), &stime);
+    FileTimeToSystemTime(cast(FILETIME *, &file->time), &stime);
     Convert_Date(out, -tzone.Bias, &stime);
 }
 

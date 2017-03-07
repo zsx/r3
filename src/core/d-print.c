@@ -505,7 +505,7 @@ void Debug_Fmt(const char *fmt, ...)
 //
 REBOOL Echo_File(REBCHR *file)
 {
-    Req_SIO->special.file.path = file;
+    DEVREQ_FILE(Req_SIO)->path = file;
     return LOGICAL(DR_ERROR != OS_DO_DEVICE(Req_SIO, RDC_CREATE));
 }
 

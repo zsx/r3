@@ -29,6 +29,7 @@
 
 #include <windows.h>
 #include <stdio.h>
+#include <assert.h>
 
 #include "reb-host.h"
 
@@ -60,11 +61,11 @@ const int speeds[] = {
 **  Local Functions
 **
 ***********************************************************************/
-static REBINT Set_Serial_Settings(HANDLE h, REBREQ *req)
+static REBINT Set_Serial_Settings(HANDLE h, struct devreq_serial *serial)
 {
     DCB dcbSerialParams;
     REBINT n;
-    int speed = req->special.serial.baud;
+    int speed = serial->baud;
 
     memset(&dcbSerialParams, '\0', sizeof(dcbSerialParams));
     dcbSerialParams.DCBlength = sizeof(dcbSerialParams);
@@ -79,9 +80,9 @@ static REBINT Set_Serial_Settings(HANDLE h, REBREQ *req)
     }
     if (speeds[n] == 0) dcbSerialParams.BaudRate = CBR_115200; // invalid, use default
 
-    dcbSerialParams.ByteSize = req->special.serial.data_bits;
-    dcbSerialParams.StopBits = req->special.serial.stop_bits == 1? ONESTOPBIT : TWOSTOPBITS;
-    switch (req->special.serial.parity) {
+    dcbSerialParams.ByteSize = serial->data_bits;
+    dcbSerialParams.StopBits = serial->stop_bits == 1? ONESTOPBIT : TWOSTOPBITS;
+    switch (serial->parity) {
         case SERIAL_PARITY_ODD:
             dcbSerialParams.Parity = ODDPARITY;
             break;
@@ -113,18 +114,19 @@ DEVICE_CMD Open_Serial(REBREQ *req)
 {
     HANDLE h;
     COMMTIMEOUTS timeouts; //add in timeouts? Currently unused
+    struct devreq_serial *serial = DEVREQ_SERIAL(req);
 
     memset(&timeouts, '\0', sizeof(timeouts));
 
     // req->special.serial.path should be prefixed with "\\.\" to allow for higher com port numbers
     wchar_t fullpath[MAX_SERIAL_DEV_PATH] = L"\\\\.\\";
 
-    if (!req->special.serial.path) {
+    if (!serial->path) {
         req->error = -RFE_BAD_PATH;
         return DR_ERROR;
     }
 
-    wcsncat(fullpath, req->special.serial.path, MAX_SERIAL_DEV_PATH);
+    wcsncat(fullpath, serial->path, MAX_SERIAL_DEV_PATH);
 
     h = CreateFile(fullpath, GENERIC_READ|GENERIC_WRITE, 0, NULL,OPEN_EXISTING, 0, NULL );
     if (h == INVALID_HANDLE_VALUE) {
@@ -132,7 +134,7 @@ DEVICE_CMD Open_Serial(REBREQ *req)
         return DR_ERROR;
     }
 
-    if (Set_Serial_Settings(h, req)==0) {
+    if (Set_Serial_Settings(h, serial)==0) {
         CloseHandle(h);
         req->error = -RFE_OPEN_FAIL;
         return DR_ERROR;
@@ -259,6 +261,15 @@ DEVICE_CMD Query_Serial(REBREQ *req)
     return DR_DONE;
 }
 
+//
+//  Request_Size_Serial: C
+//
+static i32 Request_Size_Serial(REBREQ *req)
+{
+    (void)req; //unused
+    return sizeof(struct devreq_serial);
+}
+
 
 /***********************************************************************
 **
@@ -267,6 +278,7 @@ DEVICE_CMD Query_Serial(REBREQ *req)
 ***********************************************************************/
 
 static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] = {
+    Request_Size_Serial,
     0,
     0,
     Open_Serial,

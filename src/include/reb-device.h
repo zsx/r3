@@ -55,6 +55,7 @@ enum {
 
 // REBOL Device Commands:
 enum {
+    RDC_DEVREQ_SIZE,// Find out the devreq size
     RDC_INIT,       // init device driver resources
     RDC_QUIT,       // cleanup device driver resources
 
@@ -189,39 +190,64 @@ struct rebol_devreq {
     } common;
     u32  length;            // length to transfer
     u32  actual;            // length actually transferred
-
-    // Special fields:
-    union {
-#ifdef HAS_POSIX_SIGNAL
-        struct {
-            sigset_t mask;      // signal mask
-        } signal;
-#endif
-        struct {
-            REBCHR *path;           // file string (in OS local format)
-            i64  size;              // file size
-            i64  index;             // file index position
-            I64  time;              // file modification time (struct)
-        } file;
-        struct {
-            u32  local_ip;          // local address used
-            u32  local_port;        // local port used
-            u32  remote_ip;         // remote address
-            u32  remote_port;       // remote port
-            void *host_info;        // for DNS usage
-        } net;
-        struct {
-            REBCHR *path;           //device path string (in OS local format)
-            void *prior_attr;           // termios: retain previous settings to revert on close
-            i32 baud;               // baud rate of serial port
-            u8  data_bits;          // 5, 6, 7 or 8
-            u8  parity;             // odd, even, mark or space
-            u8  stop_bits;          // 1 or 2
-            u8  flow_control;       // hardware or software
-
-        } serial;
-    } special;
 };
+
+#define AS_REBREQ(req) (&(req)->devreq)
+
+#if !defined(NDEBUG)
+#define ASSERT_IS_FILE_REQ(req) assert(req->device == RDI_FILE)
+#define ASSERT_IS_NET_REQ(req) assert(req->device == RDI_NET)
+#define ASSERT_IS_SERIAL_REQ(req) assert(req->device == RDI_SERIAL)
+#else
+#define ASSERT_IS_FILE_REQ(req)
+#define ASSERT_IS_NET_REQ(req)
+#define ASSERT_IS_SERIAL_REQ(req)
+#endif
+
+#ifdef HAS_POSIX_SIGNAL
+#if !defined(NDEBUG)
+#define ASSERT_IS_POSIX_SIGNAL_REQ(req) assert(req->device == RDI_SIGNAL)
+#else
+#define ASSERT_IS_POSIX_SIGNAL_REQ(req)
+#endif
+
+struct devreq_posix_signal {
+    struct rebol_devreq devreq;
+    sigset_t mask;      // signal mask
+};
+#define DEVREQ_POSIX_SIGNAL(req) (ASSERT_IS_POSIX_SIGNAL_REQ(req), cast(struct devreq_posix_signal*, req))
+#endif
+
+struct devreq_file {
+    struct rebol_devreq devreq;
+    REBCHR *path;           // file string (in OS local format)
+    i64  size;              // file size
+    i64  index;             // file index position
+    I64  time;              // file modification time (struct)
+};
+#define DEVREQ_FILE(req) (ASSERT_IS_FILE_REQ(req), cast(struct devreq_file*, req))
+
+struct devreq_net {
+    struct rebol_devreq devreq;
+    u32  local_ip;          // local address used
+    u32  local_port;        // local port used
+    u32  remote_ip;         // remote address
+    u32  remote_port;       // remote port
+    void *host_info;        // for DNS usage
+    };
+#define DEVREQ_NET(req) (ASSERT_IS_NET_REQ(req), cast(struct devreq_net*, req))
+
+struct devreq_serial {
+    struct rebol_devreq devreq;
+    REBCHR *path;           //device path string (in OS local format)
+    void *prior_attr;           // termios: retain previous settings to revert on close
+    i32 baud;               // baud rate of serial port
+    u8  data_bits;          // 5, 6, 7 or 8
+    u8  parity;             // odd, even, mark or space
+    u8  stop_bits;          // 1 or 2
+    u8  flow_control;       // hardware or software
+};
+#define DEVREQ_SERIAL(req) (ASSERT_IS_SERIAL_REQ(req), cast(struct devreq_serial*, req))
 
 // Simple macros for common OPEN? test (for some but not all ports):
 #define SET_OPEN(r)     SET_FLAG(((REBREQ*)(r))->flags, RRF_OPEN)

@@ -30,6 +30,7 @@
 //
 
 #include <stdio.h>
+#include <assert.h>
 #include <string.h>
 #include <errno.h>
 
@@ -47,11 +48,13 @@ DEVICE_CMD Open_Signal(REBREQ *req)
     sigset_t mask;
     sigset_t overlap;
 
+    struct devreq_posix_signal *signal = DEVREQ_POSIX_SIGNAL(req);
+
 #ifdef CHECK_MASK_OVERLAP //doesn't work yet
     if (sigprocmask(SIG_BLOCK, NULL, &mask) < 0) {
         goto error;
     }
-    if (sigandset(&overlap, &mask, &req->special.signal.mask) < 0) {
+    if (sigandset(&overlap, &mask, &signal->mask) < 0) {
         goto error;
     }
     if (!sigisemptyset(&overlap)) {
@@ -60,7 +63,7 @@ DEVICE_CMD Open_Signal(REBREQ *req)
     }
 #endif
 
-    if (sigprocmask(SIG_BLOCK, &req->special.signal.mask, NULL) < 0) {
+    if (sigprocmask(SIG_BLOCK, &signal->mask, NULL) < 0) {
         goto error;
     }
 
@@ -79,7 +82,8 @@ error:
 //
 DEVICE_CMD Close_Signal(REBREQ *req)
 {
-    if (sigprocmask(SIG_UNBLOCK, &req->special.signal.mask, NULL) < 0) {
+    struct devreq_posix_signal *signal = DEVREQ_POSIX_SIGNAL(req);
+    if (sigprocmask(SIG_UNBLOCK, &signal->mask, NULL) < 0) {
         goto error;
     }
     SET_CLOSED(req);
@@ -98,11 +102,12 @@ DEVICE_CMD Read_Signal(REBREQ *req)
     struct timespec timeout = {0, 0};
     unsigned int i = 0;
 
+    struct devreq_posix_signal *signal = DEVREQ_POSIX_SIGNAL(req);
     errno = 0;
 
     for (i = 0; i < req->length; i ++) {
         int result = sigtimedwait(
-            &req->special.signal.mask,
+            &signal->mask,
             &(cast(siginfo_t*, req->common.data)[i]),
             &timeout
         );

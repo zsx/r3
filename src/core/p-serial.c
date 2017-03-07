@@ -56,6 +56,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     //if (!IS_FILE(path)) fail (Error(RE_INVALID_SPEC, path));
 
     REBREQ *req = Ensure_Port_State(port, RDI_SERIAL);
+    struct devreq_serial *serial = DEVREQ_SERIAL(req);
 
     // Actions for an unopened serial port:
     if (!IS_OPEN(req)) {
@@ -67,9 +68,9 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             if (! (IS_FILE(arg) || IS_STRING(arg) || IS_BINARY(arg)))
                 fail (Error(RE_INVALID_PORT_ARG, arg));
 
-            req->special.serial.path = ALLOC_N(REBCHR, MAX_SERIAL_DEV_PATH);
+            serial->path = ALLOC_N(REBCHR, MAX_SERIAL_DEV_PATH);
             OS_STRNCPY(
-                req->special.serial.path,
+                serial->path,
                 //
                 // !!! This is assuming VAL_DATA contains native chars.
                 // Should it? (2 bytes on windows, 1 byte on linux/mac)
@@ -81,7 +82,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             if (! IS_INTEGER(arg))
                 fail (Error(RE_INVALID_PORT_ARG, arg));
 
-            req->special.serial.baud = VAL_INT32(arg);
+            serial->baud = VAL_INT32(arg);
             //Secure_Port(SYM_SERIAL, ???, path, ser);
             arg = Obj_Value(spec, STD_PORT_SPEC_SERIAL_DATA_SIZE);
             if (!IS_INTEGER(arg)
@@ -90,7 +91,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             ) {
                 fail (Error(RE_INVALID_PORT_ARG, arg));
             }
-            req->special.serial.data_bits = VAL_INT32(arg);
+            serial->data_bits = VAL_INT32(arg);
 
             arg = Obj_Value(spec, STD_PORT_SPEC_SERIAL_STOP_BITS);
             if (!IS_INTEGER(arg)
@@ -99,21 +100,21 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             ) {
                 fail (Error(RE_INVALID_PORT_ARG, arg));
             }
-            req->special.serial.stop_bits = VAL_INT32(arg);
+            serial->stop_bits = VAL_INT32(arg);
 
             arg = Obj_Value(spec, STD_PORT_SPEC_SERIAL_PARITY);
             if (IS_BLANK(arg)) {
-                req->special.serial.parity = SERIAL_PARITY_NONE;
+                serial->parity = SERIAL_PARITY_NONE;
             } else {
                 if (!IS_WORD(arg))
                     fail (Error(RE_INVALID_PORT_ARG, arg));
 
                 switch (VAL_WORD_SYM(arg)) {
                     case SYM_ODD:
-                        req->special.serial.parity = SERIAL_PARITY_ODD;
+                        serial->parity = SERIAL_PARITY_ODD;
                         break;
                     case SYM_EVEN:
-                        req->special.serial.parity = SERIAL_PARITY_EVEN;
+                        serial->parity = SERIAL_PARITY_EVEN;
                         break;
                     default:
                         fail (Error(RE_INVALID_PORT_ARG, arg));
@@ -122,17 +123,17 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
             arg = Obj_Value(spec, STD_PORT_SPEC_SERIAL_FLOW_CONTROL);
             if (IS_BLANK(arg)) {
-                req->special.serial.flow_control = SERIAL_FLOW_CONTROL_NONE;
+                serial->flow_control = SERIAL_FLOW_CONTROL_NONE;
             } else {
                 if (!IS_WORD(arg))
                     fail (Error(RE_INVALID_PORT_ARG, arg));
 
                 switch (VAL_WORD_SYM(arg)) {
                     case SYM_HARDWARE:
-                        req->special.serial.flow_control = SERIAL_FLOW_CONTROL_HARDWARE;
+                        serial->flow_control = SERIAL_FLOW_CONTROL_HARDWARE;
                         break;
                     case SYM_SOFTWARE:
-                        req->special.serial.flow_control = SERIAL_FLOW_CONTROL_SOFTWARE;
+                        serial->flow_control = SERIAL_FLOW_CONTROL_SOFTWARE;
                         break;
                     default:
                         fail (Error(RE_INVALID_PORT_ARG, arg));

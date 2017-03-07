@@ -33,8 +33,9 @@
 #ifdef HAS_POSIX_SIGNAL
 #include <sys/signal.h>
 
-static void update(REBREQ *req, REBINT len, REBVAL *arg)
+static void update(struct devreq_posix_signal *signal, REBINT len, REBVAL *arg)
 {
+    REBREQ *req = AS_REBREQ(signal);
     const siginfo_t *sig = cast(siginfo_t *, req->common.data);
     int i = 0;
     const REBYTE signal_no[] = "signal-no";
@@ -163,6 +164,7 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     RELVAL *sig;
 
     REBREQ *req = Ensure_Port_State(port, RDI_SIGNAL);
+    struct devreq_posix_signal *signal = DEVREQ_POSIX_SIGNAL(req);
     spec = CTX_VAR(port, STD_PORT_SPEC);
 
     if (!IS_OPEN(req)) {
@@ -173,12 +175,12 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
                 if (!IS_BLOCK(val))
                     fail (Error(RE_INVALID_SPEC, val));
 
-                sigemptyset(&req->special.signal.mask);
+                sigemptyset(&signal->mask);
                 for(sig = VAL_ARRAY_AT_HEAD(val, 0); NOT_END(sig); sig ++) {
                     if (IS_WORD(sig)) {
                         /* handle the special word "ALL" */
                         if (VAL_WORD_SYM(sig) == SYM_ALL) {
-                            if (sigfillset(&req->special.signal.mask) < 0) {
+                            if (sigfillset(&signal->mask) < 0) {
                                 // !!! Needs better error
                                 fail (Error(RE_INVALID_SPEC, sig));
                             }
@@ -187,7 +189,7 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
                         if (
                             sigaddset(
-                                &req->special.signal.mask,
+                                &signal->mask,
                                 sig_word_num(VAL_WORD_CANON(sig))
                             ) < 0
                         ) {
@@ -228,7 +230,7 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             if (req->command == RDC_READ) {
                 len = req->actual;
                 if (len > 0) {
-                    update(req, len, arg);
+                    update(signal, len, arg);
                 }
             }
             return R_BLANK;
@@ -254,7 +256,7 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             len = req->actual;
 
             if (len > 0) {
-                update(req, len, arg);
+                update(signal, len, arg);
                 Free_Series(ser);
                 *D_OUT = *arg;
                 return R_OUT;
