@@ -1582,7 +1582,7 @@ REBNATIVE(destroy_struct_storage)
     SET_INTEGER(&pointer, cast(REBUPT, VAL_HANDLE_POINTER(handle)));
 
     if (VAL_HANDLE_LEN(handle) == 0)
-        fail (Error(RE_ALREADY_DESTROYED, pointer));
+        fail (Error(RE_ALREADY_DESTROYED, &pointer));
 
     // TBD: assert handle length was correct for memory block size
 
