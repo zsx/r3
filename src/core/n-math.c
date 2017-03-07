@@ -402,7 +402,7 @@ REBNATIVE(shift)
         }
     }
 
-    *D_OUT = *ARG(value);
+    Move_Value(D_OUT, ARG(value));
     return R_OUT;
 }
 
@@ -823,12 +823,15 @@ REBNATIVE(maximum)
         Min_Max_Pair(D_OUT, value1, value2, TRUE);
     }
     else {
-        REBVAL coerced1 = *value1;
-        REBVAL coerced2 = *value2;
+        REBVAL coerced1;
+        Move_Value(&coerced1, value1);
+        REBVAL coerced2;
+        Move_Value(&coerced2, value2);
+
         if (Compare_Modify_Values(&coerced1, &coerced2, -1))
-            *D_OUT = *value1;
+            Move_Value(D_OUT, value1);
         else
-            *D_OUT = *value2;
+            Move_Value(D_OUT, value2);
     }
     return R_OUT;
 }
@@ -854,13 +857,15 @@ REBNATIVE(minimum)
         Min_Max_Pair(D_OUT, ARG(value1), ARG(value2), FALSE);
     }
     else {
-        REBVAL coerced1 = *value1;
-        REBVAL coerced2 = *value2;
+        REBVAL coerced1;
+        Move_Value(&coerced1, value1);
+        REBVAL coerced2;
+        Move_Value(&coerced2, value2);
 
         if (Compare_Modify_Values(&coerced1, &coerced2, -1))
-            *D_OUT = *value2;
+            Move_Value(D_OUT, value2);
         else
-            *D_OUT = *value1;
+            Move_Value(D_OUT, value1);
     }
     return R_OUT;
 }

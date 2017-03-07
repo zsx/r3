@@ -313,7 +313,7 @@ REBNATIVE(dump)
     else
         Dump_Values(value, 1);
 
-    *D_OUT = *value;
+    Move_Value(D_OUT, value);
     return R_OUT;
 #endif
 }

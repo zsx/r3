@@ -688,7 +688,7 @@ set_bits:
         fail (Error_Illegal_Action(REB_BITSET, action));
     }
 
-    *D_OUT = *value;
+    Move_Value(D_OUT, value);
     return R_OUT;
 }
 

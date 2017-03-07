@@ -46,7 +46,7 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     REBVAL tmp;
 
     arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-    *D_OUT = *D_ARG(1);
+    Move_Value(D_OUT, D_ARG(1));
 
     REBREQ *sock = Ensure_Port_State(port, RDI_DNS);
     spec = CTX_VAR(port, STD_PORT_SPEC);

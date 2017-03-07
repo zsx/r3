@@ -700,7 +700,7 @@ static void ffi_to_rebol(
         break;
 
     case SYM_REBVAL:
-        *out = **cast(const REBVAL**, ffi_rvalue);
+        Move_Value(out, *cast(const REBVAL**, ffi_rvalue));
         break;
 
     case SYM_VOID:
@@ -1050,7 +1050,7 @@ static void callback_dispatcher(
     //
     REBARR *code = Make_Array(1 + cif->nargs);
     RELVAL *elem = ARR_HEAD(code);
-    *elem = *FUNC_VALUE(RIN_CALLBACK_FUNC(rin));
+    Move_Value(SINK(elem), FUNC_VALUE(RIN_CALLBACK_FUNC(rin)));
     ++elem;
 
     REBCNT i;
@@ -1379,9 +1379,9 @@ REBNATIVE(make_routine)
     REBRIN *r = FUNC_ROUTINE(fun);
 
     Init_Handle_Simple(RIN_AT(r, IDX_ROUTINE_CFUNC), cast(void*, cfunc), 0);
-    *RIN_AT(r, IDX_ROUTINE_ORIGIN) = *ARG(lib);
+    Move_Value(RIN_AT(r, IDX_ROUTINE_ORIGIN), ARG(lib));
 
-    *D_OUT = *FUNC_VALUE(fun);
+    Move_Value(D_OUT, FUNC_VALUE(fun));
     return R_OUT;
 }
 
@@ -1429,7 +1429,7 @@ REBNATIVE(make_routine_raw)
     Init_Handle_Simple(RIN_AT(r, IDX_ROUTINE_CFUNC), cast(void*, cfunc), 0);
     SET_BLANK(RIN_AT(r, IDX_ROUTINE_ORIGIN)); // no LIBRARY! in this case.
 
-    *D_OUT = *FUNC_VALUE(fun);
+    Move_Value(D_OUT, FUNC_VALUE(fun));
     return R_OUT;
 }
 
@@ -1489,8 +1489,8 @@ REBNATIVE(make_callback)
         0,
         &cleanup_ffi_closure
     );
-    *RIN_AT(r, IDX_ROUTINE_ORIGIN) = *ARG(action);
+    Move_Value(RIN_AT(r, IDX_ROUTINE_ORIGIN), ARG(action));
 
-    *D_OUT = *FUNC_VALUE(fun);
+    Move_Value(D_OUT, FUNC_VALUE(fun));
     return R_OUT;
 }

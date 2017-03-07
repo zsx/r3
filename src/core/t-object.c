@@ -252,8 +252,10 @@ static REBCTX *Trim_Context(REBCTX *context)
     key_new = CTX_KEYS_HEAD(context_new);
     for (; NOT_END(var); var++, key++) {
         if (VAL_TYPE(var) != REB_BLANK && NOT_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
-            *var_new++ = *var;
-            *key_new++ = *key;
+            Move_Value(var_new, var);
+            ++var_new;
+            Move_Value(key_new, key);
+            ++key_new;
         }
     }
 
@@ -625,7 +627,7 @@ REBTYPE(Context)
         if (!IS_OBJECT(value) && !IS_MODULE(value))
             fail (Error_Illegal_Action(VAL_TYPE(value), action));
         Append_To_Context(VAL_CONTEXT(value), arg);
-        *D_OUT = *D_ARG(1);
+        Move_Value(D_OUT, D_ARG(1));
         return R_OUT;
 
     case SYM_LENGTH:
@@ -680,7 +682,7 @@ REBTYPE(Context)
 
         if (action == SYM_FIND) return R_TRUE;
 
-        *D_OUT = *CTX_VAR(VAL_CONTEXT(value), n);
+        Move_Value(D_OUT, CTX_VAR(VAL_CONTEXT(value), n));
         return R_OUT;
     }
 
@@ -781,7 +783,7 @@ REBNATIVE(construct)
         //
         REBSTU *stu = Copy_Struct_Managed(VAL_STRUCT(spec));
 
-        *D_OUT = *STU_VALUE(stu);
+        Move_Value(D_OUT, STU_VALUE(stu));
 
         // !!! Comment said "only accept value initialization"
         //
@@ -816,7 +818,7 @@ REBNATIVE(construct)
         if (!IS_BLOCK(body))
             fail (Error_Bad_Make(REB_EVENT, body));
 
-        *D_OUT = *spec; // !!! This is a very "shallow" clone of the event
+        Move_Value(D_OUT, spec); // !!! very "shallow" clone of the event
         Set_Event_Vars(
             D_OUT,
             VAL_ARRAY_AT(body),
@@ -896,7 +898,7 @@ REBNATIVE(construct)
             //
             REBVAL dummy;
             if (DO_VAL_ARRAY_AT_THROWS(&dummy, body)) {
-                *D_OUT = dummy;
+                Move_Value(D_OUT, &dummy);
                 return R_OUT_IS_THROWN;
             }
         }

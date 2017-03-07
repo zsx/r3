@@ -79,7 +79,9 @@ void Emit_Date(REB_MOLD *mold, const REBVAL *value_orig)
     // We don't want to modify the incoming date value we are molding,
     // so we make a copy that we can tweak during the emit process
 
-    REBVAL value_buffer = *value_orig;
+    REBVAL value_buffer;
+    Move_Value(&value_buffer, value_orig);
+
     REBVAL *value = &value_buffer;
 
     if (
@@ -391,7 +393,7 @@ void MAKE_Date(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
     assert(kind == REB_DATE);
 
     if (IS_DATE(arg)) {
-        *out = *arg;
+        Move_Value(out, arg);
         return;
     }
 
@@ -531,7 +533,7 @@ void Pick_Or_Poke_Date(
 
     if (opt_poke == NULL) {
         assert(opt_out != NULL);
-        *opt_out = *value;
+        Move_Value(opt_out, value);
 
         if (sym != SYM_UTC) Adjust_Date_Zone(opt_out, FALSE);
 
@@ -841,7 +843,7 @@ REBTYPE(Date)
 
         /* case SYM_POKE:
             Poke_Date_Immediate(D_OUT, val, arg, D_ARG(3));
-            *D_OUT = *D_ARG(3);
+            Move_Value(D_OUT, D_ARG(3));
             return R_OUT;*/
 
         case SYM_RANDOM: {

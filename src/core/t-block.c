@@ -640,8 +640,8 @@ REBTYPE(Array)
                 fail (Error_Out_Of_Range(arg));
             }
             arg = D_ARG(3);
-            *slot = *arg;
-            *D_OUT = *arg;
+            Move_Value(SINK(slot), arg);
+            Move_Value(D_OUT, arg);
         }
         return R_OUT;
     }
@@ -734,7 +734,7 @@ REBTYPE(Array)
             if (REF(tail) || REF(match))
                 ret += len;
             VAL_INDEX(value) = ret;
-            *D_OUT = *value;
+            Move_Value(D_OUT, value);
         }
         else {
             ret += len;
@@ -787,7 +787,7 @@ REBTYPE(Array)
             REF(dup) ? Int32(ARG(count)) : 1
         );
         VAL_INDEX(value) = index;
-        *D_OUT = *value;
+        Move_Value(D_OUT, value);
         return R_OUT;
     }
 
@@ -800,7 +800,7 @@ REBTYPE(Array)
                 SET_SERIES_LEN(VAL_SERIES(value), cast(REBCNT, index));
             }
         }
-        *D_OUT = *value;
+        Move_Value(D_OUT, value);
         return R_OUT;
     }
 
@@ -894,7 +894,7 @@ REBTYPE(Array)
             Remove_Series(AS_SERIES(array), out, end - out);
         }
 
-        *D_OUT = *value;
+        Move_Value(D_OUT, value);
         return R_OUT;
     }
 
@@ -915,7 +915,7 @@ REBTYPE(Array)
             *VAL_ARRAY_AT(value) = *VAL_ARRAY_AT(arg);
             *VAL_ARRAY_AT(arg) = temp;
         }
-        *D_OUT = *D_ARG(1);
+        Move_Value(D_OUT, D_ARG(1));
         return R_OUT;
     }
 
@@ -937,7 +937,7 @@ REBTYPE(Array)
                 *back-- = temp;
             }
         }
-        *D_OUT = *D_ARG(1);
+        Move_Value(D_OUT, D_ARG(1));
         return R_OUT;
     }
 
@@ -960,7 +960,7 @@ REBTYPE(Array)
             REF(all),
             REF(reverse)
         );
-        *D_OUT = *value;
+        Move_Value(D_OUT, value);
         return R_OUT;
     }
 
@@ -986,7 +986,7 @@ REBTYPE(Array)
         }
 
         Shuffle_Block(value, REF(secure));
-        *D_OUT = *value;
+        Move_Value(D_OUT, value);
         return R_OUT;
     }
 

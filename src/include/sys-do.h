@@ -279,7 +279,7 @@ inline static void Lookback_For_Set_Word_Or_Set_Path(REBVAL *out, REBFRM *f)
 
     enum Reb_Kind kind = VAL_TYPE(DS_TOP);
     if (kind == REB_SET_WORD) {
-        *out = *DS_TOP;
+        Move_Value(out, DS_TOP);
         SET_VAL_FLAG(out, VALUE_FLAG_UNEVALUATED);
         VAL_SET_TYPE_BITS(DS_TOP, REB_GET_WORD); // See Do_Core/ET_SET_WORD
     }
@@ -297,7 +297,7 @@ inline static void Lookback_For_Set_Word_Or_Set_Path(REBVAL *out, REBFRM *f)
             if (IS_GROUP(temp))
                 fail (Error(RE_INFIX_PATH_GROUP, temp));
 
-        *out = *DS_TOP;
+        Move_Value(out, DS_TOP);
         SET_VAL_FLAG(out, VALUE_FLAG_UNEVALUATED);
         VAL_SET_TYPE_BITS(DS_TOP, REB_GET_PATH); // See Do_Core/ET_SET_PATH
     }
@@ -324,7 +324,7 @@ inline static void Do_Pending_Sets_May_Invalidate_Gotten(
         switch (VAL_TYPE(DS_TOP)) {
         case REB_SET_WORD: {
             f->refine = Sink_Var_May_Fail(DS_TOP, SPECIFIED);
-            *f->refine = *out;
+            Move_Value(f->refine, out);
             if (f->refine == f->gotten)
                 f->gotten = NULL;
             break; }
@@ -342,7 +342,8 @@ inline static void Do_Pending_Sets_May_Invalidate_Gotten(
             break;
 
         case REB_SET_PATH: {
-            REBVAL hack = *DS_TOP; // can't path eval from data stack, yet
+            REBVAL hack;
+            Move_Value(&hack, DS_TOP); // can't path eval from data stack, yet
 
             if (Do_Path_Throws_Core(
                 &f->cell, // output location if thrown
@@ -367,7 +368,8 @@ inline static void Do_Pending_Sets_May_Invalidate_Gotten(
             REBDSP dsp_before = DSP;
         #endif
 
-            REBVAL hack = *DS_TOP; // can't path eval from data stack, yet
+            REBVAL hack;
+            Move_Value(&hack, DS_TOP); // can't path eval from data stack, yet
 
             if (Do_Path_Throws_Core(
                 out, // output location if thrown
@@ -979,7 +981,7 @@ inline static REBOOL Run_Success_Branch_Throws(
     assert(branch != out); // !!! review, CASE can perhaps do better...
 
     if (only) {
-        *out = *branch;
+        Move_Value(out, branch);
     }
     else if (IS_BLOCK(branch)) {
         if (DO_VAL_ARRAY_AT_THROWS(out, branch))
@@ -994,7 +996,7 @@ inline static REBOOL Run_Success_Branch_Throws(
             return TRUE;
     }
     else
-        *out = *branch; // it's not code -- nothing to run
+        Move_Value(out, branch); // it's not code -- nothing to run
 
     return FALSE;
 }

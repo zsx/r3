@@ -751,7 +751,7 @@ static REBNATIVE(decloak)
         fail (Error_Invalid_Arg(ARG(key)));
     }
 
-    *D_OUT = *ARG(data);
+    Move_Value(D_OUT, ARG(data));
     return R_OUT;
 }
 
@@ -784,7 +784,7 @@ static REBNATIVE(encloak)
         fail (Error_Invalid_Arg(ARG(key)));
     }
 
-    *D_OUT = *ARG(data);
+    Move_Value(D_OUT, ARG(data));
     return R_OUT;
 }
 

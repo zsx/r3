@@ -352,12 +352,12 @@ REBNATIVE(action)
         NULL // not providing a specialization
     );
 
-    *FUNC_BODY(fun) = *ARG(verb);
+    Move_Value(SINK(FUNC_BODY(fun)), ARG(verb));
 
     // A lookback quoting function that quotes a SET-WORD! on its left is
     // responsible for setting the value if it wants it to change.
     //
-    *Sink_Var_May_Fail(ARG(verb), SPECIFIED) = *FUNC_VALUE(fun);
+    Move_Value(Sink_Var_May_Fail(ARG(verb), SPECIFIED), FUNC_VALUE(fun));
 
     return R_BLANK; // result won't be used if a function left-quotes SET-WORD!
 }
@@ -621,7 +621,7 @@ static REBARR *Init_Natives(REBARR *boot_natives)
             *FUNC_BODY(fun) = *body;
         }
 
-        Natives[n] = *FUNC_VALUE(fun);
+        Move_Value(&Natives[n], FUNC_VALUE(fun));
 
         // Append the native to the Lib_Context under the name given.  Do
         // special case SET/LOOKBACK=TRUE (using Append_Context_Core) so
@@ -629,14 +629,19 @@ static REBARR *Init_Natives(REBARR *boot_natives)
         // symbol, and know to use it.
         //
         if (VAL_WORD_SYM(name) == SYM_ACTION) {
-            *Append_Context_Core(Lib_Context, name, 0, TRUE) = Natives[n];
+             Move_Value(
+                Append_Context_Core(Lib_Context, name, 0, TRUE),
+                &Natives[n]
+             );
              action_word = name; // was bound by Append_Context_Core
         }
         else
-            *Append_Context(Lib_Context, name, 0) = Natives[n];
+            Move_Value(
+                Append_Context(Lib_Context, name, 0), &Natives[n]
+            );
 
         REBVAL *catalog_item = Alloc_Tail_Array(catalog);
-        *catalog_item = *name;
+        Move_Value(catalog_item, name);
         VAL_SET_TYPE_BITS(catalog_item, REB_WORD);
 
         ++n;
@@ -1263,7 +1268,7 @@ void Init_Core(void)
     Init_Contexts_Object();
     Init_Locale();
 
-    *ROOT_ERROBJ = *Get_System(SYS_STANDARD, STD_ERROR);
+    Move_Value(ROOT_ERROBJ, Get_System(SYS_STANDARD, STD_ERROR));
 
     PG_Boot_Phase = BOOT_ERRORS;
 

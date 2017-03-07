@@ -131,7 +131,7 @@ REBOOL Do_Breakpoint_Throws(
             // not actually a "resume instruction" in this case.
             //
             assert(!THROWN(&temp));
-            *out = *NAT_VALUE(quit);
+            Move_Value(out, NAT_VALUE(quit));
             CONVERT_NAME_TO_THROWN(out, &temp);
             return TRUE; // TRUE = threw
         }
@@ -193,7 +193,7 @@ REBOOL Do_Breakpoint_Throws(
                     // the sought after target.  Retransmit the resume
                     // instruction so that level will get it instead.
                     //
-                    *out = *NAT_VALUE(resume);
+                    Move_Value(out, NAT_VALUE(resume));
                     CONVERT_NAME_TO_THROWN(out, &temp);
                     return TRUE; // TRUE = thrown
                 }
@@ -244,14 +244,14 @@ REBOOL Do_Breakpoint_Throws(
 
                     // Just act as if the BREAKPOINT call itself threw
                     //
-                    *out = temp;
+                    Move_Value(out, &temp);
                     return TRUE; // TRUE = thrown
                 }
 
                 // Ordinary evaluation result...
             }
             else
-                temp = *payload;
+                Move_Value(&temp, payload);
         }
 
         // The resume instruction will be GC'd.
@@ -273,12 +273,12 @@ return_default:
             // frame.  To do otherwise would require the EXIT/FROM protocol
             // to add support for DO-ing at the receiving point.
             //
-            *out = temp;
+            Move_Value(out, &temp);
             return TRUE; // TRUE = thrown
         }
     }
     else
-        temp = *default_value; // generally void if no /WITH
+        Move_Value(&temp, default_value); // generally void if no /WITH
 
 return_temp:
     //
@@ -419,11 +419,15 @@ REBNATIVE(resume)
 
     if (REF(with)) {
         SET_FALSE(ARR_AT(instruction, RESUME_INST_MODE)); // don't DO value
-        *SINK(ARR_AT(instruction, RESUME_INST_PAYLOAD)) = *ARG(value);
+        Move_Value(
+            SINK(ARR_AT(instruction, RESUME_INST_PAYLOAD)), ARG(value)
+        );
     }
     else if (REF(do)) {
         SET_TRUE(ARR_AT(instruction, RESUME_INST_MODE)); // DO the value
-        *SINK(ARR_AT(instruction, RESUME_INST_PAYLOAD)) = *ARG(code);
+        Move_Value(
+            SINK(ARR_AT(instruction, RESUME_INST_PAYLOAD)), ARG(code)
+        );
     }
     else {
         SET_BLANK(ARR_AT(instruction, RESUME_INST_MODE)); // use default
@@ -488,7 +492,7 @@ REBNATIVE(resume)
 
     // Throw the instruction with the name of the RESUME function
     //
-    *D_OUT = *NAT_VALUE(resume);
+    Move_Value(D_OUT, NAT_VALUE(resume));
     CONVERT_NAME_TO_THROWN(D_OUT, &cell);
     return R_OUT_IS_THROWN;
 }

@@ -178,7 +178,7 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     REBCNT len;
     //REBYTE *flags;
 
-    *D_OUT = *D_ARG(1);
+    Move_Value(D_OUT, D_ARG(1));
     CLEARS(&dir);
 
     // Validate and fetch relevant PORT fields:
@@ -221,7 +221,7 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             result = Read_Dir(&dir, VAL_ARRAY(state));
             if (result < 0)
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, dir.devreq.error));
-            *D_OUT = *state;
+            Move_Value(D_OUT, state);
             SET_BLANK(state);
         }
         else {
@@ -253,7 +253,7 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         if (result < 0)
             fail (Error(RE_NO_CREATE, path));
         if (action == SYM_CREATE) {
-            *D_OUT = *D_ARG(1);
+            Move_Value(D_OUT, D_ARG(1));
             return R_OUT;
         }
         SET_BLANK(state);
@@ -285,7 +285,7 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         ///OS_FREE(dir.file.path);
         if (result < 0) fail (Error(RE_NO_DELETE, path));
         // !!! Returned D_ARG(2) before, but there is no second argument :-/
-        *D_OUT = *D_ARG(1);
+        Move_Value(D_OUT, D_ARG(1));
         return R_OUT;
 
     case SYM_OPEN: {

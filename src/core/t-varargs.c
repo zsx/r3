@@ -337,7 +337,7 @@ void MAKE_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         // VARARGS! copied from this will update their indices together.
         //
         REBARR *array1 = Alloc_Singular_Array();
-        *ARR_HEAD(array1) = *arg;
+        Move_Value(SINK(ARR_HEAD(array1)), arg);
         MANAGE_ARRAY(array1);
 
         VAL_RESET_HEADER(out, REB_VARARGS);

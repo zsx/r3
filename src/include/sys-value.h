@@ -1283,3 +1283,33 @@ inline static void SET_GOB(RELVAL *v, REBGOB *g) {
     VAL_GOB(v) = g;
     VAL_GOB_INDEX(v) = 0;
 }
+
+
+// !!! Because you cannot assign REBVALs to one anotHer (e.g. `*dest = *src`)
+// a function is used.  The reason that a function is used is because this
+// gives more flexibility in decisions based on the destination cell regarding
+// whether it is necessary to reify information in the source cell.
+//
+// That advanced purpose has not yet been implemented, because it requires
+// being able to "sniff" a cell for its lifetime.  The leading idea for
+// accomplishing this is to make stack-lifetime cells slightly bigger than
+// the cells which live inside of arrays.  This would be similar to how
+// pairings work, but perhaps not exactly the same.
+//
+// For now it just adds a simple test--that the source node is valid, and
+// that the destination cell is writable if it's a C++ build.  To truly
+// embrace the idea of runtime sensitivity to cell types, the C build would
+// have to get manually involved in formatting cells, and in not overwriting
+// the flag in the header indicating the kind of cell it is.
+//
+inline static void Move_Value(REBVAL *dest, const REBVAL *src)
+{
+    assert(
+        GET_VAL_FLAG(src, NODE_FLAG_CELL)
+        && GET_VAL_FLAG(src, NODE_FLAG_VALID)
+    );
+    ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(dest, __FILE__, __LINE__);
+    dest->header = src->header;
+    dest->extra = src->extra;
+    dest->payload = src->payload;
+}

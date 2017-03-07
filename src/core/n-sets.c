@@ -307,7 +307,7 @@ REBNATIVE(difference)
         if (VAL_TYPE(val1) != VAL_TYPE(val2))
             fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
-        *D_OUT = *val1;
+        Move_Value(D_OUT, val1);
         VAL_TYPESET_BITS(D_OUT) ^= VAL_TYPESET_BITS(val2);
         return R_OUT;
     }
@@ -364,7 +364,7 @@ REBNATIVE(exclude)
         if (VAL_TYPE(val1) != VAL_TYPE(val2))
             fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
-        *D_OUT = *val1;
+        Move_Value(D_OUT, val1);
         VAL_TYPESET_BITS(D_OUT) &= ~VAL_TYPESET_BITS(val2);
         return R_OUT;
     }
@@ -417,7 +417,7 @@ REBNATIVE(intersect)
         if (VAL_TYPE(val1) != VAL_TYPE(val2))
             fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
-        *D_OUT = *val1;
+        Move_Value(D_OUT, val1);
         VAL_TYPESET_BITS(D_OUT) &= VAL_TYPESET_BITS(val2);
         return R_OUT;
     }
@@ -471,7 +471,7 @@ REBNATIVE(union)
         if (VAL_TYPE(val1) != VAL_TYPE(val2))
             fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
 
-        *D_OUT = *val1;
+        Move_Value(D_OUT, val1);
         VAL_TYPESET_BITS(D_OUT) |= VAL_TYPESET_BITS(val2);
         return R_OUT;
     }
@@ -515,7 +515,7 @@ REBNATIVE(unique)
         //
         // Bitsets and typesets already unique (by definition)
         //
-        *D_OUT = *ARG(series);
+        Move_Value(D_OUT, ARG(series));
         return R_OUT;
     }
 

@@ -157,14 +157,14 @@ inline static REB_R Do_Test_For_Maybe(
     if (IS_DATATYPE(test)) {
         if (VAL_TYPE_KIND(test) != VAL_TYPE(value))
             return R_BLANK;
-        *out = *value;
+        Move_Value(out, value);
         return R_OUT;
     }
 
     if (IS_TYPESET(test)) {
         if (!TYPE_CHECK(test, VAL_TYPE(value)))
             return R_BLANK;
-        *out = *value;
+        Move_Value(out, value);
         return R_OUT;
     }
 
@@ -178,7 +178,7 @@ inline static REB_R Do_Test_For_Maybe(
         if (IS_CONDITIONAL_FALSE(out))
             return R_BLANK;
 
-        *out = *value;
+        Move_Value(out, value);
         return R_OUT;
     }
 
@@ -353,7 +353,7 @@ REBNATIVE(bind)
         // Bind a single word
 
         if (Try_Bind_Word(context, value)) {
-            *D_OUT = *value;
+            Move_Value(D_OUT, value);
             return R_OUT;
         }
 
@@ -361,7 +361,7 @@ REBNATIVE(bind)
         //
         if (REF(new) || (IS_SET_WORD(value) && REF(set))) {
             Append_Context(context, value, NULL);
-            *D_OUT = *value;
+            Move_Value(D_OUT, value);
             return R_OUT;
         }
 
@@ -376,7 +376,7 @@ REBNATIVE(bind)
     // because there could be code that depends on the existing (mis)behavior
     // but it should be followed up on.
     //
-    *D_OUT = *value;
+    Move_Value(D_OUT, value);
     if (REF(copy)) {
         array = Copy_Array_At_Deep_Managed(
             VAL_ARRAY(value), VAL_INDEX(value), VAL_SPECIFIER(value)
@@ -419,7 +419,7 @@ REBNATIVE(context_of)
     // !!! Mechanically it is likely that in the future, all FRAME!s for
     // user functions will be reified from the moment of invocation.
     //
-    *D_OUT = *CTX_VALUE(VAL_WORD_CONTEXT(ARG(word)));
+    Move_Value(D_OUT, CTX_VALUE(VAL_WORD_CONTEXT(ARG(word))));
 
     return R_OUT;
 }
@@ -465,7 +465,7 @@ REBNATIVE(unbind)
     else
         Unbind_Values_Core(VAL_ARRAY_AT(word), NULL, REF(deep));
 
-    *D_OUT = *word;
+    Move_Value(D_OUT, word);
     return R_OUT;
 }
 
@@ -577,7 +577,7 @@ REBNATIVE(get)
 
             // This only copies the value bits, so this is a "shallow" copy
             //
-            *dest = *var;
+            Move_Value(dest, var);
             ++dest;
         }
 
@@ -609,7 +609,7 @@ REBNATIVE(get)
         dest = SINK(ARR_HEAD(results));
     }
     else {
-        *D_CELL = *ARG(source);
+        Move_Value(D_CELL, ARG(source));
         source = D_CELL;
         specifier = SPECIFIED;
         dest = D_OUT;
@@ -688,7 +688,7 @@ REBNATIVE(to_value)
     if (IS_VOID(ARG(value)))
         return R_BLANK;
 
-    *D_OUT = *ARG(value);
+    Move_Value(D_OUT, ARG(value));
     return R_OUT;
 }
 
@@ -710,7 +710,7 @@ REBNATIVE(opt)
     if (IS_BLANK(ARG(value)))
         return R_VOID;
 
-    *D_OUT = *ARG(value);
+    Move_Value(D_OUT, ARG(value));
     return R_OUT;
 }
 
@@ -761,7 +761,7 @@ REBNATIVE(in)
                         SET_VAL_FLAG(word, WORD_FLAG_BOUND);
                         INIT_WORD_CONTEXT(word, context);
                         INIT_WORD_INDEX(word, index);
-                        *D_OUT = *word;
+                        Move_Value(D_OUT, word);
                         return R_OUT;
                     }
                 }
@@ -777,7 +777,7 @@ REBNATIVE(in)
     // Special form: IN object block
     if (IS_BLOCK(word) || IS_GROUP(word)) {
         Bind_Values_Deep(VAL_ARRAY_HEAD(word), context);
-        *D_OUT = *word;
+        Move_Value(D_OUT, word);
         return R_OUT;
     }
 
@@ -831,7 +831,7 @@ REBNATIVE(resolve)
         REF(extend)
     );
 
-    *D_OUT = *ARG(target);
+    Move_Value(D_OUT, ARG(target));
     return R_OUT;
 }
 
@@ -882,9 +882,10 @@ REBNATIVE(set)
     // locals gathering facility of FUNCTION would still gather x.
     //
     if (ANY_WORD(ARG(target))) {
-        *Get_Var_Core(
-                &eval_type, ARG(target), SPECIFIED, GETVAR_IS_SETVAR
-            ) = *ARG(value);
+        Move_Value(
+            Get_Var_Core(&eval_type, ARG(target), SPECIFIED, GETVAR_IS_SETVAR),
+            ARG(value)
+        );
         goto return_value_arg;
     }
 
@@ -1161,7 +1162,7 @@ REBNATIVE(set)
     }
 
 return_value_arg:
-    *D_OUT = *ARG(value);
+    Move_Value(D_OUT, ARG(value));
     return R_OUT;
 }
 
@@ -1301,7 +1302,7 @@ REBNATIVE(semiquote)
 {
     INCLUDE_PARAMS_OF_SEMIQUOTE;
 
-    *D_OUT = *ARG(value);
+    Move_Value(D_OUT, ARG(value));
 
     // We cannot set the VALUE_FLAG_UNEVALUATED bit here and make it stick,
     // because the bit would just get cleared off by Do_Core when the
@@ -1360,7 +1361,7 @@ REBNATIVE(as)
     }
 
     VAL_SET_TYPE_BITS(value, kind);
-    *D_OUT = *value;
+    Move_Value(D_OUT, value);
     return R_OUT;
 }
 
@@ -1525,7 +1526,7 @@ REBNATIVE(quote)
 {
     INCLUDE_PARAMS_OF_QUOTE;
 
-    *D_OUT = *ARG(value);
+    Move_Value(D_OUT, ARG(value));
 
     // We cannot set the VALUE_FLAG_UNEVALUATED bit here and make it stick,
     // because the bit would just get cleared off by Do_Core when the

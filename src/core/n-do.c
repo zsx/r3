@@ -57,7 +57,7 @@ REBNATIVE(eval)
 
     REBFRM *f = frame_; // implicit parameter to every dispatcher/native
 
-    f->cell = *ARG(value);
+    Move_Value(&f->cell, ARG(value));
 
     // Save the prefetched f->value for what would be the usual next
     // item (including if it was an END marker) into f->pending.
@@ -146,8 +146,10 @@ REBNATIVE(do)
                 // then have it indicate the start of the thrown expression
                 //
                 if (!IS_BLANK(ARG(var))) {
-                    *Sink_Var_May_Fail(ARG(var), SPECIFIED)
-                        = *source;
+                    Move_Value(
+                        Sink_Var_May_Fail(ARG(var), SPECIFIED),
+                        source
+                    );
                 }
 
                 return R_OUT_IS_THROWN;
@@ -168,8 +170,10 @@ REBNATIVE(do)
                 else
                     VAL_INDEX(source) = cast(REBCNT, indexor);
 
-                *Sink_Var_May_Fail(ARG(var), SPECIFIED)
-                    = *ARG(source);
+                Move_Value(
+                    Sink_Var_May_Fail(ARG(var), SPECIFIED),
+                    ARG(source)
+                );
             }
 
             return R_OUT;
@@ -338,7 +342,7 @@ repush:
             REBVAL arg1;
             if (IS_END(&thrown_name)) {
                 assert(IS_ERROR(&arg_or_error));
-                arg1 = arg_or_error;
+                Move_Value(&arg1, &arg_or_error);
             }
             else {
                 CONVERT_NAME_TO_THROWN(&thrown_name, &arg_or_error);
@@ -389,7 +393,7 @@ repush:
                 REBVAL arg1;
                 if (IS_END(&thrown_name)) {
                     assert(IS_ERROR(&arg_or_error));
-                    arg1 = arg_or_error;
+                    Move_Value(&arg1, &arg_or_error);
                 }
                 else {
                     CONVERT_NAME_TO_THROWN(&thrown_name, &arg_or_error);
@@ -409,7 +413,7 @@ repush:
             }
 
             CATCH_THROWN(&arg_or_error, D_OUT);
-            thrown_name = *D_OUT; // THROWN bit cleared by CATCH_THROWN
+            Move_Value(&thrown_name, D_OUT); // THROWN cleared by CATCH_THROWN
 
             while (NOT_END(f.value) && NOT(IS_BAR(f.value)))
                 Fetch_Next_In_Frame(&f);
@@ -429,7 +433,7 @@ repush:
     }
 
     if (NOT_END(&thrown_name)) { // throw tried propagating, re-throw it
-        *D_OUT = thrown_name;
+        Move_Value(D_OUT, &thrown_name);
         CONVERT_NAME_TO_THROWN(D_OUT, &arg_or_error);
         return R_OUT_IS_THROWN;
     }
@@ -508,7 +512,7 @@ REBNATIVE(also)
     INCLUDE_PARAMS_OF_ALSO;
 
     UNUSED(PAR(evaluated)); // not used (but was evaluated)
-    *D_OUT = *ARG(returned);
+    Move_Value(D_OUT, ARG(returned));
     return R_OUT;
 }
 

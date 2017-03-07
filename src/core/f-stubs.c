@@ -228,7 +228,7 @@ REBINT Int8u(const REBVAL *val)
 void Val_Init_Datatype(REBVAL *out, enum Reb_Kind kind)
 {
     assert(kind > REB_0 && kind < REB_MAX);
-    *out = *CTX_VAR(Lib_Context, SYM_FROM_KIND(kind));
+    Move_Value(out, CTX_VAR(Lib_Context, SYM_FROM_KIND(kind)));
 }
 
 
@@ -441,7 +441,7 @@ void Init_Any_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *c) {
     //
     ASSERT_ARRAY_MANAGED(CTX_KEYLIST(c));
 
-    *out = *CTX_VALUE(c);
+    Move_Value(out, CTX_VALUE(c));
 
     // Currently only FRAME! uses the ->binding field.  Following the pattern
     // of function, we assume the archetype form of a frame has no binding,

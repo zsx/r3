@@ -65,7 +65,7 @@ REBNATIVE(quit)
 {
     INCLUDE_PARAMS_OF_QUIT;
 
-    *D_OUT = *NAT_VALUE(quit);
+    Move_Value(D_OUT, NAT_VALUE(quit));
 
     if (REF(with))
         CONVERT_NAME_TO_THROWN(D_OUT, ARG(value));
@@ -143,7 +143,7 @@ REBNATIVE(recycle)
     }
 
     if (REF(ballast)) {
-        *TASK_MAX_BALLAST = *ARG(size);
+        Move_Value(TASK_MAX_BALLAST, ARG(size));
         VAL_INT64(TASK_BALLAST) = VAL_INT32(TASK_MAX_BALLAST);
     }
 
@@ -225,7 +225,7 @@ REBNATIVE(stats)
     fail (Error(RE_DEBUG_ONLY));
 #else
     if (REF(profile)) {
-        *D_OUT = *Get_System(SYS_STANDARD, STD_STATS);
+        Move_Value(D_OUT, Get_System(SYS_STANDARD, STD_STATS));
         if (IS_OBJECT(D_OUT)) {
             REBVAL *stats = VAL_CONTEXT_VAR(D_OUT, 1);
 

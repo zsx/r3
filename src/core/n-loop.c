@@ -93,7 +93,7 @@ REBNATIVE(break)
 {
     INCLUDE_PARAMS_OF_BREAK;
 
-    *D_OUT = *NAT_VALUE(break);
+    Move_Value(D_OUT, NAT_VALUE(break));
 
     CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : VOID_CELL);
 
@@ -119,7 +119,7 @@ REBNATIVE(continue)
 {
     INCLUDE_PARAMS_OF_CONTINUE;
 
-    *D_OUT = *NAT_VALUE(continue);
+    Move_Value(D_OUT, NAT_VALUE(continue));
 
     CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : VOID_CELL);
 
@@ -239,7 +239,7 @@ static REB_R Loop_Series_Common(
     REBINT si = VAL_INDEX(start);
     enum Reb_Kind type = VAL_TYPE(start);
 
-    *var = *start;
+    Move_Value(var, start);
 
     if (ei >= cast(REBINT, VAL_LEN_HEAD(start)))
         ei = cast(REBINT, VAL_LEN_HEAD(start));
@@ -652,7 +652,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
             else if (IS_CONDITIONAL_FALSE(D_OUT))
                 SET_BLANK(D_CELL); // at least one false means blank result
             else if (IS_END(D_CELL) || !IS_BLANK(D_CELL))
-                *D_CELL = *D_OUT;
+                Move_Value(D_CELL, D_OUT);
             break;
         default:
             assert(FALSE);
@@ -731,7 +731,7 @@ skip_hidden: ;
         if (IS_END(D_CELL))
             return R_VOID; // all evaluations opted out
 
-        *D_OUT = *D_CELL;
+        Move_Value(D_OUT, D_CELL);
         return R_OUT; // should it be like R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY?
 
     default:
@@ -861,7 +861,7 @@ REBNATIVE(for_skip)
 
     // Save the starting var value, assume `word` is a GC protected slot
     //
-    *word = *var;
+    Move_Value(word, var);
 
     // Starting location when past end with negative skip:
     //
@@ -884,7 +884,7 @@ REBNATIVE(for_skip)
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) {
-                    *var = *word;
+                    Move_Value(var, word);
                     return R_BLANK;
                 }
                 goto next_iteration;
@@ -908,7 +908,7 @@ REBNATIVE(for_skip)
         VAL_INDEX(var) += skip;
     }
 
-    *var = *word;
+    Move_Value(var, word);
     return R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY;
 }
 
@@ -1265,7 +1265,7 @@ inline static REB_R While_Until_Core(REBFRM *frame_, REBOOL trigger)
             // request to break the enclosing loop (or error if there is
             // nothing to catch that break).  Hence we bubble up the throw.
             //
-            *D_OUT = *D_CELL;
+            Move_Value(D_OUT, D_CELL);
             return R_OUT_IS_THROWN;
         }
 

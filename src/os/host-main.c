@@ -400,7 +400,7 @@ void Host_Repl(
 
         if (IS_ERROR(&code_or_error)) {
             do_result = -cast(int, ERR_NUM(VAL_CONTEXT(&code_or_error)));
-            *out = code_or_error;
+            Move_Value(out, &code_or_error);
         }
         else if (IS_BLOCK(&code_or_error))
             do_result = Do_Code(
@@ -572,8 +572,14 @@ void Init_Debug_Extension(void) {
             NULL // not providing a specialization
         );
 
-        *Append_Context(Lib_Context, 0, debug_name) = *FUNC_VALUE(debug_native);
-        *Append_Context(user_context, 0, debug_name) = *FUNC_VALUE(debug_native);
+        Move_Value(
+            Append_Context(Lib_Context, 0, debug_name),
+            FUNC_VALUE(debug_native)
+        );
+        Move_Value(
+            Append_Context(user_context, 0, debug_name),
+            FUNC_VALUE(debug_native)
+        );
     }
     else {
         // It's already there--e.g. someone added REBNATIVE(debug).  Assert
@@ -950,7 +956,7 @@ int main(int argc, char **argv_ansi)
         //
         if (IS_FUNCTION(&result)) {
             finished = FALSE;
-            HG_Host_Repl = result;
+            Move_Value(&HG_Host_Repl, &result);
         }
         else if (IS_INTEGER(&result)) {
             finished = TRUE;

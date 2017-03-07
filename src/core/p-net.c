@@ -159,7 +159,7 @@ static REB_R Transport_Actor(
                 if (result < 0)
                     fail (Error_On_Port(RE_NO_CONNECT, port, sock->error));
 
-                *D_OUT = *CTX_VALUE(port);
+                Move_Value(D_OUT, CTX_VALUE(port));
                 return R_OUT;
             }
             else if (IS_TUPLE(arg)) { // Host IP specified:
@@ -180,7 +180,7 @@ static REB_R Transport_Actor(
             break; }
 
         case SYM_CLOSE:
-            *D_OUT = *CTX_VALUE(port);
+            Move_Value(D_OUT, CTX_VALUE(port));
             return R_OUT;
 
         case SYM_OPEN_Q:
@@ -268,7 +268,7 @@ static REB_R Transport_Actor(
         if (result < 0)
             fail (Error_On_Port(RE_READ_ERROR, port, sock->error));
 
-        *D_OUT = *CTX_VALUE(port);
+        Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }
 
     case SYM_WRITE: {
@@ -311,7 +311,7 @@ static REB_R Transport_Actor(
 
         // Setup the write:
 
-        *CTX_VAR(port, STD_PORT_DATA) = *data; // keep it GC safe
+        Move_Value(CTX_VAR(port, STD_PORT_DATA), data); // keep it GC safe
         sock->length = len;
         sock->common.data = VAL_BIN_AT(data);
         sock->actual = 0;
@@ -325,7 +325,7 @@ static REB_R Transport_Actor(
         if (result == DR_DONE)
             SET_BLANK(CTX_VAR(port, STD_PORT_DATA));
 
-        *D_OUT = *CTX_VALUE(port);
+        Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }
 
     case SYM_PICK: {
@@ -362,7 +362,7 @@ static REB_R Transport_Actor(
             OS_DO_DEVICE(sock, RDC_CLOSE);
             SET_CLOSED(sock);
         }
-        *D_OUT = *CTX_VALUE(port);
+        Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }
 
     case SYM_LENGTH: {
@@ -377,7 +377,7 @@ static REB_R Transport_Actor(
         REBINT result = OS_DO_DEVICE(sock, RDC_CONNECT);
         if (result < 0)
             fail (Error_On_Port(RE_NO_CONNECT, port, sock->error));
-        *D_OUT = *CTX_VALUE(port);
+        Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }
 
     case SYM_DELETE: {
@@ -389,7 +389,7 @@ static REB_R Transport_Actor(
         VAL_EVENT_TYPE(event) = EVT_ERROR;
         VAL_EVENT_DATA(event) = 101;
         VAL_EVENT_REQ(event) = sock;
-        *D_OUT = *CTX_VALUE(port);
+        Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }
     }
 

@@ -1082,7 +1082,7 @@ REBTYPE(String)
             amount = -amount;
 
         if (amount == 0) { // adding or subtracting 0 works, even #{} + 0
-            *D_OUT = *value;
+            Move_Value(D_OUT, value);
             return R_OUT;
         }
         else if (VAL_LEN_AT(value) == 0) // add/subtract to #{} otherwise
@@ -1120,7 +1120,7 @@ REBTYPE(String)
                 }
             }
         }
-        *D_OUT = *value;
+        Move_Value(D_OUT, value);
         return R_OUT; }
 
     //-- Special actions:
@@ -1250,7 +1250,7 @@ REBTYPE(String)
         fail (Error_Illegal_Action(VAL_TYPE(value), action));
     }
 
-    *D_OUT = *value;
+    Move_Value(D_OUT, value);
     return R_OUT;
 
 return_ser:

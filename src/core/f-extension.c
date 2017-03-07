@@ -142,14 +142,14 @@ REBNATIVE(load_extension_helper)
                     == VAL_LIBRARY_FD(CTX_VAR(item_ctx, STD_EXTENSION_LIB_BASE))) {
                     // found the existing extension
                     OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(&lib)); //decrease the reference added by MAKE_library
-                    *D_OUT = *KNOWN(item);
+                    Move_Value(D_OUT, KNOWN(item));
                     return R_OUT;
                 }
             }
         }
         context = Copy_Context_Shallow(std_ext_ctx);
-        *CTX_VAR(context, STD_EXTENSION_LIB_BASE) = lib;
-        *CTX_VAR(context, STD_EXTENSION_LIB_FILE) = *path;
+        Move_Value(CTX_VAR(context, STD_EXTENSION_LIB_BASE), &lib);
+        Move_Value(CTX_VAR(context, STD_EXTENSION_LIB_FILE), path);
 
         CFUNC *RX_Init = OS_FIND_FUNCTION(VAL_LIBRARY_FD(&lib), "RX_Init");
         if (!RX_Init) {
@@ -239,7 +239,7 @@ REBNATIVE(unload_extension_helper)
 
         QUIT_FUNC quitter = cast(QUIT_FUNC, VAL_HANDLE_POINTER(ARG(cleaner)));
         assert(quitter != NULL);
-        
+
         ret = quitter();
     }
 
@@ -368,7 +368,7 @@ REBNATIVE(load_native)
     if (REF(body)) {
         *FUNC_BODY(fun) = *ARG(code);
     }
-    *D_OUT = *FUNC_VALUE(fun);
+    Move_Value(D_OUT, FUNC_VALUE(fun));
     return R_OUT;
 }
 

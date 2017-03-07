@@ -357,7 +357,7 @@ REBNATIVE(decode_gif)
         // !!! Should formats that can act as containers always be a block?
         //
         assert(IS_IMAGE(DS_TOP));
-        *D_OUT = *DS_TOP;
+        Move_Value(D_OUT, DS_TOP);
         DS_DROP;
     }
     else {

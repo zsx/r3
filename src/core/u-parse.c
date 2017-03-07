@@ -328,7 +328,7 @@ static void Set_Parse_Series(
     REBFRM *f,
     const REBVAL *any_series
 ) {
-    f->args_head[0] = *any_series;
+    Move_Value(&f->args_head[0], any_series);
     VAL_INDEX(&f->args_head[0]) =
         (VAL_INDEX(any_series) > VAL_LEN_HEAD(any_series))
             ? VAL_LEN_HEAD(any_series)
@@ -530,7 +530,7 @@ static REBIXO Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
             VAL_INDEX(rule),
             derived
         )) {
-            *P_OUT = dummy;
+            Move_Value(P_OUT, &dummy);
             return THROWN_FLAG;
         }
         return MIN(P_POS, SER_LEN(P_INPUT)); } // !!! review truncation concept
@@ -620,7 +620,7 @@ static REBIXO Parse_Array_One_Rule_Core(
             VAL_INDEX(rule),
             derived
         )) {
-            *P_OUT = dummy;
+            Move_Value(P_OUT, &dummy);
             return THROWN_FLAG;
         }
         return MIN(pos, ARR_LEN(array)); } // may affect tail
@@ -740,7 +740,7 @@ static REBIXO To_Thru_Block_Rule(
                                 VAL_INDEX(rule),
                                 derived
                             )) {
-                                *P_OUT = cell;
+                                Move_Value(P_OUT, &cell);
                                 return THROWN_FLAG;
                             }
                             rule = &cell;
@@ -937,7 +937,7 @@ found:
             VAL_INDEX(blk + 1),
             derived
         )) {
-            *P_OUT = dummy;
+            Move_Value(P_OUT, &dummy);
             return THROWN_FLAG;
         }
     }
@@ -1161,7 +1161,7 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
         &value, AS_ARRAY(P_INPUT), P_POS, P_INPUT_SPECIFIER
     );
     if (indexor == THROWN_FLAG) {
-        *P_OUT = value;
+        Move_Value(P_OUT, &value);
         return THROWN_FLAG;
     }
 
@@ -1191,7 +1191,7 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
                     VAL_INDEX(rule),
                     derived
                 )) {
-                    *P_OUT = save;
+                    Move_Value(P_OUT, &save);
                     return THROWN_FLAG;
                 }
                 rule = &save;
@@ -1549,11 +1549,11 @@ REBNATIVE(subparse)
                                 // If the group evaluation result gives a
                                 // THROW, BREAK, CONTINUE, etc then we'll
                                 // return that
-                                *P_OUT = evaluated;
+                                Move_Value(P_OUT, &evaluated);
                                 return R_OUT_IS_THROWN;
                             }
 
-                            *P_OUT = *NAT_VALUE(parse);
+                            Move_Value(P_OUT, NAT_VALUE(parse));
                             CONVERT_NAME_TO_THROWN(P_OUT, &evaluated);
                             return R_OUT_IS_THROWN;
                         }
@@ -1569,7 +1569,7 @@ REBNATIVE(subparse)
                         //
                         REBVAL thrown_arg;
                         SET_INTEGER(&thrown_arg, P_POS);
-                        *P_OUT = *NAT_VALUE(parse_accept);
+                        Move_Value(P_OUT, NAT_VALUE(parse_accept));
                         CONVERT_NAME_TO_THROWN(P_OUT, &thrown_arg);
                         return R_OUT_IS_THROWN;
                     }
@@ -1578,7 +1578,7 @@ REBNATIVE(subparse)
                         //
                         // Similarly, this is a break/continue style "throw"
                         //
-                        *P_OUT = *NAT_VALUE(parse_reject);
+                        Move_Value(P_OUT, NAT_VALUE(parse_reject));
                         CONVERT_NAME_TO_THROWN(P_OUT, BLANK_VALUE);
                         return R_OUT;
                     }
@@ -1604,7 +1604,7 @@ REBNATIVE(subparse)
                             VAL_INDEX(P_RULE),
                             P_RULE_SPECIFIER
                         )) {
-                            *P_OUT = condition;
+                            Move_Value(P_OUT, &condition);
                             return R_OUT_IS_THROWN;
                         }
 
@@ -1642,8 +1642,10 @@ REBNATIVE(subparse)
                     //
                     // if (flags != 0) fail (Error_Parse_Rule());
 
-                    *Sink_Var_May_Fail(P_RULE, P_RULE_SPECIFIER)
-                        = *P_INPUT_VALUE;
+                    Move_Value(
+                        Sink_Var_May_Fail(P_RULE, P_RULE_SPECIFIER),
+                        P_INPUT_VALUE
+                    );
                     FETCH_NEXT_RULE_MAYBE_END(f);
                     continue;
                 }
@@ -1754,7 +1756,7 @@ REBNATIVE(subparse)
                 VAL_INDEX(rule),
                 derived
             )) {
-                *P_OUT = evaluated;
+                Move_Value(P_OUT, &evaluated);
                 return R_OUT_IS_THROWN;
             }
             // ignore evaluated if it's not THROWN?
@@ -2086,9 +2088,10 @@ REBNATIVE(subparse)
                             : Copy_String_Slimming(P_INPUT, begin, count)
                     );
 
-                    *Sink_Var_May_Fail(
-                        set_or_copy_word, P_RULE_SPECIFIER
-                    ) = temp;
+                    Move_Value(
+                        Sink_Var_May_Fail(set_or_copy_word, P_RULE_SPECIFIER),
+                        &temp
+                    );
                 }
                 else if (flags & PF_SET) {
                     if (Is_Array_Series(P_INPUT)) {
@@ -2137,7 +2140,7 @@ REBNATIVE(subparse)
                             : Copy_String_Slimming(P_INPUT, begin, count)
                     );
 
-                    *P_OUT = *NAT_VALUE(parse);
+                    Move_Value(P_OUT, NAT_VALUE(parse));
                     CONVERT_NAME_TO_THROWN(P_OUT, &captured);
                     return R_OUT_IS_THROWN;
                 }

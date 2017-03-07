@@ -245,7 +245,7 @@ static REB_R Protect_Unprotect_Core(REBFRM *frame_, REBFLGS flags)
                     var = &safe;
                 }
                 else {
-                    safe = *value;
+                    Move_Value(&safe, value);
                     var = &safe;
                 }
 
@@ -265,7 +265,7 @@ static REB_R Protect_Unprotect_Core(REBFRM *frame_, REBFLGS flags)
         Uncolor(value);
 
 return_value_arg:
-    *D_OUT = *ARG(value);
+    Move_Value(D_OUT, ARG(value));
     return R_OUT;
 }
 
@@ -442,7 +442,7 @@ REBNATIVE(lock)
     REBVAL *v = ARG(value);
 
     if (!REF(clone))
-        *D_OUT = *v;
+        Move_Value(D_OUT, v);
     else {
         if (ANY_ARRAY(v)) {
             Init_Any_Array_At(

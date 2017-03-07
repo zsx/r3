@@ -90,7 +90,7 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
         // breakpoint before it returns.  It may also FAIL and longjmp out.
         //
         if (Do_Signals_Throws(&f->cell)) {
-            *f->out = f->cell;
+            Move_Value(f->out, &f->cell);
             return TRUE;
         }
 
@@ -536,7 +536,7 @@ reevaluate:;
                             goto unspecialized_refinement;
                         }
 
-                        *f->arg = *f->special;
+                        Move_Value(f->arg, f->special);
                     }
 
                     if (!IS_LOGIC(f->arg))
@@ -638,7 +638,7 @@ reevaluate:;
                     goto continue_arg_loop;
                 }
 
-                *f->arg = *NAT_VALUE(return);
+                Move_Value(f->arg, NAT_VALUE(return));
 
                 if (f->varlist) // !!! in specific binding, always for Plain
                     f->arg->extra.binding = f->varlist;
@@ -658,7 +658,7 @@ reevaluate:;
                     goto continue_arg_loop;
                 }
 
-                *f->arg = *NAT_VALUE(leave);
+                Move_Value(f->arg, NAT_VALUE(leave));
 
                 if (f->varlist) // !!! in specific binding, always for Plain
                     f->arg->extra.binding = f->varlist;
@@ -711,7 +711,7 @@ reevaluate:;
                     ++f->special;
                 }
                 else {
-                    *f->arg = *f->special;
+                    Move_Value(f->arg, f->special);
 
                     ++f->special;
                     goto check_arg; // normal checking, handles errors also
@@ -772,7 +772,7 @@ reevaluate:;
 
                 f->refine = ORDINARY_ARG;
 
-                *f->arg = *f->out;
+                Move_Value(f->arg, f->out);
                 SET_END(f->out);
                 goto check_arg;
             }
@@ -840,7 +840,7 @@ reevaluate:;
                 );
 
                 if (THROWN(f->arg)) {
-                    *f->out = *f->arg;
+                    Move_Value(f->out, f->arg);
                     Abort_Function_Args_For_Frame(f);
                     goto finished;
                 }
@@ -862,7 +862,7 @@ reevaluate:;
                 );
 
                 if (THROWN(f->arg)) {
-                    *f->out = *f->arg;
+                    Move_Value(f->out, f->arg);
                     Abort_Function_Args_For_Frame(f);
                     goto finished;
                 }
@@ -883,7 +883,7 @@ reevaluate:;
                 }
 
                 if (EVAL_VALUE_CORE_THROWS(f->arg, f->value, f->specifier)) {
-                    *f->out = *f->arg;
+                    Move_Value(f->out, f->arg);
                     Abort_Function_Args_For_Frame(f);
                     goto finished;
                 }
@@ -1257,7 +1257,8 @@ reevaluate:;
         while (DSP != f->dsp_orig) {
             if (!IS_FUNCTION(DS_TOP)) break; // pending sets/gets
 
-            REBVAL temp = *f->out; // better safe than sorry, for now?
+            REBVAL temp;
+            Move_Value(&temp, f->out); // better safe than sorry, for now?
             if (Apply_Only_Throws(
                 f->out, TRUE, DS_TOP, &temp, END_CELL
             )) {
@@ -1378,7 +1379,7 @@ reevaluate:;
             fail (Error_No_Value_Core(f->value, f->specifier));
         }
 
-        *f->out = *f->gotten;
+        Move_Value(f->out, f->gotten);
         CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
         f->gotten = NULL;
         Fetch_Next_In_Frame(f);
@@ -1536,7 +1537,7 @@ reevaluate:;
             //
             assert(DSP >= f->dsp_orig);
 
-            f->cell = *f->out;
+            Move_Value(&f->cell, f->out);
             f->gotten = &f->cell;
             SET_END(f->out);
             f->refine = ORDINARY_ARG;

@@ -124,7 +124,7 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             Init_Binary(arg, ser);
         }
 
-        *D_OUT = *arg;
+        Move_Value(D_OUT, arg);
         return R_OUT; }
 
     case SYM_WRITE: {
@@ -192,7 +192,7 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         req->length = len * sizeof(REBUNI);
 
         // Setup the write:
-        *CTX_VAR(port, STD_PORT_DATA) = *arg;   // keep it GC safe
+        Move_Value(CTX_VAR(port, STD_PORT_DATA), arg); // keep it GC safe
         req->actual = 0;
 
         result = OS_DO_DEVICE(req, RDC_WRITE);
@@ -235,7 +235,7 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         fail (Error_Illegal_Action(REB_PORT, action));
     }
 
-    *D_OUT = *D_ARG(1); // port
+    Move_Value(D_OUT, D_ARG(1)); // port
     return R_OUT;
 }
 

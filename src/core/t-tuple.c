@@ -53,7 +53,7 @@ void MAKE_Tuple(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     assert(kind == REB_TUPLE);
 
     if (IS_TUPLE(arg)) {
-        *out = *arg;
+        Move_Value(out, arg);
         return;
     }
 
@@ -430,7 +430,7 @@ REBTYPE(Tuple)
     //
     /*case SYM_POKE:
         Poke_Tuple_Immediate(value, arg, D_ARG(3));
-        *D_OUT = *D_ARG(3);
+        Move_Value(D_OUT, D_ARG(3));
         return R_OUT;*/
 
     case SYM_REVERSE: {
@@ -480,6 +480,6 @@ REBTYPE(Tuple)
     fail (Error_Illegal_Action(REB_TUPLE, action));
 
 ret_value:
-    *D_OUT = *value;
+    Move_Value(D_OUT, value);
     return R_OUT;
 }

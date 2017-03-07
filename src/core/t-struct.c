@@ -96,7 +96,7 @@ static void get_scalar(
 
         // With all fields initialized, assign canon value as result
         //
-        *out = *single;
+        Move_Value(out, single);
         assert(VAL_STRUCT_SIZE(out) == FLD_WIDE(field));
         return;
     }
@@ -158,7 +158,7 @@ static void get_scalar(
         break;
 
     case SYM_REBVAL:
-        *out = *cast(const REBVAL*, p);
+        Move_Value(out, cast(const REBVAL*, p));
         break;
 
     default:
@@ -855,8 +855,10 @@ static void Parse_Field_Type_May_Fail(
             // (What about just storing the STRUCT! value itself in the type
             // field, instead of the array of fields?)
             //
-            *FLD_AT(field, IDX_FIELD_FFTYPE)
-                = *FLD_AT(VAL_STRUCT_SCHEMA(inner), IDX_FIELD_FFTYPE);
+            Move_Value(
+                FLD_AT(field, IDX_FIELD_FFTYPE),
+                FLD_AT(VAL_STRUCT_SCHEMA(inner), IDX_FIELD_FFTYPE)
+            );
             break; }
 
         case SYM_REBVAL: {
@@ -899,7 +901,10 @@ static void Parse_Field_Type_May_Fail(
         // Borrow the same ffi_type* that the struct uses, see above note
         // regarding alternative ideas.
         //
-        *FLD_AT(field, IDX_FIELD_FFTYPE) = *FLD_AT(VAL_STRUCT_SCHEMA(val), 3);
+        Move_Value(
+            FLD_AT(field, IDX_FIELD_FFTYPE),
+            FLD_AT(VAL_STRUCT_SCHEMA(val), IDX_FIELD_FFTYPE)
+        );
         Derelativize(inner, val, VAL_SPECIFIER(spec));
     }
     else
@@ -1368,7 +1373,8 @@ REBINT PD_Struct(REBPVS *pvs)
             // a memory cell it may not own), has to guard (as the next path
             // evaluation may not protect the result...)
             //
-            REBVAL sel_orig = *pvs->selector;
+            REBVAL sel_orig;
+            Move_Value(&sel_orig, pvs->selector);
             PUSH_GUARD_VALUE(&sel_orig);
 
             pvs->value = pvs->store;
@@ -1515,7 +1521,7 @@ REBTYPE(Struct)
             BIN_HEAD(VAL_SERIES(arg)),
             VAL_STRUCT_DATA_LEN(val)
         );
-        *D_OUT = *val;
+        Move_Value(D_OUT, val);
         break; }
 
     case SYM_REFLECT: {

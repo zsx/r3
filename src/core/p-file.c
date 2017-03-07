@@ -408,7 +408,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         if (req->error)
             fail (Error(RE_WRITE_ERROR, path));
 
-        *D_OUT = *CTX_VALUE(port);
+        Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }
 
     case SYM_OPEN: {
@@ -433,7 +433,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         Open_File_Port(port, file, path);
 
-        *D_OUT = *CTX_VALUE(port);
+        Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }
 
     case SYM_COPY: {
@@ -466,7 +466,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             OS_DO_DEVICE(req, RDC_CLOSE);
             Cleanup_File(file);
         }
-        *D_OUT = *CTX_VALUE(port);
+        Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }
 
     case SYM_DELETE: {
@@ -479,7 +479,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         if (OS_DO_DEVICE(req, RDC_DELETE) < 0)
             fail (Error(RE_NO_DELETE, path));
 
-        *D_OUT = *CTX_VALUE(port);
+        Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }
 
     case SYM_RENAME: {
@@ -501,7 +501,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         if (req->error)
             fail (Error(RE_NO_RENAME, path));
 
-        *D_OUT = *ARG(from);
+        Move_Value(D_OUT, ARG(from));
         return R_OUT; }
 
     case SYM_CREATE: {
@@ -514,7 +514,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         // !!! should it leave file open???
 
-        *D_OUT = *CTX_VALUE(port);
+        Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }
 
     case SYM_QUERY: {
@@ -564,13 +564,13 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     case SYM_HEAD: {
         file->index = 0;
         SET_FLAG(req->modes, RFM_RESEEK);
-        *D_OUT = *CTX_VALUE(port);
+        Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }
 
     case SYM_TAIL: {
         file->index = file->size;
         SET_FLAG(req->modes, RFM_RESEEK);
-        *D_OUT = *CTX_VALUE(port);
+        Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }
 
     case SYM_SKIP: {
@@ -580,7 +580,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         file->index += Get_Num_From_Arg(ARG(offset));
         SET_FLAG(req->modes, RFM_RESEEK);
-        *D_OUT = *CTX_VALUE(port);
+        Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }
 
     case SYM_HEAD_Q:

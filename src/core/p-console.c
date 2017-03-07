@@ -50,7 +50,7 @@ static REB_R Console_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     REBSER *ser;
 
     arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-    *D_OUT = *D_ARG(1);
+    Move_Value(D_OUT, D_ARG(1));
 
     REBREQ *req = Ensure_Port_State(port, RDI_STDIO);
 

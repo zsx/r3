@@ -318,7 +318,7 @@ REBNATIVE(make_native)
     //
     SET_VAL_FLAG(FUNC_VALUE(fun), FUNC_FLAG_USER_NATIVE);
 
-    *D_OUT = *FUNC_VALUE(fun);
+    Move_Value(D_OUT, FUNC_VALUE(fun));
     return R_OUT;
 #endif
 }

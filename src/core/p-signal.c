@@ -203,7 +203,7 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
                 if (OS_DO_DEVICE(req, RDC_OPEN))
                     fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
                 if (action == SYM_OPEN) {
-                    *D_OUT = *D_ARG(1); // port
+                    Move_Value(D_OUT, D_ARG(1)); // port
                     return R_OUT;
                 }
                 break;
@@ -258,7 +258,7 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             if (len > 0) {
                 update(signal, len, arg);
                 Free_Series(ser);
-                *D_OUT = *arg;
+                Move_Value(D_OUT, arg);
                 return R_OUT;
             } else {
                 Free_Series(ser);
@@ -267,7 +267,7 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         case SYM_CLOSE:
             OS_DO_DEVICE(req, RDC_CLOSE);
-            *D_OUT = *D_ARG(1);
+            Move_Value(D_OUT, D_ARG(1));
             return R_OUT;
 
         case SYM_OPEN_Q:

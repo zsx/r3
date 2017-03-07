@@ -117,7 +117,7 @@ REB_R Series_Common_Action_Maybe_Unhandled(
         return R_UNHANDLED; // not a common operation, not handled
     }
 
-    *D_OUT = *value;
+    Move_Value(D_OUT, value);
     return R_OUT;
 }
 

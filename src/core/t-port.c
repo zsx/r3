@@ -111,7 +111,7 @@ REBTYPE(Port)
         if (!IS_PORT(value)) {
             REBVAL temp;
             MAKE_Port(&temp, REB_PORT, value);
-            *value = temp;
+            Move_Value(value, &temp);
         }
         break; }
 

@@ -709,7 +709,7 @@ void Change_Case(REBVAL *out, REBVAL *val, REBVAL *part, REBOOL upper)
     REBCNT len;
     REBCNT n;
 
-    *out = *val;
+    Move_Value(out, val);
 
     if (IS_CHAR(val)) {
         REBUNI c = VAL_CHAR(val);

@@ -211,7 +211,7 @@ REBNATIVE(new_line)
         if (skip == 0) break;
     }
 
-    *D_OUT = *ARG(position);
+    Move_Value(D_OUT, ARG(position));
     return R_OUT;
 }
 
@@ -384,7 +384,7 @@ REBNATIVE(wait)
         if (Reduce_Any_Array_Throws(
             &unsafe, ARG(value), REDUCE_FLAG_DROP_BARS
         )){
-            *D_OUT = unsafe;
+            Move_Value(D_OUT, &unsafe);
             return R_OUT_IS_THROWN;
         }
 
@@ -441,8 +441,10 @@ REBNATIVE(wait)
 
     if (NOT(REF(all))) {
         val = ARR_HEAD(ports);
-        if (IS_PORT(val)) *D_OUT = *KNOWN(val);
-        else SET_BLANK(D_OUT);
+        if (IS_PORT(val))
+            Move_Value(D_OUT, KNOWN(val));
+        else
+            SET_BLANK(D_OUT);
     }
 
     return R_OUT;
@@ -562,7 +564,7 @@ REBNATIVE(what_dir)
     // here and it would be more compatible.  But reconsider the duplication.
 
     if (IS_URL(current_path)) {
-        *D_OUT = *current_path;
+        Move_Value(D_OUT, current_path);
     }
     else if (IS_FILE(current_path) || IS_BLANK(current_path)) {
         len = OS_GET_CURRENT_DIR(&lpath);
@@ -575,7 +577,7 @@ REBNATIVE(what_dir)
         OS_FREE(lpath);
 
         Init_File(D_OUT, ser);
-        *current_path = *D_OUT; // !!! refresh system option if they diverged
+        Move_Value(current_path, D_OUT); // !!! refresh if they diverged
     }
     else {
         // Lousy error, but ATM the user can directly edit system/options.
@@ -624,9 +626,9 @@ REBNATIVE(change_dir)
             fail (Error_Invalid_Arg(arg)); // !!! ERROR MSG
     }
 
-    *current_path = *arg;
+    Move_Value(current_path, arg);
 
-    *D_OUT = *ARG(path);
+    Move_Value(D_OUT, ARG(path));
     return R_OUT;
 }
 

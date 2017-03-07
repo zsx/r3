@@ -144,7 +144,7 @@ static REB_R Event_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     REBVAL save_port;
 
     arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-    *D_OUT = *D_ARG(1);
+    Move_Value(D_OUT, D_ARG(1));
 
     // Validate and fetch relevant PORT fields:
     state = CTX_VAR(port, STD_PORT_STATE);
@@ -171,8 +171,8 @@ static REB_R Event_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         if (!IS_EVENT(arg)) fail (Error_Invalid_Arg(arg));
     case SYM_PICK:
 act_blk:
-        save_port = *D_ARG(1); // save for return
-        *D_ARG(1) = *state;
+        Move_Value(&save_port, D_ARG(1)); // save for return
+        Move_Value(D_ARG(1), state);
         result = T_Array(frame_, action);
         SET_SIGNAL(SIG_EVENT_PORT);
         if (
@@ -180,7 +180,7 @@ act_blk:
             || action == SYM_APPEND
             || action == SYM_REMOVE
         ){
-            *D_OUT = save_port;
+            Move_Value(D_OUT, &save_port);
             break;
         }
         return result; // return condition

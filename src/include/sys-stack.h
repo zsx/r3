@@ -141,7 +141,7 @@ inline static REBVAL *DS_TOP_Core() {
 inline static void DS_PUSH(const REBVAL *v) {
     ASSERT_VALUE_MANAGED(v); // would fail on END marker
     DS_PUSH_TRASH;
-    *DS_TOP = *v;
+    Move_Value(DS_TOP, v);
 }
 
 

@@ -821,7 +821,7 @@ REBCTX *Make_Selfish_Context_Detect(
     // won't destroy the integrity of the context.)
     //
     assert(CTX_KEY_SYM(context, self_index) == SYM_SELF);
-    *CTX_VAR(context, self_index) = *CTX_VALUE(context);
+    Move_Value(CTX_VAR(context, self_index), CTX_VALUE(context));
 
     // !!! In Ren-C, the idea that functions are rebound when a context is
     // inherited is being deprecated.  It simply isn't viable for objects
@@ -1038,7 +1038,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
         // no need to search when the binding table is available
         REBINT n = Try_Get_Binder_Index(&binder, VAL_KEY_CANON(key));
         assert(n != 0);
-        *CTX_VAR(merged, n) = *value;
+        Move_Value(CTX_VAR(merged, n), value);
     }
 
     // Deep copy the child.  Context vars are REBVALs, already fully specified
@@ -1063,7 +1063,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
         REBCNT self_index = Find_Canon_In_Context(merged, Canon(SYM_SELF), TRUE);
         assert(self_index != 0);
         assert(CTX_KEY_SYM(merged, self_index) == SYM_SELF);
-        *CTX_VAR(merged, self_index) = *CTX_VALUE(merged);
+        Move_Value(CTX_VAR(merged, self_index), CTX_VALUE(merged));
     }
 
     SHUTDOWN_BINDER(&binder);
@@ -1178,7 +1178,7 @@ void Resolve_Context(
             ) {
                 if (m < 0) SET_VOID(var); // no value in source context
                 else {
-                    *var = *CTX_VAR(source, m);
+                    Move_Value(var, CTX_VAR(source, m));
 
                     // Need to also copy if the binding is lookahead (e.g.
                     // would be an infix call).
@@ -1208,7 +1208,7 @@ void Resolve_Context(
                     canon,
                     NOT_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK)
                 );
-                *var = *CTX_VAR(source, n);
+                Move_Value(var, CTX_VAR(source, n));
             }
         }
     }

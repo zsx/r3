@@ -54,7 +54,7 @@ void MAKE_Pair(REBVAL *out, enum Reb_Kind type, const REBVAL *arg)
     assert(type == REB_PAIR);
 
     if (IS_PAIR(arg)) {
-        *out = *arg;
+        Move_Value(out, arg);
         return;
     }
 

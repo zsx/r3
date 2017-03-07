@@ -62,7 +62,7 @@ REBNATIVE(func)
         ARG(spec), ARG(body), MKF_RETURN | MKF_KEYWORDS
     );
 
-    *D_OUT = *FUNC_VALUE(fun);
+    Move_Value(D_OUT, FUNC_VALUE(fun));
     return R_OUT;
 }
 
@@ -92,7 +92,7 @@ REBNATIVE(proc)
         ARG(spec), ARG(body), MKF_LEAVE | MKF_KEYWORDS
     );
 
-    *D_OUT = *FUNC_VALUE(fun);
+    Move_Value(D_OUT, FUNC_VALUE(fun));
     return R_OUT;
 }
 
@@ -111,7 +111,7 @@ void Make_Thrown_Exit_Value(
     const REBVAL *value,
     REBFRM *frame // only required if level is INTEGER!
 ) {
-    *out = *NAT_VALUE(exit);
+    Move_Value(out, NAT_VALUE(exit));
 
     if (IS_INTEGER(level)) {
         REBCNT count = VAL_INT32(level);
@@ -237,7 +237,7 @@ REBNATIVE(return)
             VAL_TYPE(value)
         ));
 
-    *D_OUT = *NAT_VALUE(exit); // see also Make_Thrown_Exit_Value
+    Move_Value(D_OUT, NAT_VALUE(exit)); // see also Make_Thrown_Exit_Value
     D_OUT->extra.binding = f->binding;
 
     CONVERT_NAME_TO_THROWN(D_OUT, value);
@@ -259,7 +259,7 @@ REBNATIVE(leave)
     if (frame_->binding == NULL) // raw native, not a variant PROCEDURE made
         fail (Error(RE_RETURN_ARCHETYPE));
 
-    *D_OUT = *NAT_VALUE(exit); // see also Make_Thrown_Exit_Value
+    Move_Value(D_OUT, NAT_VALUE(exit)); // see also Make_Thrown_Exit_Value
     D_OUT->extra.binding = frame_->binding;
 
     CONVERT_NAME_TO_THROWN(D_OUT, VOID_CELL);
@@ -311,7 +311,7 @@ REBNATIVE(typechecker)
 
     *FUNC_BODY(fun) = *type;
 
-    *D_OUT = *FUNC_VALUE(fun);
+    Move_Value(D_OUT, FUNC_VALUE(fun));
 
     return R_OUT;
 }
@@ -380,14 +380,14 @@ REBNATIVE(brancher)
     RELVAL *body = FUNC_BODY(func);
 
     REBVAL *branches = Alloc_Pairing(NULL);
-    *PAIRING_KEY(branches) = *ARG(true_branch);
-    *branches = *ARG(false_branch);
+    Move_Value(PAIRING_KEY(branches), ARG(true_branch));
+    Move_Value(branches, ARG(false_branch));
     Manage_Pairing(branches);
 
     VAL_RESET_HEADER(body, REB_PAIR);
     body->payload.pair = branches;
 
-    *D_OUT = *FUNC_VALUE(func);
+    Move_Value(D_OUT, FUNC_VALUE(func));
     return R_OUT;
 }
 
@@ -511,7 +511,7 @@ REBNATIVE(chain)
     //
     Init_Block(FUNC_BODY(fun), chainees);
 
-    *D_OUT = *FUNC_VALUE(fun);
+    Move_Value(D_OUT, FUNC_VALUE(fun));
     assert(VAL_BINDING(D_OUT) == NULL);
 
     return R_OUT;
@@ -541,7 +541,7 @@ REBNATIVE(adapt)
     if (!IS_FUNCTION(D_OUT))
         fail (Error(RE_APPLY_NON_FUNCTION, adaptee));
 
-    *adaptee = *D_OUT;
+    Move_Value(adaptee, D_OUT);
 
     // For the binding to be correct, the indices that the words use must be
     // the right ones for the frame pushed.  So if you adapt a specialization
@@ -581,7 +581,7 @@ REBNATIVE(adapt)
 
     REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(example));
     SET_VOID(CTX_VAR(meta, STD_ADAPTED_META_DESCRIPTION)); // default
-    *CTX_VAR(meta, STD_ADAPTED_META_ADAPTEE) = *adaptee;
+    Move_Value(CTX_VAR(meta, STD_ADAPTED_META_ADAPTEE), adaptee);
     if (opt_adaptee_name == NULL)
         SET_VOID(CTX_VAR(meta, STD_ADAPTED_META_ADAPTEE_NAME));
     else
@@ -624,7 +624,7 @@ REBNATIVE(adapt)
     INIT_RELATIVE(body, underlying);
     MANAGE_ARRAY(adaptation);
 
-    *D_OUT = *FUNC_VALUE(fun);
+    Move_Value(D_OUT, FUNC_VALUE(fun));
     assert(VAL_BINDING(D_OUT) == NULL);
 
     return R_OUT;
@@ -730,7 +730,7 @@ REBNATIVE(hijack)
 
         *FUNC_BODY(proxy) = *VAL_FUNC_BODY(victim);
 
-        *D_OUT = *FUNC_VALUE(proxy);
+        Move_Value(D_OUT, FUNC_VALUE(proxy));
         D_OUT->extra.binding = VAL_BINDING(victim);
     }
 
@@ -757,7 +757,7 @@ REBNATIVE(hijack)
     REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(std_meta));
 
     SET_VOID(CTX_VAR(meta, STD_HIJACKED_META_DESCRIPTION)); // default
-    *CTX_VAR(meta, STD_HIJACKED_META_HIJACKEE) = *D_OUT;
+    Move_Value(CTX_VAR(meta, STD_HIJACKED_META_HIJACKEE), D_OUT);
     if (opt_victim_name == NULL)
         SET_VOID(CTX_VAR(meta, STD_HIJACKED_META_HIJACKEE_NAME));
     else
@@ -902,7 +902,7 @@ REBNATIVE(tighten)
     //
     AS_SERIES(paramlist)->misc.facade = facade;
 
-    *D_OUT = *FUNC_VALUE(fun);
+    Move_Value(D_OUT, FUNC_VALUE(fun));
 
     // Currently esoteric case if someone chose to tighten a definitional
     // return, so `return 1 + 2` would return 1 instead of 3.  Would need to

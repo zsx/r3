@@ -91,7 +91,7 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
             VAL_INDEX(pvs->item),
             derived
         )) {
-            *pvs->store = pvs->selector_cell;
+            Move_Value(pvs->store, &pvs->selector_cell);
             return TRUE;
         }
     }
@@ -327,9 +327,10 @@ REBOOL Do_Path_Throws_Core(
         REBVAL *bottom = DS_AT(dsp_orig + 1);
         REBVAL *top = DS_TOP;
         while (top > bottom) {
-            REBVAL temp = *bottom;
-            *bottom = *top;
-            *top = temp;
+            REBVAL temp;
+            Move_Value(&temp, bottom);
+            Move_Value(bottom, top);
+            Move_Value(top, &temp);
 
             top--;
             bottom++;

@@ -222,8 +222,12 @@ static void Rehash_Map(REBMAP *map)
             //
             // It's a "zombie", move last key to overwrite it
             //
-            *key = *KNOWN(ARR_AT(pairlist, ARR_LEN(pairlist) - 2));
-            *(key + 1) = *KNOWN(ARR_AT(pairlist, ARR_LEN(pairlist) - 1));
+            Move_Value(
+                key, KNOWN(ARR_AT(pairlist, ARR_LEN(pairlist) - 2))
+            );
+            Move_Value(
+                &key[1], KNOWN(ARR_AT(pairlist, ARR_LEN(pairlist) - 1))
+            );
             SET_ARRAY_LEN_NOTERM(pairlist, ARR_LEN(pairlist) - 2);
         }
 
@@ -483,8 +487,14 @@ REBARR *Map_To_Array(REBMAP *map, REBINT what)
     for (; NOT_END(val); val += 2) {
         assert(NOT_END(val + 1));
         if (!IS_VOID(val + 1)) {
-            if (what <= 0) *dest++ = val[0];
-            if (what >= 0) *dest++ = val[1];
+            if (what <= 0) {
+                Move_Value(dest, &val[0]);
+                ++dest;
+            }
+            if (what >= 0) {
+                Move_Value(dest, &val[1]);
+                ++dest;
+            }
         }
     }
 
@@ -560,8 +570,9 @@ REBCTX *Alloc_Context_From_Map(REBMAP *map)
                 ~FLAGIT_KIND(REB_MAX_VOID),
                 VAL_WORD_SPELLING(mval)
             );
-            key++;
-            *var++ = mval[1];
+            ++key;
+            Move_Value(var, &mval[1]);
+            ++var;
         }
     }
 
@@ -633,7 +644,10 @@ REBTYPE(Map)
         if (n == 0)
             return action == SYM_FIND ? R_FALSE : R_VOID;
 
-        *D_OUT = *KNOWN(ARR_AT(MAP_PAIRLIST(map), ((n - 1) * 2) + 1));
+        Move_Value(
+            D_OUT,
+            KNOWN(ARR_AT(MAP_PAIRLIST(map), ((n - 1) * 2) + 1))
+        );
 
         if (action == SYM_FIND)
             return IS_VOID(D_OUT) ? R_FALSE : R_TRUE;
@@ -654,7 +668,7 @@ REBTYPE(Map)
 
         if (!IS_BLOCK(arg))
             fail (Error_Invalid_Arg(val));
-        *D_OUT = *val;
+        Move_Value(D_OUT, val);
         if (REF(dup)) {
             if (Int32(ARG(count)) <= 0) break;
         }
@@ -684,7 +698,7 @@ REBTYPE(Map)
         if (NOT(REF(map)))
             fail (Error_Illegal_Action(REB_MAP, action));
 
-        *D_OUT = *val;
+        Move_Value(D_OUT, val);
         Find_Map_Entry(
             map, ARG(key), SPECIFIED, VOID_CELL, SPECIFIED, TRUE
         );
@@ -696,7 +710,7 @@ REBTYPE(Map)
         REBINT n = Find_Map_Entry(
             map, arg, SPECIFIED, D_ARG(3), SPECIFIED, TRUE
         );
-        *D_OUT = *D_ARG(3);
+        Move_Value(D_OUT, D_ARG(3));
         return R_OUT; }
 
     case SYM_LENGTH:

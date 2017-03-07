@@ -406,7 +406,7 @@ inline static void Copy_Opt_Var_May_Fail(
     REBSPC *specifier
 ) {
     enum Reb_Kind eval_type;
-    *out = *Get_Var_Core(&eval_type, any_word, specifier, 0);
+    Move_Value(out, Get_Var_Core(&eval_type, any_word, specifier, 0));
 }
 
 static inline REBVAL *Get_Mutable_Var_May_Fail(

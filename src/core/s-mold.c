@@ -567,7 +567,7 @@ static void Mold_All_String(const REBVAL *value, REB_MOLD *mold)
     //// ???? move to above Mold_String_Series function????
 
     Pre_Mold(value, mold); // #[file! part
-    val = *value;
+    Move_Value(&val, value);
     VAL_INDEX(&val) = 0;
     if (IS_BINARY(value)) Mold_Binary(&val, mold);
     else {
@@ -1312,7 +1312,8 @@ void Mold_Value(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
             End_Mold(mold);
         }
         else {
-            REBVAL val = *const_KNOWN(value);
+            REBVAL val;
+            Move_Value(&val, const_KNOWN(value));
             VAL_INDEX(&val) = 0; // mold all of it
             Mold_Image_Data(&val, mold);
             Post_Mold(value, mold);

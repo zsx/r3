@@ -858,6 +858,21 @@ inline static void Init_Endlike_Header(struct Reb_Header *alias, REBUPT bits)
             enum Reb_Kind kind = cast(enum Reb_Kind, RIGHT_8_BITS(header.bits));
             assert(kind <= REB_MAX_VOID);
         }
+
+        // Overwriting one REBVAL* with another REBVAL* cannot be done with
+        // a direct assignment, such as `*dest = *src;`  Instead one is
+        // supposed to use `Move_Value(dest, src);` because the copying needs
+        // to be sensitive to the nature of the target slot.  If that slot
+        // is at a higher stack level than the source (or persistent in an
+        // array) then special handling is necessary to make sure any stack
+        // constrained pointers are "reified" 
+        //
+        // !!! Note that "= delete" only works in C++11, and can be achieved
+        // less clearly but still work just by making assignment and copying
+        // constructors private.
+    private:
+        Reb_Specific_Value (Reb_Specific_Value const & other);
+        void operator= (Reb_Specific_Value const &rhs);
     #endif
     };
 #endif

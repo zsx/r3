@@ -574,9 +574,9 @@ REBTYPE(Time)
         }
         else if (type == REB_DATE && action == SYM_ADD) { // TIME + DATE case
             // Swap args and call DATE datatupe:
-            *D_ARG(3) = *val; // (temporary location for swap)
-            *D_ARG(1) = *arg;
-            *D_ARG(2) = *D_ARG(3);
+            Move_Value(D_ARG(3), val); // (temporary location for swap)
+            Move_Value(D_ARG(1), arg);
+            Move_Value(D_ARG(2), D_ARG(3));
             return T_Date(frame_, action);
         }
         fail (Error_Math_Args(REB_TIME, action));
@@ -627,13 +627,13 @@ REBTYPE(Time)
                     );
                     VAL_DECIMAL(arg) /= SEC_SEC;
                     VAL_RESET_HEADER(arg, REB_DECIMAL);
-                    *D_OUT = *ARG(scale);
+                    Move_Value(D_OUT, ARG(scale));
                     return R_OUT;
                 }
                 else if (IS_INTEGER(arg)) {
                     VAL_INT64(arg) = Round_Int(secs, 1, Int32(arg) * SEC_SEC) / SEC_SEC;
                     VAL_RESET_HEADER(arg, REB_INTEGER);
-                    *D_OUT = *ARG(scale);
+                    Move_Value(D_OUT, ARG(scale));
                     return R_OUT;
                 }
                 else fail (Error_Invalid_Arg(arg));
@@ -668,7 +668,7 @@ REBTYPE(Time)
 
         /* case SYM_POKE:
             Poke_Time_Immediate(val, arg, D_ARG(3));
-            *D_OUT = *D_ARG(3);
+            Move_Value(D_OUT, D_ARG(3));
             return R_OUT;*/
         }
     }

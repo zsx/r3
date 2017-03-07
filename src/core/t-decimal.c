@@ -345,9 +345,9 @@ REBTYPE(Decimal)
                 action == SYM_MULTIPLY
             )
         ){
-            *D_OUT = *D_ARG(2);
-            *D_ARG(2) = *D_ARG(1);
-            *D_ARG(1) = *D_OUT;
+            Move_Value(D_OUT, D_ARG(2));
+            Move_Value(D_ARG(2), D_ARG(1));
+            Move_Value(D_ARG(1), D_OUT);
             return Value_Dispatch[VAL_TYPE(D_ARG(1))](frame_, action);
         }
 
@@ -418,7 +418,7 @@ REBTYPE(Decimal)
         switch (action) {
 
         case SYM_COPY:
-            *D_OUT = *val;
+            Move_Value(D_OUT, val);
             return R_OUT;
 
         case SYM_NEGATE:

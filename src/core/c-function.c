@@ -100,10 +100,10 @@ REBARR *List_Func_Typesets(REBVAL *func)
     REBVAL *typeset = VAL_FUNC_PARAMS_HEAD(func);
 
     for (; NOT_END(typeset); typeset++) {
-        REBVAL *value = Alloc_Tail_Array(array);
-
         assert(IS_TYPESET(typeset));
-        *value = *typeset;
+
+        REBVAL *value = Alloc_Tail_Array(array);
+        Move_Value(value, typeset);
 
         // !!! It's already a typeset, but this will clear out the header
         // bits.  This may not be desirable over the long run (what if
@@ -673,7 +673,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             if (definitional_return && src == definitional_return)
                 continue;
 
-            *dest = *src;
+            Move_Value(SINK(dest), src);
             ++dest;
         }
 
@@ -745,7 +745,10 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //
     if (has_description) {
         assert(IS_STRING(DS_AT(dsp_orig + 3)));
-        *CTX_VAR(meta, STD_FUNCTION_META_DESCRIPTION) = *DS_AT(dsp_orig + 3);
+        Move_Value(
+            CTX_VAR(meta, STD_FUNCTION_META_DESCRIPTION),
+            DS_AT(dsp_orig + 3)
+        );
     }
     else if (meta)
         SET_VOID(CTX_VAR(meta, STD_FUNCTION_META_DESCRIPTION));
@@ -779,7 +782,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             if (VAL_ARRAY_LEN_AT(src) == 0)
                 SET_VOID(dest);
             else
-                *dest = *src;
+                Move_Value(SINK(dest), src);
             ++dest;
         }
 
@@ -795,8 +798,10 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             if (VAL_ARRAY_LEN_AT(definitional_return + 1) == 0)
                 SET_VOID(CTX_VAR(meta, STD_FUNCTION_META_RETURN_TYPE));
             else {
-                *CTX_VAR(meta, STD_FUNCTION_META_RETURN_TYPE)
-                    = *(definitional_return + 1);
+                Move_Value(
+                    CTX_VAR(meta, STD_FUNCTION_META_RETURN_TYPE),
+                    &definitional_return[1]
+                );
             }
 
             if (NOT(flags & MKF_FAKE_RETURN)) {
@@ -844,7 +849,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             if (SER_LEN(VAL_SERIES(src)) == 0)
                 SET_VOID(dest);
             else
-                *dest = *src;
+                Move_Value(SINK(dest), src);
             ++dest;
         }
 
@@ -857,8 +862,10 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             if (SER_LEN(VAL_SERIES(definitional_return + 2)) == 0)
                 SET_VOID(CTX_VAR(meta, STD_FUNCTION_META_RETURN_NOTE));
             else {
-                *CTX_VAR(meta, STD_FUNCTION_META_RETURN_NOTE)
-                    = *(definitional_return + 2);
+                Move_Value(
+                    CTX_VAR(meta, STD_FUNCTION_META_RETURN_NOTE),
+                    &definitional_return[2]
+                );
             }
 
             if (NOT(flags & MKF_FAKE_RETURN)) {
@@ -1498,7 +1505,10 @@ REBOOL Specialize_Function_Throws(
     REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(example));
 
     SET_VOID(CTX_VAR(meta, STD_SPECIALIZED_META_DESCRIPTION)); // default
-    *CTX_VAR(meta, STD_SPECIALIZED_META_SPECIALIZEE) = *specializee;
+    Move_Value(
+        CTX_VAR(meta, STD_SPECIALIZED_META_SPECIALIZEE),
+        specializee
+    );
     if (opt_specializee_name == NULL)
         SET_VOID(CTX_VAR(meta, STD_SPECIALIZED_META_SPECIALIZEE_NAME));
     else
@@ -1521,10 +1531,10 @@ REBOOL Specialize_Function_Throws(
     // not be able to touch the keylist of that frame to update the "archetype"
     // binding, we can patch this cell in the "body array" to hold it.
     //
-    *FUNC_BODY(fun) = *CTX_VALUE(exemplar);
+    Move_Value(SINK(FUNC_BODY(fun)), CTX_VALUE(exemplar));
     assert(VAL_BINDING(FUNC_BODY(fun)) == VAL_BINDING(specializee));
 
-    *out = *FUNC_VALUE(fun);
+    Move_Value(out, FUNC_VALUE(fun));
     assert(VAL_BINDING(out) == NULL);
 
     return FALSE;
@@ -1617,7 +1627,7 @@ void Clonify_Function(REBVAL *value)
     SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
     INIT_RELATIVE(body, AS_FUNC(paramlist));
 
-    *value = *FUNC_VALUE(new_fun);
+    Move_Value(value, FUNC_VALUE(new_fun));
 }
 
 
@@ -1951,7 +1961,8 @@ void Get_If_Word_Or_Path_Arg(
     REBSTR **opt_name_out,
     const REBVAL *value
 ) {
-    REBVAL adjusted = *value;
+    REBVAL adjusted;
+    Move_Value(&adjusted, value);
 
     if (ANY_WORD(value)) {
         *opt_name_out = VAL_WORD_SPELLING(value);
@@ -1967,7 +1978,7 @@ void Get_If_Word_Or_Path_Arg(
     }
     else {
         *opt_name_out = NULL;
-        *out = *value;
+        Move_Value(out, value);
         return;
     }
 
@@ -2082,7 +2093,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
             // arguments you shouldn't that is a client error.
             //
             assert(!THROWN(f->special));
-            *f->arg = *f->special;
+            Move_Value(f->arg, f->special);
             ++f->special;
         }
         else if (opt_def)

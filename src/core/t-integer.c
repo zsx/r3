@@ -117,7 +117,7 @@ void Value_To_Int64(REBVAL *out, const REBVAL *value, REBOOL no_sign)
     // Use SWITCH instead of IF chain? (was written w/ANY_STR test)
 
     if (IS_INTEGER(value)) {
-        *out = *value;
+        Move_Value(out, value);
         goto check_sign;
     }
     if (IS_DECIMAL(value) || IS_PERCENT(value)) {
@@ -390,9 +390,9 @@ REBTYPE(Integer)
             case SYM_ADD:
             case SYM_MULTIPLY:
                 // Swap parameter order:
-                *D_OUT = *val2;  // Use as temp workspace
-                *val2 = *val;
-                *val = *D_OUT;
+                Move_Value(D_OUT, val2);  // Use as temp workspace
+                Move_Value(val2, val);
+                Move_Value(val, D_OUT);
                 return Value_Dispatch[VAL_TYPE(val)](frame_, action);
 
             // Only type valid to subtract from, divide into, is decimal/money:
@@ -426,7 +426,7 @@ REBTYPE(Integer)
     switch (action) {
 
     case SYM_COPY:
-        *D_OUT = *val;
+        Move_Value(D_OUT, val);
         return R_OUT;
 
     case SYM_ADD:

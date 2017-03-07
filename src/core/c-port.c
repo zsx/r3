@@ -388,7 +388,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
 
     REBVAL first;
 
-    *path = *FUNC_VALUE(func_new);
+    Move_Value(SINK(path), FUNC_VALUE(func_new));
     ++path;
 
     for (; NOT_END(f->param); ++f->param, ++f->arg) {
@@ -425,7 +425,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
         //
         if (ignoring) continue;
 
-        *code = *f->arg;
+        Move_Value(SINK(code), f->arg);
         ++code;
     }
 
@@ -548,7 +548,8 @@ post_process_output:
             if (!IS_STRING(D_OUT))
                 fail (Error(RE_MISC)); // !!! when can this happen?
 
-            REBVAL temp = *D_OUT;
+            REBVAL temp;
+            Move_Value(&temp, D_OUT);
             Init_Block(D_OUT, Split_Lines(&temp));
         }
     }

@@ -73,7 +73,7 @@ REBOOL Reduce_Any_Array_Throws(
         REBVAL reduced;
         Do_Next_In_Frame_May_Throw(&reduced, &f, DO_FLAG_NORMAL);
         if (THROWN(&reduced)) {
-            *out = reduced;
+            Move_Value(out, &reduced);
             DS_DROP_TO(dsp_orig);
             Drop_Frame(&f);
             return TRUE;
@@ -128,7 +128,7 @@ REBNATIVE(reduce)
 
     if (IS_BLOCK(value)) {
         if (REF(into))
-            *D_OUT = *ARG(target);
+            Move_Value(D_OUT, ARG(target));
 
         if (Reduce_Any_Array_Throws(
             D_OUT,
@@ -169,7 +169,7 @@ REBNATIVE(reduce)
         1 // multiplied by width (sizeof(REBVAL)) in Insert_Series
     );
 
-    *D_OUT = *into;
+    Move_Value(D_OUT, into);
     return R_OUT;
 }
 
@@ -209,7 +209,7 @@ REBOOL Compose_Any_Array_Throws(
             REBVAL evaluated;
             Do_Next_In_Frame_May_Throw(&evaluated, &f, DO_FLAG_NO_LOOKAHEAD);
             if (THROWN(&evaluated)) {
-                *out = evaluated;
+                Move_Value(out, &evaluated);
                 DS_DROP_TO(dsp_orig);
                 Drop_Frame(&f);
                 return TRUE;
@@ -258,7 +258,7 @@ REBOOL Compose_Any_Array_Throws(
                     only,
                     into
                 )) {
-                    *out = composed;
+                    Move_Value(out, &composed);
                     DS_DROP_TO(dsp_orig);
                     Drop_Frame(&f);
                     return TRUE;
@@ -331,14 +331,17 @@ REBNATIVE(compose)
     // What about 'compose quote a/(1 + 2)/b' ?
     //
     if (!IS_BLOCK(ARG(value))) {
-        *D_OUT = *ARG(value);
+        Move_Value(D_OUT, ARG(value));
         return R_OUT;
     }
 
     // Compose_Values_Throws() expects `out` to contain the target if it is
     // passed TRUE as the `into` flag.
     //
-    if (REF(into)) *D_OUT = *ARG(out);
+    if (REF(into))
+        Move_Value(D_OUT, ARG(out));
+    else
+        assert(IS_END(D_OUT)); // !!! guaranteed, better signal than `into`?
 
     if (Compose_Any_Array_Throws(
         D_OUT,

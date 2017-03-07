@@ -258,14 +258,14 @@ REBNATIVE(function_of)
         // no longer on the stack.
         //
         REBCTX *context = VAL_CONTEXT(level);
-        *D_OUT = *CTX_FRAME_FUNC_VALUE(context);
+        Move_Value(D_OUT, CTX_FRAME_FUNC_VALUE(context));
     }
     else {
         REBFRM *frame = Frame_For_Stack_Level(NULL, level, TRUE);
         if (!frame)
             fail (Error_Invalid_Arg(level));
 
-        *D_OUT = *FUNC_VALUE(frame->func);
+        Move_Value(D_OUT, FUNC_VALUE(frame->func));
     }
 
     return R_OUT;

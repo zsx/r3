@@ -185,7 +185,7 @@ REBNATIVE(all)
 
         if (THROWN(&temp)) {
             Drop_Frame(&f);
-            *D_OUT = temp;
+            Move_Value(D_OUT, &temp);
             return R_OUT_IS_THROWN;
         }
 
@@ -197,7 +197,7 @@ REBNATIVE(all)
             return R_BLANK;
         }
 
-        *D_OUT = temp; // preserve value (not overwritten by later voids)
+        Move_Value(D_OUT, &temp); // preserve (not overwritten by later voids)
     }
 
     Drop_Frame(&f);
@@ -344,7 +344,7 @@ REBNATIVE(case)
 
         Do_Next_In_Frame_May_Throw(D_CELL, &f, DO_FLAG_NORMAL);
         if (THROWN(D_CELL)) {
-            *D_OUT = *D_CELL;
+            Move_Value(D_OUT, D_CELL);
             goto return_thrown;
         }
 
@@ -374,7 +374,7 @@ REBNATIVE(case)
         if (NOT(IS_CONDITIONAL_TRUE_SAFE(D_CELL))) {
             Do_Next_In_Frame_May_Throw(D_CELL, &f, DO_FLAG_NORMAL);
             if (THROWN(D_CELL)) {
-                *D_OUT = *D_CELL;
+                Move_Value(D_OUT, D_CELL);
                 goto return_thrown;
             }
 
@@ -386,7 +386,7 @@ REBNATIVE(case)
             //
             REBVAL dummy;
             if (Maybe_Run_Failed_Branch_Throws(&dummy, D_CELL, REF(only))) {
-                *D_OUT = dummy;
+                Move_Value(D_OUT, &dummy);
                 goto return_thrown;
             }
 
@@ -403,7 +403,7 @@ REBNATIVE(case)
 
         Do_Next_In_Frame_May_Throw(D_CELL, &f, DO_FLAG_NORMAL);
         if (THROWN(D_CELL)) {
-            *D_OUT = *D_CELL;
+            Move_Value(D_OUT, D_CELL);
             goto return_thrown;
         }
 
@@ -506,7 +506,7 @@ REBNATIVE(switch)
             || IS_GET_PATH(f.value)
         ){
             if (EVAL_VALUE_CORE_THROWS(D_CELL, f.value, f.specifier)) {
-                *D_OUT = *D_CELL;
+                Move_Value(D_OUT, D_CELL);
                 goto return_thrown;
             }
         }
@@ -568,7 +568,7 @@ return_defaulted:
             goto return_thrown;
     }
     else
-        *D_OUT = *D_CELL; // let last test value "fall out", might be void
+        Move_Value(D_OUT, D_CELL); // last test "falls out", might be void
 
     Drop_Frame(&f);
     if (REF(q))
@@ -661,7 +661,7 @@ REBNATIVE(catch)
                         fail (Error(RE_INVALID_ARG, ARG(names)));
 
                     Derelativize(temp1, candidate, VAL_SPECIFIER(ARG(names)));
-                    *temp2 = *D_OUT;
+                    Move_Value(temp2, D_OUT);
 
                     // Return the THROW/NAME's arg if the names match
                     // !!! 0 means equal?, but strict-equal? might be better
@@ -671,8 +671,8 @@ REBNATIVE(catch)
                 }
             }
             else {
-                *temp1 = *ARG(names);
-                *temp2 = *D_OUT;
+                Move_Value(temp1, ARG(names));
+                Move_Value(temp2, D_OUT);
 
                 // Return the THROW/NAME's arg if the names match
                 // !!! 0 means equal?, but strict-equal? might be better
@@ -708,7 +708,7 @@ was_caught:
         REBVAL *thrown_name = ARG(quit);
 
         CATCH_THROWN(thrown_arg, D_OUT);
-        *thrown_name = *D_OUT; // THROWN bit cleared by CATCH_THROWN
+        Move_Value(thrown_name, D_OUT); // THROWN bit cleared by CATCH_THROWN
 
         if (IS_BLOCK(handler)) {
             //
@@ -791,7 +791,7 @@ REBNATIVE(throw)
     }
 
     if (REF(name))
-        *D_OUT = *ARG(name_value);
+        Move_Value(D_OUT, ARG(name_value));
     else {
         // Blank values serve as representative of THROWN() means "no name"
         //

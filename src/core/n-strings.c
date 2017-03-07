@@ -620,7 +620,7 @@ REBNATIVE(deline)
 
     SET_SERIES_LEN(VAL_SERIES(val), VAL_LEN_HEAD(val) - (len - n));
 
-    *D_OUT = *ARG(string);
+    Move_Value(D_OUT, ARG(string));
     return R_OUT;
 }
 
@@ -647,7 +647,7 @@ REBNATIVE(enline)
             Enline_Uni(ser, VAL_INDEX(val), VAL_LEN_AT(val));
     }
 
-    *D_OUT = *ARG(series);
+    Move_Value(D_OUT, ARG(series));
     return R_OUT;
 }
 
@@ -862,7 +862,7 @@ REBNATIVE(find_script)
 
     VAL_INDEX(arg) += offset;
 
-    *D_OUT = *ARG(script);
+    Move_Value(D_OUT, ARG(script));
     return R_OUT;
 }
 
@@ -905,7 +905,7 @@ REBNATIVE(invalid_utf8_q)
 
     VAL_INDEX(arg) = bp - VAL_BIN_HEAD(arg);
 
-    *D_OUT = *arg;
+    Move_Value(D_OUT, arg);
     return R_OUT;
 }
 

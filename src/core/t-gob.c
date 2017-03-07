@@ -781,7 +781,7 @@ REBNATIVE(map_event)
         SET_EVENT_XY(val, ROUND_TO_INT(xy.x), ROUND_TO_INT(xy.y));
     }
 
-    *D_OUT = *ARG(event);
+    Move_Value(D_OUT, ARG(event));
     return R_OUT;
 }
 
@@ -928,7 +928,8 @@ REBINT PD_Gob(REBPVS *pvs)
                 // Next_Path_Throws runs arbitrary code it could be GC'd too.
                 // Have to copy -and- protect.
                 //
-                REBVAL sel_orig = *pvs->selector;
+                REBVAL sel_orig;
+                Move_Value(&sel_orig, pvs->selector);
                 PUSH_GUARD_VALUE(&sel_orig);
 
                 pvs->value = pvs->store;
@@ -986,7 +987,7 @@ REBTYPE(Gob)
     REBCNT tail;
     REBCNT len;
 
-    *D_OUT = *val;
+    Move_Value(D_OUT, val);
 
     assert(IS_GOB(val));
     gob = VAL_GOB(val);
@@ -1029,7 +1030,7 @@ REBTYPE(Gob)
 
         Insert_Gobs(gob, arg, index, 1, FALSE);
         if (action == SYM_POKE) {
-            *D_OUT = *arg;
+            Move_Value(D_OUT, arg);
             return R_OUT;
         }
         index++;
@@ -1156,7 +1157,7 @@ REBTYPE(Gob)
             *GOB_AT(gob, tail-index-1) = *GOB_AT(gob, index);
             *GOB_AT(gob, index) = ngob;
         }
-        *D_OUT = *D_ARG(1);
+        Move_Value(D_OUT, D_ARG(1));
         return R_OUT;
 
     default:

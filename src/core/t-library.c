@@ -70,7 +70,7 @@ void MAKE_Library(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     AS_SERIES(singular)->link.meta = NULL; // build from spec, e.g. arg?
 
     MANAGE_ARRAY(singular);
-    *out = *KNOWN(ARR_HEAD(singular));
+    Move_Value(out, KNOWN(ARR_HEAD(singular)));
 }
 
 

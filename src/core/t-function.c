@@ -105,7 +105,7 @@ void MAKE_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         &spec, &body, MKF_ANY_VALUE
     );
 
-    *out = *FUNC_VALUE(fun);
+    Move_Value(out, FUNC_VALUE(fun));
 }
 
 
@@ -153,7 +153,7 @@ REBTYPE(Function)
         // want to snapshot.  See notes on Clonify_Function about why this
         // idea may be incorrect.
         //
-        *D_OUT = *value;
+        Move_Value(D_OUT, value);
         Clonify_Function(D_OUT);
         return R_OUT; }
 
@@ -245,7 +245,7 @@ REBTYPE(Function)
             typeset = SINK(ARR_HEAD(copy));
             for (; NOT_END(param); param++, typeset++) {
                 assert(VAL_PARAM_SPELLING(param) != NULL);
-                *typeset = *param;
+                Move_Value(typeset, param);
                 INIT_TYPESET_NAME(typeset, NULL);
             }
             TERM_ARRAY_LEN(copy, VAL_FUNC_NUM_PARAMS(value));

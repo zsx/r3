@@ -953,12 +953,12 @@ REBOOL Decode_UTF8_Maybe_Astral_Throws(
                     if (Apply_Only_Throws(
                         &item, FALSE, handler, &a, END_CELL
                     )){
-                        *out_if_thrown = item;
+                        Move_Value(out_if_thrown, &item);
                         return TRUE;
                     }
                 }
                 else
-                    item = *handler;
+                    Move_Value(&item, handler);
 
                 switch (VAL_TYPE(&item)) {
                 case REB_MAX_VOID:

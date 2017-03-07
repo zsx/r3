@@ -95,7 +95,10 @@ void Init_Typesets(void)
         DS_PUSH_TRASH;
         Init_Typeset(DS_TOP, Typesets[n].bits, NULL);
 
-        *Append_Context(Lib_Context, NULL, Canon(Typesets[n].sym)) = *DS_TOP;
+        Move_Value(
+            Append_Context(Lib_Context, NULL, Canon(Typesets[n].sym)),
+            DS_TOP
+        );
     }
 
     Init_Block(ROOT_TYPESETS, Pop_Stack_Values(dsp_orig));
@@ -229,7 +232,7 @@ void MAKE_Typeset(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     assert(kind == REB_TYPESET);
 
     if (IS_TYPESET(arg)) {
-        *out = *arg;
+        Move_Value(out, arg);
         return;
     }
 
@@ -323,12 +326,12 @@ REBTYPE(Typeset)
             VAL_TYPESET_BITS(val) &= VAL_TYPESET_BITS(arg);
         else
             VAL_TYPESET_BITS(val) ^= VAL_TYPESET_BITS(arg);
-        *D_OUT = *D_ARG(1);
+        Move_Value(D_OUT, D_ARG(1));
         return R_OUT;
 
     case SYM_COMPLEMENT:
         VAL_TYPESET_BITS(val) = ~VAL_TYPESET_BITS(val);
-        *D_OUT = *D_ARG(1);
+        Move_Value(D_OUT, D_ARG(1));
         return R_OUT;
 
     default:

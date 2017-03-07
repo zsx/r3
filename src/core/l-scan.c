@@ -1627,7 +1627,7 @@ static REBARR *Scan_Array(
             ep = scan_state->end;
             if (scan_state->errors) {
                 DS_PUSH_TRASH;
-                *DS_TOP = *KNOWN(ARR_LAST(array)); // Copy the error
+                Move_Value(DS_TOP, KNOWN(ARR_LAST(array))); // Copy the error
                 goto exit_block;
             }
             DS_PUSH_TRASH;
@@ -1830,7 +1830,7 @@ static REBARR *Scan_Array(
                 dispatcher(&cell, kind, KNOWN(ARR_AT(array, 1))); // may fail()
 
                 DS_PUSH_TRASH;
-                *DS_TOP = cell;
+                Move_Value(DS_TOP, &cell);
                 DROP_GUARD_VALUE(&cell);
                 DROP_GUARD_ARRAY(array);
             }

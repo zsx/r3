@@ -218,7 +218,7 @@ void TO_Image(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         REBVAL *image = OS_GOB_TO_IMAGE(VAL_GOB(arg));
         if (image == NULL)
             fail (Error_Bad_Make(REB_IMAGE, arg)); // not GUI build...
-        *out = *image; // what are the GC semantics here?
+        Move_Value(out, image); // what are the GC semantics here?
     }
     else if (IS_BINARY(arg)) {
         REBINT diff = VAL_LEN_AT(arg) / 4;
@@ -1009,7 +1009,7 @@ REBTYPE(Image)
 
     case SYM_POKE:
         Poke_Image_Fail_If_Read_Only(value, arg, D_ARG(3));
-        *D_OUT = *D_ARG(3);
+        Move_Value(D_OUT, D_ARG(3));
         return R_OUT;
 
     case SYM_SKIP:
@@ -1057,7 +1057,7 @@ REBTYPE(Image)
                 //*dp = (long) (VAL_TUPLE_LEN(arg) < 4) ?
                 //  ((*dp & 0xff000000) | (VAL_TUPLE(arg)[0] << 16) | (VAL_TUPLE(arg)[1] << 8) | (VAL_TUPLE(arg)[2])) :
                 //  ((VAL_TUPLE(arg)[3] << 24) | (VAL_TUPLE(arg)[0] << 16) | (VAL_TUPLE(arg)[1] << 8) | (VAL_TUPLE(arg)[2]));
-                *D_OUT = *arg;
+                Move_Value(D_OUT, arg);
                 return R_OUT;
             }
             if (IS_INTEGER(arg) && VAL_INT64(arg) > 0 && VAL_INT64(arg) < 255)
@@ -1068,7 +1068,7 @@ REBTYPE(Image)
                 fail (Error_Invalid_Arg(arg));
 
             *dp = (*dp & 0xffffff) | (n << 24);
-            *D_OUT = *arg;
+            Move_Value(D_OUT, arg);
             return R_OUT; //was value;
 
         } else {
@@ -1190,7 +1190,7 @@ makeCopy2:
         fail (Error_Illegal_Action(VAL_TYPE(value), action));
     }
 
-    *D_OUT = *value;
+    Move_Value(D_OUT, value);
     return R_OUT;
 }
 

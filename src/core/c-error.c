@@ -567,7 +567,7 @@ REBOOL Make_Error_Object_Throws(
         Bind_Values_Deep(VAL_ARRAY_AT(arg), error);
 
         if (DO_VAL_ARRAY_AT_THROWS(&evaluated, arg)) {
-            *out = evaluated;
+            Move_Value(out, &evaluated);
 
         #if !defined(NDEBUG)
             //
@@ -645,7 +645,7 @@ REBOOL Make_Error_Object_Throws(
             if (!message)
                 fail (Error(RE_INVALID_ERROR, arg));
 
-            vars->message = *message;
+            Move_Value(&vars->message, message);
 
             if (!IS_BLANK(&vars->id)) {
                 if (
@@ -655,7 +655,7 @@ REBOOL Make_Error_Object_Throws(
                     fail (Error(RE_INVALID_ERROR, arg));
                 }
             }
-            vars->id = id; // normalize binding and case
+            Move_Value(&vars->id, &id); // binding and case normalized
 
             if (!IS_BLANK(&vars->type)) {
                 if (
@@ -665,7 +665,7 @@ REBOOL Make_Error_Object_Throws(
                     fail (Error(RE_INVALID_ERROR, arg));
                 }
             }
-            vars->type = type; // normalize binding and case
+            Move_Value(&vars->type, &type); // binding and case normalized
 
             // !!! TBD: Check that all arguments were provided!
         }
@@ -708,7 +708,7 @@ REBOOL Make_Error_Object_Throws(
                 if (!IS_BLANK(&vars->message))
                     fail (Error(RE_INVALID_ERROR, arg));
 
-                vars->message = *message;
+                Move_Value(&vars->message, message);
 
                 SET_INTEGER(&vars->code,
                     code
@@ -1000,7 +1000,7 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
             #endif
                     Init_Typeset(key, ALL_64, VAL_WORD_SPELLING(temp));
 
-                *value = *arg;
+                Move_Value(value, arg);
 
                 key++;
                 value++;
@@ -1051,9 +1051,9 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
     // Set error number:
     SET_INTEGER(&vars->code, code);
 
-    vars->message = *message;
-    vars->id = id;
-    vars->type = type;
+    Move_Value(&vars->message, message);
+    Move_Value(&vars->id, &id);
+    Move_Value(&vars->type, &type);
 
     // There might be no Rebol code running when the error is created (e.g.
     // the static creation of the stack overflow error before any code runs)

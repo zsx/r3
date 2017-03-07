@@ -69,7 +69,7 @@ void MAKE_Money(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         break;
 
     case REB_MONEY:
-        *out = *arg;
+        Move_Value(out, arg);
         return;
 
     case REB_STRING:
@@ -212,12 +212,12 @@ REBTYPE(Money)
 
     case SYM_NEGATE:
         val->payload.money.s = !val->payload.money.s;
-        *D_OUT = *D_ARG(1);
+        Move_Value(D_OUT, D_ARG(1));
         return R_OUT;
 
     case SYM_ABSOLUTE:
         val->payload.money.s = 0;
-        *D_OUT = *D_ARG(1);
+        Move_Value(D_OUT, D_ARG(1));
         return R_OUT;
 
     case SYM_ROUND: {
@@ -244,7 +244,7 @@ REBTYPE(Money)
             else if (IS_DECIMAL(scale) || IS_PERCENT(scale))
                 SET_MONEY(&temp, decimal_to_deci(VAL_DECIMAL(scale)));
             else if (IS_MONEY(scale))
-                temp = *scale;
+                Move_Value(&temp, scale);
             else
                 fail (Error_Invalid_Arg(scale));
         }

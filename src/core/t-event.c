@@ -229,7 +229,7 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSTR *name, REBVAL *val)
     case SYM_PORT:
         // Most events are for the GUI:
         if (IS_EVENT_MODEL(value, EVM_GUI)) {
-            *val = *Get_System(SYS_VIEW, VIEW_EVENT_PORT);
+            Move_Value(val, Get_System(SYS_VIEW, VIEW_EVENT_PORT));
         }
         // Event holds a port:
         else if (IS_EVENT_MODEL(value, EVM_PORT)) {
@@ -240,7 +240,7 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSTR *name, REBVAL *val)
             Init_Object(val, AS_CONTEXT(VAL_EVENT_SER(value)));
         }
         else if (IS_EVENT_MODEL(value, EVM_CALLBACK)) {
-            *val = *Get_System(SYS_PORTS, PORTS_CALLBACK);
+            Move_Value(val, Get_System(SYS_PORTS, PORTS_CALLBACK));
         }
         else {
             // assumes EVM_DEVICE

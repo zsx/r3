@@ -620,7 +620,7 @@ REBTYPE(Vector)
 
     case SYM_POKE:
         Poke_Vector_Fail_If_Read_Only(value, arg, D_ARG(3));
-        *D_OUT = *D_ARG(3);
+        Move_Value(D_OUT, D_ARG(3));
         return R_OUT;
 
     case SYM_LENGTH:
@@ -658,14 +658,14 @@ REBTYPE(Vector)
             fail (Error(RE_BAD_REFINES));
 
         Shuffle_Vector(value, REF(secure));
-        *D_OUT = *D_ARG(1);
+        Move_Value(D_OUT, D_ARG(1));
         return R_OUT; }
 
     default:
         fail (Error_Illegal_Action(VAL_TYPE(value), action));
     }
 
-    *D_OUT = *value;
+    Move_Value(D_OUT, value);
     return R_OUT;
 }
 

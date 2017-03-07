@@ -45,7 +45,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     REBSER *ser;    // simplifier
     REBVAL *path;
 
-    *D_OUT = *D_ARG(1);
+    Move_Value(D_OUT, D_ARG(1));
 
     // Validate PORT fields:
     spec = CTX_VAR(port, STD_PORT_SPEC);
@@ -203,7 +203,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         }
         printf("\n");
 #endif
-        *D_OUT = *arg;
+        Move_Value(D_OUT, arg);
         return R_OUT; }
 
     case SYM_WRITE: {
@@ -233,7 +233,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         }
 
         // Setup the write:
-        *CTX_VAR(port, STD_PORT_DATA) = *data;  // keep it GC safe
+        Move_Value(CTX_VAR(port, STD_PORT_DATA), data); // keep it GC safe
         req->length = len;
         req->common.data = VAL_BIN_AT(data);
         req->actual = 0;
