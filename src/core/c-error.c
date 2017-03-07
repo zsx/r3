@@ -825,8 +825,8 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
 #endif
 
     if (PG_Boot_Phase < BOOT_ERRORS) {
-        char buf[1024];
-        strncat(buf, "fail() before object table initialized, code = ", 1024);
+        char buf[1024] = "";
+        strncat(buf, "fail() before object table initialized, code = ", sizeof(buf) - 1);
         Form_Int(b_cast(buf + strlen(buf)), code); // !!! no bounding...
 
     #if defined(NDEBUG)
