@@ -194,28 +194,17 @@ struct rebol_devreq {
 
 #define AS_REBREQ(req) (&(req)->devreq)
 
-#if !defined(NDEBUG)
-#define ASSERT_IS_FILE_REQ(req) assert(req->device == RDI_FILE)
-#define ASSERT_IS_NET_REQ(req) assert(req->device == RDI_NET)
-#define ASSERT_IS_SERIAL_REQ(req) assert(req->device == RDI_SERIAL)
-#else
-#define ASSERT_IS_FILE_REQ(req)
-#define ASSERT_IS_NET_REQ(req)
-#define ASSERT_IS_SERIAL_REQ(req)
-#endif
-
 #ifdef HAS_POSIX_SIGNAL
-#if !defined(NDEBUG)
-#define ASSERT_IS_POSIX_SIGNAL_REQ(req) assert(req->device == RDI_SIGNAL)
-#else
-#define ASSERT_IS_POSIX_SIGNAL_REQ(req)
-#endif
-
 struct devreq_posix_signal {
     struct rebol_devreq devreq;
     sigset_t mask;      // signal mask
 };
-#define DEVREQ_POSIX_SIGNAL(req) (ASSERT_IS_POSIX_SIGNAL_REQ(req), cast(struct devreq_posix_signal*, req))
+
+#if !defined(NDEBUG)
+#define DEVREQ_POSIX_SIGNAL(req) (assert(req->device == RDI_SIGNAL), cast(struct devreq_posix_signal*, req))
+#else
+#define DEVREQ_POSIX_SIGNAL(req) cast(struct devreq_posix_signal*, req)
+#endif
 #endif
 
 struct devreq_file {
@@ -225,7 +214,6 @@ struct devreq_file {
     i64  index;             // file index position
     I64  time;              // file modification time (struct)
 };
-#define DEVREQ_FILE(req) (ASSERT_IS_FILE_REQ(req), cast(struct devreq_file*, req))
 
 struct devreq_net {
     struct rebol_devreq devreq;
@@ -235,7 +223,6 @@ struct devreq_net {
     u32  remote_port;       // remote port
     void *host_info;        // for DNS usage
     };
-#define DEVREQ_NET(req) (ASSERT_IS_NET_REQ(req), cast(struct devreq_net*, req))
 
 struct devreq_serial {
     struct rebol_devreq devreq;
@@ -247,7 +234,16 @@ struct devreq_serial {
     u8  stop_bits;          // 1 or 2
     u8  flow_control;       // hardware or software
 };
-#define DEVREQ_SERIAL(req) (ASSERT_IS_SERIAL_REQ(req), cast(struct devreq_serial*, req))
+
+#if !defined(NDEBUG)
+#define DEVREQ_FILE(req) (assert(req->device == RDI_FILE), cast(struct devreq_file*, req))
+#define DEVREQ_NET(req) (assert(req->device == RDI_NET), cast(struct devreq_net*, req))
+#define DEVREQ_SERIAL(req) (assert(req->device == RDI_SERIAL), cast(struct devreq_serial*, req))
+#else
+#define DEVREQ_FILE(req) cast(struct devreq_file*, req)
+#define DEVREQ_NET(req) cast(struct devreq_net*, req)
+#define DEVREQ_SERIAL(req) cast(struct devreq_serial*, req)
+#endif
 
 // Simple macros for common OPEN? test (for some but not all ports):
 #define SET_OPEN(r)     SET_FLAG(((REBREQ*)(r))->flags, RRF_OPEN)
