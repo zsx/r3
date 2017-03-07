@@ -659,7 +659,10 @@ DEVICE_CMD Accept_Socket(REBREQ *sock)
 
     Nonblocking_Mode(news->requestee.socket);
 
-    Attach_Request(cast(REBREQ**, &sock->common.data), news);
+    // There could be mulitple connections to be accepted.
+    // Queue them at common.sock
+    Attach_Request(&sock->common.sock, AS_REBREQ(news));
+
     Signal_Device(sock, EVT_ACCEPT);
 
     // Even though we signalled, we keep the listen pending to

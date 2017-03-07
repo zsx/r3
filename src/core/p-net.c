@@ -168,7 +168,7 @@ static REB_R Transport_Actor(
             }
             else if (IS_BLANK(arg)) { // No host, must be a LISTEN socket:
                 SET_FLAG(sock->modes, RST_LISTEN);
-                sock->common.data = 0; // where ACCEPT requests are queued
+                sock->common.sock = 0; // where ACCEPT requests are queued
                 sock->special.net.local_port =
                     IS_INTEGER(val) ? VAL_INT32(val) : 8000;
                 break;
