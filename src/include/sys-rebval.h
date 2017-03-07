@@ -694,7 +694,7 @@ struct Reb_Value
 //
 
 #define END_CELL \
-    c_cast(const REBVAL*, &PG_End_Cell)
+    ((const REBVAL*)&PG_End_Node)
 
 #define IS_END_MACRO(v) \
     LOGICAL((v)->header.bits & NODE_FLAG_END)
@@ -849,6 +849,14 @@ inline static void Init_Endlike_Header(struct Reb_Header *alias, REBUPT bits)
             // doesn't set VOID_FLAG_NOT_TRASH, so this is a trash cell
             //
             header.bits = REB_MAX_VOID | NODE_FLAG_CELL | NODE_FLAG_VALID;
+        }
+
+        ~Reb_Specific_Value() {
+            assert(header.bits & NODE_FLAG_CELL);
+            assert(header.bits & NODE_FLAG_VALID);
+
+            enum Reb_Kind kind = cast(enum Reb_Kind, RIGHT_8_BITS(header.bits));
+            assert(kind <= REB_MAX_VOID);
         }
     #endif
     };

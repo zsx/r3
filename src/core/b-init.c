@@ -779,7 +779,7 @@ static void Init_Root_Context(void)
     // this one into a program global.  It is not legal to bit-copy an
     // END (you always use SET_END), so we can make it unwritable.
     //
-    Init_Endlike_Header(&PG_End_Cell.header, 0); // read-only end
+    Init_Endlike_Header(&PG_End_Node.header, 0); // read-only end
     assert(IS_END(END_CELL)); // sanity check that it took
 
     // The EMPTY_BLOCK provides EMPTY_ARRAY.  It is locked for protection.
