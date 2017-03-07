@@ -493,6 +493,8 @@ void *Make_Node(REBCNT pool_id)
     if (pool->first == NULL)
         Fill_Pool(pool);
 
+    assert(pool->first != NULL);
+
     REBNOD *node = pool->first;
 
     pool->first = node->next_if_free;
@@ -538,6 +540,8 @@ void Free_Node(REBCNT pool_id, void *pv)
 
     if (pool->last == NULL) // Fill pool if empty
         Fill_Pool(pool);
+
+    assert(pool->last != NULL);
 
     pool->last->next_if_free = node;
     pool->last = node;
@@ -1317,6 +1321,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
     )) {
         fail (Error_No_Memory((len_old + delta + x) * wide));
     }
+    assert(s->content.dynamic.data != NULL);
 
     // If necessary, add series to the recently expanded list
     //
@@ -1410,6 +1415,7 @@ void Remake_Series(REBSER *s, REBCNT units, REBYTE wide, REBCNT flags)
         s->content.dynamic.data = data_old;
         fail (Error_No_Memory((units + 1) * wide));
     }
+    assert(s->content.dynamic.data != NULL);
 
     if (flags & MKS_PRESERVE) {
         // Preserve as much data as possible (if it was requested, some
