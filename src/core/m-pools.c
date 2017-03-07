@@ -123,6 +123,8 @@ void *Alloc_Mem(size_t size)
     // to remain suitable in alignment for 64-bit values!
 
     void *ptr = malloc(size + sizeof(REBI64));
+    if (ptr == NULL)
+        return NULL;
     *cast(REBI64 *, ptr) = size;
     return cast(char *, ptr) + sizeof(REBI64);
 #endif
