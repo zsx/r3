@@ -187,9 +187,13 @@ REBNATIVE(load_extension_helper)
 //  unload-extension-helper: native [
 //
 //  "Unload an extension"
+//
 //      return: [<opt>]
-//      ext [object!] "The extension to be unloaded"
-//      /cleanup cleaner [handle!] "The RX_Quit pointer for the builtin extension"
+//      ext [object!]
+//          "The extension to be unloaded"
+//      /cleanup
+//      cleaner [handle!]
+//          "The RX_Quit pointer for the builtin extension"
 //  ]
 //
 REBNATIVE(unload_extension_helper)
@@ -198,44 +202,51 @@ REBNATIVE(unload_extension_helper)
 
     REBCTX *std = VAL_CONTEXT(Get_System(SYS_STANDARD, STD_EXTENSION));
     REBCTX *context = VAL_CONTEXT(ARG(ext));
-    if ((CTX_LEN(context) <= STD_EXTENSION_LIB_BASE)
-        || (CTX_KEY_CANON(context, STD_EXTENSION_LIB_BASE)
-            != CTX_KEY_CANON(std, STD_EXTENSION_LIB_BASE))) {
-        fail(Error(RE_INVALID_ARG, ARG(ext)));
+
+    if (
+        (CTX_LEN(context) <= STD_EXTENSION_LIB_BASE)
+        || (
+            CTX_KEY_CANON(context, STD_EXTENSION_LIB_BASE)
+            != CTX_KEY_CANON(std, STD_EXTENSION_LIB_BASE)
+        )
+    ){
+        fail (Error(RE_INVALID_ARG, ARG(ext)));
     }
+
+    int ret;
     if (!REF(cleanup)) {
         REBVAL *lib = CTX_VAR(context, STD_EXTENSION_LIB_BASE);
         if (!IS_LIBRARY(lib))
-            fail(Error(RE_INVALID_ARG, ARG(ext)));
+            fail (Error(RE_INVALID_ARG, ARG(ext)));
 
         if (IS_LIB_CLOSED(VAL_LIBRARY(lib)))
-            fail(Error(RE_BAD_LIBRARY));
+            fail (Error(RE_BAD_LIBRARY));
 
-        CFUNC *RX_Quit = OS_FIND_FUNCTION(VAL_LIBRARY_FD(lib), "RX_Quit");
-        if (!RX_Quit) {
-            OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(lib));
-            return R_VOID;
-        }
-        int ret = cast(QUIT_FUNC, RX_Quit)();
-        if (ret < 0) {
-            OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(lib));
-            REBVAL i;
-            SET_INTEGER(&i, ret);
-            fail(Error(RE_FAIL_TO_QUIT_EXTENSION, i));
-        }
+        QUIT_FUNC quitter = cast(
+            QUIT_FUNC, OS_FIND_FUNCTION(VAL_LIBRARY_FD(lib), "RX_Quit")
+        );
+
+        if (quitter == NULL)
+            ret = 0;
+        else
+            ret = quitter();
 
         OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(lib));
     }
     else {
         if (VAL_HANDLE_CLEANER(ARG(cleaner)) != cleanup_extension_quit_handler)
-            fail(Error(RE_INVALID_ARG, ARG(cleaner)));
-        void *RX_Quit = VAL_HANDLE_POINTER(ARG(cleaner));
-        int ret = cast(QUIT_FUNC, RX_Quit)();
-        if (ret < 0) {
-            REBVAL i;
-            SET_INTEGER(&i, ret);
-            fail(Error(RE_FAIL_TO_QUIT_EXTENSION, i));
-        }
+            fail (Error(RE_INVALID_ARG, ARG(cleaner)));
+
+        QUIT_FUNC quitter = cast(QUIT_FUNC, VAL_HANDLE_POINTER(ARG(cleaner)));
+        assert(quitter != NULL);
+        
+        ret = quitter();
+    }
+
+    if (ret < 0) {
+        REBVAL i;
+        SET_INTEGER(&i, ret);
+        fail (Error(RE_FAIL_TO_QUIT_EXTENSION, &i));
     }
 
     return R_VOID;
