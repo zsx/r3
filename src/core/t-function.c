@@ -89,11 +89,11 @@ void MAKE_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         fail (Error_Bad_Make(kind, arg));
     }
 
-    REBVAL spec;
-    Derelativize(&spec, VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg));
+    DECLARE_LOCAL (spec);
+    Derelativize(spec, VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg));
 
-    REBVAL body;
-    Derelativize(&body, VAL_ARRAY_AT(arg) + 1, VAL_SPECIFIER(arg));
+    DECLARE_LOCAL (body);
+    Derelativize(body, VAL_ARRAY_AT(arg) + 1, VAL_SPECIFIER(arg));
 
     // Spec-constructed functions do *not* have definitional returns
     // added automatically.  They are part of the generators.  So the
@@ -102,7 +102,7 @@ void MAKE_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     // general in any case due to loss of bindings.)
     //
     REBFUN *fun = Make_Interpreted_Function_May_Fail(
-        &spec, &body, MKF_ANY_VALUE
+        spec, body, MKF_ANY_VALUE
     );
 
     Move_Value(out, FUNC_VALUE(fun));

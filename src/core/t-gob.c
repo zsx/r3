@@ -614,28 +614,30 @@ is_blank:
 //
 static void Set_GOB_Vars(REBGOB *gob, const RELVAL *blk, REBSPC *specifier)
 {
+    DECLARE_LOCAL (var);
+    DECLARE_LOCAL (val);
+
     while (NOT_END(blk)) {
         assert(!IS_VOID(blk));
 
-        REBVAL var;
-        Derelativize(&var, blk, specifier);
+
+        Derelativize(var, blk, specifier);
         ++blk;
 
-        if (!IS_SET_WORD(&var))
-            fail (Error(RE_EXPECT_VAL, Get_Type(REB_SET_WORD), Type_Of(&var)));
+        if (!IS_SET_WORD(var))
+            fail (Error(RE_EXPECT_VAL, Get_Type(REB_SET_WORD), Type_Of(var)));
 
         if (IS_END(blk))
-            fail (Error(RE_NEED_VALUE, &var));
+            fail (Error(RE_NEED_VALUE, var));
 
-        REBVAL val;
-        Derelativize(&val, blk, specifier);
+        Derelativize(val, blk, specifier);
         ++blk;
 
-        if (IS_SET_WORD(&val))
-            fail (Error(RE_NEED_VALUE, &var));
+        if (IS_SET_WORD(val))
+            fail (Error(RE_NEED_VALUE, var));
 
-        if (!Set_GOB_Var(gob, &var, &val))
-            fail (Error(RE_BAD_FIELD_SET, &var, Type_Of(&val)));
+        if (!Set_GOB_Var(gob, var, val))
+            fail (Error(RE_BAD_FIELD_SET, var, Type_Of(val)));
     }
 }
 
@@ -928,22 +930,22 @@ REBINT PD_Gob(REBPVS *pvs)
                 // Next_Path_Throws runs arbitrary code it could be GC'd too.
                 // Have to copy -and- protect.
                 //
-                REBVAL sel_orig;
-                Move_Value(&sel_orig, pvs->selector);
-                PUSH_GUARD_VALUE(&sel_orig);
+                DECLARE_LOCAL (sel_orig);
+                Move_Value(sel_orig, pvs->selector);
+                PUSH_GUARD_VALUE(sel_orig);
 
                 pvs->value = pvs->store;
                 pvs->value_specifier = SPECIFIED;
 
                 if (Next_Path_Throws(pvs)) { // sets value in pvs->store
-                    DROP_GUARD_VALUE(&sel_orig);
+                    DROP_GUARD_VALUE(sel_orig);
                     fail (Error_No_Catch_For_Throw(pvs->store)); // Review
                 }
 
                 // write it back to gob
                 //
-                Set_GOB_Var(gob, &sel_orig, pvs->store);
-                DROP_GUARD_VALUE(&sel_orig);
+                Set_GOB_Var(gob, sel_orig, pvs->store);
+                DROP_GUARD_VALUE(sel_orig);
             }
             return PE_USE_STORE;
         }

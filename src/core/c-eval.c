@@ -973,15 +973,15 @@ reevaluate:;
                 // an "honest" parameter has to be made to give the error.
                 //
                 if (!IS_VARARGS(f->arg)) {
-                    REBVAL honest_param;
+                    DECLARE_LOCAL (honest_param);
                     Init_Typeset(
-                        &honest_param,
+                        honest_param,
                         FLAGIT_KIND(REB_VARARGS), // actually expected
                         VAL_PARAM_SPELLING(f->param)
                     );
 
                     fail (Error_Arg_Type(
-                        FRM_LABEL(f), &honest_param, VAL_TYPE(f->arg))
+                        FRM_LABEL(f), honest_param, VAL_TYPE(f->arg))
                     );
                 }
 
@@ -1257,10 +1257,10 @@ reevaluate:;
         while (DSP != f->dsp_orig) {
             if (!IS_FUNCTION(DS_TOP)) break; // pending sets/gets
 
-            REBVAL temp;
-            Move_Value(&temp, f->out); // better safe than sorry, for now?
+            DECLARE_LOCAL (temp);
+            Move_Value(temp, f->out); // better safe than sorry, for now?
             if (Apply_Only_Throws(
-                f->out, TRUE, DS_TOP, &temp, END_CELL
+                f->out, TRUE, DS_TOP, temp, END_CELL
             )) {
                 Abort_Function_Args_For_Frame(f);
                 goto finished;
@@ -1713,9 +1713,9 @@ reevaluate:;
         // ^-- sets args_evaluate, do_count, Ctrl-C may abort
 
         if (!f->gotten) { // <-- DO_COUNT_BREAKPOINT landing spot
-            REBVAL specified;
-            Derelativize(&specified, f->value, f->specifier);
-            fail (Error(RE_NOT_BOUND, &specified));
+            DECLARE_LOCAL (specified);
+            Derelativize(specified, f->value, f->specifier);
+            fail (Error(RE_NOT_BOUND, specified));
         }
 
         if (!IS_FUNCTION(f->gotten)) {

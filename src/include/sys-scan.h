@@ -285,9 +285,9 @@ inline static const REBYTE *Back_Scan_UTF8_Char(
     unsigned long ch; // "UTF32" is defined as unsigned long
     const REBYTE *bp_new = Back_Scan_UTF8_Char_Core(&ch, bp, len);
     if (bp_new != NULL && ch > 0xFFFF) {
-        REBVAL num;
-        SET_INTEGER(&num, cast(REBI64, ch));
-        fail (Error(RE_CODEPOINT_TOO_HIGH, &num));
+        DECLARE_LOCAL (num);
+        SET_INTEGER(num, cast(REBI64, ch));
+        fail (Error(RE_CODEPOINT_TOO_HIGH, num));
     }
     *out = cast(REBUNI, ch);
     return bp_new;

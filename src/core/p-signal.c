@@ -142,10 +142,10 @@ static int sig_word_num(REBSTR *canon)
         case SYM_SIGXFSZ:
             return SIGXFSZ;
         default: {
-            REBVAL word;
-            Init_Word(&word, canon);
+            DECLARE_LOCAL (word);
+            Init_Word(word, canon);
 
-            fail (Error(RE_INVALID_SPEC, &word));
+            fail (Error(RE_INVALID_SPEC, word));
         }
     }
 }

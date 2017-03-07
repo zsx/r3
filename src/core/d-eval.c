@@ -62,11 +62,11 @@
 //
 void Dump_Frame_Location(REBFRM *f)
 {
-    REBVAL dump;
-    Derelativize(&dump, f->value, f->specifier);
+    DECLARE_LOCAL (dump);
+    Derelativize(dump, f->value, f->specifier);
 
     printf("Dump_Frame_Location() value\n");
-    PROBE(&dump);
+    PROBE(dump);
 
     if (f->flags.bits & DO_FLAG_VA_LIST) {
         //
@@ -89,9 +89,8 @@ void Dump_Frame_Location(REBFRM *f)
         printf("...then Dump_Frame_Location() at end of array\n");
     }
     else {
-        REBVAL dump;
         Init_Any_Series_At_Core(
-            &dump,
+            dump,
             REB_BLOCK,
             AS_SERIES(f->source.array),
             cast(REBCNT, f->index),
@@ -99,7 +98,7 @@ void Dump_Frame_Location(REBFRM *f)
         );
 
         printf("Dump_Frame_Location() next input\n");
-        PROBE(&dump);
+        PROBE(dump);
     }
 }
 

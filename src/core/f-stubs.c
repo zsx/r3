@@ -68,10 +68,10 @@ REBINT Get_Num_From_Arg(const REBVAL *val)
 REBINT Float_Int16(REBD32 f)
 {
     if (fabs(f) > cast(REBD32, 0x7FFF)) {
-        REBVAL temp;
-        SET_DECIMAL(&temp, f);
+        DECLARE_LOCAL (temp);
+        SET_DECIMAL(temp, f);
 
-        fail (Error_Out_Of_Range(&temp));
+        fail (Error_Out_Of_Range(temp));
     }
     return cast(REBINT, f);
 }

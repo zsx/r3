@@ -53,7 +53,8 @@ static REB_R Timer_Actor(REBFRM *frame_, REBCTX *port, REBCNT action)
     REBVAL *state;
     REBCNT result;
     REBVAL *arg;
-    REBVAL save_port;
+
+    DECLARE_LOCAL (save_port);
 
     arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     Move_Value(D_OUT, D_ARG(1));

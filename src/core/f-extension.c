@@ -111,8 +111,8 @@ REBNATIVE(load_extension_helper)
 
         //Check_Security(SYM_EXTENSION, POL_EXEC, val);
 
-        REBVAL lib;
-        MAKE_Library(&lib, REB_LIBRARY, path);
+        DECLARE_LOCAL (lib);
+        MAKE_Library(lib, REB_LIBRARY, path);
 
         // check if it's reloading an existing extension
         REBVAL *loaded_exts = CTX_VAR(VAL_CONTEXT(ROOT_SYSTEM), SYS_EXTENSIONS);
@@ -138,29 +138,29 @@ REBNATIVE(load_extension_helper)
 
                 assert(IS_LIBRARY(CTX_VAR(item_ctx, STD_EXTENSION_LIB_BASE)));
 
-                if (VAL_LIBRARY_FD(&lib)
+                if (VAL_LIBRARY_FD(lib)
                     == VAL_LIBRARY_FD(CTX_VAR(item_ctx, STD_EXTENSION_LIB_BASE))) {
                     // found the existing extension
-                    OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(&lib)); //decrease the reference added by MAKE_library
+                    OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(lib)); //decrease the reference added by MAKE_library
                     Move_Value(D_OUT, KNOWN(item));
                     return R_OUT;
                 }
             }
         }
         context = Copy_Context_Shallow(std_ext_ctx);
-        Move_Value(CTX_VAR(context, STD_EXTENSION_LIB_BASE), &lib);
+        Move_Value(CTX_VAR(context, STD_EXTENSION_LIB_BASE), lib);
         Move_Value(CTX_VAR(context, STD_EXTENSION_LIB_FILE), path);
 
-        CFUNC *RX_Init = OS_FIND_FUNCTION(VAL_LIBRARY_FD(&lib), "RX_Init");
+        CFUNC *RX_Init = OS_FIND_FUNCTION(VAL_LIBRARY_FD(lib), "RX_Init");
         if (!RX_Init) {
-            OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(&lib));
+            OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(lib));
             fail(Error(RE_BAD_EXTENSION, path));
         }
 
         // Call its RX_Init function for header and code body:
         if (cast(INIT_FUNC, RX_Init)(CTX_VAR(context, STD_EXTENSION_SCRIPT),
             CTX_VAR(context, STD_EXTENSION_MODULES)) < 0) {
-            OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(&lib));
+            OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(lib));
             fail(Error(RE_EXTENSION_INIT, path));
         }
     }
@@ -244,8 +244,8 @@ REBNATIVE(unload_extension_helper)
     }
 
     if (ret < 0) {
-        REBVAL i;
-        SET_INTEGER(&i, ret);
+        DECLARE_LOCAL (i);
+        SET_INTEGER(i, ret);
         fail (Error(RE_FAIL_TO_QUIT_EXTENSION, &i));
     }
 

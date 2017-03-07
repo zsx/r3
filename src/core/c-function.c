@@ -377,9 +377,9 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             //
             if (VAL_PARAM_CLASS(typeset) == PARAM_CLASS_HARD_QUOTE) {
                 if (TYPE_CHECK(typeset, REB_MAX_VOID)) {
-                    REBVAL param_name;
-                    Init_Word(&param_name, VAL_PARAM_SPELLING(typeset));
-                    fail (Error(RE_HARD_QUOTE_VOID, &param_name));
+                    DECLARE_LOCAL (param_name);
+                    Init_Word(param_name, VAL_PARAM_SPELLING(typeset));
+                    fail (Error(RE_HARD_QUOTE_VOID, param_name));
                 }
             }
 
@@ -706,9 +706,9 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         SHUTDOWN_BINDER(&binder);
 
         if (duplicate != NULL) {
-            REBVAL word;
-            Init_Word(&word, duplicate);
-            fail (Error(RE_DUP_VARS, &word));
+            DECLARE_LOCAL (word);
+            Init_Word(word, duplicate);
+            fail (Error(RE_DUP_VARS, word));
         }
 
         TERM_ARRAY_LEN(paramlist, num_slots);
@@ -1961,12 +1961,12 @@ void Get_If_Word_Or_Path_Arg(
     REBSTR **opt_name_out,
     const REBVAL *value
 ) {
-    REBVAL adjusted;
-    Move_Value(&adjusted, value);
+    DECLARE_LOCAL (adjusted);
+    Move_Value(adjusted, value);
 
     if (ANY_WORD(value)) {
         *opt_name_out = VAL_WORD_SPELLING(value);
-        VAL_SET_TYPE_BITS(&adjusted, REB_GET_WORD);
+        VAL_SET_TYPE_BITS(adjusted, REB_GET_WORD);
     }
     else if (ANY_PATH(value)) {
         //
@@ -1974,7 +1974,7 @@ void Get_If_Word_Or_Path_Arg(
         // evaluated GETs.  Not implemented at the moment.
         //
         *opt_name_out = NULL;
-        VAL_SET_TYPE_BITS(&adjusted, REB_GET_PATH);
+        VAL_SET_TYPE_BITS(adjusted, REB_GET_PATH);
     }
     else {
         *opt_name_out = NULL;
@@ -1982,7 +1982,7 @@ void Get_If_Word_Or_Path_Arg(
         return;
     }
 
-    if (EVAL_VALUE_THROWS(out, &adjusted)) {
+    if (EVAL_VALUE_THROWS(out, adjusted)) {
         //
         // !!! GET_PATH should not evaluate GROUP!, and hence shouldn't be
         // able to throw.  TBD.

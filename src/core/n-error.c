@@ -80,14 +80,14 @@ REBNATIVE(trap)
             else {
                 assert (IS_FUNCTION(handler));
 
-                REBVAL arg;
-                Init_Error(&arg, error);
+                DECLARE_LOCAL (arg);
+                Init_Error(arg, error);
 
                 // Try passing the handler the ERROR! we trapped.  Passing
                 // FALSE for `fully` means it will not raise an error if
                 // the handler happens to be arity 0.
                 //
-                if (Apply_Only_Throws(D_OUT, FALSE, handler, &arg, END_CELL))
+                if (Apply_Only_Throws(D_OUT, FALSE, handler, arg, END_CELL))
                     return R_OUT_IS_THROWN;
 
                 if (REF(q)) return R_TRUE;

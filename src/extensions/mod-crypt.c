@@ -604,9 +604,9 @@ static REBNATIVE(aes)
 
         REBINT len = VAL_LEN_AT(ARG(crypt_key)) << 3;
         if (len != 128 && len != 256) {
-            REBVAL i;
-            SET_INTEGER(&i, len);
-            fail (Error(RE_EXT_CRYPT_INVALID_AES_KEY_LENGTH, &i));
+            DECLARE_LOCAL (i);
+            SET_INTEGER(i, len);
+            fail (Error(RE_EXT_CRYPT_INVALID_AES_KEY_LENGTH, i));
         }
 
         AES_CTX *aes_ctx = ALLOC_ZEROFILL(AES_CTX);

@@ -379,16 +379,16 @@ REBNATIVE(wait)
 
     RELVAL *val;
     if (IS_BLOCK(ARG(value))) {
-        REBVAL unsafe; // temporary not safe from GC
+        DECLARE_LOCAL (unsafe); // temporary not safe from GC
 
         if (Reduce_Any_Array_Throws(
-            &unsafe, ARG(value), REDUCE_FLAG_DROP_BARS
+            unsafe, ARG(value), REDUCE_FLAG_DROP_BARS
         )){
-            Move_Value(D_OUT, &unsafe);
+            Move_Value(D_OUT, unsafe);
             return R_OUT_IS_THROWN;
         }
 
-        ports = VAL_ARRAY(&unsafe);
+        ports = VAL_ARRAY(unsafe);
         for (val = ARR_HEAD(ports); NOT_END(val); val++) { // find timeout
             if (Pending_Port(KNOWN(val))) n++;
             if (IS_INTEGER(val) || IS_DECIMAL(val)) break;
@@ -618,9 +618,9 @@ REBNATIVE(change_dir)
         if (!ser)
             fail (Error_Invalid_Arg(arg)); // !!! ERROR MSG
 
-        REBVAL val;
-        Init_String(&val, ser); // may be unicode or utf-8
-        Check_Security(Canon(SYM_FILE), POL_EXEC, &val);
+        DECLARE_LOCAL (val);
+        Init_String(val, ser); // may be unicode or utf-8
+        Check_Security(Canon(SYM_FILE), POL_EXEC, val);
 
         if (!OS_SET_CURRENT_DIR(SER_HEAD(REBCHR, ser)))
             fail (Error_Invalid_Arg(arg)); // !!! ERROR MSG

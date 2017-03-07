@@ -76,11 +76,11 @@ static void tcc_error_report(void *ignored, const char *msg)
 {
     assert(ignored == NULL); // !!! is this to tunnel an arbitrary pointer?
 
-    REBVAL err;
+    DECLARE_LOCAL (err);
     REBSER *ser = Make_Binary(strlen(msg) + 2);
     Append_Series(ser, cb_cast(msg), strlen(msg));
-    Init_String(&err, ser);
-    fail (Error(RE_TCC_ERROR_WARN, &err));
+    Init_String(err, ser);
+    fail (Error(RE_TCC_ERROR_WARN, err));
 }
 
 
@@ -187,8 +187,8 @@ REB_R Pending_Native_Dispatcher(REBFRM *f) {
     REBARR *array = Make_Array(1);
     Append_Value(array, FUNC_VALUE(f->func));
 
-    REBVAL natives;
-    Init_Block(&natives, array);
+    DECLARE_LOCAL (natives);
+    Init_Block(natives, array);
 
     assert(FUNC_DISPATCHER(f->func) == &Pending_Native_Dispatcher);
 
@@ -603,9 +603,9 @@ REBNATIVE(compile)
     if (tcc_relocate(state, TCC_RELOCATE_AUTO) < 0)
         fail (Error(RE_TCC_RELOCATE));
 
-    REBVAL handle;
+    DECLARE_LOCAL (handle);
     Init_Handle_Managed(
-        &handle,
+        handle,
         state, // "data" pointer
         0,
         cleanup // called upon GC
@@ -636,7 +636,7 @@ REBNATIVE(compile)
             fail (Error(RE_TCC_SYM_NOT_FOUND, name));
 
         FUNC_DISPATCHER(VAL_FUNC(var)) = c_func;
-        *stored_state = handle;
+        Move_Value(stored_state, &handle);
 
         DS_DROP;
     }

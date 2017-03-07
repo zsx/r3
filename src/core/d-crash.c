@@ -119,14 +119,13 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
             REBSER *s = m_cast(REBSER*, cast(const REBSER*, p)); // read only
             Panic_Series_Debug(s);
         }
-    #else
-        const char *no_message = "[empty UTF-8 string]";
+    #endif
+        const char *no_message = "[empty UTF-8 string (or freed series)]";
         strncat(
             buf,
             no_message,
             PANIC_BUF_SIZE - strlen(no_message)
         );
-    #endif
         break; }
 
     case DETECTED_AS_SERIES: {

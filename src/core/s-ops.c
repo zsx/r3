@@ -216,10 +216,10 @@ REBSER *Temp_Bin_Str_Managed(const RELVAL *val, REBCNT *index, REBCNT *length)
         // we were allowed to unlock it...there's no later call in this
         // model to clean up the series.)
         {
-            REBVAL protect;
-            Init_String(&protect, series);
+            DECLARE_LOCAL (protect);
+            Init_String(protect, series);
 
-            Protect_Value(&protect, FLAGIT(PROT_SET));
+            Protect_Value(protect, FLAGIT(PROT_SET));
 
             // just a string...not /DEEP...shouldn't need to Uncolor()
         }

@@ -56,6 +56,8 @@ REBOOL Reduce_Any_Array_Throws(
     REBFRM f;
     Push_Frame(&f, any_array);
 
+    DECLARE_LOCAL (reduced);
+
     while (NOT_END(f.value)) {
         UPDATE_EXPRESSION_START(&f); // informs the error delivery better
 
@@ -70,16 +72,15 @@ REBOOL Reduce_Any_Array_Throws(
             continue;
         }
 
-        REBVAL reduced;
-        Do_Next_In_Frame_May_Throw(&reduced, &f, DO_FLAG_NORMAL);
-        if (THROWN(&reduced)) {
-            Move_Value(out, &reduced);
+        Do_Next_In_Frame_May_Throw(reduced, &f, DO_FLAG_NORMAL);
+        if (THROWN(reduced)) {
+            Move_Value(out, reduced);
             DS_DROP_TO(dsp_orig);
             Drop_Frame(&f);
             return TRUE;
         }
 
-        if (IS_VOID(&reduced)) {
+        if (IS_VOID(reduced)) {
             //
             // !!! Review if there should be a form of reduce which allows
             // void expressions.  The general feeling is that it shouldn't
@@ -91,7 +92,7 @@ REBOOL Reduce_Any_Array_Throws(
             fail (Error(RE_REDUCE_MADE_VOID));
         }
 
-        DS_PUSH(&reduced);
+        DS_PUSH(reduced);
     }
 
     if (flags & REDUCE_FLAG_INTO)
@@ -198,6 +199,9 @@ REBOOL Compose_Any_Array_Throws(
     REBFRM f;
     Push_Frame(&f, any_array);
 
+    DECLARE_LOCAL (composed);
+    DECLARE_LOCAL (specific);
+
     while (NOT_END(f.value)) {
         UPDATE_EXPRESSION_START(&f); // informs the error delivery better
 
@@ -206,35 +210,34 @@ REBOOL Compose_Any_Array_Throws(
             // We evaluate here, but disable lookahead so it only evaluates
             // the GROUP! and doesn't trigger errors on what's after it.
             //
-            REBVAL evaluated;
-            Do_Next_In_Frame_May_Throw(&evaluated, &f, DO_FLAG_NO_LOOKAHEAD);
-            if (THROWN(&evaluated)) {
-                Move_Value(out, &evaluated);
+            Do_Next_In_Frame_May_Throw(composed, &f, DO_FLAG_NO_LOOKAHEAD);
+            if (THROWN(composed)) {
+                Move_Value(out, composed);
                 DS_DROP_TO(dsp_orig);
                 Drop_Frame(&f);
                 return TRUE;
             }
 
-            if (IS_BLOCK(&evaluated) && !only) {
+            if (IS_BLOCK(composed) && !only) {
                 //
                 // compose [blocks ([a b c]) merge] => [blocks a b c merge]
                 //
-                RELVAL *push = VAL_ARRAY_AT(&evaluated);
+                RELVAL *push = VAL_ARRAY_AT(composed);
                 while (NOT_END(push)) {
                     //
                     // `evaluated` is known to be specific, but its specifier
                     // may be needed to derelativize its children.
                     //
-                    DS_PUSH_RELVAL(push, VAL_SPECIFIER(&evaluated));
+                    DS_PUSH_RELVAL(push, VAL_SPECIFIER(composed));
                     push++;
                 }
             }
-            else if (!IS_VOID(&evaluated)) {
+            else if (!IS_VOID(composed)) {
                 //
                 // compose [(1 + 2) inserts as-is] => [3 inserts as-is]
                 // compose/only [([a b c]) unmerged] => [[a b c] unmerged]
                 //
-                DS_PUSH(&evaluated);
+                DS_PUSH(composed);
             }
             else {
                 //
@@ -247,24 +250,22 @@ REBOOL Compose_Any_Array_Throws(
                 //
                 // compose/deep [does [(1 + 2)] nested] => [does [3] nested]
 
-                REBVAL specific;
-                Derelativize(&specific, f.value, f.specifier);
+                Derelativize(specific, f.value, f.specifier);
 
-                REBVAL composed;
                 if (Compose_Any_Array_Throws(
-                    &composed,
-                    &specific,
+                    composed,
+                    specific,
                     TRUE,
                     only,
                     into
                 )) {
-                    Move_Value(out, &composed);
+                    Move_Value(out, composed);
                     DS_DROP_TO(dsp_orig);
                     Drop_Frame(&f);
                     return TRUE;
                 }
 
-                DS_PUSH(&composed);
+                DS_PUSH(composed);
             }
             else {
                 if (ANY_ARRAY(f.value)) {

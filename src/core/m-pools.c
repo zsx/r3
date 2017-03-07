@@ -1831,9 +1831,9 @@ void Assert_Pointer_Detection_Working(void)
     assert(Detect_Rebol_Pointer(EMPTY_ARRAY) == DETECTED_AS_SERIES);
     assert(Detect_Rebol_Pointer(BLANK_VALUE) == DETECTED_AS_VALUE);
 
-    REBVAL cell_end;
-    SET_END(&cell_end);
-    assert(Detect_Rebol_Pointer(&cell_end) == DETECTED_AS_CELL_END);
+    DECLARE_LOCAL (cell_end);
+    SET_END(cell_end);
+    assert(Detect_Rebol_Pointer(cell_end) == DETECTED_AS_CELL_END);
     assert(Detect_Rebol_Pointer(END_CELL) == DETECTED_AS_INTERNAL_END);
 }
 

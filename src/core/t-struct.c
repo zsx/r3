@@ -48,9 +48,9 @@ static void cleanup_ffi_type(const REBVAL *v) {
 static void fail_if_non_accessible(const REBVAL *val)
 {
     if (VAL_STRUCT_INACCESSIBLE(val)) {
-        REBVAL i;
-        SET_INTEGER(&i, cast(REBUPT, VAL_STRUCT_DATA_HEAD(val)));
-        fail (Error(RE_BAD_MEMORY, &i, val));
+        DECLARE_LOCAL (i);
+        SET_INTEGER(i, cast(REBUPT, VAL_STRUCT_DATA_HEAD(val)));
+        fail (Error(RE_BAD_MEMORY, i, val));
     }
 }
 
@@ -239,15 +239,15 @@ REBARR *Struct_To_Array(REBSTU *stu)
         if (FLD_IS_STRUCT(field)) {
             Init_Word(Alloc_Tail_Array(typespec), Canon(SYM_STRUCT_X));
 
-            REBVAL nested;
-            get_scalar(&nested, stu, field, 0);
+            DECLARE_LOCAL (nested);
+            get_scalar(nested, stu, field, 0);
 
-            PUSH_GUARD_VALUE(&nested); // is this guard still necessary?
+            PUSH_GUARD_VALUE(nested); // is this guard still necessary?
             Init_Block(
                 Alloc_Tail_Array(typespec),
-                Struct_To_Array(VAL_STRUCT(&nested))
+                Struct_To_Array(VAL_STRUCT(nested))
             );
-            DROP_GUARD_VALUE(&nested);
+            DROP_GUARD_VALUE(nested);
         }
         else {
             // Elemental type (from a fixed list of known C types)
@@ -643,15 +643,15 @@ static REBSER *make_ext_storage(
     REBUPT raw_addr
 ) {
     if (raw_size >= 0 && raw_size != cast(REBINT, len)) {
-        REBVAL i;
-        SET_INTEGER(&i, raw_size);
-        fail (Error(RE_INVALID_DATA, &i));
+        DECLARE_LOCAL (i);
+        SET_INTEGER(i, raw_size);
+        fail (Error(RE_INVALID_DATA, i));
     }
 
-    REBVAL handle;
-    Init_Handle_Managed(&handle, cast(REBYTE*, raw_addr), len, &cleanup_noop);
+    DECLARE_LOCAL (handle);
+    Init_Handle_Managed(handle, cast(REBYTE*, raw_addr), len, &cleanup_noop);
 
-    return AS_SERIES(handle.extra.singular);
+    return AS_SERIES(handle->extra.singular);
 }
 
 
@@ -838,9 +838,9 @@ static void Parse_Field_Type_May_Fail(
             if (!IS_BLOCK(val))
                 fail (Error_Unexpected_Type(REB_BLOCK, VAL_TYPE(val)));
 
-            REBVAL specified;
-            Derelativize(&specified, val, VAL_SPECIFIER(spec));
-            MAKE_Struct(inner, REB_STRUCT, &specified); // may fail()
+            DECLARE_LOCAL (specified);
+            Derelativize(specified, val, VAL_SPECIFIER(spec));
+            MAKE_Struct(inner, REB_STRUCT, specified); // may fail()
 
             SET_INTEGER(
                 FLD_AT(field, IDX_FIELD_WIDE),
@@ -921,22 +921,22 @@ static void Parse_Field_Type_May_Fail(
         //
         // make struct! [a: [int32 [2]] [0 0]]
         //
-        REBVAL ret;
+        DECLARE_LOCAL (ret);
         if (Do_At_Throws(
-            &ret,
+            ret,
             VAL_ARRAY(val),
             VAL_INDEX(val),
             VAL_SPECIFIER(spec)
         )) {
             // !!! Does not check for thrown cases...what should this
             // do in case of THROW, BREAK, QUIT?
-            fail (Error_No_Catch_For_Throw(&ret));
+            fail (Error_No_Catch_For_Throw(ret));
         }
 
-        if (!IS_INTEGER(&ret))
+        if (!IS_INTEGER(ret))
             fail (Error_Unexpected_Type(REB_INTEGER, VAL_TYPE(val)));
 
-        SET_INTEGER(FLD_AT(field, IDX_FIELD_DIMENSION), VAL_INT64(&ret));
+        SET_INTEGER(FLD_AT(field, IDX_FIELD_DIMENSION), VAL_INT64(ret));
         ++ val;
     }
     else
@@ -1080,6 +1080,8 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
     REBINT raw_size = -1;
     REBUPT raw_addr = 0;
 
+    DECLARE_LOCAL (specified);
+
     RELVAL *item = VAL_ARRAY_AT(arg);
     if (NOT_END(item) && IS_BLOCK(item)) {
         //
@@ -1088,9 +1090,8 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         //
         //     make struct! [[raw-size] ...]
         //
-        REBVAL specified;
-        Derelativize(&specified, item, VAL_SPECIFIER(arg));
-        parse_attr(&specified, &raw_size, &raw_addr);
+        Derelativize(specified, item, VAL_SPECIFIER(arg));
+        parse_attr(specified, &raw_size, &raw_addr);
         ++item;
     }
 
@@ -1104,6 +1105,9 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
     REBIXO eval_idx = 0; // for spec block evaluation
 
     REBDSP dsp_orig = DSP; // use data stack to accumulate fields (BLOCK!s)
+
+    DECLARE_LOCAL (spec);
+    DECLARE_LOCAL (init); // for result to save in data
 
     while (NOT_END(item)) {
 
@@ -1135,13 +1139,11 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         if (IS_END(item) || !IS_BLOCK(item))
             fail (Error_Invalid_Arg_Core(item, VAL_SPECIFIER(arg)));
 
-        REBVAL spec;
-        Derelativize(&spec, item, VAL_SPECIFIER(arg));
+        Derelativize(spec, item, VAL_SPECIFIER(arg));
 
         // Fills in the width, dimension, type, and ffi_type (if needed)
         //
-        REBVAL init; // for result to save in data
-        Parse_Field_Type_May_Fail(field, &spec, &init);
+        Parse_Field_Type_May_Fail(field, spec, init);
 
         REBCNT dimension = FLD_IS_ARRAY(field) ? FLD_DIMENSION(field) : 1;
         ++item;
@@ -1166,26 +1168,25 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                fail (Error_Invalid_Arg(arg));
 
             if (IS_BLOCK(item)) {
-                REBVAL specified;
-                Derelativize(&specified, item, VAL_SPECIFIER(arg));
+                Derelativize(specified, item, VAL_SPECIFIER(arg));
 
                 if (Reduce_Any_Array_Throws(
-                    &init, &specified, REDUCE_FLAG_DROP_BARS
+                    init, specified, REDUCE_FLAG_DROP_BARS
                 )){
-                    fail (Error_No_Catch_For_Throw(&init));
+                    fail (Error_No_Catch_For_Throw(init));
                 }
 
                 ++item;
             }
             else {
                 eval_idx = DO_NEXT_MAY_THROW(
-                    &init,
+                    init,
                     VAL_ARRAY(arg),
                     item - VAL_ARRAY_AT(arg),
                     VAL_SPECIFIER(arg)
                 );
                 if (eval_idx == THROWN_FLAG)
-                    fail (Error_No_Catch_For_Throw(&init));
+                    fail (Error_No_Catch_For_Throw(init));
 
                 if (eval_idx == END_FLAG)
                     item = VAL_ARRAY_TAIL(arg);
@@ -1194,8 +1195,8 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
             }
 
             if (FLD_IS_ARRAY(field)) {
-                if (IS_INTEGER(&init)) { // interpreted as a C pointer
-                    void *ptr = cast(void *, cast(REBUPT, VAL_INT64(&init)));
+                if (IS_INTEGER(init)) { // interpreted as a C pointer
+                    void *ptr = cast(void *, cast(REBUPT, VAL_INT64(init)));
 
                     // assume valid pointer to enough space
                     memcpy(
@@ -1204,11 +1205,11 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                         FLD_LEN_BYTES_TOTAL(field)
                     );
                 }
-                else if (IS_BLOCK(&init)) {
+                else if (IS_BLOCK(init)) {
                     REBCNT n = 0;
 
-                    if (VAL_LEN_AT(&init) != FLD_DIMENSION(field))
-                        fail (Error_Invalid_Arg(&init));
+                    if (VAL_LEN_AT(init) != FLD_DIMENSION(field))
+                        fail (Error_Invalid_Arg(init));
 
                     // assign
                     for (n = 0; n < FLD_DIMENSION(field); n ++) {
@@ -1217,7 +1218,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                             offset,
                             field,
                             n,
-                            KNOWN(VAL_ARRAY_AT_HEAD(&init, n))
+                            KNOWN(VAL_ARRAY_AT_HEAD(init, n))
                         )) {
                             //printf("Failed to assign element value\n");
                             fail (Error(RE_MISC));
@@ -1230,7 +1231,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
             else {
                 // scalar
                 if (!assign_scalar_core(
-                    BIN_HEAD(data_bin), offset, field, 0, &init
+                    BIN_HEAD(data_bin), offset, field, 0, init
                 )) {
                     //printf("Failed to assign scalar value\n");
                     fail (Error(RE_MISC));
@@ -1247,7 +1248,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                             data_bin,
                             cast(REBCNT, offset) + (n * FLD_WIDE(field))
                         ),
-                        VAL_STRUCT_DATA_HEAD(&init),
+                        VAL_STRUCT_DATA_HEAD(init),
                         FLD_WIDE(field)
                     );
                 }
@@ -1373,27 +1374,25 @@ REBINT PD_Struct(REBPVS *pvs)
             // a memory cell it may not own), has to guard (as the next path
             // evaluation may not protect the result...)
             //
-            REBVAL sel_orig;
-            Move_Value(&sel_orig, pvs->selector);
-            PUSH_GUARD_VALUE(&sel_orig);
+            DECLARE_LOCAL (sel_orig);
+            Move_Value(sel_orig, pvs->selector);
+            PUSH_GUARD_VALUE(sel_orig);
 
             pvs->value = pvs->store;
             pvs->value_specifier = SPECIFIED;
 
             if (Next_Path_Throws(pvs)) { // updates pvs->store, pvs->selector
-                DROP_GUARD_VALUE(&sel_orig);
+                DROP_GUARD_VALUE(sel_orig);
                 fail (Error_No_Catch_For_Throw(pvs->store)); // !!! Review
             }
 
-            {
-                REBVAL specific;
-                Derelativize(&specific, pvs->value, pvs->value_specifier);
+            DECLARE_LOCAL (specific);
+            Derelativize(specific, pvs->value, pvs->value_specifier);
 
-                if (!Set_Struct_Var(stu, &sel_orig, pvs->selector, &specific))
-                    fail (Error_Bad_Path_Set(pvs));
-            }
+            if (!Set_Struct_Var(stu, sel_orig, pvs->selector, specific))
+                fail (Error_Bad_Path_Set(pvs));
 
-            DROP_GUARD_VALUE(&sel_orig);
+            DROP_GUARD_VALUE(sel_orig);
 
             return PE_OK;
         }
@@ -1584,11 +1583,11 @@ REBNATIVE(destroy_struct_storage)
 
     RELVAL *handle = ARR_HEAD(AS_ARRAY(data));
 
-    REBVAL pointer;
-    SET_INTEGER(&pointer, cast(REBUPT, VAL_HANDLE_POINTER(handle)));
+    DECLARE_LOCAL (pointer);
+    SET_INTEGER(pointer, cast(REBUPT, VAL_HANDLE_POINTER(handle)));
 
     if (VAL_HANDLE_LEN(handle) == 0)
-        fail (Error(RE_ALREADY_DESTROYED, &pointer));
+        fail (Error(RE_ALREADY_DESTROYED, pointer));
 
     // TBD: assert handle length was correct for memory block size
 
@@ -1598,7 +1597,7 @@ REBNATIVE(destroy_struct_storage)
         if (NOT(IS_FUNCTION_RIN(ARG(free_func))))
             fail (Error(RE_FREE_NEEDS_ROUTINE));
 
-        if (Do_Va_Throws(D_OUT, ARG(free_func), &pointer, END_CELL))
+        if (Do_Va_Throws(D_OUT, ARG(free_func), pointer, END_CELL))
             return R_OUT_IS_THROWN;
     }
 

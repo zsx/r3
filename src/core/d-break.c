@@ -76,8 +76,6 @@ REBOOL Do_Breakpoint_Throws(
 ) {
     REBVAL *target = BLANK_VALUE;
 
-    REBVAL temp;
-
     if (!PG_Breakpoint_Quitting_Hook) {
         //
         // Host did not register any breakpoint handler, so raise an error
@@ -85,6 +83,8 @@ REBOOL Do_Breakpoint_Throws(
         //
         fail (Error(RE_HOST_NO_BREAKPOINT));
     }
+
+    DECLARE_LOCAL (temp);
 
     // We call the breakpoint hook in a loop, in order to keep running if any
     // inadvertent FAILs or THROWs occur during the interactive session.
@@ -124,15 +124,15 @@ REBOOL Do_Breakpoint_Throws(
 
         // Call the host's breakpoint hook.
         //
-        if (PG_Breakpoint_Quitting_Hook(&temp, interrupted)) {
+        if (PG_Breakpoint_Quitting_Hook(temp, interrupted)) {
             //
             // If a breakpoint hook returns TRUE that means it wants to quit.
             // The value should be the /WITH value (as in QUIT/WITH), so
             // not actually a "resume instruction" in this case.
             //
-            assert(!THROWN(&temp));
+            assert(!THROWN(temp));
             Move_Value(out, NAT_VALUE(quit));
-            CONVERT_NAME_TO_THROWN(out, &temp);
+            CONVERT_NAME_TO_THROWN(out, temp);
             return TRUE; // TRUE = threw
         }
 
@@ -148,22 +148,20 @@ REBOOL Do_Breakpoint_Throws(
 
         // Decode and process the "resume instruction"
         {
-            REBFRM *frame;
-            REBVAL *mode;
-            REBVAL *payload;
 
             #if !defined(NDEBUG)
                 REBOOL found = FALSE;
             #endif
 
-            assert(IS_GROUP(&temp));
-            assert(VAL_LEN_HEAD(&temp) == RESUME_INST_MAX);
+            assert(IS_GROUP(temp));
+            assert(VAL_LEN_HEAD(temp) == RESUME_INST_MAX);
 
             // The instruction was built from raw material, non-relative
             //
-            mode = KNOWN(VAL_ARRAY_AT_HEAD(&temp, RESUME_INST_MODE));
-            payload = KNOWN(VAL_ARRAY_AT_HEAD(&temp, RESUME_INST_PAYLOAD));
-            target = KNOWN(VAL_ARRAY_AT_HEAD(&temp, RESUME_INST_TARGET));
+            REBVAL *mode = KNOWN(VAL_ARRAY_AT_HEAD(temp, RESUME_INST_MODE));
+            REBVAL *payload
+                = KNOWN(VAL_ARRAY_AT_HEAD(temp, RESUME_INST_PAYLOAD));
+            target = KNOWN(VAL_ARRAY_AT_HEAD(temp, RESUME_INST_TARGET));
 
             assert(IS_FRAME(target));
 
@@ -174,7 +172,7 @@ REBOOL Do_Breakpoint_Throws(
             // resume instruction so it can break that wall, vs. transform
             // it into an EXIT/FROM that would just get intercepted.
             //
-
+            REBFRM *frame;
             for (frame = FS_TOP; frame != NULL; frame = frame->prior) {
                 if (NOT(Is_Any_Function_Frame(frame)))
                     continue;
@@ -194,7 +192,7 @@ REBOOL Do_Breakpoint_Throws(
                     // instruction so that level will get it instead.
                     //
                     Move_Value(out, NAT_VALUE(resume));
-                    CONVERT_NAME_TO_THROWN(out, &temp);
+                    CONVERT_NAME_TO_THROWN(out, temp);
                     return TRUE; // TRUE = thrown
                 }
 
@@ -235,23 +233,23 @@ REBOOL Do_Breakpoint_Throws(
             assert(IS_LOGIC(mode));
 
             if (VAL_LOGIC(mode)) {
-                if (DO_VAL_ARRAY_AT_THROWS(&temp, payload)) {
+                if (DO_VAL_ARRAY_AT_THROWS(temp, payload)) {
                     //
                     // Throwing is not compatible with /AT currently.
                     //
                     if (!IS_BLANK(target))
-                        fail (Error_No_Catch_For_Throw(&temp));
+                        fail (Error_No_Catch_For_Throw(temp));
 
                     // Just act as if the BREAKPOINT call itself threw
                     //
-                    Move_Value(out, &temp);
+                    Move_Value(out, temp);
                     return TRUE; // TRUE = thrown
                 }
 
                 // Ordinary evaluation result...
             }
             else
-                Move_Value(&temp, payload);
+                Move_Value(temp, payload);
         }
 
         // The resume instruction will be GC'd.
@@ -264,7 +262,7 @@ REBOOL Do_Breakpoint_Throws(
 return_default:
 
     if (do_default) {
-        if (DO_VAL_ARRAY_AT_THROWS(&temp, default_value)) {
+        if (DO_VAL_ARRAY_AT_THROWS(temp, default_value)) {
             //
             // If the code throws, we're no longer in the sandbox...so we
             // bubble it up.  Note that breakpoint runs this code at its
@@ -273,12 +271,12 @@ return_default:
             // frame.  To do otherwise would require the EXIT/FROM protocol
             // to add support for DO-ing at the receiving point.
             //
-            Move_Value(out, &temp);
+            Move_Value(out, temp);
             return TRUE; // TRUE = thrown
         }
     }
     else
-        Move_Value(&temp, default_value); // generally void if no /WITH
+        Move_Value(temp, default_value); // generally void if no /WITH
 
 return_temp:
     //
@@ -292,7 +290,7 @@ return_temp:
     // natives do not currently respond to definitional returns...though
     // they can do so just as well as FUNCTION! can.
     //
-    Make_Thrown_Exit_Value(out, target, &temp, NULL);
+    Make_Thrown_Exit_Value(out, target, temp, NULL);
 
     return TRUE; // TRUE = thrown
 }
@@ -389,16 +387,6 @@ REBNATIVE(resume)
 {
     INCLUDE_PARAMS_OF_RESUME;
 
-    REBARR *instruction;
-
-    // We want BREAKPOINT to resume /AT a higher stack level (using the
-    // same machinery that definitionally-scoped return would to do it).
-    // Frames will be reified as necessary.
-    //
-    REBFRM *frame;
-
-    REBVAL cell;
-
     if (REF(with) && REF(do)) {
         //
         // /WITH and /DO both dictate a default return result, (/DO evaluates
@@ -415,7 +403,7 @@ REBNATIVE(resume)
     // breakpoint hook, once it knows that non-local jumps to above the break
     // level (throws, returns, fails) actually intended to be "resuming".
 
-    instruction = Make_Array(RESUME_INST_MAX);
+    REBARR *instruction = Make_Array(RESUME_INST_MAX);
 
     if (REF(with)) {
         SET_FALSE(ARR_AT(instruction, RESUME_INST_MODE)); // don't DO value
@@ -437,6 +425,12 @@ REBNATIVE(resume)
         //
         SET_BAR(ARR_AT(instruction, RESUME_INST_PAYLOAD));
     }
+
+    // We want BREAKPOINT to resume /AT a higher stack level (using the
+    // same machinery that definitionally-scoped return would to do it).
+    // Frames will be reified as necessary.
+    //
+    REBFRM *frame;
 
     if (REF(at)) {
         //
@@ -488,11 +482,12 @@ REBNATIVE(resume)
     // but for now we'll assume that the only decoder is BREAKPOINT and it
     // will be kept in sync.
     //
-    Init_Group(&cell, instruction);
+    DECLARE_LOCAL (cell);
+    Init_Group(cell, instruction);
 
     // Throw the instruction with the name of the RESUME function
     //
     Move_Value(D_OUT, NAT_VALUE(resume));
-    CONVERT_NAME_TO_THROWN(D_OUT, &cell);
+    CONVERT_NAME_TO_THROWN(D_OUT, cell);
     return R_OUT_IS_THROWN;
 }

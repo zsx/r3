@@ -352,12 +352,12 @@ void Host_Repl(
     REBOOL last_failed = FALSE;
     SET_VOID(out);
 
-    REBVAL level;
-    REBVAL frame;
-    SET_BLANK(&level);
-    SET_BLANK(&frame);
+    DECLARE_LOCAL (level);
+    DECLARE_LOCAL (frame);
+    SET_BLANK(level);
+    SET_BLANK(frame);
 
-    PUSH_GUARD_VALUE(&frame);
+    PUSH_GUARD_VALUE(frame);
 
     while (TRUE) {
         int do_result;
@@ -369,45 +369,45 @@ void Host_Repl(
             // The DEBUG command can change this, so at the moment it
             // has to be refreshed each time an evaluation is performed.
 
-            SET_INTEGER(&level, HG_Stack_Level);
+            SET_INTEGER(level, HG_Stack_Level);
 
-            REBFRM *f = Frame_For_Stack_Level(NULL, &level, FALSE);
+            REBFRM *f = Frame_For_Stack_Level(NULL, level, FALSE);
             assert(f);
 
             Init_Any_Context(
-                &frame,
+                frame,
                 REB_FRAME,
                 Context_For_Frame_May_Reify_Managed(f)
             );
         }
 
-        REBVAL code_or_error;
+        DECLARE_LOCAL (code_or_error);
         if (Apply_Only_Throws(
-            &code_or_error, // where return value of HOST-REPL is saved
+            code_or_error, // where return value of HOST-REPL is saved
             TRUE, // error if not all arguments before END_CELL are consumed
             &HG_Host_Repl, // HOST-REPL function to run
             out, // last-result (always void first run through loop)
             last_failed ? TRUE_VALUE : FALSE_VALUE, // last-failed
-            &level, // focus-level
-            &frame, // focus-frame
+            level, // focus-level
+            frame, // focus-frame
             END_CELL
         )) {
             // The REPL should not execute anything that should throw.
             // Determine graceful way of handling if it does.
             //
-            panic (&code_or_error);
+            panic (code_or_error);
         }
 
-        if (IS_ERROR(&code_or_error)) {
-            do_result = -cast(int, ERR_NUM(VAL_CONTEXT(&code_or_error)));
-            Move_Value(out, &code_or_error);
+        if (IS_ERROR(code_or_error)) {
+            do_result = -cast(int, ERR_NUM(VAL_CONTEXT(code_or_error)));
+            Move_Value(out, code_or_error);
         }
-        else if (IS_BLOCK(&code_or_error))
+        else if (IS_BLOCK(code_or_error))
             do_result = Do_Code(
-                exit_status, out, &code_or_error, at_breakpoint
+                exit_status, out, code_or_error, at_breakpoint
             );
         else
-            panic (&code_or_error);
+            panic (code_or_error);
 
         // NOTE: Although the operation has finished at this point, it may
         // be that a Ctrl-C set up a pending FAIL, which will be triggered
@@ -456,7 +456,7 @@ void Host_Repl(
     }
 
 cleanup_and_return:
-    DROP_GUARD_VALUE(&frame);
+    DROP_GUARD_VALUE(frame);
     return;
 }
 
@@ -508,10 +508,10 @@ REBOOL Host_Breakpoint_Quitting_Hook(
     //
     REBCNT old_stack_level = HG_Stack_Level;
 
-    REBVAL level;
-    SET_INTEGER(&level, 1);
+    DECLARE_LOCAL (level);
+    SET_INTEGER(level, 1);
 
-    if (Frame_For_Stack_Level(NULL, &level, FALSE) != NULL)
+    if (Frame_For_Stack_Level(NULL, level, FALSE) != NULL)
         HG_Stack_Level = 1;
     else
         HG_Stack_Level = 0; // Happens if you just type "breakpoint"
@@ -561,12 +561,12 @@ void Init_Debug_Extension(void) {
         REBARR *spec_array = Scan_UTF8_Managed(
             N_debug_spec, LEN_BYTES(N_debug_spec)
         );
-        REBVAL spec;
-        Init_Block(&spec, spec_array);
+        DECLARE_LOCAL (spec);
+        Init_Block(spec, spec_array);
         Bind_Values_Deep(ARR_HEAD(spec_array), Lib_Context);
 
         REBFUN *debug_native = Make_Function(
-            Make_Paramlist_Managed_May_Fail(&spec, MKF_KEYWORDS),
+            Make_Paramlist_Managed_May_Fail(spec, MKF_KEYWORDS),
             &N_debug,
             NULL, // no underlying function, this is fundamental
             NULL // not providing a specialization
@@ -760,9 +760,9 @@ int main(int argc, char **argv_ansi)
     //
     PG_Breakpoint_Quitting_Hook = &Host_Breakpoint_Quitting_Hook;
 
-    REBVAL argv_value;
-    Init_Block(&argv_value, argv);
-    PUSH_GUARD_VALUE(&argv_value);
+    DECLARE_LOCAL (argv_value);
+    Init_Block(argv_value, argv);
+    PUSH_GUARD_VALUE(argv_value);
 
 #ifdef TEST_EXTENSIONS
     Init_Ext_Test();
@@ -822,6 +822,7 @@ int main(int argc, char **argv_ansi)
     int exit_status;
     REBOOL finished;
 
+    Prep_Global_Cell(&HG_Host_Repl);
     SET_BLANK(&HG_Host_Repl);
 
     if (error != NULL) {
@@ -872,12 +873,12 @@ int main(int argc, char **argv_ansi)
         //
         Deep_Freeze_Array(array);
 
-        REBVAL code;
-        Init_Block(&code, array);
+        DECLARE_LOCAL (code);
+        Init_Block(code, array);
 
-        REBVAL host_start;
+        DECLARE_LOCAL (host_start);
         if (
-            Do_Code(&exit_status, &host_start, &code, FALSE)
+            Do_Code(&exit_status, host_start, code, FALSE)
             != 0
         ){
             panic (startup); // just loads functions, shouldn't QUIT or error
@@ -909,34 +910,34 @@ int main(int argc, char **argv_ansi)
             OS_FREE(embedded_utf8);
         }
 
-        REBVAL embedded_value;
+        DECLARE_LOCAL (embedded_value);
         if (embedded == NULL)
-            SET_BLANK(&embedded_value);
+            SET_BLANK(embedded_value);
         else
-            Init_Block(&embedded_value, embedded);
+            Init_Block(embedded_value, embedded);
 
-        REBVAL ext_value;
-        SET_BLANK(&ext_value);
-        LOAD_BOOT_EXTENSIONS(&ext_value);
+        DECLARE_LOCAL (ext_value);
+        SET_BLANK(ext_value);
+        LOAD_BOOT_EXTENSIONS(ext_value);
 
-        if (!IS_FUNCTION(&host_start))
-            panic (&host_start); // should not be able to error
+        if (!IS_FUNCTION(host_start))
+            panic (host_start); // should not be able to error
 
-        REBVAL result;
+        DECLARE_LOCAL (result);
         if (Apply_Only_Throws(
-            &result, TRUE,
-            &host_start, // startup function, implicit GC guard
-            &argv_value, // argv parameter, implicit GC guard
-            &embedded_value, // embedded-script parameter, implicit GC guard
-            &ext_value,
+            result, TRUE,
+            host_start, // startup function, implicit GC guard
+            argv_value, // argv parameter, implicit GC guard
+            embedded_value, // embedded-script parameter, implicit GC guard
+            ext_value,
             END_CELL
         )) {
             if (
-                IS_FUNCTION(&result)
-                && VAL_FUNC_DISPATCHER(&result) == &N_quit
+                IS_FUNCTION(result)
+                && VAL_FUNC_DISPATCHER(result) == &N_quit
             ) {
-                CATCH_THROWN(&result, &result);
-                exit_status = Exit_Status_From_Value(&result);
+                CATCH_THROWN(result, result);
+                exit_status = Exit_Status_From_Value(result);
 
                 DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
@@ -946,7 +947,7 @@ int main(int argc, char **argv_ansi)
                 DEAD_END;
             }
 
-            fail (Error_No_Catch_For_Throw(&result));
+            fail (Error_No_Catch_For_Throw(result));
         }
 
         DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
@@ -954,19 +955,19 @@ int main(int argc, char **argv_ansi)
         // HOST-START returns either an integer exit code or a blank if the
         // behavior should be to fall back to the REPL.
         //
-        if (IS_FUNCTION(&result)) {
+        if (IS_FUNCTION(result)) {
             finished = FALSE;
-            Move_Value(&HG_Host_Repl, &result);
+            Move_Value(&HG_Host_Repl, result);
         }
-        else if (IS_INTEGER(&result)) {
+        else if (IS_INTEGER(result)) {
             finished = TRUE;
-            exit_status = VAL_INT32(&result);
+            exit_status = VAL_INT32(result);
         }
         else
-            panic (&result); // no other legal return values for now
+            panic (result); // no other legal return values for now
     }
 
-    DROP_GUARD_VALUE(&argv_value);
+    DROP_GUARD_VALUE(argv_value);
 
     PUSH_GUARD_VALUE(&HG_Host_Repl); // might be blank
 
@@ -979,10 +980,11 @@ int main(int argc, char **argv_ansi)
     // This loop institutes a top-level trap whose only job is to catch the
     // interrupts that occur during overlong error reports inside the REPL.
     //
+    DECLARE_LOCAL (value);
+
     while (NOT(finished)) {
-        REBVAL value;
-        SET_END(&value);
-        PUSH_GUARD_VALUE(&value); // !!! Out_Value expects value to be GC safe
+        SET_END(value);
+        PUSH_GUARD_VALUE(value); // !!! Out_Value expects value to be GC safe
 
         struct Reb_State state;
         REBCTX *error;
@@ -1002,14 +1004,14 @@ int main(int argc, char **argv_ansi)
             assert(ERR_NUM(error) == RE_HALT);
         }
         else {
-            Host_Repl(&exit_status, &value, FALSE);
+            Host_Repl(&exit_status, value, FALSE);
 
             finished = TRUE;
 
             DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
         }
 
-        DROP_GUARD_VALUE(&value);
+        DROP_GUARD_VALUE(value);
     }
 
     DROP_GUARD_VALUE(&HG_Host_Repl);

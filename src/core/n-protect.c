@@ -210,9 +210,9 @@ static REB_R Protect_Unprotect_Core(REBFRM *frame_, REBFLGS flags)
         if (REF(words)) {
             RELVAL *val;
             for (val = VAL_ARRAY_AT(value); NOT_END(val); val++) {
-                REBVAL word; // need binding intact, can't just pass RELVAL
-                Derelativize(&word, val, VAL_SPECIFIER(value));
-                Protect_Word_Value(&word, flags);  // will unmark if deep
+                DECLARE_LOCAL (word); // need binding, can't pass RELVAL
+                Derelativize(word, val, VAL_SPECIFIER(value));
+                Protect_Word_Value(word, flags);  // will unmark if deep
             }
             goto return_value_arg;
         }
@@ -220,7 +220,7 @@ static REB_R Protect_Unprotect_Core(REBFRM *frame_, REBFLGS flags)
             REBVAL *var;
             RELVAL *item;
 
-            REBVAL safe;
+            DECLARE_LOCAL (safe);
 
             for (item = VAL_ARRAY_AT(value); NOT_END(item); ++item) {
                 if (IS_WORD(item)) {
@@ -238,15 +238,15 @@ static REB_R Protect_Unprotect_Core(REBFRM *frame_, REBFLGS flags)
                 }
                 else if (IS_PATH(value)) {
                     if (Do_Path_Throws_Core(
-                        &safe, NULL, value, SPECIFIED, NULL
+                        safe, NULL, value, SPECIFIED, NULL
                     ))
-                        fail (Error_No_Catch_For_Throw(&safe));
+                        fail (Error_No_Catch_For_Throw(safe));
 
-                    var = &safe;
+                    var = safe;
                 }
                 else {
-                    Move_Value(&safe, value);
-                    var = &safe;
+                    Move_Value(safe, value);
+                    var = safe;
                 }
 
                 Protect_Value(var, flags);

@@ -287,14 +287,14 @@ inline static REBVAL *Get_Var_Core(
         // durable" will be possible in the future, as a context can
         // mechanically have both stackvars and a dynamic data pointer.
 
-        REBVAL unbound;
+        DECLARE_LOCAL (unbound);
         Init_Any_Word(
-            &unbound,
+            unbound,
             VAL_TYPE(any_word),
             VAL_WORD_SPELLING(any_word)
         );
 
-        fail (Error(RE_NO_RELATIVE, &unbound));
+        fail (Error(RE_NO_RELATIVE, unbound));
     }
 
     REBVAL *var = CTX_VAR(context, index);
@@ -475,7 +475,7 @@ inline static void Derelativize(
     assert(NOT_END(v));
     assert(!IS_TRASH_DEBUG(v));
 
-    ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(out, __FILE__, __LINE__);
+    ASSERT_CELL_WRITABLE_IF_DEBUG(out, __FILE__, __LINE__);
 
     if (IS_RELATIVE(v)) {
     #if !defined(NDEBUG)

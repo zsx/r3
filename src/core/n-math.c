@@ -823,12 +823,12 @@ REBNATIVE(maximum)
         Min_Max_Pair(D_OUT, value1, value2, TRUE);
     }
     else {
-        REBVAL coerced1;
-        Move_Value(&coerced1, value1);
-        REBVAL coerced2;
-        Move_Value(&coerced2, value2);
+        DECLARE_LOCAL (coerced1);
+        Move_Value(coerced1, value1);
+        DECLARE_LOCAL (coerced2);
+        Move_Value(coerced2, value2);
 
-        if (Compare_Modify_Values(&coerced1, &coerced2, -1))
+        if (Compare_Modify_Values(coerced1, coerced2, -1))
             Move_Value(D_OUT, value1);
         else
             Move_Value(D_OUT, value2);
@@ -857,12 +857,12 @@ REBNATIVE(minimum)
         Min_Max_Pair(D_OUT, ARG(value1), ARG(value2), FALSE);
     }
     else {
-        REBVAL coerced1;
-        Move_Value(&coerced1, value1);
-        REBVAL coerced2;
-        Move_Value(&coerced2, value2);
+        DECLARE_LOCAL (coerced1);
+        Move_Value(coerced1, value1);
+        DECLARE_LOCAL (coerced2);
+        Move_Value(coerced2, value2);
 
-        if (Compare_Modify_Values(&coerced1, &coerced2, -1))
+        if (Compare_Modify_Values(coerced1, coerced2, -1))
             Move_Value(D_OUT, value2);
         else
             Move_Value(D_OUT, value1);
@@ -883,10 +883,10 @@ REBNATIVE(negative_q)
 {
     INCLUDE_PARAMS_OF_NEGATIVE_Q;
 
-    REBVAL zero;
-    SET_ZEROED(&zero, VAL_TYPE(ARG(number)));
+    DECLARE_LOCAL (zero);
+    SET_ZEROED(zero, VAL_TYPE(ARG(number)));
 
-    if (Compare_Modify_Values(ARG(number), &zero, -1))
+    if (Compare_Modify_Values(ARG(number), zero, -1))
         return R_FALSE;
 
     return R_TRUE;
@@ -905,10 +905,10 @@ REBNATIVE(positive_q)
 {
     INCLUDE_PARAMS_OF_POSITIVE_Q;
 
-    REBVAL zero;
-    SET_ZEROED(&zero, VAL_TYPE(ARG(number)));
+    DECLARE_LOCAL (zero);
+    SET_ZEROED(zero, VAL_TYPE(ARG(number)));
 
-    if (Compare_Modify_Values(ARG(number), &zero, -2))
+    if (Compare_Modify_Values(ARG(number), zero, -2))
         return R_TRUE;
 
     return R_FALSE;
@@ -930,10 +930,10 @@ REBNATIVE(zero_q)
     enum Reb_Kind type = VAL_TYPE(ARG(value));
 
     if (type >= REB_INTEGER && type <= REB_TIME) {
-        REBVAL zero;
-        SET_ZEROED(&zero, type);
+        DECLARE_LOCAL (zero);
+        SET_ZEROED(zero, type);
 
-        if (Compare_Modify_Values(ARG(value), &zero, 1))
+        if (Compare_Modify_Values(ARG(value), zero, 1))
             return R_TRUE;
     }
     return R_FALSE;

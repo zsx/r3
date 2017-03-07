@@ -116,6 +116,8 @@ REBNATIVE(verify)
     REBFRM f;
     Push_Frame(&f, ARG(conditions));
 
+    DECLARE_LOCAL (temp);
+
     while (NOT_END(f.value)) {
         UPDATE_EXPRESSION_START(&f); // informs the error delivery better
 
@@ -129,16 +131,15 @@ REBNATIVE(verify)
         if (!IS_VOID(D_OUT) && IS_CONDITIONAL_TRUE(D_OUT))
             continue;
 
-        REBVAL temp;
         Init_Block(
-            &temp,
+            temp,
             Copy_Values_Len_Shallow(start, f.specifier, f.value - start)
         );
 
         if (IS_VOID(D_OUT))
-            fail (Error(RE_VERIFY_VOID, &temp));
+            fail (Error(RE_VERIFY_VOID, temp));
 
-        fail (Error(RE_VERIFY_FAILED, &temp));
+        fail (Error(RE_VERIFY_FAILED, temp));
     }
 
     Drop_Frame(&f);
@@ -615,6 +616,8 @@ REBNATIVE(get)
         dest = D_OUT;
     }
 
+    DECLARE_LOCAL (temp);
+
     for (; NOT_END(source); ++source, ++dest) {
         if (IS_BAR(source)) {
             //
@@ -646,14 +649,13 @@ REBNATIVE(get)
             //
             // !!! Review making a more efficient method of doing this.
             //
-            REBVAL temp;
-            Derelativize(&temp, source, specifier);
-            VAL_SET_TYPE_BITS(&temp, REB_GET_PATH);
+            Derelativize(temp, source, specifier);
+            VAL_SET_TYPE_BITS(temp, REB_GET_PATH);
 
             // Here we DO it, which means that `get 'foo/bar` will act the same
             // as `:foo/bar` for all types.
             //
-            if (Do_Path_Throws_Core(dest, NULL, &temp, specifier, NULL))
+            if (Do_Path_Throws_Core(dest, NULL, temp, specifier, NULL))
                 return R_OUT_IS_THROWN;
 
             // !!! Should this prohibit GROUP! evaluations?  Failure to do so
@@ -734,26 +736,23 @@ REBNATIVE(in)
     REBVAL *val = ARG(context); // object, error, port, block
     REBVAL *word = ARG(word);
 
-    REBCNT index;
-    REBCTX *context;
+    DECLARE_LOCAL (safe);
 
     if (IS_BLOCK(val) || IS_GROUP(val)) {
         if (IS_WORD(word)) {
             const REBVAL *v;
             REBCNT i;
             for (i = VAL_INDEX(val); i < VAL_LEN_HEAD(val); i++) {
-                REBVAL safe;
-
                 Get_Simple_Value_Into(
-                    &safe,
+                    safe,
                     VAL_ARRAY_AT_HEAD(val, i),
                     VAL_SPECIFIER(val)
                 );
 
-                v = &safe;
+                v = safe;
                 if (IS_OBJECT(v)) {
-                    context = VAL_CONTEXT(v);
-                    index = Find_Canon_In_Context(
+                    REBCTX *context = VAL_CONTEXT(v);
+                    REBCNT index = Find_Canon_In_Context(
                         context, VAL_WORD_CANON(word), FALSE
                     );
                     if (index != 0) {
@@ -772,7 +771,7 @@ REBNATIVE(in)
         fail (Error_Invalid_Arg(word));
     }
 
-    context = VAL_CONTEXT(val);
+    REBCTX *context = VAL_CONTEXT(val);
 
     // Special form: IN object block
     if (IS_BLOCK(word) || IS_GROUP(word)) {
@@ -781,7 +780,7 @@ REBNATIVE(in)
         return R_OUT;
     }
 
-    index = Find_Canon_In_Context(context, VAL_WORD_CANON(word), FALSE);
+    REBCNT index = Find_Canon_In_Context(context, VAL_WORD_CANON(word), FALSE);
     if (index == 0)
         return R_BLANK;
 
@@ -897,13 +896,13 @@ REBNATIVE(set)
         fail (Error(RE_MISC));
 
     if (ANY_PATH(ARG(target))) {
-        REBVAL dummy;
+        DECLARE_LOCAL (dummy);
         if (
             Do_Path_Throws_Core(
-                &dummy, NULL, ARG(target), SPECIFIED, ARG(value)
+                dummy, NULL, ARG(target), SPECIFIED, ARG(value)
             )
         ) {
-            fail (Error_No_Catch_For_Throw(&dummy));
+            fail (Error_No_Catch_For_Throw(dummy));
         }
 
         // If not a throw, then there is no result out of a setting a path,
@@ -984,10 +983,10 @@ REBNATIVE(set)
             if (!set_with_block) continue;
 
             if (NOT(REF(opt)) && IS_VOID(value)) {
-                REBVAL key_name;
-                Init_Word(&key_name, VAL_KEY_SPELLING(key));
+                DECLARE_LOCAL (key_name);
+                Init_Word(key_name, VAL_KEY_SPELLING(key));
 
-                fail (Error(RE_NEED_VALUE, &key_name));
+                fail (Error(RE_NEED_VALUE, key_name));
             }
 
             // We knew it wasn't an end from the earlier check, but when we
@@ -1412,19 +1411,19 @@ inline static REBOOL Is_Set_Modifies(REBVAL *location)
         //
         VAL_SET_TYPE_BITS(location, REB_GET_PATH);
 
-        REBVAL temp;
+        DECLARE_LOCAL (temp);
         if (Do_Path_Throws_Core(
-            &temp, NULL, location, VAL_SPECIFIER(location), NULL
+            temp, NULL, location, VAL_SPECIFIER(location), NULL
         )) {
             // !!! Shouldn't be evaluating, much less throwing--so fail
             //
-            fail (Error_No_Catch_For_Throw(&temp));
+            fail (Error_No_Catch_For_Throw(temp));
         }
 
         // We did not pass in a symbol ID
         //
         assert(DSP == dsp_orig);
-        if (IS_VOID(&temp))
+        if (IS_VOID(temp))
             return FALSE;
     }
 

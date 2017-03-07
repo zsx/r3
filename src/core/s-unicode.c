@@ -935,51 +935,52 @@ REBOOL Decode_UTF8_Maybe_Astral_Throws(
 
     UTF32 ch;
 
+    DECLARE_LOCAL (item);
+    DECLARE_LOCAL (astral);
+
     for (; len > 0; len--, src++) {
         if ((ch = *src) >= 0x80) {
             if (!(src = Back_Scan_UTF8_Char_Core(&ch, src, &len)))
                 fail (Error(RE_BAD_UTF8));
 
             if (ch > 0xFFFF) { // too big to fit in today's REBUNI
-                REBVAL item;
                 if (IS_FUNCTION(handler)) {
-                    REBVAL a;
-                    SET_INTEGER(&a, ch); // CHAR! only holds 16-bit for now
+                    SET_INTEGER(astral, ch); // CHAR! only 16-bit for now
 
                     // Try passing the handler the codepoint value.  Passing
                     // FALSE for `fully` means it will not raise an error if
                     // the handler happens to be arity 0.
                     //
                     if (Apply_Only_Throws(
-                        &item, FALSE, handler, &a, END_CELL
+                        item, FALSE, handler, astral, END_CELL
                     )){
-                        Move_Value(out_if_thrown, &item);
+                        Move_Value(out_if_thrown, item);
                         return TRUE;
                     }
                 }
                 else
-                    Move_Value(&item, handler);
+                    Move_Value(item, handler);
 
-                switch (VAL_TYPE(&item)) {
+                switch (VAL_TYPE(item)) {
                 case REB_MAX_VOID:
                 case REB_BLANK:
                     break; // tolerate void or blank as meaning nothing
 
                 case REB_CHAR:
-                    Append_Codepoint_Raw(dst, VAL_CHAR(&item));
+                    Append_Codepoint_Raw(dst, VAL_CHAR(item));
                     break;
 
                 case REB_STRING:
                     Append_String(
                         dst,
-                        VAL_SERIES(&item),
-                        VAL_INDEX(&item),
-                        VAL_LEN_AT(&item)
+                        VAL_SERIES(item),
+                        VAL_INDEX(item),
+                        VAL_LEN_AT(item)
                     );
                     break;
 
                 default:
-                    fail (Error_Invalid_Arg(&item));
+                    fail (Error_Invalid_Arg(item));
                 }
 
                 continue;

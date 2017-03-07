@@ -232,10 +232,10 @@ REBI64 Make_Time(const REBVAL *val)
     else if (IS_STRING(val)) {
         REBCNT len;
         REBYTE *bp = Temp_Byte_Chars_May_Fail(val, MAX_SCAN_TIME, &len, FALSE);
-        REBVAL temp;
-        if (!Scan_Time(&temp, bp, len))
+        DECLARE_LOCAL (temp);
+        if (Scan_Time(temp, bp, len) == NULL)
             goto no_time;
-        secs = VAL_TIME(&temp);
+        secs = VAL_TIME(temp);
     }
     else if (IS_INTEGER(val)) {
         if (VAL_INT64(val) < -MAX_SECONDS || VAL_INT64(val) > MAX_SECONDS)

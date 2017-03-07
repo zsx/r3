@@ -561,19 +561,21 @@ void Mold_Binary(const REBVAL *value, REB_MOLD *mold)
 
 static void Mold_All_String(const REBVAL *value, REB_MOLD *mold)
 {
-    // The string that is molded for /all option:
-    REBVAL val;
-
     //// ???? move to above Mold_String_Series function????
 
-    Pre_Mold(value, mold); // #[file! part
-    Move_Value(&val, value);
-    VAL_INDEX(&val) = 0;
-    if (IS_BINARY(value)) Mold_Binary(&val, mold);
+    Pre_Mold(value, mold); // e.g. #[file! part
+
+    DECLARE_LOCAL (head);
+    Move_Value(head, value);
+    VAL_INDEX(head) = 0;
+
+    if (IS_BINARY(value))
+        Mold_Binary(head, mold);
     else {
-        VAL_RESET_HEADER(&val, REB_STRING);
-        Mold_String_Series(&val, mold);
+        VAL_RESET_HEADER(head, REB_STRING);
+        Mold_String_Series(head, mold);
     }
+
     Post_Mold(value, mold);
 }
 
@@ -1027,13 +1029,13 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
         // !!! Feature of hidden words in object specs not yet implemented,
         // but if it paralleled how function specs work it would be SET-WORD!
         //
-        REBVAL any_word;
+        DECLARE_LOCAL (any_word);
         Init_Any_Word(
-            &any_word,
+            any_word,
             GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN) ? REB_SET_WORD : REB_WORD,
             VAL_KEY_SPELLING(key)
         );
-        Mold_Value(mold, &any_word, TRUE);
+        Mold_Value(mold, any_word, TRUE);
     }
 
     Append_Codepoint_Raw(mold->series, ']');
@@ -1312,10 +1314,10 @@ void Mold_Value(REB_MOLD *mold, const RELVAL *value, REBOOL molded)
             End_Mold(mold);
         }
         else {
-            REBVAL val;
-            Move_Value(&val, const_KNOWN(value));
-            VAL_INDEX(&val) = 0; // mold all of it
-            Mold_Image_Data(&val, mold);
+            DECLARE_LOCAL (head);
+            Move_Value(head, const_KNOWN(value));
+            VAL_INDEX(head) = 0; // mold all of it
+            Mold_Image_Data(head, mold);
             Post_Mold(value, mold);
         }
         break;

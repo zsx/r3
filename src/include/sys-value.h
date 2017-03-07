@@ -336,7 +336,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
         HEADERIZE_KIND(kind) | NODE_FLAG_VALID | NODE_FLAG_CELL)
 
 #ifdef NDEBUG
-    #define ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v,file,line) \
+    #define ASSERT_CELL_WRITABLE_IF_DEBUG(v,file,line) \
         NOOP
 
     #define VAL_RESET_HEADER(v,t) \
@@ -345,18 +345,13 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     #define INIT_CELL_IF_DEBUG(v) \
         NOOP
 #else
-    #ifdef __cplusplus
-        #define ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v,file,line) \
-            Assert_Cell_Writable((v), (file), (line))
-    #else
-        #define ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v,file,line) \
-            NOOP
-    #endif
+    #define ASSERT_CELL_WRITABLE_IF_DEBUG(v,file,line) \
+        Assert_Cell_Writable((v), (file), (line))
 
     inline static void VAL_RESET_HEADER_Debug(
         RELVAL *v, enum Reb_Kind kind, const char *file, int line
     ){
-        ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
+        ASSERT_CELL_WRITABLE_IF_DEBUG(v, file, line);
         VAL_RESET_HEADER_COMMON(v, kind);
     }
 
@@ -567,7 +562,7 @@ inline static void SET_BLANK_COMMON(RELVAL *v) {
     inline static void SET_BLANK_Debug(
         RELVAL *v, const char *file, int line
     ){
-        ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
+        ASSERT_CELL_WRITABLE_IF_DEBUG(v, file, line);
         SET_BLANK_COMMON(v);
         Set_Track_Payload_Debug(v, file, line);
     }
@@ -669,7 +664,7 @@ inline static void SET_FALSE_COMMON(RELVAL *v) {
     inline static void SET_TRUE_Debug(
         RELVAL *v, const char *file, int line
     ){
-        ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
+        ASSERT_CELL_WRITABLE_IF_DEBUG(v, file, line);
         SET_TRUE_COMMON(v);
         Set_Track_Payload_Debug(v, file, line);
     }
@@ -677,7 +672,7 @@ inline static void SET_FALSE_COMMON(RELVAL *v) {
     inline static void SET_FALSE_Debug(
         RELVAL *v, const char *file, int line
     ){
-        ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
+        ASSERT_CELL_WRITABLE_IF_DEBUG(v, file, line);
         SET_FALSE_COMMON(v);
         Set_Track_Payload_Debug(v, file, line);
     }
@@ -1308,8 +1303,43 @@ inline static void Move_Value(REBVAL *dest, const REBVAL *src)
         GET_VAL_FLAG(src, NODE_FLAG_CELL)
         && GET_VAL_FLAG(src, NODE_FLAG_VALID)
     );
-    ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(dest, __FILE__, __LINE__);
+    ASSERT_CELL_WRITABLE_IF_DEBUG(dest, __FILE__, __LINE__);
     dest->header = src->header;
     dest->extra = src->extra;
     dest->payload = src->payload;
 }
+
+
+// The way globals are currently declared, one cannot use the DECLARE_LOCAL
+// macro...because they run through a strange PVAR and TVAR process.
+// There would also be no FS_TOP in effect to capture when they are being
+// initialized.  This is similar to INIT_CELL_IF_DEBUG, but being tracked
+// separately because the strategy needs more review.
+//
+// (In particular, the frame's miscellaneous `f->cell` needs review)
+//
+#define Prep_Global_Cell(cell) \
+    INIT_CELL_IF_DEBUG(cell)
+
+
+//
+// Rather than allow a REBVAL to be declared plainly as a local variable in
+// a C function, this macro provides a generic "constructor-like" hook.
+// See VALUE_FLAG_STACK for the experimental motivation.  However, even if
+// this were merely a synonym for a plain REBVAL declaration in the release
+// build, it provides a useful generic hook into the point of declaration
+// of a stack value.
+//
+// Note: because this will run instructions, a routine should avoid doing a
+// DECLARE_LOCAL inside of a loop.  It should be at the outermost scope of
+// the function.
+//
+// Note: when setting the header bits, it doesn't set VOID_FLAG_NOT_TRASH,
+// so this is a trash cell by default.
+//
+#define DECLARE_LOCAL(name) \
+    REBSER name##_pair; \
+    *cast(RELVAL*, &name##_pair) = *BLANK_VALUE; /* => tbd: FS_TOP FRAME! */ \
+    REBVAL * const name = cast(REBVAL*, &name##_pair) + 1; \
+    name->header.bits = \
+        REB_MAX_VOID | NODE_FLAG_CELL | NODE_FLAG_VALID | VALUE_FLAG_STACK

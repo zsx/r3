@@ -310,17 +310,17 @@ REBNATIVE(do_all)
 
     // Holds either an error value that is raised, or the thrown value.
     //
-    REBVAL arg_or_error;
-    SET_END(&arg_or_error);
-    PUSH_GUARD_VALUE(&arg_or_error);
+    DECLARE_LOCAL (arg_or_error);
+    SET_END(arg_or_error);
+    PUSH_GUARD_VALUE(arg_or_error);
 
     // If arg_or_error is not end, but thrown_name is an end, a throw tried
     // to propagate, but was caught...but if thrown_name is an end and the
     // arg_or_error is also not, it is an error which tried to propagate.
     //
-    REBVAL thrown_name;
-    SET_END(&thrown_name);
-    PUSH_GUARD_VALUE(&thrown_name);
+    DECLARE_LOCAL (thrown_name);
+    SET_END(thrown_name);
+    PUSH_GUARD_VALUE(thrown_name);
 
     REBFRM f;
     Push_Frame(&f, ARG(block));
@@ -338,25 +338,25 @@ repush:
     // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
 
     if (error) {
-        if (NOT_END(&arg_or_error)) { // already a throw or fail pending!
-            REBVAL arg1;
-            if (IS_END(&thrown_name)) {
-                assert(IS_ERROR(&arg_or_error));
-                Move_Value(&arg1, &arg_or_error);
+        if (NOT_END(arg_or_error)) { // already a throw or fail pending!
+            DECLARE_LOCAL (arg1);
+            if (IS_END(thrown_name)) {
+                assert(IS_ERROR(arg_or_error));
+                Move_Value(arg1, arg_or_error);
             }
             else {
-                CONVERT_NAME_TO_THROWN(&thrown_name, &arg_or_error);
-                Init_Error(&arg1, Error_No_Catch_For_Throw(&thrown_name));
+                CONVERT_NAME_TO_THROWN(thrown_name, arg_or_error);
+                Init_Error(arg1, Error_No_Catch_For_Throw(thrown_name));
             }
 
-            REBVAL arg2;
-            Init_Error(&arg2, error);
+            DECLARE_LOCAL (arg2);
+            Init_Error(arg2, error);
 
-            fail (Error(RE_MULTIPLE_DO_ERRORS, &arg1, &arg2));
+            fail (Error(RE_MULTIPLE_DO_ERRORS, arg1, arg2));
         }
 
-        assert(IS_END(&thrown_name));
-        Init_Error(&arg_or_error, error);
+        assert(IS_END(thrown_name));
+        Init_Error(arg_or_error, error);
 
         while (NOT_END(f.value) && NOT(IS_BAR(f.value)))
             Fetch_Next_In_Frame(&f);
@@ -389,19 +389,19 @@ repush:
 
         Do_Next_In_Frame_May_Throw(D_OUT, &f, DO_FLAG_NORMAL);
         if (THROWN(D_OUT)) {
-            if (NOT_END(&arg_or_error)) { // already a throw or fail pending!
-                REBVAL arg1;
-                if (IS_END(&thrown_name)) {
-                    assert(IS_ERROR(&arg_or_error));
-                    Move_Value(&arg1, &arg_or_error);
+            if (NOT_END(arg_or_error)) { // already a throw or fail pending!
+                DECLARE_LOCAL (arg1);
+                if (IS_END(thrown_name)) {
+                    assert(IS_ERROR(arg_or_error));
+                    Move_Value(arg1, arg_or_error);
                 }
                 else {
-                    CONVERT_NAME_TO_THROWN(&thrown_name, &arg_or_error);
-                    Init_Error(&arg1, Error_No_Catch_For_Throw(&thrown_name));
+                    CONVERT_NAME_TO_THROWN(thrown_name, arg_or_error);
+                    Init_Error(arg1, Error_No_Catch_For_Throw(thrown_name));
                 }
 
-                REBVAL arg2;
-                Init_Error(&arg2, Error_No_Catch_For_Throw(D_OUT));
+                DECLARE_LOCAL (arg2);
+                Init_Error(arg2, Error_No_Catch_For_Throw(D_OUT));
 
                 // We're still inside the pushed trap for this throw.  Have
                 // to drop the trap to avoid transmitting the error to the
@@ -409,11 +409,11 @@ repush:
                 //
                 DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
-                fail (Error(RE_MULTIPLE_DO_ERRORS, &arg1, &arg2));
+                fail (Error(RE_MULTIPLE_DO_ERRORS, arg1, arg2));
             }
 
-            CATCH_THROWN(&arg_or_error, D_OUT);
-            Move_Value(&thrown_name, D_OUT); // THROWN cleared by CATCH_THROWN
+            CATCH_THROWN(arg_or_error, D_OUT);
+            Move_Value(thrown_name, D_OUT); // THROWN cleared by CATCH_THROWN
 
             while (NOT_END(f.value) && NOT(IS_BAR(f.value)))
                 Fetch_Next_In_Frame(&f);
@@ -424,22 +424,22 @@ repush:
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
-    DROP_GUARD_VALUE(&thrown_name); // no GC (via Do_Core()) after this point
-    DROP_GUARD_VALUE(&arg_or_error);
+    DROP_GUARD_VALUE(thrown_name); // no GC (via Do_Core()) after this point
+    DROP_GUARD_VALUE(arg_or_error);
 
-    if (IS_END(&arg_or_error)) { // no throws or errors tried to propagate
-        assert(IS_END(&thrown_name));
+    if (IS_END(arg_or_error)) { // no throws or errors tried to propagate
+        assert(IS_END(thrown_name));
         return R_OUT;
     }
 
-    if (NOT_END(&thrown_name)) { // throw tried propagating, re-throw it
-        Move_Value(D_OUT, &thrown_name);
-        CONVERT_NAME_TO_THROWN(D_OUT, &arg_or_error);
+    if (NOT_END(thrown_name)) { // throw tried propagating, re-throw it
+        Move_Value(D_OUT, thrown_name);
+        CONVERT_NAME_TO_THROWN(D_OUT, arg_or_error);
         return R_OUT_IS_THROWN;
     }
 
-    assert(IS_ERROR(&arg_or_error));
-    fail (VAL_CONTEXT(&arg_or_error)); // error tried propagating, re-raise it
+    assert(IS_ERROR(arg_or_error));
+    fail (VAL_CONTEXT(arg_or_error)); // error tried propagating, re-raise it
 }
 
 

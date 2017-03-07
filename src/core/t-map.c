@@ -253,10 +253,10 @@ static void Rehash_Map(REBMAP *map)
 void Expand_Hash(REBSER *ser)
 {
     REBINT pnum = Get_Hash_Prime(SER_LEN(ser) + 1);
-    if (!pnum) {
-        REBVAL temp;
-        SET_INTEGER(&temp, SER_LEN(ser) + 1);
-        fail (Error(RE_SIZE_LIMIT, &temp));
+    if (pnum == 0) {
+        DECLARE_LOCAL (temp);
+        SET_INTEGER(temp, SER_LEN(ser) + 1);
+        fail (Error(RE_SIZE_LIMIT, temp));
     }
 
     assert(!Is_Array_Series(ser));

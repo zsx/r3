@@ -384,10 +384,10 @@ REBSER *Make_Hash_Sequence(REBCNT len)
 
     n = Get_Hash_Prime(len * 2); // best when 2X # of keys
     if (!n) {
-        REBVAL temp;
-        SET_INTEGER(&temp, len);
+        DECLARE_LOCAL (temp);
+        SET_INTEGER(temp, len);
 
-        fail (Error(RE_SIZE_LIMIT, &temp));
+        fail (Error(RE_SIZE_LIMIT, temp));
     }
 
     ser = Make_Series(n + 1, sizeof(REBCNT), MKS_NONE);

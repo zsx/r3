@@ -287,10 +287,10 @@ void Value_To_Int64(REBVAL *out, const REBVAL *value, REBOOL no_sign)
             || memchr(bp, 'e', len)
             || memchr(bp, 'E', len)
         ) {
-            REBVAL d;
-            if (Scan_Decimal(&d, bp, len, TRUE)) {
-                if (VAL_DECIMAL(&d) < MAX_I64 && VAL_DECIMAL(&d) >= MIN_I64) {
-                    SET_INTEGER(out, cast(REBI64, VAL_DECIMAL(&d)));
+            DECLARE_LOCAL (d);
+            if (Scan_Decimal(d, bp, len, TRUE)) {
+                if (VAL_DECIMAL(d) < MAX_I64 && VAL_DECIMAL(d) >= MIN_I64) {
+                    SET_INTEGER(out, cast(REBI64, VAL_DECIMAL(d)));
                     goto check_sign;
                 }
 

@@ -35,18 +35,18 @@
 //
 // Of the four 32-or-64-bit slots that each value has, the first is used for
 // the value's "Header".  This includes the data type, such as REB_INTEGER,
-// REB_BLOCK, REB_STRING, etc.  Then there are 8 flags which are for general
+// REB_BLOCK, REB_STRING, etc.  Then there are flags which are for general
 // purposes that could apply equally well to any type of value (including
 // whether the value should have a new-line after it when molded out inside
-// of a block).  Then there are 16 bits which are custom to each type (for
+// of a block).  Followed by that are bits which are custom to each type (for
 // instance whether a key in an object is hidden or not).
 //
-// Perhaps obviously, an arbitrarily long string will not fit into 3*32 bits,
+// Obviously, an arbitrary long string won't fit into the remaining 3*32 bits,
 // or even 3*64 bits!  You can fit the data for an INTEGER or DECIMAL in that
 // (at least until they become arbitrary precision) but it's not enough for
 // a generic BLOCK! or a FUNCTION! (for instance).  So the remaining bits
-// often they will point to one or more Rebol Series (see %sys-series.h for
-// an explanation of REBSER, REBARR, REBCTX, and REBMAP.)
+// often will point to one or more Rebol "nodes" (see %sys-series.h for an
+// explanation of REBSER, REBARR, REBCTX, and REBMAP.)
 //
 // So the next part of the structure is the "Extra".  This is the size of one
 // pointer, which sits immediately after the header (that's also the size of
@@ -195,11 +195,36 @@
     FLAGIT_LEFT(GENERAL_VALUE_BIT + 4)
 
 
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  VALUE_FLAG_STACK
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// When writing to a value cell, it is sometimes necessary to know how long
+// that cell will "be alive".  This is important if there is some stack-based
+// transient structure in the source cell, which would need to be converted
+// into something longer-lived if the destination cell will outlive it.
+//
+// Hence cells must be formatted to say whether they are VALUE_FLAG_STACK or
+// not, before any writing can be done to them.  If they are not then they
+// are presumed to be indefinite lifetime (e.g. cells resident inside of an
+// array managed by the garbage collector).
+//
+// But if a cell is marked with VALUE_FLAG_STACK, that means it is expected
+// that scanning *backwards* in memory will find a specially marked REB_FRAME
+// cell, which will lead to the frame to whose lifetime the cell is bound.
+//
+// !!! This feature is a work in progress.
+//
+#define VALUE_FLAG_STACK \
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 5)
+
 // v-- BEGIN TYPE SPECIFIC BITS HERE
 
 
 #define TYPE_SPECIFIC_BIT \
-    (GENERAL_VALUE_BIT + 5)
+    (GENERAL_VALUE_BIT + 6)
 
 
 // Technically speaking, this only needs to use 6 bits of the rightmost byte
@@ -845,10 +870,6 @@ inline static void Init_Endlike_Header(struct Reb_Header *alias, REBUPT bits)
         // stack variable.
         //
         Reb_Specific_Value () {
-            //
-            // doesn't set VOID_FLAG_NOT_TRASH, so this is a trash cell
-            //
-            header.bits = REB_MAX_VOID | NODE_FLAG_CELL | NODE_FLAG_VALID;
         }
 
         ~Reb_Specific_Value() {

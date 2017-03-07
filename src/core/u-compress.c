@@ -121,13 +121,13 @@ static REBCTX *Error_Compression(const z_stream *strm, int ret)
         fail (Error_No_Memory(0));
     }
 
-    REBVAL arg;
+    DECLARE_LOCAL (arg);
     if (strm->msg != NULL)
-        Init_String(&arg, Make_UTF8_May_Fail(strm->msg));
+        Init_String(arg, Make_UTF8_May_Fail(strm->msg));
     else
-        SET_INTEGER(&arg, ret);
+        SET_INTEGER(arg, ret);
 
-    return Error(RE_BAD_COMPRESSION, &arg);
+    return Error(RE_BAD_COMPRESSION, arg);
 }
 
 
@@ -268,13 +268,13 @@ REBSER *Decompress(
         // before doing the buffer allocation
         //
         if (max >= 0 && buf_size > cast(REBCNT, max)) {
-            REBVAL temp;
-            SET_INTEGER(&temp, max);
+            DECLARE_LOCAL (temp);
+            SET_INTEGER(temp, max);
 
             // NOTE: You can hit this if you 'make prep' without doing a full
             // rebuild.  'make clean' and build again, it should go away.
             //
-            fail (Error(RE_SIZE_LIMIT, &temp));
+            fail (Error(RE_SIZE_LIMIT, temp));
         }
     }
     else {
@@ -372,13 +372,13 @@ REBSER *Decompress(
         REBCNT old_size = buf_size;
 
         if (max >= 0 && buf_size >= cast(REBCNT, max)) {
-            REBVAL temp;
-            SET_INTEGER(&temp, max);
+            DECLARE_LOCAL (temp);
+            SET_INTEGER(temp, max);
 
             // NOTE: You can hit this on 'make prep' without doing a full
             // rebuild.  'make clean' and build again, it should go away.
             //
-            fail (Error(RE_SIZE_LIMIT, &temp));
+            fail (Error(RE_SIZE_LIMIT, temp));
         }
 
         buf_size = buf_size + strm.avail_in * 3;

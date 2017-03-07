@@ -114,6 +114,8 @@ REBIXO Do_Vararg_Op_May_Throw(
     REBVAL *shared;
 
     REBFRM temp_frame;
+    Prep_Global_Cell(&temp_frame.cell);
+
     REBFRM *f;
 
     if (NOT_SER_FLAG(vararg->payload.varargs.feed, ARRAY_FLAG_VARLIST)) {
@@ -527,12 +529,12 @@ void Mold_Varargs(const REBVAL *v, REB_MOLD *mold) {
             };
 
             // Note varargs_param is distinct from f->param!
-            REBVAL param_word;
+            DECLARE_LOCAL (param_word);
             Init_Any_Word(
-                &param_word, kind, VAL_PARAM_SPELLING(param)
+                param_word, kind, VAL_PARAM_SPELLING(param)
             );
 
-            Mold_Value(mold, &param_word, TRUE);
+            Mold_Value(mold, param_word, TRUE);
         }
     }
 

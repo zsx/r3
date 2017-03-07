@@ -109,9 +109,9 @@ REBTYPE(Port)
         // what value points to.
         //
         if (!IS_PORT(value)) {
-            REBVAL temp;
-            MAKE_Port(&temp, REB_PORT, value);
-            Move_Value(value, &temp);
+            DECLARE_LOCAL (temp);
+            MAKE_Port(temp, REB_PORT, value);
+            Move_Value(value, temp);
         }
         break; }
 

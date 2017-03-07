@@ -546,8 +546,6 @@ REBOOL Make_Error_Object_Throws(
         // If a block, then effectively MAKE OBJECT! on it.  Afterward,
         // apply the same logic as if an OBJECT! had been passed in above.
 
-        REBVAL evaluated;
-
         // Bind and do an evaluation step (as with MAKE OBJECT! with A_MAKE
         // code in REBTYPE(Context) and code in REBNATIVE(construct))
 
@@ -566,8 +564,9 @@ REBOOL Make_Error_Object_Throws(
         Rebind_Context_Deep(root_error, error, NULL); // NULL=>no more binds
         Bind_Values_Deep(VAL_ARRAY_AT(arg), error);
 
-        if (DO_VAL_ARRAY_AT_THROWS(&evaluated, arg)) {
-            Move_Value(out, &evaluated);
+        DECLARE_LOCAL (evaluated);
+        if (DO_VAL_ARRAY_AT_THROWS(evaluated, arg)) {
+            Move_Value(out, evaluated);
 
         #if !defined(NDEBUG)
             //
@@ -634,15 +633,15 @@ REBOOL Make_Error_Object_Throws(
             if (!IS_BLANK(&vars->message)) // assume a MESSAGE: is wrong
                 fail (Error(RE_INVALID_ERROR, arg));
 
-            REBVAL id;
-            REBVAL type;
+            DECLARE_LOCAL (id);
+            DECLARE_LOCAL (type);
             REBVAL *message = Find_Error_For_Code(
-                &id,
-                &type,
+                id,
+                type,
                 cast(REBCNT, VAL_INT32(&vars->code))
             );
 
-            if (!message)
+            if (message == NULL)
                 fail (Error(RE_INVALID_ERROR, arg));
 
             Move_Value(&vars->message, message);
@@ -650,22 +649,22 @@ REBOOL Make_Error_Object_Throws(
             if (!IS_BLANK(&vars->id)) {
                 if (
                     !IS_WORD(&vars->id)
-                    || VAL_WORD_CANON(&vars->id) != VAL_WORD_CANON(&id)
+                    || VAL_WORD_CANON(&vars->id) != VAL_WORD_CANON(id)
                 ){
                     fail (Error(RE_INVALID_ERROR, arg));
                 }
             }
-            Move_Value(&vars->id, &id); // binding and case normalized
+            Move_Value(&vars->id, id); // binding and case normalized
 
             if (!IS_BLANK(&vars->type)) {
                 if (
                     !IS_WORD(&vars->id)
-                    || VAL_WORD_CANON(&vars->type) != VAL_WORD_CANON(&type)
+                    || VAL_WORD_CANON(&vars->type) != VAL_WORD_CANON(type)
                 ){
                     fail (Error(RE_INVALID_ERROR, arg));
                 }
             }
-            Move_Value(&vars->type, &type); // binding and case normalized
+            Move_Value(&vars->type, type); // binding and case normalized
 
             // !!! TBD: Check that all arguments were provided!
         }
@@ -840,9 +839,9 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
 
     REBCTX *root_error = VAL_CONTEXT(ROOT_ERROBJ);
 
-    REBVAL id;
-    REBVAL type;
-    REBVAL *message = Find_Error_For_Code(&id, &type, code);
+    DECLARE_LOCAL (id);
+    DECLARE_LOCAL (type);
+    REBVAL *message = Find_Error_For_Code(id, type, code);
     assert(message);
 
     REBCNT expected_args;
@@ -1052,8 +1051,8 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
     SET_INTEGER(&vars->code, code);
 
     Move_Value(&vars->message, message);
-    Move_Value(&vars->id, &id);
-    Move_Value(&vars->type, &type);
+    Move_Value(&vars->id, id);
+    Move_Value(&vars->type, type);
 
     // There might be no Rebol code running when the error is created (e.g.
     // the static creation of the stack overflow error before any code runs)
@@ -1146,9 +1145,9 @@ REBCTX *Error_Lookback_Quote_Set_Soft(REBFRM *f) {
 // by these specializations, because that's what the called function expects.
 //
 REBCTX *Error_Non_Logic_Refinement(REBFRM *f) {
-    REBVAL word;
-    Init_Word(&word, VAL_PARAM_SPELLING(f->param));
-    fail (Error(RE_NON_LOGIC_REFINE, &word, Type_Of(f->arg)));
+    DECLARE_LOCAL (word);
+    Init_Word(word, VAL_PARAM_SPELLING(f->param));
+    fail (Error(RE_NON_LOGIC_REFINE, word, Type_Of(f->arg)));
 }
 
 
@@ -1164,9 +1163,10 @@ REBCTX *Error_Bad_Func_Def(const REBVAL *spec, const REBVAL *body)
     Append_Value(array, spec);
     Append_Value(array, body);
 
-    REBVAL def;
-    Init_Block(&def, array);
-    return Error(RE_BAD_FUNC_DEF, &def, END_CELL);
+    DECLARE_LOCAL (def);
+
+    Init_Block(def, array);
+    return Error(RE_BAD_FUNC_DEF, def, END_CELL);
 }
 
 
@@ -1177,13 +1177,13 @@ REBCTX *Error_No_Arg(REBSTR *label, const RELVAL *param)
 {
     assert(IS_TYPESET(param));
 
-    REBVAL param_word;
-    Init_Word(&param_word, VAL_PARAM_SPELLING(param));
+    DECLARE_LOCAL (param_word);
+    Init_Word(param_word, VAL_PARAM_SPELLING(param));
 
-    REBVAL label_word;
-    Init_Word(&label_word, label);
+    DECLARE_LOCAL (label_word);
+    Init_Word(label_word, label);
 
-    return Error(RE_NO_ARG, &label_word, &param_word, END_CELL);
+    return Error(RE_NO_ARG, label_word, param_word, END_CELL);
 }
 
 
@@ -1192,10 +1192,10 @@ REBCTX *Error_No_Arg(REBSTR *label, const RELVAL *param)
 //
 REBCTX *Error_Invalid_Datatype(REBCNT id)
 {
-    REBVAL id_value;
+    DECLARE_LOCAL (id_value);
 
-    SET_INTEGER(&id_value, id);
-    return Error(RE_INVALID_DATATYPE, &id_value, END_CELL);
+    SET_INTEGER(id_value, id);
+    return Error(RE_INVALID_DATATYPE, id_value, END_CELL);
 }
 
 
@@ -1204,10 +1204,10 @@ REBCTX *Error_Invalid_Datatype(REBCNT id)
 //
 REBCTX *Error_No_Memory(REBCNT bytes)
 {
-    REBVAL bytes_value;
+    DECLARE_LOCAL (bytes_value);
 
-    SET_INTEGER(&bytes_value, bytes);
-    return Error(RE_NO_MEMORY, &bytes_value, END_CELL);
+    SET_INTEGER(bytes_value, bytes);
+    return Error(RE_NO_MEMORY, bytes_value, END_CELL);
 }
 
 
@@ -1223,10 +1223,10 @@ REBCTX *Error_Invalid_Arg_Core(const RELVAL *value, REBSPC *specifier)
 {
     assert(NOT_END(value)); // can't use with END markers
 
-    REBVAL specific;
-    Derelativize(&specific, value, specifier);
+    DECLARE_LOCAL (specific);
+    Derelativize(specific, value, specifier);
 
-    return Error(RE_INVALID_ARG, &specific, END_CELL);
+    return Error(RE_INVALID_ARG, specific, END_CELL);
 }
 
 
@@ -1243,9 +1243,9 @@ REBCTX *Error_Invalid_Arg(const REBVAL *value) {
 //
 REBCTX *Error_Bad_Func_Def_Core(const RELVAL *item, REBSPC *specifier)
 {
-    REBVAL specific;
-    Derelativize(&specific, item, specifier);
-    return Error(RE_BAD_FUNC_DEF, &specific);
+    DECLARE_LOCAL (specific);
+    Derelativize(specific, item, specifier);
+    return Error(RE_BAD_FUNC_DEF, specific);
 }
 
 
@@ -1261,21 +1261,21 @@ REBCTX *Error_Bad_Refine_Revoke(REBFRM *f)
 {
     assert(IS_TYPESET(f->param));
 
-    REBVAL param_name;
-    Init_Word(&param_name, VAL_PARAM_SPELLING(f->param));
+    DECLARE_LOCAL (param_name);
+    Init_Word(param_name, VAL_PARAM_SPELLING(f->param));
 
     while (VAL_PARAM_CLASS(f->param) != PARAM_CLASS_REFINEMENT)
         --f->param;
 
-    REBVAL refine_name;
-    Init_Refinement(&refine_name, VAL_PARAM_SPELLING(f->param));
+    DECLARE_LOCAL (refine_name);
+    Init_Refinement(refine_name, VAL_PARAM_SPELLING(f->param));
 
     if (IS_VOID(f->arg)) // was void and shouldn't have been
-        return Error(RE_BAD_REFINE_REVOKE, &refine_name, &param_name, END_CELL);
+        return Error(RE_BAD_REFINE_REVOKE, refine_name, param_name, END_CELL);
 
     // wasn't void and should have been
     //
-    return Error(RE_ARGUMENT_REVOKED, &refine_name, &param_name, END_CELL);
+    return Error(RE_ARGUMENT_REVOKED, refine_name, param_name, END_CELL);
 }
 
 
@@ -1283,10 +1283,10 @@ REBCTX *Error_Bad_Refine_Revoke(REBFRM *f)
 //  Error_No_Value_Core: C
 //
 REBCTX *Error_No_Value_Core(const RELVAL *target, REBSPC *specifier) {
-    REBVAL specified;
-    Derelativize(&specified, target, specifier);
+    DECLARE_LOCAL (specified);
+    Derelativize(specified, target, specifier);
 
-    return Error(RE_NO_VALUE, &specified, END_CELL);
+    return Error(RE_NO_VALUE, specified, END_CELL);
 }
 
 
@@ -1303,15 +1303,15 @@ REBCTX *Error_No_Value(const REBVAL *target) {
 //
 REBCTX *Error_No_Catch_For_Throw(REBVAL *thrown)
 {
-    REBVAL arg;
+    DECLARE_LOCAL (arg);
 
     assert(THROWN(thrown));
-    CATCH_THROWN(&arg, thrown); // clears bit
+    CATCH_THROWN(arg, thrown); // clears bit
 
     if (IS_BLANK(thrown))
-        return Error(RE_NO_CATCH, &arg, END_CELL);
+        return Error(RE_NO_CATCH, arg, END_CELL);
 
-    return Error(RE_NO_CATCH_NAMED, &arg, thrown, END_CELL);
+    return Error(RE_NO_CATCH_NAMED, arg, thrown, END_CELL);
 }
 
 
@@ -1344,10 +1344,10 @@ REBCTX *Error_Protected_Key(REBVAL *key)
 {
     assert(IS_TYPESET(key));
 
-    REBVAL key_name;
-    Init_Word(&key_name, VAL_KEY_SPELLING(key));
+    DECLARE_LOCAL (key_name);
+    Init_Word(key_name, VAL_KEY_SPELLING(key));
 
-    return Error(RE_PROTECTED_WORD, &key_name, END_CELL);
+    return Error(RE_PROTECTED_WORD, key_name, END_CELL);
 }
 
 
@@ -1356,10 +1356,10 @@ REBCTX *Error_Protected_Key(REBVAL *key)
 //
 REBCTX *Error_Illegal_Action(enum Reb_Kind type, REBSYM action)
 {
-    REBVAL action_word;
-    Init_Word(&action_word, Canon(action));
+    DECLARE_LOCAL (action_word);
+    Init_Word(action_word, Canon(action));
 
-    return Error(RE_CANNOT_USE, &action_word, Get_Type(type), END_CELL);
+    return Error(RE_CANNOT_USE, action_word, Get_Type(type), END_CELL);
 }
 
 
@@ -1368,10 +1368,10 @@ REBCTX *Error_Illegal_Action(enum Reb_Kind type, REBSYM action)
 //
 REBCTX *Error_Math_Args(enum Reb_Kind type, REBSYM action)
 {
-    REBVAL action_word;
-    Init_Word(&action_word, Canon(action));
+    DECLARE_LOCAL (action_word);
+    Init_Word(action_word, Canon(action));
 
-    return Error(RE_NOT_RELATED, &action_word, Get_Type(type), END_CELL);
+    return Error(RE_NOT_RELATED, action_word, Get_Type(type), END_CELL);
 }
 
 
@@ -1405,11 +1405,11 @@ REBCTX *Error_Arg_Type(
 ) {
     assert(IS_TYPESET(param));
 
-    REBVAL param_word;
-    Init_Word(&param_word, VAL_PARAM_SPELLING(param));
+    DECLARE_LOCAL (param_word);
+    Init_Word(param_word, VAL_PARAM_SPELLING(param));
 
-    REBVAL label_word;
-    Init_Word(&label_word, label);
+    DECLARE_LOCAL (label_word);
+    Init_Word(label_word, label);
 
     if (kind != REB_MAX_VOID) {
         assert(kind != REB_0);
@@ -1418,9 +1418,9 @@ REBCTX *Error_Arg_Type(
 
         return Error(
             RE_EXPECT_ARG,
-            &label_word,
+            label_word,
             datatype,
-            &param_word,
+            param_word,
             END_CELL
         );
     }
@@ -1430,8 +1430,8 @@ REBCTX *Error_Arg_Type(
     //
     return Error(
         RE_ARG_REQUIRED,
-        &label_word,
-        &param_word,
+        label_word,
+        param_word,
         END_CELL
     );
 }
@@ -1441,15 +1441,15 @@ REBCTX *Error_Arg_Type(
 //  Error_Bad_Return_Type: C
 //
 REBCTX *Error_Bad_Return_Type(REBSTR *label, enum Reb_Kind kind) {
-    REBVAL label_word;
-    Init_Word(&label_word, label);
+    DECLARE_LOCAL (label_word);
+    Init_Word(label_word, label);
 
     if (kind == REB_MAX_VOID)
-        return Error(RE_NEEDS_RETURN_VALUE, &label_word, END_CELL);
+        return Error(RE_NEEDS_RETURN_VALUE, label_word, END_CELL);
 
     REBVAL *datatype = Get_Type(kind);
     assert(IS_DATATYPE(datatype));
-    return Error(RE_BAD_RETURN_TYPE, &label_word, datatype, END_CELL);
+    return Error(RE_BAD_RETURN_TYPE, label_word, datatype, END_CELL);
 }
 
 
@@ -1484,10 +1484,10 @@ REBCTX *Error_On_Port(REBCNT errnum, REBCTX *port, REBINT err_code)
     if (IS_BLANK(val))
         val = VAL_CONTEXT_VAR(spec, STD_PORT_SPEC_HEAD_TITLE); // less info
 
-    REBVAL err_code_value;
-    SET_INTEGER(&err_code_value, err_code);
+    DECLARE_LOCAL (err_code_value);
+    SET_INTEGER(err_code_value, err_code);
 
-    return Error(errnum, val, &err_code_value, END_CELL);
+    return Error(errnum, val, err_code_value, END_CELL);
 }
 
 
@@ -1656,10 +1656,10 @@ REBYTE *Security_Policy(REBSTR *spelling, REBVAL *name)
 
     error:
         ; // need statement
-        REBVAL temp;
+        DECLARE_LOCAL (temp);
         if (!policy) {
-            Init_Word(&temp, spelling);
-            policy = &temp;
+            Init_Word(temp, spelling);
+            policy = temp;
         }
         fail (Error(errcode, policy));
     }

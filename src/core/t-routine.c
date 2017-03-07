@@ -192,6 +192,9 @@ static void Schema_From_Block_May_Fail(
 
     RELVAL *item = VAL_ARRAY_AT(blk);
 
+    DECLARE_LOCAL (def);
+    DECLARE_LOCAL (temp);
+
     if (IS_WORD(item) && VAL_WORD_SYM(item) == SYM_STRUCT_X) {
         //
         // [struct! [...struct definition...]]
@@ -203,18 +206,16 @@ static void Schema_From_Block_May_Fail(
         // Use the block spec to build a temporary structure through the same
         // machinery that implements `make struct! [...]`
 
-        REBVAL def;
-        Derelativize(&def, item, VAL_SPECIFIER(blk));
+        Derelativize(def, item, VAL_SPECIFIER(blk));
 
-        REBVAL temp;
-        MAKE_Struct(&temp, REB_STRUCT, &def); // may fail()
-        assert(IS_STRUCT(&temp));
+        MAKE_Struct(temp, REB_STRUCT, def); // may fail()
+        assert(IS_STRUCT(temp));
 
         // !!! It should be made possible to create a schema without going
         // through a struct creation.  There are "raw" structs with no memory,
         // which would avoid the data series (not the REBSTU array, though)
         //
-        Init_Block(schema_out, VAL_STRUCT_SCHEMA(&temp));
+        Init_Block(schema_out, VAL_STRUCT_SCHEMA(temp));
 
         // !!! Saying any STRUCT! is legal here in the typeset suggests any
         // structure is legal to pass into a routine.  Yet structs in C
@@ -869,6 +870,9 @@ REB_R Routine_Dispatcher(REBFRM *f)
         for (i = 0; i < num_fixed; ++i)
             args_fftypes[i] = SCHEMA_FFTYPE(RIN_ARG_SCHEMA(rin, i));
 
+        DECLARE_LOCAL (schema);
+        DECLARE_LOCAL (param);
+
         REBDSP dsp;
         for (dsp = dsp_orig + 1; i < num_args; dsp += 2, ++i) {
             //
@@ -878,24 +882,22 @@ REB_R Routine_Dispatcher(REBFRM *f)
             // necessary.  Whatever symbol name is used here will be seen
             // in error reports.
             //
-            REBVAL schema;
-            REBVAL param;
             Schema_From_Block_May_Fail(
-                &schema,
-                &param, // sets type bits in param
+                schema,
+                param, // sets type bits in param
                 DS_AT(dsp + 1) // will error if this is not a block
             );
 
-            args_fftypes[i] = SCHEMA_FFTYPE(&schema);
+            args_fftypes[i] = SCHEMA_FFTYPE(schema);
 
-            INIT_TYPESET_NAME(&param, Canon(SYM_ELLIPSIS));
+            INIT_TYPESET_NAME(param, Canon(SYM_ELLIPSIS));
 
             *SER_AT(void*, arg_offsets, i) = cast(void*, arg_to_ffi(
                 store, // data appended to store
                 NULL, // dest pointer must be NULL if store is non-NULL
                 DS_AT(dsp), // arg
-                &schema,
-                &param // used for typecheck, VAL_TYPESET_SYM for error msgs
+                schema,
+                param // used for typecheck, VAL_TYPESET_SYM for error msgs
             ));
         }
 
@@ -1060,21 +1062,21 @@ static void callback_dispatcher(
     TERM_ARRAY_LEN(code, 1 + cif->nargs);
     MANAGE_ARRAY(code); // DO requires managed arrays (guarded while running)
 
-    REBVAL result;
-    if (Do_At_Throws(&result, code, 0, SPECIFIED))
-        fail (Error_No_Catch_For_Throw(&result)); // !!! Tunnel throws out?
+    DECLARE_LOCAL (result);
+    if (Do_At_Throws(result, code, 0, SPECIFIED))
+        fail (Error_No_Catch_For_Throw(result)); // !!! Tunnel throws out?
 
     if (cif->rtype->type == FFI_TYPE_VOID)
         assert(IS_BLANK(RIN_RET_SCHEMA(rin)));
     else {
-        REBVAL param;
-        Init_Typeset(&param, 0, Canon(SYM_RETURN));
+        DECLARE_LOCAL (param);
+        Init_Typeset(param, 0, Canon(SYM_RETURN));
         arg_to_ffi(
             NULL, // store must be NULL if dest is non-NULL,
             ret, // destination pointer
-            &result,
+            result,
             RIN_RET_SCHEMA(rin),
-            &param // parameter used for symbol in error only
+            param // parameter used for symbol in error only
         );
     }
 
@@ -1187,13 +1189,13 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
 
                 ++item;
 
-                REBVAL block;
-                Derelativize(&block, item, VAL_SPECIFIER(ffi_spec));
+                DECLARE_LOCAL (block);
+                Derelativize(block, item, VAL_SPECIFIER(ffi_spec));
 
                 Schema_From_Block_May_Fail(
                     Alloc_Tail_Array(args_schemas), // schema (out)
                     param, // param (out)
-                    &block // block (in)
+                    block // block (in)
                 );
 
                 INIT_TYPESET_NAME(param, name);
@@ -1210,14 +1212,14 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
 
                 ++item;
 
-                REBVAL block;
-                Derelativize(&block, item, VAL_SPECIFIER(ffi_spec));
+                DECLARE_LOCAL (block);
+                Derelativize(block, item, VAL_SPECIFIER(ffi_spec));
 
-                REBVAL param;
+                DECLARE_LOCAL (param);
                 Schema_From_Block_May_Fail(
                     RIN_AT(r, IDX_ROUTINE_RET_SCHEMA),
-                    &param, // dummy (a return/output has no arg to typecheck)
-                    &block
+                    param, // dummy (a return/output has no arg to typecheck)
+                    block
                 );
                 break;}
 

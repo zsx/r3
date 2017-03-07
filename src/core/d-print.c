@@ -133,11 +133,11 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
         // calls to Do_Signals_Throws() by places that do not have a clear
         // path up to return results from an interactive breakpoint.
         //
-        REBVAL result;
+        DECLARE_LOCAL (result);
 
-        if (Do_Signals_Throws(&result))
-            fail (Error_No_Catch_For_Throw(&result));
-        if (IS_ANY_VALUE(&result))
+        if (Do_Signals_Throws(result))
+            fail (Error_No_Catch_For_Throw(result));
+        if (IS_ANY_VALUE(result))
             fail (Error(RE_MISC));
 
         // Used by verbatim terminal output, e.g. print of a BINARY!
@@ -153,17 +153,17 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
             fail (Error(RE_IO_ERROR));
     }
     else {
+        DECLARE_LOCAL (result);
+
         while ((len2 = len) > 0) {
             //
             // !!! See notes on other invocations about the questions raised by
             // calls to Do_Signals_Throws() by places that do not have a clear
             // path up to return results from an interactive breakpoint.
             //
-            REBVAL result;
-
-            if (Do_Signals_Throws(&result))
-                fail (Error_No_Catch_For_Throw(&result));
-            if (IS_ANY_VALUE(&result))
+            if (Do_Signals_Throws(result))
+                fail (Error_No_Catch_For_Throw(result));
+            if (IS_ANY_VALUE(result))
                 fail (Error(RE_MISC));
 
             Req_SIO->length = Encode_UTF8(
@@ -659,10 +659,11 @@ void Form_Args_Core(REB_MOLD *mo, const char *fmt, va_list *vaptr)
     REBYTE *cp;
     REBINT pad;
     REBYTE desc;
-    REBVAL value;
     REBYTE padding;
     REBSER *ser = mo->series;
     REBYTE buf[MAX_SCAN_DECIMAL];
+
+    DECLARE_LOCAL (value);
 
     // buffer used for making byte-oriented renderings to add to the REBUNI
     // mold series.  Should be more formally checked as it's used for
@@ -752,15 +753,15 @@ pick:
             //
             REBSER* temp = va_arg(*vaptr, REBSER*);
             if (Is_Array_Series(temp)) {
-                VAL_RESET_HEADER(&value, REB_BLOCK);
-                INIT_VAL_ARRAY(&value, AS_ARRAY(temp)); // careful, macro!
+                VAL_RESET_HEADER(value, REB_BLOCK);
+                INIT_VAL_ARRAY(value, AS_ARRAY(temp)); // careful, macro!
             }
             else {
-                VAL_RESET_HEADER(&value, REB_STRING);
-                INIT_VAL_SERIES(&value, temp); // careful, macro!
+                VAL_RESET_HEADER(value, REB_STRING);
+                INIT_VAL_SERIES(value, temp); // careful, macro!
             }
-            VAL_INDEX(&value) = 0;
-            Mold_Value(mo, &value, TRUE);
+            VAL_INDEX(value) = 0;
+            Mold_Value(mo, value, TRUE);
             break;
         }
 

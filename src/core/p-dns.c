@@ -43,7 +43,7 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     REBCNT len;
     REBOOL sync = FALSE; // act synchronously
 
-    REBVAL tmp;
+    DECLARE_LOCAL (tmp);
 
     arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     Move_Value(D_OUT, D_ARG(1));
@@ -83,10 +83,10 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         if (
             IS_TUPLE(arg)
-            && Scan_Tuple(&tmp, VAL_BIN(arg), LEN_BYTES(VAL_BIN(arg)))
+            && Scan_Tuple(tmp, VAL_BIN(arg), LEN_BYTES(VAL_BIN(arg)))
         ){
             SET_FLAG(sock->modes, RST_REVERSE);
-            memcpy(&(DEVREQ_NET(sock)->remote_ip), VAL_TUPLE(&tmp), 4);
+            memcpy(&(DEVREQ_NET(sock)->remote_ip), VAL_TUPLE(tmp), 4);
         }
         else if (IS_STRING(arg)) {
             sock->common.data = VAL_BIN(arg);

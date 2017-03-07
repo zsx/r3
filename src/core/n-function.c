@@ -414,13 +414,13 @@ REBNATIVE(specialize)
     // the symbol (for debugging, errors, etc.)  If caller passes a WORD!
     // then we lookup the variable to get the function, but save the symbol.
     //
-    REBVAL specializee;
-    Get_If_Word_Or_Path_Arg(&specializee, &opt_name, ARG(value));
+    DECLARE_LOCAL (specializee);
+    Get_If_Word_Or_Path_Arg(specializee, &opt_name, ARG(value));
 
-    if (!IS_FUNCTION(&specializee))
+    if (!IS_FUNCTION(specializee))
         fail (Error(RE_APPLY_NON_FUNCTION, ARG(value))); // for APPLY too
 
-    if (Specialize_Function_Throws(D_OUT, &specializee, opt_name, ARG(def)))
+    if (Specialize_Function_Throws(D_OUT, specializee, opt_name, ARG(def)))
         return R_OUT_IS_THROWN;
 
     return R_OUT;
@@ -655,21 +655,15 @@ REBNATIVE(hijack)
 {
     INCLUDE_PARAMS_OF_HIJACK;
 
-    REBVAL victim_value;
+    DECLARE_LOCAL (victim);
     REBSTR *opt_victim_name;
-    Get_If_Word_Or_Path_Arg(
-        &victim_value, &opt_victim_name, ARG(victim)
-    );
-    REBVAL *victim = &victim_value;
+    Get_If_Word_Or_Path_Arg(victim, &opt_victim_name, ARG(victim));
     if (!IS_FUNCTION(victim))
         fail (Error(RE_MISC));
 
-    REBVAL hijacker_value;
+    DECLARE_LOCAL (hijacker);
     REBSTR *opt_hijacker_name;
-    Get_If_Word_Or_Path_Arg(
-        &hijacker_value, &opt_hijacker_name, ARG(hijacker)
-    );
-    REBVAL *hijacker = &hijacker_value;
+    Get_If_Word_Or_Path_Arg(hijacker, &opt_hijacker_name, ARG(hijacker));
     if (!IS_FUNCTION(hijacker) && !IS_BLANK(hijacker))
         fail (Error(RE_MISC));
 

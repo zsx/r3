@@ -194,10 +194,10 @@ void MAKE_Decimal(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
             else if (IS_DECIMAL(item) || IS_PERCENT(item))
                 d = VAL_DECIMAL(item);
             else {
-                REBVAL specific;
-                Derelativize(&specific, item, VAL_SPECIFIER(arg));
+                DECLARE_LOCAL (specific);
+                Derelativize(specific, item, VAL_SPECIFIER(arg));
 
-                fail (Error_Invalid_Arg(&specific));
+                fail (Error_Invalid_Arg(specific));
             }
 
             ++item;
@@ -208,9 +208,9 @@ void MAKE_Decimal(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
             else if (IS_DECIMAL(item) || IS_PERCENT(item))
                 exp = VAL_DECIMAL(item);
             else {
-                REBVAL specific;
-                Derelativize(&specific, item, VAL_SPECIFIER(arg));
-                fail (Error_Invalid_Arg(&specific));
+                DECLARE_LOCAL (specific);
+                Derelativize(specific, item, VAL_SPECIFIER(arg));
+                fail (Error_Invalid_Arg(specific));
             }
 
             while (exp >= 1) {

@@ -179,25 +179,26 @@ REBNATIVE(all)
     REBFRM f;
     Push_Frame(&f, ARG(block));
 
-    while (NOT_END(f.value)) {
-        REBVAL temp;
-        Do_Next_In_Frame_May_Throw(&temp, &f, DO_FLAG_NORMAL);
+    DECLARE_LOCAL (temp);
 
-        if (THROWN(&temp)) {
+    while (NOT_END(f.value)) {
+        Do_Next_In_Frame_May_Throw(temp, &f, DO_FLAG_NORMAL);
+
+        if (THROWN(temp)) {
             Drop_Frame(&f);
-            Move_Value(D_OUT, &temp);
+            Move_Value(D_OUT, temp);
             return R_OUT_IS_THROWN;
         }
 
-        if (IS_VOID(&temp)) // voids do not "vote" true or false
+        if (IS_VOID(temp)) // voids do not "vote" true or false
             continue;
 
-        if (IS_CONDITIONAL_FALSE(&temp)) { // a failed ALL returns BLANK!
+        if (IS_CONDITIONAL_FALSE(temp)) { // a failed ALL returns BLANK!
             Drop_Frame(&f);
             return R_BLANK;
         }
 
-        Move_Value(D_OUT, &temp); // preserve (not overwritten by later voids)
+        Move_Value(D_OUT, temp); // preserve (not overwritten by later voids)
     }
 
     Drop_Frame(&f);
@@ -332,6 +333,8 @@ REBNATIVE(case)
     // With the block argument pushed in the enumerator, that frame slot is
     // available for scratch space in the rest of the routine.
 
+    DECLARE_LOCAL (dummy);
+
     while (NOT_END(f.value)) {
         UPDATE_EXPRESSION_START(&f); // informs the error delivery better
 
@@ -384,9 +387,8 @@ REBNATIVE(case)
             // action in a response...but the result is discarded.
             //
             //
-            REBVAL dummy;
-            if (Maybe_Run_Failed_Branch_Throws(&dummy, D_CELL, REF(only))) {
-                Move_Value(D_OUT, &dummy);
+            if (Maybe_Run_Failed_Branch_Throws(dummy, D_CELL, REF(only))) {
+                Move_Value(D_OUT, dummy);
                 goto return_thrown;
             }
 

@@ -532,10 +532,10 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                 }
                 else {
                     // !!! Review this error (and this routine...)
-                    REBVAL key_name;
-                    Init_Word(&key_name, VAL_KEY_SPELLING(key));
+                    DECLARE_LOCAL (key_name);
+                    Init_Word(key_name, VAL_KEY_SPELLING(key));
 
-                    fail (Error_Invalid_Arg(&key_name));
+                    fail (Error_Invalid_Arg(key_name));
                 }
                 j++;
             }
@@ -566,10 +566,10 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                     }
                     else {
                         // !!! Review this error (and this routine...)
-                        REBVAL key_name;
-                        Init_Word(&key_name, VAL_KEY_SPELLING(key));
+                        DECLARE_LOCAL (key_name);
+                        Init_Word(key_name, VAL_KEY_SPELLING(key));
 
-                        fail (Error_Invalid_Arg(&key_name));
+                        fail (Error_Invalid_Arg(key_name));
                     }
                     j++;
                 }

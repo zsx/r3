@@ -604,13 +604,13 @@ static REBCTX *Error_Bad_Scan(
     Append_Unencoded(ser, ") ");
     Append_Series(ser, bp, len);
 
-    REBVAL arg1;
-    Init_String(&arg1, Copy_Bytes(name, -1));
+    DECLARE_LOCAL (arg1);
+    Init_String(arg1, Copy_Bytes(name, -1));
 
-    REBVAL arg2;
-    Init_String(&arg2, Copy_Bytes(arg, size));
+    DECLARE_LOCAL (arg2);
+    Init_String(arg2, Copy_Bytes(arg, size));
 
-    REBCTX *error = Error(errnum, &arg1, &arg2, END_CELL);
+    REBCTX *error = Error(errnum, arg1, arg2, END_CELL);
 
     // Write the NEAR information (`Error()` gets it from FS_TOP)
     // Vars is a C struct mirroring fixed portion of error fields
@@ -1798,9 +1798,9 @@ static REBARR *Scan_Array(
             Bind_Values_All_Deep(ARR_HEAD(array), Lib_Context);
 
             if (ARR_LEN(array) == 0 || !IS_WORD(ARR_HEAD(array))) {
-                REBVAL temp;
-                Init_Block(&temp, array);
-                fail (Error(RE_MALCONSTRUCT, &temp));
+                DECLARE_LOCAL (temp);
+                Init_Block(temp, array);
+                fail (Error(RE_MALCONSTRUCT, temp));
             }
 
             REBSYM sym = VAL_WORD_SYM(ARR_HEAD(array));
@@ -1810,9 +1810,9 @@ static REBARR *Scan_Array(
                 MAKE_FUNC dispatcher = Make_Dispatch[kind];
 
                 if (dispatcher == NULL || ARR_LEN(array) != 2) {
-                    REBVAL temp;
-                    Init_Block(&temp, array);
-                    fail (Error(RE_MALCONSTRUCT, &temp));
+                    DECLARE_LOCAL (temp);
+                    Init_Block(temp, array);
+                    fail (Error(RE_MALCONSTRUCT, temp));
                 }
 
                 // !!! As written today, MAKE may call into the evaluator, and
@@ -1822,23 +1822,23 @@ static REBARR *Scan_Array(
                 // used as the destination...because a raw pointer into the
                 // data stack could go bad on any DS_PUSH or DS_DROP.
                 //
-                REBVAL cell;
+                DECLARE_LOCAL (cell);
                 PUSH_GUARD_ARRAY(array);
-                SET_UNREADABLE_BLANK(&cell);
-                PUSH_GUARD_VALUE(&cell);
+                SET_UNREADABLE_BLANK(cell);
+                PUSH_GUARD_VALUE(cell);
 
-                dispatcher(&cell, kind, KNOWN(ARR_AT(array, 1))); // may fail()
+                dispatcher(cell, kind, KNOWN(ARR_AT(array, 1))); // may fail()
 
                 DS_PUSH_TRASH;
-                Move_Value(DS_TOP, &cell);
-                DROP_GUARD_VALUE(&cell);
+                Move_Value(DS_TOP, cell);
+                DROP_GUARD_VALUE(cell);
                 DROP_GUARD_ARRAY(array);
             }
             else {
                 if (ARR_LEN(array) != 1) {
-                    REBVAL temp;
-                    Init_Block(&temp, array);
-                    fail (Error(RE_MALCONSTRUCT, &temp));
+                    DECLARE_LOCAL (temp);
+                    Init_Block(temp, array);
+                    fail (Error(RE_MALCONSTRUCT, temp));
                 }
 
                 // !!! Construction syntax allows the "type" slot to be one of
@@ -1866,9 +1866,9 @@ static REBARR *Scan_Array(
                     break;
 
                 default: {
-                    REBVAL temp;
-                    Init_Block(&temp, array);
-                    fail (Error(RE_MALCONSTRUCT, &temp)); }
+                    DECLARE_LOCAL (temp);
+                    Init_Block(temp, array);
+                    fail (Error(RE_MALCONSTRUCT, temp)); }
                 }
             }
 

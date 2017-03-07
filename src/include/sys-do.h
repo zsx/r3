@@ -140,6 +140,8 @@ inline static REBOOL IS_QUOTABLY_SOFT(const RELVAL *v) {
 
 inline static void Push_Frame_Core(REBFRM *f)
 {
+    Prep_Global_Cell(&f->cell);
+
     f->prior = TG_Frame_Stack;
     TG_Frame_Stack = f;
     if (NOT(f->flags.bits & DO_FLAG_VA_LIST)) {
@@ -342,13 +344,13 @@ inline static void Do_Pending_Sets_May_Invalidate_Gotten(
             break;
 
         case REB_SET_PATH: {
-            REBVAL hack;
-            Move_Value(&hack, DS_TOP); // can't path eval from data stack, yet
+            DECLARE_LOCAL (hack);
+            Move_Value(hack, DS_TOP); // can't path eval from data stack, yet
 
             if (Do_Path_Throws_Core(
                 &f->cell, // output location if thrown
                 NULL, // not requesting symbol means refinements not allowed
-                &hack, // param is currently holding SET-PATH! we got in
+                hack, // param is currently holding SET-PATH! we got in
                 SPECIFIED, // needed to resolve relative array in path
                 out
             )) {
@@ -368,13 +370,13 @@ inline static void Do_Pending_Sets_May_Invalidate_Gotten(
             REBDSP dsp_before = DSP;
         #endif
 
-            REBVAL hack;
-            Move_Value(&hack, DS_TOP); // can't path eval from data stack, yet
+            DECLARE_LOCAL (hack);
+            Move_Value(hack, DS_TOP); // can't path eval from data stack, yet
 
             if (Do_Path_Throws_Core(
                 out, // output location if thrown
                 NULL, // not requesting symbol means refinements not allowed
-                &hack, // param is currently holding SET-PATH! we got in
+                hack, // param is currently holding SET-PATH! we got in
                 SPECIFIED, // needed to resolve relative array in path
                 NULL // nothing provided to SET, so it's a GET
             )) {
@@ -511,6 +513,7 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     REBSPC *specifier
 ){
     REBFRM frame;
+    Prep_Global_Cell(&frame.cell);
     REBFRM *f = &frame;
 
     SET_FRAME_VALUE(f, ARR_AT(array, index));
@@ -556,6 +559,7 @@ inline static REBIXO Do_Array_At_Core(
     REBFLGS flags
 ) {
     REBFRM f;
+    Prep_Global_Cell(&f.cell);
 
     if (opt_first) {
         SET_FRAME_VALUE(&f, opt_first);
@@ -658,10 +662,10 @@ inline static void Reify_Va_To_Array_In_Frame(
     assert(f->flags.bits & DO_FLAG_VA_LIST);
 
     if (truncated) {
-        REBVAL temp;
-        Init_Word(&temp, Canon(SYM___OPTIMIZED_OUT__));
+        DECLARE_LOCAL (temp);
+        Init_Word(temp, Canon(SYM___OPTIMIZED_OUT__));
 
-        DS_PUSH(&temp);
+        DS_PUSH(temp);
     }
 
     if (NOT_END(f->value)) {
@@ -750,6 +754,7 @@ inline static REBIXO Do_Va_Core(
     REBFLGS flags
 ) {
     REBFRM f;
+    Prep_Global_Cell(&f.cell);
 
     if (opt_first)
         SET_FRAME_VALUE(&f, opt_first); // doesn't need specifier, not relative

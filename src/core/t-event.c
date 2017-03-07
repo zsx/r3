@@ -184,21 +184,22 @@ static REBOOL Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
 //
 void Set_Event_Vars(REBVAL *evt, RELVAL *blk, REBSPC *specifier)
 {
+    DECLARE_LOCAL (var);
+    DECLARE_LOCAL (val);
+
     while (NOT_END(blk)) {
-        REBVAL var;
-        Derelativize(&var, blk, specifier);
+        Derelativize(var, blk, specifier);
         ++blk;
 
-        REBVAL val;
         if (IS_END(blk))
-            SET_BLANK(&val);
+            SET_BLANK(val);
         else
-            Get_Simple_Value_Into(&val, blk, specifier);
+            Get_Simple_Value_Into(val, blk, specifier);
 
         ++blk;
 
-        if (!Set_Event_Var(evt, &var, &val))
-            fail (Error(RE_BAD_FIELD_SET, &var, Type_Of(&val)));
+        if (!Set_Event_Var(evt, var, val))
+            fail (Error(RE_BAD_FIELD_SET, var, Type_Of(val)));
     }
 }
 
@@ -428,7 +429,6 @@ REBTYPE(Event)
 //
 void Mold_Event(const REBVAL *value, REB_MOLD *mold)
 {
-    REBVAL val;
     REBCNT field;
     REBSYM fields[] = {
         SYM_TYPE, SYM_PORT, SYM_GOB, SYM_OFFSET, SYM_KEY,
@@ -439,9 +439,11 @@ void Mold_Event(const REBVAL *value, REB_MOLD *mold)
     Append_Codepoint_Raw(mold->series, '[');
     mold->indent++;
 
+    DECLARE_LOCAL (val);
+
     for (field = 0; fields[field] != SYM_0; field++) {
-        Get_Event_Var(value, Canon(fields[field]), &val);
-        if (!IS_BLANK(&val)) {
+        Get_Event_Var(value, Canon(fields[field]), val);
+        if (!IS_BLANK(val)) {
             New_Indented_Line(mold);
 
             REBSTR *canon = Canon(fields[field]);
@@ -449,8 +451,9 @@ void Mold_Event(const REBVAL *value, REB_MOLD *mold)
                 mold->series, STR_HEAD(canon), STR_NUM_BYTES(canon)
             );
             Append_Unencoded(mold->series, ": ");
-            if (IS_WORD(&val)) Append_Codepoint_Raw(mold->series, '\'');
-            Mold_Value(mold, &val, TRUE);
+            if (IS_WORD(val))
+                Append_Codepoint_Raw(mold->series, '\'');
+            Mold_Value(mold, val, TRUE);
         }
     }
 

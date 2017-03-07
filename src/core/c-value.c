@@ -124,7 +124,7 @@ void Assert_Cell_Writable(const RELVAL *v, const char *file, int line)
 // done by the raw creation of a Reb_Header in the containing structure.
 //
 void SET_END_Debug(RELVAL *v, const char *file, int line) {
-    ASSERT_CELL_WRITABLE_IF_CPP_DEBUG(v, file, line);
+    ASSERT_CELL_WRITABLE_IF_DEBUG(v, file, line);
     (v)->header.bits = HEADERIZE_KIND(REB_0) | FLAGBYTE_FIRST(255);
     Set_Track_Payload_Debug(v, file, line);
 }
@@ -258,11 +258,11 @@ void Probe_Core_Debug(
             // Don't use Init_Any_Context, because that can implicitly manage
             // the context...which we don't want a debug dump routine to do.
             //
-            REBVAL temp;
-            VAL_RESET_HEADER(&temp, CTX_TYPE(c));
-            temp.extra.binding = NULL;
-            temp.payload.any_context.varlist = CTX_VARLIST(c);
-            Debug_Fmt("%r\n", &temp);
+            DECLARE_LOCAL (temp);
+            VAL_RESET_HEADER(temp, CTX_TYPE(c));
+            temp->extra.binding = NULL;
+            temp->payload.any_context.varlist = CTX_VARLIST(c);
+            Debug_Fmt("%r\n", temp);
         }
         else {
             REBOOL disabled = GC_Disabled;
@@ -280,12 +280,12 @@ void Probe_Core_Debug(
                 // not want to Manage_Series here, so we use a raw
                 // initialization instead of Init_Block.
                 //
-                REBVAL value;
-                VAL_RESET_HEADER(&value, REB_BLOCK);
-                INIT_VAL_ARRAY(&value, AS_ARRAY(s));
-                VAL_INDEX(&value) = 0;
+                DECLARE_LOCAL (value);
+                VAL_RESET_HEADER(value, REB_BLOCK);
+                INIT_VAL_ARRAY(value, AS_ARRAY(s));
+                VAL_INDEX(value) = 0;
 
-                Debug_Fmt("%r", &value);
+                Debug_Fmt("%r", value);
             }
             else if (SER_WIDE(s) == sizeof(REBUNI))
                 Debug_Uni(s);

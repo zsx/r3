@@ -41,13 +41,13 @@
 //
 REBINT PD_Fail(REBPVS *pvs)
 {
-    REBVAL specified_orig;
-    Derelativize(&specified_orig, pvs->orig, pvs->item_specifier);
+    DECLARE_LOCAL (specified_orig);
+    Derelativize(specified_orig, pvs->orig, pvs->item_specifier);
 
-    REBVAL specified_item;
-    Derelativize(&specified_item, pvs->item, pvs->item_specifier);
+    DECLARE_LOCAL (specified_item);
+    Derelativize(specified_item, pvs->item, pvs->item_specifier);
 
-    fail (Error(RE_INVALID_PATH, &specified_orig, &specified_item));
+    fail (Error(RE_INVALID_PATH, &specified_orig, specified_item));
 }
 
 
@@ -174,6 +174,7 @@ REBOOL Do_Path_Throws_Core(
     // calls, which may still be relevant to why this can't be a C local.
     //
     REBPVS pvs;
+    Prep_Global_Cell(&pvs.selector_cell);
     SET_END(&pvs.selector_cell);
     PUSH_GUARD_VALUE(&pvs.selector_cell);
     pvs.selector = &pvs.selector_cell;
@@ -327,10 +328,10 @@ REBOOL Do_Path_Throws_Core(
         REBVAL *bottom = DS_AT(dsp_orig + 1);
         REBVAL *top = DS_TOP;
         while (top > bottom) {
-            REBVAL temp;
-            Move_Value(&temp, bottom);
+            DECLARE_LOCAL (temp);
+            Move_Value(temp, bottom);
             Move_Value(bottom, top);
-            Move_Value(top, &temp);
+            Move_Value(top, temp);
 
             top--;
             bottom++;
@@ -352,13 +353,13 @@ return_thrown:
 //
 REBCTX *Error_Bad_Path_Select(REBPVS *pvs)
 {
-    REBVAL orig;
-    Derelativize(&orig, pvs->orig, pvs->item_specifier);
+    DECLARE_LOCAL (orig);
+    Derelativize(orig, pvs->orig, pvs->item_specifier);
 
-    REBVAL item;
-    Derelativize(&item, pvs->item, pvs->item_specifier);
+    DECLARE_LOCAL (item);
+    Derelativize(item, pvs->item, pvs->item_specifier);
 
-    return Error(RE_INVALID_PATH, &orig, &item);
+    return Error(RE_INVALID_PATH, orig, item);
 }
 
 
@@ -367,13 +368,13 @@ REBCTX *Error_Bad_Path_Select(REBPVS *pvs)
 //
 REBCTX *Error_Bad_Path_Set(REBPVS *pvs)
 {
-    REBVAL orig;
-    Derelativize(&orig, pvs->orig, pvs->item_specifier);
+    DECLARE_LOCAL (orig);
+    Derelativize(orig, pvs->orig, pvs->item_specifier);
 
-    REBVAL item;
-    Derelativize(&item, pvs->item, pvs->item_specifier);
+    DECLARE_LOCAL (item);
+    Derelativize(item, pvs->item, pvs->item_specifier);
 
-    return Error(RE_BAD_PATH_SET, &orig, &item);
+    return Error(RE_BAD_PATH_SET, orig, item);
 }
 
 
@@ -382,10 +383,10 @@ REBCTX *Error_Bad_Path_Set(REBPVS *pvs)
 //
 REBCTX *Error_Bad_Path_Range(REBPVS *pvs)
 {
-    REBVAL item;
-    Derelativize(&item, pvs->item, pvs->item_specifier);
+    DECLARE_LOCAL (item);
+    Derelativize(item, pvs->item, pvs->item_specifier);
 
-    return Error_Out_Of_Range(&item);
+    return Error_Out_Of_Range(item);
 }
 
 
@@ -394,10 +395,10 @@ REBCTX *Error_Bad_Path_Range(REBPVS *pvs)
 //
 REBCTX *Error_Bad_Path_Field_Set(REBPVS *pvs)
 {
-    REBVAL item;
-    Derelativize(&item, pvs->item, pvs->item_specifier);
+    DECLARE_LOCAL (item);
+    Derelativize(item, pvs->item, pvs->item_specifier);
 
-    return Error(RE_BAD_FIELD_SET, &item, Type_Of(pvs->opt_setval));
+    return Error(RE_BAD_FIELD_SET, item, Type_Of(pvs->opt_setval));
 }
 
 

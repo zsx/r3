@@ -173,6 +173,7 @@ static REBOOL Subparse_Throws(
     // with no items advanced.
     //
     if (VAL_INDEX(rules) >= VAL_LEN_HEAD(rules)) {
+        Prep_Global_Cell(&f->cell); // bypass C++ assert on no prep
         *interrupted_out = FALSE;
         SET_INTEGER(out, VAL_INDEX(input));
         return FALSE;
@@ -210,7 +211,6 @@ static REBOOL Subparse_Throws(
     f->func = NAT_FUNC(subparse);
 
     Init_Endlike_Header(&f->flags, 0); // implicitly terminate f->cell
-    SET_END(&f->cell); // cell must have some form of initialization, though
 
     f->param = END_CELL; // informs infix lookahead
     f->arg = NULL;
@@ -218,6 +218,8 @@ static REBOOL Subparse_Throws(
     f->special = m_cast(REBVAL*, END_CELL);
 
     Push_Frame_Core(f);
+
+    SET_END(&f->cell); // GC requires some initialization of cell
 
     REB_R r = N_subparse(f);
 
@@ -287,9 +289,9 @@ static REBCTX *Error_Parse_End() {
 
 
 static void Print_Parse_Index(REBFRM *f) {
-    REBVAL input;
+    DECLARE_LOCAL (input);
     Init_Any_Series_At_Core(
-        &input,
+        input,
         P_TYPE,
         P_INPUT,
         P_POS,
@@ -308,13 +310,13 @@ static void Print_Parse_Index(REBFRM *f) {
         if (P_POS >= SER_LEN(P_INPUT))
             Debug_Fmt("[]: ** END **");
         else
-            Debug_Fmt("[]: %r", &input);
+            Debug_Fmt("[]: %r", input);
     }
     else {
         if (P_POS >= SER_LEN(P_INPUT))
             Debug_Fmt("%r: ** END **", P_RULE);
         else
-            Debug_Fmt("%r: %r", P_RULE, &input);
+            Debug_Fmt("%r: %r", P_RULE, input);
     }
 }
 
@@ -522,15 +524,15 @@ static REBIXO Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
         // If the input series is shortened to make P_POS an invalid position,
         // then truncate it to the end of series.
         //
-        REBVAL dummy;
+        DECLARE_LOCAL (dummy);
         REBSPC *derived = Derive_Specifier(P_RULE_SPECIFIER, rule);
         if (Do_At_Throws(
-            &dummy,
+            dummy,
             VAL_ARRAY(rule),
             VAL_INDEX(rule),
             derived
         )) {
-            Move_Value(P_OUT, &dummy);
+            Move_Value(P_OUT, dummy);
             return THROWN_FLAG;
         }
         return MIN(P_POS, SER_LEN(P_INPUT)); } // !!! review truncation concept
@@ -613,14 +615,14 @@ static REBIXO Parse_Array_One_Rule_Core(
         // index may have to be adjusted to keep it in the array bounds.
         //
         REBSPC *derived = Derive_Specifier(P_RULE_SPECIFIER, rule);
-        REBVAL dummy;
+        DECLARE_LOCAL (dummy);
         if (Do_At_Throws(
-            &dummy,
+            dummy,
             VAL_ARRAY(rule),
             VAL_INDEX(rule),
             derived
         )) {
-            Move_Value(P_OUT, &dummy);
+            Move_Value(P_OUT, dummy);
             return THROWN_FLAG;
         }
         return MIN(pos, ARR_LEN(array)); } // may affect tail
@@ -700,7 +702,7 @@ static REBIXO To_Thru_Block_Rule(
     const RELVAL *rule_block,
     REBOOL is_thru
 ) {
-    REBVAL cell; // used to hold evaluated rules (use frame cell instead?)
+    DECLARE_LOCAL (cell); // holds evaluated rules (use frame cell instead?)
 
     RELVAL *blk;
 
@@ -735,27 +737,27 @@ static REBIXO To_Thru_Block_Rule(
                                 rule
                             );
                             if (Do_At_Throws( // might GC
-                                &cell,
+                                cell,
                                 VAL_ARRAY(rule),
                                 VAL_INDEX(rule),
                                 derived
                             )) {
-                                Move_Value(P_OUT, &cell);
+                                Move_Value(P_OUT, cell);
                                 return THROWN_FLAG;
                             }
-                            rule = &cell;
+                            rule = cell;
                         }
                     }
                     else
                         fail (Error_Parse_Rule());
                 }
                 else {
-                    Copy_Opt_Var_May_Fail(&cell, rule, P_RULE_SPECIFIER);
-                    rule = &cell;
+                    Copy_Opt_Var_May_Fail(cell, rule, P_RULE_SPECIFIER);
+                    rule = cell;
                 }
             }
             else if (IS_PATH(rule))
-                rule = Get_Parse_Value(&cell, rule, P_RULE_SPECIFIER);
+                rule = Get_Parse_Value(cell, rule, P_RULE_SPECIFIER);
 
             // Try to match it:
             if (ANY_ARRAY_KIND(P_TYPE)) {
@@ -929,15 +931,15 @@ static REBIXO To_Thru_Block_Rule(
 
 found:
     if (NOT_END(blk + 1) && IS_GROUP(blk + 1)) {
-        REBVAL dummy;
+        DECLARE_LOCAL (dummy);
         REBSPC *derived = Derive_Specifier(P_RULE_SPECIFIER, rule_block);
         if (Do_At_Throws(
-            &dummy,
+            dummy,
             VAL_ARRAY(blk + 1),
             VAL_INDEX(blk + 1),
             derived
         )) {
-            Move_Value(P_OUT, &dummy);
+            Move_Value(P_OUT, dummy);
             return THROWN_FLAG;
         }
     }
@@ -986,11 +988,11 @@ static REBIXO To_Thru_Non_Block_Rule(
         // !!! This adjusts it to search for non-literal words, but are there
         // other considerations for how non-block rules act with array input?
         //
-        REBVAL word;
+        DECLARE_LOCAL (word);
         if (IS_LIT_WORD(rule)) {
-            Derelativize(&word, rule, P_RULE_SPECIFIER);
-            VAL_SET_TYPE_BITS(&word, REB_WORD);
-            rule = &word;
+            Derelativize(word, rule, P_RULE_SPECIFIER);
+            VAL_SET_TYPE_BITS(word, REB_WORD);
+            rule = word;
         }
 
         REBCNT i = Find_In_Array(
@@ -1143,7 +1145,7 @@ static REBIXO To_Thru_Non_Block_Rule(
 static REBIXO Do_Eval_Rule(REBFRM *f)
 {
     const RELVAL *rule = P_RULE;
-    REBVAL save; // REVIEW: Could this just reuse value?
+    DECLARE_LOCAL (save); // REVIEW: Could this just reuse value?
 
     // First, check for end of input
     //
@@ -1156,12 +1158,12 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
 
     // Evaluate next expression, stop processing if BREAK/RETURN/QUIT/THROW...
     //
-    REBVAL value;
+    DECLARE_LOCAL (value);
     REBIXO indexor = DO_NEXT_MAY_THROW(
-        &value, AS_ARRAY(P_INPUT), P_POS, P_INPUT_SPECIFIER
+        value, AS_ARRAY(P_INPUT), P_POS, P_INPUT_SPECIFIER
     );
     if (indexor == THROWN_FLAG) {
-        Move_Value(P_OUT, &value);
+        Move_Value(P_OUT, value);
         return THROWN_FLAG;
     }
 
@@ -1171,7 +1173,7 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
         REBSYM cmd = VAL_CMD(rule);
 
         if (cmd == SYM_SKIP)
-            return IS_VOID(&value) ? END_FLAG : P_POS;
+            return IS_VOID(value) ? END_FLAG : P_POS;
 
         if (cmd == SYM_QUOTE) {
             /* rule = rule + 1; */ // was this.
@@ -1186,15 +1188,15 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
                 // might GC ... !!! why is QUOTE evaluating something?
                 REBSPC *derived = Derive_Specifier(P_RULE_SPECIFIER, rule);
                 if (Do_At_Throws(
-                    &save,
+                    save,
                     VAL_ARRAY(rule),
                     VAL_INDEX(rule),
                     derived
                 )) {
-                    Move_Value(P_OUT, &save);
+                    Move_Value(P_OUT, save);
                     return THROWN_FLAG;
                 }
-                rule = &save;
+                rule = save;
             }
         }
         else if (cmd == SYM_INTO) {
@@ -1208,18 +1210,18 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
             if (IS_END(P_RULE))
                 fail (Error_Parse_End());
 
-            rule = Get_Parse_Value(&save, rule, P_RULE_SPECIFIER); // sub-rules
+            rule = Get_Parse_Value(save, rule, P_RULE_SPECIFIER); // sub-rules
 
             if (!IS_BLOCK(rule))
                 fail (Error_Parse_Rule());
 
-            if (!ANY_BINSTR(&value) && !ANY_ARRAY(&value))
+            if (!ANY_BINSTR(value) && !ANY_ARRAY(value))
                 return END_FLAG;
 
             if (Subparse_Throws(
                 &interrupted,
                 P_OUT,
-                &value, // input value (source of P_INPUT, P_POS)
+                value, // input value (source of P_INPUT, P_POS)
                 SPECIFIED,
                 rule,
                 P_RULE_SPECIFIER,
@@ -1233,17 +1235,17 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
             if (IS_BLANK(P_OUT)) return END_FLAG;
             assert(IS_INTEGER(P_OUT));
 
-            if (VAL_UNT32(P_OUT) == VAL_LEN_HEAD(&value)) return P_POS;
+            if (VAL_UNT32(P_OUT) == VAL_LEN_HEAD(value)) return P_POS;
 
             return END_FLAG;
         }
         else if (cmd != SYM_0)
             fail (Error_Parse_Rule());
         else
-            rule = Get_Parse_Value(&save, rule, P_RULE_SPECIFIER); // variable
+            rule = Get_Parse_Value(save, rule, P_RULE_SPECIFIER); // variable
     }
     else if (IS_PATH(rule)) {
-        rule = Get_Parse_Value(&save, rule, P_RULE_SPECIFIER); // variable
+        rule = Get_Parse_Value(save, rule, P_RULE_SPECIFIER); // variable
     }
     else if (
         IS_SET_WORD(rule)
@@ -1255,7 +1257,7 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
     }
 
     if (IS_BLANK(rule))
-        return (VAL_TYPE(&value) > REB_BLANK) ? END_FLAG : P_POS;
+        return (VAL_TYPE(value) > REB_BLANK) ? END_FLAG : P_POS;
 
     // !!! This copies a single value into a block to use as data.  Is there
     // any way this might be avoided?
@@ -1275,7 +1277,7 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
         0 // position 0
     );
 
-    Append_Value(AS_ARRAY(VAL_SERIES(&newparse.args_head[0])), &value);
+    Append_Value(AS_ARRAY(VAL_SERIES(&newparse.args_head[0])), value);
     SET_INTEGER(&newparse.args_head[1], P_FIND_FLAGS); // find_flags
     newparse.arg = newparse.args_head;
     newparse.out = P_OUT;
@@ -1355,7 +1357,7 @@ REBNATIVE(subparse)
     REBUPT do_count = TG_Do_Count; // helpful to cache for visibility also
 #endif
 
-    REBVAL save;
+    DECLARE_LOCAL (save);
 
     REBCNT start = P_POS; // recovery restart point
     REBCNT begin = P_POS; // point at beginning of match
@@ -1419,12 +1421,12 @@ REBNATIVE(subparse)
             // calls to Do_Signals_Throws() by places that do not have a clear
             // path up to return results from an interactive breakpoint.
             //
-            REBVAL result;
+            DECLARE_LOCAL (result);
 
-            if (Do_Signals_Throws(&result))
-                fail (Error_No_Catch_For_Throw(&result));
+            if (Do_Signals_Throws(result))
+                fail (Error_No_Catch_For_Throw(result));
 
-            if (IS_ANY_VALUE(&result))
+            if (IS_ANY_VALUE(result))
                 fail (Error(RE_MISC));
         }
 
@@ -1539,9 +1541,9 @@ REBNATIVE(subparse)
                     case SYM_RETURN:
                         FETCH_NEXT_RULE_MAYBE_END(f);
                         if (IS_GROUP(P_RULE)) {
-                            REBVAL evaluated;
+                            DECLARE_LOCAL (evaluated);
                             if (Do_At_Throws(
-                                &evaluated,
+                                evaluated,
                                 VAL_ARRAY(P_RULE),
                                 VAL_INDEX(P_RULE),
                                 P_RULE_SPECIFIER
@@ -1549,12 +1551,12 @@ REBNATIVE(subparse)
                                 // If the group evaluation result gives a
                                 // THROW, BREAK, CONTINUE, etc then we'll
                                 // return that
-                                Move_Value(P_OUT, &evaluated);
+                                Move_Value(P_OUT, evaluated);
                                 return R_OUT_IS_THROWN;
                             }
 
                             Move_Value(P_OUT, NAT_VALUE(parse));
-                            CONVERT_NAME_TO_THROWN(P_OUT, &evaluated);
+                            CONVERT_NAME_TO_THROWN(P_OUT, evaluated);
                             return R_OUT_IS_THROWN;
                         }
                         flags |= PF_RETURN;
@@ -1567,10 +1569,10 @@ REBNATIVE(subparse)
                         // to just say the current rule succeeded...it climbs
                         // up and affects an enclosing parse loop.
                         //
-                        REBVAL thrown_arg;
-                        SET_INTEGER(&thrown_arg, P_POS);
+                        DECLARE_LOCAL (thrown_arg);
+                        SET_INTEGER(thrown_arg, P_POS);
                         Move_Value(P_OUT, NAT_VALUE(parse_accept));
-                        CONVERT_NAME_TO_THROWN(P_OUT, &thrown_arg);
+                        CONVERT_NAME_TO_THROWN(P_OUT, thrown_arg);
                         return R_OUT_IS_THROWN;
                     }
 
@@ -1597,20 +1599,20 @@ REBNATIVE(subparse)
                             fail (Error_Parse_Rule());
 
                         // might GC
-                        REBVAL condition;
+                        DECLARE_LOCAL (condition);
                         if (Do_At_Throws(
-                            &condition,
+                            condition,
                             VAL_ARRAY(P_RULE),
                             VAL_INDEX(P_RULE),
                             P_RULE_SPECIFIER
                         )) {
-                            Move_Value(P_OUT, &condition);
+                            Move_Value(P_OUT, condition);
                             return R_OUT_IS_THROWN;
                         }
 
                         FETCH_NEXT_RULE_MAYBE_END(f);
 
-                        if (IS_CONDITIONAL_TRUE(&condition))
+                        if (IS_CONDITIONAL_TRUE(condition))
                             continue;
 
                         P_POS = NOT_FOUND;
@@ -1652,11 +1654,11 @@ REBNATIVE(subparse)
 
                 // :word - change the index for the series to a new position
                 if (IS_GET_WORD(P_RULE)) {
-                    REBVAL temp;
-                    Copy_Opt_Var_May_Fail(&temp, P_RULE, P_RULE_SPECIFIER);
-                    if (!ANY_SERIES(&temp)) // #1263
+                    DECLARE_LOCAL (temp);
+                    Copy_Opt_Var_May_Fail(temp, P_RULE, P_RULE_SPECIFIER);
+                    if (!ANY_SERIES(temp)) // #1263
                         fail (Error(RE_PARSE_SERIES, P_RULE));
-                    Set_Parse_Series(f, &temp);
+                    Set_Parse_Series(f, temp);
 
                     // !!! `continue` is used here without any post-"match"
                     // processing, so the only way `begin` will get set for
@@ -1679,8 +1681,8 @@ REBNATIVE(subparse)
 
                 // word - some other variable
                 if (IS_WORD(P_RULE)) {
-                    Copy_Opt_Var_May_Fail(&save, P_RULE, P_RULE_SPECIFIER);
-                    rule = &save;
+                    Copy_Opt_Var_May_Fail(save, P_RULE, P_RULE_SPECIFIER);
+                    rule = save;
                     if (IS_VOID(rule))
                         fail (Error_No_Value_Core(P_RULE, P_RULE_SPECIFIER));
                 }
@@ -1693,17 +1695,17 @@ REBNATIVE(subparse)
         else if (ANY_PATH(P_RULE)) {
             if (IS_PATH(P_RULE)) {
                 if (Do_Path_Throws_Core(
-                    &save, NULL, P_RULE, P_RULE_SPECIFIER, NULL
+                    save, NULL, P_RULE, P_RULE_SPECIFIER, NULL
                 )) {
-                    fail (Error_No_Catch_For_Throw(&save));
+                    fail (Error_No_Catch_For_Throw(save));
                 }
-                rule = &save;
+                rule = save;
             }
             else if (IS_SET_PATH(P_RULE)) {
                 if (Do_Path_Throws_Core(
-                    &save, NULL, P_RULE, P_RULE_SPECIFIER, P_INPUT_VALUE
+                    save, NULL, P_RULE, P_RULE_SPECIFIER, P_INPUT_VALUE
                 )) {
-                    fail (Error_No_Catch_For_Throw(&save));
+                    fail (Error_No_Catch_For_Throw(save));
                 }
 
                 // Nothing left to do after storing the parse position in the
@@ -1715,19 +1717,19 @@ REBNATIVE(subparse)
             else if (IS_GET_PATH(P_RULE)) {
 
                 if (Do_Path_Throws_Core(
-                    &save, NULL, P_RULE, P_RULE_SPECIFIER, NULL
+                    save, NULL, P_RULE, P_RULE_SPECIFIER, NULL
                 )) {
-                    fail (Error_No_Catch_For_Throw(&save));
+                    fail (Error_No_Catch_For_Throw(save));
                 }
 
                 // !!! This allows the series to be changed, as per #1263,
                 // but note the positions being returned and checked aren't
                 // prepared for this, they only exchange numbers ATM (!!!)
                 //
-                if (!ANY_SERIES(&save))
-                    fail (Error(RE_PARSE_SERIES, &save));
+                if (!ANY_SERIES(save))
+                    fail (Error(RE_PARSE_SERIES, save));
 
-                Set_Parse_Series(f, &save);
+                Set_Parse_Series(f, save);
                 FETCH_NEXT_RULE_MAYBE_END(f);
                 continue;
             }
@@ -1748,15 +1750,15 @@ REBNATIVE(subparse)
         assert(rule != NULL && !IS_VOID(rule));
 
         if (IS_GROUP(rule)) {
-            REBVAL evaluated;
+            DECLARE_LOCAL (evaluated);
             REBSPC *derived = Derive_Specifier(P_RULE_SPECIFIER, rule);
             if (Do_At_Throws( // might GC
-                &evaluated,
+                evaluated,
                 VAL_ARRAY(rule),
                 VAL_INDEX(rule),
                 derived
             )) {
-                Move_Value(P_OUT, &evaluated);
+                Move_Value(P_OUT, evaluated);
                 return R_OUT_IS_THROWN;
             }
             // ignore evaluated if it's not THROWN?
@@ -1775,7 +1777,7 @@ REBNATIVE(subparse)
             if (IS_END(P_RULE))
                 fail (Error_Parse_End());
 
-            rule = Get_Parse_Value(&save, P_RULE, P_RULE_SPECIFIER);
+            rule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
 
             if (IS_INTEGER(rule)) {
                 maxcount = Int32s(const_KNOWN(rule), 0);
@@ -1784,7 +1786,7 @@ REBNATIVE(subparse)
                 if (IS_END(P_RULE))
                     fail (Error_Parse_End());
 
-                rule = Get_Parse_Value(&save, P_RULE, P_RULE_SPECIFIER);
+                rule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
             }
         }
         // else fall through on other values and words
@@ -1834,7 +1836,7 @@ REBNATIVE(subparse)
 
                     if (!subrule) { // capture only on iteration #1
                         subrule = Get_Parse_Value(
-                            &save, P_RULE, P_RULE_SPECIFIER
+                            save, P_RULE, P_RULE_SPECIFIER
                         );
                         FETCH_NEXT_RULE_MAYBE_END(f);
                     }
@@ -1876,7 +1878,7 @@ REBNATIVE(subparse)
 
                     if (!subrule) {
                         subrule = Get_Parse_Value(
-                            &save, P_RULE, P_RULE_SPECIFIER
+                            save, P_RULE, P_RULE_SPECIFIER
                         );
                         FETCH_NEXT_RULE_MAYBE_END(f);
                     }
@@ -2074,9 +2076,9 @@ REBNATIVE(subparse)
                 count = (begin > P_POS) ? 0 : P_POS - begin;
 
                 if (flags & PF_COPY) {
-                    REBVAL temp;
+                    DECLARE_LOCAL (temp);
                     Init_Any_Series(
-                        &temp,
+                        temp,
                         P_TYPE,
                         Is_Array_Series(P_INPUT)
                             ? AS_SERIES(Copy_Array_At_Max_Shallow(
@@ -2090,7 +2092,7 @@ REBNATIVE(subparse)
 
                     Move_Value(
                         Sink_Var_May_Fail(set_or_copy_word, P_RULE_SPECIFIER),
-                        &temp
+                        temp
                     );
                 }
                 else if (flags & PF_SET) {
@@ -2126,9 +2128,9 @@ REBNATIVE(subparse)
                     //
                     // See notes in PARSE native on handling of SYM_RETURN
                     //
-                    REBVAL captured;
+                    DECLARE_LOCAL (captured);
                     Init_Any_Series(
-                        &captured,
+                        captured,
                         P_TYPE,
                         Is_Array_Series(P_INPUT)
                             ? AS_SERIES(Copy_Array_At_Max_Shallow(
@@ -2141,7 +2143,7 @@ REBNATIVE(subparse)
                     );
 
                     Move_Value(P_OUT, NAT_VALUE(parse));
-                    CONVERT_NAME_TO_THROWN(P_OUT, &captured);
+                    CONVERT_NAME_TO_THROWN(P_OUT, captured);
                     return R_OUT_IS_THROWN;
                 }
 
@@ -2176,18 +2178,18 @@ REBNATIVE(subparse)
                     }
 
                     // new value...comment said "CHECK FOR QUOTE!!"
-                    rule = Get_Parse_Value(&save, P_RULE, P_RULE_SPECIFIER);
+                    rule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
                     FETCH_NEXT_RULE_MAYBE_END(f);
 
                     if (Is_Array_Series(P_INPUT)) {
-                        REBVAL specified;
-                        Derelativize(&specified, rule, P_RULE_SPECIFIER);
+                        DECLARE_LOCAL (specified);
+                        Derelativize(specified, rule, P_RULE_SPECIFIER);
 
                         P_POS = Modify_Array(
                             (flags & PF_CHANGE) ? SYM_CHANGE : SYM_INSERT,
                             AS_ARRAY(P_INPUT),
                             begin,
-                            &specified,
+                            specified,
                             mod_flags,
                             count,
                             1
@@ -2200,8 +2202,8 @@ REBNATIVE(subparse)
                             );
                     }
                     else {
-                        REBVAL specified;
-                        Derelativize(&specified, rule, P_RULE_SPECIFIER);
+                        DECLARE_LOCAL (specified);
+                        Derelativize(specified, rule, P_RULE_SPECIFIER);
 
                         if (P_TYPE == REB_BINARY)
                             mod_flags |= AM_BINARY_SERIES;
@@ -2210,7 +2212,7 @@ REBNATIVE(subparse)
                             (flags & PF_CHANGE) ? SYM_CHANGE : SYM_INSERT,
                             P_INPUT,
                             begin,
-                            &specified,
+                            specified,
                             mod_flags,
                             count,
                             1

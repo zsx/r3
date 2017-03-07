@@ -237,24 +237,24 @@ REBTYPE(Money)
 
         REBVAL *scale = ARG(scale);
 
-        REBVAL temp;
+        DECLARE_LOCAL (temp);
         if (REF(to)) {
             if (IS_INTEGER(scale))
-                SET_MONEY(&temp, int_to_deci(VAL_INT64(scale)));
+                SET_MONEY(temp, int_to_deci(VAL_INT64(scale)));
             else if (IS_DECIMAL(scale) || IS_PERCENT(scale))
-                SET_MONEY(&temp, decimal_to_deci(VAL_DECIMAL(scale)));
+                SET_MONEY(temp, decimal_to_deci(VAL_DECIMAL(scale)));
             else if (IS_MONEY(scale))
-                Move_Value(&temp, scale);
+                Move_Value(temp, scale);
             else
                 fail (Error_Invalid_Arg(scale));
         }
         else
-            SET_MONEY(&temp, int_to_deci(0));
+            SET_MONEY(temp, int_to_deci(0));
 
         SET_MONEY(D_OUT, Round_Deci(
             VAL_MONEY_AMOUNT(val),
             flags,
-            VAL_MONEY_AMOUNT(&temp)
+            VAL_MONEY_AMOUNT(temp)
         ));
 
         if (REF(to)) {

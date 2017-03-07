@@ -79,10 +79,8 @@ void Emit_Date(REB_MOLD *mold, const REBVAL *value_orig)
     // We don't want to modify the incoming date value we are molding,
     // so we make a copy that we can tweak during the emit process
 
-    REBVAL value_buffer;
-    Move_Value(&value_buffer, value_orig);
-
-    REBVAL *value = &value_buffer;
+    DECLARE_LOCAL (value);
+    Move_Value(value, value_orig);
 
     if (
         VAL_MONTH(value) == 0

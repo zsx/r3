@@ -405,12 +405,12 @@ REBNATIVE(backtrace)
         // function frames to do binding in the REPL with.
         //
         if (!pending) {
-            REBVAL temp_val;
-            SET_INTEGER(&temp_val, number);
+            DECLARE_LOCAL (temp_val);
+            SET_INTEGER(temp_val, number);
 
             REBCNT temp_num;
             if (
-                Frame_For_Stack_Level(&temp_num, &temp_val, TRUE) != f
+                Frame_For_Stack_Level(&temp_num, temp_val, TRUE) != f
                 || temp_num != number
             ) {
                 printf(

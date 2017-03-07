@@ -126,9 +126,9 @@ static void Expand_Word_Table(void)
 
     REBCNT new_size = Get_Hash_Prime(old_size + 1);
     if (new_size == 0) {
-        REBVAL temp;
-        SET_INTEGER(&temp, old_size + 1);
-        fail (Error(RE_SIZE_LIMIT, &temp));
+        DECLARE_LOCAL (temp);
+        SET_INTEGER(temp, old_size + 1);
+        fail (Error(RE_SIZE_LIMIT, temp));
     }
 
     assert(SER_WIDE(PG_Canons_By_Hash) == sizeof(REBSTR*));

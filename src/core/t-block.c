@@ -379,32 +379,38 @@ static int Compare_Val_Custom(void *arg, const void *v1, const void *v2)
 {
     struct sort_flags *flags = cast(struct sort_flags*, arg);
 
-    REBVAL result;
+    DECLARE_LOCAL (result);
     if (Apply_Only_Throws(
-        &result,
+        result,
         TRUE,
         flags->comparator,
         flags->reverse ? v1 : v2,
         flags->reverse ? v2 : v1,
         END_CELL
     )) {
-        fail (Error_No_Catch_For_Throw(&result));
+        fail (Error_No_Catch_For_Throw(result));
     }
 
     REBINT tristate = -1;
 
-    if (IS_LOGIC(&result)) {
-        if (VAL_LOGIC(&result)) tristate = 1;
+    if (IS_LOGIC(result)) {
+        if (VAL_LOGIC(result))
+            tristate = 1;
     }
-    else if (IS_INTEGER(&result)) {
-        if (VAL_INT64(&result) > 0) tristate = 1;
-        if (VAL_INT64(&result) == 0) tristate = 0;
+    else if (IS_INTEGER(result)) {
+        if (VAL_INT64(result) > 0)
+            tristate = 1;
+        else if (VAL_INT64(result) == 0)
+            tristate = 0;
     }
-    else if (IS_DECIMAL(&result)) {
-        if (VAL_DECIMAL(&result) > 0) tristate = 1;
-        if (VAL_DECIMAL(&result) == 0) tristate = 0;
+    else if (IS_DECIMAL(result)) {
+        if (VAL_DECIMAL(result) > 0)
+            tristate = 1;
+        else if (VAL_DECIMAL(result) == 0)
+            tristate = 0;
     }
-    else if (IS_CONDITIONAL_TRUE(&result)) tristate = 1;
+    else if (IS_CONDITIONAL_TRUE(result))
+        tristate = 1;
 
     return tristate;
 }

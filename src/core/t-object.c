@@ -896,9 +896,9 @@ REBNATIVE(construct)
             // Do the block into scratch space (we ignore the result,
             // unless it is thrown in which case it must be returned.
             //
-            REBVAL dummy;
-            if (DO_VAL_ARRAY_AT_THROWS(&dummy, body)) {
-                Move_Value(D_OUT, &dummy);
+            DECLARE_LOCAL (dummy);
+            if (DO_VAL_ARRAY_AT_THROWS(dummy, body)) {
+                Move_Value(D_OUT, dummy);
                 return R_OUT_IS_THROWN;
             }
         }

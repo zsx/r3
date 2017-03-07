@@ -193,12 +193,12 @@ static void Init_Base(REBARR *boot_base)
 
     Bind_Values_Deep(head, Lib_Context);
 
-    REBVAL result;
-    if (Do_At_Throws(&result, boot_base, 0, SPECIFIED))
-        panic (&result);
+    DECLARE_LOCAL (result);
+    if (Do_At_Throws(result, boot_base, 0, SPECIFIED))
+        panic (result);
 
-    if (!IS_VOID(&result))
-        panic (&result);
+    if (!IS_VOID(result))
+        panic (result);
 }
 
 
@@ -228,12 +228,12 @@ static void Init_Sys(REBARR *boot_sys) {
     Bind_Values_Deep(head, Lib_Context);
     Bind_Values_Deep(head, Sys_Context);
 
-    REBVAL result;
-    if (Do_At_Throws(&result, boot_sys, 0, SPECIFIED))
-        panic (&result);
+    DECLARE_LOCAL (result);
+    if (Do_At_Throws(result, boot_sys, 0, SPECIFIED))
+        panic (result);
 
-    if (!IS_VOID(&result))
-        panic (&result);
+    if (!IS_VOID(result))
+        panic (result);
 }
 
 
@@ -621,6 +621,7 @@ static REBARR *Init_Natives(REBARR *boot_natives)
             *FUNC_BODY(fun) = *body;
         }
 
+        Prep_Global_Cell(&Natives[n]);
         Move_Value(&Natives[n], FUNC_VALUE(fun));
 
         // Append the native to the Lib_Context under the name given.  Do
@@ -680,12 +681,12 @@ static REBARR *Init_Actions(REBARR *boot_actions)
     //
     Bind_Values_Deep(head, Lib_Context);
 
-    REBVAL result;
-    if (Do_At_Throws(&result, boot_actions, 0, SPECIFIED))
-        panic (&result);
+    DECLARE_LOCAL (result);
+    if (Do_At_Throws(result, boot_actions, 0, SPECIFIED))
+        panic (result);
 
-    if (!IS_VOID(&result))
-        panic (&result);
+    if (!IS_VOID(result))
+        panic (result);
 
     // Sanity check the symbol transformation
     //
@@ -765,18 +766,28 @@ static void Init_Root_Context(void)
     // the root set.  Should that change, they could be explicitly added
     // to the GC's root set.
 
+    Prep_Global_Cell(&PG_Void_Cell[0]);
+    Prep_Global_Cell(&PG_Void_Cell[1]);
     SET_VOID(&PG_Void_Cell[0]);
     SET_TRASH_IF_DEBUG(&PG_Void_Cell[1]);
 
+    Prep_Global_Cell(&PG_Blank_Value[0]);
+    Prep_Global_Cell(&PG_Blank_Value[1]);
     SET_BLANK(&PG_Blank_Value[0]);
     SET_TRASH_IF_DEBUG(&PG_Blank_Value[1]);
 
+    Prep_Global_Cell(&PG_Bar_Value[0]);
+    Prep_Global_Cell(&PG_Bar_Value[1]);
     SET_BAR(&PG_Bar_Value[0]);
     SET_TRASH_IF_DEBUG(&PG_Bar_Value[1]);
 
+    Prep_Global_Cell(&PG_False_Value[0]);
+    Prep_Global_Cell(&PG_False_Value[1]);
     SET_FALSE(&PG_False_Value[0]);
     SET_TRASH_IF_DEBUG(&PG_False_Value[1]);
 
+    Prep_Global_Cell(&PG_True_Value[0]);
+    Prep_Global_Cell(&PG_True_Value[1]);
     SET_TRUE(&PG_True_Value[0]);
     SET_TRASH_IF_DEBUG(&PG_True_Value[1]);
 
@@ -851,7 +862,10 @@ static void Init_Task_Context(void)
     // The thrown arg is not intended to ever be around long enough to be
     // seen by the GC.
     //
+    Prep_Global_Cell(&TG_Thrown_Arg);
     SET_UNREADABLE_BLANK(&TG_Thrown_Arg);
+
+    Prep_Global_Cell(&PG_Va_List_Pending);
 
     // Can't ASSERT_CONTEXT here; no keylist yet...
 }
@@ -890,11 +904,11 @@ static void Init_System_Object(
 
     // Evaluate the block (will eval CONTEXTs within).  Expects void result.
     //
-    REBVAL result;
-    if (Do_At_Throws(&result, boot_sysobj_spec, 0, SPECIFIED))
-        panic (&result);
-    if (!IS_VOID(&result))
-        panic (&result);
+    DECLARE_LOCAL (result);
+    if (Do_At_Throws(result, boot_sysobj_spec, 0, SPECIFIED))
+        panic (result);
+    if (!IS_VOID(result))
+        panic (result);
 
     // Create a global value for it.  (This is why we are able to say `system`
     // and have it bound in lines like `sys: system/contexts/sys`)
@@ -1236,6 +1250,7 @@ void Init_Core(void)
     Init_Function_Tags();
     Add_Lib_Keys_R3Alpha_Cant_Make();
 
+    Prep_Global_Cell(&Callback_Error);
     SET_UNREADABLE_BLANK(&Callback_Error);
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1330,9 +1345,9 @@ void Init_Core(void)
     // copy with some omissions), and where the mezzanine definitions are
     // bound to the lib context and DO'd.
     //
-    REBVAL result;
+    DECLARE_LOCAL (result);
     if (Apply_Only_Throws(
-        &result,
+        result,
         TRUE, // generate error if all arguments aren't consumed
         Sys_Func(SYS_CTX_FINISH_INIT_CORE), // %sys-start.r function to call
         &boot->mezz, // boot-mezz argument
@@ -1343,10 +1358,10 @@ void Init_Core(void)
         // A fail() would just jump up to the error delivery above, so a
         // panic here more clearly indicates the moment of the problem.
         //
-        panic (&result);
+        panic (result);
     }
 
-    if (!IS_VOID(&result)) {
+    if (!IS_VOID(result)) {
         //
         // !!! `finish-init-core` Rebol code should return void, but it may be
         // that more graceful error delivery than a panic should be given if
@@ -1354,7 +1369,7 @@ void Init_Core(void)
         // the user could fix would cause a more ordinary message delivery.
         // For the moment, though, we panic on any non-void return result.
         //
-        panic (&result);
+        panic (result);
     }
 
     DROP_GUARD_ARRAY(boot_array);
