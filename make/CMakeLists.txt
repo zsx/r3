@@ -56,6 +56,8 @@ if(CMAKE_HOST_WIN32)
 else()
     set (REBOL "${CMAKE_CURRENT_BINARY_DIR}/r3-make")
 endif()
+set (R3_MAKE ${REBOL} CACHE FILEPATH "Path to an R3 executable for tool scripts")
+set (REBOL ${R3_MAKE})
 
 option(R3_EXTERNAL_FFI "Build with external FFI" OFF)
 option(R3_CPP "Build C files as C++" OFF)
