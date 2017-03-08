@@ -673,7 +673,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             if (definitional_return && src == definitional_return)
                 continue;
 
-            Move_Value(SINK(dest), src);
+            Move_Value(dest, src);
             ++dest;
         }
 
@@ -782,7 +782,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             if (VAL_ARRAY_LEN_AT(src) == 0)
                 SET_VOID(dest);
             else
-                Move_Value(SINK(dest), src);
+                Move_Value(dest, src);
             ++dest;
         }
 
@@ -849,7 +849,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             if (SER_LEN(VAL_SERIES(src)) == 0)
                 SET_VOID(dest);
             else
-                Move_Value(SINK(dest), src);
+                Move_Value(dest, src);
             ++dest;
         }
 
@@ -1531,7 +1531,7 @@ REBOOL Specialize_Function_Throws(
     // not be able to touch the keylist of that frame to update the "archetype"
     // binding, we can patch this cell in the "body array" to hold it.
     //
-    Move_Value(SINK(FUNC_BODY(fun)), CTX_VALUE(exemplar));
+    Move_Value(FUNC_BODY(fun), CTX_VALUE(exemplar));
     assert(VAL_BINDING(FUNC_BODY(fun)) == VAL_BINDING(specializee));
 
     Move_Value(out, FUNC_VALUE(fun));

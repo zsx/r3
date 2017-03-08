@@ -120,7 +120,7 @@ REBCNT Modify_Array(
         REBINT index = 0;
         for (; index < ilen; ++index, ++dst_idx) {
             Derelativize(
-                SINK(ARR_HEAD(dst_arr) + dst_idx),
+                ARR_HEAD(dst_arr) + dst_idx,
                 src_rel + index,
                 specifier
             );

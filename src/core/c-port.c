@@ -386,7 +386,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
     REBARR *path_array = Make_Array(FUNC_NUM_PARAMS(f->func) + 1);
     RELVAL *path = ARR_HEAD(path_array);
 
-    Move_Value(SINK(path), FUNC_VALUE(func_new));
+    Move_Value(path, FUNC_VALUE(func_new));
     ++path;
 
     for (; NOT_END(f->param); ++f->param, ++f->arg) {
@@ -423,7 +423,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
         //
         if (ignoring) continue;
 
-        Move_Value(SINK(code), f->arg);
+        Move_Value(code, f->arg);
         ++code;
     }
 

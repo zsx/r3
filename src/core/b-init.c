@@ -352,7 +352,7 @@ REBNATIVE(action)
         NULL // not providing a specialization
     );
 
-    Move_Value(SINK(FUNC_BODY(fun)), ARG(verb));
+    Move_Value(FUNC_BODY(fun), ARG(verb));
 
     // A lookback quoting function that quotes a SET-WORD! on its left is
     // responsible for setting the value if it wants it to change.

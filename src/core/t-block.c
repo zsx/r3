@@ -646,7 +646,7 @@ REBTYPE(Array)
                 fail (Error_Out_Of_Range(arg));
             }
             arg = D_ARG(3);
-            Move_Value(SINK(slot), arg);
+            Move_Value(slot, arg);
             Move_Value(D_OUT, arg);
         }
         return R_OUT;

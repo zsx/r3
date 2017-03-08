@@ -1297,16 +1297,23 @@ inline static void SET_GOB(RELVAL *v, REBGOB *g) {
 // have to get manually involved in formatting cells, and in not overwriting
 // the flag in the header indicating the kind of cell it is.
 //
-inline static void Move_Value(REBVAL *dest, const REBVAL *src)
+// Interface designed to line up with Derelativize()
+//
+inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
 {
     assert(
-        GET_VAL_FLAG(src, NODE_FLAG_CELL)
-        && GET_VAL_FLAG(src, NODE_FLAG_VALID)
+        GET_VAL_FLAG(v, NODE_FLAG_CELL)
+        && GET_VAL_FLAG(v, NODE_FLAG_VALID)
     );
-    ASSERT_CELL_WRITABLE_IF_DEBUG(dest, __FILE__, __LINE__);
-    dest->header = src->header;
-    dest->extra = src->extra;
-    dest->payload = src->payload;
+    ASSERT_CELL_WRITABLE_IF_DEBUG(out, __FILE__, __LINE__);
+    out->header = v->header;
+    out->extra = v->extra;
+    out->payload = v->payload;
+
+    // in case the caller had a relative value slot and wants to use its
+    // known non-relative form... this is inline, so no cost if not used.
+    //
+    return KNOWN(out);
 }
 
 

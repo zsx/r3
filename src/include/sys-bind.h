@@ -466,9 +466,11 @@ inline static REBSPC *Derive_Specifier(REBSPC *parent, const RELVAL *child) {
 // in an array may only be relative to the function that deep copied them, and
 // that is the only kind of specifier you can use with them).
 //
+// Interface designed to line up with Move_Value()
+//
 
-inline static void Derelativize(
-    REBVAL *out, // relative destinations are overwritten with specified value
+inline static REBVAL *Derelativize(
+    RELVAL *out, // relative destinations are overwritten with specified value
     const RELVAL *v,
     REBSPC *specifier
 ) {
@@ -504,15 +506,20 @@ inline static void Derelativize(
         out->extra.binding = v->extra.binding;
     }
     out->payload = v->payload;
+
+    // in case the caller had a relative value slot and wants to use its
+    // known non-relative form... this is inline, so no cost if not used.
+    //
+    return KNOWN(out);
 }
 
 
 // In the C++ build, defining this overload that takes a REBVAL* instead of
 // a RELVAL*, and then not defining it...will tell you that you do not need
-// to use Derelativize.  Just say `*out = *v` if your source is a REBVAL!
+// to use Derelativize.  Juse Move_Value() if your source is a REBVAL!
 //
 #ifdef __cplusplus
-    void Derelativize(REBVAL *out, const REBVAL *v, REBSPC *specifier);
+    REBVAL *Derelativize(RELVAL *dest, const REBVAL *v, REBSPC *specifier);
 #endif
 
 

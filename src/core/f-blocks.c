@@ -119,7 +119,7 @@ REBARR *Copy_Array_At_Max_Shallow(
         const RELVAL *src = ARR_AT(original, index);
         RELVAL *dest = ARR_HEAD(copy);
         for (; count < max; ++count, ++src, ++dest)
-            Derelativize(SINK(dest), src, specifier);
+            Derelativize(dest, src, specifier);
     }
 
     TERM_ARRAY_LEN(copy, max);
@@ -158,7 +158,7 @@ REBARR *Copy_Values_Len_Extra_Skip_Shallow(
         const RELVAL *src = head;
         RELVAL *dest = ARR_HEAD(array);
         for (; count < len; ++count, src += skip, ++dest)
-            Derelativize(SINK(dest), src, specifier);
+            Derelativize(dest, src, specifier);
     }
 
     TERM_ARRAY_LEN(array, len);

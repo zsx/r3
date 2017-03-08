@@ -1052,7 +1052,7 @@ static void callback_dispatcher(
     //
     REBARR *code = Make_Array(1 + cif->nargs);
     RELVAL *elem = ARR_HEAD(code);
-    Move_Value(SINK(elem), FUNC_VALUE(RIN_CALLBACK_FUNC(rin)));
+    Move_Value(elem, FUNC_VALUE(RIN_CALLBACK_FUNC(rin)));
     ++elem;
 
     REBCNT i;
