@@ -33,6 +33,8 @@
 #include <signal.h>
 #endif
 
+#include <assert.h>
+
 // REBOL Device Identifiers:
 // Critical: Must be in same order as Device table in host-device.c
 enum {
@@ -235,15 +237,20 @@ struct devreq_serial {
     u8  flow_control;       // hardware or software
 };
 
-#if !defined(NDEBUG)
-#define DEVREQ_FILE(req) (assert(req->device == RDI_FILE), cast(struct devreq_file*, req))
-#define DEVREQ_NET(req) (assert(req->device == RDI_NET), cast(struct devreq_net*, req))
-#define DEVREQ_SERIAL(req) (assert(req->device == RDI_SERIAL), cast(struct devreq_serial*, req))
-#else
-#define DEVREQ_FILE(req) cast(struct devreq_file*, req)
-#define DEVREQ_NET(req) cast(struct devreq_net*, req)
-#define DEVREQ_SERIAL(req) cast(struct devreq_serial*, req)
-#endif
+inline static struct devreq_file* DEVREQ_FILE(struct rebol_devreq *req) {
+    assert(req->device == RDI_FILE);
+    return cast(struct devreq_file*, req);
+}
+
+inline static struct devreq_net *DEVREQ_NET(struct rebol_devreq *req) {
+    assert(req->device == RDI_NET || req->device == RDI_DNS);
+    return cast(struct devreq_net*, req);
+}
+
+inline static struct devreq_serial *DEVREQ_SERIAL(struct rebol_devreq *req) {
+    assert(req->device == RDI_SERIAL);
+    return cast(struct devreq_serial*, req);
+}
 
 // Simple macros for common OPEN? test (for some but not all ports):
 #define SET_OPEN(r)     SET_FLAG(((REBREQ*)(r))->flags, RRF_OPEN)
