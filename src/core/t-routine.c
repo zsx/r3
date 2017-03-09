@@ -1304,19 +1304,20 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
     rootparam->payload.function.paramlist = paramlist;
     rootparam->extra.binding = NULL;
 
-    // The "body" value of a routine is the routine info array.
-    //
     SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
+    AS_SERIES(paramlist)->link.meta = NULL;
+
     REBFUN *fun = Make_Function(
         paramlist,
         &Routine_Dispatcher,
         NULL, // no underlying function, this is fundamental
         NULL // not providing a specialization
     );
-    Init_Block(FUNC_BODY(fun), r);
 
-    AS_SERIES(paramlist)->link.meta = NULL;
+    // The "body" value of a routine is the routine info array.
+    //
+    Init_Block(FUNC_BODY(fun), r);
 
     return fun; // still needs to have function or callback info added!
 }
@@ -1371,8 +1372,11 @@ REBNATIVE(make_routine)
     REBCNT b_len = VAL_LEN_AT(name);
     REBSER *byte_sized = Temp_Bin_Str_Managed(name, &b_index, &b_len);
 
-    CFUNC *cfunc = OS_FIND_FUNCTION(LIB_FD(lib), SER_HEAD(char, byte_sized));
-    if (!cfunc)
+    CFUNC *cfunc = OS_FIND_FUNCTION(
+        LIB_FD(lib),
+        SER_AT(char, byte_sized, b_index) // name may not be at head index
+    );
+    if (cfunc == NULL)
         fail (Error_Invalid_Arg(ARG(name))); // couldn't find function
 
     // Process the parameter types into a function, then fill it in
