@@ -401,17 +401,15 @@ inline static REBVAL* Push_Value_Chunk_Of_Length(REBCNT num_values) {
 
     TG_Top_Chunk = chunk;
 
-#if !defined(NDEBUG)
+
+    // Set all chunk cells writable.
     //
-    // Despite the implicit END marker, the caller is responsible for putting
-    // values in the chunk cells.  Noisily enforce this by setting cells to
-    // writable trash in the debug build.
+    // !!! Should be using VALUE_FLAG_STACK
     {
-        REBCNT index;
-        for (index = 0; index < num_values; index++)
-            INIT_CELL_IF_DEBUG(&chunk->values[index]);
+    REBCNT index;
+    for (index = 0; index < num_values; index++)
+        INIT_CELL(&chunk->values[index]);
     }
-#endif
 
     assert(CHUNK_FROM_VALUES(&chunk->values[0]) == chunk);
     return KNOWN(&chunk->values[0]);

@@ -179,8 +179,7 @@ inline static void Init_Any_Word_Bound(
 ) {
     assert(CTX_KEY_CANON(context, index) == STR_CANON(spelling));
 
-    VAL_RESET_HEADER(out, type);
-    SET_VAL_FLAG(out, WORD_FLAG_BOUND);
+    VAL_RESET_HEADER_EXTRA(out, type, WORD_FLAG_BOUND);
 
     assert(spelling != NULL);
     out->payload.any_word.spelling = spelling;

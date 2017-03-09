@@ -678,14 +678,15 @@ static REBOOL Series_Data_Alloc(
 #endif
 
     if (flags & MKS_ARRAY) {
-#if !defined(NDEBUG)
         REBCNT n;
 
+    #if !defined(NDEBUG)
         PG_Reb_Stats->Blocks++;
+    #endif
 
         // For REBVAL-valued-arrays, we mark as trash to mark the "settable"
         // bit, heeded by both SET_END() and RESET_HEADER().  See remarks on
-        // WRITABLE_MASK_DEBUG for why this is done.
+        // VALUE_FLAG_CELL for why this is done.
         //
         // Note that the "len" field of the series (its number of valid
         // elements as maintained by the client) will be 0.  As far as this
@@ -693,21 +694,24 @@ static REBOOL Series_Data_Alloc(
         // caller to manage...they do not know about the ->rest
         //
         for (n = 0; n < length; n++)
-            INIT_CELL_IF_DEBUG(ARR_AT(AS_ARRAY(s), n));
+            INIT_CELL(ARR_AT(AS_ARRAY(s), n));
 
-        // !!! We should intentionally mark the overage range as being a
-        // kind of trash that is both not an end *and* not possible to set.
-        // (The series must go through an expansion to overrule this.)  That
-        // is complicated logic that is likely best done in the context of
-        // a simplifying review of the series mechanics themselves, so
+        // !!! We should intentionally mark the overage range as not having
+        // NODE_FLAG_CELL in the debug build.  Then have the series go through
+        // an expansion to overrule it.
+        //
+        // That's complicated logic that is likely best done in the context of
+        // a simplifying review of the series mechanics themselves.  So
         // for now we just use ordinary trash...which means we don't get
         // as much potential debug warning as we might when writing into
         // bias or tail capacity.
         //
+        // !!! Also, should the release build do the NODE_FLAG_CELL setting
+        // up front, or only on expansions?
+        //
         for(; n < s->content.dynamic.rest - 1; n++) {
-            INIT_CELL_IF_DEBUG(ARR_AT(AS_ARRAY(s), n));
+            INIT_CELL(ARR_AT(AS_ARRAY(s), n));
         }
-    #endif
 
         // The convention is that the *last* cell in the allocated capacity
         // is an unwritable end.  This may be located arbitrarily beyond the
@@ -725,7 +729,7 @@ static REBOOL Series_Data_Alloc(
         // avoids writing the unwritable locations by checking for END first.
         //
         RELVAL *ultimate = ARR_AT(AS_ARRAY(s), s->content.dynamic.rest - 1);
-        ultimate->header.bits = NODE_FLAG_END;
+        Init_Endlike_Header(&ultimate->header, 0);
     #if !defined(NDEBUG)
         Set_Track_Payload_Debug(ultimate, __FILE__, __LINE__);
     #endif
@@ -929,7 +933,7 @@ REBSER *Make_Series(REBCNT capacity, REBYTE wide, REBCNT flags)
         SER_SET_WIDE(s, wide);
         assert(NOT_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC));
         SET_SER_FLAG(s, SERIES_FLAG_ARRAY);
-        INIT_CELL_IF_DEBUG(&s->content.values[0]);
+        INIT_CELL(&s->content.values[0]);
     }
     else if (capacity * wide <= sizeof(s->content)) {
         SER_SET_WIDE(s, wide);
@@ -1003,7 +1007,7 @@ REBVAL *Alloc_Pairing(REBCTX *opt_owning_frame) {
     REBVAL *key = cast(REBVAL*, s);
     REBVAL *paired = key + 1;
 
-    INIT_CELL_IF_DEBUG(key);
+    INIT_CELL(key);
     if (opt_owning_frame) {
         Init_Any_Context(key, REB_FRAME, opt_owning_frame);
         SET_VAL_FLAGS(
@@ -1019,7 +1023,7 @@ REBVAL *Alloc_Pairing(REBCTX *opt_owning_frame) {
         SET_TRASH_IF_DEBUG(key);
     }
 
-    INIT_CELL_IF_DEBUG(paired);
+    INIT_CELL(paired);
     SET_TRASH_IF_DEBUG(paired);
 
 #if !defined(NDEBUG)
@@ -1194,7 +1198,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
             // but when it is this will be useful.
             //
             for (index = 0; index < delta; index++)
-                INIT_CELL_IF_DEBUG(ARR_AT(AS_ARRAY(s), index));
+                INIT_CELL(ARR_AT(AS_ARRAY(s), index));
         }
     #endif
         return;
@@ -1245,9 +1249,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
             //
             while (delta != 0) {
                 --delta;
-                INIT_CELL_IF_DEBUG(
-                    ARR_AT(AS_ARRAY(s), index + delta)
-                );
+                INIT_CELL(ARR_AT(AS_ARRAY(s), index + delta));
             }
         }
     #endif

@@ -772,7 +772,7 @@ static void Propagate_All_GC_Marks(void)
             // uses void values to denote that the variable is not set.  Also
             // reified C va_lists as Do_Core() sources can have them.
             //
-            if (IS_UNREADABLE_OR_VOID(v) && IS_VOID(v)) {
+            if (NOT(IS_BLANK_RAW(v)) && IS_VOID(v)) {
                 assert(
                     GET_SER_FLAG(a, ARRAY_FLAG_VARLIST)
                     || GET_SER_FLAG(a, ARRAY_FLAG_VOIDS_LEGAL)
@@ -1556,8 +1556,8 @@ void Guard_Node_Core(const REBNOD *node)
         const REBVAL* value = cast(const REBVAL*, node);
         assert(
             IS_END(value)
-            || IS_UNREADABLE_OR_VOID(value)
-            || VAL_TYPE(value) < REB_MAX
+            || IS_BLANK_RAW(value)
+            || VAL_TYPE(value) <= REB_MAX_VOID
         );
 
     #ifdef STRESS_CHECK_GUARD_VALUE_POINTER

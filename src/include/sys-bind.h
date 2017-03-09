@@ -477,7 +477,7 @@ inline static REBVAL *Derelativize(
     assert(NOT_END(v));
     assert(!IS_TRASH_DEBUG(v));
 
-    ASSERT_CELL_WRITABLE_IF_DEBUG(out, __FILE__, __LINE__);
+    ASSERT_CELL_WRITABLE(out, __FILE__, __LINE__);
 
     if (IS_RELATIVE(v)) {
     #if !defined(NDEBUG)

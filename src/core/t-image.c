@@ -820,7 +820,7 @@ REBVAL *Find_Image(REBFRM *frame_)
 
     REBCNT len = tail - index;
     if (len == 0)
-        return BLANK_VALUE;
+        return NULL;
 
     // !!! There is a general problem with refinements and actions in R3-Alpha
     // in terms of reporting when a refinement was ignored.  This is a
@@ -864,14 +864,14 @@ REBVAL *Find_Image(REBFRM *frame_)
         n = (REBCNT)(p - (REBCNT *)VAL_IMAGE_HEAD(value));
         if (REF(match)) {
             if (n != (REBINT)index)
-                return BLANK_VALUE;
+                return NULL;
             n++;
         } else if (REF(tail)) n++;
         index = n;
         VAL_INDEX(value) = index;
         return value;
     }
-    return BLANK_VALUE;
+    return NULL;
 }
 
 

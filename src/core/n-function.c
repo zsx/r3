@@ -608,19 +608,17 @@ REBNATIVE(adapt)
     REBARR *adaptation = Make_Array(2);
 
     REBVAL *block = Alloc_Tail_Array(adaptation);
-    VAL_RESET_HEADER(block, REB_BLOCK);
+    VAL_RESET_HEADER_EXTRA(block, REB_BLOCK, VALUE_FLAG_RELATIVE);
     INIT_VAL_ARRAY(block, prelude);
     VAL_INDEX(block) = 0;
-    SET_VAL_FLAG(block, VALUE_FLAG_RELATIVE);
     INIT_RELATIVE(block, underlying);
 
     Append_Value(adaptation, adaptee);
 
     RELVAL *body = FUNC_BODY(fun);
-    VAL_RESET_HEADER(body, REB_BLOCK);
+    VAL_RESET_HEADER_EXTRA(body, REB_BLOCK, VALUE_FLAG_RELATIVE);
     INIT_VAL_ARRAY(body, adaptation);
     VAL_INDEX(body) = 0;
-    SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
     INIT_RELATIVE(body, underlying);
     MANAGE_ARRAY(adaptation);
 

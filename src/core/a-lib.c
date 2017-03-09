@@ -503,18 +503,6 @@ RL_API REBRXT RL_Val_Type(const REBVAL *v) {
 
 
 //
-//  RL_Val_Reset: C
-//
-RL_API void RL_Val_Reset(REBVAL *v, REBRXT rxt) {
-    INIT_CELL_IF_DEBUG(v);
-    if (rxt == 0)
-        SET_VOID(v);
-    else
-        VAL_RESET_HEADER(v, RXT_To_Reb[rxt]);
-}
-
-
-//
 //  RL_Val_Update_Header: C
 //
 RL_API void RL_Val_Update_Header(REBVAL *v, REBRXT rxt) {

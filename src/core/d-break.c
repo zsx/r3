@@ -74,7 +74,7 @@ REBOOL Do_Breakpoint_Throws(
     const REBVAL *default_value,
     REBOOL do_default
 ) {
-    REBVAL *target = BLANK_VALUE;
+    const REBVAL *target = BLANK_VALUE;
 
     if (!PG_Breakpoint_Quitting_Hook) {
         //

@@ -108,10 +108,6 @@ void Assert_Cell_Writable(const RELVAL *v, const char *file, int line)
         printf("Non-cell passed to writing routine\n");
         panic_at (v, file, line);
     }
-    if (NOT((v)->header.bits & NODE_FLAG_VALID)) {
-        printf("Non-writable value passed to writing routine\n");
-        panic_at (v, file, line);
-    }
 }
 
 
@@ -124,8 +120,10 @@ void Assert_Cell_Writable(const RELVAL *v, const char *file, int line)
 // done by the raw creation of a Reb_Header in the containing structure.
 //
 void SET_END_Debug(RELVAL *v, const char *file, int line) {
-    ASSERT_CELL_WRITABLE_IF_DEBUG(v, file, line);
-    (v)->header.bits = HEADERIZE_KIND(REB_0) | FLAGBYTE_FIRST(255);
+    ASSERT_CELL_WRITABLE(v, file, line);
+    v->header.bits &= NODE_FLAG_CELL | VALUE_FLAG_STACK;
+    (v)->header.bits
+        |= NODE_FLAG_VALID | HEADERIZE_KIND(REB_0) | FLAGBYTE_FIRST(255);
     Set_Track_Payload_Debug(v, file, line);
 }
 
@@ -134,21 +132,10 @@ void SET_END_Debug(RELVAL *v, const char *file, int line) {
 //  IS_END_Debug: C
 //
 REBOOL IS_END_Debug(const RELVAL *v, const char *file, int line) {
-#ifdef __cplusplus
-    if (
-        (v->header.bits & NODE_FLAG_CELL)
-        //
-        // Note: a non-writable value could have any bit pattern in the
-        // type slot, so we only check for trash in writable ones.
-        //
-        && VAL_TYPE_RAW(v) == REB_MAX_VOID
-        && NOT(v->header.bits & VOID_FLAG_NOT_TRASH)
-        && NOT(v->header.bits & VOID_FLAG_SAFE_TRASH)
-    ) {
-        printf("IS_END() called on value marked as TRASH\n");
-        panic_at (v, file, line);
+    if (NOT(v->header.bits & NODE_FLAG_VALID)) {
+        printf("IS_END() called on garbage\n");
+        panic_at(v, file, line);
     }
-#endif
 
     if (IS_END_MACRO(v)) {
         if (v->header.bits & NODE_FLAG_CELL)

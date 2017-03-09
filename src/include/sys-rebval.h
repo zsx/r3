@@ -72,7 +72,7 @@
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  VALUE_FLAG_CONDITIONALLY_FALSE
+//  VALUE_FLAG_CONDITIONAL_FALSE
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -91,7 +91,7 @@
 // the modern codebase, this optimization may need to be sacrificed to
 // reclaim the bit for a "higher purpose".
 //
-#define VALUE_FLAG_CONDITIONALLY_FALSE \
+#define VALUE_FLAG_CONDITIONAL_FALSE \
     FLAGIT_LEFT(GENERAL_VALUE_BIT + 0)
 
 
@@ -734,7 +734,8 @@ struct Reb_Value
         // flags are set (e.g. NODE_FLAG_MANAGED) which should not
         // be of concern or looked at due to the IS_END() status.
         //
-        v->header.bits = FLAGBYTE_FIRST(255);
+        v->header.bits &= NODE_FLAG_CELL | VALUE_FLAG_STACK;
+        v->header.bits |= NODE_FLAG_VALID | FLAGBYTE_FIRST(255);
     }
 #else
     // Note: These must be macros (that don't need IS_END_Debug or
@@ -874,7 +875,6 @@ inline static void Init_Endlike_Header(struct Reb_Header *alias, REBUPT bits)
 
         ~Reb_Specific_Value() {
             assert(header.bits & NODE_FLAG_CELL);
-            assert(header.bits & NODE_FLAG_VALID);
 
             enum Reb_Kind kind = cast(enum Reb_Kind, RIGHT_8_BITS(header.bits));
             assert(kind <= REB_MAX_VOID);

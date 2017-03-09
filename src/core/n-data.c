@@ -928,7 +928,7 @@ REBNATIVE(set)
     REBOOL set_with_block; // goto would cross initialization
     set_with_block = IS_BLOCK(ARG(value));
 
-    RELVAL *value;
+    const RELVAL *value;
     REBSPC *value_specifier;
     if (set_with_block) {
         value = VAL_ARRAY_AT(ARG(value));

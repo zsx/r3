@@ -174,7 +174,8 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
     //
     assert(f->value);
 
-    assert((f->flags.bits & NODE_FLAG_END) && NOT(f->flags.bits & NODE_FLAG_CELL));
+    assert(f->flags.bits & NODE_FLAG_END);
+    assert(NOT(f->flags.bits & NODE_FLAG_CELL));
 
     // f->label is set to NULL by Do_Core()
 
@@ -319,8 +320,10 @@ REBUPT Do_Core_Expression_Checks_Debug(REBFRM *f) {
     // for other purposes.  Hence the writability must be re-indicated here
     // before the slot is used each time.
     //
+#if !defined(NDEBUG)
     if (f->value != &f->cell)
-        INIT_CELL_IF_DEBUG(&f->cell);
+        Prep_Global_Cell(&f->cell);
+#endif
 
     // Trash call variables in debug build to make sure they're not reused.
     // Note that this call frame will *not* be seen by the GC unless it gets

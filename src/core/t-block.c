@@ -1047,17 +1047,17 @@ void Assert_Array_Core(REBARR *a)
     if (GET_SER_INFO(a, SERIES_INFO_HAS_DYNAMIC)) {
         REBCNT rest = SER_REST(AS_SERIES(a));
 
-#ifdef __cplusplus
         assert(rest > 0 && rest > i);
         for (; i < rest - 1; ++i, ++item) {
-            if (NOT(item->header.bits & NODE_FLAG_VALID)) {
+            if (NOT(item->header.bits & NODE_FLAG_CELL)) {
                 printf("Unwritable cell found in array rest capacity\n");
                 panic (a);
             }
         }
         assert(item == ARR_AT(a, rest - 1));
-#endif
-        if (ARR_AT(a, rest - 1)->header.bits != NODE_FLAG_END) {
+
+        RELVAL *ultimate = ARR_AT(a, rest - 1);
+        if (NOT_END(ultimate) || (ultimate->header.bits & NODE_FLAG_CELL)) {
             printf("Implicit termination/unwritable END missing from array\n");
             panic (a);
         }

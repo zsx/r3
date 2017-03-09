@@ -1297,10 +1297,9 @@ REBFUN *Make_Interpreted_Function_May_Fail(
     // relative to a function.  (Init_Block assumes all specific values)
     //
     RELVAL *body = FUNC_BODY(fun);
-    VAL_RESET_HEADER(body, REB_BLOCK);
+    VAL_RESET_HEADER_EXTRA(body, REB_BLOCK, VALUE_FLAG_RELATIVE);
     INIT_VAL_ARRAY(body, body_array);
     VAL_INDEX(body) = 0;
-    SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
     INIT_RELATIVE(body, fun);
 
 #if !defined(NDEBUG)
@@ -1611,7 +1610,7 @@ void Clonify_Function(REBVAL *value)
     // that it's o.k. to tell the frame lookup that it can find variables
     // under the "new paramlist".
     //
-    VAL_RESET_HEADER(body, REB_BLOCK);
+    VAL_RESET_HEADER_EXTRA(body, REB_BLOCK, VALUE_FLAG_RELATIVE);
     INIT_VAL_ARRAY(
         body,
         Copy_Rerelativized_Array_Deep_Managed(
@@ -1624,7 +1623,6 @@ void Clonify_Function(REBVAL *value)
 
     // Remap references in the body from the original function to new
 
-    SET_VAL_FLAG(body, VALUE_FLAG_RELATIVE);
     INIT_RELATIVE(body, AS_FUNC(paramlist));
 
     Move_Value(value, FUNC_VALUE(new_fun));

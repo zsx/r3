@@ -171,7 +171,7 @@ void Dump_Values(RELVAL *vp, REBCNT count)
         if (IS_END(val)) {
             break;
         }
-        if (IS_UNREADABLE_OR_VOID(val)) {
+        if (IS_BLANK_RAW(val) || IS_VOID(val)) {
             bp = cast(REBCNT*, val + 1);
             continue;
         }

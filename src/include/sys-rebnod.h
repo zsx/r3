@@ -114,13 +114,9 @@ enum Reb_Pointer_Detect {
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// The first bit will be 1 for all Reb_Header in the system that are not free.
-// Freed nodes actually have *all* 0 bits in the header.
-//
-// The C++ debug build is actually able to enforce that a 0 in this position
-// makes a cell unwritable by routines like VAL_RESET_HEADER().  It can do
-// this because constructors provide a hook point to ensure valid REBVAL
-// cells on the stack have the bit pre-initialized to 1.
+// The first bit will be 1 for all Reb_Header in the system that are not free
+// or trash.  Freed REBSER actually have *all* 0 bits in the header, while
+// a trash REBVAL cell will have VALUE_FLAG_CELL set.
 //
 // !!! UTF-8 empty strings (just a 0 terminator byte) are indistingushable,
 // since only one byte may be valid to examine without crashing.  But in a
