@@ -218,10 +218,8 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     // borderline assert doesn't wind up taking up 20% of the debug's runtime.
     //
     #define CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG \
-        assert(NOT(IS_END_MACRO(v))); \
         REBUPT category = RIGHT_8_BITS(f); \
         if (category != REB_0) { \
-            enum Reb_Kind kind = VAL_TYPE(v); \
             if (kind != category) { \
                 if (category == REB_WORD) \
                     assert(ANY_WORD_KIND(kind)); \
@@ -233,29 +231,33 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
             CLEAR_8_RIGHT_BITS(f); \
         } \
 
-
     inline static void SET_VAL_FLAGS(RELVAL *v, REBUPT f) {
+        enum Reb_Kind kind = VAL_TYPE(v);
         CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
         v->header.bits |= f;
     }
 
     inline static void SET_VAL_FLAG(RELVAL *v, REBUPT f) {
+        enum Reb_Kind kind = VAL_TYPE(v);
         CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
         assert(f && (f & (f - 1)) == 0); // checks that only one bit is set
         v->header.bits |= f;
     }
 
     inline static REBOOL GET_VAL_FLAG(const RELVAL *v, REBUPT f) {
+        enum Reb_Kind kind = VAL_TYPE(v);
         CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
         return LOGICAL(v->header.bits & f);
     }
 
     inline static void CLEAR_VAL_FLAGS(RELVAL *v, REBUPT f) {
+        enum Reb_Kind kind = VAL_TYPE(v);
         CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
         v->header.bits &= ~f;
     }
 
     inline static void CLEAR_VAL_FLAG(RELVAL *v, REBUPT f) {
+        enum Reb_Kind kind = VAL_TYPE(v);
         CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
         assert(f && (f & (f - 1)) == 0); // checks that only one bit is set
         v->header.bits &= ~f;
@@ -352,12 +354,20 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
     inline static void VAL_RESET_HEADER_EXTRA_Debug(
         RELVAL *v,
         enum Reb_Kind kind,
-        REBUPT extra,
+        REBUPT f, // "extra" but named to match flags in macro
         const char *file,
         int line
     ){
         ASSERT_CELL_WRITABLE(v, file, line);
-        VAL_RESET_HEADER_common(v, kind, extra);
+
+        // The debug build puts some extra type information onto flags
+        // which needs to be cleared out.  (e.g. WORD_FLAG_BOUND has the bit
+        // pattern for REB_WORD inside of it, to help make sure that flag
+        // doesn't get used with things that aren't words).
+        //
+        CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
+        
+        VAL_RESET_HEADER_common(v, kind, f);
     }
 
     #define VAL_RESET_HEADER_EXTRA(v,kind,extra) \
@@ -477,7 +487,7 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
 //
 //     append [a b c] | [d e f] print "Hello"   ;-- will cause an error
 //     append [a b c] [d e f] | print "Hello"   ;-- is legal
-//     append [a b c] (|)                       ;-- is legal
+//     append [a b c] first [|]                 ;-- is legal
 //     append [a b c] '|                        ;-- is legal
 //
 // Doesn't need payload...so the debug build adds information in Reb_Track
@@ -552,7 +562,7 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
     inline static REBOOL IS_UNREADABLE_IF_DEBUG(const RELVAL *v) {
         if (NOT(VAL_TYPE_RAW(v) == REB_BLANK))
             return FALSE;
-        return GET_VAL_FLAG(v, BLANK_FLAG_UNREADABLE_DEBUG);
+        return LOGICAL(v->header.bits & BLANK_FLAG_UNREADABLE_DEBUG);
     }
 #endif
 
@@ -1184,7 +1194,7 @@ inline static void SET_GOB(RELVAL *v, REBGOB *g) {
 }
 
 
-// !!! Because you cannot assign REBVALs to one anotHer (e.g. `*dest = *src`)
+// !!! Because you cannot assign REBVALs to one another (e.g. `*dest = *src`)
 // a function is used.  The reason that a function is used is because this
 // gives more flexibility in decisions based on the destination cell regarding
 // whether it is necessary to reify information in the source cell.
@@ -1201,17 +1211,72 @@ inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
         GET_VAL_FLAG(v, NODE_FLAG_CELL)
         && GET_VAL_FLAG(v, NODE_FLAG_VALID)
     );
+    assert(NOT_END(v));
     ASSERT_CELL_WRITABLE(out, __FILE__, __LINE__);
-    
+
     out->header.bits &= NODE_FLAG_CELL | VALUE_FLAG_STACK;
     out->header.bits |= ((v->header.bits) & ~(VALUE_FLAG_STACK));
 
-    out->extra = v->extra;
+    // Note: In theory it would be possible to make payloads that had stack
+    // lifetimes by default, which would be promoted to GC lifetimes using
+    // the same kind of logic that the on-demand reification of FRAME!s
+    // uses.  In practice, this would be very difficult to take advantage of
+    // in C, because it really applies best with things that can live on
+    // the C stack--and Rebol arrays don't have that form of invocation.
+    //
     out->payload = v->payload;
 
-    // in case the caller had a relative value slot and wants to use its
-    // known non-relative form... this is inline, so no cost if not used.
-    //
+    if (
+        // NOT(v->header.bits & (VALUE_FLAG_BINDABLE | VALUE_FLAG_STACK))
+        // || v->extra.binding->header.bits & NODE_FLAG_MANAGED
+        //
+        NOT(v->header.bits & VALUE_FLAG_STACK)
+    ) {
+        // If the source value isn't the kind of value that can have a
+        // non-reified binding (e.g. an INTEGER! or STRING!), then it is
+        // fully specified by definition.
+        //
+        // Also, if it is the kind of value that can have a non-reified
+        // binding but isn't resident on the stack, we know that it must have
+        // already been reified.
+        //
+        // Finally, if it's the kind of thing that can have a non-reified
+        // binding but it's managed, then that's also fine.
+        //
+        out->header.bits |= v->header.bits;
+        out->extra = v->extra;
+        return KNOWN(out);
+    }
+
+    // If we get here, the source value is on the stack and has a non-reified
+    // binding of some kind.  Check to see if the target stack level will
+    // outlive the stack level of the non-reified material in the binding. 
+
+    REBCNT bind_depth = 1; // !!! need to determine v's binding stack level
+    REBCNT out_depth;
+    if (NOT(out->header.bits & VALUE_FLAG_STACK))
+        out_depth = 0;
+    else
+        out_depth = 1; // !!! need to determine out's stack level
+
+    if (out_depth >= bind_depth) {
+        //
+        // The non-reified binding will outlive the output slot, so there is
+        // no reason to reify it.
+        //
+        out->header.bits |= v->header.bits;
+        out->extra = v->extra;
+        return KNOWN(out);
+    }
+
+    // This is the expensive case, we know the binding as-is will not outlive
+    // the target slot.  A reification is necessary.
+
+    // !!! Code is not written yet, but neither are there any actual non
+    // reified bindings in the wild.
+
+    out->header.bits |= v->header.bits;
+    out->extra = v->extra;
     return KNOWN(out);
 }
 

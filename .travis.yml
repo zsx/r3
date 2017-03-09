@@ -103,7 +103,7 @@ script:
     - |
       if [[ "${CC}" = "g++" ]]; then
           CPLUSPLUS=1;
-          LIBC_FLAG="-static-libstdc++"
+          LIBC_FLAG="-static-libgcc -static-libstdc++"
       else
           unset CPLUSPLUS;
           LIBC_FLAG=""
@@ -147,11 +147,13 @@ script:
     #
     # !!! This is a very minimal sanity check to ensure the built R3 does
     # *something*, and it can obviously only be used on the linux version.
-    # Eventually it should run the whole test suite.
+    # Running the full test suite would be a bit much, and developers are
+    # expected to have already done that.  But doing an HTTPS read exercises
+    # a fair amount of code.
     #
     - |
       if [[ "${OS_ID}" = "0.4.40" || "${OS_ID}" = "0.4.4" ]]; then 
-          ./r3 --do "print {OK} quit/with 0";
+          ./r3 --do "print {Testing...} quit/with either find to-string read https://example.com {<h1>Example Domain</h1>} [0] [1]";
           R3_EXIT_STATUS=$?;
       else
           R3_EXIT_STATUS=0;
