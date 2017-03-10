@@ -636,7 +636,7 @@ REBNATIVE(compile)
             fail (Error(RE_TCC_SYM_NOT_FOUND, name));
 
         FUNC_DISPATCHER(VAL_FUNC(var)) = c_func;
-        Move_Value(stored_state, &handle);
+        Move_Value(stored_state, handle);
 
         DS_DROP;
     }
