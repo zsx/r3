@@ -1287,6 +1287,8 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
     newparse.value = rule;
     newparse.specifier = P_RULE_SPECIFIER;
 
+    Prep_Global_Cell(&newparse.cell); // bypass C++ assert on no prep
+
     REBIXO n;
     {
     PUSH_GUARD_SERIES(VAL_SERIES(&newparse.args_head[0]));
