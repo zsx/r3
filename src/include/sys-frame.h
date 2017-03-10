@@ -161,22 +161,12 @@ inline static REBCNT FRM_EXPR_INDEX(REBFRM *f) {
 
 inline static REBVAL *FRM_CELL(REBFRM *f) {
     //
-    // If a function takes exactly one argument, the optimization is to use
-    // the GC protected eval cell for that argument.  In which case, the
-    // cell is not available for other purposes (such as evaluations, which
-    // cannot be done directly into function argument slots while a function
-    // is running, because they create transitional trash which might be
-    // accessed through a FRAME!)
+    // An earlier optimization would use the frame's cell if a function
+    // took exactly one argument for that argument.  This meant it was not
+    // available to those functions to use as a GC-protected temporary.  The
+    // optimization made it complex for the generalized code that does
+    // stack level discovery from a value pointer, and was removed.
     //
-#if !defined(NDEBUG)
-    assert(&f->cell != f->args_head); // sanity check, but need more...
-
-    if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_RETURN_DEBUG))
-        assert(FRM_NUM_ARGS(f) - 1 != 1);
-    else
-        assert(FRM_NUM_ARGS(f) != 1);
-#endif
-
     return &f->cell; // otherwise, it's available...
 }
 
@@ -451,6 +441,14 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(REBFRM *f) {
     //
     REBCNT num_args = FUNC_FACADE_NUM_PARAMS(f->func);
 
+    // Note: A previous optimization would use the frame's evaluation cell
+    // for the argument in the case of an arity-1 function.  While this
+    // avoided a chunk stack allocation, it complicates the nature of
+    // looking backwards for a VALUE_FLAG_STACK's frame by introducing a
+    // new parameter layout.  It also caused the code to branch more on both
+    // the push and drop side, and made that cell unavailable for 1-argument
+    // functions to use as a temporary.  So the optimization was removed.
+
     if (IS_FUNC_DURABLE(VAL_FUNC(f->gotten))) { // !!! Who decides durability?
         //
         // !!! It's hoped that stack frames can be "hybrids" with some pooled
@@ -473,33 +471,6 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(REBFRM *f) {
         // if the varlist does not become reified.
         //
         TRASH_POINTER_IF_DEBUG(AS_SERIES(f->varlist)->misc.f);
-    }
-    else if (num_args == 0) {
-        //
-        // If the function takes 0 parameters, it makes sense to point the
-        // argument list at END_CELL.  This way it can still be enumerated
-        // without checking the length, and it doesn't need to use the
-        // eval cell (so it's available for the routine's use).
-        //
-        // !!! As optimizations go, providing free use of the D_CELL for
-        // rather uncommon 0-argument routines may not be an obvious win.
-        // Besides being rare, it's probably also rare they really need an
-        // evaluation destination (what is a 0 argument routine evaluating?)
-        // It may be better as just a debug check, to have a non-writable
-        // cell to help reinforce that there really isn't an argument.
-        //
-        f->args_head = m_cast(REBVAL*, END_CELL);
-        f->varlist = NULL;
-    }
-    else if (num_args == 1) {
-        //
-        // If the function takes only one stack parameter, use the eval cell
-        // so that no chunk pushing or popping needs to be involved.  This
-        // means the cell won't be available to use as a temporary GC-safe
-        // value while the function is running for single-argument functions
-        //
-        f->args_head = &f->cell;
-        f->varlist = NULL;
     }
     else {
         // We start by allocating the data for the args and locals on the chunk
@@ -556,8 +527,7 @@ inline static void Drop_Function_Args_For_Frame_Core(
 
     if (drop_chunks) {
         if (f->varlist == NULL) {
-            if (f->args_head != END_CELL && f->args_head != &f->cell)
-                Drop_Chunk_Of_Values(f->args_head);
+            Drop_Chunk_Of_Values(f->args_head);
 
             goto finished; // nothing else to do...
         }
@@ -566,10 +536,8 @@ inline static void Drop_Function_Args_For_Frame_Core(
         // it's just a REBSER node for purposes of GC-referencing, but gets
         // its actual content from the stackvars.
         //
-        if (ARR_LEN(f->varlist) == 1) {
-            if (f->args_head != END_CELL && f->args_head != &f->cell)
-                Drop_Chunk_Of_Values(f->args_head);
-        }
+        if (ARR_LEN(f->varlist) == 1)
+            Drop_Chunk_Of_Values(f->args_head);
     }
     else {
         if (f->varlist == NULL)

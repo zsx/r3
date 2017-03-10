@@ -179,26 +179,24 @@ REBNATIVE(all)
     REBFRM f;
     Push_Frame(&f, ARG(block));
 
-    DECLARE_LOCAL (temp);
-
     while (NOT_END(f.value)) {
-        Do_Next_In_Frame_May_Throw(temp, &f, DO_FLAG_NORMAL);
+        Do_Next_In_Frame_May_Throw(D_CELL, &f, DO_FLAG_NORMAL);
 
-        if (THROWN(temp)) {
+        if (THROWN(D_CELL)) {
             Drop_Frame(&f);
-            Move_Value(D_OUT, temp);
+            Move_Value(D_OUT, D_CELL);
             return R_OUT_IS_THROWN;
         }
 
-        if (IS_VOID(temp)) // voids do not "vote" true or false
+        if (IS_VOID(D_CELL)) // voids do not "vote" true or false
             continue;
 
-        if (IS_CONDITIONAL_FALSE(temp)) { // a failed ALL returns BLANK!
+        if (IS_CONDITIONAL_FALSE(D_CELL)) { // a failed ALL returns BLANK!
             Drop_Frame(&f);
             return R_BLANK;
         }
 
-        Move_Value(D_OUT, temp); // preserve (not overwritten by later voids)
+        Move_Value(D_OUT, D_CELL); // preserve (not overwritten by later voids)
     }
 
     Drop_Frame(&f);
