@@ -391,7 +391,11 @@ REBNATIVE(wait)
         ports = VAL_ARRAY(unsafe);
         for (val = ARR_HEAD(ports); NOT_END(val); val++) { // find timeout
             if (Pending_Port(KNOWN(val))) n++;
-            if (IS_INTEGER(val) || IS_DECIMAL(val)) break;
+            if (IS_INTEGER(val)
+                || IS_DECIMAL(val)
+                || IS_TIME(val)
+                )
+                break;
         }
         if (IS_END(val)) {
             if (n == 0) return R_BLANK; // has no pending ports!
