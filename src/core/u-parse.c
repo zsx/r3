@@ -1257,7 +1257,7 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
     }
 
     if (IS_BLANK(rule))
-        return (VAL_TYPE(value) > REB_BLANK) ? END_FLAG : P_POS;
+        return (VAL_TYPE(value) != REB_BLANK) ? END_FLAG : P_POS;
 
     // !!! This copies a single value into a block to use as data.  Is there
     // any way this might be avoided?
