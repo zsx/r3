@@ -91,6 +91,7 @@ do*: function [
 
             ; Web services
             <amazon-s3> [http://reb4.me/r3/s3.reb]
+            <upgrade> [https://raw.githubusercontent.com/gchiu/rebol-misc/master/upgrade.reb]
             <twitter> [https://raw.githubusercontent.com/gchiu/rebolbot/master/twitter.r3]
             <trello> [http://codeconscious.com/rebol-scripts/trello.r]
 
