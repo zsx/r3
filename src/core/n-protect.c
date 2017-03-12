@@ -42,12 +42,13 @@ static void Protect_Key(REBCTX *context, REBCNT index, REBFLGS flags)
     Ensure_Keylist_Unique_Invalidated(context);
 
     REBVAL *key = CTX_KEY(context, index);
+    REBVAL *var = CTX_VAR(context, index);
 
     if (GET_FLAG(flags, PROT_WORD)) {
         if (GET_FLAG(flags, PROT_SET))
-            SET_VAL_FLAG(key, TYPESET_FLAG_PROTECTED);
+            SET_VAL_FLAG(var, VALUE_FLAG_PROTECTED);
         else
-            CLEAR_VAL_FLAG(key, TYPESET_FLAG_PROTECTED);
+            CLEAR_VAL_FLAG(var, VALUE_FLAG_PROTECTED);
     }
 
     if (GET_FLAG(flags, PROT_HIDE)) {
@@ -154,9 +155,7 @@ static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
             // Ignore existing mutability state so that it may be modified.
             // Most routines should NOT do this!
             //
-            enum Reb_Kind eval_type; // unused
             REBVAL *var = Get_Var_Core(
-                &eval_type,
                 word,
                 SPECIFIED,
                 GETVAR_READ_ONLY
@@ -228,9 +227,7 @@ static REB_R Protect_Unprotect_Core(REBFRM *frame_, REBFLGS flags)
                     // Since we *are* PROTECT we allow ourselves to get mutable
                     // references to even protected values to protect them.
                     //
-                    enum Reb_Kind eval_type; // unused
                     var = Get_Var_Core(
-                        &eval_type,
                         item,
                         VAL_SPECIFIER(value),
                         GETVAR_READ_ONLY

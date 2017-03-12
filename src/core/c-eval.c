@@ -72,7 +72,9 @@
     #define DO_COUNT_BREAKPOINT    0
     //      *** DON'T COMMIT THIS --^ KEEP IT AT ZERO! ***
     //
-    // !!! Taking this number on the command line could be convenient.
+    // Note: Taking this number on the command line sounds convenient, though
+    // with command line processing in usermode it would throw the number off
+    // between runs.
     //
     // Note also there is `Dump_Frame_Location()` if there's a trouble spot
     // and you want to see what the state is.  It will reify C va_list
@@ -273,8 +275,8 @@ static inline void Link_Vararg_Param_To_Frame(REBFRM *f, REBOOL make) {
 //     f->out*
 //     REBVAL pointer to which the evaluation's result should be written
 //     Must point to initialized bits, and that needs to be an END marker,
-//     unless f->eval_type is REB_0_LOOKBACK, in which case it must be the
-//     REBVAL to use as first argument (infix/postfix/"enfixed" functions)
+//     unless it's in lookback mode, in which case it must be the REBVAL to
+//     use as first argument (infix/postfix/"enfixed" functions)
 //
 //     f->gotten
 //     Must be either be the Get_Var() lookup of f->value, or NULL
@@ -294,20 +296,20 @@ void Do_Core(REBFRM * const f)
     //
     if (f->flags.bits & DO_FLAG_APPLYING) {
         assert(f->label != NULL);
-        assert(f->eval_type != REB_0_LOOKBACK); // "APPLY infix" not supported
+        f->eval_type = REB_FUNCTION;
         args_evaluate = NOT(f->flags.bits & DO_FLAG_NO_ARGS_EVALUATE);
-        f->refine = ORDINARY_ARG;
+        f->refine = ORDINARY_ARG; // "APPLY infix" not supported
         goto do_function_arglist_in_progress;
     }
-    else {
-        // Some initialized bit pattern is needed to check to see if a function
-        // call is actually in progress, or if eval_type is just REB_FUNCTION or
-        // REB_0_LOOKBACK but doesn't have valid args/state.  The label is a good
-        // choice because it is only affected by the function call case, see
-        // Is_Function_Frame_Fulfilling.
-        //
-        f->label = NULL;
-    }
+
+    // Some initialized bit pattern is needed to check to see if a
+    // function call is actually in progress, or if eval_type is just
+    // REB_FUNCTION but doesn't have valid args/state.  The label is a
+    // good choice because it is only affected by the function call case,
+    // see Is_Function_Frame_Fulfilling().
+    //
+    f->label = NULL;
+    f->eval_type = VAL_TYPE(f->value);
 
 #if !defined(NDEBUG)
     SNAP_STATE(&f->state); // to make sure stack balances, etc.
@@ -316,9 +318,10 @@ void Do_Core(REBFRM * const f)
 
     // This is an important guarantee...the out slot needs to have some form
     // of initialization to allow GC.  END is chosen because that is what
-    // natives can count on the f->out slot to be.
+    // natives can count on the f->out slot to be, but lookback arguments
+    // also are passed by way of the out slot.
     //
-    assert(IS_END(f->out) || f->eval_type == REB_0_LOOKBACK);
+    assert(NOT(IS_TRASH_DEBUG(f->out)));
 
     // Check just once (stack level would be constant if checked in a loop).
     //
@@ -370,16 +373,9 @@ reevaluate:;
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
-    case REB_0_LOOKBACK:
-        if (GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG))
-            if (f->flags.bits & DO_FLAG_FULFILLING_ARG)
-                fail (Error(RE_EXPRESSION_BARRIER)); // !!! better error?
-
-        SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
-        // f->out must be the infix's left-hand-side arg, may be END
-
-        f->refine = LOOKBACK_ARG;
-        goto do_function_in_gotten;
+    case REB_0:
+        assert(FALSE); // internal type.
+        break;
 
     case REB_FUNCTION:
         if (f->gotten == NULL) { // literal function in a block
@@ -389,11 +385,21 @@ reevaluate:;
         else
             SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
 
-        SET_END(f->out); // clear out any previous result (needs GC-safe data)
-        f->refine = ORDINARY_ARG;
-
     do_function_in_gotten:
         assert(IS_FUNCTION(f->gotten));
+        assert(f->eval_type == REB_FUNCTION);
+
+        if (GET_VAL_FLAG(f->gotten, VALUE_FLAG_ENFIXED)) {
+            if (GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG))
+                if (f->flags.bits & DO_FLAG_FULFILLING_ARG)
+                    fail (Error(RE_EXPRESSION_BARRIER)); // !!! better error?
+
+            f->refine = LOOKBACK_ARG;
+        }
+        else {
+            SET_END(f->out); // clear out previous result (needs GC-safe data)
+            f->refine = ORDINARY_ARG;
+        }
 
         assert(f->label != NULL); // must be something (even "anonymous")
     #if !defined(NDEBUG)
@@ -416,7 +422,7 @@ reevaluate:;
         // incrementation, that they are both terminated by END, and
         // that there are an equal number of values in both.
 
-        Push_Or_Alloc_Args_For_Underlying_Func(f); // sets f's func, param, arg
+        Push_Or_Alloc_Args_For_Underlying_Func(f); // sets f's func+param+arg
 
         f->gotten = NULL;
         Fetch_Next_In_Frame(f); // overwrites f->value
@@ -430,14 +436,7 @@ reevaluate:;
         // f->out in case that is holding the first argument to an infix
         // function, so f->cell.eval gets used for temporary evaluations.
 
-    #if !defined(NDEBUG)
-        if (f->eval_type == REB_FUNCTION)
-            assert(f->refine == ORDINARY_ARG);
-        else if (f->eval_type == REB_0_LOOKBACK)
-            assert(f->refine == LOOKBACK_ARG); // transitions to ORDINARY_ARG
-        else
-            assert(FALSE);
-    #endif
+        assert(f->refine == ORDINARY_ARG || f->refine == LOOKBACK_ARG);
 
         f->arg = f->args_head;
         f->param = FUNC_FACADE_HEAD(f->func);
@@ -446,7 +445,7 @@ reevaluate:;
         // Same as check before switch.  (do_function_arglist_in_progress:
         // might have a goto from another point, so we check it again here)
         //
-        assert(IS_END(f->out) || f->eval_type == REB_0_LOOKBACK);
+        assert(IS_END(f->out) || f->refine == LOOKBACK_ARG);
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -1178,12 +1177,7 @@ reevaluate:;
         case R_REDO_CHECKED:
             SET_END(f->out);
             f->special = f->args_head;
-            if (f->eval_type == REB_FUNCTION)
-                f->refine = ORDINARY_ARG; // no gathering, but need for assert
-            else {
-                assert(f->eval_type == REB_0_LOOKBACK);
-                f->refine = LOOKBACK_ARG; // no gathering, but need for assert
-            }
+            f->refine = ORDINARY_ARG; // no gathering, but need for assert
             goto do_function_arglist_in_progress;
 
         case R_REDO_UNCHECKED:
@@ -1217,10 +1211,7 @@ reevaluate:;
         assert(NOT_END(f->out)); // should have overwritten
         assert(NOT(THROWN(f->out))); // throws must be R_OUT_IS_THROWN
 
-        assert(
-            f->eval_type == REB_FUNCTION
-            || f->eval_type == REB_0_LOOKBACK
-        ); // shouldn't have changed
+        assert(f->eval_type == REB_FUNCTION); // shouldn't have changed
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -1345,35 +1336,26 @@ reevaluate:;
     do_word_in_value:
         if (f->gotten == NULL) // no work to reuse from failed optimization
             f->gotten = Get_Var_Core(
-                &f->eval_type, f->value, f->specifier, GETVAR_READ_ONLY
+                f->value, f->specifier, GETVAR_READ_ONLY
             );
-        else { // failed optimizations only run prefix functions
-            if (IS_FUNCTION(f->gotten))
-                f->eval_type = REB_FUNCTION;
-        }
-
-        // eval_type will be set to either REB_0_LOOKBACK or REB_FUNCTION
 
         if (IS_FUNCTION(f->gotten)) { // before IS_VOID() speeds common case
-
+            f->eval_type = REB_FUNCTION;
             SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
 
-            if (f->eval_type != REB_0_LOOKBACK) { // ordinary "prefix" call
-                assert(f->eval_type == REB_FUNCTION);
-                SET_END(f->out);
-                f->refine = ORDINARY_ARG;
+            if (GET_VAL_FLAG(f->gotten, VALUE_FLAG_ENFIXED)) {
+                Lookback_For_Set_Word_Or_Set_Path(f->out, f);
+                f->refine = LOOKBACK_ARG;
                 goto do_function_in_gotten;
             }
 
-            Lookback_For_Set_Word_Or_Set_Path(f->out, f);
-            f->refine = LOOKBACK_ARG;
+            SET_END(f->out);
+            f->refine = ORDINARY_ARG;
             goto do_function_in_gotten;
         }
 
-        if (IS_VOID(f->gotten)) { // need `:x` if `x` is unset
-            f->eval_type = REB_WORD; // we overwrote above, but error needs it
+        if (IS_VOID(f->gotten)) // need `:x` if `x` is unset
             fail (Error_No_Value_Core(f->value, f->specifier));
-        }
 
         Move_Value(f->out, f->gotten);
         CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
@@ -1519,7 +1501,7 @@ reevaluate:;
             fail (Error_No_Value_Core(f->value, f->specifier));
 
         if (IS_FUNCTION(f->out)) {
-            f->eval_type = REB_FUNCTION; // paths are never REB_0_LOOKBACK
+            f->eval_type = REB_FUNCTION;
             if (label == NULL)
                 SET_FRAME_LABEL(f, Canon(SYM___ANONYMOUS__));
             else
@@ -1536,7 +1518,7 @@ reevaluate:;
             Move_Value(&f->cell, f->out);
             f->gotten = &f->cell;
             SET_END(f->out);
-            f->refine = ORDINARY_ARG;
+            f->refine = ORDINARY_ARG; // paths are never enfixed (for now)
             goto do_function_in_gotten;
         }
 
@@ -1680,25 +1662,19 @@ reevaluate:;
         // infix, we might need to hold it at its position.)
         //
         if (IS_WORD_BOUND(f->value))
-            f->gotten = Get_Var_Core(
-                &f->eval_type, // always set to REB_0_LOOKBACK or REB_FUNCTION
-                f->value,
-                f->specifier,
-                GETVAR_READ_ONLY
-            );
+            f->gotten = Get_Var_Core(f->value, f->specifier, GETVAR_READ_ONLY);
         else {
-            f->eval_type = REB_FUNCTION; // !!! rethink error dynamics here
-            f->gotten = NULL;
-        }
+            DECLARE_LOCAL (specified);
+            Derelativize(specified, f->value, f->specifier);
+            fail (Error(RE_NOT_BOUND, specified));
+         }
 
     //=//// DO/NEXT WON'T RUN MORE CODE UNLESS IT'S AN INFIX FUNCTION /////=//
 
         if (
-            f->eval_type != REB_0_LOOKBACK
+            NOT_VAL_FLAG(f->gotten, VALUE_FLAG_ENFIXED)
             && NOT(f->flags.bits & DO_FLAG_TO_END)
         ){
-            f->eval_type = REB_WORD; // restore the ET_WORD, needs to be right
-
             Do_Pending_Sets_May_Invalidate_Gotten(f->out, f);
             goto finished; // ^-- next cycle can handle f->gotten == NULL
         }
@@ -1708,18 +1684,14 @@ reevaluate:;
         START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
         // ^-- sets args_evaluate, do_count, Ctrl-C may abort
 
-        if (!f->gotten) { // <-- DO_COUNT_BREAKPOINT landing spot
-            DECLARE_LOCAL (specified);
-            Derelativize(specified, f->value, f->specifier);
-            fail (Error(RE_NOT_BOUND, specified));
-        }
-
         if (!IS_FUNCTION(f->gotten)) {
             Do_Pending_Sets_May_Invalidate_Gotten(f->out, f);
             goto do_word_in_value; // may need to refetch, lookbacks see end
         }
 
-        if (f->eval_type == REB_0_LOOKBACK) {
+        f->eval_type = REB_FUNCTION;
+
+        if (GET_VAL_FLAG(f->gotten, VALUE_FLAG_ENFIXED)) {
             if (
                 GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG)
                 && (f->flags.bits & DO_FLAG_FULFILLING_ARG)

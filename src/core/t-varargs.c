@@ -208,20 +208,14 @@ REBIXO Do_Vararg_Op_May_Throw(
         // child frame and call Do_Core(), not Do_Next_In_Frame_May_Throw()
         // because it would be child->eval_type and child->gotten we pre-set
         //
-        enum Reb_Kind child_eval_type;
         REBVAL *child_gotten = Get_Var_Core(
-            &child_eval_type, // always set to REB_0_LOOKBACK or REB_FUNCTION
             f->value,
             f->specifier,
             GETVAR_READ_ONLY
         );
 
-        if (!IS_FUNCTION(child_gotten)) {
-            assert(child_eval_type == REB_FUNCTION);
-            /* child_eval_type = REB_WORD; */ // reset, keep fetched f->gotten
-        }
-        else {
-            if (child_eval_type == REB_0_LOOKBACK) {
+        if (IS_FUNCTION(child_gotten)) {
+            if (GET_VAL_FLAG(child_gotten, VALUE_FLAG_ENFIXED)) {
                 if (pclass == PARAM_CLASS_TIGHT)
                     return END_FLAG;
                 if (GET_VAL_FLAG(child_gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG))

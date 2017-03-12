@@ -243,7 +243,7 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     //
     assert(
         (
-            (f->eval_type == REB_0_LOOKBACK  || f->eval_type == REB_FUNCTION)
+            f->eval_type == REB_FUNCTION
             && (IS_WORD(f->value) || IS_FUNCTION(f->value))
         )
         || f->eval_type == VAL_TYPE(f->value)
@@ -257,9 +257,7 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
 
     if (f->gotten != NULL) { // See notes on `f->gotten`
         if (f->eval_type == REB_WORD) {
-            enum Reb_Kind eval_type;
             REBVAL *test_gotten = Get_Var_Core(
-                &eval_type,
                 f->value,
                 f->specifier,
                 GETVAR_READ_ONLY
@@ -270,8 +268,6 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
             // you probably should be using the INDEXOR-based API.
             //
             assert(test_gotten == f->gotten);
-            if (eval_type == REB_0_LOOKBACK)
-                assert(f->eval_type == REB_0_LOOKBACK);
         }
       /*  else
             assert(IS_FUNCTION(f->value));*/

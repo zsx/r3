@@ -180,12 +180,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
     RELVAL *key;
     for (key = ARR_AT(BUF_COLLECT, len); NOT_END(key); key++) {
         assert(IS_TYPESET(key));
-        Append_Context_Core(
-            context,
-            NULL,
-            VAL_KEY_SPELLING(key),
-            NOT_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK) // !!! others?
-        );
+        Append_Context(context, NULL, VAL_KEY_SPELLING(key));
     }
 
     // Set new values to obj words
@@ -196,7 +191,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
         REBVAL *key = CTX_KEY(context, i);
         REBVAL *var = CTX_VAR(context, i);
 
-        if (GET_VAL_FLAG(key, TYPESET_FLAG_PROTECTED))
+        if (GET_VAL_FLAG(var, VALUE_FLAG_PROTECTED))
             fail (Error_Protected_Key(key));
 
         if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
@@ -206,9 +201,15 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
             SET_BLANK(var);
             break; // fix bug#708
         }
-        else
+        else {
             Derelativize(var, &word[1], VAL_SPECIFIER(arg));
 
+            // Should the VALUE_FLAG_ENFIXED be preserved here?
+            //
+            if (GET_VAL_FLAG(&word[1], VALUE_FLAG_ENFIXED))
+                SET_VAL_FLAG(var, VALUE_FLAG_ENFIXED);
+
+        }
     }
 
     // release binding table
@@ -477,7 +478,7 @@ REBINT PD_Context(REBPVS *pvs)
     if (pvs->opt_setval && IS_END(pvs->item + 1)) {
         FAIL_IF_READ_ONLY_CONTEXT(c);
 
-        if (GET_VAL_FLAG(CTX_KEY(c, n), TYPESET_FLAG_PROTECTED))
+        if (GET_VAL_FLAG(CTX_VAR(c, n), VALUE_FLAG_PROTECTED))
             fail (Error(RE_PROTECTED_WORD, pvs->selector));
     }
 

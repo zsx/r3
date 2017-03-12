@@ -220,11 +220,57 @@
 #define VALUE_FLAG_STACK \
     FLAGIT_LEFT(GENERAL_VALUE_BIT + 5)
 
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  VALUE_FLAG_ENFIXED
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// In R3-Alpha and Rebol2, there was a special kind of function known as an
+// OP! which would acquire its first argument from the left hand side.  In
+// Ren-C, there is only one kind of function, but it's possible to tag a
+// particular function value cell in a context as being "enfixed", hence it
+// will acquire its first argument from the left.
+//
+// This bit is not copied by Move_Value.  As a result, if you say something
+// like `foo: :+`, foo will contain the non-enfixed form of the function.
+//
+// !!! The feature of not carrying over enfixedness in assignment was designed
+// as part of the "OneFunction" initiative, to try and make it so that when
+// something like a SORT function was passed a comparator, it would not have
+// to worry about that function being infix or not.  However, the addition of
+// the <tight> parameter convention throws in a potential wrench to the idea
+// that callees can somehow ignore variances in how functions process their
+// arguments.  It may be that this should be a function flag, and carried
+// over normally...but conservatively the feature is implemented like this.
+//
+
+#define VALUE_FLAG_ENFIXED \
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 6)
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  VALUE_FLAG_PROTECTED
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Values can carry a user-level protection bit.  The bit is not copied by
+// Move_Value(), and hence reading a protected value and writing it to
+// another location will not propagate the protectedness from the original
+// value to the copy.
+//
+
+#define VALUE_FLAG_PROTECTED \
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 7)
+
+
 // v-- BEGIN TYPE SPECIFIC BITS HERE
 
 
 #define TYPE_SPECIFIC_BIT \
-    (GENERAL_VALUE_BIT + 6)
+    (GENERAL_VALUE_BIT + 8)
 
 
 // Technically speaking, this only needs to use 6 bits of the rightmost byte

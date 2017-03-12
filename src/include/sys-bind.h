@@ -207,7 +207,7 @@ enum {
 
 enum {
     GETVAR_READ_ONLY = 0,
-    GETVAR_IS_SETVAR = 1 << 0 // will clear infix bit, so "always writes"!
+    GETVAR_MUTABLE = 1 << 0
 };
 
 
@@ -222,7 +222,6 @@ enum {
 // as inline so that locations using it can avoid overhead in invocation.
 //
 inline static REBVAL *Get_Var_Core(
-    enum Reb_Kind *eval_type, // REB_LOOKBACK or REB_FUNCTION
     const RELVAL *any_word,
     REBSPC *specifier,
     REBFLGS flags
@@ -299,29 +298,8 @@ inline static REBVAL *Get_Var_Core(
 
     REBVAL *var = CTX_VAR(context, index);
 
-    if (NOT(flags & GETVAR_IS_SETVAR)) {
+    if (flags & GETVAR_MUTABLE) {
         //
-        // If we're just reading the variable, we don't touch its lookback
-        // bit, but return the value for callers to check.  (E.g. the
-        // evaluator wants to know when it fetches the value for a word
-        // if it wants to lookback for infix purposes, if it's a function)
-        //
-        // Efficient cast trick: REB_FUNCTION = 1, REB_0_LOOKBACK = 0
-        // which requires REBOOL only be allowed to hold 1 and 0.
-        //
-    #ifdef STRICT_BOOL_COMPILER_TEST
-        *eval_type = GET_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK)
-            ? REB_FUNCTION
-            : REB_0_LOOKBACK;
-    #else
-        *eval_type = cast(
-            enum Reb_Kind, GET_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK)
-        );
-    #endif
-    }
-    else {
-        assert(*eval_type == REB_FUNCTION || *eval_type == REB_0_LOOKBACK);
-
         // A context can be permanently frozen (`lock obj`) or temporarily
         // protected, e.g. `protect obj | unprotect obj`.
         //
@@ -332,62 +310,13 @@ inline static REBVAL *Get_Var_Core(
         FAIL_IF_READ_ONLY_CONTEXT(context);
 
         // The PROTECT command has a finer-grained granularity for marking
-        // not just contexts, but individual fields as protected.  This
-        // feature inhibits sharing of keylists between objects, because to
-        // mark a field read-only a bit has to be set in its key.
+        // not just contexts, but individual fields as protected.
         //
-        if (GET_VAL_FLAG(key, TYPESET_FLAG_PROTECTED))
+        if (GET_VAL_FLAG(var, VALUE_FLAG_PROTECTED))
             fail (Error(RE_PROTECTED_WORD, any_word));
 
-        // If we are writing, then we write the state of the lookback boolean
-        // but also return what it was before.
-
-        if (
-            GET_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK)
-            != cast(REBOOL, *eval_type)
-        ) {
-            // Because infixness is no longer a property of values but of
-            // the key in a binding, this creates a problem if you want a
-            // local in a function to serve as infix...because the effect
-            // would be felt by all instances of that function.  One
-            // recursion should not be able to affect another in that way,
-            // so it is prohibited.
-            //
-            // !!! This problem already prohibits a PROTECT of function
-            // words, so if a solution were engineered for one it would
-            // likely be able to apply to both.
-            //
-            if (GET_SER_FLAG(CTX_VARLIST(context), CONTEXT_FLAG_STACK))
-                fail (Error(RE_MISC));
-
-            // Make sure if this context shares a keylist that we aren't
-            // setting the other object's lookback states.  Current price paid
-            // is making an independent keylist (same issue as adding a key)
-            //
-            if (Ensure_Keylist_Unique_Invalidated(context))
-                key = CTX_KEY(context, index); // refresh
-
-            if (*eval_type) // 1 = REB_FUNCTION, 0 = REB_0_NO_LOOKBACK
-                SET_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK);
-            else
-                CLEAR_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK);
-
-        #ifdef STRICT_BOOL_COMPILER_TEST
-            *eval_type =
-                (*eval_type == REB_0_LOOKBACK)
-                    ? REB_FUNCTION
-                    : REB_0_LOOKBACK;
-        #else
-            *eval_type = cast(enum Reb_Kind, NOT(cast(REBOOL, *eval_type)));
-        #endif
-        }
-        else {
-            // We didn't have to change the lookback, so it must have matched
-            // what was passed in...leave it alone.
-        }
     }
 
-    assert(*eval_type == REB_FUNCTION || *eval_type == REB_0_LOOKBACK);
     assert(!THROWN(var));
     return var;
 }
@@ -396,8 +325,7 @@ static inline const RELVAL *Get_Opt_Var_May_Fail(
     const RELVAL *any_word,
     REBSPC *specifier
 ) {
-    enum Reb_Kind eval_type;
-    return Get_Var_Core(&eval_type, any_word, specifier, 0);
+    return Get_Var_Core(any_word, specifier, GETVAR_READ_ONLY);
 }
 
 inline static void Copy_Opt_Var_May_Fail(
@@ -405,16 +333,14 @@ inline static void Copy_Opt_Var_May_Fail(
     const RELVAL *any_word,
     REBSPC *specifier
 ) {
-    enum Reb_Kind eval_type;
-    Move_Value(out, Get_Var_Core(&eval_type, any_word, specifier, 0));
+    Move_Value(out, Get_Var_Core(any_word, specifier, GETVAR_READ_ONLY));
 }
 
 static inline REBVAL *Get_Mutable_Var_May_Fail(
     const RELVAL *any_word,
     REBSPC *specifier
 ) {
-    enum Reb_Kind eval_type = REB_FUNCTION; // reset infix/postfix/etc.
-    return Get_Var_Core(&eval_type, any_word, specifier, GETVAR_IS_SETVAR);
+    return Get_Var_Core(any_word, specifier, GETVAR_MUTABLE);
 }
 
 #define Sink_Var_May_Fail(any_word,specifier) \

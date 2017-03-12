@@ -302,7 +302,7 @@
 // size or values from modification.  It is the usermode analogue of
 // SERIES_INFO_FROZEN, but can be reversed.
 //
-// Note: There is a feature in PROTECT (TYPESET_FLAG_PROTECTED) which protects
+// Note: There is a feature in PROTECT (VALUE_FLAG_PROTECTED) which protects
 // a certain variable in a context from being changed.  It is similar, but
 // distinct.  SERIES_INFO_PROTECTED is a protection on a series itself--which
 // ends up affecting all values with that series in the payload.

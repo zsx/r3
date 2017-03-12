@@ -1215,7 +1215,10 @@ inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
     ASSERT_CELL_WRITABLE(out, __FILE__, __LINE__);
 
     out->header.bits &= NODE_FLAG_CELL | VALUE_FLAG_STACK;
-    out->header.bits |= ((v->header.bits) & ~(VALUE_FLAG_STACK));
+    out->header.bits |= (
+        (v->header.bits)
+        & ~(VALUE_FLAG_STACK | VALUE_FLAG_ENFIXED | VALUE_FLAG_PROTECTED)
+    );
 
     // Note: In theory it would be possible to make payloads that had stack
     // lifetimes by default, which would be promoted to GC lifetimes using
@@ -1243,7 +1246,6 @@ inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
         // Finally, if it's the kind of thing that can have a non-reified
         // binding but it's managed, then that's also fine.
         //
-        out->header.bits |= v->header.bits;
         out->extra = v->extra;
         return KNOWN(out);
     }
@@ -1264,7 +1266,6 @@ inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
         // The non-reified binding will outlive the output slot, so there is
         // no reason to reify it.
         //
-        out->header.bits |= v->header.bits;
         out->extra = v->extra;
         return KNOWN(out);
     }
@@ -1275,7 +1276,6 @@ inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
     // !!! Code is not written yet, but neither are there any actual non
     // reified bindings in the wild.
 
-    out->header.bits |= v->header.bits;
     out->extra = v->extra;
     return KNOWN(out);
 }

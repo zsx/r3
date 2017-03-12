@@ -345,17 +345,6 @@ inline static REBOOL Ensure_Keylist_Unique_Invalidated(REBCTX *context)
     return Expand_Context_Keylist_Core(context, 0);
 }
 
-// Most common appending is not concerned with lookahead bit (e.g. whether the
-// key is infix).  Generally only an issue when copying.
-//
-inline static REBVAL *Append_Context(
-    REBCTX *context,
-    RELVAL *any_word,
-    REBSTR *name
-) {
-    return Append_Context_Core(context, any_word, name, FALSE);
-}
-
 
 //=////////////////////////////////////////////////////////////////////////=//
 //

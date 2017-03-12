@@ -113,9 +113,7 @@ void Init_Typesets(void)
 //
 void Init_Typeset(RELVAL *value, REBU64 bits, REBSTR *opt_name)
 {
-    // No lookback is the default.
-    //
-    VAL_RESET_HEADER_EXTRA(value, REB_TYPESET, TYPESET_FLAG_NO_LOOKBACK);
+    VAL_RESET_HEADER(value, REB_TYPESET);
     INIT_TYPESET_NAME(value, opt_name);
     VAL_TYPESET_BITS(value) = bits;
 }

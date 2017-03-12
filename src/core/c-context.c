@@ -170,7 +170,7 @@ void Expand_Context(REBCTX *context, REBCNT delta)
 
 
 //
-//  Append_Context_Core: C
+//  Append_Context: C
 //
 // Append a word to the context word list. Expands the list if necessary.
 // Returns the value cell for the word.  The new variable is unset by default.
@@ -186,11 +186,10 @@ void Expand_Context(REBCTX *context, REBCNT delta)
 // in the context and can get the index out of a relatively bound word,
 // they usually likely don't need the result directly.
 //
-REBVAL *Append_Context_Core(
+REBVAL *Append_Context(
     REBCTX *context,
     RELVAL *opt_any_word,
-    REBSTR *opt_name,
-    REBOOL lookback
+    REBSTR *opt_name
 ) {
     REBARR *keylist = CTX_KEYLIST(context);
 
@@ -204,9 +203,6 @@ REBVAL *Append_Context_Core(
         opt_any_word != NULL ? VAL_WORD_SPELLING(opt_any_word) : opt_name
     );
     TERM_ARRAY_LEN(keylist, ARR_LEN(keylist));
-
-    if (lookback)
-        CLEAR_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK);
 
     // Add an unset value to var list
     //
@@ -1173,7 +1169,7 @@ void Resolve_Context(
         if (m != 0) {
             // "the remove succeeded, so it's marked as set now" (old comment)
             if (
-                NOT_VAL_FLAG(key, TYPESET_FLAG_PROTECTED)
+                NOT_VAL_FLAG(var, VALUE_FLAG_PROTECTED)
                 && (all || IS_VOID(var))
             ) {
                 if (m < 0) SET_VOID(var); // no value in source context
@@ -1183,13 +1179,8 @@ void Resolve_Context(
                     // Need to also copy if the binding is lookahead (e.g.
                     // would be an infix call).
                     //
-                    if (GET_VAL_FLAG(
-                        CTX_KEY(source, m), TYPESET_FLAG_NO_LOOKBACK
-                    )) {
-                        SET_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK);
-                    }
-                    else
-                        CLEAR_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK);
+                    if (GET_VAL_FLAG(CTX_VAR(source, m), VALUE_FLAG_ENFIXED))
+                        SET_VAL_FLAG(var, VALUE_FLAG_ENFIXED);
                 }
             }
         }
@@ -1201,14 +1192,17 @@ void Resolve_Context(
         for (n = 1; NOT_END(key); n++, key++) {
             REBSTR *canon = VAL_KEY_CANON(key);
             if (Try_Remove_Binder_Index(&binder, canon) != 0) {
+                //
                 // Note: no protect check is needed here
-                var = Append_Context_Core(
-                    target,
-                    0,
-                    canon,
-                    NOT_VAL_FLAG(key, TYPESET_FLAG_NO_LOOKBACK)
-                );
+                //
+                var = Append_Context(target, 0, canon);
                 Move_Value(var, CTX_VAR(source, n));
+
+                // Need to also copy if the binding is lookahead (e.g.
+                // would be an infix call).
+                //
+                if (GET_VAL_FLAG(CTX_VAR(source, n), VALUE_FLAG_ENFIXED))
+                    SET_VAL_FLAG(var, VALUE_FLAG_ENFIXED);
             }
         }
     }

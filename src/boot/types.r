@@ -34,9 +34,7 @@ REBOL [
 
 [name       class       path    make    typesets]
 
-; 0 is not a real data type.  It is reserved for a kind of "garbage", as well
-; as used internally for REB_0_LOOKBACK...since the evaluator switch statement
-; wants to treat functions that look back differently from function.
+; 0 is not a real data type.  It is reserved for internal purposes.
 ;
 0           0           -       -       -
 

@@ -203,7 +203,7 @@ inline static void Push_Frame_At(
     // each evaluation will canonize the eval_type to REB_0 in-between.
     // (Do_Core() does not do this, but the wrappers that need it do.)
     //
-    f->eval_type = REB_MAX_VOID;
+    f->eval_type = REB_0;
     f->out = m_cast(REBVAL*, END_CELL);
 
     Push_Frame_Core(f);
@@ -216,7 +216,7 @@ inline static void Push_Frame(REBFRM *f, const REBVAL *v)
 
 inline static void Drop_Frame(REBFRM *f)
 {
-    assert(f->eval_type == REB_MAX_VOID);
+    assert(f->eval_type == REB_0);
     Drop_Frame_Core(f);
 }
 
@@ -431,15 +431,10 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
     // that only happens if a function call is in effect.  Otherwise, it is
     // more efficient to use Do_Next_In_Frame_Throws().
     //
-    assert(
-        parent->eval_type == REB_FUNCTION
-        || parent->eval_type == REB_0_LOOKBACK
-    );
+    assert(parent->eval_type == REB_FUNCTION);
 
     REBFRM child_frame;
     REBFRM *child = &child_frame;
-
-    child->eval_type = VAL_TYPE(parent->value);
 
     child->gotten = parent->gotten;
 
@@ -457,10 +452,8 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
     Do_Core(child);
     Drop_Frame_Core(child);
 
-    // It is technically possible to wind up with child->eval_type as
-    // REB_0_LOOKBACK here if a lookback's first argument does not allow
-    // lookahead.  e.g. `print 1 + 2 <| print 1 + 7` wishes to print 3
-    // and then 8, rather than print 8 and then evaluate
+    // !!! `print 1 + 2 <| print 1 + 7` wishes to print 3 and then 8, rather
+    // than print 8 and then evaluate...(is that good?)
 
     assert(
         (child->flags.bits & DO_FLAG_VA_LIST)
@@ -480,16 +473,14 @@ inline static REBOOL Do_Next_In_Frame_Throws(
     REBVAL *out,
     REBFRM *f
 ){
-    assert(f->eval_type == REB_MAX_VOID); // see notes in Push_Frame_At()
+    assert(f->eval_type == REB_0); // see notes in Push_Frame_At()
     assert(NOT(f->flags.bits & DO_FLAG_TO_END));
-
-    f->eval_type = VAL_TYPE(f->value);
 
     SET_END(out);
     f->out = out;
     Do_Core(f); // should already be pushed
 
-    f->eval_type = REB_MAX_VOID;
+    f->eval_type = REB_0;
     return THROWN(out);
 }
 
@@ -554,7 +545,6 @@ inline static REBIXO DO_NEXT_MAY_THROW(
 
     f->pending = NULL;
     f->gotten = NULL;
-    f->eval_type = VAL_TYPE(f->value);
 
     SET_END(out);
     f->out = out;
@@ -616,9 +606,6 @@ inline static REBIXO Do_Array_At_Core(
 
     f.gotten = NULL; // so ET_WORD and ET_GET_WORD do their own Get_Var
     f.pending = NULL;
-
-    f.eval_type = VAL_TYPE(f.value);
-    assert(f.eval_type != REB_0);
 
     Push_Frame_Core(&f);
     Do_Core(&f);
@@ -822,8 +809,6 @@ inline static REBIXO Do_Va_Core(
     f.pending = VA_LIST_PENDING;
 
     Init_Endlike_Header(&f.flags, flags | DO_FLAG_VA_LIST); // see notes
-
-    f.eval_type = VAL_TYPE(f.value);
 
     Push_Frame_Core(&f);
     Do_Core(&f);

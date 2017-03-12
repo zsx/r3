@@ -355,7 +355,7 @@ repush:
             fail (Error(RE_MULTIPLE_DO_ERRORS, arg1, arg2));
         }
 
-        f.eval_type = REB_MAX_VOID; // invariant of Do_Next_In_Frame
+        f.eval_type = REB_0; // invariant of Do_Next_In_Frame
 
         assert(IS_END(thrown_name));
         Init_Error(arg_or_error, error);

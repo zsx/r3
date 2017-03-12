@@ -244,9 +244,9 @@ static void Init_Sys(REBARR *boot_sys) {
 // the integer datatype value).  Returns an array of words for the added
 // datatypes to use in SYSTEM/CATALOG/DATATYPES
 //
-// Note the type enum starts at 1 (REB_FUNCTION), given that 0 is
-// REB_0_LOOKBACK and does not correspond to a value type.  REB_MAX is used
-// for void, and also is not value type.  Hence the total number of types is
+// Note the type enum starts at 1 (REB_FUNCTION), given that REB_0 is used
+// for special purposes and not correspond to a user-visible type.  REB_MAX is
+// used for void, and also not value type.  Hence the total number of types is
 // REB_MAX - 1.
 //
 static REBARR *Init_Datatypes(REBARR *boot_types, REBARR *boot_typespecs)
@@ -279,7 +279,7 @@ static REBARR *Init_Datatypes(REBARR *boot_types, REBARR *boot_typespecs)
         // a limited sense.)
         //
         assert(value == Get_Type(cast(enum Reb_Kind, n)));
-        SET_VAL_FLAG(CTX_KEY(Lib_Context, 1), TYPESET_FLAG_PROTECTED);
+        SET_VAL_FLAG(CTX_VAR(Lib_Context, 1), VALUE_FLAG_PROTECTED);
 
         Append_Value(catalog, KNOWN(word));
     }
@@ -503,7 +503,7 @@ static void Init_Function_Meta_Shim(void) {
 // creating a NATIVE native by hand, and then run code that would call that
 // native for each function.  Ren-C depends on having the native table
 // initialized to run the evaluator (for instance to test functions against
-// the RETURN native's FUNC signature in definitional returns).  So it
+// the EXIT native's FUNC signature in definitional returns).  So it
 // "fakes it" just by calling a C function for each item...and there is no
 // actual "native native".
 //
@@ -624,22 +624,18 @@ static REBARR *Init_Natives(REBARR *boot_natives)
         Prep_Global_Cell(&Natives[n]);
         Move_Value(&Natives[n], FUNC_VALUE(fun));
 
-        // Append the native to the Lib_Context under the name given.  Do
-        // special case SET/LOOKBACK=TRUE (using Append_Context_Core) so
-        // that SOME-ACTION: ACTION [...] allows ACTION to see the SOME-ACTION
-        // symbol, and know to use it.
+        // Append the native to the Lib_Context under the name given.
+        //
+        REBVAL *var = Append_Context(Lib_Context, name, 0);
+        Move_Value(var, &Natives[n]);
+
+        // Do special case SET/LOOKBACK=TRUE so that SOME-ACTION: ACTION [...]
+        // allows ACTION to see the SOME-ACTION symbol, and know to use it.
         //
         if (VAL_WORD_SYM(name) == SYM_ACTION) {
-             Move_Value(
-                Append_Context_Core(Lib_Context, name, 0, TRUE),
-                &Natives[n]
-             );
-             action_word = name; // was bound by Append_Context_Core
+            SET_VAL_FLAG(var, VALUE_FLAG_ENFIXED);
+            action_word = name;
         }
-        else
-            Move_Value(
-                Append_Context(Lib_Context, name, 0), &Natives[n]
-            );
 
         REBVAL *catalog_item = Alloc_Tail_Array(catalog);
         Move_Value(catalog_item, name);

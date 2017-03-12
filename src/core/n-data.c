@@ -857,9 +857,7 @@ REBNATIVE(set)
     if (NOT(REF(opt)) && IS_VOID(ARG(value)))
         fail (Error(RE_NEED_VALUE, ARG(target)));
 
-    enum Reb_Kind eval_type = REF(lookback) ? REB_0_LOOKBACK : REB_FUNCTION;
-
-    if (eval_type == REB_0_LOOKBACK) {
+    if (REF(lookback)) {
         if (!IS_FUNCTION(ARG(value)))
             fail (Error(RE_MISC));
 
@@ -878,10 +876,11 @@ REBNATIVE(set)
     // locals gathering facility of FUNCTION would still gather x.
     //
     if (ANY_WORD(ARG(target))) {
-        Move_Value(
-            Get_Var_Core(&eval_type, ARG(target), SPECIFIED, GETVAR_IS_SETVAR),
-            ARG(value)
-        );
+        REBVAL *var = Get_Var_Core(ARG(target), SPECIFIED, GETVAR_MUTABLE);
+        Move_Value(var, ARG(value));
+        if (REF(lookback))
+            SET_VAL_FLAG(var, VALUE_FLAG_ENFIXED);
+
         goto return_value_arg;
     }
 
@@ -889,7 +888,7 @@ REBNATIVE(set)
     // you can't dispatch a lookback from a path, you should be able to set
     // a word in a context to one.
     //
-    if (eval_type == REB_0_LOOKBACK)
+    if (REF(lookback))
         fail (Error(RE_MISC));
 
     if (ANY_PATH(ARG(target))) {
@@ -952,13 +951,13 @@ REBNATIVE(set)
         // to 1020 is a bit of a strange feature for the primitive.
 
         REBVAL *key = CTX_KEYS_HEAD(VAL_CONTEXT(ARG(target)));
-        REBVAL *var;
+        REBVAL *var = CTX_VARS_HEAD(VAL_CONTEXT(ARG(target)));
 
         // To make SET somewhat atomic, before setting any of the object's
         // vars we make sure none of them are protected...and if we're not
         // tolerating unsets we check that the value being assigned is set.
         //
-        for (; NOT_END(key); key++) {
+        for (; NOT_END(key); ++key, ++var) {
             //
             // Hidden words are not shown in the WORDS-OF, and should not
             // count for consideration in positional setting.  Just skip.
@@ -969,7 +968,7 @@ REBNATIVE(set)
             // Protected words cannot be modified, so a SET should error
             // instead of going ahead and changing them
             //
-            if (GET_VAL_FLAG(key, TYPESET_FLAG_PROTECTED))
+            if (GET_VAL_FLAG(var, VALUE_FLAG_PROTECTED))
                 fail (Error_Protected_Key(key));
 
             // If we're setting to a single value and not a block, then
@@ -1237,15 +1236,14 @@ REBNATIVE(lookback_q)
     REBVAL *source = ARG(source);
 
     if (ANY_WORD(source)) {
-        enum Reb_Kind eval_type;
         const REBVAL *var = Get_Var_Core(
-            &eval_type, source, SPECIFIED, GETVAR_READ_ONLY // may fail()
+            source, SPECIFIED, GETVAR_READ_ONLY // may fail()
         );
 
         if (!IS_FUNCTION(var))
             return R_FALSE;
 
-        return eval_type == REB_0_LOOKBACK ? R_TRUE : R_FALSE;
+        return R_FROM_BOOL(GET_VAL_FLAG(var, VALUE_FLAG_ENFIXED));
     }
     else {
         assert(ANY_PATH(source));
@@ -1278,9 +1276,8 @@ REBNATIVE(semiquoted_q)
     // !!! TBD: Enforce this is a function parameter (specific binding branch
     // makes the test different, and easier)
 
-    enum Reb_Kind eval_type; // unused
     const REBVAL *var = Get_Var_Core( // may fail
-        &eval_type, ARG(parameter), SPECIFIED, GETVAR_READ_ONLY
+        ARG(parameter), SPECIFIED, GETVAR_READ_ONLY
     );
     return GET_VAL_FLAG(var, VALUE_FLAG_UNEVALUATED) ? R_TRUE : R_FALSE;
 }
