@@ -146,3 +146,12 @@
     o: make object! [a: 1]
     true = parse "a" [o/a: skip]
 ]
+
+; A couple of tests for the problematic DO operation
+
+[parse [1 + 2] [do [quote 3]]]
+[parse [1 + 2] [do integer!]]
+[parse [1 + 2] [do [integer!]]]
+[not parse [1 + 2] [do [quote 100]]]
+[parse [reverse copy [a b c]] [do [into ['c 'b 'a]]]]
+[not parse [reverse copy [a b c]] [do [into ['a 'b 'c]]]]

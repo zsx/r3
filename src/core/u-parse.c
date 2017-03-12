@@ -92,6 +92,8 @@
 
 #define P_OUT (f->out)
 
+#define P_CELL (&f->cell)
+
 #define FETCH_NEXT_RULE_MAYBE_END(f) \
     Fetch_Next_In_Frame(f)
 
@@ -141,6 +143,11 @@ inline static REBSYM VAL_CMD(const RELVAL *v) {
 // like this one would not be needed.  Data should be gathered on how true
 // it's possible to make that.
 //
+// !!! Calling subparse creates another recursion.  This recursion means
+// that there are new arguments and a new frame spare cell.  Callers do not
+// evaluate directly into their output slot at this time (except the top
+// level parse), because most of them are framed to return other values.
+//
 static REBOOL Subparse_Throws(
     REBOOL *interrupted_out,
     REBVAL *out,
@@ -158,7 +165,8 @@ static REBOOL Subparse_Throws(
     //
     if (C_STACK_OVERFLOWING(&frame)) Trap_Stack_Overflow();
 
-    assert(IS_END(out));
+    SET_END(out);
+
     assert(ANY_ARRAY(rules));
     assert(ANY_SERIES(input));
 
@@ -402,6 +410,8 @@ static const RELVAL *Get_Parse_Value(
 // May also return THROWN_FLAG.
 //
 static REBIXO Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
+    assert(IS_END(P_OUT));
+
     REBCNT flags = P_FIND_FLAGS | AM_FIND_MATCH | AM_FIND_TAIL;
 
     if (Trace_Level) {
@@ -499,23 +509,23 @@ static REBIXO Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
         REBOOL interrupted;
         if (Subparse_Throws(
             &interrupted,
-            P_OUT,
+            P_CELL,
             P_INPUT_VALUE,
             SPECIFIED,
             rule,
             P_RULE_SPECIFIER,
             P_FIND_FLAGS
         )) {
-            assert(THROWN(P_OUT));
+            Move_Value(P_OUT, P_CELL);
             return THROWN_FLAG;
         }
 
         // !!! ignore "interrupted"? (e.g. ACCEPT or REJECT ran)
 
-        if (IS_BLANK(P_OUT))
+        if (IS_BLANK(P_CELL))
             return END_FLAG;
 
-        return VAL_INT32(P_OUT); }
+        return VAL_INT32(P_CELL); }
 
     case REB_GROUP: {
         //
@@ -554,12 +564,17 @@ static REBIXO Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
 // is parameterized by an arbitrary `pos` instead of assuming the P_POS
 // that is held by the frame.
 //
+// The return result is either an integer, END_FLAG, or THROWN_FLAG
+// Only in the case of THROWN_FLAG will f->out (aka P_OUT) be affected.
+// Otherwise, it should exit the routine as an END marker (as it started);
 //
 static REBIXO Parse_Array_One_Rule_Core(
     REBFRM *f,
     REBCNT pos,
     const RELVAL *rule
 ) {
+    assert(IS_END(P_OUT));
+
     REBARR *array = AS_ARRAY(P_INPUT);
     RELVAL *item = ARR_AT(array, pos);
 
@@ -641,14 +656,14 @@ static REBIXO Parse_Array_One_Rule_Core(
 
         if (Subparse_Throws(
             &interrupted,
-            P_OUT,
+            P_CELL,
             P_INPUT_VALUE, // use input value with modified position
             SPECIFIED,
             rule,
             P_RULE_SPECIFIER,
             P_FIND_FLAGS
         )) {
-            assert(THROWN(P_OUT));
+            Move_Value(P_OUT, P_CELL);
             return THROWN_FLAG;
         }
 
@@ -656,11 +671,11 @@ static REBIXO Parse_Array_One_Rule_Core(
 
         P_POS = pos_before; // restore input position
 
-        if (IS_BLANK(P_OUT))
+        if (IS_BLANK(P_CELL))
             return END_FLAG;
 
-        assert(IS_INTEGER(P_OUT));
-        return VAL_INT32(P_OUT); }
+        assert(IS_INTEGER(P_CELL));
+        return VAL_INT32(P_CELL); }
 
     default:
         break;
@@ -1119,190 +1134,134 @@ static REBIXO To_Thru_Non_Block_Rule(
 //
 //  Do_Eval_Rule: C
 //
-// !!! This R3-Alpha PARSE feature is not well tested or vetted.  The comments
-// here said:
+// Perform a DO/NEXT on the *input* as a code block, and match the following
+// rule against the evaluative result.
 //
-// "Evaluate the input as a code block. Advance input if rule succeeds. Return
-// new index or failure.
+//     parse [1 + 2] [do [quote 3]] => true
 //
-// Examples:
-//     do skip
-//     do end
-//     do "abc"
-//     do 'abc
-//     do [...]
-//     do variable
-//     do datatype!
-//     do quote 123
-//     do into [...]
+// The rule may be in a block or inline.
 //
-// Problem: cannot write:  set var do datatype!"
+//     parse [reverse copy "abc"] [do "cba"]
+//     parse [reverse copy "abc"] [do ["cba"]]
 //
-// !!! The proposal and its intent should be reviewed; the code here has been
-// adapted to keep it compiling in Ren-C but it has atrophied, and could
-// certainly be done a better way.
+// !!! Due to failures in the mechanics of "Parse_One_Rule", a block must
+// be used on rules that are more than one item in length.
+//
+// This feature was added to make it easier to do dialect processing where the
+// dialect had code inline.  It can be a little hard to get one's head around,
+// because it says `do [...]` and yet the `...` is a parse rule and not the
+// code to be executed.  But this is somewhat in the spirit of operations
+// like COPY which are not operating on their arguments, but implicitly taking
+// the series itself as an argument.
+//
+// !!! The way this feature was expressed in R3-Alpha isolates it from
+// participating in iteration or as the target of an outer rule, e.g.
+//
+//     parse [1 + 2] [set var do [quote 3]] ;-- var gets 1, not 3
+//
+// Other problems arise since the caller doesn't know about the trickiness
+// of this evaluation, e.g. this won't work either:
+//
+//     parse [1 + 2] [thru do integer!]
 //
 static REBIXO Do_Eval_Rule(REBFRM *f)
 {
-    const RELVAL *rule = P_RULE;
-    DECLARE_LOCAL (save); // REVIEW: Could this just reuse value?
-
-    // First, check for end of input
-    //
-    if (P_POS >= SER_LEN(P_INPUT)) {
-        if (IS_WORD(rule) && VAL_CMD(rule) == SYM_END)
-            return P_POS;
-
-        return END_FLAG;
-    }
-
-    // Evaluate next expression, stop processing if BREAK/RETURN/QUIT/THROW...
-    //
-    DECLARE_LOCAL (value);
-    REBIXO indexor = DO_NEXT_MAY_THROW(
-        value, AS_ARRAY(P_INPUT), P_POS, P_INPUT_SPECIFIER
-    );
-    if (indexor == THROWN_FLAG) {
-        Move_Value(P_OUT, value);
-        return THROWN_FLAG;
-    }
-
-    // Get variable or command:
-    if (IS_WORD(rule)) {
-
-        REBSYM cmd = VAL_CMD(rule);
-
-        if (cmd == SYM_SKIP)
-            return IS_VOID(value) ? END_FLAG : P_POS;
-
-        if (cmd == SYM_QUOTE) {
-            /* rule = rule + 1; */ // was this.
-            assert(rule + 1 == P_RULE);
-            rule = P_RULE;
-
-            FETCH_NEXT_RULE_MAYBE_END(f);
-            if (IS_END(P_RULE))
-                fail (Error_Parse_End());
-
-            if (IS_GROUP(rule)) {
-                // might GC ... !!! why is QUOTE evaluating something?
-                REBSPC *derived = Derive_Specifier(P_RULE_SPECIFIER, rule);
-                if (Do_At_Throws(
-                    save,
-                    VAL_ARRAY(rule),
-                    VAL_INDEX(rule),
-                    derived
-                )) {
-                    Move_Value(P_OUT, save);
-                    return THROWN_FLAG;
-                }
-                rule = save;
-            }
-        }
-        else if (cmd == SYM_INTO) {
-            REBOOL interrupted;
-
-            /* rule = rule + 1; */ // was this.
-            assert(rule + 1 == P_RULE);
-            rule = P_RULE;
-
-            FETCH_NEXT_RULE_MAYBE_END(f);
-            if (IS_END(P_RULE))
-                fail (Error_Parse_End());
-
-            rule = Get_Parse_Value(save, rule, P_RULE_SPECIFIER); // sub-rules
-
-            if (!IS_BLOCK(rule))
-                fail (Error_Parse_Rule());
-
-            if (!ANY_BINSTR(value) && !ANY_ARRAY(value))
-                return END_FLAG;
-
-            if (Subparse_Throws(
-                &interrupted,
-                P_OUT,
-                value, // input value (source of P_INPUT, P_POS)
-                SPECIFIED,
-                rule,
-                P_RULE_SPECIFIER,
-                P_FIND_FLAGS
-            )) {
-                return THROWN_FLAG;
-            }
-
-            // !!! ignore interrupted?  (e.g. ACCEPT or REJECT ran)
-
-            if (IS_BLANK(P_OUT)) return END_FLAG;
-            assert(IS_INTEGER(P_OUT));
-
-            if (VAL_UNT32(P_OUT) == VAL_LEN_HEAD(value)) return P_POS;
-
-            return END_FLAG;
-        }
-        else if (cmd != SYM_0)
-            fail (Error_Parse_Rule());
-        else
-            rule = Get_Parse_Value(save, rule, P_RULE_SPECIFIER); // variable
-    }
-    else if (IS_PATH(rule)) {
-        rule = Get_Parse_Value(save, rule, P_RULE_SPECIFIER); // variable
-    }
-    else if (
-        IS_SET_WORD(rule)
-        || IS_GET_WORD(rule)
-        || IS_SET_PATH(rule)
-        || IS_GET_PATH(rule)
-    ) {
+    if (!Is_Array_Series(P_INPUT)) // input can't be an ANY-STRING!
         fail (Error_Parse_Rule());
-    }
 
-    if (IS_BLANK(rule))
-        return (VAL_TYPE(value) != REB_BLANK) ? END_FLAG : P_POS;
-
-    // !!! This copies a single value into a block to use as data.  Is there
-    // any way this might be avoided?
+    // The DO'ing of the input series will generate a single REBVAL.  But
+    // for a parse to run on some input, that input has to be in a series...
+    // so the single item is put into a block holder.  If the item was already
+    // a block, then the user will have to use INTO to parse into it.
     //
-    REBFRM newparse;
+    // Note: Implicitly handling a block evaluative result as an array would
+    // make it impossible to tell whether the evaluation produced [1] or 1.
+    //
+    REBARR *holder;
 
-#if defined(NDEBUG)
-    newparse.args_head = Push_Value_Chunk_Of_Length(2);
-#else
-    newparse.args_head = Push_Value_Chunk_Of_Length(3); // real RETURN: checked
-    SET_UNREADABLE_BLANK(&newparse.args_head[2]);
-#endif
-    Init_Any_Array_At(
-        &newparse.args_head[0],
-        REB_BLOCK,
-        Make_Array(1), // !!! "copy the value into its own block"
-        0 // position 0
-    );
+    REBIXO indexor;
+    if (P_POS >= SER_LEN(P_INPUT)) {
+        //
+        // We could short circuit and notice if the rule was END or not, but
+        // that leaves out other potential matches like `[(print "Hi") end]`
+        // as a rule.  Keep it generalized and pass an empty block in as
+        // the series to process.
+        //
+        holder = EMPTY_ARRAY; // read-only
+        indexor = END_FLAG;
+    }
+    else {
+        // Evaluate next expression from the *input* series (not the rules)
+        //
+        indexor = DO_NEXT_MAY_THROW(
+            P_CELL, AS_ARRAY(P_INPUT), P_POS, P_INPUT_SPECIFIER
+        );
+        if (indexor == THROWN_FLAG) { // BREAK/RETURN/QUIT/THROW...
+            Move_Value(P_OUT, P_CELL);
+            return THROWN_FLAG;
+        }
 
-    Append_Value(AS_ARRAY(VAL_SERIES(&newparse.args_head[0])), value);
-    SET_INTEGER(&newparse.args_head[1], P_FIND_FLAGS); // find_flags
-    newparse.arg = newparse.args_head;
-    newparse.out = P_OUT;
-
-    newparse.source.array = f->source.array;
-    newparse.index = f->index;
-    newparse.value = rule;
-    newparse.specifier = P_RULE_SPECIFIER;
-
-    Prep_Global_Cell(&newparse.cell); // bypass C++ assert on no prep
-
-    REBIXO n;
-    {
-    PUSH_GUARD_SERIES(VAL_SERIES(&newparse.args_head[0]));
-    n = Parse_Array_One_Rule(&newparse, rule);
-    DROP_GUARD_SERIES(VAL_SERIES(&newparse.args_head[0]));
+        // !!! This copies a single value into a block to use as data, because
+        // parse input is matched as a series.  Can this be avoided?
+        //
+        holder = Alloc_Singular_Array();
+        Move_Value(ARR_HEAD(holder), P_CELL);
+        Deep_Freeze_Array(holder); // don't allow modification of temporary
     }
 
-    if (n == THROWN_FLAG)
+    // We want to reuse the same frame we're in, because if you say
+    // something like `parse [1 + 2] [do [quote 3]]`, the`[quote 3]` rule
+    // should be consumed.  We also want to be able to use a nested rule
+    // inline, such as `do skip` not only allow `do [skip]`.
+    //
+    // So the rules should be processed normally, it's just that for the
+    // duration of the next rule the *input* is the temporary evaluative
+    // result.
+    //
+    DECLARE_LOCAL (saved_input);
+    Move_Value(saved_input, P_INPUT_VALUE); // series and P_POS position
+    PUSH_GUARD_VALUE(saved_input);
+    Init_Block(P_INPUT_VALUE, holder);
+
+    // !!! There is not a generic form of SUBPARSE/NEXT, but there should be.
+    // The particular factoring of the one-rule form of parsing makes us
+    // redo work like fetching words/paths, which should not be needed.
+    //
+    DECLARE_LOCAL (cell);
+    const RELVAL *rule = Get_Parse_Value(cell, P_RULE, P_RULE_SPECIFIER);
+
+    // !!! The actual mechanic here does not permit you to say `do thru x`
+    // or other multi-argument things.  A lot of R3-Alpha's PARSE design was
+    // rather ad-hoc and hard to adapt.  The one rule parsing does not
+    // advance the position, but it should.
+    //
+    REBIXO n = Parse_Array_One_Rule(f, rule);
+    FETCH_NEXT_RULE_MAYBE_END(f);
+
+    // Restore the input series to what it was before parsing the temporary
+    // (this restores P_POS, since it's just an alias for the input's index)
+    //
+    Move_Value(P_INPUT_VALUE, saved_input);
+    DROP_GUARD_VALUE(saved_input);
+
+    if (n == THROWN_FLAG) {
+        assert(THROWN(P_OUT));
         return THROWN_FLAG;
+    }
 
-    if (n == END_FLAG)
-        return END_FLAG;
+    if (n == ARR_LEN(holder)) {
+        //
+        // Eval result reaching end means success, so return index advanced
+        // past the evaluation.
+        //
+        // !!! Although DO_NEXT_MAY_THROW uses an END_FLAG-based
+        // convention when it reaches the end, these parse routines always
+        // return an array index.
+        //
+        return indexor == END_FLAG ? SER_LEN(P_INPUT) : indexor;
+    }
 
-    return P_POS;
+    return P_POS; // as failure, hand back original position--no advancement
 }
 
 
@@ -1346,6 +1305,8 @@ REBNATIVE(subparse)
 //
 {
     REBFRM *f = frame_; // nice alias of implicit native parameter
+
+    assert(IS_END(P_OUT)); // invariant provided by evaluator
 
 #if !defined(NDEBUG)
     //
@@ -1901,41 +1862,33 @@ REBNATIVE(subparse)
                     REBOOL interrupted;
                     if (Subparse_Throws(
                         &interrupted,
-                        P_OUT,
+                        P_CELL,
                         into,
                         P_INPUT_SPECIFIER, // val was taken from P_INPUT
                         subrule,
                         P_RULE_SPECIFIER,
                         P_FIND_FLAGS
                     )) {
+                        Move_Value(P_OUT, P_CELL);
                         return R_OUT_IS_THROWN;
                     }
 
                     // !!! ignore interrupted? (e.g. ACCEPT or REJECT ran)
 
-                    if (IS_BLANK(P_OUT)) {
+                    if (IS_BLANK(P_CELL)) {
                         i = END_FLAG;
                     }
                     else {
-                        assert(IS_INTEGER(P_OUT));
-                        if (VAL_UNT32(P_OUT) != VAL_LEN_HEAD(into))
+                        assert(IS_INTEGER(P_CELL));
+                        if (VAL_UNT32(P_CELL) != VAL_LEN_HEAD(into))
                             i = END_FLAG;
                         else
                             i = P_POS + 1;
                     }
-
-                    // subparse wasn't final answer on P_OUT, so the slot
-                    // will be reused.  (It's expected to be END in the next
-                    // call to subparse.)
-                    //
-                    SET_END(P_OUT);
                     break;
                 }
 
                 case SYM_DO: {
-                    if (!Is_Array_Series(P_INPUT))
-                        fail (Error_Parse_Rule());
-
                     if (subrule != NULL) {
                         //
                         // Not currently set up for iterating DO rules
@@ -1962,26 +1915,25 @@ REBNATIVE(subparse)
                 REBOOL interrupted;
                 if (Subparse_Throws(
                     &interrupted,
-                    P_OUT,
+                    P_CELL,
                     P_INPUT_VALUE,
                     SPECIFIED,
                     rule,
                     P_RULE_SPECIFIER,
                     P_FIND_FLAGS
                 )) {
+                    Move_Value(P_OUT, P_CELL);
                     return R_OUT_IS_THROWN;
                 }
 
                 // Non-breaking out of loop instances of match or not.
 
-                if (IS_BLANK(P_OUT))
+                if (IS_BLANK(P_CELL))
                     i = END_FLAG;
                 else {
-                    assert(IS_INTEGER(P_OUT));
-                    i = VAL_INT32(P_OUT);
+                    assert(IS_INTEGER(P_CELL));
+                    i = VAL_INT32(P_CELL);
                 }
-
-                SET_END(P_OUT);
 
                 if (interrupted) { // ACCEPT or REJECT ran
                     assert(i != THROWN_FLAG);
@@ -2003,7 +1955,8 @@ REBNATIVE(subparse)
                 // i may be THROWN_FLAG
             }
 
-            if (i == THROWN_FLAG) return R_OUT_IS_THROWN;
+            if (i == THROWN_FLAG)
+                return R_OUT_IS_THROWN;
 
             // Necessary for special cases like: some [to end]
             // i: indicates new index or failure of the match, but
