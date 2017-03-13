@@ -608,10 +608,10 @@ enum Reb_Vararg_Op {
     // PVAR and TVAR allow for overriding at the compiler command line.
     //
     #if !defined(PVAR)
-        #define PVAR RL_API
+        #define PVAR extern RL_API
     #endif
     #if !defined(TVAR)
-        #define TVAR RL_API
+        #define TVAR extern RL_API
     #endif
 #endif
 
