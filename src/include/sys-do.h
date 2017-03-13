@@ -686,6 +686,16 @@ inline static void Reify_Va_To_Array_In_Frame(
         f->index = 0;
     }
 
+    // We're about to overwrite the va_list pointer in the f->source union,
+    // which means there'd be no way to call va_end() on it if we don't do it
+    // now.  The Do_Va_Core() routine is aware of this, and doesn't try to do
+    // a second va_end() if the conversion has happened here.
+    //
+    // Note: Fail_Core() also has to do this tie-up of the va_list, since
+    // the Do_Core() call in Do_Va_Core() never returns.
+    //
+    va_end(*f->source.vaptr);
+
     f->source.array = Pop_Stack_Values(dsp_orig); // may contain voids
     MANAGE_ARRAY(f->source.array); // held alive while frame running
     SET_SER_FLAG(f->source.array, ARRAY_FLAG_VOIDS_LEGAL);
@@ -711,6 +721,8 @@ inline static void Reify_Va_To_Array_In_Frame(
 
     assert(f->pending == VA_LIST_PENDING);
     f->pending = NULL;
+
+    assert(NOT(FRM_IS_VALIST(f))); // no longer a va_list fed frame
 }
 
 
@@ -757,7 +769,7 @@ inline static REBIXO Do_Va_Core(
     Prep_Global_Cell(&f.cell);
 
     if (opt_first)
-        SET_FRAME_VALUE(&f, opt_first); // doesn't need specifier, not relative
+        SET_FRAME_VALUE(&f, opt_first); // no specifier, not relative
     else {
         SET_FRAME_VALUE(&f, va_arg(*vaptr, const REBVAL*));
         assert(!IS_RELATIVE(f.value));
@@ -787,6 +799,26 @@ inline static REBIXO Do_Va_Core(
     Do_Core(&f);
     Drop_Frame_Core(&f);
 
+    // Note: While on many platforms va_end() is a no-op, the C standard is
+    // clear that it must be called...it's undefined behavior if you skip it:
+    //
+    // http://stackoverflow.com/a/32259710/211160
+    //
+    // Yet fail() will longjmp above this stack level, never getting here.  So
+    // it is necessary that the call to va_end be done by Fail_Core() *before*
+    // that longjmp, by walking the stack list and looking for any va_list
+    // frames between the failure point and the trapper.
+    //
+    // But additionally, a frame may have to be "reified" if a GC runs while
+    // this va_list is being processed.  (The reason is that the va_list has
+    // to have its values examined to be GC protected, but there's no API to
+    // allow the values to be examined for GC and then "rewound" to be fed
+    // into evaluation, so they must be stored in an intermediate array.)
+    // Reification also does a va_end(), so we don't want to do it again.
+    //
+    if (FRM_IS_VALIST(&f)) // didn't get reified, so va_end() not called...
+        va_end(*vaptr);
+
     if (THROWN(f.out))
         return THROWN_FLAG; // !!! prohibits recovery from exits
 
@@ -795,28 +827,14 @@ inline static REBIXO Do_Va_Core(
 
 
 // Wrapper around Do_Va_Core which has the actual variadic interface (as
-// opposed to taking the `va_list` whicih has been captured out of the
+// opposed to taking the `va_list` which has been captured out of the
 // variadic interface).
 //
 inline static REBOOL Do_Va_Throws(REBVAL *out, ...)
 {
     va_list va;
+
     va_start(va, out); // must mention last param before the "..."
-
-#ifdef VA_END_IS_MANDATORY
-    struct Reb_State state;
-    REBCTX *error;
-
-    PUSH_TRAP(&error, &state);
-
-// The first time through the following code 'error' will be NULL, but...
-// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
-
-    if (error) {
-        va_end(va); // interject cleanup of whatever va_start() set up...
-        fail (error); // ...then just retrigger error
-    }
-#endif
 
     REBIXO indexor = Do_Va_Core(
         out,
@@ -825,27 +843,7 @@ inline static REBOOL Do_Va_Throws(REBVAL *out, ...)
         DO_FLAG_TO_END
     );
 
-    va_end(va);
-    //
-    // ^-- This va_end() will *not* be called if a fail() happens to longjmp
-    // during the apply.  But is that a problem, you ask?  No survey has
-    // turned up an existing C compiler where va_end() isn't a NOOP.
-    //
-    // But there's implementations we know of, then there's the Standard...
-    //
-    //    http://stackoverflow.com/a/32259710/211160
-    //
-    // The Standard is explicit: an implementation *could* require calling
-    // va_end() if it wished--it's undefined behavior if you skip it.
-    //
-    // In the interests of efficiency and not needing to set up trapping on
-    // each apply, our default is to assume the implementation does not
-    // need the va_end() call.  But for thoroughness, VA_END_IS_MANDATORY is
-    // outlined here to show the proper bracketing if it were ever needed.
-
-#ifdef VA_END_IS_MANDATORY
-    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-#endif
+    // Note: va_end() is handled by Do_Va_Core (one way or another)
 
     assert(indexor == THROWN_FLAG || indexor == END_FLAG);
     return LOGICAL(indexor == THROWN_FLAG);
@@ -873,21 +871,6 @@ inline static REBOOL Apply_Only_Throws(
     va_list va;
     va_start(va, applicand); // must mention last param before the "..."
 
-#ifdef VA_END_IS_MANDATORY
-    struct Reb_State state;
-    REBCTX *error;
-
-    PUSH_TRAP(&error, &state);
-
-// The first time through the following code 'error' will be NULL, but...
-// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
-
-    if (error) {
-        va_end(va); // interject cleanup of whatever va_start() set up...
-        fail (error); // ...then just retrigger error
-    }
-#endif
-
     REBIXO indexor = Do_Va_Core(
         out,
         applicand, // opt_first
@@ -903,11 +886,7 @@ inline static REBOOL Apply_Only_Throws(
         fail (Error(RE_APPLY_TOO_MANY));
     }
 
-    va_end(va); // see notes in Do_Va_Core RE: VA_END_IS_MANDATORY
-
-#ifdef VA_END_IS_MANDATORY
-    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-#endif
+    // Note: va_end() is handled by Do_Va_Core (one way or another)
 
     assert(
         indexor == THROWN_FLAG

@@ -272,6 +272,14 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
         if (Is_Any_Function_Frame(f))
             Drop_Function_Args_For_Frame_Core(f, FALSE); // don't drop chunks
 
+        // See notes in Do_Va_Core() about how it is required by C standard
+        // to call va_end() after va_start().  If we longjmp past the point
+        // that called va_start(), we have to clean up the va_list else there
+        // could be undefined behavior.
+        //
+        if (FRM_IS_VALIST(f))
+            va_end(*f->source.vaptr);
+
         // Though the output slot was initialized to an END marker at the
         // start of each frame, a failure might happen in mid-operation that
         // has written something in the output slot.  Since callers may have
