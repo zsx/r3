@@ -119,11 +119,8 @@ REBNATIVE(verify)
     DECLARE_LOCAL (temp);
 
     while (NOT_END(f.value)) {
-        UPDATE_EXPRESSION_START(&f); // informs the error delivery better
-
         const RELVAL *start = f.value;
-        Do_Next_In_Frame_May_Throw(D_OUT, &f, DO_FLAG_NORMAL);
-        if (THROWN(D_OUT)) {
+        if (Do_Next_In_Frame_Throws(D_OUT, &f)) {
             Drop_Frame(&f);
             return R_OUT_IS_THROWN;
         }

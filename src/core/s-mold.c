@@ -1547,8 +1547,7 @@ REBOOL Form_Reduce_Throws(
             continue;
         }
 
-        Do_Next_In_Frame_May_Throw(out, &f, DO_FLAG_NORMAL);
-        if (THROWN(out)) {
+        if (Do_Next_In_Frame_Throws(out, &f)) {
             Drop_Frame(&f);
             return TRUE;
         }

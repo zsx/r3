@@ -116,7 +116,7 @@ inline static REBOOL IS_QUOTABLY_SOFT(const RELVAL *v) {
 //      this operation, only the 'currently processing' pointer reassigned.)
 //      f->value may become an END marker...test with IS_END()
 //
-// Do_Next_In_Frame_May_Throw()
+// Do_Next_In_Frame_Throws()
 //
 //      Executes the already-fetched pointer, consuming as much of the input
 //      as necessary to complete a /NEXT (or failing with an error).  This
@@ -155,8 +155,7 @@ inline static void Push_Frame_Core(REBFRM *f)
 }
 
 inline static void UPDATE_EXPRESSION_START(REBFRM *f) {
-    assert(NOT(f->flags.bits & DO_FLAG_VA_LIST));
-    f->expr_index = f->index;
+    f->expr_index = f->index; // note this is garbage if DO_FLAG_VA_LIST
 }
 
 inline static void Drop_Frame_Core(REBFRM *f) {
@@ -189,9 +188,24 @@ inline static void Push_Frame_At(
     f->gotten = NULL; // tells ET_WORD and ET_GET_WORD they must do a get
     f->index = index + 1;
     f->specifier = specifier;
-    f->eval_type = REB_MAX_VOID;
     f->pending = NULL;
-    f->out = m_cast(REBVAL*, END_CELL); // no out here, but needs to be GC safe
+
+    // The goal of pushing a frame is to reuse it for several sequential
+    // operations, when not using DO_FLAG_TO_END.  This is found in operations
+    // like ANY and ALL, or anything that needs to do additional processing
+    // beyond a plain DO.  Each time those operations run, they can set the
+    // output to a new location, and Do_Next_In_Frame_Throws() will call into
+    // Do_Core() and properly configure the eval_type.
+    //
+    // But to make the frame safe for Recycle() in-between the calls to
+    // Do_Next_In_Frame_Throws(), the eval_type and output cannot be left as
+    // uninitialized bits.  So start with an unwritable END_CELL, and then
+    // each evaluation will canonize the eval_type to REB_0 in-between.
+    // (Do_Core() does not do this, but the wrappers that need it do.)
+    //
+    f->eval_type = REB_MAX_VOID;
+    f->out = m_cast(REBVAL*, END_CELL);
+
     Push_Frame_Core(f);
 }
 
@@ -207,18 +221,9 @@ inline static void Drop_Frame(REBFRM *f)
 }
 
 
-#if 0 && !defined(NDEBUG)
-    // For detailed debugging of the fetching; coarse tool used only in very
-    // deep debugging of the evaluator.
-    //
-    #define TRACE_FETCH_DEBUG(m,f,a) \
-        Trace_Fetch_Debug((m), (f), (a))
-#else
-    #define TRACE_FETCH_DEBUG(m,f,a) \
-        NOOP
-#endif
+#define VA_LIST_PENDING \
+    cast(const RELVAL*, &PG_Va_List_Pending)
 
-#define VA_LIST_PENDING cast(const RELVAL*, &PG_Va_List_Pending)
 
 //
 // Fetch_Next_In_Frame() (see notes above)
@@ -229,8 +234,7 @@ inline static void Drop_Frame(REBFRM *f)
 // by f->pending, hence a NULL test of that can be executed quickly.
 //
 inline static void Fetch_Next_In_Frame(REBFRM *f) {
-    TRACE_FETCH_DEBUG("Fetch_Next_In_Frame", f, FALSE);
-
+    //
     // If f->value is pointing to f->cell, it's possible that it may wind up
     // with an END in it between fetches if f->cell gets reused (as in when
     // arguments are pushed for a function)
@@ -258,8 +262,6 @@ inline static void Fetch_Next_In_Frame(REBFRM *f) {
         else
             f->pending = NULL;
     }
-
-    TRACE_FETCH_DEBUG("Fetch_Next_In_Frame", f, TRUE);
 }
 
 
@@ -419,12 +421,20 @@ inline static void Do_Pending_Sets_May_Invalidate_Gotten(
 // Future investigation could attack the problem again and see if there is
 // any common case that actually offered an advantage to optimize for here.
 //
-inline static void Do_Next_In_Frame_May_Throw(
+inline static REBOOL Do_Next_In_Subframe_Throws(
     REBVAL *out,
     REBFRM *parent,
     REBUPT flags
 ){
-    TRACE_FETCH_DEBUG("Do_Next_In_Frame_May_Throw", parent, FALSE);
+    // It should not be necessary to use a subframe unless there is meaningful
+    // state which would be overwritten in the parent frame.  For the moment,
+    // that only happens if a function call is in effect.  Otherwise, it is
+    // more efficient to use Do_Next_In_Frame_Throws().
+    //
+    assert(
+        parent->eval_type == REB_FUNCTION
+        || parent->eval_type == REB_0_LOOKBACK
+    );
 
     REBFRM child_frame;
     REBFRM *child = &child_frame;
@@ -462,19 +472,33 @@ inline static void Do_Next_In_Frame_May_Throw(
     parent->index = child->index;
     parent->gotten = child->gotten;
 
-    TRACE_FETCH_DEBUG("Do_Next_In_Frame_May_Throw", parent, TRUE);
+    return THROWN(out);
+}
+
+
+inline static REBOOL Do_Next_In_Frame_Throws(
+    REBVAL *out,
+    REBFRM *f
+){
+    assert(f->eval_type == REB_MAX_VOID); // see notes in Push_Frame_At()
+    assert(NOT(f->flags.bits & DO_FLAG_TO_END));
+
+    f->eval_type = VAL_TYPE(f->value);
+
+    SET_END(out);
+    f->out = out;
+    Do_Core(f); // should already be pushed
+
+    f->eval_type = REB_MAX_VOID;
+    return THROWN(out);
 }
 
 
 inline static void Quote_Next_In_Frame(REBVAL *dest, REBFRM *f) {
-    TRACE_FETCH_DEBUG("Quote_Next_In_Frame", f, FALSE);
-
     Derelativize(dest, f->value, f->specifier);
     SET_VAL_FLAG(dest, VALUE_FLAG_UNEVALUATED);
     f->gotten = NULL;
     Fetch_Next_In_Frame(f);
-
-    TRACE_FETCH_DEBUG("Quote_Next_In_Frame", f, TRUE);
 }
 
 
@@ -486,11 +510,11 @@ inline static void Quote_Next_In_Frame(REBVAL *dest, REBFRM *f) {
 //
 // This is a wrapper for a single evaluation.  If one is planning to do
 // multiple evaluations, it is not as efficient as creating a frame and then
-// doing `Do_Core()` calls into it.
+// doing `Do_Next_In_Frame_Throws()` calls into it.
 //
 // DO_NEXT_MAY_THROW takes in an array and a REBCNT offset into that array
 // of where to execute.  Although the return value is a REBCNT, it is *NOT*
-// always a series index!!!  It may return:
+// always a series index!!!  It may return END_FLAG, THROWN_FLAG, VA_LIST_FLAG
 //
 // DO_VAL_ARRAY_AT_THROWS is another helper for the frequent case where one
 // has a BLOCK! or a GROUP! REBVAL at an index which already indicates the
@@ -526,13 +550,18 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     f->specifier = specifier;
     f->index = index + 1;
 
-    Init_Endlike_Header(&f->flags, 0); // ??? is this ever looked at?
+    Init_Endlike_Header(&f->flags, DO_FLAG_NORMAL);
 
     f->pending = NULL;
     f->gotten = NULL;
     f->eval_type = VAL_TYPE(f->value);
 
-    Do_Next_In_Frame_May_Throw(out, f, DO_FLAG_NORMAL);
+    SET_END(out);
+    f->out = out;
+
+    Push_Frame_Core(f);    
+    Do_Core(f);
+    Drop_Frame_Core(f); // Drop_Frame() requires f->eval_type to be REB_0
 
     if (THROWN(out))
         return THROWN_FLAG;
@@ -589,6 +618,7 @@ inline static REBIXO Do_Array_At_Core(
     f.pending = NULL;
 
     f.eval_type = VAL_TYPE(f.value);
+    assert(f.eval_type != REB_0);
 
     Push_Frame_Core(&f);
     Do_Core(&f);

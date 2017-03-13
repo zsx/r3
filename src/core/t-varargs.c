@@ -197,6 +197,7 @@ REBIXO Do_Vararg_Op_May_Throw(
     //
     // The same rule applies for "tight" arguments, `sum 1 2 3 + 4` with
     // sum being variadic and tight needs to act as `(sum 1 2 3) + 4`
+    //
     if (
         (pclass == PARAM_CLASS_NORMAL || pclass == PARAM_CLASS_TIGHT)
         && IS_WORD(f->value)
@@ -237,9 +238,7 @@ REBIXO Do_Vararg_Op_May_Throw(
         if (op == VARARG_OP_TAIL_Q)
             return VA_LIST_FLAG;
 
-        Do_Next_In_Frame_May_Throw(out, f, DO_FLAG_FULFILLING_ARG);
-
-        if (THROWN(out))
+        if (Do_Next_In_Subframe_Throws(out, f, DO_FLAG_FULFILLING_ARG))
             return THROWN_FLAG;
         break; }
 
@@ -247,14 +246,13 @@ REBIXO Do_Vararg_Op_May_Throw(
         if (op == VARARG_OP_TAIL_Q)
             return VA_LIST_FLAG;
 
-        Do_Next_In_Frame_May_Throw(
+        if (Do_Next_In_Subframe_Throws(
             out,
             f,
             DO_FLAG_FULFILLING_ARG | DO_FLAG_NO_LOOKAHEAD
-        );
-
-        if (THROWN(out))
+        )){
             return THROWN_FLAG;
+        }
         break; }
 
     case PARAM_CLASS_HARD_QUOTE:

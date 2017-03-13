@@ -59,8 +59,6 @@ REBOOL Reduce_Any_Array_Throws(
     DECLARE_LOCAL (reduced);
 
     while (NOT_END(f.value)) {
-        UPDATE_EXPRESSION_START(&f); // informs the error delivery better
-
         if (IS_BAR(f.value)) {
             if (flags & REDUCE_FLAG_KEEP_BARS) {
                 DS_PUSH_TRASH;
@@ -72,8 +70,7 @@ REBOOL Reduce_Any_Array_Throws(
             continue;
         }
 
-        Do_Next_In_Frame_May_Throw(reduced, &f, DO_FLAG_NORMAL);
-        if (THROWN(reduced)) {
+        if (Do_Next_In_Frame_Throws(reduced, &f)) {
             Move_Value(out, reduced);
             DS_DROP_TO(dsp_orig);
             Drop_Frame(&f);
@@ -203,20 +200,24 @@ REBOOL Compose_Any_Array_Throws(
     DECLARE_LOCAL (specific);
 
     while (NOT_END(f.value)) {
-        UPDATE_EXPRESSION_START(&f); // informs the error delivery better
-
         if (IS_GROUP(f.value)) {
             //
-            // We evaluate here, but disable lookahead so it only evaluates
-            // the GROUP! and doesn't trigger errors on what's after it.
+            // Evaluate the GROUP! at current position into `composed` cell.
             //
-            Do_Next_In_Frame_May_Throw(composed, &f, DO_FLAG_NO_LOOKAHEAD);
-            if (THROWN(composed)) {
+            REBSPC *derived = Derive_Specifier(f.specifier, f.value);
+            if (Do_At_Throws(
+                composed,
+                VAL_ARRAY(f.value),
+                VAL_INDEX(f.value),
+                derived
+            )){
                 Move_Value(out, composed);
                 DS_DROP_TO(dsp_orig);
                 Drop_Frame(&f);
                 return TRUE;
             }
+
+            Fetch_Next_In_Frame(&f);
 
             if (IS_BLOCK(composed) && !only) {
                 //

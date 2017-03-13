@@ -355,6 +355,8 @@ repush:
             fail (Error(RE_MULTIPLE_DO_ERRORS, arg1, arg2));
         }
 
+        f.eval_type = REB_MAX_VOID; // invariant of Do_Next_In_Frame
+
         assert(IS_END(thrown_name));
         Init_Error(arg_or_error, error);
 
@@ -376,7 +378,7 @@ repush:
             // Hence it's not easy to know where to skip forward to in case
             // of an error.
             //
-            // !!! Review if the invariant of Do_Next_In_Frame_May_Throw()
+            // !!! Review if the invariant of Do_Next_In_Frame_Throws()
             // should be changed.  So far, this is the only routine affected,
             // because no other functions try and "resume" a throwing/failing
             // frame--as that's not generically possible unless you skip to
@@ -387,8 +389,7 @@ repush:
             continue;
         }
 
-        Do_Next_In_Frame_May_Throw(D_OUT, &f, DO_FLAG_NORMAL);
-        if (THROWN(D_OUT)) {
+        if (Do_Next_In_Frame_Throws(D_OUT, &f)) {
             if (NOT_END(arg_or_error)) { // already a throw or fail pending!
                 DECLARE_LOCAL (arg1);
                 if (IS_END(thrown_name)) {

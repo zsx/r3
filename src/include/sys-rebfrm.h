@@ -28,9 +28,13 @@
 //
 // The primary routine that performs DO and DO/NEXT is called Do_Core().  It
 // takes a single parameter which holds the running state of the evaluator.
-// This state may be allocated on the C variable stack:  Do_Core() is
-// written such that a longjmp up to a failure handler above it can run
-// safely and clean up even though intermediate stacks have vanished.
+// This state may be allocated on the C variable stack.
+//
+// Do_Core() is written such that a longjmp up to a failure handler above it
+// can run safely and clean up even though intermediate stacks have vanished.
+// This is because Push_Frame and Drop_Frame maintain an independent global
+// list of the frames in effect, so that the Fail_Core() routine can unwind
+// all the associated storage and structures for each frame.
 //
 // Ren-C can not only run the evaluator across a REBARR-style series of
 // input based on index, it can also enumerate through C's `va_list`,

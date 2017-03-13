@@ -2050,7 +2050,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
     SNAP_STATE(&f->state);
 #endif
 
-    f->refine = NULL;
+    f->refine = cast(REBVAL*, END_CELL);
 
     if (opt_def)
         Push_Or_Alloc_Args_For_Underlying_Func(f);

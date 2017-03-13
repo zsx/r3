@@ -1086,21 +1086,11 @@ static void Mark_Frame_Stack_Deep(void)
             // value while a function is running, currently.  (A more
             // important purpose may come up...)
 
-            if (
-                f->refine // currently allowed to be NULL
-                && NOT_END(f->refine)
-                && Is_Value_Managed(f->refine)
-            ) {
+            if (NOT_END(f->refine) && Is_Value_Managed(f->refine))
                 Queue_Mark_Opt_Value_Deep(f->refine);
-            }
 
-            if (
-                f->special
-                && NOT_END(f->special)
-                && Is_Value_Managed(f->special)
-            ) {
+            if (NOT_END(f->special) && Is_Value_Managed(f->special))
                 Queue_Mark_Opt_Value_Deep(f->special);
-            }
         }
 
         // Need to keep the label symbol alive for error messages/stacktraces

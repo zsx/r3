@@ -221,8 +221,8 @@ static REBOOL Subparse_Throws(
     Init_Endlike_Header(&f->flags, 0); // implicitly terminate f->cell
 
     f->param = END_CELL; // informs infix lookahead
-    f->arg = NULL;
-    f->refine = NULL;
+    f->arg = m_cast(REBVAL*, END_CELL);
+    f->refine = m_cast(REBVAL*, END_CELL);
     f->special = m_cast(REBVAL*, END_CELL);
 
     Push_Frame_Core(f);

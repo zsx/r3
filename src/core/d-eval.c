@@ -239,7 +239,7 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
 
     // The eval_type is expected to be calculated already.  Should match
     // f->value, with special exemption for optimized lookback calls
-    // coming from Do_Next_In_Frame_May_Throw()
+    // coming from Do_Next_In_Subframe_Throws()
     //
     assert(
         (

@@ -107,7 +107,7 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
         }
     }
 
-    f->expr_index = f->index; // !!! See FRM_INDEX() for caveats
+    UPDATE_EXPRESSION_START(f); // !!! See FRM_INDEX() for caveats
     if (Trace_Flags)
         Trace_Line(f);
 
@@ -833,13 +833,11 @@ reevaluate:;
    //=//// REGULAR ARG-OR-REFINEMENT-ARG (consumes a DO/NEXT's worth) ////=//
 
             case PARAM_CLASS_NORMAL:
-                Do_Next_In_Frame_May_Throw(
+                if (Do_Next_In_Subframe_Throws(
                     f->arg,
                     f,
                     DO_FLAG_FULFILLING_ARG
-                );
-
-                if (THROWN(f->arg)) {
+                )){
                     Move_Value(f->out, f->arg);
                     Abort_Function_Args_For_Frame(f);
                     goto finished;
@@ -854,14 +852,12 @@ reevaluate:;
                 // argument to square is declared #tight, it will act as
                 // `(square 1) + 2`, by not applying lookahead to
                 // see the + during the argument evaluation.
-                //
-                Do_Next_In_Frame_May_Throw(
+                //                
+                if (Do_Next_In_Subframe_Throws(
                     f->arg,
                     f,
                     DO_FLAG_NO_LOOKAHEAD | DO_FLAG_FULFILLING_ARG
-                );
-
-                if (THROWN(f->arg)) {
+                )){
                     Move_Value(f->out, f->arg);
                     Abort_Function_Args_For_Frame(f);
                     goto finished;

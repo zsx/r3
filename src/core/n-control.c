@@ -180,9 +180,7 @@ REBNATIVE(all)
     Push_Frame(&f, ARG(block));
 
     while (NOT_END(f.value)) {
-        Do_Next_In_Frame_May_Throw(D_CELL, &f, DO_FLAG_NORMAL);
-
-        if (THROWN(D_CELL)) {
+        if (Do_Next_In_Frame_Throws(D_CELL, &f)) {
             Drop_Frame(&f);
             Move_Value(D_OUT, D_CELL);
             return R_OUT_IS_THROWN;
@@ -228,8 +226,7 @@ REBNATIVE(any)
     REBOOL voted = FALSE;
 
     while (NOT_END(f.value)) {
-        Do_Next_In_Frame_May_Throw(D_OUT, &f, DO_FLAG_NORMAL);
-        if (THROWN(D_OUT)) {
+        if (Do_Next_In_Frame_Throws(D_OUT, &f)) {
             Drop_Frame(&f);
             return R_OUT_IS_THROWN;
         }
@@ -278,8 +275,7 @@ REBNATIVE(none)
     REBOOL voted = FALSE;
 
     while (NOT_END(f.value)) {
-        Do_Next_In_Frame_May_Throw(D_OUT, &f, DO_FLAG_NORMAL);
-        if (THROWN(D_OUT)) {
+        if (Do_Next_In_Frame_Throws(D_OUT, &f)) {
             Drop_Frame(&f);
             return R_OUT_IS_THROWN;
         }
@@ -334,8 +330,6 @@ REBNATIVE(case)
     DECLARE_LOCAL (dummy);
 
     while (NOT_END(f.value)) {
-        UPDATE_EXPRESSION_START(&f); // informs the error delivery better
-
         if (IS_BAR(f.value)) { // interstitial BAR! legal, `case [1 2 | 3 4]`
             Fetch_Next_In_Frame(&f);
             continue;
@@ -343,8 +337,7 @@ REBNATIVE(case)
 
         // Perform a DO/NEXT's worth of evaluation on a "condition" to test
 
-        Do_Next_In_Frame_May_Throw(D_CELL, &f, DO_FLAG_NORMAL);
-        if (THROWN(D_CELL)) {
+        if (Do_Next_In_Frame_Throws(D_CELL, &f)) {
             Move_Value(D_OUT, D_CELL);
             goto return_thrown;
         }
@@ -373,8 +366,7 @@ REBNATIVE(case)
         // GROUP! as in `case [([x]) [y]]`.
         //
         if (NOT(IS_CONDITIONAL_TRUE_SAFE(D_CELL))) {
-            Do_Next_In_Frame_May_Throw(D_CELL, &f, DO_FLAG_NORMAL);
-            if (THROWN(D_CELL)) {
+            if (Do_Next_In_Frame_Throws(D_CELL, &f)) {
                 Move_Value(D_OUT, D_CELL);
                 goto return_thrown;
             }
@@ -401,8 +393,7 @@ REBNATIVE(case)
         //
         // Similar to IF TRUE STUFF, so CASE can act like many IFs at once.
 
-        Do_Next_In_Frame_May_Throw(D_CELL, &f, DO_FLAG_NORMAL);
-        if (THROWN(D_CELL)) {
+        if (Do_Next_In_Frame_Throws(D_CELL, &f)) {
             Move_Value(D_OUT, D_CELL);
             goto return_thrown;
         }
