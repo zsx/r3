@@ -78,38 +78,46 @@
 //
 REBOOL Do_Signals_Throws(REBVAL *out)
 {
+    // !!! When it was the case that the only way Do_Signals_Throws would run
+    // due to the Eval_Count reaching the end of an Eval_Dose, this way of
+    // doing "CPU quota" would work.  Currently, however, it is inaccurate,
+    // due to the fact that Do_Signals_Throws can be queued to run by setting
+    // the Eval_Count to 1 for a specific signal.  Review.
+    //
     Eval_Cycles += Eval_Dose - Eval_Count;
-    Eval_Count = Eval_Dose;
-
     if (Eval_Limit != 0 && Eval_Cycles > Eval_Limit)
         Check_Security(Canon(SYM_EVAL), POL_EXEC, 0);
+
+    Eval_Count = Eval_Dose;
 
     REBOOL thrown = FALSE;
     SET_VOID(out);
 
-    REBCNT mask = Eval_Sigmask;
-    REBCNT sigs = Eval_Signals & mask;
+    // The signal mask allows the system to disable processing of some
+    // signals.  It defaults to ALL_BITS, but during signal processing
+    // itself, the mask is set to 0 to avoid recursion.
+    //
+    // !!! This seems overdesigned considering SIG_EVENT_PORT isn't used.
+    //
+    REBCNT filtered_sigs = Eval_Signals & Eval_Sigmask;
+    REBCNT saved_mask = Eval_Sigmask;
+    Eval_Sigmask = 0;
 
-    if (!sigs) goto done;
+    // "Be careful of signal loops! EG: do not PRINT from here."
 
-    // Be careful of signal loops! EG: do not PRINT from here.
-
-    Eval_Sigmask = 0;   // avoid infinite loop
-
-    // Check for recycle signal:
-    if (GET_FLAG(sigs, SIG_RECYCLE)) {
+    if (GET_FLAG(filtered_sigs, SIG_RECYCLE)) {
         CLR_SIGNAL(SIG_RECYCLE);
         Recycle();
     }
 
 #ifdef NOT_USED_INVESTIGATE
-    if (GET_FLAG(sigs, SIG_EVENT_PORT)) {  // !!! Why not used?
+    if (GET_FLAG(filtered_sigs, SIG_EVENT_PORT)) {  // !!! Why not used?
         CLR_SIGNAL(SIG_EVENT_PORT);
         Awake_Event_Port();
     }
 #endif
 
-    if (GET_FLAG(sigs, SIG_HALT)) {
+    if (GET_FLAG(filtered_sigs, SIG_HALT)) {
         //
         // Early in the booting process, it's not possible to handle Ctrl-C
         // because the error machinery has not been initialized.  There must
@@ -119,29 +127,29 @@ REBOOL Do_Signals_Throws(REBVAL *out)
             panic ("Ctrl-C or other HALT signal with no trap to process it");
 
         CLR_SIGNAL(SIG_HALT);
-        Eval_Sigmask = mask;
+        Eval_Sigmask = saved_mask;
 
         fail (VAL_CONTEXT(TASK_HALT_ERROR));
     }
 
-    if (GET_FLAG(sigs, SIG_INTERRUPT)) {
+    if (GET_FLAG(filtered_sigs, SIG_INTERRUPT)) {
         //
         // Similar to the Ctrl-C halting, the "breakpoint" interrupt request
         // can't be processed early on.  The throw mechanics should panic
         // all right, but it might make more sense to wait.
         //
         CLR_SIGNAL(SIG_INTERRUPT);
-        Eval_Sigmask = mask;
 
+        // !!! This can recurse, which may or may not be a bad thing.  But
+        // if the garbage collector and such are going to run during this
+        // execution, the signal mask has to be turned back on.  Review.
+        //
+        Eval_Sigmask = saved_mask;
         if (Do_Breakpoint_Throws(out, TRUE, VOID_CELL, FALSE))
-            thrown = TRUE;
-
-        goto done;
+            return TRUE;
+        return FALSE;
     }
 
-    Eval_Sigmask = mask;
-
-done:
-    Eval_Count = 1; // will call this routine again on next
+    Eval_Sigmask = saved_mask;
     return thrown;
 }
