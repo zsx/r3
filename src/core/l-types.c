@@ -573,6 +573,12 @@ const REBYTE *Scan_Integer(
             break;
     }
 
+    if (num == 0) { // all zeros or '
+        // return early to avoid platform dependant error handling in CHR_TO_INT
+        SET_INTEGER(out, 0);
+        return cp;
+    }
+
     // Copy all digits, except ' :
     for (; num > 0; num--) {
         if (*cp >= '0' && *cp <= '9')
