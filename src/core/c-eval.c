@@ -323,11 +323,6 @@ void Do_Core(REBFRM * const f)
     //
     assert(NOT(IS_TRASH_DEBUG(f->out)));
 
-    // Check just once (stack level would be constant if checked in a loop).
-    //
-    if (C_STACK_OVERFLOWING(&f))
-        Trap_Stack_Overflow();
-
     // Capture the data stack pointer on entry (used by debug checks, but
     // also refinements are pushed to stack and need to be checked if there
     // are any that are not processed)

@@ -140,6 +140,14 @@ inline static REBOOL IS_QUOTABLY_SOFT(const RELVAL *v) {
 
 inline static void Push_Frame_Core(REBFRM *f)
 {
+    // All calls to a Do_Core() are assumed to happen at the same C stack
+    // level for a pushed frame (though this is not currently enforced).
+    // Hence it's sufficient to check for C stack overflow only once, e.g.
+    // not on each Do_Next_In_Frame_Throws() for `reduce [a | b | ... | z]`.
+    //
+    if (C_STACK_OVERFLOWING(&f))
+        Trap_Stack_Overflow();
+
     Prep_Global_Cell(&f->cell);
 
     f->prior = TG_Frame_Stack;

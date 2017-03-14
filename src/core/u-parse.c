@@ -160,11 +160,6 @@ static REBOOL Subparse_Throws(
     REBFRM frame;
     REBFRM *f = &frame;
 
-    // Since this isn't dispatching through the evaluator, stack overflows
-    // have to be checked for here.
-    //
-    if (C_STACK_OVERFLOWING(&frame)) Trap_Stack_Overflow();
-
     SET_END(out);
 
     assert(ANY_ARRAY(rules));
@@ -225,7 +220,7 @@ static REBOOL Subparse_Throws(
     f->refine = m_cast(REBVAL*, END_CELL);
     f->special = m_cast(REBVAL*, END_CELL);
 
-    Push_Frame_Core(f);
+    Push_Frame_Core(f); // checks for C stack overflow
 
     SET_END(&f->cell); // GC requires some initialization of cell
 

@@ -185,23 +185,6 @@ void RL_Init(void *lib)
     if (((HOST_LIB_VER << 16) + HOST_LIB_SUM) != Host_Lib->ver_sum)
         panic ("Host-lib wrong version/checksum");
 
-    // See C_STACK_OVERFLOWING for remarks on this non-standard technique
-    // of stack overflow detection.  Note that each thread would have its
-    // own stack address limits, so this has to be updated for threading.
-
-    int marker; // used to measure variable order
-    REBUPT bounds; // this is checked vs. marker
-    bounds = cast(REBUPT, OS_CONFIG(1, 0));
-    if (bounds == 0)
-        bounds = cast(REBUPT, STACK_BOUNDS);
-
-#ifdef OS_STACK_GROWS_UP
-    Stack_Limit = (REBUPT)(&marker) + bounds;
-#else
-    if (bounds > (REBUPT) &marker) Stack_Limit = 100;
-    else Stack_Limit = (REBUPT)&marker - bounds;
-#endif
-
     Init_Core();
 }
 

@@ -1073,16 +1073,51 @@ void Init_Locale(void)
 //
 void Init_Core(void)
 {
-#if defined(TEST_EARLY_BOOT_PANIC)
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// INITIALIZE STACK MARKER METRICS
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    // See C_STACK_OVERFLOWING for remarks on this **non-standard** technique
+    // of stack overflow detection.  Note that each thread would have its
+    // own stack address limits, so this has to be updated for threading.
     //
+    // Note that R3-Alpha tried to use a trick (which it got wrong) to
+    // determine whether the stack grew up or down.  This doesn't work, and
+    // the solutions that might actually work are too wacky to justify using:
+    //
+    // http://stackoverflow.com/a/33222085/211160
+    //
+    // So it's better to go with a build configuration #define.  Note that
+    // stacks growing up is uncommon (e.g. Debian hppa architecture)
+
+    REBUPT bounds;
+    bounds = cast(REBUPT, OS_CONFIG(1, 0));
+    if (bounds == 0)
+        bounds = cast(REBUPT, STACK_BOUNDS);
+
+#ifdef OS_STACK_GROWS_UP
+    Stack_Limit = cast(REBUPT, &bounds) + bounds;
+#else
+    Stack_Limit = cast(REBUPT, &bounds) - bounds;
+#endif
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// TEST EARLY BOOT PANIC AND FAIL
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
     // It should be legal to panic at any time (especially given that the
-    // bar for success is "crash")
-    //
+    // low bar for behavior is "crash out").  fail() is more complex since it
+    // uses error objects which require the system to be initialized, so it
+    // should fall back to being a panic at early boot phases.
+
+#if defined(TEST_EARLY_BOOT_PANIC)
     panic ("early panic test");
 #elif defined(TEST_EARLY_BOOT_FAIL)
-    //
-    // A fail should fall back on panic at this boot phase.
-    //
     fail (Error(RE_NO_VALUE, BLANK_VALUE));
 #endif
 
