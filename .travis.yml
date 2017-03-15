@@ -12,51 +12,76 @@ notifications:
 language: c
 
 
-compiler:
-    - gcc
-    - g++
-
 matrix:
     include:
-        # Linux x86, release
+        # Linux x86, release, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
-          env: OS_ID=0.4.4 REL=1
-        # Linux x64, debug
-        #
-        - os: linux
-          sudo: false #Force new container-based infrastructure.
-          env: OS_ID=0.4.40
+          language: c
+          env: OS_ID=0.4.4 REL=1 CC=gcc
 
-        # Linux x64, release
+        # Linux x64, debug, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
-          env: OS_ID=0.4.40 REL=1
+          language: c
+          env: OS_ID=0.4.40 CC=gcc
 
-        # Windows x86, release
+        # Linux x64, debug, g++
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
-          env: OS_ID=0.3.1 REL=1 TOOLS=i686-w64-mingw32-
+          language: cpp
+          env: OS_ID=0.4.40 CC=g++
+
+        # Linux x64, release, gcc
+        #
+        - os: linux
+          sudo: false #Force new container-based infrastructure.
+          language: c
+          env: OS_ID=0.4.40 REL=1 CC=gcc
+
+        # Windows x86, release, gcc
+        #
+        - os: linux
+          sudo: false #Force new container-based infrastructure.
+          language: c
+          env: OS_ID=0.3.1 REL=1 TOOLS=i686-w64-mingw32- CC=gcc
         
-        # Windows x64, debug
+        # Windows x64, debug, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
-          env: OS_ID=0.3.40 TOOLS=x86_64-w64-mingw32-
+          language: c
+          env: OS_ID=0.3.40 TOOLS=x86_64-w64-mingw32- CC=gcc
 
-        # OSX x64, debug
+        # Windows x64, debug, g++
+        #
+        - os: linux
+          sudo: false #Force new container-based infrastructure.
+          language: cpp
+          env: OS_ID=0.3.40 TOOLS=x86_64-w64-mingw32- CC=g++
+
+        # OSX x64, debug, gcc
         #
         - os: osx
           osx_image: xcode8.2
-          env: OS_ID=0.2.40
+          language: c
+          env: OS_ID=0.2.40 CC=gcc
 
-        # OSX x64, release
+        # OSX x64, debug, g++
         #
         - os: osx
-          env: OS_ID=0.2.40 REL=1
+          osx_image: xcode8.2
+          language: cpp
+          env: OS_ID=0.2.40 CC=g++
+
+        # OSX x64, release, gcc
+        #
+        - os: osx
+          language: c
+          env: OS_ID=0.2.40 REL=1 CC=gcc
 
 addons:
     apt:
