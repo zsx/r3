@@ -83,6 +83,20 @@ matrix:
           language: c
           env: OS_ID=0.2.40 REL=1 CC=gcc
 
+env:
+    global:
+         #
+         # travis encrypt AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+         #
+         - secure: "kQB+yBhlQnbJK35wyBDUHNN4SoUkWt5v5FzsdV+i9USgIatgLA33eBeRBWsmfTHWqdjBurRmomy7aNhDwKp8Viax1MhyrsYgfqkvXjnTImMGj2b/m4ltqBjTb2rQlVuhykYBR9RU4TsuX0LHVlG2xw31+VdtpQECzrnwjvsSSWwyosYdd+gg5S4TW5yNlbuyzoqVHPqc8unpj+zBUWEDAksqkvzriZvPlRjdiJR8iGTdia3ciO/+kOpHaA2yjGJRWkZWcOToDNvsZZcaQTU+iovqdWJZJdwljUMueGLD3I+pxKP3TiO79CslQD/dfL/gIj4TUc1R27fEaYGYW0v1W2yQr7trrwNeV/Oi10qSpsrXfQ10rOQ6XyhlSiWQUtwVUGredobwmAKG8IBNI32qnEJZlmQ0fyc01YXvip5EHD2FhOaK+TDK01hbXJxT4aJWgi8t+IUJO2b65jKUkhaXOtiblp2od0ZQAhH/gkgckLDwNbiHbYNBrz2mbvJli5PT26AhZ8ho5ZXa3/BTj/8A9CX1veUIykvGcRvru3lqq6PKsccfni0RxXdtuBlPxtHzsOSZy0UGEqlvPqYUpB8wEWRRt81wbh9+we46hVvvYi075sAQzw0CtPLSzSJoKFshHHY7Eo9lgbsOgirk0MiJOYLkjWsiMVMm39Oea+fHsms=" 
+ 
+         # travis encrypt AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+         #
+         - secure: "YOW5lGwroKWQchmK+AzvN61dQ6geaYHQw0Y9eXZnWmXY8X6rjce9TnY5nWxnbHSo5cnRcP6mtSK48ce1JGrkMT0P0wpQhM+2bJfIQcmbiigRWIdrc0bQZsGkT3l+A6g9lz6VosiOlKjkxZEkzxt20+ABVc1c2ZFa8RE7ctaAfvnC/Vc0PVk3z7oQbCBVZ0H8u6HsY7zLlUrUmDPtTt7yS5VSzZf5NEvjoD3zDR7T73IFNWxW29SpdZ3jnPI67GHjshPTYj/zuAexAebI2YdV7w1EEchFqsUKskjDmr9Kkpn9BvJMZhUzCfeZVUHcQLH56h61NlFen4yhJIT/yoKSu9clRDbMhw3V3319IDTQXp/MTjXqZxZ+P1fFS81ZAt1eHvavEb5pMqVG5EJiopQTfU16TuM8sUMeuSkVwx1oSke+99qikpV1nU169KUXvQP3qksBGNMIeyRnAlQi/nYcvkJS7X4lc58lXhGpoylp7oOqk/+nlnexrmJdZQV+ixMAJ3U+OLWEDAyilGn2/Vfv7+9jlHOUtkpu6k5c0EdDvOSyOfIO/bbbIrNXnvOIheyShyfVbwjY7J9C5QDAk7AZ6mjr1ulgZU7Tk+lYrTBTjD+M1Al2q3bzYz43Ay6jKVxGZurINNB9b8DUtgma5179wqF61pMalvBfsxicYwjgQUM="
+ 
+         - AWS_S3_BUCKET_NAME: "metaeducation"
+
+
 addons:
     apt:
         packages:
@@ -238,13 +252,9 @@ script:
 #
 deploy:
     provider: s3
-    access_key_id:
-        secure: "kQB+yBhlQnbJK35wyBDUHNN4SoUkWt5v5FzsdV+i9USgIatgLA33eBeRBWsmfTHWqdjBurRmomy7aNhDwKp8Viax1MhyrsYgfqkvXjnTImMGj2b/m4ltqBjTb2rQlVuhykYBR9RU4TsuX0LHVlG2xw31+VdtpQECzrnwjvsSSWwyosYdd+gg5S4TW5yNlbuyzoqVHPqc8unpj+zBUWEDAksqkvzriZvPlRjdiJR8iGTdia3ciO/+kOpHaA2yjGJRWkZWcOToDNvsZZcaQTU+iovqdWJZJdwljUMueGLD3I+pxKP3TiO79CslQD/dfL/gIj4TUc1R27fEaYGYW0v1W2yQr7trrwNeV/Oi10qSpsrXfQ10rOQ6XyhlSiWQUtwVUGredobwmAKG8IBNI32qnEJZlmQ0fyc01YXvip5EHD2FhOaK+TDK01hbXJxT4aJWgi8t+IUJO2b65jKUkhaXOtiblp2od0ZQAhH/gkgckLDwNbiHbYNBrz2mbvJli5PT26AhZ8ho5ZXa3/BTj/8A9CX1veUIykvGcRvru3lqq6PKsccfni0RxXdtuBlPxtHzsOSZy0UGEqlvPqYUpB8wEWRRt81wbh9+we46hVvvYi075sAQzw0CtPLSzSJoKFshHHY7Eo9lgbsOgirk0MiJOYLkjWsiMVMm39Oea+fHsms=" 
-
-    secret_access_key:
-        secure: "YOW5lGwroKWQchmK+AzvN61dQ6geaYHQw0Y9eXZnWmXY8X6rjce9TnY5nWxnbHSo5cnRcP6mtSK48ce1JGrkMT0P0wpQhM+2bJfIQcmbiigRWIdrc0bQZsGkT3l+A6g9lz6VosiOlKjkxZEkzxt20+ABVc1c2ZFa8RE7ctaAfvnC/Vc0PVk3z7oQbCBVZ0H8u6HsY7zLlUrUmDPtTt7yS5VSzZf5NEvjoD3zDR7T73IFNWxW29SpdZ3jnPI67GHjshPTYj/zuAexAebI2YdV7w1EEchFqsUKskjDmr9Kkpn9BvJMZhUzCfeZVUHcQLH56h61NlFen4yhJIT/yoKSu9clRDbMhw3V3319IDTQXp/MTjXqZxZ+P1fFS81ZAt1eHvavEb5pMqVG5EJiopQTfU16TuM8sUMeuSkVwx1oSke+99qikpV1nU169KUXvQP3qksBGNMIeyRnAlQi/nYcvkJS7X4lc58lXhGpoylp7oOqk/+nlnexrmJdZQV+ixMAJ3U+OLWEDAyilGn2/Vfv7+9jlHOUtkpu6k5c0EdDvOSyOfIO/bbbIrNXnvOIheyShyfVbwjY7J9C5QDAk7AZ6mjr1ulgZU7Tk+lYrTBTjD+M1Al2q3bzYz43Ay6jKVxGZurINNB9b8DUtgma5179wqF61pMalvBfsxicYwjgQUM="
-
-    bucket: "metaeducation"
+    access_key_id: $AWS_ACCESS_KEY_ID
+    secret_access_key: $AWS_SECRET_ACCESS_KEY
+    bucket: $AWS_S3_BUCKET_NAME
     skip_cleanup: true
     upload-dir: travis-builds
 
