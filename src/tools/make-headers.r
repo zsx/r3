@@ -14,6 +14,7 @@ REBOL [
     Needs: 2.100.100
 ]
 
+do %r2r3-future.r
 do %common.r
 do %common-emitter.r
 do %common-parsers.r
@@ -209,7 +210,10 @@ parse file-base/core [
 ]
 
 files: map-each file file-base/core [
-    either not find/match form file {../} [to file! form file][()]
+    if find/match form file {../} [
+        continue ;-- to work in Ren-C and R3-Alpha, no EITHER* or IF/void
+    ]
+    to file! form file
 ]
 
 ;do

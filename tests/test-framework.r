@@ -64,7 +64,8 @@ make object! compose [
             exception [spaced ["failed," exceptions/:exception]]
             not logic? :test-block ["failed, not a logic value"]
             test-block ["succeeded"]
-            true ["failed"]
+        ] else [
+            "failed"
         ]
 
         recycle
@@ -131,12 +132,12 @@ make object! compose [
 
         successes: test-failures: crashes: dialect-failures: skipped: 0
 
-        either case [
+        case [
             not exists? log-file [
                 print "new log"
                 process-tests test-sources :process-vector
-                true
             ]
+
             all [
                 parse read log-file [
                     (
@@ -198,7 +199,7 @@ make object! compose [
                 ]
                 last-vector
                 test-sources: find/last/tail test-sources last-vector
-            ] [
+            ][
                 print [
                     "recovering at:"
                     (
@@ -210,10 +211,8 @@ make object! compose [
                     )
                 ]
                 process-tests test-sources :process-vector
-                true
             ]
-            'else [false]
-        ] [
+        ] then [
             summary: spaced [
                     |
                 "system/version:" system/version
@@ -245,7 +244,7 @@ make object! compose [
             log [summary]
 
             reduce [log-file summary]
-        ] [
+        ] else [
             reduce [log-file "testing already complete"]
         ]
     ]

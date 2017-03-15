@@ -573,7 +573,7 @@ REBOOL Make_Error_Object_Throws(
         Bind_Values_Deep(VAL_ARRAY_AT(arg), error);
 
         DECLARE_LOCAL (evaluated);
-        if (DO_VAL_ARRAY_AT_THROWS(evaluated, arg)) {
+        if (Do_Any_Array_At_Throws(evaluated, arg)) {
             Move_Value(out, evaluated);
 
         #if !defined(NDEBUG)

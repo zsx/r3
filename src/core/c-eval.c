@@ -872,7 +872,7 @@ reevaluate:;
                     goto check_arg;
                 }
 
-                if (EVAL_VALUE_CORE_THROWS(f->arg, f->value, f->specifier)) {
+                if (Eval_Value_Core_Throws(f->arg, f->value, f->specifier)) {
                     Move_Value(f->out, f->arg);
                     Abort_Function_Args_For_Frame(f);
                     goto finished;
@@ -1165,6 +1165,22 @@ reevaluate:;
                 SET_VOID(f->out);
             else if (IS_VOID(f->out) || IS_CONDITIONAL_FALSE(f->out))
                 SET_BAR(f->out);
+            else
+                CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
+            break;
+
+        case R_OUT_BLANK_IF_VOID:
+            if (IS_VOID(f->out))
+                SET_BLANK(f->out);
+            else
+                CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
+            break;
+
+        case R_OUT_VOID_IF_UNWRITTEN_BLANK_IF_VOID:
+            if (IS_END(f->out))
+                SET_VOID(f->out);
+            else if (IS_VOID(f->out))
+                SET_BLANK(f->out);
             else
                 CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
             break;

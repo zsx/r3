@@ -17,12 +17,10 @@ REBOL [
     }
 ]
 
-;-- !!! BACKWARDS COMPATIBILITY: this does detection on things that have
-;-- changed, in order to adapt the environment so that the build scripts
-;-- can still work in older as well as newer Rebols.  Thus the detection
-;-- has to be a bit "dynamic"
-
-do %r2r3-future.r
+; !!! This file does not include the backwards compatibility %r2r3-future.r.
+; The reason is that some code assumes it is running Ren-C, and that file
+; disables features which are not backward compatible, which shouldn't be
+; disabled if you *are* running Ren-C (e.g. the tests)
 
 
 spaced-tab: unspaced [space space space space]
@@ -51,42 +49,54 @@ to-c-name: function [
 
     string: either block? :value [unspaced value][form value]
 
-    string: switch/default attempt [to-word string] [
+    ; Note: SWITCH/DEFAULT is deprecated in Ren-C, and ELSE is not usable in
+    ; R3-Alpha, required for bootstrap.  Hence the wordy CASE is used here.
+    ;
+    string: case [
         ; Take care of special cases of singular symbols
 
         ; Used specifically by t-routine.c to make SYM_ELLIPSIS
-        ... [copy "ellipsis"]
+        ;
+        string = "..." [copy "ellipsis"]
 
         ; Used to make SYM_HYPHEN which is needed by `charset [#"A" - #"Z"]`
-        - [copy "hyphen"]
+        ;
+        string = "-" [copy "hyphen"]
 
-        ; None of these are used at present, but included in case
-        * [copy "asterisk"]
-        . [copy "period"]
-        ? [copy "question"]
-        ! [copy "exclamation"]
-        + [copy "plus"]
-        ~ [copy "tilde"]
-        | [copy "bar"]
-    ][
-        ; If these symbols occur composite in a longer word, they use a
-        ; shorthand; e.g. `true?` => `true_q`
+        ; Used to deal with the /? refinements (which may not last)
+        ;
+        string = "?" [copy "q"]
 
-        for-each [reb c] [
-            -   "_"
-            *   "_p"    ; !!! because it symbolizes a (p)ointer in C??
-            .   "_"     ; !!! same as hyphen?
-            ?   "_q"
-            !   "_x"    ; e(x)clamation
-            +   "_a"    ; (a)ddition
-            ~   "_t"
-            |   "_b"
+        ; None of these are used at present, but included just in case
+        ;
+        string = "*" [copy "asterisk"]
+        string = "." [copy "period"]
+        string = "!" [copy "exclamation"]
+        string = "+" [copy "plus"]
+        string = "~" [copy "tilde"]
+        string = "|" [copy "bar"]
 
-        ][
-            replace/all string (form reb) c
+        true [ ;-- !!! See notes above, don't change to an ELSE!
+            ;
+            ; If these symbols occur composite in a longer word, they use a
+            ; shorthand; e.g. `true?` => `true_q`
+
+            for-each [reb c] [
+                -   "_"
+                *   "_p"    ; !!! because it symbolizes a (p)ointer in C??
+                .   "_"     ; !!! same as hyphen?
+                ?   "_q"    ; (q)uestion
+                !   "_x"    ; e(x)clamation
+                +   "_a"    ; (a)ddition
+                ~   "_t"    ; (t)ilde
+                |   "_b"    ; (b)ar
+
+            ][
+                replace/all string (form reb) c
+            ]
+
+            string
         ]
-
-        string
     ]
 
     if empty? string [
@@ -147,7 +157,7 @@ to-c-name: function [
             ]
         ]
 
-        'default [
+        true [ ;-- !!! See notes above, do not change to an ELSE!
             fail "scope word must be 'global or 'local"
         ]
     ]

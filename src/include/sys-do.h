@@ -515,7 +515,7 @@ inline static void Quote_Next_In_Frame(REBVAL *dest, REBFRM *f) {
 // of where to execute.  Although the return value is a REBCNT, it is *NOT*
 // always a series index!!!  It may return END_FLAG, THROWN_FLAG, VA_LIST_FLAG
 //
-// DO_VAL_ARRAY_AT_THROWS is another helper for the frequent case where one
+// Do_Any_Array_At_Throws is another helper for the frequent case where one
 // has a BLOCK! or a GROUP! REBVAL at an index which already indicates the
 // point where execution is to start.
 //
@@ -940,9 +940,9 @@ inline static REBOOL Do_At_Throws(
 
 // Note: It is safe for `out` and `array` to be the same variable.  The
 // array and index are extracted, and will be protected from GC by the DO
-// state...so it is legal to e.g DO_VAL_ARRAY_AT_THROWS(D_OUT, D_OUT).
+// state...so it is legal to e.g Do_Any_Array_At_Throws(D_OUT, D_OUT).
 //
-inline static REBOOL DO_VAL_ARRAY_AT_THROWS(
+inline static REBOOL Do_Any_Array_At_Throws(
     REBVAL *out,
     const REBVAL *any_array
 ){
@@ -959,7 +959,7 @@ inline static REBOOL DO_VAL_ARRAY_AT_THROWS(
 // an EVAL and not a DO...hence if you pass it a block, then the block will
 // just evaluate to itself!
 //
-inline static REBOOL EVAL_VALUE_CORE_THROWS(
+inline static REBOOL Eval_Value_Core_Throws(
     REBVAL *out,
     const RELVAL *value,
     REBSPC *specifier
@@ -976,11 +976,30 @@ inline static REBOOL EVAL_VALUE_CORE_THROWS(
     );
 }
 
-#define EVAL_VALUE_THROWS(out,value) \
-    EVAL_VALUE_CORE_THROWS((out), (value), SPECIFIED)
+#define Eval_Value_Throws(out,value) \
+    Eval_Value_Core_Throws((out), (value), SPECIFIED)
 
 
-inline static REBOOL Run_Success_Branch_Throws(
+// When running a "branch" of code in conditional execution, Ren-C allows the
+// use of single-arity functions.
+//
+//    >> foo: does [print "Hello"]
+//    >> if true :foo
+//    Hello
+//
+// This was not allowed in R3-Alpha, and given the fact that you could write
+// that as `if true [foo]` the added flexibility may not be necessary.  But
+// there is a feature in Ren-C which allows you to have a branch evaluate to
+// itself literally, e.g.
+//
+//    [print "doesn't print"] = case/only [true [print "doesn't print"]]
+//
+// In order to capture all the "branch-like" decisions into one place, the
+// shared decision of what to allow or not allow is captured in this one
+// inline function, used by conditional and loop constructs instead of a
+// plain DO.
+//
+inline static REBOOL Run_Branch_Throws(
     REBVAL *out,
     const REBVAL *branch,
     REBOOL only
@@ -991,71 +1010,35 @@ inline static REBOOL Run_Success_Branch_Throws(
         Move_Value(out, branch);
     }
     else if (IS_BLOCK(branch)) {
-        if (DO_VAL_ARRAY_AT_THROWS(out, branch))
+        if (Do_Any_Array_At_Throws(out, branch))
             return TRUE;
     }
     else if (IS_FUNCTION(branch)) {
         //
-        // The function is allowed to be arity-0, or arity-1 and called with
-        // a LOGIC! (which it will ignore if arity 0)
+        // The function is allowed to be arity-0 only.
         //
-        if (Apply_Only_Throws(out, FALSE, branch, TRUE_VALUE, END_CELL))
+        // !!! Might it be interesting if arity-1 functions were also allowed,
+        // by passing in the condition evaluation that caused the branch?
+        //
+        //     >> if 1 + 2 func [x] [print x]
+        //     3
+        //
+        // This could look even better with lambdas:
+        //
+        //     >> if 1 + 2 (x -> print x)
+        //     3
+        //
+        // To implement that feature, callers would have to pass in the
+        // condition, then the argument would be included in the apply, with
+        // `fully` not enforced...so the function could either consume the
+        // argument or not.  Review.
+        //
+        const REBOOL fully = TRUE;
+        if (Apply_Only_Throws(out, fully, branch, END_CELL))
             return TRUE;
     }
     else
         Move_Value(out, branch); // it's not code -- nothing to run
-
-    return FALSE;
-}
-
-
-// Shared logic between EITHER and BRANCHER (BRANCHER is enfixed as ELSE)
-//
-inline static REB_R Either_Core(
-    REBVAL *out,
-    REBVAL *condition,
-    REBVAL *true_branch,
-    REBVAL *false_branch,
-    REBOOL only
-) {
-    if (IS_CONDITIONAL_TRUE_SAFE(condition)) { // SAFE means no literal blocks
-        if (Run_Success_Branch_Throws(out, true_branch, only))
-            return R_OUT_IS_THROWN;
-    }
-    else {
-        if (Run_Success_Branch_Throws(out, false_branch, only))
-            return R_OUT_IS_THROWN;
-    }
-
-    return R_OUT;
-}
-
-
-// A "failing" branch is the untaken branch of an IF, UNLESS, a missed CASE
-// or switch, etc.  This is distinguished from a branch which is simply false,
-// such as the false branch of an EITHER.  As far as an EITHER is concerned,
-// both of its branches are "success".
-//
-inline static REBOOL Maybe_Run_Failed_Branch_Throws(
-    REBVAL *out,
-    const REBVAL *branch,
-    REBOOL only
-) {
-    if (
-        NOT(only)
-        && IS_FUNCTION(branch)
-        && GET_VAL_FLAG(branch, FUNC_FLAG_MAYBE_BRANCHER)
-    ){
-        if (Apply_Only_Throws(
-            out,
-            TRUE, // error even if it doesn't consume the logic! FALSE
-            branch,
-            FALSE_VALUE,
-            END_CELL
-        )) {
-            return TRUE;
-        }
-    }
 
     return FALSE;
 }

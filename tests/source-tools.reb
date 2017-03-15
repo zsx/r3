@@ -18,7 +18,6 @@ ren-c-repo: any [
 
 ren-c-repo: clean-path ren-c-repo
 
-do ren-c-repo/src/tools/r2r3-future.r
 do ren-c-repo/src/tools/common.r
 do ren-c-repo/src/tools/common-parsers.r
 do %lib/text-lines.reb

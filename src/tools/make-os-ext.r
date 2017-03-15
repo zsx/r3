@@ -19,6 +19,7 @@ version: load %../boot/version.r
 lib-version: version/3
 print ["--- Make OS Ext Lib --- Version:" lib-version]
 
+do %r2r3-future.r
 do %common.r
 do %common-parsers.r
 do %systems.r

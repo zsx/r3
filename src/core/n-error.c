@@ -70,7 +70,7 @@ REBNATIVE(trap)
 
             if (IS_BLOCK(handler)) {
                 // There's no way to pass 'error' to a block (so just DO it)
-                if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(handler)))
+                if (Do_Any_Array_At_Throws(D_OUT, ARG(handler)))
                     return R_OUT_IS_THROWN;
 
                 if (REF(q)) return R_TRUE;
@@ -102,7 +102,7 @@ REBNATIVE(trap)
         return R_OUT;
     }
 
-    if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(block))) {
+    if (Do_Any_Array_At_Throws(D_OUT, ARG(block))) {
         // Note that we are interested in when errors are raised, which
         // causes a tricky C longjmp() to the code above.  Yet a THROW
         // is different from that, and offers an opportunity to each
@@ -182,7 +182,7 @@ REBNATIVE(attempt)
 
     if (error) return R_BLANK;
 
-    if (DO_VAL_ARRAY_AT_THROWS(D_OUT, block)) {
+    if (Do_Any_Array_At_Throws(D_OUT, block)) {
         DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
         // Throw name is in D_OUT, thrown value is held task local

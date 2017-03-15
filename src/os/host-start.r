@@ -438,7 +438,8 @@ host-start: function [
         case [
             slash = first first script-path []      ; absolute
             %./ = first script-path [script-path/1: o/path]   ; curr dir
-            'else [insert first script-path o/path]   ; relative
+        ] else [
+            insert first script-path o/path ; relative
         ]
     ]
 
@@ -456,17 +457,18 @@ host-start: function [
 
     ;-- Setup SECURE configuration (a NO-OP for min boot)
 
-;   lib/secure (case [
-;       o/secure [
-;           o/secure
-;       ]
-;       file? o/script [
-;           compose [file throw (file) [allow read] (first script-path) allow]
-;       ]
-;       'else [
-;           compose [file throw (file) [allow read] %. allow] ; default
-;       ]
-;   ])
+comment [
+    lib/secure (case [
+        o/secure [
+            o/secure
+        ]
+        file? o/script [
+            compose [file throw (file) [allow read] (first script-path) allow]
+        ]
+    ] else [
+        compose [file throw (file) [allow read] %. allow] ; default
+    ])
+]
 
     ;-- Evaluate rebol.r script:
     loud-print ["Checking for rebol.r file in" file]

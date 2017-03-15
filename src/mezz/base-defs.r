@@ -205,11 +205,9 @@ dump: proc [
                     print [item "=!!!=>" mold error]
                 ]
             ]
-
-            true [
-                fail [
-                    "Item not WORD!, PATH!, or GROUP! in DUMP." item
-                ]
+        ] else [
+            fail [
+                "Item not WORD!, PATH!, or GROUP! in DUMP." item
             ]
         ]
     ]

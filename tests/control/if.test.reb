@@ -10,7 +10,10 @@
     success
 ]
 [1 = if true [1]]
-[void? if true []]
+
+[void? if* true []]
+[blank? if true []]
+
 [error? if true [try [1 / 0]]]
 ; RETURN stops the evaluation
 [
@@ -73,9 +76,13 @@
 [if 0.0.0 [true]]
 [if  http:// [true]]
 [if 'a [true]]
+
 ; recursive behaviour
-[void? if true [if false [1]]]
+
+[blank? if true [if false [1]]]
+[void? if* true [if* false [1]]]
 [1 = if true [if true [1]]]
+
 ; infinite recursion
 [
     blk: [if true blk]

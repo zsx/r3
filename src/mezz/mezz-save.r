@@ -172,10 +172,8 @@ save: function [
             ; just return the UTF-8 binary
             data
         ]
-
-        'default [
-            ; string! or binary!, insert data
-            insert tail where data
-        ]
+    ] else [
+        ; string! or binary!, insert data
+        insert tail where data
     ]
 ]

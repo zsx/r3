@@ -35,11 +35,10 @@ do-core-tests: procedure [] [
             interpreter-checksum: checksum/method read-binary
                 to-rebol-file system/script/args 'sha1
         ]
-        'else [
-            ; use system/build
-            interpreter-checksum: checksum/method to binary!
-                mold system/build 'sha1
-        ]
+    ] else [
+        ; use system/build
+        interpreter-checksum: checksum/method to binary!
+            mold system/build 'sha1
     ]
 
     log-file-prefix: copy %r

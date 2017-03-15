@@ -22,6 +22,7 @@ REBOL [
     }
 ]
 
+do %r2r3-future.r
 do %common.r
 do %common-emitter.r
 do %form-header.r

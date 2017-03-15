@@ -10,9 +10,14 @@
     success
 ]
 [1 = unless false [1]]
+
+[void? unless* true [1]]
+[void? unless* false []]
 [void? unless true [1]]
-[void? unless false []]
+[blank? unless false []]
+
 [error? unless false [try [1 / 0]]]
+
 ; RETURN stops the evaluation
 [
     f1: does [

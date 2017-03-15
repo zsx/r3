@@ -36,7 +36,8 @@ clean-path: function [
             ]
             file: append clear out file
         ]
-        true [file: append what-dir file]
+    ] else [
+        file: append what-dir file
     ]
 
     if all [dir not dir? file] [append file #"/"]

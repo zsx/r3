@@ -91,7 +91,8 @@ last: func [
     value [any-series! tuple! gob!]
     <local> len
 ][
-    case [
+    case* [ ;-- returns <opt>, can't use "blankifying" convention
+
         any-series? value [pick back tail value 1]
         tuple? value [pick value length value]
         gob? value [
@@ -104,9 +105,10 @@ last: func [
 
             pick back tail value 1
         ]
-        'default [
+        'else [
             ; C code said "let the action throw the error", but by virtue
             ; of type checking this case should not happen.
+            ;
             pick value 0
         ]
     ]
@@ -138,6 +140,7 @@ repend: redescribe [
 ;
 join: func [ ;-- renamed to ADJOIN in %sys-start.r for user context, temporary
     "Concatenates values to the end of a series."
+    return: [any-series! port! map! gob! object! module! bitset!]
     series [any-series! port! map! gob! object! module! bitset!]
     value [<opt> any-value!]
 ][
@@ -149,7 +152,8 @@ join: func [ ;-- renamed to ADJOIN in %sys-start.r for user context, temporary
         function? :value [
             fail/where "Can't JOIN a FUNCTION! onto a series (use APPEND)."
         ]
-        'else [append/only series :value] ;-- paths, words, not in block
+    ] else [
+        append/only series :value ;-- paths, words, not in block
     ]
 ]
 

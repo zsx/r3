@@ -9,10 +9,16 @@
 ]
 [1 = either true [1] [2]]
 [2 = either false [1] [2]]
-[void? either true [] [1]]
-[void? either false [1] []]
+
+[void? either* true [] [1]]
+[void? either* false [1] []]
+
+[blank? either true [] [1]]
+[blank? either false [1] []]
+
 [error? either true [try [1 / 0]] []]
 [error? either false [] [try [1 / 0]]]
+
 ; RETURN stops the evaluation
 [
     f1: does [

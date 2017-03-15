@@ -20,8 +20,10 @@ REBOL [
     }
 ]
 
+do %r2r3-future.r
 do %common.r
 do %common-emitter.r
+
 args: parse-args system/options/args
 output-dir: fix-win32-path to file! any [args/OUTDIR %../]
 mkdir/deep output-dir/os

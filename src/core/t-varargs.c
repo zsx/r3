@@ -263,7 +263,7 @@ REBIXO Do_Vararg_Op_May_Throw(
         ) {
             if (op == VARARG_OP_TAIL_Q) return VA_LIST_FLAG;
 
-            if (EVAL_VALUE_CORE_THROWS(out, f->value, f->specifier))
+            if (Eval_Value_Core_Throws(out, f->value, f->specifier))
                 return THROWN_FLAG;
 
             Fetch_Next_In_Frame(f);

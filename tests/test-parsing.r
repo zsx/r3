@@ -113,7 +113,8 @@ make object! [
                             append collected-tests test-file
                             stop: [end skip]
                         ]
-                        'else [stop: [:position]]
+                    ] else [
+                        stop: [:position]
                     ]
                 ) stop break
                     |

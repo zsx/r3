@@ -11,13 +11,19 @@
         2 [12]
     ]
 ]
-[void? switch 1 [1 []]]
+
+[void? switch* 1 [1 []]]
+[blank? switch 1 [1 []]]
+
 [
     cases: reduce [1 head insert copy [] try [1 / 0]]
     error? switch 1 cases
 ]
-; bug#2242
-[11 = eval does [switch/all 1 [1 [return 11 88]] 99]]
+
+[
+    #2242
+    11 = eval does [switch/all 1 [1 [return 11 88]] 99]
+]
 
 [t: 1 | 1 = switch t [(t)]]
 [1 = switch/default 1 [] 1]

@@ -880,7 +880,7 @@ REBNATIVE(for_skip)
             VAL_INDEX(var) = index;
         }
 
-        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, ARG(body))) {
+        if (Do_Any_Array_At_Throws(D_OUT, ARG(body))) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop) {
@@ -930,7 +930,7 @@ REBNATIVE(forever)
 
     do {
         const REBOOL only = FALSE;
-        if (Run_Success_Branch_Throws(D_OUT, ARG(body), only)) {
+        if (Run_Branch_Throws(D_OUT, ARG(body), only)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop)
@@ -1068,7 +1068,7 @@ REBNATIVE(loop)
 
     for (; count > 0; count--) {
         const REBOOL only = FALSE;
-        if (Run_Success_Branch_Throws(D_OUT, ARG(body), only)) {
+        if (Run_Branch_Throws(D_OUT, ARG(body), only)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop)
@@ -1085,12 +1085,6 @@ REBNATIVE(loop)
         //
         goto restart;
     }
-
-    // If the body is a function, it may be a "brancher".  If it is,
-    // then run it and tell it that the condition is not still in effect.
-    //
-    if (Maybe_Run_Failed_Branch_Throws(D_OUT, ARG(body), FALSE))
-        return R_OUT_IS_THROWN;
 
     return R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY;
 }
@@ -1157,7 +1151,7 @@ inline static REB_R Loop_While_Until_Core(REBFRM *frame_, REBOOL trigger)
     skip_check:;
 
         const REBOOL only = FALSE;
-        if (Run_Success_Branch_Throws(D_OUT, ARG(body), only)) {
+        if (Run_Branch_Throws(D_OUT, ARG(body), only)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop)
@@ -1192,12 +1186,6 @@ inline static REB_R Loop_While_Until_Core(REBFRM *frame_, REBOOL trigger)
 
     perform_check:;
     } while (IS_CONDITIONAL_TRUE(D_OUT) == trigger);
-
-    // If the body is a function, it may be a "brancher".  If it is,
-    // then run it and tell it that it reached false.
-    //
-    if (Maybe_Run_Failed_Branch_Throws(D_OUT, ARG(body), FALSE)) // !only
-        return R_OUT_IS_THROWN;
 
     // Though LOOP-UNTIL will always have a truthy result, LOOP-WHILE never
     // will, and needs to have the result overwritten with something TRUE?
@@ -1239,9 +1227,8 @@ REBNATIVE(loop_while)
 //
 REBNATIVE(loop_until)
 //
-// !!! This function is redefined to UNTIL in the boot sequence, for
-// compatibility with R3-Alpha.  This will be the default distribution until
-// further notice.
+// !!! This function used to be called just UNTIL, but Ren-C retakes that for
+// the arity-2 complement to WHILE.
 {
     return Loop_While_Until_Core(frame_, FALSE);
 }
@@ -1258,7 +1245,7 @@ inline static REB_R While_Until_Core(REBFRM *frame_, REBOOL trigger)
     assert(IS_END(D_OUT)); // guaranteed by the evaluator
 
     do {
-        if (Run_Success_Branch_Throws(D_CELL, ARG(condition), only)) {
+        if (Run_Branch_Throws(D_CELL, ARG(condition), only)) {
             //
             // A while loop should only look for breaks and continues in its
             // body, not in its condition.  So `while [break] []` is a
@@ -1274,23 +1261,14 @@ inline static REB_R While_Until_Core(REBFRM *frame_, REBOOL trigger)
 
         if (IS_CONDITIONAL_TRUE(D_CELL) != trigger) {
             //
-            // If the body is a function, it may be a "brancher".  If it is,
-            // then run it and tell it that the condition has returned false.
+            // Successfully completed loops aren't allowed to return a
+            // FALSE? value, so they get BAR! as a truthy-result if the
+            // loop body ever ran... or void if it never did.
             //
-            if (Maybe_Run_Failed_Branch_Throws(D_OUT, ARG(body), FALSE))
-                return R_OUT_IS_THROWN;
-
-            if (trigger == FALSE) {
-                // Successfully completed loops aren't allowed to return a
-                // FALSE? value, so they get BAR! as a truthy-result.
-                //
-                return R_BAR;
-            }
-
             return R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY;
         }
 
-        if (Run_Success_Branch_Throws(D_OUT, ARG(body), only)) {
+        if (Run_Branch_Throws(D_OUT, ARG(body), only)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop)

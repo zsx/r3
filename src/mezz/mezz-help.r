@@ -452,11 +452,7 @@ help: procedure [
                 {a hijacked function}
             ]
         ]
-
-        true [
-            {a function}
-        ]
-    ]
+    ] else {a function}
 
     print-newline
 
@@ -534,9 +530,9 @@ source: make function! [[
     f: name: ; pure locals
 ][
     case [
-        any [word? :arg path? :arg] [
+        maybe [word! path!] :arg [
             name: arg
-            set/opt 'f get/opt arg
+            f: :arg
         ]
 
         integer? :arg [
@@ -576,22 +572,20 @@ source: make function! [[
                 + 1 ; CASE
                 + 1 ; SOURCE
             )
-        ]
 
-        'default [
-            name: "anonymous"
-            f: :arg
+            unless :f [
+                print ["Stack level" arg "does not exist in backtrace"]
+            ]
         ]
+    ] else [
+        name: "anonymous"
+        f: :arg
     ]
 
     either function? :f [
         print unspaced [mold name ":" space mold :f]
     ][
-        either integer? arg [
-            print ["Stack level" arg "does not exist in backtrace"]
-        ][
-            print [type-of :f "is not a function"]
-        ]
+        print [name "is a" mold type-of :f "and not a FUNCTION!"]
     ]
 ]]
 

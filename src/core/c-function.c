@@ -954,9 +954,9 @@ REBFUN *Make_Function(
     assert(rootparam->payload.function.paramlist == paramlist);
     assert(rootparam->extra.binding == NULL); // archetype
 
-    // Precalculate FUNC_FLAG_BRANCHER and FUNC_FLAG_DEFERS_LOOKBACK_ARG
+    // Precalculate FUNC_FLAG_DEFERS_LOOKBACK_ARG
     //
-    // Note that these flags are only relevant for *un-refined-calls*.  There
+    // Note that this flag is only relevant for *un-refined-calls*.  There
     // are no lookback function calls via PATH! and brancher dispatch is done
     // from a raw function value.  HOWEVER: specialization does come into play
     // because it may change what the first "real" argument is.  But again,
@@ -985,7 +985,6 @@ REBFUN *Make_Function(
             // error on LOGIC! or have greater arity, so that the error can
             // be delivered by the moment of attempted application.
             //
-            SET_VAL_FLAG(rootparam, FUNC_FLAG_MAYBE_BRANCHER);
             SET_VAL_FLAG(rootparam, FUNC_FLAG_DEFERS_LOOKBACK_ARG);
 
             goto done_caching; }
@@ -997,7 +996,6 @@ REBFUN *Make_Function(
             // At least one argument but not one that requires the deferring
             // of lookback.
             //
-            SET_VAL_FLAG(rootparam, FUNC_FLAG_MAYBE_BRANCHER);
             goto done_caching;
         }
 
@@ -1468,7 +1466,7 @@ REBOOL Specialize_Function_Throws(
     {
         PUSH_GUARD_ARRAY(CTX_VARLIST(exemplar));
 
-        if (DO_VAL_ARRAY_AT_THROWS(out, block)) {
+        if (Do_Any_Array_At_Throws(out, block)) {
             DROP_GUARD_ARRAY(CTX_VARLIST(exemplar));
             return TRUE;
         }
@@ -1802,35 +1800,6 @@ REB_R Returner_Dispatcher(REBFRM *f)
 
 
 //
-//  Brancher_Dispatcher: C
-//
-// The BRANCHER native is used by ELSE, and basically reuses the logic of the
-// implementation of EITHER.
-//
-REB_R Brancher_Dispatcher(REBFRM *f)
-{
-    REBVAL *condition = FRM_ARG(f, 1);
-
-    assert(IS_PAIR(FUNC_BODY(f->func)));
-
-    REBVAL *true_branch = PAIRING_KEY(FUNC_BODY(f->func)->payload.pair);
-    REBVAL *false_branch = FUNC_BODY(f->func)->payload.pair;
-
-    // Note: There is no /ONLY switch.  IF cannot pass it through, because
-    // running `IF/ONLY condition [foo] ELSE [bar]` would return the
-    // logic-taking function that ELSE defines.  Just pass FALSE.
-    //
-    return Either_Core(
-        FRM_OUT(f),
-        condition,
-        true_branch,
-        false_branch,
-        FALSE
-    );
-}
-
-
-//
 //  Specializer_Dispatcher: C
 //
 // The evaluator does not do any special "running" of a specialized frame.
@@ -1980,7 +1949,7 @@ void Get_If_Word_Or_Path_Arg(
         return;
     }
 
-    if (EVAL_VALUE_THROWS(out, adjusted)) {
+    if (Eval_Value_Throws(out, adjusted)) {
         //
         // !!! GET_PATH should not evaluate GROUP!, and hence shouldn't be
         // able to throw.  TBD.
@@ -2123,7 +2092,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
         // Do the block into scratch space--we ignore the result (unless it is
         // thrown, in which case it must be returned.)
         //
-        if (DO_VAL_ARRAY_AT_THROWS(f->out, opt_def)) {
+        if (Do_Any_Array_At_Throws(f->out, opt_def)) {
             Drop_Frame_Core(f);
             return R_OUT_IS_THROWN;
         }

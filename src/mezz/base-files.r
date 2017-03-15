@@ -200,11 +200,14 @@ load: function [
     load_ALL: all
     all: :lib/all
 
-    if string? data: case [
+    data: case [
         file? source [read source]
         url? source [read source]
-        'else [source]
-    ] [data: to binary! data]
+    ] else [source]
+
+    if string? data [
+        data: to binary! data
+    ]
 
     if binary? :data [
         data: transcode data

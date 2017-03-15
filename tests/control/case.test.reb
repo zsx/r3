@@ -9,9 +9,16 @@
     case [false [success: false]]
     success
 ]
-[void? case []]
-;-- CC#2246
-[void? case [true []]]
+
+[
+    void? case []
+][
+    #2246
+    void? case* [true []]
+][
+    blank? case [true []]
+]
+
 ; case results
 [case [true [true]]]
 [not case [true [false]]]

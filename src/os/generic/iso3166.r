@@ -52,9 +52,8 @@ capitalize: func [
             w = "U.S." [
                 append ret "U.S."
             ]
-            'else [
-                append ret join-of uppercase first w reduce [lowercase next w " "]
-            ]
+        ] else [
+            append ret join-of uppercase first w reduce [lowercase next w " "]
         ]
     ]
 

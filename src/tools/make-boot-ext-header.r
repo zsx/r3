@@ -15,6 +15,7 @@ REBOL [
     Needs: 2.100.100
 ]
 
+do %r2r3-future.r
 do %common.r
 do %common-emitter.r
 do %form-header.r

@@ -182,20 +182,13 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
 //
 #define FUNC_FLAG_LEAVE FUNC_FLAG(1)
 
-// A "brancher" is a single arity function that is capable of taking a
-// LOGIC! value.  Currently testing for this requires a bit of processing
-// so it is done when the function is made, and then this flag is checked.
-// It's set even if the function might not take logic or need more
-// parameters, so that it can be called and cause an error if needed.
+// DEFERS_LOOKBACK_ARG flag is a cached property, which tells you whether a
+// function defers its first real argument when used as a lookback.  Because
+// lookback dispatches cannot use refinements at this time, the answer is
+// static for invocation via a plain word.  This property is calculated at
+// the time of Make_Function().
 //
-#define FUNC_FLAG_MAYBE_BRANCHER FUNC_FLAG(2)
-
-// As with MAYBE_BRANCHER, the DEFERS_LOOKBACK_ARG flag is a cached property,
-// which tells you whether a function defers its first real argument when
-// used as a lookback.  Because lookback dispatches cannot use refinements
-// at this time, the answer is static for invocation via a plain word.
-//
-#define FUNC_FLAG_DEFERS_LOOKBACK_ARG FUNC_FLAG(3)
+#define FUNC_FLAG_DEFERS_LOOKBACK_ARG FUNC_FLAG(2)
 
 // The COMPILE-NATIVES command wants to operate on user natives, and be able
 // to recompile unchanged natives as part of a unit even after they were
@@ -203,14 +196,14 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
 // arbitrary function, they can't be recognized to know they have the specific
 // body structure of a user native.  So this flag is used.
 //
-#define FUNC_FLAG_USER_NATIVE FUNC_FLAG(4)
+#define FUNC_FLAG_USER_NATIVE FUNC_FLAG(3)
 
 #if !defined(NDEBUG)
     //
     // BLANK! ("none!") for unused refinements instead of FALSE
     // Also, BLANK! for args of unused refinements instead of not set
     //
-    #define FUNC_FLAG_LEGACY_DEBUG FUNC_FLAG(5)
+    #define FUNC_FLAG_LEGACY_DEBUG FUNC_FLAG(4)
 
     // If a function is a native then it may provide return information as
     // documentation, but not want to pay for the run-time check of whether
@@ -218,7 +211,7 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
     // to double-check.  So when MKF_FAKE_RETURN is used in a debug build,
     // it leaves this flag on the function.
     //
-    #define FUNC_FLAG_RETURN_DEBUG FUNC_FLAG(6)
+    #define FUNC_FLAG_RETURN_DEBUG FUNC_FLAG(5)
 #endif
 
 // This flag is set when the native (e.g. extensions) can be unloaded
@@ -228,7 +221,7 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
 // These are the flags which are scanned for and set during Make_Function
 //
 #define FUNC_FLAG_CACHED_MASK \
-    (FUNC_FLAG_MAYBE_BRANCHER | FUNC_FLAG_DEFERS_LOOKBACK_ARG)
+    (FUNC_FLAG_DEFERS_LOOKBACK_ARG)
 
 
 inline static REBFUN *VAL_FUNC(const RELVAL *v) {

@@ -129,14 +129,60 @@ xor+: enfix tighten :xor~
 ?: enfix :any-value?
 
 
-; ELSE is an experiment to try and allow IF condition [branch1] ELSE [branch2]
-; For efficiency it uses references to the branches and does not copy them
-; into the body or protect them from mutation.  It is supported by the
-; BRANCHER native, which still has the overhead of creating a function at this
-; time but is still speedier than a user function.
+; ELSE is an experiment to try and allow `if condition [...] else [...]`
+; Its left hand side is a "normal" parameter, not a "tight" one, so that is
+; interpreted as `(if condition [...]) else [...]`, as opposed to seen as
+; `if condition ([...] else [...])`.  It leverages the default behavior of
+; IF to return void only when the condition is not taken (if the branch
+; happens to evaluate to void, it will become a BLANK!, unless IF/OPT or IF*
+; are used)
 ;
-else: enfix :brancher
+else: enfix redescribe [
+    "Evaluate the branch if the left hand side expression is void"
+](
+    func [
+        prior [<opt> any-value!]
+        branch [<opt> any-value!]
+    ][
+        either void? :prior :branch [:prior]
+    ]
+)
 
+else*: enfix redescribe [
+    "Would be the same as ELSE/OPT, if infix functions dispatched from paths"
+](
+    func [
+        prior [<opt> any-value!]
+        branch [<opt> any-value!]
+    ][
+        either* void? :prior :branch [:prior]
+    ]
+)
+
+
+; THEN is a complement to ELSE, running only if its left hand side is not void
+;
+then: enfix redescribe [
+    "Evaluate the branch if the left hand side expression is not void"
+](
+    func [
+        prior [<opt> any-value!]
+        branch [<opt> any-value!]
+    ][
+        if any-value? :prior :branch
+    ]
+)
+
+then*: enfix redescribe [
+    "Would be the same as THEN/OPT, if infix functions dispatched from paths"
+](
+    func [
+        prior [<opt> any-value!]
+        branch [<opt> any-value!]
+    ][
+        if* any-value? :prior :branch
+    ]
+)
 
 ; Lambdas are experimental quick function generators via a symbol
 ;

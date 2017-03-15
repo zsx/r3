@@ -18,6 +18,7 @@ empty?: func [
     tail? series
 ]
 
+
 offset-of: func [
     "Returns the offset between two series positions."
     series1 [any-series!]
@@ -26,12 +27,14 @@ offset-of: func [
     subtract index-of series2 index-of series1
 ]
 
+
 last?: single?: func [
     "Returns TRUE if the series length is 1."
     series [any-series! port! map! tuple! bitset! object! gob! any-word!]
 ][
     1 = length series
 ]
+
 
 extend: func [
     "Extend an object, map, or block type with word and value pair."
@@ -42,6 +45,7 @@ extend: func [
     if :val [append obj reduce [to-set-word word :val]]
     :val
 ]
+
 
 join-all: function [
     "Reduces and appends a block of values together."
@@ -64,6 +68,7 @@ join-all: function [
     join-of base block
 ]
 
+
 remold: func [
     {Reduces and converts a value to a REBOL-readable string.}
     value {The value to reduce and mold}
@@ -77,6 +82,7 @@ remold: func [
     mold/(all [only 'only])/(all [all_REMOLD 'all])/(all [flat 'flat])
         reduce :value
 ]
+
 
 charset: func [
     "Makes a bitset of chars for the parse function."
@@ -96,6 +102,7 @@ charset: func [
 
     either charset-length [append make bitset! len chars] [make bitset! chars]
 ]
+
 
 array: func [
     "Makes and initializes a series of a given size."
@@ -121,12 +128,12 @@ array: func [
         function? :value [ ; So value can be a thunk :)
             loop size [block: insert/only block value] ; Called every time
         ]
-        'default [
-            insert/dup block either initial [value][_] size
-        ]
+    ] else [
+        insert/dup block either initial [value][_] size
     ]
     head block
 ]
+
 
 replace: function [
     "Replaces a search value with the replace value within the target series."
@@ -179,9 +186,7 @@ replace: function [
         ]
 
         any-block? :pattern [length :pattern]
-
-        true 1
-    ]
+    ] else 1
 
     while [pos: find/(all [case_REPLACE 'case]) target :pattern] [
         ; apply replacement if function, or drops pos if not
@@ -200,7 +205,7 @@ replace: function [
 reword: function [
     "Make a string or binary based on a template and substitution values."
 
-    ; !!! "It's big, it's complex, but it works. Placeholder for a native."
+    ; !!! "It's big, it's complex, but it works." -- @BrianH
 
     source [any-string! binary!]
         "Template series with escape sequences"
@@ -230,7 +235,8 @@ reword: function [
     wtype: case [
         case_REWORD binary!
         tag? source string!
-        'default type-of source
+    ] else [
+        type-of source
     ]
 
     ; Determine the escape delimiter(s), if any
@@ -273,12 +279,13 @@ reword: function [
             until [tail? values] [
                 w: first+ values  ; Keywords are not evaluated
                 v: do/next values 'values
-                if any [set-word? :w lit-word? :w] [w: to word! :w]
+                if maybe [set-word! lit-word!] :w [w: to word! :w]
                 case [
-                    wtype = type-of :w blank
+                    wtype = type-of :w [blank]
                     wtype <> binary! [w: to wtype :w]
                     any-string? :w [w: to binary! :w]
-                    'else [w: to binary! to string! :w]
+                ] else [
+                    w: to binary! to string! :w
                 ]
                 unless empty? w [
                     unless empty? char-end [w: append copy w char-end]
@@ -287,21 +294,23 @@ reword: function [
             ]
         ]
 
-        'default [
-            ; /only doesn't apply, just assign raw values
+    ] else [
+        ; /only doesn't apply, just assign raw values
+        ;
+        ; !!! Note repeated code, should there be a local function?
 
-            for-each [w v] values [  ; for-each can be used on all values types
-                if any [set-word? :w lit-word? :w] [w: to word! :w]
-                case [
-                    wtype = type-of :w blank
-                    wtype <> binary! [w: to wtype :w]
-                    any-string? :w [w: to binary! :w]
-                    'else [w: to binary! to string! :w]
-                ]
-                unless empty? w [
-                    unless empty? char-end [w: append copy w char-end]
-                    poke vals lock-of w :v ; v may be void...can we use LOCK?
-                ]
+        for-each [w v] values [  ; for-each can be used on all values types
+            if maybe [set-word! lit-word!] :w [w: to word! :w]
+            case [
+                wtype = type-of :w blank
+                wtype <> binary! [w: to wtype :w]
+                any-string? :w [w: to binary! :w]
+            ] else [
+                w: to binary! to string! :w
+            ]
+            unless empty? w [
+                unless empty? char-end [w: append copy w char-end]
+                poke vals lock-of w :v ; v may be void...can we use LOCK?
             ]
         ]
     ]
@@ -327,11 +336,12 @@ reword: function [
 
     escape: [
         copy w word cword out (
-            output: insert output case [
+            output: insert output (case [
                 block? v: select vals w [either only [v] :v]
                 function? :v [apply :v [:b]]
-                'else :v
-            ]
+            ] else [
+                :v
+            ])
         ) a:
     ]
 
@@ -373,6 +383,7 @@ move: func [
     ] part
 ]
 
+
 extract: func [
     "Extracts a value from a series at regular intervals."
     series [any-series!]
@@ -411,11 +422,14 @@ extract: func [
     either into [output] [head output]
 ]
 
+
 alter: func [
     "Append value if not found, else remove it; returns true if added."
+
     series [any-series! port! bitset!] {(modified)}
     value
-    /case "Case-sensitive comparison"
+    /case
+        "Case-sensitive comparison"
 ][
     case_ALTER: case
     case: :lib/case
@@ -500,12 +514,11 @@ format: function [
     for-each rule rules [
         if word? :rule [rule: get rule]
 
-        ; !!! to-word necessary as long as OPTIONS_DATATYPE_WORD_STRICT exists
-        val: val + switch/default to-word type-of :rule [
-            integer! [abs rule]
-            string! [length rule]
-            char!    [1]
-        ][0]
+        val: val + (switch type-of :rule [
+            :integer! [abs rule]
+            :string! [length rule]
+            :char! [1]
+        ] else 0)
     ]
 
     out: make string! val
@@ -515,9 +528,8 @@ format: function [
     for-each rule rules [
         if word? :rule [rule: get rule]
 
-        ; !!! to-word necessary as long as OPTIONS_DATATYPE_WORD_STRICT exists
-        switch to-word type-of :rule [
-            integer! [
+        switch type-of :rule [
+            :integer! [
                 pad: rule
                 val: form first+ values
                 clear at val 1 + abs rule
@@ -529,8 +541,8 @@ format: function [
                 change out :val
                 out: skip out pad ; spacing (remainder)
             ]
-            string!  [out: change out rule]
-            char!    [out: change out rule]
+            :string!  [out: change out rule]
+            :char!    [out: change out rule]
         ]
     ]
 
@@ -538,6 +550,7 @@ format: function [
     if not tail? values [append out values]
     head out
 ]
+
 
 printf: func [
     "Formatted print."
@@ -547,8 +560,10 @@ printf: func [
     print format :fmt :val
 ]
 
+
 split: function [
     "Split series in pieces: fixed/variable size, fixed number, or delimited"
+
     series [any-series!]
         "The series to split"
     dlm [block! integer! char! bitset! any-string!]
@@ -567,8 +582,9 @@ split: function [
         ]
     ][
         size: dlm   ; alias for readability
+        
         res: collect [
-            parse series case [
+            parse series (case [
                 all [integer? size | into] [
                     if size < 1 [cause-error 'Script 'invalid-arg size]
                     count: size - 1
@@ -583,59 +599,89 @@ split: function [
                     if size < 1 [cause-error 'Script 'invalid-arg size]
                     [any [copy series 1 size skip (keep/only series)]]
                 ]
-                'else [ ; = any [bitset? dlm  any-string? dlm  char? dlm]
-                    [any [mk1: some [mk2: dlm break | skip] (keep/only copy/part mk1 mk2)]]
+            ] else [
+                ; !!! It appears from the tests that dlm is allowed to be a
+                ; block, in which case it acts as a parse rule.  At least,
+                ; there was a test that uses the feature.  This would not
+                ; apply to parse rules that were all integers, e.g. [1 1 1],
+                ; since those style blocks are handled by the other branch.
+                ;
+                assert [maybe [bitset! any-string! char! block!] dlm]
+                [
+                    any [mk1: some [mk2: dlm break | skip] (
+                        keep/only copy/part mk1 mk2
+                    )]
                 ]
-            ]
+            ])
         ]
-        ;-- Special processing, to handle cases where the spec'd more items in
-        ;   /into than the series contains (so we want to append empty items),
-        ;   or where the dlm was a char/string/charset and it was the last char
-        ;   (so we want to append an empty field that the above rule misses).
+
+        ; Special processing, to handle cases where the spec'd more items in
+        ; /into than the series contains (so we want to append empty items),
+        ; or where the dlm was a char/string/charset and it was the last char
+        ; (so we want to append an empty field that the above rule misses).
+        ;
         fill-val: does [copy either any-block? series [[]] [""]]
         add-fill-val: does [append/only res fill-val]
         case [
-            all [integer? size  into] [
+            all [integer? size | into] [
+                ;
                 ; If the result is too short, i.e., less items than 'size, add
                 ; empty items to fill it to 'size.
-                ; We loop here, because insert/dup doesn't copy the value inserted.
+                ;
+                ; We loop here as insert/dup doesn't copy the value inserted.
+                ;
                 if size > length res [
                     loop (size - length res) [add-fill-val]
                 ]
             ]
-            ; integer? dlm [
-            ; ]
-            'else [ ; = any [bitset? dlm  any-string? dlm  char? dlm]
-                ; If the last thing in the series is a delimiter, there is an
-                ; implied empty field after it, which we add here.
-                case [
-                    bitset? dlm [
-                        ; ATTEMPT is here because LAST will return NONE for an
-                        ; empty series, and finding blank in a bitest is not allowed.
-                        if attempt [find dlm last series] [add-fill-val]
-                    ]
-                    char? dlm [
-                        if dlm = last series [add-fill-val]
-                    ]
-                    string? dlm [
-                        if all [
-                            find series dlm
-                            empty? find/last/tail series dlm
-                        ] [add-fill-val]
-                    ]
+            integer? dlm []
+        ]
+        else [
+            assert [maybe [bitset! any-string! char! block!] dlm]
+
+            ; If the last thing in the series is a delimiter, there is an
+            ; implied empty field after it, which we add here.
+            ;
+            case [
+                bitset? dlm [
+                    ;
+                    ; ATTEMPT is here because LAST will return void for an
+                    ; empty series, and FIND of void is not allowed.
+                    ;
+                    if attempt [find dlm last series] [add-fill-val]
+                ]
+
+                char? dlm [
+                    if dlm = last series [add-fill-val]
+                ]
+
+                string? dlm [
+                    if all [
+                        find series dlm
+                        empty? find/last/tail series dlm
+                    ] [add-fill-val]
+                ]
+
+                block? dlm [
+                    ;-- nothing was here.
                 ]
             ]
         ]
+
 
         res
     ]
 ]
 
+
 find-all: function [
     "Find all occurrences of a value within a series (allows modification)."
-    'series [word!] "Variable for block, string, or other series"
+
+    'series [word!]
+        "Variable for block, string, or other series"
     value
-    body [block!] "Evaluated for each occurrence"
+    body [block!]
+        "Evaluated for each occurrence"
 ][
     verify [any-series? orig: get series]
     while [any [set series find get series :value (set series orig false)]] [
