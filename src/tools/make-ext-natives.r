@@ -206,10 +206,11 @@ for-each [m-name c-src] boot-modules [
         REBARR * arr = Make_Extension_Module_Array(
             Ext_Native_Specs_} m-name {, EXT_NAT_COMPRESSED_SIZE_} u-m-name {,
             Ext_Native_C_Funcs_} m-name {, EXT_NUM_NATIVES_} u-m-name {,
-            -1);} ]
+            0);} ]
         ][
             unspaced [ {
         Ext_} m-name {_Error_Base = Find_Next_Error_Base_Code();
+        assert(Ext_} m-name {_Error_Base > 0);
         REBARR * arr = Make_Extension_Module_Array(
             Ext_Native_Specs_} m-name {, EXT_NAT_COMPRESSED_SIZE_} u-m-name {,
             Ext_Native_C_Funcs_} m-name {, EXT_NUM_NATIVES_} u-m-name {,

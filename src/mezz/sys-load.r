@@ -505,7 +505,7 @@ do-needs: function [
 load-ext-module: function [
     spec    [binary!]  "Spec for the module"
     impl    [handle!] "Native function implementation array"
-    error-base [integer!] "error base for the module"
+    error-base [integer! blank!] "error base for the module"
     /unloadable
     /no-lib
     /no-user

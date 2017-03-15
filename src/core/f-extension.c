@@ -276,7 +276,7 @@ REBARR *Make_Extension_Module_Array(
     TERM_ARRAY_LEN(arr, 3);
     Init_Binary(ARR_AT(arr, 0), Copy_Bytes(spec, len));
     Init_Handle_Managed(ARR_AT(arr,1), cast(void *, impl), n, &cleanup_module_handler);
-    if (error_base < 0) {
+    if (error_base == 0) {
         SET_BLANK(ARR_AT(arr, 2));
     } else {
         SET_INTEGER(ARR_AT(arr, 2), error_base);
