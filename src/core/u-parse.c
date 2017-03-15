@@ -410,7 +410,7 @@ static REBIXO Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
     REBCNT flags = P_FIND_FLAGS | AM_FIND_MATCH | AM_FIND_TAIL;
 
     if (Trace_Level) {
-        Trace_Value("input", rule);
+        Trace_Value("match", rule);
 
         // !!! This used STR_AT (obsolete) but it's not clear that this is
         // necessarily a byte sized series.  Switched to BIN_AT, which will
