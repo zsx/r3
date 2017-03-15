@@ -1584,6 +1584,9 @@ REBNATIVE(subparse)
                         Print_Parse_Index(f);
                         FETCH_NEXT_RULE_MAYBE_END(f);
                         continue;
+
+                    default: //the list above should be exhaustive
+                        assert(FALSE);
                     }
                 }
                 // Any other cmd must be a match command, so proceed...

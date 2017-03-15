@@ -771,6 +771,9 @@ REBTYPE(Map)
 
     case SYM_TAIL_Q:
         return (Length_Map(map) == 0) ? R_TRUE : R_FALSE;
+
+    default:
+        break;
     }
 
     fail (Error_Illegal_Action(REB_MAP, action));

@@ -418,6 +418,9 @@ REBTYPE(Integer)
                     }
                     if (IS_DATE(val2)) return T_Date(frame_, action);
                 }
+
+            default:
+                break;
             }
             fail (Error_Math_Args(REB_INTEGER, action));
         }

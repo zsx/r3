@@ -168,6 +168,9 @@ static ffi_abi Abi_From_Word(const REBVAL *word) {
     case SYM_N64_SOFT_FLOAT:
         return FFI_N64_SOFT_FLOAT;
 #endif //X86_WIN64
+
+    default:
+        break;
     }
 
     fail (Error_Invalid_Arg(word));

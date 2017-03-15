@@ -120,6 +120,9 @@ REBTYPE(Port)
 
     case SYM_REFLECT:
         return T_Context(frame_, action);
+
+    default:
+        break;
     }
 
     return Do_Port_Action(frame_, VAL_CONTEXT(value), action);

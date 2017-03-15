@@ -407,6 +407,8 @@ REBTYPE(Decimal)
                 d1 = pow(d1, d2);
                 goto setDec;
 
+            default:
+                fail (Error_Math_Args(VAL_TYPE(val), action));
             }
         }
         fail (Error_Math_Args(VAL_TYPE(val), action));
@@ -497,6 +499,9 @@ REBTYPE(Decimal)
         case SYM_COMPLEMENT:
             SET_INTEGER(D_OUT, ~(REBINT)d1);
             return R_OUT;
+
+        default:
+            fail (Error_Illegal_Action(VAL_TYPE(val), action));
         }
     }
 

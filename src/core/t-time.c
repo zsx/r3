@@ -513,6 +513,9 @@ REBTYPE(Time)
                 if (secs2 == 0) fail (Error(RE_ZERO_DIVIDE));
                 secs %= secs2;
                 goto setTime;
+
+            default:
+                fail (Error_Math_Args(REB_TIME, action));
             }
         }
         else if (type == REB_INTEGER) {     // handle TIME - INTEGER cases
@@ -544,6 +547,9 @@ REBTYPE(Time)
                 if (num == 0) fail (Error(RE_ZERO_DIVIDE));
                 secs %= num;
                 goto setTime;
+
+            default:
+                fail (Error_Math_Args(REB_TIME, action));
             }
         }
         else if (type == REB_DECIMAL) {     // handle TIME - DECIMAL cases
@@ -570,6 +576,9 @@ REBTYPE(Time)
 //          case SYM_REMAINDER:
 //              ld = fmod(ld, VAL_DECIMAL(arg));
 //              goto decTime;
+
+            default:
+                fail (Error_Math_Args(REB_TIME, action));
             }
         }
         else if (type == REB_DATE && action == SYM_ADD) { // TIME + DATE case
@@ -670,6 +679,9 @@ REBTYPE(Time)
             Poke_Time_Immediate(val, arg, D_ARG(3));
             Move_Value(D_OUT, D_ARG(3));
             return R_OUT;*/
+
+        default:
+            break;
         }
     }
     fail (Error_Illegal_Action(REB_TIME, action));

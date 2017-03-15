@@ -391,6 +391,9 @@ static REB_R Transport_Actor(
         VAL_EVENT_REQ(event) = sock;
         Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }
+
+    default:
+        break;
     }
 
     fail (Error_Illegal_Action(REB_PORT, action));

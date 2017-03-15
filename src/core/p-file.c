@@ -604,6 +604,9 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         if (OS_DO_DEVICE(req, RDC_WRITE) < 0)
             fail (Error(RE_WRITE_ERROR, path));
         return R_OUT;
+
+    default:
+        break;
     }
 
     fail (Error_Illegal_Action(REB_PORT, action));

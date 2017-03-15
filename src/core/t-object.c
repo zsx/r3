@@ -732,6 +732,9 @@ REBTYPE(Context)
             return R_OUT;
         }
         fail (Error_Illegal_Action(VAL_TYPE(value), action));
+
+    default:
+        break;
     }
 
     fail (Error_Illegal_Action(VAL_TYPE(value), action));

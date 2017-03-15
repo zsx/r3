@@ -166,6 +166,8 @@ static REBOOL Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
                         case SYM_DOUBLE:
                             SET_FLAG(VAL_EVENT_FLAGS(value), EVF_DOUBLE);
                             break;
+                        default:
+                            fail (Error_Invalid_Arg(arg));
                     }
         }
         else return FALSE;

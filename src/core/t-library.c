@@ -102,7 +102,10 @@ REBTYPE(Library)
             AS_SERIES(VAL_LIBRARY(lib))->misc.fd = NULL;
         }
         return R_VOID; }
-}
+
+    default:
+        break;
+    }
 
     fail (Error_Illegal_Action(REB_LIBRARY, action));
 }

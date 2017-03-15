@@ -475,6 +475,9 @@ REBTYPE(Tuple)
 
 */
         fail (Error_Bad_Make(REB_TUPLE, arg));
+
+    default:
+        break;
     }
 
     fail (Error_Illegal_Action(REB_TUPLE, action));

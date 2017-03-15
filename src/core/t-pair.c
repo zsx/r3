@@ -394,6 +394,9 @@ REBTYPE(Pair)
 ///         }
         SET_DECIMAL(D_OUT, n == 0 ? x1 : y1);
         return R_OUT; }
+
+    default:
+        break;
     }
 
     fail (Error_Illegal_Action(REB_PAIR, action));

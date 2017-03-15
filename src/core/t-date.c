@@ -880,6 +880,9 @@ REBTYPE(Date)
 
         case SYM_ABSOLUTE:
             goto setDate;
+
+        default:
+            fail (Error_Illegal_Action(REB_DATE, action));
         }
     }
     fail (Error_Illegal_Action(REB_DATE, action));

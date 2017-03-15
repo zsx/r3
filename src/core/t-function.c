@@ -259,6 +259,9 @@ REBTYPE(Function)
             fail (Error_Cannot_Reflect(VAL_TYPE(value), arg));
         }
         break; }
+
+    default:
+        break;
     }
 
     fail (Error_Illegal_Action(VAL_TYPE(value), action));
