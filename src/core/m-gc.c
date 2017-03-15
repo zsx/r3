@@ -492,13 +492,14 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         // context where the param and arg live (possibly expired).
         //
         REBARR *binding = v->extra.binding;
-        if (binding != NULL)
+        if (binding != NULL) {
             if (IS_ARRAY_MANAGED(binding))
                 Queue_Mark_Context_Deep(AS_CONTEXT(v->extra.binding));
             else {
                 // !!! Should assert that the binding is to a frame that is
                 // in mid-fulfillment on the stack
             }
+        }
 
         // The data feed is either a frame context or a singular block which
         // holds the shared index among all same varargs into that array.
