@@ -179,7 +179,7 @@ REBNATIVE(do)
             return R_OUT;
         }
 
-        if (DO_VAL_ARRAY_AT_THROWS(D_OUT, source))
+        if (Do_Any_Array_At_Throws(D_OUT, source))
             return R_OUT_IS_THROWN;
 
         return R_OUT;
@@ -234,7 +234,7 @@ REBNATIVE(do)
         if (NOT_END(param))
             fail (Error(RE_USE_EVAL_FOR_EVAL));
 
-        if (EVAL_VALUE_THROWS(D_OUT, source))
+        if (Eval_Value_Throws(D_OUT, source))
             return R_OUT_IS_THROWN;
         return R_OUT;
     }

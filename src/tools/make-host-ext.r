@@ -19,6 +19,7 @@ REBOL [
 
 print "--- Make Host Boot Extension ---"
 
+do %r2r3-future.r
 do %common.r
 
 do %form-header.r

@@ -84,7 +84,7 @@ do*: function [
         ]
 
         ; Convert value into a URL!
-        source: switch/default source [
+        source: switch source [
             ; Encodings and data formats
             <json> [http://reb4.me/r3/json.reb]
             <xml> [http://reb4.me/r3/altxml.reb]
@@ -97,7 +97,7 @@ do*: function [
 
             ; Dialects
             <rebmu> [https://raw.githubusercontent.com/hostilefork/rebmu/master/rebmu.reb]
-        ][
+        ] else [
             fail [
                 {Module} source {not in "rebol.org index" (hardcoded for now)}
             ]

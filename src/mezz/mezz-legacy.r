@@ -363,13 +363,7 @@ get: function [
     opt_GET: opt
     opt: :lib/opt
 
-    either any [
-        blank? :source
-        any-word? :source
-        any-path? :source
-        any-context? :source
-        block? :source
-    ][
+    either* maybe? [blank! any-word! any-path! any-context! block!] :source [
         lib-get/(all [any [opt_GET any_GET] 'opt]) :source
     ][
         unless system/options/get-will-get-anything [
@@ -389,10 +383,11 @@ try: func [
     {Tries to DO a block and returns its value or an error.}
     return: [<opt> any-value!]
     block [block!]
-    /except "On exception, evaluate this code block"
+    /except
+        "On exception, evaluate code"
     code [block! function!]
 ][
-    either except [trap/with block :code] [trap block]
+    either* except [trap/with block :code] [trap block]
 ]
 
 
@@ -442,7 +437,7 @@ r3-alpha-apply: function [
     using-args: true
 
     until [tail? block] [
-        arg: either only [
+        arg: either* only [
             also block/1 (block: next block)
         ][
             do/next block 'block
@@ -735,9 +730,13 @@ set 'r3-legacy* func [<local> if-flags] [
             case [
                 not word [type-of :value]
 
-                not set? 'value [quote unset!] ;-- https://trello.com/c/rmsTJueg
+                not set? 'value [
+                    quote unset! ;-- https://trello.com/c/rmsTJueg
+                ]
 
-                blank? :value [quote none!] ;-- https://trello.com/c/vJTaG3w5
+                blank? :value [
+                    quote none! ;-- https://trello.com/c/vJTaG3w5
+                ]
 
                 all [
                     group? :value
@@ -745,8 +744,8 @@ set 'r3-legacy* func [<local> if-flags] [
                 ][
                     quote paren! ;-- https://trello.com/c/ANlT44nH
                 ]
-
-                'default [to-word type-of :value]
+            ] else [
+                to-word type-of :value
             ]
         ])
 
@@ -901,10 +900,8 @@ set 'r3-legacy* func [<local> if-flags] [
                 string? rules [
                     split input to-bitset rules
                 ]
-
-                true [
-                    lib/parse/(all [case_PARSE 'case]) input rules
-                ]
+            ] else [
+                lib/parse/(all [case_PARSE 'case]) input rules
             ]
         ])
 
@@ -974,9 +971,8 @@ set 'r3-legacy* func [<local> if-flags] [
                                         position: next position
                                     ]
                                 ]
-                                true [
-                                    fail "non SET-WORD?/WORD? in FOREACH vars"
-                                ]
+                            ] else [
+                                fail "non SET-WORD?/WORD? in FOREACH vars"
                             ]
                         ]
                     ])

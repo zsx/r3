@@ -338,7 +338,8 @@ load: function [
             ftype: case [
                 all [:ftype = 'unbound | :sftype = 'extension] [sftype]
                 type [ftype]
-                'default [sftype]
+            ] else [
+                sftype
             ]
             data: read-decode source ftype
             if sftype = 'extension [return data]
@@ -549,11 +550,11 @@ load-ext-module: function [
     ]
 
     case [
-        not module? mod blank
+        not module? mod [blank]
 
-        not block? select hdr 'exports blank
+        not block? select hdr 'exports [blank]
 
-        empty? hdr/exports blank
+        empty? hdr/exports [blank]
 
         find hdr/options 'private [
             ; full export to user
@@ -561,16 +562,15 @@ load-ext-module: function [
                 resolve/extend/only system/contexts/user mod hdr/exports
             ]
         ]
-
-        'default [
-            unless no-lib [
-                resolve/extend/only system/contexts/lib mod hdr/exports
-            ]
-            unless no-user [
-                resolve/extend/only system/contexts/user mod hdr/exports
-            ]
+    ] else [
+        unless no-lib [
+            resolve/extend/only system/contexts/lib mod hdr/exports
+        ]
+        unless no-user [
+            resolve/extend/only system/contexts/user mod hdr/exports
         ]
     ]
+
     mod
 ]
 
@@ -589,11 +589,15 @@ load-module: function [
         "Don't export to the runtime library (lib)"
     /import
         "Do module import now, overriding /delay and 'delay option"
-    /as name [word!]
+    /as
+    name [word!]
         "New name for the module (not valid for reloads)"
     /delay
         "Delay module init until later (ignored if source is module!)"
 ][
+    as_LOAD_MODULE: :as
+    as: :lib/as
+
     ; NOTES:
     ;
     ; This is a variation of LOAD that is used by IMPORT. Unlike LOAD, the
@@ -618,13 +622,15 @@ load-module: function [
     case [
         word? source [ ; loading the preloaded
             case/all [
-                as [cause-error 'script 'bad-refine /as] ; no renaming
+                as_LOAD_MODULE [
+                    cause-error 'script 'bad-refine /as ; no renaming
+                ]
 
                 ; Return blank if no module of that name found
                 not tmp: find/skip system/modules source 3 [return blank]
 
                 ; get the module
-                set [mod: modsum:] next tmp blank
+                set [mod: modsum:] next tmp [blank]
 
                 <check> [
                     ensure [module! block!] mod
@@ -632,7 +638,7 @@ load-module: function [
                 ]
 
                 ; If no further processing is needed, shortcut return
-                all [not version not check any [delay module? :mod]] [
+                all [not version | not check | any [delay module? :mod]] [
                     return reduce [source if module? :mod [mod]]
                 ]
             ]
@@ -650,17 +656,15 @@ load-module: function [
                 tmp = 'extension [
                     fail "Use LOAD or LOAD-EXTENSION to load an extension"
                 ]
-
-                'default [
-                    cause-error 'access 'no-script source ; needs better error
-                ]
+            ] else [
+                cause-error 'access 'no-script source ; needs better error
             ]
         ]
 
         module? source [
             ; see if the same module is already in the list
             if tmp: find/skip next system/modules mod: source 3 [
-                if as [
+                if as_LOAD_MODULE [
                     ; already imported
                     cause-error 'script 'bad-refine /as
                 ]
@@ -990,13 +994,14 @@ load-extension: function [
             script: uncompress ext/script
             script: load/header script
         ]
-        true [
-            ; ext/script should ALWAYS be set by the extension but if it's not,
-            ; do not fail, because failing to load a builtin extension could
-            ; cause the interpreter to fail to boot
-            script: reduce [construct system/standard/header []]
-        ]
+    ] else [
+        ; ext/script should ALWAYS be set by the extension but if it's not,
+        ; do not fail, because failing to load a builtin extension could
+        ; cause the interpreter to fail to boot
+        ;
+        script: reduce [construct system/standard/header []]
     ]
+
     ext/script: _ ;clear the startup script to save memory
     ext/header: take script
     modules: make block! 1

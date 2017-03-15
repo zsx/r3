@@ -261,6 +261,7 @@ libr3.lib: r3.o
 ;** Options and Config
 ;******************************************************************************
 
+do %r2r3-future.r
 do %common.r
 do %systems.r
 

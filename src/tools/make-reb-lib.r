@@ -13,7 +13,10 @@ REBOL [
     Needs: 2.100.100
 ]
 
+do %r2r3-future.r
 do %common.r
+do %common-parsers.r
+do %form-header.r
 
 print "--- Make Reb-Lib Headers ---"
 
@@ -38,10 +41,6 @@ reb-ext-defs: out-dir/reb-lib-lib.h  ; for REBOL usage
 
 ver: load %../boot/version.r
 
-do %common.r
-do %common-parsers.r
-
-do %form-header.r
 
 ;-----------------------------------------------------------------------------
 ;-----------------------------------------------------------------------------

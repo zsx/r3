@@ -38,6 +38,7 @@
 // uses this enum.
 //
 enum Reb_Result {
+    //
     // Returning boolean results is specially chosen as the 0 and 1 values,
     // so that a logic result can just be cast, as with R_FROM_BOOL().
     // See remarks on REBOOL about how it is ensured that TRUE is 1, and
@@ -71,7 +72,7 @@ enum Reb_Result {
     //
     R_OUT_UNEVALUATED,
 
-    // See comments on OPT_VALUE_THROWN about the migration of "thrownness"
+    // See comments on VALUE_FLAG_THROWN about the migration of "thrownness"
     // from being a property signaled to the evaluator.
     //
     // R_OUT_IS_THROWN is a test of that signaling mechanism.  It is currently
@@ -84,7 +85,6 @@ enum Reb_Result {
     //
     R_OUT_IS_THROWN,
 
-    // This is a return value in service of refinements like IF/BRANCHED?.
     // Since all dispatchers get END markers in the f->out slot (a.k.a. D_OUT)
     // then it can be used to tell if the output has been written "in band"
     // by a legal value or void.  This returns TRUE if D_OUT is not END,
@@ -92,8 +92,8 @@ enum Reb_Result {
     //
     R_OUT_TRUE_IF_WRITTEN,
 
-    // Similar to R_OUT_WRITTEN_Q, this converts an illegal END marker return
-    // value in R_OUT to simply a void.
+    // Similar to R_OUT_TRUE_IF_WRITTEN, this converts an illegal END marker
+    // return value in R_OUT to simply a void.
     //
     R_OUT_VOID_IF_UNWRITTEN,
 
@@ -101,12 +101,23 @@ enum Reb_Result {
     //
     R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY,
 
+    // This converts void into BLANK!, and is used by control constructs
+    // so that they can reserve void for the case they didn't run any branch.
+    //
+    R_OUT_BLANK_IF_VOID,
+
+    // This combines the unwritten and blank path for control constructs.
+    // While it may seem they could do it themselves, having a different
+    // return code is a reminder that some optimization may be possible.
+    //
+    R_OUT_VOID_IF_UNWRITTEN_BLANK_IF_VOID,
+
     // If Do_Core gets back an R_REDO from a dispatcher, it will re-execute
     // the f->func in the frame.  This function may be changed by the
     // dispatcher from what was originally called.
     //
     R_REDO_CHECKED, // check the types again, fill in exits
-    R_REDO_UNCHECKED, // don't bother checking, just run next function in stack
+    R_REDO_UNCHECKED, // don't recheck types, just run next function in stack
 
     // EVAL is special because it stays at the frame level it is already
     // running, but re-evaluates.  In order to do this, it must protect its

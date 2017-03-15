@@ -17,10 +17,11 @@ REBOL [
     }
 ]
 
-make-port*: func [
+make-port*: function [
     "SYS: Called by system on MAKE of PORT! port from a scheme."
-    spec [file! url! block! object! word! port!] "port specification"
-    /local name scheme port
+
+    spec [file! url! block! object! word! port!]
+        "port specification"
 ][
     ; The first job is to identify the scheme specified:
     case [
@@ -46,9 +47,8 @@ make-port*: func [
             name: port/scheme/name
             spec: port/spec
         ]
-        true [
-            return blank
-        ]
+    ] else [
+        return blank
     ]
 
     ; Get the scheme definition:

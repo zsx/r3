@@ -898,7 +898,7 @@ REBNATIVE(construct)
             // unless it is thrown in which case it must be returned.
             //
             DECLARE_LOCAL (dummy);
-            if (DO_VAL_ARRAY_AT_THROWS(dummy, body)) {
+            if (Do_Any_Array_At_Throws(dummy, body)) {
                 Move_Value(D_OUT, dummy);
                 return R_OUT_IS_THROWN;
             }

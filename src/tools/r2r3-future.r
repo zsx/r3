@@ -41,6 +41,14 @@ if true = attempt [void? :some-undefined-thing] [
     ; on parameters in code designed to run Ren-C-like code in R3-Alpha.)
     ;
     *opt-legacy*: _
+
+    ; ELSE uses a mechanic (non-tight infix evaluation) that is simply
+    ; impossible in R3-Alpha or Rebol2.
+    ;
+    else: does [
+        fail "Do not use ELSE in scripts which want compatibility w/R3-Alpha" 
+    ]
+
     QUIT ;-- !!! stops running if Ren-C here.
 ]
 

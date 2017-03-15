@@ -147,7 +147,7 @@ REBNATIVE(reduce)
     //
     // !!! Should the error be more "reduce-specific" if args were required?
     //
-    if (EVAL_VALUE_THROWS(D_OUT, value))
+    if (Eval_Value_Throws(D_OUT, value))
         return R_OUT_IS_THROWN;
 
     if (NOT(REF(into)))

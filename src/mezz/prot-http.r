@@ -83,9 +83,10 @@ sync-op: function [port body] [
     ]
 ]
 
-read-sync-awake: func [event [event!] /local error] [
-    switch/default event/type [
-        connect ready [
+read-sync-awake: function [event [event!]] [
+    switch event/type [
+        connect
+        ready [
             do-request event/port
             false
         ]
@@ -100,17 +101,16 @@ read-sync-awake: func [event [event!] /local error] [
             event/port/state/error: _
             fail error
         ]
-    ] [
-        false
-    ]
+    ] else false
 ]
-http-awake: func [event /local port http-port state awake res] [
+
+http-awake: function [event] [
     port: event/port
     http-port: port/locals
     state: http-port/state
     if function? :http-port/awake [state/awake: :http-port/awake]
     awake: :state/awake
-    switch/default event/type [
+    switch event/type [
         read [
             awake make event! [type: 'read port: http-port]
             check-response http-port
@@ -152,8 +152,9 @@ http-awake: func [event /local port http-port state awake res] [
             close http-port
             res
         ]
-    ] [true]
+    ] else true
 ]
+
 make-http-error: func [
     "Make an error for the HTTP protocol"
     msg [string! block!]
@@ -190,15 +191,15 @@ make-http-error: func [
                 arg3: new-url
             ]
         ]
-        true [
-            make error! [
-                type: 'Access
-                id: 'Protocol
-                arg1: msg
-            ]
+    ] else [
+        make error! [
+            type: 'Access
+            id: 'Protocol
+            arg1: msg
         ]
     ]
 ]
+
 make-http-request: func [
     "Create an HTTP request (returns string!)"
     method [word! string!] "E.g. GET, HEAD, POST etc."
@@ -527,7 +528,9 @@ check-data: func [port /local headers res data out chunk-size mk1 mk2 trailer st
                 ]
             ]
             unless state/state = 'ready [
-                ;Awake from the WAIT loop to prevent timeout when reading big data. --Richard
+                ;
+                ; Awaken WAIT loop to prevent timeout when reading big data.
+                ;
                 res: true
             ]
         ]
@@ -536,25 +539,35 @@ check-data: func [port /local headers res data out chunk-size mk1 mk2 trailer st
             either headers/content-length <= length port/data [
                 state/state: 'ready
                 conn/data: make binary! 32000
-                res: state/awake make event! [type: 'custom port: port code: 0]
-            ] [
-                ;Awake from the WAIT loop to prevent timeout when reading big data. --Richard
+                res: state/awake make event! [
+                    type: 'custom
+                    port: port
+                    code: 0
+                ]
+            ][
+                ; Awaken WAIT loop to prevent timeout when reading big data.
+                ;
                 res: true
             ]
         ]
-        true [
-            port/data: conn/data
-            either state/info/response-parsed = 'ok [
-                ;Awake from the WAIT loop to prevent timeout when reading big data. --Richard
-                res: true
-            ][
-                ;On other response than OK read all data asynchronously (assuming the data are small). --Richard
-                read conn
-            ]
+    ] else [
+        port/data: conn/data
+        either state/info/response-parsed = 'ok [
+            ;
+            ; Awaken WAIT loop to prevent timeout when reading big data.
+            ;
+            res: true
+        ][
+            ; On other response than OK read all data asynchronously
+            ; (assuming the data are small).
+            ;
+            read conn
         ]
     ]
+
     res
 ]
+
 hex-digits: charset "1234567890abcdefABCDEF"
 sys/make-scheme [
     name: 'http

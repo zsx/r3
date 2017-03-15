@@ -22,6 +22,7 @@ REBOL [
 
 print "--- Make Boot : System Embedded Script ---"
 
+do %r2r3-future.r
 do %common.r
 do %common-emitter.r
 
@@ -142,7 +143,10 @@ for-each-record type boot-types [
         type/class = '+ [ ; Extension types just fail until registered
             emit-item "T_Fail"
         ]
-        true [ ; All other types should have handlers
+        true [ ;-- R3-Alpha needs to bootstrap, do not convert to an ELSE!
+            ;
+            ; All other types should have handlers
+            ;
             emit-item ["T_" propercase-of type/class]
         ]
     ]
@@ -299,7 +303,7 @@ for-each-record type boot-types [
         type/class = '+ [
             emit-item "CT_Fail"
         ]
-        true [
+        true [  ;-- R3-Alpha needs to bootstrap, do not convert to an ELSE!
             emit-item ["CT_" propercase-of type/class]
         ]
     ]

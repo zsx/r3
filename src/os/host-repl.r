@@ -70,10 +70,8 @@ host-repl: function [
 
             system/state/last-error: last-result
         ]
-
-        'default [
-            print ["==" mold :last-result]
-        ]
+    ] else [
+        print ["==" mold :last-result]
     ]
 
     print-newline
@@ -150,7 +148,8 @@ host-repl: function [
                 case [
                     error/arg1 = "]" [print/only ["[" space space space]]
                     error/arg1 = ")" [print/only ["(" space space space]]
-                    'default [break]
+                ] else [
+                    break
                 ]
 
                 append source newline

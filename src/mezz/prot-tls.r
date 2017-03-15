@@ -615,8 +615,7 @@ parse-messages: func [
                         ]
                         ctx/cipher-suite: msg-obj/cipher-suite
 
-                        ; note: the cipher-suite config will be more automatized in later versions
-                        switch/default ctx/cipher-suite reduce bind [
+                        switch ctx/cipher-suite (reduce in cipher-suites [
                             TLS_RSA_WITH_RC4_128_SHA [
                                 ctx/key-method: 'rsa
                                 ctx/crypt-method: 'rc4
@@ -685,7 +684,7 @@ parse-messages: func [
                                 ctx/hash-method: 'sha1
                                 ctx/hash-size: 20
                             ]
-                        ] cipher-suites [
+                        ]) else [
                             fail [
                                 "This TLS scheme doesn't support ciphersuite:"
                                 (mold ctx/cipher-suite)
@@ -712,7 +711,7 @@ parse-messages: func [
                         ; no cert validation - just set it to be used
                         ctx/certificate: parse-asn msg-obj/certificate-list/1
 
-                        switch/default ctx/key-method [
+                        switch ctx/key-method [
                             rsa [
                                 ; get the public key and exponent (hardcoded for now)
                                 ctx/pub-key: parse-asn next
@@ -721,13 +720,14 @@ parse-messages: func [
                                 ctx/pub-exp: ctx/pub-key/1/sequence/4/2/integer/4
                                 ctx/pub-key: next ctx/pub-key/1/sequence/4/1/integer/4
                             ]
-                        ] [
-                            ; for DH cipher suites the certificate is used just for signing the key exchange data
+                        ] else [
+                            ; for DH cipher suites the certificate is used
+                            ; just for signing the key exchange data
                         ]
                         msg-obj
                     ]
                     server-key-exchange [
-                        switch/default ctx/key-method [
+                        switch ctx/key-method [
                             dhe-dss dhe-rsa [
                                 msg-content: copy/part at data 5 len
                                 msg-obj: context [
@@ -751,7 +751,7 @@ parse-messages: func [
                                 ; TODO: the signature sent by server should be verified using DSA or RSA algorithm to be sure the dh-key params are safe
                                 msg-obj
                             ]
-                        ] [
+                        ] else [
                             fail "Server-key-exchange message sent illegally."
                         ]
                     ]
@@ -1042,7 +1042,7 @@ tls-awake: function [event [event!]] [
         tls-port/data: _
     ]
 
-    switch/default event/type [
+    switch event/type [
         lookup [
             open port
             tls-init tls-port/state
@@ -1114,7 +1114,7 @@ tls-awake: function [event [event!]] [
             insert system/ports/system make event! [type: 'close port: tls-port]
             return true
         ]
-    ] [
+    ] else [
         close port
         fail ["Unexpected TLS event:" (event/type)]
     ]

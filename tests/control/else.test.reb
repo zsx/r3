@@ -23,12 +23,3 @@
     if false does [success: false]
     success
 ]
-
-[
-    x: y: _
-    case [
-       1 > 2 [x: false] else [x: true]
-       1 < 2 [y: true] else [y: false]
-    ]
-    and? x y
-]

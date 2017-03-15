@@ -127,14 +127,15 @@ make-diff: func [
                     space "regression," new-result newline
                 ]
             ]
-            'else [
-                ; progression
-                progressions: progressions + 1
-                write/append diff-file spaced [
-                    space "progression," new-result newline
-                ]
+        ]
+        else [
+            ; progression
+            progressions: progressions + 1
+            write/append diff-file spaced [
+                space "progression," new-result newline
             ]
         ]
+
         next-old-log: all [
             old-test
             any [

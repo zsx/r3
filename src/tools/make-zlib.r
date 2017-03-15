@@ -133,6 +133,7 @@ make-warning-lines: func [name [file!] title [string!]] [
     ]
 ]
 
+do %r2r3-future.r
 do %common.r
 
 ;;

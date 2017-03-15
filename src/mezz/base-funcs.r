@@ -471,31 +471,61 @@ redescribe [
 if?: redescribe [
     {Variation of IF which returns TRUE if the branch runs, FALSE if not}
 ](
-    specialize 'if [?: true]
+    chain [:if | :any-value?]
+)
+
+if*: redescribe [
+    {Same as IF/OPT (return void, not blank, if branch evaluates to void)}
+](
+    specialize 'if [opt: true]
 )
 
 unless?: redescribe [
     {Variation of UNLESS which returns TRUE if the branch runs, FALSE if not}
 ](
-    specialize 'unless [?: true]
+    chain [:unless | :any-value?]
+)
+
+unless*: redescribe [
+    {Same as UNLESS/OPT (return void, not blank, if branch evaluates to void)}
+](
+    specialize 'unless [opt: true]
+)
+
+either*: redescribe [
+    {Same as EITHER/OPT (return void, not blank, if branch evaluates to void)}
+](
+    specialize 'either [opt: true]
 )
 
 while?: redescribe [
     {Variation of WHILE which returns TRUE if the body ever runs, FALSE if not}
 ](
-    specialize 'while [?: true]
+    chain [:while | :any-value?]
 )
 
 case?: redescribe [
     {Variation of CASE which returns TRUE if any cases run, FALSE if not}
 ](
-    specialize 'case [?: true]
+    chain [:case | :any-value?]
+)
+
+case*: redescribe [
+    {Same as CASE/OPT (return void, not blank, if branch evaluates to void)}
+](
+    specialize 'case [opt: true]
 )
 
 switch?: redescribe [
     {Variation of SWITCH which returns TRUE if any cases run, FALSE if not}
 ](
-    specialize 'switch [?: true]
+    chain [:switch | :any-value?]
+)
+
+switch*: redescribe [
+    {Same as SWITCH/OPT (return void, not blank, if branch evaluates to void)}
+](
+    specialize 'switch [opt: true]
 )
 
 trap?: redescribe [
@@ -519,7 +549,7 @@ any?: redescribe [
 all?: redescribe [
     {Shortcut AND, ignores voids. Unlike plain ALL, forces result to LOGIC!}
 ](
-    chain [:all | func [x [<opt> any-value!]] [any [:x | true]]]
+    chain [:all | :to-value | :true?]
 )
 
 maybe?: redescribe [
@@ -533,13 +563,13 @@ maybe?: redescribe [
 find?: redescribe [
     {Variant of FIND that returns TRUE if present and FALSE if not.}
 ](
-    chain [:find :true?]
+    chain [:find | :true?]
 )
 
 select?: redescribe [
     {Variant of SELECT that returns TRUE if a value was selected, else FALSE.}
 ](
-    chain [:select :any-value?]
+    chain [:select | :any-value?]
 )
 
 parse?: redescribe [
@@ -626,13 +656,15 @@ nfix?: function [
             ; we don't assume INFIX? callers know PREFIX?/ENDFIX? exist)
             false
         ]
-        'default [
-            fail [
-                name "used on lookback function with arity" arity
-                | "Use LOOKBACK? for generalized (tricky) testing"
-            ]
+    ] else [
+        fail [
+            name "used on lookback function with arity" arity
+                |
+            "Use LOOKBACK? for generalized (tricky) testing"
         ]
     ]
+
+
 ]
 
 endfix?: redescribe [
@@ -696,14 +728,18 @@ lambda: function [
         {Use FUNC and do not run locals-gathering on the body}
 ][
     f: either only :func :function
-    f case [
-        not set? 'args [[]]
-        word? args [reduce [args]]
-        'default [args]
-    ] case [
-        block? first body [take body]
-        'default [make block! body]
-    ]
+    f (
+        case [
+            not set? 'args [[]]
+            word? args [reduce [args]]
+        ] else [args]
+    )(
+        case [
+            block? first body [take body]
+        ] else [
+            make block! body
+        ]
+    )
 ]
 
 left-bar: func [
@@ -1025,7 +1061,7 @@ ensure: function [
     test [function! datatype! typeset! block! logic!]
     arg [<opt> any-value!]
 ][
-    case [
+    case* [
         void? temp: maybe test :arg [
             assert [any [void? :arg | false? :arg]]
 
