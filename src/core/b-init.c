@@ -746,6 +746,9 @@ static void Init_Root_Context(void)
         TERM_ARRAY_LEN(CTX_VARLIST(root), ROOT_MAX);
     }
 
+    Prep_Global_Cell(&PG_Trash_Cell);
+    SET_TRASH_IF_DEBUG(&PG_Trash_Cell);
+
     // These values are simple isolated VOID, NONE, TRUE, and FALSE values
     // that can be used in lieu of initializing them.  They are initialized
     // as two-element series in order to ensure that their address is not

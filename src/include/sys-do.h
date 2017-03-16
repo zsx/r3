@@ -212,7 +212,7 @@ inline static void Push_Frame_At(
     // (Do_Core() does not do this, but the wrappers that need it do.)
     //
     f->eval_type = REB_0;
-    f->out = m_cast(REBVAL*, END_CELL);
+    f->out = m_cast(REBVAL*, TRASH_CELL);
 
     Push_Frame_Core(f);
 }
@@ -244,10 +244,10 @@ inline static void Drop_Frame(REBFRM *f)
 inline static void Fetch_Next_In_Frame(REBFRM *f) {
     //
     // If f->value is pointing to f->cell, it's possible that it may wind up
-    // with an END in it between fetches if f->cell gets reused (as in when
+    // with a TRASH in it between fetches if f->cell gets reused (as in when
     // arguments are pushed for a function)
     //
-    assert(NOT_END(f->value) || f->value == &f->cell);
+    assert(NOT_TRASH(f->value) || f->value == &f->cell);
 
     assert(f->gotten == NULL); // we'd be invalidating it!
 
@@ -285,7 +285,7 @@ inline static void Fetch_Next_In_Frame(REBFRM *f) {
 inline static void Lookback_For_Set_Word_Or_Set_Path(REBVAL *out, REBFRM *f)
 {
     if (DSP == f->dsp_orig) {
-        SET_END(out); // some <end> args are able to tolerate absences
+        RESET_CELL(out); // some <end> args are able to tolerate absences
         return;
     }
 
@@ -446,7 +446,7 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
 
     child->gotten = parent->gotten;
 
-    SET_END(out);
+    RESET_CELL(out);
     child->out = out;
 
     child->source = parent->source;
@@ -484,7 +484,7 @@ inline static REBOOL Do_Next_In_Frame_Throws(
     assert(f->eval_type == REB_0); // see notes in Push_Frame_At()
     assert(NOT(f->flags.bits & DO_FLAG_TO_END));
 
-    SET_END(out);
+    RESET_CELL(out);
     f->out = out;
     Do_Core(f); // should already be pushed
 
@@ -554,7 +554,7 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     f->pending = NULL;
     f->gotten = NULL;
 
-    SET_END(out);
+    RESET_CELL(out);
     f->out = out;
 
     Push_Frame_Core(f);    
@@ -604,7 +604,7 @@ inline static REBIXO Do_Array_At_Core(
         return END_FLAG;
     }
 
-    SET_END(out);
+    RESET_CELL(out);
     f.out = out;
 
     f.source.array = array;
@@ -805,7 +805,7 @@ inline static REBIXO Do_Va_Core(
         return END_FLAG;
     }
 
-    SET_END(out);
+    RESET_CELL(out);
     f.out = out;
 
 #if !defined(NDEBUG)

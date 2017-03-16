@@ -230,7 +230,7 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     if (IS_END(f->value))
         return;
 
-    if (NOT_END(f->out) && THROWN(f->out))
+    if (NOT_TRASH(f->out) && THROWN(f->out))
         return;
 
     assert(f->value_type == VAL_TYPE(f->value));

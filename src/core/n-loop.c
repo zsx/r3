@@ -234,7 +234,7 @@ static REB_R Loop_Series_Common(
     REBINT ei,
     REBINT ii
 ) {
-    assert(IS_END(out));
+    assert(IS_TRASH(out));
 
     REBINT si = VAL_INDEX(start);
     enum Reb_Kind type = VAL_TYPE(start);
@@ -282,7 +282,7 @@ static REB_R Loop_Integer_Common(
     REBI64 end,
     REBI64 incr
 ) {
-    assert(IS_END(out));
+    assert(IS_TRASH(out));
 
     VAL_RESET_HEADER(var, REB_INTEGER);
 
@@ -324,7 +324,7 @@ static REB_R Loop_Number_Common(
     REBVAL *end,
     REBVAL *incr
 ) {
-    assert(IS_END(out));
+    assert(IS_TRASH(out));
 
     REBDEC s;
     if (IS_INTEGER(start))
@@ -398,7 +398,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
     REBOOL stop = FALSE;
     REBOOL threw = FALSE; // did a non-BREAK or non-CONTINUE throw occur
 
-    assert(IS_END(D_OUT));
+    assert(IS_TRASH(D_OUT));
     if (mode == LOOP_EVERY)
         SET_END(D_CELL); // Final result is in D_CELL (last TRUE? or a BLANK!)
 
@@ -701,7 +701,7 @@ skip_hidden: ;
     if (LEGACY(OPTIONS_BREAK_WITH_OVERRIDES)) {
         // In legacy R3-ALPHA, BREAK without a provided value did *not*
         // override the result.  It returned the partial results.
-        if (stop && NOT_END(D_OUT))
+        if (stop && NOT_TRASH(D_OUT))
             return R_OUT;
     }
 #endif
@@ -1242,7 +1242,7 @@ inline static REB_R While_Until_Core(REBFRM *frame_, REBOOL trigger)
 
     const REBOOL only = FALSE; // while/only [cond] [body] is meaningless
 
-    assert(IS_END(D_OUT)); // guaranteed by the evaluator
+    assert(IS_TRASH(D_OUT)); // guaranteed by the evaluator
 
     do {
         if (Run_Branch_Throws(D_CELL, ARG(condition), only)) {

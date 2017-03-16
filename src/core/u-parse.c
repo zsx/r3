@@ -160,7 +160,7 @@ static REBOOL Subparse_Throws(
     REBFRM frame;
     REBFRM *f = &frame;
 
-    SET_END(out);
+    RESET_CELL(out);
 
     assert(ANY_ARRAY(rules));
     assert(ANY_SERIES(input));
@@ -222,11 +222,11 @@ static REBOOL Subparse_Throws(
 
     Push_Frame_Core(f); // checks for C stack overflow
 
-    SET_END(&f->cell); // GC requires some initialization of cell
+    RESET_CELL(&f->cell); // GC requires some initialization of cell
 
     REB_R r = N_subparse(f);
 
-    assert(NOT_END(out));
+    assert(NOT_TRASH(out));
 
     // Can't just drop f->data.stackvars because the debugger may have
     // "reified" the frame into a FRAME!, which means it would now be using
@@ -405,7 +405,7 @@ static const RELVAL *Get_Parse_Value(
 // May also return THROWN_FLAG.
 //
 static REBIXO Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
-    assert(IS_END(P_OUT));
+    assert(IS_TRASH(P_OUT));
 
     REBCNT flags = P_FIND_FLAGS | AM_FIND_MATCH | AM_FIND_TAIL;
 
@@ -561,14 +561,14 @@ static REBIXO Parse_String_One_Rule(REBFRM *f, const RELVAL *rule) {
 //
 // The return result is either an integer, END_FLAG, or THROWN_FLAG
 // Only in the case of THROWN_FLAG will f->out (aka P_OUT) be affected.
-// Otherwise, it should exit the routine as an END marker (as it started);
+// Otherwise, it should exit the routine as a TRASH marker (as it started);
 //
 static REBIXO Parse_Array_One_Rule_Core(
     REBFRM *f,
     REBCNT pos,
     const RELVAL *rule
 ) {
-    assert(IS_END(P_OUT));
+    assert(IS_TRASH(P_OUT));
 
     REBARR *array = AS_ARRAY(P_INPUT);
     RELVAL *item = ARR_AT(array, pos);
@@ -1301,7 +1301,7 @@ REBNATIVE(subparse)
 {
     REBFRM *f = frame_; // nice alias of implicit native parameter
 
-    assert(IS_END(P_OUT)); // invariant provided by evaluator
+    assert(IS_TRASH(P_OUT)); // invariant provided by evaluator
 
 #if !defined(NDEBUG)
     //

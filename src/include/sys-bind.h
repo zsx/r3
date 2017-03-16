@@ -401,7 +401,7 @@ inline static REBVAL *Derelativize(
     REBSPC *specifier
 ) {
     assert(NOT_END(v));
-    assert(!IS_TRASH_DEBUG(v));
+    assert(NOT_TRASH(v));
 
     ASSERT_CELL_WRITABLE(out, __FILE__, __LINE__);
 

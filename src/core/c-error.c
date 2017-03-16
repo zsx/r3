@@ -293,8 +293,8 @@ ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
         // the cell is integrity tested to make sure the failure didn't happen
         // while trash was in the cell.
         //
-        if (NOT_END(f->out))
-            SET_END(f->out); // Note: out cells can't be in arrays
+        if (NOT_TRASH(f->out))
+            RESET_CELL(f->out); // Note: out cells can't be in arrays
 
         REBFRM *prior = f->prior;
         Drop_Frame_Core(f);

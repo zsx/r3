@@ -92,6 +92,7 @@ PVAR REB_OPTS *Reb_Opts;
 // be trash to trap any unwanted access.
 //
 PVAR REBNOD PG_End_Node;
+PVAR REBVAL PG_Trash_Cell;
 PVAR REBVAL PG_Void_Cell[2];
 
 PVAR REBVAL PG_Blank_Value[2];

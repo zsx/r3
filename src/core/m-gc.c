@@ -1062,7 +1062,7 @@ static void Mark_Frame_Stack_Deep(void)
         if (f->specifier != SPECIFIED)
             Queue_Mark_Context_Deep(AS_CONTEXT(f->specifier));
 
-        if (NOT_END(f->out)) // never NULL, always initialized bit pattern
+        if (NOT_TRASH(f->out)) // never NULL, always initialized bit pattern
             Queue_Mark_Opt_Value_Deep(f->out);
 
         if (NOT(Is_Any_Function_Frame(f))) {
@@ -1074,7 +1074,7 @@ static void Mark_Frame_Stack_Deep(void)
             continue;
         }
 
-        if (NOT_END(&f->cell))
+        if (NOT_TRASH(&f->cell))
             Queue_Mark_Opt_Value_Deep(&f->cell);
 
         Queue_Mark_Function_Deep(f->func); // never NULL

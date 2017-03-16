@@ -316,12 +316,7 @@ void Do_Core(REBFRM * const f)
     Do_Core_Entry_Checks_Debug(f); // run once per Do_Core()
 #endif
 
-    // This is an important guarantee...the out slot needs to have some form
-    // of initialization to allow GC.  END is chosen because that is what
-    // natives can count on the f->out slot to be, but lookback arguments
-    // also are passed by way of the out slot.
-    //
-    assert(NOT(IS_TRASH_DEBUG(f->out)));
+    assert(IS_TRASH(f->out));
 
     // Capture the data stack pointer on entry (used by debug checks, but
     // also refinements are pushed to stack and need to be checked if there
@@ -392,7 +387,7 @@ reevaluate:;
             f->refine = LOOKBACK_ARG;
         }
         else {
-            SET_END(f->out); // clear out previous result (needs GC-safe data)
+            RESET_CELL(f->out); // clear out previous result (needs GC-safe data)
             f->refine = ORDINARY_ARG;
         }
 
@@ -440,7 +435,7 @@ reevaluate:;
         // Same as check before switch.  (do_function_arglist_in_progress:
         // might have a goto from another point, so we check it again here)
         //
-        assert(IS_END(f->out) || f->refine == LOOKBACK_ARG);
+        assert(IS_TRASH(f->out) || f->refine == LOOKBACK_ARG);
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -731,7 +726,7 @@ reevaluate:;
                 //
                 assert(NOT_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC));
 
-                if (IS_END(f->out)) {
+                if (IS_TRASH(f->out)) {
                     if (NOT_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                         fail (Error_No_Arg(FRM_LABEL(f), f->param));
                     SET_VOID(f->arg);
@@ -767,7 +762,7 @@ reevaluate:;
                 f->refine = ORDINARY_ARG;
 
                 Move_Value(f->arg, f->out);
-                SET_END(f->out);
+                RESET_CELL(f->out);
                 goto check_arg;
             }
 
@@ -1072,7 +1067,7 @@ reevaluate:;
         // try to Do_Core into movable memory...*and* a native can tell if it
         // has written the out slot yet or not (e.g. WHILE/? refinement).
         //
-        assert(IS_END(f->out));
+        assert(IS_TRASH(f->out));
 
         // Cases should be in enum order for jump-table optimization
         // (R_FALSE first, R_TRUE second, etc.)
@@ -1148,21 +1143,21 @@ reevaluate:;
             break; }
 
         case R_OUT_TRUE_IF_WRITTEN:
-            if (IS_END(f->out))
+            if (IS_TRASH(f->out))
                 SET_FALSE(f->out); // no VALUE_FLAG_UNEVALUATED
             else
                 SET_TRUE(f->out); // no VALUE_FLAG_UNEVALUATED
             break;
 
         case R_OUT_VOID_IF_UNWRITTEN:
-            if (IS_END(f->out))
+            if (IS_TRASH(f->out))
                 SET_VOID(f->out); // no VALUE_FLAG_UNEVALUATED
             else
                 CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
             break;
 
         case R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY:
-            if (IS_END(f->out))
+            if (IS_TRASH(f->out))
                 SET_VOID(f->out);
             else if (IS_VOID(f->out) || IS_CONDITIONAL_FALSE(f->out))
                 SET_BAR(f->out);
@@ -1178,7 +1173,7 @@ reevaluate:;
             break;
 
         case R_OUT_VOID_IF_UNWRITTEN_BLANK_IF_VOID:
-            if (IS_END(f->out))
+            if (IS_TRASH(f->out))
                 SET_VOID(f->out);
             else if (IS_VOID(f->out))
                 SET_BLANK(f->out);
@@ -1187,7 +1182,7 @@ reevaluate:;
             break;
 
         case R_REDO_CHECKED:
-            SET_END(f->out);
+            RESET_CELL(f->out);
             f->special = f->args_head;
             f->refine = ORDINARY_ARG; // no gathering, but need for assert
             goto do_function_arglist_in_progress;
@@ -1198,7 +1193,7 @@ reevaluate:;
             // run the f->func again.  The dispatcher may have changed the
             // value of what f->func is, for instance.
             //
-            SET_END(f->out);
+            RESET_CELL(f->out);
             goto execute_func;
 
         case R_REEVALUATE:
@@ -1220,7 +1215,7 @@ reevaluate:;
             assert(FALSE);
         }
 
-        assert(NOT_END(f->out)); // should have overwritten
+        assert(NOT_TRASH(f->out)); // should have overwritten
         assert(NOT(THROWN(f->out))); // throws must be R_OUT_IS_THROWN
 
         assert(f->eval_type == REB_FUNCTION); // shouldn't have changed
@@ -1361,7 +1356,7 @@ reevaluate:;
                 goto do_function_in_gotten;
             }
 
-            SET_END(f->out);
+            RESET_CELL(f->out);
             f->refine = ORDINARY_ARG;
             goto do_function_in_gotten;
         }
@@ -1530,7 +1525,7 @@ reevaluate:;
 
             Move_Value(&f->cell, f->out);
             f->gotten = &f->cell;
-            SET_END(f->out);
+            RESET_CELL(f->out);
             f->refine = ORDINARY_ARG; // paths are never enfixed (for now)
             goto do_function_in_gotten;
         }
@@ -1731,7 +1726,7 @@ reevaluate:;
             if (f->gotten == NULL)
                 goto do_word_in_value; // pay for refetch, lookbacks see end
 
-            SET_END(f->out);
+            RESET_CELL(f->out);
             SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
             f->refine = ORDINARY_ARG;
             goto do_function_in_gotten;

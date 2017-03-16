@@ -421,6 +421,9 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
 // which can be viewed in the debug watchlist (or shown by panic())
 //
 
+#define TRASH_CELL \
+    (&PG_Trash_Cell)
+
 #ifdef NDEBUG
     #define SET_TRASH_IF_DEBUG(v) \
         NOOP
@@ -448,14 +451,23 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
     #define SINK(v) \
         Sink_Debug((v), __FILE__, __LINE__)
 
-    inline static REBOOL IS_TRASH_DEBUG(const RELVAL *v) {
-        assert(v->header.bits & NODE_FLAG_CELL);
-        if (v->header.bits & NODE_FLAG_VALID)
-            return FALSE;
-        assert(VAL_TYPE_RAW(v) == REB_0);
-        return TRUE;
-    }
 #endif
+
+inline static void RESET_CELL(REBVAL *v) {
+    INIT_CELL(v);
+    SET_TRASH_IF_DEBUG(v);
+}
+
+inline static REBOOL IS_TRASH(const RELVAL *v) {
+    assert(v->header.bits & NODE_FLAG_CELL);
+    if (v->header.bits & NODE_FLAG_VALID)
+        return FALSE;
+    assert(VAL_TYPE_RAW(v) == REB_0);
+    return TRUE;
+}
+
+#define NOT_TRASH(v) \
+    NOT(IS_TRASH(v))
 
 
 //=////////////////////////////////////////////////////////////////////////=//

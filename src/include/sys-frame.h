@@ -497,7 +497,7 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(REBFRM *f) {
     // to check.  Note that this can only be done after extracting the function
     // properties, as f->gotten may be f->cell.
     //
-    SET_END(&f->cell);
+    RESET_CELL(&f->cell);
 }
 
 

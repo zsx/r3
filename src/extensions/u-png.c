@@ -732,7 +732,7 @@ REBNATIVE(encode_png)
 {
     INCLUDE_PARAMS_OF_ENCODE_PNG;
 
-    assert(IS_END(D_OUT)); // evaluator guarantees--used as error signal
+    assert(IS_TRASH(D_OUT)); // evaluator guarantees--used as error signal
 
     // Error hook in the PNG encoder from R3-Alpha is done via longjmp.
     //
@@ -839,7 +839,7 @@ REBNATIVE(encode_png)
     goto cleanup;
 
 error:
-    assert(IS_END(D_OUT));
+    assert(IS_TRASH(D_OUT));
 
 cleanup:
     free(linebuf);
@@ -849,7 +849,7 @@ cleanup:
         firstidat=currentidat;
     }
 
-    if (IS_END(D_OUT))
+    if (IS_TRASH(D_OUT))
         fail (Error(RE_BAD_MEDIA)); // better error?
 
     assert(IS_BINARY(D_OUT));

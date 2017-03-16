@@ -2034,7 +2034,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
         else
             f->special = m_cast(REBVAL*, END_CELL); // literal pointer tested
 
-        SET_END(&f->cell); // needed for GC safety
+        RESET_CELL(&f->cell);
     }
 
     // Ordinary function dispatch does not pre-fill the arguments; they
@@ -2110,7 +2110,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
 
     f->special = f->args_head; // do type/refinement checks on existing data
 
-    SET_END(f->out);
+    RESET_CELL(f->out);
 
     Do_Core(f);
 

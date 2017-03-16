@@ -285,7 +285,7 @@ void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
         assert(NOT_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
         SET_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST);
 
-        assert(IS_TRASH_DEBUG(ARR_AT(f->varlist, 0))); // we fill this in
+        assert(IS_TRASH(ARR_AT(f->varlist, 0))); // we fill this in
         assert(GET_SER_INFO(f->varlist, SERIES_INFO_HAS_DYNAMIC));
     }
     else {

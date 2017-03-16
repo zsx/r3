@@ -171,7 +171,7 @@ REBNATIVE(all)
 {
     INCLUDE_PARAMS_OF_ALL;
 
-    assert(IS_END(D_OUT)); // guaranteed by the evaluator
+    assert(IS_TRASH(D_OUT)); // guaranteed by the evaluator
 
     REBFRM f;
     Push_Frame(&f, ARG(block));
@@ -196,7 +196,7 @@ REBNATIVE(all)
 
     Drop_Frame(&f);
 
-    // If IS_END(out), no successes or failures found (all opt-outs)
+    // If IS_TRASH(out), no successes or failures found (all opt-outs)
     //
     return R_OUT_VOID_IF_UNWRITTEN;
 }
@@ -446,11 +446,11 @@ REBNATIVE(switch)
     REBFRM f;
     Push_Frame(&f, ARG(cases));
 
-    // The evaluator always initializes the out slot to an END marker.  That
+    // The evaluator always initializes the out slot to a TRASH marker.  That
     // makes sure it gets overwritten with a value (or void) before returning.
-    // But here SWITCH also lets END indicate no matching cases ran yet.
+    // But here SWITCH also lets TRASH indicate no matching cases ran yet.
 
-    assert(IS_END(D_OUT));
+    assert(IS_TRASH(D_OUT));
 
     REBVAL *value = ARG(value);
 
@@ -537,7 +537,7 @@ REBNATIVE(switch)
         Fetch_Next_In_Frame(&f);
     }
 
-    if (NOT_END(D_OUT)) // at least one case body's DO ran and overwrote D_OUT
+    if (NOT_TRASH(D_OUT)) // at least one case body's DO ran and overwrote D_OUT
         goto return_matched;
 
 return_defaulted:

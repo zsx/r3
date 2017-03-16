@@ -343,7 +343,7 @@ REBNATIVE(compose)
     if (REF(into))
         Move_Value(D_OUT, ARG(out));
     else
-        assert(IS_END(D_OUT)); // !!! guaranteed, better signal than `into`?
+        assert(IS_TRASH(D_OUT)); // !!! guaranteed, better signal than `into`?
 
     if (Compose_Any_Array_Throws(
         D_OUT,
