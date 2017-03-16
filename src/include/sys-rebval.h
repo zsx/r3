@@ -730,6 +730,35 @@ struct Reb_Value
 };
 
 
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  Cell Reset and Copy Masks
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// It's important for operations that write to cells not to overwrite *all*
+// the bits in the header, because some of those bits give information about
+// the nature of the cell's storage and lifetime.  Similarly, if bits are
+// being copied from one cell to another, those header bits must be masked
+// out to avoid corrupting the information in the target cell.
+//
+// !!! Future optimizations may put the integer stack level of the cell in
+// the header in the unused 32 bits for the 64-bit build.  That would also
+// be kept in this mask.
+//
+// Additionally, operations that copy need to not copy any of those bits that
+// are owned by the cell, plus additional bits that would be reset in the
+// cell if overwritten but not copied.  For now, this is why `foo: :+` does
+// not make foo an enfixed operation.
+//
+
+#define CELL_MASK_RESET \
+    (NODE_FLAG_CELL | NODE_FLAG_MANAGED | VALUE_FLAG_STACK)
+
+#define CELL_MASK_COPY \
+    ~(CELL_MASK_RESET \
+        | VALUE_FLAG_ENFIXED | VALUE_FLAG_PROTECTED | VALUE_FLAG_UNEVALUATED)
+
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -745,10 +774,10 @@ struct Reb_Value
 // faster and more general to do traversals using the terminator.)
 //
 // Ren-C changed this so that end is not a data type, but a header bit.
-// (See NODE_FLAG_END for an explanation of this choice.)  This means not only is
-// a full REBVAL not needed to terminate, the sunk cost of an existing 32-bit
-// or 64-bit number (depending on platform) can be used to avoid needing even
-// 1/4 of a REBVAL for a header to terminate.
+// (See NODE_FLAG_END for an explanation of this choice.)  This means not only
+// is a full REBVAL not needed to terminate, the sunk cost of an existing
+// 32-bit or 64-bit number (depending on platform) can be used to avoid
+// needing even 1/4 of a REBVAL for a header to terminate.
 //
 // !!! Because Rebol Arrays (REBARR) have both a length and a terminator, it
 // is important to keep these in sync.  R3-Alpha sought to give code the
@@ -756,12 +785,6 @@ struct Reb_Value
 // was not necessary.  Ren-C pushed back against this to try and be more
 // uniform to get the invariants under control.  A formal balance is still
 // being sought of when terminators will be required and when they will not.
-//
-// The debug build puts REB_MAX in the type slot of a REB_END, to help to
-// distinguish it from the 0 that signifies an unset TRASH.  This means that
-// any writable value can be checked to ensure it is an actual END marker
-// and not "uninitialized".  This trick can only be used so long as REB_MAX
-// is 63 or smaller (ensured by an assertion at startup ATM.
 //
 
 #define END_CELL \
@@ -776,11 +799,11 @@ struct Reb_Value
 
     inline static void SET_END(RELVAL *v) {
         //
-        // Invalid UTF-8 byte, but also NODE_FLAG_END and NODE_FLAG_CELL set.  Other
-        // flags are set (e.g. NODE_FLAG_MANAGED) which should not
+        // Invalid UTF-8 byte, but also NODE_FLAG_END and NODE_FLAG_CELL set.
+        // Other flags are set (e.g. NODE_FLAG_MANAGED) which should not
         // be of concern or looked at due to the IS_END() status.
         //
-        v->header.bits &= NODE_FLAG_CELL | VALUE_FLAG_STACK;
+        v->header.bits &= CELL_MASK_RESET;
         v->header.bits |= NODE_FLAG_VALID | FLAGBYTE_FIRST(255);
     }
 #else

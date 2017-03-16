@@ -1279,7 +1279,7 @@ REBNATIVE(semiquoted_q)
     const REBVAL *var = Get_Var_Core( // may fail
         ARG(parameter), SPECIFIED, GETVAR_READ_ONLY
     );
-    return GET_VAL_FLAG(var, VALUE_FLAG_UNEVALUATED) ? R_TRUE : R_FALSE;
+    return R_FROM_BOOL(GET_VAL_FLAG(var, VALUE_FLAG_UNEVALUATED));
 }
 
 

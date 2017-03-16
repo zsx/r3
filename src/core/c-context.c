@@ -85,7 +85,6 @@ REBCTX *Alloc_Context(REBCNT len)
     // are building which contains this context.
 
     REBVAL *rootvar = Alloc_Tail_Array(varlist);
-    SET_TRASH_IF_DEBUG(rootvar);
     rootvar->payload.any_context.varlist = varlist;
 
     // keylist[0] is the "rootkey" which we currently initialize to BLANK

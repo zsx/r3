@@ -1130,6 +1130,7 @@ reevaluate:;
                 // any) will catch a FUNCTION! style exit.
                 //
                 CATCH_THROWN(f->out, f->out);
+                assert(NOT_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED));
             }
             else if (VAL_BINDING(f->out) == f->varlist) {
                 //
@@ -1368,8 +1369,7 @@ reevaluate:;
         if (IS_VOID(f->gotten)) // need `:x` if `x` is unset
             fail (Error_No_Value_Core(f->value, f->specifier));
 
-        Move_Value(f->out, f->gotten);
-        CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
+        Move_Value(f->out, f->gotten); // doesn't copy VALUE_FLAG_UNEVALUATED
         f->gotten = NULL;
         Fetch_Next_In_Frame(f);
 
@@ -1433,8 +1433,10 @@ reevaluate:;
 //==//////////////////////////////////////////////////////////////////////==//
 
     case REB_GET_WORD:
+        //
+        // Note: copying values does not copy VALUE_FLAG_UNEVALUATED
+        //
         Copy_Opt_Var_May_Fail(f->out, f->value, f->specifier);
-        CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
         Fetch_Next_In_Frame(f);
         break;
 

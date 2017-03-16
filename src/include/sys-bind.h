@@ -405,6 +405,8 @@ inline static REBVAL *Derelativize(
 
     ASSERT_CELL_WRITABLE(out, __FILE__, __LINE__);
 
+    out->header.bits &= CELL_MASK_RESET;
+
     if (IS_RELATIVE(v)) {
     #if !defined(NDEBUG)
         assert(ANY_WORD(v) || ANY_ARRAY(v));
@@ -423,12 +425,15 @@ inline static REBVAL *Derelativize(
         }
     #endif
 
-        out->header.bits
-            = v->header.bits & ~cast(REBUPT, VALUE_FLAG_RELATIVE);
+        out->header.bits |=
+            v->header.bits
+            & CELL_MASK_COPY
+            & ~cast(REBUPT, VALUE_FLAG_RELATIVE); // !!! flag is going away
+
         out->extra.binding = cast(REBARR*, specifier);
     }
     else {
-        out->header = v->header;
+        out->header.bits |= v->header.bits & CELL_MASK_COPY;
         out->extra.binding = v->extra.binding;
     }
     out->payload = v->payload;

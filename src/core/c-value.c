@@ -117,13 +117,13 @@ void Assert_Cell_Writable(const RELVAL *v, const char *file, int line)
 // Uses REB_0 for the type, to help cue debugging.
 //
 // When SET_END is used, it uses the whole cell.  Implicit termination is
-// done by the raw creation of a Reb_Header in the containing structure.
+// done by the raw creation of a Reb_Header in the containing structure,
+// see Init_Endlike_Header().
 //
 void SET_END_Debug(RELVAL *v, const char *file, int line) {
     ASSERT_CELL_WRITABLE(v, file, line);
-    v->header.bits &= NODE_FLAG_CELL | VALUE_FLAG_STACK;
-    (v)->header.bits
-        |= NODE_FLAG_VALID | HEADERIZE_KIND(REB_0) | FLAGBYTE_FIRST(255);
+    v->header.bits &= CELL_MASK_RESET;
+    v->header.bits |= NODE_FLAG_VALID | FLAGBYTE_FIRST(255);
     Set_Track_Payload_Debug(v, file, line);
 }
 

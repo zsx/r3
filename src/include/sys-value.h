@@ -201,6 +201,14 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
         return LOGICAL(v->header.bits & f);
     }
 
+    inline static REBOOL ANY_VAL_FLAGS(const RELVAL *v, REBUPT f) {
+        return LOGICAL((v->header.bits & f) != 0);
+    }
+
+    inline static REBOOL ALL_VAL_FLAGS(const RELVAL *v, REBUPT f) {
+        return LOGICAL((v->header.bits & f) == f);
+    }
+
     inline static void CLEAR_VAL_FLAGS(RELVAL *v, REBUPT f) {
         v->header.bits &= ~f;
     }
@@ -217,8 +225,8 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     // inline functions.  So it's worth doing a sketchy macro so this somewhat
     // borderline assert doesn't wind up taking up 20% of the debug's runtime.
     //
-    #define CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG \
-        REBUPT category = RIGHT_8_BITS(f); \
+    #define CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(flags) \
+        REBUPT category = RIGHT_8_BITS(flags); \
         if (category != REB_0) { \
             if (kind != category) { \
                 if (category == REB_WORD) \
@@ -228,37 +236,50 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
                 else \
                     assert(FALSE); \
             } \
-            CLEAR_8_RIGHT_BITS(f); \
+            CLEAR_8_RIGHT_BITS(flags); \
         } \
 
     inline static void SET_VAL_FLAGS(RELVAL *v, REBUPT f) {
         enum Reb_Kind kind = VAL_TYPE(v);
-        CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
+        CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(f);
         v->header.bits |= f;
     }
 
     inline static void SET_VAL_FLAG(RELVAL *v, REBUPT f) {
         enum Reb_Kind kind = VAL_TYPE(v);
-        CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
+        CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(f);
         assert(f && (f & (f - 1)) == 0); // checks that only one bit is set
         v->header.bits |= f;
     }
 
     inline static REBOOL GET_VAL_FLAG(const RELVAL *v, REBUPT f) {
         enum Reb_Kind kind = VAL_TYPE(v);
-        CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
+        CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(f);
+        assert(f && (f & (f - 1)) == 0); // checks that only one bit is set
         return LOGICAL(v->header.bits & f);
+    }
+
+    inline static REBOOL ANY_VAL_FLAGS(const RELVAL *v, REBUPT f) {
+        enum Reb_Kind kind = VAL_TYPE(v);
+        CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(f);
+        return LOGICAL((v->header.bits & f) != 0);
+    }
+
+    inline static REBOOL ALL_VAL_FLAGS(const RELVAL *v, REBUPT f) {
+        enum Reb_Kind kind = VAL_TYPE(v);
+        CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(f);
+        return LOGICAL((v->header.bits & f) == f);
     }
 
     inline static void CLEAR_VAL_FLAGS(RELVAL *v, REBUPT f) {
         enum Reb_Kind kind = VAL_TYPE(v);
-        CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
+        CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(f);
         v->header.bits &= ~f;
     }
 
     inline static void CLEAR_VAL_FLAG(RELVAL *v, REBUPT f) {
         enum Reb_Kind kind = VAL_TYPE(v);
-        CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
+        CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(f);
         assert(f && (f & (f - 1)) == 0); // checks that only one bit is set
         v->header.bits &= ~f;
     }
@@ -325,11 +346,7 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
     enum Reb_Kind kind,
     REBUPT extra_flags
 ) {
-    // !!! Future optimizations may put the integer stack level of the cell in
-    // the header in the unused 32 bits for the 64-bit build.  That would also
-    // be kept in this mask.
-    //
-    v->header.bits &= NODE_FLAG_CELL | VALUE_FLAG_STACK;
+    v->header.bits &= CELL_MASK_RESET;
 
     // !!! Should NODE_FLAG_CELL be forced on the OR='ing side?  May cover up
     // bugs somehow, which may be arguably good in a release build, but do it
@@ -354,7 +371,7 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
     inline static void VAL_RESET_HEADER_EXTRA_Debug(
         RELVAL *v,
         enum Reb_Kind kind,
-        REBUPT f, // "extra" but named to match flags in macro
+        REBUPT extra,
         const char *file,
         int line
     ){
@@ -365,9 +382,9 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
         // pattern for REB_WORD inside of it, to help make sure that flag
         // doesn't get used with things that aren't words).
         //
-        CHECK_VALUE_FLAG_EVIL_MACRO_DEBUG;
+        CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(extra);
         
-        VAL_RESET_HEADER_common(v, kind, f);
+        VAL_RESET_HEADER_common(v, kind, extra);
     }
 
     #define VAL_RESET_HEADER_EXTRA(v,kind,extra) \
@@ -418,11 +435,7 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
     ) {
         ASSERT_CELL_WRITABLE(v, file, line);
 
-        // Clear out all the bits besides those which should be persisted.
-        // This implicitly sets the kind to REB_0, providing a canonized form
-        // of trash which more reliably indicates it was made on purpose.
-        //
-        v->header.bits &= NODE_FLAG_CELL | VALUE_FLAG_STACK;
+        v->header.bits &= CELL_MASK_RESET;
 
         Set_Track_Payload_Debug(v, file, line);
 
@@ -1214,11 +1227,8 @@ inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
     assert(NOT_END(v));
     ASSERT_CELL_WRITABLE(out, __FILE__, __LINE__);
 
-    out->header.bits &= NODE_FLAG_CELL | VALUE_FLAG_STACK;
-    out->header.bits |= (
-        (v->header.bits)
-        & ~(VALUE_FLAG_STACK | VALUE_FLAG_ENFIXED | VALUE_FLAG_PROTECTED)
-    );
+    out->header.bits &= CELL_MASK_RESET;
+    out->header.bits |= v->header.bits & CELL_MASK_COPY;
 
     // Note: In theory it would be possible to make payloads that had stack
     // lifetimes by default, which would be promoted to GC lifetimes using
