@@ -69,7 +69,7 @@ REBINT Cmp_Event(const RELVAL *t1, const RELVAL *t2)
 //
 //  Set_Event_Var: C
 //
-static REBOOL Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val)
+static REBOOL Set_Event_Var(REBVAL *event, const REBVAL *word, const REBVAL *val)
 {
     RELVAL *arg;
     REBINT n;
@@ -82,7 +82,7 @@ static REBOOL Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
             REBSTR *w = VAL_WORD_CANON(val);
             for (n = 0, arg = VAL_ARRAY_HEAD(arg); NOT_END(arg); arg++, n++) {
                 if (IS_WORD(arg) && VAL_WORD_CANON(arg) == w) {
-                    VAL_EVENT_TYPE(value) = n;
+                    VAL_EVENT_TYPE(event) = n;
                     return TRUE;
                 }
             }
@@ -92,39 +92,43 @@ static REBOOL Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
 
     case SYM_PORT:
         if (IS_PORT(val)) {
-            VAL_EVENT_MODEL(value) = EVM_PORT;
-            VAL_EVENT_SER(value) = AS_SERIES(CTX_VARLIST(VAL_CONTEXT(val)));
+            VAL_EVENT_MODEL(event) = EVM_PORT;
+            VAL_EVENT_SER(event) = AS_SERIES(CTX_VARLIST(VAL_CONTEXT(val)));
         }
         else if (IS_OBJECT(val)) {
-            VAL_EVENT_MODEL(value) = EVM_OBJECT;
-            VAL_EVENT_SER(value) = AS_SERIES(CTX_VARLIST(VAL_CONTEXT(val)));
+            VAL_EVENT_MODEL(event) = EVM_OBJECT;
+            VAL_EVENT_SER(event) = AS_SERIES(CTX_VARLIST(VAL_CONTEXT(val)));
         }
         else if (IS_BLANK(val)) {
-            VAL_EVENT_MODEL(value) = EVM_GUI;
+            VAL_EVENT_MODEL(event) = EVM_GUI;
         } else return FALSE;
         break;
 
     case SYM_WINDOW:
     case SYM_GOB:
         if (IS_GOB(val)) {
-            VAL_EVENT_MODEL(value) = EVM_GUI;
-            VAL_EVENT_SER(value) = cast(REBSER*, VAL_GOB(val));
+            VAL_EVENT_MODEL(event) = EVM_GUI;
+            VAL_EVENT_SER(event) = cast(REBSER*, VAL_GOB(val));
             break;
         }
         return FALSE;
 
     case SYM_OFFSET:
         if (IS_PAIR(val)) {
-            SET_EVENT_XY(value, Float_Int16(VAL_PAIR_X(val)), Float_Int16(VAL_PAIR_Y(val)));
+            SET_EVENT_XY(
+                event,
+                Float_Int16(VAL_PAIR_X(val)),
+                Float_Int16(VAL_PAIR_Y(val))
+            );
         }
         else return FALSE;
         break;
 
     case SYM_KEY:
-        //VAL_EVENT_TYPE(value) != EVT_KEY && VAL_EVENT_TYPE(value) != EVT_KEY_UP)
-        VAL_EVENT_MODEL(value) = EVM_GUI;
+        //VAL_EVENT_TYPE(event) != EVT_KEY && VAL_EVENT_TYPE(value) != EVT_KEY_UP)
+        VAL_EVENT_MODEL(event) = EVM_GUI;
         if (IS_CHAR(val)) {
-            VAL_EVENT_DATA(value) = VAL_CHAR(val);
+            VAL_EVENT_DATA(event) = VAL_CHAR(val);
         }
         else if (IS_LIT_WORD(val) || IS_WORD(val)) {
             arg = Get_System(SYS_VIEW, VIEW_EVENT_KEYS);
@@ -132,7 +136,7 @@ static REBOOL Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
                 arg = VAL_ARRAY_AT(arg);
                 for (n = VAL_INDEX(arg); NOT_END(arg); n++, arg++) {
                     if (IS_WORD(arg) && VAL_WORD_CANON(arg) == VAL_WORD_CANON(val)) {
-                        VAL_EVENT_DATA(value) = (n+1) << 16;
+                        VAL_EVENT_DATA(event) = (n+1) << 16;
                         break;
                     }
                 }
@@ -146,35 +150,44 @@ static REBOOL Set_Event_Var(REBVAL *value, const REBVAL *word, const REBVAL *val
 
     case SYM_CODE:
         if (IS_INTEGER(val)) {
-            VAL_EVENT_DATA(value) = VAL_INT32(val);
+            VAL_EVENT_DATA(event) = VAL_INT32(val);
         }
         else return FALSE;
         break;
 
-    case SYM_FLAGS:
-        if (IS_BLOCK(val)) {
-            VAL_EVENT_FLAGS(value) &= ~(1<<EVF_DOUBLE | 1<<EVF_CONTROL | 1<<EVF_SHIFT);
-            for (arg = VAL_ARRAY_HEAD(val); NOT_END(arg); arg++)
-                if (IS_WORD(arg))
-                    switch (VAL_WORD_SYM(arg)) {
-                        case SYM_CONTROL:
-                            SET_FLAG(VAL_EVENT_FLAGS(value), EVF_CONTROL);
-                            break;
-                        case SYM_SHIFT:
-                            SET_FLAG(VAL_EVENT_FLAGS(value), EVF_SHIFT);
-                            break;
-                        case SYM_DOUBLE:
-                            SET_FLAG(VAL_EVENT_FLAGS(value), EVF_DOUBLE);
-                            break;
-                        default:
-                            fail (Error_Invalid_Arg(arg));
-                    }
+    case SYM_FLAGS: {
+        if (NOT(IS_BLOCK(val)))
+            return FALSE;
+
+        VAL_EVENT_FLAGS(event)
+            &= ~((1 << EVF_DOUBLE) | (1 << EVF_CONTROL) | (1 << EVF_SHIFT));
+
+        RELVAL *item;
+        for (item = VAL_ARRAY_HEAD(val); NOT_END(item); ++item) {
+            if (NOT(IS_WORD(item)))
+                continue;
+
+            switch (VAL_WORD_SYM(item)) {
+            case SYM_CONTROL:
+                SET_FLAG(VAL_EVENT_FLAGS(event), EVF_CONTROL);
+                break;
+
+            case SYM_SHIFT:
+                SET_FLAG(VAL_EVENT_FLAGS(event), EVF_SHIFT);
+                break;
+
+            case SYM_DOUBLE:
+                SET_FLAG(VAL_EVENT_FLAGS(event), EVF_DOUBLE);
+                break;
+
+            default:
+                fail (Error_Invalid_Arg_Core(arg, VAL_SPECIFIER(val)));
+            }
         }
-        else return FALSE;
-        break;
+        break; }
 
     default:
-            return FALSE;
+        return FALSE;
     }
 
     return TRUE;
