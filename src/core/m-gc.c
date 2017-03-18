@@ -1056,13 +1056,26 @@ static void Mark_Frame_Stack_Deep(void)
         // will stay on the stack while the zero-arity function is running.
         // The array still might be used in an error, so can't GC it.
         //
-        if (f->value && NOT_END(f->value) && Is_Value_Managed(f->value))
+        if (NOT_END(f->value) && Is_Value_Managed(f->value))
             Queue_Mark_Value_Deep(f->value);
 
         if (f->specifier != SPECIFIED)
             Queue_Mark_Context_Deep(AS_CONTEXT(f->specifier));
 
-        if (NOT_END(f->out)) // never NULL, always initialized bit pattern
+        // The output slot is not supposed to be into movable memory (e.g. an
+        // array cell), because that pointer could move on an array resize.
+        // But because it is a writable location, the debug build may
+        // transiently set it to trashed bits (e.g. NODE_FLAG_CELL is set
+        // but NODE_FLAG_VALID is not), and a GC can run during that time.
+        //
+        // !!! While END values were used as the initialized bit pattern for
+        // the output cell so that it could be safely GC'd, the fact that
+        // trash cells need to be tolerated anyway may indicate it would be
+        // better/cheaper to always use them.  This would free up END to
+        // serve as another signal--or to just not be used at all.
+        //
+        assert(f->out->header.bits & NODE_FLAG_CELL);
+        if ((f->out->header.bits & NODE_FLAG_VALID) && NOT_END(f->out))
             Queue_Mark_Opt_Value_Deep(f->out);
 
         if (NOT(Is_Any_Function_Frame(f))) {
