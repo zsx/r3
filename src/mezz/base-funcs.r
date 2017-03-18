@@ -180,7 +180,7 @@ make-action: func [
             string! ;-- skip over as commentary
         ]
     |
-        <static> (
+        <has> (
             unless statics [
                 statics: copy []
             ]

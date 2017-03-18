@@ -105,7 +105,7 @@ load-header: function [
     /required
         "Script header is required"
 
-    <static>
+    <has>
 
     non-ws (make bitset! [not 1 - 32])
 ][
@@ -517,10 +517,13 @@ load-ext-module: function [
         native: function [
             return: [function!]
             spec
-            /export "this refinement is ignored here"
+            /export
+                "this refinement is ignored here"
             /body
-            code [block!] "Equivalent rebol code"
-            <static> index (-1)
+            code [block!]
+                "Equivalent rebol code"
+            <has>
+            index (-1)
         ] compose [
             index: index + 1
             f: load-native/(all [body 'body])/(all [unloadable 'unloadable]) spec (impl) index :code

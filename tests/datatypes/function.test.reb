@@ -342,7 +342,7 @@
         n (2)
         <in> o1 o1/o2
         <with> outer
-        <static> static (10 + n)
+        <has> static (10 + n)
     ][
         data: reduce [n x y outer static]
         return case [

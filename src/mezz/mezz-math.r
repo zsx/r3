@@ -13,37 +13,6 @@ REBOL [
 
 pi: 3.14159265358979323846
 
-rsa-make-key: func [
-    "Creates a key object for RSA algorithm."
-][
-    has [
-        n:          ;modulus
-        e:          ;public exponent
-        d:          ;private exponent
-        p:          ;prime num 1
-        q:          ;prime num 2
-        dp:         ;CRT exponent 1
-        dq:         ;CRT exponent 2
-        qinv:       ;CRT coefficient
-        _
-    ]
-]
-
-dh-make-key: func [
-    "Creates a key object for Diffie-Hellman algorithm."
-;NOT YET IMPLEMENTED
-;   /generate
-;       size [integer!] "Key length"
-;       generator [integer!] "Generator number"
-][
-    has [
-        priv-key:   ;private key
-        pub-key:    ;public key
-        g:          ;generator
-        p:          ;prime modulus
-        _
-    ]
-]
 
 ; ++ and -- were previously used to take a quoted word and increment
 ; it.  They were ordinary prefix operations
@@ -68,6 +37,7 @@ dh-make-key: func [
     )
 ]
 
+
 mod: function [
     "Compute a nonnegative remainder of A divided by B."
     a [any-number! money! time!]
@@ -87,6 +57,7 @@ mod: function [
     either all [(a + r) = (a + b) | positive? (r + r) - b] [r - b] [r]
 ]
 
+
 modulo: function [
     {Wrapper for MOD that handles errors like REMAINDER.}
     return:
@@ -105,6 +76,7 @@ modulo: function [
     either any [(a - r) = a | (r + b) = b] [make r 0] [r]
 ]
 
+
 sign-of: func [
     "Returns sign of number as 1, 0, or -1 (to use as multiplier)."
     number [any-number! money! time!]
@@ -114,6 +86,7 @@ sign-of: func [
         negative? number [-1]
     ] else 0
 ]
+
 
 minimum-of: func [
     {Finds the smallest value in a series}
@@ -147,6 +120,7 @@ maximum-of: func [
     spot
 ]
 
+
 ; A simple iterative implementation; returns 1 for negative
 ; numbers. FEEL FREE TO IMPROVE THIS!
 ;
@@ -157,6 +131,7 @@ factorial: func [n [integer!] /local res] [
     repeat i n [res: res * i]
 ]
 
+
 ; This MATH implementation is from Gabrielle Santilli circa 2001, found
 ; via http://www.rebol.org/ml-display-thread.r?m=rmlXJHS. It implements the
 ; much-requested (by new users) idea of * and / running before + and - in
@@ -164,12 +139,23 @@ factorial: func [n [integer!] /local res] [
 ;
 math: function [
     {Process expression taking "usual" operator precedence into account.}
+
     expr [block!]
         {Block to evaluate}
     /only
         {Translate operators to their prefix calls, but don't execute}
 
-    <static>
+    ; !!! This creation of static rules helps avoid creating those rules
+    ; every time, but has the problem that the references to what should
+    ; be locals are bound to statics as well (e.g. everything below which
+    ; is assigned with BLANK! really should be relatively bound to the
+    ; function, so that it will refer to the specific call.)  It's not
+    ; technically obvious how to do that, not the least of the problem is
+    ; that statics are currently a usermode feature...and injecting relative
+    ; binding information into something that's not the function body itself
+    ; isn't implemented.
+
+    <has>
 
     slash (to-lit-word first [ / ])
 
