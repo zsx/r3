@@ -141,6 +141,7 @@ else: enfix redescribe [
     "Evaluate the branch if the left hand side expression is void"
 ](
     func [
+        return: [any-value!]
         prior [<opt> any-value!]
         branch [<opt> any-value!]
     ][
@@ -152,6 +153,7 @@ else*: enfix redescribe [
     "Would be the same as ELSE/OPT, if infix functions dispatched from paths"
 ](
     func [
+        return: [<opt> any-value!]
         prior [<opt> any-value!]
         branch [<opt> any-value!]
     ][
@@ -166,6 +168,7 @@ then: enfix redescribe [
     "Evaluate the branch if the left hand side expression is not void"
 ](
     func [
+        return: [<opt> any-value!]
         prior [<opt> any-value!]
         branch [<opt> any-value!]
     ][
@@ -177,6 +180,7 @@ then*: enfix redescribe [
     "Would be the same as THEN/OPT, if infix functions dispatched from paths"
 ](
     func [
+        return: [<opt> any-value!]
         prior [<opt> any-value!]
         branch [<opt> any-value!]
     ][

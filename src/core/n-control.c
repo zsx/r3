@@ -31,17 +31,21 @@
 //
 // * If they do not run their body, they evaluate to void ("unset!") and not
 //   blank ("none!").  Otherwise the last result of the body evaluation, as
-//   in R3-Alpha and Rebol2.
+//   in R3-Alpha and Rebol2...but this is forced to blank if it was void,
+//   so that THEN and ELSE can distinguish whether a condition ran.
 //
-// * It is possible to ask the return result to be a LOGIC! of whether the
-//   body ever ran using the /? refinement.  Specialized versions are in
-//   the bootstrap (e.g. CASE/? is specialized as CASE?)
+// * It is possible to ask the return result to not be "blankified", but
+//   return the true value, with the /OPT refinement.  This is specialized
+//   as functions ending in *.  (IF*, EITHER*, CASE*, SWITCH*...)
 //
-// * Zero-arity function values used as branches will be executed.  Single
-//   arity function values used as branches will be executed and passed a
-//   LOGIC! parameter of whether the branch is taken (TRUE) or if it should
-//   be interpreted as untaken (FALSE).  Functions of other arities will be
-//   errors if used as branches.
+// * Other specializations exist returning a logic of whether the body ever
+//   ran by using the /? refinement.  So CASE? does not return the branch
+//   values, just true or false based on whether a branch ran.  This is
+//   based on testing the result for void.
+//
+// * Zero-arity function values used as branches will be executed.  Future
+//   plans may allow for single-arity functions to be passed the condition,
+//   see Run_Branch_Throws() for notes.
 //
 // * The /ONLY option suppresses execution of either FUNCTION! branches or
 //   BLOCK! branches, instead evaluating to the raw function or block value.
@@ -103,7 +107,7 @@ REBNATIVE(if)
 //
 REBNATIVE(unless)
 {
-    INCLUDE_PARAMS_OF_UNLESS; // ? is renamed as "q"
+    INCLUDE_PARAMS_OF_UNLESS;
 
     // Test is "safe", e.g. no literal blocks like `unless [x] [...]`
     //
