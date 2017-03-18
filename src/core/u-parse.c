@@ -1164,6 +1164,9 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
     if (!Is_Array_Series(P_INPUT)) // input can't be an ANY-STRING!
         fail (Error_Parse_Rule());
 
+    if (IS_END(P_RULE))
+        fail (Error_Parse_End());
+
     // The DO'ing of the input series will generate a single REBVAL.  But
     // for a parse to run on some input, that input has to be in a series...
     // so the single item is put into a block holder.  If the item was already
