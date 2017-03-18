@@ -180,7 +180,11 @@ make-action: func [
             string! ;-- skip over as commentary
         ]
     |
-        <has> (
+        ; While <static> is a well-known computer science term, it is an
+        ; un-intuitive word.  <has> is Ren-C's preference in mezzanine or
+        ; official code, relating it to the HAS object constructor.
+        ;
+        [<has> | <static>] (
             unless statics [
                 statics: copy []
             ]
