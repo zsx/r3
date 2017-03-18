@@ -1994,7 +1994,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
 
     // We pretend our "input source" has ended.
     //
-    SET_FRAME_VALUE(f, END_CELL);
+    SET_FRAME_VALUE(f, END);
     f->index = 0;
     f->source.array = EMPTY_ARRAY;
     f->specifier = SPECIFIED;
@@ -2019,7 +2019,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
     SNAP_STATE(&f->state);
 #endif
 
-    f->refine = m_cast(REBVAL*, END_CELL);
+    f->refine = m_cast(REBVAL*, END);
 
     if (opt_def)
         Push_Or_Alloc_Args_For_Underlying_Func(f);
@@ -2032,7 +2032,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
         if (exemplar)
             f->special = CTX_VARS_HEAD(exemplar);
         else
-            f->special = m_cast(REBVAL*, END_CELL); // literal pointer tested
+            f->special = m_cast(REBVAL*, END); // literal pointer tested
 
         SET_END(&f->cell); // needed for GC safety
     }
@@ -2051,7 +2051,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
     f->param = FUNC_FACADE_HEAD(f->func);
     f->arg = f->args_head;
     while (NOT_END(f->param)) {
-        if (f->special != END_CELL && !IS_VOID(f->special)) {
+        if (f->special != END && !IS_VOID(f->special)) {
             //
             // !!! Specialized arguments *should* be invisible to the
             // binding process of the apply.  They have been set and should

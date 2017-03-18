@@ -487,7 +487,9 @@ REBNATIVE(wake_up)
 
     REBVAL *awake = CTX_VAR(port, STD_PORT_AWAKE);
     if (IS_FUNCTION(awake)) {
-        if (Apply_Only_Throws(D_OUT, TRUE, awake, ARG(event), END_CELL))
+        const REBOOL fully = TRUE; // error if not all arguments consumed
+
+        if (Apply_Only_Throws(D_OUT, fully, awake, ARG(event), END))
             fail (Error_No_Catch_For_Throw(D_OUT));
 
         if (NOT(IS_LOGIC(D_OUT) && VAL_LOGIC(D_OUT)))

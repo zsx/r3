@@ -792,7 +792,7 @@ static void Init_Root_Context(void)
     // END (you always use SET_END), so we can make it unwritable.
     //
     Init_Endlike_Header(&PG_End_Node.header, 0); // read-only end
-    assert(IS_END(END_CELL)); // sanity check that it took
+    assert(IS_END(END)); // sanity check that it took
 
     // The EMPTY_BLOCK provides EMPTY_ARRAY.  It is locked for protection.
     //
@@ -1382,7 +1382,7 @@ void Init_Core(void)
         TRUE, // generate error if all arguments aren't consumed
         Sys_Func(SYS_CTX_FINISH_INIT_CORE), // %sys-start.r function to call
         &boot->mezz, // boot-mezz argument
-        END_CELL
+        END
     )) {
         // You shouldn't be able to throw any uncaught values during
         // Init_Core() startup, including throws implementing QUIT or EXIT.

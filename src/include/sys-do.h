@@ -207,12 +207,12 @@ inline static void Push_Frame_At(
     //
     // But to make the frame safe for Recycle() in-between the calls to
     // Do_Next_In_Frame_Throws(), the eval_type and output cannot be left as
-    // uninitialized bits.  So start with an unwritable END_CELL, and then
+    // uninitialized bits.  So start with an unwritable END, and then
     // each evaluation will canonize the eval_type to REB_0 in-between.
     // (Do_Core() does not do this, but the wrappers that need it do.)
     //
     f->eval_type = REB_0;
-    f->out = m_cast(REBVAL*, END_CELL);
+    f->out = m_cast(REBVAL*, END);
 
     Push_Frame_Core(f);
 }
@@ -873,10 +873,9 @@ inline static REBOOL Do_Va_Throws(REBVAL *out, ...)
 }
 
 
-// Takes a list of arguments terminated by END_CELL (or any IS_END) and
-// will do something similar to R3-Alpha's "apply/only" with a value.  If
-// that value is a function, it will be called...if it is a SET-WORD! it
-// will be assigned, etc.
+// Takes a list of arguments terminated by an end marker and will do something
+// similar to R3-Alpha's "apply/only" with a value.  If that value is a
+// function, it will be called...if it's a SET-WORD! it will be assigned, etc.
 //
 // This is equivalent to putting the value at the head of the input and
 // then calling EVAL/ONLY on it.  If all the inputs are not consumed, an
@@ -1034,7 +1033,7 @@ inline static REBOOL Run_Branch_Throws(
         // argument or not.  Review.
         //
         const REBOOL fully = TRUE;
-        if (Apply_Only_Throws(out, fully, branch, END_CELL))
+        if (Apply_Only_Throws(out, fully, branch, END))
             return TRUE;
     }
     else

@@ -519,7 +519,7 @@ struct Reb_Frame {
     // `special`
     //
     // The specialized argument parallels arg if non-NULL, and contains the
-    // value to substitute in the case of a specialized call.  It is END_CELL
+    // value to substitute in the case of a specialized call.  It is END
     // if no specialization in effect, and parallels arg (so it may be
     // incremented on a common code path) if arguments are just being checked
     // vs. fulfilled.

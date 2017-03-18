@@ -379,14 +379,16 @@ static int Compare_Val_Custom(void *arg, const void *v1, const void *v2)
 {
     struct sort_flags *flags = cast(struct sort_flags*, arg);
 
+    const REBOOL fully = TRUE; // error if not all arguments consumed
+
     DECLARE_LOCAL (result);
     if (Apply_Only_Throws(
         result,
-        TRUE,
+        fully,
         flags->comparator,
         flags->reverse ? v1 : v2,
         flags->reverse ? v2 : v1,
-        END_CELL
+        END
     )) {
         fail (Error_No_Catch_For_Throw(result));
     }

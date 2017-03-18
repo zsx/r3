@@ -192,7 +192,7 @@ REB_R Pending_Native_Dispatcher(REBFRM *f) {
 
     assert(FUNC_DISPATCHER(f->func) == &Pending_Native_Dispatcher);
 
-    if (Do_Va_Throws(f->out, NAT_VALUE(compile), &natives, END_CELL))
+    if (Do_Va_Throws(f->out, NAT_VALUE(compile), &natives, END))
         return R_OUT_IS_THROWN;
 
     // Today's COMPILE doesn't return a result on success (just fails on

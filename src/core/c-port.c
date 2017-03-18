@@ -183,7 +183,7 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
         only ? awake_only : awake,
         port,
         tmp,
-        END_CELL
+        END
     )) {
         fail (Error_No_Catch_For_Throw(result));
     }

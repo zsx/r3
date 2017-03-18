@@ -489,7 +489,7 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(REBFRM *f) {
     if (exemplar)
         f->special = CTX_VARS_HEAD(exemplar);
     else
-        f->special = m_cast(REBVAL*, END_CELL); // literal pointer used as test
+        f->special = m_cast(REBVAL*, END); // literal pointer used as test
 
     // We want the cell to be GC safe; whether it's used by an argument or
     // not.  If it's being used as an argument then this just gets overwritten

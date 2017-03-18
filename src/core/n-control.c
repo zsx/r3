@@ -716,8 +716,8 @@ was_caught:
                 handler,
                 thrown_arg,
                 thrown_name,
-                END_CELL)
-            ) {
+                END
+            )){
                 return R_OUT_IS_THROWN;
             }
 

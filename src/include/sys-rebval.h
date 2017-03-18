@@ -787,8 +787,8 @@ struct Reb_Value
 // being sought of when terminators will be required and when they will not.
 //
 
-#define END_CELL \
-    ((const REBVAL*)&PG_End_Node)
+#define END \
+    ((const REBVAL*)&PG_End_Node) // not a value or a full cell...just a node!
 
 #define IS_END_MACRO(v) \
     LOGICAL((v)->header.bits & NODE_FLAG_END)

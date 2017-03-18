@@ -1597,7 +1597,7 @@ REBNATIVE(destroy_struct_storage)
         if (NOT(IS_FUNCTION_RIN(ARG(free_func))))
             fail (Error(RE_FREE_NEEDS_ROUTINE));
 
-        if (Do_Va_Throws(D_OUT, ARG(free_func), pointer, END_CELL))
+        if (Do_Va_Throws(D_OUT, ARG(free_func), pointer, END))
             return R_OUT_IS_THROWN;
     }
 

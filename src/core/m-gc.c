@@ -1074,7 +1074,10 @@ static void Mark_Frame_Stack_Deep(void)
         // better/cheaper to always use them.  This would free up END to
         // serve as another signal--or to just not be used at all.
         //
-        assert(f->out->header.bits & NODE_FLAG_CELL);
+        assert(
+            f->out->header.bits & NODE_FLAG_CELL
+            || (f->eval_type == REB_0 && f->out == END)
+        );
         if ((f->out->header.bits & NODE_FLAG_VALID) && NOT_END(f->out))
             Queue_Mark_Opt_Value_Deep(f->out);
 

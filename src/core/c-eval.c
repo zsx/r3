@@ -435,7 +435,7 @@ reevaluate:;
 
         f->arg = f->args_head;
         f->param = FUNC_FACADE_HEAD(f->func);
-        // f->special is END_CELL, f->args_head, or first specialized value
+        // f->special is END, f->args_head, or first specialized value
 
         // Same as check before switch.  (do_function_arglist_in_progress:
         // might have a goto from another point, so we check it again here)
@@ -462,7 +462,7 @@ reevaluate:;
         // specialization and ordinary invocation.  f->special is used to
         // either step through a list of specialized values (with void as a
         // signal of no specialization), to step through the arguments if
-        // they are just being type checked, or END_CELL otherwise.
+        // they are just being type checked, or END otherwise.
 
         enum Reb_Param_Class pclass; // gotos would cross it if inside loop
 
@@ -503,14 +503,14 @@ reevaluate:;
             if (pclass == PARAM_CLASS_REFINEMENT) {
 
                 if (f->doing_pickups) {
-                    f->param = END_CELL; // !Is_Function_Frame_Fulfilling
+                    f->param = END; // !Is_Function_Frame_Fulfilling
                 #if !defined(NDEBUG)
-                    f->arg = m_cast(REBVAL*, END_CELL); // checked after
+                    f->arg = m_cast(REBVAL*, END); // checked after
                 #endif
                     break;
                 }
 
-                if (f->special != END_CELL) {
+                if (f->special != END) {
                     if (f->special == f->arg) {
                         //
                         // We're just checking the values already in the
@@ -620,7 +620,7 @@ reevaluate:;
             switch (pclass) {
             case PARAM_CLASS_LOCAL:
                 SET_VOID(f->arg); // faster than checking bad specializations
-                if (f->special != END_CELL)
+                if (f->special != END)
                     ++f->special;
                 goto continue_arg_loop;
 
@@ -640,7 +640,7 @@ reevaluate:;
                     f->arg->extra.binding =
                         FUNC_PARAMLIST(FUNC_UNDERLYING(f->func));
 
-                if (f->special != END_CELL)
+                if (f->special != END)
                     ++f->special; // specialization being overwritten is right
                 goto continue_arg_loop;
 
@@ -660,7 +660,7 @@ reevaluate:;
                     f->arg->extra.binding =
                         FUNC_PARAMLIST(FUNC_UNDERLYING(f->func));
 
-                if (f->special != END_CELL)
+                if (f->special != END)
                     ++f->special; // specialization being overwritten is right
                 goto continue_arg_loop;
 
@@ -680,12 +680,12 @@ reevaluate:;
                 //
                 SET_UNREADABLE_BLANK(f->arg);
 
-                if (f->special != END_CELL)
+                if (f->special != END)
                     ++f->special;
                 goto continue_arg_loop;
             }
 
-            if (f->special != END_CELL) {
+            if (f->special != END) {
                 if (f->special == f->arg) {
                     //
                     // Just running the loop to verify arguments/refinements...
@@ -987,11 +987,12 @@ reevaluate:;
         continue_arg_loop: // `continue` might bind to the wrong scope
             ++f->param;
             ++f->arg;
-            // f->special is incremented while already testing it for END_CELL
+            // f->special is incremented while already testing it for END
         }
 
         // If there was a specialization of the arguments, it should have
-        // been marched to the end...or just be an END_CELL to start with
+        // been marched to an end cell...or just be the unwritable canon END
+        // node to start with
         //
         assert(IS_END(f->special));
 
@@ -1023,7 +1024,7 @@ reevaluate:;
             }
 
             if (VAL_TYPE(DS_TOP) == REB_0_PICKUP) {
-                assert(f->special == END_CELL); // no specialization "pickups"
+                assert(f->special == END); // no specialization "pickups"
                 f->param = DS_TOP->payload.pickup.param;
                 f->refine = f->arg = DS_TOP->payload.pickup.arg;
                 assert(IS_LOGIC(f->refine) && VAL_LOGIC(f->refine));
@@ -1254,13 +1255,12 @@ reevaluate:;
         // If we have functions pending to run on the outputs, then do so.
         //
         while (DSP != f->dsp_orig) {
-            if (!IS_FUNCTION(DS_TOP)) break; // pending sets/gets
+            if (NOT(IS_FUNCTION(DS_TOP)))
+                break; // pending sets/gets
 
-            DECLARE_LOCAL (temp);
-            Move_Value(temp, f->out); // better safe than sorry, for now?
-            if (Apply_Only_Throws(
-                f->out, TRUE, DS_TOP, temp, END_CELL
-            )) {
+            Move_Value(&f->cell, f->out);
+
+            if (Apply_Only_Throws(f->out, TRUE, DS_TOP, &f->cell, END)) {
                 Abort_Function_Args_For_Frame(f);
                 goto finished;
             }

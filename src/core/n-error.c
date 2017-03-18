@@ -73,7 +73,8 @@ REBNATIVE(trap)
                 if (Do_Any_Array_At_Throws(D_OUT, ARG(handler)))
                     return R_OUT_IS_THROWN;
 
-                if (REF(q)) return R_TRUE;
+                if (REF(q))
+                    return R_TRUE;
 
                 return R_OUT;
             }
@@ -87,10 +88,11 @@ REBNATIVE(trap)
                 // FALSE for `fully` means it will not raise an error if
                 // the handler happens to be arity 0.
                 //
-                if (Apply_Only_Throws(D_OUT, FALSE, handler, arg, END_CELL))
+                if (Apply_Only_Throws(D_OUT, FALSE, handler, arg, END))
                     return R_OUT_IS_THROWN;
 
-                if (REF(q)) return R_TRUE;
+                if (REF(q))
+                    return R_TRUE;
 
                 return R_OUT;
             }

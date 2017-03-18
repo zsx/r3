@@ -188,13 +188,14 @@ REBNATIVE(do)
     case REB_STRING:
     case REB_URL:
     case REB_FILE:
-    case REB_TAG:
+    case REB_TAG: {
         //
         // See code called in system/intrinsic/do*
         //
+        const REBOOL fully = TRUE; // error if not all arguments consumed
         if (Apply_Only_Throws(
             D_OUT,
-            TRUE, // error if not all arguments consumed
+            fully,
             Sys_Func(SYS_CTX_DO_P),
             source,
             REF(args) ? TRUE_VALUE : FALSE_VALUE,
@@ -202,11 +203,11 @@ REBNATIVE(do)
             REF(next) ? TRUE_VALUE : FALSE_VALUE,
             REF(next) ? ARG(var) : BLANK_VALUE, // can't put void in block
             REF(only) ? TRUE_VALUE : FALSE_VALUE,
-            END_CELL
+            END
         )) {
             return R_OUT_IS_THROWN;
         }
-        return R_OUT;
+        return R_OUT; }
 
     case REB_ERROR:
         //

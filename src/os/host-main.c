@@ -380,17 +380,18 @@ void Host_Repl(
                 Context_For_Frame_May_Reify_Managed(f)
             );
         }
+        const REBOOL fully = TRUE; // error if not all arguments consumed
 
         DECLARE_LOCAL (code_or_error);
         if (Apply_Only_Throws(
             code_or_error, // where return value of HOST-REPL is saved
-            TRUE, // error if not all arguments before END_CELL are consumed
+            fully,
             &HG_Host_Repl, // HOST-REPL function to run
             out, // last-result (always void first run through loop)
             last_failed ? TRUE_VALUE : FALSE_VALUE, // last-failed
             level, // focus-level
             frame, // focus-frame
-            END_CELL
+            END
         )) {
             // The REPL should not execute anything that should throw.
             // Determine graceful way of handling if it does.
@@ -923,14 +924,17 @@ int main(int argc, char **argv_ansi)
         if (!IS_FUNCTION(host_start))
             panic (host_start); // should not be able to error
 
+        const REBOOL fully = TRUE; // error if not all arguments are consumed
+
         DECLARE_LOCAL (result);
         if (Apply_Only_Throws(
-            result, TRUE,
+            result,
+            fully,
             host_start, // startup function, implicit GC guard
             argv_value, // argv parameter, implicit GC guard
             embedded_value, // embedded-script parameter, implicit GC guard
             ext_value,
-            END_CELL
+            END
         )) {
             if (
                 IS_FUNCTION(result)

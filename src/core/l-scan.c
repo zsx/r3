@@ -610,7 +610,7 @@ static REBCTX *Error_Bad_Scan(
     DECLARE_LOCAL (arg2);
     Init_String(arg2, Copy_Bytes(arg, size));
 
-    REBCTX *error = Error(errnum, arg1, arg2, END_CELL);
+    REBCTX *error = Error(errnum, arg1, arg2, END);
 
     // Write the NEAR information (`Error()` gets it from FS_TOP)
     // Vars is a C struct mirroring fixed portion of error fields

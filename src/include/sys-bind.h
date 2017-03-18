@@ -485,7 +485,7 @@ inline static void DS_PUSH_RELVAL(const RELVAL *v, REBSPC *specifier) {
 // That will pass the address of the first value element of the block's
 // contents.  You could use a later value element, but note that the interface
 // as written doesn't have a length limit.  So although you can control where
-// it starts, it will keep binding until it hits an END_CELL.
+// it starts, it will keep binding until it hits an end marker.
 //
 
 #define Bind_Values_Deep(values,context) \

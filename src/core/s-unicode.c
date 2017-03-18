@@ -950,10 +950,9 @@ REBOOL Decode_UTF8_Maybe_Astral_Throws(
                     // Try passing the handler the codepoint value.  Passing
                     // FALSE for `fully` means it will not raise an error if
                     // the handler happens to be arity 0.
-                    //
-                    if (Apply_Only_Throws(
-                        item, FALSE, handler, astral, END_CELL
-                    )){
+
+                    const REBOOL fully = FALSE;
+                    if (Apply_Only_Throws(item, fully, handler, astral, END)) {
                         Move_Value(out_if_thrown, item);
                         return TRUE;
                     }

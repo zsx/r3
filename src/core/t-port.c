@@ -51,9 +51,11 @@ void MAKE_Port(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
     assert(kind == REB_PORT);
 
+    const REBOOL fully = TRUE; // error if not all arguments consumed
+
     if (Apply_Only_Throws(
-        out, TRUE, Sys_Func(SYS_CTX_MAKE_PORT_P), arg, END_CELL
-    )) {
+        out, fully, Sys_Func(SYS_CTX_MAKE_PORT_P), arg, END
+    )){
         // Gave back an unhandled RETURN, BREAK, CONTINUE, etc...
         fail (Error_No_Catch_For_Throw(out));
     }

@@ -167,7 +167,7 @@ inline static REB_R Do_Test_For_Maybe(
     }
 
     if (IS_FUNCTION(test)) {
-        if (Apply_Only_Throws(out, TRUE, const_KNOWN(test), value, END_CELL))
+        if (Apply_Only_Throws(out, TRUE, const_KNOWN(test), value, END))
             return R_OUT_IS_THROWN;
 
         if (IS_VOID(out))

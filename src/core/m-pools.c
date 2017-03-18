@@ -1836,7 +1836,7 @@ void Assert_Pointer_Detection_Working(void)
     DECLARE_LOCAL (cell_end);
     SET_END(cell_end);
     assert(Detect_Rebol_Pointer(cell_end) == DETECTED_AS_CELL_END);
-    assert(Detect_Rebol_Pointer(END_CELL) == DETECTED_AS_INTERNAL_END);
+    assert(Detect_Rebol_Pointer(END) == DETECTED_AS_INTERNAL_END);
 }
 
 
