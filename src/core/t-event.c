@@ -181,7 +181,7 @@ static REBOOL Set_Event_Var(REBVAL *event, const REBVAL *word, const REBVAL *val
                 break;
 
             default:
-                fail (Error_Invalid_Arg_Core(arg, VAL_SPECIFIER(val)));
+                fail (Error_Invalid_Arg_Core(item, VAL_SPECIFIER(val)));
             }
         }
         break; }
