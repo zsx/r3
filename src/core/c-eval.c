@@ -1033,13 +1033,9 @@ reevaluate:;
                 goto continue_arg_loop; // leaves refine, but bumps param+arg
             }
 
-            assert(
-                IS_FUNCTION(DS_TOP) // chains push these then R_REDO_CHECKED
-                || IS_SET_WORD(DS_TOP) // pending sets should be under these
-                || IS_SET_PATH(DS_TOP) // ^...same
-                || IS_GET_WORD(DS_TOP) // pending gets mutated, e.g. ENFIX
-                || IS_GET_PATH(DS_TOP) // ...should also be underneath
-            );
+            // chains push some number of FUNCTION!s, then call R_REDO_CHECKED
+            //
+            assert(IS_FUNCTION(DS_TOP));
         }
 
     #if !defined(NDEBUG)
@@ -1395,33 +1391,38 @@ reevaluate:;
 // SET-WORD! into a GET-WORD!, e.g. `+: enfix :add` will let ENFIX set `+`
 // however it needs to, and fetch it afterward.
 //
+// !!! Note that `10 = 5 + 5` would be an error due to lookahead suppression
+// from `=`, so it reads as `(10 = 5) + 5`.  However `10 = x: 5 + 5` will not
+// be an error, as the SET-WORD! causes a recursion in the evaluator.  This
+// is unusual, but there are advantages to seeing SET-WORD! as a kind of
+// single-arity function.
+//
 //==//////////////////////////////////////////////////////////////////////==//
 
     case REB_SET_WORD:
         assert(IS_SET_WORD(f->value));
-        DS_PUSH_RELVAL(f->value, f->specifier);
-
-        // ^-- see Do_Pending_Sets_May_Invalidate_Gotten() for real assignment
+        f->param = f->value;
 
         Fetch_Next_In_Frame(f);
-        if (IS_END(f->value))
-            fail (Error(RE_NEED_VALUE, DS_TOP)); // e.g. `do [foo:]`
-        f->eval_type = VAL_TYPE(f->value);
+        if (IS_END(f->value)) {
+            DECLARE_LOCAL (specific);
+            Derelativize(specific, f->param, f->specifier);
+            fail (Error(RE_NEED_VALUE, specific)); // `do [a:]` is illegal
+        }
 
-    #if !defined(NDEBUG)
+        if (Do_Next_In_Subframe_Throws(f->out, f, DO_FLAG_NORMAL))
+            goto finished;
+
+        // The eval_type is altered by lookbacks to be a REB_GET_WORD, this
+        // indicates a need for a refetch.
         //
-        // !!! In R3-Alpha `10 = 5 + 5` would be an error due to lookahead
-        // suppression from `=`, so it reads as `(10 = 5) + 5`.  However
-        // `10 = x: 5 + 5` would not be an error, as the SET-WORD! caused a
-        // recursion in the evaluator.  For efficiency in Ren-C, SET-WORD!s do
-        // not bear the overhead of state of a recursion.  If it were desired
-        // for seeing a SET-WORD! to override the lookahead suppression, that
-        // would need to be done explicitly.
-        //
-        if (LEGACY(OPTIONS_SETS_UNSUPPRESS_LOOKAHEAD))
-            f->flags.bits &= ~DO_FLAG_NO_LOOKAHEAD;
-    #endif
-        goto do_next;
+        if (f->eval_type == REB_GET_WORD)
+            Move_Value(f->out, Get_Opt_Var_May_Fail(f->param, f->specifier));
+        else {
+            assert(f->eval_type == REB_SET_WORD);
+            Move_Value(Sink_Var_May_Fail(f->param, f->specifier), f->out);
+        }
+        break;
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
@@ -1566,23 +1567,53 @@ reevaluate:;
 
     case REB_SET_PATH:
         assert(IS_SET_PATH(f->value));
-        DS_PUSH_RELVAL(f->value, f->specifier);
-
-        // ^-- see Do_Pending_Sets_May_Invalidate_Gotten() for real assignment
+        f->param = f->value;
 
         Fetch_Next_In_Frame(f);
-        if (IS_END(f->value))
-            fail (Error(RE_NEED_VALUE, DS_TOP)); // `do [a/b/c:]` is illegal
-        f->eval_type = VAL_TYPE(f->value);
+        if (IS_END(f->value)) {
+            DECLARE_LOCAL (specific);
+            Derelativize(specific, f->param, f->specifier);
+            fail (Error(RE_NEED_VALUE, specific)); // `do [a/b:]` is illegal
+        }
 
-    #if !defined(NDEBUG)
+        if (Do_Next_In_Subframe_Throws(f->out, f, DO_FLAG_NORMAL))
+            goto finished;
+
+        // The lookback mechanic for the frames can see this SET-PATH!.  This
+        // is the way it works currently but is being reviewed.
         //
-        // !!! See remarks on REB_SET_WORD
-        //
-        if (LEGACY(OPTIONS_SETS_UNSUPPRESS_LOOKAHEAD))
-            f->flags.bits &= ~DO_FLAG_NO_LOOKAHEAD;
-    #endif
-        goto do_next;
+        if (f->eval_type == REB_GET_PATH) {
+            if (Do_Path_Throws_Core(
+                f->out,
+                NULL, // not requesting symbol means refinements not allowed
+                f->param,
+                f->specifier,
+                NULL // `setval`: null means don't treat as SET-PATH!
+            )) {
+                goto finished;
+            }
+        }
+        else {
+            assert(f->eval_type == REB_SET_PATH);
+
+            // !!! EVAL might have the path value itself resident in the frame
+            // cell.  Due to the way this is currently designed, throws need to be
+            // written to a location distinct from the path and also distinct from
+            // the value being set.  Review.
+            //
+            DECLARE_LOCAL (temp);
+
+            if (Do_Path_Throws_Core(
+                temp, // output location if thrown
+                NULL, // not requesting symbol means refinements not allowed
+                f->param, // param is currently holding SET-PATH! we got in
+                f->specifier, // needed to resolve relative array in path
+                f->out // value to set (already in f->out)
+            )) {
+                fail (Error_No_Catch_For_Throw(temp));
+            }
+        }
+        break;
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
@@ -1658,10 +1689,8 @@ reevaluate:;
     // 1...it needs to wait.  The pending sets are not flushed until the
     // infix operation has finished.
 
-    if (IS_END(f->value)) {
-        Do_Pending_Sets_May_Invalidate_Gotten(f->out, f); // don't care if does
+    if (IS_END(f->value))
         goto finished;
-    }
 
     f->eval_type = VAL_TYPE(f->value);
 
@@ -1677,9 +1706,9 @@ reevaluate:;
         if (IS_WORD_BOUND(f->value))
             f->gotten = Get_Var_Core(f->value, f->specifier, GETVAR_READ_ONLY);
         else {
-            DECLARE_LOCAL (specified);
-            Derelativize(specified, f->value, f->specifier);
-            fail (Error(RE_NOT_BOUND, specified));
+            DECLARE_LOCAL (specific);
+            Derelativize(specific, f->value, f->specifier);
+            fail (Error(RE_NOT_BOUND, specific));
          }
 
     //=//// DO/NEXT WON'T RUN MORE CODE UNLESS IT'S AN INFIX FUNCTION /////=//
@@ -1688,8 +1717,7 @@ reevaluate:;
             NOT_VAL_FLAG(f->gotten, VALUE_FLAG_ENFIXED)
             && NOT(f->flags.bits & DO_FLAG_TO_END)
         ){
-            Do_Pending_Sets_May_Invalidate_Gotten(f->out, f);
-            goto finished; // ^-- next cycle can handle f->gotten == NULL
+            goto finished;
         }
 
     //=//// IT'S INFIX OR WE'RE DOING TO THE END...DISPATCH LIKE WORD /////=//
@@ -1697,10 +1725,8 @@ reevaluate:;
         START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
         // ^-- sets args_evaluate, do_count, Ctrl-C may abort
 
-        if (!IS_FUNCTION(f->gotten)) {
-            Do_Pending_Sets_May_Invalidate_Gotten(f->out, f);
+        if (!IS_FUNCTION(f->gotten))
             goto do_word_in_value; // may need to refetch, lookbacks see end
-        }
 
         f->eval_type = REB_FUNCTION;
 
@@ -1727,18 +1753,12 @@ reevaluate:;
             }
         }
         else {
-            Do_Pending_Sets_May_Invalidate_Gotten(f->out, f);
-            if (f->gotten == NULL)
-                goto do_word_in_value; // pay for refetch, lookbacks see end
-
             SET_END(f->out);
             SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
             f->refine = ORDINARY_ARG;
             goto do_function_in_gotten;
         }
     }
-
-    Do_Pending_Sets_May_Invalidate_Gotten(f->out, f);
 
     // Continue evaluating rest of block if not just a DO/NEXT
     //

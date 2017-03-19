@@ -278,24 +278,29 @@ inline static void Fetch_Next_In_Frame(REBFRM *f) {
 // meaningful to say it has a "left hand side" in f->out to give an infix
 // (prefix, etc.) lookback function.
 //
-// However...it can look at the data stack and peek to find SET-WORD! or
+// However...it can look at the frame stack and peek to find SET-WORD! or
 // SET-PATH!s in progress.  They are not products of an evaluation--hence are
 // safe to quote, allowing constructs like `x: ++ 1`
 //
-inline static void Lookback_For_Set_Word_Or_Set_Path(REBVAL *out, REBFRM *f)
-{
-    if (DSP == f->dsp_orig) {
+inline static void Lookback_For_Set_Word_Or_Set_Path(
+    REBVAL *out,
+    REBFRM *child
+){
+    REBFRM *parent = child->prior;
+
+    if (parent == NULL) {
         SET_END(out); // some <end> args are able to tolerate absences
         return;
     }
 
-    enum Reb_Kind kind = VAL_TYPE(DS_TOP);
-    if (kind == REB_SET_WORD) {
-        Move_Value(out, DS_TOP);
+    switch (parent->eval_type) {
+    case REB_SET_WORD: {
+        Derelativize(out, parent->param, parent->specifier);
         SET_VAL_FLAG(out, VALUE_FLAG_UNEVALUATED);
-        VAL_SET_TYPE_BITS(DS_TOP, REB_GET_WORD); // See Do_Core/ET_SET_WORD
-    }
-    else if (kind == REB_SET_PATH) {
+        parent->eval_type = REB_GET_WORD;
+        break; }
+
+    case REB_SET_PATH: {
         //
         // The purpose of capturing a SET-PATH! on the left of a lookback
         // operation is to set it.  Currently the guarantee required is that
@@ -304,108 +309,18 @@ inline static void Lookback_For_Set_Word_Or_Set_Path(REBVAL *out, REBFRM *f)
         // are GROUP!s in the path, then it would evaluate twice.  Avoid it
         // by disallowing lookback capture of paths containing GROUP!
         //
-        RELVAL *temp = VAL_ARRAY_AT(DS_TOP);
+        RELVAL *temp = VAL_ARRAY_AT(parent->param);
         for (; NOT_END(temp); ++temp)
             if (IS_GROUP(temp))
                 fail (Error(RE_INFIX_PATH_GROUP, temp));
 
-        Move_Value(out, DS_TOP);
+        Derelativize(out, parent->param, parent->specifier);
         SET_VAL_FLAG(out, VALUE_FLAG_UNEVALUATED);
-        VAL_SET_TYPE_BITS(DS_TOP, REB_GET_PATH); // See Do_Core/ET_SET_PATH
-    }
-    else {
-        assert(FALSE); // !!! impossible?
-    }
-}
+        parent->eval_type = REB_GET_PATH;
+        break; }
 
-
-// Note that this operation may change variables such that something that
-// was a FUNCTION! before is no longer, or something that isn't a function
-// becomes one.  Set f->gotten to NULL in cases where it may affect it
-//
-// !!! This temporarily disallows throws from SET-PATH!s.  Longer term, the
-// SET-PATH! will be evaluated into a "sink" and pushed, so left-to-right
-// consistency is maintained, but in the meantime it will be an error if
-// one tries to do `foo/baz/(either condition ['bar] [return 10]): 20`
-//
-inline static void Do_Pending_Sets_May_Invalidate_Gotten(
-    REBVAL *out,
-    REBFRM *f
-) {
-    while (DSP != f->dsp_orig) {
-        switch (VAL_TYPE(DS_TOP)) {
-        case REB_SET_WORD: {
-            f->refine = Sink_Var_May_Fail(DS_TOP, SPECIFIED);
-            Move_Value(f->refine, out);
-            if (f->refine == f->gotten)
-                f->gotten = NULL;
-            break; }
-
-        case REB_GET_WORD:
-            //
-            // If the evaluation did a "look back" and captured this SET-WORD!
-            // then whatever it does to the word needs to stick as its value.
-            // It will mutate the eval_type to ET_GET_WORD to tell us to
-            // evaluate to whatever the variable's value is.  (In particular,
-            // this allows ENFIX to do a SET/LOOKBACK on an operator and then
-            // not be undone by overwriting it again.)
-            //
-            Copy_Opt_Var_May_Fail(out, DS_TOP, SPECIFIED);
-            break;
-
-        case REB_SET_PATH: {
-            DECLARE_LOCAL (hack);
-            Move_Value(hack, DS_TOP); // can't path eval from data stack, yet
-
-            if (Do_Path_Throws_Core(
-                &f->cell, // output location if thrown
-                NULL, // not requesting symbol means refinements not allowed
-                hack, // param is currently holding SET-PATH! we got in
-                SPECIFIED, // needed to resolve relative array in path
-                out
-            )) {
-                fail (Error_No_Catch_For_Throw(&f->cell));
-            }
-
-            // Arbitrary code just ran.  Assume the worst, that it may have
-            // changed gotten.  (Future model it may be easier to test this.)
-            //
-            f->gotten = NULL;
-
-            // leave VALUE_FLAG_UNEVALUATED as is
-            break; }
-
-        case REB_GET_PATH: {
-        #if !defined(NDEBUG)
-            REBDSP dsp_before = DSP;
-        #endif
-
-            DECLARE_LOCAL (hack);
-            Move_Value(hack, DS_TOP); // can't path eval from data stack, yet
-
-            if (Do_Path_Throws_Core(
-                out, // output location if thrown
-                NULL, // not requesting symbol means refinements not allowed
-                hack, // param is currently holding SET-PATH! we got in
-                SPECIFIED, // needed to resolve relative array in path
-                NULL // nothing provided to SET, so it's a GET
-            )) {
-                fail (Error_No_Catch_For_Throw(out));
-            }
-
-            // leave VALUE_FLAG_UNEVALUATED as is
-
-            // We did not pass in a symbol, so not a call... hence we cannot
-            // process refinements.  Should not get any back.
-            //
-            assert(DSP == dsp_before);
-            break; }
-
-        default:
-            assert(FALSE);
-        }
-
-        DS_DROP;
+    default:
+        SET_END(out);
     }
 }
 
@@ -439,7 +354,16 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
     // that only happens if a function call is in effect.  Otherwise, it is
     // more efficient to use Do_Next_In_Frame_Throws().
     //
-    assert(parent->eval_type == REB_FUNCTION);
+    // !!! Note: It is currently the case that SET-WORD! and SET-PATH! also
+    // generate a new frame, in order that lookback quoting can find them.
+    // This method is being reviewed in order to generalize it, hopefully
+    // saving on frame creations in the process.
+    //
+    assert(
+        parent->eval_type == REB_FUNCTION
+        || parent->eval_type == REB_SET_WORD
+        || parent->eval_type == REB_SET_PATH
+    );
 
     REBFRM child_frame;
     REBFRM *child = &child_frame;
