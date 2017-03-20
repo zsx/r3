@@ -19,69 +19,69 @@ matrix:
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.4.4 REL=1 CC=gcc
+          env: OS_ID=0.4.40 CPLUSPLUS=no BUILD_TYPE="Release"
 
         # Linux x64, debug, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.4.40 CC=gcc
+          env: OS_ID=0.4.40 CPLUSPLUS=no BUILD_TYPE="Debug"
 
         # Linux x64, debug, g++
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: cpp
-          env: OS_ID=0.4.40 CC=g++
+          env: OS_ID=0.4.40 CPLUSPLUS=yes BUILD_TYPE="Debug"
 
         # Linux x64, release, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.4.40 REL=1 CC=gcc
+          env: OS_ID=0.4.40 CPLUSPLUS=no BUILD_TYPE="Release"
 
         # Windows x86, release, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.3.1 REL=1 TOOLS=i686-w64-mingw32- CC=gcc
+          env: OS_ID=0.3.1 CPLUSPLUS=no BUILD_TYPE="Release"
         
         # Windows x64, debug, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.3.40 TOOLS=x86_64-w64-mingw32- CC=gcc
+          env: OS_ID=0.3.40 CPLUSPLUS=no BUILD_TYPE="Debug"
 
         # Windows x64, debug, g++
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: cpp
-          env: OS_ID=0.3.40 TOOLS=x86_64-w64-mingw32- CC=g++
+          env: OS_ID=0.3.40 CPLUSPLUS=yes BUILD_TYPE="Debug"
 
         # OSX x64, debug, gcc
         #
         - os: osx
           osx_image: xcode8.2
           language: c
-          env: OS_ID=0.2.40 CC=gcc
+          env: OS_ID=0.2.40 CPLUSPLUS=no BUILD_TYPE="Debug"
 
         # OSX x64, debug, g++
         #
         - os: osx
           osx_image: xcode8.2
           language: cpp
-          env: OS_ID=0.2.40 CC=g++
+          env: OS_ID=0.2.40 CPLUSPLUS=yes BUILD_TYPE="Debug"
 
         # OSX x64, release, gcc
         #
         - os: osx
           language: c
-          env: OS_ID=0.2.40 REL=1 CC=gcc
+          env: OS_ID=0.2.40 CPLUSPLUS=no BUILD_TYPE="Release"
 
 env:
     global:
@@ -133,20 +133,30 @@ install:
     - chmod +x make/r3-make
 
 script:
-    - cd make/
+    - makedir build
+    - cd build
 
-    # Keep track of whether the incoming compilation tool was C++ or not,
-    # before changing the definition of CC to suit the makefile
-    #
-    - |
-      if [[ "${CC}" = "g++" ]]; then
-          CPLUSPLUS=1;
-          LIBC_FLAG="-static-libgcc -static-libstdc++"
-      else
-          unset CPLUSPLUS;
-          LIBC_FLAG=""
+    - export EXTRA_CMAKE_ARGS
+
+    #set cross-compiler for windows builds
+    - if [[ "$OS_ID" = "0.3.40" ]]; then
+        EXTRA_CMAKE_ARGS="$EXTRA_CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=../make/Toolchain-cross-mingw64-linux.cmake"
+      elif [[ "$OS_ID" = "0.3.1" ]]; then 
+        EXTRA_CMAKE_ARGS="$EXTRA_CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=../make/Toolchain-cross-mingw32-linux.cmake"
       fi
 
+    #statically link libgcc and libstdc++ for C++ builds
+    -
+      if [[ "$CPLUSPLUS" = 1 ]]; then
+        if [[ "$BUILD_TYPE" = "Release" ]]; then
+          EXTRA_CMAKE_ARGS="$EXTRA_CMAKE_ARGS -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++"
+        else #debug
+          EXTRA_CMAKE_ARGS="$EXTRA_CMAKE_ARGS -DCMAKE_EXE_LINKER_FLAGS_DEBUG="-static-libgcc -static-libstdc++"
+        fi
+      fi
+
+
+    - cmake -DR3_OS_ID=${OS_ID} -DR3_CPP=${CPLUSPLUS} -DR3_WITH_TCC=1 -DR3_MAKE=../make/r3-make $EXTRA_CMAKE_ARGS ../make
     # If REL is defined and not empty, we do a release build by compiling with
     # NDEBUG defined. (`${parameter+alt_value}` is a Bash-ism documented as:
     # "if parameter set, use alt_value, else use null string.")
