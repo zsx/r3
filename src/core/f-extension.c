@@ -246,7 +246,7 @@ REBNATIVE(unload_extension_helper)
     if (ret < 0) {
         DECLARE_LOCAL (i);
         SET_INTEGER(i, ret);
-        fail (Error(RE_FAIL_TO_QUIT_EXTENSION, &i));
+        fail (Error(RE_FAIL_TO_QUIT_EXTENSION, i));
     }
 
     return R_VOID;

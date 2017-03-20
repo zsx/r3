@@ -47,7 +47,7 @@ REBINT PD_Fail(REBPVS *pvs)
     DECLARE_LOCAL (specified_item);
     Derelativize(specified_item, pvs->item, pvs->item_specifier);
 
-    fail (Error(RE_INVALID_PATH, &specified_orig, specified_item));
+    fail (Error(RE_INVALID_PATH, specified_orig, specified_item));
 }
 
 
