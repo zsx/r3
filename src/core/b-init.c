@@ -320,7 +320,7 @@ static void Init_True_And_False(void)
 //
 //  {Creates datatype action (for internal usage only).}
 //
-//      return: [blank!]
+//      return: [function!]
 //      :verb [set-word! word!]
 //      spec [block!]
 //  ]
@@ -355,11 +355,14 @@ REBNATIVE(action)
     Move_Value(FUNC_BODY(fun), ARG(verb));
 
     // A lookback quoting function that quotes a SET-WORD! on its left is
-    // responsible for setting the value if it wants it to change.
+    // responsible for setting the value if it wants it to change since the
+    // SET-WORD! is not actually active.  But if something *looks* like an
+    // assignment, it's good practice to evaluate the whole expression to
+    // the result the SET-WORD! was set to, so `x: y: op z` makes `x = y`.
     //
     Move_Value(Sink_Var_May_Fail(ARG(verb), SPECIFIED), FUNC_VALUE(fun));
-
-    return R_BLANK; // result won't be used if a function left-quotes SET-WORD!
+    Move_Value(D_OUT, FUNC_VALUE(fun));
+    return R_OUT;
 }
 
 

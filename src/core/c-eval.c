@@ -901,9 +901,6 @@ reevaluate:;
 
                     Move_Value(f->arg, f->out);
                     SET_VAL_FLAG(f->arg, VALUE_FLAG_UNEVALUATED);
-
-                    if (IS_SET_WORD(f->out) || IS_GET_WORD(f->out))
-                        DS_PUSH(f->out); // signal refetch after operation
                     break;
 
                 case PARAM_CLASS_SOFT_QUOTE:
@@ -926,9 +923,6 @@ reevaluate:;
                         Move_Value(f->arg, f->out);
                         SET_VAL_FLAG(f->arg, VALUE_FLAG_UNEVALUATED);
                     }
-
-                    if (IS_SET_WORD(f->out) || IS_GET_WORD(f->out))
-                        DS_PUSH(f->out); // signal refetch after operation
                     break;
 
                 default:
@@ -1202,11 +1196,8 @@ reevaluate:;
                 goto continue_arg_loop; // leaves refine, but bumps param+arg
             }
 
-            assert(
-                IS_FUNCTION(DS_TOP) // chains push these, and R_REDO_CHECKED
-                || IS_SET_WORD(DS_TOP) // request for refetch after enfix
-                || IS_SET_PATH(DS_TOP) // request for refetch after enfix
-            );
+            // chains push functions, and R_REDO_CHECKED
+            assert(IS_FUNCTION(DS_TOP));
         }
 
     #if !defined(NDEBUG)
@@ -1429,35 +1420,16 @@ reevaluate:;
         // If we have functions pending to run on the outputs, then do so.
         //
         while (DSP != f->dsp_orig) {
-            if (IS_FUNCTION(DS_TOP)) {
+            assert(IS_FUNCTION(DS_TOP));
+            
+            Move_Value(&f->cell, f->out);
 
-                Move_Value(&f->cell, f->out);
+            if (Apply_Only_Throws(f->out, TRUE, DS_TOP, &f->cell, END)) {
+                Abort_Function_Args_For_Frame(f);
+                goto finished;
+            }
 
-                if (Apply_Only_Throws(f->out, TRUE, DS_TOP, &f->cell, END)) {
-                    Abort_Function_Args_For_Frame(f);
-                    goto finished;
-                }
-
-                DS_DROP;
-            }
-            else if (IS_SET_WORD(DS_TOP)) {
-                Move_Value(f->out, Get_Opt_Var_May_Fail(DS_TOP, SPECIFIED));
-                DS_DROP;
-                assert(DSP == f->dsp_orig); // should be last push
-            }
-            else if (IS_SET_PATH(DS_TOP)) {
-                //
-                // !!! Handling of SET-PATH! in the "refetch" adds questions
-                // regarding possible double-evaluations of GROUP!s in the
-                // path, among other things.  Review in light of decisions
-                // on if this refetch is a good idea in the first place.
-                //
-                assert(FALSE);
-                DS_DROP;
-                assert(DSP == f->dsp_orig);
-            }
-            else
-                assert(FALSE);
+            DS_DROP;
         }
 
         if (Trace_Flags)

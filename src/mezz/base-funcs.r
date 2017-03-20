@@ -42,8 +42,10 @@ set/lookback quote enfix: proc [
     ; evaluation is converted to a GET when infix quoted on the left.
 ]
 
-default: enfix proc [
+default: enfix func [
     "Set word or path to a default value if it is not set yet or blank."
+
+    return: [any-value!]
     :target [set-word! set-path!]
         "The word"
     value [any-value!] ; not <opt> on purpose
@@ -51,15 +53,18 @@ default: enfix proc [
     <local>
         gotten
 ][
-    unless all [any-value? gotten: get/opt target | not blank? :gotten] [
-        set target either maybe [block! function!] :value [
-            do :value
-        ][
-            :value
-        ]
+    ; A lookback quoting function that quotes a SET-WORD! on its left is
+    ; responsible for setting the value if it wants it to change since the
+    ; SET-WORD! is not actually active.  But if something *looks* like an
+    ; assignment, it's good practice to evaluate the whole expression to
+    ; the result the SET-WORD! was set to, so `x: y: op z` makes `x = y`.
+    ;
+    if all [any-value? gotten: get/opt target | not blank? :gotten] [
+        :gotten
     ]
-    ; return value should never be needed/used...the SET-WORD! or SET-PATH!
-    ; evaluation is converted to a GET when infix quoted on the left.
+    else [
+        set/opt target if true :value ;-- executed if block or function
+    ]
 ]
 
 
