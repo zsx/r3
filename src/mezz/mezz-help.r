@@ -522,6 +522,10 @@ help: procedure [
 ; unknown stack levels, it's not possible to count how many stack levels
 ; the call to source itself introduced.
 ;
+; !!! This is fairly roundabout and probably should just make users type
+; `source backtrace 5` or similar.  Being left as-is for the talking point
+; of how to implement functions which want to do this kind of thing.
+;
 source: make function! [[
     "Prints the source code for a function."
     'arg [integer! word! path! function!]
@@ -532,7 +536,7 @@ source: make function! [[
     case [
         maybe [word! path!] :arg [
             name: arg
-            f: :arg
+            f: get :arg
         ]
 
         integer? :arg [
@@ -587,6 +591,8 @@ source: make function! [[
     ][
         print [name "is a" mold type-of :f "and not a FUNCTION!"]
     ]
+
+    () ;-- return nothing, as with a PROCEDURE
 ]]
 
 
