@@ -190,12 +190,12 @@ make object! compose [
                             "system/version:"
                             to end
                             (last-vector: guard: _)
-                                |
-                            (do make error! "log file parsing problem")
+
                         ] position: guard break
                             |
                         :position
                     ]
+                    end | (fail "log file parsing problem")
                 ]
                 last-vector
                 test-sources: find/last/tail test-sources last-vector
