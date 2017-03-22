@@ -66,7 +66,7 @@
 [equal? reword "$1 is $2." [1 "This" 2 "that"] "This is that."]
 [equal? reword/escape "A %%a is %%b." [a "fox" b "brown"] "%%" "A fox is brown." ]
 [equal? reword/escape "I am answering you." ["I am" "Brian is" you "Adrian"] blank "Brian is answering Adrian."]
-[reword/escape "$$$a$$$ is $$$b$$$" [a Hello b Goodbye] ["$$$" "$$$"]]
+[equal? reword/escape "$$$a$$$ is $$$b$$$" [a Hello b Goodbye] ["$$$" "$$$"] "Hello is Goodbye"]
 
 
 ;;

@@ -424,11 +424,8 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
 #ifdef NDEBUG
     #define SET_TRASH_IF_DEBUG(v) \
         NOOP
-
-    #define SINK(v) \
-        cast(REBVAL*, (v))
 #else
-    inline static REBVAL *Sink_Debug(
+    inline static void Set_Trash_Debug(
         RELVAL *v,
         const char *file,
         int line
@@ -438,15 +435,10 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
         v->header.bits &= CELL_MASK_RESET;
 
         Set_Track_Payload_Debug(v, file, line);
-
-        return cast(REBVAL*, v); // used by SINK, but not SET_TRASH_IF_DEBUG
     }
-        
-    #define SET_TRASH_IF_DEBUG(v) \
-        (Sink_Debug(v, __FILE__, __LINE__), NOOP)
 
-    #define SINK(v) \
-        Sink_Debug((v), __FILE__, __LINE__)
+    #define SET_TRASH_IF_DEBUG(v) \
+        Set_Trash_Debug((v), __FILE__, __LINE__)
 
     inline static REBOOL IS_TRASH_DEBUG(const RELVAL *v) {
         assert(v->header.bits & NODE_FLAG_CELL);
@@ -563,6 +555,9 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
 
      #define IS_UNREADABLE_IF_DEBUG(v) \
         FALSE
+
+    #define SINK(v) \
+        cast(REBVAL*, (v))
 #else
     #define SET_UNREADABLE_BLANK(v) \
         VAL_RESET_HEADER_EXTRA((v), REB_BLANK, \
@@ -577,6 +572,47 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
             return FALSE;
         return LOGICAL(v->header.bits & BLANK_FLAG_UNREADABLE_DEBUG);
     }
+
+    // "Sinking" a value is like trashing it in the debug build at the moment
+    // of knowing that it will ultimately be overwritten.  This avoids
+    // any accidental usage of the target cell's contents before the overwrite
+    // winds up happening.
+    //
+    // It's slightly different than "trashing", because if the node was valid
+    // before, then it would have been safe for the GC to visit.  So this
+    // doesn't break that invariant...if the node was invalid it stays
+    // invalid, but if it was valid it is turned into an unreadable blank,
+    // which overwrites all the cell fields (with tracking info) and will
+    // trigger errors through VAL_TYPE() if it's used.
+    //
+    inline static REBVAL *Sink_Debug(
+        RELVAL *v,
+        const char *file,
+        int line
+    ) {
+        ASSERT_CELL_WRITABLE(v, file, line);
+
+        if (v->header.bits & NODE_FLAG_VALID) {
+            VAL_RESET_HEADER_EXTRA_Debug(
+                v,
+                REB_BLANK,
+                VALUE_FLAG_CONDITIONAL_FALSE | BLANK_FLAG_UNREADABLE_DEBUG,
+                file,
+                line
+            );
+        }
+        else {
+            // already trash, don't need to mess with the header
+        }
+
+        Set_Track_Payload_Debug(v, file, line);
+
+        return cast(REBVAL*, v); // used by SINK, but not SET_TRASH_IF_DEBUG
+    }
+
+    #define SINK(v) \
+        Sink_Debug((v), __FILE__, __LINE__)
+
 #endif
 
 
