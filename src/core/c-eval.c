@@ -1421,7 +1421,7 @@ reevaluate:;
         //
         while (DSP != f->dsp_orig) {
             assert(IS_FUNCTION(DS_TOP));
-            
+
             Move_Value(&f->cell, f->out);
 
             if (Apply_Only_Throws(f->out, TRUE, DS_TOP, &f->cell, END)) {
