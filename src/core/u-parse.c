@@ -967,6 +967,9 @@ static REBIXO To_Thru_Non_Block_Rule(
 ) {
     assert(!IS_BLOCK(rule));
 
+    if (IS_BLANK(rule))
+        return P_POS; // make it a no-op
+
     if (IS_INTEGER(rule)) {
         //
         // `TO/THRU (INTEGER!)` JUMPS TO SPECIFIC INDEX POSITION
@@ -1772,6 +1775,9 @@ REBNATIVE(subparse)
         REBINT count; // gotos would cross initialization
         count = 0;
         while (count < maxcount) {
+            if (IS_BLANK(rule)) // these type tests should be in a switch
+                break;
+
             if (IS_BAR(rule))
                 fail (Error_Parse_Rule()); // !!! Is this possible?
 

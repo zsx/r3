@@ -205,158 +205,201 @@ replace: function [
 reword: function [
     "Make a string or binary based on a template and substitution values."
 
-    ; !!! "It's big, it's complex, but it works." -- @BrianH
-
     source [any-string! binary!]
         "Template series with escape sequences"
     values [map! object! block!]
         "Keyword literals and value expressions"
     /case
         "Characters are case-sensitive"  ;!!! Note CASE is redefined in here!
-    /only
-        "Use values as-is, do not reduce the block, insert block values"
     /escape
-        "Choose your own escape char(s) or [begin end] delimiters"
-    char [char! any-string! binary! block! blank!]
+        "Choose your own escape char(s) or [prefix suffix] delimiters"
+    delimiters [blank! char! any-string! word! binary! block!]
         {Default "$"}
+        ; Note: since blank is being taken deliberately, it's not possible
+        ; to use the defaulting feature, e.g. ()
     /into
         "Insert into a buffer instead (returns position after insert)"
     output [any-string! binary!]
         "The buffer series (modified)"
+
+    <has>
+
+    ; Note: this list should be the same as above with delimiters, with
+    ; BLOCK! excluded.
+    ;
+    delimiter-types (
+        make typeset! [blank! char! any-string! word! binary!]
+    )
+    keyword-types (
+        make typeset! [blank! char! any-string! integer! word! binary!]
+    )
 ][
     case_REWORD: case
     case: :lib/case
 
-    unless into [output: make source length source]
+    unless into [output: make (type-of source) length source]
 
-    ; Determine the datatype to convert the keywords to internally
-    ; Case-sensitive map keys must be binary, tags are special-cased by parse
-    ;
-    wtype: case [
-        case_REWORD binary!
-        tag? source string!
-    ] else [
-        type-of source
-    ]
-
-    ; Determine the escape delimiter(s), if any
-    ;
-    char: to-value :char
-    char-end: _
-    case/all [
-        not escape [char: "$"]
-        block? char [
-            rule: [char! | any-string! | binary!]
-            unless parse c: char [set char rule set char-end opt rule] [
-                cause-error 'script 'invalid-arg reduce [c]
-            ]
-        ]
-        char? char [char: to wtype char]
-        char? char-end [char-end: to wtype char-end]
-    ]
-
+    prefix: _
+    suffix: _
     case [
-        ; Check whether values is a map of the kind we can use internally
-        all [
-            map? values      ; Must be a map to use series keys with no dups
-            empty? char-end  ; If we have char-end, it gets appended to the keys
-            for-each [w v] values [
-                ; Key types must match wtype and no unset values allowed
-                if any [void? :v | wtype <> type-of :w] [
-                    break
-                ]
-            ]
-        ] [vals: values]  ; Success, so use it
+        not set? 'delimiters [
+            prefix: "$"
+        ]
 
-        ; Otherwise, convert keywords to wtype, remove duplicates and empties
-        ; Last duplicate keyword wins; empty keywords + unset + blank removed
-        ; Any trailing delimiter is added to the end of the key for convenience
-        ;
-        all [
-            vals: make map! length values  ; Make a new map internally
-            not only block? values  ; Should we evaluate value expressions?
-        ] [
-            until [tail? values] [
-                w: first+ values  ; Keywords are not evaluated
-                v: do/next values 'values
-                if maybe [set-word! lit-word!] :w [w: to word! :w]
-                case [
-                    wtype = type-of :w [blank]
-                    wtype <> binary! [w: to wtype :w]
-                    any-string? :w [w: to binary! :w]
-                ] else [
-                    w: to binary! to string! :w
-                ]
-                unless empty? w [
-                    unless empty? char-end [w: append copy w char-end]
-                    poke vals lock-of w :v ; v may be void...can we use LOCK?
-                ]
+        block? delimiters [
+            unless (parse delimiters [
+                set prefix delimiter-types
+                set suffix opt delimiter-types
+            ])[
+                fail ["Invalid /ESCAPE delimiter block" delimiters]
             ]
         ]
 
-    ] else [
-        ; /only doesn't apply, just assign raw values
-        ;
-        ; !!! Note repeated code, should there be a local function?
-
-        for-each [w v] values [  ; for-each can be used on all values types
-            if maybe [set-word! lit-word!] :w [w: to word! :w]
-            case [
-                wtype = type-of :w blank
-                wtype <> binary! [w: to wtype :w]
-                any-string? :w [w: to binary! :w]
-            ] else [
-                w: to binary! to string! :w
-            ]
-            unless empty? w [
-                unless empty? char-end [w: append copy w char-end]
-                poke vals lock-of w :v ; v may be void...can we use LOCK?
-            ]
+        true [
+            assert [maybe? delimiter-types prefix]
+            prefix: delimiters
         ]
     ]
 
-    ; Construct the reword rule
+    ; MAKE MAP! will create a map with no duplicates from the input if it
+    ; is a BLOCK!.  This might be better with stricter checking, in case
+    ; later keys overwrite earlier ones and obscure the invalidity of the
+    ; earlier keys (or perhaps MAKE MAP! itself should disallow duplicates)
     ;
-    word: make block! 2 * length vals
-    for-each w vals [word: reduce/into [w '|] word]
-    word: head remove back word
+    if block? values [
+        values: make map! values
+    ]
 
-    ; Convert keyword if the type doesn't match
+    ; The keyword matching rule is a series of [OR'd | clauses], where each
+    ; clause has GROUP! code in it to remember which keyword matched, which
+    ; it stores in this variable.  It's necessary to know the exact form of
+    ; the matched keyword in order to look it up in the values MAP!, as trying
+    ; to figure this out based on copying data out of the source series would
+    ; need to do a lot of reverse-engineering of the types.
     ;
-    cword: to-value pick [(w: to wtype w)] wtype <> type-of source
-    set/opt [out: fout:] pick [
-        [   ; Convert to string if type combination needs it
-            (output: insert output to string! copy/part a b)
-            (output: insert output to string! a)
-        ][  ; ... otherwise just insert it directly
-            (output: insert/part output a b)
-            (output: insert output a)
+    match: _
+
+    ; Note that the enclosing rule has to account for `prefix` and `suffix`,
+    ; this just matches the keywords themselves, setting `match` if one did.
+    ;
+    any-keyword-rule: collect [
+        for-each [keyword value] values [
+            unless maybe? keyword-types keyword [
+                fail ["Invalid keyword type:" keyword]
+            ]
+
+            keep reduce [
+                ; Rule for matching the keyword in the PARSE.  Although it
+                ; is legal to search for BINARY! in ANY-STRING! and vice
+                ; versa due to UTF-8 conversion, keywords can also be WORD!,
+                ; and neither `parse "abc" [abc]` nor `parse "abc" ['abc]`
+                ; will work...so the keyword must be string converted for
+                ; the purposes of this rule.
+                ;
+                either maybe? [integer! word!] keyword [
+                    to-string keyword
+                ][
+                    keyword
+                ]
+
+                ; GROUP! execution code for remembering which keyword matched.
+                ; We want the actual keyword as-is in the MAP! key, not any
+                ; variation modified to 
+                ;
+                ; Note also that getting to this point doesn't mean a full
+                ; match necessarily happened, as the enclosing rule may have
+                ; a `suffix` left to take into account.
+                ;
+                as group! compose [match: quote (keyword)]
+            ]
+
+            keep [
+                |
+            ]
         ]
-    ] or~ tag? source and~ binary? source not binary? output
-
-    escape: [
-        copy w word cword out (
-            output: insert output (case [
-                block? v: select vals w [either only [v] :v]
-                function? :v [apply :v [:b]]
-            ] else [
-                :v
-            ])
-        ) a:
+        keep 'fail ;-- add failure if no match, instead of removing last |
     ]
 
-    rule: either empty? char [
-        ; No starting escape string, use TO multi
-        [a: any [to word b: [escape | skip]] to end fout]
-    ][
-        ; Starting escape string defined, use regular TO
-        if wtype <> type-of char [char: to wtype char]
-        [a: any [to char b: char [escape | blank]] to end fout]
-    ]
+    ; Note that `any-keyword-rule` will look something like:
+    ;
+    ; [
+    ;     "keyword1" (match: quote keyword1)
+    ;     | "keyword2" (match: quote keyword2)
+    ;     | fail
+    ; ]
 
-    parse/(all [case_REWORD 'case]) source rule
+    ; To be used in a parse rule, words must be turned into strings, though
+    ; it would be nice if they didn't have to be, e.g.
+    ;
+    ;     parse "abc" [quote abc] => true
+    ;
+    ; Integers have to be converted also.
+    ;
+    if maybe [integer! word!] prefix [prefix: to-string prefix]
+    if maybe [integer! word!] suffix [suffix: to-string suffix]
+
+    rule: [
+        ; Begin marking text to copy verbatim to output
+        a:
+
+        any [
+            ; Seek to the prefix.  Note that the prefix may be BLANK!, in
+            ; which case this is a no-op.
+            ;
+            to prefix
+
+            ; End marking text to copy verbatim to output
+            b:
+             
+            ; Consume the prefix (again, this could be a no-op, which means
+            ; there's no guarantee we'll be at the start of a match for
+            ; an `any-keyword-rule`
+            ;
+            prefix
+            
+            [
+                [
+                    any-keyword-rule suffix (
+                        ;
+                        ; Output any leading text before the prefix was seen
+                        ;
+                        output: insert/part output a b
+
+                        v: select values match
+                        output: insert output case [
+                            function? :v [v :match]
+                            block? :v [do :v]
+                            true [:v]
+                        ]
+                    )
+
+                    ; Restart mark of text to copy verbatim to output
+                    a:
+                ]
+                    |
+                ; Because we might not be at the head of an any-keyword rule
+                ; failure to find a match at this point needs to SKIP to keep
+                ; the ANY rule scanning forward.
+                ;
+                skip
+            ]
+        ]
+
+        ; Seek to end, just so rule succeeds
+        ;
+        to end
+        
+        ; Finalize the output, such that any remainder is transferred verbatim
+        ;
+        (output: insert output a)
+    ]
+    
+    unless parse/(all [case_REWORD 'case]) source rule [
+        fail "Unexpected error in REWORD's parse rule, should not happen."
+    ]
 
     ; Return end of output with /into, head otherwise
+    ;
     either into [output] [head output]
 ]
 

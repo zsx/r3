@@ -38,8 +38,8 @@ set/lookback quote enfix: proc [
 ][
     set/lookback target :action
 
-    ; return value should never be needed/used...the SET-WORD! or SET-PATH!
-    ; evaluation is converted to a GET when infix quoted on the left.
+    ; return value can't currently be given back as enfix, since it is a
+    ; property of words and not values.  Should it be given back at all?
 ]
 
 default: enfix func [
