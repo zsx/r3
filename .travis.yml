@@ -17,6 +17,7 @@ matrix:
         # Linux x86, release, gcc
         #
         - os: linux
+          dist: trusty
           sudo: false #Force new container-based infrastructure.
           language: c
           env: OS_ID=0.4.4 CPLUSPLUS=no BUILD_TYPE="Release"
@@ -24,6 +25,7 @@ matrix:
         # Linux x64, debug, gcc
         #
         - os: linux
+          dist: trusty
           sudo: false #Force new container-based infrastructure.
           language: c
           env: OS_ID=0.4.40 CPLUSPLUS=no BUILD_TYPE="Debug"
@@ -31,6 +33,7 @@ matrix:
         # Linux x64, debug, g++
         #
         - os: linux
+          dist: trusty
           sudo: false #Force new container-based infrastructure.
           language: cpp
           env: OS_ID=0.4.40 CPLUSPLUS=yes BUILD_TYPE="Debug"
@@ -38,6 +41,7 @@ matrix:
         # Linux x64, release, gcc
         #
         - os: linux
+          dist: trusty
           sudo: false #Force new container-based infrastructure.
           language: c
           env: OS_ID=0.4.40 CPLUSPLUS=no BUILD_TYPE="Release"
@@ -45,6 +49,7 @@ matrix:
         # Windows x86, release, gcc
         #
         - os: linux
+          dist: trusty
           sudo: false #Force new container-based infrastructure.
           language: c
           env: OS_ID=0.3.1 CPLUSPLUS=no BUILD_TYPE="Release"
@@ -52,6 +57,7 @@ matrix:
         # Windows x64, debug, gcc
         #
         - os: linux
+          dist: trusty
           sudo: false #Force new container-based infrastructure.
           language: c
           env: OS_ID=0.3.40 CPLUSPLUS=no BUILD_TYPE="Debug"
@@ -59,6 +65,7 @@ matrix:
         # Windows x64, debug, g++
         #
         - os: linux
+          dist: trusty
           sudo: false #Force new container-based infrastructure.
           language: cpp
           env: OS_ID=0.3.40 CPLUSPLUS=yes BUILD_TYPE="Debug"
