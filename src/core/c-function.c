@@ -1982,7 +1982,7 @@ void Get_If_Word_Or_Path_Arg(
 //    f->func
 //    f->binding
 //
-// If opt_def is NULL, then f->data.context must be set
+// If opt_def is NULL, then f->varlist.context must be set
 //
 // !!! Because APPLY is being written as a regular native (and not a
 // special exception case inside of Do_Core) it has to "re-enter" Do_Core
