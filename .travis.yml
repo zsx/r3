@@ -116,7 +116,8 @@ addons:
 
             # For running the 32b bootstrap rebol ("r3-make") on a 64b host:
             #
-            - libc6:i386
+            # can't be located
+            # - libc6:i386
 
             # For cross-compiling to Windows.
             #
