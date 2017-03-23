@@ -131,6 +131,9 @@ addons:
             # For libffi
             - libffi-dev
 
+before_install:
+    - dpkg --add-architecture i386
+
 install:
     #
     # Fetch a Rebol bootstrap binary, which is needed for building Rebol.
