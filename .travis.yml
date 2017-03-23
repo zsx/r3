@@ -62,6 +62,13 @@ matrix:
           sudo: false #Force new container-based infrastructure.
           language: cpp
           env: OS_ID=0.3.40 TOOLS=x86_64-w64-mingw32- CC=g++
+        
+        # Windows x64, release, gcc
+        #
+        - os: linux
+          sudo: false #Force new container-based infrastructure.
+          language: cpp
+          env: OS_ID=0.3.40 TOOLS=x86_64-w64-mingw32- REL=1 CC=gcc
 
         # OSX x64, debug, gcc
         #
