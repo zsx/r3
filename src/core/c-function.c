@@ -183,8 +183,8 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     REBDSP dsp_orig = DSP;
     assert(DS_TOP == DS_AT(dsp_orig));
 
-    REBVAL *definitional_return = NULL;
-    REBVAL *definitional_leave = NULL;
+    REBDSP definitional_return_dsp = 0;
+    REBDSP definitional_leave_dsp = 0;
 
     // As we go through the spec block, we push TYPESET! BLOCK! STRING! triples.
     // These will be split out into separate arrays after the process is done.
@@ -307,8 +307,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             //
             REBVAL *typeset;
             if (IS_TYPESET(DS_TOP)) {
-                typeset = DS_TOP;
-
                 REBSPC *derived = Derive_Specifier(VAL_SPECIFIER(spec), item);
                 DS_PUSH_TRASH;
                 Init_Block(
@@ -319,6 +317,8 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                         derived
                     )
                 );
+
+                typeset = DS_TOP - 1; // volatile if you DS_PUSH!
             }
             else if (IS_STRING(DS_TOP)) { // !!! are blocks after notes good?
                 if (IS_BLANK_RAW(DS_TOP - 2)) {
@@ -425,7 +425,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         // We do not canonize the saved symbol in the paramlist, see #2258.
         //
         DS_PUSH_TRASH;
-        REBVAL *typeset = DS_TOP;
+        REBVAL *typeset = DS_TOP; // volatile if you DS_PUSH!
         Init_Typeset(
             typeset,
             (flags & MKF_ANY_VALUE)
@@ -445,16 +445,16 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         // (despite violating the "pure locals are NULL" premise)
         //
         if (STR_SYMBOL(canon) == SYM_RETURN) {
-            assert(definitional_return == NULL);
+            assert(definitional_return_dsp == 0);
             if (IS_SET_WORD(item))
-                definitional_return = typeset; // RETURN: explicitly tolerated
+                definitional_return_dsp = DSP; // RETURN: explicitly tolerated
             else
                 flags &= ~(MKF_RETURN | MKF_FAKE_RETURN);
         }
         else if (STR_SYMBOL(canon) == SYM_LEAVE) {
-            assert(definitional_leave == NULL);
+            assert(definitional_leave_dsp == 0);
             if (IS_SET_WORD(item))
-                definitional_leave = typeset; // LEAVE: is explicitly tolerated
+                definitional_leave_dsp = DSP; // LEAVE: explicitly tolerated
             else
                 flags &= ~MKF_LEAVE;
         }
@@ -560,18 +560,19 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     // in the ordinary arity of calling.
 
     if (flags & MKF_LEAVE) {
-        if (definitional_leave == NULL) { // no LEAVE: pure local explicit
+        if (definitional_return_dsp == 0) { // no LEAVE: pure local explicit
             REBSTR *canon_leave = Canon(SYM_LEAVE);
 
             DS_PUSH_TRASH;
             Init_Typeset(DS_TOP, FLAGIT_KIND(REB_MAX_VOID), canon_leave);
             INIT_VAL_PARAM_CLASS(DS_TOP, PARAM_CLASS_LEAVE);
-            definitional_leave = DS_TOP;
+            definitional_leave_dsp = DSP;
 
             DS_PUSH(EMPTY_BLOCK);
             DS_PUSH(EMPTY_STRING);
         }
         else {
+            REBVAL *definitional_leave = DS_AT(definitional_leave_dsp);
             assert(VAL_PARAM_CLASS(definitional_leave) == PARAM_CLASS_LOCAL);
             INIT_VAL_PARAM_CLASS(definitional_leave, PARAM_CLASS_LEAVE);
         }
@@ -579,7 +580,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     }
 
     if (flags & MKF_RETURN) {
-        if (definitional_return == NULL) { // no RETURN: pure local explicit
+        if (definitional_return_dsp == 0) { // no RETURN: pure local explicit
             REBSTR *canon_return = Canon(SYM_RETURN);
 
             // !!! The current experiment for dealing with default type
@@ -612,13 +613,14 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 canon_return
             );
             INIT_VAL_PARAM_CLASS(DS_TOP, PARAM_CLASS_RETURN);
-            definitional_return = DS_TOP;
+            definitional_return_dsp = DSP;
 
             DS_PUSH(EMPTY_BLOCK);
             DS_PUSH(EMPTY_STRING);
             // no need to move it--it's already at the tail position
         }
         else {
+            REBVAL *definitional_return = DS_AT(definitional_return_dsp);
             assert(VAL_PARAM_CLASS(definitional_return) == PARAM_CLASS_LOCAL);
             INIT_VAL_PARAM_CLASS(definitional_return, PARAM_CLASS_RETURN);
 
@@ -636,8 +638,16 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     // doesn't want a RETURN: key in the frame in release builds.  We'll omit
     // from the copy.
     //
-    if (definitional_return && (flags & MKF_FAKE_RETURN))
+    if (definitional_return_dsp != 0 && (flags & MKF_FAKE_RETURN))
         --num_slots;
+
+    // There should be no more pushes past this point, so a stable pointer
+    // into the stack for the definitional return can be found.
+    //
+    REBVAL *definitional_return = 
+        definitional_return_dsp == 0
+            ? NULL
+            : DS_AT(definitional_return_dsp);
 
     // Must make the function "paramlist" even if "empty", for identity.
     //

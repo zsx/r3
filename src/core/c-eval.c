@@ -1424,7 +1424,14 @@ reevaluate:;
 
             Move_Value(&f->cell, f->out);
 
-            if (Apply_Only_Throws(f->out, TRUE, DS_TOP, &f->cell, END)) {
+            // Data stack values cannot be used directly in an apply, because
+            // the evaluator uses DS_PUSH, which could relocate the stack
+            // and invalidate the pointer.
+            //
+            DECLARE_LOCAL (fun);
+            Move_Value(fun, DS_TOP);
+
+            if (Apply_Only_Throws(f->out, TRUE, fun, &f->cell, END)) {
                 Abort_Function_Args_For_Frame(f);
                 goto finished;
             }

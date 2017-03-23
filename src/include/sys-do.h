@@ -262,6 +262,7 @@ inline static void Fetch_Next_In_Frame(REBFRM *f) {
             || (IS_VOID(f->value) && (f->flags.bits & DO_FLAG_NO_ARGS_EVALUATE))
             || !IS_RELATIVE(f->value)
         );
+        assert(NOT(IN_DATA_STACK_DEBUG(f->value)));
     }
     else {
         SET_FRAME_VALUE(f, f->pending);
@@ -611,10 +612,8 @@ inline static void Reify_Va_To_Array_In_Frame(
     assert(f->flags.bits & DO_FLAG_VA_LIST);
 
     if (truncated) {
-        DECLARE_LOCAL (temp);
-        Init_Word(temp, Canon(SYM___OPTIMIZED_OUT__));
-
-        DS_PUSH(temp);
+        DS_PUSH_TRASH;
+        Init_Word(DS_TOP, Canon(SYM___OPTIMIZED_OUT__));
     }
 
     if (NOT_END(f->value)) {

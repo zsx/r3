@@ -228,6 +228,11 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     //
     assert(TG_Num_Black_Series == 0);
 
+    if (f->gotten != NULL) {
+        assert(IS_WORD(f->value)); // may not match eval_type at this point
+        assert(Get_Opt_Var_May_Fail(f->value, f->specifier) == f->gotten);
+    }
+
     //=//// ^-- ABOVE CHECKS *ALWAYS* APPLY ///////////////////////////////=//
 
     if (IS_END(f->value))
@@ -257,24 +262,6 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     assert(NOT(THROWN(f->value)));
     ASSERT_VALUE_MANAGED(f->value);
     assert(f->value != f->out);
-
-    if (f->gotten != NULL) { // See notes on `f->gotten`
-        if (f->eval_type == REB_WORD) {
-            REBVAL *test_gotten = Get_Var_Core(
-                f->value,
-                f->specifier,
-                GETVAR_READ_ONLY
-            ); // Expensive check, but a fairly important one.  Review.
-
-            // Successive Do_Core calls are not robust to changes in system
-            // state besides those made by Do_Core.  If one of these fire,
-            // you probably should be using the INDEXOR-based API.
-            //
-            assert(test_gotten == f->gotten);
-        }
-      /*  else
-            assert(IS_FUNCTION(f->value));*/
-    }
 
     //=//// ^-- ADD CHECKS EARLIER THAN HERE IF THEY SHOULD ALWAYS RUN ////=//
 }
