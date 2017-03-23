@@ -19,7 +19,7 @@ matrix:
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.4.40 CPLUSPLUS=no BUILD_TYPE="Release"
+          env: OS_ID=0.4.4 CPLUSPLUS=no BUILD_TYPE="Release"
 
         # Linux x64, debug, gcc
         #
@@ -121,6 +121,8 @@ addons:
             - g++-mingw-w64-x86-64
             - mingw-w64
 
+            # For libffi
+            - libffi-dev
 
 install:
     #
@@ -147,7 +149,7 @@ script:
 
     #statically link libgcc and libstdc++ for C++ builds
     -
-      if [[ "$CPLUSPLUS" = 1 ]]; then
+      if [[ ( "$OS_ID" = "0.2.40" || "$OS_ID" = "0.2.4" ) &&  "$CPLUSPLUS" = 1 ]]; then
         if [[ "$BUILD_TYPE" = "Release" ]]; then
           EXTRA_CMAKE_ARGS="$EXTRA_CMAKE_ARGS -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++"
         else #debug
@@ -155,24 +157,9 @@ script:
         fi
       fi
 
+    - cmake -DR3_OS_ID=${OS_ID} -DR3_CPP=${CPLUSPLUS} -DR3_WITH_TCC=1 -DR3_EXTERNAL_FFI=1 -DR3_MAKE=../make/r3-make -G"Unix Makefiles" $EXTRA_CMAKE_ARGS ../make
 
-    - cmake -DR3_OS_ID=${OS_ID} -DR3_CPP=${CPLUSPLUS} -DR3_WITH_TCC=1 -DR3_MAKE=../make/r3-make $EXTRA_CMAKE_ARGS ../make
-    # If REL is defined and not empty, we do a release build by compiling with
-    # NDEBUG defined. (`${parameter+alt_value}` is a Bash-ism documented as:
-    # "if parameter set, use alt_value, else use null string.")
-    #
-    # We also raise the level to where all warnings are errors.  Since a
-    # particular compiler can add warnings at any time, this is probably not
-    # the best option for a general distribution...but on Travis where builds
-    # are constantly being checked and the code fixed, it's worth doing.
-    #
-    - export CC="${TOOLS}${CC}${REL+ -DNDEBUG} -Werror ${LIBC_FLAG}"
-
-    # We have to set REBOL_TOOL explicitly to circumvent the automatic r3-make
-    # filename inference, as we always use Linux "r3-make" (not "r3-make.exe")
-    # even when doing windows builds, since this is a cross-compilation.
-    #
-    - make -f makefile.boot REBOL_TOOL=r3-make OS_ID="${OS_ID}" CC="${CC}"
+    - make
 
     # As an extra step to test bootstrap ability, we make the 64-bit debug
     # build go even further by doing another full build, but using the 
@@ -184,8 +171,8 @@ script:
       if [[ ("${OS_ID}" = "0.4.40" || "${OS_ID}" = "0.2.40") && -z "${REL}" ]]; then
           mv r3 r3-boot;
           make clean;
-          rm r3-make;
-          make -f makefile.boot REBOL_TOOL=r3-boot OS_ID="${OS_ID}" CC="${CC}";
+          cmake -DR3_OS_ID=${OS_ID} -DR3_CPP=${CPLUSPLUS} -DR3_WITH_TCC=1 -DR3_EXTERNAL_FFI=1 -DR3_MAKE=../make/r3-boot -G"Unix Makefiles" $EXTRA_CMAKE_ARGS ../make
+          make
       fi
       
     # Run once but don't pipe output, in case it prints out useful crash msg
@@ -210,7 +197,7 @@ script:
     
     # Delete the obj file directory so we don't upload those to S3
     #
-    - rm -rf objs
+    - rm -rf CMake* src tcc Makefile
 
     # Grab the git commit ID into an environment variable
     #
