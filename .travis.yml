@@ -129,9 +129,6 @@ addons:
             - g++-mingw-w64-x86-64
             - mingw-w64
 
-            # For libffi
-            - libffi-dev
-
 install:
     #
     # Fetch a Rebol bootstrap binary, which is needed for building Rebol.
@@ -166,7 +163,7 @@ script:
         fi
       fi
 
-    - cmake -DR3_OS_ID=${OS_ID} -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DR3_CPP=${CPLUSPLUS} -DR3_WITH_TCC=1 -DR3_EXTERNAL_FFI=1 -DR3_MAKE=../make/r3-make -G"Unix Makefiles" $EXTRA_CMAKE_ARGS ../make
+    - cmake -DR3_OS_ID=${OS_ID} -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DR3_CPP=${CPLUSPLUS} -DR3_WITH_TCC=1 -DR3_EXTERNAL_FFI=0 -DR3_MAKE=../make/r3-make -G"Unix Makefiles" $EXTRA_CMAKE_ARGS ../make
 
     - make VERBOSE=1
 
@@ -180,7 +177,7 @@ script:
       if [[ ("${OS_ID}" = "0.4.40" || "${OS_ID}" = "0.2.40") && -z "${REL}" ]]; then
           mv r3 r3-boot;
           make clean;
-          cmake -DR3_OS_ID=${OS_ID} -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DR3_CPP=${CPLUSPLUS} -DR3_WITH_TCC=1 -DR3_EXTERNAL_FFI=1 -DR3_MAKE=../make/r3-boot -G"Unix Makefiles" $EXTRA_CMAKE_ARGS ../make
+          cmake -DR3_OS_ID=${OS_ID} -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DR3_CPP=${CPLUSPLUS} -DR3_WITH_TCC=1 -DR3_EXTERNAL_FFI=0 -DR3_MAKE=../make/r3-boot -G"Unix Makefiles" $EXTRA_CMAKE_ARGS ../make
           make VERBOSE=1
       fi
       
