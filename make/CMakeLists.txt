@@ -393,6 +393,64 @@ set (CODECS_SOURCE
     ${CORE_DIR}/../codecs/sha256/sha256.c
 )
 
+set (CORE_HEADER
+    ${TOP_SRC_DIR}/include/debugbreak.h
+    ${TOP_SRC_DIR}/include/mem-pools.h
+    ${TOP_SRC_DIR}/include/mem-series.h
+    ${TOP_SRC_DIR}/include/reb-c.h
+    ${TOP_SRC_DIR}/include/reb-config.h
+    ${TOP_SRC_DIR}/include/reb-defs.h
+    ${TOP_SRC_DIR}/include/reb-device.h
+    ${TOP_SRC_DIR}/include/reb-dtoa.h
+    ${TOP_SRC_DIR}/include/reb-event.h
+    ${TOP_SRC_DIR}/include/reb-ext.h
+    ${TOP_SRC_DIR}/include/reb-file.h
+    ${TOP_SRC_DIR}/include/reb-filereq.h
+    ${TOP_SRC_DIR}/include/reb-gob.h
+    ${TOP_SRC_DIR}/include/reb-host.h
+    ${TOP_SRC_DIR}/include/reb-math.h
+    ${TOP_SRC_DIR}/include/reb-net.h
+    ${TOP_SRC_DIR}/include/reb-struct.h
+    ${TOP_SRC_DIR}/include/sys-action.h
+    ${TOP_SRC_DIR}/include/sys-array.h
+    ${TOP_SRC_DIR}/include/sys-binary.h
+    ${TOP_SRC_DIR}/include/sys-bind.h
+    ${TOP_SRC_DIR}/include/sys-context.h
+    ${TOP_SRC_DIR}/include/sys-core.h
+    ${TOP_SRC_DIR}/include/sys-deci-funcs.h
+    ${TOP_SRC_DIR}/include/sys-deci.h
+    ${TOP_SRC_DIR}/include/sys-dec-to-char.h
+    ${TOP_SRC_DIR}/include/sys-do.h
+    ${TOP_SRC_DIR}/include/sys-error.h
+    ${TOP_SRC_DIR}/include/sys-ext.h
+    ${TOP_SRC_DIR}/include/sys-frame.h
+    ${TOP_SRC_DIR}/include/sys-function.h
+    ${TOP_SRC_DIR}/include/sys-globals.h
+    ${TOP_SRC_DIR}/include/sys-handle.h
+    ${TOP_SRC_DIR}/include/sys-indexor.h
+    ${TOP_SRC_DIR}/include/sys-int-funcs.h
+    ${TOP_SRC_DIR}/include/sys-jpg.h
+    ${TOP_SRC_DIR}/include/sys-map.h
+    ${TOP_SRC_DIR}/include/sys-net.h
+    ${TOP_SRC_DIR}/include/sys-pair.h
+    ${TOP_SRC_DIR}/include/sys-path.h
+    ${TOP_SRC_DIR}/include/sys-rebfrm.h
+    ${TOP_SRC_DIR}/include/sys-rebnod.h
+    ${TOP_SRC_DIR}/include/sys-rebser.h
+    ${TOP_SRC_DIR}/include/sys-rebval.h
+    ${TOP_SRC_DIR}/include/sys-scan.h
+    ${TOP_SRC_DIR}/include/sys-series.h
+    ${TOP_SRC_DIR}/include/sys-stack.h
+    ${TOP_SRC_DIR}/include/sys-state.h
+    ${TOP_SRC_DIR}/include/sys-string.h
+    ${TOP_SRC_DIR}/include/sys-trap.h
+    ${TOP_SRC_DIR}/include/sys-typeset.h
+    ${TOP_SRC_DIR}/include/sys-value.h
+    ${TOP_SRC_DIR}/include/sys-varargs.h
+    ${TOP_SRC_DIR}/include/sys-word.h
+    ${TOP_SRC_DIR}/include/sys-zlib.h
+)
+
 file(GLOB CORE_C_FILES ${CORE_DIR}/*.c)
 list(REMOVE_ITEM CORE_C_FILES ${CORE_DIR}/a-lib2.c) #see make-headers.r
 #message("CORE_C_FILES: ${CORE_C_FILES}")
@@ -831,6 +889,7 @@ set_source_files_properties(
     HEADER_FILE_ONLY TRUE
     )
 set_source_files_properties(
+    ${CORE_HEADER}
     ${GENERATED_CORE_HEADER}
     PROPERTIES
     HEADER_FILE_ONLY TRUE
@@ -911,7 +970,7 @@ else ()
     endif (LINUX)
 endif ()
 
-add_library(libr3_core_core OBJECT ${CORE_SOURCE} ${GENERATED_CORE_SOURCE} ${GENERATED_CORE_HEADER})
+add_library(libr3_core_core OBJECT ${CORE_SOURCE} ${GENERATED_CORE_SOURCE} ${CORE_HEADER} ${GENERATED_CORE_HEADER})
 
 set (HOST_SOURCE
     ${OS_SOURCE}
