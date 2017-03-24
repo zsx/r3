@@ -137,6 +137,8 @@ make: $(REBOL_TOOL)
 
 clean:
     @-rm -rf $(R3_TARGET) libr3.so objs/
+    @-find ../src -name 'tmp-*' -exec rm -f {} \;
+    @-grep -l "AUTO-GENERATED FILE" ../src/include/*.h |grep -v sys-zlib.h|xargs rm 2>/dev/null || true
 
 all:
     $(MAKE) clean
