@@ -16,11 +16,21 @@ REBOL [
     }
 ]
 
-info?: func [
+info?: function [
     {Returns an info object about a file or url.}
     target [file! url!]
 ][
-    query target
+    either file? target [
+        query target
+    ][
+        t: write target [HEAD]
+        make object! [
+            name: target
+            size: t/2
+            date: t/3
+            type: 'url
+        ]
+    ]
 ]
 
 exists?: func [
