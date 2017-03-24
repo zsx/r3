@@ -50,6 +50,7 @@ set (TOOLS_DIR "${TOP_SRC_DIR}/tools")
 set (EXTERNAL_DIR "${TOP_SRC_DIR}/../external")
 set (FFI_DIR "${EXTERNAL_DIR}/libffi")
 set (TCC_DIR "${EXTERNAL_DIR}/tcc")
+set (GIT_EXE "git" CACHE FILEPATH "Path to the git executable")
 
 if(CMAKE_HOST_WIN32)
     set (REBOL "${CMAKE_CURRENT_BINARY_DIR}/r3-make.exe")
@@ -66,6 +67,16 @@ option(R3_WITH_TCC "Build with libtcc" OFF)
 if (NOT EXISTS ${REBOL})
     message(FATAL_ERROR "${REBOL} doesn't exist, an executable r3 is required")
 endif()
+
+execute_process(COMMAND ${GIT_EXE} show --format="%H" --no-patch
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    RESULT_VARIABLE GIT_COMMIT_STATUS
+    OUTPUT_VARIABLE GIT_COMMIT)
+
+#message("commit status: ${GIT_COMMIT_STATUS}, commit: ${GIT_COMMIT}")
+if (NOT "${GIT_COMMIT_STATUS}" EQUAL "0")
+    set(GIT_COMMIT "unknown")
+endif ()
 
 if (NOT DEFINED R3_OS_ID)
     message("Trying to obtain OS_ID from r3-make, as R3_OS_ID is not defined ...")
@@ -523,7 +534,7 @@ set(BOOT_DEPENDS
 
 add_custom_command(OUTPUT
     ${BOOT_OUTPUT}
-    COMMAND ${REBOL} ${TOOLS_DIR}/make-boot.r OS_ID=${R3_OS_ID} OUTDIR=${TOP_GENERATED_SRC_DIR}
+    COMMAND ${REBOL} ${TOOLS_DIR}/make-boot.r OS_ID=${R3_OS_ID} OUTDIR=${TOP_GENERATED_SRC_DIR} GIT_COMMIT=${GIT_COMMIT}
     DEPENDS
     ${TOOLS_DIR}/make-boot.r
     ${TOOL_DEPENDS}
