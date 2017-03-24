@@ -175,7 +175,7 @@ script:
     #
     - |
       if [[ ("${OS_ID}" = "0.4.40" || "${OS_ID}" = "0.2.40") && -z "${REL}" ]]; then
-          mv r3 r3-boot;
+          mv r3-core r3-boot;
           make clean;
           cmake -DR3_OS_ID=${OS_ID} -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DR3_CPP=${CPLUSPLUS} -DR3_WITH_TCC=1 -DR3_EXTERNAL_FFI=0 -DR3_MAKE=../make/r3-boot -G"Unix Makefiles" $EXTRA_CMAKE_ARGS ../make
           make VERBOSE=1
@@ -194,7 +194,7 @@ script:
     #
     - |
       if [[ "${OS_ID}" = "0.4.40" || "${OS_ID}" = "0.4.4" || "${OS_ID}" = "0.2.40" ]]; then 
-          ./r3 --do "print {Testing...} quit/with either find to-string read https://example.com {<h1>Example Domain</h1>} [0] [1]";
+          ./r3-core --do "print {Testing...} quit/with either find to-string read https://example.com {<h1>Example Domain</h1>} [0] [1]";
           R3_EXIT_STATUS=$?;
       else
           R3_EXIT_STATUS=0;
@@ -234,10 +234,10 @@ script:
     #
     - mkdir ${OS_ID}
     - |
-      if [[ -e "r3.exe" ]]; then
-           mv r3.exe ${NEW_NAME}.exe;
+      if [[ -e "r3-core.exe" ]]; then
+           mv r3-core.exe ${NEW_NAME}.exe;
       else
-           mv r3 ${NEW_NAME};
+           mv r3-core ${NEW_NAME};
       fi
 
     # Return whether the build succeeded or not to Travis.  If this succeeded 
