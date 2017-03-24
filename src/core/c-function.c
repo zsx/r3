@@ -644,7 +644,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     // There should be no more pushes past this point, so a stable pointer
     // into the stack for the definitional return can be found.
     //
-    REBVAL *definitional_return = 
+    REBVAL *definitional_return =
         definitional_return_dsp == 0
             ? NULL
             : DS_AT(definitional_return_dsp);

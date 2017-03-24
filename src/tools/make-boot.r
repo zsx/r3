@@ -32,6 +32,18 @@ do %systems.r
 args: parse-args system/options/args
 config: config-system to-value args/OS_ID
 
+first-rebol-commit: "19d4f969b4f5c1536f24b023991ec11ee6d5adfb"
+
+either args/GIT_COMMIT = "unknown" [
+    git-commit: blank
+][
+    git-commit: args/GIT_COMMIT
+    if (length git-commit) != (length first-rebol-commit) [
+        print ["GIT_COMMIT should be a full hash, e.g." first-rebol-commit]
+        quit
+    ]
+]
+
 
 ;-- SETUP --------------------------------------------------------------
 
@@ -578,6 +590,7 @@ at-value: func ['field] [next find boot-sysobj to-set-word field]
 
 boot-sysobj: load %sysobj.r
 change at-value version version
+change at-value commit git-commit
 change at-value build now/utc
 change at-value product to lit-word! product
 

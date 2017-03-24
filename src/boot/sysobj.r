@@ -16,10 +16,11 @@ REBOL [
     Note: "Remove older/unused fields before beta release"
 ]
 
-; Next four fields are updated during build:
+; Next five fields are updated during build:
 version:  0.0.0
 build:    1
 platform: _
+commit: _
 
 product: _ ;-- assigned by startup of the host ('core, 'view, 'ren-garden...)
 

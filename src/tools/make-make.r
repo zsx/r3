@@ -87,9 +87,14 @@ R= $S/core
 INCL ?= .
 I= -I$(INCL) -I$S/include/ -I$S/codecs/
 
+# Note: variables assigned with ?= will only take the value if the parameter
+# is not currently defined.  The MACRO+ function is used to replace the
+# parameters during file generation.
+#
 TO_OS_BASE?=
 TO_OS_NAME?=
-OS_ID?=
+OS_ID?= detect
+GIT_COMMIT?= unknown
 BIN_SUFFIX=
 RAPI_FLAGS=
 HOST_FLAGS= -DREB_EXE
@@ -128,7 +133,7 @@ update:
 # someday.  Maybe.
 
 make: $(REBOL_TOOL)
-    $(REBOL) $T/make-make.r $(OS_ID)
+    $(REBOL) $T/make-make.r OS_ID=$(OS_ID) GIT_COMMIT=$(GIT_COMMIT)
 
 clean:
     @-rm -rf $(R3_TARGET) libr3.so objs/
@@ -143,7 +148,7 @@ all:
 prep: $(REBOL_TOOL)
     $(REBOL) $T/make-natives.r
     $(REBOL) $T/make-headers.r
-    $(REBOL) $T/make-boot.r OS_ID=$(OS_ID)
+    $(REBOL) $T/make-boot.r OS_ID=$(OS_ID) GIT_COMMIT=$(GIT_COMMIT)
     $(REBOL) $T/make-host-init.r
     $(REBOL) $T/make-os-ext.r
     $(REBOL) $T/make-host-ext.r
@@ -267,19 +272,17 @@ do %systems.r
 
 file-base: has load %file-base.r
 
-; !!! Because %make-make.r may be called with an OS_ID or not, the generated
-; makefile is easier to write as passing a single argument vs trying to
-; have the caller figure out how to either send OS_ID=X.Y.Z or not write
-; the OS_ID (e.g. "OS_ID=" would be an error).  So we do not call the
-; argument parser here.
-;
-config: either block? system/options/args [
-    config-system to-value first system/options/args
-][
-    config-system blank
+args: parse-args system/options/args
+
+if not args/OS_ID [
+    print "OS_ID must be a version # (e.g. 5.25.0) or the word `detect`"
+    quit
 ]
 
+config: config-system either args/OS_ID = "detect" [blank][args/OS_ID]
+
 print ["Option set for building:" config/id config/os-name]
+
 
 ; Words are cleaner-looking in the table, and hyphens look better (and are
 ; easier to type).  But we need a string, and one that C can accept and not
@@ -336,13 +339,19 @@ macro+: procedure [
     "Appends value to end of macro= line"
     'name
     value
+    /replace
+        {Replace any existing text} 
 ][
+    replace_MACRO+: replace
+    replace: :lib/replace
+     
     n: unspaced [newline name]
     value: form value
-    unless parse makefile-head [
+    unless parse makefile-head rule: compose/deep [
         any [
             thru n opt [
-                any space ["=" | "?="] to newline
+                any space ["=" | "?="]
+                (either replace_MACRO+ ['remove] [[]]) to newline
                 insert space insert value to end
             ]
         ]
@@ -436,7 +445,9 @@ replace makefile-head "!date" now
 macro+ TO_OS_BASE to-base-def
 macro+ TO_OS_NAME to-name-def
 
-macro+ OS_ID config/id
+macro+/replace OS_ID config/id ;-- should be known at this point
+macro+/replace GIT_COMMIT args/GIT_COMMIT ;-- might just be the word `unknown`
+
 macro+ LS pick ["dir" "ls -l"] flag? DIR
 macro+ CP pick [copy cp] flag? COP
 unless flag? -SP [ ; Use standard paths:

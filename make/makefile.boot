@@ -61,6 +61,9 @@
 #	http://rebolsource.net/go/chat-faq
 #
 
+OS_ID?= detect
+GIT_COMMIT?= unknown
+
 # UP - some systems do not use ../
 UP= ..
 # CD - some systems do not use ./
@@ -91,7 +94,7 @@ top: makefile
 .FORCE:
 
 makefile: $(REBOL_TOOL) .FORCE
-	$(REBOL) $T/make-make.r $(OS_ID)
+	$(REBOL) $T/make-make.r OS_ID=$(OS_ID) GIT_COMMIT=$(GIT_COMMIT)
 
 # Synonym for `make -f makefile.boot makefile` which can also be used in the
 # generated makefile (without causing repeated regenerations)

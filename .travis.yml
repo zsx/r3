@@ -142,6 +142,17 @@ install:
 script:
     - cd make/
 
+    # Grab the abbreviated and full git commit ID into environment variables.
+    # The full commit is passed to make to build into the binary, and the
+    # abbreviated commit is used to name the executable.
+    #
+    # http://stackoverflow.com/a/42549385/211160
+    #
+    - GIT_COMMIT="$(git show --format="%H" --no-patch)" 
+    - echo ${GIT_COMMIT}
+    - GIT_COMMIT_SHORT="$(git show --format="%h" --no-patch)" 
+    - echo ${GIT_COMMIT_SHORT}
+
     # Keep track of whether the incoming compilation tool was C++ or not,
     # before changing the definition of CC to suit the makefile
     #
@@ -169,7 +180,7 @@ script:
     # filename inference, as we always use Linux "r3-make" (not "r3-make.exe")
     # even when doing windows builds, since this is a cross-compilation.
     #
-    - make -f makefile.boot REBOL_TOOL=r3-make OS_ID="${OS_ID}" CC="${CC}"
+    - make -f makefile.boot REBOL_TOOL=r3-make OS_ID="${OS_ID}" GIT_COMMIT="${GIT_COMMIT}" CC="${CC}"
 
     # As an extra step to test bootstrap ability, we make the 64-bit debug
     # build go even further by doing another full build, but using the 
@@ -182,7 +193,7 @@ script:
           mv r3 r3-boot;
           make clean;
           rm r3-make;
-          make -f makefile.boot REBOL_TOOL=r3-boot OS_ID="${OS_ID}" CC="${CC}";
+          make -f makefile.boot REBOL_TOOL=r3-boot OS_ID="${OS_ID}" GIT_COMMIT="${GIT_COMMIT}" CC="${CC}";
       fi
       
     # Run once but don't pipe output, in case it prints out useful crash msg
@@ -209,15 +220,8 @@ script:
     #
     - rm -rf objs
 
-    # Grab the git commit ID into an environment variable
-    #
-    # http://stackoverflow.com/a/42549385/211160
-    #
-    - GIT_COMMIT="$(git show --format="%h" --no-patch)" 
-    - echo ${GIT_COMMIT}
-
-    # Name the executable based on the git commit, whether it is a debug
-    # or release build, and if it was built using C++ or not.  Note that
+    # Name the executable based on the abbreviated commit, whether it is a
+    # debug or release build, and if it was built using C++ or not.  Note that
     # the C++ debug builds have additional runtime checks in the debug
     # build...though there should not be any impact on the release build.
     # (Though there may be additional DLL dependencies regardless.)
@@ -226,7 +230,7 @@ script:
     #
     # Note: -z tests if a variable is undefined
     #
-    - NEW_NAME=${OS_ID}/r3-${GIT_COMMIT}
+    - NEW_NAME=${OS_ID}/r3-${GIT_COMMIT_SHORT}
     - if [[ -z "${REL}" ]]; then NEW_NAME+="-debug"; fi 
     - if [[ ! -z "${CPLUSPLUS}" ]]; then NEW_NAME+="-cpp"; fi
     - echo ${NEW_NAME}

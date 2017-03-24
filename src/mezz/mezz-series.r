@@ -266,8 +266,13 @@ reword: function [
     ; later keys overwrite earlier ones and obscure the invalidity of the
     ; earlier keys (or perhaps MAKE MAP! itself should disallow duplicates)
     ;
+    ; !!! To be used as keys, any series in the block will have to be LOCK'd.
+    ; This could either be done with copies of the keys in the block, or
+    ; locking them directly.  For now, the whole block is locked before the
+    ; MAKE MAP! call.
+    ;
     if block? values [
-        values: make map! values
+        values: make map! lock values
     ]
 
     ; The keyword matching rule is a series of [OR'd | clauses], where each
