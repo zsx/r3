@@ -382,6 +382,14 @@ void Host_Repl(
         }
         const REBOOL fully = TRUE; // error if not all arguments consumed
 
+        // Generally speaking, we do not want the trace level to apply to the
+        // REPL execution itself.
+        //
+        REBINT Save_Trace_Level = Trace_Level;
+        REBINT Save_Trace_Depth = Trace_Depth;
+        Trace_Level = 0;
+        Trace_Depth = 0;
+
         DECLARE_LOCAL (code_or_error);
         if (Apply_Only_Throws(
             code_or_error, // where return value of HOST-REPL is saved
@@ -398,6 +406,9 @@ void Host_Repl(
             //
             panic (code_or_error);
         }
+
+        Trace_Level = Save_Trace_Level;
+        Trace_Depth = Save_Trace_Depth;
 
         if (IS_ERROR(code_or_error)) {
             do_result = -cast(int, ERR_NUM(VAL_CONTEXT(code_or_error)));
