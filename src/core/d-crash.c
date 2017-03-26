@@ -56,6 +56,11 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
 
 #if !defined(NDEBUG)
     //
+    // First thing's first in the debug build, make sure the file and the
+    // line are printed out.
+    //
+    printf("C Source File %s, Line %d\n", file, line);
+
     // Generally Rebol does not #include <stdio.h>, but the debug build does.
     // It's often used for debug spew--as opposed to Debug_Fmt()--when there
     // is a danger of causing recursive errors if the problem is being caused
@@ -87,10 +92,6 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
 
     strncat(buf, Str_Panic_Directions, PANIC_BUF_SIZE - 0);
 
-    strncat(buf, "C Source File ", PANIC_BUF_SIZE - strlen(buf));
-    strncat(buf, file, PANIC_BUF_SIZE - strlen(buf));
-    strncat(buf, ", Line ", PANIC_BUF_SIZE - strlen(buf));
-    Form_Int(b_cast(buf + strlen(buf)), line); // !!! no bounding...
     strncat(buf, "\n", PANIC_BUF_SIZE - strlen(buf));
 
     switch (Detect_Rebol_Pointer(p)) {

@@ -320,7 +320,7 @@ help: procedure [
     ]
 
     ; Print type name with proper singular article:
-    type-name: func [value] [
+    type-name: func [value [any-value!]] [
         value: mold type-of :value
         clear back tail value
         spaced [(either find "aeiou" first value ["an"]["a"]) value]
