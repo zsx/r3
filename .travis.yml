@@ -180,8 +180,6 @@ script:
     # filename inference, as we always use Linux "r3-make" (not "r3-make.exe")
     # even when doing windows builds, since this is a cross-compilation.
     #
-    - make -f makefile.boot REBOL_TOOL=r3-make OS_ID="${OS_ID}" GIT_COMMIT="${GIT_COMMIT}" CC="${CC}"
-
     # As an extra step to test bootstrap ability, we make the 64-bit debug
     # build go even further by doing another full build, but using the 
     # just built r3 as its own r3-make.  For good measure, delete the old
@@ -190,10 +188,25 @@ script:
     #
     - |
       if [[ ("${OS_ID}" = "0.4.40" || "${OS_ID}" = "0.2.40") && -z "${REL}" ]]; then
+          #
+          # If building twice, don't specify GIT_COMMIT for the first build.
+          # This means there's a test of the build process when one is not
+          # specified, in case something is broken about that.  (This is how
+          # most people will build locally, so good to test it.)
+          #
+          make -f makefile.boot REBOL_TOOL=r3-make OS_ID="${OS_ID}" CC="${CC}"
+
           mv r3 r3-boot;
           make clean;
           rm r3-make;
+
+          # On the second build, include the GIT_COMMIT
+          #
           make -f makefile.boot REBOL_TOOL=r3-boot OS_ID="${OS_ID}" GIT_COMMIT="${GIT_COMMIT}" CC="${CC}";
+      else
+          # If just building once, specify the GIT_COMMIT.
+          #
+          make -f makefile.boot REBOL_TOOL=r3-make OS_ID="${OS_ID}" GIT_COMMIT="${GIT_COMMIT}" CC="${CC}"
       fi
       
     # Run once but don't pipe output, in case it prints out useful crash msg
