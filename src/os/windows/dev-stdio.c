@@ -275,7 +275,7 @@ DEVICE_CMD Open_Echo(REBREQ *req)
         Std_Echo = 0;
     }
 
-    struct devreq_file *file = DEVREQ_FILE(req);
+    struct devreq_file *file = DEVREQ_ECHO_FILE(req);
 
     if (file->path) {
         Std_Echo = CreateFile(file->path, GENERIC_WRITE, FILE_SHARE_READ|FILE_SHARE_WRITE, 0, CREATE_ALWAYS, 0, 0);
@@ -290,6 +290,14 @@ DEVICE_CMD Open_Echo(REBREQ *req)
 }
 
 
+//
+//  Request_Size_IO: C
+//
+static i32 Request_Size_IO(REBREQ *req)
+{
+    (void)req; //unused
+    return sizeof(struct devreq_file);
+}
 
 /***********************************************************************
 **
@@ -299,7 +307,7 @@ DEVICE_CMD Open_Echo(REBREQ *req)
 
 static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] =
 {
-    Request_Size_Rebreq,
+    Request_Size_IO,
     0,  // init
     Quit_IO,
     Open_IO,

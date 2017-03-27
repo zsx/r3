@@ -247,7 +247,7 @@ DEVICE_CMD Open_Echo(REBREQ *req)
         Std_Echo = 0;
     }
 
-    struct devreq_file *file = DEVREQ_FILE(req);
+    struct devreq_file *file = DEVREQ_ECHO_FILE(req);
     if (file->path) {
         Std_Echo = fopen(file->path, "w");  // null on error
         if (!Std_Echo) {
@@ -260,6 +260,15 @@ DEVICE_CMD Open_Echo(REBREQ *req)
 }
 
 
+//
+//  Request_Size_IO: C
+//
+static i32 Request_Size_IO(REBREQ *req)
+{
+    (void)req; //unused
+    return sizeof(struct devreq_file);
+}
+
 /***********************************************************************
 **
 **  Command Dispatch Table (RDC_ enum order)
@@ -268,7 +277,7 @@ DEVICE_CMD Open_Echo(REBREQ *req)
 
 static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] =
 {
-    Request_Size_Rebreq,
+    Request_Size_IO,
     0,  // init
     Quit_IO,
     Open_IO,

@@ -242,6 +242,13 @@ inline static struct devreq_file* DEVREQ_FILE(struct rebol_devreq *req) {
     return cast(struct devreq_file*, req);
 }
 
+// Std-IO requests are the same as file requests
+// (because of its capablity of echoing to a file)
+inline static struct devreq_file* DEVREQ_ECHO_FILE(struct rebol_devreq *req) {
+    assert(req->device == RDI_STDIO);
+    return cast(struct devreq_file*, req);
+}
+
 inline static struct devreq_net *DEVREQ_NET(struct rebol_devreq *req) {
     assert(req->device == RDI_NET || req->device == RDI_DNS);
     return cast(struct devreq_net*, req);
